@@ -8,6 +8,17 @@ import { adminApi, thoughtsApi, url } from '../../lib/api'
 import { timeAgo } from '../../lib/format'
 import { useConfirm, useToast } from '../../components/feedback'
 import CustomSelect from '../../components/admin/CustomSelect'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 
 type ModerationMode = 'thoughts' | 'comments' | 'reports'
 
@@ -326,44 +337,46 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
       </>
     )
     return (
-      <tr key={t.id}>
-        <td className="text-sm text-muted">{timeAgo(t.createdAt)}</td>
-        <td>{link}</td>
-        <td>{String((t.paragraphIndex || 0) + 1)}</td>
-        <td className="thought-admin-cell">{t.selectedText || '—'}</td>
-        <td className="thought-admin-cell">
+      <TableRow key={t.id}>
+        <TableCell className="text-sm text-muted">{timeAgo(t.createdAt)}</TableCell>
+        <TableCell>{link}</TableCell>
+        <TableCell>{String((t.paragraphIndex || 0) + 1)}</TableCell>
+        <TableCell className="thought-admin-cell">{t.selectedText || '—'}</TableCell>
+        <TableCell className="thought-admin-cell">
           <strong>{t.thoughtText || ''}</strong>
-        </td>
-        <td>
+        </TableCell>
+        <TableCell>
           <ThoughtUser t={t} />
-        </td>
-        <td>
-          <span className={`badge badge--${visible ? 'ongoing' : 'completed'}`}>{visible ? '可见' : '已隐藏'}</span>
-        </td>
-        <td className="table-actions">
-          {visible ? (
-            <button className="btn-table btn-hide-thought" title="隐藏" onClick={() => void updateThoughtStatus(t.id, 'hidden')}>
-              隐藏
-            </button>
-          ) : (
-            <button className="btn-table btn-restore-thought" title="恢复" onClick={() => void updateThoughtStatus(t.id, 'visible')}>
-              恢复
-            </button>
-          )}
-          <button className="btn-table btn-table--delete btn-delete-thought" title="永久删除" onClick={() => void deleteThought(t)}>
-            删除
-          </button>
-        </td>
-      </tr>
+        </TableCell>
+        <TableCell>
+          <Badge className={visible ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}>{visible ? '可见' : '已隐藏'}</Badge>
+        </TableCell>
+        <TableCell>
+          <div className="flex items-center gap-1">
+            {visible ? (
+              <Button variant="ghost" size="sm" title="隐藏" onClick={() => void updateThoughtStatus(t.id, 'hidden')}>
+                隐藏
+              </Button>
+            ) : (
+              <Button variant="ghost" size="sm" title="恢复" onClick={() => void updateThoughtStatus(t.id, 'visible')}>
+                恢复
+              </Button>
+            )}
+            <Button variant="ghost" size="sm" title="永久删除" onClick={() => void deleteThought(t)}>
+              删除
+            </Button>
+          </div>
+        </TableCell>
+      </TableRow>
     )
   }
 
   function renderCommentRow(c: CommentRow) {
     const visible = (c.status || 'visible') === 'visible'
     return (
-      <tr key={c.id}>
-        <td className="text-sm text-muted">{timeAgo(c.createdAt)}</td>
-        <td>
+      <TableRow key={c.id}>
+        <TableCell className="text-sm text-muted">{timeAgo(c.createdAt)}</TableCell>
+        <TableCell>
           {c.novelId ? (
             <Link to={`/novel/${encodeURIComponent(c.novelId)}`}>
               <strong>{c.novelTitle || c.novelId}</strong>
@@ -377,58 +390,60 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
               <span className="text-sm text-muted">回复</span>
             </>
           ) : null}
-        </td>
-        <td>{c.userDisplayName || c.userUsername || c.displayName || c.userId}</td>
-        <td className="thought-admin-cell">
+        </TableCell>
+        <TableCell>{c.userDisplayName || c.userUsername || c.displayName || c.userId}</TableCell>
+        <TableCell className="thought-admin-cell">
           <strong>{c.commentText || ''}</strong>
           {c.hasSpoiler ? (
             <>
               <br />
-              <span className="spoiler-badge">剧透</span>
+              <Badge className="mt-1 bg-accent/10 text-accent">剧透</Badge>
             </>
           ) : null}
-        </td>
-        <td className="text-sm text-muted">
+        </TableCell>
+        <TableCell className="text-sm text-muted">
           赞 {c.likeCount || 0}
           <br />
           举报 {c.reportCount || 0}
-        </td>
-        <td>
-          <span className={`badge badge--${visible ? 'ongoing' : 'completed'}`}>{visible ? '可见' : '已隐藏'}</span>
-        </td>
-        <td className="table-actions">
-          {visible ? (
-            <button className="btn-table btn-hide-comment" title="隐藏" onClick={() => void updateCommentStatus(c.id, 'hidden')}>
-              隐藏
-            </button>
-          ) : (
-            <button className="btn-table btn-restore-comment" title="恢复" onClick={() => void updateCommentStatus(c.id, 'visible')}>
-              恢复
-            </button>
-          )}
-          <button className="btn-table btn-table--delete btn-delete-comment" title="永久删除" onClick={() => void deleteComment(c)}>
-            删除
-          </button>
-        </td>
-      </tr>
+        </TableCell>
+        <TableCell>
+          <Badge className={visible ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}>{visible ? '可见' : '已隐藏'}</Badge>
+        </TableCell>
+        <TableCell>
+          <div className="flex items-center gap-1">
+            {visible ? (
+              <Button variant="ghost" size="sm" title="隐藏" onClick={() => void updateCommentStatus(c.id, 'hidden')}>
+                隐藏
+              </Button>
+            ) : (
+              <Button variant="ghost" size="sm" title="恢复" onClick={() => void updateCommentStatus(c.id, 'visible')}>
+                恢复
+              </Button>
+            )}
+            <Button variant="ghost" size="sm" title="永久删除" onClick={() => void deleteComment(c)}>
+              删除
+            </Button>
+          </div>
+        </TableCell>
+      </TableRow>
     )
   }
 
   function renderReportRow(r: ReportRow) {
     const pending = (r.status || 'open') === 'open'
     return (
-      <tr key={r.id}>
-        <td className="text-sm text-muted">{timeAgo(r.createdAt)}</td>
-        <td>
+      <TableRow key={r.id}>
+        <TableCell className="text-sm text-muted">{timeAgo(r.createdAt)}</TableCell>
+        <TableCell>
           {r.commentNovelId ? (
             <Link to={`/novel/${encodeURIComponent(r.commentNovelId)}`}>{r.novelTitle || r.commentNovelId || '—'}</Link>
           ) : (
             r.novelTitle || '—'
           )}
-        </td>
-        <td className="thought-admin-cell">{r.commentText || '评论已删除'}</td>
-        <td>{r.reporterDisplayName || r.reporterUsername || r.reportedBy}</td>
-        <td>
+        </TableCell>
+        <TableCell className="thought-admin-cell">{r.commentText || '评论已删除'}</TableCell>
+        <TableCell>{r.reporterDisplayName || r.reporterUsername || r.reportedBy}</TableCell>
+        <TableCell>
           {MODERATION_REASON_LABELS[r.reason || ''] || r.reason}
           {r.note ? (
             <>
@@ -436,57 +451,59 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
               <span className="text-sm text-muted">{r.note}</span>
             </>
           ) : null}
-        </td>
-        <td>
-          <span className={`badge badge--${pending ? 'ongoing' : 'completed'}`}>{r.status}</span>
-        </td>
-        <td className="table-actions">
+        </TableCell>
+        <TableCell>
+          <Badge className={r.status === 'resolved' ? 'bg-success/10 text-success' : r.status === 'dismissed' ? 'bg-muted/20 text-muted-foreground' : 'bg-warning/10 text-warning'}>
+            {r.status}
+          </Badge>
+        </TableCell>
+        <TableCell>
           {pending ? (
-            <>
-              <button className="btn-table btn-report-hide" title="隐藏并解决" onClick={() => void resolveReport(r.id, 'resolved', 'hide')}>
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="sm" title="隐藏并解决" onClick={() => void resolveReport(r.id, 'resolved', 'hide')}>
                 隐藏并解决
-              </button>
-              <button className="btn-table btn-report-resolve" title="解决" onClick={() => void resolveReport(r.id, 'resolved', 'none')}>
+              </Button>
+              <Button variant="ghost" size="sm" title="解决" onClick={() => void resolveReport(r.id, 'resolved', 'none')}>
                 解决
-              </button>
-              <button className="btn-table btn-report-dismiss" title="驳回" onClick={() => void resolveReport(r.id, 'dismissed', 'none')}>
+              </Button>
+              <Button variant="ghost" size="sm" title="驳回" onClick={() => void resolveReport(r.id, 'dismissed', 'none')}>
                 驳回
-              </button>
-            </>
+              </Button>
+            </div>
           ) : (
             '—'
           )}
-        </td>
-      </tr>
+        </TableCell>
+      </TableRow>
     )
   }
 
   function renderBody() {
     if (loading) {
       return (
-        <tr>
-          <td colSpan={cfg.head.length} className="table-empty">
+        <TableRow>
+          <TableCell colSpan={cfg.head.length} className="table-empty">
             加载中…
-          </td>
-        </tr>
+          </TableCell>
+        </TableRow>
       )
     }
     if (error) {
       return (
-        <tr>
-          <td colSpan={cfg.head.length} className="table-empty">
+        <TableRow>
+          <TableCell colSpan={cfg.head.length} className="table-empty">
             加载失败：{error}
-          </td>
-        </tr>
+          </TableCell>
+        </TableRow>
       )
     }
     if (rows.length === 0) {
       return (
-        <tr>
-          <td colSpan={cfg.head.length} className="table-empty">
+        <TableRow>
+          <TableCell colSpan={cfg.head.length} className="table-empty">
             暂无{cfg.label}
-          </td>
-        </tr>
+          </TableCell>
+        </TableRow>
       )
     }
     return rows.map((r) => {
@@ -524,9 +541,9 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
             onChange={handleStatusChange}
           />
           {cfg.showUser && (
-            <input
+            <Input
               type="text"
-              className="form-input admin-input--compact admin-input--user"
+              className="admin-input--compact admin-input--user"
               placeholder="用户ID"
               value={userInput}
               onChange={handleUserChange}
@@ -541,29 +558,29 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
               onChange={handleReasonChange}
             />
           )}
-          <input
+          <Input
             type="text"
-            className="form-input admin-input--compact admin-input--search-wide"
+            className="admin-input--compact admin-input--search-wide"
             placeholder={cfg.searchPlaceholder}
             value={searchInput}
             onChange={handleSearchChange}
           />
-          <button className="btn btn--secondary btn--sm" onClick={() => void load()}>
+          <Button variant="secondary" size="sm" onClick={() => void load()}>
             刷新
-          </button>
+          </Button>
         </div>
       </div>
       <div className="table-wrapper">
-        <table>
-          <thead>
-            <tr>
+        <Table>
+          <TableHeader>
+            <TableRow>
               {cfg.head.map((h, i) => (
-                <th key={i}>{h}</th>
+                <TableHead key={i}>{h}</TableHead>
               ))}
-            </tr>
-          </thead>
-          <tbody>{renderBody()}</tbody>
-        </table>
+            </TableRow>
+          </TableHeader>
+          <TableBody>{renderBody()}</TableBody>
+        </Table>
       </div>
     </section>
   )

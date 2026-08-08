@@ -9,6 +9,27 @@ import Pagination from '../../components/admin/Pagination'
 import { adminApi, chaptersApi } from '../../lib/api'
 import { timeAgo } from '../../lib/format'
 import type { ChapterMeta } from '@shared/types'
+import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { Textarea } from '@/components/ui/textarea'
+import { Pencil, Trash2 } from 'lucide-react'
 
 const PAGE_SIZE = 50
 
@@ -278,35 +299,35 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
           </span>
         </div>
         <div className="admin-toolbar__group">
-          <input
+          <Input
             type="text"
-            className="form-input admin-input--compact"
+            className="admin-input--compact"
             placeholder="搜索章节标题…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-          <button className="btn btn--secondary btn--sm" onClick={() => setRenameModal(true)} disabled={!selectedNovel}>
+          <Button variant="secondary" size="sm" onClick={() => setRenameModal(true)} disabled={!selectedNovel}>
             融合章节名
-          </button>
-          <button className="btn btn--secondary btn--sm" onClick={() => setSelectedIds((prev) => {
+          </Button>
+          <Button variant="secondary" size="sm" onClick={() => setSelectedIds((prev) => {
             const pageIds = pageRows.map((c) => c.id)
             const next = new Set(prev)
             pageIds.forEach((id) => (next.has(id) ? next.delete(id) : next.add(id)))
             return next
           })} disabled={selectedIds.size === 0}>
             反选
-          </button>
-          <button className="btn btn--danger btn--sm" onClick={() => void batchDelete()} disabled={selectedIds.size === 0}>
+          </Button>
+          <Button variant="destructive" size="sm" onClick={() => void batchDelete()} disabled={selectedIds.size === 0}>
             批量删除{selectedIds.size > 0 ? ` (${selectedIds.size})` : ''}
-          </button>
-          <button className="btn btn--primary btn--sm" onClick={() => void openChapterModal(null)}>
+          </Button>
+          <Button size="sm" onClick={() => void openChapterModal(null)}>
             添加章节
-          </button>
+          </Button>
         </div>
       </div>
 
       <div className="form-row chapter-novel-row">
-        <label className="form-label">选择小说</label>
+        <Label>选择小说</Label>
         <CustomSelect
           className="chapter-novel-select"
           searchable
@@ -325,173 +346,156 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
       </div>
 
       <div className="table-wrapper">
-        <table>
-          <thead>
-            <tr>
-              <th>
-                <input
-                  type="checkbox"
-                  checked={pageAllSelected}
-                  ref={(el) => {
-                    if (el) el.indeterminate = pageSomeSelected && !pageAllSelected
-                  }}
-                  onChange={toggleAll}
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>
+                <Checkbox
+                  checked={pageAllSelected ? true : pageSomeSelected ? 'indeterminate' : false}
+                  onCheckedChange={toggleAll}
                 />
-              </th>
-              <th>序号</th>
-              <th>章节标题</th>
-              <th>字数</th>
-              <th>创建时间</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
+              </TableHead>
+              <TableHead>序号</TableHead>
+              <TableHead>章节标题</TableHead>
+              <TableHead>字数</TableHead>
+              <TableHead>创建时间</TableHead>
+              <TableHead>操作</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {!selectedNovel ? (
-              <tr>
-                <td colSpan={6} className="table-empty">
+              <TableRow>
+                <TableCell colSpan={6} className="table-empty">
                   请先选择小说
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ) : pageRows.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="table-empty">
+              <TableRow>
+                <TableCell colSpan={6} className="table-empty">
                   {search ? '没有匹配的章节' : '暂无章节'}
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ) : (
               pageRows.map((c) => (
-                <tr key={c.id}>
-                  <td>
-                    <input type="checkbox" checked={selectedIds.has(c.id)} onChange={() => toggleSelect(c.id)} />
-                  </td>
-                  <td>{c.order || '—'}</td>
-                  <td>{c.title}</td>
-                  <td>{c.wordCount || '—'}</td>
-                  <td className="text-sm text-muted">{timeAgo(c.createdAt)}</td>
-                  <td className="table-actions">
-                    <button className="btn-table btn-table--edit" title="编辑" onClick={() => void openChapterModal(c)}>
-                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M11 2.5l2.5 2.5L5.5 13H3v-2.5L11 2.5z" />
-                      </svg>
-                    </button>
-                    <button className="btn-table btn-table--delete" title="删除" onClick={() => void deleteChapter(c)}>
-                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M3 5h10M6.5 5V3.5h3V5M4.5 5l.5 7.5h6l.5-7.5" />
-                      </svg>
-                    </button>
-                  </td>
-                </tr>
+                <TableRow key={c.id}>
+                  <TableCell>
+                    <Checkbox checked={selectedIds.has(c.id)} onCheckedChange={() => toggleSelect(c.id)} />
+                  </TableCell>
+                  <TableCell>{c.order || '—'}</TableCell>
+                  <TableCell>{c.title}</TableCell>
+                  <TableCell>{c.wordCount || '—'}</TableCell>
+                  <TableCell className="text-sm text-muted">{timeAgo(c.createdAt)}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="icon" title="编辑" onClick={() => void openChapterModal(c)}>
+                        <Pencil className="size-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" title="删除" onClick={() => void deleteChapter(c)}>
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
               ))
             )}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
 
       <Pagination page={currentPage} totalPages={totalPages} onPage={setPage} />
 
-      {modal.open && (
-        <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setModal({ open: false, chapter: null, loading: false })}>
-          <div className="modal modal--editor">
-            <div className="modal__header">
-              <h3 className="modal__title">{modal.chapter ? '编辑章节' : '添加章节'}</h3>
-              <button className="btn btn--icon btn--ghost" aria-label="关闭" onClick={() => setModal({ open: false, chapter: null, loading: false })}>
-                &times;
-              </button>
-            </div>
-            <div className="modal__body">
-              <label className="form-label">序号</label>
-              <input
-                className="form-input"
-                type="number"
-                min={1}
-                value={draft.order}
-                onChange={(e) => setDraft({ ...draft, order: Number.parseInt(e.target.value, 10) || 1 })}
-              />
-              <label className="form-label">章节标题</label>
-              <input className="form-input" value={draft.title} placeholder="章节标题" onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
-              <label className="form-label">正文</label>
-              {modal.loading ? (
-                <div className="loading-center">
-                  <div className="spinner"></div>
-                </div>
-              ) : (
-                <textarea className="form-input" rows={14} value={draft.content} placeholder="章节正文…" onChange={(e) => setDraft({ ...draft, content: e.target.value })} />
-              )}
-            </div>
-            <div className="modal__footer">
-              <button className="btn btn--secondary" onClick={() => setModal({ open: false, chapter: null, loading: false })}>
-                取消
-              </button>
-              <button className="btn btn--primary" disabled={modal.loading} onClick={() => void saveChapter()}>
-                保存
-              </button>
-            </div>
+      <Dialog open={modal.open} onOpenChange={(open) => { if (!open) setModal({ open: false, chapter: null, loading: false }) }}>
+        <DialogContent className="sm:max-w-[540px]">
+          <DialogHeader>
+            <DialogTitle>{modal.chapter ? '编辑章节' : '添加章节'}</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 overflow-y-auto max-h-[70vh]">
+            <Label>序号</Label>
+            <Input
+              type="number"
+              min={1}
+              value={draft.order}
+              onChange={(e) => setDraft({ ...draft, order: Number.parseInt(e.target.value, 10) || 1 })}
+            />
+            <Label>章节标题</Label>
+            <Input value={draft.title} placeholder="章节标题" onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
+            <Label>正文</Label>
+            {modal.loading ? (
+              <div className="loading-center">
+                <div className="spinner"></div>
+              </div>
+            ) : (
+              <Textarea rows={14} className="min-h-[300px]" value={draft.content} placeholder="章节正文…" onChange={(e) => setDraft({ ...draft, content: e.target.value })} />
+            )}
           </div>
-        </div>
-      )}
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setModal({ open: false, chapter: null, loading: false })}>
+              取消
+            </Button>
+            <Button disabled={modal.loading} onClick={() => void saveChapter()}>
+              保存
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-      {renameModal && (
-        <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setRenameModal(false)}>
-          <div className="modal modal--editor">
-            <div className="modal__header">
-              <h3 className="modal__title">融合章节名</h3>
-              <button className="btn btn--icon btn--ghost" aria-label="关闭" onClick={() => { setRenameModal(false); setRenamePreview(null) }}>
-                &times;
-              </button>
-            </div>
-            <div className="modal__body">
-              <p className="text-sm text-muted">将源站章节标题（每行一个）按顺序替换本地弱标题（如「第1章」「正文」等占位标题）。</p>
-              <label className="form-label">源站章节标题</label>
-              <textarea
-                className="form-input"
-                rows={8}
-                placeholder={'第一章 起点\n第二章 转折\n第三章 真相…'}
-                value={renameTitles}
-                onChange={(e) => {
-                  setRenameTitles(e.target.value)
-                  setRenamePreview(null)
-                }}
-              />
-              {renamePreview && (
-                <div className="rename-preview">
-                  {renamePreview.length === 0 ? (
-                    <p className="text-sm text-muted">没有可更新的弱标题。</p>
-                  ) : (
-                    <>
-                      <p className="text-sm text-muted">将更新 {renamePreview.length} 个章节名：</p>
-                      <div className="import-chapter-preview__list">
-                        {renamePreview.slice(0, 80).map((r) => (
-                          <div className="import-chapter-preview__item" key={r.order}>
-                            <span className="text-muted">{r.order}.</span>
-                            <span className="old-title">{r.oldTitle}</span>
-                            <span className="arrow">→</span>
-                            <span className="new-title">{r.newTitle}</span>
-                          </div>
-                        ))}
-                        {renamePreview.length > 80 && <p className="text-sm text-muted">另有 {renamePreview.length - 80} 章未显示…</p>}
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-            <div className="modal__footer">
-              <button className="btn btn--secondary" onClick={() => setRenameModal(false)}>
-                取消
-              </button>
-              {renamePreview ? (
-                <button className="btn btn--primary" disabled={renaming || renamePreview.length === 0} onClick={() => void applyRename()}>
-                  {renaming ? '更新中…' : '确认更新'}
-                </button>
-              ) : (
-                <button className="btn btn--secondary" disabled={renaming} onClick={() => void previewRename()}>
-                  {renaming ? '预览中…' : '预览'}
-                </button>
-              )}
-            </div>
+      <Dialog open={renameModal} onOpenChange={(open) => { if (!open) { setRenameModal(false); setRenamePreview(null) } }}>
+        <DialogContent className="sm:max-w-[540px]">
+          <DialogHeader>
+            <DialogTitle>融合章节名</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 overflow-y-auto max-h-[70vh]">
+            <p className="text-sm text-muted">将源站章节标题（每行一个）按顺序替换本地弱标题（如「第1章」「正文」等占位标题）。</p>
+            <Label>源站章节标题</Label>
+            <Textarea
+              rows={8}
+              className="min-h-[120px]"
+              placeholder={'第一章 起点\n第二章 转折\n第三章 真相…'}
+              value={renameTitles}
+              onChange={(e) => {
+                setRenameTitles(e.target.value)
+                setRenamePreview(null)
+              }}
+            />
+            {renamePreview && (
+              <div className="rename-preview">
+                {renamePreview.length === 0 ? (
+                  <p className="text-sm text-muted">没有可更新的弱标题。</p>
+                ) : (
+                  <>
+                    <p className="text-sm text-muted">将更新 {renamePreview.length} 个章节名：</p>
+                    <div className="import-chapter-preview__list">
+                      {renamePreview.slice(0, 80).map((r) => (
+                        <div className="import-chapter-preview__item" key={r.order}>
+                          <span className="text-muted">{r.order}.</span>
+                          <span className="old-title">{r.oldTitle}</span>
+                          <span className="arrow">→</span>
+                          <span className="new-title">{r.newTitle}</span>
+                        </div>
+                      ))}
+                      {renamePreview.length > 80 && <p className="text-sm text-muted">另有 {renamePreview.length - 80} 章未显示…</p>}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </div>
-        </div>
-      )}
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setRenameModal(false)}>
+              取消
+            </Button>
+            {renamePreview ? (
+              <Button disabled={renaming || renamePreview.length === 0} onClick={() => void applyRename()}>
+                {renaming ? '更新中…' : '确认更新'}
+              </Button>
+            ) : (
+              <Button variant="secondary" disabled={renaming} onClick={() => void previewRename()}>
+                {renaming ? '预览中…' : '预览'}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </section>
   )
 }

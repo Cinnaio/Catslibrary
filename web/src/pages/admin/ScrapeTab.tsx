@@ -5,11 +5,20 @@
  * 即 scrapeApi.start 走自托管 Node API。所有抓取任务都通过任务卡片轮询。
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { BookOpen, ChevronLeft, ChevronRight, CircleMinus, RefreshCw, RotateCcw, Search, X } from 'lucide-react'
 import { authHeaders, novelsApi, scrapeApi, url } from '../../lib/api'
 import { formatDateTime } from '../../lib/format'
 import { formatEta, formatJobSpeed, isJobRunning, isJobTerminal, jobStatusLabel } from '../../lib/admin'
 import { useConfirm, useToast } from '../../components/feedback'
 import CustomSelect from '../../components/admin/CustomSelect'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Progress } from '@/components/ui/progress'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Textarea } from '@/components/ui/textarea'
 
 // ---------- helpers ----------
 
@@ -191,7 +200,13 @@ const FALLBACK_COVER = 'https://wap.po18x.vip/17mb/style/noimg.jpg'
 
 function supportBadge(support: string | undefined) {
   const label = support === 'full' ? '可用' : support === 'partial' ? '需核验' : '不支持'
-  return <span className={`support-badge support-badge--${support || 'unsupported'}`}>{label}</span>
+  const cls =
+    support === 'full'
+      ? 'bg-success/10 text-success'
+      : support === 'partial'
+        ? 'bg-warning/10 text-warning'
+        : 'bg-secondary text-muted-foreground'
+  return <Badge className={cls}>{label}</Badge>
 }
 
 function coverOnError(e: React.SyntheticEvent<HTMLImageElement>) {
@@ -629,27 +644,26 @@ function CenterView() {
   function renderJobCard(job: JobCard) {
     const running = isJobRunning(job.status)
     const terminal = isJobTerminal(job.status)
-    let statusCls = 'job-status--running'
+    let statusCls = 'bg-info/10 text-info'
     let statusText = jobStatusLabel(job.status)
     if (job.status === 'completed') {
-      statusCls = 'job-status--completed'
+      statusCls = 'bg-success/10 text-success'
       statusText = '✓ ' + jobStatusLabel(job.status)
     } else if (job.status === 'partial') {
-      statusCls = 'job-status--partial'
+      statusCls = 'bg-warning/10 text-warning'
       statusText = '⚠ ' + jobStatusLabel(job.status)
     } else if (job.status === 'failed') {
-      statusCls = 'job-status--failed'
+      statusCls = 'bg-destructive/10 text-destructive'
       statusText = '✕ ' + jobStatusLabel(job.status)
     } else if (job.status === 'cancelled') {
-      statusCls = 'job-status--cancelled'
+      statusCls = 'bg-muted text-muted-foreground'
       statusText = '— ' + jobStatusLabel(job.status)
     }
 
     let pct = job.progress != null ? job.progress * 100 : 5
     if (job.total > 0 && job.current != null) pct = Math.min((job.current / job.total) * 95, 95)
     if (terminal) pct = 100
-    const width = Math.max(pct, 2) + '%'
-    const fillCls = job.status === 'failed' ? ' progress-bar__fill--failed' : job.status === 'cancelled' ? ' progress-bar__fill--cancelled' : ''
+    const fillCls = job.status === 'failed' ? '[&_[data-slot=progress-indicator]]:bg-destructive' : job.status === 'cancelled' ? '[&_[data-slot=progress-indicator]]:bg-muted-foreground' : ''
 
     return (
       <div className="card scrape-step job-card" key={job.jobId} data-job-id={job.jobId}>
@@ -657,45 +671,30 @@ function CenterView() {
           <div className="job-card__title">
             {running ? <div className="spinner"></div> : <span style={{ width: 16, height: 16 }}></span>}
             <span className="text-sm job-card__name">{job.novelTitle}</span>
-            <span className={`job-status ${statusCls}`}>{statusText}</span>
+            <Badge className={statusCls}>{statusText}</Badge>
           </div>
           <div className="job-card__actions">
             {job.failedCount > 0 && (
-              <button className="btn-table btn-table--update btn-retry-failed-job" title="重试失败章节" onClick={() => void retryFailedJob(job.jobId)}>
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M3 8a5 5 0 1 0 1.5-3.6" />
-                  <polyline points="3 2 3 5 6 5" />
-                  <path d="M8 5v4l2.5 1.5" />
-                </svg>
-              </button>
+              <Button variant="ghost" size="icon" className="btn-retry-failed-job" title="重试失败章节" onClick={() => void retryFailedJob(job.jobId)}>
+                <RotateCcw className="size-4" />
+              </Button>
             )}
             {!running && (job.status === 'failed' || job.status === 'cancelled' || job.status === 'partial') && (
-              <button className="btn-table btn-table--update btn-retry-job" title="整本重试" onClick={() => void retryJob(job.jobId)}>
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="2 2 2 6 6 6" />
-                  <path d="M3.5 10.5A6 6 0 1 0 8 2a5.9 5.9 0 0 0-4.5 2" />
-                </svg>
-              </button>
+              <Button variant="ghost" size="icon" className="btn-retry-job" title="整本重试" onClick={() => void retryJob(job.jobId)}>
+                <RefreshCw className="size-4" />
+              </Button>
             )}
             {terminal && (
-              <button className="btn-table btn-table--cancel btn-dismiss-job" title="清除" onClick={() => removeJobCard(job.jobId)}>
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="4" y1="4" x2="12" y2="12" />
-                  <line x1="12" y1="4" x2="4" y2="12" />
-                </svg>
-              </button>
+              <Button variant="ghost" size="icon" className="btn-dismiss-job" title="清除" onClick={() => removeJobCard(job.jobId)}>
+                <X className="size-4" />
+              </Button>
             )}
-            <button className="btn-table btn-table--delete btn-cancel-job" title="终止" onClick={() => void cancelJob(job.jobId)}>
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="8" cy="8" r="6" />
-                <line x1="5" y1="8" x2="11" y2="8" />
-              </svg>
-            </button>
+            <Button variant="ghost" size="icon" className="btn-cancel-job" title="终止" onClick={() => void cancelJob(job.jobId)}>
+              <CircleMinus className="size-4" />
+            </Button>
           </div>
         </div>
-        <div className="progress-bar">
-          <div className={`progress-bar__fill${fillCls}`} style={{ width }}></div>
-        </div>
+        <Progress value={pct} className={fillCls} />
         <div className="scrape-job-metrics">
           <span>
             成功 <strong>{job.successCount}</strong>
@@ -769,16 +768,16 @@ function CenterView() {
             <h3 className="step-title">智能分析小说</h3>
             <div className="step-body">
               <div className="input-row">
-                <input
+                <Input
                   type="url"
-                  className="form-input flex-1 admin-input--compact"
+                  className="flex-1 admin-input--compact"
                   placeholder="https://wap.po18x.vip/book/10075/"
                   value={sourceUrl}
                   onChange={(e) => setSourceUrl(e.target.value)}
                 />
-                <button className="btn btn--primary btn--sm" onClick={() => void analyzeUrl()} disabled={analyzing}>
+                <Button size="sm" onClick={() => void analyzeUrl()} disabled={analyzing}>
                   {analyzing ? '分析中…' : '智能分析'}
-                </button>
+                </Button>
               </div>
               <div className="analyze-result">
                 {analyzing ? (
@@ -809,20 +808,20 @@ function CenterView() {
                   ) : null}
                   <div className="scrape-preview__form">
                     <div className="form-group">
-                      <label className="form-label">书名</label>
-                      <input className="form-input" value={preview.title} onChange={(e) => setPreview({ ...preview, title: e.target.value })} />
+                      <Label className="mb-1.5">书名</Label>
+                      <Input value={preview.title} onChange={(e) => setPreview({ ...preview, title: e.target.value })} />
                     </div>
                     <div className="form-group">
-                      <label className="form-label">作者</label>
-                      <input className="form-input" value={preview.author} onChange={(e) => setPreview({ ...preview, author: e.target.value })} />
+                      <Label className="mb-1.5">作者</Label>
+                      <Input value={preview.author} onChange={(e) => setPreview({ ...preview, author: e.target.value })} />
                     </div>
                     <div className="scrape-preview__grid">
                       <div className="form-group">
-                        <label className="form-label">分类</label>
-                        <input className="form-input" value={preview.category} placeholder="玄幻, 修真" onChange={(e) => setPreview({ ...preview, category: e.target.value })} />
+                        <Label className="mb-1.5">分类</Label>
+                        <Input value={preview.category} placeholder="玄幻, 修真" onChange={(e) => setPreview({ ...preview, category: e.target.value })} />
                       </div>
                       <div className="form-group">
-                        <label className="form-label">状态</label>
+                        <Label className="mb-1.5">状态</Label>
                         <CustomSelect
                           compact
                           options={[
@@ -835,16 +834,16 @@ function CenterView() {
                       </div>
                     </div>
                     <div className="form-group">
-                      <label className="form-label">简介</label>
-                      <textarea className="form-input" rows={3} value={preview.description} onChange={(e) => setPreview({ ...preview, description: e.target.value })} />
+                      <Label className="mb-1.5">简介</Label>
+                      <Textarea rows={3} value={preview.description} onChange={(e) => setPreview({ ...preview, description: e.target.value })} />
                     </div>
                     <div className="action-row admin-action-row">
-                      <button className="btn btn--primary" onClick={() => void confirmNovel()} disabled={confirming || !!currentScrapeNovelId}>
+                      <Button onClick={() => void confirmNovel()} disabled={confirming || !!currentScrapeNovelId}>
                         {confirming ? '创建中…' : '确认并创建小说'}
-                      </button>
-                      <button className="btn btn--secondary" onClick={skipToScrape} disabled={!!currentScrapeNovelId}>
+                      </Button>
+                      <Button variant="secondary" onClick={skipToScrape} disabled={!!currentScrapeNovelId}>
                         跳过 (已有小说)
-                      </button>
+                      </Button>
                     </div>
                     {currentScrapeNovelId && <div className="success-text scrape-ready-note">小说已就绪，ID: {currentScrapeNovelId}</div>}
                   </div>
@@ -853,9 +852,9 @@ function CenterView() {
                 {showScrapeConfig && (
                   <div id="stepScrapeConfig">
                     <div className="action-row scrape-action-row">
-                      <button className="btn btn--primary btn--sm" onClick={() => void startScrape()}>
+                      <Button size="sm" onClick={() => void startScrape()}>
                         开始抓取
-                      </button>
+                      </Button>
                     </div>
                     <button className={`toggle-advanced${advancedOpen ? ' open' : ''}`} onClick={() => setAdvancedOpen(!advancedOpen)}>
                       高级配置
@@ -873,36 +872,36 @@ function CenterView() {
                           </div>
                         </div>
                         <div className="form-row">
-                          <label className="form-label">章节列表页 URL</label>
-                          <input type="url" className="form-input" value={chapterListUrl} onChange={(e) => setChapterListUrl(e.target.value)} />
+                          <Label className="mb-1.5">章节列表页 URL</Label>
+                          <Input type="url" value={chapterListUrl} onChange={(e) => setChapterListUrl(e.target.value)} />
                         </div>
                         <div className="form-row">
-                          <label className="form-label">编码</label>
-                          <input className="form-input" value={activeEncoding} placeholder="utf-8 / gbk" onChange={(e) => setActiveEncoding(e.target.value)} />
+                          <Label className="mb-1.5">编码</Label>
+                          <Input value={activeEncoding} placeholder="utf-8 / gbk" onChange={(e) => setActiveEncoding(e.target.value)} />
                         </div>
                         <div className="action-row scrape-action-row">
-                          <button className="btn btn--secondary btn--sm" onClick={() => void testSelectors()}>
+                          <Button variant="secondary" size="sm" onClick={() => void testSelectors()}>
                             测试选择器
-                          </button>
+                          </Button>
                         </div>
                         <fieldset className="selector-fieldset">
                           <legend>选择器配置</legend>
                           <div className="selector-grid">
                             <div className="form-group">
-                              <label className="form-label">章节列表</label>
-                              <input className="form-input" placeholder=".chapter-list a" value={selectors.chapterList} onChange={(e) => setSelectors({ ...selectors, chapterList: e.target.value })} />
+                              <Label className="mb-1.5">章节列表</Label>
+                              <Input placeholder=".chapter-list a" value={selectors.chapterList} onChange={(e) => setSelectors({ ...selectors, chapterList: e.target.value })} />
                             </div>
                             <div className="form-group">
-                              <label className="form-label">章节标题</label>
-                              <input className="form-input" placeholder="h1" value={selectors.chapterTitle} onChange={(e) => setSelectors({ ...selectors, chapterTitle: e.target.value })} />
+                              <Label className="mb-1.5">章节标题</Label>
+                              <Input placeholder="h1" value={selectors.chapterTitle} onChange={(e) => setSelectors({ ...selectors, chapterTitle: e.target.value })} />
                             </div>
                             <div className="form-group">
-                              <label className="form-label">章节内容</label>
-                              <input className="form-input" placeholder="#content" value={selectors.chapterContent} onChange={(e) => setSelectors({ ...selectors, chapterContent: e.target.value })} />
+                              <Label className="mb-1.5">章节内容</Label>
+                              <Input placeholder="#content" value={selectors.chapterContent} onChange={(e) => setSelectors({ ...selectors, chapterContent: e.target.value })} />
                             </div>
                             <div className="form-group">
-                              <label className="form-label">下一页</label>
-                              <input className="form-input" placeholder=".next a (可选)" value={selectors.nextPage} onChange={(e) => setSelectors({ ...selectors, nextPage: e.target.value })} />
+                              <Label className="mb-1.5">下一页</Label>
+                              <Input placeholder=".next a (可选)" value={selectors.nextPage} onChange={(e) => setSelectors({ ...selectors, nextPage: e.target.value })} />
                             </div>
                           </div>
                         </fieldset>
@@ -916,7 +915,7 @@ function CenterView() {
                         </div>
                       ) : testResult.data && testResult.data.links && testResult.data.links.length > 0 ? (
                         <>
-                          <div className="badge badge--completed scrape-test-badge">测试成功 — 找到 {testResult.data.links.length} 个章节链接</div>
+                          <Badge className="bg-success/10 text-success scrape-test-badge">测试成功 — 找到 {testResult.data.links.length} 个章节链接</Badge>
                           <div className="scrape-test-links">
                             {testResult.data.links.slice(0, 20).map((l: any, i: number) => (
                               <div key={i}>
@@ -927,7 +926,7 @@ function CenterView() {
                           </div>
                         </>
                       ) : testResult.empty ? (
-                        <div className="badge badge--ongoing">未找到任何链接，请检查选择器</div>
+                        <Badge variant="secondary" className="scrape-test-badge">未找到任何链接，请检查选择器</Badge>
                       ) : testResult.error ? (
                         <div className="text-sm error-text">测试失败: {testResult.error}</div>
                       ) : null}
@@ -984,12 +983,12 @@ function CenterView() {
         <h3 className="admin-card-title">爬虫配置</h3>
         <p className="text-sm text-muted admin-card-desc">导出/导入所有小说的爬虫配置，方便换设备时迁移。</p>
         <div className="action-row admin-action-row">
-          <button className="btn btn--secondary btn--sm" onClick={() => void exportConfigs()}>
+          <Button variant="secondary" size="sm" onClick={() => void exportConfigs()}>
             导出配置
-          </button>
-          <button className="btn btn--secondary btn--sm" onClick={() => configFileRef.current?.click()}>
+          </Button>
+          <Button variant="secondary" size="sm" onClick={() => configFileRef.current?.click()}>
             导入配置
-          </button>
+          </Button>
           <input ref={configFileRef} type="file" accept=".json" hidden onChange={(e) => void handleConfigFileSelected(e)} />
           <span className="text-sm text-muted admin-inline-status">{configImportStatus}</span>
         </div>
@@ -1221,13 +1220,10 @@ function DiscoverView() {
       <div className="discover-toolbar">
         <div className="discover-toolbar__action discover-toolbar__action--search">
           <div className="discover-toolbar__field">
-            <svg className="discover-toolbar__field-icon" viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="7.5" cy="7.5" r="4.5" />
-              <line x1="10.8" y1="10.8" x2="14" y2="14" />
-            </svg>
-            <input
+            <Search className="discover-toolbar__field-icon size-3.5" />
+            <Input
               type="text"
-              className="form-input"
+              className="pl-9"
               placeholder="搜索 PO18 书名/作者…"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
@@ -1244,27 +1240,21 @@ function DiscoverView() {
               作者
             </button>
           </div>
-          <button className="btn btn--secondary btn--sm" onClick={() => void fetchPo18Search()}>
+          <Button variant="secondary" size="sm" onClick={() => void fetchPo18Search()}>
             搜索 PO18
-          </button>
+          </Button>
         </div>
 
         <div className="discover-toolbar__action discover-toolbar__action--list">
           <CustomSelect className="discover-site-select" options={PO18_SITES} value={siteValue} onChange={onSiteChange} placeholder="PO18 榜单" />
           <div className="discover-toolbar__field">
-            <svg className="discover-toolbar__field-icon" viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="7.5" cy="7.5" r="4.5" />
-              <line x1="10.8" y1="10.8" x2="14" y2="14" />
-            </svg>
-            <input type="text" className="form-input" placeholder="粘贴榜单页面 URL…" value={discoverUrl} onChange={(e) => setDiscoverUrl(e.target.value)} />
+            <Search className="discover-toolbar__field-icon size-3.5" />
+            <Input type="text" className="pl-9" placeholder="粘贴榜单页面 URL…" value={discoverUrl} onChange={(e) => setDiscoverUrl(e.target.value)} />
           </div>
-          <button className="btn btn--primary btn--sm" onClick={() => void fetchDiscoverList()}>
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="4 7 7 10 12 4" />
-              <path d="M14 8A6 6 0 1 1 8 2" />
-            </svg>
+          <Button size="sm" onClick={() => void fetchDiscoverList()}>
+            <RefreshCw className="size-3.5" />
             获取榜单
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -1318,13 +1308,10 @@ function DiscoverView() {
 
       {selected.size > 0 && (
         <div className="discover-actions">
-          <button className="btn btn--primary" onClick={() => void batchScrapeDiscovered()}>
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M14 8A6 6 0 1 1 8 2" />
-              <polyline points="4 7 7 10 12 4" />
-            </svg>
+          <Button onClick={() => void batchScrapeDiscovered()}>
+            <RefreshCw className="size-3.5" />
             抓取选中
-          </button>
+          </Button>
           <span className="discover-actions__count">已选 {selected.size} 本</span>
         </div>
       )}
@@ -1332,9 +1319,7 @@ function DiscoverView() {
       {listUrlRef.current && totalPages > 1 && (
         <div className="discover-pagination">
           <button className="discover-pagination__btn" disabled={page <= 1} onClick={() => void goPage(page - 1)}>
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-              <polyline points="10 4 6 8 10 12" />
-            </svg>
+            <ChevronLeft className="size-3.5" />
             上一页
           </button>
           <span className="discover-pagination__info">
@@ -1358,17 +1343,15 @@ function DiscoverView() {
           </span>
           <button className="discover-pagination__btn" disabled={page >= totalPages} onClick={() => void goPage(page + 1)}>
             下一页
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-              <polyline points="6 4 10 8 6 12" />
-            </svg>
+            <ChevronRight className="size-3.5" />
           </button>
         </div>
       )}
 
       {/* Detail modal */}
       {detail && (
-        <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setDetail(null)}>
-          <div className="modal modal--detail modal--discover-detail">
+        <Dialog open onOpenChange={(open) => !open && setDetail(null)}>
+          <DialogContent className="sm:max-w-[680px] p-0 gap-0 flex flex-col overflow-hidden max-h-[86vh] rounded-[24px]" showCloseButton={false}>
             <div className="modal__header detail-modal__header discover-detail__header">
               <div className="editor-modal__mark discover-detail__mark" aria-hidden="true">
                 探
@@ -1377,11 +1360,11 @@ function DiscoverView() {
                 <div className="editor-modal__eyebrow">发现小说</div>
                 <h3 className="modal__title editor-modal__title">{detail.item.title}</h3>
               </div>
-              <button className="btn btn--icon btn--ghost editor-modal__close detail-modal__close" aria-label="关闭" onClick={() => setDetail(null)}>
-                &times;
-              </button>
+              <Button variant="ghost" size="icon" className="editor-modal__close detail-modal__close" aria-label="关闭" onClick={() => setDetail(null)}>
+                <X className="size-4" />
+              </Button>
             </div>
-            <div className="modal__body discover-detail__body">
+            <div className="discover-detail__body min-h-0 flex-1">
               {detail.loading ? (
                 <div className="discover-detail__loading">
                   <div className="spinner"></div>
@@ -1407,16 +1390,16 @@ function DiscoverView() {
                         {(detail.meta.novel?.categories || []).length > 0 && (
                           <div className="discover-detail__tags">
                             {(detail.meta.novel?.categories || []).map((c) => (
-                              <span className="tag" key={c}>
+                              <Badge variant="outline" key={c}>
                                 {c}
-                              </span>
+                              </Badge>
                             ))}
                           </div>
                         )}
                         {detail.meta.novel?.status && (
-                          <span className={`badge badge--${detail.meta.novel.status === 'completed' ? 'completed' : 'ongoing'}`}>
+                          <Badge className={detail.meta.novel.status === 'completed' ? 'bg-success/10 text-success' : 'bg-info/10 text-info'}>
                             {detail.meta.novel.status === 'completed' ? '已完结' : '连载中'}
-                          </span>
+                          </Badge>
                         )}
                       </div>
                     </div>
@@ -1447,39 +1430,36 @@ function DiscoverView() {
             </div>
             <div className="modal__footer editor-modal__footer discover-detail__footer">
               {detail.item.existing ? (
-                <span className="badge badge--completed discover-detail__footer-badge">已收藏</span>
+                <Badge className="bg-success/10 text-success discover-detail__footer-badge">已收藏</Badge>
               ) : (
-                <button className="btn btn--primary btn--sm" onClick={() => void scrapeFromDetail()} disabled={detail.scraping}>
+                <Button size="sm" onClick={() => void scrapeFromDetail()} disabled={detail.scraping}>
                   {detail.scraping ? '正在抓取…' : '抓取该小说'}
-                </button>
+                </Button>
               )}
-              <button className="btn btn--secondary btn--sm" onClick={() => setDetail(null)}>
+              <Button variant="secondary" size="sm" onClick={() => setDetail(null)}>
                 关闭
-              </button>
+              </Button>
             </div>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* Batch log modal */}
       {batch && (
-        <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && batch.done && setBatch(null)}>
-          <div className="modal modal--operation-log">
+        <Dialog open onOpenChange={(open) => !open && batch.done && setBatch(null)}>
+          <DialogContent className="sm:max-w-[800px] p-0 gap-0 flex flex-col overflow-hidden max-h-[80vh] rounded-[24px]" showCloseButton={false}>
             <div className="modal__header operation-log__header">
               <h3 className="modal__title">{batch.title}</h3>
-              <button className="btn btn--icon btn--ghost operation-log__close" aria-label="关闭" onClick={() => batch.done && setBatch(null)}>
-                &times;
-              </button>
+              <Button variant="ghost" size="icon" className="operation-log__close" aria-label="关闭" onClick={() => batch.done && setBatch(null)}>
+                <X className="size-4" />
+              </Button>
             </div>
             <div className="clean-log__body">
               <div className="clean-log__entries">
                 {batch.entries.map((e, i) =>
                   e.type === 'novel' ? (
                     <div className="log-novel" key={i}>
-                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" style={{ width: 16, height: 16, flexShrink: 0, opacity: 0.5 }}>
-                        <path d="M2 2.5v11a1 1 0 001 1h2.5L8 13l2.5 1.5H13a1 1 0 001-1v-11a1 1 0 00-1-1h-2.5L8 3 5.5 1.5H3a1 1 0 00-1 1z" />
-                        <line x1="8" y1="3" x2="8" y2="13" />
-                      </svg>
+                      <BookOpen className="size-4 shrink-0 opacity-50" />
                       {e.text}
                     </div>
                   ) : (
@@ -1505,12 +1485,12 @@ function DiscoverView() {
                   共 <strong>{batch.total}</strong>
                 </span>
               </div>
-              <button className="btn btn--secondary btn--sm" onClick={() => setBatch(null)}>
+              <Button variant="secondary" size="sm" onClick={() => setBatch(null)}>
                 关闭
-              </button>
+              </Button>
             </div>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
     </>
   )
@@ -1673,18 +1653,17 @@ function SourcesView({ active }: { active: boolean }) {
       <div className="card admin-panel-card">
         <h3 className="admin-card-title">导入书源</h3>
         <div className="form-group">
-          <label className="form-label">书源池 URL</label>
+          <Label className="mb-1.5">书源池 URL</Label>
           <div className="input-row">
-            <input type="url" className="form-input flex-1" placeholder="https://raw.githubusercontent.com/aoaostar/legado/release/sources/xxx.json" value={importUrl} onChange={(e) => setImportUrl(e.target.value)} />
-            <button className="btn btn--primary btn--sm" onClick={importFromUrl}>
+            <Input type="url" className="flex-1" placeholder="https://raw.githubusercontent.com/aoaostar/legado/release/sources/xxx.json" value={importUrl} onChange={(e) => setImportUrl(e.target.value)} />
+            <Button size="sm" onClick={importFromUrl}>
               拉取并导入
-            </button>
+            </Button>
           </div>
         </div>
         <div className="form-group">
-          <label className="form-label">或粘贴书源 JSON（单个或数组）</label>
-          <textarea
-            className="form-input"
+          <Label className="mb-1.5">或粘贴书源 JSON（单个或数组）</Label>
+          <Textarea
             rows={4}
             placeholder='[{"bookSourceName":"xxx小说网","bookSourceUrl":"https://...","ruleToc":{...},"ruleContent":{...}}]'
             value={importText}
@@ -1692,15 +1671,15 @@ function SourcesView({ active }: { active: boolean }) {
           />
         </div>
         <div className="action-row admin-action-row">
-          <button className="btn btn--secondary btn--sm" onClick={importFromText}>
+          <Button variant="secondary" size="sm" onClick={importFromText}>
             粘贴导入
-          </button>
+          </Button>
           <span className="text-sm text-muted admin-inline-status">{importStatus}</span>
         </div>
         {importResult && (
           <div className="source-import-result">
             {importResult.ok ? (
-              <div className="badge badge--completed scrape-test-badge">{importResult.text}</div>
+              <Badge className="bg-success/10 text-success scrape-test-badge">{importResult.text}</Badge>
             ) : (
               <div className="text-sm error-text">{importResult.text}</div>
             )}
@@ -1712,11 +1691,11 @@ function SourcesView({ active }: { active: boolean }) {
       {/* Stats + filter bar */}
       <div className="sources-toolbar">
         <div className="sources-toolbar__stats">
-          <span className="support-badge">总数: {total}</span>
-          <span className="support-badge">已启用: {enabledCount}</span>
-          <span className="support-badge support-badge--full">可用: {bySupport.full || 0}</span>
-          <span className="support-badge support-badge--partial">需核验: {bySupport.partial || 0}</span>
-          <span className="support-badge support-badge--unsupported">不支持: {bySupport.unsupported || 0}</span>
+          <Badge variant="secondary">总数: {total}</Badge>
+          <Badge variant="secondary">已启用: {enabledCount}</Badge>
+          <Badge className="bg-success/10 text-success">可用: {bySupport.full || 0}</Badge>
+          <Badge className="bg-warning/10 text-warning">需核验: {bySupport.partial || 0}</Badge>
+          <Badge className="bg-secondary text-muted-foreground">不支持: {bySupport.unsupported || 0}</Badge>
         </div>
         <div className="sources-toolbar__filters">
           <div className="preset-group">
@@ -1732,7 +1711,7 @@ function SourcesView({ active }: { active: boolean }) {
               </button>
             ))}
           </div>
-          <input type="text" className="form-input admin-input--compact sources-toolbar__search" placeholder="按 host 过滤…" value={hostFilter} onChange={(e) => onHostFilterChange(e.target.value)} />
+          <Input type="text" className="admin-input--compact sources-toolbar__search" placeholder="按 host 过滤…" value={hostFilter} onChange={(e) => onHostFilterChange(e.target.value)} />
         </div>
       </div>
 
@@ -1740,82 +1719,82 @@ function SourcesView({ active }: { active: boolean }) {
       <div className="card admin-panel-card">
         <h3 className="admin-card-title">已导入书源</h3>
         <div className="table-wrapper">
-          <table>
-            <thead>
-              <tr>
-                <th>站点</th>
-                <th>host</th>
-                <th>编码</th>
-                <th>支持度</th>
-                <th>置信度</th>
-                <th>章节列表选择器</th>
-                <th>启用</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>站点</TableHead>
+                <TableHead>host</TableHead>
+                <TableHead>编码</TableHead>
+                <TableHead>支持度</TableHead>
+                <TableHead>置信度</TableHead>
+                <TableHead>章节列表选择器</TableHead>
+                <TableHead>启用</TableHead>
+                <TableHead></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {sourcesLoading ? (
-                <tr>
-                  <td colSpan={8} className="table-empty">
+                <TableRow>
+                  <TableCell colSpan={8} className="table-empty">
                     加载中…
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ) : sourcesError ? (
-                <tr>
-                  <td colSpan={8} className="table-empty">
+                <TableRow>
+                  <TableCell colSpan={8} className="table-empty">
                     {sourcesError}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ) : sources.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="table-empty">
+                <TableRow>
+                  <TableCell colSpan={8} className="table-empty">
                     没有匹配的书源
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ) : (
                 sources.map((s) => (
-                  <tr key={s.host}>
-                    <td>
+                  <TableRow key={s.host}>
+                    <TableCell>
                       <strong>{s.name}</strong>
                       {Array.isArray(s.warnings) && s.warnings.length > 0 && (
                         <div className="text-xs text-muted" title={s.warnings.join('\n')}>
                           {s.warnings.slice(0, 2).join('; ')}
                         </div>
                       )}
-                    </td>
-                    <td className="text-muted">{s.host}</td>
-                    <td className="text-muted">{s.encoding}</td>
-                    <td>{supportBadge(s.support)}</td>
-                    <td className="text-muted">{s.confidence}</td>
-                    <td className="text-muted source-selector-cell" title={s.chapterList}>
+                    </TableCell>
+                    <TableCell className="text-muted">{s.host}</TableCell>
+                    <TableCell className="text-muted">{s.encoding}</TableCell>
+                    <TableCell>{supportBadge(s.support)}</TableCell>
+                    <TableCell className="text-muted">{s.confidence}</TableCell>
+                    <TableCell className="text-muted source-selector-cell" title={s.chapterList}>
                       {s.chapterList || '—'}
-                    </td>
-                    <td>
-                      <button className="btn btn--sm btn--ghost" onClick={() => void toggleSource(s)}>
+                    </TableCell>
+                    <TableCell>
+                      <Button variant="ghost" size="sm" onClick={() => void toggleSource(s)}>
                         {s.enabled ? '停用' : '启用'}
-                      </button>
-                    </td>
-                    <td>
-                      <button className="btn btn--secondary btn--sm" onClick={() => void testSource(s)}>
+                      </Button>
+                    </TableCell>
+                    <TableCell>
+                      <Button variant="secondary" size="sm" onClick={() => void testSource(s)}>
                         测试
-                      </button>
-                      <button className="btn btn--danger btn--sm" onClick={() => void deleteSource(s)}>
+                      </Button>
+                      <Button variant="destructive" size="sm" onClick={() => void deleteSource(s)}>
                         删除
-                      </button>
-                    </td>
-                  </tr>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
                 ))
               )}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
         <div className="admin-table-meta-row">
           <span className="text-xs text-muted">
             共 {total} 条书源，已启用 {enabledCount}
           </span>
-          <button className="btn btn--secondary btn--sm" onClick={() => void loadScrapeSources()}>
+          <Button variant="secondary" size="sm" onClick={() => void loadScrapeSources()}>
             刷新
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -1828,7 +1807,7 @@ function SourcesView({ active }: { active: boolean }) {
           </div>
         ) : testState.data && testState.data.links && testState.data.links.length > 0 ? (
           <>
-            <div className="badge badge--completed scrape-test-badge">测试成功 — 找到 {testState.data.links.length} 个章节链接 (编码 {testState.data.encoding})</div>
+            <Badge className="bg-success/10 text-success scrape-test-badge">测试成功 — 找到 {testState.data.links.length} 个章节链接 (编码 {testState.data.encoding})</Badge>
             <div className="scrape-test-links">
               {testState.data.links.slice(0, 20).map((l: any, i: number) => (
                 <div key={i}>

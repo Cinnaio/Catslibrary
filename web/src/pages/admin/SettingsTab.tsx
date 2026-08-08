@@ -9,6 +9,10 @@ import { adminApi, authApi } from '../../lib/api'
 import { timeAgo } from '../../lib/format'
 import { copyText } from '../../lib/admin'
 import { useConfirm, useToast } from '../../components/feedback'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 interface AdminUser {
   id: string
@@ -285,11 +289,11 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
         <span id="schemaHealth">
           {schemaHealth &&
             (schemaHealth.ok ? (
-              <span className="dashboard-status-pill dashboard-status-pill--completed">数据库正常</span>
+              <Badge className="bg-success/10 text-success">数据库正常</Badge>
             ) : (
-              <span className="dashboard-status-pill dashboard-status-pill--failed">
+              <Badge className="bg-destructive/10 text-destructive">
                 数据库缺失 {(schemaHealth.missing || []).join('、')}
-              </span>
+              </Badge>
             ))}
         </span>
       </div>
@@ -310,9 +314,9 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
                 )}
               </p>
             </div>
-            <button className="btn btn--secondary btn--sm" onClick={() => void handleLogout()}>
+            <Button variant="secondary" size="sm" onClick={() => void handleLogout()}>
               退出登录
-            </button>
+            </Button>
           </div>
           <div id="userStats" className="account-stats admin-stat-strip">
             <span>
@@ -349,9 +353,9 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
             ))}
           </div>
           <div className="action-row admin-action-row account-save-row">
-            <button className="btn btn--primary btn--sm" onClick={() => void saveRegisterSettings()}>
+            <Button size="sm" onClick={() => void saveRegisterSettings()}>
               保存设置
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -362,88 +366,90 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
             <p className="detail-kicker">MEMBERS</p>
             <h2 className="section-title">用户</h2>
           </div>
-          <button className="btn btn--secondary btn--sm" onClick={() => void load()} disabled={loading}>
+          <Button variant="secondary" size="sm" onClick={() => void load()} disabled={loading}>
             刷新
-          </button>
+          </Button>
         </div>
         <div className="table-wrapper account-table-wrapper">
-          <table>
-            <thead>
-              <tr>
-                <th>用户</th>
-                <th>角色</th>
-                <th>状态</th>
-                <th>注册</th>
-                <th>最近登录</th>
-                <th>想法</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>用户</TableHead>
+                <TableHead>角色</TableHead>
+                <TableHead>状态</TableHead>
+                <TableHead>注册</TableHead>
+                <TableHead>最近登录</TableHead>
+                <TableHead>想法</TableHead>
+                <TableHead></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {loading && !data ? (
-                <tr>
-                  <td colSpan={7} className="table-empty">
+                <TableRow>
+                  <TableCell colSpan={7} className="table-empty">
                     加载中…
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ) : users.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="table-empty">
+                <TableRow>
+                  <TableCell colSpan={7} className="table-empty">
                     暂无用户
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ) : (
                 users.map((u) => {
                   const disabled = u.status === 'disabled'
                   const admin = u.role === 'admin'
                   const self = meUser ? u.id === meUser.id : false
                   return (
-                    <tr key={u.id}>
-                      <td>
+                    <TableRow key={u.id}>
+                      <TableCell>
                         <strong>{u.displayName || u.username}</strong>
-                        {self && <span className="tag">本人</span>}
+                        {self && (
+                          <Badge variant="outline" className="ml-1.5">
+                            本人
+                          </Badge>
+                        )}
                         <br />
                         <span className="text-sm text-muted">{u.username}</span>
-                      </td>
-                      <td>
-                        <span className={`dashboard-status-pill${admin ? ' dashboard-status-pill--running' : ''}`}>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="secondary" className={admin ? 'bg-info/10 text-info' : ''}>
                           {roleLabel(u.role)}
-                        </span>
-                      </td>
-                      <td>
-                        <span
-                          className={`dashboard-status-pill ${disabled ? 'dashboard-status-pill--failed' : 'dashboard-status-pill--completed'}`}
-                        >
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={disabled ? 'bg-destructive/10 text-destructive' : 'bg-success/10 text-success'}>
                           {disabled ? '已禁用' : '正常'}
-                        </span>
-                      </td>
-                      <td className="text-sm text-muted">{timeAgo(u.createdAt)}</td>
-                      <td className="text-sm text-muted">{timeAgo(u.lastLoginAt)}</td>
-                      <td>{u.thoughtCount || 0}</td>
-                      <td className="admin-user-actions">
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted">{timeAgo(u.createdAt)}</TableCell>
+                      <TableCell className="text-sm text-muted">{timeAgo(u.lastLoginAt)}</TableCell>
+                      <TableCell>{u.thoughtCount || 0}</TableCell>
+                      <TableCell className="admin-user-actions">
                         {!self && (
                           <>
-                            <button className="btn-table" onClick={() => void updateUserRole(u)}>
+                            <Button variant="outline" size="sm" onClick={() => void updateUserRole(u)}>
                               {admin ? '设为读者' : '设为管理员'}
-                            </button>{' '}
-                            <button className="btn-table" onClick={() => void resetUserPassword(u)}>
+                            </Button>{' '}
+                            <Button variant="outline" size="sm" onClick={() => void resetUserPassword(u)}>
                               重置密码
-                            </button>{' '}
-                            <button className="btn-table" onClick={() => void updateUserStatus(u)}>
+                            </Button>{' '}
+                            <Button variant="outline" size="sm" onClick={() => void updateUserStatus(u)}>
                               {disabled ? '恢复' : '禁用'}
-                            </button>{' '}
-                            <button className="btn-table" onClick={() => void deleteUser(u)}>
+                            </Button>{' '}
+                            <Button variant="destructive" size="sm" onClick={() => void deleteUser(u)}>
                               删除
-                            </button>
+                            </Button>
                           </>
                         )}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   )
                 })
               )}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       </section>
 
@@ -454,17 +460,17 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
             <h2 className="section-title">邀请码</h2>
           </div>
           <div className="admin-toolbar__group account-invite-tools">
-            <input
+            <Input
               type="number"
-              className="form-input admin-input--compact admin-input--number"
+              className="admin-input--compact admin-input--number"
               min={1}
               max={50}
               value={inviteCount}
               onChange={(e) => setInviteCount(e.target.value)}
             />
-            <button className="btn btn--primary btn--sm" onClick={() => void createInvite()}>
+            <Button size="sm" onClick={() => void createInvite()}>
               生成邀请码
-            </button>
+            </Button>
           </div>
         </div>
         {generatedCodes && generatedCodes.length > 0 && (
@@ -475,84 +481,84 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
                   <code key={c}>{c}</code>
                 ))}
               </div>
-              <button className="btn btn--secondary btn--sm" onClick={() => void copyNewInvites()}>
+              <Button variant="secondary" size="sm" onClick={() => void copyNewInvites()}>
                 复制全部
-              </button>
+              </Button>
             </div>
           </div>
         )}
         <div className="table-wrapper account-table-wrapper">
-          <table>
-            <thead>
-              <tr>
-                <th>邀请码</th>
-                <th>状态</th>
-                <th>使用者</th>
-                <th>创建时间</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>邀请码</TableHead>
+                <TableHead>状态</TableHead>
+                <TableHead>使用者</TableHead>
+                <TableHead>创建时间</TableHead>
+                <TableHead></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {loading && !data ? (
-                <tr>
-                  <td colSpan={5} className="table-empty">
+                <TableRow>
+                  <TableCell colSpan={5} className="table-empty">
                     加载中…
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ) : invites.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="table-empty">
+                <TableRow>
+                  <TableCell colSpan={5} className="table-empty">
                     暂无邀请码
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ) : (
                 invites.map((i) => {
                   const used = i.usedAt > 0
                   const disabled = i.disabledAt > 0
                   return (
-                    <tr key={i.code}>
-                      <td>
+                    <TableRow key={i.code}>
+                      <TableCell>
                         <code>{i.code}</code>
-                      </td>
-                      <td>
+                      </TableCell>
+                      <TableCell>
                         {used ? (
-                          <span className="dashboard-status-pill dashboard-status-pill--completed">已使用</span>
+                          <Badge className="bg-success/10 text-success">已使用</Badge>
                         ) : disabled ? (
-                          <span className="dashboard-status-pill">已停用</span>
+                          <Badge variant="secondary">已停用</Badge>
                         ) : (
-                          <span className="dashboard-status-pill dashboard-status-pill--running">可用</span>
+                          <Badge className="bg-info/10 text-info">可用</Badge>
                         )}
-                      </td>
-                      <td>{i.usedByName || i.usedBy || '—'}</td>
-                      <td className="text-sm text-muted">{timeAgo(i.createdAt)}</td>
-                      <td>
-                        <button className="btn-table" onClick={() => void copyInvite(i.code)}>
+                      </TableCell>
+                      <TableCell>{i.usedByName || i.usedBy || '—'}</TableCell>
+                      <TableCell className="text-sm text-muted">{timeAgo(i.createdAt)}</TableCell>
+                      <TableCell>
+                        <Button variant="outline" size="sm" onClick={() => void copyInvite(i.code)}>
                           复制
-                        </button>
+                        </Button>
                         {!used && !disabled && (
                           <>
                             {' '}
-                            <button className="btn-table" onClick={() => void disableInvite(i.code)}>
+                            <Button variant="outline" size="sm" onClick={() => void disableInvite(i.code)}>
                               停用
-                            </button>
+                            </Button>
                           </>
                         )}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   )
                 })
               )}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
         <div className="admin-table-meta-row account-table-meta-row">
           <span className="text-xs text-muted" id="inviteStats">
             {invites.length ? `共 ${invites.length} 个 · 可用 ${available} · 失效 ${spent}` : ''}
           </span>
           {spent > 0 && (
-            <button className="btn btn--danger btn--sm" onClick={() => void clearInvites()}>
+            <Button variant="destructive" size="sm" onClick={() => void clearInvites()}>
               清理失效邀请码
-            </button>
+            </Button>
           )}
         </div>
       </section>

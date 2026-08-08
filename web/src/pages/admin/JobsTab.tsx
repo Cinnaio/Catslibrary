@@ -10,10 +10,14 @@
  *   故仅 toast + 重载列表（偏离点）。
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { CircleMinus, RotateCcw, RotateCw } from 'lucide-react'
 import { adminApi, authFetch, downloadLogsApi, scrapeApi } from '../../lib/api'
 import { formatDateTime } from '../../lib/format'
 import { formatEta, formatJobSpeed, getJobDuration, isJobRunning, isJobTerminal, jobStatusLabel, truncateId } from '../../lib/admin'
 import { useConfirm, useToast } from '../../components/feedback'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 // ---------- Types ----------
 
@@ -293,47 +297,37 @@ export default function JobsTab(_props: { highlightNovelId?: string; onHighlight
     const label = jobStatusLabel(j.status)
     if (isJobRunning(j.status)) {
       return (
-        <span className="job-status job-status--running">
+        <Badge variant="secondary" className="bg-info/10 text-info">
           <span className="job-spinner"></span>
           {label}
-        </span>
+        </Badge>
       )
     }
-    if (j.status === 'completed') return <span className="job-status job-status--completed">✓ {label}</span>
-    if (j.status === 'partial') return <span className="job-status job-status--partial">⚠ {label}</span>
-    if (j.status === 'failed') return <span className="job-status job-status--failed">✕ {label}</span>
-    return <span className="job-status job-status--cancelled">— {label}</span>
+    if (j.status === 'completed') return <Badge variant="secondary" className="bg-success/10 text-success">✓ {label}</Badge>
+    if (j.status === 'partial') return <Badge variant="secondary" className="bg-warning/10 text-warning">⚠ {label}</Badge>
+    if (j.status === 'failed') return <Badge variant="secondary" className="bg-destructive/10 text-destructive">✕ {label}</Badge>
+    return <Badge variant="secondary" className="text-muted">— {label}</Badge>
   }
 
   function renderActions(j: Job): ReactNode {
     if (isJobRunning(j.status)) {
       return (
-        <button className="btn-table btn-table--delete btn-cancel-job" title="终止" onClick={() => void cancelJob(j)}>
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="8" cy="8" r="6" />
-            <line x1="5" y1="8" x2="11" y2="8" />
-          </svg>
-        </button>
+        <Button variant="ghost" size="icon" title="终止" onClick={() => void cancelJob(j)}>
+          <CircleMinus />
+        </Button>
       )
     }
     if (j.status === 'failed' || j.status === 'cancelled' || j.status === 'partial') {
       return (
         <>
           {(j.failedCount || 0) > 0 && (
-            <button className="btn-table btn-table--update btn-retry-failed-job" title="重试失败章节" onClick={() => void retryFailedJob(j)}>
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 8a5 5 0 1 0 1.5-3.6" />
-                <polyline points="3 2 3 5 6 5" />
-                <path d="M8 5v4l2.5 1.5" />
-              </svg>
-            </button>
+            <Button variant="ghost" size="icon" title="重试失败章节" onClick={() => void retryFailedJob(j)}>
+              <RotateCcw />
+            </Button>
           )}
-          <button className="btn-table btn-table--update btn-retry-job" title="整本重试" onClick={() => void retryJob(j)}>
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="2 2 2 6 6 6" />
-              <path d="M3.5 10.5A6 6 0 1 0 8 2a5.9 5.9 0 0 0-4.5 2" />
-            </svg>
-          </button>
+          <Button variant="ghost" size="icon" title="整本重试" onClick={() => void retryJob(j)}>
+            <RotateCw />
+          </Button>
         </>
       )
     }
@@ -348,116 +342,113 @@ export default function JobsTab(_props: { highlightNovelId?: string; onHighlight
         <h2 className="section-title">任务管理</h2>
         <div className="admin-toolbar__group admin-filter-pills">
           {FILTERS.map((f) => (
-            <button
+            <Button
               key={f.value}
-              className={`btn btn--secondary btn--sm${filter === f.value ? ' btn--active' : ''}`}
+              size="sm"
+              variant={filter === f.value ? 'default' : 'secondary'}
               onClick={() => setFilter(f.value)}
             >
               {f.label}
-            </button>
+            </Button>
           ))}
-          <button className="btn btn--secondary btn--sm" onClick={handleRefresh}>
+          <Button variant="secondary" size="sm" onClick={handleRefresh}>
             刷新
-          </button>
+          </Button>
         </div>
       </div>
 
-      <div className="table-wrapper">
-        <table>
-          <thead>
-            <tr>
-              <th>任务 ID</th>
-              <th>小说</th>
-              <th>类型</th>
-              <th>状态</th>
-              <th>进度</th>
-              <th>结果</th>
-              <th>速度/ETA</th>
-              <th>耗时</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 ? (
-              <tr>
-                <td colSpan={9} className="table-empty">
-                  {jobsLoading ? '加载中…' : '暂无任务'}
-                </td>
-              </tr>
-            ) : (
-              filtered.map((j) => (
-                <tr key={j.id}>
-                  <td className="admin-mono-cell text-sm text-muted">{truncateId(j.id)}</td>
-                  <td className="text-sm">{renderNovelTitle(j)}</td>
-                  <td>{j.updateMode ? '更新' : '抓取'}</td>
-                  <td>{renderStatus(j)}</td>
-                  <td>
-                    {j.current || 0}/{j.total || '?'}
-                  </td>
-                  <td>
-                    <span className="job-result-mini">✓{j.successCount || j.chapterCount || 0}</span>{' '}
-                    <span className="job-result-mini job-result-mini--failed">✕{j.failedCount || 0}</span>{' '}
-                    <span className="job-result-mini">↷{j.skippedCount || 0}</span>
-                  </td>
-                  <td className="text-sm text-muted">
-                    {formatJobSpeed(j.speed)} · {formatEta(j.etaSeconds)}
-                  </td>
-                  <td className="text-sm text-muted">
-                    {j.startedAt ? getJobDuration(j.startedAt, isJobTerminal(j.status) ? (j.updatedAt ?? null) : null) : '—'}
-                  </td>
-                  <td className="table-actions job-table-actions">{renderActions(j)}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>任务 ID</TableHead>
+            <TableHead>小说</TableHead>
+            <TableHead>类型</TableHead>
+            <TableHead>状态</TableHead>
+            <TableHead>进度</TableHead>
+            <TableHead>结果</TableHead>
+            <TableHead>速度/ETA</TableHead>
+            <TableHead>耗时</TableHead>
+            <TableHead></TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {filtered.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={9} className="table-empty">
+                {jobsLoading ? '加载中…' : '暂无任务'}
+              </TableCell>
+            </TableRow>
+          ) : (
+            filtered.map((j) => (
+              <TableRow key={j.id}>
+                <TableCell className="admin-mono-cell text-sm text-muted">{truncateId(j.id)}</TableCell>
+                <TableCell className="text-sm">{renderNovelTitle(j)}</TableCell>
+                <TableCell>{j.updateMode ? '更新' : '抓取'}</TableCell>
+                <TableCell>{renderStatus(j)}</TableCell>
+                <TableCell>
+                  {j.current || 0}/{j.total || '?'}
+                </TableCell>
+                <TableCell>
+                  <span className="job-result-mini">✓{j.successCount || j.chapterCount || 0}</span>{' '}
+                  <span className="job-result-mini job-result-mini--failed">✕{j.failedCount || 0}</span>{' '}
+                  <span className="job-result-mini">↷{j.skippedCount || 0}</span>
+                </TableCell>
+                <TableCell className="text-sm text-muted">
+                  {formatJobSpeed(j.speed)} · {formatEta(j.etaSeconds)}
+                </TableCell>
+                <TableCell className="text-sm text-muted">
+                  {j.startedAt ? getJobDuration(j.startedAt, isJobTerminal(j.status) ? (j.updatedAt ?? null) : null) : '—'}
+                </TableCell>
+                <TableCell className="table-actions job-table-actions">{renderActions(j)}</TableCell>
+              </TableRow>
+            ))
+          )}
+        </TableBody>
+      </Table>
 
       <div className="admin-table-meta-row">
         <span className="text-xs text-muted">{jobStatsText}</span>
         {hasCompleted && (
-          <button className="btn btn--danger btn--sm" onClick={() => void clearCompleted()}>
+          <Button variant="destructive" size="sm" onClick={() => void clearCompleted()}>
             清除已完成
-          </button>
+          </Button>
         )}
       </div>
 
       <div className="section-header admin-section-header--spaced">
         <h2 className="section-title">下载日志</h2>
-        <button className="btn btn--secondary btn--sm" onClick={() => void loadDownloadLogs()}>
+        <Button variant="secondary" size="sm" onClick={() => void loadDownloadLogs()}>
           刷新
-        </button>
+        </Button>
       </div>
-      <div className="table-wrapper">
-        <table>
-          <thead>
-            <tr>
-              <th>类型</th>
-              <th>对象</th>
-              <th>数量</th>
-              <th>时间</th>
-            </tr>
-          </thead>
-          <tbody>
-            {downloadLogs.length === 0 ? (
-              <tr>
-                <td colSpan={4} className="table-empty">
-                  {logsLoading ? '加载中…' : '暂无下载日志'}
-                </td>
-              </tr>
-            ) : (
-              downloadLogs.map((log) => (
-                <tr key={log.id}>
-                  <td>{DOWNLOAD_TYPE_LABELS[log.type] || log.type}</td>
-                  <td className="text-sm">{log.targetTitle || log.targetId || '—'}</td>
-                  <td>{log.itemCount || 0}</td>
-                  <td className="text-sm text-muted">{formatDateTime(log.createdAt)}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>类型</TableHead>
+            <TableHead>对象</TableHead>
+            <TableHead>数量</TableHead>
+            <TableHead>时间</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {downloadLogs.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={4} className="table-empty">
+                {logsLoading ? '加载中…' : '暂无下载日志'}
+              </TableCell>
+            </TableRow>
+          ) : (
+            downloadLogs.map((log) => (
+              <TableRow key={log.id}>
+                <TableCell>{DOWNLOAD_TYPE_LABELS[log.type] || log.type}</TableCell>
+                <TableCell className="text-sm">{log.targetTitle || log.targetId || '—'}</TableCell>
+                <TableCell>{log.itemCount || 0}</TableCell>
+                <TableCell className="text-sm text-muted">{formatDateTime(log.createdAt)}</TableCell>
+              </TableRow>
+            ))
+          )}
+        </TableBody>
+      </Table>
     </section>
   )
 }

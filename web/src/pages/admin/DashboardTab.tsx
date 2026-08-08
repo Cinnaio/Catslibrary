@@ -1,12 +1,16 @@
 /**
- * 总览 tab —— 指标卡、任务状态条、最近任务/小说（只读，手动刷新）。
+ * 总览 tab —— 指标卡（shadcn Card）、任务状态条、最近任务/小说（只读，手动刷新）。
  * 由 Novel-KV js/admin-dashboard.js 平移。
  */
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { RefreshCw } from 'lucide-react'
 import { adminApi } from '../../lib/api'
 import { timeAgo } from '../../lib/format'
 import { jobStatusLabel } from '../../lib/admin'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 interface AdminStats {
   totals: { novels: number; chapters: number; users: number; covers: number; failedJobs: number; todayChapters: number; dbSize: number | null }
@@ -24,6 +28,12 @@ const STAT_CARDS: Array<{ label: string; key: keyof AdminStats['totals']; unit: 
   { label: '封面缓存', key: 'covers', unit: '张', mark: '封' },
   { label: '数据库大小', key: 'dbSize', unit: '', mark: '库' },
 ]
+
+const PILL_CLASS: Record<string, string> = {
+  running: 'bg-info/10 text-info',
+  completed: 'bg-success/10 text-success',
+  failed: 'bg-destructive/10 text-destructive',
+}
 
 function formatNumber(value: number | string): string {
   if (value === '—') return '—'
@@ -67,9 +77,10 @@ export default function DashboardTab(_props: { highlightNovelId?: string; onHigh
           <h2 className="section-title">后台总览</h2>
           <p className="text-secondary text-sm">书库、抓取任务和站点数据的即时状态。</p>
         </div>
-        <button className="btn btn--secondary btn--sm" onClick={() => void load(true)} disabled={loading}>
+        <Button variant="secondary" size="sm" onClick={() => void load(true)} disabled={loading}>
+          <RefreshCw className={loading ? 'size-3.5 animate-spin' : 'size-3.5'} />
           {loading ? '加载中…' : '刷新总览'}
-        </button>
+        </Button>
       </div>
 
       {error ? (
@@ -82,21 +93,25 @@ export default function DashboardTab(_props: { highlightNovelId?: string; onHigh
         </div>
       ) : (
         <>
-          <div className="dashboard-grid">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-7">
             {STAT_CARDS.map((card) => {
               const raw = totals ? totals[card.key] : 0
               const value = card.key === 'dbSize' ? (raw || '—') : raw
               return (
-                <div className="dashboard-stat-card" key={card.key}>
-                  <div className="dashboard-stat-card__mark" aria-hidden="true">{card.mark}</div>
-                  <div className="dashboard-stat-card__body">
-                    <div className="dashboard-stat-card__label">{card.label}</div>
-                    <div className="dashboard-stat-card__value">
-                      {formatNumber(value as number | string)}
-                      {card.unit && <span className="dashboard-stat-card__unit">{card.unit}</span>}
+                <Card key={card.key}>
+                  <CardContent className="flex items-center gap-3 p-4">
+                    <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-base text-primary">
+                      {card.mark}
                     </div>
-                  </div>
-                </div>
+                    <div className="min-w-0">
+                      <div className="truncate text-xs text-muted-foreground">{card.label}</div>
+                      <div className="text-2xl font-semibold leading-tight">
+                        {formatNumber(value as number | string)}
+                        {card.unit && <span className="ml-0.5 text-sm font-normal text-muted-foreground">{card.unit}</span>}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
               )
             })}
           </div>
@@ -119,53 +134,57 @@ export default function DashboardTab(_props: { highlightNovelId?: string; onHigh
             </div>
           </div>
 
-          <div className="dashboard-panels">
-            <section className="dashboard-panel">
-              <div className="dashboard-panel__head">
-                <h3>最近抓取任务</h3>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card>
+              <CardHeader className="flex-row items-center justify-between gap-2">
+                <CardTitle className="text-base">最近抓取任务</CardTitle>
                 <span className="text-xs text-muted">按更新时间</span>
-              </div>
-              <div className="dashboard-list">
-                {data.recentJobs.length === 0 ? (
-                  <div className="dashboard-empty">暂无抓取任务</div>
-                ) : (
-                  data.recentJobs.map((j) => (
-                    <div className="dashboard-list-item" key={j.id}>
-                      <div className="dashboard-list-item__main">
-                        <div className="dashboard-list-item__title">{j.novelTitle || j.novelId || j.id}</div>
-                        <div className="dashboard-list-item__meta">
-                          {(j.step || '任务') + ' · ' + timeAgo(j.updatedAt)}
+              </CardHeader>
+              <CardContent>
+                <div className="dashboard-list">
+                  {data.recentJobs.length === 0 ? (
+                    <div className="dashboard-empty">暂无抓取任务</div>
+                  ) : (
+                    data.recentJobs.map((j) => (
+                      <div className="dashboard-list-item" key={j.id}>
+                        <div className="dashboard-list-item__main">
+                          <div className="dashboard-list-item__title">{j.novelTitle || j.novelId || j.id}</div>
+                          <div className="dashboard-list-item__meta">
+                            {(j.step || '任务') + ' · ' + timeAgo(j.updatedAt)}
+                          </div>
                         </div>
+                        <Badge className={PILL_CLASS[j.status] || ''}>{jobStatusLabel(j.status)}</Badge>
                       </div>
-                      <span className={`dashboard-status-pill dashboard-status-pill--${j.status}`}>{jobStatusLabel(j.status)}</span>
-                    </div>
-                  ))
-                )}
-              </div>
-            </section>
-            <section className="dashboard-panel">
-              <div className="dashboard-panel__head">
-                <h3>最近更新小说</h3>
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex-row items-center justify-between gap-2">
+                <CardTitle className="text-base">最近更新小说</CardTitle>
                 <span className="text-xs text-muted">书库动态</span>
-              </div>
-              <div className="dashboard-list">
-                {data.recentNovels.length === 0 ? (
-                  <div className="dashboard-empty">暂无小说</div>
-                ) : (
-                  data.recentNovels.map((n) => (
-                    <Link className="dashboard-list-item" to={`/novel/${encodeURIComponent(n.id)}`} key={n.id}>
-                      <div className="dashboard-list-item__main">
-                        <div className="dashboard-list-item__title">{n.title}</div>
-                        <div className="dashboard-list-item__meta">
-                          {(n.author || '未知作者') + ' · ' + (n.chapterCount || 0) + ' 章 · ' + timeAgo(n.updatedAt)}
+              </CardHeader>
+              <CardContent>
+                <div className="dashboard-list">
+                  {data.recentNovels.length === 0 ? (
+                    <div className="dashboard-empty">暂无小说</div>
+                  ) : (
+                    data.recentNovels.map((n) => (
+                      <Link className="dashboard-list-item" to={`/novel/${encodeURIComponent(n.id)}`} key={n.id}>
+                        <div className="dashboard-list-item__main">
+                          <div className="dashboard-list-item__title">{n.title}</div>
+                          <div className="dashboard-list-item__meta">
+                            {(n.author || '未知作者') + ' · ' + (n.chapterCount || 0) + ' 章 · ' + timeAgo(n.updatedAt)}
+                          </div>
                         </div>
-                      </div>
-                      <div className="dashboard-list-item__arrow">›</div>
-                    </Link>
-                  ))
-                )}
-              </div>
-            </section>
+                        <div className="dashboard-list-item__arrow">›</div>
+                      </Link>
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </>
       )}

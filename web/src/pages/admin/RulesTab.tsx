@@ -3,8 +3,15 @@
  * 由 Novel-KV js/admin-import.js 的 rules 部分平移。
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Pencil, Trash2 } from 'lucide-react'
 import { useConfirm } from '../../components/feedback'
 import { useToast } from '../../components/feedback'
+import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
 import {
   BUILTIN_PATTERNS,
   SEPARATOR_PATTERN,
@@ -232,12 +239,12 @@ export default function RulesTab(_props: { highlightNovelId?: string; onHighligh
           <h2 className="section-title">TXT 解析规则</h2>
         </div>
         <div className="admin-toolbar__group">
-          <button className="btn btn--primary btn--sm" onClick={() => openModal(null)}>
+          <Button size="sm" onClick={() => openModal(null)}>
             添加规则
-          </button>
-          <button className="btn btn--danger btn--sm" onClick={() => void resetRules()}>
+          </Button>
+          <Button variant="destructive" size="sm" onClick={() => void resetRules()}>
             恢复默认
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -277,25 +284,13 @@ export default function RulesTab(_props: { highlightNovelId?: string; onHighligh
                 </div>
                 <div className="rule-item__meta">
                   <span className="rule-item__weight">w={r.weight}</span>
-                  <label className="toggle-switch">
-                    <input
-                      type="checkbox"
-                      className="rule-toggle"
-                      checked={r.enabled !== false}
-                      onChange={(e) => toggleRule(r.id, e.target.checked)}
-                    />
-                    <span className="toggle-switch__slider"></span>
-                  </label>
-                  <button className="btn-table btn-table--edit btn-edit-rule" title="编辑" onClick={() => openModal(r.id)}>
-                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M11 2.5l2.5 2.5L5.5 13H3v-2.5L11 2.5z" />
-                    </svg>
-                  </button>
-                  <button className="btn-table btn-table--delete btn-delete-rule" title="删除" onClick={() => void deleteRule(r.id)}>
-                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M3 5h10M6.5 5V3.5h3V5M4.5 5l.5 7.5h6l.5-7.5" />
-                    </svg>
-                  </button>
+                  <Switch checked={r.enabled !== false} onCheckedChange={(checked) => toggleRule(r.id, checked)} />
+                  <Button variant="ghost" size="icon" title="编辑" onClick={() => openModal(r.id)}>
+                    <Pencil className="size-3.5" />
+                  </Button>
+                  <Button variant="ghost" size="icon" title="删除" onClick={() => void deleteRule(r.id)}>
+                    <Trash2 className="size-3.5" />
+                  </Button>
                 </div>
               </div>
             ))
@@ -308,16 +303,15 @@ export default function RulesTab(_props: { highlightNovelId?: string; onHighligh
           <h3 className="card__title">批量测试</h3>
           <span className="text-sm text-muted">粘贴包含多个章节标题的文本，测试当前规则能否识别章节结构</span>
         </div>
-        <textarea
-          className="form-input"
+        <Textarea
           rows={6}
           placeholder="粘贴包含多个章节标题的文本…"
           value={bulkInput}
           onChange={(e) => setBulkInput(e.target.value)}
         />
-        <button className="btn btn--primary btn--sm" onClick={runBulkTest}>
+        <Button size="sm" onClick={runBulkTest}>
           运行批量测试
-        </button>
+        </Button>
         {bulkResult && (
           <div className="rules-test-card__results">
             <div className="bulk-test-summary">共识别 {bulkResult.count} 章</div>
@@ -332,89 +326,77 @@ export default function RulesTab(_props: { highlightNovelId?: string; onHighligh
         )}
       </div>
 
-      {modal.open && (
-        <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && closeModal()}>
-          <div className="modal rule-editor">
-            <div className="modal__header">
-              <h3 className="modal__title" id="ruleModalTitle">
-                {draft.id ? '编辑规则' : '添加规则'}
-              </h3>
-              <button className="btn btn--icon btn--ghost" aria-label="关闭" onClick={closeModal}>
-                &times;
-              </button>
+      <Dialog open={modal.open} onOpenChange={(open) => !open && closeModal()}>
+        <DialogContent className="sm:max-w-[540px] max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle id="ruleModalTitle">{draft.id ? '编辑规则' : '添加规则'}</DialogTitle>
+          </DialogHeader>
+          <Label>规则名称</Label>
+          <Input
+            placeholder="如：中文数字章节"
+            value={draft.name}
+            onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+          />
+          <Label>正则表达式</Label>
+          <Input
+            placeholder="如：^第\s*(\d+)\s*章.*$"
+            value={draft.regex}
+            onChange={(e) => setDraft({ ...draft, regex: e.target.value })}
+          />
+          <p className="text-xs text-muted-foreground">不包含首尾斜杠和 flags。</p>
+          <div className="rule-editor__grid">
+            <div className="space-y-1.5">
+              <Label>flags</Label>
+              <Input value={draft.flags} onChange={(e) => setDraft({ ...draft, flags: e.target.value })} />
             </div>
-            <div className="modal__body">
-              <label className="form-label">规则名称</label>
-              <input
-                className="form-input"
-                placeholder="如：中文数字章节"
-                value={draft.name}
-                onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-              />
-              <label className="form-label">正则表达式</label>
-              <input
-                className="form-input"
-                placeholder="如：^第\s*(\d+)\s*章.*$"
-                value={draft.regex}
-                onChange={(e) => setDraft({ ...draft, regex: e.target.value })}
-              />
-              <p className="form-hint">不包含首尾斜杠和 flags。</p>
-              <div className="rule-editor__grid">
-                <div>
-                  <label className="form-label">flags</label>
-                  <input className="form-input" value={draft.flags} onChange={(e) => setDraft({ ...draft, flags: e.target.value })} />
-                </div>
-                <div>
-                  <label className="form-label">权重</label>
-                  <input className="form-input" type="number" min={1} max={20} value={draft.weight} onChange={(e) => setDraft({ ...draft, weight: e.target.value })} />
-                </div>
-                <div>
-                  <label className="form-label">捕获组</label>
-                  <input className="form-input" type="number" min={0} max={9} value={draft.captureGroup} onChange={(e) => setDraft({ ...draft, captureGroup: e.target.value })} />
-                </div>
-              </div>
-              <label className="form-label">实时测试</label>
-              <textarea
-                className="form-input"
-                rows={4}
-                placeholder="粘贴要测试的文本…"
-                value={testInput}
-                onChange={(e) => setTestInput(e.target.value)}
-              />
-              <div className="rule-editor__result">
-                {testResult && (
-                  <>
-                    {testResult.error ? (
-                      <span className="error-text">{testResult.error}</span>
-                    ) : testResult.ok ? (
-                      <>
-                        <span className="success-text">{testResult.count} 处匹配</span>
-                        <div className="rule-test-matches">
-                          {testResult.matches.map((m, i) => (
-                            <div className="rule-test-match" key={i}>
-                              {m.text}
-                            </div>
-                          ))}
-                        </div>
-                      </>
-                    ) : (
-                      <span className="error-text">无匹配</span>
-                    )}
-                  </>
-                )}
-              </div>
+            <div className="space-y-1.5">
+              <Label>权重</Label>
+              <Input type="number" min={1} max={20} value={draft.weight} onChange={(e) => setDraft({ ...draft, weight: e.target.value })} />
             </div>
-            <div className="modal__footer">
-              <button className="btn btn--secondary" onClick={closeModal}>
-                取消
-              </button>
-              <button className="btn btn--primary" onClick={saveRule}>
-                保存
-              </button>
+            <div className="space-y-1.5">
+              <Label>捕获组</Label>
+              <Input type="number" min={0} max={9} value={draft.captureGroup} onChange={(e) => setDraft({ ...draft, captureGroup: e.target.value })} />
             </div>
           </div>
-        </div>
-      )}
+          <Label>实时测试</Label>
+          <Textarea
+            rows={4}
+            placeholder="粘贴要测试的文本…"
+            value={testInput}
+            onChange={(e) => setTestInput(e.target.value)}
+          />
+          <div className="rule-editor__result">
+            {testResult && (
+              <>
+                {testResult.error ? (
+                  <span className="error-text">{testResult.error}</span>
+                ) : testResult.ok ? (
+                  <>
+                    <span className="success-text">{testResult.count} 处匹配</span>
+                    <div className="rule-test-matches">
+                      {testResult.matches.map((m, i) => (
+                        <div className="rule-test-match" key={i}>
+                          {m.text}
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <span className="error-text">无匹配</span>
+                )}
+              </>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="secondary" onClick={closeModal}>
+              取消
+            </Button>
+            <Button onClick={saveRule}>
+              保存
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </section>
   )
 }

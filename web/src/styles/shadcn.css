@@ -62,6 +62,13 @@
   --color-accent-foreground: var(--sh-accent-foreground);
   --color-destructive: var(--sh-destructive);
   --color-destructive-foreground: var(--sh-destructive-foreground);
+  /* 语义色桥：tokens.css 的 --color-success/warning/info/danger/seal 已存在，
+     inline 模式下仅内联进工具类、不发射变量，故自引用不构成循环 */
+  --color-success: var(--color-success);
+  --color-warning: var(--color-warning);
+  --color-info: var(--color-info);
+  --color-danger: var(--color-danger);
+  --color-seal: var(--color-seal);
   --color-border: var(--sh-border);
   --color-input: var(--sh-input);
   --color-ring: var(--sh-ring);

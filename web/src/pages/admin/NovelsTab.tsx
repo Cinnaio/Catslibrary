@@ -2,7 +2,7 @@
  * 小说管理 tab —— 小说列表 / 搜索 / 排序 / 分页 / 增删改 / 批量操作。
  * 由 Novel-KV js/admin-novels.js + admin.html #tab-novels 平移。
  */
-import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { novelsApi, url, authHeaders } from '../../lib/api'
 import { timeAgo } from '../../lib/format'
@@ -10,6 +10,28 @@ import { useConfirm, useToast } from '../../components/feedback'
 import CustomSelect from '../../components/admin/CustomSelect'
 import Pagination from '../../components/admin/Pagination'
 import type { Novel } from '@shared/types'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { Textarea } from '@/components/ui/textarea'
+import { BookOpen, Pencil, Trash2 } from 'lucide-react'
 
 const PAGE_SIZE = 20
 
@@ -217,8 +239,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
     })
   }
 
-  function handleSelectAll(e: ChangeEvent<HTMLInputElement>) {
-    const checked = e.target.checked
+  function handleSelectAll(checked: boolean | 'indeterminate') {
     setSelected((prev) => {
       const next = new Set(prev)
       novels.forEach((n) => {
@@ -420,30 +441,29 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
         </div>
         <div className="novel-toolbar">
           <div className="novel-toolbar__main">
-            <input
+            <Input
               type="text"
-              className="form-input"
               placeholder="搜索标题/作者…"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
             />
-            <button className="btn btn--primary btn--sm" onClick={() => openModal(null)}>
+            <Button size="sm" onClick={() => openModal(null)}>
               添加小说
-            </button>
+            </Button>
           </div>
           {selected.size > 0 && (
             <div className="novel-toolbar__batch">
               <span className="novel-toolbar__batch-count text-sm text-muted">已选 {selected.size} 本</span>
               <div className="batch-actions-group">
-                <button className="btn btn--secondary btn--sm" onClick={() => void handleBatchUpdate()}>
+                <Button variant="secondary" size="sm" onClick={() => void handleBatchUpdate()}>
                   批量更新
-                </button>
-                <button className="btn btn--secondary btn--sm" onClick={invertSelection}>
+                </Button>
+                <Button variant="secondary" size="sm" onClick={invertSelection}>
                   反选
-                </button>
-                <button className="btn btn--danger btn--sm" onClick={() => void handleBatchDelete()}>
+                </Button>
+                <Button variant="destructive" size="sm" onClick={() => void handleBatchDelete()}>
                   批量删除
-                </button>
+                </Button>
               </div>
             </div>
           )}
@@ -451,61 +471,61 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
       </div>
 
       <div className="table-wrapper">
-        <table>
-          <thead>
-            <tr>
-              <th className="admin-table__check">
-                <input type="checkbox" title="全选" checked={allChecked} onChange={handleSelectAll} />
-              </th>
-              <th className={thClass('title')} onClick={() => toggleSort('title')}>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="admin-table__check">
+                <Checkbox title="全选" checked={allChecked} onCheckedChange={handleSelectAll} />
+              </TableHead>
+              <TableHead className={thClass('title')} onClick={() => toggleSort('title')}>
                 标题<span className="th-sort-caret" aria-hidden="true"></span>
-              </th>
-              <th className={thClass('author')} onClick={() => toggleSort('author')}>
+              </TableHead>
+              <TableHead className={thClass('author')} onClick={() => toggleSort('author')}>
                 作者<span className="th-sort-caret" aria-hidden="true"></span>
-              </th>
-              <th>分类</th>
-              <th>状态</th>
-              <th className={thClass('chapter_count')} onClick={() => toggleSort('chapter_count')}>
+              </TableHead>
+              <TableHead>分类</TableHead>
+              <TableHead>状态</TableHead>
+              <TableHead className={thClass('chapter_count')} onClick={() => toggleSort('chapter_count')}>
                 章节<span className="th-sort-caret" aria-hidden="true"></span>
-              </th>
-              <th className={thClass('updated_at')} onClick={() => toggleSort('updated_at')}>
+              </TableHead>
+              <TableHead className={thClass('updated_at')} onClick={() => toggleSort('updated_at')}>
                 更新<span className="th-sort-caret" aria-hidden="true"></span>
-              </th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
+              </TableHead>
+              <TableHead></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {loading ? (
-              <tr>
-                <td colSpan={8} className="table-empty">
+              <TableRow>
+                <TableCell colSpan={8} className="table-empty">
                   加载中…
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ) : novels.length === 0 ? (
-              <tr>
-                <td colSpan={8} className="table-empty">
+              <TableRow>
+                <TableCell colSpan={8} className="table-empty">
                   {loadError ? `加载失败：${loadError}` : emptyMessage}
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ) : (
               novels.map((n) => (
-                <tr key={n.id} className={n.id === highlightId ? 'novel-row--highlight' : undefined}>
-                  <td>
-                    <input type="checkbox" className="novel-checkbox" checked={selected.has(n.id)} onChange={() => toggleRow(n.id)} />
-                  </td>
-                  <td>
+                <TableRow key={n.id} className={n.id === highlightId ? 'novel-row--highlight' : undefined}>
+                  <TableCell>
+                    <Checkbox className="novel-checkbox" checked={selected.has(n.id)} onCheckedChange={() => toggleRow(n.id)} />
+                  </TableCell>
+                  <TableCell>
                     <strong>{n.title}</strong>
-                  </td>
-                  <td>{n.author}</td>
-                  <td className="admin-category-cell">
-                    {n.categories && n.categories.length > 0 ? n.categories.map((c) => <span className="tag" key={c}>{c}</span>) : '—'}
-                  </td>
-                  <td>
-                    <span className={`badge badge--${n.status === 'completed' ? 'completed' : 'ongoing'}`}>
+                  </TableCell>
+                  <TableCell>{n.author}</TableCell>
+                  <TableCell className="admin-category-cell">
+                    {n.categories && n.categories.length > 0 ? n.categories.map((c) => <Badge variant="outline" className="mr-1" key={c}>{c}</Badge>) : '—'}
+                  </TableCell>
+                  <TableCell>
+                    <Badge className={n.status === 'completed' ? 'bg-success/10 text-success' : 'bg-info/10 text-info'}>
                       {n.status === 'completed' ? '已完结' : '连载中'}
-                    </span>
-                  </td>
-                  <td>
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
                     {n.chapterCount || 0}
                     {getNewCount(n) > 0 && (
                       <span
@@ -515,134 +535,116 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
                         +{getNewCount(n)}
                       </span>
                     )}
-                  </td>
-                  <td className="text-sm text-muted">{timeAgo(n.updatedAt)}</td>
-                  <td className="table-actions">
-                    <Link className="btn-table btn-table--read" title="阅读" to={`/novel/${encodeURIComponent(n.id)}`}>
-                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M2 2h12v12H2z" />
-                        <line x1="2" y1="6" x2="14" y2="6" />
-                        <line x1="6" y1="2" x2="6" y2="14" />
-                      </svg>
-                    </Link>
-                    <button className="btn-table btn-table--edit" title="编辑" onClick={() => openModal(n)}>
-                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M11.5 2.5a1.5 1.5 0 0 1 2 2l-8 8-3 .5.5-3 8.5-7.5z" />
-                      </svg>
-                    </button>
-                    <button className="btn-table btn-table--delete" title="删除" onClick={() => void handleDelete(n)}>
-                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="2 4 14 4" />
-                        <path d="M5 4V2.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 .5.5V4" />
-                        <path d="M3 4l1 9.5a1 1 0 0 0 1 .5h6a1 1 0 0 0 1-.5L13 4" />
-                      </svg>
-                    </button>
-                  </td>
-                </tr>
+                  </TableCell>
+                  <TableCell className="text-sm text-muted">{timeAgo(n.updatedAt)}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <Button asChild variant="ghost" size="icon" title="阅读">
+                        <Link to={`/novel/${encodeURIComponent(n.id)}`}>
+                          <BookOpen className="size-4" />
+                        </Link>
+                      </Button>
+                      <Button variant="ghost" size="icon" title="编辑" onClick={() => openModal(n)}>
+                        <Pencil className="size-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" title="删除" onClick={() => void handleDelete(n)}>
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
               ))
             )}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
 
       <Pagination page={page} totalPages={totalPages} onPage={setPage} />
 
-      {modalOpen && (
-        <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && closeModal()}>
-          <div className="modal modal--editor modal--novel-editor">
-            <div className="modal__header editor-modal__header novel-editor__header">
-              <div className="editor-modal__mark" aria-hidden="true">
-                书
-              </div>
-              <div>
-                <div className="editor-modal__eyebrow">小说资料</div>
-                <h3 className="modal__title editor-modal__title">{editing ? '编辑小说' : '添加小说'}</h3>
-              </div>
-              <button className="btn btn--icon btn--ghost editor-modal__close novel-editor__close" aria-label="关闭" onClick={closeModal}>
-                &times;
-              </button>
+      <Dialog open={modalOpen} onOpenChange={(open) => { if (!open) closeModal() }}>
+        <DialogContent className="sm:max-w-[540px] overflow-y-auto max-h-[80vh]">
+          <DialogHeader className="flex-row items-center gap-3">
+            <div className="editor-modal__mark" aria-hidden="true">
+              书
             </div>
-            <div className="modal__body editor-modal__body novel-editor__body">
-              <div className="novel-editor__grid">
+            <div>
+              <div className="editor-modal__eyebrow">小说资料</div>
+              <DialogTitle className="editor-modal__title">{editing ? '编辑小说' : '添加小说'}</DialogTitle>
+            </div>
+          </DialogHeader>
+          <div className="novel-editor__grid">
                 <div className="form-group novel-editor__field novel-editor__field--wide">
-                  <label className="form-label">标题</label>
-                  <input
+                  <Label>标题</Label>
+                  <Input
                     type="text"
-                    className="form-input"
                     placeholder="小说标题"
                     value={draft.title}
                     onChange={(e) => setDraft({ ...draft, title: e.target.value })}
                   />
                 </div>
                 <div className="form-group novel-editor__field">
-                  <label className="form-label">作者</label>
-                  <input
+                  <Label>作者</Label>
+                  <Input
                     type="text"
-                    className="form-input"
                     placeholder="作者名"
                     value={draft.author}
                     onChange={(e) => setDraft({ ...draft, author: e.target.value })}
                   />
                 </div>
                 <div className="form-group novel-editor__field">
-                  <label className="form-label">状态</label>
+                  <Label>状态</Label>
                   <CustomSelect options={STATUS_OPTIONS} value={draft.status} onChange={(v) => setDraft({ ...draft, status: v })} />
                 </div>
                 <div className="form-group novel-editor__field novel-editor__field--wide">
-                  <label className="form-label">简介</label>
-                  <textarea
-                    className="form-input"
+                  <Label>简介</Label>
+                  <Textarea
                     rows={5}
+                    className="min-h-[150px]"
                     placeholder="小说简介…"
                     value={draft.description}
                     onChange={(e) => setDraft({ ...draft, description: e.target.value })}
                   />
                 </div>
                 <div className="form-group novel-editor__field novel-editor__field--wide">
-                  <label className="form-label">封面 URL</label>
-                  <input
+                  <Label>封面 URL</Label>
+                  <Input
                     type="url"
-                    className="form-input"
                     placeholder="https://..."
                     value={draft.coverUrl}
                     onChange={(e) => setDraft({ ...draft, coverUrl: e.target.value })}
                   />
-                  <p className="form-hint">保存时由服务器在后台缓存封面图</p>
+                  <p className="text-xs text-muted-foreground">保存时由服务器在后台缓存封面图</p>
                 </div>
                 <div className="form-group novel-editor__field">
-                  <label className="form-label">分类</label>
-                  <input
+                  <Label>分类</Label>
+                  <Input
                     type="text"
-                    className="form-input"
                     placeholder="玄幻, 修真, 仙侠"
                     value={draft.categories}
                     onChange={(e) => setDraft({ ...draft, categories: e.target.value })}
                   />
-                  <p className="form-hint">多个分类用逗号分隔</p>
+                  <p className="text-xs text-muted-foreground">多个分类用逗号分隔</p>
                 </div>
                 <div className="form-group novel-editor__field">
-                  <label className="form-label">源网址</label>
-                  <input
+                  <Label>源网址</Label>
+                  <Input
                     type="url"
-                    className="form-input"
                     placeholder="https://..."
                     value={draft.sourceUrl}
                     onChange={(e) => setDraft({ ...draft, sourceUrl: e.target.value })}
                   />
                 </div>
-              </div>
-            </div>
-            <div className="modal__footer editor-modal__footer novel-editor__footer">
-              <button className="btn btn--secondary" onClick={closeModal}>
-                取消
-              </button>
-              <button className="btn btn--primary" onClick={() => void handleSave()}>
-                保存
-              </button>
-            </div>
           </div>
-        </div>
-      )}
+          <DialogFooter>
+            <Button variant="secondary" onClick={closeModal}>
+              取消
+            </Button>
+            <Button onClick={() => void handleSave()}>
+              保存
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </section>
   )
 }
