@@ -2,7 +2,11 @@
    知舟 — Claude-Inspired Design System
    Warm, human, minimalist. Like reading on paper in good light.
    由 Novel-KV css/ 移植；admin 样式在阶段 7 引入。
+   阶段 S0：接入 Tailwind v4 + shadcn/ui 主题层。
    ============================================================ */
+
+@import "tailwindcss";
+@import "tw-animate-css";
 
 @import './tokens.css';
 @import './base.css';
@@ -19,3 +23,8 @@
 @import './_admin-auth.css';
 @import './_admin-ui.css';
 @import './mobile.css';
+@import './shadcn.css';
+
+/* 暗色变体：把 Tailwind dark: 从 .dark 类换成站点 [data-theme="dark"] 属性 */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+

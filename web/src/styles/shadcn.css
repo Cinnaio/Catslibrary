@@ -1,0 +1,94 @@
+/* ============================================================
+   shadcn/ui theme layer（Tailwind v4）
+   决策 A/B/C：--sh-* 命名空间，定义在 :root，值直接引用 tokens.css
+   的站点令牌 → 双主题自动跟随、Radix portal 安全（弹层渲染在 body 下）。
+   @theme inline 内联映射 → 不发射 --color-* 与 --radius-* 变量，
+   与 tokens.css 的 --radius-* 天然无碰撞。
+   ============================================================ */
+
+:root {
+  /* 决策 A：shadcn 令牌 → 站点令牌 */
+  --sh-background: var(--bg-primary);
+  --sh-foreground: var(--text-primary);
+  --sh-card: var(--bg-card);
+  --sh-card-foreground: var(--text-primary);
+  --sh-popover: var(--bg-card);
+  --sh-popover-foreground: var(--text-primary);
+  --sh-primary: var(--accent);
+  --sh-primary-foreground: var(--accent-ink);
+  --sh-secondary: var(--bg-secondary);
+  --sh-secondary-foreground: var(--text-primary);
+  --sh-muted: var(--bg-secondary);
+  --sh-muted-foreground: var(--text-muted);
+  --sh-accent: var(--accent-light);
+  --sh-accent-foreground: var(--text-primary);
+  --sh-destructive: var(--color-danger);
+  --sh-destructive-foreground: #FFFFFF;
+  --sh-border: var(--border);      /* 决策 B：改 shadcn 侧，绕开站点 --border */
+  --sh-input: var(--border);
+  --sh-ring: var(--focus-ring);
+  --sh-sidebar: var(--admin-surface);
+  --sh-sidebar-foreground: var(--text-primary);
+  --sh-sidebar-primary: var(--accent);
+  --sh-sidebar-primary-foreground: var(--accent-ink);
+  --sh-sidebar-accent: var(--accent-light);
+  --sh-sidebar-accent-foreground: var(--text-primary);
+  --sh-sidebar-border: var(--admin-line);
+  --sh-sidebar-ring: var(--focus-ring);
+  --sh-chart-1: var(--color-success);
+  --sh-chart-2: var(--color-info);
+  --sh-chart-3: var(--color-warning);
+  --sh-chart-4: var(--accent);
+  --sh-chart-5: var(--color-seal);
+  --sh-radius: var(--radius-md);   /* 10px，对齐 admin 控件圆角 */
+}
+
+/* 暗色无需重复定义：--sh-* 引用的站点令牌在 [data-theme="dark"] 已切换 */
+
+@theme inline {
+  --color-background: var(--sh-background);
+  --color-foreground: var(--sh-foreground);
+  --color-card: var(--sh-card);
+  --color-card-foreground: var(--sh-card-foreground);
+  --color-popover: var(--sh-popover);
+  --color-popover-foreground: var(--sh-popover-foreground);
+  --color-primary: var(--sh-primary);
+  --color-primary-foreground: var(--sh-primary-foreground);
+  --color-secondary: var(--sh-secondary);
+  --color-secondary-foreground: var(--sh-secondary-foreground);
+  --color-muted: var(--sh-muted);
+  --color-muted-foreground: var(--sh-muted-foreground);
+  --color-accent: var(--sh-accent);
+  --color-accent-foreground: var(--sh-accent-foreground);
+  --color-destructive: var(--sh-destructive);
+  --color-destructive-foreground: var(--sh-destructive-foreground);
+  --color-border: var(--sh-border);
+  --color-input: var(--sh-input);
+  --color-ring: var(--sh-ring);
+  --color-sidebar: var(--sh-sidebar);
+  --color-sidebar-foreground: var(--sh-sidebar-foreground);
+  --color-sidebar-primary: var(--sh-sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sh-sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sh-sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sh-sidebar-accent-foreground);
+  --color-sidebar-border: var(--sh-sidebar-border);
+  --color-sidebar-ring: var(--sh-sidebar-ring);
+  --color-chart-1: var(--sh-chart-1);
+  --color-chart-2: var(--sh-chart-2);
+  --color-chart-3: var(--sh-chart-3);
+  --color-chart-4: var(--sh-chart-4);
+  --color-chart-5: var(--sh-chart-5);
+  --radius-sm: calc(var(--sh-radius) - 4px);
+  --radius-md: var(--sh-radius);
+  --radius-lg: calc(var(--sh-radius) + 2px);
+  --radius-xl: calc(var(--sh-radius) + 6px);
+  --radius-2xl: calc(var(--sh-radius) + 10px);
+  --font-sans: var(--font-body);
+}
+
+/* 基础层：在 @layer base，站点 unlayered 规则恒优先 → 决策 C */
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+}
