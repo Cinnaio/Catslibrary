@@ -1,8 +1,15 @@
 /**
- * 管理后台自定义下拉（替换原生 select 的自定义组件，类名与 Novel-KV custom-select 一致）。
- * 支持搜索过滤、键盘导航（Arrow/Enter）、点击外部关闭。
+ * 管理后台自定义下拉 —— shadcn Popover + Command Combobox。
+ * 接口与类名语义和旧 CustomSelect 完全一致（SelectOption 接口 + 全部 props 不变），
+ * 内部改为 shadcn 组件：键盘导航/焦点管理由 cmdk 接管。
+ * onServerSearch 的「本地空结果才补搜」副作用原样保留。
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Check, ChevronsUpDown } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 
 export interface SelectOption {
   value: string
@@ -44,9 +51,6 @@ export default function CustomSelect({
 }: CustomSelectProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
-  const [highlight, setHighlight] = useState(0)
-  const wrapperRef = useRef<HTMLDivElement>(null)
-  const searchRef = useRef<HTMLInputElement>(null)
   const serverSearched = useRef(new Set<string>())
 
   const selected = options.find((o) => o.value === value)
@@ -67,108 +71,76 @@ export default function CustomSelect({
     }
   }, [filtered.length, query, onServerSearch])
 
-  useEffect(() => {
-    if (!open) return
-    function onDocClick(e: MouseEvent) {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', onDocClick)
-    return () => document.removeEventListener('mousedown', onDocClick)
-  }, [open])
-
-  useEffect(() => {
-    if (open && searchable) {
-      setQuery('')
-      requestAnimationFrame(() => searchRef.current?.focus())
-    }
-  }, [open, searchable])
-
-  useEffect(() => setHighlight(0), [query])
-
-  function toggle() {
-    if (disabled) return
-    setOpen((o) => !o)
-  }
-
   function pick(o: SelectOption) {
     onChange(o.value)
     setOpen(false)
   }
 
-  function onKeyDown(e: React.KeyboardEvent) {
-    if (e.key === 'ArrowDown') {
-      e.preventDefault()
-      setHighlight((h) => Math.min(filtered.length - 1, h + 1))
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault()
-      setHighlight((h) => Math.max(0, h - 1))
-    } else if (e.key === 'Enter') {
-      e.preventDefault()
-      const opt = filtered[highlight]
-      if (opt) pick(opt)
-    } else if (e.key === 'Escape') {
-      setOpen(false)
-    }
-  }
-
   return (
-    <div
-      ref={wrapperRef}
-      className={[
-        'custom-select',
-        'custom-select--native',
-        compact ? 'custom-select--sm' : '',
-        chip ? 'custom-select--chip' : '',
-        open ? 'custom-select--open' : '',
-        className || '',
-      ].join(' ')}
+    <Popover
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o)
+        if (o && searchable) setQuery('')
+      }}
     >
-      <button
-        type="button"
-        className="custom-select__trigger"
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        onClick={toggle}
-        onKeyDown={onKeyDown}
-        disabled={disabled}
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          disabled={disabled}
+          className={cn(
+            'w-full max-w-[400px] justify-between bg-card font-normal text-[0.9rem]',
+            compact && 'h-8 max-w-none',
+            chip && 'rounded-full',
+            className,
+          )}
+        >
+          <span className={cn('truncate', !selected && 'text-muted-foreground')}>
+            {selected?.label || placeholder}
+          </span>
+          <ChevronsUpDown className="size-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        className={cn('w-(--radix-popover-trigger-width) min-w-[200px] p-0', compact && 'w-auto')}
       >
-        <span>{selected?.label || placeholder}</span>
-        <svg className="custom-select__arrow" viewBox="0 0 10 10" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-          <polyline points="2 3 5 7 8 3" />
-        </svg>
-      </button>
-      <div className="custom-select__dropdown" role="listbox">
-        {searchable && (
-          <div className="custom-select__search-wrap">
-            <input
-              ref={searchRef}
-              className="form-input custom-select__search"
+        <Command shouldFilter={false}>
+          {searchable && (
+            <CommandInput
               placeholder={searchPlaceholder}
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={onKeyDown}
+              onValueChange={setQuery}
+              autoFocus
             />
-          </div>
-        )}
-        {filtered.length === 0 ? (
-          <div className="custom-select__empty">没有匹配的选项</div>
-        ) : (
-          filtered.map((o, i) => (
-            <div
-              key={o.value}
-              className={`custom-select__option${o.value === value ? ' custom-select__option--selected' : ''}${i === highlight ? ' custom-select__option--highlight' : ''}`}
-              role="option"
-              aria-selected={o.value === value}
-              data-value={o.value}
-              onClick={() => pick(o)}
-              onMouseEnter={() => setHighlight(i)}
-            >
-              {o.label}
-              {o.sub && <span className="custom-select__option-sub">{o.sub}</span>}
-            </div>
-          ))
-        )}
-      </div>
-    </div>
+          )}
+          <CommandList>
+            {filtered.length === 0 ? (
+              <CommandEmpty>没有匹配的选项</CommandEmpty>
+            ) : (
+              <CommandGroup>
+                {filtered.map((o) => (
+                  <CommandItem
+                    key={o.value}
+                    value={o.value}
+                    onSelect={() => pick(o)}
+                    className="flex items-center justify-between gap-2"
+                  >
+                    <span className="flex min-w-0 flex-col">
+                      <span className="truncate">{o.label}</span>
+                      {o.sub && <span className="truncate text-xs text-muted-foreground">{o.sub}</span>}
+                    </span>
+                    {o.value === value && <Check className="size-4 shrink-0" />}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   )
 }

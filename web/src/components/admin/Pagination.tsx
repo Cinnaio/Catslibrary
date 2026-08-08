@@ -1,8 +1,11 @@
 /**
- * 管理后台分页 —— 上一页 / 「第 X / Y 页」/ 跳转输入 / 下一页。
- * 对应 Novel-KV updatePaginationUi 的语义（totalPages<=1 时隐藏）。
+ * 管理后台分页 —— 上一页 / 「第 X / Y 页」/ 跳转输入 / 下一页（shadcn 版）。
+ * props 与行为不变；wrapper 保留共享类 home-pagination（前台 Home 同用），
+ * 内部控件换成 shadcn Button/Input。
  */
 import { useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 
 interface PaginationProps {
   page: number
@@ -22,17 +25,17 @@ export default function Pagination({ page, totalPages, onPage, className }: Pagi
 
   return (
     <div className={`home-pagination admin-pagination ${className || ''}`}>
-      <button className="btn btn--secondary btn--sm" disabled={page <= 1} onClick={() => goTo(page - 1)}>
+      <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => goTo(page - 1)}>
         上一页
-      </button>
+      </Button>
       <span className="home-pagination__info">
         第 {page} / {totalPages} 页
       </span>
       <span className="home-pagination__jump">
         跳转{' '}
-        <input
+        <Input
           type="number"
-          className="form-input"
+          className="h-8 w-[72px]"
           min={1}
           max={totalPages}
           value={jump}
@@ -51,9 +54,9 @@ export default function Pagination({ page, totalPages, onPage, className }: Pagi
         />{' '}
         页
       </span>
-      <button className="btn btn--secondary btn--sm" disabled={page >= totalPages} onClick={() => goTo(page + 1)}>
+      <Button variant="secondary" size="sm" disabled={page >= totalPages} onClick={() => goTo(page + 1)}>
         下一页
-      </button>
+      </Button>
     </div>
   )
 }
