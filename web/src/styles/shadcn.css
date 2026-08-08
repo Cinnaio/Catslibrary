@@ -27,7 +27,7 @@
   --sh-border: var(--border);      /* 决策 B：改 shadcn 侧，绕开站点 --border */
   --sh-input: var(--border);
   --sh-ring: var(--focus-ring);
-  --sh-sidebar: var(--admin-surface);
+  --sh-sidebar: var(--bg-secondary);
   --sh-sidebar-foreground: var(--text-primary);
   --sh-sidebar-primary: var(--accent);
   --sh-sidebar-primary-foreground: var(--accent-ink);
