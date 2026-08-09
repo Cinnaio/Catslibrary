@@ -89,7 +89,7 @@ export default function Auth() {
   const isLogin = mode === 'login'
 
   return (
-    <main className="auth-page">
+    <main className="auth-page auth-page--with-header">
       <div className="auth-shell">
         <Card className="w-full max-w-sm">
           <CardContent className="flex flex-col gap-5 p-6">

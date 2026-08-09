@@ -4,10 +4,16 @@
 
 /* --- CSS Reset ------------------------------------------------- */
 
-*, *::before, *::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+/* 放进 @layer base：仍压过浏览器 UA 默认样式（保留旧组件依赖的归零），
+   但不再压过 Tailwind v4 的 @layer utilities 工具类。
+   unlayered 规则会覆盖所有 layered 规则，此前该 reset 令 shadcn 的
+   p-6、py-6 等内边距全部失效。 */
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
 }
 
 html {

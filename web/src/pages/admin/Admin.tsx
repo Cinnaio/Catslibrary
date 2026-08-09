@@ -147,7 +147,7 @@ export default function Admin() {
   const activeLabel = TABS.find((t) => t.id === active)?.label || ''
 
   return (
-    <SidebarProvider>
+    <SidebarProvider className="admin-layout">
       <Sidebar collapsible="icon">
         <SidebarHeader>
           <SidebarMenu>
@@ -202,13 +202,13 @@ export default function Admin() {
         </SidebarFooter>
         <SidebarRail />
       </Sidebar>
-      <SidebarInset>
+      <SidebarInset className="admin-layout__inset min-w-0">
         <header className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger />
           <Separator orientation="vertical" className="mr-1 h-4" />
           <span className="text-sm font-medium">{activeLabel}</span>
         </header>
-        <main className="flex-1 p-4 md:p-6">
+        <main className="admin-layout__content min-h-0 min-w-0 flex-1 overflow-auto p-4 md:p-6">
           <TabComponent highlightNovelId={highlightNovelId} onHighlightConsumed={() => setHighlightNovelId('')} />
         </main>
       </SidebarInset>

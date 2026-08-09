@@ -357,54 +357,56 @@ export default function JobsTab(_props: { highlightNovelId?: string; onHighlight
         </div>
       </div>
 
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>任务 ID</TableHead>
-            <TableHead>小说</TableHead>
-            <TableHead>类型</TableHead>
-            <TableHead>状态</TableHead>
-            <TableHead>进度</TableHead>
-            <TableHead>结果</TableHead>
-            <TableHead>速度/ETA</TableHead>
-            <TableHead>耗时</TableHead>
-            <TableHead></TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {filtered.length === 0 ? (
+      <div className="table-wrapper">
+        <Table>
+          <TableHeader>
             <TableRow>
-              <TableCell colSpan={9} className="table-empty">
-                {jobsLoading ? '加载中…' : '暂无任务'}
-              </TableCell>
+              <TableHead>任务 ID</TableHead>
+              <TableHead>小说</TableHead>
+              <TableHead>类型</TableHead>
+              <TableHead>状态</TableHead>
+              <TableHead>进度</TableHead>
+              <TableHead>结果</TableHead>
+              <TableHead>速度/ETA</TableHead>
+              <TableHead>耗时</TableHead>
+              <TableHead></TableHead>
             </TableRow>
-          ) : (
-            filtered.map((j) => (
-              <TableRow key={j.id}>
-                <TableCell className="admin-mono-cell text-sm text-muted">{truncateId(j.id)}</TableCell>
-                <TableCell className="text-sm">{renderNovelTitle(j)}</TableCell>
-                <TableCell>{j.updateMode ? '更新' : '抓取'}</TableCell>
-                <TableCell>{renderStatus(j)}</TableCell>
-                <TableCell>
-                  {j.current || 0}/{j.total || '?'}
+          </TableHeader>
+          <TableBody>
+            {filtered.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={9} className="table-empty">
+                  {jobsLoading ? '加载中…' : '暂无任务'}
                 </TableCell>
-                <TableCell>
-                  <span className="job-result-mini">✓{j.successCount || j.chapterCount || 0}</span>{' '}
-                  <span className="job-result-mini job-result-mini--failed">✕{j.failedCount || 0}</span>{' '}
-                  <span className="job-result-mini">↷{j.skippedCount || 0}</span>
-                </TableCell>
-                <TableCell className="text-sm text-muted">
-                  {formatJobSpeed(j.speed)} · {formatEta(j.etaSeconds)}
-                </TableCell>
-                <TableCell className="text-sm text-muted">
-                  {j.startedAt ? getJobDuration(j.startedAt, isJobTerminal(j.status) ? (j.updatedAt ?? null) : null) : '—'}
-                </TableCell>
-                <TableCell className="table-actions job-table-actions">{renderActions(j)}</TableCell>
               </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
+            ) : (
+              filtered.map((j) => (
+                <TableRow key={j.id}>
+                  <TableCell className="admin-mono-cell text-sm text-muted">{truncateId(j.id)}</TableCell>
+                  <TableCell className="text-sm">{renderNovelTitle(j)}</TableCell>
+                  <TableCell>{j.updateMode ? '更新' : '抓取'}</TableCell>
+                  <TableCell>{renderStatus(j)}</TableCell>
+                  <TableCell>
+                    {j.current || 0}/{j.total || '?'}
+                  </TableCell>
+                  <TableCell>
+                    <span className="job-result-mini">✓{j.successCount || j.chapterCount || 0}</span>{' '}
+                    <span className="job-result-mini job-result-mini--failed">✕{j.failedCount || 0}</span>{' '}
+                    <span className="job-result-mini">↷{j.skippedCount || 0}</span>
+                  </TableCell>
+                  <TableCell className="text-sm text-muted">
+                    {formatJobSpeed(j.speed)} · {formatEta(j.etaSeconds)}
+                  </TableCell>
+                  <TableCell className="text-sm text-muted">
+                    {j.startedAt ? getJobDuration(j.startedAt, isJobTerminal(j.status) ? (j.updatedAt ?? null) : null) : '—'}
+                  </TableCell>
+                  <TableCell className="table-actions job-table-actions">{renderActions(j)}</TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
 
       <div className="admin-table-meta-row">
         <span className="text-xs text-muted">{jobStatsText}</span>
@@ -421,34 +423,36 @@ export default function JobsTab(_props: { highlightNovelId?: string; onHighlight
           刷新
         </Button>
       </div>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>类型</TableHead>
-            <TableHead>对象</TableHead>
-            <TableHead>数量</TableHead>
-            <TableHead>时间</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {downloadLogs.length === 0 ? (
+      <div className="table-wrapper">
+        <Table>
+          <TableHeader>
             <TableRow>
-              <TableCell colSpan={4} className="table-empty">
-                {logsLoading ? '加载中…' : '暂无下载日志'}
-              </TableCell>
+              <TableHead>类型</TableHead>
+              <TableHead>对象</TableHead>
+              <TableHead>数量</TableHead>
+              <TableHead>时间</TableHead>
             </TableRow>
-          ) : (
-            downloadLogs.map((log) => (
-              <TableRow key={log.id}>
-                <TableCell>{DOWNLOAD_TYPE_LABELS[log.type] || log.type}</TableCell>
-                <TableCell className="text-sm">{log.targetTitle || log.targetId || '—'}</TableCell>
-                <TableCell>{log.itemCount || 0}</TableCell>
-                <TableCell className="text-sm text-muted">{formatDateTime(log.createdAt)}</TableCell>
+          </TableHeader>
+          <TableBody>
+            {downloadLogs.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={4} className="table-empty">
+                  {logsLoading ? '加载中…' : '暂无下载日志'}
+                </TableCell>
               </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
+            ) : (
+              downloadLogs.map((log) => (
+                <TableRow key={log.id}>
+                  <TableCell>{DOWNLOAD_TYPE_LABELS[log.type] || log.type}</TableCell>
+                  <TableCell className="text-sm">{log.targetTitle || log.targetId || '—'}</TableCell>
+                  <TableCell>{log.itemCount || 0}</TableCell>
+                  <TableCell className="text-sm text-muted">{formatDateTime(log.createdAt)}</TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
     </section>
   )
 }

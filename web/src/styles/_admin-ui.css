@@ -546,7 +546,11 @@
   grid-template-columns: 236px minmax(0, 1fr);
   background: transparent;
 }.tab-content{
+  width: 100%;
   max-width: 1500px;
+  margin-inline: auto;
+  min-width: 0;
+  box-sizing: border-box;
 }.section-header{
   align-items: flex-start;
   gap: 16px;
