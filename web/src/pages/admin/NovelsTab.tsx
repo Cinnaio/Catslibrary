@@ -27,6 +27,7 @@ import {
   TableBody,
   TableCell,
   TableHead,
+  TableCaption,
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
@@ -225,6 +226,26 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
   function thClass(field: string): string {
     const active = sortField === field
     return ['th-sortable', active ? 'th-sortable--active' : '', active && sortOrder === 'asc' ? 'th-sortable--asc' : ''].filter(Boolean).join(' ')
+  }
+
+  function sortAria(field: string): 'ascending' | 'descending' | 'none' {
+    if (sortField !== field) return 'none'
+    return sortOrder === 'asc' ? 'ascending' : 'descending'
+  }
+
+  function SortButton({ field, children }: { field: string; children: string }) {
+    const active = sortField === field
+    return (
+      <button
+        type="button"
+        className="admin-sort-button"
+        data-active={active}
+        onClick={() => toggleSort(field)}
+      >
+        {children}
+        <span className="admin-sort-caret" aria-hidden="true">{active ? (sortOrder === 'asc' ? '↑' : '↓') : '↕'}</span>
+      </button>
+    )
   }
 
   // --- Selection ---
@@ -436,14 +457,17 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
     <section className="tab-content">
       <div className="section-header section-header--novels">
         <div className="section-header__titleblock">
+          <span className="detail-kicker">CONTENT CATALOG</span>
           <h2 className="section-title">小说管理</h2>
-          <span className="section-header__meta text-sm text-muted">{countLabel}</span>
+          <span className="section-header__meta text-sm text-muted" role="status" aria-live="polite">{countLabel}</span>
         </div>
         <div className="novel-toolbar">
           <div className="novel-toolbar__main">
+            <Label htmlFor="novel-search" className="sr-only">搜索小说</Label>
             <Input
-              type="text"
-              placeholder="搜索标题/作者…"
+              id="novel-search"
+              type="search"
+              placeholder="搜索标题、作者或简介"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
             />
@@ -452,8 +476,8 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
             </Button>
           </div>
           {selected.size > 0 && (
-            <div className="novel-toolbar__batch">
-              <span className="novel-toolbar__batch-count text-sm text-muted">已选 {selected.size} 本</span>
+            <div className="novel-toolbar__batch" aria-live="polite">
+              <span className="novel-toolbar__batch-count">已选 {selected.size} 本</span>
               <div className="batch-actions-group">
                 <Button variant="secondary" size="sm" onClick={() => void handleBatchUpdate()}>
                   批量更新
@@ -472,26 +496,27 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
 
       <div className="table-wrapper">
         <Table>
+          <TableCaption className="sr-only">小说目录列表，可按标题、作者、章节数和更新时间排序</TableCaption>
           <TableHeader>
             <TableRow>
-              <TableHead className="admin-table__check">
-                <Checkbox title="全选" checked={allChecked} onCheckedChange={handleSelectAll} />
+              <TableHead scope="col" className="admin-table__check">
+                <Checkbox aria-label="选择当前页全部小说" checked={allChecked} onCheckedChange={handleSelectAll} />
               </TableHead>
-              <TableHead className={thClass('title')} onClick={() => toggleSort('title')}>
-                标题<span className="th-sort-caret" aria-hidden="true"></span>
+              <TableHead scope="col" aria-sort={sortAria('title')}>
+                <SortButton field="title">标题</SortButton>
               </TableHead>
-              <TableHead className={thClass('author')} onClick={() => toggleSort('author')}>
-                作者<span className="th-sort-caret" aria-hidden="true"></span>
+              <TableHead scope="col" aria-sort={sortAria('author')}>
+                <SortButton field="author">作者</SortButton>
               </TableHead>
-              <TableHead>分类</TableHead>
-              <TableHead>状态</TableHead>
-              <TableHead className={thClass('chapter_count')} onClick={() => toggleSort('chapter_count')}>
-                章节<span className="th-sort-caret" aria-hidden="true"></span>
+              <TableHead scope="col">分类</TableHead>
+              <TableHead scope="col">状态</TableHead>
+              <TableHead scope="col" aria-sort={sortAria('chapter_count')}>
+                <SortButton field="chapter_count">章节</SortButton>
               </TableHead>
-              <TableHead className={thClass('updated_at')} onClick={() => toggleSort('updated_at')}>
-                更新<span className="th-sort-caret" aria-hidden="true"></span>
+              <TableHead scope="col" aria-sort={sortAria('updated_at')}>
+                <SortButton field="updated_at">更新</SortButton>
               </TableHead>
-              <TableHead></TableHead>
+              <TableHead scope="col">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -511,7 +536,12 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
               novels.map((n) => (
                 <TableRow key={n.id} className={n.id === highlightId ? 'novel-row--highlight' : undefined}>
                   <TableCell>
-                    <Checkbox className="novel-checkbox" checked={selected.has(n.id)} onCheckedChange={() => toggleRow(n.id)} />
+                    <Checkbox
+                      className="novel-checkbox"
+                      aria-label={`选择小说：${n.title}`}
+                      checked={selected.has(n.id)}
+                      onCheckedChange={() => toggleRow(n.id)}
+                    />
                   </TableCell>
                   <TableCell>
                     <strong>{n.title}</strong>
@@ -539,15 +569,15 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
                   <TableCell className="text-sm text-muted">{timeAgo(n.updatedAt)}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
-                      <Button asChild variant="ghost" size="icon" title="阅读">
+                      <Button asChild variant="ghost" size="icon" aria-label={`阅读：${n.title}`} title="阅读">
                         <Link to={`/novel/${encodeURIComponent(n.id)}`}>
                           <BookOpen className="size-4" />
                         </Link>
                       </Button>
-                      <Button variant="ghost" size="icon" title="编辑" onClick={() => openModal(n)}>
+                      <Button variant="ghost" size="icon" aria-label={`编辑：${n.title}`} title="编辑" onClick={() => openModal(n)}>
                         <Pencil className="size-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" title="删除" onClick={() => void handleDelete(n)}>
+                      <Button variant="ghost" size="icon" aria-label={`删除：${n.title}`} title="删除" onClick={() => void handleDelete(n)}>
                         <Trash2 className="size-4" />
                       </Button>
                     </div>
@@ -562,7 +592,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
       <Pagination page={page} totalPages={totalPages} onPage={setPage} />
 
       <Dialog open={modalOpen} onOpenChange={(open) => { if (!open) closeModal() }}>
-        <DialogContent className="sm:max-w-[540px] overflow-y-auto max-h-[80vh]">
+        <DialogContent className="admin-dialog sm:max-w-[540px]">
           <DialogHeader className="flex-row items-center gap-3">
             <div className="editor-modal__mark" aria-hidden="true">
               书
@@ -572,68 +602,76 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
               <DialogTitle className="editor-modal__title">{editing ? '编辑小说' : '添加小说'}</DialogTitle>
             </div>
           </DialogHeader>
-          <div className="novel-editor__grid">
-                <div className="form-group novel-editor__field novel-editor__field--wide">
-                  <Label>标题</Label>
-                  <Input
-                    type="text"
-                    placeholder="小说标题"
-                    value={draft.title}
-                    onChange={(e) => setDraft({ ...draft, title: e.target.value })}
-                  />
-                </div>
-                <div className="form-group novel-editor__field">
-                  <Label>作者</Label>
-                  <Input
-                    type="text"
-                    placeholder="作者名"
-                    value={draft.author}
-                    onChange={(e) => setDraft({ ...draft, author: e.target.value })}
-                  />
-                </div>
-                <div className="form-group novel-editor__field">
-                  <Label>状态</Label>
-                  <CustomSelect options={STATUS_OPTIONS} value={draft.status} onChange={(v) => setDraft({ ...draft, status: v })} />
-                </div>
-                <div className="form-group novel-editor__field novel-editor__field--wide">
-                  <Label>简介</Label>
-                  <Textarea
-                    rows={5}
-                    className="min-h-[150px]"
-                    placeholder="小说简介…"
-                    value={draft.description}
-                    onChange={(e) => setDraft({ ...draft, description: e.target.value })}
-                  />
-                </div>
-                <div className="form-group novel-editor__field novel-editor__field--wide">
-                  <Label>封面 URL</Label>
-                  <Input
-                    type="url"
-                    placeholder="https://..."
-                    value={draft.coverUrl}
-                    onChange={(e) => setDraft({ ...draft, coverUrl: e.target.value })}
-                  />
-                  <p className="text-xs text-muted-foreground">保存时由服务器在后台缓存封面图</p>
-                </div>
-                <div className="form-group novel-editor__field">
-                  <Label>分类</Label>
-                  <Input
-                    type="text"
-                    placeholder="玄幻, 修真, 仙侠"
-                    value={draft.categories}
-                    onChange={(e) => setDraft({ ...draft, categories: e.target.value })}
-                  />
-                  <p className="text-xs text-muted-foreground">多个分类用逗号分隔</p>
-                </div>
-                <div className="form-group novel-editor__field">
-                  <Label>源网址</Label>
-                  <Input
-                    type="url"
-                    placeholder="https://..."
-                    value={draft.sourceUrl}
-                    onChange={(e) => setDraft({ ...draft, sourceUrl: e.target.value })}
-                  />
-                </div>
+          <div className="admin-dialog__body">
+            <div className="novel-editor__grid">
+              <div className="form-group novel-editor__field novel-editor__field--wide">
+                <Label htmlFor="novel-title">标题</Label>
+                <Input
+                  id="novel-title"
+                  type="text"
+                  placeholder="小说标题"
+                  value={draft.title}
+                  onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+                />
+              </div>
+              <div className="form-group novel-editor__field">
+                <Label htmlFor="novel-author">作者</Label>
+                <Input
+                  id="novel-author"
+                  type="text"
+                  placeholder="作者名"
+                  value={draft.author}
+                  onChange={(e) => setDraft({ ...draft, author: e.target.value })}
+                />
+              </div>
+              <div className="form-group novel-editor__field">
+                <Label id="novel-status-label">状态</Label>
+                <CustomSelect aria-labelledby="novel-status-label" options={STATUS_OPTIONS} value={draft.status} onChange={(v) => setDraft({ ...draft, status: v })} />
+              </div>
+              <div className="form-group novel-editor__field novel-editor__field--wide">
+                <Label htmlFor="novel-description">简介</Label>
+                <Textarea
+                  id="novel-description"
+                  rows={5}
+                  className="min-h-[150px]"
+                  placeholder="小说简介…"
+                  value={draft.description}
+                  onChange={(e) => setDraft({ ...draft, description: e.target.value })}
+                />
+              </div>
+              <div className="form-group novel-editor__field novel-editor__field--wide">
+                <Label htmlFor="novel-cover-url">封面 URL</Label>
+                <Input
+                  id="novel-cover-url"
+                  type="url"
+                  placeholder="https://..."
+                  value={draft.coverUrl}
+                  onChange={(e) => setDraft({ ...draft, coverUrl: e.target.value })}
+                />
+                <p className="text-xs text-muted-foreground">保存时由服务器在后台缓存封面图</p>
+              </div>
+              <div className="form-group novel-editor__field">
+                <Label htmlFor="novel-categories">分类</Label>
+                <Input
+                  id="novel-categories"
+                  type="text"
+                  placeholder="玄幻, 修真, 仙侠"
+                  value={draft.categories}
+                  onChange={(e) => setDraft({ ...draft, categories: e.target.value })}
+                />
+                <p className="text-xs text-muted-foreground">多个分类用逗号分隔</p>
+              </div>
+              <div className="form-group novel-editor__field">
+                <Label htmlFor="novel-source-url">源网址</Label>
+                <Input
+                  id="novel-source-url"
+                  type="url"
+                  placeholder="https://..."
+                  value={draft.sourceUrl}
+                  onChange={(e) => setDraft({ ...draft, sourceUrl: e.target.value })}
+                />
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="secondary" onClick={closeModal}>

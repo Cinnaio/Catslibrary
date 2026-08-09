@@ -39,6 +39,7 @@ import {
   SidebarProvider,
   SidebarRail,
   SidebarTrigger,
+  useSidebar,
 } from '@/components/ui/sidebar'
 import DashboardTab from './DashboardTab'
 import NovelsTab from './NovelsTab'
@@ -49,16 +50,36 @@ import ModerationTab from './ModerationTab'
 import SettingsTab from './SettingsTab'
 import RulesTab from './RulesTab'
 
-const TABS: Array<{ id: string; label: string; icon: LucideIcon }> = [
-  { id: 'dashboard', label: '总览', icon: LayoutDashboard },
-  { id: 'novels', label: '小说管理', icon: BookOpen },
-  { id: 'chapters', label: '章节管理', icon: FileText },
-  { id: 'scrape', label: '爬虫抓取', icon: Bug },
-  { id: 'jobs', label: '任务管理', icon: Clock },
-  { id: 'moderation', label: '内容审核', icon: MessageSquare },
-  { id: 'settings', label: '账户与注册', icon: UserCog },
-  { id: 'rules', label: '解析规则', icon: Braces },
+const NAV_GROUPS: Array<{ label: string; items: Array<{ id: string; label: string; icon: LucideIcon }> }> = [
+  {
+    label: '监控',
+    items: [
+      { id: 'dashboard', label: '总览', icon: LayoutDashboard },
+      { id: 'jobs', label: '任务管理', icon: Clock },
+    ],
+  },
+  {
+    label: '内容',
+    items: [
+      { id: 'novels', label: '小说管理', icon: BookOpen },
+      { id: 'chapters', label: '章节管理', icon: FileText },
+      { id: 'moderation', label: '内容审核', icon: MessageSquare },
+    ],
+  },
+  {
+    label: '采集',
+    items: [{ id: 'scrape', label: '爬虫抓取', icon: Bug }],
+  },
+  {
+    label: '系统',
+    items: [
+      { id: 'settings', label: '账户与注册', icon: UserCog },
+      { id: 'rules', label: '解析规则', icon: Braces },
+    ],
+  },
 ]
+
+const TABS = NAV_GROUPS.flatMap((group) => group.items)
 
 export interface AdminTabProps {
   highlightNovelId?: string
@@ -77,6 +98,42 @@ const TAB_COMPONENTS: Record<string, React.ComponentType<AdminTabProps>> = {
 }
 
 const TAB_KEY = 'admin_active_tab'
+
+function AdminNavigation({ active, onSelect }: { active: string; onSelect: (id: string) => void }) {
+  const { isMobile, setOpenMobile } = useSidebar()
+
+  function select(id: string) {
+    onSelect(id)
+    if (isMobile) setOpenMobile(false)
+  }
+
+  return (
+    <nav aria-label="管理导航">
+      {NAV_GROUPS.map((group) => (
+        <SidebarGroup key={group.label}>
+          <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {group.items.map((tab) => (
+                <SidebarMenuItem key={tab.id}>
+                  <SidebarMenuButton
+                    isActive={active === tab.id}
+                    tooltip={tab.label}
+                    aria-current={active === tab.id ? 'page' : undefined}
+                    onClick={() => select(tab.id)}
+                  >
+                    <tab.icon />
+                    <span>{tab.label}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      ))}
+    </nav>
+  )
+}
 
 export default function Admin() {
   const { user, loading } = useSession()
@@ -149,38 +206,21 @@ export default function Admin() {
   return (
     <SidebarProvider className="admin-layout">
       <Sidebar collapsible="icon">
-        <SidebarHeader>
+        <SidebarHeader className="admin-shell__brand">
           <SidebarMenu>
             <SidebarMenuItem>
-              <SidebarMenuButton size="lg" className="gap-2">
-                <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground">
-                  舟
+              <SidebarMenuButton size="lg" className="gap-3" aria-label="知舟管理台">
+                <span className="admin-shell__brand-mark" aria-hidden="true">舟</span>
+                <span className="admin-shell__brand-copy">
+                  <strong>知舟</strong>
+                  <small>馆藏运营台</small>
                 </span>
-                <span className="text-sm font-semibold">知舟 · 管理面板</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarHeader>
-        <SidebarContent>
-          <SidebarGroup>
-            <SidebarGroupLabel>管理</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {TABS.map((tab) => (
-                  <SidebarMenuItem key={tab.id}>
-                    <SidebarMenuButton
-                      isActive={active === tab.id}
-                      tooltip={tab.label}
-                      onClick={() => setActive(tab.id)}
-                    >
-                      <tab.icon />
-                      <span>{tab.label}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
+        <SidebarContent className="admin-shell__navigation">
+          <AdminNavigation active={active} onSelect={setActive} />
         </SidebarContent>
         <SidebarFooter>
           <SidebarMenu>
@@ -203,14 +243,20 @@ export default function Admin() {
         <SidebarRail />
       </Sidebar>
       <SidebarInset className="admin-layout__inset min-w-0">
-        <header className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
-          <SidebarTrigger />
-          <Separator orientation="vertical" className="mr-1 h-4" />
-          <span className="text-sm font-medium">{activeLabel}</span>
+        <header className="admin-shell__topbar">
+          <div className="flex min-w-0 items-center gap-2">
+            <SidebarTrigger aria-label="打开管理导航" />
+            <Separator orientation="vertical" className="mr-1 h-4" />
+            <div className="min-w-0">
+              <span className="admin-shell__context">运营工作区</span>
+              <span className="admin-shell__page-title">{activeLabel}</span>
+            </div>
+          </div>
+          <span className="admin-shell__status" role="status">管理员模式</span>
         </header>
-        <main className="admin-layout__content min-h-0 min-w-0 flex-1 overflow-auto p-4 md:p-6">
+        <section className="admin-layout__content min-h-0 min-w-0 flex-1 overflow-auto p-4 md:p-6" aria-label={activeLabel}>
           <TabComponent highlightNovelId={highlightNovelId} onHighlightConsumed={() => setHighlightNovelId('')} />
-        </main>
+        </section>
       </SidebarInset>
     </SidebarProvider>
   )

@@ -33,6 +33,8 @@ interface CustomSelectProps {
   onServerSearch?: (query: string) => void
   className?: string
   disabled?: boolean
+  'aria-label'?: string
+  'aria-labelledby'?: string
 }
 
 export default function CustomSelect({
@@ -48,6 +50,8 @@ export default function CustomSelect({
   onServerSearch,
   className,
   disabled,
+  'aria-label': ariaLabel,
+  'aria-labelledby': ariaLabelledBy,
 }: CustomSelectProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -90,6 +94,8 @@ export default function CustomSelect({
           variant="outline"
           role="combobox"
           aria-expanded={open}
+          aria-label={ariaLabel}
+          aria-labelledby={ariaLabelledBy}
           disabled={disabled}
           className={cn(
             'w-full max-w-[400px] justify-between bg-card font-normal text-[0.9rem]',

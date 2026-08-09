@@ -23,6 +23,7 @@
 @import './_admin-ui.css';
 @import './mobile.css';
 @import './shadcn.css';
+@import './admin-operations.css';
 
 /* 暗色变体：把 Tailwind dark: 从 .dark 类换成站点 [data-theme="dark"] 属性 */
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
