@@ -1,0 +1,38 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "design-system-font-size",
+        "value": "*",
+        "files": [
+          "web/src/styles/_admin-discover.css",
+          "web/src/styles/_admin-ui.css"
+        ],
+        "createdAt": "2026-08-09T11:40:30.546Z",
+        "reason": "legacy pre-design-system CSS layer, slated for token migration"
+      },
+      {
+        "rule": "design-system-radius",
+        "value": "*",
+        "files": [
+          "web/src/styles/_admin-discover.css",
+          "web/src/styles/_admin-ui.css"
+        ],
+        "createdAt": "2026-08-09T11:40:37.286Z",
+        "reason": "legacy pre-design-system CSS layer, slated for token migration"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "*",
+        "files": [
+          "web/src/styles/_admin-discover.css",
+          "web/src/styles/_admin-ui.css"
+        ],
+        "createdAt": "2026-08-09T11:40:45.406Z",
+        "reason": "legacy pre-design-system CSS layer, slated for token migration"
+      }
+    ]
+  }
+}
