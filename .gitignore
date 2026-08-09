@@ -22,3 +22,11 @@ data/
 # ── OS / 编辑器 ──
 .DS_Store
 Thumbs.db
+
+# ── Impeccable 运行时产物（设计系统文档 DESIGN.md / design.json / critique 保留）──
+.impeccable/hook.cache.json
+.impeccable/live/
+web/.impeccable/
+
+# ── 临时截图 ──
+web/screenshots/
