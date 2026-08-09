@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-08-09T11:00:00Z",
+  "generatedAt": "2026-08-09T20:15:00Z",
   "title": "Design System: 知舟 (Zhi Zhou)",
   "extensions": {
     "colorMeta": {
@@ -71,7 +71,7 @@
       "body": { "displayName": "System Sans", "purpose": "All body text and UI labels. PingFang SC / Microsoft YaHei for CJK." },
       "serif": { "displayName": "Noto Serif SC", "purpose": "Reading mode only. Creates paper-book immersion." },
       "mono": { "displayName": "SF Mono", "purpose": "Code display and monospace data (job IDs, URLs)." },
-      "compact-label": { "displayName": "Compact Label Scale (Admin)", "purpose": "0.625-0.8rem admin density step (nav 0.7rem, kicker 0.65rem, table head 0.68rem, meta pill 0.75rem, pagination 0.8rem, sidebar group 0.625rem). OPERATE-mode scan efficiency over reading comfort; contrast must still meet AA 4.5:1." }
+      "scale": { "displayName": "Enumerated Type Scale", "purpose": "Machine-readable size ramp (frontmatter). label-sm 0.7rem → table-head 0.72rem → label 0.75rem → caption 0.78rem → body-compact 0.8rem → source-toolbar 0.82rem → body-sm 0.875rem → select-trigger 0.9rem → card-title 0.95rem → body 1rem → modal-title 1.15rem → title 1.25rem → hero 1.45rem → stat 1.75rem → display 2rem. Compact admin labels live at the 0.7-0.82rem band." }
     },
     "shadows": [
       { "name": "rest", "value": "0 1px 2px rgba(40,32,24,0.04), 0 1px 3px rgba(40,32,24,0.05)", "purpose": "Subtle card/button resting shadow — like paper lifting slightly." },

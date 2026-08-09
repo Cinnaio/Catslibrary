@@ -11,7 +11,7 @@ colors:
   surface-hover: "#F5F2EE"
   text-primary: "#211E1A"
   text-secondary: "#5B554E"
-  text-muted: "#9A938A"
+  text-muted: "#736D65"
   border: "#ECE8E2"
   border-light: "#F3F0EB"
   success: "#4F7A52"
@@ -37,9 +37,29 @@ typography:
     fontFamily: "'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', ui-serif, serif"
   mono:
     fontFamily: "'SF Mono', 'Fira Code', 'Consolas', monospace"
+  # 枚举字号阶（机器可读字阶）。命名语义见正文 Typography 一节。
+  scale:
+    label-sm: "0.7rem"        # 11.2px 导航标签/kicker/侧栏分组
+    table-head: "0.72rem"     # 11.52px 表头
+    label: "0.75rem"          # 12px 计数胶囊/元信息
+    caption: "0.78rem"        # 12.5px 发现卡作者/描述
+    body-compact: "0.8rem"    # 12.8px 表单标签/分页/排序
+    source-toolbar: "0.82rem" # 13.1px 书源工具栏
+    body-sm: "0.875rem"       # 14px 辅助文字/页标题
+    select-trigger: "0.9rem"  # 14.4px 下拉触发
+    card-title: "0.95rem"     # 15.2px 发现卡标题
+    body: "1rem"              # 16px 正文/品牌标记
+    modal-title: "1.15rem"    # 18.4px 弹窗标题
+    title-min: "1.25rem"      # 20px section-title clamp 下限
+    hero-min: "1.45rem"       # 23.2px hero 标题 clamp 下限
+    title-max: "1.6rem"       # 25.6px section-title clamp 上限
+    stat: "1.75rem"           # 28px Dashboard 统计数字
+    hero-max: "1.9rem"        # 30.4px hero 标题 clamp 上限
+    display: "2rem"           # 32px h1
 rounded:
   sm: "6px"
   md: "8px"
+  md-admin: "10px"
   lg: "12px"
   xl: "16px"
   2xl: "20px"

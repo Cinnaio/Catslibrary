@@ -290,7 +290,7 @@
   border-radius: var(--admin-radius-sm);
   background: var(--admin-panel-muted);
 }
-.preset-btn { min-height: 2rem; border: 0; border-radius: 4px; background: transparent; color: var(--text-secondary); }
+.preset-btn { min-height: 2rem; border: 0; background: transparent; color: var(--text-secondary); }
 .preset-btn--active, .preset-btn[aria-pressed="true"] { background: var(--admin-panel); color: var(--text-primary); box-shadow: 0 0 0 1px var(--admin-border); }
 
 .scrape-flow-grid { display: grid; grid-template-columns: minmax(0, 1fr) 17rem; gap: var(--admin-space-4); align-items: start; }
