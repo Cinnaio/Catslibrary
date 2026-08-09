@@ -3,15 +3,20 @@
  * 由 Novel-KV js/admin-import.js 的 rules 部分平移。
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Pencil, Trash2 } from 'lucide-react'
+import { ChevronDown, Pencil, Trash2 } from 'lucide-react'
 import { useConfirm } from '../../components/feedback'
 import { useToast } from '../../components/feedback'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { cn } from '@/lib/utils'
+import AdminTabHeader from '@/components/admin/AdminTabHeader'
+import AdminPanel from '@/components/admin/AdminPanel'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import {
   BUILTIN_PATTERNS,
   SEPARATOR_PATTERN,
@@ -52,6 +57,7 @@ export default function RulesTab(_props: { highlightNovelId?: string; onHighligh
   const [testResult, setTestResult] = useState<{ ok: boolean; count: number; matches: TestMatch[]; error?: string } | null>(null)
   const [bulkInput, setBulkInput] = useState('')
   const [bulkResult, setBulkResult] = useState<{ count: number; lines: Array<{ pos: number; w: number; title: string }> } | null>(null)
+  const [builtinOpen, setBuiltinOpen] = useState(false)
 
   const testTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -234,36 +240,45 @@ export default function RulesTab(_props: { highlightNovelId?: string; onHighligh
 
   return (
     <section className="tab-content">
-      <div className="section-header">
-        <div className="section-header__titleblock">
-          <h2 className="section-title">TXT 解析规则</h2>
-        </div>
-        <div className="admin-toolbar__group">
-          <Button size="sm" onClick={() => openModal(null)}>
-            添加规则
-          </Button>
-          <Button variant="destructive" size="sm" onClick={() => void resetRules()}>
-            恢复默认
-          </Button>
-        </div>
-      </div>
+      <AdminTabHeader
+        title="TXT 解析规则"
+        actions={
+          <div className="admin-toolbar__group">
+            <Button size="sm" onClick={() => openModal(null)}>
+              添加规则
+            </Button>
+            <Button variant="destructive" size="sm" onClick={() => void resetRules()}>
+              恢复默认
+            </Button>
+          </div>
+        }
+      />
 
-      <details className="card rules-reference-card">
-        <summary className="rules-reference-card__summary">内置规则参考（{BUILTIN_PATTERNS.length} 条，只读）</summary>
-        <div className="rules-reference-card__body">
-          {builtinRows.map((r, i) => (
-            <div className="builtin-rule-row" key={i}>
-              <span className="builtin-rule-row__index">{i + 1}</span>
-              <span className="builtin-rule-row__regex">
-                /{r.source.replace(/\//g, '\\/')}/{r.flags}
-              </span>
-              <span className="builtin-rule-row__weight">w={r.w}</span>
+      <Collapsible open={builtinOpen} onOpenChange={setBuiltinOpen}>
+        <Card className="rules-reference-card">
+          <CollapsibleTrigger asChild>
+            <button className="rules-reference-card__summary flex items-center gap-2 w-full">
+              内置规则参考（{BUILTIN_PATTERNS.length} 条，只读）
+              <ChevronDown className={cn("size-4 transition-transform", builtinOpen && "rotate-180")} />
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="rules-reference-card__body">
+              {builtinRows.map((r, i) => (
+                <div className="builtin-rule-row" key={i}>
+                  <span className="builtin-rule-row__index">{i + 1}</span>
+                  <span className="builtin-rule-row__regex">
+                    /{r.source.replace(/\//g, '\\/')}/{r.flags}
+                  </span>
+                  <span className="builtin-rule-row__weight">w={r.w}</span>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      </details>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
 
-      <div className="card rules-custom-card">
+      <AdminPanel className="rules-custom-card">
         <div className="card__head">
           <h3 className="card__title">自定义规则</h3>
           <span className="text-sm text-muted">
@@ -296,9 +311,9 @@ export default function RulesTab(_props: { highlightNovelId?: string; onHighligh
             ))
           )}
         </div>
-      </div>
+      </AdminPanel>
 
-      <div className="card rules-test-card">
+      <AdminPanel className="rules-test-card">
         <div className="card__head">
           <h3 className="card__title">批量测试</h3>
           <span className="text-sm text-muted">粘贴包含多个章节标题的文本，测试当前规则能否识别章节结构</span>
@@ -324,7 +339,7 @@ export default function RulesTab(_props: { highlightNovelId?: string; onHighligh
             ))}
           </div>
         )}
-      </div>
+      </AdminPanel>
 
       <Dialog open={modal.open} onOpenChange={(open) => !open && closeModal()}>
         <DialogContent className="admin-dialog sm:max-w-[540px] max-h-[80vh] overflow-y-auto">

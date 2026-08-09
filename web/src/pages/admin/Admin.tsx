@@ -44,7 +44,7 @@ import {
 import DashboardTab from './DashboardTab'
 import NovelsTab from './NovelsTab'
 import ChaptersTab from './ChaptersTab'
-import ScrapeTab from './ScrapeTab'
+import ScrapeTab from './scrape'
 import JobsTab from './JobsTab'
 import ModerationTab from './ModerationTab'
 import SettingsTab from './SettingsTab'
@@ -144,6 +144,30 @@ export default function Admin() {
   useEffect(() => {
     localStorage.setItem(TAB_KEY, active)
   }, [active])
+
+  // 后台页面标题（便于浏览器标签识别）
+  useEffect(() => {
+    document.title = '知舟管理台'
+    return () => {
+      document.title = '知舟 — 小说阅读'
+    }
+  }, [])
+
+  // 键盘路径：/ 聚焦当前 tab 的搜索框（Alex 效率收益）
+  useEffect(() => {
+    function onSlash(e: KeyboardEvent) {
+      if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return
+      const t = e.target as HTMLElement | null
+      const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)
+      if (typing) return
+      const search = document.querySelector<HTMLElement>('.tab-content [data-admin-search]')
+      if (!search) return
+      e.preventDefault()
+      search.focus()
+    }
+    window.addEventListener('keydown', onSlash)
+    return () => window.removeEventListener('keydown', onSlash)
+  }, [])
 
   // 从小说详情页「管理」跳转：聚焦 novels tab 并高亮目标行
   const [highlightNovelId, setHighlightNovelId] = useState<string>(() => {

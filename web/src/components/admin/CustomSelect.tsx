@@ -112,7 +112,11 @@ export default function CustomSelect({
       </PopoverTrigger>
       <PopoverContent
         align="start"
-        className={cn('w-(--radix-popover-trigger-width) min-w-[200px] p-0', compact && 'w-auto')}
+        className={cn(
+          'admin-custom-select-popover w-(--radix-popover-trigger-width) min-w-[200px] p-0',
+          searchable && 'pt-1',   // 顶部留白，避免搜索框聚焦环向上溢出到触发器
+          compact && 'w-auto',
+        )}
       >
         <Command shouldFilter={false}>
           {searchable && (
@@ -125,7 +129,7 @@ export default function CustomSelect({
           )}
           <CommandList>
             {filtered.length === 0 ? (
-              <CommandEmpty>没有匹配的选项</CommandEmpty>
+              <CommandEmpty>{!query.trim() && options.length === 0 ? '暂无选项' : '没有匹配的选项'}</CommandEmpty>
             ) : (
               <CommandGroup>
                 {filtered.map((o) => (

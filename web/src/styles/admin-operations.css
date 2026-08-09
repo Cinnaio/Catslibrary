@@ -1,6 +1,7 @@
-/* Admin operations desk: a compact, semantic layer shared by every admin tab. */
-
-.admin-layout {
+/* Admin operations desk: a compact, semantic layer shared by every admin tab.
+   --admin-* 变量定义在 :root（而非 .admin-layout），这样 Radix portal 渲染在
+   body 层的弹窗（dialog/popover）也能继承暖纸面板与边框语义。 */
+:root {
   --admin-canvas: color-mix(in srgb, var(--bg-secondary) 82%, var(--accent-subtle));
   --admin-panel: var(--bg-card);
   --admin-panel-muted: color-mix(in srgb, var(--bg-secondary) 78%, var(--accent-subtle));
@@ -16,6 +17,9 @@
   --admin-space-4: 1rem;
   --admin-space-5: 1.5rem;
   --admin-space-6: 2rem;
+}
+
+.admin-layout {
   background: var(--admin-canvas);
 }
 
@@ -34,10 +38,10 @@
   height: 2rem;
   flex: 0 0 auto;
   place-items: center;
-  border: 1px solid color-mix(in srgb, var(--primary) 42%, var(--admin-border));
+  border: 1px solid color-mix(in srgb, var(--sh-primary) 42%, var(--admin-border));
   border-radius: var(--admin-radius-sm);
-  background: var(--primary);
-  color: var(--primary-foreground);
+  background: var(--sh-primary);
+  color: var(--sh-primary-foreground);
   font-family: var(--font-serif);
   font-size: 1rem;
   font-weight: 700;
@@ -58,7 +62,7 @@
   height: 1.75rem;
   padding-inline: 0.625rem;
   color: var(--text-muted);
-  font-size: 0.65rem;
+  font-size: 0.7rem;   /* 11.2px — ≥11px 可读下限 */
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
@@ -69,7 +73,7 @@
 }
 
 .admin-shell__navigation [data-sidebar="menu-button"][data-active="true"] {
-  box-shadow: inset 2px 0 0 var(--primary);
+  box-shadow: inset 2px 0 0 var(--sh-primary);
 }
 
 .admin-shell__topbar {
@@ -86,7 +90,7 @@
 .admin-shell__context {
   display: block;
   color: var(--text-muted);
-  font-size: 0.625rem;
+  font-size: 0.7rem;   /* 11.2px — ≥11px 可读下限 */
   font-weight: 700;
   letter-spacing: 0.09em;
   line-height: 1.15;
@@ -111,12 +115,7 @@
 
 @keyframes admin-enter { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
 
-.section-header,
-.admin-page-intro,
-.dashboard-hero,
-.sources-hero,
-.account-hero,
-.scrape-center-hero {
+.section-header {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
@@ -128,6 +127,9 @@
 
 .section-header__titleblock { display: grid; min-width: 0; gap: 0.3rem; }
 .section-title { margin: 0; color: var(--text-primary); font-size: clamp(1.25rem, 1rem + 0.5vw, 1.6rem); font-weight: 700; letter-spacing: 0; line-height: 1.15; }
+/* hero variant：总览 / 爬虫抓取中心 / 账户与注册 —— 更大标题，从普通 section 中凸显 */
+.section-header--hero .section-title { font-size: clamp(1.45rem, 1.15rem + 0.8vw, 1.9rem); }
+.section-header--hero .detail-kicker { margin-bottom: 0.5rem; }
 .section-header__meta, .admin-shell__status {
   width: fit-content;
   border: 1px solid var(--admin-border);
@@ -135,12 +137,16 @@
   background: var(--admin-panel-muted);
   padding: 0.2rem 0.5rem;
   font-variant-numeric: tabular-nums;
+  font-size: 0.75rem;        /* 计数/能力胶囊：显式小字号，脱离标题字号 */
+  font-weight: 500;
+  vertical-align: middle;
+  line-height: 1.4;
 }
 
 .detail-kicker, .editor-modal__eyebrow {
   margin: 0 0 0.3rem;
   color: var(--text-muted);
-  font-size: 0.65rem;
+  font-size: 0.7rem;   /* 11.2px — ≥11px 可读下限 */
   font-weight: 750;
   letter-spacing: 0.1em;
 }
@@ -190,14 +196,14 @@
   border-bottom: 1px solid var(--admin-border);
   background: var(--admin-panel-muted);
   color: var(--text-muted);
-  font-size: 0.68rem;
+  font-size: 0.72rem;   /* 11.52px — 数据读取面，≥11px 可读下限 */
   font-weight: 750;
   letter-spacing: 0.07em;
   text-transform: uppercase;
 }
 .table-wrapper td { height: 3.25rem; border-bottom: 1px solid var(--admin-border); color: var(--text-secondary); }
 .table-wrapper tbody tr:last-child td { border-bottom: 0; }
-.table-wrapper tbody tr:hover td { background: color-mix(in srgb, var(--primary) 5%, transparent); }
+.table-wrapper tbody tr:hover td { background: color-mix(in srgb, var(--sh-primary) 5%, transparent); }
 .table-empty { padding: 3.5rem 1rem !important; color: var(--text-muted); text-align: center; }
 .admin-table__check { width: 3rem; }
 .admin-category-cell { min-width: 12rem; }
@@ -215,11 +221,11 @@
   text-transform: inherit;
 }
 .admin-sort-button:hover, .admin-sort-button:focus-visible { color: var(--text-primary); }
-.admin-sort-button[data-active="true"] { color: var(--primary); }
+.admin-sort-button[data-active="true"] { color: var(--sh-primary); }
 .admin-sort-caret { width: 0.8rem; font-size: 0.8rem; line-height: 1; }
 
 .novel-row--highlight td { animation: admin-highlight 1.8s ease-out; }
-@keyframes admin-highlight { 0% { background: color-mix(in srgb, var(--primary) 16%, var(--admin-panel)); } 100% { background: transparent; } }
+@keyframes admin-highlight { 0% { background: color-mix(in srgb, var(--sh-primary) 16%, var(--admin-panel)); } 100% { background: transparent; } }
 .badge-update { margin-left: 0.35rem; color: var(--color-success); font-size: 0.75rem; font-weight: 700; }
 
 .admin-pagination, .home-pagination {
@@ -230,6 +236,20 @@
   margin-top: var(--admin-space-3);
   color: var(--text-muted);
   font-size: 0.8rem;
+}
+
+/* 章节管理 · 选择小说：标签与下拉框之间留出呼吸间距 */
+.chapter-novel-row {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.75rem;
+  margin-bottom: var(--admin-space-4);
+}
+.chapter-novel-row > label {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 650;
 }
 
 [data-slot="dialog-content"].admin-dialog {
@@ -330,12 +350,29 @@
   border-radius: var(--admin-radius-sm);
 }
 
+/* secondary 按钮在暖画布上隐形（背景 ≈ 画布）——加可见边框恢复按钮 affordance */
+.admin-layout [data-slot="button"][data-variant="secondary"] {
+  border: 1px solid var(--admin-border-strong);
+}
+
+/* CustomSelect 弹层内的搜索框聚焦态：克制的细边，不溢出不突兀
+   （全局 focus-visible 的 4px 光晕在弹出层内过于厚重）
+   注意：popover 经 Radix portal 渲染在 body 层，必须用 .admin-custom-select-popover
+   类选择器而非 .admin-layout 祖先作用域 */
+.admin-custom-select-popover [data-slot="command-input"]:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+.admin-custom-select-popover [data-slot="command-input-wrapper"]:focus-within {
+  box-shadow: 0 0 0 2px var(--focus-ring);
+}
+
 [data-slot="dialog-content"].admin-dialog {
   border-radius: var(--radius-lg);
 }
 
 @media (max-width: 900px) {
-  .section-header, .admin-page-intro, .dashboard-hero, .sources-hero, .account-hero, .scrape-center-hero { align-items: stretch; flex-direction: column; }
+  .section-header { align-items: stretch; flex-direction: column; }
   .novel-toolbar { width: 100%; margin-left: 0; }
   .scrape-flow-grid, .account-overview-grid { grid-template-columns: 1fr; }
   .scrape-flow-grid__side { position: static; }
@@ -345,7 +382,7 @@
   .admin-layout__content { padding: 1rem; }
   .admin-shell__topbar { padding-inline: 0.75rem; }
   .admin-shell__status { display: none; }
-  .section-header, .admin-page-intro, .dashboard-hero, .sources-hero, .account-hero, .scrape-center-hero { gap: var(--admin-space-3); margin-bottom: var(--admin-space-4); padding-bottom: var(--admin-space-3); }
+  .section-header { gap: var(--admin-space-3); margin-bottom: var(--admin-space-4); padding-bottom: var(--admin-space-3); }
   .novel-toolbar__main { flex-wrap: wrap; }
   .novel-toolbar__main > input { min-width: 100%; }
   .novel-toolbar__main > button { flex: 1 1 100%; min-height: 2.75rem; }
@@ -354,7 +391,7 @@
   .batch-actions-group > button { min-height: 2.75rem; flex: 1 1 calc(50% - 0.25rem); }
   .table-wrapper { margin-inline: -0.25rem; border-inline: 0; border-radius: 0; }
   .table-wrapper table { min-width: 42rem; }
-  .table-wrapper th { height: 2.25rem; font-size: 0.64rem; }
+  .table-wrapper th { height: 2.25rem; font-size: 0.7rem; }
   .table-wrapper td { height: 3rem; font-size: 0.8rem; }
   .admin-pagination, .home-pagination { justify-content: center; flex-wrap: wrap; }
   [data-slot="dialog-content"].admin-dialog { max-height: calc(100svh - 1rem); border-radius: var(--admin-radius-dialog); }

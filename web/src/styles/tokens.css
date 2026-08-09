@@ -13,7 +13,7 @@
   --bg-hover:         #F5F2EE;
   --text-primary:     #211E1A;
   --text-secondary:   #5B554E;
-  --text-muted:       #9A938A;
+  --text-muted:       #736D65;   /* 弱化文字 — AA 对比度 ≥4.5:1（白底 5.11 / 奶油底 4.66） */
   --accent:           #8B6045;
   --accent-hover:     #74503A;
   --accent-light:     #F0E6D6;
@@ -74,7 +74,7 @@
   --bg-hover:         #34353C;
   --text-primary:     #E7E0D6;
   --text-secondary:   #AEA597;
-  --text-muted:       #7F786F;
+  --text-muted:       #A79E92;   /* 暗色弱化文字 — 提亮至 AA 对比度 ≥4.5:1（卡片底 5.38:1） */
   --accent:           #BF8F52;
   --accent-hover:     #D0A064;
   --accent-light:     #3D2F20;

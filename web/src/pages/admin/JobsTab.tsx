@@ -15,6 +15,7 @@ import { adminApi, authFetch, downloadLogsApi, scrapeApi } from '../../lib/api'
 import { formatDateTime } from '../../lib/format'
 import { formatEta, formatJobSpeed, getJobDuration, isJobRunning, isJobTerminal, jobStatusLabel, truncateId } from '../../lib/admin'
 import { useConfirm, useToast } from '../../components/feedback'
+import AdminTabHeader from '@/components/admin/AdminTabHeader'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -338,24 +339,26 @@ export default function JobsTab(_props: { highlightNovelId?: string; onHighlight
 
   return (
     <section className="tab-content">
-      <div className="section-header">
-        <h2 className="section-title">任务管理</h2>
-        <div className="admin-toolbar__group admin-filter-pills">
-          {FILTERS.map((f) => (
-            <Button
-              key={f.value}
-              size="sm"
-              variant={filter === f.value ? 'default' : 'secondary'}
-              onClick={() => setFilter(f.value)}
-            >
-              {f.label}
+      <AdminTabHeader
+        title="任务管理"
+        actions={
+          <>
+            {FILTERS.map((f) => (
+              <Button
+                key={f.value}
+                size="sm"
+                variant={filter === f.value ? 'default' : 'secondary'}
+                onClick={() => setFilter(f.value)}
+              >
+                {f.label}
+              </Button>
+            ))}
+            <Button variant="secondary" size="sm" onClick={handleRefresh}>
+              刷新
             </Button>
-          ))}
-          <Button variant="secondary" size="sm" onClick={handleRefresh}>
-            刷新
-          </Button>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       <div className="table-wrapper">
         <Table>
@@ -417,11 +420,15 @@ export default function JobsTab(_props: { highlightNovelId?: string; onHighlight
         )}
       </div>
 
-      <div className="section-header admin-section-header--spaced">
-        <h2 className="section-title">下载日志</h2>
-        <Button variant="secondary" size="sm" onClick={() => void loadDownloadLogs()}>
-          刷新
-        </Button>
+      <div className="mt-8">
+        <AdminTabHeader
+          title="下载日志"
+          actions={
+            <Button variant="secondary" size="sm" onClick={() => void loadDownloadLogs()}>
+              刷新
+            </Button>
+          }
+        />
       </div>
       <div className="table-wrapper">
         <Table>

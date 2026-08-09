@@ -7,10 +7,12 @@ import { Link } from 'react-router-dom'
 import { adminApi, thoughtsApi, url } from '../../lib/api'
 import { timeAgo } from '../../lib/format'
 import { useConfirm, useToast } from '../../components/feedback'
+import AdminTabHeader from '@/components/admin/AdminTabHeader'
 import CustomSelect from '../../components/admin/CustomSelect'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Table,
   TableBody,
@@ -515,61 +517,57 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
 
   return (
     <section className="tab-content">
-      <div className="section-header">
-        <div className="section-header__titleblock">
-          <h2 className="section-title">内容审核</h2>
-          <span className="section-header__meta text-sm text-muted">{total !== null ? `共 ${total} 条` : ''}</span>
-        </div>
-        <div className="thoughts-toolbar">
-          <div className="preset-group">
-            {(Object.keys(MODERATION_TYPES) as ModerationMode[]).map((m) => (
-              <button
-                key={m}
-                type="button"
-                className={`preset-btn${mode === m ? ' preset-btn--active' : ''}`}
-                onClick={() => switchMode(m)}
-              >
-                {MODERATION_TYPES[m].label}
-              </button>
-            ))}
-          </div>
-          <CustomSelect
-            className="admin-input--select-sm"
-            compact
-            options={cfg.statusOptions.map(([value, label]) => ({ value, label }))}
-            value={status}
-            onChange={handleStatusChange}
-          />
-          {cfg.showUser && (
-            <Input
-              type="text"
-              className="admin-input--compact admin-input--user"
-              placeholder="用户ID"
-              value={userInput}
-              onChange={handleUserChange}
-            />
-          )}
-          {cfg.showReason && (
+      <AdminTabHeader
+        title="内容审核"
+        meta={total !== null ? `共 ${total} 条` : ''}
+        actions={
+          <div className="thoughts-toolbar">
+            <Tabs value={mode} onValueChange={(v) => switchMode(v as ModerationMode)}>
+              <TabsList>
+                {(Object.keys(MODERATION_TYPES) as ModerationMode[]).map((m) => (
+                  <TabsTrigger key={m} value={m}>{MODERATION_TYPES[m].label}</TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
             <CustomSelect
               className="admin-input--select-sm"
               compact
-              options={REASON_OPTIONS.map(([value, label]) => ({ value, label }))}
-              value={reason}
-              onChange={handleReasonChange}
+              options={cfg.statusOptions.map(([value, label]) => ({ value, label }))}
+              value={status}
+              onChange={handleStatusChange}
             />
-          )}
-          <Input
-            type="text"
-            className="admin-input--compact admin-input--search-wide"
-            placeholder={cfg.searchPlaceholder}
-            value={searchInput}
-            onChange={handleSearchChange}
-          />
-          <Button variant="secondary" size="sm" onClick={() => void load()}>
-            刷新
-          </Button>
-        </div>
-      </div>
+            {cfg.showUser && (
+              <Input
+                type="text"
+                className="admin-input--compact admin-input--user"
+                placeholder="用户ID"
+                value={userInput}
+                onChange={handleUserChange}
+              />
+            )}
+            {cfg.showReason && (
+              <CustomSelect
+                className="admin-input--select-sm"
+                compact
+                options={REASON_OPTIONS.map(([value, label]) => ({ value, label }))}
+                value={reason}
+                onChange={handleReasonChange}
+              />
+            )}
+            <Input
+              type="text"
+              className="admin-input--compact admin-input--search-wide"
+              data-admin-search
+              placeholder={cfg.searchPlaceholder}
+              value={searchInput}
+              onChange={handleSearchChange}
+            />
+            <Button variant="secondary" size="sm" onClick={() => void load()}>
+              刷新
+            </Button>
+          </div>
+        }
+      />
       <div className="table-wrapper">
         <Table>
           <TableHeader>

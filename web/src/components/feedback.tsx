@@ -83,7 +83,8 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
     r?.(result)
   }
 
-  const danger = state?.danger !== false
+  // danger 默认 false：只有显式传入 danger: true 的调用点（删除等破坏性操作）显示红色
+  const danger = state?.danger === true
 
   return (
     <ConfirmContext.Provider value={{ confirm }}>

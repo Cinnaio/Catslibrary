@@ -8,6 +8,8 @@ import { RefreshCw } from 'lucide-react'
 import { adminApi } from '../../lib/api'
 import { timeAgo } from '../../lib/format'
 import { jobStatusLabel } from '../../lib/admin'
+import AdminTabHeader from '@/components/admin/AdminTabHeader'
+import AdminEmptyState from '@/components/admin/AdminEmptyState'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -71,17 +73,18 @@ export default function DashboardTab(_props: { highlightNovelId?: string; onHigh
 
   return (
     <section className="tab-content">
-      <div className="admin-page-intro dashboard-hero">
-        <div>
-          <p className="detail-kicker">OVERVIEW</p>
-          <h2 className="section-title">后台总览</h2>
-          <p className="text-secondary text-sm">书库、抓取任务和站点数据的即时状态。</p>
-        </div>
-        <Button variant="secondary" size="sm" onClick={() => void load(true)} disabled={loading}>
-          <RefreshCw className={loading ? 'size-3.5 animate-spin' : 'size-3.5'} />
-          {loading ? '加载中…' : '刷新总览'}
-        </Button>
-      </div>
+      <AdminTabHeader
+        kicker="OVERVIEW"
+        title="后台总览"
+        description="书库、抓取任务和站点数据的即时状态。"
+        variant="hero"
+        actions={
+          <Button variant="secondary" size="sm" onClick={() => void load(true)} disabled={loading}>
+            <RefreshCw className={loading ? 'size-3.5 animate-spin' : 'size-3.5'} />
+            {loading ? '加载中…' : '刷新总览'}
+          </Button>
+        }
+      />
 
       {error ? (
         <div className="dashboard-grid">
@@ -105,7 +108,7 @@ export default function DashboardTab(_props: { highlightNovelId?: string; onHigh
                     </div>
                     <div className="min-w-0">
                       <div className="truncate text-xs text-muted-foreground">{card.label}</div>
-                      <div className="text-2xl font-semibold leading-tight">
+                      <div className="text-[1.75rem] font-semibold leading-tight">
                         {formatNumber(value as number | string)}
                         {card.unit && <span className="ml-0.5 text-sm font-normal text-muted-foreground">{card.unit}</span>}
                       </div>
@@ -143,7 +146,7 @@ export default function DashboardTab(_props: { highlightNovelId?: string; onHigh
               <CardContent>
                 <div className="dashboard-list">
                   {data.recentJobs.length === 0 ? (
-                    <div className="dashboard-empty">暂无抓取任务</div>
+                    <AdminEmptyState message="暂无抓取任务" />
                   ) : (
                     data.recentJobs.map((j) => (
                       <div className="dashboard-list-item" key={j.id}>
@@ -168,7 +171,7 @@ export default function DashboardTab(_props: { highlightNovelId?: string; onHigh
               <CardContent>
                 <div className="dashboard-list">
                   {data.recentNovels.length === 0 ? (
-                    <div className="dashboard-empty">暂无小说</div>
+                    <AdminEmptyState message="暂无小说" />
                   ) : (
                     data.recentNovels.map((n) => (
                       <Link className="dashboard-list-item" to={`/novel/${encodeURIComponent(n.id)}`} key={n.id}>

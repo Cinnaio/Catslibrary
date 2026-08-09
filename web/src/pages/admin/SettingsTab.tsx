@@ -12,7 +12,10 @@ import { useConfirm, useToast } from '../../components/feedback'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import AdminPanel from '@/components/admin/AdminPanel'
+import AdminTabHeader from '@/components/admin/AdminTabHeader'
 
 interface AdminUser {
   id: string
@@ -280,26 +283,27 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
 
   return (
     <section className="tab-content account-admin">
-      <div className="admin-page-intro dashboard-hero account-hero">
-        <div>
-          <p className="detail-kicker">ACCOUNTS</p>
-          <h2 className="section-title">账户与注册</h2>
-          <p className="text-secondary text-sm">管理站点用户、注册方式与邀请码。</p>
-        </div>
-        <span id="schemaHealth">
-          {schemaHealth &&
-            (schemaHealth.ok ? (
-              <Badge className="bg-success/10 text-success">数据库正常</Badge>
-            ) : (
-              <Badge className="bg-destructive/10 text-destructive">
-                数据库缺失 {(schemaHealth.missing || []).join('、')}
-              </Badge>
-            ))}
-        </span>
-      </div>
+      <AdminTabHeader
+        kicker="ACCOUNTS"
+        title="账户与注册"
+        description="管理站点用户、注册方式与邀请码。"
+        variant="hero"
+        actions={
+          <span id="schemaHealth">
+            {schemaHealth &&
+              (schemaHealth.ok ? (
+                <Badge className="bg-success/10 text-success">数据库正常</Badge>
+              ) : (
+                <Badge className="bg-destructive/10 text-destructive">
+                  数据库缺失 {(schemaHealth.missing || []).join('、')}
+                </Badge>
+              ))}
+          </span>
+        }
+      />
 
       <div className="account-overview-grid">
-        <div className="card admin-panel-card account-card account-card--identity">
+        <AdminPanel className="account-card account-card--identity">
           <div className="section-header admin-card-header account-card__header">
             <div>
               <h3 className="admin-card-title">当前管理员</h3>
@@ -332,32 +336,31 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
               管理员 <strong>{adminCount}</strong>
             </span>
           </div>
-        </div>
+        </AdminPanel>
 
-        <div className="card admin-panel-card account-card account-card--register">
+        <AdminPanel className="account-card account-card--register">
           <h3 className="admin-card-title">注册设置</h3>
           <p className="text-sm text-muted admin-card-desc">控制新用户如何加入本站。</p>
-          <div className="admin-register-modes" id="registerModeGroup">
+          <RadioGroup
+            value={registerMode}
+            onValueChange={(v) => setRegisterMode(v as typeof registerMode)}
+            className="admin-register-modes"
+            id="registerModeGroup"
+          >
             {REGISTER_MODES.map((m) => (
               <label className="admin-register-mode" key={m.value}>
-                <input
-                  type="radio"
-                  name="registerMode"
-                  value={m.value}
-                  checked={registerMode === m.value}
-                  onChange={() => setRegisterMode(m.value)}
-                />
+                <RadioGroupItem value={m.value} />
                 <span>{m.label}</span>
                 <span className="admin-register-mode__hint">{m.hint}</span>
               </label>
             ))}
-          </div>
+          </RadioGroup>
           <div className="action-row admin-action-row account-save-row">
             <Button size="sm" onClick={() => void saveRegisterSettings()}>
               保存设置
             </Button>
           </div>
-        </div>
+        </AdminPanel>
       </div>
 
       <section className="account-section account-section--users">

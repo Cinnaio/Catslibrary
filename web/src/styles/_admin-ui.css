@@ -43,12 +43,6 @@
 }.novel-toolbar__batch-count{
   flex: 0 0 auto;
   white-space: nowrap;
-}.dashboard-hero{
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 20px;
 }.dashboard-grid{
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -114,13 +108,6 @@
 }.dashboard-list-item__arrow{
   color: var(--text-muted);
   font-size: 1.3rem;
-}.dashboard-loading,
-.dashboard-error,
-.dashboard-empty{
-  padding: 18px;
-  color: var(--text-muted);
-  font-size: 0.9rem;
-  text-align: center;
 }.admin .card{
   border-radius: var(--radius);
   border: 1px solid var(--border);
@@ -149,50 +136,6 @@
   border-bottom: none;
 }.table-wrapper tbody tr:hover td{
   background: var(--bg-hover);
-}.toast{
-  border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-md);
-  font-size: 0.875rem;
-  font-weight: 500;
-  animation: toastIn 0.3s var(--ease);
-}@keyframes toastIn{
-  from {
-    opacity: 0;
-    transform: translateX(40px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}.modal{
-  animation: modalIn 0.25s var(--ease);
-}@keyframes modalIn{
-  from {
-    opacity: 0;
-    transform: translateY(12px) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}.modal.modal--chapter-editor{
-  width: min(720px, calc(100vw - 32px));
-  max-width: 720px;
-}.modal--editor{
-  position: relative;
-  width: min(560px, calc(100vw - 32px));
-  max-width: 560px;
-  max-height: min(88vh, 760px);
-  border-radius: 24px;
-  overflow: hidden;
-  background: var(--bg-card);
-  box-shadow: 0 24px 72px rgba(40, 32, 24, 0.20);
-}.modal--novel-editor{
-  width: min(680px, calc(100vw - 32px));
-  max-width: 680px;
-}.modal--import-editor{
-  width: min(640px, calc(100vw - 32px));
-  max-width: 640px;
 }.editor-modal__mark{
   flex: 0 0 auto;
   min-width: 36px;
@@ -1014,17 +957,7 @@
   position: relative;
   overflow: hidden;
   border-color: color-mix(in srgb, var(--accent) 16%, var(--admin-line));
-  background:
-    radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 8%, transparent), transparent 42%),
-    linear-gradient(180deg, color-mix(in srgb, var(--bg-card) 94%, var(--accent-subtle)), var(--bg-card));
-}.account-card::before{
-  content: '';
-  position: absolute;
-  inset: 12px auto 12px 0;
-  width: 3px;
-  border-radius: 999px;
-  background: linear-gradient(180deg, var(--accent), transparent);
-  opacity: 0.45;
+  background: var(--admin-panel);   /* 扁平纸面 — 与全局 Flat-By-Default 标准一致 */
 }.account-card__header{
   align-items: flex-start;
   margin-bottom: 12px;

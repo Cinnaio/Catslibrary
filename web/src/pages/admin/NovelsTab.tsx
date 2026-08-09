@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { BookOpen, Pencil, Trash2 } from 'lucide-react'
+import AdminTabHeader from '@/components/admin/AdminTabHeader'
 
 const PAGE_SIZE = 20
 
@@ -455,18 +456,17 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
 
   return (
     <section className="tab-content">
-      <div className="section-header section-header--novels">
-        <div className="section-header__titleblock">
-          <span className="detail-kicker">CONTENT CATALOG</span>
-          <h2 className="section-title">小说管理</h2>
-          <span className="section-header__meta text-sm text-muted" role="status" aria-live="polite">{countLabel}</span>
-        </div>
-        <div className="novel-toolbar">
-          <div className="novel-toolbar__main">
+      <AdminTabHeader
+        kicker="CONTENT CATALOG"
+        title="小说管理"
+        meta={countLabel}
+        actions={
+          <>
             <Label htmlFor="novel-search" className="sr-only">搜索小说</Label>
             <Input
               id="novel-search"
               type="search"
+              data-admin-search
               placeholder="搜索标题、作者或简介"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
@@ -474,25 +474,25 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
             <Button size="sm" onClick={() => openModal(null)}>
               添加小说
             </Button>
-          </div>
-          {selected.size > 0 && (
-            <div className="novel-toolbar__batch" aria-live="polite">
-              <span className="novel-toolbar__batch-count">已选 {selected.size} 本</span>
-              <div className="batch-actions-group">
-                <Button variant="secondary" size="sm" onClick={() => void handleBatchUpdate()}>
-                  批量更新
-                </Button>
-                <Button variant="secondary" size="sm" onClick={invertSelection}>
-                  反选
-                </Button>
-                <Button variant="destructive" size="sm" onClick={() => void handleBatchDelete()}>
-                  批量删除
-                </Button>
+            {selected.size > 0 && (
+              <div className="novel-toolbar__batch" aria-live="polite">
+                <span className="novel-toolbar__batch-count">已选 {selected.size} 本</span>
+                <div className="batch-actions-group">
+                  <Button variant="secondary" size="sm" onClick={() => void handleBatchUpdate()}>
+                    批量更新
+                  </Button>
+                  <Button variant="secondary" size="sm" onClick={invertSelection}>
+                    反选
+                  </Button>
+                  <Button variant="destructive" size="sm" onClick={() => void handleBatchDelete()}>
+                    批量删除
+                  </Button>
+                </div>
               </div>
-            </div>
-          )}
-        </div>
-      </div>
+            )}
+          </>
+        }
+      />
 
       <div className="table-wrapper">
         <Table>

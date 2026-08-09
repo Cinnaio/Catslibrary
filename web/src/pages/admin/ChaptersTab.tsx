@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { Pencil, Trash2 } from 'lucide-react'
+import AdminTabHeader from '@/components/admin/AdminTabHeader'
 
 const PAGE_SIZE = 50
 
@@ -227,7 +228,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
     const items = chapters.filter((c) => selectedIds.has(c.id)).map((c) => `第${c.order}章 ${c.title}`)
     const ok = await confirm({
       title: '批量删除章节',
-      message: '确定删除以下 N 个章节？此操作不可撤销。',
+      message: `确定删除以下 ${selectedIds.size} 个章节？此操作不可撤销。`,
       okText: '确认删除',
       danger: true,
       items: items.slice(0, 50),
@@ -290,41 +291,43 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
 
   return (
     <section className="tab-content">
-      <div className="section-header">
-        <div className="section-header__titleblock">
-          <h2 className="section-title">章节管理</h2>
-          <span className="section-header__meta text-sm text-muted">
-            {selectedNovel ? (search ? `匹配 ${filtered.length} / 共 ${chapters.length} 章` : `共 ${chapters.length} 章`) : ''}
-            {selectedIds.size > 0 ? ` · 已选 ${selectedIds.size}` : ''}
-          </span>
-        </div>
-        <div className="admin-toolbar__group">
-          <Input
-            type="text"
-            className="admin-input--compact"
-            placeholder="搜索章节标题…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          <Button variant="secondary" size="sm" onClick={() => setRenameModal(true)} disabled={!selectedNovel}>
-            融合章节名
-          </Button>
-          <Button variant="secondary" size="sm" onClick={() => setSelectedIds((prev) => {
-            const pageIds = pageRows.map((c) => c.id)
-            const next = new Set(prev)
-            pageIds.forEach((id) => (next.has(id) ? next.delete(id) : next.add(id)))
-            return next
-          })} disabled={selectedIds.size === 0}>
-            反选
-          </Button>
-          <Button variant="destructive" size="sm" onClick={() => void batchDelete()} disabled={selectedIds.size === 0}>
-            批量删除{selectedIds.size > 0 ? ` (${selectedIds.size})` : ''}
-          </Button>
-          <Button size="sm" onClick={() => void openChapterModal(null)}>
-            添加章节
-          </Button>
-        </div>
-      </div>
+      <AdminTabHeader
+        title="章节管理"
+        meta={
+          selectedNovel || selectedIds.size > 0
+            ? <>{selectedNovel ? (search ? `匹配 ${filtered.length} / 共 ${chapters.length} 章` : `共 ${chapters.length} 章`) : ''}{selectedIds.size > 0 ? ` · 已选 ${selectedIds.size}` : ''}</>
+            : undefined
+        }
+        actions={
+          <div className="admin-toolbar__group">
+            <Input
+              type="text"
+              className="admin-input--compact"
+              data-admin-search
+              placeholder="搜索章节标题…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            <Button variant="secondary" size="sm" onClick={() => setRenameModal(true)} disabled={!selectedNovel}>
+              融合章节名
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => setSelectedIds((prev) => {
+              const pageIds = pageRows.map((c) => c.id)
+              const next = new Set(prev)
+              pageIds.forEach((id) => (next.has(id) ? next.delete(id) : next.add(id)))
+              return next
+            })} disabled={selectedIds.size === 0}>
+              反选
+            </Button>
+            <Button variant="destructive" size="sm" onClick={() => void batchDelete()} disabled={selectedIds.size === 0}>
+              批量删除{selectedIds.size > 0 ? ` (${selectedIds.size})` : ''}
+            </Button>
+            <Button size="sm" onClick={() => void openChapterModal(null)}>
+              添加章节
+            </Button>
+          </div>
+        }
+      />
 
       <div className="form-row chapter-novel-row">
         <Label>选择小说</Label>
