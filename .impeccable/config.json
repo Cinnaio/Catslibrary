@@ -32,6 +32,26 @@
         ],
         "createdAt": "2026-08-09T11:40:45.406Z",
         "reason": "legacy pre-design-system CSS layer, slated for token migration"
+      },
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "web/src/styles/_admin-discover.css",
+          "web/src/styles/_admin-ui.css"
+        ],
+        "createdAt": "2026-08-09T11:44:18.325Z",
+        "reason": "legacy pre-design-system CSS layer; discover-card collected-novel accent is a deliberate marker, scrape-side-card::before is dead"
+      },
+      {
+        "rule": "layout-transition",
+        "value": "*",
+        "files": [
+          "web/src/styles/_admin-discover.css",
+          "web/src/styles/_admin-ui.css"
+        ],
+        "createdAt": "2026-08-09T11:44:44.792Z",
+        "reason": "legacy pre-design-system CSS layer; progress-bar width transition is a conventional acceptable animation"
       }
     ]
   }
