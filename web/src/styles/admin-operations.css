@@ -355,6 +355,36 @@
   border: 1px solid var(--admin-border-strong);
 }
 
+/* 柔和 primary：浅棕填充 + accent 文字 + 细边框（替代实心深棕，整体更素净） */
+.admin-layout [data-slot="button"][data-variant="default"] {
+  background: color-mix(in srgb, var(--sh-primary) 12%, var(--admin-panel));
+  color: var(--sh-primary);
+  border: 1px solid color-mix(in srgb, var(--sh-primary) 28%, transparent);
+}
+.admin-layout [data-slot="button"][data-variant="default"]:hover {
+  background: color-mix(in srgb, var(--sh-primary) 18%, var(--admin-panel));
+}
+.admin-layout [data-slot="button"][data-variant="default"]:disabled {
+  background: color-mix(in srgb, var(--sh-primary) 7%, var(--admin-panel));
+  color: color-mix(in srgb, var(--sh-primary) 55%, var(--admin-panel));
+  border-color: transparent;
+}
+
+/* 柔和 destructive：浅粉填充 + danger 文字 + 细边框（替代实心粉） */
+.admin-layout [data-slot="button"][data-variant="destructive"] {
+  background: color-mix(in srgb, var(--color-danger) 10%, var(--admin-panel));
+  color: var(--color-danger);
+  border: 1px solid color-mix(in srgb, var(--color-danger) 24%, transparent);
+}
+.admin-layout [data-slot="button"][data-variant="destructive"]:hover {
+  background: color-mix(in srgb, var(--color-danger) 16%, var(--admin-panel));
+}
+.admin-layout [data-slot="button"][data-variant="destructive"]:disabled {
+  background: color-mix(in srgb, var(--color-danger) 6%, var(--admin-panel));
+  color: color-mix(in srgb, var(--color-danger) 50%, var(--admin-panel));
+  border-color: transparent;
+}
+
 /* CustomSelect 弹层内的搜索框聚焦态：克制的细边，不溢出不突兀
    （全局 focus-visible 的 4px 光晕在弹出层内过于厚重）
    注意：popover 经 Radix portal 渲染在 body 层，必须用 .admin-custom-select-popover

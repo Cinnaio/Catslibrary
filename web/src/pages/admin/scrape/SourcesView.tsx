@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { SourceRow } from './types'
 import { scrapePost, supportBadge } from './utils'
 
@@ -210,19 +210,15 @@ export default function SourcesView({ active }: { active: boolean }) {
           <Badge className="bg-secondary text-muted-foreground">不支持: {bySupport.unsupported || 0}</Badge>
         </div>
         <div className="sources-toolbar__filters">
-          <ToggleGroup
-            type="single"
-            value={supportFilter}
-            onValueChange={(v) => {
-              if (v !== undefined) setSupportFilter(v)
-            }}
-          >
-            <ToggleGroupItem value="">全部</ToggleGroupItem>
-            <ToggleGroupItem value="full">full</ToggleGroupItem>
-            <ToggleGroupItem value="partial">partial</ToggleGroupItem>
-            <ToggleGroupItem value="unsupported">unsupported</ToggleGroupItem>
-            <ToggleGroupItem value="enabled">已启用</ToggleGroupItem>
-          </ToggleGroup>
+          <Tabs value={supportFilter} onValueChange={setSupportFilter}>
+            <TabsList>
+              <TabsTrigger value="">全部</TabsTrigger>
+              <TabsTrigger value="full">full</TabsTrigger>
+              <TabsTrigger value="partial">partial</TabsTrigger>
+              <TabsTrigger value="unsupported">unsupported</TabsTrigger>
+              <TabsTrigger value="enabled">已启用</TabsTrigger>
+            </TabsList>
+          </Tabs>
           <Input type="text" className="admin-input--compact sources-toolbar__search" placeholder="按 host 过滤…" value={hostFilter} onChange={(e) => onHostFilterChange(e.target.value)} />
         </div>
       </div>

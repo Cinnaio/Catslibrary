@@ -16,6 +16,7 @@ import { formatDateTime } from '../../lib/format'
 import { formatEta, formatJobSpeed, getJobDuration, isJobRunning, isJobTerminal, jobStatusLabel, truncateId } from '../../lib/admin'
 import { useConfirm, useToast } from '../../components/feedback'
 import AdminTabHeader from '@/components/admin/AdminTabHeader'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -343,16 +344,13 @@ export default function JobsTab(_props: { highlightNovelId?: string; onHighlight
         title="任务管理"
         actions={
           <>
-            {FILTERS.map((f) => (
-              <Button
-                key={f.value}
-                size="sm"
-                variant={filter === f.value ? 'default' : 'secondary'}
-                onClick={() => setFilter(f.value)}
-              >
-                {f.label}
-              </Button>
-            ))}
+            <Tabs value={filter} onValueChange={(v) => setFilter(v as JobFilter)}>
+              <TabsList>
+                {FILTERS.map((f) => (
+                  <TabsTrigger key={f.value} value={f.value}>{f.label}</TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
             <Button variant="secondary" size="sm" onClick={handleRefresh}>
               刷新
             </Button>

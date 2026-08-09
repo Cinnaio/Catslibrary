@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { Textarea } from '@/components/ui/textarea'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { CheckItem, ConfigRow, JobCard, JobStatusData } from './types'
 import { scrapePost, parseCategories, po18CoverFallback, fmtLogTime } from './utils'
 
@@ -658,16 +658,12 @@ export default function CenterView() {
                     {advancedOpen && (
                       <div id="advancedConfig">
                         <div className="admin-toolbar__group">
-                          <ToggleGroup
-                            type="single"
-                            value={sitePreset}
-                            onValueChange={(v) => {
-                              if (v) applySitePreset(v)
-                            }}
-                          >
-                            <ToggleGroupItem value="po18">PO18</ToggleGroupItem>
-                            <ToggleGroupItem value="custom">自定义</ToggleGroupItem>
-                          </ToggleGroup>
+                          <Tabs value={sitePreset} onValueChange={(v) => applySitePreset(v)}>
+                            <TabsList>
+                              <TabsTrigger value="po18">PO18</TabsTrigger>
+                              <TabsTrigger value="custom">自定义</TabsTrigger>
+                            </TabsList>
+                          </Tabs>
                         </div>
                         <div className="form-row">
                           <Label className="mb-1.5">章节列表页 URL</Label>

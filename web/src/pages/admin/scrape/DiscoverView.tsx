@@ -9,6 +9,7 @@ import CustomSelect from '../../../components/admin/CustomSelect'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import type { BatchEntry, BatchState, DiscoverDetail, DiscoverNovel, DetectedMeta } from './types'
@@ -247,12 +248,12 @@ export default function DiscoverView() {
             />
           </div>
           <div className="discover-toolbar__toggle discover-toolbar__toggle--search-type" title="搜索类型">
-            <button className={`preset-btn${searchType === 'articlename' ? ' preset-btn--active' : ''}`} onClick={() => setSearchType('articlename')}>
-              书名
-            </button>
-            <button className={`preset-btn${searchType === 'author' ? ' preset-btn--active' : ''}`} onClick={() => setSearchType('author')}>
-              作者
-            </button>
+            <Tabs value={searchType} onValueChange={setSearchType}>
+              <TabsList>
+                <TabsTrigger value="articlename">书名</TabsTrigger>
+                <TabsTrigger value="author">作者</TabsTrigger>
+              </TabsList>
+            </Tabs>
           </div>
           <Button variant="secondary" size="sm" onClick={() => void fetchPo18Search()}>
             搜索 PO18
