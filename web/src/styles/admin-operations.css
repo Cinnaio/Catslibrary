@@ -162,7 +162,7 @@
 .admin .card:hover, .scrape-step:hover { transform: none; box-shadow: none; }
 .admin-panel-card, .scrape-step { padding: var(--admin-space-5); }
 
-.novel-toolbar, .thoughts-toolbar, .sources-toolbar, .admin-toolbar__group, .admin-filter-pills,
+.novel-toolbar, .thoughts-toolbar, .sources-toolbar, .admin-toolbar__group,
 .novel-toolbar__main, .novel-toolbar__batch, .batch-actions-group, .action-row, .input-row {
   display: flex;
   align-items: center;
@@ -282,16 +282,6 @@
 .dashboard-list-item__title { color: var(--text-primary); font-weight: 600; }
 .dashboard-list-item__meta { color: var(--text-muted); font-size: 0.75rem; }
 
-.preset-group, .admin-filter-pills, .discover-toolbar__toggle {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.2rem;
-  border: 1px solid var(--admin-border);
-  border-radius: var(--admin-radius-sm);
-  background: var(--admin-panel-muted);
-}
-.preset-btn { min-height: 2rem; border: 0; background: transparent; color: var(--text-secondary); }
-.preset-btn--active, .preset-btn[aria-pressed="true"] { background: var(--admin-panel); color: var(--text-primary); box-shadow: 0 0 0 1px var(--admin-border); }
 
 .scrape-flow-grid { display: grid; grid-template-columns: minmax(0, 1fr) 17rem; gap: var(--admin-space-4); align-items: start; }
 .scrape-flow-grid__side { position: sticky; top: 1rem; }
@@ -337,10 +327,6 @@
 .admin-layout [data-slot="input"],
 .admin-layout [data-slot="textarea"],
 .admin-layout .form-input,
-.admin-layout .preset-group,
-.admin-layout .preset-btn,
-.admin-layout .admin-filter-pills,
-.admin-layout .discover-toolbar__toggle,
 .admin-layout .discover-pagination__input,
 .admin-layout .admin-input--compact,
 .admin-layout .scrape-check-item,

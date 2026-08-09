@@ -69,23 +69,6 @@
   font-weight: 600;
   color: var(--text-primary);
   margin-bottom: 16px;
-}.preset-group{
-  display: flex;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-}.preset-btn{
-  padding: 6px 16px;
-  font-size: 0.8rem;
-  font-weight: 500;
-  border: none;
-  background: var(--bg-card);
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all 0.15s ease;
-}.preset-btn + .preset-btn{ border-left: 1px solid var(--border); }.preset-btn:hover{ background: var(--bg-secondary); color: var(--text-primary); }.scrape-view-toggle{
-  width: fit-content;
-  margin-bottom: 16px;
 }.input-row{
   display: flex; align-items: flex-end; gap: 10px;
 }.input-row .form-input{ margin-bottom: 0; }.form-row{

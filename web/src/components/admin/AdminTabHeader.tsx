@@ -1,7 +1,7 @@
 /**
  * AdminTabHeader — unified page header for every admin tab.
  * Replaces the 3 legacy patterns: hero (admin-page-intro dashboard-hero),
- * section-header + titleblock, and raw preset-group toggle headers.
+ * section-header + titleblock, and raw segmented toggle headers.
  */
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'

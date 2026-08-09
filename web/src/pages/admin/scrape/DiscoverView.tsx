@@ -247,14 +247,12 @@ export default function DiscoverView() {
               }}
             />
           </div>
-          <div className="discover-toolbar__toggle discover-toolbar__toggle--search-type" title="搜索类型">
-            <Tabs value={searchType} onValueChange={setSearchType}>
-              <TabsList>
-                <TabsTrigger value="articlename">书名</TabsTrigger>
-                <TabsTrigger value="author">作者</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
+          <Tabs value={searchType} onValueChange={setSearchType} aria-label="搜索类型">
+            <TabsList>
+              <TabsTrigger value="articlename">书名</TabsTrigger>
+              <TabsTrigger value="author">作者</TabsTrigger>
+            </TabsList>
+          </Tabs>
           <Button variant="secondary" size="sm" onClick={() => void fetchPo18Search()}>
             搜索 PO18
           </Button>
