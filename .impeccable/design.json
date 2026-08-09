@@ -1,0 +1,188 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-09T11:00:00Z",
+  "title": "Design System: 知舟 (Zhi Zhou)",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "Milk-Tea Brown",
+        "canonical": "#8B6045",
+        "tonalRamp": ["#3D2418", "#5A3825", "#74503A", "#8B6045", "#A07A5C", "#C4A68A", "#E8D6C0", "#F5EDE2"]
+      },
+      "primary-deep": {
+        "role": "primary",
+        "displayName": "Deep Espresso",
+        "canonical": "#74503A"
+      },
+      "primary-light": {
+        "role": "primary",
+        "displayName": "Light Cream",
+        "canonical": "#F0E6D6"
+      },
+      "text-primary": {
+        "role": "neutral",
+        "displayName": "Espresso Ink",
+        "canonical": "#211E1A",
+        "tonalRamp": ["#211E1A", "#3A3530", "#5B554E", "#7A746C", "#9A938A", "#B5AFA8", "#D4D0CB", "#F0EDE9"]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Clean Paper",
+        "canonical": "#FFFFFF",
+        "tonalRamp": ["#1B1C20", "#24252A", "#2A2B31", "#F6F4F1", "#F8F3EC", "#FBF9F6", "#FDFCFA", "#FFFFFF"]
+      },
+      "surface-warm": {
+        "role": "neutral",
+        "displayName": "Warm Linen",
+        "canonical": "#F6F4F1"
+      },
+      "success": {
+        "role": "semantic",
+        "displayName": "Reading Green",
+        "canonical": "#4F7A52",
+        "tonalRamp": ["#1E3A1F", "#2D5430", "#3D6A40", "#4F7A52", "#6E9A70", "#94BF96", "#BDDCBE", "#E4F0E4"]
+      },
+      "warning": {
+        "role": "semantic",
+        "displayName": "Amber Warning",
+        "canonical": "#B07C2F",
+        "tonalRamp": ["#4A3413", "#6E4F1D", "#906526", "#B07C2F", "#C99A52", "#DCBB80", "#ECD9B0", "#F8F0DA"]
+      },
+      "danger": {
+        "role": "semantic",
+        "displayName": "Vermilion Danger",
+        "canonical": "#BE123C",
+        "tonalRamp": ["#520A1A", "#7A102A", "#9E1534", "#BE123C", "#D43A5E", "#E46A82", "#F0A0AE", "#F8D0D6"]
+      },
+      "seal": {
+        "role": "semantic",
+        "displayName": "Collector's Seal",
+        "canonical": "#b8453a"
+      },
+      "dark-accent": {
+        "role": "primary",
+        "displayName": "Moonlit Gold",
+        "canonical": "#BF8F52"
+      }
+    },
+    "typographyMeta": {
+      "heading": { "displayName": "System Sans", "purpose": "UI headings and navigation. System stack for native feel." },
+      "body": { "displayName": "System Sans", "purpose": "All body text and UI labels. PingFang SC / Microsoft YaHei for CJK." },
+      "serif": { "displayName": "Noto Serif SC", "purpose": "Reading mode only. Creates paper-book immersion." },
+      "mono": { "displayName": "SF Mono", "purpose": "Code display and monospace data (job IDs, URLs)." },
+      "compact-label": { "displayName": "Compact Label Scale (Admin)", "purpose": "0.625-0.8rem admin density step (nav 0.7rem, kicker 0.65rem, table head 0.68rem, meta pill 0.75rem, pagination 0.8rem, sidebar group 0.625rem). OPERATE-mode scan efficiency over reading comfort; contrast must still meet AA 4.5:1." }
+    },
+    "shadows": [
+      { "name": "rest", "value": "0 1px 2px rgba(40,32,24,0.04), 0 1px 3px rgba(40,32,24,0.05)", "purpose": "Subtle card/button resting shadow — like paper lifting slightly." },
+      { "name": "elevated", "value": "0 6px 16px rgba(40,32,24,0.08)", "purpose": "Hover state and secondary popovers." },
+      { "name": "modal", "value": "0 24px 70px rgba(40,32,24,0.18)", "purpose": "Modal dialog overlay — heaviest shadow, still warm-toned." },
+      { "name": "admin-ambient", "value": "0 18px 48px rgba(40,32,24,0.10)", "purpose": "Admin panel cards and surfaces." },
+      { "name": "admin-soft", "value": "0 10px 26px rgba(40,32,24,0.07)", "purpose": "Lightweight admin surfaces." },
+      { "name": "dark-rest", "value": "0 1px 2px rgba(0,0,0,0.22), 0 1px 3px rgba(0,0,0,0.28)", "purpose": "Dark theme resting shadow." },
+      { "name": "dark-modal", "value": "0 30px 86px rgba(0,0,0,0.52)", "purpose": "Dark theme modal overlay." }
+    ],
+    "motion": [
+      { "name": "ease-standard", "value": "cubic-bezier(0.4, 0, 0.2, 1)", "purpose": "Default easing for state transitions." },
+      { "name": "admin-enter", "value": "160ms ease-out", "purpose": "Tab content entrance — opacity + 3px translateY." },
+      { "name": "admin-highlight", "value": "1.8s ease-out", "purpose": "Row highlight animation after navigation." },
+      { "name": "theme-transition", "value": "0.18s ease", "purpose": "Color transition during theme switch." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "900px" },
+      { "name": "lg", "value": "1200px" },
+      { "name": "xl", "value": "1440px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Main action button. Milk-tea brown background, white text.",
+      "html": "<button class=\"ds-btn-primary\">保存</button>",
+      "css": ".ds-btn-primary { background: #8B6045; color: #FFFFFF; padding: 8px 16px; border: none; border-radius: 6px; font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: background 0.15s ease; min-height: 2.25rem; } .ds-btn-primary:hover { background: #74503A; } .ds-btn-primary:focus-visible { outline: 2px solid #8B6045; outline-offset: 2px; box-shadow: 0 0 0 4px rgba(139,96,69,0.24); }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Default action button. Warm linen background, dark text.",
+      "html": "<button class=\"ds-btn-secondary\">刷新</button>",
+      "css": ".ds-btn-secondary { background: #F6F4F1; color: #211E1A; padding: 8px 16px; border: 1px solid #ECE8E2; border-radius: 6px; font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: background 0.15s ease; min-height: 2.25rem; } .ds-btn-secondary:hover { background: #F5F2EE; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Icon-only row action. Transparent, appears on hover.",
+      "html": "<button class=\"ds-btn-ghost\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M12 5v14M5 12h14\"/></svg></button>",
+      "css": ".ds-btn-ghost { background: transparent; color: #5B554E; padding: 8px; border: none; border-radius: 6px; cursor: pointer; transition: color 0.15s, background 0.15s; display: inline-flex; align-items: center; justify-content: center; min-width: 2rem; min-height: 2rem; } .ds-btn-ghost:hover { color: #211E1A; background: rgba(139,96,69,0.05); }"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Content surface. Clean paper background, warm border, no shadow at rest.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-header\">标题</div><div class=\"ds-card-content\">内容</div></div>",
+      "css": ".ds-card { background: var(--bg-card, #FFFFFF); border: 1px solid var(--admin-border, #ECE8E2); border-radius: 10px; padding: 24px; box-shadow: none; } .ds-card-header { margin-bottom: 16px; } .ds-card-header h3 { font-size: 1rem; font-weight: 600; color: #211E1A; margin: 0; }"
+    },
+    {
+      "name": "Input Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Text input. Clean border, warm focus ring.",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"搜索…\" />",
+      "css": ".ds-input { background: #FFFFFF; color: #211E1A; border: 1px solid #ECE8E2; border-radius: 6px; padding: 8px 12px; font-size: 0.875rem; min-height: 2.25rem; width: 100%; transition: border-color 0.15s, box-shadow 0.15s; } .ds-input:focus { outline: none; border-color: #8B6045; box-shadow: 0 0 0 3px rgba(139,96,69,0.2); } .ds-input::placeholder { color: #9A938A; }"
+    },
+    {
+      "name": "Table",
+      "kind": "custom",
+      "refersTo": "table",
+      "description": "Data table with sticky header and warm border container.",
+      "html": "<div class=\"ds-table-wrap\"><table class=\"ds-table\"><thead><tr><th>标题</th><th>状态</th></tr></thead><tbody><tr><td>示例</td><td><span class=\"ds-badge\">完成</span></td></tr></tbody></table></div>",
+      "css": ".ds-table-wrap { border: 1px solid var(--admin-border, #ECE8E2); border-radius: 10px; background: var(--bg-card, #FFFFFF); overflow: hidden; } .ds-table { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 46rem; } .ds-table th { position: sticky; top: 0; height: 2.5rem; border-bottom: 1px solid #ECE8E2; background: #F0EDE9; color: #9A938A; font-size: 0.68rem; font-weight: 750; letter-spacing: 0.07em; text-transform: uppercase; text-align: left; padding: 0 16px; } .ds-table td { height: 3.25rem; border-bottom: 1px solid #ECE8E2; color: #5B554E; padding: 0 16px; } .ds-table tbody tr:hover td { background: rgba(139,96,69,0.05); }"
+    },
+    {
+      "name": "Badge",
+      "kind": "chip",
+      "refersTo": "badge",
+      "description": "Status indicator pill. Semantic color variants.",
+      "html": "<span class=\"ds-badge\">已完成</span>",
+      "css": ".ds-badge { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; background: #F6F4F1; color: #5B554E; border: 1px solid #ECE8E2; } .ds-badge-success { background: rgba(79,122,82,0.1); color: #4F7A52; } .ds-badge-warning { background: rgba(176,124,47,0.1); color: #B07C2F; } .ds-badge-danger { background: rgba(190,18,60,0.1); color: #BE123C; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Paper Sanctuary",
+    "overview": "知舟的设计语言来自一个简单的感觉：在温暖的光线下翻阅纸质书。界面是安静的，像书房里被台灯照亮的纸页——没有刺眼的对比，没有冰冷的玻璃感，只有柔和的奶油色地面和深沉的墨色文字。这不是一个\"科技产品\"的界面，而是一个\"阅读空间\"的界面。\n\n色彩来自奶茶和旧书页：暖棕作为唯一的强调色（像书脊上的烫金字），大面积使用接近白色的暖灰和奶油色作为呼吸空间。阴影克制而自然，像纸页层叠投下的微光。组件有微妙的触觉感——圆润但不幼稚，边框细致如精装书的切边。",
+    "keyCharacteristics": [
+      "奶茶色暖调贯穿，拒绝冷色和高饱和度",
+      "纸质感地面（接近白色的暖灰），文字如墨迹",
+      "阴影极简，依赖色调层次而非投影创造深度",
+      "系统字体 + 衬线字体用于阅读场景",
+      "组件触感温暖，圆角适度，像精心制作的文具"
+    ],
+    "rules": [
+      { "name": "The 10% Accent Rule", "body": "奶茶棕色强调色在任何页面上不超过 10% 的面积。它的稀有性就是力量——读者的眼睛自然被引导到最重要的交互点。", "section": "colors" },
+      { "name": "The Content-First Rule", "body": "字体永远是配角。系统字体不创造风格，内容本身创造风格。唯一例外是阅读器中的衬线体——那是为沉浸而存在的。", "section": "typography" },
+      { "name": "The Flat-By-Default Rule", "body": "所有表面在静止状态是平的。阴影仅作为状态响应出现（hover、elevation、focus），或为弹出层提供层次暗示。", "section": "elevation" }
+    ],
+    "dos": [
+      "Do 使用暖灰色调作为地面和背景，保持\"纸面\"质感",
+      "Do 保持强调色的稀缺性——奶茶棕只出现在交互元素和品牌标记上",
+      "Do 在管理后台使用 --admin-* 语义化间距和圆角变量",
+      "Do 在阅读器场景使用衬线字体营造沉浸感",
+      "Do 保持卡片和面板的扁平设计，仅在弹出层使用阴影",
+      "Do 在暗色模式使用月光暖调（金色强调 + 深灰地面），不要简单反转"
+    ],
+    "donts": [
+      "Don't 使用纯黑（#000000）或纯白作为大面积背景——永远带暖调",
+      "Don't 使用冷色蓝/紫/绿作为强调色——系统只有暖棕一个强调色",
+      "Don't 给卡片添加 hover 阴影效果——Flat-By-Default Rule",
+      "Don't 使用超过 3 种字号层级——保持排版的克制和统一",
+      "Don't 在管理后台使用花哨的动画——仅使用 160ms ease-out 的微妙过渡",
+      "Don't 忽略 prefers-reduced-motion 媒体查询——尊重用户的动画偏好"
+    ]
+  }
+}
