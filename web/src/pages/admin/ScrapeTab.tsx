@@ -1351,7 +1351,7 @@ function DiscoverView() {
       {/* Detail modal */}
       {detail && (
         <Dialog open onOpenChange={(open) => !open && setDetail(null)}>
-          <DialogContent className="sm:max-w-[680px] p-0 gap-0 flex flex-col overflow-hidden max-h-[86vh] rounded-[24px]" showCloseButton={false}>
+          <DialogContent className="admin-dialog sm:max-w-[680px] p-0 gap-0 flex flex-col overflow-hidden max-h-[86vh]" showCloseButton={false}>
             <div className="modal__header detail-modal__header discover-detail__header">
               <div className="editor-modal__mark discover-detail__mark" aria-hidden="true">
                 探
@@ -1447,7 +1447,7 @@ function DiscoverView() {
       {/* Batch log modal */}
       {batch && (
         <Dialog open onOpenChange={(open) => !open && batch.done && setBatch(null)}>
-          <DialogContent className="sm:max-w-[800px] p-0 gap-0 flex flex-col overflow-hidden max-h-[80vh] rounded-[24px]" showCloseButton={false}>
+          <DialogContent className="admin-dialog sm:max-w-[800px] p-0 gap-0 flex flex-col overflow-hidden max-h-[80vh]" showCloseButton={false}>
             <div className="modal__header operation-log__header">
               <h3 className="modal__title">{batch.title}</h3>
               <Button variant="ghost" size="icon" className="operation-log__close" aria-label="关闭" onClick={() => batch.done && setBatch(null)}>

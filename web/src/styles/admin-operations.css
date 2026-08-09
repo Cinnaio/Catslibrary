@@ -7,8 +7,9 @@
   --admin-border: color-mix(in srgb, var(--border) 88%, var(--text-primary) 4%);
   --admin-border-strong: color-mix(in srgb, var(--border) 62%, var(--text-primary) 15%);
   --admin-control-height: 2.25rem;
-  --admin-radius: 8px;
-  --admin-radius-sm: 6px;
+  --admin-radius: var(--radius-md);
+  --admin-radius-sm: var(--radius-sm);
+  --admin-radius-dialog: var(--radius-lg);
   --admin-space-1: 0.25rem;
   --admin-space-2: 0.5rem;
   --admin-space-3: 0.75rem;
@@ -237,7 +238,7 @@
   overflow: hidden;
   padding: 0;
   border-color: var(--admin-border-strong);
-  border-radius: var(--admin-radius);
+  border-radius: var(--admin-radius-dialog);
   background: var(--admin-panel);
   box-shadow: var(--shadow-modal);
 }
@@ -276,7 +277,62 @@
 .scrape-flow-grid__side { position: sticky; top: 1rem; }
 .scrape-side-card { border: 1px solid var(--admin-border); border-radius: var(--admin-radius); background: var(--admin-panel); padding: var(--admin-space-4); }
 .scrape-side-card::before { display: none; }
-.job-card, .rule-item, .discover-card, .account-card { border-radius: var(--admin-radius) !important; box-shadow: none !important; }
+.admin-layout .job-card,
+.admin-layout .rule-item,
+.admin-layout .discover-card,
+.admin-layout .account-card {
+  border-radius: var(--admin-radius) !important;
+  box-shadow: none !important;
+}
+
+.admin-layout .admin-panel-card,
+.admin-layout .scrape-step,
+.admin-layout .discover-toolbar,
+.admin-layout .dashboard-status-strip,
+.admin-layout .account-invite-tools,
+.admin-layout .rules-reference-card,
+.admin-layout .rules-custom-card,
+.admin-layout .rules-test-card,
+.admin-layout .table-wrapper,
+.admin-layout .scrape-side-card,
+.admin-layout .selector-fieldset,
+.admin-layout .analyze-result:not(:empty),
+.admin-layout .scrape-result:not(:empty),
+.admin-layout .rules-test-card__results,
+.admin-layout .account-table-wrapper,
+.admin-layout .account-stats > *,
+.admin-layout .admin-register-mode,
+.admin-layout .account-invite-tools,
+.admin-layout .rules-reference-card__body,
+.admin-layout .import-chapter-preview,
+.admin-layout .scrape-config-card,
+.admin-layout #stepScrapeConfig,
+.admin-layout .scrape-test-links {
+  border-radius: var(--admin-radius);
+}
+
+.admin-layout [data-slot="button"],
+.admin-layout [data-slot="sidebar-menu-button"],
+.admin-layout [data-slot="sidebar-trigger"],
+.admin-layout [data-slot="input"],
+.admin-layout [data-slot="textarea"],
+.admin-layout .form-input,
+.admin-layout .preset-group,
+.admin-layout .preset-btn,
+.admin-layout .admin-filter-pills,
+.admin-layout .discover-toolbar__toggle,
+.admin-layout .discover-pagination__input,
+.admin-layout .admin-input--compact,
+.admin-layout .scrape-check-item,
+.admin-layout .scrape-config-row strong,
+.admin-layout .rule-test-matches,
+.admin-layout .scrape-ready-note {
+  border-radius: var(--admin-radius-sm);
+}
+
+[data-slot="dialog-content"].admin-dialog {
+  border-radius: var(--radius-lg);
+}
 
 @media (max-width: 900px) {
   .section-header, .admin-page-intro, .dashboard-hero, .sources-hero, .account-hero, .scrape-center-hero { align-items: stretch; flex-direction: column; }
@@ -301,7 +357,7 @@
   .table-wrapper th { height: 2.25rem; font-size: 0.64rem; }
   .table-wrapper td { height: 3rem; font-size: 0.8rem; }
   .admin-pagination, .home-pagination { justify-content: center; flex-wrap: wrap; }
-  [data-slot="dialog-content"].admin-dialog { max-height: calc(100svh - 1rem); border-radius: var(--admin-radius); }
+  [data-slot="dialog-content"].admin-dialog { max-height: calc(100svh - 1rem); border-radius: var(--admin-radius-dialog); }
   .admin-dialog [data-slot="dialog-header"], .admin-dialog__body, .admin-dialog [data-slot="dialog-footer"] { padding-inline: 1rem; }
   .novel-editor__grid { grid-template-columns: 1fr; }
   .novel-editor__field--wide { grid-column: auto; }

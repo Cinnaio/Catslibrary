@@ -405,7 +405,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
       <Pagination page={currentPage} totalPages={totalPages} onPage={setPage} />
 
       <Dialog open={modal.open} onOpenChange={(open) => { if (!open) setModal({ open: false, chapter: null, loading: false }) }}>
-        <DialogContent className="sm:max-w-[540px]">
+        <DialogContent className="admin-dialog sm:max-w-[540px]">
           <DialogHeader>
             <DialogTitle>{modal.chapter ? '编辑章节' : '添加章节'}</DialogTitle>
           </DialogHeader>
@@ -440,7 +440,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
       </Dialog>
 
       <Dialog open={renameModal} onOpenChange={(open) => { if (!open) { setRenameModal(false); setRenamePreview(null) } }}>
-        <DialogContent className="sm:max-w-[540px]">
+        <DialogContent className="admin-dialog sm:max-w-[540px]">
           <DialogHeader>
             <DialogTitle>融合章节名</DialogTitle>
           </DialogHeader>

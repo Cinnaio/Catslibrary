@@ -100,11 +100,11 @@ const TAB_COMPONENTS: Record<string, React.ComponentType<AdminTabProps>> = {
 const TAB_KEY = 'admin_active_tab'
 
 function AdminNavigation({ active, onSelect }: { active: string; onSelect: (id: string) => void }) {
-  const { isMobile, setOpenMobile } = useSidebar()
+  const { setOpenMobile } = useSidebar()
 
   function select(id: string) {
     onSelect(id)
-    if (isMobile) setOpenMobile(false)
+    setOpenMobile(false)
   }
 
   return (

@@ -327,7 +327,7 @@ export default function RulesTab(_props: { highlightNovelId?: string; onHighligh
       </div>
 
       <Dialog open={modal.open} onOpenChange={(open) => !open && closeModal()}>
-        <DialogContent className="sm:max-w-[540px] max-h-[80vh] overflow-y-auto">
+        <DialogContent className="admin-dialog sm:max-w-[540px] max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle id="ruleModalTitle">{draft.id ? '编辑规则' : '添加规则'}</DialogTitle>
           </DialogHeader>
