@@ -8,8 +8,9 @@ const MIGRATIONS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '
 /**
  * 版本化迁移：按文件名数字前缀排序，应用未记录在 schema_migrations 中的
  * 版本，每个版本在一个事务内执行（幂等）。返回本次新应用的迁移名。
+ * keepPoolOpen：进程内复用（如 /api/setup）时传 true，不关闭生产池。
  */
-export async function migrate(): Promise<string[]> {
+export async function migrate(options: { keepPoolOpen?: boolean } = {}): Promise<string[]> {
   const pool = getPool()
   if (!pool) throw new Error('DATABASE_URL 未配置，无法执行迁移')
 
@@ -49,7 +50,7 @@ export async function migrate(): Promise<string[]> {
   }
 
   if (done.length === 0) console.log('[migrate] up to date')
-  await pool.end()
+  if (!options.keepPoolOpen) await pool.end()
   return done
 }
 

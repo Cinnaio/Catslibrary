@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { applyRuntimeConfigToEnv } from './runtime-config'
 
 /** 应用配置：读取根目录 .env（真实环境变量优先）。 */
 export interface AiProviderConfig {
@@ -31,6 +32,10 @@ if (existsSync(ENV_FILE) && typeof process.loadEnvFile === 'function') {
     console.warn('[config] 无法读取 .env:', (err as Error)?.message || err)
   }
 }
+
+// 运行时配置（/install 向导写入的 data/runtime-config.json）仅填补空缺键：
+// 真实环境变量 > .env > 运行时文件
+applyRuntimeConfigToEnv()
 
 export function loadConfig(): AppConfig {
   const databaseUrl = process.env.DATABASE_URL?.trim() || ''

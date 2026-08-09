@@ -335,6 +335,35 @@ export const commentsApi = {
 
 let mePromise: Promise<{ user: User | null }> | null = null
 
+// ---------- Setup（安装向导，免鉴权；仅安装窗口内可用） ----------
+
+export interface SetupStatus {
+  needsSetup: boolean
+  needsBootstrap: boolean
+  optionalKeys: string[]
+}
+
+export interface SetupDatabaseFields {
+  host: string
+  port: string
+  user: string
+  password: string
+  database: string
+  ssl: boolean
+}
+
+export const setupApi = {
+  status(): Promise<SetupStatus> {
+    return request('GET', '/setup/status')
+  },
+  database(fields: SetupDatabaseFields): Promise<{ ok: boolean; applied: string[] }> {
+    return request('POST', '/setup/database', fields)
+  },
+  options(fields: Record<string, string>): Promise<{ ok: boolean; optionalKeys: string[] }> {
+    return request('POST', '/setup/options', fields)
+  },
+}
+
 export const authApi = {
   me(): Promise<{ user: User | null }> {
     return request('GET', '/auth/me', null, true)

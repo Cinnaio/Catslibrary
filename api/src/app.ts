@@ -18,15 +18,16 @@ import { scrapeRoutes } from './routes/scrape'
 import { adminRoutes } from './routes/admin'
 import { adminUsersRoutes } from './routes/admin-users'
 import { downloadLogsRoutes } from './routes/download-logs'
+import { setupRoutes } from './routes/setup'
 
 /** 全局应用：中间件装配 + 路由注册（阶段化增量挂载）。 */
 export const app = new Hono()
 
 app.use('/api/*', cors())
 
-// 安装引导守卫：数据库未配置时仅放行健康检查（与原项目 needsSetup 流程一致）
+// 安装引导守卫：数据库未配置时仅放行健康检查与安装向导（/api/setup/*）
 app.use('/api/*', async (c, next) => {
-  if (c.req.path === '/api/health') return next()
+  if (c.req.path === '/api/health' || c.req.path.startsWith('/api/setup/')) return next()
   if (!loadConfig().configured) {
     return c.json({ error: '数据库尚未初始化，请先配置 DATABASE_URL', needsSetup: true }, 503)
   }
@@ -59,3 +60,4 @@ app.route('/api/scrape', scrapeRoutes)
 app.route('/api/admin', adminRoutes)
 app.route('/api/admin-users', adminUsersRoutes)
 app.route('/api/download-logs', downloadLogsRoutes)
+app.route('/api/setup', setupRoutes)

@@ -54,3 +54,17 @@ export function getDb(): Db {
   if (!p) throw new DbNotConfiguredError()
   return p
 }
+
+/**
+ * 重建连接池：/install 向导写入新 DATABASE_URL 后调用。
+ * 旧池异步关闭（吞错），下次 getDb() 按当前配置懒建新池。
+ */
+export function resetPool(): void {
+  const old = prodPool
+  prodPool = null
+  if (old) {
+    old.end().catch((err) => {
+      console.warn('[db] 旧连接池关闭失败（忽略）:', (err as Error)?.message || err)
+    })
+  }
+}

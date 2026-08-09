@@ -49,14 +49,22 @@ export default function Auth() {
       .then((r) => {
         if (r.needsBootstrap) navigate('/install', { replace: true })
       })
+      .catch((err) => {
+        // 数据库尚未配置：后端对所有业务请求返回 503 { needsSetup: true }
+        if ((err as { data?: { needsSetup?: boolean } }).data?.needsSetup) {
+          navigate('/install', { replace: true })
+        }
+      })
+  }, [user, navigate])
+
+  // 注册模式仅在切到注册 Tab 时需要，与 bootstrap 探测分离，避免切换 Tab 重复请求
+  useEffect(() => {
+    if (mode !== 'register') return
+    void authApi
+      .registerStatus()
+      .then((r) => setRegisterMode(r.mode as 'invite' | 'open' | 'closed'))
       .catch(() => {})
-    if (mode === 'register') {
-      void authApi
-        .registerStatus()
-        .then((r) => setRegisterMode(r.mode as 'invite' | 'open' | 'closed'))
-        .catch(() => {})
-    }
-  }, [mode, user, navigate])
+  }, [mode])
 
   async function doLogin() {
     setBusy(true)
