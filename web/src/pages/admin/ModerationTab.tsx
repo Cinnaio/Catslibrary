@@ -516,55 +516,54 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
   }
 
   return (
-    <AdminPage title="内容审核" meta={total !== null ? `共 ${total} 条` : ''} actions={
-          <div className="thoughts-toolbar">
-            <Tabs value={mode} onValueChange={(v) => switchMode(v as ModerationMode)}>
-              <TabsList>
-                {(Object.keys(MODERATION_TYPES) as ModerationMode[]).map((m) => (
-                  <TabsTrigger key={m} value={m}>{MODERATION_TYPES[m].label}</TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
+    <AdminPage title="内容审核" meta={total !== null ? `共 ${total} 条` : ''}
+      >
+      <div className="overflow-hidden rounded-xl border border-border bg-card">
+        <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
+          <Tabs value={mode} onValueChange={(v) => switchMode(v as ModerationMode)}>
+            <TabsList>
+              {(Object.keys(MODERATION_TYPES) as ModerationMode[]).map((m) => (
+                <TabsTrigger key={m} value={m}>{MODERATION_TYPES[m].label}</TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+          <CustomSelect
+            className="admin-input--select-sm"
+            compact
+            options={cfg.statusOptions.map(([value, label]) => ({ value, label }))}
+            value={status}
+            onChange={handleStatusChange}
+          />
+          {cfg.showUser && (
+            <Input
+              type="text"
+              className="admin-input--compact admin-input--user"
+              placeholder="用户ID"
+              value={userInput}
+              onChange={handleUserChange}
+            />
+          )}
+          {cfg.showReason && (
             <CustomSelect
               className="admin-input--select-sm"
               compact
-              options={cfg.statusOptions.map(([value, label]) => ({ value, label }))}
-              value={status}
-              onChange={handleStatusChange}
+              options={REASON_OPTIONS.map(([value, label]) => ({ value, label }))}
+              value={reason}
+              onChange={handleReasonChange}
             />
-            {cfg.showUser && (
-              <Input
-                type="text"
-                className="admin-input--compact admin-input--user"
-                placeholder="用户ID"
-                value={userInput}
-                onChange={handleUserChange}
-              />
-            )}
-            {cfg.showReason && (
-              <CustomSelect
-                className="admin-input--select-sm"
-                compact
-                options={REASON_OPTIONS.map(([value, label]) => ({ value, label }))}
-                value={reason}
-                onChange={handleReasonChange}
-              />
-            )}
-            <Input
-              type="text"
-              className="admin-input--compact admin-input--search-wide"
-              data-admin-search
-              placeholder={cfg.searchPlaceholder}
-              value={searchInput}
-              onChange={handleSearchChange}
-            />
-            <Button variant="secondary" size="sm" onClick={() => void load()}>
-              刷新
-            </Button>
-          </div>
-        }
-      >
-      <div className="overflow-hidden rounded-xl border border-border bg-card">
+          )}
+          <Input
+            type="text"
+            className="admin-input--compact admin-input--search-wide ml-auto"
+            data-admin-search
+            placeholder={cfg.searchPlaceholder}
+            value={searchInput}
+            onChange={handleSearchChange}
+          />
+          <Button variant="secondary" size="sm" onClick={() => void load()}>
+            刷新
+          </Button>
+        </div>
         <Table>
           <TableHeader>
             <TableRow>
