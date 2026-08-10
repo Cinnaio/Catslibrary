@@ -1,11 +1,12 @@
 // ============================================================
 // 发现小说 — DiscoverView
 // ============================================================
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { BookOpen, ChevronLeft, ChevronRight, RefreshCw, Search, X } from 'lucide-react'
+import { useMemo, useRef, useState } from 'react'
+import { BookOpen, RefreshCw, Search, X } from 'lucide-react'
 import { novelsApi, scrapeApi } from '../../../lib/api'
 import { useConfirm, useToast } from '../../../components/feedback'
 import CustomSelect from '../../../components/admin/CustomSelect'
+import Pagination from '@/components/admin/Pagination'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -32,7 +33,6 @@ export default function DiscoverView() {
 
   const [totalPages, setTotalPages] = useState(1)
   const [page, setPage] = useState(1)
-  const [jump, setJump] = useState('1')
   const listUrlRef = useRef('')
 
   const [detail, setDetail] = useState<DiscoverDetail | null>(null)
@@ -54,8 +54,6 @@ export default function DiscoverView() {
       setInfo(`找到 ${data.total} 本（显示前${data.novels.length}本）· ${data.site || ''}`)
       if (body.action === 'discover') {
         setTotalPages(data.totalPages || 1)
-        setPage(1)
-        setJump('1')
       }
     } catch (err) {
       setError('请求失败: ' + (err as Error).message)
@@ -71,6 +69,8 @@ export default function DiscoverView() {
       return
     }
     listUrlRef.current = u
+    setPage(1)
+    setTotalPages(1)
     await renderDiscoverResults({ action: 'discover', listUrl: u }, '未在页面中找到小说')
   }
 
@@ -97,8 +97,15 @@ export default function DiscoverView() {
     listUrlRef.current = next
     setDiscoverUrl(next)
     setPage(p)
-    setJump(String(p))
     await renderDiscoverResults({ action: 'discover', listUrl: next }, '未在页面中找到小说')
+  }
+
+  function toggleAll() {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      novels.forEach((n, i) => (next.has(i) ? next.delete(i) : next.add(i)))
+      return next
+    })
   }
 
   function toggleSelect(i: number) {
@@ -231,9 +238,10 @@ export default function DiscoverView() {
 
   return (
     <>
-      <div className="discover-toolbar">
-        <div className="discover-toolbar__action discover-toolbar__action--search">
-          <div className="discover-toolbar__field">
+      <div className="overflow-hidden rounded-xl border border-border bg-card">
+        {/* 工具栏行 1 · 搜索 */}
+        <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
+          <div className="relative min-w-64 flex-1">
             <Search className="discover-toolbar__field-icon size-3.5" />
             <Input
               type="text"
@@ -258,9 +266,10 @@ export default function DiscoverView() {
           </Button>
         </div>
 
-        <div className="discover-toolbar__action discover-toolbar__action--list">
+        {/* 工具栏行 2 · 榜单 */}
+        <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
           <CustomSelect className="discover-site-select" options={PO18_SITES} value={siteValue} onChange={onSiteChange} placeholder="PO18 榜单" />
-          <div className="discover-toolbar__field">
+          <div className="relative min-w-64 flex-1">
             <Search className="discover-toolbar__field-icon size-3.5" />
             <Input type="text" className="pl-9" placeholder="粘贴榜单页面 URL…" value={discoverUrl} onChange={(e) => setDiscoverUrl(e.target.value)} />
           </div>
@@ -269,110 +278,91 @@ export default function DiscoverView() {
             获取榜单
           </Button>
         </div>
+
+        {/* 批量操作行 · 选中态出现 */}
+        {selected.size > 0 && (
+          <div className="flex flex-wrap items-center gap-2 border-b border-border bg-muted/30 px-3 py-2" aria-live="polite">
+            <span className="text-sm text-muted-foreground tabular-nums">已选 {selected.size} 本</span>
+            <div className="ml-auto flex items-center gap-2">
+              <Button variant="secondary" size="sm" onClick={toggleAll}>
+                反选
+              </Button>
+              <Button size="sm" onClick={() => void batchScrapeDiscovered()}>
+                <RefreshCw className="size-3.5" />
+                抓取选中
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* 结果区 */}
+        <div className="p-4 md:p-5">
+          {loading && (
+            <div className="discover-loading">
+              <div className="spinner"></div>
+              <span>正在获取榜单…</span>
+            </div>
+          )}
+          {error && <div className="discover-error">{error}</div>}
+          {info && <div className="discover-info">{info}</div>}
+
+          {novels.length > 0 && (
+            <div className="discover-grid">
+              {novels.map((n, i) => {
+                const exists = !!n.existing
+                const firstChar = n.title ? n.title.charAt(0) : '书'
+                return (
+                  <article
+                    className={`discover-card${exists ? ' discover-card--collected' : ''}`}
+                    key={`${n.url}-${i}`}
+                    onClick={() => void openDetail(i)}
+                  >
+                    <div className="discover-card__cover" data-letter={firstChar}>
+                      <img src={n.coverUrl || FALLBACK_COVER} alt="" loading="lazy" referrerPolicy="no-referrer" onError={coverOnError} />
+                      {exists && (
+                        <span className="discover-card__seal" title="已收藏">
+                          藏
+                        </span>
+                      )}
+                    </div>
+                    <div className="discover-card__body">
+                      <div className="discover-card__title-row">
+                        <button
+                          type="button"
+                          className="discover-card__title"
+                          aria-label={`查看 ${n.title} 详情`}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            void openDetail(i)
+                          }}
+                        >
+                          {n.title}
+                        </button>
+                        <Checkbox
+                          className="discover-checkbox"
+                          aria-label={`选择 ${n.title}`}
+                          checked={selected.has(i)}
+                          onClick={(e) => e.stopPropagation()}
+                          onCheckedChange={() => toggleSelect(i)}
+                        />
+                      </div>
+                      <div className="discover-card__author">
+                        {n.author || '未知作者'}
+                        {n.chapterCount ? ` · ${n.chapterCount} 章` : ''}
+                      </div>
+                      <div className="discover-card__desc">{n.description || ''}</div>
+                    </div>
+                  </article>
+                )
+              })}
+            </div>
+          )}
+
+          {listUrlRef.current && totalPages > 1 && (
+            <Pagination page={page} totalPages={totalPages} onPage={(p) => void goPage(p)} className="mt-5" />
+          )}
+        </div>
       </div>
-
-      {loading && (
-        <div className="discover-loading">
-          <div className="spinner"></div>
-          <span>正在获取榜单…</span>
-        </div>
-      )}
-      {error && <div className="discover-error">{error}</div>}
-      {info && <div className="discover-info">{info}</div>}
-
-      {novels.length > 0 && (
-        <div className="discover-grid">
-          {novels.map((n, i) => {
-            const exists = !!n.existing
-            const firstChar = n.title ? n.title.charAt(0) : '书'
-            return (
-              <article
-                className={`discover-card${exists ? ' discover-card--collected' : ''}`}
-                key={`${n.url}-${i}`}
-                onClick={() => void openDetail(i)}
-              >
-                <div className="discover-card__cover" data-letter={firstChar}>
-                  <img src={n.coverUrl || FALLBACK_COVER} alt="" loading="lazy" referrerPolicy="no-referrer" onError={coverOnError} />
-                  {exists && (
-                    <span className="discover-card__seal" title="已收藏">
-                      藏
-                    </span>
-                  )}
-                </div>
-                <div className="discover-card__body">
-                  <div className="discover-card__title-row">
-                    <button
-                      type="button"
-                      className="discover-card__title"
-                      aria-label={`查看 ${n.title} 详情`}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        void openDetail(i)
-                      }}
-                    >
-                      {n.title}
-                    </button>
-                    <Checkbox
-                      className="discover-checkbox"
-                      aria-label={`选择 ${n.title}`}
-                      checked={selected.has(i)}
-                      onClick={(e) => e.stopPropagation()}
-                      onCheckedChange={() => toggleSelect(i)}
-                    />
-                  </div>
-                  <div className="discover-card__author">
-                    {n.author || '未知作者'}
-                    {n.chapterCount ? ` · ${n.chapterCount} 章` : ''}
-                  </div>
-                  <div className="discover-card__desc">{n.description || ''}</div>
-                </div>
-              </article>
-            )
-          })}
-        </div>
-      )}
-
-      {selected.size > 0 && (
-        <div className="discover-actions">
-          <Button onClick={() => void batchScrapeDiscovered()}>
-            <RefreshCw className="size-3.5" />
-            抓取选中
-          </Button>
-          <span className="discover-actions__count">已选 {selected.size} 本</span>
-        </div>
-      )}
-
-      {listUrlRef.current && totalPages > 1 && (
-        <div className="discover-pagination">
-          <button className="discover-pagination__btn" disabled={page <= 1} onClick={() => void goPage(page - 1)}>
-            <ChevronLeft className="size-3.5" />
-            上一页
-          </button>
-          <span className="discover-pagination__info">
-            第 {page} / {totalPages} 页
-          </span>
-          <span className="discover-pagination__jump">
-            跳转{' '}
-            <input
-              type="number"
-              className="discover-pagination__input"
-              min={1}
-              max={totalPages}
-              value={jump}
-              onChange={(e) => {
-                setJump(e.target.value)
-                const n = Number.parseInt(e.target.value, 10)
-                if (Number.isFinite(n) && n >= 1 && n <= totalPages) void goPage(n)
-              }}
-            />{' '}
-            页
-          </span>
-          <button className="discover-pagination__btn" disabled={page >= totalPages} onClick={() => void goPage(page + 1)}>
-            下一页
-            <ChevronRight className="size-3.5" />
-          </button>
-        </div>
-      )}
 
       {/* Detail modal */}
       {detail && (

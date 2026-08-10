@@ -147,14 +147,14 @@
 
 /* 后台面板表面。scrape 步进卡 / 任务卡通过组合 .admin-panel-card 复用，不再另立覆写。
    注意：本文件无 @layer，故这条压过 Tailwind 的 @layer utilities —— 调 import 顺序会静默失效。 */
-.admin-panel-card, .discover-toolbar {
+.admin-panel-card {
   border: 1px solid var(--admin-border);
   border-radius: var(--admin-radius);
   background: var(--admin-panel);
   box-shadow: none;
 }
 
-.admin-panel-card, .discover-toolbar { padding: var(--admin-space-5); }
+.admin-panel-card { padding: var(--admin-space-5); }
 
 .thoughts-toolbar, .sources-toolbar, .admin-toolbar__group,
 .novel-toolbar__batch, .batch-actions-group, .action-row, .input-row {
@@ -490,13 +490,10 @@
 
 /* ————————————————————————————————————————————————
    发现小说 · DiscoverView — consumers: scrape/DiscoverView.tsx
+   工具栏/批量条/分页已并入房屋标准卡（overflow-hidden rounded-xl border），
+   本块只管网格卡片、加载/错误/信息区与输入框内图标。
    ———————————————————————————————————————————————— */
-.discover-toolbar { display: grid; gap: 14px; padding: var(--admin-space-5); }
-.discover-toolbar:focus-within { border-color: color-mix(in srgb, var(--accent) 26%, var(--admin-border)); }
-.discover-toolbar__action { display: grid; grid-template-columns: 160px minmax(220px, 1fr) auto; align-items: center; gap: 10px; }
-.discover-toolbar__action--search { grid-template-columns: minmax(220px, 1fr) auto auto; }
-.discover-toolbar__action--list { grid-template-columns: 160px minmax(220px, 1fr) auto; }
-.discover-toolbar__action .discover-site-select { flex: none; width: 160px; }
+.discover-site-select { flex: none; width: 160px; }
 .discover-toolbar__field { position: relative; flex: 1; min-width: 160px; }
 .discover-toolbar__field-icon { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--text-muted); opacity: 0.5; pointer-events: none; }
 
@@ -604,40 +601,6 @@
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
   pointer-events: none;
 }
-
-.discover-actions { display: inline-flex; align-items: center; gap: 12px; margin-top: 18px; padding: 10px 12px; border: 1px solid var(--admin-border); border-radius: var(--admin-radius); background: var(--admin-inset); }
-.discover-actions__count { font-size: 0.8rem; color: var(--text-muted); }
-
-.discover-pagination { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 10px; margin-top: 24px; padding: 12px; border: 1px solid var(--admin-border); border-radius: var(--admin-radius); background: var(--admin-inset); }
-.discover-pagination__btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 7px 16px;
-  white-space: nowrap;
-  border: 1px solid var(--admin-border);
-  border-radius: var(--admin-radius-sm);
-  background: var(--admin-panel);
-  color: var(--text-secondary);
-  font-size: 0.82rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-.discover-pagination__btn:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-subtle); color: var(--accent); }
-.discover-pagination__btn:disabled { opacity: 0.35; cursor: default; }
-.discover-pagination__btn svg { flex-shrink: 0; }
-.discover-pagination__info { font-size: 0.8rem; color: var(--text-muted); white-space: nowrap; }
-.discover-pagination__jump { display: flex; align-items: center; gap: 4px; font-size: 0.8rem; color: var(--text-muted); }
-.discover-pagination__input {
-  width: 52px;
-  padding: 5px 6px;
-  text-align: center;
-  border: 1px solid var(--admin-border);
-  border-radius: var(--admin-radius-sm);
-  background: var(--admin-panel);
-  color: var(--text-primary);
-  font-size: 0.8rem;
 }
 
 /* 发现小说详情弹窗（弹窗骨架见 _admin-ui.css modal/clean-log） */
@@ -695,7 +658,6 @@
 .admin-layout [data-slot="sidebar-menu-button"],
 .admin-layout [data-slot="sidebar-trigger"],
 .admin-layout .form-input,
-.admin-layout .discover-pagination__input,
 .admin-layout .admin-input--compact,
 .admin-layout .scrape-check,
 .admin-layout .scrape-summary dd,
@@ -832,31 +794,19 @@
   .input-row .btn,
   .admin-action-row .btn { width: 100%; justify-content: center; }
 
-  .discover-toolbar { padding: 16px; }
-  .discover-toolbar__action,
-  .discover-toolbar__action--search,
-  .discover-toolbar__action--list { grid-template-columns: minmax(0, 1fr); gap: 8px; }
-  .discover-toolbar__action .discover-site-select { flex: 0 1 auto; width: auto; min-width: 0; }
-  .discover-toolbar__field { flex-basis: 100%; order: 3; min-width: 0; }
-  .discover-toolbar__action .btn { order: 2; }
+  .discover-site-select { flex: 0 1 auto; width: auto; min-width: 0; }
 
   .discover-grid { grid-template-columns: 1fr; }
   .discover-card { gap: 12px; padding: 12px; }
   .discover-card__cover { width: 52px; height: 70px; font-size: 1.2rem; }
   .discover-card__title { font-size: 0.9rem; }
   .discover-card__author { font-size: 0.75rem; }
-  .discover-pagination { gap: 6px; }
-  .discover-pagination__btn { flex: 1; justify-content: center; min-width: 0; padding: 7px 10px; font-size: 0.78rem; }
-  .discover-pagination__jump { font-size: 0.74rem; }
-  .discover-pagination__input { width: 44px; padding: 4px; }
   .discover-detail__hero { grid-template-columns: 76px minmax(0, 1fr); gap: 14px; }
   .discover-detail__cover { width: 76px; }
   .discover-detail__name { font-size: 1.12rem; }
   .discover-detail__desc { grid-column: 1 / -1; max-height: 132px; margin-top: 12px; }
   .discover-detail__chapter-list { max-height: 210px; }
   .discover-detail__chapter-item { grid-template-columns: 28px minmax(0, 1fr); padding: 8px 10px; }
-  .discover-actions { align-items: stretch; flex-direction: column; gap: 10px; }
-  .discover-actions__count { text-align: center; }
 }
 
 @media (max-width: 400px) {
