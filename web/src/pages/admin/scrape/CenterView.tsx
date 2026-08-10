@@ -642,89 +642,94 @@ export default function CenterView() {
                     {currentScrapeNovelId && <div className="success-text scrape-ready-note">小说已就绪，ID: {currentScrapeNovelId}</div>}
                   </div>
                 </div>
+              </div>
+            </Card>
+          )}
 
-                {showScrapeConfig && (
-                  <div id="stepScrapeConfig">
+          {/* Step 3 */}
+          {showScrapeConfig && (
+            <Card className="scrape-step">
+              <div className="step-label">第三步</div>
+              <h3 className="step-title">抓取配置</h3>
+              <div className="step-body">
+                <div className="action-row scrape-action-row">
+                  <Button size="sm" onClick={() => void startScrape()}>
+                    开始抓取
+                  </Button>
+                </div>
+                <button className={`toggle-advanced${advancedOpen ? ' open' : ''}`} onClick={() => setAdvancedOpen(!advancedOpen)}>
+                  高级配置
+                </button>
+                {advancedOpen && (
+                  <div id="advancedConfig">
+                    <div className="admin-toolbar__group">
+                      <Tabs value={sitePreset} onValueChange={(v) => applySitePreset(v)}>
+                        <TabsList>
+                          <TabsTrigger value="po18">PO18</TabsTrigger>
+                          <TabsTrigger value="custom">自定义</TabsTrigger>
+                        </TabsList>
+                      </Tabs>
+                    </div>
+                    <div className="form-row">
+                      <Label className="mb-1.5">章节列表页 URL</Label>
+                      <Input type="url" value={chapterListUrl} onChange={(e) => setChapterListUrl(e.target.value)} />
+                    </div>
+                    <div className="form-row">
+                      <Label className="mb-1.5">编码</Label>
+                      <Input value={activeEncoding} placeholder="utf-8 / gbk" onChange={(e) => setActiveEncoding(e.target.value)} />
+                    </div>
                     <div className="action-row scrape-action-row">
-                      <Button size="sm" onClick={() => void startScrape()}>
-                        开始抓取
+                      <Button variant="secondary" size="sm" onClick={() => void testSelectors()}>
+                        测试选择器
                       </Button>
                     </div>
-                    <button className={`toggle-advanced${advancedOpen ? ' open' : ''}`} onClick={() => setAdvancedOpen(!advancedOpen)}>
-                      高级配置
-                    </button>
-                    {advancedOpen && (
-                      <div id="advancedConfig">
-                        <div className="admin-toolbar__group">
-                          <Tabs value={sitePreset} onValueChange={(v) => applySitePreset(v)}>
-                            <TabsList>
-                              <TabsTrigger value="po18">PO18</TabsTrigger>
-                              <TabsTrigger value="custom">自定义</TabsTrigger>
-                            </TabsList>
-                          </Tabs>
+                    <fieldset className="selector-fieldset">
+                      <legend>选择器配置</legend>
+                      <div className="selector-grid">
+                        <div className="form-group">
+                          <Label className="mb-1.5">章节列表</Label>
+                          <Input placeholder=".chapter-list a" value={selectors.chapterList} onChange={(e) => setSelectors({ ...selectors, chapterList: e.target.value })} />
                         </div>
-                        <div className="form-row">
-                          <Label className="mb-1.5">章节列表页 URL</Label>
-                          <Input type="url" value={chapterListUrl} onChange={(e) => setChapterListUrl(e.target.value)} />
+                        <div className="form-group">
+                          <Label className="mb-1.5">章节标题</Label>
+                          <Input placeholder="h1" value={selectors.chapterTitle} onChange={(e) => setSelectors({ ...selectors, chapterTitle: e.target.value })} />
                         </div>
-                        <div className="form-row">
-                          <Label className="mb-1.5">编码</Label>
-                          <Input value={activeEncoding} placeholder="utf-8 / gbk" onChange={(e) => setActiveEncoding(e.target.value)} />
+                        <div className="form-group">
+                          <Label className="mb-1.5">章节内容</Label>
+                          <Input placeholder="#content" value={selectors.chapterContent} onChange={(e) => setSelectors({ ...selectors, chapterContent: e.target.value })} />
                         </div>
-                        <div className="action-row scrape-action-row">
-                          <Button variant="secondary" size="sm" onClick={() => void testSelectors()}>
-                            测试选择器
-                          </Button>
+                        <div className="form-group">
+                          <Label className="mb-1.5">下一页</Label>
+                          <Input placeholder=".next a (可选)" value={selectors.nextPage} onChange={(e) => setSelectors({ ...selectors, nextPage: e.target.value })} />
                         </div>
-                        <fieldset className="selector-fieldset">
-                          <legend>选择器配置</legend>
-                          <div className="selector-grid">
-                            <div className="form-group">
-                              <Label className="mb-1.5">章节列表</Label>
-                              <Input placeholder=".chapter-list a" value={selectors.chapterList} onChange={(e) => setSelectors({ ...selectors, chapterList: e.target.value })} />
-                            </div>
-                            <div className="form-group">
-                              <Label className="mb-1.5">章节标题</Label>
-                              <Input placeholder="h1" value={selectors.chapterTitle} onChange={(e) => setSelectors({ ...selectors, chapterTitle: e.target.value })} />
-                            </div>
-                            <div className="form-group">
-                              <Label className="mb-1.5">章节内容</Label>
-                              <Input placeholder="#content" value={selectors.chapterContent} onChange={(e) => setSelectors({ ...selectors, chapterContent: e.target.value })} />
-                            </div>
-                            <div className="form-group">
-                              <Label className="mb-1.5">下一页</Label>
-                              <Input placeholder=".next a (可选)" value={selectors.nextPage} onChange={(e) => setSelectors({ ...selectors, nextPage: e.target.value })} />
-                            </div>
-                          </div>
-                        </fieldset>
                       </div>
-                    )}
-                    <div className="scrape-result">
-                      {testResult.loading ? (
-                        <div className="flex items-center gap">
-                          <div className="spinner"></div>
-                          <span className="text-sm text-muted">正在测试选择器...</span>
-                        </div>
-                      ) : testResult.data && testResult.data.links && testResult.data.links.length > 0 ? (
-                        <>
-                          <Badge className="bg-success/10 text-success scrape-test-badge">测试成功 — 找到 {testResult.data.links.length} 个章节链接</Badge>
-                          <div className="scrape-test-links">
-                            {testResult.data.links.slice(0, 20).map((l: any, i: number) => (
-                              <div key={i}>
-                                • {l.text || l.href} → <span className="text-muted">{l.href}</span>
-                              </div>
-                            ))}
-                            {testResult.data.links.length > 20 && <div className="text-muted">...还有 {testResult.data.links.length - 20} 个</div>}
-                          </div>
-                        </>
-                      ) : testResult.empty ? (
-                        <Badge variant="secondary" className="scrape-test-badge">未找到任何链接，请检查选择器</Badge>
-                      ) : testResult.error ? (
-                        <div className="text-sm error-text">测试失败: {testResult.error}</div>
-                      ) : null}
-                    </div>
+                    </fieldset>
                   </div>
                 )}
+                <div className="scrape-result">
+                  {testResult.loading ? (
+                    <div className="flex items-center gap">
+                      <div className="spinner"></div>
+                      <span className="text-sm text-muted">正在测试选择器...</span>
+                    </div>
+                  ) : testResult.data && testResult.data.links && testResult.data.links.length > 0 ? (
+                    <>
+                      <Badge className="bg-success/10 text-success scrape-test-badge">测试成功 — 找到 {testResult.data.links.length} 个章节链接</Badge>
+                      <div className="scrape-test-links">
+                        {testResult.data.links.slice(0, 20).map((l: any, i: number) => (
+                          <div key={i}>
+                            • {l.text || l.href} → <span className="text-muted">{l.href}</span>
+                          </div>
+                        ))}
+                        {testResult.data.links.length > 20 && <div className="text-muted">...还有 {testResult.data.links.length - 20} 个</div>}
+                      </div>
+                    </>
+                  ) : testResult.empty ? (
+                    <Badge variant="secondary" className="scrape-test-badge">未找到任何链接，请检查选择器</Badge>
+                  ) : testResult.error ? (
+                    <div className="text-sm error-text">测试失败: {testResult.error}</div>
+                  ) : null}
+                </div>
               </div>
             </Card>
           )}

@@ -324,6 +324,7 @@
 .scrape-flow-grid__side { position: sticky; top: 1rem; display: grid; gap: var(--admin-space-3); align-self: start; }
 .scrape-side-card { padding: var(--admin-space-4); }
 
+/* 三步流程步进卡（.scrape-flow-grid__main 内纵向排布） */
 .step-label {
   display: inline-block;
   margin-bottom: 11px;
@@ -421,14 +422,6 @@
 .toggle-advanced:hover { color: var(--accent); }
 .toggle-advanced::before { content: '+ '; }
 .toggle-advanced.open::before { content: '− '; }
-#stepScrapeConfig {
-  margin-top: 14px;
-  padding: 14px 16px;
-  border: 1px solid var(--admin-border);
-  border-radius: var(--admin-radius);
-  background: var(--admin-inset);
-}
-#stepScrapeConfig .toggle-advanced { margin-top: 2px; }
 .selector-fieldset { margin-bottom: 16px; padding: 20px; border: 1px solid var(--admin-border); border-radius: var(--admin-radius); }
 .selector-fieldset legend { padding: 0 8px; font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); }
 .selector-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
