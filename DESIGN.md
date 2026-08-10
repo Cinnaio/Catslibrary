@@ -220,6 +220,9 @@ components:
 - **Focus:** 2px 暖棕色轮廓 + 4px 光晕，不改变边框颜色
 - **Compact Variant:** 高度 2rem，用于工具栏紧凑场景
 
+### Named Rules
+**The Fit-Content Rule.** 输入框宽度随用途与提示信息而定，不设拉伸：短提示短框，长内容长框。避免 `flex-1` / `w-full` 把输入框撑满整行——工具栏里的过滤/搜索框用 `min-w` 限定下限、内容自然决定宽度，长 URL 输入才放宽。
+
 ### Navigation (Sidebar)
 - **Style:** 可折叠侧边栏，展开态 236px 宽，图标态 48px
 - **Active State:** 左侧 2px 暖棕色竖线指示器（inset box-shadow）

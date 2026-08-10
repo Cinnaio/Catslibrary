@@ -18,9 +18,10 @@
   --admin-space-5: 1.5rem;
   --admin-space-6: 2rem;
 
-  /* 新增：管理后台输入框/按钮的圆角变量 —— 更大圆角匹配目标风格 */
-  --admin-input-radius: 8px;
-  --admin-button-radius: 8px;
+  /* 新增：管理后台输入框/按钮的圆角变量 —— 与 shadcn tabs 药丸（rounded-lg 12px）对齐，
+     三者并排时圆弧一致 */
+  --admin-input-radius: 12px;
+  --admin-button-radius: 12px;
 }
 
 .admin-layout {
@@ -700,6 +701,11 @@
 .admin-layout [data-slot="input"],
 .admin-layout [data-slot="textarea"] {
   border-radius: var(--admin-input-radius);
+}
+
+/* ——— tabs 分段控件：药丸改圆角对齐按钮，激活项浅灰。 ——— */
+.admin-layout [data-slot="tabs-trigger"][data-state="active"] {
+  box-shadow: none;
 }
 
 /* ——— admin 控件统一尺寸：高度 / 字号 / 文字颜色 / 内边距 ——— */
