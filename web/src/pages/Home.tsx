@@ -379,7 +379,7 @@ export default function Home() {
           )}
 
           {novels.length > 0 ? (
-            <div className="grid grid--novels">
+            <div className="grid--novels">
               {novels.map((n) => (
                 <NovelCard key={n.id} novel={n} />
               ))}

@@ -114,13 +114,10 @@ p:last-child { margin-bottom: 0; }
 .flex-wrap { flex-wrap: wrap; }
 .flex-1 { flex: 1; }
 
-.grid {
-  display: grid;
-  gap: 20px;
-}
-
 /* Library grid — horizontal cover-left cards */
+/* display/gap 内联在此处，避免通用 .grid 规则压过 Tailwind 的 gap-* 工具类 */
 .grid--novels {
+  display: grid;
   grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
   gap: 36px 44px;
   min-height: 176px;
