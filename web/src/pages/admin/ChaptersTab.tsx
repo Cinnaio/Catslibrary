@@ -335,7 +335,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
           className="chapter-novel-select"
           searchable
           searchPlaceholder="搜索书名 / 拼音…"
-          placeholder="— 请选择小说 —"
+          placeholder="请选择小说"
           options={novelOptions.map((n) => ({
             value: n.id,
             label: n.title,
