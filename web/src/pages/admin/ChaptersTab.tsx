@@ -295,35 +295,6 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
             ? <>{selectedNovel ? (search ? `匹配 ${filtered.length} / 共 ${chapters.length} 章` : `共 ${chapters.length} 章`) : ''}{selectedIds.size > 0 ? ` · 已选 ${selectedIds.size}` : ''}</>
             : undefined
         }
-        actions={
-          <div className="admin-toolbar__group">
-            <Input
-              type="text"
-              className="admin-input--compact"
-              data-admin-search
-              placeholder="搜索章节标题…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-            <Button variant="secondary" size="sm" onClick={() => setRenameModal(true)} disabled={!selectedNovel}>
-              融合章节名
-            </Button>
-            <Button variant="secondary" size="sm" onClick={() => setSelectedIds((prev) => {
-              const pageIds = pageRows.map((c) => c.id)
-              const next = new Set(prev)
-              pageIds.forEach((id) => (next.has(id) ? next.delete(id) : next.add(id)))
-              return next
-            })} disabled={selectedIds.size === 0}>
-              反选
-            </Button>
-            <Button variant="destructive" size="sm" onClick={() => void batchDelete()} disabled={selectedIds.size === 0}>
-              批量删除{selectedIds.size > 0 ? ` (${selectedIds.size})` : ''}
-            </Button>
-            <Button size="sm" onClick={() => void openChapterModal(null)}>
-              添加章节
-            </Button>
-          </div>
-        }
       >
 
       <div className="form-row chapter-novel-row">
@@ -346,6 +317,43 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
       </div>
 
       <div className="overflow-hidden rounded-xl border border-border bg-card">
+        <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2" aria-live="polite">
+          <Input
+            type="text"
+            className="admin-input--compact admin-input--search"
+            data-admin-search
+            placeholder="搜索章节标题…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          <div className="ml-auto flex items-center gap-2">
+            {selectedIds.size > 0 ? (
+              <>
+                <span className="text-sm text-muted-foreground tabular-nums">已选 {selectedIds.size} 章</span>
+                <Button variant="secondary" size="sm" onClick={() => setSelectedIds((prev) => {
+                  const pageIds = pageRows.map((c) => c.id)
+                  const next = new Set(prev)
+                  pageIds.forEach((id) => (next.has(id) ? next.delete(id) : next.add(id)))
+                  return next
+                })}>
+                  反选
+                </Button>
+                <Button variant="destructive" size="sm" onClick={() => void batchDelete()}>
+                  批量删除 ({selectedIds.size})
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="secondary" size="sm" onClick={() => setRenameModal(true)} disabled={!selectedNovel}>
+                  融合章节名
+                </Button>
+                <Button size="sm" onClick={() => void openChapterModal(null)}>
+                  添加章节
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
         <Table>
           <TableHeader>
             <TableRow>
