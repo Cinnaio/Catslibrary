@@ -85,7 +85,7 @@ export default function DashboardTab(_props: { highlightNovelId?: string; onHigh
       ) : !data ? (
         <div className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">加载中…</div>
       ) : (
-        <>
+        <div className="space-y-4">
           <div className="overflow-hidden rounded-xl border border-border bg-card">
             <div className="grid grid-cols-2 gap-px bg-border sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
               {STAT_CARDS.map((card) => {
@@ -174,7 +174,7 @@ export default function DashboardTab(_props: { highlightNovelId?: string; onHigh
               </CardContent>
             </Card>
           </div>
-        </>
+        </div>
       )}
     </AdminPage>
   )
