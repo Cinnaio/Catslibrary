@@ -205,10 +205,10 @@ export default function SourcesView({ active }: { active: boolean }) {
         )}
       </AdminPanel>
 
-      {/* Table card */}
-      <div className="overflow-hidden rounded-xl border border-border bg-card">
+      {/* Table card — 仪表盘卡：扁平表面 + 内嵌表格容器 */}
+      <div className="admin-panel-card admin-panel-card--flush">
         {/* 工具栏 · 筛选 + 刷新 */}
-        <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
+        <div className="admin-card-row flex flex-wrap items-center gap-2">
           <Tabs value={supportFilter} onValueChange={setSupportFilter}>
             <TabsList>
               <TabsTrigger value="">全部</TabsTrigger>
@@ -224,7 +224,7 @@ export default function SourcesView({ active }: { active: boolean }) {
           </Button>
         </div>
         {/* 统计行 */}
-        <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
+        <div className="admin-card-row flex flex-wrap items-center gap-2">
           <Badge variant="secondary">总数: {total}</Badge>
           <Badge variant="secondary">已启用: {enabledCount}</Badge>
           <Badge className="bg-success/10 text-success">可用: {bySupport.full || 0}</Badge>
@@ -232,7 +232,8 @@ export default function SourcesView({ active }: { active: boolean }) {
           <Badge className="bg-secondary text-muted-foreground">不支持: {bySupport.unsupported || 0}</Badge>
         </div>
 
-        <Table>
+        <div className="table-wrapper">
+          <Table>
           <TableHeader>
             <TableRow>
               <TableHead>站点</TableHead>
@@ -301,7 +302,8 @@ export default function SourcesView({ active }: { active: boolean }) {
               ))
             )}
           </TableBody>
-        </Table>
+          </Table>
+        </div>
       </div>
       </div>
 

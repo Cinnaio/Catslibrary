@@ -238,9 +238,9 @@ export default function DiscoverView() {
 
   return (
     <>
-      <div className="overflow-hidden rounded-xl border border-border bg-card">
+      <div className="admin-panel-card admin-panel-card--flush">
         {/* 工具栏行 1 · 搜索 */}
-        <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
+        <div className="admin-card-row flex flex-wrap items-center gap-2">
           <div className="relative min-w-64 flex-1">
             <Search className="discover-toolbar__field-icon size-3.5" />
             <Input
@@ -267,7 +267,7 @@ export default function DiscoverView() {
         </div>
 
         {/* 工具栏行 2 · 榜单 */}
-        <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
+        <div className="admin-card-row flex flex-wrap items-center gap-2">
           <CustomSelect className="discover-site-select" options={PO18_SITES} value={siteValue} onChange={onSiteChange} placeholder="PO18 榜单" />
           <div className="relative min-w-64 flex-1">
             <Search className="discover-toolbar__field-icon size-3.5" />
@@ -281,7 +281,7 @@ export default function DiscoverView() {
 
         {/* 批量操作行 · 选中态出现 */}
         {selected.size > 0 && (
-          <div className="flex flex-wrap items-center gap-2 border-b border-border bg-muted/30 px-3 py-2" aria-live="polite">
+          <div className="admin-card-row flex flex-wrap items-center gap-2 bg-muted/30" aria-live="polite">
             <span className="text-sm text-muted-foreground tabular-nums">已选 {selected.size} 本</span>
             <div className="ml-auto flex items-center gap-2">
               <Button variant="secondary" size="sm" onClick={toggleAll}>
@@ -296,7 +296,7 @@ export default function DiscoverView() {
         )}
 
         {/* 结果区 */}
-        <div className="p-4 md:p-5">
+        <div className="admin-card-content">
           {loading && (
             <div className="discover-loading">
               <div className="spinner"></div>

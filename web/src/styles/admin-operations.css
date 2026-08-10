@@ -156,6 +156,21 @@
 
 .admin-panel-card { padding: var(--admin-space-5); }
 
+/* 仪表盘卡：子内容全宽排布 —— 书源管理/发现小说的工具栏+内容卡。
+   卡片本体不设内边距，子行由 .admin-card-row / .admin-card-content 自管留白与分隔线，
+   .table-wrapper 内嵌为带边框的表格容器。 */
+.admin-panel-card--flush { padding: 0; }
+.admin-panel-card--flush .admin-card-row {
+  padding: var(--admin-space-3) var(--admin-space-5);
+  border-bottom: 1px solid var(--admin-border);
+}
+.admin-panel-card--flush .admin-card-content {
+  padding: var(--admin-space-4) var(--admin-space-5);
+}
+.admin-panel-card--flush .table-wrapper {
+  margin: var(--admin-space-4) var(--admin-space-5);
+}
+
 .novel-toolbar__batch, .batch-actions-group, .action-row, .input-row {
   display: flex;
   align-items: center;
@@ -802,6 +817,9 @@
   .novel-editor__field--wide { grid-column: auto; }
 
   .admin-panel-card { padding: var(--admin-space-4); }
+  .admin-panel-card--flush .admin-card-row { padding: var(--admin-space-2) var(--admin-space-4); }
+  .admin-panel-card--flush .admin-card-content { padding: var(--admin-space-3) var(--admin-space-4); }
+  .admin-panel-card--flush .table-wrapper { margin: var(--admin-space-3) var(--admin-space-4); }
   .scrape-step__fieldset { padding: var(--admin-space-3); }
   .form-group { margin-bottom: 12px; }
   .scrape-center-hero__meta { justify-content: flex-start; }
