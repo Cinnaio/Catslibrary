@@ -417,16 +417,21 @@
   box-shadow: 0 0 0 2px var(--focus-ring);
 }
 
-/* CustomSelect 弹层内的搜索框聚焦态：克制的细边，不溢出不突兀
-   （全局 focus-visible 的 4px 光晕在弹出层内过于厚重）
-   注意：popover 经 Radix portal 渲染在 body 层，必须用 .admin-custom-select-popover
-   类选择器而非 .admin-layout 祖先作用域 */
+/* CustomSelect 弹层：统一风格，移除搜索框底部的分割线 */
+.admin-custom-select-popover {
+  border: 1px solid var(--admin-border-strong);
+}
+.admin-custom-select-popover [data-slot="command-input-wrapper"] {
+  border-bottom: none;
+}
+
+/* 搜索框聚焦态：克制的细边，不溢出不突兀 */
 .admin-custom-select-popover [data-slot="command-input"]:focus-visible {
   outline: none;
   box-shadow: none;
 }
 .admin-custom-select-popover [data-slot="command-input-wrapper"]:focus-within {
-  box-shadow: 0 0 0 2px var(--focus-ring);
+  box-shadow: none;
 }
 
 [data-slot="dialog-content"].admin-dialog {
