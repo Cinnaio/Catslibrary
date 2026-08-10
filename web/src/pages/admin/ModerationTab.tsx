@@ -564,7 +564,7 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
           </div>
         }
       >
-      <div className="table-wrapper">
+      <div className="overflow-hidden rounded-xl border border-border bg-card">
         <Table>
           <TableHeader>
             <TableRow>

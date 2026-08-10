@@ -8,7 +8,7 @@ import { formatEta, formatJobSpeed, isJobRunning, isJobTerminal, jobStatusLabel 
 import { useConfirm, useToast } from '../../../components/feedback'
 import CustomSelect from '../../../components/admin/CustomSelect'
 import AdminTabHeader from '@/components/admin/AdminTabHeader'
-import { Card } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -734,8 +734,11 @@ export default function CenterView() {
 
         <aside className="scrape-flow-grid__side">
           <Card className="scrape-side-card">
-            <h3 className="admin-card-title">抓取前检查</h3>
-            <div className="scrape-checklist">
+            <CardHeader className="px-6 pt-6">
+              <CardTitle className="text-base">抓取前检查</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="scrape-checklist">
               {preflight.length === 0 ? (
                 <div className="scrape-check-item scrape-check-item--muted">等待智能分析后生成检查项</div>
               ) : (
@@ -748,10 +751,14 @@ export default function CenterView() {
                 ))
               )}
             </div>
+            </CardContent>
           </Card>
           <Card className="scrape-side-card">
-            <h3 className="admin-card-title">配置摘要</h3>
-            <div className="scrape-config-summary text-sm text-muted">
+            <CardHeader className="px-6 pt-6">
+              <CardTitle className="text-base">配置摘要</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="scrape-config-summary text-sm text-muted">
               {configRows.length === 0 ? (
                 '尚未选择源站配置'
               ) : (
@@ -763,6 +770,7 @@ export default function CenterView() {
                 ))
               )}
             </div>
+            </CardContent>
           </Card>
         </aside>
       </div>
@@ -774,9 +782,12 @@ export default function CenterView() {
 
       {/* Config management */}
       <Card className="scrape-config-card">
-        <h3 className="admin-card-title">爬虫配置</h3>
-        <p className="text-sm text-muted admin-card-desc">导出/导入所有小说的爬虫配置，方便换设备时迁移。</p>
-        <div className="action-row admin-action-row">
+        <CardHeader className="px-6 pt-6">
+          <CardTitle className="text-base">爬虫配置</CardTitle>
+          <CardDescription>导出/导入所有小说的爬虫配置，方便换设备时迁移。</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="action-row admin-action-row">
           <Button variant="secondary" size="sm" onClick={() => void exportConfigs()}>
             导出配置
           </Button>
@@ -785,7 +796,8 @@ export default function CenterView() {
           </Button>
           <input ref={configFileRef} type="file" accept=".json" hidden onChange={(e) => void handleConfigFileSelected(e)} />
           <span className="text-sm text-muted admin-inline-status">{configImportStatus}</span>
-        </div>
+          </div>
+        </CardContent>
       </Card>
     </>
   )

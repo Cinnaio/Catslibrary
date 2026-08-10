@@ -1,5 +1,5 @@
 /**
- * 总览 tab —— 指标卡（shadcn Card）、任务状态条、最近任务/小说（只读，手动刷新）。
+ * 总览 tab —— 指标条（shadcn utilities，无同尺寸图标卡）、任务状态条、最近任务/小说（只读，手动刷新）。
  * 由 Novel-KV js/admin-dashboard.js 平移。
  */
 import { useCallback, useEffect, useState } from 'react'
@@ -21,14 +21,14 @@ interface AdminStats {
   recentNovels: Array<{ id: string; title: string; author: string; chapterCount: number; updatedAt: number }>
 }
 
-const STAT_CARDS: Array<{ label: string; key: keyof AdminStats['totals']; unit: string; mark: string }> = [
-  { label: '小说总数', key: 'novels', unit: '本', mark: '馆' },
-  { label: '章节总数', key: 'chapters', unit: '章', mark: '章' },
-  { label: '用户数', key: 'users', unit: '人', mark: '客' },
-  { label: '今日新增章节', key: 'todayChapters', unit: '章', mark: '今' },
-  { label: '失败任务', key: 'failedJobs', unit: '个', mark: '警' },
-  { label: '封面缓存', key: 'covers', unit: '张', mark: '封' },
-  { label: '数据库大小', key: 'dbSize', unit: '', mark: '库' },
+const STAT_CARDS: Array<{ label: string; key: keyof AdminStats['totals']; unit: string }> = [
+  { label: '小说总数', key: 'novels', unit: '本' },
+  { label: '章节总数', key: 'chapters', unit: '章' },
+  { label: '用户数', key: 'users', unit: '人' },
+  { label: '今日新增章节', key: 'todayChapters', unit: '章' },
+  { label: '失败任务', key: 'failedJobs', unit: '个' },
+  { label: '封面缓存', key: 'covers', unit: '张' },
+  { label: '数据库大小', key: 'dbSize', unit: '' },
 ]
 
 const PILL_CLASS: Record<string, string> = {
@@ -72,7 +72,7 @@ export default function DashboardTab(_props: { highlightNovelId?: string; onHigh
   const totalJobs = Math.max(1, jobStatus.running + jobStatus.completed + jobStatus.failed)
 
   return (
-    <AdminPage kicker="OVERVIEW" title="后台总览" description="书库、抓取任务和站点数据的即时状态。" variant="hero" actions={
+    <AdminPage title="后台总览" description="书库、抓取任务和站点数据的即时状态。" actions={
           <Button variant="secondary" size="sm" onClick={() => void load(true)} disabled={loading}>
             <RefreshCw className={loading ? 'size-3.5 animate-spin' : 'size-3.5'} />
             {loading ? '加载中…' : '刷新总览'}
@@ -81,50 +81,41 @@ export default function DashboardTab(_props: { highlightNovelId?: string; onHigh
       >
 
       {error ? (
-        <div className="dashboard-grid">
-          <div className="dashboard-error">总览加载失败：{error}</div>
-        </div>
+        <div className="rounded-xl border border-border bg-card p-6 text-sm text-destructive">总览加载失败：{error}</div>
       ) : !data ? (
-        <div className="dashboard-grid">
-          <div className="dashboard-loading">加载中…</div>
-        </div>
+        <div className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">加载中…</div>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-7">
-            {STAT_CARDS.map((card) => {
-              const raw = totals ? totals[card.key] : 0
-              const value = card.key === 'dbSize' ? (raw || '—') : raw
-              return (
-                <Card key={card.key}>
-                  <CardContent className="flex items-center gap-3 p-4">
-                    <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-base text-primary">
-                      {card.mark}
+          <div className="overflow-hidden rounded-xl border border-border bg-card">
+            <div className="grid grid-cols-2 gap-px bg-border sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
+              {STAT_CARDS.map((card) => {
+                const raw = totals ? totals[card.key] : 0
+                const value = card.key === 'dbSize' ? (raw || '—') : raw
+                return (
+                  <div key={card.key} className="bg-card px-4 py-3.5">
+                    <div className="truncate text-xs font-medium text-muted-foreground">{card.label}</div>
+                    <div className="mt-1 text-2xl font-semibold leading-tight tabular-nums tracking-tight text-foreground">
+                      {formatNumber(value as number | string)}
+                      {card.unit && <span className="ml-0.5 text-xs font-normal text-muted-foreground">{card.unit}</span>}
                     </div>
-                    <div className="min-w-0">
-                      <div className="truncate text-xs text-muted-foreground">{card.label}</div>
-                      <div className="text-[1.75rem] font-semibold leading-tight">
-                        {formatNumber(value as number | string)}
-                        {card.unit && <span className="ml-0.5 text-sm font-normal text-muted-foreground">{card.unit}</span>}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              )
-            })}
+                  </div>
+                )
+              })}
+            </div>
           </div>
 
-          <div className="dashboard-status-strip">
-            <div className="dashboard-status-strip__head">
-              <span className="text-sm">任务状态</span>
-              <span className="text-xs text-muted">
+          <div className="rounded-xl border border-border bg-muted/60 p-5">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm font-semibold text-foreground">任务状态</span>
+              <span className="text-xs tabular-nums text-muted-foreground">
                 运行 {jobStatus.running} · 完成 {jobStatus.completed} · 失败 {jobStatus.failed}
               </span>
             </div>
-            <div className="dashboard-status-bar" aria-hidden="true">
+            <div className="mt-3 flex h-2 gap-1 overflow-hidden rounded-full bg-border" aria-hidden="true">
               {(['running', 'completed', 'failed'] as const).map((key) => (
                 <div
                   key={key}
-                  className={`dashboard-status-bar__seg dashboard-status-bar__seg--${key}`}
+                  className={`h-full rounded-full ${key === 'running' ? 'bg-info' : key === 'completed' ? 'bg-success' : 'bg-destructive'}`}
                   style={{ width: `${(jobStatus[key] / totalJobs) * 100}%` }}
                 />
               ))}
@@ -138,15 +129,15 @@ export default function DashboardTab(_props: { highlightNovelId?: string; onHigh
                 <span className="text-xs text-muted">按更新时间</span>
               </CardHeader>
               <CardContent>
-                <div className="dashboard-list">
+                <div>
                   {data.recentJobs.length === 0 ? (
                     <AdminEmptyState message="暂无抓取任务" />
                   ) : (
                     data.recentJobs.map((j) => (
-                      <div className="dashboard-list-item" key={j.id}>
-                        <div className="dashboard-list-item__main">
-                          <div className="dashboard-list-item__title">{j.novelTitle || j.novelId || j.id}</div>
-                          <div className="dashboard-list-item__meta">
+                      <div className="flex items-center justify-between gap-3 border-b border-border py-3 last:border-0" key={j.id}>
+                        <div className="min-w-0">
+                          <div className="truncate font-medium text-foreground">{j.novelTitle || j.novelId || j.id}</div>
+                          <div className="mt-0.5 text-xs text-muted-foreground">
                             {(j.step || '任务') + ' · ' + timeAgo(j.updatedAt)}
                           </div>
                         </div>
@@ -163,19 +154,19 @@ export default function DashboardTab(_props: { highlightNovelId?: string; onHigh
                 <span className="text-xs text-muted">书库动态</span>
               </CardHeader>
               <CardContent>
-                <div className="dashboard-list">
+                <div>
                   {data.recentNovels.length === 0 ? (
                     <AdminEmptyState message="暂无小说" />
                   ) : (
                     data.recentNovels.map((n) => (
-                      <Link className="dashboard-list-item" to={`/novel/${encodeURIComponent(n.id)}`} key={n.id}>
-                        <div className="dashboard-list-item__main">
-                          <div className="dashboard-list-item__title">{n.title}</div>
-                          <div className="dashboard-list-item__meta">
+                      <Link className="flex items-center justify-between gap-3 border-b border-border py-3 last:border-0" to={`/novel/${encodeURIComponent(n.id)}`} key={n.id}>
+                        <div className="min-w-0">
+                          <div className="truncate font-medium text-foreground">{n.title}</div>
+                          <div className="mt-0.5 text-xs text-muted-foreground">
                             {(n.author || '未知作者') + ' · ' + (n.chapterCount || 0) + ' 章 · ' + timeAgo(n.updatedAt)}
                           </div>
                         </div>
-                        <div className="dashboard-list-item__arrow">›</div>
+                        <span className="shrink-0 text-muted-foreground" aria-hidden="true">›</span>
                       </Link>
                     ))
                   )}

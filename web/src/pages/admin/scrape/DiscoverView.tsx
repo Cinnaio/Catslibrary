@@ -379,13 +379,7 @@ export default function DiscoverView() {
         <Dialog open onOpenChange={(open) => !open && setDetail(null)}>
           <DialogContent className="admin-dialog sm:max-w-[680px] p-0 gap-0 flex flex-col overflow-hidden max-h-[86vh]" showCloseButton={false}>
             <div className="modal__header detail-modal__header discover-detail__header">
-              <div className="editor-modal__mark discover-detail__mark" aria-hidden="true">
-                探
-              </div>
-              <div>
-                <div className="editor-modal__eyebrow">发现小说</div>
-                <h3 className="modal__title editor-modal__title">{detail.item.title}</h3>
-              </div>
+              <h3 className="modal__title editor-modal__title">{detail.item.title}</h3>
               <Button variant="ghost" size="icon" className="editor-modal__close detail-modal__close" aria-label="关闭" onClick={() => setDetail(null)}>
                 <X className="size-4" />
               </Button>
@@ -409,7 +403,6 @@ export default function DiscoverView() {
                       <div className="discover-detail__cover discover-detail__cover--empty" data-letter={(detail.meta.novel?.title || detail.item.title || '书').slice(0, 1)}></div>
                     )}
                     <div className="discover-detail__meta">
-                      <div className="discover-detail__eyebrow">发现页预览</div>
                       <div className="discover-detail__name">{detail.meta.novel?.title || detail.item.title}</div>
                       <div className="discover-detail__author">{detail.meta.novel?.author || '未知作者'}</div>
                       <div className="discover-detail__badges">

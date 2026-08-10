@@ -1,7 +1,9 @@
 /**
  * AdminTabHeader — unified page header for every admin tab.
- * Replaces the 3 legacy patterns: hero (admin-page-intro dashboard-hero),
- * section-header + titleblock, and raw segmented toggle headers.
+ * One anatomy: title + meta capsule + description on the left, actions right.
+ * Built on shadcn/ui tokens. The legacy `kicker` eyebrow and `hero` variant
+ * are retired (eyebrows above headings and per-tab title inflation are banned);
+ * both props are still accepted for API compatibility and ignored.
  */
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
@@ -17,33 +19,31 @@ interface AdminTabHeaderProps {
 }
 
 export default function AdminTabHeader({
-  kicker,
   title,
   description,
   meta,
   actions,
-  variant = 'section',
   className,
 }: AdminTabHeaderProps) {
   return (
     <div
       className={cn(
-        'section-header',
-        variant === 'hero' && 'section-header--hero',
+        'mb-6 flex flex-wrap items-end justify-between gap-4 border-b border-border pb-4',
         className,
       )}
     >
-      <div className="section-header__titleblock">
-        {kicker && <p className="detail-kicker">{kicker}</p>}
-        <h2 className="section-title">
+      <div className="min-w-0">
+        <h2 className="flex flex-wrap items-center gap-x-2 gap-y-1 text-2xl font-bold tracking-tight text-foreground">
           {title}
-          {meta != null && meta !== '' && <span className="section-header__meta ml-2">{meta}</span>}
+          {meta != null && meta !== '' && (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted px-2 py-0.5 text-xs font-medium tabular-nums text-muted-foreground">
+              {meta}
+            </span>
+          )}
         </h2>
-        {description && (
-          <p className="text-sm text-secondary">{description}</p>
-        )}
+        {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
       </div>
-      {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
+      {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
     </div>
   )
 }

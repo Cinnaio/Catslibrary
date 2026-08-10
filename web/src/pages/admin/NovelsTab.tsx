@@ -489,7 +489,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
         }
       >
 
-      <div className="table-wrapper">
+      <div className="overflow-hidden rounded-xl border border-border bg-card">
         <Table>
           <TableCaption className="sr-only">小说目录列表，可按标题、作者、章节数和更新时间排序</TableCaption>
           <TableHeader>
@@ -588,14 +588,8 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
 
       <Dialog open={modalOpen} onOpenChange={(open) => { if (!open) closeModal() }}>
         <DialogContent className="admin-dialog sm:max-w-[540px]">
-          <DialogHeader className="flex-row items-center gap-3">
-            <div className="editor-modal__mark" aria-hidden="true">
-              书
-            </div>
-            <div>
-              <div className="editor-modal__eyebrow">小说资料</div>
-              <DialogTitle className="editor-modal__title">{editing ? '编辑小说' : '添加小说'}</DialogTitle>
-            </div>
+          <DialogHeader>
+            <DialogTitle className="editor-modal__title">{editing ? '编辑小说' : '添加小说'}</DialogTitle>
           </DialogHeader>
           <div className="admin-dialog__body">
             <div className="novel-editor__grid">

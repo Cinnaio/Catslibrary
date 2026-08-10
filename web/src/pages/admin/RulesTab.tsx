@@ -275,13 +275,7 @@ export default function RulesTab(_props: { highlightNovelId?: string; onHighligh
         </Card>
       </Collapsible>
 
-      <AdminPanel className="rules-custom-card">
-        <div className="card__head">
-          <h3 className="card__title">自定义规则</h3>
-          <span className="text-sm text-muted">
-            {customRules.length}/{MAX_CUSTOM_RULES}
-          </span>
-        </div>
+      <AdminPanel className="rules-custom-card" title="自定义规则" description={`${customRules.length}/${MAX_CUSTOM_RULES}`}>
         <div className="rules-custom-list">
           {customRules.length === 0 ? (
             <p className="profile-empty-note">暂无自定义规则</p>
@@ -310,11 +304,7 @@ export default function RulesTab(_props: { highlightNovelId?: string; onHighligh
         </div>
       </AdminPanel>
 
-      <AdminPanel className="rules-test-card">
-        <div className="card__head">
-          <h3 className="card__title">批量测试</h3>
-          <span className="text-sm text-muted">粘贴包含多个章节标题的文本，测试当前规则能否识别章节结构</span>
-        </div>
+      <AdminPanel className="rules-test-card" title="批量测试" description="粘贴包含多个章节标题的文本，测试当前规则能否识别章节结构">
         <Textarea
           rows={6}
           placeholder="粘贴包含多个章节标题的文本…"

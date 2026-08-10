@@ -24,16 +24,18 @@ export default function AdminShell({ active, onSelect, activeLabel, children }: 
     <SidebarProvider className="admin-layout">
       <AdminSidebar active={active} onSelect={onSelect} />
       <SidebarInset className="admin-layout__inset min-w-0">
-        <header className="admin-shell__topbar">
+        <header className="flex min-h-14 items-center justify-between gap-3 border-b border-border bg-card px-5 py-2">
           <div className="flex min-w-0 items-center gap-2">
             <SidebarTrigger aria-label="打开管理导航" />
             <Separator orientation="vertical" className="mr-1 h-4" />
-            <div className="min-w-0">
-              <span className="admin-shell__context">运营工作区</span>
-              <span className="admin-shell__page-title">{activeLabel}</span>
-            </div>
+            <span className="truncate text-sm font-semibold text-foreground">{activeLabel}</span>
           </div>
-          <span className="admin-shell__status" role="status">管理员模式</span>
+          <span
+            className="shrink-0 rounded-full border border-border bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground"
+            role="status"
+          >
+            管理员模式
+          </span>
         </header>
         <section className="admin-layout__content min-h-0 min-w-0 flex-1 overflow-auto p-4 md:p-6" aria-label={activeLabel}>
           {children}

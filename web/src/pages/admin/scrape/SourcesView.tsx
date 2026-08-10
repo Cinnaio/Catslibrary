@@ -225,7 +225,6 @@ export default function SourcesView({ active }: { active: boolean }) {
 
       {/* Table */}
       <AdminPanel title="已导入书源" className="scrape-sources-table">
-        <div className="table-wrapper">
           <Table>
             <TableHeader>
               <TableRow>
@@ -294,7 +293,6 @@ export default function SourcesView({ active }: { active: boolean }) {
               )}
             </TableBody>
           </Table>
-        </div>
         <div className="admin-table-meta-row">
           <span className="text-xs text-muted">
             共 {total} 条书源，已启用 {enabledCount}

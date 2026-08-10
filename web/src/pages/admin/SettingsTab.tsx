@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import AdminPanel from '@/components/admin/AdminPanel'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import AdminPage from '@/components/admin/AdminPage'
 
 interface AdminUser {
@@ -282,7 +282,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
   const available = invites.length - spent
 
   return (
-    <AdminPage className="account-admin" kicker="ACCOUNTS" title="账户与注册" description="管理站点用户、注册方式与邀请码。" variant="hero" actions={
+    <AdminPage title="账户与注册" description="管理站点用户、注册方式与邀请码。" actions={
           <span id="schemaHealth">
             {schemaHealth &&
               (schemaHealth.ok ? (
@@ -296,16 +296,16 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
         }
       >
 
-      <div className="account-overview-grid">
-        <AdminPanel className="account-card account-card--identity">
-          <div className="section-header admin-card-header account-card__header">
-            <div>
-              <h3 className="admin-card-title">当前管理员</h3>
-              <p className="text-sm text-muted" id="adminCurrentUser">
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader className="flex-row items-center justify-between gap-2">
+            <div className="min-w-0">
+              <CardTitle className="text-base">当前管理员</CardTitle>
+              <p className="mt-0.5 text-sm text-muted-foreground" id="adminCurrentUser">
                 {meUser ? (
                   <>
-                    <strong>{meUser.displayName || meUser.username}</strong>
-                    <span>{roleLabel(meUser.role)}</span>
+                    <strong className="font-medium text-foreground">{meUser.displayName || meUser.username}</strong>
+                    <span> · {roleLabel(meUser.role)}</span>
                   </>
                 ) : (
                   '—'
@@ -315,60 +315,71 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
             <Button variant="secondary" size="sm" onClick={() => void handleLogout()}>
               退出登录
             </Button>
-          </div>
-          <div id="userStats" className="account-stats admin-stat-strip">
-            <span>
-              用户 <strong>{users.length}</strong>
-            </span>
-            <span>
-              活跃 <strong>{activeCount}</strong>
-            </span>
-            <span>
-              禁用 <strong>{users.length - activeCount}</strong>
-            </span>
-            <span>
-              管理员 <strong>{adminCount}</strong>
-            </span>
-          </div>
-        </AdminPanel>
+          </CardHeader>
+          <CardContent>
+            <div id="userStats" className="grid grid-cols-2 gap-px overflow-hidden rounded-lg bg-border sm:grid-cols-4">
+              <div className="bg-card px-4 py-3">
+                <div className="truncate text-xs font-medium text-muted-foreground">用户</div>
+                <div className="mt-1 text-2xl font-semibold leading-tight tabular-nums tracking-tight text-foreground">{users.length}</div>
+              </div>
+              <div className="bg-card px-4 py-3">
+                <div className="truncate text-xs font-medium text-muted-foreground">活跃</div>
+                <div className="mt-1 text-2xl font-semibold leading-tight tabular-nums tracking-tight text-foreground">{activeCount}</div>
+              </div>
+              <div className="bg-card px-4 py-3">
+                <div className="truncate text-xs font-medium text-muted-foreground">禁用</div>
+                <div className="mt-1 text-2xl font-semibold leading-tight tabular-nums tracking-tight text-foreground">{users.length - activeCount}</div>
+              </div>
+              <div className="bg-card px-4 py-3">
+                <div className="truncate text-xs font-medium text-muted-foreground">管理员</div>
+                <div className="mt-1 text-2xl font-semibold leading-tight tabular-nums tracking-tight text-foreground">{adminCount}</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-        <AdminPanel className="account-card account-card--register">
-          <h3 className="admin-card-title">注册设置</h3>
-          <p className="text-sm text-muted admin-card-desc">控制新用户如何加入本站。</p>
-          <RadioGroup
-            value={registerMode}
-            onValueChange={(v) => setRegisterMode(v as typeof registerMode)}
-            className="admin-register-modes"
-            id="registerModeGroup"
-          >
-            {REGISTER_MODES.map((m) => (
-              <label className="admin-register-mode" key={m.value}>
-                <RadioGroupItem value={m.value} />
-                <span>{m.label}</span>
-                <span className="admin-register-mode__hint">{m.hint}</span>
-              </label>
-            ))}
-          </RadioGroup>
-          <div className="action-row admin-action-row account-save-row">
-            <Button size="sm" onClick={() => void saveRegisterSettings()}>
-              保存设置
-            </Button>
-          </div>
-        </AdminPanel>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">注册设置</CardTitle>
+            <p className="text-sm text-muted-foreground">控制新用户如何加入本站。</p>
+          </CardHeader>
+          <CardContent>
+            <RadioGroup
+              value={registerMode}
+              onValueChange={(v) => setRegisterMode(v as typeof registerMode)}
+              className="grid gap-3 sm:grid-cols-3"
+              id="registerModeGroup"
+            >
+              {REGISTER_MODES.map((m) => (
+                <label
+                  className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-border bg-card p-3.5 transition-colors has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-accent/40"
+                  key={m.value}
+                >
+                  <RadioGroupItem value={m.value} className="mt-0.5" />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium text-foreground">{m.label}</span>
+                    <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">{m.hint}</span>
+                  </span>
+                </label>
+              ))}
+            </RadioGroup>
+            <div className="mt-4 flex justify-end">
+              <Button size="sm" onClick={() => void saveRegisterSettings()}>
+                保存设置
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
-      <section className="account-section account-section--users">
-        <div className="section-header admin-section-header--spaced account-section__header">
-          <div>
-            <p className="detail-kicker">MEMBERS</p>
-            <h2 className="section-title">用户</h2>
-          </div>
-          <Button variant="secondary" size="sm" onClick={() => void load()} disabled={loading}>
-            刷新
-          </Button>
-        </div>
-        <div className="table-wrapper account-table-wrapper">
-          <Table>
+      <div className="mb-3 mt-6 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-base font-semibold text-foreground">用户</h2>
+        <Button variant="secondary" size="sm" onClick={() => void load()} disabled={loading}>
+          刷新
+        </Button>
+      </div>
+      <div className="overflow-hidden rounded-xl border border-border bg-card">
+        <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>用户</TableHead>
@@ -383,13 +394,13 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
             <TableBody>
               {loading && !data ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="table-empty">
+                  <TableCell colSpan={7} className="h-24 text-center text-sm text-muted-foreground">
                     加载中…
                   </TableCell>
                 </TableRow>
               ) : users.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="table-empty">
+                  <TableCell colSpan={7} className="h-24 text-center text-sm text-muted-foreground">
                     暂无用户
                   </TableCell>
                 </TableRow>
@@ -408,7 +419,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
                           </Badge>
                         )}
                         <br />
-                        <span className="text-sm text-muted">{u.username}</span>
+                        <span className="text-sm text-muted-foreground">{u.username}</span>
                       </TableCell>
                       <TableCell>
                         <Badge variant="secondary" className={admin ? 'bg-info/10 text-info' : ''}>
@@ -420,25 +431,25 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
                           {disabled ? '已禁用' : '正常'}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-sm text-muted">{timeAgo(u.createdAt)}</TableCell>
-                      <TableCell className="text-sm text-muted">{timeAgo(u.lastLoginAt)}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{timeAgo(u.createdAt)}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{timeAgo(u.lastLoginAt)}</TableCell>
                       <TableCell>{u.thoughtCount || 0}</TableCell>
-                      <TableCell className="admin-user-actions">
+                      <TableCell>
                         {!self && (
-                          <>
+                          <div className="flex flex-wrap items-center justify-end gap-2">
                             <Button variant="outline" size="sm" onClick={() => void updateUserRole(u)}>
                               {admin ? '设为读者' : '设为管理员'}
-                            </Button>{' '}
+                            </Button>
                             <Button variant="outline" size="sm" onClick={() => void resetUserPassword(u)}>
                               重置密码
-                            </Button>{' '}
+                            </Button>
                             <Button variant="outline" size="sm" onClick={() => void updateUserStatus(u)}>
                               {disabled ? '恢复' : '禁用'}
-                            </Button>{' '}
+                            </Button>
                             <Button variant="destructive" size="sm" onClick={() => void deleteUser(u)}>
                               删除
                             </Button>
-                          </>
+                          </div>
                         )}
                       </TableCell>
                     </TableRow>
@@ -447,44 +458,39 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
               )}
             </TableBody>
           </Table>
-        </div>
-      </section>
+      </div>
 
-      <section className="account-section account-section--invites">
-        <div className="section-header admin-section-header--spaced account-section__header">
-          <div>
-            <p className="detail-kicker">INVITES</p>
-            <h2 className="section-title">邀请码</h2>
-          </div>
-          <div className="admin-toolbar__group account-invite-tools">
-            <Input
-              type="number"
-              className="admin-input--compact admin-input--number"
-              min={1}
-              max={50}
-              value={inviteCount}
-              onChange={(e) => setInviteCount(e.target.value)}
-            />
-            <Button size="sm" onClick={() => void createInvite()}>
-              生成邀请码
+      <div className="mb-3 mt-8 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-base font-semibold text-foreground">邀请码</h2>
+        <div className="flex items-center gap-2">
+          <Input
+            type="number"
+            className="h-8 w-[92px]"
+            min={1}
+            max={50}
+            value={inviteCount}
+            onChange={(e) => setInviteCount(e.target.value)}
+          />
+          <Button size="sm" onClick={() => void createInvite()}>
+            生成邀请码
+          </Button>
+        </div>
+      </div>
+        {generatedCodes && generatedCodes.length > 0 && (
+          <div id="tokenStatus" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-muted/50 p-3.5">
+            <div className="flex flex-wrap items-center gap-2">
+              {generatedCodes.map((c) => (
+                <code key={c} className="rounded-full border border-border bg-card px-2.5 py-0.5 font-mono text-xs text-foreground">
+                  {c}
+                </code>
+              ))}
+            </div>
+            <Button variant="secondary" size="sm" onClick={() => void copyNewInvites()}>
+              复制全部
             </Button>
           </div>
-        </div>
-        {generatedCodes && generatedCodes.length > 0 && (
-          <div id="tokenStatus" className="admin-status-slot">
-            <div className="scrape-ready-note admin-invite-result">
-              <div className="admin-invite-result__codes">
-                {generatedCodes.map((c) => (
-                  <code key={c}>{c}</code>
-                ))}
-              </div>
-              <Button variant="secondary" size="sm" onClick={() => void copyNewInvites()}>
-                复制全部
-              </Button>
-            </div>
-          </div>
         )}
-        <div className="table-wrapper account-table-wrapper">
+        <div className="overflow-hidden rounded-xl border border-border bg-card">
           <Table>
             <TableHeader>
               <TableRow>
@@ -498,13 +504,13 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
             <TableBody>
               {loading && !data ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="table-empty">
+                  <TableCell colSpan={5} className="h-24 text-center text-sm text-muted-foreground">
                     加载中…
                   </TableCell>
                 </TableRow>
               ) : invites.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="table-empty">
+                  <TableCell colSpan={5} className="h-24 text-center text-sm text-muted-foreground">
                     暂无邀请码
                   </TableCell>
                 </TableRow>
@@ -527,19 +533,18 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
                         )}
                       </TableCell>
                       <TableCell>{i.usedByName || i.usedBy || '—'}</TableCell>
-                      <TableCell className="text-sm text-muted">{timeAgo(i.createdAt)}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{timeAgo(i.createdAt)}</TableCell>
                       <TableCell>
-                        <Button variant="outline" size="sm" onClick={() => void copyInvite(i.code)}>
-                          复制
-                        </Button>
-                        {!used && !disabled && (
-                          <>
-                            {' '}
+                        <div className="flex items-center justify-end gap-2">
+                          <Button variant="outline" size="sm" onClick={() => void copyInvite(i.code)}>
+                            复制
+                          </Button>
+                          {!used && !disabled && (
                             <Button variant="outline" size="sm" onClick={() => void disableInvite(i.code)}>
                               停用
                             </Button>
-                          </>
-                        )}
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   )
@@ -548,8 +553,8 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
             </TableBody>
           </Table>
         </div>
-        <div className="admin-table-meta-row account-table-meta-row">
-          <span className="text-xs text-muted" id="inviteStats">
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+          <span className="text-xs text-muted-foreground" id="inviteStats">
             {invites.length ? `共 ${invites.length} 个 · 可用 ${available} · 失效 ${spent}` : ''}
           </span>
           {spent > 0 && (
@@ -558,7 +563,6 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
             </Button>
           )}
         </div>
-      </section>
     </AdminPage>
   )
 }

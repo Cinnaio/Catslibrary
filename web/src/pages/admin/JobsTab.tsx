@@ -356,7 +356,7 @@ export default function JobsTab(_props: { highlightNovelId?: string; onHighlight
         }
       >
 
-      <div className="table-wrapper">
+      <div className="overflow-hidden rounded-xl border border-border bg-card">
         <Table>
           <TableHeader>
             <TableRow>
@@ -426,7 +426,7 @@ export default function JobsTab(_props: { highlightNovelId?: string; onHighlight
           }
         />
       </div>
-      <div className="table-wrapper">
+      <div className="overflow-hidden rounded-xl border border-border bg-card">
         <Table>
           <TableHeader>
             <TableRow>

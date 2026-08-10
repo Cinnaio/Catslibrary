@@ -420,12 +420,6 @@
   font-weight: 800;
 }.discover-detail__meta{
   min-width: 0;
-}.discover-detail__eyebrow{
-  margin-bottom: 5px;
-  color: var(--accent);
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.12em;
 }.discover-detail__name{
   font-family: var(--font-heading);
   font-size: 1.28rem;

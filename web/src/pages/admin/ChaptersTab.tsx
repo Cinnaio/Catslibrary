@@ -345,7 +345,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
         />
       </div>
 
-      <div className="table-wrapper">
+      <div className="overflow-hidden rounded-xl border border-border bg-card">
         <Table>
           <TableHeader>
             <TableRow>
