@@ -17,6 +17,10 @@
   --admin-space-4: 1rem;
   --admin-space-5: 1.5rem;
   --admin-space-6: 2rem;
+
+  /* 新增：管理后台输入框/按钮的圆角变量 —— 更大圆角匹配目标风格 */
+  --admin-input-radius: 8px;
+  --admin-button-radius: 8px;
 }
 
 .admin-layout {
@@ -321,11 +325,10 @@
   border-radius: var(--admin-radius);
 }
 
+/* ——— admin 控件统一圆角 ——— */
 .admin-layout [data-slot="button"],
 .admin-layout [data-slot="sidebar-menu-button"],
 .admin-layout [data-slot="sidebar-trigger"],
-.admin-layout [data-slot="input"],
-.admin-layout [data-slot="textarea"],
 .admin-layout .form-input,
 .admin-layout .discover-pagination__input,
 .admin-layout .admin-input--compact,
@@ -333,42 +336,64 @@
 .admin-layout .scrape-config-row strong,
 .admin-layout .rule-test-matches,
 .admin-layout .scrape-ready-note {
-  border-radius: var(--admin-radius-sm);
+  border-radius: var(--admin-button-radius);
 }
 
-/* secondary 按钮在暖画布上隐形（背景 ≈ 画布）——加可见边框恢复按钮 affordance */
+.admin-layout [data-slot="input"],
+.admin-layout [data-slot="textarea"] {
+  border-radius: var(--admin-input-radius);
+}
+
+/* ——— secondary 按钮：白底 + 细灰边框 + 深色文字 ——— */
 .admin-layout [data-slot="button"][data-variant="secondary"] {
+  background: var(--admin-panel);
+  color: var(--text-primary);
   border: 1px solid var(--admin-border-strong);
 }
+.admin-layout [data-slot="button"][data-variant="secondary"]:hover {
+  background: var(--bg-hover);
+}
 
-/* 柔和 primary：浅棕填充 + accent 文字 + 细边框（替代实心深棕，整体更素净） */
+/* ——— primary（default）按钮：白底 + 细暖棕边框 + 暖棕文字 ——— */
 .admin-layout [data-slot="button"][data-variant="default"] {
-  background: color-mix(in srgb, var(--sh-primary) 12%, var(--admin-panel));
+  background: var(--admin-panel);
   color: var(--sh-primary);
-  border: 1px solid color-mix(in srgb, var(--sh-primary) 28%, transparent);
+  border: 1px solid color-mix(in srgb, var(--sh-primary) 32%, var(--admin-border));
 }
 .admin-layout [data-slot="button"][data-variant="default"]:hover {
-  background: color-mix(in srgb, var(--sh-primary) 18%, var(--admin-panel));
+  background: color-mix(in srgb, var(--sh-primary) 8%, var(--admin-panel));
 }
 .admin-layout [data-slot="button"][data-variant="default"]:disabled {
-  background: color-mix(in srgb, var(--sh-primary) 7%, var(--admin-panel));
-  color: color-mix(in srgb, var(--sh-primary) 55%, var(--admin-panel));
-  border-color: transparent;
+  background: color-mix(in srgb, var(--admin-panel) 85%, var(--bg-secondary));
+  color: var(--text-muted);
+  border-color: var(--admin-border);
 }
 
-/* 柔和 destructive：浅粉填充 + danger 文字 + 细边框（替代实心粉） */
+/* ——— destructive 按钮：白底 + 细红边框 + 红色文字 ——— */
 .admin-layout [data-slot="button"][data-variant="destructive"] {
-  background: color-mix(in srgb, var(--color-danger) 10%, var(--admin-panel));
+  background: var(--admin-panel);
   color: var(--color-danger);
-  border: 1px solid color-mix(in srgb, var(--color-danger) 24%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-danger) 28%, var(--admin-border));
 }
 .admin-layout [data-slot="button"][data-variant="destructive"]:hover {
-  background: color-mix(in srgb, var(--color-danger) 16%, var(--admin-panel));
+  background: color-mix(in srgb, var(--color-danger) 6%, var(--admin-panel));
 }
 .admin-layout [data-slot="button"][data-variant="destructive"]:disabled {
-  background: color-mix(in srgb, var(--color-danger) 6%, var(--admin-panel));
-  color: color-mix(in srgb, var(--color-danger) 50%, var(--admin-panel));
-  border-color: transparent;
+  background: color-mix(in srgb, var(--admin-panel) 85%, var(--bg-secondary));
+  color: var(--text-muted);
+  border-color: var(--admin-border);
+}
+
+/* ——— 输入框：白底 + 细灰边框 ——— */
+.admin-layout [data-slot="input"],
+.admin-layout [data-slot="textarea"] {
+  background: var(--admin-panel);
+  border: 1px solid var(--admin-border-strong);
+}
+.admin-layout [data-slot="input"]:focus,
+.admin-layout [data-slot="textarea"]:focus {
+  border-color: var(--sh-primary);
+  box-shadow: 0 0 0 2px var(--focus-ring);
 }
 
 /* CustomSelect 弹层内的搜索框聚焦态：克制的细边，不溢出不突兀
