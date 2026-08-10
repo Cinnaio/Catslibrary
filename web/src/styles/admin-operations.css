@@ -145,14 +145,16 @@
   letter-spacing: 0.1em;
 }
 
-.admin-panel-card, .scrape-step, .discover-toolbar {
+/* 后台面板表面。scrape 步进卡 / 任务卡通过组合 .admin-panel-card 复用，不再另立覆写。
+   注意：本文件无 @layer，故这条压过 Tailwind 的 @layer utilities —— 调 import 顺序会静默失效。 */
+.admin-panel-card, .discover-toolbar {
   border: 1px solid var(--admin-border);
   border-radius: var(--admin-radius);
   background: var(--admin-panel);
   box-shadow: none;
 }
 
-.admin-panel-card, .scrape-step, .discover-toolbar { padding: var(--admin-space-5); }
+.admin-panel-card, .discover-toolbar { padding: var(--admin-space-5); }
 
 .thoughts-toolbar, .sources-toolbar, .admin-toolbar__group,
 .novel-toolbar__batch, .batch-actions-group, .action-row, .input-row {
@@ -316,187 +318,172 @@
 .novel-editor__field label { color: var(--text-secondary); font-size: 0.8rem; font-weight: 650; }
 
 /* ————————————————————————————————————————————————
-   抓取中心 · CenterView — consumers: scrape/CenterView.tsx
-   两栏流程：主列 step 卡 + 粘性侧栏（检查/摘要）。
+   抓取中心 · CenterView — consumers: scrape/CenterView.tsx, scrape/center/*
+   工作台：左向导（步进卡）+ 右任务队列（有任务时才出现，栅格在 JSX 里用 Tailwind）。
+   字号一律走 JSX 的 text-xs/text-sm，本块只管结构、表面与间距。
    ———————————————————————————————————————————————— */
-.scrape-flow-grid { display: grid; grid-template-columns: minmax(0, 1fr) 18rem; gap: var(--admin-space-4); align-items: start; }
-.scrape-flow-grid__main { display: grid; gap: var(--admin-space-4); min-width: 0; }
-.scrape-flow-grid__side { position: sticky; top: 1rem; display: grid; gap: var(--admin-space-3); align-self: start; }
-.scrape-side-card { padding: var(--admin-space-4); }
 
-/* 三步流程步进卡（.scrape-flow-grid__main 内纵向排布） */
-.step-label {
-  display: inline-block;
-  margin-bottom: 11px;
-  padding: 3px 10px;
+/* 步进卡：边框/圆角/底色/内边距由 .admin-panel-card 提供，这里只加纵向节奏 */
+.scrape-step { display: grid; gap: var(--admin-space-3); }
+.scrape-step__label {
+  justify-self: start;
+  padding: var(--admin-space-1) var(--admin-space-3);
   border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent);
   border-radius: var(--radius-full);
   background: var(--accent-subtle);
   color: var(--accent);
-  font-size: 0.7rem;
+  font-size: 0.7rem;   /* 11.2px — ≥11px 可读下限 */
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
-.step-title { margin: 0 0 14px; font-size: 1.15rem; font-weight: 600; letter-spacing: -0.02em; color: var(--text-primary); }
-
-/* 页头 meta 胶囊（AdminTabHeader meta prop） */
-.scrape-center-hero__meta { display: flex; flex-wrap: wrap; gap: 7px; justify-content: flex-end; }
-.scrape-center-hero__meta span {
-  display: inline-flex;
-  align-items: center;
-  padding: 5px 9px;
+.scrape-step__fieldset {
+  padding: var(--admin-space-4);
   border: 1px solid var(--admin-border);
-  border-radius: var(--radius-full);
-  background: var(--admin-panel-muted);
+  border-radius: var(--admin-radius);
+}
+.scrape-step__fieldset legend { padding: 0 var(--admin-space-2); }
+
+/* 反馈面板：分析结果 / 选择器测试 — consumers: CenterView, SourcesView */
+.scrape-feedback {
+  display: grid;
+  gap: var(--admin-space-2);
+  justify-items: start;
+  padding: var(--admin-space-3);
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius);
+  background: var(--admin-inset);
+}
+.scrape-feedback__links {
+  width: 100%;
+  max-height: 12.5rem;
+  overflow-y: auto;
+  margin: 0;
+  padding: var(--admin-space-2) var(--admin-space-3);
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-sm);
+  background: var(--admin-panel);
   color: var(--text-secondary);
-  font-size: 0.75rem;
-  font-weight: 650;
+  line-height: 1.7;
+  list-style: none;
 }
 
-/* 侧栏 · 抓取前检查 / 配置摘要 */
-.scrape-checklist,
-.scrape-config-summary { display: grid; gap: 8px; }
-.scrape-check-item {
+/* 检查项（分析结果 / 测试诊断） */
+.scrape-checks { display: flex; flex-wrap: wrap; gap: var(--admin-space-2); margin: 0; padding: 0; list-style: none; }
+.scrape-check {
   display: inline-flex;
   align-items: center;
-  justify-content: flex-start;
-  width: 100%;
-  min-height: 34px;
-  padding: 7px 11px;
-  border: 1px solid var(--admin-border);
+  gap: var(--admin-space-1);
+  min-height: var(--admin-control-height);
+  padding: var(--admin-space-2) var(--admin-space-3);
+  border: 1px solid color-mix(in srgb, var(--color-success) 28%, var(--admin-border));
   border-radius: var(--admin-radius-sm);
   background: var(--admin-panel-muted);
   color: var(--text-secondary);
-  font-size: 0.75rem;
   font-weight: 650;
 }
-.scrape-check-item--muted { color: var(--text-muted); border-style: dashed; background: transparent; }
-.scrape-config-row {
-  display: grid;
-  grid-template-columns: 38px minmax(0, 1fr);
-  align-items: center;
-  gap: 10px;
-  min-height: 32px;
+.scrape-check svg { color: var(--color-success); }
+.scrape-check__detail { color: var(--text-muted); font-weight: 500; }
+.scrape-check--pending {
+  border-color: var(--admin-border);
+  border-style: dashed;
+  background: transparent;
+  color: var(--text-muted);
 }
-.scrape-config-row span { color: var(--text-muted); font-size: 0.76rem; font-weight: 750; letter-spacing: 0.08em; }
-.scrape-config-row strong {
+.scrape-check--pending svg { color: var(--text-muted); }
+
+/* Step 3 折叠态的配置摘要（原侧栏「配置摘要」卡） */
+.scrape-summary { display: flex; flex-wrap: wrap; gap: var(--admin-space-2); margin: 0; }
+.scrape-summary__row { display: inline-flex; align-items: center; gap: var(--admin-space-2); min-width: 0; max-width: 100%; }
+.scrape-summary dt { color: var(--text-muted); font-weight: 750; letter-spacing: 0.08em; }
+.scrape-summary dd {
   min-width: 0;
-  padding: 5px 9px;
+  margin: 0;
+  padding: var(--admin-space-1) var(--admin-space-2);
   border-radius: var(--admin-radius-sm);
   background: var(--admin-inset);
   color: var(--text-primary);
-  font-size: 0.8rem;
   font-weight: 650;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.scrape-config-row:nth-child(-n+2) strong { color: var(--accent); }
+.scrape-summary__row:nth-child(-n + 2) dd { color: var(--accent); }
+
+/* 页头 meta 胶囊（AdminTabHeader meta prop） */
+.scrape-center-hero__meta { display: flex; flex-wrap: wrap; gap: var(--admin-space-2); justify-content: flex-end; }
+.scrape-center-hero__meta span {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--admin-space-1) var(--admin-space-2);
+  border: 1px solid var(--admin-border);
+  border-radius: var(--radius-full);
+  background: var(--admin-panel-muted);
+  color: var(--text-secondary);
+  font-weight: 650;
+}
 
 /* Step 2 · 小说信息确认表单 */
-.scrape-preview { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 18px; align-items: flex-start; }
-.scrape-preview__cover { width: 120px; flex-shrink: 0; }
-.scrape-preview__cover img { display: block; width: 120px; height: 160px; border-radius: var(--admin-radius); object-fit: cover; box-shadow: var(--shadow); }
-.scrape-preview__form { min-width: 0; }
-.scrape-preview__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.scrape-preview { display: grid; grid-template-columns: 7.5rem minmax(0, 1fr); gap: var(--admin-space-4); align-items: start; }
+.scrape-preview__cover img {
+  display: block;
+  width: 7.5rem;
+  aspect-ratio: 3 / 4;
+  border-radius: var(--admin-radius);
+  object-fit: cover;
+  box-shadow: var(--shadow);
+}
+.scrape-preview__form { display: grid; gap: var(--admin-space-3); min-width: 0; max-width: 42rem; }
+.scrape-preview__grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--admin-space-3); }
 .scrape-ready-note {
-  margin-top: 10px;
-  padding: 8px 10px;
+  padding: var(--admin-space-2) var(--admin-space-3);
   border: 1px solid color-mix(in srgb, var(--color-success) 24%, var(--border));
   border-radius: var(--admin-radius-sm);
   background: color-mix(in srgb, var(--bg-card) 74%, var(--accent-subtle));
 }
 
-/* Step 3 · 高级配置与选择器测试 */
-.form-row { margin-bottom: 16px; }
-.toggle-advanced {
-  background: none;
-  border: none;
-  padding: 4px 0;
-  color: var(--text-muted);
-  font-size: 0.8rem;
-  cursor: pointer;
-  transition: color 0.15s;
-}
-.toggle-advanced:hover { color: var(--accent); }
-.toggle-advanced::before { content: '+ '; }
-.toggle-advanced.open::before { content: '− '; }
-.selector-fieldset { margin-bottom: 16px; padding: 20px; border: 1px solid var(--admin-border); border-radius: var(--admin-radius); }
-.selector-fieldset legend { padding: 0 8px; font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); }
-.selector-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-
-/* 分析 / 测试结果反馈 */
-.analyze-result,
-.scrape-result { margin-top: 14px; font-size: 0.9rem; }
-.analyze-result:not(:empty),
-.scrape-result:not(:empty) {
-  padding: 12px 14px;
-  border: 1px solid var(--admin-border);
-  border-radius: var(--admin-radius);
-  background: var(--admin-inset);
-}
-.success-text { color: var(--accent); font-weight: 500; }
-.error-text { color: var(--color-danger); font-weight: 500; }
-.scrape-test-badge { display: inline-flex; margin-bottom: 8px; }
-.scrape-test-links {
-  max-height: 200px;
-  overflow-y: auto;
-  padding: 10px 12px;
-  border: 1px solid var(--admin-border);
-  border-radius: var(--admin-radius);
-  background: var(--admin-inset);
-  color: var(--text-secondary);
-  font-size: 0.85rem;
-  line-height: 1.7;
-}
-
-/* 抓取任务卡（轮询实时更新） */
-#scrapeJobList { display: grid; gap: var(--admin-space-3); margin-top: var(--admin-space-4); }
-#scrapeJobList:empty, #scrapeJobList.hidden { display: none; }
-.job-card {
-  padding: 16px 18px !important;
-  border: 1px solid var(--admin-border);
-  border-radius: var(--admin-radius);
-  background: var(--admin-panel);
-}
-.job-card__head, .job-card__title, .job-card__actions { display: flex; align-items: center; gap: 8px; }
-.job-card__head { justify-content: space-between; flex-wrap: wrap; margin-bottom: 10px; }
-.job-card__title { min-width: 0; }
-.job-card__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.job-card__actions { gap: 4px; }
-.job-card__step { margin-top: 7px; margin-bottom: 5px; }
-.scrape-job-metrics { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
-.scrape-job-metrics span {
+/* 抓取任务队列（轮询实时更新） */
+.scrape-workbench__aside { min-width: 0; }
+.scrape-job-queue { display: grid; gap: var(--admin-space-3); align-content: start; }
+.scrape-job { display: grid; gap: var(--admin-space-2); padding: var(--admin-space-4); }
+.scrape-job__head { display: flex; align-items: center; flex-wrap: wrap; gap: var(--admin-space-2); }
+.scrape-job__name { min-width: 0; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scrape-job__metrics { display: flex; flex-wrap: wrap; gap: var(--admin-space-1); }
+.scrape-job__metrics span {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  padding: 2px 7px;
+  gap: var(--admin-space-1);
+  min-height: 1.5rem;
+  padding: 0 var(--admin-space-2);
   border: 1px solid var(--admin-border);
   border-radius: var(--radius-full);
   background: var(--admin-inset);
   color: var(--text-secondary);
-  font-size: 0.72rem;
 }
-.scrape-job-metrics strong { font-variant-numeric: tabular-nums; }
-.scrape-job-failed-list, .scrape-job-log-list { display: grid; gap: 6px; margin-top: 8px; }
-.scrape-job-log-item, .scrape-job-failed-item {
+.scrape-job__metrics strong { font-variant-numeric: tabular-nums; }
+.scrape-job__foot { display: flex; align-items: center; gap: var(--admin-space-1); }
+.scrape-job__actions { display: flex; align-items: center; gap: var(--admin-space-1); margin-left: auto; }
+.scrape-job__failures,
+.scrape-job__logs { display: grid; gap: var(--admin-space-1); margin: 0; padding: 0; list-style: none; }
+.scrape-job__failures-title { color: var(--color-danger); font-weight: 750; }
+.scrape-job__log,
+.scrape-job__failure {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  gap: 6px 10px;
-  padding: 8px 10px;
+  gap: var(--admin-space-1) var(--admin-space-2);
+  padding: var(--admin-space-2);
   border: 1px solid var(--admin-border);
   border-radius: var(--admin-radius-sm);
   background: var(--admin-inset);
-  font-size: 0.78rem;
 }
-.scrape-job-log-item span { color: var(--text-muted); font-family: var(--font-mono); }
-.scrape-job-log-item strong, .scrape-job-failed-item span { min-width: 0; color: var(--text-primary); font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.scrape-job-log-item em, .scrape-job-failed-item em { grid-column: 2; color: var(--text-muted); font-style: normal; overflow-wrap: anywhere; }
-.scrape-job-log-item--success { border-color: color-mix(in srgb, var(--color-success) 24%, var(--border)); }
-.scrape-job-log-item--warn { border-color: color-mix(in srgb, var(--color-warning) 28%, var(--border)); }
-.scrape-job-log-item--error { border-color: color-mix(in srgb, var(--color-danger) 24%, var(--border)); }
-.scrape-job-failed-list__title { color: var(--color-danger); font-size: 0.75rem; font-weight: 750; }
+.scrape-job__log span { color: var(--text-muted); font-family: var(--font-mono); }
+.scrape-job__log strong,
+.scrape-job__failure span { min-width: 0; color: var(--text-primary); font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scrape-job__log em,
+.scrape-job__failure em { grid-column: 2; color: var(--text-muted); font-style: normal; overflow-wrap: anywhere; }
+.scrape-job__log--success { border-color: color-mix(in srgb, var(--color-success) 24%, var(--border)); }
+.scrape-job__log--warn { border-color: color-mix(in srgb, var(--color-warning) 28%, var(--border)); }
+.scrape-job__log--error { border-color: color-mix(in srgb, var(--color-danger) 24%, var(--border)); }
 
 /* 爬虫配置导入/导出卡 */
 .scrape-config-card { margin-top: var(--admin-space-4); }
@@ -710,8 +697,8 @@
 .admin-layout .form-input,
 .admin-layout .discover-pagination__input,
 .admin-layout .admin-input--compact,
-.admin-layout .scrape-check-item,
-.admin-layout .scrape-config-row strong,
+.admin-layout .scrape-check,
+.admin-layout .scrape-summary dd,
 .admin-layout .scrape-ready-note {
   border-radius: var(--admin-button-radius);
 }
@@ -817,22 +804,9 @@
 
 /* ——— 响应式：爬虫抓取中心 / 发现小说 / 书源 ——— */
 @media (max-width: 900px) {
-  .scrape-flow-grid { grid-template-columns: 1fr; }
-  .scrape-flow-grid__side { position: static; }
-  .selector-grid,
   .scrape-preview,
-  .scrape-preview__grid { grid-template-columns: 1fr; }
-  .scrape-preview__cover,
-  .scrape-preview__cover img { width: 96px; height: 128px; }
-}
-
-@media (max-width: 768px) {
-  .scrape-step { padding: 16px; }
-  .step-label { font-size: 0.65rem; padding: 2px 8px; }
-  .step-title { font-size: 1rem; }
-  .selector-fieldset { padding: 12px; }
-  .selector-fieldset legend { font-size: 0.8rem; }
-  .selector-grid { gap: 8px; }
+  .scrape-preview__grid { grid-template-columns: minmax(0, 1fr); }
+  .scrape-preview__cover img { width: 6rem; }
 }
 
 @media (max-width: 640px) {
@@ -848,10 +822,8 @@
   .novel-editor__grid { grid-template-columns: 1fr; }
   .novel-editor__field--wide { grid-column: auto; }
 
-  .admin-panel-card { padding: 18px; }
-  .scrape-step { padding: 14px; }
-  .scrape-flow-grid { grid-template-columns: 1fr; }
-  .scrape-flow-grid__side { position: static; }
+  .admin-panel-card { padding: var(--admin-space-4); }
+  .scrape-step__fieldset { padding: var(--admin-space-3); }
   .form-group { margin-bottom: 12px; }
   .scrape-center-hero__meta { justify-content: flex-start; }
 
