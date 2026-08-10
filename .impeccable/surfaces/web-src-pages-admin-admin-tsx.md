@@ -2,7 +2,7 @@
 version: 1
 slug: "web-src-pages-admin-admin-tsx"
 primary_target: "web/src/pages/admin/Admin.tsx"
-related_targets: ["web/src/pages/admin/ChaptersTab.tsx","web/src/pages/admin/DashboardTab.tsx","web/src/pages/admin/JobsTab.tsx","web/src/pages/admin/ModerationTab.tsx","web/src/pages/admin/NovelsTab.tsx","web/src/pages/admin/RulesTab.tsx","web/src/pages/admin/SettingsTab.tsx","web/src/pages/admin/AdminShell.tsx","web/src/pages/admin/scrape/CenterView.tsx","web/src/pages/admin/scrape/DiscoverView.tsx","web/src/pages/admin/scrape/SourcesView.tsx","web/src/styles/admin-operations.css"]
+related_targets: ["web/src/pages/admin/ChaptersTab.tsx","web/src/pages/admin/DashboardTab.tsx","web/src/pages/admin/JobsTab.tsx","web/src/pages/admin/ModerationTab.tsx","web/src/pages/admin/NovelsTab.tsx","web/src/pages/admin/SettingsTab.tsx","web/src/pages/admin/AdminShell.tsx","web/src/pages/admin/scrape/CenterView.tsx","web/src/pages/admin/scrape/DiscoverView.tsx","web/src/pages/admin/scrape/SourcesView.tsx","web/src/pages/admin/scrape/center/*.tsx","web/src/styles/admin-operations.css"]
 ---
 
 # Admin 后台 · 表面契约（operate）
@@ -36,7 +36,15 @@ related_targets: ["web/src/pages/admin/ChaptersTab.tsx","web/src/pages/admin/Das
 
 ## FINISH
 
-可维护性的证明就是「类汤裁掉了 60%」：`admin-operations.css` 只剩各 tab 实际引用的规则，`_admin-ui.css` / `_admin-discover.css` 死选择器清零，`tsc` + `build` 全绿。未来加 tab 时：用 shadcn 原语 + tokens，不要加新 CSS 文件；规则进 `admin-operations.css` 并标注消费者。
+可维护性的证明就是「类汤裁掉了 60%」：`admin-operations.css` 只剩各 tab 实际引用的规则，`_admin-ui.css` / `_admin.css` 只保留活规则，`_admin-discover.css` 已整体删除。未来加 tab 时：用 shadcn 原语 + tokens，不要加新 CSS 文件；规则进 `admin-operations.css` 并标注消费者。
+
+### 2026-08 爬虫抓取重构（b939054~d3d6d9c）
+
+- **抓取中心**：`CenterView.tsx` 807 → 430 行，拆出 `scrape/center/`（`StepAnalyze/StepConfirm/StepConfig/JobQueue/JobCard/useScrapeJobs/ScrapeField/ScrapeDisclosure/ScrapeChecks`）。工作台式布局——左向导（三步）+ 右任务队列（有任务时才出现，lg 两栏 / 窄屏单列）。侧栏两卡解散：抓取前检查并入第一步、配置摘要并入第三步折叠态。任务卡改竖向紧凑布局，操作图标移底部行。
+- **发现小说**：工具栏 / 批量条 / 网格 / 分页并入房屋标准卡；分页换共享 `Pagination`；两个弹窗改 `.admin-dialog` 三段式。
+- **书源管理**：统计 + 筛选并入表格卡头部；测试结果改弹窗。
+- **命名约定**：scrape 域单前缀 `scrape-`（任务卡 `.scrape-job__*`）。DiscoverView 沿用 `discover-` 前缀（保持内部自洽，避免 `scrape-discover__card__cover` 这类嵌套 BEM）。
+- **响应式**：900px 栅格转单列 / 640px 控件全宽，断点规则集中在 admin-operations.css 尾部。
 
 ## 未决
 

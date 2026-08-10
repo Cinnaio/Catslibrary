@@ -251,7 +251,6 @@
   gap: 12px;
   margin-top: 12px;
 }
-.admin-inline-status { margin-left: 4px; }
 
 .admin-sort-button {
   display: inline-flex;
@@ -599,7 +598,6 @@
   transform: rotate(6deg);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
   pointer-events: none;
-}
 }
 
 /* 发现小说详情弹窗（外壳用 .admin-dialog 三段式，这里只留内容区样式） */

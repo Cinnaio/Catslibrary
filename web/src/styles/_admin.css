@@ -1,14 +1,4 @@
-.admin{
-  display: grid;
-  grid-template-columns: 240px 1fr;
-  min-height: 100vh;
-  background: var(--bg-secondary);
-}.thoughts-toolbar{
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  align-items: center;
-}.thought-admin-cell{
+.thought-admin-cell{
   max-width: 260px;
   white-space: normal;
   line-height: 1.6;
@@ -34,15 +24,4 @@
   100% { background-color: transparent; }
 }tr.novel-row--highlight td{
   animation: rowHighlight 1.8s ease-out;
-}td.table-actions{
-  text-align: center;
-  white-space: nowrap;
-}.section-header{
-  display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 20px;
-}.section-title{
-  font-family: var(--font-heading);
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: var(--text-primary);
 }

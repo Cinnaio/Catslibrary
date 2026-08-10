@@ -12,23 +12,6 @@
   font-size: 1.34rem;
   line-height: 1.18;
   letter-spacing: -0.035em;
-}.editor-modal__close{
-  margin-left: auto;
-  width: 32px;
-  height: 32px;
-  border-radius: 10px;
-  color: var(--text-muted);
-}.editor-modal__close:hover{
-  color: var(--accent);
-  background: var(--accent-subtle);
-}.editor-modal__footer{
-  gap: 10px;
-  padding: 18px 30px 28px;
-  border-top: 1px solid var(--border-light);
-  background: color-mix(in srgb, var(--bg-card) 82%, var(--accent-subtle));
-}.editor-modal__footer .btn{
-  min-width: 88px;
-  border-radius: 13px;
 }.novel-editor__grid{
   display: grid;
   grid-template-columns: minmax(0, 1fr) 170px;
@@ -40,25 +23,9 @@
 }.novel-editor__field textarea.form-input{
   min-height: 150px;
   line-height: 1.75;
-}[data-theme="dark"] .modal--editor{
-  background: var(--bg-card);
-  box-shadow: 0 30px 86px rgba(0, 0, 0, 0.52);
-}[data-theme="dark"] .editor-modal__footer{
-  background: color-mix(in srgb, var(--bg-card) 84%, var(--accent-subtle));
 }@media (max-width: 720px){
-.modal--editor,
-.modal--novel-editor,
-.modal--import-editor{
-    width: min(100%, 560px);
-    border-radius: 22px;
-  }.editor-modal__mark{
-    min-width: 34px;
-    height: 34px;
-    border-radius: 12px;
-  }.editor-modal__title{
+.editor-modal__title{
     font-size: 1.22rem;
-  }.editor-modal__footer{
-    padding: 14px 22px 22px;
   }.novel-editor__grid{ grid-template-columns: 1fr; }
 }.batch-actions-group{
   display: flex;
@@ -68,27 +35,13 @@
   gap: 6px;
   min-width: 0;
 }.batch-actions-group.hidden{ display: none; }@media (max-width: 768px){
-.section-header--novels{
-    gap: 14px;
-  }.section-header__titleblock{
-    width: 100%;
-    min-width: 0;
-    justify-content: space-between;
-    padding-top: 0;
-  }.novel-toolbar,
-.novel-toolbar__main,
 .novel-toolbar__batch{
     align-items: stretch;
     width: 100%;
-  }.novel-toolbar__main,
-.novel-toolbar__batch{
+  }.novel-toolbar__batch{
     justify-content: flex-start;
     flex-wrap: wrap;
-  }.novel-toolbar__main #novelSearchInput{
-    width: 100%;
-    flex: 1 0 100%;
-  }.novel-toolbar__main .btn,
-.batch-actions-group .btn{
+  }.batch-actions-group .btn{
     flex: 1 1 calc(50% - 4px);
     min-width: 0;
   }.novel-toolbar__batch{
@@ -100,17 +53,6 @@
     width: 100%;
     justify-content: flex-start;
   }
-}@keyframes updatePulse{
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.45; }
-}.admin{
-  background: transparent;
-}.section-header{
-  gap: 16px;
-  padding-bottom: 14px;
-  border-bottom: 1px solid var(--border-light);
-}.section-title{
-  letter-spacing: -0.02em;
 }.btn{
   transition: transform 0.12s ease, border-color 0.15s ease, background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }.btn:hover{
@@ -135,27 +77,8 @@
   margin-inline: auto;
   min-width: 0;
   box-sizing: border-box;
-}.section-header{
-  align-items: flex-start;
-  gap: 16px;
-  margin-bottom: 22px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--border-light);
-}.section-title{
-  margin: 0;
-  font-size: clamp(1.22rem, 1vw + 1rem, 1.48rem);
-  line-height: 1.15;
-  letter-spacing: -0.04em;
-}.section-header__meta{
-  padding: 3px 9px;
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-full);
-  background: var(--admin-inset);
-}.novel-toolbar__main,
-.novel-toolbar__batch,
-.thoughts-toolbar,
-.action-row,
-.admin-toolbar__group{
+}.novel-toolbar__batch,
+.action-row{
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -175,12 +98,6 @@
   border-radius: var(--radius-full);
   background: var(--bg-card);
   border: 1px solid var(--border-light);
-}.admin-panel-card{
-  padding: 22px;
-}.admin-action-row{
-  margin-bottom: 14px;
-}.admin-inline-status{
-  margin-left: 4px;
 }.admin-table-meta-row{
   display: flex;
   align-items: center;
@@ -227,66 +144,28 @@
   transform: rotate(180deg);
 }
 @media (max-width: 900px){
-.admin{
-    grid-template-columns: 1fr;
-  }.section-header,
-.section-header--novels{
-    flex-direction: column;
-    align-items: stretch;
-  }.novel-toolbar,
-.novel-toolbar__main,
-.novel-toolbar__batch,
-.thoughts-toolbar{
+.novel-toolbar__batch{
     align-items: stretch;
     width: 100%;
-  }.novel-toolbar__main,
-.novel-toolbar__batch,
-.thoughts-toolbar{
+  }.novel-toolbar__batch{
     justify-content: flex-start;
-  }.novel-toolbar__main #novelSearchInput,
-.admin-input--search,
+    flex-wrap: wrap;
+  }.admin-input--search,
 .admin-input--search-wide,
 .admin-input--user{
     width: 100%;
     flex: 1 0 100%;
-  }.novel-toolbar__main .btn,
-.batch-actions-group .btn,
-.thoughts-toolbar .btn{
-    flex: 1 1 calc(50% - 4px);
-    min-width: 0;
-  }.admin-table-meta-row,
-.clean-log__footer{
+  }.admin-table-meta-row{
     align-items: stretch;
     flex-direction: column;
   }.novel-editor__grid{
     grid-template-columns: 1fr;
-  }td .btn--sm{
-    display: inline-flex;
-    width: auto;
-    margin-bottom: 0;
-  }
-}@media (max-width: 640px){
-.admin-panel-card{
-    padding: 18px;
-  }.section-title{
-    font-size: 1.18rem;
-  }.input-row,
-.admin-action-row{
-    align-items: stretch;
-    flex-direction: column;
-  }.input-row .btn,
-.admin-action-row .btn{
-    width: 100%;
-    justify-content: center;
   }
 }@media (prefers-reduced-motion: reduce){
 .tab-content,
-.toast,
-.modal,
-.clean-log__entries > div{
-    animation: none;
-  }.admin .card:hover,
 .btn:hover{
+    animation: none;
+  }.btn:hover{
     transform: none;
   }
 }
