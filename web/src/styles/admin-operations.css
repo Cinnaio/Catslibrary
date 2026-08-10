@@ -483,8 +483,8 @@
 .scrape-job__log--warn { border-color: color-mix(in srgb, var(--color-warning) 28%, var(--border)); }
 .scrape-job__log--error { border-color: color-mix(in srgb, var(--color-danger) 24%, var(--border)); }
 
-/* 爬虫配置导入/导出卡 */
-.scrape-config-card { margin-top: var(--admin-space-4); }
+/* 爬虫配置导入/导出卡 —— 去 shadow，与 admin-panel-card 扁平表面统一 */
+.scrape-config-card { margin-top: var(--admin-space-4); box-shadow: none; }
 
 /* ————————————————————————————————————————————————
    发现小说 · DiscoverView — consumers: scrape/DiscoverView.tsx
