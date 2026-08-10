@@ -2,7 +2,7 @@
 // 发现小说 — DiscoverView
 // ============================================================
 import { useMemo, useRef, useState } from 'react'
-import { BookOpen, RefreshCw, Search, X } from 'lucide-react'
+import { BookOpen, RefreshCw, Search } from 'lucide-react'
 import { novelsApi, scrapeApi } from '../../../lib/api'
 import { useConfirm, useToast } from '../../../components/feedback'
 import CustomSelect from '../../../components/admin/CustomSelect'
@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import type { BatchEntry, BatchState, DiscoverDetail, DiscoverNovel, DetectedMeta } from './types'
 import { scrapePost, po18CoverFallback, coverOnError, PO18_SITES, FALLBACK_COVER } from './utils'
@@ -367,14 +367,11 @@ export default function DiscoverView() {
       {/* Detail modal */}
       {detail && (
         <Dialog open onOpenChange={(open) => !open && setDetail(null)}>
-          <DialogContent className="admin-dialog sm:max-w-[680px] p-0 gap-0 flex flex-col overflow-hidden max-h-[86vh]" showCloseButton={false}>
-            <div className="modal__header detail-modal__header discover-detail__header">
-              <h3 className="modal__title editor-modal__title">{detail.item.title}</h3>
-              <Button variant="ghost" size="icon" className="editor-modal__close detail-modal__close" aria-label="关闭" onClick={() => setDetail(null)}>
-                <X className="size-4" />
-              </Button>
-            </div>
-            <div className="discover-detail__body min-h-0 flex-1">
+          <DialogContent className="admin-dialog sm:max-w-[680px]">
+            <DialogHeader>
+              <DialogTitle className="editor-modal__title">{detail.item.title}</DialogTitle>
+            </DialogHeader>
+            <div className="admin-dialog__body">
               {detail.loading ? (
                 <div className="discover-detail__loading">
                   <div className="spinner"></div>
@@ -437,9 +434,9 @@ export default function DiscoverView() {
                 </>
               ) : null}
             </div>
-            <div className="modal__footer editor-modal__footer discover-detail__footer">
+            <DialogFooter>
               {detail.item.existing ? (
-                <Badge className="bg-success/10 text-success discover-detail__footer-badge">已收藏</Badge>
+                <Badge className="bg-success/10 text-success mr-auto">已收藏</Badge>
               ) : (
                 <Button size="sm" onClick={() => void scrapeFromDetail()} disabled={detail.scraping}>
                   {detail.scraping ? '正在抓取…' : '抓取该小说'}
@@ -448,7 +445,7 @@ export default function DiscoverView() {
               <Button variant="secondary" size="sm" onClick={() => setDetail(null)}>
                 关闭
               </Button>
-            </div>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       )}
@@ -456,31 +453,28 @@ export default function DiscoverView() {
       {/* Batch log modal */}
       {batch && (
         <Dialog open onOpenChange={(open) => !open && batch.done && setBatch(null)}>
-          <DialogContent className="admin-dialog sm:max-w-[800px] p-0 gap-0 flex flex-col overflow-hidden max-h-[80vh]" showCloseButton={false}>
-            <div className="modal__header operation-log__header">
-              <h3 className="modal__title">{batch.title}</h3>
-              <Button variant="ghost" size="icon" className="operation-log__close" aria-label="关闭" onClick={() => batch.done && setBatch(null)}>
-                <X className="size-4" />
-              </Button>
-            </div>
-            <div className="clean-log__body">
-              <div className="clean-log__entries">
+          <DialogContent className="admin-dialog sm:max-w-[800px]">
+            <DialogHeader>
+              <DialogTitle>{batch.title}</DialogTitle>
+            </DialogHeader>
+            <div className="admin-dialog__body">
+              <div className="scrape-discover__log-entries">
                 {batch.entries.map((e, i) =>
                   e.type === 'novel' ? (
-                    <div className="log-novel" key={i}>
+                    <div className="scrape-discover__log-novel" key={i}>
                       <BookOpen className="size-4 shrink-0 opacity-50" />
                       {e.text}
                     </div>
                   ) : (
-                    <div className={`log-${e.type}`} key={i}>
+                    <div className={`scrape-discover__log-${e.type}`} key={i}>
                       {e.text}
                     </div>
                   ),
                 )}
               </div>
             </div>
-            <div className="clean-log__footer">
-              <div className="operation-log__stats">
+            <DialogFooter>
+              <div className="scrape-discover__log-stats mr-auto">
                 <span>
                   已处理 <strong>{batch.success}</strong>
                 </span>
@@ -490,14 +484,14 @@ export default function DiscoverView() {
                 <span>
                   失败 <strong>{batch.fail}</strong>
                 </span>
-                <span className="operation-log__total">
+                <span className="scrape-discover__log-total">
                   共 <strong>{batch.total}</strong>
                 </span>
               </div>
               <Button variant="secondary" size="sm" onClick={() => setBatch(null)}>
                 关闭
               </Button>
-            </div>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       )}

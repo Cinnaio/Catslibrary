@@ -603,7 +603,7 @@
 }
 }
 
-/* 发现小说详情弹窗（弹窗骨架见 _admin-ui.css modal/clean-log） */
+/* 发现小说详情弹窗（外壳用 .admin-dialog 三段式，这里只留内容区样式） */
 .discover-detail__header { align-items: flex-start; justify-content: flex-start; gap: 14px; padding: 28px 30px 18px; }
 .discover-detail__body { overflow-y: auto; padding: 0 30px 24px; scrollbar-width: none; }
 .discover-detail__loading { display: flex; align-items: center; justify-content: center; gap: 12px; min-height: 180px; color: var(--text-muted); font-size: 0.86rem; }
@@ -642,6 +642,30 @@
 .discover-detail__chapter-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary); }
 .discover-detail__footer { flex-wrap: wrap; }
 .discover-detail__footer-badge { margin-right: auto; }
+
+/* 批量抓取日志弹窗（shadcn Dialog 三段式，.admin-dialog 提供外壳） */
+.scrape-discover__log-entries { display: grid; gap: var(--admin-space-1); font-size: 0.84rem; line-height: 1.75; color: var(--text-secondary); }
+.scrape-discover__log-entries > div { animation: logSlideIn 0.25s ease both; }
+@keyframes logSlideIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.scrape-discover__log-novel {
+  display: flex;
+  align-items: center;
+  gap: var(--admin-space-2);
+  margin-top: var(--admin-space-4);
+  padding-bottom: var(--admin-space-2);
+  border-bottom: 1px solid var(--border-light);
+  font-weight: 650;
+  font-size: 0.86rem;
+  color: var(--text-primary);
+}
+.scrape-discover__log-novel:first-child { margin-top: 0; }
+.scrape-discover__log-stats { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; font-size: 0.8rem; }
+.scrape-discover__log-stats span { display: inline-flex; align-items: baseline; gap: 4px; }
+.scrape-discover__log-stats strong { color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.scrape-discover__log-total strong { color: var(--accent); }
 
 /* ————————————————————————————————————————————————
    书源管理 · SourcesView — consumers: scrape/SourcesView.tsx
