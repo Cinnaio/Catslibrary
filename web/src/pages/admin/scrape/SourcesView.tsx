@@ -7,6 +7,7 @@ import AdminTabHeader from '@/components/admin/AdminTabHeader'
 import AdminPanel from '@/components/admin/AdminPanel'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -37,6 +38,7 @@ export default function SourcesView({ active }: { active: boolean }) {
   const [importResult, setImportResult] = useState<{ ok: boolean; text: string; sub?: string } | null>(null)
 
   const [testState, setTestState] = useState<{ loading: boolean; data: Record<string, any> | null; error: string }>({ loading: false, data: null, error: '' })
+  const [testHost, setTestHost] = useState('')
 
   const loadScrapeSources = useCallback(async () => {
     setSourcesLoading(true)
@@ -106,6 +108,7 @@ export default function SourcesView({ active }: { active: boolean }) {
   }
 
   async function testSource(s: SourceRow) {
+    setTestHost(s.host)
     setTestState({ loading: true, data: null, error: '' })
     try {
       const data = await scrapePost({ action: 'test-source', host: s.host })
@@ -157,13 +160,12 @@ export default function SourcesView({ active }: { active: boolean }) {
   return (
     <>
       <AdminTabHeader
-        kicker="BOOK SOURCES"
         title="书源管理"
         description="批量导入 Legado 社区书源池，智能分析小说时自动按 host 匹配书源选择器。仅消费书源规则数据，转换器为项目自研。"
       />
 
       {/* Import card */}
-      <AdminPanel title="导入书源" className="scrape-sources-import">
+      <AdminPanel title="导入书源">
         <div className="form-group">
           <Label className="mb-1.5">书源池 URL</Label>
           <div className="input-row">
@@ -182,34 +184,30 @@ export default function SourcesView({ active }: { active: boolean }) {
             onChange={(e) => setImportText(e.target.value)}
           />
         </div>
-        <div className="action-row admin-action-row">
+        <div className="action-row">
           <Button variant="secondary" size="sm" onClick={importFromText}>
             粘贴导入
           </Button>
-          <span className="text-sm text-muted admin-inline-status">{importStatus}</span>
+          <span className="text-sm text-muted-foreground" aria-live="polite">
+            {importStatus}
+          </span>
         </div>
         {importResult && (
-          <div className="source-import-result">
+          <div className="mt-3">
             {importResult.ok ? (
-              <Badge className="bg-success/10 text-success scrape-test-badge">{importResult.text}</Badge>
+              <Badge className="bg-success/10 text-success">{importResult.text}</Badge>
             ) : (
-              <div className="text-sm error-text">{importResult.text}</div>
+              <div className="text-sm font-medium text-destructive">{importResult.text}</div>
             )}
-            {importResult.sub && <div className="text-sm text-muted">{importResult.sub}</div>}
+            {importResult.sub && <div className="text-sm text-muted-foreground">{importResult.sub}</div>}
           </div>
         )}
       </AdminPanel>
 
-      {/* Stats + filter bar */}
-      <div className="sources-toolbar">
-        <div className="sources-toolbar__stats">
-          <Badge variant="secondary">总数: {total}</Badge>
-          <Badge variant="secondary">已启用: {enabledCount}</Badge>
-          <Badge className="bg-success/10 text-success">可用: {bySupport.full || 0}</Badge>
-          <Badge className="bg-warning/10 text-warning">需核验: {bySupport.partial || 0}</Badge>
-          <Badge className="bg-secondary text-muted-foreground">不支持: {bySupport.unsupported || 0}</Badge>
-        </div>
-        <div className="sources-toolbar__filters">
+      {/* Table card */}
+      <div className="overflow-hidden rounded-xl border border-border bg-card">
+        {/* 工具栏 · 筛选 + 刷新 */}
+        <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
           <Tabs value={supportFilter} onValueChange={setSupportFilter}>
             <TabsList>
               <TabsTrigger value="">全部</TabsTrigger>
@@ -219,114 +217,126 @@ export default function SourcesView({ active }: { active: boolean }) {
               <TabsTrigger value="enabled">已启用</TabsTrigger>
             </TabsList>
           </Tabs>
-          <Input type="text" className="admin-input--compact sources-toolbar__search" placeholder="按 host 过滤…" value={hostFilter} onChange={(e) => onHostFilterChange(e.target.value)} />
+          <Input type="text" className="admin-input--compact ml-auto min-w-40" placeholder="按 host 过滤…" value={hostFilter} onChange={(e) => onHostFilterChange(e.target.value)} />
+          <Button variant="secondary" size="sm" onClick={() => void loadScrapeSources()}>
+            刷新
+          </Button>
         </div>
-      </div>
+        {/* 统计行 */}
+        <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
+          <Badge variant="secondary">总数: {total}</Badge>
+          <Badge variant="secondary">已启用: {enabledCount}</Badge>
+          <Badge className="bg-success/10 text-success">可用: {bySupport.full || 0}</Badge>
+          <Badge className="bg-warning/10 text-warning">需核验: {bySupport.partial || 0}</Badge>
+          <Badge className="bg-secondary text-muted-foreground">不支持: {bySupport.unsupported || 0}</Badge>
+        </div>
 
-      {/* Table */}
-      <AdminPanel title="已导入书源" className="scrape-sources-table">
-          <Table>
-            <TableHeader>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>站点</TableHead>
+              <TableHead>host</TableHead>
+              <TableHead>编码</TableHead>
+              <TableHead>支持度</TableHead>
+              <TableHead>置信度</TableHead>
+              <TableHead>章节列表选择器</TableHead>
+              <TableHead>启用</TableHead>
+              <TableHead className="text-right">操作</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {sourcesLoading ? (
               <TableRow>
-                <TableHead>站点</TableHead>
-                <TableHead>host</TableHead>
-                <TableHead>编码</TableHead>
-                <TableHead>支持度</TableHead>
-                <TableHead>置信度</TableHead>
-                <TableHead>章节列表选择器</TableHead>
-                <TableHead>启用</TableHead>
-                <TableHead></TableHead>
+                <TableCell colSpan={8} className="table-empty">
+                  加载中…
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sourcesLoading ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="table-empty">
-                    加载中…
+            ) : sourcesError ? (
+              <TableRow>
+                <TableCell colSpan={8} className="table-empty">
+                  {sourcesError}
+                </TableCell>
+              </TableRow>
+            ) : sources.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={8} className="table-empty">
+                  没有匹配的书源
+                </TableCell>
+              </TableRow>
+            ) : (
+              sources.map((s) => (
+                <TableRow key={s.host}>
+                  <TableCell>
+                    <strong>{s.name}</strong>
+                    {Array.isArray(s.warnings) && s.warnings.length > 0 && (
+                      <div className="text-xs text-muted-foreground" title={s.warnings.join('\n')}>
+                        {s.warnings.slice(0, 2).join('; ')}
+                      </div>
+                    )}
                   </TableCell>
-                </TableRow>
-              ) : sourcesError ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="table-empty">
-                    {sourcesError}
+                  <TableCell className="text-muted-foreground">{s.host}</TableCell>
+                  <TableCell className="text-muted-foreground">{s.encoding}</TableCell>
+                  <TableCell>{supportBadge(s.support)}</TableCell>
+                  <TableCell className="text-muted-foreground">{s.confidence}</TableCell>
+                  <TableCell className="text-muted-foreground source-selector-cell" title={s.chapterList}>
+                    {s.chapterList || '—'}
                   </TableCell>
-                </TableRow>
-              ) : sources.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="table-empty">
-                    没有匹配的书源
+                  <TableCell>
+                    <Button variant="ghost" size="sm" onClick={() => void toggleSource(s)}>
+                      {s.enabled ? '停用' : '启用'}
+                    </Button>
                   </TableCell>
-                </TableRow>
-              ) : (
-                sources.map((s) => (
-                  <TableRow key={s.host}>
-                    <TableCell>
-                      <strong>{s.name}</strong>
-                      {Array.isArray(s.warnings) && s.warnings.length > 0 && (
-                        <div className="text-xs text-muted" title={s.warnings.join('\n')}>
-                          {s.warnings.slice(0, 2).join('; ')}
-                        </div>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-muted">{s.host}</TableCell>
-                    <TableCell className="text-muted">{s.encoding}</TableCell>
-                    <TableCell>{supportBadge(s.support)}</TableCell>
-                    <TableCell className="text-muted">{s.confidence}</TableCell>
-                    <TableCell className="text-muted source-selector-cell" title={s.chapterList}>
-                      {s.chapterList || '—'}
-                    </TableCell>
-                    <TableCell>
-                      <Button variant="ghost" size="sm" onClick={() => void toggleSource(s)}>
-                        {s.enabled ? '停用' : '启用'}
-                      </Button>
-                    </TableCell>
-                    <TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-1">
                       <Button variant="secondary" size="sm" onClick={() => void testSource(s)}>
                         测试
                       </Button>
                       <Button variant="destructive" size="sm" onClick={() => void deleteSource(s)}>
                         删除
                       </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        <div className="admin-table-meta-row">
-          <span className="text-xs text-muted">
-            共 {total} 条书源，已启用 {enabledCount}
-          </span>
-          <Button variant="secondary" size="sm" onClick={() => void loadScrapeSources()}>
-            刷新
-          </Button>
-        </div>
-      </AdminPanel>
-
-      {/* Test result */}
-      <div className="scrape-result">
-        {testState.loading ? (
-          <div className="flex items-center gap">
-            <div className="spinner"></div>
-            <span className="text-sm text-muted">正在测试书源…</span>
-          </div>
-        ) : testState.data && testState.data.links && testState.data.links.length > 0 ? (
-          <>
-            <Badge className="bg-success/10 text-success scrape-test-badge">测试成功 — 找到 {testState.data.links.length} 个章节链接 (编码 {testState.data.encoding})</Badge>
-            <div className="scrape-test-links">
-              {testState.data.links.slice(0, 20).map((l: any, i: number) => (
-                <div key={i}>
-                  • {l.text || l.href} → <span className="text-muted">{l.href}</span>
-                </div>
-              ))}
-              {testState.data.links.length > 20 && <div className="text-muted">...还有 {testState.data.links.length - 20} 个</div>}
-            </div>
-            {testState.data.sampleChapters ? <div className="text-sm text-muted">样章可读: {testSampleOk}/{testState.data.sampleChapters.length}</div> : null}
-          </>
-        ) : testState.error ? (
-          <div className="text-sm error-text">测试失败: {testState.error}</div>
-        ) : null}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
       </div>
+
+      {/* Test result dialog */}
+      <Dialog open={!!testState.data || !!testState.error} onOpenChange={(open) => !open && setTestState((prev) => ({ ...prev, data: null, error: '' }))}>
+        <DialogContent className="admin-dialog sm:max-w-[680px]">
+          <DialogHeader>
+            <DialogTitle className="editor-modal__title">{testHost ? `测试书源 · ${testHost}` : '测试书源'}</DialogTitle>
+            <DialogDescription>选择器测试结果</DialogDescription>
+          </DialogHeader>
+          <div className="admin-dialog__body">
+            {testState.loading ? (
+              <div className="flex items-center gap-2">
+                <div className="spinner"></div>
+                <span className="text-sm text-muted-foreground">正在测试书源…</span>
+              </div>
+            ) : testState.data && testState.data.links && testState.data.links.length > 0 ? (
+              <>
+                <Badge className="bg-success/10 text-success">
+                  测试成功 — 找到 {testState.data.links.length} 个章节链接 (编码 {testState.data.encoding})
+                </Badge>
+                <ul className="scrape-feedback__links text-xs">
+                  {testState.data.links.slice(0, 20).map((l: any, i: number) => (
+                    <li key={i}>
+                      {l.text || l.href} → <span className="text-muted-foreground">{l.href}</span>
+                    </li>
+                  ))}
+                  {testState.data.links.length > 20 && <li className="text-muted-foreground">…还有 {testState.data.links.length - 20} 个</li>}
+                </ul>
+                {testState.data.sampleChapters ? <div className="text-sm text-muted-foreground">样章可读: {testSampleOk}/{testState.data.sampleChapters.length}</div> : null}
+              </>
+            ) : testState.error ? (
+              <div className="text-sm font-medium text-destructive">测试失败: {testState.error}</div>
+            ) : null}
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

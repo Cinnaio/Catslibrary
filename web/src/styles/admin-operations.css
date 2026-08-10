@@ -156,7 +156,6 @@
 
 .admin-panel-card { padding: var(--admin-space-5); }
 
-.thoughts-toolbar, .sources-toolbar, .admin-toolbar__group,
 .novel-toolbar__batch, .batch-actions-group, .action-row, .input-row {
   display: flex;
   align-items: center;
@@ -669,13 +668,9 @@
 
 /* ————————————————————————————————————————————————
    书源管理 · SourcesView — consumers: scrape/SourcesView.tsx
+   工具栏/统计已并入房屋标准卡，这里保留选择器单元格的截断样式。
    ———————————————————————————————————————————————— */
-.sources-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin: 16px 0; }
-.sources-toolbar__stats { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.sources-toolbar__filters { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
-.sources-toolbar__search { width: 200px; }
 .source-selector-cell { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: 0.75rem; }
-.source-import-result { margin-top: 10px; }
 
 /* ——— admin 控件统一圆角 ——— */
 .admin-layout [data-slot="button"],
