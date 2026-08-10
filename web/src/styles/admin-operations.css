@@ -149,7 +149,7 @@
    注意：本文件无 @layer，故这条压过 Tailwind 的 @layer utilities —— 调 import 顺序会静默失效。 */
 .admin-panel-card {
   border: 1px solid var(--admin-border);
-  border-radius: var(--admin-radius);
+  border-radius: var(--radius-xl);   /* 16px — 与房屋标准卡 rounded-xl 一致 */
   background: var(--admin-panel);
   box-shadow: none;
 }

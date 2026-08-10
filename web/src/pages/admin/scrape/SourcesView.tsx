@@ -165,6 +165,7 @@ export default function SourcesView({ active }: { active: boolean }) {
       />
 
       {/* Import card */}
+      <div className="grid gap-4">
       <AdminPanel title="导入书源">
         <div className="form-group">
           <Label className="mb-1.5">书源池 URL</Label>
@@ -301,6 +302,7 @@ export default function SourcesView({ active }: { active: boolean }) {
             )}
           </TableBody>
         </Table>
+      </div>
       </div>
 
       {/* Test result dialog */}
