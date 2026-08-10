@@ -354,11 +354,11 @@
   background: var(--bg-hover);
 }
 
-/* ——— primary（default）按钮：白底 + 细暖棕边框 + 暖棕文字 ——— */
+/* ——— primary（default）按钮：白底 + 统一细灰边框 + 暖棕文字 ——— */
 .admin-layout [data-slot="button"][data-variant="default"] {
   background: var(--admin-panel);
   color: var(--sh-primary);
-  border: 1px solid color-mix(in srgb, var(--sh-primary) 32%, var(--admin-border));
+  border: 1px solid var(--admin-border-strong);
 }
 .admin-layout [data-slot="button"][data-variant="default"]:hover {
   background: color-mix(in srgb, var(--sh-primary) 8%, var(--admin-panel));
@@ -369,11 +369,11 @@
   border-color: var(--admin-border);
 }
 
-/* ——— destructive 按钮：白底 + 细红边框 + 红色文字 ——— */
+/* ——— destructive 按钮：白底 + 统一细灰边框 + 红色文字 ——— */
 .admin-layout [data-slot="button"][data-variant="destructive"] {
   background: var(--admin-panel);
   color: var(--color-danger);
-  border: 1px solid color-mix(in srgb, var(--color-danger) 28%, var(--admin-border));
+  border: 1px solid var(--admin-border-strong);
 }
 .admin-layout [data-slot="button"][data-variant="destructive"]:hover {
   background: color-mix(in srgb, var(--color-danger) 6%, var(--admin-panel));
