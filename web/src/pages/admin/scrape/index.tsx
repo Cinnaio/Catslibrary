@@ -3,6 +3,7 @@
 // ============================================================
 import { useState } from 'react'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import AdminPage from '@/components/admin/AdminPage'
 import CenterView from './CenterView'
 import DiscoverView from './DiscoverView'
 import SourcesView from './SourcesView'
@@ -10,7 +11,7 @@ import SourcesView from './SourcesView'
 export default function ScrapeTab(_props: { highlightNovelId?: string; onHighlightConsumed?: () => void }) {
   const [view, setView] = useState<'center' | 'discover' | 'sources'>('center')
   return (
-    <section className="tab-content">
+    <AdminPage>
       <Tabs value={view} onValueChange={(v) => setView(v as typeof view)}>
         <TabsList className="mb-4">
           <TabsTrigger value="center">抓取中心</TabsTrigger>
@@ -21,6 +22,6 @@ export default function ScrapeTab(_props: { highlightNovelId?: string; onHighlig
       {view === 'center' && <CenterView />}
       {view === 'discover' && <DiscoverView />}
       {view === 'sources' && <SourcesView active={view === 'sources'} />}
-    </section>
+    </AdminPage>
   )
 }

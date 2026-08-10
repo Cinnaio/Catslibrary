@@ -33,7 +33,7 @@ import {
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { BookOpen, Pencil, Trash2 } from 'lucide-react'
-import AdminTabHeader from '@/components/admin/AdminTabHeader'
+import AdminPage from '@/components/admin/AdminPage'
 
 const PAGE_SIZE = 20
 
@@ -455,12 +455,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
   const emptyMessage = query ? `没有匹配「${query}」的小说` : '暂无小说，点击「+ 添加小说」开始'
 
   return (
-    <section className="tab-content">
-      <AdminTabHeader
-        kicker="CONTENT CATALOG"
-        title="小说管理"
-        meta={countLabel}
-        actions={
+    <AdminPage kicker="CONTENT CATALOG" title="小说管理" meta={countLabel} actions={
           <>
             <Label htmlFor="novel-search" className="sr-only">搜索小说</Label>
             <Input
@@ -492,7 +487,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
             )}
           </>
         }
-      />
+      >
 
       <div className="table-wrapper">
         <Table>
@@ -683,6 +678,6 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </section>
+    </AdminPage>
   )
 }

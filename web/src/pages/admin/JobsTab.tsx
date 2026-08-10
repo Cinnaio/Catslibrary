@@ -16,6 +16,7 @@ import { formatDateTime } from '../../lib/format'
 import { formatEta, formatJobSpeed, getJobDuration, isJobRunning, isJobTerminal, jobStatusLabel, truncateId } from '../../lib/admin'
 import { useConfirm, useToast } from '../../components/feedback'
 import AdminTabHeader from '@/components/admin/AdminTabHeader'
+import AdminPage from '@/components/admin/AdminPage'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -339,10 +340,7 @@ export default function JobsTab(_props: { highlightNovelId?: string; onHighlight
   // ---------- 渲染 ----------
 
   return (
-    <section className="tab-content">
-      <AdminTabHeader
-        title="任务管理"
-        actions={
+    <AdminPage title="任务管理" actions={
           <>
             <Tabs value={filter} onValueChange={(v) => setFilter(v as JobFilter)}>
               <TabsList>
@@ -356,7 +354,7 @@ export default function JobsTab(_props: { highlightNovelId?: string; onHighlight
             </Button>
           </>
         }
-      />
+      >
 
       <div className="table-wrapper">
         <Table>
@@ -458,6 +456,6 @@ export default function JobsTab(_props: { highlightNovelId?: string; onHighlight
           </TableBody>
         </Table>
       </div>
-    </section>
+    </AdminPage>
   )
 }

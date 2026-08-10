@@ -14,7 +14,7 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
-import AdminTabHeader from '@/components/admin/AdminTabHeader'
+import AdminPage from '@/components/admin/AdminPage'
 import AdminPanel from '@/components/admin/AdminPanel'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import {
@@ -239,10 +239,7 @@ export default function RulesTab(_props: { highlightNovelId?: string; onHighligh
   }, [])
 
   return (
-    <section className="tab-content">
-      <AdminTabHeader
-        title="TXT 解析规则"
-        actions={
+    <AdminPage title="TXT 解析规则" actions={
           <div className="admin-toolbar__group">
             <Button size="sm" onClick={() => openModal(null)}>
               添加规则
@@ -252,7 +249,7 @@ export default function RulesTab(_props: { highlightNovelId?: string; onHighligh
             </Button>
           </div>
         }
-      />
+      >
 
       <Collapsible open={builtinOpen} onOpenChange={setBuiltinOpen}>
         <Card className="rules-reference-card">
@@ -412,7 +409,7 @@ export default function RulesTab(_props: { highlightNovelId?: string; onHighligh
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </section>
+    </AdminPage>
   )
 }
 

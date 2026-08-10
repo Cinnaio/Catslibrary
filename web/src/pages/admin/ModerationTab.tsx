@@ -7,7 +7,7 @@ import { Link } from 'react-router-dom'
 import { adminApi, thoughtsApi, url } from '../../lib/api'
 import { timeAgo } from '../../lib/format'
 import { useConfirm, useToast } from '../../components/feedback'
-import AdminTabHeader from '@/components/admin/AdminTabHeader'
+import AdminPage from '@/components/admin/AdminPage'
 import CustomSelect from '../../components/admin/CustomSelect'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -516,11 +516,7 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
   }
 
   return (
-    <section className="tab-content">
-      <AdminTabHeader
-        title="内容审核"
-        meta={total !== null ? `共 ${total} 条` : ''}
-        actions={
+    <AdminPage title="内容审核" meta={total !== null ? `共 ${total} 条` : ''} actions={
           <div className="thoughts-toolbar">
             <Tabs value={mode} onValueChange={(v) => switchMode(v as ModerationMode)}>
               <TabsList>
@@ -567,7 +563,7 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
             </Button>
           </div>
         }
-      />
+      >
       <div className="table-wrapper">
         <Table>
           <TableHeader>
@@ -580,6 +576,6 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
           <TableBody>{renderBody()}</TableBody>
         </Table>
       </div>
-    </section>
+    </AdminPage>
   )
 }

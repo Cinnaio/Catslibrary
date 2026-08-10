@@ -30,7 +30,7 @@ import {
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { Pencil, Trash2 } from 'lucide-react'
-import AdminTabHeader from '@/components/admin/AdminTabHeader'
+import AdminPage from '@/components/admin/AdminPage'
 
 const PAGE_SIZE = 50
 
@@ -290,10 +290,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
   const pageSomeSelected = pageRows.some((c) => selectedIds.has(c.id))
 
   return (
-    <section className="tab-content">
-      <AdminTabHeader
-        title="章节管理"
-        meta={
+    <AdminPage title="章节管理" meta={
           selectedNovel || selectedIds.size > 0
             ? <>{selectedNovel ? (search ? `匹配 ${filtered.length} / 共 ${chapters.length} 章` : `共 ${chapters.length} 章`) : ''}{selectedIds.size > 0 ? ` · 已选 ${selectedIds.size}` : ''}</>
             : undefined
@@ -327,7 +324,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
             </Button>
           </div>
         }
-      />
+      >
 
       <div className="form-row chapter-novel-row">
         <Label>选择小说</Label>
@@ -499,6 +496,6 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </section>
+    </AdminPage>
   )
 }

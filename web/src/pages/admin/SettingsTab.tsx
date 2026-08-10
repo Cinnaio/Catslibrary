@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import AdminPanel from '@/components/admin/AdminPanel'
-import AdminTabHeader from '@/components/admin/AdminTabHeader'
+import AdminPage from '@/components/admin/AdminPage'
 
 interface AdminUser {
   id: string
@@ -282,13 +282,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
   const available = invites.length - spent
 
   return (
-    <section className="tab-content account-admin">
-      <AdminTabHeader
-        kicker="ACCOUNTS"
-        title="账户与注册"
-        description="管理站点用户、注册方式与邀请码。"
-        variant="hero"
-        actions={
+    <AdminPage className="account-admin" kicker="ACCOUNTS" title="账户与注册" description="管理站点用户、注册方式与邀请码。" variant="hero" actions={
           <span id="schemaHealth">
             {schemaHealth &&
               (schemaHealth.ok ? (
@@ -300,7 +294,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
               ))}
           </span>
         }
-      />
+      >
 
       <div className="account-overview-grid">
         <AdminPanel className="account-card account-card--identity">
@@ -565,6 +559,6 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
           )}
         </div>
       </section>
-    </section>
+    </AdminPage>
   )
 }

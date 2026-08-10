@@ -8,7 +8,7 @@ import { RefreshCw } from 'lucide-react'
 import { adminApi } from '../../lib/api'
 import { timeAgo } from '../../lib/format'
 import { jobStatusLabel } from '../../lib/admin'
-import AdminTabHeader from '@/components/admin/AdminTabHeader'
+import AdminPage from '@/components/admin/AdminPage'
 import AdminEmptyState from '@/components/admin/AdminEmptyState'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -72,19 +72,13 @@ export default function DashboardTab(_props: { highlightNovelId?: string; onHigh
   const totalJobs = Math.max(1, jobStatus.running + jobStatus.completed + jobStatus.failed)
 
   return (
-    <section className="tab-content">
-      <AdminTabHeader
-        kicker="OVERVIEW"
-        title="后台总览"
-        description="书库、抓取任务和站点数据的即时状态。"
-        variant="hero"
-        actions={
+    <AdminPage kicker="OVERVIEW" title="后台总览" description="书库、抓取任务和站点数据的即时状态。" variant="hero" actions={
           <Button variant="secondary" size="sm" onClick={() => void load(true)} disabled={loading}>
             <RefreshCw className={loading ? 'size-3.5 animate-spin' : 'size-3.5'} />
             {loading ? '加载中…' : '刷新总览'}
           </Button>
         }
-      />
+      >
 
       {error ? (
         <div className="dashboard-grid">
@@ -191,6 +185,6 @@ export default function DashboardTab(_props: { highlightNovelId?: string; onHigh
           </div>
         </>
       )}
-    </section>
+    </AdminPage>
   )
 }
