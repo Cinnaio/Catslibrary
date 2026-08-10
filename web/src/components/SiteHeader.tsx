@@ -42,9 +42,7 @@ export default function SiteHeader() {
     <header className="header">
       <div className="header__inner">
         <Link to="/" className="header__logo">
-          <span className="header__logo-icon">
-            <span className="header__logo-emoji">📚</span>
-          </span>
+          <img className="header__logo-img" src="/images/logo.png" alt="知舟" />
           知舟
         </Link>
 

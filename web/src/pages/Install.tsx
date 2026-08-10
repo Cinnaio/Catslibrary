@@ -177,7 +177,7 @@ export default function Install() {
         <Card className="w-full max-w-md">
           <CardContent className="flex flex-col gap-5 p-6">
             <div className="flex flex-col items-center gap-2 text-center">
-              <span className="text-3xl">📚</span>
+              <img src="/images/logo.png" alt="知舟" className="h-9 w-9 object-contain" />
               <h1 className="text-xl font-semibold">知舟 · 首次安装</h1>
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 {STEPS.map((s, i) => (

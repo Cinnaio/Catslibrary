@@ -72,7 +72,9 @@ export default function AdminSidebar({ active, onSelect }: AdminSidebarProps) {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" className="gap-3" aria-label="知舟管理台">
-              <span className="admin-shell__brand-mark" aria-hidden="true">舟</span>
+              <span className="admin-shell__brand-mark" aria-hidden="true">
+                <img src="/images/logo.png" alt="" />
+              </span>
               <span className="admin-shell__brand-copy">
                 <strong>知舟</strong>
                 <small>馆藏运营台</small>

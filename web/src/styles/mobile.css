@@ -142,8 +142,7 @@
 @media (max-width: 640px) {
   /* Header */
   .header__logo { font-size: 1.1rem; }
-  .header__logo-icon { width: 26px; height: 26px; }
-  .header__logo-icon svg { width: 22px; height: 22px; }
+  .header__logo-img { width: 26px; height: 26px; }
   .header__inner { padding: 0 12px; }
   .nav-link:not(.account-avatar) { padding: 6px 8px; font-size: 0.82rem; }
   .account-avatar { width: 30px; height: 30px; }

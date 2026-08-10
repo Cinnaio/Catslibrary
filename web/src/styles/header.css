@@ -49,23 +49,10 @@
   background: var(--accent-subtle);
 }
 
-.header__logo-icon {
+.header__logo-img {
   width: 32px;
   height: 32px;
-  display: grid;
-  place-items: center;
-  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border));
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--bg-card) 74%, var(--accent-subtle));
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.25);
-}
-.header__logo-icon svg {
-  width: 21px;
-  height: 21px;
-}
-.header__logo-emoji {
-  font-size: 1.22em;
-  line-height: 1;
+  object-fit: cover;
 }
 
 /* Header search (home page) */

@@ -44,11 +44,16 @@
   place-items: center;
   border: 1px solid color-mix(in srgb, var(--sh-primary) 42%, var(--admin-border));
   border-radius: var(--admin-radius-sm);
-  background: var(--sh-primary);
   color: var(--sh-primary-foreground);
   font-family: var(--font-serif);
   font-size: 1rem;
   font-weight: 700;
+  overflow: hidden;
+}
+.admin-shell__brand-mark img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .admin-shell__brand-copy {

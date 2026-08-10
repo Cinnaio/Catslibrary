@@ -102,7 +102,7 @@ export default function Auth() {
         <Card className="w-full max-w-sm">
           <CardContent className="flex flex-col gap-5 p-6">
             <div className="flex flex-col items-center gap-2 text-center">
-              <span className="text-3xl">📚</span>
+              <img src="/images/logo.png" alt="知舟" className="h-9 w-9 object-contain" />
               <h1 className="text-xl font-semibold">知舟</h1>
               <p className="text-sm text-muted-foreground">
                 {isLogin ? '请登录后继续阅读' : '创建账号后继续阅读'}
