@@ -6,7 +6,6 @@
 import type { ComponentType } from 'react'
 import {
   BookOpen,
-  Braces,
   Bug,
   Clock,
   FileText,
@@ -22,7 +21,6 @@ import ScrapeTab from './scrape'
 import JobsTab from './JobsTab'
 import ModerationTab from './ModerationTab'
 import SettingsTab from './SettingsTab'
-import RulesTab from './RulesTab'
 
 export interface AdminTabProps {
   highlightNovelId?: string
@@ -51,10 +49,7 @@ export const NAV_GROUPS: Array<{ label: string; items: Array<{ id: string; label
   },
   {
     label: '系统',
-    items: [
-      { id: 'settings', label: '账户与注册', icon: UserCog },
-      { id: 'rules', label: '解析规则', icon: Braces },
-    ],
+    items: [{ id: 'settings', label: '账户与注册', icon: UserCog }],
   },
 ]
 
@@ -68,7 +63,6 @@ export const TAB_COMPONENTS: Record<string, ComponentType<AdminTabProps>> = {
   jobs: JobsTab,
   moderation: ModerationTab,
   settings: SettingsTab,
-  rules: RulesTab,
 }
 
 export const TAB_KEY = 'admin_active_tab'

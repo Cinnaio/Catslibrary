@@ -145,7 +145,7 @@
   letter-spacing: 0.1em;
 }
 
-.admin-panel-card, .scrape-step, .discover-toolbar, .rules-reference-card, .rules-custom-card, .rules-test-card {
+.admin-panel-card, .scrape-step, .discover-toolbar {
   border: 1px solid var(--admin-border);
   border-radius: var(--admin-radius);
   background: var(--admin-panel);
@@ -243,7 +243,6 @@
 .scrape-side-card { border: 1px solid var(--admin-border); border-radius: var(--admin-radius); background: var(--admin-panel); padding: var(--admin-space-4); }
 .scrape-side-card::before { display: none; }
 .admin-layout .job-card,
-.admin-layout .rule-item,
 .admin-layout .discover-card {
   border-radius: var(--admin-radius) !important;
   box-shadow: none !important;
@@ -252,15 +251,10 @@
 .admin-layout .admin-panel-card,
 .admin-layout .scrape-step,
 .admin-layout .discover-toolbar,
-.admin-layout .rules-reference-card,
-.admin-layout .rules-custom-card,
-.admin-layout .rules-test-card,
 .admin-layout .scrape-side-card,
 .admin-layout .selector-fieldset,
 .admin-layout .analyze-result:not(:empty),
 .admin-layout .scrape-result:not(:empty),
-.admin-layout .rules-test-card__results,
-.admin-layout .rules-reference-card__body,
 .admin-layout .import-chapter-preview,
 .admin-layout .scrape-config-card,
 .admin-layout #stepScrapeConfig,
@@ -277,7 +271,6 @@
 .admin-layout .admin-input--compact,
 .admin-layout .scrape-check-item,
 .admin-layout .scrape-config-row strong,
-.admin-layout .rule-test-matches,
 .admin-layout .scrape-ready-note {
   border-radius: var(--admin-button-radius);
 }
