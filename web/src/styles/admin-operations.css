@@ -344,6 +344,27 @@
   border-radius: var(--admin-input-radius);
 }
 
+/* ——— admin 控件统一尺寸：高度 / 字号 / 文字颜色 / 内边距 ——— */
+.admin-layout [data-slot="input"],
+.admin-layout [data-slot="textarea"] {
+  height: var(--admin-control-height);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+}
+
+.admin-layout [data-slot="button"][data-size="sm"] {
+  height: var(--admin-control-height);
+  font-size: 0.875rem;
+}
+
+/* CustomSelect trigger（compact 模式）与其他控件对齐 */
+.admin-layout .admin-input--select-sm {
+  height: var(--admin-control-height) !important;
+  font-size: 0.875rem;
+  padding: 0 0.75rem;
+}
+
 /* ——— secondary 按钮：白底 + 细灰边框 + 深色文字 ——— */
 .admin-layout [data-slot="button"][data-variant="secondary"] {
   background: var(--admin-panel);
