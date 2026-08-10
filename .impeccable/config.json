@@ -52,6 +52,18 @@
         ],
         "createdAt": "2026-08-09T11:44:44.792Z",
         "reason": "legacy pre-design-system CSS layer; progress-bar width transition is a conventional acceptable animation"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#fce8e4",
+        "createdAt": "2026-08-11T07:05:00.000Z",
+        "reason": "User confirmed #fce8e4 is intentional — 发现卡片「藏」印章浅字 on --color-seal 红底"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "1.2rem",
+        "createdAt": "2026-08-11T07:05:00.000Z",
+        "reason": "User confirmed 1.2rem is intentional — 封面占位字母窄屏断点字号"
       }
     ]
   }
