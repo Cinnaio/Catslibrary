@@ -1205,7 +1205,3 @@ select.native-select-hidden {
   font-size: 0.75rem;
   white-space: nowrap;
 }
-
-/* Scrape job card list */
-#scrapeJobList { margin-top: 24px; }
-#scrapeJobList:empty { display: none; }

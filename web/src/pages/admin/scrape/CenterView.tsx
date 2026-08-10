@@ -543,10 +543,8 @@ export default function CenterView() {
   return (
     <>
       <AdminTabHeader
-        kicker="SCRAPE CENTER"
-        title="爬虫抓取中心"
+        title="抓取中心"
         description="识别源站、检测章节、追踪任务，并在失败时恢复抓取。"
-        variant="hero"
         meta={
           <div className="scrape-center-hero__meta">
             <span>全量抓取</span>

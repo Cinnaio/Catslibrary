@@ -98,47 +98,13 @@
   }
   td .btn--sm:last-child { margin-bottom: 0; }
 
-  /* Selector fieldset */
-  .selector-fieldset { padding: 12px; }
-  .selector-fieldset legend { font-size: 0.8rem; }
-  .selector-grid {
-    grid-template-columns: 1fr;
-    gap: 8px;
-  }
-
-  /* Scrape steps */
-  .scrape-step { padding: 16px; }
-  .step-title-row {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
-  }
-  .step-label { font-size: 0.65rem; padding: 2px 8px; }
-  .step-title { font-size: 1rem; }
-
-  /* Input rows → stack */
-  .input-row {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .input-row .btn { width: 100%; }
-
   /* Section header */
   .section-header {
     flex-direction: column;
     align-items: flex-start;
     gap: 12px;
   }
-  /* Novel preview (scrape step 2) — cover wraps */
-  #novelPreviewContent .flex {
-    flex-direction: column;
-  }
-  #novelPreviewContent img {
-    max-width: 100px;
-  }
 }
-
-/* Phone (≤640px) */
 @media (max-width: 640px) {
   /* Header */
   .header__logo { font-size: 1.1rem; }
@@ -257,13 +223,6 @@
   td .btn--sm { padding: 5px 8px; font-size: 0.75rem; }
   .btn-table { width: 28px; height: 28px; }
 
-  .scrape-flow-grid { grid-template-columns: 1fr; }
-  .scrape-flow-grid__side { position: static; }
-  .scrape-center-hero { flex-direction: column; }
-  .scrape-center-hero__meta { justify-content: flex-start; }
-
-  /* Scrape step on phone */
-  .scrape-step { padding: 14px; }
   .form-group { margin-bottom: 12px; }
 
   /* Container padding — match desktop for consistent margins */
