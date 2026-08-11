@@ -283,7 +283,7 @@ export default function Bookshelf() {
         <section className="bookshelf-section">
           <div className="bookshelf-sections">
             <h2 className="bookshelf-subtitle">最近阅读 <span className="text-muted">· {recentItems.length}</span></h2>
-            <div className="bookshelf-record-grid" id="bookshelfRecent">
+            <div className="bookshelf-novel-grid" id="bookshelfRecent">
               {recentItems.length === 0 ? (
                 <p className="profile-empty-note">还没有阅读记录</p>
               ) : (
