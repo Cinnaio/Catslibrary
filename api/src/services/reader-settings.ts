@@ -15,16 +15,22 @@ const SETTING_KEYS = [
   'readerLineHeight',
   'readerParagraphSpacing',
   'readerWakeLock',
+  'readerPageWidth',
+  'readerAutoScrollSpeed',
+  'readerClickPaging',
 ] as const
 
 const ALLOWED_VALUES: Record<(typeof SETTING_KEYS)[number], string[]> = {
-  fontSize: ['0', '1', '2'],
+  fontSize: ['0', '1', '2', '3', '4', '5'],
   fontFamily: ['serif', 'sans'],
   readerPageMode: ['scroll', 'page'],
   readerTheme: ['default', 'eye', 'paper'],
   readerLineHeight: ['1.75', '1.95', '2.15'],
   readerParagraphSpacing: ['1.0', '1.4', '1.8'],
   readerWakeLock: ['on', 'off'],
+  readerPageWidth: ['narrow', 'standard', 'wide'],
+  readerAutoScrollSpeed: ['off', 'slow', 'medium', 'fast'],
+  readerClickPaging: ['on', 'off'],
 }
 
 export function parseSettingsState(value: string): ReaderSettings {
