@@ -23,7 +23,8 @@ export async function withTx<T>(db: Db, fn: (q: DbClient['query']) => Promise<T>
   const client = await db.connect()
   try {
     await client.query('BEGIN')
-    const result = await fn(client.query)
+    // client.query 依赖 this 绑定，必须 bind，否则 pg 内部 this._Promise 为 undefined
+    const result = await fn(client.query.bind(client))
     await client.query('COMMIT')
     return result
   } catch (err) {
