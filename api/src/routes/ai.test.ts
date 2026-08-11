@@ -1,0 +1,248 @@
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { app } from '../app'
+import { setDbForTests } from '../db/pool'
+import { createTestDb, type TestDb } from '../test/db'
+
+let t: TestDb
+
+/** OpenAI 兼容响应桩：不发真实请求，同时记录调用次数以验证缓存是否生效。 */
+const fetchMock = vi.fn(async () =>
+  new Response(
+    JSON.stringify({
+      model: 'test-model',
+      choices: [{ message: { content: '少年在雨夜捡到一柄断剑，被巡夜人盯上。' }, finish_reason: 'stop' }],
+      usage: { prompt_tokens: 120, completion_tokens: 24 },
+    }),
+    { status: 200, headers: { 'Content-Type': 'application/json' } },
+  ),
+)
+
+beforeAll(async () => {
+  t = await createTestDb()
+  await t.applyMigrations()
+  setDbForTests(t.db)
+  process.env.DATABASE_URL = 'postgres://test/test'
+  process.env.COVER_FETCH_ENABLED = '0'
+  process.env.AI_TEXT_BASE_URL = 'https://ai.test/v1'
+  process.env.AI_TEXT_API_KEY = 'test-key'
+  process.env.AI_TEXT_MODEL = 'test-model'
+  vi.stubGlobal('fetch', fetchMock)
+})
+
+afterAll(async () => {
+  vi.unstubAllGlobals()
+  setDbForTests(null)
+  delete process.env.DATABASE_URL
+  delete process.env.COVER_FETCH_ENABLED
+  delete process.env.AI_TEXT_BASE_URL
+  delete process.env.AI_TEXT_API_KEY
+  delete process.env.AI_TEXT_MODEL
+  await t.close()
+})
+
+beforeEach(() => {
+  fetchMock.mockClear()
+})
+
+async function req(path: string, init?: RequestInit) {
+  return app.request(path, init)
+}
+async function jsonOf<T>(res: Response): Promise<T> {
+  return (await res.json()) as T
+}
+function json(method: string, body?: unknown, token?: string): RequestInit {
+  return {
+    method,
+    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  }
+}
+
+const LONG_CONTENT = '雨落在青石板上，少年攥紧了那柄断剑，巷口的灯笼被风吹得摇晃。'.repeat(8)
+
+describe('AI API 端到端（pglite + fetch 桩）', () => {
+  let adminToken = ''
+  let readerToken = ''
+  let chapterId = ''
+  let secondChapterId = ''
+  let shortChapterId = ''
+  let failChapterId = ''
+
+  it('准备数据：管理员、读者、小说、章节', async () => {
+    const boot = await req('/api/auth/bootstrap-admin', json('POST', { username: 'admin', password: 'adminpass123' }))
+    adminToken = (await jsonOf<{ token: string }>(boot)).token
+
+    await t.db.query('INSERT INTO invites (code, created_at) VALUES ($1, $2)', ['AI-INVITE', Date.now()])
+    const reg = await req('/api/auth/register', json('POST', { username: 'reader', password: 'readerpass1', invite: 'AI-INVITE' }))
+    readerToken = (await jsonOf<{ token: string }>(reg)).token
+
+    const novel = await req('/api/novels', json('POST', { title: 'AI 测试书', author: '某作者' }, adminToken))
+    const novelId = (await jsonOf<{ novel: { id: string } }>(novel)).novel.id
+
+    const c1 = await req('/api/chapters', json('POST', { novelId, title: '第一章', content: LONG_CONTENT }, adminToken))
+    chapterId = (await jsonOf<{ chapter: { id: string } }>(c1)).chapter.id
+    const c2 = await req('/api/chapters', json('POST', { novelId, title: '第二章', content: LONG_CONTENT }, adminToken))
+    secondChapterId = (await jsonOf<{ chapter: { id: string } }>(c2)).chapter.id
+    const c3 = await req('/api/chapters', json('POST', { novelId, title: '第三章', content: '太短了' }, adminToken))
+    shortChapterId = (await jsonOf<{ chapter: { id: string } }>(c3)).chapter.id
+    const c4 = await req('/api/chapters', json('POST', { novelId, title: '第四章', content: LONG_CONTENT }, adminToken))
+    failChapterId = (await jsonOf<{ chapter: { id: string } }>(c4)).chapter.id
+  })
+
+  it('status：匿名不给能力，登录后开放', async () => {
+    const anon = await jsonOf<{ configured: boolean; features: { recap: boolean } }>(await req('/api/ai/status'))
+    expect(anon.configured).toBe(true)
+    expect(anon.features.recap).toBe(false)
+
+    const mine = await jsonOf<{ features: { recap: boolean }; quota: { limit: number } | null }>(
+      await req('/api/ai/status', json('GET', undefined, readerToken)),
+    )
+    expect(mine.features.recap).toBe(true)
+    expect(mine.quota?.limit).toBe(30)
+  })
+
+  it('recap：未登录 401，缺 chapterId 400', async () => {
+    expect((await req('/api/ai/recap', json('POST', { chapterId }))).status).toBe(401)
+    expect((await req('/api/ai/recap', json('POST', {}, readerToken))).status).toBe(400)
+  })
+
+  it('recap：首次生成调用上游并记账', async () => {
+    const res = await req('/api/ai/recap', json('POST', { chapterId }, readerToken))
+    expect(res.status).toBe(200)
+    const data = await jsonOf<{ recap: string; cached: boolean; model: string }>(res)
+    expect(data.cached).toBe(false)
+    expect(data.recap).toContain('断剑')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    const { rows } = await t.db.query<{ prompt_tokens: number; completion_tokens: number }>('SELECT prompt_tokens, completion_tokens FROM ai_usage')
+    expect(rows.length).toBe(1)
+    expect(rows[0]!.prompt_tokens).toBe(120)
+    expect(rows[0]!.completion_tokens).toBe(24)
+  })
+
+  it('recap：同章再请求命中缓存，不再调用上游、不再记账', async () => {
+    const res = await req('/api/ai/recap', json('POST', { chapterId }, readerToken))
+    const data = await jsonOf<{ cached: boolean; recap: string }>(res)
+    expect(data.cached).toBe(true)
+    expect(data.recap).toContain('断剑')
+    expect(fetchMock).not.toHaveBeenCalled()
+
+    const { rows } = await t.db.query('SELECT id FROM ai_usage')
+    expect(rows.length).toBe(1)
+  })
+
+  it('GET /recap 只读缓存：命中返回内容，未命中返回空串且不生成', async () => {
+    const hit = await jsonOf<{ recap: string; cached: boolean }>(
+      await req(`/api/ai/recap?chapterId=${chapterId}`, json('GET', undefined, readerToken)),
+    )
+    expect(hit.cached).toBe(true)
+
+    const miss = await jsonOf<{ recap: string; cached: boolean }>(
+      await req(`/api/ai/recap?chapterId=${secondChapterId}`, json('GET', undefined, readerToken)),
+    )
+    expect(miss.cached).toBe(false)
+    expect(miss.recap).toBe('')
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('recap：章节过短 422，章节不存在 404', async () => {
+    expect((await req('/api/ai/recap', json('POST', { chapterId: shortChapterId }, readerToken))).status).toBe(422)
+    expect((await req('/api/ai/recap', json('POST', { chapterId: 'chapter_missing' }, readerToken))).status).toBe(404)
+  })
+
+  it('settings：非管理员 403，管理员可改配额', async () => {
+    expect((await req('/api/ai/settings', json('GET', undefined, readerToken))).status).toBe(403)
+
+    const saved = await req('/api/ai/settings', json('PUT', { dailyQuota: 1 }, adminToken))
+    expect(saved.status).toBe(200)
+    const { settings } = await jsonOf<{ settings: { dailyQuota: number; recapEnabled: boolean } }>(saved)
+    expect(settings.dailyQuota).toBe(1)
+    expect(settings.recapEnabled).toBe(true)
+
+    // 越界值被夹回区间，不是原样落库
+    const clamped = await req('/api/ai/settings', json('PUT', { maxChapterChars: 99999 }, adminToken))
+    const { settings: s2 } = await jsonOf<{ settings: { maxChapterChars: number } }>(clamped)
+    expect(s2.maxChapterChars).toBe(20000)
+  })
+
+  it('配额：读者超额 429，管理员不受限', async () => {
+    // 读者今日已用 1 次，dailyQuota=1 → 新章节被拦
+    const blocked = await req('/api/ai/recap', json('POST', { chapterId: secondChapterId }, readerToken))
+    expect(blocked.status).toBe(429)
+    expect((await jsonOf<{ code: string }>(blocked)).code).toBe('quota_exceeded')
+    expect(fetchMock).not.toHaveBeenCalled()
+
+    const byAdmin = await req('/api/ai/recap', json('POST', { chapterId: secondChapterId }, adminToken))
+    expect(byAdmin.status).toBe(200)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('总开关关闭后读者侧立即不可用', async () => {
+    await req('/api/ai/settings', json('PUT', { recapEnabled: false }, adminToken))
+    const res = await req('/api/ai/recap', json('POST', { chapterId }, readerToken))
+    expect(res.status).toBe(403)
+
+    const status = await jsonOf<{ features: { recap: boolean } }>(await req('/api/ai/status', json('GET', undefined, readerToken)))
+    expect(status.features.recap).toBe(false)
+    await req('/api/ai/settings', json('PUT', { recapEnabled: true }, adminToken))
+  })
+
+  it('usage：管理员可读用量汇总', async () => {
+    const res = await req('/api/ai/usage', json('GET', undefined, adminToken))
+    expect(res.status).toBe(200)
+    const data = await jsonOf<{ today: { calls: number; promptTokens: number } }>(res)
+    expect(data.today.calls).toBe(2)
+    expect(data.today.promptTokens).toBe(240)
+  })
+
+  it('上游失败时返回 502，且不落缓存', async () => {
+    const before = await t.db.query('SELECT id FROM ai_generations')
+    fetchMock.mockImplementationOnce(async () => new Response('upstream boom', { status: 400 }))
+
+    const res = await req('/api/ai/recap', json('POST', { chapterId: failChapterId }, adminToken))
+    expect(res.status).toBe(502)
+    expect((await jsonOf<{ code: string }>(res)).code).toBe('upstream')
+    // 400 不属于可重试状态码，只应调用一次
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    const after = await t.db.query('SELECT id FROM ai_generations')
+    expect(after.rows.length).toBe(before.rows.length)
+  })
+
+  it('推理模型思考 token 吃满预算时，报截断而不是笼统的空回复', async () => {
+    // deepseek-v4 类模型：max_tokens 被 reasoning_content 用光 → content 空 + finish_reason=length
+    fetchMock.mockImplementationOnce(
+      async () =>
+        new Response(
+          JSON.stringify({
+            model: 'test-model',
+            choices: [{ message: { role: 'assistant', content: '', reasoning_content: '我需要先想想…' }, finish_reason: 'length' }],
+            usage: { prompt_tokens: 87, completion_tokens: 16 },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+    )
+    const res = await req('/api/ai/recap', json('POST', { chapterId: failChapterId }, adminToken))
+    expect(res.status).toBe(422)
+    const data = await jsonOf<{ code: string; error: string }>(res)
+    expect(data.code).toBe('invalid')
+    expect(data.error).toContain('max_tokens')
+  })
+
+  it('content 为分片数组时也能取到文本', async () => {
+    fetchMock.mockImplementationOnce(
+      async () =>
+        new Response(
+          JSON.stringify({
+            model: 'test-model',
+            choices: [{ message: { content: [{ type: 'text', text: '分片' }, { type: 'text', text: '文本' }] }, finish_reason: 'stop' }],
+            usage: { prompt_tokens: 10, completion_tokens: 2 },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+    )
+    const res = await req('/api/ai/recap', json('POST', { chapterId: failChapterId }, adminToken))
+    expect(res.status).toBe(200)
+    expect((await jsonOf<{ recap: string }>(res)).recap).toBe('分片文本')
+  })
+})

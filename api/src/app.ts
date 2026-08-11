@@ -15,6 +15,7 @@ import { thoughtsRoutes } from './routes/thoughts'
 import { ratingsRoutes } from './routes/ratings'
 import { commentsRoutes } from './routes/comments'
 import { scrapeRoutes } from './routes/scrape'
+import { aiRoutes } from './routes/ai'
 import { adminRoutes } from './routes/admin'
 import { adminUsersRoutes } from './routes/admin-users'
 import { downloadLogsRoutes } from './routes/download-logs'
@@ -57,6 +58,7 @@ app.route('/api/thoughts', thoughtsRoutes)
 app.route('/api/ratings', ratingsRoutes)
 app.route('/api/comments', commentsRoutes)
 app.route('/api/scrape', scrapeRoutes)
+app.route('/api/ai', aiRoutes)
 app.route('/api/admin', adminRoutes)
 app.route('/api/admin-users', adminUsersRoutes)
 app.route('/api/download-logs', downloadLogsRoutes)

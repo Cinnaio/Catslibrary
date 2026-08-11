@@ -16,6 +16,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import AdminPage from '@/components/admin/AdminPage'
+import AiSettingsCard from '@/components/admin/AiSettingsCard'
 
 interface AdminUser {
   id: string
@@ -370,6 +371,10 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
             </div>
           </CardContent>
         </Card>
+      </div>
+
+      <div className="mt-4">
+        <AiSettingsCard />
       </div>
 
       <div className="mb-3 mt-6 flex flex-wrap items-center justify-between gap-2">

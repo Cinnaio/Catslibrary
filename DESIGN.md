@@ -56,6 +56,14 @@ typography:
     stat: "1.75rem"           # 28px Dashboard 统计数字
     hero-max: "1.9rem"        # 30.4px hero 标题 clamp 上限
     display: "2rem"           # 32px h1
+    # 阅读表面专属档（reader.css）。刻意高于后台紧凑字阶——长时间阅读优先舒适度。
+    reader-body: "1.1rem"          # 17.6px 阅读器正文（移动端降到 body 1rem）
+    reader-glyph: "1.35rem"        # 21.6px 阅读器图标按钮字符 / 移动端章节标题
+    reader-title-min: "1.55rem"    # 24.8px 章节标题 clamp 下限
+    reader-title-max: "2.15rem"    # 34.4px 章节标题 clamp 上限
+    reader-watermark-min: "3rem"   # 48px 纸张「读」字水印 clamp 下限
+    reader-watermark-sm: "3.2rem"  # 51.2px 移动端水印定值
+    reader-watermark-max: "6rem"   # 96px 纸张「读」字水印 clamp 上限
 rounded:
   sm: "6px"
   md: "8px"
@@ -64,6 +72,7 @@ rounded:
   xl: "16px"
   2xl: "20px"
   full: "9999px"
+  reader-paper: "30px"      # 阅读页纸张表面，移动端 24px；见 --reader-radius-paper
 spacing:
   xs: "4px"
   sm: "8px"
@@ -161,6 +170,7 @@ components:
 - **Body** (400, 16px, 1.6): 正文。行高 1.6 提供舒适的阅读节奏。
 - **Label** (750, 0.65rem, 0.1em uppercase): 分类标签（detail-kicker），极小但醒目，用于元数据和分类标签。
 - **Compact Label Scale (Admin)** (400-750, 0.7-0.8rem): 管理后台专属的紧凑密度字号阶梯，用于 OPERATE 模式的高信息密度扫描。包括：导航标签 (0.7rem)、kicker (0.7rem)、表头 (0.72rem uppercase + 0.07em)、计数胶囊 (0.75rem)、元信息 (0.75rem)、分页 (0.8rem)。这一档刻意低于公开阅读界面的字号——管理控制台优先扫描效率，阅读界面优先舒适度。**对比度不可妥协**：弱化文字须满足 AA ≥4.5:1，数据读取面（表头/内容）字号 ≥11px。
+- **Reading Surface Scale (Reader)** (`reader.css`，与上一档相反的方向): 阅读页有自己的一档字号，全部高于通用档。正文 1.1rem/行高 2.05（移动端降到 1rem/1.85），章节标题 clamp(1.55rem, 3vw, 2.15rem)、移动端定值 1.35rem，纸张右上角的「读」字水印 clamp(3rem, 8vw, 6rem)、移动端 3.2rem。**这一档只在 `.reader-app` 内生效**，不得外溢到公共页或后台；反过来，阅读器内也不使用后台的紧凑档。
 
 ### Named Rules
 **The Content-First Rule.** 字体永远是配角。系统字体不创造风格，内容本身创造风格。唯一例外是阅读器中的衬线体——那是为沉浸而存在的。
@@ -197,6 +207,7 @@ components:
 - **卡片圆角 (10px)**: 内容卡片、表格包裹器——微妙的弧度，不抢注意力。
 - **面板圆角 (16px)**: 管理后台大面板、统计卡片——更明显的圆润感，像精装书的封面弧度。
 - **全圆角 (9999px)**: 胶囊标签、计数徽章、状态条——仅用于信息密度极高的辅助元素。
+- **阅读页纸张圆角 (30px / 移动端 24px)**: `--reader-radius-paper`，唯一大于 2xl 的圆角。阅读表面要读起来像"一张纸"而不是一个卡片，弧度必须明显大过周围的控件；只用于 `.reader-paper`，其余阅读页元素仍走上面的通用档。
 
 ## Components
 

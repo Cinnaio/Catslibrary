@@ -577,3 +577,57 @@ export const scrapeApi = {
     return request('POST', '/scrape', { action: 'cancel', jobId }, true)
   },
 }
+
+// ---------- AI ----------
+
+export interface AiQuota {
+  used: number
+  /** -1 表示不限额（管理员） */
+  limit: number
+  resetAt: number
+}
+
+export interface AiStatus {
+  configured: boolean
+  features: { recap: boolean }
+  model: string
+  quota: AiQuota | null
+}
+
+export interface AiSettings {
+  recapEnabled: boolean
+  dailyQuota: number
+  maxChapterChars: number
+}
+
+export interface AiUsageSummary {
+  calls: number
+  promptTokens: number
+  completionTokens: number
+  costMillicents: number
+}
+
+export const aiApi = {
+  status(): Promise<AiStatus> {
+    return request('GET', '/ai/status', null, true)
+  },
+  recap(chapterId: string, force = false): Promise<{ recap: string; cached: boolean; model: string; id: string }> {
+    return request('POST', '/ai/recap', force ? { chapterId, force: true } : { chapterId }, true)
+  },
+  /** 只读缓存：没有已生成的提要就返回空串，不触发生成也不计配额。 */
+  cachedRecap(chapterId: string): Promise<{ recap: string; cached: boolean }> {
+    return request('GET', `/ai/recap?chapterId=${encodeURIComponent(chapterId)}`, null, true)
+  },
+  settings(): Promise<{ settings: AiSettings; provider: { configured: boolean; host: string; model: string; hasKey: boolean } }> {
+    return request('GET', '/ai/settings', null, true)
+  },
+  saveSettings(patch: Partial<AiSettings>): Promise<{ settings: AiSettings }> {
+    return request('PUT', '/ai/settings', patch, true)
+  },
+  test(): Promise<{ ok: boolean; model?: string; reply?: string; error?: string; code?: string; elapsedMs: number }> {
+    return request('POST', '/ai/test', {}, true)
+  },
+  usage(): Promise<{ today: AiUsageSummary; last30d: AiUsageSummary }> {
+    return request('GET', '/ai/usage', null, true)
+  },
+}

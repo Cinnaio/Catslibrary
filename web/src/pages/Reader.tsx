@@ -19,6 +19,7 @@ import { useProgressSync } from '../hooks/useProgressSync'
 import { VirtualList } from '../components/reader/VirtualList'
 import { SettingsControls } from '../components/reader/SettingsControls'
 import ThoughtPanel from '../components/reader/ThoughtPanel'
+import ChapterRecap from '../components/reader/ChapterRecap'
 import { MoonIcon, SunIcon } from '../components/icons'
 
 const CHAPTER_ROW_H = 34
@@ -1022,6 +1023,9 @@ export default function Reader() {
   // ---------- 渲染 ----------
   const dropdownMatches = filterChapters(allChapters, dropdownQuery)
   const currentIdx = chapter ? allChapters.findIndex((c) => c.id === chapter.id) : -1
+  // 前情提要讲的是上一章：首章没有上一章；演示章节（dc*）不在库里，生成必然 404，直接不给入口
+  const prevCandidate = currentIdx > 0 ? allChapters[currentIdx - 1] : undefined
+  const prevChapter = prevCandidate && !prevCandidate.id.startsWith('dc') ? prevCandidate : undefined
   const mobileChapterMatches = filterChapters(allChapters, mobileChapterQuery)
 
   if (notFound) {
@@ -1218,6 +1222,7 @@ export default function Reader() {
         >
           <div className="reader-chapter-num">{chapter.order ? `第 ${chapter.order} 章` : ''}</div>
           <h1 className="reader-chapter-title">{chapter.title}</h1>
+          <ChapterRecap prevChapterId={prevChapter?.id || ''} prevChapterTitle={prevChapter ? chapterLabel(prevChapter, currentIdx - 1) : ''} />
           <div ref={bodyRef} className="reader-body" dangerouslySetInnerHTML={{ __html: html }} />
         </article>
 
