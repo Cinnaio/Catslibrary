@@ -64,6 +64,55 @@
         "value": "1.2rem",
         "createdAt": "2026-08-11T07:05:00.000Z",
         "reason": "User confirmed 1.2rem is intentional — 封面占位字母窄屏断点字号"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "0.85rem",
+        "files": ["web/src/styles/mobile.css"],
+        "createdAt": "2026-08-11T03:23:41.343Z",
+        "reason": "Mobile breakpoint responsive font size — intentional small-screen downscale (btn/nav-link)"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "0.88rem",
+        "files": ["web/src/styles/mobile.css"],
+        "createdAt": "2026-08-11T03:23:41.343Z",
+        "reason": "Mobile breakpoint responsive font size — intentional small-screen downscale (novel-card__title)"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "1.1rem",
+        "files": ["web/src/styles/mobile.css"],
+        "createdAt": "2026-08-11T03:23:41.343Z",
+        "reason": "Mobile breakpoint responsive font size — intentional small-screen downscale (header logo)"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "1.3rem",
+        "files": ["web/src/styles/mobile.css"],
+        "createdAt": "2026-08-11T03:23:41.343Z",
+        "reason": "Mobile breakpoint responsive font size — intentional small-screen h1 on ≤400px"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "1.35rem",
+        "files": ["web/src/styles/mobile.css"],
+        "createdAt": "2026-08-11T03:23:41.343Z",
+        "reason": "Mobile breakpoint responsive font size — intentional small-screen reader-chapter-title"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "1.5rem",
+        "files": ["web/src/styles/mobile.css"],
+        "createdAt": "2026-08-11T03:23:41.343Z",
+        "reason": "Mobile breakpoint responsive font size — intentional small-screen h1/novel-hero__title"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "2.4rem",
+        "files": ["web/src/styles/mobile.css"],
+        "createdAt": "2026-08-11T03:23:41.343Z",
+        "reason": "Mobile breakpoint responsive font size — intentional small-screen novel-hero__cover-fallback"
       }
     ]
   }
