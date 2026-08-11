@@ -157,21 +157,6 @@
 
 .admin-panel-card { padding: var(--admin-space-5); }
 
-/* 仪表盘卡：子内容全宽排布 —— 书源管理/发现小说的工具栏+内容卡。
-   卡片本体不设内边距，子行由 .admin-card-row / .admin-card-content 自管留白与分隔线，
-   .table-wrapper 内嵌为带边框的表格容器。 */
-.admin-panel-card--flush { padding: 0; }
-.admin-panel-card--flush .admin-card-row {
-  padding: var(--admin-space-3) var(--admin-space-5);
-  border-bottom: 1px solid var(--admin-border);
-}
-.admin-panel-card--flush .admin-card-content {
-  padding: var(--admin-space-4) var(--admin-space-5);
-}
-.admin-panel-card--flush .table-wrapper {
-  margin: var(--admin-space-4) var(--admin-space-5);
-}
-
 .novel-toolbar__batch, .batch-actions-group, .action-row, .input-row {
   display: flex;
   align-items: center;
@@ -682,9 +667,63 @@
 
 /* ————————————————————————————————————————————————
    书源管理 · SourcesView — consumers: scrape/SourcesView.tsx
-   工具栏/统计已并入房屋标准卡，这里保留选择器单元格的截断样式。
+   列表头信息带：筛选、统计与操作共享同一视觉母体，表格作为主体内容嵌入其中。
    ———————————————————————————————————————————————— */
-.source-selector-cell { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: 0.75rem; }
+.source-panel {
+  overflow: hidden;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--radius-xl);
+  background: var(--admin-panel);
+}
+.source-panel__bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--admin-space-3) var(--admin-space-4);
+  align-items: center;
+  padding: var(--admin-space-3) var(--admin-space-4);
+  border-bottom: 1px solid var(--admin-border);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-secondary) 55%, transparent), transparent),
+    color-mix(in srgb, var(--admin-panel) 94%, var(--accent-subtle));
+}
+.source-panel__cluster {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--admin-space-2);
+  min-width: 0;
+}
+.source-panel__cluster--primary {
+  position: relative;
+  padding-right: var(--admin-space-4);
+}
+.source-panel__cluster--primary::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: 0;
+  width: 1px;
+  height: 1.75rem;
+  transform: translateY(-50%);
+  background: var(--admin-border);
+}
+.source-panel__stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--admin-space-2);
+}
+.source-panel__cluster--actions {
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+}
+.source-panel__cluster--actions [data-slot="input"] { width: 13rem; flex: 0 0 13rem; }
+.source-panel .table-wrapper {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.source-panel .table-wrapper table { width: 100%; }
 
 /* ——— admin 控件统一圆角 ——— */
 .admin-layout [data-slot="button"],
@@ -823,9 +862,6 @@
   .novel-editor__field--wide { grid-column: auto; }
 
   .admin-panel-card { padding: var(--admin-space-4); }
-  .admin-panel-card--flush .admin-card-row { padding: var(--admin-space-2) var(--admin-space-4); }
-  .admin-panel-card--flush .admin-card-content { padding: var(--admin-space-3) var(--admin-space-4); }
-  .admin-panel-card--flush .table-wrapper { margin: var(--admin-space-3) var(--admin-space-4); }
   .scrape-step__fieldset { padding: var(--admin-space-3); }
   .form-group { margin-bottom: 12px; }
   .scrape-center-hero__meta { justify-content: flex-start; }
@@ -848,10 +884,20 @@
   .discover-detail__desc { grid-column: 1 / -1; max-height: 132px; margin-top: 12px; }
   .discover-detail__chapter-list { max-height: 210px; }
   .discover-detail__chapter-item { grid-template-columns: 28px minmax(0, 1fr); padding: 8px 10px; }
+
+  .source-panel__bar { grid-template-columns: 1fr; }
+  .source-panel__cluster--primary { padding-right: 0; }
+  .source-panel__cluster--primary::after { display: none; }
+  .source-panel__cluster--actions { justify-content: stretch; }
+  .source-panel__cluster--actions [data-slot="input"] { flex: 1 1 12rem; }
 }
 
 @media (max-width: 400px) {
   .batch-actions-group > button { flex-basis: 100%; }
+  .source-panel__bar { padding: var(--admin-space-3); }
+  .source-panel__stats { width: 100%; }
+  .source-panel__cluster--actions { align-items: stretch; flex-wrap: wrap; }
+  .source-panel__cluster--actions [data-slot="input"] { width: 100%; flex-basis: 100%; }
 }
 
 @media (prefers-reduced-motion: reduce) {

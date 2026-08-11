@@ -166,7 +166,7 @@ export default function SourcesView({ active }: { active: boolean }) {
 
       {/* Import card */}
       <div className="grid gap-4">
-      <AdminPanel title="导入书源">
+        <AdminPanel title="导入书源">
         <div className="form-group">
           <Label className="mb-1.5">书源池 URL</Label>
           <div className="input-row">
@@ -203,36 +203,37 @@ export default function SourcesView({ active }: { active: boolean }) {
             {importResult.sub && <div className="text-sm text-muted-foreground">{importResult.sub}</div>}
           </div>
         )}
-      </AdminPanel>
+        </AdminPanel>
 
-      {/* Table card — 仪表盘卡：扁平表面 + 内嵌表格容器 */}
-      <div className="admin-panel-card admin-panel-card--flush">
-        {/* 工具栏 · 筛选 + 刷新 */}
-        <div className="admin-card-row flex flex-wrap items-center gap-2">
-          <Tabs value={supportFilter} onValueChange={setSupportFilter}>
-            <TabsList>
-              <TabsTrigger value="">全部</TabsTrigger>
-              <TabsTrigger value="full">full</TabsTrigger>
-              <TabsTrigger value="partial">partial</TabsTrigger>
-              <TabsTrigger value="unsupported">unsupported</TabsTrigger>
-              <TabsTrigger value="enabled">已启用</TabsTrigger>
-            </TabsList>
-          </Tabs>
-          <Input type="text" className="admin-input--compact ml-auto min-w-40" placeholder="按 host 过滤…" value={hostFilter} onChange={(e) => onHostFilterChange(e.target.value)} />
-          <Button variant="secondary" size="sm" onClick={() => void loadScrapeSources()}>
-            刷新
-          </Button>
-        </div>
-        {/* 统计行 */}
-        <div className="admin-card-row flex flex-wrap items-center gap-2">
-          <Badge variant="secondary">总数: {total}</Badge>
-          <Badge variant="secondary">已启用: {enabledCount}</Badge>
-          <Badge className="bg-success/10 text-success">可用: {bySupport.full || 0}</Badge>
-          <Badge className="bg-warning/10 text-warning">需核验: {bySupport.partial || 0}</Badge>
-          <Badge className="bg-secondary text-muted-foreground">不支持: {bySupport.unsupported || 0}</Badge>
-        </div>
+        <section className="source-panel" aria-label="书源列表">
+          <div className="source-panel__bar">
+            <div className="source-panel__cluster source-panel__cluster--primary">
+              <Tabs value={supportFilter} onValueChange={setSupportFilter}>
+                <TabsList>
+                  <TabsTrigger value="">全部</TabsTrigger>
+                  <TabsTrigger value="full">full</TabsTrigger>
+                  <TabsTrigger value="partial">partial</TabsTrigger>
+                  <TabsTrigger value="unsupported">unsupported</TabsTrigger>
+                  <TabsTrigger value="enabled">已启用</TabsTrigger>
+                </TabsList>
+              </Tabs>
+              <div className="source-panel__stats">
+                <Badge variant="secondary">总数 {total}</Badge>
+                <Badge variant="secondary">已启用 {enabledCount}</Badge>
+                <Badge className="bg-success/10 text-success">可用 {bySupport.full || 0}</Badge>
+                <Badge className="bg-warning/10 text-warning">需核验 {bySupport.partial || 0}</Badge>
+                <Badge className="bg-secondary text-muted-foreground">不支持 {bySupport.unsupported || 0}</Badge>
+              </div>
+            </div>
+            <div className="source-panel__cluster source-panel__cluster--actions">
+              <Input type="text" className="admin-input--compact" placeholder="按 host 过滤…" value={hostFilter} onChange={(e) => onHostFilterChange(e.target.value)} />
+              <Button variant="secondary" size="sm" onClick={() => void loadScrapeSources()}>
+                刷新
+              </Button>
+            </div>
+          </div>
 
-        <div className="table-wrapper">
+          <div className="table-wrapper">
           <Table>
           <TableHeader>
             <TableRow>
@@ -303,8 +304,8 @@ export default function SourcesView({ active }: { active: boolean }) {
             )}
           </TableBody>
           </Table>
-        </div>
-      </div>
+          </div>
+        </section>
       </div>
 
       {/* Test result dialog */}
