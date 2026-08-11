@@ -497,11 +497,11 @@ export default function Novel() {
       </div>
 
       {/* 浮动按钮 */}
-      <Link to="/" className="float-top float-top--home" aria-label="回到首页" title="回到首页">
+      <Link to="/" className="float-top float-top--home visible" aria-label="回到首页" title="回到首页">
         <HomeIcon />
       </Link>
       <button
-        className="float-top"
+        className="float-top visible"
         aria-label="回到顶部"
         title="回到顶部"
         onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
