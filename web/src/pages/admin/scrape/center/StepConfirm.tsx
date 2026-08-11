@@ -58,42 +58,41 @@ export default function StepConfirm({ preview, onPreviewChange, coverUrl, confir
             {({ id }) => <Input id={id} value={preview.author} onChange={(e) => onPreviewChange({ ...preview, author: e.target.value })} />}
           </ScrapeField>
 
-          <div className="scrape-preview__grid">
-            <ScrapeField label="分类">
-              {({ id }) => (
-                <Input
-                  id={id}
-                  value={preview.category}
-                  placeholder="玄幻, 修真"
-                  onChange={(e) => onPreviewChange({ ...preview, category: e.target.value })}
-                />
-              )}
-            </ScrapeField>
-            <ScrapeField label="状态">
-              {({ labelId }) => (
-                <CustomSelect
-                  compact
-                  aria-labelledby={labelId}
-                  options={STATUS_OPTIONS}
-                  value={preview.status}
-                  onChange={(v) => onPreviewChange({ ...preview, status: v })}
-                />
-              )}
-            </ScrapeField>
-          </div>
+          <ScrapeField label="分类">
+            {({ id }) => (
+              <Input
+                id={id}
+                value={preview.category}
+                placeholder="玄幻, 修真"
+                onChange={(e) => onPreviewChange({ ...preview, category: e.target.value })}
+              />
+            )}
+          </ScrapeField>
 
-          <ScrapeField label="简介">
+          <ScrapeField label="状态">
+            {({ labelId }) => (
+              <CustomSelect
+                compact
+                aria-labelledby={labelId}
+                options={STATUS_OPTIONS}
+                value={preview.status}
+                onChange={(v) => onPreviewChange({ ...preview, status: v })}
+              />
+            )}
+          </ScrapeField>
+
+          <ScrapeField label="简介" className="scrape-preview__field--wide">
             {({ id }) => (
               <Textarea
                 id={id}
-                rows={3}
+                className="scrape-preview__description"
                 value={preview.description}
                 onChange={(e) => onPreviewChange({ ...preview, description: e.target.value })}
               />
             )}
           </ScrapeField>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="scrape-preview__actions">
             <Button onClick={onConfirm} disabled={confirming || !!novelId}>
               {confirming ? '创建中…' : '确认并创建小说'}
             </Button>

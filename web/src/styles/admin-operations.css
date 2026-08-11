@@ -323,8 +323,10 @@
    字号一律走 JSX 的 text-xs/text-sm，本块只管结构、表面与间距。
    ———————————————————————————————————————————————— */
 
-/* 步进卡：边框/圆角/底色/内边距由 .admin-panel-card 提供，这里只加纵向节奏 */
-.scrape-step { display: grid; gap: var(--admin-space-3); }
+/* 步进卡：边框/圆角/底色/内边距由 .admin-panel-card 提供，这里只加纵向节奏。
+   同时作为容器查询锚点：卡片内的布局按「实际内容宽度」自适应，
+   不受视口宽度 / 右侧任务栏挤压影响。 */
+.scrape-step { display: grid; gap: var(--admin-space-3); min-width: 0; container-type: inline-size; }
 .scrape-step__label {
   justify-self: start;
   padding: var(--admin-space-1) var(--admin-space-3);
@@ -423,7 +425,7 @@
   font-weight: 650;
 }
 
-/* Step 2 · 小说信息确认表单 */
+/* Step 2 · 小说信息确认表单 —— 以步进卡自身宽度为容器查询基准（容器查询按内容宽度重排，不依赖视口） */
 .scrape-preview { display: grid; grid-template-columns: 7.5rem minmax(0, 1fr); gap: var(--admin-space-4); align-items: start; }
 .scrape-preview__cover img {
   display: block;
@@ -433,8 +435,32 @@
   object-fit: cover;
   box-shadow: var(--shadow);
 }
-.scrape-preview__form { display: grid; gap: var(--admin-space-3); min-width: 0; max-width: 42rem; }
-.scrape-preview__grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--admin-space-3); }
+/* 双列表单：书名/作者、分类/状态各占一行，简介与操作区整行铺满 ——
+   卡片宽时不再留出大片空白，窄时由下方容器查询收成单列。 */
+.scrape-preview__form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--admin-space-3) var(--admin-space-4);
+  align-content: start;
+  min-width: 0;
+  max-width: 72rem;
+}
+.scrape-preview__field--wide,
+.scrape-preview__actions,
+.scrape-ready-note { grid-column: 1 / -1; }
+.scrape-preview__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--admin-space-2); }
+/* 固定整行高度，避免 rows 计算出半行被裁切的观感 */
+.scrape-preview__description { field-sizing: fixed; min-height: 6.5rem; resize: vertical; line-height: 1.7; }
+
+/* 容器查询：以下以步进卡内容宽度为基准，而非视口 —— 解决右侧任务栏挤压时两列表单挤破换行。 */
+@container (max-width: 30rem) {
+  .scrape-preview__form { grid-template-columns: minmax(0, 1fr); }
+}
+@container (max-width: 23.5rem) {
+  .scrape-preview { grid-template-columns: minmax(0, 1fr); }
+  .scrape-preview__cover { justify-self: start; }
+  .scrape-preview__cover img { width: 6rem; }
+}
 .scrape-ready-note {
   padding: var(--admin-space-2) var(--admin-space-3);
   border: 1px solid color-mix(in srgb, var(--color-success) 24%, var(--border));
@@ -842,12 +868,9 @@
   border-radius: var(--radius-lg);
 }
 
-/* ——— 响应式：爬虫抓取中心 / 发现小说 / 书源 ——— */
-@media (max-width: 900px) {
-  .scrape-preview,
-  .scrape-preview__grid { grid-template-columns: minmax(0, 1fr); }
-  .scrape-preview__cover img { width: 6rem; }
-}
+/* ——— 响应式：爬虫抓取中心 / 发现小说 / 书源 ———
+   注：Step 2 确认表单（.scrape-preview*）改用容器查询按卡片宽度自适应，
+   不再在此按视口宽度断点，避免宽卡片被误收成单列。 */
 
 @media (max-width: 640px) {
   .admin-layout__content { padding: 1rem; }
