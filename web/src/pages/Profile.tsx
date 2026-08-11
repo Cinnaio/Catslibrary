@@ -165,52 +165,54 @@ export default function Profile() {
         <p className="profile-message" id="profileMessage" style={{ minHeight: 20 }}>{msg}</p>
 
         {/* Hero */}
-        <section className="profile-hero">
+        <section className="profile-hero card">
           <div className="profile-hero__paper-mark" aria-hidden="true">籍</div>
-          <div className="profile-avatar profile-avatar--hero">
-            {displayAvatar ? (
-              <img src={displayAvatar} alt="" onError={(e) => e.currentTarget.style.display = 'none'} />
-            ) : (
-              <span className="profile-avatar__initial">{(name || '我').slice(0, 1)}</span>
-            )}
-          </div>
-          <div className="profile-hero__identity">
-            <p className="profile-kicker">ACCOUNT</p>
-            <h1 className="profile-hero__name" id="profileName">{name}</h1>
-            <p className="profile-meta" id="profileMeta">@{user.username}</p>
-            <div className="profile-badges">
-              <span className="profile-pill profile-pill--role">{roleText(user.role)}</span>
-              <span className={`profile-pill profile-pill--status profile-pill--${user.status === 'disabled' ? 'disabled' : 'active'}`}>
-                {user.status === 'disabled' ? '已停用' : '已启用'}
-              </span>
+          <div className="profile-hero__main">
+            <div className="profile-avatar profile-avatar--hero">
+              {displayAvatar ? (
+                <img src={displayAvatar} alt="" onError={(e) => e.currentTarget.style.display = 'none'} />
+              ) : (
+                <span className="profile-avatar__initial">{(name || '我').slice(0, 1)}</span>
+              )}
             </div>
-            {user.bio && <p className="profile-bio" id="profileBio">{user.bio}</p>}
-            <div className="account-stats--cards">
-              <article className="account-stat-card account-stat-card--joined">
-                <span className="account-stat-card__label">注册时间</span>
-                <strong className="account-stat-card__value">{formatDate(user.createdAt) || '—'}</strong>
-              </article>
-              <article className="account-stat-card account-stat-card--login">
-                <span className="account-stat-card__label">最近登录</span>
-                <strong className="account-stat-card__value">{formatDate(user.lastLoginAt) || '—'}</strong>
-              </article>
-              <article className="account-stat-card account-stat-card--role">
-                <span className="account-stat-card__label">账户角色</span>
-                <strong className="account-stat-card__value">{roleText(user.role)}</strong>
-              </article>
-            </div>
-            {user.role === 'admin' && (
-              <div className="profile-hero__actions">
-                <Link to="/admin" className="btn btn--secondary">进入管理面板</Link>
+            <div className="profile-hero__identity">
+              <p className="profile-kicker">ACCOUNT</p>
+              <h1 className="profile-hero__name" id="profileName">{name}</h1>
+              <p className="profile-meta" id="profileMeta">@{user.username}</p>
+              <div className="profile-badges">
+                <span className="profile-pill profile-pill--role">{roleText(user.role)}</span>
+                <span className={`profile-pill profile-pill--status profile-pill--${user.status === 'disabled' ? 'disabled' : 'active'}`}>
+                  {user.status === 'disabled' ? '已停用' : '已启用'}
+                </span>
               </div>
-            )}
+              {user.bio && <p className="profile-bio" id="profileBio">{user.bio}</p>}
+              <div className="account-stats--cards">
+                <article className="account-stat-card account-stat-card--joined">
+                  <span className="account-stat-card__label">注册时间</span>
+                  <strong className="account-stat-card__value">{formatDate(user.createdAt) || '—'}</strong>
+                </article>
+                <article className="account-stat-card account-stat-card--login">
+                  <span className="account-stat-card__label">最近登录</span>
+                  <strong className="account-stat-card__value">{formatDate(user.lastLoginAt) || '—'}</strong>
+                </article>
+                <article className="account-stat-card account-stat-card--role">
+                  <span className="account-stat-card__label">账户角色</span>
+                  <strong className="account-stat-card__value">{roleText(user.role)}</strong>
+                </article>
+              </div>
+              {user.role === 'admin' && (
+                <div className="profile-hero__actions">
+                  <Link to="/admin" className="btn btn--secondary">进入管理面板</Link>
+                </div>
+              )}
+            </div>
           </div>
         </section>
 
         <div className="profile-edit-grid">
           {/* 资料编辑 */}
           <section className="profile-section">
-            <div className="profile-edit-panel">
+            <div className="profile-edit-panel card">
               <div className="profile-edit-panel__head">
                 <div>
                   <p className="profile-edit-panel__eyebrow">PROFILE</p>
@@ -235,7 +237,7 @@ export default function Profile() {
 
           {/* 头像 */}
           <section className="profile-section">
-            <div className="profile-edit-panel">
+            <div className="profile-edit-panel card">
               <div className="profile-edit-panel__head">
                 <div>
                   <p className="profile-edit-panel__eyebrow">AVATAR</p>
@@ -277,7 +279,7 @@ export default function Profile() {
 
           {/* 密码 */}
           <section className="profile-section profile-security-section">
-            <div className="profile-edit-panel">
+            <div className="profile-edit-panel card">
               <div className="profile-edit-panel__head">
                 <div>
                   <p className="profile-edit-panel__eyebrow">SECURITY</p>
@@ -302,7 +304,7 @@ export default function Profile() {
 
           {/* 会话 */}
           <section className="profile-section profile-security-section">
-            <div className="profile-edit-panel">
+            <div className="profile-edit-panel card">
               <div className="profile-edit-panel__head">
                 <div>
                   <p className="profile-edit-panel__eyebrow">SESSIONS</p>
