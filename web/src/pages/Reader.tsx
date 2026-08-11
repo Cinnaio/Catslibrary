@@ -3,7 +3,7 @@
  * 覆盖：章节加载/缓存/预取、滚动+分页双模式、进度保存/恢复（本地+服务端节流）、
  * 阅读设置（LWW 同步）、书签、自动滚动、键盘快捷键、触摸滑动、段评想法。
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { ChapterFull, ChapterMeta, Thought } from '@shared/types'
 import { removeAdPatterns } from '@shared/ad-cleaner'
@@ -120,6 +120,80 @@ function excerptText(text: string): string {
   return t.length > 110 ? t.slice(0, 110) + '…' : t
 }
 
+/** 把内容区内所有文本节点线性化为全局字符索引（{ node, start }，按文档序）。 */
+function buildTextIndex(root: Node): Array<{ node: Text; start: number }> {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+  const entries: Array<{ node: Text; start: number }> = []
+  let acc = 0
+  let node = walker.nextNode() as Text | null
+  while (node) {
+    entries.push({ node, start: acc })
+    acc += node.textContent.length
+    node = walker.nextNode() as Text | null
+  }
+  return entries
+}
+
+/** Range 端点 → 全局字符偏移；元素边界取容器内第一个文本节点。 */
+function pointToOffset(pt: { node: Node; off: number }, index: Array<{ node: Text; start: number }>): number {
+  for (const e of index) if (e.node === pt.node) return e.start + pt.off
+  return -1
+}
+
+/** 元素内第一个文本节点起点 / 最后一个文本节点终点（字符偏移）。 */
+function elemStartOffset(el: HTMLElement, index: Array<{ node: Text; start: number }>): number {
+  const tw = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+  const first = tw.nextNode() as Text | null
+  if (first) for (const e of index) if (e.node === first) return e.start
+  return -1
+}
+
+function elemEndOffset(el: HTMLElement, index: Array<{ node: Text; start: number }>): number {
+  let last: Text | null = null
+  const tw = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+  let n = tw.nextNode() as Text | null
+  while (n) { last = n; n = tw.nextNode() as Text | null }
+  if (last) for (const e of index) if (e.node === last) return e.start + last.textContent.length
+  return -1
+}
+
+/**
+ * 划选解析：返回选中文本占比最多的段落。
+ * 用全局字符偏移线性化文档，规避 compareBoundaryPoints 对祖先/后代端点的歧义；
+ * 跨段划选时也取主段落，避免"划了词却不显示"。
+ */
+function resolveSelectionParagraph(range: Range, contentEl: HTMLElement): { el: HTMLElement; text: string } | null {
+  const index = buildTextIndex(contentEl)
+  const rs = pointToOffset({ node: range.startContainer, off: range.startOffset }, index)
+  const re = pointToOffset({ node: range.endContainer, off: range.endOffset }, index)
+  if (rs < 0 || re < 0 || re <= rs) return null
+  const paras = contentEl.querySelectorAll<HTMLElement>('p')
+  let best: { el: HTMLElement; len: number; text: string } | null = null
+  for (const para of paras) {
+    const s = elemStartOffset(para, index)
+    const e = elemEndOffset(para, index)
+    if (s < 0 || e < 0) continue
+    const lo = Math.max(rs, s)
+    const hi = Math.min(re, e)
+    if (hi > lo && (best === null || hi - lo > best.len)) {
+      // 从字符区间还原该段内的选中文本（可能跨多个文本节点）
+      const buf: string[] = []
+      for (const ent of index) {
+        const es = ent.start
+        const ee = ent.start + ent.node.textContent.length
+        if (ee > lo && es < hi) {
+          const a = Math.max(es, lo)
+          const b = Math.min(ee, hi)
+          buf.push(ent.node.textContent.slice(a - es, b - es))
+        }
+      }
+      const t = buf.join('').replace(/\s+/g, ' ').trim()
+      if (t) best = { el: para, len: t.length, text: t }
+    }
+  }
+  return best ? { el: best.el, text: best.text } : null
+}
+
 function getReaderClientId(): string {
   const key = 'reader_client_id'
   let id = localStorage.getItem(key)
@@ -234,6 +308,8 @@ export default function Reader() {
       setNotFound(false)
       setChapter(null)
       setChapterThoughts([])
+      setPopoverPos(null)
+      setPendingSelection(null)
       // 重置每章状态
       currentPageRef.current = 0
       totalPagesRef.current = 0
@@ -292,7 +368,7 @@ export default function Reader() {
     body.style.setProperty('--reader-paragraph-spacing', readerParagraphSpacing + 'em')
     app.classList.toggle('reader-page-mode', pageMode)
     app.classList.toggle('reader-click-paging-off', !readerClickPaging)
-  }, [fontSize, settings.fontFamily, readerTheme, readerPageWidth, readerLineHeight, readerParagraphSpacing, pageMode, readerClickPaging, chapter])
+  }, [fontSize, settings.fontFamily, readerTheme, readerPageWidth, readerLineHeight, readerParagraphSpacing, pageMode, readerClickPaging, chapter, loading])
 
   // ---------- 段评段落索引 + 加载想法 ----------
   const indexParagraphs = useCallback(() => {
@@ -304,13 +380,20 @@ export default function Reader() {
     })
   }, [])
 
+  // 正文由 dangerouslySetInnerHTML 渲染，React 每次重渲染都会重建其子节点，
+  // 导致 data-paragraph-index/hash 与 thought-highlight 全部丢失。
+  // 因此在每次渲染提交后重新索引并套用划线（幂等且廉价）。
+  useLayoutEffect(() => {
+    const body = bodyRef.current
+    if (!body || !chapter || loading) return
+    indexParagraphs()
+    applyThoughtHighlights()
+  })
+
   useEffect(() => {
-    // loading 翻转前正文尚未挂载（bodyRef 为 null），rAF 会落空；
-    // 依赖 loading 确保正文渲染后再索引并套用划线。
+    // 分页高度依赖正文渲染完成后的布局，保留 rAF 延后一次。
     if (!chapter || loading) return
     const raf = requestAnimationFrame(() => {
-      indexParagraphs()
-      applyThoughtHighlights()
       schedulePageRecalc()
     })
     return () => cancelAnimationFrame(raf)
@@ -357,16 +440,8 @@ export default function Reader() {
     })
   }, [thoughtsByParagraph])
 
-  // 想法列表变化后重刷划线标记（含首次加载）
-  useEffect(() => {
-    applyThoughtHighlights()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [thoughtsByParagraph])
-
   // 点击有想法的段落打开想法面板
   useEffect(() => {
-    const body = bodyRef.current
-    if (!body) return
     const onClick = (e: MouseEvent) => {
       if (window.getSelection()?.toString().trim()) return
       const p = (e.target as HTMLElement).closest<HTMLElement>('p.thought-highlight')
@@ -374,8 +449,9 @@ export default function Reader() {
       const idx = Number(p.dataset.paragraphIndex)
       if (Number.isInteger(idx)) openThoughtPanel(idx)
     }
-    body.addEventListener('click', onClick)
-    return () => body.removeEventListener('click', onClick)
+    // 事件委托挂到 document：body 在加载期未挂载、重渲染会被替换，绑定在 body 上会丢失
+    document.addEventListener('click', onClick)
+    return () => document.removeEventListener('click', onClick)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chapter?.id, thoughtsByParagraph])
 
@@ -583,6 +659,8 @@ export default function Reader() {
   // ---------- 滚动跟踪 ----------
   useEffect(() => {
     const onScroll = () => {
+      // 滚动后选区位置变化，划词气泡会错位，直接收起
+      setPopoverPos(null)
       if (scrollTimer.current) clearTimeout(scrollTimer.current)
       scrollTimer.current = setTimeout(saveScrollPosition, 800)
       updateChapterProgress()
@@ -655,6 +733,7 @@ export default function Reader() {
         setMobileLibraryOpen(false)
         setBookmarkPanelOpen(false)
         setThoughtPanelOpen(false)
+        setPopoverPos(null)
       }
     }
     window.addEventListener('keydown', onKey)
@@ -858,35 +937,25 @@ export default function Reader() {
     if (!chapter) return
     function handleSelection() {
       const selection = window.getSelection()
-      if (!selection || selection.rangeCount === 0) {
-        setPopoverPos(null)
-        return
-      }
-      const text = selection.toString().replace(/\s+/g, ' ').trim()
       const contentEl = contentRef.current
-      if (!text || !contentEl) {
-        setPopoverPos(null)
-        return
-      }
-      if (!contentEl.contains(selection.anchorNode) || !contentEl.contains(selection.focusNode)) {
-        setPopoverPos(null)
-        return
-      }
-      const startP = closestParagraph(selection.anchorNode)
-      const endP = closestParagraph(selection.focusNode)
-      if (!startP || !endP || startP !== endP) {
-        setPopoverPos(null)
-        return
-      }
-      const paragraphIndex = Number(startP.dataset.paragraphIndex)
-      if (!Number.isInteger(paragraphIndex)) return
-      const sliced = text.length > 200 ? text.slice(0, 200) : text
+      // 只在存在有效选区时显示/更新气泡；关闭交由正文点击、滚动、Esc 处理，
+      // 避免划词后 selectionchange 的竞态把刚出现的气泡立即关掉。
+      if (!selection || selection.rangeCount === 0 || !contentEl) return
+      const range = selection.getRangeAt(0)
+      if (range.collapsed) return
+      const parsed = resolveSelectionParagraph(range, contentEl)
+      if (!parsed) return
+      // 段落索引由渲染后的索引步骤写入；万一尚未写入，按 DOM 位置兜底计算。
+      const paragraphIndex = Number(parsed.el.dataset.paragraphIndex)
+      const fallbackIndex = Array.from(contentEl.querySelectorAll<HTMLElement>('p')).indexOf(parsed.el)
+      const idx = Number.isInteger(paragraphIndex) ? paragraphIndex : fallbackIndex
+      if (idx < 0) return
       setPendingSelection({
-        paragraphIndex,
-        paragraphHash: startP.dataset.paragraphHash || '',
-        selectedText: sliced,
+        paragraphIndex: idx,
+        paragraphHash: parsed.el.dataset.paragraphHash || '',
+        selectedText: parsed.text.length > 200 ? parsed.text.slice(0, 200) : parsed.text,
       })
-      const rect = selection.getRangeAt(0).getBoundingClientRect()
+      const rect = range.getBoundingClientRect()
       setPopoverPos({
         left: Math.min(window.innerWidth - 104, Math.max(12, rect.left + rect.width / 2 - 44)),
         top: Math.max(12, rect.top - 44),
@@ -900,19 +969,15 @@ export default function Reader() {
     const contentEl = contentRef.current
     document.addEventListener('selectionchange', onSelectionChange)
     contentEl?.addEventListener('mouseup', handleSelection)
-    contentEl?.addEventListener('touchend', () => setTimeout(handleSelection, 180), { passive: true })
+    // 触摸划词结束后浏览器需要一点时间才最终确定选区，延迟稍长；
+    // 即使此刻选区尚未就绪，handleSelection 也不会误关气泡。
+    contentEl?.addEventListener('touchend', () => setTimeout(handleSelection, 300), { passive: true })
     return () => {
       document.removeEventListener('selectionchange', onSelectionChange)
       contentEl?.removeEventListener('mouseup', handleSelection)
       if (selectionTimer) clearTimeout(selectionTimer)
     }
   }, [chapter?.id])
-
-  function closestParagraph(node: Node | null): HTMLElement | null {
-    if (!node) return null
-    const el = node.nodeType === Node.ELEMENT_NODE ? (node as HTMLElement) : node.parentElement
-    return el ? el.closest<HTMLElement>('.reader-body p') : null
-  }
 
   function openThoughtPanel(index: number) {
     setActiveThoughtParagraph(index)
@@ -1134,6 +1199,10 @@ export default function Reader() {
           ref={contentRef}
           className="reader-paper"
           onClick={(e) => {
+            // 点击正文（非气泡）时收起划词气泡；选区非空视为正在调整划选，不收起
+            if (popoverPos && !window.getSelection()?.toString().trim()) {
+              setPopoverPos(null)
+            }
             // 移动端：点击阅读区切换底部工具栏（分页模式下两侧为翻页热区，不抢）
             if (window.innerWidth > 640) return
             if ((e.target as HTMLElement).closest('button, a, input, textarea, select, .chapter-dropdown, .bookmark-panel, .reader-controls, .thought-panel, .thought-selection-popover')) return
