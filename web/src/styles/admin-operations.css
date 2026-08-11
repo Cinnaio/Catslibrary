@@ -301,6 +301,7 @@
   grid-template-rows: auto minmax(0, 1fr) auto;
   gap: 0;
   overflow: hidden;
+  max-height: calc(100dvh - 2rem);
   padding: 0;
   border-color: var(--admin-border-strong);
   border-radius: var(--admin-radius-dialog);
