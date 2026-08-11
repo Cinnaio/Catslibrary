@@ -13,7 +13,7 @@ import { escHtml } from '@shared/utils'
 import { useSession } from '../context/SessionContext'
 import { useTheme } from '../context/ThemeContext'
 import { useToast } from '../components/feedback'
-import { useReaderSettings, FONT_SIZES, FONT_LABELS, PAGE_WIDTHS, AUTO_SCROLL_SPEEDS } from '../hooks/useReaderSettings'
+import { useReaderSettings, FONT_SIZES, PAGE_WIDTHS, AUTO_SCROLL_SPEEDS } from '../hooks/useReaderSettings'
 import type { ReaderSettingKey } from '../hooks/useReaderSettings'
 import { useProgressSync } from '../hooks/useProgressSync'
 import { VirtualList } from '../components/reader/VirtualList'
@@ -226,6 +226,7 @@ export default function Reader() {
   // 面板状态
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [dropdownQuery, setDropdownQuery] = useState('')
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number } | null>(null)
   const [bookmarkPanelOpen, setBookmarkPanelOpen] = useState(false)
   const [bookmarkNoteOpen, setBookmarkNoteOpen] = useState(false)
   const [bookmarkNote, setBookmarkNote] = useState('')
@@ -250,7 +251,9 @@ export default function Reader() {
 
   // 自动滚动
   const autoScrollRef = useRef({ running: false, frame: 0, lastTs: 0, remainder: 0 })
-  const [autoScrollRunning, setAutoScrollRunning] = useState(false)
+  // autoScrollRunning 仅由自动滚动 effect 内部写（start/stop），顶栏按钮收进
+  // 设置面板后不再有 UI 读取它，故丢弃 useState 的首个绑定。
+  const [, setAutoScrollRunning] = useState(false)
 
   // 移动端底部工具栏：默认收起，点击阅读区切换显隐
   const [mobileBarHidden, setMobileBarHidden] = useState(true)
@@ -259,6 +262,7 @@ export default function Reader() {
   const readerAppRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
+  const chapterTriggerRef = useRef<HTMLButtonElement>(null)
   const scrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prefetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -742,6 +746,67 @@ export default function Reader() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageMode, chapter?.id, allChapters.length])
 
+  // ---------- 章节下拉：定位 + 点击空白关闭 ----------
+  // 下拉用 position:fixed，需按触发按钮的视口坐标计算 top/left；
+  // 同时挂一份 document click 监听，点空白处收起（触发按钮自身 stopPropagation，
+  // 不会冒泡到 document，所以这里只会在点外部时触发）。
+  useLayoutEffect(() => {
+    if (!dropdownOpen) {
+      setDropdownPos(null)
+      return
+    }
+    const trigger = chapterTriggerRef.current
+    if (trigger) {
+      const r = trigger.getBoundingClientRect()
+      const isMobile = window.matchMedia('(max-width: 768px)').matches
+      const edge = isMobile ? 8 : 12
+      // 与 reader.css 的响应式宽度保持一致：移动端几乎铺满视口，桌面端最多 360px。
+      const dropdownW = isMobile ? Math.max(0, window.innerWidth - edge * 2) : Math.min(360, window.innerWidth - edge * 2)
+      // 左沿与触发按钮左沿对齐，视觉上"挂在"按钮正下方（按钮右侧还有
+      // 下一章/详情，右对齐会让下拉向左飘出很远）；贴边时再向内收。
+      let left = r.left
+      if (left < edge) left = edge
+      if (left + dropdownW > window.innerWidth - edge) left = window.innerWidth - edge - dropdownW
+      setDropdownPos({ top: r.bottom + 6, left })
+    }
+    const onDocClick = (e: MouseEvent) => {
+      const t = e.target as HTMLElement
+      if (t.closest('.chapter-dropdown, .reader-chapter-trigger')) return
+      setDropdownOpen(false)
+    }
+    // 下拉用 fixed 定位，页面滚动后位置会错位，直接收起。
+    const onScroll = () => setDropdownOpen(false)
+    document.addEventListener('click', onDocClick)
+    window.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('resize', onScroll)
+    return () => {
+      document.removeEventListener('click', onDocClick)
+      window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', onScroll)
+    }
+  }, [dropdownOpen])
+
+  // ---------- 阅读设置面板：点击外部关闭 ----------
+  // 面板与触发按钮自身均 stopPropagation，document 上的 click 只会收到真正的外部点击；
+  // 滚动/缩放时面板位置随 sticky 顶栏偏移，与章节下拉一致地顺手收起。
+  useEffect(() => {
+    if (!settingsPanelOpen) return
+    const onDocClick = (e: MouseEvent) => {
+      const t = e.target as HTMLElement
+      if (t.closest('.reader-settings-panel, .reader-controls__settings')) return
+      setSettingsPanelOpen(false)
+    }
+    const onViewportChange = () => setSettingsPanelOpen(false)
+    document.addEventListener('click', onDocClick)
+    window.addEventListener('scroll', onViewportChange, { passive: true })
+    window.addEventListener('resize', onViewportChange)
+    return () => {
+      document.removeEventListener('click', onDocClick)
+      window.removeEventListener('scroll', onViewportChange)
+      window.removeEventListener('resize', onViewportChange)
+    }
+  }, [settingsPanelOpen])
+
   // ---------- 触摸滑动 ----------
   useEffect(() => {
     const el = contentRef.current
@@ -1060,7 +1125,8 @@ export default function Reader() {
             <button className="reader-nav-btn" disabled={currentIdx <= 0} onClick={() => navigateToChapter('prev')}>上一章</button>
             <button
               type="button"
-              className="reader-nav-btn reader-chapter-trigger"
+              ref={chapterTriggerRef}
+              className={`reader-nav-btn reader-chapter-trigger${dropdownOpen ? ' open' : ''}`}
               aria-haspopup="listbox"
               aria-expanded={dropdownOpen}
               onClick={(e) => { e.stopPropagation(); setDropdownOpen((v) => !v) }}
@@ -1072,19 +1138,6 @@ export default function Reader() {
             <Link to={`/novel/${encodeURIComponent(nid)}`} className="reader-nav-btn reader-nav-toc" title="返回详情">详情</Link>
           </div>
           <div className="reader-controls">
-            <button aria-label="缩小字号" onClick={() => set('fontSize', String(Math.max(0, fontSize - 1)))}>A−</button>
-            <span>{FONT_LABELS[fontSize]}</span>
-            <button aria-label="放大字号" onClick={() => set('fontSize', String(Math.min(5, fontSize + 1)))}>A+</button>
-            <button className={`reader-controls__font${settings.fontFamily === 'sans' ? ' active' : ''}`} aria-label="切换字体" title={settings.fontFamily === 'sans' ? '当前: 无衬线 (黑体)' : '当前: 衬线 (宋体)'} onClick={() => set('fontFamily', settings.fontFamily === 'sans' ? 'serif' : 'sans')}>
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 2h10M8 2v12M6 14h4" /><path d="M4 8h1.5M10.5 8H12" /></svg>
-            </button>
-            <button className={`reader-controls__pagemode${pageMode ? ' active' : ''}`} aria-label="切换阅读模式" title="切换阅读模式" onClick={() => set('readerPageMode', pageMode ? 'scroll' : 'page')}>
-              <svg className="pagemode-icon pagemode-icon--scroll" style={{ display: pageMode ? 'none' : '' }} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 2h12v12H2z" /><line x1="2" y1="5" x2="14" y2="5" /><line x1="2" y1="11" x2="14" y2="11" /></svg>
-              <svg className="pagemode-icon pagemode-icon--page" style={{ display: pageMode ? '' : 'none' }} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 2h12v12H2z" /><line x1="8" y1="2" x2="8" y2="14" /></svg>
-            </button>
-            <button className={`reader-controls__auto${autoScrollRunning ? ' active' : ''}`} aria-label="自动滚动" title={autoScrollRunning ? '停止自动滚动' : (readerAutoScrollSpeed === 'off' ? '自动滚动：关闭' : `开始自动滚动：${readerAutoScrollSpeed === 'fast' ? '快' : readerAutoScrollSpeed === 'medium' ? '中' : '慢'}`)} onClick={() => { if (autoScrollRunning) set('readerAutoScrollSpeed', 'off'); else set('readerAutoScrollSpeed', readerAutoScrollSpeed === 'off' ? 'slow' : readerAutoScrollSpeed) }}>
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v12" /><polyline points="4.5 9.5 8 13 11.5 9.5" /><path d="M4 3.5h8" /></svg>
-            </button>
             <button className={`reader-controls__bookmark${currentBookmarked ? ' bookmarked' : ''}`} aria-label={currentBookmarked ? '移除书签' : '添加书签'} aria-pressed={currentBookmarked} title={currentBookmarked ? '移除书签' : '添加书签'} onClick={handleBookmarkToggle}>
               <svg className="bookmark-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 2h12v12l-6-4-6 4V2z" /></svg>
             </button>
@@ -1131,6 +1184,7 @@ export default function Reader() {
         {dropdownOpen && (
           <div
             className="chapter-dropdown open"
+            style={dropdownPos ? { top: dropdownPos.top, left: dropdownPos.left } : undefined}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="chapter-dropdown__tools">
@@ -1146,27 +1200,27 @@ export default function Reader() {
             {dropdownMatches.length === 0 ? (
               <div className="chapter-dropdown__empty">没有匹配的章节</div>
             ) : (
-              <div className="chapter-dropdown__scroll" role="listbox" aria-label="章节列表">
-                <VirtualList
-                  items={dropdownMatches}
-                  rowHeight={CHAPTER_ROW_H}
-                  scrollToIndex={Math.max(0, dropdownMatches.findIndex((c) => c.id === chapter.id))}
-                  renderRow={(ch, i) => {
-                    const isCurrent = ch.id === chapter.id
-                    return (
-                      <button
-                        type="button"
-                        className={`chapter-dropdown__item${isCurrent ? ' chapter-dropdown__item--current' : ''}`}
-                        role="option"
-                        aria-selected={isCurrent}
-                        onClick={() => gotoChapter(ch.id, ch.novelId || novelId)}
-                      >
-                        {chapterLabel(ch, i)}
-                      </button>
-                    )
-                  }}
-                />
-              </div>
+              <VirtualList
+                className="chapter-dropdown__scroll"
+                ariaLabel="章节列表"
+                items={dropdownMatches}
+                rowHeight={CHAPTER_ROW_H}
+                scrollToIndex={Math.max(0, dropdownMatches.findIndex((c) => c.id === chapter.id))}
+                renderRow={(ch, i) => {
+                  const isCurrent = ch.id === chapter.id
+                  return (
+                    <button
+                      type="button"
+                      className={`chapter-dropdown__item${isCurrent ? ' chapter-dropdown__item--current' : ''}`}
+                      role="option"
+                      aria-selected={isCurrent}
+                      onClick={() => gotoChapter(ch.id, ch.novelId || novelId)}
+                    >
+                      <span className="chapter-dropdown__item-title">{chapterLabel(ch, i)}</span>
+                    </button>
+                  )
+                }}
+              />
             )}
           </div>
         )}
@@ -1314,28 +1368,28 @@ export default function Reader() {
                 {mobileChapterMatches.length === 0 ? (
                   <div className="mobile-library-empty">{allChapters.length === 0 ? '暂无章节' : '没有匹配的章节'}</div>
                 ) : (
-                  <div className="mobile-library-scroll" role="listbox" aria-label="章节列表">
-                    <VirtualList
-                      items={mobileChapterMatches}
-                      rowHeight={MOBILE_ROW_H}
-                      scrollToIndex={Math.max(0, mobileChapterMatches.findIndex((c) => c.id === chapter.id))}
-                      renderRow={(ch, i) => {
-                        const isCurrent = ch.id === chapter.id
-                        return (
-                          <button
-                            type="button"
-                            className={`mobile-library-item${isCurrent ? ' mobile-library-item--current' : ''}`}
-                            role="option"
-                            aria-selected={isCurrent}
-                            onClick={() => gotoChapter(ch.id, ch.novelId || novelId)}
-                          >
-                            <span className="mobile-library-item__title">{chapterLabel(ch, i)}</span>
-                            {isCurrent && <span className="mobile-library-item__badge">在读</span>}
-                          </button>
-                        )
-                      }}
-                    />
-                  </div>
+                  <VirtualList
+                    className="mobile-library-scroll"
+                    ariaLabel="章节列表"
+                    items={mobileChapterMatches}
+                    rowHeight={MOBILE_ROW_H}
+                    scrollToIndex={Math.max(0, mobileChapterMatches.findIndex((c) => c.id === chapter.id))}
+                    renderRow={(ch, i) => {
+                      const isCurrent = ch.id === chapter.id
+                      return (
+                        <button
+                          type="button"
+                          className={`mobile-library-item${isCurrent ? ' mobile-library-item--current' : ''}`}
+                          role="option"
+                          aria-selected={isCurrent}
+                          onClick={() => gotoChapter(ch.id, ch.novelId || novelId)}
+                        >
+                          <span className="mobile-library-item__title">{chapterLabel(ch, i)}</span>
+                          {isCurrent && <span className="mobile-library-item__badge">在读</span>}
+                        </button>
+                      )
+                    }}
+                  />
                 )}
               </div>
             ) : (

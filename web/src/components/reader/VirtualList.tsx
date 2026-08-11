@@ -41,10 +41,18 @@ export function VirtualList<T>({ items, rowHeight, renderRow, scrollToIndex, cla
   // 初始滚动定位
   useEffect(() => {
     if (scrollToIndex !== undefined && scrollToIndex >= 0 && scrollRef.current) {
-      const viewH = scrollRef.current.clientHeight || rowHeight * 8
-      scrollRef.current.scrollTop = Math.max(0, scrollToIndex * rowHeight - (viewH - rowHeight) / 2)
-      rangeRef.current = null
-      paint()
+      // 下拉由 display:none 切到 flex，max-height 在本帧尚未约束容器，
+      // 此时 clientHeight === scrollHeight，scrollTop 会被钳为 0。
+      // 推迟到下一帧再定位，等布局稳定。
+      const raf = requestAnimationFrame(() => {
+        const el = scrollRef.current
+        if (!el) return
+        const viewH = el.clientHeight || rowHeight * 8
+        el.scrollTop = Math.max(0, scrollToIndex * rowHeight - (viewH - rowHeight) / 2)
+        rangeRef.current = null
+        paint()
+      })
+      return () => cancelAnimationFrame(raf)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scrollToIndex, rowHeight])

@@ -3,8 +3,6 @@
    ============================================================ */
 
 /* --- Bookmark button in reader controls ----------------------- */
-.reader-controls__font.active,
-.reader-controls__pagemode.active,
 .reader-controls__bookmark.bookmarked {
   color: var(--accent);
   background: var(--accent-subtle);

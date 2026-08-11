@@ -237,9 +237,15 @@ body:has(.reader-app:not(.hidden)) {
   border: none;
   cursor: pointer;
   transition: background 0.1s;
-  white-space: nowrap;
+}
+/* ellipsis lives on an inner span, not the flex button itself —
+   text-overflow doesn't apply to flex containers. */
+.chapter-dropdown__item-title {
+  min-width: 0;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .chapter-dropdown__item:hover {
   background: var(--bg-hover);
@@ -312,7 +318,6 @@ body:has(.reader-app:not(.hidden)) {
   background: var(--accent-subtle);
   border-color: var(--accent-light);
 }
-.reader-controls span { font-size: 0.78rem; color: var(--text-muted); min-width: 18px; text-align: center; user-select: none; }
 
 /* Narrow reader width leaves less room in the sticky top bar — tighten the
    control cluster so the nav group and buttons stop crowding each other. */
@@ -325,12 +330,6 @@ body:has(.reader-app:not(.hidden)) {
   border-radius: var(--radius-md);
 }
 .reader-app[data-reader-width="narrow"] .reader-nav-group .reader-nav-btn { padding: 7px 11px; }
-
-/* Page mode toggle */
-.reader-controls__pagemode {
-  opacity: 1;
-}
-.reader-controls__pagemode.active { color: var(--accent) !important; }
 
 /* Page indicator */
 .reader-page-indicator {
@@ -346,7 +345,6 @@ body:has(.reader-app:not(.hidden)) {
   color: var(--text-muted);
   font-size: 0.76rem;
 }
-.reader-controls__auto.active,
 .reader-controls__settings.active {
   color: var(--accent) !important;
   background: var(--accent-subtle) !important;
@@ -1026,6 +1024,13 @@ body:has(.reader-app:not(.hidden)) {
 
 .reader-settings-panel .mobile-settings-row__label {
   font-size: 0.8rem;
+}
+
+/* 桌面面板只有 320px 宽，基类 3.4em 列宽 + 12px 间隙是给全宽移动端
+   sheet 调的，这里标签会被空白拉得离控件很远 —— 收窄列宽与间隙。 */
+.reader-settings-panel .mobile-settings-row {
+  grid-template-columns: 2.4em 1fr;
+  gap: 8px;
 }
 
 .reader-settings-panel button:focus-visible {
