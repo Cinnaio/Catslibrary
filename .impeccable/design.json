@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-08-09T20:15:00Z",
+  "generatedAt": "2026-08-11T03:13:21.592Z",
   "title": "Design System: 知舟 (Zhi Zhou)",
   "extensions": {
     "colorMeta": {
@@ -20,11 +20,26 @@
         "displayName": "Light Cream",
         "canonical": "#F0E6D6"
       },
+      "primary-subtle": {
+        "role": "primary",
+        "displayName": "Cream Wash",
+        "canonical": "#F8F3EC"
+      },
       "text-primary": {
         "role": "neutral",
         "displayName": "Espresso Ink",
         "canonical": "#211E1A",
         "tonalRamp": ["#211E1A", "#3A3530", "#5B554E", "#7A746C", "#9A938A", "#B5AFA8", "#D4D0CB", "#F0EDE9"]
+      },
+      "text-secondary": {
+        "role": "neutral",
+        "displayName": "Warm Gray-Brown",
+        "canonical": "#5B554E"
+      },
+      "text-muted": {
+        "role": "neutral",
+        "displayName": "Faded Parchment",
+        "canonical": "#736D65"
       },
       "surface": {
         "role": "neutral",
@@ -36,6 +51,21 @@
         "role": "neutral",
         "displayName": "Warm Linen",
         "canonical": "#F6F4F1"
+      },
+      "surface-hover": {
+        "role": "neutral",
+        "displayName": "Hover Tint",
+        "canonical": "#F5F2EE"
+      },
+      "border": {
+        "role": "neutral",
+        "displayName": "Border Mist",
+        "canonical": "#ECE8E2"
+      },
+      "border-light": {
+        "role": "neutral",
+        "displayName": "Border Frost",
+        "canonical": "#F3F0EB"
       },
       "success": {
         "role": "semantic",
@@ -60,10 +90,35 @@
         "displayName": "Collector's Seal",
         "canonical": "#b8453a"
       },
+      "dark-surface": {
+        "role": "neutral",
+        "displayName": "Moonlit Charcoal",
+        "canonical": "#1B1C20"
+      },
+      "dark-surface-warm": {
+        "role": "neutral",
+        "displayName": "Moonlit Slate",
+        "canonical": "#24252A"
+      },
+      "dark-surface-card": {
+        "role": "neutral",
+        "displayName": "Moonlit Card",
+        "canonical": "#2A2B31"
+      },
+      "dark-text": {
+        "role": "neutral",
+        "displayName": "Moonlit Ink",
+        "canonical": "#E7E0D6"
+      },
       "dark-accent": {
         "role": "primary",
         "displayName": "Moonlit Gold",
         "canonical": "#BF8F52"
+      },
+      "dark-border": {
+        "role": "neutral",
+        "displayName": "Moonlit Border",
+        "canonical": "#3B3C43"
       }
     },
     "typographyMeta": {
@@ -76,6 +131,8 @@
     "shadows": [
       { "name": "rest", "value": "0 1px 2px rgba(40,32,24,0.04), 0 1px 3px rgba(40,32,24,0.05)", "purpose": "Subtle card/button resting shadow — like paper lifting slightly." },
       { "name": "elevated", "value": "0 6px 16px rgba(40,32,24,0.08)", "purpose": "Hover state and secondary popovers." },
+      { "name": "large", "value": "0 16px 40px rgba(40,32,24,0.12)", "purpose": "Large floating surfaces." },
+      { "name": "popover", "value": "0 8px 28px rgba(40,32,24,0.12)", "purpose": "Dropdowns and pickers." },
       { "name": "modal", "value": "0 24px 70px rgba(40,32,24,0.18)", "purpose": "Modal dialog overlay — heaviest shadow, still warm-toned." },
       { "name": "admin-ambient", "value": "0 18px 48px rgba(40,32,24,0.10)", "purpose": "Admin panel cards and surfaces." },
       { "name": "admin-soft", "value": "0 10px 26px rgba(40,32,24,0.07)", "purpose": "Lightweight admin surfaces." },
@@ -90,9 +147,10 @@
     ],
     "breakpoints": [
       { "name": "sm", "value": "640px" },
-      { "name": "md", "value": "900px" },
-      { "name": "lg", "value": "1200px" },
-      { "name": "xl", "value": "1440px" }
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "900px" },
+      { "name": "xl", "value": "1200px" },
+      { "name": "wide", "value": "1440px" }
     ]
   },
   "components": [
@@ -100,9 +158,9 @@
       "name": "Primary Button",
       "kind": "button",
       "refersTo": "button-primary",
-      "description": "Main action button. Milk-tea brown background, white text.",
+      "description": "Main action button. Milk-tea brown background, white text. Admin variant uses 12px radius.",
       "html": "<button class=\"ds-btn-primary\">保存</button>",
-      "css": ".ds-btn-primary { background: #8B6045; color: #FFFFFF; padding: 8px 16px; border: none; border-radius: 6px; font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: background 0.15s ease; min-height: 2.25rem; } .ds-btn-primary:hover { background: #74503A; } .ds-btn-primary:focus-visible { outline: 2px solid #8B6045; outline-offset: 2px; box-shadow: 0 0 0 4px rgba(139,96,69,0.24); }"
+      "css": ".ds-btn-primary { background: #8B6045; color: #FFFFFF; padding: 8px 16px; border: none; border-radius: 6px; font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: background 0.15s ease; min-height: 2.25rem; } .ds-btn-primary:hover { background: #74503A; } .ds-btn-primary:focus-visible { outline: 2px solid #8B6045; outline-offset: 2px; box-shadow: 0 0 0 4px rgba(139,96,69,0.24); }"
     },
     {
       "name": "Secondary Button",
@@ -110,7 +168,7 @@
       "refersTo": "button-secondary",
       "description": "Default action button. Warm linen background, dark text.",
       "html": "<button class=\"ds-btn-secondary\">刷新</button>",
-      "css": ".ds-btn-secondary { background: #F6F4F1; color: #211E1A; padding: 8px 16px; border: 1px solid #ECE8E2; border-radius: 6px; font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: background 0.15s ease; min-height: 2.25rem; } .ds-btn-secondary:hover { background: #F5F2EE; }"
+      "css": ".ds-btn-secondary { background: #F6F4F1; color: #211E1A; padding: 8px 16px; border: 1px solid #ECE8E2; border-radius: 6px; font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: background 0.15s ease; min-height: 2.25rem; } .ds-btn-secondary:hover { background: #F5F2EE; }"
     },
     {
       "name": "Ghost Button",
@@ -132,7 +190,7 @@
       "name": "Input Field",
       "kind": "input",
       "refersTo": "input",
-      "description": "Text input. Clean border, warm focus ring.",
+      "description": "Text input. Clean border, warm focus ring. Admin variant uses 12px radius.",
       "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"搜索…\" />",
       "css": ".ds-input { background: #FFFFFF; color: #211E1A; border: 1px solid #ECE8E2; border-radius: 6px; padding: 8px 12px; font-size: 0.875rem; min-height: 2.25rem; width: 100%; transition: border-color 0.15s, box-shadow 0.15s; } .ds-input:focus { outline: none; border-color: #8B6045; box-shadow: 0 0 0 3px rgba(139,96,69,0.2); } .ds-input::placeholder { color: #9A938A; }"
     },
@@ -166,7 +224,8 @@
     "rules": [
       { "name": "The 10% Accent Rule", "body": "奶茶棕色强调色在任何页面上不超过 10% 的面积。它的稀有性就是力量——读者的眼睛自然被引导到最重要的交互点。", "section": "colors" },
       { "name": "The Content-First Rule", "body": "字体永远是配角。系统字体不创造风格，内容本身创造风格。唯一例外是阅读器中的衬线体——那是为沉浸而存在的。", "section": "typography" },
-      { "name": "The Flat-By-Default Rule", "body": "所有表面在静止状态是平的。阴影仅作为状态响应出现（hover、elevation、focus），或为弹出层提供层次暗示。", "section": "elevation" }
+      { "name": "The Flat-By-Default Rule", "body": "所有表面在静止状态是平的。阴影仅作为状态响应出现（hover、elevation、focus），或为弹出层提供层次暗示。", "section": "elevation" },
+      { "name": "The Fit-Content Rule", "body": "输入框宽度随用途与提示信息而定，不设拉伸：短提示短框，长内容长框。避免 flex-1 / w-full 把输入框撑满整行——工具栏里的过滤/搜索框用 min-w 限定下限、内容自然决定宽度，长 URL 输入才放宽。", "section": "components" }
     ],
     "dos": [
       "Do 使用暖灰色调作为地面和背景，保持\"纸面\"质感",

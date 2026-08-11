@@ -189,9 +189,11 @@ components:
 
 ## Shapes
 
-圆角策略温和而一致：控件 6px（--radius-sm），卡片 10px（--radius-md / shadcn 默认），面板 16px（--radius-xl），对话框 12px（--radius-lg）。
+圆角策略温和而一致：公共控件 6px（--radius-sm），shadcn 控件 8px（--radius），管理后台控件 12px（--admin-button-radius / --admin-input-radius，与 tabs 药丸的 rounded-lg 对齐），卡片 10px（--radius-md），面板 16px（--radius-xl），对话框 12px（--radius-lg）。
 
-- **控件圆角 (6px)**: 按钮、输入框、标签、复选框——足够圆润但不接近圆形，像文具的倒角。
+- **公共控件圆角 (6px)**: 公共页按钮、输入框、标签、复选框——足够圆润但不接近圆形，像文具的倒角。
+- **shadcn 控件圆角 (8px)**: shadcn/ui 组件（button/input/dialog 基类）默认 8px。
+- **管理后台控件圆角 (12px)**: 管理后台的按钮与输入框统一 12px，与 tabs 药丸（rounded-lg）并排时圆弧一致。
 - **卡片圆角 (10px)**: 内容卡片、表格包裹器——微妙的弧度，不抢注意力。
 - **面板圆角 (16px)**: 管理后台大面板、统计卡片——更明显的圆润感，像精装书的封面弧度。
 - **全圆角 (9999px)**: 胶囊标签、计数徽章、状态条——仅用于信息密度极高的辅助元素。
@@ -201,7 +203,7 @@ components:
 组件以 shadcn/ui 为基础，通过 CSS custom properties 桥接到知舟的暖色调系统。所有组件继承 --admin-radius / --admin-radius-sm 的圆角规范。
 
 ### Buttons
-- **Shape:** 圆角 6px（--radius-sm），高度 2.25rem（--admin-control-height）
+- **Shape:** 公共页圆角 6px（--radius-sm），管理后台圆角 12px（--admin-button-radius），高度 2.25rem（--admin-control-height）
 - **Primary:** 奶茶棕背景（#8B6045）+ 白色文字，用于主要操作（保存、确认）
 - **Secondary:** 暖灰背景（#F6F4F1）+ 深色文字，用于次要操作（刷新、取消）
 - **Ghost:** 透明背景 + 次要文字色，用于图标按钮（表格行操作）
@@ -216,7 +218,7 @@ components:
 - **Internal Padding:** 24px（--admin-space-5）
 
 ### Inputs / Fields
-- **Style:** 1px 边框（var(--border)），白色背景，圆角 6px，高度 2.25rem
+- **Style:** 1px 边框（var(--border)），白色背景，公共页圆角 6px、管理后台圆角 12px（--admin-input-radius），高度 2.25rem
 - **Focus:** 2px 暖棕色轮廓 + 4px 光晕，不改变边框颜色
 - **Compact Variant:** 高度 2rem，用于工具栏紧凑场景
 
