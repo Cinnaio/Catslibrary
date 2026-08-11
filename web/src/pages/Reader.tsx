@@ -305,15 +305,17 @@ export default function Reader() {
   }, [])
 
   useEffect(() => {
-    if (!chapter) return
-    // 等待内容挂载
+    // loading 翻转前正文尚未挂载（bodyRef 为 null），rAF 会落空；
+    // 依赖 loading 确保正文渲染后再索引并套用划线。
+    if (!chapter || loading) return
     const raf = requestAnimationFrame(() => {
       indexParagraphs()
+      applyThoughtHighlights()
       schedulePageRecalc()
     })
     return () => cancelAnimationFrame(raf)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chapter])
+  }, [chapter, loading])
 
   const loadThoughts = useCallback(async () => {
     if (!chapter) return
@@ -343,6 +345,39 @@ export default function Reader() {
     })
     return map
   }, [chapterThoughts])
+
+  // ---------- 想法划线 ----------
+  const applyThoughtHighlights = useCallback(() => {
+    const body = bodyRef.current
+    if (!body) return
+    body.querySelectorAll('p').forEach((p) => {
+      const idx = p.getAttribute('data-paragraph-index')
+      const hasThoughts = idx !== null && (thoughtsByParagraph[idx]?.length ?? 0) > 0
+      p.classList.toggle('thought-highlight', hasThoughts)
+    })
+  }, [thoughtsByParagraph])
+
+  // 想法列表变化后重刷划线标记（含首次加载）
+  useEffect(() => {
+    applyThoughtHighlights()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [thoughtsByParagraph])
+
+  // 点击有想法的段落打开想法面板
+  useEffect(() => {
+    const body = bodyRef.current
+    if (!body) return
+    const onClick = (e: MouseEvent) => {
+      if (window.getSelection()?.toString().trim()) return
+      const p = (e.target as HTMLElement).closest<HTMLElement>('p.thought-highlight')
+      if (!p) return
+      const idx = Number(p.dataset.paragraphIndex)
+      if (Number.isInteger(idx)) openThoughtPanel(idx)
+    }
+    body.addEventListener('click', onClick)
+    return () => body.removeEventListener('click', onClick)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chapter?.id, thoughtsByParagraph])
 
   // ---------- 进度恢复 ----------
   const saveScrollPosition = useCallback(() => {
