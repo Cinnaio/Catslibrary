@@ -140,4 +140,67 @@ describe('scraper engine 端到端（pglite + mock fetch）', () => {
     const count = await t.db.query<{ c: number }>('SELECT COUNT(*)::int AS c FROM chapters WHERE novel_id = $1', ['n1'])
     expect(count.rows[0]!.c).toBe(2)
   })
+
+  it('目录分页：通过 nextPage 翻页收集全部章节', async () => {
+    // 第一页含 2 章 + 下一页链接；第二页含 2 章（PO18 风格：每页若干章，多页目录）
+    const PAGE1 = `<html><body>
+<div class="chapters">
+  <ul>
+    <li><a href="https://site.com/chapter/1.html">第一章</a></li>
+    <li><a href="https://site.com/chapter/2.html">第二章</a></li>
+  </ul>
+</div>
+<div class="page"><a href="https://site.com/page/2">下一页</a></div>
+</body></html>`
+    const PAGE2 = `<html><body>
+<div class="chapters">
+  <ul>
+    <li><a href="https://site.com/chapter/3.html">第三章</a></li>
+    <li><a href="https://site.com/chapter/4.html">第四章</a></li>
+  </ul>
+</div>
+<div class="page"><a href="https://site.com/page/1">上一页</a></div>
+</body></html>`
+
+    await t.db.query("INSERT INTO novels (id, title, author, created_at, updated_at) VALUES ('n2', '分页小说', '作者', $1, $1)", [Date.now()])
+    await store.upsertScrapeConfig({
+      novelId: 'n2',
+      sourceUrl: 'https://site.com/page/1',
+      selectors: {
+        chapterList: '.chapters li a',
+        chapterTitle: '.chapter-title',
+        chapterContent: '.content',
+        nextPage: '.page a',
+      },
+      encoding: 'utf-8',
+    })
+    const job: JobData = {
+      id: 'job_paged',
+      novelId: 'n2',
+      status: 'starting',
+      startedAt: Date.now(),
+      updatedAt: Date.now(),
+    }
+    await store.saveJob(job)
+
+    const pagedDeps: ScrapeDeps = {
+      store,
+      fetchHtml: async (url) => {
+        if (url.includes('/page/2')) return { html: PAGE2, encoding: 'utf-8' }
+        if (url.includes('.html')) {
+          const num = url.match(/chapter\/(\d+)\.html/)?.[1] || 'X'
+          return { html: CHAPTER_TEMPLATE(`第${num}章`, LONG_BODY), encoding: 'utf-8' }
+        }
+        return { html: PAGE1, encoding: 'utf-8' }
+      },
+      log: () => {},
+    }
+    await runScrapeJob('job_paged', pagedDeps)
+
+    const done = await store.loadJob('job_paged')
+    expect(done?.status).toBe('completed')
+    // 两页共 4 章应全部入库，而非只抓第一页 2 章
+    const count = await t.db.query<{ c: number }>('SELECT COUNT(*)::int AS c FROM chapters WHERE novel_id = $1', ['n2'])
+    expect(count.rows[0]!.c).toBe(4)
+  })
 })

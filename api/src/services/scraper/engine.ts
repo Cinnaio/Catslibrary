@@ -220,7 +220,7 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
             log(job, `读取目录分页 ${pageCount}: ${nextUrl}`)
             await sleep(800)
             const next = await deps.fetchHtml(nextUrl, { forceEncoding: encoding })
-            const moreLinks = extractLinks(next.html, job.selectors.nextPage, nextUrl)
+            const moreLinks = extractLinks(next.html, job.selectors.chapterList || '', nextUrl)
             if (moreLinks.length === 0) break
             links = links.concat(moreLinks)
             nextUrl = extractLinkHref(next.html, job.selectors.nextPage, nextUrl)
