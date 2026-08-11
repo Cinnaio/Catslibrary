@@ -14,6 +14,7 @@ import { useSession } from '../context/SessionContext'
 import { useTheme } from '../context/ThemeContext'
 import { useToast } from '../components/feedback'
 import { useReaderSettings, FONT_SIZES, FONT_LABELS, PAGE_WIDTHS, AUTO_SCROLL_SPEEDS } from '../hooks/useReaderSettings'
+import type { ReaderSettingKey } from '../hooks/useReaderSettings'
 import { useProgressSync } from '../hooks/useProgressSync'
 import { VirtualList } from '../components/reader/VirtualList'
 import { SettingsControls } from '../components/reader/SettingsControls'
@@ -175,6 +176,9 @@ export default function Reader() {
   // 自动滚动
   const autoScrollRef = useRef({ running: false, frame: 0, lastTs: 0, remainder: 0 })
   const [autoScrollRunning, setAutoScrollRunning] = useState(false)
+
+  // 移动端底部工具栏：默认收起，点击阅读区切换显隐
+  const [mobileBarHidden, setMobileBarHidden] = useState(true)
 
   // DOM refs
   const readerAppRef = useRef<HTMLDivElement>(null)
@@ -729,6 +733,8 @@ export default function Reader() {
     function onUserInput() {
       if (autoScrollRef.current.running) stop()
     }
+    // 速度非 off 时启动自动滚动（按钮/设置面板仅改 readerAutoScrollSpeed，这里负责真正开跑）
+    if (readerAutoScrollSpeed !== 'off') start()
     window.addEventListener('wheel', onUserInput, { passive: true })
     window.addEventListener('touchstart', onUserInput, { passive: true })
     window.addEventListener('keydown', onUserInput, { passive: true })
@@ -1089,7 +1095,23 @@ export default function Reader() {
         )}
 
         {/* Content */}
-        <article ref={contentRef} className="reader-paper">
+        <article
+          ref={contentRef}
+          className="reader-paper"
+          onClick={(e) => {
+            // 移动端：点击阅读区切换底部工具栏（分页模式下两侧为翻页热区，不抢）
+            if (window.innerWidth > 640) return
+            if ((e.target as HTMLElement).closest('button, a, input, textarea, select, .chapter-dropdown, .bookmark-panel, .reader-controls, .thought-panel, .thought-selection-popover')) return
+            if (pageMode && readerClickPaging) {
+              const rect = contentRef.current?.getBoundingClientRect()
+              if (rect) {
+                const relX = (e.clientX - rect.left) / rect.width
+                if (relX < 0.35 || relX > 0.65) return
+              }
+            }
+            setMobileBarHidden((v) => !v)
+          }}
+        >
           <div className="reader-chapter-num">{chapter.order ? `第 ${chapter.order} 章` : ''}</div>
           <h1 className="reader-chapter-title">{chapter.title}</h1>
           <div ref={bodyRef} className="reader-body" dangerouslySetInnerHTML={{ __html: html }} />
@@ -1111,10 +1133,10 @@ export default function Reader() {
       </div>
 
       {/* Mobile reader bar */}
-      <div className="mobile-reader-bar is-visible" aria-label="移动端阅读工具栏">
+      <div className={`mobile-reader-bar${mobileBarHidden ? ' is-hidden' : ''}`} aria-label="移动端阅读工具栏" onClick={() => setMobileBarHidden(true)}>
         <div className="mobile-reader-progress" aria-hidden="true"><div className="mobile-reader-progress__fill" style={{ width: `${chapterProgressPercent}%` }}></div></div>
         <span className="mobile-reader-progress__text">本章 {chapterProgressPercent}%</span>
-        <button type="button" className="mobile-reader-bar__btn" aria-label="章节目录" onClick={() => { setMobileLibraryOpen(true); setMobileLibraryTab('chapters') }}>
+        <button type="button" className="mobile-reader-bar__btn" aria-label="章节目录" onClick={(e) => { e.stopPropagation(); setMobileLibraryOpen(true); setMobileLibraryTab('chapters') }}>
           <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="4" x2="15" y2="4" /><line x1="5" y1="9" x2="15" y2="9" /><line x1="5" y1="14" x2="15" y2="14" /><circle cx="2.5" cy="4" r="0.5" /><circle cx="2.5" cy="9" r="0.5" /><circle cx="2.5" cy="14" r="0.5" /></svg>
         </button>
         <button type="button" className="mobile-reader-bar__btn" aria-label="上一章" disabled={currentIdx <= 0} onClick={() => navigateToChapter('prev')}>
@@ -1126,7 +1148,7 @@ export default function Reader() {
         <button type="button" className="mobile-reader-bar__btn" aria-label="下一章" disabled={currentIdx >= allChapters.length - 1} onClick={() => navigateToChapter('next')}>
           <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="7 4 12 9 7 14" /></svg>
         </button>
-        <button type="button" className="mobile-reader-bar__btn" aria-label="阅读设置" aria-expanded={mobileSettingsOpen} onClick={() => setMobileSettingsOpen(true)}>
+        <button type="button" className="mobile-reader-bar__btn" aria-label="阅读设置" aria-expanded={mobileSettingsOpen} onClick={(e) => { e.stopPropagation(); setMobileSettingsOpen(true) }}>
           <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="9" r="2.2" /><path d="M14.2 10.6l1.1.8-1.4 2.4-1.3-.5a5.5 5.5 0 0 1-1.4.8L11 15.5H7l-.2-1.4a5.5 5.5 0 0 1-1.4-.8l-1.3.5-1.4-2.4 1.1-.8a5.8 5.8 0 0 1 0-1.6l-1.1-.8 1.4-2.4 1.3.5c.4-.3.9-.6 1.4-.8L7 2.5h4l.2 1.4c.5.2 1 .5 1.4.8l1.3-.5 1.4 2.4-1.1.8c.1.5.1 1.1 0 1.6z" /></svg>
         </button>
         <button type="button" className="mobile-reader-bar__btn theme-btn" aria-label="切换主题" onClick={(e) => toggleTheme(e)}>
@@ -1146,7 +1168,15 @@ export default function Reader() {
               <button type="button" className="mobile-settings-sheet__close" aria-label="关闭阅读设置" onClick={() => setMobileSettingsOpen(false)}>×</button>
             </div>
             <div className="mobile-settings-sheet__body">
-              <SettingsControls settings={settings} set={set} wakeLockSupported={wakeLockSupported} />
+              <SettingsControls
+                settings={settings}
+                set={(key: ReaderSettingKey, value: string) => {
+                  set(key, value)
+                  setMobileSettingsOpen(false)
+                  setMobileBarHidden(true)
+                }}
+                wakeLockSupported={wakeLockSupported}
+              />
             </div>
           </section>
         </>
