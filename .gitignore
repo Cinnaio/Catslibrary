@@ -18,6 +18,7 @@ coverage/
 
 # ── 本地数据 ──
 data/
+.tmp/
 
 # ── OS / 编辑器 ──
 .DS_Store
