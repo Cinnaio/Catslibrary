@@ -1,7 +1,19 @@
 /**
  * AI 服务 tab —— 配置、审计、参数调优的完整控制面板
  */
-import { useCallback, useEffect, useState } from 'react'
+import { type ReactNode, Fragment, useCallback, useEffect, useState } from 'react'
+import {
+  Area,
+  AreaChart,
+  Bar,
+  CartesianGrid,
+  ComposedChart,
+  Legend,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
 import { aiApi, type AiSettings, type AiUsageSummary } from '../../lib/api'
 import { useToast } from '../../components/feedback'
 import { Badge } from '@/components/ui/badge'
@@ -11,6 +23,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import AdminPage from '@/components/admin/AdminPage'
 
 interface Provider {
@@ -245,7 +258,9 @@ function formatCost(millicents: number): string {
 
 function AiUsagePanel() {
   const { toast } = useToast()
-  const [trend, setTrend] = useState<Array<{ date: string; calls: number; costMillicents: number }>>([])
+  const [trend, setTrend] = useState<
+    Array<{ date: string; calls: number; promptTokens: number; completionTokens: number; costMillicents: number }>
+  >([])
   const [days, setDays] = useState(30)
   const [loading, setLoading] = useState(true)
 
@@ -266,15 +281,27 @@ function AiUsagePanel() {
 
   const totalCalls = trend.reduce((sum, d) => sum + d.calls, 0)
   const totalCost = trend.reduce((sum, d) => sum + d.costMillicents, 0)
+  const totalTokens = trend.reduce((sum, d) => sum + d.promptTokens + d.completionTokens, 0)
   const avgCost = totalCalls > 0 ? totalCost / totalCalls : 0
+
+  // 图表数据：补齐缺失日期，让曲线连续
+  const chartData = buildChartSeries(trend, days)
 
   return (
     <div className="space-y-4">
+      {/* 总览统计卡片 */}
+      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg bg-border sm:grid-cols-4">
+        <UsageCell label="总调用次数" value={totalCalls} />
+        <UsageCell label="总成本" value={formatCost(totalCost)} />
+        <UsageCell label="总 Token" value={totalTokens} />
+        <UsageCell label="平均单次成本" value={formatCost(avgCost)} />
+      </div>
+
       <Card>
         <CardHeader className="flex-row items-center justify-between gap-2">
           <div>
-            <CardTitle className="text-base">成本趋势</CardTitle>
-            <p className="text-sm text-muted-foreground">AI 调用成本与次数的时间趋势</p>
+            <CardTitle className="text-base">成本与调用趋势</CardTitle>
+            <p className="text-sm text-muted-foreground">每日 AI 调用次数与成本消耗</p>
           </div>
           <div className="flex gap-2">
             {[7, 30, 90].map((d) => (
@@ -286,25 +313,187 @@ function AiUsagePanel() {
         </CardHeader>
         <CardContent>
           {loading ? (
+            <div className="flex h-80 items-center justify-center text-muted-foreground">加载中…</div>
+          ) : trend.length === 0 ? (
+            <div className="flex h-80 items-center justify-center text-muted-foreground">暂无数据</div>
+          ) : (
+            <div className="h-80 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="costGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="var(--accent)" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="var(--accent)" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fontSize: 12, fill: 'var(--text-muted)' }}
+                    tickLine={false}
+                    axisLine={{ stroke: 'var(--border)' }}
+                    minTickGap={24}
+                  />
+                  <YAxis
+                    yAxisId="calls"
+                    tick={{ fontSize: 12, fill: 'var(--text-muted)' }}
+                    tickLine={false}
+                    axisLine={false}
+                    width={40}
+                  />
+                  <YAxis
+                    yAxisId="cost"
+                    orientation="right"
+                    tick={{ fontSize: 12, fill: 'var(--text-muted)' }}
+                    tickLine={false}
+                    axisLine={false}
+                    width={60}
+                    tickFormatter={(v: number) => formatCost(v)}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'var(--bg-card)',
+                      border: '1px solid var(--border)',
+                      borderRadius: '8px',
+                      fontSize: '12px',
+                      color: 'var(--text-primary)',
+                    }}
+                    labelStyle={{ color: 'var(--text-primary)', fontWeight: 600 }}
+                    formatter={(value, name) => {
+                      if (name === '成本') return [formatCost(Number(value)), name as string]
+                      return [Number(value).toLocaleString(), name as string]
+                    }}
+                  />
+                  <Legend
+                    wrapperStyle={{ fontSize: '12px', paddingTop: '8px' }}
+                    iconType="circle"
+                  />
+                  <Bar
+                    yAxisId="calls"
+                    dataKey="calls"
+                    name="调用次数"
+                    fill="var(--color-success)"
+                    radius={[3, 3, 0, 0]}
+                    opacity={0.7}
+                  />
+                  <Area
+                    yAxisId="cost"
+                    type="monotone"
+                    dataKey="costMillicents"
+                    name="成本"
+                    stroke="var(--accent)"
+                    strokeWidth={2}
+                    fill="url(#costGradient)"
+                  />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Token 消耗趋势 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Token 消耗趋势</CardTitle>
+          <p className="text-sm text-muted-foreground">每日输入/输出 Token 用量</p>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
             <div className="flex h-64 items-center justify-center text-muted-foreground">加载中…</div>
           ) : trend.length === 0 ? (
             <div className="flex h-64 items-center justify-center text-muted-foreground">暂无数据</div>
           ) : (
-            <div>
-              <div className="grid grid-cols-3 gap-px overflow-hidden rounded-lg bg-border mb-4">
-                <UsageCell label="总调用" value={totalCalls} />
-                <UsageCell label="总成本" value={formatCost(totalCost)} />
-                <UsageCell label="平均单次" value={formatCost(avgCost)} />
-              </div>
-              <div className="text-sm text-muted-foreground">
-                趋势图表功能将在后续版本中提供（需 recharts 库）
-              </div>
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="promptGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="var(--color-success)" stopOpacity={0.4} />
+                      <stop offset="95%" stopColor="var(--color-success)" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="completionGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="var(--color-info)" stopOpacity={0.4} />
+                      <stop offset="95%" stopColor="var(--color-info)" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fontSize: 12, fill: 'var(--text-muted)' }}
+                    tickLine={false}
+                    axisLine={{ stroke: 'var(--border)' }}
+                    minTickGap={24}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 12, fill: 'var(--text-muted)' }}
+                    tickLine={false}
+                    axisLine={false}
+                    width={50}
+                    tickFormatter={(v: number) => (v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v))}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'var(--bg-card)',
+                      border: '1px solid var(--border)',
+                      borderRadius: '8px',
+                      fontSize: '12px',
+                      color: 'var(--text-primary)',
+                    }}
+                    labelStyle={{ color: 'var(--text-primary)', fontWeight: 600 }}
+                    formatter={(value, name) => [Number(value).toLocaleString(), name as string]}
+                  />
+                  <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '8px' }} iconType="circle" />
+                  <Area
+                    type="monotone"
+                    dataKey="promptTokens"
+                    name="输入 Token"
+                    stroke="var(--color-success)"
+                    strokeWidth={2}
+                    fill="url(#promptGradient)"
+                    stackId="tokens"
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="completionTokens"
+                    name="输出 Token"
+                    stroke="var(--color-info)"
+                    strokeWidth={2}
+                    fill="url(#completionGradient)"
+                    stackId="tokens"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
             </div>
           )}
         </CardContent>
       </Card>
     </div>
   )
+}
+
+/** 补齐缺失日期，让趋势曲线连续；按 days 范围生成完整日期序列。 */
+function buildChartSeries(
+  trend: Array<{ date: string; calls: number; promptTokens: number; completionTokens: number; costMillicents: number }>,
+  days: number,
+): Array<{ date: string; calls: number; promptTokens: number; completionTokens: number; costMillicents: number }> {
+  const map = new Map(trend.map((d) => [d.date, d]))
+  const result: Array<{ date: string; calls: number; promptTokens: number; completionTokens: number; costMillicents: number }> = []
+  const today = new Date()
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(today)
+    d.setDate(d.getDate() - i)
+    const dateStr = d.toISOString().slice(0, 10)
+    const existing = map.get(dateStr)
+    result.push({
+      date: dateStr,
+      calls: existing?.calls || 0,
+      promptTokens: existing?.promptTokens || 0,
+      completionTokens: existing?.completionTokens || 0,
+      costMillicents: existing?.costMillicents || 0,
+    })
+  }
+  return result
 }
 
 function AiAuditPanel() {
@@ -318,6 +507,10 @@ function AiAuditPanel() {
       displayName: string
       novelTitle: string
       chapterTitle: string
+      novelId: string
+      chapterId: string
+      promptTokens: number
+      completionTokens: number
       costMillicents: number
       createdAt: number
     }>
@@ -326,12 +519,14 @@ function AiAuditPanel() {
   const [total, setTotal] = useState(0)
   const [limit] = useState(50)
   const [offset, setOffset] = useState(0)
+  const [filterType, setFilterType] = useState<string>('all')
+  const [expandedId, setExpandedId] = useState<string | null>(null)
 
   useEffect(() => {
     async function loadCalls() {
       setLoading(true)
       try {
-        const res = await aiApi.audit.calls({ limit, offset })
+        const res = await aiApi.audit.calls({ limit, offset, type: filterType === 'all' ? undefined : filterType })
         setCalls(res.calls)
         setTotal(res.total)
       } catch (err) {
@@ -341,14 +536,35 @@ function AiAuditPanel() {
       }
     }
     void loadCalls()
-  }, [limit, offset, toast])
+  }, [limit, offset, filterType, toast])
 
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">调用记录</CardTitle>
-          <p className="text-sm text-muted-foreground">详细的 AI 调用审计日志</p>
+        <CardHeader className="flex-row items-center justify-between gap-2">
+          <div>
+            <CardTitle className="text-base">调用记录</CardTitle>
+            <p className="text-sm text-muted-foreground">详细的 AI 调用审计日志，点击行可展开详情</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Label htmlFor="audit-filter-type" className="text-xs text-muted-foreground">类型</Label>
+            <Select
+              value={filterType}
+              onValueChange={(v) => {
+                setFilterType(v)
+                setOffset(0)
+              }}
+            >
+              <SelectTrigger size="sm" id="audit-filter-type" className="w-[140px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent position="popper" align="end" sideOffset={4}>
+                <SelectItem value="all">全部</SelectItem>
+                <SelectItem value="summary">前情提要</SelectItem>
+                <SelectItem value="catchup">回顾总结</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </CardHeader>
         <CardContent>
           {loading && calls.length === 0 ? (
@@ -364,25 +580,100 @@ function AiAuditPanel() {
                       <tr>
                         <th className="px-4 py-3 text-left font-medium">用户</th>
                         <th className="px-4 py-3 text-left font-medium">类型</th>
-                        <th className="px-4 py-3 text-left font-medium">内容</th>
-                        <th className="px-4 py-3 text-left font-medium">模型</th>
+                        <th className="px-4 py-3 text-left font-medium">关联内容</th>
+                        <th className="px-4 py-3 text-right font-medium">Token</th>
                         <th className="px-4 py-3 text-right font-medium">成本</th>
                         <th className="px-4 py-3 text-left font-medium">时间</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {calls.map((call) => (
-                        <tr key={call.id} className="border-b last:border-0">
-                          <td className="px-4 py-3">{call.displayName || call.username}</td>
-                          <td className="px-4 py-3">
-                            <Badge variant="secondary">{call.type === 'summary' ? '前情提要' : '回顾总结'}</Badge>
-                          </td>
-                          <td className="px-4 py-3 max-w-xs truncate">{call.novelTitle || '—'}</td>
-                          <td className="px-4 py-3 text-xs text-muted-foreground">{call.model}</td>
-                          <td className="px-4 py-3 text-right tabular-nums">{formatCost(call.costMillicents)}</td>
-                          <td className="px-4 py-3 text-muted-foreground">{new Date(call.createdAt).toLocaleString('zh-CN')}</td>
-                        </tr>
-                      ))}
+                      {calls.map((call) => {
+                        const expanded = expandedId === call.id
+                        return (
+                          <Fragment key={call.id}>
+                            <tr
+                              className="cursor-pointer border-b last:border-0 hover:bg-muted/30"
+                              onClick={() => setExpandedId(expanded ? null : call.id)}
+                            >
+                              <td className="px-4 py-3">
+                                <div className="font-medium">{call.displayName || call.username || '—'}</div>
+                                {call.username && call.displayName && (
+                                  <div className="text-xs text-muted-foreground">@{call.username}</div>
+                                )}
+                              </td>
+                              <td className="px-4 py-3">
+                                <Badge variant="secondary">
+                                  {call.type === 'summary' ? '前情提要' : call.type === 'catchup' ? '回顾总结' : call.type}
+                                </Badge>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="max-w-[280px]">
+                                  <div className="truncate font-medium text-foreground">
+                                    {call.novelTitle || <span className="text-muted-foreground">—</span>}
+                                  </div>
+                                  {call.chapterTitle && (
+                                    <div className="truncate text-xs text-muted-foreground">
+                                      📖 {call.chapterTitle}
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-right tabular-nums">
+                                <div className="text-xs">
+                                  <span className="text-muted-foreground">入</span>{' '}
+                                  <span className="font-medium">{call.promptTokens.toLocaleString()}</span>
+                                </div>
+                                <div className="text-xs">
+                                  <span className="text-muted-foreground">出</span>{' '}
+                                  <span className="font-medium">{call.completionTokens.toLocaleString()}</span>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-right tabular-nums font-medium">
+                                {formatCost(call.costMillicents)}
+                              </td>
+                              <td className="px-4 py-3 text-muted-foreground">
+                                <div>{new Date(call.createdAt).toLocaleDateString('zh-CN')}</div>
+                                <div className="text-xs">{new Date(call.createdAt).toLocaleTimeString('zh-CN')}</div>
+                              </td>
+                            </tr>
+                            {expanded && (
+                              <tr className="border-b last:border-0 bg-muted/20">
+                                <td colSpan={6} className="px-4 py-4">
+                                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                                    <DetailItem label="调用 ID" value={<code className="text-xs">{call.id}</code>} />
+                                    <DetailItem label="模型" value={<code className="text-xs">{call.model || '—'}</code>} />
+                                    <DetailItem
+                                      label="小说 ID"
+                                      value={<code className="text-xs">{call.novelId || '—'}</code>}
+                                    />
+                                    <DetailItem
+                                      label="章节 ID"
+                                      value={<code className="text-xs">{call.chapterId || '—'}</code>}
+                                    />
+                                  </div>
+                                  <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted-foreground">
+                                    <span>
+                                      输入 Token：<strong className="text-foreground">{call.promptTokens.toLocaleString()}</strong>
+                                    </span>
+                                    <span>
+                                      输出 Token：<strong className="text-foreground">{call.completionTokens.toLocaleString()}</strong>
+                                    </span>
+                                    <span>
+                                      合计：
+                                      <strong className="text-foreground">
+                                        {(call.promptTokens + call.completionTokens).toLocaleString()}
+                                      </strong>
+                                    </span>
+                                    <span>
+                                      成本：<strong className="text-foreground">{formatCost(call.costMillicents)}</strong>
+                                    </span>
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
+                        )
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -404,6 +695,15 @@ function AiAuditPanel() {
           )}
         </CardContent>
       </Card>
+    </div>
+  )
+}
+
+function DetailItem({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="grid gap-0.5">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className="truncate">{value}</span>
     </div>
   )
 }
