@@ -1,0 +1,71 @@
+/* ============================================================
+   _theme-menu — 主题下拉三选一（浅色 / 深色 / 跟随系统）
+   ============================================================ */
+
+.theme-menu {
+  display: inline-flex;
+}
+
+.theme-menu__popover {
+  position: fixed;
+  z-index: 300;
+  min-width: 160px;
+  padding: 6px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-popover);
+}
+
+.theme-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.theme-menu__item:hover {
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+
+.theme-menu__item.active {
+  background: var(--accent-subtle);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.theme-menu__item svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  stroke-width: 1.5;
+}
+
+.theme-menu__check {
+  margin-left: auto;
+}
+
+/* 移动端阅读栏：按钮等宽填充（ThemeMenu 外层 div 取代原 button 成为 flex item） */
+.mobile-reader-bar .theme-menu {
+  flex: 1 1 0;
+  min-width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+}
+.mobile-reader-bar .theme-menu .theme-btn {
+  width: 100%;
+  height: 44px;
+  flex: 1 1 0;
+}

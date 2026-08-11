@@ -4,15 +4,14 @@
  */
 import { useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { useTheme } from '../context/ThemeContext'
 import { useSession } from '../context/SessionContext'
 import { useSearch } from '../context/SearchContext'
 import { MoonIcon, RefreshIcon, SearchIcon, SunIcon } from './icons'
+import { ThemeMenu } from './ThemeMenu'
 
 export default function SiteHeader() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { theme, toggleTheme } = useTheme()
   const { user } = useSession()
   const { query: searchValue, setQuery } = useSearch()
   const inputRef = useRef<HTMLInputElement>(null)
@@ -104,16 +103,10 @@ export default function SiteHeader() {
             <RefreshIcon />
           </button>
 
-          <button
-            className="theme-btn"
-            aria-label={theme === 'dark' ? '切换到浅色主题' : '切换到深色主题'}
-            aria-pressed={theme === 'dark'}
-            title={theme === 'dark' ? '切换到浅色主题' : '切换到深色主题'}
-            onClick={(e) => toggleTheme(e)}
-          >
+          <ThemeMenu className="theme-btn" ariaLabel="主题设置" title="主题设置">
             <SunIcon className="theme-icon theme-icon--sun" />
             <MoonIcon className="theme-icon theme-icon--moon" />
-          </button>
+          </ThemeMenu>
         </div>
       </div>
 

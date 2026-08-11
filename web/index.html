@@ -2,13 +2,15 @@
 <html lang="zh-CN">
   <head>
     <script>
-      // 首帧主题防 FOUC：先于 CSS 设置 data-theme
+      // 首帧主题防 FOUC：先于 CSS 设置 data-theme。
+      // 支持三态：localStorage 'light' | 'dark' | 'system'（缺省/非法值视为跟随系统）。
       ;(function () {
         var t
         try { t = localStorage.getItem('theme') } catch (e) {}
-        t = t || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
-        document.documentElement.setAttribute('data-theme', t)
-        document.documentElement.style.colorScheme = t
+        if (t !== 'light' && t !== 'dark' && t !== 'system') t = 'system'
+        var theme = t === 'system' ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : t
+        document.documentElement.setAttribute('data-theme', theme)
+        document.documentElement.style.colorScheme = theme
       })()
     </script>
     <meta charset="UTF-8" />

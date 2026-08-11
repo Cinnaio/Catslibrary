@@ -4,8 +4,9 @@
  * Moved verbatim from the former Admin.tsx shell.
  */
 import { Link } from 'react-router-dom'
-import { Home, Moon, Sun } from 'lucide-react'
+import { Home, Monitor, Moon, Sun } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
+import { ThemeMenu } from '../../components/ThemeMenu'
 import {
   Sidebar,
   SidebarContent,
@@ -64,7 +65,7 @@ function AdminNavigation({ active, onSelect }: AdminSidebarProps) {
 }
 
 export default function AdminSidebar({ active, onSelect }: AdminSidebarProps) {
-  const { theme, toggleTheme } = useTheme()
+  const { setting } = useTheme()
 
   return (
     <Sidebar collapsible="icon">
@@ -97,10 +98,15 @@ export default function AdminSidebar({ active, onSelect }: AdminSidebarProps) {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton onClick={toggleTheme} tooltip="切换主题">
-              {theme === 'dark' ? <Sun /> : <Moon />}
-              <span>{theme === 'dark' ? '切换浅色' : '切换暗色'}</span>
-            </SidebarMenuButton>
+            <ThemeMenu
+              wrapperClassName="w-full"
+              ariaLabel="主题设置"
+              title="主题设置"
+              className="peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-hidden group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-2! hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0"
+            >
+              {setting === 'system' ? <Monitor /> : setting === 'dark' ? <Moon /> : <Sun />}
+              <span>{setting === 'system' ? '跟随系统' : setting === 'dark' ? '深色' : '浅色'}</span>
+            </ThemeMenu>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>

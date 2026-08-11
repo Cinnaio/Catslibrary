@@ -39,6 +39,18 @@ export function MoonIcon({ className, width = 12, height = 12 }: IconProps) {
   )
 }
 
+export function AutoIcon({ className, width = 16, height = 16 }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 18 18" width={width} height={height} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2.5" y="2.5" width="13" height="9.5" rx="1.5" />
+      <line x1="7" y1="15.5" x2="11" y2="15.5" />
+      <line x1="9" y1="12" x2="9" y2="15.5" />
+      <circle cx="9" cy="7.25" r="1.9" />
+      <path d="M9 3.7v-.8M9 10.8v-.8M4.6 7.25h-.8M13.4 7.25h-.8M6 4.7l-.6-.6M12.6 10.85l-.6-.6M12.6 4.7l-.6.6M6 10.85l-.6-.6" />
+    </svg>
+  )
+}
+
 export function RefreshIcon({ className }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">

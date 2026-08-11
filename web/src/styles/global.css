@@ -12,6 +12,7 @@
 @import './base.css';
 @import './components.css';
 @import './header.css';
+@import './theme-menu.css';
 @import './home.css';
 @import './reader.css';
 @import './detail.css';
