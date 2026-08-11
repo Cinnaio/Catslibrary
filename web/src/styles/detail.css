@@ -215,7 +215,7 @@
   max-width: 68ch;
   overflow: hidden;
   display: -webkit-box;
-  -webkit-line-clamp: 4;
+  -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   color: var(--text-secondary);
   font-size: 0.96rem;
@@ -235,7 +235,6 @@
   font-size: 0.85rem;
   font-weight: 760;
   cursor: pointer;
-  display: none;
 }
 
 .novel-hero__actions {
@@ -359,7 +358,7 @@
 .chapter-list__item--last-read {
   border-color: color-mix(in srgb, var(--accent) 32%, var(--detail-line));
   background: color-mix(in srgb, var(--bg-card) 68%, var(--accent-subtle));
-  box-shadow: inset 3px 0 0 var(--accent);
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--accent) 42%, transparent);
 }
 
 .chapter-list__item--read {
