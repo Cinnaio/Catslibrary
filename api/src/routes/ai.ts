@@ -9,6 +9,7 @@ import { first } from '../db/query'
 import { AiError, chat, isTextAiConfigured, providerLabel, textProvider } from '../services/ai/client'
 import { getAiSettings, saveAiSettings } from '../services/ai/settings'
 import { generateRecap, getCachedRecap, loadChapterForRecap } from '../services/ai/summary'
+import { generateCatchup, getCachedCatchup, inspectCatchup } from '../services/ai/catchup'
 import { invalidateChapter } from '../services/ai/generations'
 import { checkQuota, recordUsage, startOfToday, summarizeUsage } from '../services/ai/usage'
 import { optionalUser, requireAdmin, requireUser, type AuthEnv } from '../middlewares/auth'
@@ -33,7 +34,7 @@ aiRoutes.get('/status', optionalUser(), async (c) => {
     {
       configured,
       // 未登录用户不给 AI 能力：调用要记账到具体用户头上
-      features: { recap: configured && settings.recapEnabled && !!user },
+      features: { recap: configured && settings.recapEnabled && !!user, catchup: configured && settings.recapEnabled && !!user },
       model: configured ? textProvider().model : '',
       quota,
     },
@@ -110,6 +111,47 @@ aiRoutes.post('/recap', requireUser(), async (c) => {
   }
 })
 
+// ---------- 回来接着读（进度感知的连贯回顾） ----------
+
+aiRoutes.post('/catchup', requireUser(), async (c) => {
+  const db = getDb()
+  const user = c.get('user')
+  const isAdmin = user.role === 'admin'
+  const body = (await c.req.json().catch(() => ({}))) as { novelId?: unknown }
+  const novelId = String(body.novelId || '').trim()
+  if (!novelId) return c.json({ error: 'novelId is required' }, 400)
+
+  const settings = await getAiSettings(db)
+  if (!settings.recapEnabled) return c.json({ error: 'AI 前情提要已关闭', code: 'disabled' }, 403)
+  if (!isTextAiConfigured()) return c.json({ error: 'AI 文本服务未配置', code: 'disabled' }, 503)
+
+  const model = textProvider().model
+  const inspection = await inspectCatchup(db, user.id, novelId, model)
+  if (!inspection.source) {
+    return c.json({ recap: null, cached: false, reason: inspection.reason }, 200, { 'Cache-Control': 'no-store' })
+  }
+
+  // 命中缓存不计配额、不记账；素材检查与缓存键使用同一份 inspection
+  const cached = await getCachedCatchup(db, user.id, novelId, model, inspection)
+  if (cached) return c.json({ recap: cached.result, cached: true, model: cached.model, id: cached.id }, 200, { 'Cache-Control': 'no-store' })
+
+  const quota = await checkQuota(db, user.id, settings.dailyQuota, isAdmin)
+  if (!quota.ok) {
+    return c.json({ error: '今日 AI 生成次数已用完', code: 'quota_exceeded', used: quota.used, limit: quota.limit, resetAt: quota.resetAt }, 429)
+  }
+
+  try {
+    const result = await generateCatchup(db, { userId: user.id, novelId, source: inspection.source })
+    return c.json(
+      { recap: result.generation?.result || null, cached: false, model: result.generation?.model, id: result.generation?.id, chapterIds: result.chapterIds },
+      200,
+      { 'Cache-Control': 'no-store' },
+    )
+  } catch (err) {
+    return aiErrorResponse(c, err)
+  }
+})
+
 // ---------- 管理端 ----------
 
 aiRoutes.get('/settings', requireAdmin(), async (c) => {
@@ -150,6 +192,7 @@ aiRoutes.post('/test', requireAdmin(), async (c) => {
       provider: providerLabel(provider.baseUrl),
       promptTokens: res.promptTokens,
       completionTokens: res.completionTokens,
+      costMillicents: Math.round(res.cost * 100_000),
     })
     return c.json({ ok: true, model: res.model, reply: res.text.slice(0, 100), elapsedMs: Date.now() - startedAt })
   } catch (err) {

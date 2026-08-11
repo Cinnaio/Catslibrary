@@ -13,6 +13,7 @@ import { useSession } from '../context/SessionContext'
 import { useBookshelf } from '../hooks/useBookshelf'
 import { useToast, useConfirm } from '../components/feedback'
 import { BackToTopIcon, HomeIcon } from '../components/icons'
+import CatchupRecap from '../components/CatchupRecap'
 
 interface RatingSummary {
   average: number
@@ -38,6 +39,12 @@ function getBestProgress(server: ServerProgress | null, local: ReadingHistoryEnt
     if (!local || (server.updatedAt || 0) >= (local.timestamp || 0)) return server
   }
   return local?.chapterId ? local : null
+}
+
+/** 最近一次阅读时间戳：服务端用 updatedAt，本地历史用 timestamp。 */
+function lastReadAt(progress: ReadingHistoryEntry | ServerProgress | null): number {
+  if (!progress) return 0
+  return 'updatedAt' in progress ? progress.updatedAt || 0 : progress.timestamp || 0
 }
 
 export default function Novel() {
@@ -314,6 +321,9 @@ export default function Novel() {
             </div>
           </div>
         </div>
+
+        {/* 回来接着读：隔了很久才回来时，用已缓存的提要合成连贯回顾（进书之前） */}
+        <CatchupRecap novelId={novel.id} novelTitle={novel.title} lastReadAt={lastReadAt(progress)} />
 
         {/* 章节目录 */}
         <section className="section detail-section">

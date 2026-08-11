@@ -77,9 +77,29 @@ export async function getCachedRecap(db: Db, chapterId: string, model: string): 
   return findPublished(db, 'summary', chapterId, recapParams(model))
 }
 
+/** 进程内 in-flight 去重：同一章同时只有一个真实上游调用，其余请求复用其 promise。 */
+const inflight = new Map<string, Promise<RecapResult>>()
+
 export async function generateRecap(db: Db, opts: RecapOptions): Promise<RecapResult> {
   if (!isTextAiConfigured()) throw new AiError('disabled', 'AI 文本服务未配置', 503)
 
+  const key = opts.chapter.id
+  const pending = inflight.get(key)
+  if (pending) return pending
+
+  const promise = runGenerateRecap(db, opts)
+  inflight.set(key, promise)
+  // 清理用 then(cleanup, cleanup)：两个处理器挂同一 promise，失败时不留未处理的派生 promise
+  promise.then(cleanup, cleanup)
+  return promise
+
+  function cleanup() {
+    // 只清自己：并发期间后到的请求可能已经替换了表项，不能误删
+    if (inflight.get(key) === promise) inflight.delete(key)
+  }
+}
+
+async function runGenerateRecap(db: Db, opts: RecapOptions): Promise<RecapResult> {
   const provider = textProvider()
   const text = prepareChapterText(opts.chapter.content, opts.maxChapterChars)
   if (text.length < MIN_CHAPTER_CHARS) throw new AiError('invalid', '章节内容过短，无需提要', 422)
@@ -115,6 +135,8 @@ export async function generateRecap(db: Db, opts: RecapOptions): Promise<RecapRe
     provider: providerLabel(provider.baseUrl),
     promptTokens: res.promptTokens,
     completionTokens: res.completionTokens,
+    // millicents = 货币单位的十万分之一；上游没回显 cost 时是 0
+    costMillicents: Math.round(res.cost * 100_000),
   })
 
   return {

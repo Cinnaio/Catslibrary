@@ -7,7 +7,7 @@ import type { Db } from '../../db/pool'
 import { all, first, run } from '../../db/query'
 import { newId } from '../auth'
 
-export type GenerationKind = 'continue' | 'summary' | 'dialogue'
+export type GenerationKind = 'continue' | 'summary' | 'dialogue' | 'catchup'
 export type GenerationStatus = 'draft' | 'published' | 'rejected'
 
 export interface GenerationRow {

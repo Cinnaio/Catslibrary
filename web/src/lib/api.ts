@@ -589,7 +589,7 @@ export interface AiQuota {
 
 export interface AiStatus {
   configured: boolean
-  features: { recap: boolean }
+  features: { recap: boolean; catchup: boolean }
   model: string
   quota: AiQuota | null
 }
@@ -617,6 +617,17 @@ export const aiApi = {
   /** 只读缓存：没有已生成的提要就返回空串，不触发生成也不计配额。 */
   cachedRecap(chapterId: string): Promise<{ recap: string; cached: boolean }> {
     return request('GET', `/ai/recap?chapterId=${encodeURIComponent(chapterId)}`, null, true)
+  },
+  /** 回来接着读：用已缓存的单章提要合成一段连贯回顾；原料不足时 recap 为 null。 */
+  catchup(novelId: string): Promise<{
+    recap: string | null
+    cached: boolean
+    model?: string
+    id?: string
+    chapterIds?: string[]
+    reason?: 'no_progress' | 'not_stale' | 'insufficient_summaries'
+  }> {
+    return request('POST', '/ai/catchup', { novelId }, true)
   },
   settings(): Promise<{ settings: AiSettings; provider: { configured: boolean; host: string; model: string; hasKey: boolean } }> {
     return request('GET', '/ai/settings', null, true)

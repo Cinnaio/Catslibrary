@@ -1,7 +1,7 @@
 /**
  * AI 用量记账与配额 —— 每次真实调用落 ai_usage，命中缓存不记账也不计配额。
- * 成本单价随供应商而异且未在配置中约定，cost_millicents 暂记 0，
- * 待接入价格表后再回填（字段已在 002_ai.sql 预留）。
+ * cost_millicents 来自上游响应体的 cost 字段（货币单位 × 十万分之一），
+ * 缺失或非数字时落 0；币种由供应商口径决定，本模块不假设。
  */
 import type { Db } from '../../db/pool'
 import { first, run } from '../../db/query'

@@ -156,9 +156,10 @@ export default function AiSettingsCard() {
         </div>
 
         {usage && (
-          <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg bg-border sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg bg-border sm:grid-cols-5">
             <UsageCell label="今日调用" value={usage.today.calls} />
             <UsageCell label="今日 token" value={usage.today.promptTokens + usage.today.completionTokens} />
+            <UsageCell label="今日成本" value={formatCost(usage.today.costMillicents)} />
             <UsageCell label="30 天调用" value={usage.last30d.calls} />
             <UsageCell label="30 天 token" value={usage.last30d.promptTokens + usage.last30d.completionTokens} />
           </div>
@@ -168,11 +169,18 @@ export default function AiSettingsCard() {
   )
 }
 
-function UsageCell({ label, value }: { label: string; value: number }) {
+function UsageCell({ label, value }: { label: string; value: number | string }) {
   return (
     <div className="bg-card px-4 py-3">
       <div className="truncate text-xs font-medium text-muted-foreground">{label}</div>
-      <div className="mt-1 text-2xl font-semibold leading-tight tabular-nums tracking-tight text-foreground">{value.toLocaleString()}</div>
+      <div className="mt-1 text-2xl font-semibold leading-tight tabular-nums tracking-tight text-foreground">
+        {typeof value === 'string' ? value : value.toLocaleString()}
+      </div>
     </div>
   )
+}
+
+/** cost_millicents → 货币单位，保留 4 位小数。不假设币种，不加货币符号。 */
+function formatCost(millicents: number): string {
+  return (Number(millicents) / 100_000).toFixed(4)
 }

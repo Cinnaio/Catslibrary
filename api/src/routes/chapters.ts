@@ -7,6 +7,7 @@ import { all, first, run, withTx } from '../db/query'
 import { rowToChapterFull, rowToChapterMeta } from '../db/mappers'
 import { newId } from '../services/auth'
 import { simplifyChapterForSource } from '../services/zh-convert'
+import { invalidateChapter } from '../services/ai/generations'
 import { requireAdmin } from '../middlewares/auth'
 
 export const chaptersRoutes = new Hono()
@@ -80,6 +81,11 @@ chaptersRoutes.put('/:id', requireAdmin(), async (c) => {
     await q('UPDATE chapters SET title=$1, content=$2, sort_order=$3, word_count=$4, source_url=$5 WHERE id=$6', [title, content, order, wordCount, sourceUrl, id])
     await q('UPDATE novels SET updated_at = $1 WHERE id = $2', [now, novelId])
   })
+
+  // 正文真的变了才作废提要缓存：只改标题时读者拿到的回顾依然有效
+  if (body.content !== undefined && content !== existing.content) {
+    await invalidateChapter(db, 'summary', id)
+  }
 
   return c.json({ chapter: { id, novelId, title, content, order, wordCount, sourceUrl, createdAt: existing.createdAt } })
 })

@@ -38,6 +38,8 @@ export interface AiChatResult {
   promptTokens: number
   completionTokens: number
   finishReason: string
+  /** 上游回显的成本（货币单位），缺失或非数字时为 0 */
+  cost: number
 }
 
 const DEFAULT_TIMEOUT_MS = 60_000
@@ -147,6 +149,7 @@ async function once(endpoint: string, apiKey: string, body: string, model: strin
     promptTokens: Number(data?.usage?.prompt_tokens) || 0,
     completionTokens: Number(data?.usage?.completion_tokens) || 0,
     finishReason,
+    cost: Number(data?.cost) || 0,
   }
 }
 
@@ -166,6 +169,7 @@ interface ChatCompletionResponse {
   model?: string
   choices?: Array<{ message?: { content?: unknown }; finish_reason?: string }>
   usage?: { prompt_tokens?: number; completion_tokens?: number }
+  cost?: string | number
 }
 
 function isRetriable(err: AiError): boolean {

@@ -18,7 +18,7 @@ function loadStatus(): Promise<AiStatus> {
   if (!cached || cached.token !== token) {
     cached = {
       token,
-      promise: aiApi.status().catch(() => ({ configured: false, features: { recap: false }, model: '', quota: null })),
+      promise: aiApi.status().catch(() => ({ configured: false, features: { recap: false, catchup: false }, model: '', quota: null })),
     }
   }
   return cached.promise

@@ -245,4 +245,287 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     expect(res.status).toBe(200)
     expect((await jsonOf<{ recap: string }>(res)).recap).toBe('分片文本')
   })
+
+  // ---------- 任务 1 · 章节正文更新后作废提要缓存 ----------
+
+  it('PUT 改正文后提要缓存作废，只改标题不失效', async () => {
+    // 恢复读者配额，避免前面用例把 dailyQuota 调到 1 影响后续
+    await req('/api/ai/settings', json('PUT', { dailyQuota: 30, recapEnabled: true }, adminToken))
+    const nid = await firstNovelId(t)
+
+    const created = await req('/api/chapters', json('POST', { novelId: nid, title: '缓存作废章', content: LONG_CONTENT }, adminToken))
+    const chId = (await jsonOf<{ chapter: { id: string } }>(created)).chapter.id
+
+    const gen = await req('/api/ai/recap', json('POST', { chapterId: chId }, readerToken))
+    expect((await jsonOf<{ cached: boolean }>(gen)).cached).toBe(false)
+
+    const before = await jsonOf<{ cached: boolean; recap: string }>(await req(`/api/ai/recap?chapterId=${chId}`, json('GET', undefined, readerToken)))
+    expect(before.cached).toBe(true)
+
+    // 改正文 → 缓存作废
+    await req(`/api/chapters/${chId}`, json('PUT', { content: LONG_CONTENT + '改过的结尾。' }, adminToken))
+    const invalidated = await jsonOf<{ cached: boolean; recap: string }>(
+      await req(`/api/ai/recap?chapterId=${chId}`, json('GET', undefined, readerToken)),
+    )
+    expect(invalidated.cached).toBe(false)
+    expect(invalidated.recap).toBe('')
+
+    // 重新生成后只改标题 → 缓存仍有效
+    await req('/api/ai/recap', json('POST', { chapterId: chId }, readerToken))
+    await req(`/api/chapters/${chId}`, json('PUT', { title: '缓存作废章（改标题）' }, adminToken))
+    const afterTitle = await jsonOf<{ cached: boolean }>(await req(`/api/ai/recap?chapterId=${chId}`, json('GET', undefined, readerToken)))
+    expect(afterTitle.cached).toBe(true)
+  })
+
+  // ---------- 任务 2 · 同章并发去重 ----------
+
+  it('同章并发只打一次上游，只记一次账', async () => {
+    const nid = await firstNovelId(t)
+    const created = await req('/api/chapters', json('POST', { novelId: nid, title: '并发章', content: LONG_CONTENT }, adminToken))
+    const chId = (await jsonOf<{ chapter: { id: string } }>(created)).chapter.id
+
+    const before = await t.db.query<{ total: number }>('SELECT COUNT(*)::int AS total FROM ai_usage')
+    const beforeCount = Number(before.rows[0]?.total) || 0
+
+    // 桩延迟 50ms：确保两个请求都先过了缓存检查，再同时进 generateRecap
+    fetchMock.mockImplementationOnce(
+      async () => {
+        await sleep(50)
+        return new Response(
+          JSON.stringify({
+            model: 'test-model',
+            choices: [{ message: { content: '并发生成的同一段提要内容。' }, finish_reason: 'stop' }],
+            usage: { prompt_tokens: 100, completion_tokens: 20 },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        )
+      },
+    )
+
+    const [a, b] = await Promise.all([
+      req('/api/ai/recap', json('POST', { chapterId: chId }, readerToken)),
+      req('/api/ai/recap', json('POST', { chapterId: chId }, readerToken)),
+    ])
+    expect(a.status).toBe(200)
+    expect(b.status).toBe(200)
+    const [da, db2] = await Promise.all([jsonOf<{ recap: string }>(a), jsonOf<{ recap: string }>(b)])
+    expect(da.recap).toBe('并发生成的同一段提要内容。')
+    expect(db2.recap).toBe(da.recap)
+
+    // 只调用一次上游、只多一行用量
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const after = await t.db.query<{ total: number }>('SELECT COUNT(*)::int AS total FROM ai_usage')
+    expect(Number(after.rows[0]?.total) || 0).toBe(beforeCount + 1)
+  })
+
+  // ---------- 任务 3 · 采集真实成本 ----------
+
+  it('上游回显 cost 时落库 cost_millicents', async () => {
+    const nid = await firstNovelId(t)
+    const created = await req('/api/chapters', json('POST', { novelId: nid, title: '成本章', content: LONG_CONTENT }, adminToken))
+    const chId = (await jsonOf<{ chapter: { id: string } }>(created)).chapter.id
+
+    fetchMock.mockImplementationOnce(
+      async () =>
+        new Response(
+          JSON.stringify({
+            model: 'test-model',
+            cost: '0.00123',
+            choices: [{ message: { content: '成本采集提要。' }, finish_reason: 'stop' }],
+            usage: { prompt_tokens: 90, completion_tokens: 18 },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+    )
+
+    const res = await req('/api/ai/recap', json('POST', { chapterId: chId }, readerToken))
+    expect(res.status).toBe(200)
+
+    const { rows } = await t.db.query<{ cost_millicents: number }>(
+      'SELECT cost_millicents FROM ai_usage ORDER BY created_at DESC LIMIT 1',
+    )
+    expect(Number(rows[0]?.cost_millicents)).toBe(123)
+  })
+
+  // ---------- 任务 4 · 回来接着读（进度感知回顾） ----------
+
+  it('catchup：原料足够时合成一段回顾，只调用一次上游', async () => {
+    const readerId = await userIdByUsername(t, 'reader')
+    // 新开一本：保证这本书没有任何历史进度/缓存干扰
+    const novel = await req('/api/novels', json('POST', { title: '回顾测试书', author: '某作者' }, adminToken))
+    const novelId = (await jsonOf<{ novel: { id: string } }>(novel)).novel.id
+
+    // 建 3 章并各自生成提要（published 缓存）
+    const ids: string[] = []
+    for (let i = 1; i <= 3; i++) {
+      const c = await req('/api/chapters', json('POST', { novelId, title: `第${i}章`, content: LONG_CONTENT }, adminToken))
+      const chId = (await jsonOf<{ chapter: { id: string } }>(c)).chapter.id
+      ids.push(chId)
+    }
+    for (const chId of ids) {
+      await req('/api/ai/recap', json('POST', { chapterId: chId }, readerToken))
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+
+    // 读者读到最后一行：进度落在最后一章
+    await t.db.query(
+      'INSERT INTO reading_progress (id, user_id, novel_id, chapter_id, scroll_percent, updated_at, deleted_at) VALUES ($1,$2,$3,$4,0.5,$5,0)',
+      [`prog_catchup_${novelId}`, readerId, novelId, ids[2]!, Date.now() - 8 * 24 * 60 * 60 * 1000],
+    )
+
+    fetchMock.mockClear()
+    fetchMock.mockImplementationOnce(
+      async () =>
+        new Response(
+          JSON.stringify({
+            model: 'test-model',
+            choices: [{ message: { content: '这是把你接回剧情的一段连贯回顾。' }, finish_reason: 'stop' }],
+            usage: { prompt_tokens: 200, completion_tokens: 30 },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+    )
+
+    const res = await req('/api/ai/catchup', json('POST', { novelId }, readerToken))
+    expect(res.status).toBe(200)
+    const data = await jsonOf<{ recap: string | null; cached: boolean; chapterIds?: string[] }>(res)
+    expect(data.cached).toBe(false)
+    expect(data.recap).toContain('回顾')
+    expect(data.chapterIds?.length).toBe(3)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    // 二次请求命中缓存：不再调上游、不记账
+    fetchMock.mockClear()
+    const hit = await req('/api/ai/catchup', json('POST', { novelId }, readerToken))
+    const hitData = await jsonOf<{ cached: boolean; recap: string }>(hit)
+    expect(hitData.cached).toBe(true)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('catchup：已缓存提要不足 2 条时返回 null，完全不调用上游', async () => {
+    const readerId = await userIdByUsername(t, 'reader')
+    const novel = await req('/api/novels', json('POST', { title: '回顾不足书', author: '某作者' }, adminToken))
+    const novelId = (await jsonOf<{ novel: { id: string } }>(novel)).novel.id
+
+    // 只有 1 章且有提要 → 不足 2 条
+    const c = await req('/api/chapters', json('POST', { novelId, title: '孤章', content: LONG_CONTENT }, adminToken))
+    const chId = (await jsonOf<{ chapter: { id: string } }>(c)).chapter.id
+    await req('/api/ai/recap', json('POST', { chapterId: chId }, readerToken))
+
+    await t.db.query(
+      'INSERT INTO reading_progress (id, user_id, novel_id, chapter_id, scroll_percent, updated_at, deleted_at) VALUES ($1,$2,$3,$4,0.5,$5,0)',
+      [`prog_solo_${novelId}`, readerId, novelId, chId, Date.now() - 8 * 24 * 60 * 60 * 1000],
+    )
+
+    fetchMock.mockClear()
+    const res = await req('/api/ai/catchup', json('POST', { novelId }, readerToken))
+    expect(res.status).toBe(200)
+    const data = await jsonOf<{ recap: string | null; cached: boolean; reason?: string }>(res)
+    expect(data.recap).toBeNull()
+    expect(data.cached).toBe(false)
+    expect(data.reason).toBe('insufficient_summaries')
+    // 完全不触发批量生成：一个上游请求都没有
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('catchup：未超过 7 天时由后端拒绝，不检查配额也不调用上游', async () => {
+    const readerId = await userIdByUsername(t, 'reader')
+    const novel = await req('/api/novels', json('POST', { title: '未过期回顾书', author: '某作者' }, adminToken))
+    const novelId = (await jsonOf<{ novel: { id: string } }>(novel)).novel.id
+    const c1 = await req('/api/chapters', json('POST', { novelId, title: '第一章', content: LONG_CONTENT }, adminToken))
+    const chId = (await jsonOf<{ chapter: { id: string } }>(c1)).chapter.id
+    await t.db.query(
+      'INSERT INTO reading_progress (id, user_id, novel_id, chapter_id, scroll_percent, updated_at, deleted_at) VALUES ($1,$2,$3,$4,0.5,$5,0)',
+      [`prog_fresh_${novelId}`, readerId, novelId, chId, Date.now()],
+    )
+    await req('/api/ai/settings', json('PUT', { dailyQuota: 0 }, adminToken))
+    fetchMock.mockClear()
+    const res = await req('/api/ai/catchup', json('POST', { novelId }, readerToken))
+    expect(res.status).toBe(200)
+    const data = await jsonOf<{ recap: string | null; reason?: string }>(res)
+    expect(data.recap).toBeNull()
+    expect(data.reason).toBe('not_stale')
+    expect(fetchMock).not.toHaveBeenCalled()
+    await req('/api/ai/settings', json('PUT', { dailyQuota: 30 }, adminToken))
+  })
+
+  it('catchup：无进度时返回 no_progress，不检查配额', async () => {
+    const novel = await req('/api/novels', json('POST', { title: '无进度回顾书', author: '某作者' }, adminToken))
+    const novelId = (await jsonOf<{ novel: { id: string } }>(novel)).novel.id
+    await req('/api/ai/settings', json('PUT', { dailyQuota: 0 }, adminToken))
+    const res = await req('/api/ai/catchup', json('POST', { novelId }, readerToken))
+    expect(res.status).toBe(200)
+    const data = await jsonOf<{ recap: string | null; reason?: string }>(res)
+    expect(data.recap).toBeNull()
+    expect(data.reason).toBe('no_progress')
+    await req('/api/ai/settings', json('PUT', { dailyQuota: 30 }, adminToken))
+  })
+
+  it('catchup：已删除进度视为无进度', async () => {
+    const readerId = await userIdByUsername(t, 'reader')
+    const novel = await req('/api/novels', json('POST', { title: '删除进度回顾书', author: '某作者' }, adminToken))
+    const novelId = (await jsonOf<{ novel: { id: string } }>(novel)).novel.id
+    const c1 = await req('/api/chapters', json('POST', { novelId, title: '第一章', content: LONG_CONTENT }, adminToken))
+    const chId = (await jsonOf<{ chapter: { id: string } }>(c1)).chapter.id
+    await t.db.query(
+      'INSERT INTO reading_progress (id, user_id, novel_id, chapter_id, scroll_percent, updated_at, deleted_at) VALUES ($1,$2,$3,$4,0.5,$5,1)',
+      [`prog_deleted_${novelId}`, readerId, novelId, chId, Date.now() - 8 * 24 * 60 * 60 * 1000],
+    )
+    const res = await req('/api/ai/catchup', json('POST', { novelId }, readerToken))
+    const data = await jsonOf<{ recap: string | null; reason?: string }>(res)
+    expect(data.recap).toBeNull()
+    expect(data.reason).toBe('no_progress')
+  })
+
+  it('catchup：单章摘要重生成后不命中旧回顾缓存', async () => {
+    const readerId = await userIdByUsername(t, 'reader')
+    const novel = await req('/api/novels', json('POST', { title: '摘要版本回顾书', author: '某作者' }, adminToken))
+    const novelId = (await jsonOf<{ novel: { id: string } }>(novel)).novel.id
+    const ids: string[] = []
+    for (let i = 1; i <= 3; i++) {
+      const c = await req('/api/chapters', json('POST', { novelId, title: `第${i}章`, content: LONG_CONTENT }, adminToken))
+      ids.push((await jsonOf<{ chapter: { id: string } }>(c)).chapter.id)
+    }
+    for (const chId of ids) await req('/api/ai/recap', json('POST', { chapterId: chId }, readerToken))
+    await t.db.query(
+      'INSERT INTO reading_progress (id, user_id, novel_id, chapter_id, scroll_percent, updated_at, deleted_at) VALUES ($1,$2,$3,$4,0.5,$5,0)',
+      [`prog_version_${novelId}`, readerId, novelId, ids[2]!, Date.now() - 8 * 24 * 60 * 60 * 1000],
+    )
+    fetchMock.mockClear()
+    fetchMock.mockImplementation(async () =>
+      new Response(JSON.stringify({ model: 'test-model', choices: [{ message: { content: '第一次回顾。' }, finish_reason: 'stop' }], usage: { prompt_tokens: 100, completion_tokens: 20 } }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }),
+    )
+    const firstCatchup = await req('/api/ai/catchup', json('POST', { novelId }, readerToken))
+    expect(firstCatchup.status).toBe(200)
+    expect((await jsonOf<{ cached: boolean }>(firstCatchup)).cached).toBe(false)
+    fetchMock.mockClear()
+    await req(`/api/chapters/${ids[1]}`, json('PUT', { content: LONG_CONTENT + '正文变更。' }, adminToken))
+    await req('/api/ai/recap', json('POST', { chapterId: ids[1] }, readerToken))
+    const secondCatchup = await req('/api/ai/catchup', json('POST', { novelId }, readerToken))
+    expect(secondCatchup.status).toBe(200)
+    expect((await jsonOf<{ cached: boolean }>(secondCatchup)).cached).toBe(false)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('catchup：未登录 401，缺 novelId 400', async () => {
+    expect((await req('/api/ai/catchup', json('POST', { novelId: 'x' }))).status).toBe(401)
+    expect((await req('/api/ai/catchup', json('POST', {}, readerToken))).status).toBe(400)
+  })
 })
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/** 测试库里的第一本小说 id（各用例内新建章节用）。 */
+async function firstNovelId(t: TestDb): Promise<string> {
+  const { rows } = await t.db.query<{ id: string }>('SELECT id FROM novels ORDER BY created_at LIMIT 1')
+  return String(rows[0]?.id || '')
+}
+
+/** 按用户名取 user id。 */
+async function userIdByUsername(t: TestDb, username: string): Promise<string> {
+  const { rows } = await t.db.query<{ id: string }>('SELECT id FROM users WHERE username = $1', [username])
+  return String(rows[0]?.id || '')
+}

@@ -289,6 +289,59 @@
   font-size: 0.86rem;
 }
 
+/* 回来接着读 —— 详情页 hero 下方的一小块回顾卡，纸面质感，与 hero 同源 */
+.catchup-card {
+  padding: 20px 22px;
+  border: 1px solid var(--detail-line);
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.52), rgba(255, 255, 255, 0) 48%),
+    var(--detail-paper);
+  box-shadow: var(--detail-shadow-soft);
+}
+
+.catchup-card__body {
+  display: grid;
+  gap: 14px;
+}
+
+.catchup-card__intro {
+  display: grid;
+  gap: 4px;
+}
+
+.catchup-card__hint {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.65;
+}
+
+.catchup-card__recap {
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: var(--detail-inset);
+  color: var(--text-primary);
+  font-family: var(--font-serif);
+  font-size: 0.95rem;
+  line-height: 1.9;
+}
+
+.catchup-card__status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.catchup-card__status--error {
+  color: var(--color-danger);
+}
+
 .chapter-list {
   list-style: none;
   display: grid;
