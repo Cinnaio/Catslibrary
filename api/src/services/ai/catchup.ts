@@ -187,6 +187,9 @@ async function runGenerateCatchup(db: Db, opts: { userId: string; novelId: strin
     promptTokens: res.promptTokens,
     completionTokens: res.completionTokens,
     costMillicents: Math.round(res.cost * 100_000),
+    novelId: opts.novelId,
+    chapterId: chapters[0]?.id || '', // 使用第一章作为代表
+    generationType: 'catchup',
   })
 
   return {

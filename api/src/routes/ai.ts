@@ -5,7 +5,7 @@
  */
 import { Hono, type Context } from 'hono'
 import { getDb } from '../db/pool'
-import { first } from '../db/query'
+import { all, first } from '../db/query'
 import { AiError, chat, isTextAiConfigured, providerLabel, textProvider } from '../services/ai/client'
 import { getAiSettings, saveAiSettings } from '../services/ai/settings'
 import { generateRecap, getCachedRecap, loadChapterForRecap } from '../services/ai/summary'
@@ -206,6 +206,164 @@ aiRoutes.get('/usage', requireAdmin(), async (c) => {
   const today = startOfToday()
   const [todayUsage, last30d] = await Promise.all([summarizeUsage(db, today), summarizeUsage(db, today - 29 * 86_400_000)])
   return c.json({ today: todayUsage, last30d }, 200, { 'Cache-Control': 'no-store' })
+})
+
+// ---------- 审计接口 ----------
+
+/** 用户级 AI 用量审计：按用户聚合统计 */
+aiRoutes.get('/audit/users', requireAdmin(), async (c) => {
+  const db = getDb()
+  const limit = Math.min(Number.parseInt(c.req.query('limit') || '50', 10) || 50, 200)
+  const offset = Number.parseInt(c.req.query('offset') || '0', 10) || 0
+
+  const rows = await all<Record<string, unknown>>(
+    db,
+    `SELECT
+      u.id, u.username, u.display_name,
+      COUNT(g.id)::int AS call_count,
+      SUM(g.prompt_tokens)::int AS total_prompt_tokens,
+      SUM(g.completion_tokens)::int AS total_completion_tokens,
+      SUM(g.cost_millicents)::int AS total_cost_millicents,
+      MAX(g.created_at) AS last_call_at
+    FROM users u
+    INNER JOIN ai_usage g ON g.user_id = u.id
+    GROUP BY u.id, u.username, u.display_name
+    HAVING COUNT(g.id) > 0
+    ORDER BY total_cost_millicents DESC
+    LIMIT $1 OFFSET $2`,
+    [limit, offset],
+  )
+
+  const totalRow = await first<{ total: number }>(db, 'SELECT COUNT(DISTINCT user_id)::int AS total FROM ai_usage')
+
+  return c.json(
+    {
+      users: rows.map((r) => ({
+        id: String(r.id),
+        username: String(r.username || ''),
+        displayName: String(r.display_name || ''),
+        callCount: Number(r.call_count) || 0,
+        totalPromptTokens: Number(r.total_prompt_tokens) || 0,
+        totalCompletionTokens: Number(r.total_completion_tokens) || 0,
+        totalCostMillicents: Number(r.total_cost_millicents) || 0,
+        lastCallAt: Number(r.last_call_at) || 0,
+      })),
+      total: totalRow?.total || 0,
+      limit,
+      offset,
+    },
+    200,
+    { 'Cache-Control': 'no-store' },
+  )
+})
+
+/** 详细调用记录：支持用户、类型、时间筛选 */
+aiRoutes.get('/audit/calls', requireAdmin(), async (c) => {
+  const db = getDb()
+  const userId = c.req.query('userId')
+  const type = c.req.query('type')
+  const from = Number.parseInt(c.req.query('from') || '0', 10) || 0
+  const to = Number.parseInt(c.req.query('to') || String(Date.now()), 10) || Date.now()
+  const limit = Math.min(Number.parseInt(c.req.query('limit') || '100', 10) || 100, 500)
+  const offset = Number.parseInt(c.req.query('offset') || '0', 10) || 0
+
+  const conditions = ['u.created_at >= $1', 'u.created_at <= $2']
+  const params: unknown[] = [from, to]
+
+  if (userId) {
+    params.push(userId)
+    conditions.push(`u.user_id = $${params.length}`)
+  }
+
+  if (type) {
+    params.push(type)
+    conditions.push(`u.generation_type = $${params.length}`)
+  }
+
+  const where = conditions.join(' AND ')
+
+  const rows = await all<Record<string, unknown>>(
+    db,
+    `SELECT
+      u.id, u.generation_type, u.model, u.prompt_tokens, u.completion_tokens,
+      u.cost_millicents, u.created_at, u.user_id, u.novel_id, u.chapter_id,
+      usr.username, usr.display_name,
+      n.title AS novel_title,
+      c.title AS chapter_title
+    FROM ai_usage u
+    LEFT JOIN users usr ON usr.id = u.user_id
+    LEFT JOIN novels n ON n.id = u.novel_id
+    LEFT JOIN chapters c ON c.id = u.chapter_id
+    WHERE ${where}
+    ORDER BY u.created_at DESC
+    LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+    [...params, limit, offset],
+  )
+
+  const totalRow = await first<{ total: number }>(db, `SELECT COUNT(*)::int AS total FROM ai_usage u WHERE ${where}`, params)
+
+  return c.json(
+    {
+      calls: rows.map((r) => ({
+        id: String(r.id),
+        type: String(r.generation_type || ''),
+        model: String(r.model || ''),
+        promptTokens: Number(r.prompt_tokens) || 0,
+        completionTokens: Number(r.completion_tokens) || 0,
+        costMillicents: Number(r.cost_millicents) || 0,
+        createdAt: Number(r.created_at) || 0,
+        userId: String(r.user_id || ''),
+        username: String(r.username || ''),
+        displayName: String(r.display_name || ''),
+        novelId: String(r.novel_id || ''),
+        novelTitle: String(r.novel_title || ''),
+        chapterId: String(r.chapter_id || ''),
+        chapterTitle: String(r.chapter_title || ''),
+      })),
+      total: totalRow?.total || 0,
+      limit,
+      offset,
+    },
+    200,
+    { 'Cache-Control': 'no-store' },
+  )
+})
+
+/** 成本趋势：按天聚合，用于图表展示 */
+aiRoutes.get('/audit/trend', requireAdmin(), async (c) => {
+  const db = getDb()
+  const days = Math.min(Number.parseInt(c.req.query('days') || '30', 10) || 30, 365)
+  const from = Date.now() - days * 86_400_000
+
+  const rows = await all<Record<string, unknown>>(
+    db,
+    `SELECT
+      TO_CHAR(TO_TIMESTAMP(created_at / 1000), 'YYYY-MM-DD') AS date,
+      COUNT(*)::int AS calls,
+      SUM(prompt_tokens)::int AS prompt_tokens,
+      SUM(completion_tokens)::int AS completion_tokens,
+      SUM(cost_millicents)::int AS cost_millicents
+    FROM ai_usage
+    WHERE created_at >= $1
+    GROUP BY date
+    ORDER BY date ASC`,
+    [from],
+  )
+
+  return c.json(
+    {
+      trend: rows.map((r) => ({
+        date: String(r.date),
+        calls: Number(r.calls) || 0,
+        promptTokens: Number(r.prompt_tokens) || 0,
+        completionTokens: Number(r.completion_tokens) || 0,
+        costMillicents: Number(r.cost_millicents) || 0,
+      })),
+      days,
+    },
+    200,
+    { 'Cache-Control': 'no-store' },
+  )
 })
 
 /** AiError → HTTP：客户端只拿到 code 与可展示文案，上游细节留在服务端日志。 */

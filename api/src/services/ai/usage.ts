@@ -15,13 +15,17 @@ export interface UsageRecord {
   completionTokens: number
   imageCount?: number
   costMillicents?: number
+  // 审计字段
+  novelId?: string
+  chapterId?: string
+  generationType?: string
 }
 
 export async function recordUsage(db: Db, rec: UsageRecord): Promise<void> {
   await run(
     db,
-    `INSERT INTO ai_usage (id, user_id, model, provider, prompt_tokens, completion_tokens, image_count, cost_millicents, created_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+    `INSERT INTO ai_usage (id, user_id, model, provider, prompt_tokens, completion_tokens, image_count, cost_millicents, novel_id, chapter_id, generation_type, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
     [
       newId('aiuse'),
       rec.userId || '',
@@ -31,6 +35,9 @@ export async function recordUsage(db: Db, rec: UsageRecord): Promise<void> {
       Math.max(0, Math.trunc(rec.completionTokens) || 0),
       Math.max(0, Math.trunc(rec.imageCount || 0)),
       Math.max(0, Math.trunc(rec.costMillicents || 0)),
+      rec.novelId || '',
+      rec.chapterId || '',
+      rec.generationType || '',
       Date.now(),
     ],
   )

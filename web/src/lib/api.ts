@@ -598,6 +598,18 @@ export interface AiSettings {
   recapEnabled: boolean
   dailyQuota: number
   maxChapterChars: number
+  // 前情提要参数
+  recapTemperature: number
+  recapMaxTokens: number
+  recapSystemPrompt: string
+  // 回顾总结参数
+  catchupEnabled: boolean
+  catchupMaxChapters: number
+  catchupTemperature: number
+  catchupMaxTokens: number
+  // 审计配置
+  logIpAddress: boolean
+  logUserAgent: boolean
 }
 
 export interface AiUsageSummary {
@@ -640,5 +652,66 @@ export const aiApi = {
   },
   usage(): Promise<{ today: AiUsageSummary; last30d: AiUsageSummary }> {
     return request('GET', '/ai/usage', null, true)
+  },
+  audit: {
+    users(limit = 50, offset = 0): Promise<{
+      users: Array<{
+        id: string
+        username: string
+        displayName: string
+        callCount: number
+        totalPromptTokens: number
+        totalCompletionTokens: number
+        totalCostMillicents: number
+        lastCallAt: number
+      }>
+      total: number
+      limit: number
+      offset: number
+    }> {
+      return request('GET', `/ai/audit/users?limit=${limit}&offset=${offset}`, null, true)
+    },
+    calls(filters: { userId?: string; type?: string; from?: number; to?: number; limit?: number; offset?: number } = {}): Promise<{
+      calls: Array<{
+        id: string
+        type: string
+        model: string
+        promptTokens: number
+        completionTokens: number
+        costMillicents: number
+        createdAt: number
+        userId: string
+        username: string
+        displayName: string
+        novelId: string
+        novelTitle: string
+        chapterId: string
+        chapterTitle: string
+      }>
+      total: number
+      limit: number
+      offset: number
+    }> {
+      const params = new URLSearchParams()
+      if (filters.userId) params.set('userId', filters.userId)
+      if (filters.type) params.set('type', filters.type)
+      if (filters.from) params.set('from', String(filters.from))
+      if (filters.to) params.set('to', String(filters.to))
+      if (filters.limit) params.set('limit', String(filters.limit))
+      if (filters.offset) params.set('offset', String(filters.offset))
+      return request('GET', `/ai/audit/calls?${params}`, null, true)
+    },
+    trend(days = 30): Promise<{
+      trend: Array<{
+        date: string
+        calls: number
+        promptTokens: number
+        completionTokens: number
+        costMillicents: number
+      }>
+      days: number
+    }> {
+      return request('GET', `/ai/audit/trend?days=${days}`, null, true)
+    },
   },
 }

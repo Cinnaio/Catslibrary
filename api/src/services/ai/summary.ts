@@ -135,8 +135,10 @@ async function runGenerateRecap(db: Db, opts: RecapOptions): Promise<RecapResult
     provider: providerLabel(provider.baseUrl),
     promptTokens: res.promptTokens,
     completionTokens: res.completionTokens,
-    // millicents = 货币单位的十万分之一；上游没回显 cost 时是 0
     costMillicents: Math.round(res.cost * 100_000),
+    novelId: opts.chapter.novel_id,
+    chapterId: opts.chapter.id,
+    generationType: 'summary',
   })
 
   return {

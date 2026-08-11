@@ -12,6 +12,30 @@ export interface AiSettings {
   dailyQuota: number
   /** 送入模型的章节正文字符上限，控制成本 */
   maxChapterChars: number
+
+  // === 前情提要参数 ===
+  /** 前情提要生成创意度（0-1，越高越随机） */
+  recapTemperature: number
+  /** 前情提要最大输出 token 数 */
+  recapMaxTokens: number
+  /** 前情提要系统提示词模板 */
+  recapSystemPrompt: string
+
+  // === 回顾总结参数 ===
+  /** 回来接着读功能开关 */
+  catchupEnabled: boolean
+  /** 回顾总结最多涉及章节数 */
+  catchupMaxChapters: number
+  /** 回顾总结生成创意度 */
+  catchupTemperature: number
+  /** 回顾总结最大输出 token 数 */
+  catchupMaxTokens: number
+
+  // === 审计配置 ===
+  /** 是否记录用户 IP 地址 */
+  logIpAddress: boolean
+  /** 是否记录用户 User-Agent */
+  logUserAgent: boolean
 }
 
 export const AI_SETTINGS_KEY = 'ai_settings'
@@ -20,11 +44,32 @@ export const DEFAULT_AI_SETTINGS: AiSettings = {
   recapEnabled: true,
   dailyQuota: 30,
   maxChapterChars: 6000,
+
+  // 前情提要参数默认值
+  recapTemperature: 0.7,
+  recapMaxTokens: 500,
+  recapSystemPrompt: '你是一个专业的小说内容总结助手。请简洁准确地总结上一章的关键情节，帮助读者快速回忆剧情。',
+
+  // 回顾总结参数默认值
+  catchupEnabled: true,
+  catchupMaxChapters: 3,
+  catchupTemperature: 0.7,
+  catchupMaxTokens: 800,
+
+  // 审计配置默认值
+  logIpAddress: false,
+  logUserAgent: false,
 }
 
 const LIMITS = {
   dailyQuota: { min: 0, max: 1000 },
   maxChapterChars: { min: 500, max: 20000 },
+  recapTemperature: { min: 0, max: 1 },
+  recapMaxTokens: { min: 100, max: 2000 },
+  recapSystemPrompt: { maxLength: 1000 },
+  catchupMaxChapters: { min: 1, max: 10 },
+  catchupTemperature: { min: 0, max: 1 },
+  catchupMaxTokens: { min: 100, max: 3000 },
 }
 
 export async function getAiSettings(db: Db): Promise<AiSettings> {
@@ -56,6 +101,21 @@ export function normalizeAiSettings(raw: unknown): AiSettings {
     recapEnabled: obj.recapEnabled === undefined ? DEFAULT_AI_SETTINGS.recapEnabled : !!obj.recapEnabled,
     dailyQuota: clampInt(obj.dailyQuota, DEFAULT_AI_SETTINGS.dailyQuota, LIMITS.dailyQuota),
     maxChapterChars: clampInt(obj.maxChapterChars, DEFAULT_AI_SETTINGS.maxChapterChars, LIMITS.maxChapterChars),
+
+    // 前情提要参数
+    recapTemperature: clampFloat(obj.recapTemperature, DEFAULT_AI_SETTINGS.recapTemperature, LIMITS.recapTemperature),
+    recapMaxTokens: clampInt(obj.recapMaxTokens, DEFAULT_AI_SETTINGS.recapMaxTokens, LIMITS.recapMaxTokens),
+    recapSystemPrompt: clampString(obj.recapSystemPrompt, DEFAULT_AI_SETTINGS.recapSystemPrompt, LIMITS.recapSystemPrompt.maxLength),
+
+    // 回顾总结参数
+    catchupEnabled: obj.catchupEnabled === undefined ? DEFAULT_AI_SETTINGS.catchupEnabled : !!obj.catchupEnabled,
+    catchupMaxChapters: clampInt(obj.catchupMaxChapters, DEFAULT_AI_SETTINGS.catchupMaxChapters, LIMITS.catchupMaxChapters),
+    catchupTemperature: clampFloat(obj.catchupTemperature, DEFAULT_AI_SETTINGS.catchupTemperature, LIMITS.catchupTemperature),
+    catchupMaxTokens: clampInt(obj.catchupMaxTokens, DEFAULT_AI_SETTINGS.catchupMaxTokens, LIMITS.catchupMaxTokens),
+
+    // 审计配置
+    logIpAddress: obj.logIpAddress === undefined ? DEFAULT_AI_SETTINGS.logIpAddress : !!obj.logIpAddress,
+    logUserAgent: obj.logUserAgent === undefined ? DEFAULT_AI_SETTINGS.logUserAgent : !!obj.logUserAgent,
   }
 }
 
@@ -63,4 +123,15 @@ function clampInt(value: unknown, fallback: number, range: { min: number; max: n
   const n = Math.trunc(Number(value))
   if (!Number.isFinite(n)) return fallback
   return Math.min(range.max, Math.max(range.min, n))
+}
+
+function clampFloat(value: unknown, fallback: number, range: { min: number; max: number }): number {
+  const n = Number(value)
+  if (!Number.isFinite(n)) return fallback
+  return Math.min(range.max, Math.max(range.min, n))
+}
+
+function clampString(value: unknown, fallback: string, maxLength: number): string {
+  if (typeof value !== 'string') return fallback
+  return value.slice(0, maxLength)
 }
