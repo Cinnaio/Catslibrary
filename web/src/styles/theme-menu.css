@@ -3,11 +3,14 @@
    ============================================================ */
 
 .theme-menu {
+  position: relative;
   display: inline-flex;
 }
 
+/* 弹层 absolute 相对 .theme-menu 定位：避免阅读器顶栏/底栏的
+   backdrop-filter/transform 创建包含块，导致 fixed 弹层坐标错位 */
 .theme-menu__popover {
-  position: fixed;
+  position: absolute;
   z-index: 300;
   min-width: 160px;
   padding: 6px;

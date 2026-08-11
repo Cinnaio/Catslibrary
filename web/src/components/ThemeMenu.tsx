@@ -36,21 +36,28 @@ export function ThemeMenu({ className, wrapperClassName, ariaLabel = '主题设�
   const [open, setOpen] = useState(false)
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
+  const wrapperRef = useRef<HTMLDivElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
   const close = useCallback(() => setOpen(false), [])
 
-  // 打开时定位：右/左对齐触发按钮，底部空间不足则向上弹，并约束在视口内
+  // 打开时定位：右/左对齐触发按钮，底部空间不足则向上弹，并约束在视口内。
+  // 弹层 absolute 相对 .theme-menu 定位，坐标以 wrapper 为原点（换算自视口坐标）。
   useLayoutEffect(() => {
-    if (!open || !triggerRef.current) return
-    const rect = triggerRef.current.getBoundingClientRect()
+    if (!open || !triggerRef.current || !wrapperRef.current) return
+    const triggerRect = triggerRef.current.getBoundingClientRect()
+    const wrapperRect = wrapperRef.current.getBoundingClientRect()
     const vw = window.innerWidth
     const vh = window.innerHeight
-    const spaceBelow = vh - rect.bottom
-    const spaceAbove = rect.top
+    const spaceBelow = vh - triggerRect.bottom
+    const spaceAbove = triggerRect.top
     const openUp = spaceBelow < MENU_H && spaceAbove > spaceBelow
-    const top = openUp ? rect.top - MENU_H - MENU_GAP : rect.bottom + MENU_GAP
-    const left = Math.max(8, Math.min(align === 'end' ? rect.right - MENU_W : rect.left, vw - MENU_W - 8))
+    const top = (openUp ? triggerRect.top - MENU_H - MENU_GAP : triggerRect.bottom + MENU_GAP) - wrapperRect.top
+    // 相对 wrapper 的 left；再按「弹层最终落在视口内」换算并钳制
+    let left = (align === 'end' ? triggerRect.right - MENU_W : triggerRect.left) - wrapperRect.left
+    const minLeft = 8 - wrapperRect.left
+    const maxLeft = vw - MENU_W - 8 - wrapperRect.left
+    left = Math.max(minLeft, Math.min(left, maxLeft))
     setPos({ top, left })
   }, [open, align])
 
@@ -82,7 +89,7 @@ export function ThemeMenu({ className, wrapperClassName, ariaLabel = '主题设�
   }
 
   return (
-    <div className={wrapperClassName ? `theme-menu ${wrapperClassName}` : 'theme-menu'}>
+    <div ref={wrapperRef} className={wrapperClassName ? `theme-menu ${wrapperClassName}` : 'theme-menu'}>
       <button
         ref={triggerRef}
         type="button"
