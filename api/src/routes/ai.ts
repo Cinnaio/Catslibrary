@@ -219,19 +219,6 @@ aiRoutes.post('/test', requireAdmin(), async (c) => {
 
 // ---------- 管理端 AI 创作：先生成草稿，发布时才写入正式章节 ----------
 
-aiRoutes.post('/writing/outline', requireAdmin(), async (c) => {
-  const db = getDb()
-  const body = await c.req.json().catch(() => ({}))
-  const user = c.get('user')
-  const title = String(body.title || '').trim()
-  const novelId = String(body.novelId || '').trim()
-  if (!title) return c.json({ error: 'title 必填' }, 400)
-  try {
-    const result = await generateWriting(db, { userId: user.id, novelId, kind: 'write_outline', title, instruction: String(body.instruction || '').trim(), maxTokens: body.maxTokens, temperature: body.temperature, ...writingOptions(body), ...(await auditRequestContext(c, db)) })
-    return c.json({ draft: result.generation, usage: result.usage })
-  } catch (err) { return aiErrorResponse(c, err) }
-})
-
 function writingOptions(body: Record<string, any>) {
   return {
     targetWords: body.targetWords,
@@ -239,54 +226,102 @@ function writingOptions(body: Record<string, any>) {
   }
 }
 
-aiRoutes.post('/writing/chapter', requireAdmin(), async (c) => {
-  const db = getDb()
-  const body = await c.req.json().catch(() => ({}))
-  const user = c.get('user')
-  const novelId = String(body.novelId || '').trim()
-  const title = String(body.title || '').trim()
-  if (!novelId || !title) return c.json({ error: 'novelId 和 title 必填' }, 400)
-  const novel = await first<{ title: string }>(db, 'SELECT title FROM novels WHERE id = $1', [novelId])
-  if (!novel) return c.json({ error: '小说不存在' }, 404)
-  try {
-    const result = await generateWriting(db, { userId: user.id, novelId, kind: 'write_chapter', title: novel.title, instruction: String(body.instruction || '').trim(), outline: String(body.outline || '').trim(), context: String(body.context || '').trim(), maxTokens: body.maxTokens, temperature: body.temperature, ...writingOptions(body), ...(await auditRequestContext(c, db)) })
-    return c.json({ draft: result.generation, usage: result.usage })
-  } catch (err) { return aiErrorResponse(c, err) }
-})
+/** 序列化创作请求参数存入任务行：失败/取消后可按原参数重试。 */
+function writingTaskParams(body: Record<string, any>): string {
+  return JSON.stringify({
+    novelId: String(body.novelId || '').trim(),
+    title: String(body.title || '').trim(),
+    instruction: String(body.instruction || '').trim(),
+    ...(String(body.outline || '').trim() ? { outline: String(body.outline).trim() } : {}),
+    ...(String(body.context || '').trim() ? { context: String(body.context).trim() } : {}),
+    ...(String(body.afterChapterId || '').trim() ? { afterChapterId: String(body.afterChapterId).trim() } : {}),
+    ...(Number(body.targetWords) ? { targetWords: Number(body.targetWords) } : {}),
+    ...(Number(body.chapterCount) ? { chapterCount: Number(body.chapterCount) } : {}),
+    ...(Number(body.maxTokens) ? { maxTokens: Number(body.maxTokens) } : {}),
+    ...(Number.isFinite(Number(body.temperature)) && body.temperature !== undefined && body.temperature !== null ? { temperature: Number(body.temperature) } : {}),
+  })
+}
+
+/** 后台执行单次创作生成，完成/失败时收尾任务状态（generateWriting 收到外部 taskId 时不自标 completed）。 */
+function finalizeWritingTask(db: ReturnType<typeof getDb>, taskId: string, job: Promise<unknown>): void {
+  void job
+    .then(() => updateAiTask(db, taskId, { status: 'completed', current: 1, step: '已完成' }))
+    .catch(async (err) => {
+      console.error('[ai] 创作后台任务失败', err)
+      const message = err instanceof AiError ? err.message : 'AI 生成失败'
+      await updateAiTask(db, taskId, { status: 'failed', error: message }).catch(() => {})
+    })
+}
+
+type StartWritingResult =
+  | { ok: true; task: { id: string; batchId: string; total: number } }
+  | { ok: false; status: 400 | 404; error: string }
 
 /**
- * 多章续写：后台任务模式。串行生成最长可达数十分钟，同步 HTTP 连接会被
- * 反向代理超时掐断，因此这里立即返回 taskId，生成在进程内异步执行；
- * 前端轮询 GET /tasks/:id 看进度，完成后草稿在「已生成内容」按 batchId 归组。
+ * 启动一个后台创作任务（大纲 / 章节 / 多章续写），立即返回任务信息。
+ * 生成最长可达数十分钟，同步 HTTP 连接会被反向代理超时掐断，因此统一走
+ * 任务模式：前端轮询 GET /tasks/:id 看进度，产物在「已生成内容」。
+ * 原始参数存入任务行，POST /tasks/:id/retry 据此重试。
  */
-aiRoutes.post('/writing/continue', requireAdmin(), async (c) => {
-  const db = getDb()
-  const body = await c.req.json().catch(() => ({}))
-  const user = c.get('user')
+async function startWritingJob(
+  db: ReturnType<typeof getDb>,
+  user: { id: string },
+  kind: 'write_outline' | 'write_chapter' | 'continue',
+  body: Record<string, any>,
+  audit: { ipAddress?: string; userAgent?: string },
+): Promise<StartWritingResult> {
   const novelId = String(body.novelId || '').trim()
-  const chapterTitle = String(body.title || '').trim()
-  if (!novelId) return c.json({ error: 'novelId 必填' }, 400)
-  const novel = await first<{ title: string }>(db, 'SELECT title FROM novels WHERE id = $1', [novelId])
-  if (!novel) return c.json({ error: '小说不存在' }, 404)
-  if (!isTextAiConfigured()) return c.json({ error: 'AI 文本服务未配置', code: 'disabled' }, 503)
+  const title = String(body.title || '').trim()
+  const instruction = String(body.instruction || '').trim()
 
+  if (kind === 'write_outline') {
+    if (!title) return { ok: false, status: 400, error: 'title 必填' }
+    const task = await createAiTask(db, { userId: user.id, novelId, kind, prompt: instruction || title, params: writingTaskParams(body) })
+    finalizeWritingTask(db, task.id, generateWriting(db, { userId: user.id, novelId, kind, title, instruction, maxTokens: body.maxTokens, temperature: body.temperature, ...writingOptions(body), taskId: task.id, ...audit }))
+    return { ok: true, task: { id: task.id, batchId: '', total: 1 } }
+  }
+
+  if (!novelId) return { ok: false, status: 400, error: 'novelId 必填' }
+  const novel = await first<{ title: string }>(db, 'SELECT title FROM novels WHERE id = $1', [novelId])
+  if (!novel) return { ok: false, status: 404, error: '小说不存在' }
+
+  if (kind === 'write_chapter') {
+    if (!title) return { ok: false, status: 400, error: 'novelId 和 title 必填' }
+    const task = await createAiTask(db, { userId: user.id, novelId, kind, prompt: instruction || title, params: writingTaskParams(body) })
+    finalizeWritingTask(db, task.id, generateWriting(db, { userId: user.id, novelId, kind, title: novel.title, instruction, outline: String(body.outline || '').trim(), context: String(body.context || '').trim(), maxTokens: body.maxTokens, temperature: body.temperature, ...writingOptions(body), taskId: task.id, ...audit }))
+    return { ok: true, task: { id: task.id, batchId: '', total: 1 } }
+  }
+
+  // continue：串行多章，任务完结状态由 generateContinuationChapters 自己收尾（completed/cancelled）
   const count = Math.max(1, Math.min(20, Math.trunc(Number(body.chapterCount) || 1)))
-  const instruction = String(body.instruction || chapterTitle || '自然推进剧情，完成一个有悬念的章节段落').trim()
+  const finalInstruction = String(body.instruction || title || '自然推进剧情，完成一个有悬念的章节段落').trim()
   // 上下文与审计信息在请求内取好：后台执行时请求上下文已不可用
   const context = await recentNovelContext(db, novelId, body.afterChapterId ? String(body.afterChapterId) : undefined)
-  const audit = await auditRequestContext(c, db)
   const batchId = `continue_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
-  const task = await createAiTask(db, { userId: user.id, novelId, kind: 'continue', total: count, batchId, prompt: instruction })
-
-  void generateContinuationChapters(db, { userId: user.id, novelId, title: novel.title, instruction, context, maxTokens: body.maxTokens, temperature: body.temperature, ...writingOptions(body), batchId, taskId: task.id, ...audit })
+  const task = await createAiTask(db, { userId: user.id, novelId, kind: 'continue', total: count, batchId, prompt: finalInstruction, params: writingTaskParams(body) })
+  void generateContinuationChapters(db, { userId: user.id, novelId, title: novel.title, instruction: finalInstruction, context, maxTokens: body.maxTokens, temperature: body.temperature, ...writingOptions(body), batchId, taskId: task.id, ...audit })
     .catch(async (err) => {
       console.error('[ai] 续写后台任务失败', err)
       const message = err instanceof AiError ? err.message : 'AI 生成失败'
       await updateAiTask(db, task.id, { status: 'failed', error: message }).catch(() => {})
     })
+  return { ok: true, task: { id: task.id, batchId, total: count } }
+}
 
-  return c.json({ ok: true, taskId: task.id, batchId, total: count, contextUsed: context.length }, 202)
-})
+function startWritingRoute(kind: 'write_outline' | 'write_chapter' | 'continue') {
+  return async (c: Context<AuthEnv>) => {
+    const db = getDb()
+    const body = await c.req.json().catch(() => ({}))
+    if (!isTextAiConfigured()) return c.json({ error: 'AI 文本服务未配置', code: 'disabled' }, 503)
+    const result = await startWritingJob(db, c.get('user'), kind, body, await auditRequestContext(c, db))
+    if (!result.ok) return c.json({ error: result.error }, result.status)
+    return c.json({ ok: true, taskId: result.task.id, batchId: result.task.batchId, total: result.task.total }, 202)
+  }
+}
+
+aiRoutes.post('/writing/outline', requireAdmin(), startWritingRoute('write_outline'))
+aiRoutes.post('/writing/chapter', requireAdmin(), startWritingRoute('write_chapter'))
+aiRoutes.post('/writing/continue', requireAdmin(), startWritingRoute('continue'))
 
 aiRoutes.post('/writing/titles', requireAdmin(), async (c) => {
   const db = getDb()
@@ -432,10 +467,15 @@ aiRoutes.get('/usage', requireAdmin(), async (c) => {
   return c.json({ today: todayUsage, last30d }, 200, { 'Cache-Control': 'no-store' })
 })
 
+const TASK_STATUSES = new Set(['queued', 'running', 'completed', 'failed', 'cancelled'])
+const RETRIABLE_TASK_KINDS = new Set(['continue', 'write_outline', 'write_chapter'])
+
 aiRoutes.get('/tasks', requireAdmin(), async (c) => {
   const limit = Number.parseInt(c.req.query('limit') || '50', 10) || 50
   const offset = Number.parseInt(c.req.query('offset') || '0', 10) || 0
-  const result = await listAiTasks(getDb(), { limit, offset })
+  const status = TASK_STATUSES.has(c.req.query('status') || '') ? c.req.query('status') : undefined
+  const kind = RETRIABLE_TASK_KINDS.has(c.req.query('kind') || '') ? c.req.query('kind') : undefined
+  const result = await listAiTasks(getDb(), { limit, offset, status, kind })
   return c.json({ ...result, limit, offset }, 200, { 'Cache-Control': 'no-store' })
 })
 
@@ -450,6 +490,28 @@ aiRoutes.post('/tasks/:id/cancel', requireAdmin(), async (c) => {
   const ok = await cancelAiTask(getDb(), String(c.req.param('id') || '').trim())
   if (!ok) return c.json({ error: '任务不存在或已经结束' }, 404)
   return c.json({ ok: true })
+})
+
+/** 按原参数重试失败/取消的创作任务：新建任务执行，原任务保留作为记录。 */
+aiRoutes.post('/tasks/:id/retry', requireAdmin(), async (c) => {
+  const db = getDb()
+  const source = await getAiTask(db, String(c.req.param('id') || '').trim())
+  if (!source) return c.json({ error: '任务不存在' }, 404)
+  if (source.status !== 'failed' && source.status !== 'cancelled') return c.json({ error: '只有失败或已取消的任务可以重试' }, 409)
+  if (!RETRIABLE_TASK_KINDS.has(source.kind)) return c.json({ error: '该任务类型不支持重试' }, 422)
+  if (!isTextAiConfigured()) return c.json({ error: 'AI 文本服务未配置', code: 'disabled' }, 503)
+
+  let body: Record<string, any> | null = null
+  try {
+    body = source.params ? (JSON.parse(source.params) as Record<string, any>) : null
+  } catch {
+    body = null
+  }
+  if (!body) return c.json({ error: '任务未记录原始参数（旧版本创建），无法重试' }, 422)
+
+  const result = await startWritingJob(db, c.get('user'), source.kind as 'write_outline' | 'write_chapter' | 'continue', body, await auditRequestContext(c, db))
+  if (!result.ok) return c.json({ error: result.error }, result.status)
+  return c.json({ ok: true, taskId: result.task.id, batchId: result.task.batchId, total: result.task.total }, 202)
 })
 
 // ---------- 审计接口 ----------

@@ -15,6 +15,8 @@ export interface AiTask {
   step: string
   prompt: string
   batchId: string
+  /** 创建时的请求参数（JSON），失败/取消后按原参数重试用 */
+  params: string
   error: string
   createdAt: number
   updatedAt: number
@@ -24,7 +26,7 @@ export interface AiTask {
 interface AiTaskRow {
   id: string; user_id: string; novel_id: string; kind: string; status: string
   current: number; total: number; step: string; prompt: string; batch_id: string
-  error: string; created_at: number; updated_at: number; finished_at: number
+  params: string; error: string; created_at: number; updated_at: number; finished_at: number
 }
 
 function mapTask(row: AiTaskRow): AiTask {
@@ -32,16 +34,17 @@ function mapTask(row: AiTaskRow): AiTask {
     id: String(row.id), userId: String(row.user_id || ''), novelId: String(row.novel_id || ''),
     kind: String(row.kind || ''), status: (String(row.status || 'queued') as AiTaskStatus),
     current: Number(row.current) || 0, total: Number(row.total) || 1, step: String(row.step || ''),
-    prompt: String(row.prompt || ''), batchId: String(row.batch_id || ''), error: String(row.error || ''),
+    prompt: String(row.prompt || ''), batchId: String(row.batch_id || ''), params: String(row.params || ''),
+    error: String(row.error || ''),
     createdAt: Number(row.created_at) || 0, updatedAt: Number(row.updated_at) || 0, finishedAt: Number(row.finished_at) || 0,
   }
 }
 
-export async function createAiTask(db: Db, input: { userId: string; novelId?: string; kind: string; total?: number; batchId?: string; prompt?: string }): Promise<AiTask> {
+export async function createAiTask(db: Db, input: { userId: string; novelId?: string; kind: string; total?: number; batchId?: string; prompt?: string; params?: string }): Promise<AiTask> {
   const id = newId('aitask')
   const now = Date.now()
-  await run(db, `INSERT INTO ai_tasks (id,user_id,novel_id,kind,status,current,total,step,prompt,batch_id,error,created_at,updated_at,finished_at)
-    VALUES ($1,$2,$3,$4,'queued',0,$5,'',$6,$7,'',$8,$8,0)`, [id, input.userId, input.novelId || '', input.kind, Math.max(1, Math.trunc(input.total || 1)), input.prompt || '', input.batchId || '', now])
+  await run(db, `INSERT INTO ai_tasks (id,user_id,novel_id,kind,status,current,total,step,prompt,batch_id,params,error,created_at,updated_at,finished_at)
+    VALUES ($1,$2,$3,$4,'queued',0,$5,'',$6,$7,$8,'',$9,$9,0)`, [id, input.userId, input.novelId || '', input.kind, Math.max(1, Math.trunc(input.total || 1)), input.prompt || '', input.batchId || '', input.params || '', now])
   return mapTask((await first<AiTaskRow>(db, 'SELECT * FROM ai_tasks WHERE id = $1', [id]))!)
 }
 
@@ -89,10 +92,23 @@ export async function failInterruptedAiTasks(db: Db): Promise<number> {
   )
 }
 
-export async function listAiTasks(db: Db, opts: { limit?: number; offset?: number } = {}): Promise<{ items: AiTask[]; total: number }> {
+export async function listAiTasks(db: Db, opts: { limit?: number; offset?: number; status?: string; kind?: string } = {}): Promise<{ items: AiTask[]; total: number }> {
   const limit = Math.min(Math.max(Math.trunc(opts.limit || 50), 1), 100)
   const offset = Math.max(Math.trunc(opts.offset || 0), 0)
-  const rows = await all<AiTaskRow>(db, 'SELECT * FROM ai_tasks ORDER BY created_at DESC LIMIT $1 OFFSET $2', [limit, offset])
-  const total = await first<{ total: number }>(db, 'SELECT COUNT(*)::int AS total FROM ai_tasks')
+
+  const conditions: string[] = []
+  const params: unknown[] = []
+  if (opts.status) {
+    params.push(opts.status)
+    conditions.push(`status = $${params.length}`)
+  }
+  if (opts.kind) {
+    params.push(opts.kind)
+    conditions.push(`kind = $${params.length}`)
+  }
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+
+  const rows = await all<AiTaskRow>(db, `SELECT * FROM ai_tasks ${where} ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`, [...params, limit, offset])
+  const total = await first<{ total: number }>(db, `SELECT COUNT(*)::int AS total FROM ai_tasks ${where}`, params)
   return { items: rows.map(mapTask), total: Number(total?.total) || 0 }
 }

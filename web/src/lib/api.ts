@@ -662,6 +662,8 @@ export interface AiTaskInfo {
   step: string
   prompt: string
   batchId: string
+  /** 创建时的请求参数（JSON），非空才支持重试 */
+  params: string
   error: string
   createdAt: number
   updatedAt: number
@@ -700,13 +702,13 @@ export const aiApi = {
     return request('POST', '/ai/test', {}, true)
   },
   writing: {
-    outline(data: Record<string, unknown>): Promise<{ draft: { id: string; result: string; model: string } }> {
+    /** 创作类接口统一为后台任务模式：立即返回任务 id，用 aiApi.task 轮询进度，产物在「已生成内容」。 */
+    outline(data: Record<string, unknown>): Promise<{ ok: boolean; taskId: string; batchId: string; total: number }> {
       return request('POST', '/ai/writing/outline', data, true)
     },
-    chapter(data: Record<string, unknown>): Promise<{ draft: { id: string; result: string; model: string } }> {
+    chapter(data: Record<string, unknown>): Promise<{ ok: boolean; taskId: string; batchId: string; total: number }> {
       return request('POST', '/ai/writing/chapter', data, true)
     },
-    /** 多章续写在后端后台执行：立即返回任务 id，用 aiApi.task 轮询进度，完成后草稿在「已生成内容」。 */
     continue(data: Record<string, unknown>): Promise<{ ok: boolean; taskId: string; batchId: string; total: number }> {
       return request('POST', '/ai/writing/continue', data, true)
     },
@@ -727,21 +729,27 @@ export const aiApi = {
   usage(): Promise<{ today: AiUsageSummary; last30d: AiUsageSummary }> {
     return request('GET', '/ai/usage', null, true)
   },
-  tasks(filters: { limit?: number; offset?: number } = {}): Promise<{
+  tasks(filters: { limit?: number; offset?: number; status?: string; kind?: string } = {}): Promise<{
     items: AiTaskInfo[]
     total: number
     limit: number
     offset: number
   }> {
     const params = new URLSearchParams({ limit: String(filters.limit || 50), offset: String(filters.offset || 0) })
+    if (filters.status) params.set('status', filters.status)
+    if (filters.kind) params.set('kind', filters.kind)
     return request('GET', `/ai/tasks?${params}`, null, true)
   },
-  /** 单任务查询：后台续写等长任务的进度轮询。 */
+  /** 单任务查询：后台创作任务的进度轮询。 */
   task(id: string): Promise<{ task: AiTaskInfo }> {
     return request('GET', `/ai/tasks/${encodeURIComponent(id)}`, null, true)
   },
   cancelTask(id: string): Promise<{ ok: boolean }> {
     return request('POST', `/ai/tasks/${encodeURIComponent(id)}/cancel`, {}, true)
+  },
+  /** 按原参数重试失败/取消的创作任务，返回新任务 id。 */
+  retryTask(id: string): Promise<{ ok: boolean; taskId: string; batchId: string; total: number }> {
+    return request('POST', `/ai/tasks/${encodeURIComponent(id)}/retry`, {}, true)
   },
   /** 已生成内容列表（管理端）：默认已发布，可筛类型。 */
   generations(filters: { kind?: 'summary' | 'catchup' | 'continue' | 'write_outline' | 'write_chapter'; scope?: 'all' | 'reader' | 'writing'; status?: 'all' | 'published' | 'draft' | 'rejected'; limit?: number; offset?: number } = {}): Promise<{

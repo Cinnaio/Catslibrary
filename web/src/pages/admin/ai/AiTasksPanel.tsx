@@ -1,10 +1,12 @@
 /** AI 任务管理：查看生成进度、错误和输入 Prompt；有任务运行时自动轮询刷新。 */
 import { useCallback, useEffect, useState } from 'react'
-import { aiApi } from '@/lib/api'
+import { aiApi, type AiTaskInfo } from '@/lib/api'
 import { useToast } from '@/components/feedback'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 // 有运行中任务时的轮询间隔
 const ACTIVE_POLL_INTERVAL = 4000
@@ -17,34 +19,23 @@ function taskStatusLabel(status: string): string {
   return status === 'queued' ? '排队中' : status === 'running' ? '生成中' : status === 'completed' ? '已完成' : status === 'cancelled' ? '已取消' : status === 'failed' ? '失败' : status
 }
 
-interface AiTask {
-  id: string
-  novelId: string
-  kind: string
-  status: string
-  current: number
-  total: number
-  step: string
-  prompt: string
-  batchId: string
-  error: string
-  createdAt: number
-  updatedAt: number
-}
+type AiTask = AiTaskInfo
 
 export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) => void } = {}) {
   const { toast } = useToast()
   const [tasks, setTasks] = useState<AiTask[]>([])
   const [loading, setLoading] = useState(true)
+  const [filterStatus, setFilterStatus] = useState<'all' | 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'>('all')
+  const [retryingId, setRetryingId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     try {
-      const result = await aiApi.tasks({ limit: 100 })
+      const result = await aiApi.tasks({ limit: 100, status: filterStatus === 'all' ? undefined : filterStatus })
       setTasks(result.items)
     } catch (err) {
       toast((err as Error).message || '加载 AI 任务失败', 'error')
     } finally { setLoading(false) }
-  }, [toast])
+  }, [toast, filterStatus])
 
   useEffect(() => { void load() }, [load])
 
@@ -71,8 +62,38 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
     catch (err) { toast((err as Error).message || '取消任务失败', 'error') }
   }
 
+  async function retry(id: string) {
+    setRetryingId(id)
+    try {
+      await aiApi.retryTask(id)
+      toast('已按原参数重新发起任务', 'success')
+      void load()
+    } catch (err) {
+      toast((err as Error).message || '重试失败', 'error')
+    } finally { setRetryingId(null) }
+  }
+
   return <Card>
-    <CardHeader><CardTitle className="text-base">AI 任务管理</CardTitle><p className="text-sm text-muted-foreground">独立于爬取任务，查看生成进度、错误和输入 Prompt</p></CardHeader>
+    <CardHeader className="flex-row items-center justify-between gap-2">
+      <div>
+        <CardTitle className="text-base">AI 任务管理</CardTitle>
+        <p className="text-sm text-muted-foreground">独立于爬取任务，查看生成进度、错误和输入 Prompt</p>
+      </div>
+      <div className="flex items-center gap-2">
+        <Label htmlFor="task-filter-status" className="text-xs text-muted-foreground">状态</Label>
+        <Select value={filterStatus} onValueChange={(v) => { setLoading(true); setFilterStatus(v as typeof filterStatus) }}>
+          <SelectTrigger size="sm" id="task-filter-status" className="w-[120px]"><SelectValue /></SelectTrigger>
+          <SelectContent position="popper" align="end" sideOffset={4}>
+            <SelectItem value="all">全部</SelectItem>
+            <SelectItem value="queued">排队中</SelectItem>
+            <SelectItem value="running">生成中</SelectItem>
+            <SelectItem value="completed">已完成</SelectItem>
+            <SelectItem value="failed">失败</SelectItem>
+            <SelectItem value="cancelled">已取消</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+    </CardHeader>
     <CardContent>
       {loading ? <div className="flex h-32 items-center justify-center text-muted-foreground">加载中…</div> : tasks.length === 0 ? <div className="flex h-32 items-center justify-center text-muted-foreground">暂无 AI 任务</div> : <div className="space-y-2">
         {tasks.map((task) => <div key={task.id} className="grid gap-2 rounded-md border p-3 sm:grid-cols-[1fr_auto]">
@@ -87,6 +108,9 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
             {/* 部分完成的批次（失败/取消但已产出若干章）也能从这里找到草稿 */}
             {task.batchId && task.current > 0 && props.onViewBatch && (
               <Button variant="outline" size="sm" onClick={() => props.onViewBatch?.(task.batchId)}>查看产出</Button>
+            )}
+            {(task.status === 'failed' || task.status === 'cancelled') && !!task.params && (
+              <Button variant="outline" size="sm" disabled={retryingId === task.id} onClick={() => void retry(task.id)}>{retryingId === task.id ? '重试中…' : '重试'}</Button>
             )}
           </div>
         </div>)}

@@ -547,24 +547,31 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     expect(cachedBody.recap).toBe('')
   })
 
-  it('AI 创作：生成草稿、编辑后发布为正式章节', async () => {
+  it('AI 创作：大纲/章节走后台任务生成草稿，编辑后发布为正式章节', async () => {
     const novelId = await firstNovelId(t)
-    const outline = await req('/api/ai/writing/outline', json('POST', { title: '新作品', instruction: '悬疑开篇' }, adminToken))
-    expect(outline.status).toBe(200)
-    const outlineBody = await jsonOf<{ draft: { id: string; kind: string; status: string; result: string } }>(outline)
-    expect(outlineBody.draft.kind).toBe('write_outline')
-    expect(outlineBody.draft.status).toBe('draft')
-    expect(outlineBody.draft.result.length).toBeGreaterThan(0)
+    const outlineStart = await req('/api/ai/writing/outline', json('POST', { title: '新作品', instruction: '悬疑开篇' }, adminToken))
+    expect(outlineStart.status).toBe(202)
+    const outlineTaskId = (await jsonOf<{ taskId: string }>(outlineStart)).taskId
+    expect((await waitForTask(outlineTaskId, adminToken)).status).toBe('completed')
+    const { rows: outlineRows } = await t.db.query<{ id: string; result: string; status: string }>(
+      "SELECT id, result, status FROM ai_generations WHERE kind = 'write_outline' ORDER BY created_at DESC LIMIT 1",
+    )
+    expect(outlineRows[0]?.status).toBe('draft')
+    expect((outlineRows[0]?.result || '').length).toBeGreaterThan(0)
 
-    const chapter = await req('/api/ai/writing/chapter', json('POST', { novelId, title: 'AI 测试书', outline: outlineBody.draft.result, instruction: '写一个紧张的开场' }, adminToken))
-    expect(chapter.status).toBe(200)
-    const chapterBody = await jsonOf<{ draft: { id: string; kind: string; status: string } }>(chapter)
-    expect(chapterBody.draft.kind).toBe('write_chapter')
-    expect(chapterBody.draft.status).toBe('draft')
+    const chapterStart = await req('/api/ai/writing/chapter', json('POST', { novelId, title: 'AI 测试书', outline: outlineRows[0]!.result, instruction: '写一个紧张的开场' }, adminToken))
+    expect(chapterStart.status).toBe(202)
+    const chapterTaskId = (await jsonOf<{ taskId: string }>(chapterStart)).taskId
+    expect((await waitForTask(chapterTaskId, adminToken)).status).toBe('completed')
+    const { rows: chapterRows } = await t.db.query<{ id: string; status: string }>(
+      "SELECT id, status FROM ai_generations WHERE kind = 'write_chapter' ORDER BY created_at DESC LIMIT 1",
+    )
+    expect(chapterRows[0]?.status).toBe('draft')
+    const draftId = chapterRows[0]!.id
 
-    const edited = await req(`/api/ai/writing/drafts/${chapterBody.draft.id}`, json('PUT', { result: '编辑后的章节正文。' }, adminToken))
+    const edited = await req(`/api/ai/writing/drafts/${draftId}`, json('PUT', { result: '编辑后的章节正文。' }, adminToken))
     expect(edited.status).toBe(200)
-    const published = await req(`/api/ai/writing/drafts/${chapterBody.draft.id}/publish`, json('POST', { novelId, title: 'AI 创作章' }, adminToken))
+    const published = await req(`/api/ai/writing/drafts/${draftId}/publish`, json('POST', { novelId, title: 'AI 创作章' }, adminToken))
     expect(published.status).toBe(200)
     const publishedBody = await jsonOf<{ chapter: { id: string; title: string } }>(published)
     expect(publishedBody.chapter.title).toBe('AI 创作章')
@@ -651,6 +658,36 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
   it('GET /tasks/:id：任务不存在 404，非管理员 403', async () => {
     expect((await req('/api/ai/tasks/task_missing', json('GET', undefined, adminToken))).status).toBe(404)
     expect((await req('/api/ai/tasks/task_missing', json('GET', undefined, readerToken))).status).toBe(403)
+  })
+
+  it('失败任务可按原参数重试：新任务完成并产出草稿，任务列表支持状态筛选', async () => {
+    // 上一个用例留下一个失败的续写任务（chapterCount: 2）
+    const failedList = await jsonOf<{ items: Array<{ id: string; status: string; kind: string; params: string }> }>(
+      await req('/api/ai/tasks?status=failed', json('GET', undefined, adminToken)),
+    )
+    expect(failedList.items.every((item) => item.status === 'failed')).toBe(true)
+    const failed = failedList.items.find((item) => item.kind === 'continue')
+    expect(failed).toBeDefined()
+    expect(failed!.params.length).toBeGreaterThan(0)
+
+    const retried = await req(`/api/ai/tasks/${failed!.id}/retry`, json('POST', {}, adminToken))
+    expect(retried.status).toBe(202)
+    const { taskId, batchId } = await jsonOf<{ taskId: string; batchId: string }>(retried)
+    expect(taskId).not.toBe(failed!.id)
+
+    const task = await waitForTask(taskId, adminToken)
+    expect(task.status).toBe('completed')
+    expect(task.current).toBe(2)
+
+    const { rows } = await t.db.query<{ id: string }>(
+      `SELECT id FROM ai_generations WHERE kind = 'continue' AND params_json LIKE $1`,
+      [`%"batchId":"${batchId}"%`],
+    )
+    expect(rows).toHaveLength(2)
+
+    // 已完成的任务不能重试；不存在的任务 404
+    expect((await req(`/api/ai/tasks/${taskId}/retry`, json('POST', {}, adminToken))).status).toBe(409)
+    expect((await req('/api/ai/tasks/task_missing/retry', json('POST', {}, adminToken))).status).toBe(404)
   })
 
   // ---------- 参数调优设置真实生效 ----------
@@ -757,8 +794,13 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
 
     async function makeDraft(): Promise<string> {
       const res = await req('/api/ai/writing/chapter', json('POST', { novelId, title: 'AI 测试书', instruction: '写一段' }, adminToken))
-      expect(res.status).toBe(200)
-      return (await jsonOf<{ draft: { id: string } }>(res)).draft.id
+      expect(res.status).toBe(202)
+      const { taskId } = await jsonOf<{ taskId: string }>(res)
+      expect((await waitForTask(taskId, adminToken)).status).toBe('completed')
+      const { rows } = await t.db.query<{ id: string }>(
+        "SELECT id FROM ai_generations WHERE kind = 'write_chapter' AND status = 'draft' ORDER BY created_at DESC LIMIT 1",
+      )
+      return rows[0]!.id
     }
     const draft1 = await makeDraft()
     const draft2 = await makeDraft()
