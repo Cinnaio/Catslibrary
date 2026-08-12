@@ -6,6 +6,7 @@ import { useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useSession } from '../context/SessionContext'
 import { useSearch } from '../context/SearchContext'
+import { url } from '../lib/api'
 import { MoonIcon, RefreshIcon, SearchIcon, SunIcon } from './icons'
 import { ThemeMenu } from './ThemeMenu'
 
@@ -16,9 +17,12 @@ export default function SiteHeader() {
   const { query: searchValue, setQuery } = useSearch()
   const inputRef = useRef<HTMLInputElement>(null)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [avatarFailed, setAvatarFailed] = useState(false)
   const isHome = location.pathname === '/'
 
   const name = user?.displayName || user?.username || ''
+  const avatarUrl = user?.avatarUrl ? url(user.avatarUrl) : ''
+  const showAvatar = !!avatarUrl && !avatarFailed
   const isAdmin = user?.role === 'admin'
 
   function submitSearch(query: string) {
@@ -81,7 +85,11 @@ export default function SiteHeader() {
 
           {user ? (
             <Link to="/profile" className="nav-link account-avatar" aria-label={`我的账户：${name}`} title={name}>
-              {name.slice(0, 1)}
+              {showAvatar ? (
+                <img src={avatarUrl} alt={name} onError={() => setAvatarFailed(true)} />
+              ) : (
+                <span>{name.slice(0, 1)}</span>
+              )}
             </Link>
           ) : (
             <Link to="/auth" className="nav-link" aria-label="登录">
