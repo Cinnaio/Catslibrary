@@ -111,7 +111,10 @@ export default function Home() {
   const [apiFailed, setApiFailed] = useState(false)
   const [recent, setRecent] = useState<ReadingHistoryEntry[]>([])
 
-  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // 防抖后的搜索词：loadNovels 只依赖它，避免"每次击键立即请求 + 300ms 后再请求"的双发
+  const [debouncedQuery, setDebouncedQuery] = useState(query)
+  // 响应序号守卫：丢弃乱序返回的过期响应（与 NovelsTab 相同模式）
+  const loadSeq = useRef(0)
 
   // 地址栏 ?q= 初始化（如从别处跳转到首页搜索）
   useEffect(() => {
@@ -119,37 +122,6 @@ export default function Home() {
     if (q) setQuery(q)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-
-  // 拼音查询加载数据映射
-  const loadDemo = useCallback(
-    async (isPinyin: boolean, usePinyin: boolean) => {
-      let filtered = getDemoNovels()
-      if (activeCategory) filtered = filtered.filter((n) => n.categories.includes(activeCategory))
-      if (activeStatus) filtered = filtered.filter((n) => n.status === activeStatus)
-      if (query) {
-        const q = query.toLowerCase()
-        const results: Novel[] = []
-        for (const n of filtered) {
-          if (await novelMatches(n, q, usePinyin)) results.push(n)
-        }
-        filtered = results
-      }
-      filtered.sort((a, b) => {
-        if (sort === 'title') return a.title.localeCompare(b.title, 'zh')
-        if (sort === 'chapter_count') return (b.chapterCount || 0) - (a.chapterCount || 0)
-        return 0
-      })
-      const total = Math.ceil(filtered.length / PAGE_LIMIT) || 1
-      setTotalPages(total)
-      const start = (currentPage - 1) * PAGE_LIMIT
-      setNovels(filtered.slice(start, start + PAGE_LIMIT))
-      const cats = new Set<string>()
-      getDemoNovels().forEach((n) => n.categories.forEach((c) => cats.add(c)))
-      setCategories([...cats].sort((a, b) => a.length - b.length || a.localeCompare(b)))
-      void loadRecent()
-    },
-    [activeCategory, activeStatus, currentPage, query, sort],
-  )
 
   const loadRecent = useCallback(async () => {
     const local = getRecentHistory(5)
@@ -168,64 +140,95 @@ export default function Home() {
     }
   }, [user])
 
+  // 拼音查询加载数据映射
+  const loadDemo = useCallback(
+    async (usePinyin: boolean, seq: number) => {
+      let filtered = getDemoNovels()
+      if (activeCategory) filtered = filtered.filter((n) => n.categories.includes(activeCategory))
+      if (activeStatus) filtered = filtered.filter((n) => n.status === activeStatus)
+      if (debouncedQuery) {
+        const q = debouncedQuery.toLowerCase()
+        const results: Novel[] = []
+        for (const n of filtered) {
+          if (await novelMatches(n, q, usePinyin)) results.push(n)
+        }
+        filtered = results
+      }
+      if (seq !== loadSeq.current) return
+      filtered.sort((a, b) => {
+        if (sort === 'title') return a.title.localeCompare(b.title, 'zh')
+        if (sort === 'chapter_count') return (b.chapterCount || 0) - (a.chapterCount || 0)
+        return 0
+      })
+      const total = Math.ceil(filtered.length / PAGE_LIMIT) || 1
+      setTotalPages(total)
+      const start = (currentPage - 1) * PAGE_LIMIT
+      setNovels(filtered.slice(start, start + PAGE_LIMIT))
+      const cats = new Set<string>()
+      getDemoNovels().forEach((n) => n.categories.forEach((c) => cats.add(c)))
+      setCategories([...cats].sort((a, b) => a.length - b.length || a.localeCompare(b)))
+      void loadRecent()
+    },
+    [activeCategory, activeStatus, currentPage, debouncedQuery, sort, loadRecent],
+  )
+
   const loadNovels = useCallback(async () => {
+    const seq = ++loadSeq.current
     setLoading(true)
-    const isPinyin = isPinyinQueryText(query)
+    const isPinyin = isPinyinQueryText(debouncedQuery)
     const params: Record<string, string | number> = {
       page: isPinyin ? 1 : currentPage,
       limit: isPinyin ? 100 : PAGE_LIMIT,
       sort,
       order: sort === 'title' ? 'asc' : 'desc',
     }
-    if (query && !isPinyin) params.search = query
+    if (debouncedQuery && !isPinyin) params.search = debouncedQuery
     if (activeCategory) params.category = activeCategory
     if (activeStatus) params.status = activeStatus
 
     try {
       const data = await novelsApi.list(params)
       let items = data.novels
+      let pages = data.totalPages || 1
       if (isPinyin) {
-        const q = query.toLowerCase()
+        const q = debouncedQuery.toLowerCase()
         const matched: Novel[] = []
         for (const n of items) {
           if (await novelMatches(n, q, true)) matched.push(n)
         }
-        const total = Math.ceil(matched.length / PAGE_LIMIT) || 1
-        setTotalPages(total)
+        pages = Math.ceil(matched.length / PAGE_LIMIT) || 1
         const start = (currentPage - 1) * PAGE_LIMIT
         items = matched.slice(start, start + PAGE_LIMIT)
-      } else {
-        setTotalPages(data.totalPages || 1)
       }
+      if (seq !== loadSeq.current) return
+      setTotalPages(pages)
       setNovels(items)
       setCategories(data.availableCategories || [])
       setApiFailed(false)
       setLoading(false)
       void loadRecent()
     } catch {
+      if (seq !== loadSeq.current) return
       // API 不可用 → 演示数据 + 重试横幅
       console.warn('API unavailable, using demo data.')
       setApiFailed(true)
-      await loadDemo(isPinyin, isPinyinQueryText(query))
+      await loadDemo(isPinyin, seq)
+      if (seq !== loadSeq.current) return
       setLoading(false)
     }
-  }, [currentPage, query, activeCategory, activeStatus, sort, loadDemo, loadRecent])
+  }, [currentPage, debouncedQuery, activeCategory, activeStatus, sort, loadDemo, loadRecent])
 
   useEffect(() => {
     void loadNovels()
   }, [loadNovels])
 
-  // 搜索防抖：输入变化 300ms 后触发
+  // 搜索防抖：query 落定 300ms 后写入 debouncedQuery（由其触发 loadNovels），并回到第一页
   useEffect(() => {
-    if (searchTimer.current) clearTimeout(searchTimer.current)
-    searchTimer.current = setTimeout(() => {
+    const timer = setTimeout(() => {
       setCurrentPage(1)
-      void loadNovels()
+      setDebouncedQuery(query)
     }, 300)
-    return () => {
-      if (searchTimer.current) clearTimeout(searchTimer.current)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => clearTimeout(timer)
   }, [query])
 
   // ⌘K / Ctrl+K 聚焦搜索
