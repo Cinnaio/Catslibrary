@@ -26,12 +26,13 @@ interface AiTask {
   total: number
   step: string
   prompt: string
+  batchId: string
   error: string
   createdAt: number
   updatedAt: number
 }
 
-export default function AiTasksPanel() {
+export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) => void } = {}) {
   const { toast } = useToast()
   const [tasks, setTasks] = useState<AiTask[]>([])
   const [loading, setLoading] = useState(true)
@@ -81,7 +82,13 @@ export default function AiTasksPanel() {
             <p className="mt-1 truncate text-xs text-muted-foreground" title={task.prompt}>Prompt：{task.prompt || '无'}</p>
             {task.error && <p className="mt-1 text-xs text-destructive">{task.error}</p>}
           </div>
-          {(task.status === 'queued' || task.status === 'running') && <Button variant="outline" size="sm" onClick={() => void cancel(task.id)}>取消任务</Button>}
+          <div className="flex flex-col items-end gap-2">
+            {(task.status === 'queued' || task.status === 'running') && <Button variant="outline" size="sm" onClick={() => void cancel(task.id)}>取消任务</Button>}
+            {/* 部分完成的批次（失败/取消但已产出若干章）也能从这里找到草稿 */}
+            {task.batchId && task.current > 0 && props.onViewBatch && (
+              <Button variant="outline" size="sm" onClick={() => props.onViewBatch?.(task.batchId)}>查看产出</Button>
+            )}
+          </div>
         </div>)}
       </div>}
     </CardContent>

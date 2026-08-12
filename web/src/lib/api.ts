@@ -719,6 +719,10 @@ export const aiApi = {
     publishDraft(id: string, data: { novelId: string; title: string }): Promise<{ ok: boolean; chapter: { id: string; title: string; order: number } }> {
       return request('POST', `/ai/writing/drafts/${encodeURIComponent(id)}/publish`, data, true)
     },
+    /** 整批发布续写草稿：按 batchIndex 顺序发布，标题自动使用「第 N 章」递增。 */
+    publishBatch(batchId: string, data: { novelId: string }): Promise<{ ok: boolean; published: Array<{ id: string; title: string; order: number; generationId: string }>; novelId: string }> {
+      return request('POST', `/ai/writing/batches/${encodeURIComponent(batchId)}/publish`, data, true)
+    },
   },
   usage(): Promise<{ today: AiUsageSummary; last30d: AiUsageSummary }> {
     return request('GET', '/ai/usage', null, true)

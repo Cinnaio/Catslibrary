@@ -790,6 +790,45 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     )
     expect(Number(rows[0]?.chapter_count)).toBe(Number(rows[0]?.actual))
   })
+
+  it('整批发布：按批次顺序发布剩余草稿，序号衔接现有章节，重复发布 404', async () => {
+    // 新书隔离，避免影响其它用例的章节计数
+    const novel = await req('/api/novels', json('POST', { title: '整批发布书', author: '某作者' }, adminToken))
+    const novelId = (await jsonOf<{ novel: { id: string } }>(novel)).novel.id
+    await req('/api/chapters', json('POST', { novelId, title: '第 1 章', content: LONG_CONTENT }, adminToken))
+
+    const started = await req('/api/ai/writing/continue', json('POST', { novelId, chapterCount: 3 }, adminToken))
+    expect(started.status).toBe(202)
+    const { taskId, batchId } = await jsonOf<{ taskId: string; batchId: string }>(started)
+    expect((await waitForTask(taskId, adminToken)).status).toBe('completed')
+
+    // 先单独发布批次里的第 2 章草稿：整批发布应跳过它
+    const { rows: draftRows } = await t.db.query<{ id: string; params_json: string }>(
+      `SELECT id, params_json FROM ai_generations WHERE kind = 'continue' AND status = 'draft' AND params_json LIKE $1`,
+      [`%"batchId":"${batchId}"%`],
+    )
+    expect(draftRows).toHaveLength(3)
+    const second = draftRows
+      .map((row) => ({ id: row.id, idx: Number((JSON.parse(row.params_json) as { batchIndex: number }).batchIndex) }))
+      .find((draft) => draft.idx === 2)!
+    const single = await req(`/api/ai/writing/drafts/${second.id}/publish`, json('POST', { novelId, title: '手动发布章' }, adminToken))
+    expect(single.status).toBe(200)
+
+    // 整批发布剩余 2 章：标题「第 N 章」沿现有序号递增
+    const batch = await req(`/api/ai/writing/batches/${batchId}/publish`, json('POST', { novelId }, adminToken))
+    expect(batch.status).toBe(200)
+    const body = await jsonOf<{ published: Array<{ title: string; order: number }> }>(batch)
+    expect(body.published).toHaveLength(2)
+    expect(body.published.map((chapter) => chapter.order)).toEqual([3, 4])
+    expect(body.published.map((chapter) => chapter.title)).toEqual(['第 3 章', '第 4 章'])
+
+    // 批次里已无草稿：重复整批发布 404
+    expect((await req(`/api/ai/writing/batches/${batchId}/publish`, json('POST', { novelId }, adminToken))).status).toBe(404)
+
+    // 章节计数与真实章节数一致（1 手写 + 1 单发 + 2 整批 = 4）
+    const { rows } = await t.db.query<{ chapter_count: number }>('SELECT chapter_count FROM novels WHERE id = $1', [novelId])
+    expect(Number(rows[0]?.chapter_count)).toBe(4)
+  })
 })
 
 function sleep(ms: number): Promise<void> {

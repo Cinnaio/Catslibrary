@@ -10,7 +10,8 @@ import { AiError, chat, isTextAiConfigured, providerLabel, textProvider } from '
 import { getAiSettings, saveAiSettings } from '../services/ai/settings'
 import { generateRecap, getCachedRecap, loadChapterForRecap } from '../services/ai/summary'
 import { generateCatchup, getCachedCatchup, inspectCatchup } from '../services/ai/catchup'
-import { invalidateChapter, listGenerationDetails, deleteGeneration, deleteGenerations, getGeneration, updateGenerationResult } from '../services/ai/generations'
+import { invalidateChapter, listGenerationDetails, deleteGeneration, deleteGenerations, getGeneration, updateGenerationResult, type GenerationRow } from '../services/ai/generations'
+import { escapeLike } from '../services/text'
 import { generateContinuationChapters, generateWriting, generateWritingTitles, recentNovelContext } from '../services/ai/writing'
 import { checkQuota, recordUsage, startOfToday, summarizeUsage } from '../services/ai/usage'
 import { optionalUser, requireAdmin, requireUser, type AuthEnv } from '../middlewares/auth'
@@ -354,6 +355,70 @@ aiRoutes.post('/writing/drafts/:id/publish', requireAdmin(), async (c) => {
       return nextOrder
     })
     return c.json({ ok: true, chapter: { id: chapterId, novelId, title, order } })
+  } catch (err) {
+    if (err instanceof PublishError) return c.json({ error: err.message }, err.httpStatus)
+    throw err
+  }
+})
+
+/** 从 params_json 取批次字段（batchId / batchIndex），解析失败按无批次处理。 */
+function draftBatchParams(paramsJson: string): { batchId: string; batchIndex: number } {
+  try {
+    const params = JSON.parse(paramsJson) as Record<string, unknown>
+    return { batchId: typeof params.batchId === 'string' ? params.batchId : '', batchIndex: Number(params.batchIndex) || 0 }
+  } catch {
+    return { batchId: '', batchIndex: 0 }
+  }
+}
+
+/**
+ * 整批发布：把一个续写批次的全部草稿按 batchIndex 顺序发布为正式章节。
+ * 标题自动使用「第 N 章」（沿现有章节序号递增），发布后可在章节管理里改名。
+ */
+aiRoutes.post('/writing/batches/:batchId/publish', requireAdmin(), async (c) => {
+  const db = getDb()
+  const batchId = String(c.req.param('batchId') || '').trim()
+  if (!batchId) return c.json({ error: 'batchId 必填' }, 400)
+  const body = await c.req.json().catch(() => ({}))
+
+  // LIKE 先粗筛（batchId 由服务端生成，转义只为防御异常输入），再解析 params_json 精确匹配
+  const candidates = await all<GenerationRow>(
+    db,
+    `SELECT * FROM ai_generations WHERE kind = 'continue' AND status = 'draft' AND params_json LIKE $1 ORDER BY created_at ASC`,
+    [`%"batchId":"${escapeLike(batchId)}"%`],
+  )
+  const drafts = candidates
+    .map((row) => ({ row, batch: draftBatchParams(row.params_json) }))
+    .filter((d) => d.batch.batchId === batchId && d.row.result.trim())
+    .sort((a, b) => a.batch.batchIndex - b.batch.batchIndex)
+  if (!drafts.length) return c.json({ error: '该批次没有可发布的草稿' }, 404)
+
+  const novelId = String(body.novelId || drafts[0]!.row.novel_id || '').trim()
+  if (!novelId) return c.json({ error: 'novelId 必填' }, 400)
+
+  const now = Date.now()
+  try {
+    const published = await withTx(db, async (q) => {
+      const novel = await q('SELECT id FROM novels WHERE id = $1 FOR UPDATE', [novelId])
+      if (!novel.rows.length) throw new PublishError(404, '小说不存在')
+      const max = await q<{ max_order: number }>('SELECT COALESCE(MAX(sort_order), 0)::int AS max_order FROM chapters WHERE novel_id = $1', [novelId])
+      let order = Number(max.rows[0]?.max_order || 0)
+      const results: Array<{ id: string; title: string; order: number; generationId: string }> = []
+      for (const { row } of drafts) {
+        const chapterId = 'ch_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7)
+        // 原子占用：并发下已被单独发布的草稿跳过，不打断整批
+        const claimed = await q("UPDATE ai_generations SET status = 'published', chapter_id = $1 WHERE id = $2 AND status = 'draft'", [chapterId, row.id])
+        if (!claimed.rowCount) continue
+        order += 1
+        const title = `第 ${order} 章`
+        await q('INSERT INTO chapters (id, novel_id, title, content, sort_order, word_count, source_url, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)', [chapterId, novelId, title, row.result, order, row.result.replace(/<[^>]*>/g, '').length, '', now])
+        results.push({ id: chapterId, title, order, generationId: row.id })
+      }
+      if (!results.length) throw new PublishError(409, '草稿已被发布或不可发布')
+      await q('UPDATE novels SET chapter_count = (SELECT COUNT(*) FROM chapters WHERE novel_id = $1), updated_at = $2 WHERE id = $1', [novelId, now])
+      return results
+    })
+    return c.json({ ok: true, published, novelId })
   } catch (err) {
     if (err instanceof PublishError) return c.json({ error: err.message }, err.httpStatus)
     throw err

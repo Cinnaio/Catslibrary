@@ -32,7 +32,10 @@ interface AiGenerationListItem {
   groupItems?: AiGenerationListItem[]
 }
 
-export default function AiGenerationsPanel(props: { scope: 'all' | 'reader' | 'writing'; status?: 'all' | 'published' | 'draft' | 'rejected' }) {
+/** 可编辑的草稿类型：与后端 PUT /writing/drafts/:id 的白名单一致。 */
+const EDITABLE_KINDS = new Set(['write_chapter', 'continue', 'write_outline'])
+
+export default function AiGenerationsPanel(props: { scope: 'all' | 'reader' | 'writing'; status?: 'all' | 'published' | 'draft' | 'rejected'; focusBatchId?: string }) {
   const { toast } = useToast()
   const { confirm } = useConfirm()
   const [items, setItems] = useState<AiGenerationListItem[]>([])
@@ -50,6 +53,15 @@ export default function AiGenerationsPanel(props: { scope: 'all' | 'reader' | 'w
   const [expandedBatchId, setExpandedBatchId] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [batchDeleting, setBatchDeleting] = useState(false)
+  /** null 表示阅读模式；字符串表示编辑中的草稿正文 */
+  const [editingText, setEditingText] = useState<string | null>(null)
+  const [savingEdit, setSavingEdit] = useState(false)
+  const [publishingBatchId, setPublishingBatchId] = useState<string | null>(null)
+
+  // 从任务面板 / 创作页跳转过来时，自动展开对应批次
+  useEffect(() => {
+    if (props.focusBatchId) setExpandedBatchId(props.focusBatchId)
+  }, [props.focusBatchId])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -171,6 +183,45 @@ export default function AiGenerationsPanel(props: { scope: 'all' | 'reader' | 'w
       toast((err as Error).message || '发布失败', 'error')
     } finally {
       setPublishing(false)
+    }
+  }
+
+  async function publishBatch(item: AiGenerationListItem) {
+    const draftCount = (item.groupItems || []).filter((chapter) => chapter.status === 'draft').length
+    if (!draftCount || !item.novelId) return toast('该批次没有可发布的草稿', 'error')
+    const ok = await confirm({
+      title: '整批发布续写草稿？',
+      message: `将按批次顺序把 ${draftCount} 章草稿发布为《${item.novelTitle || '未知小说'}》的正式章节，标题自动使用「第 N 章」递增，发布后可在章节管理中改名。`,
+      okText: '整批发布',
+      cancelText: '取消',
+    })
+    if (!ok) return
+    setPublishingBatchId(item.batchId)
+    try {
+      const result = await aiApi.writing.publishBatch(item.batchId, { novelId: item.novelId })
+      toast(`已发布 ${result.published.length} 章为正式章节`, 'success')
+      void load()
+    } catch (err) {
+      toast((err as Error).message || '整批发布失败', 'error')
+    } finally {
+      setPublishingBatchId(null)
+    }
+  }
+
+  async function saveEdit(item: AiGenerationListItem) {
+    const text = (editingText || '').trim()
+    if (!text) return toast('内容不能为空', 'error')
+    setSavingEdit(true)
+    try {
+      await aiApi.writing.updateDraft(item.id, text)
+      setViewing({ ...item, result: text })
+      setEditingText(null)
+      toast('草稿已保存', 'success')
+      void load()
+    } catch (err) {
+      toast((err as Error).message || '保存失败', 'error')
+    } finally {
+      setSavingEdit(false)
     }
   }
 
@@ -296,7 +347,14 @@ export default function AiGenerationsPanel(props: { scope: 'all' | 'reader' | 'w
                           <td className="px-4 py-3 text-right">
                             <div className="flex justify-end gap-2">
                               {item.groupItems ? (
-                                <Button variant="outline" size="sm" onClick={() => setExpandedBatchId(expandedBatchId === item.id ? null : item.id)}>{expandedBatchId === item.id ? '收起章节' : '查看章节'}</Button>
+                                <>
+                                  {item.groupItems.some((chapter) => chapter.status === 'draft') && (
+                                    <Button size="sm" disabled={publishingBatchId === item.batchId} onClick={() => void publishBatch(item)}>
+                                      {publishingBatchId === item.batchId ? '发布中…' : '整批发布'}
+                                    </Button>
+                                  )}
+                                  <Button variant="outline" size="sm" onClick={() => setExpandedBatchId(expandedBatchId === item.id ? null : item.id)}>{expandedBatchId === item.id ? '收起章节' : '查看章节'}</Button>
+                                </>
                               ) : (
                                 <Button variant="outline" size="sm" onClick={() => { setViewing(item); setPublishTitle(item.chapterTitle || ''); setTitleCandidates([]) }}>查看</Button>
                               )}
@@ -356,7 +414,7 @@ export default function AiGenerationsPanel(props: { scope: 'all' | 'reader' | 'w
           )}
         </CardContent>
       </Card>
-      <Dialog open={!!viewing} onOpenChange={(open) => { if (!open) { setViewing(null); setPublishTitle(''); setTitleCandidates([]); setGeneratingTitles(false) } }}>
+      <Dialog open={!!viewing} onOpenChange={(open) => { if (!open) { setViewing(null); setPublishTitle(''); setTitleCandidates([]); setGeneratingTitles(false); setEditingText(null) } }}>
         <DialogContent className="ai-generation-dialog flex h-[min(85svh,900px)] max-h-[calc(100svh-2rem)] w-[calc(100%-1.5rem)] max-w-4xl flex-col gap-3 overflow-hidden p-4 sm:gap-4 sm:p-6">
           <DialogHeader>
             <DialogTitle>{viewing ? `${kindLabel(viewing.kind)} · 完整内容` : '完整内容'}</DialogTitle>
@@ -368,8 +426,32 @@ export default function AiGenerationsPanel(props: { scope: 'all' | 'reader' | 'w
                 <summary className="cursor-pointer text-sm font-medium">查看本次生成的 Prompt</summary>
                 <pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap text-xs leading-5 text-muted-foreground">{viewing.prompt || '未记录 Prompt'}</pre>
               </details>
-              <div className="min-h-0 flex-1 overflow-y-auto rounded-md border bg-muted/20 p-4 text-sm leading-7 whitespace-pre-wrap sm:p-5">{viewing.result || '暂无内容'}</div>
-              {viewing.status === 'draft' && (viewing.kind === 'write_chapter' || viewing.kind === 'continue') && (
+              <div className="flex shrink-0 items-center gap-2">
+                <span className="text-xs text-muted-foreground">
+                  约 {(editingText ?? viewing.result).replace(/<[^>]*>/g, '').length} 字
+                </span>
+                {viewing.status === 'draft' && EDITABLE_KINDS.has(viewing.kind) && (
+                  editingText === null ? (
+                    <Button variant="outline" size="sm" className="ml-auto" onClick={() => setEditingText(viewing.result)}>编辑正文</Button>
+                  ) : (
+                    <div className="ml-auto flex gap-2">
+                      <Button variant="ghost" size="sm" disabled={savingEdit} onClick={() => setEditingText(null)}>取消</Button>
+                      <Button size="sm" disabled={savingEdit || !editingText.trim()} onClick={() => void saveEdit(viewing)}>{savingEdit ? '保存中…' : '保存草稿'}</Button>
+                    </div>
+                  )
+                )}
+              </div>
+              {editingText === null ? (
+                <div className="min-h-0 flex-1 overflow-y-auto rounded-md border bg-muted/20 p-4 text-sm leading-7 whitespace-pre-wrap sm:p-5">{viewing.result || '暂无内容'}</div>
+              ) : (
+                <textarea
+                  className="min-h-0 flex-1 resize-none rounded-md border border-input bg-background p-4 text-sm leading-7 focus-visible:border-ring focus-visible:outline-none sm:p-5"
+                  value={editingText}
+                  onChange={(event) => setEditingText(event.target.value)}
+                  disabled={savingEdit}
+                />
+              )}
+              {viewing.status === 'draft' && editingText === null && (viewing.kind === 'write_chapter' || viewing.kind === 'continue') && (
                 <div className="ai-generation-publish shrink-0 border-t pt-4">
                   <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                   <div className="ai-generation-publish__field grid min-w-0 flex-1 gap-1.5">

@@ -25,6 +25,13 @@ export default function AiTab() {
   const [provider, setProvider] = useState<Provider | null>(null)
   const [loading, setLoading] = useState(true)
   const [activeSubTab, setActiveSubTab] = useState('config')
+  /** 从任务面板 / 创作页跳到「已生成内容」时要展开的批次 */
+  const [focusBatchId, setFocusBatchId] = useState('')
+
+  const openGenerations = useCallback((batchId?: string) => {
+    setFocusBatchId(batchId || '')
+    setActiveSubTab('content')
+  }, [])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -61,11 +68,11 @@ export default function AiTab() {
         </TabsContent>
 
         <TabsContent value="content" className="min-w-0">
-          <AiGenerationsPanel scope="all" status="all" />
+          <AiGenerationsPanel scope="all" status="all" focusBatchId={focusBatchId} />
         </TabsContent>
 
         <TabsContent value="tasks" className="min-w-0">
-          <AiTasksPanel />
+          <AiTasksPanel onViewBatch={openGenerations} />
         </TabsContent>
 
         <TabsContent value="usage" className="min-w-0">
@@ -81,7 +88,7 @@ export default function AiTab() {
         </TabsContent>
 
         <TabsContent value="writing" className="min-w-0">
-          <AiWritingPanel />
+          <AiWritingPanel onViewBatch={openGenerations} />
         </TabsContent>
       </Tabs>
     </AdminPage>
