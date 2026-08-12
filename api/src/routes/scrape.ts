@@ -274,6 +274,20 @@ scrapeRoutes.post('/', async (c) => {
       if (!host) return c.json({ error: 'host 必填' }, 400)
       return c.json({ success: true, host, deleted: await deps.store.deleteSource(host) })
     }
+    case 'batch-toggle-sources': {
+      const { hosts, enabled } = body
+      if (!Array.isArray(hosts) || hosts.length === 0 || enabled === undefined) return c.json({ error: 'hosts 和 enabled 必填' }, 400)
+      const normalizedHosts = Array.from(new Set(hosts.map((host: unknown) => String(host || '').trim()).filter(Boolean)))
+      if (!normalizedHosts.length) return c.json({ error: 'hosts 不能为空' }, 400)
+      return c.json({ success: true, hosts: normalizedHosts, enabled: !!enabled, updated: await deps.store.batchToggleSources(normalizedHosts, !!enabled) })
+    }
+    case 'batch-delete-sources': {
+      const { hosts } = body
+      if (!Array.isArray(hosts) || hosts.length === 0) return c.json({ error: 'hosts 必填' }, 400)
+      const normalizedHosts = Array.from(new Set(hosts.map((host: unknown) => String(host || '').trim()).filter(Boolean)))
+      if (!normalizedHosts.length) return c.json({ error: 'hosts 不能为空' }, 400)
+      return c.json({ success: true, hosts: normalizedHosts, deleted: await deps.store.batchDeleteSources(normalizedHosts) })
+    }
     case 'test-source': {
       const { host } = body
       if (!host) return c.json({ error: 'host 必填' }, 400)
@@ -470,7 +484,10 @@ async function handleListSources(c: Context, body: any) {
   let rows = await store.listSources()
   if (enabled !== undefined && enabled !== '') rows = rows.filter((r) => r.enabled === (enabled ? 1 : 0))
   if (support) rows = rows.filter((r) => r.support === support)
-  if (host) rows = rows.filter((r) => String(r.host).toLowerCase().includes(String(host).toLowerCase()))
+  if (host) {
+    const query = String(host).toLowerCase()
+    rows = rows.filter((r) => String(r.host).toLowerCase().includes(query) || String(r.name).toLowerCase().includes(query))
+  }
   const sources = rows.map((row) => {
     let selectors: Record<string, string> = {}
     let warnings: string[] = []

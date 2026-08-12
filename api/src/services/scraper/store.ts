@@ -110,6 +110,8 @@ export interface ScrapeStore {
   sourceCounts(): Promise<{ total: number; enabledCount: number; bySupport: Record<string, number> }>
   toggleSource(host: string, enabled: boolean): Promise<void>
   deleteSource(host: string): Promise<number>
+  batchToggleSources(hosts: string[], enabled: boolean): Promise<number>
+  batchDeleteSources(hosts: string[]): Promise<number>
   // 章节/小说
   getExistingChapterKeys(novelId: string): Promise<{ urls: Set<string>; titles: Set<string> }>
   getMaxChapterOrder(novelId: string): Promise<number>
@@ -509,6 +511,20 @@ export class PgScrapeStore implements ScrapeStore {
 
   async deleteSource(host: string): Promise<number> {
     const { rowCount } = await this.db.query('DELETE FROM scrape_sources WHERE host = $1', [host])
+    return rowCount ?? 0
+  }
+
+  async batchToggleSources(hosts: string[], enabled: boolean): Promise<number> {
+    const uniqueHosts = Array.from(new Set(hosts.map((host) => String(host || '').trim()).filter(Boolean)))
+    if (!uniqueHosts.length) return 0
+    const { rowCount } = await this.db.query('UPDATE scrape_sources SET enabled = $1, updated_at = $2 WHERE host = ANY($3)', [enabled ? 1 : 0, Date.now(), uniqueHosts])
+    return rowCount ?? 0
+  }
+
+  async batchDeleteSources(hosts: string[]): Promise<number> {
+    const uniqueHosts = Array.from(new Set(hosts.map((host) => String(host || '').trim()).filter(Boolean)))
+    if (!uniqueHosts.length) return 0
+    const { rowCount } = await this.db.query('DELETE FROM scrape_sources WHERE host = ANY($1)', [uniqueHosts])
     return rowCount ?? 0
   }
 

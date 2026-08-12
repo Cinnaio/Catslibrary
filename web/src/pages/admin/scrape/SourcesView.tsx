@@ -7,6 +7,7 @@ import AdminTabHeader from '@/components/admin/AdminTabHeader'
 import AdminPanel from '@/components/admin/AdminPanel'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -26,6 +27,7 @@ export default function SourcesView({ active }: { active: boolean }) {
   const [total, setTotal] = useState(0)
   const [enabledCount, setEnabledCount] = useState(0)
   const [bySupport, setBySupport] = useState<Record<string, number>>({})
+  const [selectedHosts, setSelectedHosts] = useState<Set<string>>(new Set())
 
   const [supportFilter, setSupportFilter] = useState('')
   const [hostFilter, setHostFilter] = useState('')
@@ -54,6 +56,7 @@ export default function SourcesView({ active }: { active: boolean }) {
       setTotal(data.total || 0)
       setEnabledCount(data.enabledCount || 0)
       setBySupport(data.bySupport || {})
+      setSelectedHosts((current) => new Set([...current].filter((host) => (Array.isArray(data.sources) ? data.sources : []).some((source: SourceRow) => source.host === host))))
     } catch (err) {
       setSourcesError((err as Error).message)
       setSources([])
@@ -105,6 +108,47 @@ export default function SourcesView({ active }: { active: boolean }) {
     } catch (err) {
       toast((err as Error).message, 'error')
     }
+  }
+
+  function toggleSelected(host: string, checked: boolean) {
+    setSelectedHosts((current) => {
+      const next = new Set(current)
+      if (checked) next.add(host)
+      else next.delete(host)
+      return next
+    })
+  }
+
+  function toggleAllVisible(checked: boolean) {
+    setSelectedHosts((current) => {
+      const next = new Set(current)
+      sources.forEach((source) => checked ? next.add(source.host) : next.delete(source.host))
+      return next
+    })
+  }
+
+  async function batchDisableSources() {
+    const hosts = [...selectedHosts]
+    const ok = await confirm({ title: '批量停用书源', message: `确定停用已选择的 ${hosts.length} 个书源？`, okText: '停用', danger: true })
+    if (!ok) return
+    try {
+      await scrapePost({ action: 'batch-toggle-sources', hosts, enabled: false })
+      setSelectedHosts(new Set())
+      await loadScrapeSources()
+      toast(`已停用 ${hosts.length} 个书源`, 'success')
+    } catch (err) { toast((err as Error).message, 'error') }
+  }
+
+  async function batchDeleteSources() {
+    const hosts = [...selectedHosts]
+    const ok = await confirm({ title: '批量删除书源', message: `确定删除已选择的 ${hosts.length} 个书源？删除后运行时不再按这些 host 匹配。`, okText: '删除', danger: true })
+    if (!ok) return
+    try {
+      await scrapePost({ action: 'batch-delete-sources', hosts })
+      setSelectedHosts(new Set())
+      await loadScrapeSources()
+      toast(`已删除 ${hosts.length} 个书源`, 'success')
+    } catch (err) { toast((err as Error).message, 'error') }
   }
 
   async function testSource(s: SourceRow) {
@@ -165,59 +209,64 @@ export default function SourcesView({ active }: { active: boolean }) {
       />
 
       {/* Import card */}
-      <div className="grid gap-4">
-        <AdminPanel title="导入书源">
-        <div className="form-group">
-          <Label className="mb-1.5">书源池 URL</Label>
-          <div className="input-row">
-            <Input type="url" className="flex-1" placeholder="https://raw.githubusercontent.com/aoaostar/legado/release/sources/xxx.json" value={importUrl} onChange={(e) => setImportUrl(e.target.value)} />
-            <Button size="sm" onClick={importFromUrl}>
-              拉取并导入
-            </Button>
-          </div>
-        </div>
-        <div className="form-group">
-          <Label className="mb-1.5">或粘贴书源 JSON（单个或数组）</Label>
-          <Textarea
-            rows={4}
-            placeholder='[{"bookSourceName":"xxx小说网","bookSourceUrl":"https://...","ruleToc":{...},"ruleContent":{...}}]'
-            value={importText}
-            onChange={(e) => setImportText(e.target.value)}
-          />
-        </div>
-        <div className="action-row">
-          <Button variant="secondary" size="sm" onClick={importFromText}>
-            粘贴导入
-          </Button>
-          <span className="text-sm text-muted-foreground" aria-live="polite">
-            {importStatus}
-          </span>
-        </div>
-        {importResult && (
-          <div className="mt-3">
-            {importResult.ok ? (
-              <Badge className="bg-success/10 text-success">{importResult.text}</Badge>
-            ) : (
-              <div className="text-sm font-medium text-destructive">{importResult.text}</div>
+      <div className="source-workspace">
+        <AdminPanel className="source-import-panel" title="导入书源">
+          <div className="source-import__body">
+            <div className="form-group source-import__url-group">
+              <Label className="source-import__label mb-1.5">书源池 URL</Label>
+              <div className="input-row source-import__url-row">
+                <Input type="url" placeholder="https://raw.githubusercontent.com/aoaostar/legado/release/sources/xxx.json" value={importUrl} onChange={(e) => setImportUrl(e.target.value)} />
+                <Button size="sm" onClick={importFromUrl}>
+                  拉取并导入
+                </Button>
+              </div>
+            </div>
+            <div className="form-group source-import__json-group">
+              <Label className="source-import__label mb-1.5">或粘贴书源 JSON（单个或数组）</Label>
+              <Textarea
+                rows={4}
+                placeholder='[{"bookSourceName":"xxx小说网","bookSourceUrl":"https://...","ruleToc":{...},"ruleContent":{...}}]'
+                value={importText}
+                onChange={(e) => setImportText(e.target.value)}
+              />
+            </div>
+            <div className="action-row source-import__actions">
+              <Button variant="secondary" size="sm" onClick={importFromText}>
+                粘贴导入
+              </Button>
+              <span className="text-sm text-muted-foreground" aria-live="polite">
+                {importStatus}
+              </span>
+            </div>
+            {importResult && (
+              <div className="source-import__result">
+                {importResult.ok ? (
+                  <Badge className="bg-success/10 text-success">{importResult.text}</Badge>
+                ) : (
+                  <div className="text-sm font-medium text-destructive">{importResult.text}</div>
+                )}
+                {importResult.sub && <div className="text-sm text-muted-foreground">{importResult.sub}</div>}
+              </div>
             )}
-            {importResult.sub && <div className="text-sm text-muted-foreground">{importResult.sub}</div>}
           </div>
-        )}
         </AdminPanel>
 
         <section className="source-panel" aria-label="书源列表">
           <div className="source-panel__bar">
             <div className="source-panel__cluster source-panel__cluster--primary">
-              <Tabs value={supportFilter} onValueChange={setSupportFilter}>
-                <TabsList>
-                  <TabsTrigger value="">全部</TabsTrigger>
-                  <TabsTrigger value="full">full</TabsTrigger>
-                  <TabsTrigger value="partial">partial</TabsTrigger>
-                  <TabsTrigger value="unsupported">unsupported</TabsTrigger>
-                  <TabsTrigger value="enabled">已启用</TabsTrigger>
-                </TabsList>
-              </Tabs>
-              <div className="source-panel__stats">
+              <div className="source-panel__filter-group">
+                <span className="source-panel__section-label">筛选</span>
+                <Tabs className="source-panel__tabs" value={supportFilter} onValueChange={setSupportFilter}>
+                  <TabsList>
+                    <TabsTrigger value="">全部</TabsTrigger>
+                    <TabsTrigger value="full">full</TabsTrigger>
+                    <TabsTrigger value="partial">partial</TabsTrigger>
+                    <TabsTrigger value="unsupported">unsupported</TabsTrigger>
+                    <TabsTrigger value="enabled">已启用</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
+              <div className="source-panel__stats" aria-label="书源统计">
                 <Badge variant="secondary">总数 {total}</Badge>
                 <Badge variant="secondary">已启用 {enabledCount}</Badge>
                 <Badge className="bg-success/10 text-success">可用 {bySupport.full || 0}</Badge>
@@ -226,84 +275,107 @@ export default function SourcesView({ active }: { active: boolean }) {
               </div>
             </div>
             <div className="source-panel__cluster source-panel__cluster--actions">
-              <Input type="text" className="admin-input--compact" placeholder="按 host 过滤…" value={hostFilter} onChange={(e) => onHostFilterChange(e.target.value)} />
+              <div className="source-panel__search">
+                <Label htmlFor="source-host-filter" className="sr-only">按站点名或 host 搜索书源</Label>
+                <Input id="source-host-filter" type="text" className="admin-input--compact" placeholder="按站点名或 host 搜索…" value={hostFilter} onChange={(e) => onHostFilterChange(e.target.value)} />
+              </div>
               <Button variant="secondary" size="sm" onClick={() => void loadScrapeSources()}>
                 刷新
               </Button>
             </div>
           </div>
+          {selectedHosts.size > 0 && (
+            <div className="source-panel__bulk-actions">
+              <span className="text-sm text-muted-foreground">已选择 {selectedHosts.size}</span>
+              <Button variant="ghost" size="sm" onClick={() => setSelectedHosts(new Set())}>清空</Button>
+              <Button variant="secondary" size="sm" onClick={() => void batchDisableSources()}>批量停用</Button>
+              <Button variant="destructive" size="sm" onClick={() => void batchDeleteSources()}>批量删除</Button>
+            </div>
+          )}
+          <div className="source-panel__scroll-hint" aria-hidden="true">左右滑动查看完整字段</div>
 
-          <div className="table-wrapper">
-          <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>站点</TableHead>
-              <TableHead>host</TableHead>
-              <TableHead>编码</TableHead>
-              <TableHead>支持度</TableHead>
-              <TableHead>置信度</TableHead>
-              <TableHead>章节列表选择器</TableHead>
-              <TableHead>启用</TableHead>
-              <TableHead className="text-right">操作</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {sourcesLoading ? (
-              <TableRow>
-                <TableCell colSpan={8} className="table-empty">
-                  加载中…
-                </TableCell>
-              </TableRow>
-            ) : sourcesError ? (
-              <TableRow>
-                <TableCell colSpan={8} className="table-empty">
-                  {sourcesError}
-                </TableCell>
-              </TableRow>
-            ) : sources.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={8} className="table-empty">
-                  没有匹配的书源
-                </TableCell>
-              </TableRow>
-            ) : (
-              sources.map((s) => (
-                <TableRow key={s.host}>
-                  <TableCell>
-                    <strong>{s.name}</strong>
-                    {Array.isArray(s.warnings) && s.warnings.length > 0 && (
-                      <div className="text-xs text-muted-foreground" title={s.warnings.join('\n')}>
-                        {s.warnings.slice(0, 2).join('; ')}
-                      </div>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">{s.host}</TableCell>
-                  <TableCell className="text-muted-foreground">{s.encoding}</TableCell>
-                  <TableCell>{supportBadge(s.support)}</TableCell>
-                  <TableCell className="text-muted-foreground">{s.confidence}</TableCell>
-                  <TableCell className="text-muted-foreground source-selector-cell" title={s.chapterList}>
-                    {s.chapterList || '—'}
-                  </TableCell>
-                  <TableCell>
-                    <Button variant="ghost" size="sm" onClick={() => void toggleSource(s)}>
-                      {s.enabled ? '停用' : '启用'}
-                    </Button>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <Button variant="secondary" size="sm" onClick={() => void testSource(s)}>
-                        测试
-                      </Button>
-                      <Button variant="destructive" size="sm" onClick={() => void deleteSource(s)}>
-                        删除
-                      </Button>
-                    </div>
-                  </TableCell>
+          <div className="table-wrapper source-panel__table-wrapper">
+            <Table className="source-table">
+              <colgroup>
+                <col className="source-table__col source-table__col--select" />
+                <col className="source-table__col source-table__col--site" />
+                <col className="source-table__col source-table__col--host" />
+                <col className="source-table__col source-table__col--encoding" />
+                <col className="source-table__col source-table__col--support" />
+                <col className="source-table__col source-table__col--confidence" />
+                <col className="source-table__col source-table__col--selector" />
+                <col className="source-table__col source-table__col--enabled" />
+                <col className="source-table__col source-table__col--actions" />
+              </colgroup>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="source-table__head source-table__head--select">
+                    <Checkbox aria-label="选择当前列表中的全部书源" checked={sources.length > 0 && sources.every((source) => selectedHosts.has(source.host))} onCheckedChange={(checked) => toggleAllVisible(checked === true)} />
+                  </TableHead>
+                  <TableHead className="source-table__head source-table__head--site">站点</TableHead>
+                  <TableHead className="source-table__head source-table__head--host">host</TableHead>
+                  <TableHead className="source-table__head source-table__head--encoding">编码</TableHead>
+                  <TableHead className="source-table__head source-table__head--support">支持度</TableHead>
+                  <TableHead className="source-table__head source-table__head--confidence">置信度</TableHead>
+                  <TableHead className="source-table__head source-table__head--selector">章节列表选择器</TableHead>
+                  <TableHead className="source-table__head source-table__head--enabled">启用</TableHead>
+                  <TableHead className="source-table__head source-table__head--actions text-right">操作</TableHead>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {sourcesLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={9} className="table-empty">加载中…</TableCell>
+                  </TableRow>
+                ) : sourcesError ? (
+                  <TableRow>
+                    <TableCell colSpan={9} className="table-empty">{sourcesError}</TableCell>
+                  </TableRow>
+                ) : sources.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={9} className="table-empty">没有匹配的书源</TableCell>
+                  </TableRow>
+                ) : (
+                  sources.map((s) => (
+                    <TableRow key={s.host}>
+                      <TableCell className="source-table__cell source-table__cell--select">
+                        <Checkbox aria-label={`选择 ${s.name}`} checked={selectedHosts.has(s.host)} onCheckedChange={(checked) => toggleSelected(s.host, checked === true)} />
+                      </TableCell>
+                      <TableCell className="source-table__cell source-table__cell--site">
+                        <div className="source-table__site">
+                          <strong className="source-table__site-name">{s.name}</strong>
+                          {Array.isArray(s.warnings) && s.warnings.length > 0 && (
+                            <div className="source-table__warnings" title={s.warnings.join('\n')}>
+                              {s.warnings.slice(0, 2).join('; ')}
+                            </div>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="source-table__cell source-table__cell--host text-muted-foreground">
+                        <span className="source-table__host">{s.host}</span>
+                      </TableCell>
+                      <TableCell className="source-table__cell source-table__cell--encoding text-muted-foreground">{s.encoding}</TableCell>
+                      <TableCell className="source-table__cell source-table__cell--support">{supportBadge(s.support)}</TableCell>
+                      <TableCell className="source-table__cell source-table__cell--confidence text-muted-foreground">{s.confidence}</TableCell>
+                      <TableCell className="source-table__cell source-table__cell--selector text-muted-foreground" title={s.chapterList}>
+                        <span className="source-table__selector">{s.chapterList || '—'}</span>
+                      </TableCell>
+                      <TableCell className="source-table__cell source-table__cell--enabled">
+                        <Button variant="ghost" size="sm" onClick={() => void toggleSource(s)}>
+                          {s.enabled ? '停用' : '启用'}
+                        </Button>
+                      </TableCell>
+                      <TableCell className="source-table__cell source-table__cell--actions text-right">
+                        <div className="source-table__actions">
+                          <Button variant="secondary" size="sm" onClick={() => void testSource(s)}>测试</Button>
+                          <Button variant="destructive" size="sm" onClick={() => void deleteSource(s)}>删除</Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
           </div>
         </section>
       </div>
