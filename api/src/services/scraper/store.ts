@@ -551,8 +551,9 @@ export class PgScrapeStore implements ScrapeStore {
   }
 
   async getMaxChapterOrder(novelId: string): Promise<number> {
-    const row = await first<{ maxOrder: number }>(this.db, 'SELECT COALESCE(MAX(sort_order), 0) AS maxOrder FROM chapters WHERE novel_id = $1', [novelId])
-    return Number(row?.maxOrder) || 0
+    // 别名保持全小写：PostgreSQL 会把未加引号的 maxOrder 折叠为 maxorder，驼峰读取恒为 undefined
+    const row = await first<{ max_order: number }>(this.db, 'SELECT COALESCE(MAX(sort_order), 0) AS max_order FROM chapters WHERE novel_id = $1', [novelId])
+    return Number(row?.max_order) || 0
   }
 
   async batchInsertChapters(novelId: string, chapters: Array<{ id: string; title: string; content: string; order: number; wordCount: number; sourceUrl: string; createdAt: number }>): Promise<void> {
