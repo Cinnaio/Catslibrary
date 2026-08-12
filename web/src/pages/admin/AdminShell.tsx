@@ -24,7 +24,7 @@ export default function AdminShell({ active, onSelect, activeLabel, children }: 
     <SidebarProvider className="admin-layout">
       <AdminSidebar active={active} onSelect={onSelect} />
       <SidebarInset className="admin-layout__inset min-w-0">
-        <header className="flex min-h-14 items-center justify-between gap-3 border-b border-border bg-card px-5 py-2">
+        <header className="admin-shell__topbar flex min-h-14 items-center justify-between gap-3 px-5 py-2">
           <div className="flex min-w-0 items-center gap-2">
             <SidebarTrigger aria-label="打开管理导航" />
             <Separator orientation="vertical" className="mr-1 h-4" />

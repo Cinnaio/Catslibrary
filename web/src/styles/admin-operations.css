@@ -25,16 +25,54 @@
 }
 
 .admin-layout {
-  background: var(--admin-canvas);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--admin-border) 34%, transparent) 1px, transparent 1px) 0 0 / 2rem 2rem,
+    var(--admin-canvas);
 }
 
 .admin-layout__inset {
+  background: transparent;
+}
+
+/* ——— 侧栏：融入主背景 ——
+   侧栏、顶栏和内容区共用同一张底，去掉横向切割，只保留一段
+   垂直居中的短细线（上下各留空，不与顶/底接触）。 */
+.admin-layout [data-slot="sidebar-inner"] {
+  background: transparent;
+}
+.admin-sidebar[data-slot="sheet-content"] {
   background: var(--admin-canvas);
+  animation-duration: 220ms;
+  will-change: transform;
+}
+body:has(.admin-sidebar[data-slot="sheet-content"]) [data-slot="sheet-overlay"] {
+  animation-duration: 180ms;
+  will-change: opacity;
+}
+.admin-layout [data-slot="sidebar-container"] {
+  border-right: none;
+}
+.admin-layout [data-slot="sidebar-container"]::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: 0;
+  width: 1px;
+  height: 68%;
+  transform: translateY(-50%);
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    color-mix(in srgb, var(--admin-border) 18%, transparent) 16%,
+    var(--admin-border) 50%,
+    color-mix(in srgb, var(--admin-border) 18%, transparent) 84%,
+    transparent 100%
+  );
 }
 
 .admin-shell__brand {
   padding: 0.875rem 0.75rem 0.625rem;
-  border-bottom: 1px solid var(--admin-border);
+  border-bottom: none;
 }
 
 .admin-shell__brand-mark {
@@ -43,7 +81,7 @@
   height: 2rem;
   flex: 0 0 auto;
   place-items: center;
-  border: 1px solid color-mix(in srgb, var(--sh-primary) 42%, var(--admin-border));
+  border: none;
   border-radius: var(--admin-radius-sm);
   color: var(--sh-primary-foreground);
   font-family: var(--font-serif);
@@ -55,6 +93,15 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.admin-shell__brand [data-slot="sidebar-menu-button"] {
+  border: none;
+  box-shadow: none;
+  outline: none;
+}
+.admin-shell__brand [data-slot="sidebar-menu-button"]:focus-visible {
+  box-shadow: none;
 }
 
 .admin-shell__brand-copy {
@@ -83,7 +130,7 @@
 }
 
 .admin-shell__navigation [data-sidebar="menu-button"][data-active="true"] {
-  box-shadow: inset 2px 0 0 var(--sh-primary);
+  background: color-mix(in srgb, var(--accent-light) 90%, var(--accent));
 }
 
 .admin-shell__topbar {
@@ -92,8 +139,8 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--admin-space-3);
-  border-bottom: 1px solid var(--admin-border);
-  background: color-mix(in srgb, var(--admin-panel) 92%, transparent);
+  border-bottom: none;
+  background: transparent;
   padding: 0.5rem 1.25rem;
 }
 
@@ -111,9 +158,7 @@
 .admin-shell__status { flex: 0 0 auto; color: var(--text-muted); font-size: 0.75rem; }
 
 .admin-layout__content {
-  background:
-    linear-gradient(90deg, color-mix(in srgb, var(--admin-border) 34%, transparent) 1px, transparent 1px) 0 0 / 2rem 2rem,
-    var(--admin-canvas);
+  background: transparent;
 }
 
 .tab-content {
