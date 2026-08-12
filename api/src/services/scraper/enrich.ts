@@ -9,6 +9,7 @@ import { cleanText } from './parse'
 import { resolveUrl } from './utils'
 import { SITE_PRESETS, buildCoverUrl } from './presets'
 import { toSimplifiedForSource } from '../zh-convert'
+import { safeFetch } from '../safe-fetch'
 import type { Db } from '../../db/pool'
 
 const DISCOVER_CACHE_TTL = 5 * 60000
@@ -18,12 +19,17 @@ const discoverHtmlCache = new Map<string, { ts: number; html: string }>()
 
 // ---------- 封面代理 ----------
 
+const PROXY_COVER_MAX_BYTES = 5 * 1024 * 1024
+
 export async function proxyCover(url: string): Promise<{ body: Buffer; contentType: string }> {
   if (!url) throw new Error('url required')
-  const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' } })
+  const res = await safeFetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' } })
   if (!res.ok) throw new Error(`fetch failed: ${res.status}`)
+  const contentType = res.headers.get('Content-Type') || ''
+  if (!/^image\//i.test(contentType)) throw new Error('目标不是图片')
   const buf = Buffer.from(await res.arrayBuffer())
-  return { body: buf, contentType: res.headers.get('Content-Type') || 'image/jpeg' }
+  if (buf.byteLength > PROXY_COVER_MAX_BYTES) throw new Error('图片超过大小上限')
+  return { body: buf, contentType }
 }
 
 // ---------- PO18 搜索 ----------

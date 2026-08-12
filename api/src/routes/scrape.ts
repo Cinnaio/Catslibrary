@@ -16,6 +16,7 @@ import { parseLegadoJsonStream, normalizeSource, legadoHost, buildSourceRow, sou
 import { SITE_PRESETS, buildCoverUrl } from '../services/scraper/presets'
 import { discoverList, extractJjwxcTitles, extractPo18twTitles, proxyCover, searchPo18, searchTitleSources } from '../services/scraper/enrich'
 import { cacheCoverForNovel, getStoredCover, coverDataToBody } from '../services/covers'
+import { safeFetch } from '../services/safe-fetch'
 
 export const scrapeRoutes = new Hono()
 
@@ -438,7 +439,7 @@ async function handleFixCover(c: Context, body: any) {
   if (row && row.cover_url === coverUrl) return c.json({ coverUrl, skipped: true, fixed: false })
   let valid = false
   try {
-    const check = await fetch(coverUrl, { method: 'HEAD', headers: { 'User-Agent': 'Mozilla/5.0' } })
+    const check = await safeFetch(coverUrl, { method: 'HEAD', headers: { 'User-Agent': 'Mozilla/5.0' } })
     valid = check.ok
   } catch {
     /* keep false */
@@ -463,7 +464,7 @@ async function handleImportLegado(c: Context, body: any) {
     parseErrors = r.errors
   } else if (url) {
     try {
-      const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' } })
+      const res = await safeFetch(String(url), { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' } })
       if (!res.ok) return c.json({ error: `拉取书源池失败: HTTP ${res.status}` }, 502)
       const r = parseLegadoJsonStream(await res.text())
       sources = r.sources

@@ -2,6 +2,7 @@
  * HTML 抓取与编码检测 —— 由 Novel-KV _scrape-fetch.js 平移。
  * 纯 fetch + TextDecoder；浏览器代理（反爬）为可选，通过 opts.proxyBase 接入。
  */
+import { assertPublicUrl, safeFetch } from '../safe-fetch'
 
 export const FETCH_HEADERS = {
   'User-Agent':
@@ -25,6 +26,9 @@ export interface FetchResult {
 }
 
 export async function fetchHtml(url: string, opts: FetchHtmlOptions = {}): Promise<FetchResult> {
+  // SSRF 防护：目标 URL 来自用户输入（书源/抓取任务），先校验再出站
+  await assertPublicUrl(url)
+
   const proxyBase = (opts.proxyBase || '').trim()
   if (proxyBase && shouldUseBrowserProxy(url, proxyBase, opts.proxyDomains)) {
     try {
@@ -34,15 +38,16 @@ export async function fetchHtml(url: string, opts: FetchHtmlOptions = {}): Promi
     }
   }
 
+  const timeoutMs = opts.timeoutMs || 28000
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), opts.timeoutMs || 28000)
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
 
   let res: Response
   try {
-    res = await fetch(url, { headers: FETCH_HEADERS, signal: controller.signal })
+    res = await safeFetch(url, { headers: FETCH_HEADERS, signal: controller.signal })
   } catch (err) {
     clearTimeout(timeout)
-    if ((err as Error).name === 'AbortError') throw new Error(`请求超时 (25s): ${url}`)
+    if ((err as Error).name === 'AbortError') throw new Error(`请求超时 (${Math.round(timeoutMs / 1000)}s): ${url}`)
     throw err
   }
   clearTimeout(timeout)

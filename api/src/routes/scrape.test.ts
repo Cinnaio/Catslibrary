@@ -118,17 +118,23 @@ describe('scrape 路由（免网络动作）', () => {
       if (String(input).includes('another.example.com')) throw new Error('站点不可访问')
       return new Response('<html><body>ok</body></html>', { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } })
     })
-    const connectivity = await req('/api/scrape', json('POST', { action: 'check-source-connectivity' }, adminToken))
-    const connectivityData = await jsonOf<{ reachable: number; unreachable: number }>(connectivity)
-    expect(connectivity.status).toBe(200)
-    expect(connectivityData.reachable).toBe(1)
-    expect(connectivityData.unreachable).toBe(1)
-    const unreachable = await req('/api/scrape', json('POST', { action: 'list-sources', connectivity: 'unreachable' }, adminToken))
-    const unreachableData = await jsonOf<{ sources: Array<{ host: string }> }>(unreachable)
-    expect(unreachableData.sources.map((source) => source.host)).toEqual(['another.example.com'])
-    const cleanup = await req('/api/scrape', json('POST', { action: 'delete-unreachable-sources' }, adminToken))
-    expect((await jsonOf<{ deleted: number }>(cleanup)).deleted).toBe(1)
-    fetchMock.mockRestore()
+    // 测试域名不可真实解析：跳过 SSRF 层的 DNS 校验，让请求落到上面的 fetch 桩
+    process.env.ALLOW_PRIVATE_FETCH = '1'
+    try {
+      const connectivity = await req('/api/scrape', json('POST', { action: 'check-source-connectivity' }, adminToken))
+      const connectivityData = await jsonOf<{ reachable: number; unreachable: number }>(connectivity)
+      expect(connectivity.status).toBe(200)
+      expect(connectivityData.reachable).toBe(1)
+      expect(connectivityData.unreachable).toBe(1)
+      const unreachable = await req('/api/scrape', json('POST', { action: 'list-sources', connectivity: 'unreachable' }, adminToken))
+      const unreachableData = await jsonOf<{ sources: Array<{ host: string }> }>(unreachable)
+      expect(unreachableData.sources.map((source) => source.host)).toEqual(['another.example.com'])
+      const cleanup = await req('/api/scrape', json('POST', { action: 'delete-unreachable-sources' }, adminToken))
+      expect((await jsonOf<{ deleted: number }>(cleanup)).deleted).toBe(1)
+    } finally {
+      delete process.env.ALLOW_PRIVATE_FETCH
+      fetchMock.mockRestore()
+    }
 
     const toggle = await req('/api/scrape', json('POST', { action: 'toggle-source', host: 'legado.example.com', enabled: false }, adminToken))
     expect(toggle.status).toBe(200)

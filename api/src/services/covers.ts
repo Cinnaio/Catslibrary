@@ -4,6 +4,7 @@
  */
 import type { Db } from '../db/pool'
 import { first } from '../db/query'
+import { safeFetch } from './safe-fetch'
 
 export const DEFAULT_COVER_URL = 'https://wap.po18x.vip/17mb/style/noimg.jpg'
 export const MAX_COVER_BYTES = 5 * 1024 * 1024
@@ -22,13 +23,16 @@ export async function fetchImage(url: string): Promise<ImageData | null> {
   if (process.env.COVER_FETCH_ENABLED === '0') return null
   if (!url || !/^https?:\/\//i.test(url)) return null
   try {
-    const res = await fetch(url, { headers: FETCH_HEADERS })
+    // cover_url 由爬虫从外部页面解析写入，属用户可控数据，须经 SSRF 防护出站
+    const res = await safeFetch(url, { headers: FETCH_HEADERS })
     if (!res.ok) return null
-    let contentType = res.headers.get('Content-Type') || ''
+    // 无 Content-Type 或非图片一律拒绝，避免把任意响应体当图片入库对外提供
+    const contentType = res.headers.get('Content-Type') || ''
+    if (!/^image\//i.test(contentType)) return null
+    const declaredLength = Number.parseInt(res.headers.get('Content-Length') || '', 10)
+    if (Number.isFinite(declaredLength) && declaredLength > MAX_COVER_BYTES) return null
     const buf = new Uint8Array(await res.arrayBuffer())
     if (!buf.byteLength || buf.byteLength > MAX_COVER_BYTES) return null
-    if (!contentType) contentType = 'image/jpeg'
-    if (!/^image\//i.test(contentType)) return null
     return { data: buf, contentType }
   } catch {
     return null
