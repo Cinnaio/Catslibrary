@@ -1126,7 +1126,7 @@ export function AiGenerationsPanel(props: { scope: 'all' | 'reader' | 'writing';
                     <tbody>
                       {items.map((item) => (
                         <Fragment key={item.id}>
-                        <tr className="border-b last:border-0 hover:bg-muted/30">
+                        <tr className="ai-generation-row border-b last:border-0 hover:bg-muted/30">
                           <td className="px-4 py-3"><Checkbox aria-label={`选择${item.chapterTitle || item.kind}`} checked={idsForItem(item).every((id) => selectedIds.has(id))} onCheckedChange={(checked) => toggleItem(item, checked === true)} /></td>
                           <td className="px-4 py-3">
                             <Badge variant="secondary">{kindLabel(item.kind)}</Badge>
@@ -1191,7 +1191,7 @@ export function AiGenerationsPanel(props: { scope: 'all' | 'reader' | 'writing';
                           </td>
                         </tr>
                         {item.groupItems && expandedBatchId === item.id && item.groupItems.map((chapter) => (
-                          <tr key={chapter.id} className="border-b bg-muted/20 last:border-0">
+                          <tr key={chapter.id} className="ai-generation-row ai-generation-row--child border-b bg-muted/20 last:border-0">
                             <td className="px-4 py-2" />
                             <td className="px-4 py-2 pl-8"><span className="text-xs text-muted-foreground">第 {chapter.batchIndex} 章</span></td>
                             <td className="px-4 py-2"><span className="text-xs text-muted-foreground">{chapter.chapterTitle || '待命名章节'}</span></td>
