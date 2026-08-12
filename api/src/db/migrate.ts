@@ -85,7 +85,13 @@ export async function migrate(options: { keepPoolOpen?: boolean } = {}): Promise
 }
 
 // 直接执行：npm run db:migrate
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+// 注意：生产构建会把本模块打包进 dist/index.js。若只判断 import.meta.url === argv[1]，
+// 打包后的 API 启动会误触发这里的独立迁移入口，随后关闭连接池，导致启动阶段复用池时报错。
+const isDirectMigrationCli = process.argv[1]
+  && path.basename(fileURLToPath(import.meta.url)).startsWith('migrate')
+  && import.meta.url === pathToFileURL(process.argv[1]).href
+
+if (isDirectMigrationCli) {
   migrate()
     .then(() => process.exit(0))
     .catch((err) => {
