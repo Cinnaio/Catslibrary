@@ -7,7 +7,8 @@ import { all, first, run } from '../db/query'
 import { rowToThought, rowToThoughtAdmin } from '../db/mappers'
 import { newId } from '../services/auth'
 import { sha256Hex } from '../services/hash'
-import { optionalUser, requireAdmin, requireUser, type AuthEnv } from '../middlewares/auth'
+import { optionalUser, requireAdmin, type AuthEnv } from '../middlewares/auth'
+import { clientIpFromContext } from '../services/ai/audit-context'
 
 const MAX_THOUGHT_LEN = 300
 const MAX_SELECTED_LEN = 200
@@ -15,7 +16,8 @@ const MAX_NAME_LEN = 20
 const RATE_MINUTE = 5
 const RATE_HOUR = 30
 const IP_RATE_HOUR = 60
-const THOUGHT_HASH_SALT = process.env.THOUGHT_HASH_SALT || 'zhi-zhou'
+// 惰性读取：随机盐由启动时 ensureRuntimeSalts() 生成，晚于本模块求值
+const thoughtHashSalt = () => process.env.THOUGHT_HASH_SALT?.trim() || 'zhi-zhou'
 
 export const thoughtsRoutes = new Hono<AuthEnv>()
 
@@ -55,12 +57,15 @@ thoughtsRoutes.delete('/', optionalUser(), async (c) => {
     if (!changed) return c.json({ error: 'Thought not found' }, 404)
     return c.json({ success: true, id, deleted: true })
   }
-  // 管理员可隐藏任意，本人可隐藏自己的
+  // 管理员可隐藏任意，本人可隐藏自己的。
+  // 必须要求登录：匿名段评的 user_id 为空串，若放行未登录请求（user_id 同为空串），
+  // 任何人都能隐藏任意匿名段评。
   const user = c.get('user')
-  const isAdmin = user?.role === 'admin'
+  if (!user) return c.json({ error: '需要登录' }, 401)
+  const isAdmin = user.role === 'admin'
   const changed = isAdmin
     ? await run(db, 'UPDATE thoughts SET status = $1, updated_at = $2 WHERE id = $3', ['hidden', Date.now(), id])
-    : await run(db, "UPDATE thoughts SET status = 'hidden', updated_at = $1 WHERE id = $2 AND user_id = $3", [Date.now(), id, user?.id || ''])
+    : await run(db, "UPDATE thoughts SET status = 'hidden', updated_at = $1 WHERE id = $2 AND user_id = $3 AND user_id <> ''", [Date.now(), id, user.id])
   if (!changed) return c.json({ error: 'Thought not found' }, 404)
   return c.json({ success: true, id, status: 'hidden' })
 })
@@ -186,7 +191,7 @@ async function createThought(c: Context<AuthEnv>, body: any) {
   const user = c.get('user')
   if ((c.req.header('Authorization') || '').trim() && !user) return c.json({ error: '需要登录' }, 401)
   const clientHash = await hashValue(user?.id || c.req.header('X-Reader-Id') || '')
-  const ipHash = await hashValue(c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || '')
+  const ipHash = await hashValue(clientIpFromContext(c))
   const uaHash = await hashValue(c.req.header('User-Agent') || '')
   const rate = await checkRateLimit(db, clientHash, ipHash)
   if (rate) return c.json({ error: rate }, 429)
@@ -245,5 +250,5 @@ function looksLikeSpam(text: string): boolean {
 async function hashValue(value: string): Promise<string> {
   value = String(value || '').trim()
   if (!value) return ''
-  return sha256Hex(THOUGHT_HASH_SALT, value)
+  return sha256Hex(thoughtHashSalt(), value)
 }
