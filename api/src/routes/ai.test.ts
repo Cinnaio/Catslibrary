@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { app } from '../app'
 import { setDbForTests } from '../db/pool'
+import { failInterruptedAiTasks } from '../services/ai/tasks'
 import { createTestDb, type TestDb } from '../test/db'
 
 let t: TestDb
@@ -606,7 +607,7 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
       await req('/api/ai/settings', json('PUT', { recapSystemPrompt: beforePrompt }, adminToken))
     }
   })
-  it('AI continuation creates one draft per requested chapter', async () => {
+  it('多章续写后台执行：立即返回 taskId，每章一条草稿且批次号一致', async () => {
     const novelId = await firstNovelId(t)
     fetchMock.mockImplementation(async () =>
       new Response(JSON.stringify({
@@ -617,20 +618,193 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     )
 
     const response = await req('/api/ai/writing/continue', json('POST', { novelId, chapterCount: 20, targetWords: 1200 }, adminToken))
-    expect(response.status).toBe(200)
-    const data = await jsonOf<{ drafts: Array<{ id: string }>; draft: { id: string } }>(response)
-    expect(data.drafts).toHaveLength(20)
-    expect(data.draft.id).toBe(data.drafts[0]!.id)
+    expect(response.status).toBe(202)
+    const data = await jsonOf<{ ok: boolean; taskId: string; batchId: string; total: number }>(response)
+    expect(data.ok).toBe(true)
+    expect(data.total).toBe(20)
+
+    const task = await waitForTask(data.taskId, adminToken)
+    expect(task.status).toBe('completed')
+    expect(task.current).toBe(20)
     expect(fetchMock).toHaveBeenCalledTimes(20)
 
     const rows = await t.db.query<{ params_json: string }>("SELECT params_json FROM ai_generations WHERE kind = 'continue' ORDER BY created_at DESC LIMIT 20")
     expect(rows.rows).toHaveLength(20)
     expect(rows.rows.every((row) => JSON.parse(row.params_json).targetWords === 1200)).toBe(true)
+    // 草稿的批次号与接口返回的一致，前端可按 batchId 归组
+    expect(rows.rows.every((row) => JSON.parse(row.params_json).batchId === data.batchId)).toBe(true)
+  })
+
+  it('后台续写上游失败时任务标记 failed 并携带错误信息', async () => {
+    const novelId = await firstNovelId(t)
+    fetchMock.mockImplementationOnce(async () => new Response('upstream boom', { status: 400 }))
+
+    const response = await req('/api/ai/writing/continue', json('POST', { novelId, chapterCount: 2 }, adminToken))
+    expect(response.status).toBe(202)
+    const { taskId } = await jsonOf<{ taskId: string }>(response)
+
+    const task = await waitForTask(taskId, adminToken)
+    expect(task.status).toBe('failed')
+    expect(task.error.length).toBeGreaterThan(0)
+  })
+
+  it('GET /tasks/:id：任务不存在 404，非管理员 403', async () => {
+    expect((await req('/api/ai/tasks/task_missing', json('GET', undefined, adminToken))).status).toBe(404)
+    expect((await req('/api/ai/tasks/task_missing', json('GET', undefined, readerToken))).status).toBe(403)
+  })
+
+  // ---------- 参数调优设置真实生效 ----------
+
+  it('recap 生成使用参数调优里的温度与 token 上限', async () => {
+    await req('/api/ai/settings', json('PUT', { recapTemperature: 0.55, recapMaxTokens: 888 }, adminToken))
+    try {
+      const nid = await firstNovelId(t)
+      const created = await req('/api/chapters', json('POST', { novelId: nid, title: '调参提要章', content: LONG_CONTENT }, adminToken))
+      const chId = (await jsonOf<{ chapter: { id: string } }>(created)).chapter.id
+
+      const res = await req('/api/ai/recap', json('POST', { chapterId: chId }, adminToken))
+      expect(res.status).toBe(200)
+
+      const lastCall = fetchMock.mock.calls.at(-1) as unknown as [string, { body: string }]
+      const payload = JSON.parse(lastCall[1].body) as { temperature: number; max_tokens: number }
+      expect(payload.temperature).toBe(0.55)
+      expect(payload.max_tokens).toBe(888)
+    } finally {
+      await req('/api/ai/settings', json('PUT', { recapTemperature: 0.2, recapMaxTokens: 1200 }, adminToken))
+    }
+  })
+
+  it('catchup 生成使用参数调优里的温度 / token / 最大章节数', async () => {
+    const readerId = await userIdByUsername(t, 'reader')
+    await req('/api/ai/settings', json('PUT', { catchupTemperature: 0.44, catchupMaxTokens: 777, catchupMaxChapters: 2 }, adminToken))
+    try {
+      const novel = await req('/api/novels', json('POST', { title: '调参回顾书', author: '某作者' }, adminToken))
+      const novelId = (await jsonOf<{ novel: { id: string } }>(novel)).novel.id
+      const ids: string[] = []
+      for (let i = 1; i <= 3; i++) {
+        const c = await req('/api/chapters', json('POST', { novelId, title: `第${i}章`, content: LONG_CONTENT }, adminToken))
+        ids.push((await jsonOf<{ chapter: { id: string } }>(c)).chapter.id)
+      }
+      for (const chId of ids) await req('/api/ai/recap', json('POST', { chapterId: chId }, adminToken))
+      await t.db.query(
+        'INSERT INTO reading_progress (id, user_id, novel_id, chapter_id, scroll_percent, updated_at, deleted_at) VALUES ($1,$2,$3,$4,0.5,$5,0)',
+        [`prog_params_${novelId}`, readerId, novelId, ids[2]!, Date.now() - 8 * 24 * 60 * 60 * 1000],
+      )
+
+      const res = await req('/api/ai/catchup', json('POST', { novelId }, readerToken))
+      expect(res.status).toBe(200)
+      const data = await jsonOf<{ cached: boolean; chapterIds?: string[] }>(res)
+      expect(data.cached).toBe(false)
+      // catchupMaxChapters=2：3 章都有提要，但只取进度章往前 2 章
+      expect(data.chapterIds?.length).toBe(2)
+
+      const lastCall = fetchMock.mock.calls.at(-1) as unknown as [string, { body: string }]
+      const payload = JSON.parse(lastCall[1].body) as { temperature: number; max_tokens: number }
+      expect(payload.temperature).toBe(0.44)
+      expect(payload.max_tokens).toBe(777)
+    } finally {
+      await req('/api/ai/settings', json('PUT', { catchupTemperature: 0.2, catchupMaxTokens: 1200, catchupMaxChapters: 5 }, adminToken))
+    }
+  })
+
+  it('catchupEnabled 独立于 recapEnabled：关闭后 catchup 403，recap 不受影响', async () => {
+    await req('/api/ai/settings', json('PUT', { catchupEnabled: false }, adminToken))
+    try {
+      const status = await jsonOf<{ features: { recap: boolean; catchup: boolean } }>(
+        await req('/api/ai/status', json('GET', undefined, readerToken)),
+      )
+      expect(status.features.recap).toBe(true)
+      expect(status.features.catchup).toBe(false)
+
+      const res = await req('/api/ai/catchup', json('POST', { novelId: 'whatever' }, readerToken))
+      expect(res.status).toBe(403)
+      expect((await jsonOf<{ code: string }>(res)).code).toBe('disabled')
+    } finally {
+      await req('/api/ai/settings', json('PUT', { catchupEnabled: true }, adminToken))
+    }
+  })
+
+  // ---------- 启动恢复：中断任务标记失败 ----------
+
+  it('failInterruptedAiTasks 只处理 queued/running，已结束任务不动', async () => {
+    const now = Date.now()
+    await t.db.query(
+      `INSERT INTO ai_tasks (id,user_id,novel_id,kind,status,current,total,step,prompt,batch_id,error,created_at,updated_at,finished_at) VALUES
+       ('task_interrupt_run','u1','','continue','running',1,3,'生成中','','','',$1,$1,0),
+       ('task_interrupt_queue','u1','','continue','queued',0,1,'','','','',$1,$1,0),
+       ('task_interrupt_done','u1','','continue','completed',1,1,'已完成','','','',$1,$1,$1)`,
+      [now],
+    )
+
+    const affected = await failInterruptedAiTasks(t.db)
+    expect(affected).toBe(2)
+
+    const { rows } = await t.db.query<{ id: string; status: string; error: string; finished_at: number }>(
+      "SELECT id, status, error, finished_at FROM ai_tasks WHERE id LIKE 'task_interrupt_%' ORDER BY id",
+    )
+    const byId = new Map(rows.map((r) => [r.id, r]))
+    expect(byId.get('task_interrupt_run')?.status).toBe('failed')
+    expect(byId.get('task_interrupt_run')?.error).toContain('中断')
+    expect(Number(byId.get('task_interrupt_run')?.finished_at)).toBeGreaterThan(0)
+    expect(byId.get('task_interrupt_queue')?.status).toBe('failed')
+    expect(byId.get('task_interrupt_done')?.status).toBe('completed')
+  })
+
+  // ---------- 草稿发布：事务化与重复发布保护 ----------
+
+  it('发布事务化：重复发布同一草稿被拒，连续发布序号递增，计数一致', async () => {
+    const novelId = await firstNovelId(t)
+
+    async function makeDraft(): Promise<string> {
+      const res = await req('/api/ai/writing/chapter', json('POST', { novelId, title: 'AI 测试书', instruction: '写一段' }, adminToken))
+      expect(res.status).toBe(200)
+      return (await jsonOf<{ draft: { id: string } }>(res)).draft.id
+    }
+    const draft1 = await makeDraft()
+    const draft2 = await makeDraft()
+
+    const p1 = await req(`/api/ai/writing/drafts/${draft1}/publish`, json('POST', { novelId, title: '事务发布一' }, adminToken))
+    expect(p1.status).toBe(200)
+    const c1 = (await jsonOf<{ chapter: { order: number } }>(p1)).chapter
+
+    // 已发布的草稿不能再次发布
+    const again = await req(`/api/ai/writing/drafts/${draft1}/publish`, json('POST', { novelId, title: '事务发布一' }, adminToken))
+    expect(again.status).toBe(404)
+
+    const p2 = await req(`/api/ai/writing/drafts/${draft2}/publish`, json('POST', { novelId, title: '事务发布二' }, adminToken))
+    expect(p2.status).toBe(200)
+    const c2 = (await jsonOf<{ chapter: { order: number } }>(p2)).chapter
+    expect(c2.order).toBe(c1.order + 1)
+
+    // 小说不存在：整体回滚，草稿保持 draft 可再次发布
+    const draft3 = await makeDraft()
+    const missing = await req(`/api/ai/writing/drafts/${draft3}/publish`, json('POST', { novelId: 'novel_missing', title: '不存在' }, adminToken))
+    expect(missing.status).toBe(404)
+    const { rows: draftRows } = await t.db.query<{ status: string }>('SELECT status FROM ai_generations WHERE id = $1', [draft3])
+    expect(draftRows[0]?.status).toBe('draft')
+
+    // chapter_count 与真实章节数一致
+    const { rows } = await t.db.query<{ chapter_count: number; actual: number }>(
+      'SELECT n.chapter_count, (SELECT COUNT(*)::int FROM chapters c WHERE c.novel_id = n.id) AS actual FROM novels n WHERE n.id = $1',
+      [novelId],
+    )
+    expect(Number(rows[0]?.chapter_count)).toBe(Number(rows[0]?.actual))
   })
 })
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/** 轮询后台任务直到离开 queued/running（fetch 桩是即时返回，通常几个事件循环就结束）。 */
+async function waitForTask(taskId: string, token: string): Promise<{ status: string; current: number; total: number; error: string }> {
+  for (let i = 0; i < 500; i++) {
+    const res = await app.request(`/api/ai/tasks/${taskId}`, json('GET', undefined, token))
+    const { task } = (await res.json()) as { task: { status: string; current: number; total: number; error: string } }
+    if (task.status !== 'queued' && task.status !== 'running') return task
+    await sleep(10)
+  }
+  throw new Error(`任务 ${taskId} 超时未结束`)
 }
 
 /** 测试库里的第一本小说 id（各用例内新建章节用）。 */

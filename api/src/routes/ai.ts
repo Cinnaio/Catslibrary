@@ -5,7 +5,7 @@
  */
 import { Hono, type Context } from 'hono'
 import { getDb } from '../db/pool'
-import { all, first } from '../db/query'
+import { all, first, withTx } from '../db/query'
 import { AiError, chat, isTextAiConfigured, providerLabel, textProvider } from '../services/ai/client'
 import { getAiSettings, saveAiSettings } from '../services/ai/settings'
 import { generateRecap, getCachedRecap, loadChapterForRecap } from '../services/ai/summary'
@@ -14,7 +14,7 @@ import { invalidateChapter, listGenerationDetails, deleteGeneration, deleteGener
 import { generateContinuationChapters, generateWriting, generateWritingTitles, recentNovelContext } from '../services/ai/writing'
 import { checkQuota, recordUsage, startOfToday, summarizeUsage } from '../services/ai/usage'
 import { optionalUser, requireAdmin, requireUser, type AuthEnv } from '../middlewares/auth'
-import { cancelAiTask, listAiTasks } from '../services/ai/tasks'
+import { cancelAiTask, createAiTask, getAiTask, listAiTasks, updateAiTask } from '../services/ai/tasks'
 import { clientIpFromContext } from '../services/ai/audit-context'
 
 export const aiRoutes = new Hono<AuthEnv>()
@@ -45,7 +45,7 @@ aiRoutes.get('/status', optionalUser(), async (c) => {
     {
       configured,
       // 未登录用户不给 AI 能力：调用要记账到具体用户头上
-      features: { recap: configured && settings.recapEnabled && !!user, catchup: configured && settings.recapEnabled && !!user },
+      features: { recap: configured && settings.recapEnabled && !!user, catchup: configured && settings.catchupEnabled && !!user },
       model: configured ? textProvider().model : '',
       quota,
     },
@@ -134,7 +134,7 @@ aiRoutes.post('/catchup', requireUser(), async (c) => {
   if (!novelId) return c.json({ error: 'novelId is required' }, 400)
 
   const settings = await getAiSettings(db)
-  if (!settings.recapEnabled) return c.json({ error: 'AI 前情提要已关闭', code: 'disabled' }, 403)
+  if (!settings.catchupEnabled) return c.json({ error: 'AI 回顾总结已关闭', code: 'disabled' }, 403)
   if (!isTextAiConfigured()) return c.json({ error: 'AI 文本服务未配置', code: 'disabled' }, 503)
 
   const model = textProvider().model
@@ -253,6 +253,11 @@ aiRoutes.post('/writing/chapter', requireAdmin(), async (c) => {
   } catch (err) { return aiErrorResponse(c, err) }
 })
 
+/**
+ * 多章续写：后台任务模式。串行生成最长可达数十分钟，同步 HTTP 连接会被
+ * 反向代理超时掐断，因此这里立即返回 taskId，生成在进程内异步执行；
+ * 前端轮询 GET /tasks/:id 看进度，完成后草稿在「已生成内容」按 batchId 归组。
+ */
 aiRoutes.post('/writing/continue', requireAdmin(), async (c) => {
   const db = getDb()
   const body = await c.req.json().catch(() => ({}))
@@ -262,11 +267,24 @@ aiRoutes.post('/writing/continue', requireAdmin(), async (c) => {
   if (!novelId) return c.json({ error: 'novelId 必填' }, 400)
   const novel = await first<{ title: string }>(db, 'SELECT title FROM novels WHERE id = $1', [novelId])
   if (!novel) return c.json({ error: '小说不存在' }, 404)
-  try {
-    const context = await recentNovelContext(db, novelId, body.afterChapterId ? String(body.afterChapterId) : undefined)
-    const result = await generateContinuationChapters(db, { userId: user.id, novelId, title: novel.title, instruction: String(body.instruction || chapterTitle || '自然推进剧情，完成一个有悬念的章节段落').trim(), context, maxTokens: body.maxTokens, temperature: body.temperature, ...writingOptions(body), ...(await auditRequestContext(c, db)) })
-    return c.json({ draft: result.generations[0], drafts: result.generations, usage: result.usage, contextUsed: context.length })
-  } catch (err) { return aiErrorResponse(c, err) }
+  if (!isTextAiConfigured()) return c.json({ error: 'AI 文本服务未配置', code: 'disabled' }, 503)
+
+  const count = Math.max(1, Math.min(20, Math.trunc(Number(body.chapterCount) || 1)))
+  const instruction = String(body.instruction || chapterTitle || '自然推进剧情，完成一个有悬念的章节段落').trim()
+  // 上下文与审计信息在请求内取好：后台执行时请求上下文已不可用
+  const context = await recentNovelContext(db, novelId, body.afterChapterId ? String(body.afterChapterId) : undefined)
+  const audit = await auditRequestContext(c, db)
+  const batchId = `continue_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+  const task = await createAiTask(db, { userId: user.id, novelId, kind: 'continue', total: count, batchId, prompt: instruction })
+
+  void generateContinuationChapters(db, { userId: user.id, novelId, title: novel.title, instruction, context, maxTokens: body.maxTokens, temperature: body.temperature, ...writingOptions(body), batchId, taskId: task.id, ...audit })
+    .catch(async (err) => {
+      console.error('[ai] 续写后台任务失败', err)
+      const message = err instanceof AiError ? err.message : 'AI 生成失败'
+      await updateAiTask(db, task.id, { status: 'failed', error: message }).catch(() => {})
+    })
+
+  return c.json({ ok: true, taskId: task.id, batchId, total: count, contextUsed: context.length }, 202)
 })
 
 aiRoutes.post('/writing/titles', requireAdmin(), async (c) => {
@@ -298,6 +316,17 @@ aiRoutes.put('/writing/drafts/:id', requireAdmin(), async (c) => {
   return c.json({ ok: true, id, result })
 })
 
+/** 事务内的业务性失败：回滚后由路由层转成对应的 4xx。 */
+class PublishError extends Error {
+  constructor(
+    readonly httpStatus: 404 | 409,
+    message: string,
+  ) {
+    super(message)
+    this.name = 'PublishError'
+  }
+}
+
 aiRoutes.post('/writing/drafts/:id/publish', requireAdmin(), async (c) => {
   const db = getDb()
   const id = String(c.req.param('id') || '')
@@ -307,16 +336,28 @@ aiRoutes.post('/writing/drafts/:id/publish', requireAdmin(), async (c) => {
   const novelId = String(body.novelId || row.novel_id || '').trim()
   const title = String(body.title || '').trim()
   if (!novelId || !title || !row.result.trim()) return c.json({ error: 'novelId、title 和内容必填' }, 400)
-  const novel = await first<{ id: string }>(db, 'SELECT id FROM novels WHERE id = $1', [novelId])
-  if (!novel) return c.json({ error: '小说不存在' }, 404)
   const chapterId = 'ch_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7)
   const now = Date.now()
-  const max = await first<{ max_order: number }>(db, 'SELECT COALESCE(MAX(sort_order), 0)::int AS max_order FROM chapters WHERE novel_id = $1', [novelId])
-  const order = Number(max?.max_order || 0) + 1
-  await db.query('INSERT INTO chapters (id, novel_id, title, content, sort_order, word_count, source_url, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)', [chapterId, novelId, title, row.result, order, row.result.replace(/<[^>]*>/g, '').length, '', now])
-  await db.query('UPDATE novels SET chapter_count = (SELECT COUNT(*) FROM chapters WHERE novel_id = $1), updated_at = $2 WHERE id = $1', [novelId, now])
-  await db.query("UPDATE ai_generations SET status = 'published', chapter_id = $1 WHERE id = $2", [chapterId, id])
-  return c.json({ ok: true, chapter: { id: chapterId, novelId, title, order } })
+  try {
+    // 插章节、刷计数、改草稿状态放同一事务，任一步失败整体回滚，不留半成品
+    const order = await withTx(db, async (q) => {
+      // 锁小说行：同一本书的并发发布被串行化，MAX+1 取号不会重复
+      const novel = await q('SELECT id FROM novels WHERE id = $1 FOR UPDATE', [novelId])
+      if (!novel.rows.length) throw new PublishError(404, '小说不存在')
+      // 带条件更新原子占用草稿：同一草稿并发发布时只有一个请求能成功
+      const claimed = await q("UPDATE ai_generations SET status = 'published', chapter_id = $1 WHERE id = $2 AND status = 'draft'", [chapterId, id])
+      if (!claimed.rowCount) throw new PublishError(409, '草稿已被发布或不可发布')
+      const max = await q<{ max_order: number }>('SELECT COALESCE(MAX(sort_order), 0)::int AS max_order FROM chapters WHERE novel_id = $1', [novelId])
+      const nextOrder = Number(max.rows[0]?.max_order || 0) + 1
+      await q('INSERT INTO chapters (id, novel_id, title, content, sort_order, word_count, source_url, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)', [chapterId, novelId, title, row.result, nextOrder, row.result.replace(/<[^>]*>/g, '').length, '', now])
+      await q('UPDATE novels SET chapter_count = (SELECT COUNT(*) FROM chapters WHERE novel_id = $1), updated_at = $2 WHERE id = $1', [novelId, now])
+      return nextOrder
+    })
+    return c.json({ ok: true, chapter: { id: chapterId, novelId, title, order } })
+  } catch (err) {
+    if (err instanceof PublishError) return c.json({ error: err.message }, err.httpStatus)
+    throw err
+  }
 })
 
 aiRoutes.get('/usage', requireAdmin(), async (c) => {
@@ -331,6 +372,13 @@ aiRoutes.get('/tasks', requireAdmin(), async (c) => {
   const offset = Number.parseInt(c.req.query('offset') || '0', 10) || 0
   const result = await listAiTasks(getDb(), { limit, offset })
   return c.json({ ...result, limit, offset }, 200, { 'Cache-Control': 'no-store' })
+})
+
+/** 单任务查询：后台续写等长任务由前端轮询此接口看进度。 */
+aiRoutes.get('/tasks/:id', requireAdmin(), async (c) => {
+  const task = await getAiTask(getDb(), String(c.req.param('id') || '').trim())
+  if (!task) return c.json({ error: '任务不存在' }, 404)
+  return c.json({ task }, 200, { 'Cache-Control': 'no-store' })
 })
 
 aiRoutes.post('/tasks/:id/cancel', requireAdmin(), async (c) => {

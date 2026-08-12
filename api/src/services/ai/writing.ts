@@ -163,6 +163,7 @@ export async function generateContinuationChapters(db: Db, opts: {
   temperature?: number
   targetWords?: number
   chapterCount?: number
+  batchId?: string
   ipAddress?: string
   userAgent?: string
   taskId?: string
@@ -171,7 +172,8 @@ export async function generateContinuationChapters(db: Db, opts: {
   const generations: Generation[] = []
   let context = opts.context
   let usage = { model: '', promptTokens: 0, completionTokens: 0 }
-  const batchId = `continue_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+  // 调用方（后台任务模式）可传入 batchId，保证任务行与草稿的批次号一致
+  const batchId = opts.batchId || `continue_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
   const taskId = opts.taskId || (await createAiTask(db, { userId: opts.userId, novelId: opts.novelId, kind: 'continue', total: count, batchId, prompt: opts.instruction })).id
 
   for (let index = 0; index < count; index += 1) {

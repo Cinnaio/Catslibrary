@@ -1,6 +1,6 @@
 /** AI 创作工作台：新写 / 续写，生成结果先保存为草稿。 */
 import { useEffect, useState } from 'react'
-import { aiApi, novelsApi } from '@/lib/api'
+import { aiApi, novelsApi, type AiTaskInfo } from '@/lib/api'
 import { useToast } from '@/components/feedback'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -8,6 +8,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import CustomSelect from '@/components/admin/CustomSelect'
+
+// 后台续写任务的进度轮询间隔
+const TASK_POLL_INTERVAL = 3000
+
+function taskStatusLabel(status: string): string {
+  return status === 'queued' ? '排队中' : status === 'running' ? '生成中' : status === 'completed' ? '已完成' : status === 'cancelled' ? '已取消' : status === 'failed' ? '失败' : status
+}
 
 export default function AiWritingPanel() {
   const { toast } = useToast()
@@ -21,10 +28,33 @@ export default function AiWritingPanel() {
   const [targetWords, setTargetWords] = useState(2000)
   const [chapterCount, setChapterCount] = useState(1)
   const [busy, setBusy] = useState(false)
+  /** 当前续写后台任务；null 表示未启动过 */
+  const [task, setTask] = useState<AiTaskInfo | null>(null)
+  const taskActive = !!task && (task.status === 'queued' || task.status === 'running')
 
   useEffect(() => {
     void novelsApi.list({ limit: 100, page: 1 }).then((data) => setNovels(data.novels.map((novel) => ({ id: novel.id, title: novel.title })))).catch((err) => toast((err as Error).message, 'error'))
   }, [toast])
+
+  // 轮询后台续写任务：setTask 触发下一轮 effect，形成 3 秒间隔的轮询链，任务结束自然停止
+  useEffect(() => {
+    if (!task || (task.status !== 'queued' && task.status !== 'running')) return
+    const timer = setTimeout(() => {
+      if (document.hidden) {
+        // 页面不可见时跳过本轮请求，仅续上轮询链
+        setTask((prev) => (prev ? { ...prev } : prev))
+        return
+      }
+      aiApi.task(task.id)
+        .then(({ task: next }) => {
+          setTask(next)
+          if (next.status === 'completed') toast('续写完成，草稿已保存到“已生成内容”', 'success')
+          else if (next.status === 'failed') toast(next.error || 'AI 续写失败', 'error')
+        })
+        .catch(() => setTask((prev) => (prev ? { ...prev } : prev)))
+    }, TASK_POLL_INTERVAL)
+    return () => clearTimeout(timer)
+  }, [task, toast])
 
   async function generateOutline() {
     if (!title.trim()) return toast('请填写作品标题', 'error')
@@ -48,9 +78,22 @@ export default function AiWritingPanel() {
     if (!novelId) return toast('请选择小说', 'error')
     setBusy(true)
     try {
-      await aiApi.writing.continue({ novelId, title: chapterTitle, instruction, targetWords, chapterCount })
-      toast('续写已生成，请到“已生成内容”查看', 'success')
+      const res = await aiApi.writing.continue({ novelId, title: chapterTitle, instruction, targetWords, chapterCount })
+      // 后台任务模式：立即拿到 taskId，进度由上方 effect 轮询
+      const { task: created } = await aiApi.task(res.taskId)
+      setTask(created)
+      toast('续写任务已开始，完成后草稿在“已生成内容”', 'success')
     } catch (err) { toast((err as Error).message, 'error') } finally { setBusy(false) }
+  }
+
+  async function cancelContinuation() {
+    if (!task) return
+    try {
+      await aiApi.cancelTask(task.id)
+      const { task: next } = await aiApi.task(task.id)
+      setTask(next)
+      toast('续写任务已取消', 'success')
+    } catch (err) { toast((err as Error).message, 'error') }
   }
 
   return <div className="space-y-4">
@@ -87,8 +130,19 @@ export default function AiWritingPanel() {
         </div>
         <div className="grid gap-1.5"><Label>创作要求</Label><textarea className="min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={instruction} onChange={(event) => setInstruction(event.target.value)} placeholder="人物、风格、冲突、节奏或本次剧情目标" /></div>
         {mode === 'new' && <div className="grid gap-1.5"><Label>大纲（生成章节时使用）</Label><textarea className="min-h-[140px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={outline} onChange={(event) => setOutline(event.target.value)} placeholder="先生成大纲，或直接粘贴已有大纲" /></div>}
+        {mode === 'continue' && task && (
+          <div className="rounded-md border bg-muted/40 p-3 text-sm">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-medium">{taskStatusLabel(task.status)}</span>
+              <span className="text-muted-foreground">{task.current} / {task.total} 章</span>
+              {taskActive && <Button variant="outline" size="sm" className="ml-auto" onClick={() => void cancelContinuation()}>取消任务</Button>}
+            </div>
+            <p className="mt-1 text-muted-foreground">{task.step || '等待处理'}</p>
+            {task.error && <p className="mt-1 text-destructive">{task.error}</p>}
+          </div>
+        )}
         <div className="flex flex-wrap gap-2">
-          {mode === 'new' ? <><Button variant="secondary" disabled={busy} onClick={() => void generateOutline()}>生成大纲</Button><Button disabled={busy} onClick={() => void generateChapter()}>生成章节</Button></> : <Button disabled={busy} onClick={() => void continueNovel()}>生成续写</Button>}
+          {mode === 'new' ? <><Button variant="secondary" disabled={busy} onClick={() => void generateOutline()}>生成大纲</Button><Button disabled={busy} onClick={() => void generateChapter()}>生成章节</Button></> : <Button disabled={busy || taskActive} onClick={() => void continueNovel()}>生成续写</Button>}
         </div>
       </CardContent>
     </Card>

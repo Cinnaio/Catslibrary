@@ -651,6 +651,23 @@ export interface AiUsageSummary {
   costMillicents: number
 }
 
+export interface AiTaskInfo {
+  id: string
+  userId: string
+  novelId: string
+  kind: string
+  status: string
+  current: number
+  total: number
+  step: string
+  prompt: string
+  batchId: string
+  error: string
+  createdAt: number
+  updatedAt: number
+  finishedAt: number
+}
+
 export const aiApi = {
   status(): Promise<AiStatus> {
     return request('GET', '/ai/status', null, true)
@@ -689,9 +706,9 @@ export const aiApi = {
     chapter(data: Record<string, unknown>): Promise<{ draft: { id: string; result: string; model: string } }> {
       return request('POST', '/ai/writing/chapter', data, true)
     },
-    continue(data: Record<string, unknown>): Promise<{ draft: { id: string; result: string; model: string }; drafts?: Array<{ id: string; result: string; model: string }> }> {
-      // 多章续写是串行调用模型，给整批任务预留 30 分钟，避免被通用 30 秒请求上限中止。
-      return request('POST', '/ai/writing/continue', data, true, {}, 30 * 60 * 1000)
+    /** 多章续写在后端后台执行：立即返回任务 id，用 aiApi.task 轮询进度，完成后草稿在「已生成内容」。 */
+    continue(data: Record<string, unknown>): Promise<{ ok: boolean; taskId: string; batchId: string; total: number }> {
+      return request('POST', '/ai/writing/continue', data, true)
     },
     titles(data: { content: string; novelId?: string; contextTitle?: string }): Promise<{ titles: string[]; usage: { model: string; promptTokens: number; completionTokens: number } }> {
       return request('POST', '/ai/writing/titles', data, true)
@@ -707,13 +724,17 @@ export const aiApi = {
     return request('GET', '/ai/usage', null, true)
   },
   tasks(filters: { limit?: number; offset?: number } = {}): Promise<{
-    items: Array<{ id: string; userId: string; novelId: string; kind: string; status: string; current: number; total: number; step: string; prompt: string; batchId: string; error: string; createdAt: number; updatedAt: number; finishedAt: number }>
+    items: AiTaskInfo[]
     total: number
     limit: number
     offset: number
   }> {
     const params = new URLSearchParams({ limit: String(filters.limit || 50), offset: String(filters.offset || 0) })
     return request('GET', `/ai/tasks?${params}`, null, true)
+  },
+  /** 单任务查询：后台续写等长任务的进度轮询。 */
+  task(id: string): Promise<{ task: AiTaskInfo }> {
+    return request('GET', `/ai/tasks/${encodeURIComponent(id)}`, null, true)
   },
   cancelTask(id: string): Promise<{ ok: boolean }> {
     return request('POST', `/ai/tasks/${encodeURIComponent(id)}/cancel`, {}, true)
