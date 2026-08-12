@@ -6,10 +6,22 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { ChapterFull, ChapterMeta, Thought } from '@shared/types'
-import { removeAdPatterns } from '@shared/ad-cleaner'
-import { bookmarksApi, chaptersApi, getToken, novelsApi, thoughtsApi, url } from '../lib/api'
-import { addBookmark, getAllBookmarks, getNovelBookmarks, isBookmarked, removeBookmark, saveHistory, toggleBookmark } from '../lib/storage'
-import { escHtml } from '@shared/utils'
+import { bookmarksApi, chaptersApi, getToken, novelsApi, thoughtsApi } from '../lib/api'
+import { addBookmark, getAllBookmarks, isBookmarked, removeBookmark, saveHistory, toggleBookmark } from '../lib/storage'
+import {
+  chapterLabel,
+  clamp,
+  currentScrollPercent,
+  excerptText,
+  filterChapters,
+  formatContent,
+  getPageHeight,
+  getReaderClientId,
+  hashParagraphText,
+  jumpScrollTo,
+  resolveSelectionParagraph,
+  scrollBehavior,
+} from '../lib/reader-utils'
 import { useSession } from '../context/SessionContext'
 import { useToast } from '../components/feedback'
 import { useReaderSettings, FONT_SIZES, PAGE_WIDTHS, AUTO_SCROLL_SPEEDS } from '../hooks/useReaderSettings'
@@ -17,193 +29,15 @@ import type { ReaderSettingKey } from '../hooks/useReaderSettings'
 import { useProgressSync } from '../hooks/useProgressSync'
 import { VirtualList } from '../components/reader/VirtualList'
 import { SettingsControls } from '../components/reader/SettingsControls'
+import { BookmarkPanel } from '../components/reader/BookmarkPanel'
+import { MobileLibrarySheet, MobileSettingsSheet } from '../components/reader/MobileSheets'
 import ThoughtPanel from '../components/reader/ThoughtPanel'
 import ChapterRecap from '../components/reader/ChapterRecap'
 import { ThemeMenu } from '../components/ThemeMenu'
 import { MoonIcon, SunIcon } from '../components/icons'
 
 const CHAPTER_ROW_H = 34
-const MOBILE_ROW_H = 46
 const CHAPTER_CACHE_MAX = 6
-
-function getPageHeight(): number {
-  return Math.max(window.innerHeight - 80, 400)
-}
-
-function clamp(num: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, num))
-}
-
-function prefersReducedMotion(): boolean {
-  return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-}
-
-function scrollBehavior(): ScrollBehavior {
-  return prefersReducedMotion() ? 'auto' : 'smooth'
-}
-
-function jumpScrollTo(y: number): void {
-  const root = document.documentElement
-  const prev = root.style.scrollBehavior
-  root.style.scrollBehavior = 'auto'
-  window.scrollTo(0, y)
-  root.style.scrollBehavior = prev
-}
-
-function currentScrollPercent(): number {
-  const maxScroll = document.documentElement.scrollHeight - window.innerHeight
-  if (maxScroll <= 0) return 0
-  return clamp(Math.round((window.scrollY / maxScroll) * 1000) / 1000, 0, 1)
-}
-
-/** 章节内容格式化：广告清洗 + 纯文本按段落，或允许的安全 HTML 子集。 */
-function formatContent(raw: string): string {
-  const content = removeAdPatterns(raw || '') || '暂无章节内容'
-  if (/<[a-z][\s\S]*>/i.test(content)) return sanitizeChapterHtml(content)
-  return content
-    .split(/\n+/)
-    .filter((p) => p.trim())
-    .map((p) => `<p>${escHtml(p.trim())}</p>`)
-    .join('\n')
-}
-
-/** 允许的最小安全 HTML 子集（P/BR/EM/STRONG/BLOCKQUOTE）。 */
-function sanitizeChapterHtml(content: string): string {
-  const template = document.createElement('template')
-  template.innerHTML = content
-  const allowed: Record<string, boolean> = { P: true, BR: true, EM: true, STRONG: true, BLOCKQUOTE: true }
-
-  function clean(node: Node): Node {
-    if (node.nodeType === Node.TEXT_NODE) return document.createTextNode(node.textContent || '')
-    if (node.nodeType !== Node.ELEMENT_NODE) return document.createTextNode('')
-    const el = node as HTMLElement
-    if (!allowed[el.tagName]) {
-      const frag = document.createDocumentFragment()
-      Array.from(el.childNodes).forEach((child) => frag.appendChild(clean(child)))
-      return frag
-    }
-    const out = document.createElement(el.tagName.toLowerCase())
-    Array.from(el.childNodes).forEach((child) => out.appendChild(clean(child)))
-    return out
-  }
-
-  const out = document.createElement('div')
-  Array.from(template.content.childNodes).forEach((node) => out.appendChild(clean(node)))
-  return out.innerHTML
-}
-
-function chapterLabel(ch: ChapterMeta, i: number): string {
-  return (ch.order ? `第${ch.order}章 ` : '') + (ch.title || `章节 ${i + 1}`)
-}
-
-function filterChapters(chapters: ChapterMeta[], query: string): ChapterMeta[] {
-  const q = String(query || '').trim().toLowerCase()
-  if (!q) return chapters
-  return chapters.filter((ch) => {
-    if (String(ch.order || '').indexOf(q) === 0) return true
-    if (String(ch.title || '').toLowerCase().includes(q)) return true
-    return (`第${ch.order}章`).includes(q)
-  })
-}
-
-function hashParagraphText(text: string): string {
-  let h = 2166136261
-  const t = String(text || '').replace(/\s+/g, ' ').trim()
-  for (let i = 0; i < t.length; i++) {
-    h ^= t.charCodeAt(i)
-    h = Math.imul(h, 16777619)
-  }
-  return (h >>> 0).toString(36)
-}
-
-function excerptText(text: string): string {
-  const t = String(text || '').replace(/\s+/g, ' ').trim()
-  return t.length > 110 ? t.slice(0, 110) + '…' : t
-}
-
-/** 把内容区内所有文本节点线性化为全局字符索引（{ node, start }，按文档序）。 */
-function buildTextIndex(root: Node): Array<{ node: Text; start: number }> {
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
-  const entries: Array<{ node: Text; start: number }> = []
-  let acc = 0
-  let node = walker.nextNode() as Text | null
-  while (node) {
-    entries.push({ node, start: acc })
-    acc += node.textContent.length
-    node = walker.nextNode() as Text | null
-  }
-  return entries
-}
-
-/** Range 端点 → 全局字符偏移；元素边界取容器内第一个文本节点。 */
-function pointToOffset(pt: { node: Node; off: number }, index: Array<{ node: Text; start: number }>): number {
-  for (const e of index) if (e.node === pt.node) return e.start + pt.off
-  return -1
-}
-
-/** 元素内第一个文本节点起点 / 最后一个文本节点终点（字符偏移）。 */
-function elemStartOffset(el: HTMLElement, index: Array<{ node: Text; start: number }>): number {
-  const tw = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
-  const first = tw.nextNode() as Text | null
-  if (first) for (const e of index) if (e.node === first) return e.start
-  return -1
-}
-
-function elemEndOffset(el: HTMLElement, index: Array<{ node: Text; start: number }>): number {
-  let last: Text | null = null
-  const tw = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
-  let n = tw.nextNode() as Text | null
-  while (n) { last = n; n = tw.nextNode() as Text | null }
-  if (last) for (const e of index) if (e.node === last) return e.start + last.textContent.length
-  return -1
-}
-
-/**
- * 划选解析：返回选中文本占比最多的段落。
- * 用全局字符偏移线性化文档，规避 compareBoundaryPoints 对祖先/后代端点的歧义；
- * 跨段划选时也取主段落，避免"划了词却不显示"。
- */
-function resolveSelectionParagraph(range: Range, contentEl: HTMLElement): { el: HTMLElement; text: string } | null {
-  const index = buildTextIndex(contentEl)
-  const rs = pointToOffset({ node: range.startContainer, off: range.startOffset }, index)
-  const re = pointToOffset({ node: range.endContainer, off: range.endOffset }, index)
-  if (rs < 0 || re < 0 || re <= rs) return null
-  const paras = contentEl.querySelectorAll<HTMLElement>('p')
-  let best: { el: HTMLElement; len: number; text: string } | null = null
-  for (const para of paras) {
-    const s = elemStartOffset(para, index)
-    const e = elemEndOffset(para, index)
-    if (s < 0 || e < 0) continue
-    const lo = Math.max(rs, s)
-    const hi = Math.min(re, e)
-    if (hi > lo && (best === null || hi - lo > best.len)) {
-      // 从字符区间还原该段内的选中文本（可能跨多个文本节点）
-      const buf: string[] = []
-      for (const ent of index) {
-        const es = ent.start
-        const ee = ent.start + ent.node.textContent.length
-        if (ee > lo && es < hi) {
-          const a = Math.max(es, lo)
-          const b = Math.min(ee, hi)
-          buf.push(ent.node.textContent.slice(a - es, b - es))
-        }
-      }
-      const t = buf.join('').replace(/\s+/g, ' ').trim()
-      if (t) best = { el: para, len: t.length, text: t }
-    }
-  }
-  return best ? { el: best.el, text: best.text } : null
-}
-
-function getReaderClientId(): string {
-  const key = 'reader_client_id'
-  let id = localStorage.getItem(key)
-  if (!id) {
-    id = crypto.randomUUID ? crypto.randomUUID() : `reader_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`
-    localStorage.setItem(key, id)
-  }
-  return id
-}
 
 export default function Reader() {
   const { novelId = '', chapterId = '' } = useParams()
@@ -219,7 +53,8 @@ export default function Reader() {
   const [novel, setNovel] = useState<{ id: string; title: string } | null>(null)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
-  const [demoMode, setDemoMode] = useState(false)
+  // demo 模式只需触发标记写入，无 UI 读取
+  const [, setDemoMode] = useState(false)
   const cacheRef = useRef<Map<string, ChapterFull>>(new Map())
 
   // 面板状态
@@ -229,7 +64,8 @@ export default function Reader() {
   const [bookmarkPanelOpen, setBookmarkPanelOpen] = useState(false)
   const [bookmarkNoteOpen, setBookmarkNoteOpen] = useState(false)
   const [bookmarkNote, setBookmarkNote] = useState('')
-  const [bookmarks, setBookmarks] = useState(() => getAllBookmarks())
+  // 书签数据从 storage 直读；setState 仅用于变更后强制重渲染面板
+  const [, setBookmarks] = useState(() => getAllBookmarks())
   const [settingsPanelOpen, setSettingsPanelOpen] = useState(false)
   const [mobileSettingsOpen, setMobileSettingsOpen] = useState(false)
   const [mobileLibraryOpen, setMobileLibraryOpen] = useState(false)
@@ -410,23 +246,25 @@ export default function Reader() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chapter, loading])
 
-  const loadThoughts = useCallback(async () => {
+  // 段评加载：竞态保护——快速换章时旧章未完成的请求不得写入新章状态
+  useEffect(() => {
     if (!chapter) return
     if (chapter.id.startsWith('dc')) {
       setChapterThoughts([])
       return
     }
-    try {
-      const data = await thoughtsApi.list(chapter.id)
-      setChapterThoughts(data.thoughts || [])
-    } catch {
-      setChapterThoughts([])
+    let cancelled = false
+    thoughtsApi
+      .list(chapter.id)
+      .then((data) => {
+        if (!cancelled) setChapterThoughts(data.thoughts || [])
+      })
+      .catch(() => {
+        if (!cancelled) setChapterThoughts([])
+      })
+    return () => {
+      cancelled = true
     }
-  }, [chapter])
-
-  useEffect(() => {
-    if (!chapter) return
-    void loadThoughts()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chapter?.id])
 
@@ -466,7 +304,6 @@ export default function Reader() {
     // 事件委托挂到 document：body 在加载期未挂载、重渲染会被替换，绑定在 body 上会丢失
     document.addEventListener('click', onClick)
     return () => document.removeEventListener('click', onClick)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chapter?.id, thoughtsByParagraph])
 
   // ---------- 进度恢复 ----------
@@ -537,7 +374,7 @@ export default function Reader() {
     })
   }, [chapter, novelId, pageMode])
 
-  function getNovelHistoryHelper(nid: string, cid: string) {
+  function getNovelHistoryHelper(nid: string, _cid: string) {
     // 从 storage 读取指定章节记录
     try {
       const raw = localStorage.getItem('novel_reading_history')
@@ -1107,7 +944,6 @@ export default function Reader() {
   // 前情提要讲的是上一章：首章没有上一章；演示章节（dc*）不在库里，生成必然 404，直接不给入口
   const prevCandidate = currentIdx > 0 ? allChapters[currentIdx - 1] : undefined
   const prevChapter = prevCandidate && !prevCandidate.id.startsWith('dc') ? prevCandidate : undefined
-  const mobileChapterMatches = filterChapters(allChapters, mobileChapterQuery)
 
   if (notFound) {
     return (
@@ -1242,29 +1078,7 @@ export default function Reader() {
 
         {/* Bookmark panel */}
         {bookmarkPanelOpen && (
-          <div className="bookmark-panel" onClick={(e) => e.stopPropagation()}>
-            <div className="bookmark-panel__header">
-              <span>书签</span>
-              <span className="text-muted">{getNovelBookmarks(nid).length ? `共 ${getNovelBookmarks(nid).length} 个` : ''}</span>
-            </div>
-            <div className="bookmark-panel__list">
-              {getNovelBookmarks(nid).length === 0 ? (
-                <div className="bookmark-panel__empty">暂无书签</div>
-              ) : (
-                getNovelBookmarks(nid).map((bm) => (
-                  <div className={`bookmark-panel__item${bm.chapterId === chapter.id ? ' bookmark-panel__item--current' : ''}`} key={bm.id}>
-                    <button className="bookmark-panel__jump" onClick={() => gotoChapter(bm.chapterId, nid)}>
-                      <span className="bookmark-panel__title">{bm.chapterTitle || `第 ${bm.chapterOrder || '?'} 章`}</span>
-                      {bm.note && <span className="bookmark-panel__note">{bm.note}</span>}
-                    </button>
-                    <button className="bookmark-panel__del" title="删除书签" onClick={() => deleteBookmark(bm.id)}>
-                      <svg viewBox="0 0 14 14" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><line x1="1" y1="1" x2="13" y2="13" /><line x1="13" y1="1" x2="1" y2="13" /></svg>
-                    </button>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
+          <BookmarkPanel novelId={nid} currentChapterId={chapter.id} onJump={gotoChapter} onDelete={deleteBookmark} />
         )}
 
         {/* Content */}
@@ -1337,95 +1151,32 @@ export default function Reader() {
 
       {/* Mobile settings sheet */}
       {mobileSettingsOpen && (
-        <>
-          <div className="mobile-settings-overlay" onClick={() => setMobileSettingsOpen(false)}></div>
-          <section className="mobile-settings-sheet" role="dialog" aria-modal="true" aria-labelledby="mobileSettingsTitle">
-            <div className="mobile-settings-sheet__handle" aria-hidden="true"></div>
-            <div className="mobile-settings-sheet__header">
-              <h2 id="mobileSettingsTitle">阅读设置</h2>
-              <button type="button" className="mobile-settings-sheet__close" aria-label="关闭阅读设置" onClick={() => setMobileSettingsOpen(false)}>×</button>
-            </div>
-            <div className="mobile-settings-sheet__body">
-              <SettingsControls
-                settings={settings}
-                set={(key: ReaderSettingKey, value: string) => {
-                  set(key, value)
-                  setMobileSettingsOpen(false)
-                  setMobileBarHidden(true)
-                }}
-                wakeLockSupported={wakeLockSupported}
-              />
-            </div>
-          </section>
-        </>
+        <MobileSettingsSheet
+          settings={settings}
+          set={(key: ReaderSettingKey, value: string) => {
+            set(key, value)
+            setMobileSettingsOpen(false)
+            setMobileBarHidden(true)
+          }}
+          wakeLockSupported={wakeLockSupported}
+          onClose={() => setMobileSettingsOpen(false)}
+        />
       )}
 
       {/* Mobile library sheet */}
       {mobileLibraryOpen && (
-        <>
-          <div className="mobile-library-overlay" onClick={() => setMobileLibraryOpen(false)}></div>
-          <section className="mobile-library-sheet" role="dialog" aria-modal="true" aria-labelledby="mobileLibraryTitle">
-            <div className="mobile-settings-sheet__handle" aria-hidden="true"></div>
-            <div className="mobile-settings-sheet__header">
-              <h2 id="mobileLibraryTitle">阅读面板</h2>
-              <button type="button" className="mobile-settings-sheet__close" aria-label="关闭阅读面板" onClick={() => setMobileLibraryOpen(false)}>×</button>
-            </div>
-            <div className="mobile-library-tabs" role="tablist" aria-label="阅读面板">
-              <button type="button" role="tab" aria-controls="mobileChapterList" className={mobileLibraryTab === 'chapters' ? 'active' : ''} onClick={() => setMobileLibraryTab('chapters')}>目录</button>
-              <button type="button" role="tab" aria-controls="mobileBookmarkList" className={mobileLibraryTab === 'bookmarks' ? 'active' : ''} onClick={() => setMobileLibraryTab('bookmarks')}>书签</button>
-            </div>
-            {mobileLibraryTab === 'chapters' ? (
-              <div className="mobile-library-panel" role="tabpanel" aria-labelledby="mobileLibraryTabChapters">
-                <div className="mobile-library-search">
-                  <input type="search" className="mobile-library-search__input" placeholder="搜索章节号或标题…" autoComplete="off" aria-label="搜索章节" value={mobileChapterQuery} onChange={(e) => setMobileChapterQuery(e.target.value)} />
-                  <span className="mobile-library-search__count">{mobileChapterQuery ? `${mobileChapterMatches.length} / ${allChapters.length}` : `${allChapters.length} 章`}</span>
-                </div>
-                {mobileChapterMatches.length === 0 ? (
-                  <div className="mobile-library-empty">{allChapters.length === 0 ? '暂无章节' : '没有匹配的章节'}</div>
-                ) : (
-                  <VirtualList
-                    className="mobile-library-scroll"
-                    ariaLabel="章节列表"
-                    items={mobileChapterMatches}
-                    rowHeight={MOBILE_ROW_H}
-                    scrollToIndex={Math.max(0, mobileChapterMatches.findIndex((c) => c.id === chapter.id))}
-                    renderRow={(ch, i) => {
-                      const isCurrent = ch.id === chapter.id
-                      return (
-                        <button
-                          type="button"
-                          className={`mobile-library-item${isCurrent ? ' mobile-library-item--current' : ''}`}
-                          role="option"
-                          aria-selected={isCurrent}
-                          onClick={() => gotoChapter(ch.id, ch.novelId || novelId)}
-                        >
-                          <span className="mobile-library-item__title">{chapterLabel(ch, i)}</span>
-                          {isCurrent && <span className="mobile-library-item__badge">在读</span>}
-                        </button>
-                      )
-                    }}
-                  />
-                )}
-              </div>
-            ) : (
-              <div className="mobile-library-panel" role="tabpanel" aria-labelledby="mobileLibraryTabBookmarks">
-                {getNovelBookmarks(nid).length === 0 ? (
-                  <div className="mobile-library-empty">暂无书签</div>
-                ) : (
-                  getNovelBookmarks(nid).map((bm) => (
-                    <div className={`mobile-library-bookmark${bm.chapterId === chapter.id ? ' mobile-library-item--current' : ''}`} key={bm.id}>
-                      <button type="button" className="mobile-library-bookmark__jump" onClick={() => gotoChapter(bm.chapterId, nid)}>
-                        <span className="mobile-library-item__title">{bm.chapterTitle || `第${bm.chapterOrder}章`}</span>
-                        {bm.note && <span className="mobile-library-item__meta">{bm.note}</span>}
-                      </button>
-                      <button type="button" className="mobile-library-bookmark__delete" aria-label="删除书签" onClick={() => deleteBookmark(bm.id)}>×</button>
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
-          </section>
-        </>
+        <MobileLibrarySheet
+          novelId={nid}
+          currentChapterId={chapter.id}
+          allChapters={allChapters}
+          tab={mobileLibraryTab}
+          onTabChange={setMobileLibraryTab}
+          query={mobileChapterQuery}
+          onQueryChange={setMobileChapterQuery}
+          onGotoChapter={gotoChapter}
+          onDeleteBookmark={deleteBookmark}
+          onClose={() => setMobileLibraryOpen(false)}
+        />
       )}
 
       {/* Thought selection popover */}
