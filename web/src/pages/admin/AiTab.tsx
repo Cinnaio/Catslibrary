@@ -15,7 +15,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { aiApi, type AiSettings, type AiUsageSummary } from '../../lib/api'
+import { aiApi, novelsApi, type AiSettings, type AiUsageSummary } from '../../lib/api'
 import { useToast, useConfirm } from '../../components/feedback'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -26,6 +26,9 @@ import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import AdminPage from '@/components/admin/AdminPage'
+import CustomSelect from '@/components/admin/CustomSelect'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Eye } from 'lucide-react'
 
 interface Provider {
   configured: boolean
@@ -67,6 +70,7 @@ export default function AiTab() {
           <TabsTrigger value="usage">用量统计</TabsTrigger>
           <TabsTrigger value="audit">调用审计</TabsTrigger>
           <TabsTrigger value="params">参数调优</TabsTrigger>
+          <TabsTrigger value="writing">AI 创作</TabsTrigger>
         </TabsList>
 
         <TabsContent value="config">
@@ -74,7 +78,7 @@ export default function AiTab() {
         </TabsContent>
 
         <TabsContent value="content">
-          <AiGenerationsPanel />
+          <AiGenerationsPanel scope="all" status="all" />
         </TabsContent>
 
         <TabsContent value="usage">
@@ -88,9 +92,137 @@ export default function AiTab() {
         <TabsContent value="params">
           <AiParamsPanel settings={settings} loading={loading} onReload={load} />
         </TabsContent>
+
+        <TabsContent value="writing">
+          <AiWritingPanel />
+        </TabsContent>
       </Tabs>
     </AdminPage>
   )
+}
+
+export function AiWritingPanel() {
+  const { toast } = useToast()
+  const [mode, setMode] = useState<'new' | 'continue'>('new')
+  const [novels, setNovels] = useState<Array<{ id: string; title: string }>>([])
+  const [novelId, setNovelId] = useState('')
+  const [title, setTitle] = useState('')
+  const [chapterTitle, setChapterTitle] = useState('')
+  const [instruction, setInstruction] = useState('')
+  const [outline, setOutline] = useState('')
+  const [draftId, setDraftId] = useState('')
+  const [draft, setDraft] = useState('')
+  const [draftKind, setDraftKind] = useState<'write_outline' | 'write_chapter' | 'continue' | ''>('')
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    void novelsApi.list({ limit: 100, page: 1 }).then((data) => setNovels(data.novels.map((novel) => ({ id: novel.id, title: novel.title })))).catch((err) => toast((err as Error).message, 'error'))
+  }, [toast])
+
+  async function generateOutline() {
+    if (!title.trim()) return toast('请填写作品标题', 'error')
+    setBusy(true)
+    try {
+      const data = await aiApi.writing.outline({ novelId, title, instruction })
+      setDraftId(data.draft.id); setDraft(data.draft.result); setDraftKind('write_outline'); toast('大纲草稿已生成', 'success')
+    } catch (err) { toast((err as Error).message, 'error') } finally { setBusy(false) }
+  }
+
+  async function generateChapter() {
+    if (!novelId || !chapterTitle.trim()) return toast('请选择小说并填写章节标题', 'error')
+    setBusy(true)
+    try {
+      const data = await aiApi.writing.chapter({ novelId, title, outline, instruction })
+      setDraftId(data.draft.id); setDraft(data.draft.result); setDraftKind('write_chapter'); toast('章节草稿已生成', 'success')
+    } catch (err) { toast((err as Error).message, 'error') } finally { setBusy(false) }
+  }
+
+  async function continueNovel() {
+    if (!novelId) return toast('请选择小说', 'error')
+    setBusy(true)
+    try {
+      const data = await aiApi.writing.continue({ novelId, title: chapterTitle, instruction })
+      setDraftId(data.draft.id); setDraft(data.draft.result); setDraftKind('continue'); toast('续写草稿已生成', 'success')
+    } catch (err) { toast((err as Error).message, 'error') } finally { setBusy(false) }
+  }
+
+  async function saveDraft() {
+    if (!draftId || !draft.trim()) return
+    setBusy(true)
+    try { await aiApi.writing.updateDraft(draftId, draft); toast('草稿已保存', 'success') }
+    catch (err) { toast((err as Error).message, 'error') } finally { setBusy(false) }
+  }
+
+  async function publishDraft() {
+    if (!draftId || !novelId || !chapterTitle.trim()) return toast('请选择小说并填写章节标题', 'error')
+    setBusy(true)
+    try { await aiApi.writing.publishDraft(draftId, { novelId, title: chapterTitle }); toast('已发布为正式章节', 'success'); setDraftId(''); setDraft(''); setDraftKind(''); setPreviewOpen(false) }
+    catch (err) { toast((err as Error).message, 'error') } finally { setBusy(false) }
+  }
+
+  return <div className="space-y-4">
+    <Card>
+      <CardHeader><CardTitle className="text-base">AI 创作工作台</CardTitle><p className="text-sm text-muted-foreground">生成结果先保存为草稿，编辑确认后再发布为正式章节。</p></CardHeader>
+      <CardContent className="grid gap-4">
+        <Tabs value={mode} onValueChange={(value) => setMode(value as 'new' | 'continue')}>
+          <TabsList><TabsTrigger value="new">新写</TabsTrigger><TabsTrigger value="continue">续写</TabsTrigger></TabsList>
+        </Tabs>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-1.5">
+            <Label>目标小说</Label>
+            <CustomSelect
+              options={novels.map((novel) => ({ value: novel.id, label: novel.title }))}
+              value={novelId}
+              onChange={setNovelId}
+              placeholder="选择小说"
+              searchable
+              searchPlaceholder="搜索小说名称…"
+              dropdownSide="bottom"
+            />
+          </div>
+          <div className="grid gap-1.5"><Label>{mode === 'new' ? '作品标题' : '章节标题（可选）'}</Label><Input value={mode === 'new' ? title : chapterTitle} onChange={(event) => mode === 'new' ? setTitle(event.target.value) : setChapterTitle(event.target.value)} placeholder={mode === 'new' ? '例如：雾城来信' : '例如：第十二章 暴雨前夜'} /></div>
+        </div>
+        {mode === 'new' && <div className="grid gap-1.5"><Label>章节标题</Label><Input value={chapterTitle} onChange={(event) => setChapterTitle(event.target.value)} placeholder="例如：第一章 雾中来客" /></div>}
+        <div className="grid gap-1.5"><Label>创作要求</Label><textarea className="min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={instruction} onChange={(event) => setInstruction(event.target.value)} placeholder="人物、风格、冲突、节奏或本次剧情目标" /></div>
+        {mode === 'new' && <div className="grid gap-1.5"><Label>大纲（生成章节时使用）</Label><textarea className="min-h-[140px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={outline} onChange={(event) => setOutline(event.target.value)} placeholder="先生成大纲，或直接粘贴已有大纲" /></div>}
+        <div className="flex flex-wrap gap-2">
+          {mode === 'new' ? <><Button variant="secondary" disabled={busy} onClick={() => void generateOutline()}>生成大纲</Button><Button disabled={busy} onClick={() => void generateChapter()}>生成章节</Button></> : <Button disabled={busy} onClick={() => void continueNovel()}>生成续写</Button>}
+        </div>
+      </CardContent>
+    </Card>
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">草稿区</CardTitle>
+        <p className="text-sm text-muted-foreground">
+          {draftId ? `当前草稿 ID：${draftId}` : '生成大纲、章节或续写后，结果会显示在这里'}
+        </p>
+      </CardHeader>
+      <CardContent className="grid gap-3">
+        <textarea
+          className="min-h-[360px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm leading-7 disabled:cursor-not-allowed disabled:bg-muted/30"
+          value={draft}
+          disabled={!draftId || busy}
+          onChange={(event) => setDraft(event.target.value)}
+          placeholder="等待生成内容…"
+        />
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button variant="outline" disabled={!draftId || !draft.trim() || busy} onClick={() => setPreviewOpen(true)}><Eye className="size-4" />预览</Button>
+          <Button variant="secondary" disabled={!draftId || !draft.trim() || busy} onClick={() => void saveDraft()}>保存草稿</Button>
+          {(draftKind === 'write_chapter' || draftKind === 'continue') && <Button disabled={!draftId || !draft.trim() || busy} onClick={() => void publishDraft()}>发布为章节</Button>}
+        </div>
+      </CardContent>
+    </Card>
+    <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+      <DialogContent className="max-h-[min(85vh,900px)] max-w-4xl overflow-hidden">
+        <DialogHeader>
+          <DialogTitle>{draftKind === 'continue' ? '续写预览' : draftKind === 'write_chapter' ? '章节预览' : '大纲预览'}</DialogTitle>
+          <DialogDescription>仅管理员可查看此草稿预览，发布前仍可继续编辑。</DialogDescription>
+        </DialogHeader>
+        <div className="max-h-[65vh] overflow-y-auto rounded-md border bg-muted/20 p-5 text-sm leading-7 whitespace-pre-wrap">{draft}</div>
+      </DialogContent>
+    </Dialog>
+  </div>
 }
 
 // 配置面板：供应商信息、开关、配额
@@ -713,11 +845,16 @@ function AiAuditPanel() {
 }
 
 function kindLabel(kind: string): string {
-  return kind === 'summary' ? '前情提要' : kind === 'catchup' ? '回顾总结' : kind
+  return kind === 'summary' ? '前情提要'
+    : kind === 'catchup' ? '回顾总结'
+      : kind === 'write_outline' ? '创作大纲'
+        : kind === 'write_chapter' ? '创作章节'
+          : kind === 'continue' ? '续写'
+            : kind
 }
 
 /** 已生成内容管理：列出 AI 产物，支持按类型筛选与单条删除。 */
-function AiGenerationsPanel() {
+export function AiGenerationsPanel(props: { scope: 'all' | 'reader' | 'writing'; status?: 'all' | 'published' | 'draft' | 'rejected' }) {
   const { toast } = useToast()
   const { confirm } = useConfirm()
   const [items, setItems] = useState<
@@ -737,21 +874,26 @@ function AiGenerationsPanel() {
   const [total, setTotal] = useState(0)
   const [limit] = useState(50)
   const [offset, setOffset] = useState(0)
-  const [filterKind, setFilterKind] = useState<'all' | 'summary' | 'catchup'>('all')
+  const [filterKind, setFilterKind] = useState<'all' | 'summary' | 'catchup' | 'write_outline' | 'write_chapter' | 'continue'>('all')
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await aiApi.generations({ kind: filterKind === 'all' ? undefined : filterKind, limit, offset })
-      setItems(res.items)
+      const res = await aiApi.generations({ kind: filterKind === 'all' ? undefined : filterKind, scope: props.scope, status: props.status, limit, offset })
+      const allowedKinds = props.scope === 'writing'
+        ? new Set(['continue', 'write_outline', 'write_chapter'])
+        : props.scope === 'reader'
+          ? new Set(['summary', 'catchup'])
+          : new Set(['summary', 'catchup', 'continue', 'write_outline', 'write_chapter'])
+      setItems(res.items.filter((item) => allowedKinds.has(item.kind)))
       setTotal(res.total)
     } catch (err) {
       toast((err as Error).message || '加载已生成内容失败', 'error')
     } finally {
       setLoading(false)
     }
-  }, [filterKind, limit, offset, toast])
+  }, [filterKind, limit, offset, props.scope, props.status, toast])
 
   useEffect(() => {
     void load()
@@ -786,14 +928,14 @@ function AiGenerationsPanel() {
         <CardHeader className="flex-row items-center justify-between gap-2">
           <div>
             <CardTitle className="text-base">已生成内容</CardTitle>
-            <p className="text-sm text-muted-foreground">AI 产出的前情提要 / 回顾总结，可删除后让其重新生成</p>
+            <p className="text-sm text-muted-foreground">AI 生成的内容记录，可删除后重新生成</p>
           </div>
           <div className="flex items-center gap-2">
             <Label htmlFor="gen-filter-kind" className="text-xs text-muted-foreground">类型</Label>
             <Select
               value={filterKind}
               onValueChange={(v) => {
-                setFilterKind(v as 'all' | 'summary' | 'catchup')
+                setFilterKind(v as 'all' | 'summary' | 'catchup' | 'write_outline' | 'write_chapter' | 'continue')
                 setOffset(0)
               }}
             >
@@ -802,8 +944,15 @@ function AiGenerationsPanel() {
               </SelectTrigger>
               <SelectContent position="popper" align="end" sideOffset={4}>
                 <SelectItem value="all">全部</SelectItem>
-                <SelectItem value="summary">前情提要</SelectItem>
-                <SelectItem value="catchup">回顾总结</SelectItem>
+                {props.scope !== 'writing' && <>
+                  <SelectItem value="summary">前情提要</SelectItem>
+                  <SelectItem value="catchup">回顾总结</SelectItem>
+                </>}
+                {props.scope !== 'reader' && <>
+                  <SelectItem value="write_outline">创作大纲</SelectItem>
+                  <SelectItem value="write_chapter">创作章节</SelectItem>
+                  <SelectItem value="continue">续写</SelectItem>
+                </>}
               </SelectContent>
             </Select>
           </div>
@@ -921,7 +1070,7 @@ function DetailItem({ label, value }: { label: string; value: ReactNode }) {
   )
 }
 
-function AiParamsPanel(props: { settings: AiSettings | null; loading: boolean; onReload: () => void }) {
+export function AiParamsPanel(props: { settings: AiSettings | null; loading: boolean; onReload: () => void }) {
   const { toast } = useToast()
   const [localSettings, setLocalSettings] = useState<AiSettings | null>(null)
   const [saving, setSaving] = useState(false)
@@ -1060,6 +1209,32 @@ function AiParamsPanel(props: { settings: AiSettings | null; loading: boolean; o
               />
               <p className="text-xs text-muted-foreground">推荐 800</p>
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">AI 创作参数</CardTitle>
+          <p className="text-sm text-muted-foreground">用于 AI 创作页的大纲、章节生成和续写</p>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-1.5">
+              <Label htmlFor="writing-temp">创意度（Temperature）</Label>
+              <Input id="writing-temp" type="number" min={0} max={1} step={0.1} value={localSettings.writingTemperature} disabled={props.loading || saving} onChange={(e) => setLocalSettings({ ...localSettings, writingTemperature: Number(e.target.value) })} />
+              <p className="text-xs text-muted-foreground">数值越高，生成结果越有变化。推荐 0.8</p>
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="writing-tokens">最大输出 Token</Label>
+              <Input id="writing-tokens" type="number" min={300} max={1000000} value={localSettings.writingMaxTokens} disabled={props.loading || saving} onChange={(e) => setLocalSettings({ ...localSettings, writingMaxTokens: Number(e.target.value) })} />
+              <p className="text-xs text-muted-foreground">控制大纲、章节和续写的最大长度，最高 1,000,000 Token</p>
+            </div>
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="writing-prompt">创作系统提示词</Label>
+            <textarea id="writing-prompt" className="min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" value={localSettings.writingSystemPrompt} disabled={props.loading || saving} onChange={(e) => setLocalSettings({ ...localSettings, writingSystemPrompt: e.target.value })} />
+            <p className="text-xs text-muted-foreground">定义 AI 创作的角色、文风和输出约束</p>
           </div>
         </CardContent>
       </Card>

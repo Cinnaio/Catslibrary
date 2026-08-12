@@ -7,7 +7,7 @@ import type { Db } from '../../db/pool'
 import { all, first, run } from '../../db/query'
 import { newId } from '../auth'
 
-export type GenerationKind = 'continue' | 'summary' | 'dialogue' | 'catchup'
+export type GenerationKind = 'continue' | 'summary' | 'dialogue' | 'catchup' | 'write_outline' | 'write_chapter'
 export type GenerationStatus = 'draft' | 'published' | 'rejected'
 
 export interface GenerationRow {
@@ -131,7 +131,7 @@ export interface GenerationDetail extends Generation {
 /** 「已生成内容」管理列表：带小说/章节标题、行数与分页。 */
 export async function listGenerationDetails(
   db: Db,
-  opts: { kind?: string; status?: string; limit?: number; offset?: number } = {},
+  opts: { kind?: string; kinds?: string[]; status?: string; limit?: number; offset?: number } = {},
 ): Promise<{ items: GenerationDetail[]; total: number }> {
   const limit = Math.min(Math.max(Math.trunc(opts.limit || 50), 1), 100)
   const offset = Math.max(Math.trunc(opts.offset || 0), 0)
@@ -141,6 +141,13 @@ export async function listGenerationDetails(
   if (opts.kind) {
     params.push(opts.kind)
     conditions.push(`g.kind = $${params.length}`)
+  }
+  if (opts.kinds?.length) {
+    const placeholders = opts.kinds.map((kind) => {
+      params.push(kind)
+      return `$${params.length}`
+    })
+    conditions.push(`g.kind IN (${placeholders.join(', ')})`)
   }
   if (opts.status) {
     params.push(opts.status)
@@ -175,6 +182,14 @@ export async function listGenerationDetails(
 export async function deleteGeneration(db: Db, id: string): Promise<boolean> {
   const affected = await run(db, 'DELETE FROM ai_generations WHERE id = $1', [id])
   return affected > 0
+}
+
+export async function getGeneration(db: Db, id: string): Promise<GenerationRow | undefined> {
+  return first<GenerationRow>(db, 'SELECT * FROM ai_generations WHERE id = $1', [id])
+}
+
+export async function updateGenerationResult(db: Db, id: string, result: string, status: GenerationStatus = 'draft'): Promise<boolean> {
+  return (await run(db, 'UPDATE ai_generations SET result = $1, status = $2 WHERE id = $3', [result, status, id])) > 0
 }
 
 /** 作废某章的缓存（重新生成 / 章节内容更新后调用）。 */

@@ -33,6 +33,7 @@ interface CustomSelectProps {
   onServerSearch?: (query: string) => void
   className?: string
   disabled?: boolean
+  dropdownSide?: 'top' | 'right' | 'bottom' | 'left'
   'aria-label'?: string
   'aria-labelledby'?: string
 }
@@ -50,6 +51,7 @@ export default function CustomSelect({
   onServerSearch,
   className,
   disabled,
+  dropdownSide = 'bottom',
   'aria-label': ariaLabel,
   'aria-labelledby': ariaLabelledBy,
 }: CustomSelectProps) {
@@ -112,6 +114,7 @@ export default function CustomSelect({
       </PopoverTrigger>
       <PopoverContent
         align="start"
+        side={dropdownSide}
         className={cn(
           'admin-custom-select-popover w-(--radix-popover-trigger-width) min-w-[200px] p-0',
           searchable && 'pt-1',   // 顶部留白，避免搜索框聚焦环向上溢出到触发器

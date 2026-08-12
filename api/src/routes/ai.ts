@@ -10,7 +10,8 @@ import { AiError, chat, isTextAiConfigured, providerLabel, textProvider } from '
 import { getAiSettings, saveAiSettings } from '../services/ai/settings'
 import { generateRecap, getCachedRecap, loadChapterForRecap } from '../services/ai/summary'
 import { generateCatchup, getCachedCatchup, inspectCatchup } from '../services/ai/catchup'
-import { invalidateChapter, listGenerationDetails, deleteGeneration } from '../services/ai/generations'
+import { invalidateChapter, listGenerationDetails, deleteGeneration, getGeneration, updateGenerationResult } from '../services/ai/generations'
+import { generateWriting, recentNovelContext } from '../services/ai/writing'
 import { checkQuota, recordUsage, startOfToday, summarizeUsage } from '../services/ai/usage'
 import { optionalUser, requireAdmin, requireUser, type AuthEnv } from '../middlewares/auth'
 
@@ -203,6 +204,84 @@ aiRoutes.post('/test', requireAdmin(), async (c) => {
   }
 })
 
+// ---------- 管理端 AI 创作：先生成草稿，发布时才写入正式章节 ----------
+
+aiRoutes.post('/writing/outline', requireAdmin(), async (c) => {
+  const db = getDb()
+  const body = await c.req.json().catch(() => ({}))
+  const user = c.get('user')
+  const title = String(body.title || '').trim()
+  const novelId = String(body.novelId || '').trim()
+  if (!title) return c.json({ error: 'title 必填' }, 400)
+  try {
+    const result = await generateWriting(db, { userId: user.id, novelId, kind: 'write_outline', title, instruction: String(body.instruction || '').trim(), maxTokens: body.maxTokens, temperature: body.temperature })
+    return c.json({ draft: result.generation, usage: result.usage })
+  } catch (err) { return aiErrorResponse(c, err) }
+})
+
+aiRoutes.post('/writing/chapter', requireAdmin(), async (c) => {
+  const db = getDb()
+  const body = await c.req.json().catch(() => ({}))
+  const user = c.get('user')
+  const novelId = String(body.novelId || '').trim()
+  const title = String(body.title || '').trim()
+  if (!novelId || !title) return c.json({ error: 'novelId 和 title 必填' }, 400)
+  const novel = await first<{ title: string }>(db, 'SELECT title FROM novels WHERE id = $1', [novelId])
+  if (!novel) return c.json({ error: '小说不存在' }, 404)
+  try {
+    const result = await generateWriting(db, { userId: user.id, novelId, kind: 'write_chapter', title: novel.title, instruction: String(body.instruction || '').trim(), outline: String(body.outline || '').trim(), context: String(body.context || '').trim(), maxTokens: body.maxTokens, temperature: body.temperature })
+    return c.json({ draft: result.generation, usage: result.usage })
+  } catch (err) { return aiErrorResponse(c, err) }
+})
+
+aiRoutes.post('/writing/continue', requireAdmin(), async (c) => {
+  const db = getDb()
+  const body = await c.req.json().catch(() => ({}))
+  const user = c.get('user')
+  const novelId = String(body.novelId || '').trim()
+  const chapterTitle = String(body.title || '').trim()
+  if (!novelId) return c.json({ error: 'novelId 必填' }, 400)
+  const novel = await first<{ title: string }>(db, 'SELECT title FROM novels WHERE id = $1', [novelId])
+  if (!novel) return c.json({ error: '小说不存在' }, 404)
+  try {
+    const context = await recentNovelContext(db, novelId, body.afterChapterId ? String(body.afterChapterId) : undefined)
+    const result = await generateWriting(db, { userId: user.id, novelId, kind: 'continue', title: novel.title, instruction: String(body.instruction || chapterTitle || '自然推进剧情，完成一个有悬念的章节段落').trim(), context, maxTokens: body.maxTokens, temperature: body.temperature })
+    return c.json({ draft: result.generation, usage: result.usage, contextUsed: context.length })
+  } catch (err) { return aiErrorResponse(c, err) }
+})
+
+aiRoutes.put('/writing/drafts/:id', requireAdmin(), async (c) => {
+  const id = String(c.req.param('id') || '')
+  const body = await c.req.json().catch(() => ({}))
+  const row = await getGeneration(getDb(), id)
+  if (!row || row.status !== 'draft' || !['write_chapter', 'continue', 'write_outline'].includes(row.kind)) return c.json({ error: '草稿不存在或不可编辑' }, 404)
+  const result = String(body.result ?? '').trim()
+  if (!result) return c.json({ error: '内容不能为空' }, 400)
+  await updateGenerationResult(getDb(), id, result)
+  return c.json({ ok: true, id, result })
+})
+
+aiRoutes.post('/writing/drafts/:id/publish', requireAdmin(), async (c) => {
+  const db = getDb()
+  const id = String(c.req.param('id') || '')
+  const body = await c.req.json().catch(() => ({}))
+  const row = await getGeneration(db, id)
+  if (!row || row.status !== 'draft' || !['write_chapter', 'continue'].includes(row.kind)) return c.json({ error: '可发布的章节草稿不存在' }, 404)
+  const novelId = String(body.novelId || row.novel_id || '').trim()
+  const title = String(body.title || '').trim()
+  if (!novelId || !title || !row.result.trim()) return c.json({ error: 'novelId、title 和内容必填' }, 400)
+  const novel = await first<{ id: string }>(db, 'SELECT id FROM novels WHERE id = $1', [novelId])
+  if (!novel) return c.json({ error: '小说不存在' }, 404)
+  const chapterId = 'ch_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7)
+  const now = Date.now()
+  const max = await first<{ max_order: number }>(db, 'SELECT COALESCE(MAX(sort_order), 0)::int AS max_order FROM chapters WHERE novel_id = $1', [novelId])
+  const order = Number(max?.max_order || 0) + 1
+  await db.query('INSERT INTO chapters (id, novel_id, title, content, sort_order, word_count, source_url, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)', [chapterId, novelId, title, row.result, order, row.result.replace(/<[^>]*>/g, '').length, '', now])
+  await db.query('UPDATE novels SET chapter_count = (SELECT COUNT(*) FROM chapters WHERE novel_id = $1), updated_at = $2 WHERE id = $1', [novelId, now])
+  await db.query("UPDATE ai_generations SET status = 'published', chapter_id = $1 WHERE id = $2", [chapterId, id])
+  return c.json({ ok: true, chapter: { id: chapterId, novelId, title, order } })
+})
+
 aiRoutes.get('/usage', requireAdmin(), async (c) => {
   const db = getDb()
   const today = startOfToday()
@@ -373,14 +452,25 @@ aiRoutes.get('/audit/trend', requireAdmin(), async (c) => {
 /** 已生成内容列表：默认只看已发布（读者可见）的，支持按类型/状态筛选。 */
 aiRoutes.get('/generations', requireAdmin(), async (c) => {
   const db = getDb()
-  const kind = c.req.query('kind') === 'summary' || c.req.query('kind') === 'catchup' ? c.req.query('kind') : undefined
-  const status = c.req.query('status') === 'published' || c.req.query('status') === 'draft' || c.req.query('status') === 'rejected'
-    ? c.req.query('status')
-    : 'published'
+  const allowedKinds = new Set(['summary', 'catchup', 'continue', 'write_outline', 'write_chapter'])
+  const kind = allowedKinds.has(c.req.query('kind') || '') ? c.req.query('kind') : undefined
+  // 统一的“已生成内容”默认仍保持读者范围；需要查看全部内容时显式传 all。
+  const scope = c.req.query('scope')
+  const scopedKinds = scope === 'writing'
+    ? ['continue', 'write_outline', 'write_chapter']
+    : scope === 'reader'
+      ? ['summary', 'catchup']
+      : undefined
+  const requestedStatus = c.req.query('status')
+  const status = requestedStatus === 'all'
+    ? undefined
+    : requestedStatus === 'published' || requestedStatus === 'draft' || requestedStatus === 'rejected'
+      ? requestedStatus
+      : 'published'
   const limit = Math.min(Number.parseInt(c.req.query('limit') || '50', 10) || 50, 100)
   const offset = Number.parseInt(c.req.query('offset') || '0', 10) || 0
 
-  const { items, total } = await listGenerationDetails(db, { kind, status, limit, offset })
+  const { items, total } = await listGenerationDetails(db, { kind, kinds: scopedKinds, status, limit, offset })
   return c.json({ items, total, limit, offset }, 200, { 'Cache-Control': 'no-store' })
 })
 

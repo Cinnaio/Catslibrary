@@ -10,11 +10,12 @@ import type { SourceRow } from './types'
 // ---------- helpers ----------
 
 /** scrapeApi 未覆盖的 /scrape 动作（test/discover/list-sources/import-legado 等）走此 POST。 */
-export async function scrapePost(body: Record<string, unknown>): Promise<any> {
+export async function scrapePost(body: Record<string, unknown>, signal?: AbortSignal): Promise<any> {
   const res = await fetch(url('/scrape'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify(body),
+    signal,
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error((data as { error?: string }).error || `HTTP ${res.status}`)

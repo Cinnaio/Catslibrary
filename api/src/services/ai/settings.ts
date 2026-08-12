@@ -31,6 +31,11 @@ export interface AiSettings {
   /** 回顾总结最大输出 token 数 */
   catchupMaxTokens: number
 
+  // === AI 创作参数 ===
+  writingTemperature: number
+  writingMaxTokens: number
+  writingSystemPrompt: string
+
   // === 审计配置 ===
   /** 是否记录用户 IP 地址 */
   logIpAddress: boolean
@@ -56,6 +61,11 @@ export const DEFAULT_AI_SETTINGS: AiSettings = {
   catchupTemperature: 0.7,
   catchupMaxTokens: 800,
 
+  // AI 创作参数默认值
+  writingTemperature: 0.8,
+  writingMaxTokens: 1800,
+  writingSystemPrompt: '你是中文网络小说作者。请根据提供的设定和上下文创作正文，保持人物动机、叙事视角和风格一致。只输出正文，不要标题、解释或 Markdown。',
+
   // 审计配置默认值
   logIpAddress: false,
   logUserAgent: false,
@@ -70,6 +80,9 @@ const LIMITS = {
   catchupMaxChapters: { min: 1, max: 10 },
   catchupTemperature: { min: 0, max: 1 },
   catchupMaxTokens: { min: 100, max: 3000 },
+  writingTemperature: { min: 0, max: 1 },
+  writingMaxTokens: { min: 300, max: 1000000 },
+  writingSystemPrompt: { maxLength: 2000 },
 }
 
 export async function getAiSettings(db: Db): Promise<AiSettings> {
@@ -112,6 +125,11 @@ export function normalizeAiSettings(raw: unknown): AiSettings {
     catchupMaxChapters: clampInt(obj.catchupMaxChapters, DEFAULT_AI_SETTINGS.catchupMaxChapters, LIMITS.catchupMaxChapters),
     catchupTemperature: clampFloat(obj.catchupTemperature, DEFAULT_AI_SETTINGS.catchupTemperature, LIMITS.catchupTemperature),
     catchupMaxTokens: clampInt(obj.catchupMaxTokens, DEFAULT_AI_SETTINGS.catchupMaxTokens, LIMITS.catchupMaxTokens),
+
+    // AI 创作参数
+    writingTemperature: clampFloat(obj.writingTemperature, DEFAULT_AI_SETTINGS.writingTemperature, LIMITS.writingTemperature),
+    writingMaxTokens: clampInt(obj.writingMaxTokens, DEFAULT_AI_SETTINGS.writingMaxTokens, LIMITS.writingMaxTokens),
+    writingSystemPrompt: clampString(obj.writingSystemPrompt, DEFAULT_AI_SETTINGS.writingSystemPrompt, LIMITS.writingSystemPrompt.maxLength),
 
     // 审计配置
     logIpAddress: obj.logIpAddress === undefined ? DEFAULT_AI_SETTINGS.logIpAddress : !!obj.logIpAddress,

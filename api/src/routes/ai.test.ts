@@ -546,6 +546,34 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     expect(cachedBody.recap).toBe('')
   })
 
+  it('AI 创作：生成草稿、编辑后发布为正式章节', async () => {
+    const novelId = await firstNovelId(t)
+    const outline = await req('/api/ai/writing/outline', json('POST', { title: '新作品', instruction: '悬疑开篇' }, adminToken))
+    expect(outline.status).toBe(200)
+    const outlineBody = await jsonOf<{ draft: { id: string; kind: string; status: string; result: string } }>(outline)
+    expect(outlineBody.draft.kind).toBe('write_outline')
+    expect(outlineBody.draft.status).toBe('draft')
+    expect(outlineBody.draft.result.length).toBeGreaterThan(0)
+
+    const chapter = await req('/api/ai/writing/chapter', json('POST', { novelId, title: 'AI 测试书', outline: outlineBody.draft.result, instruction: '写一个紧张的开场' }, adminToken))
+    expect(chapter.status).toBe(200)
+    const chapterBody = await jsonOf<{ draft: { id: string; kind: string; status: string } }>(chapter)
+    expect(chapterBody.draft.kind).toBe('write_chapter')
+    expect(chapterBody.draft.status).toBe('draft')
+
+    const edited = await req(`/api/ai/writing/drafts/${chapterBody.draft.id}`, json('PUT', { result: '编辑后的章节正文。' }, adminToken))
+    expect(edited.status).toBe(200)
+    const published = await req(`/api/ai/writing/drafts/${chapterBody.draft.id}/publish`, json('POST', { novelId, title: 'AI 创作章' }, adminToken))
+    expect(published.status).toBe(200)
+    const publishedBody = await jsonOf<{ chapter: { id: string; title: string } }>(published)
+    expect(publishedBody.chapter.title).toBe('AI 创作章')
+
+    const savedChapter = await req(`/api/chapters/${publishedBody.chapter.id}`)
+    expect((await jsonOf<{ chapter: { content: string } }>(savedChapter)).chapter.content).toBe('编辑后的章节正文。')
+    const forbidden = await req('/api/ai/writing/continue', json('POST', { novelId }, readerToken))
+    expect(forbidden.status).toBe(403)
+  })
+
   it('自定义系统提示词后缓存键变化：改提示词即失效并重新生成', async () => {
     // 记录修改前的提示词，测试结束后恢复，避免影响其它用例
     const before = await req('/api/ai/settings', json('GET', undefined, adminToken))

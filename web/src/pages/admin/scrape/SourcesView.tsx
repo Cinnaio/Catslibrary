@@ -53,6 +53,7 @@ export default function SourcesView({ active }: { active: boolean }) {
   const [connectivityChecking, setConnectivityChecking] = useState(false)
   const [connectivityResult, setConnectivityResult] = useState<{ checked: number; reachable: number; unreachable: number } | null>(null)
   const [connectivityProgress, setConnectivityProgress] = useState({ completed: 0, total: 0, reachable: 0, unreachable: 0, currentHost: '' })
+  const connectivityAbortRef = useRef<AbortController | null>(null)
 
   const loadScrapeSources = useCallback(async () => {
     setSourcesLoading(true)
@@ -89,6 +90,7 @@ export default function SourcesView({ active }: { active: boolean }) {
   useEffect(() => {
     return () => {
       if (hostDebounce.current) clearTimeout(hostDebounce.current)
+      connectivityAbortRef.current?.abort()
     }
   }, [])
 
@@ -180,6 +182,8 @@ export default function SourcesView({ active }: { active: boolean }) {
   }
 
   async function checkConnectivity() {
+    const controller = new AbortController()
+    connectivityAbortRef.current = controller
     let hosts = connectivityScope === 'selected'
       ? [...selectedHosts]
       : connectivityScope === 'page'
@@ -187,7 +191,7 @@ export default function SourcesView({ active }: { active: boolean }) {
         : undefined
     if (connectivityScope === 'selected' && !hosts?.length) return
     if (!hosts) {
-      const preview = await scrapePost({ action: 'check-source-connectivity', preview: true })
+      const preview = await scrapePost({ action: 'check-source-connectivity', preview: true }, controller.signal)
       hosts = Array.isArray(preview.hosts) ? preview.hosts : []
     }
     const targetHosts = hosts || []
@@ -195,25 +199,49 @@ export default function SourcesView({ active }: { active: boolean }) {
     setConnectivityChecking(true)
     setConnectivityResult(null)
     setConnectivityProgress({ completed: 0, total: targetHosts.length, reachable: 0, unreachable: 0, currentHost: targetHosts[0] || '' })
+    let completed = 0
+    let reachable = 0
+    let unreachable = 0
     try {
-      let reachable = 0
-      let unreachable = 0
-      for (let index = 0; index < targetHosts.length; index++) {
-        const host = targetHosts[index]!
-        const data = await scrapePost({ action: 'check-source-connectivity', hosts: [host] })
-        reachable += Number(data.reachable) || 0
-        unreachable += Number(data.unreachable) || 0
-        setConnectivityProgress({ completed: index + 1, total: targetHosts.length, reachable, unreachable, currentHost: targetHosts[index + 1] || host })
+      let cursor = 0
+      const worker = async () => {
+        while (!controller.signal.aborted) {
+          const index = cursor++
+          if (index >= targetHosts.length) return
+          const host = targetHosts[index]!
+          const data = await scrapePost({ action: 'check-source-connectivity', hosts: [host] }, controller.signal)
+          reachable += Number(data.reachable) || 0
+          unreachable += Number(data.unreachable) || 0
+          completed += 1
+          setConnectivityProgress({ completed, total: targetHosts.length, reachable, unreachable, currentHost: host })
+        }
+      }
+      const workerCount = Math.min(8, targetHosts.length)
+      await Promise.all(Array.from({ length: workerCount }, () => worker()))
+      if (controller.signal.aborted) {
+        setConnectivityResult({ checked: completed, reachable, unreachable })
+        toast(`检测已终止：已完成 ${completed} 个书源`, 'default')
+        return
       }
       const data = { checked: targetHosts.length, reachable, unreachable }
       setConnectivityResult(data)
       await loadScrapeSources()
       toast(`连接检测完成：可连接 ${data.reachable}，不可访问 ${data.unreachable}`, data.unreachable ? 'error' : 'success')
     } catch (err) {
+      if ((err as Error).name === 'AbortError' || controller.signal.aborted) {
+        setConnectivityResult({ checked: completed, reachable, unreachable })
+        toast(`检测已终止：已完成 ${completed} 个书源`, 'default')
+      } else {
       toast((err as Error).message, 'error')
+      }
     } finally {
       setConnectivityChecking(false)
+      connectivityAbortRef.current = null
     }
+  }
+
+  function stopConnectivityCheck() {
+    connectivityAbortRef.current?.abort()
   }
 
   async function deleteUnreachableSources() {
@@ -528,7 +556,11 @@ export default function SourcesView({ active }: { active: boolean }) {
           <DialogFooter>
             {connectivityResult && <Button variant="ghost" onClick={() => setConnectivityResult(null)}>再次检测</Button>}
             <Button variant="secondary" disabled={connectivityChecking} onClick={() => setConnectivityDialogOpen(false)}>关闭</Button>
-            {!connectivityResult && <Button disabled={connectivityChecking || (connectivityScope === 'selected' && selectedHosts.size === 0) || (connectivityScope === 'page' && sources.length === 0)} onClick={() => void checkConnectivity()}>{connectivityChecking ? '检测中…' : '开始检测'}</Button>}
+            {connectivityChecking ? (
+              <Button variant="destructive" onClick={stopConnectivityCheck}>终止检测</Button>
+            ) : !connectivityResult ? (
+              <Button disabled={(connectivityScope === 'selected' && selectedHosts.size === 0) || (connectivityScope === 'page' && sources.length === 0)} onClick={() => void checkConnectivity()}>开始检测</Button>
+            ) : null}
           </DialogFooter>
         </DialogContent>
       </Dialog>

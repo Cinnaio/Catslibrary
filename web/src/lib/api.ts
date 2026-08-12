@@ -607,6 +607,10 @@ export interface AiSettings {
   catchupMaxChapters: number
   catchupTemperature: number
   catchupMaxTokens: number
+  // AI 创作参数
+  writingTemperature: number
+  writingMaxTokens: number
+  writingSystemPrompt: string
   // 审计配置
   logIpAddress: boolean
   logUserAgent: boolean
@@ -650,11 +654,28 @@ export const aiApi = {
   test(): Promise<{ ok: boolean; model?: string; reply?: string; error?: string; code?: string; elapsedMs: number }> {
     return request('POST', '/ai/test', {}, true)
   },
+  writing: {
+    outline(data: Record<string, unknown>): Promise<{ draft: { id: string; result: string; model: string } }> {
+      return request('POST', '/ai/writing/outline', data, true)
+    },
+    chapter(data: Record<string, unknown>): Promise<{ draft: { id: string; result: string; model: string } }> {
+      return request('POST', '/ai/writing/chapter', data, true)
+    },
+    continue(data: Record<string, unknown>): Promise<{ draft: { id: string; result: string; model: string } }> {
+      return request('POST', '/ai/writing/continue', data, true)
+    },
+    updateDraft(id: string, result: string): Promise<{ ok: boolean; id: string; result: string }> {
+      return request('PUT', `/ai/writing/drafts/${encodeURIComponent(id)}`, { result }, true)
+    },
+    publishDraft(id: string, data: { novelId: string; title: string }): Promise<{ ok: boolean; chapter: { id: string; title: string; order: number } }> {
+      return request('POST', `/ai/writing/drafts/${encodeURIComponent(id)}/publish`, data, true)
+    },
+  },
   usage(): Promise<{ today: AiUsageSummary; last30d: AiUsageSummary }> {
     return request('GET', '/ai/usage', null, true)
   },
   /** 已生成内容列表（管理端）：默认已发布，可筛类型。 */
-  generations(filters: { kind?: 'summary' | 'catchup'; status?: 'published' | 'draft' | 'rejected'; limit?: number; offset?: number } = {}): Promise<{
+  generations(filters: { kind?: 'summary' | 'catchup' | 'continue' | 'write_outline' | 'write_chapter'; scope?: 'all' | 'reader' | 'writing'; status?: 'all' | 'published' | 'draft' | 'rejected'; limit?: number; offset?: number } = {}): Promise<{
     items: Array<{
       id: string
       novelId: string
@@ -673,6 +694,7 @@ export const aiApi = {
   }> {
     const params = new URLSearchParams()
     if (filters.kind) params.set('kind', filters.kind)
+    if (filters.scope) params.set('scope', filters.scope)
     if (filters.status) params.set('status', filters.status)
     if (filters.limit) params.set('limit', String(filters.limit))
     if (filters.offset) params.set('offset', String(filters.offset))
