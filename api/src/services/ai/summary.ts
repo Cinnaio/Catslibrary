@@ -114,14 +114,16 @@ async function runGenerateRecap(db: Db, opts: RecapOptions): Promise<RecapResult
   const systemPrompt = custom && custom !== DEFAULT_AI_SETTINGS.recapSystemPrompt ? custom : SYSTEM_PROMPT
 
   const userPrompt = buildUserPrompt(opts.novelTitle, opts.chapter, text)
+  // 温度与 token 上限来自「参数调优」设置；两者不参与缓存键——
+  // 调参只影响后续新生成，不作废历史缓存（避免改一个数字导致全站重算烧钱）
   const res = await chat({
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
     ],
-    temperature: 0.2,
-    // 提要本身只要 ~200 token，但推理模型会先花掉一大截思考预算，留足余量
-    maxTokens: 1200,
+    temperature: settings.recapTemperature,
+    // 提要本身只要 ~200 token，但推理模型会先花掉一大截思考预算，默认 1200 留足余量
+    maxTokens: settings.recapMaxTokens,
   })
 
   const generation = await saveGeneration(db, {

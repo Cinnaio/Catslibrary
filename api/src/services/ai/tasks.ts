@@ -61,6 +61,11 @@ export async function updateAiTask(db: Db, id: string, patch: { status?: AiTaskS
   await run(db, `UPDATE ai_tasks SET ${parts.join(', ')} WHERE id = $${values.length}`, values)
 }
 
+export async function getAiTask(db: Db, id: string): Promise<AiTask | undefined> {
+  const row = await first<AiTaskRow>(db, 'SELECT * FROM ai_tasks WHERE id = $1', [id])
+  return row ? mapTask(row) : undefined
+}
+
 export async function isAiTaskCancelled(db: Db, id: string): Promise<boolean> {
   const row = await first<{ status: string }>(db, 'SELECT status FROM ai_tasks WHERE id = $1', [id])
   return row?.status === 'cancelled'
@@ -68,6 +73,20 @@ export async function isAiTaskCancelled(db: Db, id: string): Promise<boolean> {
 
 export async function cancelAiTask(db: Db, id: string): Promise<boolean> {
   return (await run(db, `UPDATE ai_tasks SET status = 'cancelled', step = '已取消', updated_at = $1, finished_at = $1 WHERE id = $2 AND status IN ('queued','running')`, [Date.now(), id])) > 0
+}
+
+/**
+ * 服务启动时调用：任务在进程内同步执行，重启后残留的 queued/running 必然已中断，
+ * 统一标记为 failed，避免前端任务面板永远显示「运行中」。返回受影响行数。
+ */
+export async function failInterruptedAiTasks(db: Db): Promise<number> {
+  const now = Date.now()
+  return run(
+    db,
+    `UPDATE ai_tasks SET status = 'failed', step = '已中断', error = '服务重启，任务中断', updated_at = $1, finished_at = $1
+     WHERE status IN ('queued','running')`,
+    [now],
+  )
 }
 
 export async function listAiTasks(db: Db, opts: { limit?: number; offset?: number } = {}): Promise<{ items: AiTask[]; total: number }> {

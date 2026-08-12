@@ -50,16 +50,16 @@ export const DEFAULT_AI_SETTINGS: AiSettings = {
   dailyQuota: 30,
   maxChapterChars: 6000,
 
-  // 前情提要参数默认值
-  recapTemperature: 0.7,
-  recapMaxTokens: 500,
+  // 前情提要参数默认值（与生成逻辑历史行为一致：低温度求准确，token 给推理模型留思考余量）
+  recapTemperature: 0.2,
+  recapMaxTokens: 1200,
   recapSystemPrompt: '你是一个专业的小说内容总结助手。请简洁准确地总结上一章的关键情节，帮助读者快速回忆剧情。',
 
-  // 回顾总结参数默认值
+  // 回顾总结参数默认值（同上，maxChapters 与原候选章节数保持一致）
   catchupEnabled: true,
-  catchupMaxChapters: 3,
-  catchupTemperature: 0.7,
-  catchupMaxTokens: 800,
+  catchupMaxChapters: 5,
+  catchupTemperature: 0.2,
+  catchupMaxTokens: 1200,
 
   // AI 创作参数默认值
   writingTemperature: 0.8,

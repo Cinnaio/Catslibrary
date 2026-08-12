@@ -7,6 +7,7 @@ import type { Db } from '../../db/pool'
 import { all, first } from '../../db/query'
 import { chat, isTextAiConfigured, providerLabel, textProvider, AiError } from './client'
 import { findPublished, saveGeneration, type Generation } from './generations'
+import { getAiSettings } from './settings'
 import { recapParams } from './summary'
 import { recordUsage } from './usage'
 
@@ -16,8 +17,6 @@ export const CATCHUP_STALE_AFTER_MS = 7 * 24 * 60 * 60 * 1000
 
 /** 参与合成的单章提要最少条数：太少拼不出连贯回顾，直接给 null，前端不渲染。 */
 const MIN_SUMMARIES = 2
-/** 往前取多少章候选（含进度章），过滤出已有发布提要的。 */
-const CANDIDATE_COUNT = 5
 
 type CatchupReason = 'no_progress' | 'not_stale' | 'insufficient_summaries'
 
@@ -71,16 +70,17 @@ async function loadProgress(db: Db, userId: string, novelId: string): Promise<Pr
   )
 }
 
-/** 取进度章往前（含）最多 CANDIDATE_COUNT 章，只保留已有发布提要的版本。 */
+/** 取进度章往前（含）最多 catchupMaxChapters 章（管理端「参数调优」可配），只保留已有发布提要的版本。 */
 async function loadCatchupChapters(db: Db, novelId: string, chapterId: string, model: string): Promise<CatchupChapter[]> {
   const progressChapter = await first<{ sort_order: number }>(db, 'SELECT sort_order FROM chapters WHERE id = $1', [chapterId])
   if (!progressChapter) return []
+  const settings = await getAiSettings(db)
   const candidates = await all<{ id: string; title: string; sort_order: number }>(
     db,
     `SELECT id, title, sort_order FROM chapters
      WHERE novel_id = $1 AND sort_order <= $2
      ORDER BY sort_order DESC LIMIT $3`,
-    [novelId, progressChapter.sort_order, CANDIDATE_COUNT],
+    [novelId, progressChapter.sort_order, settings.catchupMaxChapters],
   )
   const withSummary: CatchupChapter[] = []
   // 缓存键带提示词指纹：管理员自定义过系统提示词时，旧的 summary 缓存不再命中
@@ -161,13 +161,15 @@ async function runGenerateCatchup(db: Db, opts: { userId: string; novelId: strin
   const novel = await first<{ title: string }>(db, 'SELECT title FROM novels WHERE id = $1', [opts.novelId])
   const userPrompt = buildUserPrompt(novel?.title || '', chapters)
 
+  // 温度与 token 上限来自「参数调优」设置；不参与缓存键，调参只影响后续新生成
+  const settings = await getAiSettings(db)
   const res = await chat({
     messages: [
       { role: 'system', content: SYSTEM_PROMPT },
       { role: 'user', content: userPrompt },
     ],
-    temperature: 0.2,
-    maxTokens: 1200,
+    temperature: settings.catchupTemperature,
+    maxTokens: settings.catchupMaxTokens,
   })
 
   const generation = await saveGeneration(db, {
