@@ -43,6 +43,13 @@ function normalizeTimestamp(value: string | undefined): number {
 
 const PROGRESS_COLUMNS = 'novel_id, chapter_id, scroll_percent, updated_at, deleted_at'
 
+/** reading_progress.novel_id 有 FK：书被删/ID 不存在时应回 404 而非 500。 */
+function isForeignKeyViolation(err: unknown): boolean {
+  const code = String((err as { code?: string })?.code || '')
+  if (code === '23503') return true
+  return /foreign key/i.test(String((err as Error)?.message || ''))
+}
+
 progressRoutes.post('/', optionalUser(), async (c) => {
   const db = getDb()
   const body = await c.req.json().catch(() => ({}))
@@ -57,16 +64,21 @@ progressRoutes.post('/', optionalUser(), async (c) => {
   if (!userId) return c.json({ success: true })
 
   const updatedAt = Date.now()
-  await db.query(
-    `INSERT INTO reading_progress (id, user_id, novel_id, chapter_id, scroll_percent, updated_at, deleted_at)
-     VALUES ($1, $2, $3, $4, $5, $6, 0)
-     ON CONFLICT (user_id, novel_id) DO UPDATE SET
-       chapter_id = EXCLUDED.chapter_id,
-       scroll_percent = EXCLUDED.scroll_percent,
-       updated_at = EXCLUDED.updated_at,
-       deleted_at = 0`,
-    ['prog_' + userId + '_' + novelId, userId, novelId, chapterId, scrollPercent, updatedAt],
-  )
+  try {
+    await db.query(
+      `INSERT INTO reading_progress (id, user_id, novel_id, chapter_id, scroll_percent, updated_at, deleted_at)
+       VALUES ($1, $2, $3, $4, $5, $6, 0)
+       ON CONFLICT (user_id, novel_id) DO UPDATE SET
+         chapter_id = EXCLUDED.chapter_id,
+         scroll_percent = EXCLUDED.scroll_percent,
+         updated_at = EXCLUDED.updated_at,
+         deleted_at = 0`,
+      ['prog_' + userId + '_' + novelId, userId, novelId, chapterId, scrollPercent, updatedAt],
+    )
+  } catch (err) {
+    if (isForeignKeyViolation(err)) return c.json({ error: 'Novel not found' }, 404)
+    throw err
+  }
 
   return c.json({ success: true, progress: { novelId, chapterId, scrollPercent, updatedAt }, tombstone: null })
 })
@@ -150,14 +162,20 @@ progressRoutes.delete('/', optionalUser(), async (c) => {
     return c.json({ success: true, skipped: true, ...stateResponse(existing) })
   }
 
-  await db.query(
-    `INSERT INTO reading_progress (id, user_id, novel_id, chapter_id, scroll_percent, updated_at, deleted_at)
-     VALUES ($1, $2, $3, '', 0, $4, $4)
-     ON CONFLICT (user_id, novel_id) DO UPDATE SET
-       chapter_id = '', scroll_percent = 0,
-       updated_at = EXCLUDED.updated_at, deleted_at = EXCLUDED.deleted_at`,
-    ['prog_' + userId + '_' + novelId, userId, novelId, deletedAt],
-  )
+  try {
+    await db.query(
+      `INSERT INTO reading_progress (id, user_id, novel_id, chapter_id, scroll_percent, updated_at, deleted_at)
+       VALUES ($1, $2, $3, '', 0, $4, $4)
+       ON CONFLICT (user_id, novel_id) DO UPDATE SET
+         chapter_id = '', scroll_percent = 0,
+         updated_at = EXCLUDED.updated_at, deleted_at = EXCLUDED.deleted_at`,
+      ['prog_' + userId + '_' + novelId, userId, novelId, deletedAt],
+    )
+  } catch (err) {
+    // 目标书不存在时无进度可删，按幂等成功返回（客户端只关心墓碑生效）
+    if (isForeignKeyViolation(err)) return c.json({ success: true, progress: null, tombstone: null })
+    throw err
+  }
 
   return c.json({ success: true, progress: null, tombstone: { novelId, deletedAt, updatedAt: deletedAt } })
 })

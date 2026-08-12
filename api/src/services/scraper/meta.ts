@@ -282,7 +282,7 @@ export async function detectMeta(sourceUrl: string, deps: MetaDeps): Promise<Det
 
   const { html, encoding } = await deps.fetchHtml(sourceUrl, { forceEncoding: preset?.encoding })
 
-  let novel = preset?.meta ? extractMetaWithPreset(html, preset, sourceUrl) : extractMetaGeneric(html, sourceUrl)
+  const novel = preset?.meta ? extractMetaWithPreset(html, preset, sourceUrl) : extractMetaGeneric(html, sourceUrl)
   applyTitleCategories(novel)
   const simplified = simplifyNovelForSource(novel, sourceUrl)
 
@@ -325,11 +325,9 @@ export async function collectChapterLinks(
   let links = extractLinks(firstHtml, selectors.chapterList || '', chapterListUrl)
   let nextUrl = selectors.nextPage ? extractLinkHref(firstHtml, selectors.nextPage, chapterListUrl) : ''
   const seenPages = new Set([chapterListUrl])
-  let pages = 0
 
   while (nextUrl && !seenPages.has(nextUrl)) {
     seenPages.add(nextUrl)
-    pages++
     const { html } = await fetchPage(nextUrl)
     const moreLinks = extractLinks(html, selectors.chapterList || '', nextUrl)
     if (!moreLinks.length) break

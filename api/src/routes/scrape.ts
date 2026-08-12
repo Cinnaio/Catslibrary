@@ -7,15 +7,14 @@ import { loadConfig } from '../config'
 import { getDb } from '../db/pool'
 import { first } from '../db/query'
 import { requireAdmin } from '../middlewares/auth'
-import { newId } from '../services/auth'
-import { fetchHtml as fetchHtmlImpl, type FetchHtmlOptions, type FetchResult } from '../services/scraper/fetch'
+import { fetchHtml as fetchHtmlImpl, type FetchHtmlOptions } from '../services/scraper/fetch'
 import { runScrapeJob, testSelectors, type ScrapeDeps } from '../services/scraper/engine'
 import { detectMeta } from '../services/scraper/meta'
-import { getPresetForUrl, PgScrapeStore, type JobData, type ScrapeStore } from '../services/scraper/store'
+import { getPresetForUrl, PgScrapeStore, type JobData } from '../services/scraper/store'
 import { parseLegadoJsonStream, normalizeSource, legadoHost, buildSourceRow, sourceToPreset } from '../services/scraper/legado'
 import { SITE_PRESETS, buildCoverUrl } from '../services/scraper/presets'
 import { discoverList, extractJjwxcTitles, extractPo18twTitles, proxyCover, searchPo18, searchTitleSources } from '../services/scraper/enrich'
-import { cacheCoverForNovel, getStoredCover, coverDataToBody } from '../services/covers'
+import { cacheCoverForNovel, getStoredCover } from '../services/covers'
 import { safeFetch } from '../services/safe-fetch'
 
 export const scrapeRoutes = new Hono()
@@ -419,7 +418,7 @@ async function handleFixCover(c: Context, body: any) {
   const db = getDb()
   const { novelId, sourceUrl } = body
   if (!novelId) return c.json({ error: 'novelId required' }, 400)
-  let srcUrl = sourceUrl || (await new PgScrapeStore(db).getNovelSourceUrl(novelId))
+  const srcUrl = sourceUrl || (await new PgScrapeStore(db).getNovelSourceUrl(novelId))
   if (!srcUrl) return c.json({ error: '无法确定源站 URL' }, 400)
   let preset = null
   try {

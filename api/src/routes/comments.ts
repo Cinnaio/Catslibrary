@@ -9,9 +9,12 @@ import { newId } from '../services/auth'
 import { sha256Hex } from '../services/hash'
 import { optionalUser, requireUser, type AuthEnv } from '../middlewares/auth'
 import { clientIpFromContext } from '../services/ai/audit-context'
+import { cleanText, clampInt, looksLikeSpam } from '../services/text'
 
 const MAX_COMMENT_LEN = 1000
 const MAX_REPLY_LEN = 500
+// 评论文本较长，链接上限比段评（默认 1）放宽
+const MAX_COMMENT_LINKS = 3
 const EDIT_WINDOW = 24 * 3600000
 const RATE_MINUTE = 3
 const RATE_HOUR = 20
@@ -95,7 +98,7 @@ commentsRoutes.post('/', requireUser(), async (c) => {
   const hasSpoiler = body.hasSpoiler ? 1 : 0
   if (!novelId) return c.json({ error: 'novelId is required' }, 400)
   if (text.length < 2) return c.json({ error: '评论内容至少需要 2 个字符' }, 400)
-  if (looksLikeSpam(text)) return c.json({ error: '评论内容看起来像垃圾信息' }, 400)
+  if (looksLikeSpam(text, MAX_COMMENT_LINKS)) return c.json({ error: '评论内容看起来像垃圾信息' }, 400)
 
   const novel = await first<{ id: string }>(db, 'SELECT id FROM novels WHERE id = $1', [novelId])
   if (!novel) return c.json({ error: 'Novel not found' }, 404)
@@ -163,7 +166,7 @@ commentsRoutes.put('/', requireUser(), async (c) => {
   const maxLen = row.parent_id ? MAX_REPLY_LEN : MAX_COMMENT_LEN
   const nextText = cleanText(body.text || body.commentText, maxLen)
   if (nextText.length < 2) return c.json({ error: '评论内容至少需要 2 个字符' }, 400)
-  if (looksLikeSpam(nextText)) return c.json({ error: '评论内容看起来像垃圾信息' }, 400)
+  if (looksLikeSpam(nextText, MAX_COMMENT_LINKS)) return c.json({ error: '评论内容看起来像垃圾信息' }, 400)
 
   await run(db, 'UPDATE novel_comments SET comment_text = $1, has_spoiler = $2, updated_at = $3 WHERE id = $4', [nextText, hasSpoiler, now, id])
   return c.json({ success: true, id })
@@ -199,9 +202,15 @@ commentsRoutes.post('/:id/like', requireUser(), async (c) => {
   const comment = await first<{ id: string; status: string }>(db, "SELECT id, status FROM novel_comments WHERE id = $1", [commentId])
   if (!comment || comment.status !== 'visible') return c.json({ error: 'Comment not found' }, 404)
 
-  const existing = await first<{ id: string }>(db, 'SELECT id FROM novel_comment_likes WHERE comment_id = $1 AND user_id = $2', [commentId, user.id])
-  if (!existing) {
-    await run(db, 'INSERT INTO novel_comment_likes (id, comment_id, user_id, created_at) VALUES ($1, $2, $3, $4)', [newId('like'), commentId, user.id, Date.now()])
+  // 原子去重：并发双击时「检查-插入」会撞 UNIQUE(comment_id, user_id) 抛 500，
+  // 改用 ON CONFLICT DO NOTHING，仅真正插入成功的一方递增计数
+  const inserted = await run(
+    db,
+    `INSERT INTO novel_comment_likes (id, comment_id, user_id, created_at) VALUES ($1, $2, $3, $4)
+     ON CONFLICT (comment_id, user_id) DO NOTHING`,
+    [newId('like'), commentId, user.id, Date.now()],
+  )
+  if (inserted) {
     await run(db, 'UPDATE novel_comments SET like_count = like_count + 1 WHERE id = $1', [commentId])
   }
   return likeResponse(db, user.id, commentId, c)
@@ -233,15 +242,15 @@ commentsRoutes.post('/:id/report', requireUser(), async (c) => {
   const comment = await first<{ id: string; status: string }>(db, 'SELECT id, status FROM novel_comments WHERE id = $1', [commentId])
   if (!comment) return c.json({ error: 'Comment not found' }, 404)
 
-  const existing = await first<{ id: string }>(db, "SELECT id FROM novel_comment_reports WHERE comment_id = $1 AND reported_by = $2 AND status = 'open'", [commentId, user.id])
-  if (existing) return c.json({ error: '你已经举报过这条评论' }, 409)
-
-  await run(
+  // 原子去重：依赖部分唯一索引 idx_comment_reports_open_once，避免并发重复举报撞唯一约束抛 500
+  const inserted = await run(
     db,
     `INSERT INTO novel_comment_reports (id, comment_id, reported_by, reason, note, status, resolved_by, resolved_at, created_at)
-     VALUES ($1, $2, $3, $4, $5, 'open', '', 0, $6)`,
+     VALUES ($1, $2, $3, $4, $5, 'open', '', 0, $6)
+     ON CONFLICT (comment_id, reported_by) WHERE status = 'open' DO NOTHING`,
     [newId('report'), commentId, user.id, reason, note, Date.now()],
   )
+  if (!inserted) return c.json({ error: '你已经举报过这条评论' }, 409)
   await run(db, 'UPDATE novel_comments SET report_count = report_count + 1 WHERE id = $1', [commentId])
   return c.json({ success: true, commentId, reason }, 201)
 })
@@ -283,21 +292,4 @@ async function checkRateLimit(db: ReturnType<typeof getDb>, clientHash: string, 
     if ((h?.total || 0) >= IP_RATE_HOUR) return '提交太频繁，请稍后再试'
   }
   return null
-}
-
-function cleanText(value: unknown, max: number): string {
-  return String(value || '').replace(/[\x00-\x1F\x7F]/g, '').replace(/\s+/g, ' ').trim().slice(0, max)
-}
-
-function clampInt(value: string | undefined, min: number, max: number, fallback: number): number {
-  const n = Number.parseInt(value || '', 10)
-  if (!Number.isFinite(n)) return fallback
-  return Math.min(max, Math.max(min, n))
-}
-
-function looksLikeSpam(text: string): boolean {
-  const links = (text.match(/https?:\/\//gi) || []).length
-  if (links > 3) return true
-  if (/(.)\1{12,}/.test(text)) return true
-  return false
 }

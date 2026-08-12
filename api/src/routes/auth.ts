@@ -4,7 +4,7 @@
 import { Hono, type Context } from 'hono'
 import { loadConfig } from '../config'
 import { getDb } from '../db/pool'
-import { first, run } from '../db/query'
+import { first, run, withTx } from '../db/query'
 import { requireUser, type AuthEnv } from '../middlewares/auth'
 import {
   bearerToken,
@@ -20,7 +20,7 @@ import {
   verifyPassword,
   type UserRow,
 } from '../services/auth'
-import { createSession, deleteSessionByToken, getUserByToken } from '../services/sessions'
+import { createSession, deleteSessionByToken } from '../services/sessions'
 import { cleanReaderSettings, cleanUpdatedAt, mergeReaderSettings, parseSettingsState } from '../services/reader-settings'
 import { clientIpFromContext } from '../services/ai/audit-context'
 
@@ -266,6 +266,9 @@ authRoutes.delete('/avatar', requireUser(), async (c) => {
 
 // ---------- 内部辅助 ----------
 
+// pg_advisory_xact_lock 的键：串行化「首个管理员」创建，任意稳定常量即可
+const BOOTSTRAP_ADMIN_LOCK_KEY = 730001
+
 async function createBootstrapAdmin(c: Context<AuthEnv>) {
   if (await adminExists()) return c.json({ error: '管理员已存在' }, 409)
   const db = getDb()
@@ -277,17 +280,24 @@ async function createBootstrapAdmin(c: Context<AuthEnv>) {
   if (invalid) return c.json({ error: invalid }, 400)
 
   try {
-    if (await adminExists()) return c.json({ error: '管理员已存在' }, 409)
     const now = Date.now()
     const salt = newSalt()
     const hash = await hashPassword(password, salt)
     const id = newId('user')
-    await run(
-      db,
-      `INSERT INTO users (id, username, display_name, role, password_hash, password_salt, password_iterations, status, created_at, updated_at, last_login_at)
-       VALUES ($1, $2, $3, 'admin', $4, $5, 120000, 'active', $6, $6, 0)`,
-      [id, username, displayName, hash, salt, now],
-    )
+    // TOCTOU 防护：并发提交时「检查-插入」会双双通过检查造出两个管理员。
+    // 事务内先拿咨询锁再复查，后到者会阻塞到先到者提交后看到已有管理员。
+    const created = await withTx(db, async (q) => {
+      await q('SELECT pg_advisory_xact_lock($1)', [BOOTSTRAP_ADMIN_LOCK_KEY])
+      const { rows } = await q("SELECT 1 FROM users WHERE role = 'admin' LIMIT 1")
+      if (rows.length > 0) return false
+      await q(
+        `INSERT INTO users (id, username, display_name, role, password_hash, password_salt, password_iterations, status, created_at, updated_at, last_login_at)
+         VALUES ($1, $2, $3, 'admin', $4, $5, 120000, 'active', $6, $6, 0)`,
+        [id, username, displayName, hash, salt, now],
+      )
+      return true
+    })
+    if (!created) return c.json({ error: '管理员已存在' }, 409)
     const user = await publicUserById(db, id)
     const token = await createSession(db, id, c.req.header('User-Agent') || '', loadConfig().sessionHashSalt)
     return c.json({ user, token }, 201)

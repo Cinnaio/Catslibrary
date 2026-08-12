@@ -4,7 +4,7 @@
  * 生产用 PgScrapeStore，测试可注入 mock。
  */
 import type { Db } from '../../db/pool'
-import { all, first, run, withTx } from '../../db/query'
+import { all, first, withTx } from '../../db/query'
 import { newId } from '../auth'
 import { SITE_PRESETS } from './presets'
 import { legadoHost, sourceToPreset } from './legado'

@@ -14,7 +14,7 @@ import { invalidateChapter, listGenerationDetails, deleteGeneration, deleteGener
 import { generateContinuationChapters, generateWriting, generateWritingTitles, recentNovelContext } from '../services/ai/writing'
 import { checkQuota, recordUsage, startOfToday, summarizeUsage } from '../services/ai/usage'
 import { optionalUser, requireAdmin, requireUser, type AuthEnv } from '../middlewares/auth'
-import { cancelAiTask, createAiTask, listAiTasks, updateAiTask } from '../services/ai/tasks'
+import { cancelAiTask, listAiTasks } from '../services/ai/tasks'
 import { clientIpFromContext } from '../services/ai/audit-context'
 
 export const aiRoutes = new Hono<AuthEnv>()

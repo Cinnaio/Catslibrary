@@ -254,7 +254,7 @@ function translateXPath(xpath: string, kind: string, warnings: string[]): Transl
     warnings.push('XPath 多分支已取第一个')
     xpath = xpath.split('||')[0]!
   }
-  let x = xpath.trim().replace(/^\.\/\//, '//')
+  const x = xpath.trim().replace(/^\.\/\//, '//')
   const tokens = x.split('/').filter(Boolean)
   if (tokens.length === 0) return unsupported('XPath 无法解析', 10)
 

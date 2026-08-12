@@ -4,7 +4,7 @@
  * extractJjwxcTitles / searchTitleSources 与 _scrape-fetch.js 的 proxyCover 平移。
  */
 import iconv from 'iconv-lite'
-import { fetchHtml, decodeBytes, type FetchHtmlOptions } from './fetch'
+import { fetchHtml, decodeBytes } from './fetch'
 import { cleanText } from './parse'
 import { resolveUrl } from './utils'
 import { SITE_PRESETS, buildCoverUrl } from './presets'

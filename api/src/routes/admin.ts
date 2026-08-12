@@ -6,6 +6,7 @@ import { Hono } from 'hono'
 import { getDb } from '../db/pool'
 import { all, first, run } from '../db/query'
 import { rowToCommentAdmin, rowToCommentReport } from '../db/mappers'
+import { cleanText, clampInt, escapeLike } from '../services/text'
 import { requireAdmin, type AuthEnv } from '../middlewares/auth'
 
 export const adminRoutes = new Hono<AuthEnv>()
@@ -104,7 +105,7 @@ adminRoutes.get('/novel-index', async (c) => {
 
   let rows: Array<Record<string, unknown>>
   if (q) {
-    const like = `%${q.toLowerCase()}%`
+    const like = `%${escapeLike(q.toLowerCase())}%`
     rows = await all<Record<string, unknown>>(
       db,
       `SELECT id, title, author, chapter_count, updated_at
@@ -159,7 +160,8 @@ adminRoutes.get('/comments', async (c) => {
     conditions.push(`c.status = $${params.length}`)
   }
   if (search) {
-    params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`)
+    const like = `%${escapeLike(search)}%`
+    params.push(like, like, like, like, like)
     conditions.push(
       `(c.comment_text LIKE $${params.length - 4} OR c.display_name LIKE $${params.length - 3} OR n.title LIKE $${params.length - 2} OR u.username LIKE $${params.length - 1} OR u.display_name LIKE $${params.length})`,
     )
@@ -286,14 +288,4 @@ adminRoutes.put('/comment-reports', async (c) => {
 async function count(db: ReturnType<typeof getDb>, sql: string, params: unknown[] = []): Promise<number> {
   const row = await first<{ total: number }>(db, sql, params)
   return Number(row?.total || 0)
-}
-
-function cleanText(value: string | undefined, max: number): string {
-  return String(value || '').replace(/[\x00-\x1F\x7F]/g, '').replace(/\s+/g, ' ').trim().slice(0, max)
-}
-
-function clampInt(value: string | undefined, min: number, max: number, fallback: number): number {
-  const n = Number.parseInt(value || '', 10)
-  if (!Number.isFinite(n)) return fallback
-  return Math.min(max, Math.max(min, n))
 }

@@ -120,7 +120,7 @@ export async function testSelectors(
 // ============================================================
 export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<void> {
   const { store, log } = deps
-  let job = await store.loadJob(jobId)
+  const job = await store.loadJob(jobId)
   if (!job) {
     try {
       await store.saveJob({

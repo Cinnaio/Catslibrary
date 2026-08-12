@@ -3,6 +3,7 @@
  * 让认证/内容路由在无本地 PG 服务器时也能端到端验证。
  */
 import { PGlite } from '@electric-sql/pglite'
+import { pg_trgm } from '@electric-sql/pglite/contrib/pg_trgm'
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -18,7 +19,8 @@ export interface TestDb {
 const MIGRATIONS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'db', 'migrations')
 
 export async function createTestDb(): Promise<TestDb> {
-  const pg = new PGlite()
+  // pg_trgm：011 迁移的 trigram 索引依赖该扩展，测试库同样装载以覆盖真实路径
+  const pg = new PGlite({ extensions: { pg_trgm } })
 
   const applyMigrations = async (): Promise<void> => {
     const files = (await readdir(MIGRATIONS_DIR))

@@ -9,6 +9,7 @@ import { newId } from '../services/auth'
 import { sha256Hex } from '../services/hash'
 import { optionalUser, requireAdmin, type AuthEnv } from '../middlewares/auth'
 import { clientIpFromContext } from '../services/ai/audit-context'
+import { cleanText, clampInt, escapeLike, looksLikeSpam } from '../services/text'
 
 const MAX_THOUGHT_LEN = 300
 const MAX_SELECTED_LEN = 200
@@ -131,7 +132,7 @@ async function listThoughtsAdmin(c: Context<AuthEnv>, db: ReturnType<typeof getD
   }
   if (search) {
     conditions.push(`(t.thought_text LIKE $${params.length + 1} OR t.selected_text LIKE $${params.length + 1} OR t.display_name LIKE $${params.length + 1} OR n.title LIKE $${params.length + 1} OR c.title LIKE $${params.length + 1})`)
-    params.push(`%${search}%`)
+    params.push(`%${escapeLike(search)}%`)
   }
   if (userId) {
     conditions.push(`t.user_id = $${params.length + 1}`)
@@ -228,23 +229,6 @@ async function checkRateLimit(db: ReturnType<typeof getDb>, clientHash: string, 
     if ((h?.total || 0) >= IP_RATE_HOUR) return '提交太频繁，请稍后再试'
   }
   return null
-}
-
-function cleanText(value: unknown, max: number): string {
-  return String(value || '').replace(/[\x00-\x1F\x7F]/g, '').replace(/\s+/g, ' ').trim().slice(0, max)
-}
-
-function clampInt(value: string | undefined, min: number, max: number, fallback: number): number {
-  const n = Number.parseInt(value || '', 10)
-  if (!Number.isFinite(n)) return fallback
-  return Math.min(max, Math.max(min, n))
-}
-
-function looksLikeSpam(text: string): boolean {
-  const links = (text.match(/https?:\/\//gi) || []).length
-  if (links > 1) return true
-  if (/(.)\1{12,}/.test(text)) return true
-  return false
 }
 
 async function hashValue(value: string): Promise<string> {

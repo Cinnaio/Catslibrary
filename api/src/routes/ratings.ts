@@ -5,6 +5,7 @@ import { Hono, type Context } from 'hono'
 import { getDb } from '../db/pool'
 import { all, first, run } from '../db/query'
 import { newId } from '../services/auth'
+import { cleanText } from '../services/text'
 import { optionalUser, requireUser, type AuthEnv } from '../middlewares/auth'
 
 export const ratingsRoutes = new Hono<AuthEnv>()
@@ -80,8 +81,4 @@ async function ratingSummary(c: Context<AuthEnv>, novelId: string, userId: strin
   }
 
   return c.json({ novelId, average: count ? Math.round((sum / count) * 10) / 10 : 0, count, distribution, myRating })
-}
-
-function cleanText(value: unknown, max: number): string {
-  return String(value || '').replace(/[\x00-\x1F\x7F]/g, '').replace(/\s+/g, ' ').trim().slice(0, max)
 }

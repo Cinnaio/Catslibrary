@@ -25,7 +25,6 @@ async function main() {
   })
   const boot = await app.request('/api/auth/bootstrap-admin', json('POST', { username: 'admin', password: 'adminpass123' }))
   const { token } = (await boot.json()) as { token: string }
-  const auth = { ...json('POST'), headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` } }
 
   const novel = await app.request('/api/novels', { ...json('POST', { title: '知舟冒烟书', author: '测试作者', categories: ['现言', '古言'], status: 'ongoing' }), headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` } })
   const { novel: n } = (await novel.json()) as { novel: { id: string } }
@@ -42,7 +41,7 @@ async function main() {
   console.log('[seed] admin=admin/adminpass123 reader=reader/readerpass1 novel=', n.id)
   console.log('[seed] admin token:', token.slice(0, 12) + '…')
 
-  serve({ fetch: app.fetch, port: 8787 }, (info) => {
+  serve({ fetch: app.fetch, port: 8787 }, () => {
     console.log('[seed] API ready on http://127.0.0.1:8787')
   })
 }

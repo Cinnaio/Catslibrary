@@ -82,7 +82,10 @@ describe('迁移器 runMigrations', () => {
     await pg.exec(`CREATE INDEX idx_scrape_sources_connectivity ON scrape_sources(connectivity)`)
 
     const applied = await runMigrations(db)
-    expect(applied).toEqual(['010_scrape_source_connectivity.sql'])
+    expect(applied[0]).toBe('010_scrape_source_connectivity.sql')
+    // 版本 10 之后的新迁移（如 011 trigram 索引）也会在此一并应用
+    const laterVersions = (await readdir(MIGRATIONS_DIR)).filter((f) => f.endsWith('.sql') && Number.parseInt(f, 10) >= 10)
+    expect(new Set(applied)).toEqual(new Set(laterVersions))
 
     await pg.close()
   })

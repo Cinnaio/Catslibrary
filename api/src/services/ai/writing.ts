@@ -1,6 +1,6 @@
 import { removeAdPatterns } from '@shared/ad-cleaner'
 import type { Db } from '../../db/pool'
-import { all, first } from '../../db/query'
+import { all } from '../../db/query'
 import { chat, isTextAiConfigured, providerLabel, textProvider, AiError } from './client'
 import { saveGeneration, type Generation } from './generations'
 import { recordUsage } from './usage'

@@ -15,8 +15,6 @@ export function extractLinks(html: string, selector: string, baseUrl: string): S
 
   const parts = selector.split(/\s+/)
   let searchHtml = html
-  const targetSelector = parts[parts.length - 1]!
-
   if (parts.length > 1) {
     const ancestorParts = parts.slice(0, -1)
     const classMatch = ancestorParts[0]!.match(/\.([a-zA-Z0-9_-]+)/)

@@ -9,6 +9,7 @@ import { normalizeCategories } from '../services/categories'
 import { cacheCoverForNovel } from '../services/covers'
 import { newId } from '../services/auth'
 import { simplifyNovelForSource } from '../services/zh-convert'
+import { escapeLike } from '../services/text'
 import { requireAdmin } from '../middlewares/auth'
 
 export const novelsRoutes = new Hono()
@@ -32,12 +33,13 @@ novelsRoutes.get('/', async (c) => {
   const conditions: string[] = []
   const params: unknown[] = []
   if (search) {
-    const like = `%${search}%`
+    // 用户输入的 % / _ 按字面匹配；trigram 索引（011 迁移）加速三列 %LIKE%
+    const like = `%${escapeLike(search)}%`
     conditions.push('(title LIKE $1 OR author LIKE $2 OR description LIKE $3)')
     params.push(like, like, like)
   }
   if (category) {
-    params.push(`%"${category}"%`)
+    params.push(`%"${escapeLike(category)}"%`)
     conditions.push(`categories LIKE $${params.length}`)
   }
   if (status) {

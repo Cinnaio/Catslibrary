@@ -5,6 +5,7 @@ import { Hono, type Context } from 'hono'
 import { getDb } from '../db/pool'
 import { all, first, run, withTx } from '../db/query'
 import { hashPassword, newSalt, newToken, publicUser, type UserRow } from '../services/auth'
+import { escapeLike } from '../services/text'
 import { requireAdmin, type AuthEnv } from '../middlewares/auth'
 
 export const adminUsersRoutes = new Hono<AuthEnv>()
@@ -28,7 +29,7 @@ adminUsersRoutes.get('/login-audit', async (c) => {
     conditions.push(`a.status = $${params.length}`)
   }
   if (username) {
-    params.push(`%${username}%`)
+    params.push(`%${escapeLike(username)}%`)
     conditions.push(`a.username ILIKE $${params.length}`)
   }
 
