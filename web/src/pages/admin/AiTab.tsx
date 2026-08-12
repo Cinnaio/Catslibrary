@@ -17,6 +17,7 @@ import {
 } from 'recharts'
 import { aiApi, novelsApi, type AiSettings, type AiUsageSummary } from '../../lib/api'
 import { useToast, useConfirm } from '../../components/feedback'
+import Pagination from '../../components/admin/Pagination'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -109,6 +110,8 @@ export function AiWritingPanel() {
   const [chapterTitle, setChapterTitle] = useState('')
   const [instruction, setInstruction] = useState('')
   const [outline, setOutline] = useState('')
+  const [targetWords, setTargetWords] = useState(2000)
+  const [chapterCount, setChapterCount] = useState(1)
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
@@ -119,7 +122,7 @@ export function AiWritingPanel() {
     if (!title.trim()) return toast('请填写作品标题', 'error')
     setBusy(true)
     try {
-      const data = await aiApi.writing.outline({ novelId, title, instruction })
+      await aiApi.writing.outline({ novelId, title, instruction, targetWords, chapterCount })
       toast('大纲已生成，请到“已生成内容”查看', 'success')
     } catch (err) { toast((err as Error).message, 'error') } finally { setBusy(false) }
   }
@@ -128,7 +131,7 @@ export function AiWritingPanel() {
     if (!novelId || !chapterTitle.trim()) return toast('请选择小说并填写章节标题', 'error')
     setBusy(true)
     try {
-      const data = await aiApi.writing.chapter({ novelId, title, outline, instruction })
+      await aiApi.writing.chapter({ novelId, title, outline, instruction, targetWords, chapterCount })
       toast('章节已生成，请到“已生成内容”查看', 'success')
     } catch (err) { toast((err as Error).message, 'error') } finally { setBusy(false) }
   }
@@ -137,7 +140,7 @@ export function AiWritingPanel() {
     if (!novelId) return toast('请选择小说', 'error')
     setBusy(true)
     try {
-      const data = await aiApi.writing.continue({ novelId, title: chapterTitle, instruction })
+      await aiApi.writing.continue({ novelId, title: chapterTitle, instruction, targetWords, chapterCount })
       toast('续写已生成，请到“已生成内容”查看', 'success')
     } catch (err) { toast((err as Error).message, 'error') } finally { setBusy(false) }
   }
@@ -165,6 +168,15 @@ export function AiWritingPanel() {
           <div className="grid gap-1.5"><Label>{mode === 'new' ? '作品标题' : '章节标题（可选）'}</Label><Input value={mode === 'new' ? title : chapterTitle} onChange={(event) => mode === 'new' ? setTitle(event.target.value) : setChapterTitle(event.target.value)} placeholder={mode === 'new' ? '例如：雾城来信' : '例如：第十二章 暴雨前夜'} /></div>
         </div>
         {mode === 'new' && <div className="grid gap-1.5"><Label>章节标题</Label><Input value={chapterTitle} onChange={(event) => setChapterTitle(event.target.value)} placeholder="例如：第一章 雾中来客" /></div>}
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-1.5"><Label>目标字数</Label><Input type="number" min={300} max={30000} step={100} value={targetWords} onChange={(event) => setTargetWords(Number(event.target.value) || 300)} /></div>
+          {mode === 'continue' && (
+            <div className="grid gap-1.5">
+              <Label>续写章节数</Label>
+              <Input type="number" min={1} max={5} value={chapterCount} onChange={(event) => setChapterCount(Math.max(1, Math.min(5, Number(event.target.value) || 1)))} />
+            </div>
+          )}
+        </div>
         <div className="grid gap-1.5"><Label>创作要求</Label><textarea className="min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={instruction} onChange={(event) => setInstruction(event.target.value)} placeholder="人物、风格、冲突、节奏或本次剧情目标" /></div>
         {mode === 'new' && <div className="grid gap-1.5"><Label>大纲（生成章节时使用）</Label><textarea className="min-h-[140px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={outline} onChange={(event) => setOutline(event.target.value)} placeholder="先生成大纲，或直接粘贴已有大纲" /></div>}
         <div className="flex flex-wrap gap-2">
@@ -584,6 +596,20 @@ function buildChartSeries(
   return result
 }
 
+const aiCallTypeLabels: Record<string, string> = {
+  summary: '前情提要',
+  catchup: '回顾总结',
+  continue: '续写',
+  write_outline: '创作大纲',
+  write_chapter: '创作章节',
+  writing_title: '标题生成',
+  test: '连通性测试',
+}
+
+function aiCallTypeLabel(type: string): string {
+  return aiCallTypeLabels[type] || '其他'
+}
+
 function AiAuditPanel() {
   const { toast } = useToast()
   const [calls, setCalls] = useState<
@@ -605,7 +631,7 @@ function AiAuditPanel() {
   >([])
   const [loading, setLoading] = useState(true)
   const [total, setTotal] = useState(0)
-  const [limit] = useState(50)
+  const [limit, setLimit] = useState(50)
   const [offset, setOffset] = useState(0)
   const [filterType, setFilterType] = useState<string>('all')
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -650,6 +676,10 @@ function AiAuditPanel() {
                 <SelectItem value="all">全部</SelectItem>
                 <SelectItem value="summary">前情提要</SelectItem>
                 <SelectItem value="catchup">回顾总结</SelectItem>
+                <SelectItem value="continue">续写</SelectItem>
+                <SelectItem value="write_outline">创作大纲</SelectItem>
+                <SelectItem value="write_chapter">创作章节</SelectItem>
+                <SelectItem value="writing_title">标题生成</SelectItem>
                 <SelectItem value="test">连通性测试</SelectItem>
               </SelectContent>
             </Select>
@@ -692,13 +722,7 @@ function AiAuditPanel() {
                               </td>
                               <td className="px-4 py-3">
                                 <Badge variant="secondary">
-                                  {call.type === 'summary'
-                                    ? '前情提要'
-                                    : call.type === 'catchup'
-                                      ? '回顾总结'
-                                      : call.type === 'test'
-                                        ? '连通性测试'
-                                        : call.type}
+                                  {aiCallTypeLabel(call.type)}
                                 </Badge>
                               </td>
                               <td className="px-4 py-3">
@@ -773,17 +797,24 @@ function AiAuditPanel() {
                   </table>
                 </div>
               </div>
-              <div className="mt-4 flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">
+              <div className="ai-list-footer mt-4 flex items-center gap-4">
+                <span className="ai-list-total shrink-0 text-sm text-muted-foreground">
                   共 {total} 条记录，显示 {offset + 1}-{Math.min(offset + limit, total)}
                 </span>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - limit))}>
-                    上一页
-                  </Button>
-                  <Button variant="outline" size="sm" disabled={offset + limit >= total} onClick={() => setOffset(offset + limit)}>
-                    下一页
-                  </Button>
+                <div className="ai-list-pagination-controls ml-auto flex shrink-0 items-center gap-3">
+                  <div className="ai-list-page-size flex shrink-0 items-center gap-2 text-sm text-muted-foreground">
+                    <Label htmlFor="audit-page-size">每页</Label>
+                    <Select value={String(limit)} onValueChange={(value) => { setLimit(Number(value)); setOffset(0) }}>
+                      <SelectTrigger size="sm" id="audit-page-size" className="w-[88px]" aria-label="每页显示数量"><SelectValue /></SelectTrigger>
+                      <SelectContent position="popper" align="end" sideOffset={4}>
+                        <SelectItem value="10">10 条</SelectItem>
+                        <SelectItem value="20">20 条</SelectItem>
+                        <SelectItem value="50">50 条</SelectItem>
+                        <SelectItem value="100">100 条</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Pagination className="ai-list-pagination" page={Math.floor(offset / limit) + 1} totalPages={Math.max(1, Math.ceil(total / limit))} onPage={(page) => setOffset((page - 1) * limit)} />
                 </div>
               </div>
             </>
@@ -823,13 +854,15 @@ export function AiGenerationsPanel(props: { scope: 'all' | 'reader' | 'writing';
   >([])
   const [loading, setLoading] = useState(true)
   const [total, setTotal] = useState(0)
-  const [limit] = useState(50)
+  const [limit, setLimit] = useState(50)
   const [offset, setOffset] = useState(0)
   const [filterKind, setFilterKind] = useState<'all' | 'summary' | 'catchup' | 'write_outline' | 'write_chapter' | 'continue'>('all')
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [viewing, setViewing] = useState<(typeof items)[number] | null>(null)
   const [publishTitle, setPublishTitle] = useState('')
   const [publishing, setPublishing] = useState(false)
+  const [titleCandidates, setTitleCandidates] = useState<string[]>([])
+  const [generatingTitles, setGeneratingTitles] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -890,6 +923,20 @@ export function AiGenerationsPanel(props: { scope: 'all' | 'reader' | 'writing';
       toast((err as Error).message || '发布失败', 'error')
     } finally {
       setPublishing(false)
+    }
+  }
+
+  async function generateTitles(item: (typeof items)[number]) {
+    setGeneratingTitles(true)
+    setTitleCandidates([])
+    try {
+      const result = await aiApi.writing.titles({ content: item.result, novelId: item.novelId, contextTitle: item.chapterTitle })
+      setTitleCandidates(result.titles)
+      toast(`已生成 ${result.titles.length} 个标题候选`, 'success')
+    } catch (err) {
+      toast((err as Error).message || '标题生成失败', 'error')
+    } finally {
+      setGeneratingTitles(false)
     }
   }
 
@@ -996,7 +1043,7 @@ export function AiGenerationsPanel(props: { scope: 'all' | 'reader' | 'writing';
                           </td>
                           <td className="px-4 py-3 text-right">
                             <div className="flex justify-end gap-2">
-                              <Button variant="outline" size="sm" onClick={() => { setViewing(item); setPublishTitle(item.chapterTitle || '') }}>查看</Button>
+                              <Button variant="outline" size="sm" onClick={() => { setViewing(item); setPublishTitle(item.chapterTitle || ''); setTitleCandidates([]) }}>查看</Button>
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -1014,24 +1061,31 @@ export function AiGenerationsPanel(props: { scope: 'all' | 'reader' | 'writing';
                   </table>
                 </div>
               </div>
-              <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <span className="text-sm text-muted-foreground">
+              <div className="ai-list-footer mt-4 flex items-center gap-4">
+                <span className="ai-list-total shrink-0 text-sm text-muted-foreground">
                   共 {total} 条，显示 {offset + 1}-{Math.min(offset + limit, total)}
                 </span>
-                <div className="flex w-full gap-2 sm:w-auto">
-                  <Button className="flex-1 sm:flex-none" variant="outline" size="sm" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - limit))}>
-                    上一页
-                  </Button>
-                  <Button className="flex-1 sm:flex-none" variant="outline" size="sm" disabled={offset + limit >= total} onClick={() => setOffset(offset + limit)}>
-                    下一页
-                  </Button>
+                <div className="ai-list-pagination-controls ml-auto flex shrink-0 items-center gap-3">
+                  <div className="ai-list-page-size flex shrink-0 items-center gap-2 text-sm text-muted-foreground">
+                    <Label htmlFor="generation-page-size">每页</Label>
+                    <Select value={String(limit)} onValueChange={(value) => { setLimit(Number(value)); setOffset(0) }}>
+                      <SelectTrigger size="sm" id="generation-page-size" className="w-[88px]" aria-label="每页显示数量"><SelectValue /></SelectTrigger>
+                      <SelectContent position="popper" align="end" sideOffset={4}>
+                        <SelectItem value="10">10 条</SelectItem>
+                        <SelectItem value="20">20 条</SelectItem>
+                        <SelectItem value="50">50 条</SelectItem>
+                        <SelectItem value="100">100 条</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Pagination className="ai-list-pagination" page={Math.floor(offset / limit) + 1} totalPages={Math.max(1, Math.ceil(total / limit))} onPage={(page) => setOffset((page - 1) * limit)} />
                 </div>
               </div>
             </>
           )}
         </CardContent>
       </Card>
-      <Dialog open={!!viewing} onOpenChange={(open) => { if (!open) { setViewing(null); setPublishTitle('') } }}>
+      <Dialog open={!!viewing} onOpenChange={(open) => { if (!open) { setViewing(null); setPublishTitle(''); setTitleCandidates([]); setGeneratingTitles(false) } }}>
         <DialogContent className="ai-generation-dialog flex h-[min(85svh,900px)] max-h-[calc(100svh-2rem)] w-[calc(100%-1.5rem)] max-w-4xl flex-col gap-3 overflow-hidden p-4 sm:gap-4 sm:p-6">
           <DialogHeader>
             <DialogTitle>{viewing ? `${kindLabel(viewing.kind)} · 完整内容` : '完整内容'}</DialogTitle>
@@ -1042,12 +1096,22 @@ export function AiGenerationsPanel(props: { scope: 'all' | 'reader' | 'writing';
               <div className="min-h-0 flex-1 overflow-y-auto rounded-md border bg-muted/20 p-4 text-sm leading-7 whitespace-pre-wrap sm:p-5">{viewing.result || '暂无内容'}</div>
               {viewing.status === 'draft' && (viewing.kind === 'write_chapter' || viewing.kind === 'continue') && (
                 <div className="ai-generation-publish shrink-0 border-t pt-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                   <div className="ai-generation-publish__field grid min-w-0 flex-1 gap-1.5">
                     <Label htmlFor="generation-publish-title">发布章节标题</Label>
                     <Input id="generation-publish-title" className="h-11 focus-visible:border-ring focus-visible:ring-ring/50" value={publishTitle} onChange={(event) => setPublishTitle(event.target.value)} placeholder="例如：第十二章 暴雨前夜" />
+                    <div className="ai-generation-title-options flex items-center gap-2">
+                      <Button type="button" variant="outline" size="sm" disabled={generatingTitles} onClick={() => void generateTitles(viewing)}>
+                        {generatingTitles ? '生成标题中…' : 'AI 生成标题'}
+                      </Button>
+                      {titleCandidates.map((candidate) => (
+                        <Button key={candidate} type="button" variant="secondary" size="sm" className="ai-generation-title-candidate max-w-full" onClick={() => setPublishTitle(candidate)} title={`使用标题：${candidate}`}>
+                          {candidate}
+                        </Button>
+                      ))}
+                    </div>
                   </div>
-                  <Button className="h-11 w-full shrink-0 sm:w-auto" disabled={publishing || !publishTitle.trim()} onClick={() => void publish(viewing)}>{publishing ? '发布中…' : '发布为章节'}</Button>
+                  <Button className="h-11 w-full shrink-0 md:w-auto" disabled={publishing || !publishTitle.trim()} onClick={() => void publish(viewing)}>{publishing ? '发布中…' : '发布为章节'}</Button>
                   </div>
                 </div>
               )}

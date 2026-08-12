@@ -664,6 +664,9 @@ export const aiApi = {
     continue(data: Record<string, unknown>): Promise<{ draft: { id: string; result: string; model: string } }> {
       return request('POST', '/ai/writing/continue', data, true)
     },
+    titles(data: { content: string; novelId?: string; contextTitle?: string }): Promise<{ titles: string[]; usage: { model: string; promptTokens: number; completionTokens: number } }> {
+      return request('POST', '/ai/writing/titles', data, true)
+    },
     updateDraft(id: string, result: string): Promise<{ ok: boolean; id: string; result: string }> {
       return request('PUT', `/ai/writing/drafts/${encodeURIComponent(id)}`, { result }, true)
     },

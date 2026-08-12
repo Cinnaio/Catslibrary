@@ -182,6 +182,29 @@ body:has(.admin-sidebar[data-slot="sheet-content"]) [data-slot="sheet-overlay"] 
   min-width: 0;
 }
 
+.ai-generation-title-candidate {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-generation-title-options {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  padding-block: 0.125rem;
+  scrollbar-width: none;
+}
+
+.ai-generation-title-options::-webkit-scrollbar {
+  display: none;
+}
+
+.ai-generation-title-options [data-slot="button"] {
+  flex: 0 0 auto;
+}
+
 .ai-service-tabs__list {
   scrollbar-width: none;
 }
@@ -405,6 +428,42 @@ body:has(.admin-sidebar[data-slot="sheet-content"]) [data-slot="sheet-overlay"] 
   margin-top: var(--admin-space-3);
   color: var(--text-muted);
   font-size: 0.8rem;
+}
+
+/* AI 列表分页：信息、页数选择和翻页控件保持在同一条紧凑控制带。 */
+.ai-list-footer {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  padding-bottom: 0.125rem;
+  scrollbar-width: thin;
+}
+.ai-list-total {
+  white-space: nowrap;
+}
+.ai-list-pagination-controls {
+  min-width: 0;
+}
+.ai-list-pagination {
+  flex-shrink: 0;
+  gap: 0.5rem;
+  margin-top: 0;
+  padding: 0;
+}
+.ai-list-pagination .home-pagination__info,
+.ai-list-pagination .home-pagination__jump {
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}
+.ai-list-pagination .home-pagination__jump {
+  gap: 0.25rem;
+}
+.ai-list-pagination .home-pagination__jump .form-input {
+  width: 3.5rem;
+  height: 2rem;
+}
+.ai-list-page-size [data-slot="select-trigger"] {
+  height: 2rem;
 }
 
 /* 内容审核 · 筛选、查询与操作保持一条清晰的控制带。 */
@@ -1444,6 +1503,10 @@ body:has(.admin-sidebar[data-slot="sheet-content"]) [data-slot="sheet-overlay"] 
   .ai-generation-publish__field [data-slot="input"] {
     min-width: 0;
     font-size: 1rem;
+  }
+  .ai-generation-title-options {
+    margin-inline: -0.125rem;
+    padding-inline: 0.125rem;
   }
   .ai-service-tabs__list {
     justify-content: flex-start;
