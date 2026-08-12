@@ -15,7 +15,19 @@
     "build": "npm run build --workspace=@zhi-zhou/web && npm run build --workspace=@zhi-zhou/api",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --check .",
+    "format:write": "prettier --write .",
     "db:migrate": "npm run db:migrate --workspace=@zhi-zhou/api",
     "start": "npm run start --workspace=@zhi-zhou/api"
+  },
+  "devDependencies": {
+    "eslint": "^10.8.1",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.4",
+    "globals": "^17.11.0",
+    "prettier": "^3.9.6",
+    "typescript-eslint": "^8.67.0"
   }
 }
