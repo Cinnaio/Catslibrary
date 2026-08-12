@@ -21,11 +21,11 @@ web
 
 ## Operating Context
 
-- **部署**：自托管（Cloudflare Workers + KV/D1），通过 /install 向导完成初始配置
+- **部署**：自托管（Node.js + PostgreSQL），通过 /install 向导完成初始配置
 - **管理流程**：管理员登录 → 运营台（侧边栏导航）→ 小说管理 / 章节管理 / 爬虫抓取 / 任务管理 / 内容审核 / 账户设置 / 解析规则
 - **阅读流程**：首页浏览 → 小说详情 → 章节阅读器（支持翻页、主题切换）
 - **抓取流程**：输入 URL → 分析源站 → 检测章节 → 配置选择器 → 启动抓取 → 任务卡片实时追踪
-- **技术栈**：React 19 + Hono + TypeScript + Vite 7 + Tailwind CSS 4，monorepo（web/ + api/）
+- **技术栈**：React 19 + Hono（Node.js）+ PostgreSQL + TypeScript + Vite 7 + Tailwind CSS 4，monorepo（web/ + api/）
 
 ## Capabilities and Constraints
 
@@ -46,7 +46,7 @@ web
 ## Evidence on Hand
 
 - 完整可运行的 web 前端（React 19 + Vite 7）
-- 完整的 API 后端（Hono on Cloudflare Workers）
+- 完整的 API 后端（Hono on Node.js + PostgreSQL）
 - 已实现的设计系统：tokens.css 定义 light/dark 双主题色板，shadcn.css 桥接语义色
 - 设计风格描述："Warm, human, minimalist. Like reading on paper in good light."
 
