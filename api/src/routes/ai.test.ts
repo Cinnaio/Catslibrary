@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { app } from '../app'
 import { setDbForTests } from '../db/pool'
-import { failInterruptedAiTasks } from '../services/ai/tasks'
+import { failInterruptedAiTasks, pruneFinishedAiTasks } from '../services/ai/tasks'
+import { recordUsage } from '../services/ai/usage'
 import { createTestDb, type TestDb } from '../test/db'
 
 let t: TestDb
@@ -870,6 +871,97 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     // 章节计数与真实章节数一致（1 手写 + 1 单发 + 2 整批 = 4）
     const { rows } = await t.db.query<{ chapter_count: number }>('SELECT chapter_count FROM novels WHERE id = $1', [novelId])
     expect(Number(rows[0]?.chapter_count)).toBe(4)
+  })
+
+  // ---------- 可配置阈值 / 并发上限 / 运维清理 / 审计截断 ----------
+
+  it('catchupStaleDays 可配且通过 /status 下发：阈值放宽后 8 天前的进度变为 not_stale', async () => {
+    const readerId = await userIdByUsername(t, 'reader')
+    const novel = await req('/api/novels', json('POST', { title: '阈值配置书', author: '某作者' }, adminToken))
+    const novelId = (await jsonOf<{ novel: { id: string } }>(novel)).novel.id
+    const c1 = await req('/api/chapters', json('POST', { novelId, title: '第一章', content: LONG_CONTENT }, adminToken))
+    const chId = (await jsonOf<{ chapter: { id: string } }>(c1)).chapter.id
+    await t.db.query(
+      'INSERT INTO reading_progress (id, user_id, novel_id, chapter_id, scroll_percent, updated_at, deleted_at) VALUES ($1,$2,$3,$4,0.5,$5,0)',
+      [`prog_stale_${novelId}`, readerId, novelId, chId, Date.now() - 8 * 24 * 60 * 60 * 1000],
+    )
+
+    // 默认 7 天：8 天前的进度已过阈值，卡在提要不足而非 not_stale
+    const before = await jsonOf<{ reason?: string }>(await req('/api/ai/catchup', json('POST', { novelId }, readerToken)))
+    expect(before.reason).toBe('insufficient_summaries')
+
+    await req('/api/ai/settings', json('PUT', { catchupStaleDays: 30 }, adminToken))
+    try {
+      const status = await jsonOf<{ catchupStaleDays: number }>(await req('/api/ai/status', json('GET', undefined, readerToken)))
+      expect(status.catchupStaleDays).toBe(30)
+
+      const after = await jsonOf<{ reason?: string }>(await req('/api/ai/catchup', json('POST', { novelId }, readerToken)))
+      expect(after.reason).toBe('not_stale')
+    } finally {
+      await req('/api/ai/settings', json('PUT', { catchupStaleDays: 7 }, adminToken))
+    }
+  })
+
+  it('创作任务并发上限：达到上限时新任务被 429 拒绝', async () => {
+    const novelId = await firstNovelId(t)
+    await req('/api/ai/settings', json('PUT', { maxConcurrentWritingTasks: 1 }, adminToken))
+    try {
+      // 第一个任务的上游调用挂起 200ms，确保第二个请求到达时它仍在运行
+      fetchMock.mockImplementationOnce(async () => {
+        await sleep(200)
+        return new Response(
+          JSON.stringify({ model: 'test-model', choices: [{ message: { content: '占用并发的章节' }, finish_reason: 'stop' }], usage: { prompt_tokens: 10, completion_tokens: 10 } }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        )
+      })
+
+      const first = await req('/api/ai/writing/continue', json('POST', { novelId, chapterCount: 1 }, adminToken))
+      expect(first.status).toBe(202)
+      const { taskId } = await jsonOf<{ taskId: string }>(first)
+
+      const second = await req('/api/ai/writing/continue', json('POST', { novelId, chapterCount: 1 }, adminToken))
+      expect(second.status).toBe(429)
+      expect((await jsonOf<{ error: string }>(second)).error).toContain('上限')
+
+      expect((await waitForTask(taskId, adminToken)).status).toBe('completed')
+    } finally {
+      await req('/api/ai/settings', json('PUT', { maxConcurrentWritingTasks: 3 }, adminToken))
+    }
+  })
+
+  it('pruneFinishedAiTasks 只清理保留期外的已结束任务', async () => {
+    const now = Date.now()
+    const old = now - 100 * 24 * 60 * 60 * 1000
+    await t.db.query(
+      `INSERT INTO ai_tasks (id,user_id,novel_id,kind,status,current,total,step,prompt,batch_id,error,created_at,updated_at,finished_at) VALUES
+       ('task_prune_old','u1','','continue','completed',1,1,'已完成','','','',$1,$1,$1),
+       ('task_prune_new','u1','','continue','completed',1,1,'已完成','','','',$2,$2,$2),
+       ('task_prune_active','u1','','summary','running',0,1,'生成中','','','',$1,$1,0)`,
+      [old, now],
+    )
+
+    const pruned = await pruneFinishedAiTasks(t.db, 90)
+    expect(pruned).toBe(1)
+
+    const { rows } = await t.db.query<{ id: string }>("SELECT id FROM ai_tasks WHERE id LIKE 'task_prune_%' ORDER BY id")
+    expect(rows.map((r) => r.id)).toEqual(['task_prune_active', 'task_prune_new'])
+  })
+
+  it('recordUsage 截断超长 UA/IP，防审计表膨胀', async () => {
+    await recordUsage(t.db, {
+      userId: 'u_trunc',
+      model: 'm',
+      provider: 'p',
+      promptTokens: 1,
+      completionTokens: 1,
+      ipAddress: 'y'.repeat(500),
+      userAgent: 'x'.repeat(2000),
+    })
+    const { rows } = await t.db.query<{ ip_address: string; user_agent: string }>(
+      "SELECT ip_address, user_agent FROM ai_usage WHERE user_id = 'u_trunc'",
+    )
+    expect(rows[0]!.ip_address.length).toBe(100)
+    expect(rows[0]!.user_agent.length).toBe(500)
   })
 })
 

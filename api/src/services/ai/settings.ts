@@ -24,6 +24,8 @@ export interface AiSettings {
   // === 回顾总结参数 ===
   /** 回来接着读功能开关 */
   catchupEnabled: boolean
+  /** 距上次阅读超过多少天才提供「回来接着读」入口 */
+  catchupStaleDays: number
   /** 回顾总结最多涉及章节数 */
   catchupMaxChapters: number
   /** 回顾总结生成创意度 */
@@ -35,6 +37,12 @@ export interface AiSettings {
   writingTemperature: number
   writingMaxTokens: number
   writingSystemPrompt: string
+  /** 同时运行的创作任务上限（大纲/章节/续写共用） */
+  maxConcurrentWritingTasks: number
+
+  // === 运维配置 ===
+  /** 已结束 AI 任务的保留天数，启动时清理更早的记录 */
+  taskRetentionDays: number
 
   // === 审计配置 ===
   /** 是否记录用户 IP 地址 */
@@ -57,6 +65,7 @@ export const DEFAULT_AI_SETTINGS: AiSettings = {
 
   // 回顾总结参数默认值（同上，maxChapters 与原候选章节数保持一致）
   catchupEnabled: true,
+  catchupStaleDays: 7,
   catchupMaxChapters: 5,
   catchupTemperature: 0.2,
   catchupMaxTokens: 1200,
@@ -65,6 +74,10 @@ export const DEFAULT_AI_SETTINGS: AiSettings = {
   writingTemperature: 0.8,
   writingMaxTokens: 1800,
   writingSystemPrompt: '你是中文网络小说作者。请根据提供的设定和上下文创作正文，保持人物动机、叙事视角和风格一致。只输出正文，不要标题、解释或 Markdown。',
+  maxConcurrentWritingTasks: 3,
+
+  // 运维配置默认值
+  taskRetentionDays: 90,
 
   // 审计配置默认值
   logIpAddress: false,
@@ -77,22 +90,43 @@ const LIMITS = {
   recapTemperature: { min: 0, max: 1 },
   recapMaxTokens: { min: 100, max: 2000 },
   recapSystemPrompt: { maxLength: 1000 },
+  catchupStaleDays: { min: 1, max: 90 },
   catchupMaxChapters: { min: 1, max: 10 },
   catchupTemperature: { min: 0, max: 1 },
   catchupMaxTokens: { min: 100, max: 3000 },
   writingTemperature: { min: 0, max: 1 },
   writingMaxTokens: { min: 300, max: 1000000 },
   writingSystemPrompt: { maxLength: 2000 },
+  maxConcurrentWritingTasks: { min: 1, max: 10 },
+  taskRetentionDays: { min: 7, max: 365 },
 }
 
+/**
+ * 进程内短 TTL 缓存，按 Db 实例隔离（WeakMap 保证测试库之间互不串味）。
+ * 一次 AI 请求会在路由、缓存键、生成、审计等处反复读设置，
+ * 不加缓存的话单次 catchup 要查 5+ 次 app_settings。
+ * 本进程写入（saveAiSettings）即时刷新；TTL 兜底外部直改数据库的场景。
+ */
+const settingsCache = new WeakMap<object, { value: AiSettings; expiresAt: number }>()
+const SETTINGS_CACHE_TTL_MS = 5_000
+
 export async function getAiSettings(db: Db): Promise<AiSettings> {
+  const hit = settingsCache.get(db)
+  if (hit && Date.now() < hit.expiresAt) return hit.value
+
   const row = await first<{ value: string }>(db, 'SELECT value FROM app_settings WHERE key = $1', [AI_SETTINGS_KEY])
-  if (!row?.value) return { ...DEFAULT_AI_SETTINGS }
-  try {
-    return normalizeAiSettings(JSON.parse(row.value))
-  } catch {
-    return { ...DEFAULT_AI_SETTINGS }
+  let value: AiSettings
+  if (!row?.value) {
+    value = { ...DEFAULT_AI_SETTINGS }
+  } else {
+    try {
+      value = normalizeAiSettings(JSON.parse(row.value))
+    } catch {
+      value = { ...DEFAULT_AI_SETTINGS }
+    }
   }
+  settingsCache.set(db, { value, expiresAt: Date.now() + SETTINGS_CACHE_TTL_MS })
+  return value
 }
 
 export async function saveAiSettings(db: Db, patch: unknown): Promise<AiSettings> {
@@ -104,6 +138,7 @@ export async function saveAiSettings(db: Db, patch: unknown): Promise<AiSettings
      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at`,
     [AI_SETTINGS_KEY, JSON.stringify(next), Date.now()],
   )
+  settingsCache.set(db, { value: next, expiresAt: Date.now() + SETTINGS_CACHE_TTL_MS })
   return next
 }
 
@@ -122,6 +157,7 @@ export function normalizeAiSettings(raw: unknown): AiSettings {
 
     // 回顾总结参数
     catchupEnabled: obj.catchupEnabled === undefined ? DEFAULT_AI_SETTINGS.catchupEnabled : !!obj.catchupEnabled,
+    catchupStaleDays: clampInt(obj.catchupStaleDays, DEFAULT_AI_SETTINGS.catchupStaleDays, LIMITS.catchupStaleDays),
     catchupMaxChapters: clampInt(obj.catchupMaxChapters, DEFAULT_AI_SETTINGS.catchupMaxChapters, LIMITS.catchupMaxChapters),
     catchupTemperature: clampFloat(obj.catchupTemperature, DEFAULT_AI_SETTINGS.catchupTemperature, LIMITS.catchupTemperature),
     catchupMaxTokens: clampInt(obj.catchupMaxTokens, DEFAULT_AI_SETTINGS.catchupMaxTokens, LIMITS.catchupMaxTokens),
@@ -130,6 +166,10 @@ export function normalizeAiSettings(raw: unknown): AiSettings {
     writingTemperature: clampFloat(obj.writingTemperature, DEFAULT_AI_SETTINGS.writingTemperature, LIMITS.writingTemperature),
     writingMaxTokens: clampInt(obj.writingMaxTokens, DEFAULT_AI_SETTINGS.writingMaxTokens, LIMITS.writingMaxTokens),
     writingSystemPrompt: clampString(obj.writingSystemPrompt, DEFAULT_AI_SETTINGS.writingSystemPrompt, LIMITS.writingSystemPrompt.maxLength),
+    maxConcurrentWritingTasks: clampInt(obj.maxConcurrentWritingTasks, DEFAULT_AI_SETTINGS.maxConcurrentWritingTasks, LIMITS.maxConcurrentWritingTasks),
+
+    // 运维配置
+    taskRetentionDays: clampInt(obj.taskRetentionDays, DEFAULT_AI_SETTINGS.taskRetentionDays, LIMITS.taskRetentionDays),
 
     // 审计配置
     logIpAddress: obj.logIpAddress === undefined ? DEFAULT_AI_SETTINGS.logIpAddress : !!obj.logIpAddress,

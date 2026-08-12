@@ -92,6 +92,30 @@ export async function failInterruptedAiTasks(db: Db): Promise<number> {
   )
 }
 
+/** 运行中（含排队）的创作任务数：路由据此做并发上限拦截。 */
+export async function countActiveWritingTasks(db: Db): Promise<number> {
+  const row = await first<{ total: number }>(
+    db,
+    `SELECT COUNT(*)::int AS total FROM ai_tasks
+     WHERE status IN ('queued','running') AND kind IN ('continue','write_outline','write_chapter')`,
+  )
+  return Number(row?.total) || 0
+}
+
+/**
+ * 清理保留期之外的已结束任务（completed/failed/cancelled）。
+ * 任务是操作性记录，用量审计在 ai_usage 里另有账本，删任务不影响审计。
+ */
+export async function pruneFinishedAiTasks(db: Db, retentionDays: number): Promise<number> {
+  const cutoff = Date.now() - Math.max(1, Math.trunc(retentionDays)) * 86_400_000
+  return run(
+    db,
+    `DELETE FROM ai_tasks
+     WHERE status IN ('completed','failed','cancelled') AND finished_at > 0 AND finished_at < $1`,
+    [cutoff],
+  )
+}
+
 export async function listAiTasks(db: Db, opts: { limit?: number; offset?: number; status?: string; kind?: string } = {}): Promise<{ items: AiTask[]; total: number }> {
   const limit = Math.min(Math.max(Math.trunc(opts.limit || 50), 1), 100)
   const offset = Math.max(Math.trunc(opts.offset || 0), 0)

@@ -13,7 +13,6 @@ import { recordUsage } from './usage'
 
 /** 提示词版本：改动下方 prompt 时 +1，历史缓存自动失效重算。 */
 export const CATCHUP_PROMPT_VERSION = 1
-export const CATCHUP_STALE_AFTER_MS = 7 * 24 * 60 * 60 * 1000
 
 /** 参与合成的单章提要最少条数：太少拼不出连贯回顾，直接给 null，前端不渲染。 */
 const MIN_SUMMARIES = 2
@@ -70,17 +69,16 @@ async function loadProgress(db: Db, userId: string, novelId: string): Promise<Pr
   )
 }
 
-/** 取进度章往前（含）最多 catchupMaxChapters 章（管理端「参数调优」可配），只保留已有发布提要的版本。 */
-async function loadCatchupChapters(db: Db, novelId: string, chapterId: string, model: string): Promise<CatchupChapter[]> {
+/** 取进度章往前（含）最多 candidateCount 章（管理端「参数调优」可配），只保留已有发布提要的版本。 */
+async function loadCatchupChapters(db: Db, novelId: string, chapterId: string, model: string, candidateCount: number): Promise<CatchupChapter[]> {
   const progressChapter = await first<{ sort_order: number }>(db, 'SELECT sort_order FROM chapters WHERE id = $1', [chapterId])
   if (!progressChapter) return []
-  const settings = await getAiSettings(db)
   const candidates = await all<{ id: string; title: string; sort_order: number }>(
     db,
     `SELECT id, title, sort_order FROM chapters
      WHERE novel_id = $1 AND sort_order <= $2
      ORDER BY sort_order DESC LIMIT $3`,
-    [novelId, progressChapter.sort_order, settings.catchupMaxChapters],
+    [novelId, progressChapter.sort_order, candidateCount],
   )
   const withSummary: CatchupChapter[] = []
   // 缓存键带提示词指纹：管理员自定义过系统提示词时，旧的 summary 缓存不再命中
@@ -108,9 +106,11 @@ export function catchupParams(model: string, chapters: Array<{ id: string; gener
 export async function inspectCatchup(db: Db, userId: string, novelId: string, model: string, now = Date.now()): Promise<CatchupInspection> {
   const progress = await loadProgress(db, userId, novelId)
   if (!progress) return { reason: 'no_progress' }
-  if (now - Number(progress.updated_at) < CATCHUP_STALE_AFTER_MS) return { reason: 'not_stale' }
+  // 阈值与候选章节数都来自「参数调优」设置
+  const settings = await getAiSettings(db)
+  if (now - Number(progress.updated_at) < settings.catchupStaleDays * 86_400_000) return { reason: 'not_stale' }
 
-  const chapters = await loadCatchupChapters(db, novelId, progress.chapter_id, model)
+  const chapters = await loadCatchupChapters(db, novelId, progress.chapter_id, model, settings.catchupMaxChapters)
   if (chapters.length < MIN_SUMMARIES) return { reason: 'insufficient_summaries' }
   return { source: { progress, chapters, paramsJson: catchupParams(model, chapters) } }
 }

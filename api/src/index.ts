@@ -3,7 +3,8 @@ import { app } from './app'
 import { loadConfig } from './config'
 import { migrate } from './db/migrate'
 import { getDb } from './db/pool'
-import { failInterruptedAiTasks } from './services/ai/tasks'
+import { getAiSettings } from './services/ai/settings'
+import { failInterruptedAiTasks, pruneFinishedAiTasks } from './services/ai/tasks'
 import { ensureRuntimeSalts } from './runtime-config'
 
 async function start() {
@@ -17,6 +18,10 @@ async function start() {
     // AI 任务在进程内执行，重启后残留的 queued/running 已实际中断，标记失败避免前端一直显示运行中
     const interrupted = await failInterruptedAiTasks(getDb())
     if (interrupted) console.log(`[zhi-zhou api] marked ${interrupted} interrupted AI task(s) as failed`)
+    // 已结束任务按保留期清理（天数在管理端「参数调优」可配）
+    const settings = await getAiSettings(getDb())
+    const pruned = await pruneFinishedAiTasks(getDb(), settings.taskRetentionDays)
+    if (pruned) console.log(`[zhi-zhou api] pruned ${pruned} finished AI task(s) older than ${settings.taskRetentionDays}d`)
   }
 
   const server = serve({ fetch: app.fetch, port: config.port })

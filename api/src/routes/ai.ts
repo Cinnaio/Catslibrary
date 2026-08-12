@@ -15,7 +15,7 @@ import { escapeLike } from '../services/text'
 import { generateContinuationChapters, generateWriting, generateWritingTitles, recentNovelContext } from '../services/ai/writing'
 import { checkQuota, recordUsage, startOfToday, summarizeUsage } from '../services/ai/usage'
 import { optionalUser, requireAdmin, requireUser, type AuthEnv } from '../middlewares/auth'
-import { cancelAiTask, createAiTask, getAiTask, listAiTasks, updateAiTask } from '../services/ai/tasks'
+import { cancelAiTask, countActiveWritingTasks, createAiTask, getAiTask, listAiTasks, updateAiTask } from '../services/ai/tasks'
 import { clientIpFromContext } from '../services/ai/audit-context'
 
 export const aiRoutes = new Hono<AuthEnv>()
@@ -49,6 +49,8 @@ aiRoutes.get('/status', optionalUser(), async (c) => {
       features: { recap: configured && settings.recapEnabled && !!user, catchup: configured && settings.catchupEnabled && !!user },
       model: configured ? textProvider().model : '',
       quota,
+      // 「回来接着读」的过期天数：前端据此决定入口是否渲染，与后端判定同源
+      catchupStaleDays: settings.catchupStaleDays,
     },
     200,
     { 'Cache-Control': 'no-store' },
@@ -255,7 +257,7 @@ function finalizeWritingTask(db: ReturnType<typeof getDb>, taskId: string, job: 
 
 type StartWritingResult =
   | { ok: true; task: { id: string; batchId: string; total: number } }
-  | { ok: false; status: 400 | 404; error: string }
+  | { ok: false; status: 400 | 404 | 429; error: string }
 
 /**
  * 启动一个后台创作任务（大纲 / 章节 / 多章续写），立即返回任务信息。
@@ -273,6 +275,13 @@ async function startWritingJob(
   const novelId = String(body.novelId || '').trim()
   const title = String(body.title || '').trim()
   const instruction = String(body.instruction || '').trim()
+
+  // 并发上限（软限制，防误操作与上游限流）：运行中的创作任务过多时拒绝新任务
+  const settings = await getAiSettings(db)
+  const active = await countActiveWritingTasks(db)
+  if (active >= settings.maxConcurrentWritingTasks) {
+    return { ok: false, status: 429, error: `已有 ${active} 个创作任务在运行（上限 ${settings.maxConcurrentWritingTasks}），请等待完成或取消后再试` }
+  }
 
   if (kind === 'write_outline') {
     if (!title) return { ok: false, status: 400, error: 'title 必填' }

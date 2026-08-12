@@ -1,9 +1,11 @@
 /**
  * 章节前情提要 —— 进章时静默读缓存，没有缓存才由读者点一下现生成。
  * 只概括「上一章」，天然不剧透；未配置 AI / 未登录 / 首章时整块不渲染。
+ * 有每日配额的读者会看到剩余次数，用尽后按钮禁用（命中缓存不计数）。
  */
 import { useCallback, useEffect, useState } from 'react'
-import { aiApi, getToken, type AiStatus } from '../../lib/api'
+import { aiApi, type ApiError } from '../../lib/api'
+import { useAiStatus } from '../../hooks/useAiStatus'
 
 interface ChapterRecapProps {
   /** 上一章 id —— 提要讲的是它，不是当前章 */
@@ -11,40 +13,35 @@ interface ChapterRecapProps {
   prevChapterTitle: string
 }
 
-/** 能力探测按 token 缓存：同一身份下切章复用，登录/登出后自动重探。 */
-let cached: { token: string; promise: Promise<AiStatus> } | null = null
-function loadStatus(): Promise<AiStatus> {
-  const token = getToken()
-  if (!cached || cached.token !== token) {
-    cached = {
-      token,
-      promise: aiApi.status().catch(() => ({ configured: false, features: { recap: false, catchup: false }, model: '', quota: null })),
-    }
-  }
-  return cached.promise
+function isQuotaError(err: unknown): boolean {
+  const apiErr = err as ApiError
+  return apiErr?.status === 429 || (apiErr?.data as { code?: string } | undefined)?.code === 'quota_exceeded'
 }
 
 export default function ChapterRecap({ prevChapterId, prevChapterTitle }: ChapterRecapProps) {
-  const [available, setAvailable] = useState(false)
+  const status = useAiStatus(!!prevChapterId)
   const [recap, setRecap] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [collapsed, setCollapsed] = useState(false)
+  /** 今日剩余生成次数；null 表示不限额（管理员）或未知 */
+  const [remaining, setRemaining] = useState<number | null>(null)
+
+  useEffect(() => {
+    if (!status?.quota || status.quota.limit < 0) {
+      setRemaining(null)
+      return
+    }
+    setRemaining(Math.max(0, status.quota.limit - status.quota.used))
+  }, [status])
 
   useEffect(() => {
     let cancelled = false
     setRecap('')
     setError('')
     setCollapsed(false)
-    if (!prevChapterId) {
-      setAvailable(false)
-      return
-    }
+    if (!prevChapterId || !status?.features.recap) return
     void (async () => {
-      const status = await loadStatus()
-      if (cancelled) return
-      setAvailable(status.features.recap)
-      if (!status.features.recap) return
       try {
         const res = await aiApi.cachedRecap(prevChapterId)
         if (!cancelled && res.recap) setRecap(res.recap)
@@ -55,7 +52,7 @@ export default function ChapterRecap({ prevChapterId, prevChapterTitle }: Chapte
     return () => {
       cancelled = true
     }
-  }, [prevChapterId])
+  }, [prevChapterId, status])
 
   const generate = useCallback(async () => {
     setLoading(true)
@@ -63,14 +60,19 @@ export default function ChapterRecap({ prevChapterId, prevChapterTitle }: Chapte
     try {
       const res = await aiApi.recap(prevChapterId)
       setRecap(res.recap)
+      // 命中缓存不计配额，只有真实生成才扣减
+      if (!res.cached) setRemaining((r) => (r === null ? r : Math.max(0, r - 1)))
     } catch (err) {
+      if (isQuotaError(err)) setRemaining(0)
       setError((err as Error).message || '生成失败')
     } finally {
       setLoading(false)
     }
   }, [prevChapterId])
 
-  if (!available || !prevChapterId) return null
+  if (!status?.features.recap || !prevChapterId) return null
+
+  const quotaExhausted = remaining === 0
 
   return (
     <aside className="reader-recap" aria-label="前情提要">
@@ -85,8 +87,12 @@ export default function ChapterRecap({ prevChapterId, prevChapterTitle }: Chapte
       </div>
 
       {!recap && !error && (
-        <button type="button" className="reader-recap__action" onClick={() => void generate()} disabled={loading}>
-          {loading ? '正在回顾上一章…' : 'AI 回顾上一章'}
+        <button type="button" className="reader-recap__action" onClick={() => void generate()} disabled={loading || quotaExhausted}>
+          {loading
+            ? '正在回顾上一章…'
+            : quotaExhausted
+              ? '今日 AI 次数已用完，明天再来'
+              : `AI 回顾上一章${remaining !== null ? `（今日剩 ${remaining} 次）` : ''}`}
         </button>
       )}
 
@@ -95,9 +101,11 @@ export default function ChapterRecap({ prevChapterId, prevChapterTitle }: Chapte
       {error && (
         <p className="reader-recap__error" role="status">
           {error}
-          <button type="button" className="reader-recap__action" onClick={() => void generate()} disabled={loading}>
-            重试
-          </button>
+          {!quotaExhausted && (
+            <button type="button" className="reader-recap__action" onClick={() => void generate()} disabled={loading}>
+              重试
+            </button>
+          )}
         </p>
       )}
     </aside>

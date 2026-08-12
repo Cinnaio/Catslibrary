@@ -108,6 +108,19 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
 
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="grid gap-1.5">
+              <Label htmlFor="catchup-stale-days">隔多少天算「很久没读」</Label>
+              <Input
+                id="catchup-stale-days"
+                type="number"
+                min={1}
+                max={90}
+                value={localSettings.catchupStaleDays}
+                disabled={props.loading || saving}
+                onChange={(e) => setLocalSettings({ ...localSettings, catchupStaleDays: Number(e.target.value) })}
+              />
+              <p className="text-xs text-muted-foreground">距上次阅读超过该天数才显示回顾入口，1-90 天</p>
+            </div>
+            <div className="grid gap-1.5">
               <Label htmlFor="catchup-chapters">最多回顾章节数</Label>
               <Input
                 id="catchup-chapters"
@@ -173,6 +186,42 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
             <Label htmlFor="writing-prompt">创作系统提示词</Label>
             <textarea id="writing-prompt" className="min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" value={localSettings.writingSystemPrompt} disabled={props.loading || saving} onChange={(e) => setLocalSettings({ ...localSettings, writingSystemPrompt: e.target.value })} />
             <p className="text-xs text-muted-foreground">定义 AI 创作的角色、文风和输出约束</p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 任务与运维 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">任务与运维</CardTitle>
+          <p className="text-sm text-muted-foreground">创作任务的并发控制与历史记录清理</p>
+        </CardHeader>
+        <CardContent className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-1.5">
+            <Label htmlFor="max-concurrent-tasks">创作任务并发上限</Label>
+            <Input
+              id="max-concurrent-tasks"
+              type="number"
+              min={1}
+              max={10}
+              value={localSettings.maxConcurrentWritingTasks}
+              disabled={props.loading || saving}
+              onChange={(e) => setLocalSettings({ ...localSettings, maxConcurrentWritingTasks: Number(e.target.value) })}
+            />
+            <p className="text-xs text-muted-foreground">同时运行的大纲/章节/续写任务数上限，超出时新任务被拒绝，1-10 个</p>
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="task-retention-days">已结束任务保留天数</Label>
+            <Input
+              id="task-retention-days"
+              type="number"
+              min={7}
+              max={365}
+              value={localSettings.taskRetentionDays}
+              disabled={props.loading || saving}
+              onChange={(e) => setLocalSettings({ ...localSettings, taskRetentionDays: Number(e.target.value) })}
+            />
+            <p className="text-xs text-muted-foreground">服务启动时清理更早的已完成/失败/取消任务，用量审计不受影响，7-365 天</p>
           </div>
         </CardContent>
       </Card>

@@ -620,6 +620,8 @@ export interface AiStatus {
   features: { recap: boolean; catchup: boolean }
   model: string
   quota: AiQuota | null
+  /** 「回来接着读」的过期天数：入口渲染阈值与后端判定同源 */
+  catchupStaleDays: number
 }
 
 export interface AiSettings {
@@ -632,6 +634,7 @@ export interface AiSettings {
   recapSystemPrompt: string
   // 回顾总结参数
   catchupEnabled: boolean
+  catchupStaleDays: number
   catchupMaxChapters: number
   catchupTemperature: number
   catchupMaxTokens: number
@@ -639,6 +642,9 @@ export interface AiSettings {
   writingTemperature: number
   writingMaxTokens: number
   writingSystemPrompt: string
+  maxConcurrentWritingTasks: number
+  // 运维配置
+  taskRetentionDays: number
   // 审计配置
   logIpAddress: boolean
   logUserAgent: boolean

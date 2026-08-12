@@ -40,8 +40,9 @@ export async function recordUsage(db: Db, rec: UsageRecord): Promise<void> {
       rec.novelId || '',
       rec.chapterId || '',
       rec.generationType || '',
-      rec.ipAddress || '',
-      rec.userAgent || '',
+      // 审计字段来自请求头，截断防御超长输入膨胀审计表
+      String(rec.ipAddress || '').slice(0, 100),
+      String(rec.userAgent || '').slice(0, 500),
       Date.now(),
     ],
   )
