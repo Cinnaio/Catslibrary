@@ -741,6 +741,8 @@ export const aiApi = {
         novelTitle: string
         chapterId: string
         chapterTitle: string
+        ipAddress: string
+        userAgent: string
       }>
       total: number
       limit: number

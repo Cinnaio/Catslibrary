@@ -68,6 +68,8 @@ export interface RecapOptions {
   userId: string
   /** true 时忽略缓存强制重算（管理员用） */
   force?: boolean
+  ipAddress?: string
+  userAgent?: string
 }
 
 /**
@@ -146,6 +148,8 @@ async function runGenerateRecap(db: Db, opts: RecapOptions): Promise<RecapResult
     novelId: opts.chapter.novel_id,
     chapterId: opts.chapter.id,
     generationType: 'summary',
+    ipAddress: opts.ipAddress,
+    userAgent: opts.userAgent,
   })
 
   return {

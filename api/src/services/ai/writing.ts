@@ -51,6 +51,8 @@ export async function generateWritingTitles(db: Db, opts: {
   novelId?: string
   content: string
   contextTitle?: string
+  ipAddress?: string
+  userAgent?: string
 }): Promise<WritingTitlesResult> {
   if (!isTextAiConfigured()) throw new AiError('disabled', 'AI 文本服务未配置', 503)
   const provider = textProvider()
@@ -80,6 +82,8 @@ export async function generateWritingTitles(db: Db, opts: {
     costMillicents: Math.round(res.cost * 100000),
     novelId: opts.novelId,
     generationType: 'writing_title',
+    ipAddress: opts.ipAddress,
+    userAgent: opts.userAgent,
   })
   return { titles, usage: { model: res.model, promptTokens: res.promptTokens, completionTokens: res.completionTokens } }
 }
@@ -96,6 +100,8 @@ export async function generateWriting(db: Db, opts: {
   temperature?: number
   targetWords?: number
   chapterCount?: number
+  ipAddress?: string
+  userAgent?: string
 }): Promise<WritingResult> {
   if (!isTextAiConfigured()) throw new AiError('disabled', 'AI 文本服务未配置', 503)
   const provider = textProvider()
@@ -128,7 +134,7 @@ export async function generateWriting(db: Db, opts: {
     status: 'draft',
     createdBy: opts.userId,
   })
-  await recordUsage(db, { userId: opts.userId, model: res.model, provider: providerLabel(provider.baseUrl), promptTokens: res.promptTokens, completionTokens: res.completionTokens, costMillicents: Math.round(res.cost * 100000), novelId: opts.novelId, generationType: opts.kind })
+  await recordUsage(db, { userId: opts.userId, model: res.model, provider: providerLabel(provider.baseUrl), promptTokens: res.promptTokens, completionTokens: res.completionTokens, costMillicents: Math.round(res.cost * 100000), novelId: opts.novelId, generationType: opts.kind, ipAddress: opts.ipAddress, userAgent: opts.userAgent })
   return { generation, usage: { model: res.model, promptTokens: res.promptTokens, completionTokens: res.completionTokens } }
 }
 

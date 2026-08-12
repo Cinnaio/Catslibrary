@@ -627,6 +627,8 @@ function AiAuditPanel() {
       completionTokens: number
       costMillicents: number
       createdAt: number
+      ipAddress: string
+      userAgent: string
     }>
   >([])
   const [loading, setLoading] = useState(true)
@@ -769,6 +771,8 @@ function AiAuditPanel() {
                                       label="章节 ID"
                                       value={<code className="text-xs">{call.chapterId || '—'}</code>}
                                     />
+                                    <DetailItem label="IP 地址" value={<code className="text-xs">{call.ipAddress || '未记录'}</code>} />
+                                    <DetailItem label="User-Agent" value={<code className="block max-w-full truncate text-xs" title={call.userAgent}>{call.userAgent || '未记录'}</code>} />
                                   </div>
                                   <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted-foreground">
                                     <span>

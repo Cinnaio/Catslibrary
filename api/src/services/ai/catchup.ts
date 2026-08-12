@@ -133,7 +133,7 @@ const inflight = new Map<string, Promise<CatchupResult>>()
 
 export async function generateCatchup(
   db: Db,
-  opts: { userId: string; novelId: string; source?: CatchupSource },
+  opts: { userId: string; novelId: string; source?: CatchupSource; ipAddress?: string; userAgent?: string },
 ): Promise<CatchupResult> {
   if (!isTextAiConfigured()) throw new AiError('disabled', 'AI 文本服务未配置', 503)
 
@@ -152,7 +152,7 @@ export async function generateCatchup(
   }
 }
 
-async function runGenerateCatchup(db: Db, opts: { userId: string; novelId: string; source?: CatchupSource }): Promise<CatchupResult> {
+async function runGenerateCatchup(db: Db, opts: { userId: string; novelId: string; source?: CatchupSource; ipAddress?: string; userAgent?: string }): Promise<CatchupResult> {
   const provider = textProvider()
   const source = opts.source || (await inspectCatchup(db, opts.userId, opts.novelId, provider.model)).source
   if (!source) return { generation: null, cached: false, chapterIds: [], usage: null }
@@ -192,6 +192,8 @@ async function runGenerateCatchup(db: Db, opts: { userId: string; novelId: strin
     novelId: opts.novelId,
     chapterId: chapters[0]?.id || '', // 使用第一章作为代表
     generationType: 'catchup',
+    ipAddress: opts.ipAddress,
+    userAgent: opts.userAgent,
   })
 
   return {

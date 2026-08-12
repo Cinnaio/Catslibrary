@@ -19,13 +19,15 @@ export interface UsageRecord {
   novelId?: string
   chapterId?: string
   generationType?: string
+  ipAddress?: string
+  userAgent?: string
 }
 
 export async function recordUsage(db: Db, rec: UsageRecord): Promise<void> {
   await run(
     db,
-    `INSERT INTO ai_usage (id, user_id, model, provider, prompt_tokens, completion_tokens, image_count, cost_millicents, novel_id, chapter_id, generation_type, created_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+    `INSERT INTO ai_usage (id, user_id, model, provider, prompt_tokens, completion_tokens, image_count, cost_millicents, novel_id, chapter_id, generation_type, ip_address, user_agent, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
     [
       newId('aiuse'),
       rec.userId || '',
@@ -38,6 +40,8 @@ export async function recordUsage(db: Db, rec: UsageRecord): Promise<void> {
       rec.novelId || '',
       rec.chapterId || '',
       rec.generationType || '',
+      rec.ipAddress || '',
+      rec.userAgent || '',
       Date.now(),
     ],
   )

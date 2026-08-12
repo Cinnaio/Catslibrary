@@ -17,6 +17,15 @@ import { optionalUser, requireAdmin, requireUser, type AuthEnv } from '../middle
 
 export const aiRoutes = new Hono<AuthEnv>()
 
+async function auditRequestContext(c: Context<AuthEnv>, db: ReturnType<typeof getDb>): Promise<{ ipAddress?: string; userAgent?: string }> {
+  const settings = await getAiSettings(db)
+  const forwarded = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For')?.split(',')[0]?.trim() || c.req.header('X-Real-IP') || ''
+  return {
+    ipAddress: settings.logIpAddress ? forwarded : undefined,
+    userAgent: settings.logUserAgent ? c.req.header('User-Agent') || '' : undefined,
+  }
+}
+
 // ---------- 能力探测（匿名可用，前端据此决定是否渲染 AI 入口） ----------
 
 aiRoutes.get('/status', optionalUser(), async (c) => {
@@ -101,6 +110,7 @@ aiRoutes.post('/recap', requireUser(), async (c) => {
       novelTitle: novel?.title || '',
       maxChapterChars: settings.maxChapterChars,
       userId: user.id,
+      ...(await auditRequestContext(c, db)),
     })
     return c.json(
       { recap: result.generation.result, cached: false, model: result.generation.model, id: result.generation.id },
@@ -142,7 +152,7 @@ aiRoutes.post('/catchup', requireUser(), async (c) => {
   }
 
   try {
-    const result = await generateCatchup(db, { userId: user.id, novelId, source: inspection.source })
+    const result = await generateCatchup(db, { userId: user.id, novelId, source: inspection.source, ...(await auditRequestContext(c, db)) })
     return c.json(
       { recap: result.generation?.result || null, cached: false, model: result.generation?.model, id: result.generation?.id, chapterIds: result.chapterIds },
       200,
@@ -196,6 +206,7 @@ aiRoutes.post('/test', requireAdmin(), async (c) => {
       costMillicents: Math.round(res.cost * 100_000),
       // 连通性测试单独打 tag，审计里与读者真实调用区分开
       generationType: 'test',
+      ...(await auditRequestContext(c, getDb())),
     })
     return c.json({ ok: true, model: res.model, reply: res.text.slice(0, 100), elapsedMs: Date.now() - startedAt })
   } catch (err) {
@@ -214,7 +225,7 @@ aiRoutes.post('/writing/outline', requireAdmin(), async (c) => {
   const novelId = String(body.novelId || '').trim()
   if (!title) return c.json({ error: 'title 必填' }, 400)
   try {
-    const result = await generateWriting(db, { userId: user.id, novelId, kind: 'write_outline', title, instruction: String(body.instruction || '').trim(), maxTokens: body.maxTokens, temperature: body.temperature, ...writingOptions(body) })
+    const result = await generateWriting(db, { userId: user.id, novelId, kind: 'write_outline', title, instruction: String(body.instruction || '').trim(), maxTokens: body.maxTokens, temperature: body.temperature, ...writingOptions(body), ...(await auditRequestContext(c, db)) })
     return c.json({ draft: result.generation, usage: result.usage })
   } catch (err) { return aiErrorResponse(c, err) }
 })
@@ -236,7 +247,7 @@ aiRoutes.post('/writing/chapter', requireAdmin(), async (c) => {
   const novel = await first<{ title: string }>(db, 'SELECT title FROM novels WHERE id = $1', [novelId])
   if (!novel) return c.json({ error: '小说不存在' }, 404)
   try {
-    const result = await generateWriting(db, { userId: user.id, novelId, kind: 'write_chapter', title: novel.title, instruction: String(body.instruction || '').trim(), outline: String(body.outline || '').trim(), context: String(body.context || '').trim(), maxTokens: body.maxTokens, temperature: body.temperature, ...writingOptions(body) })
+    const result = await generateWriting(db, { userId: user.id, novelId, kind: 'write_chapter', title: novel.title, instruction: String(body.instruction || '').trim(), outline: String(body.outline || '').trim(), context: String(body.context || '').trim(), maxTokens: body.maxTokens, temperature: body.temperature, ...writingOptions(body), ...(await auditRequestContext(c, db)) })
     return c.json({ draft: result.generation, usage: result.usage })
   } catch (err) { return aiErrorResponse(c, err) }
 })
@@ -252,7 +263,7 @@ aiRoutes.post('/writing/continue', requireAdmin(), async (c) => {
   if (!novel) return c.json({ error: '小说不存在' }, 404)
   try {
     const context = await recentNovelContext(db, novelId, body.afterChapterId ? String(body.afterChapterId) : undefined)
-    const result = await generateWriting(db, { userId: user.id, novelId, kind: 'continue', title: novel.title, instruction: String(body.instruction || chapterTitle || '自然推进剧情，完成一个有悬念的章节段落').trim(), context, maxTokens: body.maxTokens, temperature: body.temperature, ...writingOptions(body) })
+    const result = await generateWriting(db, { userId: user.id, novelId, kind: 'continue', title: novel.title, instruction: String(body.instruction || chapterTitle || '自然推进剧情，完成一个有悬念的章节段落').trim(), context, maxTokens: body.maxTokens, temperature: body.temperature, ...writingOptions(body), ...(await auditRequestContext(c, db)) })
     return c.json({ draft: result.generation, usage: result.usage, contextUsed: context.length })
   } catch (err) { return aiErrorResponse(c, err) }
 })
@@ -269,6 +280,7 @@ aiRoutes.post('/writing/titles', requireAdmin(), async (c) => {
       novelId: String(body.novelId || '').trim(),
       content,
       contextTitle: String(body.contextTitle || '').trim(),
+      ...(await auditRequestContext(c, db)),
     })
     return c.json({ titles: result.titles, usage: result.usage })
   } catch (err) { return aiErrorResponse(c, err) }
@@ -391,7 +403,7 @@ aiRoutes.get('/audit/calls', requireAdmin(), async (c) => {
   const rows = await all<Record<string, unknown>>(
     db,
     `SELECT
-      u.id, u.generation_type, u.model, u.prompt_tokens, u.completion_tokens,
+      u.id, u.generation_type, u.model, u.prompt_tokens, u.completion_tokens, u.ip_address, u.user_agent,
       u.cost_millicents, u.created_at, u.user_id, u.novel_id, u.chapter_id,
       usr.username, usr.display_name,
       n.title AS novel_title,
@@ -425,6 +437,8 @@ aiRoutes.get('/audit/calls', requireAdmin(), async (c) => {
         novelTitle: String(r.novel_title || ''),
         chapterId: String(r.chapter_id || ''),
         chapterTitle: String(r.chapter_title || ''),
+        ipAddress: String(r.ip_address || ''),
+        userAgent: String(r.user_agent || ''),
       })),
       total: totalRow?.total || 0,
       limit,
