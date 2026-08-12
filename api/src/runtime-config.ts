@@ -3,6 +3,7 @@
  * 存 data/runtime-config.json（已 gitignore），仅白名单键。
  * 优先级：真实环境变量 > .env > 运行时文件（applyRuntimeConfigToEnv 仅填空）。
  */
+import { randomBytes } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -29,6 +30,8 @@ const ALLOWED_KEYS = [
   'PROXY_BASE',
   'PROXY_DOMAINS',
   'CORS_ORIGINS',
+  'SESSION_HASH_SALT',
+  'THOUGHT_HASH_SALT',
 ] as const
 
 export type RuntimeConfigKey = (typeof ALLOWED_KEYS)[number]
@@ -87,4 +90,27 @@ export function writeRuntimeConfig(patch: Partial<Record<RuntimeConfigKey, strin
 /** 供 setup/status 回显：哪些可选键已有值（不回传值本身）。 */
 export function configuredRuntimeKeys(): RuntimeConfigKey[] {
   return Object.keys(readRuntimeConfig()) as RuntimeConfigKey[]
+}
+
+/** 历史默认盐；检测到即视为未配置，替换为随机值。 */
+const LEGACY_DEFAULT_SALT = 'zhi-zhou'
+const SALT_KEYS = ['SESSION_HASH_SALT', 'THOUGHT_HASH_SALT'] as const
+
+/**
+ * 确保两个哈希盐存在且非弱默认值：缺失或等于历史默认 'zhi-zhou' 时
+ * 生成 256 位随机盐，持久化到运行时文件并注入 env（重启后稳定）。
+ * 运维经环境变量 / .env 显式设定的强盐不受影响。
+ * 仅在生产启动入口调用（不放模块副作用，避免测试进程写仓库 data/）。
+ */
+export function ensureRuntimeSalts(): void {
+  const patch: Partial<Record<RuntimeConfigKey, string>> = {}
+  for (const key of SALT_KEYS) {
+    const current = process.env[key]?.trim() || ''
+    if (current && current !== LEGACY_DEFAULT_SALT) continue
+    const salt = randomBytes(32).toString('hex')
+    patch[key] = salt
+    process.env[key] = salt
+    console.log(`[config] ${key} 未配置或为默认值，已生成随机盐并持久化`)
+  }
+  if (Object.keys(patch).length > 0) writeRuntimeConfig(patch)
 }

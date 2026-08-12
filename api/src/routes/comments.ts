@@ -8,6 +8,7 @@ import { rowToComment } from '../db/mappers'
 import { newId } from '../services/auth'
 import { sha256Hex } from '../services/hash'
 import { optionalUser, requireUser, type AuthEnv } from '../middlewares/auth'
+import { clientIpFromContext } from '../services/ai/audit-context'
 
 const MAX_COMMENT_LEN = 1000
 const MAX_REPLY_LEN = 500
@@ -15,7 +16,8 @@ const EDIT_WINDOW = 24 * 3600000
 const RATE_MINUTE = 3
 const RATE_HOUR = 20
 const IP_RATE_HOUR = 50
-const THOUGHT_HASH_SALT = process.env.THOUGHT_HASH_SALT || 'zhi-zhou'
+// 惰性读取：随机盐由启动时 ensureRuntimeSalts() 生成，晚于本模块求值
+const thoughtHashSalt = () => process.env.THOUGHT_HASH_SALT?.trim() || 'zhi-zhou'
 
 export const commentsRoutes = new Hono<AuthEnv>()
 
@@ -109,8 +111,9 @@ commentsRoutes.post('/', requireUser(), async (c) => {
     if (parent.parent_id) return c.json({ error: '暂不支持多层回复' }, 400)
   }
 
-  const clientHash = await sha256Hex(THOUGHT_HASH_SALT, user.id)
-  const ipHash = await sha256Hex(THOUGHT_HASH_SALT, c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || '')
+  const clientHash = await sha256Hex(thoughtHashSalt(), user.id)
+  const clientIp = clientIpFromContext(c)
+  const ipHash = clientIp ? await sha256Hex(thoughtHashSalt(), clientIp) : ''
   const rate = await checkRateLimit(db, clientHash, ipHash)
   if (rate) return c.json({ error: rate }, 429)
 

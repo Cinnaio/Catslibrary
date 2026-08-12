@@ -2,8 +2,11 @@ import { serve } from '@hono/node-server'
 import { app } from './app'
 import { loadConfig } from './config'
 import { migrate } from './db/migrate'
+import { ensureRuntimeSalts } from './runtime-config'
 
 async function start() {
+  // 会话/IP 哈希盐：缺失或为弱默认值时生成随机盐并持久化，须在处理任何请求前完成
+  ensureRuntimeSalts()
   const config = loadConfig()
 
   if (config.configured) {
