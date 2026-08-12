@@ -81,9 +81,9 @@ export interface ApiError extends Error {
 
 const API_TIMEOUT_MS = 30000
 
-function timedFetch(input: RequestInfo | URL, opts: RequestInit = {}): Promise<Response> {
+function timedFetch(input: RequestInfo | URL, opts: RequestInit = {}, timeoutMs = API_TIMEOUT_MS): Promise<Response> {
   if (!opts.signal && typeof AbortSignal !== 'undefined' && 'timeout' in AbortSignal) {
-    opts.signal = (AbortSignal as { timeout(ms: number): AbortSignal }).timeout(API_TIMEOUT_MS)
+    opts.signal = (AbortSignal as { timeout(ms: number): AbortSignal }).timeout(timeoutMs)
   }
   return fetch(input, opts)
 }
@@ -96,7 +96,7 @@ interface RequestOptions {
   signal?: AbortSignal
 }
 
-async function request<T = unknown>(method: string, path: string, body: unknown = null, useAuth = false, extraHeaders: Record<string, string> = {}): Promise<T> {
+async function request<T = unknown>(method: string, path: string, body: unknown = null, useAuth = false, extraHeaders: Record<string, string> = {}, timeoutMs = API_TIMEOUT_MS): Promise<T> {
   const hasBody = !!body && method !== 'GET'
   // 有 body 才声明 Content-Type：GET 带它会让跨域读取多一次 preflight
   const headers = { ...(hasBody ? { 'Content-Type': 'application/json' } : {}), ...extraHeaders }
@@ -107,7 +107,18 @@ async function request<T = unknown>(method: string, path: string, body: unknown 
   // 禁用浏览器 HTTP 缓存：管理员读写后必须拿到最新数据（后端 max-age 只留给 CDN/代理层）
   opts.cache = 'no-store'
 
-  const res = await timedFetch(url(path), opts)
+  let res: Response
+  try {
+    res = await timedFetch(url(path), opts, timeoutMs)
+  } catch (err) {
+    const name = (err as Error)?.name || ''
+    if (name === 'TimeoutError' || name === 'AbortError') {
+      const apiError = new Error(`请求超过 ${(timeoutMs / 60000).toFixed(0)} 分钟仍未完成，请检查 AI 服务状态；已生成的草稿请到“已生成内容”查看`) as ApiError
+      apiError.status = 504
+      throw apiError
+    }
+    throw err
+  }
   const data = await res.json().catch(() => ({})) as T & { error?: string }
 
   if (!res.ok) {
@@ -661,8 +672,9 @@ export const aiApi = {
     chapter(data: Record<string, unknown>): Promise<{ draft: { id: string; result: string; model: string } }> {
       return request('POST', '/ai/writing/chapter', data, true)
     },
-    continue(data: Record<string, unknown>): Promise<{ draft: { id: string; result: string; model: string } }> {
-      return request('POST', '/ai/writing/continue', data, true)
+    continue(data: Record<string, unknown>): Promise<{ draft: { id: string; result: string; model: string }; drafts?: Array<{ id: string; result: string; model: string }> }> {
+      // 多章续写是串行调用模型，给整批任务预留 30 分钟，避免被通用 30 秒请求上限中止。
+      return request('POST', '/ai/writing/continue', data, true, {}, 30 * 60 * 1000)
     },
     titles(data: { content: string; novelId?: string; contextTitle?: string }): Promise<{ titles: string[]; usage: { model: string; promptTokens: number; completionTokens: number } }> {
       return request('POST', '/ai/writing/titles', data, true)

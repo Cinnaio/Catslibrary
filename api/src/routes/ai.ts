@@ -11,7 +11,7 @@ import { getAiSettings, saveAiSettings } from '../services/ai/settings'
 import { generateRecap, getCachedRecap, loadChapterForRecap } from '../services/ai/summary'
 import { generateCatchup, getCachedCatchup, inspectCatchup } from '../services/ai/catchup'
 import { invalidateChapter, listGenerationDetails, deleteGeneration, getGeneration, updateGenerationResult } from '../services/ai/generations'
-import { generateWriting, generateWritingTitles, recentNovelContext } from '../services/ai/writing'
+import { generateContinuationChapters, generateWriting, generateWritingTitles, recentNovelContext } from '../services/ai/writing'
 import { checkQuota, recordUsage, startOfToday, summarizeUsage } from '../services/ai/usage'
 import { optionalUser, requireAdmin, requireUser, type AuthEnv } from '../middlewares/auth'
 
@@ -263,8 +263,8 @@ aiRoutes.post('/writing/continue', requireAdmin(), async (c) => {
   if (!novel) return c.json({ error: '小说不存在' }, 404)
   try {
     const context = await recentNovelContext(db, novelId, body.afterChapterId ? String(body.afterChapterId) : undefined)
-    const result = await generateWriting(db, { userId: user.id, novelId, kind: 'continue', title: novel.title, instruction: String(body.instruction || chapterTitle || '自然推进剧情，完成一个有悬念的章节段落').trim(), context, maxTokens: body.maxTokens, temperature: body.temperature, ...writingOptions(body), ...(await auditRequestContext(c, db)) })
-    return c.json({ draft: result.generation, usage: result.usage, contextUsed: context.length })
+    const result = await generateContinuationChapters(db, { userId: user.id, novelId, title: novel.title, instruction: String(body.instruction || chapterTitle || '自然推进剧情，完成一个有悬念的章节段落').trim(), context, maxTokens: body.maxTokens, temperature: body.temperature, ...writingOptions(body), ...(await auditRequestContext(c, db)) })
+    return c.json({ draft: result.generations[0], drafts: result.generations, usage: result.usage, contextUsed: context.length })
   } catch (err) { return aiErrorResponse(c, err) }
 })
 

@@ -606,6 +606,27 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
       await req('/api/ai/settings', json('PUT', { recapSystemPrompt: beforePrompt }, adminToken))
     }
   })
+  it('AI continuation creates one draft per requested chapter', async () => {
+    const novelId = await firstNovelId(t)
+    fetchMock.mockImplementation(async () =>
+      new Response(JSON.stringify({
+        model: 'test-model',
+        choices: [{ message: { content: 'chapter continuation' }, finish_reason: 'stop' }],
+        usage: { prompt_tokens: 10, completion_tokens: 20 },
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } }),
+    )
+
+    const response = await req('/api/ai/writing/continue', json('POST', { novelId, chapterCount: 20, targetWords: 1200 }, adminToken))
+    expect(response.status).toBe(200)
+    const data = await jsonOf<{ drafts: Array<{ id: string }>; draft: { id: string } }>(response)
+    expect(data.drafts).toHaveLength(20)
+    expect(data.draft.id).toBe(data.drafts[0]!.id)
+    expect(fetchMock).toHaveBeenCalledTimes(20)
+
+    const rows = await t.db.query<{ params_json: string }>("SELECT params_json FROM ai_generations WHERE kind = 'continue' ORDER BY created_at DESC LIMIT 20")
+    expect(rows.rows).toHaveLength(20)
+    expect(rows.rows.every((row) => JSON.parse(row.params_json).targetWords === 1200)).toBe(true)
+  })
 })
 
 function sleep(ms: number): Promise<void> {

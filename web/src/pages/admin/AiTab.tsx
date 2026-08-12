@@ -169,11 +169,11 @@ export function AiWritingPanel() {
         </div>
         {mode === 'new' && <div className="grid gap-1.5"><Label>章节标题</Label><Input value={chapterTitle} onChange={(event) => setChapterTitle(event.target.value)} placeholder="例如：第一章 雾中来客" /></div>}
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <div className="grid gap-1.5"><Label>目标字数</Label><Input type="number" min={300} max={30000} step={100} value={targetWords} onChange={(event) => setTargetWords(Number(event.target.value) || 300)} /></div>
+          <div className="grid gap-1.5"><Label>{mode === 'continue' ? '每章目标字数' : '目标字数'}</Label><Input type="number" min={300} max={30000} step={100} value={targetWords} onChange={(event) => setTargetWords(Number(event.target.value) || 300)} /></div>
           {mode === 'continue' && (
             <div className="grid gap-1.5">
               <Label>续写章节数</Label>
-              <Input type="number" min={1} max={5} value={chapterCount} onChange={(event) => setChapterCount(Math.max(1, Math.min(5, Number(event.target.value) || 1)))} />
+              <Input type="number" min={1} max={20} value={chapterCount} onChange={(event) => setChapterCount(Math.max(1, Math.min(20, Number(event.target.value) || 1)))} />
             </div>
           )}
         </div>

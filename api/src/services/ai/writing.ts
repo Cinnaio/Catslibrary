@@ -13,6 +13,11 @@ export interface WritingResult {
   usage: { model: string; promptTokens: number; completionTokens: number }
 }
 
+export interface WritingBatchResult {
+  generations: Generation[]
+  usage: { model: string; promptTokens: number; completionTokens: number }
+}
+
 export interface WritingTitlesResult {
   titles: string[]
   usage: { model: string; promptTokens: number; completionTokens: number }
@@ -111,7 +116,7 @@ export async function generateWriting(db: Db, opts: {
     : settings.writingSystemPrompt
   const optionInstructions = [
     opts.targetWords ? `Target length: approximately ${Math.max(300, Math.min(30000, Math.trunc(opts.targetWords)))} Chinese characters.` : '',
-    opts.chapterCount && opts.chapterCount > 1 ? `Continuation chapter count: ${Math.max(1, Math.min(5, Math.trunc(opts.chapterCount)))} chapters.` : '',
+    opts.chapterCount && opts.chapterCount > 1 ? `Continuation chapter count: ${Math.max(1, Math.min(20, Math.trunc(opts.chapterCount)))} chapters.` : '',
   ].filter(Boolean)
   const user = [
     ...optionInstructions,
@@ -136,6 +141,48 @@ export async function generateWriting(db: Db, opts: {
   })
   await recordUsage(db, { userId: opts.userId, model: res.model, provider: providerLabel(provider.baseUrl), promptTokens: res.promptTokens, completionTokens: res.completionTokens, costMillicents: Math.round(res.cost * 100000), novelId: opts.novelId, generationType: opts.kind, ipAddress: opts.ipAddress, userAgent: opts.userAgent })
   return { generation, usage: { model: res.model, promptTokens: res.promptTokens, completionTokens: res.completionTokens } }
+}
+
+export async function generateContinuationChapters(db: Db, opts: {
+  userId: string
+  novelId: string
+  title: string
+  instruction: string
+  context: string
+  maxTokens?: number
+  temperature?: number
+  targetWords?: number
+  chapterCount?: number
+  ipAddress?: string
+  userAgent?: string
+}): Promise<WritingBatchResult> {
+  const count = Math.max(1, Math.min(20, Math.trunc(Number(opts.chapterCount) || 1)))
+  const generations: Generation[] = []
+  let context = opts.context
+  let usage = { model: '', promptTokens: 0, completionTokens: 0 }
+
+  for (let index = 0; index < count; index += 1) {
+    const result = await generateWriting(db, {
+      ...opts,
+      kind: 'continue',
+      title: opts.title,
+      instruction: [
+        opts.instruction,
+        `这是续写的第 ${index + 1} 章，共 ${count} 章。目标字数为本章约 ${Math.max(300, Math.min(30000, Math.trunc(Number(opts.targetWords) || 0)))} 字。`,
+      ].filter(Boolean).join('\n'),
+      context,
+      chapterCount: 1,
+    })
+    generations.push(result.generation)
+    usage = {
+      model: result.usage.model,
+      promptTokens: usage.promptTokens + result.usage.promptTokens,
+      completionTokens: usage.completionTokens + result.usage.completionTokens,
+    }
+    context = `${context}\n\n第 ${index + 1} 章续写：\n${cleanWritingText(result.generation.result, 6000)}`.slice(-MAX_CONTEXT_CHARS)
+  }
+
+  return { generations, usage }
 }
 
 export async function recentNovelContext(db: Db, novelId: string, afterChapterId?: string): Promise<string> {
