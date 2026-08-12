@@ -4,6 +4,7 @@
  * 管理侧：GET|PUT /settings、POST /test（连通性自检）、GET /usage（用量统计）。
  */
 import { Hono, type Context } from 'hono'
+import { getConnInfo } from '@hono/node-server/conninfo'
 import { getDb } from '../db/pool'
 import { all, first } from '../db/query'
 import { AiError, chat, isTextAiConfigured, providerLabel, textProvider } from '../services/ai/client'
@@ -15,14 +16,29 @@ import { generateContinuationChapters, generateWriting, generateWritingTitles, r
 import { checkQuota, recordUsage, startOfToday, summarizeUsage } from '../services/ai/usage'
 import { optionalUser, requireAdmin, requireUser, type AuthEnv } from '../middlewares/auth'
 import { cancelAiTask, createAiTask, listAiTasks, updateAiTask } from '../services/ai/tasks'
+import { resolveClientIp } from '../services/ai/audit-context'
 
 export const aiRoutes = new Hono<AuthEnv>()
 
 async function auditRequestContext(c: Context<AuthEnv>, db: ReturnType<typeof getDb>): Promise<{ ipAddress?: string; userAgent?: string }> {
   const settings = await getAiSettings(db)
-  const forwarded = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For')?.split(',')[0]?.trim() || c.req.header('X-Real-IP') || ''
+  let remoteAddress = ''
+  try {
+    remoteAddress = getConnInfo(c).remote.address || ''
+  } catch {
+    // app.request() and non-Node adapters do not expose a socket.
+  }
+
+  const ipAddress = resolveClientIp(
+    {
+      'cf-connecting-ip': c.req.header('CF-Connecting-IP'),
+      'x-forwarded-for': c.req.header('X-Forwarded-For'),
+      'x-real-ip': c.req.header('X-Real-IP'),
+    },
+    remoteAddress,
+  )
   return {
-    ipAddress: settings.logIpAddress ? forwarded : undefined,
+    ipAddress: settings.logIpAddress ? ipAddress : undefined,
     userAgent: settings.logUserAgent ? c.req.header('User-Agent') || '' : undefined,
   }
 }

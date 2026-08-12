@@ -25,7 +25,7 @@ describe('数据库迁移', () => {
     )
     const tables = rows.map((r) => r.tablename)
     const expected = [
-      'users', 'user_sessions', 'user_avatars', 'login_failures', 'invites', 'app_settings',
+      'users', 'user_sessions', 'user_avatars', 'login_failures', 'login_audit', 'invites', 'app_settings',
       'novels', 'chapters',
       'scrape_configs', 'scrape_sources', 'scrape_jobs', 'scrape_job_items', 'scrape_job_logs',
       'reading_progress', 'novel_covers', 'download_logs',

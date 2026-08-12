@@ -2,6 +2,7 @@
  * /api/auth/* —— 用户账户（由 Novel-KV server/functions/api/auth.js 平移）。
  */
 import { Hono, type Context } from 'hono'
+import { getConnInfo } from '@hono/node-server/conninfo'
 import { loadConfig } from '../config'
 import { getDb } from '../db/pool'
 import { first, run } from '../db/query'
@@ -22,6 +23,7 @@ import {
 } from '../services/auth'
 import { createSession, deleteSessionByToken, getUserByToken } from '../services/sessions'
 import { cleanReaderSettings, cleanUpdatedAt, mergeReaderSettings, parseSettingsState } from '../services/reader-settings'
+import { resolveClientIp } from '../services/ai/audit-context'
 
 const PUBLIC_USER_COLUMNS = 'id, username, display_name, bio, role, status, created_at, updated_at, last_login_at'
 const LOGIN_USER_COLUMNS = PUBLIC_USER_COLUMNS + ', password_hash, password_salt, password_iterations'
@@ -97,11 +99,15 @@ authRoutes.post('/login', async (c) => {
   const failKey = await hashToken('login:' + (username || 'unknown'), salt)
 
   const limited = await checkLoginLimit(db, failKey)
-  if (limited) return c.json({ error: limited }, 429)
+  if (limited) {
+    await recordLoginAudit(db, c, { username, status: 'limited', reason: 'rate_limited' })
+    return c.json({ error: limited }, 429)
+  }
 
   const user = await first<UserRow>(db, `SELECT ${LOGIN_USER_COLUMNS} FROM users WHERE username = $1 AND status = 'active'`, [username])
   if (!user || !(await verifyPassword(password, user))) {
     await recordLoginFailure(db, failKey)
+    await recordLoginAudit(db, c, { username, status: 'failure', reason: 'invalid_credentials' })
     return c.json({ error: '用户名或密码错误' }, 401)
   }
   await clearLoginFailures(db, failKey)
@@ -110,6 +116,7 @@ authRoutes.post('/login', async (c) => {
   user.last_login_at = now
   user.updated_at = now
   const token = await createSession(db, user.id, c.req.header('User-Agent') || '', salt)
+  await recordLoginAudit(db, c, { userId: user.id, username: user.username, status: 'success', reason: 'login' })
   return c.json({ user: publicUser(user), token })
 })
 
@@ -320,4 +327,31 @@ async function recordLoginFailure(db: ReturnType<typeof getDb>, keyHash: string)
 
 async function clearLoginFailures(db: ReturnType<typeof getDb>, keyHash: string): Promise<void> {
   await run(db, 'DELETE FROM login_failures WHERE key_hash = $1 OR created_at <= $2', [keyHash, Date.now() - 86400000])
+}
+
+async function recordLoginAudit(
+  db: ReturnType<typeof getDb>,
+  c: Context<AuthEnv>,
+  input: { userId?: string; username: string; status: 'success' | 'failure' | 'limited'; reason: string },
+): Promise<void> {
+  let remoteAddress = ''
+  try {
+    remoteAddress = getConnInfo(c).remote.address || ''
+  } catch {
+    // app.request() and non-Node adapters do not expose a socket.
+  }
+  const ipAddress = resolveClientIp(
+    {
+      'cf-connecting-ip': c.req.header('CF-Connecting-IP'),
+      'x-forwarded-for': c.req.header('X-Forwarded-For'),
+      'x-real-ip': c.req.header('X-Real-IP'),
+    },
+    remoteAddress,
+  )
+  await run(
+    db,
+    `INSERT INTO login_audit (id, user_id, username, status, reason, ip_address, user_agent, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [newId('login'), input.userId || '', input.username, input.status, input.reason, ipAddress, c.req.header('User-Agent') || '', Date.now()],
+  )
 }

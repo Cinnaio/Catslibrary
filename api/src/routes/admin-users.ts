@@ -13,6 +13,57 @@ type Ctx = Context<AuthEnv>
 
 adminUsersRoutes.use('*', requireAdmin())
 
+adminUsersRoutes.get('/login-audit', async (c) => {
+  const db = getDb()
+  const status = c.req.query('status')
+  const username = c.req.query('username')?.trim()
+  const requestedLimit = Number.parseInt(c.req.query('limit') || '50', 10)
+  const limit = Math.min(Math.max(Number.isFinite(requestedLimit) ? requestedLimit : 50, 10), 100)
+  const offset = Math.max(Number.parseInt(c.req.query('offset') || '0', 10) || 0, 0)
+  const conditions: string[] = []
+  const params: unknown[] = []
+
+  if (status && ['success', 'failure', 'limited'].includes(status)) {
+    params.push(status)
+    conditions.push(`a.status = $${params.length}`)
+  }
+  if (username) {
+    params.push(`%${username}%`)
+    conditions.push(`a.username ILIKE $${params.length}`)
+  }
+
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+  const rows = await all<Record<string, unknown>>(
+    db,
+    `SELECT a.id, a.user_id, a.username, a.status, a.reason, a.ip_address, a.user_agent, a.created_at,
+            u.display_name
+     FROM login_audit a
+     LEFT JOIN users u ON u.id = a.user_id
+     ${where}
+     ORDER BY a.created_at DESC
+     LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+    [...params, limit, offset],
+  )
+  const total = await first<{ total: number }>(db, `SELECT COUNT(*)::int AS total FROM login_audit a ${where}`, params)
+
+  return c.json({
+    audits: rows.map((row) => ({
+      id: String(row.id),
+      userId: String(row.user_id || ''),
+      username: String(row.username || ''),
+      displayName: String(row.display_name || ''),
+      status: String(row.status || ''),
+      reason: String(row.reason || ''),
+      ipAddress: String(row.ip_address || ''),
+      userAgent: String(row.user_agent || ''),
+      createdAt: Number(row.created_at) || 0,
+    })),
+    total: Number(total?.total) || 0,
+    limit,
+    offset,
+  })
+})
+
 adminUsersRoutes.get('/', async (c) => {
   const db = getDb()
   const [settings, invites, users, schemaHealth] = await Promise.all([
@@ -86,6 +137,7 @@ async function schemaHealthCheck(db: ReturnType<typeof getDb>) {
   const required: Record<string, string[]> = {
     users: ['display_name', 'bio', 'status', 'last_login_at'],
     user_sessions: ['token_hash', 'user_id', 'expires_at', 'created_at'],
+    login_audit: ['username', 'status', 'ip_address', 'user_agent', 'created_at'],
     reading_progress: ['user_id', 'deleted_at'],
     user_bookmarks: ['user_id', 'novel_id', 'chapter_id', 'updated_at'],
     thoughts: ['user_id'],

@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import AdminPage from '@/components/admin/AdminPage'
@@ -52,6 +53,18 @@ interface SettingsData {
   users: AdminUser[]
 }
 
+interface LoginAudit {
+  id: string
+  userId: string
+  username: string
+  displayName: string
+  status: string
+  reason: string
+  ipAddress: string
+  userAgent: string
+  createdAt: number
+}
+
 const REGISTER_MODES: Array<{ value: 'open' | 'invite' | 'closed'; label: string; hint: string }> = [
   { value: 'open', label: '开放注册', hint: '任何人都可以注册' },
   { value: 'invite', label: '邀请注册', hint: '注册必须使用邀请码' },
@@ -73,6 +86,12 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
   const [registerMode, setRegisterMode] = useState<'open' | 'invite' | 'closed'>('invite')
   const [inviteCount, setInviteCount] = useState('1')
   const [generatedCodes, setGeneratedCodes] = useState<string[] | null>(null)
+  const [loginAudits, setLoginAudits] = useState<LoginAudit[]>([])
+  const [loginAuditTotal, setLoginAuditTotal] = useState(0)
+  const [loginAuditStatus, setLoginAuditStatus] = useState('all')
+  const [loginAuditUsername, setLoginAuditUsername] = useState('')
+  const [loginAuditOffset, setLoginAuditOffset] = useState(0)
+  const [loginAuditLoading, setLoginAuditLoading] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -103,6 +122,28 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
     void loadMe()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  const loadLoginAudit = useCallback(async () => {
+    setLoginAuditLoading(true)
+    try {
+      const result = await adminApi.users.loginAudit({
+        status: loginAuditStatus === 'all' ? undefined : loginAuditStatus,
+        username: loginAuditUsername.trim() || undefined,
+        limit: 20,
+        offset: loginAuditOffset,
+      })
+      setLoginAudits(result.audits)
+      setLoginAuditTotal(result.total)
+    } catch (err) {
+      toast((err as Error).message || '登录审计加载失败', 'error')
+    } finally {
+      setLoginAuditLoading(false)
+    }
+  }, [loginAuditOffset, loginAuditStatus, loginAuditUsername, toast])
+
+  useEffect(() => {
+    void loadLoginAudit()
+  }, [loadLoginAudit])
 
   // ---------- 当前管理员 / 注册设置 ----------
 
@@ -280,6 +321,16 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
   const adminCount = users.filter((u) => u.role === 'admin').length
   const spent = invites.filter((i) => i.usedAt > 0 || i.disabledAt > 0).length
   const available = invites.length - spent
+  const loginAuditPages = Math.max(1, Math.ceil(loginAuditTotal / 20))
+  const loginAuditPage = Math.floor(loginAuditOffset / 20) + 1
+
+  function loginAuditStatusLabel(status: string): string {
+    return status === 'success' ? '成功' : status === 'limited' ? '限流' : '失败'
+  }
+
+  function loginAuditReasonLabel(reason: string): string {
+    return reason === 'invalid_credentials' ? '账号或密码错误' : reason === 'rate_limited' ? '尝试次数过多' : '登录成功'
+  }
 
   return (
     <AdminPage title="账户与注册" description="管理站点用户、注册方式与邀请码。" actions={
@@ -459,6 +510,98 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
             </TableBody>
           </Table>
       </div>
+
+      <section className="mt-8">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold text-foreground">登录审计</h2>
+            <p className="mt-0.5 text-sm text-muted-foreground">记录登录成功、失败与限流事件，不保存密码或登录令牌</p>
+          </div>
+          <Button variant="secondary" size="sm" onClick={() => void loadLoginAudit()} disabled={loginAuditLoading}>
+            刷新
+          </Button>
+        </div>
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <Select
+            value={loginAuditStatus}
+            onValueChange={(value) => {
+              setLoginAuditStatus(value)
+              setLoginAuditOffset(0)
+            }}
+          >
+            <SelectTrigger className="h-9 w-[124px] bg-background" aria-label="登录结果">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent position="popper" align="start" sideOffset={4}>
+              <SelectItem value="all">全部结果</SelectItem>
+              <SelectItem value="success">成功</SelectItem>
+              <SelectItem value="failure">失败</SelectItem>
+              <SelectItem value="limited">限流</SelectItem>
+            </SelectContent>
+          </Select>
+          <Input
+            className="h-9 w-48"
+            value={loginAuditUsername}
+            placeholder="搜索用户名"
+            aria-label="搜索登录用户名"
+            onChange={(event) => {
+              setLoginAuditUsername(event.target.value)
+              setLoginAuditOffset(0)
+            }}
+          />
+        </div>
+        <div className="overflow-hidden rounded-xl border border-border bg-card">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>用户</TableHead>
+                  <TableHead>结果</TableHead>
+                  <TableHead>原因</TableHead>
+                  <TableHead>IP 地址</TableHead>
+                  <TableHead>User-Agent</TableHead>
+                  <TableHead>时间</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {loginAuditLoading && loginAudits.length === 0 ? (
+                  <TableRow><TableCell colSpan={6} className="h-20 text-center text-sm text-muted-foreground">加载中…</TableCell></TableRow>
+                ) : loginAudits.length === 0 ? (
+                  <TableRow><TableCell colSpan={6} className="h-20 text-center text-sm text-muted-foreground">暂无登录审计记录</TableCell></TableRow>
+                ) : loginAudits.map((audit) => (
+                  <TableRow key={audit.id}>
+                    <TableCell>
+                      <strong>{audit.displayName || audit.username || '未知用户'}</strong>
+                      <div className="text-xs text-muted-foreground">{audit.username || '未知用户名'}</div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={audit.status === 'success' ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}>
+                        {loginAuditStatusLabel(audit.status)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{loginAuditReasonLabel(audit.reason)}</TableCell>
+                    <TableCell><code className="text-xs">{audit.ipAddress || '未记录'}</code></TableCell>
+                    <TableCell className="max-w-[260px]">
+                      <code className="block truncate text-xs text-muted-foreground" title={audit.userAgent}>{audit.userAgent || '未记录'}</code>
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                      {audit.createdAt ? new Date(audit.createdAt).toLocaleString('zh-CN') : '—'}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+        <div className="mt-3 flex items-center justify-between text-sm text-muted-foreground">
+          <span>共 {loginAuditTotal} 条记录</span>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" disabled={loginAuditPage <= 1 || loginAuditLoading} onClick={() => setLoginAuditOffset(loginAuditOffset - 20)}>上一页</Button>
+            <span>{loginAuditPage} / {loginAuditPages}</span>
+            <Button variant="outline" size="sm" disabled={loginAuditPage >= loginAuditPages || loginAuditLoading} onClick={() => setLoginAuditOffset(loginAuditOffset + 20)}>下一页</Button>
+          </div>
+        </div>
+      </section>
 
       <div className="mb-3 mt-8 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-base font-semibold text-foreground">邀请码</h2>

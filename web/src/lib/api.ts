@@ -544,6 +544,29 @@ export const adminApi = {
     deleteUser(id: string, confirmUsername: string): Promise<{ ok: boolean }> {
       return request('POST', '/admin-users', { action: 'delete-user', id, confirmUsername }, true)
     },
+    loginAudit(filters: { status?: string; username?: string; limit?: number; offset?: number } = {}): Promise<{
+      audits: Array<{
+        id: string
+        userId: string
+        username: string
+        displayName: string
+        status: string
+        reason: string
+        ipAddress: string
+        userAgent: string
+        createdAt: number
+      }>
+      total: number
+      limit: number
+      offset: number
+    }> {
+      const params = new URLSearchParams()
+      if (filters.status) params.set('status', filters.status)
+      if (filters.username) params.set('username', filters.username)
+      params.set('limit', String(filters.limit || 50))
+      params.set('offset', String(filters.offset || 0))
+      return request('GET', `/admin-users/login-audit?${params.toString()}`, null, true)
+    },
   },
 }
 
