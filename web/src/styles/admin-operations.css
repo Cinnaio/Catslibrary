@@ -217,6 +217,15 @@ body:has(.admin-sidebar[data-slot="sheet-content"]) [data-slot="sheet-overlay"] 
   flex: 0 0 auto;
 }
 
+/* AI service workflow order: configuration, tasks, writing, results, metrics, audit, tuning. */
+.ai-service-tabs__list [data-slot="tabs-trigger"]:nth-child(1) { order: 2; }
+.ai-service-tabs__list [data-slot="tabs-trigger"]:nth-child(2) { order: 1; }
+.ai-service-tabs__list [data-slot="tabs-trigger"]:nth-child(3) { order: 4; }
+.ai-service-tabs__list [data-slot="tabs-trigger"]:nth-child(4) { order: 5; }
+.ai-service-tabs__list [data-slot="tabs-trigger"]:nth-child(5) { order: 6; }
+.ai-service-tabs__list [data-slot="tabs-trigger"]:nth-child(6) { order: 7; }
+.ai-service-tabs__list [data-slot="tabs-trigger"]:nth-child(7) { order: 3; }
+
 @keyframes admin-enter { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
 
 .admin-shell__status {
