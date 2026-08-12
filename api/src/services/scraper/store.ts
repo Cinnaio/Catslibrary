@@ -107,7 +107,9 @@ export interface ScrapeStore {
   findSourceByHost(host: string, includeDisabled?: boolean): Promise<Record<string, unknown> | null>
   importSources(rows: Array<Record<string, unknown>>): Promise<{ imported: number; updated: number }>
   listSources(): Promise<Record<string, unknown>[]>
-  sourceCounts(): Promise<{ total: number; enabledCount: number; bySupport: Record<string, number> }>
+  listAllSources(): Promise<Record<string, unknown>[]>
+  sourceCounts(): Promise<{ total: number; enabledCount: number; unreachableCount: number; bySupport: Record<string, number> }>
+  updateSourceConnectivity(host: string, connectivity: 'reachable' | 'unreachable' | 'unknown', error?: string): Promise<void>
   toggleSource(host: string, enabled: boolean): Promise<void>
   deleteSource(host: string): Promise<number>
   batchToggleSources(hosts: string[], enabled: boolean): Promise<number>
@@ -496,13 +498,22 @@ export class PgScrapeStore implements ScrapeStore {
     )
   }
 
-  async sourceCounts(): Promise<{ total: number; enabledCount: number; bySupport: Record<string, number> }> {
+  async listAllSources(): Promise<Record<string, unknown>[]> {
+    return all<Record<string, unknown>>(this.db, 'SELECT * FROM scrape_sources ORDER BY updated_at DESC')
+  }
+
+  async sourceCounts(): Promise<{ total: number; enabledCount: number; unreachableCount: number; bySupport: Record<string, number> }> {
     const totalRow = await first<{ c: number }>(this.db, 'SELECT COUNT(*)::int AS c FROM scrape_sources')
     const enabledRow = await first<{ c: number }>(this.db, 'SELECT COUNT(*)::int AS c FROM scrape_sources WHERE enabled = 1')
+    const unreachableRow = await first<{ c: number }>(this.db, "SELECT COUNT(*)::int AS c FROM scrape_sources WHERE connectivity = 'unreachable'")
     const bySupport: Record<string, number> = { full: 0, partial: 0, unsupported: 0 }
     const rows = await all<{ support: string; c: number }>(this.db, 'SELECT support, COUNT(*)::int AS c FROM scrape_sources GROUP BY support')
     for (const r of rows) bySupport[r.support] = Number(r.c || 0)
-    return { total: totalRow?.c || 0, enabledCount: enabledRow?.c || 0, bySupport }
+    return { total: totalRow?.c || 0, enabledCount: enabledRow?.c || 0, unreachableCount: unreachableRow?.c || 0, bySupport }
+  }
+
+  async updateSourceConnectivity(host: string, connectivity: 'reachable' | 'unreachable' | 'unknown', error = ''): Promise<void> {
+    await this.db.query('UPDATE scrape_sources SET connectivity = $1, connectivity_checked_at = $2, connectivity_error = $3, updated_at = $2 WHERE host = $4', [connectivity, Date.now(), error.slice(0, 500), host])
   }
 
   async toggleSource(host: string, enabled: boolean): Promise<void> {

@@ -112,6 +112,9 @@ export interface SourceRow {
   support?: string
   confidence?: number | string
   enabled?: boolean
+  connectivity?: 'reachable' | 'unreachable' | 'unknown'
+  connectivityError?: string
+  connectivityCheckedAt?: number
   chapterList?: string
   chapterContent?: string
   warnings?: string[]

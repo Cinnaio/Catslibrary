@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { app } from '../app'
 import { setDbForTests } from '../db/pool'
 import { createTestDb, type TestDb } from '../test/db'
@@ -88,6 +88,19 @@ describe('scrape 路由（免网络动作）', () => {
     expect(src.chapterContent).toBe('#content')
     expect(src.enabled).toBe(true)
 
+    const firstPage = await req('/api/scrape', json('POST', { action: 'list-sources', page: 1, pageSize: 1 }, adminToken))
+    const firstPageData = await jsonOf<{ sources: Array<{ host: string }>; page: number; pageSize: number; matchedTotal: number; totalPages: number }>(firstPage)
+    expect(firstPageData.sources).toHaveLength(1)
+    expect(firstPageData.page).toBe(1)
+    expect(firstPageData.pageSize).toBe(1)
+    expect(firstPageData.matchedTotal).toBe(2)
+    expect(firstPageData.totalPages).toBe(2)
+
+    const lastPage = await req('/api/scrape', json('POST', { action: 'list-sources', page: 99, pageSize: 1 }, adminToken))
+    const lastPageData = await jsonOf<{ sources: Array<{ host: string }>; page: number }>(lastPage)
+    expect(lastPageData.page).toBe(2)
+    expect(lastPageData.sources).toHaveLength(1)
+
     const search = await req('/api/scrape', json('POST', { action: 'list-sources', host: '另一个站点' }, adminToken))
     const searchData = await jsonOf<{ sources: Array<{ host: string }> }>(search)
     expect(searchData.sources.map((source) => source.host)).toEqual(['another.example.com'])
@@ -101,12 +114,28 @@ describe('scrape 路由（免网络动作）', () => {
     const disabledData = await jsonOf<{ sources: Array<{ host: string }> }>(disabled)
     expect(disabledData.sources).toHaveLength(2)
 
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      if (String(input).includes('another.example.com')) throw new Error('站点不可访问')
+      return new Response('<html><body>ok</body></html>', { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } })
+    })
+    const connectivity = await req('/api/scrape', json('POST', { action: 'check-source-connectivity' }, adminToken))
+    const connectivityData = await jsonOf<{ reachable: number; unreachable: number }>(connectivity)
+    expect(connectivity.status).toBe(200)
+    expect(connectivityData.reachable).toBe(1)
+    expect(connectivityData.unreachable).toBe(1)
+    const unreachable = await req('/api/scrape', json('POST', { action: 'list-sources', connectivity: 'unreachable' }, adminToken))
+    const unreachableData = await jsonOf<{ sources: Array<{ host: string }> }>(unreachable)
+    expect(unreachableData.sources.map((source) => source.host)).toEqual(['another.example.com'])
+    const cleanup = await req('/api/scrape', json('POST', { action: 'delete-unreachable-sources' }, adminToken))
+    expect((await jsonOf<{ deleted: number }>(cleanup)).deleted).toBe(1)
+    fetchMock.mockRestore()
+
     const toggle = await req('/api/scrape', json('POST', { action: 'toggle-source', host: 'legado.example.com', enabled: false }, adminToken))
     expect(toggle.status).toBe(200)
     const del = await req('/api/scrape', json('POST', { action: 'batch-delete-sources', hosts: ['legado.example.com', 'another.example.com'] }, adminToken))
     const delData = await jsonOf<{ deleted: number }>(del)
     expect(del.status).toBe(200)
-    expect(delData.deleted).toBe(2)
+    expect(delData.deleted).toBe(1)
     const after = await req('/api/scrape', json('POST', { action: 'list-sources' }, adminToken))
     const afterData = await jsonOf<{ total: number }>(after)
     expect(afterData.total).toBe(0)

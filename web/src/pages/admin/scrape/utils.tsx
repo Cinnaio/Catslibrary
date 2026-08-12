@@ -5,6 +5,7 @@ import React from 'react'
 import { authHeaders, url } from '../../../lib/api'
 import { formatDateTime } from '../../../lib/format'
 import { Badge } from '@/components/ui/badge'
+import type { SourceRow } from './types'
 
 // ---------- helpers ----------
 
@@ -80,6 +81,12 @@ export function supportBadge(support: string | undefined) {
         ? 'bg-warning/10 text-warning'
         : 'bg-secondary text-muted-foreground'
   return <Badge className={cls}>{label}</Badge>
+}
+
+export function connectivityBadge(connectivity: SourceRow['connectivity']) {
+  if (connectivity === 'reachable') return <Badge className="bg-success/10 text-success">可连接</Badge>
+  if (connectivity === 'unreachable') return <Badge className="bg-destructive/10 text-destructive">不可访问</Badge>
+  return <Badge variant="secondary">未检测</Badge>
 }
 
 export function coverOnError(e: React.SyntheticEvent<HTMLImageElement>) {

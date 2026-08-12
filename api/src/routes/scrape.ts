@@ -288,6 +288,35 @@ scrapeRoutes.post('/', async (c) => {
       if (!normalizedHosts.length) return c.json({ error: 'hosts 不能为空' }, 400)
       return c.json({ success: true, hosts: normalizedHosts, deleted: await deps.store.batchDeleteSources(normalizedHosts) })
     }
+    case 'check-source-connectivity': {
+      const requestedHosts = Array.isArray(body.hosts) ? Array.from(new Set(body.hosts.map((host: unknown) => String(host || '').trim()).filter(Boolean))) : []
+      const rows = requestedHosts.length ? (await deps.store.listAllSources()).filter((row) => requestedHosts.includes(String(row.host || ''))) : await deps.store.listAllSources()
+      if (body.preview === true) return c.json({ success: true, hosts: rows.map((row) => String(row.host || '')).filter(Boolean) })
+      const results: Array<{ host: string; connectivity: 'reachable' | 'unreachable'; error?: string }> = []
+      let cursor = 0
+      const worker = async () => {
+        while (cursor < rows.length) {
+          const row = rows[cursor++]!
+          const host = String(row.host || '')
+          try {
+            if (!row.source_url) throw new Error('缺少站点 URL')
+            await deps.fetchHtml(String(row.source_url), { timeoutMs: 8000 })
+            await deps.store.updateSourceConnectivity(host, 'reachable')
+            results.push({ host, connectivity: 'reachable' })
+          } catch (err) {
+            const error = (err as Error).message || '连接失败'
+            await deps.store.updateSourceConnectivity(host, 'unreachable', error)
+            results.push({ host, connectivity: 'unreachable', error })
+          }
+        }
+      }
+      await Promise.all(Array.from({ length: Math.min(12, Math.max(1, rows.length)) }, () => worker()))
+      return c.json({ success: true, checked: results.length, reachable: results.filter((result) => result.connectivity === 'reachable').length, unreachable: results.filter((result) => result.connectivity === 'unreachable').length, results })
+    }
+    case 'delete-unreachable-sources': {
+      const deleted = await deps.store.batchDeleteSources((await deps.store.listAllSources()).filter((row) => row.connectivity === 'unreachable').map((row) => String(row.host || '')))
+      return c.json({ success: true, deleted })
+    }
     case 'test-source': {
       const { host } = body
       if (!host) return c.json({ error: 'host 必填' }, 400)
@@ -480,15 +509,22 @@ async function handleImportLegado(c: Context, body: any) {
 async function handleListSources(c: Context, body: any) {
   const db = getDb()
   const store = new PgScrapeStore(db)
-  const { enabled, support, host, detail } = body || {}
+  const { enabled, support, host, connectivity, detail } = body || {}
+  const pageSize = Math.min(100, Math.max(1, Number(body?.pageSize) || 50))
+  const requestedPage = Math.max(1, Number(body?.page) || 1)
   let rows = await store.listSources()
   if (enabled !== undefined && enabled !== '') rows = rows.filter((r) => r.enabled === (enabled ? 1 : 0))
   if (support) rows = rows.filter((r) => r.support === support)
+  if (connectivity) rows = rows.filter((r) => String(r.connectivity || 'unknown') === connectivity)
   if (host) {
     const query = String(host).toLowerCase()
     rows = rows.filter((r) => String(r.host).toLowerCase().includes(query) || String(r.name).toLowerCase().includes(query))
   }
-  const sources = rows.map((row) => {
+  const matchedTotal = rows.length
+  const totalPages = Math.max(1, Math.ceil(matchedTotal / pageSize))
+  const page = Math.min(requestedPage, totalPages)
+  const pageRows = rows.slice((page - 1) * pageSize, page * pageSize)
+  const sources = pageRows.map((row) => {
     let selectors: Record<string, string> = {}
     let warnings: string[] = []
     try {
@@ -510,6 +546,9 @@ async function handleListSources(c: Context, body: any) {
       confidence: row.confidence,
       warnings,
       enabled: row.enabled === 1,
+      connectivity: row.connectivity || 'unknown',
+      connectivityError: row.connectivity_error || '',
+      connectivityCheckedAt: row.connectivity_checked_at || 0,
       chapterList: selectors.chapterList || '',
       chapterContent: selectors.chapterContent || '',
       lastTestedAt: row.last_tested_at || 0,
@@ -519,5 +558,5 @@ async function handleListSources(c: Context, body: any) {
     return item
   })
   const counts = await store.sourceCounts()
-  return c.json({ ...counts, sources })
+  return c.json({ ...counts, sources, matchedTotal, page, pageSize, totalPages })
 }
