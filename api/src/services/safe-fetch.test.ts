@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { lookup } from 'node:dns/promises'
 import { assertPublicUrl, isPrivateIp, safeFetch, UnsafeUrlError } from './safe-fetch'
+
+// 仅域名解析路径需要受控 DNS；其余用例（IP 字面量 / localhost / 协议错误）不会触达 lookup
+vi.mock('node:dns/promises', () => ({ lookup: vi.fn() }))
 
 describe('isPrivateIp', () => {
   it('识别环回/私网/链路本地/保留 IPv4 地址段', () => {
@@ -58,6 +62,23 @@ describe('assertPublicUrl', () => {
     process.env.ALLOW_PRIVATE_FETCH = '1'
     const url = await assertPublicUrl('http://127.0.0.1:9999/mirror')
     expect(url.hostname).toBe('127.0.0.1')
+  })
+
+  it('域名解析到 fake-ip 池（198.18/15）时附加代理接管 DNS 的提示', async () => {
+    vi.mocked(lookup).mockResolvedValueOnce([{ address: '198.18.0.192', family: 4 }] as never)
+    const err = await assertPublicUrl('https://wap.example-site.vip/list').catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(UnsafeUrlError)
+    expect((err as Error).message).toContain('198.18.0.192')
+    expect((err as Error).message).toContain('fake-ip')
+    expect((err as Error).message).toContain('ALLOW_PRIVATE_FETCH')
+  })
+
+  it('域名解析到普通内网地址时保持原文案，不提 fake-ip', async () => {
+    vi.mocked(lookup).mockResolvedValueOnce([{ address: '10.0.0.5', family: 4 }] as never)
+    const err = await assertPublicUrl('https://wap.example-site.vip/list').catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(UnsafeUrlError)
+    expect((err as Error).message).toContain('10.0.0.5')
+    expect((err as Error).message).not.toContain('fake-ip')
   })
 })
 

@@ -58,6 +58,11 @@ export function isPrivateIp(ip: string): boolean {
   return true
 }
 
+/** Clash / Mihomo 等代理 fake-ip 模式的默认地址池（198.18.0.0/15）。 */
+function isFakeIpPool(address: string): boolean {
+  return /^(?:::ffff:)?198\.(?:18|19)\./i.test(String(address || '').trim())
+}
+
 /** 校验 URL 可安全出站：协议合法且主机不解析到内网/保留地址。通过则返回解析后的 URL。 */
 export async function assertPublicUrl(rawUrl: string): Promise<URL> {
   let url: URL
@@ -90,7 +95,11 @@ export async function assertPublicUrl(rawUrl: string): Promise<URL> {
   if (!records.length) throw new UnsafeUrlError(`无法解析主机名: ${hostname}`)
   for (const record of records) {
     if (isPrivateIp(record.address)) {
-      throw new UnsafeUrlError(`目标解析到内网/保留地址，已阻止: ${hostname} → ${record.address}`)
+      // 域名解析到 fake-ip 池几乎必是本机代理接管了 DNS（而非目标站真在内网），给出可操作的提示
+      const hint = isFakeIpPool(record.address)
+        ? '。该网段是 Clash 类代理 fake-ip 模式的地址池：可在代理的 fake-ip-filter 放行该域名，或设 ALLOW_PRIVATE_FETCH=1 让抓取经代理转发'
+        : ''
+      throw new UnsafeUrlError(`目标解析到内网/保留地址，已阻止: ${hostname} → ${record.address}${hint}`)
     }
   }
   return url
