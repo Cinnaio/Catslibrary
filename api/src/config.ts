@@ -16,6 +16,8 @@ export interface AppConfig {
   configured: boolean
   corsOrigins: string[]
   sessionHashSalt: string
+  /** 是否信任反向代理的转发头（CF-Connecting-IP / X-Forwarded-For / X-Real-IP）。 */
+  trustProxy: boolean
   proxyBase: string
   proxyDomains: string
   aiText: AiProviderConfig
@@ -50,6 +52,7 @@ export function loadConfig(): AppConfig {
     configured: Boolean(databaseUrl),
     corsOrigins,
     sessionHashSalt: process.env.SESSION_HASH_SALT?.trim() || 'zhi-zhou',
+    trustProxy: /^(1|true|yes)$/i.test(process.env.TRUST_PROXY?.trim() || ''),
     proxyBase: process.env.PROXY_BASE?.trim() || '',
     proxyDomains: process.env.PROXY_DOMAINS?.trim() || process.env.PROXY_ALLOW_HOSTS?.trim() || '',
     aiText: {

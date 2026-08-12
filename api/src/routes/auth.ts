@@ -2,7 +2,6 @@
  * /api/auth/* —— 用户账户（由 Novel-KV server/functions/api/auth.js 平移）。
  */
 import { Hono, type Context } from 'hono'
-import { getConnInfo } from '@hono/node-server/conninfo'
 import { loadConfig } from '../config'
 import { getDb } from '../db/pool'
 import { first, run } from '../db/query'
@@ -23,7 +22,7 @@ import {
 } from '../services/auth'
 import { createSession, deleteSessionByToken, getUserByToken } from '../services/sessions'
 import { cleanReaderSettings, cleanUpdatedAt, mergeReaderSettings, parseSettingsState } from '../services/reader-settings'
-import { resolveClientIp } from '../services/ai/audit-context'
+import { clientIpFromContext } from '../services/ai/audit-context'
 
 const PUBLIC_USER_COLUMNS = 'id, username, display_name, bio, role, status, created_at, updated_at, last_login_at'
 const LOGIN_USER_COLUMNS = PUBLIC_USER_COLUMNS + ', password_hash, password_salt, password_iterations'
@@ -97,8 +96,13 @@ authRoutes.post('/login', async (c) => {
   const password = String(body.password || '')
   const salt = loadConfig().sessionHashSalt
   const failKey = await hashToken('login:' + (username || 'unknown'), salt)
+  // IP 维度：防止轮换用户名绕过按用户名的限流。IP 不可得时（测试等）跳过。
+  const clientIp = clientIpFromContext(c)
+  const ipKey = clientIp ? await hashToken('login-ip:' + clientIp, salt) : ''
 
-  const limited = await checkLoginLimit(db, failKey)
+  const limited =
+    (await checkLoginLimit(db, failKey, LOGIN_LIMIT_PER_USERNAME)) ||
+    (ipKey ? await checkLoginLimit(db, ipKey, LOGIN_LIMIT_PER_IP) : null)
   if (limited) {
     await recordLoginAudit(db, c, { username, status: 'limited', reason: 'rate_limited' })
     return c.json({ error: limited }, 429)
@@ -107,9 +111,12 @@ authRoutes.post('/login', async (c) => {
   const user = await first<UserRow>(db, `SELECT ${LOGIN_USER_COLUMNS} FROM users WHERE username = $1 AND status = 'active'`, [username])
   if (!user || !(await verifyPassword(password, user))) {
     await recordLoginFailure(db, failKey)
+    if (ipKey) await recordLoginFailure(db, ipKey)
     await recordLoginAudit(db, c, { username, status: 'failure', reason: 'invalid_credentials' })
     return c.json({ error: '用户名或密码错误' }, 401)
   }
+  // 只清除用户名维度：成功登录不应重置 IP 维度的计数，
+  // 否则攻击者可用自己的账号周期性登录来解除 IP 封锁
   await clearLoginFailures(db, failKey)
   const now = Date.now()
   await run(db, 'UPDATE users SET last_login_at = $1, updated_at = $1 WHERE id = $2', [now, user.id])
@@ -310,14 +317,18 @@ async function setting(key: string, fallback: string): Promise<string> {
   return row ? row.value : fallback
 }
 
-async function checkLoginLimit(db: ReturnType<typeof getDb>, keyHash: string): Promise<string | null> {
+const LOGIN_LIMIT_PER_USERNAME = 10
+// 高于用户名维度：共享出口 IP（公司/校园 NAT）下多个真实用户可能同时登录
+const LOGIN_LIMIT_PER_IP = 30
+
+async function checkLoginLimit(db: ReturnType<typeof getDb>, keyHash: string, max: number): Promise<string | null> {
   const since = Date.now() - 15 * 60000
   const row = await first<{ total: number }>(
     db,
     'SELECT COUNT(*)::int AS total FROM login_failures WHERE key_hash = $1 AND created_at > $2',
     [keyHash, since],
   )
-  if ((row?.total || 0) >= 10) return '登录失败次数过多，请稍后再试'
+  if ((row?.total || 0) >= max) return '登录失败次数过多，请稍后再试'
   return null
 }
 
@@ -334,20 +345,7 @@ async function recordLoginAudit(
   c: Context<AuthEnv>,
   input: { userId?: string; username: string; status: 'success' | 'failure' | 'limited'; reason: string },
 ): Promise<void> {
-  let remoteAddress = ''
-  try {
-    remoteAddress = getConnInfo(c).remote.address || ''
-  } catch {
-    // app.request() and non-Node adapters do not expose a socket.
-  }
-  const ipAddress = resolveClientIp(
-    {
-      'cf-connecting-ip': c.req.header('CF-Connecting-IP'),
-      'x-forwarded-for': c.req.header('X-Forwarded-For'),
-      'x-real-ip': c.req.header('X-Real-IP'),
-    },
-    remoteAddress,
-  )
+  const ipAddress = clientIpFromContext(c)
   await run(
     db,
     `INSERT INTO login_audit (id, user_id, username, status, reason, ip_address, user_agent, created_at)

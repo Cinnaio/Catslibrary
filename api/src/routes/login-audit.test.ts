@@ -11,6 +11,8 @@ beforeAll(async () => {
   await t.applyMigrations()
   setDbForTests(t.db)
   process.env.DATABASE_URL = 'postgres://test/test'
+  // 本测试模拟反代部署：X-Forwarded-For 需要被信任才会记入审计
+  process.env.TRUST_PROXY = '1'
 
   const response = await app.request('/api/auth/bootstrap-admin', {
     method: 'POST',
@@ -24,6 +26,7 @@ beforeAll(async () => {
 afterAll(async () => {
   setDbForTests(null)
   delete process.env.DATABASE_URL
+  delete process.env.TRUST_PROXY
   await t.close()
 })
 

@@ -149,6 +149,26 @@ describe('auth 端到端（pglite）', () => {
     expect(lastStatus).toBe(429)
   })
 
+  it('轮换用户名无法绕过 IP 维度限流', async () => {
+    process.env.TRUST_PROXY = '1'
+    try {
+      const withIp = (body: unknown): RequestInit => ({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': '203.0.113.77' },
+        body: JSON.stringify(body),
+      })
+      let lastStatus = 0
+      // 每次换用户名：用户名维度（10 次）永不触发，只能靠 IP 维度（30 次）拦截
+      for (let i = 0; i < 31; i++) {
+        const res = await req('/api/auth/login', withIp({ username: `ipuser${i}`, password: 'badpass' }))
+        lastStatus = res.status
+      }
+      expect(lastStatus).toBe(429)
+    } finally {
+      delete process.env.TRUST_PROXY
+    }
+  })
+
   it('sessions 列表与删除', async () => {
     const login = await req('/api/auth/login', json('POST', { username: 'reader1', password: 'newpass123' }))
     const { token } = await jsonOf<AuthResponse>(login)
