@@ -317,19 +317,19 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
       </div>
 
       <div className="overflow-hidden rounded-xl border border-border bg-card">
-        <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2" aria-live="polite">
+        <div className="chapter-toolbar" aria-live="polite">
           <Input
             type="text"
-            className="admin-input--compact admin-input--search"
+            className="chapter-toolbar__search admin-input--compact"
             data-admin-search
             placeholder="搜索章节标题…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-          <div className="ml-auto flex items-center gap-2">
+          <div className="chapter-toolbar__actions">
             {selectedIds.size > 0 ? (
               <>
-                <span className="text-sm text-muted-foreground tabular-nums">已选 {selectedIds.size} 章</span>
+                <span className="chapter-toolbar__count text-sm text-muted-foreground tabular-nums">已选 {selectedIds.size} 章</span>
                 <Button variant="secondary" size="sm" onClick={() => setSelectedIds((prev) => {
                   const pageIds = pageRows.map((c) => c.id)
                   const next = new Set(prev)

@@ -238,65 +238,80 @@ export default function DiscoverView() {
 
   return (
     <>
-      <div className="grid gap-4">
-        {/* 工具栏行 1 · 搜索 */}
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative min-w-64 flex-1">
-            <Search className="discover-toolbar__field-icon size-3.5" />
-            <Input
-              type="text"
-              className="pl-9"
-              data-admin-search
-              placeholder="搜索 PO18 书名/作者…"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') void fetchPo18Search()
-              }}
-            />
-          </div>
-          <Tabs value={searchType} onValueChange={setSearchType} aria-label="搜索类型">
-            <TabsList>
-              <TabsTrigger value="articlename">书名</TabsTrigger>
-              <TabsTrigger value="author">作者</TabsTrigger>
-            </TabsList>
-          </Tabs>
-          <Button variant="secondary" size="sm" onClick={() => void fetchPo18Search()}>
-            搜索 PO18
-          </Button>
-        </div>
-
-        {/* 工具栏行 2 · 榜单 */}
-        <div className="flex flex-wrap items-center gap-2">
-          <CustomSelect className="discover-site-select" options={PO18_SITES} value={siteValue} onChange={onSiteChange} placeholder="PO18 榜单" />
-          <div className="relative min-w-64 flex-1">
-            <Search className="discover-toolbar__field-icon size-3.5" />
-            <Input type="text" className="pl-9" placeholder="粘贴榜单页面 URL…" value={discoverUrl} onChange={(e) => setDiscoverUrl(e.target.value)} />
-          </div>
-          <Button size="sm" onClick={() => void fetchDiscoverList()}>
-            <RefreshCw className="size-3.5" />
-            获取榜单
-          </Button>
-        </div>
-
-        {/* 批量操作行 · 选中态出现 */}
-        {selected.size > 0 && (
-          <div className="flex flex-wrap items-center gap-2" aria-live="polite">
-            <span className="text-sm text-muted-foreground tabular-nums">已选 {selected.size} 本</span>
-            <div className="ml-auto flex items-center gap-2">
-              <Button variant="secondary" size="sm" onClick={toggleAll}>
-                反选
-              </Button>
-              <Button size="sm" onClick={() => void batchScrapeDiscovered()}>
-                <RefreshCw className="size-3.5" />
-                抓取选中
-              </Button>
+      <div className="discover-workspace">
+        <div className="discover-toolbar">
+          <section className="discover-toolbar__section discover-toolbar__section--search">
+            <div className="discover-toolbar__section-head">
+              <span>搜索书库</span>
+              <small>按书名或作者查找</small>
             </div>
-          </div>
-        )}
+            {/* PO18 搜索：输入框优先占据整行，类型与提交动作保持一组。 */}
+            <div className="discover-toolbar__search-row">
+            <div className="discover-toolbar__field discover-toolbar__search-field">
+              <Search className="discover-toolbar__field-icon size-3.5" />
+              <Input
+                type="text"
+                className="pl-9"
+                data-admin-search
+                placeholder="搜索 PO18 书名/作者…"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void fetchPo18Search()
+                }}
+              />
+            </div>
+            <Tabs className="discover-toolbar__search-type" value={searchType} onValueChange={setSearchType} aria-label="搜索类型">
+              <TabsList>
+                <TabsTrigger value="articlename">书名</TabsTrigger>
+                <TabsTrigger value="author">作者</TabsTrigger>
+              </TabsList>
+            </Tabs>
+            <Button className="discover-toolbar__search-submit" variant="secondary" size="sm" onClick={() => void fetchPo18Search()}>
+              搜索 PO18
+            </Button>
+            </div>
+          </section>
 
-        {/* 结果区卡 */}
-        <div className="admin-panel-card">
+          <section className="discover-toolbar__section discover-toolbar__section--list">
+            <div className="discover-toolbar__section-head">
+              <span>浏览榜单</span>
+              <small>从站点榜单批量发现小说</small>
+            </div>
+            {/* 榜单抓取：榜单类型、地址和动作维持同一控制行。 */}
+            <div className="discover-toolbar__list-row">
+            <CustomSelect className="discover-site-select" options={PO18_SITES} value={siteValue} onChange={onSiteChange} placeholder="PO18 榜单" />
+            <div className="discover-toolbar__field discover-toolbar__url-field">
+              <Search className="discover-toolbar__field-icon size-3.5" />
+              <Input type="text" className="pl-9" placeholder="粘贴榜单页面 URL…" value={discoverUrl} onChange={(e) => setDiscoverUrl(e.target.value)} />
+            </div>
+            <Button className="discover-toolbar__list-submit" size="sm" onClick={() => void fetchDiscoverList()}>
+              <RefreshCw className="size-3.5" />
+              获取榜单
+            </Button>
+            </div>
+          </section>
+
+          {/* 批量操作行 · 选中态出现 */}
+          {selected.size > 0 && (
+            <div className="discover-toolbar__batch" aria-live="polite">
+              <span className="text-sm text-muted-foreground tabular-nums">已选 {selected.size} 本</span>
+              <div className="discover-toolbar__batch-actions">
+                <Button variant="secondary" size="sm" onClick={toggleAll}>
+                  反选
+                </Button>
+                <Button size="sm" onClick={() => void batchScrapeDiscovered()}>
+                  <RefreshCw className="size-3.5" />
+                  抓取选中
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* 结果区卡：没有请求或结果时不占用移动端空间。 */}
+        {(loading || error || info || novels.length > 0) && (
+          <div className="admin-panel-card discover-results">
           {loading && (
             <div className="discover-loading">
               <div className="spinner"></div>
@@ -361,7 +376,8 @@ export default function DiscoverView() {
           {listUrlRef.current && totalPages > 1 && (
             <Pagination page={page} totalPages={totalPages} onPage={(p) => void goPage(p)} className="mt-5" />
           )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Detail modal */}

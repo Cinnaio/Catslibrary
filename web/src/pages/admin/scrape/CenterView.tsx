@@ -289,13 +289,6 @@ export default function CenterView() {
       <AdminTabHeader
         title="抓取中心"
         description="识别源站、检测章节、追踪任务，并在失败时恢复抓取。"
-        meta={
-          <div className="scrape-center-hero__meta">
-            <span>全量抓取</span>
-            <span>增量更新</span>
-            <span>失败重试</span>
-          </div>
-        }
       />
 
       <div className={`grid items-start gap-4 ${hasJobs ? 'lg:grid-cols-[minmax(0,1fr)_22rem]' : ''}`}>

@@ -28,7 +28,7 @@ export default function AdminTabHeader({
   return (
     <div
       className={cn(
-        'mb-6 flex flex-wrap items-end justify-between gap-4 border-b border-border pb-4',
+        'admin-tab-header mb-6 flex flex-wrap items-end justify-between gap-4 border-b border-border pb-4',
         className,
       )}
     >
@@ -36,14 +36,18 @@ export default function AdminTabHeader({
         <h2 className="flex flex-wrap items-center gap-x-2 gap-y-1 text-2xl font-bold tracking-tight text-foreground">
           {title}
           {meta != null && meta !== '' && (
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted px-2 py-0.5 text-xs font-medium tabular-nums text-muted-foreground">
+            <span className="admin-tab-header__meta">
               {meta}
             </span>
           )}
         </h2>
         {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
       </div>
-      {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+      {actions && (
+        <div className="admin-tab-header__actions flex min-w-0 max-w-full shrink-0 flex-wrap items-center justify-end gap-2">
+          {actions}
+        </div>
+      )}
     </div>
   )
 }

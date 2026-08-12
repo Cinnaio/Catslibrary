@@ -456,19 +456,22 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
 
   return (
     <AdminPage kicker="CONTENT CATALOG" title="小说管理" meta={countLabel} actions={
-          <>
-            <Label htmlFor="novel-search" className="sr-only">搜索小说</Label>
-            <Input
-              id="novel-search"
-              type="search"
-              data-admin-search
-              placeholder="搜索标题、作者或简介"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-            />
-            <Button size="sm" onClick={() => openModal(null)}>
-              添加小说
-            </Button>
+          <div className="novel-toolbar">
+            <div className="novel-toolbar__primary">
+              <Label htmlFor="novel-search" className="sr-only">搜索小说</Label>
+              <Input
+                id="novel-search"
+                className="novel-toolbar__search"
+                type="search"
+                data-admin-search
+                placeholder="搜索标题、作者或简介"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+              />
+              <Button size="sm" onClick={() => openModal(null)}>
+                添加小说
+              </Button>
+            </div>
             {selected.size > 0 && (
               <div className="novel-toolbar__batch" aria-live="polite">
                 <span className="novel-toolbar__batch-count">已选 {selected.size} 本</span>
@@ -485,7 +488,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
                 </div>
               </div>
             )}
-          </>
+          </div>
         }
       >
 

@@ -183,6 +183,22 @@ body:has(.admin-sidebar[data-slot="sheet-content"]) [data-slot="sheet-overlay"] 
   line-height: 1.4;
 }
 
+.admin-tab-header__meta {
+  display: inline-flex;
+  align-items: center;
+  align-self: center;
+  gap: 0.35rem;
+  margin-left: 0.35rem;
+  border-left: 1px solid var(--admin-border-strong);
+  padding-left: 0.65rem;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
 .detail-kicker {
   margin: 0 0 0.3rem;
   color: var(--text-muted);
@@ -202,19 +218,56 @@ body:has(.admin-sidebar[data-slot="sheet-content"]) [data-slot="sheet-overlay"] 
 
 .admin-panel-card { padding: var(--admin-space-5); }
 
-.novel-toolbar__batch, .batch-actions-group, .action-row, .input-row {
+.novel-toolbar, .novel-toolbar__primary, .novel-toolbar__batch, .batch-actions-group, .action-row, .input-row {
   display: flex;
   align-items: center;
   gap: var(--admin-space-2);
 }
 
-.novel-toolbar__batch {
-  justify-content: space-between;
-  border-top: 1px solid var(--admin-border);
-  padding-top: var(--admin-space-2);
+.novel-toolbar {
+  width: min(100%, 34rem);
+  min-width: 0;
+  flex-direction: column;
+  align-items: stretch;
 }
-.novel-toolbar__batch-count { color: var(--text-secondary); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.batch-actions-group { margin-left: auto; flex-wrap: wrap; justify-content: flex-end; }
+.novel-toolbar__primary {
+  min-width: 0;
+  justify-content: flex-end;
+}
+.novel-toolbar__search {
+  min-width: 0;
+  flex: 1 1 14rem;
+}
+
+/* 批量操作是独立的第二行，避免和搜索/添加按钮争抢同一排空间。 */
+.novel-toolbar__batch {
+  width: 100%;
+  box-sizing: border-box;
+  justify-content: space-between;
+  border: 0;
+  border-top: 1px solid var(--admin-border);
+  border-radius: 0;
+  background: transparent;
+  padding: var(--admin-space-2) 0 0;
+}
+.novel-toolbar__batch-count {
+  flex: 0 0 auto;
+  padding: 0;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.batch-actions-group {
+  min-width: 0;
+  margin-left: auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.batch-actions-group > button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
 
 .table-empty { padding: 3.5rem 1rem !important; color: var(--text-muted); text-align: center; }
 
@@ -328,6 +381,33 @@ body:has(.admin-sidebar[data-slot="sheet-content"]) [data-slot="sheet-overlay"] 
   font-size: 0.8rem;
 }
 
+/* 内容审核 · 筛选、查询与操作保持一条清晰的控制带。 */
+.moderation-toolbar {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--admin-space-3);
+  padding: var(--admin-space-2) var(--admin-space-3);
+  border-bottom: 1px solid var(--admin-border);
+}
+.moderation-toolbar__filters,
+.moderation-toolbar__query {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--admin-space-2);
+}
+.moderation-toolbar__filters { flex: 0 1 auto; }
+.moderation-toolbar__query { flex: 1 1 28rem; justify-content: flex-end; }
+.moderation-toolbar__modes { flex: 0 0 auto; }
+.moderation-toolbar__modes [data-slot="tabs-list"] { height: var(--admin-control-height); }
+.moderation-toolbar__status,
+.moderation-toolbar__reason { flex: 0 0 9rem; }
+.moderation-toolbar__user { flex: 0 1 8rem; width: 8rem; }
+.moderation-toolbar__search { flex: 1 1 15rem; width: min(100%, 22rem); }
+.moderation-toolbar__refresh { flex: 0 0 auto; }
+
 /* 章节管理 · 选择小说：标签与下拉框之间留出呼吸间距 */
 .chapter-novel-row {
   display: flex;
@@ -340,6 +420,37 @@ body:has(.admin-sidebar[data-slot="sheet-content"]) [data-slot="sheet-overlay"] 
   color: var(--text-secondary);
   font-size: 0.8rem;
   font-weight: 650;
+}
+
+/* 章节工具栏保持单层横向节奏：搜索框吃掉剩余空间，操作按钮不另起一行。 */
+.chapter-toolbar {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--admin-space-2);
+  padding: var(--admin-space-2) var(--admin-space-3);
+  border-bottom: 1px solid var(--admin-border);
+}
+.chapter-toolbar__search {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.chapter-toolbar__actions {
+  display: flex;
+  min-width: 0;
+  flex: 0 1 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--admin-space-2);
+}
+.chapter-toolbar__actions > button {
+  min-width: 0;
+  flex: 0 1 auto;
+  white-space: nowrap;
+}
+.chapter-toolbar__count {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 [data-slot="dialog-content"].admin-dialog {
@@ -564,8 +675,82 @@ body:has(.admin-sidebar[data-slot="sheet-content"]) [data-slot="sheet-overlay"] 
    工具栏/批量条/分页已并入房屋标准卡（overflow-hidden rounded-xl border），
    本块只管网格卡片、加载/错误/信息区与输入框内图标。
    ———————————————————————————————————————————————— */
-.discover-site-select { flex: none; width: 160px; }
-.discover-toolbar__field { position: relative; flex: 1; min-width: 160px; }
+.discover-workspace { display: grid; gap: 24px; min-width: 0; }
+.discover-toolbar {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0;
+  overflow: hidden;
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
+  border-radius: 22px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.52), rgba(255, 255, 255, 0) 48%),
+    color-mix(in srgb, var(--bg-card) 88%, var(--accent-subtle));
+  box-shadow: 0 10px 26px rgba(40, 32, 24, 0.07);
+}
+[data-theme="dark"] .discover-toolbar {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0) 48%),
+    color-mix(in srgb, var(--bg-card) 88%, var(--accent-subtle));
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.24);
+}
+.discover-toolbar__section {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 18px;
+}
+.discover-toolbar__section + .discover-toolbar__section {
+  border-left: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
+}
+.discover-toolbar__section-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.discover-toolbar__section-head span {
+  color: var(--text-primary);
+  font-family: var(--font-serif);
+  font-size: 1rem;
+  font-weight: 850;
+  letter-spacing: -0.02em;
+}
+.discover-toolbar__section-head small {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.discover-toolbar__search-row,
+.discover-toolbar__list-row,
+.discover-toolbar__batch {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+.discover-toolbar__search-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; }
+.discover-toolbar__list-row { display: grid; grid-template-columns: 9rem minmax(0, 1fr) auto; }
+.discover-toolbar__field { position: relative; min-width: 0; }
+.discover-toolbar__search-field,
+.discover-toolbar__url-field { width: 100%; }
+.discover-toolbar__search-type,
+.discover-toolbar__search-submit,
+.discover-toolbar__list-submit { min-width: 0; }
+.discover-toolbar__search-type [data-slot="tabs-list"] { height: var(--admin-control-height); }
+.discover-toolbar__search-type [data-slot="tabs-trigger"] { padding-inline: 0.7rem; }
+.discover-toolbar__batch {
+  grid-column: 1 / -1;
+  justify-content: space-between;
+  padding: 12px 18px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
+  color: var(--text-muted);
+}
+.discover-toolbar__batch-actions { display: flex; align-items: center; gap: 8px; }
+.discover-site-select { width: 9rem; min-width: 0; }
 .discover-toolbar__field-icon { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--text-muted); opacity: 0.5; pointer-events: none; }
 
 .discover-loading { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 48px 20px; color: var(--text-muted); font-size: 0.85rem; }
@@ -919,11 +1104,108 @@ body:has(.admin-sidebar[data-slot="sheet-content"]) [data-slot="sheet-overlay"] 
 
 @media (max-width: 640px) {
   .admin-layout__content { padding: 1rem; }
+  .moderation-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 0.625rem;
+    padding: 0.75rem;
+  }
+  .moderation-toolbar__filters,
+  .moderation-toolbar__query {
+    width: 100%;
+    flex: none;
+  }
+  .moderation-toolbar__filters {
+    justify-content: space-between;
+  }
+  .moderation-toolbar__query {
+    display: grid;
+    grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.28fr) auto;
+    gap: 0.35rem;
+  }
+  .moderation-toolbar__modes {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+  .moderation-toolbar__modes [data-slot="tabs-list"] {
+    width: 100%;
+  }
+  .moderation-toolbar__modes [data-slot="tabs-trigger"] {
+    min-width: 0;
+    padding-inline: 0.55rem;
+  }
+  .moderation-toolbar__status,
+  .moderation-toolbar__reason {
+    flex-basis: 7.25rem;
+  }
+  .moderation-toolbar__user,
+  .moderation-toolbar__search {
+    width: auto;
+    min-width: 0;
+    flex: none;
+  }
+  .moderation-toolbar__refresh {
+    padding-inline: 0.7rem;
+  }
   .admin-shell__topbar { padding-inline: 0.75rem; }
   .admin-shell__status { display: none; }
-  .novel-toolbar__batch { align-items: stretch; flex-direction: column; }
-  .batch-actions-group { width: 100%; margin-left: 0; }
-  .batch-actions-group > button { min-height: 2.75rem; flex: 1 1 calc(50% - 0.25rem); }
+  .novel-toolbar {
+    width: 100%;
+    gap: 0.625rem;
+  }
+  .novel-toolbar__primary {
+    width: 100%;
+    align-items: stretch;
+    flex-direction: row;
+  }
+  .novel-toolbar__search {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+  .novel-toolbar__primary > [data-slot="button"] {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+  .novel-toolbar__batch {
+    align-items: center;
+    gap: 0.625rem;
+  }
+  .chapter-toolbar {
+    gap: 0.35rem;
+    padding: 0.5rem 0.75rem;
+  }
+  .chapter-toolbar__actions {
+    gap: 0.35rem;
+  }
+  .chapter-toolbar__actions > button {
+    padding-inline: 0.65rem;
+  }
+  .chapter-toolbar__count {
+    font-size: 0.75rem;
+  }
+  .novel-toolbar__batch-count {
+    align-self: center;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    padding: 0;
+    font-size: 0.75rem;
+  }
+  .batch-actions-group {
+    display: flex;
+    width: auto;
+    min-width: 0;
+    margin-left: auto;
+    flex: 1 1 auto;
+    gap: 0.35rem;
+  }
+  .batch-actions-group > button {
+    min-width: 0;
+    min-height: 2.375rem;
+    flex: 1 1 0;
+    padding: 0.4rem 0.35rem;
+    font-size: 0.8125rem;
+  }
   .admin-pagination, .home-pagination { justify-content: center; flex-wrap: wrap; }
   [data-slot="dialog-content"].admin-dialog { max-height: calc(100svh - 1rem); border-radius: var(--admin-radius-dialog); }
   .admin-dialog [data-slot="dialog-header"], .admin-dialog__body, .admin-dialog [data-slot="dialog-footer"] { padding-inline: 1rem; }
@@ -940,8 +1222,48 @@ body:has(.admin-sidebar[data-slot="sheet-content"]) [data-slot="sheet-overlay"] 
   .input-row .btn,
   .admin-action-row .btn { width: 100%; justify-content: center; }
 
-  .discover-site-select { flex: 0 1 auto; width: auto; min-width: 0; }
+  .discover-toolbar {
+    grid-template-columns: 1fr;
+    border-radius: 20px;
+  }
+  .discover-toolbar__section {
+    gap: 10px;
+    padding: 14px;
+  }
+  .discover-toolbar__section + .discover-toolbar__section {
+    border-top: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
+    border-left: 0;
+  }
+  .discover-toolbar__section-head {
+    gap: 8px;
+  }
+  .discover-toolbar__section-head span {
+    font-size: 0.95rem;
+  }
+  .discover-toolbar__section-head small {
+    font-size: 0.7rem;
+  }
+  .discover-toolbar__search-row,
+  .discover-toolbar__list-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px;
+  }
+  .discover-toolbar__search-field,
+  .discover-toolbar__url-field {
+    grid-column: 1 / -1;
+  }
+  .discover-toolbar__search-type { grid-column: 1; justify-self: start; }
+  .discover-toolbar__search-submit { grid-column: 2; justify-self: end; }
+  .discover-toolbar__list-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .discover-toolbar__list-row .discover-site-select { grid-column: 1; grid-row: 1; width: 100%; }
+  .discover-toolbar__url-field { grid-column: 1 / -1; grid-row: 2; }
+  .discover-toolbar__list-submit { grid-column: 2; grid-row: 1; }
+  .discover-toolbar__batch { gap: 0.5rem; padding: 10px 14px; }
+  .discover-toolbar__batch-actions { gap: 0.35rem; }
 
+  .discover-results {
+    margin-top: -2px;
+  }
   .discover-grid { grid-template-columns: 1fr; }
   .discover-card { gap: 12px; padding: 12px; }
   .discover-card__cover { width: 52px; height: 70px; font-size: 1.2rem; }
@@ -962,7 +1284,91 @@ body:has(.admin-sidebar[data-slot="sheet-content"]) [data-slot="sheet-overlay"] 
 }
 
 @media (max-width: 400px) {
-  .batch-actions-group > button { flex-basis: 100%; }
+  .discover-toolbar {
+    border-radius: 18px;
+  }
+  .discover-toolbar__section {
+    padding: 12px;
+  }
+  .discover-toolbar__section-head small {
+    display: none;
+  }
+  .discover-toolbar__search-submit,
+  .discover-toolbar__list-submit {
+    padding-inline: 0.55rem;
+  }
+  .discover-toolbar__search-type [data-slot="tabs-trigger"] {
+    padding-inline: 0.55rem;
+  }
+  .discover-toolbar__list-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .discover-toolbar__list-row .discover-site-select {
+    min-width: 0;
+  }
+  .discover-toolbar__batch-actions {
+    gap: 0.25rem;
+  }
+  .moderation-toolbar {
+    padding: 0.625rem;
+  }
+  .moderation-toolbar__filters {
+    gap: 0.35rem;
+  }
+  .moderation-toolbar__modes [data-slot="tabs-trigger"] {
+    padding-inline: 0.4rem;
+  }
+  .moderation-toolbar__status,
+  .moderation-toolbar__reason {
+    flex-basis: 6rem;
+  }
+  .moderation-toolbar__query {
+    grid-template-columns: minmax(0, 0.68fr) minmax(0, 1.32fr) auto;
+  }
+  .moderation-toolbar__refresh {
+    padding-inline: 0.55rem;
+  }
+  .chapter-toolbar {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+  .chapter-toolbar__search {
+    flex-basis: 100%;
+  }
+  .chapter-toolbar__actions {
+    width: 100%;
+    flex: 1 1 100%;
+  }
+  .chapter-toolbar__actions > button {
+    flex: 1 1 0;
+    padding-inline: 0.35rem;
+    font-size: 0.75rem;
+  }
+  .chapter-toolbar__count {
+    margin-right: auto;
+  }
+  .novel-toolbar__primary {
+    gap: 0.35rem;
+  }
+  .novel-toolbar__primary > [data-slot="button"] {
+    padding-inline: 0.65rem;
+  }
+  .novel-toolbar__batch {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+  .novel-toolbar__batch-count {
+    width: 100%;
+  }
+  .batch-actions-group {
+    width: 100%;
+    flex-basis: 100%;
+  }
+  .batch-actions-group > button {
+    min-height: 2.25rem;
+    padding-inline: 0.15rem;
+    font-size: 0.75rem;
+  }
   .source-panel__bar { padding: var(--admin-space-3); }
   .source-panel__stats { width: 100%; }
   .source-panel__cluster--actions { align-items: stretch; flex-wrap: wrap; }
