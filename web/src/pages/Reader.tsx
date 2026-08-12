@@ -384,14 +384,20 @@ export default function Reader() {
     })
   }, [])
 
-  // 正文由 dangerouslySetInnerHTML 渲染，React 每次重渲染都会重建其子节点，
-  // 导致 data-paragraph-index/hash 与 thought-highlight 全部丢失。
-  // 因此在每次渲染提交后重新索引并套用划线（幂等且廉价）。
+  // 正文 html 已 useMemo（字符串稳定），React 只在换章时重建 innerHTML 子节点。
+  // 这里保留"每次提交后检查"以兜底 DOM 意外重建，但同章、同想法集且
+  // 段落属性仍在时直接跳过，避免每次重渲染都全量遍历 <p> 做 setAttribute。
+  const indexStampRef = useRef('')
   useLayoutEffect(() => {
     const body = bodyRef.current
     if (!body || !chapter || loading) return
+    const stamp = chapter.id + '|' + chapterThoughts.map((t) => t.id).join(',')
+    const firstP = body.querySelector('p')
+    const domIntact = firstP === null || firstP.hasAttribute('data-paragraph-index')
+    if (indexStampRef.current === stamp && domIntact) return
     indexParagraphs()
     applyThoughtHighlights()
+    indexStampRef.current = stamp
   })
 
   useEffect(() => {
@@ -432,6 +438,10 @@ export default function Reader() {
     })
     return map
   }, [chapterThoughts])
+
+  // 章节正文消毒开销大（DOM 解析 + 重建 + 序列化），必须 memo：
+  // 否则每次重渲染（如滚动进度更新）都会对整章重新消毒
+  const html = useMemo(() => (chapter ? formatContent(chapter.content) : ''), [chapter])
 
   // ---------- 想法划线 ----------
   const applyThoughtHighlights = useCallback(() => {
@@ -662,12 +672,19 @@ export default function Reader() {
 
   // ---------- 滚动跟踪 ----------
   useEffect(() => {
+    let progressRaf: number | null = null
     const onScroll = () => {
       // 滚动后选区位置变化，划词气泡会错位，直接收起
       setPopoverPos(null)
       if (scrollTimer.current) clearTimeout(scrollTimer.current)
       scrollTimer.current = setTimeout(saveScrollPosition, 800)
-      updateChapterProgress()
+      // rAF 节流：进度 setState 每帧最多一次，避免高频滚动事件触发整树重渲染
+      if (progressRaf === null) {
+        progressRaf = requestAnimationFrame(() => {
+          progressRaf = null
+          updateChapterProgress()
+        })
+      }
     }
     window.addEventListener('scroll', onScroll, { passive: true })
 
@@ -679,14 +696,14 @@ export default function Reader() {
     const onVis = () => {
       if (document.visibilityState === 'hidden') persistNow()
     }
+    // 离页持久化只用 pagehide + visibilitychange：beforeunload 会禁用 bfcache
     document.addEventListener('visibilitychange', onVis)
     window.addEventListener('pagehide', persistNow)
-    window.addEventListener('beforeunload', persistNow)
     return () => {
       window.removeEventListener('scroll', onScroll)
       document.removeEventListener('visibilitychange', onVis)
       window.removeEventListener('pagehide', persistNow)
-      window.removeEventListener('beforeunload', persistNow)
+      if (progressRaf !== null) cancelAnimationFrame(progressRaf)
     }
   }, [saveScrollPosition, flushProgress])
 
@@ -1112,7 +1129,6 @@ export default function Reader() {
   }
 
   const nid = chapter.novelId || novelId
-  const html = formatContent(chapter.content)
 
   return (
     <div ref={readerAppRef} className={`reader-app${pageMode ? ' reader-page-mode' : ''}${readerClickPaging ? '' : ' reader-click-paging-off'}`} data-reader-theme={readerTheme}>
