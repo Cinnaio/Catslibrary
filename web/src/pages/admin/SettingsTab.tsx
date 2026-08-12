@@ -9,6 +9,7 @@ import { adminApi, authApi } from '../../lib/api'
 import { timeAgo } from '../../lib/format'
 import { copyText } from '../../lib/admin'
 import { useConfirm, useToast } from '../../components/feedback'
+import { useDebouncedValue } from '@/hooks/useDebounce'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -16,7 +17,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import AdminPage from '@/components/admin/AdminPage'
 
 interface AdminUser {
@@ -91,6 +92,8 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
   const [loginAuditTotal, setLoginAuditTotal] = useState(0)
   const [loginAuditStatus, setLoginAuditStatus] = useState('all')
   const [loginAuditUsername, setLoginAuditUsername] = useState('')
+  // 防抖：搜索输入停顿 400ms 后才发请求，避免每击键打一次接口
+  const debouncedLoginAuditUsername = useDebouncedValue(loginAuditUsername, 400)
   const [loginAuditOffset, setLoginAuditOffset] = useState(0)
   const [loginAuditLoading, setLoginAuditLoading] = useState(false)
   const [accountTab, setAccountTab] = useState('overview')
@@ -130,7 +133,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
     try {
       const result = await adminApi.users.loginAudit({
         status: loginAuditStatus === 'all' ? undefined : loginAuditStatus,
-        username: loginAuditUsername.trim() || undefined,
+        username: debouncedLoginAuditUsername.trim() || undefined,
         limit: 20,
         offset: loginAuditOffset,
       })
@@ -141,7 +144,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
     } finally {
       setLoginAuditLoading(false)
     }
-  }, [loginAuditOffset, loginAuditStatus, loginAuditUsername, toast])
+  }, [loginAuditOffset, loginAuditStatus, debouncedLoginAuditUsername, toast])
 
   useEffect(() => {
     void loadLoginAudit()

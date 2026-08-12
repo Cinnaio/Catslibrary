@@ -16,7 +16,7 @@ type Mode = 'login' | 'register'
 export default function Auth() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { user, login, register, refresh } = useSession()
+  const { user, login, refresh } = useSession()
 
   const [mode, setMode] = useState<Mode>(() => {
     const state = (location.state as { mode?: Mode } | null)?.mode

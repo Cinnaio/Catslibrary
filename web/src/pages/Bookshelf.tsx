@@ -22,17 +22,6 @@ interface Favorite {
   chapterTitle?: string
 }
 
-type BookmarkLike = {
-  id: string
-  novelId: string
-  novelTitle?: string
-  chapterId: string
-  chapterTitle?: string
-  chapterOrder?: number
-  note?: string
-  timestamp?: number
-}
-
 type ShelfThought = Thought & { novelTitle?: string; chapterTitle?: string }
 
 interface ServerRecent {
@@ -230,7 +219,6 @@ export default function Bookshelf() {
     )
   }
 
-  const shelf = getBookshelf()
   const recentItems = recent.slice(0, 8)
 
   return (

@@ -3,7 +3,7 @@
  * 零依赖：AbortSignal.timeout 超时、token 存储（localStorage/sessionStorage）、
  * 通用 request(method, path, body, useAuth)。
  */
-import type { ChapterFull, ChapterMeta, Comment, Novel, NovelListResponse, Rating, ReaderSettings, Thought, User } from '@shared/types'
+import type { ChapterFull, ChapterMeta, Comment, Novel, NovelListResponse, ReaderSettings, Thought, User } from '@shared/types'
 
 /** API base：Vite 注入 VITE_API_BASE（生产经 NOVEL_API_BASE define），默认同源 /api。 */
 function resolveBase(): string {
@@ -92,14 +92,6 @@ function timedFetch(input: RequestInfo | URL, opts: RequestInit = {}, timeoutMs 
     opts.signal = (AbortSignal as { timeout(ms: number): AbortSignal }).timeout(timeoutMs)
   }
   return fetch(input, opts)
-}
-
-interface RequestOptions {
-  method?: string
-  headers?: Record<string, string>
-  body?: unknown
-  keepalive?: boolean
-  signal?: AbortSignal
 }
 
 async function request<T = unknown>(method: string, path: string, body: unknown = null, useAuth = false, extraHeaders: Record<string, string> = {}, timeoutMs = API_TIMEOUT_MS): Promise<T> {

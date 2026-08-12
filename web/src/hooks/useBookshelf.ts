@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { Novel } from '@shared/types'
 import { bookshelfApi } from '../lib/api'
-import { addToBookshelf, getBookshelf, isInBookshelf, removeFromBookshelf } from '../lib/storage'
+import { addToBookshelf, isInBookshelf, removeFromBookshelf } from '../lib/storage'
 import { useSession } from '../context/SessionContext'
 
 export function useBookshelf(novelId: string | undefined) {

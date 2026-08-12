@@ -72,9 +72,10 @@ export function VirtualList<T>({ items, rowHeight, renderRow, scrollToIndex, cla
       }}
     >
       <div style={{ height: items.length * rowHeight, position: 'relative' }}>
+        {/* key 必须用全局绝对索引：切片内相对索引会让滚动时行错位复用 */}
         {items.slice(range[0], range[1]).map((item, i) => (
           <div
-            key={i}
+            key={range[0] + i}
             style={{
               position: 'absolute',
               top: (range[0] + i) * rowHeight,

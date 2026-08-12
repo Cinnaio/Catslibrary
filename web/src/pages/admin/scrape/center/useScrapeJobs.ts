@@ -106,9 +106,11 @@ export function useScrapeJobs() {
     }
   }, [track, applyStatus])
 
-  // 轮询运行中的任务，进入终端状态即摘除
+  // 轮询运行中的任务，进入终端状态即摘除；
+  // 页面隐藏时暂停（不浪费请求），恢复可见立即刷新一次（与 JobsTab 的策略一致）
   useEffect(() => {
-    const timer = setInterval(() => {
+    const poll = () => {
+      if (document.hidden) return
       Array.from(activePolls.current).forEach((jobId) => {
         scrapeApi
           .status(jobId)
@@ -120,8 +122,16 @@ export function useScrapeJobs() {
             /* 下个周期重试 */
           })
       })
-    }, POLL_INTERVAL)
-    return () => clearInterval(timer)
+    }
+    const timer = setInterval(poll, POLL_INTERVAL)
+    const onVisibilityChange = () => {
+      if (!document.hidden) poll()
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => {
+      clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
   }, [applyStatus])
 
   const cancel = useCallback(

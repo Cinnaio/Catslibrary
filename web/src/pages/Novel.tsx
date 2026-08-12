@@ -8,7 +8,7 @@ import type { ChapterMeta, Comment, Novel, ReadingHistoryEntry } from '@shared/t
 import { chaptersApi, commentsApi, novelsApi, progressApi, ratingsApi, url } from '../lib/api'
 import { getNovelBookmarks, getNovelHistory } from '../lib/storage'
 import { getDemoNovel } from '../lib/demo'
-import { formatDate, timeAgo } from '../lib/format'
+import { timeAgo } from '../lib/format'
 import { useSession } from '../context/SessionContext'
 import { useBookshelf } from '../hooks/useBookshelf'
 import { useToast, useConfirm } from '../components/feedback'
@@ -61,6 +61,14 @@ export default function Novel() {
   const [serverProgress, setServerProgress] = useState<ServerProgress | null>(null)
   const [descExpanded, setDescExpanded] = useState(false)
   const [descOverflows, setDescOverflows] = useState(false)
+  const [coverFailed, setCoverFailed] = useState(false)
+
+  // 竞态保护：快速切书时，旧书未完成的请求不得写入新书的状态
+  const activeIdRef = useRef(id)
+  useEffect(() => {
+    activeIdRef.current = id
+    setCoverFailed(false)
+  }, [id])
 
   const descRef = useRef<HTMLDivElement>(null)
   const { inShelf, toggle } = useBookshelf(id)
@@ -86,10 +94,12 @@ export default function Novel() {
   }, [novel, descExpanded])
 
   const load = useCallback(async () => {
+    const stale = () => activeIdRef.current !== id
     setLoading(true)
     setNotFound(false)
     try {
       const data = await novelsApi.get(id)
+      if (stale()) return
       const n = data.novel
       if (!n) throw new Error('Not found')
       setNovel(n)
@@ -97,6 +107,7 @@ export default function Novel() {
       if (user) {
         try {
           const p = (await progressApi.get(id)) as { progress?: ServerProgress | null }
+          if (stale()) return
           setServerProgress(p.progress || null)
         } catch {
           /* 本地历史兜底 */
@@ -105,14 +116,17 @@ export default function Novel() {
       // 章节
       try {
         const ch = await chaptersApi.list(id)
+        if (stale()) return
         setChapters(ch.chapters || [])
       } catch {
+        if (stale()) return
         setChapters([])
       }
       setLoading(false)
       // 社区
       void Promise.all([loadRating(id), loadComments(id, true, 'latest')])
     } catch {
+      if (stale()) return
       // 演示数据回退
       const demo = getDemoNovel(id)
       if (demo) {
@@ -136,8 +150,10 @@ export default function Novel() {
   const loadRating = useCallback(async (nid: string) => {
     try {
       const data = (await ratingsApi.get(nid)) as RatingSummary & { distribution?: Record<number, number> }
+      if (activeIdRef.current !== nid) return
       setRating({ average: data.average || 0, count: data.count || 0, distribution: data.distribution || {}, myRating: data.myRating })
     } catch {
+      if (activeIdRef.current !== nid) return
       setRating(null)
     }
   }, [])
@@ -164,10 +180,12 @@ export default function Novel() {
   const loadComments = useCallback(async (nid: string, reset: boolean, activeSort: string) => {
     try {
       const data = await commentsApi.list({ novelId: nid, sort: activeSort, limit: '20', offset: String(reset ? 0 : commentsOffset) })
+      if (activeIdRef.current !== nid) return
       setCommentsTotal(data.total || 0)
       setComments((prev) => (reset ? data.comments || [] : [...prev, ...(data.comments || [])]))
       setCommentsOffset((prev) => (reset ? (data.comments || []).length : prev + (data.comments || []).length))
     } catch {
+      if (activeIdRef.current !== nid) return
       setComments((prev) => (reset ? [] : prev))
     }
   }, [commentsOffset])
@@ -263,14 +281,11 @@ export default function Novel() {
         <div className="novel-hero">
           <div className="novel-hero__paper-mark" aria-hidden="true">档</div>
           <div className="novel-hero__cover">
-            <img
-              src={coverSrc}
-              alt={novel.title}
-              onError={(e) => {
-                e.currentTarget.style.display = 'none'
-                e.currentTarget.parentElement!.innerHTML = `<span class="novel-hero__cover-fallback">${(novel.title || '书')[0]}</span>`
-              }}
-            />
+            {coverFailed ? (
+              <span className="novel-hero__cover-fallback">{(novel.title || '书')[0]}</span>
+            ) : (
+              <img src={coverSrc} alt={novel.title} onError={() => setCoverFailed(true)} />
+            )}
           </div>
           <div className="novel-hero__info">
             <p className="detail-kicker">BOOK DOSSIER</p>
@@ -538,7 +553,6 @@ function CommentCard({ comment, onLike, onReport, onDelete, onReply }: CommentCa
   const [replyText, setReplyText] = useState('')
   const [reporting, setReporting] = useState(false)
   const { user } = useSession()
-  const { toast } = useToast()
 
   const name = comment.displayName || '读者'
   const avatar = comment.avatarUrl

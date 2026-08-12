@@ -224,11 +224,6 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
     setPage(1)
   }
 
-  function thClass(field: string): string {
-    const active = sortField === field
-    return ['th-sortable', active ? 'th-sortable--active' : '', active && sortOrder === 'asc' ? 'th-sortable--asc' : ''].filter(Boolean).join(' ')
-  }
-
   function sortAria(field: string): 'ascending' | 'descending' | 'none' {
     if (sortField !== field) return 'none'
     return sortOrder === 'asc' ? 'ascending' : 'descending'

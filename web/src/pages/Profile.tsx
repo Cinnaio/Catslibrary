@@ -3,10 +3,9 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import type { User } from '@shared/types'
 import { authApi, url } from '../lib/api'
 import { useSession } from '../context/SessionContext'
-import { useConfirm, useToast } from '../components/feedback'
+import { useConfirm } from '../components/feedback'
 import { formatDate, timeAgo } from '../lib/format'
 
 interface SessionItem {
@@ -25,7 +24,6 @@ export default function Profile() {
   const navigate = useNavigate()
   const { user, refresh, loading } = useSession()
   const { confirm } = useConfirm()
-  const { toast } = useToast()
 
   const [displayName, setDisplayName] = useState('')
   const [bio, setBio] = useState('')
