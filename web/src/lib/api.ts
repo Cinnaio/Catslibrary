@@ -34,6 +34,9 @@ export function url(path: string): string {
 
 const TOKEN_KEY = 'user_session_token'
 
+// 当前登录用户的去重缓存（见 authApi.meCached），token 变化时由 clearToken 失效
+let mePromise: Promise<{ user: User | null }> | null = null
+
 export function getToken(): string {
   try {
     return localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY) || ''
@@ -53,6 +56,9 @@ export function setToken(token: string, persist = false): void {
 }
 
 export function clearToken(): void {
+  // token 变化 ⇒ 身份缓存必须失效（setToken 内部先调本函数，登录/登出/换 token 全覆盖），
+  // 否则同一会话内换账号会从 meCached 拿到上一个用户的身份
+  mePromise = null
   try {
     localStorage.removeItem(TOKEN_KEY)
     sessionStorage.removeItem(TOKEN_KEY)
@@ -341,10 +347,6 @@ export const commentsApi = {
     return request('POST', `/comments/${encodeURIComponent(id)}/report`, data, true)
   },
 }
-
-// ---------- Auth ----------
-
-let mePromise: Promise<{ user: User | null }> | null = null
 
 // ---------- Setup（安装向导，免鉴权；仅安装窗口内可用） ----------
 
