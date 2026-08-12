@@ -10,7 +10,7 @@ import { AiError, chat, isTextAiConfigured, providerLabel, textProvider } from '
 import { getAiSettings, saveAiSettings } from '../services/ai/settings'
 import { generateRecap, getCachedRecap, loadChapterForRecap } from '../services/ai/summary'
 import { generateCatchup, getCachedCatchup, inspectCatchup } from '../services/ai/catchup'
-import { invalidateChapter } from '../services/ai/generations'
+import { invalidateChapter, listGenerationDetails, deleteGeneration } from '../services/ai/generations'
 import { checkQuota, recordUsage, startOfToday, summarizeUsage } from '../services/ai/usage'
 import { optionalUser, requireAdmin, requireUser, type AuthEnv } from '../middlewares/auth'
 
@@ -193,6 +193,8 @@ aiRoutes.post('/test', requireAdmin(), async (c) => {
       promptTokens: res.promptTokens,
       completionTokens: res.completionTokens,
       costMillicents: Math.round(res.cost * 100_000),
+      // 连通性测试单独打 tag，审计里与读者真实调用区分开
+      generationType: 'test',
     })
     return c.json({ ok: true, model: res.model, reply: res.text.slice(0, 100), elapsedMs: Date.now() - startedAt })
   } catch (err) {
@@ -364,6 +366,32 @@ aiRoutes.get('/audit/trend', requireAdmin(), async (c) => {
     200,
     { 'Cache-Control': 'no-store' },
   )
+})
+
+// ---------- 已生成内容管理 ----------
+
+/** 已生成内容列表：默认只看已发布（读者可见）的，支持按类型/状态筛选。 */
+aiRoutes.get('/generations', requireAdmin(), async (c) => {
+  const db = getDb()
+  const kind = c.req.query('kind') === 'summary' || c.req.query('kind') === 'catchup' ? c.req.query('kind') : undefined
+  const status = c.req.query('status') === 'published' || c.req.query('status') === 'draft' || c.req.query('status') === 'rejected'
+    ? c.req.query('status')
+    : 'published'
+  const limit = Math.min(Number.parseInt(c.req.query('limit') || '50', 10) || 50, 100)
+  const offset = Number.parseInt(c.req.query('offset') || '0', 10) || 0
+
+  const { items, total } = await listGenerationDetails(db, { kind, status, limit, offset })
+  return c.json({ items, total, limit, offset }, 200, { 'Cache-Control': 'no-store' })
+})
+
+/** 删除单条已生成内容：物理删除，读者再访问该章/该回顾时会重新生成（计配额）。 */
+aiRoutes.delete('/generations/:id', requireAdmin(), async (c) => {
+  const id = String(c.req.param('id') || '').trim()
+  if (!id) return c.json({ error: 'id is required' }, 400)
+
+  const removed = await deleteGeneration(getDb(), id)
+  if (!removed) return c.json({ error: '内容不存在或已删除' }, 404)
+  return c.json({ ok: true }, 200, { 'Cache-Control': 'no-store' })
 })
 
 /** AiError → HTTP：客户端只拿到 code 与可展示文案，上游细节留在服务端日志。 */

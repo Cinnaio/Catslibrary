@@ -7,6 +7,7 @@ import type { Db } from '../../db/pool'
 import { first } from '../../db/query'
 import { chat, isTextAiConfigured, providerLabel, textProvider, AiError } from './client'
 import { cacheKey, findPublished, saveGeneration, type Generation } from './generations'
+import { DEFAULT_AI_SETTINGS, getAiSettings } from './settings'
 import { recordUsage } from './usage'
 
 /** 提示词版本：改动下方 prompt 时 +1，历史缓存自动失效重算。 */
@@ -74,7 +75,7 @@ export interface RecapOptions {
  * 因此调用方应当先查缓存再决定是否校验配额（见 routes/ai.ts）。
  */
 export async function getCachedRecap(db: Db, chapterId: string, model: string): Promise<Generation | undefined> {
-  return findPublished(db, 'summary', chapterId, recapParams(model))
+  return findPublished(db, 'summary', chapterId, await recapParams(db, model))
 }
 
 /** 进程内 in-flight 去重：同一章同时只有一个真实上游调用，其余请求复用其 promise。 */
@@ -104,10 +105,16 @@ async function runGenerateRecap(db: Db, opts: RecapOptions): Promise<RecapResult
   const text = prepareChapterText(opts.chapter.content, opts.maxChapterChars)
   if (text.length < MIN_CHAPTER_CHARS) throw new AiError('invalid', '章节内容过短，无需提要', 422)
 
+  // 系统提示词：管理员在「参数调优」里自定义过才用自定义版，否则沿用内置模板，
+  // 避免默认值变更导致全站缓存一次性失效。
+  const settings = await getAiSettings(db)
+  const custom = (settings.recapSystemPrompt || '').trim()
+  const systemPrompt = custom && custom !== DEFAULT_AI_SETTINGS.recapSystemPrompt ? custom : SYSTEM_PROMPT
+
   const userPrompt = buildUserPrompt(opts.novelTitle, opts.chapter, text)
   const res = await chat({
     messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
     ],
     temperature: 0.2,
@@ -121,7 +128,7 @@ async function runGenerateRecap(db: Db, opts: RecapOptions): Promise<RecapResult
     kind: 'summary',
     model: res.model,
     // 缓存键用配置模型名而非上游回显模型名，避免同一配置因回显差异反复未命中
-    paramsJson: recapParams(provider.model),
+    paramsJson: await recapParams(db, provider.model),
     prompt: userPrompt,
     result: res.text,
     // 提要面向读者即时可见，落 published；管理端可事后驳回使其失效
@@ -148,8 +155,17 @@ async function runGenerateRecap(db: Db, opts: RecapOptions): Promise<RecapResult
   }
 }
 
-export function recapParams(model: string): string {
-  return cacheKey({ version: RECAP_PROMPT_VERSION, model: model || '' })
+/**
+ * 前情提要缓存键。管理员自定义过系统提示词时把提示词指纹纳入键——
+ * 改提示词后旧缓存自然失效重算；未自定义时沿用旧键结构，兼容历史缓存。
+ */
+export async function recapParams(db: Db, model: string): Promise<string> {
+  const settings = await getAiSettings(db)
+  const custom = (settings.recapSystemPrompt || '').trim()
+  if (!custom || custom === DEFAULT_AI_SETTINGS.recapSystemPrompt) {
+    return cacheKey({ version: RECAP_PROMPT_VERSION, model: model || '' })
+  }
+  return cacheKey({ version: RECAP_PROMPT_VERSION, model: model || '', prompt: custom })
 }
 
 function buildUserPrompt(novelTitle: string, chapter: ChapterRow, text: string): string {

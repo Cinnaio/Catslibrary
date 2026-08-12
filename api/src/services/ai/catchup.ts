@@ -83,8 +83,10 @@ async function loadCatchupChapters(db: Db, novelId: string, chapterId: string, m
     [novelId, progressChapter.sort_order, CANDIDATE_COUNT],
   )
   const withSummary: CatchupChapter[] = []
+  // 缓存键带提示词指纹：管理员自定义过系统提示词时，旧的 summary 缓存不再命中
+  const summaryKey = await recapParams(db, model)
   for (const ch of candidates.reverse()) {
-    const g = await findPublished(db, 'summary', ch.id, recapParams(model))
+    const g = await findPublished(db, 'summary', ch.id, summaryKey)
     if (g) withSummary.push({ id: ch.id, title: ch.title, sort_order: ch.sort_order, summary: g.result, generationId: g.id })
   }
   return withSummary

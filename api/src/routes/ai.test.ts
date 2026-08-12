@@ -512,6 +512,72 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     expect((await req('/api/ai/catchup', json('POST', { novelId: 'x' }))).status).toBe(401)
     expect((await req('/api/ai/catchup', json('POST', {}, readerToken))).status).toBe(400)
   })
+
+  it('已生成内容：非管理员 403，列表带小说/章节标题，删除后缓存失效', async () => {
+    // 管理员生成一条提要（管理员不受配额限制）
+    const gen = await req('/api/ai/recap', json('POST', { chapterId: secondChapterId }, adminToken))
+    expect(gen.status).toBe(200)
+    const { id } = await jsonOf<{ id: string }>(gen)
+
+    // 读者无权访问管理列表
+    const forbidden = await req('/api/ai/generations', json('GET', undefined, readerToken))
+    expect(forbidden.status).toBe(403)
+
+    // 列表可见这条内容，且带小说/章节标题
+    const list = await req('/api/ai/generations', json('GET', undefined, adminToken))
+    const listBody = await jsonOf<{ items: Array<{ id: string; novelTitle: string; chapterTitle: string; kind: string; status: string }>; total: number }>(list)
+    expect(list.status).toBe(200)
+    expect(listBody.total).toBeGreaterThan(0)
+    const mine = listBody.items.find((i) => i.id === id)
+    expect(mine).toBeDefined()
+    expect(mine?.novelTitle).toBe('AI 测试书')
+    expect(mine?.chapterTitle).toBe('第二章')
+    expect(mine?.kind).toBe('summary')
+    expect(mine?.status).toBe('published')
+
+    // 删除后：再删 404，且只读缓存不再命中
+    const del = await req(`/api/ai/generations/${id}`, json('DELETE', undefined, adminToken))
+    expect(del.status).toBe(200)
+    expect((await req(`/api/ai/generations/${id}`, json('DELETE', undefined, adminToken))).status).toBe(404)
+
+    const cached = await req(`/api/ai/recap?chapterId=${secondChapterId}`, json('GET', undefined, adminToken))
+    const cachedBody = await jsonOf<{ cached: boolean; recap: string }>(cached)
+    expect(cachedBody.cached).toBe(false)
+    expect(cachedBody.recap).toBe('')
+  })
+
+  it('自定义系统提示词后缓存键变化：改提示词即失效并重新生成', async () => {
+    // 记录修改前的提示词，测试结束后恢复，避免影响其它用例
+    const before = await req('/api/ai/settings', json('GET', undefined, adminToken))
+    const beforePrompt = (await jsonOf<{ settings: { recapSystemPrompt: string } }>(before)).settings.recapSystemPrompt
+
+    // 默认提示词下给 chapterId 生成/命中提要
+    const defaultRecap = await req('/api/ai/recap', json('POST', { chapterId }, adminToken))
+    expect(defaultRecap.status).toBe(200)
+    const defaultBody = await jsonOf<{ id: string; cached: boolean }>(defaultRecap)
+
+    // 管理员自定义系统提示词
+    const CUSTOM_PROMPT = '你是一个很会讲故事的小说读者，请用极具感染力的语言复述上一章。'
+    const saved = await req('/api/ai/settings', json('PUT', { recapSystemPrompt: CUSTOM_PROMPT }, adminToken))
+    expect(saved.status).toBe(200)
+
+    try {
+      // 同章再次生成：缓存键含提示词指纹，旧缓存不命中，必须重新调上游
+      const regen = await req('/api/ai/recap', json('POST', { chapterId }, adminToken))
+      expect(regen.status).toBe(200)
+      const regenBody = await jsonOf<{ cached: boolean; id: string }>(regen)
+      expect(regenBody.cached).toBe(false)
+      expect(regenBody.id).not.toBe(defaultBody.id)
+
+      // 再次请求命中新提示词的缓存
+      const hit = await req('/api/ai/recap', json('POST', { chapterId }, adminToken))
+      const hitBody = await jsonOf<{ cached: boolean; id: string }>(hit)
+      expect(hitBody.cached).toBe(true)
+      expect(hitBody.id).toBe(regenBody.id)
+    } finally {
+      await req('/api/ai/settings', json('PUT', { recapSystemPrompt: beforePrompt }, adminToken))
+    }
+  })
 })
 
 function sleep(ms: number): Promise<void> {

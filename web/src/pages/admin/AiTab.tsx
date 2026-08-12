@@ -2,6 +2,7 @@
  * AI 服务 tab —— 配置、审计、参数调优的完整控制面板
  */
 import { type ReactNode, Fragment, useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
   Area,
   AreaChart,
@@ -15,7 +16,7 @@ import {
   YAxis,
 } from 'recharts'
 import { aiApi, type AiSettings, type AiUsageSummary } from '../../lib/api'
-import { useToast } from '../../components/feedback'
+import { useToast, useConfirm } from '../../components/feedback'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -62,6 +63,7 @@ export default function AiTab() {
       <Tabs value={activeSubTab} onValueChange={setActiveSubTab}>
         <TabsList>
           <TabsTrigger value="config">配置</TabsTrigger>
+          <TabsTrigger value="content">已生成内容</TabsTrigger>
           <TabsTrigger value="usage">用量统计</TabsTrigger>
           <TabsTrigger value="audit">调用审计</TabsTrigger>
           <TabsTrigger value="params">参数调优</TabsTrigger>
@@ -69,6 +71,10 @@ export default function AiTab() {
 
         <TabsContent value="config">
           <AiConfigPanel settings={settings} provider={provider} loading={loading} onReload={load} />
+        </TabsContent>
+
+        <TabsContent value="content">
+          <AiGenerationsPanel />
         </TabsContent>
 
         <TabsContent value="usage">
@@ -562,6 +568,7 @@ function AiAuditPanel() {
                 <SelectItem value="all">全部</SelectItem>
                 <SelectItem value="summary">前情提要</SelectItem>
                 <SelectItem value="catchup">回顾总结</SelectItem>
+                <SelectItem value="test">连通性测试</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -603,7 +610,13 @@ function AiAuditPanel() {
                               </td>
                               <td className="px-4 py-3">
                                 <Badge variant="secondary">
-                                  {call.type === 'summary' ? '前情提要' : call.type === 'catchup' ? '回顾总结' : call.type}
+                                  {call.type === 'summary'
+                                    ? '前情提要'
+                                    : call.type === 'catchup'
+                                      ? '回顾总结'
+                                      : call.type === 'test'
+                                        ? '连通性测试'
+                                        : call.type}
                                 </Badge>
                               </td>
                               <td className="px-4 py-3">
@@ -681,6 +694,206 @@ function AiAuditPanel() {
               <div className="mt-4 flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">
                   共 {total} 条记录，显示 {offset + 1}-{Math.min(offset + limit, total)}
+                </span>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - limit))}>
+                    上一页
+                  </Button>
+                  <Button variant="outline" size="sm" disabled={offset + limit >= total} onClick={() => setOffset(offset + limit)}>
+                    下一页
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+function kindLabel(kind: string): string {
+  return kind === 'summary' ? '前情提要' : kind === 'catchup' ? '回顾总结' : kind
+}
+
+/** 已生成内容管理：列出 AI 产物，支持按类型筛选与单条删除。 */
+function AiGenerationsPanel() {
+  const { toast } = useToast()
+  const { confirm } = useConfirm()
+  const [items, setItems] = useState<
+    Array<{
+      id: string
+      kind: string
+      model: string
+      novelId: string
+      chapterId: string
+      novelTitle: string
+      chapterTitle: string
+      result: string
+      createdAt: number
+    }>
+  >([])
+  const [loading, setLoading] = useState(true)
+  const [total, setTotal] = useState(0)
+  const [limit] = useState(50)
+  const [offset, setOffset] = useState(0)
+  const [filterKind, setFilterKind] = useState<'all' | 'summary' | 'catchup'>('all')
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await aiApi.generations({ kind: filterKind === 'all' ? undefined : filterKind, limit, offset })
+      setItems(res.items)
+      setTotal(res.total)
+    } catch (err) {
+      toast((err as Error).message || '加载已生成内容失败', 'error')
+    } finally {
+      setLoading(false)
+    }
+  }, [filterKind, limit, offset, toast])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  async function remove(item: { id: string; kind: string; novelTitle: string; chapterTitle: string }) {
+    const ok = await confirm({
+      title: '删除这条已生成内容？',
+      message: `「${item.novelTitle || '未知小说'}」${item.chapterTitle ? ` · ${item.chapterTitle}` : ''}的${kindLabel(item.kind)}会被删除，读者下次访问该内容时会重新生成并计入配额。`,
+      okText: '删除',
+      cancelText: '取消',
+      danger: true,
+    })
+    if (!ok) return
+    setDeletingId(item.id)
+    try {
+      await aiApi.deleteGeneration(item.id)
+      toast('已删除', 'success')
+      // 当前页删空时回退一页，避免停在空页
+      if (items.length === 1 && offset > 0) setOffset(Math.max(0, offset - limit))
+      else void load()
+    } catch (err) {
+      toast((err as Error).message || '删除失败', 'error')
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="flex-row items-center justify-between gap-2">
+          <div>
+            <CardTitle className="text-base">已生成内容</CardTitle>
+            <p className="text-sm text-muted-foreground">AI 产出的前情提要 / 回顾总结，可删除后让其重新生成</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Label htmlFor="gen-filter-kind" className="text-xs text-muted-foreground">类型</Label>
+            <Select
+              value={filterKind}
+              onValueChange={(v) => {
+                setFilterKind(v as 'all' | 'summary' | 'catchup')
+                setOffset(0)
+              }}
+            >
+              <SelectTrigger size="sm" id="gen-filter-kind" className="w-[140px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent position="popper" align="end" sideOffset={4}>
+                <SelectItem value="all">全部</SelectItem>
+                <SelectItem value="summary">前情提要</SelectItem>
+                <SelectItem value="catchup">回顾总结</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {loading && items.length === 0 ? (
+            <div className="flex h-32 items-center justify-center text-muted-foreground">加载中…</div>
+          ) : items.length === 0 ? (
+            <div className="flex h-32 items-center justify-center text-muted-foreground">暂无已生成内容</div>
+          ) : (
+            <>
+              <div className="overflow-hidden rounded-xl border border-border">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="border-b bg-muted/50">
+                      <tr>
+                        <th className="px-4 py-3 text-left font-medium">类型</th>
+                        <th className="px-4 py-3 text-left font-medium">关联内容</th>
+                        <th className="px-4 py-3 text-left font-medium">内容预览</th>
+                        <th className="px-4 py-3 text-left font-medium">模型</th>
+                        <th className="px-4 py-3 text-left font-medium">生成时间</th>
+                        <th className="px-4 py-3 text-right font-medium">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {items.map((item) => (
+                        <tr key={item.id} className="border-b last:border-0 hover:bg-muted/30">
+                          <td className="px-4 py-3">
+                            <Badge variant="secondary">{kindLabel(item.kind)}</Badge>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="max-w-[220px]">
+                              {item.novelId ? (
+                                <Link
+                                  to={`/novel/${encodeURIComponent(item.novelId)}`}
+                                  className="block truncate font-medium text-foreground hover:text-primary hover:underline"
+                                  title={`打开《${item.novelTitle || '未知小说'}》详情`}
+                                >
+                                  {item.novelTitle || <span className="text-muted-foreground">—</span>}
+                                </Link>
+                              ) : (
+                                <div className="truncate font-medium text-foreground">
+                                  {item.novelTitle || <span className="text-muted-foreground">—</span>}
+                                </div>
+                              )}
+                              {item.chapterTitle ? (
+                                item.novelId && item.chapterId ? (
+                                  <Link
+                                    to={`/read/${encodeURIComponent(item.novelId)}/${encodeURIComponent(item.chapterId)}`}
+                                    className="block truncate text-xs text-muted-foreground hover:text-primary hover:underline"
+                                    title="阅读该章节"
+                                  >
+                                    📖 {item.chapterTitle}
+                                  </Link>
+                                ) : (
+                                  <div className="truncate text-xs text-muted-foreground">📖 {item.chapterTitle}</div>
+                                )
+                              ) : null}
+                            </div>
+                          </td>
+                          <td className="max-w-[340px] px-4 py-3">
+                            <p className="line-clamp-2 whitespace-pre-line text-xs leading-relaxed text-muted-foreground">
+                              {item.result || '—'}
+                            </p>
+                          </td>
+                          <td className="px-4 py-3 text-xs text-muted-foreground">{item.model || '—'}</td>
+                          <td className="px-4 py-3 text-muted-foreground">
+                            <div>{new Date(item.createdAt).toLocaleDateString('zh-CN')}</div>
+                            <div className="text-xs">{new Date(item.createdAt).toLocaleTimeString('zh-CN')}</div>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                              disabled={deletingId === item.id}
+                              onClick={() => void remove(item)}
+                            >
+                              {deletingId === item.id ? '删除中…' : '删除'}
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div className="mt-4 flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">
+                  共 {total} 条，显示 {offset + 1}-{Math.min(offset + limit, total)}
                 </span>
                 <div className="flex gap-2">
                   <Button variant="outline" size="sm" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - limit))}>

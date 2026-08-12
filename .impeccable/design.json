@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-08-11T03:13:21.592Z",
+  "generatedAt": "2026-08-11T22:46:08.000Z",
   "title": "Design System: 知舟 (Zhi Zhou)",
   "extensions": {
     "colorMeta": {
@@ -126,7 +126,7 @@
       "body": { "displayName": "System Sans", "purpose": "All body text and UI labels. PingFang SC / Microsoft YaHei for CJK." },
       "serif": { "displayName": "Noto Serif SC", "purpose": "Reading mode only. Creates paper-book immersion." },
       "mono": { "displayName": "SF Mono", "purpose": "Code display and monospace data (job IDs, URLs)." },
-      "scale": { "displayName": "Enumerated Type Scale", "purpose": "Machine-readable size ramp (frontmatter). label-sm 0.7rem → table-head 0.72rem → label 0.75rem → caption 0.78rem → body-compact 0.8rem → source-toolbar 0.82rem → body-sm 0.875rem → select-trigger 0.9rem → card-title 0.95rem → body 1rem → modal-title 1.15rem → title 1.25rem → hero 1.45rem → stat 1.75rem → display 2rem. Compact admin labels live at the 0.7-0.82rem band." }
+      "scale": { "displayName": "Enumerated Type Scale", "purpose": "Machine-readable size ramp (frontmatter). Compact admin band (labels/counts/table): label-sm 0.7rem → table-head 0.72rem → label 0.75rem → caption 0.78rem → body-compact 0.8rem → source-toolbar 0.82rem → body-sm 0.875rem → select-trigger 0.9rem → card-title 0.95rem → body 1rem → modal-title 1.15rem → title 1.25rem → hero 1.45rem → stat 1.75rem → display 2rem. Reading Surface band (reader.css, scoped to .reader-app only — never leaks to public/admin, and the reader never uses the compact admin band): reader-body 1.1rem / line-height 2.05 (mobile drops to body 1rem / 1.85) → reader-glyph 1.35rem (icon-button glyphs / mobile chapter title) → reader-title clamp(1.55rem, 3vw, 2.15rem) (mobile fixed 1.35rem) → reader-watermark clamp(3rem, 8vw, 6rem) (mobile 3.2rem), the serif 读 watermark on the paper." }
     },
     "shadows": [
       { "name": "rest", "value": "0 1px 2px rgba(40,32,24,0.04), 0 1px 3px rgba(40,32,24,0.05)", "purpose": "Subtle card/button resting shadow — like paper lifting slightly." },
@@ -136,16 +136,23 @@
       { "name": "modal", "value": "0 24px 70px rgba(40,32,24,0.18)", "purpose": "Modal dialog overlay — heaviest shadow, still warm-toned." },
       { "name": "admin-ambient", "value": "0 18px 48px rgba(40,32,24,0.10)", "purpose": "Admin panel cards and surfaces." },
       { "name": "admin-soft", "value": "0 10px 26px rgba(40,32,24,0.07)", "purpose": "Lightweight admin surfaces." },
+      { "name": "reader-paper", "value": "0 22px 58px rgba(40,32,24,0.10)", "purpose": "The reading surface itself — the paper sheet lifts physically above the page (--reader-shadow)." },
+      { "name": "reader-soft", "value": "0 12px 30px rgba(40,32,24,0.07)", "purpose": "Frosted reader top bar, chapter dropdown, settings popover (--reader-shadow-soft)." },
       { "name": "dark-rest", "value": "0 1px 2px rgba(0,0,0,0.22), 0 1px 3px rgba(0,0,0,0.28)", "purpose": "Dark theme resting shadow." },
-      { "name": "dark-modal", "value": "0 30px 86px rgba(0,0,0,0.52)", "purpose": "Dark theme modal overlay." }
+      { "name": "dark-modal", "value": "0 30px 86px rgba(0,0,0,0.52)", "purpose": "Dark theme modal overlay." },
+      { "name": "dark-reader-paper", "value": "0 22px 58px rgba(0,0,0,0.36)", "purpose": "Moonlit paper — the paper sheet in dark theme." },
+      { "name": "dark-reader-soft", "value": "0 12px 30px rgba(0,0,0,0.24)", "purpose": "Frosted reader surfaces in dark theme." }
     ],
     "motion": [
       { "name": "ease-standard", "value": "cubic-bezier(0.4, 0, 0.2, 1)", "purpose": "Default easing for state transitions." },
       { "name": "admin-enter", "value": "160ms ease-out", "purpose": "Tab content entrance — opacity + 3px translateY." },
       { "name": "admin-highlight", "value": "1.8s ease-out", "purpose": "Row highlight animation after navigation." },
-      { "name": "theme-transition", "value": "0.18s ease", "purpose": "Color transition during theme switch." }
+      { "name": "theme-transition", "value": "0.18s ease", "purpose": "Color transition during theme switch." },
+      { "name": "reader-state", "value": "150ms ease", "purpose": "Reader control hover / panel open state transitions (reader.css transition: all 0.15s)." },
+      { "name": "reader-loading-sweep", "value": "0.9s ease-in-out", "purpose": "Reading surface loading bar — accent sweep across the top edge." }
     ],
     "breakpoints": [
+      { "name": "xs", "value": "400px" },
       { "name": "sm", "value": "640px" },
       { "name": "md", "value": "768px" },
       { "name": "lg", "value": "900px" },
@@ -179,6 +186,14 @@
       "css": ".ds-btn-ghost { background: transparent; color: #5B554E; padding: 8px; border: none; border-radius: 6px; cursor: pointer; transition: color 0.15s, background 0.15s; display: inline-flex; align-items: center; justify-content: center; min-width: 2rem; min-height: 2rem; } .ds-btn-ghost:hover { color: #211E1A; background: rgba(139,96,69,0.05); }"
     },
     {
+      "name": "Destructive Button",
+      "kind": "button",
+      "refersTo": "button-destructive",
+      "description": "Destructive action (delete). Vermilion danger background, white text.",
+      "html": "<button class=\"ds-btn-danger\">删除</button>",
+      "css": ".ds-btn-danger { background: #BE123C; color: #FFFFFF; padding: 8px 16px; border: none; border-radius: 6px; font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: background 0.15s ease; min-height: 2.25rem; } .ds-btn-danger:hover { background: #9E1534; } .ds-btn-danger:focus-visible { outline: 2px solid #BE123C; outline-offset: 2px; }"
+    },
+    {
       "name": "Card",
       "kind": "card",
       "refersTo": "card",
@@ -209,6 +224,22 @@
       "description": "Status indicator pill. Semantic color variants.",
       "html": "<span class=\"ds-badge\">已完成</span>",
       "css": ".ds-badge { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; background: #F6F4F1; color: #5B554E; border: 1px solid #ECE8E2; } .ds-badge-success { background: rgba(79,122,82,0.1); color: #4F7A52; } .ds-badge-warning { background: rgba(176,124,47,0.1); color: #B07C2F; } .ds-badge-danger { background: rgba(190,18,60,0.1); color: #BE123C; }"
+    },
+    {
+      "name": "Sidebar Navigation",
+      "kind": "nav",
+      "refersTo": "navigation",
+      "description": "Collapsible admin sidebar (236px expanded / 48px icon). Active item carries a 2px warm-brown left indicator via inset box-shadow; group labels are tiny uppercase kickers.",
+      "html": "<nav class=\"ds-sidenav\"><div class=\"ds-sidenav-label\">书库</div><a class=\"ds-sidenav-item ds-active\" href=\"#\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\"><path d=\"M4 19.5A2.5 2.5 0 0 1 6.5 17H20\"/><path d=\"M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z\"/></svg><span>小说管理</span></a><a class=\"ds-sidenav-item\" href=\"#\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\"><path d=\"M12 5v14M5 12h14\"/></svg><span>章节管理</span></a></nav>",
+      "css": ".ds-sidenav { display: flex; flex-direction: column; gap: 2px; width: 236px; padding: 8px 10px; background: var(--bg-secondary, #F6F4F1); border-right: 1px solid var(--border, #ECE8E2); } .ds-sidenav-label { height: 1.75rem; display: flex; align-items: center; padding: 0 10px; color: #736D65; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; } .ds-sidenav-item { display: flex; align-items: center; gap: 10px; min-height: 2.25rem; padding: 0 10px; border-radius: 6px; color: #5B554E; font-size: 0.875rem; text-decoration: none; transition: color 0.15s, background 0.15s; } .ds-sidenav-item svg { flex-shrink: 0; } .ds-sidenav-item:hover { color: #211E1A; background: rgba(139,96,69,0.06); } .ds-sidenav-item.ds-active { color: #8B6045; background: rgba(139,96,69,0.08); box-shadow: inset 2px 0 0 #8B6045; }"
+    },
+    {
+      "name": "Reader Paper",
+      "kind": "custom",
+      "refersTo": "reader-paper",
+      "description": "The signature reading surface — one 'sheet of paper' floating above the page. The only surface whose radius (30px) exceeds the 2xl system cap; rotated serif 读 watermark, serif body at 1.1rem / line-height 2.05.",
+      "html": "<article class=\"ds-reader-paper\"><h1 class=\"ds-reader-title\">第一章 灯火</h1><p class=\"ds-reader-body\">纸页在灯光下微微泛暖。她翻开新的一页，墨迹沿着行距缓缓流淌，像一条安静的河。</p></article>",
+      "css": ".ds-reader-paper { position: relative; overflow: hidden; max-width: 680px; margin: 0 auto; padding: clamp(28px, 5vw, 64px) clamp(22px, 6vw, 76px); border: 1px solid #ECE8E2; border-radius: 30px; background: linear-gradient(180deg, rgba(255,255,255,0.58), rgba(255,255,255,0) 48%), color-mix(in srgb, var(--bg-card, #FFFFFF) 88%, var(--accent-subtle, #F8F3EC)); box-shadow: 0 22px 58px rgba(40,32,24,0.10); font-family: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', ui-serif, serif; } .ds-reader-paper::before { content: '读'; position: absolute; right: clamp(18px, 4vw, 44px); top: clamp(16px, 3vw, 34px); color: rgba(139,96,69,0.10); font-family: inherit; font-size: clamp(3rem, 8vw, 6rem); font-weight: 850; line-height: 1; transform: rotate(8deg); pointer-events: none; } .ds-reader-title { position: relative; max-width: 18em; margin: 0 auto 44px; font-family: inherit; font-size: clamp(1.55rem, 3vw, 2.15rem); font-weight: 700; line-height: 1.35; text-align: center; letter-spacing: -0.035em; color: #211E1A; } .ds-reader-body { position: relative; font-family: inherit; font-size: 1.1rem; line-height: 2.05; letter-spacing: 0.012em; color: #211E1A; -webkit-font-smoothing: antialiased; }"
     }
   ],
   "narrative": {

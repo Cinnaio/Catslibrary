@@ -48,9 +48,9 @@ export function rowToGeneration(row: GenerationRow): Generation {
   }
 }
 
-/** 缓存键：字段顺序固定，保证同一组参数序列化结果稳定可比。 */
-export function cacheKey(params: { version: number; model: string }): string {
-  return JSON.stringify({ version: params.version, model: params.model })
+/** 缓存键：字段顺序固定，保证同一组参数序列化结果稳定可比。prompt 指纹用于提示词变更时自然失效。 */
+export function cacheKey(params: { version: number; model: string; prompt?: string }): string {
+  return JSON.stringify({ version: params.version, model: params.model, ...(params.prompt ? { prompt: params.prompt } : {}) })
 }
 
 export async function findPublished(
@@ -121,6 +121,60 @@ export async function listGenerations(db: Db, opts: { status?: string; limit?: n
     ? await all<GenerationRow>(db, 'SELECT * FROM ai_generations WHERE status = $1 ORDER BY created_at DESC LIMIT $2', [opts.status, limit])
     : await all<GenerationRow>(db, 'SELECT * FROM ai_generations ORDER BY created_at DESC LIMIT $1', [limit])
   return rows.map(rowToGeneration)
+}
+
+export interface GenerationDetail extends Generation {
+  novelTitle: string
+  chapterTitle: string
+}
+
+/** 「已生成内容」管理列表：带小说/章节标题、行数与分页。 */
+export async function listGenerationDetails(
+  db: Db,
+  opts: { kind?: string; status?: string; limit?: number; offset?: number } = {},
+): Promise<{ items: GenerationDetail[]; total: number }> {
+  const limit = Math.min(Math.max(Math.trunc(opts.limit || 50), 1), 100)
+  const offset = Math.max(Math.trunc(opts.offset || 0), 0)
+
+  const conditions: string[] = []
+  const params: unknown[] = []
+  if (opts.kind) {
+    params.push(opts.kind)
+    conditions.push(`g.kind = $${params.length}`)
+  }
+  if (opts.status) {
+    params.push(opts.status)
+    conditions.push(`g.status = $${params.length}`)
+  }
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+
+  const rows = await all<GenerationRow & { novel_title: string; chapter_title: string }>(
+    db,
+    `SELECT g.*, COALESCE(n.title, '') AS novel_title, COALESCE(c.title, '') AS chapter_title
+     FROM ai_generations g
+     LEFT JOIN novels n ON n.id = g.novel_id
+     LEFT JOIN chapters c ON c.id = g.chapter_id
+     ${where}
+     ORDER BY g.created_at DESC
+     LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+    [...params, limit, offset],
+  )
+  const totalRow = await first<{ total: number }>(db, `SELECT COUNT(*)::int AS total FROM ai_generations g ${where}`, params)
+
+  return {
+    items: rows.map((r) => ({
+      ...rowToGeneration(r),
+      novelTitle: String(r.novel_title || ''),
+      chapterTitle: String(r.chapter_title || ''),
+    })),
+    total: totalRow?.total || 0,
+  }
+}
+
+/** 物理删除某条生成记录（「已生成内容」管理用）；返回是否真的删掉了。 */
+export async function deleteGeneration(db: Db, id: string): Promise<boolean> {
+  const affected = await run(db, 'DELETE FROM ai_generations WHERE id = $1', [id])
+  return affected > 0
 }
 
 /** 作废某章的缓存（重新生成 / 章节内容更新后调用）。 */

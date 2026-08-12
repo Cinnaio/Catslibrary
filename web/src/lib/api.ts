@@ -653,6 +653,35 @@ export const aiApi = {
   usage(): Promise<{ today: AiUsageSummary; last30d: AiUsageSummary }> {
     return request('GET', '/ai/usage', null, true)
   },
+  /** 已生成内容列表（管理端）：默认已发布，可筛类型。 */
+  generations(filters: { kind?: 'summary' | 'catchup'; status?: 'published' | 'draft' | 'rejected'; limit?: number; offset?: number } = {}): Promise<{
+    items: Array<{
+      id: string
+      novelId: string
+      novelTitle: string
+      chapterId: string
+      chapterTitle: string
+      kind: string
+      model: string
+      result: string
+      status: string
+      createdAt: number
+    }>
+    total: number
+    limit: number
+    offset: number
+  }> {
+    const params = new URLSearchParams()
+    if (filters.kind) params.set('kind', filters.kind)
+    if (filters.status) params.set('status', filters.status)
+    if (filters.limit) params.set('limit', String(filters.limit))
+    if (filters.offset) params.set('offset', String(filters.offset))
+    return request('GET', `/ai/generations?${params}`, null, true)
+  },
+  /** 删除单条已生成内容（管理端）：读者再访问时会重新生成并计配额。 */
+  deleteGeneration(id: string): Promise<{ ok: boolean }> {
+    return request('DELETE', `/ai/generations/${encodeURIComponent(id)}`, null, true)
+  },
   audit: {
     users(limit = 50, offset = 0): Promise<{
       users: Array<{
