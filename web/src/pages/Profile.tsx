@@ -6,6 +6,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { authApi, url } from '../lib/api'
 import { useSession } from '../context/SessionContext'
 import { useConfirm } from '../components/feedback'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { formatDate, timeAgo } from '../lib/format'
 
 interface SessionItem {
@@ -24,6 +25,7 @@ export default function Profile() {
   const navigate = useNavigate()
   const { user, refresh, loading } = useSession()
   const { confirm } = useConfirm()
+  useDocumentTitle('个人中心')
 
   const [displayName, setDisplayName] = useState('')
   const [bio, setBio] = useState('')

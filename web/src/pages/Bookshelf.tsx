@@ -8,6 +8,7 @@ import { bookmarksApi, bookshelfApi, getToken, progressApi } from '../lib/api'
 import { clearHistory, getAllBookmarks, getBookshelf, getRecentHistory, removeFromBookshelf, replaceAllBookmarks, replaceBookshelf, saveHistory } from '../lib/storage'
 import { useSession } from '../context/SessionContext'
 import { useToast } from '../components/feedback'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { timeAgo } from '../lib/format'
 import { coverUrl } from '../components/NovelCard'
 
@@ -74,6 +75,7 @@ export default function Bookshelf() {
   const navigate = useNavigate()
   const { user, loading } = useSession()
   const { toast } = useToast()
+  useDocumentTitle('我的书架')
 
   const [favorites, setFavorites] = useState<Favorite[]>(() => getBookshelf())
   const [recent, setRecent] = useState<ReadingHistoryEntry[]>([])
@@ -126,14 +128,14 @@ export default function Bookshelf() {
     const local = getRecentHistory(limit)
     if (!getToken()) return local
     try {
-      const data = (await progressApi.recent(limit)) as { progress?: ServerRecent[]; tombstones?: Array<{ novelId: string; updatedAt?: number }> }
+      const data = await progressApi.recent(limit)
       // 墓碑：服务端已删除则清本地
-      ;(data.tombstones || []).forEach((t) => {
+      data.tombstones.forEach((t) => {
         if (!t.novelId) return
         const h = getRecentHistory(100).find((x) => x.novelId === t.novelId)
         if (h && (Number(t.updatedAt || 0) >= Number(h.timestamp || 0))) clearHistory(t.novelId)
       })
-      const merged = mergeRecent(getRecentHistory(limit), data.progress || [], limit)
+      const merged = mergeRecent(getRecentHistory(limit), data.progress, limit)
       merged.forEach((h) => saveHistory(h.novelId, h))
       return merged
     } catch {

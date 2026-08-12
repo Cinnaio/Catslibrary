@@ -11,6 +11,7 @@ import { getDemoNovel } from '../lib/demo'
 import { timeAgo } from '../lib/format'
 import { useSession } from '../context/SessionContext'
 import { useBookshelf } from '../hooks/useBookshelf'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useToast, useConfirm } from '../components/feedback'
 import { BackToTopIcon, HomeIcon } from '../components/icons'
 import CatchupRecap from '../components/CatchupRecap'
@@ -82,9 +83,7 @@ export default function Novel() {
   const [commentBox, setCommentBox] = useState<string>('')
   const [spoiler, setSpoiler] = useState(false)
 
-  useEffect(() => {
-    document.title = novel ? `${novel.title} — 知舟` : '知舟'
-  }, [novel])
+  useDocumentTitle(novel?.title)
 
   // 描述溢出检测（>3 行显示"展开全部"）
   useEffect(() => {
@@ -149,7 +148,7 @@ export default function Novel() {
   // ---------- 评分 ----------
   const loadRating = useCallback(async (nid: string) => {
     try {
-      const data = (await ratingsApi.get(nid)) as RatingSummary & { distribution?: Record<number, number> }
+      const data = await ratingsApi.get(nid)
       if (activeIdRef.current !== nid) return
       setRating({ average: data.average || 0, count: data.count || 0, distribution: data.distribution || {}, myRating: data.myRating })
     } catch {
@@ -160,7 +159,7 @@ export default function Novel() {
 
   async function setRatingValue(star: number) {
     try {
-      const data = (await ratingsApi.set(id, star)) as unknown as RatingSummary
+      const data = await ratingsApi.set(id, star)
       setRating({ ...data })
     } catch (err) {
       toast((err as Error).message || '评分失败', 'error')
@@ -169,7 +168,7 @@ export default function Novel() {
 
   async function clearRating() {
     try {
-      const data = (await ratingsApi.remove(id)) as unknown as RatingSummary
+      const data = await ratingsApi.remove(id)
       setRating({ ...data, myRating: null })
     } catch (err) {
       toast((err as Error).message || '撤销失败', 'error')
@@ -291,7 +290,8 @@ export default function Novel() {
             <p className="detail-kicker">BOOK DOSSIER</p>
             <h1 className="novel-hero__title">{novel.title}</h1>
             <div className="novel-hero__meta">
-              <span><Link to={`/?author=${encodeURIComponent(novel.author)}`} className="author-link">{novel.author}</Link></span>
+              {/* 首页搜索本身匹配作者字段，用 ?q= 而非无人处理的 ?author= */}
+              <span><Link to={`/?q=${encodeURIComponent(novel.author)}`} className="author-link">{novel.author}</Link></span>
               <span className="novel-hero__meta-sep"></span>
               <span className={`badge badge--${novel.status === 'completed' ? 'completed' : 'ongoing'}`}>
                 {novel.status === 'completed' ? '已完结' : '连载中'}
@@ -552,17 +552,18 @@ function CommentCard({ comment, onLike, onReport, onDelete, onReply }: CommentCa
   const [replying, setReplying] = useState(false)
   const [replyText, setReplyText] = useState('')
   const [reporting, setReporting] = useState(false)
+  // 头像加载失败走 state 兜底：不可直接 remove() React 管理的节点，
+  // 且 has-image 必须同步摘掉，否则 CSS 会把兜底首字一起隐藏（空圈）
+  const [avatarFailed, setAvatarFailed] = useState(false)
   const { user } = useSession()
 
   const name = comment.displayName || '读者'
-  const avatar = comment.avatarUrl
-    ? <img src={url(comment.avatarUrl)} alt="" loading="lazy" onError={(e) => { e.currentTarget.remove() }} />
-    : null
+  const hasAvatar = !!comment.avatarUrl && !avatarFailed
 
   return (
     <article className="comment-card" data-id={comment.id}>
-      <div className={`comment-card__avatar${avatar ? ' has-image' : ''}`}>
-        {avatar}
+      <div className={`comment-card__avatar${hasAvatar ? ' has-image' : ''}`}>
+        {hasAvatar && <img src={url(comment.avatarUrl)} alt="" loading="lazy" onError={() => setAvatarFailed(true)} />}
         <span>{name[0]}</span>
       </div>
       <div className="comment-card__body">

@@ -24,6 +24,7 @@ import {
 } from '../lib/reader-utils'
 import { useSession } from '../context/SessionContext'
 import { useToast } from '../components/feedback'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useReaderSettings, FONT_SIZES, PAGE_WIDTHS, AUTO_SCROLL_SPEEDS } from '../hooks/useReaderSettings'
 import type { ReaderSettingKey } from '../hooks/useReaderSettings'
 import { useProgressSync } from '../hooks/useProgressSync'
@@ -56,6 +57,9 @@ export default function Reader() {
   // demo 模式只需触发标记写入，无 UI 读取
   const [, setDemoMode] = useState(false)
   const cacheRef = useRef<Map<string, ChapterFull>>(new Map())
+
+  // 标签页标题跟随当前章节（读者停留最久的页面）
+  useDocumentTitle(chapter ? [chapter.title, novel?.title].filter(Boolean).join(' · ') : novel?.title)
 
   // 面板状态
   const [dropdownOpen, setDropdownOpen] = useState(false)
@@ -551,6 +555,39 @@ export default function Reader() {
     void restoreScrollPosition()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chapter?.id])
+
+  // 书架「想法」入口带 ?thoughtParagraph=N：正文渲染后滚到该段并打开想法面板。
+  // 挂载时读一次（章内导航是无参数的 replace，不会重复触发），消费后清空。
+  const pendingThoughtRef = useRef<number | null>(null)
+  useEffect(() => {
+    const raw = new URLSearchParams(window.location.search).get('thoughtParagraph')
+    const idx = raw === null ? NaN : Number.parseInt(raw, 10)
+    if (Number.isInteger(idx) && idx >= 0) pendingThoughtRef.current = idx
+  }, [])
+
+  useEffect(() => {
+    if (loading || !chapter || pendingThoughtRef.current === null) return
+    const idx = pendingThoughtRef.current
+    // 稍等进度恢复（restoreScrollPosition 的 rAF）先落位，再覆盖滚动到目标段落
+    const timer = setTimeout(() => {
+      pendingThoughtRef.current = null
+      const p = bodyRef.current?.querySelector<HTMLElement>(`p[data-paragraph-index="${idx}"]`)
+      if (!p) return
+      const top = p.getBoundingClientRect().top + window.scrollY - 96
+      if (pageMode) {
+        // 分页模式必须对齐页边界，否则页码指示与实际位置错开
+        totalPagesRef.current = calcTotalPages()
+        currentPageRef.current = clamp(Math.floor(Math.max(0, top) / getPageHeight()), 0, Math.max(totalPagesRef.current - 1, 0))
+        jumpScrollTo(Math.round(currentPageRef.current * getPageHeight()))
+        updatePageIndicator()
+      } else {
+        jumpScrollTo(Math.max(0, Math.round(top)))
+      }
+      openThoughtPanel(idx)
+    }, 150)
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, chapter?.id])
 
   // 窗口 resize 重算分页
   useEffect(() => {

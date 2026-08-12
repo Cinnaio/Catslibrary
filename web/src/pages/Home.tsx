@@ -130,9 +130,9 @@ export default function Home() {
       return
     }
     try {
-      const data = await progressApi.recent(5) as { progress?: ServerRecent[]; tombstones?: Array<{ novelId: string; updatedAt?: number }> }
+      const data = await progressApi.recent(5)
       applyTombstones(data.tombstones)
-      const merged = mergeRecent(getRecentHistory(5), data.progress || [], 5)
+      const merged = mergeRecent(getRecentHistory(5), data.progress, 5)
       merged.forEach((h) => saveHistory(h.novelId, h))
       setRecent(merged)
     } catch {

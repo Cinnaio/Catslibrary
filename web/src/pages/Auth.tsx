@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { authApi, getToken } from '../lib/api'
 import { useSession } from '../context/SessionContext'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -28,6 +29,7 @@ export default function Auth() {
   const [msg, setMsg] = useState('')
   const [registerMode, setRegisterMode] = useState<'invite' | 'open' | 'closed'>('invite')
   const [busy, setBusy] = useState(false)
+  useDocumentTitle(mode === 'login' ? '登录' : '注册')
 
   function next(): string {
     const state = (location.state as { next?: string } | null)?.next

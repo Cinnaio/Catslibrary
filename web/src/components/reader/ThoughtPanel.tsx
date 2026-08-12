@@ -17,6 +17,17 @@ interface ThoughtPanelProps {
   onDelete: (id: string) => Promise<void>
 }
 
+/** 头像失败走 state 兜底（不能 remove() React 管理的节点）；无 img 时 CSS :has 让首字显示。 */
+function ThoughtAvatar({ avatarUrl, name }: { avatarUrl?: string; name: string }) {
+  const [failed, setFailed] = useState(false)
+  return (
+    <span className="thought-avatar">
+      {!!avatarUrl && !failed && <img src={url(avatarUrl)} alt="" onError={() => setFailed(true)} />}
+      <span>{name.slice(0, 1)}</span>
+    </span>
+  )
+}
+
 export default function ThoughtPanel({ thoughts, selectedText, paragraphExcerpt, canDelete, onClose, onSubmit, onDelete }: ThoughtPanelProps) {
   const [text, setText] = useState('')
   const [name, setName] = useState('')
@@ -65,14 +76,11 @@ export default function ThoughtPanel({ thoughts, selectedText, paragraphExcerpt,
           ) : (
             thoughts.map((thought) => {
               const name = thought.displayName || '匿名读者'
-              const avatar = thought.avatarUrl
-                ? <img src={url(thought.avatarUrl)} alt="" onError={(e) => e.currentTarget.remove()} />
-                : null
               return (
                 <article className="thought-item" key={thought.id}>
                   <div className="thought-item__meta">
                     <span className="thought-author">
-                      <span className="thought-avatar">{avatar}<span>{name.slice(0, 1)}</span></span>
+                      <ThoughtAvatar avatarUrl={thought.avatarUrl} name={name} />
                       <span>{name}</span>
                     </span>
                     <span>{timeText(thought.createdAt)}</span>

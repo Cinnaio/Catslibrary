@@ -136,11 +136,13 @@ const MODERATION_TYPES: Record<ModerationMode, ModeConfig> = {
 type AnyRow = ThoughtRow | CommentRow | ReportRow
 
 function ThoughtUser({ t }: { t: ThoughtRow }) {
+  // 头像失败走 state 兜底（不能 remove() React 管理的节点）；无 img 时 CSS :has 让首字显示
+  const [avatarFailed, setAvatarFailed] = useState(false)
   const name = t.displayName || '匿名读者'
   return (
     <span className="thought-admin-user">
       <span className="thought-admin-avatar">
-        {t.avatarUrl ? <img src={url(t.avatarUrl)} alt="" onError={(e) => e.currentTarget.remove()} /> : null}
+        {t.avatarUrl && !avatarFailed ? <img src={url(t.avatarUrl)} alt="" onError={() => setAvatarFailed(true)} /> : null}
         <span>{name.slice(0, 1)}</span>
       </span>
       <span>{name}</span>

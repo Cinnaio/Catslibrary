@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { authApi, setupApi, type SetupDatabaseFields } from '../lib/api'
 import { useSession } from '../context/SessionContext'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -25,6 +26,7 @@ const STEPS: Array<{ id: Step; label: string }> = [
 export default function Install() {
   const navigate = useNavigate()
   const { refresh } = useSession()
+  useDocumentTitle('安装向导')
 
   const [checking, setChecking] = useState(true)
   const [step, setStep] = useState<Step>('database')

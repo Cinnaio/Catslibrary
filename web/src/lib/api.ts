@@ -111,7 +111,8 @@ async function request<T = unknown>(method: string, path: string, body: unknown 
   } catch (err) {
     const name = (err as Error)?.name || ''
     if (name === 'TimeoutError' || name === 'AbortError') {
-      const apiError = new Error(`请求超过 ${(timeoutMs / 60000).toFixed(0)} 分钟仍未完成，请检查 AI 服务状态；已生成的草稿请到“已生成内容”查看`) as ApiError
+      // 通用超时文案：AI 写作已改异步任务（立即返回 202），不再有长轮询特例
+      const apiError = new Error(`请求超时（${Math.round(timeoutMs / 1000)} 秒无响应），请检查网络后重试`) as ApiError
       apiError.status = 504
       throw apiError
     }
@@ -201,11 +202,30 @@ export const categoriesApi = {
 
 // ---------- Progress ----------
 
+/** GET /progress?recent=1 的进度条目（服务端 listRecent 映射） */
+export interface RecentProgressItem {
+  novelId: string
+  novelTitle: string
+  chapterId: string
+  chapterTitle: string
+  chapterOrder: number
+  scrollPercent: number
+  timestamp: number
+  updatedAt: number
+}
+
+/** 已删除进度的墓碑：本地时间戳不新于它时应清掉本地记录 */
+export interface ProgressTombstone {
+  novelId: string
+  deletedAt: number
+  updatedAt: number
+}
+
 export const progressApi = {
   get(novelId: string): Promise<{ progress: unknown }> {
     return request('GET', `/progress?novelId=${encodeURIComponent(novelId)}`, null, isAuthenticated())
   },
-  recent(limit = 5): Promise<{ items: unknown[] }> {
+  recent(limit = 5): Promise<{ progress: RecentProgressItem[]; tombstones: ProgressTombstone[] }> {
     return request('GET', `/progress?recent=1&limit=${encodeURIComponent(limit)}`, null, true)
   },
   save(data: Record<string, unknown>): Promise<{ ok: boolean }> {
@@ -298,14 +318,23 @@ export const thoughtsApi = {
 
 // ---------- Ratings ----------
 
+/** GET/POST/DELETE /ratings 共用的评分汇总（服务端 ratingSummary） */
+export interface RatingSummaryResponse {
+  novelId: string
+  average: number
+  count: number
+  distribution: Record<number, number>
+  myRating: number | null
+}
+
 export const ratingsApi = {
-  get(novelId: string): Promise<{ rating?: number; myRating?: number; average?: number; count?: number }> {
+  get(novelId: string): Promise<RatingSummaryResponse> {
     return request('GET', `/ratings?novelId=${encodeURIComponent(novelId)}`, null, isAuthenticated())
   },
-  set(novelId: string, rating: number): Promise<{ ok: boolean }> {
+  set(novelId: string, rating: number): Promise<RatingSummaryResponse> {
     return request('POST', '/ratings', { novelId, rating }, true)
   },
-  remove(novelId: string): Promise<{ ok: boolean }> {
+  remove(novelId: string): Promise<RatingSummaryResponse> {
     return request('DELETE', `/ratings?novelId=${encodeURIComponent(novelId)}`, null, true)
   },
 }
