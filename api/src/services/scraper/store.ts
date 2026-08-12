@@ -96,6 +96,8 @@ export interface ScrapeStore {
   listActiveJobs(): Promise<JobData[]>
   clearCompletedJobs(): Promise<number>
   cancelJob(jobId: string): Promise<void>
+  /** 抓取中的进度更新（条件写入，不覆盖 cancelled）。返回 false 表示任务已被取消或不存在。 */
+  updateJobProgress(jobId: string, patch: { step: string; current: number; chapterCount: number; progress: number }): Promise<boolean>
   registerLocalJob(jobId: string, novelId: string): Promise<void>
   updateLocalJobStatus(jobId: string, patch: Record<string, unknown>): Promise<boolean>
   // 配置
@@ -374,7 +376,23 @@ export class PgScrapeStore implements ScrapeStore {
   }
 
   async cancelJob(jobId: string): Promise<void> {
-    await this.db.query("UPDATE scrape_jobs SET status='cancelled', step='任务已终止', updated_at=$1 WHERE id=$2", [Date.now(), jobId])
+    // 已结束的任务不再改写为 cancelled（避免误伤 completed/partial 的最终状态）
+    await this.db.query(
+      "UPDATE scrape_jobs SET status='cancelled', step='任务已终止', updated_at=$1 WHERE id=$2 AND status NOT IN ('completed','partial','failed')",
+      [Date.now(), jobId],
+    )
+  }
+
+  async updateJobProgress(jobId: string, patch: { step: string; current: number; chapterCount: number; progress: number }): Promise<boolean> {
+    // 只更新进度字段且排除 cancelled：saveJob 是整行 upsert，抓取中用它写进度
+    // 会把外部 cancelJob 写入的取消标记冲掉，导致取消丢失、任务继续跑完
+    const res = await this.db.query(
+      `UPDATE scrape_jobs
+       SET status='scraping_chapters', step=$1, current=$2, chapter_count=$3, progress=$4, updated_at=$5
+       WHERE id=$6 AND status <> 'cancelled'`,
+      [patch.step, patch.current, patch.chapterCount, patch.progress, Date.now(), jobId],
+    )
+    return (res.rowCount ?? 0) > 0
   }
 
   async registerLocalJob(jobId: string, novelId: string): Promise<void> {

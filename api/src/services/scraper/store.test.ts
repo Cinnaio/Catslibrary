@@ -36,4 +36,22 @@ describe('PgScrapeStore（pglite）', () => {
     expect(await store.getMaxChapterOrder('n2')).toBe(0)
     expect(await store.getMaxChapterOrder('不存在')).toBe(0)
   })
+
+  it('updateJobProgress 不覆盖已取消的任务并返回 false（取消曾被整行 upsert 冲掉）', async () => {
+    const now = Date.now()
+    await store.saveJob({ id: 'job_cancel', novelId: 'n1', status: 'scraping_chapters', startedAt: now, updatedAt: now })
+
+    expect(await store.updateJobProgress('job_cancel', { step: '第5/10章', current: 5, chapterCount: 5, progress: 0.5 })).toBe(true)
+
+    await store.cancelJob('job_cancel')
+    expect(await store.updateJobProgress('job_cancel', { step: '第10/10章', current: 10, chapterCount: 10, progress: 1 })).toBe(false)
+    expect((await store.loadJob('job_cancel'))?.status).toBe('cancelled')
+  })
+
+  it('cancelJob 不改写已结束任务的最终状态', async () => {
+    const now = Date.now()
+    await store.saveJob({ id: 'job_done', novelId: 'n1', status: 'completed', startedAt: now, updatedAt: now })
+    await store.cancelJob('job_done')
+    expect((await store.loadJob('job_done'))?.status).toBe('completed')
+  })
 })

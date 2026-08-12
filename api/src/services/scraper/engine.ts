@@ -440,10 +440,20 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
           job!.current = completedCount
           job!.progress = displayTotal ? completedCount / displayTotal : 1
           job!.chapterCount = count
+          job!.status = 'scraping_chapters'
           log(job!, `进度 ${completedCount}/${displayTotal}，成功 ${count} 章`)
-          await updateStatus('scraping_chapters', {
+          // 条件更新（不整行 upsert）：避免冲掉外部写入的 cancelled；
+          // 写入失败即任务已被取消，立即停止，比 10 章一次的轮询更快响应
+          const alive = await store.updateJobProgress(jobId, {
             step: `第${completedCount}/${displayTotal}章 | 成功${count}章`,
+            current: completedCount,
+            chapterCount: count,
+            progress: job!.progress || 0,
           })
+          if (!alive) {
+            cancelled = true
+            break
+          }
         }
 
         if (isCF && queue.length > 0) {
