@@ -217,6 +217,26 @@ body:has(.admin-sidebar[data-slot="sheet-content"]) [data-slot="sheet-overlay"] 
   flex: 0 0 auto;
 }
 
+.account-settings-toolbar {
+  min-height: 2.25rem;
+}
+
+.account-settings-panel__header {
+  border-bottom: 1px solid var(--admin-border);
+}
+
+.account-settings-tabs__list {
+  scrollbar-width: none;
+}
+
+.account-settings-tabs__list::-webkit-scrollbar {
+  display: none;
+}
+
+.account-settings-tabs__list [data-slot="tabs-trigger"] {
+  flex: 0 0 auto;
+}
+
 /* AI service workflow order: configuration, tasks, writing, results, metrics, audit, tuning. */
 .ai-service-tabs__list [data-slot="tabs-trigger"]:nth-child(1) { order: 2; }
 .ai-service-tabs__list [data-slot="tabs-trigger"]:nth-child(2) { order: 1; }

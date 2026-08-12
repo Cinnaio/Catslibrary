@@ -16,6 +16,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import AdminPage from '@/components/admin/AdminPage'
 
 interface AdminUser {
@@ -92,6 +93,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
   const [loginAuditUsername, setLoginAuditUsername] = useState('')
   const [loginAuditOffset, setLoginAuditOffset] = useState(0)
   const [loginAuditLoading, setLoginAuditLoading] = useState(false)
+  const [accountTab, setAccountTab] = useState('overview')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -346,8 +348,15 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
           </span>
         }
       >
+      <Tabs value={accountTab} onValueChange={setAccountTab} className="account-settings-tabs min-w-0">
+        <TabsList className="account-settings-tabs__list w-full max-w-full justify-start overflow-x-auto">
+          <TabsTrigger value="overview">概览</TabsTrigger>
+          <TabsTrigger value="users">用户管理</TabsTrigger>
+          <TabsTrigger value="registration">注册与邀请码</TabsTrigger>
+          <TabsTrigger value="audit">登录审计</TabsTrigger>
+        </TabsList>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+        {accountTab === 'overview' && <div className="grid gap-4">
         <Card>
           <CardHeader className="flex-row items-center justify-between gap-2">
             <div className="min-w-0">
@@ -389,6 +398,9 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
           </CardContent>
         </Card>
 
+        </div>}
+
+        {accountTab === 'registration' && <div className="grid gap-4">
         <Card>
           <CardHeader>
             <CardTitle className="text-base">注册设置</CardTitle>
@@ -421,15 +433,19 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
             </div>
           </CardContent>
         </Card>
-      </div>
+        </div>}
 
-      <div className="mb-3 mt-6 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-base font-semibold text-foreground">用户</h2>
+        {accountTab === 'users' && <div className="overflow-hidden rounded-xl border border-border bg-card">
+      <div className="account-settings-panel__header flex flex-wrap items-center justify-between gap-2 px-4 py-3">
+        <div>
+          <h2 className="text-base font-semibold text-foreground">用户</h2>
+          <p className="mt-0.5 text-sm text-muted-foreground">管理站点用户、角色与登录状态</p>
+        </div>
         <Button variant="secondary" size="sm" onClick={() => void load()} disabled={loading}>
           刷新
         </Button>
       </div>
-      <div className="overflow-hidden rounded-xl border border-border bg-card">
+      <div className="overflow-x-auto">
         <Table>
             <TableHeader>
               <TableRow>
@@ -510,9 +526,10 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
             </TableBody>
           </Table>
       </div>
+        </div>}
 
-      <section className="mt-8">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+      {accountTab === 'audit' && <section className="overflow-hidden rounded-xl border border-border bg-card">
+        <div className="account-settings-panel__header flex flex-wrap items-center justify-between gap-3 px-4 py-3">
           <div>
             <h2 className="text-base font-semibold text-foreground">登录审计</h2>
             <p className="mt-0.5 text-sm text-muted-foreground">记录登录成功、失败与限流事件，不保存密码或登录令牌</p>
@@ -521,7 +538,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
             刷新
           </Button>
         </div>
-        <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3">
           <Select
             value={loginAuditStatus}
             onValueChange={(value) => {
@@ -550,7 +567,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
             }}
           />
         </div>
-        <div className="overflow-hidden rounded-xl border border-border bg-card">
+        <div>
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -593,7 +610,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
             </Table>
           </div>
         </div>
-        <div className="mt-3 flex items-center justify-between text-sm text-muted-foreground">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3 text-sm text-muted-foreground">
           <span>共 {loginAuditTotal} 条记录</span>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" disabled={loginAuditPage <= 1 || loginAuditLoading} onClick={() => setLoginAuditOffset(loginAuditOffset - 20)}>上一页</Button>
@@ -601,9 +618,10 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
             <Button variant="outline" size="sm" disabled={loginAuditPage >= loginAuditPages || loginAuditLoading} onClick={() => setLoginAuditOffset(loginAuditOffset + 20)}>下一页</Button>
           </div>
         </div>
-      </section>
+      </section>}
 
-      <div className="mb-3 mt-8 flex flex-wrap items-center justify-between gap-3">
+      {accountTab === 'registration' && <>
+      <div className="account-settings-toolbar mb-3 mt-6 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-base font-semibold text-foreground">邀请码</h2>
         <div className="flex items-center gap-2">
           <Input
@@ -706,6 +724,8 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
             </Button>
           )}
         </div>
+      </>}
+      </Tabs>
     </AdminPage>
   )
 }
