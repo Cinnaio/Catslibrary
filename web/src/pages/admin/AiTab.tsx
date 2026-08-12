@@ -24,6 +24,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import AdminPage from '@/components/admin/AdminPage'
@@ -65,6 +66,7 @@ export default function AiTab() {
     <AdminPage title="AI 服务" description="管理 AI 功能配置、查看用量统计与调用审计" className="ai-admin-page">
       <Tabs value={activeSubTab} onValueChange={setActiveSubTab} className="ai-service-tabs min-w-0">
         <TabsList className="ai-service-tabs__list w-full max-w-full justify-start overflow-x-auto">
+          <TabsTrigger value="tasks">AI 任务</TabsTrigger>
           <TabsTrigger value="config">配置</TabsTrigger>
           <TabsTrigger value="content">已生成内容</TabsTrigger>
           <TabsTrigger value="usage">用量统计</TabsTrigger>
@@ -79,6 +81,10 @@ export default function AiTab() {
 
         <TabsContent value="content" className="min-w-0">
           <AiGenerationsPanel scope="all" status="all" />
+        </TabsContent>
+
+        <TabsContent value="tasks" className="min-w-0">
+          <AiTasksPanel />
         </TabsContent>
 
         <TabsContent value="usage" className="min-w-0">
@@ -829,6 +835,53 @@ function AiAuditPanel() {
   )
 }
 
+function taskKindLabel(kind: string): string {
+  return kind === 'continue' ? '续写' : kind === 'write_outline' ? '创作大纲' : kind === 'write_chapter' ? '创作章节' : kind
+}
+
+function taskStatusLabel(status: string): string {
+  return status === 'queued' ? '排队中' : status === 'running' ? '生成中' : status === 'completed' ? '已完成' : status === 'cancelled' ? '已取消' : status === 'failed' ? '失败' : status
+}
+
+function AiTasksPanel() {
+  const { toast } = useToast()
+  const [tasks, setTasks] = useState<Array<{ id: string; novelId: string; kind: string; status: string; current: number; total: number; step: string; prompt: string; error: string; createdAt: number; updatedAt: number }>>([])
+  const [loading, setLoading] = useState(true)
+
+  const load = useCallback(async () => {
+    try {
+      const result = await aiApi.tasks({ limit: 100 })
+      setTasks(result.items)
+    } catch (err) {
+      toast((err as Error).message || '加载 AI 任务失败', 'error')
+    } finally { setLoading(false) }
+  }, [toast])
+
+  useEffect(() => { void load() }, [load])
+
+  async function cancel(id: string) {
+    try { await aiApi.cancelTask(id); toast('AI 任务已取消', 'success'); void load() }
+    catch (err) { toast((err as Error).message || '取消任务失败', 'error') }
+  }
+
+  return <Card>
+    <CardHeader><CardTitle className="text-base">AI 任务管理</CardTitle><p className="text-sm text-muted-foreground">独立于爬取任务，查看生成进度、错误和输入 Prompt</p></CardHeader>
+    <CardContent>
+      {loading ? <div className="flex h-32 items-center justify-center text-muted-foreground">加载中…</div> : tasks.length === 0 ? <div className="flex h-32 items-center justify-center text-muted-foreground">暂无 AI 任务</div> : <div className="space-y-2">
+        {tasks.map((task) => <div key={task.id} className="grid gap-2 rounded-md border p-3 sm:grid-cols-[1fr_auto]">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2"><Badge variant="secondary">{taskKindLabel(task.kind)}</Badge><Badge variant={task.status === 'failed' ? 'destructive' : 'outline'}>{taskStatusLabel(task.status)}</Badge><span className="text-xs text-muted-foreground">{task.current} / {task.total}</span></div>
+            <p className="mt-1 text-sm text-muted-foreground">{task.step || '等待处理'}</p>
+            <p className="mt-1 truncate text-xs text-muted-foreground" title={task.prompt}>Prompt：{task.prompt || '无'}</p>
+            {task.error && <p className="mt-1 text-xs text-destructive">{task.error}</p>}
+          </div>
+          {(task.status === 'queued' || task.status === 'running') && <Button variant="outline" size="sm" onClick={() => void cancel(task.id)}>取消任务</Button>}
+        </div>)}
+      </div>}
+    </CardContent>
+  </Card>
+}
+
 function kindLabel(kind: string): string {
   return kind === 'summary' ? '前情提要'
     : kind === 'catchup' ? '回顾总结'
@@ -839,34 +892,42 @@ function kindLabel(kind: string): string {
 }
 
 /** 已生成内容管理：列出 AI 产物，支持按类型筛选与单条删除。 */
+interface AiGenerationListItem {
+  id: string
+  kind: string
+  model: string
+  novelId: string
+  chapterId: string
+  novelTitle: string
+  chapterTitle: string
+  result: string
+  prompt: string
+  status: string
+  createdAt: number
+  batchId: string
+  batchIndex: number
+  batchCount: number
+  groupItems?: AiGenerationListItem[]
+}
+
 export function AiGenerationsPanel(props: { scope: 'all' | 'reader' | 'writing'; status?: 'all' | 'published' | 'draft' | 'rejected' }) {
   const { toast } = useToast()
   const { confirm } = useConfirm()
-  const [items, setItems] = useState<
-    Array<{
-      id: string
-      kind: string
-      model: string
-      novelId: string
-      chapterId: string
-      novelTitle: string
-      chapterTitle: string
-      result: string
-      status: string
-      createdAt: number
-    }>
-  >([])
+  const [items, setItems] = useState<AiGenerationListItem[]>([])
   const [loading, setLoading] = useState(true)
   const [total, setTotal] = useState(0)
   const [limit, setLimit] = useState(50)
   const [offset, setOffset] = useState(0)
   const [filterKind, setFilterKind] = useState<'all' | 'summary' | 'catchup' | 'write_outline' | 'write_chapter' | 'continue'>('all')
   const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [viewing, setViewing] = useState<(typeof items)[number] | null>(null)
+  const [viewing, setViewing] = useState<AiGenerationListItem | null>(null)
   const [publishTitle, setPublishTitle] = useState('')
   const [publishing, setPublishing] = useState(false)
   const [titleCandidates, setTitleCandidates] = useState<string[]>([])
   const [generatingTitles, setGeneratingTitles] = useState(false)
+  const [expandedBatchId, setExpandedBatchId] = useState<string | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [batchDeleting, setBatchDeleting] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -877,7 +938,27 @@ export function AiGenerationsPanel(props: { scope: 'all' | 'reader' | 'writing';
         : props.scope === 'reader'
           ? new Set(['summary', 'catchup'])
           : new Set(['summary', 'catchup', 'continue', 'write_outline', 'write_chapter'])
-      setItems(res.items.filter((item) => allowedKinds.has(item.kind)))
+      const filtered = res.items.filter((item) => allowedKinds.has(item.kind))
+      const groups = new Map<string, AiGenerationListItem[]>()
+      for (const item of filtered) {
+        const key = item.batchId || item.id
+        const group = groups.get(key) || []
+        group.push(item)
+        groups.set(key, group)
+      }
+      setItems(Array.from(groups.entries()).map(([key, group]) => {
+        if (!group[0] || !group[0].batchId || group.length === 1) return group[0]!
+        const first = group[0]
+        return {
+          ...first,
+          id: key,
+          result: `${group.length} 个续写章节草稿`,
+          chapterTitle: `${group.length} 章续写集合`,
+          batchCount: group.length,
+          groupItems: group.sort((a, b) => a.batchIndex - b.batchIndex),
+        }
+      }))
+      setSelectedIds(new Set())
       setTotal(res.total)
     } catch (err) {
       toast((err as Error).message || '加载已生成内容失败', 'error')
@@ -910,6 +991,47 @@ export function AiGenerationsPanel(props: { scope: 'all' | 'reader' | 'writing';
       toast((err as Error).message || '删除失败', 'error')
     } finally {
       setDeletingId(null)
+    }
+  }
+
+  function idsForItem(item: AiGenerationListItem): string[] {
+    return item.groupItems ? item.groupItems.map((chapter) => chapter.id) : [item.id]
+  }
+
+  const selectedCount = [...selectedIds].length
+  const allSelected = items.length > 0 && items.every((item) => idsForItem(item).every((id) => selectedIds.has(id)))
+
+  function toggleItem(item: AiGenerationListItem, checked: boolean): void {
+    setSelectedIds((current) => {
+      const next = new Set(current)
+      for (const id of idsForItem(item)) {
+        if (checked) next.add(id)
+        else next.delete(id)
+      }
+      return next
+    })
+  }
+
+  async function removeSelected(): Promise<void> {
+    if (!selectedCount) return
+    const ok = await confirm({
+      title: '批量删除已生成内容？',
+      message: `确定删除已选择的 ${selectedCount} 条生成记录？删除后无法恢复。`,
+      okText: '批量删除',
+      cancelText: '取消',
+      danger: true,
+    })
+    if (!ok) return
+    setBatchDeleting(true)
+    try {
+      const result = await aiApi.deleteGenerations([...selectedIds])
+      toast(`已删除 ${result.deleted} 条生成记录`, 'success')
+      setSelectedIds(new Set())
+      void load()
+    } catch (err) {
+      toast((err as Error).message || '批量删除失败', 'error')
+    } finally {
+      setBatchDeleting(false)
     }
   }
 
@@ -953,6 +1075,7 @@ export function AiGenerationsPanel(props: { scope: 'all' | 'reader' | 'writing';
             <p className="text-sm text-muted-foreground">AI 生成的内容记录，可删除后重新生成</p>
           </div>
           <div className="flex w-full items-center gap-2 sm:w-auto">
+            {selectedCount > 0 && <Button variant="destructive" size="sm" disabled={batchDeleting} onClick={() => void removeSelected()}>批量删除 ({selectedCount})</Button>}
             <Label htmlFor="gen-filter-kind" className="text-xs text-muted-foreground">类型</Label>
             <Select
               value={filterKind}
@@ -991,6 +1114,7 @@ export function AiGenerationsPanel(props: { scope: 'all' | 'reader' | 'writing';
                   <table className="w-full min-w-[760px] text-sm">
                     <thead className="border-b bg-muted/50">
                       <tr>
+                        <th className="w-10 px-4 py-3 text-left font-medium"><Checkbox aria-label="全选当前列表" checked={allSelected} onCheckedChange={(checked) => { for (const item of items) toggleItem(item, checked === true) }} /></th>
                         <th className="px-4 py-3 text-left font-medium">类型</th>
                         <th className="px-4 py-3 text-left font-medium">关联内容</th>
                         <th className="px-4 py-3 text-left font-medium">内容预览</th>
@@ -1001,7 +1125,9 @@ export function AiGenerationsPanel(props: { scope: 'all' | 'reader' | 'writing';
                     </thead>
                     <tbody>
                       {items.map((item) => (
-                        <tr key={item.id} className="border-b last:border-0 hover:bg-muted/30">
+                        <Fragment key={item.id}>
+                        <tr className="border-b last:border-0 hover:bg-muted/30">
+                          <td className="px-4 py-3"><Checkbox aria-label={`选择${item.chapterTitle || item.kind}`} checked={idsForItem(item).every((id) => selectedIds.has(id))} onCheckedChange={(checked) => toggleItem(item, checked === true)} /></td>
                           <td className="px-4 py-3">
                             <Badge variant="secondary">{kindLabel(item.kind)}</Badge>
                           </td>
@@ -1047,12 +1173,16 @@ export function AiGenerationsPanel(props: { scope: 'all' | 'reader' | 'writing';
                           </td>
                           <td className="px-4 py-3 text-right">
                             <div className="flex justify-end gap-2">
-                              <Button variant="outline" size="sm" onClick={() => { setViewing(item); setPublishTitle(item.chapterTitle || ''); setTitleCandidates([]) }}>查看</Button>
+                              {item.groupItems ? (
+                                <Button variant="outline" size="sm" onClick={() => setExpandedBatchId(expandedBatchId === item.id ? null : item.id)}>{expandedBatchId === item.id ? '收起章节' : '查看章节'}</Button>
+                              ) : (
+                                <Button variant="outline" size="sm" onClick={() => { setViewing(item); setPublishTitle(item.chapterTitle || ''); setTitleCandidates([]) }}>查看</Button>
+                              )}
                               <Button
                                 variant="outline"
                                 size="sm"
                                 className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                                disabled={deletingId === item.id}
+                                disabled={!!item.groupItems || deletingId === item.id}
                                 onClick={() => void remove(item)}
                               >
                                 {deletingId === item.id ? '删除中…' : '删除'}
@@ -1060,6 +1190,21 @@ export function AiGenerationsPanel(props: { scope: 'all' | 'reader' | 'writing';
                             </div>
                           </td>
                         </tr>
+                        {item.groupItems && expandedBatchId === item.id && item.groupItems.map((chapter) => (
+                          <tr key={chapter.id} className="border-b bg-muted/20 last:border-0">
+                            <td className="px-4 py-2" />
+                            <td className="px-4 py-2 pl-8"><span className="text-xs text-muted-foreground">第 {chapter.batchIndex} 章</span></td>
+                            <td className="px-4 py-2"><span className="text-xs text-muted-foreground">{chapter.chapterTitle || '待命名章节'}</span></td>
+                            <td className="max-w-[340px] px-4 py-2"><p className="line-clamp-1 text-xs text-muted-foreground">{chapter.result || '暂无内容'}</p></td>
+                            <td className="px-4 py-2 text-xs text-muted-foreground">{chapter.status}</td>
+                            <td className="px-4 py-2 text-xs text-muted-foreground">{new Date(chapter.createdAt).toLocaleTimeString('zh-CN')}</td>
+                            <td className="px-4 py-2 text-right"><div className="flex justify-end gap-2">
+                              <Button variant="outline" size="sm" onClick={() => { setViewing(chapter); setPublishTitle(chapter.chapterTitle || ''); setTitleCandidates([]) }}>查看</Button>
+                              <Button variant="outline" size="sm" className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" disabled={deletingId === chapter.id} onClick={() => void remove(chapter)}>{deletingId === chapter.id ? '删除中…' : '删除'}</Button>
+                            </div></td>
+                          </tr>
+                        ))}
+                        </Fragment>
                       ))}
                     </tbody>
                   </table>
@@ -1097,6 +1242,10 @@ export function AiGenerationsPanel(props: { scope: 'all' | 'reader' | 'writing';
           </DialogHeader>
           {viewing && (
             <>
+              <details className="shrink-0 rounded-md border bg-muted/10 p-3">
+                <summary className="cursor-pointer text-sm font-medium">查看本次生成的 Prompt</summary>
+                <pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap text-xs leading-5 text-muted-foreground">{viewing.prompt || '未记录 Prompt'}</pre>
+              </details>
               <div className="min-h-0 flex-1 overflow-y-auto rounded-md border bg-muted/20 p-4 text-sm leading-7 whitespace-pre-wrap sm:p-5">{viewing.result || '暂无内容'}</div>
               {viewing.status === 'draft' && (viewing.kind === 'write_chapter' || viewing.kind === 'continue') && (
                 <div className="ai-generation-publish shrink-0 border-t pt-4">

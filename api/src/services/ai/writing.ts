@@ -5,6 +5,7 @@ import { chat, isTextAiConfigured, providerLabel, textProvider, AiError } from '
 import { saveGeneration, type Generation } from './generations'
 import { recordUsage } from './usage'
 import { getAiSettings } from './settings'
+import { createAiTask, isAiTaskCancelled, updateAiTask } from './tasks'
 
 const MAX_CONTEXT_CHARS = 12000
 
@@ -58,6 +59,7 @@ export async function generateWritingTitles(db: Db, opts: {
   contextTitle?: string
   ipAddress?: string
   userAgent?: string
+  taskId?: string
 }): Promise<WritingTitlesResult> {
   if (!isTextAiConfigured()) throw new AiError('disabled', 'AI 文本服务未配置', 503)
   const provider = textProvider()
@@ -105,8 +107,12 @@ export async function generateWriting(db: Db, opts: {
   temperature?: number
   targetWords?: number
   chapterCount?: number
+  batchId?: string
+  batchIndex?: number
+  batchCount?: number
   ipAddress?: string
   userAgent?: string
+  taskId?: string
 }): Promise<WritingResult> {
   if (!isTextAiConfigured()) throw new AiError('disabled', 'AI 文本服务未配置', 503)
   const provider = textProvider()
@@ -127,19 +133,23 @@ export async function generateWriting(db: Db, opts: {
   ].filter(Boolean).join('\n\n')
   const temperature = opts.temperature ?? settings.writingTemperature
   const maxTokens = opts.maxTokens ?? settings.writingMaxTokens
+  const ownsTask = !opts.taskId
+  const taskId = opts.taskId || (await createAiTask(db, { userId: opts.userId, novelId: opts.novelId, kind: opts.kind, prompt: user })).id
+  await updateAiTask(db, taskId, { status: 'running', step: 'AI 正在生成', prompt: user })
   const res = await chat({ messages: [{ role: 'system', content: system }, { role: 'user', content: user }], temperature, maxTokens: Math.min(1000000, Math.max(300, maxTokens)), timeoutMs: 600000 })
   const generation = await saveGeneration(db, {
     novelId: opts.novelId,
     chapterId: '',
     kind: opts.kind,
     model: res.model,
-    paramsJson: JSON.stringify({ version: 4, temperature, maxTokens, targetWords: opts.targetWords || 0, chapterCount: opts.chapterCount || 1 }),
+    paramsJson: JSON.stringify({ version: 4, temperature, maxTokens, targetWords: opts.targetWords || 0, chapterCount: opts.chapterCount || 1, ...(opts.batchId ? { batchId: opts.batchId, batchIndex: opts.batchIndex || 1, batchCount: opts.batchCount || 1 } : {}) }),
     prompt: user,
     result: res.text,
     status: 'draft',
     createdBy: opts.userId,
   })
   await recordUsage(db, { userId: opts.userId, model: res.model, provider: providerLabel(provider.baseUrl), promptTokens: res.promptTokens, completionTokens: res.completionTokens, costMillicents: Math.round(res.cost * 100000), novelId: opts.novelId, generationType: opts.kind, ipAddress: opts.ipAddress, userAgent: opts.userAgent })
+  if (ownsTask) await updateAiTask(db, taskId, { status: 'completed', current: 1, step: '已完成' })
   return { generation, usage: { model: res.model, promptTokens: res.promptTokens, completionTokens: res.completionTokens } }
 }
 
@@ -155,13 +165,17 @@ export async function generateContinuationChapters(db: Db, opts: {
   chapterCount?: number
   ipAddress?: string
   userAgent?: string
+  taskId?: string
 }): Promise<WritingBatchResult> {
   const count = Math.max(1, Math.min(20, Math.trunc(Number(opts.chapterCount) || 1)))
   const generations: Generation[] = []
   let context = opts.context
   let usage = { model: '', promptTokens: 0, completionTokens: 0 }
+  const batchId = `continue_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+  const taskId = opts.taskId || (await createAiTask(db, { userId: opts.userId, novelId: opts.novelId, kind: 'continue', total: count, batchId, prompt: opts.instruction })).id
 
   for (let index = 0; index < count; index += 1) {
+    if (await isAiTaskCancelled(db, taskId)) break
     const result = await generateWriting(db, {
       ...opts,
       kind: 'continue',
@@ -172,8 +186,14 @@ export async function generateContinuationChapters(db: Db, opts: {
       ].filter(Boolean).join('\n'),
       context,
       chapterCount: 1,
+      batchId,
+      batchIndex: index + 1,
+      batchCount: count,
+      taskId,
     })
     generations.push(result.generation)
+    await updateAiTask(db, taskId, { current: index + 1, total: count, step: `已生成第 ${index + 1} / ${count} 章` })
+    if (opts.taskId) await updateAiTask(db, opts.taskId, { current: index + 1, total: count, step: `已生成第 ${index + 1} / ${count} 章` })
     usage = {
       model: result.usage.model,
       promptTokens: usage.promptTokens + result.usage.promptTokens,
@@ -182,6 +202,7 @@ export async function generateContinuationChapters(db: Db, opts: {
     context = `${context}\n\n第 ${index + 1} 章续写：\n${cleanWritingText(result.generation.result, 6000)}`.slice(-MAX_CONTEXT_CHARS)
   }
 
+  await updateAiTask(db, taskId, { status: generations.length === count ? 'completed' : 'cancelled', current: generations.length, total: count, step: generations.length === count ? '已完成' : '已取消' })
   return { generations, usage }
 }
 

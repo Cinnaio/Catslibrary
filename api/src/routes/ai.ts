@@ -10,10 +10,11 @@ import { AiError, chat, isTextAiConfigured, providerLabel, textProvider } from '
 import { getAiSettings, saveAiSettings } from '../services/ai/settings'
 import { generateRecap, getCachedRecap, loadChapterForRecap } from '../services/ai/summary'
 import { generateCatchup, getCachedCatchup, inspectCatchup } from '../services/ai/catchup'
-import { invalidateChapter, listGenerationDetails, deleteGeneration, getGeneration, updateGenerationResult } from '../services/ai/generations'
+import { invalidateChapter, listGenerationDetails, deleteGeneration, deleteGenerations, getGeneration, updateGenerationResult } from '../services/ai/generations'
 import { generateContinuationChapters, generateWriting, generateWritingTitles, recentNovelContext } from '../services/ai/writing'
 import { checkQuota, recordUsage, startOfToday, summarizeUsage } from '../services/ai/usage'
 import { optionalUser, requireAdmin, requireUser, type AuthEnv } from '../middlewares/auth'
+import { cancelAiTask, createAiTask, listAiTasks, updateAiTask } from '../services/ai/tasks'
 
 export const aiRoutes = new Hono<AuthEnv>()
 
@@ -325,6 +326,19 @@ aiRoutes.get('/usage', requireAdmin(), async (c) => {
   return c.json({ today: todayUsage, last30d }, 200, { 'Cache-Control': 'no-store' })
 })
 
+aiRoutes.get('/tasks', requireAdmin(), async (c) => {
+  const limit = Number.parseInt(c.req.query('limit') || '50', 10) || 50
+  const offset = Number.parseInt(c.req.query('offset') || '0', 10) || 0
+  const result = await listAiTasks(getDb(), { limit, offset })
+  return c.json({ ...result, limit, offset }, 200, { 'Cache-Control': 'no-store' })
+})
+
+aiRoutes.post('/tasks/:id/cancel', requireAdmin(), async (c) => {
+  const ok = await cancelAiTask(getDb(), String(c.req.param('id') || '').trim())
+  if (!ok) return c.json({ error: '任务不存在或已经结束' }, 404)
+  return c.json({ ok: true })
+})
+
 // ---------- 审计接口 ----------
 
 /** 用户级 AI 用量审计：按用户聚合统计 */
@@ -522,6 +536,14 @@ aiRoutes.delete('/generations/:id', requireAdmin(), async (c) => {
   const removed = await deleteGeneration(getDb(), id)
   if (!removed) return c.json({ error: '内容不存在或已删除' }, 404)
   return c.json({ ok: true }, 200, { 'Cache-Control': 'no-store' })
+})
+
+aiRoutes.post('/generations/batch-delete', requireAdmin(), async (c) => {
+  const body = await c.req.json().catch(() => ({})) as { ids?: unknown }
+  const ids = Array.isArray(body.ids) ? body.ids.map((id) => String(id)) : []
+  if (!ids.length) return c.json({ error: '请选择要删除的内容' }, 400)
+  const deleted = await deleteGenerations(getDb(), ids)
+  return c.json({ ok: true, deleted }, 200, { 'Cache-Control': 'no-store' })
 })
 
 /** AiError → HTTP：客户端只拿到 code 与可展示文案，上游细节留在服务端日志。 */

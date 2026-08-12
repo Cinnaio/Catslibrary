@@ -31,7 +31,7 @@ describe('数据库迁移', () => {
       'reading_progress', 'novel_covers', 'download_logs',
       'thoughts', 'novel_ratings', 'novel_comments', 'novel_comment_likes', 'novel_comment_reports',
       'user_bookmarks', 'user_bookshelf',
-      'ai_generations', 'ai_usage', 'api_keys',
+      'ai_generations', 'ai_usage', 'ai_tasks', 'api_keys',
     ]
     for (const t of expected) {
       expect(tables).toContain(t)

@@ -689,6 +689,18 @@ export const aiApi = {
   usage(): Promise<{ today: AiUsageSummary; last30d: AiUsageSummary }> {
     return request('GET', '/ai/usage', null, true)
   },
+  tasks(filters: { limit?: number; offset?: number } = {}): Promise<{
+    items: Array<{ id: string; userId: string; novelId: string; kind: string; status: string; current: number; total: number; step: string; prompt: string; batchId: string; error: string; createdAt: number; updatedAt: number; finishedAt: number }>
+    total: number
+    limit: number
+    offset: number
+  }> {
+    const params = new URLSearchParams({ limit: String(filters.limit || 50), offset: String(filters.offset || 0) })
+    return request('GET', `/ai/tasks?${params}`, null, true)
+  },
+  cancelTask(id: string): Promise<{ ok: boolean }> {
+    return request('POST', `/ai/tasks/${encodeURIComponent(id)}/cancel`, {}, true)
+  },
   /** 已生成内容列表（管理端）：默认已发布，可筛类型。 */
   generations(filters: { kind?: 'summary' | 'catchup' | 'continue' | 'write_outline' | 'write_chapter'; scope?: 'all' | 'reader' | 'writing'; status?: 'all' | 'published' | 'draft' | 'rejected'; limit?: number; offset?: number } = {}): Promise<{
     items: Array<{
@@ -702,6 +714,10 @@ export const aiApi = {
       result: string
       status: string
       createdAt: number
+      prompt: string
+      batchId: string
+      batchIndex: number
+      batchCount: number
     }>
     total: number
     limit: number
@@ -718,6 +734,9 @@ export const aiApi = {
   /** 删除单条已生成内容（管理端）：读者再访问时会重新生成并计配额。 */
   deleteGeneration(id: string): Promise<{ ok: boolean }> {
     return request('DELETE', `/ai/generations/${encodeURIComponent(id)}`, null, true)
+  },
+  deleteGenerations(ids: string[]): Promise<{ ok: boolean; deleted: number }> {
+    return request('POST', '/ai/generations/batch-delete', { ids }, true)
   },
   audit: {
     users(limit = 50, offset = 0): Promise<{

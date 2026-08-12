@@ -126,6 +126,23 @@ export async function listGenerations(db: Db, opts: { status?: string; limit?: n
 export interface GenerationDetail extends Generation {
   novelTitle: string
   chapterTitle: string
+  batchId: string
+  batchIndex: number
+  batchCount: number
+  prompt: string
+}
+
+function batchFields(paramsJson: string): { batchId: string; batchIndex: number; batchCount: number } {
+  try {
+    const params = JSON.parse(paramsJson) as Record<string, unknown>
+    return {
+      batchId: typeof params.batchId === 'string' ? params.batchId : '',
+      batchIndex: Number(params.batchIndex) || 0,
+      batchCount: Number(params.batchCount) || 0,
+    }
+  } catch {
+    return { batchId: '', batchIndex: 0, batchCount: 0 }
+  }
 }
 
 /** 「已生成内容」管理列表：带小说/章节标题、行数与分页。 */
@@ -173,6 +190,8 @@ export async function listGenerationDetails(
       ...rowToGeneration(r),
       novelTitle: String(r.novel_title || ''),
       chapterTitle: String(r.chapter_title || ''),
+      ...batchFields(r.params_json),
+      prompt: String(r.prompt || ''),
     })),
     total: totalRow?.total || 0,
   }
@@ -182,6 +201,13 @@ export async function listGenerationDetails(
 export async function deleteGeneration(db: Db, id: string): Promise<boolean> {
   const affected = await run(db, 'DELETE FROM ai_generations WHERE id = $1', [id])
   return affected > 0
+}
+
+export async function deleteGenerations(db: Db, ids: string[]): Promise<number> {
+  const uniqueIds = [...new Set(ids.map((id) => String(id).trim()).filter(Boolean))].slice(0, 500)
+  if (!uniqueIds.length) return 0
+  const placeholders = uniqueIds.map((_, index) => `$${index + 1}`).join(', ')
+  return run(db, `DELETE FROM ai_generations WHERE id IN (${placeholders})`, uniqueIds)
 }
 
 export async function getGeneration(db: Db, id: string): Promise<GenerationRow | undefined> {
