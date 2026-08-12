@@ -28,7 +28,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import AdminPage from '@/components/admin/AdminPage'
 import CustomSelect from '@/components/admin/CustomSelect'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Eye } from 'lucide-react'
 
 interface Provider {
   configured: boolean
@@ -62,9 +61,9 @@ export default function AiTab() {
   }, [load])
 
   return (
-    <AdminPage title="AI 服务" description="管理 AI 功能配置、查看用量统计与调用审计">
-      <Tabs value={activeSubTab} onValueChange={setActiveSubTab}>
-        <TabsList>
+    <AdminPage title="AI 服务" description="管理 AI 功能配置、查看用量统计与调用审计" className="ai-admin-page">
+      <Tabs value={activeSubTab} onValueChange={setActiveSubTab} className="ai-service-tabs min-w-0">
+        <TabsList className="ai-service-tabs__list w-full max-w-full justify-start overflow-x-auto">
           <TabsTrigger value="config">配置</TabsTrigger>
           <TabsTrigger value="content">已生成内容</TabsTrigger>
           <TabsTrigger value="usage">用量统计</TabsTrigger>
@@ -73,27 +72,27 @@ export default function AiTab() {
           <TabsTrigger value="writing">AI 创作</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="config">
+        <TabsContent value="config" className="min-w-0">
           <AiConfigPanel settings={settings} provider={provider} loading={loading} onReload={load} />
         </TabsContent>
 
-        <TabsContent value="content">
+        <TabsContent value="content" className="min-w-0">
           <AiGenerationsPanel scope="all" status="all" />
         </TabsContent>
 
-        <TabsContent value="usage">
+        <TabsContent value="usage" className="min-w-0">
           <AiUsagePanel />
         </TabsContent>
 
-        <TabsContent value="audit">
+        <TabsContent value="audit" className="min-w-0">
           <AiAuditPanel />
         </TabsContent>
 
-        <TabsContent value="params">
+        <TabsContent value="params" className="min-w-0">
           <AiParamsPanel settings={settings} loading={loading} onReload={load} />
         </TabsContent>
 
-        <TabsContent value="writing">
+        <TabsContent value="writing" className="min-w-0">
           <AiWritingPanel />
         </TabsContent>
       </Tabs>
@@ -110,10 +109,6 @@ export function AiWritingPanel() {
   const [chapterTitle, setChapterTitle] = useState('')
   const [instruction, setInstruction] = useState('')
   const [outline, setOutline] = useState('')
-  const [draftId, setDraftId] = useState('')
-  const [draft, setDraft] = useState('')
-  const [draftKind, setDraftKind] = useState<'write_outline' | 'write_chapter' | 'continue' | ''>('')
-  const [previewOpen, setPreviewOpen] = useState(false)
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
@@ -125,7 +120,7 @@ export function AiWritingPanel() {
     setBusy(true)
     try {
       const data = await aiApi.writing.outline({ novelId, title, instruction })
-      setDraftId(data.draft.id); setDraft(data.draft.result); setDraftKind('write_outline'); toast('大纲草稿已生成', 'success')
+      toast('大纲已生成，请到“已生成内容”查看', 'success')
     } catch (err) { toast((err as Error).message, 'error') } finally { setBusy(false) }
   }
 
@@ -134,7 +129,7 @@ export function AiWritingPanel() {
     setBusy(true)
     try {
       const data = await aiApi.writing.chapter({ novelId, title, outline, instruction })
-      setDraftId(data.draft.id); setDraft(data.draft.result); setDraftKind('write_chapter'); toast('章节草稿已生成', 'success')
+      toast('章节已生成，请到“已生成内容”查看', 'success')
     } catch (err) { toast((err as Error).message, 'error') } finally { setBusy(false) }
   }
 
@@ -143,22 +138,8 @@ export function AiWritingPanel() {
     setBusy(true)
     try {
       const data = await aiApi.writing.continue({ novelId, title: chapterTitle, instruction })
-      setDraftId(data.draft.id); setDraft(data.draft.result); setDraftKind('continue'); toast('续写草稿已生成', 'success')
+      toast('续写已生成，请到“已生成内容”查看', 'success')
     } catch (err) { toast((err as Error).message, 'error') } finally { setBusy(false) }
-  }
-
-  async function saveDraft() {
-    if (!draftId || !draft.trim()) return
-    setBusy(true)
-    try { await aiApi.writing.updateDraft(draftId, draft); toast('草稿已保存', 'success') }
-    catch (err) { toast((err as Error).message, 'error') } finally { setBusy(false) }
-  }
-
-  async function publishDraft() {
-    if (!draftId || !novelId || !chapterTitle.trim()) return toast('请选择小说并填写章节标题', 'error')
-    setBusy(true)
-    try { await aiApi.writing.publishDraft(draftId, { novelId, title: chapterTitle }); toast('已发布为正式章节', 'success'); setDraftId(''); setDraft(''); setDraftKind(''); setPreviewOpen(false) }
-    catch (err) { toast((err as Error).message, 'error') } finally { setBusy(false) }
   }
 
   return <div className="space-y-4">
@@ -191,37 +172,6 @@ export function AiWritingPanel() {
         </div>
       </CardContent>
     </Card>
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">草稿区</CardTitle>
-        <p className="text-sm text-muted-foreground">
-          {draftId ? `当前草稿 ID：${draftId}` : '生成大纲、章节或续写后，结果会显示在这里'}
-        </p>
-      </CardHeader>
-      <CardContent className="grid gap-3">
-        <textarea
-          className="min-h-[360px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm leading-7 disabled:cursor-not-allowed disabled:bg-muted/30"
-          value={draft}
-          disabled={!draftId || busy}
-          onChange={(event) => setDraft(event.target.value)}
-          placeholder="等待生成内容…"
-        />
-        <div className="flex flex-wrap justify-end gap-2">
-          <Button variant="outline" disabled={!draftId || !draft.trim() || busy} onClick={() => setPreviewOpen(true)}><Eye className="size-4" />预览</Button>
-          <Button variant="secondary" disabled={!draftId || !draft.trim() || busy} onClick={() => void saveDraft()}>保存草稿</Button>
-          {(draftKind === 'write_chapter' || draftKind === 'continue') && <Button disabled={!draftId || !draft.trim() || busy} onClick={() => void publishDraft()}>发布为章节</Button>}
-        </div>
-      </CardContent>
-    </Card>
-    <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-      <DialogContent className="max-h-[min(85vh,900px)] max-w-4xl overflow-hidden">
-        <DialogHeader>
-          <DialogTitle>{draftKind === 'continue' ? '续写预览' : draftKind === 'write_chapter' ? '章节预览' : '大纲预览'}</DialogTitle>
-          <DialogDescription>仅管理员可查看此草稿预览，发布前仍可继续编辑。</DialogDescription>
-        </DialogHeader>
-        <div className="max-h-[65vh] overflow-y-auto rounded-md border bg-muted/20 p-5 text-sm leading-7 whitespace-pre-wrap">{draft}</div>
-      </DialogContent>
-    </Dialog>
   </div>
 }
 
@@ -286,7 +236,7 @@ function AiConfigPanel(props: {
 
   return (
     <div className="space-y-4">
-      <Card>
+      <Card className="min-w-0">
         <CardHeader className="flex-row items-center justify-between gap-2">
           <div className="min-w-0">
             <CardTitle className="text-base">供应商配置</CardTitle>
@@ -436,8 +386,8 @@ function AiUsagePanel() {
       </div>
 
       <Card>
-        <CardHeader className="flex-row items-center justify-between gap-2">
-          <div>
+        <CardHeader className="flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+          <div className="min-w-0">
             <CardTitle className="text-base">成本与调用趋势</CardTitle>
             <p className="text-sm text-muted-foreground">每日 AI 调用次数与成本消耗</p>
           </div>
@@ -449,7 +399,7 @@ function AiUsagePanel() {
             ))}
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="min-w-0">
           {loading ? (
             <div className="flex h-80 items-center justify-center text-muted-foreground">加载中…</div>
           ) : trend.length === 0 ? (
@@ -867,6 +817,7 @@ export function AiGenerationsPanel(props: { scope: 'all' | 'reader' | 'writing';
       novelTitle: string
       chapterTitle: string
       result: string
+      status: string
       createdAt: number
     }>
   >([])
@@ -876,6 +827,9 @@ export function AiGenerationsPanel(props: { scope: 'all' | 'reader' | 'writing';
   const [offset, setOffset] = useState(0)
   const [filterKind, setFilterKind] = useState<'all' | 'summary' | 'catchup' | 'write_outline' | 'write_chapter' | 'continue'>('all')
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [viewing, setViewing] = useState<(typeof items)[number] | null>(null)
+  const [publishTitle, setPublishTitle] = useState('')
+  const [publishing, setPublishing] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -922,6 +876,23 @@ export function AiGenerationsPanel(props: { scope: 'all' | 'reader' | 'writing';
     }
   }
 
+  async function publish(item: (typeof items)[number]) {
+    const title = publishTitle.trim()
+    if (!title || !item.novelId) return toast('请填写章节标题并确认关联小说', 'error')
+    setPublishing(true)
+    try {
+      await aiApi.writing.publishDraft(item.id, { novelId: item.novelId, title })
+      toast('已发布为正式章节', 'success')
+      setViewing(null)
+      setPublishTitle('')
+      void load()
+    } catch (err) {
+      toast((err as Error).message || '发布失败', 'error')
+    } finally {
+      setPublishing(false)
+    }
+  }
+
   return (
     <div className="space-y-4">
       <Card>
@@ -930,7 +901,7 @@ export function AiGenerationsPanel(props: { scope: 'all' | 'reader' | 'writing';
             <CardTitle className="text-base">已生成内容</CardTitle>
             <p className="text-sm text-muted-foreground">AI 生成的内容记录，可删除后重新生成</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex w-full items-center gap-2 sm:w-auto">
             <Label htmlFor="gen-filter-kind" className="text-xs text-muted-foreground">类型</Label>
             <Select
               value={filterKind}
@@ -939,7 +910,7 @@ export function AiGenerationsPanel(props: { scope: 'all' | 'reader' | 'writing';
                 setOffset(0)
               }}
             >
-              <SelectTrigger size="sm" id="gen-filter-kind" className="w-[140px]">
+              <SelectTrigger size="sm" id="gen-filter-kind" className="w-full sm:w-[140px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent position="popper" align="end" sideOffset={4}>
@@ -964,9 +935,9 @@ export function AiGenerationsPanel(props: { scope: 'all' | 'reader' | 'writing';
             <div className="flex h-32 items-center justify-center text-muted-foreground">暂无已生成内容</div>
           ) : (
             <>
-              <div className="overflow-hidden rounded-xl border border-border">
+              <div className="ai-generations-table overflow-hidden rounded-xl border border-border">
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <table className="w-full min-w-[760px] text-sm">
                     <thead className="border-b bg-muted/50">
                       <tr>
                         <th className="px-4 py-3 text-left font-medium">类型</th>
@@ -1024,15 +995,18 @@ export function AiGenerationsPanel(props: { scope: 'all' | 'reader' | 'writing';
                             <div className="text-xs">{new Date(item.createdAt).toLocaleTimeString('zh-CN')}</div>
                           </td>
                           <td className="px-4 py-3 text-right">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                              disabled={deletingId === item.id}
-                              onClick={() => void remove(item)}
-                            >
-                              {deletingId === item.id ? '删除中…' : '删除'}
-                            </Button>
+                            <div className="flex justify-end gap-2">
+                              <Button variant="outline" size="sm" onClick={() => { setViewing(item); setPublishTitle(item.chapterTitle || '') }}>查看</Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                disabled={deletingId === item.id}
+                                onClick={() => void remove(item)}
+                              >
+                                {deletingId === item.id ? '删除中…' : '删除'}
+                              </Button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -1040,15 +1014,15 @@ export function AiGenerationsPanel(props: { scope: 'all' | 'reader' | 'writing';
                   </table>
                 </div>
               </div>
-              <div className="mt-4 flex items-center justify-between">
+              <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <span className="text-sm text-muted-foreground">
                   共 {total} 条，显示 {offset + 1}-{Math.min(offset + limit, total)}
                 </span>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - limit))}>
+                <div className="flex w-full gap-2 sm:w-auto">
+                  <Button className="flex-1 sm:flex-none" variant="outline" size="sm" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - limit))}>
                     上一页
                   </Button>
-                  <Button variant="outline" size="sm" disabled={offset + limit >= total} onClick={() => setOffset(offset + limit)}>
+                  <Button className="flex-1 sm:flex-none" variant="outline" size="sm" disabled={offset + limit >= total} onClick={() => setOffset(offset + limit)}>
                     下一页
                   </Button>
                 </div>
@@ -1057,6 +1031,30 @@ export function AiGenerationsPanel(props: { scope: 'all' | 'reader' | 'writing';
           )}
         </CardContent>
       </Card>
+      <Dialog open={!!viewing} onOpenChange={(open) => { if (!open) { setViewing(null); setPublishTitle('') } }}>
+        <DialogContent className="ai-generation-dialog flex h-[min(85svh,900px)] max-h-[calc(100svh-2rem)] w-[calc(100%-1.5rem)] max-w-4xl flex-col gap-3 overflow-hidden p-4 sm:gap-4 sm:p-6">
+          <DialogHeader>
+            <DialogTitle>{viewing ? `${kindLabel(viewing.kind)} · 完整内容` : '完整内容'}</DialogTitle>
+            <DialogDescription>仅管理员可查看 AI 生成的完整内容。</DialogDescription>
+          </DialogHeader>
+          {viewing && (
+            <>
+              <div className="min-h-0 flex-1 overflow-y-auto rounded-md border bg-muted/20 p-4 text-sm leading-7 whitespace-pre-wrap sm:p-5">{viewing.result || '暂无内容'}</div>
+              {viewing.status === 'draft' && (viewing.kind === 'write_chapter' || viewing.kind === 'continue') && (
+                <div className="ai-generation-publish shrink-0 border-t pt-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                  <div className="ai-generation-publish__field grid min-w-0 flex-1 gap-1.5">
+                    <Label htmlFor="generation-publish-title">发布章节标题</Label>
+                    <Input id="generation-publish-title" className="h-11 focus-visible:border-ring focus-visible:ring-ring/50" value={publishTitle} onChange={(event) => setPublishTitle(event.target.value)} placeholder="例如：第十二章 暴雨前夜" />
+                  </div>
+                  <Button className="h-11 w-full shrink-0 sm:w-auto" disabled={publishing || !publishTitle.trim()} onClick={() => void publish(viewing)}>{publishing ? '发布中…' : '发布为章节'}</Button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
