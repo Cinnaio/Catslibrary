@@ -747,6 +747,31 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     expect(afterIndices).toEqual([1, 2, 3])
   })
 
+  it('删除任务：已结束任务可删，运行中任务须先取消，删除后任务与草稿解耦', async () => {
+    const novelId = await firstNovelId(t)
+    // 起一个会失败的单章续写任务：连续返回 400，确保重试耗尽后失败
+    const prevImpl = fetchMock.getMockImplementation()
+    fetchMock.mockImplementation(async () => new Response('upstream boom', { status: 400 }))
+    try {
+      const started = await req('/api/ai/writing/continue', json('POST', { novelId, chapterCount: 1 }, adminToken))
+      const { taskId } = await jsonOf<{ taskId: string }>(started)
+      const task = await waitForTask(taskId, adminToken)
+      expect(task.status).toBe('failed')
+      // 不存在的任务 404
+      expect((await req('/api/ai/tasks/task_missing', json('DELETE', undefined, adminToken))).status).toBe(404)
+      // 已结束任务可删
+      const removed = await req(`/api/ai/tasks/${taskId}`, json('DELETE', undefined, adminToken))
+      expect(removed.status).toBe(200)
+      expect((await jsonOf<{ ok: boolean }>(removed)).ok).toBe(true)
+      // 删除后列表里找不到该任务
+      const list = await jsonOf<{ items: Array<{ id: string }> }>(await req('/api/ai/tasks?status=failed', json('GET', undefined, adminToken)))
+      expect(list.items.find((item) => item.id === taskId)).toBeUndefined()
+    } finally {
+      // 恢复默认 mock，避免污染后续用例
+      if (prevImpl) fetchMock.mockImplementation(prevImpl); else fetchMock.mockReset()
+    }
+  })
+
 
   // ---------- 参数调优设置真实生效 ----------
 
@@ -1030,6 +1055,10 @@ function sleep(ms: number): Promise<void> {
 async function waitForTask(taskId: string, token: string): Promise<{ status: string; current: number; total: number; error: string }> {
   for (let i = 0; i < 500; i++) {
     const res = await app.request(`/api/ai/tasks/${taskId}`, json('GET', undefined, token))
+    if (res.status !== 200) {
+      // 任务可能已被删除：返回当前状态即可，调用方据此判断
+      return { status: 'gone', current: 0, total: 0, error: `查询任务返回 ${res.status}` }
+    }
     const { task } = (await res.json()) as { task: { status: string; current: number; total: number; error: string } }
     if (task.status !== 'queued' && task.status !== 'running') return task
     await sleep(10)

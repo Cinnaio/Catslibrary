@@ -79,6 +79,15 @@ export async function cancelAiTask(db: Db, id: string): Promise<boolean> {
 }
 
 /**
+ * 删除已结束的任务记录（completed/failed/cancelled）。
+ * 运行中（queued/running）的任务必须先取消再删，避免删掉正在执行的记录。
+ * 物理删除，不影响 ai_usage 审计账本；返回是否实际删除了一行。
+ */
+export async function deleteAiTask(db: Db, id: string): Promise<boolean> {
+  return (await run(db, `DELETE FROM ai_tasks WHERE id = $1 AND status IN ('completed','failed','cancelled')`, [id])) > 0
+}
+
+/**
  * 服务启动时调用：任务在进程内同步执行，重启后残留的 queued/running 必然已中断，
  * 统一标记为 failed，避免前端任务面板永远显示「运行中」。返回受影响行数。
  */

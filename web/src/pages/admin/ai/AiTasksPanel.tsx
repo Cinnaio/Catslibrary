@@ -1,7 +1,7 @@
 /** AI 任务管理：查看生成进度、错误和输入 Prompt；有任务运行时自动轮询刷新。 */
 import { useCallback, useEffect, useState } from 'react'
 import { aiApi, type AiTaskInfo } from '@/lib/api'
-import { useToast } from '@/components/feedback'
+import { useToast, useConfirm } from '@/components/feedback'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -23,10 +23,12 @@ type AiTask = AiTaskInfo
 
 export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) => void } = {}) {
   const { toast } = useToast()
+  const { confirm } = useConfirm()
   const [tasks, setTasks] = useState<AiTask[]>([])
   const [loading, setLoading] = useState(true)
   const [filterStatus, setFilterStatus] = useState<'all' | 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'>('all')
   const [retryingId, setRetryingId] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -73,6 +75,25 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
     } finally { setRetryingId(null) }
   }
 
+  async function remove(task: AiTask) {
+    const ok = await confirm({
+      title: '删除这条任务记录？',
+      message: '删除后无法恢复。这是操作性记录，不影响 AI 用量审计。任务下已生成的草稿仍保留在「已生成内容」中。',
+      okText: '删除',
+      cancelText: '取消',
+      danger: true,
+    })
+    if (!ok) return
+    setDeletingId(task.id)
+    try {
+      await aiApi.deleteTask(task.id)
+      toast('任务已删除', 'success')
+      void load()
+    } catch (err) {
+      toast((err as Error).message || '删除任务失败', 'error')
+    } finally { setDeletingId(null) }
+  }
+
   return <Card>
     <CardHeader className="flex-row items-center justify-between gap-2">
       <div>
@@ -111,6 +132,9 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
             )}
             {(task.status === 'failed' || task.status === 'cancelled') && !!task.params && (
               <Button variant="outline" size="sm" disabled={retryingId === task.id} onClick={() => void retry(task.id)}>{retryingId === task.id ? '重试中…' : '重试'}</Button>
+            )}
+            {(task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled') && (
+              <Button variant="outline" size="sm" className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" disabled={deletingId === task.id} onClick={() => void remove(task)}>{deletingId === task.id ? '删除中…' : '删除'}</Button>
             )}
           </div>
         </div>)}

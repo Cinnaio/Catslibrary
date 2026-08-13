@@ -15,7 +15,7 @@ import { escapeLike } from '../services/text'
 import { generateContinuationChapters, generateWriting, generateWritingTitles, recentNovelContext } from '../services/ai/writing'
 import { checkQuota, recordUsage, startOfToday, summarizeUsage } from '../services/ai/usage'
 import { optionalUser, requireAdmin, requireUser, type AuthEnv } from '../middlewares/auth'
-import { cancelAiTask, countActiveWritingTasks, createAiTask, getAiTask, listAiTasks, updateAiTask } from '../services/ai/tasks'
+import { cancelAiTask, countActiveWritingTasks, createAiTask, deleteAiTask, getAiTask, listAiTasks, updateAiTask } from '../services/ai/tasks'
 import { clientIpFromContext } from '../services/ai/audit-context'
 
 export const aiRoutes = new Hono<AuthEnv>()
@@ -507,6 +507,18 @@ aiRoutes.post('/tasks/:id/cancel', requireAdmin(), async (c) => {
   const ok = await cancelAiTask(getDb(), String(c.req.param('id') || '').trim())
   if (!ok) return c.json({ error: '任务不存在或已经结束' }, 404)
   return c.json({ ok: true })
+})
+
+/**
+ * 删除已结束的任务记录（completed/failed/cancelled）。
+ * 运行中的任务须先取消；这是操作性记录，删除不影响 ai_usage 审计账本。
+ */
+aiRoutes.delete('/tasks/:id', requireAdmin(), async (c) => {
+  const id = String(c.req.param('id') || '').trim()
+  if (!id) return c.json({ error: 'id is required' }, 400)
+  const ok = await deleteAiTask(getDb(), id)
+  if (!ok) return c.json({ error: '任务不存在或仍在运行中，请先取消' }, 404)
+  return c.json({ ok: true }, 200, { 'Cache-Control': 'no-store' })
 })
 
 /** 按原参数重试失败/取消的创作任务：新建任务执行，原任务保留作为记录。 */

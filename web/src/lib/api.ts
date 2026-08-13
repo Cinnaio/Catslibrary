@@ -782,6 +782,10 @@ export const aiApi = {
   cancelTask(id: string): Promise<{ ok: boolean }> {
     return request('POST', `/ai/tasks/${encodeURIComponent(id)}/cancel`, {}, true)
   },
+  /** 删除已结束的任务记录（completed/failed/cancelled），运行中需先取消。 */
+  deleteTask(id: string): Promise<{ ok: boolean }> {
+    return request('DELETE', `/ai/tasks/${encodeURIComponent(id)}`, null, true)
+  },
   /** 按原参数重试失败/取消的创作任务，返回新任务 id。 */
   retryTask(id: string): Promise<{ ok: boolean; taskId: string; batchId: string; total: number }> {
     return request('POST', `/ai/tasks/${encodeURIComponent(id)}/retry`, {}, true)
