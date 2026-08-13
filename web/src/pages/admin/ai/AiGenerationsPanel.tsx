@@ -35,7 +35,11 @@ interface AiGenerationListItem {
 /** 可编辑的草稿类型：与后端 PUT /writing/drafts/:id 的白名单一致。 */
 const EDITABLE_KINDS = new Set(['write_chapter', 'continue', 'write_outline'])
 
-export default function AiGenerationsPanel(props: { scope: 'all' | 'reader' | 'writing'; status?: 'all' | 'published' | 'draft' | 'rejected'; focusBatchId?: string }) {
+export default function AiGenerationsPanel(props: {
+  scope: 'all' | 'reader' | 'writing'
+  status?: 'all' | 'published' | 'draft' | 'rejected'
+  focusBatchId?: string
+}) {
   const { toast } = useToast()
   const { confirm } = useConfirm()
   const [items, setItems] = useState<AiGenerationListItem[]>([])
@@ -67,11 +71,12 @@ export default function AiGenerationsPanel(props: { scope: 'all' | 'reader' | 'w
     setLoading(true)
     try {
       const res = await aiApi.generations({ kind: filterKind === 'all' ? undefined : filterKind, scope: props.scope, status: props.status, limit, offset })
-      const allowedKinds = props.scope === 'writing'
-        ? new Set(['continue', 'write_outline', 'write_chapter'])
-        : props.scope === 'reader'
-          ? new Set(['summary', 'catchup'])
-          : new Set(['summary', 'catchup', 'continue', 'write_outline', 'write_chapter'])
+      const allowedKinds =
+        props.scope === 'writing'
+          ? new Set(['continue', 'write_outline', 'write_chapter'])
+          : props.scope === 'reader'
+            ? new Set(['summary', 'catchup'])
+            : new Set(['summary', 'catchup', 'continue', 'write_outline', 'write_chapter'])
       const filtered = res.items.filter((item) => allowedKinds.has(item.kind))
       const groups = new Map<string, AiGenerationListItem[]>()
       for (const item of filtered) {
@@ -80,18 +85,20 @@ export default function AiGenerationsPanel(props: { scope: 'all' | 'reader' | 'w
         group.push(item)
         groups.set(key, group)
       }
-      setItems(Array.from(groups.entries()).map(([key, group]) => {
-        if (!group[0] || !group[0].batchId || group.length === 1) return group[0]!
-        const first = group[0]
-        return {
-          ...first,
-          id: key,
-          result: `${group.length} 个续写章节草稿`,
-          chapterTitle: `${group.length} 章续写集合`,
-          batchCount: group.length,
-          groupItems: group.sort((a, b) => a.batchIndex - b.batchIndex),
-        }
-      }))
+      setItems(
+        Array.from(groups.entries()).map(([key, group]) => {
+          if (!group[0] || !group[0].batchId || group.length === 1) return group[0]!
+          const first = group[0]
+          return {
+            ...first,
+            id: key,
+            result: `${group.length} 个续写章节草稿`,
+            chapterTitle: `${group.length} 章续写集合`,
+            batchCount: group.length,
+            groupItems: group.sort((a, b) => a.batchIndex - b.batchIndex),
+          }
+        }),
+      )
       setSelectedIds(new Set())
       setTotal(res.total)
     } catch (err) {
@@ -241,15 +248,21 @@ export default function AiGenerationsPanel(props: { scope: 'all' | 'reader' | 'w
 
   return (
     <div className="space-y-4">
-      <Card>
-        <CardHeader className="flex-row items-center justify-between gap-2">
+      <Card className="ai-generations-card">
+        <CardHeader className="ai-generations-card__header flex-row items-center justify-between gap-2">
           <div>
             <CardTitle className="text-base">已生成内容</CardTitle>
             <p className="text-sm text-muted-foreground">AI 生成的内容记录，可删除后重新生成</p>
           </div>
-          <div className="flex w-full items-center gap-2 sm:w-auto">
-            {selectedCount > 0 && <Button variant="destructive" size="sm" disabled={batchDeleting} onClick={() => void removeSelected()}>批量删除 ({selectedCount})</Button>}
-            <Label htmlFor="gen-filter-kind" className="text-xs text-muted-foreground">类型</Label>
+          <div className="ai-generations-card__filter flex w-full items-center gap-2 sm:w-auto">
+            {selectedCount > 0 && (
+              <Button variant="destructive" size="sm" disabled={batchDeleting} onClick={() => void removeSelected()}>
+                批量删除 ({selectedCount})
+              </Button>
+            )}
+            <Label htmlFor="gen-filter-kind" className="text-xs text-muted-foreground">
+              类型
+            </Label>
             <Select
               value={filterKind}
               onValueChange={(v) => {
@@ -262,15 +275,19 @@ export default function AiGenerationsPanel(props: { scope: 'all' | 'reader' | 'w
               </SelectTrigger>
               <SelectContent position="popper" align="end" sideOffset={4}>
                 <SelectItem value="all">全部</SelectItem>
-                {props.scope !== 'writing' && <>
-                  <SelectItem value="summary">前情提要</SelectItem>
-                  <SelectItem value="catchup">回顾总结</SelectItem>
-                </>}
-                {props.scope !== 'reader' && <>
-                  <SelectItem value="write_outline">创作大纲</SelectItem>
-                  <SelectItem value="write_chapter">创作章节</SelectItem>
-                  <SelectItem value="continue">续写</SelectItem>
-                </>}
+                {props.scope !== 'writing' && (
+                  <>
+                    <SelectItem value="summary">前情提要</SelectItem>
+                    <SelectItem value="catchup">回顾总结</SelectItem>
+                  </>
+                )}
+                {props.scope !== 'reader' && (
+                  <>
+                    <SelectItem value="write_outline">创作大纲</SelectItem>
+                    <SelectItem value="write_chapter">创作章节</SelectItem>
+                    <SelectItem value="continue">续写</SelectItem>
+                  </>
+                )}
               </SelectContent>
             </Select>
           </div>
@@ -287,7 +304,15 @@ export default function AiGenerationsPanel(props: { scope: 'all' | 'reader' | 'w
                   <table className="w-full min-w-[760px] text-sm">
                     <thead className="border-b bg-muted/50">
                       <tr>
-                        <th className="w-10 px-4 py-3 text-left font-medium"><Checkbox aria-label="全选当前列表" checked={allSelected} onCheckedChange={(checked) => { for (const item of items) toggleItem(item, checked === true) }} /></th>
+                        <th className="w-10 px-4 py-3 text-left font-medium">
+                          <Checkbox
+                            aria-label="全选当前列表"
+                            checked={allSelected}
+                            onCheckedChange={(checked) => {
+                              for (const item of items) toggleItem(item, checked === true)
+                            }}
+                          />
+                        </th>
                         <th className="px-4 py-3 text-left font-medium">类型</th>
                         <th className="px-4 py-3 text-left font-medium">关联内容</th>
                         <th className="px-4 py-3 text-left font-medium">内容预览</th>
@@ -299,91 +324,142 @@ export default function AiGenerationsPanel(props: { scope: 'all' | 'reader' | 'w
                     <tbody>
                       {items.map((item) => (
                         <Fragment key={item.id}>
-                        <tr className="ai-generation-row border-b last:border-0 hover:bg-muted/30">
-                          <td className="px-4 py-3"><Checkbox aria-label={`选择${item.chapterTitle || item.kind}`} checked={idsForItem(item).every((id) => selectedIds.has(id))} onCheckedChange={(checked) => toggleItem(item, checked === true)} /></td>
-                          <td className="px-4 py-3">
-                            <Badge variant="secondary">{kindLabel(item.kind)}</Badge>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="max-w-[220px]">
-                              {item.novelId ? (
-                                <Link
-                                  to={`/novel/${encodeURIComponent(item.novelId)}`}
-                                  className="block truncate font-medium text-foreground hover:text-primary hover:underline"
-                                  title={`打开《${item.novelTitle || '未知小说'}》详情`}
-                                >
-                                  {item.novelTitle || <span className="text-muted-foreground">—</span>}
-                                </Link>
-                              ) : (
-                                <div className="truncate font-medium text-foreground">
-                                  {item.novelTitle || <span className="text-muted-foreground">—</span>}
-                                </div>
-                              )}
-                              {item.chapterTitle ? (
-                                item.novelId && item.chapterId ? (
+                          <tr className="ai-generation-row border-b last:border-0 hover:bg-muted/30">
+                            <td className="px-4 py-3">
+                              <Checkbox
+                                aria-label={`选择${item.chapterTitle || item.kind}`}
+                                checked={idsForItem(item).every((id) => selectedIds.has(id))}
+                                onCheckedChange={(checked) => toggleItem(item, checked === true)}
+                              />
+                            </td>
+                            <td className="px-4 py-3">
+                              <Badge variant="secondary">{kindLabel(item.kind)}</Badge>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="max-w-[220px]">
+                                {item.novelId ? (
                                   <Link
-                                    to={`/read/${encodeURIComponent(item.novelId)}/${encodeURIComponent(item.chapterId)}`}
-                                    className="block truncate text-xs text-muted-foreground hover:text-primary hover:underline"
-                                    title="阅读该章节"
+                                    to={`/novel/${encodeURIComponent(item.novelId)}`}
+                                    className="block truncate font-medium text-foreground hover:text-primary hover:underline"
+                                    title={`打开《${item.novelTitle || '未知小说'}》详情`}
                                   >
-                                    📖 {item.chapterTitle}
+                                    {item.novelTitle || <span className="text-muted-foreground">—</span>}
                                   </Link>
                                 ) : (
-                                  <div className="truncate text-xs text-muted-foreground">📖 {item.chapterTitle}</div>
-                                )
-                              ) : null}
-                            </div>
-                          </td>
-                          <td className="max-w-[340px] px-4 py-3">
-                            <p className="line-clamp-2 whitespace-pre-line text-xs leading-relaxed text-muted-foreground">
-                              {item.result || '—'}
-                            </p>
-                          </td>
-                          <td className="px-4 py-3 text-xs text-muted-foreground">{item.model || '—'}</td>
-                          <td className="px-4 py-3 text-muted-foreground">
-                            <div>{new Date(item.createdAt).toLocaleDateString('zh-CN')}</div>
-                            <div className="text-xs">{new Date(item.createdAt).toLocaleTimeString('zh-CN')}</div>
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            <div className="flex justify-end gap-2">
-                              {item.groupItems ? (
-                                <>
-                                  {item.groupItems.some((chapter) => chapter.status === 'draft') && (
-                                    <Button size="sm" disabled={publishingBatchId === item.batchId} onClick={() => void publishBatch(item)}>
-                                      {publishingBatchId === item.batchId ? '发布中…' : '整批发布'}
-                                    </Button>
-                                  )}
-                                  <Button variant="outline" size="sm" onClick={() => setExpandedBatchId(expandedBatchId === item.id ? null : item.id)}>{expandedBatchId === item.id ? '收起章节' : '查看章节'}</Button>
-                                </>
-                              ) : (
-                                <Button variant="outline" size="sm" onClick={() => { setViewing(item); setPublishTitle(item.chapterTitle || ''); setTitleCandidates([]) }}>查看</Button>
-                              )}
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                                disabled={!!item.groupItems || deletingId === item.id}
-                                onClick={() => void remove(item)}
+                                  <div className="truncate font-medium text-foreground">
+                                    {item.novelTitle || <span className="text-muted-foreground">—</span>}
+                                  </div>
+                                )}
+                                {item.chapterTitle ? (
+                                  item.novelId && item.chapterId ? (
+                                    <Link
+                                      to={`/read/${encodeURIComponent(item.novelId)}/${encodeURIComponent(item.chapterId)}`}
+                                      className="block truncate text-xs text-muted-foreground hover:text-primary hover:underline"
+                                      title="阅读该章节"
+                                    >
+                                      📖 {item.chapterTitle}
+                                    </Link>
+                                  ) : (
+                                    <div className="truncate text-xs text-muted-foreground">📖 {item.chapterTitle}</div>
+                                  )
+                                ) : null}
+                              </div>
+                            </td>
+                            <td className="max-w-[340px] px-4 py-3">
+                              <p
+                                className="ai-generation-preview line-clamp-2 whitespace-pre-line text-xs leading-relaxed text-muted-foreground"
+                                data-preview-label={item.groupItems ? '内容摘要' : '正文预览'}
                               >
-                                {deletingId === item.id ? '删除中…' : '删除'}
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                        {item.groupItems && expandedBatchId === item.id && item.groupItems.map((chapter) => (
-                          <tr key={chapter.id} className="ai-generation-row ai-generation-row--child border-b bg-muted/20 last:border-0">
-                            <td className="px-4 py-2" />
-                            <td className="px-4 py-2 pl-8"><span className="text-xs text-muted-foreground">第 {chapter.batchIndex} 章</span></td>
-                            <td className="px-4 py-2"><span className="text-xs text-muted-foreground">{chapter.chapterTitle || '待命名章节'}</span></td>
-                            <td className="max-w-[340px] px-4 py-2"><p className="line-clamp-1 text-xs text-muted-foreground">{chapter.result || '暂无内容'}</p></td>
-                            <td className="px-4 py-2 text-xs text-muted-foreground">{chapter.status}</td>
-                            <td className="px-4 py-2 text-xs text-muted-foreground">{new Date(chapter.createdAt).toLocaleTimeString('zh-CN')}</td>
-                            <td className="px-4 py-2 text-right"><div className="flex justify-end gap-2">
-                              <Button variant="outline" size="sm" onClick={() => { setViewing(chapter); setPublishTitle(chapter.chapterTitle || ''); setTitleCandidates([]) }}>查看</Button>
-                              <Button variant="outline" size="sm" className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" disabled={deletingId === chapter.id} onClick={() => void remove(chapter)}>{deletingId === chapter.id ? '删除中…' : '删除'}</Button>
-                            </div></td>
+                                {item.result || '—'}
+                              </p>
+                            </td>
+                            <td className="px-4 py-3 text-xs text-muted-foreground">{item.model || '—'}</td>
+                            <td className="px-4 py-3 text-muted-foreground">
+                              <div>{new Date(item.createdAt).toLocaleDateString('zh-CN')}</div>
+                              <div className="text-xs">{new Date(item.createdAt).toLocaleTimeString('zh-CN')}</div>
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <div className="flex justify-end gap-2">
+                                {item.groupItems ? (
+                                  <>
+                                    {item.groupItems.some((chapter) => chapter.status === 'draft') && (
+                                      <Button size="sm" disabled={publishingBatchId === item.batchId} onClick={() => void publishBatch(item)}>
+                                        {publishingBatchId === item.batchId ? '发布中…' : '整批发布'}
+                                      </Button>
+                                    )}
+                                    <Button variant="outline" size="sm" onClick={() => setExpandedBatchId(expandedBatchId === item.id ? null : item.id)}>
+                                      {expandedBatchId === item.id ? '收起章节' : '查看章节'}
+                                    </Button>
+                                  </>
+                                ) : (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                      setViewing(item)
+                                      setPublishTitle(item.chapterTitle || '')
+                                      setTitleCandidates([])
+                                    }}
+                                  >
+                                    查看
+                                  </Button>
+                                )}
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                  disabled={!!item.groupItems || deletingId === item.id}
+                                  onClick={() => void remove(item)}
+                                >
+                                  {deletingId === item.id ? '删除中…' : '删除'}
+                                </Button>
+                              </div>
+                            </td>
                           </tr>
-                        ))}
+                          {item.groupItems &&
+                            expandedBatchId === item.id &&
+                            item.groupItems.map((chapter) => (
+                              <tr key={chapter.id} className="ai-generation-row ai-generation-row--child border-b bg-muted/20 last:border-0">
+                                <td className="px-4 py-2" />
+                                <td className="px-4 py-2 pl-8">
+                                  <span className="text-xs text-muted-foreground">第 {chapter.batchIndex} 章</span>
+                                </td>
+                                <td className="px-4 py-2">
+                                  <span className="text-xs text-muted-foreground">{chapter.chapterTitle || '待命名章节'}</span>
+                                </td>
+                                <td className="max-w-[340px] px-4 py-2">
+                                  <p className="ai-generation-preview line-clamp-1 text-xs text-muted-foreground" data-preview-label="正文预览">
+                                    {chapter.result || '暂无内容'}
+                                  </p>
+                                </td>
+                                <td className="px-4 py-2 text-xs text-muted-foreground">{chapter.status}</td>
+                                <td className="px-4 py-2 text-xs text-muted-foreground">{new Date(chapter.createdAt).toLocaleTimeString('zh-CN')}</td>
+                                <td className="px-4 py-2 text-right">
+                                  <div className="flex justify-end gap-2">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => {
+                                        setViewing(chapter)
+                                        setPublishTitle(chapter.chapterTitle || '')
+                                        setTitleCandidates([])
+                                      }}
+                                    >
+                                      查看
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                      disabled={deletingId === chapter.id}
+                                      onClick={() => void remove(chapter)}
+                                    >
+                                      {deletingId === chapter.id ? '删除中…' : '删除'}
+                                    </Button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
                         </Fragment>
                       ))}
                     </tbody>
@@ -397,8 +473,16 @@ export default function AiGenerationsPanel(props: { scope: 'all' | 'reader' | 'w
                 <div className="ai-list-pagination-controls ml-auto flex shrink-0 items-center gap-3">
                   <div className="ai-list-page-size flex shrink-0 items-center gap-2 text-sm text-muted-foreground">
                     <Label htmlFor="generation-page-size">每页</Label>
-                    <Select value={String(limit)} onValueChange={(value) => { setLimit(Number(value)); setOffset(0) }}>
-                      <SelectTrigger size="sm" id="generation-page-size" className="w-[88px]" aria-label="每页显示数量"><SelectValue /></SelectTrigger>
+                    <Select
+                      value={String(limit)}
+                      onValueChange={(value) => {
+                        setLimit(Number(value))
+                        setOffset(0)
+                      }}
+                    >
+                      <SelectTrigger size="sm" id="generation-page-size" className="w-[88px]" aria-label="每页显示数量">
+                        <SelectValue />
+                      </SelectTrigger>
                       <SelectContent position="popper" align="end" sideOffset={4}>
                         <SelectItem value="10">10 条</SelectItem>
                         <SelectItem value="20">20 条</SelectItem>
@@ -407,14 +491,30 @@ export default function AiGenerationsPanel(props: { scope: 'all' | 'reader' | 'w
                       </SelectContent>
                     </Select>
                   </div>
-                  <Pagination className="ai-list-pagination" page={Math.floor(offset / limit) + 1} totalPages={Math.max(1, Math.ceil(total / limit))} onPage={(page) => setOffset((page - 1) * limit)} />
+                  <Pagination
+                    className="ai-list-pagination"
+                    page={Math.floor(offset / limit) + 1}
+                    totalPages={Math.max(1, Math.ceil(total / limit))}
+                    onPage={(page) => setOffset((page - 1) * limit)}
+                  />
                 </div>
               </div>
             </>
           )}
         </CardContent>
       </Card>
-      <Dialog open={!!viewing} onOpenChange={(open) => { if (!open) { setViewing(null); setPublishTitle(''); setTitleCandidates([]); setGeneratingTitles(false); setEditingText(null) } }}>
+      <Dialog
+        open={!!viewing}
+        onOpenChange={(open) => {
+          if (!open) {
+            setViewing(null)
+            setPublishTitle('')
+            setTitleCandidates([])
+            setGeneratingTitles(false)
+            setEditingText(null)
+          }
+        }}
+      >
         <DialogContent className="ai-generation-dialog flex h-[min(85svh,900px)] max-h-[calc(100svh-2rem)] w-[calc(100%-1.5rem)] max-w-4xl flex-col gap-3 overflow-hidden p-4 sm:gap-4 sm:p-6">
           <DialogHeader>
             <DialogTitle>{viewing ? `${kindLabel(viewing.kind)} · 完整内容` : '完整内容'}</DialogTitle>
@@ -423,26 +523,35 @@ export default function AiGenerationsPanel(props: { scope: 'all' | 'reader' | 'w
           {viewing && (
             <>
               <details className="shrink-0 rounded-md border bg-muted/10 p-3">
-                <summary className="cursor-pointer text-sm font-medium">查看本次生成的 Prompt</summary>
-                <pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap text-xs leading-5 text-muted-foreground">{viewing.prompt || '未记录 Prompt'}</pre>
+                <summary className="cursor-pointer text-sm font-medium">本次生成 Prompt</summary>
+                <pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap text-xs leading-5 text-muted-foreground">
+                  {viewing.prompt || '未记录 Prompt'}
+                </pre>
               </details>
               <div className="flex shrink-0 items-center gap-2">
-                <span className="text-xs text-muted-foreground">
-                  约 {(editingText ?? viewing.result).replace(/<[^>]*>/g, '').length} 字
-                </span>
-                {viewing.status === 'draft' && EDITABLE_KINDS.has(viewing.kind) && (
-                  editingText === null ? (
-                    <Button variant="outline" size="sm" className="ml-auto" onClick={() => setEditingText(viewing.result)}>编辑正文</Button>
+                <span className="text-xs text-muted-foreground">约 {(editingText ?? viewing.result).replace(/<[^>]*>/g, '').length} 字</span>
+                {viewing.status === 'draft' &&
+                  EDITABLE_KINDS.has(viewing.kind) &&
+                  (editingText === null ? (
+                    <Button variant="outline" size="sm" className="ml-auto" onClick={() => setEditingText(viewing.result)}>
+                      编辑正文
+                    </Button>
                   ) : (
                     <div className="ml-auto flex gap-2">
-                      <Button variant="ghost" size="sm" disabled={savingEdit} onClick={() => setEditingText(null)}>取消</Button>
-                      <Button size="sm" disabled={savingEdit || !editingText.trim()} onClick={() => void saveEdit(viewing)}>{savingEdit ? '保存中…' : '保存草稿'}</Button>
+                      <Button variant="ghost" size="sm" disabled={savingEdit} onClick={() => setEditingText(null)}>
+                        取消
+                      </Button>
+                      <Button size="sm" disabled={savingEdit || !editingText.trim()} onClick={() => void saveEdit(viewing)}>
+                        {savingEdit ? '保存中…' : '保存草稿'}
+                      </Button>
                     </div>
-                  )
-                )}
+                  ))}
               </div>
+              <div className="ai-generation-result-label shrink-0 text-xs font-medium text-muted-foreground">生成正文</div>
               {editingText === null ? (
-                <div className="min-h-0 flex-1 overflow-y-auto rounded-md border bg-muted/20 p-4 text-sm leading-7 whitespace-pre-wrap sm:p-5">{viewing.result || '暂无内容'}</div>
+                <div className="min-h-0 flex-1 overflow-y-auto rounded-md border bg-muted/20 p-4 text-sm leading-7 whitespace-pre-wrap sm:p-5">
+                  {viewing.result || '暂无内容'}
+                </div>
               ) : (
                 <textarea
                   className="min-h-0 flex-1 resize-none rounded-md border border-input bg-background p-4 text-sm leading-7 focus-visible:border-ring focus-visible:outline-none sm:p-5"
@@ -454,21 +563,37 @@ export default function AiGenerationsPanel(props: { scope: 'all' | 'reader' | 'w
               {viewing.status === 'draft' && editingText === null && (viewing.kind === 'write_chapter' || viewing.kind === 'continue') && (
                 <div className="ai-generation-publish shrink-0 border-t pt-4">
                   <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-                  <div className="ai-generation-publish__field grid min-w-0 flex-1 gap-1.5">
-                    <Label htmlFor="generation-publish-title">发布章节标题</Label>
-                    <Input id="generation-publish-title" className="h-11 focus-visible:border-ring focus-visible:ring-ring/50" value={publishTitle} onChange={(event) => setPublishTitle(event.target.value)} placeholder="例如：第十二章 暴雨前夜" />
-                    <div className="ai-generation-title-options flex items-center gap-2">
-                      <Button type="button" variant="outline" size="sm" disabled={generatingTitles} onClick={() => void generateTitles(viewing)}>
-                        {generatingTitles ? '生成标题中…' : 'AI 生成标题'}
-                      </Button>
-                      {titleCandidates.map((candidate) => (
-                        <Button key={candidate} type="button" variant="secondary" size="sm" className="ai-generation-title-candidate max-w-full" onClick={() => setPublishTitle(candidate)} title={`使用标题：${candidate}`}>
-                          {candidate}
+                    <div className="ai-generation-publish__field grid min-w-0 flex-1 gap-1.5">
+                      <Label htmlFor="generation-publish-title">发布章节标题</Label>
+                      <Input
+                        id="generation-publish-title"
+                        className="h-11 focus-visible:border-ring focus-visible:ring-ring/50"
+                        value={publishTitle}
+                        onChange={(event) => setPublishTitle(event.target.value)}
+                        placeholder="例如：第十二章 暴雨前夜"
+                      />
+                      <div className="ai-generation-title-options flex items-center gap-2">
+                        <Button type="button" variant="outline" size="sm" disabled={generatingTitles} onClick={() => void generateTitles(viewing)}>
+                          {generatingTitles ? '生成标题中…' : 'AI 生成标题'}
                         </Button>
-                      ))}
+                        {titleCandidates.map((candidate) => (
+                          <Button
+                            key={candidate}
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            className="ai-generation-title-candidate max-w-full"
+                            onClick={() => setPublishTitle(candidate)}
+                            title={`使用标题：${candidate}`}
+                          >
+                            {candidate}
+                          </Button>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                  <Button className="h-11 w-full shrink-0 md:w-auto" disabled={publishing || !publishTitle.trim()} onClick={() => void publish(viewing)}>{publishing ? '发布中…' : '发布为章节'}</Button>
+                    <Button className="h-11 w-full shrink-0 md:w-auto" disabled={publishing || !publishTitle.trim()} onClick={() => void publish(viewing)}>
+                      {publishing ? '发布中…' : '发布为章节'}
+                    </Button>
                   </div>
                 </div>
               )}
