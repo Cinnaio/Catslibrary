@@ -182,7 +182,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
         <Tabs value={mode} onValueChange={(value) => setMode(value as 'new' | 'continue')}>
           <TabsList><TabsTrigger value="new">新写</TabsTrigger><TabsTrigger value="continue">续写</TabsTrigger></TabsList>
         </Tabs>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="ai-form-grid grid gap-3 sm:grid-cols-2">
           <div className="grid gap-1.5">
             <Label>目标小说</Label>
             <CustomSelect
@@ -198,7 +198,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
           <div className="grid gap-1.5"><Label>{mode === 'new' ? '作品标题' : '章节标题（可选）'}</Label><Input value={mode === 'new' ? title : chapterTitle} onChange={(event) => mode === 'new' ? setTitle(event.target.value) : setChapterTitle(event.target.value)} placeholder={mode === 'new' ? '例如：雾城来信' : '例如：第十二章 暴雨前夜'} /></div>
         </div>
         {mode === 'new' && <div className="grid gap-1.5"><Label>章节标题</Label><Input value={chapterTitle} onChange={(event) => setChapterTitle(event.target.value)} placeholder="例如：第一章 雾中来客" /></div>}
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="ai-form-grid grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <div className="grid gap-1.5"><Label>{mode === 'continue' ? '每章目标字数' : '目标字数'}</Label><Input type="number" min={300} max={30000} step={100} value={targetWords} onChange={(event) => setTargetWords(Number(event.target.value) || 300)} /></div>
           {mode === 'continue' && (
             <div className="grid gap-1.5">

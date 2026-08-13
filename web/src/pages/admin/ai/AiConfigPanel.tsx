@@ -162,7 +162,7 @@ export default function AiConfigPanel(props: {
   return (
     <div className="space-y-4">
       <Card className="min-w-0">
-        <CardHeader className="flex-row items-center justify-between gap-2">
+        <CardHeader className="ai-provider-card-header">
           <div className="min-w-0">
             <CardTitle className="text-base">供应商配置</CardTitle>
             <p className="mt-0.5 text-sm text-muted-foreground">
@@ -182,8 +182,19 @@ export default function AiConfigPanel(props: {
 
         <CardContent className="grid gap-4">
           {/* 供应商连接参数：可在后台直接修改，无需重启 */}
-          <div className="grid gap-3 rounded-xl border border-border bg-card p-3.5">
-            <div className="grid gap-3 sm:grid-cols-2">
+          <div className="ai-provider-section grid gap-3 rounded-xl border border-border bg-card p-3.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="grid gap-0.5">
+                <span className="text-sm font-medium text-foreground">文本供应商</span>
+                <span className="text-xs text-muted-foreground">
+                  {provider?.configured ? `${provider.host} · ${provider.model}` : '未配置，AI 文本功能不可用'}
+                </span>
+              </div>
+              <Badge className={provider?.configured ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}>
+                {provider?.configured ? '已配置' : '未配置'}
+              </Badge>
+            </div>
+            <div className="ai-form-grid grid gap-3 sm:grid-cols-2">
               <div className="grid gap-1.5">
                 <Label htmlFor="ai-base-url">Base URL</Label>
                 <Input
@@ -238,7 +249,7 @@ export default function AiConfigPanel(props: {
           </div>
 
           {/* 图像供应商连接参数：用于 AI 封面生成，与文本三件套对称 */}
-          <div className="grid gap-3 rounded-xl border border-border bg-card p-3.5">
+          <div className="ai-provider-section grid gap-3 rounded-xl border border-border bg-card p-3.5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="grid gap-0.5">
                 <span className="text-sm font-medium text-foreground">图像供应商</span>
@@ -252,7 +263,7 @@ export default function AiConfigPanel(props: {
                 {imageProviderConfig?.hasApiKey ? '已配置' : '未配置'}
               </Badge>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="ai-form-grid grid gap-3 sm:grid-cols-2">
               <div className="grid gap-1.5">
                 <Label htmlFor="ai-image-base-url">图像 Base URL</Label>
                 <Input
@@ -317,7 +328,7 @@ export default function AiConfigPanel(props: {
             />
           </label>
 
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="ai-form-grid grid gap-3 sm:grid-cols-2">
             <div className="grid gap-1.5">
               <Label htmlFor="ai-daily-quota">每人每日生成上限</Label>
               <Input

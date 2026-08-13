@@ -193,6 +193,70 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   overflow-x: hidden;
 }
 
+/* AI service form controls use consistent widths across configuration panels.
+   Numeric fields stay compact while text-like fields remain readable without
+   stretching across an entire card. */
+.ai-admin-page [data-slot='input'],
+.ai-generation-dialog [data-slot='input'] {
+  width: min(100%, 28rem);
+  justify-self: start;
+}
+
+.ai-admin-page [data-slot='input'][type='number'],
+.ai-generation-dialog [data-slot='input'][type='number'] {
+  width: min(100%, 9rem);
+}
+
+/* Keep labels, controls, and helper copy on one predictable left edge. */
+.ai-admin-page div.grid.gap-1\.5:has(> [data-slot='input']),
+.ai-admin-page div.grid.gap-1\.5:has(> textarea),
+.ai-admin-page div.grid.gap-1\.5:has(> [data-slot='select-trigger']),
+.ai-generation-dialog div.grid.gap-1\.5:has(> [data-slot='input']) {
+  min-width: 0;
+  align-content: start;
+}
+
+.ai-admin-page [data-slot='select-trigger'],
+.ai-generation-dialog [data-slot='select-trigger'] {
+  justify-self: start;
+}
+
+.ai-generation-dialog .ai-generation-publish {
+  align-items: flex-start;
+}
+
+.ai-admin-page div.grid.gap-1\.5 > p.text-xs,
+.ai-generation-dialog div.grid.gap-1\.5 > p.text-xs {
+  max-width: 28rem;
+}
+
+/* Form rows choose their column count from the available card width. This
+   keeps short numeric fields on one balanced row instead of leaving a large
+   empty area when a fixed three-column grid wraps. */
+.ai-admin-page .ai-form-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 18rem));
+  justify-content: start;
+}
+
+.ai-admin-page .ai-form-grid > .grid.gap-1\.5 {
+  min-width: 0;
+}
+
+.ai-admin-page .ai-provider-card-header {
+  display: none;
+}
+
+.ai-admin-page .ai-provider-section {
+  max-width: 100%;
+}
+
+@media (max-width: 640px) {
+  .ai-admin-page [data-slot='input'],
+  .ai-generation-dialog [data-slot='input'] {
+    width: 100%;
+  }
+}
+
 .ai-generation-dialog {
   border-radius: 1rem;
 }

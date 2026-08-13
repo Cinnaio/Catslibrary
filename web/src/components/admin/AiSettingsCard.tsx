@@ -110,7 +110,7 @@ export default function AiSettingsCard() {
           />
         </label>
 
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="ai-form-grid grid gap-3 sm:grid-cols-2">
           <div className="grid gap-1.5">
             <Label htmlFor="ai-daily-quota">每人每日生成上限</Label>
             <Input

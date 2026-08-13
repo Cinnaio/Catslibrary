@@ -45,7 +45,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
           <p className="text-sm text-muted-foreground">调整章节前情提要的生成参数</p>
         </CardHeader>
         <CardContent className="grid gap-4">
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="ai-form-grid grid gap-3 sm:grid-cols-2">
             <div className="grid gap-1.5">
               <Label htmlFor="recap-temp">创意度（Temperature）</Label>
               <Input
@@ -107,7 +107,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
             />
           </label>
 
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="ai-form-grid grid gap-3 sm:grid-cols-3">
             <div className="grid gap-1.5">
               <Label htmlFor="catchup-stale-days">隔多少天算「很久没读」</Label>
               <Input
@@ -171,7 +171,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
           <p className="text-sm text-muted-foreground">用于 AI 创作页的大纲、章节生成和续写</p>
         </CardHeader>
         <CardContent className="grid gap-4">
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="ai-form-grid grid gap-3 sm:grid-cols-2">
             <div className="grid gap-1.5">
               <Label htmlFor="writing-temp">创意度（Temperature）</Label>
               <Input id="writing-temp" type="number" min={0} max={1} step={0.1} value={localSettings.writingTemperature} disabled={props.loading || saving} onChange={(e) => setLocalSettings({ ...localSettings, writingTemperature: Number(e.target.value) })} />
@@ -196,7 +196,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
           <CardTitle className="text-base">AI 生图参数</CardTitle>
           <p className="text-sm text-muted-foreground">用于小说封面生成的图像尺寸、质量与返回格式</p>
         </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-3">
+        <CardContent className="ai-form-grid grid gap-4 sm:grid-cols-3">
           <div className="grid gap-1.5"><Label htmlFor="image-size">图像尺寸</Label><Select value={localSettings.imageSize} disabled={props.loading || saving} onValueChange={(value) => setLocalSettings({ ...localSettings, imageSize: value })}><SelectTrigger id="image-size" className="h-9 bg-background"><SelectValue /></SelectTrigger><SelectContent position="popper" align="start"><SelectItem value="1024x1024">1024 × 1024</SelectItem><SelectItem value="1792x1024">1792 × 1024（横向）</SelectItem><SelectItem value="1024x1792">1024 × 1792（纵向）</SelectItem><SelectItem value="512x512">512 × 512</SelectItem></SelectContent></Select></div>
           <div className="grid gap-1.5"><Label htmlFor="image-quality">图像质量</Label><Select value={localSettings.imageQuality} disabled={props.loading || saving} onValueChange={(value) => setLocalSettings({ ...localSettings, imageQuality: value })}><SelectTrigger id="image-quality" className="h-9 bg-background"><SelectValue /></SelectTrigger><SelectContent position="popper" align="start"><SelectItem value="standard">标准</SelectItem><SelectItem value="hd">高清（HD）</SelectItem></SelectContent></Select></div>
           <div className="grid gap-1.5"><Label htmlFor="image-response-format">返回格式</Label><Select value={localSettings.imageResponseFormat} disabled={props.loading || saving} onValueChange={(value) => setLocalSettings({ ...localSettings, imageResponseFormat: value })}><SelectTrigger id="image-response-format" className="h-9 bg-background"><SelectValue /></SelectTrigger><SelectContent position="popper" align="start"><SelectItem value="b64_json">Base64</SelectItem><SelectItem value="url">URL</SelectItem></SelectContent></Select></div>
@@ -209,7 +209,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
           <CardTitle className="text-base">任务与运维</CardTitle>
           <p className="text-sm text-muted-foreground">创作任务的并发控制与历史记录清理</p>
         </CardHeader>
-        <CardContent className="grid gap-3 sm:grid-cols-2">
+        <CardContent className="ai-form-grid grid gap-3 sm:grid-cols-2">
           <div className="grid gap-1.5">
             <Label htmlFor="max-concurrent-tasks">创作任务并发上限</Label>
             <Input
