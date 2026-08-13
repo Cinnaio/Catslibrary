@@ -68,6 +68,27 @@ export function applyRuntimeConfigToEnv(): void {
   }
 }
 
+/**
+ * 把 patch 同步到 process.env，遵循与安装向导相同的优先级：
+ * 仅当当前 env 值为空，或与运行时层旧值一致（即来自运行时文件而非显式设定）时才覆盖。
+ * 真实环境变量 / .env 显式设定的值始终优先，不被后台修改覆盖。
+ * 注意：调用方须先快照旧文件值再调 writeRuntimeConfig，否则 before 已是新值，比对无意义。
+ * 返回 patch 里哪些键最终被写入了 env。
+ */
+export function syncRuntimeConfigToEnv(before: Partial<Record<RuntimeConfigKey, string>>, patch: Partial<Record<RuntimeConfigKey, string>>): string[] {
+  const applied: string[] = []
+  for (const [key, value] of Object.entries(patch)) {
+    if (!isAllowedRuntimeKey(key)) continue
+    const current = process.env[key]?.trim() || ''
+    // env 当前值非空且与旧文件值不同 → 视为运维显式设定，跳过，不覆盖
+    if (current && current !== (before as Record<string, string | undefined>)[key]) continue
+    if (value) process.env[key] = value
+    else delete process.env[key]
+    applied.push(key)
+  }
+  return applied
+}
+
 /** 合并写入（patch 中空字符串表示删除该键）。写后尽力 chmod 0600。 */
 export function writeRuntimeConfig(patch: Partial<Record<RuntimeConfigKey, string>>): void {
   const merged: Partial<Record<RuntimeConfigKey, string>> = { ...readRuntimeConfig() }

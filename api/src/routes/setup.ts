@@ -17,6 +17,7 @@ import {
   configuredRuntimeKeys,
   readRuntimeConfig,
   writeRuntimeConfig,
+  syncRuntimeConfigToEnv,
   type RuntimeConfigKey,
 } from '../runtime-config'
 
@@ -180,13 +181,9 @@ setupRoutes.post('/options', async (c) => {
   // env 同步：applyRuntimeConfigToEnv 仅填空，二次提交的修正值/删除不会生效。
   // 对「当前 env 值来自运行时层」（等于旧文件值）或为空的键，强制同步本次 patch；
   // 运维经真实环境变量显式设定的值仍然优先，不被覆盖。
+  // 注意：before 必须在 writeRuntimeConfig 之前快照，否则比对的是新文件值。
   const before = readRuntimeConfig()
   writeRuntimeConfig(patch)
-  for (const [key, value] of Object.entries(patch)) {
-    const current = process.env[key]?.trim() || ''
-    if (current && current !== (before as Record<string, string | undefined>)[key]) continue
-    if (value) process.env[key] = value
-    else delete process.env[key]
-  }
+  syncRuntimeConfigToEnv(before, patch)
   return c.json({ ok: true, optionalKeys: configuredRuntimeKeys() })
 })

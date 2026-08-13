@@ -3,7 +3,7 @@
  * 各面板实现见 ./ai/ 目录。
  */
 import { useCallback, useEffect, useState } from 'react'
-import { aiApi, type AiSettings } from '../../lib/api'
+import { aiApi, type AiSettings, type AiProviderConfig } from '../../lib/api'
 import { useToast } from '../../components/feedback'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import AdminPage from '@/components/admin/AdminPage'
@@ -23,6 +23,7 @@ export default function AiTab() {
   const { toast } = useToast()
   const [settings, setSettings] = useState<AiSettings | null>(null)
   const [provider, setProvider] = useState<Provider | null>(null)
+  const [providerConfig, setProviderConfig] = useState<AiProviderConfig | null>(null)
   const [loading, setLoading] = useState(true)
   const [activeSubTab, setActiveSubTab] = useState('config')
   /** 从任务面板 / 创作页跳到「已生成内容」时要展开的批次 */
@@ -39,6 +40,7 @@ export default function AiTab() {
       const res = await aiApi.settings()
       setSettings(res.settings)
       setProvider(res.provider)
+      setProviderConfig(res.providerConfig)
     } catch (err) {
       toast((err as Error).message || '加载 AI 设置失败', 'error')
     } finally {
@@ -64,7 +66,7 @@ export default function AiTab() {
         </TabsList>
 
         <TabsContent value="config" className="min-w-0">
-          <AiConfigPanel settings={settings} provider={provider} loading={loading} onReload={load} />
+          <AiConfigPanel settings={settings} provider={provider} providerConfig={providerConfig} loading={loading} onReload={load} />
         </TabsContent>
 
         <TabsContent value="content" className="min-w-0">

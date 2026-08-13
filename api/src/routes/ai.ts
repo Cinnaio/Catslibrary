@@ -8,6 +8,7 @@ import { getDb } from '../db/pool'
 import { all, first, withTx } from '../db/query'
 import { AiError, chat, isTextAiConfigured, providerLabel, textProvider } from '../services/ai/client'
 import { getAiSettings, saveAiSettings } from '../services/ai/settings'
+import { readRuntimeConfig, writeRuntimeConfig, syncRuntimeConfigToEnv, type RuntimeConfigKey } from '../runtime-config'
 import { generateRecap, getCachedRecap, loadChapterForRecap } from '../services/ai/summary'
 import { generateCatchup, getCachedCatchup, inspectCatchup } from '../services/ai/catchup'
 import { invalidateChapter, listBatchDrafts, listGenerationDetails, deleteGeneration, deleteGenerations, getGeneration, updateGenerationResult, type GenerationRow, type BatchDraft } from '../services/ai/generations'
@@ -172,10 +173,19 @@ aiRoutes.post('/catchup', requireUser(), async (c) => {
 aiRoutes.get('/settings', requireAdmin(), async (c) => {
   const settings = await getAiSettings(getDb())
   const provider = textProvider()
+  const stored = readRuntimeConfig()
+  // 供应商密钥可编辑字段：回显运行时层落盘的值（密钥脱敏，只告诉前端是否已设）。
+  // 当值来自真实环境变量（未落在运行时文件）时，字段为空但 hasKey=true，前端据此显示「由环境变量设定」。
   return c.json(
     {
       settings,
       provider: { configured: isTextAiConfigured(), host: providerLabel(provider.baseUrl), model: provider.model, hasKey: !!provider.apiKey },
+      // 供应商可编辑配置：baseUrl/model 回显落盘值供编辑；apiKey 仅回显是否已存，不回传明文
+      providerConfig: {
+        baseUrl: stored.AI_TEXT_BASE_URL || '',
+        model: stored.AI_TEXT_MODEL || '',
+        hasApiKey: !!stored.AI_TEXT_API_KEY,
+      },
     },
     200,
     { 'Cache-Control': 'no-store' },
@@ -186,6 +196,51 @@ aiRoutes.put('/settings', requireAdmin(), async (c) => {
   const body = await c.req.json().catch(() => ({}))
   const settings = await saveAiSettings(getDb(), body)
   return c.json({ settings })
+})
+
+/** 供应商可编辑键白名单：仅 AI 文本模型三件套，密钥走运行时层落盘。 */
+const PROVIDER_KEYS: RuntimeConfigKey[] = ['AI_TEXT_BASE_URL', 'AI_TEXT_API_KEY', 'AI_TEXT_MODEL']
+
+/**
+ * 修改 AI 供应商配置（baseUrl / apiKey / model）。
+ * - 空字符串表示清空该键；
+ * - apiKey 为空字符串时不改动（保留原值），传 ' ' 之类才视为清空——
+ *   前端密钥框默认空，避免「打开页面就清空了已存密钥」。
+ * 写入 data/runtime-config.json（chmod 0600）并同步到 process.env，
+ * 遵循与安装向导相同的优先级：真实环境变量优先，后台改动不覆盖显式设定值。
+ */
+aiRoutes.put('/provider', requireAdmin(), async (c) => {
+  const body = (await c.req.json().catch(() => ({}))) as {
+    baseUrl?: unknown
+    apiKey?: unknown
+    model?: unknown
+  }
+  const patch: Partial<Record<RuntimeConfigKey, string>> = {}
+  if ('baseUrl' in body) patch.AI_TEXT_BASE_URL = String(body.baseUrl ?? '').trim()
+  if ('model' in body) patch.AI_TEXT_MODEL = String(body.model ?? '').trim()
+  // apiKey：明确传空字符串才清空；字段缺失（undefined）时不触碰
+  if (body.apiKey !== undefined) patch.AI_TEXT_API_KEY = String(body.apiKey ?? '').trim()
+
+  // before 必须在 writeRuntimeConfig 之前快照，否则旧文件值已丢失，无法判定 env 是否「显式设定」
+  const before = readRuntimeConfig()
+  writeRuntimeConfig(patch)
+  syncRuntimeConfigToEnv(before, patch)
+
+  const provider = textProvider()
+  const stored = readRuntimeConfig()
+  return c.json(
+    {
+      ok: true,
+      provider: { configured: isTextAiConfigured(), host: providerLabel(provider.baseUrl), model: provider.model, hasKey: !!provider.apiKey },
+      providerConfig: {
+        baseUrl: stored.AI_TEXT_BASE_URL || '',
+        model: stored.AI_TEXT_MODEL || '',
+        hasApiKey: !!stored.AI_TEXT_API_KEY,
+      },
+    },
+    200,
+    { 'Cache-Control': 'no-store' },
+  )
 })
 
 /** 连通性自检：发一条最小请求，确认 baseUrl/key/model 三件套可用。 */

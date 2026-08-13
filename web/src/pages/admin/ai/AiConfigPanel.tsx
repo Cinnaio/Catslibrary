@@ -1,6 +1,6 @@
 /** 配置面板：供应商信息、开关、配额（数字输入防抖自动保存）。 */
 import { useEffect, useState } from 'react'
-import { aiApi, type AiSettings, type AiUsageSummary } from '@/lib/api'
+import { aiApi, type AiSettings, type AiUsageSummary, type AiProviderConfig } from '@/lib/api'
 import { useToast } from '@/components/feedback'
 import { useDebouncedCallback } from '@/hooks/useDebounce'
 import { Badge } from '@/components/ui/badge'
@@ -14,6 +14,7 @@ import { UsageCell, formatCost, type Provider } from './shared'
 export default function AiConfigPanel(props: {
   settings: AiSettings | null
   provider: Provider | null
+  providerConfig: AiProviderConfig | null
   loading: boolean
   onReload: () => void
 }) {
@@ -26,10 +27,23 @@ export default function AiConfigPanel(props: {
   const [dailyQuotaDraft, setDailyQuotaDraft] = useState('')
   const [maxCharsDraft, setMaxCharsDraft] = useState('')
 
+  // 供应商配置编辑草稿：与 props.providerConfig 同步，单独保存
+  const [providerDraft, setProviderDraft] = useState({ baseUrl: '', apiKey: '', model: '' })
+  const [savingProvider, setSavingProvider] = useState(false)
+
   useEffect(() => {
     setDailyQuotaDraft(props.settings?.dailyQuota !== undefined ? String(props.settings.dailyQuota) : '')
     setMaxCharsDraft(props.settings?.maxChapterChars !== undefined ? String(props.settings.maxChapterChars) : '')
   }, [props.settings])
+
+  useEffect(() => {
+    setProviderDraft({
+      baseUrl: props.providerConfig?.baseUrl || '',
+      // 密钥不回显明文：已配置时留占位提示，保存时空字符串表示「不改动」
+      apiKey: props.providerConfig?.hasApiKey ? '••••••••' : '',
+      model: props.providerConfig?.model || '',
+    })
+  }, [props.providerConfig])
 
   useEffect(() => {
     async function loadUsage() {
@@ -59,6 +73,26 @@ export default function AiConfigPanel(props: {
 
   // 防抖保存：原实现每次击键都发一次 PUT
   const saveDebounced = useDebouncedCallback((patch: Partial<AiSettings>) => void save(patch), 800)
+
+  /** 保存供应商配置：密钥占位符视为「不改动」，传 undefined 给后端。 */
+  async function saveProvider() {
+    setSavingProvider(true)
+    try {
+      const apiKeyTouched = providerDraft.apiKey !== '••••••••'
+      await aiApi.saveProviderConfig({
+        baseUrl: providerDraft.baseUrl.trim(),
+        model: providerDraft.model.trim(),
+        // 用户没动密钥框就不传该字段，避免用占位符覆盖已存密钥
+        ...(apiKeyTouched ? { apiKey: providerDraft.apiKey.trim() } : {}),
+      })
+      toast('已保存供应商配置', 'success')
+      props.onReload()
+    } catch (err) {
+      toast((err as Error).message || '保存供应商配置失败', 'error')
+    } finally {
+      setSavingProvider(false)
+    }
+  }
 
   async function runTest() {
     setTesting(true)
@@ -102,6 +136,62 @@ export default function AiConfigPanel(props: {
         </CardHeader>
 
         <CardContent className="grid gap-4">
+          {/* 供应商连接参数：可在后台直接修改，无需重启 */}
+          <div className="grid gap-3 rounded-xl border border-border bg-card p-3.5">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-1.5">
+                <Label htmlFor="ai-base-url">Base URL</Label>
+                <Input
+                  id="ai-base-url"
+                  placeholder="https://api.deepseek.com/v1"
+                  value={providerDraft.baseUrl}
+                  disabled={savingProvider}
+                  onChange={(e) => setProviderDraft((p) => ({ ...p, baseUrl: e.target.value }))}
+                />
+                <p className="text-xs text-muted-foreground">OpenAI 兼容端点，可写到 /v1 或 /chat/completions</p>
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="ai-model">模型</Label>
+                <Input
+                  id="ai-model"
+                  placeholder="deepseek-v4-flash"
+                  value={providerDraft.model}
+                  disabled={savingProvider}
+                  onChange={(e) => setProviderDraft((p) => ({ ...p, model: e.target.value }))}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {provider?.hasKey && !props.providerConfig?.hasApiKey ? '密钥由环境变量设定，后台不显示' : '填入上游支持的模型名'}
+                </p>
+              </div>
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="ai-api-key">API Key</Label>
+              <Input
+                id="ai-api-key"
+                type="password"
+                autoComplete="off"
+                placeholder={props.providerConfig?.hasApiKey ? '已设定，留空表示不改动' : '输入密钥后保存'}
+                value={providerDraft.apiKey}
+                disabled={savingProvider}
+                onChange={(e) => setProviderDraft((p) => ({ ...p, apiKey: e.target.value }))}
+                onFocus={(e) => {
+                  // 密钥占位符在聚焦时清空，方便覆盖输入
+                  if (providerDraft.apiKey === '••••••••') setProviderDraft((p) => ({ ...p, apiKey: '' }))
+                  e.target.select()
+                }}
+              />
+              <p className="text-xs text-muted-foreground">密钥以明文写入 data/runtime-config.json（已 gitignore）；留空不改动，清空填空格保存</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button size="sm" disabled={savingProvider} onClick={() => void saveProvider()}>
+                {savingProvider ? '保存中…' : '保存供应商配置'}
+              </Button>
+              <span className="text-xs text-muted-foreground">
+                真实环境变量 / .env 设定的值优先，后台修改不覆盖显式设定
+              </span>
+            </div>
+          </div>
+
           <label className="flex items-start justify-between gap-4 rounded-xl border border-border bg-card p-3.5">
             <span className="min-w-0">
               <span className="block text-sm font-medium text-foreground">阅读器前情提要</span>

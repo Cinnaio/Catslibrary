@@ -705,6 +705,13 @@ export interface AiTaskInfo {
   finishedAt: number
 }
 
+export interface AiProviderConfig {
+  baseUrl: string
+  model: string
+  /** 密钥不回传明文，只告知是否已设定 */
+  hasApiKey: boolean
+}
+
 export const aiApi = {
   status(): Promise<AiStatus> {
     return request('GET', '/ai/status', null, true)
@@ -727,11 +734,22 @@ export const aiApi = {
   }> {
     return request('POST', '/ai/catchup', { novelId }, true)
   },
-  settings(): Promise<{ settings: AiSettings; provider: { configured: boolean; host: string; model: string; hasKey: boolean } }> {
+  settings(): Promise<{ settings: AiSettings; provider: { configured: boolean; host: string; model: string; hasKey: boolean }; providerConfig: AiProviderConfig }> {
     return request('GET', '/ai/settings', null, true)
   },
   saveSettings(patch: Partial<AiSettings>): Promise<{ settings: AiSettings }> {
     return request('PUT', '/ai/settings', patch, true)
+  },
+  /**
+   * 修改 AI 供应商配置（baseUrl / apiKey / model）。
+   * apiKey 传 undefined 表示不改动原密钥；传空字符串表示清空。
+   */
+  saveProviderConfig(patch: { baseUrl?: string; apiKey?: string; model?: string }): Promise<{
+    ok: boolean
+    provider: { configured: boolean; host: string; model: string; hasKey: boolean }
+    providerConfig: AiProviderConfig
+  }> {
+    return request('PUT', '/ai/provider', patch, true)
   },
   test(): Promise<{ ok: boolean; model?: string; reply?: string; error?: string; code?: string; elapsedMs: number }> {
     return request('POST', '/ai/test', {}, true)

@@ -1,4 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import { app } from '../app'
 import { setDbForTests } from '../db/pool'
 import { failInterruptedAiTasks, pruneFinishedAiTasks } from '../services/ai/tasks'
@@ -165,6 +168,103 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     const clamped = await req('/api/ai/settings', json('PUT', { maxChapterChars: 99999 }, adminToken))
     const { settings: s2 } = await jsonOf<{ settings: { maxChapterChars: number } }>(clamped)
     expect(s2.maxChapterChars).toBe(20000)
+  })
+
+  it('settings：回显 providerConfig（密钥脱敏，不回传明文）', async () => {
+    // 运行时文件重定向到空临时目录，确保 providerConfig 字段反映「未落盘」状态
+    const tmp = mkdtempSync(path.join(tmpdir(), 'zz-settings-'))
+    const prevDir = process.env.RUNTIME_CONFIG_DIR
+    process.env.RUNTIME_CONFIG_DIR = tmp
+    try {
+      const data = await jsonOf<{ providerConfig: { baseUrl: string; model: string; hasApiKey: boolean } }>(
+        await req('/api/ai/settings', json('GET', undefined, adminToken)),
+      )
+      // 测试用例在 beforeAll 里把 AI_TEXT_* 设进真实 env，但未写入 runtime-config 文件，
+      // 因此 providerConfig 字段为空而 provider.hasKey 为 true（密钥来自环境变量）
+      expect(data.providerConfig).toEqual({ baseUrl: '', model: '', hasApiKey: false })
+    } finally {
+      process.env.RUNTIME_CONFIG_DIR = prevDir
+      rmSync(tmp, { recursive: true, force: true })
+    }
+  })
+
+  it('provider：非管理员 403', async () => {
+    expect((await req('/api/ai/provider', json('PUT', { baseUrl: 'x' }, readerToken))).status).toBe(403)
+  })
+
+  it('provider：管理员可改 baseUrl/model 并同步 env，密钥空字段不触碰', async () => {
+    // 重定向运行时文件到临时目录，避免污染仓库 data/
+    const tmp = mkdtempSync(path.join(tmpdir(), 'zz-provider-'))
+    const prevDir = process.env.RUNTIME_CONFIG_DIR
+    process.env.RUNTIME_CONFIG_DIR = tmp
+    // 记录 env 原值，测试后还原
+    const prevBase = process.env.AI_TEXT_BASE_URL
+    const prevModel = process.env.AI_TEXT_MODEL
+    const prevKey = process.env.AI_TEXT_API_KEY
+    try {
+      // 不传 apiKey：已存在的 test-key 必须原样保留
+      const res = await req('/api/ai/provider', json('PUT', { baseUrl: 'https://new.example.com/v1', model: 'new-model' }, adminToken))
+      expect(res.status).toBe(200)
+      const data = await jsonOf<{ provider: { configured: boolean; model: string }; providerConfig: { baseUrl: string; model: string; hasApiKey: boolean } }>(res)
+      expect(data.providerConfig.baseUrl).toBe('https://new.example.com/v1')
+      expect(data.providerConfig.model).toBe('new-model')
+      // env 当前值（来自 beforeAll）与运行时文件旧值（不存在/空）不同 →
+      // 视为「显式设定」，env 不会被后台改动覆盖，保持 beforeAll 的值
+      expect(process.env.AI_TEXT_BASE_URL).toBe('https://ai.test/v1')
+      expect(process.env.AI_TEXT_MODEL).toBe('test-model')
+      // apiKey 没传，env 里仍是原值
+      expect(process.env.AI_TEXT_API_KEY).toBe('test-key')
+      // 未落盘到运行时文件（被显式 env 阻挡），故 hasApiKey 仍为 false
+      expect(data.providerConfig.hasApiKey).toBe(false)
+      // 但 provider 仍报已配置（env 里有值）
+      expect(data.provider.model).toBe('test-model')
+
+      // 传 apiKey：落盘到运行时文件，但 env 因显式设定不被覆盖，仍保持 test-key
+      const res2 = await req('/api/ai/provider', json('PUT', { apiKey: 'rotated-key' }, adminToken))
+      expect(res2.status).toBe(200)
+      const data2 = await jsonOf<{ providerConfig: { hasApiKey: boolean }; provider: { hasKey: boolean } }>(res2)
+      // env 被显式设定阻挡，仍是 test-key
+      expect(process.env.AI_TEXT_API_KEY).toBe('test-key')
+      // 但已落盘到运行时文件，hasApiKey 为 true
+      expect(data2.providerConfig.hasApiKey).toBe(true)
+    } finally {
+      process.env.RUNTIME_CONFIG_DIR = prevDir
+      process.env.AI_TEXT_BASE_URL = prevBase
+      process.env.AI_TEXT_MODEL = prevModel
+      process.env.AI_TEXT_API_KEY = prevKey
+      rmSync(tmp, { recursive: true, force: true })
+    }
+  })
+
+  it('provider：env 值与运行时旧值一致时，后台改动可同步 env', async () => {
+    // 这才是「正常运维场景」：供应商配置原本就来自运行时文件（env 与文件值一致），
+    // 后台修改应当同步到 env，无需重启即生效
+    const tmp = mkdtempSync(path.join(tmpdir(), 'zz-provider-sync-'))
+    const prevDir = process.env.RUNTIME_CONFIG_DIR
+    const prevBase = process.env.AI_TEXT_BASE_URL
+    const prevModel = process.env.AI_TEXT_MODEL
+    process.env.RUNTIME_CONFIG_DIR = tmp
+    try {
+      // 先让 env 与文件值一致：写入运行时文件，再把 env 设成相同值（模拟 applyRuntimeConfigToEnv 后的状态）
+      writeFileSync(path.join(tmp, 'runtime-config.json'), JSON.stringify({ AI_TEXT_BASE_URL: 'https://sync.test/v1', AI_TEXT_MODEL: 'sync-model' }), 'utf8')
+      process.env.AI_TEXT_BASE_URL = 'https://sync.test/v1'
+      process.env.AI_TEXT_MODEL = 'sync-model'
+
+      const res = await req('/api/ai/provider', json('PUT', { baseUrl: 'https://changed.test/v1', model: 'changed-model' }, adminToken))
+      expect(res.status).toBe(200)
+      const data = await jsonOf<{ providerConfig: { baseUrl: string; model: string } }>(res)
+      expect(data.providerConfig.baseUrl).toBe('https://changed.test/v1')
+      expect(data.providerConfig.model).toBe('changed-model')
+      // writeRuntimeConfig 写新文件值 → syncRuntimeConfigToEnv 读 before（仍是旧文件值 sync.test/v1），
+      // env 当前值（sync.test/v1）=== before（sync.test/v1）→ 视为「来自运行时层」，同步为 changed
+      expect(process.env.AI_TEXT_BASE_URL).toBe('https://changed.test/v1')
+      expect(process.env.AI_TEXT_MODEL).toBe('changed-model')
+    } finally {
+      process.env.RUNTIME_CONFIG_DIR = prevDir
+      process.env.AI_TEXT_BASE_URL = prevBase
+      process.env.AI_TEXT_MODEL = prevModel
+      rmSync(tmp, { recursive: true, force: true })
+    }
   })
 
   it('配额：读者超额 429，管理员不受限', async () => {
