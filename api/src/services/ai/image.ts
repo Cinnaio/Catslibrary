@@ -10,6 +10,8 @@ import { AiError } from './client'
 export interface AiImageOptions {
   prompt: string
   size?: string
+  quality?: string
+  responseFormat?: string
   timeoutMs?: number
   signal?: AbortSignal
 }
@@ -72,7 +74,8 @@ export async function generateImage(opts: AiImageOptions): Promise<AiImageResult
     prompt: opts.prompt,
     size,
     n: 1,
-    response_format: 'b64_json',
+    quality: opts.quality || 'standard',
+    response_format: opts.responseFormat || 'b64_json',
   })
 
   let lastError: AiError | null = null

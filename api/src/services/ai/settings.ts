@@ -39,6 +39,9 @@ export interface AiSettings {
   writingSystemPrompt: string
   /** 同时运行的创作任务上限（大纲/章节/续写共用） */
   maxConcurrentWritingTasks: number
+  imageSize: string
+  imageQuality: string
+  imageResponseFormat: string
 
   // === 运维配置 ===
   /** 已结束 AI 任务的保留天数，启动时清理更早的记录 */
@@ -75,6 +78,9 @@ export const DEFAULT_AI_SETTINGS: AiSettings = {
   writingMaxTokens: 1800,
   writingSystemPrompt: '你是中文网络小说作者。请根据提供的设定和上下文创作正文，保持人物动机、叙事视角和风格一致。只输出正文，不要标题、解释或 Markdown。',
   maxConcurrentWritingTasks: 3,
+  imageSize: '1024x1024',
+  imageQuality: 'standard',
+  imageResponseFormat: 'b64_json',
 
   // 运维配置默认值
   taskRetentionDays: 90,
@@ -98,6 +104,9 @@ const LIMITS = {
   writingMaxTokens: { min: 300, max: 1000000 },
   writingSystemPrompt: { maxLength: 2000 },
   maxConcurrentWritingTasks: { min: 1, max: 10 },
+  imageSize: { maxLength: 20 },
+  imageQuality: { maxLength: 20 },
+  imageResponseFormat: { maxLength: 20 },
   taskRetentionDays: { min: 7, max: 365 },
 }
 
@@ -167,6 +176,9 @@ export function normalizeAiSettings(raw: unknown): AiSettings {
     writingMaxTokens: clampInt(obj.writingMaxTokens, DEFAULT_AI_SETTINGS.writingMaxTokens, LIMITS.writingMaxTokens),
     writingSystemPrompt: clampString(obj.writingSystemPrompt, DEFAULT_AI_SETTINGS.writingSystemPrompt, LIMITS.writingSystemPrompt.maxLength),
     maxConcurrentWritingTasks: clampInt(obj.maxConcurrentWritingTasks, DEFAULT_AI_SETTINGS.maxConcurrentWritingTasks, LIMITS.maxConcurrentWritingTasks),
+    imageSize: clampEnum(obj.imageSize, DEFAULT_AI_SETTINGS.imageSize, ['1024x1024', '1792x1024', '1024x1792', '512x512']),
+    imageQuality: clampEnum(obj.imageQuality, DEFAULT_AI_SETTINGS.imageQuality, ['standard', 'hd']),
+    imageResponseFormat: clampEnum(obj.imageResponseFormat, DEFAULT_AI_SETTINGS.imageResponseFormat, ['b64_json', 'url']),
 
     // 运维配置
     taskRetentionDays: clampInt(obj.taskRetentionDays, DEFAULT_AI_SETTINGS.taskRetentionDays, LIMITS.taskRetentionDays),
@@ -192,4 +204,8 @@ function clampFloat(value: unknown, fallback: number, range: { min: number; max:
 function clampString(value: unknown, fallback: string, maxLength: number): string {
   if (typeof value !== 'string') return fallback
   return value.slice(0, maxLength)
+}
+
+function clampEnum(value: unknown, fallback: string, allowed: string[]): string {
+  return typeof value === 'string' && allowed.includes(value) ? value : fallback
 }

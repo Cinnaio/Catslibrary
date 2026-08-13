@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 export default function AiParamsPanel(props: { settings: AiSettings | null; loading: boolean; onReload: () => void }) {
   const { toast } = useToast()
@@ -187,6 +188,18 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
             <textarea id="writing-prompt" className="min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" value={localSettings.writingSystemPrompt} disabled={props.loading || saving} onChange={(e) => setLocalSettings({ ...localSettings, writingSystemPrompt: e.target.value })} />
             <p className="text-xs text-muted-foreground">定义 AI 创作的角色、文风和输出约束</p>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">AI 生图参数</CardTitle>
+          <p className="text-sm text-muted-foreground">用于小说封面生成的图像尺寸、质量与返回格式</p>
+        </CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-1.5"><Label htmlFor="image-size">图像尺寸</Label><Select value={localSettings.imageSize} disabled={props.loading || saving} onValueChange={(value) => setLocalSettings({ ...localSettings, imageSize: value })}><SelectTrigger id="image-size" className="h-9 bg-background"><SelectValue /></SelectTrigger><SelectContent position="popper" align="start"><SelectItem value="1024x1024">1024 × 1024</SelectItem><SelectItem value="1792x1024">1792 × 1024（横向）</SelectItem><SelectItem value="1024x1792">1024 × 1792（纵向）</SelectItem><SelectItem value="512x512">512 × 512</SelectItem></SelectContent></Select></div>
+          <div className="grid gap-1.5"><Label htmlFor="image-quality">图像质量</Label><Select value={localSettings.imageQuality} disabled={props.loading || saving} onValueChange={(value) => setLocalSettings({ ...localSettings, imageQuality: value })}><SelectTrigger id="image-quality" className="h-9 bg-background"><SelectValue /></SelectTrigger><SelectContent position="popper" align="start"><SelectItem value="standard">标准</SelectItem><SelectItem value="hd">高清（HD）</SelectItem></SelectContent></Select></div>
+          <div className="grid gap-1.5"><Label htmlFor="image-response-format">返回格式</Label><Select value={localSettings.imageResponseFormat} disabled={props.loading || saving} onValueChange={(value) => setLocalSettings({ ...localSettings, imageResponseFormat: value })}><SelectTrigger id="image-response-format" className="h-9 bg-background"><SelectValue /></SelectTrigger><SelectContent position="popper" align="start"><SelectItem value="b64_json">Base64</SelectItem><SelectItem value="url">URL</SelectItem></SelectContent></Select></div>
         </CardContent>
       </Card>
 

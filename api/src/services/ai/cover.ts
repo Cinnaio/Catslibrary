@@ -9,6 +9,7 @@ import { first } from '../../db/query'
 import { AiError, chat, isTextAiConfigured, providerLabel, textProvider } from './client'
 import { generateImage, isImageAiConfigured, imageProvider, imageProviderLabel } from './image'
 import { recordUsage } from './usage'
+import { getAiSettings } from './settings'
 import { createAiTask, isAiTaskCancelled, updateAiTask, getAiTask } from './tasks'
 import { storeCover, MAX_COVER_BYTES } from '../covers'
 
@@ -153,7 +154,8 @@ export async function generateNovelCover(db: Db, opts: {
     // 把最终送图像模型的 prompt 落进任务 step：失败时据此定位是哪个词触发了上游安全策略
     await updateAiTask(db, taskId, { step: `正在生成封面（prompt：${prompt.slice(0, 200)}）` })
 
-    const img = await generateImage({ prompt, timeoutMs: 120_000 })
+    const imageSettings = await getAiSettings(db)
+    const img = await generateImage({ prompt, size: imageSettings.imageSize, quality: imageSettings.imageQuality, responseFormat: imageSettings.imageResponseFormat, timeoutMs: 120_000 })
     if (img.data.byteLength > MAX_COVER_BYTES) {
       throw new AiError('invalid', `生成的图片过大（${img.data.byteLength} 字节，上限 ${MAX_COVER_BYTES}）`)
     }

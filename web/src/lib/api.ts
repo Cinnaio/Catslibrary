@@ -672,6 +672,9 @@ export interface AiSettings {
   writingMaxTokens: number
   writingSystemPrompt: string
   maxConcurrentWritingTasks: number
+  imageSize: string
+  imageQuality: string
+  imageResponseFormat: string
   // 运维配置
   taskRetentionDays: number
   // 审计配置
