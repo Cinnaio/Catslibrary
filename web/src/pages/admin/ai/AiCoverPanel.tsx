@@ -111,10 +111,23 @@ export default function AiCoverPanel() {
   }
 
   useEffect(() => {
-    void novelsApi
-      .list({ limit: 100, page: 1 })
-      .then((data) => setNovels(data.novels.map((novel) => ({ id: novel.id, title: novel.title, updatedAt: novel.updatedAt }))))
-      .catch((err) => toast((err as Error).message, 'error'))
+    // 目标小说下拉要覆盖全库：后端 /novels 的 limit 封顶 100，需翻页拉全，避免下拉里小说不全
+    let cancelled = false
+    const PAGE_SIZE = 100
+    void (async () => {
+      const all: Array<{ id: string; title: string; updatedAt?: number }> = []
+      try {
+        const first = await novelsApi.list({ limit: PAGE_SIZE, page: 1 })
+        all.push(...first.novels.map((novel) => ({ id: novel.id, title: novel.title, updatedAt: novel.updatedAt })))
+        for (let page = 2; page <= first.totalPages && !cancelled; page++) {
+          const data = await novelsApi.list({ limit: PAGE_SIZE, page })
+          all.push(...data.novels.map((novel) => ({ id: novel.id, title: novel.title, updatedAt: novel.updatedAt })))
+        }
+        if (!cancelled) setNovels(all)
+      } catch (err) {
+        if (!cancelled) toast((err as Error).message, 'error')
+      }
+    })()
     void aiApi
       .settings()
       .then((res) => {
@@ -124,6 +137,9 @@ export default function AiCoverPanel() {
         if (typeof res.settings?.coverPlatform === 'string' && res.settings.coverPlatform) setPlatform(res.settings.coverPlatform)
       })
       .catch(() => {})
+    return () => {
+      cancelled = true
+    }
   }, [toast])
 
   // 挂载时恢复正在运行的封面任务：切换 tab 回来后进度不丢
