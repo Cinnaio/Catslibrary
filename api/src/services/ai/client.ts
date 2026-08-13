@@ -122,10 +122,10 @@ async function once(endpoint: string, apiKey: string, body: string, model: strin
   }
 
   if (!res.ok) {
-    // 上游错误详情只进服务端日志，客户端只拿到状态码
+    // 上游错误：解析出网关返回的 message，连同状态码一并带出，方便定位「模型无可用渠道」等真实原因。
     const detail = (await res.text().catch(() => '')).slice(0, 500)
     console.error('[ai] upstream %d %s', res.status, detail)
-    throw new AiError('upstream', `AI 服务返回 ${res.status}`, res.status)
+    throw new AiError('upstream', describeUpstreamError(res.status, detail), res.status)
   }
 
   const data = (await res.json().catch(() => null)) as ChatCompletionResponse | null
@@ -176,6 +176,40 @@ function isRetriable(err: AiError): boolean {
   if (err.code === 'timeout') return true
   if (err.code === 'upstream') return err.status === 502 || RETRIABLE_STATUS.has(err.status)
   return false
+}
+
+/**
+ * 把上游网关返回的 JSON 错误体解析成人类可读的中文提示。
+ * 例如 new-api / distributor 常见：{"error":{"code":"model_not_found","message":"No available channel for model X"}}
+ * 解析失败时退回到「AI 服务返回 <status>」。
+ */
+function describeUpstreamError(status: number, detail: string): string {
+  const prefix = `AI 服务返回 ${status}`
+  const body = (detail || '').trim()
+  if (!body) return prefix
+  try {
+    const parsed = JSON.parse(body)
+    const errObj = (parsed && typeof parsed === 'object' && 'error' in parsed ? (parsed as { error: unknown }).error : parsed) as
+      | { code?: string; message?: string; type?: string }
+      | undefined
+    const code = errObj?.code ? String(errObj.code) : ''
+    const message = errObj?.message ? String(errObj.message) : ''
+    if (!code && !message) return prefix
+
+    // 把常见上游错误码映射成更直白的中文
+    const codeHints: Record<string, string> = {
+      model_not_found: '上游无可用模型渠道',
+      no_available_channel: '上游无可用渠道',
+      insufficient_quota: '上游额度不足',
+      invalid_api_key: '上游密钥无效',
+      access_denied: '上游拒绝访问',
+    }
+    const hint = code ? (codeHints[code] || code) : ''
+    return [prefix, hint, message].filter(Boolean).join('：')
+  } catch {
+    // 非 JSON 响应，直接带上原文（截断）
+    return `${prefix}：${body}`
+  }
 }
 
 function sleep(ms: number): Promise<void> {
