@@ -691,6 +691,63 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     expect((await req('/api/ai/tasks/task_missing/retry', json('POST', {}, adminToken))).status).toBe(404)
   })
 
+﻿  it('断点恢复：多章续写中途失败后重试只生成未完成章节，已有草稿不重生', async () => {
+    const novelId = await firstNovelId(t)
+    fetchMock.mockClear()
+    // 第 3 章（最后一章）失败，前 2 章用默认 mock 成功
+    fetchMock.mockImplementationOnce(async () => new Response(JSON.stringify({
+      model: 'test-model',
+      choices: [{ message: { content: '第一章开篇之也' }, finish_reason: 'stop' }],
+      usage: { prompt_tokens: 10, completion_tokens: 20 },
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+    fetchMock.mockImplementationOnce(async () => new Response(JSON.stringify({
+      model: 'test-model',
+      choices: [{ message: { content: '第二章承上启下' }, finish_reason: 'stop' }],
+      usage: { prompt_tokens: 10, completion_tokens: 20 },
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+    fetchMock.mockImplementationOnce(async () => new Response('upstream boom', { status: 400 }))
+
+    const started = await req('/api/ai/writing/continue', json('POST', { novelId, chapterCount: 3 }, adminToken))
+    expect(started.status).toBe(202)
+    const { taskId, batchId } = await jsonOf<{ taskId: string; batchId: string }>(started)
+
+    const task = await waitForTask(taskId, adminToken)
+    expect(task.status).toBe('failed')
+    expect(task.current).toBe(2)
+
+    // 原任务中断时已产出 2 章草稿
+    const before = await t.db.query<{ id: string; params_json: string }>(
+      "SELECT id, params_json FROM ai_generations WHERE kind = 'continue' AND status = 'draft' AND params_json LIKE $1",
+      [`%"batchId":"${batchId}"%`],
+    )
+    expect(before.rows).toHaveLength(2)
+    const beforeIndices = before.rows.map((r) => Number((JSON.parse(r.params_json) as { batchIndex: number }).batchIndex)).sort((a, b) => a - b)
+    expect(beforeIndices).toEqual([1, 2])
+
+    // 重试：默认 mock 成功，应只调 1 次 fetch（仅补生第 3 章）
+    fetchMock.mockClear()
+    const retried = await req(`/api/ai/tasks/${taskId}/retry`, json('POST', {}, adminToken))
+    expect(retried.status).toBe(202)
+    const { taskId: retryTaskId, batchId: retryBatchId } = await jsonOf<{ taskId: string; batchId: string }>(retried)
+    // 断点恢复复用原批次号，产出可按同一 batchId 归集
+    expect(retryBatchId).toBe(batchId)
+
+    const retriedTask = await waitForTask(retryTaskId, adminToken)
+    expect(retriedTask.status).toBe('completed')
+    expect(retriedTask.current).toBe(3)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    // 批次下共 3 章草稿，batchIndex 为 1/2/3，且新任务行与原任务共享 batchId
+    const after = await t.db.query<{ params_json: string }>(
+      "SELECT params_json FROM ai_generations WHERE kind = 'continue' AND status = 'draft' AND params_json LIKE $1 ORDER BY created_at ASC",
+      [`%"batchId":"${batchId}"%`],
+    )
+    expect(after.rows).toHaveLength(3)
+    const afterIndices = after.rows.map((r) => Number((JSON.parse(r.params_json) as { batchIndex: number }).batchIndex)).sort((a, b) => a - b)
+    expect(afterIndices).toEqual([1, 2, 3])
+  })
+
+
   // ---------- 参数调优设置真实生效 ----------
 
   it('recap 生成使用参数调优里的温度与 token 上限', async () => {
