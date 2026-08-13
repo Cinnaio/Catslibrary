@@ -53,11 +53,16 @@ export default function AiConfigPanel(props: {
   const [imageProviderConfig, setImageProviderConfig] = useState<AiProviderConfig | null>(null)
   useEffect(() => {
     let cancelled = false
-    void aiApi.settings().then((res) => {
-      if (cancelled) return
-      setImageProviderConfig(res.imageProviderConfig)
-    }).catch(() => {})
-    return () => { cancelled = true }
+    void aiApi
+      .settings()
+      .then((res) => {
+        if (cancelled) return
+        setImageProviderConfig(res.imageProviderConfig)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
   }, [props.providerConfig])
 
   useEffect(() => {
@@ -174,6 +179,7 @@ export default function AiConfigPanel(props: {
                 '未配置 AI_TEXT_BASE_URL / AI_TEXT_API_KEY，读者端不会出现 AI 入口'
               )}
             </p>
+            <p className="text-sm text-muted-foreground">配置文本模型与图像模型的连接信息，管理 AI 服务的调用入口</p>
           </div>
           <Badge className={provider?.configured ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}>
             {provider?.configured ? '已配置' : '未配置'}
@@ -242,9 +248,7 @@ export default function AiConfigPanel(props: {
               <Button size="sm" disabled={savingProvider} onClick={() => void saveProvider()}>
                 {savingProvider ? '保存中…' : '保存供应商配置'}
               </Button>
-              <span className="text-xs text-muted-foreground">
-                真实环境变量 / .env 设定的值优先，后台修改不覆盖显式设定
-              </span>
+              <span className="text-xs text-muted-foreground">真实环境变量 / .env 设定的值优先，后台修改不覆盖显式设定</span>
             </div>
           </div>
 
@@ -254,9 +258,7 @@ export default function AiConfigPanel(props: {
               <div className="grid gap-0.5">
                 <span className="text-sm font-medium text-foreground">图像供应商</span>
                 <span className="text-xs text-muted-foreground">
-                  {imageProviderConfig?.hasApiKey
-                    ? `已配置 · ${imageProviderConfig.model || '默认模型'}`
-                    : '未配置，AI 封面生成不可用'}
+                  {imageProviderConfig?.hasApiKey ? `已配置 · ${imageProviderConfig.model || '默认模型'}` : '未配置，AI 封面生成不可用'}
                 </span>
               </div>
               <Badge className={imageProviderConfig?.hasApiKey ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}>
@@ -308,24 +310,16 @@ export default function AiConfigPanel(props: {
               <Button size="sm" disabled={savingImageProvider} onClick={() => void saveImageProvider()}>
                 {savingImageProvider ? '保存中…' : '保存图像供应商配置'}
               </Button>
-              <span className="text-xs text-muted-foreground">
-                与文本供应商优先级一致：环境变量显式设定值不被覆盖
-              </span>
+              <span className="text-xs text-muted-foreground">与文本供应商优先级一致：环境变量显式设定值不被覆盖</span>
             </div>
           </div>
 
           <label className="flex items-start justify-between gap-4 rounded-xl border border-border bg-card p-3.5">
             <span className="min-w-0">
               <span className="block text-sm font-medium text-foreground">阅读器前情提要</span>
-              <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">
-                读者进入章节时可回顾上一章，结果按章缓存，全站共用一份
-              </span>
+              <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">读者进入章节时可回顾上一章，结果按章缓存，全站共用一份</span>
             </span>
-            <Switch
-              checked={!!settings?.recapEnabled}
-              disabled={!settings || saving}
-              onCheckedChange={(v) => void save({ recapEnabled: v })}
-            />
+            <Switch checked={!!settings?.recapEnabled} disabled={!settings || saving} onCheckedChange={(v) => void save({ recapEnabled: v })} />
           </label>
 
           <div className="ai-form-grid grid gap-3 sm:grid-cols-2">

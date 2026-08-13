@@ -242,12 +242,15 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   min-width: 0;
 }
 
-.ai-admin-page .ai-provider-card-header {
-  display: none;
-}
-
 .ai-admin-page .ai-provider-section {
   max-width: 100%;
+}
+
+/* The outer header is the tab page heading. Provider details and status live
+   in each provider panel below, so they should not be repeated here. */
+.ai-admin-page .ai-provider-card-header > div > p:first-of-type,
+.ai-admin-page .ai-provider-card-header > [data-slot='badge'] {
+  display: none;
 }
 
 @media (max-width: 640px) {
