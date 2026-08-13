@@ -17,10 +17,10 @@ const fetchMock = vi.fn(async (input: string | URL | Request) => {
   if (reqUrl.includes('/images/generations')) {
     // 1x1 PNG 的 base64，解码后是合法的 PNG 字节
     const pngB64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
-    return new Response(
-      JSON.stringify({ model: 'mimo-v2.5', data: [{ b64_json: pngB64 }], cost: '0.02' }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } },
-    )
+    return new Response(JSON.stringify({ model: 'mimo-v2.5', data: [{ b64_json: pngB64 }], cost: '0.02' }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })
   }
   return new Response(
     JSON.stringify({
@@ -147,14 +147,10 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
   })
 
   it('GET /recap 只读缓存：命中返回内容，未命中返回空串且不生成', async () => {
-    const hit = await jsonOf<{ recap: string; cached: boolean }>(
-      await req(`/api/ai/recap?chapterId=${chapterId}`, json('GET', undefined, readerToken)),
-    )
+    const hit = await jsonOf<{ recap: string; cached: boolean }>(await req(`/api/ai/recap?chapterId=${chapterId}`, json('GET', undefined, readerToken)))
     expect(hit.cached).toBe(true)
 
-    const miss = await jsonOf<{ recap: string; cached: boolean }>(
-      await req(`/api/ai/recap?chapterId=${secondChapterId}`, json('GET', undefined, readerToken)),
-    )
+    const miss = await jsonOf<{ recap: string; cached: boolean }>(await req(`/api/ai/recap?chapterId=${secondChapterId}`, json('GET', undefined, readerToken)))
     expect(miss.cached).toBe(false)
     expect(miss.recap).toBe('')
     expect(fetchMock).not.toHaveBeenCalled()
@@ -215,7 +211,9 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
       // 不传 apiKey：已存在的 test-key 必须原样保留
       const res = await req('/api/ai/provider', json('PUT', { baseUrl: 'https://new.example.com/v1', model: 'new-model' }, adminToken))
       expect(res.status).toBe(200)
-      const data = await jsonOf<{ provider: { configured: boolean; model: string }; providerConfig: { baseUrl: string; model: string; hasApiKey: boolean } }>(res)
+      const data = await jsonOf<{ provider: { configured: boolean; model: string }; providerConfig: { baseUrl: string; model: string; hasApiKey: boolean } }>(
+        res,
+      )
       expect(data.providerConfig.baseUrl).toBe('https://new.example.com/v1')
       expect(data.providerConfig.model).toBe('new-model')
       // env 当前值（来自 beforeAll）与运行时文件旧值（不存在/空）不同 →
@@ -347,7 +345,17 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
         new Response(
           JSON.stringify({
             model: 'test-model',
-            choices: [{ message: { content: [{ type: 'text', text: '分片' }, { type: 'text', text: '文本' }] }, finish_reason: 'stop' }],
+            choices: [
+              {
+                message: {
+                  content: [
+                    { type: 'text', text: '分片' },
+                    { type: 'text', text: '文本' },
+                  ],
+                },
+                finish_reason: 'stop',
+              },
+            ],
             usage: { prompt_tokens: 10, completion_tokens: 2 },
           }),
           { status: 200, headers: { 'Content-Type': 'application/json' } },
@@ -376,9 +384,7 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
 
     // 改正文 → 缓存作废
     await req(`/api/chapters/${chId}`, json('PUT', { content: LONG_CONTENT + '改过的结尾。' }, adminToken))
-    const invalidated = await jsonOf<{ cached: boolean; recap: string }>(
-      await req(`/api/ai/recap?chapterId=${chId}`, json('GET', undefined, readerToken)),
-    )
+    const invalidated = await jsonOf<{ cached: boolean; recap: string }>(await req(`/api/ai/recap?chapterId=${chId}`, json('GET', undefined, readerToken)))
     expect(invalidated.cached).toBe(false)
     expect(invalidated.recap).toBe('')
 
@@ -400,19 +406,17 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     const beforeCount = Number(before.rows[0]?.total) || 0
 
     // 桩延迟 50ms：确保两个请求都先过了缓存检查，再同时进 generateRecap
-    fetchMock.mockImplementationOnce(
-      async () => {
-        await sleep(50)
-        return new Response(
-          JSON.stringify({
-            model: 'test-model',
-            choices: [{ message: { content: '并发生成的同一段提要内容。' }, finish_reason: 'stop' }],
-            usage: { prompt_tokens: 100, completion_tokens: 20 },
-          }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } },
-        )
-      },
-    )
+    fetchMock.mockImplementationOnce(async () => {
+      await sleep(50)
+      return new Response(
+        JSON.stringify({
+          model: 'test-model',
+          choices: [{ message: { content: '并发生成的同一段提要内容。' }, finish_reason: 'stop' }],
+          usage: { prompt_tokens: 100, completion_tokens: 20 },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      )
+    })
 
     const [a, b] = await Promise.all([
       req('/api/ai/recap', json('POST', { chapterId: chId }, readerToken)),
@@ -453,9 +457,7 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     const res = await req('/api/ai/recap', json('POST', { chapterId: chId }, readerToken))
     expect(res.status).toBe(200)
 
-    const { rows } = await t.db.query<{ cost_millicents: number }>(
-      'SELECT cost_millicents FROM ai_usage ORDER BY created_at DESC LIMIT 1',
-    )
+    const { rows } = await t.db.query<{ cost_millicents: number }>('SELECT cost_millicents FROM ai_usage ORDER BY created_at DESC LIMIT 1')
     expect(Number(rows[0]?.cost_millicents)).toBe(123)
   })
 
@@ -480,10 +482,13 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     expect(fetchMock).toHaveBeenCalledTimes(3)
 
     // 读者读到最后一行：进度落在最后一章
-    await t.db.query(
-      'INSERT INTO reading_progress (id, user_id, novel_id, chapter_id, scroll_percent, updated_at, deleted_at) VALUES ($1,$2,$3,$4,0.5,$5,0)',
-      [`prog_catchup_${novelId}`, readerId, novelId, ids[2]!, Date.now() - 8 * 24 * 60 * 60 * 1000],
-    )
+    await t.db.query('INSERT INTO reading_progress (id, user_id, novel_id, chapter_id, scroll_percent, updated_at, deleted_at) VALUES ($1,$2,$3,$4,0.5,$5,0)', [
+      `prog_catchup_${novelId}`,
+      readerId,
+      novelId,
+      ids[2]!,
+      Date.now() - 8 * 24 * 60 * 60 * 1000,
+    ])
 
     fetchMock.mockClear()
     fetchMock.mockImplementationOnce(
@@ -524,10 +529,13 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     const chId = (await jsonOf<{ chapter: { id: string } }>(c)).chapter.id
     await req('/api/ai/recap', json('POST', { chapterId: chId }, readerToken))
 
-    await t.db.query(
-      'INSERT INTO reading_progress (id, user_id, novel_id, chapter_id, scroll_percent, updated_at, deleted_at) VALUES ($1,$2,$3,$4,0.5,$5,0)',
-      [`prog_solo_${novelId}`, readerId, novelId, chId, Date.now() - 8 * 24 * 60 * 60 * 1000],
-    )
+    await t.db.query('INSERT INTO reading_progress (id, user_id, novel_id, chapter_id, scroll_percent, updated_at, deleted_at) VALUES ($1,$2,$3,$4,0.5,$5,0)', [
+      `prog_solo_${novelId}`,
+      readerId,
+      novelId,
+      chId,
+      Date.now() - 8 * 24 * 60 * 60 * 1000,
+    ])
 
     fetchMock.mockClear()
     const res = await req('/api/ai/catchup', json('POST', { novelId }, readerToken))
@@ -546,10 +554,13 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     const novelId = (await jsonOf<{ novel: { id: string } }>(novel)).novel.id
     const c1 = await req('/api/chapters', json('POST', { novelId, title: '第一章', content: LONG_CONTENT }, adminToken))
     const chId = (await jsonOf<{ chapter: { id: string } }>(c1)).chapter.id
-    await t.db.query(
-      'INSERT INTO reading_progress (id, user_id, novel_id, chapter_id, scroll_percent, updated_at, deleted_at) VALUES ($1,$2,$3,$4,0.5,$5,0)',
-      [`prog_fresh_${novelId}`, readerId, novelId, chId, Date.now()],
-    )
+    await t.db.query('INSERT INTO reading_progress (id, user_id, novel_id, chapter_id, scroll_percent, updated_at, deleted_at) VALUES ($1,$2,$3,$4,0.5,$5,0)', [
+      `prog_fresh_${novelId}`,
+      readerId,
+      novelId,
+      chId,
+      Date.now(),
+    ])
     await req('/api/ai/settings', json('PUT', { dailyQuota: 0 }, adminToken))
     fetchMock.mockClear()
     const res = await req('/api/ai/catchup', json('POST', { novelId }, readerToken))
@@ -579,10 +590,13 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     const novelId = (await jsonOf<{ novel: { id: string } }>(novel)).novel.id
     const c1 = await req('/api/chapters', json('POST', { novelId, title: '第一章', content: LONG_CONTENT }, adminToken))
     const chId = (await jsonOf<{ chapter: { id: string } }>(c1)).chapter.id
-    await t.db.query(
-      'INSERT INTO reading_progress (id, user_id, novel_id, chapter_id, scroll_percent, updated_at, deleted_at) VALUES ($1,$2,$3,$4,0.5,$5,1)',
-      [`prog_deleted_${novelId}`, readerId, novelId, chId, Date.now() - 8 * 24 * 60 * 60 * 1000],
-    )
+    await t.db.query('INSERT INTO reading_progress (id, user_id, novel_id, chapter_id, scroll_percent, updated_at, deleted_at) VALUES ($1,$2,$3,$4,0.5,$5,1)', [
+      `prog_deleted_${novelId}`,
+      readerId,
+      novelId,
+      chId,
+      Date.now() - 8 * 24 * 60 * 60 * 1000,
+    ])
     const res = await req('/api/ai/catchup', json('POST', { novelId }, readerToken))
     const data = await jsonOf<{ recap: string | null; reason?: string }>(res)
     expect(data.recap).toBeNull()
@@ -599,14 +613,24 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
       ids.push((await jsonOf<{ chapter: { id: string } }>(c)).chapter.id)
     }
     for (const chId of ids) await req('/api/ai/recap', json('POST', { chapterId: chId }, readerToken))
-    await t.db.query(
-      'INSERT INTO reading_progress (id, user_id, novel_id, chapter_id, scroll_percent, updated_at, deleted_at) VALUES ($1,$2,$3,$4,0.5,$5,0)',
-      [`prog_version_${novelId}`, readerId, novelId, ids[2]!, Date.now() - 8 * 24 * 60 * 60 * 1000],
-    )
+    await t.db.query('INSERT INTO reading_progress (id, user_id, novel_id, chapter_id, scroll_percent, updated_at, deleted_at) VALUES ($1,$2,$3,$4,0.5,$5,0)', [
+      `prog_version_${novelId}`,
+      readerId,
+      novelId,
+      ids[2]!,
+      Date.now() - 8 * 24 * 60 * 60 * 1000,
+    ])
     fetchMock.mockClear()
-    fetchMock.mockImplementation(async () =>
-      new Response(JSON.stringify({ model: 'test-model', choices: [{ message: { content: '第一次回顾。' }, finish_reason: 'stop' }], usage: { prompt_tokens: 100, completion_tokens: 20 } }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } }),
+    fetchMock.mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            model: 'test-model',
+            choices: [{ message: { content: '第一次回顾。' }, finish_reason: 'stop' }],
+            usage: { prompt_tokens: 100, completion_tokens: 20 },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
     )
     const firstCatchup = await req('/api/ai/catchup', json('POST', { novelId }, readerToken))
     expect(firstCatchup.status).toBe(200)
@@ -670,7 +694,10 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     expect(outlineRows[0]?.status).toBe('draft')
     expect((outlineRows[0]?.result || '').length).toBeGreaterThan(0)
 
-    const chapterStart = await req('/api/ai/writing/chapter', json('POST', { novelId, title: 'AI 测试书', outline: outlineRows[0]!.result, instruction: '写一个紧张的开场' }, adminToken))
+    const chapterStart = await req(
+      '/api/ai/writing/chapter',
+      json('POST', { novelId, title: 'AI 测试书', outline: outlineRows[0]!.result, instruction: '写一个紧张的开场' }, adminToken),
+    )
     expect(chapterStart.status).toBe(202)
     const chapterTaskId = (await jsonOf<{ taskId: string }>(chapterStart)).taskId
     expect((await waitForTask(chapterTaskId, adminToken)).status).toBe('completed')
@@ -727,12 +754,16 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
   })
   it('多章续写后台执行：立即返回 taskId，每章一条草稿且批次号一致', async () => {
     const novelId = await firstNovelId(t)
-    fetchMock.mockImplementation(async () =>
-      new Response(JSON.stringify({
-        model: 'test-model',
-        choices: [{ message: { content: 'chapter continuation' }, finish_reason: 'stop' }],
-        usage: { prompt_tokens: 10, completion_tokens: 20 },
-      }), { status: 200, headers: { 'Content-Type': 'application/json' } }),
+    fetchMock.mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            model: 'test-model',
+            choices: [{ message: { content: 'chapter continuation' }, finish_reason: 'stop' }],
+            usage: { prompt_tokens: 10, completion_tokens: 20 },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
     )
 
     const response = await req('/api/ai/writing/continue', json('POST', { novelId, chapterCount: 20, targetWords: 1200 }, adminToken))
@@ -790,10 +821,9 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     expect(task.status).toBe('completed')
     expect(task.current).toBe(2)
 
-    const { rows } = await t.db.query<{ id: string }>(
-      `SELECT id FROM ai_generations WHERE kind = 'continue' AND params_json LIKE $1`,
-      [`%"batchId":"${batchId}"%`],
-    )
+    const { rows } = await t.db.query<{ id: string }>(`SELECT id FROM ai_generations WHERE kind = 'continue' AND params_json LIKE $1`, [
+      `%"batchId":"${batchId}"%`,
+    ])
     expect(rows).toHaveLength(2)
 
     // 已完成的任务不能重试；不存在的任务 404
@@ -801,20 +831,32 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     expect((await req('/api/ai/tasks/task_missing/retry', json('POST', {}, adminToken))).status).toBe(404)
   })
 
-﻿  it('断点恢复：多章续写中途失败后重试只生成未完成章节，已有草稿不重生', async () => {
+  it('断点恢复：多章续写中途失败后重试只生成未完成章节，已有草稿不重生', async () => {
     const novelId = await firstNovelId(t)
     fetchMock.mockClear()
     // 第 3 章（最后一章）失败，前 2 章用默认 mock 成功
-    fetchMock.mockImplementationOnce(async () => new Response(JSON.stringify({
-      model: 'test-model',
-      choices: [{ message: { content: '第一章开篇之也' }, finish_reason: 'stop' }],
-      usage: { prompt_tokens: 10, completion_tokens: 20 },
-    }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
-    fetchMock.mockImplementationOnce(async () => new Response(JSON.stringify({
-      model: 'test-model',
-      choices: [{ message: { content: '第二章承上启下' }, finish_reason: 'stop' }],
-      usage: { prompt_tokens: 10, completion_tokens: 20 },
-    }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+    fetchMock.mockImplementationOnce(
+      async () =>
+        new Response(
+          JSON.stringify({
+            model: 'test-model',
+            choices: [{ message: { content: '第一章开篇之也' }, finish_reason: 'stop' }],
+            usage: { prompt_tokens: 10, completion_tokens: 20 },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+    )
+    fetchMock.mockImplementationOnce(
+      async () =>
+        new Response(
+          JSON.stringify({
+            model: 'test-model',
+            choices: [{ message: { content: '第二章承上启下' }, finish_reason: 'stop' }],
+            usage: { prompt_tokens: 10, completion_tokens: 20 },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+    )
     fetchMock.mockImplementationOnce(async () => new Response('upstream boom', { status: 400 }))
 
     const started = await req('/api/ai/writing/continue', json('POST', { novelId, chapterCount: 3 }, adminToken))
@@ -878,10 +920,10 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
       expect(list.items.find((item) => item.id === taskId)).toBeUndefined()
     } finally {
       // 恢复默认 mock，避免污染后续用例
-      if (prevImpl) fetchMock.mockImplementation(prevImpl); else fetchMock.mockReset()
+      if (prevImpl) fetchMock.mockImplementation(prevImpl)
+      else fetchMock.mockReset()
     }
   })
-
 
   // ---------- 参数调优设置真实生效 ----------
 
@@ -940,9 +982,7 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
   it('catchupEnabled 独立于 recapEnabled：关闭后 catchup 403，recap 不受影响', async () => {
     await req('/api/ai/settings', json('PUT', { catchupEnabled: false }, adminToken))
     try {
-      const status = await jsonOf<{ features: { recap: boolean; catchup: boolean } }>(
-        await req('/api/ai/status', json('GET', undefined, readerToken)),
-      )
+      const status = await jsonOf<{ features: { recap: boolean; catchup: boolean } }>(await req('/api/ai/status', json('GET', undefined, readerToken)))
       expect(status.features.recap).toBe(true)
       expect(status.features.catchup).toBe(false)
 
@@ -1073,10 +1113,13 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     const novelId = (await jsonOf<{ novel: { id: string } }>(novel)).novel.id
     const c1 = await req('/api/chapters', json('POST', { novelId, title: '第一章', content: LONG_CONTENT }, adminToken))
     const chId = (await jsonOf<{ chapter: { id: string } }>(c1)).chapter.id
-    await t.db.query(
-      'INSERT INTO reading_progress (id, user_id, novel_id, chapter_id, scroll_percent, updated_at, deleted_at) VALUES ($1,$2,$3,$4,0.5,$5,0)',
-      [`prog_stale_${novelId}`, readerId, novelId, chId, Date.now() - 8 * 24 * 60 * 60 * 1000],
-    )
+    await t.db.query('INSERT INTO reading_progress (id, user_id, novel_id, chapter_id, scroll_percent, updated_at, deleted_at) VALUES ($1,$2,$3,$4,0.5,$5,0)', [
+      `prog_stale_${novelId}`,
+      readerId,
+      novelId,
+      chId,
+      Date.now() - 8 * 24 * 60 * 60 * 1000,
+    ])
 
     // 默认 7 天：8 天前的进度已过阈值，卡在提要不足而非 not_stale
     const before = await jsonOf<{ reason?: string }>(await req('/api/ai/catchup', json('POST', { novelId }, readerToken)))
@@ -1102,7 +1145,11 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
       fetchMock.mockImplementationOnce(async () => {
         await sleep(200)
         return new Response(
-          JSON.stringify({ model: 'test-model', choices: [{ message: { content: '占用并发的章节' }, finish_reason: 'stop' }], usage: { prompt_tokens: 10, completion_tokens: 10 } }),
+          JSON.stringify({
+            model: 'test-model',
+            choices: [{ message: { content: '占用并发的章节' }, finish_reason: 'stop' }],
+            usage: { prompt_tokens: 10, completion_tokens: 10 },
+          }),
           { status: 200, headers: { 'Content-Type': 'application/json' } },
         )
       })
@@ -1149,9 +1196,7 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
       ipAddress: 'y'.repeat(500),
       userAgent: 'x'.repeat(2000),
     })
-    const { rows } = await t.db.query<{ ip_address: string; user_agent: string }>(
-      "SELECT ip_address, user_agent FROM ai_usage WHERE user_id = 'u_trunc'",
-    )
+    const { rows } = await t.db.query<{ ip_address: string; user_agent: string }>("SELECT ip_address, user_agent FROM ai_usage WHERE user_id = 'u_trunc'")
     expect(rows[0]!.ip_address.length).toBe(100)
     expect(rows[0]!.user_agent.length).toBe(500)
   })
@@ -1203,10 +1248,10 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
       if (reqUrl.includes('/images/generations')) {
         // 1x1 PNG 的 base64，解码后是合法的 PNG 字节
         const pngB64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
-        return new Response(
-          JSON.stringify({ model: 'mimo-v2.5', data: [{ b64_json: pngB64 }], cost: '0.02' }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } },
-        )
+        return new Response(JSON.stringify({ model: 'mimo-v2.5', data: [{ b64_json: pngB64 }], cost: '0.02' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
       }
       return new Response(
         JSON.stringify({
@@ -1240,7 +1285,55 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
       expect(coverRows.length).toBe(1)
       expect(coverRows[0]!.image_count).toBe(1)
     } finally {
-      if (prevImpl) fetchMock.mockImplementation(prevImpl); else fetchMock.mockReset()
+      if (prevImpl) fetchMock.mockImplementation(prevImpl)
+      else fetchMock.mockReset()
+      delete process.env.AI_IMAGE_BASE_URL
+      delete process.env.AI_IMAGE_API_KEY
+      delete process.env.AI_IMAGE_MODEL
+    }
+  })
+
+  it('cover：支持预生成和自定义描述词', async () => {
+    process.env.AI_IMAGE_BASE_URL = 'https://image.test/v1'
+    process.env.AI_IMAGE_API_KEY = 'img-key'
+    process.env.AI_IMAGE_MODEL = 'mimo-v2.5'
+    let imageRequest: Record<string, unknown> | null = null
+    const prevImpl = fetchMock.getMockImplementation()
+    fetchMock.mockImplementation(async (input: string | URL | Request, init?: RequestInit) => {
+      const reqUrl = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      if (reqUrl.includes('/images/generations')) {
+        imageRequest = JSON.parse(String(init?.body || '{}')) as Record<string, unknown>
+        const pngB64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+        return new Response(JSON.stringify({ model: 'mimo-v2.5', data: [{ b64_json: pngB64 }] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      return new Response(
+        JSON.stringify({
+          model: 'test-model',
+          choices: [{ message: { content: 'Automatic prompt, no text' }, finish_reason: 'stop' }],
+          usage: { prompt_tokens: 20, completion_tokens: 10 },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      )
+    })
+    try {
+      const novelId = await firstNovelId(t)
+      const promptResponse = await req('/api/ai/cover/prompt', json('POST', { novelId }, adminToken))
+      expect(promptResponse.status).toBe(200)
+      const generatedPrompt = (await jsonOf<{ prompt: string }>(promptResponse)).prompt
+      expect(generatedPrompt).toContain('Automatic prompt, no text')
+      expect(generatedPrompt).toContain('safe for work')
+
+      const res = await req('/api/ai/cover/generate', json('POST', { novelId, safe: false, prompt: 'Moonlit city skyline, no text' }, adminToken))
+      const { taskId } = await jsonOf<{ taskId: string }>(res)
+      expect((await waitForTask(taskId, adminToken)).status).toBe('completed')
+      const submittedImageRequest = imageRequest as Record<string, unknown> | null
+      expect(submittedImageRequest?.prompt).toBe('Moonlit city skyline, no text')
+    } finally {
+      if (prevImpl) fetchMock.mockImplementation(prevImpl)
+      else fetchMock.mockReset()
       delete process.env.AI_IMAGE_BASE_URL
       delete process.env.AI_IMAGE_API_KEY
       delete process.env.AI_IMAGE_MODEL

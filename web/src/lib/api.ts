@@ -8,7 +8,7 @@ import type { ChapterFull, ChapterMeta, Comment, Novel, NovelListResponse, Reade
 /** API base：Vite 注入 VITE_API_BASE（生产经 NOVEL_API_BASE define），默认同源 /api。 */
 function resolveBase(): string {
   const env = (import.meta as { env?: Record<string, string | undefined> }).env
-  const injected = env?.VITE_API_BASE || (globalThis as Record<string, unknown>).__NOVEL_API_BASE__ as string | undefined
+  const injected = env?.VITE_API_BASE || ((globalThis as Record<string, unknown>).__NOVEL_API_BASE__ as string | undefined)
   const base = String(injected || '/api').trim() || '/api'
   return base.replace(/\/+$/, '')
 }
@@ -94,7 +94,14 @@ function timedFetch(input: RequestInfo | URL, opts: RequestInit = {}, timeoutMs 
   return fetch(input, opts)
 }
 
-async function request<T = unknown>(method: string, path: string, body: unknown = null, useAuth = false, extraHeaders: Record<string, string> = {}, timeoutMs = API_TIMEOUT_MS): Promise<T> {
+async function request<T = unknown>(
+  method: string,
+  path: string,
+  body: unknown = null,
+  useAuth = false,
+  extraHeaders: Record<string, string> = {},
+  timeoutMs = API_TIMEOUT_MS,
+): Promise<T> {
   const hasBody = !!body && method !== 'GET'
   // 有 body 才声明 Content-Type：GET 带它会让跨域读取多一次 preflight
   const headers = { ...(hasBody ? { 'Content-Type': 'application/json' } : {}), ...extraHeaders }
@@ -118,7 +125,7 @@ async function request<T = unknown>(method: string, path: string, body: unknown 
     }
     throw err
   }
-  const data = await res.json().catch(() => ({})) as T & { error?: string }
+  const data = (await res.json().catch(() => ({}))) as T & { error?: string }
 
   if (!res.ok) {
     const err = new Error((data as { error?: string }).error || `HTTP ${res.status}`) as ApiError
@@ -449,10 +456,14 @@ export const authApi = {
     })
   },
   logout(): Promise<void> {
-    return request('POST', '/auth/logout', null, true).catch(() => {}).then(() => clearToken())
+    return request('POST', '/auth/logout', null, true)
+      .catch(() => {})
+      .then(() => clearToken())
   },
   logoutAll(): Promise<void> {
-    return request('POST', '/auth/logout-all', null, true).catch(() => {}).then(() => clearToken())
+    return request('POST', '/auth/logout-all', null, true)
+      .catch(() => {})
+      .then(() => clearToken())
   },
   readerSettings(): Promise<{ settings: Record<string, string>; updatedAt: Record<string, number> }> {
     return request('GET', '/auth/reader-settings', null, true)
@@ -768,8 +779,11 @@ export const aiApi = {
   },
   /** 为小说生成封面（后台任务模式），返回 taskId 供轮询；生成结果直接落 novel_covers。
    *  safe 默认 true：启用安全归一化，规避上游图像安全策略。 */
-  generateCover(novelId: string, safe: boolean = true): Promise<{ ok: boolean; taskId: string; batchId: string; total: number }> {
-    return request('POST', '/ai/cover/generate', { novelId, safe }, true)
+  generateCover(novelId: string, safe: boolean = true, prompt: string = ''): Promise<{ ok: boolean; taskId: string; batchId: string; total: number }> {
+    return request('POST', '/ai/cover/generate', { novelId, safe, prompt }, true)
+  },
+  generateCoverPrompt(novelId: string, safe: boolean = true): Promise<{ prompt: string }> {
+    return request('POST', '/ai/cover/prompt', { novelId, safe }, true)
   },
   writing: {
     /** 创作类接口统一为后台任务模式：立即返回任务 id，用 aiApi.task 轮询进度，产物在「已生成内容」。 */
@@ -782,7 +796,11 @@ export const aiApi = {
     continue(data: Record<string, unknown>): Promise<{ ok: boolean; taskId: string; batchId: string; total: number }> {
       return request('POST', '/ai/writing/continue', data, true)
     },
-    titles(data: { content: string; novelId?: string; contextTitle?: string }): Promise<{ titles: string[]; usage: { model: string; promptTokens: number; completionTokens: number } }> {
+    titles(data: {
+      content: string
+      novelId?: string
+      contextTitle?: string
+    }): Promise<{ titles: string[]; usage: { model: string; promptTokens: number; completionTokens: number } }> {
       return request('POST', '/ai/writing/titles', data, true)
     },
     updateDraft(id: string, result: string): Promise<{ ok: boolean; id: string; result: string }> {
@@ -792,7 +810,10 @@ export const aiApi = {
       return request('POST', `/ai/writing/drafts/${encodeURIComponent(id)}/publish`, data, true)
     },
     /** 整批发布续写草稿：按 batchIndex 顺序发布，标题自动使用「第 N 章」递增。 */
-    publishBatch(batchId: string, data: { novelId: string }): Promise<{ ok: boolean; published: Array<{ id: string; title: string; order: number; generationId: string }>; novelId: string }> {
+    publishBatch(
+      batchId: string,
+      data: { novelId: string },
+    ): Promise<{ ok: boolean; published: Array<{ id: string; title: string; order: number; generationId: string }>; novelId: string }> {
       return request('POST', `/ai/writing/batches/${encodeURIComponent(batchId)}/publish`, data, true)
     },
   },
@@ -826,7 +847,15 @@ export const aiApi = {
     return request('POST', `/ai/tasks/${encodeURIComponent(id)}/retry`, {}, true)
   },
   /** 已生成内容列表（管理端）：默认已发布，可筛类型。 */
-  generations(filters: { kind?: 'summary' | 'catchup' | 'continue' | 'write_outline' | 'write_chapter'; scope?: 'all' | 'reader' | 'writing'; status?: 'all' | 'published' | 'draft' | 'rejected'; limit?: number; offset?: number } = {}): Promise<{
+  generations(
+    filters: {
+      kind?: 'summary' | 'catchup' | 'continue' | 'write_outline' | 'write_chapter'
+      scope?: 'all' | 'reader' | 'writing'
+      status?: 'all' | 'published' | 'draft' | 'rejected'
+      limit?: number
+      offset?: number
+    } = {},
+  ): Promise<{
     items: Array<{
       id: string
       novelId: string
@@ -863,7 +892,10 @@ export const aiApi = {
     return request('POST', '/ai/generations/batch-delete', { ids }, true)
   },
   audit: {
-    users(limit = 50, offset = 0): Promise<{
+    users(
+      limit = 50,
+      offset = 0,
+    ): Promise<{
       users: Array<{
         id: string
         username: string

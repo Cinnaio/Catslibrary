@@ -13,7 +13,17 @@ const TASK_POLL_INTERVAL = 3000
 const COVER_TASK_KINDS = new Set(['cover'])
 
 function taskStatusLabel(status: string): string {
-  return status === 'queued' ? '排队中' : status === 'running' ? '生成中' : status === 'completed' ? '已完成' : status === 'cancelled' ? '已取消' : status === 'failed' ? '失败' : status
+  return status === 'queued'
+    ? '排队中'
+    : status === 'running'
+      ? '生成中'
+      : status === 'completed'
+        ? '已完成'
+        : status === 'cancelled'
+          ? '已取消'
+          : status === 'failed'
+            ? '失败'
+            : status
 }
 
 export default function AiCoverPanel() {
@@ -27,20 +37,27 @@ export default function AiCoverPanel() {
   const [coverVersion, setCoverVersion] = useState(0)
   /** 安全归一化开关：默认开，把限制级内容抽象为唯美画面，规避上游图像安全策略 */
   const [safe, setSafe] = useState(true)
+  const [prompt, setPrompt] = useState('')
+  const [generatingPrompt, setGeneratingPrompt] = useState(false)
   const [imageConfigured, setImageConfigured] = useState(false)
   const taskActive = !!task && (task.status === 'queued' || task.status === 'running')
 
   useEffect(() => {
-    void novelsApi.list({ limit: 100, page: 1 })
+    void novelsApi
+      .list({ limit: 100, page: 1 })
       .then((data) => setNovels(data.novels.map((novel) => ({ id: novel.id, title: novel.title, updatedAt: novel.updatedAt }))))
       .catch((err) => toast((err as Error).message, 'error'))
-    void aiApi.settings().then((res) => setImageConfigured(res.imageProvider.configured)).catch(() => {})
+    void aiApi
+      .settings()
+      .then((res) => setImageConfigured(res.imageProvider.configured))
+      .catch(() => {})
   }, [toast])
 
   // 挂载时恢复正在运行的封面任务：切换 tab 回来后进度不丢
   useEffect(() => {
     let cancelled = false
-    aiApi.tasks({ limit: 20 })
+    aiApi
+      .tasks({ limit: 20 })
       .then((result) => {
         if (cancelled) return
         const running = result.items.find((item) => COVER_TASK_KINDS.has(item.kind) && (item.status === 'queued' || item.status === 'running'))
@@ -50,7 +67,9 @@ export default function AiCoverPanel() {
         }
       })
       .catch(() => {})
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   // 轮询后台封面任务：setTask 触发下一轮 effect，形成 3 秒间隔的轮询链，任务结束自然停止
@@ -61,7 +80,8 @@ export default function AiCoverPanel() {
         setTask((prev) => (prev ? { ...prev } : prev))
         return
       }
-      aiApi.task(task.id)
+      aiApi
+        .task(task.id)
         .then(({ task: next }) => {
           setTask(next)
           if (next.status === 'completed') {
@@ -81,7 +101,7 @@ export default function AiCoverPanel() {
     if (!imageConfigured) return toast('AI 图像服务未配置，请到「配置」标签页设置图像供应商', 'error')
     setBusy(true)
     try {
-      const res = await aiApi.generateCover(novelId, safe)
+      const res = await aiApi.generateCover(novelId, safe, prompt)
       const { task: created } = await aiApi.task(res.taskId)
       setTask(created)
       toast('封面生成已开始', 'success')
@@ -89,6 +109,20 @@ export default function AiCoverPanel() {
       toast((err as Error).message || '启动生成失败', 'error')
     } finally {
       setBusy(false)
+    }
+  }
+
+  async function generatePrompt() {
+    if (!novelId) return toast('请先选择小说', 'error')
+    setGeneratingPrompt(true)
+    try {
+      const result = await aiApi.generateCoverPrompt(novelId, safe)
+      setPrompt(result.prompt)
+      toast('已生成封面描述词，可继续编辑', 'success')
+    } catch (err) {
+      toast((err as Error).message || '生成描述词失败', 'error')
+    } finally {
+      setGeneratingPrompt(false)
     }
   }
 
@@ -121,12 +155,40 @@ export default function AiCoverPanel() {
             <CustomSelect
               options={novels.map((novel) => ({ value: novel.id, label: novel.title }))}
               value={novelId}
-              onChange={setNovelId}
+              onChange={(value) => {
+                setNovelId(value)
+                setPrompt('')
+              }}
               placeholder="选择小说"
               searchable
               searchPlaceholder="搜索小说名称…"
               dropdownSide="bottom"
             />
+          </div>
+
+          <div className="grid gap-1.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Label htmlFor="cover-prompt">封面描述词</Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={busy || taskActive || generatingPrompt || !novelId}
+                onClick={() => void generatePrompt()}
+              >
+                {generatingPrompt ? '生成中…' : '自动生成描述词'}
+              </Button>
+            </div>
+            <textarea
+              id="cover-prompt"
+              className="min-h-[112px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              value={prompt}
+              maxLength={2000}
+              disabled={busy || taskActive || generatingPrompt}
+              onChange={(event) => setPrompt(event.target.value)}
+              placeholder="留空将根据小说标题、分类和简介自动生成；也可以直接填写英文描述词。"
+            />
+            <p className="text-xs text-muted-foreground">自动生成后可继续编辑。安全模式开启时，服务端会在最终描述词中补充安全约束。</p>
           </div>
 
           <div className="flex flex-wrap items-end justify-between gap-3 rounded-md border bg-muted/30 p-3">
@@ -161,7 +223,11 @@ export default function AiCoverPanel() {
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="secondary">封面</Badge>
                 <Badge variant={task.status === 'failed' ? 'destructive' : 'outline'}>{taskStatusLabel(task.status)}</Badge>
-                {taskActive && <Button variant="outline" size="sm" className="ml-auto" onClick={() => void cancelTask()}>取消任务</Button>}
+                {taskActive && (
+                  <Button variant="outline" size="sm" className="ml-auto" onClick={() => void cancelTask()}>
+                    取消任务
+                  </Button>
+                )}
               </div>
               <p className="mt-1 text-muted-foreground">{task.step || '等待处理'}</p>
               {task.error && <p className="mt-1 text-destructive">{task.error}</p>}
@@ -177,11 +243,11 @@ export default function AiCoverPanel() {
                   src={previewSrc}
                   alt={selected?.title || '封面预览'}
                   className="h-40 w-28 rounded-md border border-border object-cover shadow-sm"
-                  onError={(e) => { e.currentTarget.style.visibility = 'hidden' }}
+                  onError={(e) => {
+                    e.currentTarget.style.visibility = 'hidden'
+                  }}
                 />
-                <p className="text-xs text-muted-foreground">
-                  生成完成后此预览自动刷新。封面数据存于 novel_covers，与读者端展示同源。
-                </p>
+                <p className="text-xs text-muted-foreground">生成完成后此预览自动刷新。封面数据存于 novel_covers，与读者端展示同源。</p>
               </div>
             </div>
           )}

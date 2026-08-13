@@ -20,11 +20,9 @@ interface NovelMeta {
 }
 
 async function loadNovelMeta(db: Db, novelId: string): Promise<NovelMeta | null> {
-  const row = await first<{ title: string; description: string; categories: string }>(
-    db,
-    'SELECT title, description, categories FROM novels WHERE id = $1',
-    [novelId],
-  )
+  const row = await first<{ title: string; description: string; categories: string }>(db, 'SELECT title, description, categories FROM novels WHERE id = $1', [
+    novelId,
+  ])
   if (!row) return null
   let categories: string[] = []
   try {
@@ -34,6 +32,12 @@ async function loadNovelMeta(db: Db, novelId: string): Promise<NovelMeta | null>
     categories = []
   }
   return { title: String(row.title || ''), description: String(row.description || ''), categories }
+}
+
+export async function generateCoverPrompt(db: Db, novelId: string, safe: boolean): Promise<BuildPromptResult> {
+  const meta = await loadNovelMeta(db, novelId)
+  if (!meta) throw new AiError('invalid', '小说不存在', 404)
+  return buildImagePrompt(meta, safe)
 }
 
 /** 取任务当前 step（失败时回显用的实际 prompt 就存在这里）。 */
@@ -55,7 +59,7 @@ interface BuildPromptResult {
  * safe=true 时启用「安全归一化」：强制把画面导向非具名、非性化、非暴力的唯美氛围，
  * 规避 18+/暴力/禁忌题材词汇触发上游图像服务的安全策略。适合作者小说简介偏限制级时使用。
  */
-async function buildImagePrompt(meta: NovelMeta, safe: boolean): Promise<BuildPromptResult> {
+export async function buildImagePrompt(meta: NovelMeta, safe: boolean): Promise<BuildPromptResult> {
   const titleHint = meta.title.slice(0, 60)
   const catHint = meta.categories.slice(0, 3).join(', ')
   const descHint = meta.description.slice(0, 300)
@@ -70,13 +74,13 @@ async function buildImagePrompt(meta: NovelMeta, safe: boolean): Promise<BuildPr
   }
 
   const textProvider_ = textProvider()
-  const safeRules = safe ? [
-    '4. 严禁出现性暗示、裸露、暴力、血腥、禁忌题材、具名真人或版权角色的直白描述；',
-    '5. 把任何限制级/暴力内容抽象为唯美的氛围画面（如烛光、绸缎、暗调光影），不描写具体行为；',
-    '6. 结尾追加 "elegant, atmospheric, digital painting, safe for work, no text, no explicit scenes"。',
-  ] : [
-    '4. 结尾加 "no text" 避免画面里出现乱码文字。',
-  ]
+  const safeRules = safe
+    ? [
+        '4. 严禁出现性暗示、裸露、暴力、血腥、禁忌题材、具名真人或版权角色的直白描述；',
+        '5. 把任何限制级/暴力内容抽象为唯美的氛围画面（如烛光、绸缎、暗调光影），不描写具体行为；',
+        '6. 结尾追加 "elegant, atmospheric, digital painting, safe for work, no text, no explicit scenes"。',
+      ]
+    : ['4. 结尾加 "no text" 避免画面里出现乱码文字。']
   const user = [
     '请把以下中文小说的元数据翻译成一句适合 AI 图像生成模型的英文描述词（prompt）。',
     '要求：',
@@ -87,7 +91,9 @@ async function buildImagePrompt(meta: NovelMeta, safe: boolean): Promise<BuildPr
     meta.title ? `标题：${meta.title}` : '',
     catHint ? `分类：${catHint}` : '',
     descHint ? `简介：${descHint}` : '',
-  ].filter(Boolean).join('\n')
+  ]
+    .filter(Boolean)
+    .join('\n')
 
   const systemContent = safe
     ? '你是为 AI 图像生成模型撰写英文 prompt 的专家。你的任务是把小说元数据转化为能通过内容安全审核的唯美画面描述：必须规避所有性化、暴力、禁忌题材词汇，把成人/限制级内容抽象为不含具象行为、不含具名人物的氛围画面。'
@@ -109,7 +115,9 @@ async function buildImagePrompt(meta: NovelMeta, safe: boolean): Promise<BuildPr
     prompt = `${prompt}, elegant, atmospheric, digital painting, safe for work, no text, no explicit scenes`
   }
   return {
-    prompt: prompt || `book cover illustration${titleHint ? ` for "${titleHint}"` : ''}, ${catHint || 'novel'} theme, ${safe ? 'elegant, atmospheric, safe for work, ' : ''}no text`,
+    prompt:
+      prompt ||
+      `book cover illustration${titleHint ? ` for "${titleHint}"` : ''}, ${catHint || 'novel'} theme, ${safe ? 'elegant, atmospheric, safe for work, ' : ''}no text`,
     textUsage: {
       model: res.model,
       promptTokens: res.promptTokens,
@@ -120,20 +128,34 @@ async function buildImagePrompt(meta: NovelMeta, safe: boolean): Promise<BuildPr
   }
 }
 
+function normalizeCustomPrompt(value: unknown, safe: boolean): string {
+  const prompt = String(value || '').trim()
+  if (!prompt) return ''
+  if (prompt.length > 2_000) throw new AiError('invalid', '封面描述词不能超过 2000 个字符', 422)
+  if (safe && !/safe for work/i.test(prompt)) {
+    return `${prompt}, elegant, atmospheric, digital painting, safe for work, no text, no explicit scenes`
+  }
+  return prompt
+}
+
 /**
  * 为小说生成封面。
  * - 调用方可传 taskId（路由侧先建任务再异步执行），或不传（自建任务）。
  * - 失败时把任务标记为 failed 并带 error；成功标记 completed。
  */
-export async function generateNovelCover(db: Db, opts: {
-  userId: string
-  novelId: string
-  taskId?: string
-  /** 启用安全归一化：把限制级/暴力内容抽象为唯美氛围画面，规避上游图像安全策略 */
-  safe?: boolean
-  ipAddress?: string
-  userAgent?: string
-}): Promise<{ taskId: string }> {
+export async function generateNovelCover(
+  db: Db,
+  opts: {
+    userId: string
+    novelId: string
+    taskId?: string
+    /** 启用安全归一化：把限制级/暴力内容抽象为唯美氛围画面，规避上游图像安全策略 */
+    safe?: boolean
+    prompt?: string
+    ipAddress?: string
+    userAgent?: string
+  },
+): Promise<{ taskId: string }> {
   if (!isImageAiConfigured()) throw new AiError('disabled', 'AI 图像服务未配置', 503)
 
   const meta = await loadNovelMeta(db, opts.novelId)
@@ -141,21 +163,39 @@ export async function generateNovelCover(db: Db, opts: {
 
   const safe = opts.safe !== false ? true : false
   const ownsTask = !opts.taskId
-  const taskId = opts.taskId || (await createAiTask(db, { userId: opts.userId, novelId: opts.novelId, kind: 'cover', total: 1, prompt: '生成封面', params: JSON.stringify({ novelId: opts.novelId, safe }) })).id
+  const taskId =
+    opts.taskId ||
+    (
+      await createAiTask(db, {
+        userId: opts.userId,
+        novelId: opts.novelId,
+        kind: 'cover',
+        total: 1,
+        prompt: '生成封面',
+        params: JSON.stringify({ novelId: opts.novelId, safe }),
+      })
+    ).id
   await updateAiTask(db, taskId, { status: 'running', step: `正在生成封面描述词${safe ? '（安全模式）' : ''}` })
   if (await isAiTaskCancelled(db, taskId)) throw new AiError('invalid', '任务已取消')
 
   try {
     const imageProvider_ = imageProvider()
     await updateAiTask(db, taskId, { step: `正在生成封面描述词${safe ? '（安全模式）' : ''}` })
-    const { prompt, textUsage } = await buildImagePrompt(meta, safe)
+    const customPrompt = normalizeCustomPrompt(opts.prompt, safe)
+    const { prompt, textUsage } = customPrompt ? { prompt: customPrompt, textUsage: null } : await buildImagePrompt(meta, safe)
     if (await isAiTaskCancelled(db, taskId)) throw new AiError('invalid', '任务已取消')
 
     // 把最终送图像模型的 prompt 落进任务 step：失败时据此定位是哪个词触发了上游安全策略
     await updateAiTask(db, taskId, { step: `正在生成封面（prompt：${prompt.slice(0, 200)}）` })
 
     const imageSettings = await getAiSettings(db)
-    const img = await generateImage({ prompt, size: imageSettings.imageSize, quality: imageSettings.imageQuality, responseFormat: imageSettings.imageResponseFormat, timeoutMs: 120_000 })
+    const img = await generateImage({
+      prompt,
+      size: imageSettings.imageSize,
+      quality: imageSettings.imageQuality,
+      responseFormat: imageSettings.imageResponseFormat,
+      timeoutMs: 120_000,
+    })
     if (img.data.byteLength > MAX_COVER_BYTES) {
       throw new AiError('invalid', `生成的图片过大（${img.data.byteLength} 字节，上限 ${MAX_COVER_BYTES}）`)
     }
