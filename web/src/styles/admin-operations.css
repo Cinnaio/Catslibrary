@@ -323,6 +323,18 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   to   { transform: translateX(265%); }
 }
 
+/* AI 封面预览：图片铺满 2:3 画框，与 .account-avatar img 同款写法。
+   必须放在无 @layer 的普通规则里：base.css 的 `img { height: auto }` 是非 layer 规则，
+   优先级高于 Tailwind 的 @layer utilities，会让 `h-full` 失效，导致源图比例
+   与 2:3 不符时画框底部空出一截。此处以更高特异度的类选择器覆盖它。 */
+.ai-cover-frame img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 .account-settings-toolbar {
   min-height: 2.25rem;
 }

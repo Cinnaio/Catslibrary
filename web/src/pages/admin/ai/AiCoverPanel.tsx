@@ -56,14 +56,14 @@ function CoverCanvas({ src, title, hasNovel }: { src: string; title?: string; ha
   }, [src])
 
   return (
-    <div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--admin-inset)] shadow-md ring-1 ring-inset ring-[var(--border-light)]">
+    <div className="ai-cover-frame relative aspect-[2/3] w-full overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--admin-inset)] shadow-md ring-1 ring-inset ring-[var(--border-light)]">
       {failed || !src ? (
         <div className="flex h-full flex-col items-center justify-center gap-2 px-4 text-center">
           <BookOpen className="size-6 text-[var(--accent)]/45" />
           <p className="text-xs leading-relaxed text-muted-foreground">{hasNovel ? '暂无封面图片' : '选择小说后预览封面'}</p>
         </div>
       ) : (
-        <img src={src} alt={title || '封面预览'} className="h-full w-full object-cover" onError={() => setFailed(true)} />
+        <img src={src} alt={title || '封面预览'} onError={() => setFailed(true)} />
       )}
     </div>
   )
@@ -453,11 +453,11 @@ export default function AiCoverPanel() {
               <div className="grid grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] gap-4">
                 {candidates.map((candidate, index) => (
                   <figure key={candidate.id} className="group grid gap-2">
-                    <div className="relative aspect-[2/3] w-full overflow-hidden rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] shadow-sm transition-shadow duration-200 group-hover:shadow-md">
+                    <div className="ai-cover-frame relative aspect-[2/3] w-full overflow-hidden rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] shadow-sm transition-shadow duration-200 group-hover:shadow-md">
                       <img
                         src={candidate.dataUrl}
                         alt="AI 封面候选"
-                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                        className="transition-transform duration-300 group-hover:scale-[1.03]"
                       />
                       <span className="absolute left-1.5 top-1.5 rounded-full bg-[var(--overlay-bg)] px-2 py-0.5 text-xs font-medium text-white/95 backdrop-blur-sm">
                         候选 {index + 1}
