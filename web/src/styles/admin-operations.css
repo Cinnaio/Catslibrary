@@ -1612,9 +1612,13 @@ body:has(.admin-sidebar[data-slot="sheet-content"]) [data-slot="sheet-overlay"] 
   }
   .ai-generations-table tbody tr.ai-generation-row--child {
     display: grid;
-    grid-template-columns: 1.25rem minmax(4.5rem, 0.75fr) minmax(0, 2fr) auto auto auto;
-    align-items: center;
-    gap: 0.5rem;
+    grid-template-columns: 1.25rem minmax(0, 1fr);
+    grid-template-areas:
+      "check head"
+      "check meta"
+      "check ops";
+    align-items: start;
+    gap: 0.25rem 0.5rem;
     padding: 0.625rem 0.75rem;
   }
   .ai-generations-table tbody tr.ai-generation-row--child td {
@@ -1623,22 +1627,33 @@ body:has(.admin-sidebar[data-slot="sheet-content"]) [data-slot="sheet-overlay"] 
     padding: 0;
   }
   .ai-generations-table tbody tr.ai-generation-row--child td:nth-child(1) {
-    grid-column: 1;
+    grid-area: check;
   }
+  /* 类型 + 标题并排成一行表头 */
   .ai-generations-table tbody tr.ai-generation-row--child td:nth-child(2) {
-    grid-column: 2;
+    grid-area: head;
   }
   .ai-generations-table tbody tr.ai-generation-row--child td:nth-child(3) {
-    grid-column: 3;
+    grid-area: head;
   }
-  .ai-generations-table tbody tr.ai-generation-row--child td:nth-child(4) {
-    grid-column: 4;
-  }
-  .ai-generations-table tbody tr.ai-generation-row--child td:nth-child(5) {
-    grid-column: 5;
-  }
+  /* 预览/模型/时间收拢为次要信息行 */
+  .ai-generations-table tbody tr.ai-generation-row--child td:nth-child(4),
+  .ai-generations-table tbody tr.ai-generation-row--child td:nth-child(5),
   .ai-generations-table tbody tr.ai-generation-row--child td:nth-child(6) {
-    grid-column: 6;
+    grid-area: meta;
+  }
+  /* 操作列独占一行，按钮右对齐并允许换行 */
+  .ai-generations-table tbody tr.ai-generation-row--child td:nth-child(7) {
+    grid-area: ops;
+    justify-self: end;
+  }
+  .ai-generations-table tbody tr.ai-generation-row--child td:nth-child(7) > div {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.375rem;
+  }
+  .ai-generations-table tbody tr.ai-generation-row--child td:nth-child(7) button {
+    min-width: 3.5rem;
   }
   .moderation-toolbar {
     align-items: stretch;
