@@ -466,9 +466,9 @@ export default function AiCoverPanel() {
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] gap-4">
+              <div className="flex flex-wrap justify-center gap-4">
                 {candidates.map((candidate, index) => (
-                  <figure key={candidate.id} className="group grid gap-2">
+                  <figure key={candidate.id} className="group grid w-[9rem] gap-2">
                     <div className="ai-cover-frame relative aspect-[2/3] w-full overflow-hidden rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] shadow-sm transition-shadow duration-200 group-hover:shadow-md">
                       <img
                         src={candidate.dataUrl}
