@@ -69,6 +69,9 @@ export default function Novel() {
   useEffect(() => {
     activeIdRef.current = id
     setCoverFailed(false)
+    // 换书时重置简介展开态，避免上一本的展开/溢出状态串到新书
+    setDescExpanded(false)
+    setDescOverflows(false)
   }, [id])
 
   const descRef = useRef<HTMLDivElement>(null)
@@ -86,10 +89,25 @@ export default function Novel() {
   useDocumentTitle(novel?.title)
 
   // 描述溢出检测（>3 行显示"展开全部"）
+  // 只在折叠态判定（展开态按钮文案切换为"收起"，状态沿用）。
+  // 不能只在挂载时量一次：自定义字体异步加载会改变行高/字宽、视口缩放会改变 68ch 实际宽度，
+  // 这两者都会改变行数，导致"展开全部"按钮时有时无。字体就绪和容器尺寸变化时复测。
   useEffect(() => {
-    if (!descRef.current || descExpanded) return
     const el = descRef.current
-    setDescOverflows(el.scrollHeight > el.clientHeight + 2)
+    if (!el) return
+    let disposed = false
+    const measure = () => {
+      if (disposed || descExpanded) return
+      setDescOverflows(el.scrollHeight > el.clientHeight + 2)
+    }
+    measure()
+    if (document.fonts?.ready) void document.fonts.ready.then(measure)
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => {
+      disposed = true
+      ro.disconnect()
+    }
   }, [novel, descExpanded])
 
   const load = useCallback(async () => {
