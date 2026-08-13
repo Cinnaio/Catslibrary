@@ -1334,9 +1334,8 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
       expect(generatedPrompt).toContain("Title text 'AI 测试书' at top center")
       expect(generatedPrompt).toContain("Author name '某作者' at bottom center")
       expect(generatedPrompt).toContain('a young man in a suit standing before a neon-lit city skyline')
-      expect(generatedPrompt).toContain('safe for work')
 
-      const res = await req('/api/ai/cover/generate', json('POST', { novelId, safe: false, prompt: 'Moonlit city skyline, no text' }, adminToken))
+      const res = await req('/api/ai/cover/generate', json('POST', { novelId, prompt: 'Moonlit city skyline, no text' }, adminToken))
       const { taskId } = await jsonOf<{ taskId: string }>(res)
       expect((await waitForTask(taskId, adminToken)).status).toBe('completed')
       const submittedImageRequest = imageRequest as Record<string, unknown> | null

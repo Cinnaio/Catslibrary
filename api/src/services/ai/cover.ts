@@ -22,10 +22,8 @@ interface NovelMeta {
   categories: string[]
 }
 
-/** buildImagePrompt 的封面选项：文字层、平台风格、安全归一化，均由调用方透传。 */
+/** buildImagePrompt 的封面选项：文字层、平台风格，均由调用方透传。 */
 export interface CoverPromptOptions {
-  /** 启用安全归一化：把限制级/暴力内容抽象为唯美氛围画面，规避上游图像安全策略 */
-  safe: boolean
   /** 渲染书名+作者名文字层：默认 true（story-cover 核心——书名与作者名是封面必需信息），显式 false 才关闭 */
   renderTitle?: boolean
   /** 平台风格调性；缺省或非法值按 'default'（通用竖版，不叠加平台专属风格） */
@@ -83,11 +81,8 @@ interface BuildPromptResult {
  *   文本模型结合小说元数据按简介增强（未配置文本模型则回落模板），骨架保证贴题。
  * - 文字层默认渲染书名+作者名（story-cover 认为这是封面必需信息；模型需支持中文渲染，如 gpt-image-2），
  *   显式 renderTitle=false 时关闭并走 no text。
- * - opts.safe=true：启用安全归一化，强制把画面导向非具名、非性化、非暴力的唯美氛围，
- *   规避 18+/暴力/禁忌题材词汇触发上游图像服务的安全策略。
  */
 export async function buildImagePrompt(meta: NovelMeta, opts: CoverPromptOptions): Promise<BuildPromptResult> {
-  const safe = opts.safe
   const renderTitle = opts.renderTitle !== false
   const platform = normalizePlatform(opts.platform)
 
@@ -103,7 +98,7 @@ export async function buildImagePrompt(meta: NovelMeta, opts: CoverPromptOptions
   if (isTextAiConfigured()) {
     const judged = await judgeGenre(meta)
     genre = judged.genre
-    const generated = await generateSceneDescription({ titleHint, catHint, descHint, style: GENRE_STYLES[genre], safe })
+    const generated = await generateSceneDescription({ titleHint, catHint, descHint, style: GENRE_STYLES[genre] })
     scene = generated.scene
     textUsage = mergeTextUsage(judged.textUsage, generated.textUsage)
   } else {
@@ -114,7 +109,7 @@ export async function buildImagePrompt(meta: NovelMeta, opts: CoverPromptOptions
   const style = GENRE_STYLES[genre]
   const platformStyle = PLATFORM_STYLES[platform]
 
-  const prompt = assembleCoverPrompt({ scene, style, platformStyle, titleHint, authorHint, renderTitle, safe })
+  const prompt = assembleCoverPrompt({ scene, style, platformStyle, titleHint, authorHint, renderTitle })
   return { prompt, textUsage }
 }
 
@@ -126,9 +121,8 @@ function assembleCoverPrompt(args: {
   titleHint: string
   authorHint: string
   renderTitle: boolean
-  safe: boolean
 }): string {
-  const { scene, style, platformStyle, titleHint, authorHint, renderTitle, safe } = args
+  const { scene, style, platformStyle, titleHint, authorHint, renderTitle } = args
   const lines: string[] = []
 
   lines.push(['Chinese web novel cover design', platformStyle].filter(Boolean).join(', ') + '.')
@@ -146,7 +140,6 @@ function assembleCoverPrompt(args: {
   if (renderTitle && titleHint) tail.push('keep title and author name inside the central safe area away from edges (inner ~85%)')
   else tail.push('no text')
   tail.push('no watermark')
-  if (safe) tail.push('elegant, atmospheric, safe for work, no explicit scenes')
   lines.push(tail.join(', '))
 
   return lines.join('\n')
@@ -244,17 +237,10 @@ async function generateSceneDescription(args: {
   catHint: string
   descHint: string
   style: GenreStyle
-  safe: boolean
 }): Promise<{ scene: string; textUsage: BuildPromptResult['textUsage'] }> {
-  const { titleHint, catHint, descHint, style, safe } = args
+  const { titleHint, catHint, descHint, style } = args
   const textProvider_ = textProvider()
 
-  const safeRules = safe
-    ? [
-        '6. 严禁出现性暗示、裸露、暴力、血腥、禁忌题材、具名真人或版权角色的直白描述；',
-        '7. 把任何限制级/暴力内容抽象为唯美的氛围画面（如烛光、绸缎、暗调光影），不描写具体行为；',
-      ]
-    : []
   const user = [
     '你是网文封面画面设计师。结合「题材视觉模板」与小说元数据，写一段英文封面画面描述。',
     '要求：',
@@ -263,7 +249,6 @@ async function generateSceneDescription(args: {
     '3. 在模板基础上细化，可用模板中的风格、色彩、光效关键词；',
     '4. 长度控制在 60-90 个英文单词以内；',
     '5. 不要包含任何文字/标题/水印描述（title、text、watermark 等词一律不要出现）。',
-    ...safeRules,
     '题材视觉模板：',
     `- 风格：${style.tag}`,
     `- 人物：${style.figure}`,
@@ -277,9 +262,7 @@ async function generateSceneDescription(args: {
     .filter(Boolean)
     .join('\n')
 
-  const systemContent = safe
-    ? '你是为 AI 图像生成模型撰写英文封面画面描述的专家。结合题材视觉模板把小说元数据转化为能通过内容安全审核的唯美画面：规避所有性化、暴力、禁忌题材词汇，把成人/限制级内容抽象为不含具象行为、不含具名人物的氛围画面。只描述画面本身（人物+背景），不要出现任何文字/标题描述。'
-    : '你是为 AI 图像生成模型撰写英文封面画面描述的专家，擅长把小说元数据转化为有视觉冲击力的画面描述（人物+背景）。只描述画面本身，不要出现任何文字/标题描述。'
+  const systemContent = '你是为 AI 图像生成模型撰写英文封面画面描述的专家，擅长把小说元数据转化为有视觉冲击力的画面描述（人物+背景）。只描述画面本身，不要出现任何文字/标题描述。'
 
   const res = await chat({
     messages: [
@@ -304,15 +287,11 @@ async function generateSceneDescription(args: {
   }
 }
 
-function normalizeCustomPrompt(value: unknown, safe: boolean): string {
+function normalizeCustomPrompt(value: unknown): string {
   const prompt = String(value || '').trim()
   if (!prompt) return ''
   if (prompt.length > 2_000) throw new AiError('invalid', '封面描述词不能超过 2000 个字符', 422)
-  // 自定义描述词是用户完全掌控的成品 prompt，不注入 no text（用户可能自己写了文字层）；
-  // 仅在安全模式下补充安全约束稀释负面信号。
-  if (safe && !/safe for work/i.test(prompt)) {
-    return `${prompt}, elegant, atmospheric, digital painting, safe for work, no explicit scenes`
-  }
+  // 自定义描述词是用户完全掌控的成品 prompt，不注入 no text（用户可能自己写了文字层）
   return prompt
 }
 
@@ -327,8 +306,6 @@ export async function generateNovelCover(
     userId: string
     novelId: string
     taskId?: string
-    /** 启用安全归一化：把限制级/暴力内容抽象为唯美氛围画面，规避上游图像安全策略 */
-    safe?: boolean
     /** 渲染书名+作者名文字层（模型需支持中文渲染，如 gpt-image-2） */
     renderTitle?: boolean
     /** 平台风格调性 */
@@ -343,7 +320,6 @@ export async function generateNovelCover(
   const meta = await loadNovelMeta(db, opts.novelId)
   if (!meta) throw new AiError('invalid', '小说不存在', 404)
 
-  const safe = opts.safe !== false ? true : false
   const renderTitle = !!opts.renderTitle
   const platform = normalizePlatform(opts.platform)
   const ownsTask = !opts.taskId
@@ -356,17 +332,17 @@ export async function generateNovelCover(
         kind: 'cover',
         total: 1,
         prompt: '生成封面',
-        params: JSON.stringify({ novelId: opts.novelId, safe, renderTitle, platform }),
+        params: JSON.stringify({ novelId: opts.novelId, renderTitle, platform }),
       })
     ).id
-  await updateAiTask(db, taskId, { status: 'running', step: `正在生成封面描述词${safe ? '（安全模式）' : ''}` })
+  await updateAiTask(db, taskId, { status: 'running', step: '正在生成封面描述词' })
   if (await isAiTaskCancelled(db, taskId)) throw new AiError('invalid', '任务已取消')
 
   try {
     const imageProvider_ = imageProvider()
-    await updateAiTask(db, taskId, { step: `正在生成封面描述词${safe ? '（安全模式）' : ''}` })
-    const customPrompt = normalizeCustomPrompt(opts.prompt, safe)
-    const { prompt, textUsage } = customPrompt ? { prompt: customPrompt, textUsage: null } : await buildImagePrompt(meta, { safe, renderTitle, platform })
+    await updateAiTask(db, taskId, { step: '正在生成封面描述词' })
+    const customPrompt = normalizeCustomPrompt(opts.prompt)
+    const { prompt, textUsage } = customPrompt ? { prompt: customPrompt, textUsage: null } : await buildImagePrompt(meta, { renderTitle, platform })
     if (await isAiTaskCancelled(db, taskId)) throw new AiError('invalid', '任务已取消')
 
     // 把最终送图像模型的 prompt 落进任务 step：失败时据此定位是哪个词触发了上游安全策略

@@ -46,8 +46,6 @@ export default function AiCoverPanel() {
   const [task, setTask] = useState<AiTaskInfo | null>(null)
   /** 预览图缓存破坏戳：生成完成后 +1 触发重新拉取（/api/cover/:id 公开无鉴权，img 直接拉） */
   const [coverVersion, setCoverVersion] = useState(0)
-  /** 安全归一化开关：默认开，把限制级内容抽象为唯美画面，规避上游图像安全策略 */
-  const [safe, setSafe] = useState(true)
   /** 渲染书名+作者名文字层：默认开（story-cover 认为这是封面必需信息；模型需支持中文渲染，如 gpt-image-2） */
   const [renderTitle, setRenderTitle] = useState(true)
   /** 平台风格调性：默认通用竖版 */
@@ -146,7 +144,7 @@ export default function AiCoverPanel() {
     if (!imageConfigured) return toast('AI 图像服务未配置，请到「配置」标签页设置图像供应商', 'error')
     setBusy(true)
     try {
-      const res = await aiApi.generateCover(novelId, { safe, prompt, renderTitle, platform })
+      const res = await aiApi.generateCover(novelId, { prompt, renderTitle, platform })
       const { task: created } = await aiApi.task(res.taskId)
       setTask(created)
       toast('封面生成已开始', 'success')
@@ -161,7 +159,7 @@ export default function AiCoverPanel() {
     if (!novelId) return toast('请先选择小说', 'error')
     setGeneratingPrompt(true)
     try {
-      const result = await aiApi.generateCoverPrompt(novelId, { safe, renderTitle, platform })
+      const result = await aiApi.generateCoverPrompt(novelId, { renderTitle, platform })
       setPrompt(result.prompt)
       toast('已生成封面描述词，可继续编辑', 'success')
     } catch (err) {
@@ -307,25 +305,10 @@ export default function AiCoverPanel() {
               onChange={(event) => setPrompt(event.target.value)}
               placeholder="留空将根据小说标题、分类和简介自动生成；也可以直接填写英文描述词。"
             />
-            <p className="text-xs text-muted-foreground">自动生成后可继续编辑。安全模式开启时，服务端会在最终描述词中补充安全约束。</p>
+            <p className="text-xs text-muted-foreground">自动生成后可继续编辑。</p>
           </div>
 
-          <div className="flex flex-wrap items-end justify-between gap-3 rounded-md border bg-muted/30 p-3">
-            <label className="flex items-start gap-2 text-sm">
-              <input
-                type="checkbox"
-                className="mt-0.5 size-4 rounded border-input"
-                checked={safe}
-                disabled={busy || taskActive}
-                onChange={(e) => setSafe(e.target.checked)}
-              />
-              <span>
-                <span className="font-medium text-foreground">安全归一化</span>
-                <span className="mt-0.5 block text-xs text-muted-foreground">
-                  默认开启。把限制级/暴力内容抽象为唯美氛围画面，规避上游图像服务的内容安全策略；需要忠实呈现剧情画面时可关闭。
-                </span>
-              </span>
-            </label>
+          <div className="flex flex-wrap items-center justify-end gap-3 rounded-md border bg-muted/30 p-3">
             <Button disabled={busy || taskActive || !novelId} onClick={() => void generate()}>
               {taskActive ? '生成中…' : '生成封面'}
             </Button>

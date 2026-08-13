@@ -793,21 +793,20 @@ export const aiApi = {
   test(): Promise<{ ok: boolean; model?: string; reply?: string; error?: string; code?: string; elapsedMs: number }> {
     return request('POST', '/ai/test', {}, true)
   },
-  /** 为小说生成封面（后台任务模式），返回 taskId 供轮询；生成结果直接落 novel_covers。
-   *  safe 默认 true：启用安全归一化，规避上游图像安全策略。 */
+  /** 为小说生成封面（后台任务模式），返回 taskId 供轮询；生成结果直接落 novel_covers。 */
   generateCover(
     novelId: string,
-    opts: { safe?: boolean; prompt?: string; renderTitle?: boolean; platform?: string } = {},
+    opts: { prompt?: string; renderTitle?: boolean; platform?: string } = {},
   ): Promise<{ ok: boolean; taskId: string; batchId: string; total: number }> {
     return request(
       'POST',
       '/ai/cover/generate',
-      { novelId, safe: opts.safe ?? true, prompt: opts.prompt ?? '', renderTitle: opts.renderTitle, platform: opts.platform },
+      { novelId, prompt: opts.prompt ?? '', renderTitle: opts.renderTitle, platform: opts.platform },
       true,
     )
   },
-  generateCoverPrompt(novelId: string, opts: { safe?: boolean; renderTitle?: boolean; platform?: string } = {}): Promise<{ prompt: string }> {
-    return request('POST', '/ai/cover/prompt', { novelId, safe: opts.safe ?? true, renderTitle: opts.renderTitle, platform: opts.platform }, true)
+  generateCoverPrompt(novelId: string, opts: { renderTitle?: boolean; platform?: string } = {}): Promise<{ prompt: string }> {
+    return request('POST', '/ai/cover/prompt', { novelId, renderTitle: opts.renderTitle, platform: opts.platform }, true)
   },
   /** AI 封面候选列表（含 dataUrl，供 <img> 直接展示）。 */
   coverCandidates(novelId: string): Promise<{ items: AiCoverCandidate[]; total: number }> {
