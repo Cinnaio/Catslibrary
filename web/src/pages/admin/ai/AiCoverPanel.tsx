@@ -459,7 +459,7 @@ export default function AiCoverPanel() {
                         alt="AI 封面候选"
                         className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
                       />
-                      <span className="absolute left-1.5 top-1.5 rounded-full bg-[var(--overlay-bg)] px-2 py-0.5 text-[0.65rem] font-medium text-white/95 backdrop-blur-sm">
+                      <span className="absolute left-1.5 top-1.5 rounded-full bg-[var(--overlay-bg)] px-2 py-0.5 text-xs font-medium text-white/95 backdrop-blur-sm">
                         候选 {index + 1}
                       </span>
                     </div>
