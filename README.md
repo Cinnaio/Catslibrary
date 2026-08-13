@@ -68,6 +68,12 @@ DATABASE_URL=postgres://... node api/dist/index.js
 ```
 
 - 前端产物在 `web/dist`，由任意静态服务器/反代托管，并将 `/api` 反代到 API 端口（默认 8787）。
+- **SPA fallback**：前端是单页应用，`/novel/:id`、`/read/:novelId/:chapterId`、`/bookshelf` 等均为前端路由，服务器上只有一份 `index.html`。直接刷新或从外站深链进入非首页路由时，静态服务器找不到对应文件会返回 404。需在静态站点配置中把找不到的路径回退到 `index.html`，交由 React Router 解析：
+  - **Nginx / OpenResty**：`location / { try_files $uri $uri/ /index.html; }`
+  - **Caddy**：`try_files {path} /index.html`
+  - **Cloudflare Pages / Vercel / Netlify**：在平台配置里启用 SPA fallback（将所有非静态资源路由指向 `index.html`）
+
+  此规则只作用于前端静态资源；`/api` 反代不受影响。
 - 部署在 Nginx/Caddy/Cloudflare 等反代之后时设置 `TRUST_PROXY=1`，使 IP 限流与登录审计读取转发头。
 - 全部环境变量说明见 [.env.example](.env.example)。
 
