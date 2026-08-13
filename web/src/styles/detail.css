@@ -892,6 +892,9 @@
 
   .novel-hero__desc {
     text-align: left;
+    /* 移动端紧凑化：降低字号与行高，避免简介块在小屏上占屏过高 */
+    font-size: 0.875rem;
+    line-height: 1.7;
   }
 
   .novel-hero__desc-toggle {
