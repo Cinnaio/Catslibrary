@@ -111,9 +111,35 @@
   .header__logo-img { width: 26px; height: 26px; }
   .header__inner { padding: 0 12px; }
   .nav-link:not(.account-avatar) { padding: 6px 8px; font-size: 0.82rem; }
+  /* 宽文字导航链接收进移动端抽屉，页头只留紧凑图标按钮 */
+  .nav-link--desktop { display: none; }
   .account-avatar { width: 30px; height: 30px; }
   .header__actions .theme-btn { margin-left: 6px; }
   .header__actions .theme-btn::before { left: -5px; }
+  /* 移动端菜单触发按钮（汉堡） */
+  .mobile-menu-trigger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border-radius: 12px;
+    color: var(--text-muted);
+    background: transparent;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+  }
+  .mobile-menu-trigger:hover {
+    color: var(--accent);
+    background: var(--accent-subtle);
+    border-color: var(--accent-light);
+  }
+  .mobile-menu-trigger svg {
+    width: 20px;
+    height: 20px;
+  }
 
   /* Home */
   h1 { font-size: 1.5rem; }
@@ -310,8 +336,8 @@
     justify-content: center;
   }
 
-  /* Hide inline search bar on mobile — use overlay instead */
-  .page-home .search-bar { display: none; }
+  /* Hide inline search bar on mobile — use overlay instead（React 无 page-home 类，直接按 header 作用域隐藏） */
+  .header .search-bar { display: none; }
 
   /* Mobile search trigger in title row */
   .mobile-search-trigger {
