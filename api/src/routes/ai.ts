@@ -951,7 +951,7 @@ aiRoutes.get('/audit/calls', requireAdmin(), async (c) => {
   const rows = await all<Record<string, unknown>>(
     db,
     `SELECT
-      u.id, u.generation_type, u.model, u.prompt_tokens, u.completion_tokens, u.ip_address, u.user_agent,
+      u.id, u.generation_type, u.model, u.prompt_tokens, u.completion_tokens, u.image_count, u.ip_address, u.user_agent,
       u.cost_millicents, u.created_at, u.user_id, u.novel_id, u.chapter_id,
       usr.username, usr.display_name,
       n.title AS novel_title,
@@ -976,6 +976,7 @@ aiRoutes.get('/audit/calls', requireAdmin(), async (c) => {
         model: String(r.model || ''),
         promptTokens: Number(r.prompt_tokens) || 0,
         completionTokens: Number(r.completion_tokens) || 0,
+        imageCount: Number(r.image_count) || 0,
         costMillicents: Number(r.cost_millicents) || 0,
         createdAt: Number(r.created_at) || 0,
         userId: String(r.user_id || ''),

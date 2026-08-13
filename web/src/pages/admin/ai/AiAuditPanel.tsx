@@ -16,6 +16,8 @@ const aiCallTypeLabels: Record<string, string> = {
   write_outline: '创作大纲',
   write_chapter: '创作章节',
   writing_title: '标题生成',
+  cover: '封面生成',
+  cover_prompt: '封面描述词',
   test: '连通性测试',
 }
 
@@ -38,6 +40,7 @@ export default function AiAuditPanel() {
       chapterId: string
       promptTokens: number
       completionTokens: number
+      imageCount: number
       costMillicents: number
       createdAt: number
       ipAddress: string
@@ -95,6 +98,8 @@ export default function AiAuditPanel() {
                 <SelectItem value="write_outline">创作大纲</SelectItem>
                 <SelectItem value="write_chapter">创作章节</SelectItem>
                 <SelectItem value="writing_title">标题生成</SelectItem>
+                <SelectItem value="cover">封面生成</SelectItem>
+                <SelectItem value="cover_prompt">封面描述词</SelectItem>
                 <SelectItem value="test">连通性测试</SelectItem>
               </SelectContent>
             </Select>
@@ -115,7 +120,7 @@ export default function AiAuditPanel() {
                         <th className="px-4 py-3 text-left font-medium">用户</th>
                         <th className="px-4 py-3 text-left font-medium">类型</th>
                         <th className="px-4 py-3 text-left font-medium">关联内容</th>
-                        <th className="px-4 py-3 text-right font-medium">Token</th>
+                        <th className="px-4 py-3 text-right font-medium">消耗</th>
                         <th className="px-4 py-3 text-right font-medium">成本</th>
                         <th className="px-4 py-3 text-left font-medium">时间</th>
                       </tr>
@@ -153,14 +158,23 @@ export default function AiAuditPanel() {
                                 </div>
                               </td>
                               <td className="px-4 py-3 text-right tabular-nums">
-                                <div className="text-xs">
-                                  <span className="text-muted-foreground">入</span>{' '}
-                                  <span className="font-medium">{call.promptTokens.toLocaleString()}</span>
-                                </div>
-                                <div className="text-xs">
-                                  <span className="text-muted-foreground">出</span>{' '}
-                                  <span className="font-medium">{call.completionTokens.toLocaleString()}</span>
-                                </div>
+                                {call.imageCount > 0 ? (
+                                  <div className="text-xs">
+                                    <span className="text-muted-foreground">图片</span>{' '}
+                                    <span className="font-medium">{call.imageCount.toLocaleString()}</span>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <div className="text-xs">
+                                      <span className="text-muted-foreground">入</span>{' '}
+                                      <span className="font-medium">{call.promptTokens.toLocaleString()}</span>
+                                    </div>
+                                    <div className="text-xs">
+                                      <span className="text-muted-foreground">出</span>{' '}
+                                      <span className="font-medium">{call.completionTokens.toLocaleString()}</span>
+                                    </div>
+                                  </>
+                                )}
                               </td>
                               <td className="px-4 py-3 text-right tabular-nums font-medium">
                                 {formatCost(call.costMillicents)}
@@ -188,18 +202,31 @@ export default function AiAuditPanel() {
                                     <DetailItem label="User-Agent" value={<code className="block max-w-full truncate text-xs" title={call.userAgent}>{call.userAgent || '未记录'}</code>} />
                                   </div>
                                   <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted-foreground">
-                                    <span>
-                                      输入 Token：<strong className="text-foreground">{call.promptTokens.toLocaleString()}</strong>
-                                    </span>
-                                    <span>
-                                      输出 Token：<strong className="text-foreground">{call.completionTokens.toLocaleString()}</strong>
-                                    </span>
-                                    <span>
-                                      合计：
-                                      <strong className="text-foreground">
-                                        {(call.promptTokens + call.completionTokens).toLocaleString()}
-                                      </strong>
-                                    </span>
+                                    {call.imageCount > 0 ? (
+                                      <span>
+                                        图片生成：
+                                        <strong className="text-foreground">
+                                          {call.imageCount.toLocaleString()} 张
+                                        </strong>
+                                      </span>
+                                    ) : (
+                                      <>
+                                        <span>
+                                          输入 Token：
+                                          <strong className="text-foreground">{call.promptTokens.toLocaleString()}</strong>
+                                        </span>
+                                        <span>
+                                          输出 Token：
+                                          <strong className="text-foreground">{call.completionTokens.toLocaleString()}</strong>
+                                        </span>
+                                        <span>
+                                          合计：
+                                          <strong className="text-foreground">
+                                            {(call.promptTokens + call.completionTokens).toLocaleString()}
+                                          </strong>
+                                        </span>
+                                      </>
+                                    )}
                                     <span>
                                       成本：<strong className="text-foreground">{formatCost(call.costMillicents)}</strong>
                                     </span>

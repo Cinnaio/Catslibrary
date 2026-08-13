@@ -965,6 +965,7 @@ export const aiApi = {
         model: string
         promptTokens: number
         completionTokens: number
+        imageCount: number
         costMillicents: number
         createdAt: number
         userId: string
