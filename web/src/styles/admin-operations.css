@@ -303,6 +303,26 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   flex: 0 0 auto;
 }
 
+/* AI 封面/创作任务进行中的流动指示条（在任务状态卡片底部） */
+.ai-task-progress {
+  height: 3px;
+  overflow: hidden;
+  background: var(--accent-light);
+}
+.ai-task-progress::after {
+  content: '';
+  display: block;
+  width: 38%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  animation: ai-task-sweep 1.4s var(--ease) infinite;
+}
+@keyframes ai-task-sweep {
+  from { transform: translateX(-105%); }
+  to   { transform: translateX(265%); }
+}
+
 .account-settings-toolbar {
   min-height: 2.25rem;
 }

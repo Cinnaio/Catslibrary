@@ -6,7 +6,9 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import CustomSelect from '@/components/admin/CustomSelect'
+import { BookOpen, CircleAlert, Loader2, Palette, Sparkles, Trash2, Upload, Wand2 } from 'lucide-react'
 
 // 后台封面任务的进度轮询间隔（与 AiWritingPanel 对齐）
 const TASK_POLL_INTERVAL = 3000
@@ -35,6 +37,36 @@ function taskStatusLabel(status: string): string {
           : status === 'failed'
             ? '失败'
             : status
+}
+
+/** 任务状态指示点颜色：按状态语义映射到站点语义色。 */
+function statusDotColor(status: string): string {
+  if (status === 'queued') return 'bg-[var(--color-warning)]'
+  if (status === 'running') return 'bg-[var(--accent)]'
+  if (status === 'completed') return 'bg-[var(--color-success)]'
+  if (status === 'failed') return 'bg-[var(--color-danger)]'
+  return 'bg-[var(--text-muted)]'
+}
+
+/** 封面主视觉的 2:3 画框（当前封面 / 空态）。 */
+function CoverCanvas({ src, title, hasNovel }: { src: string; title?: string; hasNovel: boolean }) {
+  const [failed, setFailed] = useState(false)
+  useEffect(() => {
+    setFailed(false)
+  }, [src])
+
+  return (
+    <div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--admin-inset)] shadow-md ring-1 ring-inset ring-[var(--border-light)]">
+      {failed || !src ? (
+        <div className="flex h-full flex-col items-center justify-center gap-2 px-4 text-center">
+          <BookOpen className="size-6 text-[var(--accent)]/45" />
+          <p className="text-xs leading-relaxed text-muted-foreground">{hasNovel ? '暂无封面图片' : '选择小说后预览封面'}</p>
+        </div>
+      ) : (
+        <img src={src} alt={title || '封面预览'} className="h-full w-full object-cover" onError={() => setFailed(true)} />
+      )}
+    </div>
+  )
 }
 
 export default function AiCoverPanel() {
@@ -234,15 +266,15 @@ export default function AiCoverPanel() {
   const previewSrc = novelId ? url(`/cover/${encodeURIComponent(novelId)}?v=${coverVersion}&cover=2`) : ''
 
   return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">AI 封面生成</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            根据小说标题、分类与简介生成封面，结果先存为「候选」不覆盖当前封面；在下方预览效果，满意后点击采纳，不满意可弃用或重新生成。
-          </p>
-        </CardHeader>
-        <CardContent className="grid gap-4">
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">AI 封面生成</CardTitle>
+        <p className="text-sm text-muted-foreground">根据小说标题、分类与简介生成封面 · 候选制，满意后采纳替换</p>
+      </CardHeader>
+
+      <CardContent className="grid gap-8 lg:grid-cols-2 lg:items-start">
+        {/* 左列：生成配置 */}
+        <div className="grid content-start gap-5">
           <div className="grid gap-1.5">
             <Label>目标小说</Label>
             <CustomSelect
@@ -260,29 +292,34 @@ export default function AiCoverPanel() {
             />
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          {/* 封面设定：平台风格 + 封面文字层 */}
+          <div className="grid gap-3 rounded-lg border border-[var(--border)] bg-[var(--admin-inset)] p-3.5">
+            <p className="flex items-center gap-1.5 text-xs font-medium text-[var(--text-muted)]">
+              <Palette className="size-3.5" />
+              封面设定
+            </p>
             <div className="grid gap-1.5">
               <Label>平台风格</Label>
               <CustomSelect options={PLATFORM_OPTIONS} value={platform} onChange={setPlatform} placeholder="选择平台风格" dropdownSide="bottom" />
               <p className="text-xs text-muted-foreground">按目标平台调性微调封面视觉；通用为竖版 2:3。</p>
             </div>
-            <label className="flex items-start gap-2 rounded-md border bg-muted/30 p-3 text-sm">
-              <input
-                type="checkbox"
-                className="mt-0.5 size-4 rounded border-input"
-                checked={renderTitle}
-                disabled={busy || taskActive}
-                onChange={(e) => setRenderTitle(e.target.checked)}
-              />
-              <span>
-                <span className="font-medium text-foreground">渲染封面文字</span>
-                <span className="mt-0.5 block text-xs text-muted-foreground">
-                  在封面上直接渲染书名+作者名（按题材套用字体风格），默认开启。需图像模型支持中文渲染（如 gpt-image-2），渲染不佳时可关闭。
-                </span>
-              </span>
-            </label>
+            <div className="flex items-center justify-between gap-3 rounded-md border border-[var(--border)] bg-[var(--bg-card)] px-3.5 py-2.5">
+              <div className="grid gap-0.5">
+                <span className="text-sm font-medium text-foreground">渲染封面文字</span>
+                <span className="text-xs leading-relaxed text-muted-foreground">在封面渲染书名+作者名（按题材套用字体），需模型支持中文渲染（如 gpt-image-2）。</span>
+              </div>
+              <Switch checked={renderTitle} disabled={busy || taskActive} onCheckedChange={setRenderTitle} />
+            </div>
           </div>
 
+          {!imageConfigured && (
+            <div className="flex items-start gap-2.5 rounded-lg border border-[color-mix(in_srgb,var(--color-warning)_45%,transparent)] bg-[color-mix(in_srgb,var(--color-warning)_12%,transparent)] px-3.5 py-3 text-sm leading-relaxed text-[var(--color-warning)]">
+              <CircleAlert className="mt-0.5 size-4 shrink-0" />
+              <p>AI 图像服务未配置（AI_IMAGE_BASE_URL / AI_IMAGE_API_KEY）。请到「配置」标签页设置图像供应商后再生成。</p>
+            </div>
+          )}
+
+          {/* 封面描述词 */}
           <div className="grid gap-1.5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <Label htmlFor="cover-prompt">封面描述词</Label>
@@ -293,112 +330,173 @@ export default function AiCoverPanel() {
                 disabled={busy || taskActive || generatingPrompt || !novelId}
                 onClick={() => void generatePrompt()}
               >
-                {generatingPrompt ? '生成中…' : '自动生成描述词'}
+                {generatingPrompt ? (
+                  <>
+                    <Loader2 className="size-3.5 animate-spin" />
+                    生成中…
+                  </>
+                ) : (
+                  <>
+                    <Wand2 className="size-3.5" />
+                    自动生成描述词
+                  </>
+                )}
               </Button>
             </div>
             <textarea
               id="cover-prompt"
-              className="min-h-[112px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              className="min-h-[7.5rem] w-full resize-y rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-3.5 py-2.5 text-sm leading-relaxed ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               value={prompt}
               maxLength={2000}
               disabled={busy || taskActive || generatingPrompt}
               onChange={(event) => setPrompt(event.target.value)}
               placeholder="留空将根据小说标题、分类和简介自动生成；也可以直接填写英文描述词。"
             />
-            <p className="text-xs text-muted-foreground">自动生成后可继续编辑。</p>
+            <p className="text-xs text-muted-foreground">留空自动生成，可编辑后保存；最多 2000 字符。</p>
           </div>
 
-          <div className="flex flex-wrap items-center justify-end gap-3 rounded-md border bg-muted/30 p-3">
-            <Button disabled={busy || taskActive || !novelId} onClick={() => void generate()}>
-              {taskActive ? '生成中…' : '生成封面'}
-            </Button>
-          </div>
+          {/* 生成 CTA */}
+          <Button size="lg" className="w-full gap-2" disabled={busy || taskActive || !novelId} onClick={() => void generate()}>
+            {busy || taskActive ? (
+              <>
+                <Loader2 className="size-4 animate-spin" />
+                正在生成…
+              </>
+            ) : (
+              <>
+                <Sparkles className="size-4" />
+                生成封面
+              </>
+            )}
+          </Button>
 
-          {!imageConfigured && (
-            <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-400">
-              AI 图像服务未配置（AI_IMAGE_BASE_URL / AI_IMAGE_API_KEY）。请到「配置」标签页设置图像供应商后再生成。
-            </div>
-          )}
-
+          {/* 任务状态 */}
           {task && (
-            <div className="rounded-md border bg-muted/40 p-3 text-sm">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="secondary">封面</Badge>
-                <Badge variant={task.status === 'failed' ? 'destructive' : 'outline'}>{taskStatusLabel(task.status)}</Badge>
+            <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--admin-inset)]">
+              <div className="flex flex-wrap items-center gap-2.5 px-3.5 py-3 text-sm">
+                <span className="relative flex size-2.5">
+                  {taskActive && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--accent)] opacity-60" />}
+                  <span className={`relative inline-flex size-2.5 rounded-full ${statusDotColor(task.status)}`} />
+                </span>
+                <span className="font-medium text-foreground">{taskStatusLabel(task.status)}</span>
+                <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{task.step || '等待处理'}</span>
                 {taskActive && (
-                  <Button variant="outline" size="sm" className="ml-auto" onClick={() => void cancelTask()}>
+                  <Button variant="outline" size="sm" onClick={() => void cancelTask()}>
                     取消任务
                   </Button>
                 )}
               </div>
-              <p className="mt-1 text-muted-foreground">{task.step || '等待处理'}</p>
-              {task.error && <p className="mt-1 text-destructive">{task.error}</p>}
+              {taskActive && <div className="ai-task-progress" />}
+              {task.error && <p className="border-t border-[var(--border)] px-3.5 py-2 text-xs leading-relaxed text-destructive">{task.error}</p>}
             </div>
           )}
+        </div>
 
-          {novelId && (
-            <div className="grid gap-4">
-              {/* 当前封面 + 上传替换 */}
-              <div className="grid gap-2">
-                <div className="flex items-center justify-between gap-2">
-                  <Label>当前封面</Label>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp,image/gif"
-                    className="hidden"
-                    onChange={(e) => void handleUploadFile(e)}
-                  />
-                  <Button variant="outline" size="sm" disabled={candidateBusy === 'upload'} onClick={() => fileInputRef.current?.click()}>
-                    {candidateBusy === 'upload' ? '上传中…' : '上传替换封面'}
-                  </Button>
-                </div>
-                <div className="flex items-start gap-4">
-                  <img
-                    key={coverVersion}
-                    src={previewSrc}
-                    alt={selected?.title || '封面预览'}
-                    className="h-40 w-28 rounded-md border border-border object-cover shadow-sm"
-                    onError={(e) => {
-                      e.currentTarget.style.visibility = 'hidden'
-                    }}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    上传的图片会立即替换为当前封面，读者端经 /api/cover/:id 生效；AI 生成的新封面不会自动替换，需在下方的候选中点「采纳」。
-                  </p>
-                </div>
-              </div>
-
-              {/* AI 候选封面 */}
-              <div className="grid gap-2">
-                <Label>AI 候选封面（未采纳）</Label>
-                {candidates.length === 0 ? (
-                  <p className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
-                    暂无候选。生成成功后这里会出现新封面，确认效果后可「采纳」为当前封面，不满意可「弃用」或重新生成。
-                  </p>
+        {/* 右列：画布与候选 */}
+        <div className="grid content-start gap-6 lg:border-l lg:border-[var(--admin-line)] lg:pl-8">
+          {/* 当前封面 */}
+          <section className="grid gap-3">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold text-foreground">当前封面</h3>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                className="hidden"
+                onChange={(e) => void handleUploadFile(e)}
+              />
+              <Button variant="outline" size="sm" disabled={candidateBusy === 'upload'} onClick={() => fileInputRef.current?.click()}>
+                {candidateBusy === 'upload' ? (
+                  <>
+                    <Loader2 className="size-3.5 animate-spin" />
+                    上传中…
+                  </>
                 ) : (
-                  <div className="flex flex-wrap gap-4">
-                    {candidates.map((candidate) => (
-                      <div key={candidate.id} className="grid gap-1.5">
-                        <img src={candidate.dataUrl} alt="AI 封面候选" className="h-40 w-28 rounded-md border border-border object-cover shadow-sm" />
-                        <div className="flex gap-2">
-                          <Button size="sm" disabled={!!candidateBusy} onClick={() => void adopt(candidate)}>
-                            采纳
-                          </Button>
-                          <Button size="sm" variant="outline" disabled={!!candidateBusy} onClick={() => void discard(candidate)}>
-                            弃用
-                          </Button>
-                        </div>
-                        {candidate.prompt && <p className="max-w-28 text-xs leading-tight text-muted-foreground line-clamp-2">{candidate.prompt}</p>}
-                      </div>
-                    ))}
-                  </div>
+                  <>
+                    <Upload className="size-3.5" />
+                    上传替换
+                  </>
+                )}
+              </Button>
+            </div>
+
+            <div className="grid justify-items-center gap-3">
+              <div className="relative w-full max-w-[13.5rem]">
+                <CoverCanvas src={previewSrc} title={selected?.title} hasNovel={!!novelId} />
+                {selected && (
+                  <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 max-w-full truncate whitespace-nowrap rounded-full border border-[var(--border)] bg-[var(--bg-card)] px-2.5 py-0.5 text-[0.7rem] text-[var(--text-muted)] shadow-sm">
+                    {selected.title}
+                  </span>
                 )}
               </div>
+              <p className="max-w-[13.5rem] text-center text-[0.72rem] leading-relaxed text-muted-foreground">
+                上传的图片会立即替换为当前封面（读者端 /api/cover/:id 生效）；AI 生成的新封面先入候选，确认后「采纳」才会替换。
+              </p>
             </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+          </section>
+
+          {/* AI 候选封面 */}
+          <section className="grid gap-3">
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-semibold text-foreground">AI 候选封面</h3>
+              {candidates.length > 0 && <Badge variant="secondary">{candidates.length}</Badge>}
+            </div>
+
+            {candidates.length === 0 ? (
+              <div className="grid gap-2 rounded-lg border border-dashed border-[var(--border)] bg-[var(--admin-inset)] px-4 py-8 text-center">
+                <BookOpen className="mx-auto size-5 text-[var(--accent)]/55" />
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  暂无候选。生成成功后这里会出现新封面，确认效果后可「采纳」为当前封面，不满意可「弃用」或重新生成。
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] gap-4">
+                {candidates.map((candidate, index) => (
+                  <figure key={candidate.id} className="group grid gap-2">
+                    <div className="relative aspect-[2/3] w-full overflow-hidden rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] shadow-sm transition-shadow duration-200 group-hover:shadow-md">
+                      <img
+                        src={candidate.dataUrl}
+                        alt="AI 封面候选"
+                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                      />
+                      <span className="absolute left-1.5 top-1.5 rounded-full bg-[var(--overlay-bg)] px-2 py-0.5 text-[0.65rem] font-medium text-white/95 backdrop-blur-sm">
+                        候选 {index + 1}
+                      </span>
+                    </div>
+                    <figcaption className="grid gap-1.5">
+                      <div className="flex gap-1.5">
+                        <Button size="sm" className="flex-1 gap-1" disabled={!!candidateBusy} onClick={() => void adopt(candidate)}>
+                          {candidateBusy === candidate.id ? (
+                            <>
+                              <Loader2 className="size-3.5 animate-spin" />
+                              处理中
+                            </>
+                          ) : (
+                            '采纳'
+                          )}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={!!candidateBusy}
+                          onClick={() => void discard(candidate)}
+                          aria-label="弃用该候选"
+                          title="弃用"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </Button>
+                      </div>
+                      {candidate.prompt && (
+                        <p className="line-clamp-2 text-[0.7rem] leading-snug text-muted-foreground">{candidate.prompt}</p>
+                      )}
+                    </figcaption>
+                  </figure>
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
+      </CardContent>
+    </Card>
   )
 }
