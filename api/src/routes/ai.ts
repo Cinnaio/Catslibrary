@@ -5,7 +5,7 @@
  */
 import { Hono, type Context } from 'hono'
 import { getDb } from '../db/pool'
-import { all, first, withTx } from '../db/query'
+import { all, first, run, withTx } from '../db/query'
 import { AiError, chat, isTextAiConfigured, providerLabel, textProvider } from '../services/ai/client'
 import { isImageAiConfigured, imageProvider, imageProviderLabel } from '../services/ai/image'
 import { generateCoverPrompt, generateNovelCover } from '../services/ai/cover'
@@ -610,6 +610,8 @@ aiRoutes.post('/cover/upload', requireAdmin(), async (c) => {
     return c.json({ error: `封面不能超过 ${Math.round(MAX_COVER_BYTES / 1024 / 1024)}MB` }, 400)
   }
   await storeCover(db, novelId, new Uint8Array(data), type, 'upload')
+  // 封面变了同步 bump novels.updated_at（前端封面 <img> 用 updatedAt 当 ?v= 破缓存戳）
+  await run(db, 'UPDATE novels SET updated_at = $1 WHERE id = $2', [Date.now(), novelId])
   return c.json({ ok: true }, 200, { 'Cache-Control': 'no-store' })
 })
 

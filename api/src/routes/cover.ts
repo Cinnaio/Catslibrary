@@ -25,7 +25,8 @@ coverRoutes.get('/:id', async (c) => {
     status: 200,
     headers: {
       'Content-Type': cover?.content_type || 'image/jpeg',
-      'Cache-Control': cover?.source === 'default' ? 'public, max-age=86400' : 'public, max-age=31536000, immutable',
+      // 封面现在可被 AI 采纳/上传替换（可变资源），去掉 immutable；破缓存靠前端 ?v=novel.updatedAt
+      'Cache-Control': 'public, max-age=86400',
     },
   })
 })

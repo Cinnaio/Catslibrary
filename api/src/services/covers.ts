@@ -151,6 +151,7 @@ export async function adoptCoverCandidate(db: Db, id: string): Promise<boolean> 
     )
     if (!row.rows.length) return false
     const c = row.rows[0]!
+    const now = Date.now()
     await q(
       `INSERT INTO novel_covers (novel_id, data, content_type, source, updated_at)
        VALUES ($1, $2, $3, $4, $5)
@@ -159,8 +160,10 @@ export async function adoptCoverCandidate(db: Db, id: string): Promise<boolean> 
          content_type = EXCLUDED.content_type,
          source = EXCLUDED.source,
          updated_at = EXCLUDED.updated_at`,
-      [c.novel_id, new Uint8Array(c.data), c.content_type || 'image/png', 'ai', Date.now()],
+      [c.novel_id, new Uint8Array(c.data), c.content_type || 'image/png', 'ai', now],
     )
+    // 封面变了同步 bump novels.updated_at：前端所有封面 <img> 用它当 ?v= 破缓存戳，不更新则读者端一直显示旧封面
+    await q('UPDATE novels SET updated_at = $2 WHERE id = $1', [c.novel_id, now])
     await q('DELETE FROM ai_cover_candidates WHERE id = $1', [id])
     return true
   })

@@ -1451,13 +1451,16 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
       expect(items.length).toBe(1)
       expect(items[0]!.dataUrl.startsWith('data:image/png;base64,')).toBe(true)
 
-      // 采纳 → 覆盖当前封面、候选清空
+      // 采纳 → 覆盖当前封面、候选清空、novels.updated_at 被 bump（前端 ?v= 破缓存，否则读者端封面不变）
+      const beforeAdopt = await t.db.query<{ updated_at: number }>('SELECT updated_at FROM novels WHERE id = $1', [novelId])
       const adoptRes = await req(`/api/ai/cover/candidates/${items[0]!.id}/adopt`, json('POST', {}, adminToken))
       expect(adoptRes.status).toBe(200)
       const cover = await t.db.query<{ source: string }>('SELECT source FROM novel_covers WHERE novel_id = $1', [novelId])
       expect(cover.rows[0]?.source).toBe('ai')
       const left = await t.db.query('SELECT id FROM ai_cover_candidates WHERE novel_id = $1', [novelId])
       expect(left.rows.length).toBe(0)
+      const afterAdopt = await t.db.query<{ updated_at: number }>('SELECT updated_at FROM novels WHERE id = $1', [novelId])
+      expect(afterAdopt.rows[0]!.updated_at).toBeGreaterThan(beforeAdopt.rows[0]!.updated_at)
 
       // 再生成一张 → 弃用 → 已采纳的当前封面不受影响
       const res2 = await req('/api/ai/cover/generate', json('POST', { novelId }, adminToken))
@@ -1485,6 +1488,9 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
       expect(uploadRes.status).toBe(200)
       const cover3 = await t.db.query<{ source: string }>('SELECT source FROM novel_covers WHERE novel_id = $1', [novelId])
       expect(cover3.rows[0]?.source).toBe('upload')
+      // 上传也 bump novels.updated_at
+      const afterUpload = await t.db.query<{ updated_at: number }>('SELECT updated_at FROM novels WHERE id = $1', [novelId])
+      expect(afterUpload.rows[0]!.updated_at).toBeGreaterThan(afterAdopt.rows[0]!.updated_at)
     } finally {
       if (prevImpl) fetchMock.mockImplementation(prevImpl)
       else fetchMock.mockReset()
