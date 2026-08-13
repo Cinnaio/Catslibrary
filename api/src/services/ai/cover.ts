@@ -13,7 +13,7 @@ import { recordUsage } from './usage'
 import { getAiSettings } from './settings'
 import { createAiTask, isAiTaskCancelled, updateAiTask, getAiTask } from './tasks'
 import { storeCoverCandidate, MAX_COVER_BYTES } from '../covers'
-import { GENRE_STYLES, PLATFORM_STYLES, inferGenre, isCoverPlatform, type CoverPlatform, type GenreStyle } from './cover-styles'
+import { GENRE_STYLES, GENRE_PRIORITY, PLATFORM_STYLES, inferGenre, isCoverPlatform, type CoverPlatform, type Genre, type GenreStyle } from './cover-styles'
 
 interface NovelMeta {
   title: string
@@ -75,6 +75,10 @@ interface BuildPromptResult {
  * 构建封面 prompt —— 全量按 story-cover 的模板结构：
  * 平台层 + 文字层（书名/作者名）+ 画面层 + 风格/色彩/光效 + 通用修饰。
  *
+ * - 题材判定优先用文本模型语义判定（对照 skill「读书名+简介定题材」）：只靠书名/分类关键词
+ *   命中时，本站大量古言/现言书名（如「花间淫事」「摄政王的掌中娇」）会误落 'urban' 兜底，
+ *   拿到全书最素的 sans-serif 标题字体；语义判定可把这些书归回 'ancient'/'romance'，
+ *   标题字体随之换成更有题材感的金色楷体/毛笔字。文本模型不可用时回落关键词 inferGenre。
  * - 画面层以题材视觉模板（figure/background/color/light）为骨架，
  *   文本模型结合小说元数据按简介增强（未配置文本模型则回落模板），骨架保证贴题。
  * - 文字层默认渲染书名+作者名（story-cover 认为这是封面必需信息；模型需支持中文渲染，如 gpt-image-2），
@@ -92,20 +96,23 @@ export async function buildImagePrompt(meta: NovelMeta, opts: CoverPromptOptions
   const catHint = meta.categories.slice(0, 3).join(', ')
   const descHint = meta.description.slice(0, 300)
 
-  const genre = inferGenre(meta.title, meta.categories)
-  const style = GENRE_STYLES[genre]
-  const platformStyle = PLATFORM_STYLES[platform]
-
-  // 画面层：题材模板为骨架，文本模型按简介增强（未配置则回落模板）
+  // 题材判定 + 画面层：文本模型就绪时语义判定题材并用其模板生成画面；否则关键词推断 + 模板画面
+  let genre: Genre
   let scene: string
   let textUsage: BuildPromptResult['textUsage'] = null
   if (isTextAiConfigured()) {
-    const generated = await generateSceneDescription({ titleHint, catHint, descHint, style, safe })
+    const judged = await judgeGenre(meta)
+    genre = judged.genre
+    const generated = await generateSceneDescription({ titleHint, catHint, descHint, style: GENRE_STYLES[genre], safe })
     scene = generated.scene
-    textUsage = generated.textUsage
+    textUsage = mergeTextUsage(judged.textUsage, generated.textUsage)
   } else {
-    scene = `${style.figure} ${style.background}`
+    genre = inferGenre(meta.title, meta.categories)
+    scene = `${GENRE_STYLES[genre].figure} ${GENRE_STYLES[genre].background}`
   }
+
+  const style = GENRE_STYLES[genre]
+  const platformStyle = PLATFORM_STYLES[platform]
 
   const prompt = assembleCoverPrompt({ scene, style, platformStyle, titleHint, authorHint, renderTitle, safe })
   return { prompt, textUsage }
@@ -143,6 +150,92 @@ function assembleCoverPrompt(args: {
   lines.push(tail.join(', '))
 
   return lines.join('\n')
+}
+
+/** 题材中文别名，用于解析文本模型的判定输出（模型可能回中文而非英文代号）。 */
+const GENRE_ALIASES: Record<Genre, string[]> = {
+  xianxia: ['仙侠', '玄幻', '修真'],
+  urban: ['都市', '现代'],
+  ancient: ['古言', '宫斗', '古风', '古代'],
+  romance: ['现言', '甜宠', '言情'],
+  mystery: ['悬疑', '推理'],
+  scifi: ['科幻', '末世'],
+  fantasy: ['西幻', '奇幻'],
+  historical: ['历史', '军事'],
+  horror: ['灵异', '恐怖'],
+  light: ['轻小说', '二次元'],
+}
+
+/** 从文本模型输出里提取题材代号；识别不到返回 null（调用方回落到关键词推断）。 */
+export function parseGenreText(text: string): Genre | null {
+  const lower = String(text || '')
+    .trim()
+    .toLowerCase()
+  if (!lower) return null
+  for (const genre of GENRE_PRIORITY) {
+    const aliases = [genre, ...(GENRE_ALIASES[genre] || [])]
+    if (aliases.some((alias) => lower.includes(alias))) return genre
+  }
+  return null
+}
+
+/** 合并两次文本调用（题材判定 + 画面描述）的用量，按一条 cover_prompt 记账。 */
+function mergeTextUsage(a: BuildPromptResult['textUsage'], b: BuildPromptResult['textUsage']): BuildPromptResult['textUsage'] {
+  if (!a) return b
+  if (!b) return a
+  return {
+    model: b.model || a.model,
+    promptTokens: a.promptTokens + b.promptTokens,
+    completionTokens: a.completionTokens + b.completionTokens,
+    cost: a.cost + b.cost,
+    baseUrl: b.baseUrl || a.baseUrl,
+  }
+}
+
+/**
+ * 语义判定题材 —— 对照 story-cover 的「读书名（必要时简介）定题材」。
+ * 只靠书名/分类关键词命中时，本站大量书名不含题材词（如「花间淫事」「陛下不可以」），
+ * 会误落 'urban' 兜底、拿到全书最素的标题字体；这里让文本模型读书名+简介判定，
+ * 把这类书归回更贴合的题材。模型不可用或输出识别不了时回落到 inferGenre 关键词推断。
+ */
+async function judgeGenre(meta: NovelMeta): Promise<{ genre: Genre; textUsage: BuildPromptResult['textUsage'] }> {
+  const catHint = meta.categories.slice(0, 3).join(', ')
+  const descHint = meta.description.slice(0, 300)
+  const genreList = GENRE_PRIORITY.join('/')
+  const meaning = GENRE_PRIORITY.map((g) => `${g}=${GENRE_ALIASES[g].join('、')}`).join('；')
+  const user = [
+    '你是网文题材判定专家。根据书名、分类和简介，判定这本书的封面题材。',
+    `可选题材（只准输出下列英文代号之一，不要输出其他任何内容）：${genreList}`,
+    `各题材含义：${meaning}`,
+    `书名：${meta.title}`,
+    catHint ? `分类：${catHint}` : '',
+    descHint ? `简介：${descHint}` : '',
+    '只输出一个题材英文代号。',
+  ]
+    .filter(Boolean)
+    .join('\n')
+
+  const res = await chat({
+    messages: [
+      { role: 'system', content: '你是网文题材判定专家，只输出一个题材英文代号，不要解释。' },
+      { role: 'user', content: user },
+    ],
+    temperature: 0,
+    // 推理模型先消耗思考 token（实测判定书单经常 >100 token），给足余量避免 content 被截断成空串
+    maxTokens: 4096,
+    timeoutMs: 30_000,
+  })
+  const genre = parseGenreText(res.text) || inferGenre(meta.title, meta.categories)
+  return {
+    genre,
+    textUsage: {
+      model: res.model,
+      promptTokens: res.promptTokens,
+      completionTokens: res.completionTokens,
+      cost: res.cost,
+      baseUrl: textProvider().baseUrl,
+    },
+  }
 }
 
 /** 用文本模型结合题材视觉模板 + 小说元数据，产出增强后的英文画面描述（人物+背景）。 */

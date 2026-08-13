@@ -45,7 +45,7 @@ const GENRE_KEYWORDS: Record<Genre, string[]> = {
 }
 
 /** 多题材命中时的取舍优先级（越靠前越优先）。 */
-const GENRE_PRIORITY: Genre[] = ['xianxia', 'fantasy', 'ancient', 'romance', 'urban', 'mystery', 'scifi', 'historical', 'horror', 'light']
+export const GENRE_PRIORITY: Genre[] = ['xianxia', 'fantasy', 'ancient', 'romance', 'urban', 'mystery', 'scifi', 'historical', 'horror', 'light']
 
 export const GENRE_STYLES: Record<Genre, GenreStyle> = {
   xianxia: {
