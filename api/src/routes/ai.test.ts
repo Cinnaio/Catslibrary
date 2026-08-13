@@ -1339,6 +1339,59 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
       delete process.env.AI_IMAGE_MODEL
     }
   })
+
+  it('cover：renderTitle=true 时按题材拼装书名/作者名文字层', async () => {
+    process.env.AI_IMAGE_BASE_URL = 'https://image.test/v1'
+    process.env.AI_IMAGE_API_KEY = 'img-key'
+    process.env.AI_IMAGE_MODEL = 'gpt-image-2'
+    const prevImpl = fetchMock.getMockImplementation()
+    fetchMock.mockImplementation(async (input: string | URL | Request) => {
+      const reqUrl = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      if (reqUrl.includes('/images/generations')) {
+        const pngB64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+        return new Response(JSON.stringify({ model: 'gpt-image-2', data: [{ b64_json: pngB64 }] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      // 文本模型只产「画面描述层」，不含标题文字
+      return new Response(
+        JSON.stringify({
+          model: 'test-model',
+          choices: [{ message: { content: 'a young swordsman on a mountain peak with glowing spirit sword' }, finish_reason: 'stop' }],
+          usage: { prompt_tokens: 20, completion_tokens: 10 },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      )
+    })
+    try {
+      const novel = await req('/api/novels', json('POST', { title: '剑道独尊', author: '青椒炒肉', categories: ['仙侠'] }, adminToken))
+      const novelId = String((await jsonOf<{ novel: { id: string } }>(novel)).novel.id)
+
+      // 预生成：渲染文字层打开后 prompt 包含中文书名/作者名 + 题材字体
+      const promptResponse = await req('/api/ai/cover/prompt', json('POST', { novelId, renderTitle: true }, adminToken))
+      expect(promptResponse.status).toBe(200)
+      const generatedPrompt = (await jsonOf<{ prompt: string }>(promptResponse)).prompt
+      expect(generatedPrompt).toContain("Title text '剑道独尊' at top center")
+      expect(generatedPrompt).toContain("Author name '青椒炒肉' at bottom center")
+      expect(generatedPrompt).toContain('golden brush calligraphy') // 仙侠书名字体
+      expect(generatedPrompt).toContain('keep title and author name inside the central safe area')
+      expect(generatedPrompt).not.toContain('no text') // 渲染文字时不带 no text
+
+      // 生成链路：请求 renderTitle=true 时透传到图像模型
+      const res = await req('/api/ai/cover/generate', json('POST', { novelId, renderTitle: true }, adminToken))
+      const { taskId } = await jsonOf<{ taskId: string }>(res)
+      expect((await waitForTask(taskId, adminToken)).status).toBe('completed')
+      const cover = await t.db.query<{ source: string }>('SELECT source FROM novel_covers WHERE novel_id = $1', [novelId])
+      expect(cover.rows[0]?.source).toBe('ai')
+    } finally {
+      if (prevImpl) fetchMock.mockImplementation(prevImpl)
+      else fetchMock.mockReset()
+      delete process.env.AI_IMAGE_BASE_URL
+      delete process.env.AI_IMAGE_API_KEY
+      delete process.env.AI_IMAGE_MODEL
+    }
+  })
 })
 
 function sleep(ms: number): Promise<void> {

@@ -12,6 +12,17 @@ import CustomSelect from '@/components/admin/CustomSelect'
 const TASK_POLL_INTERVAL = 3000
 const COVER_TASK_KINDS = new Set(['cover'])
 
+/** 平台风格选项：与后端 PLATFORM_STYLES / settings.coverPlatform 白名单对齐 */
+const PLATFORM_OPTIONS = [
+  { value: 'default', label: '通用（竖版 2:3）' },
+  { value: 'fanqie', label: '番茄小说' },
+  { value: 'qidian', label: '起点' },
+  { value: 'jinjiang', label: '晋江' },
+  { value: 'zhihu', label: '知乎盐言' },
+  { value: 'qimao', label: '七猫' },
+  { value: 'ciweimao', label: '刺猬猫' },
+]
+
 function taskStatusLabel(status: string): string {
   return status === 'queued'
     ? '排队中'
@@ -37,6 +48,10 @@ export default function AiCoverPanel() {
   const [coverVersion, setCoverVersion] = useState(0)
   /** 安全归一化开关：默认开，把限制级内容抽象为唯美画面，规避上游图像安全策略 */
   const [safe, setSafe] = useState(true)
+  /** 渲染书名+作者名文字层：默认关（模型需支持中文渲染，如 gpt-image-2） */
+  const [renderTitle, setRenderTitle] = useState(false)
+  /** 平台风格调性：默认通用竖版 */
+  const [platform, setPlatform] = useState('default')
   const [prompt, setPrompt] = useState('')
   const [generatingPrompt, setGeneratingPrompt] = useState(false)
   const [imageConfigured, setImageConfigured] = useState(false)
@@ -49,7 +64,12 @@ export default function AiCoverPanel() {
       .catch((err) => toast((err as Error).message, 'error'))
     void aiApi
       .settings()
-      .then((res) => setImageConfigured(res.imageProvider.configured))
+      .then((res) => {
+        setImageConfigured(res.imageProvider.configured)
+        // 用运营设置里的封面默认值初始化控件
+        if (typeof res.settings?.coverRenderTitle === 'boolean') setRenderTitle(res.settings.coverRenderTitle)
+        if (typeof res.settings?.coverPlatform === 'string' && res.settings.coverPlatform) setPlatform(res.settings.coverPlatform)
+      })
       .catch(() => {})
   }, [toast])
 
@@ -101,7 +121,7 @@ export default function AiCoverPanel() {
     if (!imageConfigured) return toast('AI 图像服务未配置，请到「配置」标签页设置图像供应商', 'error')
     setBusy(true)
     try {
-      const res = await aiApi.generateCover(novelId, safe, prompt)
+      const res = await aiApi.generateCover(novelId, { safe, prompt, renderTitle, platform })
       const { task: created } = await aiApi.task(res.taskId)
       setTask(created)
       toast('封面生成已开始', 'success')
@@ -116,7 +136,7 @@ export default function AiCoverPanel() {
     if (!novelId) return toast('请先选择小说', 'error')
     setGeneratingPrompt(true)
     try {
-      const result = await aiApi.generateCoverPrompt(novelId, safe)
+      const result = await aiApi.generateCoverPrompt(novelId, { safe, renderTitle, platform })
       setPrompt(result.prompt)
       toast('已生成封面描述词，可继续编辑', 'success')
     } catch (err) {
@@ -164,6 +184,29 @@ export default function AiCoverPanel() {
               searchPlaceholder="搜索小说名称…"
               dropdownSide="bottom"
             />
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-1.5">
+              <Label>平台风格</Label>
+              <CustomSelect options={PLATFORM_OPTIONS} value={platform} onChange={setPlatform} placeholder="选择平台风格" dropdownSide="bottom" />
+              <p className="text-xs text-muted-foreground">按目标平台调性微调封面视觉；通用为竖版 2:3。</p>
+            </div>
+            <label className="flex items-start gap-2 rounded-md border bg-muted/30 p-3 text-sm">
+              <input
+                type="checkbox"
+                className="mt-0.5 size-4 rounded border-input"
+                checked={renderTitle}
+                disabled={busy || taskActive}
+                onChange={(e) => setRenderTitle(e.target.checked)}
+              />
+              <span>
+                <span className="font-medium text-foreground">渲染封面文字</span>
+                <span className="mt-0.5 block text-xs text-muted-foreground">
+                  在封面上直接渲染书名+作者名（按题材套用字体风格）。需图像模型支持中文渲染（如 gpt-image-2），否则可能出现乱码。
+                </span>
+              </span>
+            </label>
           </div>
 
           <div className="grid gap-1.5">

@@ -511,6 +511,10 @@ aiRoutes.post('/cover/generate', requireAdmin(), async (c) => {
   if (!isImageAiConfigured()) return c.json({ error: 'AI 图像服务未配置（AI_IMAGE_BASE_URL / AI_IMAGE_API_KEY）', code: 'disabled' }, 503)
   // safe 默认 true：规避上游图像安全策略，把限制级内容抽象为唯美画面；作者需忠实呈现时可显式传 false
   const safe = body.safe === false ? false : true
+  // 文字层默认取运行时设置（未支持中文渲染的模型建议关）；请求显式传布尔时覆盖
+  const settings = await getAiSettings(db)
+  const renderTitle = typeof body.renderTitle === 'boolean' ? body.renderTitle : settings.coverRenderTitle
+  const platform = typeof body.platform === 'string' && body.platform ? body.platform : settings.coverPlatform
   const prompt = String(body.prompt || '').trim()
   if (prompt.length > 2_000) return c.json({ error: '封面描述词不能超过 2000 个字符' }, 422)
 
@@ -520,9 +524,18 @@ aiRoutes.post('/cover/generate', requireAdmin(), async (c) => {
     kind: 'cover',
     total: 1,
     prompt: prompt || '生成封面',
-    params: JSON.stringify({ novelId, safe, prompt }),
+    params: JSON.stringify({ novelId, safe, prompt, renderTitle, platform }),
   })
-  void generateNovelCover(db, { userId: c.get('user').id, novelId, safe, prompt, taskId: task.id, ...(await auditRequestContext(c, db)) })
+  void generateNovelCover(db, {
+    userId: c.get('user').id,
+    novelId,
+    safe,
+    renderTitle,
+    platform,
+    prompt,
+    taskId: task.id,
+    ...(await auditRequestContext(c, db)),
+  })
     .then(() => updateAiTask(db, task.id, { status: 'completed', current: 1, step: '已完成' }))
     .catch(async (err) => {
       console.error('[ai] 封面生成后台任务失败', err)
@@ -538,8 +551,11 @@ aiRoutes.post('/cover/prompt', requireAdmin(), async (c) => {
   const novelId = String(body.novelId || '').trim()
   if (!novelId) return c.json({ error: 'novelId 必填' }, 400)
   const safe = body.safe === false ? false : true
+  const settings = await getAiSettings(db)
+  const renderTitle = typeof body.renderTitle === 'boolean' ? body.renderTitle : settings.coverRenderTitle
+  const platform = typeof body.platform === 'string' && body.platform ? body.platform : settings.coverPlatform
   try {
-    const result = await generateCoverPrompt(db, novelId, safe)
+    const result = await generateCoverPrompt(db, novelId, { safe, renderTitle, platform })
     return c.json({ prompt: result.prompt })
   } catch (err) {
     return aiErrorResponse(c, err)
@@ -772,16 +788,19 @@ aiRoutes.post('/tasks/:id/retry', requireAdmin(), async (c) => {
     // 沿用原任务的安全模式设置；旧任务无该字段时默认安全模式
     const safe = body.safe === false ? false : true
     const prompt = String(body.prompt || '').trim()
+    const settings = await getAiSettings(db)
+    const renderTitle = typeof body.renderTitle === 'boolean' ? body.renderTitle : settings.coverRenderTitle
+    const platform = typeof body.platform === 'string' && body.platform ? body.platform : settings.coverPlatform
     const task = await createAiTask(db, {
       userId: c.get('user').id,
       novelId,
       kind: 'cover',
       total: 1,
       prompt: prompt || '生成封面',
-      params: JSON.stringify({ novelId, safe, prompt }),
+      params: JSON.stringify({ novelId, safe, prompt, renderTitle, platform }),
     })
     const audit = await auditRequestContext(c, db)
-    void generateNovelCover(db, { userId: c.get('user').id, novelId, safe, prompt, taskId: task.id, ...audit })
+    void generateNovelCover(db, { userId: c.get('user').id, novelId, safe, renderTitle, platform, prompt, taskId: task.id, ...audit })
       .then(() => updateAiTask(db, task.id, { status: 'completed', current: 1, step: '已完成' }))
       .catch(async (err) => {
         console.error('[ai] 封面重试任务失败', err)

@@ -43,6 +43,14 @@ export interface AiSettings {
   imageQuality: string
   imageResponseFormat: string
 
+  // === AI 封面参数 ===
+  /** 封面出图尺寸（竖版为主）：与通用 imageSize 分开，避免影响其他图像用途 */
+  coverImageSize: string
+  /** 是否在封面上渲染书名+作者名文字层（模型需支持中文渲染，如 gpt-image-2），默认 false */
+  coverRenderTitle: boolean
+  /** 默认平台风格调性：default|fanqie|qidian|jinjiang|zhihu|qimao|ciweimao */
+  coverPlatform: string
+
   // === 运维配置 ===
   /** 已结束 AI 任务的保留天数，启动时清理更早的记录 */
   taskRetentionDays: number
@@ -82,6 +90,11 @@ export const DEFAULT_AI_SETTINGS: AiSettings = {
   imageQuality: 'standard',
   imageResponseFormat: 'b64_json',
 
+  // AI 封面参数默认值（封面竖版 2:3；文字层默认关，规避不支持中文渲染的模型出乱码）
+  coverImageSize: '1024x1536',
+  coverRenderTitle: false,
+  coverPlatform: 'default',
+
   // 运维配置默认值
   taskRetentionDays: 90,
 
@@ -107,6 +120,8 @@ const LIMITS = {
   imageSize: { maxLength: 20 },
   imageQuality: { maxLength: 20 },
   imageResponseFormat: { maxLength: 20 },
+  coverImageSize: { maxLength: 20 },
+  coverPlatform: { maxLength: 20 },
   taskRetentionDays: { min: 7, max: 365 },
 }
 
@@ -176,9 +191,14 @@ export function normalizeAiSettings(raw: unknown): AiSettings {
     writingMaxTokens: clampInt(obj.writingMaxTokens, DEFAULT_AI_SETTINGS.writingMaxTokens, LIMITS.writingMaxTokens),
     writingSystemPrompt: clampString(obj.writingSystemPrompt, DEFAULT_AI_SETTINGS.writingSystemPrompt, LIMITS.writingSystemPrompt.maxLength),
     maxConcurrentWritingTasks: clampInt(obj.maxConcurrentWritingTasks, DEFAULT_AI_SETTINGS.maxConcurrentWritingTasks, LIMITS.maxConcurrentWritingTasks),
-    imageSize: clampEnum(obj.imageSize, DEFAULT_AI_SETTINGS.imageSize, ['1024x1024', '1792x1024', '1024x1792', '512x512']),
+    imageSize: clampEnum(obj.imageSize, DEFAULT_AI_SETTINGS.imageSize, ['1024x1024', '1792x1024', '1024x1792', '1024x1536', '768x1024', '512x512']),
     imageQuality: clampEnum(obj.imageQuality, DEFAULT_AI_SETTINGS.imageQuality, ['standard', 'hd']),
     imageResponseFormat: clampEnum(obj.imageResponseFormat, DEFAULT_AI_SETTINGS.imageResponseFormat, ['b64_json', 'url']),
+
+    // AI 封面参数：封面尺寸以竖版为主；平台风格限定为已知平台
+    coverImageSize: clampEnum(obj.coverImageSize, DEFAULT_AI_SETTINGS.coverImageSize, ['1024x1536', '768x1024', '1024x1792', '1024x1024']),
+    coverRenderTitle: obj.coverRenderTitle === undefined ? DEFAULT_AI_SETTINGS.coverRenderTitle : !!obj.coverRenderTitle,
+    coverPlatform: clampEnum(obj.coverPlatform, DEFAULT_AI_SETTINGS.coverPlatform, ['default', 'fanqie', 'qidian', 'jinjiang', 'zhihu', 'qimao', 'ciweimao']),
 
     // 运维配置
     taskRetentionDays: clampInt(obj.taskRetentionDays, DEFAULT_AI_SETTINGS.taskRetentionDays, LIMITS.taskRetentionDays),

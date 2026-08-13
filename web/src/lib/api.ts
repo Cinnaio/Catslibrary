@@ -686,6 +686,10 @@ export interface AiSettings {
   imageSize: string
   imageQuality: string
   imageResponseFormat: string
+  // AI 封面参数
+  coverImageSize: string
+  coverRenderTitle: boolean
+  coverPlatform: string
   // 运维配置
   taskRetentionDays: number
   // 审计配置
@@ -779,11 +783,19 @@ export const aiApi = {
   },
   /** 为小说生成封面（后台任务模式），返回 taskId 供轮询；生成结果直接落 novel_covers。
    *  safe 默认 true：启用安全归一化，规避上游图像安全策略。 */
-  generateCover(novelId: string, safe: boolean = true, prompt: string = ''): Promise<{ ok: boolean; taskId: string; batchId: string; total: number }> {
-    return request('POST', '/ai/cover/generate', { novelId, safe, prompt }, true)
+  generateCover(
+    novelId: string,
+    opts: { safe?: boolean; prompt?: string; renderTitle?: boolean; platform?: string } = {},
+  ): Promise<{ ok: boolean; taskId: string; batchId: string; total: number }> {
+    return request(
+      'POST',
+      '/ai/cover/generate',
+      { novelId, safe: opts.safe ?? true, prompt: opts.prompt ?? '', renderTitle: opts.renderTitle, platform: opts.platform },
+      true,
+    )
   },
-  generateCoverPrompt(novelId: string, safe: boolean = true): Promise<{ prompt: string }> {
-    return request('POST', '/ai/cover/prompt', { novelId, safe }, true)
+  generateCoverPrompt(novelId: string, opts: { safe?: boolean; renderTitle?: boolean; platform?: string } = {}): Promise<{ prompt: string }> {
+    return request('POST', '/ai/cover/prompt', { novelId, safe: opts.safe ?? true, renderTitle: opts.renderTitle, platform: opts.platform }, true)
   },
   writing: {
     /** 创作类接口统一为后台任务模式：立即返回任务 id，用 aiApi.task 轮询进度，产物在「已生成内容」。 */
