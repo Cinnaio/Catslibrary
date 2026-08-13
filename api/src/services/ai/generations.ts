@@ -145,6 +145,26 @@ function batchFields(paramsJson: string): { batchId: string; batchIndex: number;
   }
 }
 
+export interface BatchDraft extends Generation {
+  batchIndex: number
+  batchCount: number
+}
+
+/** 断点恢复：按 batchId 取该批次已生成的草稿（draft），按 batchIndex 升序，用于续写时跳过已生成章节。 */
+export async function listBatchDrafts(db: Db, batchId: string): Promise<BatchDraft[]> {
+  if (!batchId) return []
+  const rows = await all<GenerationRow>(
+    db,
+    `SELECT * FROM ai_generations WHERE kind = 'continue' AND status = 'draft' AND params_json LIKE $1 ORDER BY created_at ASC`,
+    [`%"batchId":"${batchId}"%`],
+  )
+  return rows
+    .map((row) => ({ ...rowToGeneration(row), ...batchFields(row.params_json) }))
+    .filter((d) => d.batchId === batchId && d.batchIndex > 0 && d.result.trim())
+    .sort((a, b) => a.batchIndex - b.batchIndex)
+
+}
+
 /** 「已生成内容」管理列表：带小说/章节标题、行数与分页。 */
 export async function listGenerationDetails(
   db: Db,

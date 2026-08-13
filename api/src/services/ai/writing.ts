@@ -2,7 +2,7 @@ import { removeAdPatterns } from '@shared/ad-cleaner'
 import type { Db } from '../../db/pool'
 import { all } from '../../db/query'
 import { chat, isTextAiConfigured, providerLabel, textProvider, AiError } from './client'
-import { saveGeneration, type Generation } from './generations'
+import { saveGeneration, type Generation, type BatchDraft } from './generations'
 import { recordUsage } from './usage'
 import { getAiSettings } from './settings'
 import { createAiTask, isAiTaskCancelled, updateAiTask } from './tasks'
@@ -167,16 +167,27 @@ export async function generateContinuationChapters(db: Db, opts: {
   ipAddress?: string
   userAgent?: string
   taskId?: string
+  /** 断点恢复：从第几章开始（0-based），默认 0。 */
+  startIndex?: number
+  /** 断点恢复：已生成的草稿，按 batchIndex 升序，用于跳过重生成并构建衔接上下文。 */
+  existingDrafts?: BatchDraft[]
 }): Promise<WritingBatchResult> {
   const count = Math.max(1, Math.min(20, Math.trunc(Number(opts.chapterCount) || 1)))
-  const generations: Generation[] = []
+  const startIndex = Math.max(0, Math.min(count, Math.trunc(Number(opts.startIndex) || 0)))
+  // 断点恢复：已生成草稿参与返回值与上下文，避免重新生成已有章节
+  const drafts = (opts.existingDrafts || []).filter((d) => d.batchIndex > 0 && d.batchIndex <= count).sort((a, b) => a.batchIndex - b.batchIndex)
+  const generations: Generation[] = drafts.map((d) => ({ id: d.id, novelId: d.novelId, chapterId: d.chapterId, kind: d.kind, model: d.model, result: d.result, status: d.status, createdAt: d.createdAt }))
+  // 断点恢复：把已生成章节串接进上下文，保证后续章节与前文衔接
   let context = opts.context
+  for (const d of drafts) {
+    context = `${context}\n\n第 ${d.batchIndex} 章续写：\n${cleanWritingText(d.result, 6000)}`.slice(-MAX_CONTEXT_CHARS)
+  }
   let usage = { model: '', promptTokens: 0, completionTokens: 0 }
   // 调用方（后台任务模式）可传入 batchId，保证任务行与草稿的批次号一致
   const batchId = opts.batchId || `continue_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
   const taskId = opts.taskId || (await createAiTask(db, { userId: opts.userId, novelId: opts.novelId, kind: 'continue', total: count, batchId, prompt: opts.instruction })).id
 
-  for (let index = 0; index < count; index += 1) {
+  for (let index = startIndex; index < count; index += 1) {
     if (await isAiTaskCancelled(db, taskId)) break
     const result = await generateWriting(db, {
       ...opts,

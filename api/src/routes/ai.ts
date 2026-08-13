@@ -10,7 +10,7 @@ import { AiError, chat, isTextAiConfigured, providerLabel, textProvider } from '
 import { getAiSettings, saveAiSettings } from '../services/ai/settings'
 import { generateRecap, getCachedRecap, loadChapterForRecap } from '../services/ai/summary'
 import { generateCatchup, getCachedCatchup, inspectCatchup } from '../services/ai/catchup'
-import { invalidateChapter, listGenerationDetails, deleteGeneration, deleteGenerations, getGeneration, updateGenerationResult, type GenerationRow } from '../services/ai/generations'
+import { invalidateChapter, listBatchDrafts, listGenerationDetails, deleteGeneration, deleteGenerations, getGeneration, updateGenerationResult, type GenerationRow, type BatchDraft } from '../services/ai/generations'
 import { escapeLike } from '../services/text'
 import { generateContinuationChapters, generateWriting, generateWritingTitles, recentNovelContext } from '../services/ai/writing'
 import { checkQuota, recordUsage, startOfToday, summarizeUsage } from '../services/ai/usage'
@@ -265,12 +265,19 @@ type StartWritingResult =
  * 任务模式：前端轮询 GET /tasks/:id 看进度，产物在「已生成内容」。
  * 原始参数存入任务行，POST /tasks/:id/retry 据此重试。
  */
+/** 断点恢复：取原批次已生成的草稿，供 continue 任务重试时跳过已生成章节。 */
+async function loadResumeDrafts(db: ReturnType<typeof getDb>, batchId: string): Promise<{ batchId: string; drafts: BatchDraft[] } | undefined> {
+  const drafts = await listBatchDrafts(db, batchId)
+  return drafts.length ? { batchId, drafts } : undefined
+}
+
 async function startWritingJob(
   db: ReturnType<typeof getDb>,
   user: { id: string },
   kind: 'write_outline' | 'write_chapter' | 'continue',
   body: Record<string, any>,
   audit: { ipAddress?: string; userAgent?: string },
+  resume?: { batchId: string; drafts: BatchDraft[] },
 ): Promise<StartWritingResult> {
   const novelId = String(body.novelId || '').trim()
   const title = String(body.title || '').trim()
@@ -306,9 +313,10 @@ async function startWritingJob(
   const finalInstruction = String(body.instruction || title || '自然推进剧情，完成一个有悬念的章节段落').trim()
   // 上下文与审计信息在请求内取好：后台执行时请求上下文已不可用
   const context = await recentNovelContext(db, novelId, body.afterChapterId ? String(body.afterChapterId) : undefined)
-  const batchId = `continue_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+  const batchId = resume?.batchId || `continue_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
   const task = await createAiTask(db, { userId: user.id, novelId, kind: 'continue', total: count, batchId, prompt: finalInstruction, params: writingTaskParams(body) })
-  void generateContinuationChapters(db, { userId: user.id, novelId, title: novel.title, instruction: finalInstruction, context, maxTokens: body.maxTokens, temperature: body.temperature, ...writingOptions(body), batchId, taskId: task.id, ...audit })
+  if (resume && resume.drafts.length) await updateAiTask(db, task.id, { current: resume.drafts.length, step: `已生成 ${resume.drafts.length} / ${count} 章，断点恢复中` })
+  void generateContinuationChapters(db, { userId: user.id, novelId, title: novel.title, instruction: finalInstruction, context, maxTokens: body.maxTokens, temperature: body.temperature, ...writingOptions(body), batchId, taskId: task.id, startIndex: resume?.drafts.length || 0, ...(resume?.drafts.length ? { existingDrafts: resume.drafts } : {}), ...audit })
     .catch(async (err) => {
       console.error('[ai] 续写后台任务失败', err)
       const message = err instanceof AiError ? err.message : 'AI 生成失败'
@@ -518,7 +526,9 @@ aiRoutes.post('/tasks/:id/retry', requireAdmin(), async (c) => {
   }
   if (!body) return c.json({ error: '任务未记录原始参数（旧版本创建），无法重试' }, 422)
 
-  const result = await startWritingJob(db, c.get('user'), source.kind as 'write_outline' | 'write_chapter' | 'continue', body, await auditRequestContext(c, db))
+  // 断点恢复：continue 任务重试时，先取原批次已生成的草稿，从已完成处接续，避免全量重来
+  const resume = source.kind === 'continue' && source.batchId ? await loadResumeDrafts(db, source.batchId) : undefined
+  const result = await startWritingJob(db, c.get('user'), source.kind as 'write_outline' | 'write_chapter' | 'continue', body, await auditRequestContext(c, db), resume)
   if (!result.ok) return c.json({ error: result.error }, result.status)
   return c.json({ ok: true, taskId: result.task.id, batchId: result.task.batchId, total: result.task.total }, 202)
 })
