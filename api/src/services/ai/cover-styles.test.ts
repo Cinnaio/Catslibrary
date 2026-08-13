@@ -36,6 +36,8 @@ describe('inferGenre', () => {
     for (const genre of Object.keys(GENRE_STYLES) as Array<keyof typeof GENRE_STYLES>) {
       const s = GENRE_STYLES[genre]
       expect(s.tag).toBeTruthy()
+      expect(s.figure).toBeTruthy()
+      expect(s.background).toBeTruthy()
       expect(s.color).toBeTruthy()
       expect(s.light).toBeTruthy()
       expect(s.titleFont).toBeTruthy()

@@ -90,9 +90,9 @@ export const DEFAULT_AI_SETTINGS: AiSettings = {
   imageQuality: 'standard',
   imageResponseFormat: 'b64_json',
 
-  // AI 封面参数默认值（封面竖版 2:3；文字层默认关，规避不支持中文渲染的模型出乱码）
+  // AI 封面参数默认值（封面竖版 2:3；文字层默认渲染书名+作者名——story-cover 认为这是封面必需信息）
   coverImageSize: '1024x1536',
-  coverRenderTitle: false,
+  coverRenderTitle: true,
   coverPlatform: 'default',
 
   // 运维配置默认值

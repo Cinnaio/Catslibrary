@@ -1318,7 +1318,7 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
       return new Response(
         JSON.stringify({
           model: 'test-model',
-          choices: [{ message: { content: 'Automatic prompt, no text' }, finish_reason: 'stop' }],
+          choices: [{ message: { content: 'a young man in a suit standing before a neon-lit city skyline at dusk' }, finish_reason: 'stop' }],
           usage: { prompt_tokens: 20, completion_tokens: 10 },
         }),
         { status: 200, headers: { 'Content-Type': 'application/json' } },
@@ -1329,7 +1329,11 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
       const promptResponse = await req('/api/ai/cover/prompt', json('POST', { novelId }, adminToken))
       expect(promptResponse.status).toBe(200)
       const generatedPrompt = (await jsonOf<{ prompt: string }>(promptResponse)).prompt
-      expect(generatedPrompt).toContain('Automatic prompt, no text')
+      // story-cover 结构：平台层 + 默认渲染的书名/作者名文字层 + 画面层
+      expect(generatedPrompt).toContain('Chinese web novel cover design')
+      expect(generatedPrompt).toContain("Title text 'AI 测试书' at top center")
+      expect(generatedPrompt).toContain("Author name '某作者' at bottom center")
+      expect(generatedPrompt).toContain('a young man in a suit standing before a neon-lit city skyline')
       expect(generatedPrompt).toContain('safe for work')
 
       const res = await req('/api/ai/cover/generate', json('POST', { novelId, safe: false, prompt: 'Moonlit city skyline, no text' }, adminToken))
@@ -1346,7 +1350,7 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     }
   })
 
-  it('cover：renderTitle=true 时按题材拼装书名/作者名文字层', async () => {
+  it('cover：默认渲染书名/作者名文字层（story-cover），显式关闭走 no text', async () => {
     process.env.AI_IMAGE_BASE_URL = 'https://image.test/v1'
     process.env.AI_IMAGE_API_KEY = 'img-key'
     process.env.AI_IMAGE_MODEL = 'gpt-image-2'
@@ -1374,8 +1378,8 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
       const novel = await req('/api/novels', json('POST', { title: '剑道独尊', author: '青椒炒肉', categories: ['仙侠'] }, adminToken))
       const novelId = String((await jsonOf<{ novel: { id: string } }>(novel)).novel.id)
 
-      // 预生成：渲染文字层打开后 prompt 包含中文书名/作者名 + 题材字体
-      const promptResponse = await req('/api/ai/cover/prompt', json('POST', { novelId, renderTitle: true }, adminToken))
+      // 不带 renderTitle：默认渲染书名/作者名 + 题材字体 + 中心安全区
+      const promptResponse = await req('/api/ai/cover/prompt', json('POST', { novelId }, adminToken))
       expect(promptResponse.status).toBe(200)
       const generatedPrompt = (await jsonOf<{ prompt: string }>(promptResponse)).prompt
       expect(generatedPrompt).toContain("Title text '剑道独尊' at top center")
@@ -1384,8 +1388,14 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
       expect(generatedPrompt).toContain('keep title and author name inside the central safe area')
       expect(generatedPrompt).not.toContain('no text') // 渲染文字时不带 no text
 
-      // 生成链路：请求 renderTitle=true 时透传到图像模型
-      const res = await req('/api/ai/cover/generate', json('POST', { novelId, renderTitle: true }, adminToken))
+      // renderTitle=false：省略文字层，走 no text
+      const noTitleRes = await req('/api/ai/cover/prompt', json('POST', { novelId, renderTitle: false }, adminToken))
+      const noTitlePrompt = (await jsonOf<{ prompt: string }>(noTitleRes)).prompt
+      expect(noTitlePrompt).not.toContain("Title text '剑道独尊'")
+      expect(noTitlePrompt).toContain('no text')
+
+      // 生成链路：默认渲染文字层透传到图像模型
+      const res = await req('/api/ai/cover/generate', json('POST', { novelId }, adminToken))
       const { taskId } = await jsonOf<{ taskId: string }>(res)
       expect((await waitForTask(taskId, adminToken)).status).toBe('completed')
       // 生成结果进候选表，当前封面保持不动

@@ -13,6 +13,10 @@ export type CoverPlatform = 'default' | 'fanqie' | 'qidian' | 'jinjiang' | 'zhih
 export interface GenreStyle {
   /** 题材风格标签（英文，塞进 prompt 主体） */
   tag: string
+  /** 人物描述模板（英文；画面层骨架，文本模型按简介增强的锚点） */
+  figure: string
+  /** 背景描述模板（英文；画面层骨架，与人物同层） */
+  background: string
   /** 色彩指令 */
   color: string
   /** 光效指令 */
@@ -46,6 +50,9 @@ const GENRE_PRIORITY: Genre[] = ['xianxia', 'fantasy', 'ancient', 'romance', 'ur
 export const GENRE_STYLES: Record<Genre, GenreStyle> = {
   xianxia: {
     tag: 'xianxia Chinese fantasy art style, ethereal atmosphere, immortal cultivation theme',
+    figure:
+      'a male cultivator with long black hair in flowing white silk robes, holding a glowing spiritual sword, robe sleeves fluttering in the wind; or a female immortal in drifting celestial robes accompanied by a spirit beast with lotus ornaments',
+    background: 'a sea of clouds, immortal mountains, ancient pavilions and towers, spiritual energy particles',
     color: 'color palette of deep blue, gold and black, cool tones with warm golden light accents',
     light: 'divine golden light rays, mystical mist, spiritual energy glow',
     titleFont: 'bold golden brush calligraphy with metallic glow and sharp strokes',
@@ -54,6 +61,8 @@ export const GENRE_STYLES: Record<Genre, GenreStyle> = {
   },
   urban: {
     tag: 'modern urban contemporary style, clean cinematic composition',
+    figure: 'a handsome man in a well-tailored suit with sharp confident features; or a fashionable woman in modern chic outfit with a confident expression',
+    background: 'city skyline, upscale office, campus, neon-lit streets',
     color: 'color palette of deep blue, grey and gold, with neon or warm sunset accents',
     light: 'sharp city lights, sunset glow reflecting on glass buildings, neon rim light',
     titleFont: 'modern bold sans-serif with metallic silver finish',
@@ -61,6 +70,8 @@ export const GENRE_STYLES: Record<Genre, GenreStyle> = {
   },
   ancient: {
     tag: 'ancient Chinese romance palace drama, elegant classical beauty',
+    figure: 'a noble woman in ornate embroidered hanfu with phoenix crown and swaying hair ornaments, exquisite makeup; or a dignified emperor or general',
+    background: 'imperial palace, courtyard, red walls, beaded curtains, folding screens, lanterns',
     color: 'color palette of crimson red, gold and ink black, opulent and rich',
     light: 'warm lantern light, golden candle glow, silk fabric shimmering',
     titleFont: 'elegant golden traditional Kai script with ornate decoration',
@@ -68,6 +79,8 @@ export const GENRE_STYLES: Record<Genre, GenreStyle> = {
   },
   romance: {
     tag: 'modern romance cover art, soft dreamy warm atmosphere',
+    figure: 'a couple in a tender intimate interaction, embracing, gazing at each other or holding hands',
+    background: 'café, garden, cozy interior, sunset beach',
     color: 'color palette of pink, warm white and light gold, warm and gentle',
     light: 'soft warm backlighting, dreamy bokeh, gentle sunset glow',
     titleFont: 'soft rounded handwritten style in white with pink glow',
@@ -75,6 +88,8 @@ export const GENRE_STYLES: Record<Genre, GenreStyle> = {
   },
   mystery: {
     tag: 'dark mystery thriller, noir atmosphere, high contrast shadows',
+    figure: 'a figure in silhouette or seen from behind with a half-hidden face, calm or tense expression',
+    background: 'rainy night street, old buildings, secret room, dark alley',
     color: 'color palette of black, deep grey and dark blue, with blood red or cold white accents',
     light: 'dramatic chiaroscuro, single spotlight, rain-slicked reflections',
     titleFont: 'distorted bold cracked letters in blood red',
@@ -82,6 +97,8 @@ export const GENRE_STYLES: Record<Genre, GenreStyle> = {
   },
   scifi: {
     tag: 'sci-fi cyberpunk, futuristic technology, post-apocalyptic',
+    figure: 'a figure in mech armor or tactical combat suit holding sci-fi weaponry, holographic interface floating beside',
+    background: 'outer space, ruined city, laboratory, space station',
     color: 'color palette of deep blue, black and silver, with neon blue, electric purple or energy green accents',
     light: 'holographic blue glow, neon rim lighting, energy arcs',
     titleFont: 'neon glowing futuristic font in electric blue',
@@ -89,6 +106,8 @@ export const GENRE_STYLES: Record<Genre, GenreStyle> = {
   },
   fantasy: {
     tag: 'western high fantasy, epic medieval atmosphere',
+    figure: 'a knight in shining armor, a mage in flowing robes, or a ranger in leather, accompanied by a dragon or griffin',
+    background: 'castle, dragon lair, magic circle, vast plains',
     color: 'color palette of deep blue, dark gold and silver white, with fire red or magic purple accents',
     light: 'magic spell glow, dramatic stormy sky, firelight from torches',
     titleFont: 'metallic embossed fantasy lettering with glow effect',
@@ -96,6 +115,8 @@ export const GENRE_STYLES: Record<Genre, GenreStyle> = {
   },
   historical: {
     tag: 'historical Chinese war epic, grand battlefield panorama',
+    figure: 'a general in heavy armor holding a weapon, or a strategist in long robes with a determined gaze',
+    background: 'battlefield, city walls, military camp, beacon fires',
     color: 'color palette of iron grey, dark red and earthy yellow, with golden armor sheen and beacon-fire orange accents',
     light: 'dramatic battlefield firelight, smoke-filled sky, sunset over war',
     titleFont: 'heavy stone-carved seal script in deep red',
@@ -103,6 +124,8 @@ export const GENRE_STYLES: Record<Genre, GenreStyle> = {
   },
   horror: {
     tag: 'Chinese supernatural horror, eerie ghostly atmosphere',
+    figure: 'a taoist priest in ritual robes, or an ordinary person caught in a haunting, ghostly apparitions, paper figures, zombies',
+    background: 'graveyard, ancient temple, dark alley, coffin',
     color: 'color palette of ink black, ghostly green and dark red, with paper white and candle yellow accents',
     light: 'eerie green glow, flickering candlelight, cold ghostly luminescence',
     titleFont: 'eerie dripping handwritten font in sickly green',
@@ -110,6 +133,8 @@ export const GENRE_STYLES: Record<Genre, GenreStyle> = {
   },
   light: {
     tag: 'anime light novel cover, vibrant colorful moe style',
+    figure: 'a cute chibi-style character with cat ears or wings, adorable moe features',
+    background: 'fantasy world, school, other world, starry sky',
     color: 'bright multi-color palette with starlight and flower-petal accents',
     light: 'sparkly star effects, magical particle effects, soft luminous glow',
     titleFont: 'colorful cartoon outlined bubbly font',

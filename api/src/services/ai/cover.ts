@@ -13,7 +13,7 @@ import { recordUsage } from './usage'
 import { getAiSettings } from './settings'
 import { createAiTask, isAiTaskCancelled, updateAiTask, getAiTask } from './tasks'
 import { storeCoverCandidate, MAX_COVER_BYTES } from '../covers'
-import { GENRE_STYLES, PLATFORM_STYLES, inferGenre, isCoverPlatform, type CoverPlatform } from './cover-styles'
+import { GENRE_STYLES, PLATFORM_STYLES, inferGenre, isCoverPlatform, type CoverPlatform, type GenreStyle } from './cover-styles'
 
 interface NovelMeta {
   title: string
@@ -26,7 +26,7 @@ interface NovelMeta {
 export interface CoverPromptOptions {
   /** 启用安全归一化：把限制级/暴力内容抽象为唯美氛围画面，规避上游图像安全策略 */
   safe: boolean
-  /** 渲染书名+作者名文字层（模型需支持中文渲染，如 gpt-image-2）；false 时结尾走 no text */
+  /** 渲染书名+作者名文字层：默认 true（story-cover 核心——书名与作者名是封面必需信息），显式 false 才关闭 */
   renderTitle?: boolean
   /** 平台风格调性；缺省或非法值按 'default'（通用竖版，不叠加平台专属风格） */
   platform?: CoverPlatform | string
@@ -72,19 +72,19 @@ interface BuildPromptResult {
 }
 
 /**
- * 用文本模型把中文元数据翻译成适合图像模型的「画面描述层」（人物/背景/氛围），
- * 再叠加题材风格标签、平台调性、（可选）书名+作者名文字层，拼成完整封面 prompt。
+ * 构建封面 prompt —— 全量按 story-cover 的模板结构：
+ * 平台层 + 文字层（书名/作者名）+ 画面层 + 风格/色彩/光效 + 通用修饰。
  *
- * - 文本模型职责收窄：只产出画面描述，不再管标题——书名/作者名由文字层模板 + 题材字体库拼装，
- *   避免文本模型把书名翻译成英文塞进画面。文本模型未配置时退化为直接拼题材标签，textUsage=null。
- * - opts.renderTitle=true：在图上渲染书名+作者名（模型需支持中文渲染，如 gpt-image-2）；
- *   false（默认）：结尾走 no text，只享受题材/平台/构图升级。
+ * - 画面层以题材视觉模板（figure/background/color/light）为骨架，
+ *   文本模型结合小说元数据按简介增强（未配置文本模型则回落模板），骨架保证贴题。
+ * - 文字层默认渲染书名+作者名（story-cover 认为这是封面必需信息；模型需支持中文渲染，如 gpt-image-2），
+ *   显式 renderTitle=false 时关闭并走 no text。
  * - opts.safe=true：启用安全归一化，强制把画面导向非具名、非性化、非暴力的唯美氛围，
- *   规避 18+/暴力/禁忌题材词汇触发上游图像服务的安全策略。与文字层正交，同时生效。
+ *   规避 18+/暴力/禁忌题材词汇触发上游图像服务的安全策略。
  */
 export async function buildImagePrompt(meta: NovelMeta, opts: CoverPromptOptions): Promise<BuildPromptResult> {
   const safe = opts.safe
-  const renderTitle = !!opts.renderTitle
+  const renderTitle = opts.renderTitle !== false
   const platform = normalizePlatform(opts.platform)
 
   const titleHint = meta.title.slice(0, 60)
@@ -96,15 +96,15 @@ export async function buildImagePrompt(meta: NovelMeta, opts: CoverPromptOptions
   const style = GENRE_STYLES[genre]
   const platformStyle = PLATFORM_STYLES[platform]
 
-  // 画面描述层：优先用文本模型生成；未配置则回落题材标签
+  // 画面层：题材模板为骨架，文本模型按简介增强（未配置则回落模板）
   let scene: string
   let textUsage: BuildPromptResult['textUsage'] = null
   if (isTextAiConfigured()) {
-    const generated = await generateSceneDescription({ titleHint, catHint, descHint, safe })
+    const generated = await generateSceneDescription({ titleHint, catHint, descHint, style, safe })
     scene = generated.scene
     textUsage = generated.textUsage
   } else {
-    scene = [catHint ? `${catHint} theme` : `${genre} theme`, 'detailed atmospheric scene'].filter(Boolean).join(', ')
+    scene = `${style.figure} ${style.background}`
   }
 
   const prompt = assembleCoverPrompt({ scene, style, platformStyle, titleHint, authorHint, renderTitle, safe })
@@ -126,7 +126,7 @@ function assembleCoverPrompt(args: {
 
   lines.push(['Chinese web novel cover design', platformStyle].filter(Boolean).join(', ') + '.')
 
-  // 文字层：仅在 renderTitle 且有书名时渲染
+  // 文字层：默认渲染书名+作者名，仅显式关闭才省略
   if (renderTitle && titleHint) {
     lines.push(`Title text '${titleHint}' at top center in ${style.titleFont}.`)
     if (authorHint) lines.push(`Author name '${authorHint}' at bottom center in ${style.authorFont}.`)
@@ -145,30 +145,38 @@ function assembleCoverPrompt(args: {
   return lines.join('\n')
 }
 
-/** 用文本模型把中文元数据翻成「画面描述层」英文短语（不含标题文字）。 */
+/** 用文本模型结合题材视觉模板 + 小说元数据，产出增强后的英文画面描述（人物+背景）。 */
 async function generateSceneDescription(args: {
   titleHint: string
   catHint: string
   descHint: string
+  style: GenreStyle
   safe: boolean
 }): Promise<{ scene: string; textUsage: BuildPromptResult['textUsage'] }> {
-  const { titleHint, catHint, descHint, safe } = args
+  const { titleHint, catHint, descHint, style, safe } = args
   const textProvider_ = textProvider()
 
   const safeRules = safe
     ? [
-        '4. 严禁出现性暗示、裸露、暴力、血腥、禁忌题材、具名真人或版权角色的直白描述；',
-        '5. 把任何限制级/暴力内容抽象为唯美的氛围画面（如烛光、绸缎、暗调光影），不描写具体行为；',
+        '6. 严禁出现性暗示、裸露、暴力、血腥、禁忌题材、具名真人或版权角色的直白描述；',
+        '7. 把任何限制级/暴力内容抽象为唯美的氛围画面（如烛光、绸缎、暗调光影），不描写具体行为；',
       ]
     : []
   const user = [
-    '请把以下中文小说的元数据翻译成一句适合 AI 图像生成模型的英文「画面描述」（只描述人物、场景、氛围，不要出现书名文字）。',
+    '你是网文封面画面设计师。结合「题材视觉模板」与小说元数据，写一段英文封面画面描述。',
     '要求：',
-    '1. 只输出一句英文描述，不要解释、不要引号、不要换行；',
-    '2. 突出人物形象、背景场景与氛围，越具体越好（服饰、姿态、场景、光线）；',
-    '3. 长度控制在 60 个英文单词以内；',
-    '4. 不要包含任何文字/标题/水印描述（title、text、watermark 等词一律不要出现）。',
+    '1. 只输出一段英文描述（1-2 句），不要解释、不要引号、不要换行；',
+    '2. 必须包含人物形象（服饰/姿态/道具）与场景背景两个层次，越具体越好；',
+    '3. 在模板基础上细化，可用模板中的风格、色彩、光效关键词；',
+    '4. 长度控制在 60-90 个英文单词以内；',
+    '5. 不要包含任何文字/标题/水印描述（title、text、watermark 等词一律不要出现）。',
     ...safeRules,
+    '题材视觉模板：',
+    `- 风格：${style.tag}`,
+    `- 人物：${style.figure}`,
+    `- 背景：${style.background}`,
+    `- 色彩：${style.color}`,
+    `- 光效：${style.light}`,
     titleHint ? `标题：${titleHint}` : '',
     catHint ? `分类：${catHint}` : '',
     descHint ? `简介：${descHint}` : '',
@@ -177,8 +185,8 @@ async function generateSceneDescription(args: {
     .join('\n')
 
   const systemContent = safe
-    ? '你是为 AI 图像生成模型撰写英文画面描述的专家。把小说元数据转化为能通过内容安全审核的唯美画面：规避所有性化、暴力、禁忌题材词汇，把成人/限制级内容抽象为不含具象行为、不含具名人物的氛围画面。只描述画面本身，不要出现任何文字/标题描述。'
-    : '你是为 AI 图像生成模型撰写英文画面描述的专家，擅长把小说元数据转化为有视觉冲击力的画面描述。只描述人物、场景与氛围，不要出现任何文字/标题描述。'
+    ? '你是为 AI 图像生成模型撰写英文封面画面描述的专家。结合题材视觉模板把小说元数据转化为能通过内容安全审核的唯美画面：规避所有性化、暴力、禁忌题材词汇，把成人/限制级内容抽象为不含具象行为、不含具名人物的氛围画面。只描述画面本身（人物+背景），不要出现任何文字/标题描述。'
+    : '你是为 AI 图像生成模型撰写英文封面画面描述的专家，擅长把小说元数据转化为有视觉冲击力的画面描述（人物+背景）。只描述画面本身，不要出现任何文字/标题描述。'
 
   const res = await chat({
     messages: [
@@ -190,9 +198,7 @@ async function generateSceneDescription(args: {
     maxTokens: 10000,
     timeoutMs: 60_000,
   })
-  const scene =
-    res.text.replace(/^["'“”「」]+|["'“”「」]+$/g, '').trim() ||
-    [catHint ? `${catHint} theme` : 'novel theme', 'detailed atmospheric scene'].filter(Boolean).join(', ')
+  const scene = res.text.replace(/^["'“”「」]+|["'“”「」]+$/g, '').trim() || `${style.figure} ${style.background}`
   return {
     scene,
     textUsage: {

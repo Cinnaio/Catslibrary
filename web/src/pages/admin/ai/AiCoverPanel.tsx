@@ -48,8 +48,8 @@ export default function AiCoverPanel() {
   const [coverVersion, setCoverVersion] = useState(0)
   /** 安全归一化开关：默认开，把限制级内容抽象为唯美画面，规避上游图像安全策略 */
   const [safe, setSafe] = useState(true)
-  /** 渲染书名+作者名文字层：默认关（模型需支持中文渲染，如 gpt-image-2） */
-  const [renderTitle, setRenderTitle] = useState(false)
+  /** 渲染书名+作者名文字层：默认开（story-cover 认为这是封面必需信息；模型需支持中文渲染，如 gpt-image-2） */
+  const [renderTitle, setRenderTitle] = useState(true)
   /** 平台风格调性：默认通用竖版 */
   const [platform, setPlatform] = useState('default')
   const [prompt, setPrompt] = useState('')
@@ -279,7 +279,7 @@ export default function AiCoverPanel() {
               <span>
                 <span className="font-medium text-foreground">渲染封面文字</span>
                 <span className="mt-0.5 block text-xs text-muted-foreground">
-                  在封面上直接渲染书名+作者名（按题材套用字体风格）。需图像模型支持中文渲染（如 gpt-image-2），否则可能出现乱码。
+                  在封面上直接渲染书名+作者名（按题材套用字体风格），默认开启。需图像模型支持中文渲染（如 gpt-image-2），渲染不佳时可关闭。
                 </span>
               </span>
             </label>
