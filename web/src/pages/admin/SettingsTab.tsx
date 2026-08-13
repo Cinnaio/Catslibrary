@@ -19,6 +19,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import AdminPage from '@/components/admin/AdminPage'
+import { usePersistentState } from '@/hooks/usePersistentState'
 
 interface AdminUser {
   id: string
@@ -96,7 +97,10 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
   const debouncedLoginAuditUsername = useDebouncedValue(loginAuditUsername, 400)
   const [loginAuditOffset, setLoginAuditOffset] = useState(0)
   const [loginAuditLoading, setLoginAuditLoading] = useState(false)
-  const [accountTab, setAccountTab] = useState('overview')
+  // 子标签持久化：刷新后停留在上次选的子页（概览/用户管理/注册与邀请码/登录审计）
+  const [accountTab, setAccountTab] = usePersistentState<string>('settings_active_tab', 'overview', (v) =>
+    ['overview', 'users', 'registration', 'audit'].includes(v),
+  )
 
   const load = useCallback(async () => {
     setLoading(true)

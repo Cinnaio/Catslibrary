@@ -8,6 +8,7 @@ import { useToast } from '../../components/feedback'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import AdminPage from '@/components/admin/AdminPage'
 import type { Provider } from './ai/shared'
+import { usePersistentState } from '@/hooks/usePersistentState'
 import AiConfigPanel from './ai/AiConfigPanel'
 import AiGenerationsPanel from './ai/AiGenerationsPanel'
 import AiTasksPanel from './ai/AiTasksPanel'
@@ -26,7 +27,10 @@ export default function AiTab() {
   const [provider, setProvider] = useState<Provider | null>(null)
   const [providerConfig, setProviderConfig] = useState<AiProviderConfig | null>(null)
   const [loading, setLoading] = useState(true)
-  const [activeSubTab, setActiveSubTab] = useState('config')
+  /** 子标签持久化：刷新后停留在上次选中的子页（配置/封面生成/创作…），不重置回默认 */
+  const [activeSubTab, setActiveSubTab] = usePersistentState<string>('ai_active_subtab', 'config', (v) =>
+    ['tasks', 'config', 'content', 'usage', 'audit', 'params', 'writing', 'cover'].includes(v),
+  )
   /** 从任务面板 / 创作页跳到「已生成内容」时要展开的批次 */
   const [focusBatchId, setFocusBatchId] = useState('')
 
