@@ -38,5 +38,6 @@ export function kindLabel(kind: string): string {
       : kind === 'write_outline' ? '创作大纲'
         : kind === 'write_chapter' ? '创作章节'
           : kind === 'continue' ? '续写'
-            : kind
+            : kind === 'cover' ? '封面'
+              : kind
 }

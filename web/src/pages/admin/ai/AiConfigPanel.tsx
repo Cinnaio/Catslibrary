@@ -30,6 +30,9 @@ export default function AiConfigPanel(props: {
   // 供应商配置编辑草稿：与 props.providerConfig 同步，单独保存
   const [providerDraft, setProviderDraft] = useState({ baseUrl: '', apiKey: '', model: '' })
   const [savingProvider, setSavingProvider] = useState(false)
+  // 图像供应商编辑草稿（封面生成用）
+  const [imageProviderDraft, setImageProviderDraft] = useState({ baseUrl: '', apiKey: '', model: '' })
+  const [savingImageProvider, setSavingImageProvider] = useState(false)
 
   useEffect(() => {
     setDailyQuotaDraft(props.settings?.dailyQuota !== undefined ? String(props.settings.dailyQuota) : '')
@@ -44,6 +47,26 @@ export default function AiConfigPanel(props: {
       model: props.providerConfig?.model || '',
     })
   }, [props.providerConfig])
+
+  // 图像供应商草稿：从 settings 接口回显（AiTab 需把 imageProvider/imageProviderConfig 透传下来，
+  // 当前 AiConfigPanel 只接收文本三件套，这里改用一次 aiApi.settings 兜底取图像三件套，避免改父组件签名过多）
+  const [imageProviderConfig, setImageProviderConfig] = useState<AiProviderConfig | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    void aiApi.settings().then((res) => {
+      if (cancelled) return
+      setImageProviderConfig(res.imageProviderConfig)
+    }).catch(() => {})
+    return () => { cancelled = true }
+  }, [props.providerConfig])
+
+  useEffect(() => {
+    setImageProviderDraft({
+      baseUrl: imageProviderConfig?.baseUrl || '',
+      apiKey: imageProviderConfig?.hasApiKey ? '••••••••' : '',
+      model: imageProviderConfig?.model || '',
+    })
+  }, [imageProviderConfig])
 
   useEffect(() => {
     async function loadUsage() {
@@ -91,6 +114,28 @@ export default function AiConfigPanel(props: {
       toast((err as Error).message || '保存供应商配置失败', 'error')
     } finally {
       setSavingProvider(false)
+    }
+  }
+
+  /** 保存图像供应商配置：密钥占位符视为「不改动」，传 undefined 给后端；scope=image 走图像三件套。 */
+  async function saveImageProvider() {
+    setSavingImageProvider(true)
+    try {
+      const apiKeyTouched = imageProviderDraft.apiKey !== '••••••••'
+      await aiApi.saveProviderConfig({
+        baseUrl: imageProviderDraft.baseUrl.trim(),
+        model: imageProviderDraft.model.trim(),
+        scope: 'image',
+        ...(apiKeyTouched ? { apiKey: imageProviderDraft.apiKey.trim() } : {}),
+      })
+      toast('已保存图像供应商配置', 'success')
+      // 重新拉取图像三件套回显
+      const res = await aiApi.settings()
+      setImageProviderConfig(res.imageProviderConfig)
+    } catch (err) {
+      toast((err as Error).message || '保存图像供应商配置失败', 'error')
+    } finally {
+      setSavingImageProvider(false)
     }
   }
 
@@ -188,6 +233,72 @@ export default function AiConfigPanel(props: {
               </Button>
               <span className="text-xs text-muted-foreground">
                 真实环境变量 / .env 设定的值优先，后台修改不覆盖显式设定
+              </span>
+            </div>
+          </div>
+
+          {/* 图像供应商连接参数：用于 AI 封面生成，与文本三件套对称 */}
+          <div className="grid gap-3 rounded-xl border border-border bg-card p-3.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="grid gap-0.5">
+                <span className="text-sm font-medium text-foreground">图像供应商</span>
+                <span className="text-xs text-muted-foreground">
+                  {imageProviderConfig?.hasApiKey
+                    ? `已配置 · ${imageProviderConfig.model || '默认模型'}`
+                    : '未配置，AI 封面生成不可用'}
+                </span>
+              </div>
+              <Badge className={imageProviderConfig?.hasApiKey ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}>
+                {imageProviderConfig?.hasApiKey ? '已配置' : '未配置'}
+              </Badge>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-1.5">
+                <Label htmlFor="ai-image-base-url">图像 Base URL</Label>
+                <Input
+                  id="ai-image-base-url"
+                  placeholder="https://api.example.com/v1"
+                  value={imageProviderDraft.baseUrl}
+                  disabled={savingImageProvider}
+                  onChange={(e) => setImageProviderDraft((p) => ({ ...p, baseUrl: e.target.value }))}
+                />
+                <p className="text-xs text-muted-foreground">OpenAI 兼容 /images/generations 端点</p>
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="ai-image-model">图像模型</Label>
+                <Input
+                  id="ai-image-model"
+                  placeholder="mimo-v2.5"
+                  value={imageProviderDraft.model}
+                  disabled={savingImageProvider}
+                  onChange={(e) => setImageProviderDraft((p) => ({ ...p, model: e.target.value }))}
+                />
+                <p className="text-xs text-muted-foreground">填入上游支持的图像模型名</p>
+              </div>
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="ai-image-api-key">图像 API Key</Label>
+              <Input
+                id="ai-image-api-key"
+                type="password"
+                autoComplete="off"
+                placeholder={imageProviderConfig?.hasApiKey ? '已设定，留空表示不改动' : '输入密钥后保存'}
+                value={imageProviderDraft.apiKey}
+                disabled={savingImageProvider}
+                onChange={(e) => setImageProviderDraft((p) => ({ ...p, apiKey: e.target.value }))}
+                onFocus={(e) => {
+                  if (imageProviderDraft.apiKey === '••••••••') setImageProviderDraft((p) => ({ ...p, apiKey: '' }))
+                  e.target.select()
+                }}
+              />
+              <p className="text-xs text-muted-foreground">用于 AI 封面生成；留空不改动，清空填空格保存</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button size="sm" disabled={savingImageProvider} onClick={() => void saveImageProvider()}>
+                {savingImageProvider ? '保存中…' : '保存图像供应商配置'}
+              </Button>
+              <span className="text-xs text-muted-foreground">
+                与文本供应商优先级一致：环境变量显式设定值不被覆盖
               </span>
             </div>
           </div>

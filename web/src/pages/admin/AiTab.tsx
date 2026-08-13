@@ -15,6 +15,7 @@ import AiUsagePanel from './ai/AiUsagePanel'
 import AiAuditPanel from './ai/AiAuditPanel'
 import AiParamsPanel from './ai/AiParamsPanel'
 import AiWritingPanel from './ai/AiWritingPanel'
+import AiCoverPanel from './ai/AiCoverPanel'
 
 // 兼容旧的导入路径（其它页面若直接引用面板，从 ./ai/* 走新路径）
 export { AiWritingPanel, AiGenerationsPanel, AiParamsPanel }
@@ -63,6 +64,7 @@ export default function AiTab() {
           <TabsTrigger value="audit">调用审计</TabsTrigger>
           <TabsTrigger value="params">参数调优</TabsTrigger>
           <TabsTrigger value="writing">AI 创作</TabsTrigger>
+          <TabsTrigger value="cover">封面生成</TabsTrigger>
         </TabsList>
 
         <TabsContent value="config" className="min-w-0">
@@ -91,6 +93,10 @@ export default function AiTab() {
 
         <TabsContent value="writing" className="min-w-0">
           <AiWritingPanel onViewBatch={openGenerations} />
+        </TabsContent>
+
+        <TabsContent value="cover" className="min-w-0">
+          <AiCoverPanel />
         </TabsContent>
       </Tabs>
     </AdminPage>

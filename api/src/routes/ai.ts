@@ -7,6 +7,8 @@ import { Hono, type Context } from 'hono'
 import { getDb } from '../db/pool'
 import { all, first, withTx } from '../db/query'
 import { AiError, chat, isTextAiConfigured, providerLabel, textProvider } from '../services/ai/client'
+import { isImageAiConfigured, imageProvider, imageProviderLabel } from '../services/ai/image'
+import { generateNovelCover } from '../services/ai/cover'
 import { getAiSettings, saveAiSettings } from '../services/ai/settings'
 import { readRuntimeConfig, writeRuntimeConfig, syncRuntimeConfigToEnv, type RuntimeConfigKey } from '../runtime-config'
 import { generateRecap, getCachedRecap, loadChapterForRecap } from '../services/ai/summary'
@@ -49,6 +51,7 @@ aiRoutes.get('/status', optionalUser(), async (c) => {
       // 未登录用户不给 AI 能力：调用要记账到具体用户头上
       features: { recap: configured && settings.recapEnabled && !!user, catchup: configured && settings.catchupEnabled && !!user },
       model: configured ? textProvider().model : '',
+      imageConfigured: isImageAiConfigured(),
       quota,
       // 「回来接着读」的过期天数：前端据此决定入口是否渲染，与后端判定同源
       catchupStaleDays: settings.catchupStaleDays,
@@ -173,6 +176,7 @@ aiRoutes.post('/catchup', requireUser(), async (c) => {
 aiRoutes.get('/settings', requireAdmin(), async (c) => {
   const settings = await getAiSettings(getDb())
   const provider = textProvider()
+  const imgProvider = imageProvider()
   const stored = readRuntimeConfig()
   // 供应商密钥可编辑字段：回显运行时层落盘的值（密钥脱敏，只告诉前端是否已设）。
   // 当值来自真实环境变量（未落在运行时文件）时，字段为空但 hasKey=true，前端据此显示「由环境变量设定」。
@@ -180,11 +184,18 @@ aiRoutes.get('/settings', requireAdmin(), async (c) => {
     {
       settings,
       provider: { configured: isTextAiConfigured(), host: providerLabel(provider.baseUrl), model: provider.model, hasKey: !!provider.apiKey },
-      // 供应商可编辑配置：baseUrl/model 回显落盘值供编辑；apiKey 仅回显是否已存，不回传明文
+      // 文本供应商可编辑配置：baseUrl/model 回显落盘值供编辑；apiKey 仅回显是否已存，不回传明文
       providerConfig: {
         baseUrl: stored.AI_TEXT_BASE_URL || '',
         model: stored.AI_TEXT_MODEL || '',
         hasApiKey: !!stored.AI_TEXT_API_KEY,
+      },
+      // 图像供应商：与文本对称，供后台「封面生成」与配置面板使用
+      imageProvider: { configured: isImageAiConfigured(), host: imageProviderLabel(imgProvider.baseUrl), model: imgProvider.model, hasKey: !!imgProvider.apiKey },
+      imageProviderConfig: {
+        baseUrl: stored.AI_IMAGE_BASE_URL || '',
+        model: stored.AI_IMAGE_MODEL || '',
+        hasApiKey: !!stored.AI_IMAGE_API_KEY,
       },
     },
     200,
@@ -198,11 +209,21 @@ aiRoutes.put('/settings', requireAdmin(), async (c) => {
   return c.json({ settings })
 })
 
-/** 供应商可编辑键白名单：仅 AI 文本模型三件套，密钥走运行时层落盘。 */
-const PROVIDER_KEYS: RuntimeConfigKey[] = ['AI_TEXT_BASE_URL', 'AI_TEXT_API_KEY', 'AI_TEXT_MODEL']
+/** 供应商可编辑键白名单：文本 + 图像两套模型三件套，密钥走运行时层落盘。 */
+const PROVIDER_KEYS: RuntimeConfigKey[] = [
+  'AI_TEXT_BASE_URL',
+  'AI_TEXT_API_KEY',
+  'AI_TEXT_MODEL',
+  'AI_IMAGE_BASE_URL',
+  'AI_IMAGE_API_KEY',
+  'AI_IMAGE_MODEL',
+]
+const PROVIDER_KEY_SET = new Set<string>(PROVIDER_KEYS)
 
 /**
  * 修改 AI 供应商配置（baseUrl / apiKey / model）。
+ * body.scope 区分 'text'（默认）与 'image'，决定改动落到文本三件套还是图像三件套；
+ * 未传 scope 时按文本处理（兼容历史调用）。
  * - 空字符串表示清空该键；
  * - apiKey 为空字符串时不改动（保留原值），传 ' ' 之类才视为清空——
  *   前端密钥框默认空，避免「打开页面就清空了已存密钥」。
@@ -214,12 +235,20 @@ aiRoutes.put('/provider', requireAdmin(), async (c) => {
     baseUrl?: unknown
     apiKey?: unknown
     model?: unknown
+    scope?: unknown
   }
+  const scope = body.scope === 'image' ? 'image' : 'text'
+  const prefix = scope === 'image' ? 'AI_IMAGE_' : 'AI_TEXT_'
   const patch: Partial<Record<RuntimeConfigKey, string>> = {}
-  if ('baseUrl' in body) patch.AI_TEXT_BASE_URL = String(body.baseUrl ?? '').trim()
-  if ('model' in body) patch.AI_TEXT_MODEL = String(body.model ?? '').trim()
+  // 拼出键名后用白名单集合校验，确保 scope 之外的键不会被注入
+  const pushKey = (suffix: 'BASE_URL' | 'API_KEY' | 'MODEL', value: string) => {
+    const key = `${prefix}${suffix}` as RuntimeConfigKey
+    if (PROVIDER_KEY_SET.has(key)) patch[key] = value
+  }
+  if ('baseUrl' in body) pushKey('BASE_URL', String(body.baseUrl ?? '').trim())
+  if ('model' in body) pushKey('MODEL', String(body.model ?? '').trim())
   // apiKey：明确传空字符串才清空；字段缺失（undefined）时不触碰
-  if (body.apiKey !== undefined) patch.AI_TEXT_API_KEY = String(body.apiKey ?? '').trim()
+  if (body.apiKey !== undefined) pushKey('API_KEY', String(body.apiKey ?? '').trim())
 
   // before 必须在 writeRuntimeConfig 之前快照，否则旧文件值已丢失，无法判定 env 是否「显式设定」
   const before = readRuntimeConfig()
@@ -227,6 +256,7 @@ aiRoutes.put('/provider', requireAdmin(), async (c) => {
   syncRuntimeConfigToEnv(before, patch)
 
   const provider = textProvider()
+  const imgProvider = imageProvider()
   const stored = readRuntimeConfig()
   return c.json(
     {
@@ -236,6 +266,12 @@ aiRoutes.put('/provider', requireAdmin(), async (c) => {
         baseUrl: stored.AI_TEXT_BASE_URL || '',
         model: stored.AI_TEXT_MODEL || '',
         hasApiKey: !!stored.AI_TEXT_API_KEY,
+      },
+      imageProvider: { configured: isImageAiConfigured(), host: imageProviderLabel(imgProvider.baseUrl), model: imgProvider.model, hasKey: !!imgProvider.apiKey },
+      imageProviderConfig: {
+        baseUrl: stored.AI_IMAGE_BASE_URL || '',
+        model: stored.AI_IMAGE_MODEL || '',
+        hasApiKey: !!stored.AI_IMAGE_API_KEY,
       },
     },
     200,
@@ -395,6 +431,35 @@ aiRoutes.post('/writing/outline', requireAdmin(), startWritingRoute('write_outli
 aiRoutes.post('/writing/chapter', requireAdmin(), startWritingRoute('write_chapter'))
 aiRoutes.post('/writing/continue', requireAdmin(), startWritingRoute('continue'))
 
+// ---------- 管理端 AI 封面生成：后台任务模式，结果落 novel_covers ----------
+
+/**
+ * 为小说生成封面：后台任务（与 writing 对称），立即返回 taskId。
+ * 生成结果直接落 novel_covers（覆盖式），公开页经 /api/cover/:id 自动生效；
+ * 任务记录在 ai_tasks（kind='cover'），可取消/重试；成本记账在 ai_usage。
+ */
+aiRoutes.post('/cover/generate', requireAdmin(), async (c) => {
+  const db = getDb()
+  const body = await c.req.json().catch(() => ({}))
+  const novelId = String(body.novelId || '').trim()
+  if (!novelId) return c.json({ error: 'novelId 必填' }, 400)
+  const novel = await first<{ title: string }>(db, 'SELECT title FROM novels WHERE id = $1', [novelId])
+  if (!novel) return c.json({ error: '小说不存在' }, 404)
+  if (!isImageAiConfigured()) return c.json({ error: 'AI 图像服务未配置（AI_IMAGE_BASE_URL / AI_IMAGE_API_KEY）', code: 'disabled' }, 503)
+  // safe 默认 true：规避上游图像安全策略，把限制级内容抽象为唯美画面；作者需忠实呈现时可显式传 false
+  const safe = body.safe === false ? false : true
+
+  const task = await createAiTask(db, { userId: c.get('user').id, novelId, kind: 'cover', total: 1, prompt: '生成封面', params: JSON.stringify({ novelId, safe }) })
+  void generateNovelCover(db, { userId: c.get('user').id, novelId, safe, taskId: task.id, ...(await auditRequestContext(c, db)) })
+    .then(() => updateAiTask(db, task.id, { status: 'completed', current: 1, step: '已完成' }))
+    .catch(async (err) => {
+      console.error('[ai] 封面生成后台任务失败', err)
+      const message = err instanceof AiError ? err.message : '封面生成失败'
+      await updateAiTask(db, task.id, { status: 'failed', error: message }).catch(() => {})
+    })
+  return c.json({ ok: true, taskId: task.id, batchId: '', total: 1 }, 202)
+})
+
 aiRoutes.post('/writing/titles', requireAdmin(), async (c) => {
   const db = getDb()
   const body = await c.req.json().catch(() => ({}))
@@ -540,7 +605,7 @@ aiRoutes.get('/usage', requireAdmin(), async (c) => {
 })
 
 const TASK_STATUSES = new Set(['queued', 'running', 'completed', 'failed', 'cancelled'])
-const RETRIABLE_TASK_KINDS = new Set(['continue', 'write_outline', 'write_chapter'])
+const RETRIABLE_TASK_KINDS = new Set(['continue', 'write_outline', 'write_chapter', 'cover'])
 
 aiRoutes.get('/tasks', requireAdmin(), async (c) => {
   const limit = Number.parseInt(c.req.query('limit') || '50', 10) || 50
@@ -583,7 +648,6 @@ aiRoutes.post('/tasks/:id/retry', requireAdmin(), async (c) => {
   if (!source) return c.json({ error: '任务不存在' }, 404)
   if (source.status !== 'failed' && source.status !== 'cancelled') return c.json({ error: '只有失败或已取消的任务可以重试' }, 409)
   if (!RETRIABLE_TASK_KINDS.has(source.kind)) return c.json({ error: '该任务类型不支持重试' }, 422)
-  if (!isTextAiConfigured()) return c.json({ error: 'AI 文本服务未配置', code: 'disabled' }, 503)
 
   let body: Record<string, any> | null = null
   try {
@@ -592,6 +656,27 @@ aiRoutes.post('/tasks/:id/retry', requireAdmin(), async (c) => {
     body = null
   }
   if (!body) return c.json({ error: '任务未记录原始参数（旧版本创建），无法重试' }, 422)
+
+  // 封面任务重试：按原参数（novelId + safe）走独立的封面生成路径
+  if (source.kind === 'cover') {
+    const novelId = String(body.novelId || '').trim()
+    if (!novelId) return c.json({ error: '任务未记录 novelId，无法重试' }, 422)
+    if (!isImageAiConfigured()) return c.json({ error: 'AI 图像服务未配置', code: 'disabled' }, 503)
+    // 沿用原任务的安全模式设置；旧任务无该字段时默认安全模式
+    const safe = body.safe === false ? false : true
+    const task = await createAiTask(db, { userId: c.get('user').id, novelId, kind: 'cover', total: 1, prompt: '生成封面', params: JSON.stringify({ novelId, safe }) })
+    const audit = await auditRequestContext(c, db)
+    void generateNovelCover(db, { userId: c.get('user').id, novelId, safe, taskId: task.id, ...audit })
+      .then(() => updateAiTask(db, task.id, { status: 'completed', current: 1, step: '已完成' }))
+      .catch(async (err) => {
+        console.error('[ai] 封面重试任务失败', err)
+        const message = err instanceof AiError ? err.message : '封面生成失败'
+        await updateAiTask(db, task.id, { status: 'failed', error: message }).catch(() => {})
+      })
+    return c.json({ ok: true, taskId: task.id, batchId: '', total: 1 }, 202)
+  }
+
+  if (!isTextAiConfigured()) return c.json({ error: 'AI 文本服务未配置', code: 'disabled' }, 503)
 
   // 断点恢复：continue 任务重试时，先取原批次已生成的草稿，从已完成处接续，避免全量重来
   const resume = source.kind === 'continue' && source.batchId ? await loadResumeDrafts(db, source.batchId) : undefined

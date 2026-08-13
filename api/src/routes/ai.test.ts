@@ -10,17 +10,27 @@ import { createTestDb, type TestDb } from '../test/db'
 
 let t: TestDb
 
-/** OpenAI 兼容响应桩：不发真实请求，同时记录调用次数以验证缓存是否生效。 */
-const fetchMock = vi.fn(async () =>
-  new Response(
+/** OpenAI 兼容响应桩：不发真实请求，同时记录调用次数以验证缓存是否生效。
+ * 按请求 URL 区分文本（/chat/completions）与图像（/images/generations）响应。 */
+const fetchMock = vi.fn(async (input: string | URL | Request) => {
+  const reqUrl = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as Request).url
+  if (reqUrl.includes('/images/generations')) {
+    // 1x1 PNG 的 base64，解码后是合法的 PNG 字节
+    const pngB64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+    return new Response(
+      JSON.stringify({ model: 'mimo-v2.5', data: [{ b64_json: pngB64 }], cost: '0.02' }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    )
+  }
+  return new Response(
     JSON.stringify({
       model: 'test-model',
       choices: [{ message: { content: '少年在雨夜捡到一柄断剑，被巡夜人盯上。' }, finish_reason: 'stop' }],
       usage: { prompt_tokens: 120, completion_tokens: 24 },
     }),
     { status: 200, headers: { 'Content-Type': 'application/json' } },
-  ),
-)
+  )
+})
 
 beforeAll(async () => {
   t = await createTestDb()
@@ -1144,6 +1154,97 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     )
     expect(rows[0]!.ip_address.length).toBe(100)
     expect(rows[0]!.user_agent.length).toBe(500)
+  })
+
+  // ---------- AI 封面生成 ----------
+
+  it('cover：图像服务未配置时 503', async () => {
+    const prevImageBase = process.env.AI_IMAGE_BASE_URL
+    const prevImageKey = process.env.AI_IMAGE_API_KEY
+    delete process.env.AI_IMAGE_BASE_URL
+    delete process.env.AI_IMAGE_API_KEY
+    try {
+      const novelId = await firstNovelId(t)
+      const res = await req('/api/ai/cover/generate', json('POST', { novelId }, adminToken))
+      expect(res.status).toBe(503)
+      const data = await jsonOf<{ code: string }>(res)
+      expect(data.code).toBe('disabled')
+    } finally {
+      process.env.AI_IMAGE_BASE_URL = prevImageBase
+      process.env.AI_IMAGE_API_KEY = prevImageKey
+    }
+  })
+
+  it('cover：小说不存在 404，缺 novelId 400，非管理员 403', async () => {
+    process.env.AI_IMAGE_BASE_URL = 'https://image.test/v1'
+    process.env.AI_IMAGE_API_KEY = 'img-key'
+    process.env.AI_IMAGE_MODEL = 'mimo-v2.5'
+    try {
+      expect((await req('/api/ai/cover/generate', json('POST', { novelId: 'nope' }, adminToken))).status).toBe(404)
+      expect((await req('/api/ai/cover/generate', json('POST', {}, adminToken))).status).toBe(400)
+      const novelId = await firstNovelId(t)
+      expect((await req('/api/ai/cover/generate', json('POST', { novelId }, readerToken))).status).toBe(403)
+    } finally {
+      delete process.env.AI_IMAGE_BASE_URL
+      delete process.env.AI_IMAGE_API_KEY
+      delete process.env.AI_IMAGE_MODEL
+    }
+  })
+
+  it('cover：生成后落 novel_covers、记 image_count 账、任务 completed', async () => {
+    process.env.AI_IMAGE_BASE_URL = 'https://image.test/v1'
+    process.env.AI_IMAGE_API_KEY = 'img-key'
+    process.env.AI_IMAGE_MODEL = 'mimo-v2.5'
+    // 文本服务已在 beforeAll 配置：buildImagePrompt 会调一次文本模型翻描述词。
+    // 前序用例可能用 mockImplementation 替换过全局 fetch，这里显式重置回「按 URL 区分文本/图像」的桩，避免泄漏。
+    const prevImpl = fetchMock.getMockImplementation()
+    fetchMock.mockImplementation(async (input: string | URL | Request) => {
+      const reqUrl = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      if (reqUrl.includes('/images/generations')) {
+        // 1x1 PNG 的 base64，解码后是合法的 PNG 字节
+        const pngB64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+        return new Response(
+          JSON.stringify({ model: 'mimo-v2.5', data: [{ b64_json: pngB64 }], cost: '0.02' }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        )
+      }
+      return new Response(
+        JSON.stringify({
+          model: 'test-model',
+          choices: [{ message: { content: 'A atmospheric novel cover illustration, fantasy, no text' }, finish_reason: 'stop' }],
+          usage: { prompt_tokens: 80, completion_tokens: 20 },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      )
+    })
+    try {
+      const novelId = await firstNovelId(t)
+      const res = await req('/api/ai/cover/generate', json('POST', { novelId }, adminToken))
+      expect(res.status).toBe(202)
+      const { taskId } = await jsonOf<{ taskId: string }>(res)
+      const task = await waitForTask(taskId, adminToken)
+      if (task.status !== 'completed') {
+        console.error('[cover test] task failed:', task.error)
+      }
+      expect(task.status).toBe('completed')
+
+      // 封面已落 novel_covers，source 标记为 ai
+      const cover = await t.db.query<{ source: string }>('SELECT source FROM novel_covers WHERE novel_id = $1', [novelId])
+      expect(cover.rows[0]?.source).toBe('ai')
+
+      // 用量账本：一条图像生成（image_count=1, generation_type='cover'）
+      const usage = await t.db.query<{ image_count: number; generation_type: string }>(
+        "SELECT image_count, generation_type FROM ai_usage WHERE generation_type IN ('cover','cover_prompt') ORDER BY created_at DESC LIMIT 2",
+      )
+      const coverRows = usage.rows.filter((r) => r.generation_type === 'cover')
+      expect(coverRows.length).toBe(1)
+      expect(coverRows[0]!.image_count).toBe(1)
+    } finally {
+      if (prevImpl) fetchMock.mockImplementation(prevImpl); else fetchMock.mockReset()
+      delete process.env.AI_IMAGE_BASE_URL
+      delete process.env.AI_IMAGE_API_KEY
+      delete process.env.AI_IMAGE_MODEL
+    }
   })
 })
 

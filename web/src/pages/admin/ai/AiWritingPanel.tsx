@@ -21,7 +21,7 @@ function taskStatusLabel(status: string): string {
 }
 
 function taskKindLabel(kind: string): string {
-  return kind === 'continue' ? '续写' : kind === 'write_outline' ? '大纲' : kind === 'write_chapter' ? '章节' : kind
+  return kind === 'continue' ? '续写' : kind === 'write_outline' ? '大纲' : kind === 'write_chapter' ? '章节' : kind === 'cover' ? '封面' : kind
 }
 
 export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string) => void } = {}) {

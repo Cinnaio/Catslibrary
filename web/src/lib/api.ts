@@ -734,7 +734,13 @@ export const aiApi = {
   }> {
     return request('POST', '/ai/catchup', { novelId }, true)
   },
-  settings(): Promise<{ settings: AiSettings; provider: { configured: boolean; host: string; model: string; hasKey: boolean }; providerConfig: AiProviderConfig }> {
+  settings(): Promise<{
+    settings: AiSettings
+    provider: { configured: boolean; host: string; model: string; hasKey: boolean }
+    providerConfig: AiProviderConfig
+    imageProvider: { configured: boolean; host: string; model: string; hasKey: boolean }
+    imageProviderConfig: AiProviderConfig
+  }> {
     return request('GET', '/ai/settings', null, true)
   },
   saveSettings(patch: Partial<AiSettings>): Promise<{ settings: AiSettings }> {
@@ -742,17 +748,25 @@ export const aiApi = {
   },
   /**
    * 修改 AI 供应商配置（baseUrl / apiKey / model）。
+   * scope='image' 改图像三件套，默认（或不传）改文本三件套。
    * apiKey 传 undefined 表示不改动原密钥；传空字符串表示清空。
    */
-  saveProviderConfig(patch: { baseUrl?: string; apiKey?: string; model?: string }): Promise<{
+  saveProviderConfig(patch: { baseUrl?: string; apiKey?: string; model?: string; scope?: 'text' | 'image' }): Promise<{
     ok: boolean
     provider: { configured: boolean; host: string; model: string; hasKey: boolean }
     providerConfig: AiProviderConfig
+    imageProvider: { configured: boolean; host: string; model: string; hasKey: boolean }
+    imageProviderConfig: AiProviderConfig
   }> {
     return request('PUT', '/ai/provider', patch, true)
   },
   test(): Promise<{ ok: boolean; model?: string; reply?: string; error?: string; code?: string; elapsedMs: number }> {
     return request('POST', '/ai/test', {}, true)
+  },
+  /** 为小说生成封面（后台任务模式），返回 taskId 供轮询；生成结果直接落 novel_covers。
+   *  safe 默认 true：启用安全归一化，规避上游图像安全策略。 */
+  generateCover(novelId: string, safe: boolean = true): Promise<{ ok: boolean; taskId: string; batchId: string; total: number }> {
+    return request('POST', '/ai/cover/generate', { novelId, safe }, true)
   },
   writing: {
     /** 创作类接口统一为后台任务模式：立即返回任务 id，用 aiApi.task 轮询进度，产物在「已生成内容」。 */
