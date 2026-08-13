@@ -29,6 +29,7 @@ import { generateContinuationChapters, generateWriting, generateWritingTitles, r
 import { checkQuota, recordUsage, startOfToday, summarizeUsage } from '../services/ai/usage'
 import { optionalUser, requireAdmin, requireUser, type AuthEnv } from '../middlewares/auth'
 import { cancelAiTask, countActiveWritingTasks, createAiTask, deleteAiTask, getAiTask, listAiTasks, updateAiTask } from '../services/ai/tasks'
+import { adoptCoverCandidate, deleteCoverCandidate, listCoverCandidates, storeCover, MAX_COVER_BYTES } from '../services/covers'
 import { clientIpFromContext } from '../services/ai/audit-context'
 
 export const aiRoutes = new Hono<AuthEnv>()
@@ -536,7 +537,7 @@ aiRoutes.post('/cover/generate', requireAdmin(), async (c) => {
     taskId: task.id,
     ...(await auditRequestContext(c, db)),
   })
-    .then(() => updateAiTask(db, task.id, { status: 'completed', current: 1, step: '已完成' }))
+    .then(() => updateAiTask(db, task.id, { status: 'completed', current: 1, step: '封面已生成，待采纳' }))
     .catch(async (err) => {
       console.error('[ai] 封面生成后台任务失败', err)
       const message = err instanceof AiError ? err.message : '封面生成失败'
@@ -560,6 +561,56 @@ aiRoutes.post('/cover/prompt', requireAdmin(), async (c) => {
   } catch (err) {
     return aiErrorResponse(c, err)
   }
+})
+
+// ---------- AI 封面候选管理：生成结果先落候选，采纳/弃用由管理员决定 ----------
+
+/** 列出一本小说的 AI 封面候选（含 dataUrl，前端 <img> 直接展示；不返回二进制经网络）。 */
+aiRoutes.get('/cover/candidates', requireAdmin(), async (c) => {
+  const db = getDb()
+  const novelId = String(c.req.query('novelId') || '').trim()
+  const items = novelId ? await listCoverCandidates(db, novelId) : []
+  return c.json({ items, total: items.length }, 200, { 'Cache-Control': 'no-store' })
+})
+
+/** 采纳候选：覆盖为当前封面并删除候选，读者端 /api/cover/:id 立即生效。 */
+aiRoutes.post('/cover/candidates/:id/adopt', requireAdmin(), async (c) => {
+  const db = getDb()
+  const id = String(c.req.param('id') || '').trim()
+  const ok = await adoptCoverCandidate(db, id)
+  if (!ok) return c.json({ error: '候选封面不存在或已被处理' }, 404)
+  return c.json({ ok: true }, 200, { 'Cache-Control': 'no-store' })
+})
+
+/** 弃用候选：删除，不触碰当前封面。 */
+aiRoutes.delete('/cover/candidates/:id', requireAdmin(), async (c) => {
+  const db = getDb()
+  const id = String(c.req.param('id') || '').trim()
+  const ok = await deleteCoverCandidate(db, id)
+  if (!ok) return c.json({ error: '候选封面不存在或已被处理' }, 404)
+  return c.json({ ok: true }, 200, { 'Cache-Control': 'no-store' })
+})
+
+/** 上传本地图片替换当前封面：直接覆盖 novel_covers（source='upload'），读者端立即生效。 */
+aiRoutes.post('/cover/upload', requireAdmin(), async (c) => {
+  const db = getDb()
+  const form = await c.req.formData().catch(() => null)
+  const file = form?.get('cover')
+  const novelId = String(form?.get('novelId') || '').trim()
+  if (!novelId) return c.json({ error: 'novelId 必填' }, 400)
+  const novel = await first<{ id: string }>(db, 'SELECT id FROM novels WHERE id = $1', [novelId])
+  if (!novel) return c.json({ error: '小说不存在' }, 404)
+  if (!file || typeof (file as File).arrayBuffer !== 'function') return c.json({ error: '请选择图片文件' }, 400)
+  const type = String((file as File).type || '')
+  if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(type)) {
+    return c.json({ error: '封面必须是 JPG/PNG/WebP/GIF' }, 400)
+  }
+  const data = Buffer.from(await (file as File).arrayBuffer())
+  if (!data.byteLength || data.byteLength > MAX_COVER_BYTES) {
+    return c.json({ error: `封面不能超过 ${Math.round(MAX_COVER_BYTES / 1024 / 1024)}MB` }, 400)
+  }
+  await storeCover(db, novelId, new Uint8Array(data), type, 'upload')
+  return c.json({ ok: true }, 200, { 'Cache-Control': 'no-store' })
 })
 
 aiRoutes.post('/writing/titles', requireAdmin(), async (c) => {
@@ -801,7 +852,7 @@ aiRoutes.post('/tasks/:id/retry', requireAdmin(), async (c) => {
     })
     const audit = await auditRequestContext(c, db)
     void generateNovelCover(db, { userId: c.get('user').id, novelId, safe, renderTitle, platform, prompt, taskId: task.id, ...audit })
-      .then(() => updateAiTask(db, task.id, { status: 'completed', current: 1, step: '已完成' }))
+      .then(() => updateAiTask(db, task.id, { status: 'completed', current: 1, step: '封面已生成，待采纳' }))
       .catch(async (err) => {
         console.error('[ai] 封面重试任务失败', err)
         const message = err instanceof AiError ? err.message : '封面生成失败'

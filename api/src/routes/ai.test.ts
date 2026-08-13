@@ -1236,7 +1236,7 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     }
   })
 
-  it('cover：生成后落 novel_covers、记 image_count 账、任务 completed', async () => {
+  it('cover：生成后落候选表（不覆盖当前封面）、记 image_count 账、任务 completed', async () => {
     process.env.AI_IMAGE_BASE_URL = 'https://image.test/v1'
     process.env.AI_IMAGE_API_KEY = 'img-key'
     process.env.AI_IMAGE_MODEL = 'mimo-v2.5'
@@ -1273,9 +1273,15 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
       }
       expect(task.status).toBe('completed')
 
-      // 封面已落 novel_covers，source 标记为 ai
+      // 生成结果进候选表，不覆盖当前封面
+      const candidates = await t.db.query<{ novel_id: string; task_id: string }>('SELECT novel_id, task_id FROM ai_cover_candidates WHERE novel_id = $1', [
+        novelId,
+      ])
+      expect(candidates.rows.length).toBe(1)
+      expect(candidates.rows[0]!.task_id).toBe(taskId)
+      // novel_covers 未被写入（当前封面保持不变）
       const cover = await t.db.query<{ source: string }>('SELECT source FROM novel_covers WHERE novel_id = $1', [novelId])
-      expect(cover.rows[0]?.source).toBe('ai')
+      expect(cover.rows.length).toBe(0)
 
       // 用量账本：一条图像生成（image_count=1, generation_type='cover'）
       const usage = await t.db.query<{ image_count: number; generation_type: string }>(
@@ -1382,8 +1388,93 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
       const res = await req('/api/ai/cover/generate', json('POST', { novelId, renderTitle: true }, adminToken))
       const { taskId } = await jsonOf<{ taskId: string }>(res)
       expect((await waitForTask(taskId, adminToken)).status).toBe('completed')
+      // 生成结果进候选表，当前封面保持不动
+      const candidates = await t.db.query<{ novel_id: string }>('SELECT novel_id FROM ai_cover_candidates WHERE novel_id = $1', [novelId])
+      expect(candidates.rows.length).toBe(1)
+      const cover = await t.db.query<{ source: string }>('SELECT source FROM novel_covers WHERE novel_id = $1', [novelId])
+      expect(cover.rows.length).toBe(0)
+    } finally {
+      if (prevImpl) fetchMock.mockImplementation(prevImpl)
+      else fetchMock.mockReset()
+      delete process.env.AI_IMAGE_BASE_URL
+      delete process.env.AI_IMAGE_API_KEY
+      delete process.env.AI_IMAGE_MODEL
+    }
+  })
+
+  it('cover：候选采纳覆盖当前封面、弃用不影响、上传直接替换', async () => {
+    process.env.AI_IMAGE_BASE_URL = 'https://image.test/v1'
+    process.env.AI_IMAGE_API_KEY = 'img-key'
+    process.env.AI_IMAGE_MODEL = 'gpt-image-2'
+    const prevImpl = fetchMock.getMockImplementation()
+    fetchMock.mockImplementation(async (input: string | URL | Request) => {
+      const reqUrl = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      if (reqUrl.includes('/images/generations')) {
+        const pngB64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+        return new Response(JSON.stringify({ model: 'gpt-image-2', data: [{ b64_json: pngB64 }] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      return new Response(
+        JSON.stringify({
+          model: 'test-model',
+          choices: [{ message: { content: 'a scene' }, finish_reason: 'stop' }],
+          usage: { prompt_tokens: 20, completion_tokens: 10 },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      )
+    })
+    try {
+      const novel = await req('/api/novels', json('POST', { title: '候选流程测试书', author: '某作者' }, adminToken))
+      const novelId = String((await jsonOf<{ novel: { id: string } }>(novel)).novel.id)
+
+      // 生成 → 候选落表
+      const res = await req('/api/ai/cover/generate', json('POST', { novelId }, adminToken))
+      const { taskId } = await jsonOf<{ taskId: string }>(res)
+      expect((await waitForTask(taskId, adminToken)).status).toBe('completed')
+
+      // 列表接口返回候选（含 dataUrl，可直接当 img src）
+      const listRes = await req(`/api/ai/cover/candidates?novelId=${encodeURIComponent(novelId)}`, json('GET', undefined, adminToken))
+      expect(listRes.status).toBe(200)
+      const { items } = await jsonOf<{ items: Array<{ id: string; dataUrl: string }> }>(listRes)
+      expect(items.length).toBe(1)
+      expect(items[0]!.dataUrl.startsWith('data:image/png;base64,')).toBe(true)
+
+      // 采纳 → 覆盖当前封面、候选清空
+      const adoptRes = await req(`/api/ai/cover/candidates/${items[0]!.id}/adopt`, json('POST', {}, adminToken))
+      expect(adoptRes.status).toBe(200)
       const cover = await t.db.query<{ source: string }>('SELECT source FROM novel_covers WHERE novel_id = $1', [novelId])
       expect(cover.rows[0]?.source).toBe('ai')
+      const left = await t.db.query('SELECT id FROM ai_cover_candidates WHERE novel_id = $1', [novelId])
+      expect(left.rows.length).toBe(0)
+
+      // 再生成一张 → 弃用 → 已采纳的当前封面不受影响
+      const res2 = await req('/api/ai/cover/generate', json('POST', { novelId }, adminToken))
+      const { taskId: taskId2 } = await jsonOf<{ taskId: string }>(res2)
+      expect((await waitForTask(taskId2, adminToken)).status).toBe('completed')
+      const list2 = await req(`/api/ai/cover/candidates?novelId=${encodeURIComponent(novelId)}`, json('GET', undefined, adminToken))
+      const { items: items2 } = await jsonOf<{ items: Array<{ id: string }> }>(list2)
+      const discardRes = await req(`/api/ai/cover/candidates/${items2[0]!.id}`, json('DELETE', undefined, adminToken))
+      expect(discardRes.status).toBe(200)
+      const left2 = await t.db.query('SELECT id FROM ai_cover_candidates WHERE novel_id = $1', [novelId])
+      expect(left2.rows.length).toBe(0)
+      const cover2 = await t.db.query<{ source: string }>('SELECT source FROM novel_covers WHERE novel_id = $1', [novelId])
+      expect(cover2.rows[0]?.source).toBe('ai')
+
+      // 上传本地图片直接替换当前封面（source='upload'）
+      const pngB64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+      const form = new FormData()
+      form.append('cover', new Blob([Buffer.from(pngB64, 'base64')], { type: 'image/png' }), 'cover.png')
+      form.append('novelId', novelId)
+      const uploadRes = await req('/api/ai/cover/upload', {
+        method: 'POST',
+        body: form,
+        headers: { Authorization: `Bearer ${adminToken}` },
+      })
+      expect(uploadRes.status).toBe(200)
+      const cover3 = await t.db.query<{ source: string }>('SELECT source FROM novel_covers WHERE novel_id = $1', [novelId])
+      expect(cover3.rows[0]?.source).toBe('upload')
     } finally {
       if (prevImpl) fetchMock.mockImplementation(prevImpl)
       else fetchMock.mockReset()

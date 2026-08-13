@@ -723,6 +723,18 @@ export interface AiTaskInfo {
   finishedAt: number
 }
 
+/** AI 封面候选：生成结果先落候选，采纳后才覆盖当前封面。 */
+export interface AiCoverCandidate {
+  id: string
+  novelId: string
+  contentType: string
+  prompt: string
+  taskId: string
+  createdAt: number
+  /** 图片 data URL，可直接作 <img> src */
+  dataUrl: string
+}
+
 export interface AiProviderConfig {
   baseUrl: string
   model: string
@@ -796,6 +808,29 @@ export const aiApi = {
   },
   generateCoverPrompt(novelId: string, opts: { safe?: boolean; renderTitle?: boolean; platform?: string } = {}): Promise<{ prompt: string }> {
     return request('POST', '/ai/cover/prompt', { novelId, safe: opts.safe ?? true, renderTitle: opts.renderTitle, platform: opts.platform }, true)
+  },
+  /** AI 封面候选列表（含 dataUrl，供 <img> 直接展示）。 */
+  coverCandidates(novelId: string): Promise<{ items: AiCoverCandidate[]; total: number }> {
+    return request('GET', `/ai/cover/candidates?novelId=${encodeURIComponent(novelId)}`, null, true)
+  },
+  /** 采纳候选：覆盖为当前封面并删除候选。 */
+  adoptCoverCandidate(id: string): Promise<{ ok: boolean }> {
+    return request('POST', `/ai/cover/candidates/${encodeURIComponent(id)}/adopt`, {}, true)
+  },
+  /** 弃用候选：删除，不触碰当前封面。 */
+  discardCoverCandidate(id: string): Promise<{ ok: boolean }> {
+    return request('DELETE', `/ai/cover/candidates/${encodeURIComponent(id)}`, null, true)
+  },
+  /** 上传本地图片替换当前封面：直接覆盖 novel_covers，读者端立即生效。 */
+  uploadCover(novelId: string, file: File): Promise<{ ok: boolean }> {
+    const form = new FormData()
+    form.append('cover', file)
+    form.append('novelId', novelId)
+    return authFetch('/ai/cover/upload', { method: 'POST', body: form }).then(async (res) => {
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error((data as { error?: string }).error || `HTTP ${res.status}`)
+      return data
+    })
   },
   writing: {
     /** 创作类接口统一为后台任务模式：立即返回任务 id，用 aiApi.task 轮询进度，产物在「已生成内容」。 */

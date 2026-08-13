@@ -1,6 +1,7 @@
 /**
- * AI 小说封面生成 —— 读取小说元数据 → 文本模型翻英文描述词 → 图像模型出图 → 落 novel_covers。
- * 结果直接覆盖式落库（与现有「封面即最新」模型一致），公开页经 /api/cover/:id 自动生效。
+ * AI 小说封面生成 —— 读取小说元数据 → 文本模型翻英文描述词 → 图像模型出图 → 落候选表。
+ * 生成结果存 ai_cover_candidates（候选），不覆盖当前封面；管理员在后台预览后「采纳」才
+ * 经 adoptCoverCandidate 覆盖 novel_covers，公开页经 /api/cover/:id 生效。
  * 任务记录在 ai_tasks（kind='cover'），成本记账在 ai_usage（generation_type='cover', image_count=1），
  * 不进 ai_generations（该表是文本草稿+发布流转专用，result 是 TEXT 装不下二进制）。
  */
@@ -11,7 +12,7 @@ import { generateImage, isImageAiConfigured, imageProvider, imageProviderLabel }
 import { recordUsage } from './usage'
 import { getAiSettings } from './settings'
 import { createAiTask, isAiTaskCancelled, updateAiTask, getAiTask } from './tasks'
-import { storeCover, MAX_COVER_BYTES } from '../covers'
+import { storeCoverCandidate, MAX_COVER_BYTES } from '../covers'
 import { GENRE_STYLES, PLATFORM_STYLES, inferGenre, isCoverPlatform, type CoverPlatform } from './cover-styles'
 
 interface NovelMeta {
@@ -284,7 +285,14 @@ export async function generateNovelCover(
       throw new AiError('invalid', `生成的图片过大（${img.data.byteLength} 字节，上限 ${MAX_COVER_BYTES}）`)
     }
 
-    await storeCover(db, opts.novelId, img.data, img.contentType, 'ai')
+    // 生成结果不覆盖当前封面，先落候选：管理员后台预览后「采纳」才替换（旧封面永不丢）
+    await storeCoverCandidate(db, {
+      novelId: opts.novelId,
+      data: img.data,
+      contentType: img.contentType,
+      prompt,
+      taskId,
+    })
 
     // 记账：图像调用填 image_count；文本描述词调用（若发生）单独记一次文本用量，与图像分开审计
     if (textUsage) {
@@ -315,7 +323,7 @@ export async function generateNovelCover(
       userAgent: opts.userAgent,
     })
 
-    if (ownsTask) await updateAiTask(db, taskId, { status: 'completed', current: 1, step: '已完成' })
+    if (ownsTask) await updateAiTask(db, taskId, { status: 'completed', current: 1, step: '封面已生成，待采纳' })
     return { taskId }
   } catch (err) {
     if (ownsTask) {

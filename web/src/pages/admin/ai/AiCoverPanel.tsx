@@ -1,6 +1,6 @@
-/** AI 封面生成工作台：选小说 → 生成封面 → 轮询进度 → 预览结果。 */
-import { useEffect, useState } from 'react'
-import { aiApi, novelsApi, url, type AiTaskInfo } from '@/lib/api'
+/** AI 封面生成工作台：选小说 → 生成封面（落候选，不覆盖）→ 预览候选 → 采纳/弃用/上传替换。 */
+import { useEffect, useRef, useState } from 'react'
+import { aiApi, novelsApi, url, type AiCoverCandidate, type AiTaskInfo } from '@/lib/api'
 import { useToast } from '@/components/feedback'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -55,7 +55,30 @@ export default function AiCoverPanel() {
   const [prompt, setPrompt] = useState('')
   const [generatingPrompt, setGeneratingPrompt] = useState(false)
   const [imageConfigured, setImageConfigured] = useState(false)
+  /** 当前小说的 AI 封面候选（未采纳）；生成成功/采纳/弃用后刷新 */
+  const [candidates, setCandidates] = useState<AiCoverCandidate[]>([])
+  const [candidateBusy, setCandidateBusy] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  /** 候选请求序号：只让最后一次请求的结果生效，避免切书后过期响应覆盖新书候选 */
+  const candidateSeq = useRef(0)
+  /** 当前选中的小说（供后台任务完成时判断候选是否仍属于当前书） */
+  const novelIdRef = useRef(novelId)
+  useEffect(() => {
+    novelIdRef.current = novelId
+  }, [novelId])
   const taskActive = !!task && (task.status === 'queued' || task.status === 'running')
+
+  /** 拉取当前小说的候选列表。 */
+  async function loadCandidates(id: string) {
+    if (!id) return
+    const seq = ++candidateSeq.current
+    try {
+      const { items } = await aiApi.coverCandidates(id)
+      if (seq === candidateSeq.current) setCandidates(items)
+    } catch {
+      if (seq === candidateSeq.current) setCandidates([])
+    }
+  }
 
   useEffect(() => {
     void novelsApi
@@ -84,6 +107,7 @@ export default function AiCoverPanel() {
         if (running) {
           setTask((prev) => prev ?? running)
           setNovelId(running.novelId)
+          void loadCandidates(running.novelId)
         }
       })
       .catch(() => {})
@@ -105,8 +129,9 @@ export default function AiCoverPanel() {
         .then(({ task: next }) => {
           setTask(next)
           if (next.status === 'completed') {
-            toast('封面生成完成，已更新小说封面', 'success')
-            setCoverVersion((v) => v + 1)
+            toast('封面已生成，请在下方预览候选并决定是否采纳', 'success')
+            // 只在任务属于当前选中的小说时刷新候选，避免切书后被旧任务结果覆盖
+            if (next.novelId === novelIdRef.current) void loadCandidates(next.novelId)
           } else if (next.status === 'failed') {
             toast(next.error || '封面生成失败', 'error')
           }
@@ -158,6 +183,54 @@ export default function AiCoverPanel() {
     }
   }
 
+  /** 采纳候选：覆盖为当前封面，刷新候选与当前预览。 */
+  async function adopt(candidate: AiCoverCandidate) {
+    if (!novelId) return
+    setCandidateBusy(candidate.id)
+    try {
+      await aiApi.adoptCoverCandidate(candidate.id)
+      await loadCandidates(novelId)
+      setCoverVersion((v) => v + 1)
+      toast('已采纳，当前封面已替换', 'success')
+    } catch (err) {
+      toast((err as Error).message, 'error')
+    } finally {
+      setCandidateBusy('')
+    }
+  }
+
+  /** 弃用候选：删除，当前封面不受影响。 */
+  async function discard(candidate: AiCoverCandidate) {
+    if (!novelId) return
+    setCandidateBusy(candidate.id)
+    try {
+      await aiApi.discardCoverCandidate(candidate.id)
+      await loadCandidates(novelId)
+      toast('已弃用该候选封面', 'success')
+    } catch (err) {
+      toast((err as Error).message, 'error')
+    } finally {
+      setCandidateBusy('')
+    }
+  }
+
+  /** 上传本地图片替换当前封面。 */
+  async function handleUploadFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file || !novelId) return
+    setCandidateBusy('upload')
+    try {
+      await aiApi.uploadCover(novelId, file)
+      setCoverVersion((v) => v + 1)
+      toast('已上传并替换当前封面', 'success')
+    } catch (err) {
+      toast((err as Error).message, 'error')
+    } finally {
+      setCandidateBusy('')
+    }
+  }
+
   const selected = novels.find((n) => n.id === novelId)
   // /api/cover/:id 公开无鉴权（与 NovelCard 同源），img 直接拉，带 coverVersion 破缓存
   const previewSrc = novelId ? url(`/cover/${encodeURIComponent(novelId)}?v=${coverVersion}&cover=2`) : ''
@@ -167,7 +240,9 @@ export default function AiCoverPanel() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">AI 封面生成</CardTitle>
-          <p className="text-sm text-muted-foreground">根据小说标题、分类与简介生成封面，结果直接覆盖现有封面，读者端经 /api/cover/:id 自动生效。</p>
+          <p className="text-sm text-muted-foreground">
+            根据小说标题、分类与简介生成封面，结果先存为「候选」不覆盖当前封面；在下方预览效果，满意后点击采纳，不满意可弃用或重新生成。
+          </p>
         </CardHeader>
         <CardContent className="grid gap-4">
           <div className="grid gap-1.5">
@@ -178,6 +253,7 @@ export default function AiCoverPanel() {
               onChange={(value) => {
                 setNovelId(value)
                 setPrompt('')
+                void loadCandidates(value)
               }}
               placeholder="选择小说"
               searchable
@@ -278,19 +354,63 @@ export default function AiCoverPanel() {
           )}
 
           {novelId && (
-            <div className="grid gap-2">
-              <Label>当前封面预览</Label>
-              <div className="flex items-start gap-4">
-                <img
-                  key={coverVersion}
-                  src={previewSrc}
-                  alt={selected?.title || '封面预览'}
-                  className="h-40 w-28 rounded-md border border-border object-cover shadow-sm"
-                  onError={(e) => {
-                    e.currentTarget.style.visibility = 'hidden'
-                  }}
-                />
-                <p className="text-xs text-muted-foreground">生成完成后此预览自动刷新。封面数据存于 novel_covers，与读者端展示同源。</p>
+            <div className="grid gap-4">
+              {/* 当前封面 + 上传替换 */}
+              <div className="grid gap-2">
+                <div className="flex items-center justify-between gap-2">
+                  <Label>当前封面</Label>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    className="hidden"
+                    onChange={(e) => void handleUploadFile(e)}
+                  />
+                  <Button variant="outline" size="sm" disabled={candidateBusy === 'upload'} onClick={() => fileInputRef.current?.click()}>
+                    {candidateBusy === 'upload' ? '上传中…' : '上传替换封面'}
+                  </Button>
+                </div>
+                <div className="flex items-start gap-4">
+                  <img
+                    key={coverVersion}
+                    src={previewSrc}
+                    alt={selected?.title || '封面预览'}
+                    className="h-40 w-28 rounded-md border border-border object-cover shadow-sm"
+                    onError={(e) => {
+                      e.currentTarget.style.visibility = 'hidden'
+                    }}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    上传的图片会立即替换为当前封面，读者端经 /api/cover/:id 生效；AI 生成的新封面不会自动替换，需在下方的候选中点「采纳」。
+                  </p>
+                </div>
+              </div>
+
+              {/* AI 候选封面 */}
+              <div className="grid gap-2">
+                <Label>AI 候选封面（未采纳）</Label>
+                {candidates.length === 0 ? (
+                  <p className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
+                    暂无候选。生成成功后这里会出现新封面，确认效果后可「采纳」为当前封面，不满意可「弃用」或重新生成。
+                  </p>
+                ) : (
+                  <div className="flex flex-wrap gap-4">
+                    {candidates.map((candidate) => (
+                      <div key={candidate.id} className="grid gap-1.5">
+                        <img src={candidate.dataUrl} alt="AI 封面候选" className="h-40 w-28 rounded-md border border-border object-cover shadow-sm" />
+                        <div className="flex gap-2">
+                          <Button size="sm" disabled={!!candidateBusy} onClick={() => void adopt(candidate)}>
+                            采纳
+                          </Button>
+                          <Button size="sm" variant="outline" disabled={!!candidateBusy} onClick={() => void discard(candidate)}>
+                            弃用
+                          </Button>
+                        </div>
+                        {candidate.prompt && <p className="max-w-28 text-xs leading-tight text-muted-foreground line-clamp-2">{candidate.prompt}</p>}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}

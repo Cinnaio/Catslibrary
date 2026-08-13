@@ -3,15 +3,15 @@
  * 所有封面数据存 novel_covers 表，前端一律走 /api/cover/:id。
  */
 import type { Db } from '../db/pool'
-import { first } from '../db/query'
+import { first, run, withTx } from '../db/query'
+import { newId } from './auth'
 import { safeFetch } from './safe-fetch'
 
 export const DEFAULT_COVER_URL = 'https://wap.po18x.vip/17mb/style/noimg.jpg'
 export const MAX_COVER_BYTES = 5 * 1024 * 1024
 
 const FETCH_HEADERS = {
-  'User-Agent':
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
 }
 
 export interface ImageData {
@@ -39,13 +39,7 @@ export async function fetchImage(url: string): Promise<ImageData | null> {
   }
 }
 
-export async function storeCover(
-  db: Db,
-  novelId: string,
-  data: Uint8Array,
-  contentType: string,
-  source: string,
-): Promise<void> {
+export async function storeCover(db: Db, novelId: string, data: Uint8Array, contentType: string, source: string): Promise<void> {
   await db.query(
     `INSERT INTO novel_covers (novel_id, data, content_type, source, updated_at)
      VALUES ($1, $2, $3, $4, $5)
@@ -99,4 +93,81 @@ export async function cacheCoverForNovel(
 
   await storeCover(db, novelId, img.data, img.contentType, source)
   return { ok: true, source, contentType: img.contentType, bytes: img.data.byteLength, isDefault: source === 'default' }
+}
+
+// ---------- AI 封面候选：生成结果先存候选，采纳后才覆盖当前封面 ----------
+
+export interface CoverCandidate {
+  id: string
+  novelId: string
+  contentType: string
+  prompt: string
+  taskId: string
+  createdAt: number
+}
+
+/** 存一张 AI 封面候选，返回候选 id。不触碰当前封面（novel_covers）。 */
+export async function storeCoverCandidate(
+  db: Db,
+  opts: { novelId: string; data: Uint8Array; contentType: string; prompt?: string; taskId?: string },
+): Promise<string> {
+  const id = newId('cc')
+  await db.query(
+    `INSERT INTO ai_cover_candidates (id, novel_id, data, content_type, prompt, task_id, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    [id, opts.novelId, opts.data, opts.contentType || 'image/png', opts.prompt || '', opts.taskId || '', Date.now()],
+  )
+  return id
+}
+
+/** 列出一本小说的全部候选（新的在前），含 dataUrl 供前端 <img> 直接展示。 */
+export async function listCoverCandidates(db: Db, novelId: string): Promise<Array<CoverCandidate & { dataUrl: string }>> {
+  const rows = await db.query<{
+    id: string
+    novel_id: string
+    data: Buffer
+    content_type: string
+    prompt: string
+    task_id: string
+    created_at: number
+  }>('SELECT id, novel_id, data, content_type, prompt, task_id, created_at FROM ai_cover_candidates WHERE novel_id = $1 ORDER BY created_at DESC', [novelId])
+  return rows.rows.map((row) => ({
+    id: row.id,
+    novelId: row.novel_id,
+    contentType: row.content_type || 'image/png',
+    prompt: row.prompt,
+    taskId: row.task_id,
+    createdAt: row.created_at,
+    dataUrl: `data:${row.content_type || 'image/png'};base64,${Buffer.from(row.data).toString('base64')}`,
+  }))
+}
+
+/** 采纳候选：把候选写入当前封面（覆盖式）并删除候选。事务保证两步原子性。 */
+export async function adoptCoverCandidate(db: Db, id: string): Promise<boolean> {
+  return withTx(db, async (q) => {
+    const row = await q<{ id: string; novel_id: string; data: Buffer; content_type: string }>(
+      'SELECT id, novel_id, data, content_type FROM ai_cover_candidates WHERE id = $1',
+      [id],
+    )
+    if (!row.rows.length) return false
+    const c = row.rows[0]!
+    await q(
+      `INSERT INTO novel_covers (novel_id, data, content_type, source, updated_at)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (novel_id) DO UPDATE SET
+         data = EXCLUDED.data,
+         content_type = EXCLUDED.content_type,
+         source = EXCLUDED.source,
+         updated_at = EXCLUDED.updated_at`,
+      [c.novel_id, new Uint8Array(c.data), c.content_type || 'image/png', 'ai', Date.now()],
+    )
+    await q('DELETE FROM ai_cover_candidates WHERE id = $1', [id])
+    return true
+  })
+}
+
+/** 弃用候选：删除，不触碰当前封面。返回是否删除成功。 */
+export async function deleteCoverCandidate(db: Db, id: string): Promise<boolean> {
+  const rowCount = await run(db, 'DELETE FROM ai_cover_candidates WHERE id = $1', [id])
+  return rowCount > 0
 }
