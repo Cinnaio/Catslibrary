@@ -28,6 +28,7 @@ import { escapeLike } from '../services/text'
 import { generateContinuationChapters, generateWriting, generateWritingTitles, recentNovelContext } from '../services/ai/writing'
 import { extractStyleProfile, getStyleProfile } from '../services/ai/style-profile'
 import { extractPlotState, getPlotState } from '../services/ai/plot-state'
+import { extractRelationshipProfile, getRelationshipProfile } from '../services/ai/relationship-profile'
 import { checkQuota, recordUsage, startOfToday, summarizeUsage } from '../services/ai/usage'
 import { optionalUser, requireAdmin, requireUser, type AuthEnv } from '../middlewares/auth'
 import { cancelAiTask, countActiveWritingTasks, createAiTask, deleteAiTask, getAiTask, listAiTasks, updateAiTask } from '../services/ai/tasks'
@@ -706,6 +707,41 @@ aiRoutes.get('/writing/plot-state/:novelId', requireAdmin(), async (c) => {
     first<{ chapter_count: number }>(db, 'SELECT chapter_count FROM novels WHERE id = $1', [novelId]),
   ])
   return c.json({ state: plotState.state, chaptersThrough: plotState.chaptersThrough, chapterCount: Number(novel?.chapter_count) || 0 })
+})
+
+// ---------- 关系画像：从小说已发布章节提取角色关系动态/权力结构/心理边界，续写时拼进 system prompt ----------
+
+/**
+ * 提取/刷新某部小说的关系画像。取样最近 N 章（可配，默认 10）→ 文本模型结构化分析 → 落库。
+ * 防 skill 踩坑：主从写成平等恋人、奖赏手段当真心、从属试探写成主导。无章节时写空画像，不报错。
+ */
+aiRoutes.post('/writing/relationship-profile', requireAdmin(), async (c) => {
+  const db = getDb()
+  const body = await c.req.json().catch(() => ({}))
+  const novelId = String(body.novelId || '').trim()
+  if (!novelId) return c.json({ error: 'novelId 必填' }, 400)
+  const novel = await first<{ id: string }>(db, 'SELECT id FROM novels WHERE id = $1', [novelId])
+  if (!novel) return c.json({ error: '小说不存在' }, 404)
+  try {
+    const result = await extractRelationshipProfile(db, {
+      userId: c.get('user').id,
+      novelId,
+      ...(Number(body.sampleChapters) ? { sampleChapters: Number(body.sampleChapters) } : {}),
+      ...(await auditRequestContext(c, db)),
+    })
+    return c.json({ ok: true, ...result }, 200, { 'Cache-Control': 'no-store' })
+  } catch (err) {
+    return aiErrorResponse(c, err)
+  }
+})
+
+/** 读取某部小说已存的关系画像（管理端展示用，未提取过返回空串）。 */
+aiRoutes.get('/writing/relationship-profile/:novelId', requireAdmin(), async (c) => {
+  const db = getDb()
+  const novelId = String(c.req.param('novelId') || '').trim()
+  if (!novelId) return c.json({ error: 'novelId 必填' }, 400)
+  const profile = await getRelationshipProfile(db, novelId)
+  return c.json({ profile })
 })
 
 aiRoutes.put('/writing/drafts/:id', requireAdmin(), async (c) => {

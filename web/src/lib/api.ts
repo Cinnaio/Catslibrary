@@ -684,6 +684,7 @@ export interface AiSettings {
   writingSystemPrompt: string
   styleProfileMaxTokens: number
   plotStateMaxTokens: number
+  relationshipProfileMaxTokens: number
   titleMaxTokens: number
   maxConcurrentWritingTasks: number
   imageSize: string
@@ -862,6 +863,16 @@ export const aiApi = {
     /** 读取已存的情节状态（未提取过返回空串）与已发布章节数（用于判断是否过期）。 */
     getPlotState(novelId: string): Promise<{ state: string; chaptersThrough: number; chapterCount: number }> {
       return request('GET', `/ai/writing/plot-state/${encodeURIComponent(novelId)}`, null, true)
+    },
+    /** 提取/刷新某部小说的关系画像：取样最近 N 章正文 → 文本模型提炼角色关系动态/权力结构/心理边界 → 落库。 */
+    refreshRelationshipProfile(novelId: string, sampleChapters?: number): Promise<{ ok: boolean; profile: string; model: string; usage: { promptTokens: number; completionTokens: number } }> {
+      const data: Record<string, unknown> = { novelId }
+      if (sampleChapters) data.sampleChapters = sampleChapters
+      return request('POST', '/ai/writing/relationship-profile', data, true)
+    },
+    /** 读取已存的关系画像（未提取过返回空串）。 */
+    getRelationshipProfile(novelId: string): Promise<{ profile: string }> {
+      return request('GET', `/ai/writing/relationship-profile/${encodeURIComponent(novelId)}`, null, true)
     },
     titles(data: {
       content: string

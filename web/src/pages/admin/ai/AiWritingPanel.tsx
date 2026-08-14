@@ -63,6 +63,10 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
   const [plotChapterCount, setPlotChapterCount] = useState(0)
   const [plotBusy, setPlotBusy] = useState(false)
   const [plotSample, setPlotSample] = useState(8)
+  /** 选中小说的关系画像（已提取则展示，续写时自动注入 system prompt） */
+  const [relationshipProfile, setRelationshipProfile] = useState('')
+  const [relationshipBusy, setRelationshipBusy] = useState(false)
+  const [relationshipSample, setRelationshipSample] = useState(10)
   const taskActive = !!task && (task.status === 'queued' || task.status === 'running')
 
   useEffect(() => {
@@ -97,6 +101,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
       setPlotState('')
       setPlotChaptersThrough(0)
       setPlotChapterCount(0)
+      setRelationshipProfile('')
       return
     }
     let cancelled = false
@@ -126,6 +131,13 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
           setPlotChaptersThrough(res.chaptersThrough || 0)
           setPlotChapterCount(res.chapterCount || 0)
         }
+      })
+      .catch(() => {})
+    // 读已存的关系画像：有则展示，没有则空（续写时后端会兜底，不阻断）
+    aiApi.writing
+      .getRelationshipProfile(novelId)
+      .then((res) => {
+        if (!cancelled) setRelationshipProfile(res.profile || '')
       })
       .catch(() => {})
     return () => {
@@ -250,6 +262,20 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
     }
   }
 
+  async function refreshRelationshipProfile() {
+    if (!novelId) return toast('请选择小说', 'error')
+    setRelationshipBusy(true)
+    try {
+      const res = await aiApi.writing.refreshRelationshipProfile(novelId, relationshipSample)
+      setRelationshipProfile(res.profile)
+      toast('关系画像已更新，后续续写将自动套用', 'success')
+    } catch (err) {
+      toast((err as Error).message, 'error')
+    } finally {
+      setRelationshipBusy(false)
+    }
+  }
+
   async function cancelTask() {
     if (!task) return
     try {
@@ -369,6 +395,34 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
               </p>
             )}
           </div>
+          {mode === 'continue' && (
+            <div className="grid gap-1.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Label>关系画像</Label>
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs text-muted-foreground">取样章数</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={30}
+                    className="h-8 w-20"
+                    value={relationshipSample}
+                    onChange={(event) => setRelationshipSample(Math.max(1, Math.min(30, Number(event.target.value) || 10)))}
+                  />
+                  <Button variant="ghost" size="sm" disabled={busy || relationshipBusy || taskActive || !novelId} onClick={() => void refreshRelationshipProfile()}>
+                    {relationshipBusy ? '提取中…' : relationshipProfile ? '重新提取' : '提取关系画像'}
+                  </Button>
+                </div>
+              </div>
+              {relationshipProfile ? (
+                <pre className="max-h-[180px] overflow-auto whitespace-pre-wrap rounded-md border border-input bg-muted/30 px-3 py-2 text-xs leading-relaxed text-muted-foreground">{relationshipProfile}</pre>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  未提取。提取后把角色关系动态、权力结构、心理边界、互动尺度塞进续写，防止主从写成平等恋人、把奖赏手段当真心、从属试探写成主导。关系底色较稳定，建议取较长窗口看清演变。
+                </p>
+              )}
+            </div>
+          )}
           {mode === 'new' && (
             <div className="grid gap-1.5">
               <Label>大纲（生成章节时使用）</Label>

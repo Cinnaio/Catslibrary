@@ -183,7 +183,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
               <p className="text-xs text-muted-foreground">控制大纲、章节和续写的最大长度，最高 1,000,000 Token</p>
             </div>
           </div>
-          <div className="ai-form-grid grid gap-3 sm:grid-cols-3">
+          <div className="ai-form-grid grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div className="grid gap-1.5">
               <Label htmlFor="style-tokens">风格画像 Token</Label>
               <Input id="style-tokens" type="number" min={200} max={1000000} value={localSettings.styleProfileMaxTokens} disabled={props.loading || saving} onChange={(e) => setLocalSettings({ ...localSettings, styleProfileMaxTokens: Number(e.target.value) })} />
@@ -193,6 +193,11 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
               <Label htmlFor="plot-tokens">情节状态 Token</Label>
               <Input id="plot-tokens" type="number" min={300} max={1000000} value={localSettings.plotStateMaxTokens} disabled={props.loading || saving} onChange={(e) => setLocalSettings({ ...localSettings, plotStateMaxTokens: Number(e.target.value) })} />
               <p className="text-xs text-muted-foreground">情节状态提取的最大输出，结构化四块天然较长，推荐 3000</p>
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="relationship-tokens">关系画像 Token</Label>
+              <Input id="relationship-tokens" type="number" min={200} max={1000000} value={localSettings.relationshipProfileMaxTokens} disabled={props.loading || saving} onChange={(e) => setLocalSettings({ ...localSettings, relationshipProfileMaxTokens: Number(e.target.value) })} />
+              <p className="text-xs text-muted-foreground">关系画像提取的最大输出，角色关系动态/心理边界，推荐 1200</p>
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="title-tokens">章节标题 Token</Label>

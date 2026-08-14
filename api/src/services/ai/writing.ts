@@ -8,6 +8,7 @@ import { getAiSettings } from './settings'
 import { createAiTask, isAiTaskCancelled, updateAiTask } from './tasks'
 import { getStyleProfile } from './style-profile'
 import { getPlotState } from './plot-state'
+import { getRelationshipProfile } from './relationship-profile'
 
 const MAX_CONTEXT_CHARS = 12000
 
@@ -123,10 +124,16 @@ export async function generateWriting(db: Db, opts: {
   // 风格画像：把「保持风格一致」这句空话换成从原文提取的具体特征（句式/节奏/语气/设定）。
   // 未提取过则退回 settings 里的 system prompt 兜底——风格画像缺失不应阻断续写。
   const styleProfile = opts.kind === 'write_outline' ? '' : await getStyleProfile(db, opts.novelId)
+  // 关系画像：角色关系动态/权力结构/心理边界，稳定的关系底色，与风格画像同属长期创作纪律。
+  // 防 skill 踩坑：主从写成平等恋人、把奖赏手段当真心、从属试探写成主导。
+  const relationshipProfile = opts.kind === 'write_outline' ? '' : await getRelationshipProfile(db, opts.novelId)
   const baseSystem = opts.kind === 'write_outline'
     ? '你是中文网络小说策划编辑。请输出可执行的章节大纲，包含主线冲突、人物目标、关键转折和章节安排。只输出内容，不要解释。'
     : settings.writingSystemPrompt
-  const system = styleProfile ? `${baseSystem}\n\n本作风格特征（续写须严格遵循）：\n${styleProfile}` : baseSystem
+  const systemParts = [baseSystem]
+  if (styleProfile) systemParts.push(`本作风格特征（续写须严格遵循）：\n${styleProfile}`)
+  if (relationshipProfile) systemParts.push(`本作角色关系动态（续写须保持人设与权力结构一致，不得逾越关系边界）：\n${relationshipProfile}`)
+  const system = systemParts.join('\n\n')
   // 情节状态：结构化的角色处境/伏笔/待解决冲突。多章续写时上下文会截断丢前文，
   // 这里把提炼后的状态塞进 user 消息（时效性上下文，随剧情推进变，与 system 里的长期风格纪律区分）。
   // 大纲生成不需要情节状态；未提取过则跳过，不阻断续写。
