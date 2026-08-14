@@ -86,8 +86,7 @@ export default function Bookshelf() {
 
   useEffect(() => {
     if (!loading && !user) {
-      sessionStorage.setItem('auth_next', '/bookshelf')
-      navigate('/auth', { replace: true })
+      navigate('/auth', { replace: true, state: { from: '/bookshelf' } })
       return
     }
     if (user) {

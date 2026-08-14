@@ -122,7 +122,7 @@ export default function SiteHeader() {
                 )}
               </Link>
             ) : (
-              <Link to="/auth" className="nav-link nav-link--desktop" aria-label="登录">
+              <Link to="/auth" className="nav-link nav-link--desktop" aria-label="登录" state={{ from: location.pathname }}>
                 登录
               </Link>
             )}
@@ -224,7 +224,7 @@ export default function SiteHeader() {
                 </Link>
               ) : (
                 <div className="mobile-drawer__guest">
-                  <Link to="/auth" className="btn btn--primary mobile-drawer__login" onClick={closeMenu}>
+                  <Link to="/auth" className="btn btn--primary mobile-drawer__login" state={{ from: location.pathname }} onClick={closeMenu}>
                     登录 / 注册
                   </Link>
                   <p className="mobile-drawer__guest-hint">登录后同步阅读进度与书架</p>

@@ -31,9 +31,14 @@ export default function Auth() {
   const [busy, setBusy] = useState(false)
   useDocumentTitle(mode === 'login' ? '登录' : '注册')
 
+  /** 登录/注册成功后的回跳目标：优先来源页（谁带进 /auth 的 from），否则回首页。 */
   function next(): string {
-    const state = (location.state as { next?: string } | null)?.next
-    return state || sessionStorage.getItem('auth_next') || '/profile'
+    const from = (location.state as { from?: string } | null)?.from
+    if (from) return from
+    // 兼容旧入口（曾由 RequireAuth 写入 sessionStorage 的 auth_next）
+    const legacy = sessionStorage.getItem('auth_next')
+    if (legacy) return legacy
+    return '/'
   }
 
   function finish() {
@@ -41,9 +46,11 @@ export default function Auth() {
     navigate(next(), { replace: true })
   }
 
+  // 已登录访问 /auth：回到来源页，而不是固定甩到 /profile
+  const from = (location.state as { from?: string } | null)?.from
   useEffect(() => {
     if (getToken() && user) {
-      navigate('/profile', { replace: true })
+      navigate(from || '/', { replace: true })
       return
     }
     void authApi
@@ -57,7 +64,7 @@ export default function Auth() {
           navigate('/install', { replace: true })
         }
       })
-  }, [user, navigate])
+  }, [user, navigate, from])
 
   // 注册模式仅在切到注册 Tab 时需要，与 bootstrap 探测分离，避免切换 Tab 重复请求
   useEffect(() => {

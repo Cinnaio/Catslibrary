@@ -54,8 +54,7 @@ export default function Profile() {
 
   useEffect(() => {
     if (!loading && !user) {
-      sessionStorage.setItem('auth_next', '/profile')
-      navigate('/auth', { replace: true })
+      navigate('/auth', { replace: true, state: { from: '/profile' } })
       return
     }
     if (user) {

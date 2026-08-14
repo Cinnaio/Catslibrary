@@ -4,13 +4,14 @@
  * its children otherwise. Moved verbatim from the former Admin.tsx shell.
  */
 import type { ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { useSession } from '../../context/SessionContext'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 
 export default function AdminGate({ children }: { children: ReactNode }) {
   const { user, loading } = useSession()
+  const location = useLocation()
 
   if (loading) {
     return (
@@ -37,7 +38,7 @@ export default function AdminGate({ children }: { children: ReactNode }) {
             </div>
             <div className="flex w-full flex-col gap-2">
               <Button asChild>
-                <Link to="/auth">{user ? '切换账号' : '前往登录'}</Link>
+                <Link to="/auth" state={{ from: location.pathname }}>{user ? '切换账号' : '前往登录'}</Link>
               </Button>
               <Button asChild variant="ghost">
                 <Link to="/">← 返回首页</Link>
