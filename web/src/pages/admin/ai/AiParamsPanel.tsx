@@ -183,6 +183,23 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
               <p className="text-xs text-muted-foreground">控制大纲、章节和续写的最大长度，最高 1,000,000 Token</p>
             </div>
           </div>
+          <div className="ai-form-grid grid gap-3 sm:grid-cols-3">
+            <div className="grid gap-1.5">
+              <Label htmlFor="style-tokens">风格画像 Token</Label>
+              <Input id="style-tokens" type="number" min={200} max={1000000} value={localSettings.styleProfileMaxTokens} disabled={props.loading || saving} onChange={(e) => setLocalSettings({ ...localSettings, styleProfileMaxTokens: Number(e.target.value) })} />
+              <p className="text-xs text-muted-foreground">风格画像提取的最大输出，推理模型需留足思考余量，推荐 1500</p>
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="plot-tokens">情节状态 Token</Label>
+              <Input id="plot-tokens" type="number" min={300} max={1000000} value={localSettings.plotStateMaxTokens} disabled={props.loading || saving} onChange={(e) => setLocalSettings({ ...localSettings, plotStateMaxTokens: Number(e.target.value) })} />
+              <p className="text-xs text-muted-foreground">情节状态提取的最大输出，结构化四块天然较长，推荐 3000</p>
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="title-tokens">章节标题 Token</Label>
+              <Input id="title-tokens" type="number" min={50} max={2000} value={localSettings.titleMaxTokens} disabled={props.loading || saving} onChange={(e) => setLocalSettings({ ...localSettings, titleMaxTokens: Number(e.target.value) })} />
+              <p className="text-xs text-muted-foreground">章节标题生成的最大输出，推荐 200</p>
+            </div>
+          </div>
           <div className="grid gap-1.5">
             <Label htmlFor="writing-prompt">创作系统提示词</Label>
             <textarea id="writing-prompt" className="min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" value={localSettings.writingSystemPrompt} disabled={props.loading || saving} onChange={(e) => setLocalSettings({ ...localSettings, writingSystemPrompt: e.target.value })} />

@@ -26,6 +26,8 @@ import {
 } from '../services/ai/generations'
 import { escapeLike } from '../services/text'
 import { generateContinuationChapters, generateWriting, generateWritingTitles, recentNovelContext } from '../services/ai/writing'
+import { extractStyleProfile, getStyleProfile } from '../services/ai/style-profile'
+import { extractPlotState, getPlotState } from '../services/ai/plot-state'
 import { checkQuota, recordUsage, startOfToday, summarizeUsage } from '../services/ai/usage'
 import { optionalUser, requireAdmin, requireUser, type AuthEnv } from '../middlewares/auth'
 import { cancelAiTask, countActiveWritingTasks, createAiTask, deleteAiTask, getAiTask, listAiTasks, updateAiTask } from '../services/ai/tasks'
@@ -629,6 +631,81 @@ aiRoutes.post('/writing/titles', requireAdmin(), async (c) => {
   } catch (err) {
     return aiErrorResponse(c, err)
   }
+})
+
+// ---------- 风格画像：从小说已发布章节提取风格特征，续写时拼进 system prompt ----------
+
+/**
+ * 提取/刷新某部小说的风格画像。一次性成本（取样最近几章 → 文本模型分析 → 落库），
+ * 之后每次续写直接复用，不再烧钱。无章节时写兜底画像，不报错。
+ */
+aiRoutes.post('/writing/style-profile', requireAdmin(), async (c) => {
+  const db = getDb()
+  const body = await c.req.json().catch(() => ({}))
+  const novelId = String(body.novelId || '').trim()
+  if (!novelId) return c.json({ error: 'novelId 必填' }, 400)
+  const novel = await first<{ id: string }>(db, 'SELECT id FROM novels WHERE id = $1', [novelId])
+  if (!novel) return c.json({ error: '小说不存在' }, 404)
+  try {
+    const result = await extractStyleProfile(db, {
+      userId: c.get('user').id,
+      novelId,
+      ...(await auditRequestContext(c, db)),
+    })
+    return c.json({ ok: true, ...result }, 200, { 'Cache-Control': 'no-store' })
+  } catch (err) {
+    return aiErrorResponse(c, err)
+  }
+})
+
+/** 读取某部小说已存的风格画像（管理端展示用，未提取过返回空串）。 */
+aiRoutes.get('/writing/style-profile/:novelId', requireAdmin(), async (c) => {
+  const db = getDb()
+  const novelId = String(c.req.param('novelId') || '').trim()
+  if (!novelId) return c.json({ error: 'novelId 必填' }, 400)
+  const profile = await getStyleProfile(db, novelId)
+  return c.json({ profile })
+})
+
+// ---------- 情节状态：从小说已发布章节提取结构化角色处境/伏笔/冲突，续写时拼进 user 消息 ----------
+
+/**
+ * 提取/刷新某部小说的情节状态。取样最近 N 章（可配，默认 8）→ 文本模型结构化分析 → 落库。
+ * 多章续写时防止人设漂移、伏笔遗忘。无章节时写空状态，不报错。
+ */
+aiRoutes.post('/writing/plot-state', requireAdmin(), async (c) => {
+  const db = getDb()
+  const body = await c.req.json().catch(() => ({}))
+  const novelId = String(body.novelId || '').trim()
+  if (!novelId) return c.json({ error: 'novelId 必填' }, 400)
+  const novel = await first<{ id: string }>(db, 'SELECT id FROM novels WHERE id = $1', [novelId])
+  if (!novel) return c.json({ error: '小说不存在' }, 404)
+  try {
+    const result = await extractPlotState(db, {
+      userId: c.get('user').id,
+      novelId,
+      ...(Number(body.sampleChapters) ? { sampleChapters: Number(body.sampleChapters) } : {}),
+      ...(await auditRequestContext(c, db)),
+    })
+    return c.json({ ok: true, ...result }, 200, { 'Cache-Control': 'no-store' })
+  } catch (err) {
+    return aiErrorResponse(c, err)
+  }
+})
+
+/**
+ * 读取某部小说已存的情节状态（管理端展示用，未提取过返回空串）。
+ * 同时回传已发布章节数，前端据此判断状态是否落后于最新章节（过期提醒）。
+ */
+aiRoutes.get('/writing/plot-state/:novelId', requireAdmin(), async (c) => {
+  const db = getDb()
+  const novelId = String(c.req.param('novelId') || '').trim()
+  if (!novelId) return c.json({ error: 'novelId 必填' }, 400)
+  const [plotState, novel] = await Promise.all([
+    getPlotState(db, novelId),
+    first<{ chapter_count: number }>(db, 'SELECT chapter_count FROM novels WHERE id = $1', [novelId]),
+  ])
+  return c.json({ state: plotState.state, chaptersThrough: plotState.chaptersThrough, chapterCount: Number(novel?.chapter_count) || 0 })
 })
 
 aiRoutes.put('/writing/drafts/:id', requireAdmin(), async (c) => {

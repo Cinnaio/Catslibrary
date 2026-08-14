@@ -54,6 +54,15 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
   /** 续写起点：选中小说的章节列表（倒序）与选定的起点章节 id，空串表示从最新章节续写 */
   const [chapterOptions, setChapterOptions] = useState<Array<{ value: string; label: string }>>([])
   const [afterChapterId, setAfterChapterId] = useState('')
+  /** 选中小说的风格画像（已提取则展示，续写时自动注入 system prompt） */
+  const [styleProfile, setStyleProfile] = useState('')
+  const [styleBusy, setStyleBusy] = useState(false)
+  /** 选中小说的情节状态（已提取则展示，续写时自动注入 user 消息） */
+  const [plotState, setPlotState] = useState('')
+  const [plotChaptersThrough, setPlotChaptersThrough] = useState(0)
+  const [plotChapterCount, setPlotChapterCount] = useState(0)
+  const [plotBusy, setPlotBusy] = useState(false)
+  const [plotSample, setPlotSample] = useState(8)
   const taskActive = !!task && (task.status === 'queued' || task.status === 'running')
 
   useEffect(() => {
@@ -84,6 +93,10 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
     setAfterChapterId('')
     if (!novelId) {
       setChapterOptions([])
+      setStyleProfile('')
+      setPlotState('')
+      setPlotChaptersThrough(0)
+      setPlotChapterCount(0)
       return
     }
     let cancelled = false
@@ -97,6 +110,24 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
         setChapterOptions([{ value: '', label: '从最新章节续写（默认）' }, ...options])
       })
       .catch(() => setChapterOptions([]))
+    // 读已存的风格画像：有则展示，没有则空（续写时后端会兜底，不阻断）
+    aiApi.writing
+      .getStyleProfile(novelId)
+      .then((res) => {
+        if (!cancelled) setStyleProfile(res.profile || '')
+      })
+      .catch(() => {})
+    // 读已存的情节状态与已发布章节数：后者大于前者说明状态落后于最新章节（过期提醒）
+    aiApi.writing
+      .getPlotState(novelId)
+      .then((res) => {
+        if (!cancelled) {
+          setPlotState(res.state || '')
+          setPlotChaptersThrough(res.chaptersThrough || 0)
+          setPlotChapterCount(res.chapterCount || 0)
+        }
+      })
+      .catch(() => {})
     return () => {
       cancelled = true
     }
@@ -187,6 +218,36 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
       () => aiApi.writing.continue({ novelId, title: chapterTitle, instruction, targetWords, chapterCount, ...(afterChapterId ? { afterChapterId } : {}) }),
       '续写任务已开始，完成后草稿在“已生成内容”',
     )
+  }
+
+  async function refreshStyleProfile() {
+    if (!novelId) return toast('请选择小说', 'error')
+    setStyleBusy(true)
+    try {
+      const res = await aiApi.writing.refreshStyleProfile(novelId)
+      setStyleProfile(res.profile)
+      toast('风格画像已更新，后续续写将自动套用', 'success')
+    } catch (err) {
+      toast((err as Error).message, 'error')
+    } finally {
+      setStyleBusy(false)
+    }
+  }
+
+  async function refreshPlotState() {
+    if (!novelId) return toast('请选择小说', 'error')
+    setPlotBusy(true)
+    try {
+      const res = await aiApi.writing.refreshPlotState(novelId, plotSample)
+      setPlotState(res.state)
+      setPlotChaptersThrough(res.chaptersThrough)
+      // 章节数本地已加载过，直接用；接口返回的 chaptersThrough 已是最新取样数
+      toast('情节状态已更新，后续续写将自动套用', 'success')
+    } catch (err) {
+      toast((err as Error).message, 'error')
+    } finally {
+      setPlotBusy(false)
+    }
   }
 
   async function cancelTask() {
@@ -293,6 +354,21 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
               placeholder="人物、风格、冲突、节奏或本次剧情目标"
             />
           </div>
+          <div className="grid gap-1.5">
+            <div className="flex items-center justify-between">
+              <Label>风格画像</Label>
+              <Button variant="ghost" size="sm" disabled={busy || styleBusy || taskActive || !novelId} onClick={() => void refreshStyleProfile()}>
+                {styleBusy ? '提取中…' : styleProfile ? '重新提取' : '提取风格画像'}
+              </Button>
+            </div>
+            {styleProfile ? (
+              <pre className="max-h-[160px] overflow-auto whitespace-pre-wrap rounded-md border border-input bg-muted/30 px-3 py-2 text-xs leading-relaxed text-muted-foreground">{styleProfile}</pre>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                未提取。续写时会按通用的「保持风格一致」约束兜底；提取后则按本作原文的句式、节奏、语气、设定续写，文风一致性更好。建议在有 2 章以上正文后提取一次。
+              </p>
+            )}
+          </div>
           {mode === 'new' && (
             <div className="grid gap-1.5">
               <Label>大纲（生成章节时使用）</Label>
@@ -302,6 +378,39 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                 onChange={(event) => setOutline(event.target.value)}
                 placeholder="先生成大纲，或直接粘贴已有大纲"
               />
+            </div>
+          )}
+          {mode === 'continue' && (
+            <div className="grid gap-1.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Label>情节状态</Label>
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs text-muted-foreground">取样章数</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={30}
+                    className="h-8 w-20"
+                    value={plotSample}
+                    onChange={(event) => setPlotSample(Math.max(1, Math.min(30, Number(event.target.value) || 8)))}
+                  />
+                  <Button variant="ghost" size="sm" disabled={busy || plotBusy || taskActive || !novelId} onClick={() => void refreshPlotState()}>
+                    {plotBusy ? '提取中…' : plotState ? '重新提取' : '提取情节状态'}
+                  </Button>
+                </div>
+              </div>
+              {plotState ? (
+                <pre className="max-h-[180px] overflow-auto whitespace-pre-wrap rounded-md border border-input bg-muted/30 px-3 py-2 text-xs leading-relaxed text-muted-foreground">{plotState}</pre>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  未提取。多章续写时上下文会截断丢前文，提取后把角色处境/伏笔/待解决冲突塞进续写，人设不漂移、伏笔不遗忘。建议续写前更新一次。
+                </p>
+              )}
+              {plotState && (
+                <p className="text-xs text-muted-foreground">
+                  基于最近 {plotChaptersThrough} 章提取{plotChapterCount > 0 ? `（本书共 ${plotChapterCount} 章）` : ''}。情节状态反映「当前」进展，只取最近几章即可，无需等于全书章节数；若上次提取后又发布了新章节，建议重新提取。
+                </p>
+              )}
             </div>
           )}
           {mode === 'continue' && pendingDrafts > 0 && !taskActive && (

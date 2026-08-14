@@ -6,6 +6,8 @@ import { saveGeneration, type Generation, type BatchDraft } from './generations'
 import { recordUsage } from './usage'
 import { getAiSettings } from './settings'
 import { createAiTask, isAiTaskCancelled, updateAiTask } from './tasks'
+import { getStyleProfile } from './style-profile'
+import { getPlotState } from './plot-state'
 
 const MAX_CONTEXT_CHARS = 12000
 
@@ -63,6 +65,7 @@ export async function generateWritingTitles(db: Db, opts: {
 }): Promise<WritingTitlesResult> {
   if (!isTextAiConfigured()) throw new AiError('disabled', 'AI 文本服务未配置', 503)
   const provider = textProvider()
+  const settings = await getAiSettings(db)
   const prompt = [
     '请为下面的中文网络小说正文拟定 1-3 个章节标题。标题要贴合正文的核心事件、情绪或悬念，简洁自然，避免剧透，不要使用书名号。',
     '只返回 JSON 数组，例如：["标题一","标题二","标题三"]，不要解释。',
@@ -75,7 +78,7 @@ export async function generateWritingTitles(db: Db, opts: {
       { role: 'user', content: prompt },
     ],
     temperature: 0.7,
-    maxTokens: 160,
+    maxTokens: settings.titleMaxTokens,
     timeoutMs: 120_000,
   })
   const titles = parseWritingTitles(res.text)
@@ -117,9 +120,17 @@ export async function generateWriting(db: Db, opts: {
   if (!isTextAiConfigured()) throw new AiError('disabled', 'AI 文本服务未配置', 503)
   const provider = textProvider()
   const settings = await getAiSettings(db)
-  const system = opts.kind === 'write_outline'
+  // 风格画像：把「保持风格一致」这句空话换成从原文提取的具体特征（句式/节奏/语气/设定）。
+  // 未提取过则退回 settings 里的 system prompt 兜底——风格画像缺失不应阻断续写。
+  const styleProfile = opts.kind === 'write_outline' ? '' : await getStyleProfile(db, opts.novelId)
+  const baseSystem = opts.kind === 'write_outline'
     ? '你是中文网络小说策划编辑。请输出可执行的章节大纲，包含主线冲突、人物目标、关键转折和章节安排。只输出内容，不要解释。'
     : settings.writingSystemPrompt
+  const system = styleProfile ? `${baseSystem}\n\n本作风格特征（续写须严格遵循）：\n${styleProfile}` : baseSystem
+  // 情节状态：结构化的角色处境/伏笔/待解决冲突。多章续写时上下文会截断丢前文，
+  // 这里把提炼后的状态塞进 user 消息（时效性上下文，随剧情推进变，与 system 里的长期风格纪律区分）。
+  // 大纲生成不需要情节状态；未提取过则跳过，不阻断续写。
+  const plotState = opts.kind === 'write_outline' ? null : await getPlotState(db, opts.novelId)
   const optionInstructions = [
     opts.targetWords ? `Target length: approximately ${Math.max(300, Math.min(30000, Math.trunc(opts.targetWords)))} Chinese characters.` : '',
     opts.chapterCount && opts.chapterCount > 1 ? `Continuation chapter count: ${Math.max(1, Math.min(20, Math.trunc(opts.chapterCount)))} chapters.` : '',
@@ -129,6 +140,7 @@ export async function generateWriting(db: Db, opts: {
     `作品：《${opts.title || '未命名作品'}》`,
     opts.instruction ? `创作要求：${opts.instruction}` : '',
     opts.outline ? `大纲：\n${cleanWritingText(opts.outline)}` : '',
+    plotState?.state ? `本作情节状态（续写须保持人设与伏笔一致）：\n${plotState.state}` : '',
     opts.context ? `已有剧情上下文：\n${cleanWritingText(opts.context)}` : '',
   ].filter(Boolean).join('\n\n')
   const temperature = opts.temperature ?? settings.writingTemperature

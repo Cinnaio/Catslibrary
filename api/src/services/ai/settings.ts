@@ -37,6 +37,12 @@ export interface AiSettings {
   writingTemperature: number
   writingMaxTokens: number
   writingSystemPrompt: string
+  /** 风格画像提取的最大输出 token（推理模型先消耗思考 token，需留足余量） */
+  styleProfileMaxTokens: number
+  /** 情节状态提取的最大输出 token（结构化四块，天然比风格画像长） */
+  plotStateMaxTokens: number
+  /** 章节标题生成的最大输出 token */
+  titleMaxTokens: number
   /** 同时运行的创作任务上限（大纲/章节/续写共用） */
   maxConcurrentWritingTasks: number
   imageSize: string
@@ -85,6 +91,10 @@ export const DEFAULT_AI_SETTINGS: AiSettings = {
   writingTemperature: 0.8,
   writingMaxTokens: 1800,
   writingSystemPrompt: '你是中文网络小说作者。请根据提供的设定和上下文创作正文，保持人物动机、叙事视角和风格一致。只输出正文，不要标题、解释或 Markdown。',
+  // 提取类调用的输出 token 上限：推理模型先消耗思考 token，需留足余量，避免结构化输出被截断
+  styleProfileMaxTokens: 1500,
+  plotStateMaxTokens: 3000,
+  titleMaxTokens: 200,
   maxConcurrentWritingTasks: 3,
   imageSize: '1024x1024',
   imageQuality: 'standard',
@@ -116,6 +126,9 @@ const LIMITS = {
   writingTemperature: { min: 0, max: 1 },
   writingMaxTokens: { min: 300, max: 1000000 },
   writingSystemPrompt: { maxLength: 2000 },
+  styleProfileMaxTokens: { min: 200, max: 1000000 },
+  plotStateMaxTokens: { min: 300, max: 1000000 },
+  titleMaxTokens: { min: 50, max: 2000 },
   maxConcurrentWritingTasks: { min: 1, max: 10 },
   imageSize: { maxLength: 20 },
   imageQuality: { maxLength: 20 },
@@ -190,6 +203,9 @@ export function normalizeAiSettings(raw: unknown): AiSettings {
     writingTemperature: clampFloat(obj.writingTemperature, DEFAULT_AI_SETTINGS.writingTemperature, LIMITS.writingTemperature),
     writingMaxTokens: clampInt(obj.writingMaxTokens, DEFAULT_AI_SETTINGS.writingMaxTokens, LIMITS.writingMaxTokens),
     writingSystemPrompt: clampString(obj.writingSystemPrompt, DEFAULT_AI_SETTINGS.writingSystemPrompt, LIMITS.writingSystemPrompt.maxLength),
+    styleProfileMaxTokens: clampInt(obj.styleProfileMaxTokens, DEFAULT_AI_SETTINGS.styleProfileMaxTokens, LIMITS.styleProfileMaxTokens),
+    plotStateMaxTokens: clampInt(obj.plotStateMaxTokens, DEFAULT_AI_SETTINGS.plotStateMaxTokens, LIMITS.plotStateMaxTokens),
+    titleMaxTokens: clampInt(obj.titleMaxTokens, DEFAULT_AI_SETTINGS.titleMaxTokens, LIMITS.titleMaxTokens),
     maxConcurrentWritingTasks: clampInt(obj.maxConcurrentWritingTasks, DEFAULT_AI_SETTINGS.maxConcurrentWritingTasks, LIMITS.maxConcurrentWritingTasks),
     imageSize: clampEnum(obj.imageSize, DEFAULT_AI_SETTINGS.imageSize, ['1024x1024', '1792x1024', '1024x1792', '1024x1536', '768x1024', '512x512']),
     imageQuality: clampEnum(obj.imageQuality, DEFAULT_AI_SETTINGS.imageQuality, ['standard', 'hd']),

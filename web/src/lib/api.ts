@@ -682,6 +682,9 @@ export interface AiSettings {
   writingTemperature: number
   writingMaxTokens: number
   writingSystemPrompt: string
+  styleProfileMaxTokens: number
+  plotStateMaxTokens: number
+  titleMaxTokens: number
   maxConcurrentWritingTasks: number
   imageSize: string
   imageQuality: string
@@ -841,6 +844,24 @@ export const aiApi = {
     },
     continue(data: Record<string, unknown>): Promise<{ ok: boolean; taskId: string; batchId: string; total: number }> {
       return request('POST', '/ai/writing/continue', data, true)
+    },
+    /** 提取/刷新某部小说的风格画像：取样已发布章节 → 文本模型分析 → 落库，续写时复用。 */
+    refreshStyleProfile(novelId: string): Promise<{ ok: boolean; profile: string; model: string; usage: { promptTokens: number; completionTokens: number } }> {
+      return request('POST', '/ai/writing/style-profile', { novelId }, true)
+    },
+    /** 读取已存的风格画像（未提取过返回空串）。 */
+    getStyleProfile(novelId: string): Promise<{ profile: string }> {
+      return request('GET', `/ai/writing/style-profile/${encodeURIComponent(novelId)}`, null, true)
+    },
+    /** 提取/刷新某部小说的情节状态：取样最近 N 章正文 → 文本模型结构化分析 → 落库，续写时复用。 */
+    refreshPlotState(novelId: string, sampleChapters?: number): Promise<{ ok: boolean; state: string; chaptersThrough: number; model: string; usage: { promptTokens: number; completionTokens: number } }> {
+      const data: Record<string, unknown> = { novelId }
+      if (sampleChapters) data.sampleChapters = sampleChapters
+      return request('POST', '/ai/writing/plot-state', data, true)
+    },
+    /** 读取已存的情节状态（未提取过返回空串）与已发布章节数（用于判断是否过期）。 */
+    getPlotState(novelId: string): Promise<{ state: string; chaptersThrough: number; chapterCount: number }> {
+      return request('GET', `/ai/writing/plot-state/${encodeURIComponent(novelId)}`, null, true)
     },
     titles(data: {
       content: string
