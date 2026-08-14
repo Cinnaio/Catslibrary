@@ -1,0 +1,37 @@
+# 知舟 —— 爬虫协议声明
+# 内容接口（/api/）不开放给爬虫批量抓取；前端页面允许搜索引擎正常索引。
+# 守规矩的爬虫请遵守，不守规矩的由速率限制与 WAF 兜底。
+
+User-agent: *
+Disallow: /api/
+Allow: /
+
+# 常见 AI 训练爬虫 —— 明确拒绝抓取内容用于训练
+User-agent: GPTBot
+Disallow: /
+
+User-agent: ChatGPT-User
+Disallow: /
+
+User-agent: ClaudeBot
+Disallow: /
+
+User-agent: Claude-Web
+Disallow: /
+
+User-agent: anthropic-ai
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+User-agent: PerplexityBot
+Disallow: /
+
+User-agent: Bytespider
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+# 站点地图（如有可补 sitemap 路径）
