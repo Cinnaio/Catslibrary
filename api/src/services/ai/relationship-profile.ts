@@ -94,7 +94,7 @@ export async function extractRelationshipProfile(db: Db, opts: {
   await run(
     db,
     `INSERT INTO novel_relationship_profiles (novel_id, profile, model, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $5)
+     VALUES ($1, $2, $3, $4, $4)
      ON CONFLICT (novel_id) DO UPDATE SET profile = EXCLUDED.profile, model = EXCLUDED.model, updated_at = EXCLUDED.updated_at`,
     [novelId, profile, res.model, now],
   )
