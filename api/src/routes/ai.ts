@@ -27,7 +27,7 @@ import {
   type BatchDraft,
 } from '../services/ai/generations'
 import { escapeLike } from '../services/text'
-import { generateContinuationChapters, generateWriting, generateWritingTitles, recentNovelContext } from '../services/ai/writing'
+import { generateContinuationChapters, generateWriting, generateWritingTitles, parseContinuationTitle, recentNovelContext } from '../services/ai/writing'
 import { extractStyleProfile, getStyleProfile } from '../services/ai/style-profile'
 import { extractPlotState, getPlotState } from '../services/ai/plot-state'
 import { extractRelationshipProfile, getRelationshipProfile } from '../services/ai/relationship-profile'
@@ -776,9 +776,12 @@ aiRoutes.post('/writing/drafts/:id/publish', requireAdmin(), async (c) => {
   const row = await getGeneration(db, id)
   if (!row || row.status !== 'draft' || !['write_chapter', 'continue'].includes(row.kind)) return c.json({ error: '可发布的章节草稿不存在' }, 404)
   const novelId = String(body.novelId || row.novel_id || '').trim()
-  // 标题优先取前端输入，为空时回退到续写解析出的 AI 标题（自动填充）
-  const title = String(body.title || '').trim() || draftBatchParams(row.params_json).draftTitle
-  if (!novelId || !title || !row.result.trim()) return c.json({ error: 'novelId、title 和内容必填' }, 400)
+  // 兼容修复前落库的草稿：标题可能仍在正文首行，发布时再解析一次并剥离。
+  const parsed = parseContinuationTitle(row.result)
+  const storedTitle = draftBatchParams(row.params_json).draftTitle
+  const title = String(body.title || '').trim() || storedTitle || parsed.title
+  const content = parsed.title ? parsed.body : row.result
+  if (!novelId || !title || !content.trim()) return c.json({ error: 'novelId、title 和内容必填' }, 400)
   const chapterId = 'ch_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7)
   const now = Date.now()
   try {
@@ -796,9 +799,9 @@ aiRoutes.post('/writing/drafts/:id/publish', requireAdmin(), async (c) => {
         chapterId,
         novelId,
         title,
-        row.result,
+        content,
         nextOrder,
-        row.result.replace(/<[^>]*>/g, '').length,
+        content.replace(/<[^>]*>/g, '').length,
         '',
         now,
       ])
@@ -865,15 +868,17 @@ aiRoutes.post('/writing/batches/:batchId/publish', requireAdmin(), async (c) => 
         const claimed = await q("UPDATE ai_generations SET status = 'published', chapter_id = $1 WHERE id = $2 AND status = 'draft'", [chapterId, row.id])
         if (!claimed.rowCount) continue
         order += 1
-        // 标题优先使用该章续写解析出的 AI 标题，缺失时回退「第 N 章」
-        const title = draftBatchParams(row.params_json).draftTitle || `第 ${order} 章`
+        // 兼容修复前的旧草稿：标题可能还在正文首行。
+        const parsed = parseContinuationTitle(row.result)
+        const title = draftBatchParams(row.params_json).draftTitle || parsed.title || `第 ${order} 章`
+        const content = parsed.title ? parsed.body : row.result
         await q('INSERT INTO chapters (id, novel_id, title, content, sort_order, word_count, source_url, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)', [
           chapterId,
           novelId,
           title,
-          row.result,
+          content,
           order,
-          row.result.replace(/<[^>]*>/g, '').length,
+          content.replace(/<[^>]*>/g, '').length,
           '',
           now,
         ])
