@@ -392,7 +392,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
                   <TableCell>{c.order || '—'}</TableCell>
                   <TableCell>{c.title}</TableCell>
                   <TableCell>{c.wordCount || '—'}</TableCell>
-                  <TableCell className="text-sm text-muted">{timeAgo(c.createdAt)}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{timeAgo(c.createdAt)}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
                       <Button variant="ghost" size="icon" title="编辑" onClick={() => void openChapterModal(c)}>
@@ -453,7 +453,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
             <DialogTitle>融合章节名</DialogTitle>
           </DialogHeader>
           <div className="flex flex-col gap-3 overflow-y-auto max-h-[70vh]">
-            <p className="text-sm text-muted">将源站章节标题（每行一个）按顺序替换本地弱标题（如「第1章」「正文」等占位标题）。</p>
+            <p className="text-sm text-muted-foreground">将源站章节标题（每行一个）按顺序替换本地弱标题（如「第1章」「正文」等占位标题）。</p>
             <Label>源站章节标题</Label>
             <Textarea
               rows={8}
@@ -468,20 +468,20 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
             {renamePreview && (
               <div className="rename-preview">
                 {renamePreview.length === 0 ? (
-                  <p className="text-sm text-muted">没有可更新的弱标题。</p>
+                  <p className="text-sm text-muted-foreground">没有可更新的弱标题。</p>
                 ) : (
                   <>
-                    <p className="text-sm text-muted">将更新 {renamePreview.length} 个章节名：</p>
+                    <p className="text-sm text-muted-foreground">将更新 {renamePreview.length} 个章节名：</p>
                     <div className="import-chapter-preview__list">
                       {renamePreview.slice(0, 80).map((r) => (
                         <div className="import-chapter-preview__item" key={r.order}>
-                          <span className="text-muted">{r.order}.</span>
+                          <span className="text-muted-foreground">{r.order}.</span>
                           <span className="old-title">{r.oldTitle}</span>
                           <span className="arrow">→</span>
                           <span className="new-title">{r.newTitle}</span>
                         </div>
                       ))}
-                      {renamePreview.length > 80 && <p className="text-sm text-muted">另有 {renamePreview.length - 80} 章未显示…</p>}
+                      {renamePreview.length > 80 && <p className="text-sm text-muted-foreground">另有 {renamePreview.length - 80} 章未显示…</p>}
                     </div>
                   </>
                 )}

@@ -331,18 +331,18 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
       <Link to={`/read/${encodeURIComponent(t.novelId)}/${encodeURIComponent(t.chapterId)}`}>
         <strong>{t.novelTitle || t.novelId}</strong>
         <br />
-        <span className="text-sm text-muted">{t.chapterTitle || t.chapterId}</span>
+        <span className="text-sm text-muted-foreground">{t.chapterTitle || t.chapterId}</span>
       </Link>
     ) : (
       <>
         <strong>{t.novelTitle || t.novelId}</strong>
         <br />
-        <span className="text-sm text-muted">{t.chapterTitle || t.chapterId}</span>
+        <span className="text-sm text-muted-foreground">{t.chapterTitle || t.chapterId}</span>
       </>
     )
     return (
       <TableRow key={t.id}>
-        <TableCell className="text-sm text-muted">{timeAgo(t.createdAt)}</TableCell>
+        <TableCell className="text-sm text-muted-foreground">{timeAgo(t.createdAt)}</TableCell>
         <TableCell>{link}</TableCell>
         <TableCell>{String((t.paragraphIndex || 0) + 1)}</TableCell>
         <TableCell className="thought-admin-cell">{t.selectedText || '—'}</TableCell>
@@ -379,7 +379,7 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
     const visible = (c.status || 'visible') === 'visible'
     return (
       <TableRow key={c.id}>
-        <TableCell className="text-sm text-muted">{timeAgo(c.createdAt)}</TableCell>
+        <TableCell className="text-sm text-muted-foreground">{timeAgo(c.createdAt)}</TableCell>
         <TableCell>
           {c.novelId ? (
             <Link to={`/novel/${encodeURIComponent(c.novelId)}`}>
@@ -391,7 +391,7 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
           {c.parentId ? (
             <>
               <br />
-              <span className="text-sm text-muted">回复</span>
+              <span className="text-sm text-muted-foreground">回复</span>
             </>
           ) : null}
         </TableCell>
@@ -405,7 +405,7 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
             </>
           ) : null}
         </TableCell>
-        <TableCell className="text-sm text-muted">
+        <TableCell className="text-sm text-muted-foreground">
           赞 {c.likeCount || 0}
           <br />
           举报 {c.reportCount || 0}
@@ -437,7 +437,7 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
     const pending = (r.status || 'open') === 'open'
     return (
       <TableRow key={r.id}>
-        <TableCell className="text-sm text-muted">{timeAgo(r.createdAt)}</TableCell>
+        <TableCell className="text-sm text-muted-foreground">{timeAgo(r.createdAt)}</TableCell>
         <TableCell>
           {r.commentNovelId ? (
             <Link to={`/novel/${encodeURIComponent(r.commentNovelId)}`}>{r.novelTitle || r.commentNovelId || '—'}</Link>
@@ -452,7 +452,7 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
           {r.note ? (
             <>
               <br />
-              <span className="text-sm text-muted">{r.note}</span>
+              <span className="text-sm text-muted-foreground">{r.note}</span>
             </>
           ) : null}
         </TableCell>

@@ -77,9 +77,9 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor="recap-prompt">系统提示词</Label>
-            <textarea
+            <textarea data-slot="textarea"
               id="recap-prompt"
-              className="min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              className="min-h-[100px] w-full border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               value={localSettings.recapSystemPrompt}
               disabled={props.loading || saving}
               onChange={(e) => setLocalSettings({ ...localSettings, recapSystemPrompt: e.target.value })}
@@ -208,7 +208,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor="writing-prompt">创作系统提示词</Label>
-            <textarea id="writing-prompt" className="min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" value={localSettings.writingSystemPrompt} disabled={props.loading || saving} onChange={(e) => setLocalSettings({ ...localSettings, writingSystemPrompt: e.target.value })} />
+            <textarea data-slot="textarea" id="writing-prompt" className="min-h-[120px] w-full border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" value={localSettings.writingSystemPrompt} disabled={props.loading || saving} onChange={(e) => setLocalSettings({ ...localSettings, writingSystemPrompt: e.target.value })} />
             <p className="text-xs text-muted-foreground">定义 AI 创作的角色、文风和输出约束</p>
           </div>
         </CardContent>

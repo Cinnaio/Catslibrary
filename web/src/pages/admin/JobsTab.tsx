@@ -292,7 +292,7 @@ export default function JobsTab(_props: { highlightNovelId?: string; onHighlight
   function renderNovelTitle(j: Job): ReactNode {
     const title = j.novelId ? novelTitles.get(j.novelId) : undefined
     if (title) return title
-    if (j.novelId) return <span className="text-muted text-sm">{truncateId(j.novelId)}</span>
+    if (j.novelId) return <span className="text-muted-foreground text-sm">{truncateId(j.novelId)}</span>
     return '—'
   }
 
@@ -309,7 +309,7 @@ export default function JobsTab(_props: { highlightNovelId?: string; onHighlight
     if (j.status === 'completed') return <Badge variant="secondary" className="bg-success/10 text-success">✓ {label}</Badge>
     if (j.status === 'partial') return <Badge variant="secondary" className="bg-warning/10 text-warning">⚠ {label}</Badge>
     if (j.status === 'failed') return <Badge variant="secondary" className="bg-destructive/10 text-destructive">✕ {label}</Badge>
-    return <Badge variant="secondary" className="text-muted">— {label}</Badge>
+    return <Badge variant="secondary" className="text-muted-foreground">— {label}</Badge>
   }
 
   function renderActions(j: Job): ReactNode {
@@ -381,7 +381,7 @@ export default function JobsTab(_props: { highlightNovelId?: string; onHighlight
             ) : (
               filtered.map((j) => (
                 <TableRow key={j.id}>
-                  <TableCell className="admin-mono-cell text-sm text-muted">{truncateId(j.id)}</TableCell>
+                  <TableCell className="admin-mono-cell text-sm text-muted-foreground">{truncateId(j.id)}</TableCell>
                   <TableCell className="text-sm">{renderNovelTitle(j)}</TableCell>
                   <TableCell>{j.updateMode ? '更新' : '抓取'}</TableCell>
                   <TableCell>{renderStatus(j)}</TableCell>
@@ -393,10 +393,10 @@ export default function JobsTab(_props: { highlightNovelId?: string; onHighlight
                     <span className="job-result-mini job-result-mini--failed">✕{j.failedCount || 0}</span>{' '}
                     <span className="job-result-mini">↷{j.skippedCount || 0}</span>
                   </TableCell>
-                  <TableCell className="text-sm text-muted">
+                  <TableCell className="text-sm text-muted-foreground">
                     {formatJobSpeed(j.speed)} · {formatEta(j.etaSeconds)}
                   </TableCell>
-                  <TableCell className="text-sm text-muted">
+                  <TableCell className="text-sm text-muted-foreground">
                     {j.startedAt ? getJobDuration(j.startedAt, isJobTerminal(j.status) ? (j.updatedAt ?? null) : null) : '—'}
                   </TableCell>
                   <TableCell className="table-actions job-table-actions">{renderActions(j)}</TableCell>
@@ -408,7 +408,7 @@ export default function JobsTab(_props: { highlightNovelId?: string; onHighlight
       </div>
 
       <div className="admin-table-meta-row">
-        <span className="text-xs text-muted">{jobStatsText}</span>
+        <span className="text-xs text-muted-foreground">{jobStatsText}</span>
         {hasCompleted && (
           <Button variant="destructive" size="sm" onClick={() => void clearCompleted()}>
             清除已完成
@@ -449,7 +449,7 @@ export default function JobsTab(_props: { highlightNovelId?: string; onHighlight
                   <TableCell>{DOWNLOAD_TYPE_LABELS[log.type] || log.type}</TableCell>
                   <TableCell className="text-sm">{log.targetTitle || log.targetId || '—'}</TableCell>
                   <TableCell>{log.itemCount || 0}</TableCell>
-                  <TableCell className="text-sm text-muted">{formatDateTime(log.createdAt)}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{formatDateTime(log.createdAt)}</TableCell>
                 </TableRow>
               ))
             )}

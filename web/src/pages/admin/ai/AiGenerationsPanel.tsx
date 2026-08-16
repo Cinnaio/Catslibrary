@@ -570,7 +570,7 @@ export default function AiGenerationsPanel(props: {
           </DialogHeader>
           {viewing && (
             <>
-              <details className="shrink-0 rounded-md border bg-muted/10 p-3">
+              <details className="shrink-0 border bg-muted/10 p-3">
                 <summary className="cursor-pointer text-sm font-medium">本次生成 Prompt</summary>
                 <pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap text-xs leading-5 text-muted-foreground">
                   {viewing.prompt || '未记录 Prompt'}
@@ -597,12 +597,12 @@ export default function AiGenerationsPanel(props: {
               </div>
               <div className="ai-generation-result-label shrink-0 text-xs font-medium text-muted-foreground">生成正文</div>
               {editingText === null ? (
-                <div className="min-h-0 flex-1 overflow-y-auto rounded-md border bg-muted/20 p-4 text-sm leading-7 whitespace-pre-wrap sm:p-5">
+                <div className="min-h-0 flex-1 overflow-y-auto border bg-muted/20 p-4 text-sm leading-7 whitespace-pre-wrap sm:p-5">
                   {viewing.result || '暂无内容'}
                 </div>
               ) : (
-                <textarea
-                  className="min-h-0 flex-1 resize-none rounded-md border border-input bg-background p-4 text-sm leading-7 focus-visible:border-ring focus-visible:outline-none sm:p-5"
+                <textarea data-slot="textarea"
+                  className="min-h-0 flex-1 resize-none border border-input bg-background p-4 text-sm leading-7 focus-visible:border-ring focus-visible:outline-none sm:p-5"
                   value={editingText}
                   onChange={(event) => setEditingText(event.target.value)}
                   disabled={savingEdit}
