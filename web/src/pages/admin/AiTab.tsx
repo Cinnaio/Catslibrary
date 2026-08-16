@@ -3,7 +3,7 @@
  * 子 tab 支持 URL 深链：/admin?sub=tasks&batch=... 可复现「任务 → 产出」上下文，
  * 刷新、返回、分享都不会丢；无 URL 参数时退回 localStorage 持久化。
  */
-import { Fragment, useCallback, useEffect, useState } from 'react'
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { aiApi, type AiSettings, type AiProviderConfig } from '../../lib/api'
 import { useToast } from '../../components/feedback'
@@ -104,6 +104,31 @@ export default function AiTab() {
     [searchParams, setActiveSubTab, setSearchParams],
   )
 
+  // 小屏横向滚动提示：tabs 溢出时在边缘显示淡出渐变，提示还有更多入口
+  const listRef = useRef<HTMLDivElement | null>(null)
+  const [canScroll, setCanScroll] = useState<{ left: boolean; right: boolean }>({ left: false, right: false })
+  useEffect(() => {
+    const el = listRef.current || document.querySelector<HTMLElement>('.ai-service-tabs__list')
+    if (!el) return
+    const update = () => {
+      const maxScroll = el.scrollWidth - el.clientWidth
+      setCanScroll({
+        left: el.scrollLeft > 4,
+        right: el.scrollLeft < maxScroll - 4,
+      })
+    }
+    update()
+    el.addEventListener('scroll', update, { passive: true })
+    const observer = new ResizeObserver(update)
+    observer.observe(el)
+    window.addEventListener('resize', update)
+    return () => {
+      el.removeEventListener('scroll', update)
+      observer.disconnect()
+      window.removeEventListener('resize', update)
+    }
+  }, [])
+
   const load = useCallback(async () => {
     setLoading(true)
     try {
@@ -125,6 +150,12 @@ export default function AiTab() {
   return (
     <AdminPage title="AI 服务" description="管理 AI 功能配置、查看用量统计与调用审计" className="ai-admin-page">
       <Tabs value={activeSubTab} onValueChange={handleSubTabChange} className="ai-service-tabs min-w-0">
+        <div
+          ref={listRef}
+          className={`ai-service-tabs__scroll-wrap relative ${
+            canScroll.left ? 'can-scroll-left' : ''
+          } ${canScroll.right ? 'can-scroll-right' : ''}`}
+        >
         <TabsList className="ai-service-tabs__list w-full max-w-full justify-start overflow-x-auto">
           {AI_TAB_GROUPS.map((group, groupIndex) => (
             <Fragment key={group.label}>
@@ -143,6 +174,7 @@ export default function AiTab() {
             </Fragment>
           ))}
         </TabsList>
+        </div>
 
         <TabsContent value="writing" className="min-w-0">
           <AiWritingPanel onViewBatch={openGenerations} />

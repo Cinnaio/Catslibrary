@@ -295,6 +295,43 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   flex: 0 0 auto;
 }
 
+/* 小屏横向滚动提示：溢出时在边缘淡出，提示还有更多入口（scrollbar 已隐藏） */
+.ai-service-tabs__scroll-wrap::before,
+.ai-service-tabs__scroll-wrap::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  width: 28px;
+  pointer-events: none;
+  border-radius: 8px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.ai-service-tabs__scroll-wrap::before {
+  left: 0;
+  background: linear-gradient(to right, var(--bg-card) 20%, transparent);
+}
+.ai-service-tabs__scroll-wrap::after {
+  right: 0;
+  background: linear-gradient(to left, var(--bg-card) 20%, transparent);
+}
+.ai-service-tabs__scroll-wrap.can-scroll-left::before {
+  opacity: 1;
+}
+.ai-service-tabs__scroll-wrap.can-scroll-right::after {
+  opacity: 1;
+}
+
+/* 已生成内容表格：操作列 sticky 固定，横向滚动时不被推出视口 */
+.ai-generations-table td.sticky,
+.ai-generations-table th.sticky {
+  background: var(--bg-card);
+}
+.ai-generations-table tr:hover td.sticky {
+  background: var(--bg-muted);
+}
+
 /* AI 封面/创作任务进行中的流动指示条（在任务状态卡片底部） */
 .ai-task-progress {
   height: 3px;

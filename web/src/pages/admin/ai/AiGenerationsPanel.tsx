@@ -361,9 +361,9 @@ export default function AiGenerationsPanel(props: {
                         <th className="px-4 py-3 text-left font-medium">类型</th>
                         <th className="px-4 py-3 text-left font-medium">关联内容</th>
                         <th className="px-4 py-3 text-left font-medium">内容预览</th>
-                        <th className="px-4 py-3 text-left font-medium">模型</th>
-                        <th className="px-4 py-3 text-left font-medium">生成时间</th>
-                        <th className="px-4 py-3 text-right font-medium">操作</th>
+                        <th className="hidden px-4 py-3 text-left font-medium md:table-cell">模型</th>
+                        <th className="hidden px-4 py-3 text-left font-medium sm:table-cell">生成时间</th>
+                        <th className="sticky right-0 px-4 py-3 text-right font-medium">操作</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -421,12 +421,12 @@ export default function AiGenerationsPanel(props: {
                                 {item.result || '—'}
                               </p>
                             </td>
-                            <td className="px-4 py-3 text-xs text-muted-foreground">{item.model || '—'}</td>
-                            <td className="px-4 py-3 text-muted-foreground">
+                            <td className="hidden px-4 py-3 text-xs text-muted-foreground md:table-cell">{item.model || '—'}</td>
+                            <td className="hidden px-4 py-3 text-muted-foreground sm:table-cell">
                               <div>{new Date(item.createdAt).toLocaleDateString('zh-CN')}</div>
                               <div className="text-xs">{new Date(item.createdAt).toLocaleTimeString('zh-CN')}</div>
                             </td>
-                            <td className="px-4 py-3 text-right">
+                            <td className="sticky right-0 px-4 py-3 text-right">
                               <div className="flex justify-end gap-2">
                                 {item.groupItems ? (
                                   <>
@@ -480,9 +480,9 @@ export default function AiGenerationsPanel(props: {
                                     {chapter.result || '暂无内容'}
                                   </p>
                                 </td>
-                                <td className="px-4 py-2 text-xs text-muted-foreground">{chapter.status}</td>
-                                <td className="px-4 py-2 text-xs text-muted-foreground">{new Date(chapter.createdAt).toLocaleTimeString('zh-CN')}</td>
-                                <td className="px-4 py-2 text-right">
+                                <td className="hidden px-4 py-2 text-xs text-muted-foreground sm:table-cell">{chapter.status}</td>
+                                <td className="hidden px-4 py-2 text-xs text-muted-foreground md:table-cell">{new Date(chapter.createdAt).toLocaleTimeString('zh-CN')}</td>
+                                <td className="sticky right-0 px-4 py-2 text-right">
                                   <div className="flex justify-end gap-2">
                                     <Button
                                       variant="outline"
