@@ -64,9 +64,14 @@ export default function AiGenerationsPanel(props: {
   const [savingEdit, setSavingEdit] = useState(false)
   const [publishingBatchId, setPublishingBatchId] = useState<string | null>(null)
 
-  // 从任务面板 / 创作页跳转过来时，自动展开对应批次
+  // 从任务面板 / 创作页跳转过来时，自动展开对应批次并滚动到可见位置
   useEffect(() => {
-    if (props.focusBatchId) setExpandedBatchId(props.focusBatchId)
+    if (!props.focusBatchId) return
+    setExpandedBatchId(props.focusBatchId)
+    const timer = setTimeout(() => {
+      document.querySelector(`[data-focus-batch="${props.focusBatchId}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    }, 120)
+    return () => clearTimeout(timer)
   }, [props.focusBatchId])
 
   const load = useCallback(async () => {
@@ -330,7 +335,10 @@ export default function AiGenerationsPanel(props: {
                     <tbody>
                       {items.map((item) => (
                         <Fragment key={item.id}>
-                          <tr className="ai-generation-row border-b last:border-0 hover:bg-muted/30">
+                          <tr
+                            className="ai-generation-row border-b last:border-0 hover:bg-muted/30"
+                            data-focus-batch={item.groupItems ? item.batchId : undefined}
+                          >
                             <td className="px-4 py-3">
                               <Checkbox
                                 aria-label={`选择${item.chapterTitle || item.kind}`}
