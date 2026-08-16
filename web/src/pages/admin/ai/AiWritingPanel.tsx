@@ -43,7 +43,7 @@ function taskDotClass(status: string): string {
   return 'bg-muted-foreground/40'
 }
 
-/** 画像正文：按空行分段排版，保留段内换行；超出折叠高度时右下角给出字数胶囊提示可滚动。 */
+/** 画像正文：按空行分段排版，保留段内换行；超出可视高度时提示可继续滚动。 */
 function ProfileText({ text }: { text: string }) {
   const paragraphs = text.split(/\n{2,}/).map((part) => part.trim()).filter(Boolean)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -54,15 +54,15 @@ function ProfileText({ text }: { text: string }) {
   }, [text])
   return (
     <div className="relative">
-      <div ref={scrollRef} className="max-h-44 space-y-2 overflow-y-auto pr-1">
+      <div ref={scrollRef} className="max-h-60 space-y-3 overflow-y-auto pr-1 sm:max-h-44">
         {paragraphs.map((paragraph, index) => (
-          <p key={index} className="whitespace-pre-line text-[13px] leading-6 text-foreground/75">
+          <p key={index} className="whitespace-pre-line text-sm leading-7 text-foreground/80 sm:text-[13px] sm:leading-6">
             {paragraph}
           </p>
         ))}
       </div>
       {overflowing && (
-        <span className="pointer-events-none absolute bottom-1 right-2 rounded-full bg-background/85 px-1.5 py-px text-[10px] leading-4 text-muted-foreground shadow-sm">
+        <span className="pointer-events-none absolute bottom-1 right-2 rounded-full bg-background/90 px-2 py-0.5 text-[11px] leading-4 text-muted-foreground shadow-sm">
           共 {text.replace(/\s/g, '').length} 字 · 滚动查看
         </span>
       )}
@@ -85,40 +85,40 @@ function ProfileSection(props: {
 }) {
   const sample = props.sample
   return (
-    <div className="grid gap-2">
-      <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
+    <div className="grid gap-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 sm:justify-between">
+        <div className="flex shrink-0 items-center gap-2.5">
           <Label>{props.label}</Label>
           <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-2 py-0.5 text-[11px] text-muted-foreground">
             <span className={`size-1.5 rounded-full ${props.extracted ? 'bg-[var(--color-success)]' : 'bg-muted-foreground/40'}`} />
             {props.extracted ? '已提取' : '未提取'}
           </span>
         </div>
-        <div className="flex items-center justify-start gap-3 sm:justify-end">
+        <div className="flex basis-full items-center justify-between border-t border-border/70 pt-2.5 sm:ml-auto sm:basis-auto sm:border-t-0 sm:pt-0">
           {sample && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">取样</span>
+            <div className="flex shrink-0 items-center gap-2">
+              <span className="whitespace-nowrap text-xs text-muted-foreground">取样</span>
               <Input
                 type="number"
                 min={sample.min}
                 max={sample.max}
-                className="h-8 w-[4.5rem] text-center"
+                className="h-10 w-13 px-1 text-center sm:h-8 sm:w-[4.5rem]"
                 value={sample.value}
                 onChange={(event) => sample.onChange(Number(event.target.value))}
               />
-              <span className="text-xs text-muted-foreground">章</span>
+              <span className="whitespace-nowrap text-xs text-muted-foreground">章</span>
             </div>
           )}
-          <Button variant="ghost" size="sm" disabled={props.disabled} onClick={props.onAction}>
+          <Button className="min-h-10 shrink-0 whitespace-nowrap px-3 sm:min-h-0" variant="outline" size="sm" disabled={props.disabled} onClick={props.onAction}>
             {props.actionText}
           </Button>
         </div>
       </div>
       {props.content ? (
-        <div className="rounded-md border bg-muted/30 px-3.5 py-3">{props.content}</div>
+        <div className="rounded-lg border bg-muted/30 px-4 py-3.5 sm:rounded-md sm:px-3.5 sm:py-3">{props.content}</div>
       ) : (
-        <div className="rounded-md border border-dashed px-3.5 py-3">
-          <p className="text-[13px] leading-6 text-muted-foreground">{props.emptyHint}</p>
+        <div className="rounded-lg border border-dashed px-4 py-3.5 sm:rounded-md sm:px-3.5 sm:py-3">
+          <p className="text-sm leading-6 text-muted-foreground sm:text-[13px]">{props.emptyHint}</p>
         </div>
       )}
       {props.footnote}
