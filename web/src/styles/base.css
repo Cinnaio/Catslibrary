@@ -83,6 +83,10 @@ p:last-child { margin-bottom: 0; }
 .text-center { text-align: center; }
 
 /* --- Layout ---------------------------------------------------- */
+/* 不要在此手写与 Tailwind 同名的布局工具类（flex/flex-col/items-center/
+   justify-between/justify-center/flex-wrap/flex-1）：unlayered 规则会压过
+   @layer utilities 里的 sm:/md: 响应式变体，令「flex-col + sm:flex-row」
+   这类断点切换永远失效。这些类已由 Tailwind 提供同值版本。 */
 .container {
   width: 100%;
   max-width: var(--max-width-content);
@@ -98,21 +102,13 @@ p:last-child { margin-bottom: 0; }
   padding: 32px 0;
 }
 
-.flex { display: flex; }
-.flex-col { flex-direction: column; }
-.items-center { align-items: center; }
-
 /* --- Homepage specific overrides -------------------------------- */
 .page-home .section--hero { padding-top: 0; }
 .page-home .empty-state-btn { margin-top: 20px; }
-.justify-between { justify-content: space-between; }
-.justify-center { justify-content: center; }
 .gap-sm { gap: 8px; }
 .gap { gap: 16px; }
 .gap-lg { gap: 24px; }
 .gap-xl { gap: 32px; }
-.flex-wrap { flex-wrap: wrap; }
-.flex-1 { flex: 1; }
 
 /* Library grid — horizontal cover-left cards */
 /* display/gap 内联在此处，避免通用 .grid 规则压过 Tailwind 的 gap-* 工具类 */
