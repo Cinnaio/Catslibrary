@@ -55,6 +55,41 @@ export function parseWritingTitles(raw: string): string[] {
     .slice(0, 3)
 }
 
+/** 清洗标题：剥掉引号/书名号等包裹符号，截断到 40 字。 */
+function cleanTitle(value: string): string {
+  return String(value || '')
+    .replace(/^['"“”「」《》【】]+|['"“”「」《》【】]+$/g, '')
+    .trim()
+    .slice(0, 40)
+}
+
+/**
+ * 从续写输出中提取首行标题并返回剥离标题后的正文。支持：
+ * - 「标题：xxx」/「章节标题: xxx」/「Title: xxx」前缀
+ * - 首行整体被「#」「【】」「《》」包裹
+ * - 裸首行标题：长度 2-30、不以句末标点结尾、且其后有空行（提示词要求"第一行标题，空一行正文"）
+ * 未识别到标题时原样返回，不破坏既有行为。
+ */
+export function parseContinuationTitle(raw: string): { title: string; body: string } {
+  const source = String(raw || '').replace(/\r\n/g, '\n').trimStart()
+  const lines = source.split('\n')
+  const first = lines[0]?.trim() || ''
+  if (!first) return { title: '', body: source.trim() }
+
+  let title = ''
+  const labeled = first.match(/^(?:章节标题|标题|title)\s*[:：]\s*(.+)$/i)
+  if (labeled) {
+    title = cleanTitle(labeled[1] || '')
+  } else if (/^[#《【]/.test(first)) {
+    title = cleanTitle(first.replace(/^#+\s*/, ''))
+  } else if (first.length >= 2 && first.length <= 30 && !/[。！？!?…]$/.test(first) && source.includes('\n\n')) {
+    title = cleanTitle(first)
+  }
+  if (!title) return { title: '', body: source.trim() }
+  const rest = lines.slice(1).join('\n').replace(/^\n+/, '').trim()
+  return { title, body: rest }
+}
+
 export async function generateWritingTitles(db: Db, opts: {
   userId: string
   novelId?: string
@@ -156,14 +191,18 @@ export async function generateWriting(db: Db, opts: {
   const taskId = opts.taskId || (await createAiTask(db, { userId: opts.userId, novelId: opts.novelId, kind: opts.kind, prompt: user })).id
   await updateAiTask(db, taskId, { status: 'running', step: 'AI 正在生成', prompt: user })
   const res = await chat({ messages: [{ role: 'system', content: system }, { role: 'user', content: user }], temperature, maxTokens: Math.min(1000000, Math.max(300, maxTokens)), timeoutMs: 600000 })
+  // 续写/新写章节：解析 AI 输出的首行标题（提示词要求输出标题），标题存入 params_json.draftTitle
+  // 供发布时自动填充；正文剥掉标题行后落库，避免标题混入章节正文。
+  const parsedTitle = opts.kind === 'continue' || opts.kind === 'write_chapter' ? parseContinuationTitle(res.text) : null
+  const resultText = parsedTitle?.title ? parsedTitle.body : res.text
   const generation = await saveGeneration(db, {
     novelId: opts.novelId,
     chapterId: '',
     kind: opts.kind,
     model: res.model,
-    paramsJson: JSON.stringify({ version: 4, temperature, maxTokens, targetWords: opts.targetWords || 0, chapterCount: opts.chapterCount || 1, ...(opts.batchId ? { batchId: opts.batchId, batchIndex: opts.batchIndex || 1, batchCount: opts.batchCount || 1 } : {}) }),
+    paramsJson: JSON.stringify({ version: 5, temperature, maxTokens, targetWords: opts.targetWords || 0, chapterCount: opts.chapterCount || 1, ...(parsedTitle?.title ? { draftTitle: parsedTitle.title } : {}), ...(opts.batchId ? { batchId: opts.batchId, batchIndex: opts.batchIndex || 1, batchCount: opts.batchCount || 1 } : {}) }),
     prompt: user,
-    result: res.text,
+    result: resultText,
     status: 'draft',
     createdBy: opts.userId,
   })

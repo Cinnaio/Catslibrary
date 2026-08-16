@@ -957,6 +957,8 @@ export const aiApi = {
       batchId: string
       batchIndex: number
       batchCount: number
+      /** 续写时从 AI 输出解析出的章节标题，用于发布自动填充 */
+      draftTitle: string
     }>
     total: number
     limit: number

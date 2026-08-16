@@ -1105,6 +1105,67 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     expect(Number(rows[0]?.chapter_count)).toBe(4)
   })
 
+  it('续写自动填充标题：AI 标题解析入 draftTitle，单条/整批发布优先使用', async () => {
+    // 新书隔离，避免影响其它用例的章节计数
+    const novel = await req('/api/novels', json('POST', { title: '续写自动填充书', author: '某作者' }, adminToken))
+    const novelId = (await jsonOf<{ novel: { id: string } }>(novel)).novel.id
+    fetchMock.mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            model: 'test-model',
+            choices: [{ message: { content: '雨夜断剑\n\n少年在雨夜捡到一柄断剑，被巡夜人盯上。' }, finish_reason: 'stop' }],
+            usage: { prompt_tokens: 10, completion_tokens: 20 },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+    )
+
+    const started = await req('/api/ai/writing/continue', json('POST', { novelId, chapterCount: 2 }, adminToken))
+    expect(started.status).toBe(202)
+    const { taskId, batchId } = await jsonOf<{ taskId: string; batchId: string }>(started)
+    expect((await waitForTask(taskId, adminToken)).status).toBe('completed')
+
+    // 草稿落库：draftTitle 取 AI 标题，正文剥离标题行
+    const { rows } = await t.db.query<{ id: string; result: string; params_json: string }>(
+      `SELECT id, result, params_json FROM ai_generations WHERE kind = 'continue' AND status = 'draft' AND params_json LIKE $1 ORDER BY created_at ASC`,
+      [`%"batchId":"${batchId}"%`],
+    )
+    expect(rows).toHaveLength(2)
+    const firstDraft = rows[0]!
+    const params = JSON.parse(firstDraft.params_json) as { draftTitle: string }
+    expect(params.draftTitle).toBe('雨夜断剑')
+    expect(firstDraft.result).toBe('少年在雨夜捡到一柄断剑，被巡夜人盯上。')
+    expect(firstDraft.result.includes('雨夜断剑')).toBe(false)
+
+    // 单条发布：不传 title 时自动用 AI 标题
+    const single = await req(`/api/ai/writing/drafts/${firstDraft.id}/publish`, json('POST', { novelId }, adminToken))
+    expect(single.status).toBe(200)
+    const singleBody = await jsonOf<{ chapter: { title: string } }>(single)
+    expect(singleBody.chapter.title).toBe('雨夜断剑')
+
+    // 整批发布：剩余 1 章同样用 AI 标题
+    const batch = await req(`/api/ai/writing/batches/${batchId}/publish`, json('POST', { novelId }, adminToken))
+    expect(batch.status).toBe(200)
+    const body = await jsonOf<{ published: Array<{ title: string }> }>(batch)
+    expect(body.published.map((chapter) => chapter.title)).toEqual(['雨夜断剑'])
+
+    // 新写章节共用同一提示词（首行标题）：同样解析入 draftTitle，发布自动填充
+    const chapterStart = await req('/api/ai/writing/chapter', json('POST', { novelId, title: '续写自动填充书', instruction: '写一段' }, adminToken))
+    expect(chapterStart.status).toBe(202)
+    const chapterTaskId = (await jsonOf<{ taskId: string }>(chapterStart)).taskId
+    expect((await waitForTask(chapterTaskId, adminToken)).status).toBe('completed')
+    const { rows: chapterRows } = await t.db.query<{ id: string; result: string; params_json: string }>(
+      "SELECT id, result, params_json FROM ai_generations WHERE kind = 'write_chapter' AND status = 'draft' ORDER BY created_at DESC LIMIT 1",
+    )
+    const chapterDraft = chapterRows[0]!
+    expect((JSON.parse(chapterDraft.params_json) as { draftTitle: string }).draftTitle).toBe('雨夜断剑')
+    expect(chapterDraft.result).toBe('少年在雨夜捡到一柄断剑，被巡夜人盯上。')
+    const chapterPub = await req(`/api/ai/writing/drafts/${chapterDraft.id}/publish`, json('POST', { novelId }, adminToken))
+    expect(chapterPub.status).toBe(200)
+    expect((await jsonOf<{ chapter: { title: string } }>(chapterPub)).chapter.title).toBe('雨夜断剑')
+  })
+
   // ---------- 可配置阈值 / 并发上限 / 运维清理 / 审计截断 ----------
 
   it('catchupStaleDays 可配且通过 /status 下发：阈值放宽后 8 天前的进度变为 not_stale', async () => {

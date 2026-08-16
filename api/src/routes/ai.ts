@@ -776,7 +776,8 @@ aiRoutes.post('/writing/drafts/:id/publish', requireAdmin(), async (c) => {
   const row = await getGeneration(db, id)
   if (!row || row.status !== 'draft' || !['write_chapter', 'continue'].includes(row.kind)) return c.json({ error: '可发布的章节草稿不存在' }, 404)
   const novelId = String(body.novelId || row.novel_id || '').trim()
-  const title = String(body.title || '').trim()
+  // 标题优先取前端输入，为空时回退到续写解析出的 AI 标题（自动填充）
+  const title = String(body.title || '').trim() || draftBatchParams(row.params_json).draftTitle
   if (!novelId || !title || !row.result.trim()) return c.json({ error: 'novelId、title 和内容必填' }, 400)
   const chapterId = 'ch_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7)
   const now = Date.now()
@@ -811,19 +812,23 @@ aiRoutes.post('/writing/drafts/:id/publish', requireAdmin(), async (c) => {
   }
 })
 
-/** 从 params_json 取批次字段（batchId / batchIndex），解析失败按无批次处理。 */
-function draftBatchParams(paramsJson: string): { batchId: string; batchIndex: number } {
+/** 从 params_json 取批次字段（batchId / batchIndex / 续写解析出的 draftTitle），解析失败按无批次处理。 */
+function draftBatchParams(paramsJson: string): { batchId: string; batchIndex: number; draftTitle: string } {
   try {
     const params = JSON.parse(paramsJson) as Record<string, unknown>
-    return { batchId: typeof params.batchId === 'string' ? params.batchId : '', batchIndex: Number(params.batchIndex) || 0 }
+    return {
+      batchId: typeof params.batchId === 'string' ? params.batchId : '',
+      batchIndex: Number(params.batchIndex) || 0,
+      draftTitle: typeof params.draftTitle === 'string' ? params.draftTitle.trim() : '',
+    }
   } catch {
-    return { batchId: '', batchIndex: 0 }
+    return { batchId: '', batchIndex: 0, draftTitle: '' }
   }
 }
 
 /**
  * 整批发布：把一个续写批次的全部草稿按 batchIndex 顺序发布为正式章节。
- * 标题自动使用「第 N 章」（沿现有章节序号递增），发布后可在章节管理里改名。
+ * 标题优先使用各章续写解析出的 AI 标题，缺失时回退「第 N 章」（沿现有章节序号递增）。
  */
 aiRoutes.post('/writing/batches/:batchId/publish', requireAdmin(), async (c) => {
   const db = getDb()
@@ -860,7 +865,8 @@ aiRoutes.post('/writing/batches/:batchId/publish', requireAdmin(), async (c) => 
         const claimed = await q("UPDATE ai_generations SET status = 'published', chapter_id = $1 WHERE id = $2 AND status = 'draft'", [chapterId, row.id])
         if (!claimed.rowCount) continue
         order += 1
-        const title = `第 ${order} 章`
+        // 标题优先使用该章续写解析出的 AI 标题，缺失时回退「第 N 章」
+        const title = draftBatchParams(row.params_json).draftTitle || `第 ${order} 章`
         await q('INSERT INTO chapters (id, novel_id, title, content, sort_order, word_count, source_url, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)', [
           chapterId,
           novelId,

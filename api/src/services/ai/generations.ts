@@ -132,19 +132,22 @@ export interface GenerationDetail extends Generation {
   batchId: string
   batchIndex: number
   batchCount: number
+  /** 续写时从 AI 输出解析出的章节标题（params_json.draftTitle），供发布自动填充 */
+  draftTitle: string
   prompt: string
 }
 
-function batchFields(paramsJson: string): { batchId: string; batchIndex: number; batchCount: number } {
+function batchFields(paramsJson: string): { batchId: string; batchIndex: number; batchCount: number; draftTitle: string } {
   try {
     const params = JSON.parse(paramsJson) as Record<string, unknown>
     return {
       batchId: typeof params.batchId === 'string' ? params.batchId : '',
       batchIndex: Number(params.batchIndex) || 0,
       batchCount: Number(params.batchCount) || 0,
+      draftTitle: typeof params.draftTitle === 'string' ? params.draftTitle : '',
     }
   } catch {
-    return { batchId: '', batchIndex: 0, batchCount: 0 }
+    return { batchId: '', batchIndex: 0, batchCount: 0, draftTitle: '' }
   }
 }
 

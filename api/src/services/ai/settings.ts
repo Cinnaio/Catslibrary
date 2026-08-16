@@ -92,7 +92,7 @@ export const DEFAULT_AI_SETTINGS: AiSettings = {
   // AI 创作参数默认值
   writingTemperature: 0.8,
   writingMaxTokens: 1800,
-  writingSystemPrompt: '你是中文网络小说作者。请根据提供的设定和上下文创作正文，保持人物动机、叙事视角和风格一致。只输出正文，不要标题、解释或 Markdown。',
+  writingSystemPrompt: '你是中文网络小说作者。请根据提供的设定和上下文创作正文，保持人物动机、叙事视角和风格一致。输出格式：第一行输出本章标题（不加书名号、不加解释），空一行后输出正文；不要 Markdown。',
   // 提取类调用的输出 token 上限：推理模型先消耗思考 token，需留足余量，避免结构化输出被截断
   styleProfileMaxTokens: 1500,
   plotStateMaxTokens: 3000,

@@ -30,6 +30,8 @@ interface AiGenerationListItem {
   batchId: string
   batchIndex: number
   batchCount: number
+  /** 续写时从 AI 输出解析出的章节标题，用于发布自动填充 */
+  draftTitle: string
   groupItems?: AiGenerationListItem[]
 }
 
@@ -240,7 +242,7 @@ export default function AiGenerationsPanel(props: {
     if (!draftCount || !item.novelId) return toast('该批次没有可发布的草稿', 'error')
     const ok = await confirm({
       title: '整批发布续写草稿？',
-      message: `将按批次顺序把 ${draftCount} 章草稿发布为《${item.novelTitle || '未知小说'}》的正式章节，标题自动使用「第 N 章」递增，发布后可在章节管理中改名。`,
+      message: `将按批次顺序把 ${draftCount} 章草稿发布为《${item.novelTitle || '未知小说'}》的正式章节，标题优先使用 AI 生成的标题，缺失时回退「第 N 章」递增，发布后可在章节管理中改名。`,
       okText: '整批发布',
       cancelText: '取消',
     })
@@ -445,7 +447,7 @@ export default function AiGenerationsPanel(props: {
                                     size="sm"
                                     onClick={() => {
                                       setViewing(item)
-                                      setPublishTitle(item.chapterTitle || '')
+                                      setPublishTitle(item.draftTitle || item.chapterTitle || '')
                                       setTitleCandidates([])
                                     }}
                                   >
@@ -473,7 +475,7 @@ export default function AiGenerationsPanel(props: {
                                   <span className="text-xs text-muted-foreground">第 {chapter.batchIndex} 章</span>
                                 </td>
                                 <td className="px-4 py-2">
-                                  <span className="text-xs text-muted-foreground">{chapter.chapterTitle || '待命名章节'}</span>
+                                  <span className="text-xs text-muted-foreground">{chapter.draftTitle || chapter.chapterTitle || '待命名章节'}</span>
                                 </td>
                                 <td className="max-w-[340px] px-4 py-2">
                                   <p className="ai-generation-preview line-clamp-1 text-xs text-muted-foreground" data-preview-label="正文预览">
@@ -489,7 +491,7 @@ export default function AiGenerationsPanel(props: {
                                       size="sm"
                                       onClick={() => {
                                         setViewing(chapter)
-                                        setPublishTitle(chapter.chapterTitle || '')
+                                        setPublishTitle(chapter.draftTitle || chapter.chapterTitle || '')
                                         setTitleCandidates([])
                                       }}
                                     >
