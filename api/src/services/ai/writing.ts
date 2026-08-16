@@ -55,38 +55,65 @@ export function parseWritingTitles(raw: string): string[] {
     .slice(0, 3)
 }
 
-/** 清洗标题：剥掉引号/书名号等包裹符号，截断到 40 字。 */
+/** 清洗标题：剥掉引号/书名号/【】等包裹符号，保留包裹后跟随的 H 评级标记，截断到 40 字。 */
 function cleanTitle(value: string): string {
-  return String(value || '')
+  const text = String(value || '').trim()
+  const wrapped = text.match(/^[【《「“]([^】》”」]*)[】》”」]\s*(.*)$/)
+  const inner = wrapped
+    ? [wrapped[1]?.trim(), /^[Hh]+$/.test(wrapped[2]?.trim() || '') ? wrapped[2]?.trim().toUpperCase() : wrapped[2]?.trim()]
+        .map((part) => part || '')
+        .filter(Boolean)
+        .join(' ')
+    : text
+  return inner
     .replace(/^['"“”「」《》【】]+|['"“”「」《》【】]+$/g, '')
     .trim()
     .slice(0, 40)
 }
 
+/** 从单行提取标题：「标题：xxx」前缀 / 【】《》「」包裹 / # 前缀；不满足返回空。 */
+function titleFromLine(line: string): string {
+  const labeled = line.match(/^(?:章节标题|标题|title)\s*[:：]\s*(.+)$/i)
+  if (labeled) return cleanTitle(labeled[1] || '')
+  if (/^[#【《「“]/.test(line)) return cleanTitle(line.replace(/^#+\s*/, ''))
+  return ''
+}
+
 /**
- * 从续写输出中提取首行标题并返回剥离标题后的正文。支持：
+ * 从续写输出中提取标题并返回剥离标题后的正文。兼容真实产出过的格式：
+ * - 开头的章节号行（「## 第 6 章」「第 88 章」）：章节号不是标题；若同行带尾巴（「第 3 章 锁孔里的光」）则尾巴是标题，否则看下一行
+ * - 「【标题】HH」/《标题》/「标题」等包裹形态：尾部可带 H 评级标记（自定义提示词要求 H 数量标注），保留进标题
  * - 「标题：xxx」/「章节标题: xxx」/「Title: xxx」前缀
- * - 首行整体被「#」「【】」「《》」包裹
- * - 裸首行标题：长度 2-30、不以句末标点结尾、且其后有空行（提示词要求"第一行标题，空一行正文"）
+ * - 裸首行标题：长度 2-30、不以句末标点结尾、且紧跟空行（提示词要求"标题后空一行再写正文"）
  * 未识别到标题时原样返回，不破坏既有行为。
  */
 export function parseContinuationTitle(raw: string): { title: string; body: string } {
   const source = String(raw || '').replace(/\r\n/g, '\n').trimStart()
   const lines = source.split('\n')
-  const first = lines[0]?.trim() || ''
-  if (!first) return { title: '', body: source.trim() }
-
+  let index = 0
   let title = ''
-  const labeled = first.match(/^(?:章节标题|标题|title)\s*[:：]\s*(.+)$/i)
-  if (labeled) {
-    title = cleanTitle(labeled[1] || '')
-  } else if (/^[#《【]/.test(first)) {
-    title = cleanTitle(first.replace(/^#+\s*/, ''))
-  } else if (first.length >= 2 && first.length <= 30 && !/[。！？!?…]$/.test(first) && source.includes('\n\n')) {
-    title = cleanTitle(first)
+
+  const numberLine = (lines[0] || '').trim().match(/^(?:#+\s*)?第\s*[0-9一二三四五六七八九十百千零两]+\s*[章节回]\s*(.*)$/)
+  if (numberLine) {
+    const tail = (numberLine[1] || '').trim()
+    title = titleFromLine(tail) || cleanTitle(tail.replace(/^[\s:：、.．]+/, ''))
+    index = 1
   }
+
+  if (!title) {
+    const line = (lines[index] || '').trim()
+    if (!line) return { title: '', body: source.trim() }
+    title = titleFromLine(line)
+    if (!title && line.length >= 2 && line.length <= 30 && !/[。！？!?…]$/.test(line) && !(lines[index + 1] || '').trim()) {
+      title = cleanTitle(line)
+    }
+    if (title) index += 1
+  }
+
   if (!title) return { title: '', body: source.trim() }
-  const rest = lines.slice(1).join('\n').replace(/^\n+/, '').trim()
+  const rest = lines.slice(index).join('\n').replace(/^\n+/, '').trim()
+  // 剥离标题后正文为空，说明整个输出只是一行（如短测试文本），不算标题行
+  if (!rest) return { title: '', body: source.trim() }
   return { title, body: rest }
 }
 
