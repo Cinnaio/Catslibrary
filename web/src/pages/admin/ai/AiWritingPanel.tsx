@@ -1,5 +1,5 @@
 /** AI 创作工作台：新写 / 续写，生成结果先保存为草稿。 */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { aiApi, chaptersApi, novelsApi, type AiTaskInfo } from '@/lib/api'
 import { useToast, useConfirm } from '@/components/feedback'
 import { Button } from '@/components/ui/button'
@@ -32,6 +32,98 @@ function taskStatusLabel(status: string): string {
 
 function taskKindLabel(kind: string): string {
   return kind === 'continue' ? '续写' : kind === 'write_outline' ? '大纲' : kind === 'write_chapter' ? '章节' : kind === 'cover' ? '封面' : kind
+}
+
+/** 任务状态圆点：排队琥珀、运行中主色呼吸、完成绿、失败红、取消灰。 */
+function taskDotClass(status: string): string {
+  if (status === 'running') return 'bg-primary motion-safe:animate-pulse'
+  if (status === 'queued') return 'bg-[var(--color-warning)]'
+  if (status === 'completed') return 'bg-[var(--color-success)]'
+  if (status === 'failed') return 'bg-[var(--color-danger)]'
+  return 'bg-muted-foreground/40'
+}
+
+/** 画像正文：按空行分段排版，保留段内换行；超出折叠高度时右下角给出字数胶囊提示可滚动。 */
+function ProfileText({ text }: { text: string }) {
+  const paragraphs = text.split(/\n{2,}/).map((part) => part.trim()).filter(Boolean)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [overflowing, setOverflowing] = useState(false)
+  useEffect(() => {
+    const el = scrollRef.current
+    setOverflowing(!!el && el.scrollHeight > el.clientHeight + 4)
+  }, [text])
+  return (
+    <div className="relative">
+      <div ref={scrollRef} className="max-h-44 space-y-2 overflow-y-auto pr-1">
+        {paragraphs.map((paragraph, index) => (
+          <p key={index} className="whitespace-pre-line text-[13px] leading-6 text-foreground/75">
+            {paragraph}
+          </p>
+        ))}
+      </div>
+      {overflowing && (
+        <span className="pointer-events-none absolute bottom-1 right-2 rounded-full bg-background/85 px-1.5 py-px text-[10px] leading-4 text-muted-foreground shadow-sm">
+          共 {text.replace(/\s/g, '').length} 字 · 滚动查看
+        </span>
+      )}
+    </div>
+  )
+}
+
+/** 画像提取模块的统一骨架：标题 + 提取状态徽标 + 操作区（可选取样章数），内容面板或空态提示。 */
+function ProfileSection(props: {
+  label: string
+  extracted: boolean
+  busy: boolean
+  disabled: boolean
+  actionText: string
+  onAction: () => void
+  emptyHint: string
+  sample?: { value: number; min: number; max: number; onChange: (value: number) => void }
+  content?: ReactNode
+  footnote?: ReactNode
+}) {
+  const sample = props.sample
+  return (
+    <div className="grid gap-2">
+      <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <Label>{props.label}</Label>
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-2 py-0.5 text-[11px] text-muted-foreground">
+            <span className={`size-1.5 rounded-full ${props.extracted ? 'bg-[var(--color-success)]' : 'bg-muted-foreground/40'}`} />
+            {props.extracted ? '已提取' : '未提取'}
+          </span>
+        </div>
+        <div className="flex items-center justify-start gap-3 sm:justify-end">
+          {sample && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">取样</span>
+              <Input
+                type="number"
+                min={sample.min}
+                max={sample.max}
+                className="h-8 w-[4.5rem] text-center"
+                value={sample.value}
+                onChange={(event) => sample.onChange(Number(event.target.value))}
+              />
+              <span className="text-xs text-muted-foreground">章</span>
+            </div>
+          )}
+          <Button variant="ghost" size="sm" disabled={props.disabled} onClick={props.onAction}>
+            {props.actionText}
+          </Button>
+        </div>
+      </div>
+      {props.content ? (
+        <div className="rounded-md border bg-muted/30 px-3.5 py-3">{props.content}</div>
+      ) : (
+        <div className="rounded-md border border-dashed px-3.5 py-3">
+          <p className="text-[13px] leading-6 text-muted-foreground">{props.emptyHint}</p>
+        </div>
+      )}
+      {props.footnote}
+    </div>
+  )
 }
 
 export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string) => void } = {}) {
@@ -297,7 +389,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
             <p className="text-sm text-muted-foreground">生成结果先保存为草稿，编辑确认后再发布为正式章节。</p>
           </div>
         </CardHeader>
-        <CardContent className="grid gap-4">
+        <CardContent className="grid gap-5">
           <Tabs value={mode} onValueChange={(value) => setMode(value as 'new' | 'continue')}>
             <TabsList>
               <TabsTrigger value="new">新写</TabsTrigger>
@@ -371,153 +463,131 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
               </div>
             )}
           </div>
-          <div className="grid gap-1.5">
-            <Label>创作要求</Label>
-            <textarea data-slot="textarea"
-              className="min-h-[100px] w-full border border-input bg-background px-3 py-2 text-sm"
-              value={instruction}
-              onChange={(event) => setInstruction(event.target.value)}
-              placeholder="人物、风格、冲突、节奏或本次剧情目标"
-            />
-          </div>
-          <div className="grid gap-1.5">
-            <div className="flex items-center justify-between">
-              <Label>风格画像</Label>
-              <Button variant="ghost" size="sm" disabled={busy || styleBusy || taskActive || !novelId} onClick={() => void refreshStyleProfile()}>
-                {styleBusy ? '提取中…' : styleProfile ? '重新提取' : '提取风格画像'}
-              </Button>
-            </div>
-            {styleProfile ? (
-              <pre className="max-h-[160px] overflow-auto whitespace-pre-wrap rounded-md border border-input bg-muted/30 px-3 py-2 text-xs leading-relaxed text-muted-foreground">{styleProfile}</pre>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                未提取。续写时会按通用的「保持风格一致」约束兜底；提取后则按本作原文的句式、节奏、语气、设定续写，文风一致性更好。建议在有 2 章以上正文后提取一次。
-              </p>
-            )}
-          </div>
-          {mode === 'continue' && (
+          <div className="grid gap-4 border-t pt-5">
             <div className="grid gap-1.5">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <Label>关系画像</Label>
-                <div className="flex items-center gap-2">
-                  <Label className="text-xs text-muted-foreground">取样章数</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={30}
-                    className="h-8 w-20"
-                    value={relationshipSample}
-                    onChange={(event) => setRelationshipSample(Math.max(1, Math.min(30, Number(event.target.value) || 10)))}
-                  />
-                  <Button variant="ghost" size="sm" disabled={busy || relationshipBusy || taskActive || !novelId} onClick={() => void refreshRelationshipProfile()}>
-                    {relationshipBusy ? '提取中…' : relationshipProfile ? '重新提取' : '提取关系画像'}
-                  </Button>
-                </div>
-              </div>
-              {relationshipProfile ? (
-                <pre className="max-h-[180px] overflow-auto whitespace-pre-wrap rounded-md border border-input bg-muted/30 px-3 py-2 text-xs leading-relaxed text-muted-foreground">{relationshipProfile}</pre>
-              ) : (
-                <p className="text-xs text-muted-foreground">
-                  未提取。提取后把角色关系动态、权力结构、心理边界、互动尺度塞进续写，防止主从写成平等恋人、把奖赏手段当真心、从属试探写成主导。关系底色较稳定，建议取较长窗口看清演变。
-                </p>
-              )}
-            </div>
-          )}
-          {mode === 'new' && (
-            <div className="grid gap-1.5">
-              <Label>大纲（生成章节时使用）</Label>
+              <Label>创作要求</Label>
               <textarea data-slot="textarea"
-                className="min-h-[140px] w-full border border-input bg-background px-3 py-2 text-sm"
-                value={outline}
-                onChange={(event) => setOutline(event.target.value)}
-                placeholder="先生成大纲，或直接粘贴已有大纲"
+                className="min-h-[100px] w-full border border-input bg-background px-3 py-2 text-sm"
+                value={instruction}
+                onChange={(event) => setInstruction(event.target.value)}
+                placeholder="人物、风格、冲突、节奏或本次剧情目标"
               />
             </div>
-          )}
-          {mode === 'continue' && (
-            <div className="grid gap-1.5">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <Label>情节状态</Label>
-                <div className="flex items-center gap-2">
-                  <Label className="text-xs text-muted-foreground">取样章数</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={30}
-                    className="h-8 w-20"
-                    value={plotSample}
-                    onChange={(event) => setPlotSample(Math.max(1, Math.min(30, Number(event.target.value) || 8)))}
-                  />
-                  <Button variant="ghost" size="sm" disabled={busy || plotBusy || taskActive || !novelId} onClick={() => void refreshPlotState()}>
-                    {plotBusy ? '提取中…' : plotState ? '重新提取' : '提取情节状态'}
-                  </Button>
-                </div>
+            {mode === 'new' && (
+              <div className="grid gap-1.5">
+                <Label>大纲（生成章节时使用）</Label>
+                <textarea data-slot="textarea"
+                  className="min-h-[140px] w-full border border-input bg-background px-3 py-2 text-sm"
+                  value={outline}
+                  onChange={(event) => setOutline(event.target.value)}
+                  placeholder="先生成大纲，或直接粘贴已有大纲"
+                />
               </div>
-              {plotState ? (
-                <pre className="max-h-[180px] overflow-auto whitespace-pre-wrap rounded-md border border-input bg-muted/30 px-3 py-2 text-xs leading-relaxed text-muted-foreground">{plotState}</pre>
-              ) : (
-                <p className="text-xs text-muted-foreground">
-                  未提取。多章续写时上下文会截断丢前文，提取后把角色处境/伏笔/待解决冲突塞进续写，人设不漂移、伏笔不遗忘。建议续写前更新一次。
-                </p>
-              )}
-              {plotState && (
-                <p className="text-xs text-muted-foreground">
-                  基于最近 {plotChaptersThrough} 章提取{plotChapterCount > 0 ? `（本书共 ${plotChapterCount} 章）` : ''}。情节状态反映「当前」进展，只取最近几章即可，无需等于全书章节数；若上次提取后又发布了新章节，建议重新提取。
-                </p>
-              )}
-            </div>
-          )}
-          {mode === 'continue' && pendingDrafts > 0 && !taskActive && (
-            <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
-              <span>该小说有 {pendingDrafts} 章未发布的续写草稿。续写上下文只取已发布章节，建议先发布草稿再继续，避免剧情断档。</span>
-              {props.onViewBatch && (
-                <Button variant="outline" size="sm" className="ml-auto" onClick={() => props.onViewBatch?.()}>
-                  查看草稿
-                </Button>
-              )}
-            </div>
-          )}
-          {task && (
-            <div className="rounded-md border bg-muted/40 p-3 text-sm">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="font-medium">
-                  {taskKindLabel(task.kind)} · {taskStatusLabel(task.status)}
-                </span>
-                {task.kind === 'continue' && (
-                  <span className="text-muted-foreground">
-                    {task.current} / {task.total} 章
-                  </span>
-                )}
-                {taskActive && (
-                  <Button variant="outline" size="sm" className="ml-auto" onClick={() => void cancelTask()}>
-                    取消任务
-                  </Button>
-                )}
-                {!taskActive && task.current > 0 && props.onViewBatch && (
-                  <Button variant="outline" size="sm" className="ml-auto" onClick={() => props.onViewBatch?.(task.batchId || undefined)}>
-                    {task.batchId ? `查看本批草稿（${task.current} 章）` : '查看草稿'}
-                  </Button>
-                )}
-              </div>
-              <p className="mt-1 text-muted-foreground">{task.step || '等待处理'}</p>
-              {task.error && <p className="mt-1 text-destructive">{task.error}</p>}
-            </div>
-          )}
-          <div className="flex flex-wrap gap-2">
-            {mode === 'new' ? (
-              <>
-                <Button variant="secondary" disabled={busy || taskActive} onClick={() => void generateOutline()}>
-                  {taskActive && task?.kind === 'write_outline' ? '生成中…' : '生成大纲'}
-                </Button>
-                <Button disabled={busy || taskActive} onClick={() => void generateChapter()}>
-                  {taskActive && task?.kind === 'write_chapter' ? '生成中…' : '生成章节'}
-                </Button>
-              </>
-            ) : (
-              <Button disabled={busy || taskActive} onClick={() => void continueNovel()}>
-                {taskActive && task?.kind === 'continue' ? '生成中…' : '生成续写'}
-              </Button>
             )}
+          </div>
+          <div className="grid gap-4 border-t pt-5">
+            <div>
+              <p className="text-sm font-medium">小说分析</p>
+              <p className="text-xs text-muted-foreground">提取后自动注入续写：风格画像定文风，关系画像定人设边界，情节状态防断档。</p>
+            </div>
+            <ProfileSection
+              label="风格画像"
+              extracted={!!styleProfile}
+              busy={styleBusy}
+              disabled={busy || styleBusy || taskActive || !novelId}
+              actionText={styleBusy ? '提取中…' : styleProfile ? '重新提取' : '提取风格画像'}
+              onAction={() => void refreshStyleProfile()}
+              emptyHint="续写时会按通用的「保持风格一致」约束兜底；提取后则按本作原文的句式、节奏、语气、设定续写，文风一致性更好。建议在有 2 章以上正文后提取一次。"
+              content={styleProfile ? <ProfileText text={styleProfile} /> : undefined}
+            />
+            {mode === 'continue' && (
+              <ProfileSection
+                label="关系画像"
+                extracted={!!relationshipProfile}
+                busy={relationshipBusy}
+                disabled={busy || relationshipBusy || taskActive || !novelId}
+                actionText={relationshipBusy ? '提取中…' : relationshipProfile ? '重新提取' : '提取关系画像'}
+                onAction={() => void refreshRelationshipProfile()}
+                emptyHint="提取后把角色关系动态、权力结构、心理边界、互动尺度塞进续写，防止主从写成平等恋人、把奖赏手段当真心、从属试探写成主导。关系底色较稳定，建议取较长窗口看清演变。"
+                sample={{ value: relationshipSample, min: 1, max: 30, onChange: (value) => setRelationshipSample(Math.max(1, Math.min(30, value || 10))) }}
+                content={relationshipProfile ? <ProfileText text={relationshipProfile} /> : undefined}
+              />
+            )}
+            {mode === 'continue' && (
+              <ProfileSection
+                label="情节状态"
+                extracted={!!plotState}
+                busy={plotBusy}
+                disabled={busy || plotBusy || taskActive || !novelId}
+                actionText={plotBusy ? '提取中…' : plotState ? '重新提取' : '提取情节状态'}
+                onAction={() => void refreshPlotState()}
+                emptyHint="多章续写时上下文会截断丢前文，提取后把角色处境、伏笔、待解决冲突塞进续写，人设不漂移、伏笔不遗忘。建议续写前更新一次。"
+                sample={{ value: plotSample, min: 1, max: 30, onChange: (value) => setPlotSample(Math.max(1, Math.min(30, value || 8))) }}
+                content={plotState ? <ProfileText text={plotState} /> : undefined}
+                footnote={
+                  plotState ? (
+                    <p className="text-xs leading-5 text-muted-foreground">
+                      基于最近 {plotChaptersThrough} 章提取{plotChapterCount > 0 ? `（本书共 ${plotChapterCount} 章）` : ''}。情节状态反映「当前」进展，只取最近几章即可，无需等于全书章节数；若上次提取后又发布了新章节，建议重新提取。
+                    </p>
+                  ) : undefined
+                }
+              />
+            )}
+          </div>
+          <div className="grid gap-3 border-t pt-5">
+            {mode === 'continue' && pendingDrafts > 0 && !taskActive && (
+              <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+                <span>该小说有 {pendingDrafts} 章未发布的续写草稿。续写上下文只取已发布章节，建议先发布草稿再继续，避免剧情断档。</span>
+                {props.onViewBatch && (
+                  <Button variant="outline" size="sm" className="ml-auto" onClick={() => props.onViewBatch?.()}>
+                    查看草稿
+                  </Button>
+                )}
+              </div>
+            )}
+            {task && (
+              <div className="rounded-md border bg-muted/40 p-3 text-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={`size-1.5 shrink-0 rounded-full ${taskDotClass(task.status)}`} aria-hidden />
+                  <span className="font-medium">
+                    {taskKindLabel(task.kind)} · {taskStatusLabel(task.status)}
+                  </span>
+                  {task.kind === 'continue' && (
+                    <span className="text-muted-foreground">
+                      {task.current} / {task.total} 章
+                    </span>
+                  )}
+                  {taskActive && (
+                    <Button variant="outline" size="sm" className="ml-auto" onClick={() => void cancelTask()}>
+                      取消任务
+                    </Button>
+                  )}
+                  {!taskActive && task.current > 0 && props.onViewBatch && (
+                    <Button variant="outline" size="sm" className="ml-auto" onClick={() => props.onViewBatch?.(task.batchId || undefined)}>
+                      {task.batchId ? `查看本批草稿（${task.current} 章）` : '查看草稿'}
+                    </Button>
+                  )}
+                </div>
+                <p className="mt-1 text-muted-foreground">{task.step || '等待处理'}</p>
+                {task.error && <p className="mt-1 text-destructive">{task.error}</p>}
+              </div>
+            )}
+            <div className="flex flex-wrap gap-2">
+              {mode === 'new' ? (
+                <>
+                  <Button variant="secondary" disabled={busy || taskActive} onClick={() => void generateOutline()}>
+                    {taskActive && task?.kind === 'write_outline' ? '生成中…' : '生成大纲'}
+                  </Button>
+                  <Button disabled={busy || taskActive} onClick={() => void generateChapter()}>
+                    {taskActive && task?.kind === 'write_chapter' ? '生成中…' : '生成章节'}
+                  </Button>
+                </>
+              ) : (
+                <Button disabled={busy || taskActive} onClick={() => void continueNovel()}>
+                  {taskActive && task?.kind === 'continue' ? '生成中…' : '生成续写'}
+                </Button>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>

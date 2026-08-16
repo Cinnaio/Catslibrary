@@ -247,7 +247,9 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 
 @media (max-width: 640px) {
   .ai-admin-page [data-slot='input'],
-  .ai-generation-dialog [data-slot='input'] {
+  .ai-admin-page [data-slot='input'][type='number'],
+  .ai-generation-dialog [data-slot='input'],
+  .ai-generation-dialog [data-slot='input'][type='number'] {
     width: 100%;
   }
 }
