@@ -18,7 +18,7 @@
   --accent-hover:     #74503A;
   --accent-light:     #F0E6D6;
   --accent-subtle:    #F8F3EC;
-  --accent-ink:       #FFFFFF;
+  --accent-ink:       var(--accent-ink-light, #FFFFFF);
   --border:           #ECE8E2;
   --border-light:     #F3F0EB;
   --focus-ring:       rgba(139, 96, 69, 0.24);
@@ -79,7 +79,7 @@
   --accent-hover:     #D0A064;
   --accent-light:     #3D2F20;
   --accent-subtle:    #2C261E;
-  --accent-ink:       #1D1510;
+  --accent-ink:       var(--accent-ink-dark, #1D1510);
   --border:           #3B3C43;
   --border-light:     #33343A;
   --focus-ring:       rgba(191, 143, 82, 0.30);
@@ -96,4 +96,27 @@
   --admin-shadow: 0 20px 54px rgba(0, 0, 0, 0.34);
   --admin-shadow-soft: 0 12px 30px rgba(0, 0, 0, 0.24);
   --shadow-modal: 0 30px 86px rgba(0, 0, 0, 0.52);
+}
+
+/* ============================================================
+   调色盘 —— 用户自定义强调色
+   html[data-accent] 由 AccentContext 写入。未自定义时保持上方
+   手调品牌值（零漂移）；自定义时从 --accent-base 派生 accent 家族，
+   深色主题向白提亮 22% 保证暗底可读。墨色（--accent-ink）由 JS
+   按对比度写入 --accent-ink-light / --accent-ink-dark。
+   ============================================================ */
+
+html[data-accent] {
+  --accent:           var(--accent-base);
+  --accent-hover:     color-mix(in oklch, var(--accent) 88%, #000);
+  --accent-light:     color-mix(in oklch, var(--accent) 16%, var(--bg-card));
+  --accent-subtle:    color-mix(in oklch, var(--accent) 9%, var(--bg-card));
+  --focus-ring:       color-mix(in oklch, var(--accent) 26%, transparent);
+  --selection-bg:     color-mix(in oklch, var(--accent) 45%, transparent);
+  --color-info:       var(--accent);
+}
+
+html[data-accent][data-theme="dark"] {
+  --accent:           color-mix(in oklch, var(--accent-base) 78%, #fff);
+  --accent-hover:     color-mix(in oklch, var(--accent) 88%, #fff);
 }

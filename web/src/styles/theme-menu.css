@@ -12,7 +12,7 @@
 .theme-menu__popover {
   position: absolute;
   z-index: 300;
-  min-width: 160px;
+  min-width: 176px;
   padding: 6px;
   background: var(--bg-card);
   border: 1px solid var(--border);
@@ -71,4 +71,94 @@
   width: 100%;
   height: 44px;
   flex: 1 1 0;
+}
+
+/* 调色盘 —— 预设色板 + 自定义取色器 */
+.theme-menu__divider {
+  height: 1px;
+  margin: 6px 2px;
+  background: var(--border-light);
+}
+
+.theme-menu__palette {
+  padding: 4px 10px 8px;
+}
+
+.theme-menu__palette-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.theme-menu__reset {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.theme-menu__reset:hover {
+  text-decoration: underline;
+}
+
+.theme-menu__swatches {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+
+.theme-menu__swatch {
+  position: relative;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 2px solid var(--bg-card);
+  border-radius: var(--radius-full);
+  box-shadow: 0 0 0 1px var(--border);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.theme-menu__swatch:hover {
+  transform: scale(1.1);
+}
+
+.theme-menu__swatch.active {
+  box-shadow: 0 0 0 2px var(--accent), 0 0 0 4px var(--bg-card);
+}
+
+.theme-menu__swatch--custom {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: conic-gradient(#f87171, #fbbf24, #4ade80, #22d3ee, #818cf8, #e879f9, #f87171);
+}
+
+.theme-menu__swatch--custom span {
+  pointer-events: none;
+  font-size: 14px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.92);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+
+.theme-menu__swatch--custom.active span {
+  color: var(--accent-ink);
+  text-shadow: none;
+}
+
+.theme-menu__swatch--custom input[type="color"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: none;
+  opacity: 0;
+  cursor: pointer;
 }

@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
 import { useTheme, type ThemeSetting } from '../context/ThemeContext'
 import { AutoIcon, MoonIcon, SunIcon } from './icons'
+import { useAccent } from '../context/AccentContext'
 
 interface ThemeMenuProps {
   className?: string
@@ -26,13 +27,28 @@ const OPTIONS: { value: ThemeSetting; label: string; icon: ReactNode }[] = [
   { value: 'system', label: '跟随系统', icon: <AutoIcon /> },
 ]
 
+/** 预设主题色（全部通过 AA 对比度，深浅两主题均可用） */
+const ACCENT_PRESETS: Array<{ color: string; label: string }> = [
+  { color: '#8B6045', label: '奶茶棕' },
+  { color: '#2F5D62', label: '黛青' },
+  { color: '#3E6B4F', label: '松绿' },
+  { color: '#A23B4E', label: '绛红' },
+  { color: '#9A6B1F', label: '金秋' },
+  { color: '#6B4E8C', label: '墨紫' },
+  { color: '#3E7B7A', label: '青瓷' },
+  { color: '#C05B4A', label: '珊瑚' },
+  { color: '#4A5568', label: '石板' },
+]
+
 /* 弹层估算尺寸（用于视口翻转判断） */
-const MENU_W = 168
-const MENU_H = 132
+const MENU_W = 200
+const MENU_H = 252
 const MENU_GAP = 6
 
 export function ThemeMenu({ className, wrapperClassName, ariaLabel = '主题设置', title = '主题设置', align = 'end', children }: ThemeMenuProps) {
   const { setting, setSetting } = useTheme()
+  const { accent, setAccent } = useAccent()
+  const isCustomAccent = accent != null && !ACCENT_PRESETS.some((p) => p.color === accent)
   const [open, setOpen] = useState(false)
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -139,6 +155,59 @@ export function ThemeMenu({ className, wrapperClassName, ariaLabel = '主题设�
               </button>
             )
           })}
+
+          <div className="theme-menu__divider" aria-hidden="true" />
+          <div className="theme-menu__palette">
+            <div className="theme-menu__palette-head">
+              <span>主题色</span>
+              {accent && (
+                <button
+                  type="button"
+                  className="theme-menu__reset"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setAccent(null)
+                  }}
+                >
+                  恢复默认
+                </button>
+              )}
+            </div>
+            <div className="theme-menu__swatches" role="radiogroup" aria-label="主题色">
+              {ACCENT_PRESETS.map((p) => (
+                <button
+                  key={p.color}
+                  type="button"
+                  role="radio"
+                  aria-checked={accent === p.color}
+                  aria-label={p.label}
+                  title={p.label}
+                  className={`theme-menu__swatch${accent === p.color ? ' active' : ''}`}
+                  style={{ background: p.color }}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setAccent(p.color)
+                  }}
+                />
+              ))}
+              <label
+                className={`theme-menu__swatch theme-menu__swatch--custom${isCustomAccent ? ' active' : ''}`}
+                title="自定义颜色"
+                style={isCustomAccent ? { background: accent ?? undefined } : undefined}
+              >
+                <input
+                  type="color"
+                  aria-label="自定义颜色"
+                  value={isCustomAccent && accent ? accent : ACCENT_PRESETS[0]!.color}
+                  onChange={(e) => {
+                    e.stopPropagation()
+                    setAccent(e.target.value)
+                  }}
+                />
+                <span aria-hidden="true">＋</span>
+              </label>
+            </div>
+          </div>
         </div>
       )}
     </div>
