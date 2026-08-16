@@ -93,6 +93,7 @@ export function ThemeMenu({ className, wrapperClassName, ariaLabel = '主题设�
       <button
         ref={triggerRef}
         type="button"
+        data-slot="theme-menu-trigger"
         className={className}
         aria-label={ariaLabel}
         title={title}

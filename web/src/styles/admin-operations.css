@@ -2043,6 +2043,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 .admin-layout [data-slot='button'],
 .admin-layout [data-slot='sidebar-menu-button'],
 .admin-layout [data-slot='sidebar-trigger'],
+.admin-layout [data-slot='theme-menu-trigger'],
 .admin-layout .form-input,
 .admin-layout .admin-input--compact,
 .admin-layout .scrape-check,
