@@ -68,7 +68,7 @@ export default function AdminSidebar({ active, onSelect }: AdminSidebarProps) {
   const { setting } = useTheme()
 
   return (
-    <Sidebar className="admin-sidebar" collapsible="icon">
+    <Sidebar className="admin-sidebar" variant="floating" collapsible="icon">
       <SidebarHeader className="admin-shell__brand">
         <SidebarMenu>
           <SidebarMenuItem>
