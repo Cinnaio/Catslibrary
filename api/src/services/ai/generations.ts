@@ -7,6 +7,9 @@ import type { Db } from '../../db/pool'
 import { all, first, run } from '../../db/query'
 import { newId } from '../auth'
 
+/** 删除/发布撤销窗口（毫秒）：10 秒内可通过 restore/unpublish 恢复。 */
+export const UNDO_WINDOW_MS = 10_000
+
 export type GenerationKind = 'continue' | 'summary' | 'dialogue' | 'catchup' | 'write_outline' | 'write_chapter'
 export type GenerationStatus = 'draft' | 'published' | 'rejected'
 
@@ -62,7 +65,7 @@ export async function findPublished(
   const row = await first<GenerationRow>(
     db,
     `SELECT * FROM ai_generations
-     WHERE kind = $1 AND chapter_id = $2 AND status = 'published' AND params_json = $3
+     WHERE kind = $1 AND chapter_id = $2 AND status = 'published' AND params_json = $3 AND deleted_at = 0
      ORDER BY created_at DESC LIMIT 1`,
     [kind, chapterId, paramsJson],
   )
@@ -118,8 +121,8 @@ export async function saveGeneration(db: Db, input: SaveGenerationInput): Promis
 export async function listGenerations(db: Db, opts: { status?: string; limit?: number } = {}): Promise<Generation[]> {
   const limit = Math.min(Math.max(Math.trunc(opts.limit || 50), 1), 200)
   const rows = opts.status
-    ? await all<GenerationRow>(db, 'SELECT * FROM ai_generations WHERE status = $1 ORDER BY created_at DESC LIMIT $2', [opts.status, limit])
-    : await all<GenerationRow>(db, 'SELECT * FROM ai_generations ORDER BY created_at DESC LIMIT $1', [limit])
+    ? await all<GenerationRow>(db, "SELECT * FROM ai_generations WHERE status = $1 AND deleted_at = 0 ORDER BY created_at DESC LIMIT $2", [opts.status, limit])
+    : await all<GenerationRow>(db, 'SELECT * FROM ai_generations WHERE deleted_at = 0 ORDER BY created_at DESC LIMIT $1', [limit])
   return rows.map(rowToGeneration)
 }
 
@@ -155,7 +158,7 @@ export async function listBatchDrafts(db: Db, batchId: string): Promise<BatchDra
   if (!batchId) return []
   const rows = await all<GenerationRow>(
     db,
-    `SELECT * FROM ai_generations WHERE kind = 'continue' AND status = 'draft' AND params_json LIKE $1 ORDER BY created_at ASC`,
+    `SELECT * FROM ai_generations WHERE kind = 'continue' AND status = 'draft' AND deleted_at = 0 AND params_json LIKE $1 ORDER BY created_at ASC`,
     [`%"batchId":"${batchId}"%`],
   )
   return rows
@@ -190,7 +193,8 @@ export async function listGenerationDetails(
     params.push(opts.status)
     conditions.push(`g.status = $${params.length}`)
   }
-  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+  conditions.push('g.deleted_at = 0')
+  const where = `WHERE ${conditions.join(' AND ')}`
 
   const rows = await all<GenerationRow & { novel_title: string; chapter_title: string }>(
     db,
@@ -217,17 +221,46 @@ export async function listGenerationDetails(
   }
 }
 
-/** 物理删除某条生成记录（「已生成内容」管理用）；返回是否真的删掉了。 */
+/** 软删除某条生成记录并顺带清理过期软删；返回是否真的标记成功。 */
 export async function deleteGeneration(db: Db, id: string): Promise<boolean> {
-  const affected = await run(db, 'DELETE FROM ai_generations WHERE id = $1', [id])
+  const affected = await run(db, "UPDATE ai_generations SET deleted_at = $1 WHERE id = $2 AND deleted_at = 0", [Date.now(), id])
+  await purgeExpiredDeletions(db)
   return affected > 0
 }
 
+/** 批量软删除：10 秒内可通过 restoreGenerations 撤销。 */
 export async function deleteGenerations(db: Db, ids: string[]): Promise<number> {
   const uniqueIds = [...new Set(ids.map((id) => String(id).trim()).filter(Boolean))].slice(0, 500)
   if (!uniqueIds.length) return 0
-  const placeholders = uniqueIds.map((_, index) => `$${index + 1}`).join(', ')
-  return run(db, `DELETE FROM ai_generations WHERE id IN (${placeholders})`, uniqueIds)
+  // $1 是删除时间戳，id 占位符从 $2 开始，避免与参数顺序冲突
+  const placeholders = uniqueIds.map((_, index) => `$${index + 2}`).join(', ')
+  const affected = await run(
+    db,
+    `UPDATE ai_generations SET deleted_at = $1 WHERE id IN (${placeholders}) AND deleted_at = 0`,
+    [Date.now(), ...uniqueIds],
+  )
+  await purgeExpiredDeletions(db)
+  return affected
+}
+
+/** 撤销软删除：仅在 10 秒撤销窗口内的记录可恢复，返回恢复条数。 */
+export async function restoreGenerations(db: Db, ids: string[]): Promise<number> {
+  const uniqueIds = [...new Set(ids.map((id) => String(id).trim()).filter(Boolean))].slice(0, 500)
+  if (!uniqueIds.length) return 0
+  // $1 是撤销窗口截止时间，id 占位符从 $2 开始
+  const placeholders = uniqueIds.map((_, index) => `$${index + 2}`).join(', ')
+  const cutoff = Date.now() - UNDO_WINDOW_MS
+  return run(
+    db,
+    `UPDATE ai_generations SET deleted_at = 0 WHERE id IN (${placeholders}) AND deleted_at > 0 AND deleted_at > $1`,
+    [cutoff, ...uniqueIds],
+  )
+}
+
+/** 物理清理超过撤销窗口的软删记录，防止表无限膨胀；删除/恢复时顺带调用。 */
+export async function purgeExpiredDeletions(db: Db): Promise<number> {
+  const cutoff = Date.now() - UNDO_WINDOW_MS
+  return run(db, 'DELETE FROM ai_generations WHERE deleted_at > 0 AND deleted_at <= $1', [cutoff])
 }
 
 export async function getGeneration(db: Db, id: string): Promise<GenerationRow | undefined> {

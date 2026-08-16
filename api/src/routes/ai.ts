@@ -19,8 +19,10 @@ import {
   listGenerationDetails,
   deleteGeneration,
   deleteGenerations,
+  restoreGenerations,
   getGeneration,
   updateGenerationResult,
+  UNDO_WINDOW_MS,
   type GenerationRow,
   type BatchDraft,
 } from '../services/ai/generations'
@@ -832,7 +834,7 @@ aiRoutes.post('/writing/batches/:batchId/publish', requireAdmin(), async (c) => 
   // LIKE 先粗筛（batchId 由服务端生成，转义只为防御异常输入），再解析 params_json 精确匹配
   const candidates = await all<GenerationRow>(
     db,
-    `SELECT * FROM ai_generations WHERE kind = 'continue' AND status = 'draft' AND params_json LIKE $1 ORDER BY created_at ASC`,
+    `SELECT * FROM ai_generations WHERE kind = 'continue' AND status = 'draft' AND deleted_at = 0 AND params_json LIKE $1 ORDER BY created_at ASC`,
     [`%"batchId":"${escapeLike(batchId)}"%`],
   )
   const drafts = candidates
@@ -876,6 +878,77 @@ aiRoutes.post('/writing/batches/:batchId/publish', requireAdmin(), async (c) => 
       return results
     })
     return c.json({ ok: true, published, novelId })
+  } catch (err) {
+    if (err instanceof PublishError) return c.json({ error: err.message }, err.httpStatus)
+    throw err
+  }
+})
+
+/** 撤销单条发布：10 秒窗口内删除刚创建的章节并把草稿改回 draft，超时后拒绝。 */
+aiRoutes.post('/writing/drafts/:id/unpublish', requireAdmin(), async (c) => {
+  const db = getDb()
+  const id = String(c.req.param('id') || '').trim()
+  if (!id) return c.json({ error: 'id 必填' }, 400)
+  const row = await getGeneration(db, id)
+  if (!row || row.status !== 'published' || !row.chapter_id || !['write_chapter', 'continue'].includes(row.kind)) {
+    return c.json({ error: '可撤销的已发布草稿不存在' }, 404)
+  }
+  const now = Date.now()
+  try {
+    await withTx(db, async (q) => {
+      const chapter = await q<{ created_at: number }>('SELECT created_at FROM chapters WHERE id = $1', [row.chapter_id])
+      if (!chapter.rows.length) throw new PublishError(404, '章节不存在或已被删除')
+      if (now - Number(chapter.rows[0]?.created_at || 0) > UNDO_WINDOW_MS) throw new PublishError(409, '已超过 10 秒可撤销窗口')
+      // 锁小说行：撤销发布的章节删除与并发发布/编辑串行化，避免取号冲突
+      await q('SELECT id FROM novels WHERE id = $1 FOR UPDATE', [row.novel_id])
+      await q('DELETE FROM chapters WHERE id = $1', [row.chapter_id])
+      await q("UPDATE ai_generations SET status = 'draft', chapter_id = '' WHERE id = $1", [id])
+      await q('UPDATE novels SET chapter_count = (SELECT COUNT(*) FROM chapters WHERE novel_id = $1), updated_at = $2 WHERE id = $1', [row.novel_id, now])
+    })
+    return c.json({ ok: true })
+  } catch (err) {
+    if (err instanceof PublishError) return c.json({ error: err.message }, err.httpStatus)
+    throw err
+  }
+})
+
+/** 撤销整批发布：10 秒窗口内删除本批刚创建的章节并把草稿改回 draft，超时后拒绝。 */
+aiRoutes.post('/writing/batches/:batchId/unpublish', requireAdmin(), async (c) => {
+  const db = getDb()
+  const batchId = String(c.req.param('batchId') || '').trim()
+  if (!batchId) return c.json({ error: 'batchId 必填' }, 400)
+  const now = Date.now()
+  try {
+    const restored = await withTx(db, async (q) => {
+      const candidates = await q<GenerationRow>(
+        `SELECT * FROM ai_generations WHERE kind = 'continue' AND status = 'published' AND deleted_at = 0 AND params_json LIKE $1`,
+        [`%\"batchId\":\"${escapeLike(batchId)}\"%`],
+      )
+      const published = candidates.rows
+        .map((row) => ({ row, batch: draftBatchParams(row.params_json) }))
+        .filter((d) => d.batch.batchId === batchId && d.row.chapter_id)
+      if (!published.length) throw new PublishError(404, '该批次没有可撤销的已发布草稿')
+      // 批次可能跨小说（极少见），按小说逐个锁行
+      const novelIds = [...new Set(published.map((d) => d.row.novel_id))]
+      for (const novelId of novelIds) {
+        await q('SELECT id FROM novels WHERE id = $1 FOR UPDATE', [novelId])
+      }
+      const undone: string[] = []
+      for (const { row } of published) {
+        const chapter = await q<{ created_at: number }>('SELECT created_at FROM chapters WHERE id = $1', [row.chapter_id])
+        if (!chapter.rows.length) continue
+        if (now - Number(chapter.rows[0]?.created_at || 0) > UNDO_WINDOW_MS) throw new PublishError(409, '已超过 10 秒可撤销窗口')
+        await q('DELETE FROM chapters WHERE id = $1', [row.chapter_id])
+        await q("UPDATE ai_generations SET status = 'draft', chapter_id = '' WHERE id = $1", [row.id])
+        undone.push(row.id)
+      }
+      if (!undone.length) throw new PublishError(404, '该批次没有可撤销的已发布草稿')
+      for (const novelId of novelIds) {
+        await q('UPDATE novels SET chapter_count = (SELECT COUNT(*) FROM chapters WHERE novel_id = $1), updated_at = $2 WHERE id = $1', [novelId, now])
+      }
+      return undone
+    })
+    return c.json({ ok: true, restored: restored.length })
   } catch (err) {
     if (err instanceof PublishError) return c.json({ error: err.message }, err.httpStatus)
     throw err
@@ -1173,7 +1246,7 @@ aiRoutes.get('/generations', requireAdmin(), async (c) => {
   return c.json({ items, total, limit, offset }, 200, { 'Cache-Control': 'no-store' })
 })
 
-/** 删除单条已生成内容：物理删除，读者再访问该章/该回顾时会重新生成（计配额）。 */
+/** 删除单条已生成内容：软删除（10 秒内可撤销），读者再访问该章/该回顾时会重新生成（计配额）。 */
 aiRoutes.delete('/generations/:id', requireAdmin(), async (c) => {
   const id = String(c.req.param('id') || '').trim()
   if (!id) return c.json({ error: 'id is required' }, 400)
@@ -1189,6 +1262,15 @@ aiRoutes.post('/generations/batch-delete', requireAdmin(), async (c) => {
   if (!ids.length) return c.json({ error: '请选择要删除的内容' }, 400)
   const deleted = await deleteGenerations(getDb(), ids)
   return c.json({ ok: true, deleted }, 200, { 'Cache-Control': 'no-store' })
+})
+
+/** 撤销软删除：仅 10 秒窗口内的记录可恢复（配合批量删除的「撤销」toast）。 */
+aiRoutes.post('/generations/restore', requireAdmin(), async (c) => {
+  const body = (await c.req.json().catch(() => ({}))) as { ids?: unknown }
+  const ids = Array.isArray(body.ids) ? body.ids.map((id) => String(id)) : []
+  if (!ids.length) return c.json({ error: '请选择要恢复的内容' }, 400)
+  const restored = await restoreGenerations(getDb(), ids)
+  return c.json({ ok: true, restored }, 200, { 'Cache-Control': 'no-store' })
 })
 
 /** AiError → HTTP：客户端只拿到 code 与可展示文案，上游细节留在服务端日志。 */

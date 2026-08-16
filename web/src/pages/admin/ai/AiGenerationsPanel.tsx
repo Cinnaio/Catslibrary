@@ -120,6 +120,39 @@ export default function AiGenerationsPanel(props: {
     void load()
   }, [load])
 
+  /** 撤销删除：10 秒窗口内恢复软删的生成记录。 */
+  async function restoreDeleted(ids: string[]) {
+    try {
+      await aiApi.restoreGenerations(ids)
+      toast('已恢复删除的内容', 'success')
+      void load()
+    } catch (err) {
+      toast((err as Error).message || '撤销删除失败', 'error')
+    }
+  }
+
+  /** 撤销单条发布：删除刚创建的章节并把草稿改回 draft。 */
+  async function undoPublish(draftId: string) {
+    try {
+      await aiApi.writing.unpublishDraft(draftId)
+      toast('已撤销发布，草稿恢复', 'success')
+      void load()
+    } catch (err) {
+      toast((err as Error).message || '撤销发布失败', 'error')
+    }
+  }
+
+  /** 撤销整批发布：删除本批章节并恢复草稿。 */
+  async function undoBatchPublish(batchId: string) {
+    try {
+      const res = await aiApi.writing.unpublishBatch(batchId)
+      toast('已撤销发布，' + res.restored + ' 章恢复为草稿', 'success')
+      void load()
+    } catch (err) {
+      toast((err as Error).message || '撤销发布失败', 'error')
+    }
+  }
+
   async function remove(item: { id: string; kind: string; novelTitle: string; chapterTitle: string }) {
     const ok = await confirm({
       title: '删除这条已生成内容？',
@@ -132,7 +165,7 @@ export default function AiGenerationsPanel(props: {
     setDeletingId(item.id)
     try {
       await aiApi.deleteGeneration(item.id)
-      toast('已删除', 'success')
+      toast('已删除', 'success', { action: { label: '撤销', onClick: () => void restoreDeleted([item.id]) } })
       // 当前页删空时回退一页，避免停在空页
       if (items.length === 1 && offset > 0) setOffset(Math.max(0, offset - limit))
       else void load()
@@ -173,8 +206,9 @@ export default function AiGenerationsPanel(props: {
     if (!ok) return
     setBatchDeleting(true)
     try {
-      const result = await aiApi.deleteGenerations([...selectedIds])
-      toast(`已删除 ${result.deleted} 条生成记录`, 'success')
+      const deletedIds = [...selectedIds]
+      const result = await aiApi.deleteGenerations(deletedIds)
+      toast('已删除 ' + result.deleted + ' 条生成记录', 'success', { action: { label: '撤销', onClick: () => void restoreDeleted(deletedIds) } })
       setSelectedIds(new Set())
       void load()
     } catch (err) {
@@ -190,7 +224,7 @@ export default function AiGenerationsPanel(props: {
     setPublishing(true)
     try {
       await aiApi.writing.publishDraft(item.id, { novelId: item.novelId, title })
-      toast('已发布为正式章节', 'success')
+      toast('已发布为正式章节', 'success', { action: { label: '撤销发布', onClick: () => void undoPublish(item.id) } })
       setViewing(null)
       setPublishTitle('')
       void load()
@@ -214,7 +248,7 @@ export default function AiGenerationsPanel(props: {
     setPublishingBatchId(item.batchId)
     try {
       const result = await aiApi.writing.publishBatch(item.batchId, { novelId: item.novelId })
-      toast(`已发布 ${result.published.length} 章为正式章节`, 'success')
+      toast('已发布 ' + result.published.length + ' 章为正式章节', 'success', { action: { label: '撤销发布', onClick: () => void undoBatchPublish(item.batchId) } })
       void load()
     } catch (err) {
       toast((err as Error).message || '整批发布失败', 'error')

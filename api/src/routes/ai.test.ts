@@ -1498,6 +1498,112 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
       delete process.env.AI_IMAGE_MODEL
     }
   })
+  it('已生成内容批量删除：软删除 10 秒内可撤销恢复，超时后清理', async () => {
+    const novelId = await firstNovelId(t)
+    // 直接插入一条发布态记录，避免 recap 缓存复用干扰
+    const id = 'gen_undo_batch_' + Date.now().toString(36)
+    await t.db.query(
+      'INSERT INTO ai_generations (id, novel_id, chapter_id, kind, model, params_json, prompt, result, status, created_by, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',
+      [id, novelId, chapterId, 'summary', 'test-model', '{}', 'prompt', '一段发布态内容', 'published', 'admin', Date.now()],
+    )
+    const ids = [id]
+
+    // 批量删除后管理列表不可见
+    const del = await req('/api/ai/generations/batch-delete', json('POST', { ids }, adminToken))
+    expect(del.status).toBe(200)
+    const afterDelete = await req('/api/ai/generations', json('GET', undefined, adminToken))
+    const afterBody = await jsonOf<{ items: Array<{ id: string }> }>(afterDelete)
+    expect(afterBody.items.find((i) => i.id === id)).toBeUndefined()
+
+    // 10 秒窗口内恢复后重新可见
+    const restore = await req('/api/ai/generations/restore', json('POST', { ids }, adminToken))
+    expect(restore.status).toBe(200)
+    const afterRestore = await req('/api/ai/generations', json('GET', undefined, adminToken))
+    const restoreBody = await jsonOf<{ items: Array<{ id: string }> }>(afterRestore)
+    expect(restoreBody.items.find((i) => i.id === id)).toBeDefined()
+
+    // 超过窗口后恢复失效；触发一次删除顺带物理清理
+    await t.db.query('UPDATE ai_generations SET deleted_at = $1 WHERE id = $2', [Date.now() - 20_000, id])
+    const staleRestore = await req('/api/ai/generations/restore', json('POST', { ids }, adminToken))
+    expect((await jsonOf<{ restored: number }>(staleRestore)).restored).toBe(0)
+    const otherId = 'gen_undo_other_' + Date.now().toString(36)
+    await t.db.query(
+      'INSERT INTO ai_generations (id, novel_id, chapter_id, kind, model, params_json, prompt, result, status, created_by, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',
+      [otherId, novelId, chapterId, 'summary', 'test-model', '{}', 'prompt', '另一条', 'published', 'admin', Date.now()],
+    )
+    await req('/api/ai/generations/batch-delete', json('POST', { ids: [otherId] }, adminToken))
+    const gone = await t.db.query<{ id: string }>('SELECT id FROM ai_generations WHERE id = $1', [id])
+    expect(gone.rows.length).toBe(0)
+  })
+
+  it('单条发布可撤销：unpublish 删除章节并把草稿改回 draft，超时 409', async () => {
+    const novelId = await firstNovelId(t)
+    const draftId = 'gen_undo_single_' + Date.now().toString(36)
+    await t.db.query(
+      'INSERT INTO ai_generations (id, novel_id, chapter_id, kind, model, params_json, prompt, result, status, created_by, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',
+      [draftId, novelId, '', 'write_chapter', 'test-model', '{}', 'prompt', '这是一段可发布的章节正文。', 'draft', 'admin', Date.now()],
+    )
+
+    const pub = await req(`/api/ai/writing/drafts/${draftId}/publish`, json('POST', { novelId, title: '可撤销章' }, adminToken))
+    expect(pub.status).toBe(200)
+    const pubBody = await jsonOf<{ chapter: { id: string; title: string } }>(pub)
+    const publishedChapterId = pubBody.chapter.id
+
+    // 撤销：章节被删除，草稿回到 draft 且 chapter_id 清空
+    const undo = await req(`/api/ai/writing/drafts/${draftId}/unpublish`, json('POST', {}, adminToken))
+    expect(undo.status).toBe(200)
+    const ch = await t.db.query<{ id: string }>('SELECT id FROM chapters WHERE id = $1', [publishedChapterId])
+    expect(ch.rows.length).toBe(0)
+    const gen = await t.db.query<{ status: string; chapter_id: string }>('SELECT status, chapter_id FROM ai_generations WHERE id = $1', [draftId])
+    expect(gen.rows[0]?.status).toBe('draft')
+    expect(gen.rows[0]?.chapter_id).toBe('')
+
+    // 再发布后把章节时间改旧：超过 10 秒窗口的撤销被拒绝
+    const pub2 = await req(`/api/ai/writing/drafts/${draftId}/publish`, json('POST', { novelId, title: '可撤销章二' }, adminToken))
+    expect(pub2.status).toBe(200)
+    const pub2Body = await jsonOf<{ chapter: { id: string } }>(pub2)
+    await t.db.query('UPDATE chapters SET created_at = $1 WHERE id = $2', [Date.now() - 20_000, pub2Body.chapter.id])
+    const lateUndo = await req(`/api/ai/writing/drafts/${draftId}/unpublish`, json('POST', {}, adminToken))
+    expect(lateUndo.status).toBe(409)
+  })
+
+  it('整批发布可撤销：unpublish 删除本批章节并恢复全部草稿为 draft', async () => {
+    const novel = await req('/api/novels', json('POST', { title: '整批撤销书', author: '某作者' }, adminToken))
+    const novelId = (await jsonOf<{ novel: { id: string } }>(novel)).novel.id
+    const started = await req('/api/ai/writing/continue', json('POST', { novelId, chapterCount: 2 }, adminToken))
+    expect(started.status).toBe(202)
+    const { taskId, batchId } = await jsonOf<{ taskId: string; batchId: string }>(started)
+    expect((await waitForTask(taskId, adminToken)).status).toBe('completed')
+
+    const pub = await req(`/api/ai/writing/batches/${batchId}/publish`, json('POST', { novelId }, adminToken))
+    expect(pub.status).toBe(200)
+    const pubBody = await jsonOf<{ published: Array<{ id: string }> }>(pub)
+    expect(pubBody.published.length).toBe(2)
+
+    const undo = await req(`/api/ai/writing/batches/${batchId}/unpublish`, json('POST', {}, adminToken))
+    expect(undo.status).toBe(200)
+    const undoBody = await jsonOf<{ ok: boolean; restored: number }>(undo)
+    expect(undoBody.restored).toBe(2)
+
+    // 章节全部删除，草稿全部回到 draft
+    for (const chapter of pubBody.published) {
+      const ch = await t.db.query<{ id: string }>('SELECT id FROM chapters WHERE id = $1', [chapter.id])
+      expect(ch.rows.length).toBe(0)
+    }
+    const drafts = await t.db.query<{ status: string }>(
+      `SELECT status FROM ai_generations WHERE kind = 'continue' AND status = 'draft' AND params_json LIKE $1`,
+      [`%\"batchId\":\"${batchId}\"%`],
+    )
+    expect(drafts.rows.length).toBe(2)
+
+    // 小说 chapter_count 与真实章节数一致（0）
+    const { rows } = await t.db.query<{ chapter_count: number; actual: number }>(
+      'SELECT n.chapter_count, (SELECT COUNT(*)::int FROM chapters c WHERE c.novel_id = n.id) AS actual FROM novels n WHERE n.id = $1',
+      [novelId],
+    )
+    expect(Number(rows[0]?.chapter_count)).toBe(0)
+    expect(Number(rows[0]?.actual)).toBe(0)
+  })
 })
 
 function sleep(ms: number): Promise<void> {

@@ -894,6 +894,14 @@ export const aiApi = {
     ): Promise<{ ok: boolean; published: Array<{ id: string; title: string; order: number; generationId: string }>; novelId: string }> {
       return request('POST', `/ai/writing/batches/${encodeURIComponent(batchId)}/publish`, data, true)
     },
+    /** 撤销单条发布：10 秒窗口内删除刚创建的章节并把草稿改回 draft。 */
+    unpublishDraft(id: string): Promise<{ ok: boolean }> {
+      return request('POST', `/ai/writing/drafts/${encodeURIComponent(id)}/unpublish`, {}, true)
+    },
+    /** 撤销整批发布：10 秒窗口内删除本批章节并恢复全部草稿为 draft。 */
+    unpublishBatch(batchId: string): Promise<{ ok: boolean; restored: number }> {
+      return request('POST', `/ai/writing/batches/${encodeURIComponent(batchId)}/unpublish`, {}, true)
+    },
   },
   usage(): Promise<{ today: AiUsageSummary; last30d: AiUsageSummary }> {
     return request('GET', '/ai/usage', null, true)
@@ -968,6 +976,10 @@ export const aiApi = {
   },
   deleteGenerations(ids: string[]): Promise<{ ok: boolean; deleted: number }> {
     return request('POST', '/ai/generations/batch-delete', { ids }, true)
+  },
+  /** 撤销软删除：仅 10 秒窗口内的记录可恢复。 */
+  restoreGenerations(ids: string[]): Promise<{ ok: boolean; restored: number }> {
+    return request('POST', '/ai/generations/restore', { ids }, true)
   },
   audit: {
     users(
