@@ -61,14 +61,14 @@ export default function AiTab() {
     <AdminPage title="AI 服务" description="管理 AI 功能配置、查看用量统计与调用审计" className="ai-admin-page">
       <Tabs value={activeSubTab} onValueChange={setActiveSubTab} className="ai-service-tabs min-w-0">
         <TabsList className="ai-service-tabs__list w-full max-w-full justify-start overflow-x-auto">
-          <TabsTrigger value="tasks">AI 任务</TabsTrigger>
           <TabsTrigger value="config">配置</TabsTrigger>
+          <TabsTrigger value="tasks">AI 任务</TabsTrigger>
+          <TabsTrigger value="writing">AI 创作</TabsTrigger>
+          <TabsTrigger value="cover">封面生成</TabsTrigger>
           <TabsTrigger value="content">已生成内容</TabsTrigger>
           <TabsTrigger value="usage">用量统计</TabsTrigger>
           <TabsTrigger value="audit">调用审计</TabsTrigger>
           <TabsTrigger value="params">参数调优</TabsTrigger>
-          <TabsTrigger value="writing">AI 创作</TabsTrigger>
-          <TabsTrigger value="cover">封面生成</TabsTrigger>
         </TabsList>
 
         <TabsContent value="config" className="min-w-0">
