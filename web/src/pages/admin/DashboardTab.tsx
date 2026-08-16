@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { RefreshCw } from 'lucide-react'
 import { adminApi } from '../../lib/api'
-import { timeAgo } from '../../lib/format'
+import { formatBytes, timeAgo } from '../../lib/format'
 import { jobStatusLabel } from '../../lib/admin'
 import AdminPage from '@/components/admin/AdminPage'
 import AdminEmptyState from '@/components/admin/AdminEmptyState'
@@ -90,12 +90,12 @@ export default function DashboardTab(_props: { highlightNovelId?: string; onHigh
             <div className="grid grid-cols-2 gap-px bg-border sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
               {STAT_CARDS.map((card) => {
                 const raw = totals ? totals[card.key] : 0
-                const value = card.key === 'dbSize' ? (raw || '—') : raw
+                const value = card.key === 'dbSize' ? formatBytes(typeof raw === 'number' ? raw : null) : formatNumber(raw as number)
                 return (
                   <div key={card.key} className="bg-card px-4 py-3.5">
                     <div className="truncate text-xs font-medium text-muted-foreground">{card.label}</div>
                     <div className="mt-1 text-2xl font-semibold leading-tight tabular-nums tracking-tight text-foreground">
-                      {formatNumber(value as number | string)}
+                      {value}
                       {card.unit && <span className="ml-0.5 text-xs font-normal text-muted-foreground">{card.unit}</span>}
                     </div>
                   </div>

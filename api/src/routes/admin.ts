@@ -22,7 +22,7 @@ adminRoutes.get('/stats', async (c) => {
   start.setHours(0, 0, 0, 0)
   const todayStart = start.getTime()
 
-  const [novels, chapters, users, covers, failedJobs, todayChapters, running, completed, recentJobsRows, recentNovelsRows] = await Promise.all([
+  const [novels, chapters, users, covers, failedJobs, todayChapters, running, completed, dbSize, recentJobsRows, recentNovelsRows] = await Promise.all([
     count(db, 'SELECT COUNT(*)::int AS total FROM novels'),
     count(db, 'SELECT COUNT(*)::int AS total FROM chapters'),
     count(db, 'SELECT COUNT(*)::int AS total FROM users'),
@@ -31,6 +31,7 @@ adminRoutes.get('/stats', async (c) => {
     count(db, 'SELECT COUNT(*)::int AS total FROM chapters WHERE created_at >= $1', [todayStart]),
     count(db, "SELECT COUNT(*)::int AS total FROM scrape_jobs WHERE status IN ('starting', 'running')"),
     count(db, "SELECT COUNT(*)::int AS total FROM scrape_jobs WHERE status = 'completed'"),
+    dbSizeBytes(db),
     all<Record<string, unknown>>(
       db,
       `SELECT j.id, j.novel_id, j.status, j.step, j.current, j.total, j.chapter_count, j.progress, j.error, j.started_at, j.updated_at,
@@ -58,7 +59,7 @@ adminRoutes.get('/stats', async (c) => {
         covers,
         failedJobs,
         todayChapters,
-        dbSize: null,
+        dbSize,
       },
       jobStatus: { running, completed, failed: failedJobs },
       recentJobs: recentJobsRows.map(rowToJobSummary),
@@ -288,4 +289,15 @@ adminRoutes.put('/comment-reports', async (c) => {
 async function count(db: ReturnType<typeof getDb>, sql: string, params: unknown[] = []): Promise<number> {
   const row = await first<{ total: number }>(db, sql, params)
   return Number(row?.total || 0)
+}
+
+/** 数据库占用大小（字节）；个别托管环境不允许该函数时优雅降级为 null。 */
+async function dbSizeBytes(db: ReturnType<typeof getDb>): Promise<number | null> {
+  try {
+    const row = await first<{ size: number }>(db, 'SELECT pg_database_size(current_database()) AS size')
+    return Number(row?.size) || null
+  } catch (err) {
+    console.warn('[admin] 获取数据库大小失败（忽略）:', (err as Error)?.message || err)
+    return null
+  }
 }

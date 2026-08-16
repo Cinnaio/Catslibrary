@@ -74,6 +74,7 @@ describe('管理 API 端到端（pglite）', () => {
     expect(data.totals.novels).toBeGreaterThanOrEqual(1)
     expect(data.totals.chapters).toBeGreaterThanOrEqual(1)
     expect(data.totals.users).toBeGreaterThanOrEqual(2)
+    expect(data.totals.dbSize).toBeGreaterThanOrEqual(0)
     expect(data.recentNovels.length).toBeGreaterThanOrEqual(1)
     expect(data.recentNovels[0]).toMatchObject({ id: novelId, title: '管理测试书' })
   })
