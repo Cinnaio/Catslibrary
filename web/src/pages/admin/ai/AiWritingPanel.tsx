@@ -388,7 +388,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
               </Button>
             </div>
             {styleProfile ? (
-              <pre className="max-h-[160px] overflow-auto whitespace-pre-wrap border border-input bg-muted/30 px-3 py-2 text-xs leading-relaxed text-muted-foreground">{styleProfile}</pre>
+              <pre className="max-h-[160px] overflow-auto whitespace-pre-wrap rounded-md border border-input bg-muted/30 px-3 py-2 text-xs leading-relaxed text-muted-foreground">{styleProfile}</pre>
             ) : (
               <p className="text-xs text-muted-foreground">
                 未提取。续写时会按通用的「保持风格一致」约束兜底；提取后则按本作原文的句式、节奏、语气、设定续写，文风一致性更好。建议在有 2 章以上正文后提取一次。
@@ -415,7 +415,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                 </div>
               </div>
               {relationshipProfile ? (
-                <pre className="max-h-[180px] overflow-auto whitespace-pre-wrap border border-input bg-muted/30 px-3 py-2 text-xs leading-relaxed text-muted-foreground">{relationshipProfile}</pre>
+                <pre className="max-h-[180px] overflow-auto whitespace-pre-wrap rounded-md border border-input bg-muted/30 px-3 py-2 text-xs leading-relaxed text-muted-foreground">{relationshipProfile}</pre>
               ) : (
                 <p className="text-xs text-muted-foreground">
                   未提取。提取后把角色关系动态、权力结构、心理边界、互动尺度塞进续写，防止主从写成平等恋人、把奖赏手段当真心、从属试探写成主导。关系底色较稳定，建议取较长窗口看清演变。
@@ -454,7 +454,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                 </div>
               </div>
               {plotState ? (
-                <pre className="max-h-[180px] overflow-auto whitespace-pre-wrap border border-input bg-muted/30 px-3 py-2 text-xs leading-relaxed text-muted-foreground">{plotState}</pre>
+                <pre className="max-h-[180px] overflow-auto whitespace-pre-wrap rounded-md border border-input bg-muted/30 px-3 py-2 text-xs leading-relaxed text-muted-foreground">{plotState}</pre>
               ) : (
                 <p className="text-xs text-muted-foreground">
                   未提取。多章续写时上下文会截断丢前文，提取后把角色处境/伏笔/待解决冲突塞进续写，人设不漂移、伏笔不遗忘。建议续写前更新一次。
@@ -468,7 +468,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
             </div>
           )}
           {mode === 'continue' && pendingDrafts > 0 && !taskActive && (
-            <div className="flex flex-wrap items-center gap-2 border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+            <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
               <span>该小说有 {pendingDrafts} 章未发布的续写草稿。续写上下文只取已发布章节，建议先发布草稿再继续，避免剧情断档。</span>
               {props.onViewBatch && (
                 <Button variant="outline" size="sm" className="ml-auto" onClick={() => props.onViewBatch?.()}>
@@ -478,7 +478,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
             </div>
           )}
           {task && (
-            <div className="border bg-muted/40 p-3 text-sm">
+            <div className="rounded-md border bg-muted/40 p-3 text-sm">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-medium">
                   {taskKindLabel(task.kind)} · {taskStatusLabel(task.status)}
