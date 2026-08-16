@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { aiApi, type AiTaskInfo } from '@/lib/api'
 import { useToast, useConfirm } from '@/components/feedback'
+import { ErrorState, InlineError, LoadingState } from '@/components/admin/AsyncStates'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -26,6 +27,7 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
   const { confirm } = useConfirm()
   const [tasks, setTasks] = useState<AiTask[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [filterStatus, setFilterStatus] = useState<'all' | 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'>('all')
   const [retryingId, setRetryingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -34,10 +36,11 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
     try {
       const result = await aiApi.tasks({ limit: 100, status: filterStatus === 'all' ? undefined : filterStatus })
       setTasks(result.items)
+      setError('')
     } catch (err) {
-      toast((err as Error).message || '加载 AI 任务失败', 'error')
+      setError((err as Error).message || '加载 AI 任务失败')
     } finally { setLoading(false) }
-  }, [toast, filterStatus])
+  }, [filterStatus])
 
   useEffect(() => { void load() }, [load])
 
@@ -116,7 +119,9 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
       </div>
     </CardHeader>
     <CardContent>
-      {loading ? <div className="flex h-32 items-center justify-center text-muted-foreground">加载中…</div> : tasks.length === 0 ? <div className="flex h-32 items-center justify-center text-muted-foreground">暂无 AI 任务</div> : <div className="space-y-2">
+      {loading && tasks.length === 0 ? <LoadingState label="正在加载 AI 任务" /> : error && tasks.length === 0 ? <ErrorState message={error} onRetry={() => void load()} /> : tasks.length === 0 ? <div className="flex h-32 items-center justify-center text-muted-foreground">暂无 AI 任务</div> : <>
+        {error && <InlineError message={error} onRetry={() => void load()} className="mb-3" />}
+        <div className="space-y-2">
         {tasks.map((task) => <div key={task.id} className="grid gap-2 rounded-md border p-3 sm:grid-cols-[1fr_auto]">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2"><Badge variant="secondary">{taskKindLabel(task.kind)}</Badge><Badge variant={task.status === 'failed' ? 'destructive' : 'outline'}>{taskStatusLabel(task.status)}</Badge><span className="text-xs text-muted-foreground">{task.current} / {task.total}</span></div>
@@ -139,7 +144,8 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
             )}
           </div>
         </div>)}
-      </div>}
+        </div>
+      </>}
     </CardContent>
   </Card>
 }

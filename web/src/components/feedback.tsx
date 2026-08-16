@@ -1,7 +1,8 @@
 /**
  * 反馈组件 —— Toast 轻提示 + Confirm 确认弹窗（shadcn 版）。
- * 接口保持兼容：useToast().toast(msg, type?) / useConfirm().confirm(opts?) 签名不变，
+ * 接口保持兼容：useToast().toast(msg, type?, options?) / useConfirm().confirm(opts?) 签名不变，
  * 22 处 confirm 调用点零改动。Toast 用 sonner，Confirm 用 AlertDialog。
+ * options.action 用于「撤销」这类带动作的 toast：sonner 自带按钮与 10s 倒计时。
  */
 import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from 'react'
 import { toast as sonnerToast } from 'sonner'
@@ -21,17 +22,34 @@ import {
 
 type ToastType = 'default' | 'success' | 'error'
 
+export interface ToastAction {
+  label: string
+  onClick: () => void
+}
+
+export interface ToastOptions {
+  /** 动作按钮（如「撤销」），点击后立即执行；默认 10 秒后自动消失 */
+  action?: ToastAction
+  /** 展示时长（毫秒），默认 sonner 行为；带 action 时默认 10000 */
+  duration?: number
+}
+
 interface ToastContextValue {
-  toast: (message: string, type?: ToastType) => void
+  toast: (message: string, type?: ToastType, options?: ToastOptions) => void
 }
 
 const ToastContext = createContext<ToastContextValue | null>(null)
 
 export function ToastProvider({ children }: { children: ReactNode }) {
-  const toast = useCallback((message: string, type: ToastType = 'default') => {
-    if (type === 'success') sonnerToast.success(message)
-    else if (type === 'error') sonnerToast.error(message)
-    else sonnerToast(message)
+  const toast = useCallback((message: string, type: ToastType = 'default', options?: ToastOptions) => {
+    const opts = options?.action
+      ? { action: { label: options.action.label, onClick: options.action.onClick }, duration: options.duration ?? 10000 }
+      : options?.duration
+        ? { duration: options.duration }
+        : undefined
+    if (type === 'success') sonnerToast.success(message, opts)
+    else if (type === 'error') sonnerToast.error(message, opts)
+    else sonnerToast(message, opts)
   }, [])
 
   return (

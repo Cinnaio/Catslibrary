@@ -1,7 +1,7 @@
 /** 调用审计：分页调用记录，行可展开详情。 */
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, useCallback, useEffect, useState } from 'react'
 import { aiApi } from '@/lib/api'
-import { useToast } from '@/components/feedback'
+import { ErrorState, InlineError, LoadingState } from '@/components/admin/AsyncStates'
 import Pagination from '@/components/admin/Pagination'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -26,7 +26,6 @@ function aiCallTypeLabel(type: string): string {
 }
 
 export default function AiAuditPanel() {
-  const { toast } = useToast()
   const [calls, setCalls] = useState<
     Array<{
       id: string
@@ -48,27 +47,30 @@ export default function AiAuditPanel() {
     }>
   >([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [total, setTotal] = useState(0)
   const [limit, setLimit] = useState(50)
   const [offset, setOffset] = useState(0)
   const [filterType, setFilterType] = useState<string>('all')
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
-  useEffect(() => {
-    async function loadCalls() {
-      setLoading(true)
-      try {
-        const res = await aiApi.audit.calls({ limit, offset, type: filterType === 'all' ? undefined : filterType })
-        setCalls(res.calls)
-        setTotal(res.total)
-      } catch (err) {
-        toast((err as Error).message || '加载调用记录失败', 'error')
-      } finally {
-        setLoading(false)
-      }
+  const loadCalls = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await aiApi.audit.calls({ limit, offset, type: filterType === 'all' ? undefined : filterType })
+      setCalls(res.calls)
+      setTotal(res.total)
+      setError('')
+    } catch (err) {
+      setError((err as Error).message || '加载调用记录失败')
+    } finally {
+      setLoading(false)
     }
+  }, [limit, offset, filterType])
+
+  useEffect(() => {
     void loadCalls()
-  }, [limit, offset, filterType, toast])
+  }, [loadCalls])
 
   return (
     <div className="space-y-4">
@@ -107,11 +109,14 @@ export default function AiAuditPanel() {
         </CardHeader>
         <CardContent>
           {loading && calls.length === 0 ? (
-            <div className="flex h-32 items-center justify-center text-muted-foreground">加载中…</div>
+            <LoadingState label="正在加载调用记录" />
+          ) : error && calls.length === 0 ? (
+            <ErrorState message={error} onRetry={() => void loadCalls()} />
           ) : calls.length === 0 ? (
             <div className="flex h-32 items-center justify-center text-muted-foreground">暂无调用记录</div>
           ) : (
             <>
+              {error && <InlineError message={error} onRetry={() => void loadCalls()} className="mb-3" />}
               <div className="overflow-hidden rounded-xl border border-border">
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">

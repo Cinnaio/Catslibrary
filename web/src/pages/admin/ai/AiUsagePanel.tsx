@@ -1,5 +1,5 @@
 /** 用量统计：成本/调用趋势与 Token 消耗趋势图表。 */
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   Area,
   AreaChart,
@@ -13,7 +13,7 @@ import {
   YAxis,
 } from 'recharts'
 import { aiApi } from '@/lib/api'
-import { useToast } from '@/components/feedback'
+import { ErrorState, InlineError, LoadingState } from '@/components/admin/AsyncStates'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { UsageCell, formatCost } from './shared'
@@ -48,25 +48,27 @@ function buildChartSeries(trend: TrendPoint[], days: number): TrendPoint[] {
 }
 
 export default function AiUsagePanel() {
-  const { toast } = useToast()
   const [trend, setTrend] = useState<TrendPoint[]>([])
   const [days, setDays] = useState(30)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  const loadTrend = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await aiApi.audit.trend(days)
+      setTrend(res.trend)
+      setError('')
+    } catch (err) {
+      setError((err as Error).message || '加载趋势失败')
+    } finally {
+      setLoading(false)
+    }
+  }, [days])
 
   useEffect(() => {
-    async function loadTrend() {
-      setLoading(true)
-      try {
-        const res = await aiApi.audit.trend(days)
-        setTrend(res.trend)
-      } catch (err) {
-        toast((err as Error).message || '加载趋势失败', 'error')
-      } finally {
-        setLoading(false)
-      }
-    }
     void loadTrend()
-  }, [days, toast])
+  }, [loadTrend])
 
   const totalCalls = trend.reduce((sum, d) => sum + d.calls, 0)
   const totalCost = trend.reduce((sum, d) => sum + d.costMillicents, 0)
@@ -101,12 +103,16 @@ export default function AiUsagePanel() {
           </div>
         </CardHeader>
         <CardContent className="min-w-0">
-          {loading ? (
-            <div className="flex h-80 items-center justify-center text-muted-foreground">加载中…</div>
+          {loading && trend.length === 0 ? (
+            <LoadingState label="正在加载用量趋势" className="h-80" />
+          ) : error && trend.length === 0 ? (
+            <ErrorState message={error} onRetry={() => void loadTrend()} className="h-80" />
           ) : trend.length === 0 ? (
             <div className="flex h-80 items-center justify-center text-muted-foreground">暂无数据</div>
           ) : (
-            <div className="h-80 w-full">
+            <>
+              {error && <InlineError message={error} onRetry={() => void loadTrend()} className="mb-3" />}
+              <div className="h-80 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                   <defs>
@@ -177,6 +183,7 @@ export default function AiUsagePanel() {
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
+            </>
           )}
         </CardContent>
       </Card>
@@ -188,12 +195,16 @@ export default function AiUsagePanel() {
           <p className="text-sm text-muted-foreground">每日输入/输出 Token 用量</p>
         </CardHeader>
         <CardContent>
-          {loading ? (
-            <div className="flex h-64 items-center justify-center text-muted-foreground">加载中…</div>
+          {loading && trend.length === 0 ? (
+            <LoadingState label="正在加载 Token 趋势" className="h-64" />
+          ) : error && trend.length === 0 ? (
+            <ErrorState message={error} onRetry={() => void loadTrend()} className="h-64" />
           ) : trend.length === 0 ? (
             <div className="flex h-64 items-center justify-center text-muted-foreground">暂无数据</div>
           ) : (
-            <div className="h-64 w-full">
+            <>
+              {error && <InlineError message={error} onRetry={() => void loadTrend()} className="mb-3" />}
+              <div className="h-64 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                   <defs>
@@ -254,6 +265,7 @@ export default function AiUsagePanel() {
                 </AreaChart>
               </ResponsiveContainer>
             </div>
+            </>
           )}
         </CardContent>
       </Card>

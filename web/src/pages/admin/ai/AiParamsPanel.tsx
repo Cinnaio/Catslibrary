@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { aiApi, type AiSettings } from '@/lib/api'
 import { useToast } from '@/components/feedback'
+import { LoadingState } from '@/components/admin/AsyncStates'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -33,7 +34,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
   }
 
   if (!localSettings) {
-    return <div className="rounded-xl border border-border bg-card p-6 text-center text-muted-foreground">加载中…</div>
+    return <div className="rounded-xl border border-border bg-card p-6"><LoadingState label="正在加载参数设置" /></div>
   }
 
   return (

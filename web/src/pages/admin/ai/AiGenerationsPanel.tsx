@@ -3,6 +3,7 @@ import { Fragment, useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { aiApi } from '@/lib/api'
 import { useToast, useConfirm } from '@/components/feedback'
+import { ErrorState, InlineError, LoadingState } from '@/components/admin/AsyncStates'
 import Pagination from '@/components/admin/Pagination'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -44,6 +45,7 @@ export default function AiGenerationsPanel(props: {
   const { confirm } = useConfirm()
   const [items, setItems] = useState<AiGenerationListItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [total, setTotal] = useState(0)
   const [limit, setLimit] = useState(50)
   const [offset, setOffset] = useState(0)
@@ -101,12 +103,13 @@ export default function AiGenerationsPanel(props: {
       )
       setSelectedIds(new Set())
       setTotal(res.total)
+      setError('')
     } catch (err) {
-      toast((err as Error).message || '加载已生成内容失败', 'error')
+      setError((err as Error).message || '加载已生成内容失败')
     } finally {
       setLoading(false)
     }
-  }, [filterKind, limit, offset, props.scope, props.status, toast])
+  }, [filterKind, limit, offset, props.scope, props.status])
 
   useEffect(() => {
     void load()
@@ -257,7 +260,7 @@ export default function AiGenerationsPanel(props: {
           <div className="ai-generations-card__filter flex w-full items-center gap-2 sm:w-auto">
             {selectedCount > 0 && (
               <Button variant="destructive" size="sm" disabled={batchDeleting} onClick={() => void removeSelected()}>
-                批量删除 ({selectedCount})
+                {batchDeleting ? '正在删除 ' + selectedCount + ' 条…' : '批量删除 (' + selectedCount + ')'}
               </Button>
             )}
             <Label htmlFor="gen-filter-kind" className="text-xs text-muted-foreground">
@@ -294,11 +297,14 @@ export default function AiGenerationsPanel(props: {
         </CardHeader>
         <CardContent>
           {loading && items.length === 0 ? (
-            <div className="flex h-32 items-center justify-center text-muted-foreground">加载中…</div>
+            <LoadingState label="正在加载已生成内容" />
+          ) : error && items.length === 0 ? (
+            <ErrorState message={error} onRetry={() => void load()} />
           ) : items.length === 0 ? (
             <div className="flex h-32 items-center justify-center text-muted-foreground">暂无已生成内容</div>
           ) : (
             <>
+              {error && <InlineError message={error} onRetry={() => void load()} className="mb-3" />}
               <div className="ai-generations-table overflow-hidden rounded-xl border border-border">
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[760px] text-sm">
