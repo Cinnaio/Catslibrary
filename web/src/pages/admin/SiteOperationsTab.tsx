@@ -214,7 +214,7 @@ function OperationPulse({ activeReaders, newComments, openReports, recognizedCou
     ['待处理举报', `${openReports.toLocaleString()} 项`],
     ['地区覆盖', recognizedCountries ? `${recognizedCountries} 个地区` : '尚未识别'],
   ]
-  return <Card><CardHeader><CardTitle className="flex items-center gap-2 text-base"><Route className="size-4 text-primary" aria-hidden="true" />本周运营关注</CardTitle><p className="text-sm text-muted-foreground">优先处理需要人工跟进的站点信号。</p></CardHeader><CardContent className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border">{items.map(([label, value]) => <div key={label} className="bg-card px-3 py-3"><span className="block text-xs text-muted-foreground">{label}</span><strong className="mt-1 block text-sm font-semibold tabular-nums text-foreground">{value}</strong></div>)}</CardContent></Card>
+  return <Card><CardHeader><CardTitle className="flex items-center gap-2 text-base"><Route className="size-4 text-primary" aria-hidden="true" />本周运营关注</CardTitle><p className="text-sm text-muted-foreground">优先处理需要人工跟进的站点信号。</p></CardHeader><CardContent className="pt-0"><dl className="grid grid-cols-2 gap-x-6 gap-y-4">{items.map(([label, value]) => <div key={label} className="border-t border-border pt-3"><dt className="text-xs text-muted-foreground">{label}</dt><dd className="mt-1 text-sm font-semibold tabular-nums text-foreground">{value}</dd></div>)}</dl></CardContent></Card>
 }
 
 function TrafficChart({ data }: { data: Overview['traffic']['dailyTrend'] }) {
