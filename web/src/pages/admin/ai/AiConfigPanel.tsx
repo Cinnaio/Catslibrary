@@ -1,5 +1,6 @@
 /** 配置面板：供应商信息、开关、配额（数字输入防抖自动保存）。 */
 import { useEffect, useState } from 'react'
+import { Bot, Image, Sparkles } from 'lucide-react'
 import { aiApi, type AiSettings, type AiUsageSummary, type AiProviderConfig } from '@/lib/api'
 import { useToast } from '@/components/feedback'
 import { useDebouncedCallback } from '@/hooks/useDebounce'
@@ -167,9 +168,9 @@ export default function AiConfigPanel(props: {
   return (
     <div className="space-y-4">
       <Card className="min-w-0">
-        <CardHeader className="ai-provider-card-header">
+        <CardHeader className="ai-provider-card-header flex-row items-start justify-between gap-4">
           <div className="min-w-0">
-            <CardTitle className="text-base">供应商配置</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-base"><Bot className="size-4 text-primary" aria-hidden="true" />供应商配置</CardTitle>
             <p className="mt-0.5 text-sm text-muted-foreground">
               {provider?.configured ? (
                 <>
@@ -188,10 +189,10 @@ export default function AiConfigPanel(props: {
 
         <CardContent className="grid gap-4">
           {/* 供应商连接参数：可在后台直接修改，无需重启 */}
-          <div className="ai-provider-section grid gap-3 rounded-xl border border-border bg-card p-3.5">
+          <div className="ai-provider-section grid gap-3 rounded-lg border border-border bg-muted/30 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="grid gap-0.5">
-                <span className="text-sm font-medium text-foreground">文本供应商</span>
+                <span className="flex items-center gap-2 text-sm font-medium text-foreground"><Sparkles className="size-3.5 text-primary" aria-hidden="true" />文本供应商</span>
                 <span className="text-xs text-muted-foreground">
                   {provider?.configured ? `${provider.host} · ${provider.model}` : '未配置，AI 文本功能不可用'}
                 </span>
@@ -253,10 +254,10 @@ export default function AiConfigPanel(props: {
           </div>
 
           {/* 图像供应商连接参数：用于 AI 封面生成，与文本三件套对称 */}
-          <div className="ai-provider-section grid gap-3 rounded-xl border border-border bg-card p-3.5">
+          <div className="ai-provider-section grid gap-3 rounded-lg border border-border bg-muted/30 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="grid gap-0.5">
-                <span className="text-sm font-medium text-foreground">图像供应商</span>
+                <span className="flex items-center gap-2 text-sm font-medium text-foreground"><Image className="size-3.5 text-primary" aria-hidden="true" />图像供应商</span>
                 <span className="text-xs text-muted-foreground">
                   {imageProviderConfig?.hasApiKey ? `已配置 · ${imageProviderConfig.model || '默认模型'}` : '未配置，AI 封面生成不可用'}
                 </span>

@@ -1,5 +1,6 @@
 /** 参数调优：前情提要 / 回顾总结 / AI 创作参数与审计配置。 */
 import { useEffect, useState } from 'react'
+import { ClipboardList, Image, ShieldCheck, SlidersHorizontal, Sparkles, Wrench } from 'lucide-react'
 import { aiApi, type AiSettings } from '@/lib/api'
 import { useToast } from '@/components/feedback'
 import { LoadingState } from '@/components/admin/AsyncStates'
@@ -42,7 +43,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
       {/* 前情提要参数 */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">前情提要参数</CardTitle>
+          <CardTitle className="flex items-center gap-2 text-base"><SlidersHorizontal className="size-4 text-primary" aria-hidden="true" />前情提要参数</CardTitle>
           <p className="text-sm text-muted-foreground">调整章节前情提要的生成参数</p>
         </CardHeader>
         <CardContent className="grid gap-4">
@@ -92,11 +93,11 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
       {/* 回顾总结参数 */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">回顾总结参数</CardTitle>
+          <CardTitle className="flex items-center gap-2 text-base"><ClipboardList className="size-4 text-primary" aria-hidden="true" />回顾总结参数</CardTitle>
           <p className="text-sm text-muted-foreground">调整「回来接着读」功能的参数</p>
         </CardHeader>
         <CardContent className="grid gap-4">
-          <label className="flex items-start justify-between gap-4 rounded-xl border border-border bg-card p-3.5">
+          <label className="flex items-start justify-between gap-4 rounded-lg border border-border bg-muted/30 p-4">
             <span className="min-w-0">
               <span className="block text-sm font-medium text-foreground">回来接着读功能</span>
               <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">为久未阅读的读者合成连贯回顾</span>
@@ -168,7 +169,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">AI 创作参数</CardTitle>
+          <CardTitle className="flex items-center gap-2 text-base"><Sparkles className="size-4 text-primary" aria-hidden="true" />AI 创作参数</CardTitle>
           <p className="text-sm text-muted-foreground">用于 AI 创作页的大纲、章节生成和续写</p>
         </CardHeader>
         <CardContent className="grid gap-4">
@@ -216,7 +217,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">AI 生图参数</CardTitle>
+          <CardTitle className="flex items-center gap-2 text-base"><Image className="size-4 text-primary" aria-hidden="true" />AI 生图参数</CardTitle>
           <p className="text-sm text-muted-foreground">用于小说封面生成的图像尺寸、质量与返回格式</p>
         </CardHeader>
         <CardContent className="ai-form-grid grid gap-4 sm:grid-cols-3">
@@ -229,7 +230,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
       {/* 任务与运维 */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">任务与运维</CardTitle>
+          <CardTitle className="flex items-center gap-2 text-base"><Wrench className="size-4 text-primary" aria-hidden="true" />任务与运维</CardTitle>
           <p className="text-sm text-muted-foreground">创作任务的并发控制与历史记录清理</p>
         </CardHeader>
         <CardContent className="ai-form-grid grid gap-3 sm:grid-cols-2">
@@ -265,11 +266,11 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
       {/* 审计配置 */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">审计配置</CardTitle>
+          <CardTitle className="flex items-center gap-2 text-base"><ShieldCheck className="size-4 text-primary" aria-hidden="true" />审计配置</CardTitle>
           <p className="text-sm text-muted-foreground">控制 AI 调用的审计信息记录</p>
         </CardHeader>
         <CardContent className="grid gap-3">
-          <label className="flex items-start justify-between gap-4 rounded-xl border border-border bg-card p-3.5">
+          <label className="flex items-start justify-between gap-4 rounded-lg border border-border bg-muted/30 p-4">
             <span className="min-w-0">
               <span className="block text-sm font-medium text-foreground">记录 IP 地址</span>
               <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">在审计记录中保存用户 IP</span>
@@ -280,7 +281,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
               onCheckedChange={(v) => setLocalSettings({ ...localSettings, logIpAddress: v })}
             />
           </label>
-          <label className="flex items-start justify-between gap-4 rounded-xl border border-border bg-card p-3.5">
+          <label className="flex items-start justify-between gap-4 rounded-lg border border-border bg-muted/30 p-4">
             <span className="min-w-0">
               <span className="block text-sm font-medium text-foreground">记录 User-Agent</span>
               <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">在审计记录中保存浏览器信息</span>
