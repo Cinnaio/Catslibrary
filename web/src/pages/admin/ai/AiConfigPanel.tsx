@@ -166,28 +166,16 @@ export default function AiConfigPanel(props: {
   const provider = props.provider
 
   return (
-    <div className="space-y-4">
+    <div className="ai-config-panel space-y-4">
       <Card className="min-w-0">
-        <CardHeader className="ai-provider-card-header flex-row items-start justify-between gap-4">
+        <CardHeader className="ai-provider-card-header">
           <div className="min-w-0">
             <CardTitle className="flex items-center gap-2 text-base"><Bot className="size-4 text-primary" aria-hidden="true" />供应商配置</CardTitle>
-            <p className="mt-0.5 text-sm text-muted-foreground">
-              {provider?.configured ? (
-                <>
-                  {provider.host} · {provider.model}
-                </>
-              ) : (
-                '未配置 AI_TEXT_BASE_URL / AI_TEXT_API_KEY，读者端不会出现 AI 入口'
-              )}
-            </p>
-            <p className="text-sm text-muted-foreground">配置文本模型与图像模型的连接信息，管理 AI 服务的调用入口</p>
+            <p className="mt-1 text-sm text-muted-foreground">连接文本与图像模型，保存后立即生效。</p>
           </div>
-          <Badge className={provider?.configured ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}>
-            {provider?.configured ? '已配置' : '未配置'}
-          </Badge>
         </CardHeader>
 
-        <CardContent className="grid gap-4">
+        <CardContent className="ai-config-content grid gap-5">
           {/* 供应商连接参数：可在后台直接修改，无需重启 */}
           <div className="ai-provider-section grid gap-3 rounded-lg border border-border bg-muted/30 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -245,8 +233,8 @@ export default function AiConfigPanel(props: {
               />
               <p className="text-xs text-muted-foreground">密钥以明文写入 data/runtime-config.json（已 gitignore）；留空不改动，清空填空格保存</p>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button size="sm" disabled={savingProvider} onClick={() => void saveProvider()}>
+            <div className="ai-provider-actions flex flex-wrap items-center gap-3">
+              <Button disabled={savingProvider} onClick={() => void saveProvider()}>
                 {savingProvider ? '保存中…' : '保存供应商配置'}
               </Button>
               <span className="text-xs text-muted-foreground">真实环境变量 / .env 设定的值优先，后台修改不覆盖显式设定</span>
@@ -307,15 +295,15 @@ export default function AiConfigPanel(props: {
               />
               <p className="text-xs text-muted-foreground">用于 AI 封面生成；留空不改动，清空填空格保存</p>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button size="sm" disabled={savingImageProvider} onClick={() => void saveImageProvider()}>
+            <div className="ai-provider-actions flex flex-wrap items-center gap-3">
+              <Button disabled={savingImageProvider} onClick={() => void saveImageProvider()}>
                 {savingImageProvider ? '保存中…' : '保存图像供应商配置'}
               </Button>
               <span className="text-xs text-muted-foreground">与文本供应商优先级一致：环境变量显式设定值不被覆盖</span>
             </div>
           </div>
 
-          <label className="flex items-start justify-between gap-4 rounded-xl border border-border bg-card p-3.5">
+          <label className="ai-config-toggle flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/30 px-4 py-3">
             <span className="min-w-0">
               <span className="block text-sm font-medium text-foreground">阅读器前情提要</span>
               <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">读者进入章节时可回顾上一章，结果按章缓存，全站共用一份</span>
@@ -323,7 +311,7 @@ export default function AiConfigPanel(props: {
             <Switch checked={!!settings?.recapEnabled} disabled={!settings || saving} onCheckedChange={(v) => void save({ recapEnabled: v })} />
           </label>
 
-          <div className="ai-form-grid grid gap-3 sm:grid-cols-2">
+          <div className="ai-form-grid ai-config-limits grid gap-3 sm:grid-cols-2">
             <div className="grid gap-1.5">
               <Label htmlFor="ai-daily-quota">每人每日生成上限</Label>
               <Input
@@ -360,12 +348,12 @@ export default function AiConfigPanel(props: {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="secondary" size="sm" disabled={testing || !provider?.configured} onClick={() => void runTest()}>
+          <div className="ai-config-test flex flex-wrap items-center gap-3">
+            <Button variant="secondary" disabled={testing || !provider?.configured} onClick={() => void runTest()}>
               {testing ? '测试中…' : '连通性测试'}
             </Button>
             <span className="text-sm text-muted-foreground" aria-live="polite">
-              {testResult}
+              {testResult || '用于验证文本模型是否可用'}
             </span>
           </div>
 

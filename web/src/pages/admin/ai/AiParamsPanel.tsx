@@ -39,7 +39,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
   }
 
   return (
-    <div className="space-y-4">
+    <div className="ai-params-panel space-y-4">
       {/* 前情提要参数 */}
       <Card>
         <CardHeader>

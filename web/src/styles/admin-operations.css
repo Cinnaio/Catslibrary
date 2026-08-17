@@ -285,11 +285,93 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   max-width: 100%;
 }
 
-/* The outer header is the tab page heading. Provider details and status live
-   in each provider panel below, so they should not be repeated here. */
-.ai-admin-page .ai-provider-card-header > div > p:first-of-type,
-.ai-admin-page .ai-provider-card-header > [data-slot='badge'] {
-  display: none;
+.ai-config-panel .ai-provider-section .ai-form-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+}
+
+.ai-config-panel .ai-provider-section [data-slot='input'] {
+  width: 100%;
+  max-width: none;
+}
+
+.ai-config-panel .ai-provider-section > .grid.gap-1\.5 [data-slot='input'] {
+  max-width: 42rem;
+}
+
+.ai-config-panel .ai-provider-actions,
+.ai-config-panel .ai-config-test {
+  border-top: 1px solid var(--border);
+  padding-top: 0.75rem;
+}
+
+.ai-config-panel .ai-provider-actions [data-slot='button'],
+.ai-config-panel .ai-config-test [data-slot='button'] {
+  min-width: 8.5rem;
+}
+
+.ai-config-panel .ai-config-limits {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+}
+
+.ai-config-panel .ai-config-limits [data-slot='input'] {
+  width: min(100%, 11rem);
+}
+
+.ai-params-panel .ai-form-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 2.5rem;
+  row-gap: 0;
+}
+
+.ai-params-panel .ai-form-grid > .grid.gap-1\.5 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 8.5rem;
+  grid-template-rows: auto auto;
+  column-gap: 1rem;
+  align-items: center;
+  min-height: 5rem;
+  padding-block: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
+.ai-params-panel .ai-form-grid > .grid.gap-1\.5 > [data-slot='label'] {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.ai-params-panel .ai-form-grid > .grid.gap-1\.5 > [data-slot='input'],
+.ai-params-panel .ai-form-grid > .grid.gap-1\.5 > [data-slot='select-trigger'] {
+  width: 100%;
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+
+.ai-params-panel .ai-form-grid > .grid.gap-1\.5 > p {
+  grid-column: 1;
+  grid-row: 2;
+  max-width: none;
+  line-height: 1.35;
+}
+
+.ai-params-panel [data-slot='card-content'] > .grid.gap-1\.5:has(> textarea) {
+  gap: 0.5rem;
+  padding-top: 0.25rem;
+}
+
+.ai-params-panel [data-slot='card-content'] > .grid.gap-1\.5:has(> textarea) > p {
+  max-width: none;
+}
+
+@media (max-width: 880px) {
+  .ai-params-panel .ai-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .ai-params-panel .ai-form-grid > .grid.gap-1\.5 {
+    grid-template-columns: minmax(0, 1fr) 7.5rem;
+  }
 }
 
 @media (max-width: 640px) {
