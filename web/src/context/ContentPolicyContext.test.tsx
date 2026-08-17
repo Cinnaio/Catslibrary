@@ -11,6 +11,9 @@ describe('ContentPolicyContext', () => {
     expect(isRestrictedContent({ categories: ['玄幻', '悬疑'] })).toBe(false)
     expect(isRestrictedContent({ title: '成人向未删减作品' })).toBe(true)
     expect(isRestrictedContent('R18')).toBe(true)
+    expect(isRestrictedContent('18禁，高H，黄暴慎入')).toBe(true)
+    expect(isRestrictedContent('前期剧情后期肉，含进身体')).toBe(true)
+    expect(isRestrictedContent('因为女主和两位男主均会发生亲密行为')).toBe(true)
   })
 
   it('默认安全模式，切换后持久化且允许显示限制级内容', () => {
