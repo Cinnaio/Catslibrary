@@ -95,4 +95,9 @@ describe('parseContinuationTitle', () => {
     expect(parseContinuationTitle('第一章开篇之也')).toEqual({ title: '', body: '第一章开篇之也' })
     expect(parseContinuationTitle('【笼中雀】')).toEqual({ title: '', body: '【笼中雀】' })
   })
+
+  it('识别单次输出中混入的第二章标题', () => {
+    const parsed = parseContinuationTitle('【笼门】HHHH\n\n第一章正文。\n\n【心甘情愿】HHH\n\n第二章正文。')
+    expect(parsed.body).toBe('第一章正文。')
+  })
 })

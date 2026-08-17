@@ -79,12 +79,31 @@ function titleFromLine(line: string): string {
   return ''
 }
 
+/** 章节正文中再次出现的独立标题行，说明模型越界开始写下一章。 */
+function isChapterBoundary(line: string): boolean {
+  const text = line.trim()
+  return /^(?:#+\s*)?第\s*[0-9一二三四五六七八九十百千零两]+\s*[章节回](?:\s+.+)?$/.test(text)
+    || /^【[^】\r\n]{2,40}】\s*[Hh]*$/.test(text)
+}
+
+/** 保留当前章正文，丢弃从第二个独立章节标题开始的越界内容。 */
+function firstChapterBody(body: string): string {
+  const lines = body.split('\n')
+  for (let index = 1; index < lines.length; index += 1) {
+    if (!(lines[index - 1] || '').trim() && isChapterBoundary(lines[index] || '')) {
+      return lines.slice(0, index).join('\n').trimEnd()
+    }
+  }
+  return body
+}
+
 /**
  * 从续写输出中提取标题并返回剥离标题后的正文。兼容真实产出过的格式：
  * - 开头的章节号行（「## 第 6 章」「第 88 章」）：章节号不是标题；若同行带尾巴（「第 3 章 锁孔里的光」）则尾巴是标题，否则看下一行
  * - 「【标题】HH」/《标题》/「标题」等包裹形态：尾部可带 H 评级标记（自定义提示词要求 H 数量标注），保留进标题
  * - 「标题：xxx」/「章节标题: xxx」/「Title: xxx」前缀
  * - 裸首行标题：长度 2-30、不以句末标点结尾、且紧跟空行（提示词要求"标题后空一行再写正文"）
+ * - 正文中再次出现独立章节标题时，只保留第一章，防止多章内容混入同一草稿
  * 未识别到标题时原样返回，不破坏既有行为。
  */
 export function parseContinuationTitle(raw: string): { title: string; body: string } {
@@ -114,7 +133,7 @@ export function parseContinuationTitle(raw: string): { title: string; body: stri
   const rest = lines.slice(index).join('\n').replace(/^\n+/, '').trim()
   // 剥离标题后正文为空，说明整个输出只是一行（如短测试文本），不算标题行
   if (!rest) return { title: '', body: source.trim() }
-  return { title, body: rest }
+  return { title, body: firstChapterBody(rest) }
 }
 
 export async function generateWritingTitles(db: Db, opts: {
@@ -193,6 +212,9 @@ export async function generateWriting(db: Db, opts: {
     ? '你是中文网络小说策划编辑。请输出可执行的章节大纲，包含主线冲突、人物目标、关键转折和章节安排。只输出内容，不要解释。'
     : settings.writingSystemPrompt
   const systemParts = [baseSystem]
+  if (opts.kind === 'continue' || opts.kind === 'write_chapter') {
+    systemParts.push('本次请求只能创作一章。只在开头输出一次章节标题，正文中不得出现下一章、上一章或任何额外章节标题；写完本章立即停止。')
+  }
   if (styleProfile) systemParts.push(`本作风格特征（续写须严格遵循）：\n${styleProfile}`)
   if (relationshipProfile) systemParts.push(`本作角色关系动态（续写须保持人设与权力结构一致，不得逾越关系边界）：\n${relationshipProfile}`)
   const system = systemParts.join('\n\n')
@@ -203,6 +225,7 @@ export async function generateWriting(db: Db, opts: {
   const optionInstructions = [
     opts.targetWords ? `Target length: approximately ${Math.max(300, Math.min(30000, Math.trunc(opts.targetWords)))} Chinese characters.` : '',
     opts.chapterCount && opts.chapterCount > 1 ? `Continuation chapter count: ${Math.max(1, Math.min(20, Math.trunc(opts.chapterCount)))} chapters.` : '',
+    opts.kind === 'continue' || opts.kind === 'write_chapter' ? '本次仅生成一章；不得继续输出下一章或额外章节标题。' : '',
   ].filter(Boolean)
   const user = [
     ...optionInstructions,
