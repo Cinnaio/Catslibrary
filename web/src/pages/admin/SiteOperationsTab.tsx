@@ -123,7 +123,7 @@ export default function SiteOperationsTab() {
     >
       <div className="grid gap-4">
         <Tabs value={tab} onValueChange={(value) => setTab(value as OperationTab)}>
-          <TabsList className="w-full justify-start overflow-x-auto sm:w-fit">
+          <TabsList className="w-full justify-start overflow-x-auto overflow-y-hidden sm:w-fit">
             <TabsTrigger value="overview">运营概览</TabsTrigger>
             <TabsTrigger value="traffic">流量分析</TabsTrigger>
             <TabsTrigger value="content">内容分析</TabsTrigger>
