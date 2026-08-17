@@ -6,6 +6,7 @@ import { AccentProvider } from './context/AccentContext'
 import { ThemeProvider } from './context/ThemeContext'
 import { SessionProvider } from './context/SessionContext'
 import { SearchProvider } from './context/SearchContext'
+import { ContentPolicyProvider } from './context/ContentPolicyContext'
 import { ToastProvider, ConfirmProvider } from './components/feedback'
 import './styles/global.css'
 
@@ -16,11 +17,13 @@ createRoot(document.getElementById('root')!).render(
         <ThemeProvider>
           <SessionProvider>
             <SearchProvider>
-              <ToastProvider>
-                <ConfirmProvider>
-                  <App />
-                </ConfirmProvider>
-              </ToastProvider>
+              <ContentPolicyProvider>
+                <ToastProvider>
+                  <ConfirmProvider>
+                    <App />
+                  </ConfirmProvider>
+                </ToastProvider>
+              </ContentPolicyProvider>
             </SearchProvider>
           </SessionProvider>
         </ThemeProvider>

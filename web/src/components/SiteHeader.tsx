@@ -10,6 +10,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useSession } from '../context/SessionContext'
 import { useSearch } from '../context/SearchContext'
+import { useContentPolicy } from '../context/ContentPolicyContext'
 import { url } from '../lib/api'
 import { BookIcon, ChevronIcon, CloseIcon, MenuIcon, MoonIcon, RefreshIcon, SearchIcon, ShieldIcon, SunIcon } from './icons'
 import { ThemeMenu } from './ThemeMenu'
@@ -19,6 +20,7 @@ export default function SiteHeader() {
   const navigate = useNavigate()
   const { user } = useSession()
   const { query: searchValue, setQuery } = useSearch()
+  const { mode, setMode } = useContentPolicy()
   const inputRef = useRef<HTMLInputElement>(null)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -68,6 +70,14 @@ export default function SiteHeader() {
 
   function closeMenu() {
     setMenuOpen(false)
+  }
+
+  function toggleContentMode() {
+    if (mode === 'adult') {
+      setMode('safe')
+      return
+    }
+    if (window.confirm('仅限年满 18 岁的用户查看限制级内容。确认继续吗？')) setMode('adult')
   }
 
   return (
@@ -136,6 +146,18 @@ export default function SiteHeader() {
                 管理面板
               </Link>
             )}
+
+            <button
+              type="button"
+              className={`content-mode-btn content-mode-btn--desktop${mode === 'adult' ? ' content-mode-btn--adult' : ''}`}
+              aria-label={mode === 'safe' ? '内容安全模式，点击显示限制级内容' : '成人内容模式，点击隐藏限制级内容'}
+              aria-pressed={mode === 'adult'}
+              title={mode === 'safe' ? '安全模式：限制级内容已隐藏' : '成人内容模式：点击切回安全模式'}
+              onClick={toggleContentMode}
+            >
+              <ShieldIcon />
+              <span>{mode === 'safe' ? '安全模式' : '成人内容'}</span>
+            </button>
 
             <button className="refresh-btn" aria-label="刷新页面" title="刷新页面" onClick={refresh}>
               <RefreshIcon />
@@ -242,6 +264,10 @@ export default function SiteHeader() {
                     管理面板
                   </Link>
                 )}
+                <button type="button" className="mobile-drawer__item" onClick={toggleContentMode} aria-pressed={mode === 'adult'}>
+                  <ShieldIcon />
+                  {mode === 'safe' ? '安全模式（已隐藏限制级内容）' : '成人内容模式（点击关闭）'}
+                </button>
                 <button className="mobile-drawer__item" onClick={refresh}>
                   <RefreshIcon />
                   刷新页面

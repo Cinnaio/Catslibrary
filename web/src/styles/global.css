@@ -11,6 +11,7 @@
 @import './tokens.css';
 @import './base.css';
 @import './components.css';
+@import './content-policy.css';
 @import './header.css';
 @import './theme-menu.css';
 @import './home.css';
@@ -27,4 +28,3 @@
 
 /* 暗色变体：把 Tailwind dark: 从 .dark 类换成站点 [data-theme="dark"] 属性 */
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
-

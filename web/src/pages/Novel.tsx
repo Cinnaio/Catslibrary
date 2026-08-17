@@ -10,11 +10,13 @@ import { getNovelBookmarks, getNovelHistory } from '../lib/storage'
 import { getDemoNovel } from '../lib/demo'
 import { timeAgo } from '../lib/format'
 import { useSession } from '../context/SessionContext'
+import { useContentPolicy } from '../context/ContentPolicyContext'
 import { useBookshelf } from '../hooks/useBookshelf'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useToast, useConfirm } from '../components/feedback'
 import { BackToTopIcon, HomeIcon } from '../components/icons'
 import CatchupRecap from '../components/CatchupRecap'
+import ContentRestrictionNotice from '../components/ContentRestrictionNotice'
 
 interface RatingSummary {
   average: number
@@ -52,6 +54,7 @@ export default function Novel() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
   const { user } = useSession()
+  const { mode, setMode, isAllowed } = useContentPolicy()
   const { toast } = useToast()
   const { confirm } = useConfirm()
 
@@ -59,6 +62,7 @@ export default function Novel() {
   const [chapters, setChapters] = useState<ChapterMeta[]>([])
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
+  const [blocked, setBlocked] = useState(false)
   const [serverProgress, setServerProgress] = useState<ServerProgress | null>(null)
   const [descExpanded, setDescExpanded] = useState(false)
   const [descOverflows, setDescOverflows] = useState(false)
@@ -69,6 +73,10 @@ export default function Novel() {
   useEffect(() => {
     activeIdRef.current = id
     setCoverFailed(false)
+    setBlocked(false)
+    setNovel(null)
+    setChapters([])
+    setServerProgress(null)
     // 换书时重置简介展开态，避免上一本的展开/溢出状态串到新书
     setDescExpanded(false)
     setDescOverflows(false)
@@ -114,11 +122,19 @@ export default function Novel() {
     const stale = () => activeIdRef.current !== id
     setLoading(true)
     setNotFound(false)
+    setBlocked(false)
     try {
       const data = await novelsApi.get(id)
       if (stale()) return
       const n = data.novel
       if (!n) throw new Error('Not found')
+      if (!isAllowed(n)) {
+        setNovel(null)
+        setChapters([])
+        setBlocked(true)
+        setLoading(false)
+        return
+      }
       setNovel(n)
       // 阅读进度
       if (user) {
@@ -148,6 +164,13 @@ export default function Novel() {
       const demo = getDemoNovel(id)
       if (demo) {
         const { _chapters, ...rest } = demo
+        if (!isAllowed(rest)) {
+          setNovel(null)
+          setChapters([])
+          setBlocked(true)
+          setLoading(false)
+          return
+        }
         setNovel(rest)
         setChapters(_chapters)
         setLoading(false)
@@ -157,7 +180,7 @@ export default function Novel() {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, user])
+  }, [id, user, isAllowed])
 
   useEffect(() => {
     void load()
@@ -263,6 +286,16 @@ export default function Novel() {
           <div className="loading-center">
             <div className="spinner spinner--lg"></div>
           </div>
+        </div>
+      </main>
+    )
+  }
+
+  if (blocked) {
+    return (
+      <main className="detail-page">
+        <div className="container detail-shell">
+          <ContentRestrictionNotice mode={mode} onModeChange={setMode} />
         </div>
       </main>
     )

@@ -12,7 +12,9 @@ import { timeAgo } from '../lib/format'
 import { getDemoNovels } from '../lib/demo'
 import { useSession } from '../context/SessionContext'
 import { useSearch } from '../context/SearchContext'
+import { isRestrictedContent, useContentPolicy } from '../context/ContentPolicyContext'
 import NovelCard from '../components/NovelCard'
+import ContentRestrictionNotice from '../components/ContentRestrictionNotice'
 
 const PAGE_LIMIT = 20
 
@@ -99,6 +101,7 @@ export default function Home() {
   const { query, setQuery } = useSearch()
   const { user } = useSession()
   const [searchParams] = useSearchParams()
+  const { mode, safeMode, setMode, isAllowed } = useContentPolicy()
 
   const [novels, setNovels] = useState<Novel[]>([])
   const [totalPages, setTotalPages] = useState(1)
@@ -109,6 +112,7 @@ export default function Home() {
   const [categories, setCategories] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [apiFailed, setApiFailed] = useState(false)
+  const [hiddenRestricted, setHiddenRestricted] = useState(false)
   const [recent, setRecent] = useState<ReadingHistoryEntry[]>([])
 
   // 防抖后的搜索词：loadNovels 只依赖它，避免"每次击键立即请求 + 300ms 后再请求"的双发
@@ -144,6 +148,8 @@ export default function Home() {
   const loadDemo = useCallback(
     async (usePinyin: boolean, seq: number) => {
       let filtered = getDemoNovels()
+      const restrictedCount = safeMode ? filtered.filter((n) => !isAllowed(n)).length : 0
+      if (safeMode) filtered = filtered.filter(isAllowed)
       if (activeCategory) filtered = filtered.filter((n) => n.categories.includes(activeCategory))
       if (activeStatus) filtered = filtered.filter((n) => n.status === activeStatus)
       if (debouncedQuery) {
@@ -166,10 +172,12 @@ export default function Home() {
       setNovels(filtered.slice(start, start + PAGE_LIMIT))
       const cats = new Set<string>()
       getDemoNovels().forEach((n) => n.categories.forEach((c) => cats.add(c)))
-      setCategories([...cats].sort((a, b) => a.length - b.length || a.localeCompare(b)))
+      const visibleCategories = safeMode ? [...cats].filter((category) => !isRestrictedContent(category)) : [...cats]
+      setCategories(visibleCategories.sort((a, b) => a.length - b.length || a.localeCompare(b)))
+      setHiddenRestricted(restrictedCount > 0 || visibleCategories.length !== cats.size)
       void loadRecent()
     },
-    [activeCategory, activeStatus, currentPage, debouncedQuery, sort, loadRecent],
+    [activeCategory, activeStatus, currentPage, debouncedQuery, sort, loadRecent, safeMode, isAllowed],
   )
 
   const loadNovels = useCallback(async () => {
@@ -190,6 +198,9 @@ export default function Home() {
       const data = await novelsApi.list(params)
       let items = data.novels
       let pages = data.totalPages || 1
+      const availableCategories = data.availableCategories || []
+      const restrictedInPage = safeMode && items.some((n) => !isAllowed(n))
+      if (safeMode) items = items.filter(isAllowed)
       if (isPinyin) {
         const q = debouncedQuery.toLowerCase()
         const matched: Novel[] = []
@@ -203,7 +214,11 @@ export default function Home() {
       if (seq !== loadSeq.current) return
       setTotalPages(pages)
       setNovels(items)
-      setCategories(data.availableCategories || [])
+      const visibleCategories = safeMode
+        ? availableCategories.filter((category) => !isRestrictedContent(category))
+        : availableCategories
+      setCategories(visibleCategories)
+      setHiddenRestricted(restrictedInPage || visibleCategories.length !== availableCategories.length)
       setApiFailed(false)
       setLoading(false)
       void loadRecent()
@@ -216,7 +231,7 @@ export default function Home() {
       if (seq !== loadSeq.current) return
       setLoading(false)
     }
-  }, [currentPage, debouncedQuery, activeCategory, activeStatus, sort, loadDemo, loadRecent])
+  }, [currentPage, debouncedQuery, activeCategory, activeStatus, sort, loadDemo, loadRecent, safeMode, isAllowed])
 
   useEffect(() => {
     void loadNovels()
@@ -341,6 +356,16 @@ export default function Home() {
               </div>
             </div>
           </div>
+
+          {safeMode && hiddenRestricted && (
+            <ContentRestrictionNotice
+              compact
+              mode={mode}
+              onModeChange={setMode}
+              title="安全模式已隐藏部分作品"
+              description="可能包含限制级内容的作品和分类不会出现在当前列表中。"
+            />
+          )}
 
           <div className="sort-tabs-row">
             <div className="sort-tabs">

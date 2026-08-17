@@ -23,6 +23,7 @@ import {
   scrollBehavior,
 } from '../lib/reader-utils'
 import { useSession } from '../context/SessionContext'
+import { useContentPolicy } from '../context/ContentPolicyContext'
 import { useToast } from '../components/feedback'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useReaderSettings, FONT_SIZES, PAGE_WIDTHS, AUTO_SCROLL_SPEEDS } from '../hooks/useReaderSettings'
@@ -36,6 +37,7 @@ import ThoughtPanel from '../components/reader/ThoughtPanel'
 import ChapterRecap from '../components/reader/ChapterRecap'
 import { ThemeMenu } from '../components/ThemeMenu'
 import { MoonIcon, SunIcon } from '../components/icons'
+import ContentRestrictionNotice from '../components/ContentRestrictionNotice'
 
 const CHAPTER_ROW_H = 34
 const CHAPTER_CACHE_MAX = 6
@@ -44,6 +46,7 @@ export default function Reader() {
   const { novelId = '', chapterId = '' } = useParams()
   const navigate = useNavigate()
   const { user } = useSession()
+  const { mode, setMode, isAllowed } = useContentPolicy()
   const { toast } = useToast()
   const { settings, set, fontSize, pageMode } = useReaderSettings()
   const { queue: queueProgress, flush: flushProgress } = useProgressSync()
@@ -54,6 +57,7 @@ export default function Reader() {
   const [novel, setNovel] = useState<{ id: string; title: string } | null>(null)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
+  const [blocked, setBlocked] = useState(false)
   // demo 模式只需触发标记写入，无 UI 读取
   const [, setDemoMode] = useState(false)
   const cacheRef = useRef<Map<string, ChapterFull>>(new Map())
@@ -150,7 +154,10 @@ export default function Reader() {
     async function load() {
       setLoading(true)
       setNotFound(false)
+      setBlocked(false)
       setChapter(null)
+      setNovel(null)
+      setAllChapters([])
       setChapterThoughts([])
       setPopoverPos(null)
       setPendingSelection(null)
@@ -169,21 +176,48 @@ export default function Reader() {
           setDemoMode(true)
         }
         if (cancelled) return
-        setChapter(ch)
         // 小说上下文（仅首次加载列表）
         const nid = ch.novelId || novelId
+        let contextNovel: { id: string; title: string; description?: string; categories?: string[] } | null = null
         try {
-          const [novelData, chaptersData] = await Promise.all([novelsApi.get(nid), chaptersApi.list(nid)])
-          if (cancelled) return
-          setNovel(novelData.novel || null)
-          setAllChapters(chaptersData.chapters || [])
+          const novelData = await novelsApi.get(nid)
+          contextNovel = novelData.novel || null
         } catch {
-          if (useDemo) {
-            const { getDemoChapters, getDemoNovelTitle } = await import('../lib/demoReader')
-            setAllChapters(getDemoChapters(nid))
-            setNovel({ id: nid, title: getDemoNovelTitle(nid) })
-          }
+          contextNovel = null
         }
+        if (cancelled) return
+        if (contextNovel) {
+          if (!isAllowed(contextNovel)) {
+            setBlocked(true)
+            setLoading(false)
+            return
+          }
+          setNovel({ id: contextNovel.id, title: contextNovel.title })
+          try {
+            const chaptersData = await chaptersApi.list(nid)
+            if (cancelled) return
+            setAllChapters(chaptersData.chapters || [])
+          } catch {
+            setAllChapters([])
+          }
+        } else if (useDemo) {
+          const { getDemoChapters, getDemoNovelTitle } = await import('../lib/demoReader')
+          const demoTitle = getDemoNovelTitle(nid)
+          if (!isAllowed({ title: demoTitle })) {
+            setBlocked(true)
+            setLoading(false)
+            return
+          }
+          setAllChapters(getDemoChapters(nid))
+          setNovel({ id: nid, title: demoTitle })
+        } else {
+          // 无法确认小说元数据时默认拦截，避免绕过安全模式直达正文。
+          setBlocked(true)
+          setLoading(false)
+          return
+        }
+        if (cancelled) return
+        setChapter(ch)
         setLoading(false)
       } catch {
         if (!cancelled) {
@@ -197,7 +231,7 @@ export default function Reader() {
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [novelId, chapterId])
+  }, [novelId, chapterId, isAllowed])
 
   // ---------- 应用设置到 DOM ----------
   useEffect(() => {
@@ -989,6 +1023,14 @@ export default function Reader() {
         <div className="empty-state__title">章节未找到</div>
         <div className="empty-state__desc">该章节不存在或已被移除</div>
         <Link to="/" className="btn btn--primary" style={{ marginTop: 20 }}>返回首页</Link>
+      </div>
+    )
+  }
+
+  if (blocked) {
+    return (
+      <div className="reader-blocked-state">
+        <ContentRestrictionNotice mode={mode} onModeChange={setMode} />
       </div>
     )
   }
