@@ -144,7 +144,12 @@ export default function SiteOperationsTab() {
                   <div className="flex items-center justify-between gap-3"><span className="text-xs tabular-nums text-muted-foreground">{announcement.length}/240</span><Button size="sm" onClick={() => void saveAnnouncement()} disabled={loading || saving}>{saving ? '保存中…' : '保存公告'}</Button></div>
                 </CardContent>
               </Card>
-              <PopularNovels novels={data?.popularNovels || []} loading={loading} />
+              <OperationPulse
+                activeReaders={metrics?.activeReaders || 0}
+                newComments={data?.contentHealth.newComments || 0}
+                openReports={data?.contentHealth.openReports || 0}
+                recognizedCountries={countries.length}
+              />
             </div>
           </>}
 
@@ -200,6 +205,16 @@ export default function SiteOperationsTab() {
 
 function PopularNovels({ novels, loading }: { novels: Overview['popularNovels']; loading: boolean }) {
   return <Card><CardHeader><CardTitle className="flex items-center gap-2 text-base"><BarChart3 className="size-4 text-primary" aria-hidden="true" />近 7 日热门作品</CardTitle></CardHeader><CardContent>{novels.length ? novels.map((novel, index) => <div key={novel.novelId} className="flex items-center justify-between gap-3 border-b border-border py-3 last:border-0"><span className="min-w-0 truncate text-sm text-foreground">{index + 1}. {novel.title}</span><span className="shrink-0 text-xs tabular-nums text-muted-foreground">{novel.views.toLocaleString()} PV</span></div>) : <p className="py-8 text-center text-sm text-muted-foreground">{loading ? '正在汇总访问数据…' : '暂无访问数据'}</p>}</CardContent></Card>
+}
+
+function OperationPulse({ activeReaders, newComments, openReports, recognizedCountries }: { activeReaders: number; newComments: number; openReports: number; recognizedCountries: number }) {
+  const items = [
+    ['活跃读者', `${activeReaders.toLocaleString()} 人`],
+    ['新增评论', `${newComments.toLocaleString()} 条`],
+    ['待处理举报', `${openReports.toLocaleString()} 项`],
+    ['地区覆盖', recognizedCountries ? `${recognizedCountries} 个地区` : '尚未识别'],
+  ]
+  return <Card><CardHeader><CardTitle className="flex items-center gap-2 text-base"><Route className="size-4 text-primary" aria-hidden="true" />本周运营关注</CardTitle><p className="text-sm text-muted-foreground">优先处理需要人工跟进的站点信号。</p></CardHeader><CardContent className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border">{items.map(([label, value]) => <div key={label} className="bg-card px-3 py-3"><span className="block text-xs text-muted-foreground">{label}</span><strong className="mt-1 block text-sm font-semibold tabular-nums text-foreground">{value}</strong></div>)}</CardContent></Card>
 }
 
 function TrafficChart({ data }: { data: Overview['traffic']['dailyTrend'] }) {
