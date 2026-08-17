@@ -9,6 +9,7 @@ import { aiApi, type AiSettings, type AiProviderConfig } from '../../lib/api'
 import { useToast } from '../../components/feedback'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import AdminPage from '@/components/admin/AdminPage'
+import { Badge } from '@/components/ui/badge'
 import type { Provider } from './ai/shared'
 import { usePersistentState } from '@/hooks/usePersistentState'
 import AiConfigPanel from './ai/AiConfigPanel'
@@ -148,15 +149,21 @@ export default function AiTab() {
   }, [load])
 
   return (
-    <AdminPage title="AI 服务" description="管理 AI 功能配置、查看用量统计与调用审计" className="ai-admin-page">
+    <AdminPage
+      title="AI 服务"
+      description="集中管理生成能力、产出审阅、用量观测与模型配置。"
+      meta={<Badge variant={provider?.configured ? 'default' : 'secondary'}>{provider?.configured ? '服务已连接' : loading ? '读取配置中' : '未配置'}</Badge>}
+      className="ai-admin-page ai-service"
+    >
       <Tabs value={activeSubTab} onValueChange={handleSubTabChange} className="ai-service-tabs min-w-0">
+        <AiServiceSummary settings={settings} provider={provider} loading={loading} />
         <div
           ref={listRef}
           className={`ai-service-tabs__scroll-wrap relative ${
             canScroll.left ? 'can-scroll-left' : ''
           } ${canScroll.right ? 'can-scroll-right' : ''}`}
         >
-        <TabsList className="ai-service-tabs__list w-full max-w-full justify-start overflow-x-auto">
+        <TabsList className="ai-service-tabs__list w-full max-w-full justify-start overflow-x-auto overflow-y-hidden">
           {AI_TAB_GROUPS.map((group, groupIndex) => (
             <Fragment key={group.label}>
               {groupIndex > 0 && (
@@ -176,38 +183,56 @@ export default function AiTab() {
         </TabsList>
         </div>
 
-        <TabsContent value="writing" className="min-w-0">
+        <TabsContent value="writing" className="ai-service-tabs__content min-w-0">
           <AiWritingPanel onViewBatch={openGenerations} />
         </TabsContent>
 
-        <TabsContent value="cover" className="min-w-0">
+        <TabsContent value="cover" className="ai-service-tabs__content min-w-0">
           <AiCoverPanel />
         </TabsContent>
 
-        <TabsContent value="tasks" className="min-w-0">
+        <TabsContent value="tasks" className="ai-service-tabs__content min-w-0">
           <AiTasksPanel onViewBatch={openGenerations} />
         </TabsContent>
 
-        <TabsContent value="content" className="min-w-0">
+        <TabsContent value="content" className="ai-service-tabs__content min-w-0">
           <AiGenerationsPanel scope="all" status="all" focusBatchId={urlBatch} />
         </TabsContent>
 
-        <TabsContent value="usage" className="min-w-0">
+        <TabsContent value="usage" className="ai-service-tabs__content min-w-0">
           <AiUsagePanel />
         </TabsContent>
 
-        <TabsContent value="audit" className="min-w-0">
+        <TabsContent value="audit" className="ai-service-tabs__content min-w-0">
           <AiAuditPanel />
         </TabsContent>
 
-        <TabsContent value="config" className="min-w-0">
+        <TabsContent value="config" className="ai-service-tabs__content min-w-0">
           <AiConfigPanel settings={settings} provider={provider} providerConfig={providerConfig} loading={loading} onReload={load} />
         </TabsContent>
 
-        <TabsContent value="params" className="min-w-0">
+        <TabsContent value="params" className="ai-service-tabs__content min-w-0">
           <AiParamsPanel settings={settings} loading={loading} onReload={load} />
         </TabsContent>
       </Tabs>
     </AdminPage>
+  )
+}
+
+function AiServiceSummary({ settings, provider, loading }: { settings: AiSettings | null; provider: Provider | null; loading: boolean }) {
+  const status = loading ? '读取中' : provider?.configured ? '已连接' : '待配置'
+  const model = provider?.model || '未设置模型'
+  const recap = settings?.recapEnabled ? '已启用' : '已关闭'
+  const catchup = settings?.catchupEnabled ? '已启用' : '已关闭'
+  const quota = settings ? (settings.dailyQuota < 0 ? '不限额' : `${settings.dailyQuota} 次`) : '—'
+
+  return (
+    <div className="ai-service__summary" aria-label="AI 服务状态摘要">
+      <div className="ai-service__summary-item"><span>文本模型</span><strong title={model}>{model}</strong></div>
+      <div className="ai-service__summary-item"><span>服务状态</span><strong data-state={provider?.configured ? 'ready' : 'idle'}>{status}</strong></div>
+      <div className="ai-service__summary-item"><span>前情提要</span><strong>{recap}</strong></div>
+      <div className="ai-service__summary-item"><span>续读回顾</span><strong>{catchup}</strong></div>
+      <div className="ai-service__summary-item"><span>每日额度</span><strong>{quota}</strong></div>
+    </div>
   )
 }

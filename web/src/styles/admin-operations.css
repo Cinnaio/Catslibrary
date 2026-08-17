@@ -185,6 +185,53 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   overflow-x: hidden;
 }
 
+.ai-service-tabs {
+  gap: 1rem;
+}
+
+.ai-service__summary {
+  display: grid;
+  grid-template-columns: minmax(12rem, 2fr) repeat(4, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--border);
+  gap: 1px;
+}
+
+.ai-service__summary-item {
+  display: grid;
+  min-width: 0;
+  min-height: 5.25rem;
+  align-content: center;
+  gap: 0.25rem;
+  padding: 0.75rem 1rem;
+  background: var(--bg-card);
+}
+
+.ai-service__summary-item span {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.ai-service__summary-item strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-service__summary-item strong[data-state='ready'] {
+  color: var(--color-success);
+}
+
+.ai-service-tabs__content {
+  margin-top: 0;
+}
+
 /* AI service form controls use consistent widths across configuration panels.
    Numeric fields stay compact while text-like fields remain readable without
    stretching across an entire card. */
@@ -246,6 +293,14 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 }
 
 @media (max-width: 640px) {
+  .ai-service__summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ai-service__summary-item:first-child {
+    grid-column: 1 / -1;
+  }
+
   .ai-admin-page [data-slot='input'],
   .ai-admin-page [data-slot='input'][type='number'],
   .ai-generation-dialog [data-slot='input'],
