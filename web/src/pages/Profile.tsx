@@ -34,6 +34,8 @@ export default function Profile() {
   const [sessions, setSessions] = useState<SessionItem[]>([])
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [avatarPreview, setAvatarPreview] = useState('')
+  const [avatarUploading, setAvatarUploading] = useState(false)
+  const avatarInputRef = useRef<HTMLInputElement>(null)
   const messageTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [msg, setMsg] = useState('')
 
@@ -110,13 +112,17 @@ export default function Profile() {
       return
     }
     try {
+      setAvatarUploading(true)
       await authApi.uploadAvatar(avatarFile)
       setAvatarFile(null)
       setAvatarPreview('')
+      if (avatarInputRef.current) avatarInputRef.current.value = ''
       await refresh()
       message('头像已上传')
     } catch (err) {
       message((err as Error).message || '上传失败')
+    } finally {
+      setAvatarUploading(false)
     }
   }
 
@@ -161,7 +167,7 @@ export default function Profile() {
   return (
     <main className="profile-page">
       <div className="container profile-shell">
-        <p className="profile-message" id="profileMessage" style={{ minHeight: 20 }}>{msg}</p>
+        <p className="profile-message" id="profileMessage" role="status" aria-live="polite" style={{ minHeight: 20 }}>{msg}</p>
 
         {/* Hero */}
         <section className="profile-hero card">
@@ -253,6 +259,7 @@ export default function Profile() {
                 </div>
                 <div className="profile-action-group">
                   <input
+                    ref={avatarInputRef}
                     type="file"
                     id="avatarInput"
                     className="profile-file-input"
@@ -269,8 +276,13 @@ export default function Profile() {
                       }
                     }}
                   />
-                  <button className="btn btn--secondary" onClick={() => void uploadAvatar()}>上传头像</button>
-                  <button className="btn btn--secondary" onClick={() => void deleteAvatar()}>删除头像</button>
+                  <button type="button" className="btn btn--secondary" onClick={() => avatarInputRef.current?.click()} disabled={avatarUploading}>
+                    选择头像
+                  </button>
+                  <button type="button" className="btn btn--primary" onClick={() => void uploadAvatar()} disabled={!avatarFile || avatarUploading}>
+                    {avatarUploading ? '上传中…' : '上传头像'}
+                  </button>
+                  <button type="button" className="btn btn--secondary" onClick={() => void deleteAvatar()} disabled={avatarUploading}>删除头像</button>
                 </div>
               </div>
             </div>

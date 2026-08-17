@@ -112,6 +112,7 @@ export default function Home() {
   const [categories, setCategories] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [apiFailed, setApiFailed] = useState(false)
+  const [retryCount, setRetryCount] = useState(0)
   const [hiddenRestricted, setHiddenRestricted] = useState(false)
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
   const [recent, setRecent] = useState<ReadingHistoryEntry[]>([])
@@ -232,7 +233,7 @@ export default function Home() {
       if (seq !== loadSeq.current) return
       setLoading(false)
     }
-  }, [currentPage, debouncedQuery, activeCategory, activeStatus, sort, loadDemo, loadRecent, safeMode, isAllowed])
+  }, [currentPage, debouncedQuery, activeCategory, activeStatus, sort, loadDemo, loadRecent, safeMode, isAllowed, retryCount])
 
   useEffect(() => {
     void loadNovels()
@@ -413,7 +414,14 @@ export default function Home() {
           {apiFailed && (
             <div className="retry-banner">
               <span>API 连接失败，已加载演示数据</span>
-              <button className="btn btn--primary btn--sm" onClick={() => { setApiFailed(false); setCurrentPage(1) }}>
+              <button
+                className="btn btn--primary btn--sm"
+                onClick={() => {
+                  setApiFailed(false)
+                  setCurrentPage(1)
+                  setRetryCount((count) => count + 1)
+                }}
+              >
                 重试连接
               </button>
             </div>

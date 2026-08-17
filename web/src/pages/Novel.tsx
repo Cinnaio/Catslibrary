@@ -2,7 +2,7 @@
  * Novel 详情页 —— hero 信息、章节目录、本地书签、评分与评论。
  * 由 Novel-KV js/novel.js 平移为 React。
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { ChapterMeta, Comment, Novel, ReadingHistoryEntry } from '@shared/types'
 import { chaptersApi, commentsApi, novelsApi, progressApi, ratingsApi, url } from '../lib/api'
@@ -70,13 +70,22 @@ export default function Novel() {
 
   // 竞态保护：快速切书时，旧书未完成的请求不得写入新书的状态
   const activeIdRef = useRef(id)
-  useEffect(() => {
+  useLayoutEffect(() => {
     activeIdRef.current = id
+    setLoading(true)
+    setNotFound(false)
     setCoverFailed(false)
     setBlocked(false)
     setNovel(null)
     setChapters([])
     setServerProgress(null)
+    setComments([])
+    setCommentsTotal(0)
+    setCommentsOffset(0)
+    setRating(null)
+    setCommentBox('')
+    setSpoiler(false)
+    setSort('latest')
     // 换书时重置简介展开态，避免上一本的展开/溢出状态串到新书
     setDescExpanded(false)
     setDescOverflows(false)

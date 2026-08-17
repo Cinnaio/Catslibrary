@@ -120,20 +120,24 @@ export default function Auth() {
 
             <div className="flex flex-col gap-4">
               <div className="flex flex-col gap-1.5">
-                <Label>账号</Label>
+                <Label htmlFor="auth-username">账号</Label>
                 <Input
+                  id="auth-username"
                   autoComplete="username"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
+                  aria-describedby={msg ? 'auth-message' : undefined}
                 />
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label>密码</Label>
+                <Label htmlFor="auth-password">密码</Label>
                 <Input
+                  id="auth-password"
                   type="password"
                   autoComplete={isLogin ? 'current-password' : 'new-password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  aria-describedby={msg ? 'auth-message' : undefined}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && isLogin) void doLogin()
                   }}
@@ -141,8 +145,9 @@ export default function Auth() {
               </div>
               {showInvite && (
                 <div className="flex flex-col gap-1.5">
-                  <Label>邀请码</Label>
+                  <Label htmlFor="auth-invite">邀请码</Label>
                   <Input
+                    id="auth-invite"
                     autoComplete="off"
                     placeholder="注册时填写"
                     value={invite}
@@ -152,7 +157,7 @@ export default function Auth() {
               )}
             </div>
 
-            {msg && <p className="text-sm text-destructive">{msg}</p>}
+            {msg && <p id="auth-message" className="text-sm text-destructive" role="alert">{msg}</p>}
             {registerMode === 'closed' && mode === 'register' && (
               <p className="text-sm text-muted-foreground">注册已关闭，请联系管理员</p>
             )}
