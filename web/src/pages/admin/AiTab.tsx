@@ -156,7 +156,6 @@ export default function AiTab() {
       className="ai-admin-page ai-service"
     >
       <Tabs value={activeSubTab} onValueChange={handleSubTabChange} className="ai-service-tabs min-w-0">
-        <AiServiceSummary settings={settings} provider={provider} loading={loading} />
         <div
           ref={listRef}
           className={`ai-service-tabs__scroll-wrap relative ${
@@ -216,23 +215,5 @@ export default function AiTab() {
         </TabsContent>
       </Tabs>
     </AdminPage>
-  )
-}
-
-function AiServiceSummary({ settings, provider, loading }: { settings: AiSettings | null; provider: Provider | null; loading: boolean }) {
-  const status = loading ? '读取中' : provider?.configured ? '已连接' : '待配置'
-  const model = provider?.model || '未设置模型'
-  const recap = settings?.recapEnabled ? '已启用' : '已关闭'
-  const catchup = settings?.catchupEnabled ? '已启用' : '已关闭'
-  const quota = settings ? (settings.dailyQuota < 0 ? '不限额' : `${settings.dailyQuota} 次`) : '—'
-
-  return (
-    <div className="ai-service__summary" aria-label="AI 服务状态摘要">
-      <div className="ai-service__summary-item"><span>文本模型</span><strong title={model}>{model}</strong></div>
-      <div className="ai-service__summary-item"><span>服务状态</span><strong data-state={provider?.configured ? 'ready' : 'idle'}>{status}</strong></div>
-      <div className="ai-service__summary-item"><span>前情提要</span><strong>{recap}</strong></div>
-      <div className="ai-service__summary-item"><span>续读回顾</span><strong>{catchup}</strong></div>
-      <div className="ai-service__summary-item"><span>每日额度</span><strong>{quota}</strong></div>
-    </div>
   )
 }

@@ -394,22 +394,22 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
   }
 
   return (
-    <div className="space-y-4">
+    <div className="ai-writing-panel space-y-4">
       <Card>
-        <CardHeader>
-          <div>
+        <CardHeader className="ai-writing-header flex-row flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0">
             <CardTitle className="text-base">AI 创作工作台</CardTitle>
             <p className="text-sm text-muted-foreground">生成结果先保存为草稿，编辑确认后再发布为正式章节。</p>
           </div>
-        </CardHeader>
-        <CardContent className="grid gap-5">
           <Tabs value={mode} onValueChange={(value) => setMode(value as 'new' | 'continue')}>
             <TabsList>
               <TabsTrigger value="new">新写</TabsTrigger>
               <TabsTrigger value="continue">续写</TabsTrigger>
             </TabsList>
           </Tabs>
-          <div className="ai-form-grid grid gap-3 sm:grid-cols-2">
+        </CardHeader>
+        <CardContent className="grid gap-5">
+          <div className="ai-form-grid ai-writing-basics grid gap-3 sm:grid-cols-2">
             <div className="grid gap-1.5">
               <Label>目标小说</Label>
               <CustomSelect
@@ -420,6 +420,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                 searchable
                 searchPlaceholder="搜索小说名称…"
                 dropdownSide="bottom"
+                className="ai-writing-novel-select"
               />
             </div>
             <div className="grid gap-1.5">
@@ -432,33 +433,39 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
             </div>
           </div>
           {mode === 'new' && (
-            <div className="grid gap-1.5">
+            <div className="ai-writing-chapter-title grid gap-1.5">
               <Label>章节标题</Label>
               <Input value={chapterTitle} onChange={(event) => setChapterTitle(event.target.value)} placeholder="例如：第一章 雾中来客" />
             </div>
           )}
-          <div className="ai-form-grid grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="ai-form-grid ai-writing-options grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <div className="grid gap-1.5">
               <Label>{mode === 'continue' ? '每章目标字数' : '目标字数'}</Label>
-              <Input
-                type="number"
-                min={300}
-                max={30000}
-                step={100}
-                value={targetWords}
-                onChange={(event) => setTargetWords(Number(event.target.value) || 300)}
-              />
+              <div className="ai-writing-number-input">
+                <Input
+                  type="number"
+                  min={300}
+                  max={30000}
+                  step={100}
+                  value={targetWords}
+                  onChange={(event) => setTargetWords(Number(event.target.value) || 300)}
+                />
+                <span>字</span>
+              </div>
             </div>
             {mode === 'continue' && (
               <div className="grid gap-1.5">
                 <Label>续写章节数</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={20}
-                  value={chapterCount}
-                  onChange={(event) => setChapterCount(Math.max(1, Math.min(20, Number(event.target.value) || 1)))}
-                />
+                <div className="ai-writing-number-input">
+                  <Input
+                    type="number"
+                    min={1}
+                    max={20}
+                    value={chapterCount}
+                    onChange={(event) => setChapterCount(Math.max(1, Math.min(20, Number(event.target.value) || 1)))}
+                  />
+                  <span>章</span>
+                </div>
               </div>
             )}
             {mode === 'continue' && chapterOptions.length > 1 && (
@@ -476,7 +483,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
               </div>
             )}
           </div>
-          <div className="grid gap-4 border-t pt-5">
+          <div className="ai-writing-notes grid gap-4 border-t pt-5">
             <div className="grid gap-1.5">
               <Label>创作要求</Label>
               <textarea data-slot="textarea"
@@ -498,7 +505,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
               </div>
             )}
           </div>
-          <div className="grid gap-4 border-t pt-5">
+          <div className="ai-writing-analysis grid gap-4 border-t pt-5">
             <div>
               <p className="text-sm font-medium">小说分析</p>
               <p className="text-xs text-muted-foreground">提取后自动注入续写：风格画像定文风，关系画像定人设边界，情节状态防断档。</p>
@@ -547,7 +554,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
               />
             )}
           </div>
-          <div className="grid gap-3 border-t pt-5">
+          <div className="ai-writing-actions grid gap-3 border-t pt-5">
             {mode === 'continue' && pendingDrafts > 0 && !taskActive && (
               <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
                 <span>该小说有 {pendingDrafts} 章未发布的续写草稿。续写上下文只取已发布章节，建议先发布草稿再继续，避免剧情断档。</span>

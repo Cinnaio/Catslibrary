@@ -97,13 +97,13 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
     } finally { setDeletingId(null) }
   }
 
-  return <Card>
-    <CardHeader className="flex-row items-center justify-between gap-2">
-      <div>
+  return <Card className="ai-tasks-panel">
+    <CardHeader className="ai-tasks-header flex-row flex-wrap items-start justify-between gap-3">
+      <div className="min-w-0">
         <CardTitle className="text-base">AI 任务管理</CardTitle>
         <p className="text-sm text-muted-foreground">独立于爬取任务，查看生成进度、错误和输入 Prompt</p>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="ai-tasks-filter flex items-center gap-2">
         <Label htmlFor="task-filter-status" className="text-xs text-muted-foreground">状态</Label>
         <Select value={filterStatus} onValueChange={(v) => { setLoading(true); setFilterStatus(v as typeof filterStatus) }}>
           <SelectTrigger size="sm" id="task-filter-status" className="w-[120px]"><SelectValue /></SelectTrigger>
@@ -118,19 +118,18 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
         </Select>
       </div>
     </CardHeader>
-    <CardContent>
+    <CardContent className="ai-tasks-content">
       {loading && tasks.length === 0 ? <LoadingState label="正在加载 AI 任务" /> : error && tasks.length === 0 ? <ErrorState message={error} onRetry={() => void load()} /> : tasks.length === 0 ? <div className="flex h-32 items-center justify-center text-muted-foreground">暂无 AI 任务</div> : <>
         {error && <InlineError message={error} onRetry={() => void load()} className="mb-3" />}
-        <div className="space-y-2">
-        {tasks.map((task) => <div key={task.id} className="grid gap-2 rounded-md border p-3 sm:grid-cols-[1fr_auto]">
-          <div className="min-w-0">
+        <div className="ai-task-list">
+        {tasks.map((task) => <div key={task.id} className="ai-task-row grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+          <div className="ai-task-main min-w-0">
             <div className="flex flex-wrap items-center gap-2"><Badge variant="secondary">{taskKindLabel(task.kind)}</Badge><Badge variant={task.status === 'failed' ? 'destructive' : 'outline'}>{taskStatusLabel(task.status)}</Badge><span className="text-xs text-muted-foreground">{task.current} / {task.total}</span></div>
             <p className="mt-1 text-sm text-muted-foreground">{task.step || '等待处理'}</p>
             <p className="mt-1 truncate text-xs text-muted-foreground" title={task.prompt}>Prompt：{task.prompt || '无'}</p>
             {task.error && <p className="mt-1 text-xs text-destructive">{task.error}</p>}
           </div>
-          {/* 移动端按钮横向排列并自动换行；sm+ 右侧竖排对齐 */}
-          <div className="flex flex-row flex-wrap items-center justify-end gap-2 sm:flex-col sm:items-end">
+          <div className="ai-task-actions flex flex-row flex-wrap items-center justify-start gap-2 sm:justify-end">
             {(task.status === 'queued' || task.status === 'running') && <Button variant="outline" size="sm" onClick={() => void cancel(task.id)}>取消任务</Button>}
             {/* 部分完成的批次（失败/取消但已产出若干章）也能从这里找到草稿 */}
             {task.batchId && task.current > 0 && props.onViewBatch && (
