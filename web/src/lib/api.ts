@@ -523,7 +523,18 @@ export interface CommentReportItem {
 
 export const adminApi = {
   site: {
-    overview(): Promise<{ announcement: string; metrics: { todayPageViews: number; todayVisitors: number; weekPageViews: number; weekVisitors: number; activeReaders: number }; popularNovels: Array<{ novelId: string; title: string; views: number }> }> {
+    overview(): Promise<{
+      announcement: string
+      metrics: { todayPageViews: number; todayVisitors: number; weekPageViews: number; weekVisitors: number; activeReaders: number }
+      popularNovels: Array<{ novelId: string; title: string; views: number }>
+      traffic: {
+        dailyTrend: Array<{ date: string; pageViews: number; visitors: number }>
+        countries: Array<{ countryCode: string; visits: number; visitors: number }>
+        devices: Array<{ key: string; visits: number }>
+        sources: Array<{ key: string; visits: number }>
+      }
+      contentHealth: { novels: number; chapters: number; newComments: number; openReports: number }
+    }> {
       return request('GET', '/admin/site', null, true)
     },
     update(announcement: string): Promise<{ announcement: string }> {

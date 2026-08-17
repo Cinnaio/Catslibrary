@@ -90,15 +90,28 @@ describe('管理 API 端到端（pglite）', () => {
 
   it('site：记录匿名访问，管理员可查看运营数据并发布公告', async () => {
     const visitorId = 'anonymous_visitor_for_site_analytics_01'
-    const visit = await req('/api/site/visits', json('POST', { visitorId, path: `/novel/${novelId}` }))
+    const visit = await req('/api/site/visits', {
+      ...json('POST', { visitorId, path: `/novel/${novelId}` }),
+      headers: { 'Content-Type': 'application/json', 'cf-ipcountry': 'CN', 'user-agent': 'Mozilla/5.0 (iPhone; Mobile)', referer: 'https://www.google.com/' },
+    })
     expect(visit.status).toBe(204)
 
     const overview = await req('/api/admin/site', json('GET', undefined, adminToken))
     expect(overview.status).toBe(200)
-    const data = await jsonOf<{ metrics: { todayPageViews: number; todayVisitors: number }; popularNovels: Array<{ novelId: string }>; announcement: string }>(overview)
+    const data = await jsonOf<{
+      metrics: { todayPageViews: number; todayVisitors: number }
+      popularNovels: Array<{ novelId: string }>
+      traffic: { countries: Array<{ countryCode: string }>; devices: Array<{ key: string }>; sources: Array<{ key: string }> }
+      contentHealth: { novels: number; chapters: number }
+      announcement: string
+    }>(overview)
     expect(data.metrics.todayPageViews).toBeGreaterThanOrEqual(1)
     expect(data.metrics.todayVisitors).toBeGreaterThanOrEqual(1)
     expect(data.popularNovels.some((item) => item.novelId === novelId)).toBe(true)
+    expect(data.traffic.countries.some((item) => item.countryCode === 'CN')).toBe(true)
+    expect(data.traffic.devices.some((item) => item.key === 'mobile')).toBe(true)
+    expect(data.traffic.sources.some((item) => item.key === 'search')).toBe(true)
+    expect(data.contentHealth).toMatchObject({ novels: 1, chapters: 1 })
 
     const saved = await req('/api/admin/site', json('PUT', { announcement: '今晚进行例行维护' }, adminToken))
     expect((await jsonOf<{ announcement: string }>(saved)).announcement).toBe('今晚进行例行维护')
