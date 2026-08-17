@@ -510,8 +510,10 @@
   }
 
   .home-page .filter-row {
-    grid-template-columns: 1fr;
-    gap: 8px;
+    grid-template-columns: 42px minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+    padding: 2px 0;
   }
 
   .home-filter-toggle {
@@ -547,8 +549,8 @@
 
   .home-page .home-filter-card {
     display: none;
-    gap: 14px;
-    padding: 14px;
+    gap: 10px;
+    padding: 12px 14px;
     border-radius: 18px;
   }
 
@@ -560,15 +562,18 @@
     width: auto;
     padding: 0;
     font-size: 0.76rem;
+    line-height: 1;
   }
 
   .home-page .category-filter {
     flex-wrap: nowrap;
     min-width: 0;
     overflow-x: auto;
-    padding-bottom: 3px;
+    gap: 6px;
+    padding: 2px 24px 2px 0;
     scrollbar-width: none;
     overscroll-behavior-inline: contain;
+    mask-image: linear-gradient(90deg, #000 calc(100% - 18px), transparent);
   }
 
   .home-page .category-filter::-webkit-scrollbar {
@@ -577,8 +582,8 @@
 
   .home-page .filter-btn {
     flex: 0 0 auto;
-    min-height: 44px;
-    padding: 8px 13px;
+    min-height: 40px;
+    padding: 7px 12px;
     white-space: nowrap;
   }
 
