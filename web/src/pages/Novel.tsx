@@ -2,7 +2,7 @@
  * Novel 详情页 —— hero 信息、章节目录、本地书签、评分与评论。
  * 由 Novel-KV js/novel.js 平移为 React。
  */
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { ChapterMeta, Comment, Novel, ReadingHistoryEntry } from '@shared/types'
 import { chaptersApi, commentsApi, novelsApi, progressApi, ratingsApi, url } from '../lib/api'
@@ -14,7 +14,7 @@ import { useContentPolicy } from '../context/ContentPolicyContext'
 import { useBookshelf } from '../hooks/useBookshelf'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useToast, useConfirm } from '../components/feedback'
-import { BackToTopIcon, HomeIcon } from '../components/icons'
+import { BackToTopIcon, HomeIcon, SearchIcon } from '../components/icons'
 import CatchupRecap from '../components/CatchupRecap'
 import ContentRestrictionNotice from '../components/ContentRestrictionNotice'
 
@@ -67,6 +67,8 @@ export default function Novel() {
   const [descExpanded, setDescExpanded] = useState(false)
   const [descOverflows, setDescOverflows] = useState(false)
   const [coverFailed, setCoverFailed] = useState(false)
+  const [chapterQuery, setChapterQuery] = useState('')
+  const lastReadChapterRef = useRef<HTMLAnchorElement>(null)
 
   // 竞态保护：快速切书时，旧书未完成的请求不得写入新书的状态
   const activeIdRef = useRef(id)
@@ -75,6 +77,7 @@ export default function Novel() {
     setLoading(true)
     setNotFound(false)
     setCoverFailed(false)
+    setChapterQuery('')
     setBlocked(false)
     setNovel(null)
     setChapters([])
@@ -332,6 +335,19 @@ export default function Novel() {
   const startTargetId = lastReadChapter?.id || chapters[0]?.id
   const localBookmarks = getNovelBookmarks(id)
   const max = Math.max(1, rating?.distribution[1] || 0, rating?.distribution[2] || 0, rating?.distribution[3] || 0, rating?.distribution[4] || 0, rating?.distribution[5] || 0)
+  const filteredChapters = useMemo(() => {
+    const query = chapterQuery.trim().toLocaleLowerCase()
+    if (!query) return chapters
+    return chapters.filter((chapter) => `${chapter.order || ''} ${chapter.title || ''}`.toLocaleLowerCase().includes(query))
+  }, [chapterQuery, chapters])
+
+  function focusLastReadChapter() {
+    setChapterQuery('')
+    requestAnimationFrame(() => {
+      lastReadChapterRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      lastReadChapterRef.current?.focus({ preventScroll: true })
+    })
+  }
 
   return (
     <main className="detail-page">
@@ -407,7 +423,14 @@ export default function Novel() {
               <p className="detail-kicker">CONTENTS</p>
               <h2>章节目录</h2>
             </div>
-            <span className="detail-section__count">{chapters.length ? `共 ${chapters.length} 章` : '暂无章节'}</span>
+            <div className="chapter-directory__summary">
+              {lastReadChapter && (
+                <button type="button" className="chapter-directory__resume" onClick={focusLastReadChapter}>
+                  定位到阅读位置
+                </button>
+              )}
+              <span className="detail-section__count">{chapters.length ? `共 ${chapters.length} 章` : '暂无章节'}</span>
+            </div>
           </div>
           {chapters.length === 0 ? (
             <ul className="chapter-list">
@@ -416,30 +439,56 @@ export default function Novel() {
               </li>
             </ul>
           ) : (
-            <ul className="chapter-list">
-              {chapters.map((ch) => {
-                const order = Number(ch.order || 0) || 0
-                const isLastRead = ch.id === progress?.chapterId
-                const isRead = !isLastRead && (progress?.chapterOrder || 0) > 0 && order > 0 && order < (progress?.chapterOrder || 0)
-                return (
-                  <Link
-                    key={ch.id}
-                    to={`/read/${encodeURIComponent(ch.novelId || novel.id)}/${encodeURIComponent(ch.id)}`}
-                    className={`chapter-list__item${isRead ? ' chapter-list__item--read' : ''}${isLastRead ? ' chapter-list__item--last-read' : ''}`}
-                  >
-                    <span className="chapter-list__title">
-                      {ch.order ? `第${ch.order}章 ` : ''}{ch.title}
-                      {isLastRead && <span className="chapter-list__read-badge">读到这里</span>}
-                    </span>
-                    <span className="chapter-list__meta">
-                      {isRead ? '已读 ' : ''}
-                      {ch.wordCount ? `${ch.wordCount}字` : ''}
-                      {ch.createdAt ? ` ${timeAgo(ch.createdAt)}` : ''}
-                    </span>
-                  </Link>
-                )
-              })}
-            </ul>
+            <>
+              <div className="chapter-directory__search">
+                <SearchIcon className="chapter-directory__search-icon" aria-hidden="true" />
+                <label className="sr-only" htmlFor="chapter-directory-search">搜索章节</label>
+                <input
+                  id="chapter-directory-search"
+                  type="search"
+                  placeholder="搜索章节号或标题"
+                  autoComplete="off"
+                  value={chapterQuery}
+                  onChange={(event) => setChapterQuery(event.target.value)}
+                  aria-describedby="chapter-directory-count"
+                />
+                {chapterQuery && (
+                  <button type="button" className="chapter-directory__clear" aria-label="清除章节搜索" title="清除章节搜索" onClick={() => setChapterQuery('')}>×</button>
+                )}
+                <span id="chapter-directory-count" className="chapter-directory__result" aria-live="polite">
+                  {chapterQuery ? `${filteredChapters.length} / ${chapters.length} 章` : `${chapters.length} 章`}
+                </span>
+              </div>
+              {filteredChapters.length === 0 ? (
+                <div className="chapter-directory__empty" role="status">没有匹配的章节</div>
+              ) : (
+                <ul className="chapter-list">
+                  {filteredChapters.map((ch) => {
+                    const order = Number(ch.order || 0) || 0
+                    const isLastRead = ch.id === progress?.chapterId
+                    const isRead = !isLastRead && (progress?.chapterOrder || 0) > 0 && order > 0 && order < (progress?.chapterOrder || 0)
+                    return (
+                      <Link
+                        key={ch.id}
+                        ref={isLastRead ? lastReadChapterRef : undefined}
+                        to={`/read/${encodeURIComponent(ch.novelId || novel.id)}/${encodeURIComponent(ch.id)}`}
+                        className={`chapter-list__item${isRead ? ' chapter-list__item--read' : ''}${isLastRead ? ' chapter-list__item--last-read' : ''}`}
+                      >
+                        <span className="chapter-list__title">
+                          {ch.order ? `第${ch.order}章 ` : ''}{ch.title}
+                          {isLastRead && <span className="chapter-list__read-badge">读到这里</span>}
+                        </span>
+                        <span className="chapter-list__meta">
+                          {isRead ? '已读 ' : ''}
+                          {ch.wordCount ? `${ch.wordCount}字` : ''}
+                          {ch.createdAt ? ` ${timeAgo(ch.createdAt)}` : ''}
+                        </span>
+                      </Link>
+                    )
+                  })}
+                </ul>
+              )}
+            </>
           )}
         </section>
 
