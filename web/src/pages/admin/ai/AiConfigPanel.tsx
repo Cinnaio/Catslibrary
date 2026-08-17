@@ -1,6 +1,6 @@
 /** 配置面板：供应商信息、开关、配额（数字输入防抖自动保存）。 */
 import { useEffect, useState } from 'react'
-import { Bot, Image, Sparkles } from 'lucide-react'
+import { Activity, BookOpenCheck, Bot, Image, Sparkles } from 'lucide-react'
 import { aiApi, type AiSettings, type AiUsageSummary, type AiProviderConfig } from '@/lib/api'
 import { useToast } from '@/components/feedback'
 import { useDebouncedCallback } from '@/hooks/useDebounce'
@@ -166,28 +166,23 @@ export default function AiConfigPanel(props: {
   const provider = props.provider
 
   return (
-    <div className="ai-config-panel space-y-4">
-      <Card className="min-w-0">
-        <CardHeader className="ai-provider-card-header">
+    <div className="ai-config-panel">
+      {/* 供应商连接参数：可在后台直接修改，无需重启。 */}
+      <Card className="ai-config-providers-card min-w-0">
+        <CardHeader>
           <div className="min-w-0">
-            <CardTitle className="flex items-center gap-2 text-base"><Bot className="size-4 text-primary" aria-hidden="true" />供应商配置</CardTitle>
-            <p className="mt-1 text-sm text-muted-foreground">连接文本与图像模型，保存后立即生效。</p>
+            <CardTitle className="flex items-center gap-2 text-base"><Bot className="size-4 text-primary" aria-hidden="true" />模型供应商</CardTitle>
+            <p className="text-sm text-muted-foreground">连接文本与图像模型，保存后立即生效。</p>
           </div>
         </CardHeader>
-
-        <CardContent className="ai-config-content grid gap-5">
-          {/* 供应商连接参数：可在后台直接修改，无需重启 */}
-          <div className="ai-provider-section grid gap-3 rounded-lg border border-border bg-muted/30 p-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="grid gap-0.5">
-                <span className="flex items-center gap-2 text-sm font-medium text-foreground"><Sparkles className="size-3.5 text-primary" aria-hidden="true" />文本供应商</span>
-                <span className="text-xs text-muted-foreground">
-                  {provider?.configured ? `${provider.host} · ${provider.model}` : '未配置，AI 文本功能不可用'}
-                </span>
+        <CardContent className="ai-config-providers">
+          <section className="ai-provider-section grid gap-3">
+            <div className="ai-provider-section-heading flex flex-wrap items-center justify-between gap-2">
+              <div className="min-w-0">
+                <h3 className="flex items-center gap-2 text-sm font-medium text-foreground"><Sparkles className="size-3.5 text-primary" aria-hidden="true" />文本供应商</h3>
+                <p className="mt-0.5 truncate text-xs text-muted-foreground">{provider?.configured ? `${provider.host} · ${provider.model}` : '未配置，AI 文本功能不可用'}</p>
               </div>
-              <Badge className={provider?.configured ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}>
-                {provider?.configured ? '已配置' : '未配置'}
-              </Badge>
+              <Badge className={provider?.configured ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}>{provider?.configured ? '已配置' : '未配置'}</Badge>
             </div>
             <div className="ai-form-grid grid gap-3 sm:grid-cols-2">
               <div className="grid gap-1.5">
@@ -239,20 +234,16 @@ export default function AiConfigPanel(props: {
               </Button>
               <span className="text-xs text-muted-foreground">真实环境变量 / .env 设定的值优先，后台修改不覆盖显式设定</span>
             </div>
-          </div>
+          </section>
 
-          {/* 图像供应商连接参数：用于 AI 封面生成，与文本三件套对称 */}
-          <div className="ai-provider-section grid gap-3 rounded-lg border border-border bg-muted/30 p-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="grid gap-0.5">
-                <span className="flex items-center gap-2 text-sm font-medium text-foreground"><Image className="size-3.5 text-primary" aria-hidden="true" />图像供应商</span>
-                <span className="text-xs text-muted-foreground">
-                  {imageProviderConfig?.hasApiKey ? `已配置 · ${imageProviderConfig.model || '默认模型'}` : '未配置，AI 封面生成不可用'}
-                </span>
+          {/* 图像供应商连接参数：用于 AI 封面生成。 */}
+          <section className="ai-provider-section grid gap-3">
+            <div className="ai-provider-section-heading flex flex-wrap items-center justify-between gap-2">
+              <div className="min-w-0">
+                <h3 className="flex items-center gap-2 text-sm font-medium text-foreground"><Image className="size-3.5 text-primary" aria-hidden="true" />图像供应商</h3>
+                <p className="mt-0.5 truncate text-xs text-muted-foreground">{imageProviderConfig?.hasApiKey ? `已配置 · ${imageProviderConfig.model || '默认模型'}` : '未配置，AI 封面生成不可用'}</p>
               </div>
-              <Badge className={imageProviderConfig?.hasApiKey ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}>
-                {imageProviderConfig?.hasApiKey ? '已配置' : '未配置'}
-              </Badge>
+              <Badge className={imageProviderConfig?.hasApiKey ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}>{imageProviderConfig?.hasApiKey ? '已配置' : '未配置'}</Badge>
             </div>
             <div className="ai-form-grid grid gap-3 sm:grid-cols-2">
               <div className="grid gap-1.5">
@@ -301,8 +292,17 @@ export default function AiConfigPanel(props: {
               </Button>
               <span className="text-xs text-muted-foreground">与文本供应商优先级一致：环境变量显式设定值不被覆盖</span>
             </div>
-          </div>
+          </section>
+        </CardContent>
+      </Card>
 
+      <div className="ai-config-secondary">
+      <Card className="ai-config-card ai-config-policy-card">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base"><BookOpenCheck className="size-4 text-primary" aria-hidden="true" />读者生成策略</CardTitle>
+            <p className="text-sm text-muted-foreground">控制读者可用的前情提要与单次生成范围。</p>
+          </CardHeader>
+          <CardContent className="grid gap-4">
           <label className="ai-config-toggle flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/30 px-4 py-3">
             <span className="min-w-0">
               <span className="block text-sm font-medium text-foreground">阅读器前情提要</span>
@@ -347,7 +347,15 @@ export default function AiConfigPanel(props: {
               <p className="text-xs text-muted-foreground">超出部分截断，直接决定单次调用成本</p>
             </div>
           </div>
+          </CardContent>
+      </Card>
 
+      <Card className="ai-config-card ai-config-health">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base"><Activity className="size-4 text-primary" aria-hidden="true" />服务检查与用量</CardTitle>
+            <p className="text-sm text-muted-foreground">验证文本模型连接，并查看近期调用情况。</p>
+          </CardHeader>
+          <CardContent className="grid gap-4">
           <div className="ai-config-test flex flex-wrap items-center gap-3">
             <Button variant="secondary" disabled={testing || !provider?.configured} onClick={() => void runTest()}>
               {testing ? '测试中…' : '连通性测试'}
@@ -357,17 +365,28 @@ export default function AiConfigPanel(props: {
             </span>
           </div>
 
-          {usage && (
-            <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg bg-border sm:grid-cols-5">
-              <UsageCell label="今日调用" value={usage.today.calls} />
-              <UsageCell label="今日 token" value={usage.today.promptTokens + usage.today.completionTokens} />
-              <UsageCell label="今日成本" value={formatCost(usage.today.costMillicents)} />
-              <UsageCell label="30 天调用" value={usage.last30d.calls} />
-              <UsageCell label="30 天 token" value={usage.last30d.promptTokens + usage.last30d.completionTokens} />
-            </div>
-          )}
-        </CardContent>
+            {usage && (
+              <div className="ai-config-usage">
+                <div className="ai-config-usage-group">
+                  <span className="ai-config-usage-group-label">今日</span>
+                  <div className="ai-config-usage-grid">
+                    <UsageCell label="调用" value={usage.today.calls} />
+                    <UsageCell label="Token" value={usage.today.promptTokens + usage.today.completionTokens} />
+                    <UsageCell label="成本" value={formatCost(usage.today.costMillicents)} />
+                  </div>
+                </div>
+                <div className="ai-config-usage-group">
+                  <span className="ai-config-usage-group-label">近 30 天</span>
+                  <div className="ai-config-usage-grid ai-config-usage-grid--two">
+                    <UsageCell label="调用" value={usage.last30d.calls} />
+                    <UsageCell label="Token" value={usage.last30d.promptTokens + usage.last30d.completionTokens} />
+                  </div>
+                </div>
+              </div>
+            )}
+          </CardContent>
       </Card>
+      </div>
     </div>
   )
 }
