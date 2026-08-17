@@ -290,6 +290,12 @@ export default function Novel() {
     void loadComments(id, true, next)
   }
 
+  const filteredChapters = useMemo(() => {
+    const query = chapterQuery.trim().toLocaleLowerCase()
+    if (!query) return chapters
+    return chapters.filter((chapter) => `${chapter.order || ''} ${chapter.title || ''}`.toLocaleLowerCase().includes(query))
+  }, [chapterQuery, chapters])
+
   // ---------- 渲染 ----------
   if (loading) {
     return (
@@ -335,11 +341,6 @@ export default function Novel() {
   const startTargetId = lastReadChapter?.id || chapters[0]?.id
   const localBookmarks = getNovelBookmarks(id)
   const max = Math.max(1, rating?.distribution[1] || 0, rating?.distribution[2] || 0, rating?.distribution[3] || 0, rating?.distribution[4] || 0, rating?.distribution[5] || 0)
-  const filteredChapters = useMemo(() => {
-    const query = chapterQuery.trim().toLocaleLowerCase()
-    if (!query) return chapters
-    return chapters.filter((chapter) => `${chapter.order || ''} ${chapter.title || ''}`.toLocaleLowerCase().includes(query))
-  }, [chapterQuery, chapters])
 
   function focusLastReadChapter() {
     setChapterQuery('')
