@@ -20,7 +20,7 @@ export default function SiteHeader() {
   const navigate = useNavigate()
   const { user } = useSession()
   const { query: searchValue, setQuery } = useSearch()
-  const { mode, setMode } = useContentPolicy()
+  const { mode, setMode, adultContentEnabled } = useContentPolicy()
   const inputRef = useRef<HTMLInputElement>(null)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -147,7 +147,7 @@ export default function SiteHeader() {
               </Link>
             )}
 
-            <button
+            {adultContentEnabled && <button
               type="button"
               className={`content-mode-btn content-mode-btn--desktop${mode === 'adult' ? ' content-mode-btn--adult' : ''}`}
               aria-label={mode === 'safe' ? '内容安全模式，点击显示限制级内容' : '成人内容模式，点击隐藏限制级内容'}
@@ -157,7 +157,7 @@ export default function SiteHeader() {
             >
               <ShieldIcon />
               <span>{mode === 'safe' ? '安全模式' : '成人内容'}</span>
-            </button>
+            </button>}
 
             <button className="refresh-btn" aria-label="刷新页面" title="刷新页面" onClick={refresh}>
               <RefreshIcon />
@@ -264,10 +264,10 @@ export default function SiteHeader() {
                     管理面板
                   </Link>
                 )}
-                <button type="button" className="mobile-drawer__item" onClick={toggleContentMode} aria-pressed={mode === 'adult'}>
+                {adultContentEnabled && <button type="button" className="mobile-drawer__item" onClick={toggleContentMode} aria-pressed={mode === 'adult'}>
                   <ShieldIcon />
                   {mode === 'safe' ? '安全模式（已隐藏限制级内容）' : '成人内容模式（点击关闭）'}
-                </button>
+                </button>}
                 <button className="mobile-drawer__item" onClick={refresh}>
                   <RefreshIcon />
                   刷新页面

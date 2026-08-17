@@ -1,9 +1,14 @@
-import { afterEach, describe, expect, it } from 'vitest'
-import { act, renderHook } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { ContentPolicyProvider, isRestrictedContent, useContentPolicy } from './ContentPolicyContext'
 
 afterEach(() => {
   localStorage.removeItem('zhizhou-content-mode')
+  vi.unstubAllGlobals()
+})
+
+beforeEach(() => {
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ adultContentEnabled: true }), { status: 200 })))
 })
 
 describe('ContentPolicyContext', () => {
@@ -16,14 +21,27 @@ describe('ContentPolicyContext', () => {
     expect(isRestrictedContent('因为女主和两位男主均会发生亲密行为')).toBe(true)
   })
 
-  it('默认安全模式，切换后持久化且允许显示限制级内容', () => {
+  it('默认安全模式，读取站点开关后可切换成人内容模式', async () => {
     const { result } = renderHook(() => useContentPolicy(), { wrapper: ContentPolicyProvider })
     expect(result.current.safeMode).toBe(true)
     expect(result.current.isAllowed({ title: 'R18 作品' })).toBe(false)
+
+    await waitFor(() => expect(result.current.adultContentEnabled).toBe(true))
 
     act(() => result.current.setMode('adult'))
     expect(result.current.mode).toBe('adult')
     expect(result.current.isAllowed({ title: 'R18 作品' })).toBe(true)
     expect(localStorage.getItem('zhizhou-content-mode')).toBe('adult')
+  })
+
+  it('站点关闭成人内容模式时始终保持安全模式', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ adultContentEnabled: false }), { status: 200 })))
+    const { result } = renderHook(() => useContentPolicy(), { wrapper: ContentPolicyProvider })
+
+    await waitFor(() => expect(result.current.adultContentEnabled).toBe(false))
+    act(() => result.current.setMode('adult'))
+
+    expect(result.current.mode).toBe('safe')
+    expect(result.current.isAllowed({ title: 'R18 作品' })).toBe(false)
   })
 })

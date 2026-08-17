@@ -522,6 +522,14 @@ export interface CommentReportItem {
 }
 
 export const adminApi = {
+  contentPolicy: {
+    settings(): Promise<{ adultContentEnabled: boolean }> {
+      return request('GET', '/admin/content-policy', null, true)
+    },
+    update(adultContentEnabled: boolean): Promise<{ adultContentEnabled: boolean }> {
+      return request('PUT', '/admin/content-policy', { adultContentEnabled }, true)
+    },
+  },
   stats(): Promise<Record<string, unknown>> {
     return request('GET', '/admin/stats', null, true)
   },
@@ -601,6 +609,12 @@ export const adminApi = {
       params.set('offset', String(filters.offset || 0))
       return request('GET', `/admin-users/login-audit?${params.toString()}`, null, true)
     },
+  },
+}
+
+export const contentPolicyApi = {
+  settings(): Promise<{ adultContentEnabled: boolean }> {
+    return request('GET', '/content-policy')
   },
 }
 

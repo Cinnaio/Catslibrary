@@ -67,6 +67,27 @@ describe('管理 API 端到端（pglite）', () => {
     expect(res.status).toBe(403)
   })
 
+  it('content-policy：公开读取，管理员可切换成人内容总开关', async () => {
+    const initial = await req('/api/content-policy')
+    expect(initial.status).toBe(200)
+    expect((await jsonOf<{ adultContentEnabled: boolean }>(initial)).adultContentEnabled).toBe(true)
+
+    const forbidden = await req('/api/admin/content-policy', json('PUT', { adultContentEnabled: false }, readerToken))
+    expect(forbidden.status).toBe(403)
+
+    const invalid = await req('/api/admin/content-policy', json('PUT', { adultContentEnabled: 'false' }, adminToken))
+    expect(invalid.status).toBe(400)
+
+    const updated = await req('/api/admin/content-policy', json('PUT', { adultContentEnabled: false }, adminToken))
+    expect(updated.status).toBe(200)
+    expect((await jsonOf<{ adultContentEnabled: boolean }>(updated)).adultContentEnabled).toBe(false)
+
+    const publicAfter = await req('/api/content-policy')
+    expect((await jsonOf<{ adultContentEnabled: boolean }>(publicAfter)).adultContentEnabled).toBe(false)
+
+    await req('/api/admin/content-policy', json('PUT', { adultContentEnabled: true }, adminToken))
+  })
+
   it('admin/stats：总数 + 最近任务/小说', async () => {
     const res = await req('/api/admin/stats', json('GET', undefined, adminToken))
     expect(res.status).toBe(200)

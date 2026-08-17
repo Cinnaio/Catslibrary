@@ -8,10 +8,26 @@ import { all, first, run } from '../db/query'
 import { rowToCommentAdmin, rowToCommentReport } from '../db/mappers'
 import { cleanText, clampInt, escapeLike } from '../services/text'
 import { requireAdmin, type AuthEnv } from '../middlewares/auth'
+import { getAdultContentEnabled, setAdultContentEnabled } from './content-policy'
 
 export const adminRoutes = new Hono<AuthEnv>()
 
 adminRoutes.use('*', requireAdmin())
+
+// ---------- 内容安全配置 ----------
+
+adminRoutes.get('/content-policy', async (c) => {
+  return c.json({ adultContentEnabled: await getAdultContentEnabled() }, 200, { 'Cache-Control': 'no-store' })
+})
+
+adminRoutes.put('/content-policy', async (c) => {
+  const body = await c.req.json().catch(() => ({}))
+  if (typeof body.adultContentEnabled !== 'boolean') {
+    return c.json({ error: 'adultContentEnabled must be a boolean' }, 400)
+  }
+  await setAdultContentEnabled(body.adultContentEnabled)
+  return c.json({ adultContentEnabled: body.adultContentEnabled })
+})
 
 // ---------- 总览统计 ----------
 

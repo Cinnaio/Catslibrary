@@ -1,4 +1,5 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { contentPolicyApi } from '../lib/api'
 
 export type ContentMode = 'safe' | 'adult'
 
@@ -66,7 +67,9 @@ function readInitialMode(): ContentMode {
 interface ContentPolicyContextValue {
   mode: ContentMode
   safeMode: boolean
+  adultContentEnabled: boolean
   setMode: (mode: ContentMode) => void
+  refreshPolicy: () => Promise<void>
   isAllowed: (metadata: ContentMetadata | null | undefined) => boolean
 }
 
@@ -74,23 +77,50 @@ const ContentPolicyContext = createContext<ContentPolicyContextValue | null>(nul
 
 export function ContentPolicyProvider({ children }: { children: ReactNode }) {
   const [mode, setModeState] = useState<ContentMode>(readInitialMode)
+  const [adultContentEnabled, setAdultContentEnabled] = useState(false)
 
-  const setMode = useCallback((next: ContentMode) => {
-    setModeState(next)
+  const refreshPolicy = useCallback(async () => {
     try {
-      localStorage.setItem(STORAGE_KEY, next)
+      const { adultContentEnabled: enabled } = await contentPolicyApi.settings()
+      setAdultContentEnabled(enabled)
     } catch {
-      /* ignore unavailable storage */
+      // 配置不可达时保持安全模式，避免意外展示限制级内容。
+      setAdultContentEnabled(false)
     }
   }, [])
 
+  useEffect(() => {
+    void refreshPolicy()
+  }, [refreshPolicy])
+
+  useEffect(() => {
+    if (!adultContentEnabled && mode === 'adult') {
+      setModeState('safe')
+      try {
+        localStorage.setItem(STORAGE_KEY, 'safe')
+      } catch {
+        /* ignore unavailable storage */
+      }
+    }
+  }, [adultContentEnabled, mode])
+
+  const setMode = useCallback((next: ContentMode) => {
+    const resolvedMode = adultContentEnabled ? next : 'safe'
+    setModeState(resolvedMode)
+    try {
+      localStorage.setItem(STORAGE_KEY, resolvedMode)
+    } catch {
+      /* ignore unavailable storage */
+    }
+  }, [adultContentEnabled])
+
   const isAllowed = useCallback((metadata: ContentMetadata | null | undefined) => {
-    return mode === 'adult' || !isRestrictedContent(metadata)
-  }, [mode])
+    return (adultContentEnabled && mode === 'adult') || !isRestrictedContent(metadata)
+  }, [adultContentEnabled, mode])
 
   const value = useMemo(
-    () => ({ mode, safeMode: mode === 'safe', setMode, isAllowed }),
-    [mode, setMode, isAllowed],
+    () => ({ mode, safeMode: mode === 'safe', adultContentEnabled, setMode, refreshPolicy, isAllowed }),
+    [mode, adultContentEnabled, setMode, refreshPolicy, isAllowed],
   )
   return <ContentPolicyContext.Provider value={value}>{children}</ContentPolicyContext.Provider>
 }

@@ -20,6 +20,7 @@ import { adminRoutes } from './routes/admin'
 import { adminUsersRoutes } from './routes/admin-users'
 import { downloadLogsRoutes } from './routes/download-logs'
 import { setupRoutes } from './routes/setup'
+import { contentPolicyRoutes } from './routes/content-policy'
 
 /** 全局应用：中间件装配 + 路由注册（阶段化增量挂载）。 */
 export const app = new Hono()
@@ -63,3 +64,4 @@ app.route('/api/admin', adminRoutes)
 app.route('/api/admin-users', adminUsersRoutes)
 app.route('/api/download-logs', downloadLogsRoutes)
 app.route('/api/setup', setupRoutes)
+app.route('/api/content-policy', contentPolicyRoutes)

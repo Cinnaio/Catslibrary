@@ -101,7 +101,7 @@ export default function Home() {
   const { query, setQuery } = useSearch()
   const { user } = useSession()
   const [searchParams] = useSearchParams()
-  const { mode, safeMode, setMode, isAllowed } = useContentPolicy()
+  const { mode, safeMode, setMode, isAllowed, adultContentEnabled } = useContentPolicy()
 
   const [novels, setNovels] = useState<Novel[]>([])
   const [totalPages, setTotalPages] = useState(1)
@@ -376,8 +376,9 @@ export default function Home() {
               compact
               mode={mode}
               onModeChange={setMode}
-              title="安全模式已隐藏部分作品"
-              description="可能包含限制级内容的作品和分类不会出现在当前列表中。"
+              canUnlock={adultContentEnabled}
+              title={adultContentEnabled ? '安全模式已隐藏部分作品' : '站点已关闭成人内容模式'}
+              description={adultContentEnabled ? '可能包含限制级内容的作品和分类不会出现在当前列表中。' : '限制级作品和分类不会出现在当前列表中。'}
             />
           )}
 

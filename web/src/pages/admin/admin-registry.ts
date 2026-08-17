@@ -12,6 +12,7 @@ import {
   LayoutDashboard,
   MessageSquare,
   Sparkles,
+  ShieldCheck,
   UserCog,
   type LucideIcon,
 } from 'lucide-react'
@@ -23,6 +24,7 @@ import JobsTab from './JobsTab'
 import ModerationTab from './ModerationTab'
 import AiTab from './AiTab'
 import SettingsTab from './SettingsTab'
+import ContentPolicyTab from './ContentPolicyTab'
 
 export interface AdminTabProps {
   highlightNovelId?: string
@@ -53,6 +55,7 @@ export const NAV_GROUPS: Array<{ label: string; items: Array<{ id: string; label
     label: '系统',
     items: [
       { id: 'ai', label: 'AI 服务', icon: Sparkles },
+      { id: 'content-policy', label: '内容安全', icon: ShieldCheck },
       { id: 'settings', label: '账户与注册', icon: UserCog },
     ],
   },
@@ -68,6 +71,7 @@ export const TAB_COMPONENTS: Record<string, ComponentType<AdminTabProps>> = {
   jobs: JobsTab,
   moderation: ModerationTab,
   ai: AiTab,
+  'content-policy': ContentPolicyTab,
   settings: SettingsTab,
 }
 
