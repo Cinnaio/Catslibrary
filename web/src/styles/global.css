@@ -28,3 +28,15 @@
 
 /* 暗色变体：把 Tailwind dark: 从 .dark 类换成站点 [data-theme="dark"] 属性 */
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+ .site-notice {
+  position: sticky;
+  top: var(--header-height);
+  z-index: 40;
+  padding: 8px max(16px, calc((100% - 1180px) / 2));
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
+  background: color-mix(in srgb, var(--accent-subtle) 78%, var(--bg-card));
+  color: var(--text-secondary);
+  font-size: 0.84rem;
+  line-height: 1.5;
+  text-align: center;
+}

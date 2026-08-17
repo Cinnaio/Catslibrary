@@ -12,6 +12,7 @@ import Reader from './pages/Reader'
 import Bookshelf from './pages/Bookshelf'
 import Profile from './pages/Profile'
 import Auth from './pages/Auth'
+import VisitTracker from './components/VisitTracker'
 
 const Install = lazy(() => import('./pages/Install'))
 const Admin = lazy(() => import('./pages/admin/Admin'))
@@ -27,6 +28,7 @@ function RouteFallback() {
 export default function App() {
   return (
     <Suspense fallback={<RouteFallback />}>
+      <VisitTracker />
       <Routes>
         <Route element={<Layout />}>
           <Route path="/" element={<Home />} />

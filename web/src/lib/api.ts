@@ -522,6 +522,14 @@ export interface CommentReportItem {
 }
 
 export const adminApi = {
+  site: {
+    overview(): Promise<{ announcement: string; metrics: { todayPageViews: number; todayVisitors: number; weekPageViews: number; weekVisitors: number; activeReaders: number }; popularNovels: Array<{ novelId: string; title: string; views: number }> }> {
+      return request('GET', '/admin/site', null, true)
+    },
+    update(announcement: string): Promise<{ announcement: string }> {
+      return request('PUT', '/admin/site', { announcement }, true)
+    },
+  },
   contentPolicy: {
     settings(): Promise<{ adultContentEnabled: boolean }> {
       return request('GET', '/admin/content-policy', null, true)
@@ -615,6 +623,15 @@ export const adminApi = {
 export const contentPolicyApi = {
   settings(): Promise<{ adultContentEnabled: boolean }> {
     return request('GET', '/content-policy')
+  },
+}
+
+export const siteApi = {
+  settings(): Promise<{ announcement: string }> {
+    return request('GET', '/site')
+  },
+  visit(visitorId: string, path: string): Promise<void> {
+    return request('POST', '/site/visits', { visitorId, path })
   },
 }
 

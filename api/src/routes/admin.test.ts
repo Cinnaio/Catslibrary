@@ -88,6 +88,24 @@ describe('管理 API 端到端（pglite）', () => {
     await req('/api/admin/content-policy', json('PUT', { adultContentEnabled: true }, adminToken))
   })
 
+  it('site：记录匿名访问，管理员可查看运营数据并发布公告', async () => {
+    const visitorId = 'anonymous_visitor_for_site_analytics_01'
+    const visit = await req('/api/site/visits', json('POST', { visitorId, path: `/novel/${novelId}` }))
+    expect(visit.status).toBe(204)
+
+    const overview = await req('/api/admin/site', json('GET', undefined, adminToken))
+    expect(overview.status).toBe(200)
+    const data = await jsonOf<{ metrics: { todayPageViews: number; todayVisitors: number }; popularNovels: Array<{ novelId: string }>; announcement: string }>(overview)
+    expect(data.metrics.todayPageViews).toBeGreaterThanOrEqual(1)
+    expect(data.metrics.todayVisitors).toBeGreaterThanOrEqual(1)
+    expect(data.popularNovels.some((item) => item.novelId === novelId)).toBe(true)
+
+    const saved = await req('/api/admin/site', json('PUT', { announcement: '今晚进行例行维护' }, adminToken))
+    expect((await jsonOf<{ announcement: string }>(saved)).announcement).toBe('今晚进行例行维护')
+    const publicSettings = await req('/api/site')
+    expect((await jsonOf<{ announcement: string }>(publicSettings)).announcement).toBe('今晚进行例行维护')
+  })
+
   it('admin/stats：总数 + 最近任务/小说', async () => {
     const res = await req('/api/admin/stats', json('GET', undefined, adminToken))
     expect(res.status).toBe(200)
