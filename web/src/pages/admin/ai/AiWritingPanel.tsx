@@ -159,6 +159,10 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
   const [relationshipProfile, setRelationshipProfile] = useState('')
   const [relationshipBusy, setRelationshipBusy] = useState(false)
   const [relationshipSample, setRelationshipSample] = useState(10)
+  // 初始读取与手动重新提取可能并发；只让每类画像最新一轮请求更新页面。
+  const styleRequestVersion = useRef(0)
+  const plotRequestVersion = useRef(0)
+  const relationshipRequestVersion = useRef(0)
   const taskActive = !!task && (task.status === 'queued' || task.status === 'running')
 
   useEffect(() => {
@@ -187,6 +191,10 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
   // 选中小说后加载章节列表（倒序），用于选择续写起点
   useEffect(() => {
     setAfterChapterId('')
+    // 切书（包括清空选择）立即作废上一部小说的所有在途画像请求。
+    const styleVersion = ++styleRequestVersion.current
+    const plotVersion = ++plotRequestVersion.current
+    const relationshipVersion = ++relationshipRequestVersion.current
     if (!novelId) {
       setChapterOptions([])
       setStyleProfile('')
@@ -211,14 +219,14 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
     aiApi.writing
       .getStyleProfile(novelId)
       .then((res) => {
-        if (!cancelled) setStyleProfile(res.profile || '')
+        if (!cancelled && styleVersion === styleRequestVersion.current) setStyleProfile(res.profile || '')
       })
       .catch(() => {})
     // 读已存的情节状态与已发布章节数：后者大于前者说明状态落后于最新章节（过期提醒）
     aiApi.writing
       .getPlotState(novelId)
       .then((res) => {
-        if (!cancelled) {
+        if (!cancelled && plotVersion === plotRequestVersion.current) {
           setPlotState(res.state || '')
           setPlotChaptersThrough(res.chaptersThrough || 0)
           setPlotChapterCount(res.chapterCount || 0)
@@ -229,7 +237,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
     aiApi.writing
       .getRelationshipProfile(novelId)
       .then((res) => {
-        if (!cancelled) setRelationshipProfile(res.profile || '')
+        if (!cancelled && relationshipVersion === relationshipRequestVersion.current) setRelationshipProfile(res.profile || '')
       })
       .catch(() => {})
     return () => {
@@ -326,10 +334,11 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
 
   async function refreshStyleProfile() {
     if (!novelId) return toast('请选择小说', 'error')
+    const version = ++styleRequestVersion.current
     setStyleBusy(true)
     try {
       const res = await aiApi.writing.refreshStyleProfile(novelId)
-      setStyleProfile(res.profile)
+      if (version === styleRequestVersion.current) setStyleProfile(res.profile)
       toast('风格画像已更新，后续续写将自动套用', 'success')
     } catch (err) {
       toast((err as Error).message, 'error')
@@ -340,11 +349,14 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
 
   async function refreshPlotState() {
     if (!novelId) return toast('请选择小说', 'error')
+    const version = ++plotRequestVersion.current
     setPlotBusy(true)
     try {
       const res = await aiApi.writing.refreshPlotState(novelId, plotSample)
-      setPlotState(res.state)
-      setPlotChaptersThrough(res.chaptersThrough)
+      if (version === plotRequestVersion.current) {
+        setPlotState(res.state)
+        setPlotChaptersThrough(res.chaptersThrough)
+      }
       // 章节数本地已加载过，直接用；接口返回的 chaptersThrough 已是最新取样数
       toast('情节状态已更新，后续续写将自动套用', 'success')
     } catch (err) {
@@ -356,10 +368,11 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
 
   async function refreshRelationshipProfile() {
     if (!novelId) return toast('请选择小说', 'error')
+    const version = ++relationshipRequestVersion.current
     setRelationshipBusy(true)
     try {
       const res = await aiApi.writing.refreshRelationshipProfile(novelId, relationshipSample)
-      setRelationshipProfile(res.profile)
+      if (version === relationshipRequestVersion.current) setRelationshipProfile(res.profile)
       toast('关系画像已更新，后续续写将自动套用', 'success')
     } catch (err) {
       toast((err as Error).message, 'error')
