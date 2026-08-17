@@ -617,14 +617,23 @@
 
   .home-page .sort-tabs-row__meta {
     flex: 0 0 auto;
-    max-width: 76px;
-    padding: 4px 2px 4px 4px;
+    padding: 4px 4px 4px 2px;
     text-align: right;
   }
 
   .home-page .sort-tabs-row__meta h2 {
+    position: absolute;
+    width: 1px;
+    height: 1px;
     overflow: hidden;
-    text-overflow: ellipsis;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+
+  .home-page .sort-tabs-row__meta .text-muted {
+    display: block;
+    font-size: 0.76rem;
+    line-height: 1.25;
     white-space: nowrap;
   }
 
