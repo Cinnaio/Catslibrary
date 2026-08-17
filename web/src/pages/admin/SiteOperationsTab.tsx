@@ -27,7 +27,7 @@ function dimensionLabel(key: string, names: Record<string, string>) {
 
 function MetricStrip({ items }: { items: readonly Metric[] }) {
   return (
-    <div className="site-operations__metrics">
+    <div className={`site-operations__metrics${items.length === 5 ? ' site-operations__metrics--five' : ''}`}>
       {items.map(([label, value, unit]) => (
         <div key={label} className="site-operations__metric">
           <span>{label}</span>
