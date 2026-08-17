@@ -594,6 +594,7 @@ body:has(.reader-app:not(.hidden)) {
 
 /* Mobile reader controls */
 .mobile-reader-bar,
+.mobile-reader-bar-peek,
 .mobile-settings-overlay,
 .mobile-settings-sheet,
 .mobile-library-overlay,
@@ -617,6 +618,32 @@ body:has(.reader-app:not(.hidden)) {
   box-shadow: var(--reader-shadow-soft);
   backdrop-filter: blur(16px);
   transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.mobile-reader-bar-peek {
+  position: fixed;
+  left: 50%;
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  z-index: 220;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 32px;
+  padding: 0;
+  transform: translateX(-50%);
+  border: 1px solid var(--reader-line);
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--reader-paper) 94%, transparent);
+  color: var(--accent);
+  box-shadow: var(--reader-shadow-soft);
+  backdrop-filter: blur(16px);
+  cursor: pointer;
+}
+
+.mobile-reader-bar-peek svg {
+  width: 18px;
+  height: 18px;
 }
 
 .mobile-reader-bar.is-hidden {
@@ -1079,6 +1106,7 @@ body:has(.reader-app:not(.hidden)) {
 }
 
 .mobile-reader-bar__btn:focus-visible,
+.mobile-reader-bar-peek:focus-visible,
 .mobile-settings-sheet button:focus-visible,
 .mobile-library-sheet button:focus-visible {
   outline: 2px solid var(--accent);

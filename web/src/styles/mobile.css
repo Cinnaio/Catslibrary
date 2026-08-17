@@ -212,6 +212,7 @@
   .reader-bottom { margin-bottom: 72px; }
   .reader-bottom .reader-nav-btn { font-size: 0.85rem; padding: 6px 14px; }
   .mobile-reader-bar { display: flex; }
+  .mobile-reader-bar-peek { display: flex; }
   .mobile-settings-overlay:not(.hidden), .mobile-library-overlay:not(.hidden) { display: block; }
   .mobile-settings-sheet:not(.hidden), .mobile-library-sheet:not(.hidden) { display: block; }
 

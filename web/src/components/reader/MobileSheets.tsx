@@ -1,4 +1,5 @@
 /** 移动端底部弹层：阅读设置 sheet 与阅读面板（目录/书签）sheet。 */
+import { useEffect, useRef } from 'react'
 import type { ChapterMeta } from '@shared/types'
 import { getNovelBookmarks } from '../../lib/storage'
 import { chapterLabel, filterChapters } from '../../lib/reader-utils'
@@ -16,6 +17,27 @@ interface MobileSettingsSheetProps {
 }
 
 export function MobileSettingsSheet({ settings, set, wakeLockSupported, onClose }: MobileSettingsSheetProps) {
+  const closeRef = useRef<HTMLButtonElement>(null)
+  const previousFocusRef = useRef<HTMLElement | null>(null)
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
+
+  useEffect(() => {
+    previousFocusRef.current = document.activeElement as HTMLElement | null
+    closeRef.current?.focus()
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') onCloseRef.current()
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.removeEventListener('keydown', onKeyDown)
+      previousFocusRef.current?.focus()
+    }
+  }, [])
+
   return (
     <>
       <div className="mobile-settings-overlay" onClick={onClose}></div>
@@ -23,7 +45,7 @@ export function MobileSettingsSheet({ settings, set, wakeLockSupported, onClose 
         <div className="mobile-settings-sheet__handle" aria-hidden="true"></div>
         <div className="mobile-settings-sheet__header">
           <h2 id="mobileSettingsTitle">阅读设置</h2>
-          <button type="button" className="mobile-settings-sheet__close" aria-label="关闭阅读设置" onClick={onClose}>×</button>
+          <button ref={closeRef} type="button" className="mobile-settings-sheet__close" aria-label="关闭阅读设置" onClick={onClose}>×</button>
         </div>
         <div className="mobile-settings-sheet__body">
           <SettingsControls settings={settings} set={set} wakeLockSupported={wakeLockSupported} />
@@ -60,6 +82,27 @@ export function MobileLibrarySheet({
 }: MobileLibrarySheetProps) {
   const matches = filterChapters(allChapters, query)
   const bookmarks = getNovelBookmarks(novelId)
+  const closeRef = useRef<HTMLButtonElement>(null)
+  const previousFocusRef = useRef<HTMLElement | null>(null)
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
+
+  useEffect(() => {
+    previousFocusRef.current = document.activeElement as HTMLElement | null
+    closeRef.current?.focus()
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') onCloseRef.current()
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.removeEventListener('keydown', onKeyDown)
+      previousFocusRef.current?.focus()
+    }
+  }, [])
+
   return (
     <>
       <div className="mobile-library-overlay" onClick={onClose}></div>
@@ -67,14 +110,14 @@ export function MobileLibrarySheet({
         <div className="mobile-settings-sheet__handle" aria-hidden="true"></div>
         <div className="mobile-settings-sheet__header">
           <h2 id="mobileLibraryTitle">阅读面板</h2>
-          <button type="button" className="mobile-settings-sheet__close" aria-label="关闭阅读面板" onClick={onClose}>×</button>
+          <button ref={closeRef} type="button" className="mobile-settings-sheet__close" aria-label="关闭阅读面板" onClick={onClose}>×</button>
         </div>
         <div className="mobile-library-tabs" role="tablist" aria-label="阅读面板">
-          <button type="button" role="tab" aria-controls="mobileChapterList" className={tab === 'chapters' ? 'active' : ''} onClick={() => onTabChange('chapters')}>目录</button>
-          <button type="button" role="tab" aria-controls="mobileBookmarkList" className={tab === 'bookmarks' ? 'active' : ''} onClick={() => onTabChange('bookmarks')}>书签</button>
+          <button id="mobileLibraryTabChapters" type="button" role="tab" aria-selected={tab === 'chapters'} aria-controls="mobileChapterList" tabIndex={tab === 'chapters' ? 0 : -1} className={tab === 'chapters' ? 'active' : ''} onClick={() => onTabChange('chapters')}>目录</button>
+          <button id="mobileLibraryTabBookmarks" type="button" role="tab" aria-selected={tab === 'bookmarks'} aria-controls="mobileBookmarkList" tabIndex={tab === 'bookmarks' ? 0 : -1} className={tab === 'bookmarks' ? 'active' : ''} onClick={() => onTabChange('bookmarks')}>书签</button>
         </div>
         {tab === 'chapters' ? (
-          <div className="mobile-library-panel" role="tabpanel" aria-labelledby="mobileLibraryTabChapters">
+          <div id="mobileChapterList" className="mobile-library-panel" role="tabpanel" aria-labelledby="mobileLibraryTabChapters" tabIndex={0}>
             <div className="mobile-library-search">
               <input type="search" className="mobile-library-search__input" placeholder="搜索章节号或标题…" autoComplete="off" aria-label="搜索章节" value={query} onChange={(e) => onQueryChange(e.target.value)} />
               <span className="mobile-library-search__count">{query ? `${matches.length} / ${allChapters.length}` : `${allChapters.length} 章`}</span>
@@ -107,7 +150,7 @@ export function MobileLibrarySheet({
             )}
           </div>
         ) : (
-          <div className="mobile-library-panel" role="tabpanel" aria-labelledby="mobileLibraryTabBookmarks">
+          <div id="mobileBookmarkList" className="mobile-library-panel" role="tabpanel" aria-labelledby="mobileLibraryTabBookmarks" tabIndex={0}>
             {bookmarks.length === 0 ? (
               <div className="mobile-library-empty">暂无书签</div>
             ) : (
