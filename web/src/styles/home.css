@@ -184,6 +184,10 @@
   padding: 18px;
 }
 
+.home-filter-toggle {
+  display: none;
+}
+
 .home-page .filter-row {
   grid-template-columns: 3.4em minmax(0, 1fr);
   gap: 16px;
@@ -508,6 +512,115 @@
   .home-page .filter-row {
     grid-template-columns: 1fr;
     gap: 8px;
+  }
+
+  .home-filter-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 14px;
+    border: 1px solid var(--home-line);
+    border-radius: 16px;
+    background: var(--home-paper);
+    color: var(--text-primary);
+    font-size: 0.88rem;
+    font-weight: 760;
+    text-align: left;
+    cursor: pointer;
+    box-shadow: var(--home-shadow-soft);
+  }
+
+  .home-filter-toggle:focus-visible {
+    outline: 3px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  .home-filter-toggle__icon {
+    flex: 0 0 auto;
+    color: var(--accent);
+    font-size: 0.78rem;
+    font-weight: 800;
+  }
+
+  .home-page .home-filter-card {
+    display: none;
+    gap: 14px;
+    padding: 14px;
+    border-radius: 18px;
+  }
+
+  .home-page .home-filter-card--open {
+    display: grid;
+  }
+
+  .home-page .filter-row__label {
+    width: auto;
+    padding: 0;
+    font-size: 0.76rem;
+  }
+
+  .home-page .category-filter {
+    flex-wrap: nowrap;
+    min-width: 0;
+    overflow-x: auto;
+    padding-bottom: 3px;
+    scrollbar-width: none;
+    overscroll-behavior-inline: contain;
+  }
+
+  .home-page .category-filter::-webkit-scrollbar {
+    display: none;
+  }
+
+  .home-page .filter-btn {
+    flex: 0 0 auto;
+    min-height: 44px;
+    padding: 8px 13px;
+    white-space: nowrap;
+  }
+
+  .home-page .sort-tabs-row {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    padding: 6px 8px 6px 10px;
+  }
+
+  .home-page .sort-tabs {
+    flex: 1 1 auto;
+    min-width: 0;
+    flex-wrap: nowrap;
+    gap: 4px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .home-page .sort-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .home-page .sort-tab {
+    flex: 0 0 auto;
+    min-height: 44px;
+    padding: 8px 11px;
+    white-space: nowrap;
+  }
+
+  .home-page .sort-tabs-row__meta {
+    flex: 0 0 auto;
+    max-width: 76px;
+    padding: 4px 2px 4px 4px;
+    text-align: right;
+  }
+
+  .home-page .sort-tabs-row__meta h2 {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .recent-reading__head {

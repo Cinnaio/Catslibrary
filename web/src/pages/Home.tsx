@@ -113,6 +113,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true)
   const [apiFailed, setApiFailed] = useState(false)
   const [hiddenRestricted, setHiddenRestricted] = useState(false)
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
   const [recent, setRecent] = useState<ReadingHistoryEntry[]>([])
 
   // 防抖后的搜索词：loadNovels 只依赖它，避免"每次击键立即请求 + 300ms 后再请求"的双发
@@ -262,6 +263,7 @@ export default function Home() {
     activeCategory ? `分类: ${activeCategory}` : activeStatus === 'ongoing' ? '连载中' : activeStatus === 'completed' ? '已完结' : '全部小说'
 
   const hasFilter = !!(query || activeCategory || activeStatus)
+  const activeFilterCount = Number(!!activeCategory) + Number(!!activeStatus)
 
   function removeRecent(novelId: string) {
     clearHistory(novelId)
@@ -320,7 +322,18 @@ export default function Home() {
             </section>
           )}
 
-          <div className="filter-panel home-filter-card">
+          <button
+            type="button"
+            className="home-filter-toggle"
+            aria-controls="homeFilterPanel"
+            aria-expanded={mobileFiltersOpen}
+            onClick={() => setMobileFiltersOpen((open) => !open)}
+          >
+            <span>筛选条件{activeFilterCount > 0 ? ` · 已选 ${activeFilterCount} 项` : ''}</span>
+            <span className="home-filter-toggle__icon" aria-hidden="true">{mobileFiltersOpen ? '收起' : '展开'}</span>
+          </button>
+
+          <div id="homeFilterPanel" className={`filter-panel home-filter-card${mobileFiltersOpen ? ' home-filter-card--open' : ''}`}>
             <div className="filter-row">
               <span className="filter-row__label">状态</span>
               <div className="flex flex-wrap gap-sm category-filter">
