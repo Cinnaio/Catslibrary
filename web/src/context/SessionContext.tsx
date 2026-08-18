@@ -72,3 +72,8 @@ export function useSession(): SessionContextValue {
   if (!ctx) throw new Error('useSession must be used within SessionProvider')
   return ctx
 }
+
+/** Optional variant for providers that can also render in isolated tests/embeds. */
+export function useOptionalSession(): SessionContextValue | null {
+  return useContext(SessionContext)
+}

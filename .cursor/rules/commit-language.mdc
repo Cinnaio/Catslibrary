@@ -1,0 +1,12 @@
+---
+description: Git commit messages use Chinese descriptions in the repository's established format
+alwaysApply: true
+---
+
+# Commit Message Convention
+
+- Use Conventional Commits with an English type and optional scope.
+- Write the commit description in Chinese, matching the style of existing history.
+- Keep the description concise and imperative.
+
+Example: `fix(home): 优化移动端最近阅读卡片`

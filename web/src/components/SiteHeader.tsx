@@ -14,6 +14,7 @@ import { useContentPolicy } from '../context/ContentPolicyContext'
 import { url } from '../lib/api'
 import { BookIcon, ChevronIcon, CloseIcon, MenuIcon, MoonIcon, RefreshIcon, SearchIcon, ShieldIcon, SunIcon } from './icons'
 import { ThemeMenu } from './ThemeMenu'
+import { useConfirm } from './feedback'
 
 export default function SiteHeader() {
   const location = useLocation()
@@ -21,6 +22,7 @@ export default function SiteHeader() {
   const { user } = useSession()
   const { query: searchValue, setQuery } = useSearch()
   const { mode, setMode, adultContentEnabled } = useContentPolicy()
+  const { confirm } = useConfirm()
   const inputRef = useRef<HTMLInputElement>(null)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -72,12 +74,20 @@ export default function SiteHeader() {
     setMenuOpen(false)
   }
 
-  function toggleContentMode() {
+  async function toggleContentMode() {
+    // 侧边栏层级高于确认弹窗；先收束，避免遮挡确认按钮。
+    setMenuOpen(false)
     if (mode === 'adult') {
       setMode('safe')
       return
     }
-    if (window.confirm('仅限年满 18 岁的用户查看限制级内容。确认继续吗？')) setMode('adult')
+    const confirmed = await confirm({
+      title: '显示限制级内容？',
+      message: '仅限年满 18 岁的用户查看限制级内容。此设置会同步到你的账号。',
+      okText: '确认查看',
+      cancelText: '暂不查看',
+    })
+    if (confirmed) setMode('adult')
   }
 
   return (

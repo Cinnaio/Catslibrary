@@ -1,5 +1,6 @@
 import { ShieldIcon } from './icons'
 import type { ContentMode } from '../context/ContentPolicyContext'
+import { useConfirm } from './feedback'
 
 interface ContentRestrictionNoticeProps {
   mode: ContentMode
@@ -18,9 +19,16 @@ export default function ContentRestrictionNotice({
   canUnlock = true,
   compact = false,
 }: ContentRestrictionNoticeProps) {
-  function unlock() {
+  const { confirm } = useConfirm()
+
+  async function unlock() {
     if (mode === 'adult') return
-    const confirmed = window.confirm('仅限年满 18 岁的用户查看限制级内容。确认继续吗？')
+    const confirmed = await confirm({
+      title: '显示限制级内容？',
+      message: '仅限年满 18 岁的用户查看限制级内容。此设置会同步到你的账号。',
+      okText: '确认查看',
+      cancelText: '暂不查看',
+    })
     if (confirmed) onModeChange('adult')
   }
 

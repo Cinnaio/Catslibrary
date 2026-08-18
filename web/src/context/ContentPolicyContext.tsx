@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { contentPolicyApi } from '../lib/api'
+import { authApi, contentPolicyApi, getToken } from '../lib/api'
+import { useOptionalSession } from './SessionContext'
 
 export type ContentMode = 'safe' | 'adult'
 
@@ -76,6 +77,8 @@ interface ContentPolicyContextValue {
 const ContentPolicyContext = createContext<ContentPolicyContextValue | null>(null)
 
 export function ContentPolicyProvider({ children }: { children: ReactNode }) {
+  const session = useOptionalSession()
+  const user = session?.user ?? null
   const [mode, setModeState] = useState<ContentMode>(readInitialMode)
   const [adultContentEnabled, setAdultContentEnabled] = useState(false)
 
@@ -92,6 +95,27 @@ export function ContentPolicyProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     void refreshPolicy()
   }, [refreshPolicy])
+
+  useEffect(() => {
+    if (!user || !getToken()) return
+    let cancelled = false
+    void authApi.readerSettings().then((data) => {
+      if (cancelled) return
+      const remoteMode = data.settings?.contentMode
+      if (remoteMode === 'safe' || remoteMode === 'adult') {
+        setModeState(remoteMode)
+        localStorage.setItem(STORAGE_KEY, remoteMode)
+        return
+      }
+      void authApi.updateReaderSettings({
+        values: { contentMode: readInitialMode() },
+        updatedAt: { contentMode: Date.now() },
+      }).catch(() => {})
+    }).catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [user, adultContentEnabled])
 
   useEffect(() => {
     if (!adultContentEnabled && mode === 'adult') {
@@ -112,7 +136,13 @@ export function ContentPolicyProvider({ children }: { children: ReactNode }) {
     } catch {
       /* ignore unavailable storage */
     }
-  }, [adultContentEnabled])
+    if (user && getToken()) {
+      void authApi.updateReaderSettings({
+        values: { contentMode: resolvedMode },
+        updatedAt: { contentMode: Date.now() },
+      }).catch(() => {})
+    }
+  }, [adultContentEnabled, user])
 
   const isAllowed = useCallback((metadata: ContentMetadata | null | undefined) => {
     return (adultContentEnabled && mode === 'adult') || !isRestrictedContent(metadata)

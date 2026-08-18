@@ -18,6 +18,7 @@ const SETTING_KEYS = [
   'readerPageWidth',
   'readerAutoScrollSpeed',
   'readerClickPaging',
+  'contentMode',
 ] as const
 
 const ALLOWED_VALUES: Record<(typeof SETTING_KEYS)[number], string[]> = {
@@ -31,6 +32,7 @@ const ALLOWED_VALUES: Record<(typeof SETTING_KEYS)[number], string[]> = {
   readerPageWidth: ['narrow', 'standard', 'wide'],
   readerAutoScrollSpeed: ['off', 'slow', 'medium', 'fast'],
   readerClickPaging: ['on', 'off'],
+  contentMode: ['safe', 'adult'],
 }
 
 export function parseSettingsState(value: string): ReaderSettings {
