@@ -108,6 +108,7 @@ describe('管理 API 端到端（pglite）', () => {
         categories: Array<{ category: string; novels: number }>
         statuses: Record<string, number>
         quality: { missingCover: number; missingDescription: number; staleOngoing: number }
+        updateTrend: Array<{ date: string; novels: number }>
       }
       announcement: string
     }>(overview)
@@ -121,6 +122,10 @@ describe('管理 API 端到端（pglite）', () => {
     expect(data.contentHealth.categories).toContainEqual({ category: '现言', novels: 1 })
     expect(data.contentHealth.statuses.ongoing).toBe(1)
     expect(data.contentHealth.quality).toMatchObject({ missingCover: 1, missingDescription: 1 })
+    expect(data.contentHealth.updateTrend).toContainEqual(expect.objectContaining({
+      date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+      novels: expect.any(Number),
+    }))
 
     const saved = await req('/api/admin/site', json('PUT', { announcement: '今晚进行例行维护' }, adminToken))
     expect((await jsonOf<{ announcement: string }>(saved)).announcement).toBe('今晚进行例行维护')

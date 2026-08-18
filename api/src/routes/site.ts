@@ -135,9 +135,8 @@ adminSiteRoutes.get('/', async (c) => {
     db.query<{ id: string; title: string; updated_at: number; status: string }>(
       `SELECT id, title, updated_at, status FROM novels ORDER BY updated_at DESC LIMIT 8`,
     ),
-    db.query<{ date: string; novels: number }>(
-      `SELECT to_char(to_timestamp(updated_at / 1000.0), 'YYYY-MM-DD') AS date, COUNT(*)::int AS novels
-       FROM novels WHERE updated_at >= $1 GROUP BY date ORDER BY date ASC`,
+    db.query<{ updated_at: number }>(
+      `SELECT updated_at FROM novels WHERE updated_at >= $1 ORDER BY updated_at ASC`,
       [now - 90 * DAY_MS],
     ),
     db.query<{ id: string; title: string; score: number }>(
@@ -160,6 +159,12 @@ adminSiteRoutes.get('/', async (c) => {
       [scrapeCutoff],
     ),
   ])
+  const updateTrendByDate = new Map<string, number>()
+  for (const row of updateTrend.rows) {
+    const date = new Date(Number(row.updated_at)).toISOString().slice(0, 10)
+    updateTrendByDate.set(date, (updateTrendByDate.get(date) || 0) + 1)
+  }
+
   return c.json({
     announcement: await announcement(),
     metrics: {
@@ -194,7 +199,7 @@ adminSiteRoutes.get('/', async (c) => {
         last30Days: Number(recentUpdateStats?.last_30_days) || 0,
         novels: recentUpdates.rows.map((row) => ({ id: row.id, title: row.title, updatedAt: Number(row.updated_at) || 0, status: row.status })),
       },
-      updateTrend: updateTrend.rows.map((row) => ({ date: row.date, novels: Number(row.novels) || 0 })),
+      updateTrend: Array.from(updateTrendByDate, ([date, novels]) => ({ date, novels })),
       completeness: completeness.rows.map((row) => ({ id: row.id, title: row.title, score: Number(row.score) || 0 })),
       scrapeHealth: {
         windowDays: 30,
