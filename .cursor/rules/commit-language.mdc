@@ -7,6 +7,10 @@ alwaysApply: true
 
 - Use Conventional Commits with an English type and optional scope.
 - Write the commit description in Chinese, matching the style of existing history.
-- Keep the description concise and imperative.
+- Make the description specific and reasonably detailed: include the affected area,
+  user-visible behavior, and the key purpose of the change when they fit.
+- For changes spanning multiple behaviors, add a commit body describing the main
+  implementation details and verification instead of compressing everything into
+  a vague one-line summary.
 
-Example: `fix(home): 优化移动端最近阅读卡片`
+Example: `fix(content): 同步成人模式并修复移动端确认弹窗层级`
