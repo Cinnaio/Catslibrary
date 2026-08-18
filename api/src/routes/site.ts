@@ -64,7 +64,7 @@ adminSiteRoutes.get('/', async (c) => {
   const todayStart = today.getTime()
   const weekStart = todayStart - 6 * DAY_MS
   const staleCutoff = now - 30 * DAY_MS
-  const [todayStats, weekStats, activeReaders, popularNovels, dailyTrend, countries, devices, sources, contentHealth, categoryCounts, statusCounts, contentQuality, recentUpdateStats, recentUpdates] = await Promise.all([
+  const [todayStats, weekStats, activeReaders, popularNovels, dailyTrend, countries, devices, sources, contentHealth, categoryCounts, statusCounts, contentQuality, recentUpdateStats, recentUpdates, updateTrend, completeness, scrapeHealth] = await Promise.all([
     first<{ page_views: number; visitors: number }>(db, 'SELECT COUNT(*)::int AS page_views, COUNT(DISTINCT visitor_hash)::int AS visitors FROM site_visits WHERE visited_at >= $1', [todayStart]),
     first<{ page_views: number; visitors: number }>(db, 'SELECT COUNT(*)::int AS page_views, COUNT(DISTINCT visitor_hash)::int AS visitors FROM site_visits WHERE visited_at >= $1', [weekStart]),
     first<{ total: number }>(db, 'SELECT COUNT(DISTINCT user_id)::int AS total FROM reading_progress WHERE updated_at >= $1 AND deleted_at = 0', [weekStart]),
@@ -134,6 +134,29 @@ adminSiteRoutes.get('/', async (c) => {
     db.query<{ id: string; title: string; updated_at: number; status: string }>(
       `SELECT id, title, updated_at, status FROM novels ORDER BY updated_at DESC LIMIT 8`,
     ),
+    db.query<{ date: string; novels: number }>(
+      `SELECT to_char(to_timestamp(updated_at / 1000.0), 'YYYY-MM-DD') AS date, COUNT(*)::int AS novels
+       FROM novels WHERE updated_at >= $1 GROUP BY date ORDER BY date ASC`,
+      [now - 90 * DAY_MS],
+    ),
+    db.query<{ id: string; title: string; score: number }>(
+      `SELECT id, title,
+         (CASE WHEN NULLIF(TRIM(title), '') IS NOT NULL THEN 1 ELSE 0 END
+          + CASE WHEN NULLIF(TRIM(author), '') IS NOT NULL THEN 1 ELSE 0 END
+          + CASE WHEN categories <> '[]' AND categories <> '' AND categories IS NOT NULL THEN 1 ELSE 0 END
+          + CASE WHEN NULLIF(TRIM(description), '') IS NOT NULL THEN 1 ELSE 0 END
+          + CASE WHEN NULLIF(TRIM(cover_url), '') IS NOT NULL THEN 1 ELSE 0 END
+          + CASE WHEN chapter_count > 0 THEN 1 ELSE 0 END) AS score
+       FROM novels ORDER BY score ASC, updated_at DESC LIMIT 8`,
+    ),
+    first<{ failed: number; active: number; completed: number; last_updated: number }>(
+      db,
+      `SELECT COUNT(*) FILTER (WHERE status = 'failed')::int AS failed,
+              COUNT(*) FILTER (WHERE status IN ('starting', 'running'))::int AS active,
+              COUNT(*) FILTER (WHERE status = 'completed')::int AS completed,
+              COALESCE(MAX(updated_at), 0)::bigint AS last_updated
+       FROM scrape_jobs`,
+    ),
   ])
   return c.json({
     announcement: await announcement(),
@@ -168,6 +191,14 @@ adminSiteRoutes.get('/', async (c) => {
         last7Days: Number(recentUpdateStats?.last_7_days) || 0,
         last30Days: Number(recentUpdateStats?.last_30_days) || 0,
         novels: recentUpdates.rows.map((row) => ({ id: row.id, title: row.title, updatedAt: Number(row.updated_at) || 0, status: row.status })),
+      },
+      updateTrend: updateTrend.rows.map((row) => ({ date: row.date, novels: Number(row.novels) || 0 })),
+      completeness: completeness.rows.map((row) => ({ id: row.id, title: row.title, score: Number(row.score) || 0 })),
+      scrapeHealth: {
+        failed: Number(scrapeHealth?.failed) || 0,
+        active: Number(scrapeHealth?.active) || 0,
+        completed: Number(scrapeHealth?.completed) || 0,
+        lastUpdated: Number(scrapeHealth?.last_updated) || 0,
       },
     },
   }, 200, { 'Cache-Control': 'no-store' })

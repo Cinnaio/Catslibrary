@@ -4,6 +4,7 @@ import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YA
 import { BarChart3, Globe2, Megaphone, MonitorSmartphone, Route, ShieldAlert } from 'lucide-react'
 import { adminApi, novelsApi } from '@/lib/api'
 import { useToast } from '@/components/feedback'
+import { usePersistentState } from '@/hooks/usePersistentState'
 import AdminPage from '@/components/admin/AdminPage'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -62,12 +63,13 @@ export default function SiteOperationsTab() {
   const { toast } = useToast()
   const [data, setData] = useState<Overview | null>(null)
   const [announcement, setAnnouncement] = useState('')
-  const [tab, setTab] = useState<OperationTab>('overview')
+  const [tab, setTab] = usePersistentState<OperationTab>('site_operations_active_tab', 'overview', (value) => value === 'overview' || value === 'traffic' || value === 'content')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [selectedListTitle, setSelectedListTitle] = useState('')
   const [categoryBooks, setCategoryBooks] = useState<Awaited<ReturnType<typeof novelsApi.list>>['novels']>([])
   const [categoryBooksLoading, setCategoryBooksLoading] = useState(false)
+  const [trendRange, setTrendRange] = useState<30 | 90>(30)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -113,6 +115,20 @@ export default function SiteOperationsTab() {
     }
   }
 
+  function exportContentReport() {
+    if (!data) return
+    const rows = [['分类', '作品数'], ...data.contentHealth.categories.map((item) => [item.category, String(item.novels)])]
+    rows.push([], ['完整度最低作品', '完整度得分'])
+    data.contentHealth.completeness.forEach((item) => rows.push([item.title, `${item.score}/6`]))
+    const csv = rows.map((row) => row.map((cell) => `"${cell.replaceAll('"', '""')}"`).join(',')).join('\r\n')
+    const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' })
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = `zhizhou-content-analysis-${new Date().toISOString().slice(0, 10)}.csv`
+    link.click()
+    URL.revokeObjectURL(link.href)
+  }
+
   const metrics = data?.metrics
   const traffic = data?.traffic
   const chartData = useMemo(() => traffic?.dailyTrend || [], [traffic])
@@ -140,7 +156,7 @@ export default function SiteOperationsTab() {
       className="site-operations"
       title="站点运营"
       description="从匿名聚合数据观察流量、读者与内容健康度。"
-      actions={<Button variant="secondary" size="sm" onClick={() => void load()} disabled={loading || saving}>{loading ? '刷新中…' : '刷新'}</Button>}
+      actions={<div className="flex gap-2"><Button variant="secondary" size="sm" onClick={() => void load()} disabled={loading || saving}>{loading ? '刷新中…' : '刷新'}</Button>{tab === 'content' && <Button variant="outline" size="sm" onClick={exportContentReport} disabled={!data}>导出 CSV</Button>}</div>}
     >
       <div className="grid gap-4">
         <Tabs value={tab} onValueChange={(value) => setTab(value as OperationTab)}>
@@ -207,9 +223,15 @@ export default function SiteOperationsTab() {
             <MetricStrip items={contentMetrics} />
             <div className="grid gap-4 lg:grid-cols-2">
               <CategoryDistribution categories={data?.contentHealth.categories || []} loading={loading} onSelect={(category) => void openNovelList({ category }, `分类：${category}`)} />
-              <ContentQuality health={data?.contentHealth} onSelect={(quality, title) => void openNovelList({ quality }, title)} />
+              <div className="grid content-start gap-4">
+                <ContentQuality health={data?.contentHealth} onSelect={(quality, title) => void openNovelList({ quality }, title)} />
+                <UpdateActivity health={data?.contentHealth} onSelect={() => void openNovelList({ sort: 'updated_at' }, '最近更新作品')} />
+              </div>
             </div>
-            <UpdateActivity health={data?.contentHealth} onSelect={() => void openNovelList({ sort: 'updated_at' }, '最近更新作品')} />
+            <div className="grid gap-4 lg:grid-cols-2">
+              <UpdateTrend trend={data?.contentHealth.updateTrend || []} range={trendRange} onRangeChange={setTrendRange} />
+              <CompletenessAndScrape health={data?.contentHealth} />
+            </div>
             <div className="grid gap-4 lg:grid-cols-2">
               <PopularNovels novels={data?.popularNovels || []} loading={loading} />
               <Card>
@@ -231,10 +253,10 @@ export default function SiteOperationsTab() {
             <DialogTitle>{selectedListTitle}</DialogTitle>
           </DialogHeader>
           <div className="max-h-[56vh] overflow-y-auto rounded-lg border border-border">
-            {categoryBooksLoading ? <p className="p-8 text-center text-sm text-muted-foreground">正在加载作品…</p> : categoryBooks.length ? <div className="divide-y divide-border">{categoryBooks.map((novel) => <Link key={novel.id} to={`/novel/${encodeURIComponent(novel.id)}`} className="flex items-center justify-between gap-4 px-4 py-3 transition-colors hover:bg-muted/40">
-              <span className="min-w-0"><span className="block truncate text-sm font-medium text-foreground">{novel.title}</span><span className="mt-0.5 block truncate text-xs text-muted-foreground">{novel.author || '作者未知'} · {novel.status === 'completed' ? '已完结' : '连载中'}</span></span>
-              <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{novel.chapterCount || 0} 章</span>
-            </Link>)}</div> : <p className="p-8 text-center text-sm text-muted-foreground">该分类暂无作品</p>}
+            {categoryBooksLoading ? <p className="p-8 text-center text-sm text-muted-foreground">正在加载作品…</p> : categoryBooks.length ? <div className="divide-y divide-border">{categoryBooks.map((novel) => <div key={novel.id} className="flex items-center justify-between gap-3 px-4 py-3 transition-colors hover:bg-muted/40">
+              <Link to={`/novel/${encodeURIComponent(novel.id)}`} className="min-w-0 flex-1"><span className="block truncate text-sm font-medium text-foreground">{novel.title}</span><span className="mt-0.5 block truncate text-xs text-muted-foreground">{novel.author || '作者未知'} · {novel.status === 'completed' ? '已完结' : '连载中'} · {novel.chapterCount || 0} 章</span></Link>
+              <button type="button" className="shrink-0 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground" onClick={() => { sessionStorage.setItem('adminEditNovel', JSON.stringify({ id: novel.id })); window.location.href = '/admin' }}>管理</button>
+            </div>)}</div> : <p className="p-8 text-center text-sm text-muted-foreground">该分类暂无作品</p>}
           </div>
         </DialogContent>
       </Dialog>
@@ -259,6 +281,23 @@ function CategoryDistribution({ categories, loading, onSelect }: { categories: O
         <div className="h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{ width: `${item.novels / max * 100}%` }} /></div>
       </button>)}</div> : <p className="py-8 text-center text-sm text-muted-foreground">{loading ? '正在汇总分类…' : '暂无分类数据'}</p>}
     </CardContent>
+  </Card>
+}
+
+function UpdateTrend({ trend, range, onRangeChange }: { trend: Overview['contentHealth']['updateTrend']; range: 30 | 90; onRangeChange: (range: 30 | 90) => void }) {
+  const visible = trend.slice(-range)
+  const max = Math.max(1, ...visible.map((item) => item.novels))
+  return <Card>
+    <CardHeader className="flex-row items-start justify-between gap-3"><div><CardTitle className="flex items-center gap-2 text-base"><Route className="size-4 text-primary" aria-hidden="true" />更新趋势</CardTitle><p className="mt-1 text-sm text-muted-foreground">按作品最近更新时间统计。</p></div><div className="flex gap-1"><Button variant={range === 30 ? 'secondary' : 'ghost'} size="sm" onClick={() => onRangeChange(30)}>30 日</Button><Button variant={range === 90 ? 'secondary' : 'ghost'} size="sm" onClick={() => onRangeChange(90)}>90 日</Button></div></CardHeader>
+    <CardContent>{visible.length ? <div className="flex h-40 items-end gap-1 overflow-hidden">{visible.map((item) => <div key={item.date} className="group flex min-w-0 flex-1 flex-col items-center justify-end gap-1" title={`${item.date}：${item.novels} 本`}><div className="w-full rounded-t bg-primary/70 transition-colors group-hover:bg-primary" style={{ height: `${Math.max(4, item.novels / max * 100)}%` }} /><span className="sr-only">{item.date} {item.novels} 本</span></div>)}</div> : <p className="py-12 text-center text-sm text-muted-foreground">暂无更新记录</p>}</CardContent>
+  </Card>
+}
+
+function CompletenessAndScrape({ health }: { health?: Overview['contentHealth'] }) {
+  const scrape = health?.scrapeHealth
+  return <Card>
+    <CardHeader><CardTitle className="flex items-center gap-2 text-base"><ShieldAlert className="size-4 text-primary" aria-hidden="true" />完整度与采集健康</CardTitle><p className="text-sm text-muted-foreground">优先处理资料不完整或采集失败的内容。</p></CardHeader>
+    <CardContent className="space-y-4"><div><div className="mb-2 flex items-center justify-between text-sm"><span className="font-medium text-foreground">完整度最低作品</span><span className="text-xs text-muted-foreground">满分 6 项</span></div><div className="divide-y divide-border rounded-lg border border-border">{health?.completeness.length ? health.completeness.slice(0, 5).map((item) => <Link key={item.id} to={`/novel/${encodeURIComponent(item.id)}`} className="flex items-center justify-between gap-3 px-3 py-2 hover:bg-muted/40"><span className="min-w-0 truncate text-sm text-foreground">{item.title}</span><Badge variant={item.score <= 3 ? 'destructive' : 'secondary'}>{item.score}/6</Badge></Link>) : <p className="p-4 text-center text-sm text-muted-foreground">暂无数据</p>}</div></div><div className="grid grid-cols-3 gap-2 text-center"><div className="rounded border border-border bg-muted/30 p-2"><strong className="block text-lg text-foreground">{scrape?.active || 0}</strong><span className="text-xs text-muted-foreground">进行中</span></div><div className="rounded border border-border bg-muted/30 p-2"><strong className="block text-lg text-foreground">{scrape?.failed || 0}</strong><span className="text-xs text-muted-foreground">失败</span></div><div className="rounded border border-border bg-muted/30 p-2"><strong className="block text-lg text-foreground">{scrape?.completed || 0}</strong><span className="text-xs text-muted-foreground">已完成</span></div></div></CardContent>
   </Card>
 }
 
