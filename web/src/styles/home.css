@@ -638,12 +638,67 @@
   }
 
   .recent-reading__head {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 4px;
+    align-items: baseline;
+    gap: 8px;
   }
 
-  .recent-reading__list,
+  .recent-reading {
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: 18px;
+  }
+
+  .recent-reading__head .home-kicker {
+    margin: 0;
+    font-size: 0.68rem;
+  }
+
+  .recent-reading__title {
+    font-size: 1.05rem;
+  }
+
+  .recent-reading__list {
+    display: flex;
+    grid-template-columns: none;
+    gap: 8px;
+    margin-inline: -2px;
+    padding: 2px 2px 4px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    overscroll-behavior-inline: contain;
+    scroll-snap-type: x proximity;
+  }
+
+  .recent-reading__list::-webkit-scrollbar {
+    display: none;
+  }
+
+  .recent-reading__item {
+    flex: 0 0 min(214px, calc(100vw - 72px));
+    min-height: 58px;
+    padding: 8px 9px;
+    border-radius: 12px;
+    scroll-snap-align: start;
+  }
+
+  .recent-reading__link {
+    gap: 2px;
+  }
+
+  .recent-reading__novel {
+    font-size: 0.88rem;
+  }
+
+  .recent-reading__chapter,
+  .recent-reading__time {
+    font-size: 0.7rem;
+  }
+
+  .recent-reading__del {
+    width: 26px;
+    height: 26px;
+  }
+
   .home-page .grid--novels {
     grid-template-columns: 1fr;
   }

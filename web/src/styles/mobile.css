@@ -143,7 +143,7 @@
 
   /* Home */
   h1 { font-size: 1.5rem; }
-  .recent-reading { padding-top: 16px; padding-bottom: 14px; }
+  .recent-reading { padding-top: 10px; padding-bottom: 10px; }
   .filter-row { gap: 10px; padding: 4px 0; }
   .filter-row__label { font-size: 0.82rem; width: 2.6em; padding: 3px 0; }
   .filter-btn { font-size: 0.82rem; padding: 3px 10px; }
