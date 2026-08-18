@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { BarChart3, Globe2, Megaphone, MonitorSmartphone, Route, ShieldAlert } from 'lucide-react'
-import { adminApi } from '@/lib/api'
+import { adminApi, novelsApi } from '@/lib/api'
 import { useToast } from '@/components/feedback'
 import AdminPage from '@/components/admin/AdminPage'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 
@@ -63,6 +65,9 @@ export default function SiteOperationsTab() {
   const [tab, setTab] = useState<OperationTab>('overview')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [selectedListTitle, setSelectedListTitle] = useState('')
+  const [categoryBooks, setCategoryBooks] = useState<Awaited<ReturnType<typeof novelsApi.list>>['novels']>([])
+  const [categoryBooksLoading, setCategoryBooksLoading] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -93,6 +98,21 @@ export default function SiteOperationsTab() {
     }
   }
 
+  async function openNovelList(params: Record<string, string | number>, title: string) {
+    setSelectedListTitle(title)
+    setCategoryBooks([])
+    setCategoryBooksLoading(true)
+    try {
+      const result = await novelsApi.list({ page: 1, limit: 100, sort: 'title', order: 'asc', ...params })
+      setCategoryBooks(result.novels || [])
+    } catch (err) {
+      toast((err as Error).message || '分类作品加载失败', 'error')
+      setSelectedListTitle('')
+    } finally {
+      setCategoryBooksLoading(false)
+    }
+  }
+
   const metrics = data?.metrics
   const traffic = data?.traffic
   const chartData = useMemo(() => traffic?.dailyTrend || [], [traffic])
@@ -110,8 +130,9 @@ export default function SiteOperationsTab() {
     ['已识别地区', countries.length, '个'], ['移动端访问', mobileVisits, 'PV'],
   ]
   const contentMetrics: Metric[] = [
-    ['收录作品', data?.contentHealth.novels || 0, '本'], ['收录章节', data?.contentHealth.chapters || 0, '章'],
-    ['近 7 日评论', data?.contentHealth.newComments || 0, '条'], ['待处理举报', data?.contentHealth.openReports || 0, '项'],
+    ['收录作品', data?.contentHealth.novels || 0, '本'], ['分类数量', data?.contentHealth.categories.length || 0, '个'],
+    ['连载中', data?.contentHealth.statuses.ongoing || 0, '本'], ['已完结', data?.contentHealth.statuses.completed || 0, '本'],
+    ['长期未更', data?.contentHealth.quality.staleOngoing || 0, '本'],
   ]
 
   return (
@@ -185,6 +206,11 @@ export default function SiteOperationsTab() {
           {tab === 'content' && <>
             <MetricStrip items={contentMetrics} />
             <div className="grid gap-4 lg:grid-cols-2">
+              <CategoryDistribution categories={data?.contentHealth.categories || []} loading={loading} onSelect={(category) => void openNovelList({ category }, `分类：${category}`)} />
+              <ContentQuality health={data?.contentHealth} onSelect={(quality, title) => void openNovelList({ quality }, title)} />
+            </div>
+            <UpdateActivity health={data?.contentHealth} onSelect={() => void openNovelList({ sort: 'updated_at' }, '最近更新作品')} />
+            <div className="grid gap-4 lg:grid-cols-2">
               <PopularNovels novels={data?.popularNovels || []} loading={loading} />
               <Card>
                 <CardHeader><CardTitle className="flex items-center gap-2 text-base"><ShieldAlert className="size-4 text-primary" aria-hidden="true" />内容风险提示</CardTitle></CardHeader>
@@ -199,12 +225,79 @@ export default function SiteOperationsTab() {
 
         <p className="text-xs leading-relaxed text-muted-foreground">访问统计使用浏览器本地随机标识，经服务端哈希后保存；不记录 IP、完整 User-Agent 或完整来源地址。地区、设备与来源仅保存不可识别的分类结果。</p>
       </div>
+      <Dialog open={!!selectedListTitle} onOpenChange={(open) => { if (!open) setSelectedListTitle('') }}>
+        <DialogContent className="max-h-[min(78vh,680px)] overflow-hidden sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{selectedListTitle}</DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[56vh] overflow-y-auto rounded-lg border border-border">
+            {categoryBooksLoading ? <p className="p-8 text-center text-sm text-muted-foreground">正在加载作品…</p> : categoryBooks.length ? <div className="divide-y divide-border">{categoryBooks.map((novel) => <Link key={novel.id} to={`/novel/${encodeURIComponent(novel.id)}`} className="flex items-center justify-between gap-4 px-4 py-3 transition-colors hover:bg-muted/40">
+              <span className="min-w-0"><span className="block truncate text-sm font-medium text-foreground">{novel.title}</span><span className="mt-0.5 block truncate text-xs text-muted-foreground">{novel.author || '作者未知'} · {novel.status === 'completed' ? '已完结' : '连载中'}</span></span>
+              <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{novel.chapterCount || 0} 章</span>
+            </Link>)}</div> : <p className="p-8 text-center text-sm text-muted-foreground">该分类暂无作品</p>}
+          </div>
+        </DialogContent>
+      </Dialog>
     </AdminPage>
   )
 }
 
 function PopularNovels({ novels, loading }: { novels: Overview['popularNovels']; loading: boolean }) {
   return <Card><CardHeader><CardTitle className="flex items-center gap-2 text-base"><BarChart3 className="size-4 text-primary" aria-hidden="true" />近 7 日热门作品</CardTitle></CardHeader><CardContent>{novels.length ? novels.map((novel, index) => <div key={novel.novelId} className="flex items-center justify-between gap-3 border-b border-border py-3 last:border-0"><span className="min-w-0 truncate text-sm text-foreground">{index + 1}. {novel.title}</span><span className="shrink-0 text-xs tabular-nums text-muted-foreground">{novel.views.toLocaleString()} PV</span></div>) : <p className="py-8 text-center text-sm text-muted-foreground">{loading ? '正在汇总访问数据…' : '暂无访问数据'}</p>}</CardContent></Card>
+}
+
+function CategoryDistribution({ categories, loading, onSelect }: { categories: Overview['contentHealth']['categories']; loading: boolean; onSelect: (category: string) => void }) {
+  const max = Math.max(1, ...categories.map((item) => item.novels))
+  return <Card>
+    <CardHeader>
+      <CardTitle className="flex items-center gap-2 text-base"><BarChart3 className="size-4 text-primary" aria-hidden="true" />分类分布</CardTitle>
+      <p className="text-sm text-muted-foreground">按作品标注的分类统计，单部作品可计入多个分类。</p>
+    </CardHeader>
+    <CardContent>
+      {categories.length ? <div className="space-y-3">{categories.slice(0, 10).map((item) => <button key={item.category} type="button" className="block w-full text-left" onClick={() => onSelect(item.category)} title={`查看${item.category}分类作品`}>
+        <div className="mb-1.5 flex items-center justify-between gap-3 text-sm"><span className="truncate font-medium text-foreground underline-offset-4 hover:text-primary hover:underline">{item.category}</span><span className="shrink-0 tabular-nums text-muted-foreground">{item.novels.toLocaleString()} 本</span></div>
+        <div className="h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{ width: `${item.novels / max * 100}%` }} /></div>
+      </button>)}</div> : <p className="py-8 text-center text-sm text-muted-foreground">{loading ? '正在汇总分类…' : '暂无分类数据'}</p>}
+    </CardContent>
+  </Card>
+}
+
+function ContentQuality({ health, onSelect }: { health?: Overview['contentHealth']; onSelect: (quality: string, title: string) => void }) {
+  const quality = health?.quality
+  const items = [
+    ['未分类作品', quality?.uncategorized || 0, '补充分类后更容易筛选和发现。'],
+    ['缺少封面', quality?.missingCover || 0, '建议补齐封面，改善书架和列表识别度。'],
+    ['缺少简介', quality?.missingDescription || 0, '简介为空会降低作品详情页的信息完整度。'],
+    ['连载超 30 天未更', quality?.staleOngoing || 0, '可检查来源是否失效，或调整作品状态。'],
+  ] as const
+  const qualityKeys = ['uncategorized', 'missing_cover', 'missing_description', 'stale_ongoing'] as const
+  return <Card>
+    <CardHeader>
+      <CardTitle className="flex items-center gap-2 text-base"><ShieldAlert className="size-4 text-primary" aria-hidden="true" />内容健康度</CardTitle>
+      <p className="text-sm text-muted-foreground">帮助定位需要补录或维护的作品。</p>
+    </CardHeader>
+    <CardContent className="grid gap-3 sm:grid-cols-2">{items.map(([label, value, hint], index) => <button key={label} type="button" className="rounded-lg border border-border bg-muted/30 p-3 text-left transition-colors hover:bg-muted/60" onClick={() => onSelect(qualityKeys[index]!, label)} title={`查看${label}作品`}>
+      <div className="flex items-center justify-between gap-2"><span className="text-sm font-medium text-foreground">{label}</span><Badge variant={value > 0 ? 'secondary' : 'outline'}>{value.toLocaleString()}</Badge></div>
+      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{hint}</p>
+    </button>)}</CardContent>
+  </Card>
+}
+
+function UpdateActivity({ health, onSelect }: { health?: Overview['contentHealth']; onSelect: () => void }) {
+  const updates = health?.recentUpdates
+  return <Card>
+    <CardHeader className="flex-row items-start justify-between gap-3">
+      <div><CardTitle className="flex items-center gap-2 text-base"><Route className="size-4 text-primary" aria-hidden="true" />更新活跃度</CardTitle><p className="mt-1 text-sm text-muted-foreground">按作品最近更新时间统计，不代表章节阅读量。</p></div>
+      <Button variant="ghost" size="sm" onClick={onSelect}>查看全部更新作品</Button>
+    </CardHeader>
+    <CardContent className="grid gap-5 lg:grid-cols-[minmax(220px,0.7fr)_minmax(0,1.3fr)]">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-lg border border-border bg-muted/30 p-3"><span className="text-xs text-muted-foreground">近 7 日更新</span><strong className="mt-1 block text-xl tabular-nums text-foreground">{(updates?.last7Days || 0).toLocaleString()} <small className="text-xs font-normal text-muted-foreground">本</small></strong></div>
+        <div className="rounded-lg border border-border bg-muted/30 p-3"><span className="text-xs text-muted-foreground">近 30 日更新</span><strong className="mt-1 block text-xl tabular-nums text-foreground">{(updates?.last30Days || 0).toLocaleString()} <small className="text-xs font-normal text-muted-foreground">本</small></strong></div>
+      </div>
+      <div className="divide-y divide-border rounded-lg border border-border">{updates?.novels.length ? updates.novels.slice(0, 5).map((novel) => <Link key={novel.id} to={`/novel/${encodeURIComponent(novel.id)}`} className="flex items-center justify-between gap-3 px-3 py-2.5 hover:bg-muted/40"><span className="min-w-0 truncate text-sm text-foreground">{novel.title}</span><span className="shrink-0 text-xs text-muted-foreground">{novel.status === 'completed' ? '已完结' : '连载中'}</span></Link>) : <p className="p-5 text-center text-sm text-muted-foreground">暂无更新记录</p>}</div>
+    </CardContent>
+  </Card>
 }
 
 function OperationPulse({ activeReaders, newComments, openReports, recognizedCountries }: { activeReaders: number; newComments: number; openReports: number; recognizedCountries: number }) {

@@ -24,6 +24,7 @@ novelsRoutes.get('/', async (c) => {
   const search = (c.req.query('search') || '').trim()
   const category = c.req.query('category') || ''
   const status = c.req.query('status') || ''
+  const quality = c.req.query('quality') || ''
   const page = Number.parseInt(c.req.query('page') || '1', 10) || 1
   const limit = Math.min(Number.parseInt(c.req.query('limit') || '50', 10) || 50, 100)
 
@@ -45,6 +46,13 @@ novelsRoutes.get('/', async (c) => {
   if (status) {
     params.push(status)
     conditions.push(`status = $${params.length}`)
+  }
+  if (quality === 'uncategorized') conditions.push("(categories = '[]' OR categories = '' OR categories IS NULL)")
+  if (quality === 'missing_cover') conditions.push("NULLIF(TRIM(cover_url), '') IS NULL")
+  if (quality === 'missing_description') conditions.push("NULLIF(TRIM(description), '') IS NULL")
+  if (quality === 'stale_ongoing') {
+    params.push(Date.now() - 30 * 86400000)
+    conditions.push(`status = 'ongoing' AND updated_at < $${params.length}`)
   }
   const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
   const offset = (page - 1) * limit

@@ -63,7 +63,8 @@ adminSiteRoutes.get('/', async (c) => {
   today.setHours(0, 0, 0, 0)
   const todayStart = today.getTime()
   const weekStart = todayStart - 6 * DAY_MS
-  const [todayStats, weekStats, activeReaders, popularNovels, dailyTrend, countries, devices, sources, contentHealth] = await Promise.all([
+  const staleCutoff = now - 30 * DAY_MS
+  const [todayStats, weekStats, activeReaders, popularNovels, dailyTrend, countries, devices, sources, contentHealth, categoryCounts, statusCounts, contentQuality, recentUpdateStats, recentUpdates] = await Promise.all([
     first<{ page_views: number; visitors: number }>(db, 'SELECT COUNT(*)::int AS page_views, COUNT(DISTINCT visitor_hash)::int AS visitors FROM site_visits WHERE visited_at >= $1', [todayStart]),
     first<{ page_views: number; visitors: number }>(db, 'SELECT COUNT(*)::int AS page_views, COUNT(DISTINCT visitor_hash)::int AS visitors FROM site_visits WHERE visited_at >= $1', [weekStart]),
     first<{ total: number }>(db, 'SELECT COUNT(DISTINCT user_id)::int AS total FROM reading_progress WHERE updated_at >= $1 AND deleted_at = 0', [weekStart]),
@@ -102,6 +103,37 @@ adminSiteRoutes.get('/', async (c) => {
       first<{ total: number }>(db, 'SELECT COUNT(*)::int AS total FROM novel_comments WHERE created_at >= $1', [weekStart]),
       first<{ total: number }>(db, "SELECT COUNT(*)::int AS total FROM novel_comment_reports WHERE status = 'open'"),
     ]),
+    db.query<{ category: string; novels: number }>(
+      `SELECT category, COUNT(*)::int AS novels
+       FROM novels n
+       CROSS JOIN LATERAL jsonb_array_elements_text(n.categories::jsonb) AS categories(category)
+       WHERE NULLIF(TRIM(category), '') IS NOT NULL
+       GROUP BY category ORDER BY novels DESC, category ASC LIMIT 20`,
+    ),
+    db.query<{ status: string; novels: number }>(
+      `SELECT status, COUNT(*)::int AS novels FROM novels GROUP BY status ORDER BY status`,
+    ),
+    first<{ uncategorized: number; missing_cover: number; missing_description: number; stale_ongoing: number }>(
+      db,
+      `SELECT
+         COUNT(*) FILTER (WHERE categories = '[]' OR categories = '' OR categories IS NULL)::int AS uncategorized,
+         COUNT(*) FILTER (WHERE NULLIF(TRIM(cover_url), '') IS NULL)::int AS missing_cover,
+         COUNT(*) FILTER (WHERE NULLIF(TRIM(description), '') IS NULL)::int AS missing_description,
+         COUNT(*) FILTER (WHERE status = 'ongoing' AND updated_at < $1)::int AS stale_ongoing
+       FROM novels`,
+      [staleCutoff],
+    ),
+    first<{ last_7_days: number; last_30_days: number }>(
+      db,
+      `SELECT
+         COUNT(*) FILTER (WHERE updated_at >= $1)::int AS last_7_days,
+         COUNT(*) FILTER (WHERE updated_at >= $2)::int AS last_30_days
+       FROM novels`,
+      [weekStart, now - 30 * DAY_MS],
+    ),
+    db.query<{ id: string; title: string; updated_at: number; status: string }>(
+      `SELECT id, title, updated_at, status FROM novels ORDER BY updated_at DESC LIMIT 8`,
+    ),
   ])
   return c.json({
     announcement: await announcement(),
@@ -124,6 +156,19 @@ adminSiteRoutes.get('/', async (c) => {
       chapters: Number(contentHealth[1]?.total) || 0,
       newComments: Number(contentHealth[2]?.total) || 0,
       openReports: Number(contentHealth[3]?.total) || 0,
+      categories: categoryCounts.rows.map((row) => ({ category: row.category, novels: Number(row.novels) || 0 })),
+      statuses: Object.fromEntries(statusCounts.rows.map((row) => [row.status, Number(row.novels) || 0])),
+      quality: {
+        uncategorized: Number(contentQuality?.uncategorized) || 0,
+        missingCover: Number(contentQuality?.missing_cover) || 0,
+        missingDescription: Number(contentQuality?.missing_description) || 0,
+        staleOngoing: Number(contentQuality?.stale_ongoing) || 0,
+      },
+      recentUpdates: {
+        last7Days: Number(recentUpdateStats?.last_7_days) || 0,
+        last30Days: Number(recentUpdateStats?.last_30_days) || 0,
+        novels: recentUpdates.rows.map((row) => ({ id: row.id, title: row.title, updatedAt: Number(row.updated_at) || 0, status: row.status })),
+      },
     },
   }, 200, { 'Cache-Control': 'no-store' })
 })

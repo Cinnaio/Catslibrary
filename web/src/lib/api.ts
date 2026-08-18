@@ -533,7 +533,20 @@ export const adminApi = {
         devices: Array<{ key: string; visits: number }>
         sources: Array<{ key: string; visits: number }>
       }
-      contentHealth: { novels: number; chapters: number; newComments: number; openReports: number }
+      contentHealth: {
+        novels: number
+        chapters: number
+        newComments: number
+        openReports: number
+        categories: Array<{ category: string; novels: number }>
+        statuses: Record<string, number>
+        quality: { uncategorized: number; missingCover: number; missingDescription: number; staleOngoing: number }
+        recentUpdates: {
+          last7Days: number
+          last30Days: number
+          novels: Array<{ id: string; title: string; updatedAt: number; status: string }>
+        }
+      }
     }> {
       return request('GET', '/admin/site', null, true)
     },

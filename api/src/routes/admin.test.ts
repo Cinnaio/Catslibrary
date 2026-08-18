@@ -102,7 +102,13 @@ describe('管理 API 端到端（pglite）', () => {
       metrics: { todayPageViews: number; todayVisitors: number }
       popularNovels: Array<{ novelId: string }>
       traffic: { countries: Array<{ countryCode: string }>; devices: Array<{ key: string }>; sources: Array<{ key: string }> }
-      contentHealth: { novels: number; chapters: number }
+      contentHealth: {
+        novels: number
+        chapters: number
+        categories: Array<{ category: string; novels: number }>
+        statuses: Record<string, number>
+        quality: { missingCover: number; missingDescription: number; staleOngoing: number }
+      }
       announcement: string
     }>(overview)
     expect(data.metrics.todayPageViews).toBeGreaterThanOrEqual(1)
@@ -112,6 +118,9 @@ describe('管理 API 端到端（pglite）', () => {
     expect(data.traffic.devices.some((item) => item.key === 'mobile')).toBe(true)
     expect(data.traffic.sources.some((item) => item.key === 'search')).toBe(true)
     expect(data.contentHealth).toMatchObject({ novels: 1, chapters: 1 })
+    expect(data.contentHealth.categories).toContainEqual({ category: '现言', novels: 1 })
+    expect(data.contentHealth.statuses.ongoing).toBe(1)
+    expect(data.contentHealth.quality).toMatchObject({ missingCover: 1, missingDescription: 1 })
 
     const saved = await req('/api/admin/site', json('PUT', { announcement: '今晚进行例行维护' }, adminToken))
     expect((await jsonOf<{ announcement: string }>(saved)).announcement).toBe('今晚进行例行维护')
