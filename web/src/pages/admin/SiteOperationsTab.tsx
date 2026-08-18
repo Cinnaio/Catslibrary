@@ -250,18 +250,20 @@ export default function SiteOperationsTab() {
               </div>
             </div>
             <div className="grid items-start gap-4 lg:grid-cols-2">
-              <UpdateTrend trend={data?.contentHealth.updateTrend || []} range={trendRange} onRangeChange={setTrendRange} />
-              <CompletenessAndScrape health={data?.contentHealth} />
-            </div>
-            <div className="grid gap-4 lg:grid-cols-2">
-              <PopularNovels novels={data?.popularNovels || []} loading={loading} />
-              <Card>
-                <CardHeader><CardTitle className="flex items-center gap-2 text-base"><ShieldAlert className="size-4 text-primary" aria-hidden="true" />内容风险提示</CardTitle></CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex items-start justify-between gap-3 rounded-lg border border-border bg-muted/30 p-3"><div><div className="text-sm font-medium text-foreground">待处理举报</div><p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">及时处理举报，避免读者端持续展示风险内容。</p></div><Badge variant={(data?.contentHealth.openReports || 0) > 0 ? 'destructive' : 'secondary'}>{data?.contentHealth.openReports || 0} 项</Badge></div>
-                  <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm leading-relaxed text-muted-foreground">阅读转化漏斗需要新增阅读会话事件，不能依赖访问日志推断。</div>
-                </CardContent>
-              </Card>
+              <div className="grid content-start gap-4">
+                <UpdateTrend trend={data?.contentHealth.updateTrend || []} range={trendRange} onRangeChange={setTrendRange} />
+                <PopularNovels novels={data?.popularNovels || []} loading={loading} />
+              </div>
+              <div className="grid content-start gap-4">
+                <CompletenessAndScrape health={data?.contentHealth} />
+                <Card>
+                  <CardHeader><CardTitle className="flex items-center gap-2 text-base"><ShieldAlert className="size-4 text-primary" aria-hidden="true" />内容风险提示</CardTitle></CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="flex items-start justify-between gap-3 rounded-lg border border-border bg-muted/30 p-3"><div><div className="text-sm font-medium text-foreground">待处理举报</div><p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">及时处理举报，避免读者端持续展示风险内容。</p></div><Badge variant={(data?.contentHealth.openReports || 0) > 0 ? 'destructive' : 'secondary'}>{data?.contentHealth.openReports || 0} 项</Badge></div>
+                    <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm leading-relaxed text-muted-foreground">阅读转化漏斗需要新增阅读会话事件，不能依赖访问日志推断。</div>
+                  </CardContent>
+                </Card>
+              </div>
             </div>
           </>}
         </div>
