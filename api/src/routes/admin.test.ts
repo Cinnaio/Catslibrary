@@ -133,6 +133,18 @@ describe('管理 API 端到端（pglite）', () => {
     expect((await jsonOf<{ announcement: string }>(publicSettings)).announcement).toBe('今晚进行例行维护')
   })
 
+  it('site：已保存的本地封面不应被计为缺少封面', async () => {
+    await t.db.query(
+      `INSERT INTO novel_covers (novel_id, data, content_type, source, updated_at)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [novelId, Buffer.from('cover'), 'image/png', 'ai', Date.now()],
+    )
+
+    const overview = await req('/api/admin/site', json('GET', undefined, adminToken))
+    const data = await jsonOf<{ contentHealth: { quality: { missingCover: number } } }>(overview)
+    expect(data.contentHealth.quality.missingCover).toBe(0)
+  })
+
   it('admin/stats：总数 + 最近任务/小说', async () => {
     const res = await req('/api/admin/stats', json('GET', undefined, adminToken))
     expect(res.status).toBe(200)

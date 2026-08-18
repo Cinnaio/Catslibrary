@@ -118,7 +118,8 @@ adminSiteRoutes.get('/', async (c) => {
       db,
       `SELECT
          COUNT(*) FILTER (WHERE categories = '[]' OR categories = '' OR categories IS NULL)::int AS uncategorized,
-         COUNT(*) FILTER (WHERE NULLIF(TRIM(cover_url), '') IS NULL)::int AS missing_cover,
+         COUNT(*) FILTER (WHERE NULLIF(TRIM(cover_url), '') IS NULL
+           AND NOT EXISTS (SELECT 1 FROM novel_covers WHERE novel_covers.novel_id = novels.id))::int AS missing_cover,
          COUNT(*) FILTER (WHERE NULLIF(TRIM(description), '') IS NULL)::int AS missing_description,
          COUNT(*) FILTER (WHERE status = 'ongoing' AND updated_at < $1)::int AS stale_ongoing
        FROM novels`,
@@ -145,7 +146,8 @@ adminSiteRoutes.get('/', async (c) => {
           + CASE WHEN NULLIF(TRIM(author), '') IS NOT NULL THEN 1 ELSE 0 END
           + CASE WHEN categories <> '[]' AND categories <> '' AND categories IS NOT NULL THEN 1 ELSE 0 END
           + CASE WHEN NULLIF(TRIM(description), '') IS NOT NULL THEN 1 ELSE 0 END
-          + CASE WHEN NULLIF(TRIM(cover_url), '') IS NOT NULL THEN 1 ELSE 0 END
+          + CASE WHEN NULLIF(TRIM(cover_url), '') IS NOT NULL
+                    OR EXISTS (SELECT 1 FROM novel_covers WHERE novel_covers.novel_id = novels.id) THEN 1 ELSE 0 END
           + CASE WHEN chapter_count > 0 THEN 1 ELSE 0 END) AS score
        FROM novels ORDER BY score ASC, updated_at DESC LIMIT 8`,
     ),

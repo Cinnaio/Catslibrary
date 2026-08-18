@@ -48,7 +48,9 @@ novelsRoutes.get('/', async (c) => {
     conditions.push(`status = $${params.length}`)
   }
   if (quality === 'uncategorized') conditions.push("(categories = '[]' OR categories = '' OR categories IS NULL)")
-  if (quality === 'missing_cover') conditions.push("NULLIF(TRIM(cover_url), '') IS NULL")
+  if (quality === 'missing_cover') {
+    conditions.push("NULLIF(TRIM(cover_url), '') IS NULL AND NOT EXISTS (SELECT 1 FROM novel_covers WHERE novel_covers.novel_id = novels.id)")
+  }
   if (quality === 'missing_description') conditions.push("NULLIF(TRIM(description), '') IS NULL")
   if (quality === 'stale_ongoing') {
     params.push(Date.now() - 30 * 86400000)

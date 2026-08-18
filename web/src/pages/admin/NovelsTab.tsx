@@ -627,7 +627,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
                 />
               </div>
               <div className="form-group novel-editor__field novel-editor__field--wide">
-                <Label htmlFor="novel-cover-url">封面 URL</Label>
+                <Label htmlFor="novel-cover-url">来源封面 URL</Label>
                 <Input
                   id="novel-cover-url"
                   type="url"
@@ -635,7 +635,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
                   value={draft.coverUrl}
                   onChange={(e) => setDraft({ ...draft, coverUrl: e.target.value })}
                 />
-                <p className="text-xs text-muted-foreground">保存时由服务器在后台缓存封面图</p>
+                <p className="text-xs text-muted-foreground">外部来源封面地址；AI 生成或本地上传的当前封面保存在封面库中，此处会保持为空</p>
               </div>
               <div className="form-group novel-editor__field">
                 <Label htmlFor="novel-categories">分类</Label>
