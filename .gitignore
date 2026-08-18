@@ -24,6 +24,8 @@ data/
 .DS_Store
 Thumbs.db
 .claude/
+.codex/
+.cursor/
 
 # ── Impeccable 运行时产物（设计系统文档 DESIGN.md / design.json / critique 保留）──
 .impeccable/hook.cache.json
