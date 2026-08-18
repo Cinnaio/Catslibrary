@@ -64,6 +64,7 @@ adminSiteRoutes.get('/', async (c) => {
   const todayStart = today.getTime()
   const weekStart = todayStart - 6 * DAY_MS
   const staleCutoff = now - 30 * DAY_MS
+  const scrapeCutoff = now - 30 * DAY_MS
   const [todayStats, weekStats, activeReaders, popularNovels, dailyTrend, countries, devices, sources, contentHealth, categoryCounts, statusCounts, contentQuality, recentUpdateStats, recentUpdates, updateTrend, completeness, scrapeHealth] = await Promise.all([
     first<{ page_views: number; visitors: number }>(db, 'SELECT COUNT(*)::int AS page_views, COUNT(DISTINCT visitor_hash)::int AS visitors FROM site_visits WHERE visited_at >= $1', [todayStart]),
     first<{ page_views: number; visitors: number }>(db, 'SELECT COUNT(*)::int AS page_views, COUNT(DISTINCT visitor_hash)::int AS visitors FROM site_visits WHERE visited_at >= $1', [weekStart]),
@@ -155,7 +156,8 @@ adminSiteRoutes.get('/', async (c) => {
               COUNT(*) FILTER (WHERE status IN ('starting', 'running'))::int AS active,
               COUNT(*) FILTER (WHERE status = 'completed')::int AS completed,
               COALESCE(MAX(updated_at), 0)::bigint AS last_updated
-       FROM scrape_jobs`,
+       FROM scrape_jobs WHERE updated_at >= $1`,
+      [scrapeCutoff],
     ),
   ])
   return c.json({
@@ -195,6 +197,7 @@ adminSiteRoutes.get('/', async (c) => {
       updateTrend: updateTrend.rows.map((row) => ({ date: row.date, novels: Number(row.novels) || 0 })),
       completeness: completeness.rows.map((row) => ({ id: row.id, title: row.title, score: Number(row.score) || 0 })),
       scrapeHealth: {
+        windowDays: 30,
         failed: Number(scrapeHealth?.failed) || 0,
         active: Number(scrapeHealth?.active) || 0,
         completed: Number(scrapeHealth?.completed) || 0,

@@ -67,6 +67,9 @@ export default function SiteOperationsTab() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [selectedListTitle, setSelectedListTitle] = useState('')
+  const [selectedListParams, setSelectedListParams] = useState<Record<string, string | number>>({})
+  const [selectedListPage, setSelectedListPage] = useState(1)
+  const [selectedListTotal, setSelectedListTotal] = useState(0)
   const [categoryBooks, setCategoryBooks] = useState<Awaited<ReturnType<typeof novelsApi.list>>['novels']>([])
   const [categoryBooksLoading, setCategoryBooksLoading] = useState(false)
   const [trendRange, setTrendRange] = useState<30 | 90>(30)
@@ -100,16 +103,20 @@ export default function SiteOperationsTab() {
     }
   }
 
-  async function openNovelList(params: Record<string, string | number>, title: string) {
+  async function openNovelList(params: Record<string, string | number>, title: string, page = 1) {
     setSelectedListTitle(title)
+    setSelectedListParams(params)
+    setSelectedListPage(page)
     setCategoryBooks([])
     setCategoryBooksLoading(true)
     try {
-      const result = await novelsApi.list({ page: 1, limit: 100, sort: 'title', order: 'asc', ...params })
+      const result = await novelsApi.list({ page, limit: 20, sort: 'title', order: 'asc', ...params })
       setCategoryBooks(result.novels || [])
+      setSelectedListTotal(result.total || 0)
     } catch (err) {
       toast((err as Error).message || '分类作品加载失败', 'error')
       setSelectedListTitle('')
+      setSelectedListTotal(0)
     } finally {
       setCategoryBooksLoading(false)
     }
@@ -118,8 +125,22 @@ export default function SiteOperationsTab() {
   function exportContentReport() {
     if (!data) return
     const rows = [['分类', '作品数'], ...data.contentHealth.categories.map((item) => [item.category, String(item.novels)])]
+    rows.push([], ['状态', '作品数'], ...Object.entries(data.contentHealth.statuses).map(([status, count]) => [status, String(count)]))
+    rows.push([], ['内容健康度', '数量'],
+      ['未分类作品', String(data.contentHealth.quality.uncategorized)],
+      ['缺少封面', String(data.contentHealth.quality.missingCover)],
+      ['缺少简介', String(data.contentHealth.quality.missingDescription)],
+      ['连载超 30 天未更', String(data.contentHealth.quality.staleOngoing)],
+    )
     rows.push([], ['完整度最低作品', '完整度得分'])
     data.contentHealth.completeness.forEach((item) => rows.push([item.title, `${item.score}/6`]))
+    rows.push([], ['更新日期', '更新作品数'])
+    data.contentHealth.updateTrend.forEach((item) => rows.push([item.date, String(item.novels)]))
+    rows.push([], ['采集任务（近 30 日）', '数量'],
+      ['进行中', String(data.contentHealth.scrapeHealth.active)],
+      ['失败', String(data.contentHealth.scrapeHealth.failed)],
+      ['已完成', String(data.contentHealth.scrapeHealth.completed)],
+    )
     const csv = rows.map((row) => row.map((cell) => `"${cell.replaceAll('"', '""')}"`).join(',')).join('\r\n')
     const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' })
     const link = document.createElement('a')
@@ -148,7 +169,7 @@ export default function SiteOperationsTab() {
   const contentMetrics: Metric[] = [
     ['收录作品', data?.contentHealth.novels || 0, '本'], ['分类数量', data?.contentHealth.categories.length || 0, '个'],
     ['连载中', data?.contentHealth.statuses.ongoing || 0, '本'], ['已完结', data?.contentHealth.statuses.completed || 0, '本'],
-    ['长期未更', data?.contentHealth.quality.staleOngoing || 0, '本'],
+    ['近 30 日更新', data?.contentHealth.recentUpdates.last30Days || 0, '本'],
   ]
 
   return (
@@ -250,14 +271,15 @@ export default function SiteOperationsTab() {
       <Dialog open={!!selectedListTitle} onOpenChange={(open) => { if (!open) setSelectedListTitle('') }}>
         <DialogContent className="max-h-[min(78vh,680px)] overflow-hidden sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{selectedListTitle}</DialogTitle>
+          <DialogTitle>{selectedListTitle} <span className="text-sm font-normal text-muted-foreground">· {selectedListTotal.toLocaleString()} 本</span></DialogTitle>
           </DialogHeader>
           <div className="max-h-[56vh] overflow-y-auto rounded-lg border border-border">
             {categoryBooksLoading ? <p className="p-8 text-center text-sm text-muted-foreground">正在加载作品…</p> : categoryBooks.length ? <div className="divide-y divide-border">{categoryBooks.map((novel) => <div key={novel.id} className="flex items-center justify-between gap-3 px-4 py-3 transition-colors hover:bg-muted/40">
               <Link to={`/novel/${encodeURIComponent(novel.id)}`} className="min-w-0 flex-1"><span className="block truncate text-sm font-medium text-foreground">{novel.title}</span><span className="mt-0.5 block truncate text-xs text-muted-foreground">{novel.author || '作者未知'} · {novel.status === 'completed' ? '已完结' : '连载中'} · {novel.chapterCount || 0} 章</span></Link>
               <button type="button" className="shrink-0 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground" onClick={() => { sessionStorage.setItem('adminEditNovel', JSON.stringify({ id: novel.id })); window.location.href = '/admin' }}>管理</button>
-            </div>)}</div> : <p className="p-8 text-center text-sm text-muted-foreground">该分类暂无作品</p>}
+            </div>)}</div> : <p className="p-8 text-center text-sm text-muted-foreground">该列表暂无作品</p>}
           </div>
+          {selectedListTotal > 20 && <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground"><span>第 {selectedListPage} / {Math.ceil(selectedListTotal / 20)} 页</span><div className="flex gap-2"><Button variant="outline" size="sm" disabled={selectedListPage <= 1 || categoryBooksLoading} onClick={() => void openNovelList(selectedListParams, selectedListTitle, selectedListPage - 1)}>上一页</Button><Button variant="outline" size="sm" disabled={selectedListPage >= Math.ceil(selectedListTotal / 20) || categoryBooksLoading} onClick={() => void openNovelList(selectedListParams, selectedListTitle, selectedListPage + 1)}>下一页</Button></div></div>}
         </DialogContent>
       </Dialog>
     </AdminPage>
@@ -273,7 +295,7 @@ function CategoryDistribution({ categories, loading, onSelect }: { categories: O
   return <Card>
     <CardHeader>
       <CardTitle className="flex items-center gap-2 text-base"><BarChart3 className="size-4 text-primary" aria-hidden="true" />分类分布</CardTitle>
-      <p className="text-sm text-muted-foreground">按作品标注的分类统计，单部作品可计入多个分类。</p>
+      <p className="text-sm text-muted-foreground">按作品标注的分类统计，单部作品可计入多个分类；点击分类查看作品。</p>
     </CardHeader>
     <CardContent>
       {categories.length ? <div className="space-y-3">{categories.slice(0, 10).map((item) => <button key={item.category} type="button" className="block w-full text-left" onClick={() => onSelect(item.category)} title={`查看${item.category}分类作品`}>
@@ -287,18 +309,29 @@ function CategoryDistribution({ categories, loading, onSelect }: { categories: O
 function UpdateTrend({ trend, range, onRangeChange }: { trend: Overview['contentHealth']['updateTrend']; range: 30 | 90; onRangeChange: (range: 30 | 90) => void }) {
   const visible = trend.slice(-range)
   const max = Math.max(1, ...visible.map((item) => item.novels))
+  const tickIndexes = new Set([0, Math.floor((visible.length - 1) / 2), Math.max(0, visible.length - 1)])
+  const formatTick = (date: string) => {
+    const parts = date.split('-')
+    return parts.length >= 3 ? `${parts[1]}/${parts[2]}` : date
+  }
   return <Card>
     <CardHeader className="flex-row items-start justify-between gap-3"><div><CardTitle className="flex items-center gap-2 text-base"><Route className="size-4 text-primary" aria-hidden="true" />更新趋势</CardTitle><p className="mt-1 text-sm text-muted-foreground">按作品最近更新时间统计。</p></div><div className="flex gap-1"><Button variant={range === 30 ? 'secondary' : 'ghost'} size="sm" onClick={() => onRangeChange(30)}>30 日</Button><Button variant={range === 90 ? 'secondary' : 'ghost'} size="sm" onClick={() => onRangeChange(90)}>90 日</Button></div></CardHeader>
-    <CardContent>{visible.length ? <div className="flex h-40 items-end gap-1 overflow-hidden">{visible.map((item) => <div key={item.date} className="group flex min-w-0 flex-1 flex-col items-center justify-end gap-1" title={`${item.date}：${item.novels} 本`}><div className="w-full rounded-t bg-primary/70 transition-colors group-hover:bg-primary" style={{ height: `${Math.max(4, item.novels / max * 100)}%` }} /><span className="sr-only">{item.date} {item.novels} 本</span></div>)}</div> : <p className="py-12 text-center text-sm text-muted-foreground">暂无更新记录</p>}</CardContent>
+    <CardContent>{visible.length ? <div className="space-y-2"><div className="flex h-40 items-end gap-1 overflow-hidden">{visible.map((item) => <div key={item.date} className="group flex min-w-0 flex-1 flex-col items-center justify-end gap-1" title={`${item.date}：${item.novels} 本`}><div className="w-full rounded-t bg-primary/70 transition-colors group-hover:bg-primary" style={{ height: `${Math.max(4, item.novels / max * 100)}%` }} /><span className="sr-only">{item.date} {item.novels} 本</span></div>)}</div><div className="flex gap-1 text-[10px] tabular-nums text-muted-foreground" aria-hidden="true">{visible.map((item, index) => <span key={item.date} className="min-w-0 flex-1 truncate text-center">{tickIndexes.has(index) ? formatTick(item.date) : ''}</span>)}</div></div> : <p className="py-12 text-center text-sm text-muted-foreground">暂无更新记录</p>}</CardContent>
   </Card>
 }
 
 function CompletenessAndScrape({ health }: { health?: Overview['contentHealth'] }) {
   const scrape = health?.scrapeHealth
-  return <Card>
-    <CardHeader><CardTitle className="flex items-center gap-2 text-base"><ShieldAlert className="size-4 text-primary" aria-hidden="true" />完整度与采集健康</CardTitle><p className="text-sm text-muted-foreground">优先处理资料不完整或采集失败的内容。</p></CardHeader>
-    <CardContent className="space-y-4"><div><div className="mb-2 flex items-center justify-between text-sm"><span className="font-medium text-foreground">完整度最低作品</span><span className="text-xs text-muted-foreground">满分 6 项</span></div><div className="divide-y divide-border rounded-lg border border-border">{health?.completeness.length ? health.completeness.slice(0, 5).map((item) => <Link key={item.id} to={`/novel/${encodeURIComponent(item.id)}`} className="flex items-center justify-between gap-3 px-3 py-2 hover:bg-muted/40"><span className="min-w-0 truncate text-sm text-foreground">{item.title}</span><Badge variant={item.score <= 3 ? 'destructive' : 'secondary'}>{item.score}/6</Badge></Link>) : <p className="p-4 text-center text-sm text-muted-foreground">暂无数据</p>}</div></div><div className="grid grid-cols-3 gap-2 text-center"><div className="rounded border border-border bg-muted/30 p-2"><strong className="block text-lg text-foreground">{scrape?.active || 0}</strong><span className="text-xs text-muted-foreground">进行中</span></div><div className="rounded border border-border bg-muted/30 p-2"><strong className="block text-lg text-foreground">{scrape?.failed || 0}</strong><span className="text-xs text-muted-foreground">失败</span></div><div className="rounded border border-border bg-muted/30 p-2"><strong className="block text-lg text-foreground">{scrape?.completed || 0}</strong><span className="text-xs text-muted-foreground">已完成</span></div></div></CardContent>
-  </Card>
+  return <div className="grid content-start gap-4">
+    <Card>
+      <CardHeader><CardTitle className="flex items-center gap-2 text-base"><BarChart3 className="size-4 text-primary" aria-hidden="true" />作品资料完整度</CardTitle><p className="text-sm text-muted-foreground">按标题、作者、分类、简介、封面和章节六项计算。</p></CardHeader>
+      <CardContent><div className="divide-y divide-border rounded-lg border border-border">{health?.completeness.length ? health.completeness.slice(0, 5).map((item) => <Link key={item.id} to={`/novel/${encodeURIComponent(item.id)}`} className="flex items-center justify-between gap-3 px-3 py-2 hover:bg-muted/40"><span className="min-w-0 truncate text-sm text-foreground">{item.title}</span><Badge variant={item.score <= 3 ? 'destructive' : 'secondary'}>{item.score}/6</Badge></Link>) : <p className="p-4 text-center text-sm text-muted-foreground">暂无数据</p>}</div></CardContent>
+    </Card>
+    <Card>
+      <CardHeader><CardTitle className="flex items-center gap-2 text-base"><ShieldAlert className="size-4 text-primary" aria-hidden="true" />采集任务状态</CardTitle><p className="text-sm text-muted-foreground">近 {scrape?.windowDays || 30} 日任务汇总。</p></CardHeader>
+      <CardContent className="grid grid-cols-3 gap-2 text-center"><div className="rounded border border-border bg-muted/30 p-2"><strong className="block text-lg text-foreground">{scrape?.active || 0}</strong><span className="text-xs text-muted-foreground">进行中</span></div><div className="rounded border border-border bg-muted/30 p-2"><strong className="block text-lg text-foreground">{scrape?.failed || 0}</strong><span className="text-xs text-muted-foreground">失败</span></div><div className="rounded border border-border bg-muted/30 p-2"><strong className="block text-lg text-foreground">{scrape?.completed || 0}</strong><span className="text-xs text-muted-foreground">已完成</span></div></CardContent>
+    </Card>
+  </div>
 }
 
 function ContentQuality({ health, onSelect }: { health?: Overview['contentHealth']; onSelect: (quality: string, title: string) => void }) {
@@ -317,7 +350,7 @@ function ContentQuality({ health, onSelect }: { health?: Overview['contentHealth
     </CardHeader>
     <CardContent className="grid gap-3 sm:grid-cols-2">{items.map(([label, value, hint], index) => <button key={label} type="button" className="rounded-lg border border-border bg-muted/30 p-3 text-left transition-colors hover:bg-muted/60" onClick={() => onSelect(qualityKeys[index]!, label)} title={`查看${label}作品`}>
       <div className="flex items-center justify-between gap-2"><span className="text-sm font-medium text-foreground">{label}</span><Badge variant={value > 0 ? 'secondary' : 'outline'}>{value.toLocaleString()}</Badge></div>
-      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{hint}</p>
+      <p className="mt-1 line-clamp-1 text-xs leading-relaxed text-muted-foreground">{hint}</p>
     </button>)}</CardContent>
   </Card>
 }

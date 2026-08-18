@@ -548,7 +548,7 @@ export const adminApi = {
         }
         updateTrend: Array<{ date: string; novels: number }>
         completeness: Array<{ id: string; title: string; score: number }>
-        scrapeHealth: { failed: number; active: number; completed: number; lastUpdated: number }
+        scrapeHealth: { windowDays: number; failed: number; active: number; completed: number; lastUpdated: number }
       }
     }> {
       return request('GET', '/admin/site', null, true)
