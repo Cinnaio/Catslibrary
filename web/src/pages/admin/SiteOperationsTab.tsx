@@ -191,7 +191,7 @@ export default function SiteOperationsTab() {
         <div className="site-operations__panel">
           {tab === 'overview' && <>
             <MetricStrip items={overviewMetrics} />
-            <div className="grid gap-4 lg:grid-cols-2">
+            <div className="grid items-start gap-4 lg:grid-cols-2">
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-base"><Megaphone className="size-4 text-primary" aria-hidden="true" />站点公告</CardTitle>
@@ -310,14 +310,14 @@ function UpdateTrend({ trend, range, onRangeChange }: { trend: Overview['content
   const visible = trend.slice(-range)
   const hasTrendData = visible.some((item) => Number(item.novels) > 0)
   const max = Math.max(1, ...visible.map((item) => item.novels))
-  const tickIndexes = new Set([0, Math.floor((visible.length - 1) / 2), Math.max(0, visible.length - 1)])
+  const tickDates = [visible[0]?.date, visible[Math.floor((visible.length - 1) / 2)]?.date, visible.at(-1)?.date]
   const formatTick = (date: string) => {
     const match = String(date).match(/^\d{4}-(\d{2})-(\d{2})$/)
     return match ? `${match[1]}/${match[2]}` : ''
   }
   return <Card>
     <CardHeader className="flex-row items-start justify-between gap-3"><div><CardTitle className="flex items-center gap-2 text-base"><Route className="size-4 text-primary" aria-hidden="true" />更新趋势</CardTitle><p className="mt-1 text-sm text-muted-foreground">按作品最近更新时间统计。</p></div><div className="flex gap-1"><Button variant={range === 30 ? 'secondary' : 'ghost'} size="sm" onClick={() => onRangeChange(30)}>30 日</Button><Button variant={range === 90 ? 'secondary' : 'ghost'} size="sm" onClick={() => onRangeChange(90)}>90 日</Button></div></CardHeader>
-    <CardContent>{hasTrendData ? <div className="space-y-2"><div className="flex h-40 items-end gap-1 overflow-hidden">{visible.map((item) => <div key={item.date} className="group flex min-w-0 flex-1 flex-col items-center justify-end gap-1" title={`${item.date}：${item.novels} 本`}><div className="w-full rounded-t bg-primary/70 transition-colors group-hover:bg-primary" style={{ height: `${Math.max(4, item.novels / max * 100)}%` }} /><span className="sr-only">{item.date} {item.novels} 本</span></div>)}</div><div className="flex gap-1 text-[10px] tabular-nums text-muted-foreground" aria-hidden="true">{visible.map((item, index) => <span key={item.date} className="min-w-0 flex-1 truncate text-center">{tickIndexes.has(index) ? formatTick(item.date) : ''}</span>)}</div></div> : <div className="flex min-h-24 items-center justify-center text-sm text-muted-foreground">暂无更新记录</div>}</CardContent>
+    <CardContent>{hasTrendData ? <div className="space-y-2"><div className="flex h-40 items-end gap-1 overflow-hidden">{visible.map((item) => <div key={item.date} className="group flex min-w-0 flex-1 flex-col items-center justify-end gap-1" title={`${item.date}：${item.novels} 本`}><div className="w-full rounded-t bg-primary/70 transition-colors group-hover:bg-primary" style={{ height: `${Math.max(4, item.novels / max * 100)}%` }} /><span className="sr-only">{item.date} {item.novels} 本</span></div>)}</div><div className="flex justify-between text-[10px] tabular-nums text-muted-foreground" aria-hidden="true">{tickDates.map((date, index) => <span key={`${date}-${index}`}>{date ? formatTick(date) : ''}</span>)}</div></div> : <div className="flex min-h-24 items-center justify-center text-sm text-muted-foreground">暂无更新记录</div>}</CardContent>
   </Card>
 }
 
