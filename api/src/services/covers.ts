@@ -5,7 +5,7 @@
 import type { Db } from '../db/pool'
 import { first, run, withTx } from '../db/query'
 import { newId } from './auth'
-import { safeFetch } from './safe-fetch'
+import { outboundFetch } from './outbound-fetch'
 
 export const DEFAULT_COVER_URL = 'https://wap.po18x.vip/17mb/style/noimg.jpg'
 export const MAX_COVER_BYTES = 5 * 1024 * 1024
@@ -24,7 +24,7 @@ export async function fetchImage(url: string): Promise<ImageData | null> {
   if (!url || !/^https?:\/\//i.test(url)) return null
   try {
     // cover_url 由爬虫从外部页面解析写入，属用户可控数据，须经 SSRF 防护出站
-    const res = await safeFetch(url, { headers: FETCH_HEADERS })
+    const res = await outboundFetch(url, { headers: FETCH_HEADERS }, { scope: 'cover-download', safe: true })
     if (!res.ok) return null
     // 无 Content-Type 或非图片一律拒绝，避免把任意响应体当图片入库对外提供
     const contentType = res.headers.get('Content-Type') || ''

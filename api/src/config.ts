@@ -20,7 +20,7 @@ export interface AppConfig {
   trustProxy: boolean
   /** 后台保存的开发环境代理；部署环境的 HTTP(S)_PROXY 优先。 */
   proxyBase: string
-  proxyDomains: string
+  proxyBypass: string
   httpProxy: string
   httpsProxy: string
   noProxy: string
@@ -58,7 +58,7 @@ export function loadConfig(): AppConfig {
     sessionHashSalt: process.env.SESSION_HASH_SALT?.trim() || 'zhi-zhou',
     trustProxy: /^(1|true|yes)$/i.test(process.env.TRUST_PROXY?.trim() || ''),
     proxyBase: process.env.PROXY_BASE?.trim() || '',
-    proxyDomains: process.env.PROXY_DOMAINS?.trim() || process.env.PROXY_ALLOW_HOSTS?.trim() || '',
+    proxyBypass: process.env.PROXY_BYPASS?.trim() || '',
     httpProxy: process.env.HTTP_PROXY?.trim() || process.env.http_proxy?.trim() || '',
     httpsProxy: process.env.HTTPS_PROXY?.trim() || process.env.https_proxy?.trim() || '',
     noProxy: process.env.NO_PROXY?.trim() || process.env.no_proxy?.trim() || '',

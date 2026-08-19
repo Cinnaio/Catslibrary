@@ -4,6 +4,7 @@
  * 默认 deepseek-v4-flash；未配置时一律抛 AiError('disabled')，调用方据此隐藏入口。
  */
 import { loadConfig, type AiProviderConfig } from '../../config'
+import { outboundFetch } from '../outbound-fetch'
 
 export type AiErrorCode = 'disabled' | 'timeout' | 'upstream' | 'invalid'
 
@@ -59,7 +60,9 @@ export function isTextAiConfigured(): boolean {
 
 /** baseUrl 允许写到 /v1 或直接写到 /chat/completions，两种都归一。 */
 export function chatEndpoint(baseUrl: string): string {
-  const base = String(baseUrl || '').trim().replace(/\/+$/, '')
+  const base = String(baseUrl || '')
+    .trim()
+    .replace(/\/+$/, '')
   if (!base) return ''
   if (/\/chat\/completions$/i.test(base)) return base
   return base + '/chat/completions'
@@ -109,12 +112,16 @@ async function once(endpoint: string, apiKey: string, body: string, model: strin
 
   let res: Response
   try {
-    res = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body,
-      signal,
-    })
+    res = await outboundFetch(
+      endpoint,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        body,
+        signal,
+      },
+      { scope: 'ai-text' },
+    )
   } catch (err) {
     const name = (err as Error)?.name || ''
     if (name === 'TimeoutError' || name === 'AbortError') throw new AiError('timeout', 'AI 服务响应超时', 504)
@@ -190,8 +197,7 @@ function describeUpstreamError(status: number, detail: string): string {
   try {
     const parsed = JSON.parse(body)
     const errObj = (parsed && typeof parsed === 'object' && 'error' in parsed ? (parsed as { error: unknown }).error : parsed) as
-      | { code?: string; message?: string; type?: string }
-      | undefined
+      { code?: string; message?: string; type?: string } | undefined
     const code = errObj?.code ? String(errObj.code) : ''
     const message = errObj?.message ? String(errObj.message) : ''
     if (!code && !message) return prefix
@@ -204,7 +210,7 @@ function describeUpstreamError(status: number, detail: string): string {
       invalid_api_key: '上游密钥无效',
       access_denied: '上游拒绝访问',
     }
-    const hint = code ? (codeHints[code] || code) : ''
+    const hint = code ? codeHints[code] || code : ''
     return [prefix, hint, message].filter(Boolean).join('：')
   } catch {
     // 非 JSON 响应，直接带上原文（截断）

@@ -75,6 +75,16 @@ DATABASE_URL=postgres://... node api/dist/index.js
 
   此规则只作用于前端静态资源；`/api` 反代不受影响。
 - 部署在 Nginx/Caddy/Cloudflare 等反代之后时设置 `TRUST_PROXY=1`，使 IP 限流与登录审计读取转发头。
+- 服务端的 AI、图像、下载和抓取请求共用出站代理。Docker 中把以下变量传给 API 容器即可，环境变量优先于管理端保存的开发配置：
+
+  ```yaml
+  environment:
+    HTTP_PROXY: http://172.18.0.1:7890
+    HTTPS_PROXY: http://172.18.0.1:7890
+    NO_PROXY: localhost,127.0.0.1,::1,postgres,redis
+  ```
+
+  Windows 原生开发可在管理后台填写 `http://127.0.0.1:7890`。代理配置页可测试连通性并查看脱敏的最近出站日志。
 - 全部环境变量说明见 [.env.example](.env.example)。
 
 ## 测试

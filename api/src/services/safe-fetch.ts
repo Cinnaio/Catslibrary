@@ -25,7 +25,9 @@ const allowPrivateFetch = () => /^(1|true|yes)$/i.test(process.env.ALLOW_PRIVATE
 
 /** 判断 IP 是否属于环回/内网/链路本地/保留地址段。无法识别的输入一律按不安全处理。 */
 export function isPrivateIp(ip: string): boolean {
-  let addr = String(ip || '').trim().toLowerCase()
+  let addr = String(ip || '')
+    .trim()
+    .toLowerCase()
   if (addr.startsWith('[') && addr.endsWith(']')) addr = addr.slice(1, -1)
   // IPv4-mapped IPv6（::ffff:1.2.3.4）按内层 v4 判断
   const mapped = addr.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/)
@@ -107,15 +109,17 @@ export async function assertPublicUrl(rawUrl: string): Promise<URL> {
 
 const MAX_REDIRECTS = 5
 
+export type FetchImplementation = (url: string, init: RequestInit) => Promise<Response>
+
 /**
  * 带 SSRF 防护的 fetch：首跳与每次重定向都经 assertPublicUrl 校验。
  * 语义与 fetch(redirect:'follow') 一致（303 及 POST 的 301/302 按规范降级为 GET）。
  */
-export async function safeFetch(rawUrl: string, init: RequestInit = {}): Promise<Response> {
+export async function safeFetch(rawUrl: string, init: RequestInit = {}, fetchImplementation: FetchImplementation = fetch): Promise<Response> {
   let current = (await assertPublicUrl(rawUrl)).href
   let currentInit = init
   for (let i = 0; i <= MAX_REDIRECTS; i++) {
-    const res = await fetch(current, { ...currentInit, redirect: 'manual' } as RequestInit)
+    const res = await fetchImplementation(current, { ...currentInit, redirect: 'manual' } as RequestInit)
     if (res.status < 300 || res.status >= 400) return res
     const location = res.headers.get('Location')
     if (!location) return res

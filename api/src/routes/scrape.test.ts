@@ -62,20 +62,20 @@ describe('scrape 路由（免网络动作）', () => {
     const runtimeDir = mkdtempSync(join(tmpdir(), 'zhi-zhou-proxy-'))
     const previousRuntimeDir = process.env.RUNTIME_CONFIG_DIR
     const previousProxyBase = process.env.PROXY_BASE
-    const previousProxyDomains = process.env.PROXY_DOMAINS
+    const previousProxyBypass = process.env.PROXY_BYPASS
     const previousHttpProxy = process.env.HTTP_PROXY
     const previousHttpsProxy = process.env.HTTPS_PROXY
     const previousNoProxy = process.env.NO_PROXY
     process.env.RUNTIME_CONFIG_DIR = runtimeDir
     delete process.env.PROXY_BASE
-    delete process.env.PROXY_DOMAINS
+    delete process.env.PROXY_BYPASS
     delete process.env.HTTP_PROXY
     delete process.env.HTTPS_PROXY
     delete process.env.NO_PROXY
     try {
       const invalid = await req(
         '/api/scrape',
-        json('POST', { action: 'save-proxy-config', proxyBase: 'ftp://proxy.example.com', proxyDomains: 'example.com' }, adminToken),
+        json('POST', { action: 'save-proxy-config', proxyBase: 'ftp://proxy.example.com', proxyBypass: 'example.com' }, adminToken),
       )
       expect(invalid.status).toBe(400)
 
@@ -86,16 +86,16 @@ describe('scrape 路由（免网络动作）', () => {
           {
             action: 'save-proxy-config',
             proxyBase: 'http://127.0.0.1:7890',
-            proxyDomains: 'czbooks.net, example.com',
+            proxyBypass: 'localhost, .internal.example.com',
           },
           adminToken,
         ),
       )
       expect(saved.status).toBe(200)
-      const savedData = await jsonOf<{ configured: boolean; effectiveHost: string; config: { proxyDomains: string } }>(saved)
+      const savedData = await jsonOf<{ configured: boolean; effectiveHost: string; config: { proxyBypass: string } }>(saved)
       expect(savedData.configured).toBe(true)
       expect(savedData.effectiveHost).toBe('127.0.0.1:7890')
-      expect(savedData.config.proxyDomains).toBe('czbooks.net,example.com')
+      expect(savedData.config.proxyBypass).toBe('localhost,.internal.example.com')
 
       const loaded = await req('/api/scrape?action=proxy-config', json('GET', undefined, adminToken))
       expect(loaded.status).toBe(200)
@@ -117,10 +117,7 @@ describe('scrape 路由（免网络动作）', () => {
       )
       process.env.ALLOW_PRIVATE_FETCH = '1'
       try {
-        const tested = await req(
-          '/api/scrape',
-          json('POST', { action: 'proxy-test', sourceUrl: 'https://target.example.org/book/1' }, adminToken),
-        )
+        const tested = await req('/api/scrape', json('POST', { action: 'proxy-test', sourceUrl: 'https://target.example.org/book/1' }, adminToken))
         expect(tested.status).toBe(200)
         const testedData = await jsonOf<{ ok: boolean; proxyHost: string; targetHost: string }>(tested)
         expect(testedData).toMatchObject({ ok: true, proxyHost: '172.18.0.1:7890', targetHost: 'target.example.org' })
@@ -136,8 +133,8 @@ describe('scrape 路由（免网络动作）', () => {
       else process.env.RUNTIME_CONFIG_DIR = previousRuntimeDir
       if (previousProxyBase === undefined) delete process.env.PROXY_BASE
       else process.env.PROXY_BASE = previousProxyBase
-      if (previousProxyDomains === undefined) delete process.env.PROXY_DOMAINS
-      else process.env.PROXY_DOMAINS = previousProxyDomains
+      if (previousProxyBypass === undefined) delete process.env.PROXY_BYPASS
+      else process.env.PROXY_BYPASS = previousProxyBypass
       if (previousHttpProxy === undefined) delete process.env.HTTP_PROXY
       else process.env.HTTP_PROXY = previousHttpProxy
       if (previousHttpsProxy === undefined) delete process.env.HTTPS_PROXY
@@ -182,7 +179,9 @@ describe('scrape 路由（免网络动作）', () => {
     expect(src.enabled).toBe(true)
 
     const firstPage = await req('/api/scrape', json('POST', { action: 'list-sources', page: 1, pageSize: 1 }, adminToken))
-    const firstPageData = await jsonOf<{ sources: Array<{ host: string }>; page: number; pageSize: number; matchedTotal: number; totalPages: number }>(firstPage)
+    const firstPageData = await jsonOf<{ sources: Array<{ host: string }>; page: number; pageSize: number; matchedTotal: number; totalPages: number }>(
+      firstPage,
+    )
     expect(firstPageData.sources).toHaveLength(1)
     expect(firstPageData.page).toBe(1)
     expect(firstPageData.pageSize).toBe(1)
@@ -198,7 +197,10 @@ describe('scrape 路由（免网络动作）', () => {
     const searchData = await jsonOf<{ sources: Array<{ host: string }> }>(search)
     expect(searchData.sources.map((source) => source.host)).toEqual(['another.example.com'])
 
-    const batchToggle = await req('/api/scrape', json('POST', { action: 'batch-toggle-sources', hosts: ['legado.example.com', 'another.example.com'], enabled: false }, adminToken))
+    const batchToggle = await req(
+      '/api/scrape',
+      json('POST', { action: 'batch-toggle-sources', hosts: ['legado.example.com', 'another.example.com'], enabled: false }, adminToken),
+    )
     const batchToggleData = await jsonOf<{ updated: number }>(batchToggle)
     expect(batchToggle.status).toBe(200)
     expect(batchToggleData.updated).toBe(2)

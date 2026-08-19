@@ -49,6 +49,7 @@ export default function Install() {
     AI_TEXT_API_KEY: '',
     AI_TEXT_MODEL: '',
     PROXY_BASE: '',
+    PROXY_BYPASS: '',
     CORS_ORIGINS: '',
   })
 
@@ -201,9 +202,7 @@ export default function Install() {
                   void submitDatabase()
                 }}
               >
-                <p className="text-sm text-muted-foreground">
-                  填写 PostgreSQL 连接信息。保存后会自动测试连接并初始化数据表。
-                </p>
+                <p className="text-sm text-muted-foreground">填写 PostgreSQL 连接信息。保存后会自动测试连接并初始化数据表。</p>
                 <div className="flex flex-col gap-4">
                   <div className="grid grid-cols-[1fr_110px] gap-3">
                     <div className="flex flex-col gap-1.5">
@@ -222,7 +221,13 @@ export default function Install() {
                     </div>
                     <div className="flex flex-col gap-1.5">
                       <Label htmlFor="db-pass">密码</Label>
-                      <Input id="db-pass" type="password" autoComplete="new-password" value={db.password} onChange={(e) => setDbField('password', e.target.value)} />
+                      <Input
+                        id="db-pass"
+                        type="password"
+                        autoComplete="new-password"
+                        value={db.password}
+                        onChange={(e) => setDbField('password', e.target.value)}
+                      />
                     </div>
                   </div>
                   <div className="flex flex-col gap-1.5">
@@ -255,31 +260,64 @@ export default function Install() {
                   void submitOptions(false)
                 }}
               >
-                <p className="text-sm text-muted-foreground">
-                  可选配置，均可留空跳过，安装后也能经环境变量调整。
-                </p>
+                <p className="text-sm text-muted-foreground">可选配置，均可留空跳过，安装后也能经环境变量调整。</p>
                 <div className="flex flex-col gap-4">
                   <div className="flex flex-col gap-1.5">
                     <Label htmlFor="ai-base">AI 文本 Base URL</Label>
-                    <Input id="ai-base" placeholder="https://api.example.com/v1" value={opts.AI_TEXT_BASE_URL} onChange={(e) => setOpts((p) => ({ ...p, AI_TEXT_BASE_URL: e.target.value }))} />
+                    <Input
+                      id="ai-base"
+                      placeholder="https://api.example.com/v1"
+                      value={opts.AI_TEXT_BASE_URL}
+                      onChange={(e) => setOpts((p) => ({ ...p, AI_TEXT_BASE_URL: e.target.value }))}
+                    />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="flex flex-col gap-1.5">
                       <Label htmlFor="ai-key">AI API Key</Label>
-                      <Input id="ai-key" type="password" autoComplete="off" value={opts.AI_TEXT_API_KEY} onChange={(e) => setOpts((p) => ({ ...p, AI_TEXT_API_KEY: e.target.value }))} />
+                      <Input
+                        id="ai-key"
+                        type="password"
+                        autoComplete="off"
+                        value={opts.AI_TEXT_API_KEY}
+                        onChange={(e) => setOpts((p) => ({ ...p, AI_TEXT_API_KEY: e.target.value }))}
+                      />
                     </div>
                     <div className="flex flex-col gap-1.5">
                       <Label htmlFor="ai-model">AI 模型</Label>
-                      <Input id="ai-model" placeholder="deepseek-v4-flash" value={opts.AI_TEXT_MODEL} onChange={(e) => setOpts((p) => ({ ...p, AI_TEXT_MODEL: e.target.value }))} />
+                      <Input
+                        id="ai-model"
+                        placeholder="deepseek-v4-flash"
+                        value={opts.AI_TEXT_MODEL}
+                        onChange={(e) => setOpts((p) => ({ ...p, AI_TEXT_MODEL: e.target.value }))}
+                      />
                     </div>
                   </div>
                   <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="proxy-base">抓取代理 Base</Label>
-                    <Input id="proxy-base" placeholder="http://127.0.0.1:7890" value={opts.PROXY_BASE} onChange={(e) => setOpts((p) => ({ ...p, PROXY_BASE: e.target.value }))} />
+                    <Label htmlFor="proxy-base">出站代理地址</Label>
+                    <Input
+                      id="proxy-base"
+                      placeholder="http://127.0.0.1:7890"
+                      value={opts.PROXY_BASE}
+                      onChange={(e) => setOpts((p) => ({ ...p, PROXY_BASE: e.target.value }))}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="proxy-bypass">跳过代理（逗号分隔）</Label>
+                    <Input
+                      id="proxy-bypass"
+                      placeholder="localhost,127.0.0.1,::1"
+                      value={opts.PROXY_BYPASS}
+                      onChange={(e) => setOpts((p) => ({ ...p, PROXY_BYPASS: e.target.value }))}
+                    />
                   </div>
                   <div className="flex flex-col gap-1.5">
                     <Label htmlFor="cors">CORS 来源（逗号分隔）</Label>
-                    <Input id="cors" placeholder="https://read.example.com" value={opts.CORS_ORIGINS} onChange={(e) => setOpts((p) => ({ ...p, CORS_ORIGINS: e.target.value }))} />
+                    <Input
+                      id="cors"
+                      placeholder="https://read.example.com"
+                      value={opts.CORS_ORIGINS}
+                      onChange={(e) => setOpts((p) => ({ ...p, CORS_ORIGINS: e.target.value }))}
+                    />
                   </div>
                 </div>
                 {msg && (
@@ -310,11 +348,24 @@ export default function Install() {
                 <div className="flex flex-col gap-4">
                   <div className="flex flex-col gap-1.5">
                     <Label htmlFor="admin-user">账号</Label>
-                    <Input id="admin-user" autoComplete="username" placeholder="3-32 位小写字母/数字/_/-" value={username} onChange={(e) => setUsername(e.target.value)} />
+                    <Input
+                      id="admin-user"
+                      autoComplete="username"
+                      placeholder="3-32 位小写字母/数字/_/-"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                    />
                   </div>
                   <div className="flex flex-col gap-1.5">
                     <Label htmlFor="admin-pass">密码</Label>
-                    <Input id="admin-pass" type="password" autoComplete="new-password" placeholder="至少 8 位" value={password} onChange={(e) => setPassword(e.target.value)} />
+                    <Input
+                      id="admin-pass"
+                      type="password"
+                      autoComplete="new-password"
+                      placeholder="至少 8 位"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                    />
                   </div>
                   <div className="flex flex-col gap-1.5">
                     <Label htmlFor="admin-confirm">确认密码</Label>

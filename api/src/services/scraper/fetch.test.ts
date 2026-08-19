@@ -28,10 +28,11 @@ describe('scraper 标准代理解析', () => {
     expect(resolveProxyUrl('https://service.internal.example.com', { ...options, forceProxy: true })).toBe(options.httpsProxy)
   })
 
-  it('后台开发代理只处理配置域名及其子域名', () => {
-    const options = { proxyBase: 'http://127.0.0.1:7890', proxyDomains: 'czbooks.net,example.com' }
+  it('后台开发代理默认处理所有目标，并支持跳过列表', () => {
+    const options = { proxyBase: 'http://127.0.0.1:7890', proxyBypass: 'example.org' }
     expect(resolveProxyUrl('https://www.czbooks.net/book/1', options)).toBe(options.proxyBase)
     expect(resolveProxyUrl('https://example.org/book/1', options)).toBe('')
+    expect(resolveProxyUrl('https://api.other.example/book/1', options)).toBe(options.proxyBase)
   })
 
   it('NO_PROXY 支持全局通配和端口匹配', () => {

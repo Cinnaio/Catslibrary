@@ -674,18 +674,20 @@ export const downloadLogsApi = {
 
 export const scrapeApi = {
   proxyConfig(): Promise<{
-    config: { proxyBase: string; proxyDomains: string }
-    effective: { proxyBase: string; proxyDomains: string }
+    config: { proxyBase: string; proxyBypass: string }
+    effective: { proxyBase: string; proxyBypass: string }
+    noProxy: string
     effectiveHost: string
     configured: boolean
     source: 'environment' | 'runtime' | 'none'
   }> {
     return request('GET', '/scrape?action=proxy-config', null, true)
   },
-  saveProxyConfig(config: { proxyBase: string; proxyDomains: string }): Promise<{
+  saveProxyConfig(config: { proxyBase: string; proxyBypass: string }): Promise<{
     ok: boolean
-    config: { proxyBase: string; proxyDomains: string }
-    effective: { proxyBase: string; proxyDomains: string }
+    config: { proxyBase: string; proxyBypass: string }
+    effective: { proxyBase: string; proxyBypass: string }
+    noProxy: string
     effectiveHost: string
     configured: boolean
     source: 'environment' | 'runtime' | 'none'
@@ -702,6 +704,24 @@ export const scrapeApi = {
     elapsedMs?: number
   }> {
     return request('POST', '/scrape', { action: 'proxy-test', sourceUrl }, true)
+  },
+  proxyLogs(limit = 50): Promise<{
+    logs: Array<{
+      id: number
+      timestamp: number
+      scope: string
+      method: string
+      target: string
+      targetHost: string
+      proxySource: 'environment' | 'runtime' | 'none'
+      proxyHost: string
+      status: number | null
+      durationMs: number
+      ok: boolean
+      error: string
+    }>
+  }> {
+    return request('GET', `/scrape?action=proxy-logs&limit=${encodeURIComponent(limit)}`, null, true)
   },
   detect(sourceUrl: string): Promise<{ detected: boolean; source?: string; preset?: unknown }> {
     return request('POST', '/scrape', { action: 'detect', sourceUrl }, true)
@@ -890,12 +910,7 @@ export const aiApi = {
     novelId: string,
     opts: { prompt?: string; renderTitle?: boolean; platform?: string } = {},
   ): Promise<{ ok: boolean; taskId: string; batchId: string; total: number }> {
-    return request(
-      'POST',
-      '/ai/cover/generate',
-      { novelId, prompt: opts.prompt ?? '', renderTitle: opts.renderTitle, platform: opts.platform },
-      true,
-    )
+    return request('POST', '/ai/cover/generate', { novelId, prompt: opts.prompt ?? '', renderTitle: opts.renderTitle, platform: opts.platform }, true)
   },
   generateCoverPrompt(novelId: string, opts: { renderTitle?: boolean; platform?: string } = {}): Promise<{ prompt: string }> {
     return request('POST', '/ai/cover/prompt', { novelId, renderTitle: opts.renderTitle, platform: opts.platform }, true)
@@ -943,7 +958,10 @@ export const aiApi = {
       return request('GET', `/ai/writing/style-profile/${encodeURIComponent(novelId)}`, null, true)
     },
     /** 提取/刷新某部小说的情节状态：取样最近 N 章正文 → 文本模型结构化分析 → 落库，续写时复用。 */
-    refreshPlotState(novelId: string, sampleChapters?: number): Promise<{ ok: boolean; state: string; chaptersThrough: number; model: string; usage: { promptTokens: number; completionTokens: number } }> {
+    refreshPlotState(
+      novelId: string,
+      sampleChapters?: number,
+    ): Promise<{ ok: boolean; state: string; chaptersThrough: number; model: string; usage: { promptTokens: number; completionTokens: number } }> {
       const data: Record<string, unknown> = { novelId }
       if (sampleChapters) data.sampleChapters = sampleChapters
       return request('POST', '/ai/writing/plot-state', data, true)
@@ -953,7 +971,10 @@ export const aiApi = {
       return request('GET', `/ai/writing/plot-state/${encodeURIComponent(novelId)}`, null, true)
     },
     /** 提取/刷新某部小说的关系画像：取样最近 N 章正文 → 文本模型提炼角色关系动态/权力结构/心理边界 → 落库。 */
-    refreshRelationshipProfile(novelId: string, sampleChapters?: number): Promise<{ ok: boolean; profile: string; model: string; usage: { promptTokens: number; completionTokens: number } }> {
+    refreshRelationshipProfile(
+      novelId: string,
+      sampleChapters?: number,
+    ): Promise<{ ok: boolean; profile: string; model: string; usage: { promptTokens: number; completionTokens: number } }> {
       const data: Record<string, unknown> = { novelId }
       if (sampleChapters) data.sampleChapters = sampleChapters
       return request('POST', '/ai/writing/relationship-profile', data, true)

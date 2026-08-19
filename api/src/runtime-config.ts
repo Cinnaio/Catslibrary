@@ -28,6 +28,8 @@ const ALLOWED_KEYS = [
   'AI_IMAGE_API_KEY',
   'AI_IMAGE_MODEL',
   'PROXY_BASE',
+  'PROXY_BYPASS',
+  // Retained so existing runtime files can be read and cleaned up during migration.
   'PROXY_DOMAINS',
   'CORS_ORIGINS',
   'SESSION_HASH_SALT',

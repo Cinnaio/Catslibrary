@@ -9,7 +9,7 @@ import { cleanText } from './parse'
 import { resolveUrl } from './utils'
 import { SITE_PRESETS, buildCoverUrl } from './presets'
 import { toSimplifiedForSource } from '../zh-convert'
-import { safeFetch } from '../safe-fetch'
+import { outboundFetch } from '../outbound-fetch'
 import type { Db } from '../../db/pool'
 
 const DISCOVER_CACHE_TTL = 5 * 60000
@@ -23,7 +23,11 @@ const PROXY_COVER_MAX_BYTES = 5 * 1024 * 1024
 
 export async function proxyCover(url: string): Promise<{ body: Buffer; contentType: string }> {
   if (!url) throw new Error('url required')
-  const res = await safeFetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' } })
+  const res = await outboundFetch(
+    url,
+    { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' } },
+    { scope: 'cover-proxy', safe: true },
+  )
   if (!res.ok) throw new Error(`fetch failed: ${res.status}`)
   const contentType = res.headers.get('Content-Type') || ''
   if (!/^image\//i.test(contentType)) throw new Error('目标不是图片')
@@ -66,16 +70,20 @@ export async function searchPo18(
   if (!q) throw new Error('query required')
   const url = 'https://www.po18x.vip/modules/article/search.php'
   const form = `searchtype=${searchType === 'author' ? 'author' : 'articlename'}&searchkey=${gbkEncode(q)}&page=${Math.max(1, page || 1)}`
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      Accept: 'text/html,application/xhtml+xml',
-      'Accept-Language': 'zh-CN,zh;q=0.9',
-      'Content-Type': 'application/x-www-form-urlencoded',
+  const res = await outboundFetch(
+    url,
+    {
+      method: 'POST',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        Accept: 'text/html,application/xhtml+xml',
+        'Accept-Language': 'zh-CN,zh;q=0.9',
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: form,
     },
-    body: form,
-  })
+    { scope: 'source-enrichment' },
+  )
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   const html = decodeBytes(new Uint8Array(await res.arrayBuffer()), 'gbk')
   const host = 'www.po18x.vip'
@@ -176,7 +184,10 @@ export async function discoverList(
     if (!description || description.length < 10) {
       const pMatch = container.match(/<p[^>]*>([^<]{15,120})<\/p>/i)
       if (pMatch) {
-        const pt = pMatch[1]!.replace(/[作者|分类][：:][^<]*/gi, '').replace(/<[^>]*>/g, '').trim()
+        const pt = pMatch[1]!
+          .replace(/[作者|分类][：:][^<]*/gi, '')
+          .replace(/<[^>]*>/g, '')
+          .trim()
         if (pt.length > 10) description = pt
       }
     }
@@ -203,7 +214,10 @@ export async function discoverList(
   }
 
   let totalPages = 1
-  const pageMatch = html.match(/共\s*(\d+)\s*页/i) || html.match(/<[aA][^>]*>(\d+)<\/[aA]>(?!\s*<[aA][^>]*>)/) || html.match(/<span[^>]*class\s*=\s*["']page["'][^>]*>[\s\S]*?(\d+)[^<]*页/)
+  const pageMatch =
+    html.match(/共\s*(\d+)\s*页/i) ||
+    html.match(/<[aA][^>]*>(\d+)<\/[aA]>(?!\s*<[aA][^>]*>)/) ||
+    html.match(/<span[^>]*class\s*=\s*["']page["'][^>]*>[\s\S]*?(\d+)[^<]*页/)
   if (pageMatch) {
     totalPages = Number.parseInt(pageMatch[1]!, 10) || 1
   } else {
@@ -237,7 +251,10 @@ export interface TitleSource {
   url: string
 }
 
-export async function searchTitleSources(title: string, author: string): Promise<{ title: string; author: string; sources: Record<string, { ok: boolean; results: TitleSource[]; error?: string }> }> {
+export async function searchTitleSources(
+  title: string,
+  author: string,
+): Promise<{ title: string; author: string; sources: Record<string, { ok: boolean; results: TitleSource[]; error?: string }> }> {
   const [jjwxc, po18tw] = await Promise.all([searchJjwxcTitlesSource(title, author), searchPo18twTitlesSource(title, author)])
   return { title, author, sources: { jjwxc, po18tw } }
 }
@@ -254,7 +271,10 @@ async function searchJjwxcTitlesSource(title: string, author: string): Promise<{
         const url = `https://www.jjwxc.net/search.php?kw=${gbkEncode(item.q)}&t=${item.type}${page > 1 ? `&p=${page}` : ''}`
         const { html } = await fetchHtml(url, { forceEncoding: 'gb18030' })
         const before = results.length
-        const cards = html.match(/<div>\s*<h3\s+class\s*=\s*["']title["'][\s\S]*?(?=<div style="margin-top: 20px;border-bottom|<div class="page">|<\/div>\s*<div id="other_search")/gi) || []
+        const cards =
+          html.match(
+            /<div>\s*<h3\s+class\s*=\s*["']title["'][\s\S]*?(?=<div style="margin-top: 20px;border-bottom|<div class="page">|<\/div>\s*<div id="other_search")/gi,
+          ) || []
         for (const card of cards) {
           const link = card.match(/<a[^>]*href\s*=\s*["']([^"']*onebook\.php\?novelid=(\d+)[^"']*)["'][^>]*>([\s\S]*?)<\/a>/i)
           if (!link || seen.has(link[2]!)) continue
@@ -334,7 +354,9 @@ export async function extractJjwxcTitles(sourceUrl: string): Promise<{ titles: A
   return { titles }
 }
 
-export async function extractPo18twTitles(sourceUrl: string): Promise<{ site: string; sourceUrl: string; total: number; titles: Array<{ order: number; title: string; url: string }> }> {
+export async function extractPo18twTitles(
+  sourceUrl: string,
+): Promise<{ site: string; sourceUrl: string; total: number; titles: Array<{ order: number; title: string; url: string }> }> {
   let url: URL
   try {
     url = new URL(sourceUrl)

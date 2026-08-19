@@ -15,25 +15,16 @@ import { parseLegadoJsonStream, normalizeSource, legadoHost, buildSourceRow, sou
 import { SITE_PRESETS, buildCoverUrl } from '../services/scraper/presets'
 import { discoverList, extractJjwxcTitles, extractPo18twTitles, proxyCover, searchPo18, searchTitleSources } from '../services/scraper/enrich'
 import { cacheCoverForNovel, getStoredCover } from '../services/covers'
-import { safeFetch } from '../services/safe-fetch'
+import { listOutboundRequestLogs, outboundFetch } from '../services/outbound-fetch'
 import { readRuntimeConfig, syncRuntimeConfigToEnv, writeRuntimeConfig } from '../runtime-config'
 
 export const scrapeRoutes = new Hono()
 
 function makeDeps(db: ReturnType<typeof getDb>): ScrapeDeps {
-  const config = loadConfig()
   const store = new PgScrapeStore(db)
   return {
     store,
-    fetchHtml: (url: string, opts?: FetchHtmlOptions) =>
-      fetchHtmlImpl(url, {
-        ...opts,
-        proxyBase: config.proxyBase,
-        proxyDomains: config.proxyDomains,
-        httpProxy: config.httpProxy,
-        httpsProxy: config.httpsProxy,
-        noProxy: config.noProxy,
-      }),
+    fetchHtml: (url: string, opts?: FetchHtmlOptions) => fetchHtmlImpl(url, opts),
     log: (job, message, level) => {
       const id = job?.id || 'unknown'
       const novel = job?.novelId ? ` ${job.novelId}` : ''
@@ -48,10 +39,10 @@ function proxyConfigPayload() {
   const stored = readRuntimeConfig()
   const config = loadConfig()
   const storedBase = stored.PROXY_BASE || ''
-  const storedDomains = stored.PROXY_DOMAINS || ''
+  const storedBypass = stored.PROXY_BYPASS || ''
   const environmentProxy = config.httpsProxy || config.httpProxy
   const envOwnsBase = Boolean(environmentProxy || (process.env.PROXY_BASE?.trim() && process.env.PROXY_BASE.trim() !== storedBase))
-  const envOwnsDomains = Boolean(process.env.PROXY_DOMAINS?.trim() && process.env.PROXY_DOMAINS.trim() !== storedDomains)
+  const envOwnsBypass = Boolean(process.env.PROXY_BYPASS?.trim() && process.env.PROXY_BYPASS.trim() !== storedBypass)
   let effectiveHost = ''
   try {
     effectiveHost = environmentProxy ? new URL(environmentProxy).host : config.proxyBase ? new URL(config.proxyBase).host : ''
@@ -59,20 +50,21 @@ function proxyConfigPayload() {
     effectiveHost = ''
   }
   return {
-    config: { proxyBase: storedBase, proxyDomains: storedDomains },
+    config: { proxyBase: storedBase, proxyBypass: storedBypass },
     effective: {
       proxyBase: envOwnsBase ? '' : config.proxyBase,
-      proxyDomains: envOwnsBase || envOwnsDomains ? '' : config.proxyDomains,
+      proxyBypass: envOwnsBypass ? '' : config.proxyBypass,
     },
+    noProxy: config.noProxy,
     effectiveHost,
     configured: Boolean(environmentProxy || config.proxyBase),
-    source: envOwnsBase || envOwnsDomains ? 'environment' : storedBase ? 'runtime' : 'none',
+    source: envOwnsBase || envOwnsBypass ? 'environment' : storedBase ? 'runtime' : 'none',
   }
 }
 
-function validateProxyConfig(body: Record<string, unknown>): { proxyBase: string; proxyDomains: string } | { error: string } {
+function validateProxyConfig(body: Record<string, unknown>): { proxyBase: string; proxyBypass: string } | { error: string } {
   const proxyBase = String(body.proxyBase ?? '').trim()
-  const proxyDomains = String(body.proxyDomains ?? '').trim()
+  const proxyBypass = String(body.proxyBypass ?? body.proxyDomains ?? '').trim()
   if (proxyBase) {
     try {
       const parsed = new URL(proxyBase)
@@ -82,14 +74,14 @@ function validateProxyConfig(body: Record<string, unknown>): { proxyBase: string
       return { error: '代理地址格式不正确' }
     }
   }
-  const domains = proxyDomains
+  const rules = proxyBypass
     .split(',')
     .map((value) => value.trim())
     .filter(Boolean)
-  if (domains.some((domain) => !/^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/i.test(domain))) {
-    return { error: '代理域名列表包含无效域名，请用逗号分隔主域名' }
+  if (rules.some((rule) => rule.length > 255 || /[\s/@?#]/.test(rule))) {
+    return { error: '跳过代理列表包含无效规则，请用逗号分隔主机、域名或 IP' }
   }
-  return { proxyBase, proxyDomains: domains.join(',') }
+  return { proxyBase, proxyBypass: rules.join(',') }
 }
 
 function fireJob(jobId: string, deps: ScrapeDeps): void {
@@ -131,7 +123,13 @@ scrapeRoutes.get('/', async (c) => {
     const job = await store.loadJob(jobId)
     if (!job) return c.json({ error: 'Job not found or expired' }, 404)
     const summary = await store.getJobSummary(jobId)
-    return c.json({ ...job, ...summary, summary, recentLogs: await store.getJobLogs(jobId, { limit: 30 }), failedItems: await store.getJobItems(jobId, { status: 'failed', limit: 12 }) })
+    return c.json({
+      ...job,
+      ...summary,
+      summary,
+      recentLogs: await store.getJobLogs(jobId, { limit: 30 }),
+      failedItems: await store.getJobItems(jobId, { status: 'failed', limit: 12 }),
+    })
   }
   if (action === 'items' && jobId) {
     return c.json({ items: await store.getJobItems(jobId, { status: c.req.query('status') || '', limit: Number(c.req.query('limit')) || 80 }) })
@@ -144,6 +142,9 @@ scrapeRoutes.get('/', async (c) => {
   }
   if (action === 'proxy-config') {
     return c.json(proxyConfigPayload(), 200, { 'Cache-Control': 'no-store' })
+  }
+  if (action === 'proxy-logs') {
+    return c.json({ logs: listOutboundRequestLogs(Number(c.req.query('limit')) || 50) }, 200, { 'Cache-Control': 'no-store' })
   }
   return c.json({ error: 'Unknown action or missing param' }, 400)
 })
@@ -196,7 +197,18 @@ scrapeRoutes.post('/', async (c) => {
       }
       await deps.store.upsertScrapeConfig({ novelId, sourceUrl, selectors, encoding })
       const jobId = 'job_' + Date.now().toString(36)
-      const job: JobData = { id: jobId, novelId, status: 'starting', progress: 0, current: 0, total: 0, chapterCount: 0, error: null, startedAt: Date.now(), updatedAt: Date.now() }
+      const job: JobData = {
+        id: jobId,
+        novelId,
+        status: 'starting',
+        progress: 0,
+        current: 0,
+        total: 0,
+        chapterCount: 0,
+        error: null,
+        startedAt: Date.now(),
+        updatedAt: Date.now(),
+      }
       await deps.store.saveJob(job)
       fireJob(jobId, deps)
       return c.json({ jobId, message: 'Scrape job started' }, 202)
@@ -207,7 +219,19 @@ scrapeRoutes.post('/', async (c) => {
       const cfg = await deps.store.getScrapeConfig(novelId)
       if (!cfg) return c.json({ error: '未找到该小说的爬虫配置。请先通过智能分析配置爬虫。' }, 404)
       const jobId = 'upd_' + Date.now().toString(36)
-      const job: JobData = { id: jobId, novelId, updateMode: true, status: 'starting', progress: 0, current: 0, total: 0, chapterCount: 0, error: null, startedAt: Date.now(), updatedAt: Date.now() }
+      const job: JobData = {
+        id: jobId,
+        novelId,
+        updateMode: true,
+        status: 'starting',
+        progress: 0,
+        current: 0,
+        total: 0,
+        chapterCount: 0,
+        error: null,
+        startedAt: Date.now(),
+        updatedAt: Date.now(),
+      }
       await deps.store.saveJob(job)
       fireJob(jobId, deps)
       return c.json({ jobId, message: 'Update scrape started', updateMode: true }, 202)
@@ -221,7 +245,18 @@ scrapeRoutes.post('/', async (c) => {
       const cfg = await deps.store.getScrapeConfig(oldJob.novelId)
       if (!cfg) return c.json({ error: '未找到该小说的爬虫配置，请重新配置' }, 404)
       const newJobId = 'job_' + Date.now().toString(36)
-      const job: JobData = { id: newJobId, novelId: oldJob.novelId, status: 'starting', progress: 0, current: 0, total: 0, chapterCount: 0, error: null, startedAt: Date.now(), updatedAt: Date.now() }
+      const job: JobData = {
+        id: newJobId,
+        novelId: oldJob.novelId,
+        status: 'starting',
+        progress: 0,
+        current: 0,
+        total: 0,
+        chapterCount: 0,
+        error: null,
+        startedAt: Date.now(),
+        updatedAt: Date.now(),
+      }
       await deps.store.saveJob(job)
       fireJob(newJobId, deps)
       return c.json({ jobId: newJobId, message: 'Retry started' }, 202)
@@ -251,7 +286,10 @@ scrapeRoutes.post('/', async (c) => {
         updatedAt: Date.now(),
       }
       await deps.store.saveJob(job)
-      await deps.store.replaceJobItems(retryJobId, job.retryLinks!.map((l) => ({ href: l.href!, text: l.text || '' })))
+      await deps.store.replaceJobItems(
+        retryJobId,
+        job.retryLinks!.map((l) => ({ href: l.href!, text: l.text || '' })),
+      )
       await deps.store.appendJobLog(retryJobId, 'info', '开始重试失败章节，共 ' + failedItems.length + ' 章')
       fireJob(retryJobId, deps)
       return c.json({ jobId: retryJobId, message: 'Retry failed chapters started', total: failedItems.length }, 202)
@@ -284,7 +322,7 @@ scrapeRoutes.post('/', async (c) => {
     case 'save-proxy-config': {
       const validated = validateProxyConfig(body as Record<string, unknown>)
       if ('error' in validated) return c.json({ error: validated.error }, 400)
-      const patch = { PROXY_BASE: validated.proxyBase, PROXY_DOMAINS: validated.proxyDomains } as const
+      const patch = { PROXY_BASE: validated.proxyBase, PROXY_BYPASS: validated.proxyBypass, PROXY_DOMAINS: '' } as const
       const before = readRuntimeConfig()
       writeRuntimeConfig(patch)
       syncRuntimeConfigToEnv(before, patch)
@@ -296,11 +334,12 @@ scrapeRoutes.post('/', async (c) => {
       const config = loadConfig()
       const proxyOptions = {
         proxyBase: config.proxyBase,
-        proxyDomains: config.proxyDomains,
+        proxyBypass: config.proxyBypass,
         httpProxy: config.httpProxy,
         httpsProxy: config.httpsProxy,
         noProxy: config.noProxy,
         forceProxy: true,
+        scope: 'proxy-test',
       }
       let proxyUrl = ''
       try {
@@ -326,10 +365,7 @@ scrapeRoutes.post('/', async (c) => {
           elapsedMs: Date.now() - startedAt,
         })
       } catch (err) {
-        return c.json(
-          { ok: false, error: (err as Error).message || '代理请求失败', code: 'proxy_request_failed', elapsedMs: Date.now() - startedAt },
-          200,
-        )
+        return c.json({ ok: false, error: (err as Error).message || '代理请求失败', code: 'proxy_request_failed', elapsedMs: Date.now() - startedAt }, 200)
       }
     }
     case 'list-configs':
@@ -400,7 +436,9 @@ scrapeRoutes.post('/', async (c) => {
     }
     case 'check-source-connectivity': {
       const requestedHosts = Array.isArray(body.hosts) ? Array.from(new Set(body.hosts.map((host: unknown) => String(host || '').trim()).filter(Boolean))) : []
-      const rows = requestedHosts.length ? (await deps.store.listAllSources()).filter((row) => requestedHosts.includes(String(row.host || ''))) : await deps.store.listAllSources()
+      const rows = requestedHosts.length
+        ? (await deps.store.listAllSources()).filter((row) => requestedHosts.includes(String(row.host || '')))
+        : await deps.store.listAllSources()
       if (body.preview === true) return c.json({ success: true, hosts: rows.map((row) => String(row.host || '')).filter(Boolean) })
       const results: Array<{ host: string; connectivity: 'reachable' | 'unreachable'; error?: string }> = []
       let cursor = 0
@@ -421,10 +459,18 @@ scrapeRoutes.post('/', async (c) => {
         }
       }
       await Promise.all(Array.from({ length: Math.min(12, Math.max(1, rows.length)) }, () => worker()))
-      return c.json({ success: true, checked: results.length, reachable: results.filter((result) => result.connectivity === 'reachable').length, unreachable: results.filter((result) => result.connectivity === 'unreachable').length, results })
+      return c.json({
+        success: true,
+        checked: results.length,
+        reachable: results.filter((result) => result.connectivity === 'reachable').length,
+        unreachable: results.filter((result) => result.connectivity === 'unreachable').length,
+        results,
+      })
     }
     case 'delete-unreachable-sources': {
-      const deleted = await deps.store.batchDeleteSources((await deps.store.listAllSources()).filter((row) => row.connectivity === 'unreachable').map((row) => String(row.host || '')))
+      const deleted = await deps.store.batchDeleteSources(
+        (await deps.store.listAllSources()).filter((row) => row.connectivity === 'unreachable').map((row) => String(row.host || '')),
+      )
       return c.json({ success: true, deleted })
     }
     case 'test-source': {
@@ -548,7 +594,7 @@ async function handleFixCover(c: Context, body: any) {
   if (row && row.cover_url === coverUrl) return c.json({ coverUrl, skipped: true, fixed: false })
   let valid = false
   try {
-    const check = await safeFetch(coverUrl, { method: 'HEAD', headers: { 'User-Agent': 'Mozilla/5.0' } })
+    const check = await outboundFetch(coverUrl, { method: 'HEAD', headers: { 'User-Agent': 'Mozilla/5.0' } }, { scope: 'cover-check', safe: true })
     valid = check.ok
   } catch {
     /* keep false */
@@ -573,7 +619,11 @@ async function handleImportLegado(c: Context, body: any) {
     parseErrors = r.errors
   } else if (url) {
     try {
-      const res = await safeFetch(String(url), { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' } })
+      const res = await outboundFetch(
+        String(url),
+        { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' } },
+        { scope: 'source-import', safe: true },
+      )
       if (!res.ok) return c.json({ error: `拉取书源池失败: HTTP ${res.status}` }, 502)
       const r = parseLegadoJsonStream(await res.text())
       sources = r.sources

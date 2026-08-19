@@ -5,6 +5,7 @@
  * 与 client.ts 的 chat() 对称：同款 AiError 语义、退避重试、上游错误中文提示。
  */
 import { loadConfig, type AiProviderConfig } from '../../config'
+import { outboundFetch } from '../outbound-fetch'
 import { AiError } from './client'
 
 export interface AiImageOptions {
@@ -51,7 +52,9 @@ export function imageProviderLabel(baseUrl: string): string {
 
 /** baseUrl 允许写到 /v1 或直接写到 /images/generations，两种都归一。 */
 function imageEndpoint(baseUrl: string): string {
-  const base = String(baseUrl || '').trim().replace(/\/+$/, '')
+  const base = String(baseUrl || '')
+    .trim()
+    .replace(/\/+$/, '')
   if (!base) return ''
   if (/\/images\/generations$/i.test(base)) return base
   return base + '/images/generations'
@@ -98,12 +101,16 @@ async function once(endpoint: string, apiKey: string, body: string, model: strin
 
   let res: Response
   try {
-    res = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body,
-      signal,
-    })
+    res = await outboundFetch(
+      endpoint,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        body,
+        signal,
+      },
+      { scope: 'ai-image' },
+    )
   } catch (err) {
     const name = (err as Error)?.name || ''
     if (name === 'TimeoutError' || name === 'AbortError') throw new AiError('timeout', 'AI 图像服务响应超时', 504)
@@ -152,7 +159,7 @@ async function extractB64(data: ImageGenerationResponse | null): Promise<string 
 /** 部分网关忽略 response_format，直接返回 URL；下载后以 base64 形式交回调用方解码。 */
 async function fetchUrlToB64(url: string): Promise<string | null> {
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS) })
+    const res = await outboundFetch(url, { signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS) }, { scope: 'ai-image-download', safe: true })
     if (!res.ok) return null
     const contentType = res.headers.get('Content-Type') || ''
     if (!/^image\//i.test(contentType)) return null
@@ -185,8 +192,7 @@ function describeUpstreamError(status: number, detail: string): string {
   try {
     const parsed = JSON.parse(body)
     const errObj = (parsed && typeof parsed === 'object' && 'error' in parsed ? (parsed as { error: unknown }).error : parsed) as
-      | { code?: string; message?: string; type?: string }
-      | undefined
+      { code?: string; message?: string; type?: string } | undefined
     const code = errObj?.code ? String(errObj.code) : ''
     const message = errObj?.message ? String(errObj.message) : ''
     if (!code && !message) return prefix
@@ -197,7 +203,7 @@ function describeUpstreamError(status: number, detail: string): string {
       invalid_api_key: '上游密钥无效',
       access_denied: '上游拒绝访问',
     }
-    const hint = code ? (codeHints[code] || code) : ''
+    const hint = code ? codeHints[code] || code : ''
     return [prefix, hint, message].filter(Boolean).join('：')
   } catch {
     return `${prefix}：${body}`

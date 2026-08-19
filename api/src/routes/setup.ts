@@ -77,9 +77,7 @@ export function buildDatabaseUrl(body: DatabaseBody): { url: string } | { error:
   if (!database) return { error: '数据库名不能为空' }
   if (/[\s/@#?]/.test(database)) return { error: '数据库名格式不正确' }
 
-  const auth = password
-    ? `${encodeURIComponent(user)}:${encodeURIComponent(password)}`
-    : encodeURIComponent(user)
+  const auth = password ? `${encodeURIComponent(user)}:${encodeURIComponent(password)}` : encodeURIComponent(user)
   // IPv6 字面量需要方括号
   const hostPart = host.includes(':') ? `[${host}]` : host
   const url = `postgres://${auth}@${hostPart}:${port}/${encodeURIComponent(database)}${ssl ? '?sslmode=require' : ''}`
@@ -160,7 +158,7 @@ const OPTION_KEYS: RuntimeConfigKey[] = [
   'AI_IMAGE_API_KEY',
   'AI_IMAGE_MODEL',
   'PROXY_BASE',
-  'PROXY_DOMAINS',
+  'PROXY_BYPASS',
   'CORS_ORIGINS',
 ]
 
