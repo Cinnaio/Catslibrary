@@ -1,12 +1,12 @@
 /**
  * HTML 抓取与编码检测 —— 由 Novel-KV _scrape-fetch.js 平移。
- * 纯 fetch + TextDecoder；浏览器代理（反爬）为可选，通过 opts.proxyBase 接入。
+ * 纯 fetch + TextDecoder；支持 Docker 环境代理与后台开发代理。
  */
 import { assertPublicUrl, safeFetch } from '../safe-fetch'
+import { ProxyAgent } from 'undici'
 
 export const FETCH_HEADERS = {
-  'User-Agent':
-    'Mozilla/5.0 (Linux; Android 13; Pixel 6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+  'User-Agent': 'Mozilla/5.0 (Linux; Android 13; Pixel 6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
   Accept: 'text/html,application/xhtml+xml',
   'Accept-Language': 'zh-CN,zh;q=0.9',
 }
@@ -16,8 +16,15 @@ export const DEFAULT_PROXY_DOMAINS = ['czbooks.net']
 export interface FetchHtmlOptions {
   forceEncoding?: string
   timeoutMs?: number
+  /** 后台运行时保存的代理，作为开发环境回退。 */
   proxyBase?: string
   proxyDomains?: string
+  /** Docker / 系统环境变量代理，优先于后台运行时配置。 */
+  httpProxy?: string
+  httpsProxy?: string
+  noProxy?: string
+  /** 仅用于管理员连通性探测，忽略域名与 NO_PROXY 规则。 */
+  forceProxy?: boolean
 }
 
 export interface FetchResult {
@@ -25,29 +32,99 @@ export interface FetchResult {
   encoding: string
 }
 
-export async function fetchHtml(url: string, opts: FetchHtmlOptions = {}): Promise<FetchResult> {
-  // SSRF 防护：目标 URL 来自用户输入（书源/抓取任务），先校验再出站
-  await assertPublicUrl(url)
+const proxyAgents = new Map<string, ProxyAgent>()
 
-  const proxyBase = (opts.proxyBase || '').trim()
-  if (proxyBase && shouldUseBrowserProxy(url, proxyBase, opts.proxyDomains)) {
-    try {
-      return await fetchHtmlViaProxy(url, opts.forceEncoding, opts.timeoutMs, proxyBase)
-    } catch (err) {
-      throw new Error(`浏览器代理失败: ${(err as Error).message}`)
-    }
+function proxyAgent(proxyUrl: string): NonNullable<RequestInit['dispatcher']> {
+  let agent = proxyAgents.get(proxyUrl)
+  if (!agent) {
+    agent = new ProxyAgent(proxyUrl)
+    proxyAgents.set(proxyUrl, agent)
   }
+  // Node 22 的全局 fetch 使用内置 undici-types；外部 undici 的 Dispatcher
+  // 运行时协议兼容，但声明版本不同，因此仅在边界处收窄转换。
+  return agent as unknown as NonNullable<RequestInit['dispatcher']>
+}
 
+function hostMatches(host: string, rule: string): boolean {
+  const normalizedHost = host.replace(/^\[|\]$/g, '')
+  const normalized = rule
+    .trim()
+    .toLowerCase()
+    .replace(/^\[|\]$/g, '')
+    .replace(/^\./, '')
+  return Boolean(normalized) && (normalizedHost === normalized || normalizedHost.endsWith('.' + normalized))
+}
+
+export function shouldBypassProxy(targetUrl: string, noProxy = ''): boolean {
+  const target = new URL(targetUrl)
+  const host = target.hostname.toLowerCase()
+  const port = target.port || (target.protocol === 'https:' ? '443' : '80')
+  return noProxy
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .some((rule) => {
+      if (rule === '*') return true
+      let ruleHost = rule
+      let rulePort = ''
+      if (rule.startsWith('[')) {
+        const bracket = rule.indexOf(']')
+        if (bracket > 0) {
+          ruleHost = rule.slice(1, bracket)
+          if (rule[bracket + 1] === ':') rulePort = rule.slice(bracket + 2)
+        }
+      } else if ((rule.match(/:/g) || []).length === 1) {
+        const portIndex = rule.lastIndexOf(':')
+        if (/^\d+$/.test(rule.slice(portIndex + 1))) {
+          ruleHost = rule.slice(0, portIndex)
+          rulePort = rule.slice(portIndex + 1)
+        }
+      }
+      return (!rulePort || rulePort === port) && hostMatches(host, ruleHost)
+    })
+}
+
+function shouldUseRuntimeProxy(targetUrl: string, proxyDomains?: string): boolean {
+  const host = new URL(targetUrl).hostname.toLowerCase()
+  const domains = (proxyDomains || DEFAULT_PROXY_DOMAINS.join(','))
+    .split(',')
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean)
+  return domains.some((domain) => hostMatches(host, domain))
+}
+
+/** 解析某个目标最终使用的标准 HTTP Forward Proxy。部署环境变量始终优先。 */
+export function resolveProxyUrl(targetUrl: string, opts: FetchHtmlOptions = {}): string {
+  const target = new URL(targetUrl)
+  const environmentProxy = target.protocol === 'https:' ? (opts.httpsProxy || opts.httpProxy || '').trim() : (opts.httpProxy || '').trim()
+  if (environmentProxy) {
+    if (!opts.forceProxy && shouldBypassProxy(target.href, opts.noProxy)) return ''
+    return environmentProxy
+  }
+  const runtimeProxy = (opts.proxyBase || '').trim()
+  if (!runtimeProxy) return ''
+  return opts.forceProxy || shouldUseRuntimeProxy(target.href, opts.proxyDomains) ? runtimeProxy : ''
+}
+
+export async function fetchHtml(url: string, opts: FetchHtmlOptions = {}): Promise<FetchResult> {
+  // SSRF 防护仍校验最终目标；代理地址由管理员或部署环境控制。
+  await assertPublicUrl(url)
+  const proxyUrl = resolveProxyUrl(url, opts)
   const timeoutMs = opts.timeoutMs || 28000
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), timeoutMs)
 
   let res: Response
   try {
-    res = await safeFetch(url, { headers: FETCH_HEADERS, signal: controller.signal })
+    res = await safeFetch(url, {
+      headers: FETCH_HEADERS,
+      signal: controller.signal,
+      ...(proxyUrl ? { dispatcher: proxyAgent(proxyUrl) } : {}),
+    })
   } catch (err) {
     clearTimeout(timeout)
     if ((err as Error).name === 'AbortError') throw new Error(`请求超时 (${Math.round(timeoutMs / 1000)}s): ${url}`)
+    if (proxyUrl) throw new Error(`代理请求失败: ${(err as Error).message}`)
     throw err
   }
   clearTimeout(timeout)
@@ -85,43 +162,6 @@ export async function fetchHtml(url: string, opts: FetchHtmlOptions = {}): Promi
   encoding = encoding || forceEncoding || null
   const html = decodeBytes(bytes, encoding || 'utf-8')
   return { html, encoding: encoding || 'utf-8' }
-}
-
-function shouldUseBrowserProxy(targetUrl: string, proxyBase: string, proxyDomains?: string): boolean {
-  if (!proxyBase) return false
-  let host: string
-  try {
-    host = new URL(targetUrl).hostname
-  } catch {
-    return false
-  }
-  const domains = (proxyDomains || DEFAULT_PROXY_DOMAINS.join(','))
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean)
-  return domains.some((domain) => host === domain || host.endsWith('.' + domain))
-}
-
-async function fetchHtmlViaProxy(targetUrl: string, forceEncoding: string | undefined, timeoutMs: number | undefined, proxyBase: string): Promise<FetchResult> {
-  const base = new URL(proxyBase)
-  base.searchParams.set('url', targetUrl)
-
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), timeoutMs || 70000)
-
-  let res: Response
-  try {
-    res = await fetch(base.href, { signal: controller.signal })
-  } catch (err) {
-    clearTimeout(timeout)
-    if ((err as Error).name === 'AbortError') throw new Error(`请求超时 (${Math.round((timeoutMs || 70000) / 1000)}s): ${targetUrl}`)
-    throw err
-  }
-  clearTimeout(timeout)
-
-  const html = await res.text()
-  if (!res.ok) throw new Error(`HTTP ${res.status} — ${html.slice(0, 120)}`)
-  return { html, encoding: forceEncoding || 'utf-8' }
 }
 
 export function decodeBytes(bytes: Uint8Array, encoding: string): string {

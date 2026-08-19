@@ -18,8 +18,12 @@ export interface AppConfig {
   sessionHashSalt: string
   /** 是否信任反向代理的转发头（CF-Connecting-IP / X-Forwarded-For / X-Real-IP）。 */
   trustProxy: boolean
+  /** 后台保存的开发环境代理；部署环境的 HTTP(S)_PROXY 优先。 */
   proxyBase: string
   proxyDomains: string
+  httpProxy: string
+  httpsProxy: string
+  noProxy: string
   aiText: AiProviderConfig
   aiImage: AiProviderConfig
 }
@@ -55,6 +59,9 @@ export function loadConfig(): AppConfig {
     trustProxy: /^(1|true|yes)$/i.test(process.env.TRUST_PROXY?.trim() || ''),
     proxyBase: process.env.PROXY_BASE?.trim() || '',
     proxyDomains: process.env.PROXY_DOMAINS?.trim() || process.env.PROXY_ALLOW_HOSTS?.trim() || '',
+    httpProxy: process.env.HTTP_PROXY?.trim() || process.env.http_proxy?.trim() || '',
+    httpsProxy: process.env.HTTPS_PROXY?.trim() || process.env.https_proxy?.trim() || '',
+    noProxy: process.env.NO_PROXY?.trim() || process.env.no_proxy?.trim() || '',
     aiText: {
       baseUrl: process.env.AI_TEXT_BASE_URL?.trim() || '',
       apiKey: process.env.AI_TEXT_API_KEY?.trim() || '',

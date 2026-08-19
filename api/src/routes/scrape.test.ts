@@ -1,4 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { app } from '../app'
 import { setDbForTests } from '../db/pool'
 import { createTestDb, type TestDb } from '../test/db'
@@ -53,6 +56,96 @@ describe('scrape 路由（免网络动作）', () => {
     const miss = await req('/api/scrape', json('POST', { action: 'detect', sourceUrl: 'https://unknown-site.example.com/book/1' }, adminToken))
     const missData = await jsonOf<{ detected: boolean }>(miss)
     expect(missData.detected).toBe(false)
+  })
+
+  it('管理员可以保存开发代理，Docker 环境代理优先并可测试', async () => {
+    const runtimeDir = mkdtempSync(join(tmpdir(), 'zhi-zhou-proxy-'))
+    const previousRuntimeDir = process.env.RUNTIME_CONFIG_DIR
+    const previousProxyBase = process.env.PROXY_BASE
+    const previousProxyDomains = process.env.PROXY_DOMAINS
+    const previousHttpProxy = process.env.HTTP_PROXY
+    const previousHttpsProxy = process.env.HTTPS_PROXY
+    const previousNoProxy = process.env.NO_PROXY
+    process.env.RUNTIME_CONFIG_DIR = runtimeDir
+    delete process.env.PROXY_BASE
+    delete process.env.PROXY_DOMAINS
+    delete process.env.HTTP_PROXY
+    delete process.env.HTTPS_PROXY
+    delete process.env.NO_PROXY
+    try {
+      const invalid = await req(
+        '/api/scrape',
+        json('POST', { action: 'save-proxy-config', proxyBase: 'ftp://proxy.example.com', proxyDomains: 'example.com' }, adminToken),
+      )
+      expect(invalid.status).toBe(400)
+
+      const saved = await req(
+        '/api/scrape',
+        json(
+          'POST',
+          {
+            action: 'save-proxy-config',
+            proxyBase: 'http://127.0.0.1:7890',
+            proxyDomains: 'czbooks.net, example.com',
+          },
+          adminToken,
+        ),
+      )
+      expect(saved.status).toBe(200)
+      const savedData = await jsonOf<{ configured: boolean; effectiveHost: string; config: { proxyDomains: string } }>(saved)
+      expect(savedData.configured).toBe(true)
+      expect(savedData.effectiveHost).toBe('127.0.0.1:7890')
+      expect(savedData.config.proxyDomains).toBe('czbooks.net,example.com')
+
+      const loaded = await req('/api/scrape?action=proxy-config', json('GET', undefined, adminToken))
+      expect(loaded.status).toBe(200)
+      const loadedData = await jsonOf<{ source: string; config: { proxyBase: string } }>(loaded)
+      expect(loadedData.source).toBe('runtime')
+      expect(loadedData.config.proxyBase).toBe('http://127.0.0.1:7890')
+
+      process.env.HTTPS_PROXY = 'http://172.18.0.1:7890'
+      const environmentLoaded = await req('/api/scrape?action=proxy-config', json('GET', undefined, adminToken))
+      const environmentData = await jsonOf<{ source: string; effectiveHost: string; effective: { proxyBase: string } }>(environmentLoaded)
+      expect(environmentData).toMatchObject({ source: 'environment', effectiveHost: '172.18.0.1:7890' })
+      expect(environmentData.effective.proxyBase).toBe('')
+
+      const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+        new Response('<html><body>proxy ok</body></html>', {
+          status: 200,
+          headers: { 'Content-Type': 'text/html; charset=utf-8' },
+        }),
+      )
+      process.env.ALLOW_PRIVATE_FETCH = '1'
+      try {
+        const tested = await req(
+          '/api/scrape',
+          json('POST', { action: 'proxy-test', sourceUrl: 'https://target.example.org/book/1' }, adminToken),
+        )
+        expect(tested.status).toBe(200)
+        const testedData = await jsonOf<{ ok: boolean; proxyHost: string; targetHost: string }>(tested)
+        expect(testedData).toMatchObject({ ok: true, proxyHost: '172.18.0.1:7890', targetHost: 'target.example.org' })
+        const requestedUrl = String(fetchMock.mock.calls[0]?.[0])
+        expect(requestedUrl).toBe('https://target.example.org/book/1')
+        expect((fetchMock.mock.calls[0]?.[1] as { dispatcher?: unknown }).dispatcher).toBeTruthy()
+      } finally {
+        delete process.env.ALLOW_PRIVATE_FETCH
+        fetchMock.mockRestore()
+      }
+    } finally {
+      if (previousRuntimeDir === undefined) delete process.env.RUNTIME_CONFIG_DIR
+      else process.env.RUNTIME_CONFIG_DIR = previousRuntimeDir
+      if (previousProxyBase === undefined) delete process.env.PROXY_BASE
+      else process.env.PROXY_BASE = previousProxyBase
+      if (previousProxyDomains === undefined) delete process.env.PROXY_DOMAINS
+      else process.env.PROXY_DOMAINS = previousProxyDomains
+      if (previousHttpProxy === undefined) delete process.env.HTTP_PROXY
+      else process.env.HTTP_PROXY = previousHttpProxy
+      if (previousHttpsProxy === undefined) delete process.env.HTTPS_PROXY
+      else process.env.HTTPS_PROXY = previousHttpsProxy
+      if (previousNoProxy === undefined) delete process.env.NO_PROXY
+      else process.env.NO_PROXY = previousNoProxy
+      rmSync(runtimeDir, { recursive: true, force: true })
+    }
   })
 
   it('import-legado：解析文本导入书源，支持站点名搜索与批量操作', async () => {

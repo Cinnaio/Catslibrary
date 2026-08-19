@@ -673,6 +673,36 @@ export const downloadLogsApi = {
 // ---------- Scrape ----------
 
 export const scrapeApi = {
+  proxyConfig(): Promise<{
+    config: { proxyBase: string; proxyDomains: string }
+    effective: { proxyBase: string; proxyDomains: string }
+    effectiveHost: string
+    configured: boolean
+    source: 'environment' | 'runtime' | 'none'
+  }> {
+    return request('GET', '/scrape?action=proxy-config', null, true)
+  },
+  saveProxyConfig(config: { proxyBase: string; proxyDomains: string }): Promise<{
+    ok: boolean
+    config: { proxyBase: string; proxyDomains: string }
+    effective: { proxyBase: string; proxyDomains: string }
+    effectiveHost: string
+    configured: boolean
+    source: 'environment' | 'runtime' | 'none'
+  }> {
+    return request('POST', '/scrape', { action: 'save-proxy-config', ...config }, true)
+  },
+  testProxy(sourceUrl: string): Promise<{
+    ok: boolean
+    error?: string
+    targetHost?: string
+    proxyHost?: string
+    encoding?: string
+    length?: number
+    elapsedMs?: number
+  }> {
+    return request('POST', '/scrape', { action: 'proxy-test', sourceUrl }, true)
+  },
   detect(sourceUrl: string): Promise<{ detected: boolean; source?: string; preset?: unknown }> {
     return request('POST', '/scrape', { action: 'detect', sourceUrl }, true)
   },

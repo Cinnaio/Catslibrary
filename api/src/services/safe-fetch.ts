@@ -115,7 +115,7 @@ export async function safeFetch(rawUrl: string, init: RequestInit = {}): Promise
   let current = (await assertPublicUrl(rawUrl)).href
   let currentInit = init
   for (let i = 0; i <= MAX_REDIRECTS; i++) {
-    const res = await fetch(current, { ...currentInit, redirect: 'manual' })
+    const res = await fetch(current, { ...currentInit, redirect: 'manual' } as RequestInit)
     if (res.status < 300 || res.status >= 400) return res
     const location = res.headers.get('Location')
     if (!location) return res

@@ -7,7 +7,7 @@ import { loadConfig } from '../config'
 import { getDb } from '../db/pool'
 import { first } from '../db/query'
 import { requireAdmin } from '../middlewares/auth'
-import { fetchHtml as fetchHtmlImpl, type FetchHtmlOptions } from '../services/scraper/fetch'
+import { fetchHtml as fetchHtmlImpl, resolveProxyUrl, type FetchHtmlOptions } from '../services/scraper/fetch'
 import { runScrapeJob, testSelectors, type ScrapeDeps } from '../services/scraper/engine'
 import { detectMeta } from '../services/scraper/meta'
 import { getPresetForUrl, PgScrapeStore, type JobData } from '../services/scraper/store'
@@ -16,6 +16,7 @@ import { SITE_PRESETS, buildCoverUrl } from '../services/scraper/presets'
 import { discoverList, extractJjwxcTitles, extractPo18twTitles, proxyCover, searchPo18, searchTitleSources } from '../services/scraper/enrich'
 import { cacheCoverForNovel, getStoredCover } from '../services/covers'
 import { safeFetch } from '../services/safe-fetch'
+import { readRuntimeConfig, syncRuntimeConfigToEnv, writeRuntimeConfig } from '../runtime-config'
 
 export const scrapeRoutes = new Hono()
 
@@ -25,7 +26,14 @@ function makeDeps(db: ReturnType<typeof getDb>): ScrapeDeps {
   return {
     store,
     fetchHtml: (url: string, opts?: FetchHtmlOptions) =>
-      fetchHtmlImpl(url, { ...opts, proxyBase: config.proxyBase, proxyDomains: config.proxyDomains }),
+      fetchHtmlImpl(url, {
+        ...opts,
+        proxyBase: config.proxyBase,
+        proxyDomains: config.proxyDomains,
+        httpProxy: config.httpProxy,
+        httpsProxy: config.httpsProxy,
+        noProxy: config.noProxy,
+      }),
     log: (job, message, level) => {
       const id = job?.id || 'unknown'
       const novel = job?.novelId ? ` ${job.novelId}` : ''
@@ -34,6 +42,54 @@ function makeDeps(db: ReturnType<typeof getDb>): ScrapeDeps {
       else console.log(`[scrape] ${id}${novel} ${message}`)
     },
   }
+}
+
+function proxyConfigPayload() {
+  const stored = readRuntimeConfig()
+  const config = loadConfig()
+  const storedBase = stored.PROXY_BASE || ''
+  const storedDomains = stored.PROXY_DOMAINS || ''
+  const environmentProxy = config.httpsProxy || config.httpProxy
+  const envOwnsBase = Boolean(environmentProxy || (process.env.PROXY_BASE?.trim() && process.env.PROXY_BASE.trim() !== storedBase))
+  const envOwnsDomains = Boolean(process.env.PROXY_DOMAINS?.trim() && process.env.PROXY_DOMAINS.trim() !== storedDomains)
+  let effectiveHost = ''
+  try {
+    effectiveHost = environmentProxy ? new URL(environmentProxy).host : config.proxyBase ? new URL(config.proxyBase).host : ''
+  } catch {
+    effectiveHost = ''
+  }
+  return {
+    config: { proxyBase: storedBase, proxyDomains: storedDomains },
+    effective: {
+      proxyBase: envOwnsBase ? '' : config.proxyBase,
+      proxyDomains: envOwnsBase || envOwnsDomains ? '' : config.proxyDomains,
+    },
+    effectiveHost,
+    configured: Boolean(environmentProxy || config.proxyBase),
+    source: envOwnsBase || envOwnsDomains ? 'environment' : storedBase ? 'runtime' : 'none',
+  }
+}
+
+function validateProxyConfig(body: Record<string, unknown>): { proxyBase: string; proxyDomains: string } | { error: string } {
+  const proxyBase = String(body.proxyBase ?? '').trim()
+  const proxyDomains = String(body.proxyDomains ?? '').trim()
+  if (proxyBase) {
+    try {
+      const parsed = new URL(proxyBase)
+      if (!['http:', 'https:'].includes(parsed.protocol)) return { error: '代理地址必须使用 HTTP 或 HTTPS' }
+      if (!parsed.hostname) return { error: '代理地址缺少主机名' }
+    } catch {
+      return { error: '代理地址格式不正确' }
+    }
+  }
+  const domains = proxyDomains
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+  if (domains.some((domain) => !/^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/i.test(domain))) {
+    return { error: '代理域名列表包含无效域名，请用逗号分隔主域名' }
+  }
+  return { proxyBase, proxyDomains: domains.join(',') }
 }
 
 function fireJob(jobId: string, deps: ScrapeDeps): void {
@@ -85,6 +141,9 @@ scrapeRoutes.get('/', async (c) => {
   }
   if (action === 'config' && novelId) {
     return c.json({ config: await store.getScrapeConfig(novelId) })
+  }
+  if (action === 'proxy-config') {
+    return c.json(proxyConfigPayload(), 200, { 'Cache-Control': 'no-store' })
   }
   return c.json({ error: 'Unknown action or missing param' }, 400)
 })
@@ -220,6 +279,57 @@ scrapeRoutes.post('/', async (c) => {
         return c.json({ html, encoding: enc, length: html.length })
       } catch (err) {
         return c.json({ error: (err as Error).message }, 502)
+      }
+    }
+    case 'save-proxy-config': {
+      const validated = validateProxyConfig(body as Record<string, unknown>)
+      if ('error' in validated) return c.json({ error: validated.error }, 400)
+      const patch = { PROXY_BASE: validated.proxyBase, PROXY_DOMAINS: validated.proxyDomains } as const
+      const before = readRuntimeConfig()
+      writeRuntimeConfig(patch)
+      syncRuntimeConfigToEnv(before, patch)
+      return c.json({ ok: true, ...proxyConfigPayload() }, 200, { 'Cache-Control': 'no-store' })
+    }
+    case 'proxy-test': {
+      const sourceUrl = String(body.sourceUrl || '').trim()
+      if (!sourceUrl) return c.json({ error: 'sourceUrl required' }, 400)
+      const config = loadConfig()
+      const proxyOptions = {
+        proxyBase: config.proxyBase,
+        proxyDomains: config.proxyDomains,
+        httpProxy: config.httpProxy,
+        httpsProxy: config.httpsProxy,
+        noProxy: config.noProxy,
+        forceProxy: true,
+      }
+      let proxyUrl = ''
+      try {
+        proxyUrl = resolveProxyUrl(sourceUrl, proxyOptions)
+      } catch {
+        return c.json({ ok: false, error: '测试目标网址格式不正确', code: 'invalid_target_url' }, 400)
+      }
+      if (!proxyUrl) return c.json({ ok: false, error: '尚未配置代理地址', code: 'proxy_not_configured' }, 400)
+      const startedAt = Date.now()
+      try {
+        const result = await fetchHtmlImpl(sourceUrl, {
+          ...proxyOptions,
+          timeoutMs: 20_000,
+        })
+        const target = new URL(sourceUrl)
+        const proxy = new URL(proxyUrl)
+        return c.json({
+          ok: true,
+          targetHost: target.host,
+          proxyHost: proxy.host,
+          encoding: result.encoding,
+          length: result.html.length,
+          elapsedMs: Date.now() - startedAt,
+        })
+      } catch (err) {
+        return c.json(
+          { ok: false, error: (err as Error).message || '代理请求失败', code: 'proxy_request_failed', elapsedMs: Date.now() - startedAt },
+          200,
+        )
       }
     }
     case 'list-configs':

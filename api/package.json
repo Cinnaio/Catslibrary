@@ -17,7 +17,8 @@
     "iconv-lite": "^0.7",
     "opencc-js": "^1.4",
     "pg": "^8",
-    "pinyin-pro": "^3.28"
+    "pinyin-pro": "^3.28",
+    "undici": "^7.29.0"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.4",
