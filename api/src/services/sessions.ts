@@ -2,9 +2,9 @@
  * 会话 —— DB 操作层（由 Novel-KV createSession/getUser/deleteSession 平移）。
  */
 import type { Db } from '../db/pool'
-import { deviceName, hashToken, newToken, SESSION_TTL, type UserRow } from './auth'
+import { deviceName, hashToken, newToken, SESSION_TTL, REMEMBER_TTL, type UserRow } from './auth'
 
-export async function createSession(db: Db, userId: string, userAgent: string, salt: string): Promise<string> {
+export async function createSession(db: Db, userId: string, userAgent: string, salt: string, ttl = SESSION_TTL): Promise<string> {
   const token = newToken()
   const tokenHash = await hashToken(token, salt)
   const now = Date.now()
@@ -14,7 +14,7 @@ export async function createSession(db: Db, userId: string, userAgent: string, s
   await db.query(
     `INSERT INTO user_sessions (token_hash, user_id, expires_at, created_at, device_name, user_agent)
      VALUES ($1, $2, $3, $4, $5, $6)`,
-    [tokenHash, userId, now + SESSION_TTL, now, deviceName(userAgent), userAgent],
+    [tokenHash, userId, now + ttl, now, deviceName(userAgent), userAgent],
   )
   return token
 }

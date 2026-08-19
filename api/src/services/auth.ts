@@ -7,6 +7,8 @@ import { sha256Hex } from './hash'
 
 export const PASSWORD_ITERATIONS = 120000
 export const SESSION_TTL = 30 * 86400000
+/** 「保持登录」会话有效期：默认临时会话 30 天，勾选保持登录后延长到 180 天。 */
+export const REMEMBER_TTL = 180 * 86400000
 
 export interface UserRow {
   id: string

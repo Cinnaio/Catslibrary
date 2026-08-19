@@ -21,6 +21,7 @@ import {
   type UserRow,
 } from '../services/auth'
 import { createSession, deleteSessionByToken } from '../services/sessions'
+import { SESSION_TTL, REMEMBER_TTL } from '../services/auth'
 import { cleanReaderSettings, cleanUpdatedAt, mergeReaderSettings, parseSettingsState } from '../services/reader-settings'
 import { clientIpFromContext } from '../services/ai/audit-context'
 
@@ -122,9 +123,11 @@ authRoutes.post('/login', async (c) => {
   await run(db, 'UPDATE users SET last_login_at = $1, updated_at = $1 WHERE id = $2', [now, user.id])
   user.last_login_at = now
   user.updated_at = now
-  const token = await createSession(db, user.id, c.req.header('User-Agent') || '', salt)
+  // 保持登录：勾选时给更长的会话有效期（REMEMBER_TTL），否则用默认 SESSION_TTL
+  const remember = body.remember === true
+  const token = await createSession(db, user.id, c.req.header('User-Agent') || '', salt, remember ? REMEMBER_TTL : SESSION_TTL)
   await recordLoginAudit(db, c, { userId: user.id, username: user.username, status: 'success', reason: 'login' })
-  return c.json({ user: publicUser(user), token })
+  return c.json({ user: publicUser(user), token, remember })
 })
 
 authRoutes.post('/bootstrap-admin', async (c) => {

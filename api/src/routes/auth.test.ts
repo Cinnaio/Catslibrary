@@ -195,4 +195,30 @@ describe('auth 端到端（pglite）', () => {
     const me = await req('/api/auth/me', json('GET', undefined, token))
     expect(me.status).toBe(401)
   })
+
+  it('保持登录 remember=true 会给更长的会话有效期', async () => {
+    const now = Date.now()
+    // 不勾选：会话有效期应为默认 SESSION_TTL（30 天）
+    const normal = await req('/api/auth/login', json('POST', { username: 'reader1', password: 'newpass123' }))
+    const normalData = await jsonOf<{ token: string; remember?: boolean }>(normal)
+    expect(normalData.remember).toBe(false)
+
+    const listNormal = await req('/api/auth/sessions', json('GET', undefined, normalData.token))
+    const { sessions: normalSessions } = await jsonOf<{ sessions: Array<{ expiresAt: number }> }>(listNormal)
+    const normalExpiry = Math.max(...normalSessions.map((s) => s.expiresAt))
+    // 30 天有效期（毫秒），允许少量偏差
+    expect(normalExpiry - now).toBeGreaterThan(29 * 86400000)
+    expect(normalExpiry - now).toBeLessThanOrEqual(31 * 86400000)
+
+    // 勾选 remember=true：会话有效期应为 REMEMBER_TTL（180 天）
+    const remember = await req('/api/auth/login', json('POST', { username: 'reader1', password: 'newpass123', remember: true }))
+    const rememberData = await jsonOf<{ token: string; remember?: boolean }>(remember)
+    expect(rememberData.remember).toBe(true)
+
+    const listRemember = await req('/api/auth/sessions', json('GET', undefined, rememberData.token))
+    const { sessions: rememberSessions } = await jsonOf<{ sessions: Array<{ expiresAt: number }> }>(listRemember)
+    const rememberExpiry = Math.max(...rememberSessions.map((s) => s.expiresAt))
+    expect(rememberExpiry - now).toBeGreaterThan(179 * 86400000)
+    expect(rememberExpiry - now).toBeLessThanOrEqual(181 * 86400000)
+  })
 })

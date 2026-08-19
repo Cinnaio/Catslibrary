@@ -26,6 +26,7 @@ export default function Auth() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [invite, setInvite] = useState('')
+  const [remember, setRemember] = useState(true)
   const [msg, setMsg] = useState('')
   const [registerMode, setRegisterMode] = useState<'invite' | 'open' | 'closed'>('invite')
   const [busy, setBusy] = useState(false)
@@ -79,7 +80,7 @@ export default function Auth() {
     setBusy(true)
     setMsg('')
     try {
-      await login(username.trim(), password, false)
+      await login(username.trim(), password, remember)
       finish()
     } catch (err) {
       setMsg((err as Error).message || '登录失败')
@@ -143,6 +144,17 @@ export default function Auth() {
                   }}
                 />
               </div>
+              {isLogin && (
+                <label className="flex cursor-pointer select-none items-center gap-2 text-sm text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    className="size-4 rounded border-input accent-[var(--accent)]"
+                    checked={remember}
+                    onChange={(e) => setRemember(e.target.checked)}
+                  />
+                  保持登录
+                </label>
+              )}
               {showInvite && (
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="auth-invite">邀请码</Label>
