@@ -19,6 +19,8 @@ interface ThemeMenuProps {
   align?: 'end' | 'start'
   /** 自定义触发按钮内容；省略时显示当前主题对应的单一图标 */
   children?: ReactNode
+  /** 移动端紧凑触发器内容；桌面端仍使用 children 或当前主题图标 */
+  mobileChildren?: ReactNode
 }
 
 const OPTIONS: { value: ThemeSetting; label: string; icon: ReactNode }[] = [
@@ -45,7 +47,7 @@ const MENU_W = 200
 const MENU_H = 252
 const MENU_GAP = 6
 
-export function ThemeMenu({ className, wrapperClassName, ariaLabel = '主题设置', title = '主题设置', align = 'end', children }: ThemeMenuProps) {
+export function ThemeMenu({ className, wrapperClassName, ariaLabel = '主题设置', title = '主题设置', align = 'end', children, mobileChildren }: ThemeMenuProps) {
   const { setting, setSetting } = useTheme()
   const { accent, setAccent } = useAccent()
   const isCustomAccent = accent != null && !ACCENT_PRESETS.some((p) => p.color === accent)
@@ -126,7 +128,7 @@ export function ThemeMenu({ className, wrapperClassName, ariaLabel = '主题设�
         ref={triggerRef}
         type="button"
         data-slot="theme-menu-trigger"
-        className={className}
+        className={`${className || ''}${mobileChildren ? ' theme-menu-trigger--has-mobile' : ''}`.trim()}
         aria-label={triggerLabel}
         title={`${title}：${currentOption.label}`}
         aria-haspopup="menu"
@@ -136,7 +138,8 @@ export function ThemeMenu({ className, wrapperClassName, ariaLabel = '主题设�
           setOpen((v) => !v)
         }}
       >
-        {children ?? defaultIcon}
+        <span className="theme-menu__trigger-main">{children ?? defaultIcon}</span>
+        {mobileChildren && <span className="theme-menu__mobile-trigger-icons" aria-hidden="true">{mobileChildren}</span>}
       </button>
 
       <div

@@ -13,7 +13,7 @@ import { useSession } from '../context/SessionContext'
 import { useSearch } from '../context/SearchContext'
 import { useContentPolicy } from '../context/ContentPolicyContext'
 import { url } from '../lib/api'
-import { BookIcon, ChevronIcon, CloseIcon, MenuIcon, RefreshIcon, SearchIcon, ShieldIcon } from './icons'
+import { BookIcon, ChevronIcon, CloseIcon, MenuIcon, MoonIcon, RefreshIcon, SearchIcon, ShieldIcon, SunIcon } from './icons'
 import { ThemeMenu } from './ThemeMenu'
 import { useConfirm } from './feedback'
 
@@ -159,7 +159,17 @@ export default function SiteHeader() {
               <RefreshIcon />
             </button>
 
-            <ThemeMenu className="theme-btn" ariaLabel="主题设置" title="主题设置" />
+            <ThemeMenu
+              className="theme-btn"
+              ariaLabel="主题设置"
+              title="主题设置"
+              mobileChildren={
+                <>
+                  <SunIcon />
+                  <MoonIcon />
+                </>
+              }
+            />
 
             <button
               ref={mobileMenuTriggerRef}

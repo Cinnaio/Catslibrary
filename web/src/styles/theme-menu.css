@@ -7,6 +7,16 @@
   display: inline-flex;
 }
 
+.theme-menu__trigger-main {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.theme-menu__mobile-trigger-icons {
+  display: none;
+}
+
 /* 弹层 absolute 相对 .theme-menu 定位：避免阅读器顶栏/底栏的
    backdrop-filter/transform 创建包含块，导致 fixed 弹层坐标错位 */
 .theme-menu__popover {

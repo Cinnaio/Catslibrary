@@ -1,6 +1,6 @@
 {
   "name": "zhi-zhou",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "description": "知舟 — AI 中文小说阅读站（基于 Novel-KV 全量重写：React + Hono + TypeScript）",
   "type": "module",
