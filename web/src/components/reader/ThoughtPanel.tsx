@@ -9,6 +9,7 @@ import { url } from '../../lib/api'
 import { timeText } from '../../lib/format'
 
 interface ThoughtPanelProps {
+  open: boolean
   thoughts: Thought[]
   selectedText: string
   paragraphExcerpt: string
@@ -29,8 +30,8 @@ function ThoughtAvatar({ avatarUrl, name }: { avatarUrl?: string; name: string }
   )
 }
 
-export default function ThoughtPanel({ thoughts, selectedText, paragraphExcerpt, canDelete, onClose, onSubmit, onDelete }: ThoughtPanelProps) {
-  const restoreFocusRef = useRef(document.activeElement instanceof HTMLElement ? document.activeElement : null)
+export default function ThoughtPanel({ open, thoughts, selectedText, paragraphExcerpt, canDelete, onClose, onSubmit, onDelete }: ThoughtPanelProps) {
+  const restoreFocusRef = useRef<HTMLElement | null>(null)
   const [text, setText] = useState('')
   const [name, setName] = useState('')
   const [status, setStatus] = useState('')
@@ -60,12 +61,15 @@ export default function ThoughtPanel({ thoughts, selectedText, paragraphExcerpt,
   }
 
   return (
-    <DialogPrimitive.Root open onOpenChange={(open) => { if (!open) onClose() }}>
+    <DialogPrimitive.Root open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onClose() }}>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="thought-overlay" />
         <DialogPrimitive.Content
           className="thought-panel"
           aria-describedby={undefined}
+          onOpenAutoFocus={() => {
+            restoreFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+          }}
           onCloseAutoFocus={(event) => {
             event.preventDefault()
             restoreFocusRef.current?.focus()

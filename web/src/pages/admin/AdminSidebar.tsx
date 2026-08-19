@@ -3,7 +3,7 @@
  * nav groups (from the registry), footer with home / theme toggle, and rail.
  * Moved verbatim from the former Admin.tsx shell.
  */
-import { Link } from 'react-router-dom'
+import { Link, NavLink } from 'react-router-dom'
 import { Home, Monitor, Moon, Sun } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
 import { ThemeMenu } from '../../components/ThemeMenu'
@@ -21,20 +21,14 @@ import {
   SidebarRail,
   useSidebar,
 } from '@/components/ui/sidebar'
-import { NAV_GROUPS } from './admin-registry'
+import { adminTabPath, NAV_GROUPS } from './admin-registry'
 
 interface AdminSidebarProps {
   active: string
-  onSelect: (id: string) => void
 }
 
-function AdminNavigation({ active, onSelect }: AdminSidebarProps) {
+function AdminNavigation({ active }: AdminSidebarProps) {
   const { setOpenMobile } = useSidebar()
-
-  function select(id: string) {
-    onSelect(id)
-    setOpenMobile(false)
-  }
 
   return (
     <nav aria-label="管理导航">
@@ -46,13 +40,18 @@ function AdminNavigation({ active, onSelect }: AdminSidebarProps) {
               {group.items.map((tab) => (
                 <SidebarMenuItem key={tab.id}>
                   <SidebarMenuButton
+                    asChild
                     isActive={active === tab.id}
                     tooltip={tab.label}
-                    aria-current={active === tab.id ? 'page' : undefined}
-                    onClick={() => select(tab.id)}
                   >
-                    <tab.icon />
-                    <span>{tab.label}</span>
+                    <NavLink
+                      to={adminTabPath(tab.id)}
+                      aria-current={active === tab.id ? 'page' : undefined}
+                      onClick={() => setOpenMobile(false)}
+                    >
+                      <tab.icon />
+                      <span>{tab.label}</span>
+                    </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
@@ -64,7 +63,7 @@ function AdminNavigation({ active, onSelect }: AdminSidebarProps) {
   )
 }
 
-export default function AdminSidebar({ active, onSelect }: AdminSidebarProps) {
+export default function AdminSidebar({ active }: AdminSidebarProps) {
   const { setting } = useTheme()
 
   return (
@@ -85,7 +84,7 @@ export default function AdminSidebar({ active, onSelect }: AdminSidebarProps) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent className="admin-shell__navigation">
-        <AdminNavigation active={active} onSelect={onSelect} />
+        <AdminNavigation active={active} />
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>

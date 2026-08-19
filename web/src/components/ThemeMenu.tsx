@@ -4,7 +4,7 @@
  * 弹层 fixed 定位并做视口翻转，适配页头 / 阅读器顶栏 / 移动端阅读栏 / 管理侧栏。
  * 跟随系统模式由 ThemeContext 的 setting 承担，菜单项高亮当前模式。
  */
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
 import { useTheme, type ThemeSetting } from '../context/ThemeContext'
 import { AutoIcon, MoonIcon, SunIcon } from './icons'
 import { useAccent } from '../context/AccentContext'
@@ -17,8 +17,8 @@ interface ThemeMenuProps {
   title?: string
   /** 弹层水平对齐：end 右对齐触发按钮（默认），start 左对齐 */
   align?: 'end' | 'start'
-  /** 触发按钮内容（图标等） */
-  children: ReactNode
+  /** 自定义触发按钮内容；省略时显示当前主题对应的单一图标 */
+  children?: ReactNode
 }
 
 const OPTIONS: { value: ThemeSetting; label: string; icon: ReactNode }[] = [
@@ -50,7 +50,8 @@ export function ThemeMenu({ className, wrapperClassName, ariaLabel = '主题设�
   const { accent, setAccent } = useAccent()
   const isCustomAccent = accent != null && !ACCENT_PRESETS.some((p) => p.color === accent)
   const [open, setOpen] = useState(false)
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
+  const [position, setPosition] = useState<(CSSProperties & { top: number; left: number }) | null>(null)
+  const [side, setSide] = useState<'top' | 'bottom'>('bottom')
   const triggerRef = useRef<HTMLButtonElement>(null)
   const wrapperRef = useRef<HTMLDivElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -74,7 +75,14 @@ export function ThemeMenu({ className, wrapperClassName, ariaLabel = '主题设�
     const minLeft = 8 - wrapperRect.left
     const maxLeft = vw - MENU_W - 8 - wrapperRect.left
     left = Math.max(minLeft, Math.min(left, maxLeft))
-    setPos({ top, left })
+    const menuViewportLeft = wrapperRect.left + left
+    const originX = Math.max(12, Math.min(MENU_W - 12, triggerRect.left + triggerRect.width / 2 - menuViewportLeft))
+    setSide(openUp ? 'top' : 'bottom')
+    setPosition({
+      top,
+      left,
+      transformOrigin: `${originX}px ${openUp ? MENU_H : 0}px`,
+    })
   }, [open, align])
 
   // 外部点击 / Escape / 滚动关闭
@@ -104,6 +112,14 @@ export function ThemeMenu({ className, wrapperClassName, ariaLabel = '主题设�
     close()
   }
 
+  const currentOption = OPTIONS.find((option) => option.value === setting)!
+  const triggerLabel = `${ariaLabel}，当前${currentOption.label}`
+  const defaultIcon = setting === 'light'
+    ? <SunIcon className="theme-icon" />
+    : setting === 'dark'
+      ? <MoonIcon className="theme-icon" />
+      : <AutoIcon className="theme-icon" />
+
   return (
     <div ref={wrapperRef} className={wrapperClassName ? `theme-menu ${wrapperClassName}` : 'theme-menu'}>
       <button
@@ -111,8 +127,8 @@ export function ThemeMenu({ className, wrapperClassName, ariaLabel = '主题设�
         type="button"
         data-slot="theme-menu-trigger"
         className={className}
-        aria-label={ariaLabel}
-        title={title}
+        aria-label={triggerLabel}
+        title={`${title}：${currentOption.label}`}
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={(e) => {
@@ -120,15 +136,16 @@ export function ThemeMenu({ className, wrapperClassName, ariaLabel = '主题设�
           setOpen((v) => !v)
         }}
       >
-        {children}
+        {children ?? defaultIcon}
       </button>
 
       <div
         ref={menuRef}
         className={`theme-menu__popover${open ? ' open' : ''}`}
+        data-side={side}
         role="menu"
         aria-label={ariaLabel}
-        style={pos ?? undefined}
+        style={position ?? undefined}
         aria-hidden={!open}
       >
         {OPTIONS.map((opt) => {

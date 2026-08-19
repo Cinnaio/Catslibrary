@@ -55,10 +55,12 @@
   }
 }.btn{
   transition: transform 0.12s ease, border-color 0.15s ease, background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
-}.btn:hover{
-  transform: translateY(-1px);
+}@media (hover: hover) and (pointer: fine){
+.btn:hover{
+    transform: translateY(-1px);
+  }
 }.btn:active{
-  transform: translateY(0);
+  transform: scale(0.97);
 }.btn--primary{
   box-shadow: 0 6px 14px rgba(139, 96, 69, 0.18);
 }[data-theme="dark"] .btn--primary{
@@ -162,10 +164,8 @@
     grid-template-columns: 1fr;
   }
 }@media (prefers-reduced-motion: reduce){
-.tab-content,
-.btn:hover{
-    animation: none;
-  }.btn:hover{
+.btn:hover,
+.btn:active{
     transform: none;
   }
 }

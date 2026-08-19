@@ -1,6 +1,8 @@
 // ============================================================
 // ScrapeTab — coordinator for the three scrape sub-views.
 // ============================================================
+import { useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import AdminPage from '@/components/admin/AdminPage'
 import { usePersistentState } from '@/hooks/usePersistentState'
@@ -13,11 +15,28 @@ const SCRAPE_VIEWS = ['center', 'discover', 'sources', 'proxy'] as const
 type ScrapeView = (typeof SCRAPE_VIEWS)[number]
 
 export default function ScrapeTab(_props: { highlightNovelId?: string; onHighlightConsumed?: () => void }) {
-  // 子视图持久化：刷新后停留在上次选的子页（抓取中心/发现小说/书源管理）
+  const [searchParams, setSearchParams] = useSearchParams()
+  const urlView = searchParams.get('view')
+  // URL 深链优先；没有参数时沿用上次访问的抓取子页。
   const [view, setView] = usePersistentState<ScrapeView>('scrape_active_view', 'center', (v) => SCRAPE_VIEWS.includes(v as ScrapeView))
+
+  useEffect(() => {
+    if (urlView && SCRAPE_VIEWS.includes(urlView as ScrapeView) && urlView !== view) {
+      setView(urlView as ScrapeView)
+    }
+  }, [setView, urlView, view])
+
+  function handleViewChange(nextView: string) {
+    if (!SCRAPE_VIEWS.includes(nextView as ScrapeView)) return
+    setView(nextView as ScrapeView)
+    const next = new URLSearchParams(searchParams)
+    next.set('view', nextView)
+    setSearchParams(next)
+  }
+
   return (
-    <AdminPage>
-      <Tabs value={view} onValueChange={(v) => setView(v as ScrapeView)}>
+    <AdminPage title="爬虫抓取" description="发现外部作品、配置书源，并追踪抓取任务与出站代理。">
+      <Tabs value={view} onValueChange={handleViewChange}>
         <TabsList className="mb-4">
           <TabsTrigger value="center">抓取中心</TabsTrigger>
           <TabsTrigger value="discover">发现小说</TabsTrigger>

@@ -66,7 +66,7 @@ export const NAV_GROUPS: Array<{ label: string; items: Array<{ id: string; label
 
 export const TABS = NAV_GROUPS.flatMap((group) => group.items)
 
-export const TAB_COMPONENTS: Record<string, ComponentType<AdminTabProps>> = {
+export const TAB_COMPONENTS = {
   dashboard: DashboardTab,
   novels: NovelsTab,
   chapters: ChaptersTab,
@@ -77,9 +77,17 @@ export const TAB_COMPONENTS: Record<string, ComponentType<AdminTabProps>> = {
   'content-policy': ContentPolicyTab,
   'site-operations': SiteOperationsTab,
   settings: SettingsTab,
-}
+} satisfies Record<string, ComponentType<AdminTabProps>>
 
 export const TAB_KEY = 'admin_active_tab'
+
+export function isAdminTab(id: string | undefined): id is keyof typeof TAB_COMPONENTS {
+  return !!id && Object.hasOwn(TAB_COMPONENTS, id)
+}
+
+export function adminTabPath(id: string): string {
+  return `/admin/${encodeURIComponent(id)}`
+}
 
 export function getTabLabel(id: string): string {
   return TABS.find((t) => t.id === id)?.label || ''

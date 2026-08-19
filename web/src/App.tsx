@@ -39,7 +39,7 @@ export default function App() {
         </Route>
         <Route path="/read/:novelId/:chapterId" element={<Reader />} />
         <Route path="/install" element={<Install />} />
-        <Route path="/admin" element={<Admin />} />
+        <Route path="/admin/:tab?" element={<Admin />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Suspense>

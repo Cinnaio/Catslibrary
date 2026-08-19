@@ -13,7 +13,7 @@ import { useSession } from '../context/SessionContext'
 import { useSearch } from '../context/SearchContext'
 import { useContentPolicy } from '../context/ContentPolicyContext'
 import { url } from '../lib/api'
-import { BookIcon, ChevronIcon, CloseIcon, MenuIcon, MoonIcon, RefreshIcon, SearchIcon, ShieldIcon, SunIcon } from './icons'
+import { BookIcon, ChevronIcon, CloseIcon, MenuIcon, RefreshIcon, SearchIcon, ShieldIcon } from './icons'
 import { ThemeMenu } from './ThemeMenu'
 import { useConfirm } from './feedback'
 
@@ -41,7 +41,8 @@ export default function SiteHeader() {
   function submitSearch(query: string) {
     const q = query.trim()
     setQuery(q)
-    if (!isHome && q) navigate(`/?q=${encodeURIComponent(q)}`)
+    if (q) navigate(`/?q=${encodeURIComponent(q)}`, { replace: isHome })
+    else if (isHome) navigate('/', { replace: true })
   }
 
   function refresh() {
@@ -158,10 +159,7 @@ export default function SiteHeader() {
               <RefreshIcon />
             </button>
 
-            <ThemeMenu className="theme-btn" ariaLabel="主题设置" title="主题设置">
-              <SunIcon className="theme-icon theme-icon--sun" />
-              <MoonIcon className="theme-icon theme-icon--moon" />
-            </ThemeMenu>
+            <ThemeMenu className="theme-btn" ariaLabel="主题设置" title="主题设置" />
 
             <button
               ref={mobileMenuTriggerRef}

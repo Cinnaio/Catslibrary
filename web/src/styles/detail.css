@@ -476,7 +476,6 @@
 }
 
 .chapter-list__item:hover {
-  transform: translateY(-1px);
   border-color: color-mix(in srgb, var(--accent) 22%, var(--detail-line));
   background: color-mix(in srgb, var(--bg-card) 72%, var(--accent-subtle));
 }
@@ -728,9 +727,18 @@
 }
 
 .rating-star:hover {
-  transform: translateY(-1px) scale(1.08);
   background: var(--accent-subtle);
   color: var(--accent);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .chapter-list__item:hover {
+    transform: translateY(-1px);
+  }
+
+  .rating-star:hover {
+    transform: translateY(-1px) scale(1.08);
+  }
 }
 
 .rating-star:focus-visible {

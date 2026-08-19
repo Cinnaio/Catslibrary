@@ -20,6 +20,7 @@ describe('MobileLibrarySheet', () => {
     const onClose = vi.fn()
     render(
       <MobileLibrarySheet
+        open
         novelId="novel-1"
         currentChapterId="chapter-1"
         allChapters={[chapter]}
@@ -52,25 +53,24 @@ describe('MobileLibrarySheet', () => {
       return (
         <>
           <button type="button" onClick={() => setOpen(true)}>打开阅读设置</button>
-          {open && (
-            <MobileSettingsSheet
-              settings={{
-                fontSize: '1',
-                readerLineHeight: '1.95',
-                readerParagraphSpacing: '1.4',
-                readerPageWidth: 'standard',
-                fontFamily: 'serif',
-                readerPageMode: 'scroll',
-                readerTheme: 'default',
-                readerAutoScrollSpeed: 'off',
-                readerClickPaging: 'off',
-                readerWakeLock: 'off',
-              }}
-              set={vi.fn()}
-              wakeLockSupported={false}
-              onClose={() => setOpen(false)}
-            />
-          )}
+          <MobileSettingsSheet
+            open={open}
+            settings={{
+              fontSize: '1',
+              readerLineHeight: '1.95',
+              readerParagraphSpacing: '1.4',
+              readerPageWidth: 'standard',
+              fontFamily: 'serif',
+              readerPageMode: 'scroll',
+              readerTheme: 'default',
+              readerAutoScrollSpeed: 'off',
+              readerClickPaging: 'off',
+              readerWakeLock: 'off',
+            }}
+            set={vi.fn()}
+            wakeLockSupported={false}
+            onClose={() => setOpen(false)}
+          />
         </>
       )
     }

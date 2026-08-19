@@ -11,21 +11,25 @@ import type { ReaderSettingKey } from '../../hooks/useReaderSettings'
 const MOBILE_ROW_H = 46
 
 interface MobileSettingsSheetProps {
+  open: boolean
   settings: Record<string, string>
   set: (key: ReaderSettingKey, value: string) => void
   wakeLockSupported: boolean
   onClose: () => void
 }
 
-export function MobileSettingsSheet({ settings, set, wakeLockSupported, onClose }: MobileSettingsSheetProps) {
-  const restoreFocusRef = useRef(document.activeElement instanceof HTMLElement ? document.activeElement : null)
+export function MobileSettingsSheet({ open, settings, set, wakeLockSupported, onClose }: MobileSettingsSheetProps) {
+  const restoreFocusRef = useRef<HTMLElement | null>(null)
   return (
-    <DialogPrimitive.Root open onOpenChange={(open) => { if (!open) onClose() }}>
+    <DialogPrimitive.Root open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onClose() }}>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="mobile-settings-overlay" />
         <DialogPrimitive.Content
           className="mobile-settings-sheet"
           aria-describedby={undefined}
+          onOpenAutoFocus={() => {
+            restoreFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+          }}
           onCloseAutoFocus={(event) => {
             event.preventDefault()
             restoreFocusRef.current?.focus()
@@ -50,6 +54,7 @@ export function MobileSettingsSheet({ settings, set, wakeLockSupported, onClose 
 }
 
 interface MobileLibrarySheetProps {
+  open: boolean
   novelId: string
   currentChapterId: string
   allChapters: ChapterMeta[]
@@ -63,6 +68,7 @@ interface MobileLibrarySheetProps {
 }
 
 export function MobileLibrarySheet({
+  open,
   novelId,
   currentChapterId,
   allChapters,
@@ -76,14 +82,17 @@ export function MobileLibrarySheet({
 }: MobileLibrarySheetProps) {
   const matches = filterChapters(allChapters, query)
   const bookmarks = getNovelBookmarks(novelId)
-  const restoreFocusRef = useRef(document.activeElement instanceof HTMLElement ? document.activeElement : null)
+  const restoreFocusRef = useRef<HTMLElement | null>(null)
   return (
-    <DialogPrimitive.Root open onOpenChange={(open) => { if (!open) onClose() }}>
+    <DialogPrimitive.Root open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onClose() }}>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="mobile-library-overlay" />
         <DialogPrimitive.Content
           className="mobile-library-sheet"
           aria-describedby={undefined}
+          onOpenAutoFocus={() => {
+            restoreFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+          }}
           onCloseAutoFocus={(event) => {
             event.preventDefault()
             restoreFocusRef.current?.focus()

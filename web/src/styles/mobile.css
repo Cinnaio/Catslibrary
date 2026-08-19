@@ -115,7 +115,7 @@
   .nav-link--desktop { display: none; }
   .account-avatar { width: 44px; height: 44px; }
   .refresh-btn { display: none; }
-  .header__actions .theme-btn { margin-left: 6px; }
+  .header__actions .theme-btn { width: 44px; height: 44px; margin-left: 6px; }
   .header__actions .theme-btn::before { left: -5px; }
   /* 移动端菜单触发按钮（汉堡） */
   .mobile-menu-trigger {

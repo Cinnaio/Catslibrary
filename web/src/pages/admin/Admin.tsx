@@ -1,29 +1,34 @@
 /**
  * 管理后台外壳 —— 薄编排器。
  * 职责已拆出：鉴权门 AdminGate、布局 AdminShell（含侧边栏/顶栏）、
- * 导航与 tab 注册表 admin-registry。本文件仅保留状态与副作用：
- * admin_active_tab 持久化、sessionStorage 高亮、document.title、/ 聚焦搜索框。
+ * 导航与 tab 注册表 admin-registry。本文件仅保留路由编排与副作用：
+ * URL tab、上次位置持久化、sessionStorage 高亮、document.title、/ 聚焦搜索框。
  */
 import { useEffect, useState } from 'react'
+import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import AdminGate from './AdminGate'
 import AdminShell from './AdminShell'
-import { getTabLabel, TAB_COMPONENTS, TAB_KEY } from './admin-registry'
+import { adminTabPath, getTabLabel, isAdminTab, TAB_COMPONENTS, TAB_KEY } from './admin-registry'
 
 export default function Admin() {
-  const [active, setActive] = useState<string>(() => localStorage.getItem(TAB_KEY) || 'dashboard')
+  const navigate = useNavigate()
+  const { tab } = useParams<{ tab?: string }>()
+  const storedTab = localStorage.getItem(TAB_KEY) || undefined
+  const fallbackTab = isAdminTab(storedTab) ? storedTab : 'dashboard'
+  const active = isAdminTab(tab) ? tab : fallbackTab
 
-  // 激活 tab 持久化（与原版 admin_active_tab 一致）
+  // 记住最后访问位置，让旧入口 /admin 仍能回到上次模块。
   useEffect(() => {
-    localStorage.setItem(TAB_KEY, active)
-  }, [active])
+    if (isAdminTab(tab)) localStorage.setItem(TAB_KEY, tab)
+  }, [tab])
 
   // 后台页面标题（便于浏览器标签识别）
   useEffect(() => {
-    document.title = '知舟管理台'
+    document.title = `${getTabLabel(active) || '管理台'} · 知舟`
     return () => {
       document.title = '知舟 — 小说阅读'
     }
-  }, [])
+  }, [active])
 
   // 键盘路径：/ 聚焦当前 tab 的搜索框（Alex 效率收益）
   useEffect(() => {
@@ -52,16 +57,20 @@ export default function Admin() {
   useEffect(() => {
     if (highlightNovelId) {
       sessionStorage.removeItem('adminEditNovel')
-      setActive('novels')
+      if (active !== 'novels') navigate(adminTabPath('novels'), { replace: true })
     }
-  }, [highlightNovelId])
+  }, [active, highlightNovelId, navigate])
 
-  const TabComponent = TAB_COMPONENTS[active] || TAB_COMPONENTS.dashboard!
+  if (!isAdminTab(tab)) {
+    return <Navigate to={adminTabPath(fallbackTab)} replace />
+  }
+
+  const TabComponent = TAB_COMPONENTS[active]
   const activeLabel = getTabLabel(active)
 
   return (
     <AdminGate>
-      <AdminShell active={active} onSelect={setActive} activeLabel={activeLabel}>
+      <AdminShell active={active} activeLabel={activeLabel}>
         <TabComponent highlightNovelId={highlightNovelId} onHighlightConsumed={() => setHighlightNovelId('')} />
       </AdminShell>
     </AdminGate>

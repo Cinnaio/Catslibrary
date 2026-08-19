@@ -769,7 +769,6 @@ body:has(.reader-app:not(.hidden)) {
   border-width: 1px 0 0;
   border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
   box-shadow: var(--reader-shadow);
-  animation: mobile-sheet-in 0.25s cubic-bezier(0.32, 0.72, 0, 1);
   transform-origin: bottom center;
 }
 
@@ -784,14 +783,45 @@ body:has(.reader-app:not(.hidden)) {
   }
 }
 
-.mobile-settings-overlay,
-.mobile-library-overlay {
-  animation: mobile-scrim-in 0.2s ease-out;
+@keyframes mobile-sheet-out {
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(100%);
+    opacity: 0.5;
+  }
+}
+
+.mobile-settings-sheet[data-state="open"],
+.mobile-library-sheet[data-state="open"] {
+  animation: mobile-sheet-in 250ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.mobile-settings-sheet[data-state="closed"],
+.mobile-library-sheet[data-state="closed"] {
+  animation: mobile-sheet-out 170ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.mobile-settings-overlay[data-state="open"],
+.mobile-library-overlay[data-state="open"] {
+  animation: mobile-scrim-in 200ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.mobile-settings-overlay[data-state="closed"],
+.mobile-library-overlay[data-state="closed"] {
+  animation: mobile-scrim-out 150ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 @keyframes mobile-scrim-in {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+
+@keyframes mobile-scrim-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
 }
 
 .mobile-settings-sheet__handle {
@@ -1044,6 +1074,12 @@ body:has(.reader-app:not(.hidden)) {
 @media (prefers-reduced-motion: reduce) {
   .reader-app--loading::after { animation: none; opacity: 0.6; }
   .reader-app--loading .reader-paper { transition: none; }
+  .mobile-settings-sheet[data-state],
+  .mobile-library-sheet[data-state] { animation: none; }
+  .mobile-settings-overlay[data-state="open"],
+  .mobile-library-overlay[data-state="open"] { animation: mobile-scrim-in 120ms ease-out; }
+  .mobile-settings-overlay[data-state="closed"],
+  .mobile-library-overlay[data-state="closed"] { animation: mobile-scrim-out 120ms ease-out; }
 }
 
 /* --- Desktop reading-settings popover -----------------------

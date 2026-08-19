@@ -36,7 +36,6 @@ import { MobileLibrarySheet, MobileSettingsSheet } from '../components/reader/Mo
 import ThoughtPanel from '../components/reader/ThoughtPanel'
 import ChapterRecap from '../components/reader/ChapterRecap'
 import { ThemeMenu } from '../components/ThemeMenu'
-import { MoonIcon, SunIcon } from '../components/icons'
 import ContentRestrictionNotice from '../components/ContentRestrictionNotice'
 
 const CHAPTER_ROW_H = 34
@@ -1096,10 +1095,7 @@ export default function Reader() {
             <button className={`reader-controls__settings${settingsPanelOpen ? ' active' : ''}`} aria-label="阅读设置" aria-haspopup="dialog" aria-expanded={settingsPanelOpen} title="阅读设置" onClick={(e) => { e.stopPropagation(); setSettingsPanelOpen((v) => !v) }}>
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="8" cy="8" r="2" /><path d="M12.6 9.4l1 .7-1.2 2.1-1.2-.4c-.4.3-.8.5-1.2.7L9.8 14H6.2L6 12.5c-.4-.2-.8-.4-1.2-.7l-1.2.4L2.4 10l1-.7a5 5 0 0 1 0-1.4l-1-.7 1.2-2.1 1.2.4c.4-.3.8-.5 1.2-.7L6.2 2h3.6l.2 1.5c.4.2.8.4 1.2.7l1.2-.4 1.2 2.1-1 .7c.1.5.1 1 0 1.4z" /></svg>
             </button>
-            <ThemeMenu className="theme-btn" ariaLabel="主题设置" title="主题设置">
-              <SunIcon className="theme-icon theme-icon--sun" width={12} height={12} />
-              <MoonIcon className="theme-icon theme-icon--moon" width={12} height={12} />
-            </ThemeMenu>
+            <ThemeMenu className="theme-btn" ariaLabel="主题设置" title="主题设置" />
           </div>
 
           {/* Desktop settings panel */}
@@ -1235,41 +1231,36 @@ export default function Reader() {
         <button type="button" className="mobile-reader-bar__btn" aria-label="阅读设置" aria-expanded={mobileSettingsOpen} onClick={(e) => { e.stopPropagation(); setMobileSettingsOpen(true) }}>
           <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="9" r="2.2" /><path d="M14.2 10.6l1.1.8-1.4 2.4-1.3-.5a5.5 5.5 0 0 1-1.4.8L11 15.5H7l-.2-1.4a5.5 5.5 0 0 1-1.4-.8l-1.3.5-1.4-2.4 1.1-.8a5.8 5.8 0 0 1 0-1.6l-1.1-.8 1.4-2.4 1.3.5c.4-.3.9-.6 1.4-.8L7 2.5h4l.2 1.4c.5.2 1 .5 1.4.8l1.3-.5 1.4 2.4-1.1.8c.1.5.1 1.1 0 1.6z" /></svg>
         </button>
-        <ThemeMenu className="mobile-reader-bar__btn theme-btn" ariaLabel="主题设置" title="主题设置">
-          <SunIcon className="theme-icon theme-icon--sun" width={12} height={12} />
-          <MoonIcon className="theme-icon theme-icon--moon" width={12} height={12} />
-        </ThemeMenu>
+        <ThemeMenu className="mobile-reader-bar__btn theme-btn" ariaLabel="主题设置" title="主题设置" />
       </div>
 
       {/* Mobile settings sheet */}
-      {mobileSettingsOpen && (
-        <MobileSettingsSheet
-          settings={settings}
-          set={(key: ReaderSettingKey, value: string) => {
-            set(key, value)
-            setMobileSettingsOpen(false)
-            setMobileBarHidden(true)
-          }}
-          wakeLockSupported={wakeLockSupported}
-          onClose={() => setMobileSettingsOpen(false)}
-        />
-      )}
+      <MobileSettingsSheet
+        open={mobileSettingsOpen}
+        settings={settings}
+        set={(key: ReaderSettingKey, value: string) => {
+          set(key, value)
+          setMobileSettingsOpen(false)
+          setMobileBarHidden(true)
+        }}
+        wakeLockSupported={wakeLockSupported}
+        onClose={() => setMobileSettingsOpen(false)}
+      />
 
       {/* Mobile library sheet */}
-      {mobileLibraryOpen && (
-        <MobileLibrarySheet
-          novelId={nid}
-          currentChapterId={chapter.id}
-          allChapters={allChapters}
-          tab={mobileLibraryTab}
-          onTabChange={setMobileLibraryTab}
-          query={mobileChapterQuery}
-          onQueryChange={setMobileChapterQuery}
-          onGotoChapter={gotoChapter}
-          onDeleteBookmark={deleteBookmark}
-          onClose={() => setMobileLibraryOpen(false)}
-        />
-      )}
+      <MobileLibrarySheet
+        open={mobileLibraryOpen}
+        novelId={nid}
+        currentChapterId={chapter.id}
+        allChapters={allChapters}
+        tab={mobileLibraryTab}
+        onTabChange={setMobileLibraryTab}
+        query={mobileChapterQuery}
+        onQueryChange={setMobileChapterQuery}
+        onGotoChapter={gotoChapter}
+        onDeleteBookmark={deleteBookmark}
+        onClose={() => setMobileLibraryOpen(false)}
+      />
 
       {/* Thought selection popover */}
       {popoverPos && (
@@ -1288,8 +1279,9 @@ export default function Reader() {
       )}
 
       {/* Thought panel */}
-      {thoughtPanelOpen && activeThoughtParagraph !== null && (
+      {activeThoughtParagraph !== null && (
         <ThoughtPanel
+          open={thoughtPanelOpen}
           thoughts={thoughtsByParagraph[String(activeThoughtParagraph)] || []}
           selectedText={pendingSelection && pendingSelection.paragraphIndex === activeThoughtParagraph ? pendingSelection.selectedText : ''}
           paragraphExcerpt={excerptText(bodyRef.current?.querySelector<HTMLElement>(`p[data-paragraph-index="${activeThoughtParagraph}"]`)?.textContent || '')}

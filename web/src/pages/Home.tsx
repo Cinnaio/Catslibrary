@@ -15,6 +15,7 @@ import { useSearch } from '../context/SearchContext'
 import { isRestrictedContent, useContentPolicy } from '../context/ContentPolicyContext'
 import NovelCard from '../components/NovelCard'
 import ContentRestrictionNotice from '../components/ContentRestrictionNotice'
+import { SearchIcon } from '../components/icons'
 
 const PAGE_LIMIT = 20
 
@@ -100,7 +101,7 @@ function applyTombstones(tombstones: Array<{ novelId: string; updatedAt?: number
 export default function Home() {
   const { query, setQuery } = useSearch()
   const { user } = useSession()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { mode, safeMode, setMode, isAllowed, adultContentEnabled } = useContentPolicy()
 
   const [novels, setNovels] = useState<Novel[]>([])
@@ -121,13 +122,13 @@ export default function Home() {
   const [debouncedQuery, setDebouncedQuery] = useState(query)
   // 响应序号守卫：丢弃乱序返回的过期响应（与 NovelsTab 相同模式）
   const loadSeq = useRef(0)
+  const heroSearchRef = useRef<HTMLInputElement>(null)
+  const urlQuery = searchParams.get('q') || ''
 
-  // 地址栏 ?q= 初始化（如从别处跳转到首页搜索）
+  // 地址栏 ?q= 是可分享搜索状态；浏览器前进/后退时同步回输入框。
   useEffect(() => {
-    const q = searchParams.get('q')
-    if (q) setQuery(q)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    setQuery(urlQuery)
+  }, [setQuery, urlQuery])
 
   const loadRecent = useCallback(async () => {
     const local = getRecentHistory(5)
@@ -253,7 +254,9 @@ export default function Home() {
     function onKey(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault()
-        document.querySelector<HTMLInputElement>('.search-bar__input')?.focus()
+        const headerSearch = document.querySelector<HTMLInputElement>('.search-bar__input')
+        if (headerSearch?.offsetParent) headerSearch.focus()
+        else heroSearchRef.current?.focus()
       }
     }
     window.addEventListener('keydown', onKey)
@@ -272,6 +275,18 @@ export default function Home() {
     setRecent(getRecentHistory(5))
   }
 
+  function submitSearch(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const value = query.trim()
+    setQuery(value)
+    setCurrentPage(1)
+    const next = new URLSearchParams(searchParams)
+    if (value) next.set('q', value)
+    else next.delete('q')
+    setSearchParams(next, { replace: true })
+    document.getElementById('homeLibrary')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
   return (
     <main className="home-page">
       <section className="home-hero">
@@ -281,15 +296,30 @@ export default function Home() {
             <p className="home-kicker">ZHIZHOU LIBRARY</p>
             <h1>在纸页之间，继续你的故事。</h1>
             <p>收藏、搜索、筛选与继续阅读，都收进一个安静的中文小说书库。</p>
-            <div className="home-hero__search" aria-hidden="true">
-              <span>搜索书名、作者或拼音</span>
-              <kbd>⌘ K</kbd>
-            </div>
+            <form className="home-hero__search" role="search" onSubmit={submitSearch}>
+              <label className="sr-only" htmlFor="homeHeroSearch">搜索书名、作者或拼音</label>
+              <input
+                ref={heroSearchRef}
+                id="homeHeroSearch"
+                type="search"
+                className="home-hero__search-input"
+                placeholder="搜索书名、作者或拼音"
+                autoComplete="off"
+                value={query}
+                onChange={(event) => {
+                  setQuery(event.target.value)
+                  setCurrentPage(1)
+                }}
+              />
+              <button type="submit" className="home-hero__search-submit" aria-label="搜索小说">
+                <SearchIcon />
+              </button>
+            </form>
           </div>
         </div>
       </section>
 
-      <section className="section section--hero home-library">
+      <section id="homeLibrary" className="section section--hero home-library">
         <div className="container home-shell">
           {recent.length > 0 && (
             <section className="recent-reading" aria-label="最近阅读">

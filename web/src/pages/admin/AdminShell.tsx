@@ -14,15 +14,14 @@ import AdminSidebar from './AdminSidebar'
 
 interface AdminShellProps {
   active: string
-  onSelect: (id: string) => void
   activeLabel: string
   children: ReactNode
 }
 
-export default function AdminShell({ active, onSelect, activeLabel, children }: AdminShellProps) {
+export default function AdminShell({ active, activeLabel, children }: AdminShellProps) {
   return (
     <SidebarProvider className="admin-layout">
-      <AdminSidebar active={active} onSelect={onSelect} />
+      <AdminSidebar active={active} />
       <SidebarInset className="admin-layout__inset min-w-0">
         <header className="admin-shell__topbar flex min-h-14 items-center justify-between gap-3 px-5 py-2">
           <div className="flex min-w-0 items-center gap-2">

@@ -176,7 +176,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   width: min(100%, 1440px);
   margin-inline: auto;
   min-width: 0;
-  animation: admin-enter 160ms ease-out both;
 }
 
 .ai-admin-page {
@@ -716,17 +715,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 
 .account-settings-tabs__list [data-slot='tabs-trigger'] {
   flex: 0 0 auto;
-}
-
-@keyframes admin-enter {
-  from {
-    opacity: 0;
-    transform: translateY(3px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 
 .admin-shell__status {
@@ -3319,7 +3307,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .tab-content,
   .novel-row--highlight td {
     animation: none;
   }
