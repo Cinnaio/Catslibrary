@@ -1,7 +1,9 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { useState } from 'react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { ChapterMeta } from '@shared/types'
-import { MobileLibrarySheet } from './MobileSheets'
+import { MobileLibrarySheet, MobileSettingsSheet } from './MobileSheets'
 
 const chapter: ChapterMeta = {
   id: 'chapter-1',
@@ -40,5 +42,50 @@ describe('MobileLibrarySheet', () => {
 
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('焦点保持在弹层内，并在关闭后返回触发按钮', async () => {
+    const user = userEvent.setup()
+
+    function Harness() {
+      const [open, setOpen] = useState(false)
+      return (
+        <>
+          <button type="button" onClick={() => setOpen(true)}>打开阅读设置</button>
+          {open && (
+            <MobileSettingsSheet
+              settings={{
+                fontSize: '1',
+                readerLineHeight: '1.95',
+                readerParagraphSpacing: '1.4',
+                readerPageWidth: 'standard',
+                fontFamily: 'serif',
+                readerPageMode: 'scroll',
+                readerTheme: 'default',
+                readerAutoScrollSpeed: 'off',
+                readerClickPaging: 'off',
+                readerWakeLock: 'off',
+              }}
+              set={vi.fn()}
+              wakeLockSupported={false}
+              onClose={() => setOpen(false)}
+            />
+          )}
+        </>
+      )
+    }
+
+    render(<Harness />)
+    const trigger = screen.getByRole('button', { name: '打开阅读设置' })
+    await user.click(trigger)
+
+    const dialog = screen.getByRole('dialog', { name: '阅读设置' })
+    await waitFor(() => expect(screen.getByRole('button', { name: '关闭阅读设置' })).toHaveFocus())
+    expect(screen.getByRole('button', { name: '18' })).toHaveAttribute('aria-pressed', 'true')
+    await user.tab({ shift: true })
+    expect(dialog).toContainElement(document.activeElement as HTMLElement)
+
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(trigger).toHaveFocus())
   })
 })

@@ -30,7 +30,7 @@ interface SegBtnProps {
 
 function Seg({ active, disabled, title, onClick, children }: SegBtnProps) {
   return (
-    <button type="button" className={active ? 'active' : ''} disabled={disabled} title={title} onClick={onClick}>
+    <button type="button" className={active ? 'active' : ''} aria-pressed={active} disabled={disabled} title={title} onClick={onClick}>
       {children}
     </button>
   )

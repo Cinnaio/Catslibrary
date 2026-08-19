@@ -640,7 +640,7 @@ body:has(.reader-app:not(.hidden)) {
   align-items: center;
   justify-content: center;
   width: 48px;
-  height: 32px;
+  height: 44px;
   padding: 0;
   transform: translateX(-50%);
   border: 1px solid var(--reader-line);
@@ -816,8 +816,8 @@ body:has(.reader-app:not(.hidden)) {
 }
 
 .mobile-settings-sheet__close {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--bg-secondary);
@@ -844,7 +844,7 @@ body:has(.reader-app:not(.hidden)) {
 }
 
 .mobile-library-tabs button {
-  min-height: 40px;
+  min-height: 44px;
   border: 1px solid transparent;
   border-radius: var(--radius);
   background: transparent;
@@ -990,8 +990,8 @@ body:has(.reader-app:not(.hidden)) {
 }
 
 .mobile-library-bookmark__delete {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   flex: 0 0 auto;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
@@ -1123,7 +1123,7 @@ body:has(.reader-app:not(.hidden)) {
 }
 
 .mobile-settings-segmented button {
-  min-height: 40px;
+  min-height: 44px;
   border: 1px solid transparent;
   border-radius: var(--radius);
   background: transparent;

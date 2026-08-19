@@ -6,8 +6,9 @@
  * 注意：搜索/抽屉两个全屏 overlay 必须渲染在 <header> 外 —— .header 有
  * backdrop-filter，会把 position: fixed 后代的包含块收进页头，导致遮罩只盖住页头一条。
  */
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Dialog as DialogPrimitive } from 'radix-ui'
 import { useSession } from '../context/SessionContext'
 import { useSearch } from '../context/SearchContext'
 import { useContentPolicy } from '../context/ContentPolicyContext'
@@ -24,6 +25,9 @@ export default function SiteHeader() {
   const { mode, setMode, adultContentEnabled } = useContentPolicy()
   const { confirm } = useConfirm()
   const inputRef = useRef<HTMLInputElement>(null)
+  const mobileSearchInputRef = useRef<HTMLInputElement>(null)
+  const mobileSearchTriggerRef = useRef<HTMLButtonElement>(null)
+  const mobileMenuTriggerRef = useRef<HTMLButtonElement>(null)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [avatarFailed, setAvatarFailed] = useState(false)
@@ -33,26 +37,6 @@ export default function SiteHeader() {
   const avatarUrl = user?.avatarUrl ? url(user.avatarUrl) : ''
   const showAvatar = !!avatarUrl && !avatarFailed
   const isAdmin = user?.role === 'admin'
-
-  // 移动端抽屉打开时锁滚动 + Esc 关闭
-  useEffect(() => {
-    if (!menuOpen) return
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') setMenuOpen(false)
-    }
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.body.style.overflow = prev
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [menuOpen])
-
-  // 路由变化时收起抽屉（点抽屉内链接导航后自动关闭）
-  useEffect(() => {
-    setMenuOpen(false)
-  }, [location.pathname])
 
   function submitSearch(query: string) {
     const q = query.trim()
@@ -122,12 +106,13 @@ export default function SiteHeader() {
 
             {isHome && (
               <button
+                ref={mobileSearchTriggerRef}
+                type="button"
                 className="mobile-search-trigger"
                 aria-label="搜索"
-                onClick={() => {
-                  setMobileOpen(true)
-                  setTimeout(() => inputRef.current?.focus(), 50)
-                }}
+                aria-haspopup="dialog"
+                aria-expanded={mobileOpen}
+                onClick={() => setMobileOpen(true)}
               >
                 <SearchIcon />
               </button>
@@ -179,6 +164,8 @@ export default function SiteHeader() {
             </ThemeMenu>
 
             <button
+              ref={mobileMenuTriggerRef}
+              type="button"
               className="mobile-menu-trigger"
               aria-label="打开菜单"
               aria-haspopup="dialog"
@@ -191,21 +178,29 @@ export default function SiteHeader() {
         </div>
       </header>
 
-      {mobileOpen && (
-        <div
-          className="search-overlay"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setMobileOpen(false)
-          }}
-        >
-          <div className="search-overlay__bar">
+      <DialogPrimitive.Root open={mobileOpen} onOpenChange={setMobileOpen}>
+        <DialogPrimitive.Portal>
+          <DialogPrimitive.Overlay className="search-overlay" />
+          <DialogPrimitive.Content
+            className="search-overlay__bar"
+            aria-describedby={undefined}
+            onOpenAutoFocus={(event) => {
+              event.preventDefault()
+              mobileSearchInputRef.current?.focus()
+            }}
+            onCloseAutoFocus={(event) => {
+              event.preventDefault()
+              mobileSearchTriggerRef.current?.focus()
+            }}
+          >
+            <DialogPrimitive.Title className="sr-only">搜索小说</DialogPrimitive.Title>
             <SearchIcon className="search-overlay__icon" />
             <input
+              ref={mobileSearchInputRef}
               type="text"
               className="search-overlay__input"
               placeholder="搜索小说…"
               autoComplete="off"
-              autoFocus
               defaultValue={searchValue}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => {
@@ -215,29 +210,35 @@ export default function SiteHeader() {
                 }
               }}
             />
-            <button className="search-overlay__close" onClick={() => setMobileOpen(false)}>
-              取消
-            </button>
-          </div>
-        </div>
-      )}
+            <DialogPrimitive.Close asChild>
+              <button type="button" className="search-overlay__close">取消</button>
+            </DialogPrimitive.Close>
+          </DialogPrimitive.Content>
+        </DialogPrimitive.Portal>
+      </DialogPrimitive.Root>
 
-      {menuOpen && (
-        <div
-          className="mobile-drawer-overlay"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setMenuOpen(false)
-          }}
-        >
-          <aside className="mobile-drawer" role="dialog" aria-modal="true" aria-label="导航菜单">
+      <DialogPrimitive.Root open={menuOpen} onOpenChange={setMenuOpen}>
+        <DialogPrimitive.Portal>
+          <DialogPrimitive.Overlay className="mobile-drawer-overlay" />
+          <DialogPrimitive.Content
+            className="mobile-drawer"
+            aria-describedby={undefined}
+            onCloseAutoFocus={(event) => {
+              event.preventDefault()
+              mobileMenuTriggerRef.current?.focus()
+            }}
+          >
+            <DialogPrimitive.Title className="sr-only">导航菜单</DialogPrimitive.Title>
             <div className="mobile-drawer__head">
               <Link to="/" className="header__logo mobile-drawer__brand" onClick={closeMenu}>
                 <img className="header__logo-img" src="/images/logo.png" alt="知舟" />
                 知舟
               </Link>
-              <button className="mobile-drawer__close" aria-label="关闭菜单" autoFocus onClick={closeMenu}>
-                <CloseIcon />
-              </button>
+              <DialogPrimitive.Close asChild>
+                <button type="button" className="mobile-drawer__close" aria-label="关闭菜单">
+                  <CloseIcon />
+                </button>
+              </DialogPrimitive.Close>
             </div>
 
             <div className="mobile-drawer__body">
@@ -286,9 +287,9 @@ export default function SiteHeader() {
             </div>
 
             <footer className="mobile-drawer__foot">知舟 · 安静的中文小说书库</footer>
-          </aside>
-        </div>
-      )}
+          </DialogPrimitive.Content>
+        </DialogPrimitive.Portal>
+      </DialogPrimitive.Root>
     </>
   )
 }

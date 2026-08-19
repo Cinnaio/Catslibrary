@@ -107,13 +107,14 @@
 }
 @media (max-width: 640px) {
   /* Header */
-  .header__logo { font-size: 1.1rem; }
+  .header__logo { min-height: 44px; font-size: 1.1rem; }
   .header__logo-img { width: 26px; height: 26px; }
   .header__inner { padding: 0 12px; }
   .nav-link:not(.account-avatar) { padding: 6px 8px; font-size: 0.82rem; }
   /* 宽文字导航链接收进移动端抽屉，页头只留紧凑图标按钮 */
   .nav-link--desktop { display: none; }
-  .account-avatar { width: 30px; height: 30px; }
+  .account-avatar { width: 44px; height: 44px; }
+  .refresh-btn { display: none; }
   .header__actions .theme-btn { margin-left: 6px; }
   .header__actions .theme-btn::before { left: -5px; }
   /* 移动端菜单触发按钮（汉堡） */
@@ -121,8 +122,8 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 34px;
-    height: 34px;
+    width: 44px;
+    height: 44px;
     padding: 0;
     border-radius: 12px;
     color: var(--text-muted);
@@ -345,8 +346,8 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    height: 32px;
+    width: 44px;
+    height: 44px;
     background: transparent;
     border: 1px solid transparent;
     color: var(--text-muted);

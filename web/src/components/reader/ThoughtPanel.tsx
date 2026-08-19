@@ -2,7 +2,8 @@
  * 段评想法面板 —— 由 read.js thought-panel 结构平移。
  * 展示某段落的想法列表 + 发布/删除。
  */
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { Dialog as DialogPrimitive } from 'radix-ui'
 import type { Thought } from '@shared/types'
 import { url } from '../../lib/api'
 import { timeText } from '../../lib/format'
@@ -29,6 +30,7 @@ function ThoughtAvatar({ avatarUrl, name }: { avatarUrl?: string; name: string }
 }
 
 export default function ThoughtPanel({ thoughts, selectedText, paragraphExcerpt, canDelete, onClose, onSubmit, onDelete }: ThoughtPanelProps) {
+  const restoreFocusRef = useRef(document.activeElement instanceof HTMLElement ? document.activeElement : null)
   const [text, setText] = useState('')
   const [name, setName] = useState('')
   const [status, setStatus] = useState('')
@@ -58,17 +60,27 @@ export default function ThoughtPanel({ thoughts, selectedText, paragraphExcerpt,
   }
 
   return (
-    <>
-      <div className="thought-overlay" onClick={onClose}></div>
-      <section className="thought-panel" role="dialog" aria-modal="true" aria-labelledby="thoughtPanelTitle">
+    <DialogPrimitive.Root open onOpenChange={(open) => { if (!open) onClose() }}>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay className="thought-overlay" />
+        <DialogPrimitive.Content
+          className="thought-panel"
+          aria-describedby={undefined}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault()
+            restoreFocusRef.current?.focus()
+          }}
+        >
         <div className="thought-panel__header">
           <div>
-            <h2 id="thoughtPanelTitle">本段想法</h2>
+            <DialogPrimitive.Title asChild>
+              <h2>本段想法</h2>
+            </DialogPrimitive.Title>
             <p className="thought-panel__excerpt">{paragraphExcerpt}</p>
           </div>
-          <button type="button" className="thought-panel__close" aria-label="关闭想法面板" onClick={onClose}>
-            ×
-          </button>
+          <DialogPrimitive.Close asChild>
+            <button type="button" className="thought-panel__close" aria-label="关闭想法面板">×</button>
+          </DialogPrimitive.Close>
         </div>
         <div className="thought-list">
           {thoughts.length === 0 ? (
@@ -97,7 +109,7 @@ export default function ThoughtPanel({ thoughts, selectedText, paragraphExcerpt,
             })
           )}
         </div>
-        <div className="thought-compose">
+        <form className="thought-compose" onSubmit={(event) => { event.preventDefault(); void submit() }}>
           <div className={`thought-selected-text${selectedText ? '' : ' hidden'}`}>
             {selectedText ? `划选：${selectedText}` : ''}
           </div>
@@ -105,6 +117,7 @@ export default function ThoughtPanel({ thoughts, selectedText, paragraphExcerpt,
             type="text"
             className="thought-input"
             maxLength={20}
+            aria-label="昵称（可选）"
             placeholder="昵称（可选）"
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -113,18 +126,20 @@ export default function ThoughtPanel({ thoughts, selectedText, paragraphExcerpt,
             className="thought-textarea"
             maxLength={300}
             rows={3}
+            aria-label="想法内容"
             placeholder="写下你的想法，会公开显示给其他读者…"
             value={text}
             onChange={(e) => setText(e.target.value)}
           ></textarea>
           <div className="thought-compose__footer">
-            <span className="thought-status">{status}</span>
-            <button type="button" className="btn btn--primary btn--sm" onClick={() => void submit()} disabled={submitting}>
+            <span className="thought-status" role="status" aria-live="polite">{status}</span>
+            <button type="submit" className="btn btn--primary btn--sm" disabled={submitting}>
               发布想法
             </button>
           </div>
-        </div>
-      </section>
-    </>
+        </form>
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   )
 }

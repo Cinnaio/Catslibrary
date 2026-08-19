@@ -110,7 +110,14 @@ export default function Auth() {
     <main className="auth-page auth-page--with-header">
       <div className="auth-shell">
         <Card className="w-full max-w-sm">
-          <CardContent className="flex flex-col gap-5 p-6">
+          <CardContent className="p-6">
+            <form
+              className="flex flex-col gap-5"
+              onSubmit={(event) => {
+                event.preventDefault()
+                void (isLogin ? doLogin() : doRegister())
+              }}
+            >
             <div className="flex flex-col items-center gap-2 text-center">
               <img src="/images/logo.png" alt="知舟" className="h-9 w-9 object-contain" />
               <h1 className="text-xl font-semibold">知舟</h1>
@@ -125,6 +132,7 @@ export default function Auth() {
                 <Input
                   id="auth-username"
                   autoComplete="username"
+                  required
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   aria-describedby={msg ? 'auth-message' : undefined}
@@ -136,12 +144,10 @@ export default function Auth() {
                   id="auth-password"
                   type="password"
                   autoComplete={isLogin ? 'current-password' : 'new-password'}
+                  required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   aria-describedby={msg ? 'auth-message' : undefined}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && isLogin) void doLogin()
-                  }}
                 />
               </div>
               {isLogin && (
@@ -161,6 +167,7 @@ export default function Auth() {
                   <Input
                     id="auth-invite"
                     autoComplete="off"
+                    required
                     placeholder="注册时填写"
                     value={invite}
                     onChange={(e) => setInvite(e.target.value)}
@@ -175,12 +182,13 @@ export default function Auth() {
             )}
 
             <div className="flex flex-col gap-2">
-              <Button disabled={busy} onClick={() => void (isLogin ? doLogin() : doRegister())}>
+              <Button type="submit" disabled={busy}>
                 {busy ? '处理中…' : isLogin ? '登录' : '创建账号'}
               </Button>
               <div className="flex items-center justify-center gap-1 text-sm">
                 <span className="text-muted-foreground">{isLogin ? '没有账号？' : '已有账号？'}</span>
                 <Button
+                  type="button"
                   variant="link"
                   className="px-0"
                   onClick={() => {
@@ -197,6 +205,7 @@ export default function Auth() {
                 </Link>
               </div>
             </div>
+            </form>
           </CardContent>
         </Card>
       </div>
