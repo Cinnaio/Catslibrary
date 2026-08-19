@@ -123,93 +123,92 @@ export function ThemeMenu({ className, wrapperClassName, ariaLabel = '主题设�
         {children}
       </button>
 
-      {open && (
-        <div
-          ref={menuRef}
-          className="theme-menu__popover"
-          role="menu"
-          aria-label={ariaLabel}
-          style={pos ?? undefined}
-        >
-          {OPTIONS.map((opt) => {
-            const active = setting === opt.value
-            return (
+      <div
+        ref={menuRef}
+        className={`theme-menu__popover${open ? ' open' : ''}`}
+        role="menu"
+        aria-label={ariaLabel}
+        style={pos ?? undefined}
+        aria-hidden={!open}
+      >
+        {OPTIONS.map((opt) => {
+          const active = setting === opt.value
+          return (
+            <button
+              key={opt.value}
+              type="button"
+              role="menuitemradio"
+              aria-checked={active}
+              className={`theme-menu__item${active ? ' active' : ''}`}
+              onClick={(e) => {
+                e.stopPropagation()
+                pick(opt.value, e)
+              }}
+            >
+              {opt.icon}
+              <span>{opt.label}</span>
+              {active && (
+                <svg className="theme-menu__check" viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="2 6 5 9 10 3" />
+                </svg>
+              )}
+            </button>
+          )
+        })}
+
+        <div className="theme-menu__divider" aria-hidden="true" />
+        <div className="theme-menu__palette">
+          <div className="theme-menu__palette-head">
+            <span>主题色</span>
+            {accent && (
               <button
-                key={opt.value}
                 type="button"
-                role="menuitemradio"
-                aria-checked={active}
-                className={`theme-menu__item${active ? ' active' : ''}`}
+                className="theme-menu__reset"
                 onClick={(e) => {
                   e.stopPropagation()
-                  pick(opt.value, e)
+                  setAccent(null)
                 }}
               >
-                {opt.icon}
-                <span>{opt.label}</span>
-                {active && (
-                  <svg className="theme-menu__check" viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="2 6 5 9 10 3" />
-                  </svg>
-                )}
+                恢复默认
               </button>
-            )
-          })}
-
-          <div className="theme-menu__divider" aria-hidden="true" />
-          <div className="theme-menu__palette">
-            <div className="theme-menu__palette-head">
-              <span>主题色</span>
-              {accent && (
-                <button
-                  type="button"
-                  className="theme-menu__reset"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setAccent(null)
-                  }}
-                >
-                  恢复默认
-                </button>
-              )}
-            </div>
-            <div className="theme-menu__swatches" role="radiogroup" aria-label="主题色">
-              {ACCENT_PRESETS.map((p) => (
-                <button
-                  key={p.color}
-                  type="button"
-                  role="radio"
-                  aria-checked={accent === p.color}
-                  aria-label={p.label}
-                  title={p.label}
-                  className={`theme-menu__swatch${accent === p.color ? ' active' : ''}`}
-                  style={{ background: p.color }}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setAccent(p.color)
-                  }}
-                />
-              ))}
-              <label
-                className={`theme-menu__swatch theme-menu__swatch--custom${isCustomAccent ? ' active' : ''}`}
-                title="自定义颜色"
-                style={isCustomAccent ? { background: accent ?? undefined } : undefined}
-              >
-                <input
-                  type="color"
-                  aria-label="自定义颜色"
-                  value={isCustomAccent && accent ? accent : ACCENT_PRESETS[0]!.color}
-                  onChange={(e) => {
-                    e.stopPropagation()
-                    setAccent(e.target.value)
-                  }}
-                />
-                <span aria-hidden="true">＋</span>
-              </label>
-            </div>
+            )}
+          </div>
+          <div className="theme-menu__swatches" role="radiogroup" aria-label="主题色">
+            {ACCENT_PRESETS.map((p) => (
+              <button
+                key={p.color}
+                type="button"
+                role="radio"
+                aria-checked={accent === p.color}
+                aria-label={p.label}
+                title={p.label}
+                className={`theme-menu__swatch${accent === p.color ? ' active' : ''}`}
+                style={{ background: p.color }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setAccent(p.color)
+                }}
+              />
+            ))}
+            <label
+              className={`theme-menu__swatch theme-menu__swatch--custom${isCustomAccent ? ' active' : ''}`}
+              title="自定义颜色"
+              style={isCustomAccent ? { background: accent ?? undefined } : undefined}
+            >
+              <input
+                type="color"
+                aria-label="自定义颜色"
+                value={isCustomAccent && accent ? accent : ACCENT_PRESETS[0]!.color}
+                onChange={(e) => {
+                  e.stopPropagation()
+                  setAccent(e.target.value)
+                }}
+              />
+              <span aria-hidden="true">＋</span>
+            </label>
           </div>
         </div>
-      )}
+      </div>
     </div>
   )
 }

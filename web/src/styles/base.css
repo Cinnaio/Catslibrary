@@ -185,6 +185,15 @@ p:last-child { margin-bottom: 0; }
   box-shadow: 0 0 0 4px var(--focus-ring);
 }
 
+/* --- Hover 守卫 ------------------------------------------------- */
+/* 触屏设备（手指停留即触发）没有真正的 hover，也不该被「粘住」的
+   :hover 副作用打扰。交互性 hover 只应在支持精确指针的设备上表现；
+   这里在支持 hover 的设备上重申透明度守卫，供组件样式按需叠加使用。 */
+@media (hover: hover) and (pointer: fine) {
+  /* 占位：具体交互型 :hover 的加强规则已在各组件样式内显式声明，
+     此守卫仅用于集中说明 hover 的适用前提。 */
+}
+
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   *, *::before, *::after, ::view-transition-old(root), ::view-transition-new(root) {

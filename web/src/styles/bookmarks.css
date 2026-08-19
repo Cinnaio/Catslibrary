@@ -72,8 +72,8 @@
 }
 
 /* Reader refresh button */
-.reader-controls__refresh:active svg {
-  transform: rotate(60deg);
+.reader-controls__refresh:active {
+  transform: scale(0.95);
 }
 
 /* --- Bookmark panel (dropdown below top bar) ----------------- */
@@ -158,7 +158,7 @@
   padding: 4px 6px;
   border-radius: 4px;
   flex-shrink: 0;
-  transition: all 0.15s;
+  transition: color 0.15s, background 0.15s;
 }
 .bookmark-panel__del:hover {
   color: #EF4444;

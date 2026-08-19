@@ -149,7 +149,6 @@ body:has(.reader-app:not(.hidden)) {
 
 /* Chapter dropdown — Claude warm style */
 .chapter-dropdown {
-  display: none;
   position: fixed;
   z-index: 150;
   /* Fixed width: rows are virtualized, so there is no natural content width
@@ -161,9 +160,21 @@ body:has(.reader-app:not(.hidden)) {
   border-radius: var(--radius-xl);
   box-shadow: var(--reader-shadow-soft);
   padding: 6px;
+  /* 退场不可用时保持 display:none，避免占位与焦点可达 */
+  display: none;
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(-4px) scale(0.98);
+  transform-origin: top center;
+  pointer-events: none;
+  transition: opacity 0.15s ease-out, transform 0.15s ease-out, visibility 0.15s;
 }
 .chapter-dropdown.open {
   display: flex;
+  visibility: visible;
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
 }
 
 .chapter-dropdown__tools {
@@ -370,7 +381,7 @@ body:has(.reader-app:not(.hidden)) {
   border-radius: var(--radius-sm);
   padding: 6px 14px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: color 0.15s, background 0.15s, border-color 0.15s, box-shadow 0.15s;
   text-decoration: none;
   display: inline-block;
   white-space: nowrap;
@@ -758,6 +769,29 @@ body:has(.reader-app:not(.hidden)) {
   border-width: 1px 0 0;
   border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
   box-shadow: var(--reader-shadow);
+  animation: mobile-sheet-in 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+  transform-origin: bottom center;
+}
+
+@keyframes mobile-sheet-in {
+  from {
+    transform: translateY(100%);
+    opacity: 0.4;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.mobile-settings-overlay,
+.mobile-library-overlay {
+  animation: mobile-scrim-in 0.2s ease-out;
+}
+
+@keyframes mobile-scrim-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .mobile-settings-sheet__handle {

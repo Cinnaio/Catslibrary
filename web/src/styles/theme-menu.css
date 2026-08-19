@@ -18,6 +18,18 @@
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow-popover);
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(-4px) scale(0.98);
+  transform-origin: top center;
+  pointer-events: none;
+  transition: opacity 0.15s ease-out, transform 0.15s ease-out, visibility 0.15s;
+}
+.theme-menu__popover.open {
+  visibility: visible;
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
 }
 
 .theme-menu__item {

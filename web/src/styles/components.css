@@ -8,12 +8,12 @@
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  transition: all 0.25s var(--ease);
+  transition: box-shadow 0.25s var(--ease), border-color 0.25s var(--ease);
 }
 
 .card:hover {
   box-shadow: var(--shadow-md);
-  border-color: var(--border-light);
+  border-color: var(--accent-light);
 }
 
 /* --- Home filter panel — label rows (读者/分类/状态 style) ------- */
@@ -61,6 +61,7 @@
   cursor: pointer;
   transition: color 0.15s;
 }
+.sort-tab:active { transform: scale(0.96); }
 .sort-tab:hover { color: var(--text-primary); }
 .sort-tab--active {
   color: var(--text-primary);
@@ -236,6 +237,7 @@
   transition: color 0.15s, background 0.15s;
   font-weight: 400;
 }
+.filter-btn:active { transform: scale(0.96); }
 .filter-btn:hover { color: var(--accent); }
 .filter-btn--active {
   color: var(--accent);
@@ -417,7 +419,7 @@
   font-size: 0.9rem;
   font-weight: 600;
   border: 1px solid transparent;
-  transition: all 0.2s var(--ease);
+  transition: background 0.2s var(--ease), border-color 0.2s var(--ease), box-shadow 0.2s var(--ease), color 0.2s var(--ease);
   white-space: nowrap;
 }
 
@@ -508,7 +510,7 @@
   background: var(--bg-card);
   color: var(--text-primary);
   font-size: 0.9rem;
-  transition: all 0.2s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .form-input:focus {
@@ -565,7 +567,7 @@ select.native-select-hidden {
   font-size: 0.9rem;
   cursor: pointer;
   text-align: left;
-  transition: all 0.2s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
   gap: 8px;
 }
 .custom-select__trigger:hover {
@@ -597,9 +599,19 @@ select.native-select-hidden {
   max-height: 260px;
   overflow-y: auto;
   display: none;
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(-4px) scale(0.98);
+  transform-origin: top center;
+  pointer-events: none;
+  transition: opacity 0.15s ease-out, transform 0.15s ease-out, visibility 0.15s;
 }
 .custom-select--open .custom-select__dropdown {
   display: block;
+  visibility: visible;
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
 }
 .custom-select__option {
   padding: 10px 14px;
@@ -675,7 +687,7 @@ select.native-select-hidden {
   background: var(--bg-card);
   color: var(--text-primary);
   font-size: 0.9rem;
-  transition: all 0.2s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .search-bar__input:focus {
@@ -977,8 +989,20 @@ select.native-select-hidden {
   font-size: 0.875rem;
   font-weight: 500;
   box-shadow: var(--shadow-md);
-  animation: slideIn 0.3s var(--ease);
   max-width: 360px;
+  /* 进出方向一致：从右侧滑入，退场滑回右下方并淡出 */
+  animation: toast-in 0.3s var(--ease);
+}
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(40px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes toast-out {
+  from { opacity: 1; transform: translateX(0); }
+  to   { opacity: 0; transform: translateX(40px); }
+}
+.toast.dismissing {
+  animation: toast-out 0.2s ease-in forwards;
 }
 
 .toast--success {
