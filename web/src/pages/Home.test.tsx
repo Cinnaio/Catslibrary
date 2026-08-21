@@ -1,6 +1,5 @@
-import { render, screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { MemoryRouter, useLocation } from 'react-router-dom'
+﻿import { render, screen } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { SearchProvider } from '../context/SearchContext'
 
@@ -50,31 +49,15 @@ beforeAll(() => {
 })
 
 describe('Home hero search', () => {
-  it('从 URL 恢复查询，并在提交与清空时同步 ?q=', async () => {
-    const user = userEvent.setup()
+  it('首页不再渲染 hero 搜索框', () => {
     render(
-      <MemoryRouter initialEntries={['/?q=%E6%97%A7%E6%90%9C%E7%B4%A2']}>
+      <MemoryRouter initialEntries={['/']}>
         <SearchProvider>
           <Home />
-          <LocationProbe />
         </SearchProvider>
       </MemoryRouter>,
     )
 
-    const input = screen.getByRole('searchbox', { name: '搜索书名、作者或拼音' })
-    await waitFor(() => expect(input).toHaveValue('旧搜索'))
-
-    await user.clear(input)
-    await user.type(input, '三体')
-    await user.click(screen.getByRole('button', { name: '搜索小说' }))
-
-    await waitFor(() => {
-      const params = new URLSearchParams(screen.getByTestId('location-search').textContent || '')
-      expect(params.get('q')).toBe('三体')
-    })
-
-    await user.clear(input)
-    await user.click(screen.getByRole('button', { name: '搜索小说' }))
-    await waitFor(() => expect(screen.getByTestId('location-search')).toHaveTextContent(''))
+    expect(screen.queryByRole('searchbox', { name: '搜索书名、作者或拼音' })).toBeNull()
   })
 })
