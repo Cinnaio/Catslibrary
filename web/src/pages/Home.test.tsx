@@ -1,5 +1,5 @@
-﻿import { render, screen } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { render, screen } from '@testing-library/react'
+import { MemoryRouter, useLocation } from 'react-router-dom'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { SearchProvider } from '../context/SearchContext'
 
