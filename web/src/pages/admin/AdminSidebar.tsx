@@ -103,7 +103,11 @@ export default function AdminSidebar({ active }: AdminSidebarProps) {
               title="主题设置"
               className="peer/menu-button flex w-full items-center gap-2 overflow-hidden p-2 text-left text-sm outline-hidden group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-2! hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0"
             >
-              {setting === 'system' ? <Monitor /> : setting === 'dark' ? <Moon /> : <Sun />}
+              {setting === 'system'
+                ? <Monitor className="size-4 shrink-0" />
+                : setting === 'dark'
+                  ? <Moon className="size-4 shrink-0" />
+                  : <Sun className="size-4 shrink-0" />}
               <span>{setting === 'system' ? '跟随系统' : setting === 'dark' ? '深色' : '浅色'}</span>
             </ThemeMenu>
           </SidebarMenuItem>
