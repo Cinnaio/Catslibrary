@@ -39,7 +39,6 @@ struct ProfileView: View {
                 } label: {
                     Label("阅读设置", systemImage: "textformat.size")
                 }
-                .frame(minHeight: 44)
             }
 
             Section("服务器") {
@@ -59,7 +58,6 @@ struct ProfileView: View {
                 Button("退出登录", role: .destructive) {
                     showLogoutConfirm = true
                 }
-                .frame(minHeight: 44)
             }
         }
         .scrollContentBackground(.hidden)

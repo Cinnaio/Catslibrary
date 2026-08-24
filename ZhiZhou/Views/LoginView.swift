@@ -25,14 +25,14 @@ struct LoginView: View {
             ScrollView {
                 VStack(spacing: 0) {
                     brandHeader
-                        .padding(.top, 56)
-                        .padding(.bottom, 36)
+                        .padding(.top, 24)
+                        .padding(.bottom, 28)
 
                     modePicker
-                        .padding(.bottom, 20)
+                        .padding(.bottom, 16)
 
                     fieldsGroup
-                        .padding(.bottom, 24)
+                        .padding(.bottom, 20)
 
                     if mode != .register || registerMode != .closed {
                         submitButton
@@ -231,8 +231,8 @@ struct LoginView: View {
         }
         .buttonStyle(ScaleButtonStyle())
         .disabled(!canSubmit)
-        .opacity(canSubmit ? 1 : 0.4)
-        .shadow(color: .black.opacity(0.12), radius: 10, y: 5)
+        .opacity(canSubmit ? 1 : 0.5)
+        .shadow(color: .black.opacity(canSubmit ? 0.12 : 0), radius: 10, y: 5)
         .accessibilityLabel(mode == .login ? "登录" : "注册")
     }
 
