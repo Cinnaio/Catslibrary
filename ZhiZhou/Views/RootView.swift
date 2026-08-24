@@ -27,10 +27,10 @@ struct BootView: View {
             VStack(spacing: 18) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .fill(AppTheme.primaryGradient)
+                        .fill(AppTheme.deepGradient)
                     Image(systemName: "book.closed.fill")
-                        .font(.title)
-                        .foregroundStyle(.white.opacity(0.95))
+                        .font(.title2)
+                        .foregroundStyle(.white)
                 }
                 .frame(width: 76, height: 76)
                 .shadow(color: .black.opacity(0.15), radius: 14, y: 7)

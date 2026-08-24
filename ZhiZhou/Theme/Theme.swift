@@ -58,8 +58,17 @@ enum AppTheme {
     static let seal = Color(light: "B8453A", dark: "E8968D")
 
     // MARK: 渐变
+    /// 品牌自适应渐变：装饰性视觉用，前景须为深色文字（避免亮色系在深色模式下对比不足）。
     static let primaryGradient = LinearGradient(
         colors: [Color(light: "4E7D70", dark: "9AD4C6"), Color(light: "3A6B5E", dark: "7FBFB0"), Color(light: "2C5348", dark: "5E9C8E")],
+        startPoint: .top,
+        endPoint: .bottom
+    )
+
+    /// 深色品牌渐变：白色前景（图标 / 按钮文字）在浅色与深色外观下都保持足够对比。
+    /// 深浅外观使用同一组深黛青色，避免亮色系按钮在深色模式下文字对比不足。
+    static let deepGradient = LinearGradient(
+        colors: [Color(hex: "4A7C6F"), Color(hex: "35695C"), Color(hex: "2A5448")],
         startPoint: .top,
         endPoint: .bottom
     )
