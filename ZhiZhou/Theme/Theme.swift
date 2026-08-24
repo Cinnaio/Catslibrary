@@ -76,12 +76,11 @@ enum AppTheme {
 
 // MARK: - 字体
 
-/// 中文衬线（宋体）字体解析。
+/// 中文衬线字体解析。
 ///
-/// 系统 serif design 对中文的 Songti 级联在部分 iOS 版本上不可靠
-/// （中文可能静默回退成黑体 PingFang），因此优先按字重显式解析
-/// Songti SC 的 PostScript 名称；解析失败再回退系统 serif design，
-/// 最后回退系统无衬线字体，保证任何设备上都不缺字。
+/// 设计字体为 Noto Serif SC（与 Web 端设计系统一致），随 App 打包并经
+/// UIAppFonts 注册，按字重显式解析其 PostScript 名；解析失败回退系统
+/// Songti SC，再回退系统 serif design，最后回退无衬线字体，保证不缺字。
 enum SongtiFont {
     /// 按文本样式缩放（Dynamic Type）的衬线 Font，用于标题等系统样式字体。
     static func font(_ style: Font.TextStyle, weight: UIFont.Weight = .regular) -> Font {
@@ -105,14 +104,33 @@ enum SongtiFont {
         return system
     }
 
-    /// Songti SC 的 PostScript 名（首个优先；设备上没有则跳过）。
+    /// 按字重给出候选 PostScript 名：优先随包打包的设计字体 Noto Serif SC，
+    /// 其次系统 Songti SC，再补上设备实际枚举到的 Songti SC 名称。
+    /// UIFont.Weight 的 rawValue 不是 0...1：regular=0、medium≈0.23、
+    /// semibold≈0.3、bold≈0.4、heavy≈0.56、black≈0.62。
     private static func postScriptNames(for weight: UIFont.Weight) -> [String] {
+        let noto: String
+        let system: String
         switch weight.rawValue {
-        case ..<0.45: return ["STSongti-SC-Light"]
-        case ..<0.65: return ["STSongti-SC-Regular"]
-        case ..<0.85: return ["STSongti-SC-Bold"]
-        default: return ["STSongti-SC-Black"]
+        case ..<(-0.2): // ultraLight / thin / light
+            noto = "NotoSerifSC-Light"
+            system = "STSongti-SC-Light"
+        case ..<0.265: // regular / medium
+            noto = "NotoSerifSC-Regular"
+            system = "STSongti-SC-Regular"
+        case ..<0.48: // semibold / bold
+            noto = "NotoSerifSC-Bold"
+            system = "STSongti-SC-Bold"
+        default: // heavy / black
+            noto = "NotoSerifSC-Black"
+            system = "STSongti-SC-Black"
         }
+
+        var names = [noto, system]
+        for name in UIFont.fontNames(forFamilyName: "Songti SC") where !names.contains(name) {
+            names.append(name)
+        }
+        return names
     }
 
     private static func uiTextStyle(for style: Font.TextStyle) -> UIFont.TextStyle {
