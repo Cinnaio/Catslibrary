@@ -7,6 +7,7 @@ struct ProfileView: View {
     @State private var showLogoutConfirm = false
     @State private var showReaderSettings = false
     @AppStorage("zhizhou.allowInvalidCert") private var allowInvalidCert = false
+    @State private var showAdvanced = false
 
     var body: some View {
         List {
@@ -16,7 +17,7 @@ struct ProfileView: View {
                         avatar(for: user)
                         VStack(alignment: .leading, spacing: 3) {
                             Text(user.displayName)
-                                .font(serifFont(18, .semibold))
+                                .font(serifFont(.headline, .semibold))
                                 .foregroundStyle(AppTheme.textPrimary)
                             Text("@\(user.username)")
                                 .font(.footnote)
@@ -28,6 +29,7 @@ struct ProfileView: View {
                         }
                     }
                     .padding(.vertical, 4)
+                    .accessibilityElement(children: .combine)
                 }
             }
 
@@ -37,6 +39,7 @@ struct ProfileView: View {
                 } label: {
                     Label("阅读设置", systemImage: "textformat.size")
                 }
+                .frame(minHeight: 44)
             }
 
             Section("服务器") {
@@ -44,25 +47,30 @@ struct ProfileView: View {
             }
 
             Section {
-                Toggle("信任无效证书（开发用）", isOn: $allowInvalidCert)
-            } header: {
-                Text("开发")
-            } footer: {
-                Text("连接 HTTPS 自签名/过期证书导致“TLS 错误”时打开；生产环境请关闭。")
+                DisclosureGroup("高级", isExpanded: $showAdvanced) {
+                    Toggle("信任无效证书（开发用）", isOn: $allowInvalidCert)
+                    Text("仅用于自签名或过期证书排查，日常请关闭。")
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.textMuted)
+                }
             }
 
             Section {
                 Button("退出登录", role: .destructive) {
                     showLogoutConfirm = true
                 }
+                .frame(minHeight: 44)
             }
         }
         .scrollContentBackground(.hidden)
-        .frostedRowBackground()
         .glassPageBackground()
         .navigationTitle("我的")
+        .navigationBarTitleDisplayMode(.large)
+        .browseColorScheme()
         .sheet(isPresented: $showReaderSettings) {
             ReaderSettingsView()
+                .preferredColorScheme(.light)
+                .presentationBackground(AppTheme.surfaceWarm)
                 .presentationDetents([.medium, .large])
         }
         .confirmationDialog("确定退出登录？", isPresented: $showLogoutConfirm, titleVisibility: .visible) {
@@ -75,13 +83,14 @@ struct ProfileView: View {
     @ViewBuilder
     private func avatar(for user: User) -> some View {
         if let url = APIClient.shared.avatarURL(userId: user.id) {
-            CachedAsyncImage(url: url) { image in
+            CachedAsyncImage(url: url, targetSize: CGSize(width: 56, height: 56)) { image in
                 image.resizable().scaledToFill()
             } placeholder: {
                 placeholder
             }
             .frame(width: 56, height: 56)
             .clipShape(Circle())
+            .accessibilityHidden(true)
         } else {
             placeholder
         }
@@ -95,5 +104,6 @@ struct ProfileView: View {
         }
         .frame(width: 56, height: 56)
         .clipShape(Circle())
+        .accessibilityHidden(true)
     }
 }

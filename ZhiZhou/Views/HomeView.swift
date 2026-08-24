@@ -1,97 +1,132 @@
 import SwiftUI
 
-/// 发现页：搜索 + 分类筛选 + 分页加载的小说列表。
+/// 发现页：侧栏书单，详情列打开本书。
 struct HomeView: View {
     @State private var novels: [Novel] = []
     @State private var categories: [String] = []
     @State private var selectedCategory: String?
+    @State private var selectedNovel: Novel?
     @State private var search = ""
     @State private var page = 1
     @State private var totalPages = 1
     @State private var isLoading = false
     @State private var isLoadingMore = false
     @State private var errorMessage: String?
+    @State private var loadMoreError: String?
     @State private var reloadTask: Task<Void, Never>?
 
     var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 14) {
-                Text("书海里，遇见好故事")
-                    .font(serifFont(22, .bold))
-                    .foregroundStyle(AppTheme.textPrimary)
-                searchField
-                categoryChips
+        NavigationSplitView {
+            List(selection: $selectedNovel) {
+                Section {
+                    categoryChips
+                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                }
 
                 if isLoading && novels.isEmpty {
                     ProgressView("加载中…")
                         .frame(maxWidth: .infinity, minHeight: 200)
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
                 } else if let errorMessage, novels.isEmpty {
-                    Text(errorMessage)
-                        .font(.footnote)
-                        .foregroundStyle(AppTheme.danger)
-                        .frame(maxWidth: .infinity)
-                    Button("重试") { Task { await reload() } }
-                        .buttonStyle(.bordered)
+                    ContentUnavailableView {
+                        Label("加载失败", systemImage: "wifi.slash")
+                    } description: {
+                        Text(errorMessage)
+                    } actions: {
+                        Button("重试") { Task { await reload() } }
+                            .buttonStyle(.borderedProminent)
+                            .tint(AppTheme.primary)
+                    }
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                } else if novels.isEmpty {
+                    emptyState
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
                 } else {
                     ForEach(novels) { novel in
                         NavigationLink(value: novel) {
                             NovelCardView(novel: novel)
                         }
-                        .buttonStyle(.plain)
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 7, leading: 16, bottom: 7, trailing: 16))
                         .onAppear {
                             if novel.id == novels.last?.id { loadMoreIfNeeded() }
                         }
                     }
                     if isLoadingMore {
                         ProgressView()
-                            .frame(maxWidth: .infinity, minHeight: 40)
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                    } else if let loadMoreError {
+                        Button(loadMoreError) { loadMoreIfNeeded() }
+                            .font(.footnote)
+                            .foregroundStyle(AppTheme.danger)
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
                     }
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-        }
-        .glassPageBackground()
-        .navigationTitle("知舟")
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationDestination(for: Novel.self) { NovelDetailView(novel: $0) }
-        .task { await reload() }
-        .onChange(of: search) { _, _ in
-            reloadTask?.cancel()
-            reloadTask = Task {
-                try? await Task.sleep(nanoseconds: 400_000_000)
-                guard !Task.isCancelled else { return }
-                await reload()
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .glassPageBackground()
+            .navigationTitle("发现")
+            .navigationBarTitleDisplayMode(.large)
+            .navigationSplitViewColumnWidth(min: 300, ideal: 380, max: 520)
+            .searchable(text: $search, prompt: "搜索书名 / 作者")
+            .refreshable { await reload() }
+            .task { await reload() }
+            .onChange(of: search) { _, _ in
+                reloadTask?.cancel()
+                reloadTask = Task {
+                    try? await Task.sleep(nanoseconds: 400_000_000)
+                    guard !Task.isCancelled else { return }
+                    await reload()
+                }
+            }
+            .onChange(of: selectedCategory) { _, _ in
+                Task { await reload() }
+            }
+            .browseColorScheme()
+        } detail: {
+            NavigationStack {
+                if let selectedNovel {
+                    NovelDetailView(novel: selectedNovel)
+                } else {
+                    ContentUnavailableView(
+                        "选择一本书",
+                        systemImage: "book.closed",
+                        description: Text("从书单打开详情，或到书架接着读")
+                    )
+                    .browseColorScheme()
+                }
             }
         }
-        .onChange(of: selectedCategory) { _, _ in
-            Task { await reload() }
-        }
+        .navigationSplitViewStyle(.balanced)
     }
 
-    // MARK: - 子视图
-
-    private var searchField: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(AppTheme.textSecondary)
-            TextField("搜索书名 / 作者", text: $search)
-                .textFieldStyle(.plain)
-                .foregroundStyle(AppTheme.textPrimary)
-                .tint(AppTheme.primary)
-            if !search.isEmpty {
-                Button {
-                    search = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(AppTheme.textMuted)
-                }
-                .accessibilityLabel("清除搜索")
-            }
+    @ViewBuilder
+    private var emptyState: some View {
+        let trimmed = search.trimmingCharacters(in: .whitespaces)
+        if !trimmed.isEmpty {
+            ContentUnavailableView.search(text: trimmed)
+        } else if selectedCategory != nil {
+            ContentUnavailableView(
+                "没有作品",
+                systemImage: "tray",
+                description: Text("换个分类试试")
+            )
+        } else {
+            ContentUnavailableView(
+                "暂时没有作品",
+                systemImage: "books.vertical"
+            )
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .glassEffect(.regular, in: .rect(cornerRadius: 16))
     }
 
     private var categoryChips: some View {
@@ -103,34 +138,33 @@ struct HomeView: View {
                 }
             }
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("分类")
     }
 
     private func chip(value: String?, label: String) -> some View {
-        Button {
+        let selected = selectedCategory == value
+        return Button {
             selectedCategory = value
         } label: {
             Text(label)
-                .font(.footnote)
+                .font(.subheadline.weight(selected ? .semibold : .regular))
                 .padding(.horizontal, 14)
-                .padding(.vertical, 9)
-                .foregroundStyle(selectedCategory == value ? Color.white : AppTheme.textSecondary)
-                .background(
-                    selectedCategory == value ? AppTheme.primary : Color.white.opacity(0.7),
-                    in: Capsule()
-                )
+                .frame(minHeight: 44)
+                .foregroundStyle(selected ? Color.white : AppTheme.textSecondary)
+                .background(selected ? AppTheme.primary : AppTheme.surface, in: Capsule())
                 .overlay(
-                    Capsule().strokeBorder(selectedCategory == value ? Color.clear : AppTheme.border, lineWidth: 1)
+                    Capsule().strokeBorder(selected ? Color.clear : AppTheme.border, lineWidth: 1)
                 )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(ScaleButtonStyle())
         .contentShape(Capsule())
+        .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
-
-    // MARK: - 数据加载
 
     func reload() async {
         page = 1
-        // 不提前清空列表，避免切换搜索/分类时整屏闪成占位
+        loadMoreError = nil
         await fetchPage(1, append: false)
     }
 
@@ -161,14 +195,20 @@ struct HomeView: View {
                 novels += r.novels
             } else {
                 novels = r.novels
-                if categories.isEmpty { categories = r.availableCategories }
+                categories = r.availableCategories
             }
             page = r.page
             totalPages = r.totalPages
             errorMessage = nil
+            loadMoreError = nil
             await CoverPrefetcher.shared.prefetch(r.novels)
         } catch {
-            errorMessage = error.localizedDescription
+            let message = AppCopy.friendlyError(error)
+            if append || !novels.isEmpty {
+                loadMoreError = "加载失败，点按重试"
+            } else {
+                errorMessage = message
+            }
         }
     }
 

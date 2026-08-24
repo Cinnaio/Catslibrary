@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import UIKit
 
 /// 阅读设置：本地立即生效 + 与服务器 LWW 合并同步。
 /// 键值表与 api/src/services/reader-settings.ts 完全一致。
@@ -24,6 +25,7 @@ final class ReaderSettingsStore: ObservableObject {
             "readerTheme": "default",
             "readerLineHeight": "1.95",
             "readerParagraphSpacing": "1.4",
+            "readerWakeLock": "true",
             "contentMode": "safe",
         ]
     }
@@ -35,23 +37,55 @@ final class ReaderSettingsStore: ObservableObject {
         return levels.firstIndex(of: values["fontSize"] ?? "2") ?? 2
     }
 
-    var bodyFontSize: CGFloat { [14, 16, 18, 20, 22, 24][fontSizeIndex] }
+    var bodyFontSizeUnscaled: CGFloat { [14, 16, 18, 20, 22, 24][fontSizeIndex] }
+    var bodyFontSize: CGFloat {
+        UIFontMetrics(forTextStyle: .body).scaledValue(for: bodyFontSizeUnscaled)
+    }
     var lineHeight: CGFloat { CGFloat(Double(values["readerLineHeight"] ?? "1.95") ?? 1.95) }
     var themeName: String { values["readerTheme"] ?? "default" }
     var useSerif: Bool { (values["fontFamily"] ?? "serif") == "serif" }
     var contentMode: String { values["contentMode"] ?? "safe" }
+    var wakeLockEnabled: Bool {
+        let raw = values["readerWakeLock"] ?? "true"
+        return raw == "true" || raw == "1"
+    }
 
-    /// 阅读器纸面背景（对应 Web 端 readerTheme：default=纸面 / eye=护眼 / paper=羊皮纸）
-    /// 暖调奶油治愈风：纸面/护眼/羊皮纸均为暖色调变体，保证文字可读性。
-    var backgroundColor: Color {
+    /// 将 Web 端可能出现的暗色值归一成 iOS 认识的键。
+    var normalizedTheme: String {
         switch themeName {
-        case "eye": return Color(hex: "E7EBD9")         // 护眼：暖调鼠尾草
-        case "paper": return Color(hex: "F2E3C6")       // 羊皮纸：暖黄
-        default: return Color(hex: "FBF6EE")            // 纸面：奶油纸面
+        case "night", "ink", "black", "dark": return "dark"
+        default: return themeName
         }
     }
 
-    var textColor: Color { Color(hex: "3A2E24") }
+    func isDarkPaper(systemDark: Bool) -> Bool {
+        switch normalizedTheme {
+        case "dark": return true
+        case "system": return systemDark
+        default: return false
+        }
+    }
+
+    func colorSchemeOverride(systemDark: Bool) -> ColorScheme {
+        isDarkPaper(systemDark: systemDark) ? .dark : .light
+    }
+
+    func backgroundColor(systemDark: Bool) -> Color {
+        if isDarkPaper(systemDark: systemDark) {
+            return Color(hex: "1C1916")
+        }
+        switch normalizedTheme {
+        case "eye": return Color(hex: "E7EBD9")
+        case "paper": return Color(hex: "F2E3C6")
+        default: return Color(hex: "FBF6EE")
+        }
+    }
+
+    func textColor(systemDark: Bool) -> Color {
+        isDarkPaper(systemDark: systemDark)
+            ? Color(hex: "EDE4D8")
+            : Color(hex: "3A2E24")
+    }
 
     var bodyFont: Font {
         useSerif
@@ -65,15 +99,18 @@ final class ReaderSettingsStore: ObservableObject {
             : .system(size: bodyFontSize + 4, weight: .bold)
     }
 
-    /// 行距增量 = 字号 × (行高系数 - 1)
     var lineSpacing: CGFloat { bodyFontSize * (lineHeight - 1) }
 
     // MARK: - 写入 + 同步
 
     func set(_ key: String, _ value: String) {
         guard knownKeys.contains(key) else { return }
-        values[key] = value
-        updatedAt[key] = Int64(Date().timeIntervalSince1970 * 1000)
+        var next = values
+        next[key] = value
+        values = next
+        var stamps = updatedAt
+        stamps[key] = Int64(Date().timeIntervalSince1970 * 1000)
+        updatedAt = stamps
         scheduleSync()
     }
 
@@ -85,12 +122,21 @@ final class ReaderSettingsStore: ObservableObject {
             let updatedAt: [String: Int64]
         }
         guard let remote: Remote = try? await APIClient.shared.get("/api/auth/reader-settings", auth: true) else { return }
+        var nextValues = values
+        var nextUpdated = updatedAt
+        var changed = false
         for (key, value) in remote.settings {
             let serverTs = remote.updatedAt[key] ?? 0
-            if (updatedAt[key] ?? 0) < serverTs {
-                values[key] = value
-                updatedAt[key] = serverTs
+            if (nextUpdated[key] ?? 0) < serverTs {
+                nextValues[key] = value
+                nextUpdated[key] = serverTs
+                changed = true
             }
+        }
+        guard changed else { return }
+        await MainActor.run {
+            values = nextValues
+            updatedAt = nextUpdated
         }
     }
 

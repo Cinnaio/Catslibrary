@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 小说卡片（发现页列表项）：封面 + 标题/作者/简介/分类，暖调奶油玻璃卡片。
+/// 小说卡片（发现页列表项）：封面 + 标题/作者/简介/分类。
 struct NovelCardView: View {
     let novel: Novel
 
@@ -9,12 +9,13 @@ struct NovelCardView: View {
             cover
             VStack(alignment: .leading, spacing: 6) {
                 Text(novel.title)
-                    .font(serifFont(17, .semibold))
+                    .font(serifFont(.headline, .semibold))
                     .foregroundStyle(AppTheme.textPrimary)
-                    .lineLimit(1)
+                    .lineLimit(2)
                 Text(novel.author)
                     .font(.subheadline)
                     .foregroundStyle(AppTheme.textSecondary)
+                    .lineLimit(1)
                 if !novel.description.isEmpty {
                     Text(novel.description)
                         .font(.footnote)
@@ -22,11 +23,19 @@ struct NovelCardView: View {
                         .lineLimit(2)
                 }
                 HStack(spacing: 8) {
-                    ForEach(novel.categories.prefix(3), id: \.self) { category in
+                    if let status = novel.statusLabel {
+                        Text(status)
+                            .modifier(ThemeTagModifier())
+                    }
+                    if novel.hasUpdate {
+                        Text("有更新")
+                            .modifier(ThemeTagModifier(emphasized: true))
+                    }
+                    ForEach(novel.categories.prefix(2), id: \.self) { category in
                         Text(category)
                             .modifier(ThemeTagModifier())
                     }
-                    Spacer()
+                    Spacer(minLength: 0)
                     Text("\(novel.chapterCount) 章")
                         .font(.caption)
                         .foregroundStyle(AppTheme.textMuted)
@@ -34,11 +43,25 @@ struct NovelCardView: View {
             }
         }
         .padding(12)
-        .glassEffect(.regular, in: .rect(cornerRadius: 18))
+        .paperCard(cornerRadius: 18)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityText)
+        .accessibilityAddTraits(.isButton)
+    }
+
+    private var accessibilityText: String {
+        var parts = [novel.title, novel.author]
+        if let status = novel.statusLabel { parts.append(status) }
+        if novel.hasUpdate { parts.append("有更新") }
+        parts.append("\(novel.chapterCount) 章")
+        return parts.filter { !$0.isEmpty }.joined(separator: "，")
     }
 
     private var cover: some View {
-        CachedAsyncImage(url: APIClient.shared.coverURL(novelId: novel.id, updatedAt: novel.updatedAt)) { image in
+        CachedAsyncImage(
+            url: APIClient.shared.coverURL(novelId: novel.id, updatedAt: novel.updatedAt),
+            targetSize: CGSize(width: 76, height: 108)
+        ) { image in
             image.resizable().scaledToFill()
         } placeholder: {
             ZStack {
@@ -49,18 +72,21 @@ struct NovelCardView: View {
         }
         .frame(width: 76, height: 108)
         .clipShape(RoundedRectangle(cornerRadius: 8))
+        .accessibilityHidden(true)
     }
 }
 
-/// 分类/属性标签贴纸：奶白胶囊 + 暖色描边 + 轻阴影
+/// 分类/属性标签贴纸：奶白胶囊 + 暖色描边
 struct ThemeTagModifier: ViewModifier {
+    var emphasized: Bool = false
+
     func body(content: Content) -> some View {
         content
-            .font(.caption2)
-            .foregroundStyle(AppTheme.primaryDeep)
+            .font(.caption2.weight(emphasized ? .semibold : .regular))
+            .foregroundStyle(emphasized ? AppTheme.seal : AppTheme.primaryDeep)
             .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .background(Color.white.opacity(0.75), in: Capsule())
-            .overlay(Capsule().strokeBorder(AppTheme.border, lineWidth: 0.75))
+            .padding(.vertical, 5)
+            .background(Color.white.opacity(0.9), in: Capsule())
+            .overlay(Capsule().strokeBorder(emphasized ? AppTheme.seal.opacity(0.35) : AppTheme.border, lineWidth: 0.75))
     }
 }

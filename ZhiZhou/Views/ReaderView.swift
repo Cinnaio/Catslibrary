@@ -1,235 +1,261 @@
 import SwiftUI
+import UIKit
 
-// MARK: - 滚动位置/内容尺寸的 PreferenceKey
-
-struct ReaderContentSizeKey: PreferenceKey {
-    static var defaultValue: CGSize = .zero
-    static func reduce(value: inout CGSize, nextValue: () -> CGSize) { value = nextValue() }
+private final class ReaderPercentBox {
+    var value: Double = 0
 }
 
-struct ReaderOffsetKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
-}
-
-/// 阅读器（核心）：滚动式阅读、字号/行距/主题/字体设置、进度双向同步、上下章切换。
+/// 阅读器：滚动阅读、夜间主题、点按隐铬、按段落恢复进度。
 struct ReaderView: View {
     let novel: Novel
+    let preloadedChapters: [ChapterMeta]
     @State var chapterOrder: Int
 
     @EnvironmentObject private var settings: ReaderSettingsStore
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
+    @ObservedObject private var appearance = SystemAppearance.shared
 
     @State private var chapter: ChapterFull?
+    @State private var chapterMetas: [ChapterMeta] = []
     @State private var chapterCount = 0
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var showTOC = false
     @State private var showSettings = false
-    @State private var contentSize: CGSize = .zero
-    @State private var viewportHeight: CGFloat = 0
-    @State private var scrollOffset: CGFloat = 0
-    @State private var scrollPercent: Double = 0
-    @State private var restorePercent: Double = 0
-    @State private var didRestore = false
-    @State private var restoreSpacer: CGFloat = 0
-    @State private var restoreAttempts = 0
+    @State private var showChrome = true
+    @State private var scrolledParagraph: Int?
+    @State private var paragraphCount = 0
     @State private var saveTask: Task<Void, Never>?
+    @State private var percentBox = ReaderPercentBox()
+    @State private var suppressPercent = false
+
+    init(novel: Novel, chapterOrder: Int, preloadedChapters: [ChapterMeta] = []) {
+        self.novel = novel
+        self.preloadedChapters = preloadedChapters
+        _chapterOrder = State(initialValue: chapterOrder)
+    }
 
     var totalOrderCount: Int {
-        max(chapterCount, novel.chapterCount)
+        max(chapterCount, novel.chapterCount, chapterMetas.count)
     }
+
+    private var systemIsDark: Bool { appearance.isDark }
+    private var paper: Color { settings.backgroundColor(systemDark: systemIsDark) }
+    private var ink: Color { settings.textColor(systemDark: systemIsDark) }
+    private var scheme: ColorScheme { settings.colorSchemeOverride(systemDark: systemIsDark) }
 
     var body: some View {
         GeometryReader { geo in
-            ScrollViewReader { proxy in
-                ScrollView {
-                    VStack(alignment: .leading, spacing: settings.lineSpacing) {
-                        if restoreSpacer > 0 {
-                            Color.clear
-                                .frame(height: restoreSpacer)
-                                .id("restore")
-                        }
-                        if isLoading && chapter == nil {
-                            ProgressView("加载中…")
-                                .foregroundStyle(settings.textColor)
-                                .frame(maxWidth: .infinity, minHeight: 300)
-                        } else if let errorMessage, chapter == nil {
-                            VStack(spacing: 12) {
-                                Text(errorMessage)
-                                    .font(.footnote)
-                                    .foregroundStyle(AppTheme.danger)
-                                Button("重试") { Task { await load() } }
-                                    .buttonStyle(.bordered)
-                            }
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: settings.lineSpacing) {
+                    if isLoading && chapter == nil {
+                        ProgressView("加载中…")
+                            .tint(ink)
                             .frame(maxWidth: .infinity, minHeight: 300)
-                        } else if let chapter {
-                            Text(chapter.title)
-                                .font(settings.titleFont)
-                                .foregroundStyle(settings.textColor)
-                                .padding(.bottom, 8)
-                            ForEach(paragraphs(of: chapter), id: \.self) { paragraph in
-                                Text(paragraph)
-                                    .font(settings.bodyFont)
-                                    .lineSpacing(settings.lineSpacing)
-                                    .foregroundStyle(settings.textColor)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                            }
+                    } else if let errorMessage, chapter == nil {
+                        ContentUnavailableView {
+                            Label("无法打开这一章", systemImage: "exclamationmark.triangle")
+                        } description: {
+                            Text(errorMessage)
+                        } actions: {
+                            Button("重试") { Task { await load() } }
+                        }
+                        .foregroundStyle(ink)
+                        .frame(maxWidth: .infinity, minHeight: 300)
+                    } else if let chapter {
+                        Text(chapter.title)
+                            .font(settings.titleFont)
+                            .foregroundStyle(ink)
+                            .padding(.bottom, 8)
+                        ForEach(Array(paragraphs(of: chapter).enumerated()), id: \.offset) { index, paragraph in
+                            Text(paragraph)
+                                .font(settings.bodyFont)
+                                .lineSpacing(settings.lineSpacing)
+                                .foregroundStyle(ink)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .id(index)
                         }
                     }
-                    .padding(.horizontal, 22)
-                    .padding(.top, 18)
-                    .padding(.bottom, 80)
-                    .background(
-                        GeometryReader { g in
-                            Color.clear
-                                .preference(key: ReaderContentSizeKey.self, value: g.size)
-                                .preference(key: ReaderOffsetKey.self, value: g.frame(in: .named("readerScroll")).minY)
-                        }
-                    )
                 }
-                .coordinateSpace(name: "readerScroll")
-                .background(settings.backgroundColor)
-                .onPreferenceChange(ReaderContentSizeKey.self) { size in
-                    contentSize = size
-                    applyRestore()
-                }
-                .onPreferenceChange(ReaderOffsetKey.self) { value in
-                    scrollOffset = value
-                    updatePercent()
-                }
-                .onAppear { viewportHeight = geo.size.height }
-                .onChange(of: geo.size.height) { _, height in
-                    viewportHeight = height
-                }
-                .onChange(of: restoreSpacer) { _, height in
-                    if height > 0 {
-                        proxy.scrollTo("restore", anchor: .top)
-                    }
-                }
+                .padding(.horizontal, 22)
+                .padding(.top, 18)
+                .padding(.bottom, showChrome ? 80 : 28)
+                .frame(maxWidth: min(geo.size.width, 720))
+                .frame(maxWidth: .infinity)
+                .contentShape(Rectangle())
+                .simultaneousGesture(TapGesture().onEnded { toggleChrome() })
+                .scrollTargetLayout()
+            }
+            .scrollPosition(id: $scrolledParagraph)
+            .background(paper)
+            .onChange(of: scrolledParagraph) { _, index in
+                updatePercent(from: index)
             }
         }
+        .background(paper.ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar(showChrome ? .visible : .hidden, for: .navigationBar)
+        .toolbar(showChrome ? .visible : .hidden, for: .bottomBar)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
-                Button { showTOC = true } label: { Image(systemName: "list.bullet") }
-                    .accessibilityLabel("目录")
-                Button { showSettings = true } label: { Image(systemName: "textformat.size") }
-                    .accessibilityLabel("阅读设置")
+                Button { showTOC = true } label: {
+                    Image(systemName: "list.bullet")
+                        .frame(minWidth: 44, minHeight: 44)
+                }
+                .accessibilityLabel("目录")
+                Button { showSettings = true } label: {
+                    Image(systemName: "textformat.size")
+                        .frame(minWidth: 44, minHeight: 44)
+                }
+                .accessibilityLabel("阅读设置")
             }
             ToolbarItemGroup(placement: .bottomBar) {
-                Button { go(to: chapterOrder - 1) } label: { Image(systemName: "chevron.left") }
-                    .disabled(chapterOrder <= 1)
-                    .accessibilityLabel("上一章")
+                Button { go(to: chapterOrder - 1) } label: {
+                    Image(systemName: "chevron.left")
+                        .frame(minWidth: 44, minHeight: 44)
+                }
+                .disabled(chapterOrder <= 1)
+                .accessibilityLabel("上一章")
                 Spacer()
                 Text("\(chapterOrder)/\(totalOrderCount)")
                     .font(.caption)
                     .monospacedDigit()
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ink.opacity(0.7))
                     .lineLimit(1)
-                    .minimumScaleFactor(0.5)
+                    .minimumScaleFactor(0.7)
+                    .accessibilityLabel("章节")
+                    .accessibilityValue("第 \(chapterOrder) 章，共 \(totalOrderCount) 章")
                 Spacer()
-                Button { go(to: chapterOrder + 1) } label: { Image(systemName: "chevron.right") }
-                    .disabled(chapterOrder >= totalOrderCount)
-                    .accessibilityLabel("下一章")
+                Button { go(to: chapterOrder + 1) } label: {
+                    Image(systemName: "chevron.right")
+                        .frame(minWidth: 44, minHeight: 44)
+                }
+                .disabled(chapterOrder >= totalOrderCount)
+                .accessibilityLabel("下一章")
             }
         }
-        .toolbarBackground(settings.backgroundColor, for: .navigationBar)
+        .toolbarBackground(paper, for: .navigationBar)
+        .toolbarBackground(paper, for: .bottomBar)
         .toolbar(.hidden, for: .tabBar)
+        .sensoryFeedback(.selection, trigger: chapterOrder)
         .sheet(isPresented: $showTOC) {
-            ChapterListView(novel: novel, currentOrder: chapterOrder) { order in
+            ChapterListView(
+                novel: novel,
+                currentOrder: chapterOrder,
+                initialChapters: chapterMetas
+            ) { order in
                 go(to: order)
             }
+            .preferredColorScheme(scheme)
+            .presentationBackground(paper)
             .presentationDetents([.medium, .large])
         }
         .sheet(isPresented: $showSettings) {
             ReaderSettingsView()
-                .presentationDetents([.medium])
+                .preferredColorScheme(scheme)
+                .presentationBackground(paper)
+                .presentationDetents([.medium, .large])
         }
+        .preferredColorScheme(scheme)
         .task { await load() }
         .onChange(of: chapterOrder) { _, _ in
-            didRestore = false
-            restoreSpacer = 0
-            restorePercent = 0
-            restoreAttempts = 0
-            scrollPercent = 0
+            percentBox.value = 0
+            scrolledParagraph = nil
+            paragraphCount = 0
             Task { await load() }
         }
-        .onDisappear {
-            // 离开阅读器时尽力同步一次进度
-            let body = progressBody()
-            if let body {
-                Task {
-                    try? await APIClient.shared.requestVoid("POST", "/api/progress", body: body, auth: true)
-                }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .background || phase == .inactive {
+                saveProgressNow()
             }
+        }
+        .onAppear { applyWakeLock() }
+        .onChange(of: settings.wakeLockEnabled) { _, _ in applyWakeLock() }
+        .onDisappear {
+            UIApplication.shared.isIdleTimerDisabled = false
+            saveProgressNow()
         }
     }
 
-    // MARK: - 加载
+    private func toggleChrome() {
+        if reduceMotion {
+            showChrome.toggle()
+        } else {
+            withAnimation(.easeOut(duration: 0.2)) { showChrome.toggle() }
+        }
+    }
+
+    private func applyWakeLock() {
+        UIApplication.shared.isIdleTimerDisabled = settings.wakeLockEnabled
+    }
 
     private func load() async {
         isLoading = true
         defer { isLoading = false }
         do {
-            // 服务端正文接口为 /api/chapters/{chapterId}：先用目录的 order 反查章节 id，再取正文。
-            let list: ChaptersResponse = try await APIClient.shared.get(
-                "/api/chapters?novelId=\(novel.id)"
-            )
-            chapterCount = list.chapters.count
-            guard let meta = list.chapters.first(where: { $0.order == chapterOrder }) else {
-                errorMessage = "未找到第 \(chapterOrder) 章"
+            if chapterMetas.isEmpty {
+                if !preloadedChapters.isEmpty {
+                    chapterMetas = preloadedChapters
+                } else {
+                    let list: ChaptersResponse = try await APIClient.shared.get(
+                        "/api/chapters?novelId=\(novel.id)"
+                    )
+                    chapterMetas = list.chapters
+                }
+            }
+            chapterCount = chapterMetas.count
+
+            guard let meta = chapterMetas.first(where: { $0.order == chapterOrder }) else {
+                let list: ChaptersResponse = try await APIClient.shared.get(
+                    "/api/chapters?novelId=\(novel.id)"
+                )
+                chapterMetas = list.chapters
+                chapterCount = list.chapters.count
+                guard let retry = chapterMetas.first(where: { $0.order == chapterOrder }) else {
+                    errorMessage = "未找到第 \(chapterOrder) 章"
+                    return
+                }
+                try await loadContent(id: retry.id)
                 return
             }
 
-            let r: ChapterResponse = try await APIClient.shared.get(
-                "/api/chapters/\(meta.id)"
-            )
-            chapter = r.chapter
-            errorMessage = nil
-
-            // 恢复阅读进度
-            if !didRestore, APIClient.shared.isAuthenticated {
-                let p: ProgressResponse = try await APIClient.shared.get(
-                    "/api/progress?novelId=\(novel.id)", auth: true
-                )
-                if let prog = p.progress, prog.chapterId == r.chapter.id, prog.scrollPercent > 0 {
-                    restorePercent = prog.scrollPercent
-                    didRestore = true
-                    restoreAttempts = 0
-                    applyRestore()
-                }
-            }
+            try await loadContent(id: meta.id)
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = AppCopy.friendlyError(error)
         }
     }
 
-    private func applyRestore() {
-        guard didRestore, chapter != nil else { return }
-        // 内容尺寸/视口还没就绪：下一帧再试（有上限，避免死循环）
-        guard contentSize.height > 0, viewportHeight > 0 else {
-            if restoreAttempts < 30 {
-                restoreAttempts += 1
-                DispatchQueue.main.async { applyRestore() }
-            } else {
-                didRestore = false
+    private func loadContent(id: String) async throws {
+        let r: ChapterResponse = try await APIClient.shared.get("/api/chapters/\(id)")
+        chapter = r.chapter
+        errorMessage = nil
+        let paras = paragraphs(of: r.chapter)
+        paragraphCount = paras.count
+
+        var restore: Double = 0
+        if APIClient.shared.isAuthenticated {
+            let p: ProgressResponse = try await APIClient.shared.get(
+                "/api/progress?novelId=\(novel.id)", auth: true
+            )
+            if let prog = p.progress, prog.chapterId == r.chapter.id, prog.scrollPercent > 0 {
+                restore = prog.scrollPercent
             }
-            return
         }
-        let maxOffset = max(contentSize.height - viewportHeight, 0)
-        let target = restorePercent * maxOffset
-        if target > 1 {
-            restoreSpacer = target
-        }
-        didRestore = false
+
+        let last = max(paras.count - 1, 0)
+        let target = last == 0 ? 0 : min(last, max(0, Int((restore * Double(last)).rounded(.down))))
+        percentBox.value = restore
+        suppressPercent = true
+        try? await Task.sleep(nanoseconds: 80_000_000)
+        scrolledParagraph = target
+        try? await Task.sleep(nanoseconds: 120_000_000)
+        suppressPercent = false
     }
 
-    // MARK: - 进度
-
-    private func updatePercent() {
-        let maxOffset = max(contentSize.height - viewportHeight, 0)
-        guard maxOffset > 0 else { return }
-        scrollPercent = min(1, max(0, -scrollOffset / maxOffset))
+    private func updatePercent(from index: Int?) {
+        guard !suppressPercent, let index, paragraphCount > 1 else { return }
+        percentBox.value = min(1, max(0, Double(index) / Double(paragraphCount - 1)))
         debounceSaveProgress()
     }
 
@@ -238,9 +264,14 @@ struct ReaderView: View {
         saveTask = Task {
             try? await Task.sleep(nanoseconds: 1_200_000_000)
             guard !Task.isCancelled, APIClient.shared.isAuthenticated else { return }
-            if let body = progressBody() {
-                try? await APIClient.shared.requestVoid("POST", "/api/progress", body: body, auth: true)
-            }
+            saveProgressNow()
+        }
+    }
+
+    private func saveProgressNow() {
+        guard APIClient.shared.isAuthenticated, let body = progressBody() else { return }
+        Task {
+            try? await APIClient.shared.requestVoid("POST", "/api/progress", body: body, auth: true)
         }
     }
 
@@ -251,21 +282,17 @@ struct ReaderView: View {
             chapterId: chapter.id,
             chapterTitle: chapter.title,
             chapterOrder: chapter.order,
-            scrollPercent: scrollPercent,
+            scrollPercent: percentBox.value,
             pageMode: "scroll",
             clientUpdatedAt: Int64(Date().timeIntervalSince1970 * 1000)
         )
         return try? APIClient.shared.jsonBody(body)
     }
 
-    // MARK: - 章节切换
-
     private func go(to order: Int) {
         guard order >= 1, order <= totalOrderCount else { return }
         chapterOrder = order
     }
-
-    // MARK: - 段落切分
 
     private func paragraphs(of chapter: ChapterFull) -> [String] {
         let byBlankLine = chapter.content

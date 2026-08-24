@@ -20,6 +20,7 @@ final class AppState: ObservableObject {
         do {
             let r: MeResponse = try await APIClient.shared.get("/api/auth/me", auth: true)
             user = r.user
+            await ReaderSettingsStore.shared.syncFromServer()
         } catch {
             APIClient.shared.token = nil
         }
@@ -31,6 +32,7 @@ final class AppState: ObservableObject {
         let r: LoginResponse = try await APIClient.shared.post("/api/auth/login", body: body)
         APIClient.shared.token = r.token
         user = r.user
+        await ReaderSettingsStore.shared.syncFromServer()
     }
 
     func register(username: String, password: String, invite: String) async throws {
@@ -40,6 +42,7 @@ final class AppState: ObservableObject {
         let r: LoginResponse = try await APIClient.shared.post("/api/auth/register", body: body)
         APIClient.shared.token = r.token
         user = r.user
+        await ReaderSettingsStore.shared.syncFromServer()
     }
 
     func logout() async {

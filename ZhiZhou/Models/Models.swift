@@ -35,6 +35,41 @@ struct Novel: Codable, Identifiable, Hashable {
     let updateCheckedAt: Int64
     let createdAt: Int64
     let updatedAt: Int64
+
+    var statusLabel: String? {
+        switch status.lowercased() {
+        case "completed", "finished", "完结": return "完结"
+        case "ongoing", "serializing", "连载": return "连载"
+        case "paused", "hiatus", "暂停": return "暂停"
+        case "": return nil
+        default: return status
+        }
+    }
+
+    var hasUpdate: Bool {
+        remoteChapterCount > chapterCount && remoteChapterCount > 0
+    }
+}
+
+/// 从书架 / 详情一拍进入阅读器。
+struct ReaderLaunch: Hashable {
+    var novel: Novel
+    var chapterOrder: Int
+    var preloadedChapters: [ChapterMeta] = []
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(novel.id)
+        hasher.combine(chapterOrder)
+    }
+
+    static func == (lhs: ReaderLaunch, rhs: ReaderLaunch) -> Bool {
+        lhs.novel.id == rhs.novel.id && lhs.chapterOrder == rhs.chapterOrder
+    }
+}
+
+enum BookshelfRoute: Hashable {
+    case read(ReaderLaunch)
+    case detail(Novel)
 }
 
 struct NovelListResponse: Codable {
@@ -127,6 +162,11 @@ struct FavoriteItem: Codable, Hashable, Identifiable {
             updateCheckedAt: 0, createdAt: 0, updatedAt: novelUpdatedAt
         )
     }
+
+    var asLaunch: ReaderLaunch? {
+        guard let chapterOrder, chapterOrder > 0 else { return nil }
+        return ReaderLaunch(novel: asNovel, chapterOrder: chapterOrder)
+    }
 }
 
 struct RecentItem: Codable, Hashable, Identifiable {
@@ -138,6 +178,19 @@ struct RecentItem: Codable, Hashable, Identifiable {
     let chapterOrder: Int
     let scrollPercent: Double
     let updatedAt: Int64
+
+    var asNovel: Novel {
+        Novel(
+            id: novelId, title: novelTitle, author: "", description: "",
+            coverUrl: "", categories: [], status: "", sourceUrl: "",
+            chapterCount: 0, remoteChapterCount: 0,
+            updateCheckedAt: 0, createdAt: 0, updatedAt: updatedAt
+        )
+    }
+
+    var asLaunch: ReaderLaunch {
+        ReaderLaunch(novel: asNovel, chapterOrder: chapterOrder)
+    }
 }
 
 struct ThoughtItem: Codable, Identifiable {

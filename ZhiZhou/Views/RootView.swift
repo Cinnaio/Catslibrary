@@ -2,6 +2,7 @@ import SwiftUI
 
 struct RootView: View {
     @EnvironmentObject private var appState: AppState
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Group {
@@ -13,9 +14,8 @@ struct RootView: View {
                 MainTabView()
             }
         }
-        .animation(.easeInOut(duration: 0.25), value: appState.isBooting)
-        // 设计为暖奶油浅色系，锁定浅色模式，避免深色模式下系统控件与暖底混搭
-        .preferredColorScheme(.light)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: appState.isBooting)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: appState.user != nil)
     }
 }
 
@@ -29,14 +29,14 @@ struct BootView: View {
                     RoundedRectangle(cornerRadius: 24, style: .continuous)
                         .fill(AppTheme.brandGradient)
                     Image(systemName: "book.closed.fill")
-                        .font(.system(size: 30, weight: .semibold))
+                        .font(.title)
                         .foregroundStyle(.white.opacity(0.95))
                 }
                 .frame(width: 76, height: 76)
                 .shadow(color: AppTheme.terracotta.opacity(0.3), radius: 14, y: 7)
 
                 Text("知舟")
-                    .font(serifFont(28, .bold))
+                    .font(serifFont(.title, .bold))
                     .foregroundStyle(AppTheme.textPrimary)
 
                 ProgressView()
@@ -48,17 +48,18 @@ struct BootView: View {
                     .foregroundStyle(AppTheme.textSecondary)
             }
         }
+        .preferredColorScheme(.light)
     }
 }
 
 struct MainTabView: View {
     var body: some View {
         TabView {
-            Tab("发现", systemImage: "books.vertical") {
-                NavigationStack { HomeView() }
+            Tab("发现", systemImage: "sparkle.magnifyingglass") {
+                HomeView()
             }
-            Tab("书架", systemImage: "bookmark") {
-                NavigationStack { BookshelfView() }
+            Tab("书架", systemImage: "books.vertical") {
+                BookshelfView()
             }
             Tab("我的", systemImage: "person") {
                 NavigationStack { ProfileView() }

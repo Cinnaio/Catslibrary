@@ -1,74 +1,42 @@
 import SwiftUI
 
 /// 登录 / 注册（注册模式随服务端 register-status 动态切换）。
-/// 暖调奶油 · 治愈手账风：暖纸面背景 + 玻璃卡片。
 struct LoginView: View {
     @EnvironmentObject private var appState: AppState
     @State private var mode: Mode = .login
     @State private var username = ""
     @State private var password = ""
     @State private var invite = ""
+    @State private var showPassword = false
     @State private var registerMode: RegisterMode = .invite
     @State private var busy = false
     @State private var errorMessage: String?
 
-    enum Mode { case login, register }
+    enum Mode: Hashable { case login, register }
     enum RegisterMode: String { case open, invite, closed }
 
     var body: some View {
         ZStack {
-            warmBackdrop
+            AppTheme.auroraBackground.ignoresSafeArea()
 
             ScrollView {
                 VStack(spacing: 24) {
                     header
-                        .padding(.top, 72)
                     glassCard
-                    serverNote
                 }
                 .frame(maxWidth: 430)
                 .frame(maxWidth: .infinity)
                 .padding(.horizontal, 22)
+                .padding(.top, 12)
                 .padding(.bottom, 40)
             }
             .scrollDismissesKeyboard(.interactively)
+            .scrollBounceBehavior(.basedOnSize)
         }
+        .preferredColorScheme(.light)
         .task { await fetchRegisterStatus() }
+        .onSubmit { Task { await submit() } }
     }
-
-    // MARK: - 背景（暖纸面 + 柔和光斑）
-
-    private var warmBackdrop: some View {
-        ZStack {
-            AppTheme.auroraBackground.ignoresSafeArea()
-
-            Circle()
-                .fill(AppTheme.peach.opacity(0.5))
-                .frame(width: 320, height: 320)
-                .blur(radius: 90)
-                .offset(x: -150, y: -300)
-
-            Circle()
-                .fill(AppTheme.rose.opacity(0.4))
-                .frame(width: 300, height: 300)
-                .blur(radius: 100)
-                .offset(x: 160, y: -120)
-
-            Circle()
-                .fill(AppTheme.butter.opacity(0.5))
-                .frame(width: 340, height: 340)
-                .blur(radius: 100)
-                .offset(x: -60, y: 320)
-
-            Circle()
-                .fill(AppTheme.sage.opacity(0.35))
-                .frame(width: 260, height: 260)
-                .blur(radius: 110)
-                .offset(x: 200, y: 340)
-        }
-    }
-
-    // MARK: - 头部（品牌标识）
 
     private var header: some View {
         VStack(spacing: 14) {
@@ -76,14 +44,15 @@ struct LoginView: View {
                 RoundedRectangle(cornerRadius: 26, style: .continuous)
                     .fill(AppTheme.brandGradient)
                 Image(systemName: "book.closed.fill")
-                    .font(.system(size: 34, weight: .semibold))
+                    .font(.title)
                     .foregroundStyle(.white.opacity(0.95))
             }
             .frame(width: 92, height: 92)
             .shadow(color: AppTheme.terracotta.opacity(0.35), radius: 16, y: 8)
+            .accessibilityHidden(true)
 
             Text("知舟")
-                .font(serifFont(38, .bold))
+                .font(serifFont(.largeTitle, .bold))
                 .foregroundStyle(AppTheme.textPrimary)
 
             Text("登录后同步书架与阅读进度")
@@ -92,78 +61,102 @@ struct LoginView: View {
         }
     }
 
-    // MARK: - 玻璃卡片
-
     private var glassCard: some View {
         VStack(spacing: 16) {
-            modePicker
+            Picker("账号操作", selection: $mode) {
+                Text("登录").tag(Mode.login)
+                Text("注册").tag(Mode.register)
+            }
+            .pickerStyle(.segmented)
+            .frame(minHeight: 44)
 
-            glassField(icon: "person.fill", placeholder: "用户名", text: $username, isSecure: false)
+            field(icon: "person.fill", placeholder: "用户名", text: $username, isSecure: false)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
+                .textContentType(.username)
+                .submitLabel(.next)
 
-            glassField(icon: "lock.fill", placeholder: "密码", text: $password, isSecure: true)
+            passwordField
 
             if mode == .register && registerMode == .invite {
-                glassField(icon: "key.fill", placeholder: "邀请码", text: $invite, isSecure: false)
+                field(icon: "key.fill", placeholder: "邀请码", text: $invite, isSecure: false)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
+                    .textContentType(.oneTimeCode)
+                    .submitLabel(.go)
             }
 
             if mode == .register && registerMode == .closed {
                 Text("当前站点注册已关闭")
                     .font(.footnote)
                     .foregroundStyle(AppTheme.textSecondary)
+                    .frame(maxWidth: .infinity, minHeight: 44)
             }
 
-            submitButton
+            if mode != .register || registerMode != .closed {
+                submitButton
+            }
 
             if let errorMessage {
                 Text(errorMessage)
                     .font(.footnote)
                     .foregroundStyle(AppTheme.danger)
                     .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+                    .accessibilityAddTraits(.updatesFrequently)
             }
         }
         .padding(20)
-        .glassEffect(.regular, in: .rect(cornerRadius: 28))
+        .paperCard(cornerRadius: 28)
+    }
+
+    private var passwordField: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "lock.fill")
+                .font(.subheadline)
+                .foregroundStyle(AppTheme.textSecondary)
+                .frame(width: 20)
+                .accessibilityHidden(true)
+
+            Group {
+                if showPassword {
+                    TextField("密码", text: $password)
+                } else {
+                    SecureField("密码", text: $password)
+                }
+            }
+            .textContentType(mode == .register ? .newPassword : .password)
+            .submitLabel(.go)
+            .foregroundStyle(AppTheme.textPrimary)
+            .tint(AppTheme.primary)
+
+            Button {
+                showPassword.toggle()
+            } label: {
+                Image(systemName: showPassword ? "eye.slash.fill" : "eye.fill")
+                    .font(.subheadline)
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .frame(width: 44, height: 44)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(showPassword ? "隐藏密码" : "显示密码")
+        }
+        .padding(.leading, 14)
+        .padding(.trailing, 4)
+        .background(AppTheme.surfaceWarm, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .strokeBorder(.white.opacity(0.6), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(AppTheme.border, lineWidth: 1)
         )
     }
 
-    private var modePicker: some View {
-        HStack(spacing: 6) {
-            segment(title: "登录", isSelected: mode == .login) { mode = .login }
-            segment(title: "注册", isSelected: mode == .register) { mode = .register }
-        }
-        .padding(4)
-        .background(.white.opacity(0.6), in: Capsule())
-        .overlay(Capsule().strokeBorder(.white.opacity(0.7), lineWidth: 1))
-    }
-
-    private func segment(title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title)
-                .font(.subheadline.weight(isSelected ? .semibold : .regular))
-                .foregroundStyle(isSelected ? Color.white : AppTheme.textSecondary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 9)
-                .background(
-                    isSelected ? AppTheme.primary : Color.clear,
-                    in: Capsule()
-                )
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func glassField(icon: String, placeholder: String, text: Binding<String>, isSecure: Bool) -> some View {
+    private func field(icon: String, placeholder: String, text: Binding<String>, isSecure: Bool) -> some View {
         HStack(spacing: 10) {
             Image(systemName: icon)
                 .font(.subheadline)
                 .foregroundStyle(AppTheme.textSecondary)
                 .frame(width: 20)
+                .accessibilityHidden(true)
 
             Group {
                 if isSecure {
@@ -176,11 +169,11 @@ struct LoginView: View {
             .tint(AppTheme.primary)
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 13)
-        .glassEffect(.regular, in: .rect(cornerRadius: 14))
+        .frame(minHeight: 48)
+        .background(AppTheme.surfaceWarm, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(.white.opacity(0.6), lineWidth: 1)
+                .strokeBorder(AppTheme.border, lineWidth: 1)
         )
     }
 
@@ -193,38 +186,34 @@ struct LoginView: View {
                     ProgressView()
                         .tint(.white)
                 } else {
-                    Text(mode == .login ? "登 录" : "注 册")
+                    Text(mode == .login ? "登录" : "注册")
                         .font(.headline)
                         .foregroundStyle(.white)
                 }
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 52)
+            .frame(minHeight: 52)
             .background(
                 AppTheme.buttonGradient,
                 in: RoundedRectangle(cornerRadius: 16, style: .continuous)
             )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(ScaleButtonStyle())
         .disabled(!canSubmit)
         .opacity(canSubmit ? 1 : 0.6)
         .shadow(color: AppTheme.primaryDeep.opacity(0.35), radius: 14, y: 7)
+        .accessibilityLabel(mode == .login ? "登录" : "注册")
     }
 
-    /// 登录只需用户名+密码非空；注册才要求密码 ≥ 8 位（避免短密码账号无法登录）
     private var canSubmit: Bool {
         guard !busy, !username.trimmingCharacters(in: .whitespaces).isEmpty else { return false }
-        if mode == .register { return password.count >= 8 }
+        if mode == .register {
+            if registerMode == .closed { return false }
+            if registerMode == .invite, invite.trimmingCharacters(in: .whitespaces).isEmpty { return false }
+            return password.count >= 8
+        }
         return !password.isEmpty
     }
-
-    private var serverNote: some View {
-        Label("连接知舟 · novel.mscraft.uk", systemImage: "server.rack")
-            .font(.caption)
-            .foregroundStyle(AppTheme.textMuted)
-    }
-
-    // MARK: - 动作
 
     private func fetchRegisterStatus() async {
         if let r: RegisterStatusResponse = try? await APIClient.shared.get("/api/auth/register-status") {
@@ -233,8 +222,12 @@ struct LoginView: View {
     }
 
     private func submit() async {
-        if mode == .register, password.count < 8 {
-            errorMessage = "密码至少 8 位"
+        guard canSubmit else {
+            if mode == .register, password.count < 8 {
+                errorMessage = "密码至少 8 位"
+            } else if mode == .register, registerMode == .invite, invite.trimmingCharacters(in: .whitespaces).isEmpty {
+                errorMessage = "请填写邀请码"
+            }
             return
         }
         busy = true
@@ -247,7 +240,7 @@ struct LoginView: View {
                 try await appState.register(username: username, password: password, invite: invite)
             }
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = AppCopy.friendlyError(error)
         }
     }
 }
