@@ -41,6 +41,16 @@ struct ProfileView: View {
                 }
             }
 
+            if appState.user?.role == "admin" {
+                Section("管理") {
+                    NavigationLink {
+                        AdminRootView()
+                    } label: {
+                        Label("管理后台", systemImage: "gearshape.2")
+                    }
+                }
+            }
+
             Section("服务器") {
                 LabeledContent("当前地址", value: ServerConfig.serverURL)
             }

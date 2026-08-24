@@ -21,13 +21,16 @@ ZhiZhou/
   Support/Info.plist               （含 ATS：开发期允许 HTTP 明文）
   Assets.xcassets/AppIcon.appiconset   App 图标（1024 单尺寸，可替换）
   Models/Models.swift              服务端模型（对齐 shared/types.ts）
+  Models/AdminModels.swift         管理后台模型（admin.ts / admin-users.ts / site.ts 返回结构）
   Networking/
     APIClient.swift                类型化 fetch 封装（Bearer token / 超时 / 分页）
+    AdminAPI.swift                 管理后台 API（/api/admin*，需管理员身份）
     ServerConfig.swift             服务器地址配置（自托管必配）
     Keychain.swift                 token 安全存储
   Services/
     AppState.swift                 登录会话 + 启动引导
     ReaderSettingsStore.swift      阅读设置（本地 + LWW 同步）
+    AdminFormat.swift              管理后台展示格式化（任务状态/举报理由/时间/字节）
   Theme/Theme.swift                设计 token + Liquid Glass 背景
   Views/
     RootView / MainTabView         启动路由 / 三个 Tab（iOS 26 玻璃 Tab 栏）
@@ -37,6 +40,13 @@ ZhiZhou/
     ReaderView                     阅读器（核心）
     ChapterListView / ReaderSettingsView
     BookshelfView / ProfileView
+    Admin/                         管理后台（原生 SwiftUI，入口在「我的」页，仅管理员可见）
+      AdminRootView                管理首页（模块入口）
+      AdminDashboardView           总览（内容规模 / 任务状态 / 最近任务 / 最近更新）
+      AdminModerationView          内容审核（评论 / 举报 / 想法）
+      AdminUsersView               用户与邀请码（注册模式 / 邀请码 / 用户管理）
+      AdminPolicyView              内容安全（成人内容开关）
+      AdminAnnouncementView        站点公告编辑
 .github/workflows/build-ios.yml    macOS 构建 → 未签名 .ipa
 ```
 
@@ -86,10 +96,23 @@ ZhiZhou/
 
 ## 已知限制与后续路线
 
+- [x] 管理后台核心模块（原生 SwiftUI，见下）
 - [ ] 离线阅读（SwiftData/Core Data 章节缓存 + 自动下载下一章）
 - [ ] 评论 / 段评 / 评分页（API 已就绪，UI 未做）
 - [ ] 推送通知（新章节提醒，需自建推送服务，如 APNs + 你的服务器）
 - [ ] CI 签名（$99 账号 + GitHub Secrets + fastlane match → 出签名 ipa / TestFlight）
+
+### 管理后台（入口：「我的」→ 管理后台，仅 `role == admin` 可见）
+
+- [x] 总览（内容规模 / 任务状态 / 最近任务 / 最近更新）
+- [x] 内容审核（评论 / 举报 / 想法：隐藏、恢复、删除、处理举报）
+- [x] 用户与邀请码（注册模式 / 生成·禁用·清理邀请码 / 角色·禁用·重置密码·删除用户）
+- [x] 内容安全（成人内容开关）
+- [x] 站点公告（编辑并保存，最长 240 字）
+- [ ] 小说 / 章节管理（列表编辑）
+- [ ] 任务管理（抓取任务列表操作）
+- [ ] 爬虫抓取中心（采集向导 / 发现 / 代理 / 源管理）
+- [ ] AI 服务（配置 / 任务 / 用量 / 审计等子面板）
 
 ## App Store 上架注意事项（重要）
 
