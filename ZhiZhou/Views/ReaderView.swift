@@ -194,7 +194,7 @@ struct ReaderView: View {
             .simultaneousGesture(TapGesture().onEnded { toggleChrome() })
             .scrollTargetLayout()
         }
-        .ignoresSafeArea(.horizontal)
+        .ignoresSafeArea(edges: .horizontal)
         .scrollPosition(id: $scrolledParagraph)
         .background(paper)
         .onChange(of: scrolledParagraph) { _, index in
