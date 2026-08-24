@@ -55,56 +55,7 @@ struct ReaderView: View {
 
     var body: some View {
         GeometryReader { geo in
-            // 水平安全区在横屏（灵动岛/刘海）下左右不相等，若交给 ScrollView 自动处理，
-            // 正文左右留白会被压得一宽一窄。这里关掉自动水平安全区，
-            // 自己按“两侧取较大值”补一份对称留白，任何方向都左右等宽。
-            let sideInset = max(geo.safeAreaInsets.leading, geo.safeAreaInsets.trailing)
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: settings.lineSpacing) {
-                    if isLoading && chapter == nil {
-                        ProgressView("加载中…")
-                            .tint(ink)
-                            .frame(maxWidth: .infinity, minHeight: 300)
-                    } else if let errorMessage, chapter == nil {
-                        ContentUnavailableView {
-                            Label("无法打开这一章", systemImage: "exclamationmark.triangle")
-                        } description: {
-                            Text(errorMessage)
-                        } actions: {
-                            Button("重试") { Task { await load() } }
-                        }
-                        .foregroundStyle(ink)
-                        .frame(maxWidth: .infinity, minHeight: 300)
-                    } else if let chapter {
-                        Text(chapter.title)
-                            .font(settings.titleFont)
-                            .foregroundStyle(ink)
-                            .padding(.bottom, 8)
-                        ForEach(Array(paragraphs.enumerated()), id: \.offset) { index, paragraph in
-                            Text(paragraphIndent + paragraph)
-                                .font(settings.bodyFont)
-                                .lineSpacing(settings.lineSpacing)
-                                .foregroundStyle(ink)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .id(index)
-                        }
-                    }
-                }
-                .padding(.horizontal, sideInset + 22)
-                .padding(.top, 18)
-                .padding(.bottom, showChrome ? 80 : 28)
-                .frame(maxWidth: min(geo.size.width, 720))
-                .frame(maxWidth: .infinity)
-                .contentShape(Rectangle())
-                .simultaneousGesture(TapGesture().onEnded { toggleChrome() })
-                .scrollTargetLayout()
-            }
-            .ignoresSafeArea(.horizontal)
-            .scrollPosition(id: $scrolledParagraph)
-            .background(paper)
-            .onChange(of: scrolledParagraph) { _, index in
-                updatePercent(from: index)
-            }
+            readerScroll(geo: geo)
         }
         .background(paper.ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)
@@ -188,6 +139,66 @@ struct ReaderView: View {
         .onDisappear {
             UIApplication.shared.isIdleTimerDisabled = false
             saveProgressNow()
+        }
+    }
+
+    /// 阅读区内容：加载中 / 加载失败 / 章节正文（标题 + 带首行缩进的段落）。
+    @ViewBuilder
+    private var readingContent: some View {
+        if isLoading && chapter == nil {
+            ProgressView("加载中…")
+                .tint(ink)
+                .frame(maxWidth: .infinity, minHeight: 300)
+        } else if let errorMessage, chapter == nil {
+            ContentUnavailableView {
+                Label("无法打开这一章", systemImage: "exclamationmark.triangle")
+            } description: {
+                Text(errorMessage)
+            } actions: {
+                Button("重试") { Task { await load() } }
+            }
+            .foregroundStyle(ink)
+            .frame(maxWidth: .infinity, minHeight: 300)
+        } else if let chapter {
+            Text(chapter.title)
+                .font(settings.titleFont)
+                .foregroundStyle(ink)
+                .padding(.bottom, 8)
+            ForEach(Array(paragraphs.enumerated()), id: \.offset) { index, paragraph in
+                Text(paragraphIndent + paragraph)
+                    .font(settings.bodyFont)
+                    .lineSpacing(settings.lineSpacing)
+                    .foregroundStyle(ink)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .id(index)
+            }
+        }
+    }
+
+    /// 滚动区。独立成子表达式，避免 body 表达式过复杂导致 Release 下类型检查超时。
+    /// 水平安全区在横屏（灵动岛/刘海）下左右不相等，若交给 ScrollView 自动处理，
+    /// 正文左右留白会被压得一宽一窄。这里关掉自动水平安全区，
+    /// 自己按“两侧取较大值”补一份对称留白，任何方向都左右等宽。
+    private func readerScroll(geo: GeometryProxy) -> some View {
+        let sideInset = max(geo.safeAreaInsets.leading, geo.safeAreaInsets.trailing)
+        return ScrollView {
+            LazyVStack(alignment: .leading, spacing: settings.lineSpacing) {
+                readingContent
+            }
+            .padding(.horizontal, sideInset + 22)
+            .padding(.top, 18)
+            .padding(.bottom, showChrome ? 80 : 28)
+            .frame(maxWidth: min(geo.size.width, 720))
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+            .simultaneousGesture(TapGesture().onEnded { toggleChrome() })
+            .scrollTargetLayout()
+        }
+        .ignoresSafeArea(.horizontal)
+        .scrollPosition(id: $scrolledParagraph)
+        .background(paper)
+        .onChange(of: scrolledParagraph) { _, index in
+            updatePercent(from: index)
         }
     }
 
