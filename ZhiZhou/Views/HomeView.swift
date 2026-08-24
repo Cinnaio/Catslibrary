@@ -50,15 +50,15 @@ struct HomeView: View {
                         .listRowBackground(Color.clear)
                 } else {
                     ForEach(novels) { novel in
-                        NavigationLink(value: novel) {
-                            NovelCardView(novel: novel)
-                        }
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(Color.clear)
-                        .listRowInsets(EdgeInsets(top: 7, leading: 16, bottom: 7, trailing: 16))
-                        .onAppear {
-                            if novel.id == novels.last?.id { loadMoreIfNeeded() }
-                        }
+                        NovelCardView(novel: novel)
+                            .tag(novel)
+                            .contentShape(Rectangle())
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                            .listRowInsets(EdgeInsets(top: 7, leading: 16, bottom: 7, trailing: 16))
+                            .onAppear {
+                                if novel.id == novels.last?.id { loadMoreIfNeeded() }
+                            }
                     }
                     if isLoadingMore {
                         ProgressView()
