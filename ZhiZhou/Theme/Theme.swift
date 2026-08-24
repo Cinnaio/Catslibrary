@@ -76,10 +76,84 @@ enum AppTheme {
 
 // MARK: - 字体
 
-/// 衬线标题：跟系统文本样式走，尊重 Dynamic Type。
-/// 系统 serif design 对中文走 Songti 级联（提交 1c68742 真机验证）。
+/// 中文衬线（宋体）字体解析。
+///
+/// 系统 serif design 对中文的 Songti 级联在部分 iOS 版本上不可靠
+/// （中文可能静默回退成黑体 PingFang），因此优先按字重显式解析
+/// Songti SC 的 PostScript 名称；解析失败再回退系统 serif design，
+/// 最后回退系统无衬线字体，保证任何设备上都不缺字。
+enum SongtiFont {
+    /// 按文本样式缩放（Dynamic Type）的衬线 Font，用于标题等系统样式字体。
+    static func font(_ style: Font.TextStyle, weight: UIFont.Weight = .regular) -> Font {
+        let metrics = UIFontMetrics(forTextStyle: uiTextStyle(for: style))
+        return Font(metrics.scaledFont(for: uiFont(size: 17, weight: weight)))
+    }
+
+    /// 固定点数的衬线 Font（调用方自行处理缩放，如阅读器字号档位）。
+    static func font(size: CGFloat, weight: UIFont.Weight = .regular) -> Font {
+        Font(uiFont(size: size, weight: weight))
+    }
+
+    static func uiFont(size: CGFloat, weight: UIFont.Weight = .regular) -> UIFont {
+        for name in postScriptNames(for: weight) {
+            if let font = UIFont(name: name, size: size) { return font }
+        }
+        let system = UIFont.systemFont(ofSize: size, weight: weight)
+        if let descriptor = system.fontDescriptor.withDesign(.serif) {
+            return UIFont(descriptor: descriptor, size: size)
+        }
+        return system
+    }
+
+    /// Songti SC 的 PostScript 名（首个优先；设备上没有则跳过）。
+    private static func postScriptNames(for weight: UIFont.Weight) -> [String] {
+        switch weight.rawValue {
+        case ..<0.45: return ["STSongti-SC-Light"]
+        case ..<0.65: return ["STSongti-SC-Regular"]
+        case ..<0.85: return ["STSongti-SC-Bold"]
+        default: return ["STSongti-SC-Black"]
+        }
+    }
+
+    private static func uiTextStyle(for style: Font.TextStyle) -> UIFont.TextStyle {
+        switch style {
+        case .largeTitle: return .largeTitle
+        case .title: return .title1
+        case .title2: return .title2
+        case .title3: return .title3
+        case .headline: return .headline
+        case .subheadline: return .subheadline
+        case .body: return .body
+        case .callout: return .callout
+        case .footnote: return .footnote
+        case .caption: return .caption1
+        case .caption2: return .caption2
+        default: return .body
+        }
+    }
+}
+
+extension Font.Weight {
+    /// SwiftUI 字重 → UIKit 字重（Songti 按字重选 PostScript 名）。
+    var uiWeight: UIFont.Weight {
+        switch self {
+        case .ultraLight: return .ultraLight
+        case .thin: return .thin
+        case .light: return .light
+        case .regular: return .regular
+        case .medium: return .medium
+        case .semibold: return .semibold
+        case .bold: return .bold
+        case .heavy: return .heavy
+        case .black: return .black
+        default: return .regular
+        }
+    }
+}
+
+/// 衬线标题：跟系统文本样式走，尊重 Dynamic Type，中文走宋体（Songti SC）。
 func serifFont(_ style: Font.TextStyle, _ weight: Font.Weight = .regular) -> Font {
-    Font.system(style, design: .serif, weight: weight)
+    SongtiFont.font(style, weight: weight.uiWeight)
 }
 
 // MARK: - 按压反馈

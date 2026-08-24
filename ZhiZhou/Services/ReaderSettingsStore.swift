@@ -102,13 +102,13 @@ final class ReaderSettingsStore {
 
     var bodyFont: Font {
         useSerif
-            ? Font.system(size: bodyFontSize, design: .serif)
+            ? SongtiFont.font(size: bodyFontSize, weight: .regular)
             : .system(size: bodyFontSize)
     }
 
     var titleFont: Font {
         useSerif
-            ? Font.system(size: bodyFontSize + 4, weight: .bold, design: .serif)
+            ? SongtiFont.font(size: bodyFontSize + 4, weight: .bold)
             : .system(size: bodyFontSize + 4, weight: .bold)
     }
 

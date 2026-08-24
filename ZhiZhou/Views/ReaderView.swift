@@ -5,6 +5,9 @@ private final class ReaderPercentBox {
     var value: Double = 0
 }
 
+/// 中文段首缩进：两个全角空格（U+3000 宽恰为一个汉字，随字号自动缩放）。
+private let paragraphIndent = "\u{3000}\u{3000}"
+
 /// 阅读器：滚动阅读、夜间主题、点按隐铬、按段落恢复进度。
 struct ReaderView: View {
     let novel: Novel
@@ -52,6 +55,10 @@ struct ReaderView: View {
 
     var body: some View {
         GeometryReader { geo in
+            // 水平安全区在横屏（灵动岛/刘海）下左右不相等，若交给 ScrollView 自动处理，
+            // 正文左右留白会被压得一宽一窄。这里关掉自动水平安全区，
+            // 自己按“两侧取较大值”补一份对称留白，任何方向都左右等宽。
+            let sideInset = max(geo.safeAreaInsets.leading, geo.safeAreaInsets.trailing)
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: settings.lineSpacing) {
                     if isLoading && chapter == nil {
@@ -74,7 +81,7 @@ struct ReaderView: View {
                             .foregroundStyle(ink)
                             .padding(.bottom, 8)
                         ForEach(Array(paragraphs.enumerated()), id: \.offset) { index, paragraph in
-                            Text(paragraph)
+                            Text(paragraphIndent + paragraph)
                                 .font(settings.bodyFont)
                                 .lineSpacing(settings.lineSpacing)
                                 .foregroundStyle(ink)
@@ -83,7 +90,7 @@ struct ReaderView: View {
                         }
                     }
                 }
-                .padding(.horizontal, 22)
+                .padding(.horizontal, sideInset + 22)
                 .padding(.top, 18)
                 .padding(.bottom, showChrome ? 80 : 28)
                 .frame(maxWidth: min(geo.size.width, 720))
@@ -92,6 +99,7 @@ struct ReaderView: View {
                 .simultaneousGesture(TapGesture().onEnded { toggleChrome() })
                 .scrollTargetLayout()
             }
+            .ignoresSafeArea(.horizontal)
             .scrollPosition(id: $scrolledParagraph)
             .background(paper)
             .onChange(of: scrolledParagraph) { _, index in
