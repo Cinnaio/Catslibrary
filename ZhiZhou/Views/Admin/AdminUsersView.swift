@@ -19,7 +19,112 @@ struct AdminUsersView: View {
     @State private var showInviteDialog = false
     @State private var showClearInvitesConfirm = false
 
+    // MARK: - Body
+
     var body: some View {
+        dialogsHost
+            .alert("操作未完成", isPresented: Binding(
+                get: { actionError != nil },
+                set: { if !$0 { actionError = nil } }
+            )) {
+                Button("好", role: .cancel) {}
+            } message: {
+                Text(actionError ?? "")
+            }
+            .sheet(item: $deleteTarget) { user in
+                DeleteUserSheet(
+                    user: user,
+                    confirmUsername: $deleteConfirmUsername,
+                    onDelete: {
+                        deleteTarget = nil
+                        Task { await delete(user: user) }
+                    },
+                    onCancel: {
+                        deleteTarget = nil
+                    }
+                )
+            }
+    }
+
+    /// 对话框与确认层（拆开以控制单表达式类型检查规模）。
+    private var dialogsHost: some View {
+        listHost
+            .confirmationDialog("修改角色", isPresented: Binding(
+                get: { pendingRoleChange != nil },
+                set: { if !$0 { pendingRoleChange = nil } }
+            ), titleVisibility: .visible) {
+                if let user = pendingRoleChange {
+                    Button(user.isAdmin ? "设为读者" : "设为管理员") {
+                        Task { await setRole(user: user, role: user.isAdmin ? "reader" : "admin") }
+                    }
+                    Button("取消", role: .cancel) {}
+                }
+            } message: {
+                if let user = pendingRoleChange {
+                    Text("确认将 @\(user.username) 的角色修改为\(user.isAdmin ? "读者" : "管理员")？")
+                }
+            }
+            .confirmationDialog("禁用账号", isPresented: Binding(
+                get: { pendingDisable != nil },
+                set: { if !$0 { pendingDisable = nil } }
+            ), titleVisibility: .visible) {
+                if let user = pendingDisable {
+                    Button("禁用", role: .destructive) {
+                        Task { await setStatus(user: user, status: "disabled") }
+                    }
+                    Button("取消", role: .cancel) {}
+                }
+            } message: {
+                if let user = pendingDisable {
+                    Text("禁用后 @\(user.username) 的所有会话将立即失效，且无法登录。")
+                }
+            }
+            .confirmationDialog("重置密码", isPresented: Binding(
+                get: { pendingReset != nil },
+                set: { if !$0 { pendingReset = nil } }
+            ), titleVisibility: .visible) {
+                if let user = pendingReset {
+                    Button("重置密码") {
+                        Task { await resetPassword(for: user) }
+                    }
+                    Button("取消", role: .cancel) {}
+                }
+            } message: {
+                if let user = pendingReset {
+                    Text("将为 @\(user.username) 生成一次性临时密码，其现有会话将全部失效。")
+                }
+            }
+            .alert("临时密码已生成", isPresented: Binding(
+                get: { resetResult != nil },
+                set: { if !$0 { resetResult = nil } }
+            )) {
+                if let result = resetResult {
+                    Button("复制") { UIPasteboard.general.string = result.tempPassword }
+                    Button("好", role: .cancel) {}
+                }
+            } message: {
+                if let result = resetResult {
+                    Text("用户 @\(result.username) 的临时密码：\n\(result.tempPassword)\n\n请立即转交对方，登录后建议修改密码。")
+                }
+            }
+            .confirmationDialog("生成邀请码", isPresented: $showInviteDialog, titleVisibility: .visible) {
+                Button("生成 1 个") { Task { await createInvites(count: 1) } }
+                Button("生成 5 个") { Task { await createInvites(count: 5) } }
+                Button("生成 10 个") { Task { await createInvites(count: 10) } }
+                Button("取消", role: .cancel) {}
+            } message: {
+                Text("一次性生成多个未使用邀请码。")
+            }
+            .confirmationDialog("清理邀请码", isPresented: $showClearInvitesConfirm, titleVisibility: .visible) {
+                Button("清理", role: .destructive) { Task { await clearInvites() } }
+                Button("取消", role: .cancel) {}
+            } message: {
+                Text("将删除所有已使用与已禁用的邀请码，未使用的保留。")
+            }
+    }
+
+    /// 页面主体：加载态 / 错误态 / 列表。
+    private var listHost: some View {
         Group {
             if isLoading && overview == nil {
                 ProgressView("加载中…")
@@ -33,37 +138,7 @@ struct AdminUsersView: View {
                     Button("重试") { Task { await load() } }
                 }
             } else if let overview {
-                List {
-                    Section("注册模式") {
-                        Picker("注册模式", selection: $registerMode) {
-                            Text("开放注册").tag("open")
-                            Text("邀请制").tag("invite")
-                            Text("关闭注册").tag("closed")
-                        }
-                        .pickerStyle(.menu)
-                        .disabled(isSavingMode)
-                        .onChange(of: registerMode) { _, newMode in
-                            // 加载完成前的赋值与回滚赋值不算用户操作，避免误保存
-                            guard newMode != savedMode else { return }
-                            Task { await saveRegisterMode(newMode) }
-                        }
-                        Text("开放注册无需邀请码；邀请制需邀请码注册；关闭注册停止新用户注册。")
-                            .font(.caption)
-                            .foregroundStyle(AppTheme.textMuted)
-                    }
-
-                    inviteSection(overview.invites)
-
-                    Section("用户（\(overview.users.count)）") {
-                        ForEach(overview.users) { user in
-                            userRow(user)
-                                .contextMenu {
-                                    contextActions(for: user)
-                                }
-                        }
-                    }
-                }
-                .scrollContentBackground(.hidden)
+                userList(overview)
             }
         }
         .pageBackground()
@@ -81,140 +156,48 @@ struct AdminUsersView: View {
                 }
             }
         }
-        .alert("操作未完成", isPresented: Binding(
-            get: { actionError != nil },
-            set: { if !$0 { actionError = nil } }
-        )) {
-            Button("好", role: .cancel) {}
-        } message: {
-            Text(actionError ?? "")
-        }
-        .confirmationDialog("修改角色", isPresented: Binding(
-            get: { pendingRoleChange != nil },
-            set: { if !$0 { pendingRoleChange = nil } }
-        ), titleVisibility: .visible) {
-            if let user = pendingRoleChange {
-                Button(user.isAdmin ? "设为读者" : "设为管理员") {
-                    Task { await setRole(user: user, role: user.isAdmin ? "reader" : "admin") }
-                }
-                Button("取消", role: .cancel) {}
-            }
-        } message: {
-            if let user = pendingRoleChange {
-                Text("确认将 @\(user.username) 的角色修改为\(user.isAdmin ? "读者" : "管理员")？")
-            }
-        }
-        .confirmationDialog("禁用账号", isPresented: Binding(
-            get: { pendingDisable != nil },
-            set: { if !$0 { pendingDisable = nil } }
-        ), titleVisibility: .visible) {
-            if let user = pendingDisable {
-                Button("禁用", role: .destructive) {
-                    Task { await setStatus(user: user, status: "disabled") }
-                }
-                Button("取消", role: .cancel) {}
-            }
-        } message: {
-            if let user = pendingDisable {
-                Text("禁用后 @\(user.username) 的所有会话将立即失效，且无法登录。")
-            }
-        }
-        .confirmationDialog("重置密码", isPresented: Binding(
-            get: { pendingReset != nil },
-            set: { if !$0 { pendingReset = nil } }
-        ), titleVisibility: .visible) {
-            if let user = pendingReset {
-                Button("重置密码") {
-                    Task { await resetPassword(for: user) }
-                }
-                Button("取消", role: .cancel) {}
-            }
-        } message: {
-            if let user = pendingReset {
-                Text("将为 @\(user.username) 生成一次性临时密码，其现有会话将全部失效。")
-            }
-        }
-        .alert("临时密码已生成", isPresented: Binding(
-            get: { resetResult != nil },
-            set: { if !$0 { resetResult = nil } }
-        )) {
-            if let result = resetResult {
-                Button("复制") { UIPasteboard.general.string = result.tempPassword }
-                Button("好", role: .cancel) {}
-            }
-        } message: {
-            if let result = resetResult {
-                Text("用户 @\(result.username) 的临时密码：\n\(result.tempPassword)\n\n请立即转交对方，登录后建议修改密码。")
-            }
-        }
-        .confirmationDialog("生成邀请码", isPresented: $showInviteDialog, titleVisibility: .visible) {
-            Button("生成 1 个") { Task { await createInvites(count: 1) } }
-            Button("生成 5 个") { Task { await createInvites(count: 5) } }
-            Button("生成 10 个") { Task { await createInvites(count: 10) } }
-            Button("取消", role: .cancel) {}
-        } message: {
-            Text("一次性生成多个未使用邀请码。")
-        }
-        .confirmationDialog("清理邀请码", isPresented: $showClearInvitesConfirm, titleVisibility: .visible) {
-            Button("清理", role: .destructive) { Task { await clearInvites() } }
-            Button("取消", role: .cancel) {}
-        } message: {
-            Text("将删除所有已使用与已禁用的邀请码，未使用的保留。")
-        }
-        .sheet(item: $deleteTarget) { user in
-            NavigationStack {
-                Form {
-                    Section {
-                        LabeledContent("用户名", value: user.username)
-                        LabeledContent("昵称", value: user.displayName.isEmpty ? "—" : user.displayName)
-                    }
-                    Section {
-                        TextField("输入用户名以确认删除", text: $deleteConfirmUsername)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                    } footer: {
-                        Text("此操作将永久删除该用户及其评论、想法、阅读进度等全部数据，不可恢复。")
-                    }
-                }
-                .scrollContentBackground(.hidden)
-                .navigationTitle("删除用户")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("取消") { deleteTarget = nil }
-                    }
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("删除", role: .destructive) {
-                            Task { await delete(user: user) }
-                        }
-                        .disabled(deleteConfirmUsername.trimmingCharacters(in: .whitespaces).lowercased() != user.username.lowercased())
-                    }
-                }
-            }
-            .presentationDetents([.medium])
-        }
     }
 
-    // MARK: - 加载
+    // MARK: - 列表
 
-    private func load() async {
-        isLoading = true
-        defer { isLoading = false }
-        do {
-            let r = try await AdminAPI.usersOverview()
-            overview = r
-            registerMode = r.settings.registerMode
-            savedMode = registerMode
-            errorMessage = nil
-        } catch {
-            errorMessage = AppCopy.friendlyError(error)
+    private func userList(_ overview: AdminUsersResponse) -> some View {
+        List {
+            Section("注册模式") {
+                Picker("注册模式", selection: $registerMode) {
+                    Text("开放注册").tag("open")
+                    Text("邀请制").tag("invite")
+                    Text("关闭注册").tag("closed")
+                }
+                .pickerStyle(.menu)
+                .disabled(isSavingMode)
+                .onChange(of: registerMode) { _, newMode in
+                    // 加载完成前的赋值与回滚赋值不算用户操作，避免误保存
+                    guard newMode != savedMode else { return }
+                    Task { await saveRegisterMode(newMode) }
+                }
+                Text("开放注册无需邀请码；邀请制需邀请码注册；关闭注册停止新用户注册。")
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.textMuted)
+            }
+
+            inviteSection(overview.invites)
+
+            Section("用户（\(overview.users.count)）") {
+                ForEach(overview.users) { user in
+                    userRow(user)
+                        .contextMenu {
+                            contextActions(for: user)
+                        }
+                }
+            }
         }
+        .scrollContentBackground(.hidden)
     }
 
     // MARK: - 邀请码
 
     private func inviteSection(_ invites: [AdminInvite]) -> some View {
-        Section("邀请码（\(invites.count)）") {
+        Section {
             if invites.isEmpty {
                 Text("暂无邀请码")
                     .font(.caption)
@@ -230,6 +213,8 @@ struct AdminUsersView: View {
                         }
                 }
             }
+        } header: {
+            Text("邀请码（\(invites.count)）")
         } footer: {
             Text("点按邀请码可复制；生成与清理入口在右上角。")
         }
@@ -387,6 +372,20 @@ struct AdminUsersView: View {
 
     // MARK: - 动作
 
+    private func load() async {
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            let r = try await AdminAPI.usersOverview()
+            overview = r
+            registerMode = r.settings.registerMode
+            savedMode = registerMode
+            errorMessage = nil
+        } catch {
+            errorMessage = AppCopy.friendlyError(error)
+        }
+    }
+
     private func saveRegisterMode(_ mode: String) async {
         isSavingMode = true
         defer { isSavingMode = false }
@@ -428,10 +427,48 @@ struct AdminUsersView: View {
     private func delete(user: AdminUser) async {
         do {
             try await AdminAPI.deleteUser(id: user.id, confirmUsername: deleteConfirmUsername)
-            deleteTarget = nil
             await load()
         } catch {
             actionError = AppCopy.friendlyError(error)
         }
+    }
+}
+
+/// 删除用户确认页：需输入目标用户名（与服务器校验一致）。
+private struct DeleteUserSheet: View {
+    let user: AdminUser
+    @Binding var confirmUsername: String
+    let onDelete: () -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    LabeledContent("用户名", value: user.username)
+                    LabeledContent("昵称", value: user.displayName.isEmpty ? "—" : user.displayName)
+                }
+                Section {
+                    TextField("输入用户名以确认删除", text: $confirmUsername)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                } footer: {
+                    Text("此操作将永久删除该用户及其评论、想法、阅读进度等全部数据，不可恢复。")
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .navigationTitle("删除用户")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消", action: onCancel)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("删除", role: .destructive, action: onDelete)
+                        .disabled(confirmUsername.trimmingCharacters(in: .whitespaces).lowercased() != user.username.lowercased())
+                }
+            }
+        }
+        .presentationDetents([.medium])
     }
 }
