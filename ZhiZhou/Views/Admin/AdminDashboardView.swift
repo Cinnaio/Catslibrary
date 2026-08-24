@@ -7,51 +7,56 @@ struct AdminDashboardView: View {
     @State private var errorMessage: String?
 
     var body: some View {
-        Group {
+        List {
             if isLoading && stats == nil {
-                ProgressView("加载中…")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                Section {
+                    ProgressView("加载中…")
+                        .frame(maxWidth: .infinity, minHeight: 200)
+                        .listRowBackground(Color.clear)
+                }
             } else if let errorMessage, stats == nil {
-                ContentUnavailableView {
-                    Label("加载失败", systemImage: "wifi.slash")
-                } description: {
-                    Text(errorMessage)
-                } actions: {
-                    Button("重试") { Task { await load() } }
+                Section {
+                    ContentUnavailableView {
+                        Label("加载失败", systemImage: "wifi.slash")
+                    } description: {
+                        Text(errorMessage)
+                    } actions: {
+                        Button("重试") { Task { await load() } }
+                    }
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
                 }
             } else if let stats {
-                List {
-                    Section("内容规模") {
-                        statsGrid(stats.totals)
-                        LabeledContent("数据库占用") {
-                            Text(AdminFormat.byteSize(stats.totals.dbSize))
-                                .foregroundStyle(AppTheme.textSecondary)
-                        }
+                Section("内容规模") {
+                    statsGrid(stats.totals)
+                    LabeledContent("数据库占用") {
+                        Text(AdminFormat.byteSize(stats.totals.dbSize))
+                            .foregroundStyle(AppTheme.textSecondary)
                     }
+                }
 
-                    Section("任务状态") {
-                        jobStatusRow(stats.jobStatus)
-                    }
+                Section("任务状态") {
+                    jobStatusRow(stats.jobStatus)
+                }
 
-                    if !stats.recentJobs.isEmpty {
-                        Section("最近任务") {
-                            ForEach(stats.recentJobs) { job in
-                                jobRow(job)
-                            }
-                        }
-                    }
-
-                    if !stats.recentNovels.isEmpty {
-                        Section("最近更新") {
-                            ForEach(stats.recentNovels) { novel in
-                                novelRow(novel)
-                            }
+                if !stats.recentJobs.isEmpty {
+                    Section("最近任务") {
+                        ForEach(stats.recentJobs) { job in
+                            jobRow(job)
                         }
                     }
                 }
-                .scrollContentBackground(.hidden)
+
+                if !stats.recentNovels.isEmpty {
+                    Section("最近更新") {
+                        ForEach(stats.recentNovels) { novel in
+                            novelRow(novel)
+                        }
+                    }
+                }
             }
         }
+        .scrollContentBackground(.hidden)
         .pageBackground()
         .navigationTitle("总览")
         .navigationBarTitleDisplayMode(.large)
@@ -149,6 +154,9 @@ struct AdminDashboardView: View {
                     .font(.caption)
                     .foregroundStyle(jobStatusTint(job.status))
             }
+            ProgressView(value: min(max(job.progress, 0), 1))
+                .progressViewStyle(.linear)
+                .tint(jobStatusTint(job.status))
             Text("章节 \(job.current)/\(job.total) · \(AdminFormat.relativeTime(job.updatedAt))")
                 .font(.caption)
                 .foregroundStyle(AppTheme.textSecondary)

@@ -123,24 +123,59 @@ struct AdminUsersView: View {
             }
     }
 
-    /// 页面主体：加载态 / 错误态 / 列表。
+    /// 页面主体：恒渲染 List，加载态 / 错误态 / 内容按条件填充（与书架页同款可靠模式）。
     private var listHost: some View {
-        Group {
+        List {
             if isLoading && overview == nil {
-                ProgressView("加载中…")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                Section {
+                    ProgressView("加载中…")
+                        .frame(maxWidth: .infinity, minHeight: 200)
+                        .listRowBackground(Color.clear)
+                }
             } else if let errorMessage, overview == nil {
-                ContentUnavailableView {
-                    Label("加载失败", systemImage: "wifi.slash")
-                } description: {
-                    Text(errorMessage)
-                } actions: {
-                    Button("重试") { Task { await load() } }
+                Section {
+                    ContentUnavailableView {
+                        Label("加载失败", systemImage: "wifi.slash")
+                    } description: {
+                        Text(errorMessage)
+                    } actions: {
+                        Button("重试") { Task { await load() } }
+                    }
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
                 }
             } else if let overview {
-                userList(overview)
+                Section("注册模式") {
+                    Picker("注册模式", selection: $registerMode) {
+                        Text("开放注册").tag("open")
+                        Text("邀请制").tag("invite")
+                        Text("关闭注册").tag("closed")
+                    }
+                    .pickerStyle(.menu)
+                    .disabled(isSavingMode)
+                    .onChange(of: registerMode) { _, newMode in
+                        // 加载完成前的赋值与回滚赋值不算用户操作，避免误保存
+                        guard newMode != savedMode else { return }
+                        Task { await saveRegisterMode(newMode) }
+                    }
+                    Text("开放注册无需邀请码；邀请制需邀请码注册；关闭注册停止新用户注册。")
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.textMuted)
+                }
+
+                inviteSection(overview.invites)
+
+                Section("用户（\(overview.users.count)）") {
+                    ForEach(overview.users) { user in
+                        userRow(user)
+                            .contextMenu {
+                                contextActions(for: user)
+                            }
+                    }
+                }
             }
         }
+        .scrollContentBackground(.hidden)
         .pageBackground()
         .navigationTitle("用户与邀请码")
         .navigationBarTitleDisplayMode(.large)
@@ -156,42 +191,6 @@ struct AdminUsersView: View {
                 }
             }
         }
-    }
-
-    // MARK: - 列表
-
-    private func userList(_ overview: AdminUsersResponse) -> some View {
-        List {
-            Section("注册模式") {
-                Picker("注册模式", selection: $registerMode) {
-                    Text("开放注册").tag("open")
-                    Text("邀请制").tag("invite")
-                    Text("关闭注册").tag("closed")
-                }
-                .pickerStyle(.menu)
-                .disabled(isSavingMode)
-                .onChange(of: registerMode) { _, newMode in
-                    // 加载完成前的赋值与回滚赋值不算用户操作，避免误保存
-                    guard newMode != savedMode else { return }
-                    Task { await saveRegisterMode(newMode) }
-                }
-                Text("开放注册无需邀请码；邀请制需邀请码注册；关闭注册停止新用户注册。")
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.textMuted)
-            }
-
-            inviteSection(overview.invites)
-
-            Section("用户（\(overview.users.count)）") {
-                ForEach(overview.users) { user in
-                    userRow(user)
-                        .contextMenu {
-                            contextActions(for: user)
-                        }
-                }
-            }
-        }
-        .scrollContentBackground(.hidden)
     }
 
     // MARK: - 邀请码

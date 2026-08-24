@@ -38,7 +38,8 @@ struct AdminJobSummary: Codable, Identifiable, Hashable {
     let current: Int
     let total: Int
     let chapterCount: Int
-    let progress: Int
+    /// 抓取进度（0~1 小数，与 DB REAL 列一致；对齐 web 端 job.progress * 100）
+    let progress: Double
     let error: String
     let startedAt: Int64
     let updatedAt: Int64
