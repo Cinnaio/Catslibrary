@@ -3,7 +3,7 @@ import SwiftUI
 /// 小说详情页：继续阅读为主操作，目录为次要入口。
 struct NovelDetailView: View {
     let novel: Novel
-    @EnvironmentObject private var appState: AppState
+    @Environment(AppState.self) private var appState
 
     @State private var chapters: [ChapterMeta] = []
     @State private var isLoading = false
@@ -15,7 +15,6 @@ struct NovelDetailView: View {
     @State private var showBookshelfError = false
     @State private var showRemoveConfirm = false
     @State private var expandDescription = false
-    @State private var readerLaunch: ReaderLaunch?
 
     var body: some View {
         List {
@@ -30,10 +29,17 @@ struct NovelDetailView: View {
                     ProgressView()
                         .frame(maxWidth: .infinity, minHeight: 44)
                 }
-                if let errorMessage {
-                    Text(errorMessage)
-                        .font(.footnote)
-                        .foregroundStyle(AppTheme.danger)
+                if let errorMessage, chapters.isEmpty {
+                    ContentUnavailableView {
+                        Label("章节加载失败", systemImage: "wifi.slash")
+                    } description: {
+                        Text(errorMessage)
+                    } actions: {
+                        Button("重试") { Task { await load() } }
+                            .buttonStyle(.borderedProminent)
+                            .tint(AppTheme.primary)
+                    }
+                    .listRowBackground(Color.clear)
                 }
                 ForEach(chapters) { chapter in
                     NavigationLink(value: ReaderLaunch(
@@ -63,17 +69,10 @@ struct NovelDetailView: View {
             .frostedRowBackground()
         }
         .scrollContentBackground(.hidden)
-        .glassPageBackground()
+        .pageBackground()
         .navigationTitle(currentNovel.title)
         .navigationBarTitleDisplayMode(.inline)
         .zhiZhouDestinations()
-        .navigationDestination(item: $readerLaunch) { launch in
-            ReaderView(
-                novel: launch.novel,
-                chapterOrder: launch.chapterOrder,
-                preloadedChapters: launch.preloadedChapters
-            )
-        }
         .task { await load() }
         .alert("操作未完成", isPresented: $showBookshelfError) {
             Button("好", role: .cancel) {}
@@ -84,7 +83,6 @@ struct NovelDetailView: View {
             Button("移除", role: .destructive) { toggleBookshelf() }
             Button("取消", role: .cancel) {}
         }
-        .browseColorScheme()
     }
 
     private var currentNovel: Novel { displayNovel ?? novel }
@@ -157,36 +155,43 @@ struct NovelDetailView: View {
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(AppTheme.primary)
                     .buttonStyle(.plain)
-                    .frame(minHeight: 32, alignment: .leading)
+                    .frame(minHeight: 44, alignment: .leading)
                 }
             }
 
             HStack(spacing: 10) {
-                Button {
-                    if let chapter = continueChapter {
-                        readerLaunch = ReaderLaunch(
-                            novel: currentNovel,
-                            chapterOrder: chapter.order,
-                            preloadedChapters: chapters
-                        )
-                    }
-                } label: {
-                    VStack(spacing: 2) {
-                        Label(continueTitle, systemImage: "book.fill")
-                            .font(.subheadline.weight(.semibold))
-                        if let chapter = continueChapter {
+                if let chapter = continueChapter {
+                    NavigationLink(value: ReaderLaunch(
+                        novel: currentNovel,
+                        chapterOrder: chapter.order,
+                        preloadedChapters: chapters
+                    )) {
+                        VStack(spacing: 2) {
+                            Label(continueTitle, systemImage: "book.fill")
+                                .font(.subheadline.weight(.semibold))
                             Text(chapter.title)
                                 .font(.caption2)
                                 .lineLimit(1)
                         }
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: 44)
                     }
-                    .frame(maxWidth: .infinity)
-                    .frame(minHeight: 44)
+                    .buttonStyle(.borderedProminent)
+                    .tint(AppTheme.primary)
+                    .accessibilityHint("从第 \(chapter.order) 章开始")
+                } else {
+                    Button {
+                        // 章节尚未加载完成，禁用占位
+                    } label: {
+                        Label("开始阅读", systemImage: "book.fill")
+                            .font(.subheadline.weight(.semibold))
+                            .frame(maxWidth: .infinity)
+                            .frame(minHeight: 44)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(AppTheme.primary)
+                    .disabled(true)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(AppTheme.primary)
-                .disabled(continueChapter == nil)
-                .accessibilityHint(continueChapter.map { "从第 \($0.order) 章开始" } ?? "正在加载章节")
 
                 Button {
                     if inBookshelf {
@@ -235,29 +240,49 @@ struct NovelDetailView: View {
     private func load() async {
         isLoading = true
         defer { isLoading = false }
-        do {
-            if let d: NovelDetailResponse = try? await APIClient.shared.get("/api/novels/\(novel.id)") {
-                displayNovel = d.novel
-            }
+        // 核心数据并行加载；详情失败静默回退列表数据
+        async let detailRequest: Void = loadDetail()
+        async let chaptersRequest: Void = loadChapters()
+        _ = await (detailRequest, chaptersRequest)
+        // 进度/收藏状态为次要数据，失败不影响章节展示
+        if appState.user != nil {
+            async let progressRequest: Void = loadProgress()
+            async let bookshelfRequest: Void = loadBookshelf()
+            _ = await (progressRequest, bookshelfRequest)
+        }
+    }
 
+    private func loadDetail() async {
+        if let d: NovelDetailResponse = try? await APIClient.shared.get("/api/novels/\(novel.id)") {
+            displayNovel = d.novel
+        }
+    }
+
+    private func loadChapters() async {
+        do {
             let r: ChaptersResponse = try await APIClient.shared.get(
                 "/api/chapters?novelId=\(novel.id)"
             )
             chapters = r.chapters
             errorMessage = nil
-
-            if appState.user != nil {
-                let p: ProgressResponse = try await APIClient.shared.get(
-                    "/api/progress?novelId=\(novel.id)", auth: true
-                )
-                progress = p.progress
-                let b: BookshelfResponse = try await APIClient.shared.get(
-                    "/api/bookshelf", auth: true
-                )
-                inBookshelf = b.favorites.contains { $0.novelId == novel.id }
-            }
         } catch {
             errorMessage = AppCopy.friendlyError(error)
+        }
+    }
+
+    private func loadProgress() async {
+        if let p: ProgressResponse = try? await APIClient.shared.get(
+            "/api/progress?novelId=\(novel.id)", auth: true
+        ) {
+            progress = p.progress
+        }
+    }
+
+    private func loadBookshelf() async {
+        if let b: BookshelfResponse = try? await APIClient.shared.get(
+            "/api/bookshelf", auth: true
+        ) {
+            inBookshelf = b.favorites.contains { $0.novelId == novel.id }
         }
     }
 }

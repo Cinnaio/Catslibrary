@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct RootView: View {
-    @EnvironmentObject private var appState: AppState
+    @Environment(AppState.self) private var appState
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -19,21 +19,21 @@ struct RootView: View {
     }
 }
 
-/// 启动连接页：暖纸面 + 品牌标识
+/// 启动连接页：系统背景 + 品牌标识
 struct BootView: View {
     var body: some View {
         ZStack {
-            AppTheme.auroraBackground.ignoresSafeArea()
+            Color(.systemGroupedBackground).ignoresSafeArea()
             VStack(spacing: 18) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .fill(AppTheme.brandGradient)
+                        .fill(AppTheme.primaryGradient)
                     Image(systemName: "book.closed.fill")
                         .font(.title)
                         .foregroundStyle(.white.opacity(0.95))
                 }
                 .frame(width: 76, height: 76)
-                .shadow(color: AppTheme.terracotta.opacity(0.3), radius: 14, y: 7)
+                .shadow(color: .black.opacity(0.15), radius: 14, y: 7)
 
                 Text("知舟")
                     .font(serifFont(.title, .bold))
@@ -48,7 +48,6 @@ struct BootView: View {
                     .foregroundStyle(AppTheme.textSecondary)
             }
         }
-        .preferredColorScheme(.light)
     }
 }
 

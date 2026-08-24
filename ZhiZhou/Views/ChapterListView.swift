@@ -12,6 +12,7 @@ struct ChapterListView: View {
     @State private var chapters: [ChapterMeta] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
+    @State private var hasScrolledToCurrent = false
 
     var body: some View {
         NavigationStack {
@@ -64,10 +65,11 @@ struct ChapterListView: View {
                         .listStyle(.plain)
                         .scrollContentBackground(.hidden)
                         .listRowSeparatorTint(AppTheme.border)
-                        .onChange(of: chapters) { _, _ in
+                        .onAppear {
                             scrollToCurrent(proxy)
                         }
-                        .onAppear {
+                        .onChange(of: chapters) { _, _ in
+                            hasScrolledToCurrent = false
                             scrollToCurrent(proxy)
                         }
                     }
@@ -104,17 +106,16 @@ struct ChapterListView: View {
     }
 
     private func scrollToCurrent(_ proxy: ScrollViewProxy) {
-        guard chapters.contains(where: { $0.order == currentOrder }) else { return }
-        let attempts = reduceMotion ? 1 : 3
-        for attempt in 0..<attempts {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.06 * Double(attempt)) {
-                guard let current = chapters.first(where: { $0.order == currentOrder }) else { return }
-                if reduceMotion {
+        guard !hasScrolledToCurrent,
+              let current = chapters.first(where: { $0.order == currentOrder }) else { return }
+        hasScrolledToCurrent = true
+        // 等一次 runloop，让 List 完成数据更新后的布局
+        DispatchQueue.main.async {
+            if reduceMotion {
+                proxy.scrollTo(current.id, anchor: .center)
+            } else {
+                withAnimation(.easeOut(duration: 0.22)) {
                     proxy.scrollTo(current.id, anchor: .center)
-                } else {
-                    withAnimation(.easeOut(duration: 0.22)) {
-                        proxy.scrollTo(current.id, anchor: .center)
-                    }
                 }
             }
         }

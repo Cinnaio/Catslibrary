@@ -14,6 +14,8 @@ struct HomeView: View {
     @State private var errorMessage: String?
     @State private var loadMoreError: String?
     @State private var reloadTask: Task<Void, Never>?
+    /// 请求序号：丢弃过期响应（搜索/分类竞态守卫）
+    @State private var requestSeq = 0
 
     var body: some View {
         NavigationSplitView {
@@ -74,7 +76,7 @@ struct HomeView: View {
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
-            .glassPageBackground()
+            .pageBackground()
             .navigationTitle("发现")
             .navigationBarTitleDisplayMode(.large)
             .navigationSplitViewColumnWidth(min: 300, ideal: 380, max: 520)
@@ -82,17 +84,11 @@ struct HomeView: View {
             .refreshable { await reload() }
             .task { await reload() }
             .onChange(of: search) { _, _ in
-                reloadTask?.cancel()
-                reloadTask = Task {
-                    try? await Task.sleep(nanoseconds: 400_000_000)
-                    guard !Task.isCancelled else { return }
-                    await reload()
-                }
+                scheduleReload()
             }
             .onChange(of: selectedCategory) { _, _ in
-                Task { await reload() }
+                scheduleReload()
             }
-            .browseColorScheme()
         } detail: {
             NavigationStack {
                 if let selectedNovel {
@@ -103,7 +99,6 @@ struct HomeView: View {
                         systemImage: "book.closed",
                         description: Text("从书单打开详情，或到书架接着读")
                     )
-                    .browseColorScheme()
                 }
             }
         }
@@ -162,6 +157,16 @@ struct HomeView: View {
         .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
 
+    /// 搜索与分类共用同一条防抖加载通道，避免并发 reload 竞态。
+    private func scheduleReload() {
+        reloadTask?.cancel()
+        reloadTask = Task {
+            try? await Task.sleep(nanoseconds: 400_000_000)
+            guard !Task.isCancelled else { return }
+            await reload()
+        }
+    }
+
     func reload() async {
         page = 1
         loadMoreError = nil
@@ -174,10 +179,15 @@ struct HomeView: View {
     }
 
     private func fetchPage(_ target: Int, append: Bool) async {
+        let seq = append ? requestSeq : requestSeq + 1
+        if !append { requestSeq = seq }
         if target == 1 { isLoading = true } else { isLoadingMore = true }
         defer {
-            isLoading = false
-            isLoadingMore = false
+            // 仅当本响应仍是当前请求时才清 loading，避免过期响应干扰新请求的加载态
+            if seq == requestSeq {
+                isLoading = false
+                isLoadingMore = false
+            }
         }
         do {
             var params: [String: String] = [
@@ -191,6 +201,7 @@ struct HomeView: View {
             if let selectedCategory { params["category"] = selectedCategory }
 
             let r: NovelListResponse = try await APIClient.shared.get("/api/novels?" + Self.query(params))
+            guard seq == requestSeq else { return } // 过期响应直接丢弃
             if append {
                 novels += r.novels
             } else {
@@ -203,6 +214,7 @@ struct HomeView: View {
             loadMoreError = nil
             await CoverPrefetcher.shared.prefetch(r.novels)
         } catch {
+            guard seq == requestSeq else { return }
             let message = AppCopy.friendlyError(error)
             if append || !novels.isEmpty {
                 loadMoreError = "加载失败，点按重试"

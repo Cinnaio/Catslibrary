@@ -27,11 +27,14 @@ actor CoverPrefetcher {
     private var queued: [URL] = []
     private var seen: Set<String> = []
     private let maxConcurrent = 4
+    /// seen 上限：防止长会话分页累积无限增长
+    private let seenLimit = 500
 
     func prefetch(_ items: [Novel]) {
         for novel in items {
             guard let url = APIClient.shared.coverURL(novelId: novel.id, updatedAt: novel.updatedAt) else { continue }
             let key = url.absoluteString
+            if seen.count >= seenLimit { seen.removeAll(keepingCapacity: true) }
             guard !seen.contains(key) else { continue }
             seen.insert(key)
             queued.append(url)
@@ -56,6 +59,7 @@ actor CoverPrefetcher {
 struct CachedAsyncImage<Content: View, Placeholder: View>: View {
     @State private var image: UIImage?
     @State private var loadedKey: String?
+    @Environment(\.displayScale) private var displayScale
 
     let url: URL?
     let targetSize: CGSize
@@ -91,10 +95,8 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
             let key = taskKey
             if loadedKey == key, image != nil { return }
             image = nil
-            let maxPixel = max(targetSize.width, targetSize.height) * UIScreen.main.scale
-            if let img = await Task.detached(priority: .userInitiated, operation: {
-                await Self.fetch(url, maxPixel: maxPixel)
-            }).value {
+            let maxPixel = max(targetSize.width, targetSize.height) * displayScale
+            if let img = await Self.fetch(url, maxPixel: maxPixel) {
                 image = img
                 loadedKey = key
             }

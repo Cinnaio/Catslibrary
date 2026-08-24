@@ -7,6 +7,8 @@ struct BookshelfView: View {
     @State private var errorMessage: String?
     @State private var actionError: String?
     @State private var selection: BookshelfRoute?
+    @State private var pendingRemove: FavoriteItem?
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         NavigationSplitView {
@@ -59,9 +61,9 @@ struct BookshelfView: View {
                         Section("我的书架（\(response.favorites.count)）") {
                             ForEach(response.favorites) { favorite in
                                 favoriteLink(favorite)
-                                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                    .swipeActions(edge: .trailing) {
                                         Button("移除", role: .destructive) {
-                                            Task { await removeFavorite(favorite) }
+                                            pendingRemove = favorite
                                         }
                                     }
                             }
@@ -73,9 +75,31 @@ struct BookshelfView: View {
             .navigationBarTitleDisplayMode(.large)
             .navigationSplitViewColumnWidth(min: 300, ideal: 380, max: 520)
             .scrollContentBackground(.hidden)
-            .glassPageBackground()
+            .pageBackground()
             .refreshable { await load() }
             .task { await load() }
+            .onChange(of: scenePhase) { _, phase in
+                // 从阅读器返回时刷新最近阅读进度
+                if phase == .active, response != nil {
+                    Task { await load() }
+                }
+            }
+            .confirmationDialog(
+                "从书架移除这本书？",
+                isPresented: Binding(
+                    get: { pendingRemove != nil },
+                    set: { if !$0 { pendingRemove = nil } }
+                ),
+                titleVisibility: .visible,
+                presenting: pendingRemove
+            ) { favorite in
+                Button("移除", role: .destructive) {
+                    Task { await removeFavorite(favorite) }
+                }
+                Button("取消", role: .cancel) {}
+            } message: { favorite in
+                Text("将把《\(favorite.title)》移出书架")
+            }
             .alert("操作未完成", isPresented: Binding(
                 get: { actionError != nil },
                 set: { if !$0 { actionError = nil } }
@@ -84,7 +108,6 @@ struct BookshelfView: View {
             } message: {
                 Text(actionError ?? "")
             }
-            .browseColorScheme()
         } detail: {
             NavigationStack {
                 switch selection {
@@ -102,7 +125,6 @@ struct BookshelfView: View {
                         systemImage: "books.vertical",
                         description: Text("点最近阅读即可接着读")
                     )
-                    .browseColorScheme()
                 }
             }
         }
@@ -143,11 +165,11 @@ struct BookshelfView: View {
                     .lineLimit(1)
             }
             Spacer()
-            Text("\(Int(item.scrollPercent * 100))%")
+            Text(Self.percentText(item.scrollPercent))
                 .font(.caption)
                 .foregroundStyle(AppTheme.textMuted)
                 .accessibilityLabel("阅读进度")
-                .accessibilityValue("百分之 \(Int(item.scrollPercent * 100))")
+                .accessibilityValue("百分之 \(Self.percentValue(item.scrollPercent))")
         }
         .accessibilityElement(children: .combine)
     }
@@ -184,14 +206,23 @@ struct BookshelfView: View {
             }
             Spacer()
             if let percent = favorite.scrollPercent, percent > 0 {
-                Text("\(Int(percent * 100))%")
+                Text(Self.percentText(percent))
                     .font(.caption)
                     .foregroundStyle(AppTheme.textMuted)
                     .accessibilityLabel("阅读进度")
-                    .accessibilityValue("百分之 \(Int(percent * 100))")
+                    .accessibilityValue("百分之 \(Self.percentValue(percent))")
             }
         }
         .accessibilityElement(children: .combine)
+    }
+
+    /// 进度百分比 clamp 到 0...100，防止服务端异常值显示 >100%。
+    private static func percentValue(_ raw: Double) -> Int {
+        min(100, max(0, Int((raw * 100).rounded())))
+    }
+
+    private static func percentText(_ raw: Double) -> String {
+        "\(percentValue(raw))%"
     }
 
     private func load() async {

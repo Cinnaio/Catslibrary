@@ -2,7 +2,7 @@ import SwiftUI
 
 /// 登录 / 注册（注册模式随服务端 register-status 动态切换）。
 struct LoginView: View {
-    @EnvironmentObject private var appState: AppState
+    @Environment(AppState.self) private var appState
     @State private var mode: Mode = .login
     @State private var username = ""
     @State private var password = ""
@@ -17,7 +17,7 @@ struct LoginView: View {
 
     var body: some View {
         ZStack {
-            AppTheme.auroraBackground.ignoresSafeArea()
+            Color(.systemGroupedBackground).ignoresSafeArea()
 
             ScrollView {
                 VStack(spacing: 24) {
@@ -33,7 +33,6 @@ struct LoginView: View {
             .scrollDismissesKeyboard(.interactively)
             .scrollBounceBehavior(.basedOnSize)
         }
-        .preferredColorScheme(.light)
         .task { await fetchRegisterStatus() }
         .onSubmit { Task { await submit() } }
     }
@@ -42,13 +41,13 @@ struct LoginView: View {
         VStack(spacing: 14) {
             ZStack {
                 RoundedRectangle(cornerRadius: 26, style: .continuous)
-                    .fill(AppTheme.brandGradient)
+                    .fill(AppTheme.primaryGradient)
                 Image(systemName: "book.closed.fill")
                     .font(.title)
                     .foregroundStyle(.white.opacity(0.95))
             }
             .frame(width: 92, height: 92)
-            .shadow(color: AppTheme.terracotta.opacity(0.35), radius: 16, y: 8)
+            .shadow(color: .black.opacity(0.18), radius: 16, y: 8)
             .accessibilityHidden(true)
 
             Text("知舟")
@@ -82,7 +81,6 @@ struct LoginView: View {
                 field(icon: "key.fill", placeholder: "邀请码", text: $invite, isSecure: false)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
-                    .textContentType(.oneTimeCode)
                     .submitLabel(.go)
             }
 
@@ -95,6 +93,14 @@ struct LoginView: View {
 
             if mode != .register || registerMode != .closed {
                 submitButton
+            }
+
+            if appState.sessionRestoreFailed {
+                Label("网络异常，未能恢复上次会话，请检查网络后重新登录", systemImage: "wifi.slash")
+                    .font(.footnote)
+                    .foregroundStyle(AppTheme.warning)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
             }
 
             if let errorMessage {
@@ -143,7 +149,7 @@ struct LoginView: View {
         }
         .padding(.leading, 14)
         .padding(.trailing, 4)
-        .background(AppTheme.surfaceWarm, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(AppTheme.surfaceSecondary, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(AppTheme.border, lineWidth: 1)
@@ -170,7 +176,7 @@ struct LoginView: View {
         }
         .padding(.horizontal, 14)
         .frame(minHeight: 48)
-        .background(AppTheme.surfaceWarm, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(AppTheme.surfaceSecondary, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(AppTheme.border, lineWidth: 1)
@@ -194,14 +200,14 @@ struct LoginView: View {
             .frame(maxWidth: .infinity)
             .frame(minHeight: 52)
             .background(
-                AppTheme.buttonGradient,
+                AppTheme.primaryGradient,
                 in: RoundedRectangle(cornerRadius: 16, style: .continuous)
             )
         }
         .buttonStyle(ScaleButtonStyle())
         .disabled(!canSubmit)
         .opacity(canSubmit ? 1 : 0.6)
-        .shadow(color: AppTheme.primaryDeep.opacity(0.35), radius: 14, y: 7)
+        .shadow(color: .black.opacity(0.18), radius: 14, y: 7)
         .accessibilityLabel(mode == .login ? "登录" : "注册")
     }
 

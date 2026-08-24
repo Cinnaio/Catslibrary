@@ -3,6 +3,7 @@ import Foundation
 enum APIError: LocalizedError, Equatable {
     case notConfigured
     case invalidResponse
+    case unauthorized
     case http(status: Int, message: String?)
     case network(String)
 
@@ -10,6 +11,7 @@ enum APIError: LocalizedError, Equatable {
         switch self {
         case .notConfigured: return "尚未配置服务器地址"
         case .invalidResponse: return "服务器响应格式不正确"
+        case .unauthorized: return "登录已过期，请重新登录"
         case .http(let status, let message): return message ?? "请求失败（HTTP \(status)）"
         case .network(let detail): return "网络错误：\(detail)"
         }
@@ -30,6 +32,9 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
     private let decoder = JSONDecoder()
     private static let tokenKey = "zhizhou.token"
     private static let allowInvalidCertKey = "zhizhou.allowInvalidCert"
+
+    /// 章节正文内存缓存：避免切回已读章节时重复下载（Data 按 URL 缓存）。
+    private let chapterDataCache = NSCache<NSString, NSData>()
 
     /// lazy：URLSession 的 delegate 需要 self 已完全初始化，故延迟到首次使用时创建
     private lazy var session: URLSession = {
@@ -56,6 +61,10 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
         guard let token, !token.isEmpty else { return false }
         return true
     }
+
+    /// 401 会话失效统一处理：清 token 并广播，让 AppState 跳转登录。
+    /// 供 AppState 注册，避免 APIClient 直接依赖视图层。
+    var onUnauthorized: (() -> Void)?
 
     // MARK: - TLS
 
@@ -131,6 +140,17 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
 
     func request<T: Decodable>(_ method: String, _ path: String, body: Data? = nil, auth: Bool = false) async throws -> T {
         let url = try makeURL(path)
+
+        // 章节正文 GET 走内存缓存：离线/重访不重复下载
+        if method == "GET", !auth, isChapterPath(path), let cached = chapterDataCache.object(forKey: url.absoluteString as NSString) {
+            if T.self == EmptyResponse.self {
+                return EmptyResponse() as! T
+            }
+            if let decoded = try? decoder.decode(T.self, from: cached as Data) {
+                return decoded
+            }
+        }
+
         var req = URLRequest(url: url)
         req.httpMethod = method
         req.timeoutInterval = 30
@@ -141,7 +161,7 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
         if auth, let token {
             req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
-        // 与 Web 端一致：不做浏览器 HTTP 缓存，始终拿最新数据
+        // 与 Web 端一致：不做浏览器 HTTP 缓存，始终拿最新数据（章节正文除外，走上面内存缓存）
         req.setValue("no-store", forHTTPHeaderField: "Cache-Control")
 
         let data: Data
@@ -156,8 +176,15 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
 
         guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
         guard (200..<300).contains(http.statusCode) else {
+            if http.statusCode == 401 {
+                handleUnauthorized()
+            }
             let message = (try? decoder.decode(ErrorEnvelope.self, from: data))?.error
             throw APIError.http(status: http.statusCode, message: message)
+        }
+
+        if method == "GET", !auth, isChapterPath(path) {
+            chapterDataCache.setObject(data as NSData, forKey: url.absoluteString as NSString)
         }
 
         if T.self == EmptyResponse.self {
@@ -168,6 +195,19 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
         } catch {
             throw APIError.invalidResponse
         }
+    }
+
+    private func isChapterPath(_ path: String) -> Bool {
+        // GET /api/chapters/{id} 正文（带不带 query 都算）
+        let base = path.split(separator: "?").first.map(String.init) ?? path
+        let parts = base.split(separator: "/").filter { !$0.isEmpty }.map(String.init)
+        return parts.count == 3 && parts[0] == "api" && parts[1] == "chapters"
+    }
+
+    private func handleUnauthorized() {
+        guard let token, !token.isEmpty else { return }
+        self.token = nil
+        onUnauthorized?()
     }
 
     func get<T: Decodable>(_ path: String, auth: Bool = false) async throws -> T {
@@ -217,7 +257,7 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
              .serverCertificateHasUnknownRoot,
              .serverCertificateNotYetValid,
              .secureConnectionFailed:
-            return "TLS/证书错误（code \(error.code.rawValue)）：服务器证书不受信任。可在「我的 → 开发」中开启“信任无效证书（开发用）”后重试。"
+            return "TLS/证书错误（code \(error.code.rawValue)）：服务器证书不受信任。可在「我的 → 高级」中开启“信任无效证书（开发用）”后重试。"
         default:
             return "网络错误（code \(error.code.rawValue)）：\(error.localizedDescription)"
         }

@@ -11,10 +11,10 @@ struct ReaderView: View {
     let preloadedChapters: [ChapterMeta]
     @State var chapterOrder: Int
 
-    @EnvironmentObject private var settings: ReaderSettingsStore
+    @Environment(ReaderSettingsStore.self) private var settings
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
-    @ObservedObject private var appearance = SystemAppearance.shared
+    @Environment(\.colorScheme) private var systemScheme
 
     @State private var chapter: ChapterFull?
     @State private var chapterMetas: [ChapterMeta] = []
@@ -26,9 +26,13 @@ struct ReaderView: View {
     @State private var showChrome = true
     @State private var scrolledParagraph: Int?
     @State private var paragraphCount = 0
+    /// 章节正文一次性切分缓存，避免滚动时反复 split 整章字符串。
+    @State private var paragraphs: [String] = []
     @State private var saveTask: Task<Void, Never>?
     @State private var percentBox = ReaderPercentBox()
     @State private var suppressPercent = false
+    /// 保存失败的进度体：下次保存/回前台时重试，避免离线静默丢失。
+    @State private var pendingProgressBody: Data?
 
     init(novel: Novel, chapterOrder: Int, preloadedChapters: [ChapterMeta] = []) {
         self.novel = novel
@@ -40,10 +44,11 @@ struct ReaderView: View {
         max(chapterCount, novel.chapterCount, chapterMetas.count)
     }
 
-    private var systemIsDark: Bool { appearance.isDark }
+    /// 系统深色：跟随 @Environment 而非 UIScreen.main（多窗口/iPad 更准，且实时响应外观切换）。
+    private var systemIsDark: Bool { systemScheme == .dark }
     private var paper: Color { settings.backgroundColor(systemDark: systemIsDark) }
     private var ink: Color { settings.textColor(systemDark: systemIsDark) }
-    private var scheme: ColorScheme { settings.colorSchemeOverride(systemDark: systemIsDark) }
+    private var scheme: ColorScheme? { settings.colorSchemeOverride(systemDark: systemIsDark) }
 
     var body: some View {
         GeometryReader { geo in
@@ -68,7 +73,7 @@ struct ReaderView: View {
                             .font(settings.titleFont)
                             .foregroundStyle(ink)
                             .padding(.bottom, 8)
-                        ForEach(Array(paragraphs(of: chapter).enumerated()), id: \.offset) { index, paragraph in
+                        ForEach(Array(paragraphs.enumerated()), id: \.offset) { index, paragraph in
                             Text(paragraph)
                                 .font(settings.bodyFont)
                                 .lineSpacing(settings.lineSpacing)
@@ -160,14 +165,14 @@ struct ReaderView: View {
         .preferredColorScheme(scheme)
         .task { await load() }
         .onChange(of: chapterOrder) { _, _ in
-            percentBox.value = 0
-            scrolledParagraph = nil
-            paragraphCount = 0
+            resetForNewChapter()
             Task { await load() }
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .background || phase == .inactive {
                 saveProgressNow()
+            } else if phase == .active {
+                flushPendingProgress()
             }
         }
         .onAppear { applyWakeLock() }
@@ -190,9 +195,24 @@ struct ReaderView: View {
         UIApplication.shared.isIdleTimerDisabled = settings.wakeLockEnabled
     }
 
+    /// 切章前清空旧正文，避免失败时静默显示上一章内容。
+    private func resetForNewChapter() {
+        chapter = nil
+        paragraphs = []
+        paragraphCount = 0
+        percentBox.value = 0
+        scrolledParagraph = nil
+        suppressPercent = false
+        errorMessage = nil
+    }
+
     private func load() async {
         isLoading = true
-        defer { isLoading = false }
+        let order = chapterOrder // 快照：防止慢响应覆盖新章状态
+        defer {
+            // 仅当前章节仍为目标时清除 loading，避免旧请求把新章节的加载态提前关掉
+            if order == chapterOrder { isLoading = false }
+        }
         do {
             if chapterMetas.isEmpty {
                 if !preloadedChapters.isEmpty {
@@ -206,12 +226,15 @@ struct ReaderView: View {
             }
             chapterCount = chapterMetas.count
 
+            guard chapterOrder == order else { return } // 用户已切章，丢弃过期结果
+
             guard let meta = chapterMetas.first(where: { $0.order == chapterOrder }) else {
                 let list: ChaptersResponse = try await APIClient.shared.get(
                     "/api/chapters?novelId=\(novel.id)"
                 )
                 chapterMetas = list.chapters
                 chapterCount = list.chapters.count
+                guard chapterOrder == order else { return }
                 guard let retry = chapterMetas.first(where: { $0.order == chapterOrder }) else {
                     errorMessage = "未找到第 \(chapterOrder) 章"
                     return
@@ -222,34 +245,41 @@ struct ReaderView: View {
 
             try await loadContent(id: meta.id)
         } catch {
+            // 仅当前章节仍为目标时显示错误，避免切章后旧错误串台
+            guard chapterOrder == order else { return }
             errorMessage = AppCopy.friendlyError(error)
         }
     }
 
     private func loadContent(id: String) async throws {
+        let order = chapterOrder
         let r: ChapterResponse = try await APIClient.shared.get("/api/chapters/\(id)")
+        guard chapterOrder == order else { return }
         chapter = r.chapter
         errorMessage = nil
-        let paras = paragraphs(of: r.chapter)
-        paragraphCount = paras.count
+        paragraphs = Self.paragraphs(of: r.chapter)
+        paragraphCount = paragraphs.count
 
         var restore: Double = 0
         if APIClient.shared.isAuthenticated {
             let p: ProgressResponse = try await APIClient.shared.get(
                 "/api/progress?novelId=\(novel.id)", auth: true
             )
+            guard chapterOrder == order else { return }
             if let prog = p.progress, prog.chapterId == r.chapter.id, prog.scrollPercent > 0 {
                 restore = prog.scrollPercent
             }
         }
 
-        let last = max(paras.count - 1, 0)
+        let last = max(paragraphs.count - 1, 0)
         let target = last == 0 ? 0 : min(last, max(0, Int((restore * Double(last)).rounded(.down))))
         percentBox.value = restore
         suppressPercent = true
-        try? await Task.sleep(nanoseconds: 80_000_000)
+        scrolledParagraph = nil
+        // 让 LazyVStack 完成一次布局后再定位；Task.yield 而非固定休眠
+        await Task.yield()
         scrolledParagraph = target
-        try? await Task.sleep(nanoseconds: 120_000_000)
+        await Task.yield()
         suppressPercent = false
     }
 
@@ -271,12 +301,31 @@ struct ReaderView: View {
     private func saveProgressNow() {
         guard APIClient.shared.isAuthenticated, let body = progressBody() else { return }
         Task {
-            try? await APIClient.shared.requestVoid("POST", "/api/progress", body: body, auth: true)
+            do {
+                try await APIClient.shared.requestVoid("POST", "/api/progress", body: body, auth: true)
+                pendingProgressBody = nil
+            } catch {
+                // 离线/失败时保留待传体，回前台或下次保存时重试
+                pendingProgressBody = body
+            }
         }
     }
 
+    private func flushPendingProgress() {
+        guard let pending = pendingProgressBody else { return }
+        pendingProgressBody = nil
+        Task {
+            do {
+                try await APIClient.shared.requestVoid("POST", "/api/progress", body: pending, auth: true)
+            } catch {
+                pendingProgressBody = pending
+            }
+        }
+    }
+
+    /// 进度体与当前展示章节强一致：切章失败/错位时不写脏数据。
     private func progressBody() -> Data? {
-        guard let chapter else { return nil }
+        guard let chapter, chapter.order == chapterOrder else { return nil }
         let body = SaveProgressBody(
             novelId: novel.id,
             chapterId: chapter.id,
@@ -294,7 +343,8 @@ struct ReaderView: View {
         chapterOrder = order
     }
 
-    private func paragraphs(of chapter: ChapterFull) -> [String] {
+    /// 章节段落切分：静态纯函数，仅在加载时执行一次。
+    nonisolated private static func paragraphs(of chapter: ChapterFull) -> [String] {
         let byBlankLine = chapter.content
             .components(separatedBy: "\n\n")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }

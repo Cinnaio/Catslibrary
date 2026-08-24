@@ -2,7 +2,7 @@ import SwiftUI
 
 /// 个人中心：用户信息、阅读设置、服务器信息、退出登录。
 struct ProfileView: View {
-    @EnvironmentObject private var appState: AppState
+    @Environment(AppState.self) private var appState
 
     @State private var showLogoutConfirm = false
     @State private var showReaderSettings = false
@@ -63,14 +63,11 @@ struct ProfileView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .glassPageBackground()
+        .pageBackground()
         .navigationTitle("我的")
         .navigationBarTitleDisplayMode(.large)
-        .browseColorScheme()
         .sheet(isPresented: $showReaderSettings) {
             ReaderSettingsView()
-                .preferredColorScheme(.light)
-                .presentationBackground(AppTheme.surfaceWarm)
                 .presentationDetents([.medium, .large])
         }
         .confirmationDialog("确定退出登录？", isPresented: $showLogoutConfirm, titleVisibility: .visible) {

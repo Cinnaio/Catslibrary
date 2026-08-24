@@ -76,17 +76,17 @@ struct NovelCardView: View {
     }
 }
 
-/// 分类/属性标签贴纸：奶白胶囊 + 暖色描边
+/// 分类/属性标签贴纸：语义表面 + 强调描边（跟随深浅色）
 struct ThemeTagModifier: ViewModifier {
     var emphasized: Bool = false
 
     func body(content: Content) -> some View {
         content
             .font(.caption2.weight(emphasized ? .semibold : .regular))
-            .foregroundStyle(emphasized ? AppTheme.seal : AppTheme.primaryDeep)
+            .foregroundStyle(emphasized ? AppTheme.seal : AppTheme.primary)
             .padding(.horizontal, 8)
             .padding(.vertical, 5)
-            .background(Color.white.opacity(0.9), in: Capsule())
+            .background(AppTheme.surface.opacity(0.9), in: Capsule())
             .overlay(Capsule().strokeBorder(emphasized ? AppTheme.seal.opacity(0.35) : AppTheme.border, lineWidth: 0.75))
     }
 }

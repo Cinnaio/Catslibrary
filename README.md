@@ -10,7 +10,7 @@
 - **鉴权**：Bearer Token 存 Keychain（`ZhiZhou/Networking/Keychain.swift`），登录用 `remember` 长会话
 - **阅读设置同步**：与 Web 端互通（LWW 合并，`/api/auth/reader-settings`），键值表与后端 `reader-settings.ts` 完全一致
 - **进度同步**：滚动百分比 → `/api/progress`，进入章节自动恢复上次位置
-- **设计系统**：`ZhiZhou/Theme/Theme.swift` —— 奶茶·奶油暖色调 + iOS 26 Liquid Glass 背景（`.glassEffect`）
+- **设计系统**：`ZhiZhou/Theme/Theme.swift` —— 语义色跟随系统浅/深外观（无强制浅色），阅读器纸面独立主题（跟随系统/护眼/羊皮/夜间）
 
 ## 目录结构
 
@@ -80,7 +80,7 @@ ZhiZhou/
 知舟服务器若使用**自签名证书**（mkcert/openssl 自签）或证书过期/域名不匹配，iOS 会直接拒绝，登录时报
 `网络错误：TLS错误导致安全连接失败`。解决：
 
-- **开发期**：在「我的 → 开发」打开 **“信任无效证书（开发用）”** 开关，App 会跳过证书校验。注意这会使连接可被中间人攻击，仅限自用/开发。
+- **开发期**：在「我的 → 高级」打开 **“信任无效证书（开发用）”** 开关，App 会跳过证书校验。注意这会使连接可被中间人攻击，仅限自用/开发。
 - **生产**：请关闭该开关，为域名配置受信任的正式证书（Let's Encrypt / 云厂商证书），并移除
   Info.plist 中的 `NSAllowsArbitraryLoads`。
 

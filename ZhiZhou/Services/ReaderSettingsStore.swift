@@ -1,14 +1,16 @@
 import Foundation
+import Observation
 import SwiftUI
 import UIKit
 
 /// 阅读设置：本地立即生效 + 与服务器 LWW 合并同步。
 /// 键值表与 api/src/services/reader-settings.ts 完全一致。
-final class ReaderSettingsStore: ObservableObject {
+@Observable
+final class ReaderSettingsStore {
     static let shared = ReaderSettingsStore()
 
-    @Published var values: [String: String] = [:]
-    @Published var updatedAt: [String: Int64] = [:]
+    var values: [String: String] = [:]
+    var updatedAt: [String: Int64] = [:]
 
     private var syncTask: Task<Void, Never>?
     private let knownKeys: Set<String> = [
@@ -22,7 +24,7 @@ final class ReaderSettingsStore: ObservableObject {
             "fontSize": "2",
             "fontFamily": "serif",
             "readerPageMode": "scroll",
-            "readerTheme": "default",
+            "readerTheme": "system",
             "readerLineHeight": "1.95",
             "readerParagraphSpacing": "1.4",
             "readerWakeLock": "true",
@@ -42,7 +44,7 @@ final class ReaderSettingsStore: ObservableObject {
         UIFontMetrics(forTextStyle: .body).scaledValue(for: bodyFontSizeUnscaled)
     }
     var lineHeight: CGFloat { CGFloat(Double(values["readerLineHeight"] ?? "1.95") ?? 1.95) }
-    var themeName: String { values["readerTheme"] ?? "default" }
+    var themeName: String { values["readerTheme"] ?? "system" }
     var useSerif: Bool { (values["fontFamily"] ?? "serif") == "serif" }
     var contentMode: String { values["contentMode"] ?? "safe" }
     var wakeLockEnabled: Bool {
@@ -51,23 +53,34 @@ final class ReaderSettingsStore: ObservableObject {
     }
 
     /// 将 Web 端可能出现的暗色值归一成 iOS 认识的键。
+    /// "default"（旧奶油纸面）归一为跟随系统，满足「默认纸面自动昼夜」。
     var normalizedTheme: String {
         switch themeName {
         case "night", "ink", "black", "dark": return "dark"
+        case "default", "system": return "system"
         default: return themeName
         }
     }
 
+    /// 当前纸面是否深色。system/default 跟随系统外观。
     func isDarkPaper(systemDark: Bool) -> Bool {
         switch normalizedTheme {
         case "dark": return true
         case "system": return systemDark
+        case "eye", "paper": return false
         default: return false
         }
     }
 
-    func colorSchemeOverride(systemDark: Bool) -> ColorScheme {
-        isDarkPaper(systemDark: systemDark) ? .dark : .light
+    /// 阅读器整体配色方案：深色纸面强制 dark，浅色纸面强制 light，
+    /// system/default 不强制，直接跟随系统（实现实时昼夜切换）。
+    func colorSchemeOverride(systemDark: Bool) -> ColorScheme? {
+        switch normalizedTheme {
+        case "dark": return .dark
+        case "system": return nil
+        case "eye", "paper": return .light
+        default: return nil
+        }
     }
 
     func backgroundColor(systemDark: Bool) -> Color {
@@ -77,14 +90,14 @@ final class ReaderSettingsStore: ObservableObject {
         switch normalizedTheme {
         case "eye": return Color(hex: "E7EBD9")
         case "paper": return Color(hex: "F2E3C6")
-        default: return Color(hex: "FBF6EE")
+        default: return Color(.systemBackground)
         }
     }
 
     func textColor(systemDark: Bool) -> Color {
         isDarkPaper(systemDark: systemDark)
             ? Color(hex: "EDE4D8")
-            : Color(hex: "3A2E24")
+            : Color(.label)
     }
 
     var bodyFont: Font {

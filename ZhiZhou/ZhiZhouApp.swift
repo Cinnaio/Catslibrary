@@ -2,14 +2,14 @@ import SwiftUI
 
 @main
 struct ZhiZhouApp: App {
-    @StateObject private var appState = AppState.shared
-    @StateObject private var readerSettings = ReaderSettingsStore.shared
+    private let appState = AppState.shared
+    private let readerSettings = ReaderSettingsStore.shared
 
     var body: some Scene {
         WindowGroup {
             RootView()
-                .environmentObject(appState)
-                .environmentObject(readerSettings)
+                .environment(appState)
+                .environment(readerSettings)
         }
     }
 }

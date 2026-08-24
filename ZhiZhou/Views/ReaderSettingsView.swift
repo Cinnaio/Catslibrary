@@ -2,16 +2,15 @@ import SwiftUI
 
 /// 阅读设置面板：字号/字体/行距/主题，改动即时生效并同步服务器。
 struct ReaderSettingsView: View {
-    @EnvironmentObject private var settings: ReaderSettingsStore
+    @Environment(ReaderSettingsStore.self) private var settings
     @Environment(\.dismiss) private var dismiss
 
     private let fontLevels = ["0", "1", "2", "3", "4", "5"]
     private let themes: [(id: String, title: String, swatch: Color)] = [
-        ("default", "纸面", Color(hex: "FBF6EE")),
+        ("system", "跟随系统", Color(.systemBackground)),
         ("eye", "护眼", Color(hex: "E7EBD9")),
         ("paper", "羊皮", Color(hex: "F2E3C6")),
         ("dark", "夜间", Color(hex: "1C1916")),
-        ("system", "系统", Color(hex: "8B6045")),
     ]
 
     var body: some View {
@@ -19,7 +18,7 @@ struct ReaderSettingsView: View {
             Form {
                 Section("字号") {
                     Stepper(
-                        "第 \(settings.fontSizeIndex + 1) 档 · \(Int(settings.bodyFontSizeUnscaled)) pt",
+                        "第 \(settings.fontSizeIndex + 1) 档 · \(Int(settings.bodyFontSize)) pt",
                         value: Binding(
                             get: { settings.fontSizeIndex },
                             set: { settings.set("fontSize", fontLevels[$0]) }
@@ -68,7 +67,7 @@ struct ReaderSettingsView: View {
                         set: { settings.set("readerWakeLock", $0 ? "true" : "false") }
                     ))
                 } footer: {
-                    Text("与网页端同步阅读偏好。浏览页保持浅色奶茶风，夜间只作用于阅读器。")
+                    Text("与网页端同步阅读偏好。「跟随系统」纸面会随系统深浅自动切换。")
                 }
             }
             .scrollContentBackground(.hidden)
@@ -84,8 +83,6 @@ struct ReaderSettingsView: View {
 
     private func themeButton(_ theme: (id: String, title: String, swatch: Color)) -> some View {
         let selected = settings.normalizedTheme == theme.id
-            || (theme.id == "system" && settings.themeName == "system")
-            || (theme.id == "dark" && ["dark", "night", "ink", "black"].contains(settings.themeName))
         return Button {
             settings.set("readerTheme", theme.id)
         } label: {
