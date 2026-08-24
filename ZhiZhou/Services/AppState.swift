@@ -36,7 +36,10 @@ final class AppState {
             await ReaderSettingsStore.shared.syncFromServer()
         } catch let error as APIError {
             switch error {
-            case .unauthorized, .http(let status, _) where status == 401 || status == 403:
+            case .unauthorized:
+                // APIClient 已清 token
+                sessionRestoreFailed = false
+            case .http(let status, _) where status == 401 || status == 403:
                 // APIClient 已清 token
                 sessionRestoreFailed = false
             default:
