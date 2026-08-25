@@ -21,6 +21,8 @@ export const SCRAPE_MAX_RETRIES = Number(process.env.SCRAPE_MAX_RETRIES || 3)
 export const SCRAPE_FETCH_TIMEOUT = Number(process.env.SCRAPE_FETCH_TIMEOUT || 12000)
 export const SCRAPE_CHAPTER_DELAY = Number(process.env.SCRAPE_CHAPTER_DELAY || 300)
 export const SCRAPE_MAX_CONSECUTIVE_FAILURES = 10
+/** 选择器测试 / 章节预览时目录翻页上限，避免长目录书（数百页）串行抓爆耗时。 */
+export const SCRAPE_MAX_LIST_PAGES = Number(process.env.SCRAPE_MAX_LIST_PAGES || 5)
 export const BATCH_SIZE = 10
 
 function newChapterId(index: number): string {
@@ -48,7 +50,7 @@ export async function testSelectors(
   if (selectors.nextPage && allLinks.length > 0) {
     let nextUrl = extractLinkHref(html, selectors.nextPage, sourceUrl)
     const seenPages = new Set([sourceUrl])
-    while (nextUrl && nextUrl !== sourceUrl && !seenPages.has(nextUrl)) {
+    while (nextUrl && nextUrl !== sourceUrl && !seenPages.has(nextUrl) && _t.pages < SCRAPE_MAX_LIST_PAGES) {
       seenPages.add(nextUrl)
       _t.pages++
       try {
@@ -79,24 +81,29 @@ export async function testSelectors(
   }
 
   const sampleChapters: unknown[] = []
-  if (selectors.chapterTitle && selectors.chapterContent) {
-    for (const link of uniqueLinks.slice(0, 3)) {
-      try {
-        const chapter = await deps.fetchHtml(link.href, { forceEncoding: encoding, timeoutMs: 8000 })
-        const title = extractText(chapter.html, selectors.chapterTitle) || link.text || ''
-        const rawContent = extractContent(chapter.html, selectors.chapterContent)
-        const cleanContent = cleanText(cleanHtml(rawContent || '').trim())
-        sampleChapters.push({
-          title,
-          url: link.href,
-          rawLength: rawContent ? rawContent.length : 0,
-          cleanLength: cleanContent ? cleanContent.length : 0,
-          ok: cleanContent.replace(/\s/g, '').length >= 20,
-        })
-      } catch (err) {
-        sampleChapters.push({ title: link.text || '', url: link.href, error: (err as Error).message, ok: false })
-      }
-    }
+  const chapterTitleSel = selectors.chapterTitle
+  const chapterContentSel = selectors.chapterContent
+  if (chapterTitleSel && chapterContentSel) {
+    const samples = await Promise.all(
+      uniqueLinks.slice(0, 3).map(async (link) => {
+        try {
+          const chapter = await deps.fetchHtml(link.href, { forceEncoding: encoding, timeoutMs: 8000 })
+          const title = extractText(chapter.html, chapterTitleSel) || link.text || ''
+          const rawContent = extractContent(chapter.html, chapterContentSel)
+          const cleanContent = cleanText(cleanHtml(rawContent || '').trim())
+          return {
+            title,
+            url: link.href,
+            rawLength: rawContent ? rawContent.length : 0,
+            cleanLength: cleanContent ? cleanContent.length : 0,
+            ok: cleanContent.replace(/\s/g, '').length >= 20,
+          }
+        } catch (err) {
+          return { title: link.text || '', url: link.href, error: (err as Error).message, ok: false }
+        }
+      }),
+    )
+    sampleChapters.push(...samples)
   }
 
   return {

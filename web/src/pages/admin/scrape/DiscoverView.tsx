@@ -123,25 +123,12 @@ export default function DiscoverView() {
     if (!item) return
     setDetail({ item, loading: true, error: '', meta: null, chapters: null, chapterCount: 0, scraping: false })
     try {
+      // detect-meta 已内置章节数统计（含目录分页），这里不再重复拉一次 test。
       const data = (await scrapePost({ action: 'detect-meta', sourceUrl: item.url })) as DetectedMeta
       if (!data.novel) throw new Error(data.error || '获取失败')
-      let chapters: Array<{ text: string; href: string }> | null = null
-      let chapterCount = data.chapterCount || 0
-      try {
-        const chData = await scrapePost({
-          action: 'test',
-          sourceUrl: data.chapterListUrl || item.url,
-          encoding: data.encoding || null,
-          selectors: data.selectors || { chapterList: '.chapters li a', chapterTitle: '', chapterContent: '' },
-        })
-        if (chData.links && chData.links.length > 0) {
-          chapters = chData.links
-          chapterCount = chData.totalLinks || chData.links.length
-        }
-      } catch {
-        /* 保留 detect-meta 的章节数 */
-      }
-      setDetail((d) => (d ? { ...d, loading: false, meta: data, chapters, chapterCount } : d))
+      setDetail((d) =>
+        d ? { ...d, loading: false, meta: data, ...(data.chapterListUrl || data.chapterCount ? { chapterCount: data.chapterCount || 0 } : {}) } : d,
+      )
     } catch (err) {
       setDetail((d) => (d ? { ...d, loading: false, error: (err as Error).message } : d))
     }
@@ -428,23 +415,23 @@ export default function DiscoverView() {
                   </div>
                   {detail.meta.novel?.description ? <div className="discover-detail__desc">{detail.meta.novel.description}</div> : null}
                   <div className="discover-detail__chapters">
-                    {detail.chapters && detail.chapters.length > 0 ? (
-                      <>
-                        <div className="discover-detail__chapter-head">
-                          <strong>章节目录</strong>
-                          <span>共 {detail.chapterCount} 章</span>
-                        </div>
-                        <div className="discover-detail__chapter-list">
-                          {detail.chapters.map((l, ci) => (
-                            <div className="discover-detail__chapter-item" key={ci}>
-                              <span className="discover-detail__chapter-index">{ci + 1}</span>
-                              <span className="discover-detail__chapter-title">{l.text || l.href}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </>
-                    ) : (
-                      <div className="discover-detail__chapter-empty">章节数：{detail.chapterCount}</div>
+                    <div className="discover-detail__chapter-head">
+                      <strong>章节目录</strong>
+                      {detail.meta.hasMoreChapters ? (
+                        <span>{detail.chapterCount}+ 章（预览前几页）</span>
+                      ) : (
+                        <span>共 {detail.chapterCount || 0} 章</span>
+                      )}
+                    </div>
+                    {detail.chapters && detail.chapters.length > 0 && (
+                      <div className="discover-detail__chapter-list">
+                        {detail.chapters.map((l, ci) => (
+                          <div className="discover-detail__chapter-item" key={ci}>
+                            <span className="discover-detail__chapter-index">{ci + 1}</span>
+                            <span className="discover-detail__chapter-title">{l.text || l.href}</span>
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </div>
                 </>

@@ -260,6 +260,9 @@ export interface CollectLinksResult {
   limited: boolean
 }
 
+/** 章节列表统计的翻页上限（仅用于探测/预览；真正的抓取任务 runScrapeJob 不受限）。 */
+export const MAX_CHAPTER_LIST_PAGES = Number(process.env.SCRAPE_MAX_LIST_PAGES || 5)
+
 /** 元数据探测的依赖注入面（store 可为 null：无书源表时走静态预设+通用提取）。 */
 export interface MetaDeps {
   store: ScrapeStore | null
@@ -313,25 +316,28 @@ export async function detectMeta(sourceUrl: string, deps: MetaDeps): Promise<Det
   }
 }
 
-/** 分页收集章节链接（fetch 由调用方注入，保持纯函数可测）。 */
+/** 分页收集章节链接（fetch 由调用方注入，保持纯函数可测）。翻页受 maxPages 限制，超出置 limited。 */
 export async function collectChapterLinks(
   firstHtml: string,
   preset: SitePreset,
   chapterListUrl: string,
   encoding: string,
   fetchPage: (url: string) => Promise<{ html: string }>,
+  maxPages = MAX_CHAPTER_LIST_PAGES,
 ): Promise<CollectLinksResult> {
   const selectors = preset.selectors || {}
   let links = extractLinks(firstHtml, selectors.chapterList || '', chapterListUrl)
   let nextUrl = selectors.nextPage ? extractLinkHref(firstHtml, selectors.nextPage, chapterListUrl) : ''
   const seenPages = new Set([chapterListUrl])
+  let pageCount = 1
 
-  while (nextUrl && !seenPages.has(nextUrl)) {
+  while (nextUrl && !seenPages.has(nextUrl) && pageCount < maxPages) {
     seenPages.add(nextUrl)
     const { html } = await fetchPage(nextUrl)
     const moreLinks = extractLinks(html, selectors.chapterList || '', nextUrl)
     if (!moreLinks.length) break
     links = links.concat(moreLinks)
+    pageCount++
     nextUrl = extractLinkHref(html, selectors.nextPage || '', nextUrl)
   }
 
@@ -341,5 +347,7 @@ export async function collectChapterLinks(
     seenLinks.add(link.href)
     return true
   })
-  return { links, limited: false }
+  // 还有未访问的下一页 → 章节数只是前 maxPages 页的统计
+  const limited = Boolean(nextUrl && !seenPages.has(nextUrl))
+  return { links, limited }
 }
