@@ -221,7 +221,7 @@ struct AdminAIWritingView: View {
     // MARK: - 画像
 
     private var profileSection: some View {
-        Section("创作画像") {
+        Section {
             profileRow(
                 label: "风格画像",
                 value: styleProfile,
@@ -255,6 +255,8 @@ struct AdminAIWritingView: View {
             .disabled(starting || !canStart)
             .buttonStyle(.borderedProminent)
             .tint(AppTheme.primary)
+        } header: {
+            Text("创作画像")
         } footer: {
             Text("任务完成后，草稿会出现在「已生成内容」中，可编辑后发布为正式章节。")
         }

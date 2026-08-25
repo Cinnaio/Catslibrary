@@ -129,7 +129,7 @@ struct AdminAIGenerationsView: View {
         .sheet(item: $viewing) { item in
             GenerationDetailSheet(item: item) { refresh in
                 viewing = nil
-                if refresh { await load() }
+                if refresh { Task { await load() } }
             }
         }
         .alert("操作失败", isPresented: errorAlertBinding) {
@@ -401,16 +401,19 @@ private struct GenerationDetailSheet: View {
                 }
 
                 Section("内容") {
-                    if let draftText {
-                        TextEditor(text: $draftText)
-                            .frame(minHeight: 260)
-                            .font(.subheadline)
-                            .scrollContentBackground(.hidden)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .strokeBorder(AppTheme.border, lineWidth: 1)
-                            )
-                            .padding(.vertical, 4)
+                    if draftText != nil {
+                        TextEditor(text: Binding(
+                            get: { draftText ?? "" },
+                            set: { draftText = $0 }
+                        ))
+                        .frame(minHeight: 260)
+                        .font(.subheadline)
+                        .scrollContentBackground(.hidden)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .strokeBorder(AppTheme.border, lineWidth: 1)
+                        )
+                        .padding(.vertical, 4)
                     } else {
                         Text(item.result ?? "（无内容）")
                             .font(.subheadline)

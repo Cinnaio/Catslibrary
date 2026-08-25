@@ -50,7 +50,7 @@ struct AdminDiscoverView: View {
             DiscoverDetailSheet(item: item, autoStart: detailAutoStart) { refresh in
                 detailItem = nil
                 detailAutoStart = false
-                if refresh { await reloadCurrent() }
+                if refresh { Task { await reloadCurrent() } }
             }
         }
         .sheet(item: $batch) { state in
@@ -685,8 +685,8 @@ private struct DiscoverDetailSheet: View {
             chapters = preview
             chapterCount = count
             loading = false
-        } catch {
-            error = AppCopy.friendlyError(error)
+        } catch let err {
+            error = AppCopy.friendlyError(err)
             loading = false
         }
     }
@@ -702,9 +702,9 @@ private struct DiscoverDetailSheet: View {
             }
             self.meta = meta
             loading = false
-            try await startScrape(meta: meta)
-        } catch {
-            error = AppCopy.friendlyError(error)
+            await startScrape(meta: meta)
+        } catch let err {
+            error = AppCopy.friendlyError(err)
             loading = false
         }
     }

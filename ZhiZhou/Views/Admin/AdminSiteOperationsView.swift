@@ -117,7 +117,7 @@ struct AdminSiteOperationsView: View {
     // MARK: - 公告编辑
 
     private var announcementSection: some View {
-        Section("站点公告") {
+        Section {
             TextEditor(text: $announcement)
                 .frame(minHeight: 80)
                 .font(.subheadline)
@@ -142,6 +142,8 @@ struct AdminSiteOperationsView: View {
                     .font(.subheadline)
                     .foregroundStyle(AppTheme.success)
             }
+        } header: {
+            Text("站点公告")
         } footer: {
             Text("公告显示在网站头部与 App 首页，留空表示不展示（最长 240 字）。")
         }

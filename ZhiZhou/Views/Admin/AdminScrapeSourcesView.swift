@@ -32,72 +32,7 @@ struct AdminScrapeSourcesView: View {
 
     var body: some View {
         List {
-            if isLoading && sources.isEmpty {
-                Section {
-                    ProgressView("加载中…")
-                        .frame(maxWidth: .infinity, minHeight: 160)
-                        .listRowBackground(Color.clear)
-                }
-            } else if let errorMessage, sources.isEmpty {
-                Section {
-                    ContentUnavailableView {
-                        Label("加载失败", systemImage: "wifi.slash")
-                    } description: {
-                        Text(errorMessage)
-                    } actions: {
-                        Button("重试") { Task { await load() } }
-                    }
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-                }
-            } else {
-                if sources.isEmpty {
-                    Section {
-                        ContentUnavailableView {
-                            Label("暂无书源", systemImage: "antenna.radiowaves.left.and.right")
-                        } description: {
-                            Text("当前条件下没有匹配的书源。")
-                        }
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                    }
-                } else {
-                    if selectionMode && !sources.isEmpty {
-                        Section {
-                            HStack {
-                                Text("已选 \(selectedHosts.count) 个")
-                                    .font(.subheadline)
-                                    .foregroundStyle(AppTheme.textSecondary)
-                                Spacer()
-                                Button(selectedHosts.count == sources.count ? "全不选" : "全选") {
-                                    selectedHosts = selectedHosts.count == sources.count ? [] : Set(sources.map { $0.host })
-                                }
-                                .font(.subheadline)
-                                .disabled(batchBusy)
-                                Button("启停") { showBatchToggle = true }
-                                    .font(.subheadline)
-                                    .disabled(selectedHosts.isEmpty || batchBusy)
-                                Button("删除", role: .destructive) { showBatchDelete = true }
-                                    .font(.subheadline)
-                                    .disabled(selectedHosts.isEmpty || batchBusy)
-                            }
-                            .listRowBackground(Color.clear)
-                        }
-                    }
-                    Section("书源（\(sources.count)）") {
-                        ForEach(sources) { source in
-                            sourceRow(source)
-                        }
-                    }
-                }
-                if let connectivityText {
-                    Section {
-                        Label(connectivityText, systemImage: "antenna.radiowaves.left.and.right")
-                            .font(.subheadline)
-                            .foregroundStyle(AppTheme.textSecondary)
-                    }
-                }
-            }
+            listContent
         }
         .scrollContentBackground(.hidden)
         .pageBackground()
@@ -213,6 +148,82 @@ struct AdminScrapeSourcesView: View {
             Button("好", role: .cancel) {}
         } message: {
             Text(actionError ?? "")
+        }
+    }
+
+    // MARK: - 列表内容（拆分以降低 Release 类型检查开销）
+
+    @ViewBuilder
+    private var listContent: some View {
+        if isLoading && sources.isEmpty {
+            Section {
+                ProgressView("加载中…")
+                    .frame(maxWidth: .infinity, minHeight: 160)
+                    .listRowBackground(Color.clear)
+            }
+        } else if let errorMessage, sources.isEmpty {
+            Section {
+                ContentUnavailableView {
+                    Label("加载失败", systemImage: "wifi.slash")
+                } description: {
+                    Text(errorMessage)
+                } actions: {
+                    Button("重试") { Task { await load() } }
+                }
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+            }
+        } else {
+            if sources.isEmpty {
+                Section {
+                    ContentUnavailableView {
+                        Label("暂无书源", systemImage: "antenna.radiowaves.left.and.right")
+                    } description: {
+                        Text("当前条件下没有匹配的书源。")
+                    }
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                }
+            } else {
+                if selectionMode && !sources.isEmpty {
+                    batchBarSection
+                }
+                Section("书源（\(sources.count)）") {
+                    ForEach(sources) { source in
+                        sourceRow(source)
+                    }
+                }
+            }
+            if let connectivityText {
+                Section {
+                    Label(connectivityText, systemImage: "antenna.radiowaves.left.and.right")
+                        .font(.subheadline)
+                        .foregroundStyle(AppTheme.textSecondary)
+                }
+            }
+        }
+    }
+
+    private var batchBarSection: some View {
+        Section {
+            HStack {
+                Text("已选 \(selectedHosts.count) 个")
+                    .font(.subheadline)
+                    .foregroundStyle(AppTheme.textSecondary)
+                Spacer()
+                Button(selectedHosts.count == sources.count ? "全不选" : "全选") {
+                    selectedHosts = selectedHosts.count == sources.count ? [] : Set(sources.map { $0.host })
+                }
+                .font(.subheadline)
+                .disabled(batchBusy)
+                Button("启停") { showBatchToggle = true }
+                    .font(.subheadline)
+                    .disabled(selectedHosts.isEmpty || batchBusy)
+                Button("删除", role: .destructive) { showBatchDelete = true }
+                    .font(.subheadline)
+                    .disabled(selectedHosts.isEmpty || batchBusy)
+            }
+            .listRowBackground(Color.clear)
         }
     }
 
@@ -484,11 +495,13 @@ private struct LegadoImportSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                Section("书源池 URL") {
+                Section {
                     TextField("https://example.com/legado.json", text: $url)
                         .keyboardType(.URL)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
+                } header: {
+                    Text("书源池 URL")
                 } footer: {
                     Text("填写公开的书源池 JSON 地址，从远端拉取。")
                 }
