@@ -38,6 +38,24 @@ struct AdminRootView: View {
                 } label: {
                     Label("内容审核", systemImage: "bubble.left.and.bubble.right")
                 }
+                NavigationLink {
+                    AdminNovelsView()
+                } label: {
+                    Label("小说管理", systemImage: "books.vertical")
+                }
+                NavigationLink {
+                    AdminChaptersView()
+                } label: {
+                    Label("章节管理", systemImage: "doc.text")
+                }
+            }
+
+            Section("运维") {
+                NavigationLink {
+                    AdminJobsView()
+                } label: {
+                    Label("任务管理", systemImage: "shippingbox")
+                }
             }
 
             Section("系统") {

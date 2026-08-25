@@ -47,6 +47,9 @@ ZhiZhou/
       AdminUsersView               用户与邀请码（注册模式 / 邀请码 / 用户管理）
       AdminPolicyView              内容安全（成人内容开关）
       AdminAnnouncementView        站点公告编辑
+      AdminJobsView                任务管理（抓取任务 + 下载日志）
+      AdminNovelsView              小说管理（搜索 / 编辑 / 新建 / 删除 / 增量更新）
+      AdminChaptersView            章节管理（选书 / 章节 CRUD）
 .github/workflows/build-ios.yml    macOS 构建 → 未签名 .ipa
 ```
 
@@ -109,8 +112,8 @@ ZhiZhou/
 - [x] 用户与邀请码（注册模式 / 生成·禁用·清理邀请码 / 角色·禁用·重置密码·删除用户）
 - [x] 内容安全（成人内容开关）
 - [x] 站点公告（编辑并保存，最长 240 字）
-- [ ] 小说 / 章节管理（列表编辑）
-- [ ] 任务管理（抓取任务列表操作）
+- [x] 小说 / 章节管理（列表编辑）
+- [x] 任务管理（抓取任务列表操作）
 - [ ] 爬虫抓取中心（采集向导 / 发现 / 代理 / 源管理）
 - [ ] AI 服务（配置 / 任务 / 用量 / 审计等子面板）
 

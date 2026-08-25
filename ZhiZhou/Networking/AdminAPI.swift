@@ -141,6 +141,90 @@ enum AdminAPI {
         )
     }
 
+    // MARK: - 任务管理 / 抓取动作
+
+    /// GET /api/scrape?action=jobs：最近任务列表（含运行中状态与摘要计数）。
+    static func scrapeJobs() async throws -> [AdminJobItem] {
+        let r: AdminJobsResponse = try await APIClient.shared.get("/api/scrape?action=jobs", auth: true)
+        return r.jobs
+    }
+
+    /// POST /api/scrape 动作分发：cancel / retry / retry-failed / update / clear-completed。
+    static func scrapeAction(_ action: String, jobId: String? = nil, novelId: String? = nil) async throws -> AdminJobActionResponse {
+        var body: [String: Any] = ["action": action]
+        if let jobId { body["jobId"] = jobId }
+        if let novelId { body["novelId"] = novelId }
+        return try await APIClient.shared.post("/api/scrape", body: try jsonBody(body), auth: true)
+    }
+
+    /// GET /api/download-logs?limit=：最近下载日志。
+    static func downloadLogs(limit: Int = 50) async throws -> [AdminDownloadLog] {
+        let r: AdminDownloadLogsResponse = try await APIClient.shared.get("/api/download-logs?limit=\(limit)", auth: true)
+        return r.logs
+    }
+
+    // MARK: - 小说管理
+
+    /// GET /api/novels（管理列表：search / status / page / limit）。
+    static func novels(search: String = "", status: String = "", page: Int = 1, limit: Int = 20) async throws -> NovelListResponse {
+        var params: [String: String] = ["page": "\(page)", "limit": "\(limit)"]
+        if !search.isEmpty { params["search"] = search }
+        if !status.isEmpty { params["status"] = status }
+        return try await APIClient.shared.get(queryPath("/api/novels", params), auth: true)
+    }
+
+    /// POST /api/novels：新建小说（管理维护）。
+    static func createNovel(_ fields: [String: Any]) async throws -> Novel {
+        let r: NovelResponse = try await APIClient.shared.post("/api/novels", body: try jsonBody(fields), auth: true)
+        return r.novel
+    }
+
+    /// PUT /api/novels/:id：更新小说（管理维护，title/author 必填）。
+    static func updateNovel(id: String, _ fields: [String: Any]) async throws -> Novel {
+        let r: NovelResponse = try await APIClient.shared.request(
+            "PUT", "/api/novels/\(encode(id))", body: try jsonBody(fields), auth: true
+        )
+        return r.novel
+    }
+
+    /// DELETE /api/novels/:id：删除小说（级联删除章节，不可恢复）。
+    static func deleteNovel(id: String) async throws {
+        let _: OkEnvelope = try await APIClient.shared.delete("/api/novels/\(encode(id))", auth: true)
+    }
+
+    // MARK: - 章节管理
+
+    /// GET /api/chapters?novelId=：某部小说的章节列表（按顺序）。
+    static func chapters(novelId: String) async throws -> [ChapterMeta] {
+        let r: ChaptersResponse = try await APIClient.shared.get("/api/chapters?novelId=\(encode(novelId))", auth: true)
+        return r.chapters
+    }
+
+    /// GET /api/chapters/:id：章节详情（含正文，管理编辑用）。
+    static func chapterDetail(id: String) async throws -> ChapterFull {
+        let r: ChapterResponse = try await APIClient.shared.get("/api/chapters/\(encode(id))", auth: true)
+        return r.chapter
+    }
+
+    /// POST /api/chapters：新建章节（novelId + title 必填）。
+    static func createChapter(_ fields: [String: Any]) async throws -> ChapterFull {
+        let r: ChapterResponse = try await APIClient.shared.post("/api/chapters", body: try jsonBody(fields), auth: true)
+        return r.chapter
+    }
+
+    /// PUT /api/chapters/:id：更新章节（title / content / order）。
+    static func updateChapter(id: String, _ fields: [String: Any]) async throws -> ChapterFull {
+        let r: ChapterResponse = try await APIClient.shared.request(
+            "PUT", "/api/chapters/\(encode(id))", body: try jsonBody(fields), auth: true
+        )
+        return r.chapter
+    }
+
+    /// DELETE /api/chapters/:id：删除章节（不可恢复）。
+    static func deleteChapter(id: String) async throws {
+        let _: OkEnvelope = try await APIClient.shared.delete("/api/chapters/\(encode(id))", auth: true)
+    }
+
     // MARK: - 内部辅助
 
     private static func postAction(_ dict: [String: Any]) async throws -> OkEnvelope {
