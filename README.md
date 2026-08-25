@@ -50,6 +50,9 @@ ZhiZhou/
       AdminJobsView                任务管理（抓取任务 + 下载日志）
       AdminNovelsView              小说管理（搜索 / 编辑 / 新建 / 删除 / 增量更新）
       AdminChaptersView            章节管理（选书 / 章节 CRUD）
+      AdminScrapeCenterView        爬虫抓取中心（URL 分析 → 建书 → 选择器测试 → 启动）
+      AdminScrapeSourcesView       源管理（启停 / 删除 / 测试 / 连通性）
+      AdminProxyView               代理设置（配置 / 测试 / 日志）
 .github/workflows/build-ios.yml    macOS 构建 → 未签名 .ipa
 ```
 
@@ -114,7 +117,8 @@ ZhiZhou/
 - [x] 站点公告（编辑并保存，最长 240 字）
 - [x] 小说 / 章节管理（列表编辑）
 - [x] 任务管理（抓取任务列表操作）
-- [ ] 爬虫抓取中心（采集向导 / 发现 / 代理 / 源管理）
+- [x] 爬虫抓取中心（采集向导 / 源管理 / 代理）
+- [ ] 爬虫「发现」搜索 + 配置导入导出
 - [ ] AI 服务（配置 / 任务 / 用量 / 审计等子面板）
 
 ## App Store 上架注意事项（重要）

@@ -78,4 +78,19 @@ enum AdminFormat {
         default: return mode
         }
     }
+
+    // MARK: 分类输入
+
+    /// 统一分类输入：支持中英文逗号 / 顿号 / 分号分隔，去重（忽略大小写）。
+    static func parseCategories(_ input: String) -> [String] {
+        var seen = Set<String>()
+        var out: [String] = []
+        for raw in input.split(whereSeparator: { $0 == "," || $0 == "，" || $0 == "、" || $0 == ";" || $0 == "；" }) {
+            let s = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !s.isEmpty, seen.insert(s.lowercased()).inserted {
+                out.append(s)
+            }
+        }
+        return out
+    }
 }

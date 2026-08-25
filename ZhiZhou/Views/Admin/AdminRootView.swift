@@ -56,6 +56,21 @@ struct AdminRootView: View {
                 } label: {
                     Label("任务管理", systemImage: "shippingbox")
                 }
+                NavigationLink {
+                    AdminScrapeCenterView()
+                } label: {
+                    Label("爬虫抓取中心", systemImage: "scope")
+                }
+                NavigationLink {
+                    AdminScrapeSourcesView()
+                } label: {
+                    Label("源管理", systemImage: "antenna.radiowaves.left.and.right")
+                }
+                NavigationLink {
+                    AdminProxyView()
+                } label: {
+                    Label("代理设置", systemImage: "network")
+                }
             }
 
             Section("系统") {

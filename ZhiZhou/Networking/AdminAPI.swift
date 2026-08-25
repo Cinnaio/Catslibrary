@@ -225,10 +225,105 @@ enum AdminAPI {
         let _: OkEnvelope = try await APIClient.shared.delete("/api/chapters/\(encode(id))", auth: true)
     }
 
+    // MARK: - 爬虫：智能分析 / 测试 / 启动
+
+    /// POST /api/scrape action=detect-meta：智能识别源站并抽取小说信息与选择器。
+    static func scrapeDetectMeta(sourceUrl: String) async throws -> ScrapeDetectedMeta {
+        try await postScrape(["action": "detect-meta", "sourceUrl": sourceUrl])
+    }
+
+    /// POST /api/scrape action=test：用选择器抓取章节列表页并抽样正文。
+    static func scrapeTest(sourceUrl: String, encoding: String, selectors: ScrapeSelectors) async throws -> ScrapeTestResponse {
+        try await postScrape([
+            "action": "test",
+            "sourceUrl": sourceUrl,
+            "encoding": encoding.isEmpty ? NSNull() : encoding,
+            "selectors": selectorDict(selectors),
+        ])
+    }
+
+    /// POST /api/scrape action=start：保存爬虫配置并启动抓取任务，返回 jobId。
+    static func scrapeStart(novelId: String, sourceUrl: String, encoding: String, selectors: ScrapeSelectors) async throws -> AdminJobActionResponse {
+        try await postScrape([
+            "action": "start",
+            "novelId": novelId,
+            "sourceUrl": sourceUrl,
+            "encoding": encoding.isEmpty ? NSNull() : encoding,
+            "selectors": selectorDict(selectors),
+        ])
+    }
+
+    // MARK: - 爬虫：源管理
+
+    /// POST /api/scrape action=list-sources：源列表（分页）。
+    static func scrapeSources(page: Int = 1, pageSize: Int = 50) async throws -> ScrapeSourcesResponse {
+        try await postScrape(["action": "list-sources", "page": page, "pageSize": pageSize])
+    }
+
+    static func toggleScrapeSource(host: String, enabled: Bool) async throws {
+        let _: AdminJobActionResponse = try await postScrape(["action": "toggle-source", "host": host, "enabled": enabled])
+    }
+
+    static func deleteScrapeSource(host: String) async throws {
+        let _: AdminJobActionResponse = try await postScrape(["action": "delete-source", "host": host])
+    }
+
+    /// 连通性检查：hosts 传空数组表示检查全部。
+    static func checkSourceConnectivity(hosts: [String] = []) async throws -> ScrapeConnectivityResponse {
+        var body: [String: Any] = ["action": "check-source-connectivity"]
+        if !hosts.isEmpty { body["hosts"] = hosts }
+        return try await postScrape(body)
+    }
+
+    static func deleteUnreachableSources() async throws -> AdminJobActionResponse {
+        try await postScrape(["action": "delete-unreachable-sources"])
+    }
+
+    static func testScrapeSource(host: String) async throws -> ScrapeTestResponse {
+        try await postScrape(["action": "test-source", "host": host])
+    }
+
+    // MARK: - 爬虫：代理
+
+    /// GET /api/scrape?action=proxy-config：当前代理配置。
+    static func scrapeProxyConfig() async throws -> ScrapeProxyConfig {
+        try await APIClient.shared.get("/api/scrape?action=proxy-config", auth: true)
+    }
+
+    /// POST /api/scrape action=save-proxy-config：保存运行时代理配置。
+    static func saveProxyConfig(proxyBase: String, proxyBypass: String) async throws -> ScrapeProxyConfig {
+        try await postScrape(["action": "save-proxy-config", "proxyBase": proxyBase, "proxyBypass": proxyBypass])
+    }
+
+    /// POST /api/scrape action=proxy-test：经代理请求目标网址验证可用性。
+    static func testProxy(sourceUrl: String) async throws -> ScrapeProxyTestResponse {
+        try await postScrape(["action": "proxy-test", "sourceUrl": sourceUrl])
+    }
+
+    /// GET /api/scrape?action=proxy-logs：最近代理请求日志。
+    static func scrapeProxyLogs(limit: Int = 50) async throws -> [ScrapeProxyLogItem] {
+        let r: ScrapeProxyLogsResponse = try await APIClient.shared.get("/api/scrape?action=proxy-logs&limit=\(limit)", auth: true)
+        return r.logs
+    }
+
     // MARK: - 内部辅助
 
     private static func postAction(_ dict: [String: Any]) async throws -> OkEnvelope {
         try await APIClient.shared.post("/api/admin-users", body: try jsonBody(dict), auth: true)
+    }
+
+    private static func postScrape<T: Decodable>(_ dict: [String: Any]) async throws -> T {
+        try await APIClient.shared.post("/api/scrape", body: try jsonBody(dict), auth: true)
+    }
+
+    /// 选择器 → JSON 字典（空值字段用空串占位，服务端容错）。
+    private static func selectorDict(_ selectors: ScrapeSelectors) -> [String: String] {
+        [
+            "chapterList": selectors.chapterList ?? "",
+            "chapterTitle": selectors.chapterTitle ?? "",
+            "chapterContent": selectors.chapterContent ?? "",
+            "nextPage": selectors.nextPage ?? "",
+        ]
     }
 
     private static func jsonBody(_ dict: [String: Any]) throws -> Data {
