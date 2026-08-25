@@ -137,7 +137,7 @@ struct AdminNovelsView: View {
             } placeholder: {
                 ZStack {
                     RoundedRectangle(cornerRadius: 6)
-                        .fill(AppTheme.cardBackground.opacity(0.6))
+                        .fill(AppTheme.surface.opacity(0.6))
                     Image(systemName: "book")
                         .foregroundStyle(AppTheme.textMuted)
                 }

@@ -172,7 +172,7 @@ struct AdminChaptersView: View {
                 .foregroundStyle(AppTheme.textMuted)
                 .frame(width: 34, alignment: .center)
                 .padding(.vertical, 3)
-                .background(AppTheme.cardBackground.opacity(0.6), in: RoundedRectangle(cornerRadius: 5))
+                .background(AppTheme.surface.opacity(0.6), in: RoundedRectangle(cornerRadius: 5))
             VStack(alignment: .leading, spacing: 3) {
                 Text(chapter.title)
                     .font(.subheadline)

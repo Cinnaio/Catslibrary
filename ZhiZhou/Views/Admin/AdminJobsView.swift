@@ -259,7 +259,8 @@ struct AdminJobsView: View {
         if let step = job.step, !step.isEmpty {
             parts.append(AdminFormat.jobStatus(step))
         }
-        if let text = job.displayChapterText, !text.isEmpty {
+        let text = job.displayChapterText
+        if !text.isEmpty {
             parts.append(text)
         }
         if let eta = job.etaSeconds, eta > 0 {
