@@ -10,8 +10,7 @@ struct AdminChaptersView: View {
     @State private var isLoading = true
     @State private var errorMessage: String?
     @State private var showNovelPicker = false
-    @State private var showEditor = false
-    @State private var editingChapter: ChapterMeta?
+    @State private var editorIntent: ChapterEditorIntent?
     @State private var deleteTarget: ChapterMeta?
     @State private var actionError: String?
 
@@ -102,8 +101,7 @@ struct AdminChaptersView: View {
                 Menu {
                     Button("选择小说", systemImage: "book.closed") { showNovelPicker = true }
                     Button("新建章节", systemImage: "plus") {
-                        editingChapter = nil
-                        showEditor = true
+                        editorIntent = .create
                     }
                     .disabled(selectedNovel == nil)
                 } label: {
@@ -117,8 +115,8 @@ struct AdminChaptersView: View {
                 Task { await loadChapters() }
             }
         }
-        .sheet(isPresented: $showEditor) {
-            ChapterEditSheet(novel: selectedNovel, chapter: editingChapter) { chapter in
+        .sheet(item: $editorIntent) { intent in
+            ChapterEditSheet(novel: selectedNovel, chapter: intent.chapter) { chapter in
                 if let idx = chapters.firstIndex(where: { $0.id == chapter.id }) {
                     chapters[idx] = chapter
                 } else {
@@ -186,8 +184,7 @@ struct AdminChaptersView: View {
         }
         .contextMenu {
             Button("编辑", systemImage: "pencil") {
-                editingChapter = chapter
-                showEditor = true
+                editorIntent = .edit(chapter)
             }
             Button("删除", systemImage: "trash", role: .destructive) {
                 deleteTarget = chapter
@@ -243,6 +240,30 @@ struct AdminChaptersView: View {
             get: { actionError != nil },
             set: { if !$0 { actionError = nil } }
         )
+    }
+}
+
+// MARK: - 章节编辑/新建 Sheet 意图
+
+/// 用 `sheet(item:)` 驱动编辑/新建弹窗，避免 `sheet(isPresented:)` 内容闭包读到旧快照，
+/// 导致长按「编辑」时弹窗却按「新建」渲染。
+private enum ChapterEditorIntent: Identifiable {
+    case create
+    case edit(ChapterMeta)
+
+    var id: String {
+        switch self {
+        case .create: return "create"
+        case .edit(let chapter): return "edit-\(chapter.id)"
+        }
+    }
+
+    /// 编辑时返回目标章节；新建时为 nil。
+    var chapter: ChapterMeta? {
+        switch self {
+        case .create: return nil
+        case .edit(let chapter): return chapter
+        }
     }
 }
 
