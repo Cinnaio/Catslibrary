@@ -93,4 +93,37 @@ enum AdminFormat {
         }
         return out
     }
+
+    // MARK: AI 服务
+
+    /// AI 任务类型中文文案（对齐 web/src/pages/admin/ai 各面板）。
+    static func aiTaskKind(_ kind: String) -> String {
+        switch kind {
+        case "summary": return "前情提要"
+        case "catchup": return "回顾总结"
+        case "continue": return "续写"
+        case "write_outline": return "大纲"
+        case "write_chapter": return "章节创作"
+        case "cover": return "封面"
+        default: return kind.isEmpty ? "未知" : kind
+        }
+    }
+
+    /// AI 任务状态中文文案。
+    static func aiTaskStatus(_ status: String) -> String {
+        switch status {
+        case "queued": return "排队中"
+        case "running": return "运行中"
+        case "completed": return "已完成"
+        case "failed": return "失败"
+        case "cancelled": return "已取消"
+        default: return status.isEmpty ? "未知" : status
+        }
+    }
+
+    /// 成本（毫分 → 元，对齐 web formatCost：millicents / 100_000）。
+    static func aiCost(_ millicents: Int?) -> String {
+        guard let millicents, millicents > 0 else { return "—" }
+        return String(format: "¥%.4f", Double(millicents) / 100_000)
+    }
 }

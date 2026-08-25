@@ -73,6 +73,14 @@ struct AdminRootView: View {
                 }
             }
 
+            Section("AI 服务") {
+                NavigationLink {
+                    AdminAIServiceView()
+                } label: {
+                    Label("AI 服务", systemImage: "sparkles")
+                }
+            }
+
             Section("系统") {
                 NavigationLink {
                     AdminUsersView()

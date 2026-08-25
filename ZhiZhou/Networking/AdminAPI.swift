@@ -306,6 +306,69 @@ enum AdminAPI {
         return r.logs
     }
 
+    // MARK: - AI 服务：状态 / 用量 / 设置
+
+    static func aiStatus() async throws -> AiStatus {
+        try await APIClient.shared.get("/api/ai/status", auth: true)
+    }
+
+    static func aiUsage() async throws -> AiUsageResponse {
+        try await APIClient.shared.get("/api/ai/usage", auth: true)
+    }
+
+    static func aiSettings() async throws -> AiSettingsResponse {
+        try await APIClient.shared.get("/api/ai/settings", auth: true)
+    }
+
+    /// PUT /api/ai/settings：支持部分字段更新（只传要改的字段）。
+    static func saveAiSettings(_ patch: [String: Any]) async throws -> AiSettings {
+        let r: AiSettingsSaveResponse = try await APIClient.shared.request(
+            "PUT", "/api/ai/settings", body: try jsonBody(patch), auth: true
+        )
+        return r.settings
+    }
+
+    /// PUT /api/ai/provider：修改供应商配置；scope：text | image；apiKey 传空串表示清空。
+    static func saveAiProvider(_ patch: [String: Any]) async throws -> AiProviderSaveResponse {
+        try await APIClient.shared.request("PUT", "/api/ai/provider", body: try jsonBody(patch), auth: true)
+    }
+
+    /// POST /api/ai/test：连通性测试（用当前文本供应商）。
+    static func testAi() async throws -> AiTestResponse {
+        try await APIClient.shared.post("/api/ai/test", body: try jsonBody([:]), auth: true)
+    }
+
+    // MARK: - AI 服务：任务
+
+    /// GET /api/ai/tasks；status：queued | running | completed | failed | cancelled | all。
+    static func aiTasks(status: String = "all", limit: Int = 50, offset: Int = 0) async throws -> AiTasksResponse {
+        let path = queryPath("/api/ai/tasks", ["status": status, "limit": "\(limit)", "offset": "\(offset)"])
+        return try await APIClient.shared.get(path, auth: true)
+    }
+
+    static func cancelAiTask(id: String) async throws {
+        let _: OkEnvelope = try await APIClient.shared.post("/api/ai/tasks/\(encode(id))/cancel", body: try jsonBody([:]), auth: true)
+    }
+
+    static func deleteAiTask(id: String) async throws {
+        let _: OkEnvelope = try await APIClient.shared.delete("/api/ai/tasks/\(encode(id))", auth: true)
+    }
+
+    /// 按原参数重试失败/取消的创作任务，返回新任务 id。
+    static func retryAiTask(id: String) async throws -> AdminJobActionResponse {
+        try await APIClient.shared.post("/api/ai/tasks/\(encode(id))/retry", body: try jsonBody([:]), auth: true)
+    }
+
+    // MARK: - AI 服务：审计
+
+    static func aiAuditUsers(limit: Int = 50, offset: Int = 0) async throws -> AiAuditUsersResponse {
+        try await APIClient.shared.get("/api/ai/audit/users?limit=\(limit)&offset=\(offset)", auth: true)
+    }
+
+    static func aiAuditCalls(limit: Int = 50, offset: Int = 0) async throws -> AiAuditCallsResponse {
+        try await APIClient.shared.get("/api/ai/audit/calls?limit=\(limit)&offset=\(offset)", auth: true)
+    }
+
     // MARK: - 内部辅助
 
     private static func postAction(_ dict: [String: Any]) async throws -> OkEnvelope {

@@ -53,6 +53,7 @@ ZhiZhou/
       AdminScrapeCenterView        爬虫抓取中心（URL 分析 → 建书 → 选择器测试 → 启动）
       AdminScrapeSourcesView       源管理（启停 / 删除 / 测试 / 连通性）
       AdminProxyView               代理设置（配置 / 测试 / 日志）
+      AdminAIServiceView           AI 服务入口（状态 / 供应商 / 参数 / 任务 / 审计）
 .github/workflows/build-ios.yml    macOS 构建 → 未签名 .ipa
 ```
 
@@ -119,7 +120,8 @@ ZhiZhou/
 - [x] 任务管理（抓取任务列表操作）
 - [x] 爬虫抓取中心（采集向导 / 源管理 / 代理）
 - [ ] 爬虫「发现」搜索 + 配置导入导出
-- [ ] AI 服务（配置 / 任务 / 用量 / 审计等子面板）
+- [x] AI 服务（状态与用量 / 供应商配置 / 运行参数 / 任务 / 审计）
+- [ ] AI 封面候选与「已生成内容」管理（依赖选书面板）
 
 ## App Store 上架注意事项（重要）
 
