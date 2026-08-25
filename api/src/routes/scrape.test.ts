@@ -97,6 +97,20 @@ describe('scrape 路由（免网络动作）', () => {
       expect(savedData.effectiveHost).toBe('127.0.0.1:7890')
       expect(savedData.config.proxyBypass).toBe('localhost,.internal.example.com')
 
+      const runtimeRoute = await req(
+        '/api/scrape',
+        json('POST', { action: 'proxy-route', sourceUrl: 'https://service.example.com/v1' }, adminToken),
+      )
+      const runtimeRouteData = await jsonOf<{ usesProxy: boolean; source: string; proxyHost: string; bypassed: boolean }>(runtimeRoute)
+      expect(runtimeRouteData).toMatchObject({ usesProxy: true, source: 'runtime', proxyHost: '127.0.0.1:7890', bypassed: false })
+
+      const runtimeBypass = await req(
+        '/api/scrape',
+        json('POST', { action: 'proxy-route', sourceUrl: 'https://svc.internal.example.com/health' }, adminToken),
+      )
+      const runtimeBypassData = await jsonOf<{ usesProxy: boolean; bypassed: boolean; bypassRule: string }>(runtimeBypass)
+      expect(runtimeBypassData).toMatchObject({ usesProxy: false, bypassed: true, bypassRule: '.internal.example.com' })
+
       const loaded = await req('/api/scrape?action=proxy-config', json('GET', undefined, adminToken))
       expect(loaded.status).toBe(200)
       const loadedData = await jsonOf<{ source: string; config: { proxyBase: string } }>(loaded)
@@ -128,6 +142,28 @@ describe('scrape 路由（免网络动作）', () => {
         delete process.env.ALLOW_PRIVATE_FETCH
         fetchMock.mockRestore()
       }
+
+      const envRoute = await req(
+        '/api/scrape',
+        json('POST', { action: 'proxy-route', sourceUrl: 'https://target.example.org/book/1' }, adminToken),
+      )
+      const envRouteData = await jsonOf<{ usesProxy: boolean; source: string; proxyHost: string; bypassed: boolean }>(envRoute)
+      expect(envRouteData).toMatchObject({ usesProxy: true, source: 'environment', proxyHost: '172.18.0.1:7890', bypassed: false })
+
+      process.env.NO_PROXY = 'target.example.org'
+      try {
+        const envBypass = await req(
+          '/api/scrape',
+          json('POST', { action: 'proxy-route', sourceUrl: 'https://target.example.org/book/1' }, adminToken),
+        )
+        const envBypassData = await jsonOf<{ usesProxy: boolean; bypassed: boolean; bypassRule: string }>(envBypass)
+        expect(envBypassData).toMatchObject({ usesProxy: false, bypassed: true, bypassRule: 'target.example.org' })
+      } finally {
+        delete process.env.NO_PROXY
+      }
+
+      const invalidRoute = await req('/api/scrape', json('POST', { action: 'proxy-route', sourceUrl: '不是网址' }, adminToken))
+      expect(invalidRoute.status).toBe(400)
     } finally {
       if (previousRuntimeDir === undefined) delete process.env.RUNTIME_CONFIG_DIR
       else process.env.RUNTIME_CONFIG_DIR = previousRuntimeDir

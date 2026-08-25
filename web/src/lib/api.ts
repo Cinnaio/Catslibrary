@@ -705,6 +705,20 @@ export const scrapeApi = {
   }> {
     return request('POST', '/scrape', { action: 'proxy-test', sourceUrl }, true)
   },
+  proxyRoute(sourceUrl: string): Promise<{
+    ok: boolean
+    target: string
+    targetHost: string
+    usesProxy: boolean
+    source: 'environment' | 'runtime' | 'none'
+    proxyUrl: string
+    proxyHost: string
+    bypassed: boolean
+    bypassRule: string
+    reason: string
+  }> {
+    return request('POST', '/scrape', { action: 'proxy-route', sourceUrl }, true)
+  },
   proxyLogs(limit = 50): Promise<{
     logs: Array<{
       id: number

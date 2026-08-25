@@ -1,4 +1,5 @@
 import { ProxyAgent } from 'undici'
+import { connect } from 'node:net'
 import { loadConfig } from '../config'
 import { safeFetch, type FetchImplementation } from './safe-fetch'
 
@@ -138,6 +139,73 @@ function sanitizedProxyHost(proxyUrl: string): string {
   }
 }
 
+const ERROR_TEXT_LIMIT = 320
+
+/** 从错误文本中抹掉 URL 查询串与可能的密钥/凭据，避免写入日志或返回给前端。 */
+export function sanitizeErrorText(text: string): string {
+  return String(text || '')
+    .replace(/([?&][^=\s&]+=)[^&\s]*/g, '$1***') // URL 查询参数值
+    .replace(
+      /\b(token|api[_-]?key|secret|password|passwd|authorization|signature|credential|access[_-]?key|private[_-]?key)\b\s*[:=]\s*(?!Bearer\b|Basic\b)[^\s,;)]+/gi,
+      '$1=***',
+    )
+    .replace(/(\b(?:Bearer|Basic)\s+)[A-Za-z0-9._~+/=-]+/gi, '$1***')
+}
+
+/** 生成可写日志/返回给前端的错误描述：沿 cause 链逐层展开并脱敏（如 undici 的 TypeError 只有 cause 里才有真实原因）。 */
+export function describeError(err: unknown): string {
+  if (!(err instanceof Error)) {
+    const text = sanitizeErrorText(String(err || '')).trim()
+    return text || 'Error'
+  }
+  const parts: string[] = []
+  const seen = new Set<string>()
+  let current: Error | undefined = err
+  while (current && !seen.has(current.message)) {
+    seen.add(current.message)
+    const text = sanitizeErrorText(current.message).trim()
+    if (text && !parts.includes(text)) parts.push(text)
+    current = (current as { cause?: unknown }).cause instanceof Error ? (current as { cause?: Error }).cause : undefined
+  }
+  const joined = parts.join(' → ').trim()
+  return joined || err.name || 'Error'
+}
+
+/**
+ * 快速探测标准 HTTP Forward Proxy 是否可达（仅 TCP 握手，不发送 CONNECT）。
+ * 返回 null 表示可达；否则返回面向管理员的可操作错误描述。
+ * 用于代理测试页在抓取失败时区分「代理本身不可达」与「目标经代理不可达」。
+ */
+export function probeProxyConnectivity(proxyUrl: string, timeoutMs = 3500): Promise<string | null> {
+  let parsed: URL
+  try {
+    parsed = new URL(proxyUrl)
+  } catch {
+    return Promise.resolve('代理地址格式不正确，应为 http://host:port')
+  }
+  const host = parsed.hostname
+  const port = Number(parsed.port) || (parsed.protocol === 'https:' ? 443 : 80)
+  if (!host || !port) return Promise.resolve('代理地址缺少主机名或端口')
+  return new Promise((resolve) => {
+    let settled = false
+    const finish = (result: string | null) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      socket.destroy()
+      resolve(result)
+    }
+    const hint = '请确认代理已监听该地址：容器内应使用 host.docker.internal，且代理需开启「允许局域网连接」(allow-lan)'
+    const socket = connect({ host, port })
+    const timer = setTimeout(() => finish(`无法连接代理服务器 ${host}:${port} —— 连接超时。${hint}`), timeoutMs)
+    socket.once('connect', () => finish(null))
+    socket.once('error', (err) => {
+      const code = (err as { code?: string }).code || (err as Error).message
+      finish(`无法连接代理服务器 ${host}:${port}（${code}）。${hint}`)
+    })
+  })
+}
+
 function appendLog(log: Omit<OutboundRequestLog, 'id' | 'timestamp'>): void {
   const entry: OutboundRequestLog = { id: nextLogId++, timestamp: Date.now(), ...log }
   requestLogs.unshift(entry)
@@ -196,7 +264,7 @@ async function performFetch(rawUrl: string, init: RequestInit, options: Outbound
       status: null,
       durationMs: Date.now() - startedAt,
       ok: false,
-      error: err instanceof Error ? err.name || 'Error' : 'Error',
+      error: describeError(err).slice(0, ERROR_TEXT_LIMIT),
     })
     throw err
   }

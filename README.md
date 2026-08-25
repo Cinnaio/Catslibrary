@@ -79,12 +79,21 @@ DATABASE_URL=postgres://... node api/dist/index.js
 
   ```yaml
   environment:
-    HTTP_PROXY: http://172.18.0.1:7890
-    HTTPS_PROXY: http://172.18.0.1:7890
+    HTTP_PROXY: http://host.docker.internal:7890
+    HTTPS_PROXY: http://host.docker.internal:7890
     NO_PROXY: localhost,127.0.0.1,::1,postgres,redis
   ```
 
-  Windows 原生开发可在管理后台填写 `http://127.0.0.1:7890`。代理配置页可测试连通性并查看脱敏的最近出站日志。
+  **前提**：代理（Clash / Mihomo）必须开启「允许局域网连接」（allow-lan），否则只监听 `127.0.0.1`，容器无法访问。地址选择：
+  - **Docker Desktop（Windows / macOS）**：容器经 `host.docker.internal` 访问宿主机，如上例。
+  - **Linux Docker**：默认 bridge 网络下宿主机网桥网关一般是 `172.18.0.1`（以 `docker network inspect bridge | grep Gateway` 为准；compose 自定义网络的网关不同），此时把上述地址换成 `http://172.18.0.1:7890`。
+  - **Windows 原生开发**：管理后台填写 `http://127.0.0.1:7890` 即可，无需环境变量。
+
+  容器内验证（应输出 204）：
+  ```bash
+  docker exec -e https_proxy=http://host.docker.internal:7890 <api容器名> wget -q -O- -T 5 https://www.google.com/generate_204
+  ```
+  代理配置页可测试连通性、检查任意目标是否走代理（含命中的跳过规则）、并查看脱敏的最近出站日志；失败时会给出具体原因（如 `connect ECONNREFUSED/ETIMEDOUT host:port`），便于区分「代理不可达」与「目标经代理不可达」。
 - 全部环境变量说明见 [.env.example](.env.example)。
 
 ## 测试

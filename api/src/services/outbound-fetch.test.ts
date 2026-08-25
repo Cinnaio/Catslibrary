@@ -1,5 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { clearOutboundRequestLogs, listOutboundRequestLogs, outboundFetch, resolveOutboundProxy } from './outbound-fetch'
+import { createServer, type AddressInfo } from 'node:net'
+import {
+  clearOutboundRequestLogs,
+  describeError,
+  listOutboundRequestLogs,
+  outboundFetch,
+  probeProxyConnectivity,
+  resolveOutboundProxy,
+} from './outbound-fetch'
 
 describe('统一出站代理', () => {
   beforeEach(() => {
@@ -57,7 +65,7 @@ describe('统一出站代理', () => {
     expect(listOutboundRequestLogs()[0]).toMatchObject({
       target: 'https://api.example.com/v1/images',
       proxyHost: '127.0.0.1:7890',
-      error: 'Error',
+      error: 'token=***',
     })
   })
 
@@ -82,5 +90,34 @@ describe('统一出站代理', () => {
     } finally {
       delete process.env.ALLOW_PRIVATE_FETCH
     }
+  })
+
+  it('describeError 沿 cause 链展开真实原因并脱敏', () => {
+    const inner = new Error('connect ECONNREFUSED 172.18.0.1:7890')
+    const outer = new TypeError('fetch failed')
+    ;(outer as { cause?: unknown }).cause = inner
+    expect(describeError(outer)).toBe('fetch failed → connect ECONNREFUSED 172.18.0.1:7890')
+
+    expect(describeError(new Error('token=top-secret'))).toBe('token=***')
+    expect(describeError(new Error('Authorization: Bearer abc.def.ghi'))).toBe('Authorization: Bearer ***')
+    expect(describeError(new Error('GET https://x.com/a?api_key=abc123'))).toBe('GET https://x.com/a?api_key=***')
+    expect(describeError('boom')).toBe('boom')
+    expect(describeError(undefined)).toBe('Error')
+    expect(describeError(null)).toBe('Error')
+  })
+
+  it('probeProxyConnectivity 探测可达性与拒绝连接', async () => {
+    const server = createServer()
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    const { port } = server.address() as AddressInfo
+    const url = `http://127.0.0.1:${port}`
+    try {
+      expect(await probeProxyConnectivity(url)).toBeNull()
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+    }
+    const refused = await probeProxyConnectivity(url, 1500)
+    expect(refused).toMatch(/无法连接代理服务器/)
+    expect(await probeProxyConnectivity('not-a-url')).toMatch(/代理地址格式不正确/)
   })
 })

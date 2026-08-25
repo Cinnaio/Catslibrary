@@ -2,7 +2,7 @@
  * HTML 抓取与编码检测 —— 由 Novel-KV _scrape-fetch.js 平移。
  * 纯 fetch + TextDecoder；支持 Docker 环境代理与后台开发代理。
  */
-import { outboundFetch, resolveOutboundProxy, shouldBypassProxy, type OutboundProxyConfig } from '../outbound-fetch'
+import { describeError, outboundFetch, resolveOutboundProxy, shouldBypassProxy, type OutboundProxyConfig } from '../outbound-fetch'
 
 export { shouldBypassProxy }
 
@@ -65,7 +65,7 @@ export async function fetchHtml(url: string, opts: FetchHtmlOptions = {}): Promi
   } catch (err) {
     clearTimeout(timeout)
     if ((err as Error).name === 'AbortError') throw new Error(`请求超时 (${Math.round(timeoutMs / 1000)}s): ${url}`)
-    if (proxyUrl) throw new Error(`代理请求失败: ${(err as Error).message}`)
+    if (proxyUrl) throw new Error(`代理请求失败: ${describeError(err)}`)
     throw err
   }
   clearTimeout(timeout)

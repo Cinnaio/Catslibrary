@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Globe2, Info, LoaderCircle, Network, RefreshCw, Save, ScrollText, ShieldCheck, Waypoints } from 'lucide-react'
+import { Globe2, Info, LoaderCircle, Network, RefreshCw, Route, Save, ScrollText, ShieldCheck, Waypoints } from 'lucide-react'
 import { scrapeApi } from '@/lib/api'
 import { useToast } from '@/components/feedback'
 import { Badge } from '@/components/ui/badge'
@@ -39,10 +39,12 @@ export default function ProxyView() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState(false)
+  const [routeChecking, setRouteChecking] = useState(false)
   const [logsLoading, setLogsLoading] = useState(true)
   const [logs, setLogs] = useState<ProxyLog[]>([])
   const [targetUrl, setTargetUrl] = useState('https://czbooks.net')
   const [testResult, setTestResult] = useState<{ ok: boolean; text: string } | null>(null)
+  const [routeResult, setRouteResult] = useState<{ ok: boolean; text: string } | null>(null)
 
   const applyConfig = useCallback((result: Awaited<ReturnType<typeof scrapeApi.proxyConfig>>) => {
     setDraft(result.config)
@@ -131,6 +133,30 @@ export default function ProxyView() {
     }
   }
 
+  async function checkRoute() {
+    const url = targetUrl.trim()
+    if (!url) {
+      toast('请输入要检查的目标网址', 'error')
+      return
+    }
+    setRouteChecking(true)
+    setRouteResult(null)
+    try {
+      const result = await scrapeApi.proxyRoute(url)
+      if (result.usesProxy) {
+        setRouteResult({ ok: true, text: `将走代理：${sourceLabel(result.source)} ${result.proxyHost || ''} · ${result.reason}` })
+      } else if (result.bypassed) {
+        setRouteResult({ ok: false, text: `将直连：命中跳过规则「${result.bypassRule}」· ${result.reason}` })
+      } else {
+        setRouteResult({ ok: false, text: `将直连：${result.reason}` })
+      }
+    } catch (err) {
+      setRouteResult({ ok: false, text: (err as Error).message || '路由检查失败' })
+    } finally {
+      setRouteChecking(false)
+    }
+  }
+
   const enabled = Boolean(effectiveHost || effective.proxyBase)
   const environmentOverride = source === 'environment'
 
@@ -206,7 +232,7 @@ export default function ProxyView() {
             <ShieldCheck className="size-4 text-primary" aria-hidden="true" />
             代理连通性测试
           </CardTitle>
-          <CardDescription>服务端通过与正式请求相同的代理链路访问一次公开网址，并写入下方日志。</CardDescription>
+          <CardDescription>先检查目标是否走代理；再用与正式请求相同的代理链路访问一次公开网址并写入下方日志。</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">
           <div className="grid gap-1.5">
@@ -233,6 +259,17 @@ export default function ProxyView() {
               当前代理：{effective.proxyBase || effectiveHost || '未配置'}
               {effective.proxyBypass || noProxy ? ` · 跳过：${[effective.proxyBypass, noProxy].filter(Boolean).join(',')}` : ''}
             </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => void checkRoute()} disabled={routeChecking || !enabled}>
+              {routeChecking ? <LoaderCircle className="size-4 animate-spin" aria-hidden="true" /> : <Route className="size-4" aria-hidden="true" />}
+              检查该目标是否走代理
+            </Button>
+            {routeResult && (
+              <span className={`text-sm ${routeResult.ok ? 'text-success' : 'text-foreground'}`} role="status">
+                {routeResult.text}
+              </span>
+            )}
           </div>
           {testResult && (
             <div
@@ -301,7 +338,9 @@ export default function ProxyView() {
                     </TableCell>
                     <TableCell>
                       <Badge className={log.ok ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}>
-                        {log.status ?? (log.error || '失败')}
+                        <span className="inline-block max-w-[240px] truncate align-bottom" title={log.status !== null ? String(log.status) : log.error || '失败'}>
+                          {log.status ?? (log.error || '失败')}
+                        </span>
                       </Badge>
                     </TableCell>
                     <TableCell className="pr-6 text-right text-xs text-muted-foreground">{log.durationMs} ms</TableCell>

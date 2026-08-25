@@ -15,7 +15,7 @@ import { parseLegadoJsonStream, normalizeSource, legadoHost, buildSourceRow, sou
 import { SITE_PRESETS, buildCoverUrl } from '../services/scraper/presets'
 import { discoverList, extractJjwxcTitles, extractPo18twTitles, proxyCover, searchPo18, searchTitleSources } from '../services/scraper/enrich'
 import { cacheCoverForNovel, getStoredCover } from '../services/covers'
-import { listOutboundRequestLogs, outboundFetch } from '../services/outbound-fetch'
+import { describeError, listOutboundRequestLogs, outboundFetch, probeProxyConnectivity, resolveOutboundProxy, shouldBypassProxy } from '../services/outbound-fetch'
 import { readRuntimeConfig, syncRuntimeConfigToEnv, writeRuntimeConfig } from '../runtime-config'
 
 export const scrapeRoutes = new Hono()
@@ -59,6 +59,65 @@ function proxyConfigPayload() {
     effectiveHost,
     configured: Boolean(environmentProxy || config.proxyBase),
     source: envOwnsBase || envOwnsBypass ? 'environment' : storedBase ? 'runtime' : 'none',
+  }
+}
+
+/** 计算某个目标 URL 的真实出站路由（与抓取语义一致，不强制代理），并指出命中的跳过规则。 */
+function proxyRouteFor(rawUrl: string) {
+  const payload = proxyConfigPayload()
+  const config = loadConfig()
+  const target = new URL(rawUrl)
+  const resolved = resolveOutboundProxy(
+    rawUrl,
+    {
+      proxyBase: payload.effective.proxyBase,
+      proxyBypass: payload.effective.proxyBypass,
+      httpProxy: config.httpProxy,
+      httpsProxy: config.httpsProxy,
+      noProxy: config.noProxy,
+    },
+    false,
+  )
+
+  // 找出命中的跳过规则（逐条测试即可定位），仅用于展示原因
+  const environmentProxy = target.protocol === 'https:' ? (config.httpsProxy || config.httpProxy || '').trim() : (config.httpProxy || '').trim()
+  const bypassList = environmentProxy ? config.noProxy || '' : [config.noProxy, payload.effective.proxyBypass].filter(Boolean).join(',')
+  let bypassRule = ''
+  if (bypassList) {
+    for (const rule of bypassList.split(',').map((value) => value.trim()).filter(Boolean)) {
+      if (shouldBypassProxy(rawUrl, rule)) {
+        bypassRule = rule
+        break
+      }
+    }
+  }
+
+  let reason = ''
+  let proxyHost = ''
+  if (resolved) {
+    reason = resolved.source === 'environment' ? '经环境代理（HTTP(S)_PROXY）转发' : '经管理端代理转发'
+    try {
+      proxyHost = new URL(resolved.url).host
+    } catch {
+      proxyHost = resolved.url
+    }
+  } else if (bypassRule) {
+    reason = `命中跳过规则「${bypassRule}」，将直连`
+  } else {
+    reason = '未配置代理，将直连'
+  }
+
+  return {
+    ok: true,
+    target: `${target.protocol}//${target.host}${target.pathname}`,
+    targetHost: target.host,
+    usesProxy: Boolean(resolved),
+    source: resolved?.source || 'none',
+    proxyUrl: resolved?.url || '',
+    proxyHost,
+    bypassed: !resolved && Boolean(bypassRule),
+    bypassRule,
+    reason,
   }
 }
 
@@ -365,7 +424,20 @@ scrapeRoutes.post('/', async (c) => {
           elapsedMs: Date.now() - startedAt,
         })
       } catch (err) {
-        return c.json({ ok: false, error: (err as Error).message || '代理请求失败', code: 'proxy_request_failed', elapsedMs: Date.now() - startedAt }, 200)
+        const probeError = await probeProxyConnectivity(proxyUrl)
+        if (probeError) {
+          return c.json({ ok: false, error: probeError, code: 'proxy_unreachable', elapsedMs: Date.now() - startedAt }, 200)
+        }
+        return c.json({ ok: false, error: describeError(err).slice(0, 500) || '代理请求失败', code: 'proxy_request_failed', elapsedMs: Date.now() - startedAt }, 200)
+      }
+    }
+    case 'proxy-route': {
+      const sourceUrl = String(body.sourceUrl || '').trim()
+      if (!sourceUrl) return c.json({ error: 'sourceUrl required' }, 400)
+      try {
+        return c.json(proxyRouteFor(sourceUrl))
+      } catch {
+        return c.json({ error: '目标网址格式不正确' }, 400)
       }
     }
     case 'list-configs':
