@@ -152,6 +152,11 @@ struct AiTasksResponse: Codable {
     let offset: Int?
 }
 
+/// GET /api/ai/tasks/:id 的返回（后台任务轮询）。
+struct AiTaskDetailResponse: Codable {
+    let task: AiTaskInfo
+}
+
 // MARK: 审计（GET /api/ai/audit/users、/api/ai/audit/calls）
 
 struct AiAuditUser: Codable, Identifiable, Hashable {
@@ -197,4 +202,150 @@ struct AiAuditCallsResponse: Codable {
     let total: Int?
     let limit: Int?
     let offset: Int?
+}
+
+// MARK: 审计趋势（GET /api/ai/audit/trend）
+
+struct AiAuditTrendPoint: Codable, Identifiable, Hashable {
+    var id: String { date }
+    let date: String
+    let calls: Int?
+    let promptTokens: Int?
+    let completionTokens: Int?
+    let costMillicents: Int?
+}
+
+struct AiAuditTrendResponse: Codable {
+    let trend: [AiAuditTrendPoint]
+    let days: Int?
+}
+
+// MARK: 封面候选（GET /api/ai/cover/candidates 等）
+
+struct AiCoverCandidate: Codable, Identifiable, Hashable {
+    let id: String
+    let novelId: String
+    let contentType: String?
+    let prompt: String?
+    let taskId: String?
+    let createdAt: Int64?
+    /// 图片 data URL（可直接用于展示）。
+    let dataUrl: String
+}
+
+struct AiCoverCandidatesResponse: Codable {
+    let items: [AiCoverCandidate]
+    let total: Int?
+}
+
+/// POST /api/ai/cover/generate 与创作类接口的通用返回（后台任务模式）。
+struct AiTaskStartResponse: Codable {
+    let ok: Bool?
+    let taskId: String
+    let batchId: String
+    let total: Int
+}
+
+/// POST /api/ai/cover/prompt 的返回。
+struct AiCoverPromptResponse: Codable {
+    let prompt: String
+}
+
+// MARK: 已生成内容（GET /api/ai/generations 等）
+
+struct AiGeneration: Codable, Identifiable, Hashable {
+    let id: String
+    let novelId: String?
+    let novelTitle: String?
+    let chapterId: String?
+    let chapterTitle: String?
+    let kind: String?
+    let model: String?
+    let result: String?
+    let status: String?
+    let createdAt: Int64?
+    let prompt: String?
+    let batchId: String?
+    let batchIndex: Int?
+    let batchCount: Int?
+    /// 续写时从 AI 输出解析出的章节标题（发布时自动填写）。
+    let draftTitle: String?
+
+    var isDraft: Bool { status == "draft" }
+    var isPublished: Bool { status == "published" }
+    var isRejected: Bool { status == "rejected" }
+}
+
+struct AiGenerationsResponse: Codable {
+    let items: [AiGeneration]
+    let total: Int?
+    let limit: Int?
+    let offset: Int?
+}
+
+struct AiGenerationsBatchResponse: Codable {
+    let ok: Bool?
+    let deleted: Int?
+    let restored: Int?
+}
+
+// MARK: 草稿发布（POST /api/ai/writing/drafts/:id/publish 等）
+
+struct AiPublishedChapter: Codable, Hashable {
+    let id: String
+    let title: String
+    let order: Int
+}
+
+struct AiPublishDraftResponse: Codable {
+    let ok: Bool?
+    let chapter: AiPublishedChapter?
+}
+
+struct AiPublishBatchResponse: Codable {
+    let ok: Bool?
+    let published: [AiPublishedChapter]?
+    let novelId: String?
+}
+
+struct AiUnpublishBatchResponse: Codable {
+    let ok: Bool?
+    let restored: Int?
+}
+
+/// PUT /api/ai/writing/drafts/:id 的返回。
+struct AiDraftUpdateResponse: Codable {
+    let ok: Bool?
+    let id: String?
+    let result: String?
+}
+
+// MARK: 画像提取（POST/GET /api/ai/writing/style-profile 等）
+
+struct AiProfileResponse: Codable {
+    let ok: Bool?
+    let profile: String?
+    let model: String?
+}
+
+struct AiProfileGetResponse: Codable {
+    let profile: String?
+}
+
+struct AiPlotStateResponse: Codable {
+    let ok: Bool?
+    let state: String?
+    let chaptersThrough: Int?
+    let model: String?
+}
+
+struct AiPlotStateGetResponse: Codable {
+    let state: String?
+    let chaptersThrough: Int?
+    let chapterCount: Int?
+}
+
+/// POST /api/ai/writing/titles 的返回。
+struct AiTitlesResponse: Codable {
+    let titles: [String]?
 }

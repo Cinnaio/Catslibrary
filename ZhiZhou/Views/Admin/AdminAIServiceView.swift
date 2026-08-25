@@ -4,11 +4,42 @@ import SwiftUI
 struct AdminAIServiceView: View {
     var body: some View {
         List {
-            Section("运行状态") {
+            Section("生成") {
+                NavigationLink {
+                    AdminAIWritingView()
+                } label: {
+                    Label("AI 创作", systemImage: "pencil.and.outline")
+                }
+                NavigationLink {
+                    AdminAICoverView()
+                } label: {
+                    Label("封面生成", systemImage: "photo.on.rectangle.angled")
+                }
+            }
+
+            Section("任务与内容") {
+                NavigationLink {
+                    AdminAITasksView()
+                } label: {
+                    Label("AI 任务", systemImage: "list.bullet.rectangle")
+                }
+                NavigationLink {
+                    AdminAIGenerationsView()
+                } label: {
+                    Label("已生成内容", systemImage: "doc.text.magnifyingglass")
+                }
+            }
+
+            Section("观测与设置") {
                 NavigationLink {
                     AdminAIStatusView()
                 } label: {
                     Label("状态与用量", systemImage: "gauge.with.dots.needle.50percent")
+                }
+                NavigationLink {
+                    AdminAIUsageView()
+                } label: {
+                    Label("用量与审计", systemImage: "chart.bar.xaxis")
                 }
                 NavigationLink {
                     AdminAIProviderView()
@@ -19,19 +50,6 @@ struct AdminAIServiceView: View {
                     AdminAISettingsView()
                 } label: {
                     Label("运行参数", systemImage: "slider.horizontal.3")
-                }
-            }
-
-            Section("任务与审计") {
-                NavigationLink {
-                    AdminAITasksView()
-                } label: {
-                    Label("AI 任务", systemImage: "list.bullet.rectangle")
-                }
-                NavigationLink {
-                    AdminAIUsageView()
-                } label: {
-                    Label("用量与审计", systemImage: "chart.bar.xaxis")
                 }
             }
         }

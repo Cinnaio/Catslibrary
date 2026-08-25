@@ -62,6 +62,16 @@ struct AdminRootView: View {
                     Label("爬虫抓取中心", systemImage: "scope")
                 }
                 NavigationLink {
+                    AdminDiscoverView()
+                } label: {
+                    Label("发现小说", systemImage: "magnifyingglass")
+                }
+                NavigationLink {
+                    AdminScrapeConfigsView()
+                } label: {
+                    Label("配置导入导出", systemImage: "arrow.left.arrow.right.square")
+                }
+                NavigationLink {
                     AdminScrapeSourcesView()
                 } label: {
                     Label("源管理", systemImage: "antenna.radiowaves.left.and.right")
@@ -83,9 +93,19 @@ struct AdminRootView: View {
 
             Section("系统") {
                 NavigationLink {
+                    AdminSiteOperationsView()
+                } label: {
+                    Label("站点运营", systemImage: "chart.bar.xaxis")
+                }
+                NavigationLink {
                     AdminUsersView()
                 } label: {
                     Label("用户与邀请码", systemImage: "person.2")
+                }
+                NavigationLink {
+                    AdminLoginAuditView()
+                } label: {
+                    Label("登录审计", systemImage: "lock.shield")
                 }
                 NavigationLink {
                     AdminPolicyView()

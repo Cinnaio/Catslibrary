@@ -138,7 +138,7 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
         return comps.url ?? pathURL
     }
 
-    func request<T: Decodable>(_ method: String, _ path: String, body: Data? = nil, auth: Bool = false) async throws -> T {
+    func request<T: Decodable>(_ method: String, _ path: String, body: Data? = nil, auth: Bool = false, contentType: String? = nil) async throws -> T {
         let url = try makeURL(path)
 
         // 章节正文 GET 走内存缓存：离线/重访不重复下载
@@ -156,7 +156,8 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
         req.timeoutInterval = 30
         if let body {
             req.httpBody = body
-            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            // multipart 上传（AI 封面上传等）由调用方指定完整 Content-Type（含 boundary）
+            req.setValue(contentType ?? "application/json", forHTTPHeaderField: "Content-Type")
         }
         if auth, let token {
             req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")

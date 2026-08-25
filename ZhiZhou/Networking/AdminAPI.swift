@@ -365,11 +365,237 @@ enum AdminAPI {
         try await APIClient.shared.get("/api/ai/audit/users?limit=\(limit)&offset=\(offset)", auth: true)
     }
 
-    static func aiAuditCalls(limit: Int = 50, offset: Int = 0) async throws -> AiAuditCallsResponse {
-        try await APIClient.shared.get("/api/ai/audit/calls?limit=\(limit)&offset=\(offset)", auth: true)
+    static func aiAuditCalls(type: String = "all", limit: Int = 50, offset: Int = 0) async throws -> AiAuditCallsResponse {
+        var path = "/api/ai/audit/calls?limit=\(limit)&offset=\(offset)"
+        if type != "all" {
+            path += "&type=\(encode(type))"
+        }
+        return try await APIClient.shared.get(path, auth: true)
+    }
+
+    /// GET /api/ai/audit/trend：近 N 天调用趋势。
+    static func aiAuditTrend(days: Int = 30) async throws -> AiAuditTrendResponse {
+        try await APIClient.shared.get("/api/ai/audit/trend?days=\(days)", auth: true)
+    }
+
+    // MARK: - 登录审计（GET /api/admin-users/login-audit）
+
+    /// status：all | success | failure | limited
+    static func loginAudit(status: String = "all", username: String = "", limit: Int = 50, offset: Int = 0) async throws -> LoginAuditResponse {
+        var path = "/api/admin-users/login-audit?limit=\(limit)&offset=\(offset)"
+        if status != "all" {
+            path += "&status=\(encode(status))"
+        }
+        if !username.isEmpty {
+            path += "&username=\(encode(username))"
+        }
+        return try await APIClient.shared.get(path, auth: true)
+    }
+
+    // MARK: - 站点运营总览（GET /api/admin/site）
+
+    /// 完整站点运营数据：指标 + 流量分析 + 内容健康度 + 公告（一次拉取）。
+    static func siteOverview() async throws -> SiteOverview {
+        try await APIClient.shared.get("/api/admin/site", auth: true)
+    }
+
+    // MARK: - 爬虫：发现小说（POST /api/scrape action=discover / po18-search）
+
+    /// 榜单页 URL → 批量发现小说列表（分页）。
+    static func scrapeDiscover(listUrl: String) async throws -> DiscoverResponse {
+        try await postScrape(["action": "discover", "listUrl": listUrl])
+    }
+
+    /// PO18 站内搜索：searchType = articlename（书名）| author（作者）。
+    static func scrapePo18Search(query: String, searchType: String = "articlename", page: Int = 1) async throws -> DiscoverResponse {
+        try await postScrape(["action": "po18-search", "query": query, "searchType": searchType, "page": page])
+    }
+
+    // MARK: - 爬虫：配置导入导出（action=list-configs / import-configs / import-legado）
+
+    static func scrapeListConfigs() async throws -> ScrapeConfigsResponse {
+        try await postScrape(["action": "list-configs"])
+    }
+
+    static func scrapeImportConfigs(_ configs: [ScrapeConfigImportItem]) async throws -> ScrapeImportResponse {
+        try await postScrape(["action": "import-configs", "configs": try configs.map { try $0.asDictionary() }])
+    }
+
+    /// 导入 Legado 书源：payload 为 { url?: String } 或 { text?: String }（书源池 URL / 书源 JSON）。
+    static func scrapeImportLegado(payload: [String: Any]) async throws -> ScrapeImportResponse {
+        var body = payload
+        body["action"] = "import-legado"
+        return try await postScrape(body)
+    }
+
+    // MARK: - 爬虫：源批量操作（batch-toggle-sources / batch-delete-sources）
+
+    static func batchToggleSources(hosts: [String], enabled: Bool) async throws -> BatchSourcesResponse {
+        try await postScrape(["action": "batch-toggle-sources", "hosts": hosts, "enabled": enabled])
+    }
+
+    static func batchDeleteSources(hosts: [String]) async throws -> BatchSourcesResponse {
+        try await postScrape(["action": "batch-delete-sources", "hosts": hosts])
+    }
+
+    // MARK: - AI 服务：封面生成
+
+    /// POST /api/ai/cover/generate：启动封面生成后台任务。
+    static func aiGenerateCover(novelId: String, prompt: String = "", renderTitle: Bool = true, platform: String = "default") async throws -> AiTaskStartResponse {
+        try await APIClient.shared.post("/api/ai/cover/generate", body: try jsonBody([
+            "novelId": novelId,
+            "prompt": prompt,
+            "renderTitle": renderTitle,
+            "platform": platform,
+        ]), auth: true)
+    }
+
+    /// POST /api/ai/cover/prompt：按书籍信息生成封面描述词。
+    static func aiCoverPrompt(novelId: String, renderTitle: Bool = true, platform: String = "default") async throws -> AiCoverPromptResponse {
+        try await APIClient.shared.post("/api/ai/cover/prompt", body: try jsonBody([
+            "novelId": novelId,
+            "renderTitle": renderTitle,
+            "platform": platform,
+        ]), auth: true)
+    }
+
+    /// GET /api/ai/cover/candidates：某部小说的封面候选列表（含 dataUrl）。
+    static func aiCoverCandidates(novelId: String) async throws -> AiCoverCandidatesResponse {
+        try await APIClient.shared.get("/api/ai/cover/candidates?novelId=\(encode(novelId))", auth: true)
+    }
+
+    /// 采纳候选：覆盖为当前封面并删除候选。
+    static func aiAdoptCoverCandidate(id: String) async throws {
+        let _: OkEnvelope = try await APIClient.shared.post("/api/ai/cover/candidates/\(encode(id))/adopt", body: try jsonBody([:]), auth: true)
+    }
+
+    /// 弃用候选：删除，不影响当前封面。
+    static func aiDiscardCoverCandidate(id: String) async throws {
+        let _: OkEnvelope = try await APIClient.shared.delete("/api/ai/cover/candidates/\(encode(id))", auth: true)
+    }
+
+    /// 上传本地图片替换当前封面（multipart/form-data）。
+    static func aiUploadCover(novelId: String, imageData: Data, mimeType: String = "image/jpeg") async throws {
+        let boundary = "Boundary-\(UUID().uuidString)"
+        var body = Data()
+        func append(_ text: String) { body.append(Data(text.utf8)) }
+        append("--\(boundary)\r\n")
+        append("Content-Disposition: form-data; name=\"novelId\"\r\n\r\n")
+        append("\(novelId)\r\n")
+        append("--\(boundary)\r\n")
+        append("Content-Disposition: form-data; name=\"cover\"; filename=\"cover.jpg\"\r\n")
+        append("Content-Type: \(mimeType)\r\n\r\n")
+        body.append(imageData)
+        append("\r\n--\(boundary)--\r\n")
+        let _: OkEnvelope = try await APIClient.shared.request(
+            "POST", "/api/ai/cover/upload", body: body,
+            auth: true, contentType: "multipart/form-data; boundary=\(boundary)"
+        )
+    }
+
+    // MARK: - AI 服务：单个任务查询
+
+    static func aiTask(id: String) async throws -> AiTaskDetailResponse {
+        try await APIClient.shared.get("/api/ai/tasks/\(encode(id))", auth: true)
+    }
+
+    // MARK: - AI 服务：已生成内容
+
+    /// kind：all | summary | catchup | continue | write_outline | write_chapter
+    /// scope：all | reader | writing；status：all | published | draft | rejected
+    static func aiGenerations(kind: String = "all", scope: String = "all", status: String = "all", limit: Int = 50, offset: Int = 0) async throws -> AiGenerationsResponse {
+        var path = "/api/ai/generations?limit=\(limit)&offset=\(offset)"
+        if kind != "all" { path += "&kind=\(encode(kind))" }
+        if scope != "all" { path += "&scope=\(encode(scope))" }
+        if status != "all" { path += "&status=\(encode(status))" }
+        return try await APIClient.shared.get(path, auth: true)
+    }
+
+    static func aiDeleteGeneration(id: String) async throws {
+        let _: OkEnvelope = try await APIClient.shared.delete("/api/ai/generations/\(encode(id))", auth: true)
+    }
+
+    static func aiDeleteGenerations(ids: [String]) async throws -> AiGenerationsBatchResponse {
+        try await APIClient.shared.post("/api/ai/generations/batch-delete", body: try jsonBody(["ids": ids]), auth: true)
+    }
+
+    /// 撤销软删除：30 秒窗口内的删除记录可恢复。
+    static func aiRestoreGenerations(ids: [String]) async throws -> AiGenerationsBatchResponse {
+        try await APIClient.shared.post("/api/ai/generations/restore", body: try jsonBody(["ids": ids]), auth: true)
+    }
+
+    // MARK: - AI 服务：创作任务（后台任务模式）
+
+    /// kind：write_outline | write_chapter | continue
+    static func aiStartWriting(kind: String, body: [String: Any]) async throws -> AiTaskStartResponse {
+        try await APIClient.shared.post("/api/ai/writing/\(encode(kind))", body: try jsonBody(body), auth: true)
+    }
+
+    /// POST /api/ai/writing/titles：为正文生成候选章节标题。
+    static func aiWritingTitles(content: String, novelId: String = "", contextTitle: String = "") async throws -> AiTitlesResponse {
+        var payload: [String: Any] = ["content": content]
+        if !novelId.isEmpty { payload["novelId"] = novelId }
+        if !contextTitle.isEmpty { payload["contextTitle"] = contextTitle }
+        return try await APIClient.shared.post("/api/ai/writing/titles", body: try jsonBody(payload), auth: true)
+    }
+
+    // MARK: - AI 服务：画像提取
+
+    static func aiRefreshStyleProfile(novelId: String, sampleChapters: Int? = nil) async throws -> AiProfileResponse {
+        try await postAiProfile("style-profile", novelId: novelId, sampleChapters: sampleChapters)
+    }
+
+    static func aiGetStyleProfile(novelId: String) async throws -> AiProfileGetResponse {
+        try await APIClient.shared.get("/api/ai/writing/style-profile/\(encode(novelId))", auth: true)
+    }
+
+    static func aiRefreshPlotState(novelId: String, sampleChapters: Int? = nil) async throws -> AiPlotStateResponse {
+        var payload: [String: Any] = ["novelId": novelId]
+        if let sampleChapters { payload["sampleChapters"] = sampleChapters }
+        return try await APIClient.shared.post("/api/ai/writing/plot-state", body: try jsonBody(payload), auth: true)
+    }
+
+    static func aiGetPlotState(novelId: String) async throws -> AiPlotStateGetResponse {
+        try await APIClient.shared.get("/api/ai/writing/plot-state/\(encode(novelId))", auth: true)
+    }
+
+    static func aiRefreshRelationshipProfile(novelId: String, sampleChapters: Int? = nil) async throws -> AiProfileResponse {
+        try await postAiProfile("relationship-profile", novelId: novelId, sampleChapters: sampleChapters)
+    }
+
+    static func aiGetRelationshipProfile(novelId: String) async throws -> AiProfileGetResponse {
+        try await APIClient.shared.get("/api/ai/writing/relationship-profile/\(encode(novelId))", auth: true)
+    }
+
+    // MARK: - AI 服务：草稿编辑与发布
+
+    static func aiUpdateDraft(id: String, result: String) async throws -> AiDraftUpdateResponse {
+        try await APIClient.shared.request("PUT", "/api/ai/writing/drafts/\(encode(id))", body: try jsonBody(["result": result]), auth: true)
+    }
+
+    static func aiPublishDraft(id: String, novelId: String, title: String) async throws -> AiPublishDraftResponse {
+        try await APIClient.shared.post("/api/ai/writing/drafts/\(encode(id))/publish", body: try jsonBody(["novelId": novelId, "title": title]), auth: true)
+    }
+
+    static func aiPublishBatch(batchId: String, novelId: String) async throws -> AiPublishBatchResponse {
+        try await APIClient.shared.post("/api/ai/writing/batches/\(encode(batchId))/publish", body: try jsonBody(["novelId": novelId]), auth: true)
+    }
+
+    static func aiUnpublishDraft(id: String) async throws {
+        let _: OkEnvelope = try await APIClient.shared.post("/api/ai/writing/drafts/\(encode(id))/unpublish", body: try jsonBody([:]), auth: true)
+    }
+
+    static func aiUnpublishBatch(batchId: String) async throws -> AiUnpublishBatchResponse {
+        try await APIClient.shared.post("/api/ai/writing/batches/\(encode(batchId))/unpublish", body: try jsonBody([:]), auth: true)
     }
 
     // MARK: - 内部辅助
+
+    private static func postAiProfile(_ scope: String, novelId: String, sampleChapters: Int?) async throws -> AiProfileResponse {
+        var payload: [String: Any] = ["novelId": novelId]
+        if let sampleChapters { payload["sampleChapters"] = sampleChapters }
+        return try await APIClient.shared.post("/api/ai/writing/\(scope)", body: try jsonBody(payload), auth: true)
+    }
 
     private static func postAction(_ dict: [String: Any]) async throws -> OkEnvelope {
         try await APIClient.shared.post("/api/admin-users", body: try jsonBody(dict), auth: true)

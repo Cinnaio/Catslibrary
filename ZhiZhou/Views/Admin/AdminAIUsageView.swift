@@ -1,21 +1,29 @@
 import SwiftUI
 
-/// 用量与审计：用户用量汇总 + 最近调用明细。
+/// 用量与审计：用户用量汇总 + 最近调用明细（类型筛选）+ 近 30 天调用趋势。
 struct AdminAIUsageView: View {
     @State private var users: [AiAuditUser] = []
     @State private var calls: [AiAuditCall] = []
+    @State private var trend: [AiAuditTrendPoint] = []
     @State private var isLoading = true
     @State private var errorMessage: String?
+    @State private var typeFilter = "all"
+
+    private let typeOptions: [(value: String, label: String)] = [
+        ("all", "全部"), ("summary", "前情提要"), ("catchup", "回顾总结"), ("continue", "续写"),
+        ("write_outline", "创作大纲"), ("write_chapter", "创作章节"), ("writing_title", "标题生成"),
+        ("cover", "封面生成"), ("cover_prompt", "封面描述词"), ("test", "连通性测试"),
+    ]
 
     var body: some View {
         List {
-            if isLoading && users.isEmpty {
+            if isLoading && users.isEmpty && trend.isEmpty {
                 Section {
                     ProgressView("加载中…")
                         .frame(maxWidth: .infinity, minHeight: 160)
                         .listRowBackground(Color.clear)
                 }
-            } else if let errorMessage, users.isEmpty {
+            } else if let errorMessage, users.isEmpty && calls.isEmpty && trend.isEmpty {
                 Section {
                     ContentUnavailableView {
                         Label("加载失败", systemImage: "wifi.slash")
@@ -28,6 +36,39 @@ struct AdminAIUsageView: View {
                     .listRowSeparator(.hidden)
                 }
             } else {
+                Section {
+                    Picker("调用类型", selection: $typeFilter) {
+                        ForEach(typeOptions, id: \.value) { option in
+                            Text(option.label).tag(option.value)
+                        }
+                    }
+                    .listRowBackground(Color.clear)
+                }
+
+                if !trend.isEmpty {
+                    Section("近 30 天趋势") {
+                        ForEach(Array(trend.suffix(14).reversed())) { point in
+                            HStack {
+                                Text(point.date)
+                                    .font(.caption)
+                                    .foregroundStyle(AppTheme.textSecondary)
+                                Spacer()
+                                Text("\(point.calls ?? 0) 次")
+                                    .font(.caption)
+                                    .foregroundStyle(AppTheme.textPrimary)
+                                if let tokens = point.promptTokens, tokens > 0 {
+                                    Text("\(tokens) tok")
+                                        .font(.caption2)
+                                        .foregroundStyle(AppTheme.textMuted)
+                                }
+                                Text(AdminFormat.aiCost(point.costMillicents))
+                                    .font(.caption2)
+                                    .foregroundStyle(AppTheme.textMuted)
+                            }
+                        }
+                    }
+                }
+
                 if users.isEmpty {
                     Section {
                         ContentUnavailableView {
@@ -60,7 +101,11 @@ struct AdminAIUsageView: View {
         .navigationTitle("用量与审计")
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await load() }
-        .task { await load() }
+        .task(id: typeFilter) {
+            try? await Task.sleep(nanoseconds: 150_000_000)
+            guard !Task.isCancelled else { return }
+            await load()
+        }
     }
 
     // MARK: - 行
@@ -157,10 +202,12 @@ struct AdminAIUsageView: View {
         defer { isLoading = false }
         do {
             async let usersTask = AdminAPI.aiAuditUsers(limit: 50, offset: 0)
-            async let callsTask = AdminAPI.aiAuditCalls(limit: 50, offset: 0)
-            let (u, c) = try await (usersTask, callsTask)
+            async let callsTask = AdminAPI.aiAuditCalls(type: typeFilter, limit: 50, offset: 0)
+            async let trendTask = AdminAPI.aiAuditTrend(days: 30)
+            let (u, c, t) = try await (usersTask, callsTask, trendTask)
             users = u.users
             calls = c.calls
+            trend = t.trend
             errorMessage = nil
         } catch {
             errorMessage = AppCopy.friendlyError(error)
