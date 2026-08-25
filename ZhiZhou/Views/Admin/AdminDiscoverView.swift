@@ -547,6 +547,12 @@ private struct DiscoverDetailSheet: View {
     @State private var scraping = false
     @State private var actionError: String?
 
+    // 可编辑的书籍信息（在建书前允许用户修正书名/作者/分类/状态）
+    @State private var editTitle = ""
+    @State private var editAuthor = ""
+    @State private var editCategories = ""
+    @State private var editStatus = "ongoing"
+
     var body: some View {
         NavigationStack {
             List {
@@ -570,15 +576,14 @@ private struct DiscoverDetailSheet: View {
                     }
                 } else if let meta {
                     Section("书籍信息") {
-                        LabeledContent("书名", value: meta.novel?.title ?? item.title)
-                        LabeledContent("作者", value: meta.novel?.author ?? "佚名")
-                        if let categories = meta.novel?.categories, !categories.isEmpty {
-                            LabeledContent("分类", value: categories.joined(separator: "、"))
+                        TextField("书名", text: $editTitle)
+                        TextField("作者", text: $editAuthor)
+                        TextField("分类（顿号或逗号分隔）", text: $editCategories)
+                        Picker("状态", selection: $editStatus) {
+                            Text("连载中").tag("ongoing")
+                            Text("已完结").tag("completed")
                         }
-                        LabeledContent("状态") {
-                            Text(meta.novel?.status == "completed" ? "已完结" : "连载中")
-                                .foregroundStyle(AppTheme.textSecondary)
-                        }
+                        .pickerStyle(.menu)
                         if let desc = meta.novel?.description, !desc.isEmpty {
                             Text(desc)
                                 .font(.subheadline)
@@ -669,6 +674,7 @@ private struct DiscoverDetailSheet: View {
                 return
             }
             self.meta = meta
+            seedEditable(meta.novel)
             var preview: [ScrapeTestLink]? = nil
             var count = meta.chapterCount
             if let listUrl = meta.chapterListUrl, !listUrl.isEmpty,
@@ -701,6 +707,7 @@ private struct DiscoverDetailSheet: View {
                 return
             }
             self.meta = meta
+            seedEditable(meta.novel)
             loading = false
             await startScrape(meta: meta)
         } catch let err {
@@ -710,17 +717,26 @@ private struct DiscoverDetailSheet: View {
     }
 
     private func startScrape(meta: ScrapeDetectedMeta) async {
+        // 标题/作者不得为空；否则回退到检测值或条目标题/佚名
+        let trimmedTitle = editTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedAuthor = editAuthor.trimmingCharacters(in: .whitespacesAndNewlines)
+        let title = trimmedTitle.isEmpty ? (meta.novel?.title ?? item.title) : trimmedTitle
+        let author = trimmedAuthor.isEmpty ? (meta.novel?.author ?? item.author ?? "佚名") : trimmedAuthor
+        let categories = AdminFormat.parseCategories(editCategories)
+        let categoriesFinal = categories.isEmpty
+            ? (meta.novel?.categories ?? (meta.novel?.category.map { [$0] } ?? []))
+            : categories
         scraping = true
         actionError = nil
         do {
             let info = meta.novel
             let createResult: Novel = try await AdminAPI.createNovel([
-                "title": info?.title ?? item.title,
-                "author": info?.author ?? item.author ?? "佚名",
+                "title": title,
+                "author": author,
                 "description": info?.description ?? "",
                 "coverUrl": info?.coverUrl ?? item.coverUrl ?? "",
-                "categories": info?.categories ?? (info?.category.map { [$0] } ?? []),
-                "status": info?.status ?? "ongoing",
+                "categories": categoriesFinal,
+                "status": editStatus,
                 "sourceUrl": info?.sourceUrl ?? item.url,
             ])
             let selectors = meta.selectors
@@ -737,6 +753,14 @@ private struct DiscoverDetailSheet: View {
             actionError = AppCopy.friendlyError(error)
             scraping = false
         }
+    }
+
+    /// 用检测到的书籍信息填充可编辑字段；标题为空时回退到条目标题。
+    private func seedEditable(_ info: ScrapeDetectedNovel?) {
+        editTitle = (info?.title ?? item.title).trimmingCharacters(in: .whitespacesAndNewlines)
+        editAuthor = (info?.author ?? "佚名").trimmingCharacters(in: .whitespacesAndNewlines)
+        editCategories = (info?.categories ?? (info?.category.map { [$0] } ?? [])).joined(separator: "、")
+        editStatus = info?.status == "completed" ? "completed" : "ongoing"
     }
 }
 
