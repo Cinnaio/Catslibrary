@@ -64,7 +64,6 @@ struct ReaderView: View {
     private var systemIsDark: Bool { systemScheme == .dark }
     private var paper: Color { settings.backgroundColor(systemDark: systemIsDark) }
     private var ink: Color { settings.textColor(systemDark: systemIsDark) }
-    private var readerControlSurface: Color { Color(.secondarySystemFill).opacity(0.74) }
     private var scheme: ColorScheme? { settings.colorSchemeOverride(systemDark: systemIsDark) }
 
     private var percentText: String {
@@ -93,7 +92,7 @@ struct ReaderView: View {
         .background(paper.ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)
         .navigationTitle(chapter?.title ?? "阅读")
-        .toolbarBackground(paper, for: .navigationBar)
+        .toolbarBackground(.hidden, for: .navigationBar)
         .toolbar(showChrome ? .visible : .hidden, for: .navigationBar)
         .toolbar(.hidden, for: .bottomBar)
         .toolbar(.hidden, for: .tabBar)
@@ -332,13 +331,14 @@ struct ReaderView: View {
 
     /// 底部浮层：进度条 + 上一章/页码/下一章。翻页到章末时变为居中的“下一章”按钮。
     private var readerChrome: some View {
-        VStack(spacing: 14) {
-            ReaderProgressBar(
-                fraction: progressPercent,
-                tint: AppTheme.primary,
-                track: AppTheme.primary.opacity(0.18)
-            )
-            HStack(spacing: 0) {
+        GlassEffectContainer(spacing: 12) {
+            VStack(spacing: 14) {
+                ReaderProgressBar(
+                    fraction: progressPercent,
+                    tint: AppTheme.primary,
+                    track: AppTheme.primary.opacity(0.18)
+                )
+
                 if atChapterEnd {
                     Button {
                         go(to: chapterOrder + 1)
@@ -346,51 +346,52 @@ struct ReaderView: View {
                         Label("下一章", systemImage: "arrow.forward")
                             .font(.subheadline.weight(.semibold))
                             .padding(.horizontal, 22)
-                            .frame(minHeight: 40)
+                            .frame(maxWidth: .infinity)
+                            .frame(minHeight: 44)
                     }
-                    .foregroundStyle(AppTheme.primary)
-                    .buttonStyle(ScaleButtonStyle())
-                    .frame(maxWidth: .infinity)
+                    .buttonStyle(.glass(AppTheme.readerGlassProminent))
+                    .tint(AppTheme.primary)
                     .accessibilityLabel("下一章")
                 } else {
-                    chromeSegmentButton(systemName: "chevron.left", label: "上一章", isEnabled: chapterOrder > 1) {
-                        go(to: chapterOrder - 1)
+                    GlassEffectContainer(spacing: 8) {
+                        HStack(spacing: 8) {
+                            chromeSegmentButton(systemName: "chevron.left", label: "上一章", isEnabled: chapterOrder > 1) {
+                                go(to: chapterOrder - 1)
+                            }
+                            readerStatusPill
+                            chromeSegmentButton(systemName: "chevron.right", label: "下一章", isEnabled: chapterOrder < totalOrderCount) {
+                                go(to: chapterOrder + 1)
+                            }
+                        }
                     }
-                    Rectangle()
-                        .fill(AppTheme.primary.opacity(0.14))
-                        .frame(width: 1, height: 22)
-                    Spacer(minLength: 0)
-                    VStack(spacing: 2) {
-                        Text("第 \(chapterOrder)/\(totalOrderCount) 章")
-                            .font(.footnote.weight(.semibold))
-                            .monospacedDigit()
-                            .foregroundStyle(AppTheme.primary.opacity(0.92))
-                        Text(percentText)
-                            .font(.caption2)
-                            .monospacedDigit()
-                            .foregroundStyle(AppTheme.primary.opacity(0.58))
-                    }
-                    Spacer(minLength: 0)
-                    Rectangle()
-                        .fill(AppTheme.primary.opacity(0.14))
-                        .frame(width: 1, height: 22)
-                    chromeSegmentButton(systemName: "chevron.right", label: "下一章", isEnabled: chapterOrder < totalOrderCount) {
-                        go(to: chapterOrder + 1)
-                    }
+                    .frame(height: 52)
                 }
             }
-            .padding(.horizontal, 4)
-            .frame(height: 52)
-            .background(readerControlSurface, in: Capsule())
             .padding(.horizontal, 20)
         }
         .padding(.top, 14)
         .padding(.bottom, 12)
         .frame(maxWidth: .infinity)
-        // 用不透明纸面承接底部留白，避免正文从进度组后面透出来。
-        .background(paper)
         .opacity(showChrome ? 1 : 0)
         .allowsHitTesting(showChrome)
+    }
+
+    private var readerStatusPill: some View {
+        VStack(spacing: 2) {
+            Text("第 \(chapterOrder)/\(totalOrderCount) 章")
+                .font(.footnote.weight(.semibold))
+                .monospacedDigit()
+                .foregroundStyle(AppTheme.primary.opacity(0.92))
+            Text(percentText)
+                .font(.caption2)
+                .monospacedDigit()
+                .foregroundStyle(AppTheme.primary.opacity(0.7))
+        }
+        .padding(.horizontal, 12)
+        .frame(minHeight: 44)
+        .glassEffect(AppTheme.readerGlassClear, in: Capsule())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("第 \(chapterOrder) / \(totalOrderCount) 章，\(percentText)")
     }
 
     private var nextChapterButton: some View {
@@ -404,43 +405,39 @@ struct ReaderView: View {
                 .frame(minHeight: 44)
         }
         .foregroundStyle(AppTheme.primary)
-        .background(AppTheme.primary.opacity(0.12), in: Capsule())
-        .overlay(Capsule().strokeBorder(AppTheme.primary.opacity(0.3), lineWidth: 1))
-        .buttonStyle(ScaleButtonStyle())
+        .buttonStyle(.glass(AppTheme.readerGlassProminent))
         .accessibilityLabel("下一章")
     }
 
     /// 顶部操作组：用原生分段控件的分组关系承载目录与字号设置。
     private var readerToolbarGroup: some View {
-        HStack(spacing: 0) {
-            Button {
-                showTOC = true
-            } label: {
-                Image(systemName: "list.bullet")
-                    .font(.system(size: 16, weight: .semibold))
-                    .frame(width: 44, height: 40)
+        GlassEffectContainer(spacing: 4) {
+            HStack(spacing: 4) {
+                Button {
+                    showTOC = true
+                } label: {
+                    Image(systemName: "list.bullet")
+                        .font(.system(size: 16, weight: .semibold))
+                        .frame(width: 44, height: 40)
+                }
+                .buttonStyle(.glass(AppTheme.readerGlassClear))
+                .tint(AppTheme.primary)
+                .accessibilityLabel("目录")
+
+                Button {
+                    showSettings = true
+                } label: {
+                    Text("大小")
+                        .font(.subheadline.weight(.semibold))
+                        .fixedSize(horizontal: true, vertical: false)
+                        .frame(width: 58, height: 40)
+                }
+                .buttonStyle(.glass(AppTheme.readerGlassClear))
+                .tint(AppTheme.primary)
+                .accessibilityLabel("大小")
             }
-            .foregroundStyle(AppTheme.primary)
-            .buttonStyle(.plain)
-            .accessibilityLabel("目录")
-            Rectangle()
-                .fill(AppTheme.primary.opacity(0.16))
-                .frame(width: 1, height: 22)
-            Button {
-                showSettings = true
-            } label: {
-                Text("大小")
-                    .font(.subheadline.weight(.semibold))
-                    .fixedSize(horizontal: true, vertical: false)
-                    .frame(width: 58, height: 40)
-            }
-            .foregroundStyle(AppTheme.primary)
-            .buttonStyle(.plain)
-            .accessibilityLabel("大小")
         }
-        .padding(3)
         .frame(width: 112, height: 46)
-        .background(readerControlSurface, in: Capsule())
         .fixedSize(horizontal: true, vertical: false)
     }
 
@@ -458,7 +455,7 @@ struct ReaderView: View {
         }
         .foregroundStyle(AppTheme.primary.opacity(isEnabled ? 0.95 : 0.28))
         .disabled(!isEnabled)
-        .buttonStyle(.plain)
+        .buttonStyle(.glass(AppTheme.readerGlassClear))
         .accessibilityLabel(label)
     }
 
@@ -737,13 +734,15 @@ private struct ReaderProgressBar: View {
             ZStack(alignment: .leading) {
                 Capsule()
                     .fill(track)
-                    .frame(height: 3)
+                    .frame(height: 4)
                 Capsule()
                     .fill(tint)
-                    .frame(width: max(6, geo.size.width * min(1, max(0, fraction))), height: 3)
+                    .frame(width: max(6, geo.size.width * min(1, max(0, fraction))), height: 4)
             }
+            .padding(.vertical, 4)
+            .glassEffect(AppTheme.readerGlassClear, in: Capsule())
         }
-        .frame(height: 4)
+        .frame(height: 12)
         .padding(.horizontal, 18)
         .accessibilityHidden(true)
     }
