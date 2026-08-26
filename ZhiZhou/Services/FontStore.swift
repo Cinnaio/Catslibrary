@@ -67,7 +67,6 @@ final class FontStore {
 
     enum FontStoreError: LocalizedError {
         case invalidResponse
-        case unsupportedFont
         case checksumMismatch(String)
         case registrationFailed(String)
 
@@ -75,8 +74,6 @@ final class FontStore {
             switch self {
             case .invalidResponse:
                 return "字体服务器返回了无效响应"
-            case .unsupportedFont:
-                return "下载的文件不是受支持的字体"
             case .checksumMismatch(let name):
                 return "字体文件校验失败：\(name)"
             case .registrationFailed(let name):
@@ -204,9 +201,6 @@ final class FontStore {
         guard let http = response as? HTTPURLResponse,
               (200..<300).contains(http.statusCode) else {
             throw FontStoreError.invalidResponse
-        }
-        guard CTFontManagerIsSupportedFont(temporaryURL as CFURL) else {
-            throw FontStoreError.unsupportedFont
         }
         guard checksum(of: temporaryURL) == asset.sha256 else {
             throw FontStoreError.checksumMismatch(asset.rawValue)
