@@ -49,6 +49,7 @@ struct ReaderView: View {
     @State private var currentPage = 0
     @State private var pendingRestorePercent: Double?
     @State private var interactionFeedback = 0
+    @State private var fontRevision = 0
 
     init(novel: Novel, chapterOrder: Int, preloadedChapters: [ChapterMeta] = []) {
         self.novel = novel
@@ -127,6 +128,9 @@ struct ReaderView: View {
         }
         .preferredColorScheme(scheme)
         .task { await load() }
+        .onReceive(NotificationCenter.default.publisher(for: .zhiZhouFontStoreDidChange)) { _ in
+            fontRevision &+= 1
+        }
         .onChange(of: chapterOrder) { _, _ in
             resetForNewChapter()
             Task { await load() }
@@ -237,7 +241,7 @@ struct ReaderView: View {
         // 浮层可见时预留其高度，沉浸时正文可以用满屏高。
         let contentHeight = max(120, geo.size.height - 8 - (showChrome ? 78 : 20))
         let pageSize = CGSize(width: contentWidth, height: contentHeight)
-        let key = "\(chapter?.id ?? "-"):\(Int(contentWidth)):\(Int(contentHeight)):\(settings.fontSizeIndex):\(settings.lineHeight):\(settings.paragraphSpacing):\(settings.useSerif)"
+        let key = "\(chapter?.id ?? "-"):\(Int(contentWidth)):\(Int(contentHeight)):\(settings.fontSizeIndex):\(settings.lineHeight):\(settings.paragraphSpacing):\(settings.useSerif):\(fontRevision)"
 
         return Group {
             if isLoading && chapter == nil {

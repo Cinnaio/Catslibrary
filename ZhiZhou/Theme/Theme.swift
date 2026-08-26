@@ -99,8 +99,8 @@ enum AppTheme {
 
 /// 中文衬线字体解析。
 ///
-/// 优先按字重解析系统 Songti SC；解析失败回退系统 serif design，最后回退
-/// 无衬线字体，保证不缺字。
+/// 优先使用已注册的 Noto Serif SC，未下载时使用系统 Songti SC；解析失败时
+/// 回退到明确支持中文的系统字体，保证阅读正文不缺字。
 enum SongtiFont {
     /// 按文本样式缩放（Dynamic Type）的衬线 Font，用于标题等系统样式字体。
     static func font(_ style: Font.TextStyle, weight: UIFont.Weight = .regular) -> Font {
@@ -129,19 +129,10 @@ enum SongtiFont {
         return UIFont.systemFont(ofSize: size, weight: weight)
     }
 
-    /// 从系统字体目录动态查找 Songti SC 的实际 face 名称。
+    /// 从字体目录动态查找 Noto Serif SC 或系统 Songti SC 的实际 face 名称。
     /// UIFont.Weight 的 rawValue 不是 0...1：regular=0、medium≈0.23、
     /// semibold≈0.3、bold≈0.4、heavy≈0.56、black≈0.62。
     private static func songtiFont(size: CGFloat, weight: UIFont.Weight) -> UIFont? {
-        guard let family = UIFont.familyNames.first(where: {
-            $0.compare(
-                "Songti SC",
-                options: [.caseInsensitive, .diacriticInsensitive]
-            ) == .orderedSame
-        }) else {
-            return nil
-        }
-
         let style: String
         switch weight.rawValue {
         case ..<(-0.2): // ultraLight / thin / light
@@ -154,21 +145,31 @@ enum SongtiFont {
             style = "Black"
         }
 
-        let names = UIFont.fontNames(forFamilyName: family)
-        var candidates = names.filter {
-            $0.localizedCaseInsensitiveContains(style)
-        }
-        candidates.append(contentsOf: names.filter {
-            !candidates.contains($0)
-        })
+        // 远程 Noto 字体注册成功后优先使用；未下载时继续使用系统宋体。
+        for familyHint in ["Noto Serif SC", "Songti SC"] {
+            guard let family = UIFont.familyNames.first(where: {
+                $0.compare(
+                    familyHint,
+                    options: [.caseInsensitive, .diacriticInsensitive]
+                ) == .orderedSame
+            }) else { continue }
 
-        for name in candidates {
-            guard let font = UIFont(name: name, size: size) else { continue }
-            guard font.familyName.compare(
-                family,
-                options: [.caseInsensitive, .diacriticInsensitive]
-            ) == .orderedSame else { continue }
-            return font
+            let names = UIFont.fontNames(forFamilyName: family)
+            var candidates = names.filter {
+                $0.localizedCaseInsensitiveContains(style)
+            }
+            candidates.append(contentsOf: names.filter {
+                !candidates.contains($0)
+            })
+
+            for name in candidates {
+                guard let font = UIFont(name: name, size: size) else { continue }
+                guard font.familyName.compare(
+                    family,
+                    options: [.caseInsensitive, .diacriticInsensitive]
+                ) == .orderedSame else { continue }
+                return font
+            }
         }
 
         return nil

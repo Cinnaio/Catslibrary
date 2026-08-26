@@ -36,6 +36,11 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
     /// 章节正文内存缓存：避免切回已读章节时重复下载（Data 按 URL 缓存）。
     private let chapterDataCache = NSCache<NSString, NSData>()
 
+    /// 清理章节正文内存缓存；磁盘缓存由 ImageCache 统一管理。
+    func clearMemoryCaches() {
+        chapterDataCache.removeAllObjects()
+    }
+
     /// lazy：URLSession 的 delegate 需要 self 已完全初始化，故延迟到首次使用时创建
     private lazy var session: URLSession = {
         let config = URLSessionConfiguration.default

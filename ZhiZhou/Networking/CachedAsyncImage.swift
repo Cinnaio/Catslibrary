@@ -6,7 +6,8 @@ import ImageIO
 enum ImageCache {
     static let sharedCache: URLCache = {
         URLCache(memoryCapacity: 256 * 1024 * 1024,
-                 diskCapacity: 512 * 1024 * 1024)
+                 diskCapacity: 512 * 1024 * 1024,
+                 diskPath: "ZhiZhouImageCache")
     }()
 
     static let session: URLSession = {

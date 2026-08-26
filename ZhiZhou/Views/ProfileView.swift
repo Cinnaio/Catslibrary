@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 个人中心：用户信息、阅读设置、服务器信息、退出登录。
+/// 个人中心：用户信息、阅读设置、存储管理、服务器信息、退出登录。
 struct ProfileView: View {
     @Environment(AppState.self) private var appState
 
@@ -38,6 +38,14 @@ struct ProfileView: View {
                     showReaderSettings = true
                 } label: {
                     Label("阅读设置", systemImage: "textformat.size")
+                }
+            }
+
+            Section("应用") {
+                NavigationLink {
+                    StorageManagerView()
+                } label: {
+                    Label("存储管理", systemImage: "internaldrive")
                 }
             }
 
