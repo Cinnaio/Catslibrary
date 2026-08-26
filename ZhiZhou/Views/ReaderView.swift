@@ -409,36 +409,32 @@ struct ReaderView: View {
         .accessibilityLabel("下一章")
     }
 
-    /// 顶部操作组：用原生分段控件的分组关系承载目录与字号设置。
+    /// 顶部操作组：只保留图标与 44pt 点按区，不再叠加玻璃容器和按钮底板。
     private var readerToolbarGroup: some View {
-        GlassEffectContainer(spacing: 4) {
-            HStack(spacing: 4) {
-                Button {
-                    showTOC = true
-                } label: {
-                    Image(systemName: "list.bullet")
-                        .font(.system(size: 16, weight: .semibold))
-                        .frame(width: 44, height: 40)
-                }
-                .buttonStyle(.glass(AppTheme.glassClear))
-                .tint(AppTheme.primary)
-                .accessibilityLabel("目录")
-
-                Button {
-                    showSettings = true
-                } label: {
-                    Text("大小")
-                        .font(.subheadline.weight(.semibold))
-                        .fixedSize(horizontal: true, vertical: false)
-                        .frame(width: 58, height: 40)
-                }
-                .buttonStyle(.glass(AppTheme.glassClear))
-                .tint(AppTheme.primary)
-                .accessibilityLabel("大小")
+        HStack(spacing: 10) {
+            Button {
+                showTOC = true
+            } label: {
+                Image(systemName: "list.bullet")
+                    .font(.system(size: 17, weight: .medium))
+                    .frame(width: 38, height: 44)
+                    .contentShape(Rectangle())
             }
+            .accessibilityLabel("目录")
+
+            Button {
+                showSettings = true
+            } label: {
+                Image(systemName: "textformat.size")
+                    .font(.system(size: 17, weight: .medium))
+                    .frame(width: 38, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel("阅读设置")
         }
-        .frame(width: 112, height: 46)
-        .fixedSize(horizontal: true, vertical: false)
+        .buttonStyle(.plain)
+        .foregroundStyle(ink.opacity(0.82))
+        .fixedSize()
     }
 
     /// 底部阅读控制组：上一章、章节进度、下一章共享一块轻量分段表面。

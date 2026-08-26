@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// 登录 / 注册（注册模式随服务端 register-status 动态切换）。
-/// 参照 Apple Liquid Glass 规范：克制、内聚、层级清楚——品牌头部 + 分组玻璃表单 + 单一主操作。
+/// 登录是一个安静的工具页：不用装饰性玻璃，只保留品牌、输入与主操作三层。
 struct LoginView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -27,14 +27,14 @@ struct LoginView: View {
             ScrollView {
                 VStack(spacing: 0) {
                     brandHeader
-                        .padding(.top, 24)
-                        .padding(.bottom, 28)
+                        .padding(.top, 52)
+                        .padding(.bottom, 32)
 
                     modePicker
-                        .padding(.bottom, 16)
+                        .padding(.bottom, 20)
 
                     fieldsGroup
-                        .padding(.bottom, 20)
+                        .padding(.bottom, 24)
 
                     if mode != .register || registerMode != .closed {
                         submitButton
@@ -48,8 +48,8 @@ struct LoginView: View {
                     statusLine
                         .padding(.top, 16)
                 }
-                .padding(.horizontal, 24)
-                .padding(.bottom, 28)
+                .padding(.horizontal, 28)
+                .padding(.bottom, 32)
                 .frame(maxWidth: 420)
                 .frame(maxWidth: .infinity)
             }
@@ -60,58 +60,41 @@ struct LoginView: View {
     }
 
     private var loginBackdrop: some View {
-        ZStack {
-            Color(.systemGroupedBackground)
-
-            Circle()
-                .fill(AppTheme.primary.opacity(0.12))
-                .frame(width: 300, height: 300)
-                .blur(radius: 72)
-                .offset(x: 150, y: -280)
-
-            Circle()
-                .fill(AppTheme.primaryLight.opacity(0.28))
-                .frame(width: 240, height: 240)
-                .blur(radius: 64)
-                .offset(x: -170, y: 320)
-        }
-        .ignoresSafeArea()
+        Color(.systemGroupedBackground)
+            .ignoresSafeArea()
     }
 
-    // MARK: - 品牌头部（留白、居中、克制）
+    // MARK: - 品牌头部
 
     private var brandHeader: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "book.closed.fill")
-                .font(.system(size: 28, weight: .semibold))
-                .foregroundStyle(AppTheme.primaryDeep)
-                .frame(width: 78, height: 78)
-                .glassEffect(
-                    AppTheme.glassProminent,
-                    in: RoundedRectangle(cornerRadius: 24, style: .continuous)
-                )
-                .accessibilityHidden(true)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                Image(systemName: "book.closed.fill")
+                    .font(.system(size: 25, weight: .semibold))
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(AppTheme.primary)
+                    .accessibilityHidden(true)
 
-            Text("知舟")
-                .font(serifFont(.largeTitle, .bold))
-                .foregroundStyle(AppTheme.textPrimary)
-                .accessibilityAddTraits(.isHeader)
+                Text("知舟")
+                    .font(serifFont(.largeTitle, .bold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .accessibilityAddTraits(.isHeader)
+            }
 
             Text("登录后可同步书架与阅读进度")
-                .font(.subheadline)
+                .font(.callout)
                 .foregroundStyle(AppTheme.textSecondary)
-                .multilineTextAlignment(.center)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    // MARK: - 账号操作（Liquid Glass 分组控件）
+    // MARK: - 账号操作
 
     private var modePicker: some View {
-        GlassEffectContainer(spacing: 8) {
-            HStack(spacing: 8) {
-                modeButton("登录", for: .login)
-                modeButton("注册", for: .register)
-            }
+        HStack(spacing: 28) {
+            modeButton("登录", for: .login)
+            modeButton("注册", for: .register)
+            Spacer(minLength: 0)
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("账号操作")
@@ -125,33 +108,46 @@ struct LoginView: View {
                 mode = targetMode
             }
         } label: {
-            Text(title)
-                .font(.body.weight(selected ? .semibold : .regular))
-                .foregroundStyle(selected ? AppTheme.textPrimary : AppTheme.textSecondary)
-                .frame(maxWidth: .infinity)
-                .frame(minHeight: 46)
+            VStack(spacing: 7) {
+                Text(title)
+                    .font(.body.weight(selected ? .semibold : .regular))
+                    .foregroundStyle(selected ? AppTheme.textPrimary : AppTheme.textSecondary)
+
+                Capsule()
+                    .fill(selected ? AppTheme.primary : Color.clear)
+                    .frame(width: 24, height: 2)
+            }
+            .frame(minWidth: 44, minHeight: 44)
+            .contentShape(Rectangle())
         }
-        .buttonStyle(.glass(selected ? AppTheme.glass : AppTheme.glassClear))
+        .buttonStyle(.plain)
         .accessibilityAddTraits(selected ? [.isSelected] : [])
         .accessibilityLabel(title)
     }
 
-    // MARK: - Liquid Glass 分组表单
+    // MARK: - 单层分组表单
 
     private var fieldsGroup: some View {
-        GlassEffectContainer(spacing: 8) {
-            VStack(spacing: 8) {
-                usernameField
+        VStack(spacing: 0) {
+            usernameField
 
-                if mode == .register, registerMode == .invite {
-                    inviteField
-                }
-
-                passwordField
+            if mode == .register, registerMode == .invite {
+                fieldDivider
+                inviteField
             }
+
+            fieldDivider
+            passwordField
         }
+        .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: mode)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: registerMode)
+    }
+
+    private var fieldDivider: some View {
+        Divider()
+            .overlay(AppTheme.border.opacity(0.55))
+            .padding(.leading, 52)
     }
 
     private var usernameField: some View {
@@ -175,8 +171,7 @@ struct LoginView: View {
                 .tint(AppTheme.primary)
         }
         .padding(.horizontal, 16)
-        .frame(minHeight: 54)
-        .glassEffect(AppTheme.glassClear, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .frame(minHeight: 58)
     }
 
     private var inviteField: some View {
@@ -197,8 +192,7 @@ struct LoginView: View {
                 .tint(AppTheme.primary)
         }
         .padding(.horizontal, 16)
-        .frame(minHeight: 54)
-        .glassEffect(AppTheme.glassClear, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .frame(minHeight: 58)
     }
 
     private var passwordField: some View {
@@ -234,13 +228,12 @@ struct LoginView: View {
                     .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.glass(AppTheme.glassClear))
+            .buttonStyle(.plain)
             .accessibilityLabel(showPassword ? "隐藏密码" : "显示密码")
         }
         .padding(.leading, 16)
-        .padding(.trailing, 4)
-        .frame(minHeight: 54)
-        .glassEffect(AppTheme.glassClear, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .padding(.trailing, 8)
+        .frame(minHeight: 58)
     }
 
     // MARK: - 主操作（唯一、明显、对比安全）
@@ -252,28 +245,29 @@ struct LoginView: View {
             Group {
                 if busy {
                     ProgressView()
-                        .tint(AppTheme.primaryDeep)
+                        .tint(.white)
                 } else {
                     Text(mode == .login ? "登录" : "注册")
                         .font(.headline)
                 }
             }
-            .foregroundStyle(AppTheme.primaryDeep)
+            .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
             .frame(minHeight: 54)
+            .background(AppTheme.deepGradient, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
         }
-        .buttonStyle(.glass(AppTheme.glassProminent))
-        .tint(AppTheme.primary)
+        .buttonStyle(ScaleButtonStyle())
+        .opacity(canSubmit || busy ? 1 : 0.42)
         .disabled(!canSubmit)
         .accessibilityLabel(mode == .login ? "登录" : "注册")
     }
 
     private var registerClosedNote: some View {
-        Text("当前站点注册已关闭")
+        Label("当前站点注册已关闭", systemImage: "lock.fill")
             .font(.footnote)
             .foregroundStyle(AppTheme.textSecondary)
-            .frame(maxWidth: .infinity, minHeight: 44)
-            .glassEffect(AppTheme.glassClear, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .frame(maxWidth: .infinity, minHeight: 48)
+            .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
     @ViewBuilder
@@ -299,10 +293,7 @@ struct LoginView: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
-            .glassEffect(
-                .clear.tint(AppTheme.danger.opacity(0.12)),
-                in: RoundedRectangle(cornerRadius: 18, style: .continuous)
-            )
+            .background(AppTheme.danger.opacity(0.09), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
     }
 
