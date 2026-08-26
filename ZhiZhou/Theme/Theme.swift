@@ -99,9 +99,8 @@ enum AppTheme {
 
 /// 中文衬线字体解析。
 ///
-/// 设计字体为 Noto Serif SC（与 Web 端设计系统一致），随 App 打包并经
-/// UIAppFonts 注册，按字重显式解析其 PostScript 名；解析失败回退系统
-/// Songti SC，再回退系统 serif design，最后回退无衬线字体，保证不缺字。
+/// 优先按字重解析系统 Songti SC；解析失败回退系统 serif design，最后回退
+/// 无衬线字体，保证不缺字。
 enum SongtiFont {
     /// 按文本样式缩放（Dynamic Type）的衬线 Font，用于标题等系统样式字体。
     static func font(_ style: Font.TextStyle, weight: UIFont.Weight = .regular) -> Font {
@@ -125,29 +124,24 @@ enum SongtiFont {
         return system
     }
 
-    /// 按字重给出候选 PostScript 名：优先随包打包的设计字体 Noto Serif SC，
-    /// 其次系统 Songti SC，再补上设备实际枚举到的 Songti SC 名称。
+    /// 按字重给出候选 PostScript 名：优先系统 Songti SC 的标准名称，
+    /// 再补上设备实际枚举到的 Songti SC 名称。
     /// UIFont.Weight 的 rawValue 不是 0...1：regular=0、medium≈0.23、
     /// semibold≈0.3、bold≈0.4、heavy≈0.56、black≈0.62。
     private static func postScriptNames(for weight: UIFont.Weight) -> [String] {
-        let noto: String
         let system: String
         switch weight.rawValue {
         case ..<(-0.2): // ultraLight / thin / light
-            noto = "NotoSerifSC-Light"
             system = "STSongti-SC-Light"
         case ..<0.265: // regular / medium
-            noto = "NotoSerifSC-Regular"
             system = "STSongti-SC-Regular"
         case ..<0.48: // semibold / bold
-            noto = "NotoSerifSC-Bold"
             system = "STSongti-SC-Bold"
         default: // heavy / black
-            noto = "NotoSerifSC-Black"
             system = "STSongti-SC-Black"
         }
 
-        var names = [noto, system]
+        var names = [system]
         for name in UIFont.fontNames(forFamilyName: "Songti SC") where !names.contains(name) {
             names.append(name)
         }
