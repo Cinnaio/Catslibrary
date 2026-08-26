@@ -239,8 +239,11 @@ struct AdminScrapeSourcesView: View {
                         Image(systemName: selectedHosts.contains(source.host) ? "checkmark.circle.fill" : "circle")
                             .font(.title3)
                             .foregroundStyle(selectedHosts.contains(source.host) ? AppTheme.primary : AppTheme.textMuted)
+                            .frame(width: 44, height: 44)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel(selectedHosts.contains(source.host) ? "取消选择\(source.name)" : "选择\(source.name)")
+                    .accessibilityValue(selectedHosts.contains(source.host) ? "已选择" : "未选择")
                 }
                 Text(source.name)
                     .font(.subheadline)
@@ -257,7 +260,21 @@ struct AdminScrapeSourcesView: View {
                         }
                     ))
                     .labelsHidden()
+                    .accessibilityLabel("启用\(source.name)")
+                    .accessibilityValue((source.enabled ?? true) ? "已启用" : "已停用")
                     .disabled(togglingHost == source.host)
+                    Menu {
+                        Button("测试书源", systemImage: "checkmark.seal") {
+                            Task { await testSource(source) }
+                        }
+                        Button("删除", systemImage: "trash", role: .destructive) {
+                            deleteTarget = source
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .frame(width: 44, height: 44)
+                    }
+                    .accessibilityLabel("书源操作")
                 }
             }
             Text(source.host)

@@ -41,6 +41,7 @@ struct AdminAISettingsView: View {
     @State private var saving = false
     @State private var saveMessage: String?
     @State private var actionError: String?
+    @FocusState private var focusedField: String?
 
     var body: some View {
         List {
@@ -93,10 +94,17 @@ struct AdminAISettingsView: View {
         }
         .scrollContentBackground(.hidden)
         .pageBackground()
+        .scrollDismissesKeyboard(.interactively)
         .navigationTitle("运行参数")
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await load() }
         .task { await load() }
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("完成") { focusedField = nil }
+            }
+        }
         .alert("操作失败", isPresented: errorAlertBinding) {
             Button("好", role: .cancel) {}
         } message: {
@@ -179,6 +187,7 @@ struct AdminAISettingsView: View {
                 .multilineTextAlignment(.trailing)
                 .foregroundStyle(AppTheme.textSecondary)
                 .frame(maxWidth: 120)
+                .focused($focusedField, equals: label)
         }
     }
 
@@ -192,6 +201,7 @@ struct AdminAISettingsView: View {
                 .multilineTextAlignment(.trailing)
                 .foregroundStyle(AppTheme.textSecondary)
                 .frame(maxWidth: 120)
+                .focused($focusedField, equals: label)
         }
     }
 
@@ -203,6 +213,7 @@ struct AdminAISettingsView: View {
             TextEditor(text: text)
                 .frame(minHeight: 60)
                 .font(.subheadline)
+                .focused($focusedField, equals: label)
         }
         .padding(.vertical, 2)
     }

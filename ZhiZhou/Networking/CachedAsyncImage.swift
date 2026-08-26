@@ -60,6 +60,8 @@ actor CoverPrefetcher {
 struct CachedAsyncImage<Content: View, Placeholder: View>: View {
     @State private var image: UIImage?
     @State private var loadedKey: String?
+    @State private var loadFailed = false
+    @State private var retryToken = 0
     @Environment(\.displayScale) private var displayScale
 
     let url: URL?
@@ -84,22 +86,43 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
             if let image {
                 content(Image(uiImage: image))
             } else {
-                placeholder()
+                ZStack {
+                    placeholder()
+                    if loadFailed {
+                        Button {
+                            retryToken &+= 1
+                        } label: {
+                            Label("重试", systemImage: "arrow.clockwise")
+                                .font(.caption2.weight(.semibold))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 5)
+                                .background(.thinMaterial, in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(AppTheme.textPrimary)
+                        .accessibilityLabel("封面加载失败，重试")
+                    }
+                }
             }
         }
-        .task(id: taskKey) {
+        .task(id: "\(taskKey)-\(retryToken)") {
             guard let url else {
                 image = nil
                 loadedKey = nil
+                loadFailed = false
                 return
             }
             let key = taskKey
             if loadedKey == key, image != nil { return }
             image = nil
+            loadFailed = false
             let maxPixel = max(targetSize.width, targetSize.height) * displayScale
+            guard !Task.isCancelled else { return }
             if let img = await Self.fetch(url, maxPixel: maxPixel) {
                 image = img
                 loadedKey = key
+            } else if !Task.isCancelled {
+                loadFailed = true
             }
         }
     }
@@ -116,8 +139,7 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
             }
             return downsample(data: data, maxPixel: maxPixel)
         } catch {
-            guard let (data, _) = try? await ImageCache.session.data(from: url) else { return nil }
-            return downsample(data: data, maxPixel: maxPixel)
+            return nil
         }
     }
 

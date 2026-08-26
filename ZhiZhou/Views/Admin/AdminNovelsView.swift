@@ -186,6 +186,22 @@ struct AdminNovelsView: View {
                 ProgressView()
                     .controlSize(.small)
             }
+            Menu {
+                Button("编辑", systemImage: "pencil") {
+                    editingNovel = novel
+                    showEditor = true
+                }
+                Button("增量更新", systemImage: "arrow.triangle.2.circlepath") {
+                    Task { await scrapeUpdate(novel) }
+                }
+                Button("删除", systemImage: "trash", role: .destructive) {
+                    deleteTarget = novel
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+                    .frame(width: 44, height: 44)
+            }
+            .accessibilityLabel("小说操作")
         }
         .contextMenu {
             Button("编辑", systemImage: "pencil") {

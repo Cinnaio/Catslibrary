@@ -313,6 +313,13 @@ struct AdminUsersView: View {
                     .foregroundStyle(AppTheme.textSecondary)
                     .lineLimit(1)
             }
+            Menu {
+                contextActions(for: user)
+            } label: {
+                Image(systemName: "ellipsis.circle")
+                    .frame(width: 44, height: 44)
+            }
+            .accessibilityLabel("用户操作")
         }
         .padding(.vertical, 2)
     }

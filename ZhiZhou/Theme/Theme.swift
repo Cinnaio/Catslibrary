@@ -73,8 +73,8 @@ enum AppTheme {
     static let textMuted = Color(.tertiaryLabel)
 
     // MARK: 状态色
-    static let success = Color(light: "6E8B5E", dark: "A9BF97")
-    static let warning = Color(light: "B07D2E", dark: "D9B06A")
+    static let success = Color(light: "4E713F", dark: "A9BF97")
+    static let warning = Color(light: "8A5B13", dark: "D9B06A")
     static let danger = Color(light: "A34438", dark: "E98F83")
     static let seal = Color(light: "B8453A", dark: "E8968D")
 
@@ -255,7 +255,7 @@ extension View {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .strokeBorder(AppTheme.border, lineWidth: 1)
             )
-            .shadow(color: Color(light: "000000", dark: "FFFFFF").opacity(0.08), radius: 10, y: 4)
+            .shadow(color: Color.black.opacity(0.16), radius: 10, y: 4)
     }
 
     func frostedRowBackground() -> some View {

@@ -215,54 +215,78 @@ struct AdminDiscoverView: View {
 
     private func discoverRow(_ novel: DiscoverNovel, index: Int) -> some View {
         HStack(spacing: 10) {
+            if selectionMode {
+                Button {
+                    toggleSelect(index)
+                } label: {
+                    Image(systemName: selectedIndices.contains(index) ? "checkmark.circle.fill" : "circle")
+                        .font(.title3)
+                        .foregroundStyle(selectedIndices.contains(index) ? AppTheme.primary : AppTheme.textMuted)
+                        .frame(width: 44, height: 44)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(selectedIndices.contains(index) ? "取消选择\(novel.title)" : "选择\(novel.title)")
+                .accessibilityValue(selectedIndices.contains(index) ? "已选择" : "未选择")
+            }
             Button {
-                toggleSelect(index)
+                Task { await openDetail(novel) }
             } label: {
-                Image(systemName: selectedIndices.contains(index) ? "checkmark.circle.fill" : "circle")
-                    .font(.title3)
-                    .foregroundStyle(selectedIndices.contains(index) ? AppTheme.primary : AppTheme.textMuted)
+                HStack(spacing: 10) {
+                    coverThumb(novel)
+                    discoverInfo(novel)
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(AppTheme.textMuted)
+                }
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-
-            coverThumb(novel)
-
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
-                    Text(novel.title)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .foregroundStyle(AppTheme.textPrimary)
-                        .lineLimit(1)
-                    if novel.isCollected {
-                        Text("已收录")
-                            .font(.caption2)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(AppTheme.success.opacity(0.15), in: Capsule())
-                            .foregroundStyle(AppTheme.success)
-                    }
-                }
-                Text("\(novel.author?.isEmpty == false ? novel.author! : "佚名")\(novel.chapterCount.map { " · \($0) 章" } ?? "")")
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .lineLimit(1)
-                if let desc = novel.description, !desc.isEmpty {
-                    Text(desc)
-                        .font(.caption2)
-                        .foregroundStyle(AppTheme.textMuted)
-                        .lineLimit(1)
-                }
+            .accessibilityLabel("查看\(novel.title)")
+            .accessibilityHint("打开作品详情")
+            Menu {
+                Button("查看详情") { Task { await openDetail(novel) } }
+                Button("抓取这本") { Task { await scrapeSingle(novel) } }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+                    .frame(width: 44, height: 44)
             }
-            Spacer()
+            .accessibilityLabel("作品操作")
         }
         .padding(.vertical, 2)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            Task { await openDetail(novel) }
-        }
         .contextMenu {
             Button("查看详情") { Task { await openDetail(novel) } }
             Button("抓取这本") { Task { await scrapeSingle(novel) } }
+        }
+    }
+
+    private func discoverInfo(_ novel: DiscoverNovel) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 6) {
+                Text(novel.title)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .lineLimit(1)
+                if novel.isCollected {
+                    Text("已收录")
+                        .font(.caption2)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(AppTheme.success.opacity(0.15), in: Capsule())
+                        .foregroundStyle(AppTheme.success)
+                }
+            }
+            Text("\(novel.author?.isEmpty == false ? novel.author! : "佚名")\(novel.chapterCount.map { " · \($0) 章" } ?? "")")
+                .font(.caption)
+                .foregroundStyle(AppTheme.textSecondary)
+                .lineLimit(1)
+            if let desc = novel.description, !desc.isEmpty {
+                Text(desc)
+                    .font(.caption2)
+                    .foregroundStyle(AppTheme.textMuted)
+                    .lineLimit(1)
+            }
         }
     }
 

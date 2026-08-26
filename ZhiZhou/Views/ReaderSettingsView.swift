@@ -77,6 +77,7 @@ struct ReaderSettingsView: View {
             .navigationTitle("阅读设置")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.hidden, for: .navigationBar)
+            .sensoryFeedback(.selection, trigger: settings.fontSizeIndex)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("完成") { dismiss() }
@@ -120,7 +121,7 @@ struct ReaderSettingsView: View {
                 }
             }
         }
-        .frame(height: 40)
+        .frame(height: 44)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("调整字号")
     }
@@ -134,7 +135,7 @@ struct ReaderSettingsView: View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: 17, weight: .medium))
-                .frame(width: 38, height: 38)
+                .frame(width: 44, height: 44)
                 .contentShape(Capsule())
         }
         .foregroundStyle(isDisabled ? AppTheme.textMuted : AppTheme.primary)
@@ -165,7 +166,7 @@ struct ReaderSettingsView: View {
                                 .font(.body.weight(isSelected ? .semibold : .regular))
                                 .foregroundStyle(isSelected ? AppTheme.textPrimary : AppTheme.textSecondary)
                                 .frame(maxWidth: .infinity)
-                                .frame(minHeight: 40)
+                                .frame(minHeight: 44)
                                 .contentShape(Capsule())
                         }
                         .buttonStyle(.glass(isSelected ? AppTheme.glass : AppTheme.glassClear))
@@ -174,7 +175,7 @@ struct ReaderSettingsView: View {
                     }
                 }
             }
-            .frame(minHeight: 40)
+            .frame(minHeight: 44)
         }
     }
 

@@ -18,6 +18,7 @@ struct AdminSiteOperationsView: View {
     @State private var savingAnnouncement = false
     @State private var saveMessage: String?
     @State private var actionError: String?
+    @FocusState private var focusedField: Bool
 
     var body: some View {
         List {
@@ -61,10 +62,17 @@ struct AdminSiteOperationsView: View {
         }
         .scrollContentBackground(.hidden)
         .pageBackground()
+        .scrollDismissesKeyboard(.interactively)
         .navigationTitle("站点运营")
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await load() }
         .task { await load() }
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("完成") { focusedField = false }
+            }
+        }
         .alert("操作失败", isPresented: errorAlertBinding) {
             Button("好", role: .cancel) {}
         } message: {
@@ -122,6 +130,7 @@ struct AdminSiteOperationsView: View {
                 .frame(minHeight: 80)
                 .font(.subheadline)
                 .scrollContentBackground(.hidden)
+                .focused($focusedField)
                 .overlay(
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .strokeBorder(AppTheme.border, lineWidth: 1)

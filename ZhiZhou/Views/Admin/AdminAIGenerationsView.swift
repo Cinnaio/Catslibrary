@@ -190,8 +190,11 @@ struct AdminAIGenerationsView: View {
                     Image(systemName: selectedIds.contains(item.id) ? "checkmark.circle.fill" : "circle")
                         .font(.title3)
                         .foregroundStyle(selectedIds.contains(item.id) ? AppTheme.primary : AppTheme.textMuted)
+                        .frame(width: 44, height: 44)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(selectedIds.contains(item.id) ? "取消选择\(item.novelTitle ?? "此项")" : "选择\(item.novelTitle ?? "此项")")
+                .accessibilityValue(selectedIds.contains(item.id) ? "已选择" : "未选择")
             }
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {

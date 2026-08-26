@@ -2,6 +2,7 @@ import SwiftUI
 
 /// 书架页：侧栏书单，详情列接着读或打开详情。
 struct BookshelfView: View {
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var response: BookshelfResponse?
     @State private var isLoading = false
     @State private var errorMessage: String?
@@ -9,8 +10,28 @@ struct BookshelfView: View {
     @State private var selection: BookshelfRoute?
     @State private var pendingRemove: FavoriteItem?
 
+    @ViewBuilder
     var body: some View {
-        NavigationSplitView {
+        if horizontalSizeClass == .compact {
+            NavigationStack {
+                bookshelfList
+                    .navigationDestination(for: BookshelfRoute.self) { route in
+                        destination(for: route)
+                    }
+            }
+        } else {
+            NavigationSplitView {
+                bookshelfList
+            } detail: {
+                NavigationStack {
+                    bookshelfDetail
+                }
+            }
+            .navigationSplitViewStyle(.balanced)
+        }
+    }
+
+    private var bookshelfList: some View {
             List(selection: $selection) {
                 if isLoading && response == nil {
                     ProgressView()
@@ -106,27 +127,33 @@ struct BookshelfView: View {
             } message: {
                 Text(actionError ?? "")
             }
-        } detail: {
-            NavigationStack {
-                switch selection {
-                case .read(let launch):
-                    ReaderView(
-                        novel: launch.novel,
-                        chapterOrder: launch.chapterOrder,
-                        preloadedChapters: launch.preloadedChapters
-                    )
-                case .detail(let novel):
-                    NovelDetailView(novel: novel)
-                case nil:
-                    ContentUnavailableView(
-                        "选择一本书",
-                        systemImage: "books.vertical",
-                        description: Text("点最近阅读即可接着读")
-                    )
-                }
-            }
+    }
+
+    @ViewBuilder
+    private var bookshelfDetail: some View {
+        if let selection {
+            destination(for: selection)
+        } else {
+            ContentUnavailableView(
+                "选择一本书",
+                systemImage: "books.vertical",
+                description: Text("点最近阅读即可接着读")
+            )
         }
-        .navigationSplitViewStyle(.balanced)
+    }
+
+    @ViewBuilder
+    private func destination(for route: BookshelfRoute) -> some View {
+        switch route {
+        case .read(let launch):
+            ReaderView(
+                novel: launch.novel,
+                chapterOrder: launch.chapterOrder,
+                preloadedChapters: launch.preloadedChapters
+            )
+        case .detail(let novel):
+            NovelDetailView(novel: novel)
+        }
     }
 
     @ViewBuilder

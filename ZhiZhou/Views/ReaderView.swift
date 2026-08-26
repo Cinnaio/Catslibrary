@@ -19,6 +19,7 @@ struct ReaderView: View {
 
     @Environment(ReaderSettingsStore.self) private var settings
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.colorScheme) private var systemScheme
     @Environment(\.dismiss) private var dismiss
@@ -135,6 +136,9 @@ struct ReaderView: View {
             resetForNewChapter()
             Task { await load() }
         }
+        .onChange(of: settings.pageMode) { _, mode in
+            prepareForModeChange(to: mode)
+        }
         .onChange(of: scenePhase) { _, phase in
             if phase == .background || phase == .inactive {
                 saveProgressNow()
@@ -146,6 +150,7 @@ struct ReaderView: View {
         .onChange(of: settings.wakeLockEnabled) { _, _ in applyWakeLock() }
         .onDisappear {
             UIApplication.shared.isIdleTimerDisabled = false
+            saveTask?.cancel()
             saveProgressNow()
         }
     }
@@ -201,7 +206,8 @@ struct ReaderView: View {
             }
             .padding(.horizontal, sideInset + 22)
             .padding(.top, 18)
-            .padding(.bottom, showChrome ? 132 : 44)
+            // 工具栏只是覆盖层，正文底部始终保留相同的安全距离，避免隐铬时整页跳动。
+            .padding(.bottom, 132)
             .frame(maxWidth: min(geo.size.width, 720))
             .frame(maxWidth: .infinity)
             .scrollTargetLayout()
@@ -210,6 +216,9 @@ struct ReaderView: View {
         .scrollPosition(id: $scrolledParagraph)
         .background(paper)
         .contentShape(Rectangle())
+        .accessibilityAction(named: showChrome ? "隐藏阅读控制" : "显示阅读控制") {
+            toggleChrome()
+        }
         // 点按热区覆盖整个 ScrollView，包括短章节下面的空白区域。
         .simultaneousGesture(
             SpatialTapGesture().onEnded { value in
@@ -238,10 +247,10 @@ struct ReaderView: View {
         let sideInset = max(geo.safeAreaInsets.leading, geo.safeAreaInsets.trailing) + 22
         // 与滚动模式一致：内容总宽上限 720，再扣对称留白，宽屏下正文不无脑拉满。
         let contentWidth = max(40, min(geo.size.width, 720) - sideInset * 2)
-        // 浮层可见时预留其高度，沉浸时正文可以用满屏高。
-        let contentHeight = max(120, geo.size.height - 8 - (showChrome ? 78 : 20))
+        // 页面高度固定；工具栏是覆盖层，切换显示状态不应触发整章重新分页和页面跳动。
+        let contentHeight = max(120, geo.size.height - 8 - 78)
         let pageSize = CGSize(width: contentWidth, height: contentHeight)
-        let key = "\(chapter?.id ?? "-"):\(Int(contentWidth)):\(Int(contentHeight)):\(settings.fontSizeIndex):\(settings.lineHeight):\(settings.paragraphSpacing):\(settings.useSerif):\(fontRevision)"
+        let key = "\(chapter?.id ?? "-"):\(Int(contentWidth)):\(Int(contentHeight)):\(settings.fontSizeIndex):\(settings.lineHeight):\(settings.paragraphSpacing):\(settings.useSerif):\(dynamicTypeSize):\(fontRevision)"
 
         return Group {
             if isLoading && chapter == nil {
@@ -265,13 +274,21 @@ struct ReaderView: View {
             } else {
                 TabView(selection: $currentPage) {
                     ForEach(pages.indices, id: \.self) { index in
-                        pagedPage(pages[index], width: contentWidth, height: contentHeight)
+                        pagedPage(
+                            pages[index],
+                            width: contentWidth,
+                            height: contentHeight,
+                            showsNextChapter: atChapterEnd && index == pages.count - 1
+                        )
                             .tag(index)
                     }
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .contentShape(Rectangle())
+                .accessibilityAction(named: showChrome ? "隐藏阅读控制" : "显示阅读控制") {
+                    toggleChrome()
+                }
                 .gesture(
                     SpatialTapGesture().onEnded { value in
                         handlePageTap(x: value.location.x, width: geo.size.width)
@@ -279,20 +296,25 @@ struct ReaderView: View {
                 )
             }
         }
-        .task(id: key) { rebuildPages(size: pageSize) }
+        .task(id: key) { await rebuildPages(size: pageSize) }
         .onChange(of: currentPage) { _, page in
             updatePageProgress(page)
         }
     }
 
     /// 单页内容：按排版尺寸顶对齐展示；若个别页因测量误差超出一行，内部可纵向滚动兜底。
-    private func pagedPage(_ text: AttributedString, width: CGFloat, height: CGFloat) -> some View {
+    private func pagedPage(
+        _ text: AttributedString,
+        width: CGFloat,
+        height: CGFloat,
+        showsNextChapter: Bool
+    ) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 Text(text)
                     .foregroundStyle(ink)
                     .frame(width: width, alignment: .topLeading)
-                if atChapterEnd {
+                if showsNextChapter {
                     nextChapterButton
                         .frame(width: width)
                         .padding(.top, 20)
@@ -345,6 +367,7 @@ struct ReaderView: View {
 
                 if atChapterEnd {
                     Button {
+                        interactionFeedback += 1
                         go(to: chapterOrder + 1)
                     } label: {
                         Label("下一章", systemImage: "arrow.forward")
@@ -378,6 +401,7 @@ struct ReaderView: View {
         .frame(maxWidth: .infinity)
         .opacity(showChrome ? 1 : 0)
         .allowsHitTesting(showChrome)
+        .accessibilityHidden(!showChrome)
     }
 
     private var readerStatusPill: some View {
@@ -421,7 +445,7 @@ struct ReaderView: View {
             } label: {
                 Image(systemName: "list.bullet")
                     .font(.system(size: 17, weight: .medium))
-                    .frame(width: 38, height: 44)
+                    .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
             }
             .accessibilityLabel("目录")
@@ -431,7 +455,7 @@ struct ReaderView: View {
             } label: {
                 Image(systemName: "textformat.size")
                     .font(.system(size: 17, weight: .medium))
-                    .frame(width: 38, height: 44)
+                    .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
             }
             .accessibilityLabel("阅读设置")
@@ -462,7 +486,7 @@ struct ReaderView: View {
     /// 重新排版：按当前字号/行距/视口把章节切成多页，并尽量保持阅读位置不漂移。
     /// 若此前已有分页（用户改了字号/行距），则按“上一页起始字符”在新分页里重新定位，
     /// 而不是按百分比——百分比在文本重排后无法对齐同一段落，会产生正文偏移。
-    private func rebuildPages(size: CGSize) {
+    private func rebuildPages(size: CGSize) async {
         guard let chapter, size.width > 40, size.height > 60 else { return }
         guard paragraphs.count > 0 || !chapter.title.isEmpty else { return }
         // 锚点 = 重排前当前页的起始字符。只有 pageRanges 与当前页有效时才使用。
@@ -475,8 +499,17 @@ struct ReaderView: View {
             title: chapter.title,
             paragraphs: paragraphs
         )
-        let attr = ChapterPaginator.attributedString(for: spec)
-        let result = ChapterPaginator.pages(of: attr, pageSize: size)
+        let result = await Task.detached(priority: .userInitiated) {
+            guard !Task.isCancelled else { return [ChapterPaginator.Page]() }
+            let attr = ChapterPaginator.attributedString(for: spec)
+            return ChapterPaginator.pages(
+                of: attr,
+                pageSize: size,
+                isCancelled: { Task.isCancelled }
+            )
+        }.value
+        guard !Task.isCancelled else { return }
+        guard chapter.id == self.chapter?.id else { return }
         guard !result.isEmpty else { pages = []; pageRanges = []; return }
         pages = result.map { AttributedString($0.attributed) }
         pageRanges = result.map { $0.range }
@@ -533,12 +566,30 @@ struct ReaderView: View {
         progressPercent = clamped
     }
 
+    private func prepareForModeChange(to mode: String) {
+        if mode == "page" {
+            pages = []
+            pageRanges = []
+            currentPage = 0
+            pendingRestorePercent = progressPercent
+        } else {
+            let last = max(paragraphs.count - 1, 0)
+            let target = last == 0
+                ? 0
+                : min(last, max(0, Int((progressPercent * Double(last)).rounded(.down))))
+            suppressPercent = true
+            scrolledParagraph = nil
+            pendingScrollRestore = target
+        }
+    }
+
     private func applyWakeLock() {
         UIApplication.shared.isIdleTimerDisabled = settings.wakeLockEnabled
     }
 
     /// 切章前清空旧正文，避免失败时静默显示上一章内容。
     private func resetForNewChapter() {
+        saveTask?.cancel()
         chapter = nil
         paragraphs = []
         paragraphCount = 0
@@ -666,25 +717,36 @@ struct ReaderView: View {
 
     private func saveProgressNow() {
         guard APIClient.shared.isAuthenticated, let body = progressBody() else { return }
+        // 先把快照放入待传队列。请求完成时只允许清除同一份快照，
+        // 防止旧请求晚返回后清掉新章节的进度。
+        pendingProgressBody = body
         Task {
             do {
                 try await APIClient.shared.requestVoid("POST", "/api/progress", body: body, auth: true)
-                pendingProgressBody = nil
+                if pendingProgressBody == body {
+                    pendingProgressBody = nil
+                }
             } catch {
                 // 离线/失败时保留待传体，回前台或下次保存时重试
-                pendingProgressBody = body
+                if pendingProgressBody == body {
+                    pendingProgressBody = body
+                }
             }
         }
     }
 
     private func flushPendingProgress() {
         guard let pending = pendingProgressBody else { return }
-        pendingProgressBody = nil
         Task {
             do {
                 try await APIClient.shared.requestVoid("POST", "/api/progress", body: pending, auth: true)
+                if pendingProgressBody == pending {
+                    pendingProgressBody = nil
+                }
             } catch {
-                pendingProgressBody = pending
+                if pendingProgressBody == pending {
+                    pendingProgressBody = pending
+                }
             }
         }
     }
@@ -706,6 +768,11 @@ struct ReaderView: View {
 
     private func go(to order: Int) {
         guard order >= 1, order <= totalOrderCount else { return }
+        guard order != chapterOrder else { return }
+        // 必须在修改 chapterOrder 前捕获旧章节进度，否则 resetForNewChapter
+        // 会清空 chapter，旧章节就没有可保存的快照了。
+        saveTask?.cancel()
+        saveProgressNow()
         chapterOrder = order
     }
 

@@ -149,6 +149,8 @@ struct HomeView: View {
                 .foregroundStyle(AppTheme.textSecondary)
             TextField("搜索书名 / 作者", text: $search)
                 .textFieldStyle(.plain)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
                 .foregroundStyle(AppTheme.textPrimary)
                 .tint(AppTheme.primary)
             if !search.isEmpty {
@@ -157,6 +159,7 @@ struct HomeView: View {
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundStyle(AppTheme.textMuted)
+                        .frame(width: 44, height: 44)
                 }
                 .accessibilityLabel("清除搜索")
             }

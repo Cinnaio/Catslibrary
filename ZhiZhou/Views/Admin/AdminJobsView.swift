@@ -144,6 +144,26 @@ struct AdminJobsView: View {
                     .foregroundStyle(AppTheme.danger)
                     .lineLimit(2)
             }
+            HStack {
+                Spacer()
+                Menu {
+                    if AdminFormat.isJobRunning(job.status) {
+                        Button("终止任务", systemImage: "stop.circle") {
+                            Task { await runAction(.cancel, job: job) }
+                        }
+                    }
+                    Button("整本重试", systemImage: "arrow.clockwise") {
+                        Task { await runAction(.retry, job: job) }
+                    }
+                    Button("重试失败章节", systemImage: "arrow.counterclockwise") {
+                        Task { await runAction(.retryFailed, job: job) }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .frame(width: 44, height: 44)
+                }
+                .accessibilityLabel("任务操作")
+            }
         }
         .padding(.vertical, 2)
         .contextMenu {

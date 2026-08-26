@@ -181,6 +181,18 @@ struct AdminChaptersView: View {
                     .foregroundStyle(AppTheme.textSecondary)
             }
             Spacer()
+            Menu {
+                Button("编辑", systemImage: "pencil") {
+                    editorIntent = .edit(chapter)
+                }
+                Button("删除", systemImage: "trash", role: .destructive) {
+                    deleteTarget = chapter
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+                    .frame(width: 44, height: 44)
+            }
+            .accessibilityLabel("章节操作")
         }
         .contextMenu {
             Button("编辑", systemImage: "pencil") {
