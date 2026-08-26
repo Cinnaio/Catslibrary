@@ -99,9 +99,8 @@ struct ReaderView: View {
         .statusBarHidden(!showChrome)
         .persistentSystemOverlays(showChrome ? .automatic : .hidden)
         .toolbar {
-            ToolbarItemGroup(placement: .topBarTrailing) {
-                chromeCircle("list.bullet", label: "目录") { showTOC = true }
-                chromeCircle("textformat.size", label: "阅读设置") { showSettings = true }
+            ToolbarItem(placement: .topBarTrailing) {
+                readerToolbarGroup
             }
         }
         .sensoryFeedback(.selection, trigger: chapterOrder)
@@ -172,7 +171,10 @@ struct ReaderView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.bottom, 14)
             ForEach(Array(paragraphs.enumerated()), id: \.offset) { index, paragraph in
-                Text(paragraphAttributed(paragraph))
+                Text(paragraphIndent + paragraph)
+                    .font(settings.bodyFont)
+                    .lineSpacing(settings.lineSpacing)
+                    .multilineTextAlignment(.justified)
                     .foregroundStyle(ink)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .id(index)
@@ -181,20 +183,6 @@ struct ReaderView: View {
                 nextChapterButton
             }
         }
-    }
-
-    /// 构造段落富文本：首行缩进 + 两端对齐 + 行距 + 轻微字距。
-    private func paragraphAttributed(_ paragraph: String) -> AttributedString {
-        let style = NSMutableParagraphStyle()
-        style.alignment = .justified
-        style.lineSpacing = settings.lineSpacing
-        style.lineBreakMode = .byWordWrapping
-        let attr = NSAttributedString(string: paragraphIndent + paragraph, attributes: [
-            .font: settings.bodyUIFont,
-            .paragraphStyle: style,
-            .kern: NSNumber(value: 0.4),
-        ])
-        return AttributedString(attr)
     }
 
     /// 滚动区。独立成子表达式，避免 body 表达式过复杂导致 Release 下类型检查超时。
@@ -209,7 +197,7 @@ struct ReaderView: View {
             }
             .padding(.horizontal, sideInset + 22)
             .padding(.top, 18)
-            .padding(.bottom, showChrome ? 96 : 44)
+            .padding(.bottom, showChrome ? 132 : 44)
             .frame(maxWidth: min(geo.size.width, 720))
             .frame(maxWidth: .infinity)
             .scrollTargetLayout()
@@ -343,9 +331,9 @@ struct ReaderView: View {
 
     /// 底部浮层：进度条 + 上一章/页码/下一章。翻页到章末时变为居中的“下一章”按钮。
     private var readerChrome: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: 10) {
             ReaderProgressBar(fraction: progressPercent, tint: AppTheme.primary, track: ink.opacity(0.15))
-            HStack(spacing: 12) {
+            HStack(spacing: 0) {
                 if atChapterEnd {
                     Button {
                         go(to: chapterOrder + 1)
@@ -362,10 +350,13 @@ struct ReaderView: View {
                     .frame(maxWidth: .infinity)
                     .accessibilityLabel("下一章")
                 } else {
-                    chromePill(systemName: "chevron.left", label: "上一章", isEnabled: chapterOrder > 1) {
+                    chromeSegmentButton(systemName: "chevron.left", label: "上一章", isEnabled: chapterOrder > 1) {
                         go(to: chapterOrder - 1)
                     }
-                    Spacer(minLength: 8)
+                    Rectangle()
+                        .fill(ink.opacity(0.12))
+                        .frame(width: 1, height: 22)
+                    Spacer(minLength: 0)
                     VStack(spacing: 2) {
                         Text("第 \(chapterOrder)/\(totalOrderCount) 章")
                             .font(.footnote.weight(.semibold))
@@ -376,24 +367,31 @@ struct ReaderView: View {
                             .monospacedDigit()
                             .foregroundStyle(ink.opacity(0.55))
                     }
-                    Spacer(minLength: 8)
-                    chromePill(systemName: "chevron.right", label: "下一章", isEnabled: chapterOrder < totalOrderCount) {
+                    Spacer(minLength: 0)
+                    Rectangle()
+                        .fill(ink.opacity(0.12))
+                        .frame(width: 1, height: 22)
+                    chromeSegmentButton(systemName: "chevron.right", label: "下一章", isEnabled: chapterOrder < totalOrderCount) {
                         go(to: chapterOrder + 1)
                     }
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 10)
-            .padding(.bottom, 8)
+            .padding(.horizontal, 4)
+            .frame(minHeight: 52)
+            .background(Color(.secondarySystemBackground).opacity(0.94), in: Capsule())
+            .overlay(Capsule().strokeBorder(ink.opacity(0.1), lineWidth: 1))
+            .padding(.horizontal, 18)
+            .padding(.bottom, 2)
             .background(
                 LinearGradient(
-                    colors: [paper.opacity(0), paper.opacity(0.96)],
+                    colors: [paper.opacity(0), paper.opacity(0.98)],
                     startPoint: .top,
                     endPoint: .bottom
                 )
             )
         }
-        .padding(.bottom, 4)
+        .padding(.top, 10)
+        .padding(.bottom, 8)
         .opacity(showChrome ? 1 : 0)
         .allowsHitTesting(showChrome)
     }
@@ -415,32 +413,61 @@ struct ReaderView: View {
         .accessibilityLabel("下一章")
     }
 
-    /// 顶部导航条圆钮（目录 / 设置）：轻量系统填充，避免阅读页出现厚重卡片感。
-    private func chromeCircle(_ icon: String, label: String, action: @escaping () -> Void) -> some View {
+    /// 顶部操作组：用原生分段控件的分组关系承载目录与字号设置。
+    private var readerToolbarGroup: some View {
+        HStack(spacing: 0) {
+            readerToolbarAction(systemName: "list.bullet", label: "目录") {
+                showTOC = true
+            }
+            Rectangle()
+                .fill(ink.opacity(0.14))
+                .frame(width: 1, height: 22)
+            readerToolbarAction(systemName: "textformat.size", label: "大小") {
+                showSettings = true
+            }
+        }
+        .padding(3)
+        .background(Color(.secondarySystemFill), in: Capsule())
+        .overlay(Capsule().strokeBorder(ink.opacity(0.1), lineWidth: 1))
+    }
+
+    private func readerToolbarAction(
+        systemName: String,
+        label: String,
+        action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
-            Image(systemName: icon)
-                .font(.system(size: 16, weight: .semibold))
-                .frame(width: 40, height: 40)
-                .background(Color(.secondarySystemFill), in: Circle())
-                .overlay(Circle().strokeBorder(ink.opacity(0.14), lineWidth: 1))
+            HStack(spacing: label == "目录" ? 0 : 5) {
+                Image(systemName: systemName)
+                    .font(.system(size: 16, weight: .semibold))
+                if label != "目录" {
+                    Text(label)
+                        .font(.subheadline.weight(.semibold))
+                }
+            }
+            .frame(minWidth: label == "目录" ? 44 : 58, minHeight: 40)
+            .contentShape(Rectangle())
         }
         .foregroundStyle(ink)
-        .buttonStyle(ScaleButtonStyle())
+        .buttonStyle(.plain)
         .accessibilityLabel(label)
     }
 
-    /// 底部浮层胶囊钮（上一章 / 下一章）：与顶部按钮保持同一套轻量表面。
-    private func chromePill(systemName: String, label: String, isEnabled: Bool, action: @escaping () -> Void) -> some View {
+    /// 底部阅读控制组：上一章、章节进度、下一章共享一块轻量分段表面。
+    private func chromeSegmentButton(
+        systemName: String,
+        label: String,
+        isEnabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: 15, weight: .semibold))
-                .frame(width: 46, height: 36)
+                .frame(width: 44, height: 44)
         }
         .foregroundStyle(ink.opacity(isEnabled ? 0.95 : 0.28))
-        .background(Color(.secondarySystemFill), in: Capsule())
-        .overlay(Capsule().strokeBorder(ink.opacity(isEnabled ? 0.16 : 0.08), lineWidth: 1))
         .disabled(!isEnabled)
-        .buttonStyle(ScaleButtonStyle())
+        .buttonStyle(.plain)
         .accessibilityLabel(label)
     }
 
