@@ -109,15 +109,18 @@ struct ReaderSettingsView: View {
     }
 
     private var fontStepper: some View {
-        HStack(spacing: 10) {
-            fontStepButton(systemName: "minus", label: "减小字号", isDisabled: settings.fontSizeIndex == 0) {
-                adjustFontSize(by: -1)
-            }
+        GlassEffectContainer(spacing: 6) {
+            HStack(spacing: 6) {
+                fontStepButton(systemName: "minus", label: "减小字号", isDisabled: settings.fontSizeIndex == 0) {
+                    adjustFontSize(by: -1)
+                }
 
-            fontStepButton(systemName: "plus", label: "增大字号", isDisabled: settings.fontSizeIndex >= settings.fontLevelCount - 1) {
-                adjustFontSize(by: 1)
+                fontStepButton(systemName: "plus", label: "增大字号", isDisabled: settings.fontSizeIndex >= settings.fontLevelCount - 1) {
+                    adjustFontSize(by: 1)
+                }
             }
         }
+        .frame(height: 40)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("调整字号")
     }
@@ -131,12 +134,12 @@ struct ReaderSettingsView: View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: 17, weight: .medium))
-                .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
+                .frame(width: 38, height: 38)
+                .contentShape(Capsule())
         }
         .foregroundStyle(isDisabled ? AppTheme.textMuted : AppTheme.primary)
         .disabled(isDisabled)
-        .buttonStyle(.plain)
+        .buttonStyle(.glass(AppTheme.glassClear))
         .accessibilityLabel(label)
     }
 
@@ -151,30 +154,27 @@ struct ReaderSettingsView: View {
                 .font(.body)
                 .foregroundStyle(AppTheme.textSecondary)
 
-            HStack(spacing: 0) {
-                ForEach(values, id: \.0) { value in
-                    let isSelected = value.0 == selected
-                    Button {
-                        onSelect(value.0)
-                    } label: {
-                        VStack(spacing: 8) {
+            GlassEffectContainer(spacing: 6) {
+                HStack(spacing: 6) {
+                    ForEach(values, id: \.0) { value in
+                        let isSelected = value.0 == selected
+                        Button {
+                            onSelect(value.0)
+                        } label: {
                             Text(value.1)
                                 .font(.body.weight(isSelected ? .semibold : .regular))
                                 .foregroundStyle(isSelected ? AppTheme.textPrimary : AppTheme.textSecondary)
-
-                            Capsule()
-                                .fill(isSelected ? AppTheme.primary : Color.clear)
-                                .frame(width: 26, height: 2)
+                                .frame(maxWidth: .infinity)
+                                .frame(minHeight: 40)
+                                .contentShape(Capsule())
                         }
-                        .frame(maxWidth: .infinity)
-                        .frame(minHeight: 44)
-                        .contentShape(Rectangle())
+                        .buttonStyle(.glass(isSelected ? AppTheme.glass : AppTheme.glassClear))
+                        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+                        .accessibilityLabel(value.1)
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityAddTraits(isSelected ? [.isSelected] : [])
-                    .accessibilityLabel(value.1)
                 }
             }
+            .frame(minHeight: 40)
         }
     }
 
@@ -185,7 +185,7 @@ struct ReaderSettingsView: View {
                 .foregroundStyle(AppTheme.textSecondary)
 
             LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 76), spacing: 12)],
+                columns: [GridItem(.adaptive(minimum: 88), spacing: 10)],
                 spacing: 12
             ) {
                 ForEach(themes, id: \.id) { theme in
@@ -232,7 +232,7 @@ struct ReaderSettingsView: View {
             VStack(spacing: 7) {
                 RoundedRectangle(cornerRadius: 9, style: .continuous)
                     .fill(theme.swatch)
-                    .frame(height: 38)
+                    .frame(height: 30)
                     .overlay(
                         RoundedRectangle(cornerRadius: 9, style: .continuous)
                             .strokeBorder(
@@ -244,9 +244,9 @@ struct ReaderSettingsView: View {
                     .font(.caption)
                     .foregroundStyle(selected ? AppTheme.primary : AppTheme.textSecondary)
             }
-            .frame(minHeight: 62)
+            .frame(maxWidth: .infinity, minHeight: 56)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.glass(selected ? AppTheme.glass : AppTheme.glassClear))
         .accessibilityAddTraits(selected ? [.isSelected] : [])
         .accessibilityLabel(theme.title)
     }
