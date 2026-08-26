@@ -139,7 +139,17 @@ final class ReaderSettingsStore {
         return max(4, bodyFontSize * CGFloat(factor))
     }
 
-    var lineSpacing: CGFloat { bodyFontSize * (lineHeight - 1) }
+    /// 原生阅读页将行距做成更舒展的视觉档位；协议值仍保持与 Web 端一致。
+    var lineSpacing: CGFloat {
+        switch lineHeight {
+        case ..<1.85:
+            return bodyFontSize * 0.95
+        case ..<2.05:
+            return bodyFontSize * 1.2
+        default:
+            return bodyFontSize * 1.55
+        }
+    }
 
     // MARK: - 写入 + 同步
 

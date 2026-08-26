@@ -123,7 +123,7 @@ struct ReaderView: View {
             ReaderSettingsView()
                 .preferredColorScheme(scheme)
                 .presentationBackground(paper)
-                .presentationDetents([.medium, .large])
+                .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
         }
         .preferredColorScheme(scheme)
@@ -415,13 +415,13 @@ struct ReaderView: View {
         .accessibilityLabel("下一章")
     }
 
-    /// 顶部导航条圆钮（目录 / 设置）：半透明毛玻璃，随纸面色环境自动适配。
+    /// 顶部导航条圆钮（目录 / 设置）：轻量系统填充，避免阅读页出现厚重卡片感。
     private func chromeCircle(_ icon: String, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: icon)
                 .font(.system(size: 16, weight: .semibold))
                 .frame(width: 40, height: 40)
-                .background(.ultraThinMaterial, in: Circle())
+                .background(Color(.secondarySystemFill), in: Circle())
                 .overlay(Circle().strokeBorder(ink.opacity(0.14), lineWidth: 1))
         }
         .foregroundStyle(ink)
@@ -429,7 +429,7 @@ struct ReaderView: View {
         .accessibilityLabel(label)
     }
 
-    /// 底部浮层胶囊钮（上一章 / 下一章）。
+    /// 底部浮层胶囊钮（上一章 / 下一章）：与顶部按钮保持同一套轻量表面。
     private func chromePill(systemName: String, label: String, isEnabled: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
@@ -437,7 +437,7 @@ struct ReaderView: View {
                 .frame(width: 46, height: 36)
         }
         .foregroundStyle(ink.opacity(isEnabled ? 0.95 : 0.28))
-        .background(.ultraThinMaterial, in: Capsule())
+        .background(Color(.secondarySystemFill), in: Capsule())
         .overlay(Capsule().strokeBorder(ink.opacity(isEnabled ? 0.16 : 0.08), lineWidth: 1))
         .disabled(!isEnabled)
         .buttonStyle(ScaleButtonStyle())
