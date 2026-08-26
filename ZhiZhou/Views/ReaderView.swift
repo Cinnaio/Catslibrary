@@ -174,7 +174,7 @@ struct ReaderView: View {
                 Text(paragraphIndent + paragraph)
                     .font(settings.bodyFont)
                     .lineSpacing(settings.lineSpacing)
-                    .multilineTextAlignment(.justified)
+                    .multilineTextAlignment(.leading)
                     .foregroundStyle(ink)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .id(index)
