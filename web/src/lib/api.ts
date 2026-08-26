@@ -850,6 +850,13 @@ export interface AiTaskInfo {
 }
 
 /** AI 封面候选：生成结果先落候选，采纳后才覆盖当前封面。 */
+export interface AiCoverMetadata {
+  genre?: string
+  stylePreset?: string
+  composition?: string
+  variationId?: string
+}
+
 export interface AiCoverCandidate {
   id: string
   novelId: string
@@ -857,6 +864,7 @@ export interface AiCoverCandidate {
   prompt: string
   taskId: string
   createdAt: number
+  metadata?: AiCoverMetadata
   /** 图片 data URL，可直接作 <img> src */
   dataUrl: string
 }
@@ -922,12 +930,40 @@ export const aiApi = {
   /** 为小说生成封面（后台任务模式），返回 taskId 供轮询；生成结果直接落 novel_covers。 */
   generateCover(
     novelId: string,
-    opts: { prompt?: string; renderTitle?: boolean; platform?: string } = {},
+    opts: { prompt?: string; renderTitle?: boolean; platform?: string; stylePreset?: string; composition?: string; variationId?: string } = {},
   ): Promise<{ ok: boolean; taskId: string; batchId: string; total: number }> {
-    return request('POST', '/ai/cover/generate', { novelId, prompt: opts.prompt ?? '', renderTitle: opts.renderTitle, platform: opts.platform }, true)
+    return request(
+      'POST',
+      '/ai/cover/generate',
+      {
+        novelId,
+        prompt: opts.prompt ?? '',
+        renderTitle: opts.renderTitle,
+        platform: opts.platform,
+        stylePreset: opts.stylePreset,
+        composition: opts.composition,
+        variationId: opts.variationId,
+      },
+      true,
+    )
   },
-  generateCoverPrompt(novelId: string, opts: { renderTitle?: boolean; platform?: string } = {}): Promise<{ prompt: string }> {
-    return request('POST', '/ai/cover/prompt', { novelId, renderTitle: opts.renderTitle, platform: opts.platform }, true)
+  generateCoverPrompt(
+    novelId: string,
+    opts: { renderTitle?: boolean; platform?: string; stylePreset?: string; composition?: string; variationId?: string } = {},
+  ): Promise<{ prompt: string; metadata?: AiCoverMetadata }> {
+    return request(
+      'POST',
+      '/ai/cover/prompt',
+      {
+        novelId,
+        renderTitle: opts.renderTitle,
+        platform: opts.platform,
+        stylePreset: opts.stylePreset,
+        composition: opts.composition,
+        variationId: opts.variationId,
+      },
+      true,
+    )
   },
   /** AI 封面候选列表（含 dataUrl，供 <img> 直接展示）。 */
   coverCandidates(novelId: string): Promise<{ items: AiCoverCandidate[]; total: number }> {

@@ -1396,6 +1396,21 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
       expect(generatedPrompt).toContain("Author name '某作者' at bottom center")
       expect(generatedPrompt).toContain('a young man in a suit standing before a neon-lit city skyline')
 
+      const variedPromptResponse = await req(
+        '/api/ai/cover/prompt',
+        json('POST', { novelId, stylePreset: 'minimal', composition: 'symbolic', variationId: 'route-test-variation' }, adminToken),
+      )
+      expect(variedPromptResponse.status).toBe(200)
+      const variedPrompt = await jsonOf<{ prompt: string; metadata: { stylePreset: string; composition: string; variationId: string } }>(variedPromptResponse)
+      expect(variedPrompt.metadata).toEqual({
+        genre: 'urban',
+        stylePreset: 'minimal',
+        composition: 'symbolic',
+        variationId: 'route-test-variation',
+      })
+      expect(variedPrompt.prompt).toContain('minimalist graphic poster')
+      expect(variedPrompt.prompt).toContain('one story-defining object or motif')
+
       const res = await req('/api/ai/cover/generate', json('POST', { novelId, prompt: 'Moonlit city skyline, no text' }, adminToken))
       const { taskId } = await jsonOf<{ taskId: string }>(res)
       expect((await waitForTask(taskId, adminToken)).status).toBe('completed')
@@ -1507,9 +1522,15 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
       // 列表接口返回候选（含 dataUrl，可直接当 img src）
       const listRes = await req(`/api/ai/cover/candidates?novelId=${encodeURIComponent(novelId)}`, json('GET', undefined, adminToken))
       expect(listRes.status).toBe(200)
-      const { items } = await jsonOf<{ items: Array<{ id: string; dataUrl: string }> }>(listRes)
+      const { items } = await jsonOf<{
+        items: Array<{ id: string; dataUrl: string; metadata?: { genre?: string; stylePreset?: string; composition?: string; variationId?: string } }>
+      }>(listRes)
       expect(items.length).toBe(1)
       expect(items[0]!.dataUrl.startsWith('data:image/png;base64,')).toBe(true)
+      expect(items[0]!.metadata?.genre).toBe('urban')
+      expect(items[0]!.metadata?.stylePreset).toBeTruthy()
+      expect(items[0]!.metadata?.composition).toBeTruthy()
+      expect(items[0]!.metadata?.variationId).toBeTruthy()
 
       // 采纳 → 覆盖当前封面、候选清空、novels.updated_at 被 bump（前端 ?v= 破缓存，否则读者端封面不变）
       const beforeAdopt = await t.db.query<{ updated_at: number }>('SELECT updated_at FROM novels WHERE id = $1', [novelId])

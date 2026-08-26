@@ -2,7 +2,17 @@
  * cover-styles 知识库单测：题材推断规则与优先级、平台守卫。
  */
 import { describe, it, expect } from 'vitest'
-import { inferGenre, isCoverPlatform, GENRE_STYLES, PLATFORM_STYLES } from './cover-styles'
+import {
+  COVER_COMPOSITION_OPTIONS,
+  COVER_STYLE_OPTIONS,
+  GENRE_STYLES,
+  PLATFORM_STYLES,
+  inferGenre,
+  isCoverComposition,
+  isCoverPlatform,
+  isCoverStylePreset,
+  resolveCoverDirection,
+} from './cover-styles'
 
 describe('inferGenre', () => {
   it('单题材命中直接采用', () => {
@@ -10,7 +20,7 @@ describe('inferGenre', () => {
     expect(inferGenre('都市医仙')).toBe('xianxia') // 「仙」优先级高于「都市」
     expect(inferGenre('契约替嫁的甜宠日常', ['现言'])).toBe('romance')
     expect(inferGenre('诡案追凶')).toBe('mystery')
-    expect(inferGenre('星际机甲战神')).toBe('xianxia') // 「神」命中 xianxia，优先级最高
+    expect(inferGenre('星际机甲战神')).toBe('scifi')
   })
 
   it('零命中回落 urban', () => {
@@ -43,6 +53,41 @@ describe('inferGenre', () => {
       expect(s.titleFont).toBeTruthy()
       expect(s.authorFont).toBeTruthy()
     }
+  })
+
+  it('自动视觉方向对同一本书稳定、换 variation 后会产生不同方向', () => {
+    const first = resolveCoverDirection({ novelId: 'novel-001', genre: 'urban', variationId: 'variation-a' })
+    const repeat = resolveCoverDirection({ novelId: 'novel-001', genre: 'urban', variationId: 'variation-a' })
+    const next = resolveCoverDirection({ novelId: 'novel-001', genre: 'urban', variationId: 'variation-b' })
+
+    expect(repeat).toEqual(first)
+    expect(next.stylePreset !== first.stylePreset || next.composition !== first.composition).toBe(true)
+    expect(first.stylePrompt).toBeTruthy()
+    expect(first.compositionPrompt).toBeTruthy()
+  })
+
+  it('显式风格与构图会覆盖自动选择', () => {
+    const direction = resolveCoverDirection({
+      novelId: 'novel-002',
+      genre: 'mystery',
+      stylePreset: 'ink',
+      composition: 'symbolic',
+      variationId: 'variation-a',
+    })
+
+    expect(direction.stylePreset).toBe('ink')
+    expect(direction.composition).toBe('symbolic')
+    expect(direction.stylePrompt).toContain('ink')
+    expect(direction.compositionPrompt).toContain('object')
+  })
+
+  it('视觉方向选项与非法值守卫完整', () => {
+    expect(COVER_STYLE_OPTIONS.some((option) => option.value === 'auto')).toBe(true)
+    expect(COVER_COMPOSITION_OPTIONS.some((option) => option.value === 'auto')).toBe(true)
+    expect(isCoverStylePreset('cinematic')).toBe(true)
+    expect(isCoverStylePreset('unknown')).toBe(false)
+    expect(isCoverComposition('off_center')).toBe(true)
+    expect(isCoverComposition('unknown')).toBe(false)
   })
 })
 

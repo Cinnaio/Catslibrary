@@ -104,18 +104,26 @@ export interface CoverCandidate {
   prompt: string
   taskId: string
   createdAt: number
+  metadata?: CoverCandidateMetadata
+}
+
+export interface CoverCandidateMetadata {
+  genre?: string
+  stylePreset?: string
+  composition?: string
+  variationId?: string
 }
 
 /** 存一张 AI 封面候选，返回候选 id。不触碰当前封面（novel_covers）。 */
 export async function storeCoverCandidate(
   db: Db,
-  opts: { novelId: string; data: Uint8Array; contentType: string; prompt?: string; taskId?: string },
+  opts: { novelId: string; data: Uint8Array; contentType: string; prompt?: string; taskId?: string; metadata?: CoverCandidateMetadata },
 ): Promise<string> {
   const id = newId('cc')
   await db.query(
-    `INSERT INTO ai_cover_candidates (id, novel_id, data, content_type, prompt, task_id, created_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-    [id, opts.novelId, opts.data, opts.contentType || 'image/png', opts.prompt || '', opts.taskId || '', Date.now()],
+    `INSERT INTO ai_cover_candidates (id, novel_id, data, content_type, prompt, task_id, metadata, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [id, opts.novelId, opts.data, opts.contentType || 'image/png', opts.prompt || '', opts.taskId || '', JSON.stringify(opts.metadata || {}), Date.now()],
   )
   return id
 }
@@ -129,8 +137,11 @@ export async function listCoverCandidates(db: Db, novelId: string): Promise<Arra
     content_type: string
     prompt: string
     task_id: string
+    metadata: string
     created_at: number
-  }>('SELECT id, novel_id, data, content_type, prompt, task_id, created_at FROM ai_cover_candidates WHERE novel_id = $1 ORDER BY created_at DESC', [novelId])
+  }>('SELECT id, novel_id, data, content_type, prompt, task_id, metadata, created_at FROM ai_cover_candidates WHERE novel_id = $1 ORDER BY created_at DESC', [
+    novelId,
+  ])
   return rows.rows.map((row) => ({
     id: row.id,
     novelId: row.novel_id,
@@ -138,8 +149,26 @@ export async function listCoverCandidates(db: Db, novelId: string): Promise<Arra
     prompt: row.prompt,
     taskId: row.task_id,
     createdAt: row.created_at,
+    metadata: parseCoverCandidateMetadata(row.metadata),
     dataUrl: `data:${row.content_type || 'image/png'};base64,${Buffer.from(row.data).toString('base64')}`,
   }))
+}
+
+function parseCoverCandidateMetadata(value: unknown): CoverCandidateMetadata | undefined {
+  if (!value) return undefined
+  try {
+    const parsed = JSON.parse(String(value)) as unknown
+    if (!parsed || typeof parsed !== 'object') return undefined
+    const obj = parsed as Record<string, unknown>
+    const metadata: CoverCandidateMetadata = {}
+    if (typeof obj.genre === 'string' && obj.genre) metadata.genre = obj.genre
+    if (typeof obj.stylePreset === 'string' && obj.stylePreset) metadata.stylePreset = obj.stylePreset
+    if (typeof obj.composition === 'string' && obj.composition) metadata.composition = obj.composition
+    if (typeof obj.variationId === 'string' && obj.variationId) metadata.variationId = obj.variationId
+    return Object.keys(metadata).length ? metadata : undefined
+  } catch {
+    return undefined
+  }
 }
 
 /** 采纳候选：把候选写入当前封面（覆盖式）并删除候选。事务保证两步原子性。 */

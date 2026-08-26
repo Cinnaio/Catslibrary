@@ -14,7 +14,7 @@ import { BookOpen, CircleAlert, Loader2, Palette, Sparkles, Trash2, Upload, Wand
 const TASK_POLL_INTERVAL = 3000
 const COVER_TASK_KINDS = new Set(['cover'])
 
-/** 平台风格选项：与后端 PLATFORM_STYLES / settings.coverPlatform 白名单对齐 */
+/** 平台版式选项：只影响平台调性、尺寸和文字安全区，不决定主视觉画风。 */
 const PLATFORM_OPTIONS = [
   { value: 'default', label: '通用（竖版 2:3）' },
   { value: 'fanqie', label: '番茄小说' },
@@ -23,6 +23,26 @@ const PLATFORM_OPTIONS = [
   { value: 'zhihu', label: '知乎盐言' },
   { value: 'qimao', label: '七猫' },
   { value: 'ciweimao', label: '刺猬猫' },
+]
+
+const STYLE_OPTIONS = [
+  { value: 'auto', label: '自动推荐' },
+  { value: 'cinematic', label: '电影概念设计' },
+  { value: 'illustration', label: '编辑插画' },
+  { value: 'ink', label: '东方水墨' },
+  { value: 'minimal', label: '极简海报' },
+  { value: 'noir', label: '黑色电影' },
+  { value: 'graphic', label: '现代平面设计' },
+]
+
+const COMPOSITION_OPTIONS = [
+  { value: 'auto', label: '自动变化' },
+  { value: 'portrait', label: '人物特写' },
+  { value: 'duo', label: '双人物关系' },
+  { value: 'environment', label: '环境叙事' },
+  { value: 'symbolic', label: '关键物件' },
+  { value: 'silhouette', label: '剪影留白' },
+  { value: 'off_center', label: '非对称构图' },
 ]
 
 function taskStatusLabel(status: string): string {
@@ -82,6 +102,13 @@ export default function AiCoverPanel() {
   const [renderTitle, setRenderTitle] = useState(true)
   /** 平台风格调性：默认通用竖版 */
   const [platform, setPlatform] = useState('default')
+  /** 主视觉画风：自动按题材和 variationId 选择，或由管理员固定。 */
+  const [stylePreset, setStylePreset] = useState('auto')
+  /** 构图方向：自动轮换或显式指定。 */
+  const [composition, setComposition] = useState('auto')
+  /** 生成结果的变体标识；相同值用于复现，换值用于生成新方向。 */
+  const [variationId, setVariationId] = useState('')
+  const [promptMetadata, setPromptMetadata] = useState<AiCoverCandidate['metadata']>()
   const [prompt, setPrompt] = useState('')
   const [generatingPrompt, setGeneratingPrompt] = useState(false)
   const [imageConfigured, setImageConfigured] = useState(false)
@@ -192,7 +219,7 @@ export default function AiCoverPanel() {
     if (!imageConfigured) return toast('AI 图像服务未配置，请到「配置」标签页设置图像供应商', 'error')
     setBusy(true)
     try {
-      const res = await aiApi.generateCover(novelId, { prompt, renderTitle, platform })
+      const res = await aiApi.generateCover(novelId, { prompt, renderTitle, platform, stylePreset, composition, variationId })
       const { task: created } = await aiApi.task(res.taskId)
       setTask(created)
       toast('封面生成已开始', 'success')
@@ -203,12 +230,21 @@ export default function AiCoverPanel() {
     }
   }
 
-  async function generatePrompt() {
+  async function generatePrompt(forceNewVariation = false) {
     if (!novelId) return toast('请先选择小说', 'error')
     setGeneratingPrompt(true)
     try {
-      const result = await aiApi.generateCoverPrompt(novelId, { renderTitle, platform })
+      const requestedVariationId = forceNewVariation ? crypto.randomUUID() : variationId
+      const result = await aiApi.generateCoverPrompt(novelId, {
+        renderTitle,
+        platform,
+        stylePreset,
+        composition,
+        variationId: requestedVariationId,
+      })
       setPrompt(result.prompt)
+      setVariationId(result.metadata?.variationId || requestedVariationId)
+      setPromptMetadata(result.metadata)
       toast('已生成封面描述词，可继续编辑', 'success')
     } catch (err) {
       toast((err as Error).message || '生成描述词失败', 'error')
@@ -299,6 +335,8 @@ export default function AiCoverPanel() {
               onChange={(value) => {
                 setNovelId(value)
                 setPrompt('')
+                setVariationId('')
+                setPromptMetadata(undefined)
                 void loadCandidates(value)
               }}
               placeholder="选择小说"
@@ -308,21 +346,33 @@ export default function AiCoverPanel() {
             />
           </div>
 
-          {/* 封面设定：平台风格 + 封面文字层 */}
+          {/* 封面设定：平台版式 + 主视觉方向 + 封面文字层 */}
           <div className="grid gap-3 rounded-lg border border-[var(--border)] bg-[var(--admin-inset)] p-3.5">
             <p className="flex items-center gap-1.5 text-xs font-medium text-[var(--text-muted)]">
               <Palette className="size-3.5" />
               封面设定
             </p>
             <div className="grid gap-1.5">
-              <Label>平台风格</Label>
+              <Label>平台版式</Label>
               <CustomSelect options={PLATFORM_OPTIONS} value={platform} onChange={setPlatform} placeholder="选择平台风格" dropdownSide="bottom" />
-              <p className="text-xs text-muted-foreground">按目标平台调性微调封面视觉；通用为竖版 2:3。</p>
+              <p className="text-xs text-muted-foreground">按目标平台调节版式与调性；通用为竖版 2:3，不决定主视觉画风。</p>
+            </div>
+            <div className="grid gap-1.5">
+              <Label>主视觉风格</Label>
+              <CustomSelect options={STYLE_OPTIONS} value={stylePreset} onChange={setStylePreset} placeholder="选择主视觉风格" dropdownSide="bottom" />
+              <p className="text-xs text-muted-foreground">自动推荐会结合题材和变体轮换，避免所有书套同一种风格。</p>
+            </div>
+            <div className="grid gap-1.5">
+              <Label>构图方向</Label>
+              <CustomSelect options={COMPOSITION_OPTIONS} value={composition} onChange={setComposition} placeholder="选择构图方向" dropdownSide="bottom" />
+              <p className="text-xs text-muted-foreground">控制主体位置、镜头关系和留白方式。</p>
             </div>
             <div className="flex items-center justify-between gap-3 rounded-md border border-[var(--border)] bg-[var(--bg-card)] px-3.5 py-2.5">
               <div className="grid gap-0.5">
                 <span className="text-sm font-medium text-foreground">渲染封面文字</span>
-                <span className="text-xs leading-relaxed text-muted-foreground">在封面渲染书名+作者名（按题材套用字体），需模型支持中文渲染（如 gpt-image-2）。</span>
+                <span className="text-xs leading-relaxed text-muted-foreground">
+                  在封面渲染书名+作者名（按题材套用字体），需模型支持中文渲染（如 gpt-image-2）。
+                </span>
               </div>
               <Switch checked={renderTitle} disabled={busy || taskActive} onCheckedChange={setRenderTitle} />
             </div>
@@ -358,6 +408,15 @@ export default function AiCoverPanel() {
                   </>
                 )}
               </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={busy || taskActive || generatingPrompt || !novelId}
+                onClick={() => void generatePrompt(true)}
+              >
+                换一版
+              </Button>
             </div>
             <textarea
               id="cover-prompt"
@@ -368,7 +427,13 @@ export default function AiCoverPanel() {
               onChange={(event) => setPrompt(event.target.value)}
               placeholder="留空将根据小说标题、分类和简介自动生成；也可以直接填写英文描述词。"
             />
-            <p className="text-xs text-muted-foreground">留空自动生成，可编辑后保存；最多 2000 字符。</p>
+            <p className="text-xs text-muted-foreground">留空自动生成，可编辑后保存；最多 2000 字符。换一版会改变视觉变体。</p>
+            {promptMetadata && (
+              <p className="text-xs text-[var(--accent)]">
+                本版方向：{STYLE_OPTIONS.find((option) => option.value === promptMetadata.stylePreset)?.label || promptMetadata.stylePreset} ·{' '}
+                {COMPOSITION_OPTIONS.find((option) => option.value === promptMetadata.composition)?.label || promptMetadata.composition}
+              </p>
+            )}
           </div>
 
           {/* 生成 CTA */}
@@ -470,11 +535,7 @@ export default function AiCoverPanel() {
                 {candidates.map((candidate, index) => (
                   <figure key={candidate.id} className="group grid w-[9rem] gap-2">
                     <div className="ai-cover-frame relative aspect-[2/3] w-full overflow-hidden rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] shadow-sm transition-shadow duration-200 group-hover:shadow-md">
-                      <img
-                        src={candidate.dataUrl}
-                        alt="AI 封面候选"
-                        className="transition-transform duration-300 group-hover:scale-[1.03]"
-                      />
+                      <img src={candidate.dataUrl} alt="AI 封面候选" className="transition-transform duration-300 group-hover:scale-[1.03]" />
                       <span className="absolute left-1.5 top-1.5 rounded-full bg-[var(--overlay-bg)] px-2 py-0.5 text-xs font-medium text-white/95 backdrop-blur-sm">
                         候选 {index + 1}
                       </span>
@@ -502,8 +563,12 @@ export default function AiCoverPanel() {
                           <Trash2 className="size-3.5" />
                         </Button>
                       </div>
-                      {candidate.prompt && (
-                        <p className="line-clamp-2 text-[0.7rem] leading-snug text-muted-foreground">{candidate.prompt}</p>
+                      {candidate.prompt && <p className="line-clamp-2 text-[0.7rem] leading-snug text-muted-foreground">{candidate.prompt}</p>}
+                      {candidate.metadata && (candidate.metadata.stylePreset || candidate.metadata.composition) && (
+                        <p className="text-[0.68rem] leading-snug text-[var(--accent)]">
+                          {STYLE_OPTIONS.find((option) => option.value === candidate.metadata?.stylePreset)?.label || candidate.metadata.stylePreset} ·{' '}
+                          {COMPOSITION_OPTIONS.find((option) => option.value === candidate.metadata?.composition)?.label || candidate.metadata.composition}
+                        </p>
                       )}
                     </figcaption>
                   </figure>

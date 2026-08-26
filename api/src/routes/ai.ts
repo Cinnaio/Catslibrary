@@ -8,7 +8,7 @@ import { getDb } from '../db/pool'
 import { all, first, run, withTx } from '../db/query'
 import { AiError, chat, isTextAiConfigured, providerLabel, textProvider } from '../services/ai/client'
 import { isImageAiConfigured, imageProvider, imageProviderLabel } from '../services/ai/image'
-import { generateCoverPrompt, generateNovelCover } from '../services/ai/cover'
+import { generateCoverPrompt, generateNovelCover, newCoverVariationId } from '../services/ai/cover'
 import { getAiSettings, saveAiSettings } from '../services/ai/settings'
 import { readRuntimeConfig, writeRuntimeConfig, syncRuntimeConfigToEnv, type RuntimeConfigKey } from '../runtime-config'
 import { generateRecap, getCachedRecap, loadChapterForRecap } from '../services/ai/summary'
@@ -519,6 +519,9 @@ aiRoutes.post('/cover/generate', requireAdmin(), async (c) => {
   const settings = await getAiSettings(db)
   const renderTitle = typeof body.renderTitle === 'boolean' ? body.renderTitle : settings.coverRenderTitle
   const platform = typeof body.platform === 'string' && body.platform ? body.platform : settings.coverPlatform
+  const stylePreset = typeof body.stylePreset === 'string' && body.stylePreset ? body.stylePreset : 'auto'
+  const composition = typeof body.composition === 'string' && body.composition ? body.composition : 'auto'
+  const variationId = typeof body.variationId === 'string' && body.variationId.trim() ? body.variationId.trim() : newCoverVariationId()
   const prompt = String(body.prompt || '').trim()
   if (prompt.length > 2_000) return c.json({ error: '封面描述词不能超过 2000 个字符' }, 422)
 
@@ -528,13 +531,16 @@ aiRoutes.post('/cover/generate', requireAdmin(), async (c) => {
     kind: 'cover',
     total: 1,
     prompt: prompt || '生成封面',
-    params: JSON.stringify({ novelId, prompt, renderTitle, platform }),
+    params: JSON.stringify({ novelId, prompt, renderTitle, platform, stylePreset, composition, variationId }),
   })
   void generateNovelCover(db, {
     userId: c.get('user').id,
     novelId,
     renderTitle,
     platform,
+    stylePreset,
+    composition,
+    variationId,
     prompt,
     taskId: task.id,
     ...(await auditRequestContext(c, db)),
@@ -556,9 +562,12 @@ aiRoutes.post('/cover/prompt', requireAdmin(), async (c) => {
   const settings = await getAiSettings(db)
   const renderTitle = typeof body.renderTitle === 'boolean' ? body.renderTitle : settings.coverRenderTitle
   const platform = typeof body.platform === 'string' && body.platform ? body.platform : settings.coverPlatform
+  const stylePreset = typeof body.stylePreset === 'string' && body.stylePreset ? body.stylePreset : 'auto'
+  const composition = typeof body.composition === 'string' && body.composition ? body.composition : 'auto'
+  const variationId = typeof body.variationId === 'string' && body.variationId.trim() ? body.variationId.trim() : newCoverVariationId()
   try {
-    const result = await generateCoverPrompt(db, novelId, { renderTitle, platform })
-    return c.json({ prompt: result.prompt })
+    const result = await generateCoverPrompt(db, novelId, { renderTitle, platform, stylePreset, composition, variationId })
+    return c.json({ prompt: result.prompt, metadata: result.metadata })
   } catch (err) {
     return aiErrorResponse(c, err)
   }
@@ -1035,16 +1044,30 @@ aiRoutes.post('/tasks/:id/retry', requireAdmin(), async (c) => {
     const settings = await getAiSettings(db)
     const renderTitle = typeof body.renderTitle === 'boolean' ? body.renderTitle : settings.coverRenderTitle
     const platform = typeof body.platform === 'string' && body.platform ? body.platform : settings.coverPlatform
+    const stylePreset = typeof body.stylePreset === 'string' && body.stylePreset ? body.stylePreset : 'auto'
+    const composition = typeof body.composition === 'string' && body.composition ? body.composition : 'auto'
+    const variationId = typeof body.variationId === 'string' && body.variationId.trim() ? body.variationId.trim() : newCoverVariationId()
     const task = await createAiTask(db, {
       userId: c.get('user').id,
       novelId,
       kind: 'cover',
       total: 1,
       prompt: prompt || '生成封面',
-      params: JSON.stringify({ novelId, prompt, renderTitle, platform }),
+      params: JSON.stringify({ novelId, prompt, renderTitle, platform, stylePreset, composition, variationId }),
     })
     const audit = await auditRequestContext(c, db)
-    void generateNovelCover(db, { userId: c.get('user').id, novelId, renderTitle, platform, prompt, taskId: task.id, ...audit })
+    void generateNovelCover(db, {
+      userId: c.get('user').id,
+      novelId,
+      renderTitle,
+      platform,
+      stylePreset,
+      composition,
+      variationId,
+      prompt,
+      taskId: task.id,
+      ...audit,
+    })
       .then(() => updateAiTask(db, task.id, { status: 'completed', current: 1, step: '封面已生成，待采纳' }))
       .catch(async (err) => {
         console.error('[ai] 封面重试任务失败', err)

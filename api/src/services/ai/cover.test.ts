@@ -3,7 +3,7 @@
  * judgeGenre 本身走网络（chat），这里只测可测的 parseGenreText。
  */
 import { describe, it, expect } from 'vitest'
-import { parseGenreText } from './cover'
+import { buildImagePrompt, parseGenreText } from './cover'
 
 describe('parseGenreText', () => {
   it('识别英文代号', () => {
@@ -28,5 +28,38 @@ describe('parseGenreText', () => {
     expect(parseGenreText('古言')).toBe('ancient')
     // 若模型回英文代号，同样生效
     expect(parseGenreText('ancient')).toBe('ancient')
+  })
+})
+
+describe('buildImagePrompt', () => {
+  it('文本模型不可用时仍带入小说题材与简介，并输出可追溯视觉方向', async () => {
+    const originalBaseUrl = process.env.AI_TEXT_BASE_URL
+    const originalApiKey = process.env.AI_TEXT_API_KEY
+    delete process.env.AI_TEXT_BASE_URL
+    delete process.env.AI_TEXT_API_KEY
+
+    try {
+      const result = await buildImagePrompt(
+        {
+          title: '星际机甲战神',
+          author: '某作者',
+          description: '少年驾驶旧机甲穿越废土，寻找失落的母舰。',
+          categories: ['科幻', '机甲'],
+        },
+        { novelId: 'novel-sci-fi', variationId: 'variation-a', renderTitle: false },
+      )
+
+      expect(result.metadata.genre).toBe('scifi')
+      expect(result.metadata.variationId).toBe('variation-a')
+      expect(result.prompt).toContain('Story categories: 科幻, 机甲')
+      expect(result.prompt).toContain('少年驾驶旧机甲穿越废土')
+      expect(result.prompt).toContain('avoid generic stock cover layouts')
+      expect(result.prompt).not.toContain('high detail digital painting')
+    } finally {
+      if (originalBaseUrl === undefined) delete process.env.AI_TEXT_BASE_URL
+      else process.env.AI_TEXT_BASE_URL = originalBaseUrl
+      if (originalApiKey === undefined) delete process.env.AI_TEXT_API_KEY
+      else process.env.AI_TEXT_API_KEY = originalApiKey
+    }
   })
 })

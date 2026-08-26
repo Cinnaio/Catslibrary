@@ -5,6 +5,7 @@
  * 任务记录在 ai_tasks（kind='cover'），成本记账在 ai_usage（generation_type='cover', image_count=1），
  * 不进 ai_generations（该表是文本草稿+发布流转专用，result 是 TEXT 装不下二进制）。
  */
+import { randomUUID } from 'node:crypto'
 import type { Db } from '../../db/pool'
 import { first } from '../../db/query'
 import { AiError, chat, isTextAiConfigured, providerLabel, textProvider } from './client'
@@ -13,7 +14,22 @@ import { recordUsage } from './usage'
 import { getAiSettings } from './settings'
 import { createAiTask, isAiTaskCancelled, updateAiTask, getAiTask } from './tasks'
 import { storeCoverCandidate, MAX_COVER_BYTES } from '../covers'
-import { GENRE_STYLES, GENRE_PRIORITY, PLATFORM_STYLES, inferGenre, isCoverPlatform, type CoverPlatform, type Genre, type GenreStyle } from './cover-styles'
+import {
+  GENRE_PRIORITY,
+  GENRE_STYLES,
+  PLATFORM_STYLES,
+  inferGenre,
+  isCoverPlatform,
+  resolveCoverDirection,
+  type CoverComposition,
+  type CoverDirection,
+  type CoverPlatform,
+  type CoverStylePreset,
+  type Genre,
+  type GenreStyle,
+  type ResolvedCoverComposition,
+  type ResolvedCoverStylePreset,
+} from './cover-styles'
 
 interface NovelMeta {
   title: string
@@ -22,12 +38,32 @@ interface NovelMeta {
   categories: string[]
 }
 
-/** buildImagePrompt 的封面选项：文字层、平台风格，均由调用方透传。 */
+/** buildImagePrompt 的封面选项：文字层、平台风格、主视觉和构图均由调用方透传。 */
 export interface CoverPromptOptions {
   /** 渲染书名+作者名文字层：默认 true（story-cover 核心——书名与作者名是封面必需信息），显式 false 才关闭 */
   renderTitle?: boolean
   /** 平台风格调性；缺省或非法值按 'default'（通用竖版，不叠加平台专属风格） */
   platform?: CoverPlatform | string
+  /** 小说 ID，用于让 auto 视觉方向稳定但不同小说可区分。 */
+  novelId?: string
+  /** 主视觉预设；auto 按题材和 variationId 选择。 */
+  stylePreset?: CoverStylePreset | string
+  /** 构图预设；auto 按小说和 variationId 选择。 */
+  composition?: CoverComposition | string
+  /** 变体标识；相同值可复现，不同值会切换视觉方向。 */
+  variationId?: string
+}
+
+export interface CoverPromptMetadata {
+  genre: Genre
+  stylePreset: ResolvedCoverStylePreset
+  composition: ResolvedCoverComposition
+  variationId: string
+}
+
+/** 创建一次全新的封面变体；任务参数会持久化它，重试时仍可复现。 */
+export function newCoverVariationId(): string {
+  return randomUUID()
 }
 
 function normalizePlatform(value: unknown): CoverPlatform {
@@ -54,7 +90,7 @@ async function loadNovelMeta(db: Db, novelId: string): Promise<NovelMeta | null>
 export async function generateCoverPrompt(db: Db, novelId: string, opts: CoverPromptOptions): Promise<BuildPromptResult> {
   const meta = await loadNovelMeta(db, novelId)
   if (!meta) throw new AiError('invalid', '小说不存在', 404)
-  return buildImagePrompt(meta, opts)
+  return buildImagePrompt(meta, { ...opts, novelId, variationId: normalizeVariationId(opts.variationId) })
 }
 
 /** 取任务当前 step（失败时回显用的实际 prompt 就存在这里）。 */
@@ -63,8 +99,9 @@ async function getTaskStep(db: Db, taskId: string): Promise<{ step: string }> {
   return { step: task?.step || '' }
 }
 
-interface BuildPromptResult {
+export interface BuildPromptResult {
   prompt: string
+  metadata: CoverPromptMetadata
   /** 文本调用用量；未用文本模型时为 null */
   textUsage: { model: string; promptTokens: number; completionTokens: number; cost: number; baseUrl: string } | null
 }
@@ -85,6 +122,8 @@ interface BuildPromptResult {
 export async function buildImagePrompt(meta: NovelMeta, opts: CoverPromptOptions): Promise<BuildPromptResult> {
   const renderTitle = opts.renderTitle !== false
   const platform = normalizePlatform(opts.platform)
+  const variationId = normalizeVariationId(opts.variationId)
+  const novelId = String(opts.novelId || meta.title || 'novel')
 
   const titleHint = meta.title.slice(0, 60)
   const authorHint = meta.author.slice(0, 40)
@@ -95,34 +134,66 @@ export async function buildImagePrompt(meta: NovelMeta, opts: CoverPromptOptions
   let genre: Genre
   let scene: string
   let textUsage: BuildPromptResult['textUsage'] = null
+  let direction: CoverDirection
   if (isTextAiConfigured()) {
     const judged = await judgeGenre(meta)
     genre = judged.genre
-    const generated = await generateSceneDescription({ titleHint, catHint, descHint, style: GENRE_STYLES[genre] })
+    direction = resolveCoverDirection({
+      novelId,
+      genre,
+      stylePreset: opts.stylePreset,
+      composition: opts.composition,
+      variationId,
+    })
+    const generated = await generateSceneDescription({ titleHint, catHint, descHint, style: GENRE_STYLES[genre], direction })
     scene = generated.scene
     textUsage = mergeTextUsage(judged.textUsage, generated.textUsage)
   } else {
     genre = inferGenre(meta.title, meta.categories)
+    direction = resolveCoverDirection({
+      novelId,
+      genre,
+      stylePreset: opts.stylePreset,
+      composition: opts.composition,
+      variationId,
+    })
     scene = `${GENRE_STYLES[genre].figure} ${GENRE_STYLES[genre].background}`
   }
 
   const style = GENRE_STYLES[genre]
   const platformStyle = PLATFORM_STYLES[platform]
 
-  const prompt = assembleCoverPrompt({ scene, style, platformStyle, titleHint, authorHint, renderTitle })
-  return { prompt, textUsage }
+  const prompt = assembleCoverPrompt({
+    scene,
+    style,
+    direction,
+    platformStyle,
+    titleHint,
+    authorHint,
+    categoryHint: catHint,
+    storyHint: descHint,
+    renderTitle,
+  })
+  return {
+    prompt,
+    metadata: { genre, stylePreset: direction.stylePreset, composition: direction.composition, variationId },
+    textUsage,
+  }
 }
 
 /** 组装最终送图像模型的完整 prompt：平台层 + 文字层 + 画面层 + 风格/色彩/光效 + 通用修饰。 */
 function assembleCoverPrompt(args: {
   scene: string
   style: (typeof GENRE_STYLES)[keyof typeof GENRE_STYLES]
+  direction: CoverDirection
   platformStyle: string
   titleHint: string
   authorHint: string
+  categoryHint: string
+  storyHint: string
   renderTitle: boolean
 }): string {
-  const { scene, style, platformStyle, titleHint, authorHint, renderTitle } = args
+  const { scene, style, direction, platformStyle, titleHint, authorHint, categoryHint, storyHint, renderTitle } = args
   const lines: string[] = []
 
   lines.push(['Chinese web novel cover design', platformStyle].filter(Boolean).join(', ') + '.')
@@ -133,13 +204,16 @@ function assembleCoverPrompt(args: {
     if (authorHint) lines.push(`Author name '${authorHint}' at bottom center in ${style.authorFont}.`)
   }
 
-  lines.push(`${style.tag}. ${scene}.`)
+  lines.push(`${style.tag}. ${direction.stylePrompt}. ${direction.compositionPrompt}.`)
+  if (categoryHint) lines.push(`Story categories: ${categoryHint}.`)
+  if (storyHint) lines.push(`Story premise and visual anchors: ${storyHint}.`)
+  lines.push(`${scene}.`)
   lines.push(`${style.color}. ${style.light}.`)
 
-  const tail = ['Professional book cover, high detail digital painting, portrait 2:3 ratio']
+  const tail = ['Professional novel cover artwork, portrait 2:3 ratio, strong thumbnail readability']
   if (renderTitle && titleHint) tail.push('keep title and author name inside the central safe area away from edges (inner ~85%)')
   else tail.push('no text')
-  tail.push('no watermark')
+  tail.push('avoid generic stock cover layouts, avoid repeated composition, no watermark, no logo, no extra text')
   lines.push(tail.join(', '))
 
   return lines.join('\n')
@@ -237,8 +311,9 @@ async function generateSceneDescription(args: {
   catHint: string
   descHint: string
   style: GenreStyle
+  direction: CoverDirection
 }): Promise<{ scene: string; textUsage: BuildPromptResult['textUsage'] }> {
-  const { titleHint, catHint, descHint, style } = args
+  const { titleHint, catHint, descHint, style, direction } = args
   const textProvider_ = textProvider()
 
   const user = [
@@ -247,14 +322,17 @@ async function generateSceneDescription(args: {
     '1. 只输出一段英文描述（1-2 句），不要解释、不要引号、不要换行；',
     '2. 必须包含人物形象（服饰/姿态/道具）与场景背景两个层次，越具体越好；',
     '3. 在模板基础上细化，可用模板中的风格、色彩、光效关键词；',
-    '4. 长度控制在 60-90 个英文单词以内；',
-    '5. 不要包含任何文字/标题/水印描述（title、text、watermark 等词一律不要出现）。',
+    '4. 必须遵循给定的构图方向，让画面主体位置和镜头关系明确；',
+    '5. 长度控制在 60-90 个英文单词以内；',
+    '6. 不要包含任何文字/标题/水印描述（title、text、watermark 等词一律不要出现）。',
     '题材视觉模板：',
     `- 风格：${style.tag}`,
     `- 人物：${style.figure}`,
     `- 背景：${style.background}`,
     `- 色彩：${style.color}`,
     `- 光效：${style.light}`,
+    `- 主视觉方向：${direction.stylePrompt}`,
+    `- 构图方向：${direction.compositionPrompt}`,
     titleHint ? `标题：${titleHint}` : '',
     catHint ? `分类：${catHint}` : '',
     descHint ? `简介：${descHint}` : '',
@@ -262,7 +340,8 @@ async function generateSceneDescription(args: {
     .filter(Boolean)
     .join('\n')
 
-  const systemContent = '你是为 AI 图像生成模型撰写英文封面画面描述的专家，擅长把小说元数据转化为有视觉冲击力的画面描述（人物+背景）。只描述画面本身，不要出现任何文字/标题描述。'
+  const systemContent =
+    '你是为 AI 图像生成模型撰写英文封面画面描述的专家，擅长把小说元数据转化为有视觉冲击力的画面描述（人物+背景）。只描述画面本身，不要出现任何文字/标题描述。'
 
   const res = await chat({
     messages: [
@@ -295,6 +374,24 @@ function normalizeCustomPrompt(value: unknown): string {
   return prompt
 }
 
+function normalizeVariationId(value: unknown): string {
+  const variationId = String(value || '').trim()
+  if (variationId.length > 120) throw new AiError('invalid', '封面变体标识不能超过 120 个字符', 422)
+  return variationId || newCoverVariationId()
+}
+
+function metadataForCustomPrompt(meta: NovelMeta, opts: CoverPromptOptions, variationId: string): CoverPromptMetadata {
+  const genre = inferGenre(meta.title, meta.categories)
+  const direction = resolveCoverDirection({
+    novelId: opts.novelId || meta.title || 'novel',
+    genre,
+    stylePreset: opts.stylePreset,
+    composition: opts.composition,
+    variationId,
+  })
+  return { genre, stylePreset: direction.stylePreset, composition: direction.composition, variationId }
+}
+
 /**
  * 为小说生成封面。
  * - 调用方可传 taskId（路由侧先建任务再异步执行），或不传（自建任务）。
@@ -310,6 +407,12 @@ export async function generateNovelCover(
     renderTitle?: boolean
     /** 平台风格调性 */
     platform?: CoverPlatform | string
+    /** 主视觉预设 */
+    stylePreset?: CoverStylePreset | string
+    /** 构图预设 */
+    composition?: CoverComposition | string
+    /** 变体标识；重试时复用以保留同一视觉方向 */
+    variationId?: string
     prompt?: string
     ipAddress?: string
     userAgent?: string
@@ -322,6 +425,7 @@ export async function generateNovelCover(
 
   const renderTitle = !!opts.renderTitle
   const platform = normalizePlatform(opts.platform)
+  const variationId = normalizeVariationId(opts.variationId)
   const ownsTask = !opts.taskId
   const taskId =
     opts.taskId ||
@@ -332,7 +436,14 @@ export async function generateNovelCover(
         kind: 'cover',
         total: 1,
         prompt: '生成封面',
-        params: JSON.stringify({ novelId: opts.novelId, renderTitle, platform }),
+        params: JSON.stringify({
+          novelId: opts.novelId,
+          renderTitle,
+          platform,
+          stylePreset: opts.stylePreset || 'auto',
+          composition: opts.composition || 'auto',
+          variationId,
+        }),
       })
     ).id
   await updateAiTask(db, taskId, { status: 'running', step: '正在生成封面描述词' })
@@ -342,7 +453,21 @@ export async function generateNovelCover(
     const imageProvider_ = imageProvider()
     await updateAiTask(db, taskId, { step: '正在生成封面描述词' })
     const customPrompt = normalizeCustomPrompt(opts.prompt)
-    const { prompt, textUsage } = customPrompt ? { prompt: customPrompt, textUsage: null } : await buildImagePrompt(meta, { renderTitle, platform })
+    const built = customPrompt
+      ? {
+          prompt: customPrompt,
+          metadata: metadataForCustomPrompt(meta, { ...opts, novelId: opts.novelId, variationId }, variationId),
+          textUsage: null,
+        }
+      : await buildImagePrompt(meta, {
+          renderTitle,
+          platform,
+          novelId: opts.novelId,
+          stylePreset: opts.stylePreset,
+          composition: opts.composition,
+          variationId,
+        })
+    const { prompt, metadata, textUsage } = built
     if (await isAiTaskCancelled(db, taskId)) throw new AiError('invalid', '任务已取消')
 
     // 把最终送图像模型的 prompt 落进任务 step：失败时据此定位是哪个词触发了上游安全策略
@@ -367,6 +492,7 @@ export async function generateNovelCover(
       contentType: img.contentType,
       prompt,
       taskId,
+      metadata,
     })
 
     // 记账：图像调用填 image_count；文本描述词调用（若发生）单独记一次文本用量，与图像分开审计

@@ -1,14 +1,53 @@
 /**
  * 小说封面视觉风格知识库 —— 由 story-cover skill 的 cover-styles.md 萃取为 TS 常量。
- * 供 buildImagePrompt 组装题材风格标签、平台调性、书名/作者名字体层。
+ * 供 buildImagePrompt 组装题材风格标签、平台版式约束、书名/作者名字体层。
  * 纯数据 + 纯函数（inferGenre 可单测），不触碰 DB / 网络。
  */
 
-/** 支持的题材。多题材命中时按 GENRE_PRIORITY 取一，零命中回落 'urban'。 */
+/** 支持的题材。多题材按命中分数与 GENRE_PRIORITY 取一，零命中回落 'urban'。 */
 export type Genre = 'xianxia' | 'urban' | 'ancient' | 'romance' | 'mystery' | 'scifi' | 'fantasy' | 'historical' | 'horror' | 'light'
 
-/** 支持的平台风格。'default' 表示通用竖版，不叠加平台调性。 */
+/** 支持的平台版式。'default' 表示通用竖版，不叠加平台专属约束。 */
 export type CoverPlatform = 'default' | 'fanqie' | 'qidian' | 'jinjiang' | 'zhihu' | 'qimao' | 'ciweimao'
+
+/**
+ * 封面主视觉预设。auto 不是固定画风，而是根据题材、小说 ID 和 variationId 稳定选一套合适方向。
+ * 平台风格与主视觉分离，避免「平台」参数把所有书压成同一套画风。
+ */
+export type CoverStylePreset = 'auto' | 'cinematic' | 'illustration' | 'ink' | 'minimal' | 'noir' | 'graphic'
+
+/** 封面构图预设。auto 会按小说和变体稳定轮换。 */
+export type CoverComposition = 'auto' | 'portrait' | 'duo' | 'environment' | 'symbolic' | 'silhouette' | 'off_center'
+
+export type ResolvedCoverStylePreset = Exclude<CoverStylePreset, 'auto'>
+export type ResolvedCoverComposition = Exclude<CoverComposition, 'auto'>
+
+export interface CoverDirection {
+  stylePreset: ResolvedCoverStylePreset
+  composition: ResolvedCoverComposition
+  stylePrompt: string
+  compositionPrompt: string
+}
+
+export const COVER_STYLE_OPTIONS: Array<{ value: CoverStylePreset; label: string }> = [
+  { value: 'auto', label: '自动推荐' },
+  { value: 'cinematic', label: '电影概念设计' },
+  { value: 'illustration', label: '编辑插画' },
+  { value: 'ink', label: '东方水墨' },
+  { value: 'minimal', label: '极简海报' },
+  { value: 'noir', label: '黑色电影' },
+  { value: 'graphic', label: '现代平面设计' },
+]
+
+export const COVER_COMPOSITION_OPTIONS: Array<{ value: CoverComposition; label: string }> = [
+  { value: 'auto', label: '自动变化' },
+  { value: 'portrait', label: '人物特写' },
+  { value: 'duo', label: '双人物关系' },
+  { value: 'environment', label: '环境叙事' },
+  { value: 'symbolic', label: '关键物件' },
+  { value: 'silhouette', label: '剪影留白' },
+  { value: 'off_center', label: '非对称构图' },
+]
 
 export interface GenreStyle {
   /** 题材风格标签（英文，塞进 prompt 主体） */
@@ -28,20 +67,21 @@ export interface GenreStyle {
 }
 
 /**
- * 题材推断规则：关键词命中即计入该题材。
- * 多题材命中按 GENRE_PRIORITY 优先级取一；零命中回落 'urban'。
+ * 题材推断规则：关键词命中即计入该题材，多字词的语义权重更高。
+ * 多题材按得分取一，同分再按 GENRE_PRIORITY；零命中回落 'urban'。
  */
 const GENRE_KEYWORDS: Record<Genre, string[]> = {
-  xianxia: ['仙', '道', '剑', '灵', '修', '宗', '天', '帝', '尊', '神', '玄幻', '仙侠', '修真', '洪荒'],
+  // 尽量使用有语义的词，避免「神 / 天 / 后 / 婚」等单字把其他题材误判成仙侠或言情。
+  xianxia: ['仙侠', '玄幻', '修真', '洪荒', '修仙', '剑道', '灵气', '宗门', '仙', '剑'],
   urban: ['都市', '总裁', '校园', '重生', '系统', '学霸', '医生', '兵王', '战神', '赘婿'],
-  ancient: ['妃', '皇', '侯', '宫', '嫡', '庶', '后', '朝', '凤', '鸾', '宫斗', '古言'],
-  romance: ['契约', '替嫁', '甜宠', '娇妻', '萌宝', '闪婚', '现言', '暗恋', '婚'],
-  mystery: ['诡', '案', '侦探', '悬疑', '推理', '密室', '连环', '罪', '谜'],
-  scifi: ['星际', '末世', '机甲', '赛博', '废土', '进化', '科幻', '星', '宇宙'],
+  ancient: ['妃', '皇', '侯', '宫', '嫡', '庶', '凤', '鸾', '宫斗', '古言'],
+  romance: ['契约', '替嫁', '甜宠', '娇妻', '萌宝', '闪婚', '现言', '暗恋', '婚姻', '结婚'],
+  mystery: ['诡案', '侦探', '悬疑', '推理', '密室', '连环', '犯罪', '谜案'],
+  scifi: ['星际', '末世', '机甲', '赛博', '废土', '进化', '科幻', '宇宙', '太空'],
   fantasy: ['龙', '骑', '魔法', '异世界', '精灵', '领主', '西幻', '魔', '骑士'],
   historical: ['三国', '大明', '大唐', '战场', '将军', '谋士', '历史', '军事', '权谋'],
-  horror: ['鬼', '僵尸', '阴阳', '风水', '盗墓', '咒', '灵异', '恐怖', '诡秘'],
-  light: ['萌', '喵', '团宠', '娇', '转生', '轻小说', '二次元'],
+  horror: ['鬼', '僵尸', '阴阳', '风水', '盗墓', '诅咒', '灵异', '恐怖', '诡秘'],
+  light: ['萌', '喵', '团宠', '转生', '轻小说', '二次元'],
 }
 
 /** 多题材命中时的取舍优先级（越靠前越优先）。 */
@@ -142,15 +182,101 @@ export const GENRE_STYLES: Record<Genre, GenreStyle> = {
   },
 }
 
-/** 平台风格调性关键词。'default' 为空串，表示不叠加平台专属风格。 */
+const STYLE_PROMPTS: Record<ResolvedCoverStylePreset, string> = {
+  cinematic:
+    'cinematic concept art with a strong focal point, atmospheric depth, controlled lens perspective, layered foreground and background, premium film-poster finish',
+  illustration:
+    'editorial digital illustration with expressive shapes, intentional brushwork, elegant visual storytelling, refined silhouette design, contemporary book-jacket finish',
+  ink: 'East Asian ink and color-wash illustration with expressive brush texture, restrained detail, organic negative space, paper grain, and poetic visual rhythm',
+  minimal:
+    'minimalist graphic poster with one memorable visual metaphor, disciplined geometry, generous negative space, restrained palette, and strong thumbnail readability',
+  noir: 'noir photographic artwork with hard directional light, deep shadow, atmospheric grain, partial concealment, and a tense independent-film-poster mood',
+  graphic:
+    'modern graphic design with bold color blocking, layered typography-safe shapes, crisp editorial composition, tactile print texture, and a distinctive visual identity',
+}
+
+const COMPOSITION_PROMPTS: Record<ResolvedCoverComposition, string> = {
+  portrait: 'close portrait or half-body framing, expressive face and costume details as the primary focal point',
+  duo: 'two characters arranged to show their relationship and tension, with clear separation and a readable emotional gesture',
+  environment: 'wide environmental storytelling, a small but readable character placed inside a memorable world or location',
+  symbolic: 'one story-defining object or motif in the foreground, with the character or setting implied through layered context',
+  silhouette: 'recognizable silhouette or back view, strong negative space, atmospheric light outlining the subject, mysterious and restrained',
+  off_center: 'asymmetrical off-center composition, intentional empty space for title placement, visual movement leading across the frame',
+}
+
+const GENRE_STYLE_POOLS: Record<Genre, ResolvedCoverStylePreset[]> = {
+  xianxia: ['cinematic', 'ink', 'illustration', 'minimal'],
+  urban: ['cinematic', 'illustration', 'minimal', 'graphic'],
+  ancient: ['ink', 'illustration', 'cinematic', 'minimal'],
+  romance: ['illustration', 'cinematic', 'minimal', 'graphic'],
+  mystery: ['noir', 'cinematic', 'minimal', 'illustration'],
+  scifi: ['cinematic', 'graphic', 'illustration', 'minimal'],
+  fantasy: ['cinematic', 'illustration', 'graphic', 'ink'],
+  historical: ['cinematic', 'ink', 'illustration', 'minimal'],
+  horror: ['noir', 'ink', 'cinematic', 'minimal'],
+  light: ['illustration', 'graphic', 'cinematic', 'minimal'],
+}
+
+const COMPOSITION_POOL: ResolvedCoverComposition[] = ['portrait', 'duo', 'environment', 'symbolic', 'silhouette', 'off_center']
+
+export function isCoverStylePreset(value: unknown): value is CoverStylePreset {
+  return typeof value === 'string' && COVER_STYLE_OPTIONS.some((option) => option.value === value)
+}
+
+export function isCoverComposition(value: unknown): value is CoverComposition {
+  return typeof value === 'string' && COVER_COMPOSITION_OPTIONS.some((option) => option.value === value)
+}
+
+/**
+ * 根据小说和 variationId 稳定选择一套视觉方向。
+ * 同一 variation 可复现，variation 改变时至少会改变风格或构图，避免每次随机到不可追溯。
+ */
+export function resolveCoverDirection(args: {
+  novelId: string
+  genre: Genre
+  stylePreset?: unknown
+  composition?: unknown
+  variationId?: string
+}): CoverDirection {
+  const seed = `${args.novelId || 'novel'}|${args.variationId || 'default'}|${args.genre}`
+  const styleValue = isCoverStylePreset(args.stylePreset) ? args.stylePreset : 'auto'
+  const compositionValue = isCoverComposition(args.composition) ? args.composition : 'auto'
+  const stylePool = GENRE_STYLE_POOLS[args.genre] || GENRE_STYLE_POOLS.urban
+  const stylePreset = styleValue === 'auto' ? pick(stylePool, stableHash(`${seed}|style`)) : styleValue
+  const composition = compositionValue === 'auto' ? pick(COMPOSITION_POOL, stableHash(`${seed}|composition`)) : compositionValue
+  return {
+    stylePreset,
+    composition,
+    stylePrompt: STYLE_PROMPTS[stylePreset],
+    compositionPrompt: COMPOSITION_PROMPTS[composition],
+  }
+}
+
+function stableHash(value: string): number {
+  let hash = 2_166_136_261
+  for (let i = 0; i < value.length; i += 1) {
+    hash ^= value.charCodeAt(i)
+    hash = Math.imul(hash, 16_777_619)
+  }
+  return hash >>> 0
+}
+
+function pick<T>(items: T[], hash: number): T {
+  return items[hash % items.length]!
+}
+
+/**
+ * 平台版式约束。这里不再指定主视觉画风，避免平台选项覆盖题材风格和构图预设。
+ * 'default' 为空串，表示只使用通用竖版 2:3。
+ */
 export const PLATFORM_STYLES: Record<CoverPlatform, string> = {
   default: '',
-  fanqie: 'vibrant saturated colors, eye-catching bold design, character portrait dominating frame, mass-market novel cover style, high contrast',
-  qidian: 'polished refined illustration, detailed cinematic composition, epic atmospheric, mature sophisticated style, premium quality',
-  jinjiang: 'dreamy ethereal aesthetic, soft pastel tones, elegant romantic, delicate beauty, flower petals and bokeh',
-  zhihu: 'minimalist literary style, clean composition with negative space, subtle moody atmosphere, independent film poster aesthetic',
-  qimao: 'striking high-impact design, vivid dramatic colors, spectacular visual effects, attention-grabbing poster style',
-  ciweimao: 'anime illustration style, vibrant colorful, detailed character art, Japanese light novel aesthetic',
+  fanqie: 'platform-safe portrait layout, strong thumbnail contrast, clear focal area, readable title-safe margins',
+  qidian: 'platform-safe portrait layout, balanced visual hierarchy, refined title-safe margins, readable at small size',
+  jinjiang: 'platform-safe portrait layout, generous title-safe negative space, delicate spacing, uncluttered hierarchy',
+  zhihu: 'platform-safe portrait layout, restrained visual density, generous title-safe negative space, clear editorial hierarchy',
+  qimao: 'platform-safe portrait layout, immediate focal point, bold readable silhouette, clear title-safe margins',
+  ciweimao: 'platform-safe portrait layout, character-safe framing, readable silhouette, clear title-safe margins',
 }
 
 export function isCoverPlatform(value: unknown): value is CoverPlatform {
@@ -159,19 +285,25 @@ export function isCoverPlatform(value: unknown): value is CoverPlatform {
 
 /**
  * 根据书名 + 分类推断题材。
- * - 命中计数：书名与分类里每出现一个题材关键词就给对应题材 +1
- * - 有命中 → 在命中题材中按 GENRE_PRIORITY 取优先级最高者
+ * - 命中计数：书名与分类里每出现一个题材关键词就累计分数；有语义的多字词权重更高
+ * - 有命中 → 先取分数最高的题材，同分再按 GENRE_PRIORITY 取优先级
  * - 零命中 → 'urban'（与 skill「零命中默认都市」一致）
  */
 export function inferGenre(title: string, categories: string[] = []): Genre {
   const haystack = `${title || ''} ${(categories || []).join(' ')}`
-  const hits = new Set<Genre>()
+  const scores = new Map<Genre, number>()
   for (const genre of Object.keys(GENRE_KEYWORDS) as Genre[]) {
-    if (GENRE_KEYWORDS[genre].some((kw) => haystack.includes(kw))) hits.add(genre)
+    const score = GENRE_KEYWORDS[genre].reduce((total, kw) => {
+      if (!haystack.includes(kw)) return total
+      // 「仙」和「剑」本身就是高辨识度题材锚点；其余单字权重较低，避免泛词压过多字题材词。
+      return total + (kw.length >= 2 || kw === '仙' || kw === '剑' ? 2 : 1)
+    }, 0)
+    if (score > 0) scores.set(genre, score)
   }
-  if (!hits.size) return 'urban'
+  if (!scores.size) return 'urban'
+  const maxScore = Math.max(...scores.values())
   for (const genre of GENRE_PRIORITY) {
-    if (hits.has(genre)) return genre
+    if (scores.get(genre) === maxScore) return genre
   }
   return 'urban'
 }
