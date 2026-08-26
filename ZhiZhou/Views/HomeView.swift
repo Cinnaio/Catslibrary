@@ -19,12 +19,9 @@ struct HomeView: View {
     @State private var requestSeq = 0
 
     var body: some View {
-        if horizontalSizeClass == .compact {
+        if horizontalSizeClass != .regular {
             NavigationStack {
                 homeList
-                    .navigationDestination(item: $selectedNovel) { novel in
-                        NovelDetailView(novel: novel)
-                    }
             }
         } else {
             NavigationSplitView {
@@ -90,13 +87,7 @@ struct HomeView: View {
                     .listRowBackground(Color.clear)
             } else {
                 ForEach(novels) { novel in
-                    Button {
-                        selectedNovel = novel
-                    } label: {
-                        NovelCardView(novel: novel)
-                    }
-                    .buttonStyle(ScaleButtonStyle(pressedScale: 0.985))
-                    .tag(novel)
+                    novelRow(novel)
                     .contentShape(Rectangle())
                     .listRowSeparator(.hidden)
                     .listRowBackground(Color.clear)
@@ -140,6 +131,27 @@ struct HomeView: View {
         }
         .onChange(of: selectedCategory) { _, _ in
             scheduleReload()
+        }
+    }
+
+    /// 紧凑宽度直接持有导航目标；宽屏则更新分栏详情选择。
+    @ViewBuilder
+    private func novelRow(_ novel: Novel) -> some View {
+        if horizontalSizeClass != .regular {
+            NavigationLink {
+                NovelDetailView(novel: novel)
+            } label: {
+                NovelCardView(novel: novel)
+            }
+            .buttonStyle(ScaleButtonStyle(pressedScale: 0.985))
+        } else {
+            Button {
+                selectedNovel = novel
+            } label: {
+                NovelCardView(novel: novel)
+            }
+            .buttonStyle(ScaleButtonStyle(pressedScale: 0.985))
+            .tag(novel)
         }
     }
 

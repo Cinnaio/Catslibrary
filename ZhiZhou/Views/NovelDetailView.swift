@@ -43,11 +43,13 @@ struct NovelDetailView: View {
                     .listRowBackground(Color.clear)
                 }
                 ForEach(chapters) { chapter in
-                    NavigationLink(value: ReaderLaunch(
-                        novel: currentNovel,
-                        chapterOrder: chapter.order,
-                        preloadedChapters: chapters
-                    )) {
+                    NavigationLink {
+                        ReaderView(
+                            novel: currentNovel,
+                            chapterOrder: chapter.order,
+                            preloadedChapters: chapters
+                        )
+                    } label: {
                         HStack {
                             Text(chapter.title)
                                 .lineLimit(2)
@@ -73,7 +75,6 @@ struct NovelDetailView: View {
         .pageBackground()
         .navigationTitle(currentNovel.title)
         .navigationBarTitleDisplayMode(.inline)
-        .zhiZhouDestinations()
         .task { await load() }
         .alert("操作未完成", isPresented: $showBookshelfError) {
             Button("好", role: .cancel) {}
@@ -165,11 +166,13 @@ struct NovelDetailView: View {
 
             HStack(spacing: 10) {
                 if let chapter = continueChapter {
-                    NavigationLink(value: ReaderLaunch(
-                        novel: currentNovel,
-                        chapterOrder: chapter.order,
-                        preloadedChapters: chapters
-                    )) {
+                    NavigationLink {
+                        ReaderView(
+                            novel: currentNovel,
+                            chapterOrder: chapter.order,
+                            preloadedChapters: chapters
+                        )
+                    } label: {
                         VStack(spacing: 2) {
                             Label(continueTitle, systemImage: "book.fill")
                                 .font(.subheadline.weight(.semibold))

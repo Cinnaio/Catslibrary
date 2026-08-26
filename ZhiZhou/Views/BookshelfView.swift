@@ -12,12 +12,9 @@ struct BookshelfView: View {
 
     @ViewBuilder
     var body: some View {
-        if horizontalSizeClass == .compact {
+        if horizontalSizeClass != .regular {
             NavigationStack {
                 bookshelfList
-                    .navigationDestination(for: BookshelfRoute.self) { route in
-                        destination(for: route)
-                    }
             }
         } else {
             NavigationSplitView {
@@ -51,17 +48,7 @@ struct BookshelfView: View {
                     if !response.recent.isEmpty {
                         Section("最近阅读") {
                             ForEach(response.recent) { item in
-                                NavigationLink(value: BookshelfRoute.read(item.asLaunch)) {
-                                    recentRow(item)
-                                }
-                                .contextMenu {
-                                    Button {
-                                        selection = .detail(item.asNovel)
-                                    } label: {
-                                        Label("书籍详情", systemImage: "info.circle")
-                                    }
-                                }
-                                .accessibilityHint("打开后接着读")
+                                recentLink(item)
                             }
                         }
                     }
@@ -157,9 +144,48 @@ struct BookshelfView: View {
     }
 
     @ViewBuilder
+    private func recentLink(_ item: RecentItem) -> some View {
+        let route = BookshelfRoute.read(item.asLaunch)
+        if horizontalSizeClass != .regular {
+            NavigationLink {
+                destination(for: route)
+            } label: {
+                recentRow(item)
+            }
+            .contextMenu {
+                Button {
+                    selection = .detail(item.asNovel)
+                } label: {
+                    Label("书籍详情", systemImage: "info.circle")
+                }
+            }
+            .accessibilityHint("打开后接着读")
+        } else {
+            Button {
+                selection = route
+            } label: {
+                recentRow(item)
+            }
+            .buttonStyle(.plain)
+            .tag(route)
+            .contextMenu {
+                Button {
+                    selection = .detail(item.asNovel)
+                } label: {
+                    Label("书籍详情", systemImage: "info.circle")
+                }
+            }
+            .accessibilityHint("打开后接着读")
+        }
+    }
+
+    @ViewBuilder
     private func favoriteLink(_ favorite: FavoriteItem) -> some View {
-        if let launch = favorite.asLaunch {
-            NavigationLink(value: BookshelfRoute.read(launch)) {
+        let route = favorite.asLaunch.map { BookshelfRoute.read($0) } ?? .detail(favorite.asNovel)
+        if horizontalSizeClass != .regular {
+            NavigationLink {
+                destination(for: route)
+            } label: {
                 favoriteRow(favorite)
             }
             .contextMenu {
@@ -171,8 +197,19 @@ struct BookshelfView: View {
             }
             .accessibilityHint("打开后接着读")
         } else {
-            NavigationLink(value: BookshelfRoute.detail(favorite.asNovel)) {
+            Button {
+                selection = route
+            } label: {
                 favoriteRow(favorite)
+            }
+            .buttonStyle(.plain)
+            .tag(route)
+            .contextMenu {
+                Button {
+                    selection = .detail(favorite.asNovel)
+                } label: {
+                    Label("书籍详情", systemImage: "info.circle")
+                }
             }
         }
     }
