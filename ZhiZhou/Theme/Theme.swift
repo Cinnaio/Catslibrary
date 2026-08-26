@@ -213,11 +213,11 @@ extension View {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .strokeBorder(AppTheme.border, lineWidth: 1)
             )
-            .shadow(color: .black.opacity(0.06), radius: 10, y: 4)
+            .shadow(color: Color(light: "000000", dark: "FFFFFF").opacity(0.08), radius: 10, y: 4)
     }
 
     func frostedRowBackground() -> some View {
-        self.listRowBackground(AppTheme.surface.opacity(0.92))
+        self.listRowBackground(.thinMaterial)
     }
 
     /// 浏览栈共用的详情 / 阅读器出口。
@@ -240,9 +240,16 @@ enum AppCopy {
             return "登录已过期，请重新登录"
         }
         let raw = error.localizedDescription
+        let lowercased = raw.lowercased()
+        if lowercased.contains("timed out") || lowercased.contains("timeout") {
+            return "请求超时，请检查网络后重试。"
+        }
+        if lowercased.contains("not connected") || lowercased.contains("network") || lowercased.contains("internet") || lowercased.contains("connection") {
+            return "网络连接失败，请检查网络后重试。"
+        }
         if raw.contains("TLS") || raw.contains("安全连接") {
             return "无法安全连接服务器。若使用自签名证书，打开「我的 → 高级」。"
         }
-        return raw
+        return raw.isEmpty ? "操作未完成，请稍后重试。" : raw
     }
 }

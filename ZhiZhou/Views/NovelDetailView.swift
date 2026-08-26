@@ -15,6 +15,7 @@ struct NovelDetailView: View {
     @State private var showBookshelfError = false
     @State private var showRemoveConfirm = false
     @State private var expandDescription = false
+    @State private var interactionFeedback = 0
 
     var body: some View {
         List {
@@ -83,6 +84,7 @@ struct NovelDetailView: View {
             Button("移除", role: .destructive) { toggleBookshelf() }
             Button("取消", role: .cancel) {}
         }
+        .sensoryFeedback(.selection, trigger: interactionFeedback)
     }
 
     private var currentNovel: Novel { displayNovel ?? novel }
@@ -128,7 +130,7 @@ struct NovelDetailView: View {
                     Text(currentNovel.author)
                         .font(.subheadline)
                         .foregroundStyle(AppTheme.textSecondary)
-                    HStack(spacing: 6) {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 64), alignment: .leading)], alignment: .leading, spacing: 6) {
                         if let status = currentNovel.statusLabel {
                             Text(status).modifier(ThemeTagModifier())
                         }
@@ -150,7 +152,9 @@ struct NovelDetailView: View {
                     .lineLimit(expandDescription ? nil : 4)
                 if currentNovel.description.count > 80 {
                     Button(expandDescription ? "收起" : "展开简介") {
-                        expandDescription.toggle()
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            expandDescription.toggle()
+                        }
                     }
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(AppTheme.primary)
@@ -200,8 +204,15 @@ struct NovelDetailView: View {
                         toggleBookshelf()
                     }
                 } label: {
-                    Image(systemName: inBookshelf ? "bookmark.fill" : "bookmark")
-                        .frame(width: 44, height: 44)
+                    Group {
+                        if bookshelfBusy {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Image(systemName: inBookshelf ? "bookmark.fill" : "bookmark")
+                        }
+                    }
+                    .frame(width: 44, height: 44)
                 }
                 .buttonStyle(.bordered)
                 .tint(AppTheme.primary)
@@ -231,6 +242,7 @@ struct NovelDetailView: View {
                     )
                     inBookshelf = true
                 }
+                interactionFeedback += 1
             } catch {
                 showBookshelfError = true
             }

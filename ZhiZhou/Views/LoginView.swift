@@ -14,9 +14,11 @@ struct LoginView: View {
     @State private var registerMode: RegisterMode = .invite
     @State private var busy = false
     @State private var errorMessage: String?
+    @FocusState private var focusedField: Field?
 
     enum Mode: Hashable { case login, register }
     enum RegisterMode: String { case open, invite, closed }
+    private enum Field: Hashable { case username, invite, password }
 
     var body: some View {
         ZStack {
@@ -55,22 +57,13 @@ struct LoginView: View {
             .scrollBounceBehavior(.basedOnSize)
         }
         .task { await fetchRegisterStatus() }
-        .onSubmit { Task { await submit() } }
     }
 
     // MARK: - 品牌头部（留白、居中、克制）
 
     private var brandHeader: some View {
         VStack(spacing: 16) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .fill(AppTheme.deepGradient)
-                Image(systemName: "book.closed.fill")
-                    .font(.title2)
-                    .foregroundStyle(.white)
-            }
-            .frame(width: 80, height: 80)
-            .shadow(color: .black.opacity(0.14), radius: 12, y: 5)
+            BrandMark()
             .accessibilityHidden(true)
 
             Text("知舟")
@@ -138,6 +131,10 @@ struct LoginView: View {
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .submitLabel(.next)
+                .focused($focusedField, equals: .username)
+                .onSubmit {
+                    focusedField = mode == .register && registerMode == .invite ? .invite : .password
+                }
                 .foregroundStyle(AppTheme.textPrimary)
                 .tint(AppTheme.primary)
         }
@@ -157,6 +154,8 @@ struct LoginView: View {
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .submitLabel(.go)
+                .focused($focusedField, equals: .invite)
+                .onSubmit { focusedField = .password }
                 .foregroundStyle(AppTheme.textPrimary)
                 .tint(AppTheme.primary)
         }
@@ -175,8 +174,12 @@ struct LoginView: View {
             Group {
                 if showPassword {
                     TextField("密码", text: $password)
+                        .focused($focusedField, equals: .password)
+                        .onSubmit { Task { await submit() } }
                 } else {
                     SecureField("密码", text: $password)
+                        .focused($focusedField, equals: .password)
+                        .onSubmit { Task { await submit() } }
                 }
             }
             .textContentType(mode == .register ? .newPassword : .password)

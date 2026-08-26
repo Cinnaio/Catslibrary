@@ -24,40 +24,48 @@ final class ReaderSettingsStore {
             "fontSize": "2",
             "fontFamily": "serif",
             "readerPageMode": "scroll",
-            "readerTheme": "system",
+            "readerTheme": "default",
             "readerLineHeight": "1.95",
             "readerParagraphSpacing": "1.4",
-            "readerWakeLock": "true",
+            "readerWakeLock": "off",
             "contentMode": "safe",
         ]
     }
 
     // MARK: - 读取（带默认值）
 
+    /// 字号档位（pt），与 Web 端 FONT_LABELS 对齐；下标 2 为默认 20pt。
+    private let fontLevels: [CGFloat] = [15, 18, 20, 23, 27, 32]
+
     var fontSizeIndex: Int {
-        let levels = ["0", "1", "2", "3", "4", "5"]
-        return levels.firstIndex(of: values["fontSize"] ?? "2") ?? 2
+        let v = Int(values["fontSize"] ?? "2") ?? 2
+        return max(0, min(v, fontLevels.count - 1))
     }
 
-    var bodyFontSizeUnscaled: CGFloat { [14, 16, 18, 20, 22, 24][fontSizeIndex] }
+    var bodyFontSizeUnscaled: CGFloat { fontLevels[fontSizeIndex] }
+    var fontLevelCount: Int { fontLevels.count }
+
+    /// 服务端协议使用 `page`；兼容早期本地试验值 `paged`，但永远向外暴露协议值。
+    var pageMode: String {
+        values["readerPageMode"] == "page" || values["readerPageMode"] == "paged" ? "page" : "scroll"
+    }
     var bodyFontSize: CGFloat {
         UIFontMetrics(forTextStyle: .body).scaledValue(for: bodyFontSizeUnscaled)
     }
     var lineHeight: CGFloat { CGFloat(Double(values["readerLineHeight"] ?? "1.95") ?? 1.95) }
-    var themeName: String { values["readerTheme"] ?? "system" }
+    var themeName: String { values["readerTheme"] ?? "default" }
     var useSerif: Bool { (values["fontFamily"] ?? "serif") == "serif" }
     var contentMode: String { values["contentMode"] ?? "safe" }
     var wakeLockEnabled: Bool {
-        let raw = values["readerWakeLock"] ?? "true"
-        return raw == "true" || raw == "1"
+        let raw = values["readerWakeLock"] ?? "off"
+        return raw == "on" || raw == "true" || raw == "1"
     }
 
-    /// 将 Web 端可能出现的暗色值归一成 iOS 认识的键。
-    /// "default"（旧奶油纸面）归一为跟随系统，满足「默认纸面自动昼夜」。
+    /// 将历史值归一为 Web 端协议值；默认纸面仍跟随系统昼夜。
     var normalizedTheme: String {
         switch themeName {
         case "night", "ink", "black", "dark": return "dark"
-        case "default", "system": return "system"
+        case "default", "system": return "default"
         default: return themeName
         }
     }
@@ -66,7 +74,7 @@ final class ReaderSettingsStore {
     func isDarkPaper(systemDark: Bool) -> Bool {
         switch normalizedTheme {
         case "dark": return true
-        case "system": return systemDark
+        case "default": return systemDark
         case "eye", "paper": return false
         default: return false
         }
@@ -77,7 +85,7 @@ final class ReaderSettingsStore {
     func colorSchemeOverride(systemDark: Bool) -> ColorScheme? {
         switch normalizedTheme {
         case "dark": return .dark
-        case "system": return nil
+        case "default": return nil
         case "eye", "paper": return .light
         default: return nil
         }
@@ -110,6 +118,25 @@ final class ReaderSettingsStore {
         useSerif
             ? SongtiFont.font(size: bodyFontSize + 4, weight: .bold)
             : .system(size: bodyFontSize + 4, weight: .bold)
+    }
+
+    /// 正文 UIFont（与 SwiftUI Font 同源），供 TextKit 分页测量与段落样式使用。
+    var bodyUIFont: UIFont {
+        useSerif
+            ? SongtiFont.uiFont(size: bodyFontSize, weight: .regular)
+            : UIFont.systemFont(ofSize: bodyFontSize)
+    }
+
+    var titleUIFont: UIFont {
+        useSerif
+            ? SongtiFont.uiFont(size: bodyFontSize + 4, weight: .bold)
+            : UIFont.systemFont(ofSize: bodyFontSize + 4, weight: .bold)
+    }
+
+    /// 段间距系数：正文字号 * (系数)。系数来自 readerParagraphSpacing（与 Web 端一致）。
+    var paragraphSpacing: CGFloat {
+        let factor = Double(values["readerParagraphSpacing"] ?? "1.4") ?? 1.4
+        return max(4, bodyFontSize * CGFloat(factor))
     }
 
     var lineSpacing: CGFloat { bodyFontSize * (lineHeight - 1) }

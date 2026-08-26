@@ -8,7 +8,6 @@ struct BookshelfView: View {
     @State private var actionError: String?
     @State private var selection: BookshelfRoute?
     @State private var pendingRemove: FavoriteItem?
-    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         NavigationSplitView {
@@ -28,17 +27,6 @@ struct BookshelfView: View {
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
                 } else if let response {
-                    if response.favorites.isEmpty && response.recent.isEmpty {
-                        ContentUnavailableView(
-                            "书架空空",
-                            systemImage: "books.vertical",
-                            description: Text("去发现页找一本喜欢的书吧")
-                        )
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                        .frame(maxWidth: .infinity, minHeight: 320)
-                    }
-
                     if !response.recent.isEmpty {
                         Section("最近阅读") {
                             ForEach(response.recent) { item in
@@ -76,11 +64,21 @@ struct BookshelfView: View {
             .navigationSplitViewColumnWidth(min: 300, ideal: 380, max: 520)
             .scrollContentBackground(.hidden)
             .pageBackground()
+            .overlay {
+                if let response, response.favorites.isEmpty && response.recent.isEmpty {
+                    ContentUnavailableView(
+                        "书架空空",
+                        systemImage: "books.vertical",
+                        description: Text("去发现页找一本喜欢的书吧")
+                    )
+                    .padding(.bottom, 72)
+                }
+            }
             .refreshable { await load() }
             .task { await load() }
-            .onChange(of: scenePhase) { _, phase in
-                // 从阅读器返回时刷新最近阅读进度
-                if phase == .active, response != nil {
+            .onChange(of: selection) { oldSelection, newSelection in
+                // 应用内从阅读器返回时 selection 才会归零；scenePhase 不会变化。
+                if oldSelection != nil, newSelection == nil {
                     Task { await load() }
                 }
             }
@@ -153,7 +151,19 @@ struct BookshelfView: View {
     }
 
     private func recentRow(_ item: RecentItem) -> some View {
-        HStack {
+        HStack(spacing: 10) {
+            CachedAsyncImage(
+                url: APIClient.shared.coverURL(novelId: item.novelId, updatedAt: item.updatedAt),
+                targetSize: CGSize(width: 40, height: 56)
+            ) { image in
+                image.resizable().scaledToFill()
+            } placeholder: {
+                AppTheme.primaryLight
+            }
+            .frame(width: 40, height: 56)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .accessibilityHidden(true)
+
             VStack(alignment: .leading, spacing: 3) {
                 Text(item.novelTitle)
                     .font(serifFont(.subheadline, .semibold))

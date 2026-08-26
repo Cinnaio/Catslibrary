@@ -25,15 +25,7 @@ struct BootView: View {
         ZStack {
             Color(.systemGroupedBackground).ignoresSafeArea()
             VStack(spacing: 18) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .fill(AppTheme.deepGradient)
-                    Image(systemName: "book.closed.fill")
-                        .font(.title2)
-                        .foregroundStyle(.white)
-                }
-                .frame(width: 76, height: 76)
-                .shadow(color: .black.opacity(0.15), radius: 14, y: 7)
+                BrandMark()
 
                 Text("知舟")
                     .font(serifFont(.title, .bold))
@@ -48,6 +40,21 @@ struct BootView: View {
                     .foregroundStyle(AppTheme.textSecondary)
             }
         }
+    }
+}
+
+/// 启动页与登录页共用的品牌标记，避免首次进入时尺寸、圆角和阴影发生跳变。
+struct BrandMark: View {
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(AppTheme.deepGradient)
+            Image(systemName: "book.closed.fill")
+                .font(.title2)
+                .foregroundStyle(.white)
+        }
+        .frame(width: 76, height: 76)
+        .shadow(color: Color(light: "000000", dark: "FFFFFF").opacity(0.08), radius: 12, y: 5)
     }
 }
 

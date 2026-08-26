@@ -20,13 +20,6 @@ struct HomeView: View {
     var body: some View {
         NavigationSplitView {
             List(selection: $selectedNovel) {
-                Section {
-                    categoryChips
-                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(Color.clear)
-                }
-
                 if isLoading && novels.isEmpty {
                     ProgressView("加载中…")
                         .frame(maxWidth: .infinity, minHeight: 200)
@@ -50,7 +43,12 @@ struct HomeView: View {
                         .listRowBackground(Color.clear)
                 } else {
                     ForEach(novels) { novel in
-                        NovelCardView(novel: novel)
+                        Button {
+                            selectedNovel = novel
+                        } label: {
+                            NovelCardView(novel: novel)
+                        }
+                        .buttonStyle(ScaleButtonStyle(pressedScale: 0.985))
                             .tag(novel)
                             .contentShape(Rectangle())
                             .listRowSeparator(.hidden)
@@ -81,6 +79,21 @@ struct HomeView: View {
             .navigationBarTitleDisplayMode(.large)
             .navigationSplitViewColumnWidth(min: 300, ideal: 380, max: 520)
             .searchable(text: $search, prompt: "搜索书名 / 作者")
+            .safeAreaInset(edge: .top, spacing: 0) {
+                categoryChips
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(.bar)
+            }
+            .toolbar {
+                if isLoading && !novels.isEmpty {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        ProgressView()
+                            .tint(AppTheme.primary)
+                            .accessibilityLabel("正在搜索")
+                    }
+                }
+            }
             .refreshable { await reload() }
             .task { await reload() }
             .onChange(of: search) { _, _ in

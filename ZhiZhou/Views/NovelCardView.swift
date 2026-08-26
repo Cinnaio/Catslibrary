@@ -86,7 +86,7 @@ struct ThemeTagModifier: ViewModifier {
             .foregroundStyle(emphasized ? AppTheme.seal : AppTheme.primary)
             .padding(.horizontal, 8)
             .padding(.vertical, 5)
-            .background(AppTheme.surface.opacity(0.9), in: Capsule())
+            .background(AppTheme.primaryLight.opacity(0.86), in: Capsule())
             .overlay(Capsule().strokeBorder(emphasized ? AppTheme.seal.opacity(0.35) : AppTheme.border, lineWidth: 0.75))
     }
 }
