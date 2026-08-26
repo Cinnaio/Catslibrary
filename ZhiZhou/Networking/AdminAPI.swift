@@ -441,21 +441,42 @@ enum AdminAPI {
     // MARK: - AI 服务：封面生成
 
     /// POST /api/ai/cover/generate：启动封面生成后台任务。
-    static func aiGenerateCover(novelId: String, prompt: String = "", renderTitle: Bool = true, platform: String = "default") async throws -> AiTaskStartResponse {
+    static func aiGenerateCover(
+        novelId: String,
+        prompt: String = "",
+        renderTitle: Bool = true,
+        platform: String = "default",
+        stylePreset: String = "auto",
+        composition: String = "auto",
+        variationId: String = ""
+    ) async throws -> AiTaskStartResponse {
         try await APIClient.shared.post("/api/ai/cover/generate", body: try jsonBody([
             "novelId": novelId,
             "prompt": prompt,
             "renderTitle": renderTitle,
             "platform": platform,
+            "stylePreset": stylePreset,
+            "composition": composition,
+            "variationId": variationId,
         ]), auth: true)
     }
 
     /// POST /api/ai/cover/prompt：按书籍信息生成封面描述词。
-    static func aiCoverPrompt(novelId: String, renderTitle: Bool = true, platform: String = "default") async throws -> AiCoverPromptResponse {
+    static func aiCoverPrompt(
+        novelId: String,
+        renderTitle: Bool = true,
+        platform: String = "default",
+        stylePreset: String = "auto",
+        composition: String = "auto",
+        variationId: String = ""
+    ) async throws -> AiCoverPromptResponse {
         try await APIClient.shared.post("/api/ai/cover/prompt", body: try jsonBody([
             "novelId": novelId,
             "renderTitle": renderTitle,
             "platform": platform,
+            "stylePreset": stylePreset,
+            "composition": composition,
+            "variationId": variationId,
         ]), auth: true)
     }
 

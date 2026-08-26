@@ -13,6 +13,10 @@ struct AdminAICoverView: View {
     // 生成配置
     @State private var renderTitle = true
     @State private var platform = "default"
+    @State private var stylePreset = "auto"
+    @State private var composition = "auto"
+    @State private var variationId = ""
+    @State private var promptMetadata: AiCoverMetadata?
     @State private var prompt = ""
     @State private var generatingPrompt = false
 
@@ -44,6 +48,26 @@ struct AdminAICoverView: View {
         ("ciweimao", "刺猬猫"),
     ]
 
+    private let styleOptions: [(value: String, label: String)] = [
+        ("auto", "自动推荐"),
+        ("cinematic", "电影概念设计"),
+        ("illustration", "编辑插画"),
+        ("ink", "东方水墨"),
+        ("minimal", "极简海报"),
+        ("noir", "黑色电影"),
+        ("graphic", "现代平面设计"),
+    ]
+
+    private let compositionOptions: [(value: String, label: String)] = [
+        ("auto", "自动变化"),
+        ("portrait", "人物特写"),
+        ("duo", "双人物关系"),
+        ("environment", "环境叙事"),
+        ("symbolic", "关键物件"),
+        ("silhouette", "剪影留白"),
+        ("off_center", "非对称构图"),
+    ]
+
     var body: some View {
         List {
             if isLoading && selectedNovelId.isEmpty {
@@ -72,6 +96,8 @@ struct AdminAICoverView: View {
                 onSelect: { id in
                     selectedNovelId = id
                     prompt = ""
+                    variationId = ""
+                    promptMetadata = nil
                     showNovelPicker = false
                     Task { await loadCandidates() }
                 }
@@ -136,12 +162,34 @@ struct AdminAICoverView: View {
     private var configSection: some View {
         Section("生成配置") {
             Toggle("封面渲染书名", isOn: $renderTitle)
-            Picker("平台风格", selection: $platform) {
+            Picker("平台版式", selection: $platform) {
                 ForEach(platformOptions, id: \.value) { option in
                     Text(option.label).tag(option.value)
                 }
             }
             .disabled(selectedNovelId.isEmpty)
+
+            Picker("主视觉风格", selection: $stylePreset) {
+                ForEach(styleOptions, id: \.value) { option in
+                    Text(option.label).tag(option.value)
+                }
+            }
+            .disabled(selectedNovelId.isEmpty || generatingPrompt || generating)
+
+            Text("自动推荐会结合题材和变体轮换，避免所有书套同一种画风。")
+                .font(.caption)
+                .foregroundStyle(AppTheme.textSecondary)
+
+            Picker("构图方向", selection: $composition) {
+                ForEach(compositionOptions, id: \.value) { option in
+                    Text(option.label).tag(option.value)
+                }
+            }
+            .disabled(selectedNovelId.isEmpty || generatingPrompt || generating)
+
+            Text("控制主体位置、镜头关系和留白方式。")
+                .font(.caption)
+                .foregroundStyle(AppTheme.textSecondary)
 
             TextField("封面描述词（可选，留空自动生成）", text: $prompt, axis: .vertical)
                 .lineLimit(2...4)
@@ -158,6 +206,19 @@ struct AdminAICoverView: View {
                 }
             }
             .disabled(generatingPrompt || selectedNovelId.isEmpty)
+
+            Button {
+                Task { await generatePrompt(forceNewVariation: true) }
+            } label: {
+                Label("换一版视觉方向", systemImage: "arrow.triangle.2.circlepath")
+            }
+            .disabled(generatingPrompt || generating || selectedNovelId.isEmpty)
+
+            if let promptMetadata {
+                Text("本版：\(label(for: promptMetadata.stylePreset, in: styleOptions)) · \(label(for: promptMetadata.composition, in: compositionOptions))")
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.primary)
+            }
 
             Button {
                 Task { await generateCover() }
@@ -234,6 +295,11 @@ struct AdminAICoverView: View {
                         .foregroundStyle(AppTheme.textSecondary)
                         .lineLimit(3)
                 }
+                if let metadata = candidate.metadata, (metadata.stylePreset != nil || metadata.composition != nil) {
+                    Text("\(label(for: metadata.stylePreset, in: styleOptions)) · \(label(for: metadata.composition, in: compositionOptions))")
+                        .font(.caption2)
+                        .foregroundStyle(AppTheme.primary)
+                }
                 Text(AdminFormat.relativeTime(candidate.createdAt ?? 0))
                     .font(.caption2)
                     .foregroundStyle(AppTheme.textMuted)
@@ -297,13 +363,23 @@ struct AdminAICoverView: View {
         }
     }
 
-    private func generatePrompt() async {
+    private func generatePrompt(forceNewVariation: Bool = false) async {
         guard !selectedNovelId.isEmpty else { return }
         generatingPrompt = true
         defer { generatingPrompt = false }
         do {
-            let result = try await AdminAPI.aiCoverPrompt(novelId: selectedNovelId, renderTitle: renderTitle, platform: platform)
+            let requestedVariationId = forceNewVariation ? UUID().uuidString : variationId
+            let result = try await AdminAPI.aiCoverPrompt(
+                novelId: selectedNovelId,
+                renderTitle: renderTitle,
+                platform: platform,
+                stylePreset: stylePreset,
+                composition: composition,
+                variationId: requestedVariationId
+            )
             prompt = result.prompt
+            promptMetadata = result.metadata
+            variationId = result.metadata?.variationId ?? requestedVariationId
         } catch {
             actionError = AppCopy.friendlyError(error)
         }
@@ -319,7 +395,10 @@ struct AdminAICoverView: View {
                 novelId: selectedNovelId,
                 prompt: prompt.trimmingCharacters(in: .whitespacesAndNewlines),
                 renderTitle: renderTitle,
-                platform: platform
+                platform: platform,
+                stylePreset: stylePreset,
+                composition: composition,
+                variationId: variationId
             )
             pollCoverTask(result.taskId)
         } catch {
@@ -413,6 +492,11 @@ struct AdminAICoverView: View {
             get: { actionError != nil },
             set: { if !$0 { actionError = nil } }
         )
+    }
+
+    private func label(for value: String?, in options: [(value: String, label: String)]) -> String {
+        guard let value else { return "自动" }
+        return options.first(where: { $0.value == value })?.label ?? value
     }
 }
 

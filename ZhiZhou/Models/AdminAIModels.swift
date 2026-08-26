@@ -222,6 +222,13 @@ struct AiAuditTrendResponse: Codable {
 
 // MARK: 封面候选（GET /api/ai/cover/candidates 等）
 
+struct AiCoverMetadata: Codable, Hashable {
+    let genre: String?
+    let stylePreset: String?
+    let composition: String?
+    let variationId: String?
+}
+
 struct AiCoverCandidate: Codable, Identifiable, Hashable {
     let id: String
     let novelId: String
@@ -229,6 +236,7 @@ struct AiCoverCandidate: Codable, Identifiable, Hashable {
     let prompt: String?
     let taskId: String?
     let createdAt: Int64?
+    let metadata: AiCoverMetadata?
     /// 图片 data URL（可直接用于展示）。
     let dataUrl: String
 }
@@ -249,6 +257,7 @@ struct AiTaskStartResponse: Codable {
 /// POST /api/ai/cover/prompt 的返回。
 struct AiCoverPromptResponse: Codable {
     let prompt: String
+    let metadata: AiCoverMetadata?
 }
 
 // MARK: 已生成内容（GET /api/ai/generations 等）
