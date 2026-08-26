@@ -331,7 +331,7 @@ struct ReaderView: View {
 
     /// 底部浮层：进度条 + 上一章/页码/下一章。翻页到章末时变为居中的“下一章”按钮。
     private var readerChrome: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 14) {
             ReaderProgressBar(fraction: progressPercent, tint: AppTheme.primary, track: ink.opacity(0.15))
             HStack(spacing: 0) {
                 if atChapterEnd {
@@ -377,21 +377,16 @@ struct ReaderView: View {
                 }
             }
             .padding(.horizontal, 4)
-            .frame(minHeight: 52)
-            .background(Color(.secondarySystemBackground).opacity(0.94), in: Capsule())
+            .frame(height: 52)
+            .background(Color(.tertiarySystemFill), in: Capsule())
             .overlay(Capsule().strokeBorder(ink.opacity(0.1), lineWidth: 1))
-            .padding(.horizontal, 18)
-            .padding(.bottom, 2)
-            .background(
-                LinearGradient(
-                    colors: [paper.opacity(0), paper.opacity(0.98)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            )
+            .padding(.horizontal, 20)
         }
-        .padding(.top, 10)
-        .padding(.bottom, 8)
+        .padding(.top, 14)
+        .padding(.bottom, 12)
+        .frame(maxWidth: .infinity)
+        // 用不透明纸面承接底部留白，避免正文从进度组后面透出来。
+        .background(paper)
         .opacity(showChrome ? 1 : 0)
         .allowsHitTesting(showChrome)
     }
@@ -416,41 +411,36 @@ struct ReaderView: View {
     /// 顶部操作组：用原生分段控件的分组关系承载目录与字号设置。
     private var readerToolbarGroup: some View {
         HStack(spacing: 0) {
-            readerToolbarAction(systemName: "list.bullet", label: "目录") {
+            Button {
                 showTOC = true
+            } label: {
+                Image(systemName: "list.bullet")
+                    .font(.system(size: 16, weight: .semibold))
+                    .frame(width: 44, height: 40)
             }
+            .foregroundStyle(ink)
+            .buttonStyle(.plain)
+            .accessibilityLabel("目录")
             Rectangle()
                 .fill(ink.opacity(0.14))
                 .frame(width: 1, height: 22)
-            readerToolbarAction(systemName: "textformat.size", label: "大小") {
+            Button {
                 showSettings = true
+            } label: {
+                Text("大小")
+                    .font(.subheadline.weight(.semibold))
+                    .fixedSize(horizontal: true, vertical: false)
+                    .frame(width: 58, height: 40)
             }
+            .foregroundStyle(ink)
+            .buttonStyle(.plain)
+            .accessibilityLabel("大小")
         }
         .padding(3)
-        .background(Color(.secondarySystemFill), in: Capsule())
+        .frame(width: 112, height: 46)
+        .background(Color(.tertiarySystemFill), in: Capsule())
         .overlay(Capsule().strokeBorder(ink.opacity(0.1), lineWidth: 1))
-    }
-
-    private func readerToolbarAction(
-        systemName: String,
-        label: String,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            HStack(spacing: label == "目录" ? 0 : 5) {
-                Image(systemName: systemName)
-                    .font(.system(size: 16, weight: .semibold))
-                if label != "目录" {
-                    Text(label)
-                        .font(.subheadline.weight(.semibold))
-                }
-            }
-            .frame(minWidth: label == "目录" ? 44 : 58, minHeight: 40)
-            .contentShape(Rectangle())
-        }
-        .foregroundStyle(ink)
-        .buttonStyle(.plain)
-        .accessibilityLabel(label)
+        .fixedSize(horizontal: true, vertical: false)
     }
 
     /// 底部阅读控制组：上一章、章节进度、下一章共享一块轻量分段表面。
