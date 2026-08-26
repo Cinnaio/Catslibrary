@@ -217,7 +217,7 @@ extension View {
     }
 
     func frostedRowBackground() -> some View {
-        self.listRowBackground(.thinMaterial)
+        self.listRowBackground(Rectangle().fill(.thinMaterial))
     }
 
     /// 浏览栈共用的详情 / 阅读器出口。
