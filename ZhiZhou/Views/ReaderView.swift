@@ -123,8 +123,8 @@ struct ReaderView: View {
             ReaderSettingsView()
                 .preferredColorScheme(scheme)
                 .presentationBackground(paper)
-                .presentationDetents([.medium])
-                .presentationDragIndicator(.hidden)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
         }
         .preferredColorScheme(scheme)
         .task { await load() }
