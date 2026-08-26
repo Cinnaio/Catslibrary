@@ -76,12 +76,13 @@ struct ReaderSettingsView: View {
             .scrollIndicators(.hidden)
             .navigationTitle("阅读设置")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.hidden, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("完成") { dismiss() }
-                        .font(.subheadline.weight(.semibold))
-                        .buttonStyle(.glass(AppTheme.glassClear))
-                        .tint(AppTheme.primary)
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(AppTheme.primary)
+                        .buttonStyle(.plain)
                 }
             }
         }
@@ -108,34 +109,35 @@ struct ReaderSettingsView: View {
     }
 
     private var fontStepper: some View {
-        GlassEffectContainer(spacing: 6) {
-            HStack(spacing: 6) {
-                Button {
-                    adjustFontSize(by: -1)
-                } label: {
-                    Image(systemName: "minus")
-                        .font(.system(size: 16, weight: .medium))
-                        .frame(width: 42, height: 42)
-                }
-                .disabled(settings.fontSizeIndex == 0)
-                .buttonStyle(.glass(AppTheme.glassClear))
-                .accessibilityLabel("减小字号")
+        HStack(spacing: 10) {
+            fontStepButton(systemName: "minus", label: "减小字号", isDisabled: settings.fontSizeIndex == 0) {
+                adjustFontSize(by: -1)
+            }
 
-                Button {
-                    adjustFontSize(by: 1)
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: 16, weight: .medium))
-                        .frame(width: 42, height: 42)
-                }
-                .disabled(settings.fontSizeIndex >= settings.fontLevelCount - 1)
-                .buttonStyle(.glass(AppTheme.glassClear))
-                .accessibilityLabel("增大字号")
+            fontStepButton(systemName: "plus", label: "增大字号", isDisabled: settings.fontSizeIndex >= settings.fontLevelCount - 1) {
+                adjustFontSize(by: 1)
             }
         }
-        .foregroundStyle(AppTheme.primary)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("调整字号")
+    }
+
+    private func fontStepButton(
+        systemName: String,
+        label: String,
+        isDisabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 17, weight: .medium))
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .foregroundStyle(isDisabled ? AppTheme.textMuted : AppTheme.primary)
+        .disabled(isDisabled)
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
     }
 
     private func segmentedSection(
@@ -149,24 +151,28 @@ struct ReaderSettingsView: View {
                 .font(.body)
                 .foregroundStyle(AppTheme.textSecondary)
 
-            GlassEffectContainer(spacing: 4) {
-                HStack(spacing: 4) {
-                    ForEach(values, id: \.0) { value in
-                        let isSelected = value.0 == selected
-                        Button {
-                            onSelect(value.0)
-                        } label: {
+            HStack(spacing: 0) {
+                ForEach(values, id: \.0) { value in
+                    let isSelected = value.0 == selected
+                    Button {
+                        onSelect(value.0)
+                    } label: {
+                        VStack(spacing: 8) {
                             Text(value.1)
                                 .font(.body.weight(isSelected ? .semibold : .regular))
                                 .foregroundStyle(isSelected ? AppTheme.textPrimary : AppTheme.textSecondary)
-                                .frame(maxWidth: .infinity)
-                                .frame(minHeight: 42)
-                                .contentShape(Capsule())
+
+                            Capsule()
+                                .fill(isSelected ? AppTheme.primary : Color.clear)
+                                .frame(width: 26, height: 2)
                         }
-                        .buttonStyle(.glass(isSelected ? AppTheme.glass : AppTheme.glassClear))
-                        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
-                        .accessibilityLabel(value.1)
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+                    .accessibilityLabel(value.1)
                 }
             }
         }
@@ -240,7 +246,7 @@ struct ReaderSettingsView: View {
             }
             .frame(minHeight: 62)
         }
-        .buttonStyle(.glass(selected ? AppTheme.glass : AppTheme.glassClear))
+        .buttonStyle(.plain)
         .accessibilityAddTraits(selected ? [.isSelected] : [])
         .accessibilityLabel(theme.title)
     }
