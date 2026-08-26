@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// 登录 / 注册（注册模式随服务端 register-status 动态切换）。
-/// 参照 Apple 登录页规范：克制、内聚、层级清楚——品牌头部 + 系统内嵌分组表单 + 单一主操作。
+/// 参照 Apple Liquid Glass 规范：克制、内聚、层级清楚——品牌头部 + 分组玻璃表单 + 单一主操作。
 struct LoginView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -22,7 +22,7 @@ struct LoginView: View {
 
     var body: some View {
         ZStack {
-            Color(.systemGroupedBackground).ignoresSafeArea()
+            loginBackdrop
 
             ScrollView {
                 VStack(spacing: 0) {
@@ -59,12 +59,38 @@ struct LoginView: View {
         .task { await fetchRegisterStatus() }
     }
 
+    private var loginBackdrop: some View {
+        ZStack {
+            Color(.systemGroupedBackground)
+
+            Circle()
+                .fill(AppTheme.primary.opacity(0.12))
+                .frame(width: 300, height: 300)
+                .blur(radius: 72)
+                .offset(x: 150, y: -280)
+
+            Circle()
+                .fill(AppTheme.primaryLight.opacity(0.28))
+                .frame(width: 240, height: 240)
+                .blur(radius: 64)
+                .offset(x: -170, y: 320)
+        }
+        .ignoresSafeArea()
+    }
+
     // MARK: - 品牌头部（留白、居中、克制）
 
     private var brandHeader: some View {
         VStack(spacing: 16) {
-            BrandMark()
-            .accessibilityHidden(true)
+            Image(systemName: "book.closed.fill")
+                .font(.system(size: 28, weight: .semibold))
+                .foregroundStyle(AppTheme.primaryDeep)
+                .frame(width: 78, height: 78)
+                .glassEffect(
+                    AppTheme.glassProminent,
+                    in: RoundedRectangle(cornerRadius: 24, style: .continuous)
+                )
+                .accessibilityHidden(true)
 
             Text("知舟")
                 .font(serifFont(.largeTitle, .bold))
@@ -78,42 +104,52 @@ struct LoginView: View {
         }
     }
 
-    // MARK: - 账号操作（系统分段控件）
+    // MARK: - 账号操作（Liquid Glass 分组控件）
 
     private var modePicker: some View {
-        Picker("账号操作", selection: $mode) {
-            Text("登录").tag(Mode.login)
-            Text("注册").tag(Mode.register)
+        GlassEffectContainer(spacing: 8) {
+            HStack(spacing: 8) {
+                modeButton("登录", for: .login)
+                modeButton("注册", for: .register)
+            }
         }
-        .pickerStyle(.segmented)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("账号操作")
     }
 
-    // MARK: - 系统内嵌分组表单（inset-grouped 手感的输入区）
+    private func modeButton(_ title: String, for targetMode: Mode) -> some View {
+        let selected = mode == targetMode
+        return Button {
+            guard mode != targetMode else { return }
+            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
+                mode = targetMode
+            }
+        } label: {
+            Text(title)
+                .font(.body.weight(selected ? .semibold : .regular))
+                .foregroundStyle(selected ? AppTheme.textPrimary : AppTheme.textSecondary)
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: 46)
+        }
+        .buttonStyle(.glass(selected ? AppTheme.glass : AppTheme.glassClear))
+        .accessibilityAddTraits(selected ? [.isSelected] : [])
+        .accessibilityLabel(title)
+    }
+
+    // MARK: - Liquid Glass 分组表单
 
     private var fieldsGroup: some View {
-        VStack(spacing: 0) {
-            usernameField
+        GlassEffectContainer(spacing: 8) {
+            VStack(spacing: 8) {
+                usernameField
 
-            if mode == .register {
-                if registerMode == .invite {
-                    fieldDivider
+                if mode == .register, registerMode == .invite {
                     inviteField
                 }
-            }
 
-            fieldDivider
-            passwordField
+                passwordField
+            }
         }
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(AppTheme.surface)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(AppTheme.border.opacity(0.7), lineWidth: 0.5)
-        )
-        .shadow(color: .black.opacity(0.05), radius: 8, y: 3)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: mode)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: registerMode)
     }
@@ -140,6 +176,7 @@ struct LoginView: View {
         }
         .padding(.horizontal, 16)
         .frame(minHeight: 54)
+        .glassEffect(AppTheme.glassClear, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
     private var inviteField: some View {
@@ -153,7 +190,7 @@ struct LoginView: View {
             TextField("邀请码", text: $invite)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
-                .submitLabel(.go)
+                .submitLabel(.next)
                 .focused($focusedField, equals: .invite)
                 .onSubmit { focusedField = .password }
                 .foregroundStyle(AppTheme.textPrimary)
@@ -161,6 +198,7 @@ struct LoginView: View {
         }
         .padding(.horizontal, 16)
         .frame(minHeight: 54)
+        .glassEffect(AppTheme.glassClear, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
     private var passwordField: some View {
@@ -196,17 +234,13 @@ struct LoginView: View {
                     .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.glass(AppTheme.glassClear))
             .accessibilityLabel(showPassword ? "隐藏密码" : "显示密码")
         }
         .padding(.leading, 16)
         .padding(.trailing, 4)
         .frame(minHeight: 54)
-    }
-
-    private var fieldDivider: some View {
-        Divider()
-            .padding(.leading, 52)
+        .glassEffect(AppTheme.glassClear, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
     // MARK: - 主操作（唯一、明显、对比安全）
@@ -218,24 +252,19 @@ struct LoginView: View {
             Group {
                 if busy {
                     ProgressView()
-                        .tint(.white)
+                        .tint(AppTheme.primaryDeep)
                 } else {
                     Text(mode == .login ? "登录" : "注册")
                         .font(.headline)
-                        .foregroundStyle(.white)
                 }
             }
+            .foregroundStyle(AppTheme.primaryDeep)
             .frame(maxWidth: .infinity)
             .frame(minHeight: 54)
-            .background(
-                AppTheme.deepGradient,
-                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
-            )
         }
-        .buttonStyle(ScaleButtonStyle())
+        .buttonStyle(.glass(AppTheme.glassProminent))
+        .tint(AppTheme.primary)
         .disabled(!canSubmit)
-        .opacity(canSubmit ? 1 : 0.5)
-        .shadow(color: .black.opacity(canSubmit ? 0.12 : 0), radius: 10, y: 5)
         .accessibilityLabel(mode == .login ? "登录" : "注册")
     }
 
@@ -244,26 +273,36 @@ struct LoginView: View {
             .font(.footnote)
             .foregroundStyle(AppTheme.textSecondary)
             .frame(maxWidth: .infinity, minHeight: 44)
+            .glassEffect(AppTheme.glassClear, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
+    @ViewBuilder
     private var statusLine: some View {
-        VStack(spacing: 10) {
-            if appState.sessionRestoreFailed {
-                Label("网络异常，未能恢复上次会话，请检查网络后重新登录", systemImage: "wifi.slash")
-                    .font(.footnote)
-                    .foregroundStyle(AppTheme.warning)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity)
-            }
+        if appState.sessionRestoreFailed || errorMessage != nil {
+            VStack(spacing: 10) {
+                if appState.sessionRestoreFailed {
+                    Label("网络异常，未能恢复上次会话，请检查网络后重新登录", systemImage: "wifi.slash")
+                        .font(.footnote)
+                        .foregroundStyle(AppTheme.warning)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+                }
 
-            if let errorMessage {
-                Text(errorMessage)
-                    .font(.footnote)
-                    .foregroundStyle(AppTheme.danger)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity)
-                    .accessibilityAddTraits(.updatesFrequently)
+                if let errorMessage {
+                    Text(errorMessage)
+                        .font(.footnote)
+                        .foregroundStyle(AppTheme.danger)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+                        .accessibilityAddTraits(.updatesFrequently)
+                }
             }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .glassEffect(
+                .clear.tint(AppTheme.danger.opacity(0.12)),
+                in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+            )
         }
     }
 

@@ -80,7 +80,7 @@ struct ReaderSettingsView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("完成") { dismiss() }
                         .font(.subheadline.weight(.semibold))
-                        .buttonStyle(.glass(AppTheme.readerGlassClear))
+                        .buttonStyle(.glass(AppTheme.glassClear))
                         .tint(AppTheme.primary)
                 }
             }
@@ -118,7 +118,7 @@ struct ReaderSettingsView: View {
                         .frame(width: 42, height: 42)
                 }
                 .disabled(settings.fontSizeIndex == 0)
-                .buttonStyle(.glass(AppTheme.readerGlassClear))
+                .buttonStyle(.glass(AppTheme.glassClear))
                 .accessibilityLabel("减小字号")
 
                 Button {
@@ -129,7 +129,7 @@ struct ReaderSettingsView: View {
                         .frame(width: 42, height: 42)
                 }
                 .disabled(settings.fontSizeIndex >= settings.fontLevelCount - 1)
-                .buttonStyle(.glass(AppTheme.readerGlassClear))
+                .buttonStyle(.glass(AppTheme.glassClear))
                 .accessibilityLabel("增大字号")
             }
         }
@@ -163,7 +163,7 @@ struct ReaderSettingsView: View {
                                 .frame(minHeight: 42)
                                 .contentShape(Capsule())
                         }
-                        .buttonStyle(.glass(isSelected ? AppTheme.readerGlass : AppTheme.readerGlassClear))
+                        .buttonStyle(.glass(isSelected ? AppTheme.glass : AppTheme.glassClear))
                         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
                         .accessibilityLabel(value.1)
                     }
@@ -240,7 +240,7 @@ struct ReaderSettingsView: View {
             }
             .frame(minHeight: 62)
         }
-        .buttonStyle(.glass(selected ? AppTheme.readerGlass : AppTheme.readerGlassClear))
+        .buttonStyle(.glass(selected ? AppTheme.glass : AppTheme.glassClear))
         .accessibilityAddTraits(selected ? [.isSelected] : [])
         .accessibilityLabel(theme.title)
     }

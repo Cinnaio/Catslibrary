@@ -40,22 +40,22 @@ enum AppTheme {
     static let primaryDeep = Color(light: "2C5348", dark: "9AD4C6")
     static let primaryLight = Color(light: "E3EFEB", dark: "243330")
 
-    // MARK: 阅读器 Liquid Glass
-    /// 阅读器控件统一使用系统 Liquid Glass，并以黛青做轻微染色。
+    // MARK: Liquid Glass
+    /// 交互控件统一使用系统 Liquid Glass，并以黛青做轻微染色。
     /// interactive() 让玻璃表面在按下、悬停和聚焦时产生原生反馈。
-    static var readerGlass: Glass {
+    static var glass: Glass {
         .regular
             .tint(primary.opacity(0.14))
             .interactive()
     }
 
-    static var readerGlassClear: Glass {
+    static var glassClear: Glass {
         .clear
             .tint(primary.opacity(0.08))
             .interactive()
     }
 
-    static var readerGlassProminent: Glass {
+    static var glassProminent: Glass {
         .regular
             .tint(primary.opacity(0.24))
             .interactive()

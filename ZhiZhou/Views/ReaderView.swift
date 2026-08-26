@@ -349,7 +349,7 @@ struct ReaderView: View {
                             .frame(maxWidth: .infinity)
                             .frame(minHeight: 44)
                     }
-                    .buttonStyle(.glass(AppTheme.readerGlassProminent))
+                    .buttonStyle(.glass(AppTheme.glassProminent))
                     .tint(AppTheme.primary)
                     .accessibilityLabel("下一章")
                 } else {
@@ -389,7 +389,7 @@ struct ReaderView: View {
         }
         .padding(.horizontal, 12)
         .frame(minHeight: 44)
-        .glassEffect(AppTheme.readerGlassClear, in: Capsule())
+        .glassEffect(AppTheme.glassClear, in: Capsule())
         .accessibilityElement(children: .combine)
         .accessibilityLabel("第 \(chapterOrder) / \(totalOrderCount) 章，\(percentText)")
     }
@@ -405,7 +405,7 @@ struct ReaderView: View {
                 .frame(minHeight: 44)
         }
         .foregroundStyle(AppTheme.primary)
-        .buttonStyle(.glass(AppTheme.readerGlassProminent))
+        .buttonStyle(.glass(AppTheme.glassProminent))
         .accessibilityLabel("下一章")
     }
 
@@ -420,7 +420,7 @@ struct ReaderView: View {
                         .font(.system(size: 16, weight: .semibold))
                         .frame(width: 44, height: 40)
                 }
-                .buttonStyle(.glass(AppTheme.readerGlassClear))
+                .buttonStyle(.glass(AppTheme.glassClear))
                 .tint(AppTheme.primary)
                 .accessibilityLabel("目录")
 
@@ -432,7 +432,7 @@ struct ReaderView: View {
                         .fixedSize(horizontal: true, vertical: false)
                         .frame(width: 58, height: 40)
                 }
-                .buttonStyle(.glass(AppTheme.readerGlassClear))
+                .buttonStyle(.glass(AppTheme.glassClear))
                 .tint(AppTheme.primary)
                 .accessibilityLabel("大小")
             }
@@ -455,7 +455,7 @@ struct ReaderView: View {
         }
         .foregroundStyle(AppTheme.primary.opacity(isEnabled ? 0.95 : 0.28))
         .disabled(!isEnabled)
-        .buttonStyle(.glass(AppTheme.readerGlassClear))
+        .buttonStyle(.glass(AppTheme.glassClear))
         .accessibilityLabel(label)
     }
 
@@ -740,7 +740,7 @@ private struct ReaderProgressBar: View {
                     .frame(width: max(6, geo.size.width * min(1, max(0, fraction))), height: 4)
             }
             .padding(.vertical, 4)
-            .glassEffect(AppTheme.readerGlassClear, in: Capsule())
+            .glassEffect(AppTheme.glassClear, in: Capsule())
         }
         .frame(height: 12)
         .padding(.horizontal, 18)
