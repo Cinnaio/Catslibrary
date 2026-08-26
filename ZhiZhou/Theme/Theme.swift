@@ -114,38 +114,64 @@ enum SongtiFont {
     }
 
     static func uiFont(size: CGFloat, weight: UIFont.Weight = .regular) -> UIFont {
-        for name in postScriptNames(for: weight) {
-            if let font = UIFont(name: name, size: size) { return font }
+        if let font = songtiFont(size: size, weight: weight) {
+            return font
         }
-        let system = UIFont.systemFont(ofSize: size, weight: weight)
-        if let descriptor = system.fontDescriptor.withDesign(.serif) {
-            return UIFont(descriptor: descriptor, size: size)
+
+        // 通用 serif 可能只有拉丁字形；阅读正文需要一个明确支持中文的回退字体。
+        let fallbackName = weight.rawValue >= 0.265
+            ? "PingFangSC-Semibold"
+            : "PingFangSC-Regular"
+        if let fallback = UIFont(name: fallbackName, size: size) {
+            return fallback
         }
-        return system
+
+        return UIFont.systemFont(ofSize: size, weight: weight)
     }
 
-    /// 按字重给出候选 PostScript 名：优先系统 Songti SC 的标准名称，
-    /// 再补上设备实际枚举到的 Songti SC 名称。
+    /// 从系统字体目录动态查找 Songti SC 的实际 face 名称。
     /// UIFont.Weight 的 rawValue 不是 0...1：regular=0、medium≈0.23、
     /// semibold≈0.3、bold≈0.4、heavy≈0.56、black≈0.62。
-    private static func postScriptNames(for weight: UIFont.Weight) -> [String] {
-        let system: String
-        switch weight.rawValue {
-        case ..<(-0.2): // ultraLight / thin / light
-            system = "STSongti-SC-Light"
-        case ..<0.265: // regular / medium
-            system = "STSongti-SC-Regular"
-        case ..<0.48: // semibold / bold
-            system = "STSongti-SC-Bold"
-        default: // heavy / black
-            system = "STSongti-SC-Black"
+    private static func songtiFont(size: CGFloat, weight: UIFont.Weight) -> UIFont? {
+        guard let family = UIFont.familyNames.first(where: {
+            $0.compare(
+                "Songti SC",
+                options: [.caseInsensitive, .diacriticInsensitive]
+            ) == .orderedSame
+        }) else {
+            return nil
         }
 
-        var names = [system]
-        for name in UIFont.fontNames(forFamilyName: "Songti SC") where !names.contains(name) {
-            names.append(name)
+        let style: String
+        switch weight.rawValue {
+        case ..<(-0.2): // ultraLight / thin / light
+            style = "Light"
+        case ..<0.265: // regular / medium
+            style = "Regular"
+        case ..<0.48: // semibold / bold
+            style = "Bold"
+        default: // heavy / black
+            style = "Black"
         }
-        return names
+
+        let names = UIFont.fontNames(forFamilyName: family)
+        var candidates = names.filter {
+            $0.localizedCaseInsensitiveContains(style)
+        }
+        candidates.append(contentsOf: names.filter {
+            !candidates.contains($0)
+        })
+
+        for name in candidates {
+            guard let font = UIFont(name: name, size: size) else { continue }
+            guard font.familyName.compare(
+                family,
+                options: [.caseInsensitive, .diacriticInsensitive]
+            ) == .orderedSame else { continue }
+            return font
+        }
+
+        return nil
     }
 
     private static func uiTextStyle(for style: Font.TextStyle) -> UIFont.TextStyle {
@@ -167,7 +193,7 @@ enum SongtiFont {
 }
 
 extension Font.Weight {
-    /// SwiftUI 字重 → UIKit 字重（Songti 按字重选 PostScript 名）。
+    /// SwiftUI 字重 → UIKit 字重（Songti 按字重选择系统 face）。
     var uiWeight: UIFont.Weight {
         switch self {
         case .ultraLight: return .ultraLight
