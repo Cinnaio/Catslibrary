@@ -215,19 +215,17 @@ struct AdminDiscoverView: View {
 
     private func discoverRow(_ novel: DiscoverNovel, index: Int) -> some View {
         HStack(spacing: 10) {
-            if selectionMode {
-                Button {
-                    toggleSelect(index)
-                } label: {
-                    Image(systemName: selectedIndices.contains(index) ? "checkmark.circle.fill" : "circle")
-                        .font(.title3)
-                        .foregroundStyle(selectedIndices.contains(index) ? AppTheme.primary : AppTheme.textMuted)
-                        .frame(width: 44, height: 44)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(selectedIndices.contains(index) ? "取消选择\(novel.title)" : "选择\(novel.title)")
-                .accessibilityValue(selectedIndices.contains(index) ? "已选择" : "未选择")
+            Button {
+                toggleSelect(index)
+            } label: {
+                Image(systemName: selectedIndices.contains(index) ? "checkmark.circle.fill" : "circle")
+                    .font(.title3)
+                    .foregroundStyle(selectedIndices.contains(index) ? AppTheme.primary : AppTheme.textMuted)
+                    .frame(width: 44, height: 44)
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel(selectedIndices.contains(index) ? "取消选择\(novel.title)" : "选择\(novel.title)")
+            .accessibilityValue(selectedIndices.contains(index) ? "已选择" : "未选择")
             Button {
                 Task { await openDetail(novel) }
             } label: {
