@@ -8,7 +8,7 @@
 import { randomUUID } from 'node:crypto'
 import type { Db } from '../../db/pool'
 import { first } from '../../db/query'
-import { AiError, chat, isTextAiConfigured, providerLabel, textProvider } from './client'
+import { AiError, chat, chatStream, isTextAiConfigured, providerLabel, textProvider } from './client'
 import { generateImage, isImageAiConfigured, imageProvider, imageProviderLabel } from './image'
 import { recordUsage } from './usage'
 import { getAiSettings } from './settings'
@@ -61,6 +61,8 @@ export interface CoverPromptOptions {
   variationId?: string
   /** 封面描述词上限；由 AI 运营设置注入，直接调用时回退到默认值。 */
   maxPromptChars?: number
+  /** 流式生成时回调当前已组装的封面描述词；不参与任务参数持久化。 */
+  onProgress?: (progress: CoverPromptProgress) => void | Promise<void>
 }
 
 export interface CoverPromptMetadata {
@@ -76,6 +78,11 @@ export interface CoverPromptMetadata {
   storySetting?: string
 }
 
+export interface CoverPromptProgress {
+  prompt: string
+  metadata: CoverPromptMetadata
+}
+
 /** 创建一次全新的封面变体；任务参数会持久化它，重试时仍可复现。 */
 export function newCoverVariationId(): string {
   return randomUUID()
@@ -83,6 +90,31 @@ export function newCoverVariationId(): string {
 
 function normalizePlatform(value: unknown): CoverPlatform {
   return isCoverPlatform(value) ? value : 'default'
+}
+
+function buildCoverPromptMetadata(
+  genre: Genre,
+  inferredGenres: Genre[],
+  direction: CoverDirection,
+  variationId: string,
+  romanceDNA: RomanceVisualDNA | null,
+): CoverPromptMetadata {
+  return {
+    genre,
+    genres: [genre, ...inferredGenres.filter((candidate) => candidate !== genre)],
+    stylePreset: direction.stylePreset,
+    composition: direction.composition,
+    variationId,
+    ...(romanceDNA
+      ? {
+          romanceSubtype: romanceDNA.subtype,
+          romanceEmotion: romanceDNA.emotion,
+          visualConcept: romanceDNA.visualConcept,
+          visualAnchor: romanceDNA.visualAnchor,
+          storySetting: romanceDNA.setting,
+        }
+      : {}),
+  }
 }
 
 async function loadNovelMeta(db: Db, novelId: string): Promise<NovelMeta | null> {
@@ -132,7 +164,23 @@ export async function generateCoverPromptTask(
   await updateAiTask(db, opts.taskId, { status: 'running', step: '正在生成封面描述词' })
 
   try {
-    const result = await generateCoverPrompt(db, opts.novelId, opts)
+    let lastProgressAt = 0
+    const persistProgress = async (progress: CoverPromptProgress): Promise<void> => {
+      if (await isAiTaskCancelled(db, opts.taskId)) return
+      const now = Date.now()
+      // 上游 token 可能非常密集，限制快照写入频率，避免流式输出把数据库写爆。
+      if (now - lastProgressAt < 180) return
+      lastProgressAt = now
+      await updateAiTask(db, opts.taskId, {
+        current: 0,
+        total: 1,
+        step: '正在实时生成封面描述词',
+        prompt: progress.prompt,
+        result: JSON.stringify(progress),
+      })
+    }
+
+    const result = await generateCoverPrompt(db, opts.novelId, { ...opts, onProgress: persistProgress })
     if (await isAiTaskCancelled(db, opts.taskId)) return
 
     if (result.textUsage) {
@@ -223,7 +271,37 @@ export async function buildImagePrompt(meta: NovelMeta, opts: CoverPromptOptions
     if (genre === 'romance' || inferredGenres.includes('romance')) {
       romanceDNA = resolveRomanceVisualDNA({ title: meta.title, categories: meta.categories, description: meta.description, variationId })
     }
-    const generated = await generateSceneDescription({ titleHint, catHint, descHint, style: GENRE_STYLES[genre], direction, romanceDNA })
+    const generated = await generateSceneDescription({
+      titleHint,
+      catHint,
+      descHint,
+      style: GENRE_STYLES[genre],
+      direction,
+      romanceDNA,
+      onDelta: opts.onProgress
+        ? async (partialScene) => {
+            const partialPrompt = limitGeneratedCoverPrompt(
+              assembleCoverPrompt({
+                scene: partialScene,
+                style: GENRE_STYLES[genre],
+                direction,
+                platformStyle: PLATFORM_STYLES[platform],
+                titleHint,
+                authorHint,
+                categoryHint: catHint,
+                storyHint: descHint,
+                renderTitle,
+                romanceDNA,
+              }),
+              opts.maxPromptChars,
+            )
+            await opts.onProgress?.({
+              prompt: partialPrompt,
+              metadata: buildCoverPromptMetadata(genre, inferredGenres, direction, variationId, romanceDNA),
+            })
+          }
+        : undefined,
+    })
     scene = generated.scene
     textUsage = mergeTextUsage(judged.textUsage, generated.textUsage)
   } else {
@@ -259,25 +337,9 @@ export async function buildImagePrompt(meta: NovelMeta, opts: CoverPromptOptions
     }),
     opts.maxPromptChars,
   )
-  const genres = [genre, ...inferredGenres.filter((candidate) => candidate !== genre)]
   return {
     prompt,
-    metadata: {
-      genre,
-      genres,
-      stylePreset: direction.stylePreset,
-      composition: direction.composition,
-      variationId,
-      ...(romanceDNA
-        ? {
-            romanceSubtype: romanceDNA.subtype,
-            romanceEmotion: romanceDNA.emotion,
-            visualConcept: romanceDNA.visualConcept,
-            visualAnchor: romanceDNA.visualAnchor,
-            storySetting: romanceDNA.setting,
-          }
-        : {}),
-    },
+    metadata: buildCoverPromptMetadata(genre, inferredGenres, direction, variationId, romanceDNA),
     textUsage,
   }
 }
@@ -421,8 +483,9 @@ async function generateSceneDescription(args: {
   style: GenreStyle
   direction: CoverDirection
   romanceDNA: RomanceVisualDNA | null
+  onDelta?: (scene: string) => void | Promise<void>
 }): Promise<{ scene: string; textUsage: BuildPromptResult['textUsage'] }> {
-  const { titleHint, catHint, descHint, style, direction, romanceDNA } = args
+  const { titleHint, catHint, descHint, style, direction, romanceDNA, onDelta } = args
   const textProvider_ = textProvider()
 
   const user = [
@@ -454,17 +517,28 @@ async function generateSceneDescription(args: {
   const systemContent =
     '你是为 AI 图像生成模型撰写英文封面画面描述的专家，擅长把小说元数据转化为有视觉冲击力的画面描述（人物+背景）。只描述画面本身，不要出现任何文字/标题描述。'
 
-  const res = await chat({
+  const chatOptions = {
     messages: [
-      { role: 'system', content: systemContent },
-      { role: 'user', content: user },
+      { role: 'system' as const, content: systemContent },
+      { role: 'user' as const, content: user },
     ],
     temperature: 0.6,
     // 推理模型先消耗思考 token，给足余量避免 content 被截断报 invalid
     maxTokens: 10000,
     timeoutMs: 60_000,
-  })
-  const scene = res.text.replace(/^["'“”「」]+|["'“”「」]+$/g, '').trim() || `${style.figure} ${style.background}`
+  }
+  let res
+  if (onDelta) {
+    let accumulated = ''
+    res = await chatStream(chatOptions, async (delta) => {
+      accumulated += delta
+      const partial = cleanGeneratedScene(accumulated)
+      if (partial) await onDelta(partial)
+    })
+  } else {
+    res = await chat(chatOptions)
+  }
+  const scene = cleanGeneratedScene(res.text) || `${style.figure} ${style.background}`
   return {
     scene,
     textUsage: {
@@ -475,6 +549,10 @@ async function generateSceneDescription(args: {
       baseUrl: textProvider_.baseUrl,
     },
   }
+}
+
+function cleanGeneratedScene(value: string): string {
+  return String(value || '').replace(/^["'“”「」]+|["'“”「」]+$/g, '').trim()
 }
 
 export function normalizeCoverPrompt(value: unknown, maxPromptChars = DEFAULT_COVER_PROMPT_MAX_CHARS): string {

@@ -1507,6 +1507,69 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     expect(usage.rows.length).toBeGreaterThan(0)
   })
 
+  it('cover prompt：上游流式分片会通过任务 SSE 实时推送，并最终持久化', async () => {
+    const novelId = await firstNovelId(t)
+    const previous = fetchMock.getMockImplementation()
+    const encoder = new TextEncoder()
+    fetchMock.mockImplementationOnce(async () =>
+      new Response(
+        JSON.stringify({
+          model: 'test-model',
+          choices: [{ message: { content: 'fantasy' }, finish_reason: 'stop' }],
+          usage: { prompt_tokens: 8, completion_tokens: 2 },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+    fetchMock.mockImplementationOnce(async () => {
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(
+            encoder.encode(
+              `data: ${JSON.stringify({ model: 'test-model', choices: [{ delta: { content: 'a lone hero ' } }] })}\n\n`,
+            ),
+          )
+          setTimeout(() => {
+            controller.enqueue(
+              encoder.encode(
+                `data: ${JSON.stringify({ choices: [{ delta: { content: 'under the moon' }, finish_reason: 'stop' }], usage: { prompt_tokens: 12, completion_tokens: 5 } })}\n\n`,
+              ),
+            )
+            controller.enqueue(encoder.encode('data: [DONE]\n\n'))
+            controller.close()
+          }, 40)
+        },
+      })
+      return new Response(body, { status: 200, headers: { 'Content-Type': 'text/event-stream' } })
+    })
+    try {
+      const started = await req('/api/ai/cover/prompt', json('POST', { novelId, async: true, variationId: 'sse-prompt-test' }, adminToken))
+      expect(started.status).toBe(202)
+      const { taskId } = await jsonOf<{ taskId: string }>(started)
+
+      const stream = await req(`/api/ai/tasks/${taskId}/stream`, json('GET', undefined, adminToken))
+      expect(stream.status).toBe(200)
+      expect(stream.headers.get('content-type')).toContain('text/event-stream')
+      const raw = await stream.text()
+      const events = raw
+        .split('\n\n')
+        .filter((block) => block.startsWith('data: '))
+        .map((block) => JSON.parse(block.slice(6)) as { type: string; task: { status: string; prompt: string } })
+
+      expect(events.some((event) => event.type === 'update')).toBe(true)
+      expect(events.at(-1)?.type).toBe('done')
+      expect(events.at(-1)?.task.status).toBe('completed')
+      expect(events.at(-1)?.task.prompt).toContain('a lone hero under the moon')
+      expect((await waitForTask(taskId, adminToken)).status).toBe('completed')
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+      const sceneRequest = fetchMock.mock.calls.at(-1)?.[1] as { body?: string } | undefined
+      expect(JSON.parse(sceneRequest?.body || '{}').stream).toBe(true)
+    } finally {
+      if (previous) fetchMock.mockImplementation(previous)
+      else fetchMock.mockReset()
+    }
+  })
+
   it('cover：默认渲染书名/作者名文字层（story-cover），显式关闭走 no text', async () => {
     process.env.AI_IMAGE_BASE_URL = 'https://image.test/v1'
     process.env.AI_IMAGE_API_KEY = 'img-key'

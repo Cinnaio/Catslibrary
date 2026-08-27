@@ -43,6 +43,8 @@ export interface AiChatResult {
   cost: number
 }
 
+export type AiChatDeltaHandler = (text: string) => void | Promise<void>
+
 const DEFAULT_TIMEOUT_MS = 60_000
 const MAX_ATTEMPTS = 3
 /** 仅对「重试可能有用」的失败退避重试：限流、网关抖动、超时。 */
@@ -106,6 +108,44 @@ export async function chat(opts: AiChatOptions): Promise<AiChatResult> {
   throw lastError || new AiError('upstream', 'AI 请求失败')
 }
 
+/**
+ * 单轮对话流式补全。
+ *
+ * 上游按 OpenAI 兼容 SSE 返回时逐片回调；如果供应商忽略 stream=true 而仍返回 JSON，
+ * 则退回一次性解析，保证不同网关的兼容性。已经收到部分内容后不再自动重试，避免重复拼接。
+ */
+export async function chatStream(opts: AiChatOptions, onDelta: AiChatDeltaHandler): Promise<AiChatResult> {
+  const provider = textProvider()
+  if (!isTextAiConfigured()) throw new AiError('disabled', 'AI 文本服务未配置', 503)
+
+  const endpoint = chatEndpoint(provider.baseUrl)
+  const model = opts.model || provider.model
+  const body = JSON.stringify({
+    model,
+    messages: opts.messages,
+    temperature: opts.temperature ?? 0.3,
+    max_tokens: opts.maxTokens ?? 800,
+    stream: true,
+  })
+
+  let lastError: AiError | null = null
+  let emitted = false
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      return await onceStream(endpoint, provider.apiKey, body, model, opts, async (delta) => {
+        emitted = true
+        await onDelta(delta)
+      })
+    } catch (err) {
+      const aiErr = err instanceof AiError ? err : new AiError('upstream', (err as Error)?.message || '未知错误')
+      lastError = aiErr
+      if (emitted || attempt >= MAX_ATTEMPTS || !isRetriable(aiErr)) break
+      await sleep(attempt * 700)
+    }
+  }
+  throw lastError || new AiError('upstream', 'AI 请求失败')
+}
+
 async function once(endpoint: string, apiKey: string, body: string, model: string, opts: AiChatOptions): Promise<AiChatResult> {
   const timeout = AbortSignal.timeout(opts.timeoutMs ?? DEFAULT_TIMEOUT_MS)
   const signal = opts.signal ? anySignal([timeout, opts.signal]) : timeout
@@ -160,14 +200,140 @@ async function once(endpoint: string, apiKey: string, body: string, model: strin
   }
 }
 
+async function onceStream(
+  endpoint: string,
+  apiKey: string,
+  body: string,
+  model: string,
+  opts: AiChatOptions,
+  onDelta: AiChatDeltaHandler,
+): Promise<AiChatResult> {
+  const timeout = AbortSignal.timeout(opts.timeoutMs ?? DEFAULT_TIMEOUT_MS)
+  const signal = opts.signal ? anySignal([timeout, opts.signal]) : timeout
+
+  let res: Response
+  try {
+    res = await outboundFetch(
+      endpoint,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        body,
+        signal,
+      },
+      { scope: 'ai-text' },
+    )
+  } catch (err) {
+    const name = (err as Error)?.name || ''
+    if (name === 'TimeoutError' || name === 'AbortError') throw new AiError('timeout', 'AI 服务响应超时', 504)
+    throw new AiError('upstream', 'AI 服务连接失败')
+  }
+
+  if (!res.ok) {
+    const detail = (await res.text().catch(() => '')).slice(0, 500)
+    console.error('[ai] upstream %d %s', res.status, detail)
+    throw new AiError('upstream', describeUpstreamError(res.status, detail), res.status)
+  }
+
+  const contentType = (res.headers.get('content-type') || '').toLowerCase()
+  if (!contentType.includes('text/event-stream')) {
+    const data = (await res.json().catch(() => null)) as ChatCompletionResponse | null
+    const parsed = parseChatCompletion(data, model)
+    if (!parsed.text) throw emptyChatResponseError(parsed.finishReason, data)
+    await onDelta(parsed.text)
+    return parsed
+  }
+
+  if (!res.body) throw new AiError('upstream', 'AI 服务未返回流式内容')
+
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let text = ''
+  let responseModel = model
+  let promptTokens = 0
+  let completionTokens = 0
+  let cost = 0
+  let finishReason = ''
+
+  const consumeLine = async (line: string): Promise<void> => {
+    const normalized = line.endsWith('\r') ? line.slice(0, -1) : line
+    if (!normalized.startsWith('data:')) return
+    const payload = normalized.slice(5).trim()
+    if (!payload || payload === '[DONE]') return
+
+    let data: ChatCompletionStreamChunk
+    try {
+      data = JSON.parse(payload) as ChatCompletionStreamChunk
+    } catch {
+      throw new AiError('invalid', 'AI 流式响应格式不正确')
+    }
+
+    if (data.model) responseModel = String(data.model)
+    const usage = data.usage
+    if (usage) {
+      promptTokens = Number(usage.prompt_tokens) || promptTokens
+      completionTokens = Number(usage.completion_tokens) || completionTokens
+    }
+    if (data.cost !== undefined) cost = Number(data.cost) || cost
+
+    const choice = data.choices?.[0]
+    if (choice?.finish_reason) finishReason = String(choice.finish_reason)
+    const delta = extractContent(choice?.delta?.content, false)
+    if (!delta) return
+    text += delta
+    await onDelta(delta)
+  }
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split(/\n/)
+      buffer = lines.pop() || ''
+      for (const line of lines) await consumeLine(line)
+    }
+    buffer += decoder.decode()
+    if (buffer) await consumeLine(buffer)
+  } finally {
+    reader.releaseLock()
+  }
+
+  const trimmed = text.trim()
+  if (!trimmed) throw emptyChatResponseError(finishReason, null)
+  return { text: trimmed, model: responseModel, promptTokens, completionTokens, finishReason, cost }
+}
+
+function parseChatCompletion(data: ChatCompletionResponse | null, model: string): AiChatResult {
+  const choice = data?.choices?.[0]
+  const text = extractContent(choice?.message?.content)
+  return {
+    text,
+    model: String(data?.model || model),
+    promptTokens: Number(data?.usage?.prompt_tokens) || 0,
+    completionTokens: Number(data?.usage?.completion_tokens) || 0,
+    finishReason: String(choice?.finish_reason || ''),
+    cost: Number(data?.cost) || 0,
+  }
+}
+
+function emptyChatResponseError(finishReason: string, data: ChatCompletionResponse | null): AiError {
+  console.error('[ai] 空回复 finish_reason=%s usage=%o', finishReason, data?.usage || null)
+  if (finishReason === 'length') {
+    return new AiError('invalid', 'AI 输出被 max_tokens 截断：推理模型会先消耗思考 token，请调高上限')
+  }
+  return new AiError('invalid', 'AI 服务返回内容为空')
+}
+
 /** content 可能是字符串，也可能是 [{type:'text',text}] 分片（部分网关如此）。 */
-function extractContent(content: unknown): string {
-  if (typeof content === 'string') return content.trim()
+function extractContent(content: unknown, trim = true): string {
+  if (typeof content === 'string') return trim ? content.trim() : content
   if (Array.isArray(content)) {
-    return content
+    const value = content
       .map((part) => (typeof part === 'string' ? part : String((part as { text?: unknown })?.text || '')))
       .join('')
-      .trim()
+    return trim ? value.trim() : value
   }
   return ''
 }
@@ -175,6 +341,13 @@ function extractContent(content: unknown): string {
 interface ChatCompletionResponse {
   model?: string
   choices?: Array<{ message?: { content?: unknown }; finish_reason?: string }>
+  usage?: { prompt_tokens?: number; completion_tokens?: number }
+  cost?: string | number
+}
+
+interface ChatCompletionStreamChunk {
+  model?: string
+  choices?: Array<{ delta?: { content?: unknown }; finish_reason?: string }>
   usage?: { prompt_tokens?: number; completion_tokens?: number }
   cost?: string | number
 }

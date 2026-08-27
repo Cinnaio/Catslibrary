@@ -1046,12 +1046,99 @@ aiRoutes.get('/tasks', requireAdmin(), async (c) => {
   return c.json({ ...result, limit, offset }, 200, { 'Cache-Control': 'no-store' })
 })
 
+/**
+ * 订阅单个任务的实时快照：封面描述词任务在前台可通过 SSE 接收增量结果。
+ * 任务本身仍以 ai_tasks 为事实来源，客户端断线后可以重新订阅或继续轮询。
+ */
+aiRoutes.get('/tasks/:id/stream', requireAdmin(), async (c) => {
+  const id = String(c.req.param('id') || '').trim()
+  const initial = await getAiTask(getDb(), id)
+  if (!initial) return c.json({ error: '任务不存在' }, 404)
+
+  const db = getDb()
+  const signal = c.req.raw.signal
+  const encoder = new TextEncoder()
+  let cancelFollow: (() => void) | undefined
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      let closed = false
+      let lastSignature = ''
+      let lastHeartbeatAt = Date.now()
+
+      const close = () => {
+        if (closed) return
+        closed = true
+        controller.close()
+      }
+      const emit = (payload: unknown) => {
+        if (closed) return
+        try {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`))
+        } catch {
+          close()
+        }
+      }
+
+      const follow = async () => {
+        try {
+          while (!closed && !signal.aborted) {
+            const task = await getAiTask(db, id)
+            if (!task) break
+
+            const signature = JSON.stringify([task.updatedAt, task.status, task.current, task.step, task.prompt, task.result, task.error])
+            if (signature !== lastSignature) {
+              lastSignature = signature
+              const terminal = ['completed', 'failed', 'cancelled'].includes(task.status)
+              emit({ type: terminal ? 'done' : 'update', task })
+            }
+
+            if (['completed', 'failed', 'cancelled'].includes(task.status)) break
+
+            const now = Date.now()
+            if (now - lastHeartbeatAt >= 10_000) {
+              if (!closed) controller.enqueue(encoder.encode(': heartbeat\n\n'))
+              lastHeartbeatAt = now
+            }
+            await delay(250)
+          }
+        } catch {
+          // 客户端会把连接断开视为可恢复事件，并回退到任务查询。
+        } finally {
+          close()
+        }
+      }
+
+      const onAbort = () => close()
+      cancelFollow = close
+      signal.addEventListener('abort', onAbort, { once: true })
+      void follow()
+    },
+    cancel() {
+      cancelFollow?.()
+    },
+  })
+
+  return new Response(stream, {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    },
+  })
+})
+
 /** 单任务查询：后台续写等长任务由前端轮询此接口看进度。 */
 aiRoutes.get('/tasks/:id', requireAdmin(), async (c) => {
   const task = await getAiTask(getDb(), String(c.req.param('id') || '').trim())
   if (!task) return c.json({ error: '任务不存在' }, 404)
   return c.json({ task }, 200, { 'Cache-Control': 'no-store' })
 })
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
 
 aiRoutes.post('/tasks/:id/cancel', requireAdmin(), async (c) => {
   const ok = await cancelAiTask(getDb(), String(c.req.param('id') || '').trim())
