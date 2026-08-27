@@ -251,11 +251,67 @@ export interface TitleSource {
   url: string
 }
 
+type HtmlFetcher = (url: string, opts?: FetchHtmlOptions) => Promise<FetchResult>
+
+export interface TitleSourceSearchOptions {
+  /** 仅用于 PO18.tw；不能把 PO18 会话 Cookie 传给晋江。 */
+  po18FetchHtml?: HtmlFetcher
+  po18SessionCookie?: string
+}
+
+function htmlAttribute(tag: string, name: string): string {
+  const value = tag.match(new RegExp(`${name}\\s*=\\s*["']([^"']*)["']`, 'i'))?.[1] || ''
+  return value
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+}
+
+function parsePo18SearchForm(html: string, baseUrl: string): { action: string; queryField: string; searchTypeField: string; hidden: Record<string, string> } {
+  const forms = [...html.matchAll(/<form\b([^>]*)>([\s\S]*?)<\/form>/gi)]
+  const form = forms.find((item) => /header-search-form|\/search\/index/i.test(item[1] || ''))
+  if (!form) throw new Error('无法识别 PO18 搜索表单')
+  const formHtml = form[2] || ''
+  const inputs = [...formHtml.matchAll(/<input\b[^>]*>/gi)].map((match) => match[0]!)
+  const hidden: Record<string, string> = {}
+  let queryField = ''
+  let searchTypeField = ''
+  for (const input of inputs) {
+    const name = htmlAttribute(input, 'name')
+    if (!name) continue
+    const type = (htmlAttribute(input, 'type') || 'text').toLowerCase()
+    if (type === 'hidden') hidden[name] = htmlAttribute(input, 'value')
+    if (!queryField && type !== 'hidden' && (/^name$/i.test(name) || /搜尋|搜索|search/i.test(`${htmlAttribute(input, 'placeholder')} ${name}`)))
+      queryField = name
+    if (!searchTypeField && /searchtype/i.test(name)) searchTypeField = name
+  }
+  if (!queryField) throw new Error('无法识别 PO18 搜索关键词字段')
+  const action = resolveUrl(htmlAttribute(form[1] || '', 'action') || '/search/index', baseUrl)
+  return { action, queryField, searchTypeField, hidden }
+}
+
+function mergeCookieHeader(current: string, setCookies: string[] = []): string {
+  const jar = new Map<string, string>()
+  for (const part of current.split(';')) {
+    const [name, ...rest] = part.trim().split('=')
+    if (name && rest.length) jar.set(name, name + '=' + rest.join('='))
+  }
+  for (const cookie of setCookies) {
+    const pair = cookie.split(';', 1)[0]?.trim() || ''
+    const [name, ...rest] = pair.split('=')
+    if (name && rest.length) jar.set(name, name + '=' + rest.join('='))
+  }
+  return [...jar.values()].join('; ')
+}
+
 export async function searchTitleSources(
   title: string,
   author: string,
+  options: TitleSourceSearchOptions = {},
 ): Promise<{ title: string; author: string; sources: Record<string, { ok: boolean; results: TitleSource[]; error?: string }> }> {
-  const [jjwxc, po18tw] = await Promise.all([searchJjwxcTitlesSource(title, author), searchPo18twTitlesSource(title, author)])
+  const [jjwxc, po18tw] = await Promise.all([searchJjwxcTitlesSource(title, author), searchPo18twTitlesSource(title, author, options)])
   return { title, author, sources: { jjwxc, po18tw } }
 }
 
@@ -301,16 +357,49 @@ async function searchJjwxcTitlesSource(title: string, author: string): Promise<{
   }
 }
 
-async function searchPo18twTitlesSource(title: string, author: string): Promise<{ ok: boolean; results: TitleSource[]; error?: string }> {
+async function searchPo18twTitlesSource(
+  title: string,
+  author: string,
+  options: TitleSourceSearchOptions = {},
+): Promise<{ ok: boolean; results: TitleSource[]; error?: string }> {
   try {
     const q = title || author
-    const url = `https://www.po18.tw/search?q=${encodeURIComponent(q)}`
-    const { html } = await fetchHtml(url, { timeoutMs: 10000 })
+    const pageUrl = 'https://www.po18.tw/site/alarm'
+    const requestOptions: FetchHtmlOptions = { timeoutMs: 10000 }
+    if (options.po18SessionCookie) {
+      requestOptions.scope = 'source-auth'
+      requestOptions.headers = { Cookie: options.po18SessionCookie }
+      requestOptions.allowedRedirectHosts = ['po18.tw']
+    }
+    const requestHtml = options.po18FetchHtml || fetchHtml
+    const pageResult = await requestHtml(pageUrl, requestOptions)
+    const requestCookie = mergeCookieHeader(options.po18SessionCookie || '', pageResult.setCookies)
+    const searchPage = pageResult.html
+    const form = parsePo18SearchForm(searchPage, pageUrl)
+    const body = new URLSearchParams(form.hidden)
+    body.set(form.queryField, q)
+    if (form.searchTypeField) body.set(form.searchTypeField, 'all')
+    const searchHeaders = new Headers(requestOptions.headers)
+    if (requestCookie) searchHeaders.set('Cookie', requestCookie)
+    searchHeaders.set('Content-Type', 'application/x-www-form-urlencoded')
+    searchHeaders.set('Referer', pageUrl)
+    const { html } = await requestHtml(form.action, {
+      ...requestOptions,
+      method: 'POST',
+      headers: searchHeaders,
+      body: body.toString(),
+      allowedRedirectHosts: requestCookie ? ['po18.tw'] : requestOptions.allowedRedirectHosts,
+    })
     if (/<input\b[^>]*(?:type\s*=\s*["']?password|name\s*=\s*["'][^"']*(?:pass|密碼|密码))/i.test(html) && /login|登入|登录/i.test(html))
       throw new Error('搜索需要登录')
-    return { ok: true, results: parsePo18twCandidates(html, url) }
-  } catch {
-    return { ok: false, error: 'PO18.tw 搜索需要登录或当前网络不可访问，请粘贴目录 URL', results: [] }
+    return { ok: true, results: parsePo18twCandidates(html, form.action) }
+  } catch (err) {
+    const message = (err as Error).message || '当前网络不可访问'
+    return {
+      ok: false,
+      error: message === '搜索需要登录' ? 'PO18.tw 搜索需要登录或当前网络不可访问，请粘贴目录 URL' : `PO18.tw 搜索失败：${message}`,
+      results: [],
+    }
   }
 }
 
@@ -330,8 +419,6 @@ function parsePo18twCandidates(html: string, baseUrl: string): TitleSource[] {
 }
 
 // ---------- 章节目录标题提取（晋江 / PO18.tw） ----------
-
-type HtmlFetcher = (url: string, opts?: FetchHtmlOptions) => Promise<FetchResult>
 
 export async function extractJjwxcTitles(
   sourceUrl: string,

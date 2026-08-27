@@ -15,7 +15,15 @@ import { parseLegadoJsonStream, normalizeSource, legadoHost, buildSourceRow, sou
 import { SITE_PRESETS, buildCoverUrl } from '../services/scraper/presets'
 import { discoverList, extractJjwxcTitles, extractPo18twTitles, proxyCover, searchPo18, searchTitleSources } from '../services/scraper/enrich'
 import { applySourceSync, createSourceSyncPreview, listSourceBindings } from '../services/source-sync'
-import { clearPo18Account, createPo18Captcha, getPo18AccountStatus, loginPo18Account, savePo18Account, testPo18Account } from '../services/source-account'
+import {
+  clearPo18Account,
+  createPo18Captcha,
+  getPo18AccountStatus,
+  getPo18Session,
+  loginPo18Account,
+  savePo18Account,
+  testPo18Account,
+} from '../services/source-account'
 import { cacheCoverForNovel, getStoredCover } from '../services/covers'
 import {
   describeError,
@@ -685,7 +693,9 @@ scrapeRoutes.post('/', async (c) => {
     case 'title-source-search': {
       const { title, author } = body
       if (!title && !author) return c.json({ error: 'title or author required' }, 400)
-      return c.json(await searchTitleSources(String(title || '').trim(), String(author || '').trim()))
+      const po18Account = await getPo18AccountStatus(db)
+      const po18SessionCookie = po18Account.hasSession ? (await getPo18Session(db)).cookie : ''
+      return c.json(await searchTitleSources(String(title || '').trim(), String(author || '').trim(), { po18SessionCookie }))
     }
     case 'jjwxc-titles': {
       const { sourceUrl } = body

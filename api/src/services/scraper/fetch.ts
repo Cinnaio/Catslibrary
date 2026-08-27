@@ -16,6 +16,8 @@ export interface FetchHtmlOptions extends OutboundProxyConfig {
   forceEncoding?: string
   timeoutMs?: number
   scope?: string
+  method?: string
+  body?: RequestInit['body']
   /** 仅用于管理员连通性探测，忽略跳过代理规则。 */
   forceProxy?: boolean
   /** 仅由受信任的源站会话适配器注入，不会写入日志。 */
@@ -27,6 +29,16 @@ export interface FetchHtmlOptions extends OutboundProxyConfig {
 export interface FetchResult {
   html: string
   encoding: string
+  /** 仅供同一受信任站点的后续请求合并 Cookie，不向 API 返回。 */
+  setCookies?: string[]
+}
+
+function responseSetCookies(headers: Headers): string[] {
+  const typed = headers as Headers & { getSetCookie?: () => string[] }
+  const values = typed.getSetCookie?.()
+  if (values?.length) return values
+  const raw = headers.get('set-cookie') || ''
+  return raw ? raw.split(/,(?=\s*[^;,=\s]+=[^;,]*)/) : []
 }
 
 function proxyOverrides(opts: FetchHtmlOptions): OutboundProxyConfig | undefined {
@@ -57,20 +69,16 @@ export async function fetchHtml(url: string, opts: FetchHtmlOptions = {}): Promi
     if (opts.headers) {
       new Headers(opts.headers).forEach((value, key) => headers.set(key, value))
     }
-    res = await outboundFetch(
-      url,
-      {
-        headers,
-        signal: controller.signal,
-      },
-      {
-        scope: opts.scope || 'scrape',
-        safe: true,
-        allowedRedirectHosts: opts.allowedRedirectHosts,
-        forceProxy: opts.forceProxy,
-        proxyConfig: proxyOverrides(opts),
-      },
-    )
+    const requestInit: RequestInit = { headers, signal: controller.signal }
+    if (opts.method) requestInit.method = opts.method
+    if (opts.body !== undefined) requestInit.body = opts.body
+    res = await outboundFetch(url, requestInit, {
+      scope: opts.scope || 'scrape',
+      safe: true,
+      allowedRedirectHosts: opts.allowedRedirectHosts,
+      forceProxy: opts.forceProxy,
+      proxyConfig: proxyOverrides(opts),
+    })
   } catch (err) {
     clearTimeout(timeout)
     if ((err as Error).name === 'AbortError') throw new Error(`请求超时 (${Math.round(timeoutMs / 1000)}s): ${url}`)
@@ -111,7 +119,7 @@ export async function fetchHtml(url: string, opts: FetchHtmlOptions = {}): Promi
 
   encoding = encoding || forceEncoding || null
   const html = decodeBytes(bytes, encoding || 'utf-8')
-  return { html, encoding: encoding || 'utf-8' }
+  return { html, encoding: encoding || 'utf-8', setCookies: responseSetCookies(res.headers) }
 }
 
 export function decodeBytes(bytes: Uint8Array, encoding: string): string {
