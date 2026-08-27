@@ -10,6 +10,7 @@ struct AdminChaptersView: View {
     @State private var isLoading = true
     @State private var errorMessage: String?
     @State private var showNovelPicker = false
+    @State private var showSourceSync = false
     @State private var editorIntent: ChapterEditorIntent?
     @State private var deleteTarget: ChapterMeta?
     @State private var busyChapterId: String?
@@ -101,6 +102,10 @@ struct AdminChaptersView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Button("选择小说", systemImage: "book.closed") { showNovelPicker = true }
+                    Button("从源站融合", systemImage: "arrow.triangle.2.circlepath") {
+                        showSourceSync = true
+                    }
+                    .disabled(selectedNovel == nil)
                     Button("新建章节", systemImage: "plus") {
                         editorIntent = .create
                     }
@@ -114,6 +119,13 @@ struct AdminChaptersView: View {
             NovelPickerSheet(options: novelOptions) { novel in
                 selectedNovel = novel
                 Task { await loadChapters() }
+            }
+        }
+        .sheet(isPresented: $showSourceSync) {
+            if let selectedNovel {
+                SourceSyncSheet(novel: selectedNovel) {
+                    Task { await loadChapters() }
+                }
             }
         }
         .sheet(item: $editorIntent) { intent in
@@ -262,6 +274,244 @@ struct AdminChaptersView: View {
             get: { actionError != nil },
             set: { if !$0 { actionError = nil } }
         )
+    }
+}
+
+// MARK: - 源站同步
+
+private struct SourceSyncSheet: View {
+    let novel: AdminNovelSummary
+    let onApplied: () -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var sourceURL = ""
+    @State private var preview: SourceSyncPreview?
+    @State private var isLoading = false
+    @State private var errorMessage: String?
+    @State private var metadataFields: Set<String> = ["title", "author", "description", "coverUrl", "categories", "status"]
+    @State private var replaceMetadata = false
+
+    private let metadataLabels: [(String, String)] = [
+        ("title", "标题"),
+        ("author", "作者"),
+        ("description", "简介"),
+        ("coverUrl", "封面"),
+        ("categories", "分类"),
+        ("status", "状态"),
+    ]
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("原作者源站 URL", text: $sourceURL)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    Button {
+                        Task { await loadPreview() }
+                    } label: {
+                        if isLoading {
+                            ProgressView()
+                                .frame(maxWidth: .infinity)
+                        } else {
+                            Label("读取源站并预览", systemImage: "arrow.down.circle")
+                                .frame(maxWidth: .infinity)
+                        }
+                    }
+                    .disabled(isLoading || sourceURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                } header: {
+                    Text("原作者源站")
+                } footer: {
+                    Text("支持晋江和 PO18.tw。这里只读取小说信息和章节目录，不抓取正文；无法访问时请继续使用 Web 端的手动粘贴方式。")
+                }
+
+                if let preview {
+                    Section {
+                        LabeledContent("源站", value: siteName(preview.site))
+                        LabeledContent("目录章节", value: "\(preview.sourceChapterCount) 章")
+                        LabeledContent("本地内容", value: "\(preview.localChapterCount) 节")
+                        LabeledContent("已匹配", value: "\(preview.matchedSourceCount) 章")
+                        if preview.splitLocalChapterCount > 0 {
+                            LabeledContent("拆分节", value: "\(preview.splitLocalChapterCount) 节")
+                        }
+                        if !preview.unmatchedSource.isEmpty || !preview.unmatchedLocal.isEmpty {
+                            Text("未匹配：源站 \(preview.unmatchedSource.count) 章，本地 \(preview.unmatchedLocal.count) 节")
+                                .foregroundStyle(.orange)
+                        }
+                        ForEach(preview.warnings, id: \.self) { warning in
+                            Text(warning).foregroundStyle(.orange)
+                        }
+                    } header: {
+                        Text("同步预览")
+                    }
+
+                    Section {
+                        ForEach(Array(metadataLabels.enumerated()), id: \.offset) { item in
+                            let key = item.element.0
+                            let label = item.element.1
+                            Toggle(isOn: Binding(
+                                get: { metadataFields.contains(key) },
+                                set: { enabled in
+                                    if enabled { metadataFields.insert(key) } else { metadataFields.remove(key) }
+                                }
+                            )) {
+                                HStack {
+                                    Text(label)
+                                    Spacer()
+                                    Text(metadataValue(key, preview: preview).isEmpty ? "未识别" : metadataValue(key, preview: preview))
+                                        .foregroundStyle(AppTheme.textSecondary)
+                                        .lineLimit(1)
+                                }
+                            }
+                            .disabled(metadataValue(key, preview: preview).isEmpty)
+                        }
+                        Toggle("覆盖已有小说信息", isOn: $replaceMetadata)
+                    } header: {
+                        Text("小说信息")
+                    } footer: {
+                        Text("默认只补全本地为空的字段；开启覆盖后才会替换已有标题、作者、简介等信息。")
+                    }
+
+                    if !preview.mappings.filter({ $0.relation == "split" }).isEmpty {
+                        Section("拆分章节映射") {
+                            ForEach(preview.mappings.filter { $0.relation == "split" }.prefix(30)) { mapping in
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text("源站第 \(mapping.sourceOrder) 章「\(mapping.sourceTitle)」")
+                                    Text("→ 本地 \(mapping.localChapterIds.count) 节 · \(confidenceName(mapping.confidence))")
+                                        .font(.caption)
+                                        .foregroundStyle(AppTheme.textSecondary)
+                                }
+                            }
+                        }
+                    }
+
+                    Section("章节名变更") {
+                        if preview.changes.isEmpty {
+                            Text("没有需要变更的章节名")
+                                .foregroundStyle(AppTheme.textSecondary)
+                        } else {
+                            ForEach(preview.changes.prefix(80)) { change in
+                                VStack(alignment: .leading, spacing: 3) {
+                                    HStack {
+                                        Text("\(change.localOrder).")
+                                            .foregroundStyle(AppTheme.textMuted)
+                                        Text(change.oldTitle)
+                                        Image(systemName: "arrow.right")
+                                            .foregroundStyle(AppTheme.textMuted)
+                                        Text(change.newTitle)
+                                    }
+                                    if change.partCount > 1 {
+                                        Text("拆分 \(change.partIndex)/\(change.partCount)")
+                                            .font(.caption)
+                                            .foregroundStyle(AppTheme.textSecondary)
+                                    } else if !change.eligible {
+                                        Text("需要人工确认，不会自动应用")
+                                            .font(.caption)
+                                            .foregroundStyle(.orange)
+                                    }
+                                }
+                            }
+                            if preview.changes.count > 80 {
+                                Text("另有 \(preview.changes.count - 80) 项未显示")
+                                    .font(.caption)
+                                    .foregroundStyle(AppTheme.textSecondary)
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("源站同步")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("应用") {
+                        Task { await applyPreview() }
+                    }
+                    .disabled(preview == nil || isLoading)
+                }
+            }
+            .task { await loadBinding() }
+            .alert("操作未完成", isPresented: Binding(
+                get: { errorMessage != nil },
+                set: { if !$0 { errorMessage = nil } }
+            )) {
+                Button("好", role: .cancel) {}
+            } message: {
+                Text(errorMessage ?? "")
+            }
+        }
+    }
+
+    private func loadBinding() async {
+        do {
+            let bindings = try await AdminAPI.sourceBindings(novelId: novel.id)
+            if let primary = bindings.first(where: { $0.isPrimary }) ?? bindings.first {
+                sourceURL = primary.sourceUrl
+            }
+        } catch {
+            // 没有已绑定源站时保持空输入，允许管理员手动填写。
+        }
+    }
+
+    private func loadPreview() async {
+        let url = sourceURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !url.isEmpty else { return }
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            preview = try await AdminAPI.sourceSyncPreview(novelId: novel.id, sourceUrl: url)
+            errorMessage = nil
+        } catch {
+            errorMessage = AppCopy.friendlyError(error)
+        }
+    }
+
+    private func applyPreview() async {
+        guard let preview else { return }
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            _ = try await AdminAPI.sourceSyncApply(
+                runId: preview.runId,
+                metadataFields: Array(metadataFields),
+                replaceMetadata: replaceMetadata
+            )
+            onApplied()
+            dismiss()
+        } catch {
+            errorMessage = AppCopy.friendlyError(error)
+        }
+    }
+
+    private func siteName(_ site: String) -> String {
+        switch site {
+        case "jjwxc": return "晋江"
+        case "po18tw": return "PO18.tw"
+        default: return site
+        }
+    }
+
+    private func confidenceName(_ confidence: String) -> String {
+        switch confidence {
+        case "high": return "高置信度"
+        case "medium": return "中置信度"
+        default: return "低置信度"
+        }
+    }
+
+    private func metadataValue(_ key: String, preview: SourceSyncPreview) -> String {
+        switch key {
+        case "title": return preview.metadata.title
+        case "author": return preview.metadata.author
+        case "description": return preview.metadata.description
+        case "coverUrl": return preview.metadata.coverUrl
+        case "categories": return preview.metadata.categories.joined(separator: "、")
+        case "status": return preview.metadata.status
+        default: return ""
+        }
     }
 }
 

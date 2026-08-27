@@ -63,6 +63,105 @@ struct AdminDownloadLogsResponse: Codable { let logs: [AdminDownloadLog] }
 
 struct NovelResponse: Codable { let novel: Novel }
 
+// MARK: - 原作者源站同步（POST /api/scrape action=source-sync-*）
+
+struct SourceBinding: Codable, Identifiable, Hashable {
+    let id: String
+    let novelId: String
+    let site: String
+    let sourceUrl: String
+    let sourceBookId: String
+    let sourceType: String
+    let isPrimary: Bool
+    let lastSyncedAt: Int64
+    let lastError: String
+    let createdAt: Int64
+    let updatedAt: Int64
+}
+
+struct SourceBindingsResponse: Codable {
+    let bindings: [SourceBinding]
+}
+
+struct SourceSyncMetadata: Codable, Hashable {
+    let title: String
+    let author: String
+    let description: String
+    let coverUrl: String
+    let category: String
+    let categories: [String]
+    let status: String
+    let sourceUrl: String
+}
+
+struct SourceSyncChange: Codable, Identifiable, Hashable {
+    let localChapterId: String
+    let localOrder: Int
+    let oldTitle: String
+    let newTitle: String
+    let sourceOrder: Int
+    let sourceTitle: String
+    let relation: String
+    let partIndex: Int
+    let partCount: Int
+    let confidence: String
+    let eligible: Bool
+
+    var id: String { localChapterId }
+}
+
+struct SourceSyncMapping: Codable, Identifiable, Hashable {
+    let sourceChapterKey: String
+    let sourceOrder: Int
+    let sourceTitle: String
+    let sourceUrl: String
+    let localChapterIds: [String]
+    let relation: String
+    let confidence: String
+
+    var id: String { sourceChapterKey }
+}
+
+struct SourceSyncRemoteChapter: Codable, Identifiable, Hashable {
+    let key: String
+    let order: Int
+    let title: String
+    let url: String
+
+    var id: String { key }
+}
+
+struct SourceSyncLocalChapter: Codable, Identifiable, Hashable {
+    let id: String
+    let order: Int
+    let title: String
+}
+
+struct SourceSyncPreview: Codable, Hashable {
+    let runId: String
+    let bindingId: String
+    let novelId: String
+    let site: String
+    let sourceUrl: String
+    let metadata: SourceSyncMetadata
+    let sourceChapterCount: Int
+    let localChapterCount: Int
+    let splitLocalChapterCount: Int
+    let matchedSourceCount: Int
+    let unmatchedSource: [SourceSyncRemoteChapter]
+    let unmatchedLocal: [SourceSyncLocalChapter]
+    let mappings: [SourceSyncMapping]
+    let changes: [SourceSyncChange]
+    let onlyWeakTitles: Bool
+    let warnings: [String]
+}
+
+struct SourceSyncApplyResponse: Codable {
+    let updated: Int
+    let metadataUpdated: [String]
+    let mappings: Int
+}
+
 // MARK: - 爬虫：智能分析（POST /api/scrape action=detect-meta）
 
 struct ScrapeSelectors: Codable, Hashable {

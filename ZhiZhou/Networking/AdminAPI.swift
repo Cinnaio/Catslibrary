@@ -225,6 +225,38 @@ enum AdminAPI {
         let _: OkEnvelope = try await APIClient.shared.delete("/api/chapters/\(encode(id))", auth: true)
     }
 
+    // MARK: - 原作者源站同步
+
+    static func sourceBindings(novelId: String) async throws -> [SourceBinding] {
+        let r: SourceBindingsResponse = try await APIClient.shared.get(
+            "/api/scrape?action=source-bindings&novelId=\(encode(novelId))", auth: true
+        )
+        return r.bindings
+    }
+
+    static func sourceSyncPreview(novelId: String, sourceUrl: String, onlyWeakTitles: Bool = true) async throws -> SourceSyncPreview {
+        try await postScrape([
+            "action": "source-sync-preview",
+            "novelId": novelId,
+            "sourceUrl": sourceUrl,
+            "onlyWeakTitles": onlyWeakTitles,
+        ])
+    }
+
+    static func sourceSyncApply(
+        runId: String,
+        metadataFields: [String],
+        replaceMetadata: Bool = false
+    ) async throws -> SourceSyncApplyResponse {
+        try await postScrape([
+            "action": "source-sync-apply",
+            "runId": runId,
+            "applyMetadata": !metadataFields.isEmpty,
+            "metadataFields": metadataFields,
+            "metadataMode": replaceMetadata ? "replace" : "missing",
+        ])
+    }
+
     // MARK: - 爬虫：智能分析 / 测试 / 启动
 
     /// POST /api/scrape action=detect-meta：智能识别源站并抽取小说信息与选择器。
