@@ -285,6 +285,10 @@ private struct SourceSyncSheet: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var sourceURL = ""
+    @State private var searchTitle = ""
+    @State private var searchAuthor = ""
+    @State private var sourceSearch: TitleSourceSearchResponse?
+    @State private var isSearching = false
     @State private var preview: SourceSyncPreview?
     @State private var isLoading = false
     @State private var errorMessage: String?
@@ -303,6 +307,32 @@ private struct SourceSyncSheet: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    TextField("书名", text: $searchTitle)
+                    TextField("作者（可选）", text: $searchAuthor)
+                    Button {
+                        Task { await searchSources() }
+                    } label: {
+                        if isSearching {
+                            ProgressView()
+                                .frame(maxWidth: .infinity)
+                        } else {
+                            Label("搜索晋江与 PO18.tw", systemImage: "magnifyingglass")
+                                .frame(maxWidth: .infinity)
+                        }
+                    }
+                    .disabled(isLoading || isSearching || (searchTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && searchAuthor.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
+
+                    if let sourceSearch {
+                        sourceCandidates(title: "晋江", bucket: sourceSearch.sources.jjwxc)
+                        sourceCandidates(title: "PO18.tw", bucket: sourceSearch.sources.po18tw)
+                    }
+                } header: {
+                    Text("搜索原作者源站")
+                } footer: {
+                    Text("先选择准确的作品，再读取详情和章节目录。PO18.tw 详情页需要已配置账号或 Cookie。")
+                }
+
                 Section {
                     TextField("原作者源站 URL", text: $sourceURL)
                         .textInputAutocapitalization(.never)
@@ -433,7 +463,11 @@ private struct SourceSyncSheet: View {
                     .disabled(preview == nil || isLoading)
                 }
             }
-            .task { await loadBinding() }
+            .task {
+                searchTitle = novel.title
+                searchAuthor = novel.author
+                await loadBinding()
+            }
             .alert("操作未完成", isPresented: Binding(
                 get: { errorMessage != nil },
                 set: { if !$0 { errorMessage = nil } }
@@ -456,9 +490,69 @@ private struct SourceSyncSheet: View {
         }
     }
 
-    private func loadPreview() async {
-        let url = sourceURL.trimmingCharacters(in: .whitespacesAndNewlines)
+    private func searchSources() async {
+        let title = searchTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        let author = searchAuthor.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty || !author.isEmpty else { return }
+        isSearching = true
+        defer { isSearching = false }
+        do {
+            sourceSearch = try await AdminAPI.titleSourceSearch(title: title, author: author)
+            errorMessage = nil
+        } catch {
+            errorMessage = AppCopy.friendlyError(error)
+        }
+    }
+
+    @ViewBuilder
+    private func sourceCandidates(title: String, bucket: TitleSourceSearchBucket) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(title).font(.subheadline.weight(.semibold))
+                Spacer()
+                Text(bucket.results.isEmpty ? (bucket.ok ? "没有结果" : "搜索不可用") : "\(bucket.results.count) 个结果")
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.textSecondary)
+            }
+            if let error = bucket.error, !error.isEmpty {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
+            ForEach(bucket.results) { candidate in
+                Button {
+                    sourceURL = candidate.url
+                    Task { await loadPreview(url: candidate.url) }
+                } label: {
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack {
+                            Text(candidate.title.isEmpty ? "未识别书名" : candidate.title)
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(AppTheme.textPrimary)
+                            if !candidate.status.isEmpty {
+                                Text(candidate.status == "completed" ? "完结" : "连载")
+                                    .font(.caption)
+                                    .foregroundStyle(AppTheme.textSecondary)
+                            }
+                            Spacer()
+                            Image(systemName: "arrow.down.circle")
+                                .foregroundStyle(AppTheme.primary)
+                        }
+                        Text("\(candidate.author.isEmpty ? "作者未识别" : candidate.author) · \(candidate.url)")
+                            .font(.caption)
+                            .foregroundStyle(AppTheme.textSecondary)
+                            .lineLimit(2)
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private func loadPreview(url overrideURL: String? = nil) async {
+        let url = (overrideURL ?? sourceURL).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !url.isEmpty else { return }
+        sourceURL = url
         isLoading = true
         defer { isLoading = false }
         do {

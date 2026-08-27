@@ -162,6 +162,69 @@ struct SourceSyncApplyResponse: Codable {
     let mappings: Int
 }
 
+// MARK: - 原作者源站搜索与 PO18.tw 账号
+
+struct TitleSourceCandidate: Codable, Identifiable, Hashable {
+    let site: String
+    let siteName: String
+    let bookId: String?
+    let title: String
+    let author: String
+    let status: String
+    let url: String
+
+    var id: String { "\(site)-\(bookId ?? url)" }
+}
+
+struct TitleSourceSearchBucket: Codable, Hashable {
+    let ok: Bool
+    let results: [TitleSourceCandidate]
+    let error: String?
+}
+
+struct TitleSourceSearchResponse: Codable, Hashable {
+    let title: String
+    let author: String
+    let sources: SourceSearchSites
+}
+
+struct SourceSearchSites: Codable, Hashable {
+    let jjwxc: TitleSourceSearchBucket
+    let po18tw: TitleSourceSearchBucket
+}
+
+struct Po18AccountStatus: Codable, Hashable {
+    let site: String
+    let username: String
+    let configured: Bool
+    let hasPassword: Bool
+    let hasSession: Bool
+    let status: String
+    let lastLoginAt: Int64
+    let lastCheckedAt: Int64
+    let lastError: String
+}
+
+struct Po18CaptchaResponse: Codable, Hashable {
+    let challengeId: String
+    let imageDataUrl: String
+    let expiresAt: Int64
+    let captchaRequired: Bool
+}
+
+struct Po18LoginResponse: Codable, Hashable {
+    let site: String
+    let username: String
+    let configured: Bool
+    let hasPassword: Bool
+    let hasSession: Bool
+    let status: String
+    let lastLoginAt: Int64
+    let lastCheckedAt: Int64
+    let lastError: String
+    let message: String
+}
+
 // MARK: - 爬虫：智能分析（POST /api/scrape action=detect-meta）
 
 struct ScrapeSelectors: Codable, Hashable {

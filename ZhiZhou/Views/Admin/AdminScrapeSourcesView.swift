@@ -27,6 +27,7 @@ struct AdminScrapeSourcesView: View {
 
     // Legado 导入
     @State private var showLegadoImport = false
+    @State private var showPo18Account = false
     @State private var legadoUrl = ""
     @State private var legadoText = ""
     @State private var legadoImporting = false
@@ -64,6 +65,9 @@ struct AdminScrapeSourcesView: View {
                     Button("导入 Legado 书源", systemImage: "square.and.arrow.down") {
                         showLegadoImport = true
                     }
+                    Button("PO18.tw 账号", systemImage: "person.badge.key") {
+                        showPo18Account = true
+                    }
                 } label: {
                     if checkingConnectivity || cleaningUnreachable {
                         AdminInlineProgress()
@@ -88,6 +92,9 @@ struct AdminScrapeSourcesView: View {
                     legadoResult = nil
                 }
             )
+        }
+        .sheet(isPresented: $showPo18Account) {
+            Po18AccountSheet()
         }
         .confirmationDialog(
             "批量启停书源",

@@ -257,6 +257,43 @@ enum AdminAPI {
         ])
     }
 
+    /// POST /api/scrape action=title-source-search：同时搜索晋江与 PO18.tw 原作者页面。
+    static func titleSourceSearch(title: String, author: String = "") async throws -> TitleSourceSearchResponse {
+        try await postScrape([
+            "action": "title-source-search",
+            "title": title,
+            "author": author,
+        ])
+    }
+
+    /// PO18.tw 账号状态、登录验证码与会话管理。
+    static func po18Account() async throws -> Po18AccountStatus {
+        try await APIClient.shared.get("/api/scrape?action=po18-account", auth: true)
+    }
+
+    static func savePo18Account(username: String, password: String? = nil, sessionCookie: String? = nil) async throws -> Po18AccountStatus {
+        var body: [String: Any] = ["action": "po18-account-save", "username": username]
+        if let password, !password.isEmpty { body["password"] = password }
+        if let sessionCookie, !sessionCookie.isEmpty { body["sessionCookie"] = sessionCookie }
+        return try await postScrape(body)
+    }
+
+    static func po18Captcha() async throws -> Po18CaptchaResponse {
+        try await postScrape(["action": "po18-account-captcha"])
+    }
+
+    static func po18Login(challengeId: String, captcha: String = "") async throws -> Po18LoginResponse {
+        try await postScrape(["action": "po18-account-login", "challengeId": challengeId, "captcha": captcha])
+    }
+
+    static func testPo18Account() async throws -> Po18LoginResponse {
+        try await postScrape(["action": "po18-account-test"])
+    }
+
+    static func clearPo18Account() async throws {
+        let _: OkEnvelope = try await postScrape(["action": "po18-account-clear"])
+    }
+
     // MARK: - 爬虫：智能分析 / 测试 / 启动
 
     /// POST /api/scrape action=detect-meta：智能识别源站并抽取小说信息与选择器。
