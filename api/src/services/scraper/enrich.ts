@@ -5,7 +5,7 @@
  */
 import iconv from 'iconv-lite'
 import { fetchHtml, decodeBytes, type FetchHtmlOptions, type FetchResult } from './fetch'
-import { cleanText } from './parse'
+import { cleanText, extractInnerHtml } from './parse'
 import { resolveUrl } from './utils'
 import { SITE_PRESETS, buildCoverUrl } from './presets'
 import { toSimplifiedForSource } from '../zh-convert'
@@ -406,14 +406,42 @@ async function searchPo18twTitlesSource(
 function parsePo18twCandidates(html: string, baseUrl: string): TitleSource[] {
   const results: TitleSource[] = []
   const seen = new Set<string>()
-  const re = /<a[^>]*href\s*=\s*["']([^"']*(?:books|book|novel|novels|articles|articlescontent)[^"']*\d+[^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi
-  let m: RegExpExecArray | null
-  while ((m = re.exec(html)) !== null) {
-    const url = resolveUrl(m[1]!, baseUrl)
-    if (seen.has(url)) continue
-    seen.add(url)
-    const title = cleanText(m[2]!.replace(/<[^>]*>/g, ''))
-    if (title) results.push({ site: 'po18tw', siteName: 'PO18.tw', title, author: '', status: 'ongoing', url })
+  const bookSection = extractInnerHtml(html, '#BOOK')
+  if (!bookSection) return results
+
+  const cardStarts = [...bookSection.matchAll(/<div\b[^>]*class\s*=\s*["'][^"']*\bbook\b[^"']*["'][^>]*>/gi)]
+  for (let index = 0; index < cardStarts.length; index++) {
+    const cardStart = (cardStarts[index]!.index || 0) + cardStarts[index]![0].length
+    const cardEnd = cardStarts[index + 1]?.index ?? bookSection.length
+    const card = bookSection.slice(cardStart, cardEnd)
+    const titleBlock = card.match(/<div\b[^>]*class\s*=\s*["'][^"']*\bbook_name\b[^"']*["'][^>]*>[\s\S]*?<\/div>/i)?.[0] || ''
+    const titleLink = titleBlock.match(/<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/i)
+    const coverLink = card.match(/<div\b[^>]*class\s*=\s*["'][^"']*\bbook_cover\b[^"']*["'][^>]*>[\s\S]*?<a\b[^>]*href\s*=\s*["']([^"']+)["']/i)
+    const href = titleLink?.[1] || coverLink?.[1]
+    if (!href) continue
+
+    const url = resolveUrl(href, baseUrl)
+    const bookId = url.match(/\/books\/(\d+)(?:\/|$)/i)?.[1]
+    if (!bookId || seen.has(bookId)) continue
+
+    const coverTitle = card.match(/<img\b[^>]*alt\s*=\s*["']([^"']+)["'][^>]*>/i)?.[1] || ''
+    const title = cleanText((titleLink?.[2] || coverTitle).replace(/<[^>]*>/g, ''))
+    if (!title) continue
+
+    const authorBlock = card.match(/<div\b[^>]*class\s*=\s*["'][^"']*\bbook_author\b[^"']*["'][^>]*>[\s\S]*?<\/div>/i)?.[0] || ''
+    const authorLink = authorBlock.match(/<a\b[^>]*>([\s\S]*?)<\/a>/i)
+    const author = cleanText((authorLink?.[1] || authorBlock).replace(/<[^>]*>/g, ''))
+    seen.add(bookId)
+    results.push({
+      site: 'po18tw',
+      siteName: 'PO18.tw',
+      bookId,
+      title,
+      author,
+      // PO18 搜索卡片没有可靠的状态字段，最新章节标题可能包含“完结”字样，不能据此判断全书状态。
+      status: 'ongoing',
+      url,
+    })
   }
   return results
 }
@@ -458,21 +486,39 @@ export async function extractPo18twTitles(
   } catch (err) {
     throw new Error((err as Error).message || 'sourceUrl invalid')
   }
-  const { html } = await requestHtml(url.href, { timeoutMs: 12000 })
+  const chapterListUrl = po18ChapterListUrl(url.href)
+  const { html } = await requestHtml(chapterListUrl, { timeoutMs: 12000 })
   if (/<input\b[^>]*(?:type\s*=\s*["']?password|name\s*=\s*["'][^"']*(?:pass|密碼|密码))/i.test(html) && /login|登入|登录/i.test(html))
     throw new Error('PO18.tw 该页面需要登录，请先配置账号或 Cookie')
   const titles: Array<{ order: number; title: string; url: string }> = []
   const seen = new Set<string>()
-  const re = /<a[^>]*href\s*=\s*["']([^"']*(?:chapter|chapters|articlescontent)[^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi
-  let m: RegExpExecArray | null
-  while ((m = re.exec(html)) !== null) {
-    const href = resolveUrl(m[1]!, url.href)
-    if (seen.has(href)) continue
-    seen.add(href)
-    const title = cleanText(m[2]!.replace(/<[^>]*>/g, ''))
-    if (title) titles.push({ order: titles.length + 1, title, url: href })
+  const rowStarts = [...html.matchAll(/<div\b[^>]*class\s*=\s*["'][^"']*\bc_l\b[^"']*["'][^>]*>/gi)]
+  for (let index = 0; index < rowStarts.length; index++) {
+    const rowStart = (rowStarts[index]!.index || 0) + rowStarts[index]![0].length
+    const rowEnd = rowStarts[index + 1]?.index ?? html.length
+    const row = html.slice(rowStart, rowEnd)
+    const nameBlock = row.match(/<div\b[^>]*class\s*=\s*["'][^"']*\bl_chaptname\b[^"']*["'][^>]*>([\s\S]*?)<\/div>/i)?.[1] || ''
+    const link = nameBlock.match(/<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/i)
+    const title = cleanText((link?.[2] || nameBlock).replace(/<[^>]*>/g, ''))
+    if (!title) continue
+    const counter = row.match(/<div\b[^>]*class\s*=\s*["'][^"']*\bl_counter\b[^"']*["'][^>]*>([\s\S]*?)<\/div>/i)?.[1] || ''
+    const parsedOrder = Number.parseInt(counter.replace(/\D/g, ''), 10)
+    const order = Number.isFinite(parsedOrder) && parsedOrder > 0 ? parsedOrder : titles.length + 1
+    const chapterUrl = link?.[1]
+      ? resolveUrl(link[1], chapterListUrl)
+      : `${chapterListUrl}#chapter-${order}`
+    if (seen.has(chapterUrl)) continue
+    seen.add(chapterUrl)
+    titles.push({ order, title, url: chapterUrl })
   }
-  return { site: 'PO18.tw', sourceUrl: url.href, total: titles.length, titles }
+  titles.sort((a, b) => a.order - b.order)
+  return { site: 'PO18.tw', sourceUrl: chapterListUrl, total: titles.length, titles }
+}
+
+function po18ChapterListUrl(sourceUrl: string): string {
+  const url = new URL(sourceUrl)
+  const bookId = url.pathname.match(/\/books\/(\d+)(?:\/articles(?:\/\d+)?)?\/?$/i)?.[1]
+  return bookId ? `${url.origin}/books/${bookId}/articles` : url.href
 }
 
 // ---------- 内部 ----------

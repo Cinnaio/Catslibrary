@@ -6,7 +6,7 @@ vi.mock('./fetch', () => ({
   FETCH_HEADERS: {},
 }))
 
-import { searchTitleSources } from './enrich'
+import { extractPo18twTitles, searchTitleSources } from './enrich'
 import type { FetchHtmlOptions } from './fetch'
 
 describe('标题源搜索', () => {
@@ -21,7 +21,22 @@ describe('标题源搜索', () => {
       <input type="text" name="name">
       <input type="hidden" name="searchtype" value="all">
     </form>`
-    const po18ResultsPage = '<a href="/books/123456">目标小说</a>'
+    const po18ResultsPage = `
+      <nav><a href="/books/800038">百合性癖合集</a></nav>
+      <div id="AUTHOR" class="result_list">
+        <a href="/books/746005">【民国】上海那年1934</a>
+      </div>
+      <div id="BOOK" class="result_list">
+        <h2>書籍搜尋結果</h2>
+        <div data-key="0"><div class="book">
+          <div class="book_cover"><a href="/books/123456"><img alt="目标小说（h）"></a></div>
+          <div class="book_info">
+            <div class="book_name"><a href="/books/123456">目标小说（h）</a></div>
+            <div class="book_author"><a href="/users/author">清阙</a></div>
+            <dl class="book_info_list"><dd class="chapter"><a href="/books/123456/articles/999">最新章节</a></dd></dl>
+          </div>
+        </div></div>
+      </div>`
 
     const result = await searchTitleSources('目标小说', '', {
       po18SessionCookie: 'PO18_SESSION=authenticated',
@@ -59,6 +74,41 @@ describe('标题源搜索', () => {
     expect(params.get('name')).toBe('目标小说')
     expect(params.get('searchtype')).toBe('all')
     expect(params.get('_po18rf-tk001')).toBe('csrf-token')
-    expect(result.sources.po18tw).toMatchObject({ ok: true, results: [{ title: '目标小说' }] })
+    expect(result.sources.po18tw).toMatchObject({
+      ok: true,
+      results: [{
+        site: 'po18tw',
+        siteName: 'PO18.tw',
+        title: '目标小说（h）',
+        author: '清阙',
+        status: 'ongoing',
+        url: 'https://www.po18.tw/books/123456',
+      }],
+    })
+  })
+
+  it('PO18 章节目录应跳转到 articles 页面，并保留没有链接的付费章节标题', async () => {
+    const requests: string[] = []
+    const detailPage = '<a class="btn_blue" href="/books/123456/articles">章回列表</a>'
+    const chapterListPage = `
+      <div class="c_l">
+        <div class="l_counter">0001</div>
+        <div class="l_chaptname"><a href="/books/123456/articles/1">第一章</a></div>
+      </div>
+      <div class="c_l">
+        <div class="l_counter">0002</div>
+        <div class="l_chaptname">第二章（付费）</div>
+      </div>`
+
+    const result = await extractPo18twTitles('https://www.po18.tw/books/123456', async (url) => {
+      requests.push(url)
+      return { html: url.endsWith('/articles') ? chapterListPage : detailPage, encoding: 'utf-8' }
+    })
+
+    expect(requests).toEqual(['https://www.po18.tw/books/123456/articles'])
+    expect(result.titles).toEqual([
+      { order: 1, title: '第一章', url: 'https://www.po18.tw/books/123456/articles/1' },
+      { order: 2, title: '第二章（付费）', url: 'https://www.po18.tw/books/123456/articles#chapter-2' },
+    ])
   })
 })

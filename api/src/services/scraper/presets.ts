@@ -22,6 +22,20 @@ export interface SitePreset {
 }
 
 export const SITE_PRESETS: Record<string, SitePreset> = {
+  'po18.tw': {
+    name: 'PO18.tw',
+    encoding: 'utf-8',
+    meta: {
+      title: '.book_name',
+      author: '.book_author',
+      category: '.book_intro_tags',
+      description: '.B_I_content',
+      cover: '.book_cover img',
+      status: '.statu',
+    },
+    // 原作者源站同步会用专用解析器读取 /books/{id}/articles，避免通用选择器漏掉付费章节标题。
+    selectors: {},
+  },
   'czbooks.net': {
     name: '小說狂人',
     encoding: 'utf-8',

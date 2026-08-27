@@ -30,11 +30,20 @@ export function extractMetaWithPreset(html: string, preset: SitePreset, sourceUr
   let coverUrl = extractByPattern(html, m.cover || '', 'src') || extractAttr(html, m.cover || '', 'src')
 
   const czbooksMeta = preset.name === '小說狂人' ? extractCzbooksMeta(html) : null
+  const po18Meta = preset.name === 'PO18.tw' ? extractPo18twMeta(html) : null
+  let categoriesOverride: string[] | null = null
   if (czbooksMeta) {
     title = czbooksMeta.title || title
     author = czbooksMeta.author || author
     description = czbooksMeta.description || description
     coverUrl = czbooksMeta.coverUrl || coverUrl
+  }
+  if (po18Meta) {
+    title = po18Meta.title || title
+    author = po18Meta.author || author
+    description = po18Meta.description || description
+    coverUrl = po18Meta.coverUrl || coverUrl
+    categoriesOverride = po18Meta.categories
   }
 
   if (!coverUrl || /(?:noimg|no_thumbnail|default_no_thumbnail)\.jpg/i.test(coverUrl)) {
@@ -44,6 +53,7 @@ export function extractMetaWithPreset(html: string, preset: SitePreset, sourceUr
 
   let category = extractByPattern(html, m.category || '') || extractTextSmart(html, m.category || '')
   if (czbooksMeta?.category) category = czbooksMeta.category
+  if (po18Meta) category = po18Meta.categories[0] || ''
   if (category) {
     category = category.replace(/^[^:：]+[：:]\s*/, '').replace(/^\s+/, '').trim()
   }
@@ -52,14 +62,47 @@ export function extractMetaWithPreset(html: string, preset: SitePreset, sourceUr
     title: cleanText(title) || '(未识别)',
     author: cleanText(author) || '未知作者',
     category: category || '未分类',
-    categories: category ? [category] : [],
+    categories: categoriesOverride || (category ? [category] : []),
     description: cleanText(description) || '',
     coverUrl: coverUrl ? resolveUrl(coverUrl, sourceUrl) : '',
     sourceUrl,
   }
-  if (czbooksMeta?.status) novel.status = czbooksMeta.status
+  if (czbooksMeta?.status || po18Meta?.status) novel.status = czbooksMeta?.status || po18Meta?.status
   applyStatusFallback(novel, html, preset)
   return novel
+}
+
+interface Po18Meta {
+  title: string
+  author: string
+  description: string
+  categories: string[]
+  coverUrl: string
+  status: string
+}
+
+/** PO18.tw 新版详情页：元数据集中在 book_info/book_intro，不能依赖页面 title 或通用简介回退。 */
+function extractPo18twMeta(html: string): Po18Meta | null {
+  const title = htmlToText(extractInnerHtml(html, '.book_name'))
+  const author = htmlToText(extractInnerHtml(html, '.book_author'))
+  const descriptionHtml = extractInnerHtml(html, '.B_I_content')
+    // 详情页末尾常带浅灰色重复书名，是 PO18 的防复制标记，不属于作品简介。
+    .replace(/<span\b[^>]*color\s*:\s*#bdc3c7[^>]*>[\s\S]*?<\/span>/gi, '')
+  const description = htmlToText(descriptionHtml)
+  const coverHtml = extractInnerHtml(html, '.book_cover')
+  const coverUrl = coverHtml.match(/<img\b[^>]*src\s*=\s*["']([^"']+)["'][^>]*>/i)?.[1] || ''
+  const tagsHtml = extractInnerHtml(html, '.book_intro_tags')
+  const categories = [...tagsHtml.matchAll(/<a\b[^>]*class\s*=\s*["'][^"']*\btag\b[^"']*["'][^>]*>([\s\S]*?)<\/a>/gi)]
+    .map((match) => htmlToText(match[1] || ''))
+    .filter(Boolean)
+  const statusText = htmlToText(extractInnerHtml(html, '.statu'))
+  const status = /完|已完|完結|完结|全集|完本/i.test(statusText)
+    ? 'completed'
+    : /连载|連載|更新中/i.test(statusText)
+      ? 'ongoing'
+      : ''
+  if (!title && !author && !description && !coverUrl && !categories.length && !status) return null
+  return { title, author, description, categories, coverUrl, status }
 }
 
 interface CzbooksMeta {
@@ -150,6 +193,8 @@ function htmlToText(html: string): string {
     .replace(/&gt;/gi, '>')
     .replace(/&amp;/gi, '&')
     .replace(/&quot;/gi, '"')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n[ \t]+/g, '\n')
     .replace(/[ \t]+/g, ' ')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
