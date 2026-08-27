@@ -101,9 +101,19 @@ describe('scrape 路由（免网络动作）', () => {
   it('POPO 会话测试应携带成年确认 Cookie，并允许验证实际书源链接', async () => {
     const previousKey = process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY
     process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY = 'scrape-route-test-key'
-    const fetchMock = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(new Response('<html><body>可访问</body></html>', { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } }))
+    const popoList = `<div class="c_l">
+      <div class="l_counter">0001</div>
+      <div class="l_chaptname">第一章</div>
+      <div class="l_btn"><a href="/books/123456/articles/1">免費閱讀</a></div>
+    </div>`
+    const popoContent = `<h1>第一章</h1><div class="article-content"><p>${'章节正文内容。'.repeat(20)}</p></div>`
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input)
+      return new Response(url.includes('/articlescontent/') ? popoContent : popoList, {
+        status: 200,
+        headers: { 'Content-Type': 'text/html; charset=utf-8' },
+      })
+    })
     try {
       await req('/api/scrape', json('POST', { action: 'po18-account-save', username: 'author-account', sessionCookie: 'PHPSESSID=authenticated' }, adminToken))
       const checked = await req(
@@ -111,7 +121,9 @@ describe('scrape 路由（免网络动作）', () => {
         json('POST', { action: 'po18-account-test', sourceUrl: 'https://www.po18.tw/books/123456/articles' }, adminToken),
       )
       expect(checked.status).toBe(200)
+      expect(fetchMock).toHaveBeenCalledTimes(2)
       const request = fetchMock.mock.calls[fetchMock.mock.calls.length - 1]
+      expect(String(request?.[0])).toContain('/articlescontent/')
       const requestInit = request?.[1] as RequestInit
       const cookie = new Headers(requestInit?.headers).get('Cookie') || ''
       expect(cookie).toContain('po18Limit=1')

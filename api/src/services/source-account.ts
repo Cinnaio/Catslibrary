@@ -7,8 +7,9 @@ import { first } from '../db/query'
 import type { Db } from '../db/pool'
 import { newId } from './auth'
 import { readRuntimeConfig, writeRuntimeConfig } from '../runtime-config'
+import { cleanHtml, cleanText } from './scraper/parse'
 import { decodeBytes, FETCH_HEADERS } from './scraper/fetch'
-import { po18ResponseProblem } from './scraper/enrich'
+import { parsePo18twChapterContent, parsePo18twChapterLinks, po18ChapterContentUrl, po18ChapterListUrl, po18ResponseProblem } from './scraper/enrich'
 import { outboundFetch } from './outbound-fetch'
 
 const PO18_SITE = 'po18tw'
@@ -456,7 +457,9 @@ export async function getPo18Session(db: Db): Promise<{ accountId: string; cooki
 export async function testPo18Account(db: Db, sourceUrl?: string): Promise<Po18LoginResponse> {
   const session = await getPo18Session(db)
   const requestedSourceUrl = sourceUrl?.trim() || ''
-  const target = requestedSourceUrl || 'https://www.po18.tw/'
+  const requestedUrl = requestedSourceUrl ? new URL(requestedSourceUrl) : null
+  const isContentTarget = Boolean(requestedUrl && /\/books\/\d+\/articlescontent\/\d+\/?$/i.test(requestedUrl.pathname))
+  const target = requestedUrl ? (isContentTarget ? requestedUrl.href : po18ChapterListUrl(requestedUrl.href)) : 'https://www.po18.tw/'
   const requestCookie = ['po18Limit=1', session.cookie].filter(Boolean).join('; ')
   const response = await po18Request(target, { headers: { Cookie: requestCookie } }, requestCookie, PO18_SOURCE_HOSTS)
   const html = decodeHtml(response)
@@ -470,21 +473,47 @@ export async function testPo18Account(db: Db, sourceUrl?: string): Promise<Po18L
   })()
   const detectedProblem = po18ResponseProblem(response.url, html)
   const problem = detectedProblem && !(targetPath === '' && responsePath === '' && detectedProblem.includes('首页')) ? detectedProblem : null
-  const now = Date.now()
-  if (problem) {
-    const status: AccountStatus = problem.includes('登录页') ? 'invalid' : 'error'
+  const fail = async (message: string): Promise<never> => {
+    const status: AccountStatus = message.includes('登录页') ? 'invalid' : 'error'
     if (status === 'invalid') cachedSession = null
     await db.query('UPDATE source_accounts SET status = $1, last_checked_at = $2, last_error = $3, updated_at = $2 WHERE id = $4', [
       status,
-      now,
-      problem,
+      Date.now(),
+      message,
       session.accountId,
     ])
-    throw new Error(problem)
+    throw new Error(message)
+  }
+  if (problem) {
+    return fail(problem)
+  }
+
+  if (requestedSourceUrl) {
+    let contentHtml = html
+    let contentTitle = ''
+    if (!isContentTarget) {
+      const firstLink = parsePo18twChapterLinks(html, target).links[0]
+      if (!firstLink) return fail('POPO 目录可访问，但没有可验证的免费章节；请粘贴一个明确可阅读的章节链接')
+      contentTitle = firstLink.text
+      const contentUrl = po18ChapterContentUrl(firstLink.href)
+      const contentResponse = await po18Request(
+        contentUrl,
+        { headers: { Cookie: requestCookie, Referer: firstLink.href, 'X-Requested-With': 'XMLHttpRequest' } },
+        requestCookie,
+        PO18_SOURCE_HOSTS,
+      )
+      contentHtml = decodeHtml(contentResponse)
+      const contentProblem = po18ResponseProblem(contentResponse.url, contentHtml)
+      if (contentProblem) return fail(contentProblem)
+    }
+    const parsed = parsePo18twChapterContent(contentHtml, contentTitle)
+    const contentText = cleanText(cleanHtml(parsed.content).trim())
+    const contentLength = contentText.replace(/\s/g, '').length
+    if (contentLength < 20) return fail(`POPO 目录可访问，但正文返回为空或不可读（${contentLength} 字）；请检查章节权限或会话`)
   }
   await db.query("UPDATE source_accounts SET status = $1, last_checked_at = $2, last_error = '', updated_at = $2 WHERE id = $3", [
     'authenticated',
-    now,
+    Date.now(),
     session.accountId,
   ])
   return {
