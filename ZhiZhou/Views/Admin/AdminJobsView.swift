@@ -143,6 +143,10 @@ struct AdminJobsView: View {
             ProgressView(value: min(max(job.progress ?? 0, 0), 1))
                 .progressViewStyle(.linear)
                 .tint(jobTint(job.status))
+            HStack(spacing: 12) {
+                jobMetric("公开章节", value: job.publicChapterCount)
+                jobMetric("受保护正文", value: job.protectedChapterCount)
+            }
             Text(subtitle(for: job))
                 .font(.caption)
                 .foregroundStyle(AppTheme.textSecondary)
@@ -304,6 +308,17 @@ struct AdminJobsView: View {
             parts.append(AdminFormat.relativeTime(updated))
         }
         return parts.joined(separator: " · ")
+    }
+
+    private func jobMetric(_ title: String, value: Int?) -> some View {
+        HStack(spacing: 3) {
+            Text(title)
+            Text("\(value ?? 0)")
+                .fontWeight(.semibold)
+                .monospacedDigit()
+        }
+        .font(.caption2)
+        .foregroundStyle(AppTheme.textMuted)
     }
 
     private func jobTint(_ status: String) -> Color {

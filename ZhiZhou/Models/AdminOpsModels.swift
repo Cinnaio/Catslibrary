@@ -23,6 +23,8 @@ struct AdminJobItem: Codable, Identifiable, Hashable {
     let successCount: Int?
     let failedCount: Int?
     let skippedCount: Int?
+    let publicChapterCount: Int?
+    let protectedChapterCount: Int?
     let speed: Double?
     let etaSeconds: Int?
 
