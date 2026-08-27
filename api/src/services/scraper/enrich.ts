@@ -158,7 +158,7 @@ export async function searchPo18tw(
 
   const pageUrl = 'https://www.po18.tw/site/alarm'
   const requestOptions: FetchHtmlOptions = { timeoutMs: 12000 }
-  const initialCookie = mergeCookieHeader('po18Limit=1', sessionCookie)
+  const initialCookie = ['po18Limit=1', sessionCookie].filter(Boolean).join('; ')
   requestOptions.headers = { Cookie: initialCookie }
   requestOptions.allowedRedirectHosts = ['po18.tw']
   if (sessionCookie) {
@@ -244,6 +244,61 @@ function parsePo18twDiscoverCandidates(
   return results.slice(0, 50)
 }
 
+function parsePo18twRankingCandidates(
+  html: string,
+  baseUrl: string,
+  existing: { urls: Set<string>; titles: Set<string> },
+): DiscoverNovel[] {
+  const host = new URL(baseUrl).hostname
+  const results: DiscoverNovel[] = []
+  const seen = new Set<string>()
+  const cards = [...html.matchAll(/<li\b[^>]*class\s*=\s*["'][^"']*\bR_cover\b[^"']*["'][^>]*>([\s\S]*?)<\/li>/gi)]
+
+  for (const match of cards) {
+    const card = match[1] || ''
+    const titleLink = card.match(
+      /<a\b[^>]*class\s*=\s*["'][^"']*\bbook_name\b[^"']*["'][^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/i,
+    )
+    const href = titleLink?.[1] || card.match(/<a\b[^>]*href\s*=\s*["'](\/books\/\d+\/?)["'][^>]*>/i)?.[1]
+    if (!href) continue
+    const url = resolveUrl(href, baseUrl)
+    const bookId = url.match(/\/books\/(\d+)(?:\/|$)/i)?.[1]
+    if (!bookId || seen.has(bookId)) continue
+
+    const coverLink = card.match(/<a\b[^>]*class\s*=\s*["'][^"']*\bbook_cover\b[^"']*["'][^>]*>([\s\S]*?)<\/a>/i)?.[1] || card
+    const coverHref = coverLink.match(/<img\b[^>]*src\s*=\s*["']([^"']+)["'][^>]*>/i)?.[1] || ''
+    const coverUrl = coverHref ? resolveUrl(coverHref, baseUrl) : ''
+    const title = cleanText((titleLink?.[2] || card.match(/<img\b[^>]*alt\s*=\s*["']([^"']+)["']/i)?.[1] || '').replace(/<[^>]*>/g, ''))
+    if (!title) continue
+    const author = cleanText(
+      card.match(/<a\b[^>]*class\s*=\s*["'][^"']*\bbook_author\b[^"']*["'][^>]*>([\s\S]*?)<\/a>/i)?.[1] ||
+        card.match(/<div\b[^>]*class\s*=\s*["'][^"']*\bbook_author\b[^"']*["'][^>]*>([\s\S]*?)<\/div>/i)?.[1] ||
+        '',
+    )
+    const description = cleanText(
+      card.match(/<(?:div|p)\b[^>]*class\s*=\s*["'][^"']*\b(?:book_quote|intro)\b[^"']*["'][^>]*>([\s\S]*?)<\/(?:div|p)>/i)?.[1] || '',
+    )
+    const status = /完結|完本|已完結/i.test(card) ? 'completed' : 'ongoing'
+    seen.add(bookId)
+    results.push({
+      bookId,
+      title: toSimplifiedForSource(title.slice(0, 100), url),
+      author: toSimplifiedForSource(author.slice(0, 30), url),
+      coverUrl,
+      url,
+      existing: existing.urls.has(url) || existing.titles.has(title.slice(0, 100).trim().toLowerCase()),
+      description: toSimplifiedForSource(description.slice(0, 120), url),
+      chapterCount: 0,
+      status,
+      categories: [],
+      source: 'po18tw',
+      sourceName: 'POPO',
+    })
+  }
+
+  return results.slice(0, 50)
+}
+
 // ---------- 榜单发现 ----------
 
 export async function discoverList(
@@ -252,6 +307,7 @@ export async function discoverList(
 ): Promise<{ site: string; total: number; totalPages: number; novels: DiscoverNovel[] }> {
   if (!listUrl) throw new Error('listUrl required')
   const host = new URL(listUrl).hostname
+  const source = sourceForHost(host)
   const existing = await loadExisting(deps.db)
   const preset = (await deps.getPreset?.(listUrl)) || null
 
@@ -261,7 +317,7 @@ export async function discoverList(
     html = cached.html
   } else {
     const fetchOptions: FetchHtmlOptions = {}
-    if (sourceForHost(host).id === 'po18tw') {
+    if (source.id === 'po18tw') {
       // POPO 的公开页面会先检查成年确认标记；账号 Cookie 仍由专用搜索/目录动作负责注入。
       fetchOptions.headers = { Cookie: 'po18Limit=1' }
       fetchOptions.allowedRedirectHosts = ['po18.tw']
@@ -274,11 +330,12 @@ export async function discoverList(
     }
   }
 
-  const novels: DiscoverNovel[] = []
-  const seen = new Set<string>()
-  const bookRe = /<a\s[^>]*href\s*=\s*["'](?:\/[^"']*)?\/(?:book|books)\/(\d+)\/?["'][^>]*>([\s\S]*?)<\/a>/gi
-  let m: RegExpExecArray | null
-  while ((m = bookRe.exec(html)) !== null) {
+  let novels: DiscoverNovel[] = source.id === 'po18tw' ? parsePo18twRankingCandidates(html, listUrl, existing) : []
+  if (source.id !== 'po18tw') {
+    const seen = new Set<string>()
+    const bookRe = /<a\s[^>]*href\s*=\s*["'](?:\/[^"']*)?\/(?:book|books)\/(\d+)\/?["'][^>]*>([\s\S]*?)<\/a>/gi
+    let m: RegExpExecArray | null
+    while ((m = bookRe.exec(html)) !== null) {
     const bookId = m[1]!
     if (seen.has(bookId)) continue
     seen.add(bookId)
@@ -343,6 +400,7 @@ export async function discoverList(
       source: sourceForHost(host).id,
       sourceName: sourceForHost(host).name,
     })
+    }
   }
 
   let totalPages = 1
@@ -367,7 +425,6 @@ export async function discoverList(
     }
   }
 
-  const source = sourceForHost(host)
   const presetName = String(preset?.name || '')
   const site = source.id === host ? presetName || host : source.name
   return { site, total: novels.length, totalPages, novels: novels.slice(0, 50) }

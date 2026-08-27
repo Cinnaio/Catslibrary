@@ -173,12 +173,17 @@ describe('POPO 发现', () => {
     })
   })
 
-  it('POPO 排行榜应解析 /books/ 链接并保留 POPO 来源', async () => {
+  it('POPO 排行榜应按卡片边界解析各自封面并保留 POPO 来源', async () => {
     const html = `<ol class="ranking">
       <li class="R_cover">
         <a class="book_cover" href="/books/123456"><img src="https://cdn0.po18.tw/bc/1/123456/M.jpg" alt="榜单小说"></a>
         <a class="book_name" href="/books/123456">榜单小说</a>
         <a class="book_author" href="/users/author">作者乙</a>
+      </li>
+      <li class="R_cover">
+        <a class="book_cover" href="/books/654321"><img src="https://cdn0.po18.tw/bc/6/654321/M.jpg" alt="第二本小说"></a>
+        <a class="book_name" href="/books/654321">第二本小说</a>
+        <a class="book_author" href="/users/author-two">作者丙</a>
       </li>
     </ol>`
     const result = await discoverList('https://www.po18.tw/rank/index?test=popo', {
@@ -189,11 +194,19 @@ describe('POPO 发现', () => {
 
     expect(result).toMatchObject({
       site: 'POPO',
-      total: 1,
+      total: 2,
       novels: [{
         title: '榜单小说',
         author: '作者乙',
         url: 'https://www.po18.tw/books/123456',
+        coverUrl: 'https://cdn0.po18.tw/bc/1/123456/M.jpg',
+        source: 'po18tw',
+        sourceName: 'POPO',
+      }, {
+        title: '第二本小说',
+        author: '作者丙',
+        url: 'https://www.po18.tw/books/654321',
+        coverUrl: 'https://cdn0.po18.tw/bc/6/654321/M.jpg',
         source: 'po18tw',
         sourceName: 'POPO',
       }],

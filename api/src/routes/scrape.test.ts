@@ -98,6 +98,43 @@ describe('scrape 路由（免网络动作）', () => {
     }
   })
 
+  it('POPO 详情分析应携带已保存会话并限制站内重定向', async () => {
+    const previousKey = process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY
+    process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY = 'scrape-route-test-key'
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        `<div class="book_name">测试书名</div>
+         <div class="book_author"><a>作者甲</a></div>
+         <div class="B_I_content">这是一本测试小说。</div>
+         <div class="book_cover"><img src="https://cdn0.po18.tw/bc/1/123456/M.jpg"></div>`,
+        { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } },
+      ),
+    )
+    try {
+      await req(
+        '/api/scrape',
+        json('POST', { action: 'po18-account-save', username: 'author-account', sessionCookie: 'PHPSESSID=authenticated' }, adminToken),
+      )
+      const detected = await req(
+        '/api/scrape',
+        json('POST', { action: 'detect-meta', sourceUrl: 'https://www.po18.tw/books/123456' }, adminToken),
+      )
+      expect(detected.status).toBe(200)
+      await expect(detected.json()).resolves.toMatchObject({
+        novel: { title: '测试书名', author: '作者甲', coverUrl: 'https://cdn0.po18.tw/bc/1/123456/M.jpg' },
+      })
+      const request = fetchMock.mock.calls[fetchMock.mock.calls.length - 1]
+      const requestInit = request?.[1] as RequestInit
+      expect(new Headers(requestInit?.headers).get('Cookie')).toContain('PHPSESSID=authenticated')
+      expect(new Headers(requestInit?.headers).get('Cookie')).toContain('po18Limit=1')
+    } finally {
+      fetchMock.mockRestore()
+      await req('/api/scrape', json('POST', { action: 'po18-account-clear' }, adminToken))
+      if (previousKey === undefined) delete process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY
+      else process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY = previousKey
+    }
+  })
+
   it('管理员可以保存开发代理，Docker 环境代理优先并可测试', async () => {
     const runtimeDir = mkdtempSync(join(tmpdir(), 'zhi-zhou-proxy-'))
     const previousRuntimeDir = process.env.RUNTIME_CONFIG_DIR

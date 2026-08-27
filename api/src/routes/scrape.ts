@@ -163,9 +163,35 @@ function validateProxyConfig(body: Record<string, unknown>): { proxyBase: string
   return { proxyBase, proxyBypass: rules.join(',') }
 }
 
-function fireJob(jobId: string, deps: ScrapeDeps): void {
+function isPo18twUrl(rawUrl: string): boolean {
+  try {
+    const hostname = new URL(rawUrl).hostname.toLowerCase()
+    return hostname === 'po18.tw' || hostname.endsWith('.po18.tw')
+  } catch {
+    return false
+  }
+}
+
+function withPo18Session(db: ReturnType<typeof getDb>, baseFetchHtml: ScrapeDeps['fetchHtml']): ScrapeDeps['fetchHtml'] {
+  return async (url, opts = {}) => {
+    if (!isPo18twUrl(url)) return baseFetchHtml(url, opts)
+    const session = await getPo18Session(db)
+    const headers = new Headers(opts.headers)
+    const cookie = [headers.get('Cookie'), 'po18Limit=1', session.cookie].filter(Boolean).join('; ')
+    if (cookie) headers.set('Cookie', cookie)
+    return baseFetchHtml(url, {
+      ...opts,
+      headers,
+      scope: opts.scope || 'source-auth',
+      allowedRedirectHosts: ['po18.tw'],
+    })
+  }
+}
+
+function fireJob(jobId: string, deps: ScrapeDeps, db: ReturnType<typeof getDb>): void {
   // fire-and-forget：与 waitUntil 语义一致；进程重启后 running 任务由启动重置逻辑接管
-  void runScrapeJob(jobId, deps).catch(async (err) => {
+  const jobDeps = { ...deps, fetchHtml: withPo18Session(db, deps.fetchHtml) }
+  void runScrapeJob(jobId, jobDeps).catch(async (err) => {
     const store = deps.store
     const j = await store.loadJob(jobId)
     if (j) {
@@ -261,7 +287,7 @@ scrapeRoutes.post('/', async (c) => {
       const { sourceUrl } = body
       if (!sourceUrl) return c.json({ error: 'sourceUrl required' }, 400)
       try {
-        const result = await detectMeta(sourceUrl, { store: deps.store, fetchHtml: deps.fetchHtml })
+        const result = await detectMeta(sourceUrl, { store: deps.store, fetchHtml: withPo18Session(db, deps.fetchHtml) })
         return c.json(result)
       } catch (err) {
         return c.json({ error: `分析失败: ${(err as Error).message}` }, 502)
@@ -270,7 +296,7 @@ scrapeRoutes.post('/', async (c) => {
     case 'test': {
       const { sourceUrl, selectors, encoding } = body
       try {
-        return c.json(await testSelectors(sourceUrl, selectors || {}, encoding, deps))
+        return c.json(await testSelectors(sourceUrl, selectors || {}, encoding, { ...deps, fetchHtml: withPo18Session(db, deps.fetchHtml) }))
       } catch (err) {
         return c.json({ error: `Fetch failed: ${(err as Error).message}` }, 502)
       }
@@ -295,7 +321,7 @@ scrapeRoutes.post('/', async (c) => {
         updatedAt: Date.now(),
       }
       await deps.store.saveJob(job)
-      fireJob(jobId, deps)
+      fireJob(jobId, deps, db)
       return c.json({ jobId, message: 'Scrape job started' }, 202)
     }
     case 'update': {
@@ -318,7 +344,7 @@ scrapeRoutes.post('/', async (c) => {
         updatedAt: Date.now(),
       }
       await deps.store.saveJob(job)
-      fireJob(jobId, deps)
+      fireJob(jobId, deps, db)
       return c.json({ jobId, message: 'Update scrape started', updateMode: true }, 202)
     }
     case 'retry': {
@@ -343,7 +369,7 @@ scrapeRoutes.post('/', async (c) => {
         updatedAt: Date.now(),
       }
       await deps.store.saveJob(job)
-      fireJob(newJobId, deps)
+      fireJob(newJobId, deps, db)
       return c.json({ jobId: newJobId, message: 'Retry started' }, 202)
     }
     case 'retry-failed': {
@@ -376,7 +402,7 @@ scrapeRoutes.post('/', async (c) => {
         job.retryLinks!.map((l) => ({ href: l.href!, text: l.text || '' })),
       )
       await deps.store.appendJobLog(retryJobId, 'info', '开始重试失败章节，共 ' + failedItems.length + ' 章')
-      fireJob(retryJobId, deps)
+      fireJob(retryJobId, deps, db)
       return c.json({ jobId: retryJobId, message: 'Retry failed chapters started', total: failedItems.length }, 202)
     }
     case 'cancel': {
@@ -669,7 +695,7 @@ scrapeRoutes.post('/', async (c) => {
       if (!preset?.selectors?.chapterList || !preset?.selectors?.chapterContent) return c.json({ error: '该书源缺少 chapterList/chapterContent 规则' }, 400)
       const url = String(row?.source_url || '')
       try {
-        return c.json(await testSelectors(url, preset.selectors, preset.encoding, deps))
+        return c.json(await testSelectors(url, preset.selectors, preset.encoding, { ...deps, fetchHtml: withPo18Session(db, deps.fetchHtml) }))
       } catch (err) {
         return c.json({ error: `测试失败: ${(err as Error).message}` }, 502)
       }
@@ -724,7 +750,7 @@ scrapeRoutes.post('/', async (c) => {
       const { sourceUrl } = body
       if (!sourceUrl) return c.json({ error: 'sourceUrl required' }, 400)
       try {
-        return c.json(await extractPo18twTitles(String(sourceUrl)))
+        return c.json(await extractPo18twTitles(String(sourceUrl), withPo18Session(db, deps.fetchHtml)))
       } catch (err) {
         return c.json({ error: (err as Error).message }, 502)
       }
