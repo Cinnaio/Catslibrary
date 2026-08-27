@@ -762,9 +762,9 @@ private struct DiscoverDetailSheet: View {
                     }
                 } else if let meta {
                     Section("书籍信息") {
-                        TextField("书名", text: $editTitle)
-                        TextField("作者", text: $editAuthor)
-                        TextField("分类（顿号或逗号分隔）", text: $editCategories)
+                        editableField("书名", placeholder: "请输入书名", text: $editTitle)
+                        editableField("作者", placeholder: "请输入作者", text: $editAuthor)
+                        editableField("分类", placeholder: "顿号或逗号分隔", text: $editCategories)
                         Picker("状态", selection: $editStatus) {
                             Text("连载中").tag("ongoing")
                             Text("已完结").tag("completed")
@@ -847,6 +847,19 @@ private struct DiscoverDetailSheet: View {
                 await loadDetail()
             }
         }
+    }
+
+    private func editableField(_ label: String, placeholder: String, text: Binding<String>) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(AppTheme.textSecondary)
+            TextField(placeholder, text: text)
+                .foregroundStyle(AppTheme.textPrimary)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+        }
+        .padding(.vertical, 2)
     }
 
     private func loadDetail() async {
