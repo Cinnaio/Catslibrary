@@ -246,7 +246,8 @@ enum AdminAPI {
     static func sourceSyncApply(
         runId: String,
         metadataFields: [String],
-        replaceMetadata: Bool = false
+        replaceMetadata: Bool = false,
+        confirmedChangeIds: [String] = []
     ) async throws -> SourceSyncApplyResponse {
         try await postScrape([
             "action": "source-sync-apply",
@@ -254,6 +255,7 @@ enum AdminAPI {
             "applyMetadata": !metadataFields.isEmpty,
             "metadataFields": metadataFields,
             "metadataMode": replaceMetadata ? "replace" : "missing",
+            "confirmedChangeIds": confirmedChangeIds,
         ])
     }
 

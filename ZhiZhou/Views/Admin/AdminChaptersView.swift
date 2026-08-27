@@ -295,6 +295,7 @@ private struct SourceSyncSheet: View {
     @State private var metadataFields: Set<String> = ["title", "author", "description", "coverUrl", "categories", "status"]
     @State private var replaceMetadata = false
     @State private var expandedSearchSites: Set<String> = []
+    @State private var confirmedChangeIds: Set<String> = []
 
     private let metadataLabels: [(String, String)] = [
         ("title", "标题"),
@@ -416,37 +417,67 @@ private struct SourceSyncSheet: View {
                         }
                     }
 
-                    Section("章节名变更") {
+                    let automaticChanges = preview.changes.filter(\.eligible)
+                    let manualChanges = preview.changes.filter { !$0.eligible }
+                    let confirmedManualCount = manualChanges.filter { confirmedChangeIds.contains($0.id) }.count
+
+                    Section {
                         if preview.changes.isEmpty {
                             Text("没有需要变更的章节名")
                                 .foregroundStyle(AppTheme.textSecondary)
                         } else {
-                            ForEach(preview.changes.prefix(80)) { change in
-                                VStack(alignment: .leading, spacing: 3) {
-                                    HStack {
-                                        Text("\(change.localOrder).")
-                                            .foregroundStyle(AppTheme.textMuted)
-                                        Text(change.oldTitle)
-                                        Image(systemName: "arrow.right")
-                                            .foregroundStyle(AppTheme.textMuted)
-                                        Text(change.newTitle)
-                                    }
-                                    if change.partCount > 1 {
-                                        Text("拆分 \(change.partIndex)/\(change.partCount)")
-                                            .font(.caption)
-                                            .foregroundStyle(AppTheme.textSecondary)
-                                    } else if !change.eligible {
-                                        Text("需要人工确认，不会自动应用")
-                                            .font(.caption)
-                                            .foregroundStyle(.orange)
-                                    }
+                            HStack(spacing: 8) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundStyle(AppTheme.success)
+                                Text("自动应用 \(automaticChanges.count) 项")
+                                    .font(.footnote)
+                                    .foregroundStyle(AppTheme.textSecondary)
+                                Spacer(minLength: 8)
+                                if !manualChanges.isEmpty {
+                                    Text("已确认 \(confirmedManualCount)/\(manualChanges.count) 项")
+                                        .font(.footnote)
+                                        .foregroundStyle(confirmedManualCount > 0 ? AppTheme.primary : AppTheme.textSecondary)
                                 }
+                            }
+
+                            if !manualChanges.isEmpty {
+                                Button {
+                                    let ids = manualChanges.map(\.id)
+                                    if confirmedManualCount == manualChanges.count {
+                                        confirmedChangeIds.subtract(ids)
+                                    } else {
+                                        confirmedChangeIds.formUnion(ids)
+                                    }
+                                } label: {
+                                    Label(
+                                        confirmedManualCount == manualChanges.count ? "取消全部人工确认" : "确认全部人工变更",
+                                        systemImage: confirmedManualCount == manualChanges.count ? "checkmark.circle" : "checkmark.circle.fill"
+                                    )
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                            }
+
+                            ForEach(preview.changes.prefix(80)) { change in
+                                sourceSyncChangeRow(change)
                             }
                             if preview.changes.count > 80 {
                                 Text("另有 \(preview.changes.count - 80) 项未显示")
                                     .font(.caption)
                                     .foregroundStyle(AppTheme.textSecondary)
                             }
+                        }
+                    } header: {
+                        HStack {
+                            Text("章节名变更")
+                            Spacer()
+                            Text("\(preview.changes.count) 项")
+                                .foregroundStyle(AppTheme.textSecondary)
+                        }
+                    } footer: {
+                        if manualChanges.isEmpty {
+                            Text("点击右上角“应用同步”后，将自动应用这些章节名变更。")
+                        } else {
+                            Text("高置信度变更会自动应用；低置信度变更需要先打开右侧开关确认，未确认的项目不会修改。")
                         }
                     }
                 }
@@ -458,7 +489,7 @@ private struct SourceSyncSheet: View {
                     Button("取消") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("应用") {
+                    Button("应用同步") {
                         Task { await applyPreview() }
                     }
                     .disabled(preview == nil || isLoading)
@@ -478,6 +509,79 @@ private struct SourceSyncSheet: View {
                 Text(errorMessage ?? "")
             }
         }
+    }
+
+    private func sourceSyncChangeRow(_ change: SourceSyncChange) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Text("\(change.localOrder).")
+                .font(.footnote.monospacedDigit())
+                .foregroundStyle(AppTheme.textMuted)
+                .frame(width: 30, alignment: .trailing)
+
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(alignment: .top, spacing: 6) {
+                    Text("本地")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(AppTheme.textSecondary)
+                    Text(change.oldTitle)
+                        .font(.subheadline)
+                        .foregroundStyle(AppTheme.textPrimary)
+                        .lineLimit(2)
+                }
+
+                HStack(alignment: .top, spacing: 6) {
+                    Image(systemName: "arrow.down")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(AppTheme.primary)
+                        .frame(width: 16)
+                    Text(change.newTitle)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(AppTheme.textPrimary)
+                        .lineLimit(2)
+                }
+
+                if change.partCount > 1 {
+                    Text("拆分 \(change.partIndex)/\(change.partCount) · \(confidenceName(change.confidence))")
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.textSecondary)
+                } else if change.eligible {
+                    Text("高置信度 · 将自动应用")
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.success)
+                } else {
+                    Text("低置信度 · 请确认后应用")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            if change.eligible {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(AppTheme.success)
+                    .frame(width: 44, height: 44)
+                    .accessibilityLabel("将自动应用")
+            } else {
+                Toggle(
+                    "",
+                    isOn: Binding(
+                        get: { confirmedChangeIds.contains(change.id) },
+                        set: { confirmed in
+                            if confirmed {
+                                confirmedChangeIds.insert(change.id)
+                            } else {
+                                confirmedChangeIds.remove(change.id)
+                            }
+                        }
+                    )
+                )
+                .labelsHidden()
+                .tint(AppTheme.primary)
+                .frame(width: 44, height: 44)
+                .accessibilityLabel("确认应用第 \(change.localOrder) 项章节名变更")
+            }
+        }
+        .padding(.vertical, 6)
     }
 
     private func loadBinding() async {
@@ -611,6 +715,7 @@ private struct SourceSyncSheet: View {
         defer { isLoading = false }
         do {
             preview = try await AdminAPI.sourceSyncPreview(novelId: novel.id, sourceUrl: url)
+            confirmedChangeIds.removeAll()
             errorMessage = nil
         } catch {
             errorMessage = AppCopy.friendlyError(error)
@@ -625,7 +730,8 @@ private struct SourceSyncSheet: View {
             _ = try await AdminAPI.sourceSyncApply(
                 runId: preview.runId,
                 metadataFields: Array(metadataFields),
-                replaceMetadata: replaceMetadata
+                replaceMetadata: replaceMetadata,
+                confirmedChangeIds: Array(confirmedChangeIds)
             )
             onApplied()
             dismiss()
