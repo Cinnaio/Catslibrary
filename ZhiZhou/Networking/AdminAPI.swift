@@ -599,6 +599,45 @@ enum AdminAPI {
         try await APIClient.shared.get("/api/ai/tasks/\(encode(id))", auth: true)
     }
 
+    /// 订阅封面描述词任务的实时 SSE 快照；断流后由页面回退到任务轮询。
+    static func aiCoverPromptStream(id: String) -> AsyncThrowingStream<AiTaskStreamEvent, Error> {
+        let lines = APIClient.shared.streamLines("/api/ai/tasks/\(encode(id))/stream", auth: true)
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                var dataLines: [String] = []
+
+                func consumeEvent() {
+                    guard !dataLines.isEmpty else { return }
+                    let payload = dataLines.joined(separator: "\n")
+                    dataLines.removeAll(keepingCapacity: true)
+                    guard let data = payload.data(using: .utf8),
+                          let event = try? JSONDecoder().decode(AiTaskStreamEvent.self, from: data)
+                    else { return }
+                    continuation.yield(event)
+                }
+
+                do {
+                    for try await line in lines {
+                        if line.isEmpty {
+                            consumeEvent()
+                        } else if line.hasPrefix("data:") {
+                            dataLines.append(String(line.dropFirst(5)).trimmingCharacters(in: .whitespaces))
+                            // 服务端每个快照是一行紧凑 JSON；立即消费，不依赖某些实现是否保留空行。
+                            consumeEvent()
+                        }
+                    }
+                    consumeEvent()
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in
+                task.cancel()
+            }
+        }
+    }
+
     // MARK: - AI 服务：已生成内容
 
     /// kind：all | summary | catchup | continue | write_outline | write_chapter

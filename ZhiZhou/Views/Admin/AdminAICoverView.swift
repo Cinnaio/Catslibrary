@@ -136,8 +136,14 @@ struct AdminAICoverView: View {
             await resumePendingPromptTask()
         }
         .onChange(of: scenePhase) { _, phase in
-            guard phase == .active else { return }
-            Task { await resumePendingPromptTask() }
+            if phase == .active {
+                Task { await resumePendingPromptTask() }
+            } else {
+                // 前台流连接不跨越系统挂起；服务端任务继续执行，回到前台后重新订阅。
+                promptPollTask?.cancel()
+                promptPollTask = nil
+                generatingPrompt = false
+            }
         }
         .sheet(isPresented: $showNovelPicker) {
             NovelPickerSheet(
@@ -274,6 +280,7 @@ struct AdminAICoverView: View {
                     .scrollContentBackground(.hidden)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
+                    .disabled(generatingPrompt)
                     .onChange(of: prompt) { _, value in
                         if value.count > coverPromptMaxCharacters {
                             prompt = String(value.prefix(coverPromptMaxCharacters))
@@ -543,7 +550,7 @@ struct AdminAICoverView: View {
                 selectedNovelId = novelId
                 await loadCandidates()
             }
-            startPromptPolling(id)
+            startPromptStreaming(id)
         } catch {
             if case APIError.http(status: 404, message: _) = error {
                 clearPendingPromptTask()
@@ -576,7 +583,7 @@ struct AdminAICoverView: View {
                 clientRequestId: clientRequestId
             )
             pendingPromptTaskId = result.taskId
-            startPromptPolling(result.taskId)
+            startPromptStreaming(result.taskId)
         } catch {
             if case APIError.network = error {
                 generatingPrompt = false
@@ -596,6 +603,73 @@ struct AdminAICoverView: View {
         pendingPromptStartedAt = 0
     }
 
+    /// 前台优先订阅 SSE；连接断开、代理不支持或页面回到后台时自动回退到轮询。
+    private func startPromptStreaming(_ id: String) {
+        promptPollTask?.cancel()
+        generatingPrompt = true
+        promptPollTask = Task {
+            do {
+                for try await event in AdminAPI.aiCoverPromptStream(id: id) {
+                    guard !Task.isCancelled else { return }
+                    if applyPromptTaskSnapshot(event.task) { return }
+                }
+                guard !Task.isCancelled, pendingPromptTaskId == id else { return }
+                promptPollTask = nil
+                taskStatusText = "实时连接已结束，正在继续查询…"
+                startPromptPolling(id)
+            } catch {
+                guard !Task.isCancelled else { return }
+                promptPollTask = nil
+                taskStatusText = "实时连接已断开，正在继续查询…"
+                startPromptPolling(id)
+            }
+        }
+    }
+
+    /// 应用服务端任务快照；running 快照也会把当前已生成的提示词显示出来。
+    @discardableResult
+    private func applyPromptTaskSnapshot(_ task: AiTaskInfo) -> Bool {
+        let status = task.status ?? ""
+        if let resultText = task.result,
+           let data = resultText.data(using: .utf8),
+           let result = try? JSONDecoder().decode(AiCoverPromptTaskResult.self, from: data),
+           !result.prompt.isEmpty {
+            prompt = String(result.prompt.prefix(coverPromptMaxCharacters))
+            promptMetadata = result.metadata
+            variationId = result.metadata?.variationId ?? variationId
+        } else if let generatedPrompt = task.prompt,
+                  !generatedPrompt.isEmpty,
+                  generatedPrompt != "生成封面描述词" {
+            // 兼容没有 result 字段的旧任务记录。
+            prompt = String(generatedPrompt.prefix(coverPromptMaxCharacters))
+        }
+
+        if status == "completed" {
+            if prompt.isEmpty {
+                actionError = "任务已完成，但没有返回提示词"
+                taskStatusText = nil
+            } else {
+                taskStatusText = "封面描述词已生成，可继续编辑"
+            }
+            clearPendingPromptTask()
+            generatingPrompt = false
+            promptPollTask = nil
+            return true
+        }
+        if ["failed", "cancelled"].contains(status) {
+            taskStatusText = AdminFormat.aiTaskStatus(status)
+            if let error = task.error, !error.isEmpty {
+                actionError = error
+            }
+            clearPendingPromptTask()
+            generatingPrompt = false
+            promptPollTask = nil
+            return true
+        }
+        taskStatusText = status == "running" ? "提示词生成中（实时输出）…" : "提示词生成中（等待队列）…"
+        return false
+    }
+
     /// 轮询提示词后台任务；结果已保存在服务端，App 暂停期间不影响任务本身。
     private func startPromptPolling(_ id: String) {
         guard promptPollTask == nil else { return }
@@ -610,42 +684,7 @@ struct AdminAICoverView: View {
                 attempts += 1
                 do {
                     let detail = try await AdminAPI.aiTask(id: id)
-                    let task = detail.task
-                    let status = task.status ?? ""
-                    if status == "completed" {
-                        if let resultText = task.result,
-                           let data = resultText.data(using: .utf8),
-                           let result = try? JSONDecoder().decode(AiCoverPromptTaskResult.self, from: data) {
-                            prompt = String(result.prompt.prefix(coverPromptMaxCharacters))
-                            promptMetadata = result.metadata
-                            variationId = result.metadata?.variationId ?? variationId
-                            taskStatusText = "封面描述词已生成，可继续编辑"
-                        } else if let generatedPrompt = task.prompt,
-                                  !generatedPrompt.isEmpty,
-                                  generatedPrompt != "生成封面描述词" {
-                            // 兼容没有 result 字段的旧任务记录。
-                            prompt = String(generatedPrompt.prefix(coverPromptMaxCharacters))
-                            taskStatusText = "封面描述词已生成，可继续编辑"
-                        } else {
-                            actionError = "任务已完成，但没有返回提示词"
-                            taskStatusText = nil
-                        }
-                        clearPendingPromptTask()
-                        generatingPrompt = false
-                        promptPollTask = nil
-                        return
-                    }
-                    if ["failed", "cancelled"].contains(status) {
-                        taskStatusText = AdminFormat.aiTaskStatus(status)
-                        if let error = task.error, !error.isEmpty {
-                            actionError = error
-                        }
-                        clearPendingPromptTask()
-                        generatingPrompt = false
-                        promptPollTask = nil
-                        return
-                    }
-                    taskStatusText = "提示词生成中（\(AdminFormat.aiTaskStatus(status))）…"
+                    if applyPromptTaskSnapshot(detail.task) { return }
                 } catch {
                     taskStatusText = AppCopy.friendlyError(error)
                     // 保留 pendingPromptTaskId；下次回到前台时继续查询。

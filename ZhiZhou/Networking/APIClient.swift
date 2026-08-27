@@ -220,6 +220,53 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
         try await request("GET", path, auth: auth)
     }
 
+    /// 读取服务端 SSE 文本行。用于可恢复任务的前台实时展示；连接中断不影响服务端任务本身。
+    func streamLines(_ path: String, auth: Bool = false) -> AsyncThrowingStream<String, Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    let url = try makeURL(path)
+                    var req = URLRequest(url: url)
+                    req.httpMethod = "GET"
+                    req.timeoutInterval = 120
+                    if auth, let token {
+                        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                    }
+                    req.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+                    req.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+
+                    let (bytes, response) = try await session.bytes(for: req)
+                    guard let http = response as? HTTPURLResponse else {
+                        throw APIError.invalidResponse
+                    }
+                    guard (200..<300).contains(http.statusCode) else {
+                        if http.statusCode == 401 {
+                            handleUnauthorized()
+                        }
+                        throw APIError.http(status: http.statusCode, message: nil)
+                    }
+
+                    for try await line in bytes.lines {
+                        try Task.checkCancellation()
+                        continuation.yield(line)
+                    }
+                    continuation.finish()
+                } catch is CancellationError {
+                    continuation.finish(throwing: CancellationError())
+                } catch let error as APIError {
+                    continuation.finish(throwing: error)
+                } catch let error as URLError {
+                    continuation.finish(throwing: APIError.network(friendlyDescription(for: error)))
+                } catch {
+                    continuation.finish(throwing: APIError.network(error.localizedDescription))
+                }
+            }
+            continuation.onTermination = { _ in
+                task.cancel()
+            }
+        }
+    }
+
     func post<T: Decodable>(_ path: String, body: Data? = nil, auth: Bool = false) async throws -> T {
         try await request("POST", path, body: body, auth: auth)
     }

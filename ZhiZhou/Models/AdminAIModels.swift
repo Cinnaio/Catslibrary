@@ -160,6 +160,12 @@ struct AiTaskDetailResponse: Codable {
     let task: AiTaskInfo
 }
 
+/// 单任务 SSE 实时快照。
+struct AiTaskStreamEvent: Codable {
+    let type: String?
+    let task: AiTaskInfo
+}
+
 /// 封面描述词后台任务的 result JSON。
 struct AiCoverPromptTaskResult: Codable, Hashable {
     let prompt: String
