@@ -16,6 +16,8 @@ export interface SelectOption {
   label: string
   /** 次行元信息（如「作者 · N章」），可选 */
   sub?: string
+  /** 禁用单个选项，但保留其在列表中的说明 */
+  disabled?: boolean
 }
 
 interface CustomSelectProps {
@@ -78,6 +80,7 @@ export default function CustomSelect({
   }, [filtered.length, query, onServerSearch])
 
   function pick(o: SelectOption) {
+    if (o.disabled) return
     onChange(o.value)
     setOpen(false)
   }
@@ -140,6 +143,7 @@ export default function CustomSelect({
                     key={o.value}
                     value={o.value}
                     onSelect={() => pick(o)}
+                    disabled={o.disabled}
                     className="flex items-center justify-between gap-2"
                   >
                     <span className="flex min-w-0 flex-col">

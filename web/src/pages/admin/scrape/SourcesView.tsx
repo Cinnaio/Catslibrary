@@ -11,11 +11,11 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Progress } from '@/components/ui/progress'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import CustomSelect from '@/components/admin/CustomSelect'
 import type { SourceRow } from './types'
 import { connectivityBadge, scrapePost, supportBadge } from './utils'
 import Po18AccountPanel from './Po18AccountPanel'
@@ -319,16 +319,28 @@ export default function SourcesView({ active }: { active: boolean }) {
   const testSampleOk = Array.isArray(testState.data?.sampleChapters) ? testState.data.sampleChapters.filter((s: any) => s.ok).length : 0
 
   return (
-    <>
+    <div className="admin-redesign-page admin-redesign-page--sources">
       <AdminTabHeader
         title="书源管理"
         description="批量导入 Legado 社区书源池，智能分析小说时自动按 host 匹配书源选择器。仅消费书源规则数据，转换器为项目自研。"
+        meta={`共 ${total} 个书源`}
+        actions={
+          <>
+            <Button variant="secondary" onClick={openConnectivityDialog}>
+              检测连接
+            </Button>
+            <Button onClick={() => document.getElementById('source-import-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
+              <span aria-hidden="true">＋</span>
+              导入书源
+            </Button>
+          </>
+        }
       />
 
       <Po18AccountPanel active={active} />
 
       {/* Import card */}
-      <div className="source-workspace">
+      <div id="source-import-panel" className="source-workspace">
         <AdminPanel className="source-import-panel" title="导入书源">
           <div className="source-import__body">
             <div className="form-group source-import__url-group">
@@ -556,22 +568,21 @@ export default function SourcesView({ active }: { active: boolean }) {
             <div className="source-panel__pagination-controls">
               <div className="source-panel__page-size">
                 <span>每页</span>
-                <Select
+                <CustomSelect
+                  className="source-page-size-select"
+                  aria-label="每页显示数量"
+                  compact
+                  options={[
+                    { value: '25', label: '25' },
+                    { value: '50', label: '50' },
+                    { value: '100', label: '100' },
+                  ]}
                   value={String(sourcePageSize)}
-                  onValueChange={(value) => {
+                  onChange={(value) => {
                     setSourcePageSize(Number(value))
                     setSourcePage(1)
                   }}
-                >
-                  <SelectTrigger size="sm" aria-label="每页显示数量">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent position="popper" align="start" sideOffset={4} className="source-page-size__content">
-                    <SelectItem value="25">25</SelectItem>
-                    <SelectItem value="50">50</SelectItem>
-                    <SelectItem value="100">100</SelectItem>
-                  </SelectContent>
-                </Select>
+                />
               </div>
               <Button variant="secondary" size="sm" disabled={sourcePage <= 1} onClick={() => setSourcePage((page) => page - 1)}>
                 上一页
@@ -601,22 +612,18 @@ export default function SourcesView({ active }: { active: boolean }) {
           <div className="source-connectivity-dialog__body">
             <div className="source-connectivity-dialog__field">
               <Label htmlFor="connectivity-scope">检测范围</Label>
-              <Select
+              <CustomSelect
+                className="source-connectivity-scope"
+                aria-label="检测范围"
+                options={[
+                  { value: 'page', label: `当前页（${sources.length} 个）` },
+                  { value: 'selected', label: `已选择（${selectedHosts.size} 个）`, disabled: selectedHosts.size === 0 },
+                  { value: 'all', label: `全部书源（${total} 个）` },
+                ]}
                 value={connectivityScope}
-                onValueChange={(value) => setConnectivityScope(value as typeof connectivityScope)}
+                onChange={(value) => setConnectivityScope(value as typeof connectivityScope)}
                 disabled={connectivityChecking}
-              >
-                <SelectTrigger id="connectivity-scope">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="page">当前页（{sources.length} 个）</SelectItem>
-                  <SelectItem value="selected" disabled={selectedHosts.size === 0}>
-                    已选择（{selectedHosts.size} 个）
-                  </SelectItem>
-                  <SelectItem value="all">全部书源（{total} 个）</SelectItem>
-                </SelectContent>
-              </Select>
+              />
             </div>
             {connectivityChecking ? (
               <div className="source-connectivity-dialog__feedback" aria-live="polite">
@@ -720,6 +727,6 @@ export default function SourcesView({ active }: { active: boolean }) {
           </div>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   )
 }

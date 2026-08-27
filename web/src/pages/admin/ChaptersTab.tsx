@@ -3,6 +3,7 @@
  * 由 Novel-KV js/admin-chapters.js 平移。
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useToast, useConfirm } from '../../components/feedback'
 import CustomSelect from '../../components/admin/CustomSelect'
 import Pagination from '../../components/admin/Pagination'
@@ -11,7 +12,7 @@ import { timeAgo } from '../../lib/format'
 import type { ChapterMeta } from '@shared/types'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -37,6 +38,7 @@ interface ChapterDraft {
 export default function ChaptersTab(_props: { highlightNovelId?: string; onHighlightConsumed?: () => void }) {
   const { toast } = useToast()
   const { confirm } = useConfirm()
+  const navigate = useNavigate()
 
   const [novelOptions, setNovelOptions] = useState<IndexNovel[]>([])
   const [selectedNovel, setSelectedNovel] = useState('')
@@ -128,6 +130,22 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
     if (!q) return chapters
     return chapters.filter((c) => c.title.toLowerCase().includes(q) || String(c.order).startsWith(q))
   }, [chapters, search])
+
+  const chapterStats = useMemo(() => {
+    const ordered = chapters.filter((chapter) => Number.isFinite(chapter.order) && chapter.order > 0).length
+    const totalWords = chapters.reduce((sum, chapter) => sum + (Number.isFinite(chapter.wordCount) ? chapter.wordCount : 0), 0)
+    const latestCreatedAt = chapters.reduce((latest, chapter) => Math.max(latest, Number(chapter.createdAt) || 0), 0)
+    return {
+      ordered,
+      orderPercent: chapters.length ? Math.round((ordered / chapters.length) * 100) : 0,
+      totalWords,
+      latestCreatedAt,
+    }
+  }, [chapters])
+
+  const formattedWordCount = chapterStats.totalWords >= 10000
+    ? `${(chapterStats.totalWords / 10000).toFixed(1)}万`
+    : chapterStats.totalWords.toLocaleString('zh-CN')
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const currentPage = Math.min(page, totalPages)
@@ -385,133 +403,189 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
 
   return (
     <AdminPage
+      className="admin-redesign-page admin-redesign-page--chapters"
       title="章节管理"
-      meta={
-        selectedNovel || selectedIds.size > 0 ? (
-          <>
-            {selectedNovel ? (search ? `匹配 ${filtered.length} / 共 ${chapters.length} 章` : `共 ${chapters.length} 章`) : ''}
-            {selectedIds.size > 0 ? ` · 已选 ${selectedIds.size}` : ''}
-          </>
-        ) : undefined
+      description="按作品维护目录与正文，搜索和批量操作只作用于当前作品。"
+      meta={selectedNovel ? (search ? `匹配 ${filtered.length} / 共 ${chapters.length} 章` : `共 ${chapters.length} 章`) : `${novelOptions.length || '—'} 部作品`}
+      actions={
+        <Button onClick={() => void openChapterModal(null)} disabled={!selectedNovel}>
+          <span aria-hidden="true">＋</span>
+          添加章节
+        </Button>
       }
     >
-      <div className="form-row chapter-novel-row">
-        <Label>选择小说</Label>
-        <CustomSelect
-          className="chapter-novel-select"
-          searchable
-          searchPlaceholder="搜索书名 / 拼音…"
-          placeholder="请选择小说"
-          options={novelOptions.map((n) => ({
-            value: n.id,
-            label: n.title,
-            sub: `${n.author || '未知作者'} · ${n.chapterCount}章`,
-          }))}
-          value={selectedNovel}
-          onChange={pickNovel}
-          filter={(o, q) => novelFilter(o, q)}
-          onServerSearch={handleNovelServerSearch}
-        />
-      </div>
+      <section className="chapter-context-panel" aria-labelledby="chapter-context-title">
+        <div className="chapter-context-copy">
+          <span className="chapter-section-kicker">当前工作对象</span>
+          <h3 id="chapter-context-title">先选一本小说，再处理章节</h3>
+          <p>切换作品会同步章节目录、字数与更新时间；搜索和批量操作只作用于当前作品。</p>
+        </div>
+        <div className="chapter-context-form">
+          <div className="chapter-context-form__field">
+            <Label>选择小说</Label>
+            <CustomSelect
+              className="chapter-novel-select"
+              searchable
+              searchPlaceholder="搜索书名 / 拼音…"
+              placeholder="请选择小说"
+              options={novelOptions.map((n) => ({
+                value: n.id,
+                label: n.title,
+                sub: `${n.author || '未知作者'} · ${n.chapterCount}章`,
+              }))}
+              value={selectedNovel}
+              onChange={pickNovel}
+              filter={(o, q) => novelFilter(o, q)}
+              onServerSearch={handleNovelServerSearch}
+            />
+          </div>
+          <Button
+            variant="secondary"
+            disabled={!selectedNovel}
+            onClick={() => selectedNovel && navigate(`/novel/${encodeURIComponent(selectedNovel)}`)}
+          >
+            打开详情
+          </Button>
+        </div>
+      </section>
 
-      <div className="overflow-hidden rounded-xl border border-border bg-card">
-        <div className="chapter-toolbar" aria-live="polite">
-          <Input
-            type="text"
-            className="chapter-toolbar__search admin-input--compact"
-            data-admin-search
-            placeholder="搜索章节标题…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          <div className="chapter-toolbar__actions">
-            {selectedIds.size > 0 ? (
-              <>
-                <span className="chapter-toolbar__count text-sm text-muted-foreground tabular-nums">已选 {selectedIds.size} 章</span>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() =>
-                    setSelectedIds((prev) => {
-                      const pageIds = pageRows.map((c) => c.id)
-                      const next = new Set(prev)
-                      pageIds.forEach((id) => (next.has(id) ? next.delete(id) : next.add(id)))
-                      return next
-                    })
-                  }
-                >
-                  反选
-                </Button>
-                <Button variant="destructive" size="sm" onClick={() => void batchDelete()}>
-                  批量删除 ({selectedIds.size})
-                </Button>
-              </>
-            ) : (
-              <>
+      <section className="chapter-metric-strip" aria-label="章节统计">
+        <div className="chapter-metric">
+          <span>当前章节</span>
+          <strong>{selectedNovel ? chapters.length : '—'}</strong>
+        </div>
+        <div className="chapter-metric">
+          <span>已排序</span>
+          <strong>{selectedNovel ? chapterStats.ordered : '—'} {selectedNovel && chapters.length > 0 && <em>{chapterStats.orderPercent}%</em>}</strong>
+        </div>
+        <div className="chapter-metric">
+          <span>总字数</span>
+          <strong>{selectedNovel ? formattedWordCount : '—'} {selectedNovel && chapterStats.totalWords > 0 && chapterStats.totalWords < 10000 && <em>字</em>}</strong>
+        </div>
+        <div className="chapter-metric">
+          <span>最近更新</span>
+          <strong>{selectedNovel && chapterStats.latestCreatedAt ? timeAgo(chapterStats.latestCreatedAt) : '—'}</strong>
+        </div>
+      </section>
+
+      <div className="chapter-layout">
+        <section className="admin-data-panel chapter-directory-panel overflow-hidden rounded-xl border border-border bg-card" aria-labelledby="chapter-directory-title">
+          <div className="chapter-directory-panel__head">
+            <div>
+              <h3 id="chapter-directory-title">章节目录</h3>
+              <p>{selectedNovel ? `共 ${chapters.length} 章 · 最近更新于 ${chapterStats.latestCreatedAt ? timeAgo(chapterStats.latestCreatedAt) : '—'}` : '选择小说后加载章节目录'}</p>
+            </div>
+            <span className={`chapter-directory-status ${selectedNovel ? 'is-ready' : ''}`}>
+              <span aria-hidden="true">●</span>
+              {selectedNovel ? '目录正常' : '等待选择'}
+            </span>
+          </div>
+          <div className="chapter-toolbar" aria-live="polite">
+            <Input
+              type="text"
+              className="chapter-toolbar__search admin-input--compact"
+              data-admin-search
+              placeholder="搜索章节标题…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            <div className="chapter-toolbar__actions">
+              {selectedIds.size > 0 ? (
+                <>
+                  <span className="chapter-toolbar__count text-sm text-muted-foreground tabular-nums">已选 {selectedIds.size} 章</span>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() =>
+                      setSelectedIds((prev) => {
+                        const pageIds = pageRows.map((c) => c.id)
+                        const next = new Set(prev)
+                        pageIds.forEach((id) => (next.has(id) ? next.delete(id) : next.add(id)))
+                        return next
+                      })
+                    }
+                  >
+                    反选
+                  </Button>
+                  <Button variant="destructive" size="sm" onClick={() => void batchDelete()}>
+                    批量删除 ({selectedIds.size})
+                  </Button>
+                </>
+              ) : (
                 <Button variant="secondary" size="sm" onClick={() => void openRenameModal()} disabled={!selectedNovel}>
                   融合章节名
                 </Button>
-                <Button size="sm" onClick={() => void openChapterModal(null)}>
-                  添加章节
-                </Button>
-              </>
-            )}
+              )}
+            </div>
           </div>
-        </div>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>
-                <Checkbox checked={pageAllSelected ? true : pageSomeSelected ? 'indeterminate' : false} onCheckedChange={toggleAll} />
-              </TableHead>
-              <TableHead>序号</TableHead>
-              <TableHead>章节标题</TableHead>
-              <TableHead>字数</TableHead>
-              <TableHead>创建时间</TableHead>
-              <TableHead>操作</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {!selectedNovel ? (
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={6} className="table-empty">
-                  请先选择小说
-                </TableCell>
+                <TableHead>
+                  <Checkbox checked={pageAllSelected ? true : pageSomeSelected ? 'indeterminate' : false} onCheckedChange={toggleAll} />
+                </TableHead>
+                <TableHead>序号</TableHead>
+                <TableHead>章节标题</TableHead>
+                <TableHead>字数</TableHead>
+                <TableHead>创建时间</TableHead>
+                <TableHead>操作</TableHead>
               </TableRow>
-            ) : pageRows.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="table-empty">
-                  {search ? '没有匹配的章节' : '暂无章节'}
-                </TableCell>
-              </TableRow>
-            ) : (
-              pageRows.map((c) => (
-                <TableRow key={c.id}>
-                  <TableCell>
-                    <Checkbox checked={selectedIds.has(c.id)} onCheckedChange={() => toggleSelect(c.id)} />
-                  </TableCell>
-                  <TableCell>{c.order || '—'}</TableCell>
-                  <TableCell>{c.title}</TableCell>
-                  <TableCell>{c.wordCount || '—'}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{timeAgo(c.createdAt)}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
-                      <Button variant="ghost" size="icon" title="编辑" onClick={() => void openChapterModal(c)}>
-                        <Pencil className="size-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" title="删除" onClick={() => void deleteChapter(c)}>
-                        <Trash2 className="size-4" />
-                      </Button>
-                    </div>
+            </TableHeader>
+            <TableBody>
+              {!selectedNovel ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="table-empty">
+                    请先选择小说
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+              ) : pageRows.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="table-empty">
+                    {search ? '没有匹配的章节' : '暂无章节'}
+                  </TableCell>
+                </TableRow>
+              ) : (
+                pageRows.map((c) => (
+                  <TableRow key={c.id}>
+                    <TableCell>
+                      <Checkbox checked={selectedIds.has(c.id)} onCheckedChange={() => toggleSelect(c.id)} />
+                    </TableCell>
+                    <TableCell>{c.order || '—'}</TableCell>
+                    <TableCell>{c.title}</TableCell>
+                    <TableCell>{c.wordCount || '—'}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{timeAgo(c.createdAt)}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="icon" title="编辑" onClick={() => void openChapterModal(c)}>
+                          <Pencil className="size-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" title="删除" onClick={() => void deleteChapter(c)}>
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+          <Pagination page={currentPage} totalPages={totalPages} className="chapter-directory-pagination" onPage={setPage} />
+        </section>
 
-      <Pagination page={currentPage} totalPages={totalPages} onPage={setPage} />
+        <aside className="chapter-work-note" aria-labelledby="chapter-work-note-title">
+          <span className="chapter-section-kicker">工作提示</span>
+          <h3 id="chapter-work-note-title">让目录保持可读</h3>
+          <p>融合源站章节名只影响标题，不会改动正文来源、章节顺序或阅读进度。</p>
+          <dl className="chapter-work-note__rows">
+            <div><dt>当前章节</dt><dd>{selectedNovel ? chapters.length : '—'}</dd></div>
+            <div><dt>已选章节</dt><dd>{selectedIds.size}</dd></div>
+            <div><dt>当前页</dt><dd>{selectedNovel ? `${currentPage} / ${totalPages}` : '—'}</dd></div>
+          </dl>
+          <Button variant="secondary" disabled={!selectedNovel} onClick={() => void openRenameModal()}>
+            融合章节名
+          </Button>
+        </aside>
+      </div>
 
       <Dialog
         open={modal.open}
@@ -519,16 +593,33 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
           if (!open) setModal({ open: false, chapter: null, loading: false })
         }}
       >
-        <DialogContent className="admin-dialog sm:max-w-[540px]">
+        <DialogContent className="admin-dialog chapter-editor-dialog sm:max-w-[620px]">
           <DialogHeader>
             <DialogTitle>{modal.chapter ? '编辑章节' : '添加章节'}</DialogTitle>
+            <DialogDescription>
+              {modal.chapter ? '修改章节标题或正文，保存后会保留原有顺序与阅读进度。' : '填写新章节内容，保存后会追加到当前小说。'}
+            </DialogDescription>
           </DialogHeader>
-          <div className="admin-dialog__body flex flex-col gap-3 overflow-y-auto max-h-[70vh]">
-            <Label>序号</Label>
-            <Input type="number" min={1} value={draft.order} onChange={(e) => setDraft({ ...draft, order: Number.parseInt(e.target.value, 10) || 1 })} />
-            <Label>章节标题</Label>
-            <Input value={draft.title} placeholder="章节标题" onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
-            <Label>正文</Label>
+          <div className="admin-dialog__body chapter-editor-dialog__body flex flex-col gap-3 overflow-y-auto max-h-[70vh]">
+            <div className="chapter-dialog-context">
+              <span>当前小说</span>
+              <strong>{selectedNovelInfo?.title || '未选择小说'}</strong>
+            </div>
+            <div className="chapter-editor-dialog__fields">
+              <div className="chapter-dialog-field">
+                <Label>序号</Label>
+                <Input type="number" min={1} value={draft.order} onChange={(e) => setDraft({ ...draft, order: Number.parseInt(e.target.value, 10) || 1 })} />
+              </div>
+              <div className="chapter-dialog-field">
+                <Label>章节标题</Label>
+                <Input value={draft.title} placeholder="章节标题" onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
+              </div>
+            </div>
+            <section className="chapter-dialog-section">
+              <div className="chapter-dialog-section__heading">
+                <Label>正文</Label>
+                <span>支持直接粘贴排版后的内容</span>
+              </div>
             {modal.loading ? (
               <div className="loading-center">
                 <div className="spinner"></div>
@@ -536,12 +627,13 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
             ) : (
               <Textarea
                 rows={14}
-                className="min-h-[300px]"
+                className="chapter-editor-dialog__textarea min-h-[300px]"
                 value={draft.content}
                 placeholder="章节正文…"
                 onChange={(e) => setDraft({ ...draft, content: e.target.value })}
               />
             )}
+            </section>
           </div>
           <DialogFooter>
             <Button variant="secondary" onClick={() => setModal({ open: false, chapter: null, loading: false })}>
@@ -565,20 +657,33 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
           }
         }}
       >
-        <DialogContent className="admin-dialog sm:max-w-[680px]">
+        <DialogContent className="admin-dialog chapter-merge-dialog sm:max-w-[760px]">
           <DialogHeader>
             <DialogTitle>融合章节名</DialogTitle>
+            <DialogDescription>补全弱标题的来源与变化会在这里先确认，正文、顺序和阅读进度不会改变。</DialogDescription>
           </DialogHeader>
-          <div className="admin-dialog__body flex flex-col gap-3 overflow-y-auto max-h-[70vh]">
-            <p className="text-sm text-muted-foreground">
-              优先从原作者源站读取小说信息和章节目录；读取不到时仍可手动粘贴标题。正文来源、章节顺序和阅读进度不会改变。
-            </p>
-            <div className="rounded-lg border border-border bg-muted/20 p-3">
-              <div className="mb-2">
-                <Label>搜索原作者源站</Label>
-                <p className="mt-1 text-xs text-muted-foreground">同时搜索晋江与 PO18.tw；请先选择准确的作品，再读取详情。</p>
+          <div className="admin-dialog__body chapter-merge-dialog__body flex flex-col gap-3 overflow-y-auto max-h-[70vh]">
+            <div className="chapter-dialog-context chapter-merge-dialog__context">
+              <div>
+                <span>当前小说</span>
+                <strong>{selectedNovelInfo?.title || '未选择小说'}</strong>
               </div>
-              <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,0.72fr)_auto]">
+              <div>
+                <span>作者</span>
+                <strong>{selectedNovelInfo?.author || '未知作者'}</strong>
+              </div>
+              <div>
+                <span>章节</span>
+                <strong>{selectedNovelInfo?.chapterCount || chapters.length} 章</strong>
+              </div>
+              <span className="chapter-merge-dialog__status">仅更新弱标题</span>
+            </div>
+            <section className="chapter-merge-dialog__source">
+              <div className="chapter-dialog-section__heading">
+                <Label>从原作者源站读取</Label>
+                <span>建议优先使用</span>
+              </div>
+              <div className="chapter-merge-dialog__source-grid grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,0.72fr)_auto]">
                 <Input aria-label="搜索书名" placeholder="书名" value={sourceSearchTitle} onChange={(e) => setSourceSearchTitle(e.target.value)} />
                 <Input aria-label="搜索作者" placeholder="作者（可选）" value={sourceSearchAuthor} onChange={(e) => setSourceSearchAuthor(e.target.value)} />
                 <Button variant="secondary" disabled={renaming || sourceSearching} onClick={() => void searchSourceSites()}>
@@ -586,7 +691,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
                 </Button>
               </div>
               {sourceSearch && (
-                <div className="mt-3 space-y-3">
+                <div className="chapter-merge-dialog__search-results mt-3 space-y-3">
                   {(['jjwxc', 'po18tw'] as const).map((site) => {
                     const bucket = sourceSearch.sources?.[site]
                     const results = sourceResults(site)
@@ -626,9 +731,10 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
                   })}
                 </div>
               )}
-            </div>
-            <Label>或直接输入原作者源站 URL</Label>
-            <div className="flex gap-2">
+            </section>
+            <div className="chapter-merge-dialog__url-field chapter-dialog-field">
+              <Label>原作者源站 URL</Label>
+              <div className="chapter-merge-dialog__url-row flex gap-2">
               <Input
                 value={sourceUrl}
                 placeholder="https://www.jjwxc.net/onebook.php?novelid=… 或 https://www.po18.tw/…"
@@ -641,6 +747,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
               <Button variant="secondary" disabled={renaming || !sourceUrl.trim()} onClick={() => void previewSourceSync()}>
                 {renaming ? '读取中…' : '读取源站'}
               </Button>
+              </div>
             </div>
             {sourcePreview && (
               <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
@@ -708,18 +815,25 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
                   ))}
               </div>
             )}
-            <Label>手动章节标题（兜底方式）</Label>
-            <Textarea
-              rows={8}
-              className="min-h-[120px]"
-              placeholder={'第一章 起点\n第二章 转折\n第三章 真相…'}
-              value={renameTitles}
-              onChange={(e) => {
-                setRenameTitles(e.target.value)
-                setRenamePreview(null)
-                setSourcePreview(null)
-              }}
-            />
+            <div className="chapter-merge-dialog__divider">或者使用手动标题</div>
+            <section className="chapter-merge-dialog__manual chapter-dialog-section">
+              <div className="chapter-dialog-section__heading">
+                <Label>手动章节标题</Label>
+                <span>每行一个</span>
+              </div>
+              <Textarea
+                rows={4}
+                className="chapter-merge-dialog__textarea min-h-[96px]"
+                placeholder={'第一章 起点\n第二章 转折\n第三章 真相…'}
+                value={renameTitles}
+                onChange={(e) => {
+                  setRenameTitles(e.target.value)
+                  setRenamePreview(null)
+                  setSourcePreview(null)
+                }}
+              />
+              <p className="chapter-merge-dialog__hint">填写后可预览将要更新的弱标题。</p>
+            </section>
             {sourcePreview && (
               <div className="rename-preview">
                 <p className="text-sm text-muted-foreground">
@@ -767,7 +881,10 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
               </div>
             )}
           </div>
-          <DialogFooter>
+          <DialogFooter className="chapter-merge-dialog__footer">
+            <span className="chapter-merge-dialog__footer-note">
+              {sourcePreview ? `已读取 ${sourcePreview.changes.length} 个标题变化` : renamePreview ? `已生成 ${renamePreview.length} 个变化` : '只会更新弱标题'}
+            </span>
             <Button variant="secondary" onClick={() => setRenameModal(false)}>
               取消
             </Button>
