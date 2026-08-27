@@ -17,6 +17,7 @@ struct AdminNovelsView: View {
     @State private var actionError: String?
     @State private var busyNovelId: String?
     @State private var updatingNovelId: String?
+    @State private var loadingMore = false
 
     var body: some View {
         List {
@@ -58,12 +59,18 @@ struct AdminNovelsView: View {
                     } label: {
                         HStack {
                             Spacer()
-                            Text("加载更多（\(novels.count)/\(loadedTotal)）")
-                                .font(.subheadline)
-                                .foregroundStyle(AppTheme.primary)
+                            if loadingMore {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Text("加载更多（\(novels.count)/\(loadedTotal)）")
+                                    .font(.subheadline)
+                                    .foregroundStyle(AppTheme.primary)
+                            }
                             Spacer()
                         }
                     }
+                    .disabled(loadingMore)
                     .listRowBackground(Color.clear)
                 }
             }
@@ -153,12 +160,7 @@ struct AdminNovelsView: View {
                         .foregroundStyle(AppTheme.textPrimary)
                         .lineLimit(1)
                     if novel.hasUpdate {
-                        Text("有更新")
-                            .font(.caption2)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(AppTheme.primary.opacity(0.15), in: Capsule())
-                            .foregroundStyle(AppTheme.primary)
+                        AdminStatusBadge("有更新", tint: AppTheme.primary, systemImage: "arrow.triangle.2.circlepath")
                     }
                 }
                 Text(novel.author)
@@ -182,26 +184,28 @@ struct AdminNovelsView: View {
                 }
             }
             Spacer()
-            if updatingNovelId == novel.id {
-                ProgressView()
-                    .controlSize(.small)
+            if busyNovelId == novel.id || updatingNovelId == novel.id {
+                AdminInlineProgress()
+            } else {
+                Menu {
+                    Button("编辑", systemImage: "pencil") {
+                        editingNovel = novel
+                        showEditor = true
+                    }
+                    Button("增量更新", systemImage: "arrow.triangle.2.circlepath") {
+                        Task { await scrapeUpdate(novel) }
+                    }
+                    Button("删除", systemImage: "trash", role: .destructive) {
+                        deleteTarget = novel
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .font(.title3)
+                        .frame(width: 36, height: 36)
+                }
+                .disabled(busyNovelId != nil || updatingNovelId != nil)
+                .accessibilityLabel("小说操作")
             }
-            Menu {
-                Button("编辑", systemImage: "pencil") {
-                    editingNovel = novel
-                    showEditor = true
-                }
-                Button("增量更新", systemImage: "arrow.triangle.2.circlepath") {
-                    Task { await scrapeUpdate(novel) }
-                }
-                Button("删除", systemImage: "trash", role: .destructive) {
-                    deleteTarget = novel
-                }
-            } label: {
-                Image(systemName: "ellipsis.circle")
-                    .frame(width: 44, height: 44)
-            }
-            .accessibilityLabel("小说操作")
         }
         .contextMenu {
             Button("编辑", systemImage: "pencil") {
@@ -237,6 +241,9 @@ struct AdminNovelsView: View {
     }
 
     private func loadMore() async {
+        guard !loadingMore else { return }
+        loadingMore = true
+        defer { loadingMore = false }
         do {
             let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
             let status = statusFilter == "all" ? "" : statusFilter
@@ -339,7 +346,15 @@ private struct NovelEditSheet: View {
                     Button("取消") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(isEditing ? "保存" : "创建") { save() }
+                    Button {
+                        save()
+                    } label: {
+                        if saving {
+                            ProgressView()
+                        } else {
+                            Text(isEditing ? "保存" : "创建")
+                        }
+                    }
                         .disabled(saving)
                 }
             }

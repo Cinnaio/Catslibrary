@@ -25,13 +25,18 @@ struct AdminPolicyView: View {
             } else {
                 List {
                     Section {
-                        Toggle("允许成人内容", isOn: $adultEnabled)
-                            .disabled(isSaving)
-                            .onChange(of: adultEnabled) { _, newValue in
-                                // 加载完成前的赋值与回滚赋值都不算用户操作，避免误保存/死循环
-                                guard !isLoading, newValue != savedValue else { return }
-                                Task { await save(newValue) }
+                        HStack(spacing: 8) {
+                            Toggle("允许成人内容", isOn: $adultEnabled)
+                                .disabled(isSaving)
+                                .onChange(of: adultEnabled) { _, newValue in
+                                    // 加载完成前的赋值与回滚赋值都不算用户操作，避免误保存/死循环
+                                    guard !isLoading, newValue != savedValue else { return }
+                                    Task { await save(newValue) }
+                                }
+                            if isSaving {
+                                AdminInlineProgress()
                             }
+                        }
                     } footer: {
                         Text("开启后站点可展示 PO18 预设内容。本 App 客户端固定 contentMode = safe，仅提供管理开关；App Store 上架前请保持关闭。")
                     }

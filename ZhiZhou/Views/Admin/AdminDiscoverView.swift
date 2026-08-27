@@ -267,12 +267,7 @@ struct AdminDiscoverView: View {
                     .foregroundStyle(AppTheme.textPrimary)
                     .lineLimit(1)
                 if novel.isCollected {
-                    Text("已收录")
-                        .font(.caption2)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(AppTheme.success.opacity(0.15), in: Capsule())
-                        .foregroundStyle(AppTheme.success)
+                    AdminStatusBadge("已收录", tint: AppTheme.success, systemImage: "checkmark")
                 }
             }
             Text("\(novel.author?.isEmpty == false ? novel.author! : "佚名")\(novel.chapterCount.map { " · \($0) 章" } ?? "")")

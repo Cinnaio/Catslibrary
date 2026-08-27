@@ -15,9 +15,11 @@ struct AdminUsersView: View {
     @State private var pendingReset: AdminUser?
     @State private var resetResult: ResetPasswordResponse?
     @State private var deleteTarget: AdminUser?
+    @State private var busyUserId: String?
     @State private var deleteConfirmUsername = ""
     @State private var showInviteDialog = false
     @State private var showClearInvitesConfirm = false
+    @State private var inviteBusy = false
 
     // MARK: - Body
 
@@ -146,17 +148,22 @@ struct AdminUsersView: View {
                 }
             } else if let overview {
                 Section("注册模式") {
-                    Picker("注册模式", selection: $registerMode) {
-                        Text("开放注册").tag("open")
-                        Text("邀请制").tag("invite")
-                        Text("关闭注册").tag("closed")
-                    }
-                    .pickerStyle(.menu)
-                    .disabled(isSavingMode)
-                    .onChange(of: registerMode) { _, newMode in
-                        // 加载完成前的赋值与回滚赋值不算用户操作，避免误保存
-                        guard newMode != savedMode else { return }
-                        Task { await saveRegisterMode(newMode) }
+                    HStack(spacing: 8) {
+                        Picker("注册模式", selection: $registerMode) {
+                            Text("开放注册").tag("open")
+                            Text("邀请制").tag("invite")
+                            Text("关闭注册").tag("closed")
+                        }
+                        .pickerStyle(.menu)
+                        .disabled(isSavingMode)
+                        .onChange(of: registerMode) { _, newMode in
+                            // 加载完成前的赋值与回滚赋值不算用户操作，避免误保存
+                            guard newMode != savedMode else { return }
+                            Task { await saveRegisterMode(newMode) }
+                        }
+                        if isSavingMode {
+                            AdminInlineProgress()
+                        }
                     }
                     Text("开放注册无需邀请码；邀请制需邀请码注册；关闭注册停止新用户注册。")
                         .font(.caption)
@@ -187,8 +194,13 @@ struct AdminUsersView: View {
                     Button("生成邀请码") { showInviteDialog = true }
                     Button("清理已使用/已禁用", role: .destructive) { showClearInvitesConfirm = true }
                 } label: {
-                    Label("邀请码操作", systemImage: "plus")
+                    if inviteBusy {
+                        AdminInlineProgress()
+                    } else {
+                        Label("邀请码操作", systemImage: "plus")
+                    }
                 }
+                .disabled(inviteBusy)
             }
         }
     }
@@ -262,6 +274,9 @@ struct AdminUsersView: View {
     }
 
     private func createInvites(count: Int) async {
+        guard !inviteBusy else { return }
+        inviteBusy = true
+        defer { inviteBusy = false }
         do {
             _ = try await AdminAPI.createInvites(count: count)
             await load()
@@ -271,6 +286,9 @@ struct AdminUsersView: View {
     }
 
     private func clearInvites() async {
+        guard !inviteBusy else { return }
+        inviteBusy = true
+        defer { inviteBusy = false }
         do {
             try await AdminAPI.clearInvites()
             await load()
@@ -292,34 +310,30 @@ struct AdminUsersView: View {
                         .foregroundStyle(AppTheme.textPrimary)
                         .lineLimit(1)
                     if user.isAdmin {
-                        Text("管理员")
-                            .font(.caption2)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(AppTheme.primary.opacity(0.15), in: Capsule())
-                            .foregroundStyle(AppTheme.primary)
+                        AdminStatusBadge("管理员", tint: AppTheme.primary, systemImage: "person.badge.key")
                     }
                     if user.isDisabled {
-                        Text("已禁用")
-                            .font(.caption2)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(AppTheme.danger.opacity(0.15), in: Capsule())
-                            .foregroundStyle(AppTheme.danger)
+                        AdminStatusBadge("已禁用", tint: AppTheme.danger, systemImage: "nosign")
                     }
                 }
                 Text("@\(user.username) · \(user.thoughtCount) 想法 · \(AdminFormat.relativeTime(user.lastLoginAt > 0 ? user.lastLoginAt : user.createdAt))")
                     .font(.caption)
                     .foregroundStyle(AppTheme.textSecondary)
-                    .lineLimit(1)
+                    .lineLimit(2)
             }
-            Menu {
-                contextActions(for: user)
-            } label: {
-                Image(systemName: "ellipsis.circle")
-                    .frame(width: 44, height: 44)
+            if busyUserId == user.id {
+                AdminInlineProgress()
+            } else {
+                Menu {
+                    contextActions(for: user)
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .font(.title3)
+                        .frame(width: 36, height: 36)
+                }
+                .disabled(busyUserId != nil)
+                .accessibilityLabel("用户操作")
             }
-            .accessibilityLabel("用户操作")
         }
         .padding(.vertical, 2)
     }
@@ -405,6 +419,9 @@ struct AdminUsersView: View {
     }
 
     private func setRole(user: AdminUser, role: String) async {
+        guard busyUserId == nil else { return }
+        busyUserId = user.id
+        defer { busyUserId = nil }
         do {
             try await AdminAPI.setUserRole(id: user.id, role: role)
             await load()
@@ -414,6 +431,9 @@ struct AdminUsersView: View {
     }
 
     private func setStatus(user: AdminUser, status: String) async {
+        guard busyUserId == nil else { return }
+        busyUserId = user.id
+        defer { busyUserId = nil }
         do {
             try await AdminAPI.setUserStatus(id: user.id, status: status)
             await load()
@@ -423,6 +443,9 @@ struct AdminUsersView: View {
     }
 
     private func resetPassword(for user: AdminUser) async {
+        guard busyUserId == nil else { return }
+        busyUserId = user.id
+        defer { busyUserId = nil }
         do {
             resetResult = try await AdminAPI.resetPassword(id: user.id)
         } catch {
@@ -431,6 +454,9 @@ struct AdminUsersView: View {
     }
 
     private func delete(user: AdminUser) async {
+        guard busyUserId == nil else { return }
+        busyUserId = user.id
+        defer { busyUserId = nil }
         do {
             try await AdminAPI.deleteUser(id: user.id, confirmUsername: deleteConfirmUsername)
             await load()

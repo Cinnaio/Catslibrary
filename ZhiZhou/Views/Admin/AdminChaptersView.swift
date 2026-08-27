@@ -12,6 +12,7 @@ struct AdminChaptersView: View {
     @State private var showNovelPicker = false
     @State private var editorIntent: ChapterEditorIntent?
     @State private var deleteTarget: ChapterMeta?
+    @State private var busyChapterId: String?
     @State private var actionError: String?
 
     var body: some View {
@@ -181,18 +182,24 @@ struct AdminChaptersView: View {
                     .foregroundStyle(AppTheme.textSecondary)
             }
             Spacer()
-            Menu {
-                Button("编辑", systemImage: "pencil") {
-                    editorIntent = .edit(chapter)
+            if busyChapterId == chapter.id {
+                AdminInlineProgress()
+            } else {
+                Menu {
+                    Button("编辑", systemImage: "pencil") {
+                        editorIntent = .edit(chapter)
+                    }
+                    Button("删除", systemImage: "trash", role: .destructive) {
+                        deleteTarget = chapter
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .font(.title3)
+                        .frame(width: 36, height: 36)
                 }
-                Button("删除", systemImage: "trash", role: .destructive) {
-                    deleteTarget = chapter
-                }
-            } label: {
-                Image(systemName: "ellipsis.circle")
-                    .frame(width: 44, height: 44)
+                .disabled(busyChapterId != nil)
+                .accessibilityLabel("章节操作")
             }
-            .accessibilityLabel("章节操作")
         }
         .contextMenu {
             Button("编辑", systemImage: "pencil") {
@@ -232,6 +239,9 @@ struct AdminChaptersView: View {
     }
 
     private func delete(_ chapter: ChapterMeta) async {
+        guard busyChapterId == nil else { return }
+        busyChapterId = chapter.id
+        defer { busyChapterId = nil }
         do {
             try await AdminAPI.deleteChapter(id: chapter.id)
             chapters.removeAll { $0.id == chapter.id }
@@ -403,7 +413,15 @@ private struct ChapterEditSheet: View {
                     Button("取消") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(isEditing ? "保存" : "创建") { save() }
+                    Button {
+                        save()
+                    } label: {
+                        if saving {
+                            ProgressView()
+                        } else {
+                            Text(isEditing ? "保存" : "创建")
+                        }
+                    }
                         .disabled(saving || loadingDetail)
                 }
             }

@@ -42,6 +42,11 @@ struct AdminAISettingsView: View {
     @State private var saveMessage: String?
     @State private var actionError: String?
     @FocusState private var focusedField: String?
+    @State private var recapExpanded = true
+    @State private var catchupExpanded = false
+    @State private var writingExpanded = false
+    @State private var coverExpanded = false
+    @State private var opsExpanded = false
 
     var body: some View {
         List {
@@ -64,6 +69,11 @@ struct AdminAISettingsView: View {
                     .listRowSeparator(.hidden)
                 }
             } else {
+                Section {
+                    Label("修改参数后，点击底部“保存全部参数”统一生效。数字输入会自动限制在允许范围内。", systemImage: "info.circle")
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.textSecondary)
+                }
                 recapSection
                 catchupSection
                 writingSection
@@ -115,50 +125,55 @@ struct AdminAISettingsView: View {
     // MARK: - 分区
 
     private var recapSection: some View {
-        Section("前情提要") {
+        DisclosureGroup("前情提要", isExpanded: $recapExpanded) {
             Toggle("启用前情提要", isOn: $recapEnabled)
-            row("每日配额", value: $dailyQuota)
-            row("单章最大字符", value: $maxChapterChars)
-            row("温度", value: $recapTemperature)
-            row("最大 Tokens", value: $recapMaxTokens)
+            row("每日配额（次）", value: $dailyQuota, range: 0...10000)
+            row("单章最大字符", value: $maxChapterChars, range: 100...100000)
+            row("前情温度（0–2）", value: $recapTemperature, range: 0...2)
+            row("前情最大 Tokens", value: $recapMaxTokens, range: 1...64000)
             promptEditor("系统提示词", text: $recapSystemPrompt)
         }
     }
 
     private var catchupSection: some View {
-        Section("回顾总结") {
+        DisclosureGroup("回顾总结", isExpanded: $catchupExpanded) {
             Toggle("启用回顾总结", isOn: $catchupEnabled)
-            row("过期天数", value: $catchupStaleDays)
-            row("最多回顾章节", value: $catchupMaxChapters)
-            row("温度", value: $catchupTemperature)
-            row("最大 Tokens", value: $catchupMaxTokens)
+            row("过期天数", value: $catchupStaleDays, range: 1...3650)
+            row("最多回顾章节", value: $catchupMaxChapters, range: 1...200)
+            row("回顾温度（0–2）", value: $catchupTemperature, range: 0...2)
+            row("回顾最大 Tokens", value: $catchupMaxTokens, range: 1...64000)
         }
     }
 
     private var writingSection: some View {
-        Section("AI 创作") {
-            row("创作温度", value: $writingTemperature)
-            row("创作最大 Tokens", value: $writingMaxTokens)
+        DisclosureGroup("AI 创作", isExpanded: $writingExpanded) {
+            row("创作温度（0–2）", value: $writingTemperature, range: 0...2)
+            row("创作最大 Tokens", value: $writingMaxTokens, range: 1...64000)
             promptEditor("创作系统提示词", text: $writingSystemPrompt)
-            row("风格画像 Tokens", value: $styleProfileMaxTokens)
-            row("情节状态 Tokens", value: $plotStateMaxTokens)
-            row("关系画像 Tokens", value: $relationshipProfileMaxTokens)
-            row("标题 Tokens", value: $titleMaxTokens)
-            row("最大并发创作任务", value: $maxConcurrentWritingTasks)
+            row("风格画像 Tokens", value: $styleProfileMaxTokens, range: 1...64000)
+            row("情节状态 Tokens", value: $plotStateMaxTokens, range: 1...64000)
+            row("关系画像 Tokens", value: $relationshipProfileMaxTokens, range: 1...64000)
+            row("标题 Tokens", value: $titleMaxTokens, range: 1...8000)
+            row("最大并发创作任务", value: $maxConcurrentWritingTasks, range: 1...8)
         }
     }
 
     private var coverSection: some View {
-        Section("AI 封面") {
+        DisclosureGroup("AI 封面", isExpanded: $coverExpanded) {
             TextField("图像尺寸（如 1024x1024）", text: $imageSize)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
-            TextField("图像质量（low / medium / high）", text: $imageQuality)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-            TextField("返回格式（url / b64_json）", text: $imageResponseFormat)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
+            Picker("图像质量", selection: $imageQuality) {
+                Text("低（low）").tag("low")
+                Text("中（medium）").tag("medium")
+                Text("高（high）").tag("high")
+            }
+            .pickerStyle(.menu)
+            Picker("返回格式", selection: $imageResponseFormat) {
+                Text("URL").tag("url")
+                Text("Base64 JSON").tag("b64_json")
+            }
+            .pickerStyle(.menu)
             TextField("封面尺寸（如 1024x1536）", text: $coverImageSize)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
@@ -170,19 +185,20 @@ struct AdminAISettingsView: View {
     }
 
     private var opsSection: some View {
-        Section("运维与审计") {
-            row("任务保留天数", value: $taskRetentionDays)
+        DisclosureGroup("运维与审计", isExpanded: $opsExpanded) {
+            row("任务保留天数", value: $taskRetentionDays, range: 1...3650)
             Toggle("记录 IP 地址", isOn: $logIpAddress)
             Toggle("记录 User-Agent", isOn: $logUserAgent)
         }
     }
 
-    private func row(_ label: String, value: Binding<Int>) -> some View {
+    private func row(_ label: String, value: Binding<Int>, range: ClosedRange<Int>) -> some View {
         HStack {
             Text(label)
                 .foregroundStyle(AppTheme.textPrimary)
+                .lineLimit(2)
             Spacer()
-            TextField(label, value: value, format: .number)
+            TextField(label, value: bounded(value, to: range), format: .number)
                 .keyboardType(.numberPad)
                 .multilineTextAlignment(.trailing)
                 .foregroundStyle(AppTheme.textSecondary)
@@ -191,12 +207,13 @@ struct AdminAISettingsView: View {
         }
     }
 
-    private func row(_ label: String, value: Binding<Double>) -> some View {
+    private func row(_ label: String, value: Binding<Double>, range: ClosedRange<Double>) -> some View {
         HStack {
             Text(label)
                 .foregroundStyle(AppTheme.textPrimary)
+                .lineLimit(2)
             Spacer()
-            TextField(label, value: value, format: .number)
+            TextField(label, value: bounded(value, to: range), format: .number)
                 .keyboardType(.decimalPad)
                 .multilineTextAlignment(.trailing)
                 .foregroundStyle(AppTheme.textSecondary)
@@ -211,11 +228,29 @@ struct AdminAISettingsView: View {
                 .font(.subheadline)
                 .foregroundStyle(AppTheme.textSecondary)
             TextEditor(text: text)
-                .frame(minHeight: 60)
+                .frame(minHeight: 96)
                 .font(.subheadline)
                 .focused($focusedField, equals: label)
         }
         .padding(.vertical, 2)
+    }
+
+    private func bounded(_ value: Binding<Int>, to range: ClosedRange<Int>) -> Binding<Int> {
+        Binding(
+            get: { boundedValue(value.wrappedValue, to: range) },
+            set: { value.wrappedValue = boundedValue($0, to: range) }
+        )
+    }
+
+    private func bounded(_ value: Binding<Double>, to range: ClosedRange<Double>) -> Binding<Double> {
+        Binding(
+            get: { boundedValue(value.wrappedValue, to: range) },
+            set: { value.wrappedValue = boundedValue($0, to: range) }
+        )
+    }
+
+    private func boundedValue<T: Comparable>(_ value: T, to range: ClosedRange<T>) -> T {
+        min(max(value, range.lowerBound), range.upperBound)
     }
 
     // MARK: - 数据
@@ -265,6 +300,7 @@ struct AdminAISettingsView: View {
     }
 
     private func save() async {
+        normalizeValues()
         saving = true
         defer { saving = false }
         do {
@@ -303,6 +339,25 @@ struct AdminAISettingsView: View {
         } catch {
             actionError = AppCopy.friendlyError(error)
         }
+    }
+
+    private func normalizeValues() {
+        dailyQuota = boundedValue(dailyQuota, to: 0...10000)
+        maxChapterChars = boundedValue(maxChapterChars, to: 100...100000)
+        recapTemperature = boundedValue(recapTemperature, to: 0...2)
+        recapMaxTokens = boundedValue(recapMaxTokens, to: 1...64000)
+        catchupStaleDays = boundedValue(catchupStaleDays, to: 1...3650)
+        catchupMaxChapters = boundedValue(catchupMaxChapters, to: 1...200)
+        catchupTemperature = boundedValue(catchupTemperature, to: 0...2)
+        catchupMaxTokens = boundedValue(catchupMaxTokens, to: 1...64000)
+        writingTemperature = boundedValue(writingTemperature, to: 0...2)
+        writingMaxTokens = boundedValue(writingMaxTokens, to: 1...64000)
+        styleProfileMaxTokens = boundedValue(styleProfileMaxTokens, to: 1...64000)
+        plotStateMaxTokens = boundedValue(plotStateMaxTokens, to: 1...64000)
+        relationshipProfileMaxTokens = boundedValue(relationshipProfileMaxTokens, to: 1...64000)
+        titleMaxTokens = boundedValue(titleMaxTokens, to: 1...8000)
+        maxConcurrentWritingTasks = boundedValue(maxConcurrentWritingTasks, to: 1...8)
+        taskRetentionDays = boundedValue(taskRetentionDays, to: 1...3650)
     }
 
     private var errorAlertBinding: Binding<Bool> {

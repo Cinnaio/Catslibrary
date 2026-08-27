@@ -150,9 +150,10 @@ struct AdminDashboardView: View {
                     .foregroundStyle(AppTheme.textPrimary)
                     .lineLimit(1)
                 Spacer()
-                Text(AdminFormat.jobStatus(job.status))
-                    .font(.caption)
-                    .foregroundStyle(jobStatusTint(job.status))
+                AdminStatusBadge(
+                    AdminFormat.jobStatus(job.status),
+                    tint: jobStatusTint(job.status)
+                )
             }
             ProgressView(value: min(max(job.progress, 0), 1))
                 .progressViewStyle(.linear)

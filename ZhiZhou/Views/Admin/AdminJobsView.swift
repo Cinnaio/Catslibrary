@@ -91,8 +91,13 @@ struct AdminJobsView: View {
                 Menu {
                     Button("清理已完成任务", role: .destructive) { showClearConfirm = true }
                 } label: {
-                    Label("更多", systemImage: "ellipsis.circle")
+                    if isBusy {
+                        AdminInlineProgress()
+                    } else {
+                        Label("更多", systemImage: "ellipsis.circle")
+                    }
                 }
+                .disabled(isBusy)
             }
         }
         .alert("清理已完成", isPresented: $showClearConfirm) {
@@ -128,9 +133,10 @@ struct AdminJobsView: View {
                     .foregroundStyle(AppTheme.textPrimary)
                     .lineLimit(1)
                 Spacer()
-                Text(AdminFormat.jobStatus(job.status))
-                    .font(.caption)
-                    .foregroundStyle(jobTint(job.status))
+                AdminStatusBadge(
+                    AdminFormat.jobStatus(job.status),
+                    tint: jobTint(job.status)
+                )
             }
             ProgressView(value: min(max(job.progress ?? 0, 0), 1))
                 .progressViewStyle(.linear)
@@ -146,23 +152,29 @@ struct AdminJobsView: View {
             }
             HStack {
                 Spacer()
-                Menu {
-                    if AdminFormat.isJobRunning(job.status) {
-                        Button("终止任务", systemImage: "stop.circle") {
-                            Task { await runAction(.cancel, job: job) }
+                if busyJobId == job.id {
+                    AdminInlineProgress()
+                } else {
+                    Menu {
+                        if AdminFormat.isJobRunning(job.status) {
+                            Button("终止任务", systemImage: "stop.circle") {
+                                Task { await runAction(.cancel, job: job) }
+                            }
                         }
+                        Button("整本重试", systemImage: "arrow.clockwise") {
+                            Task { await runAction(.retry, job: job) }
+                        }
+                        Button("重试失败章节", systemImage: "arrow.counterclockwise") {
+                            Task { await runAction(.retryFailed, job: job) }
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .font(.title3)
+                            .frame(width: 36, height: 36)
                     }
-                    Button("整本重试", systemImage: "arrow.clockwise") {
-                        Task { await runAction(.retry, job: job) }
-                    }
-                    Button("重试失败章节", systemImage: "arrow.counterclockwise") {
-                        Task { await runAction(.retryFailed, job: job) }
-                    }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                        .frame(width: 44, height: 44)
+                    .disabled(isBusy)
+                    .accessibilityLabel("任务操作")
                 }
-                .accessibilityLabel("任务操作")
             }
         }
         .padding(.vertical, 2)

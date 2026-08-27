@@ -142,12 +142,7 @@ struct AdminLoginAuditView: View {
             : item.isLimited
                 ? ("受限", AppTheme.warning)
                 : ("失败", AppTheme.danger)
-        return Text(text)
-            .font(.caption2)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(tint.opacity(0.15), in: Capsule())
-            .foregroundStyle(tint)
+        return AdminStatusBadge(text, tint: tint)
     }
 
     private func reasonText(_ reason: String) -> String? {

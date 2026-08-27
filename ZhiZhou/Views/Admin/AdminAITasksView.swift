@@ -8,6 +8,7 @@ struct AdminAITasksView: View {
     @State private var statusFilter = "all"
     @State private var busyId: String?
     @State private var actionError: String?
+    @State private var pendingDelete: AiTaskInfo?
 
     var body: some View {
         List {
@@ -75,6 +76,23 @@ struct AdminAITasksView: View {
         } message: {
             Text(actionError ?? "")
         }
+        .confirmationDialog(
+            "删除 AI 任务",
+            isPresented: Binding(
+                get: { pendingDelete != nil },
+                set: { if !$0 { pendingDelete = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("删除记录", role: .destructive) {
+                guard let task = pendingDelete else { return }
+                pendingDelete = nil
+                Task { await delete(task) }
+            }
+            Button("取消", role: .cancel) { pendingDelete = nil }
+        } message: {
+            Text("删除后任务记录不可恢复。")
+        }
     }
 
     // MARK: - 列表
@@ -97,9 +115,10 @@ struct AdminAITasksView: View {
                     .foregroundStyle(AppTheme.textPrimary)
                     .lineLimit(1)
                 Spacer()
-                Text(AdminFormat.aiTaskStatus(task.status ?? ""))
-                    .font(.caption)
-                    .foregroundStyle(statusTint(task.status ?? ""))
+                AdminStatusBadge(
+                    AdminFormat.aiTaskStatus(task.status ?? ""),
+                    tint: statusTint(task.status ?? "")
+                )
             }
             HStack(spacing: 8) {
                 if let total = task.total, total > 0, let current = task.current {
@@ -131,6 +150,34 @@ struct AdminAITasksView: View {
                     .foregroundStyle(AppTheme.danger)
                     .lineLimit(2)
             }
+            HStack {
+                Spacer(minLength: 8)
+                if busyId == task.id {
+                    AdminInlineProgress()
+                } else {
+                    Menu {
+                        if task.isRunning {
+                            Button("取消任务", systemImage: "stop.circle") {
+                                Task { await cancel(task) }
+                            }
+                        } else {
+                            Button("重试", systemImage: "arrow.clockwise") {
+                                Task { await retry(task) }
+                            }
+                            Button("删除记录", systemImage: "trash", role: .destructive) {
+                                pendingDelete = task
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .font(.title3)
+                            .foregroundStyle(AppTheme.textSecondary)
+                            .frame(width: 36, height: 36)
+                    }
+                    .disabled(busyId != nil)
+                    .accessibilityLabel("任务操作")
+                }
+            }
         }
         .padding(.vertical, 2)
         .contextMenu {
@@ -143,7 +190,7 @@ struct AdminAITasksView: View {
                     Task { await retry(task) }
                 }
                 Button("删除记录", systemImage: "trash", role: .destructive) {
-                    Task { await delete(task) }
+                    pendingDelete = task
                 }
             }
         }

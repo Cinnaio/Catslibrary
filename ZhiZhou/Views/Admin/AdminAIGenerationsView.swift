@@ -26,6 +26,8 @@ struct AdminAIGenerationsView: View {
 
     // 详情
     @State private var viewing: AiGeneration?
+    @State private var pendingDelete: AiGeneration?
+    @State private var busyItemId: String?
 
     var body: some View {
         List {
@@ -137,6 +139,23 @@ struct AdminAIGenerationsView: View {
         } message: {
             Text(actionError ?? "")
         }
+        .confirmationDialog(
+            "删除生成内容",
+            isPresented: Binding(
+                get: { pendingDelete != nil },
+                set: { if !$0 { pendingDelete = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("删除内容", role: .destructive) {
+                guard let item = pendingDelete else { return }
+                pendingDelete = nil
+                Task { await delete(item) }
+            }
+            Button("取消", role: .cancel) { pendingDelete = nil }
+        } message: {
+            Text("删除后内容不可恢复；已发布内容也会被移除。")
+        }
     }
 
     // MARK: - 筛选
@@ -157,12 +176,14 @@ struct AdminAIGenerationsView: View {
                 Text("创作大纲").tag("write_outline")
                 Text("创作章节").tag("write_chapter")
             }
+            .pickerStyle(.menu)
             Picker("状态", selection: $statusFilter) {
                 Text("已发布").tag("published")
                 Text("草稿").tag("draft")
                 Text("已拒绝").tag("rejected")
                 Text("全部").tag("all")
             }
+            .pickerStyle(.menu)
             .onChange(of: kindFilter) { _, _ in
                 offset = 0
                 Task { await load() }
@@ -198,26 +219,14 @@ struct AdminAIGenerationsView: View {
             }
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
-                    Text(AdminFormat.aiTaskKind(item.kind ?? ""))
-                        .font(.caption2)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(AppTheme.primary.opacity(0.12), in: Capsule())
-                        .foregroundStyle(AppTheme.primary)
+                    AdminStatusBadge(
+                        AdminFormat.aiTaskKind(item.kind ?? ""),
+                        tint: AppTheme.primary
+                    )
                     if item.isDraft {
-                        Text("草稿")
-                            .font(.caption2)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(AppTheme.warning.opacity(0.15), in: Capsule())
-                            .foregroundStyle(AppTheme.warning)
+                        AdminStatusBadge("草稿", tint: AppTheme.warning)
                     } else if item.isPublished {
-                        Text("已发布")
-                            .font(.caption2)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(AppTheme.success.opacity(0.15), in: Capsule())
-                            .foregroundStyle(AppTheme.success)
+                        AdminStatusBadge("已发布", tint: AppTheme.success)
                     }
                     Spacer()
                     Text(AdminFormat.relativeTime(item.createdAt ?? 0))
@@ -241,25 +250,38 @@ struct AdminAIGenerationsView: View {
                         .foregroundStyle(AppTheme.textMuted)
                         .lineLimit(2)
                 }
-                HStack(spacing: 12) {
+                HStack(spacing: 10) {
                     Button("查看") { viewing = item }
-                        .font(.caption)
-                    if item.isDraft, let novelId = item.novelId, !novelId.isEmpty {
-                        Button("发布") { viewing = item }
-                            .font(.caption)
+                        .font(.subheadline.weight(.medium))
+                    Spacer(minLength: 4)
+                    if busyItemId == item.id {
+                        AdminInlineProgress()
+                    } else {
+                        Menu {
+                            if item.isDraft, let novelId = item.novelId, !novelId.isEmpty {
+                                Button("发布", systemImage: "paperplane") { viewing = item }
+                            }
+                            if item.isPublished {
+                                Button("撤销发布", systemImage: "arrow.uturn.backward", role: .destructive) {
+                                    Task { await unpublish(item) }
+                                }
+                            }
+                            Button("删除", systemImage: "trash", role: .destructive) {
+                                pendingDelete = item
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
+                                .font(.title3)
+                                .foregroundStyle(AppTheme.textSecondary)
+                                .frame(width: 36, height: 36)
+                        }
+                        .disabled(busyItemId != nil || batchBusy)
+                        .accessibilityLabel("内容操作")
                     }
-                    if item.isPublished {
-                        Button("撤销发布") { Task { await unpublish(item) } }
-                            .font(.caption)
-                            .foregroundStyle(AppTheme.warning)
-                    }
-                    Button("删除", role: .destructive) { Task { await delete(item) } }
-                        .font(.caption)
                 }
             }
         }
         .padding(.vertical, 2)
-        .contentShape(Rectangle())
     }
 
     private func toggleSelect(_ id: String) {
@@ -311,6 +333,9 @@ struct AdminAIGenerationsView: View {
     }
 
     private func delete(_ item: AiGeneration) async {
+        guard busyItemId == nil else { return }
+        busyItemId = item.id
+        defer { busyItemId = nil }
         do {
             try await AdminAPI.aiDeleteGeneration(id: item.id)
             items.removeAll { $0.id == item.id }
@@ -320,6 +345,9 @@ struct AdminAIGenerationsView: View {
     }
 
     private func unpublish(_ item: AiGeneration) async {
+        guard busyItemId == nil else { return }
+        busyItemId = item.id
+        defer { busyItemId = nil }
         do {
             try await AdminAPI.aiUnpublishDraft(id: item.id)
             await load()
@@ -377,6 +405,7 @@ private struct GenerationDetailSheet: View {
     @State private var titleCandidates: [String] = []
     @State private var generatingTitles = false
     @State private var saving = false
+    @State private var savingAction: String?
     @State private var actionError: String?
 
     private var isEditableDraft: Bool {
@@ -430,7 +459,15 @@ private struct GenerationDetailSheet: View {
                         if draftText == nil {
                             Button("编辑草稿") { draftText = item.result ?? "" }
                         } else {
-                            Button("保存修改") { Task { await saveDraft() } }
+                            Button {
+                                Task { await saveDraft() }
+                            } label: {
+                                if savingAction == "draft" {
+                                    Label("保存中…", systemImage: "hourglass")
+                                } else {
+                                    Text("保存修改")
+                                }
+                            }
                                 .disabled(saving)
                             Button("放弃编辑") { draftText = nil }
                         }
@@ -456,7 +493,11 @@ private struct GenerationDetailSheet: View {
                         Button {
                             Task { await publish() }
                         } label: {
-                            Label("发布", systemImage: "paperplane.fill")
+                            if savingAction == "publish" {
+                                Label("发布中…", systemImage: "hourglass")
+                            } else {
+                                Label("发布", systemImage: "paperplane.fill")
+                            }
                         }
                         .disabled(publishTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || saving)
                         .buttonStyle(.borderedProminent)
@@ -464,7 +505,16 @@ private struct GenerationDetailSheet: View {
                     }
                 } else if item.isPublished {
                     Section {
-                        Button("撤销发布", role: .destructive) { Task { await unpublish() } }
+                        Button {
+                            Task { await unpublish() }
+                        } label: {
+                            if savingAction == "unpublish" {
+                                Label("撤销发布中…", systemImage: "hourglass")
+                            } else {
+                                Text("撤销发布")
+                            }
+                        }
+                        .disabled(saving)
                     }
                 }
 
@@ -495,7 +545,11 @@ private struct GenerationDetailSheet: View {
     private func saveDraft() async {
         guard let text = draftText?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return }
         saving = true
-        defer { saving = false }
+        savingAction = "draft"
+        defer {
+            saving = false
+            savingAction = nil
+        }
         do {
             _ = try await AdminAPI.aiUpdateDraft(id: item.id, result: text)
             draftText = nil
@@ -526,7 +580,11 @@ private struct GenerationDetailSheet: View {
             return
         }
         saving = true
-        defer { saving = false }
+        savingAction = "publish"
+        defer {
+            saving = false
+            savingAction = nil
+        }
         do {
             _ = try await AdminAPI.aiPublishDraft(id: item.id, novelId: novelId, title: title)
             onClose(true)
@@ -537,7 +595,11 @@ private struct GenerationDetailSheet: View {
 
     private func unpublish() async {
         saving = true
-        defer { saving = false }
+        savingAction = "unpublish"
+        defer {
+            saving = false
+            savingAction = nil
+        }
         do {
             try await AdminAPI.aiUnpublishDraft(id: item.id)
             onClose(true)

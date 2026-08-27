@@ -29,10 +29,12 @@ struct AdminAICoverView: View {
     @State private var candidates: [AiCoverCandidate] = []
     @State private var candidatesLoaded = false
     @State private var candidateBusy = ""
+    @State private var pendingDiscard: AiCoverCandidate?
 
     // 上传
     @State private var showPhotoPicker = false
     @State private var pickedItem: PhotosPickerItem?
+    @State private var uploading = false
 
     // 通用
     @State private var isLoading = true
@@ -145,6 +147,23 @@ struct AdminAICoverView: View {
             Button("好", role: .cancel) {}
         } message: {
             Text(actionError ?? "")
+        }
+        .confirmationDialog(
+            "弃用候选封面",
+            isPresented: Binding(
+                get: { pendingDiscard != nil },
+                set: { if !$0 { pendingDiscard = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("弃用候选", role: .destructive) {
+                guard let candidate = pendingDiscard else { return }
+                pendingDiscard = nil
+                Task { await discard(candidate) }
+            }
+            Button("取消", role: .cancel) { pendingDiscard = nil }
+        } message: {
+            Text("弃用后该候选封面将从列表中移除。")
         }
         .onDisappear {
             pollTask?.cancel()
@@ -281,9 +300,17 @@ struct AdminAICoverView: View {
             Button {
                 showPhotoPicker = true
             } label: {
-                Label("上传本地图片替换封面", systemImage: "photo.badge.plus")
+                if uploading {
+                    HStack {
+                        Spacer()
+                        ProgressView()
+                        Spacer()
+                    }
+                } else {
+                    Label("上传本地图片替换封面", systemImage: "photo.badge.plus")
+                }
             }
-            .disabled(selectedNovelId.isEmpty)
+            .disabled(selectedNovelId.isEmpty || uploading)
         }
     }
 
@@ -324,7 +351,7 @@ struct AdminAICoverView: View {
     private func candidateRow(_ candidate: AiCoverCandidate) -> some View {
         HStack(alignment: .top, spacing: 10) {
             candidateImage(candidate)
-                .frame(width: 66, height: 99)
+                .frame(width: 84, height: 126)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
 
             VStack(alignment: .leading, spacing: 4) {
@@ -332,7 +359,7 @@ struct AdminAICoverView: View {
                     Text(promptText)
                         .font(.caption)
                         .foregroundStyle(AppTheme.textSecondary)
-                        .lineLimit(3)
+                        .lineLimit(4)
                 }
                 if let metadata = candidate.metadata, (metadata.stylePreset != nil || metadata.composition != nil) {
                     VStack(alignment: .leading, spacing: 2) {
@@ -349,14 +376,14 @@ struct AdminAICoverView: View {
                     .font(.caption2)
                     .foregroundStyle(AppTheme.textMuted)
                 Spacer(minLength: 0)
-                HStack(spacing: 12) {
+                HStack(spacing: 10) {
                     Button("采纳") {
                         Task { await adopt(candidate) }
                     }
                     .font(.subheadline)
                     .disabled(!candidateBusy.isEmpty)
                     Button("弃用", role: .destructive) {
-                        Task { await discard(candidate) }
+                        pendingDiscard = candidate
                     }
                     .font(.subheadline)
                     .disabled(!candidateBusy.isEmpty)
@@ -516,6 +543,8 @@ struct AdminAICoverView: View {
 
     private func uploadPicked(_ item: PhotosPickerItem) async {
         guard !selectedNovelId.isEmpty else { return }
+        uploading = true
+        defer { uploading = false }
         do {
             guard let data = try await item.loadTransferable(type: Data.self) else {
                 actionError = "无法读取所选图片"

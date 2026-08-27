@@ -113,7 +113,7 @@ struct AdminScrapeConfigsView: View {
         Section {
             TextEditor(text: $importText)
                 .frame(minHeight: 120)
-                .font(.caption2)
+                .font(.callout)
                 .scrollContentBackground(.hidden)
                 .overlay(
                     RoundedRectangle(cornerRadius: 10, style: .continuous)

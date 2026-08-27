@@ -13,6 +13,7 @@ struct AdminAIProviderView: View {
     @State private var isLoading = true
     @State private var errorMessage: String?
     @State private var saving = false
+    @State private var savingScope: String?
     @State private var saveMessage: String?
     @State private var testing = false
     @State private var testResult: AiTestResponse?
@@ -148,13 +149,22 @@ struct AdminAIProviderView: View {
             Button {
                 Task { await save(scope: saveScope, baseUrl: baseUrl.wrappedValue, model: model.wrappedValue, apiKey: apiKey.wrappedValue, clearKey: false) }
             } label: {
-                Label("保存", systemImage: "checkmark.circle")
+                if savingScope == saveScope {
+                    HStack {
+                        Spacer()
+                        ProgressView()
+                        Spacer()
+                    }
+                } else {
+                    Label("保存", systemImage: "checkmark.circle")
+                }
             }
             .disabled(saving)
             Button("清空密钥", role: .destructive) {
                 Task { await save(scope: saveScope, baseUrl: baseUrl.wrappedValue, model: model.wrappedValue, apiKey: "", clearKey: true) }
             }
             .font(.subheadline)
+            .disabled(saving)
         }
     }
 
@@ -177,7 +187,11 @@ struct AdminAIProviderView: View {
 
     private func save(scope: String, baseUrl: String, model: String, apiKey: String, clearKey: Bool) async {
         saving = true
-        defer { saving = false }
+        savingScope = scope
+        defer {
+            saving = false
+            savingScope = nil
+        }
         do {
             var patch: [String: Any] = [
                 "scope": scope,

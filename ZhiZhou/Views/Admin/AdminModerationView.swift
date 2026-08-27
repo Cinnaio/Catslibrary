@@ -23,6 +23,7 @@ struct AdminModerationView: View {
     @State private var pendingDeleteComment: AdminComment?
     @State private var pendingDeleteThought: AdminThought?
     @State private var pendingReport: CommentReport?
+    @State private var busyActionKey: String?
 
     var body: some View {
         List {
@@ -259,48 +260,51 @@ struct AdminModerationView: View {
     // MARK: - 动作
 
     private func hide(comment: AdminComment) async {
-        await runAction {
+        await runAction(key: "comment-\(comment.id)-hide") {
             try await AdminAPI.setCommentStatus(id: comment.id, status: "hidden")
         }
     }
 
     private func restore(comment: AdminComment) async {
-        await runAction {
+        await runAction(key: "comment-\(comment.id)-restore") {
             try await AdminAPI.setCommentStatus(id: comment.id, status: "visible")
         }
     }
 
     private func delete(comment: AdminComment) async {
-        await runAction {
+        await runAction(key: "comment-\(comment.id)-delete") {
             try await AdminAPI.deleteComment(id: comment.id)
         }
     }
 
     private func hide(thought: AdminThought) async {
-        await runAction {
+        await runAction(key: "thought-\(thought.id)-hide") {
             try await AdminAPI.setThoughtStatus(id: thought.id, status: "hidden")
         }
     }
 
     private func restore(thought: AdminThought) async {
-        await runAction {
+        await runAction(key: "thought-\(thought.id)-restore") {
             try await AdminAPI.setThoughtStatus(id: thought.id, status: "visible")
         }
     }
 
     private func delete(thought: AdminThought) async {
-        await runAction {
+        await runAction(key: "thought-\(thought.id)-delete") {
             try await AdminAPI.deleteThought(id: thought.id, hard: true)
         }
     }
 
     private func resolve(report: CommentReport, status: String, action: String) async {
-        await runAction {
+        await runAction(key: "report-\(report.id)-resolve") {
             try await AdminAPI.resolveReport(id: report.id, status: status, action: action)
         }
     }
 
-    private func runAction(operation: () async throws -> Void) async {
+    private func runAction(key: String, operation: () async throws -> Void) async {
+        guard busyActionKey == nil else { return }
+        busyActionKey = key
+        defer { busyActionKey = nil }
         do {
             try await operation()
             await load()
@@ -347,6 +351,22 @@ struct AdminModerationView: View {
                         .foregroundStyle(AppTheme.warning)
                 }
             }
+            actionRow {
+                if comment.status == "visible" {
+                    Button("隐藏", systemImage: "eye.slash") {
+                        Task { await hide(comment: comment) }
+                    }
+                } else {
+                    Button("恢复", systemImage: "eye") {
+                        Task { await restore(comment: comment) }
+                    }
+                }
+                Button("删除", systemImage: "trash", role: .destructive) {
+                    pendingDeleteComment = comment
+                }
+            } isBusy: {
+                busyActionKey?.hasPrefix("comment-\(comment.id)") == true
+            }
         }
         .padding(.vertical, 2)
     }
@@ -391,6 +411,13 @@ struct AdminModerationView: View {
                     .foregroundStyle(AppTheme.textMuted)
                     .lineLimit(2)
             }
+            actionRow {
+                Button("处理举报", systemImage: "checkmark.seal") {
+                    pendingReport = report
+                }
+            } isBusy: {
+                busyActionKey?.hasPrefix("report-\(report.id)") == true
+            }
         }
         .padding(.vertical, 2)
     }
@@ -432,17 +459,48 @@ struct AdminModerationView: View {
                         .foregroundStyle(AppTheme.danger)
                 }
             }
+            actionRow {
+                if thought.status == "visible" {
+                    Button("隐藏", systemImage: "eye.slash") {
+                        Task { await hide(thought: thought) }
+                    }
+                } else {
+                    Button("恢复", systemImage: "eye") {
+                        Task { await restore(thought: thought) }
+                    }
+                }
+                Button("删除", systemImage: "trash", role: .destructive) {
+                    pendingDeleteThought = thought
+                }
+            } isBusy: {
+                busyActionKey?.hasPrefix("thought-\(thought.id)") == true
+            }
         }
         .padding(.vertical, 2)
     }
 
+    private func actionRow(
+        @ViewBuilder actions: () -> some View,
+        isBusy: () -> Bool
+    ) -> some View {
+        HStack {
+            Spacer(minLength: 8)
+            if isBusy() {
+                AdminInlineProgress()
+            } else {
+                Menu {
+                    actions()
+                } label: {
+                    Label("操作", systemImage: "ellipsis.circle")
+                        .font(.caption)
+                }
+                .disabled(busyActionKey != nil)
+            }
+        }
+    }
+
     private func statusBadge(_ text: String, tint: Color) -> some View {
-        Text(text)
-            .font(.caption2)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(tint.opacity(0.15), in: Capsule())
-            .foregroundStyle(tint)
+        AdminStatusBadge(text, tint: tint)
     }
 
     private func reasonTint(_ reason: String) -> Color {

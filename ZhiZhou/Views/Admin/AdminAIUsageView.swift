@@ -48,11 +48,17 @@ struct AdminAIUsageView: View {
                 if !trend.isEmpty {
                     Section("近 30 天趋势") {
                         ForEach(Array(trend.suffix(14).reversed())) { point in
-                            HStack {
+                            HStack(spacing: 8) {
                                 Text(point.date)
                                     .font(.caption)
                                     .foregroundStyle(AppTheme.textSecondary)
-                                Spacer()
+                                    .frame(width: 72, alignment: .leading)
+                                ProgressView(
+                                    value: Double(point.calls ?? 0),
+                                    total: Double(maxTrendCalls)
+                                )
+                                .progressViewStyle(.linear)
+                                .tint(AppTheme.primary)
                                 Text("\(point.calls ?? 0) 次")
                                     .font(.caption)
                                     .foregroundStyle(AppTheme.textPrimary)
@@ -146,12 +152,10 @@ struct AdminAIUsageView: View {
     private func callRow(_ call: AiAuditCall) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 6) {
-                Text(call.type ?? "—")
-                    .font(.caption2)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(AppTheme.primary.opacity(0.12), in: Capsule())
-                    .foregroundStyle(AppTheme.primary)
+                AdminStatusBadge(
+                    AdminFormat.aiTaskKind(call.type ?? ""),
+                    tint: AppTheme.primary
+                )
                 Text(call.username ?? call.displayName ?? "—")
                     .font(.subheadline)
                     .foregroundStyle(AppTheme.textPrimary)
@@ -193,6 +197,10 @@ struct AdminAIUsageView: View {
             }
         }
         .padding(.vertical, 2)
+    }
+
+    private var maxTrendCalls: Int {
+        max(1, trend.map { $0.calls ?? 0 }.max() ?? 1)
     }
 
     // MARK: - 数据

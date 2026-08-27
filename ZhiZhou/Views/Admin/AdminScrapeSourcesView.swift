@@ -10,6 +10,8 @@ struct AdminScrapeSourcesView: View {
     @State private var togglingHost: String?
     @State private var testingHost: String?
     @State private var checkingConnectivity = false
+    @State private var deletingHost: String?
+    @State private var cleaningUnreachable = false
     @State private var connectivityText: String?
     @State private var deleteTarget: ScrapeSourceRow?
     @State private var showDeleteUnreachable = false
@@ -63,8 +65,13 @@ struct AdminScrapeSourcesView: View {
                         showLegadoImport = true
                     }
                 } label: {
-                    Label("更多", systemImage: "ellipsis.circle")
+                    if checkingConnectivity || cleaningUnreachable {
+                        AdminInlineProgress()
+                    } else {
+                        Label("更多", systemImage: "ellipsis.circle")
+                    }
                 }
+                .disabled(checkingConnectivity || cleaningUnreachable || batchBusy)
             }
         }
         .sheet(isPresented: $showLegadoImport) {
@@ -211,17 +218,20 @@ struct AdminScrapeSourcesView: View {
                     .font(.subheadline)
                     .foregroundStyle(AppTheme.textSecondary)
                 Spacer()
-                Button(selectedHosts.count == sources.count ? "全不选" : "全选") {
-                    selectedHosts = selectedHosts.count == sources.count ? [] : Set(sources.map { $0.host })
+                if batchBusy {
+                    AdminInlineProgress()
+                } else {
+                    Button(selectedHosts.count == sources.count ? "全不选" : "全选") {
+                        selectedHosts = selectedHosts.count == sources.count ? [] : Set(sources.map { $0.host })
+                    }
+                    .font(.subheadline)
+                    Button("启停") { showBatchToggle = true }
+                        .font(.subheadline)
+                        .disabled(selectedHosts.isEmpty)
+                    Button("删除", role: .destructive) { showBatchDelete = true }
+                        .font(.subheadline)
+                        .disabled(selectedHosts.isEmpty)
                 }
-                .font(.subheadline)
-                .disabled(batchBusy)
-                Button("启停") { showBatchToggle = true }
-                    .font(.subheadline)
-                    .disabled(selectedHosts.isEmpty || batchBusy)
-                Button("删除", role: .destructive) { showBatchDelete = true }
-                    .font(.subheadline)
-                    .disabled(selectedHosts.isEmpty || batchBusy)
             }
             .listRowBackground(Color.clear)
         }
@@ -249,32 +259,47 @@ struct AdminScrapeSourcesView: View {
                     .font(.subheadline)
                     .fontWeight(.medium)
                     .foregroundStyle(AppTheme.textPrimary)
-                    .lineLimit(1)
-                Spacer()
-                connectivityBadge(source)
+                    .lineLimit(2)
+            }
+            HStack(spacing: 10) {
+                if testingHost == source.host {
+                    AdminInlineProgress()
+                } else {
+                    connectivityBadge(source)
+                }
+                Spacer(minLength: 8)
                 if !selectionMode {
-                    Toggle("", isOn: Binding(
-                        get: { source.enabled ?? true },
-                        set: { newValue in
-                            Task { await toggle(source, enabled: newValue) }
+                    if deletingHost == source.host {
+                        AdminInlineProgress()
+                    } else {
+                        if togglingHost == source.host {
+                            AdminInlineProgress()
+                        } else {
+                            Toggle("", isOn: Binding(
+                                get: { source.enabled ?? true },
+                                set: { newValue in
+                                    Task { await toggle(source, enabled: newValue) }
+                                }
+                            ))
+                            .labelsHidden()
+                            .accessibilityLabel("启用\(source.name)")
+                            .accessibilityValue((source.enabled ?? true) ? "已启用" : "已停用")
                         }
-                    ))
-                    .labelsHidden()
-                    .accessibilityLabel("启用\(source.name)")
-                    .accessibilityValue((source.enabled ?? true) ? "已启用" : "已停用")
-                    .disabled(togglingHost == source.host)
-                    Menu {
-                        Button("测试书源", systemImage: "checkmark.seal") {
-                            Task { await testSource(source) }
+                        Menu {
+                            Button("测试书源", systemImage: "checkmark.seal") {
+                                Task { await testSource(source) }
+                            }
+                            Button("删除", systemImage: "trash", role: .destructive) {
+                                deleteTarget = source
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
+                                .font(.title3)
+                                .frame(width: 36, height: 36)
                         }
-                        Button("删除", systemImage: "trash", role: .destructive) {
-                            deleteTarget = source
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                            .frame(width: 44, height: 44)
+                        .disabled(deletingHost != nil || testingHost != nil || togglingHost != nil || batchBusy)
+                        .accessibilityLabel("书源操作")
                     }
-                    .accessibilityLabel("书源操作")
                 }
             }
             Text(source.host)
@@ -325,17 +350,11 @@ struct AdminScrapeSourcesView: View {
     private func connectivityBadge(_ source: ScrapeSourceRow) -> some View {
         switch source.connectivity {
         case "reachable":
-            Text("可达")
-                .font(.caption2)
-                .foregroundStyle(AppTheme.success)
+            AdminStatusBadge("可达", tint: AppTheme.success, systemImage: "checkmark")
         case "unreachable":
-            Text("不可达")
-                .font(.caption2)
-                .foregroundStyle(AppTheme.danger)
+            AdminStatusBadge("不可达", tint: AppTheme.danger, systemImage: "xmark")
         default:
-            Text("未检测")
-                .font(.caption2)
-                .foregroundStyle(AppTheme.textMuted)
+            AdminStatusBadge("未检测", tint: AppTheme.textMuted, systemImage: "questionmark")
         }
     }
 
@@ -371,6 +390,9 @@ struct AdminScrapeSourcesView: View {
     }
 
     private func delete(_ source: ScrapeSourceRow) async {
+        guard deletingHost == nil else { return }
+        deletingHost = source.host
+        defer { deletingHost = nil }
         do {
             try await AdminAPI.deleteScrapeSource(host: source.host)
             sources.removeAll { $0.host == source.host }
@@ -400,6 +422,7 @@ struct AdminScrapeSourcesView: View {
     private func checkAll() async {
         guard !checkingConnectivity else { return }
         checkingConnectivity = true
+        connectivityText = "正在检查全部书源…"
         defer { checkingConnectivity = false }
         do {
             let result = try await AdminAPI.checkSourceConnectivity(hosts: [])
@@ -411,6 +434,9 @@ struct AdminScrapeSourcesView: View {
     }
 
     private func deleteUnreachable() async {
+        guard !cleaningUnreachable else { return }
+        cleaningUnreachable = true
+        defer { cleaningUnreachable = false }
         do {
             let result = try await AdminAPI.deleteUnreachableSources()
             connectivityText = "已删除 \(result.deleted ?? 0) 个不可达书源。"
