@@ -133,6 +133,8 @@ struct AiTaskInfo: Codable, Identifiable, Hashable {
     let total: Int?
     let step: String?
     let prompt: String?
+    /// 任务产物 JSON；封面描述词任务完成后包含 prompt + metadata。
+    let result: String?
     let batchId: String?
     /// 创建时的请求参数（JSON），非空才支持重试
     let params: String?
@@ -156,6 +158,12 @@ struct AiTasksResponse: Codable {
 /// GET /api/ai/tasks/:id 的返回（后台任务轮询）。
 struct AiTaskDetailResponse: Codable {
     let task: AiTaskInfo
+}
+
+/// 封面描述词后台任务的 result JSON。
+struct AiCoverPromptTaskResult: Codable, Hashable {
+    let prompt: String
+    let metadata: AiCoverMetadata?
 }
 
 // MARK: 审计（GET /api/ai/audit/users、/api/ai/audit/calls）

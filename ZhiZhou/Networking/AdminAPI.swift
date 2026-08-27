@@ -537,17 +537,20 @@ enum AdminAPI {
         ]), auth: true)
     }
 
-    /// POST /api/ai/cover/prompt：按书籍信息生成封面描述词。
+    /// POST /api/ai/cover/prompt：按书籍信息创建封面描述词后台任务。
     static func aiCoverPrompt(
         novelId: String,
         renderTitle: Bool = true,
         platform: String = "default",
         stylePreset: String = "auto",
         composition: String = "auto",
-        variationId: String = ""
-    ) async throws -> AiCoverPromptResponse {
+        variationId: String = "",
+        clientRequestId: String = ""
+    ) async throws -> AiTaskStartResponse {
         try await APIClient.shared.post("/api/ai/cover/prompt", body: try jsonBody([
             "novelId": novelId,
+            "async": true,
+            "clientRequestId": clientRequestId,
             "renderTitle": renderTitle,
             "platform": platform,
             "stylePreset": stylePreset,
