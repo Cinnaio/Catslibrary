@@ -783,11 +783,11 @@ export function po18ChapterContentUrl(chapterUrl: string): string {
   return match ? `${url.origin}/books/${match[1]}/articlescontent/${match[2]}` : url.href
 }
 
-/** POPO 正文接口返回 HTML 片段；优先取正文容器，并移除站点引用块与标题重复内容。 */
+/** POPO 正文接口通常直接返回 HTML 片段；只信任明确的正文容器，找不到时保留整个片段。 */
 export function parsePo18twChapterContent(html: string, fallbackTitle: string): { title: string; content: string } {
   const titleHtml = html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i)?.[1] || ''
   const title = cleanText(titleHtml.replace(/<[^>]*>/g, '')) || cleanText(fallbackTitle)
-  const contentSelectors = ['.read-content', '.article-content', '#article-content', '.pcontent', '.content', '#content', 'article']
+  const contentSelectors = ['.read-txt', '.read-content', '.article-content', '#article-content', '.pcontent']
   let content = ''
   for (const selector of contentSelectors) {
     const inner = extractInnerHtml(html, selector)

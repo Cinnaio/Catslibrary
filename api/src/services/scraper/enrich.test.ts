@@ -6,7 +6,7 @@ vi.mock('./fetch', () => ({
   FETCH_HEADERS: {},
 }))
 
-import { discoverList, extractPo18twTitles, parsePo18twChapterLinks, po18ResponseProblem, searchPo18tw, searchTitleSources } from './enrich'
+import { discoverList, extractPo18twTitles, parsePo18twChapterContent, parsePo18twChapterLinks, po18ResponseProblem, searchPo18tw, searchTitleSources } from './enrich'
 import type { FetchHtmlOptions } from './fetch'
 
 describe('标题源搜索', () => {
@@ -129,6 +129,29 @@ describe('标题源搜索', () => {
       rowCount: 2,
       links: [{ href: 'https://www.po18.tw/books/123456/articles/1', text: '第一章' }],
     })
+  })
+
+  it('POPO 正文应优先选择 read-txt，不能被前面的通用 content 容器截断', () => {
+    const shortBlock = '章节信息占位内容，当前章节需要登录后才能继续阅读。'
+    const fullContent = '真正的章节正文。'.repeat(40)
+    const parsed = parsePo18twChapterContent(
+      `<div class="content">${shortBlock}</div><div class="read-txt"><p>${fullContent}</p></div>`,
+      '第一章',
+    )
+
+    expect(parsed.content).toContain(fullContent)
+    expect(parsed.content).not.toContain(shortBlock)
+  })
+
+  it('POPO 直接正文片段不能因通用 content 容器存在而丢失正文', () => {
+    const shortBlock = '章节信息占位内容，当前章节需要登录后才能继续阅读。'
+    const fullContent = '真正的直接返回正文。'.repeat(40)
+    const parsed = parsePo18twChapterContent(
+      `<h1>第一章</h1><div class="content">${shortBlock}</div><p>${fullContent}</p>`,
+      '第一章',
+    )
+
+    expect(parsed.content).toContain(fullContent)
   })
 
   it('POPO 应识别登录页、访问拦截页和跳转首页', () => {
