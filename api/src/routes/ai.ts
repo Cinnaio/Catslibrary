@@ -8,7 +8,7 @@ import { getDb } from '../db/pool'
 import { all, first, run, withTx } from '../db/query'
 import { AiError, chat, isTextAiConfigured, providerLabel, textProvider } from '../services/ai/client'
 import { isImageAiConfigured, imageProvider, imageProviderLabel } from '../services/ai/image'
-import { generateCoverPrompt, generateNovelCover, newCoverVariationId } from '../services/ai/cover'
+import { generateCoverPrompt, generateNovelCover, newCoverVariationId, normalizeCoverPrompt } from '../services/ai/cover'
 import { getAiSettings, saveAiSettings } from '../services/ai/settings'
 import { readRuntimeConfig, writeRuntimeConfig, syncRuntimeConfigToEnv, type RuntimeConfigKey } from '../runtime-config'
 import { generateRecap, getCachedRecap, loadChapterForRecap } from '../services/ai/summary'
@@ -514,16 +514,20 @@ aiRoutes.post('/cover/generate', requireAdmin(), async (c) => {
   if (!novelId) return c.json({ error: 'novelId 必填' }, 400)
   const novel = await first<{ title: string }>(db, 'SELECT title FROM novels WHERE id = $1', [novelId])
   if (!novel) return c.json({ error: '小说不存在' }, 404)
+  const settings = await getAiSettings(db)
+  let prompt = ''
+  try {
+    prompt = normalizeCoverPrompt(body.prompt, settings.coverPromptMaxChars)
+  } catch (err) {
+    return aiErrorResponse(c, err)
+  }
   if (!isImageAiConfigured()) return c.json({ error: 'AI 图像服务未配置（AI_IMAGE_BASE_URL / AI_IMAGE_API_KEY）', code: 'disabled' }, 503)
   // 文字层默认取运行时设置（未支持中文渲染的模型建议关）；请求显式传布尔时覆盖
-  const settings = await getAiSettings(db)
   const renderTitle = typeof body.renderTitle === 'boolean' ? body.renderTitle : settings.coverRenderTitle
   const platform = typeof body.platform === 'string' && body.platform ? body.platform : settings.coverPlatform
   const stylePreset = typeof body.stylePreset === 'string' && body.stylePreset ? body.stylePreset : 'auto'
   const composition = typeof body.composition === 'string' && body.composition ? body.composition : 'auto'
   const variationId = typeof body.variationId === 'string' && body.variationId.trim() ? body.variationId.trim() : newCoverVariationId()
-  const prompt = String(body.prompt || '').trim()
-  if (prompt.length > 2_000) return c.json({ error: '封面描述词不能超过 2000 个字符' }, 422)
 
   const task = await createAiTask(db, {
     userId: c.get('user').id,
@@ -1039,9 +1043,14 @@ aiRoutes.post('/tasks/:id/retry', requireAdmin(), async (c) => {
   if (source.kind === 'cover') {
     const novelId = String(body.novelId || '').trim()
     if (!novelId) return c.json({ error: '任务未记录 novelId，无法重试' }, 422)
-    if (!isImageAiConfigured()) return c.json({ error: 'AI 图像服务未配置', code: 'disabled' }, 503)
-    const prompt = String(body.prompt || '').trim()
     const settings = await getAiSettings(db)
+    let prompt = ''
+    try {
+      prompt = normalizeCoverPrompt(body.prompt, settings.coverPromptMaxChars)
+    } catch (err) {
+      return aiErrorResponse(c, err)
+    }
+    if (!isImageAiConfigured()) return c.json({ error: 'AI 图像服务未配置', code: 'disabled' }, 503)
     const renderTitle = typeof body.renderTitle === 'boolean' ? body.renderTitle : settings.coverRenderTitle
     const platform = typeof body.platform === 'string' && body.platform ? body.platform : settings.coverPlatform
     const stylePreset = typeof body.stylePreset === 'string' && body.stylePreset ? body.stylePreset : 'auto'

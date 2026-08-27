@@ -174,6 +174,17 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     const clamped = await req('/api/ai/settings', json('PUT', { maxChapterChars: 99999 }, adminToken))
     const { settings: s2 } = await jsonOf<{ settings: { maxChapterChars: number } }>(clamped)
     expect(s2.maxChapterChars).toBe(20000)
+
+    const coverLimit = await req('/api/ai/settings', json('PUT', { coverPromptMaxChars: 1500 }, adminToken))
+    const { settings: s3 } = await jsonOf<{ settings: { coverPromptMaxChars: number } }>(coverLimit)
+    expect(s3.coverPromptMaxChars).toBe(1500)
+
+    const coverLimitClamped = await req('/api/ai/settings', json('PUT', { coverPromptMaxChars: 99999 }, adminToken))
+    const { settings: s4 } = await jsonOf<{ settings: { coverPromptMaxChars: number } }>(coverLimitClamped)
+    expect(s4.coverPromptMaxChars).toBe(10000)
+
+    // 还原默认值，避免影响后续封面用例
+    await req('/api/ai/settings', json('PUT', { coverPromptMaxChars: 2000 }, adminToken))
   })
 
   it('settings：回显 providerConfig（密钥脱敏，不回传明文）', async () => {
@@ -1294,6 +1305,43 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
       delete process.env.AI_IMAGE_BASE_URL
       delete process.env.AI_IMAGE_API_KEY
       delete process.env.AI_IMAGE_MODEL
+    }
+  })
+
+  it('cover：超长描述词在创建任务前返回 422，并带 invalid 错误码', async () => {
+    process.env.AI_IMAGE_BASE_URL = 'https://image.test/v1'
+    process.env.AI_IMAGE_API_KEY = 'img-key'
+    process.env.AI_IMAGE_MODEL = 'mimo-v2.5'
+    fetchMock.mockClear()
+    try {
+      const novelId = await firstNovelId(t)
+      const res = await req('/api/ai/cover/generate', json('POST', { novelId, prompt: 'a'.repeat(2_001) }, adminToken))
+      expect(res.status).toBe(422)
+      expect(await jsonOf<{ error: string; code: string }>(res)).toEqual({
+        error: '封面描述词不能超过 2000 个字符',
+        code: 'invalid',
+      })
+      expect(fetchMock).not.toHaveBeenCalled()
+    } finally {
+      delete process.env.AI_IMAGE_BASE_URL
+      delete process.env.AI_IMAGE_API_KEY
+      delete process.env.AI_IMAGE_MODEL
+    }
+  })
+
+  it('cover：使用管理端配置的描述词上限', async () => {
+    const before = await jsonOf<{ settings: { coverPromptMaxChars: number } }>(await req('/api/ai/settings', json('GET', undefined, adminToken)))
+    await req('/api/ai/settings', json('PUT', { coverPromptMaxChars: 1000 }, adminToken))
+    try {
+      const novelId = await firstNovelId(t)
+      const res = await req('/api/ai/cover/generate', json('POST', { novelId, prompt: 'a'.repeat(1001) }, adminToken))
+      expect(res.status).toBe(422)
+      expect(await jsonOf<{ error: string; code: string }>(res)).toEqual({
+        error: '封面描述词不能超过 1000 个字符',
+        code: 'invalid',
+      })
+    } finally {
+      await req('/api/ai/settings', json('PUT', { coverPromptMaxChars: before.settings.coverPromptMaxChars }, adminToken))
     }
   })
 

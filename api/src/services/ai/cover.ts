@@ -40,6 +40,11 @@ interface NovelMeta {
   categories: string[]
 }
 
+/** 未配置时的封面描述词默认上限；实际限制从 AI 运营设置读取。 */
+export const DEFAULT_COVER_PROMPT_MAX_CHARS = 2_000
+const MIN_COVER_PROMPT_MAX_CHARS = 100
+const HARD_MAX_COVER_PROMPT_CHARS = 10_000
+
 /** buildImagePrompt 的封面选项：文字层、平台风格、主视觉和构图均由调用方透传。 */
 export interface CoverPromptOptions {
   /** 渲染书名+作者名文字层：默认 true（story-cover 核心——书名与作者名是封面必需信息），显式 false 才关闭 */
@@ -54,6 +59,8 @@ export interface CoverPromptOptions {
   composition?: CoverComposition | string
   /** 变体标识；相同值可复现，不同值会切换视觉方向。 */
   variationId?: string
+  /** 封面描述词上限；由 AI 运营设置注入，直接调用时回退到默认值。 */
+  maxPromptChars?: number
 }
 
 export interface CoverPromptMetadata {
@@ -98,7 +105,13 @@ async function loadNovelMeta(db: Db, novelId: string): Promise<NovelMeta | null>
 export async function generateCoverPrompt(db: Db, novelId: string, opts: CoverPromptOptions): Promise<BuildPromptResult> {
   const meta = await loadNovelMeta(db, novelId)
   if (!meta) throw new AiError('invalid', '小说不存在', 404)
-  return buildImagePrompt(meta, { ...opts, novelId, variationId: normalizeVariationId(opts.variationId) })
+  const settings = await getAiSettings(db)
+  return buildImagePrompt(meta, {
+    ...opts,
+    novelId,
+    maxPromptChars: settings.coverPromptMaxChars,
+    variationId: normalizeVariationId(opts.variationId),
+  })
 }
 
 /** 取任务当前 step（失败时回显用的实际 prompt 就存在这里）。 */
@@ -180,18 +193,21 @@ export async function buildImagePrompt(meta: NovelMeta, opts: CoverPromptOptions
   const style = GENRE_STYLES[genre]
   const platformStyle = PLATFORM_STYLES[platform]
 
-  const prompt = assembleCoverPrompt({
-    scene,
-    style,
-    direction,
-    platformStyle,
-    titleHint,
-    authorHint,
-    categoryHint: catHint,
-    storyHint: descHint,
-    renderTitle,
-    romanceDNA,
-  })
+  const prompt = limitGeneratedCoverPrompt(
+    assembleCoverPrompt({
+      scene,
+      style,
+      direction,
+      platformStyle,
+      titleHint,
+      authorHint,
+      categoryHint: catHint,
+      storyHint: descHint,
+      renderTitle,
+      romanceDNA,
+    }),
+    opts.maxPromptChars,
+  )
   const genres = [genre, ...inferredGenres.filter((candidate) => candidate !== genre)]
   return {
     prompt,
@@ -410,12 +426,35 @@ async function generateSceneDescription(args: {
   }
 }
 
-function normalizeCustomPrompt(value: unknown): string {
+export function normalizeCoverPrompt(value: unknown, maxPromptChars = DEFAULT_COVER_PROMPT_MAX_CHARS): string {
   const prompt = String(value || '').trim()
   if (!prompt) return ''
-  if (prompt.length > 2_000) throw new AiError('invalid', '封面描述词不能超过 2000 个字符', 422)
+  const limit = normalizePromptLimit(maxPromptChars)
+  if (prompt.length > limit) {
+    throw new AiError('invalid', `封面描述词不能超过 ${limit} 个字符`, 422)
+  }
   // 自定义描述词是用户完全掌控的成品 prompt，不注入 no text（用户可能自己写了文字层）
   return prompt
+}
+
+/** 自动生成的描述词超限时保留末尾的文字/水印约束，避免截断后放大上游出图风险。 */
+function limitGeneratedCoverPrompt(value: string, maxPromptChars = DEFAULT_COVER_PROMPT_MAX_CHARS): string {
+  const prompt = String(value || '').trim()
+  const limit = normalizePromptLimit(maxPromptChars)
+  if (prompt.length <= limit) return prompt
+
+  const tail = prompt.slice(prompt.lastIndexOf('\n') + 1)
+  if (tail.length >= limit) return prompt.slice(0, limit)
+
+  const headLength = limit - tail.length - 1
+  return `${prompt.slice(0, headLength)}\n${tail}`
+}
+
+function normalizePromptLimit(value: unknown): number {
+  const n = Math.trunc(Number(value))
+  return Number.isFinite(n)
+    ? Math.min(HARD_MAX_COVER_PROMPT_CHARS, Math.max(MIN_COVER_PROMPT_MAX_CHARS, n))
+    : DEFAULT_COVER_PROMPT_MAX_CHARS
 }
 
 function normalizeVariationId(value: unknown): string {
@@ -487,6 +526,8 @@ export async function generateNovelCover(
   const meta = await loadNovelMeta(db, opts.novelId)
   if (!meta) throw new AiError('invalid', '小说不存在', 404)
 
+  const settings = await getAiSettings(db)
+  const customPrompt = normalizeCoverPrompt(opts.prompt, settings.coverPromptMaxChars)
   const renderTitle = !!opts.renderTitle
   const platform = normalizePlatform(opts.platform)
   const variationId = normalizeVariationId(opts.variationId)
@@ -507,6 +548,7 @@ export async function generateNovelCover(
           stylePreset: opts.stylePreset || 'auto',
           composition: opts.composition || 'auto',
           variationId,
+          coverPromptMaxChars: settings.coverPromptMaxChars,
         }),
       })
     ).id
@@ -516,7 +558,6 @@ export async function generateNovelCover(
   try {
     const imageProvider_ = imageProvider()
     await updateAiTask(db, taskId, { step: '正在生成封面描述词' })
-    const customPrompt = normalizeCustomPrompt(opts.prompt)
     const built = customPrompt
       ? {
           prompt: customPrompt,
@@ -537,7 +578,7 @@ export async function generateNovelCover(
     // 把最终送图像模型的 prompt 落进任务 step：失败时据此定位是哪个词触发了上游安全策略
     await updateAiTask(db, taskId, { step: `正在生成封面（prompt：${prompt.slice(0, 200)}）` })
 
-    const imageSettings = await getAiSettings(db)
+    const imageSettings = settings
     const img = await generateImage({
       prompt,
       size: imageSettings.coverImageSize || imageSettings.imageSize,

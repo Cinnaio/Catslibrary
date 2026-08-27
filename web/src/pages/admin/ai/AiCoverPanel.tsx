@@ -13,6 +13,24 @@ import { BookOpen, CircleAlert, Loader2, Palette, Sparkles, Trash2, Upload, Wand
 // 后台封面任务的进度轮询间隔（与 AiWritingPanel 对齐）
 const TASK_POLL_INTERVAL = 3000
 const COVER_TASK_KINDS = new Set(['cover'])
+const DEFAULT_COVER_PROMPT_MAX_CHARS = 2000
+const MIN_COVER_PROMPT_MAX_CHARS = 100
+const HARD_MAX_COVER_PROMPT_CHARS = 10000
+
+function normalizeCoverPromptLimit(value: unknown): number {
+  const n = Math.trunc(Number(value))
+  return Number.isFinite(n)
+    ? Math.min(HARD_MAX_COVER_PROMPT_CHARS, Math.max(MIN_COVER_PROMPT_MAX_CHARS, n))
+    : DEFAULT_COVER_PROMPT_MAX_CHARS
+}
+
+function limitCoverPrompt(value: string, maxChars: number): string {
+  return Array.from(value).slice(0, maxChars).join('')
+}
+
+function coverPromptCharCount(value: string): number {
+  return Array.from(value).length
+}
 
 /** 平台版式选项：只影响平台调性、尺寸和文字安全区，不决定主视觉画风。 */
 const PLATFORM_OPTIONS = [
@@ -154,6 +172,7 @@ export default function AiCoverPanel() {
   const [variationId, setVariationId] = useState('')
   const [promptMetadata, setPromptMetadata] = useState<AiCoverCandidate['metadata']>()
   const [prompt, setPrompt] = useState('')
+  const [coverPromptMaxChars, setCoverPromptMaxChars] = useState(DEFAULT_COVER_PROMPT_MAX_CHARS)
   const [generatingPrompt, setGeneratingPrompt] = useState(false)
   const [imageConfigured, setImageConfigured] = useState(false)
   /** 当前小说的 AI 封面候选（未采纳）；生成成功/采纳/弃用后刷新 */
@@ -206,6 +225,9 @@ export default function AiCoverPanel() {
         // 用运营设置里的封面默认值初始化控件
         if (typeof res.settings?.coverRenderTitle === 'boolean') setRenderTitle(res.settings.coverRenderTitle)
         if (typeof res.settings?.coverPlatform === 'string' && res.settings.coverPlatform) setPlatform(res.settings.coverPlatform)
+        const promptLimit = normalizeCoverPromptLimit(res.settings?.coverPromptMaxChars)
+        setCoverPromptMaxChars(promptLimit)
+        setPrompt((value) => limitCoverPrompt(value, promptLimit))
       })
       .catch(() => {})
     return () => {
@@ -261,9 +283,13 @@ export default function AiCoverPanel() {
   async function generate() {
     if (!novelId) return toast('请先选择小说', 'error')
     if (!imageConfigured) return toast('AI 图像服务未配置，请到「配置」标签页设置图像供应商', 'error')
+    const nextPrompt = prompt.trim()
+    if (coverPromptCharCount(nextPrompt) > coverPromptMaxChars) {
+      return toast(`封面描述词不能超过 ${coverPromptMaxChars} 个字符`, 'error')
+    }
     setBusy(true)
     try {
-      const res = await aiApi.generateCover(novelId, { prompt, renderTitle, platform, stylePreset, composition, variationId })
+      const res = await aiApi.generateCover(novelId, { prompt: nextPrompt, renderTitle, platform, stylePreset, composition, variationId })
       const { task: created } = await aiApi.task(res.taskId)
       setTask(created)
       toast('封面生成已开始', 'success')
@@ -286,7 +312,7 @@ export default function AiCoverPanel() {
         composition,
         variationId: requestedVariationId,
       })
-      setPrompt(result.prompt)
+      setPrompt(limitCoverPrompt(result.prompt, coverPromptMaxChars))
       setVariationId(result.metadata?.variationId || requestedVariationId)
       setPromptMetadata(result.metadata)
       toast('已生成封面描述词，可继续编辑', 'success')
@@ -464,14 +490,20 @@ export default function AiCoverPanel() {
             </div>
             <textarea
               id="cover-prompt"
+              aria-describedby="cover-prompt-hint"
               className="min-h-[7.5rem] w-full resize-y rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-3.5 py-2.5 text-sm leading-relaxed ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               value={prompt}
-              maxLength={2000}
+              maxLength={coverPromptMaxChars}
               disabled={busy || taskActive || generatingPrompt}
-              onChange={(event) => setPrompt(event.target.value)}
+              onChange={(event) => setPrompt(limitCoverPrompt(event.target.value, coverPromptMaxChars))}
               placeholder="留空将根据小说标题、分类和简介自动生成；也可以直接填写英文描述词。"
             />
-            <p className="text-xs text-muted-foreground">留空自动生成，可编辑后保存；最多 2000 字符。换一版会改变视觉变体。</p>
+            <div id="cover-prompt-hint" className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+              <p>留空自动生成，可编辑后用于生成；换一版会改变视觉变体。</p>
+              <span className={coverPromptCharCount(prompt) >= coverPromptMaxChars ? 'font-medium text-[var(--color-warning)]' : ''}>
+                {coverPromptCharCount(prompt)}/{coverPromptMaxChars}
+              </span>
+            </div>
             {promptMetadata && (
               <div className="grid gap-0.5 text-xs text-[var(--accent)]">
                 <p>

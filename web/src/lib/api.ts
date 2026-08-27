@@ -938,6 +938,7 @@ export interface AiSettings {
   coverImageSize: string
   coverRenderTitle: boolean
   coverPlatform: string
+  coverPromptMaxChars: number
   // 运维配置
   taskRetentionDays: number
   // 审计配置

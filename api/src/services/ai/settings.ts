@@ -58,6 +58,8 @@ export interface AiSettings {
   coverRenderTitle: boolean
   /** 默认平台风格调性：default|fanqie|qidian|jinjiang|zhihu|qimao|ciweimao */
   coverPlatform: string
+  /** 封面描述词最大字符数，封面生成页可编辑的提示词上限 */
+  coverPromptMaxChars: number
 
   // === 运维配置 ===
   /** 已结束 AI 任务的保留天数，启动时清理更早的记录 */
@@ -107,6 +109,7 @@ export const DEFAULT_AI_SETTINGS: AiSettings = {
   coverImageSize: '1024x1536',
   coverRenderTitle: true,
   coverPlatform: 'default',
+  coverPromptMaxChars: 2_000,
 
   // 运维配置默认值
   taskRetentionDays: 90,
@@ -139,6 +142,7 @@ const LIMITS = {
   imageResponseFormat: { maxLength: 20 },
   coverImageSize: { maxLength: 20 },
   coverPlatform: { maxLength: 20 },
+  coverPromptMaxChars: { min: 100, max: 10000 },
   taskRetentionDays: { min: 7, max: 365 },
 }
 
@@ -220,6 +224,7 @@ export function normalizeAiSettings(raw: unknown): AiSettings {
     coverImageSize: clampEnum(obj.coverImageSize, DEFAULT_AI_SETTINGS.coverImageSize, ['1024x1536', '768x1024', '1024x1792', '1024x1024']),
     coverRenderTitle: obj.coverRenderTitle === undefined ? DEFAULT_AI_SETTINGS.coverRenderTitle : !!obj.coverRenderTitle,
     coverPlatform: clampEnum(obj.coverPlatform, DEFAULT_AI_SETTINGS.coverPlatform, ['default', 'fanqie', 'qidian', 'jinjiang', 'zhihu', 'qimao', 'ciweimao']),
+    coverPromptMaxChars: clampInt(obj.coverPromptMaxChars, DEFAULT_AI_SETTINGS.coverPromptMaxChars, LIMITS.coverPromptMaxChars),
 
     // 运维配置
     taskRetentionDays: clampInt(obj.taskRetentionDays, DEFAULT_AI_SETTINGS.taskRetentionDays, LIMITS.taskRetentionDays),
