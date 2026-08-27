@@ -71,6 +71,7 @@ struct AiSettings: Codable {
     let coverImageSize: String?
     let coverRenderTitle: Bool?
     let coverPlatform: String?
+    let coverPromptMaxChars: Int?
     // 运维与审计
     let taskRetentionDays: Int?
     let logIpAddress: Bool?

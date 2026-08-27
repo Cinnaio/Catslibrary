@@ -5,6 +5,8 @@ import UniformTypeIdentifiers
 /// AI 封面生成：选书 → 生成描述词 → 生成封面（后台任务）→ 轮询 → 候选采纳/弃用/上传。
 /// 对齐 Web 端 admin ai AiCoverPanel（/api/ai/cover/*）。
 struct AdminAICoverView: View {
+    @State private var coverPromptMaxCharacters = 2000
+
     @State private var novelOptions: [AdminNovelSummary] = []
     @State private var selectedNovelId = ""
     @State private var novelSearch = ""
@@ -247,6 +249,21 @@ struct AdminAICoverView: View {
                 .lineLimit(2...4)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
+                .onChange(of: prompt) { _, value in
+                    if value.count > coverPromptMaxCharacters {
+                        prompt = String(value.prefix(coverPromptMaxCharacters))
+                    }
+                }
+
+            HStack {
+                Text("留空自动生成，也可以直接编辑后用于生成")
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.textSecondary)
+                Spacer()
+                Text("\(prompt.count)/\(coverPromptMaxCharacters)")
+                    .font(.caption)
+                    .foregroundStyle(prompt.count >= coverPromptMaxCharacters ? AppTheme.warning : AppTheme.textSecondary)
+            }
 
             Button {
                 Task { await generatePrompt() }
@@ -430,9 +447,17 @@ struct AdminAICoverView: View {
         do {
             let index = try await AdminAPI.novelIndex(limit: 200)
             novelOptions = index.novels
+            if let settings = try? await AdminAPI.aiSettings(), let configuredLimit = settings.settings?.coverPromptMaxChars {
+                coverPromptMaxCharacters = normalizedCoverPromptLimit(configuredLimit)
+                prompt = String(prompt.prefix(coverPromptMaxCharacters))
+            }
         } catch {
             actionError = AppCopy.friendlyError(error)
         }
+    }
+
+    private func normalizedCoverPromptLimit(_ value: Int) -> Int {
+        min(10000, max(100, value))
     }
 
     private func generatePrompt(forceNewVariation: Bool = false) async {
@@ -449,7 +474,7 @@ struct AdminAICoverView: View {
                 composition: composition,
                 variationId: requestedVariationId
             )
-            prompt = result.prompt
+            prompt = String(result.prompt.prefix(coverPromptMaxCharacters))
             promptMetadata = result.metadata
             variationId = result.metadata?.variationId ?? requestedVariationId
         } catch {
@@ -459,13 +484,18 @@ struct AdminAICoverView: View {
 
     private func generateCover() async {
         guard !selectedNovelId.isEmpty else { return }
+        let finalPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard finalPrompt.count <= coverPromptMaxCharacters else {
+            actionError = "封面描述词不能超过 \(coverPromptMaxCharacters) 个字符"
+            return
+        }
         generating = true
         taskStatusText = "任务已提交，等待队列…"
         defer { generating = false }
         do {
             let result = try await AdminAPI.aiGenerateCover(
                 novelId: selectedNovelId,
-                prompt: prompt.trimmingCharacters(in: .whitespacesAndNewlines),
+                prompt: finalPrompt,
                 renderTitle: renderTitle,
                 platform: platform,
                 stylePreset: stylePreset,

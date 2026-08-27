@@ -31,6 +31,7 @@ struct AdminAISettingsView: View {
     @State private var coverImageSize = "1024x1536"
     @State private var coverRenderTitle = true
     @State private var coverPlatform = "openai"
+    @State private var coverPromptMaxChars = 2000
     // 运维与审计
     @State private var taskRetentionDays = 30
     @State private var logIpAddress = true
@@ -181,6 +182,10 @@ struct AdminAISettingsView: View {
             TextField("封面平台", text: $coverPlatform)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
+            row("封面描述词上限", value: $coverPromptMaxChars, range: 100...10000)
+            Text("封面生成页可编辑的描述词最大字符数，默认 2000；修改后保存即可生效。")
+                .font(.caption)
+                .foregroundStyle(AppTheme.textSecondary)
         }
     }
 
@@ -294,6 +299,7 @@ struct AdminAISettingsView: View {
         coverImageSize = s.coverImageSize ?? coverImageSize
         coverRenderTitle = s.coverRenderTitle ?? coverRenderTitle
         coverPlatform = s.coverPlatform ?? coverPlatform
+        coverPromptMaxChars = s.coverPromptMaxChars ?? coverPromptMaxChars
         taskRetentionDays = s.taskRetentionDays ?? taskRetentionDays
         logIpAddress = s.logIpAddress ?? logIpAddress
         logUserAgent = s.logUserAgent ?? logUserAgent
@@ -330,6 +336,7 @@ struct AdminAISettingsView: View {
                 "coverImageSize": coverImageSize,
                 "coverRenderTitle": coverRenderTitle,
                 "coverPlatform": coverPlatform,
+                "coverPromptMaxChars": coverPromptMaxChars,
                 "taskRetentionDays": taskRetentionDays,
                 "logIpAddress": logIpAddress,
                 "logUserAgent": logUserAgent,
@@ -344,6 +351,7 @@ struct AdminAISettingsView: View {
     private func normalizeValues() {
         dailyQuota = boundedValue(dailyQuota, to: 0...10000)
         maxChapterChars = boundedValue(maxChapterChars, to: 100...100000)
+        coverPromptMaxChars = boundedValue(coverPromptMaxChars, to: 100...10000)
         recapTemperature = boundedValue(recapTemperature, to: 0...2)
         recapMaxTokens = boundedValue(recapMaxTokens, to: 1...64000)
         catchupStaleDays = boundedValue(catchupStaleDays, to: 1...3650)
