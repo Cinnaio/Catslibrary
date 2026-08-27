@@ -8,9 +8,18 @@ vi.mock('node:dns/promises', () => ({ lookup: vi.fn() }))
 describe('isPrivateIp', () => {
   it('识别环回/私网/链路本地/保留 IPv4 地址段', () => {
     for (const ip of [
-      '127.0.0.1', '10.0.0.1', '172.16.0.1', '172.31.255.255', '192.168.1.1',
-      '169.254.169.254', '100.64.0.1', '0.0.0.0', '192.0.0.8', '198.18.0.1',
-      '224.0.0.1', '255.255.255.255',
+      '127.0.0.1',
+      '10.0.0.1',
+      '172.16.0.1',
+      '172.31.255.255',
+      '192.168.1.1',
+      '169.254.169.254',
+      '100.64.0.1',
+      '0.0.0.0',
+      '192.0.0.8',
+      '198.18.0.1',
+      '224.0.0.1',
+      '255.255.255.255',
     ]) {
       expect(isPrivateIp(ip), ip).toBe(true)
     }
@@ -88,14 +97,16 @@ describe('safeFetch 重定向防护', () => {
   })
 
   it('公网站点 302 重定向到内网地址时阻断（经典 SSRF 绕过）', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () =>
-      new Response(null, { status: 302, headers: { Location: 'http://127.0.0.1:8787/api/internal' } }),
-    ))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(null, { status: 302, headers: { Location: 'http://127.0.0.1:8787/api/internal' } })),
+    )
     await expect(safeFetch('https://93.184.216.34/page')).rejects.toThrow(/内网|保留/)
   })
 
   it('跟随公网重定向并返回最终响应', async () => {
-    const fetchMock = vi.fn()
+    const fetchMock = vi
+      .fn()
       .mockResolvedValueOnce(new Response(null, { status: 301, headers: { Location: 'https://93.184.216.35/final' } }))
       .mockResolvedValueOnce(new Response('ok', { status: 200 }))
     vi.stubGlobal('fetch', fetchMock)
@@ -106,10 +117,19 @@ describe('safeFetch 重定向防护', () => {
     expect(fetchMock.mock.calls[1]![0]).toBe('https://93.184.216.35/final')
   })
 
+  it('携带会话 Cookie 时可限制重定向站点，避免泄露到第三方', async () => {
+    const fetchMock = vi.fn(async () => new Response(null, { status: 302, headers: { Location: 'https://93.184.216.35/final' } }))
+    await expect(safeFetch('https://93.184.216.34/start', {}, fetchMock, { allowedRedirectHosts: ['93.184.216.34'] })).rejects.toThrow(
+      /重定向目标不在允许的站点内/,
+    )
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
   it('重定向次数超限时报错', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () =>
-      new Response(null, { status: 302, headers: { Location: 'https://93.184.216.34/loop' } }),
-    ))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(null, { status: 302, headers: { Location: 'https://93.184.216.34/loop' } })),
+    )
     await expect(safeFetch('https://93.184.216.34/start')).rejects.toThrow(/重定向次数/)
   })
 })

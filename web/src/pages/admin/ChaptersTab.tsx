@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useToast, useConfirm } from '../../components/feedback'
 import CustomSelect from '../../components/admin/CustomSelect'
 import Pagination from '../../components/admin/Pagination'
-import { adminApi, chaptersApi, scrapeApi, type SourceSyncPreview } from '../../lib/api'
+import { adminApi, chaptersApi, scrapeApi, type SourceSyncPreview, type TitleSource, type TitleSourceSearchResponse } from '../../lib/api'
 import { timeAgo } from '../../lib/format'
 import type { ChapterMeta } from '@shared/types'
 import { Button } from '@/components/ui/button'
@@ -51,6 +51,10 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
   const [renamePreview, setRenamePreview] = useState<Array<{ order: number; oldTitle: string; newTitle: string }> | null>(null)
   const [sourceUrl, setSourceUrl] = useState('')
   const [sourcePreview, setSourcePreview] = useState<SourceSyncPreview | null>(null)
+  const [sourceSearch, setSourceSearch] = useState<TitleSourceSearchResponse | null>(null)
+  const [sourceSearchTitle, setSourceSearchTitle] = useState('')
+  const [sourceSearchAuthor, setSourceSearchAuthor] = useState('')
+  const [sourceSearching, setSourceSearching] = useState(false)
   const [sourceMetadataFields, setSourceMetadataFields] = useState<string[]>(['title', 'author', 'description', 'coverUrl', 'categories', 'status'])
   const [sourceMetadataMode, setSourceMetadataMode] = useState<'missing' | 'replace'>('missing')
   const [renaming, setRenaming] = useState(false)
@@ -81,6 +85,8 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
     },
     [novelOptions],
   )
+
+  const selectedNovelInfo = useMemo(() => novelOptions.find((novel) => novel.id === selectedNovel) || null, [novelOptions, selectedNovel])
 
   const loadChapters = useCallback(
     async (novelId: string) => {
@@ -269,7 +275,10 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
     setRenameModal(true)
     setRenamePreview(null)
     setSourcePreview(null)
+    setSourceSearch(null)
     setSourceUrl('')
+    setSourceSearchTitle(selectedNovelInfo?.title || '')
+    setSourceSearchAuthor(selectedNovelInfo?.author || '')
     if (!selectedNovel) return
     try {
       const result = await scrapeApi.sourceBindings(selectedNovel)
@@ -280,16 +289,35 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
     }
   }
 
-  async function previewSourceSync() {
+  async function searchSourceSites() {
+    const title = sourceSearchTitle.trim()
+    const author = sourceSearchAuthor.trim()
+    if (!title && !author) {
+      toast('请填写书名或作者后再搜索', 'error')
+      return
+    }
+    setSourceSearching(true)
+    setSourceSearch(null)
+    try {
+      setSourceSearch(await scrapeApi.titleSourceSearch(title, author))
+    } catch (err) {
+      toast((err as Error).message || '源站搜索失败', 'error')
+    } finally {
+      setSourceSearching(false)
+    }
+  }
+
+  async function previewSourceSync(selectedSourceUrl = sourceUrl) {
     if (!selectedNovel) {
       toast('请先选择小说', 'error')
       return
     }
-    const url = sourceUrl.trim()
+    const url = selectedSourceUrl.trim()
     if (!url) {
       toast('请填写原作者源站 URL', 'error')
       return
     }
+    setSourceUrl(url)
     setRenaming(true)
     setRenamePreview(null)
     try {
@@ -300,6 +328,10 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
     } finally {
       setRenaming(false)
     }
+  }
+
+  function sourceResults(site: string): TitleSource[] {
+    return sourceSearch?.sources?.[site]?.results || []
   }
 
   async function applyRename() {
@@ -529,10 +561,11 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
             setRenameModal(false)
             setRenamePreview(null)
             setSourcePreview(null)
+            setSourceSearch(null)
           }
         }}
       >
-        <DialogContent className="admin-dialog sm:max-w-[540px]">
+        <DialogContent className="admin-dialog sm:max-w-[680px]">
           <DialogHeader>
             <DialogTitle>融合章节名</DialogTitle>
           </DialogHeader>
@@ -540,7 +573,61 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
             <p className="text-sm text-muted-foreground">
               优先从原作者源站读取小说信息和章节目录；读取不到时仍可手动粘贴标题。正文来源、章节顺序和阅读进度不会改变。
             </p>
-            <Label>原作者源站 URL</Label>
+            <div className="rounded-lg border border-border bg-muted/20 p-3">
+              <div className="mb-2">
+                <Label>搜索原作者源站</Label>
+                <p className="mt-1 text-xs text-muted-foreground">同时搜索晋江与 PO18.tw；请先选择准确的作品，再读取详情。</p>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,0.72fr)_auto]">
+                <Input aria-label="搜索书名" placeholder="书名" value={sourceSearchTitle} onChange={(e) => setSourceSearchTitle(e.target.value)} />
+                <Input aria-label="搜索作者" placeholder="作者（可选）" value={sourceSearchAuthor} onChange={(e) => setSourceSearchAuthor(e.target.value)} />
+                <Button variant="secondary" disabled={renaming || sourceSearching} onClick={() => void searchSourceSites()}>
+                  {sourceSearching ? '搜索中…' : '搜索两处源站'}
+                </Button>
+              </div>
+              {sourceSearch && (
+                <div className="mt-3 space-y-3">
+                  {(['jjwxc', 'po18tw'] as const).map((site) => {
+                    const bucket = sourceSearch.sources?.[site]
+                    const results = sourceResults(site)
+                    const label = site === 'jjwxc' ? '晋江' : 'PO18.tw'
+                    return (
+                      <div key={site}>
+                        <div className="mb-1 flex items-center justify-between gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          <span>{label}</span>
+                          <span>{results.length ? `${results.length} 个结果` : bucket?.ok ? '没有匹配结果' : '搜索不可用'}</span>
+                        </div>
+                        {bucket?.error && <p className="mb-2 text-xs text-amber-600">{bucket.error}</p>}
+                        {results.length > 0 && (
+                          <div className="grid gap-2">
+                            {results.map((candidate) => (
+                              <button
+                                type="button"
+                                key={`${candidate.site}-${candidate.bookId || candidate.url}`}
+                                className="group rounded-md border border-border bg-background p-2.5 text-left transition-colors hover:border-primary/60 hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                onClick={() => void previewSourceSync(candidate.url)}
+                                disabled={renaming}
+                              >
+                                <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium">
+                                  <span>{candidate.title || '未识别书名'}</span>
+                                  {candidate.status && (
+                                    <span className="text-xs font-normal text-muted-foreground">{candidate.status === 'completed' ? '完结' : '连载'}</span>
+                                  )}
+                                </span>
+                                <span className="mt-1 block truncate text-xs text-muted-foreground">
+                                  {candidate.author || '作者未识别'} · {candidate.url}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+            <Label>或直接输入原作者源站 URL</Label>
             <div className="flex gap-2">
               <Input
                 value={sourceUrl}

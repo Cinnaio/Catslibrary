@@ -18,6 +18,8 @@ export interface OutboundFetchOptions {
   safe?: boolean
   forceProxy?: boolean
   proxyConfig?: OutboundProxyConfig
+  /** 携带站点会话时限制重定向目标，避免 Cookie 被转发到第三方域名。 */
+  allowedRedirectHosts?: string[]
 }
 
 export interface OutboundRequestLog {
@@ -273,5 +275,7 @@ async function performFetch(rawUrl: string, init: RequestInit, options: Outbound
 /** Project-wide outbound fetch with proxy selection and sanitized request logging. */
 export async function outboundFetch(rawUrl: string, init: RequestInit = {}, options: OutboundFetchOptions = {}): Promise<Response> {
   const fetchImplementation: FetchImplementation = (url, nextInit) => performFetch(url, nextInit, options)
-  return options.safe ? safeFetch(rawUrl, init, fetchImplementation) : performFetch(rawUrl, init, options)
+  return options.safe
+    ? safeFetch(rawUrl, init, fetchImplementation, { allowedRedirectHosts: options.allowedRedirectHosts })
+    : performFetch(rawUrl, init, options)
 }

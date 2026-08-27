@@ -111,12 +111,37 @@ const MAX_REDIRECTS = 5
 
 export type FetchImplementation = (url: string, init: RequestInit) => Promise<Response>
 
+export interface SafeFetchOptions {
+  /** 将重定向限制在受信任的站点集合内，适用于携带站点会话 Cookie 的请求。 */
+  allowedRedirectHosts?: string[]
+}
+
+function hostAllowed(hostname: string, allowlist: string[]): boolean {
+  const host = hostname.toLowerCase().replace(/^\.|\.$/g, '')
+  return allowlist.some((item) => {
+    const rule = item
+      .toLowerCase()
+      .trim()
+      .replace(/^\.|\.$/g, '')
+    return rule && (host === rule || host.endsWith(`.${rule}`))
+  })
+}
+
 /**
  * 带 SSRF 防护的 fetch：首跳与每次重定向都经 assertPublicUrl 校验。
  * 语义与 fetch(redirect:'follow') 一致（303 及 POST 的 301/302 按规范降级为 GET）。
  */
-export async function safeFetch(rawUrl: string, init: RequestInit = {}, fetchImplementation: FetchImplementation = fetch): Promise<Response> {
-  let current = (await assertPublicUrl(rawUrl)).href
+export async function safeFetch(
+  rawUrl: string,
+  init: RequestInit = {},
+  fetchImplementation: FetchImplementation = fetch,
+  options: SafeFetchOptions = {},
+): Promise<Response> {
+  let currentUrl = await assertPublicUrl(rawUrl)
+  if (options.allowedRedirectHosts?.length && !hostAllowed(currentUrl.hostname, options.allowedRedirectHosts)) {
+    throw new UnsafeUrlError(`目标不在允许的重定向站点内: ${currentUrl.hostname}`)
+  }
+  let current = currentUrl.href
   let currentInit = init
   for (let i = 0; i <= MAX_REDIRECTS; i++) {
     const res = await fetchImplementation(current, { ...currentInit, redirect: 'manual' } as RequestInit)
@@ -125,7 +150,11 @@ export async function safeFetch(rawUrl: string, init: RequestInit = {}, fetchImp
     if (!location) return res
     await res.body?.cancel().catch(() => {})
     const next = new URL(location, current)
-    current = (await assertPublicUrl(next.href)).href
+    currentUrl = await assertPublicUrl(next.href)
+    if (options.allowedRedirectHosts?.length && !hostAllowed(currentUrl.hostname, options.allowedRedirectHosts)) {
+      throw new UnsafeUrlError(`重定向目标不在允许的站点内: ${currentUrl.hostname}`)
+    }
+    current = currentUrl.href
     const method = (currentInit.method || 'GET').toUpperCase()
     if (res.status === 303 || ((res.status === 301 || res.status === 302) && method === 'POST')) {
       currentInit = { ...currentInit, method: 'GET', body: undefined }

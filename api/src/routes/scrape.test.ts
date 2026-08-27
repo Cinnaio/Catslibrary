@@ -58,6 +58,46 @@ describe('scrape 路由（免网络动作）', () => {
     expect(missData.detected).toBe(false)
   })
 
+  it('PO18 账号只回传状态，不回传密码或 Cookie，并支持清除', async () => {
+    const previousKey = process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY
+    process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY = 'scrape-route-test-key'
+    try {
+      const saved = await req(
+        '/api/scrape',
+        json(
+          'POST',
+          { action: 'po18-account-save', username: 'author-account', password: 'secret-pass', sessionCookie: 'PHPSESSID=abc==; theme=dark' },
+          adminToken,
+        ),
+      )
+      expect(saved.status).toBe(200)
+      const savedData = await jsonOf<{ username: string; hasSession: boolean; status: string; password?: string; sessionCookie?: string }>(saved)
+      expect(savedData).toMatchObject({ username: 'author-account', hasSession: true, status: 'session_saved' })
+      expect(savedData.password).toBeUndefined()
+      expect(savedData.sessionCookie).toBeUndefined()
+      const stored = await t.db.query<{ password_ciphertext: string; session_ciphertext: string }>(
+        'SELECT password_ciphertext, session_ciphertext FROM source_accounts WHERE site = $1',
+        ['po18tw'],
+      )
+      expect(stored.rows[0]?.password_ciphertext).toBeTruthy()
+      expect(stored.rows[0]?.session_ciphertext).toBeTruthy()
+      expect(stored.rows[0]?.password_ciphertext).not.toContain('secret-pass')
+      expect(stored.rows[0]?.session_ciphertext).not.toContain('PHPSESSID')
+
+      const status = await req('/api/scrape?action=po18-account', json('GET', undefined, adminToken))
+      expect(status.status).toBe(200)
+      await expect(status.json()).resolves.toMatchObject({ username: 'author-account', hasSession: true })
+
+      const cleared = await req('/api/scrape', json('POST', { action: 'po18-account-clear' }, adminToken))
+      expect(cleared.status).toBe(200)
+      const empty = await req('/api/scrape?action=po18-account', json('GET', undefined, adminToken))
+      await expect(empty.json()).resolves.toMatchObject({ configured: false, hasSession: false })
+    } finally {
+      if (previousKey === undefined) delete process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY
+      else process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY = previousKey
+    }
+  })
+
   it('管理员可以保存开发代理，Docker 环境代理优先并可测试', async () => {
     const runtimeDir = mkdtempSync(join(tmpdir(), 'zhi-zhou-proxy-'))
     const previousRuntimeDir = process.env.RUNTIME_CONFIG_DIR
@@ -97,17 +137,11 @@ describe('scrape 路由（免网络动作）', () => {
       expect(savedData.effectiveHost).toBe('127.0.0.1:7890')
       expect(savedData.config.proxyBypass).toBe('localhost,.internal.example.com')
 
-      const runtimeRoute = await req(
-        '/api/scrape',
-        json('POST', { action: 'proxy-route', sourceUrl: 'https://service.example.com/v1' }, adminToken),
-      )
+      const runtimeRoute = await req('/api/scrape', json('POST', { action: 'proxy-route', sourceUrl: 'https://service.example.com/v1' }, adminToken))
       const runtimeRouteData = await jsonOf<{ usesProxy: boolean; source: string; proxyHost: string; bypassed: boolean }>(runtimeRoute)
       expect(runtimeRouteData).toMatchObject({ usesProxy: true, source: 'runtime', proxyHost: '127.0.0.1:7890', bypassed: false })
 
-      const runtimeBypass = await req(
-        '/api/scrape',
-        json('POST', { action: 'proxy-route', sourceUrl: 'https://svc.internal.example.com/health' }, adminToken),
-      )
+      const runtimeBypass = await req('/api/scrape', json('POST', { action: 'proxy-route', sourceUrl: 'https://svc.internal.example.com/health' }, adminToken))
       const runtimeBypassData = await jsonOf<{ usesProxy: boolean; bypassed: boolean; bypassRule: string }>(runtimeBypass)
       expect(runtimeBypassData).toMatchObject({ usesProxy: false, bypassed: true, bypassRule: '.internal.example.com' })
 
@@ -143,19 +177,13 @@ describe('scrape 路由（免网络动作）', () => {
         fetchMock.mockRestore()
       }
 
-      const envRoute = await req(
-        '/api/scrape',
-        json('POST', { action: 'proxy-route', sourceUrl: 'https://target.example.org/book/1' }, adminToken),
-      )
+      const envRoute = await req('/api/scrape', json('POST', { action: 'proxy-route', sourceUrl: 'https://target.example.org/book/1' }, adminToken))
       const envRouteData = await jsonOf<{ usesProxy: boolean; source: string; proxyHost: string; bypassed: boolean }>(envRoute)
       expect(envRouteData).toMatchObject({ usesProxy: true, source: 'environment', proxyHost: '172.18.0.1:7890', bypassed: false })
 
       process.env.NO_PROXY = 'target.example.org'
       try {
-        const envBypass = await req(
-          '/api/scrape',
-          json('POST', { action: 'proxy-route', sourceUrl: 'https://target.example.org/book/1' }, adminToken),
-        )
+        const envBypass = await req('/api/scrape', json('POST', { action: 'proxy-route', sourceUrl: 'https://target.example.org/book/1' }, adminToken))
         const envBypassData = await jsonOf<{ usesProxy: boolean; bypassed: boolean; bypassRule: string }>(envBypass)
         expect(envBypassData).toMatchObject({ usesProxy: false, bypassed: true, bypassRule: 'target.example.org' })
       } finally {

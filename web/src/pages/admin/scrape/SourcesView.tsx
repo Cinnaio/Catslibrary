@@ -18,6 +18,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { SourceRow } from './types'
 import { connectivityBadge, scrapePost, supportBadge } from './utils'
+import Po18AccountPanel from './Po18AccountPanel'
 
 export default function SourcesView({ active }: { active: boolean }) {
   const { toast } = useToast()
@@ -146,7 +147,7 @@ export default function SourcesView({ active }: { active: boolean }) {
   function toggleAllVisible(checked: boolean) {
     setSelectedHosts((current) => {
       const next = new Set(current)
-      sources.forEach((source) => checked ? next.add(source.host) : next.delete(source.host))
+      sources.forEach((source) => (checked ? next.add(source.host) : next.delete(source.host)))
       return next
     })
   }
@@ -160,19 +161,28 @@ export default function SourcesView({ active }: { active: boolean }) {
       setSelectedHosts(new Set())
       await loadScrapeSources()
       toast(`已停用 ${hosts.length} 个书源`, 'success')
-    } catch (err) { toast((err as Error).message, 'error') }
+    } catch (err) {
+      toast((err as Error).message, 'error')
+    }
   }
 
   async function batchDeleteSources() {
     const hosts = [...selectedHosts]
-    const ok = await confirm({ title: '批量删除书源', message: `确定删除已选择的 ${hosts.length} 个书源？删除后运行时不再按这些 host 匹配。`, okText: '删除', danger: true })
+    const ok = await confirm({
+      title: '批量删除书源',
+      message: `确定删除已选择的 ${hosts.length} 个书源？删除后运行时不再按这些 host 匹配。`,
+      okText: '删除',
+      danger: true,
+    })
     if (!ok) return
     try {
       await scrapePost({ action: 'batch-delete-sources', hosts })
       setSelectedHosts(new Set())
       await loadScrapeSources()
       toast(`已删除 ${hosts.length} 个书源`, 'success')
-    } catch (err) { toast((err as Error).message, 'error') }
+    } catch (err) {
+      toast((err as Error).message, 'error')
+    }
   }
 
   function openConnectivityDialog() {
@@ -184,11 +194,7 @@ export default function SourcesView({ active }: { active: boolean }) {
   async function checkConnectivity() {
     const controller = new AbortController()
     connectivityAbortRef.current = controller
-    let hosts = connectivityScope === 'selected'
-      ? [...selectedHosts]
-      : connectivityScope === 'page'
-        ? sources.map((source) => source.host)
-        : undefined
+    let hosts = connectivityScope === 'selected' ? [...selectedHosts] : connectivityScope === 'page' ? sources.map((source) => source.host) : undefined
     if (connectivityScope === 'selected' && !hosts?.length) return
     if (!hosts) {
       const preview = await scrapePost({ action: 'check-source-connectivity', preview: true }, controller.signal)
@@ -232,7 +238,7 @@ export default function SourcesView({ active }: { active: boolean }) {
         setConnectivityResult({ checked: completed, reachable, unreachable })
         toast(`检测已终止：已完成 ${completed} 个书源`, 'default')
       } else {
-      toast((err as Error).message, 'error')
+        toast((err as Error).message, 'error')
       }
     } finally {
       setConnectivityChecking(false)
@@ -245,14 +251,21 @@ export default function SourcesView({ active }: { active: boolean }) {
   }
 
   async function deleteUnreachableSources() {
-    const ok = await confirm({ title: '删除不可访问书源', message: `确定删除最近检测不可访问的 ${unreachableCount} 个书源？此操作不可恢复。`, okText: '删除', danger: true })
+    const ok = await confirm({
+      title: '删除不可访问书源',
+      message: `确定删除最近检测不可访问的 ${unreachableCount} 个书源？此操作不可恢复。`,
+      okText: '删除',
+      danger: true,
+    })
     if (!ok) return
     try {
       const data = await scrapePost({ action: 'delete-unreachable-sources' })
       setSelectedHosts(new Set())
       await loadScrapeSources()
       toast(`已删除 ${data.deleted} 个不可访问书源`, 'success')
-    } catch (err) { toast((err as Error).message, 'error') }
+    } catch (err) {
+      toast((err as Error).message, 'error')
+    }
   }
 
   async function testSource(s: SourceRow) {
@@ -312,6 +325,8 @@ export default function SourcesView({ active }: { active: boolean }) {
         description="批量导入 Legado 社区书源池，智能分析小说时自动按 host 匹配书源选择器。仅消费书源规则数据，转换器为项目自研。"
       />
 
+      <Po18AccountPanel active={active} />
+
       {/* Import card */}
       <div className="source-workspace">
         <AdminPanel className="source-import-panel" title="导入书源">
@@ -319,7 +334,12 @@ export default function SourcesView({ active }: { active: boolean }) {
             <div className="form-group source-import__url-group">
               <Label className="source-import__label mb-1.5">书源池 URL</Label>
               <div className="input-row source-import__url-row">
-                <Input type="url" placeholder="https://raw.githubusercontent.com/aoaostar/legado/release/sources/xxx.json" value={importUrl} onChange={(e) => setImportUrl(e.target.value)} />
+                <Input
+                  type="url"
+                  placeholder="https://raw.githubusercontent.com/aoaostar/legado/release/sources/xxx.json"
+                  value={importUrl}
+                  onChange={(e) => setImportUrl(e.target.value)}
+                />
                 <Button size="sm" onClick={importFromUrl}>
                   拉取并导入
                 </Button>
@@ -381,25 +401,46 @@ export default function SourcesView({ active }: { active: boolean }) {
             </div>
             <div className="source-panel__cluster source-panel__cluster--actions">
               <div className="source-panel__search">
-                <Label htmlFor="source-host-filter" className="sr-only">按站点名或 host 搜索书源</Label>
-                <Input id="source-host-filter" type="text" className="admin-input--compact" placeholder="按站点名或 host 搜索…" value={hostFilter} onChange={(e) => onHostFilterChange(e.target.value)} />
+                <Label htmlFor="source-host-filter" className="sr-only">
+                  按站点名或 host 搜索书源
+                </Label>
+                <Input
+                  id="source-host-filter"
+                  type="text"
+                  className="admin-input--compact"
+                  placeholder="按站点名或 host 搜索…"
+                  value={hostFilter}
+                  onChange={(e) => onHostFilterChange(e.target.value)}
+                />
               </div>
               <Button variant="secondary" size="sm" onClick={() => void loadScrapeSources()}>
                 刷新
               </Button>
-              <Button variant="secondary" size="sm" onClick={openConnectivityDialog}>检测连接</Button>
-              <Button variant="destructive" size="sm" disabled={unreachableCount === 0} onClick={() => void deleteUnreachableSources()}>删除不可访问</Button>
+              <Button variant="secondary" size="sm" onClick={openConnectivityDialog}>
+                检测连接
+              </Button>
+              <Button variant="destructive" size="sm" disabled={unreachableCount === 0} onClick={() => void deleteUnreachableSources()}>
+                删除不可访问
+              </Button>
             </div>
           </div>
           {selectedHosts.size > 0 && (
             <div className="source-panel__bulk-actions">
               <span className="text-sm text-muted-foreground">已选择 {selectedHosts.size}</span>
-              <Button variant="ghost" size="sm" onClick={() => setSelectedHosts(new Set())}>清空</Button>
-              <Button variant="secondary" size="sm" onClick={() => void batchDisableSources()}>批量停用</Button>
-              <Button variant="destructive" size="sm" onClick={() => void batchDeleteSources()}>批量删除</Button>
+              <Button variant="ghost" size="sm" onClick={() => setSelectedHosts(new Set())}>
+                清空
+              </Button>
+              <Button variant="secondary" size="sm" onClick={() => void batchDisableSources()}>
+                批量停用
+              </Button>
+              <Button variant="destructive" size="sm" onClick={() => void batchDeleteSources()}>
+                批量删除
+              </Button>
             </div>
           )}
-          <div className="source-panel__scroll-hint" aria-hidden="true">左右滑动查看完整字段</div>
+          <div className="source-panel__scroll-hint" aria-hidden="true">
+            左右滑动查看完整字段
+          </div>
 
           <div className="table-wrapper source-panel__table-wrapper">
             <Table className="source-table">
@@ -418,7 +459,11 @@ export default function SourcesView({ active }: { active: boolean }) {
               <TableHeader>
                 <TableRow>
                   <TableHead className="source-table__head source-table__head--select">
-                    <Checkbox aria-label="选择当前列表中的全部书源" checked={sources.length > 0 && sources.every((source) => selectedHosts.has(source.host))} onCheckedChange={(checked) => toggleAllVisible(checked === true)} />
+                    <Checkbox
+                      aria-label="选择当前列表中的全部书源"
+                      checked={sources.length > 0 && sources.every((source) => selectedHosts.has(source.host))}
+                      onCheckedChange={(checked) => toggleAllVisible(checked === true)}
+                    />
                   </TableHead>
                   <TableHead className="source-table__head source-table__head--site">站点</TableHead>
                   <TableHead className="source-table__head source-table__head--host">host</TableHead>
@@ -434,21 +479,31 @@ export default function SourcesView({ active }: { active: boolean }) {
               <TableBody>
                 {sourcesLoading ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="table-empty">加载中…</TableCell>
+                    <TableCell colSpan={10} className="table-empty">
+                      加载中…
+                    </TableCell>
                   </TableRow>
                 ) : sourcesError ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="table-empty">{sourcesError}</TableCell>
+                    <TableCell colSpan={10} className="table-empty">
+                      {sourcesError}
+                    </TableCell>
                   </TableRow>
                 ) : sources.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="table-empty">没有匹配的书源</TableCell>
+                    <TableCell colSpan={10} className="table-empty">
+                      没有匹配的书源
+                    </TableCell>
                   </TableRow>
                 ) : (
                   sources.map((s) => (
                     <TableRow key={s.host}>
                       <TableCell className="source-table__cell source-table__cell--select">
-                        <Checkbox aria-label={`选择 ${s.name}`} checked={selectedHosts.has(s.host)} onCheckedChange={(checked) => toggleSelected(s.host, checked === true)} />
+                        <Checkbox
+                          aria-label={`选择 ${s.name}`}
+                          checked={selectedHosts.has(s.host)}
+                          onCheckedChange={(checked) => toggleSelected(s.host, checked === true)}
+                        />
                       </TableCell>
                       <TableCell className="source-table__cell source-table__cell--site">
                         <div className="source-table__site">
@@ -465,7 +520,9 @@ export default function SourcesView({ active }: { active: boolean }) {
                       </TableCell>
                       <TableCell className="source-table__cell source-table__cell--encoding text-muted-foreground">{s.encoding}</TableCell>
                       <TableCell className="source-table__cell source-table__cell--support">{supportBadge(s.support)}</TableCell>
-                      <TableCell className="source-table__cell source-table__cell--connectivity" title={s.connectivityError || undefined}>{connectivityBadge(s.connectivity)}</TableCell>
+                      <TableCell className="source-table__cell source-table__cell--connectivity" title={s.connectivityError || undefined}>
+                        {connectivityBadge(s.connectivity)}
+                      </TableCell>
                       <TableCell className="source-table__cell source-table__cell--confidence text-muted-foreground">{s.confidence}</TableCell>
                       <TableCell className="source-table__cell source-table__cell--selector text-muted-foreground" title={s.chapterList}>
                         <span className="source-table__selector">{s.chapterList || '—'}</span>
@@ -477,8 +534,12 @@ export default function SourcesView({ active }: { active: boolean }) {
                       </TableCell>
                       <TableCell className="source-table__cell source-table__cell--actions text-right">
                         <div className="source-table__actions">
-                          <Button variant="secondary" size="sm" onClick={() => void testSource(s)}>测试</Button>
-                          <Button variant="destructive" size="sm" onClick={() => void deleteSource(s)}>删除</Button>
+                          <Button variant="secondary" size="sm" onClick={() => void testSource(s)}>
+                            测试
+                          </Button>
+                          <Button variant="destructive" size="sm" onClick={() => void deleteSource(s)}>
+                            删除
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -488,12 +549,23 @@ export default function SourcesView({ active }: { active: boolean }) {
             </Table>
           </div>
           <div className="source-panel__pagination" aria-label="书源分页">
-            <span className="text-sm text-muted-foreground">显示 {sourceMatchedTotal === 0 ? 0 : (sourcePage - 1) * sourcePageSize + 1}-{Math.min(sourcePage * sourcePageSize, sourceMatchedTotal)} / {sourceMatchedTotal}</span>
+            <span className="text-sm text-muted-foreground">
+              显示 {sourceMatchedTotal === 0 ? 0 : (sourcePage - 1) * sourcePageSize + 1}-{Math.min(sourcePage * sourcePageSize, sourceMatchedTotal)} /{' '}
+              {sourceMatchedTotal}
+            </span>
             <div className="source-panel__pagination-controls">
               <div className="source-panel__page-size">
                 <span>每页</span>
-                <Select value={String(sourcePageSize)} onValueChange={(value) => { setSourcePageSize(Number(value)); setSourcePage(1) }}>
-                  <SelectTrigger size="sm" aria-label="每页显示数量"><SelectValue /></SelectTrigger>
+                <Select
+                  value={String(sourcePageSize)}
+                  onValueChange={(value) => {
+                    setSourcePageSize(Number(value))
+                    setSourcePage(1)
+                  }}
+                >
+                  <SelectTrigger size="sm" aria-label="每页显示数量">
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent position="popper" align="start" sideOffset={4} className="source-page-size__content">
                     <SelectItem value="25">25</SelectItem>
                     <SelectItem value="50">50</SelectItem>
@@ -501,15 +573,26 @@ export default function SourcesView({ active }: { active: boolean }) {
                   </SelectContent>
                 </Select>
               </div>
-              <Button variant="secondary" size="sm" disabled={sourcePage <= 1} onClick={() => setSourcePage((page) => page - 1)}>上一页</Button>
-              <span className="source-panel__page-indicator">第 {sourcePage} / {sourceTotalPages} 页</span>
-              <Button variant="secondary" size="sm" disabled={sourcePage >= sourceTotalPages} onClick={() => setSourcePage((page) => page + 1)}>下一页</Button>
+              <Button variant="secondary" size="sm" disabled={sourcePage <= 1} onClick={() => setSourcePage((page) => page - 1)}>
+                上一页
+              </Button>
+              <span className="source-panel__page-indicator">
+                第 {sourcePage} / {sourceTotalPages} 页
+              </span>
+              <Button variant="secondary" size="sm" disabled={sourcePage >= sourceTotalPages} onClick={() => setSourcePage((page) => page + 1)}>
+                下一页
+              </Button>
             </div>
           </div>
         </section>
       </div>
 
-      <Dialog open={connectivityDialogOpen} onOpenChange={(open) => { if (!connectivityChecking) setConnectivityDialogOpen(open) }}>
+      <Dialog
+        open={connectivityDialogOpen}
+        onOpenChange={(open) => {
+          if (!connectivityChecking) setConnectivityDialogOpen(open)
+        }}
+      >
         <DialogContent className="admin-dialog source-connectivity-dialog">
           <DialogHeader>
             <DialogTitle className="editor-modal__title">检测书源连接</DialogTitle>
@@ -518,11 +601,19 @@ export default function SourcesView({ active }: { active: boolean }) {
           <div className="source-connectivity-dialog__body">
             <div className="source-connectivity-dialog__field">
               <Label htmlFor="connectivity-scope">检测范围</Label>
-              <Select value={connectivityScope} onValueChange={(value) => setConnectivityScope(value as typeof connectivityScope)} disabled={connectivityChecking}>
-                <SelectTrigger id="connectivity-scope"><SelectValue /></SelectTrigger>
+              <Select
+                value={connectivityScope}
+                onValueChange={(value) => setConnectivityScope(value as typeof connectivityScope)}
+                disabled={connectivityChecking}
+              >
+                <SelectTrigger id="connectivity-scope">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="page">当前页（{sources.length} 个）</SelectItem>
-                  <SelectItem value="selected" disabled={selectedHosts.size === 0}>已选择（{selectedHosts.size} 个）</SelectItem>
+                  <SelectItem value="selected" disabled={selectedHosts.size === 0}>
+                    已选择（{selectedHosts.size} 个）
+                  </SelectItem>
                   <SelectItem value="all">全部书源（{total} 个）</SelectItem>
                 </SelectContent>
               </Select>
@@ -531,9 +622,14 @@ export default function SourcesView({ active }: { active: boolean }) {
               <div className="source-connectivity-dialog__feedback" aria-live="polite">
                 <div className="flex items-center justify-between gap-3 text-sm">
                   <span>正在检测连接，请稍候…</span>
-                  <span className="text-muted-foreground">{connectivityProgress.completed} / {connectivityProgress.total}</span>
+                  <span className="text-muted-foreground">
+                    {connectivityProgress.completed} / {connectivityProgress.total}
+                  </span>
                 </div>
-                <Progress value={connectivityProgress.total ? connectivityProgress.completed / connectivityProgress.total * 100 : 0} className="source-connectivity-dialog__progress" />
+                <Progress
+                  value={connectivityProgress.total ? (connectivityProgress.completed / connectivityProgress.total) * 100 : 0}
+                  className="source-connectivity-dialog__progress"
+                />
                 <div className="source-connectivity-dialog__live-stats">
                   <span>当前：{connectivityProgress.currentHost}</span>
                   <span className="text-success">可连接 {connectivityProgress.reachable}</span>
@@ -544,22 +640,43 @@ export default function SourcesView({ active }: { active: boolean }) {
               <div className="source-connectivity-dialog__result" aria-live="polite">
                 <div className="source-connectivity-dialog__result-title">检测完成</div>
                 <div className="source-connectivity-dialog__result-grid">
-                  <span>检测数量 <strong>{connectivityResult.checked}</strong></span>
-                  <span className="text-success">可连接 <strong>{connectivityResult.reachable}</strong></span>
-                  <span className="text-destructive">不可访问 <strong>{connectivityResult.unreachable}</strong></span>
+                  <span>
+                    检测数量 <strong>{connectivityResult.checked}</strong>
+                  </span>
+                  <span className="text-success">
+                    可连接 <strong>{connectivityResult.reachable}</strong>
+                  </span>
+                  <span className="text-destructive">
+                    不可访问 <strong>{connectivityResult.unreachable}</strong>
+                  </span>
                 </div>
               </div>
             ) : (
-              <div className="text-sm text-muted-foreground">本次将检测 {connectivityScope === 'all' ? total : connectivityScope === 'selected' ? selectedHosts.size : sources.length} 个书源。</div>
+              <div className="text-sm text-muted-foreground">
+                本次将检测 {connectivityScope === 'all' ? total : connectivityScope === 'selected' ? selectedHosts.size : sources.length} 个书源。
+              </div>
             )}
           </div>
           <DialogFooter>
-            {connectivityResult && <Button variant="ghost" onClick={() => setConnectivityResult(null)}>再次检测</Button>}
-            <Button variant="secondary" disabled={connectivityChecking} onClick={() => setConnectivityDialogOpen(false)}>关闭</Button>
+            {connectivityResult && (
+              <Button variant="ghost" onClick={() => setConnectivityResult(null)}>
+                再次检测
+              </Button>
+            )}
+            <Button variant="secondary" disabled={connectivityChecking} onClick={() => setConnectivityDialogOpen(false)}>
+              关闭
+            </Button>
             {connectivityChecking ? (
-              <Button variant="destructive" onClick={stopConnectivityCheck}>终止检测</Button>
+              <Button variant="destructive" onClick={stopConnectivityCheck}>
+                终止检测
+              </Button>
             ) : !connectivityResult ? (
-              <Button disabled={(connectivityScope === 'selected' && selectedHosts.size === 0) || (connectivityScope === 'page' && sources.length === 0)} onClick={() => void checkConnectivity()}>开始检测</Button>
+              <Button
+                disabled={(connectivityScope === 'selected' && selectedHosts.size === 0) || (connectivityScope === 'page' && sources.length === 0)}
+                onClick={() => void checkConnectivity()}
+              >
+                开始检测
+              </Button>
             ) : null}
           </DialogFooter>
         </DialogContent>
@@ -591,7 +708,11 @@ export default function SourcesView({ active }: { active: boolean }) {
                   ))}
                   {testState.data.links.length > 20 && <li className="text-muted-foreground">…还有 {testState.data.links.length - 20} 个</li>}
                 </ul>
-                {testState.data.sampleChapters ? <div className="text-sm text-muted-foreground">样章可读: {testSampleOk}/{testState.data.sampleChapters.length}</div> : null}
+                {testState.data.sampleChapters ? (
+                  <div className="text-sm text-muted-foreground">
+                    样章可读: {testSampleOk}/{testState.data.sampleChapters.length}
+                  </div>
+                ) : null}
               </>
             ) : testState.error ? (
               <div className="text-sm font-medium text-destructive">测试失败: {testState.error}</div>

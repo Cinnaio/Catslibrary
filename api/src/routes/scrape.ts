@@ -15,6 +15,7 @@ import { parseLegadoJsonStream, normalizeSource, legadoHost, buildSourceRow, sou
 import { SITE_PRESETS, buildCoverUrl } from '../services/scraper/presets'
 import { discoverList, extractJjwxcTitles, extractPo18twTitles, proxyCover, searchPo18, searchTitleSources } from '../services/scraper/enrich'
 import { applySourceSync, createSourceSyncPreview, listSourceBindings } from '../services/source-sync'
+import { clearPo18Account, createPo18Captcha, getPo18AccountStatus, loginPo18Account, savePo18Account, testPo18Account } from '../services/source-account'
 import { cacheCoverForNovel, getStoredCover } from '../services/covers'
 import {
   describeError,
@@ -212,6 +213,9 @@ scrapeRoutes.get('/', async (c) => {
   }
   if (action === 'source-bindings' && novelId) {
     return c.json({ bindings: await listSourceBindings(db, novelId) }, 200, { 'Cache-Control': 'no-store' })
+  }
+  if (action === 'po18-account') {
+    return c.json(await getPo18AccountStatus(db), 200, { 'Cache-Control': 'no-store' })
   }
   if (action === 'proxy-config') {
     return c.json(proxyConfigPayload(), 200, { 'Cache-Control': 'no-store' })
@@ -424,6 +428,48 @@ scrapeRoutes.post('/', async (c) => {
         return c.json({ error: message }, status as 409 | 500)
       }
     }
+    case 'po18-account-save': {
+      try {
+        return c.json(
+          await savePo18Account(db, {
+            username: body.username === undefined ? undefined : String(body.username || ''),
+            password: body.password === undefined ? undefined : String(body.password || ''),
+            sessionCookie: body.sessionCookie === undefined ? undefined : String(body.sessionCookie || ''),
+            clearSession: body.clearSession === true,
+          }),
+          200,
+          { 'Cache-Control': 'no-store' },
+        )
+      } catch (err) {
+        return c.json({ error: (err as Error).message || '保存 PO18.tw 账号失败' }, 400)
+      }
+    }
+    case 'po18-account-captcha': {
+      try {
+        return c.json(await createPo18Captcha(), 200, { 'Cache-Control': 'no-store' })
+      } catch (err) {
+        return c.json({ error: (err as Error).message || '读取 PO18.tw 验证码失败' }, 502)
+      }
+    }
+    case 'po18-account-login': {
+      const challengeId = String(body.challengeId || '').trim()
+      if (!challengeId) return c.json({ error: 'challengeId is required' }, 400)
+      try {
+        return c.json(await loginPo18Account(db, { challengeId, captcha: String(body.captcha || '') }), 200, { 'Cache-Control': 'no-store' })
+      } catch (err) {
+        return c.json({ error: (err as Error).message || 'PO18.tw 登录失败' }, 502)
+      }
+    }
+    case 'po18-account-test': {
+      try {
+        return c.json(await testPo18Account(db, String(body.sourceUrl || '').trim() || undefined), 200, { 'Cache-Control': 'no-store' })
+      } catch (err) {
+        return c.json({ error: (err as Error).message || 'PO18.tw 会话测试失败' }, 502)
+      }
+    }
+    case 'po18-account-clear':
+      await clearPo18Account(db)
+      return c.json({ ok: true })
     case 'proxy': {
       const { sourceUrl, encoding } = body
       if (!sourceUrl) return c.json({ error: 'sourceUrl required' }, 400)

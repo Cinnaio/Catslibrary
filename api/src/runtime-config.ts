@@ -34,6 +34,7 @@ const ALLOWED_KEYS = [
   'CORS_ORIGINS',
   'SESSION_HASH_SALT',
   'THOUGHT_HASH_SALT',
+  'SOURCE_ACCOUNT_ENCRYPTION_KEY',
 ] as const
 
 export type RuntimeConfigKey = (typeof ALLOWED_KEYS)[number]

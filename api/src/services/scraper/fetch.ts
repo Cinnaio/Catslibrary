@@ -18,6 +18,10 @@ export interface FetchHtmlOptions extends OutboundProxyConfig {
   scope?: string
   /** 仅用于管理员连通性探测，忽略跳过代理规则。 */
   forceProxy?: boolean
+  /** 仅由受信任的源站会话适配器注入，不会写入日志。 */
+  headers?: Headers | Record<string, string> | Array<[string, string]>
+  /** 仅在携带站点 Cookie 时使用，限制安全抓取的重定向目标。 */
+  allowedRedirectHosts?: string[]
 }
 
 export interface FetchResult {
@@ -49,15 +53,20 @@ export async function fetchHtml(url: string, opts: FetchHtmlOptions = {}): Promi
 
   let res: Response
   try {
+    const headers = new Headers(FETCH_HEADERS)
+    if (opts.headers) {
+      new Headers(opts.headers).forEach((value, key) => headers.set(key, value))
+    }
     res = await outboundFetch(
       url,
       {
-        headers: FETCH_HEADERS,
+        headers,
         signal: controller.signal,
       },
       {
         scope: opts.scope || 'scrape',
         safe: true,
+        allowedRedirectHosts: opts.allowedRedirectHosts,
         forceProxy: opts.forceProxy,
         proxyConfig: proxyOverrides(opts),
       },

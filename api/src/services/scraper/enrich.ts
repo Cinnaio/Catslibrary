@@ -4,7 +4,7 @@
  * extractJjwxcTitles / searchTitleSources 与 _scrape-fetch.js 的 proxyCover 平移。
  */
 import iconv from 'iconv-lite'
-import { fetchHtml, decodeBytes } from './fetch'
+import { fetchHtml, decodeBytes, type FetchHtmlOptions, type FetchResult } from './fetch'
 import { cleanText } from './parse'
 import { resolveUrl } from './utils'
 import { SITE_PRESETS, buildCoverUrl } from './presets'
@@ -295,7 +295,7 @@ async function searchJjwxcTitlesSource(title: string, author: string): Promise<{
         if (results.length === before || !/search\.php\?[^"']*&p=\d+/i.test(html)) break
       }
     }
-    return { ok: true, results: results.slice(0, 60) }
+    return { ok: true, results }
   } catch (err) {
     return { ok: false, error: `晋江搜索失败: ${(err as Error).message}`, results }
   }
@@ -306,8 +306,9 @@ async function searchPo18twTitlesSource(title: string, author: string): Promise<
     const q = title || author
     const url = `https://www.po18.tw/search?q=${encodeURIComponent(q)}`
     const { html } = await fetchHtml(url, { timeoutMs: 10000 })
-    if (/login|登入|登录|會員|会员|password/i.test(html)) throw new Error('搜索需要登录')
-    return { ok: true, results: parsePo18twCandidates(html, url).slice(0, 12) }
+    if (/<input\b[^>]*(?:type\s*=\s*["']?password|name\s*=\s*["'][^"']*(?:pass|密碼|密码))/i.test(html) && /login|登入|登录/i.test(html))
+      throw new Error('搜索需要登录')
+    return { ok: true, results: parsePo18twCandidates(html, url) }
   } catch {
     return { ok: false, error: 'PO18.tw 搜索需要登录或当前网络不可访问，请粘贴目录 URL', results: [] }
   }
@@ -316,7 +317,7 @@ async function searchPo18twTitlesSource(title: string, author: string): Promise<
 function parsePo18twCandidates(html: string, baseUrl: string): TitleSource[] {
   const results: TitleSource[] = []
   const seen = new Set<string>()
-  const re = /<a[^>]*href\s*=\s*["']([^"']*(?:books|book|novels|articles|articlescontent)[^"']*\d+[^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi
+  const re = /<a[^>]*href\s*=\s*["']([^"']*(?:books|book|novel|novels|articles|articlescontent)[^"']*\d+[^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi
   let m: RegExpExecArray | null
   while ((m = re.exec(html)) !== null) {
     const url = resolveUrl(m[1]!, baseUrl)
@@ -330,7 +331,12 @@ function parsePo18twCandidates(html: string, baseUrl: string): TitleSource[] {
 
 // ---------- 章节目录标题提取（晋江 / PO18.tw） ----------
 
-export async function extractJjwxcTitles(sourceUrl: string): Promise<{ titles: Array<{ order: number; title: string; url: string }> }> {
+type HtmlFetcher = (url: string, opts?: FetchHtmlOptions) => Promise<FetchResult>
+
+export async function extractJjwxcTitles(
+  sourceUrl: string,
+  requestHtml: HtmlFetcher = fetchHtml,
+): Promise<{ titles: Array<{ order: number; title: string; url: string }> }> {
   let url: URL
   try {
     url = new URL(sourceUrl)
@@ -338,7 +344,7 @@ export async function extractJjwxcTitles(sourceUrl: string): Promise<{ titles: A
   } catch (err) {
     throw new Error((err as Error).message || 'sourceUrl invalid')
   }
-  const { html } = await fetchHtml(url.href, { forceEncoding: 'gb18030' })
+  const { html } = await requestHtml(url.href, { forceEncoding: 'gb18030' })
   const titles: Array<{ order: number; title: string; url: string }> = []
   const seen = new Set<string>()
   // 晋江目录页：<tr itemprop="chapter"><td><span class="date">…</span></td><td><a href="/onebook.php?novelid=..&chapterid=..">章名</a></td>
@@ -356,6 +362,7 @@ export async function extractJjwxcTitles(sourceUrl: string): Promise<{ titles: A
 
 export async function extractPo18twTitles(
   sourceUrl: string,
+  requestHtml: HtmlFetcher = fetchHtml,
 ): Promise<{ site: string; sourceUrl: string; total: number; titles: Array<{ order: number; title: string; url: string }> }> {
   let url: URL
   try {
@@ -364,8 +371,9 @@ export async function extractPo18twTitles(
   } catch (err) {
     throw new Error((err as Error).message || 'sourceUrl invalid')
   }
-  const { html } = await fetchHtml(url.href, { timeoutMs: 12000 })
-  if (/login|登入|登录|會員|会员|password/i.test(html)) throw new Error('PO18.tw 该页面需要登录，请粘贴可公开访问的目录页')
+  const { html } = await requestHtml(url.href, { timeoutMs: 12000 })
+  if (/<input\b[^>]*(?:type\s*=\s*["']?password|name\s*=\s*["'][^"']*(?:pass|密碼|密码))/i.test(html) && /login|登入|登录/i.test(html))
+    throw new Error('PO18.tw 该页面需要登录，请先配置账号或 Cookie')
   const titles: Array<{ order: number; title: string; url: string }> = []
   const seen = new Set<string>()
   const re = /<a[^>]*href\s*=\s*["']([^"']*(?:chapter|chapters|articlescontent)[^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi

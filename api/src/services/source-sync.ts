@@ -9,6 +9,7 @@ import { detectMeta } from './scraper/meta'
 import { extractJjwxcTitles, extractPo18twTitles } from './scraper/enrich'
 import type { FetchHtmlOptions, FetchResult } from './scraper/fetch'
 import type { ScrapeStore } from './scraper/store'
+import { getPo18Session } from './source-account'
 
 export type SourceSyncConfidence = 'high' | 'medium' | 'low'
 
@@ -328,14 +329,17 @@ function alignSourceAndLocal(source: SourceChapter[], groups: LocalGroup[]): Ali
   return result.reverse()
 }
 
-async function fetchSourceChapters(sourceUrl: string): Promise<{ site: string; chapters: SourceChapter[] }> {
+async function fetchSourceChapters(
+  sourceUrl: string,
+  fetchHtml: (url: string, opts?: FetchHtmlOptions) => Promise<FetchResult>,
+): Promise<{ site: string; chapters: SourceChapter[] }> {
   const site = sourceSite(sourceUrl)
   if (site === 'jjwxc') {
-    const result = await extractJjwxcTitles(sourceUrl)
+    const result = await extractJjwxcTitles(sourceUrl, fetchHtml)
     return { site: 'jjwxc', chapters: result.titles.map((item) => ({ key: item.url, order: item.order, title: cleanTitle(item.title), url: item.url })) }
   }
   if (site === 'po18tw') {
-    const result = await extractPo18twTitles(sourceUrl)
+    const result = await extractPo18twTitles(sourceUrl, fetchHtml)
     return { site: 'po18tw', chapters: result.titles.map((item) => ({ key: item.url, order: item.order, title: cleanTitle(item.title), url: item.url })) }
   }
   throw new Error('目前支持的原作者源站为晋江和 PO18.tw；其他站点请继续使用手动粘贴标题')
@@ -511,13 +515,22 @@ export async function createSourceSyncPreview(
   }
   const binding = await ensureBinding(db, opts.novelId, url.href, site)
   const warnings: string[] = []
+  let sourceFetchHtml = opts.fetchHtml
+  if (site === 'po18tw') {
+    const session = await getPo18Session(db)
+    sourceFetchHtml = (targetUrl, fetchOpts = {}) => {
+      const headers = new Headers(fetchOpts.headers)
+      headers.set('Cookie', session.cookie)
+      return opts.fetchHtml(targetUrl, { ...fetchOpts, headers, allowedRedirectHosts: ['po18.tw'] })
+    }
+  }
   const source = opts.manualTitles?.length
     ? {
         site: site === 'unsupported' ? 'manual' : site,
         chapters: opts.manualTitles.map((title, index) => ({ key: `manual:${index + 1}`, order: index + 1, title: cleanTitle(title), url: '' })),
       }
-    : await fetchSourceChapters(url.href)
-  const metadataResult = await fetchSourceMetadata(url.href, opts.store, opts.fetchHtml)
+    : await fetchSourceChapters(url.href, sourceFetchHtml)
+  const metadataResult = await fetchSourceMetadata(url.href, opts.store, sourceFetchHtml)
   if (metadataResult.warning) warnings.push(metadataResult.warning)
   const locals = await all<LocalChapterForSync>(db, 'SELECT id, sort_order AS order, title FROM chapters WHERE novel_id = $1 ORDER BY sort_order ASC', [
     opts.novelId,

@@ -251,6 +251,41 @@ export interface SourceSyncPreview {
   warnings: string[]
 }
 
+export interface TitleSource {
+  site: string
+  siteName: string
+  bookId?: string
+  title: string
+  author: string
+  status: string
+  url: string
+}
+
+export interface TitleSourceSearchResponse {
+  title: string
+  author: string
+  sources: Record<string, { ok: boolean; results: TitleSource[]; error?: string }>
+}
+
+export interface Po18AccountStatus {
+  site: 'po18tw'
+  username: string
+  configured: boolean
+  hasPassword: boolean
+  hasSession: boolean
+  status: 'not_configured' | 'credentials_saved' | 'session_saved' | 'authenticated' | 'invalid' | 'needs_captcha' | 'error'
+  lastLoginAt: number
+  lastCheckedAt: number
+  lastError: string
+}
+
+export interface Po18CaptchaResponse {
+  challengeId: string
+  imageDataUrl: string
+  expiresAt: number
+  captchaRequired: boolean
+}
+
 // ---------- Categories ----------
 
 export const categoriesApi = {
@@ -821,6 +856,9 @@ export const scrapeApi = {
   sourceBindings(novelId: string): Promise<{ bindings: Array<Record<string, unknown>> }> {
     return request('GET', `/scrape?action=source-bindings&novelId=${encodeURIComponent(novelId)}`, null, true)
   },
+  titleSourceSearch(title: string, author = ''): Promise<TitleSourceSearchResponse> {
+    return request('POST', '/scrape', { action: 'title-source-search', title, author }, true, {}, 60000)
+  },
   sourceSyncPreview(data: { novelId: string; sourceUrl: string; onlyWeakTitles?: boolean; titles?: string[] }): Promise<SourceSyncPreview> {
     return request('POST', '/scrape', { action: 'source-sync-preview', ...data }, true, {}, 60000)
   },
@@ -831,6 +869,24 @@ export const scrapeApi = {
     metadataMode?: 'missing' | 'replace'
   }): Promise<{ updated: number; metadataUpdated: string[]; mappings: number }> {
     return request('POST', '/scrape', { action: 'source-sync-apply', ...data }, true)
+  },
+  po18Account(): Promise<Po18AccountStatus> {
+    return request('GET', '/scrape?action=po18-account', null, true)
+  },
+  po18AccountSave(data: { username?: string; password?: string; sessionCookie?: string; clearSession?: boolean }): Promise<Po18AccountStatus> {
+    return request('POST', '/scrape', { action: 'po18-account-save', ...data }, true)
+  },
+  po18AccountCaptcha(): Promise<Po18CaptchaResponse> {
+    return request('POST', '/scrape', { action: 'po18-account-captcha' }, true, {}, 30000)
+  },
+  po18AccountLogin(challengeId: string, captcha = ''): Promise<Po18AccountStatus & { message: string }> {
+    return request('POST', '/scrape', { action: 'po18-account-login', challengeId, captcha }, true, {}, 30000)
+  },
+  po18AccountTest(sourceUrl?: string): Promise<Po18AccountStatus & { message: string }> {
+    return request('POST', '/scrape', { action: 'po18-account-test', ...(sourceUrl ? { sourceUrl } : {}) }, true, {}, 30000)
+  },
+  po18AccountClear(): Promise<{ ok: boolean }> {
+    return request('POST', '/scrape', { action: 'po18-account-clear' }, true)
   },
 }
 
