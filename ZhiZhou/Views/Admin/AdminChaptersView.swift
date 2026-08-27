@@ -319,7 +319,7 @@ private struct SourceSyncSheet: View {
                             ProgressView()
                                 .frame(maxWidth: .infinity)
                         } else {
-                            Label("搜索晋江与 PO18.tw", systemImage: "magnifyingglass")
+                            Label("搜索晋江与 POPO", systemImage: "magnifyingglass")
                                 .frame(maxWidth: .infinity)
                         }
                     }
@@ -327,12 +327,12 @@ private struct SourceSyncSheet: View {
                 } header: {
                     Text("搜索原作者源站")
                 } footer: {
-                    Text("先选择准确的作品，再读取详情和章节目录。每个源站默认显示前 5 条结果，展开后可查看全部。PO18.tw 详情页需要已配置账号或 Cookie。")
+                    Text("先选择准确的作品，再读取详情和章节目录。每个源站默认显示前 5 条结果，展开后可查看全部。POPO 详情页需要已配置账号或 Cookie。")
                 }
 
                 if let sourceSearch {
                     sourceCandidates(siteKey: "jjwxc", title: "晋江", bucket: sourceSearch.sources.jjwxc)
-                    sourceCandidates(siteKey: "po18tw", title: "PO18.tw", bucket: sourceSearch.sources.po18tw)
+                    sourceCandidates(siteKey: "po18tw", title: "POPO", bucket: sourceSearch.sources.po18tw)
                 }
 
                 Section {
@@ -354,7 +354,7 @@ private struct SourceSyncSheet: View {
                 } header: {
                     Text("原作者源站")
                 } footer: {
-                    Text("支持晋江和 PO18.tw。这里只读取小说信息和章节目录，不抓取正文；无法访问时请继续使用 Web 端的手动粘贴方式。")
+                    Text("支持晋江和 POPO。这里只读取小说信息和章节目录，不抓取正文；无法访问时请继续使用 Web 端的手动粘贴方式。")
                 }
 
                 if let preview {
@@ -743,7 +743,7 @@ private struct SourceSyncSheet: View {
     private func siteName(_ site: String) -> String {
         switch site {
         case "jjwxc": return "晋江"
-        case "po18tw": return "PO18.tw"
+        case "po18tw": return "POPO"
         default: return site
         }
     }

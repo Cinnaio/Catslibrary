@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-/// PO18.tw 原作者账号管理：正常登录 + 浏览器 Cookie 兜底。
+/// POPO（po18.tw）原作者账号管理：正常登录 + 浏览器 Cookie 兜底。
 struct Po18AccountSheet: View {
     @Environment(\.dismiss) private var dismiss
 
@@ -36,16 +36,16 @@ struct Po18AccountSheet: View {
                         }
                     }
                 } header: {
-                    Text("PO18.tw 账号")
+                    Text("POPO 账号")
                 } footer: {
                     Text("密码和 Cookie 仅在服务端加密保存，不会回显。晋江无需配置账号。")
                 }
 
                 Section("账号登录") {
-                    TextField("PO18.tw 登录账号", text: $username)
+                    TextField("POPO 登录账号", text: $username)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                    SecureField(status?.hasPassword == true ? "留空表示保持原密码" : "PO18.tw 登录密码", text: $password)
+                    SecureField(status?.hasPassword == true ? "留空表示保持原密码" : "POPO 登录密码", text: $password)
                     HStack {
                         Button("保存账号") { Task { await saveAccount() } }
                             .disabled(isLoading || username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -85,19 +85,19 @@ struct Po18AccountSheet: View {
                 } header: {
                     Text("浏览器 Cookie 兜底")
                 } footer: {
-                    Text("如果登录页有验证码，先在浏览器登录 PO18.tw，再复制 Cookie 粘贴到这里。不会绕过验证码或其他安全措施。")
+                    Text("如果登录页有验证码，先在浏览器登录 POPO（po18.tw），再复制 Cookie 粘贴到这里。不会绕过验证码或其他安全措施。")
                 }
 
                 Section {
                     Button("测试当前会话") { Task { await testSession() } }
                         .disabled(isLoading || status?.hasSession != true)
-                    Button("清除 PO18.tw 账号", role: .destructive) { showClearConfirmation = true }
+                    Button("清除 POPO 账号", role: .destructive) { showClearConfirmation = true }
                         .disabled(isLoading || status?.configured != true)
                 }
             }
             .scrollContentBackground(.hidden)
             .pageBackground()
-            .navigationTitle("PO18.tw 账号")
+            .navigationTitle("POPO 账号")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -120,7 +120,7 @@ struct Po18AccountSheet: View {
             } message: {
                 Text(errorMessage ?? "")
             }
-            .confirmationDialog("清除 PO18.tw 账号？", isPresented: $showClearConfirmation, titleVisibility: .visible) {
+            .confirmationDialog("清除 POPO 账号？", isPresented: $showClearConfirmation, titleVisibility: .visible) {
                 Button("清除账号", role: .destructive) { Task { await clearAccount() } }
                 Button("取消", role: .cancel) {}
             } message: {

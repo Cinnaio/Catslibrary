@@ -162,7 +162,7 @@ struct SourceSyncApplyResponse: Codable {
     let mappings: Int
 }
 
-// MARK: - 原作者源站搜索与 PO18.tw 账号
+// MARK: - 原作者源站搜索与 POPO 账号
 
 struct TitleSourceCandidate: Codable, Identifiable, Hashable {
     let site: String

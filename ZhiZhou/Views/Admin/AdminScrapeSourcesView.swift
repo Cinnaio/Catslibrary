@@ -65,7 +65,7 @@ struct AdminScrapeSourcesView: View {
                     Button("导入 Legado 书源", systemImage: "square.and.arrow.down") {
                         showLegadoImport = true
                     }
-                    Button("PO18.tw 账号", systemImage: "person.badge.key") {
+                    Button("POPO 账号", systemImage: "person.badge.key") {
                         showPo18Account = true
                     }
                 } label: {

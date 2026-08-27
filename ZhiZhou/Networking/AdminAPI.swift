@@ -259,7 +259,7 @@ enum AdminAPI {
         ])
     }
 
-    /// POST /api/scrape action=title-source-search：同时搜索晋江与 PO18.tw 原作者页面。
+    /// POST /api/scrape action=title-source-search：同时搜索晋江与 POPO 原作者页面。
     static func titleSourceSearch(title: String, author: String = "") async throws -> TitleSourceSearchResponse {
         try await postScrape([
             "action": "title-source-search",
@@ -268,7 +268,7 @@ enum AdminAPI {
         ])
     }
 
-    /// PO18.tw 账号状态、登录验证码与会话管理。
+    /// POPO 账号状态、登录验证码与会话管理。
     static func po18Account() async throws -> Po18AccountStatus {
         try await APIClient.shared.get("/api/scrape?action=po18-account", auth: true)
     }
