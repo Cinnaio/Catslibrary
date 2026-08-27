@@ -136,6 +136,37 @@ describe('scrape 路由（免网络动作）', () => {
     }
   })
 
+  it('POPO 会话验证不能把正式抓取会跳过的短正文判定为正常', async () => {
+    const previousKey = process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY
+    process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY = 'scrape-route-test-key'
+    const popoList = `<div class="c_l">
+      <div class="l_counter">0001</div>
+      <div class="l_chaptname">第一章</div>
+      <div class="l_btn"><a href="/books/123456/articles/1">免費閱讀</a></div>
+    </div>`
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input)
+      return new Response(url.includes('/articlescontent/') ? '短正文。'.repeat(8) : popoList, {
+        status: 200,
+        headers: { 'Content-Type': 'text/html; charset=utf-8' },
+      })
+    })
+    try {
+      await req('/api/scrape', json('POST', { action: 'po18-account-save', username: 'author-account', sessionCookie: 'PHPSESSID=authenticated' }, adminToken))
+      const checked = await req(
+        '/api/scrape',
+        json('POST', { action: 'po18-account-test', sourceUrl: 'https://www.po18.tw/books/123456/articles' }, adminToken),
+      )
+      expect(checked.status).toBe(502)
+      await expect(checked.json()).resolves.toMatchObject({ error: expect.stringContaining('正文原始内容过短') })
+    } finally {
+      fetchMock.mockRestore()
+      await req('/api/scrape', json('POST', { action: 'po18-account-clear' }, adminToken))
+      if (previousKey === undefined) delete process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY
+      else process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY = previousKey
+    }
+  })
+
   it('POPO 详情分析应携带已保存会话并限制站内重定向', async () => {
     const previousKey = process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY
     process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY = 'scrape-route-test-key'

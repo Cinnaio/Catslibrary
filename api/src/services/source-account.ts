@@ -507,9 +507,19 @@ export async function testPo18Account(db: Db, sourceUrl?: string): Promise<Po18L
       if (contentProblem) return fail(contentProblem)
     }
     const parsed = parsePo18twChapterContent(contentHtml, contentTitle)
+    const rawContentLength = parsed.content.trim().length
+    if (rawContentLength <= 50) {
+      return fail(
+        `POPO 目录可访问，但正文原始内容过短（${rawContentLength} 字）；正式抓取会跳过，请检查章节权限、Cookie 或站点拦截`,
+      )
+    }
     const contentText = cleanText(cleanHtml(parsed.content).trim())
     const contentLength = contentText.replace(/\s/g, '').length
-    if (contentLength < 20) return fail(`POPO 目录可访问，但正文返回为空或不可读（${contentLength} 字）；请检查章节权限或会话`)
+    if (contentLength < 20) {
+      return fail(
+        `POPO 目录可访问，但正文清洗后无有效内容（${contentLength} 字）；请检查章节权限、Cookie 或站点拦截`,
+      )
+    }
   }
   await db.query("UPDATE source_accounts SET status = $1, last_checked_at = $2, last_error = '', updated_at = $2 WHERE id = $3", [
     'authenticated',
