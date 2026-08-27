@@ -44,6 +44,10 @@ struct AdminDiscoverView: View {
         }
         .scrollContentBackground(.hidden)
         .pageBackground()
+        // Liquid Glass 标签栏会悬浮在内容上方，给最后一条结果保留可见的滚动终点。
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            Color.clear.frame(height: 16)
+        }
         .navigationTitle("发现小说")
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await reloadCurrent() }
@@ -233,7 +237,7 @@ struct AdminDiscoverView: View {
     }
 
     private func discoverRow(_ novel: DiscoverNovel, index: Int) -> some View {
-        HStack(spacing: 10) {
+        HStack(alignment: .top, spacing: 12) {
             Button {
                 toggleSelect(index)
             } label: {
@@ -243,18 +247,16 @@ struct AdminDiscoverView: View {
                     .frame(width: 44, height: 44)
             }
             .buttonStyle(.plain)
+            .padding(.top, 14)
             .accessibilityLabel(selectedIndices.contains(index) ? "取消选择\(novel.title)" : "选择\(novel.title)")
             .accessibilityValue(selectedIndices.contains(index) ? "已选择" : "未选择")
             Button {
                 Task { await openDetail(novel) }
             } label: {
-                HStack(spacing: 10) {
+                HStack(alignment: .top, spacing: 12) {
                     coverThumb(novel)
                     discoverInfo(novel)
                     Spacer(minLength: 0)
-                    Image(systemName: "chevron.right")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(AppTheme.textMuted)
                 }
                 .contentShape(Rectangle())
             }
@@ -266,11 +268,15 @@ struct AdminDiscoverView: View {
                 Button("抓取这本") { Task { await scrapeSingle(novel) } }
             } label: {
                 Image(systemName: "ellipsis.circle")
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(AppTheme.primary)
                     .frame(width: 44, height: 44)
             }
+            .padding(.top, 14)
             .accessibilityLabel("作品操作")
         }
-        .padding(.vertical, 2)
+        // 让每条结果有明确的上下呼吸空间，避免封面、文字和操作按钮挤成一条线。
+        .padding(.vertical, 10)
         .contextMenu {
             Button("查看详情") { Task { await openDetail(novel) } }
             Button("抓取这本") { Task { await scrapeSingle(novel) } }
@@ -278,13 +284,19 @@ struct AdminDiscoverView: View {
     }
 
     private func discoverInfo(_ novel: DiscoverNovel) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(novel.title)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(AppTheme.textPrimary)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text("\(novel.author?.isEmpty == false ? novel.author! : "佚名")\(novel.chapterCount.map { " · \($0) 章" } ?? "")")
+                .font(.subheadline)
+                .foregroundStyle(AppTheme.textSecondary)
+                .lineLimit(1)
+
             HStack(spacing: 6) {
-                Text(novel.title)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundStyle(AppTheme.textPrimary)
-                    .lineLimit(1)
                 if let source = sourceForNovel(novel) {
                     AdminStatusBadge(
                         source.displayName,
@@ -296,22 +308,22 @@ struct AdminDiscoverView: View {
                     AdminStatusBadge("已收录", tint: AppTheme.success, systemImage: "checkmark")
                 }
             }
-            Text("\(novel.author?.isEmpty == false ? novel.author! : "佚名")\(novel.chapterCount.map { " · \($0) 章" } ?? "")")
-                .font(.caption)
-                .foregroundStyle(AppTheme.textSecondary)
-                .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+
             if let desc = novel.description, !desc.isEmpty {
                 Text(desc)
-                    .font(.caption2)
+                    .font(.footnote)
                     .foregroundStyle(AppTheme.textMuted)
-                    .lineLimit(1)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder
     private func coverThumb(_ novel: DiscoverNovel) -> some View {
-        let size = CGSize(width: 48, height: 64)
+        let size = CGSize(width: 60, height: 80)
         if let url = novel.coverUrl, !url.isEmpty, let remote = URL(string: url) {
             CachedAsyncImage(url: remote, targetSize: size) { image in
                 image.resizable().scaledToFill()
@@ -332,7 +344,7 @@ struct AdminDiscoverView: View {
             Image(systemName: "book")
                 .foregroundStyle(AppTheme.textMuted)
         }
-        .frame(width: 48, height: 64)
+        .frame(width: 60, height: 80)
     }
 
     // MARK: - 数据
