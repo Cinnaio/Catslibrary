@@ -36,6 +36,7 @@ export default function Po18AccountPanel({ active }: { active: boolean }) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [sessionCookie, setSessionCookie] = useState('')
+  const [testSourceUrl, setTestSourceUrl] = useState('')
   const [captcha, setCaptcha] = useState('')
   const [challenge, setChallenge] = useState<Po18CaptchaResponse | null>(null)
   const [busy, setBusy] = useState<'load' | 'save' | 'captcha' | 'login' | 'test' | 'clear' | ''>('')
@@ -122,7 +123,7 @@ export default function Po18AccountPanel({ active }: { active: boolean }) {
   async function testSession() {
     setBusy('test')
     try {
-      const next = await scrapeApi.po18AccountTest()
+      const next = await scrapeApi.po18AccountTest(testSourceUrl.trim() || undefined)
       setStatus(next)
       toast(next.message || 'PO18.tw 会话可用', 'success')
     } catch (err) {
@@ -148,6 +149,7 @@ export default function Po18AccountPanel({ active }: { active: boolean }) {
       setUsername('')
       setPassword('')
       setSessionCookie('')
+      setTestSourceUrl('')
       setChallenge(null)
       toast('PO18.tw 账号已清除', 'success')
       void loadStatus()
@@ -231,6 +233,16 @@ export default function Po18AccountPanel({ active }: { active: boolean }) {
           <Button variant="outline" size="sm" disabled={disabled || !sessionCookie.trim()} onClick={() => void saveAccount(true)}>
             {busy === 'save' ? '保存中…' : '加密保存 Cookie'}
           </Button>
+          <div className="space-y-1.5">
+            <Label htmlFor="po18-session-test-url">会话验证链接（可选）</Label>
+            <Input
+              id="po18-session-test-url"
+              value={testSourceUrl}
+              onChange={(e) => setTestSourceUrl(e.target.value)}
+              placeholder="粘贴有权限的 POPO 目录或章节链接"
+            />
+            <p className="text-xs leading-5 text-muted-foreground">留空只检查站点可访问；填写链接才能验证实际抓取权限。</p>
+          </div>
         </div>
       </div>
 

@@ -8,6 +8,7 @@ import type { Db } from '../db/pool'
 import { newId } from './auth'
 import { readRuntimeConfig, writeRuntimeConfig } from '../runtime-config'
 import { decodeBytes, FETCH_HEADERS } from './scraper/fetch'
+import { po18ResponseProblem } from './scraper/enrich'
 import { outboundFetch } from './outbound-fetch'
 
 const PO18_SITE = 'po18tw'
@@ -454,27 +455,42 @@ export async function getPo18Session(db: Db): Promise<{ accountId: string; cooki
 
 export async function testPo18Account(db: Db, sourceUrl?: string): Promise<Po18LoginResponse> {
   const session = await getPo18Session(db)
-  const target = sourceUrl?.trim() || 'https://www.po18.tw/'
-  const response = await po18Request(target, { headers: { Cookie: session.cookie } }, session.cookie, PO18_SOURCE_HOSTS)
+  const requestedSourceUrl = sourceUrl?.trim() || ''
+  const target = requestedSourceUrl || 'https://www.po18.tw/'
+  const requestCookie = ['po18Limit=1', session.cookie].filter(Boolean).join('; ')
+  const response = await po18Request(target, { headers: { Cookie: requestCookie } }, requestCookie, PO18_SOURCE_HOSTS)
   const html = decodeHtml(response)
-  const redirectedToLogin = /members\.po18\.tw\/apps\/login/i.test(response.url) || loginMarker(html)
+  const targetPath = new URL(target).pathname.replace(/\/$/, '')
+  const responsePath = (() => {
+    try {
+      return new URL(response.url).pathname.replace(/\/$/, '')
+    } catch {
+      return ''
+    }
+  })()
+  const detectedProblem = po18ResponseProblem(response.url, html)
+  const problem = detectedProblem && !(targetPath === '' && responsePath === '' && detectedProblem.includes('首页')) ? detectedProblem : null
   const now = Date.now()
-  if (redirectedToLogin) {
-    cachedSession = null
+  if (problem) {
+    const status: AccountStatus = problem.includes('登录页') ? 'invalid' : 'error'
+    if (status === 'invalid') cachedSession = null
     await db.query('UPDATE source_accounts SET status = $1, last_checked_at = $2, last_error = $3, updated_at = $2 WHERE id = $4', [
-      'invalid',
+      status,
       now,
-      'PO18 会话已失效，请重新登录',
+      problem,
       session.accountId,
     ])
-    throw new Error('PO18 会话已失效，请重新登录或重新粘贴 Cookie')
+    throw new Error(problem)
   }
   await db.query("UPDATE source_accounts SET status = $1, last_checked_at = $2, last_error = '', updated_at = $2 WHERE id = $3", [
     'authenticated',
     now,
     session.accountId,
   ])
-  return { ...statusFromRow(await loadAccount(db)), message: 'PO18 会话可用' }
+  return {
+    ...statusFromRow(await loadAccount(db)),
+    message: requestedSourceUrl ? 'PO18 会话可用，指定书源链接访问正常' : 'PO18 站点可访问；尚未验证具体书源权限，请提供书源链接测试',
+  }
 }
 
 export async function invalidatePo18Session(db: Db, error = 'PO18 会话已失效'): Promise<void> {

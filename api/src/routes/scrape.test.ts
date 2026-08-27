@@ -98,6 +98,32 @@ describe('scrape 路由（免网络动作）', () => {
     }
   })
 
+  it('POPO 会话测试应携带成年确认 Cookie，并允许验证实际书源链接', async () => {
+    const previousKey = process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY
+    process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY = 'scrape-route-test-key'
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('<html><body>可访问</body></html>', { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } }))
+    try {
+      await req('/api/scrape', json('POST', { action: 'po18-account-save', username: 'author-account', sessionCookie: 'PHPSESSID=authenticated' }, adminToken))
+      const checked = await req(
+        '/api/scrape',
+        json('POST', { action: 'po18-account-test', sourceUrl: 'https://www.po18.tw/books/123456/articles' }, adminToken),
+      )
+      expect(checked.status).toBe(200)
+      const request = fetchMock.mock.calls[fetchMock.mock.calls.length - 1]
+      const requestInit = request?.[1] as RequestInit
+      const cookie = new Headers(requestInit?.headers).get('Cookie') || ''
+      expect(cookie).toContain('po18Limit=1')
+      expect(cookie).toContain('PHPSESSID=authenticated')
+    } finally {
+      fetchMock.mockRestore()
+      await req('/api/scrape', json('POST', { action: 'po18-account-clear' }, adminToken))
+      if (previousKey === undefined) delete process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY
+      else process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY = previousKey
+    }
+  })
+
   it('POPO 详情分析应携带已保存会话并限制站内重定向', async () => {
     const previousKey = process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY
     process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY = 'scrape-route-test-key'
