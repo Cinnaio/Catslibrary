@@ -4,6 +4,7 @@ $projectRoot = Split-Path -Parent $PSScriptRoot
 $homeView = Get-Content (Join-Path $projectRoot "ZhiZhou/Views/HomeView.swift") -Raw
 $bookshelfView = Get-Content (Join-Path $projectRoot "ZhiZhou/Views/BookshelfView.swift") -Raw
 $detailView = Get-Content (Join-Path $projectRoot "ZhiZhou/Views/NovelDetailView.swift") -Raw
+$adminRootView = Get-Content (Join-Path $projectRoot "ZhiZhou/Views/Admin/AdminRootView.swift") -Raw
 
 $failures = [System.Collections.Generic.List[string]]::new()
 
@@ -51,6 +52,9 @@ Require-NavigationPattern "bookshelf rows do not depend on BookshelfRoute value 
 Require-NavigationPattern "reader entry links own a direct ReaderView destination" (
     $detailView -notmatch "NavigationLink\(value: ReaderLaunch" -and
     $detailView -match "NavigationLink[\s\S]*?ReaderView"
+)
+Require-NavigationPattern "admin operations expose a direct POPO account entry" (
+    $adminRootView -match 'Po18AccountSheet\(\)[\s\S]*?Label\("POPO 账号", systemImage: "person\.badge\.key"\)'
 )
 
 if ($failures.Count -gt 0) {

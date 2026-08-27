@@ -77,6 +77,11 @@ struct AdminRootView: View {
                     Label("源管理", systemImage: "antenna.radiowaves.left.and.right")
                 }
                 NavigationLink {
+                    Po18AccountSheet()
+                } label: {
+                    Label("POPO 账号", systemImage: "person.badge.key")
+                }
+                NavigationLink {
                     AdminProxyView()
                 } label: {
                     Label("代理设置", systemImage: "network")
