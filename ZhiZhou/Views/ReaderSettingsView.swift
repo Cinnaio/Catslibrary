@@ -29,9 +29,6 @@ struct ReaderSettingsView: View {
                     ) { settings.set("readerPageMode", $0) }
                     sectionDivider
 
-                    clickPagingSection
-                    sectionDivider
-
                     segmentedSection(
                         "字体",
                         values: [
@@ -68,6 +65,9 @@ struct ReaderSettingsView: View {
                     sectionDivider
 
                     wakeLockSection
+                    sectionDivider
+
+                    clickPagingSection
                 }
                 .padding(.horizontal, 32)
                 .padding(.top, 34)

@@ -9,6 +9,7 @@ struct BookshelfView: View {
     @State private var actionError: String?
     @State private var selection: BookshelfRoute?
     @State private var pendingRemove: FavoriteItem?
+    @State private var pendingRecentRemove: RecentItem?
 
     @ViewBuilder
     var body: some View {
@@ -49,6 +50,17 @@ struct BookshelfView: View {
                         Section("最近阅读") {
                             ForEach(response.recent) { item in
                                 recentLink(item)
+                                    .swipeActions(edge: .trailing) {
+                                        Button("删除记录", role: .destructive) {
+                                            pendingRecentRemove = item
+                                        }
+                                    }
+                            }
+                            .onDelete { offsets in
+                                guard let index = offsets.first,
+                                      response.recent.indices.contains(index)
+                                else { return }
+                                pendingRecentRemove = response.recent[index]
                             }
                         }
                     }
@@ -58,10 +70,16 @@ struct BookshelfView: View {
                             ForEach(response.favorites) { favorite in
                                 favoriteLink(favorite)
                                     .swipeActions(edge: .trailing) {
-                                        Button("移除", role: .destructive) {
+                                        Button("移出书架", role: .destructive) {
                                             pendingRemove = favorite
                                         }
                                     }
+                            }
+                            .onDelete { offsets in
+                                guard let index = offsets.first,
+                                      response.favorites.indices.contains(index)
+                                else { return }
+                                pendingRemove = response.favorites[index]
                             }
                         }
                     }
@@ -72,6 +90,13 @@ struct BookshelfView: View {
             .navigationSplitViewColumnWidth(min: 300, ideal: 380, max: 520)
             .scrollContentBackground(.hidden)
             .pageBackground()
+            .toolbar {
+                if response?.favorites.isEmpty == false || response?.recent.isEmpty == false {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        EditButton()
+                    }
+                }
+            }
             .overlay {
                 if let response, response.favorites.isEmpty && response.recent.isEmpty {
                     ContentUnavailableView(
@@ -105,6 +130,22 @@ struct BookshelfView: View {
                 Button("取消", role: .cancel) {}
             } message: { favorite in
                 Text("将把《\(favorite.title)》移出书架")
+            }
+            .confirmationDialog(
+                "删除这条阅读记录？",
+                isPresented: Binding(
+                    get: { pendingRecentRemove != nil },
+                    set: { if !$0 { pendingRecentRemove = nil } }
+                ),
+                titleVisibility: .visible,
+                presenting: pendingRecentRemove
+            ) { recent in
+                Button("删除记录", role: .destructive) {
+                    Task { await removeRecent(recent) }
+                }
+                Button("取消", role: .cancel) {}
+            } message: { recent in
+                Text("将删除《\(recent.novelTitle)》的最近阅读记录")
             }
             .alert("操作未完成", isPresented: Binding(
                 get: { actionError != nil },
@@ -158,6 +199,11 @@ struct BookshelfView: View {
                 } label: {
                     Label("书籍详情", systemImage: "info.circle")
                 }
+                Button(role: .destructive) {
+                    pendingRecentRemove = item
+                } label: {
+                    Label("删除阅读记录", systemImage: "trash")
+                }
             }
             .accessibilityHint("打开后接着读")
         } else {
@@ -173,6 +219,11 @@ struct BookshelfView: View {
                     selection = .detail(item.asNovel)
                 } label: {
                     Label("书籍详情", systemImage: "info.circle")
+                }
+                Button(role: .destructive) {
+                    pendingRecentRemove = item
+                } label: {
+                    Label("删除阅读记录", systemImage: "trash")
                 }
             }
             .accessibilityHint("打开后接着读")
@@ -194,6 +245,11 @@ struct BookshelfView: View {
                 } label: {
                     Label("书籍详情", systemImage: "info.circle")
                 }
+                Button(role: .destructive) {
+                    pendingRemove = favorite
+                } label: {
+                    Label("移出书架", systemImage: "trash")
+                }
             }
             .accessibilityHint("打开后接着读")
         } else {
@@ -209,6 +265,11 @@ struct BookshelfView: View {
                     selection = .detail(favorite.asNovel)
                 } label: {
                     Label("书籍详情", systemImage: "info.circle")
+                }
+                Button(role: .destructive) {
+                    pendingRemove = favorite
+                } label: {
+                    Label("移出书架", systemImage: "trash")
                 }
             }
         }
@@ -326,6 +387,18 @@ struct BookshelfView: View {
             await load()
         } catch {
             actionError = "移出书架失败，请检查网络后重试。"
+        }
+    }
+
+    private func removeRecent(_ recent: RecentItem) async {
+        do {
+            let _: OkEnvelope = try await APIClient.shared.delete(
+                "/api/progress?novelId=\(recent.novelId)&clientUpdatedAt=\(Int64(Date().timeIntervalSince1970 * 1000))",
+                auth: true
+            )
+            await load()
+        } catch {
+            actionError = "删除阅读记录失败，请检查网络后重试。"
         }
     }
 }
