@@ -1,6 +1,6 @@
 /**
  * /api/scrape —— 爬虫动作分发（由 Novel-KV api/scrape.js 平移为 Hono 路由）。
- * 核心动作完整；discover/po18-search/jjwxc-titles 等富化动作暂标记 501（后续补）。
+ * 核心动作完整，并提供 discover / po18-search / popo-search 等发现与富化动作。
  */
 import { Hono, type Context } from 'hono'
 import { loadConfig } from '../config'
@@ -13,7 +13,7 @@ import { detectMeta } from '../services/scraper/meta'
 import { getPresetForUrl, PgScrapeStore, type JobData } from '../services/scraper/store'
 import { parseLegadoJsonStream, normalizeSource, legadoHost, buildSourceRow, sourceToPreset } from '../services/scraper/legado'
 import { SITE_PRESETS, buildCoverUrl } from '../services/scraper/presets'
-import { discoverList, extractJjwxcTitles, extractPo18twTitles, proxyCover, searchPo18, searchTitleSources } from '../services/scraper/enrich'
+import { discoverList, extractJjwxcTitles, extractPo18twTitles, proxyCover, searchPo18, searchPo18tw, searchTitleSources } from '../services/scraper/enrich'
 import { applySourceSync, createSourceSyncPreview, listSourceBindings } from '../services/source-sync'
 import {
   clearPo18Account,
@@ -691,6 +691,17 @@ scrapeRoutes.post('/', async (c) => {
         return c.json(await searchPo18(String(query), String(searchType || 'articlename'), Number(page) || 1, db))
       } catch (err) {
         return c.json({ error: `搜索失败: ${(err as Error).message}` }, 502)
+      }
+    }
+    case 'popo-search': {
+      const { query, searchType, page } = body
+      if (!query) return c.json({ error: 'query required' }, 400)
+      try {
+        const account = await getPo18AccountStatus(db)
+        const sessionCookie = account.hasSession ? (await getPo18Session(db)).cookie : ''
+        return c.json(await searchPo18tw(String(query), String(searchType || 'book'), Number(page) || 1, db, sessionCookie))
+      } catch (err) {
+        return c.json({ error: `POPO 搜索失败: ${(err as Error).message}` }, 502)
       }
     }
     case 'title-source-search': {

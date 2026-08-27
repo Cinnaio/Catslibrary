@@ -49,6 +49,8 @@ export interface DiscoverNovel {
   chapterCount: number
   status: string
   categories: string[]
+  source?: string
+  sourceName?: string
 }
 
 function gbkEncode(text: string): string {
@@ -58,6 +60,17 @@ function gbkEncode(text: string): string {
       return /[A-Za-z0-9_.~-]/.test(ch) ? ch : '%' + b.toString(16).toUpperCase().padStart(2, '0')
     })
     .join('')
+}
+
+function sourceForHost(hostname: string): { id: string; name: string } {
+  const host = hostname.toLowerCase()
+  if (host === 'po18.tw' || host.endsWith('.po18.tw')) return { id: 'po18tw', name: 'POPO' }
+  if (host === 'po18x.vip' || host.endsWith('.po18x.vip')) return { id: 'po18', name: 'PO18' }
+  return { id: host, name: host }
+}
+
+function bookPathForHost(hostname: string): string {
+  return sourceForHost(hostname).id === 'po18tw' ? 'books' : 'book'
 }
 
 export async function searchPo18(
@@ -117,11 +130,113 @@ export async function searchPo18(
       chapterCount: 0,
       status: /完|完成|已完结/i.test(statusText) ? 'completed' : 'ongoing',
       categories: [],
+      source: 'po18',
+      sourceName: 'PO18',
     })
   }
 
   const pageStats = html.match(/<em[^>]*id\s*=\s*["']pagestats["'][^>]*>\s*(\d+)\s*\/\s*(\d+)/i)
-  return { site: 'PO18 PC', total: novels.length, totalPages: pageStats ? Number.parseInt(pageStats[2]!, 10) || 1 : 1, novels }
+  return { site: 'PO18', total: novels.length, totalPages: pageStats ? Number.parseInt(pageStats[2]!, 10) || 1 : 1, novels }
+}
+
+/** POPO（po18.tw）站内搜索，和 PO18（po18x.vip）使用不同的请求与解析规则。 */
+export async function searchPo18tw(
+  query: string,
+  searchType: string,
+  page: number,
+  db: Db,
+  sessionCookie = '',
+  requestHtml: HtmlFetcher = fetchHtml,
+): Promise<{ site: string; total: number; totalPages: number; novels: DiscoverNovel[] }> {
+  const q = String(query || '').trim()
+  if (!q) throw new Error('query required')
+
+  const pageUrl = 'https://www.po18.tw/site/alarm'
+  const requestOptions: FetchHtmlOptions = { timeoutMs: 12000 }
+  const initialCookie = mergeCookieHeader('po18Limit=1', sessionCookie)
+  requestOptions.headers = { Cookie: initialCookie }
+  requestOptions.allowedRedirectHosts = ['po18.tw']
+  if (sessionCookie) {
+    requestOptions.scope = 'source-auth'
+  }
+  const pageResult = await requestHtml(pageUrl, requestOptions)
+  const requestCookie = mergeCookieHeader(initialCookie, pageResult.setCookies)
+  const form = parsePo18SearchForm(pageResult.html, pageUrl)
+  const body = new URLSearchParams(form.hidden)
+  body.set(form.queryField, q)
+  if (form.searchTypeField) body.set(form.searchTypeField, searchType === 'author' ? 'author' : 'book')
+  if (page > 1) body.set('page', String(Math.max(1, page)))
+
+  const searchHeaders = new Headers(requestOptions.headers)
+  if (requestCookie) searchHeaders.set('Cookie', requestCookie)
+  searchHeaders.set('Content-Type', 'application/x-www-form-urlencoded')
+  searchHeaders.set('Referer', pageUrl)
+  const { html } = await requestHtml(form.action, {
+    ...requestOptions,
+    method: 'POST',
+    headers: searchHeaders,
+    body: body.toString(),
+    allowedRedirectHosts: requestCookie ? ['po18.tw'] : requestOptions.allowedRedirectHosts,
+  })
+  if (/<input\b[^>]*(?:type\s*=\s*["']?password|name\s*=\s*["'][^"']*(?:pass|密碼|密码))/i.test(html) && /login|登入|登录/i.test(html)) {
+    throw new Error('POPO 搜索需要登录或当前网络不可访问')
+  }
+
+  const existing = await loadExisting(db)
+  const novels = parsePo18twDiscoverCandidates(html, form.action, existing)
+  const totalMatch = extractInnerHtml(html, '#BOOK').match(/共找到\s*<span[^>]*>\s*(\d+)\s*<\/span>/i)
+  const pageLinks = [...html.matchAll(/[?&]page=(\d+)/gi)].map((match) => Number.parseInt(match[1]!, 10)).filter(Number.isFinite)
+  const total = totalMatch ? Number.parseInt(totalMatch[1]!, 10) || novels.length : novels.length
+  const totalPages = pageLinks.length > 0 ? Math.max(1, ...pageLinks) : total > 0 ? Math.ceil(total / 10) : 1
+  return { site: 'POPO', total, totalPages, novels }
+}
+
+function parsePo18twDiscoverCandidates(
+  html: string,
+  baseUrl: string,
+  existing: { urls: Set<string>; titles: Set<string> },
+): DiscoverNovel[] {
+  const results: DiscoverNovel[] = []
+  const bookSection = extractInnerHtml(html, '#BOOK')
+  const cardStarts = [...bookSection.matchAll(/<div\b[^>]*class\s*=\s*["'][^"']*\bbook\b[^"']*["'][^>]*>/gi)]
+  const seen = new Set<string>()
+  for (let index = 0; index < cardStarts.length; index++) {
+    const cardStart = (cardStarts[index]!.index || 0) + cardStarts[index]![0].length
+    const cardEnd = cardStarts[index + 1]?.index ?? bookSection.length
+    const card = bookSection.slice(cardStart, cardEnd)
+    const titleBlock = card.match(/<div\b[^>]*class\s*=\s*["'][^"']*\bbook_name\b[^"']*["'][^>]*>[\s\S]*?<\/div>/i)?.[0] || ''
+    const titleLink = titleBlock.match(/<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/i)
+    const coverMatch = card.match(/<div\b[^>]*class\s*=\s*["'][^"']*\bbook_cover\b[^"']*["'][^>]*>[\s\S]*?<img\b[^>]*src\s*=\s*["']([^"']+)["'][^>]*>/i)
+    const href = titleLink?.[1] || card.match(/<a\b[^>]*href\s*=\s*["'](\/books\/\d+)["']/i)?.[1]
+    if (!href) continue
+    const url = resolveUrl(href, baseUrl)
+    const bookId = url.match(/\/books\/(\d+)(?:\/|$)/i)?.[1]
+    if (!bookId || seen.has(bookId)) continue
+    const coverTitle = card.match(/<img\b[^>]*alt\s*=\s*["']([^"']+)["'][^>]*>/i)?.[1] || ''
+    const title = cleanText((titleLink?.[2] || coverTitle).replace(/<[^>]*>/g, ''))
+    if (!title) continue
+    const authorBlock = card.match(/<div\b[^>]*class\s*=\s*["'][^"']*\bbook_author\b[^"']*["'][^>]*>[\s\S]*?<\/div>/i)?.[0] || ''
+    const author = cleanText(authorBlock.replace(/<[^>]*>/g, ''))
+    const descriptionBlock = card.match(/<div\b[^>]*class\s*=\s*["'][^"']*\bintro\b[^"']*["'][^>]*>([\s\S]*?)<\/div>/i)?.[1] || ''
+    const description = cleanText(descriptionBlock)
+    const coverUrl = coverMatch?.[1] ? resolveUrl(coverMatch[1]!, baseUrl) : ''
+    seen.add(bookId)
+    results.push({
+      bookId,
+      title: toSimplifiedForSource(title.slice(0, 100), url),
+      author: toSimplifiedForSource(author.slice(0, 30), url),
+      coverUrl,
+      url,
+      existing: existing.urls.has(url) || existing.titles.has(title.slice(0, 100).trim().toLowerCase()),
+      description: toSimplifiedForSource(description.slice(0, 120), url),
+      chapterCount: 0,
+      status: 'ongoing',
+      categories: [],
+      source: 'po18tw',
+      sourceName: 'POPO',
+    })
+  }
+  return results.slice(0, 50)
 }
 
 // ---------- 榜单发现 ----------
@@ -140,7 +255,13 @@ export async function discoverList(
   if (cached && Date.now() - cached.ts < DISCOVER_CACHE_TTL) {
     html = cached.html
   } else {
-    const fetched = await deps.fetchHtml(listUrl)
+    const fetchOptions: FetchHtmlOptions = {}
+    if (sourceForHost(host).id === 'po18tw') {
+      // POPO 的公开页面会先检查成年确认标记；账号 Cookie 仍由专用搜索/目录动作负责注入。
+      fetchOptions.headers = { Cookie: 'po18Limit=1' }
+      fetchOptions.allowedRedirectHosts = ['po18.tw']
+    }
+    const fetched = await deps.fetchHtml(listUrl, fetchOptions)
     html = fetched.html
     discoverHtmlCache.set(listUrl, { ts: Date.now(), html })
     if (discoverHtmlCache.size > DISCOVER_CACHE_MAX) {
@@ -150,7 +271,7 @@ export async function discoverList(
 
   const novels: DiscoverNovel[] = []
   const seen = new Set<string>()
-  const bookRe = /<a\s[^>]*href\s*=\s*["'](?:\/[^"']*)?\/book\/(\d+)\/?["'][^>]*>([\s\S]*?)<\/a>/gi
+  const bookRe = /<a\s[^>]*href\s*=\s*["'](?:\/[^"']*)?\/(?:book|books)\/(\d+)\/?["'][^>]*>([\s\S]*?)<\/a>/gi
   let m: RegExpExecArray | null
   while ((m = bookRe.exec(html)) !== null) {
     const bookId = m[1]!
@@ -167,7 +288,11 @@ export async function discoverList(
     const container = html.slice(containerStart, containerEnd)
     const imgMatch = container.match(/<img[^>]*src\s*=\s*["']([^"']+(?:jpg|jpeg|png|webp))["'][^>]*>/i)
     let coverUrl = imgMatch ? imgMatch[1]! : ''
-    const authorMatch = container.match(/作者[：:]\s*([^<\n]{2,20})/i) || container.match(/\/author\/([^"']+)/i)
+    const authorMatch =
+      container.match(/<div\b[^>]*class\s*=\s*["'][^"']*\bbook_author\b[^"']*["'][^>]*>[\s\S]*?<a\b[^>]*>([\s\S]*?)<\/a>/i) ||
+      container.match(/作者[：:]\s*([^<\n]{2,20})/i) ||
+      container.match(/\/author\/([^"']+)/i) ||
+      container.match(/\/users\/[^"']*["'][^>]*>([^<]+)<\/a>/i)
     const author = authorMatch ? authorMatch[1]!.trim() : ''
 
     if (!coverUrl || /noimg\.jpg/i.test(coverUrl)) {
@@ -198,7 +323,7 @@ export async function discoverList(
     if (/完结|已完结|全集/i.test(container)) status = 'completed'
     else if (/连载|更新中/i.test(container)) status = 'ongoing'
 
-    const novelUrl = `https://${host}/book/${bookId}/`
+    const novelUrl = `https://${host}/${bookPathForHost(host)}/${bookId}/`
     novels.push({
       bookId,
       title: toSimplifiedForSource(title.slice(0, 100), novelUrl),
@@ -210,6 +335,8 @@ export async function discoverList(
       chapterCount,
       status,
       categories: categories.map((c) => toSimplifiedForSource(c, novelUrl)),
+      source: sourceForHost(host).id,
+      sourceName: sourceForHost(host).name,
     })
   }
 
@@ -235,8 +362,10 @@ export async function discoverList(
     }
   }
 
+  const source = sourceForHost(host)
   const presetName = String(preset?.name || '')
-  return { site: presetName || host, total: novels.length, totalPages, novels: novels.slice(0, 50) }
+  const site = source.id === host ? presetName || host : source.name
+  return { site, total: novels.length, totalPages, novels: novels.slice(0, 50) }
 }
 
 // ---------- 标题源搜索（晋江 / PO18.tw） ----------
@@ -434,7 +563,7 @@ function parsePo18twCandidates(html: string, baseUrl: string): TitleSource[] {
     seen.add(bookId)
     results.push({
       site: 'po18tw',
-      siteName: 'PO18.tw',
+      siteName: 'POPO',
       bookId,
       title,
       author,

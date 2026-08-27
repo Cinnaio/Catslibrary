@@ -6,7 +6,7 @@ vi.mock('./fetch', () => ({
   FETCH_HEADERS: {},
 }))
 
-import { extractPo18twTitles, searchTitleSources } from './enrich'
+import { discoverList, extractPo18twTitles, searchPo18tw, searchTitleSources } from './enrich'
 import type { FetchHtmlOptions } from './fetch'
 
 describe('标题源搜索', () => {
@@ -78,7 +78,7 @@ describe('标题源搜索', () => {
       ok: true,
       results: [{
         site: 'po18tw',
-        siteName: 'PO18.tw',
+        siteName: 'POPO',
         title: '目标小说（h）',
         author: '清阙',
         status: 'ongoing',
@@ -110,5 +110,93 @@ describe('标题源搜索', () => {
       { order: 1, title: '第一章', url: 'https://www.po18.tw/books/123456/articles/1' },
       { order: 2, title: '第二章（付费）', url: 'https://www.po18.tw/books/123456/articles#chapter-2' },
     ])
+  })
+})
+
+describe('POPO 发现', () => {
+  it('POPO 搜索应使用独立的书名搜索类型并返回来源标识', async () => {
+    const requests: Array<{ url: string; method: string; cookie: string; body: string }> = []
+    const searchPage = `<form id="header-search-form" action="/search/index" method="post">
+      <input type="hidden" name="_po18rf-tk001" value="csrf-token">
+      <input type="text" name="name">
+      <input type="hidden" name="searchtype" value="all">
+    </form>`
+    const resultPage = `<div id="BOOK" class="result_list">
+      <h2>書籍搜尋結果，共找到<span>1</span>筆資料</h2>
+      <div data-key="0"><div class="book">
+        <div class="book_cover"><a href="/books/123456"><img src="https://cdn0.po18.tw/bc/1/123456/M.jpg" alt="目标小说"></a></div>
+        <div class="book_info">
+          <div class="book_name"><a href="/books/123456">目标小说</a></div>
+          <div class="book_author"><a href="/users/author">作者甲</a></div>
+          <div class="intro">这是简介。</div>
+        </div>
+      </div></div>
+      </div>`
+
+    const result = await searchPo18tw(
+      '目标小说',
+      'book',
+      1,
+      { query: vi.fn().mockResolvedValue({ rows: [] }) } as never,
+      '',
+      async (url, options) => {
+        requests.push({
+          url,
+          method: options?.method || 'GET',
+          cookie: new Headers(options?.headers).get('Cookie') || '',
+          body: String(options?.body || ''),
+        })
+        return { html: options?.method === 'POST' ? resultPage : searchPage, encoding: 'utf-8' }
+      },
+    )
+
+    expect(requests.map((item) => [item.url, item.method])).toEqual([
+      ['https://www.po18.tw/site/alarm', 'GET'],
+      ['https://www.po18.tw/search/index', 'POST'],
+    ])
+    expect(requests[0]!.cookie).toBe('po18Limit=1')
+    expect(requests[1]!.cookie).toBe('po18Limit=1')
+    const params = new URLSearchParams(requests[1]!.body)
+    expect(params.get('name')).toBe('目标小说')
+    expect(params.get('searchtype')).toBe('book')
+    expect(result).toMatchObject({
+      site: 'POPO',
+      total: 1,
+      totalPages: 1,
+      novels: [{
+        title: '目标小说',
+        author: '作者甲',
+        url: 'https://www.po18.tw/books/123456',
+        source: 'po18tw',
+        sourceName: 'POPO',
+      }],
+    })
+  })
+
+  it('POPO 排行榜应解析 /books/ 链接并保留 POPO 来源', async () => {
+    const html = `<ol class="ranking">
+      <li class="R_cover">
+        <a class="book_cover" href="/books/123456"><img src="https://cdn0.po18.tw/bc/1/123456/M.jpg" alt="榜单小说"></a>
+        <a class="book_name" href="/books/123456">榜单小说</a>
+        <a class="book_author" href="/users/author">作者乙</a>
+      </li>
+    </ol>`
+    const result = await discoverList('https://www.po18.tw/rank/index?test=popo', {
+      db: { query: vi.fn().mockResolvedValue({ rows: [] }) } as never,
+      fetchHtml: async () => ({ html, encoding: 'utf-8' }),
+      getPreset: async () => ({ name: 'PO18.tw' }),
+    })
+
+    expect(result).toMatchObject({
+      site: 'POPO',
+      total: 1,
+      novels: [{
+        title: '榜单小说',
+        author: '作者乙',
+        url: 'https://www.po18.tw/books/123456/',
+        source: 'po18tw',
+        sourceName: 'POPO',
+      }],
+    })
   })
 })
