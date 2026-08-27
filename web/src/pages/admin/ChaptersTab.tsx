@@ -523,7 +523,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
           <DialogHeader>
             <DialogTitle>{modal.chapter ? '编辑章节' : '添加章节'}</DialogTitle>
           </DialogHeader>
-          <div className="flex flex-col gap-3 overflow-y-auto max-h-[70vh]">
+          <div className="admin-dialog__body flex flex-col gap-3 overflow-y-auto max-h-[70vh]">
             <Label>序号</Label>
             <Input type="number" min={1} value={draft.order} onChange={(e) => setDraft({ ...draft, order: Number.parseInt(e.target.value, 10) || 1 })} />
             <Label>章节标题</Label>
@@ -569,7 +569,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
           <DialogHeader>
             <DialogTitle>融合章节名</DialogTitle>
           </DialogHeader>
-          <div className="flex flex-col gap-3 overflow-y-auto max-h-[70vh]">
+          <div className="admin-dialog__body flex flex-col gap-3 overflow-y-auto max-h-[70vh]">
             <p className="text-sm text-muted-foreground">
               优先从原作者源站读取小说信息和章节目录；读取不到时仍可手动粘贴标题。正文来源、章节顺序和阅读进度不会改变。
             </p>
