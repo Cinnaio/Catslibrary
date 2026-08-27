@@ -245,15 +245,32 @@ struct AdminAICoverView: View {
                 .font(.caption)
                 .foregroundStyle(AppTheme.textSecondary)
 
-            TextField("封面描述词（可选，留空自动生成）", text: $prompt, axis: .vertical)
-                .lineLimit(2...4)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .onChange(of: prompt) { _, value in
-                    if value.count > coverPromptMaxCharacters {
-                        prompt = String(value.prefix(coverPromptMaxCharacters))
+            ZStack(alignment: .topLeading) {
+                TextEditor(text: $prompt)
+                    .frame(height: 132)
+                    .font(.subheadline)
+                    .scrollContentBackground(.hidden)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .onChange(of: prompt) { _, value in
+                        if value.count > coverPromptMaxCharacters {
+                            prompt = String(value.prefix(coverPromptMaxCharacters))
+                        }
                     }
+
+                if prompt.isEmpty {
+                    Text("封面描述词（可选，留空自动生成）")
+                        .font(.subheadline)
+                        .foregroundStyle(AppTheme.textMuted)
+                        .padding(.top, 8)
+                        .padding(.horizontal, 5)
+                        .allowsHitTesting(false)
                 }
+            }
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(AppTheme.border, lineWidth: 1)
+            )
 
             HStack {
                 Text("留空自动生成，也可以直接编辑后用于生成")
