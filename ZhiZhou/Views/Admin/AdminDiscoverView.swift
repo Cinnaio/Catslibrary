@@ -1,21 +1,22 @@
 import SwiftUI
 import Combine
 
-/// 爬虫「发现」：PO18 搜索（书名/作者）+ 榜单浏览 + 详情建书启动 + 批量抓取。
-/// 对齐 Web 端 admin scrape DiscoverView（/api/scrape action=discover / po18-search）。
+/// 爬虫「发现」：PO18 / POPO 搜索（书名/作者）+ 榜单浏览 + 详情建书启动 + 批量抓取。
+/// 对齐 Web 端 admin scrape DiscoverView（/api/scrape action=discover / po18-search / popo-search）。
 struct AdminDiscoverView: View {
     enum SearchMode: String, CaseIterable, Identifiable {
-        case po18 = "PO18 搜索"
+        case search = "站内搜索"
         case list = "榜单浏览"
         var id: String { rawValue }
     }
 
     // 搜索
-    @State private var mode: SearchMode = .po18
+    @State private var mode: SearchMode = .search
+    @State private var searchSource: DiscoverSource = .po18
     @State private var query = ""
     @State private var searchType = "articlename"
     @State private var listUrl = ""
-    @State private var sitePreset = ""
+    @State private var sitePresetLabel = ""
 
     // 结果
     @State private var novels: [DiscoverNovel] = []
@@ -80,7 +81,18 @@ struct AdminDiscoverView: View {
                 errorMessage = nil
             }
 
-            if mode == .po18 {
+            if mode == .search {
+                Picker("来源", selection: $searchSource) {
+                    ForEach(DiscoverSource.allCases) { source in
+                        Text(source.displayName).tag(source)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .onChange(of: searchSource) { _, _ in
+                    novels = []
+                    totalText = nil
+                    errorMessage = nil
+                }
                 TextField("搜索书名 / 作者", text: $query)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
@@ -90,26 +102,33 @@ struct AdminDiscoverView: View {
                 }
                 .pickerStyle(.segmented)
                 Button {
-                    Task { await fetchPo18Search() }
+                    Task { await fetchSearch() }
                 } label: {
                     if isLoading {
                         HStack { Spacer(); ProgressView(); Spacer() }
                     } else {
-                        Label("搜索 PO18", systemImage: "magnifyingglass")
+                        Label("搜索 \(searchSource.displayName)", systemImage: "magnifyingglass")
                     }
                 }
                 .disabled(isLoading || query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             } else {
                 Menu {
-                    ForEach(PO18SitePreset.allCases) { preset in
-                        Button(preset.label) {
-                            sitePreset = preset.url
-                            listUrl = preset.url
-                            Task { await fetchDiscoverList() }
+                    Section("PO18 · po18x.vip") {
+                        ForEach(DiscoverRankingPreset.allCases.filter { $0.source == .po18 }) { preset in
+                            Button(preset.label) {
+                                selectRankingPreset(preset)
+                            }
+                        }
+                    }
+                    Section("POPO · po18.tw") {
+                        ForEach(DiscoverRankingPreset.allCases.filter { $0.source == .popo }) { preset in
+                            Button(preset.label) {
+                                selectRankingPreset(preset)
+                            }
                         }
                     }
                 } label: {
-                    Label(sitePreset.isEmpty ? "PO18 榜单" : "榜单：\(sitePreset)", systemImage: "list.star")
+                    Label(sitePresetLabel.isEmpty ? "选择来源榜单" : "榜单：\(sitePresetLabel)", systemImage: "list.star")
                 }
                 TextField("粘贴榜单页面 URL", text: $listUrl)
                     .keyboardType(.URL)
@@ -127,7 +146,7 @@ struct AdminDiscoverView: View {
                 .disabled(isLoading || listUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         } header: {
-            Text(mode == .po18 ? "按书名或作者搜索外部书源" : "从站点榜单批量发现小说")
+            Text(mode == .search ? "按书名或作者搜索外部书源" : "从站点榜单批量发现小说")
         }
     }
 
@@ -185,7 +204,7 @@ struct AdminDiscoverView: View {
                     discoverRow(novel, index: index)
                 }
             }
-            if page < totalPages {
+            if page < totalPages && (mode == .search || !listUrlRef.isEmpty) {
                 Button {
                     Task { await goNextPage() }
                 } label: {
@@ -204,7 +223,7 @@ struct AdminDiscoverView: View {
                 ContentUnavailableView {
                     Label("发现小说", systemImage: "scope")
                 } description: {
-                    Text(mode == .po18 ? "搜索外部书源，或切到「榜单浏览」粘贴榜单 URL。" : "粘贴榜单 URL 或从预设榜单开始。")
+                    Text(mode == .search ? "选择 PO18 或 POPO 搜索，或切到「榜单浏览」选择来源榜单。" : "选择来源榜单，或粘贴榜单 URL。")
                 }
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
@@ -266,6 +285,13 @@ struct AdminDiscoverView: View {
                     .fontWeight(.medium)
                     .foregroundStyle(AppTheme.textPrimary)
                     .lineLimit(1)
+                if let source = sourceForNovel(novel) {
+                    AdminStatusBadge(
+                        source.displayName,
+                        tint: source == .popo ? AppTheme.warning : AppTheme.primary,
+                        systemImage: "globe"
+                    )
+                }
                 if novel.isCollected {
                     AdminStatusBadge("已收录", tint: AppTheme.success, systemImage: "checkmark")
                 }
@@ -311,15 +337,23 @@ struct AdminDiscoverView: View {
 
     // MARK: - 数据
 
-    private func fetchPo18Search() async {
+    private func fetchSearch() async {
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !q.isEmpty else { return }
         listUrlRef = ""
         page = 1
         totalPages = 1
         await renderDiscover {
-            try await AdminAPI.scrapePo18Search(query: q, searchType: searchType, page: 1)
+            try await searchDiscover(query: q, page: 1)
         }
+    }
+
+    private func searchDiscover(query: String, page: Int) async throws -> DiscoverResponse {
+        if searchSource == .popo {
+            let type = searchType == "author" ? "author" : "book"
+            return try await AdminAPI.scrapePopoSearch(query: query, searchType: type, page: page)
+        }
+        return try await AdminAPI.scrapePo18Search(query: query, searchType: searchType, page: page)
     }
 
     private func fetchDiscoverList() async {
@@ -334,8 +368,17 @@ struct AdminDiscoverView: View {
     }
 
     private func goNextPage() async {
-        guard !listUrlRef.isEmpty else { return }
         let next = page + 1
+        if mode == .search {
+            let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !q.isEmpty else { return }
+            page = next
+            await renderDiscover {
+                try await searchDiscover(query: q, page: next)
+            }
+            return
+        }
+        guard !listUrlRef.isEmpty else { return }
         // 榜单 URL 形如 .../top/xxx_1/，翻页把页码段替换为下一页
         let replaced = listUrlRef.replacingOccurrences(
             of: #"_([0-9]+)/$"#,
@@ -357,10 +400,11 @@ struct AdminDiscoverView: View {
             let r = try await operation()
             novels = r.novels
             selectedIndices = []
+            let sourceText = displaySourceLabel(r.site) ?? r.novels.compactMap { sourceForNovel($0)?.displayName }.first
             if r.novels.isEmpty {
-                totalText = r.site.map { "站点：\($0)" } ?? "没有找到小说"
+                totalText = sourceText.map { "来源：\($0)" } ?? "没有找到小说"
             } else {
-                totalText = r.site.map { "站点：\($0)" }
+                totalText = sourceText.map { "来源：\($0)" }
             }
             if let tp = r.totalPages, tp > 1 { totalPages = tp }
             errorMessage = nil
@@ -372,11 +416,38 @@ struct AdminDiscoverView: View {
     }
 
     private func reloadCurrent() async {
-        if mode == .po18, !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            await fetchPo18Search()
+        if mode == .search, !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            await fetchSearch()
         } else if !listUrlRef.isEmpty {
             await fetchDiscoverList()
         }
+    }
+
+    private func selectRankingPreset(_ preset: DiscoverRankingPreset) {
+        sitePresetLabel = preset.label
+        listUrl = preset.url
+        Task { await fetchDiscoverList() }
+    }
+
+    private func sourceForNovel(_ novel: DiscoverNovel) -> DiscoverSource? {
+        if novel.source == "po18tw" || novel.sourceName == "POPO" { return .popo }
+        if novel.source == "po18" || novel.sourceName == "PO18" { return .po18 }
+        guard let host = URL(string: novel.url)?.host?.lowercased() else { return nil }
+        if host == "po18.tw" || host.hasSuffix(".po18.tw") { return .popo }
+        if host == "po18x.vip" || host.hasSuffix(".po18x.vip") { return .po18 }
+        return nil
+    }
+
+    private func displaySourceLabel(_ site: String?) -> String? {
+        guard let site, !site.isEmpty else { return nil }
+        let normalized = site.lowercased()
+        if normalized.contains("po18.tw") || normalized.contains("popo") || normalized == "po18tw" {
+            return "POPO（po18.tw）"
+        }
+        if normalized.contains("po18") || normalized == "po18x" {
+            return "PO18（po18x.vip）"
+        }
+        return site
     }
 
     // MARK: - 选择 / 批量
@@ -470,40 +541,62 @@ struct AdminDiscoverView: View {
     }
 }
 
-// MARK: - PO18 榜单预设（对齐 Web 端 PO18_SITES）
+// MARK: - 发现来源 / 榜单预设
 
-private enum PO18SitePreset: String, CaseIterable, Identifiable {
-    case dayVisit = "日点击榜"
-    case weekVisit = "周点击榜"
-    case monthVisit = "月点击榜"
-    case allVisit = "总点击榜"
-    case dayVote = "日推荐榜"
-    case weekVote = "周推荐榜"
-    case monthVote = "月推荐榜"
-    case allVote = "总推荐榜"
-    case goodNum = "总收藏榜"
-    case size = "字数排行"
-    case postdate = "最新入库"
-    case lastupdate = "最近更新"
+private enum DiscoverSource: String, CaseIterable, Identifiable {
+    case po18
+    case popo
 
     var id: String { rawValue }
 
-    var label: String { rawValue }
+    var displayName: String {
+        switch self {
+        case .po18: return "PO18"
+        case .popo: return "POPO"
+        }
+    }
+}
+
+private enum DiscoverRankingPreset: String, CaseIterable, Identifiable {
+    case po18DayVisit = "日点击榜"
+    case po18WeekVisit = "周点击榜"
+    case po18MonthVisit = "月点击榜"
+    case po18AllVisit = "总点击榜"
+    case po18DayVote = "日推荐榜"
+    case po18WeekVote = "周推荐榜"
+    case po18MonthVote = "月推荐榜"
+    case po18AllVote = "总推荐榜"
+    case po18GoodNum = "总收藏榜"
+    case po18Size = "字数排行"
+    case po18Postdate = "最新入库"
+    case po18Lastupdate = "最近更新"
+    case popoRank = "综合排行榜"
+
+    var id: String { rawValue }
+
+    var source: DiscoverSource {
+        self == .popoRank ? .popo : .po18
+    }
+
+    var label: String {
+        "\(source.displayName) · \(rawValue)"
+    }
 
     var url: String {
         switch self {
-        case .dayVisit: return "https://wap.po18x.vip/top/dayvisit_1/"
-        case .weekVisit: return "https://wap.po18x.vip/top/weekvisit_1/"
-        case .monthVisit: return "https://wap.po18x.vip/top/monthvisit_1/"
-        case .allVisit: return "https://wap.po18x.vip/top/allvisit_1/"
-        case .dayVote: return "https://wap.po18x.vip/top/dayvote_1/"
-        case .weekVote: return "https://wap.po18x.vip/top/weekvote_1/"
-        case .monthVote: return "https://wap.po18x.vip/top/monthvote_1/"
-        case .allVote: return "https://wap.po18x.vip/top/allvote_1/"
-        case .goodNum: return "https://wap.po18x.vip/top/goodnum_1/"
-        case .size: return "https://wap.po18x.vip/top/size_1/"
-        case .postdate: return "https://wap.po18x.vip/top/postdate_1/"
-        case .lastupdate: return "https://wap.po18x.vip/top/lastupdate_1/"
+        case .po18DayVisit: return "https://wap.po18x.vip/top/dayvisit_1/"
+        case .po18WeekVisit: return "https://wap.po18x.vip/top/weekvisit_1/"
+        case .po18MonthVisit: return "https://wap.po18x.vip/top/monthvisit_1/"
+        case .po18AllVisit: return "https://wap.po18x.vip/top/allvisit_1/"
+        case .po18DayVote: return "https://wap.po18x.vip/top/dayvote_1/"
+        case .po18WeekVote: return "https://wap.po18x.vip/top/weekvote_1/"
+        case .po18MonthVote: return "https://wap.po18x.vip/top/monthvote_1/"
+        case .po18AllVote: return "https://wap.po18x.vip/top/allvote_1/"
+        case .po18GoodNum: return "https://wap.po18x.vip/top/goodnum_1/"
+        case .po18Size: return "https://wap.po18x.vip/top/size_1/"
+        case .po18Postdate: return "https://wap.po18x.vip/top/postdate_1/"
+        case .po18Lastupdate: return "https://wap.po18x.vip/top/lastupdate_1/"
+        case .popoRank: return "https://www.po18.tw/rank/index"
         }
     }
 }

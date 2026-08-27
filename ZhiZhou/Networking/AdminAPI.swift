@@ -470,7 +470,7 @@ enum AdminAPI {
         try await APIClient.shared.get("/api/admin/site", auth: true)
     }
 
-    // MARK: - 爬虫：发现小说（POST /api/scrape action=discover / po18-search）
+    // MARK: - 爬虫：发现小说（POST /api/scrape action=discover / po18-search / popo-search）
 
     /// 榜单页 URL → 批量发现小说列表（分页）。
     static func scrapeDiscover(listUrl: String) async throws -> DiscoverResponse {
@@ -480,6 +480,11 @@ enum AdminAPI {
     /// PO18 站内搜索：searchType = articlename（书名）| author（作者）。
     static func scrapePo18Search(query: String, searchType: String = "articlename", page: Int = 1) async throws -> DiscoverResponse {
         try await postScrape(["action": "po18-search", "query": query, "searchType": searchType, "page": page])
+    }
+
+    /// POPO（po18.tw）站内搜索：searchType = book（书名）| author（作者）。
+    static func scrapePopoSearch(query: String, searchType: String = "book", page: Int = 1) async throws -> DiscoverResponse {
+        try await postScrape(["action": "popo-search", "query": query, "searchType": searchType, "page": page])
     }
 
     // MARK: - 爬虫：配置导入导出（action=list-configs / import-configs / import-legado）

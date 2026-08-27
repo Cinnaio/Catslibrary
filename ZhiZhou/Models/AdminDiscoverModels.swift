@@ -2,9 +2,9 @@ import Foundation
 
 // MARK: - 爬虫「发现」模型
 // 字段与知舟仓库 web/src/pages/admin/scrape/types.ts 的 DiscoverNovel 及
-// api/src/routes/scrape.ts 的 discover / po18-search 返回一一对应（camelCase）。
+// api/src/routes/scrape.ts 的 discover / po18-search / popo-search 返回一一对应（camelCase）。
 
-/// 「发现」列表中的一部小说（榜单浏览 / PO18 搜索共用）。
+/// 「发现」列表中的一部小说（榜单浏览 / PO18 / POPO 搜索共用）。
 struct DiscoverNovel: Codable, Identifiable, Hashable {
     var id: String { url }
     let bookId: String?
@@ -16,6 +16,8 @@ struct DiscoverNovel: Codable, Identifiable, Hashable {
     let description: String?
     let chapterCount: Int?
     let status: String?
+    let source: String?
+    let sourceName: String?
 
     var isCollected: Bool { existing == true }
 }
