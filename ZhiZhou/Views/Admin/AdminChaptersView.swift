@@ -294,6 +294,7 @@ private struct SourceSyncSheet: View {
     @State private var errorMessage: String?
     @State private var metadataFields: Set<String> = ["title", "author", "description", "coverUrl", "categories", "status"]
     @State private var replaceMetadata = false
+    @State private var expandedSearchSites: Set<String> = []
 
     private let metadataLabels: [(String, String)] = [
         ("title", "标题"),
@@ -322,15 +323,15 @@ private struct SourceSyncSheet: View {
                         }
                     }
                     .disabled(isLoading || isSearching || (searchTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && searchAuthor.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
-
-                    if let sourceSearch {
-                        sourceCandidates(title: "晋江", bucket: sourceSearch.sources.jjwxc)
-                        sourceCandidates(title: "PO18.tw", bucket: sourceSearch.sources.po18tw)
-                    }
                 } header: {
                     Text("搜索原作者源站")
                 } footer: {
-                    Text("先选择准确的作品，再读取详情和章节目录。PO18.tw 详情页需要已配置账号或 Cookie。")
+                    Text("先选择准确的作品，再读取详情和章节目录。每个源站默认显示前 5 条结果，展开后可查看全部。PO18.tw 详情页需要已配置账号或 Cookie。")
+                }
+
+                if let sourceSearch {
+                    sourceCandidates(siteKey: "jjwxc", title: "晋江", bucket: sourceSearch.sources.jjwxc)
+                    sourceCandidates(siteKey: "po18tw", title: "PO18.tw", bucket: sourceSearch.sources.po18tw)
                 }
 
                 Section {
@@ -498,6 +499,7 @@ private struct SourceSyncSheet: View {
         defer { isSearching = false }
         do {
             sourceSearch = try await AdminAPI.titleSourceSearch(title: title, author: author)
+            expandedSearchSites.removeAll()
             errorMessage = nil
         } catch {
             errorMessage = AppCopy.friendlyError(error)
@@ -505,48 +507,100 @@ private struct SourceSyncSheet: View {
     }
 
     @ViewBuilder
-    private func sourceCandidates(title: String, bucket: TitleSourceSearchBucket) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(title).font(.subheadline.weight(.semibold))
-                Spacer()
-                Text(bucket.results.isEmpty ? (bucket.ok ? "没有结果" : "搜索不可用") : "\(bucket.results.count) 个结果")
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
-            }
+    private func sourceCandidates(siteKey: String, title: String, bucket: TitleSourceSearchBucket) -> some View {
+        let isExpanded = expandedSearchSites.contains(siteKey)
+        let visibleResults = isExpanded ? bucket.results : Array(bucket.results.prefix(5))
+
+        Section {
             if let error = bucket.error, !error.isEmpty {
                 Text(error)
-                    .font(.caption)
+                    .font(.footnote)
                     .foregroundStyle(.orange)
             }
-            ForEach(bucket.results) { candidate in
-                Button {
-                    sourceURL = candidate.url
-                    Task { await loadPreview(url: candidate.url) }
-                } label: {
-                    VStack(alignment: .leading, spacing: 3) {
-                        HStack {
-                            Text(candidate.title.isEmpty ? "未识别书名" : candidate.title)
-                                .font(.subheadline.weight(.medium))
-                                .foregroundStyle(AppTheme.textPrimary)
-                            if !candidate.status.isEmpty {
-                                Text(candidate.status == "completed" ? "完结" : "连载")
-                                    .font(.caption)
-                                    .foregroundStyle(AppTheme.textSecondary)
-                            }
-                            Spacer()
-                            Image(systemName: "arrow.down.circle")
-                                .foregroundStyle(AppTheme.primary)
-                        }
-                        Text("\(candidate.author.isEmpty ? "作者未识别" : candidate.author) · \(candidate.url)")
-                            .font(.caption)
-                            .foregroundStyle(AppTheme.textSecondary)
-                            .lineLimit(2)
-                    }
+
+            if bucket.results.isEmpty {
+                Text(bucket.ok ? "没有结果" : "搜索不可用")
+                    .font(.subheadline)
+                    .foregroundStyle(AppTheme.textSecondary)
+            } else {
+                ForEach(visibleResults) { candidate in
+                    sourceCandidateRow(candidate)
                 }
-                .buttonStyle(.plain)
+
+                if bucket.results.count > 5 {
+                    Button {
+                        if isExpanded {
+                            expandedSearchSites.remove(siteKey)
+                        } else {
+                            expandedSearchSites.insert(siteKey)
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                                .font(.caption.weight(.semibold))
+                            Text(isExpanded ? "收起结果" : "查看全部 \(bucket.results.count) 个结果")
+                                .font(.subheadline.weight(.medium))
+                            Spacer()
+                        }
+                        .foregroundStyle(AppTheme.primary)
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        } header: {
+            HStack {
+                Text(title)
+                Spacer()
+                Text(bucket.results.isEmpty ? (bucket.ok ? "没有结果" : "搜索不可用") : "\(bucket.results.count) 个结果")
+                    .foregroundStyle(AppTheme.textSecondary)
             }
         }
+    }
+
+    private func sourceCandidateRow(_ candidate: TitleSourceCandidate) -> some View {
+        Button {
+            sourceURL = candidate.url
+            Task { await loadPreview(url: candidate.url) }
+        } label: {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(alignment: .firstTextBaseline, spacing: 7) {
+                        Text(candidate.title.isEmpty ? "未识别书名" : candidate.title)
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(AppTheme.textPrimary)
+                            .lineLimit(2)
+                            .layoutPriority(1)
+
+                        if !candidate.status.isEmpty {
+                            Text(candidate.status == "completed" ? "完结" : "连载")
+                                .font(.caption2.weight(.medium))
+                                .foregroundStyle(AppTheme.primary)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 3)
+                                .background(AppTheme.primaryLight, in: Capsule())
+                        }
+                    }
+
+                    Text(candidate.author.isEmpty ? "作者未识别" : candidate.author)
+                        .font(.footnote)
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 8)
+
+                Image(systemName: "arrow.down.circle")
+                    .font(.title3)
+                    .foregroundStyle(AppTheme.primary)
+                    .frame(width: 44, height: 44)
+                    .accessibilityLabel("选择并读取源站")
+            }
+            .frame(minHeight: 52)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private func loadPreview(url overrideURL: String? = nil) async {
