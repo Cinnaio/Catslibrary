@@ -30,7 +30,7 @@ struct AdminAISettingsView: View {
     @State private var imageResponseFormat = "url"
     @State private var coverImageSize = "1024x1536"
     @State private var coverRenderTitle = true
-    @State private var coverPlatform = "openai"
+    @State private var coverPlatform = "default"
     @State private var coverPromptMaxChars = 2000
     // 运维与审计
     @State private var taskRetentionDays = 30
@@ -48,6 +48,32 @@ struct AdminAISettingsView: View {
     @State private var writingExpanded = false
     @State private var coverExpanded = false
     @State private var opsExpanded = false
+
+    private let imageSizeOptions: [(value: String, label: String)] = [
+        ("1024x1024", "1024 × 1024（方形）"),
+        ("1792x1024", "1792 × 1024（横向）"),
+        ("1024x1792", "1024 × 1792（纵向）"),
+        ("1024x1536", "1024 × 1536（竖版）"),
+        ("768x1024", "768 × 1024（竖版）"),
+        ("512x512", "512 × 512（方形）"),
+    ]
+
+    private let coverImageSizeOptions: [(value: String, label: String)] = [
+        ("1024x1536", "1024 × 1536（竖版 2:3）"),
+        ("768x1024", "768 × 1024（竖版 3:4）"),
+        ("1024x1792", "1024 × 1792（长竖版）"),
+        ("1024x1024", "1024 × 1024（方形）"),
+    ]
+
+    private let coverPlatformOptions: [(value: String, label: String)] = [
+        ("default", "通用（竖版 2:3）"),
+        ("fanqie", "番茄小说"),
+        ("qidian", "起点"),
+        ("jinjiang", "晋江"),
+        ("zhihu", "知乎盐言"),
+        ("qimao", "七猫"),
+        ("ciweimao", "刺猬猫"),
+    ]
 
     var body: some View {
         List {
@@ -161,9 +187,12 @@ struct AdminAISettingsView: View {
 
     private var coverSection: some View {
         DisclosureGroup("AI 封面", isExpanded: $coverExpanded) {
-            TextField("图像尺寸（如 1024x1024）", text: $imageSize)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
+            Picker("图像尺寸", selection: $imageSize) {
+                ForEach(imageSizeOptions, id: \.value) { option in
+                    Text(option.label).tag(option.value)
+                }
+            }
+            .pickerStyle(.menu)
             Picker("图像质量", selection: $imageQuality) {
                 Text("低（low）").tag("low")
                 Text("中（medium）").tag("medium")
@@ -175,13 +204,22 @@ struct AdminAISettingsView: View {
                 Text("Base64 JSON").tag("b64_json")
             }
             .pickerStyle(.menu)
-            TextField("封面尺寸（如 1024x1536）", text: $coverImageSize)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
+            Picker("封面尺寸", selection: $coverImageSize) {
+                ForEach(coverImageSizeOptions, id: \.value) { option in
+                    Text(option.label).tag(option.value)
+                }
+            }
+            .pickerStyle(.menu)
             Toggle("封面渲染标题", isOn: $coverRenderTitle)
-            TextField("封面平台", text: $coverPlatform)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
+            Picker("封面平台", selection: $coverPlatform) {
+                ForEach(coverPlatformOptions, id: \.value) { option in
+                    Text(option.label).tag(option.value)
+                }
+            }
+            .pickerStyle(.menu)
+            Text("通用平台使用竖版 2:3；平台版式会影响封面调性、尺寸和文字安全区。")
+                .font(.caption)
+                .foregroundStyle(AppTheme.textSecondary)
             row("封面描述词上限", value: $coverPromptMaxChars, range: 100...10000)
             Text("封面生成页可编辑的描述词最大字符数，默认 2000；修改后保存即可生效。")
                 .font(.caption)
