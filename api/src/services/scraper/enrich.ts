@@ -73,6 +73,11 @@ function bookPathForHost(hostname: string): string {
   return sourceForHost(hostname).id === 'po18tw' ? 'books' : 'book'
 }
 
+function bookUrlForHost(hostname: string, bookId: string): string {
+  const path = `https://${hostname}/${bookPathForHost(hostname)}/${bookId}`
+  return sourceForHost(hostname).id === 'po18tw' ? path : `${path}/`
+}
+
 export async function searchPo18(
   query: string,
   searchType: string,
@@ -323,7 +328,7 @@ export async function discoverList(
     if (/完结|已完结|全集/i.test(container)) status = 'completed'
     else if (/连载|更新中/i.test(container)) status = 'ongoing'
 
-    const novelUrl = `https://${host}/${bookPathForHost(host)}/${bookId}/`
+    const novelUrl = bookUrlForHost(host, bookId)
     novels.push({
       bookId,
       title: toSimplifiedForSource(title.slice(0, 100), novelUrl),

@@ -193,7 +193,7 @@ describe('POPO 发现', () => {
       novels: [{
         title: '榜单小说',
         author: '作者乙',
-        url: 'https://www.po18.tw/books/123456/',
+        url: 'https://www.po18.tw/books/123456',
         source: 'po18tw',
         sourceName: 'POPO',
       }],
