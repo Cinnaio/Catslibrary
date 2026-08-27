@@ -13,14 +13,16 @@ struct AdminAITasksView: View {
     var body: some View {
         List {
             Section {
-                Picker("状态", selection: $statusFilter) {
-                    Text("全部").tag("all")
-                    Text("排队/运行").tag("running")
-                    Text("已完成").tag("completed")
-                    Text("失败/取消").tag("failed")
+                AdminFilterBar {
+                    AdminFilterMenu("状态", value: taskStatusLabel) {
+                        Picker("状态", selection: $statusFilter) {
+                            Text("全部").tag("all")
+                            Text("排队/运行").tag("running")
+                            Text("已完成").tag("completed")
+                            Text("失败/取消").tag("failed")
+                        }
+                    }
                 }
-                .pickerStyle(.segmented)
-                .listRowBackground(Color.clear)
             }
 
             if isLoading && tasks.isEmpty {
@@ -103,6 +105,15 @@ struct AdminAITasksView: View {
         case "completed": return tasks.filter { $0.status == "completed" }
         case "failed": return tasks.filter { ["failed", "cancelled"].contains($0.status ?? "") }
         default: return tasks
+        }
+    }
+
+    private var taskStatusLabel: String {
+        switch statusFilter {
+        case "running": return "排队/运行"
+        case "completed": return "已完成"
+        case "failed": return "失败/取消"
+        default: return "全部状态"
         }
     }
 

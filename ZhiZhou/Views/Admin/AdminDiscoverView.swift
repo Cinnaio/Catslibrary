@@ -79,6 +79,7 @@ struct AdminDiscoverView: View {
             }
             .pickerStyle(.segmented)
             .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
             .onChange(of: mode) { _, _ in
                 novels = []
                 totalText = nil
@@ -86,72 +87,135 @@ struct AdminDiscoverView: View {
             }
 
             if mode == .search {
-                Picker("来源", selection: $searchSource) {
-                    ForEach(DiscoverSource.allCases) { source in
-                        Text(source.displayName).tag(source)
+                AdminFilterBar {
+                    AdminFilterMenu("来源", value: searchSource.displayName) {
+                        Picker("来源", selection: $searchSource) {
+                            ForEach(DiscoverSource.allCases) { source in
+                                Text(source.displayName).tag(source)
+                            }
+                        }
+                    }
+                    AdminFilterMenu(
+                        "查找",
+                        value: searchType == "author" ? "作者" : "书名"
+                    ) {
+                        Picker("搜索类型", selection: $searchType) {
+                            Text("书名").tag("articlename")
+                            Text("作者").tag("author")
+                        }
                     }
                 }
-                .pickerStyle(.segmented)
                 .onChange(of: searchSource) { _, _ in
                     novels = []
                     totalText = nil
                     errorMessage = nil
                 }
-                TextField("搜索书名 / 作者", text: $query)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                Picker("搜索类型", selection: $searchType) {
-                    Text("书名").tag("articlename")
-                    Text("作者").tag("author")
-                }
-                .pickerStyle(.segmented)
-                Button {
-                    Task { await fetchSearch() }
-                } label: {
-                    if isLoading {
-                        HStack { Spacer(); ProgressView(); Spacer() }
-                    } else {
-                        Label("搜索 \(searchSource.displayName)", systemImage: "magnifyingglass")
-                    }
-                }
-                .disabled(isLoading || query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                searchInputRow
             } else {
-                Menu {
-                    Section("PO18 · po18x.vip") {
-                        ForEach(DiscoverRankingPreset.allCases.filter { $0.source == .po18 }) { preset in
-                            Button(preset.label) {
-                                selectRankingPreset(preset)
+                AdminFilterBar {
+                    AdminFilterMenu(
+                        "榜单",
+                        value: sitePresetLabel.isEmpty ? "选择来源榜单" : sitePresetLabel
+                    ) {
+                        Section("PO18 · po18x.vip") {
+                            ForEach(DiscoverRankingPreset.allCases.filter { $0.source == .po18 }) { preset in
+                                Button(preset.label) {
+                                    selectRankingPreset(preset)
+                                }
+                            }
+                        }
+                        Section("POPO · po18.tw") {
+                            ForEach(DiscoverRankingPreset.allCases.filter { $0.source == .popo }) { preset in
+                                Button(preset.label) {
+                                    selectRankingPreset(preset)
+                                }
                             }
                         }
                     }
-                    Section("POPO · po18.tw") {
-                        ForEach(DiscoverRankingPreset.allCases.filter { $0.source == .popo }) { preset in
-                            Button(preset.label) {
-                                selectRankingPreset(preset)
-                            }
-                        }
-                    }
-                } label: {
-                    Label(sitePresetLabel.isEmpty ? "选择来源榜单" : "榜单：\(sitePresetLabel)", systemImage: "list.star")
                 }
-                TextField("粘贴榜单页面 URL", text: $listUrl)
-                    .keyboardType(.URL)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                Button {
-                    Task { await fetchDiscoverList() }
-                } label: {
-                    if isLoading {
-                        HStack { Spacer(); ProgressView(); Spacer() }
-                    } else {
-                        Label("获取榜单", systemImage: "arrow.clockwise")
-                    }
-                }
-                .disabled(isLoading || listUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                rankingInputRow
             }
         } header: {
             Text(mode == .search ? "按书名或作者搜索外部书源" : "从站点榜单批量发现小说")
         }
+    }
+
+    private var searchInputRow: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(AppTheme.textSecondary)
+            TextField("搜索书名 / 作者", text: $query)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .textFieldStyle(.plain)
+                .submitLabel(.search)
+                .onSubmit { Task { await fetchSearch() } }
+            if !query.isEmpty {
+                Button {
+                    query = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(AppTheme.textMuted)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("清除搜索")
+            }
+            Button {
+                Task { await fetchSearch() }
+            } label: {
+                if isLoading {
+                    ProgressView()
+                        .tint(.white)
+                } else {
+                    Image(systemName: "magnifyingglass")
+                }
+            }
+            .frame(width: 44, height: 44)
+            .background(AppTheme.primary, in: Circle())
+            .foregroundStyle(.white)
+            .buttonStyle(.plain)
+            .disabled(isLoading || query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .accessibilityLabel("搜索 \(searchSource.displayName)")
+        }
+        .padding(.horizontal, 12)
+        .frame(minHeight: 52)
+        .background(Color(.secondarySystemFill), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+    }
+
+    private var rankingInputRow: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "link")
+                .foregroundStyle(AppTheme.textSecondary)
+            TextField("粘贴榜单页面 URL", text: $listUrl)
+                .keyboardType(.URL)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .textFieldStyle(.plain)
+            Button {
+                Task { await fetchDiscoverList() }
+            } label: {
+                if isLoading {
+                    ProgressView()
+                } else {
+                    Image(systemName: "arrow.clockwise")
+                }
+            }
+            .frame(width: 44, height: 44)
+            .background(AppTheme.primary, in: Circle())
+            .foregroundStyle(.white)
+            .buttonStyle(.plain)
+            .disabled(isLoading || listUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .accessibilityLabel("获取榜单")
+        }
+        .padding(.horizontal, 12)
+        .frame(minHeight: 52)
+        .background(Color(.secondarySystemFill), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
     }
 
     // MARK: - 结果区

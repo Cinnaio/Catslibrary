@@ -22,13 +22,15 @@ struct AdminNovelsView: View {
     var body: some View {
         List {
             Section {
-                Picker("状态", selection: $statusFilter) {
-                    Text("全部").tag("all")
-                    Text("连载").tag("ongoing")
-                    Text("完结").tag("completed")
+                AdminFilterBar {
+                    AdminFilterMenu("状态", value: novelStatusLabel) {
+                        Picker("状态", selection: $statusFilter) {
+                            Text("全部").tag("all")
+                            Text("连载").tag("ongoing")
+                            Text("完结").tag("completed")
+                        }
+                    }
                 }
-                .pickerStyle(.segmented)
-                .listRowBackground(Color.clear)
             }
 
             if isLoading && novels.isEmpty {
@@ -133,6 +135,14 @@ struct AdminNovelsView: View {
     }
 
     // MARK: - 行
+
+    private var novelStatusLabel: String {
+        switch statusFilter {
+        case "ongoing": return "连载"
+        case "completed": return "完结"
+        default: return "全部状态"
+        }
+    }
 
     private func novelRow(_ novel: Novel) -> some View {
         HStack(spacing: 10) {

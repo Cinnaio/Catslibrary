@@ -25,13 +25,15 @@ struct AdminJobsView: View {
     var body: some View {
         List {
             Section {
-                Picker("过滤", selection: $filter) {
-                    ForEach(JobFilter.allCases) { item in
-                        Text(item.rawValue).tag(item)
+                AdminFilterBar {
+                    AdminFilterMenu("过滤", value: filter.rawValue) {
+                        Picker("过滤", selection: $filter) {
+                            ForEach(JobFilter.allCases) { item in
+                                Text(item.rawValue).tag(item)
+                            }
+                        }
                     }
                 }
-                .pickerStyle(.segmented)
-                .listRowBackground(Color.clear)
             }
 
             if isLoading && jobs.isEmpty {

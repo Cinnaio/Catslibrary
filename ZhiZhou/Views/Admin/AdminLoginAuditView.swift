@@ -16,14 +16,16 @@ struct AdminLoginAuditView: View {
     var body: some View {
         List {
             Section {
-                Picker("状态", selection: $statusFilter) {
-                    Text("全部").tag("all")
-                    Text("成功").tag("success")
-                    Text("失败").tag("failure")
-                    Text("受限").tag("limited")
+                AdminFilterBar {
+                    AdminFilterMenu("状态", value: auditStatusLabel) {
+                        Picker("状态", selection: $statusFilter) {
+                            Text("全部").tag("all")
+                            Text("成功").tag("success")
+                            Text("失败").tag("failure")
+                            Text("受限").tag("limited")
+                        }
+                    }
                 }
-                .pickerStyle(.segmented)
-                .listRowBackground(Color.clear)
                 TextField("按用户名筛选", text: $username)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
@@ -93,6 +95,15 @@ struct AdminLoginAuditView: View {
             try? await Task.sleep(nanoseconds: 400_000_000)
             guard !Task.isCancelled else { return }
             await load()
+        }
+    }
+
+    private var auditStatusLabel: String {
+        switch statusFilter {
+        case "success": return "成功"
+        case "failure": return "失败"
+        case "limited": return "受限"
+        default: return "全部状态"
         }
     }
 

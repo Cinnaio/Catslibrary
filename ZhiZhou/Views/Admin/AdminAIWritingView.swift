@@ -121,13 +121,18 @@ struct AdminAIWritingView: View {
                 }
             }
             .pickerStyle(.segmented)
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
             if mode == .new {
-                Picker("任务类型", selection: $taskKind) {
-                    ForEach(TaskKind.allCases) { k in
-                        Text(k.rawValue).tag(k)
+                AdminFilterBar {
+                    AdminFilterMenu("任务类型", value: taskKind.rawValue) {
+                        Picker("任务类型", selection: $taskKind) {
+                            ForEach(TaskKind.allCases) { k in
+                                Text(k.rawValue).tag(k)
+                            }
+                        }
                     }
                 }
-                .pickerStyle(.segmented)
             }
         } footer: {
             Text(mode == .new

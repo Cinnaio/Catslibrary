@@ -162,28 +162,33 @@ struct AdminAIGenerationsView: View {
 
     private var filterSection: some View {
         Section {
-            Picker("范围", selection: $scopeFilter) {
-                Text("全部").tag("all")
-                Text("读者侧").tag("reader")
-                Text("创作侧").tag("writing")
+            AdminFilterBar {
+                AdminFilterMenu("范围", value: scopeFilterTitle) {
+                    Picker("范围", selection: $scopeFilter) {
+                        Text("全部").tag("all")
+                        Text("读者侧").tag("reader")
+                        Text("创作侧").tag("writing")
+                    }
+                }
+                AdminFilterMenu("类型", value: kindFilterTitle) {
+                    Picker("类型", selection: $kindFilter) {
+                        Text("全部").tag("all")
+                        Text("前情提要").tag("summary")
+                        Text("回顾总结").tag("catchup")
+                        Text("续写").tag("continue")
+                        Text("创作大纲").tag("write_outline")
+                        Text("创作章节").tag("write_chapter")
+                    }
+                }
+                AdminFilterMenu("状态", value: statusFilterTitle) {
+                    Picker("状态", selection: $statusFilter) {
+                        Text("已发布").tag("published")
+                        Text("草稿").tag("draft")
+                        Text("已拒绝").tag("rejected")
+                        Text("全部").tag("all")
+                    }
+                }
             }
-            .pickerStyle(.segmented)
-            Picker("类型", selection: $kindFilter) {
-                Text("全部").tag("all")
-                Text("前情提要").tag("summary")
-                Text("回顾总结").tag("catchup")
-                Text("续写").tag("continue")
-                Text("创作大纲").tag("write_outline")
-                Text("创作章节").tag("write_chapter")
-            }
-            .pickerStyle(.menu)
-            Picker("状态", selection: $statusFilter) {
-                Text("已发布").tag("published")
-                Text("草稿").tag("draft")
-                Text("已拒绝").tag("rejected")
-                Text("全部").tag("all")
-            }
-            .pickerStyle(.menu)
             .onChange(of: kindFilter) { _, _ in
                 offset = 0
                 Task { await load() }
@@ -196,7 +201,34 @@ struct AdminAIGenerationsView: View {
                 offset = 0
                 Task { await load() }
             }
-            .listRowBackground(Color.clear)
+        }
+    }
+
+    private var scopeFilterTitle: String {
+        switch scopeFilter {
+        case "reader": return "读者侧"
+        case "writing": return "创作侧"
+        default: return "全部"
+        }
+    }
+
+    private var kindFilterTitle: String {
+        switch kindFilter {
+        case "summary": return "前情提要"
+        case "catchup": return "回顾总结"
+        case "continue": return "续写"
+        case "write_outline": return "创作大纲"
+        case "write_chapter": return "创作章节"
+        default: return "全部类型"
+        }
+    }
+
+    private var statusFilterTitle: String {
+        switch statusFilter {
+        case "published": return "已发布"
+        case "draft": return "草稿"
+        case "rejected": return "已拒绝"
+        default: return "全部状态"
         }
     }
 
