@@ -24,6 +24,7 @@ final class ReaderSettingsStore {
             "fontSize": "2",
             "fontFamily": "serif",
             "readerPageMode": "scroll",
+            "readerClickPaging": "on",
             "readerTheme": "default",
             "readerLineHeight": "1.95",
             "readerParagraphSpacing": "1.4",
@@ -56,6 +57,10 @@ final class ReaderSettingsStore {
     var themeName: String { values["readerTheme"] ?? "default" }
     var useSerif: Bool { (values["fontFamily"] ?? "serif") == "serif" }
     var contentMode: String { values["contentMode"] ?? "safe" }
+    var clickPagingEnabled: Bool {
+        let raw = values["readerClickPaging"] ?? "on"
+        return raw == "on" || raw == "true" || raw == "1"
+    }
     var wakeLockEnabled: Bool {
         let raw = values["readerWakeLock"] ?? "off"
         return raw == "on" || raw == "true" || raw == "1"

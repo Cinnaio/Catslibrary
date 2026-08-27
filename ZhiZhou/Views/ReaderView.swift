@@ -8,7 +8,7 @@ private final class ReaderPercentBox {
 /// 中文段首缩进：两个全角空格（U+3000 宽恰为一个汉字，随字号自动缩放）。
 let paragraphIndent = "\u{3000}\u{3000}"
 
-/// 阅读器：滚动/翻页双模式、纸面主题、点按隐铬、按段/页恢复进度。
+/// 阅读器：滚动/翻页双模式、纸面主题、点击翻页开关、边缘滑动翻页、按段/页恢复进度。
 ///
 /// 布局：正文占满全屏（点击中部可收起/展开底部浮层），顶部为系统导航条
 /// （纸面底色），底部浮层放进度条与上一章/下一章/页码。沉浸时不遮挡正文。
@@ -225,6 +225,12 @@ struct ReaderView: View {
                 handleScrollTap(x: value.location.x, width: geo.size.width)
             }
         )
+        // 仅识别从屏幕最外侧开始的横向滑动，避免普通上下滚动被误判为翻页。
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 18).onEnded { value in
+                handleEdgeSwipe(value, width: geo.size.width)
+            }
+        )
         .onScrollGeometryChange(for: CGSize.self) { geometry in
             geometry.contentSize
         } action: { _, contentSize in
@@ -242,7 +248,7 @@ struct ReaderView: View {
         }
     }
 
-    /// 翻页阅读区（左右滑动 / 点按左右翻页）。水平安全区同样用两侧较大值做对称留白。
+    /// 翻页阅读区（TabView 负责左右滑动，点按左右区域可选）。水平安全区同样用两侧较大值做对称留白。
     private func pagedReader(geo: GeometryProxy) -> some View {
         let sideInset = max(geo.safeAreaInsets.leading, geo.safeAreaInsets.trailing) + 22
         // 与滚动模式一致：内容总宽上限 720，再扣对称留白，宽屏下正文不无脑拉满。
@@ -327,6 +333,10 @@ struct ReaderView: View {
 
     private func handlePageTap(x: CGFloat, width: CGFloat) {
         guard !pages.isEmpty else { return }
+        guard settings.clickPagingEnabled else {
+            toggleChrome()
+            return
+        }
         let third = width / 3
         if x < third {
             goPage(currentPage - 1)
@@ -338,6 +348,10 @@ struct ReaderView: View {
     }
 
     private func handleScrollTap(x: CGFloat, width: CGFloat) {
+        guard settings.clickPagingEnabled else {
+            toggleChrome()
+            return
+        }
         let edge = width * 0.26
         if x < edge {
             go(to: chapterOrder - 1)
@@ -345,6 +359,25 @@ struct ReaderView: View {
             go(to: chapterOrder + 1)
         } else {
             toggleChrome()
+        }
+    }
+
+    private func handleEdgeSwipe(_ value: DragGesture.Value, width: CGFloat) {
+        let horizontal = value.translation.width
+        let vertical = value.translation.height
+        let edgeWidth = min(72, max(44, width * 0.08))
+        let startsAtLeft = value.startLocation.x <= edgeWidth
+        let startsAtRight = value.startLocation.x >= width - edgeWidth
+
+        guard (startsAtLeft || startsAtRight),
+              abs(horizontal) >= 72,
+              abs(horizontal) >= abs(vertical) * 1.35
+        else { return }
+
+        if startsAtLeft, horizontal > 0 {
+            go(to: chapterOrder - 1)
+        } else if startsAtRight, horizontal < 0 {
+            go(to: chapterOrder + 1)
         }
     }
 

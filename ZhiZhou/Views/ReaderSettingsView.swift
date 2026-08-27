@@ -29,6 +29,9 @@ struct ReaderSettingsView: View {
                     ) { settings.set("readerPageMode", $0) }
                     sectionDivider
 
+                    clickPagingSection
+                    sectionDivider
+
                     segmentedSection(
                         "字体",
                         values: [
@@ -207,6 +210,23 @@ struct ReaderSettingsView: View {
             .tint(AppTheme.primary)
 
             Text("与网页端同步阅读偏好。「系统」纸面会随系统深浅自动切换。")
+                .font(.footnote)
+                .foregroundStyle(AppTheme.textSecondary)
+                .lineSpacing(2)
+        }
+    }
+
+    private var clickPagingSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Toggle("左右区域点击翻页", isOn: Binding(
+                get: { settings.clickPagingEnabled },
+                set: { settings.set("readerClickPaging", $0 ? "on" : "off") }
+            ))
+            .font(.body)
+            .foregroundStyle(AppTheme.textPrimary)
+            .tint(AppTheme.primary)
+
+            Text("关闭后，左右区域点按不会翻页；滚动模式下可从屏幕边缘向内滑动切换章节，翻页模式仍支持左右滑动。")
                 .font(.footnote)
                 .foregroundStyle(AppTheme.textSecondary)
                 .lineSpacing(2)
