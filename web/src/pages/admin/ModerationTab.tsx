@@ -9,6 +9,7 @@ import { timeAgo } from '../../lib/format'
 import { useConfirm, useToast } from '../../components/feedback'
 import AdminPage from '@/components/admin/AdminPage'
 import CustomSelect from '../../components/admin/CustomSelect'
+import { AdminDataPanel, AdminQueueSummary, AdminToolbar } from '@/components/admin/AdminWorkspace'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -530,30 +531,19 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
         </Button>
       }
     >
-      <section className="moderation-queue-summary" aria-label="审核队列概览">
-        <div className="moderation-queue-lead">
-          <span className="chapter-section-kicker">审核队列</span>
-          <strong>{total === null ? '正在读取队列…' : total > 0 ? `当前有 ${total} 条内容` : '当前队列为空'}</strong>
-          <span>按提交时间排序，优先显示当前筛选结果</span>
-        </div>
-        <div className="moderation-queue-stat">
-          <span>当前类型</span>
-          <strong>{cfg.label}</strong>
-          <span>切换上方标签查看其他内容</span>
-        </div>
-        <div className="moderation-queue-stat">
-          <span>当前结果</span>
-          <strong>{loading ? '—' : rows.length}</strong>
-          <span>本次已加载</span>
-        </div>
-        <div className="moderation-queue-stat">
-          <span>状态筛选</span>
-          <strong>{statusLabel}</strong>
-          <span>{reason !== 'all' ? '已启用原因筛选' : '未限定原因'}</span>
-        </div>
-      </section>
-      <div className="admin-data-panel overflow-hidden rounded-xl border border-border bg-card">
-        <div className="moderation-toolbar">
+      <AdminQueueSummary
+        className="admin-queue-summary--moderation"
+        eyebrow="审核队列"
+        title={total === null ? '正在读取队列…' : total > 0 ? `当前有 ${total} 条内容` : '当前队列为空'}
+        description="按提交时间排序，优先显示当前筛选结果"
+        stats={[
+          { label: '当前类型', value: cfg.label, detail: '切换上方标签查看其他内容' },
+          { label: '当前结果', value: loading ? '—' : rows.length, detail: '本次已加载' },
+          { label: '状态筛选', value: statusLabel, detail: reason !== 'all' ? '已启用原因筛选' : '未限定原因' },
+        ]}
+      />
+      <AdminDataPanel className="overflow-hidden" ariaLabel="审核列表">
+        <AdminToolbar className="moderation-toolbar">
           <div className="moderation-toolbar__filters">
             <Tabs
               className="moderation-toolbar__modes"
@@ -605,7 +595,7 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
               刷新
             </Button>
           </div>
-        </div>
+        </AdminToolbar>
         <Table>
           <TableHeader>
             <TableRow>
@@ -616,7 +606,7 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
           </TableHeader>
           <TableBody>{renderBody()}</TableBody>
         </Table>
-      </div>
+      </AdminDataPanel>
     </AdminPage>
   )
 }

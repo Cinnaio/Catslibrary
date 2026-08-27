@@ -19,6 +19,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import AdminPage from '@/components/admin/AdminPage'
+import { AdminMetricStrip } from '@/components/admin/AdminWorkspace'
 import { usePersistentState } from '@/hooks/usePersistentState'
 
 interface AdminUser {
@@ -384,24 +385,16 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
             </Button>
           </CardHeader>
           <CardContent>
-            <div id="userStats" className="grid grid-cols-2 gap-px overflow-hidden rounded-lg bg-border sm:grid-cols-4">
-              <div className="bg-card px-4 py-3">
-                <div className="truncate text-xs font-medium text-muted-foreground">用户</div>
-                <div className="mt-1 text-2xl font-semibold leading-tight tabular-nums tracking-tight text-foreground">{users.length}</div>
-              </div>
-              <div className="bg-card px-4 py-3">
-                <div className="truncate text-xs font-medium text-muted-foreground">活跃</div>
-                <div className="mt-1 text-2xl font-semibold leading-tight tabular-nums tracking-tight text-foreground">{activeCount}</div>
-              </div>
-              <div className="bg-card px-4 py-3">
-                <div className="truncate text-xs font-medium text-muted-foreground">禁用</div>
-                <div className="mt-1 text-2xl font-semibold leading-tight tabular-nums tracking-tight text-foreground">{users.length - activeCount}</div>
-              </div>
-              <div className="bg-card px-4 py-3">
-                <div className="truncate text-xs font-medium text-muted-foreground">管理员</div>
-                <div className="mt-1 text-2xl font-semibold leading-tight tabular-nums tracking-tight text-foreground">{adminCount}</div>
-              </div>
-            </div>
+            <AdminMetricStrip
+              className="admin-metric-strip--account"
+              ariaLabel="用户统计"
+              items={[
+                { label: '用户', value: users.length },
+                { label: '活跃', value: activeCount },
+                { label: '禁用', value: users.length - activeCount },
+                { label: '管理员', value: adminCount },
+              ]}
+            />
           </CardContent>
         </Card>
 

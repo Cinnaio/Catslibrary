@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useConfirm, useToast } from '../../../components/feedback'
 import AdminTabHeader from '@/components/admin/AdminTabHeader'
 import AdminPanel from '@/components/admin/AdminPanel'
+import { AdminToolbar } from '@/components/admin/AdminWorkspace'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -388,7 +389,7 @@ export default function SourcesView({ active }: { active: boolean }) {
         </AdminPanel>
 
         <section className="source-panel" aria-label="书源列表">
-          <div className="source-panel__bar">
+          <AdminToolbar className="source-panel__bar">
             <div className="source-panel__cluster source-panel__cluster--primary">
               <div className="source-panel__filter-group">
                 <span className="source-panel__section-label">筛选</span>
@@ -435,7 +436,7 @@ export default function SourcesView({ active }: { active: boolean }) {
                 删除不可访问
               </Button>
             </div>
-          </div>
+          </AdminToolbar>
           {selectedHosts.size > 0 && (
             <div className="source-panel__bulk-actions">
               <span className="text-sm text-muted-foreground">已选择 {selectedHosts.size}</span>

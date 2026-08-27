@@ -19,6 +19,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { Pencil, Trash2 } from 'lucide-react'
 import AdminPage from '@/components/admin/AdminPage'
+import { AdminContextPanel, AdminDataPanel, AdminMetricStrip, AdminPanelHeading, AdminToolbar } from '@/components/admin/AdminWorkspace'
 
 const PAGE_SIZE = 50
 
@@ -414,73 +415,67 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
         </Button>
       }
     >
-      <section className="chapter-context-panel" aria-labelledby="chapter-context-title">
-        <div className="chapter-context-copy">
-          <span className="chapter-section-kicker">当前工作对象</span>
-          <h3 id="chapter-context-title">先选一本小说，再处理章节</h3>
-          <p>切换作品会同步章节目录、字数与更新时间；搜索和批量操作只作用于当前作品。</p>
-        </div>
-        <div className="chapter-context-form">
-          <div className="chapter-context-form__field">
-            <Label>选择小说</Label>
-            <CustomSelect
-              className="chapter-novel-select"
-              searchable
-              searchPlaceholder="搜索书名 / 拼音…"
-              placeholder="请选择小说"
-              options={novelOptions.map((n) => ({
-                value: n.id,
-                label: n.title,
-                sub: `${n.author || '未知作者'} · ${n.chapterCount}章`,
-              }))}
-              value={selectedNovel}
-              onChange={pickNovel}
-              filter={(o, q) => novelFilter(o, q)}
-              onServerSearch={handleNovelServerSearch}
-            />
+      <AdminContextPanel
+        className="chapter-context-panel"
+        eyebrow="当前工作对象"
+        title="先选一本小说，再处理章节"
+        description="切换作品会同步章节目录、字数与更新时间；搜索和批量操作只作用于当前作品。"
+        aside={
+          <div className="chapter-context-form">
+            <div className="chapter-context-form__field">
+              <Label>选择小说</Label>
+              <CustomSelect
+                className="chapter-novel-select"
+                searchable
+                searchPlaceholder="搜索书名 / 拼音…"
+                placeholder="请选择小说"
+                options={novelOptions.map((n) => ({
+                  value: n.id,
+                  label: n.title,
+                  sub: `${n.author || '未知作者'} · ${n.chapterCount}章`,
+                }))}
+                value={selectedNovel}
+                onChange={pickNovel}
+                filter={(o, q) => novelFilter(o, q)}
+                onServerSearch={handleNovelServerSearch}
+              />
+            </div>
+            <Button
+              variant="secondary"
+              disabled={!selectedNovel}
+              onClick={() => selectedNovel && navigate(`/novel/${encodeURIComponent(selectedNovel)}`)}
+            >
+              打开详情
+            </Button>
           </div>
-          <Button
-            variant="secondary"
-            disabled={!selectedNovel}
-            onClick={() => selectedNovel && navigate(`/novel/${encodeURIComponent(selectedNovel)}`)}
-          >
-            打开详情
-          </Button>
-        </div>
-      </section>
+        }
+      />
 
-      <section className="chapter-metric-strip" aria-label="章节统计">
-        <div className="chapter-metric">
-          <span>当前章节</span>
-          <strong>{selectedNovel ? chapters.length : '—'}</strong>
-        </div>
-        <div className="chapter-metric">
-          <span>已排序</span>
-          <strong>{selectedNovel ? chapterStats.ordered : '—'} {selectedNovel && chapters.length > 0 && <em>{chapterStats.orderPercent}%</em>}</strong>
-        </div>
-        <div className="chapter-metric">
-          <span>总字数</span>
-          <strong>{selectedNovel ? formattedWordCount : '—'} {selectedNovel && chapterStats.totalWords > 0 && chapterStats.totalWords < 10000 && <em>字</em>}</strong>
-        </div>
-        <div className="chapter-metric">
-          <span>最近更新</span>
-          <strong>{selectedNovel && chapterStats.latestCreatedAt ? timeAgo(chapterStats.latestCreatedAt) : '—'}</strong>
-        </div>
-      </section>
+      <AdminMetricStrip
+        className="chapter-metric-strip"
+        ariaLabel="章节统计"
+        items={[
+          { label: '当前章节', value: selectedNovel ? chapters.length : '—' },
+          { label: '已排序', value: selectedNovel ? chapterStats.ordered : '—', detail: selectedNovel && chapters.length > 0 ? `${chapterStats.orderPercent}%` : undefined, detailTone: 'success' },
+          { label: '总字数', value: selectedNovel ? formattedWordCount : '—', detail: selectedNovel && chapterStats.totalWords > 0 && chapterStats.totalWords < 10000 ? '字' : undefined },
+          { label: '最近更新', value: selectedNovel && chapterStats.latestCreatedAt ? timeAgo(chapterStats.latestCreatedAt) : '—' },
+        ]}
+      />
 
       <div className="chapter-layout">
-        <section className="admin-data-panel chapter-directory-panel overflow-hidden rounded-xl border border-border bg-card" aria-labelledby="chapter-directory-title">
-          <div className="chapter-directory-panel__head">
-            <div>
-              <h3 id="chapter-directory-title">章节目录</h3>
-              <p>{selectedNovel ? `共 ${chapters.length} 章 · 最近更新于 ${chapterStats.latestCreatedAt ? timeAgo(chapterStats.latestCreatedAt) : '—'}` : '选择小说后加载章节目录'}</p>
-            </div>
-            <span className={`chapter-directory-status ${selectedNovel ? 'is-ready' : ''}`}>
-              <span aria-hidden="true">●</span>
-              {selectedNovel ? '目录正常' : '等待选择'}
-            </span>
-          </div>
-          <div className="chapter-toolbar" aria-live="polite">
+        <AdminDataPanel className="chapter-directory-panel overflow-hidden" ariaLabel="章节目录">
+          <AdminPanelHeading
+            className="chapter-directory-panel__head"
+            title={<span id="chapter-directory-title">章节目录</span>}
+            description={selectedNovel ? `共 ${chapters.length} 章 · 最近更新于 ${chapterStats.latestCreatedAt ? timeAgo(chapterStats.latestCreatedAt) : '—'}` : '选择小说后加载章节目录'}
+            status={
+              <span className={`chapter-directory-status ${selectedNovel ? 'is-ready' : ''}`}>
+                <span aria-hidden="true">●</span>
+                {selectedNovel ? '目录正常' : '等待选择'}
+              </span>
+            }
+          />
+          <AdminToolbar className="chapter-toolbar" ariaLive="polite">
             <Input
               type="text"
               className="chapter-toolbar__search admin-input--compact"
@@ -517,7 +512,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
                 </Button>
               )}
             </div>
-          </div>
+          </AdminToolbar>
           <Table>
             <TableHeader>
               <TableRow>
@@ -570,10 +565,10 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
             </TableBody>
           </Table>
           <Pagination page={currentPage} totalPages={totalPages} className="chapter-directory-pagination" onPage={setPage} />
-        </section>
+        </AdminDataPanel>
 
         <aside className="chapter-work-note" aria-labelledby="chapter-work-note-title">
-          <span className="chapter-section-kicker">工作提示</span>
+          <span className="admin-section-kicker">工作提示</span>
           <h3 id="chapter-work-note-title">让目录保持可读</h3>
           <p>融合源站章节名只影响标题，不会改动正文来源、章节顺序或阅读进度。</p>
           <dl className="chapter-work-note__rows">

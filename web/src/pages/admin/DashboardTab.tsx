@@ -10,6 +10,7 @@ import { formatBytes, timeAgo } from '../../lib/format'
 import { jobStatusLabel } from '../../lib/admin'
 import AdminPage from '@/components/admin/AdminPage'
 import AdminEmptyState from '@/components/admin/AdminEmptyState'
+import { AdminMetricStrip } from '@/components/admin/AdminWorkspace'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -86,23 +87,18 @@ export default function DashboardTab(_props: { highlightNovelId?: string; onHigh
         <div className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">加载中…</div>
       ) : (
         <div className="space-y-4">
-          <div className="overflow-hidden rounded-xl border border-border bg-card">
-            <div className="grid grid-cols-2 gap-px bg-border sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
-              {STAT_CARDS.map((card) => {
-                const raw = totals ? totals[card.key] : 0
-                const value = card.key === 'dbSize' ? formatBytes(typeof raw === 'number' ? raw : null) : formatNumber(raw as number)
-                return (
-                  <div key={card.key} className="bg-card px-4 py-3.5">
-                    <div className="truncate text-xs font-medium text-muted-foreground">{card.label}</div>
-                    <div className="mt-1 text-2xl font-semibold leading-tight tabular-nums tracking-tight text-foreground">
-                      {value}
-                      {card.unit && <span className="ml-0.5 text-xs font-normal text-muted-foreground">{card.unit}</span>}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
+          <AdminMetricStrip
+            className="admin-metric-strip--dashboard"
+            ariaLabel="后台总览指标"
+            items={STAT_CARDS.map((card) => {
+              const raw = totals ? totals[card.key] : 0
+              return {
+                label: card.label,
+                value: card.key === 'dbSize' ? formatBytes(typeof raw === 'number' ? raw : null) : formatNumber(raw as number),
+                detail: card.unit,
+              }
+            })}
+          />
 
           <div className="rounded-xl border border-border bg-muted/60 p-5">
             <div className="flex items-center justify-between gap-3">

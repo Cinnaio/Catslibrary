@@ -15,8 +15,8 @@ import { adminApi, authFetch, downloadLogsApi, scrapeApi } from '../../lib/api'
 import { formatDateTime } from '../../lib/format'
 import { formatEta, formatJobSpeed, getJobDuration, isJobRunning, isJobTerminal, jobStatusLabel, truncateId } from '../../lib/admin'
 import { useConfirm, useToast } from '../../components/feedback'
-import AdminTabHeader from '@/components/admin/AdminTabHeader'
 import AdminPage from '@/components/admin/AdminPage'
+import { AdminDataPanel, AdminPanelHeading, AdminQueueSummary } from '@/components/admin/AdminWorkspace'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -356,18 +356,19 @@ export default function JobsTab(_props: { highlightNovelId?: string; onHighlight
         }
       >
 
-      <section className="admin-queue-summary jobs-queue-summary" aria-label="任务队列概览">
-        <div className="admin-queue-summary__lead">
-          <span className="chapter-section-kicker">任务队列</span>
-          <strong>{runningCount > 0 ? `当前有 ${runningCount} 个任务运行中` : '当前没有运行中的任务'}</strong>
-          <span>抓取、更新和失败重试都集中在这里跟踪</span>
-        </div>
-        <div className="admin-queue-summary__stat"><span>全部任务</span><strong>{jobs.length}</strong><small>{filter === 'all' ? '当前显示全部' : '已启用筛选'}</small></div>
-        <div className="admin-queue-summary__stat"><span>运行中</span><strong>{runningCount}</strong><small>正在执行</small></div>
-        <div className="admin-queue-summary__stat"><span>待关注</span><strong>{failedCount}</strong><small>失败 / 终止 / 部分完成</small></div>
-      </section>
+      <AdminQueueSummary
+        className="admin-queue-summary--jobs"
+        eyebrow="任务队列"
+        title={runningCount > 0 ? `当前有 ${runningCount} 个任务运行中` : '当前没有运行中的任务'}
+        description="抓取、更新和失败重试都集中在这里跟踪"
+        stats={[
+          { label: '全部任务', value: jobs.length, detail: filter === 'all' ? '当前显示全部' : '已启用筛选' },
+          { label: '运行中', value: runningCount, detail: '正在执行' },
+          { label: '待关注', value: failedCount, detail: '失败 / 终止 / 部分完成' },
+        ]}
+      />
 
-      <div className="overflow-hidden rounded-xl border border-border bg-card">
+      <AdminDataPanel className="overflow-hidden" ariaLabel="抓取任务列表">
         <Table>
           <TableHeader>
             <TableRow>
@@ -416,7 +417,7 @@ export default function JobsTab(_props: { highlightNovelId?: string; onHighlight
             )}
           </TableBody>
         </Table>
-      </div>
+      </AdminDataPanel>
 
       <div className="admin-table-meta-row">
         <span className="text-xs text-muted-foreground">{jobStatsText}</span>
@@ -427,17 +428,16 @@ export default function JobsTab(_props: { highlightNovelId?: string; onHighlight
         )}
       </div>
 
-      <div className="mt-8">
-        <AdminTabHeader
-          title="下载日志"
-          actions={
-            <Button variant="secondary" size="sm" onClick={() => void loadDownloadLogs()}>
-              刷新
-            </Button>
-          }
-        />
-      </div>
-      <div className="overflow-hidden rounded-xl border border-border bg-card">
+      <AdminPanelHeading
+        className="jobs-download-heading"
+        title="下载日志"
+        actions={
+          <Button variant="secondary" size="sm" onClick={() => void loadDownloadLogs()}>
+            刷新
+          </Button>
+        }
+      />
+      <AdminDataPanel className="overflow-hidden" ariaLabel="下载日志">
         <Table>
           <TableHeader>
             <TableRow>
@@ -466,7 +466,7 @@ export default function JobsTab(_props: { highlightNovelId?: string; onHighlight
             )}
           </TableBody>
         </Table>
-      </div>
+      </AdminDataPanel>
     </AdminPage>
   )
 }

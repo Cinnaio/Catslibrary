@@ -6,6 +6,7 @@ import { adminApi, novelsApi } from '@/lib/api'
 import { useToast } from '@/components/feedback'
 import { usePersistentState } from '@/hooks/usePersistentState'
 import AdminPage from '@/components/admin/AdminPage'
+import { AdminMetricStrip } from '@/components/admin/AdminWorkspace'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -26,19 +27,6 @@ const SOURCE_NAMES: Record<string, string> = { direct: '直接访问', search: '
 
 function dimensionLabel(key: string, names: Record<string, string>) {
   return names[key] || key || '其他'
-}
-
-function MetricStrip({ items }: { items: readonly Metric[] }) {
-  return (
-    <div className={`site-operations__metrics${items.length === 5 ? ' site-operations__metrics--five' : ''}`}>
-      {items.map(([label, value, unit]) => (
-        <div key={label} className="site-operations__metric">
-          <span>{label}</span>
-          <strong>{value.toLocaleString()} <small>{unit}</small></strong>
-        </div>
-      ))}
-    </div>
-  )
 }
 
 function ShareRows({ items, names }: { items: Array<{ key: string; visits: number }>; names: Record<string, string> }) {
@@ -190,7 +178,7 @@ export default function SiteOperationsTab() {
 
         <div className="site-operations__panel">
           {tab === 'overview' && <>
-            <MetricStrip items={overviewMetrics} />
+            <AdminMetricStrip className="site-operations__metrics" ariaLabel="运营概览指标" items={overviewMetrics.map(([label, value, unit]) => ({ label, value: value.toLocaleString(), detail: unit }))} />
             <div className="grid gap-4 lg:grid-cols-2">
               <Card>
                 <CardHeader>
@@ -212,7 +200,7 @@ export default function SiteOperationsTab() {
           </>}
 
           {tab === 'traffic' && <>
-            <MetricStrip items={trafficMetrics} />
+            <AdminMetricStrip className="site-operations__metrics" ariaLabel="流量分析指标" items={trafficMetrics.map(([label, value, unit]) => ({ label, value: value.toLocaleString(), detail: unit }))} />
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base"><Route className="size-4 text-primary" aria-hidden="true" />近 7 日访问趋势</CardTitle>
@@ -241,7 +229,7 @@ export default function SiteOperationsTab() {
           </>}
 
           {tab === 'content' && <>
-            <MetricStrip items={contentMetrics} />
+            <AdminMetricStrip className="site-operations__metrics" ariaLabel="内容分析指标" items={contentMetrics.map(([label, value, unit]) => ({ label, value: value.toLocaleString(), detail: unit }))} />
             <div className="grid gap-4 lg:grid-cols-2">
               <CategoryDistribution categories={data?.contentHealth.categories || []} loading={loading} onSelect={(category) => void openNovelList({ category }, `分类：${category}`)} />
               <div className="grid content-start gap-4">
@@ -271,14 +259,14 @@ export default function SiteOperationsTab() {
         <p className="text-xs leading-relaxed text-muted-foreground">访问统计使用浏览器本地随机标识，经服务端哈希后保存；不记录 IP、完整 User-Agent 或完整来源地址。地区、设备与来源仅保存不可识别的分类结果。</p>
       </div>
       <Dialog open={!!selectedListTitle} onOpenChange={(open) => { if (!open) setSelectedListTitle('') }}>
-        <DialogContent className="max-h-[min(78vh,680px)] overflow-hidden sm:max-w-2xl">
+        <DialogContent className="admin-dialog max-h-[min(78vh,680px)] overflow-hidden sm:max-w-2xl">
           <DialogHeader>
           <DialogTitle>{selectedListTitle} <span className="text-sm font-normal text-muted-foreground">· {selectedListTotal.toLocaleString()} 本</span></DialogTitle>
           </DialogHeader>
           <div className="max-h-[56vh] overflow-y-auto rounded-lg border border-border">
             {categoryBooksLoading ? <p className="p-8 text-center text-sm text-muted-foreground">正在加载作品…</p> : categoryBooks.length ? <div className="divide-y divide-border">{categoryBooks.map((novel) => <div key={novel.id} className="flex items-center justify-between gap-3 px-4 py-3 transition-colors hover:bg-muted/40">
               <Link to={`/novel/${encodeURIComponent(novel.id)}`} className="min-w-0 flex-1"><span className="block truncate text-sm font-medium text-foreground">{novel.title}</span><span className="mt-0.5 block truncate text-xs text-muted-foreground">{novel.author || '作者未知'} · {novel.status === 'completed' ? '已完结' : '连载中'} · {novel.chapterCount || 0} 章</span></Link>
-              <button type="button" className="shrink-0 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground" onClick={() => { sessionStorage.setItem('adminEditNovel', JSON.stringify({ id: novel.id })); window.location.href = '/admin' }}>管理</button>
+              <Button variant="outline" size="sm" className="shrink-0" onClick={() => { sessionStorage.setItem('adminEditNovel', JSON.stringify({ id: novel.id })); window.location.href = '/admin' }}>管理</Button>
             </div>)}</div> : <p className="p-8 text-center text-sm text-muted-foreground">该列表暂无作品</p>}
           </div>
           {selectedListTotal > 20 && <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground"><span>第 {selectedListPage} / {Math.ceil(selectedListTotal / 20)} 页</span><div className="flex gap-2"><Button variant="outline" size="sm" disabled={selectedListPage <= 1 || categoryBooksLoading} onClick={() => void openNovelList(selectedListParams, selectedListTitle, selectedListPage - 1)}>上一页</Button><Button variant="outline" size="sm" disabled={selectedListPage >= Math.ceil(selectedListTotal / 20) || categoryBooksLoading} onClick={() => void openNovelList(selectedListParams, selectedListTitle, selectedListPage + 1)}>下一页</Button></div></div>}

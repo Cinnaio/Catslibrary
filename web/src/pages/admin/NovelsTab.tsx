@@ -34,6 +34,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { BookOpen, Pencil, Trash2 } from 'lucide-react'
 import AdminPage from '@/components/admin/AdminPage'
+import { AdminContextPanel, AdminDataPanel, AdminMetricStrip, AdminPanelHeading, AdminToolbar } from '@/components/admin/AdminWorkspace'
 
 const PAGE_SIZE = 20
 
@@ -92,6 +93,32 @@ async function scrapeUpdate(novelId: string): Promise<Record<string, unknown>> {
     body: JSON.stringify({ action: 'update', novelId }),
   })
   return res.json().catch(() => ({})) as Promise<Record<string, unknown>>
+}
+
+function NovelSortButton({
+  field,
+  active,
+  order,
+  onSort,
+  children,
+}: {
+  field: string
+  active: boolean
+  order: string
+  onSort: (field: string) => void
+  children: string
+}) {
+  return (
+    <button
+      type="button"
+      className="admin-sort-button"
+      data-active={active}
+      onClick={() => onSort(field)}
+    >
+      {children}
+      <span className="admin-sort-caret" aria-hidden="true">{active ? (order === 'asc' ? '↑' : '↓') : '↕'}</span>
+    </button>
+  )
 }
 
 export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { highlightNovelId?: string; onHighlightConsumed?: () => void }) {
@@ -227,21 +254,6 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
   function sortAria(field: string): 'ascending' | 'descending' | 'none' {
     if (sortField !== field) return 'none'
     return sortOrder === 'asc' ? 'ascending' : 'descending'
-  }
-
-  function SortButton({ field, children }: { field: string; children: string }) {
-    const active = sortField === field
-    return (
-      <button
-        type="button"
-        className="admin-sort-button"
-        data-active={active}
-        onClick={() => toggleSort(field)}
-      >
-        {children}
-        <span className="admin-sort-caret" aria-hidden="true">{active ? (sortOrder === 'asc' ? '↑' : '↓') : '↕'}</span>
-      </button>
-    )
   }
 
   // --- Selection ---
@@ -463,28 +475,32 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
         </Button>
       }
     >
-      <section className="novel-context-panel" aria-labelledby="novel-context-title">
-        <div>
-          <span className="chapter-section-kicker">当前工作对象</span>
-          <h3 id="novel-context-title">先找到作品，再维护书库</h3>
-          <p>搜索、排序和批量更新围绕当前作品列表展开，作品详情可继续进入阅读页查看。</p>
-        </div>
-        <div className="novel-context-stats" aria-label="书库统计">
-          <div><span>作品总数</span><strong>{total}</strong></div>
-          <div><span>当前页</span><strong>{novels.length}</strong></div>
-          <div><span>已选作品</span><strong>{selected.size}</strong></div>
-        </div>
-      </section>
+      <AdminContextPanel
+        className="novel-context-panel"
+        eyebrow="当前工作对象"
+        title="先找到作品，再维护书库"
+        description="搜索、排序和批量更新围绕当前作品列表展开，作品详情可继续进入阅读页查看。"
+        aside={
+          <AdminMetricStrip
+            className="novel-context-stats"
+            ariaLabel="书库统计"
+            items={[
+              { label: '作品总数', value: total },
+              { label: '当前页', value: novels.length },
+              { label: '已选作品', value: selected.size },
+            ]}
+          />
+        }
+      />
 
-      <div className="admin-data-panel novel-directory-panel overflow-hidden rounded-xl border border-border bg-card">
-        <div className="novel-directory-panel__head">
-          <div>
-            <h3>作品目录</h3>
-            <p>{query ? `匹配「${query}」的作品` : '按标题、作者、章节数和更新时间管理书库'}</p>
-          </div>
-          <span className="novel-directory-panel__sort">当前按更新时间排序</span>
-        </div>
-        <div className="novel-toolbar">
+      <AdminDataPanel className="novel-directory-panel overflow-hidden" ariaLabel="作品目录">
+        <AdminPanelHeading
+          className="novel-directory-panel__head"
+          title="作品目录"
+          description={query ? `匹配「${query}」的作品` : '按标题、作者、章节数和更新时间管理书库'}
+          actions={<span className="novel-directory-panel__sort">当前按更新时间排序</span>}
+        />
+        <AdminToolbar className="novel-toolbar">
           <div className="novel-toolbar__primary">
             <Label htmlFor="novel-search" className="sr-only">搜索小说</Label>
             <Input
@@ -513,7 +529,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
               </div>
             </div>
           )}
-        </div>
+        </AdminToolbar>
         <Table>
           <TableCaption className="sr-only">小说目录列表，可按标题、作者、章节数和更新时间排序</TableCaption>
           <TableHeader>
@@ -522,18 +538,18 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
                 <Checkbox aria-label="选择当前页全部小说" checked={allChecked} onCheckedChange={handleSelectAll} />
               </TableHead>
               <TableHead scope="col" aria-sort={sortAria('title')}>
-                <SortButton field="title">标题</SortButton>
+                <NovelSortButton field="title" active={sortField === 'title'} order={sortOrder} onSort={toggleSort}>标题</NovelSortButton>
               </TableHead>
               <TableHead scope="col" aria-sort={sortAria('author')}>
-                <SortButton field="author">作者</SortButton>
+                <NovelSortButton field="author" active={sortField === 'author'} order={sortOrder} onSort={toggleSort}>作者</NovelSortButton>
               </TableHead>
               <TableHead scope="col">分类</TableHead>
               <TableHead scope="col">状态</TableHead>
               <TableHead scope="col" aria-sort={sortAria('chapter_count')}>
-                <SortButton field="chapter_count">章节</SortButton>
+                <NovelSortButton field="chapter_count" active={sortField === 'chapter_count'} order={sortOrder} onSort={toggleSort}>章节</NovelSortButton>
               </TableHead>
               <TableHead scope="col" aria-sort={sortAria('updated_at')}>
-                <SortButton field="updated_at">更新</SortButton>
+                <NovelSortButton field="updated_at" active={sortField === 'updated_at'} order={sortOrder} onSort={toggleSort}>更新</NovelSortButton>
               </TableHead>
               <TableHead scope="col">操作</TableHead>
             </TableRow>
@@ -606,7 +622,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
             )}
           </TableBody>
         </Table>
-      </div>
+      </AdminDataPanel>
 
       <Pagination page={page} totalPages={totalPages} onPage={setPage} />
 
