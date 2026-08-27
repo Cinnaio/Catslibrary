@@ -28,29 +28,39 @@ struct AdminDashboardView: View {
                 }
             } else if let stats {
                 Section("内容规模") {
-                    statsGrid(stats.totals)
-                    LabeledContent("数据库占用") {
-                        Text(AdminFormat.byteSize(stats.totals.dbSize))
-                            .foregroundStyle(AppTheme.textSecondary)
+                    panelRow {
+                        VStack(spacing: 0) {
+                            statsGrid(stats.totals)
+                            Divider()
+                                .padding(.horizontal, 16)
+                            LabeledContent("数据库占用") {
+                                Text(AdminFormat.byteSize(stats.totals.dbSize))
+                                    .foregroundStyle(AppTheme.textSecondary)
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 14)
+                        }
                     }
                 }
 
                 Section("任务状态") {
-                    jobStatusRow(stats.jobStatus)
+                    panelRow {
+                        jobStatusRow(stats.jobStatus)
+                    }
                 }
 
                 if !stats.recentJobs.isEmpty {
                     Section("最近任务") {
-                        ForEach(stats.recentJobs) { job in
-                            jobRow(job)
+                        panelRow {
+                            recentJobsPanel(stats.recentJobs)
                         }
                     }
                 }
 
                 if !stats.recentNovels.isEmpty {
                     Section("最近更新") {
-                        ForEach(stats.recentNovels) { novel in
-                            novelRow(novel)
+                        panelRow {
+                            recentNovelsPanel(stats.recentNovels)
                         }
                     }
                 }
@@ -58,6 +68,7 @@ struct AdminDashboardView: View {
         }
         .scrollContentBackground(.hidden)
         .pageBackground()
+        .listStyle(.plain)
         .navigationTitle("总览")
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await load() }
@@ -88,8 +99,8 @@ struct AdminDashboardView: View {
             statCell("今日章节", systemImage: "text.badge.plus", value: totals.todayChapters, tint: AppTheme.success)
             statCell("失败任务", systemImage: "exclamationmark.triangle", value: totals.failedJobs, tint: totals.failedJobs > 0 ? AppTheme.danger : AppTheme.success)
         }
-        .listRowBackground(Color.clear)
-        .listRowSeparator(.hidden)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
     }
 
     private func statCell(_ title: String, systemImage: String, value: Int, tint: Color) -> some View {
@@ -99,47 +110,79 @@ struct AdminDashboardView: View {
                     .font(.caption)
                     .foregroundStyle(tint)
                 Text(title)
-                    .font(.caption)
+                    .font(.subheadline)
                     .foregroundStyle(AppTheme.textSecondary)
             }
             Text("\(value)")
-                .font(serifFont(.title3, .semibold))
+                .font(.title3.weight(.semibold))
                 .foregroundStyle(AppTheme.textPrimary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .paperCard(cornerRadius: 14)
+        .frame(minHeight: 62, alignment: .leading)
+        .padding(.horizontal, 4)
     }
 
     // MARK: - 任务状态
 
     private func jobStatusRow(_ jobStatus: AdminJobStatus) -> some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 0) {
             statusChip("进行中", value: jobStatus.running, tint: AppTheme.warning)
+            Rectangle()
+                .fill(AppTheme.border)
+                .frame(width: 1, height: 32)
             statusChip("已完成", value: jobStatus.completed, tint: AppTheme.success)
+            Rectangle()
+                .fill(AppTheme.border)
+                .frame(width: 1, height: 32)
             statusChip("失败", value: jobStatus.failed, tint: jobStatus.failed > 0 ? AppTheme.danger : AppTheme.success)
         }
-        .listRowBackground(Color.clear)
-        .listRowSeparator(.hidden)
+        .padding(.vertical, 16)
     }
 
     private func statusChip(_ title: String, value: Int, tint: Color) -> some View {
         VStack(spacing: 4) {
             Text("\(value)")
-                .font(serifFont(.headline, .semibold))
+                .font(.headline.weight(.semibold))
                 .foregroundStyle(tint)
             Text(title)
                 .font(.caption2)
                 .foregroundStyle(AppTheme.textSecondary)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 10)
-        .paperCard(cornerRadius: 12)
+        .padding(.vertical, 4)
     }
 
     // MARK: - 行
+
+    private func recentJobsPanel(_ jobs: [AdminJobSummary]) -> some View {
+        VStack(spacing: 0) {
+            ForEach(jobs.indices, id: \.self) { index in
+                jobRow(jobs[index])
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
+                if index < jobs.count - 1 {
+                    Divider()
+                        .padding(.horizontal, 16)
+                }
+            }
+        }
+    }
+
+    private func recentNovelsPanel(_ novels: [AdminNovelSummary]) -> some View {
+        VStack(spacing: 0) {
+            ForEach(novels.indices, id: \.self) { index in
+                novelRow(novels[index])
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
+                if index < novels.count - 1 {
+                    Divider()
+                        .padding(.horizontal, 16)
+                }
+            }
+        }
+    }
 
     private func jobRow(_ job: AdminJobSummary) -> some View {
         VStack(alignment: .leading, spacing: 5) {
@@ -168,7 +211,6 @@ struct AdminDashboardView: View {
                     .lineLimit(2)
             }
         }
-        .padding(.vertical, 2)
     }
 
     private func novelRow(_ novel: AdminNovelSummary) -> some View {
@@ -182,7 +224,19 @@ struct AdminDashboardView: View {
                 .font(.caption)
                 .foregroundStyle(AppTheme.textSecondary)
         }
-        .padding(.vertical, 2)
+    }
+
+    private func panelRow<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        content()
+            .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .strokeBorder(AppTheme.border.opacity(0.65), lineWidth: 1)
+            )
+            .shadow(color: Color.black.opacity(0.06), radius: 8, y: 3)
+            .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 8, trailing: 16))
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
     }
 
     private func jobStatusTint(_ status: String) -> Color {
