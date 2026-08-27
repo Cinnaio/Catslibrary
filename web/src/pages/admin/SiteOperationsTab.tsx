@@ -174,7 +174,7 @@ export default function SiteOperationsTab() {
 
   return (
     <AdminPage
-      className="site-operations"
+      className="admin-redesign-page admin-redesign-page--site-operations site-operations"
       title="站点运营"
       description="从匿名聚合数据观察流量、读者与内容健康度。"
       actions={<div className="flex gap-2"><Button variant="secondary" size="sm" onClick={() => void load()} disabled={loading || saving}>{loading ? '刷新中…' : '刷新'}</Button>{tab === 'content' && <Button variant="outline" size="sm" onClick={exportContentReport} disabled={!data}>导出 CSV</Button>}</div>}

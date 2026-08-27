@@ -340,7 +340,7 @@ export default function JobsTab(_props: { highlightNovelId?: string; onHighlight
   // ---------- 渲染 ----------
 
   return (
-    <AdminPage title="任务管理" actions={
+      <AdminPage className="admin-redesign-page admin-redesign-page--jobs" title="任务管理" actions={
           <>
             <Tabs value={filter} onValueChange={(v) => setFilter(v as JobFilter)}>
               <TabsList>
@@ -355,6 +355,17 @@ export default function JobsTab(_props: { highlightNovelId?: string; onHighlight
           </>
         }
       >
+
+      <section className="admin-queue-summary jobs-queue-summary" aria-label="任务队列概览">
+        <div className="admin-queue-summary__lead">
+          <span className="chapter-section-kicker">任务队列</span>
+          <strong>{runningCount > 0 ? `当前有 ${runningCount} 个任务运行中` : '当前没有运行中的任务'}</strong>
+          <span>抓取、更新和失败重试都集中在这里跟踪</span>
+        </div>
+        <div className="admin-queue-summary__stat"><span>全部任务</span><strong>{jobs.length}</strong><small>{filter === 'all' ? '当前显示全部' : '已启用筛选'}</small></div>
+        <div className="admin-queue-summary__stat"><span>运行中</span><strong>{runningCount}</strong><small>正在执行</small></div>
+        <div className="admin-queue-summary__stat"><span>待关注</span><strong>{failedCount}</strong><small>失败 / 终止 / 部分完成</small></div>
+      </section>
 
       <div className="overflow-hidden rounded-xl border border-border bg-card">
         <Table>

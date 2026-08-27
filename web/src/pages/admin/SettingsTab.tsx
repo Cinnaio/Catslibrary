@@ -342,7 +342,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
   }
 
   return (
-    <AdminPage title="账户与注册" description="管理站点用户、注册方式与邀请码。" actions={
+    <AdminPage className="admin-redesign-page admin-redesign-page--settings" title="账户与注册" description="管理站点用户、注册方式与邀请码。" actions={
           <span id="schemaHealth">
             {schemaHealth &&
               (schemaHealth.ok ? (

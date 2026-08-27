@@ -910,6 +910,258 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   }
 }
 
+/* 其余后台 tab 沿用章节页的“先说明，再操作”节奏。 */
+.admin-redesign-page:not(.admin-redesign-page--chapters) {
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-redesign-page:not(.admin-redesign-page--chapters) > .admin-tab-header {
+  margin-bottom: 0.25rem;
+}
+
+.admin-redesign-page [data-slot='card'],
+.admin-redesign-page > .overflow-hidden.rounded-xl.border,
+.admin-redesign-page > .admin-data-panel {
+  border-color: var(--admin-border);
+  border-radius: var(--radius-xl);
+  box-shadow: none;
+}
+
+.admin-redesign-page [data-slot='card-header'] {
+  border-color: var(--admin-border);
+}
+
+.admin-redesign-page [data-slot='tabs-list'] {
+  min-height: var(--admin-control-height);
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-button-radius);
+  padding: 0.1875rem;
+  background: var(--admin-panel-muted);
+}
+
+.admin-redesign-page [data-slot='tabs-trigger'] {
+  min-height: calc(var(--admin-control-height) - 0.5rem);
+  border-radius: var(--admin-radius-sm);
+  color: var(--text-muted);
+}
+
+.admin-redesign-page [data-slot='tabs-trigger'][data-state='active'] {
+  background: var(--admin-panel);
+  color: var(--accent-hover);
+  box-shadow: var(--admin-shadow-soft);
+}
+
+.admin-redesign-page--novels .novel-context-panel,
+.admin-redesign-page--jobs .admin-queue-summary {
+  border-color: var(--admin-border);
+  border-radius: var(--radius-xl);
+}
+
+.novel-context-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 1.15fr);
+  align-items: center;
+  gap: 1.5rem;
+  padding: 1.25rem;
+  border: 1px solid var(--admin-border);
+  background: var(--admin-panel);
+}
+
+.novel-context-panel h3 {
+  margin: 0.45rem 0 0;
+  color: var(--text-primary);
+  font-size: 1.2rem;
+  font-weight: 750;
+  letter-spacing: -0.025em;
+}
+
+.novel-context-panel p {
+  max-width: 42rem;
+  margin: 0.45rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  line-height: 1.65;
+}
+
+.novel-context-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius);
+  background: var(--admin-border);
+}
+
+.novel-context-stats > div {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+  padding: 0.875rem;
+  background: var(--admin-panel-muted);
+}
+
+.novel-context-stats > div + div {
+  border-left: 1px solid var(--admin-border);
+}
+
+.novel-context-stats span,
+.novel-directory-panel__sort {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.novel-context-stats strong {
+  color: var(--text-primary);
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.novel-directory-panel {
+  min-width: 0;
+}
+
+.novel-directory-panel__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.25rem 1.25rem 1rem;
+  border-bottom: 1px solid var(--admin-border);
+}
+
+.novel-directory-panel__head h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 1.05rem;
+}
+
+.novel-directory-panel__head p {
+  margin: 0.35rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.novel-directory-panel__sort {
+  flex: 0 0 auto;
+  padding-top: 0.15rem;
+}
+
+.admin-redesign-page--novels .novel-toolbar {
+  border-top: 0;
+  border-bottom: 1px solid var(--admin-border);
+  background: color-mix(in srgb, var(--admin-panel) 94%, var(--accent-subtle));
+}
+
+.admin-redesign-page--novels .novel-toolbar__search {
+  width: min(100%, 34rem);
+}
+
+.admin-queue-summary {
+  display: grid;
+  grid-template-columns: minmax(15rem, 1.5fr) repeat(3, minmax(7rem, 1fr));
+  overflow: hidden;
+  border: 1px solid var(--admin-border);
+  background: var(--admin-border);
+}
+
+.admin-queue-summary > * {
+  min-width: 0;
+  padding: 1rem 1.125rem;
+  background: var(--admin-panel);
+}
+
+.admin-queue-summary > * + * {
+  border-left: 1px solid var(--admin-border);
+}
+
+.admin-queue-summary__lead,
+.admin-queue-summary__stat {
+  display: grid;
+  align-content: center;
+  gap: 0.3rem;
+}
+
+.admin-queue-summary__lead strong,
+.admin-queue-summary__stat strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-queue-summary__lead > span:last-child,
+.admin-queue-summary__stat > span,
+.admin-queue-summary__stat small {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.admin-queue-summary__stat strong {
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.admin-redesign-page--jobs > .admin-table-meta-row {
+  margin-top: -0.35rem;
+  padding-inline: 0.25rem;
+}
+
+.admin-redesign-page--dashboard > :is(.space-y-4, .rounded-xl),
+.admin-redesign-page--content-policy > [data-slot='card'] {
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .novel-context-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-queue-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .admin-queue-summary__lead {
+    grid-column: 1 / -1;
+    border-bottom: 1px solid var(--admin-border);
+  }
+
+  .admin-queue-summary > * + * {
+    border-left: 0;
+  }
+
+  .admin-queue-summary > *:not(.admin-queue-summary__lead) + * {
+    border-left: 1px solid var(--admin-border);
+  }
+}
+
+@media (max-width: 640px) {
+  .novel-context-stats,
+  .admin-queue-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .novel-context-stats > div + div {
+    border-top: 1px solid var(--admin-border);
+    border-left: 0;
+  }
+
+  .novel-directory-panel__head {
+    flex-direction: column;
+  }
+
+  .admin-queue-summary__lead {
+    grid-column: auto;
+  }
+
+  .admin-queue-summary > *:not(.admin-queue-summary__lead) + * {
+    border-top: 1px solid var(--admin-border);
+    border-left: 0;
+  }
+}
+
 @media (max-width: 640px) {
   .ai-admin-page [data-slot='input'],
   .ai-admin-page [data-slot='input'][type='number'],

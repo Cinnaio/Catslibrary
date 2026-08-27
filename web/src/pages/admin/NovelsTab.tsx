@@ -450,44 +450,70 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
   const emptyMessage = query ? `没有匹配「${query}」的小说` : '暂无小说，点击「+ 添加小说」开始'
 
   return (
-    <AdminPage kicker="CONTENT CATALOG" title="小说管理" meta={countLabel} actions={
-          <div className="novel-toolbar">
-            <div className="novel-toolbar__primary">
-              <Label htmlFor="novel-search" className="sr-only">搜索小说</Label>
-              <Input
-                id="novel-search"
-                className="novel-toolbar__search"
-                type="search"
-                data-admin-search
-                placeholder="搜索标题、作者或简介"
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-              />
-              <Button size="sm" onClick={() => openModal(null)}>
-                添加小说
-              </Button>
-            </div>
-            {selected.size > 0 && (
-              <div className="novel-toolbar__batch" aria-live="polite">
-                <span className="novel-toolbar__batch-count">已选 {selected.size} 本</span>
-                <div className="batch-actions-group">
-                  <Button variant="secondary" size="sm" onClick={() => void handleBatchUpdate()}>
-                    批量更新
-                  </Button>
-                  <Button variant="secondary" size="sm" onClick={invertSelection}>
-                    反选
-                  </Button>
-                  <Button variant="destructive" size="sm" onClick={() => void handleBatchDelete()}>
-                    批量删除
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
-        }
-      >
+    <AdminPage
+      className="admin-redesign-page admin-redesign-page--novels"
+      kicker="CONTENT CATALOG"
+      title="小说管理"
+      meta={countLabel}
+      description="维护书库作品、分类与连载状态，批量更新只作用于当前列表。"
+      actions={
+        <Button onClick={() => openModal(null)}>
+          <span aria-hidden="true">＋</span>
+          添加小说
+        </Button>
+      }
+    >
+      <section className="novel-context-panel" aria-labelledby="novel-context-title">
+        <div>
+          <span className="chapter-section-kicker">当前工作对象</span>
+          <h3 id="novel-context-title">先找到作品，再维护书库</h3>
+          <p>搜索、排序和批量更新围绕当前作品列表展开，作品详情可继续进入阅读页查看。</p>
+        </div>
+        <div className="novel-context-stats" aria-label="书库统计">
+          <div><span>作品总数</span><strong>{total}</strong></div>
+          <div><span>当前页</span><strong>{novels.length}</strong></div>
+          <div><span>已选作品</span><strong>{selected.size}</strong></div>
+        </div>
+      </section>
 
-      <div className="overflow-hidden rounded-xl border border-border bg-card">
+      <div className="admin-data-panel novel-directory-panel overflow-hidden rounded-xl border border-border bg-card">
+        <div className="novel-directory-panel__head">
+          <div>
+            <h3>作品目录</h3>
+            <p>{query ? `匹配「${query}」的作品` : '按标题、作者、章节数和更新时间管理书库'}</p>
+          </div>
+          <span className="novel-directory-panel__sort">当前按更新时间排序</span>
+        </div>
+        <div className="novel-toolbar">
+          <div className="novel-toolbar__primary">
+            <Label htmlFor="novel-search" className="sr-only">搜索小说</Label>
+            <Input
+              id="novel-search"
+              className="novel-toolbar__search"
+              type="search"
+              data-admin-search
+              placeholder="搜索标题、作者或简介"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+            />
+          </div>
+          {selected.size > 0 && (
+            <div className="novel-toolbar__batch" aria-live="polite">
+              <span className="novel-toolbar__batch-count">已选 {selected.size} 本</span>
+              <div className="batch-actions-group">
+                <Button variant="secondary" size="sm" onClick={() => void handleBatchUpdate()}>
+                  批量更新
+                </Button>
+                <Button variant="secondary" size="sm" onClick={invertSelection}>
+                  反选
+                </Button>
+                <Button variant="destructive" size="sm" onClick={() => void handleBatchDelete()}>
+                  批量删除
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
         <Table>
           <TableCaption className="sr-only">小说目录列表，可按标题、作者、章节数和更新时间排序</TableCaption>
           <TableHeader>

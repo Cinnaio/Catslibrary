@@ -153,7 +153,7 @@ export default function AiTab() {
       title="AI 服务"
       description="集中管理生成能力、产出审阅、用量观测与模型配置。"
       meta={<Badge variant={provider?.configured ? 'default' : 'secondary'}>{provider?.configured ? '服务已连接' : loading ? '读取配置中' : '未配置'}</Badge>}
-      className="ai-admin-page ai-service"
+      className="admin-redesign-page admin-redesign-page--ai ai-admin-page ai-service"
     >
       <Tabs value={activeSubTab} onValueChange={handleSubTabChange} className="ai-service-tabs min-w-0">
         <div

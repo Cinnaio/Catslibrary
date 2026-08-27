@@ -72,7 +72,7 @@ export default function DashboardTab(_props: { highlightNovelId?: string; onHigh
   const totalJobs = Math.max(1, jobStatus.running + jobStatus.completed + jobStatus.failed)
 
   return (
-    <AdminPage title="后台总览" description="书库、抓取任务和站点数据的即时状态。" actions={
+    <AdminPage className="admin-redesign-page admin-redesign-page--dashboard" title="后台总览" description="书库、抓取任务和站点数据的即时状态。" actions={
           <Button variant="secondary" size="sm" onClick={() => void load(true)} disabled={loading}>
             <RefreshCw className={loading ? 'size-3.5 animate-spin' : 'size-3.5'} />
             {loading ? '加载中…' : '刷新总览'}

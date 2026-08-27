@@ -35,7 +35,7 @@ export default function ScrapeTab(_props: { highlightNovelId?: string; onHighlig
   }
 
   return (
-    <AdminPage title="爬虫抓取" description="发现外部作品、配置书源，并追踪抓取任务与出站代理。">
+    <AdminPage className="admin-redesign-page admin-redesign-page--scrape" title="爬虫抓取" description="发现外部作品、配置书源，并追踪抓取任务与出站代理。">
       <Tabs value={view} onValueChange={handleViewChange}>
         <TabsList className="mb-4">
           <TabsTrigger value="center">抓取中心</TabsTrigger>
