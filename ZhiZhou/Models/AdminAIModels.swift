@@ -224,9 +224,15 @@ struct AiAuditTrendResponse: Codable {
 
 struct AiCoverMetadata: Codable, Hashable {
     let genre: String?
+    let genres: [String]?
     let stylePreset: String?
     let composition: String?
     let variationId: String?
+    let romanceSubtype: String?
+    let romanceEmotion: String?
+    let visualConcept: String?
+    let visualAnchor: String?
+    let storySetting: String?
 }
 
 struct AiCoverCandidate: Codable, Identifiable, Hashable {

@@ -68,6 +68,39 @@ struct AdminAICoverView: View {
         ("off_center", "非对称构图"),
     ]
 
+    private let romanceSubtypeLabels: [String: String] = [
+        "sweet": "甜宠",
+        "contract": "合约/豪门",
+        "workplace": "职场关系",
+        "campus": "校园初恋",
+        "reunion": "久别重逢",
+        "healing": "治愈救赎",
+        "suspense": "悬疑言情",
+        "revenge": "虐恋复仇",
+        "historical": "古言爱情",
+        "general": "现代言情",
+    ]
+
+    private let romanceEmotionLabels: [String: String] = [
+        "sweet": "甜蜜",
+        "tension": "暧昧拉扯",
+        "bittersweet": "酸涩遗憾",
+        "healing": "温柔治愈",
+        "dangerous": "危险克制",
+        "playful": "轻快俏皮",
+    ]
+
+    private let romanceConceptLabels: [String: String] = [
+        "object": "关键物件",
+        "distance": "情绪距离",
+        "environment": "环境叙事",
+        "action": "决定性动作",
+        "threshold": "边界构图",
+        "split": "双时空对照",
+        "silhouette": "剪影留白",
+        "aftermath": "事件余波",
+    ]
+
     var body: some View {
         List {
             if isLoading && selectedNovelId.isEmpty {
@@ -215,9 +248,15 @@ struct AdminAICoverView: View {
             .disabled(generatingPrompt || generating || selectedNovelId.isEmpty)
 
             if let promptMetadata {
-                Text("本版：\(label(for: promptMetadata.stylePreset, in: styleOptions)) · \(label(for: promptMetadata.composition, in: compositionOptions))")
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.primary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("本版：\(label(for: promptMetadata.stylePreset, in: styleOptions)) · \(label(for: promptMetadata.composition, in: compositionOptions))")
+                        .font(.caption)
+                    if let direction = romanceDirectionLabel(promptMetadata) {
+                        Text(direction)
+                            .font(.caption)
+                    }
+                }
+                .foregroundStyle(AppTheme.primary)
             }
 
             Button {
@@ -296,9 +335,15 @@ struct AdminAICoverView: View {
                         .lineLimit(3)
                 }
                 if let metadata = candidate.metadata, (metadata.stylePreset != nil || metadata.composition != nil) {
-                    Text("\(label(for: metadata.stylePreset, in: styleOptions)) · \(label(for: metadata.composition, in: compositionOptions))")
-                        .font(.caption2)
-                        .foregroundStyle(AppTheme.primary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(label(for: metadata.stylePreset, in: styleOptions)) · \(label(for: metadata.composition, in: compositionOptions))")
+                            .font(.caption2)
+                        if let direction = romanceDirectionLabel(metadata) {
+                            Text(direction)
+                                .font(.caption2)
+                        }
+                    }
+                    .foregroundStyle(AppTheme.primary)
                 }
                 Text(AdminFormat.relativeTime(candidate.createdAt ?? 0))
                     .font(.caption2)
@@ -497,6 +542,15 @@ struct AdminAICoverView: View {
     private func label(for value: String?, in options: [(value: String, label: String)]) -> String {
         guard let value else { return "自动" }
         return options.first(where: { $0.value == value })?.label ?? value
+    }
+
+    private func romanceDirectionLabel(_ metadata: AiCoverMetadata) -> String? {
+        let parts = [
+            metadata.romanceSubtype.map { "主线：\(romanceSubtypeLabels[$0] ?? $0)" },
+            metadata.romanceEmotion.map { "情绪：\(romanceEmotionLabels[$0] ?? $0)" },
+            metadata.visualConcept.map { "概念：\(romanceConceptLabels[$0] ?? $0)" },
+        ].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 }
 
