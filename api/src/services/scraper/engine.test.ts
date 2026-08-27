@@ -275,4 +275,58 @@ describe('scraper engine 端到端（pglite + mock fetch）', () => {
     expect(preview.totalLinks).toBe(1)
     expect((preview.sampleChapters as Array<{ ok: boolean }>)[0]?.ok).toBe(true)
   })
+
+  it('POPO 正文被重定向到登录页时不得把登录页保存为章节', async () => {
+    const popoList = `<html><body><div class="c_l">
+      <div class="l_counter">0001</div>
+      <div class="l_chaptname">第一章</div>
+      <div class="l_btn"><a href="/books/901936/articles/101">免費閱讀</a></div>
+    </div></body></html>`
+    const loginPage = `<html><head><title>登入</title></head><body>
+      <form action="/login" method="post"><input type="password" name="password"></form>
+      <p>請先登入後閱讀本章</p>
+    </body></html>`
+
+    await t.db.query("INSERT INTO novels (id, title, author, created_at, updated_at) VALUES ('n4', 'POPO 登录测试小说', '作者', $1, $1)", [Date.now()])
+    await store.upsertScrapeConfig({
+      novelId: 'n4',
+      sourceUrl: 'https://www.po18.tw/books/901936/articles',
+      selectors: {
+        chapterList: '@po18tw:chapter-list',
+        chapterTitle: '@po18tw:chapter-title',
+        chapterContent: '@po18tw:chapter-content',
+      },
+      encoding: 'utf-8',
+    })
+    await store.saveJob({
+      id: 'job_popo_login',
+      novelId: 'n4',
+      status: 'starting',
+      startedAt: Date.now(),
+      updatedAt: Date.now(),
+    })
+
+    const runtimeLogs: string[] = []
+    const deps: ScrapeDeps = {
+      store,
+      fetchHtml: async (url) => ({
+        html: url.includes('/articlescontent/') ? loginPage : popoList,
+        encoding: 'utf-8',
+        finalUrl: url.includes('/articlescontent/') ? 'https://members.po18.tw/apps/login.php' : url,
+      }),
+      log: (_job, message) => runtimeLogs.push(message),
+    }
+    await runScrapeJob('job_popo_login', deps)
+
+    const done = await store.loadJob('job_popo_login')
+    expect(done?.status).toBe('failed')
+    expect(done?.step).toContain('登录页')
+    expect(runtimeLogs.some((message) => message.includes('抓取结束：抓取失败') && message.includes('登录页'))).toBe(true)
+    expect(runtimeLogs.some((message) => message.includes('抓取完成，成功 0 章'))).toBe(false)
+    const summary = await store.getJobSummary('job_popo_login')
+    expect(summary.successCount).toBe(0)
+    expect(summary.failedCount).toBe(1)
+    const chapters = await t.db.query<{ id: string }>('SELECT id FROM chapters WHERE novel_id = $1', ['n4'])
+    expect(chapters.rows).toHaveLength(0)
+  })
 })

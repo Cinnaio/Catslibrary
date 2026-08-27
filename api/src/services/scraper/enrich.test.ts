@@ -6,7 +6,7 @@ vi.mock('./fetch', () => ({
   FETCH_HEADERS: {},
 }))
 
-import { discoverList, extractPo18twTitles, parsePo18twChapterLinks, searchPo18tw, searchTitleSources } from './enrich'
+import { discoverList, extractPo18twTitles, parsePo18twChapterLinks, po18ResponseProblem, searchPo18tw, searchTitleSources } from './enrich'
 import type { FetchHtmlOptions } from './fetch'
 
 describe('标题源搜索', () => {
@@ -76,14 +76,16 @@ describe('标题源搜索', () => {
     expect(params.get('_po18rf-tk001')).toBe('csrf-token')
     expect(result.sources.po18tw).toMatchObject({
       ok: true,
-      results: [{
-        site: 'po18tw',
-        siteName: 'POPO',
-        title: '目标小说（h）',
-        author: '清阙',
-        status: 'ongoing',
-        url: 'https://www.po18.tw/books/123456',
-      }],
+      results: [
+        {
+          site: 'po18tw',
+          siteName: 'POPO',
+          title: '目标小说（h）',
+          author: '清阙',
+          status: 'ongoing',
+          url: 'https://www.po18.tw/books/123456',
+        },
+      ],
     })
   })
 
@@ -128,6 +130,13 @@ describe('标题源搜索', () => {
       links: [{ href: 'https://www.po18.tw/books/123456/articles/1', text: '第一章' }],
     })
   })
+
+  it('POPO 应识别登录页、访问拦截页和跳转首页', () => {
+    expect(po18ResponseProblem('https://members.po18.tw/apps/login.php?u=%2Fbooks%2F1', '<html></html>')).toContain('登录页')
+    expect(po18ResponseProblem('https://www.po18.tw/site/alarm', '<html></html>')).toContain('拦截页')
+    expect(po18ResponseProblem('https://www.po18.tw/', '<html></html>')).toContain('首页')
+    expect(po18ResponseProblem('https://www.po18.tw/books/1/articles/1', '<html></html>')).toBeNull()
+  })
 })
 
 describe('POPO 发现', () => {
@@ -150,22 +159,15 @@ describe('POPO 发现', () => {
       </div></div>
       </div>`
 
-    const result = await searchPo18tw(
-      '目标小说',
-      'book',
-      1,
-      { query: vi.fn().mockResolvedValue({ rows: [] }) } as never,
-      '',
-      async (url, options) => {
-        requests.push({
-          url,
-          method: options?.method || 'GET',
-          cookie: new Headers(options?.headers).get('Cookie') || '',
-          body: String(options?.body || ''),
-        })
-        return { html: options?.method === 'POST' ? resultPage : searchPage, encoding: 'utf-8' }
-      },
-    )
+    const result = await searchPo18tw('目标小说', 'book', 1, { query: vi.fn().mockResolvedValue({ rows: [] }) } as never, '', async (url, options) => {
+      requests.push({
+        url,
+        method: options?.method || 'GET',
+        cookie: new Headers(options?.headers).get('Cookie') || '',
+        body: String(options?.body || ''),
+      })
+      return { html: options?.method === 'POST' ? resultPage : searchPage, encoding: 'utf-8' }
+    })
 
     expect(requests.map((item) => [item.url, item.method])).toEqual([
       ['https://www.po18.tw/site/alarm', 'GET'],
@@ -180,13 +182,15 @@ describe('POPO 发现', () => {
       site: 'POPO',
       total: 1,
       totalPages: 1,
-      novels: [{
-        title: '目标小说',
-        author: '作者甲',
-        url: 'https://www.po18.tw/books/123456',
-        source: 'po18tw',
-        sourceName: 'POPO',
-      }],
+      novels: [
+        {
+          title: '目标小说',
+          author: '作者甲',
+          url: 'https://www.po18.tw/books/123456',
+          source: 'po18tw',
+          sourceName: 'POPO',
+        },
+      ],
     })
   })
 
@@ -212,21 +216,24 @@ describe('POPO 发现', () => {
     expect(result).toMatchObject({
       site: 'POPO',
       total: 2,
-      novels: [{
-        title: '榜单小说',
-        author: '作者乙',
-        url: 'https://www.po18.tw/books/123456',
-        coverUrl: 'https://cdn0.po18.tw/bc/1/123456/M.jpg',
-        source: 'po18tw',
-        sourceName: 'POPO',
-      }, {
-        title: '第二本小说',
-        author: '作者丙',
-        url: 'https://www.po18.tw/books/654321',
-        coverUrl: 'https://cdn0.po18.tw/bc/6/654321/M.jpg',
-        source: 'po18tw',
-        sourceName: 'POPO',
-      }],
+      novels: [
+        {
+          title: '榜单小说',
+          author: '作者乙',
+          url: 'https://www.po18.tw/books/123456',
+          coverUrl: 'https://cdn0.po18.tw/bc/1/123456/M.jpg',
+          source: 'po18tw',
+          sourceName: 'POPO',
+        },
+        {
+          title: '第二本小说',
+          author: '作者丙',
+          url: 'https://www.po18.tw/books/654321',
+          coverUrl: 'https://cdn0.po18.tw/bc/6/654321/M.jpg',
+          source: 'po18tw',
+          sourceName: 'POPO',
+        },
+      ],
     })
   })
 })

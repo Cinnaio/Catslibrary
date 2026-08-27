@@ -196,11 +196,7 @@ export async function searchPo18tw(
   return { site: 'POPO', total, totalPages, novels }
 }
 
-function parsePo18twDiscoverCandidates(
-  html: string,
-  baseUrl: string,
-  existing: { urls: Set<string>; titles: Set<string> },
-): DiscoverNovel[] {
+function parsePo18twDiscoverCandidates(html: string, baseUrl: string, existing: { urls: Set<string>; titles: Set<string> }): DiscoverNovel[] {
   const results: DiscoverNovel[] = []
   const bookSection = extractInnerHtml(html, '#BOOK')
   const cardStarts = [...bookSection.matchAll(/<div\b[^>]*class\s*=\s*["'][^"']*\bbook\b[^"']*["'][^>]*>/gi)]
@@ -244,11 +240,7 @@ function parsePo18twDiscoverCandidates(
   return results.slice(0, 50)
 }
 
-function parsePo18twRankingCandidates(
-  html: string,
-  baseUrl: string,
-  existing: { urls: Set<string>; titles: Set<string> },
-): DiscoverNovel[] {
+function parsePo18twRankingCandidates(html: string, baseUrl: string, existing: { urls: Set<string>; titles: Set<string> }): DiscoverNovel[] {
   const host = new URL(baseUrl).hostname
   const results: DiscoverNovel[] = []
   const seen = new Set<string>()
@@ -256,9 +248,7 @@ function parsePo18twRankingCandidates(
 
   for (const match of cards) {
     const card = match[1] || ''
-    const titleLink = card.match(
-      /<a\b[^>]*class\s*=\s*["'][^"']*\bbook_name\b[^"']*["'][^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/i,
-    )
+    const titleLink = card.match(/<a\b[^>]*class\s*=\s*["'][^"']*\bbook_name\b[^"']*["'][^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/i)
     const href = titleLink?.[1] || card.match(/<a\b[^>]*href\s*=\s*["'](\/books\/\d+\/?)["'][^>]*>/i)?.[1]
     if (!href) continue
     const url = resolveUrl(href, baseUrl)
@@ -336,70 +326,70 @@ export async function discoverList(
     const bookRe = /<a\s[^>]*href\s*=\s*["'](?:\/[^"']*)?\/(?:book|books)\/(\d+)\/?["'][^>]*>([\s\S]*?)<\/a>/gi
     let m: RegExpExecArray | null
     while ((m = bookRe.exec(html)) !== null) {
-    const bookId = m[1]!
-    if (seen.has(bookId)) continue
-    seen.add(bookId)
-    const linkHtml = m[2]!
-    let title = linkHtml.replace(/<[^>]*>/g, '').trim()
-    if (!title || title.length > 60) {
-      const tMatch = linkHtml.match(/<img[^>]*alt\s*=\s*["']([^"']+)["']/i)
-      if (tMatch) title = tMatch[1]!.trim()
-    }
-    const containerStart = Math.max(0, m.index - 600)
-    const containerEnd = Math.min(html.length, m.index + m[0].length + 600)
-    const container = html.slice(containerStart, containerEnd)
-    const imgMatch = container.match(/<img[^>]*src\s*=\s*["']([^"']+(?:jpg|jpeg|png|webp))["'][^>]*>/i)
-    let coverUrl = imgMatch ? imgMatch[1]! : ''
-    const authorMatch =
-      container.match(/<div\b[^>]*class\s*=\s*["'][^"']*\bbook_author\b[^"']*["'][^>]*>[\s\S]*?<a\b[^>]*>([\s\S]*?)<\/a>/i) ||
-      container.match(/作者[：:]\s*([^<\n]{2,20})/i) ||
-      container.match(/\/author\/([^"']+)/i) ||
-      container.match(/\/users\/[^"']*["'][^>]*>([^<]+)<\/a>/i)
-    const author = authorMatch ? authorMatch[1]!.trim() : ''
-
-    if (!coverUrl || /noimg\.jpg/i.test(coverUrl)) {
-      const builtCover = buildCoverUrl(`https://${host}/book/${bookId}/`, preset as Parameters<typeof buildCoverUrl>[1])
-      if (builtCover) coverUrl = builtCover
-    }
-
-    let categories: string[] = []
-    const catBracket = container.match(/\[([^\]]{2,10})\]/)
-    if (catBracket) categories = [catBracket[1]!]
-    let description = ''
-    const descMatch = container.match(/(?:简介|介绍|文案|内容)[：:]\s*([^<]{10,200})/i)
-    if (descMatch) description = descMatch[1]!.trim()
-    if (!description || description.length < 10) {
-      const pMatch = container.match(/<p[^>]*>([^<]{15,120})<\/p>/i)
-      if (pMatch) {
-        const pt = pMatch[1]!
-          .replace(/[作者|分类][：:][^<]*/gi, '')
-          .replace(/<[^>]*>/g, '')
-          .trim()
-        if (pt.length > 10) description = pt
+      const bookId = m[1]!
+      if (seen.has(bookId)) continue
+      seen.add(bookId)
+      const linkHtml = m[2]!
+      let title = linkHtml.replace(/<[^>]*>/g, '').trim()
+      if (!title || title.length > 60) {
+        const tMatch = linkHtml.match(/<img[^>]*alt\s*=\s*["']([^"']+)["']/i)
+        if (tMatch) title = tMatch[1]!.trim()
       }
-    }
-    let chapterCount = 0
-    const chMatch = container.match(/(\d+)\s*章/i) || container.match(/共\s*(\d+)\s*节/i)
-    if (chMatch) chapterCount = Number.parseInt(chMatch[1]!, 10) || 0
-    let status = ''
-    if (/完结|已完结|全集/i.test(container)) status = 'completed'
-    else if (/连载|更新中/i.test(container)) status = 'ongoing'
+      const containerStart = Math.max(0, m.index - 600)
+      const containerEnd = Math.min(html.length, m.index + m[0].length + 600)
+      const container = html.slice(containerStart, containerEnd)
+      const imgMatch = container.match(/<img[^>]*src\s*=\s*["']([^"']+(?:jpg|jpeg|png|webp))["'][^>]*>/i)
+      let coverUrl = imgMatch ? imgMatch[1]! : ''
+      const authorMatch =
+        container.match(/<div\b[^>]*class\s*=\s*["'][^"']*\bbook_author\b[^"']*["'][^>]*>[\s\S]*?<a\b[^>]*>([\s\S]*?)<\/a>/i) ||
+        container.match(/作者[：:]\s*([^<\n]{2,20})/i) ||
+        container.match(/\/author\/([^"']+)/i) ||
+        container.match(/\/users\/[^"']*["'][^>]*>([^<]+)<\/a>/i)
+      const author = authorMatch ? authorMatch[1]!.trim() : ''
 
-    const novelUrl = bookUrlForHost(host, bookId)
-    novels.push({
-      bookId,
-      title: toSimplifiedForSource(title.slice(0, 100), novelUrl),
-      author: toSimplifiedForSource(author.slice(0, 30), novelUrl),
-      coverUrl,
-      url: novelUrl,
-      existing: existing.urls.has(novelUrl) || existing.titles.has(title.slice(0, 100).trim().toLowerCase()),
-      description: toSimplifiedForSource(description.slice(0, 120), novelUrl),
-      chapterCount,
-      status,
-      categories: categories.map((c) => toSimplifiedForSource(c, novelUrl)),
-      source: sourceForHost(host).id,
-      sourceName: sourceForHost(host).name,
-    })
+      if (!coverUrl || /noimg\.jpg/i.test(coverUrl)) {
+        const builtCover = buildCoverUrl(`https://${host}/book/${bookId}/`, preset as Parameters<typeof buildCoverUrl>[1])
+        if (builtCover) coverUrl = builtCover
+      }
+
+      let categories: string[] = []
+      const catBracket = container.match(/\[([^\]]{2,10})\]/)
+      if (catBracket) categories = [catBracket[1]!]
+      let description = ''
+      const descMatch = container.match(/(?:简介|介绍|文案|内容)[：:]\s*([^<]{10,200})/i)
+      if (descMatch) description = descMatch[1]!.trim()
+      if (!description || description.length < 10) {
+        const pMatch = container.match(/<p[^>]*>([^<]{15,120})<\/p>/i)
+        if (pMatch) {
+          const pt = pMatch[1]!
+            .replace(/[作者|分类][：:][^<]*/gi, '')
+            .replace(/<[^>]*>/g, '')
+            .trim()
+          if (pt.length > 10) description = pt
+        }
+      }
+      let chapterCount = 0
+      const chMatch = container.match(/(\d+)\s*章/i) || container.match(/共\s*(\d+)\s*节/i)
+      if (chMatch) chapterCount = Number.parseInt(chMatch[1]!, 10) || 0
+      let status = ''
+      if (/完结|已完结|全集/i.test(container)) status = 'completed'
+      else if (/连载|更新中/i.test(container)) status = 'ongoing'
+
+      const novelUrl = bookUrlForHost(host, bookId)
+      novels.push({
+        bookId,
+        title: toSimplifiedForSource(title.slice(0, 100), novelUrl),
+        author: toSimplifiedForSource(author.slice(0, 30), novelUrl),
+        coverUrl,
+        url: novelUrl,
+        existing: existing.urls.has(novelUrl) || existing.titles.has(title.slice(0, 100).trim().toLowerCase()),
+        description: toSimplifiedForSource(description.slice(0, 120), novelUrl),
+        chapterCount,
+        status,
+        categories: categories.map((c) => toSimplifiedForSource(c, novelUrl)),
+        source: sourceForHost(host).id,
+        sourceName: sourceForHost(host).name,
+      })
     }
   }
 
@@ -679,8 +669,7 @@ export async function extractPo18twTitles(
   }
   const chapterListUrl = po18ChapterListUrl(url.href)
   const { html } = await requestHtml(chapterListUrl, { timeoutMs: 12000 })
-  if (isPo18twLoginPage(html))
-    throw new Error('PO18.tw 该页面需要登录，请先配置账号或 Cookie')
+  if (isPo18twLoginPage(html)) throw new Error('PO18.tw 该页面需要登录，请先配置账号或 Cookie')
   const rows = parsePo18twChapterRows(html, chapterListUrl)
   const seen = new Set<string>()
   const titles = rows
@@ -705,13 +694,40 @@ export function isPo18twLoginPage(html: string): boolean {
   return /<input\b[^>]*(?:type\s*=\s*["']?password|name\s*=\s*["'][^"']*(?:pass|密碼|密码))/i.test(html) && /login|登入|登录/i.test(html)
 }
 
+/**
+ * 判断 POPO 响应是否是登录、拦截或失效链接页面。
+ * POPO 可能以 200 返回这些页面，不能只依赖 HTTP 状态码。
+ */
+export function po18ResponseProblem(finalUrl: string | undefined, html: string): string | null {
+  let url: URL | null = null
+  try {
+    url = finalUrl ? new URL(finalUrl) : null
+  } catch {
+    /* 由 HTML 特征继续判断 */
+  }
+
+  const host = url?.hostname.toLowerCase() || ''
+  const path = url?.pathname.toLowerCase().replace(/\/$/, '') || ''
+  if (host === 'members.po18.tw' || host.endsWith('.members.po18.tw') || /\/(?:login|login\.php)$/i.test(path)) {
+    return 'POPO 返回登录页，账号会话可能已失效，请重新登录或检查 Cookie'
+  }
+  if (path === '/site/alarm') {
+    return 'POPO 返回访问拦截页，请检查账号会话、代理或站点访问限制'
+  }
+  if ((host === 'www.po18.tw' || host === 'po18.tw') && path === '') {
+    return 'POPO 链接已跳转到首页，链接可能已失效或当前会话无权访问'
+  }
+  if (isPo18twLoginPage(html)) {
+    return 'POPO 返回登录页，账号会话可能已失效，请重新登录或检查 Cookie'
+  }
+  return null
+}
+
 /** 解析 POPO 的目录行；付费未购买章节保留标题，但不加入可抓取链接。 */
 export function parsePo18twChapterRows(html: string, baseUrl: string): Po18ChapterCandidate[] {
   const chapterListUrl = po18ChapterListUrl(baseUrl)
   const rowStarts = [...html.matchAll(/<div\b[^>]*class\s*=\s*["'][^"']*\bc_l\b[^"']*["'][^>]*>/gi)]
-  const fallbackStarts = rowStarts.length
-    ? rowStarts
-    : [...html.matchAll(/<div\b[^>]*class\s*=\s*["'][^"']*\bl_chaptname\b[^"']*["'][^>]*>/gi)]
+  const fallbackStarts = rowStarts.length ? rowStarts : [...html.matchAll(/<div\b[^>]*class\s*=\s*["'][^"']*\bl_chaptname\b[^"']*["'][^>]*>/gi)]
   const rows: Po18ChapterCandidate[] = []
 
   for (let index = 0; index < fallbackStarts.length; index++) {

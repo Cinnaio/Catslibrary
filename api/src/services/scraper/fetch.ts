@@ -29,6 +29,8 @@ export interface FetchHtmlOptions extends OutboundProxyConfig {
 export interface FetchResult {
   html: string
   encoding: string
+  /** 跟随安全重定向后的最终 URL，用于识别登录页、拦截页和失效链接。 */
+  finalUrl?: string
   /** 仅供同一受信任站点的后续请求合并 Cookie，不向 API 返回。 */
   setCookies?: string[]
 }
@@ -119,7 +121,7 @@ export async function fetchHtml(url: string, opts: FetchHtmlOptions = {}): Promi
 
   encoding = encoding || forceEncoding || null
   const html = decodeBytes(bytes, encoding || 'utf-8')
-  return { html, encoding: encoding || 'utf-8', setCookies: responseSetCookies(res.headers) }
+  return { html, encoding: encoding || 'utf-8', finalUrl: res.url || url, setCookies: responseSetCookies(res.headers) }
 }
 
 export function decodeBytes(bytes: Uint8Array, encoding: string): string {
