@@ -7,6 +7,7 @@ struct HomeView: View {
     @State private var categories: [String] = []
     @State private var selectedCategory: String?
     @State private var selectedNovel: Novel?
+    @State private var navigationPath: [Novel] = []
     @State private var search = ""
     @State private var page = 1
     @State private var totalPages = 1
@@ -20,8 +21,11 @@ struct HomeView: View {
 
     var body: some View {
         if horizontalSizeClass != .regular {
-            NavigationStack {
+            NavigationStack(path: $navigationPath) {
                 homeList
+                    .navigationDestination(for: Novel.self) { novel in
+                        NovelDetailView(novel: novel)
+                    }
             }
         } else {
             NavigationSplitView {
@@ -46,13 +50,6 @@ struct HomeView: View {
 
     private var homeList: some View {
         List(selection: $selectedNovel) {
-            Text("书海里，遇见好故事")
-                .font(serifFont(.title2, .bold))
-                .foregroundStyle(AppTheme.textPrimary)
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets(top: 18, leading: 16, bottom: 8, trailing: 16))
-
             searchField
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
@@ -113,17 +110,8 @@ struct HomeView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .pageBackground()
-        .navigationTitle("知舟")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            if isLoading && !novels.isEmpty {
-                ToolbarItem(placement: .topBarTrailing) {
-                    ProgressView()
-                        .tint(AppTheme.primary)
-                        .accessibilityLabel("正在搜索")
-                }
-            }
-        }
+        .navigationTitle("主页")
+        .navigationBarTitleDisplayMode(.large)
         .refreshable { await reload() }
         .task { await reload() }
         .onChange(of: search) { _, _ in
@@ -138,8 +126,8 @@ struct HomeView: View {
     @ViewBuilder
     private func novelRow(_ novel: Novel) -> some View {
         if horizontalSizeClass != .regular {
-            NavigationLink {
-                NovelDetailView(novel: novel)
+            Button {
+                navigationPath.append(novel)
             } label: {
                 NovelCardView(novel: novel)
             }
