@@ -316,6 +316,8 @@ scrapeRoutes.post('/', async (c) => {
         current: 0,
         total: 0,
         chapterCount: 0,
+        publicChapterCount: 0,
+        protectedChapterCount: 0,
         error: null,
         startedAt: Date.now(),
         updatedAt: Date.now(),
@@ -339,6 +341,8 @@ scrapeRoutes.post('/', async (c) => {
         current: 0,
         total: 0,
         chapterCount: 0,
+        publicChapterCount: 0,
+        protectedChapterCount: 0,
         error: null,
         startedAt: Date.now(),
         updatedAt: Date.now(),
@@ -364,6 +368,8 @@ scrapeRoutes.post('/', async (c) => {
         current: 0,
         total: 0,
         chapterCount: 0,
+        publicChapterCount: oldJob.publicChapterCount || 0,
+        protectedChapterCount: oldJob.protectedChapterCount || 0,
         error: null,
         startedAt: Date.now(),
         updatedAt: Date.now(),
@@ -392,6 +398,8 @@ scrapeRoutes.post('/', async (c) => {
         current: 0,
         total: failedItems.length,
         chapterCount: 0,
+        publicChapterCount: oldJob.publicChapterCount || failedItems.length,
+        protectedChapterCount: oldJob.protectedChapterCount || 0,
         error: null,
         startedAt: Date.now(),
         updatedAt: Date.now(),
@@ -598,8 +606,18 @@ scrapeRoutes.post('/', async (c) => {
     case 'update-status': {
       const { jobId } = body
       if (!jobId) return c.json({ error: 'jobId required' }, 400)
-      const { status, step, current, total, chapterCount, progress, error } = body
-      const ok = await deps.store.updateLocalJobStatus(jobId, { status, step, current, total, chapterCount, progress, error })
+      const { status, step, current, total, chapterCount, publicChapterCount, protectedChapterCount, progress, error } = body
+      const ok = await deps.store.updateLocalJobStatus(jobId, {
+        status,
+        step,
+        current,
+        total,
+        chapterCount,
+        publicChapterCount,
+        protectedChapterCount,
+        progress,
+        error,
+      })
       if (!ok) return c.json({ error: 'Job not found' }, 404)
       return c.json({ success: true })
     }

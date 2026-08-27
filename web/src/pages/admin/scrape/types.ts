@@ -44,6 +44,8 @@ export interface JobStatusData {
   successCount?: number
   failedCount?: number
   skippedCount?: number
+  publicChapterCount?: number
+  protectedChapterCount?: number
   speed?: number
   etaSeconds?: number
   failedItems?: Array<{ chapterTitle?: string; chapterUrl?: string; error?: string }>
@@ -64,6 +66,8 @@ export interface JobCard {
   successCount: number
   failedCount: number
   skippedCount: number
+  publicChapterCount: number
+  protectedChapterCount: number
   speed: number
   etaSeconds: number
   failedItems: Array<{ chapterTitle?: string; chapterUrl?: string; error?: string }>

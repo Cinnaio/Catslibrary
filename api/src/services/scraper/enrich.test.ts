@@ -127,6 +127,8 @@ describe('标题源搜索', () => {
 
     expect(parsePo18twChapterLinks(html, 'https://www.po18.tw/books/123456/articles')).toEqual({
       rowCount: 2,
+      publicCount: 1,
+      protectedCount: 1,
       links: [{ href: 'https://www.po18.tw/books/123456/articles/1', text: '第一章' }],
     })
   })

@@ -200,6 +200,7 @@ describe('scraper engine 端到端（pglite + mock fetch）', () => {
 
     const done = await store.loadJob('job_paged')
     expect(done?.status).toBe('completed')
+    expect(done?.publicChapterCount).toBe(4)
     // 两页共 4 章应全部入库，而非只抓第一页 2 章
     const count = await t.db.query<{ c: number }>('SELECT COUNT(*)::int AS c FROM chapters WHERE novel_id = $1', ['n2'])
     expect(count.rows[0]!.c).toBe(4)
@@ -213,6 +214,11 @@ describe('scraper engine 端到端（pglite + mock fetch）', () => {
         <div class="l_counter">0001</div>
         <div class="l_chaptname">第一章</div>
         <div class="l_btn"><a href="/books/901935/articles/101">免費閱讀</a></div>
+      </div>
+      <div>
+        <div class="l_counter">0002</div>
+        <div class="l_chaptname">第二章</div>
+        <div class="l_btn"><a href="/books/901935/articles/102">訂購</a></div>
       </div>
     </div></body></html>`
     const popoContent = `<html><body><h1>第一章</h1><div class="article-content"><p>${LONG_BODY}</p></div></body></html>`
@@ -258,6 +264,8 @@ describe('scraper engine 端到端（pglite + mock fetch）', () => {
     const done = await store.loadJob('job_popo')
     expect(done?.status).toBe('completed')
     expect(done?.chapterCount).toBe(1)
+    expect(done?.publicChapterCount).toBe(1)
+    expect(done?.protectedChapterCount).toBe(1)
     expect(requests).toContain('https://www.po18.tw/books/901935/articlescontent/101')
     expect(new Headers(contentOptions?.headers).get('Referer')).toBe('https://www.po18.tw/books/901935/articles/101')
     expect(new Headers(contentOptions?.headers).get('X-Requested-With')).toBe('XMLHttpRequest')
@@ -273,6 +281,8 @@ describe('scraper engine 端到端（pglite + mock fetch）', () => {
       deps,
     )
     expect(preview.totalLinks).toBe(1)
+    expect(preview.publicChapterCount).toBe(1)
+    expect(preview.protectedChapterCount).toBe(1)
     expect((preview.sampleChapters as Array<{ ok: boolean }>)[0]?.ok).toBe(true)
   })
 

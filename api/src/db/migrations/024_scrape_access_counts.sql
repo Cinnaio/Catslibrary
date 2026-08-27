@@ -1,0 +1,5 @@
+ALTER TABLE scrape_jobs
+  ADD COLUMN IF NOT EXISTS public_chapter_count INTEGER NOT NULL DEFAULT 0;
+
+ALTER TABLE scrape_jobs
+  ADD COLUMN IF NOT EXISTS protected_chapter_count INTEGER NOT NULL DEFAULT 0;

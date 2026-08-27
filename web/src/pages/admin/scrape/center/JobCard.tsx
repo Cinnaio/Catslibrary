@@ -81,6 +81,12 @@ export default function JobCard({ job, onCancel, onRetry, onRetryFailed, onDismi
 
       <div className="scrape-job__metrics text-xs">
         <span>
+          公开章节 <strong>{job.publicChapterCount}</strong>
+        </span>
+        <span>
+          受保护正文 <strong>{job.protectedChapterCount}</strong>
+        </span>
+        <span>
           成功 <strong>{job.successCount}</strong>
         </span>
         <span>

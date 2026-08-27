@@ -11,8 +11,8 @@ import { simplifyChapterForSource } from '../zh-convert'
 import { PO18TW_SELECTORS } from './presets'
 import {
   isPo18twLoginPage,
+  parsePo18twChapterRows,
   parsePo18twChapterContent,
-  parsePo18twChapterLinks,
   po18ResponseProblem,
   po18ChapterContentUrl,
   po18ChapterListUrl,
@@ -51,34 +51,47 @@ async function collectPo18twLinks(
   encoding: string,
   deps: ScrapeDeps,
   maxPages: number,
-): Promise<{ links: ScrapeLink[]; pages: number }> {
+): Promise<{ links: ScrapeLink[]; pages: number; publicChapterCount: number; protectedChapterCount: number }> {
   if (isPo18twLoginPage(firstHtml)) throw new Error('POPO 目录需要登录，请先配置 POPO 账号或 Cookie')
 
-  const first = parsePo18twChapterLinks(firstHtml, chapterListUrl)
-  const links: ScrapeLink[] = [...first.links]
-  const seen = new Set(links.map((link) => link.href))
+  const links: ScrapeLink[] = []
+  const seen = new Set<string>()
+  let publicChapterCount = 0
+  let protectedChapterCount = 0
+
+  const appendPage = (html: string, pageUrl: string): { rowCount: number; newRowCount: number } => {
+    const rows = parsePo18twChapterRows(html, pageUrl)
+    let newRowCount = 0
+    for (const row of rows) {
+      if (seen.has(row.url)) continue
+      seen.add(row.url)
+      newRowCount++
+      if (row.downloadable && !row.url.includes('#')) {
+        links.push({ href: row.url, text: row.title })
+        publicChapterCount++
+      } else if (row.protected) {
+        protectedChapterCount++
+      }
+    }
+    return { rowCount: rows.length, newRowCount }
+  }
+
+  appendPage(firstHtml, chapterListUrl)
   let pages = 0
 
   for (let page = 2; page <= Math.max(1, maxPages); page++) {
     const pageUrl = po18ChapterPageUrl(chapterListUrl, page)
     const next = await deps.fetchHtml(pageUrl, { forceEncoding: encoding })
     if (isPo18twLoginPage(next.html)) throw new Error('POPO 目录需要登录，请先配置 POPO 账号或 Cookie')
-    const parsed = parsePo18twChapterLinks(next.html, pageUrl)
+    const parsed = appendPage(next.html, pageUrl)
     if (parsed.rowCount === 0) break
 
-    let added = 0
-    for (const link of parsed.links) {
-      if (seen.has(link.href)) continue
-      seen.add(link.href)
-      links.push(link)
-      added++
-    }
     pages++
     // 源站在超出最后一页时偶尔会重复返回最后一页，避免无限探测。
-    if (added === 0) break
+    if (parsed.newRowCount === 0) break
   }
 
-  return { links, pages }
+  return { links, pages, publicChapterCount, protectedChapterCount }
 }
 
 function po18ChapterFetchRequest(link: ScrapeLink, encoding: string, timeoutMs: number): { url: string; options: FetchHtmlOptions } {
@@ -115,10 +128,14 @@ export async function testSelectors(
   _t.fetchList = Date.now() - _t.t0
 
   let allLinks: ScrapeLink[]
+  let publicChapterCount = 0
+  let protectedChapterCount = 0
   if (isPo18tw) {
     const collected = await collectPo18twLinks(html, chapterListUrl, encoding, deps, SCRAPE_MAX_LIST_PAGES)
     allLinks = collected.links
     _t.pages = collected.pages
+    publicChapterCount = collected.publicChapterCount
+    protectedChapterCount = collected.protectedChapterCount
   } else {
     allLinks = extractLinks(html, selectors.chapterList, sourceUrl)
     if (selectors.nextPage && allLinks.length > 0) {
@@ -138,6 +155,7 @@ export async function testSelectors(
         }
       }
     }
+    publicChapterCount = allLinks.length
   }
   _t.total = Date.now() - _t.t0
 
@@ -187,6 +205,8 @@ export async function testSelectors(
     timing: _t,
     links: uniqueLinks,
     totalLinks: uniqueLinks.length,
+    publicChapterCount: isPo18tw ? publicChapterCount : uniqueLinks.length,
+    protectedChapterCount,
     encoding,
     diagnostics: {
       duplicateCount,
@@ -291,14 +311,19 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
     })
 
     let links: ScrapeLink[]
+    let publicChapterCount = job.publicChapterCount || 0
+    let protectedChapterCount = job.protectedChapterCount || 0
     let extractMs = 0
     const extractStart = Date.now()
     if (job.retryLinks && Array.isArray(job.retryLinks) && job.retryLinks.length) {
       links = job.retryLinks.map((item) => ({ href: item.href || item.chapterUrl || '', text: item.text || item.chapterTitle || '' }))
+      if (!publicChapterCount) publicChapterCount = links.length
       await store.appendJobLog(jobId, 'info', '重试失败章节模式：' + links.length + ' 章')
     } else if (isPo18tw) {
       const collected = await collectPo18twLinks(html, chapterListUrl, encoding, deps, SCRAPE_PO18_MAX_LIST_PAGES)
       links = collected.links
+      publicChapterCount = collected.publicChapterCount
+      protectedChapterCount = collected.protectedChapterCount
       extractMs = Date.now() - extractStart
       if (collected.pages > 0) log(job, `POPO 目录分页完成: 额外读取 ${collected.pages} 页`)
     } else {
@@ -329,6 +354,9 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
       }
     }
 
+    job.publicChapterCount = publicChapterCount
+    job.protectedChapterCount = protectedChapterCount
+
     if (links.length === 0) {
       const message = isPo18tw ? '未找到可抓取的 POPO 章节，可能需要先购买章节或重新配置账号' : '未找到任何章节链接，请检查章节列表选择器是否正确'
       log(job, `${message}: selector="${job.selectors?.chapterList}" (${extractMs}ms)`, 'warn')
@@ -348,6 +376,10 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
       return true
     })
     const duplicateCount = originalLinkCount - links.length
+    if (!isPo18tw && !(job.retryLinks && Array.isArray(job.retryLinks) && job.retryLinks.length)) {
+      publicChapterCount = links.length
+    }
+    job.publicChapterCount = publicChapterCount
 
     if (job.retryLinks && Array.isArray(job.retryLinks) && job.retryLinks.length) {
       await store.appendJobLog(jobId, 'info', '重试章节去重完成：' + links.length + ' 章')
@@ -368,7 +400,9 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
 
     job.total = newLinks.length
     await store.replaceJobItems(job.id, newLinks)
-    const label = job.updateMode ? `发现 ${links.length} 章，其中 ${newLinks.length} 章为新章节 (${extractMs}ms)` : `共发现 ${links.length} 章 (${extractMs}ms)`
+    const label = job.updateMode
+      ? `发现 ${links.length} 章，其中 ${newLinks.length} 章为新章节；公开章节 ${publicChapterCount}，受保护正文 ${protectedChapterCount} (${extractMs}ms)`
+      : `共发现 ${links.length} 章；公开章节 ${publicChapterCount}，受保护正文 ${protectedChapterCount} (${extractMs}ms)`
     log(job, label)
     await updateStatus('preflight', {
       step: '抓取前检查完成，准备抓取章节…',

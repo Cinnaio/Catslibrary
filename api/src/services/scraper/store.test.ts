@@ -54,4 +54,26 @@ describe('PgScrapeStore（pglite）', () => {
     await store.cancelJob('job_done')
     expect((await store.loadJob('job_done'))?.status).toBe('completed')
   })
+
+  it('保存并汇总公开章节与受保护正文数量', async () => {
+    const now = Date.now()
+    await store.saveJob({
+      id: 'job_access_counts',
+      novelId: 'n1',
+      status: 'completed',
+      total: 3,
+      publicChapterCount: 2,
+      protectedChapterCount: 1,
+      startedAt: now,
+      updatedAt: now,
+    })
+
+    const loaded = await store.loadJob('job_access_counts')
+    expect(loaded?.publicChapterCount).toBe(2)
+    expect(loaded?.protectedChapterCount).toBe(1)
+
+    const summary = await store.getJobSummary('job_access_counts')
+    expect(summary.publicChapterCount).toBe(2)
+    expect(summary.protectedChapterCount).toBe(1)
+  })
 })

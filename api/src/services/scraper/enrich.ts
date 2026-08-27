@@ -687,6 +687,7 @@ export interface Po18ChapterCandidate {
   title: string
   url: string
   downloadable: boolean
+  protected: boolean
 }
 
 /** 判断 POPO 目录是否被重定向到了登录页。 */
@@ -750,17 +751,23 @@ export function parsePo18twChapterRows(html: string, baseUrl: string): Po18Chapt
     const parsedOrder = Number.parseInt(counter.replace(/\D/g, ''), 10)
     const order = Number.isFinite(parsedOrder) && parsedOrder > 0 ? parsedOrder : rows.length + 1
     const url = safeHref ? resolveUrl(safeHref, chapterListUrl) : `${chapterListUrl}#chapter-${order}`
-    const downloadable = Boolean(safeHref) && !/訂購|购买|購買/i.test(row)
-    rows.push({ order, title, url, downloadable })
+    const protectedChapter = /訂購|购买|購買/i.test(row)
+    const downloadable = Boolean(safeHref) && !protectedChapter
+    rows.push({ order, title, url, downloadable, protected: protectedChapter })
   }
 
   return rows.sort((a, b) => a.order - b.order)
 }
 
-export function parsePo18twChapterLinks(html: string, baseUrl: string): { rowCount: number; links: Array<{ href: string; text: string }> } {
+export function parsePo18twChapterLinks(
+  html: string,
+  baseUrl: string,
+): { rowCount: number; publicCount: number; protectedCount: number; links: Array<{ href: string; text: string }> } {
   const rows = parsePo18twChapterRows(html, baseUrl)
   return {
     rowCount: rows.length,
+    publicCount: rows.filter((row) => row.downloadable && !row.url.includes('#')).length,
+    protectedCount: rows.filter((row) => row.protected).length,
     links: rows.filter((row) => row.downloadable && !row.url.includes('#')).map((row) => ({ href: row.url, text: row.title })),
   }
 }

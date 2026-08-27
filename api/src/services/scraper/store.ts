@@ -28,6 +28,8 @@ export interface JobData {
   current?: number
   total?: number
   chapterCount?: number
+  publicChapterCount?: number
+  protectedChapterCount?: number
   skippedCount?: number
   progress?: number
   error?: string | null
@@ -43,6 +45,8 @@ export interface JobSummary {
   successCount: number
   failedCount: number
   skippedCount: number
+  publicChapterCount: number
+  protectedChapterCount: number
   runningCount: number
   pendingCount: number
   total: number
@@ -135,6 +139,8 @@ function jobToRow(job: JobData): Record<string, unknown> {
     current: job.current || 0,
     total: job.total || 0,
     chapter_count: job.chapterCount || 0,
+    public_chapter_count: job.publicChapterCount || 0,
+    protected_chapter_count: job.protectedChapterCount || 0,
     progress: job.progress || 0,
     error: job.error || null,
     debug: job._debug || job.debug || '',
@@ -156,6 +162,8 @@ function rowToJob(row: Record<string, unknown>): JobData {
     current: Number(row.current) || 0,
     total: Number(row.total) || 0,
     chapterCount: Number(row.chapter_count) || 0,
+    publicChapterCount: Number(row.public_chapter_count) || 0,
+    protectedChapterCount: Number(row.protected_chapter_count) || 0,
     progress: Number(row.progress) || 0,
     error: row.error ? String(row.error) : null,
     debug: String(row.debug || ''),
@@ -205,8 +213,19 @@ function safeJsonParse<T>(str: string, fallback: T): T {
   }
 }
 
-function summarizeItems(counts: Record<string, number>, startedAt?: number): JobSummary {
-  const summary: JobSummary = { successCount: 0, failedCount: 0, skippedCount: 0, runningCount: 0, pendingCount: 0, total: 0, speed: 0, etaSeconds: 0 }
+function summarizeItems(counts: Record<string, number>, startedAt?: number, publicChapterCount = 0, protectedChapterCount = 0): JobSummary {
+  const summary: JobSummary = {
+    successCount: 0,
+    failedCount: 0,
+    skippedCount: 0,
+    publicChapterCount,
+    protectedChapterCount,
+    runningCount: 0,
+    pendingCount: 0,
+    total: 0,
+    speed: 0,
+    etaSeconds: 0,
+  }
   summary.successCount = counts.saved || 0
   summary.failedCount = counts.failed || 0
   summary.skippedCount = counts.skipped || 0
@@ -231,16 +250,36 @@ export class PgScrapeStore implements ScrapeStore {
   async saveJob(job: JobData): Promise<void> {
     const row = jobToRow(job)
     await this.db.query(
-      `INSERT INTO scrape_jobs (id, novel_id, status, step, current, total, chapter_count, progress, error, debug, started_at, updated_at, local_mode, update_mode, retry_source_job_id, retry_links)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+      `INSERT INTO scrape_jobs (id, novel_id, status, step, current, total, chapter_count, public_chapter_count, protected_chapter_count, progress, error, debug, started_at, updated_at, local_mode, update_mode, retry_source_job_id, retry_links)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
        ON CONFLICT (id) DO UPDATE SET
          novel_id = EXCLUDED.novel_id, status = EXCLUDED.status, step = EXCLUDED.step,
          current = EXCLUDED.current, total = EXCLUDED.total, chapter_count = EXCLUDED.chapter_count,
+         public_chapter_count = EXCLUDED.public_chapter_count, protected_chapter_count = EXCLUDED.protected_chapter_count,
          progress = EXCLUDED.progress, error = EXCLUDED.error, debug = EXCLUDED.debug,
          started_at = EXCLUDED.started_at, updated_at = EXCLUDED.updated_at,
          local_mode = EXCLUDED.local_mode, update_mode = EXCLUDED.update_mode,
          retry_source_job_id = EXCLUDED.retry_source_job_id, retry_links = EXCLUDED.retry_links`,
-      [row.id, row.novel_id, row.status, row.step, row.current, row.total, row.chapter_count, row.progress, row.error, row.debug, row.started_at, row.updated_at, row.local_mode, row.update_mode, row.retry_source_job_id, row.retry_links],
+      [
+        row.id,
+        row.novel_id,
+        row.status,
+        row.step,
+        row.current,
+        row.total,
+        row.chapter_count,
+        row.public_chapter_count,
+        row.protected_chapter_count,
+        row.progress,
+        row.error,
+        row.debug,
+        row.started_at,
+        row.updated_at,
+        row.local_mode,
+        row.update_mode,
+        row.retry_source_job_id,
+        row.retry_links,
+      ],
     )
   }
 
@@ -349,7 +388,7 @@ export class PgScrapeStore implements ScrapeStore {
     const counts: Record<string, number> = {}
     for (const row of rows) counts[row.status] = Number(row.count || 0)
     const job = await this.loadJob(jobId)
-    return summarizeItems(counts, job?.startedAt)
+    return summarizeItems(counts, job?.startedAt, job?.publicChapterCount, job?.protectedChapterCount)
   }
 
   async listActiveJobs(): Promise<JobData[]> {
@@ -410,6 +449,8 @@ export class PgScrapeStore implements ScrapeStore {
       current: 'current',
       total: 'total',
       chapterCount: 'chapter_count',
+      publicChapterCount: 'public_chapter_count',
+      protectedChapterCount: 'protected_chapter_count',
       progress: 'progress',
       error: 'error',
     }
