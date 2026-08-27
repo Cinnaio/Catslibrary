@@ -19,6 +19,7 @@ import {
   GENRE_STYLES,
   PLATFORM_STYLES,
   inferGenre,
+  inferGenres,
   isCoverPlatform,
   resolveCoverDirection,
   type CoverComposition,
@@ -30,6 +31,7 @@ import {
   type ResolvedCoverComposition,
   type ResolvedCoverStylePreset,
 } from './cover-styles'
+import { resolveRomanceVisualDNA, type RomanceEmotion, type RomanceSubtype, type RomanceVisualConcept, type RomanceVisualDNA } from './cover-romance'
 
 interface NovelMeta {
   title: string
@@ -56,9 +58,15 @@ export interface CoverPromptOptions {
 
 export interface CoverPromptMetadata {
   genre: Genre
+  genres: Genre[]
   stylePreset: ResolvedCoverStylePreset
   composition: ResolvedCoverComposition
   variationId: string
+  romanceSubtype?: RomanceSubtype
+  romanceEmotion?: RomanceEmotion
+  visualConcept?: RomanceVisualConcept
+  visualAnchor?: string
+  storySetting?: string
 }
 
 /** 创建一次全新的封面变体；任务参数会持久化它，重试时仍可复现。 */
@@ -129,15 +137,18 @@ export async function buildImagePrompt(meta: NovelMeta, opts: CoverPromptOptions
   const authorHint = meta.author.slice(0, 40)
   const catHint = meta.categories.slice(0, 3).join(', ')
   const descHint = meta.description.slice(0, 300)
+  const inferredGenres = inferGenres(meta.title, meta.categories, meta.description)
 
   // 题材判定 + 画面层：文本模型就绪时语义判定题材并用其模板生成画面；否则关键词推断 + 模板画面
   let genre: Genre
   let scene: string
   let textUsage: BuildPromptResult['textUsage'] = null
   let direction: CoverDirection
+  let romanceDNA: RomanceVisualDNA | null = null
   if (isTextAiConfigured()) {
     const judged = await judgeGenre(meta)
-    genre = judged.genre
+    // 文本模型有时会把「现代言情」概括成 urban；若本地多标签信号明确以 romance 为首，保留言情母模板和视觉 DNA。
+    genre = judged.genre === 'urban' && inferredGenres[0] === 'romance' ? 'romance' : judged.genre
     direction = resolveCoverDirection({
       novelId,
       genre,
@@ -145,11 +156,14 @@ export async function buildImagePrompt(meta: NovelMeta, opts: CoverPromptOptions
       composition: opts.composition,
       variationId,
     })
-    const generated = await generateSceneDescription({ titleHint, catHint, descHint, style: GENRE_STYLES[genre], direction })
+    if (genre === 'romance' || inferredGenres.includes('romance')) {
+      romanceDNA = resolveRomanceVisualDNA({ title: meta.title, categories: meta.categories, description: meta.description, variationId })
+    }
+    const generated = await generateSceneDescription({ titleHint, catHint, descHint, style: GENRE_STYLES[genre], direction, romanceDNA })
     scene = generated.scene
     textUsage = mergeTextUsage(judged.textUsage, generated.textUsage)
   } else {
-    genre = inferGenre(meta.title, meta.categories)
+    genre = inferGenre(meta.title, meta.categories, meta.description)
     direction = resolveCoverDirection({
       novelId,
       genre,
@@ -157,7 +171,10 @@ export async function buildImagePrompt(meta: NovelMeta, opts: CoverPromptOptions
       composition: opts.composition,
       variationId,
     })
-    scene = `${GENRE_STYLES[genre].figure} ${GENRE_STYLES[genre].background}`
+    if (genre === 'romance' || inferredGenres.includes('romance')) {
+      romanceDNA = resolveRomanceVisualDNA({ title: meta.title, categories: meta.categories, description: meta.description, variationId })
+    }
+    scene = romanceDNA ? romanceDNA.scenePrompt : `${GENRE_STYLES[genre].figure} ${GENRE_STYLES[genre].background}`
   }
 
   const style = GENRE_STYLES[genre]
@@ -173,10 +190,27 @@ export async function buildImagePrompt(meta: NovelMeta, opts: CoverPromptOptions
     categoryHint: catHint,
     storyHint: descHint,
     renderTitle,
+    romanceDNA,
   })
+  const genres = [genre, ...inferredGenres.filter((candidate) => candidate !== genre)]
   return {
     prompt,
-    metadata: { genre, stylePreset: direction.stylePreset, composition: direction.composition, variationId },
+    metadata: {
+      genre,
+      genres,
+      stylePreset: direction.stylePreset,
+      composition: direction.composition,
+      variationId,
+      ...(romanceDNA
+        ? {
+            romanceSubtype: romanceDNA.subtype,
+            romanceEmotion: romanceDNA.emotion,
+            visualConcept: romanceDNA.visualConcept,
+            visualAnchor: romanceDNA.visualAnchor,
+            storySetting: romanceDNA.setting,
+          }
+        : {}),
+    },
     textUsage,
   }
 }
@@ -192,8 +226,9 @@ function assembleCoverPrompt(args: {
   categoryHint: string
   storyHint: string
   renderTitle: boolean
+  romanceDNA: RomanceVisualDNA | null
 }): string {
-  const { scene, style, direction, platformStyle, titleHint, authorHint, categoryHint, storyHint, renderTitle } = args
+  const { scene, style, direction, platformStyle, titleHint, authorHint, categoryHint, storyHint, renderTitle, romanceDNA } = args
   const lines: string[] = []
 
   lines.push(['Chinese web novel cover design', platformStyle].filter(Boolean).join(', ') + '.')
@@ -207,6 +242,7 @@ function assembleCoverPrompt(args: {
   lines.push(`${style.tag}. ${direction.stylePrompt}. ${direction.compositionPrompt}.`)
   if (categoryHint) lines.push(`Story categories: ${categoryHint}.`)
   if (storyHint) lines.push(`Story premise and visual anchors: ${storyHint}.`)
+  if (romanceDNA) lines.push(`Story-specific romance direction (must drive the image): ${romanceDNA.prompt}.`)
   lines.push(`${scene}.`)
   lines.push(`${style.color}. ${style.light}.`)
 
@@ -214,6 +250,11 @@ function assembleCoverPrompt(args: {
   if (renderTitle && titleHint) tail.push('keep title and author name inside the central safe area away from edges (inner ~85%)')
   else tail.push('no text')
   tail.push('avoid generic stock cover layouts, avoid repeated composition, no watermark, no logo, no extra text')
+  if (romanceDNA) {
+    tail.push(
+      'avoid generic romantic couple portraits, automatic pink-and-gold palettes, flowers, petals, café interiors, garden backdrops, and sunset beaches unless explicitly supported by the story',
+    )
+  }
   lines.push(tail.join(', '))
 
   return lines.join('\n')
@@ -222,9 +263,9 @@ function assembleCoverPrompt(args: {
 /** 题材中文别名，用于解析文本模型的判定输出（模型可能回中文而非英文代号）。 */
 const GENRE_ALIASES: Record<Genre, string[]> = {
   xianxia: ['仙侠', '玄幻', '修真'],
-  urban: ['都市', '现代'],
+  urban: ['都市', '现代都市', '现代题材'],
   ancient: ['古言', '宫斗', '古风', '古代'],
-  romance: ['现言', '甜宠', '言情'],
+  romance: ['现代言情', '都市言情', '悬疑言情', '校园言情', '职场言情', '现言', '言情', '爱情', '恋爱', '甜宠'],
   mystery: ['悬疑', '推理'],
   scifi: ['科幻', '末世'],
   fantasy: ['西幻', '奇幻'],
@@ -292,7 +333,7 @@ async function judgeGenre(meta: NovelMeta): Promise<{ genre: Genre; textUsage: B
     maxTokens: 4096,
     timeoutMs: 30_000,
   })
-  const genre = parseGenreText(res.text) || inferGenre(meta.title, meta.categories)
+  const genre = parseGenreText(res.text) || inferGenre(meta.title, meta.categories, meta.description)
   return {
     genre,
     textUsage: {
@@ -312,8 +353,9 @@ async function generateSceneDescription(args: {
   descHint: string
   style: GenreStyle
   direction: CoverDirection
+  romanceDNA: RomanceVisualDNA | null
 }): Promise<{ scene: string; textUsage: BuildPromptResult['textUsage'] }> {
-  const { titleHint, catHint, descHint, style, direction } = args
+  const { titleHint, catHint, descHint, style, direction, romanceDNA } = args
   const textProvider_ = textProvider()
 
   const user = [
@@ -325,6 +367,7 @@ async function generateSceneDescription(args: {
     '4. 必须遵循给定的构图方向，让画面主体位置和镜头关系明确；',
     '5. 长度控制在 60-90 个英文单词以内；',
     '6. 不要包含任何文字/标题/水印描述（title、text、watermark 等词一律不要出现）。',
+    romanceDNA ? '7. 言情故事必须使用给定的视觉 DNA，具体表现关系、情绪、场景、物件和动作；不要退回通用情侣拥抱或粉色梦幻背景。' : '',
     '题材视觉模板：',
     `- 风格：${style.tag}`,
     `- 人物：${style.figure}`,
@@ -333,6 +376,7 @@ async function generateSceneDescription(args: {
     `- 光效：${style.light}`,
     `- 主视觉方向：${direction.stylePrompt}`,
     `- 构图方向：${direction.compositionPrompt}`,
+    romanceDNA ? `- 言情视觉 DNA：${romanceDNA.prompt}` : '',
     titleHint ? `标题：${titleHint}` : '',
     catHint ? `分类：${catHint}` : '',
     descHint ? `简介：${descHint}` : '',
@@ -381,7 +425,8 @@ function normalizeVariationId(value: unknown): string {
 }
 
 function metadataForCustomPrompt(meta: NovelMeta, opts: CoverPromptOptions, variationId: string): CoverPromptMetadata {
-  const genre = inferGenre(meta.title, meta.categories)
+  const inferredGenres = inferGenres(meta.title, meta.categories, meta.description)
+  const genre = inferredGenres[0] || 'urban'
   const direction = resolveCoverDirection({
     novelId: opts.novelId || meta.title || 'novel',
     genre,
@@ -389,7 +434,26 @@ function metadataForCustomPrompt(meta: NovelMeta, opts: CoverPromptOptions, vari
     composition: opts.composition,
     variationId,
   })
-  return { genre, stylePreset: direction.stylePreset, composition: direction.composition, variationId }
+  const romanceDNA =
+    genre === 'romance' || inferredGenres.includes('romance')
+      ? resolveRomanceVisualDNA({ title: meta.title, categories: meta.categories, description: meta.description, variationId })
+      : null
+  return {
+    genre,
+    genres: [genre, ...inferredGenres.filter((candidate) => candidate !== genre)],
+    stylePreset: direction.stylePreset,
+    composition: direction.composition,
+    variationId,
+    ...(romanceDNA
+      ? {
+          romanceSubtype: romanceDNA.subtype,
+          romanceEmotion: romanceDNA.emotion,
+          visualConcept: romanceDNA.visualConcept,
+          visualAnchor: romanceDNA.visualAnchor,
+          storySetting: romanceDNA.setting,
+        }
+      : {}),
+  }
 }
 
 /**

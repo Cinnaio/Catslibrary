@@ -4,6 +4,7 @@
  */
 import { describe, it, expect } from 'vitest'
 import { buildImagePrompt, parseGenreText } from './cover'
+import { inferGenres } from './cover-styles'
 
 describe('parseGenreText', () => {
   it('识别英文代号', () => {
@@ -61,5 +62,42 @@ describe('buildImagePrompt', () => {
       if (originalApiKey === undefined) delete process.env.AI_TEXT_API_KEY
       else process.env.AI_TEXT_API_KEY = originalApiKey
     }
+  })
+
+  it('言情提示词按故事视觉 DNA 变化，不再固定情侣姿势、粉金配色和通用场景', async () => {
+    const originalBaseUrl = process.env.AI_TEXT_BASE_URL
+    const originalApiKey = process.env.AI_TEXT_API_KEY
+    delete process.env.AI_TEXT_BASE_URL
+    delete process.env.AI_TEXT_API_KEY
+
+    try {
+      const result = await buildImagePrompt(
+        {
+          title: '合约到期后他真香了',
+          author: '某作者',
+          description: '冷面投资人和独立珠宝设计师因合约婚姻展开都市博弈，戒指成为两人关系转折的证据。',
+          categories: ['现代言情', '豪门总裁'],
+        },
+        { novelId: 'novel-romance-contract', variationId: 'variation-contract', renderTitle: false },
+      )
+
+      expect(result.metadata.genre).toBe('romance')
+      expect(result.metadata.genres).toEqual(expect.arrayContaining(['romance', 'urban']))
+      expect(result.metadata.romanceSubtype).toBe('contract')
+      expect(result.metadata.visualAnchor).toContain('ring')
+      expect(result.prompt).toContain('Story-specific romance direction')
+      expect(result.prompt).not.toContain('a couple in a tender intimate interaction')
+      expect(result.prompt).not.toContain('pink, warm white and light gold')
+      expect(result.prompt).not.toContain('café, garden, cozy interior, sunset beach')
+    } finally {
+      if (originalBaseUrl === undefined) delete process.env.AI_TEXT_BASE_URL
+      else process.env.AI_TEXT_BASE_URL = originalBaseUrl
+      if (originalApiKey === undefined) delete process.env.AI_TEXT_API_KEY
+      else process.env.AI_TEXT_API_KEY = originalApiKey
+    }
+  })
+
+  it('言情题材保留多标签，不把悬疑言情完全压扁成单一题材', () => {
+    expect(inferGenres('雨夜玫瑰', ['悬疑言情'])).toEqual(expect.arrayContaining(['romance', 'mystery']))
   })
 })

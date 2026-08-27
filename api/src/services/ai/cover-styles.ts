@@ -75,7 +75,26 @@ const GENRE_KEYWORDS: Record<Genre, string[]> = {
   xianxia: ['仙侠', '玄幻', '修真', '洪荒', '修仙', '剑道', '灵气', '宗门', '仙', '剑'],
   urban: ['都市', '总裁', '校园', '重生', '系统', '学霸', '医生', '兵王', '战神', '赘婿'],
   ancient: ['妃', '皇', '侯', '宫', '嫡', '庶', '凤', '鸾', '宫斗', '古言'],
-  romance: ['契约', '替嫁', '甜宠', '娇妻', '萌宝', '闪婚', '现言', '暗恋', '婚姻', '结婚'],
+  romance: [
+    '现代言情',
+    '都市言情',
+    '悬疑言情',
+    '校园言情',
+    '职场言情',
+    '契约',
+    '替嫁',
+    '甜宠',
+    '娇妻',
+    '萌宝',
+    '闪婚',
+    '现言',
+    '言情',
+    '爱情',
+    '恋爱',
+    '暗恋',
+    '婚姻',
+    '结婚',
+  ],
   mystery: ['诡案', '侦探', '悬疑', '推理', '密室', '连环', '犯罪', '谜案'],
   scifi: ['星际', '末世', '机甲', '赛博', '废土', '进化', '科幻', '宇宙', '太空'],
   fantasy: ['龙', '骑', '魔法', '异世界', '精灵', '领主', '西幻', '魔', '骑士'],
@@ -118,13 +137,13 @@ export const GENRE_STYLES: Record<Genre, GenreStyle> = {
     authorFont: 'small elegant dark red traditional text inside a thin golden rectangular border frame with corner decorations',
   },
   romance: {
-    tag: 'modern romance cover art, soft dreamy warm atmosphere',
-    figure: 'a couple in a tender intimate interaction, embracing, gazing at each other or holding hands',
-    background: 'café, garden, cozy interior, sunset beach',
-    color: 'color palette of pink, warm white and light gold, warm and gentle',
-    light: 'soft warm backlighting, dreamy bokeh, gentle sunset glow',
-    titleFont: 'soft rounded handwritten style in white with pink glow',
-    authorFont: 'small soft pink-white handwritten text with a tiny heart motif on the left side, light sparkle effect',
+    tag: 'character-driven romance cover art with editorial emotional realism',
+    figure: 'two distinct protagonists shown through a story-specific gesture, distance, or consequence; never a generic posed couple',
+    background: 'a concrete setting and visual motif drawn from the novel premise, never a stock romance backdrop',
+    color: 'palette must follow the story emotion and setting; do not default to pink, warm white, or gold',
+    light: 'lighting must follow the emotional temperature and location; avoid automatic dreamy bokeh and sunset glow',
+    titleFont: 'mood-matched editorial title lettering with a distinctive but restrained treatment, never automatic pink glow',
+    authorFont: 'small clean author lettering with color and weight matched to the chosen visual concept, no decorative heart motif',
   },
   mystery: {
     tag: 'dark mystery thriller, noir atmosphere, high contrast shadows',
@@ -289,8 +308,8 @@ export function isCoverPlatform(value: unknown): value is CoverPlatform {
  * - 有命中 → 先取分数最高的题材，同分再按 GENRE_PRIORITY 取优先级
  * - 零命中 → 'urban'（与 skill「零命中默认都市」一致）
  */
-export function inferGenre(title: string, categories: string[] = []): Genre {
-  const haystack = `${title || ''} ${(categories || []).join(' ')}`
+export function inferGenres(title: string, categories: string[] = [], description = ''): Genre[] {
+  const haystack = `${title || ''} ${(categories || []).join(' ')} ${description || ''}`
   const scores = new Map<Genre, number>()
   for (const genre of Object.keys(GENRE_KEYWORDS) as Genre[]) {
     const score = GENRE_KEYWORDS[genre].reduce((total, kw) => {
@@ -300,10 +319,16 @@ export function inferGenre(title: string, categories: string[] = []): Genre {
     }, 0)
     if (score > 0) scores.set(genre, score)
   }
-  if (!scores.size) return 'urban'
-  const maxScore = Math.max(...scores.values())
-  for (const genre of GENRE_PRIORITY) {
-    if (scores.get(genre) === maxScore) return genre
-  }
-  return 'urban'
+  if (!scores.size) return ['urban']
+  return [...scores.entries()]
+    .sort(([genreA, scoreA], [genreB, scoreB]) => {
+      if (scoreA !== scoreB) return scoreB - scoreA
+      return GENRE_PRIORITY.indexOf(genreA) - GENRE_PRIORITY.indexOf(genreB)
+    })
+    .map(([genre]) => genre)
+}
+
+/** 兼容旧调用方：返回得分最高的主题材；需要复合题材时使用 inferGenres。 */
+export function inferGenre(title: string, categories: string[] = [], description = ''): Genre {
+  return inferGenres(title, categories, description)[0] || 'urban'
 }

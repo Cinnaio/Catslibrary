@@ -8,6 +8,7 @@ import {
   GENRE_STYLES,
   PLATFORM_STYLES,
   inferGenre,
+  inferGenres,
   isCoverComposition,
   isCoverPlatform,
   isCoverStylePreset,
@@ -40,6 +41,8 @@ describe('inferGenre', () => {
   it('分类参与推断', () => {
     expect(inferGenre('无名之书', ['悬疑', '推理'])).toBe('mystery')
     expect(inferGenre('无名之书', ['轻小说'])).toBe('light')
+    expect(inferGenre('月光落在你肩上', ['现代言情'])).toBe('romance')
+    expect(inferGenres('雨夜玫瑰', ['悬疑言情'])).toEqual(expect.arrayContaining(['romance', 'mystery']))
   })
 
   it('所有题材都有完整风格定义', () => {

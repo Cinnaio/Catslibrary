@@ -852,9 +852,15 @@ export interface AiTaskInfo {
 /** AI 封面候选：生成结果先落候选，采纳后才覆盖当前封面。 */
 export interface AiCoverMetadata {
   genre?: string
+  genres?: string[]
   stylePreset?: string
   composition?: string
   variationId?: string
+  romanceSubtype?: string
+  romanceEmotion?: string
+  visualConcept?: string
+  visualAnchor?: string
+  storySetting?: string
 }
 
 export interface AiCoverCandidate {

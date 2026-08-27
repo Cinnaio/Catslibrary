@@ -1404,6 +1404,7 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
       const variedPrompt = await jsonOf<{ prompt: string; metadata: { stylePreset: string; composition: string; variationId: string } }>(variedPromptResponse)
       expect(variedPrompt.metadata).toEqual({
         genre: 'urban',
+        genres: ['urban'],
         stylePreset: 'minimal',
         composition: 'symbolic',
         variationId: 'route-test-variation',

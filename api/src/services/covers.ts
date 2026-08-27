@@ -109,9 +109,15 @@ export interface CoverCandidate {
 
 export interface CoverCandidateMetadata {
   genre?: string
+  genres?: string[]
   stylePreset?: string
   composition?: string
   variationId?: string
+  romanceSubtype?: string
+  romanceEmotion?: string
+  visualConcept?: string
+  visualAnchor?: string
+  storySetting?: string
 }
 
 /** 存一张 AI 封面候选，返回候选 id。不触碰当前封面（novel_covers）。 */
@@ -162,9 +168,18 @@ function parseCoverCandidateMetadata(value: unknown): CoverCandidateMetadata | u
     const obj = parsed as Record<string, unknown>
     const metadata: CoverCandidateMetadata = {}
     if (typeof obj.genre === 'string' && obj.genre) metadata.genre = obj.genre
+    if (Array.isArray(obj.genres)) {
+      const genres = obj.genres.filter((genre): genre is string => typeof genre === 'string' && !!genre)
+      if (genres.length) metadata.genres = genres
+    }
     if (typeof obj.stylePreset === 'string' && obj.stylePreset) metadata.stylePreset = obj.stylePreset
     if (typeof obj.composition === 'string' && obj.composition) metadata.composition = obj.composition
     if (typeof obj.variationId === 'string' && obj.variationId) metadata.variationId = obj.variationId
+    if (typeof obj.romanceSubtype === 'string' && obj.romanceSubtype) metadata.romanceSubtype = obj.romanceSubtype
+    if (typeof obj.romanceEmotion === 'string' && obj.romanceEmotion) metadata.romanceEmotion = obj.romanceEmotion
+    if (typeof obj.visualConcept === 'string' && obj.visualConcept) metadata.visualConcept = obj.visualConcept
+    if (typeof obj.visualAnchor === 'string' && obj.visualAnchor) metadata.visualAnchor = obj.visualAnchor
+    if (typeof obj.storySetting === 'string' && obj.storySetting) metadata.storySetting = obj.storySetting
     return Object.keys(metadata).length ? metadata : undefined
   } catch {
     return undefined

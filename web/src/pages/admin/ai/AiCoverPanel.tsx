@@ -45,6 +45,50 @@ const COMPOSITION_OPTIONS = [
   { value: 'off_center', label: '非对称构图' },
 ]
 
+const ROMANCE_SUBTYPE_LABELS: Record<string, string> = {
+  sweet: '甜宠',
+  contract: '合约/豪门',
+  workplace: '职场关系',
+  campus: '校园初恋',
+  reunion: '久别重逢',
+  healing: '治愈救赎',
+  suspense: '悬疑言情',
+  revenge: '虐恋复仇',
+  historical: '古言爱情',
+  general: '现代言情',
+}
+
+const ROMANCE_EMOTION_LABELS: Record<string, string> = {
+  sweet: '甜蜜',
+  tension: '暧昧拉扯',
+  bittersweet: '酸涩遗憾',
+  healing: '温柔治愈',
+  dangerous: '危险克制',
+  playful: '轻快俏皮',
+}
+
+const ROMANCE_CONCEPT_LABELS: Record<string, string> = {
+  object: '关键物件',
+  distance: '情绪距离',
+  environment: '环境叙事',
+  action: '决定性动作',
+  threshold: '边界构图',
+  split: '双时空对照',
+  silhouette: '剪影留白',
+  aftermath: '事件余波',
+}
+
+function romanceDirectionLabel(metadata?: AiCoverCandidate['metadata']): string {
+  if (!metadata?.romanceSubtype && !metadata?.romanceEmotion && !metadata?.visualConcept) return ''
+  return [
+    metadata.romanceSubtype ? `主线：${ROMANCE_SUBTYPE_LABELS[metadata.romanceSubtype] || metadata.romanceSubtype}` : '',
+    metadata.romanceEmotion ? `情绪：${ROMANCE_EMOTION_LABELS[metadata.romanceEmotion] || metadata.romanceEmotion}` : '',
+    metadata.visualConcept ? `概念：${ROMANCE_CONCEPT_LABELS[metadata.visualConcept] || metadata.visualConcept}` : '',
+  ]
+    .filter(Boolean)
+    .join(' · ')
+}
+
 function taskStatusLabel(status: string): string {
   return status === 'queued'
     ? '排队中'
@@ -429,10 +473,13 @@ export default function AiCoverPanel() {
             />
             <p className="text-xs text-muted-foreground">留空自动生成，可编辑后保存；最多 2000 字符。换一版会改变视觉变体。</p>
             {promptMetadata && (
-              <p className="text-xs text-[var(--accent)]">
-                本版方向：{STYLE_OPTIONS.find((option) => option.value === promptMetadata.stylePreset)?.label || promptMetadata.stylePreset} ·{' '}
-                {COMPOSITION_OPTIONS.find((option) => option.value === promptMetadata.composition)?.label || promptMetadata.composition}
-              </p>
+              <div className="grid gap-0.5 text-xs text-[var(--accent)]">
+                <p>
+                  本版方向：{STYLE_OPTIONS.find((option) => option.value === promptMetadata.stylePreset)?.label || promptMetadata.stylePreset} ·{' '}
+                  {COMPOSITION_OPTIONS.find((option) => option.value === promptMetadata.composition)?.label || promptMetadata.composition}
+                </p>
+                {romanceDirectionLabel(promptMetadata) && <p>{romanceDirectionLabel(promptMetadata)}</p>}
+              </div>
             )}
           </div>
 
@@ -565,10 +612,13 @@ export default function AiCoverPanel() {
                       </div>
                       {candidate.prompt && <p className="line-clamp-2 text-[0.7rem] leading-snug text-muted-foreground">{candidate.prompt}</p>}
                       {candidate.metadata && (candidate.metadata.stylePreset || candidate.metadata.composition) && (
-                        <p className="text-[0.68rem] leading-snug text-[var(--accent)]">
-                          {STYLE_OPTIONS.find((option) => option.value === candidate.metadata?.stylePreset)?.label || candidate.metadata.stylePreset} ·{' '}
-                          {COMPOSITION_OPTIONS.find((option) => option.value === candidate.metadata?.composition)?.label || candidate.metadata.composition}
-                        </p>
+                        <div className="grid gap-0.5 text-[0.68rem] leading-snug text-[var(--accent)]">
+                          <p>
+                            {STYLE_OPTIONS.find((option) => option.value === candidate.metadata?.stylePreset)?.label || candidate.metadata.stylePreset} ·{' '}
+                            {COMPOSITION_OPTIONS.find((option) => option.value === candidate.metadata?.composition)?.label || candidate.metadata.composition}
+                          </p>
+                          {romanceDirectionLabel(candidate.metadata) && <p>{romanceDirectionLabel(candidate.metadata)}</p>}
+                        </div>
                       )}
                     </figcaption>
                   </figure>
