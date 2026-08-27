@@ -8,7 +8,7 @@ import { getDb } from '../db/pool'
 import { all, first, run, withTx } from '../db/query'
 import { AiError, chat, isTextAiConfigured, providerLabel, textProvider } from '../services/ai/client'
 import { isImageAiConfigured, imageProvider, imageProviderLabel } from '../services/ai/image'
-import { generateCoverPrompt, generateNovelCover, newCoverVariationId, normalizeCoverPrompt } from '../services/ai/cover'
+import { generateCoverPrompt, generateCoverPromptTask, generateNovelCover, newCoverVariationId, normalizeCoverPrompt } from '../services/ai/cover'
 import { getAiSettings, saveAiSettings } from '../services/ai/settings'
 import { readRuntimeConfig, writeRuntimeConfig, syncRuntimeConfigToEnv, type RuntimeConfigKey } from '../runtime-config'
 import { generateRecap, getCachedRecap, loadChapterForRecap } from '../services/ai/summary'
@@ -352,6 +352,27 @@ function writingTaskParams(body: Record<string, any>): string {
   })
 }
 
+/** 序列化封面描述词任务参数：任务完成后无需依赖原始 HTTP 请求即可恢复或重试。 */
+function coverPromptTaskParams(args: {
+  novelId: string
+  renderTitle: boolean
+  platform: string
+  stylePreset: string
+  composition: string
+  variationId: string
+  clientRequestId?: string
+}): string {
+  return JSON.stringify({
+    novelId: args.novelId,
+    renderTitle: args.renderTitle,
+    platform: args.platform,
+    stylePreset: args.stylePreset,
+    composition: args.composition,
+    variationId: args.variationId,
+    ...(args.clientRequestId ? { clientRequestId: args.clientRequestId } : {}),
+  })
+}
+
 /** 后台执行单次创作生成，完成/失败时收尾任务状态（generateWriting 收到外部 taskId 时不自标 completed）。 */
 function finalizeWritingTask(db: ReturnType<typeof getDb>, taskId: string, job: Promise<unknown>): void {
   void job
@@ -569,6 +590,33 @@ aiRoutes.post('/cover/prompt', requireAdmin(), async (c) => {
   const stylePreset = typeof body.stylePreset === 'string' && body.stylePreset ? body.stylePreset : 'auto'
   const composition = typeof body.composition === 'string' && body.composition ? body.composition : 'auto'
   const variationId = typeof body.variationId === 'string' && body.variationId.trim() ? body.variationId.trim() : newCoverVariationId()
+
+  // iOS 端请求后台模式：先落任务，再异步执行，App 被挂起后可凭 taskId 恢复结果。
+  if (body.async === true) {
+    const clientRequestId = typeof body.clientRequestId === 'string' ? body.clientRequestId.trim().slice(0, 120) : ''
+    const task = await createAiTask(db, {
+      userId: c.get('user').id,
+      novelId,
+      kind: 'cover_prompt',
+      total: 1,
+      prompt: '生成封面描述词',
+      params: coverPromptTaskParams({ novelId, renderTitle, platform, stylePreset, composition, variationId, clientRequestId }),
+    })
+    const audit = await auditRequestContext(c, db)
+    void generateCoverPromptTask(db, {
+      userId: c.get('user').id,
+      novelId,
+      renderTitle,
+      platform,
+      stylePreset,
+      composition,
+      variationId,
+      taskId: task.id,
+      ...audit,
+    })
+    return c.json({ ok: true, taskId: task.id, batchId: '', total: 1 }, 202)
+  }
+
   try {
     const result = await generateCoverPrompt(db, novelId, { renderTitle, platform, stylePreset, composition, variationId })
     return c.json({ prompt: result.prompt, metadata: result.metadata })
@@ -987,7 +1035,7 @@ aiRoutes.get('/usage', requireAdmin(), async (c) => {
 })
 
 const TASK_STATUSES = new Set(['queued', 'running', 'completed', 'failed', 'cancelled'])
-const RETRIABLE_TASK_KINDS = new Set(['continue', 'write_outline', 'write_chapter', 'cover'])
+const RETRIABLE_TASK_KINDS = new Set(['continue', 'write_outline', 'write_chapter', 'cover', 'cover_prompt'])
 
 aiRoutes.get('/tasks', requireAdmin(), async (c) => {
   const limit = Number.parseInt(c.req.query('limit') || '50', 10) || 50
@@ -1083,6 +1131,37 @@ aiRoutes.post('/tasks/:id/retry', requireAdmin(), async (c) => {
         const message = err instanceof AiError ? err.message : '封面生成失败'
         await updateAiTask(db, task.id, { status: 'failed', error: message }).catch(() => {})
       })
+    return c.json({ ok: true, taskId: task.id, batchId: '', total: 1 }, 202)
+  }
+
+  if (source.kind === 'cover_prompt') {
+    const novelId = String(body.novelId || '').trim()
+    if (!novelId) return c.json({ error: '任务未记录 novelId，无法重试' }, 422)
+    const renderTitle = typeof body.renderTitle === 'boolean' ? body.renderTitle : true
+    const platform = typeof body.platform === 'string' && body.platform ? body.platform : 'default'
+    const stylePreset = typeof body.stylePreset === 'string' && body.stylePreset ? body.stylePreset : 'auto'
+    const composition = typeof body.composition === 'string' && body.composition ? body.composition : 'auto'
+    const variationId = typeof body.variationId === 'string' && body.variationId.trim() ? body.variationId.trim() : newCoverVariationId()
+    const task = await createAiTask(db, {
+      userId: c.get('user').id,
+      novelId,
+      kind: 'cover_prompt',
+      total: 1,
+      prompt: '生成封面描述词',
+      params: coverPromptTaskParams({ novelId, renderTitle, platform, stylePreset, composition, variationId, clientRequestId: newCoverVariationId() }),
+    })
+    const audit = await auditRequestContext(c, db)
+    void generateCoverPromptTask(db, {
+      userId: c.get('user').id,
+      novelId,
+      renderTitle,
+      platform,
+      stylePreset,
+      composition,
+      variationId,
+      taskId: task.id,
+      ...audit,
+    })
     return c.json({ ok: true, taskId: task.id, batchId: '', total: 1 }, 202)
   }
 

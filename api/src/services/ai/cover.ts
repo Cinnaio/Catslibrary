@@ -114,6 +114,57 @@ export async function generateCoverPrompt(db: Db, novelId: string, opts: CoverPr
   })
 }
 
+/**
+ * 执行一个可恢复的封面描述词后台任务。
+ * 结果写回 ai_tasks.result，避免生成过程依赖前端一直保持连接。
+ */
+export async function generateCoverPromptTask(
+  db: Db,
+  opts: CoverPromptOptions & {
+    userId: string
+    novelId: string
+    taskId: string
+    ipAddress?: string
+    userAgent?: string
+  },
+): Promise<void> {
+  if (await isAiTaskCancelled(db, opts.taskId)) return
+  await updateAiTask(db, opts.taskId, { status: 'running', step: '正在生成封面描述词' })
+
+  try {
+    const result = await generateCoverPrompt(db, opts.novelId, opts)
+    if (await isAiTaskCancelled(db, opts.taskId)) return
+
+    if (result.textUsage) {
+      await recordUsage(db, {
+        userId: opts.userId,
+        model: result.textUsage.model,
+        provider: providerLabel(result.textUsage.baseUrl),
+        promptTokens: result.textUsage.promptTokens,
+        completionTokens: result.textUsage.completionTokens,
+        costMillicents: Math.round(result.textUsage.cost * 100_000),
+        novelId: opts.novelId,
+        generationType: 'cover_prompt',
+        ipAddress: opts.ipAddress,
+        userAgent: opts.userAgent,
+      })
+    }
+
+    await updateAiTask(db, opts.taskId, {
+      status: 'completed',
+      current: 1,
+      total: 1,
+      step: '封面描述词已生成，可继续编辑',
+      prompt: result.prompt,
+      result: JSON.stringify({ prompt: result.prompt, metadata: result.metadata }),
+    })
+  } catch (err) {
+    if (await isAiTaskCancelled(db, opts.taskId)) return
+    const message = err instanceof AiError ? err.message : '封面描述词生成失败'
+    await updateAiTask(db, opts.taskId, { status: 'failed', error: message }).catch(() => {})
+  }
+}
+
 /** 取任务当前 step（失败时回显用的实际 prompt 就存在这里）。 */
 async function getTaskStep(db: Db, taskId: string): Promise<{ step: string }> {
   const task = await getAiTask(db, taskId)

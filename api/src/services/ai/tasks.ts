@@ -14,6 +14,8 @@ export interface AiTask {
   total: number
   step: string
   prompt: string
+  /** 任务产物（JSON 字符串）；目前由封面描述词任务使用。 */
+  result: string
   batchId: string
   /** 创建时的请求参数（JSON），失败/取消后按原参数重试用 */
   params: string
@@ -26,7 +28,7 @@ export interface AiTask {
 interface AiTaskRow {
   id: string; user_id: string; novel_id: string; kind: string; status: string
   current: number; total: number; step: string; prompt: string; batch_id: string
-  params: string; error: string; created_at: number; updated_at: number; finished_at: number
+  result: string; params: string; error: string; created_at: number; updated_at: number; finished_at: number
 }
 
 function mapTask(row: AiTaskRow): AiTask {
@@ -34,7 +36,7 @@ function mapTask(row: AiTaskRow): AiTask {
     id: String(row.id), userId: String(row.user_id || ''), novelId: String(row.novel_id || ''),
     kind: String(row.kind || ''), status: (String(row.status || 'queued') as AiTaskStatus),
     current: Number(row.current) || 0, total: Number(row.total) || 1, step: String(row.step || ''),
-    prompt: String(row.prompt || ''), batchId: String(row.batch_id || ''), params: String(row.params || ''),
+    prompt: String(row.prompt || ''), result: String(row.result || ''), batchId: String(row.batch_id || ''), params: String(row.params || ''),
     error: String(row.error || ''),
     createdAt: Number(row.created_at) || 0, updatedAt: Number(row.updated_at) || 0, finishedAt: Number(row.finished_at) || 0,
   }
@@ -48,11 +50,11 @@ export async function createAiTask(db: Db, input: { userId: string; novelId?: st
   return mapTask((await first<AiTaskRow>(db, 'SELECT * FROM ai_tasks WHERE id = $1', [id]))!)
 }
 
-export async function updateAiTask(db: Db, id: string, patch: { status?: AiTaskStatus; current?: number; total?: number; step?: string; prompt?: string; batchId?: string; error?: string }): Promise<void> {
+export async function updateAiTask(db: Db, id: string, patch: { status?: AiTaskStatus; current?: number; total?: number; step?: string; prompt?: string; result?: string; batchId?: string; error?: string }): Promise<void> {
   const values: unknown[] = []
   const parts: string[] = []
   for (const [key, value] of Object.entries(patch)) {
-    const column = { status: 'status', current: 'current', total: 'total', step: 'step', prompt: 'prompt', batchId: 'batch_id', error: 'error' }[key]
+    const column = { status: 'status', current: 'current', total: 'total', step: 'step', prompt: 'prompt', result: 'result', batchId: 'batch_id', error: 'error' }[key]
     if (!column) continue
     values.push(value); parts.push(`${column} = $${values.length}`)
   }
@@ -88,16 +90,19 @@ export async function deleteAiTask(db: Db, id: string): Promise<boolean> {
 }
 
 /**
- * 服务启动时调用：任务在进程内同步执行，重启后残留的 queued/running 必然已中断，
- * 统一标记为 failed，避免前端任务面板永远显示「运行中」。返回受影响行数。
+ * 服务启动时调用：有副作用的任务在重启后统一标记为 failed。
+ * 可通过 excludeKinds 留出由调用方安全接管的任务类型。
  */
-export async function failInterruptedAiTasks(db: Db): Promise<number> {
+export async function failInterruptedAiTasks(db: Db, opts: { excludeKinds?: string[] } = {}): Promise<number> {
   const now = Date.now()
+  const excluded = (opts.excludeKinds || []).map((kind) => String(kind).trim()).filter(Boolean)
+  const placeholders = excluded.map((_, index) => '$' + String(index + 2)).join(', ')
+  const exclusionSql = excluded.length ? ' AND kind NOT IN (' + placeholders + ')' : ''
   return run(
     db,
     `UPDATE ai_tasks SET status = 'failed', step = '已中断', error = '服务重启，任务中断', updated_at = $1, finished_at = $1
-     WHERE status IN ('queued','running')`,
-    [now],
+     WHERE status IN ('queued','running')` + exclusionSql,
+    [now, ...excluded],
   )
 }
 

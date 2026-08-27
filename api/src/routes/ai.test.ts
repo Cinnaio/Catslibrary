@@ -1474,6 +1474,39 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     }
   })
 
+  it('cover prompt：后台任务完成后持久化提示词和元数据', async () => {
+    const novelId = await firstNovelId(t)
+    const res = await req(
+      '/api/ai/cover/prompt',
+      json('POST', { novelId, async: true, variationId: 'async-prompt-test' }, adminToken),
+    )
+    expect(res.status).toBe(202)
+    const started = await jsonOf<{ ok: boolean; taskId: string; total: number }>(res)
+    expect(started.ok).toBe(true)
+    expect(started.total).toBe(1)
+
+    const task = await waitForTask(started.taskId, adminToken)
+    expect(task.status).toBe('completed')
+
+    const detail = await jsonOf<{
+      task: { kind: string; novelId: string; prompt: string; result: string; current: number; total: number }
+    }>(await req(`/api/ai/tasks/${started.taskId}`, json('GET', undefined, adminToken)))
+    expect(detail.task.kind).toBe('cover_prompt')
+    expect(detail.task.novelId).toBe(novelId)
+    expect(detail.task.current).toBe(1)
+    expect(detail.task.total).toBe(1)
+    expect(detail.task.prompt).toBeTruthy()
+    const result = JSON.parse(detail.task.result) as { prompt: string; metadata: { variationId: string } }
+    expect(result.prompt).toBe(detail.task.prompt)
+    expect(result.metadata.variationId).toBe('async-prompt-test')
+
+    const usage = await t.db.query<{ generation_type: string; novel_id: string }>(
+      "SELECT generation_type, novel_id FROM ai_usage WHERE generation_type = 'cover_prompt' AND novel_id = $1",
+      [novelId],
+    )
+    expect(usage.rows.length).toBeGreaterThan(0)
+  })
+
   it('cover：默认渲染书名/作者名文字层（story-cover），显式关闭走 no text', async () => {
     process.env.AI_IMAGE_BASE_URL = 'https://image.test/v1'
     process.env.AI_IMAGE_API_KEY = 'img-key'

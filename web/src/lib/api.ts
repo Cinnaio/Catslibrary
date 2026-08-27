@@ -963,6 +963,8 @@ export interface AiTaskInfo {
   total: number
   step: string
   prompt: string
+  /** 任务产物 JSON；封面描述词任务完成后包含 prompt + metadata */
+  result: string
   batchId: string
   /** 创建时的请求参数（JSON），非空才支持重试 */
   params: string

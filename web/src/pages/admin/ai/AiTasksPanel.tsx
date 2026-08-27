@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 const ACTIVE_POLL_INTERVAL = 4000
 
 function taskKindLabel(kind: string): string {
-  return kind === 'continue' ? '续写' : kind === 'write_outline' ? '创作大纲' : kind === 'write_chapter' ? '创作章节' : kind === 'cover' ? '封面' : kind
+  return kind === 'continue' ? '续写' : kind === 'write_outline' ? '创作大纲' : kind === 'write_chapter' ? '创作章节' : kind === 'cover' ? '封面' : kind === 'cover_prompt' ? '封面描述词' : kind
 }
 
 function taskStatusLabel(status: string): string {

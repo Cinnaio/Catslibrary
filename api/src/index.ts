@@ -4,8 +4,41 @@ import { loadConfig } from './config'
 import { migrate } from './db/migrate'
 import { getDb } from './db/pool'
 import { getAiSettings } from './services/ai/settings'
-import { failInterruptedAiTasks, pruneFinishedAiTasks } from './services/ai/tasks'
+import { failInterruptedAiTasks, listAiTasks, pruneFinishedAiTasks, updateAiTask } from './services/ai/tasks'
+import { generateCoverPromptTask } from './services/ai/cover'
 import { ensureRuntimeSalts } from './runtime-config'
+
+async function resumeInterruptedCoverPromptTasks() {
+  const db = getDb()
+  const { items } = await listAiTasks(db, { kind: 'cover_prompt', limit: 100, offset: 0 })
+  const interrupted = items.filter((task) => task.status === 'queued' || task.status === 'running')
+  let resumed = 0
+  for (const task of interrupted) {
+    let params: Record<string, any> | null = null
+    try {
+      params = task.params ? (JSON.parse(task.params) as Record<string, any>) : null
+    } catch {
+      params = null
+    }
+    const novelId = String(params?.novelId || task.novelId || '').trim()
+    if (!params || !novelId) {
+      await updateAiTask(db, task.id, { status: 'failed', step: '已中断', error: '任务缺少原始参数，无法恢复' })
+      continue
+    }
+    resumed += 1
+    void generateCoverPromptTask(db, {
+      userId: task.userId,
+      novelId,
+      renderTitle: typeof params.renderTitle === 'boolean' ? params.renderTitle : true,
+      platform: typeof params.platform === 'string' && params.platform ? params.platform : 'default',
+      stylePreset: typeof params.stylePreset === 'string' && params.stylePreset ? params.stylePreset : 'auto',
+      composition: typeof params.composition === 'string' && params.composition ? params.composition : 'auto',
+      variationId: typeof params.variationId === 'string' ? params.variationId : '',
+      taskId: task.id,
+    })
+  }
+  return resumed
+}
 
 async function start() {
   // 会话/IP 哈希盐：缺失或为弱默认值时生成随机盐并持久化，须在处理任何请求前完成
@@ -15,9 +48,11 @@ async function start() {
   if (config.configured) {
     const applied = await migrate({ keepPoolOpen: true })
     if (applied.length) console.log(`[zhi-zhou api] applied migrations: ${applied.join(', ')}`)
-    // AI 任务在进程内执行，重启后残留的 queued/running 已实际中断，标记失败避免前端一直显示运行中
-    const interrupted = await failInterruptedAiTasks(getDb())
-    if (interrupted) console.log(`[zhi-zhou api] marked ${interrupted} interrupted AI task(s) as failed`)
+    // 提示词任务参数和结果可持久化，服务重启后自动接管；有副作用的图片/写作任务仍标记失败，交给管理员确认后重试。
+    const interrupted = await failInterruptedAiTasks(getDb(), { excludeKinds: ['cover_prompt'] })
+    if (interrupted) console.log('[zhi-zhou api] marked ' + interrupted + ' interrupted AI task(s) as failed')
+    const resumed = await resumeInterruptedCoverPromptTasks()
+    if (resumed) console.log('[zhi-zhou api] resumed ' + resumed + ' interrupted cover prompt task(s)')
     // 已结束任务按保留期清理（天数在管理端「参数调优」可配）
     const settings = await getAiSettings(getDb())
     const pruned = await pruneFinishedAiTasks(getDb(), settings.taskRetentionDays)
