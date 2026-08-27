@@ -6,7 +6,7 @@ vi.mock('./fetch', () => ({
   FETCH_HEADERS: {},
 }))
 
-import { discoverList, extractPo18twTitles, searchPo18tw, searchTitleSources } from './enrich'
+import { discoverList, extractPo18twTitles, parsePo18twChapterLinks, searchPo18tw, searchTitleSources } from './enrich'
 import type { FetchHtmlOptions } from './fetch'
 
 describe('标题源搜索', () => {
@@ -110,6 +110,23 @@ describe('标题源搜索', () => {
       { order: 1, title: '第一章', url: 'https://www.po18.tw/books/123456/articles/1' },
       { order: 2, title: '第二章（付费）', url: 'https://www.po18.tw/books/123456/articles#chapter-2' },
     ])
+  })
+
+  it('POPO 目录应只把可访问的章节加入抓取链接', () => {
+    const html = `<div class="c_l">
+      <div class="l_counter">0001</div>
+      <div class="l_chaptname">第一章</div>
+      <div class="l_btn"><a href="/books/123456/articles/1">免費閱讀</a></div>
+    </div><div class="c_l">
+      <div class="l_counter">0002</div>
+      <div class="l_chaptname">第二章</div>
+      <div class="l_btn"><a href="/books/123456/articles/2">訂購</a></div>
+    </div>`
+
+    expect(parsePo18twChapterLinks(html, 'https://www.po18.tw/books/123456/articles')).toEqual({
+      rowCount: 2,
+      links: [{ href: 'https://www.po18.tw/books/123456/articles/1', text: '第一章' }],
+    })
   })
 })
 

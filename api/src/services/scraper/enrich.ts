@@ -679,37 +679,110 @@ export async function extractPo18twTitles(
   }
   const chapterListUrl = po18ChapterListUrl(url.href)
   const { html } = await requestHtml(chapterListUrl, { timeoutMs: 12000 })
-  if (/<input\b[^>]*(?:type\s*=\s*["']?password|name\s*=\s*["'][^"']*(?:pass|密碼|密码))/i.test(html) && /login|登入|登录/i.test(html))
+  if (isPo18twLoginPage(html))
     throw new Error('PO18.tw 该页面需要登录，请先配置账号或 Cookie')
-  const titles: Array<{ order: number; title: string; url: string }> = []
+  const rows = parsePo18twChapterRows(html, chapterListUrl)
   const seen = new Set<string>()
-  const rowStarts = [...html.matchAll(/<div\b[^>]*class\s*=\s*["'][^"']*\bc_l\b[^"']*["'][^>]*>/gi)]
-  for (let index = 0; index < rowStarts.length; index++) {
-    const rowStart = (rowStarts[index]!.index || 0) + rowStarts[index]![0].length
-    const rowEnd = rowStarts[index + 1]?.index ?? html.length
-    const row = html.slice(rowStart, rowEnd)
-    const nameBlock = row.match(/<div\b[^>]*class\s*=\s*["'][^"']*\bl_chaptname\b[^"']*["'][^>]*>([\s\S]*?)<\/div>/i)?.[1] || ''
-    const link = nameBlock.match(/<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/i)
-    const title = cleanText((link?.[2] || nameBlock).replace(/<[^>]*>/g, ''))
-    if (!title) continue
-    const counter = row.match(/<div\b[^>]*class\s*=\s*["'][^"']*\bl_counter\b[^"']*["'][^>]*>([\s\S]*?)<\/div>/i)?.[1] || ''
-    const parsedOrder = Number.parseInt(counter.replace(/\D/g, ''), 10)
-    const order = Number.isFinite(parsedOrder) && parsedOrder > 0 ? parsedOrder : titles.length + 1
-    const chapterUrl = link?.[1]
-      ? resolveUrl(link[1], chapterListUrl)
-      : `${chapterListUrl}#chapter-${order}`
-    if (seen.has(chapterUrl)) continue
-    seen.add(chapterUrl)
-    titles.push({ order, title, url: chapterUrl })
-  }
-  titles.sort((a, b) => a.order - b.order)
+  const titles = rows
+    .filter((row) => {
+      if (seen.has(row.url)) return false
+      seen.add(row.url)
+      return true
+    })
+    .map(({ order, title, url }) => ({ order, title, url }))
   return { site: 'PO18.tw', sourceUrl: chapterListUrl, total: titles.length, titles }
 }
 
-function po18ChapterListUrl(sourceUrl: string): string {
+export interface Po18ChapterCandidate {
+  order: number
+  title: string
+  url: string
+  downloadable: boolean
+}
+
+/** 判断 POPO 目录是否被重定向到了登录页。 */
+export function isPo18twLoginPage(html: string): boolean {
+  return /<input\b[^>]*(?:type\s*=\s*["']?password|name\s*=\s*["'][^"']*(?:pass|密碼|密码))/i.test(html) && /login|登入|登录/i.test(html)
+}
+
+/** 解析 POPO 的目录行；付费未购买章节保留标题，但不加入可抓取链接。 */
+export function parsePo18twChapterRows(html: string, baseUrl: string): Po18ChapterCandidate[] {
+  const chapterListUrl = po18ChapterListUrl(baseUrl)
+  const rowStarts = [...html.matchAll(/<div\b[^>]*class\s*=\s*["'][^"']*\bc_l\b[^"']*["'][^>]*>/gi)]
+  const fallbackStarts = rowStarts.length
+    ? rowStarts
+    : [...html.matchAll(/<div\b[^>]*class\s*=\s*["'][^"']*\bl_chaptname\b[^"']*["'][^>]*>/gi)]
+  const rows: Po18ChapterCandidate[] = []
+
+  for (let index = 0; index < fallbackStarts.length; index++) {
+    const marker = fallbackStarts[index]!
+    const markerIndex = marker.index || 0
+    const isOuterRow = /\bc_l\b/i.test(marker[0] || '')
+    const rowStart = isOuterRow ? markerIndex + marker[0].length : markerIndex
+    const rowEnd = fallbackStarts[index + 1]?.index ?? html.length
+    const row = html.slice(rowStart, rowEnd)
+    const nameBlock = row.match(/<div\b[^>]*class\s*=\s*["'][^"']*\bl_chaptname\b[^"']*["'][^>]*>([\s\S]*?)<\/div>/i)?.[1] || ''
+    const nameLink = nameBlock.match(/<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/i)
+    const title = cleanText((nameLink?.[2] || nameBlock).replace(/<[^>]*>/g, ''))
+    if (!title) continue
+
+    const buttonBlock = row.match(/<div\b[^>]*class\s*=\s*["'][^"']*\bl_btn\b[^"']*["'][^>]*>([\s\S]*?)<\/div>/i)?.[1] || ''
+    const buttonLink = buttonBlock.match(/<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>/i)
+    const href = buttonLink?.[1] || nameLink?.[1] || ''
+    const safeHref = /^(?:javascript:|#)/i.test(href) ? '' : href
+    const counter = row.match(/<div\b[^>]*class\s*=\s*["'][^"']*\bl_counter\b[^"']*["'][^>]*>([\s\S]*?)<\/div>/i)?.[1] || ''
+    const parsedOrder = Number.parseInt(counter.replace(/\D/g, ''), 10)
+    const order = Number.isFinite(parsedOrder) && parsedOrder > 0 ? parsedOrder : rows.length + 1
+    const url = safeHref ? resolveUrl(safeHref, chapterListUrl) : `${chapterListUrl}#chapter-${order}`
+    const downloadable = Boolean(safeHref) && !/訂購|购买|購買/i.test(row)
+    rows.push({ order, title, url, downloadable })
+  }
+
+  return rows.sort((a, b) => a.order - b.order)
+}
+
+export function parsePo18twChapterLinks(html: string, baseUrl: string): { rowCount: number; links: Array<{ href: string; text: string }> } {
+  const rows = parsePo18twChapterRows(html, baseUrl)
+  return {
+    rowCount: rows.length,
+    links: rows.filter((row) => row.downloadable && !row.url.includes('#')).map((row) => ({ href: row.url, text: row.title })),
+  }
+}
+
+export function po18ChapterListUrl(sourceUrl: string): string {
   const url = new URL(sourceUrl)
   const bookId = url.pathname.match(/\/books\/(\d+)(?:\/articles(?:\/\d+)?)?\/?$/i)?.[1]
   return bookId ? `${url.origin}/books/${bookId}/articles` : url.href
+}
+
+export function po18ChapterPageUrl(sourceUrl: string, page: number): string {
+  const url = new URL(po18ChapterListUrl(sourceUrl))
+  if (page > 1) url.searchParams.set('page', String(page))
+  return url.href
+}
+
+export function po18ChapterContentUrl(chapterUrl: string): string {
+  const url = new URL(chapterUrl)
+  const match = url.pathname.match(/\/books\/(\d+)\/articles\/(\d+)\/?$/i)
+  return match ? `${url.origin}/books/${match[1]}/articlescontent/${match[2]}` : url.href
+}
+
+/** POPO 正文接口返回 HTML 片段；优先取正文容器，并移除站点引用块与标题重复内容。 */
+export function parsePo18twChapterContent(html: string, fallbackTitle: string): { title: string; content: string } {
+  const titleHtml = html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i)?.[1] || ''
+  const title = cleanText(titleHtml.replace(/<[^>]*>/g, '')) || cleanText(fallbackTitle)
+  const contentSelectors = ['.read-content', '.article-content', '#article-content', '.pcontent', '.content', '#content', 'article']
+  let content = ''
+  for (const selector of contentSelectors) {
+    const inner = extractInnerHtml(html, selector)
+    if (inner.trim()) {
+      content = inner
+      break
+    }
+  }
+  if (!content) content = html
+  content = content.replace(/<blockquote\b[^>]*>[\s\S]*?<\/blockquote>/gi, '').replace(/<h1\b[^>]*>[\s\S]*?<\/h1>/gi, '')
+  return { title, content }
 }
 
 // ---------- 内部 ----------

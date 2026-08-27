@@ -10,6 +10,8 @@ import type { FetchHtmlOptions, FetchResult } from './fetch'
 import type { ScrapeStore } from './store'
 import { getPresetForUrl } from './store'
 import { simplifyNovelForSource } from '../zh-convert'
+import { isPo18twLoginPage, parsePo18twChapterLinks, po18ChapterListUrl } from './enrich'
+import { PO18TW_SELECTORS } from './presets'
 
 export interface ScrapeNovel {
   title: string
@@ -327,19 +329,32 @@ export interface DetectMetaResult {
 /** 智能分析：预设（静态/书源）→ 抓取 → 提取元数据 → 统计章节数。 */
 export async function detectMeta(sourceUrl: string, deps: MetaDeps): Promise<DetectMetaResult> {
   const preset = (await getPresetForUrl(sourceUrl, deps.store)) as (SitePreset & { source?: string }) | null
+  const isPo18tw = preset?.name === 'PO18.tw'
 
   const { html, encoding } = await deps.fetchHtml(sourceUrl, { forceEncoding: preset?.encoding })
+  if (isPo18tw && isPo18twLoginPage(html)) throw new Error('POPO 详情页需要登录，请先配置 POPO 账号或 Cookie')
 
   const novel = preset?.meta ? extractMetaWithPreset(html, preset, sourceUrl) : extractMetaGeneric(html, sourceUrl)
   applyTitleCategories(novel)
   const simplified = simplifyNovelForSource(novel, sourceUrl)
 
   let chapterListUrl = sourceUrl
-  if (preset?.urlTransform) chapterListUrl = preset.urlTransform(sourceUrl)
+  if (isPo18tw) chapterListUrl = po18ChapterListUrl(sourceUrl)
+  else if (preset?.urlTransform) chapterListUrl = preset.urlTransform(sourceUrl)
+
+  const selectors = isPo18tw ? PO18TW_SELECTORS : preset?.selectors || { chapterList: '', chapterTitle: 'h1', chapterContent: 'article, .content, #content' }
 
   let chapterCount = 0
   let hasMoreChapters = false
-  if (preset?.selectors?.chapterList) {
+  if (isPo18tw) {
+    try {
+      const list = await deps.fetchHtml(chapterListUrl, { forceEncoding: encoding })
+      if (isPo18twLoginPage(list.html)) throw new Error('POPO 目录需要登录，请先配置 POPO 账号或 Cookie')
+      chapterCount = parsePo18twChapterLinks(list.html, chapterListUrl).links.length
+    } catch {
+      /* 章节统计失败不阻断分析 */
+    }
+  } else if (preset?.selectors?.chapterList) {
     try {
       const list = await deps.fetchHtml(chapterListUrl, { forceEncoding: encoding })
       const counted = await collectChapterLinks(list.html, preset, chapterListUrl, encoding, (url) => deps.fetchHtml(url, { forceEncoding: encoding }))
@@ -353,7 +368,7 @@ export async function detectMeta(sourceUrl: string, deps: MetaDeps): Promise<Det
   return {
     novel: simplified,
     site: preset ? { name: preset.name, encoding: preset.encoding } : { name: '通用', encoding: encoding || 'utf-8' },
-    selectors: preset?.selectors || { chapterList: '', chapterTitle: 'h1', chapterContent: 'article, .content, #content' },
+    selectors,
     chapterListUrl,
     chapterCount,
     hasMoreChapters,

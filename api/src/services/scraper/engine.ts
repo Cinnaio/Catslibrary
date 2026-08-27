@@ -8,6 +8,15 @@ import type { FetchHtmlOptions, FetchResult } from './fetch'
 import { cleanHtml, cleanText, cleanTitle, extractContent, extractLinkHref, extractLinks, extractText } from './parse'
 import type { JobData, ScrapeLink, ScrapeStore } from './store'
 import { simplifyChapterForSource } from '../zh-convert'
+import { PO18TW_SELECTORS } from './presets'
+import {
+  isPo18twLoginPage,
+  parsePo18twChapterContent,
+  parsePo18twChapterLinks,
+  po18ChapterContentUrl,
+  po18ChapterListUrl,
+  po18ChapterPageUrl,
+} from './enrich'
 
 export interface ScrapeDeps {
   store: ScrapeStore
@@ -23,10 +32,66 @@ export const SCRAPE_CHAPTER_DELAY = Number(process.env.SCRAPE_CHAPTER_DELAY || 3
 export const SCRAPE_MAX_CONSECUTIVE_FAILURES = 10
 /** 选择器测试 / 章节预览时目录翻页上限，避免长目录书（数百页）串行抓爆耗时。 */
 export const SCRAPE_MAX_LIST_PAGES = Number(process.env.SCRAPE_MAX_LIST_PAGES || 5)
+/** POPO 目录没有可依赖的 nextPage 链接，正式抓取最多按页号探测。 */
+export const SCRAPE_PO18_MAX_LIST_PAGES = Number(process.env.SCRAPE_PO18_MAX_LIST_PAGES || 200)
 export const BATCH_SIZE = 10
 
 function newChapterId(index: number): string {
   return 'ch_' + Date.now().toString(36) + '_' + index
+}
+
+function isPo18twSelectors(selectors: Record<string, string> | undefined): boolean {
+  return selectors?.chapterList === PO18TW_SELECTORS.chapterList
+}
+
+async function collectPo18twLinks(
+  firstHtml: string,
+  chapterListUrl: string,
+  encoding: string,
+  deps: ScrapeDeps,
+  maxPages: number,
+): Promise<{ links: ScrapeLink[]; pages: number }> {
+  if (isPo18twLoginPage(firstHtml)) throw new Error('POPO 目录需要登录，请先配置 POPO 账号或 Cookie')
+
+  const first = parsePo18twChapterLinks(firstHtml, chapterListUrl)
+  const links: ScrapeLink[] = [...first.links]
+  const seen = new Set(links.map((link) => link.href))
+  let pages = 0
+
+  for (let page = 2; page <= Math.max(1, maxPages); page++) {
+    const pageUrl = po18ChapterPageUrl(chapterListUrl, page)
+    const next = await deps.fetchHtml(pageUrl, { forceEncoding: encoding })
+    if (isPo18twLoginPage(next.html)) throw new Error('POPO 目录需要登录，请先配置 POPO 账号或 Cookie')
+    const parsed = parsePo18twChapterLinks(next.html, pageUrl)
+    if (parsed.rowCount === 0) break
+
+    let added = 0
+    for (const link of parsed.links) {
+      if (seen.has(link.href)) continue
+      seen.add(link.href)
+      links.push(link)
+      added++
+    }
+    pages++
+    // 源站在超出最后一页时偶尔会重复返回最后一页，避免无限探测。
+    if (added === 0) break
+  }
+
+  return { links, pages }
+}
+
+function po18ChapterFetchRequest(link: ScrapeLink, encoding: string, timeoutMs: number): { url: string; options: FetchHtmlOptions } {
+  return {
+    url: po18ChapterContentUrl(link.href),
+    options: {
+      forceEncoding: encoding,
+      timeoutMs,
+      headers: {
+        Referer: link.href,
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+    },
+  }
 }
 
 // ============================================================
@@ -43,24 +108,33 @@ export async function testSelectors(
   }
 
   const _t = { t0: Date.now(), fetchList: 0, pages: 0, total: 0 }
-  const { html, encoding } = await deps.fetchHtml(sourceUrl, { forceEncoding })
+  const isPo18tw = isPo18twSelectors(selectors)
+  const chapterListUrl = isPo18tw ? po18ChapterListUrl(sourceUrl) : sourceUrl
+  const { html, encoding } = await deps.fetchHtml(chapterListUrl, { forceEncoding })
   _t.fetchList = Date.now() - _t.t0
 
-  let allLinks = extractLinks(html, selectors.chapterList, sourceUrl)
-  if (selectors.nextPage && allLinks.length > 0) {
-    let nextUrl = extractLinkHref(html, selectors.nextPage, sourceUrl)
-    const seenPages = new Set([sourceUrl])
-    while (nextUrl && nextUrl !== sourceUrl && !seenPages.has(nextUrl) && _t.pages < SCRAPE_MAX_LIST_PAGES) {
-      seenPages.add(nextUrl)
-      _t.pages++
-      try {
-        const next = await deps.fetchHtml(nextUrl, { forceEncoding: encoding })
-        const moreLinks = extractLinks(next.html, selectors.chapterList, nextUrl)
-        if (moreLinks.length === 0) break
-        allLinks = allLinks.concat(moreLinks)
-        nextUrl = extractLinkHref(next.html, selectors.nextPage, nextUrl)
-      } catch {
-        break
+  let allLinks: ScrapeLink[]
+  if (isPo18tw) {
+    const collected = await collectPo18twLinks(html, chapterListUrl, encoding, deps, SCRAPE_MAX_LIST_PAGES)
+    allLinks = collected.links
+    _t.pages = collected.pages
+  } else {
+    allLinks = extractLinks(html, selectors.chapterList, sourceUrl)
+    if (selectors.nextPage && allLinks.length > 0) {
+      let nextUrl = extractLinkHref(html, selectors.nextPage, sourceUrl)
+      const seenPages = new Set([sourceUrl])
+      while (nextUrl && nextUrl !== sourceUrl && !seenPages.has(nextUrl) && _t.pages < SCRAPE_MAX_LIST_PAGES) {
+        seenPages.add(nextUrl)
+        _t.pages++
+        try {
+          const next = await deps.fetchHtml(nextUrl, { forceEncoding: encoding })
+          const moreLinks = extractLinks(next.html, selectors.chapterList, nextUrl)
+          if (moreLinks.length === 0) break
+          allLinks = allLinks.concat(moreLinks)
+          nextUrl = extractLinkHref(next.html, selectors.nextPage, nextUrl)
+        } catch {
+          break
+        }
       }
     }
   }
@@ -87,9 +161,11 @@ export async function testSelectors(
     const samples = await Promise.all(
       uniqueLinks.slice(0, 3).map(async (link) => {
         try {
-          const chapter = await deps.fetchHtml(link.href, { forceEncoding: encoding, timeoutMs: 8000 })
-          const title = extractText(chapter.html, chapterTitleSel) || link.text || ''
-          const rawContent = extractContent(chapter.html, chapterContentSel)
+          const request = isPo18tw ? po18ChapterFetchRequest(link, encoding, 8000) : { url: link.href, options: { forceEncoding: encoding, timeoutMs: 8000 } }
+          const chapter = await deps.fetchHtml(request.url, request.options)
+          const parsed = isPo18tw ? parsePo18twChapterContent(chapter.html, link.text || '') : null
+          const title = parsed?.title || extractText(chapter.html, chapterTitleSel) || link.text || ''
+          const rawContent = parsed?.content || extractContent(chapter.html, chapterContentSel)
           const cleanContent = cleanText(cleanHtml(rawContent || '').trim())
           return {
             title,
@@ -168,16 +244,18 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
   }
 
   try {
+    const isPo18tw = isPo18twSelectors(job.selectors)
+    const chapterListUrl = isPo18tw ? po18ChapterListUrl(job.sourceUrl) : job.sourceUrl
     log(job, `开始${job.updateMode ? '增量更新' : '抓取'}: ${job.sourceUrl}`)
     await updateStatus('fetching_list', {
       step: '正在连接源站获取章节目录…',
-      _debug: `请求: ${job.sourceUrl}\n编码预设: ${job.encoding || '自动检测'}`,
+      _debug: `请求: ${chapterListUrl}\n编码预设: ${job.encoding || '自动检测'}`,
     })
 
     let html: string
     let encoding: string
     try {
-      const result = await deps.fetchHtml(job.sourceUrl, { forceEncoding: job.encoding })
+      const result = await deps.fetchHtml(chapterListUrl, { forceEncoding: job.encoding })
       html = result.html
       encoding = result.encoding
       job.encoding = encoding
@@ -185,7 +263,7 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
       log(job, `连接源站失败: ${(err as Error).message}`, 'warn')
       await updateStatus('failed', {
         step: `无法连接源站: ${(err as Error).message}`,
-        _debug: `请求: ${job.sourceUrl}\n错误: ${(err as Error).message}`,
+        _debug: `请求: ${chapterListUrl}\n错误: ${(err as Error).message}`,
       })
       return
     }
@@ -202,19 +280,14 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
     if (job.retryLinks && Array.isArray(job.retryLinks) && job.retryLinks.length) {
       links = job.retryLinks.map((item) => ({ href: item.href || item.chapterUrl || '', text: item.text || item.chapterTitle || '' }))
       await store.appendJobLog(jobId, 'info', '重试失败章节模式：' + links.length + ' 章')
+    } else if (isPo18tw) {
+      const collected = await collectPo18twLinks(html, chapterListUrl, encoding, deps, SCRAPE_PO18_MAX_LIST_PAGES)
+      links = collected.links
+      extractMs = Date.now() - extractStart
+      if (collected.pages > 0) log(job, `POPO 目录分页完成: 额外读取 ${collected.pages} 页`)
     } else {
       links = extractLinks(html, job.selectors?.chapterList || '', job.sourceUrl)
       extractMs = Date.now() - extractStart
-
-      if (links.length === 0) {
-        log(job, `未找到章节链接: selector="${job.selectors?.chapterList}" (${extractMs}ms)`, 'warn')
-        await updateStatus('failed', {
-          step: '未找到任何章节链接，请检查章节列表选择器是否正确',
-          hint: `选择器: "${job.selectors?.chapterList}" | 页面: ${html.length}字符 | 解析耗时: ${extractMs}ms`,
-          _debug: `选择器: ${job.selectors?.chapterList}\n页面长度: ${html.length}\n解析耗时: ${extractMs}ms\n\n页面预览(前500字):\n${html.slice(0, 500)}`,
-        })
-        return
-      }
 
       let pageCount = 0
       if (job.selectors?.nextPage && links.length > 0) {
@@ -238,6 +311,17 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
         }
         if (pageCount) log(job, `目录分页完成: 额外读取 ${pageCount} 页`)
       }
+    }
+
+    if (links.length === 0) {
+      const message = isPo18tw ? '未找到可抓取的 POPO 章节，可能需要先购买章节或重新配置账号' : '未找到任何章节链接，请检查章节列表选择器是否正确'
+      log(job, `${message}: selector="${job.selectors?.chapterList}" (${extractMs}ms)`, 'warn')
+      await updateStatus('failed', {
+        step: message,
+        hint: `选择器: "${job.selectors?.chapterList}" | 页面: ${html.length}字符 | 解析耗时: ${extractMs}ms`,
+        _debug: `选择器: ${job.selectors?.chapterList}\n页面长度: ${html.length}\n解析耗时: ${extractMs}ms\n\n页面预览(前500字):\n${html.slice(0, 500)}`,
+      })
+      return
     }
 
     const originalLinkCount = links.length
@@ -356,7 +440,8 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
         for (let attempt = 0; attempt < maxAttempts; attempt++) {
           try {
             const timeout = isCF ? SCRAPE_FETCH_TIMEOUT : 28000
-            const result = await deps.fetchHtml(link.href, { forceEncoding: encoding, timeoutMs: timeout })
+            const request = isPo18tw ? po18ChapterFetchRequest(link, encoding, timeout) : { url: link.href, options: { forceEncoding: encoding, timeoutMs: timeout } }
+            const result = await deps.fetchHtml(request.url, request.options)
             chHtml = result.html
             fetchEncoding = result.encoding
             lastErr = null
@@ -393,8 +478,9 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
         consecutiveFailures = 0
 
         try {
-          const title = extractText(chHtml, job!.selectors?.chapterTitle || '') || link.text || `第${i + 1}章`
-          const rawContent = extractContent(chHtml, job!.selectors?.chapterContent || '')
+          const parsed = isPo18tw ? parsePo18twChapterContent(chHtml, link.text || '') : null
+          const title = parsed?.title || extractText(chHtml, job!.selectors?.chapterTitle || '') || link.text || `第${i + 1}章`
+          const rawContent = parsed?.content || extractContent(chHtml, job!.selectors?.chapterContent || '')
           const contentLen = rawContent ? rawContent.trim().length : 0
 
           addDebug(`Ch${i + 1}: 标题="${title.slice(0, 30)}" 内容长度=${contentLen} 编码=${fetchEncoding}`)

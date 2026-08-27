@@ -21,6 +21,13 @@ export interface SitePreset {
   coverRule?: (bookId: string) => string
 }
 
+/** POPO 的目录与正文不是普通 CSS 选择器可直接读取的结构，由抓取引擎使用专用标记解析。 */
+export const PO18TW_SELECTORS = {
+  chapterList: '@po18tw:chapter-list',
+  chapterTitle: '@po18tw:chapter-title',
+  chapterContent: '@po18tw:chapter-content',
+} as const
+
 export const SITE_PRESETS: Record<string, SitePreset> = {
   'po18.tw': {
     name: 'PO18.tw',
@@ -33,8 +40,8 @@ export const SITE_PRESETS: Record<string, SitePreset> = {
       cover: '.book_cover img',
       status: '.statu',
     },
-    // 原作者源站同步会用专用解析器读取 /books/{id}/articles，避免通用选择器漏掉付费章节标题。
-    selectors: {},
+    // POPO 目录通过 /articles 展示，正文通过 /articlescontent/{pid} 返回，交给专用解析器处理。
+    selectors: PO18TW_SELECTORS,
   },
   'czbooks.net': {
     name: '小說狂人',

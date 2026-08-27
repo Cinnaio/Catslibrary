@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { extractMetaWithPreset } from './meta'
-import { SITE_PRESETS } from './presets'
+import { detectMeta, extractMetaWithPreset } from './meta'
+import { PO18TW_SELECTORS, SITE_PRESETS } from './presets'
 
 describe('PO18 详情元数据', () => {
   it('应从详情结构提取干净的书名、作者、简介、标签、封面和状态', () => {
@@ -33,5 +33,20 @@ describe('PO18 详情元数据', () => {
       categories: ['骨科', '高H', '1V1'],
       status: 'completed',
     })
+  })
+
+  it('POPO 探测应返回 articles 目录地址、专用选择器和章节数', async () => {
+    const listPage = `<div class="c_l"><div class="l_counter">0001</div><div class="l_chaptname">第一章</div><div class="l_btn"><a href="/books/901935/articles/101">免費閱讀</a></div></div>`
+    const result = await detectMeta('https://www.po18.tw/books/901935', {
+      store: null,
+      fetchHtml: async (url) => ({
+        html: url.endsWith('/articles') ? listPage : '<h1 class="book_name">POPO 测试小说</h1>',
+        encoding: 'utf-8',
+      }),
+    })
+
+    expect(result.chapterListUrl).toBe('https://www.po18.tw/books/901935/articles')
+    expect(result.chapterCount).toBe(1)
+    expect(result.selectors).toEqual(PO18TW_SELECTORS)
   })
 })
