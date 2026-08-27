@@ -199,6 +199,58 @@ export const chaptersApi = {
   },
 }
 
+// ---------- 原作者源站同步 ----------
+
+export interface SourceSyncChange {
+  localChapterId: string
+  localOrder: number
+  oldTitle: string
+  newTitle: string
+  sourceOrder: number
+  sourceTitle: string
+  relation: 'one_to_one' | 'split' | 'merged'
+  partIndex: number
+  partCount: number
+  confidence: 'high' | 'medium' | 'low'
+  eligible: boolean
+}
+
+export interface SourceSyncPreview {
+  runId: string
+  bindingId: string
+  novelId: string
+  site: string
+  sourceUrl: string
+  metadata: {
+    title: string
+    author: string
+    description: string
+    coverUrl: string
+    category: string
+    categories: string[]
+    status: string
+    sourceUrl: string
+  }
+  sourceChapterCount: number
+  localChapterCount: number
+  splitLocalChapterCount: number
+  matchedSourceCount: number
+  unmatchedSource: Array<{ key: string; order: number; title: string; url: string }>
+  unmatchedLocal: Array<{ id: string; order: number; title: string }>
+  mappings: Array<{
+    sourceChapterKey: string
+    sourceOrder: number
+    sourceTitle: string
+    sourceUrl: string
+    localChapterIds: string[]
+    relation: 'one_to_one' | 'split' | 'merged'
+    confidence: 'high' | 'medium' | 'low'
+  }>
+  changes: SourceSyncChange[]
+  onlyWeakTitles: boolean
+  warnings: string[]
+}
+
 // ---------- Categories ----------
 
 export const categoriesApi = {
@@ -765,6 +817,20 @@ export const scrapeApi = {
   },
   cancel(jobId: string): Promise<{ ok: boolean }> {
     return request('POST', '/scrape', { action: 'cancel', jobId }, true)
+  },
+  sourceBindings(novelId: string): Promise<{ bindings: Array<Record<string, unknown>> }> {
+    return request('GET', `/scrape?action=source-bindings&novelId=${encodeURIComponent(novelId)}`, null, true)
+  },
+  sourceSyncPreview(data: { novelId: string; sourceUrl: string; onlyWeakTitles?: boolean; titles?: string[] }): Promise<SourceSyncPreview> {
+    return request('POST', '/scrape', { action: 'source-sync-preview', ...data }, true, {}, 60000)
+  },
+  sourceSyncApply(data: {
+    runId: string
+    applyMetadata?: boolean
+    metadataFields?: string[]
+    metadataMode?: 'missing' | 'replace'
+  }): Promise<{ updated: number; metadataUpdated: string[]; mappings: number }> {
+    return request('POST', '/scrape', { action: 'source-sync-apply', ...data }, true)
   },
 }
 

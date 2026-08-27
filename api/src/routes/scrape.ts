@@ -14,8 +14,16 @@ import { getPresetForUrl, PgScrapeStore, type JobData } from '../services/scrape
 import { parseLegadoJsonStream, normalizeSource, legadoHost, buildSourceRow, sourceToPreset } from '../services/scraper/legado'
 import { SITE_PRESETS, buildCoverUrl } from '../services/scraper/presets'
 import { discoverList, extractJjwxcTitles, extractPo18twTitles, proxyCover, searchPo18, searchTitleSources } from '../services/scraper/enrich'
+import { applySourceSync, createSourceSyncPreview, listSourceBindings } from '../services/source-sync'
 import { cacheCoverForNovel, getStoredCover } from '../services/covers'
-import { describeError, listOutboundRequestLogs, outboundFetch, probeProxyConnectivity, resolveOutboundProxy, shouldBypassProxy } from '../services/outbound-fetch'
+import {
+  describeError,
+  listOutboundRequestLogs,
+  outboundFetch,
+  probeProxyConnectivity,
+  resolveOutboundProxy,
+  shouldBypassProxy,
+} from '../services/outbound-fetch'
 import { readRuntimeConfig, syncRuntimeConfigToEnv, writeRuntimeConfig } from '../runtime-config'
 
 export const scrapeRoutes = new Hono()
@@ -84,7 +92,10 @@ function proxyRouteFor(rawUrl: string) {
   const bypassList = environmentProxy ? config.noProxy || '' : [config.noProxy, payload.effective.proxyBypass].filter(Boolean).join(',')
   let bypassRule = ''
   if (bypassList) {
-    for (const rule of bypassList.split(',').map((value) => value.trim()).filter(Boolean)) {
+    for (const rule of bypassList
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean)) {
       if (shouldBypassProxy(rawUrl, rule)) {
         bypassRule = rule
         break
@@ -198,6 +209,9 @@ scrapeRoutes.get('/', async (c) => {
   }
   if (action === 'config' && novelId) {
     return c.json({ config: await store.getScrapeConfig(novelId) })
+  }
+  if (action === 'source-bindings' && novelId) {
+    return c.json({ bindings: await listSourceBindings(db, novelId) }, 200, { 'Cache-Control': 'no-store' })
   }
   if (action === 'proxy-config') {
     return c.json(proxyConfigPayload(), 200, { 'Cache-Control': 'no-store' })
@@ -368,6 +382,48 @@ scrapeRoutes.post('/', async (c) => {
       if (!result) return c.json({ error: 'Novel not found' }, 404)
       return c.json({ ok: true, remoteCount, ...result, checkedAt: Date.now() })
     }
+    case 'source-sync-preview': {
+      const novelId = String(body.novelId || '').trim()
+      const sourceUrl = String(body.sourceUrl || '').trim()
+      const manualTitles = Array.isArray(body.titles)
+        ? body.titles.map((title: unknown) => String((title as { title?: unknown })?.title ?? title ?? '').trim()).filter(Boolean)
+        : undefined
+      if (!novelId || !sourceUrl) return c.json({ error: 'novelId and sourceUrl are required' }, 400)
+      try {
+        return c.json(
+          await createSourceSyncPreview(db, {
+            novelId,
+            sourceUrl,
+            onlyWeakTitles: body.onlyWeakTitles !== false,
+            manualTitles,
+            store: deps.store,
+            fetchHtml: deps.fetchHtml,
+          }),
+        )
+      } catch (err) {
+        const message = (err as Error).message || '源站同步预览失败'
+        const status = /Novel not found|URL|支持的原作者源站|需要使用/i.test(message) ? 400 : 502
+        return c.json({ error: message }, status as 400 | 502)
+      }
+    }
+    case 'source-sync-apply': {
+      const runId = String(body.runId || '').trim()
+      if (!runId) return c.json({ error: 'runId is required' }, 400)
+      try {
+        return c.json(
+          await applySourceSync(db, {
+            runId,
+            applyMetadata: body.applyMetadata === true,
+            metadataFields: Array.isArray(body.metadataFields) ? body.metadataFields.map((field: unknown) => String(field)) : [],
+            metadataMode: body.metadataMode === 'replace' ? 'replace' : 'missing',
+          }),
+        )
+      } catch (err) {
+        const message = (err as Error).message || '源站同步应用失败'
+        const status = /不存在|已应用|发生变化|Novel not found|章节不存在/i.test(message) ? 409 : 500
+        return c.json({ error: message }, status as 409 | 500)
+      }
+    }
     case 'proxy': {
       const { sourceUrl, encoding } = body
       if (!sourceUrl) return c.json({ error: 'sourceUrl required' }, 400)
@@ -428,7 +484,10 @@ scrapeRoutes.post('/', async (c) => {
         if (probeError) {
           return c.json({ ok: false, error: probeError, code: 'proxy_unreachable', elapsedMs: Date.now() - startedAt }, 200)
         }
-        return c.json({ ok: false, error: describeError(err).slice(0, 500) || '代理请求失败', code: 'proxy_request_failed', elapsedMs: Date.now() - startedAt }, 200)
+        return c.json(
+          { ok: false, error: describeError(err).slice(0, 500) || '代理请求失败', code: 'proxy_request_failed', elapsedMs: Date.now() - startedAt },
+          200,
+        )
       }
     }
     case 'proxy-route': {
