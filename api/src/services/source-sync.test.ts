@@ -131,4 +131,41 @@ describe('source sync chapter mapping', () => {
     expect(mappings.rows).toHaveLength(3)
     expect(mappings.rows.every((row) => row.relation === 'split' && row.part_count === 3)).toBe(true)
   })
+
+  it('人工确认时只应用被确认的低置信度章节名变更', async () => {
+    await testDb.db.query('INSERT INTO novels (id, title, author, created_at, updated_at) VALUES ($1, $2, $3, $4, $4)', [
+      'manual-sync-novel',
+      '本地书',
+      '作者',
+      2,
+    ])
+    await testDb.db.query(
+      `INSERT INTO chapters (id, novel_id, title, sort_order, word_count, created_at)
+       VALUES ($1, $2, $3, $4, 0, 2), ($5, $2, $6, $7, 0, 2)`,
+      ['manual-a', 'manual-sync-novel', '第一章 原标题', 1, 'manual-b', '第二章 原标题', 2],
+    )
+
+    const preview = await createSourceSyncPreview(testDb.db, {
+      novelId: 'manual-sync-novel',
+      sourceUrl: 'https://example.com/book/manual',
+      manualTitles: ['第一章 新标题', '第二章 新标题'],
+      store: new PgScrapeStore(testDb.db),
+      fetchHtml: async () => ({ html: '<html><head><title>本地书</title></head><body><h1>本地书</h1></body></html>', encoding: 'utf-8' }),
+    })
+
+    expect(preview.changes).toHaveLength(2)
+    expect(preview.changes.every((change) => !change.eligible)).toBe(true)
+
+    const applied = await applySourceSync(testDb.db, {
+      runId: preview.runId,
+      confirmedChangeIds: [preview.changes[0]!.localChapterId],
+    })
+    const rows = await testDb.db.query<{ id: string; title: string }>(
+      'SELECT id, title FROM chapters WHERE novel_id = $1 ORDER BY sort_order',
+      ['manual-sync-novel'],
+    )
+
+    expect(applied.updated).toBe(1)
+    expect(rows.rows.map((row) => row.title)).toEqual(['第一章 新标题', '第二章 原标题'])
+  })
 })

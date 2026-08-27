@@ -597,7 +597,13 @@ export async function listSourceBindings(db: Db, novelId: string): Promise<Array
 
 export async function applySourceSync(
   db: Db,
-  opts: { runId: string; applyMetadata?: boolean; metadataFields?: string[]; metadataMode?: 'missing' | 'replace' },
+  opts: {
+    runId: string
+    applyMetadata?: boolean
+    metadataFields?: string[]
+    metadataMode?: 'missing' | 'replace'
+    confirmedChangeIds?: string[]
+  },
 ): Promise<{ updated: number; metadataUpdated: string[]; mappings: number }> {
   const run = await first<SourceSyncRunRow>(db, 'SELECT * FROM source_sync_runs WHERE id = $1', [opts.runId])
   if (!run) throw new Error('同步预览不存在或已过期')
@@ -615,15 +621,16 @@ export async function applySourceSync(
     sourceUrl: '',
   })
   const selectedFields = new Set(opts.metadataFields || [])
+  const confirmedChangeIds = new Set(opts.confirmedChangeIds || [])
   const metadataUpdated: string[] = []
-  const eligibleChanges = changes.filter((change) => change.eligible)
+  const changesToApply = changes.filter((change) => change.eligible || confirmedChangeIds.has(change.localChapterId))
   const now = Date.now()
 
   await withTx(db, async (q) => {
     const novel = await q('SELECT title, author, description, cover_url, categories, status FROM novels WHERE id = $1', [run.novel_id])
     const novelRow = novel.rows[0] as Record<string, unknown> | undefined
     if (!novelRow) throw new Error('Novel not found')
-    for (const change of eligibleChanges) {
+    for (const change of changesToApply) {
       const current = await q('SELECT title FROM chapters WHERE id = $1 AND novel_id = $2', [change.localChapterId, run.novel_id])
       const currentRow = current.rows[0] as Record<string, unknown> | undefined
       if (!currentRow) throw new Error(`章节不存在：${change.localChapterId}`)
@@ -698,7 +705,7 @@ export async function applySourceSync(
     await q('UPDATE source_sync_runs SET status = $1, applied_at = $2 WHERE id = $3', ['applied', now, run.id])
     await q("UPDATE novel_source_bindings SET last_synced_at = $1, last_error = '', updated_at = $1 WHERE id = $2", [now, run.binding_id])
   })
-  return { updated: eligibleChanges.length, metadataUpdated, mappings: mappings.reduce((sum, mapping) => sum + mapping.localChapterIds.length, 0) }
+  return { updated: changesToApply.length, metadataUpdated, mappings: mappings.reduce((sum, mapping) => sum + mapping.localChapterIds.length, 0) }
 }
 
 export function sourceSyncTestHelpers() {

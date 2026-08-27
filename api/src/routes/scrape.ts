@@ -428,6 +428,9 @@ scrapeRoutes.post('/', async (c) => {
             applyMetadata: body.applyMetadata === true,
             metadataFields: Array.isArray(body.metadataFields) ? body.metadataFields.map((field: unknown) => String(field)) : [],
             metadataMode: body.metadataMode === 'replace' ? 'replace' : 'missing',
+            confirmedChangeIds: Array.isArray(body.confirmedChangeIds)
+              ? body.confirmedChangeIds.map((id: unknown) => String(id)).filter(Boolean)
+              : [],
           }),
         )
       } catch (err) {
