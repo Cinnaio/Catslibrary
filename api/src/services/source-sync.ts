@@ -113,7 +113,9 @@ interface SourceSyncRunRow {
 const GENERIC_WEAK_TITLES = /^(?:正文|无标题|未命名|空标题)$/i
 const INTRO_TITLES = /^(?:内容简介|作品简介|小说简介|文案|简介|楔子|序章|序言)$/i
 const SPLIT_MARKER = /(?:[（(]\s*(\d+)\s*[/／]\s*(\d+)\s*[)）]|(?:[-_ ]+)?(?:part|pt)\s*(\d+)(?:\s*[/／]\s*(\d+))?)$/i
+const EXTRA_NUMBER = /(?:番外|外传)\s*(?:第\s*)?([0-9０-９零〇一二三四五六七八九十百千万两壹贰叁肆伍陆柒捌玖拾佰仟]+)/i
 const ARABIC_NUMBER = /(?:第\s*)?(\d+)\s*(?:章|节|回|卷|集|部|篇)?/i
+const EXTRA_TITLE = /番外|外传/i
 const CHINESE_NUMBER = /第\s*([零〇一二三四五六七八九十百千万两壹贰叁肆伍陆柒捌玖拾佰仟]+)\s*(?:章|节|回|卷|集|部|篇)?/i
 
 function safeJsonParse<T>(value: string, fallback: T): T {
@@ -201,12 +203,24 @@ function chineseNumberToArabic(value: string): number | null {
   return total + section + number || null
 }
 
+function parseNumberToken(value: string): number | null {
+  const normalized = value.replace(/[０-９]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0xfee0))
+  if (/^\d+$/.test(normalized)) return Number(normalized) || null
+  return chineseNumberToArabic(normalized)
+}
+
 function chapterNumber(title: string): number | null {
   const text = cleanTitle(title)
+  const extra = text.match(EXTRA_NUMBER)
+  if (extra) return parseNumberToken(extra[1]!)
   const arabic = text.match(ARABIC_NUMBER)
   if (arabic) return Number(arabic[1]) || null
   const chinese = text.match(CHINESE_NUMBER)
   return chinese ? chineseNumberToArabic(chinese[1]!) : null
+}
+
+function isExtraTitle(title: string): boolean {
+  return EXTRA_TITLE.test(cleanTitle(title))
 }
 
 function normalizedTitle(title: string): string {
@@ -271,6 +285,7 @@ function groupLocalChapters(rows: LocalChapterForSync[]): LocalGroup[] {
 function groupScore(source: SourceChapter, group: LocalGroup): number {
   const first = group.chapters[0]!
   if (INTRO_TITLES.test(source.title) && INTRO_TITLES.test(first.title)) return 10
+  if (isExtraTitle(source.title) !== isExtraTitle(first.title)) return -8
   let score = group.chapters.length > 1 ? 2 : 0
   const sourceNumber = chapterNumber(source.title)
   const localNumber = chapterNumber(first.title)

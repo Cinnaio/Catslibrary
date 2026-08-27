@@ -105,6 +105,44 @@ describe('source sync chapter mapping', () => {
     expect(preview.changes.map((change) => change.newTitle)).toEqual(['第一章 暴雨 (1/3)', '第一章 暴雨 (2/3)'])
   })
 
+  it('番外章节缺失时按番外编号对齐，不把后续标题整体顺延', () => {
+    const sourceTitles = [
+      '番外一：学教骑马',
+      '番外三：玉势顶弄泄他满手（H）',
+      '番外四：两穴齐插，对镜喷水（H）',
+      '番外五：塞花入穴，水中捣泄（H）',
+      '番外六：穴中温酒，死去活来（H）',
+      '推本完结新文《与姐婿》',
+    ]
+    const localTitles = [
+      '番外一',
+      '番外二（高h，野外马震）',
+      '番外三（h，玉势，泄了他满手）',
+      '番外四（高h，两穴齐插，对镜喷水）',
+      '番外五（高h，塞花入穴，水中捣泄）',
+      '【番外完】（高h，穴中温酒，死去活来）',
+    ]
+    const source = sourceTitles.map((title, index) => ({ key: `source-${index + 1}`, order: index + 1, title, url: '' }))
+    const local = localTitles.map((title, index) => ({ id: `local-${index + 1}`, order: index + 1, title }))
+
+    const preview = sourceSyncTestHelpers().buildPreview(
+      source,
+      local,
+      metadata,
+      true,
+      { runId: 'run-extra', bindingId: 'binding-1', novelId: 'novel-1', site: 'po18tw', sourceUrl: metadata.sourceUrl },
+      [],
+    )
+    const changesByLocalId = new Map(preview.changes.map((change) => [change.localChapterId, change]))
+
+    expect(preview.unmatchedLocal.map((chapter) => chapter.id)).toContain('local-2')
+    expect(preview.unmatchedSource.map((chapter) => chapter.key)).toContain('source-6')
+    expect(changesByLocalId.get('local-3')).toMatchObject({ sourceTitle: sourceTitles[1], newTitle: sourceTitles[1] })
+    expect(changesByLocalId.get('local-4')).toMatchObject({ sourceTitle: sourceTitles[2], newTitle: sourceTitles[2] })
+    expect(changesByLocalId.get('local-5')).toMatchObject({ sourceTitle: sourceTitles[3], newTitle: sourceTitles[3] })
+    expect(changesByLocalId.get('local-6')).toMatchObject({ sourceTitle: sourceTitles[4], newTitle: sourceTitles[4] })
+  })
+
   it('应用预览时只更新标题，并保存一对多映射', async () => {
     await testDb.db.query('INSERT INTO novels (id, title, author, created_at, updated_at) VALUES ($1, $2, $3, $4, $4)', ['sync-novel', '本地书', '作者', 1])
     await testDb.db.query(
