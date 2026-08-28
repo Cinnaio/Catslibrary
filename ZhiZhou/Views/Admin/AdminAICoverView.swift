@@ -365,25 +365,25 @@ struct AdminAICoverView: View {
                 .foregroundStyle(AppTheme.primary)
             }
 
-            Button {
-                Task { await generateCover() }
-            } label: {
-                HStack {
-                    Spacer(minLength: 0)
+            HStack {
+                Spacer(minLength: 0)
+                Button {
+                    Task { await generateCover() }
+                } label: {
                     if generating {
                         ProgressView()
+                            .frame(minWidth: 72, minHeight: 40)
                     } else {
                         Label("生成封面", systemImage: "sparkles")
+                            .frame(minHeight: 40)
                     }
-                    Spacer(minLength: 0)
                 }
-                .frame(minHeight: 44)
+                .buttonStyle(.borderedProminent)
+                .tint(AppTheme.primary)
+                .controlSize(.regular)
+                .disabled(generating || selectedNovelId.isEmpty)
+                Spacer(minLength: 0)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(AppTheme.primary)
-            .controlSize(.large)
-            .frame(maxWidth: .infinity)
-            .disabled(generating || selectedNovelId.isEmpty)
         }
         .padding(.vertical, 10)
         .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 6, trailing: 16))
@@ -568,7 +568,7 @@ struct AdminAICoverView: View {
                 .strokeBorder(AppTheme.border, lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+        .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
     }
