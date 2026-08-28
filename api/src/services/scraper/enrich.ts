@@ -259,8 +259,14 @@ function parsePo18twRankingCandidates(html: string, baseUrl: string, existing: {
 
   for (const match of cards) {
     const card = match[1] || ''
-    const titleLink = card.match(/<a\b[^>]*class\s*=\s*["'][^"']*\bbook_name\b[^"']*["'][^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/i)
-    const href = titleLink?.[1] || card.match(/<a\b[^>]*href\s*=\s*["'](\/books\/\d+\/?)["'][^>]*>/i)?.[1]
+    // 属性顺序不固定：实际页面可能是 href 在 class 前面。
+    const titleLink = [...card.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi)].find((anchor) => {
+      const attrs = anchor[1] || ''
+      const href = htmlAttribute(attrs, 'href')
+      const className = htmlAttribute(attrs, 'class')
+      return /\bbook_name\b/i.test(className) && /\/books\/\d+\/?(?:$|[?#])/i.test(href)
+    })
+    const href = htmlAttribute(titleLink?.[1] || '', 'href') || card.match(/<a\b[^>]*href\s*=\s*["'](\/books\/\d+\/?)["'][^>]*>/i)?.[1]
     if (!href) continue
     const url = resolveUrl(href, baseUrl)
     const bookId = url.match(/\/books\/(\d+)(?:\/|$)/i)?.[1]

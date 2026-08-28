@@ -274,7 +274,7 @@ describe('POPO 发现', () => {
         <a class="book_name" href="/books/111111">珍珠榜第一</a>
         <a class="book_author" href="/users/author-one">作者甲</a>
       </li>
-      <li><a class="book_name" href="/books/222222">珍珠榜第四</a><a class="book_author" href="/users/author-four">作者丁</a></li>
+      <li><a href="/books/222222" class="book_name">珍珠榜第四</a><a href="/users/author-four" class="book_author">作者丁</a></li>
     </ol>`
 
     const result = await discoverList(
