@@ -437,11 +437,15 @@ struct AdminDiscoverView: View {
     private func fetchDiscoverList() async {
         let u = listUrl.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !u.isEmpty else { return }
+        await fetchDiscoverList(url: u, rankingKind: rankingKind, rankingType: rankingType)
+    }
+
+    private func fetchDiscoverList(url u: String, rankingKind kind: String?, rankingType type: String?) async {
         listUrlRef = u
         page = 1
         totalPages = 1
         await renderDiscover {
-            try await AdminAPI.scrapeDiscover(listUrl: u, rankingKind: rankingKind, rankingType: rankingType)
+            try await AdminAPI.scrapeDiscover(listUrl: u, rankingKind: kind, rankingType: type)
         }
     }
 
@@ -502,11 +506,14 @@ struct AdminDiscoverView: View {
     }
 
     private func selectRankingPreset(_ preset: DiscoverRankingPreset) {
+        let selectedURL = preset.url
+        let selectedKind = preset.rankingKind
+        let selectedType = preset.rankingType
         sitePresetLabel = preset.label
-        rankingKind = preset.rankingKind
-        rankingType = preset.rankingType
-        listUrl = preset.url
-        Task { await fetchDiscoverList() }
+        rankingKind = selectedKind
+        rankingType = selectedType
+        listUrl = selectedURL
+        Task { await fetchDiscoverList(url: selectedURL, rankingKind: selectedKind, rankingType: selectedType) }
     }
 
     private func sourceForNovel(_ novel: DiscoverNovel) -> DiscoverSource? {
