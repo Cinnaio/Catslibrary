@@ -41,6 +41,7 @@ struct AdminAICoverView: View {
     @State private var candidateBusy = ""
     @State private var pendingDiscard: AiCoverCandidate?
     @State private var previewCandidate: AiCoverCandidate?
+    @State private var promptCandidate: AiCoverCandidate?
 
     // 上传
     @State private var showPhotoPicker = false
@@ -193,6 +194,9 @@ struct AdminAICoverView: View {
         .fullScreenCover(item: $previewCandidate) { candidate in
             AdminCoverCandidatePreview(image: dataUrlImage(candidate.dataUrl))
         }
+        .sheet(item: $promptCandidate) { candidate in
+            AdminCoverPromptSheet(prompt: candidate.prompt ?? "")
+        }
         .onDisappear {
             pollTask?.cancel()
             promptPollTask?.cancel()
@@ -280,68 +284,7 @@ struct AdminAICoverView: View {
                 .font(.caption)
                 .foregroundStyle(AppTheme.textSecondary)
 
-            promptEditor
-
-            HStack(spacing: 10) {
-                Button {
-                    Task { await generatePrompt() }
-                } label: {
-                    if generatingPrompt {
-                        ProgressView()
-                            .frame(maxWidth: .infinity)
-                    } else {
-                        Label("AI 生成描述词", systemImage: "wand.and.stars")
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.82)
-                    }
-                }
-                .buttonStyle(.bordered)
-                .tint(AppTheme.primary)
-                .frame(maxWidth: .infinity)
-                .disabled(promptTaskInFlight || selectedNovelId.isEmpty)
-
-                Button {
-                    Task { await generatePrompt(forceNewVariation: true) }
-                } label: {
-                    Label("换一版方向", systemImage: "arrow.triangle.2.circlepath")
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.82)
-                }
-                .buttonStyle(.bordered)
-                .tint(AppTheme.primary)
-                .frame(maxWidth: .infinity)
-                .disabled(promptTaskInFlight || generating || selectedNovelId.isEmpty)
-            }
-
-            if let promptMetadata {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("本版：\(label(for: promptMetadata.stylePreset, in: styleOptions)) · \(label(for: promptMetadata.composition, in: compositionOptions))")
-                        .font(.caption)
-                    if let direction = romanceDirectionLabel(promptMetadata) {
-                        Text(direction)
-                            .font(.caption)
-                    }
-                }
-                .foregroundStyle(AppTheme.primary)
-            }
-
-            Button {
-                Task { await generateCover() }
-            } label: {
-                if generating {
-                    HStack {
-                        Spacer()
-                        ProgressView()
-                        Spacer()
-                    }
-                } else {
-                    Label("生成封面", systemImage: "sparkles")
-                }
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(AppTheme.primary)
-            .frame(maxWidth: .infinity)
-            .disabled(generating || selectedNovelId.isEmpty)
+            promptControls
 
             if let taskStatusText {
                 Label(taskStatusText, systemImage: "hourglass")
@@ -366,6 +309,86 @@ struct AdminAICoverView: View {
         }
     }
 
+    private var promptControls: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            promptEditor
+
+            HStack(spacing: 10) {
+                Button {
+                    Task { await generatePrompt() }
+                } label: {
+                    HStack(spacing: 6) {
+                        Spacer(minLength: 0)
+                        if generatingPrompt {
+                            ProgressView()
+                        } else {
+                            Label("AI 生成描述词", systemImage: "wand.and.stars")
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.82)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .frame(minHeight: 38)
+                }
+                .buttonStyle(.bordered)
+                .tint(AppTheme.primary)
+                .frame(maxWidth: .infinity)
+                .disabled(promptTaskInFlight || selectedNovelId.isEmpty)
+
+                Button {
+                    Task { await generatePrompt(forceNewVariation: true) }
+                } label: {
+                    HStack(spacing: 6) {
+                        Spacer(minLength: 0)
+                        Label("换一版方向", systemImage: "arrow.triangle.2.circlepath")
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.82)
+                        Spacer(minLength: 0)
+                    }
+                    .frame(minHeight: 38)
+                }
+                .buttonStyle(.bordered)
+                .tint(AppTheme.primary)
+                .frame(maxWidth: .infinity)
+                .disabled(promptTaskInFlight || generating || selectedNovelId.isEmpty)
+            }
+
+            if let promptMetadata {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("本版：\(label(for: promptMetadata.stylePreset, in: styleOptions)) · \(label(for: promptMetadata.composition, in: compositionOptions))")
+                        .font(.caption)
+                    if let direction = romanceDirectionLabel(promptMetadata) {
+                        Text(direction)
+                            .font(.caption)
+                    }
+                }
+                .foregroundStyle(AppTheme.primary)
+            }
+
+            Button {
+                Task { await generateCover() }
+            } label: {
+                HStack {
+                    Spacer(minLength: 0)
+                    if generating {
+                        ProgressView()
+                    } else {
+                        Label("生成封面", systemImage: "sparkles")
+                    }
+                    Spacer(minLength: 0)
+                }
+                .frame(minHeight: 44)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(AppTheme.primary)
+            .controlSize(.large)
+            .frame(maxWidth: .infinity)
+            .disabled(generating || selectedNovelId.isEmpty)
+        }
+        .padding(.vertical, 10)
+        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 6, trailing: 16))
+    }
+
     private var promptEditor: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
@@ -383,7 +406,7 @@ struct AdminAICoverView: View {
 
             ZStack(alignment: .topLeading) {
                 TextEditor(text: $prompt)
-                    .frame(height: 112)
+                    .frame(height: 96)
                     .font(.subheadline)
                     .scrollContentBackground(.hidden)
                     .textInputAutocapitalization(.never)
@@ -405,12 +428,10 @@ struct AdminAICoverView: View {
                 }
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 112, alignment: .topLeading)
+            .frame(height: 96, alignment: .topLeading)
             .clipped()
             .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
         }
-        .padding(.horizontal, 14)
-        .padding(.top, 14)
     }
 
     // MARK: - 候选
@@ -449,6 +470,17 @@ struct AdminAICoverView: View {
 
     private func candidateRow(_ candidate: AiCoverCandidate) -> some View {
         VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label("已完成", systemImage: "checkmark.circle.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.success)
+                Spacer(minLength: 8)
+                Text(AdminFormat.relativeTime(candidate.createdAt ?? 0))
+                    .font(.caption2)
+                    .foregroundStyle(AppTheme.textMuted)
+                    .lineLimit(1)
+            }
+
             HStack(alignment: .top, spacing: 12) {
                 candidateImage(candidate)
                     .frame(width: 96, height: 144)
@@ -463,23 +495,25 @@ struct AdminAICoverView: View {
                     .accessibilityLabel("候选封面")
                     .accessibilityHint("长按查看大图")
 
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Label("已完成", systemImage: "checkmark.circle.fill")
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(AppTheme.success)
-                        Spacer(minLength: 4)
-                        Text(AdminFormat.relativeTime(candidate.createdAt ?? 0))
-                            .font(.caption2)
-                            .foregroundStyle(AppTheme.textMuted)
-                    }
+                VStack(alignment: .leading, spacing: 8) {
                     if let promptText = candidate.prompt, !promptText.isEmpty {
                         Text(promptText)
                             .font(.caption)
                             .foregroundStyle(AppTheme.textSecondary)
                             .lineLimit(3)
                             .lineSpacing(2)
+
+                        Button {
+                            promptCandidate = candidate
+                        } label: {
+                            Label("查看提示词", systemImage: "doc.text")
+                                .font(.caption.weight(.medium))
+                        }
+                        .buttonStyle(.borderless)
+                        .tint(AppTheme.primary)
+                        .accessibilityHint("打开完整提示词")
                     }
+
                     if let metadata = candidate.metadata, (metadata.stylePreset != nil || metadata.composition != nil) {
                         VStack(alignment: .leading, spacing: 3) {
                             Text("\(label(for: metadata.stylePreset, in: styleOptions)) · \(label(for: metadata.composition, in: compositionOptions))")
@@ -495,6 +529,7 @@ struct AdminAICoverView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .topLeading)
+                .layoutPriority(1)
             }
 
             Divider()
@@ -512,6 +547,7 @@ struct AdminAICoverView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(AppTheme.primary)
+                    .frame(maxWidth: .infinity)
                     .disabled(!candidateBusy.isEmpty)
 
                     Button(role: .destructive) {
@@ -522,11 +558,17 @@ struct AdminAICoverView: View {
                     .buttonStyle(.bordered)
                     .tint(AppTheme.danger)
                     .disabled(!candidateBusy.isEmpty)
-                    Spacer(minLength: 0)
                 }
             }
         }
-        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+        .padding(12)
+        .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(AppTheme.border, lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
     }
@@ -1032,5 +1074,34 @@ private struct AdminCoverCandidatePreview: View {
             }
         }
         .statusBarHidden()
+    }
+}
+
+private struct AdminCoverPromptSheet: View {
+    let prompt: String
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                Text(prompt)
+                    .font(.body)
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .textSelection(.enabled)
+                    .lineSpacing(4)
+                    .padding(16)
+            }
+            .background(Color(.systemGroupedBackground))
+            .navigationTitle("提示词")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("完成") { dismiss() }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
     }
 }
