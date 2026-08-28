@@ -1099,7 +1099,7 @@ aiRoutes.get('/tasks/:id/stream', requireAdmin(), async (c) => {
               if (!closed) controller.enqueue(encoder.encode(': heartbeat\n\n'))
               lastHeartbeatAt = now
             }
-            await delay(250)
+            await delay(100)
           }
         } catch {
           // 客户端会把连接断开视为可恢复事件，并回退到任务查询。

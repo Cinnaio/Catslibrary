@@ -81,6 +81,7 @@ export interface CoverPromptMetadata {
 export interface CoverPromptProgress {
   prompt: string
   metadata: CoverPromptMetadata
+  phase?: 'template' | 'scene'
 }
 
 /** 创建一次全新的封面变体；任务参数会持久化它，重试时仍可复现。 */
@@ -165,12 +166,15 @@ export async function generateCoverPromptTask(
 
   try {
     let lastProgressAt = 0
+    let hasPersistedSceneProgress = false
     const persistProgress = async (progress: CoverPromptProgress): Promise<void> => {
-      if (await isAiTaskCancelled(db, opts.taskId)) return
       const now = Date.now()
       // 上游 token 可能非常密集，限制快照写入频率，避免流式输出把数据库写爆。
-      if (now - lastProgressAt < 180) return
+      const firstSceneProgress = progress.phase === 'scene' && !hasPersistedSceneProgress
+      if (!firstSceneProgress && now - lastProgressAt < 80) return
+      if (await isAiTaskCancelled(db, opts.taskId)) return
       lastProgressAt = now
+      if (progress.phase === 'scene') hasPersistedSceneProgress = true
       await updateAiTask(db, opts.taskId, {
         current: 0,
         total: 1,
@@ -258,6 +262,43 @@ export async function buildImagePrompt(meta: NovelMeta, opts: CoverPromptOptions
   let direction: CoverDirection
   let romanceDNA: RomanceVisualDNA | null = null
   if (isTextAiConfigured()) {
+    // 题材判定本身也可能耗时；先把本地模板快照推给前端，让用户立即看到可编辑内容，
+    // 后续再用模型判定结果和流式场景描述逐步替换它。
+    if (opts.onProgress) {
+      const initialGenre = inferredGenres[0] || inferGenre(meta.title, meta.categories, meta.description)
+      const initialDirection = resolveCoverDirection({
+        novelId,
+        genre: initialGenre,
+        stylePreset: opts.stylePreset,
+        composition: opts.composition,
+        variationId,
+      })
+      const initialRomanceDNA = initialGenre === 'romance' || inferredGenres.includes('romance')
+        ? resolveRomanceVisualDNA({ title: meta.title, categories: meta.categories, description: meta.description, variationId })
+        : null
+      const initialStyle = GENRE_STYLES[initialGenre]
+      const initialPrompt = limitGeneratedCoverPrompt(
+        assembleCoverPrompt({
+          scene: initialRomanceDNA ? initialRomanceDNA.scenePrompt : `${initialStyle.figure} ${initialStyle.background}`,
+          style: initialStyle,
+          direction: initialDirection,
+          platformStyle: PLATFORM_STYLES[platform],
+          titleHint,
+          authorHint,
+          categoryHint: catHint,
+          storyHint: descHint,
+          renderTitle,
+          romanceDNA: initialRomanceDNA,
+        }),
+        opts.maxPromptChars,
+      )
+      await opts.onProgress({
+        prompt: initialPrompt,
+        metadata: buildCoverPromptMetadata(initialGenre, inferredGenres, initialDirection, variationId, initialRomanceDNA),
+        phase: 'template',
+      })
+    }
+
     const judged = await judgeGenre(meta)
     // 文本模型有时会把「现代言情」概括成 urban；若本地多标签信号明确以 romance 为首，保留言情母模板和视觉 DNA。
     genre = judged.genre === 'urban' && inferredGenres[0] === 'romance' ? 'romance' : judged.genre
@@ -298,6 +339,7 @@ export async function buildImagePrompt(meta: NovelMeta, opts: CoverPromptOptions
             await opts.onProgress?.({
               prompt: partialPrompt,
               metadata: buildCoverPromptMetadata(genre, inferredGenres, direction, variationId, romanceDNA),
+              phase: 'scene',
             })
           }
         : undefined,

@@ -12,7 +12,7 @@ let t: TestDb
 
 /** OpenAI 兼容响应桩：不发真实请求，同时记录调用次数以验证缓存是否生效。
  * 按请求 URL 区分文本（/chat/completions）与图像（/images/generations）响应。 */
-const fetchMock = vi.fn(async (input: string | URL | Request) => {
+const fetchMock = vi.fn(async (input: string | URL | Request, _init?: RequestInit) => {
   const reqUrl = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as Request).url
   if (reqUrl.includes('/images/generations')) {
     // 1x1 PNG 的 base64，解码后是合法的 PNG 字节
@@ -1557,6 +1557,9 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
         .map((block) => JSON.parse(block.slice(6)) as { type: string; task: { status: string; prompt: string } })
 
       expect(events.some((event) => event.type === 'update')).toBe(true)
+      const updatePrompts = events.filter((event) => event.type === 'update').map((event) => event.task.prompt)
+      expect(updatePrompts.some((prompt) => prompt.includes('a lone hero'))).toBe(true)
+      expect(updatePrompts.some((prompt) => !prompt.includes('under the moon'))).toBe(true)
       expect(events.at(-1)?.type).toBe('done')
       expect(events.at(-1)?.task.status).toBe('completed')
       expect(events.at(-1)?.task.prompt).toContain('a lone hero under the moon')
