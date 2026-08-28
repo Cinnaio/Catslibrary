@@ -39,6 +39,7 @@ struct AdminAICoverView: View {
     @State private var candidatesLoaded = false
     @State private var candidateBusy = ""
     @State private var pendingDiscard: AiCoverCandidate?
+    @State private var previewCandidate: AiCoverCandidate?
 
     // 上传
     @State private var showPhotoPicker = false
@@ -186,6 +187,9 @@ struct AdminAICoverView: View {
             Button("取消", role: .cancel) { pendingDiscard = nil }
         } message: {
             Text("弃用后该候选封面将从列表中移除。")
+        }
+        .fullScreenCover(item: $previewCandidate) { candidate in
+            AdminCoverCandidatePreview(image: dataUrlImage(candidate.dataUrl))
         }
         .onDisappear {
             pollTask?.cancel()
@@ -415,53 +419,86 @@ struct AdminAICoverView: View {
     }
 
     private func candidateRow(_ candidate: AiCoverCandidate) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            candidateImage(candidate)
-                .frame(width: 84, height: 126)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+                candidateImage(candidate)
+                    .frame(width: 96, height: 144)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .onLongPressGesture(minimumDuration: 0.35, maximumDistance: 24) {
+                        previewCandidate = candidate
+                    }
+                    .accessibilityLabel("候选封面")
+                    .accessibilityHint("长按查看大图")
 
-            VStack(alignment: .leading, spacing: 4) {
-                if let promptText = candidate.prompt, !promptText.isEmpty {
-                    Text(promptText)
-                        .font(.caption)
-                        .foregroundStyle(AppTheme.textSecondary)
-                        .lineLimit(4)
-                }
-                if let metadata = candidate.metadata, (metadata.stylePreset != nil || metadata.composition != nil) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("\(label(for: metadata.stylePreset, in: styleOptions)) · \(label(for: metadata.composition, in: compositionOptions))")
-                            .font(.caption2)
-                        if let direction = romanceDirectionLabel(metadata) {
-                            Text(direction)
-                                .font(.caption2)
+                VStack(alignment: .leading, spacing: 6) {
+                    if let promptText = candidate.prompt, !promptText.isEmpty {
+                        Text(promptText)
+                            .font(.caption)
+                            .foregroundStyle(AppTheme.textSecondary)
+                            .lineLimit(3)
+                            .lineSpacing(2)
+                    }
+                    if let metadata = candidate.metadata, (metadata.stylePreset != nil || metadata.composition != nil) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("\(label(for: metadata.stylePreset, in: styleOptions)) · \(label(for: metadata.composition, in: compositionOptions))")
+                                .font(.caption2.weight(.medium))
+                                .lineLimit(2)
+                            if let direction = romanceDirectionLabel(metadata) {
+                                Text(direction)
+                                    .font(.caption2)
+                                    .lineLimit(2)
+                            }
                         }
+                        .foregroundStyle(AppTheme.primary)
                     }
-                    .foregroundStyle(AppTheme.primary)
+                    Spacer(minLength: 0)
+                    Text(AdminFormat.relativeTime(candidate.createdAt ?? 0))
+                        .font(.caption2)
+                        .foregroundStyle(AppTheme.textMuted)
                 }
-                Text(AdminFormat.relativeTime(candidate.createdAt ?? 0))
-                    .font(.caption2)
-                    .foregroundStyle(AppTheme.textMuted)
-                Spacer(minLength: 0)
+                .frame(maxWidth: .infinity, minHeight: 144, alignment: .topLeading)
+            }
+
+            Divider()
+
+            if candidateBusy == candidate.id {
+                ProgressView()
+                    .frame(maxWidth: .infinity, minHeight: 32)
+            } else {
                 HStack(spacing: 10) {
-                    Button("采纳") {
+                    Button {
+                        pendingDiscard = nil
                         Task { await adopt(candidate) }
+                    } label: {
+                        Label("采纳", systemImage: "checkmark")
+                            .frame(maxWidth: .infinity)
                     }
-                    .font(.subheadline)
+                    .buttonStyle(.borderedProminent)
+                    .tint(AppTheme.primary)
                     .disabled(!candidateBusy.isEmpty)
-                    Button("弃用", role: .destructive) {
+
+                    Button(role: .destructive) {
                         pendingDiscard = candidate
+                    } label: {
+                        Label("弃用", systemImage: "trash")
+                            .frame(maxWidth: .infinity)
                     }
-                    .font(.subheadline)
+                    .buttonStyle(.bordered)
+                    .tint(AppTheme.danger)
                     .disabled(!candidateBusy.isEmpty)
-                    if candidateBusy == candidate.id {
-                        ProgressView()
-                            .controlSize(.small)
-                    }
                 }
             }
-            Spacer()
         }
-        .padding(.vertical, 2)
+        .padding(12)
+        .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(AppTheme.border, lineWidth: 1)
+        )
+        .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
     }
 
     @ViewBuilder
@@ -890,5 +927,75 @@ private struct NovelPickerSheet: View {
             }
         }
         .presentationDetents([.medium, .large])
+    }
+}
+
+private struct AdminCoverCandidatePreview: View {
+    let image: UIImage?
+
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var scale: CGFloat = 1
+    @State private var lastScale: CGFloat = 1
+
+    var body: some View {
+        ZStack {
+            Color.black
+                .ignoresSafeArea()
+
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .scaleEffect(scale)
+                    .contentShape(Rectangle())
+                    .gesture(
+                        MagnificationGesture()
+                            .onChanged { value in
+                                scale = min(4, max(1, lastScale * value))
+                            }
+                            .onEnded { _ in
+                                lastScale = scale
+                                if scale < 1.05 {
+                                    scale = 1
+                                    lastScale = 1
+                                }
+                            }
+                    )
+                    .onTapGesture(count: 2) {
+                        let nextScale: CGFloat = scale > 1.05 ? 1 : 2
+                        withAnimation(reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 1)) {
+                            scale = nextScale
+                            lastScale = nextScale
+                        }
+                    }
+                    .accessibilityLabel("封面大图")
+                    .accessibilityHint("双击放大或还原，捏合调整大小")
+            } else {
+                ContentUnavailableView("图片不可用", systemImage: "photo.slash")
+                    .foregroundStyle(.white)
+            }
+
+            VStack {
+                HStack {
+                    Spacer()
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.headline.weight(.semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 40, height: 40)
+                            .background(.thinMaterial, in: Circle())
+                    }
+                    .accessibilityLabel("关闭预览")
+                }
+                .padding(.horizontal, 18)
+                .padding(.top, 12)
+
+                Spacer()
+            }
+        }
+        .statusBarHidden()
     }
 }

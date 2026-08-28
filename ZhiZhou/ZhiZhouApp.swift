@@ -16,6 +16,7 @@ struct ZhiZhouApp: App {
                 .environment(appState)
                 .environment(readerSettings)
                 .environment(fontStore)
+                .background(GlobalKeyboardDismissal())
         }
     }
 }
