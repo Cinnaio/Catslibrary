@@ -268,14 +268,18 @@ describe('POPO 发现', () => {
       <input type="hidden" name="kind" value="">
       <input type="hidden" name="type" value="weekly">
     </form>`
-    const rankingPage = `<ol class="ranking">
-      <li class="R_cover">
-        <a class="book_cover" href="/books/111111"><img src="/cover/111111.jpg" alt="珍珠榜第一"></a>
-        <a class="book_name" href="/books/111111">珍珠榜第一</a>
-        <a class="book_author" href="/users/author-one">作者甲</a>
-      </li>
-      <li><a href="/books/222222" class="book_name">珍珠榜第四</a><a href="/users/author-four" class="book_author">作者丁</a></li>
-    </ol>`
+    const rankingPage = `<div class="table" id="R2_W">
+      <div class="row">
+        <div class="r1">1</div>
+        <div class="r2"><a class="l_bookname" href="/books/111111">珍珠榜第一</a></div>
+        <div class="r4"><a class="l_author" href="/users/author-one">作者甲</a></div>
+      </div><!--row-->
+      <div class="row">
+        <div class="r1">2</div>
+        <div class="r2"><a href="/books/222222" class="l_bookname">珍珠榜第四</a></div>
+        <div class="r4"><a href="/users/author-four" class="l_author">作者丁</a></div>
+      </div><!--row-->
+    </div>`
 
     const result = await discoverList(
       'https://www.po18.tw/rank/index',

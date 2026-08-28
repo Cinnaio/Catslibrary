@@ -254,6 +254,44 @@ function parsePo18twDiscoverCandidates(html: string, baseUrl: string, existing: 
 function parsePo18twRankingCandidates(html: string, baseUrl: string, existing: { urls: Set<string>; titles: Set<string> }): DiscoverNovel[] {
   const results: DiscoverNovel[] = []
   const seen = new Set<string>()
+
+  // /rank/more 返回表格行（l_bookname / l_author），不是首页的 R_cover 列表。
+  const rowStarts = [...html.matchAll(/<div\b[^>]*class\s*=\s*["'][^"']*\brow\b[^"']*["'][^>]*>/gi)]
+  for (let index = 0; index < rowStarts.length; index++) {
+    const rowStart = rowStarts[index]!.index || 0
+    const rowEnd = rowStarts[index + 1]?.index ?? html.length
+    const row = html.slice(rowStart, rowEnd)
+    const anchors = [...row.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi)]
+    const titleLink = anchors.find((anchor) => /\bl_bookname\b/i.test(htmlAttribute(anchor[1] || '', 'class')))
+    const href = htmlAttribute(titleLink?.[1] || '', 'href')
+    if (!href) continue
+    const url = resolveUrl(href, baseUrl)
+    const bookId = url.match(/\/books\/(\d+)(?:\/|$)/i)?.[1]
+    if (!bookId || seen.has(bookId)) continue
+
+    const authorLink = anchors.find((anchor) => /\bl_author\b/i.test(htmlAttribute(anchor[1] || '', 'class')))
+    const title = cleanText((titleLink?.[2] || '').replace(/<[^>]*>/g, ''))
+    if (!title) continue
+    const author = cleanText((authorLink?.[2] || '').replace(/<[^>]*>/g, ''))
+    const status = /完結|完本|已完結/i.test(row) ? 'completed' : 'ongoing'
+    seen.add(bookId)
+    results.push({
+      bookId,
+      title: toSimplifiedForSource(title.slice(0, 100), url),
+      author: toSimplifiedForSource(author.slice(0, 30), url),
+      coverUrl: '',
+      url,
+      existing: existing.urls.has(url) || existing.titles.has(title.slice(0, 100).trim().toLowerCase()),
+      description: '',
+      chapterCount: 0,
+      status,
+      categories: [],
+      source: 'po18tw',
+      sourceName: 'POPO',
+    })
+  }
+  if (results.length > 0) return results.slice(0, 50)
+
   // 榜单前 3 名带封面，后续名次通常只有 book_name / book_author；不能只抓 R_cover。
   const cards = [...html.matchAll(/<li\b[^>]*>([\s\S]*?)<\/li>/gi)]
 
