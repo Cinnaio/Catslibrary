@@ -27,6 +27,8 @@ struct AdminDiscoverView: View {
     @State private var page = 1
     @State private var totalPages = 1
     @State private var listUrlRef = ""
+    @State private var rankingKind: String?
+    @State private var rankingType: String?
 
     // 详情
     @State private var detailItem: DiscoverNovel?
@@ -439,7 +441,7 @@ struct AdminDiscoverView: View {
         page = 1
         totalPages = 1
         await renderDiscover {
-            try await AdminAPI.scrapeDiscover(listUrl: u)
+            try await AdminAPI.scrapeDiscover(listUrl: u, rankingKind: rankingKind, rankingType: rankingType)
         }
     }
 
@@ -465,7 +467,7 @@ struct AdminDiscoverView: View {
         listUrl = replaced
         page = next
         await renderDiscover {
-            try await AdminAPI.scrapeDiscover(listUrl: replaced)
+            try await AdminAPI.scrapeDiscover(listUrl: replaced, rankingKind: rankingKind, rankingType: rankingType)
         }
     }
 
@@ -501,6 +503,8 @@ struct AdminDiscoverView: View {
 
     private func selectRankingPreset(_ preset: DiscoverRankingPreset) {
         sitePresetLabel = preset.label
+        rankingKind = preset.rankingKind
+        rankingType = preset.rankingType
         listUrl = preset.url
         Task { await fetchDiscoverList() }
     }
@@ -646,12 +650,36 @@ private enum DiscoverRankingPreset: String, CaseIterable, Identifiable {
     case po18Size = "字数排行"
     case po18Postdate = "最新入库"
     case po18Lastupdate = "最近更新"
-    case popoRank = "综合排行榜"
+    case popoPopularityWeekly = "人气榜 · 周"
+    case popoPopularityMonthly = "人气榜 · 月"
+    case popoPopularityTotal = "人气榜 · 总"
+    case popoPearlWeekly = "珍珠榜 · 周"
+    case popoPearlMonthly = "珍珠榜 · 月"
+    case popoPearlTotal = "珍珠榜 · 总"
+    case popoPurchaseWeekly = "订购榜 · 周"
+    case popoPurchaseMonthly = "订购榜 · 月"
+    case popoPurchaseTotal = "订购榜 · 总"
+    case popoCollectionWeekly = "收藏榜 · 周"
+    case popoCollectionMonthly = "收藏榜 · 月"
+    case popoCollectionTotal = "收藏榜 · 总"
+    case popoCommentWeekly = "留言人气榜 · 周"
+    case popoCommentMonthly = "留言人气榜 · 月"
+    case popoCommentTotal = "留言人气榜 · 总"
+    case popoRank = "整页榜单"
 
     var id: String { rawValue }
 
     var source: DiscoverSource {
-        self == .popoRank ? .popo : .po18
+        switch self {
+        case .popoPopularityWeekly, .popoPopularityMonthly, .popoPopularityTotal,
+             .popoPearlWeekly, .popoPearlMonthly, .popoPearlTotal,
+             .popoPurchaseWeekly, .popoPurchaseMonthly, .popoPurchaseTotal,
+             .popoCollectionWeekly, .popoCollectionMonthly, .popoCollectionTotal,
+             .popoCommentWeekly, .popoCommentMonthly, .popoCommentTotal, .popoRank:
+            return .popo
+        default:
+            return .po18
+        }
     }
 
     var label: String {
@@ -672,7 +700,36 @@ private enum DiscoverRankingPreset: String, CaseIterable, Identifiable {
         case .po18Size: return "https://wap.po18x.vip/top/size_1/"
         case .po18Postdate: return "https://wap.po18x.vip/top/postdate_1/"
         case .po18Lastupdate: return "https://wap.po18x.vip/top/lastupdate_1/"
-        case .popoRank: return "https://www.po18.tw/rank/index"
+        case .popoPopularityWeekly, .popoPopularityMonthly, .popoPopularityTotal,
+             .popoPearlWeekly, .popoPearlMonthly, .popoPearlTotal,
+             .popoPurchaseWeekly, .popoPurchaseMonthly, .popoPurchaseTotal,
+             .popoCollectionWeekly, .popoCollectionMonthly, .popoCollectionTotal,
+             .popoCommentWeekly, .popoCommentMonthly, .popoCommentTotal, .popoRank:
+            return "https://www.po18.tw/rank/index"
+        }
+    }
+
+    var rankingKind: String? {
+        switch self {
+        case .popoPopularityWeekly, .popoPopularityMonthly, .popoPopularityTotal: return "sex"
+        case .popoPearlWeekly, .popoPearlMonthly, .popoPearlTotal: return "pearl"
+        case .popoPurchaseWeekly, .popoPurchaseMonthly, .popoPurchaseTotal: return "bestsale"
+        case .popoCollectionWeekly, .popoCollectionMonthly, .popoCollectionTotal: return "stocked"
+        case .popoCommentWeekly, .popoCommentMonthly, .popoCommentTotal: return "mostcomments"
+        default: return nil
+        }
+    }
+
+    var rankingType: String? {
+        switch self {
+        case .popoPopularityWeekly, .popoPearlWeekly, .popoPurchaseWeekly, .popoCollectionWeekly, .popoCommentWeekly:
+            return "weekly"
+        case .popoPopularityMonthly, .popoPearlMonthly, .popoPurchaseMonthly, .popoCollectionMonthly, .popoCommentMonthly:
+            return "monthly"
+        case .popoPopularityTotal, .popoPearlTotal, .popoPurchaseTotal, .popoCollectionTotal, .popoCommentTotal:
+            return "total"
+        default:
+            return nil
         }
     }
 }

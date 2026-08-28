@@ -473,8 +473,13 @@ enum AdminAPI {
     // MARK: - 爬虫：发现小说（POST /api/scrape action=discover / po18-search / popo-search）
 
     /// 榜单页 URL → 批量发现小说列表（分页）。
-    static func scrapeDiscover(listUrl: String) async throws -> DiscoverResponse {
-        try await postScrape(["action": "discover", "listUrl": listUrl])
+    static func scrapeDiscover(listUrl: String, rankingKind: String? = nil, rankingType: String? = nil) async throws -> DiscoverResponse {
+        var body: [String: Any] = ["action": "discover", "listUrl": listUrl]
+        if let rankingKind, let rankingType {
+            body["rankingKind"] = rankingKind
+            body["rankingType"] = rankingType
+        }
+        return try await postScrape(body)
     }
 
     /// PO18 站内搜索：searchType = articlename（书名）| author（作者）。
