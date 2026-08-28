@@ -642,7 +642,7 @@ struct AdminAICoverView: View {
                         pendingDiscard = candidate
                     } label: {
                         Label("弃用", systemImage: "trash")
-                            .frame(width: 88, minHeight: 42)
+                            .frame(width: 88, height: 42)
                     }
                     .buttonStyle(ScaleButtonStyle())
                     .font(.subheadline.weight(.medium))
