@@ -40,6 +40,7 @@ struct AdminAICoverView: View {
     @State private var candidateBusy = ""
     @State private var pendingDiscard: AiCoverCandidate?
     @State private var previewCandidate: AiCoverCandidate?
+    @State private var previewFeedback = 0
 
     // 上传
     @State private var showPhotoPicker = false
@@ -127,6 +128,7 @@ struct AdminAICoverView: View {
                 candidateSection
             }
         }
+        .sensoryFeedback(.impact(weight: .medium), trigger: previewFeedback)
         .scrollContentBackground(.hidden)
         .pageBackground()
         .navigationTitle("封面生成")
@@ -426,6 +428,7 @@ struct AdminAICoverView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     .onLongPressGesture(minimumDuration: 0.35, maximumDistance: 24) {
+                        previewFeedback += 1
                         previewCandidate = candidate
                     }
                     .accessibilityLabel("候选封面")
@@ -452,12 +455,11 @@ struct AdminAICoverView: View {
                         }
                         .foregroundStyle(AppTheme.primary)
                     }
-                    Spacer(minLength: 0)
                     Text(AdminFormat.relativeTime(candidate.createdAt ?? 0))
                         .font(.caption2)
                         .foregroundStyle(AppTheme.textMuted)
                 }
-                .frame(maxWidth: .infinity, minHeight: 144, alignment: .topLeading)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
             }
 
             Divider()
@@ -474,7 +476,11 @@ struct AdminAICoverView: View {
                         Label("采纳", systemImage: "checkmark")
                             .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.plain)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity, minHeight: 42)
+                    .background(AppTheme.primaryGradient, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .tint(AppTheme.primary)
                     .disabled(!candidateBusy.isEmpty)
 
@@ -484,7 +490,15 @@ struct AdminAICoverView: View {
                         Label("弃用", systemImage: "trash")
                             .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.plain)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(AppTheme.danger)
+                    .frame(maxWidth: .infinity, minHeight: 42)
+                    .background(AppTheme.danger.opacity(0.1), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .strokeBorder(AppTheme.danger.opacity(0.24), lineWidth: 1)
+                    )
                     .tint(AppTheme.danger)
                     .disabled(!candidateBusy.isEmpty)
                 }
