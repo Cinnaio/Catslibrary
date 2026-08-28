@@ -275,7 +275,7 @@ struct AdminAICoverView: View {
 
             ZStack(alignment: .topLeading) {
                 TextEditor(text: $prompt)
-                    .frame(height: 132)
+                    .frame(minHeight: 132, maxHeight: 132)
                     .font(.subheadline)
                     .scrollContentBackground(.hidden)
                     .textInputAutocapitalization(.never)
@@ -293,9 +293,12 @@ struct AdminAICoverView: View {
                         .foregroundStyle(AppTheme.textMuted)
                         .padding(.top, 8)
                         .padding(.horizontal, 5)
-                        .allowsHitTesting(false)
+                    .allowsHitTesting(false)
                 }
             }
+            .frame(maxWidth: .infinity)
+            .frame(height: 132, alignment: .topLeading)
+            .clipped()
             .overlay(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .strokeBorder(AppTheme.border, lineWidth: 1)
