@@ -226,8 +226,7 @@ describe('POPO 发现', () => {
         <a class="book_name" href="/books/123456">榜单小说</a>
         <a class="book_author" href="/users/author">作者乙</a>
       </li>
-      <li class="R_cover">
-        <a class="book_cover" href="/books/654321"><img src="https://cdn0.po18.tw/bc/6/654321/M.jpg" alt="第二本小说"></a>
+      <li>
         <a class="book_name" href="/books/654321">第二本小说</a>
         <a class="book_author" href="/users/author-two">作者丙</a>
       </li>
@@ -254,11 +253,56 @@ describe('POPO 发现', () => {
           title: '第二本小说',
           author: '作者丙',
           url: 'https://www.po18.tw/books/654321',
-          coverUrl: 'https://cdn0.po18.tw/bc/6/654321/M.jpg',
+          coverUrl: '',
           source: 'po18tw',
           sourceName: 'POPO',
         },
       ],
     })
+  })
+
+  it('POPO 榜单详情应按榜单类型和周期提交官方表单，并解析无封面名次', async () => {
+    const requests: Array<{ url: string; method: string; cookie: string; body: string }> = []
+    const landingPage = `<form id="rank-form1" action="/rank/more" method="post">
+      <input type="hidden" name="_po18rf-tk001" value="csrf-token">
+      <input type="hidden" name="kind" value="">
+      <input type="hidden" name="type" value="weekly">
+    </form>`
+    const rankingPage = `<ol class="ranking">
+      <li class="R_cover">
+        <a class="book_cover" href="/books/111111"><img src="/cover/111111.jpg" alt="珍珠榜第一"></a>
+        <a class="book_name" href="/books/111111">珍珠榜第一</a>
+        <a class="book_author" href="/users/author-one">作者甲</a>
+      </li>
+      <li><a class="book_name" href="/books/222222">珍珠榜第四</a><a class="book_author" href="/users/author-four">作者丁</a></li>
+    </ol>`
+
+    const result = await discoverList(
+      'https://www.po18.tw/rank/index',
+      {
+        db: { query: vi.fn().mockResolvedValue({ rows: [] }) } as never,
+        fetchHtml: async (url, options) => {
+          requests.push({
+            url,
+            method: options?.method || 'GET',
+            cookie: new Headers(options?.headers).get('Cookie') || '',
+            body: String(options?.body || ''),
+          })
+          return { html: options?.method === 'POST' ? rankingPage : landingPage, encoding: 'utf-8' }
+        },
+      },
+      { po18Ranking: { kind: 'pearl', type: 'monthly' } },
+    )
+
+    expect(requests.map((item) => [item.url, item.method])).toEqual([
+      ['https://www.po18.tw/rank/index', 'GET'],
+      ['https://www.po18.tw/rank/more', 'POST'],
+    ])
+    expect(requests[1]!.cookie).toBe('po18Limit=1')
+    const params = new URLSearchParams(requests[1]!.body)
+    expect(params.get('_po18rf-tk001')).toBe('csrf-token')
+    expect(params.get('kind')).toBe('pearl')
+    expect(params.get('type')).toBe('monthly')
+    expect(result.novels.map((novel) => novel.title)).toEqual(['珍珠榜第一', '珍珠榜第四'])
   })
 })

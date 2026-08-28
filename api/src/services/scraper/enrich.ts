@@ -17,6 +17,17 @@ const DISCOVER_CACHE_MAX = 20
 
 const discoverHtmlCache = new Map<string, { ts: number; html: string }>()
 
+export type Po18RankingKind = 'sex' | 'pearl' | 'bestsale' | 'stocked' | 'mostcomments'
+export type Po18RankingType = 'weekly' | 'monthly' | 'total'
+
+export interface DiscoverListOptions {
+  /** POPO 榜单详情：/rank/more 使用的榜单类型与统计周期。 */
+  po18Ranking?: {
+    kind: Po18RankingKind
+    type: Po18RankingType
+  }
+}
+
 // ---------- 封面代理 ----------
 
 const PROXY_COVER_MAX_BYTES = 5 * 1024 * 1024
@@ -241,10 +252,10 @@ function parsePo18twDiscoverCandidates(html: string, baseUrl: string, existing: 
 }
 
 function parsePo18twRankingCandidates(html: string, baseUrl: string, existing: { urls: Set<string>; titles: Set<string> }): DiscoverNovel[] {
-  const host = new URL(baseUrl).hostname
   const results: DiscoverNovel[] = []
   const seen = new Set<string>()
-  const cards = [...html.matchAll(/<li\b[^>]*class\s*=\s*["'][^"']*\bR_cover\b[^"']*["'][^>]*>([\s\S]*?)<\/li>/gi)]
+  // 榜单前 3 名带封面，后续名次通常只有 book_name / book_author；不能只抓 R_cover。
+  const cards = [...html.matchAll(/<li\b[^>]*>([\s\S]*?)<\/li>/gi)]
 
   for (const match of cards) {
     const card = match[1] || ''
@@ -294,6 +305,7 @@ function parsePo18twRankingCandidates(html: string, baseUrl: string, existing: {
 export async function discoverList(
   listUrl: string,
   deps: { db: Db; fetchHtml: typeof fetchHtml; getPreset?: (url: string) => Promise<Record<string, unknown> | null> },
+  options: DiscoverListOptions = {},
 ): Promise<{ site: string; total: number; totalPages: number; novels: DiscoverNovel[] }> {
   if (!listUrl) throw new Error('listUrl required')
   const host = new URL(listUrl).hostname
@@ -301,8 +313,11 @@ export async function discoverList(
   const existing = await loadExisting(deps.db)
   const preset = (await deps.getPreset?.(listUrl)) || null
 
+  const ranking = options.po18Ranking
+  const cacheKey = ranking ? `${listUrl}::${ranking.kind}:${ranking.type}` : listUrl
+
   let html: string
-  const cached = discoverHtmlCache.get(listUrl)
+  const cached = discoverHtmlCache.get(cacheKey)
   if (cached && Date.now() - cached.ts < DISCOVER_CACHE_TTL) {
     html = cached.html
   } else {
@@ -314,7 +329,28 @@ export async function discoverList(
     }
     const fetched = await deps.fetchHtml(listUrl, fetchOptions)
     html = fetched.html
-    discoverHtmlCache.set(listUrl, { ts: Date.now(), html })
+
+    if (source.id === 'po18tw' && ranking) {
+      const form = parsePo18RankingForm(fetched.html, listUrl)
+      const requestCookie = mergeCookieHeader(new Headers(fetchOptions.headers).get('Cookie') || '', fetched.setCookies)
+      const body = new URLSearchParams(form.hidden)
+      body.set('kind', ranking.kind)
+      body.set('type', ranking.type)
+      const rankingHeaders = new Headers(fetchOptions.headers)
+      if (requestCookie) rankingHeaders.set('Cookie', requestCookie)
+      rankingHeaders.set('Content-Type', 'application/x-www-form-urlencoded')
+      rankingHeaders.set('Referer', listUrl)
+      const ranked = await deps.fetchHtml(form.action, {
+        ...fetchOptions,
+        method: 'POST',
+        headers: rankingHeaders,
+        body: body.toString(),
+        allowedRedirectHosts: ['po18.tw'],
+      })
+      html = ranked.html
+    }
+
+    discoverHtmlCache.set(cacheKey, { ts: Date.now(), html })
     if (discoverHtmlCache.size > DISCOVER_CACHE_MAX) {
       discoverHtmlCache.delete(discoverHtmlCache.keys().next().value as string)
     }
@@ -418,6 +454,23 @@ export async function discoverList(
   const presetName = String(preset?.name || '')
   const site = source.id === host ? presetName || host : source.name
   return { site, total: novels.length, totalPages, novels: novels.slice(0, 50) }
+}
+
+function parsePo18RankingForm(html: string, baseUrl: string): { action: string; hidden: Record<string, string> } {
+  const forms = [...html.matchAll(/<form\b([^>]*)>([\s\S]*?)<\/form>/gi)]
+  const form = forms.find((item) => /rank-form1|\/rank\/more/i.test(item[1] || ''))
+  if (!form) throw new Error('无法识别 POPO 榜单表单')
+
+  const hidden: Record<string, string> = {}
+  const inputs = [...(form[2] || '').matchAll(/<input\b[^>]*>/gi)].map((match) => match[0]!)
+  for (const input of inputs) {
+    const name = htmlAttribute(input, 'name')
+    const type = (htmlAttribute(input, 'type') || 'text').toLowerCase()
+    if (name && type === 'hidden') hidden[name] = htmlAttribute(input, 'value')
+  }
+
+  const action = resolveUrl(htmlAttribute(form[1] || '', 'action') || '/rank/more', baseUrl)
+  return { action, hidden }
 }
 
 // ---------- 标题源搜索（晋江 / PO18.tw） ----------

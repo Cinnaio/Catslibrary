@@ -13,7 +13,17 @@ import { detectMeta } from '../services/scraper/meta'
 import { getPresetForUrl, PgScrapeStore, type JobData } from '../services/scraper/store'
 import { parseLegadoJsonStream, normalizeSource, legadoHost, buildSourceRow, sourceToPreset } from '../services/scraper/legado'
 import { SITE_PRESETS, buildCoverUrl } from '../services/scraper/presets'
-import { discoverList, extractJjwxcTitles, extractPo18twTitles, proxyCover, searchPo18, searchPo18tw, searchTitleSources } from '../services/scraper/enrich'
+import {
+  discoverList,
+  extractJjwxcTitles,
+  extractPo18twTitles,
+  proxyCover,
+  searchPo18,
+  searchPo18tw,
+  searchTitleSources,
+  type Po18RankingKind,
+  type Po18RankingType,
+} from '../services/scraper/enrich'
 import { applySourceSync, createSourceSyncPreview, listSourceBindings } from '../services/source-sync'
 import {
   clearPo18Account,
@@ -721,8 +731,21 @@ scrapeRoutes.post('/', async (c) => {
     case 'discover': {
       const { listUrl } = body
       if (!listUrl) return c.json({ error: 'listUrl required' }, 400)
+      const rankingKind = String(body.rankingKind || '').trim()
+      const rankingType = String(body.rankingType || '').trim()
+      const validKinds = ['sex', 'pearl', 'bestsale', 'stocked', 'mostcomments']
+      const validTypes = ['weekly', 'monthly', 'total']
+      if (Boolean(rankingKind) !== Boolean(rankingType) || (rankingKind && !validKinds.includes(rankingKind)) || (rankingType && !validTypes.includes(rankingType))) {
+        return c.json({ error: 'rankingKind/rankingType 无效，支持的人气、珍珠、订购、收藏、留言人气榜及周/月/总周期' }, 400)
+      }
       try {
-        const result = await discoverList(String(listUrl), { db, fetchHtml: deps.fetchHtml, getPreset: (url) => getPresetForUrl(url, deps.store) })
+        const result = await discoverList(
+          String(listUrl),
+          { db, fetchHtml: deps.fetchHtml, getPreset: (url) => getPresetForUrl(url, deps.store) },
+          rankingKind && rankingType
+            ? { po18Ranking: { kind: rankingKind as Po18RankingKind, type: rankingType as Po18RankingType } }
+            : undefined,
+        )
         return c.json(result)
       } catch (err) {
         return c.json({ error: `获取列表失败: ${(err as Error).message}` }, 502)
