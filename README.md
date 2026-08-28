@@ -34,7 +34,7 @@ ZhiZhou/
   Theme/Theme.swift                设计 token + Liquid Glass 背景
   Views/
     RootView / MainTabView         启动路由 / 三个 Tab（iOS 26 玻璃 Tab 栏）
-    LoginView                      登录 / 注册（液态玻璃卡片）
+    LoginView                      登录 / 注册（浅色原生感账号入口）
     HomeView / NovelCardView       发现页（搜索/分类/分页，玻璃卡片）
     NovelDetailView                详情 + 章节目录
     ReaderView                     阅读器（核心）
