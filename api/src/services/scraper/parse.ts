@@ -8,6 +8,7 @@ import { removeAdPatterns } from '@shared/ad-cleaner'
 export interface ScrapeLink {
   href: string
   text: string
+  order?: number
 }
 
 export function extractLinks(html: string, selector: string, baseUrl: string): ScrapeLink[] {

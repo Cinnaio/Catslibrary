@@ -208,17 +208,22 @@ describe('scraper engine 端到端（pglite + mock fetch）', () => {
 
   it('POPO 专用目录应提取可读章节并请求 articlescontent 正文', async () => {
     const requests: string[] = []
-    let contentOptions: FetchHtmlOptions | undefined
+    const contentOptions = new Map<string, FetchHtmlOptions>()
     const popoList = `<html><body><div id="w0">
-      <div>
+      <div class="c_l">
         <div class="l_counter">0001</div>
         <div class="l_chaptname">第一章</div>
         <div class="l_btn"><a href="/books/901935/articles/101">免費閱讀</a></div>
       </div>
-      <div>
+      <div class="c_l">
         <div class="l_counter">0002</div>
         <div class="l_chaptname">第二章</div>
         <div class="l_btn"><a href="/books/901935/articles/102">訂購</a></div>
+      </div>
+      <div class="c_l">
+        <div class="l_counter">0003</div>
+        <div class="l_chaptname">第三章</div>
+        <div class="l_btn"><a href="/books/901935/articles/103">免費閱讀</a></div>
       </div>
     </div></body></html>`
     const popoContent = `<html><body><h1>第一章</h1><div class="article-content"><p>${LONG_BODY}</p></div></body></html>`
@@ -252,7 +257,7 @@ describe('scraper engine 端到端（pglite + mock fetch）', () => {
       fetchHtml: async (url, options) => {
         requests.push(url)
         if (url.includes('/articlescontent/')) {
-          contentOptions = options
+          contentOptions.set(url, options!)
           return { html: popoContent, encoding: 'utf-8' }
         }
         return { html: popoList, encoding: 'utf-8' }
@@ -263,16 +268,25 @@ describe('scraper engine 端到端（pglite + mock fetch）', () => {
 
     const done = await store.loadJob('job_popo')
     expect(done?.status).toBe('completed')
-    expect(done?.chapterCount).toBe(1)
-    expect(done?.publicChapterCount).toBe(1)
+    expect(done?.chapterCount).toBe(2)
+    expect(done?.publicChapterCount).toBe(2)
     expect(done?.protectedChapterCount).toBe(1)
     expect(requests).toContain('https://www.po18.tw/books/901935/articlescontent/101')
-    expect(new Headers(contentOptions?.headers).get('Referer')).toBe('https://www.po18.tw/books/901935/articles/101')
-    expect(new Headers(contentOptions?.headers).get('X-Requested-With')).toBe('XMLHttpRequest')
-    const chapters = await t.db.query<{ title: string; content: string }>('SELECT title, content FROM chapters WHERE novel_id = $1', ['n3'])
-    expect(chapters.rows).toHaveLength(1)
+    expect(new Headers(contentOptions.get('https://www.po18.tw/books/901935/articlescontent/101')?.headers).get('Referer')).toBe(
+      'https://www.po18.tw/books/901935/articles/101',
+    )
+    expect(new Headers(contentOptions.get('https://www.po18.tw/books/901935/articlescontent/101')?.headers).get('X-Requested-With')).toBe('XMLHttpRequest')
+    const chapters = await t.db.query<{ title: string; content: string; sort_order: number }>(
+      'SELECT title, content, sort_order FROM chapters WHERE novel_id = $1 ORDER BY sort_order',
+      ['n3'],
+    )
+    expect(chapters.rows).toHaveLength(2)
     expect(chapters.rows[0]!.title).toBe('第一章')
     expect(chapters.rows[0]!.content).toContain('章节正文内容')
+    expect(chapters.rows.map((chapter) => chapter.sort_order)).toEqual([1, 3])
+    expect(chapters.rows[1]!.title).toBe('第一章')
+    const items = await store.getJobItems('job_popo')
+    expect(items.map((item) => item.order)).toEqual([1, 3])
 
     const preview = await testSelectors(
       'https://www.po18.tw/books/901935',
@@ -280,10 +294,13 @@ describe('scraper engine 端到端（pglite + mock fetch）', () => {
       'utf-8',
       deps,
     )
-    expect(preview.totalLinks).toBe(1)
-    expect(preview.publicChapterCount).toBe(1)
+    expect(preview.totalLinks).toBe(2)
+    expect(preview.publicChapterCount).toBe(2)
     expect(preview.protectedChapterCount).toBe(1)
     expect((preview.sampleChapters as Array<{ ok: boolean }>)[0]?.ok).toBe(true)
+
+    const directoryRequests = requests.filter((url) => url.includes('/books/901935/articles') && !url.includes('/articlescontent/'))
+    expect(directoryRequests).toEqual(['https://www.po18.tw/books/901935/articles', 'https://www.po18.tw/books/901935/articles'])
   })
 
   it('POPO 正文被重定向到登录页时不得把登录页保存为章节', async () => {

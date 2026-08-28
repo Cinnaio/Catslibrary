@@ -9,15 +9,7 @@ import { cleanHtml, cleanText, cleanTitle, extractContent, extractLinkHref, extr
 import type { JobData, ScrapeLink, ScrapeStore } from './store'
 import { simplifyChapterForSource } from '../zh-convert'
 import { PO18TW_SELECTORS } from './presets'
-import {
-  isPo18twLoginPage,
-  parsePo18twChapterRows,
-  parsePo18twChapterContent,
-  po18ResponseProblem,
-  po18ChapterContentUrl,
-  po18ChapterListUrl,
-  po18ChapterPageUrl,
-} from './enrich'
+import { isPo18twLoginPage, parsePo18twChapterRows, parsePo18twChapterContent, po18ResponseProblem, po18ChapterContentUrl, po18ChapterListUrl } from './enrich'
 
 export interface ScrapeDeps {
   store: ScrapeStore
@@ -33,8 +25,6 @@ export const SCRAPE_CHAPTER_DELAY = Number(process.env.SCRAPE_CHAPTER_DELAY || 3
 export const SCRAPE_MAX_CONSECUTIVE_FAILURES = 10
 /** 选择器测试 / 章节预览时目录翻页上限，避免长目录书（数百页）串行抓爆耗时。 */
 export const SCRAPE_MAX_LIST_PAGES = Number(process.env.SCRAPE_MAX_LIST_PAGES || 5)
-/** POPO 目录没有可依赖的 nextPage 链接，正式抓取最多按页号探测。 */
-export const SCRAPE_PO18_MAX_LIST_PAGES = Number(process.env.SCRAPE_PO18_MAX_LIST_PAGES || 200)
 export const BATCH_SIZE = 10
 
 function newChapterId(index: number): string {
@@ -45,13 +35,11 @@ function isPo18twSelectors(selectors: Record<string, string> | undefined): boole
   return selectors?.chapterList === PO18TW_SELECTORS.chapterList
 }
 
-async function collectPo18twLinks(
+/** PO18 的 /articles 页面已包含完整目录，只解析首个页面，不构造 page=N 请求。 */
+function collectPo18twLinks(
   firstHtml: string,
   chapterListUrl: string,
-  encoding: string,
-  deps: ScrapeDeps,
-  maxPages: number,
-): Promise<{ links: ScrapeLink[]; pages: number; publicChapterCount: number; protectedChapterCount: number }> {
+): { links: ScrapeLink[]; pages: number; publicChapterCount: number; protectedChapterCount: number } {
   if (isPo18twLoginPage(firstHtml)) throw new Error('POPO 目录需要登录，请先配置 POPO 账号或 Cookie')
 
   const links: ScrapeLink[] = []
@@ -67,7 +55,7 @@ async function collectPo18twLinks(
       seen.add(row.url)
       newRowCount++
       if (row.downloadable && !row.url.includes('#')) {
-        links.push({ href: row.url, text: row.title })
+        links.push({ href: row.url, text: row.title, order: row.order })
         publicChapterCount++
       } else if (row.protected) {
         protectedChapterCount++
@@ -77,21 +65,7 @@ async function collectPo18twLinks(
   }
 
   appendPage(firstHtml, chapterListUrl)
-  let pages = 0
-
-  for (let page = 2; page <= Math.max(1, maxPages); page++) {
-    const pageUrl = po18ChapterPageUrl(chapterListUrl, page)
-    const next = await deps.fetchHtml(pageUrl, { forceEncoding: encoding })
-    if (isPo18twLoginPage(next.html)) throw new Error('POPO 目录需要登录，请先配置 POPO 账号或 Cookie')
-    const parsed = appendPage(next.html, pageUrl)
-    if (parsed.rowCount === 0) break
-
-    pages++
-    // 源站在超出最后一页时偶尔会重复返回最后一页，避免无限探测。
-    if (parsed.newRowCount === 0) break
-  }
-
-  return { links, pages, publicChapterCount, protectedChapterCount }
+  return { links, pages: 0, publicChapterCount, protectedChapterCount }
 }
 
 function po18ChapterFetchRequest(link: ScrapeLink, encoding: string, timeoutMs: number): { url: string; options: FetchHtmlOptions } {
@@ -131,7 +105,7 @@ export async function testSelectors(
   let publicChapterCount = 0
   let protectedChapterCount = 0
   if (isPo18tw) {
-    const collected = await collectPo18twLinks(html, chapterListUrl, encoding, deps, SCRAPE_MAX_LIST_PAGES)
+    const collected = collectPo18twLinks(html, chapterListUrl)
     allLinks = collected.links
     _t.pages = collected.pages
     publicChapterCount = collected.publicChapterCount
@@ -316,11 +290,15 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
     let extractMs = 0
     const extractStart = Date.now()
     if (job.retryLinks && Array.isArray(job.retryLinks) && job.retryLinks.length) {
-      links = job.retryLinks.map((item) => ({ href: item.href || item.chapterUrl || '', text: item.text || item.chapterTitle || '' }))
+      links = job.retryLinks.map((item) => ({
+        href: item.href || item.chapterUrl || '',
+        text: item.text || item.chapterTitle || '',
+        order: item.order,
+      }))
       if (!publicChapterCount) publicChapterCount = links.length
       await store.appendJobLog(jobId, 'info', '重试失败章节模式：' + links.length + ' 章')
     } else if (isPo18tw) {
-      const collected = await collectPo18twLinks(html, chapterListUrl, encoding, deps, SCRAPE_PO18_MAX_LIST_PAGES)
+      const collected = collectPo18twLinks(html, chapterListUrl)
       links = collected.links
       publicChapterCount = collected.publicChapterCount
       protectedChapterCount = collected.protectedChapterCount
@@ -398,6 +376,20 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
       job.skippedCount = links.length - newLinks.length
     }
 
+    let baseOrder = 0
+    if (job.updateMode && job.novelId) {
+      baseOrder = await store.getMaxChapterOrder(job.novelId)
+    }
+
+    let lastOrder = baseOrder
+    const orderedLinks = newLinks.map((link) => {
+      const sourceOrder = Number.isInteger(link.order) && link.order! > 0 ? link.order! : 0
+      const order = sourceOrder > lastOrder ? sourceOrder : lastOrder + 1
+      lastOrder = order
+      return { ...link, order }
+    })
+    newLinks = orderedLinks
+
     job.total = newLinks.length
     await store.replaceJobItems(job.id, newLinks)
     const label = job.updateMode
@@ -431,11 +423,6 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
       job!._debug = next.join('\n')
     }
 
-    let baseOrder = 0
-    if (job.updateMode && job.novelId) {
-      baseOrder = await store.getMaxChapterOrder(job.novelId)
-    }
-
     const chapterBatch: Array<{ id: string; title: string; content: string; order: number; wordCount: number; sourceUrl: string; createdAt: number }> = []
 
     async function flushBatch(): Promise<void> {
@@ -454,7 +441,7 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
     const scrapeLinks = newLinks
     const displayTotal = scrapeLinks.length
     const isCF = !job.localMode
-    const queue = scrapeLinks.map((link, i) => ({ link, i }))
+    const queue = scrapeLinks.map((link, i) => ({ link, i, order: link.order || baseOrder + i + 1 }))
     let completedCount = 0
     let cancelled = false
     let consecutiveFailures = 0
@@ -476,7 +463,7 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
 
         if (cancelled) break
 
-        const { link, i } = queue.shift()!
+        const { link, i, order } = queue.shift()!
 
         await store.updateJobItem(jobId, link.href, { status: 'running', startedAt: Date.now(), retryCount: 0 })
         addDebug(`Ch${i + 1}: 请求 ${link.href}`)
@@ -559,14 +546,13 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
             const wordCount = cleanContentResult.replace(/\s/g, '').length
             addDebug(`Ch${i + 1}: 清洗后字数=${wordCount}，加入批量队列`)
 
-            const chapterOrder = baseOrder + i + 1
             const chapter = simplifyChapterForSource(
               {
                 id: newChapterId(i),
                 novelId: job!.novelId || '',
                 title: cleanTitle(title).trim(),
                 content: cleanContentResult,
-                order: chapterOrder,
+                order,
                 wordCount,
                 sourceUrl: link.href,
                 createdAt: Date.now(),

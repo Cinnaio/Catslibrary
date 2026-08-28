@@ -392,7 +392,7 @@ scrapeRoutes.post('/', async (c) => {
         id: retryJobId,
         novelId: oldJob.novelId,
         retrySourceJobId: jobId,
-        retryLinks: failedItems.map((item) => ({ href: item.chapterUrl, text: item.chapterTitle, retryCount: item.retryCount })),
+        retryLinks: failedItems.map((item) => ({ href: item.chapterUrl, text: item.chapterTitle, order: item.order, retryCount: item.retryCount })),
         status: 'starting',
         progress: 0,
         current: 0,
@@ -407,7 +407,7 @@ scrapeRoutes.post('/', async (c) => {
       await deps.store.saveJob(job)
       await deps.store.replaceJobItems(
         retryJobId,
-        job.retryLinks!.map((l) => ({ href: l.href!, text: l.text || '' })),
+        job.retryLinks!.map((l) => ({ href: l.href!, text: l.text || '', order: l.order })),
       )
       await deps.store.appendJobLog(retryJobId, 'info', '开始重试失败章节，共 ' + failedItems.length + ' 章')
       fireJob(retryJobId, deps, db)

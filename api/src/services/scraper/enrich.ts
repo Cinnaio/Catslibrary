@@ -778,12 +778,6 @@ export function po18ChapterListUrl(sourceUrl: string): string {
   return bookId ? `${url.origin}/books/${bookId}/articles` : url.href
 }
 
-export function po18ChapterPageUrl(sourceUrl: string, page: number): string {
-  const url = new URL(po18ChapterListUrl(sourceUrl))
-  if (page > 1) url.searchParams.set('page', String(page))
-  return url.href
-}
-
 export function po18ChapterContentUrl(chapterUrl: string): string {
   const url = new URL(chapterUrl)
   const match = url.pathname.match(/\/books\/(\d+)\/articles\/(\d+)\/?$/i)

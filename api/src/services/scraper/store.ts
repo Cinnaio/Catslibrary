@@ -12,6 +12,8 @@ import { legadoHost, sourceToPreset } from './legado'
 export interface ScrapeLink {
   href: string
   text: string
+  /** 源站章节序号；没有源站序号时由抓取流程按数组顺序补齐。 */
+  order?: number
 }
 
 export interface JobData {
@@ -22,7 +24,7 @@ export interface JobData {
   encoding?: string
   updateMode?: boolean
   retrySourceJobId?: string
-  retryLinks?: Array<{ href?: string; chapterUrl?: string; text?: string; chapterTitle?: string; retryCount?: number }>
+  retryLinks?: Array<{ href?: string; chapterUrl?: string; text?: string; chapterTitle?: string; order?: number; retryCount?: number }>
   status: string
   step?: string
   current?: number
@@ -316,10 +318,12 @@ export class PgScrapeStore implements ScrapeStore {
       await q('DELETE FROM scrape_job_items WHERE job_id = $1', [jobId])
       for (let i = 0; i < links.length; i++) {
         const link = links[i]!
+        const linkOrder = link.order
+        const order = typeof linkOrder === 'number' && Number.isInteger(linkOrder) && linkOrder > 0 ? linkOrder : i + 1
         await q(
           `INSERT INTO scrape_job_items (id, job_id, novel_id, chapter_url, chapter_title, sort_order, status, updated_at)
            VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7)`,
-          [newId('item'), jobId, '', link.href || '', link.text || '', i + 1, now],
+          [newId('item'), jobId, '', link.href || '', link.text || '', order, now],
         )
       }
     })
