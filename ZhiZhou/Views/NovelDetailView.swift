@@ -247,7 +247,7 @@ struct NovelDetailView: View {
             } label: {
                 chapterRowLabel(chapter, selectionMode: true)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(ScaleButtonStyle(pressedScale: 0.985))
             .background(
                 GeometryReader { proxy in
                     Color.clear.preference(
@@ -416,6 +416,13 @@ struct NovelDetailView: View {
         let novelToDownload = currentNovel
         Task {
             await offlineStore.downloadAll(novel: novelToDownload, chapters: chaptersToDownload)
+            if offlineStore.lastBatchWasCancelled {
+                AppFeedback.warning("下载已停止")
+            } else if offlineStore.lastError == nil {
+                AppFeedback.success("章节已保存到本机")
+            } else {
+                AppFeedback.error()
+            }
         }
     }
 
@@ -427,6 +434,13 @@ struct NovelDetailView: View {
         selectedChapterIDs.removeAll()
         Task {
             await offlineStore.downloadAll(novel: novelToDownload, chapters: chaptersToDownload)
+            if offlineStore.lastBatchWasCancelled {
+                AppFeedback.warning("下载已停止")
+            } else if offlineStore.lastError == nil {
+                AppFeedback.success("所选章节已保存到本机")
+            } else {
+                AppFeedback.error()
+            }
         }
     }
 
@@ -478,13 +492,14 @@ struct NovelDetailView: View {
                     .lineLimit(expandDescription ? nil : 4)
                 if currentNovel.description.count > 80 {
                     Button(expandDescription ? "收起" : "展开简介") {
+                        interactionFeedback += 1
                         withAnimation(.easeInOut(duration: 0.2)) {
                             expandDescription.toggle()
                         }
                     }
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(AppTheme.primary)
-                    .buttonStyle(.plain)
+                    .buttonStyle(ScaleButtonStyle(pressedScale: 0.96))
                     .frame(minHeight: 44, alignment: .leading)
                 }
             }
@@ -558,6 +573,7 @@ struct NovelDetailView: View {
         Task {
             defer { bookshelfBusy = false }
             do {
+                let addingToBookshelf = !inBookshelf
                 if inBookshelf {
                     let _: OkEnvelope = try await APIClient.shared.delete(
                         "/api/bookshelf?novelId=\(novel.id)", auth: true
@@ -571,7 +587,9 @@ struct NovelDetailView: View {
                     inBookshelf = true
                 }
                 interactionFeedback += 1
+                AppFeedback.success(addingToBookshelf ? "已加入书架" : "已移出书架")
             } catch {
+                AppFeedback.error()
                 showBookshelfError = true
             }
         }

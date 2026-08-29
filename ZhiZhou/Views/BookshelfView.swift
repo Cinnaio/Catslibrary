@@ -8,6 +8,7 @@ struct BookshelfView: View {
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var actionError: String?
+    @State private var isPerformingAction = false
     @State private var selection: BookshelfRoute?
     @State private var pendingRemove: FavoriteItem?
     @State private var pendingRecentRemove: RecentItem?
@@ -93,8 +94,15 @@ struct BookshelfView: View {
             .pageBackground()
             .toolbar {
                 if response?.favorites.isEmpty == false || response?.recent.isEmpty == false {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        EditButton()
+                    if isPerformingAction {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            ProgressView()
+                                .accessibilityLabel("正在更新书架")
+                        }
+                    } else {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            EditButton()
+                        }
                     }
                 }
             }
@@ -213,7 +221,7 @@ struct BookshelfView: View {
             } label: {
                 recentRow(item)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(ScaleButtonStyle(pressedScale: 0.985))
             .tag(route)
             .contextMenu {
                 Button {
@@ -259,7 +267,7 @@ struct BookshelfView: View {
             } label: {
                 favoriteRow(favorite)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(ScaleButtonStyle(pressedScale: 0.985))
             .tag(route)
             .contextMenu {
                 Button {
@@ -377,6 +385,9 @@ struct BookshelfView: View {
     }
 
     private func removeFavorite(_ favorite: FavoriteItem) async {
+        guard !isPerformingAction else { return }
+        isPerformingAction = true
+        defer { isPerformingAction = false }
         do {
             let _: OkEnvelope = try await APIClient.shared.delete(
                 "/api/bookshelf?novelId=\(favorite.novelId)", auth: true
@@ -388,19 +399,26 @@ struct BookshelfView: View {
                 selection = nil
             }
             await load()
+            AppFeedback.success("已移出书架")
         } catch {
+            AppFeedback.error()
             actionError = "移出书架失败，请检查网络后重试。"
         }
     }
 
     private func removeRecent(_ recent: RecentItem) async {
+        guard !isPerformingAction else { return }
+        isPerformingAction = true
+        defer { isPerformingAction = false }
         do {
             let _: OkEnvelope = try await APIClient.shared.delete(
                 "/api/progress?novelId=\(recent.novelId)&clientUpdatedAt=\(Int64(Date().timeIntervalSince1970 * 1000))",
                 auth: true
             )
             await load()
+            AppFeedback.success("已删除阅读记录")
         } catch {
+            AppFeedback.error()
             actionError = "删除阅读记录失败，请检查网络后重试。"
         }
     }

@@ -14,6 +14,7 @@ struct LoginView: View {
     @State private var registerMode: RegisterMode = .invite
     @State private var busy = false
     @State private var errorMessage: String?
+    @State private var interactionFeedback = 0
     @FocusState private var focusedField: Field?
 
     enum Mode: Hashable { case login, register }
@@ -62,6 +63,7 @@ struct LoginView: View {
             }
         }
         .task { await fetchRegisterStatus() }
+        .sensoryFeedback(.selection, trigger: interactionFeedback)
     }
 
     private var loginBackdrop: some View {
@@ -113,11 +115,12 @@ struct LoginView: View {
                         .foregroundStyle(AppTheme.textSecondary)
 
                     Button(mode == .login ? "注册" : "登录") {
+                        interactionFeedback &+= 1
                         switchMode()
                     }
                     .fontWeight(.semibold)
                     .foregroundStyle(AppTheme.primary)
-                    .buttonStyle(.plain)
+                    .buttonStyle(ScaleButtonStyle(pressedScale: 0.96))
                 }
                 .font(.subheadline)
                 .frame(minHeight: 44)
@@ -185,6 +188,7 @@ struct LoginView: View {
 
                     Button {
                         showPassword.toggle()
+                        interactionFeedback &+= 1
                     } label: {
                         Image(systemName: showPassword ? "eye.slash" : "eye")
                             .font(.subheadline.weight(.semibold))
@@ -192,7 +196,7 @@ struct LoginView: View {
                             .frame(width: 36, height: 36)
                             .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(ScaleButtonStyle(pressedScale: 0.92))
                     .accessibilityLabel(showPassword ? "隐藏密码" : "显示密码")
                 }
             }
@@ -337,7 +341,9 @@ struct LoginView: View {
             } else {
                 try await appState.register(username: username, password: password, invite: invite)
             }
+            AppFeedback.success()
         } catch {
+            AppFeedback.error()
             errorMessage = AppCopy.friendlyError(error)
         }
     }

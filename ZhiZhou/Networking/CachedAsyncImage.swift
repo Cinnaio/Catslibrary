@@ -98,7 +98,7 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
                                 .padding(.vertical, 5)
                                 .background(.thinMaterial, in: Capsule())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(ScaleButtonStyle(pressedScale: 0.94))
                         .foregroundStyle(AppTheme.textPrimary)
                         .accessibilityLabel("封面加载失败，重试")
                     }

@@ -9,6 +9,7 @@ struct ZhiZhouApp: App {
     private let readerSettings = ReaderSettingsStore.shared
     private let fontStore = FontStore.shared
     private let offlineReadingStore = OfflineReadingStore.shared
+    private let feedbackCenter = AppFeedbackCenter.shared
 
     init() {
         fontStore.registerCachedFonts()
@@ -21,6 +22,7 @@ struct ZhiZhouApp: App {
                 .environment(readerSettings)
                 .environment(fontStore)
                 .environment(offlineReadingStore)
+                .environment(feedbackCenter)
                 .background(GlobalKeyboardDismissal())
                 .onChange(of: scenePhase) { _, phase in
                     guard phase == .active else { return }
@@ -28,6 +30,9 @@ struct ZhiZhouApp: App {
                         await ReaderSettingsStore.shared.flush()
                         await ReaderProgressStore.shared.flush()
                     }
+                }
+                .overlay {
+                    AppFeedbackOverlay()
                 }
         }
     }

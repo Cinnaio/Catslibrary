@@ -234,6 +234,7 @@ private struct ScaleButtonStyleBody: View {
     var body: some View {
         configuration.label
             .scaleEffect((reduceMotion || !configuration.isPressed) ? 1 : pressedScale)
+            .opacity(configuration.isPressed ? 0.86 : 1)
             .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: configuration.isPressed)
     }
 }

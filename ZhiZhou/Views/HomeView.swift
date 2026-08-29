@@ -19,6 +19,7 @@ struct HomeView: View {
     @State private var reloadTask: Task<Void, Never>?
     /// 请求序号：丢弃过期响应（搜索/分类竞态守卫）
     @State private var requestSeq = 0
+    @State private var interactionFeedback = 0
 
     var body: some View {
         if horizontalSizeClass != .regular {
@@ -103,6 +104,7 @@ struct HomeView: View {
                     Button(loadMoreError) { loadMoreIfNeeded() }
                         .font(.footnote)
                         .foregroundStyle(AppTheme.danger)
+                        .buttonStyle(ScaleButtonStyle(pressedScale: 0.98))
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
                 }
@@ -121,6 +123,7 @@ struct HomeView: View {
         .onChange(of: selectedCategory) { _, _ in
             scheduleReload()
         }
+        .sensoryFeedback(.selection, trigger: interactionFeedback)
     }
 
     /// 紧凑宽度直接持有导航目标；宽屏则更新分栏详情选择。
@@ -157,11 +160,13 @@ struct HomeView: View {
             if !search.isEmpty {
                 Button {
                     search = ""
+                    interactionFeedback &+= 1
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundStyle(AppTheme.textMuted)
                         .frame(width: 44, height: 44)
                 }
+                .buttonStyle(ScaleButtonStyle(pressedScale: 0.9))
                 .accessibilityLabel("清除搜索")
             }
         }
@@ -205,7 +210,9 @@ struct HomeView: View {
     private func chip(value: String?, label: String) -> some View {
         let selected = selectedCategory == value
         return Button {
+            guard selectedCategory != value else { return }
             selectedCategory = value
+            interactionFeedback &+= 1
         } label: {
             Text(label)
                 .font(.subheadline.weight(selected ? .semibold : .regular))

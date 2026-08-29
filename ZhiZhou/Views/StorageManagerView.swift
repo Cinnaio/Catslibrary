@@ -34,7 +34,14 @@ struct StorageManagerView: View {
                     }
                 } else {
                     Button {
-                        Task { await fontStore.downloadAndRegisterFonts() }
+                        Task {
+                            await fontStore.downloadAndRegisterFonts()
+                            if fontStore.lastError == nil {
+                                AppFeedback.success("宋体已启用")
+                            } else {
+                                AppFeedback.error()
+                            }
+                        }
                     } label: {
                         Label(
                             fontStore.hasDownloadedFonts ? "重新检查字体" : "下载并启用宋体",
@@ -113,6 +120,7 @@ struct StorageManagerView: View {
         ) {
             Button("删除字体", role: .destructive) {
                 fontStore.deleteDownloadedFonts()
+                AppFeedback.success("字体缓存已删除")
             }
         }
         .confirmationDialog(
@@ -126,6 +134,7 @@ struct StorageManagerView: View {
                     await fontStore.clearCaches()
                     offlineStore.forgetAll()
                     isClearingCaches = false
+                    AppFeedback.success("缓存已清理")
                 }
             }
         }

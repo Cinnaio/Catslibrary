@@ -5,6 +5,7 @@ import SwiftUI
 struct ReaderSettingsView: View {
     @Environment(ReaderSettingsStore.self) private var settings
     @Environment(\.dismiss) private var dismiss
+    @State private var interactionFeedback = 0
 
     private let themes: [(id: String, title: String, swatch: Color)] = [
         ("default", "系统", Color(.systemBackground)),
@@ -26,7 +27,10 @@ struct ReaderSettingsView: View {
                             ("page", "左右翻页"),
                         ],
                         selected: settings.pageMode
-                    ) { settings.set("readerPageMode", $0) }
+                    ) {
+                        settings.set("readerPageMode", $0)
+                        interactionFeedback &+= 1
+                    }
                     sectionDivider
 
                     segmentedSection(
@@ -36,7 +40,10 @@ struct ReaderSettingsView: View {
                             ("sans", "无衬线"),
                         ],
                         selected: settings.useSerif ? "serif" : "sans"
-                    ) { settings.set("fontFamily", $0) }
+                    ) {
+                        settings.set("fontFamily", $0)
+                        interactionFeedback &+= 1
+                    }
                     sectionDivider
 
                     segmentedSection(
@@ -47,7 +54,10 @@ struct ReaderSettingsView: View {
                             ("2.15", "宽松"),
                         ],
                         selected: settings.values["readerLineHeight"] ?? "1.95"
-                    ) { settings.set("readerLineHeight", $0) }
+                    ) {
+                        settings.set("readerLineHeight", $0)
+                        interactionFeedback &+= 1
+                    }
                     sectionDivider
 
                     segmentedSection(
@@ -58,7 +68,10 @@ struct ReaderSettingsView: View {
                             ("1.8", "宽松"),
                         ],
                         selected: settings.values["readerParagraphSpacing"] ?? "1.4"
-                    ) { settings.set("readerParagraphSpacing", $0) }
+                    ) {
+                        settings.set("readerParagraphSpacing", $0)
+                        interactionFeedback &+= 1
+                    }
                     sectionDivider
 
                     themeSection
@@ -86,12 +99,13 @@ struct ReaderSettingsView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.hidden, for: .navigationBar)
             .sensoryFeedback(.selection, trigger: settings.fontSizeIndex)
+            .sensoryFeedback(.selection, trigger: interactionFeedback)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("完成") { dismiss() }
                         .font(.body.weight(.semibold))
                         .foregroundStyle(AppTheme.primary)
-                        .buttonStyle(.plain)
+                        .buttonStyle(ScaleButtonStyle(pressedScale: 0.96))
                 }
             }
         }
@@ -168,6 +182,7 @@ struct ReaderSettingsView: View {
                     ForEach(values, id: \.0) { value in
                         let isSelected = value.0 == selected
                         Button {
+                            guard !isSelected else { return }
                             onSelect(value.0)
                         } label: {
                             Text(value.1)
@@ -208,7 +223,10 @@ struct ReaderSettingsView: View {
         VStack(alignment: .leading, spacing: 10) {
             Toggle("阅读时保持屏幕常亮", isOn: Binding(
                 get: { settings.wakeLockEnabled },
-                set: { settings.set("readerWakeLock", $0 ? "on" : "off") }
+                set: {
+                    settings.set("readerWakeLock", $0 ? "on" : "off")
+                    interactionFeedback &+= 1
+                }
             ))
             .font(.body)
             .foregroundStyle(AppTheme.textPrimary)
@@ -225,7 +243,10 @@ struct ReaderSettingsView: View {
         VStack(alignment: .leading, spacing: 10) {
             Toggle("左右区域点击翻页", isOn: Binding(
                 get: { settings.clickPagingEnabled },
-                set: { settings.set("readerClickPaging", $0 ? "on" : "off") }
+                set: {
+                    settings.set("readerClickPaging", $0 ? "on" : "off")
+                    interactionFeedback &+= 1
+                }
             ))
             .font(.body)
             .foregroundStyle(AppTheme.textPrimary)
@@ -265,7 +286,9 @@ struct ReaderSettingsView: View {
     private func themeButton(_ theme: (id: String, title: String, swatch: Color)) -> some View {
         let selected = settings.normalizedTheme == theme.id
         return Button {
+            guard !selected else { return }
             settings.set("readerTheme", theme.id)
+            interactionFeedback &+= 1
         } label: {
             VStack(spacing: 7) {
                 RoundedRectangle(cornerRadius: 9, style: .continuous)

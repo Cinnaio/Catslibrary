@@ -24,6 +24,7 @@ final class OfflineReadingStore {
     private(set) var batchNovelID: String?
     private(set) var batchCompleted = 0
     private(set) var batchTotal = 0
+    private(set) var lastBatchWasCancelled = false
     var lastError: String?
     private var batchCancellationRequested = false
 
@@ -82,6 +83,7 @@ final class OfflineReadingStore {
         batchCompleted = 0
         batchTotal = chapters.count
         batchCancellationRequested = false
+        lastBatchWasCancelled = false
         lastError = nil
         defer {
             batchNovelID = nil
@@ -91,8 +93,12 @@ final class OfflineReadingStore {
         }
 
         var hadFailure = false
+        var wasCancelled = false
         for chapter in chapters {
-            guard !batchCancellationRequested, !Task.isCancelled else { break }
+            guard !batchCancellationRequested, !Task.isCancelled else {
+                wasCancelled = true
+                break
+            }
 
             if !isDownloaded(chapter.id) {
                 let success = await performDownload(novel: novel, chapter: chapter)
@@ -103,6 +109,7 @@ final class OfflineReadingStore {
             batchCompleted += 1
         }
 
+        lastBatchWasCancelled = wasCancelled || batchCancellationRequested || Task.isCancelled
         await refresh()
         if !hadFailure {
             lastError = nil

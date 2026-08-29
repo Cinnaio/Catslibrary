@@ -13,6 +13,7 @@ struct OfflineReadingView: View {
     @State private var expandedBookIDsBeforeSelection: Set<String>?
     @State private var showDeleteSelectedConfirm = false
     @State private var isRemovingSelectedBooks = false
+    @State private var interactionFeedback = 0
 
     var body: some View {
         List {
@@ -57,6 +58,7 @@ struct OfflineReadingView: View {
                                                 novelID: book.novel.id,
                                                 chapterID: chapter.id
                                             )
+                                            AppFeedback.success("已删除离线章节")
                                         }
                                     } label: {
                                         Label("删除", systemImage: "trash")
@@ -74,7 +76,7 @@ struct OfflineReadingView: View {
                         } label: {
                             bookHeader(book, selectionMode: isSelectingBooks)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(ScaleButtonStyle(pressedScale: 0.985))
                         .accessibilityLabel("\(book.novel.title)，\(displayAuthor(for: book.novel))")
                         .accessibilityValue(
                             isSelectingBooks
@@ -97,6 +99,7 @@ struct OfflineReadingView: View {
         .pageBackground()
         .navigationTitle("离线阅读")
         .navigationBarTitleDisplayMode(.inline)
+        .sensoryFeedback(.selection, trigger: interactionFeedback)
         .toolbar {
             if !offlineStore.books.isEmpty {
                 if isSelectingBooks {
@@ -166,6 +169,7 @@ struct OfflineReadingView: View {
                     isRemovingAll = true
                     await offlineStore.removeAll()
                     isRemovingAll = false
+                    AppFeedback.success("已清除全部离线章节")
                 }
             }
             Button("取消", role: .cancel) {}
@@ -248,7 +252,7 @@ struct OfflineReadingView: View {
                 toggleAllBookSelection()
             }
             .font(.subheadline.weight(.semibold))
-            .buttonStyle(.borderless)
+            .buttonStyle(ScaleButtonStyle(pressedScale: 0.94))
             .frame(minHeight: 44)
             .disabled(isRemovingSelectedBooks || offlineStore.isBatchDownloading)
         }
@@ -358,6 +362,7 @@ struct OfflineReadingView: View {
     }
 
     private func toggleBook(_ bookID: String) {
+        interactionFeedback &+= 1
         let update: () -> Void = {
             if expandedBookIDs.contains(bookID) {
                 expandedBookIDs.remove(bookID)
@@ -392,6 +397,7 @@ struct OfflineReadingView: View {
     }
 
     private func toggleBookSelection(_ bookID: String) {
+        interactionFeedback &+= 1
         if selectedBookIDs.contains(bookID) {
             selectedBookIDs.remove(bookID)
         } else {
@@ -401,6 +407,7 @@ struct OfflineReadingView: View {
 
     private func toggleAllBookSelection() {
         let bookIDs = Set(offlineStore.books.map(\.id))
+        interactionFeedback &+= 1
         if bookIDs.isSubset(of: selectedBookIDs) {
             selectedBookIDs.removeAll()
         } else {
@@ -417,6 +424,7 @@ struct OfflineReadingView: View {
         Task {
             await offlineStore.removeBooks(novelIDs: bookIDs)
             isRemovingSelectedBooks = false
+            AppFeedback.success("已删除 \(bookIDs.count) 本离线书籍")
             exitBookSelection()
             synchronizeExpandedBooks()
         }

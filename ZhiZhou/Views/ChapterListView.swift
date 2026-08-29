@@ -30,6 +30,7 @@ struct ChapterListView: View {
                         Text(errorMessage)
                     } actions: {
                         Button("重试") { Task { await load() } }
+                            .buttonStyle(ScaleButtonStyle(pressedScale: 0.98))
                     }
                 } else {
                     ScrollViewReader { proxy in
@@ -56,7 +57,7 @@ struct ChapterListView: View {
                                     }
                                 }
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(ScaleButtonStyle(pressedScale: 0.985))
                             .listRowBackground(
                                 chapter.order == currentOrder
                                     ? AppTheme.primary.opacity(0.12)

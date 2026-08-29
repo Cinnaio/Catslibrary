@@ -110,7 +110,10 @@ struct ProfileView: View {
         }
         .confirmationDialog("确定退出登录？", isPresented: $showLogoutConfirm, titleVisibility: .visible) {
             Button("退出登录", role: .destructive) {
-                Task { await appState.logout() }
+                Task {
+                    await appState.logout()
+                    AppFeedback.success("已退出登录")
+                }
             }
         }
     }

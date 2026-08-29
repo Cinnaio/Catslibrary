@@ -192,6 +192,7 @@ struct ReaderView: View {
                 Text(errorMessage)
             } actions: {
                 Button("重试") { Task { await load() } }
+                    .buttonStyle(ScaleButtonStyle(pressedScale: 0.98))
             }
             .foregroundStyle(ink)
             .frame(maxWidth: .infinity, minHeight: 300)
@@ -293,6 +294,7 @@ struct ReaderView: View {
                     Text(errorMessage)
                 } actions: {
                     Button("重试") { Task { await load() } }
+                        .buttonStyle(ScaleButtonStyle(pressedScale: 0.98))
                 }
                 .foregroundStyle(ink)
                 .frame(maxWidth: .infinity, minHeight: 300)
@@ -503,6 +505,7 @@ struct ReaderView: View {
         HStack(spacing: 10) {
             Button {
                 showTOC = true
+                interactionFeedback += 1
             } label: {
                 Image(systemName: "list.bullet")
                     .font(.system(size: 17, weight: .medium))
@@ -513,6 +516,7 @@ struct ReaderView: View {
 
             Button {
                 showSettings = true
+                interactionFeedback += 1
             } label: {
                 Image(systemName: "textformat.size")
                     .font(.system(size: 17, weight: .medium))
@@ -521,7 +525,7 @@ struct ReaderView: View {
             }
             .accessibilityLabel("阅读设置")
         }
-        .buttonStyle(.plain)
+        .buttonStyle(ScaleButtonStyle(pressedScale: 0.92))
         .foregroundStyle(ink.opacity(0.82))
         .fixedSize()
     }
