@@ -7,6 +7,7 @@ import { getAiSettings } from './services/ai/settings'
 import { failInterruptedAiTasks, listAiTasks, pruneFinishedAiTasks, updateAiTask } from './services/ai/tasks'
 import { generateCoverPromptTask } from './services/ai/cover'
 import { ensureRuntimeSalts } from './runtime-config'
+import { pruneMobileTelemetry } from './routes/mobile-telemetry'
 
 async function resumeInterruptedCoverPromptTasks() {
   const db = getDb()
@@ -57,6 +58,8 @@ async function start() {
     const settings = await getAiSettings(getDb())
     const pruned = await pruneFinishedAiTasks(getDb(), settings.taskRetentionDays)
     if (pruned) console.log(`[zhi-zhou api] pruned ${pruned} finished AI task(s) older than ${settings.taskRetentionDays}d`)
+    const prunedTelemetry = await pruneMobileTelemetry()
+    if (prunedTelemetry) console.log(`[zhi-zhou api] pruned ${prunedTelemetry} mobile telemetry event(s) older than 90d`)
   }
 
   const server = serve({ fetch: app.fetch, port: config.port })

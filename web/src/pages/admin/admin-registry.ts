@@ -8,6 +8,7 @@ import {
   BookOpen,
   Bug,
   Clock,
+  Activity,
   FileText,
   LayoutDashboard,
   MessageSquare,
@@ -27,6 +28,7 @@ import AiTab from './AiTab'
 import SettingsTab from './SettingsTab'
 import ContentPolicyTab from './ContentPolicyTab'
 import SiteOperationsTab from './SiteOperationsTab'
+import MobileTelemetryTab from './MobileTelemetryTab'
 
 export interface AdminTabProps {
   highlightNovelId?: string
@@ -39,6 +41,7 @@ export const NAV_GROUPS: Array<{ label: string; items: Array<{ id: string; label
     items: [
       { id: 'dashboard', label: '总览', icon: LayoutDashboard },
       { id: 'jobs', label: '任务管理', icon: Clock },
+      { id: 'mobile-telemetry', label: '客户端监控', icon: Activity },
     ],
   },
   {
@@ -76,6 +79,7 @@ export const TAB_COMPONENTS = {
   ai: AiTab,
   'content-policy': ContentPolicyTab,
   'site-operations': SiteOperationsTab,
+  'mobile-telemetry': MobileTelemetryTab,
   settings: SettingsTab,
 } satisfies Record<string, ComponentType<AdminTabProps>>
 

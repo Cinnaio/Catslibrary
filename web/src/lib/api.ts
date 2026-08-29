@@ -608,6 +608,38 @@ export interface CommentReportItem {
   resolverUsername: string
 }
 
+export interface MobileTelemetryEvent {
+  id: string
+  type: 'event' | 'error' | 'metric' | 'diagnostic' | string
+  name: string
+  severity: 'info' | 'warning' | 'error' | string
+  appVersion: string
+  buildVersion: string
+  osVersion: string
+  deviceModel: string
+  properties: string
+  clientCreatedAt: number
+  receivedAt: number
+  status: 'open' | 'acknowledged' | 'resolved' | 'ignored' | string
+  adminNote: string
+}
+
+export interface MobileTelemetryResponse {
+  events: MobileTelemetryEvent[]
+  total: number
+  limit: number
+  offset: number
+  summary: {
+    events: number
+    errors: number
+    diagnostics: number
+    installs: number
+    open: number
+    topEvents: Array<{ name: string; count: number }>
+    trend: Array<{ date: string; events: number; errors: number }>
+  }
+}
+
 export const adminApi = {
   site: {
     overview(): Promise<{
@@ -678,6 +710,15 @@ export const adminApi = {
     },
     update(id: string, data: Record<string, unknown>): Promise<{ ok: boolean }> {
       return request('PUT', '/admin/comment-reports', { id, ...data }, true)
+    },
+  },
+  mobileTelemetry: {
+    list(params: Record<string, string> = {}): Promise<MobileTelemetryResponse> {
+      const qs = new URLSearchParams(params).toString()
+      return request('GET', `/admin/mobile-telemetry${qs ? '?' + qs : ''}`, null, true)
+    },
+    update(id: string, status: string, adminNote = ''): Promise<{ ok: boolean; status: string }> {
+      return request('PUT', '/admin/mobile-telemetry', { id, status, adminNote }, true)
     },
   },
   users: {
