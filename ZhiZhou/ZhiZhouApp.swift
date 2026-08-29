@@ -22,7 +22,6 @@ struct ZhiZhouApp: App {
                 .environment(readerSettings)
                 .environment(fontStore)
                 .environment(offlineReadingStore)
-                .environment(feedbackCenter)
                 .background(GlobalKeyboardDismissal())
                 .onChange(of: scenePhase) { _, phase in
                     guard phase == .active else { return }
@@ -32,7 +31,7 @@ struct ZhiZhouApp: App {
                     }
                 }
                 .overlay {
-                    AppFeedbackOverlay()
+                    AppFeedbackOverlay(center: feedbackCenter)
                 }
         }
     }

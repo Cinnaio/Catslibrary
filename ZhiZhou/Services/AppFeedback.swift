@@ -102,8 +102,9 @@ enum AppFeedback {
     }
 }
 
+@MainActor
 struct AppFeedbackOverlay: View {
-    @Environment(AppFeedbackCenter.self) private var center
+    let center: AppFeedbackCenter
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
