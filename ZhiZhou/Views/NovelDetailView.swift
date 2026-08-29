@@ -21,6 +21,9 @@ struct NovelDetailView: View {
     @State private var isShowingOffline = false
     @State private var isSelectingOffline = false
     @State private var selectedChapterIDs: Set<String> = []
+    @State private var selectionRowFrames: [String: CGRect] = [:]
+    @State private var selectionDragMode: OfflineSelectionDragMode?
+    @State private var selectionDragLastIndex: Int?
 
     var body: some View {
         List {
@@ -57,6 +60,10 @@ struct NovelDetailView: View {
                 Text("章节（\(chapters.count)）")
             }
             .frostedRowBackground()
+        }
+        .coordinateSpace(name: "offlineChapterList")
+        .onPreferenceChange(OfflineChapterFramePreferenceKey.self) { frames in
+            selectionRowFrames = frames
         }
         .scrollContentBackground(.hidden)
         .pageBackground()
@@ -172,37 +179,54 @@ struct NovelDetailView: View {
                         startSelectedDownload()
                     } label: {
                         Label("下载已选章节", systemImage: "arrow.down.circle.fill")
-                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .font(.subheadline.weight(.semibold))
+                            .lineLimit(1)
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(AppTheme.primary)
+                    .controlSize(.small)
+                    .frame(minHeight: 44)
                     .disabled(selectedDownloadChapters.isEmpty || offlineStore.isBatchDownloading)
                 }
+
+                Text("长按章节后滑过列表，可连续选择")
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.textSecondary)
             } else {
                 if downloadableChapters.isEmpty {
                     Label("全部章节已保存", systemImage: "checkmark.circle.fill")
                         .foregroundStyle(AppTheme.success)
                         .frame(maxWidth: .infinity, minHeight: 44)
                 } else {
-                    Button {
-                        startAllDownload()
-                    } label: {
-                        Label("下载全部章节", systemImage: "arrow.down.circle.fill")
-                            .frame(maxWidth: .infinity, minHeight: 44)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(AppTheme.primary)
-                    .disabled(offlineStore.isBatchDownloading)
+                    HStack(spacing: 10) {
+                        Button {
+                            startAllDownload()
+                        } label: {
+                            Label("下载全部章节", systemImage: "arrow.down.circle.fill")
+                                .font(.subheadline.weight(.semibold))
+                                .lineLimit(1)
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(AppTheme.primary)
+                        .controlSize(.small)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .disabled(offlineStore.isBatchDownloading)
 
-                    Button {
-                        enterOfflineSelection()
-                    } label: {
-                        Label("选择章节", systemImage: "checklist")
-                            .frame(maxWidth: .infinity, minHeight: 44)
+                        Button {
+                            enterOfflineSelection()
+                        } label: {
+                            Label("选择章节", systemImage: "checklist")
+                                .font(.subheadline.weight(.semibold))
+                                .lineLimit(1)
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(AppTheme.primary)
+                        .controlSize(.small)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .disabled(offlineStore.isBatchDownloading)
                     }
-                    .buttonStyle(.bordered)
-                    .tint(AppTheme.primary)
-                    .disabled(offlineStore.isBatchDownloading)
                 }
             }
 
@@ -224,6 +248,17 @@ struct NovelDetailView: View {
                 chapterRowLabel(chapter, selectionMode: true)
             }
             .buttonStyle(.plain)
+            .background(
+                GeometryReader { proxy in
+                    Color.clear.preference(
+                        key: OfflineChapterFramePreferenceKey.self,
+                        value: [
+                            chapter.id: proxy.frame(in: .named("offlineChapterList"))
+                        ]
+                    )
+                }
+            )
+            .simultaneousGesture(selectionGesture(for: chapter))
             .disabled(offlineStore.isDownloaded(chapter.id))
             .accessibilityLabel("第 \(chapter.order) 章，\(chapter.title)")
             .accessibilityValue(
@@ -287,14 +322,72 @@ struct NovelDetailView: View {
         .contentShape(Rectangle())
     }
 
+    private func selectionGesture(for chapter: ChapterMeta) -> some Gesture {
+        LongPressGesture(minimumDuration: 0.2, maximumDistance: 10)
+            .sequenced(
+                before: DragGesture(
+                    minimumDistance: 0,
+                    coordinateSpace: .named("offlineChapterList")
+                )
+            )
+            .onChanged { value in
+                switch value {
+                case .second(true, let drag):
+                    guard let drag else { return }
+                    handleSelectionDrag(drag, startingAt: chapter)
+                default:
+                    break
+                }
+            }
+            .onEnded { _ in
+                selectionDragMode = nil
+                selectionDragLastIndex = nil
+            }
+    }
+
+    private func handleSelectionDrag(
+        _ drag: DragGesture.Value,
+        startingAt chapter: ChapterMeta
+    ) {
+        guard isSelectingOffline, !offlineStore.isDownloaded(chapter.id) else { return }
+
+        if selectionDragMode == nil {
+            selectionDragMode = selectedChapterIDs.contains(chapter.id) ? .deselect : .select
+            selectionDragLastIndex = chapters.firstIndex { $0.id == chapter.id }
+            interactionFeedback += 1
+        }
+
+        let targetIndex = selectionRowFrames
+            .first(where: { $0.value.contains(drag.location) })
+            .flatMap { hit in chapters.firstIndex { $0.id == hit.key } }
+            ?? (selectionDragLastIndex == nil ? chapters.firstIndex { $0.id == chapter.id } : nil)
+        guard let targetIndex, let mode = selectionDragMode else { return }
+
+        let previousIndex = selectionDragLastIndex ?? targetIndex
+        let range = min(previousIndex, targetIndex)...max(previousIndex, targetIndex)
+        for chapter in chapters[range] where !offlineStore.isDownloaded(chapter.id) {
+            switch mode {
+            case .select:
+                selectedChapterIDs.insert(chapter.id)
+            case .deselect:
+                selectedChapterIDs.remove(chapter.id)
+            }
+        }
+        selectionDragLastIndex = targetIndex
+    }
+
     private func enterOfflineSelection() {
         isSelectingOffline = true
         selectedChapterIDs.removeAll()
+        selectionDragMode = nil
+        selectionDragLastIndex = nil
     }
 
     private func cancelOfflineSelection() {
         isSelectingOffline = false
         selectedChapterIDs.removeAll()
+        selectionDragMode = nil
+        selectionDragLastIndex = nil
     }
 
     private func toggleOfflineSelection(_ chapter: ChapterMeta) {
@@ -550,4 +643,20 @@ struct NovelDetailView: View {
 
 private struct NovelDetailResponse: Decodable {
     let novel: Novel
+}
+
+private enum OfflineSelectionDragMode {
+    case select
+    case deselect
+}
+
+private struct OfflineChapterFramePreferenceKey: PreferenceKey {
+    static let defaultValue: [String: CGRect] = [:]
+
+    static func reduce(
+        value: inout [String: CGRect],
+        nextValue: () -> [String: CGRect]
+    ) {
+        value.merge(nextValue(), uniquingKeysWith: { _, new in new })
+    }
 }
