@@ -61,7 +61,6 @@ struct NovelDetailView: View {
             }
             .frostedRowBackground()
         }
-        .coordinateSpace(name: "offlineChapterList")
         .onPreferenceChange(OfflineChapterFramePreferenceKey.self) { frames in
             selectionRowFrames = frames
         }
@@ -189,7 +188,7 @@ struct NovelDetailView: View {
                     .disabled(selectedDownloadChapters.isEmpty || offlineStore.isBatchDownloading)
                 }
 
-                Text("点按左侧圆圈选择，长按后拖动可连续选择")
+                Text("点按选择，按住左侧圆圈上下拖动可连续选择")
                     .font(.caption)
                     .foregroundStyle(AppTheme.textSecondary)
             } else {
@@ -242,22 +241,22 @@ struct NovelDetailView: View {
     @ViewBuilder
     private func chapterRow(_ chapter: ChapterMeta) -> some View {
         if isSelectingOffline {
-            Button {
-                toggleOfflineSelection(chapter)
-            } label: {
-                chapterRowLabel(chapter, selectionMode: true)
-            }
-            .buttonStyle(ScaleButtonStyle(pressedScale: 0.985))
+            chapterRowLabel(chapter, selectionMode: true)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    toggleOfflineSelection(chapter)
+                }
             .background(
                 GeometryReader { proxy in
                     Color.clear.preference(
                         key: OfflineChapterFramePreferenceKey.self,
                         value: [
-                            chapter.id: proxy.frame(in: .named("offlineChapterList"))
+                                chapter.id: proxy.frame(in: .global)
                         ]
                     )
                 }
             )
+            .accessibilityAddTraits(.isButton)
             .disabled(offlineStore.isDownloaded(chapter.id))
             .accessibilityLabel("第 \(chapter.order) 章，\(chapter.title)")
             .accessibilityValue(
@@ -326,26 +325,17 @@ struct NovelDetailView: View {
         )
         .frame(width: 44, height: 44)
         .contentShape(Rectangle())
-        .simultaneousGesture(selectionGesture(for: chapter))
+        .highPriorityGesture(selectionGesture(for: chapter))
         .accessibilityHidden(true)
     }
 
     private func selectionGesture(for chapter: ChapterMeta) -> some Gesture {
-        LongPressGesture(minimumDuration: 0.25, maximumDistance: 8)
-            .sequenced(
-                before: DragGesture(
-                    minimumDistance: 8,
-                    coordinateSpace: .named("offlineChapterList")
-                )
-            )
-            .onChanged { value in
-                switch value {
-                case .second(true, let drag):
-                    guard let drag else { return }
-                    handleSelectionDrag(drag, startingAt: chapter)
-                default:
-                    break
-                }
+        DragGesture(
+            minimumDistance: 10,
+            coordinateSpace: .global
+        )
+            .onChanged { drag in
+                handleSelectionDrag(drag, startingAt: chapter)
             }
             .onEnded { _ in
                 selectionDragMode = nil
@@ -357,11 +347,15 @@ struct NovelDetailView: View {
         _ drag: DragGesture.Value,
         startingAt chapter: ChapterMeta
     ) {
-        guard isSelectingOffline, !offlineStore.isDownloaded(chapter.id) else { return }
+        guard isSelectingOffline else { return }
 
         if selectionDragMode == nil {
+            guard !offlineStore.isDownloaded(chapter.id),
+                  let startIndex = chapters.firstIndex(where: { $0.id == chapter.id })
+            else { return }
+
             selectionDragMode = selectedChapterIDs.contains(chapter.id) ? .deselect : .select
-            selectionDragLastIndex = chapters.firstIndex { $0.id == chapter.id }
+            selectionDragLastIndex = startIndex
             if selectedChapterIDs.contains(chapter.id) {
                 selectedChapterIDs.remove(chapter.id)
             } else {
@@ -370,11 +364,9 @@ struct NovelDetailView: View {
             interactionFeedback += 1
         }
 
-        let targetIndex = selectionRowFrames
-            .first(where: { $0.value.contains(drag.location) })
-            .flatMap { hit in chapters.firstIndex { $0.id == hit.key } }
-            ?? (selectionDragLastIndex == nil ? chapters.firstIndex { $0.id == chapter.id } : nil)
-        guard let targetIndex, let mode = selectionDragMode else { return }
+        guard let mode = selectionDragMode,
+              let targetIndex = chapterIndex(at: drag.location)
+        else { return }
 
         let previousIndex = selectionDragLastIndex ?? targetIndex
         let range = min(previousIndex, targetIndex)...max(previousIndex, targetIndex)
@@ -389,9 +381,23 @@ struct NovelDetailView: View {
         selectionDragLastIndex = targetIndex
     }
 
+    private func chapterIndex(at location: CGPoint) -> Int? {
+        let visibleRows = selectionRowFrames.compactMap { id, frame -> (index: Int, frame: CGRect)? in
+            guard let index = chapters.firstIndex(where: { $0.id == id }) else { return nil }
+            return (index, frame)
+        }
+        .sorted { $0.frame.midY < $1.frame.midY }
+        guard !visibleRows.isEmpty else { return nil }
+
+        return visibleRows.min {
+            abs($0.frame.midY - location.y) < abs($1.frame.midY - location.y)
+        }?.index
+    }
+
     private func enterOfflineSelection() {
         isSelectingOffline = true
         selectedChapterIDs.removeAll()
+        selectionRowFrames.removeAll()
         selectionDragMode = nil
         selectionDragLastIndex = nil
     }
@@ -399,6 +405,7 @@ struct NovelDetailView: View {
     private func cancelOfflineSelection() {
         isSelectingOffline = false
         selectedChapterIDs.removeAll()
+        selectionRowFrames.removeAll()
         selectionDragMode = nil
         selectionDragLastIndex = nil
     }
