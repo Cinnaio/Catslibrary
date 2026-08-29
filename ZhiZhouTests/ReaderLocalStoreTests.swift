@@ -92,7 +92,7 @@ final class ReaderLocalStoreTests: XCTestCase {
     func testHomeQueryEscapesReservedCharactersInValues() {
         let query = HomeView.query(["search": "a&b+c=d?"])
 
-        XCTAssertEqual(query, "search=a%26b%2Bb%3Dd%3F")
+        XCTAssertEqual(query, "search=a%26b%2Bc%3Dd%3F")
     }
 
     func testUserContentPathsAlwaysRequestSafeMode() {
