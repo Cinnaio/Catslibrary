@@ -400,7 +400,7 @@ export async function discoverList(
     }
   }
 
-  let novels: DiscoverNovel[] = source.id === 'po18tw' ? parsePo18twRankingCandidates(html, listUrl, existing) : []
+  const novels: DiscoverNovel[] = source.id === 'po18tw' ? parsePo18twRankingCandidates(html, listUrl, existing) : []
   if (source.id !== 'po18tw') {
     const seen = new Set<string>()
     const bookRe = /<a\s[^>]*href\s*=\s*["'](?:\/[^"']*)?\/(?:book|books)\/(\d+)\/?["'][^>]*>([\s\S]*?)<\/a>/gi

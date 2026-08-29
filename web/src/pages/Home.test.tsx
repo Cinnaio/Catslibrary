@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react'
-import { MemoryRouter, useLocation } from 'react-router-dom'
+import { MemoryRouter } from 'react-router-dom'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { SearchProvider } from '../context/SearchContext'
 
@@ -35,11 +35,6 @@ vi.mock('../lib/storage', () => ({
 }))
 
 import Home from './Home'
-
-function LocationProbe() {
-  const location = useLocation()
-  return <output data-testid="location-search">{location.search}</output>
-}
 
 beforeAll(() => {
   Object.defineProperty(Element.prototype, 'scrollIntoView', {
