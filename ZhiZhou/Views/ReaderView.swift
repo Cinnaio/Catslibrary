@@ -47,7 +47,7 @@ struct ReaderView: View {
     @State private var progressPercent = 0.0
     @State private var suppressPercent = false
     /// 翻页模式：分页结果、当前页、每页对应的整章字符区间、待恢复的进度百分比。
-    @State private var pages: [AttributedString] = []
+    @State private var pages: [NSAttributedString] = []
     @State private var pageRanges: [NSRange] = []
     @State private var currentPage = 0
     @State private var pendingRestorePercent: Double?
@@ -59,6 +59,7 @@ struct ReaderView: View {
     @State private var isLoadingThoughts = false
     @State private var thoughtsError: String?
     @State private var activeThoughtParagraph: Int?
+    @State private var activeThoughtSelection = ""
     @State private var showThoughtPanel = false
 
     init(
@@ -84,6 +85,7 @@ struct ReaderView: View {
     private var systemIsDark: Bool { systemScheme == .dark }
     private var paper: Color { settings.backgroundColor(systemDark: systemIsDark) }
     private var ink: Color { settings.textColor(systemDark: systemIsDark) }
+    private var inkUIColor: UIColor { UIColor(ink) }
     private var scheme: ColorScheme? { settings.colorSchemeOverride(systemDark: systemIsDark) }
 
     private var thoughtsByParagraph: [Int: [Thought]] {
@@ -168,6 +170,7 @@ struct ReaderView: View {
         }
         .sheet(isPresented: $showThoughtPanel, onDismiss: {
             activeThoughtParagraph = nil
+            activeThoughtSelection = ""
         }) {
             if let index = activeThoughtParagraph,
                paragraphs.indices.contains(index),
@@ -175,6 +178,7 @@ struct ReaderView: View {
                 ThoughtPanelView(
                     chapterTitle: chapter.title,
                     paragraphExcerpt: paragraphExcerpt(for: paragraphs[index]),
+                    selectedText: activeThoughtSelection,
                     thoughts: thoughtsByParagraph[index] ?? [],
                     currentUserID: appState.user?.id,
                     defaultDisplayName: currentDisplayName,
@@ -261,16 +265,18 @@ struct ReaderView: View {
         }
     }
 
-    /// 段落级段评入口：正文保持干净，仅在已有段评时显示轻量标记；长按正文可查看或发布。
+    /// 段落级段评入口：正文保持干净，仅在已有段评时显示轻量标记；选中文字可直接引用。
     private func readerParagraph(index: Int, text: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(paragraphIndent + text)
-                .font(settings.bodyFont)
-                .lineSpacing(settings.lineSpacing)
-                .multilineTextAlignment(.leading)
-                .foregroundStyle(ink)
+            SelectableTextView(
+                attributedText: paragraphAttributedText(text),
+                textColor: inkUIColor,
+                menuTitle: thoughtsByParagraph[index]?.isEmpty == false ? "查看段评" : "写段评",
+                isThoughtActionEnabled: !offlineOnly
+            ) { selectedText, _ in
+                openThoughtPanel(for: index, selectedText: selectedText)
+            }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .textSelection(.enabled)
 
             if let count = thoughtsByParagraph[index]?.count, count > 0 {
                 HStack {
@@ -293,20 +299,21 @@ struct ReaderView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
-        .contextMenu {
-            if !offlineOnly {
-                Button {
-                    openThoughtPanel(for: index)
-                } label: {
-                    let hasThoughts = thoughtsByParagraph[index]?.isEmpty == false
-                    Label(
-                        hasThoughts ? "查看段评" : "写段评",
-                        systemImage: "text.bubble"
-                    )
-                }
-            }
-        }
-        .accessibilityHint("长按查看或发布段评")
+        .accessibilityHint("选中文字后从菜单进入段评")
+    }
+
+    private func paragraphAttributedText(_ text: String) -> NSAttributedString {
+        let style = NSMutableParagraphStyle()
+        style.lineSpacing = settings.lineSpacing
+        style.alignment = .natural
+        return NSAttributedString(
+            string: paragraphIndent + text,
+            attributes: [
+                .font: settings.bodyUIFont,
+                .foregroundColor: inkUIColor,
+                .paragraphStyle: style,
+            ]
+        )
     }
 
     /// 滚动区。独立成子表达式，避免 body 表达式过复杂导致 Release 下类型检查超时。
@@ -398,6 +405,7 @@ struct ReaderView: View {
                     ForEach(pages.indices, id: \.self) { index in
                         pagedPage(
                             pages[index],
+                            pageIndex: index,
                             width: contentWidth,
                             height: contentHeight,
                             showsNextChapter: atChapterEnd && index == pages.count - 1
@@ -426,15 +434,25 @@ struct ReaderView: View {
 
     /// 单页内容：按排版尺寸顶对齐展示；若个别页因测量误差超出一行，内部可纵向滚动兜底。
     private func pagedPage(
-        _ text: AttributedString,
+        _ text: NSAttributedString,
+        pageIndex: Int,
         width: CGFloat,
         height: CGFloat,
         showsNextChapter: Bool
     ) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                Text(text)
-                    .foregroundStyle(ink)
+                SelectableTextView(
+                    attributedText: text,
+                    textColor: inkUIColor,
+                    menuTitle: "段评",
+                    isThoughtActionEnabled: !offlineOnly
+                ) { selectedText, selectedRange in
+                    guard pageRanges.indices.contains(pageIndex) else { return }
+                    let location = pageRanges[pageIndex].location + selectedRange.location
+                    guard let paragraphIndex = paragraphIndex(atCharacterLocation: location) else { return }
+                    openThoughtPanel(for: paragraphIndex, selectedText: selectedText)
+                }
                     .frame(width: width, alignment: .topLeading)
                 if showsNextChapter {
                     nextChapterButton
@@ -680,7 +698,7 @@ struct ReaderView: View {
         guard !Task.isCancelled else { return }
         guard chapter.id == self.chapter?.id else { return }
         guard !result.isEmpty else { pages = []; pageRanges = []; return }
-        pages = result.map { AttributedString($0.attributed) }
+        pages = result.map(\.attributed)
         pageRanges = result.map { $0.range }
         let lastPage = max(result.count - 1, 0)
         if let anchorChar {
@@ -777,6 +795,7 @@ struct ReaderView: View {
         isLoadingThoughts = false
         thoughtsError = nil
         activeThoughtParagraph = nil
+        activeThoughtSelection = ""
         showThoughtPanel = false
     }
 
@@ -885,9 +904,12 @@ struct ReaderView: View {
         prefetchNextChapter()
     }
 
-    private func openThoughtPanel(for index: Int) {
+    private func openThoughtPanel(for index: Int, selectedText: String = "") {
         guard !offlineOnly, paragraphs.indices.contains(index) else { return }
         activeThoughtParagraph = index
+        activeThoughtSelection = String(
+            selectedText.trimmingCharacters(in: .whitespacesAndNewlines).prefix(200)
+        )
         showThoughtPanel = true
         interactionFeedback &+= 1
     }
@@ -908,13 +930,19 @@ struct ReaderView: View {
     /// 翻页模式下，把当前页起始字符映射回正文段落，保证工具栏段评仍然有明确对象。
     private func paragraphIndex(forPage page: Int) -> Int? {
         guard pageRanges.indices.contains(page), !paragraphs.isEmpty else { return nil }
+        return paragraphIndex(atCharacterLocation: pageRanges[page].location)
+    }
+
+    /// 字符位置使用 TextKit 的 UTF-16 坐标，与 NSRange 和分页结果保持一致。
+    private func paragraphIndex(atCharacterLocation location: Int) -> Int? {
+        guard !paragraphs.isEmpty else { return nil }
         let titleLength = (chapter?.title ?? "").utf16.count + 1
         var cursor = titleLength
 
         for (index, paragraph) in paragraphs.enumerated() {
             if index > 0 { cursor += 1 }
             let end = cursor + (paragraphIndent + paragraph).utf16.count
-            if pageRanges[page].location < end { return index }
+            if location < end { return index }
             cursor = end
         }
         return paragraphs.indices.last
@@ -971,7 +999,7 @@ struct ReaderView: View {
             chapterId: currentChapter.id,
             paragraphIndex: index,
             paragraphHash: Self.paragraphHash(paragraphs[index]),
-            selectedText: "",
+            selectedText: String(activeThoughtSelection.prefix(200)),
             thoughtText: String(text.trimmingCharacters(in: .whitespacesAndNewlines).prefix(300)),
             displayName: String(displayName.trimmingCharacters(in: .whitespacesAndNewlines).prefix(20))
         )

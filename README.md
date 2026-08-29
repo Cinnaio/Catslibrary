@@ -116,7 +116,7 @@ ZhiZhouCore/
 - [x] Release 构建移除无效证书放行能力，并加入 Apple 隐私清单
 - [x] CI 直接运行 Core 行为测试，并执行 Release 构建与 plist 校验
 - [x] 离线阅读（按章下载/管理/无网打开，阅读中自动预取下一章）
-- [x] 段评（阅读器按段查看、发布与删除本人段评）
+- [x] 段评（阅读器按段查看、选中文字引用、发布与删除本人段评）
 - [ ] 评论 / 评分页（API 已就绪，UI 未做）
 - [ ] 推送通知（新章节提醒，需自建推送服务，如 APNs + 你的服务器）
 - [ ] CI 签名（$99 账号 + GitHub Secrets + fastlane match → 出签名 ipa / TestFlight）

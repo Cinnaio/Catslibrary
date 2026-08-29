@@ -5,6 +5,7 @@ import SwiftUI
 struct ThoughtPanelView: View {
     let chapterTitle: String
     let paragraphExcerpt: String
+    let selectedText: String
     let thoughts: [Thought]
     let currentUserID: String?
     let defaultDisplayName: String
@@ -31,6 +32,7 @@ struct ThoughtPanelView: View {
     init(
         chapterTitle: String,
         paragraphExcerpt: String,
+        selectedText: String,
         thoughts: [Thought],
         currentUserID: String?,
         defaultDisplayName: String,
@@ -43,6 +45,7 @@ struct ThoughtPanelView: View {
     ) {
         self.chapterTitle = chapterTitle
         self.paragraphExcerpt = paragraphExcerpt
+        self.selectedText = selectedText
         self.thoughts = thoughts
         self.currentUserID = currentUserID
         self.defaultDisplayName = defaultDisplayName
@@ -104,10 +107,22 @@ struct ThoughtPanelView: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(AppTheme.primary)
 
+            if !selectedText.isEmpty {
+                Text("「\(selectedText)」")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(AppTheme.primaryDeep)
+                    .lineLimit(4)
+                    .multilineTextAlignment(.leading)
+
+                Text("所在段落")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(AppTheme.textMuted)
+            }
+
             Text(paragraphExcerpt)
-                .font(.callout)
+                .font(selectedText.isEmpty ? .callout : .caption)
                 .foregroundStyle(AppTheme.textSecondary)
-                .lineLimit(5)
+                .lineLimit(selectedText.isEmpty ? 5 : 3)
                 .multilineTextAlignment(.leading)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -117,7 +132,11 @@ struct ThoughtPanelView: View {
             in: RoundedRectangle(cornerRadius: 16, style: .continuous)
         )
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("段落摘录：\(paragraphExcerpt)")
+        .accessibilityLabel(
+            selectedText.isEmpty
+                ? "段落摘录：\(paragraphExcerpt)"
+                : "选中文字：\(selectedText)，所在段落：\(paragraphExcerpt)"
+        )
     }
 
     @ViewBuilder
