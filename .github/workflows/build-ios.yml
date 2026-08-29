@@ -50,49 +50,45 @@ jobs:
 
       - name: Run unit tests
         run: |
-          # 让 xcodebuild 按当前 scheme 给出真正可用的目的地。
-          # simctl 的“available”列表可能包含当前 scheme/SDK 不接受的旧设备 UUID。
-          DESTINATIONS="$(xcodebuild \
-            -project ZhiZhou.xcodeproj \
-            -scheme ZhiZhou \
-            -configuration Debug \
-            -showdestinations 2>&1)"
-          SIMULATOR_ID="$(printf '%s\n' "$DESTINATIONS" | awk '
-            /Available destinations/ { available = 1; next }
-            /Ineligible destinations/ { available = 0 }
-            available && /platform:iOS Simulator/ && /name:iPhone/ {
-              match($0, /id:[^,}[:space:]]+/)
-              if (RSTART > 0) {
-                print substr($0, RSTART + 3, RLENGTH - 3)
-                exit
-              }
-            }
+          # 不把 simctl UUID 直接传给 xcodebuild：runner 上可能存在
+          # simctl 可见但当前 Xcode 无法解析的旧 UUID。使用设备名称 + latest OS，
+          # 让 xcodebuild 自己选择当前 SDK 中可用的同型号模拟器。
+          SIMULATOR_NAME="$(xcrun simctl list devices available --json | python3 -c '
+          import json
+          import sys
+
+          data = json.load(sys.stdin)
+          iphones = []
+          ipads = []
+          for runtime, devices in data.get("devices", {}).items():
+              if not runtime.startswith("com.apple.CoreSimulator.SimRuntime.iOS-"):
+                  continue
+              for device in devices:
+                  if not device.get("isAvailable", True):
+                      continue
+                  name = device.get("name", "")
+                  if name.startswith("iPhone") and name not in iphones:
+                      iphones.append(name)
+                  elif name.startswith("iPad") and name not in ipads:
+                      ipads.append(name)
+
+          names = iphones or ipads
+          if not names:
+              raise SystemExit("未找到可用的 iOS Simulator")
+          print("iPhone 16" if "iPhone 16" in names else names[0])
           ')"
-          if [ -z "$SIMULATOR_ID" ]; then
-            SIMULATOR_ID="$(printf '%s\n' "$DESTINATIONS" | awk '
-              /Available destinations/ { available = 1; next }
-              /Ineligible destinations/ { available = 0 }
-              available && /platform:iOS Simulator/ {
-                match($0, /id:[^,}[:space:]]+/)
-                if (RSTART > 0) {
-                  print substr($0, RSTART + 3, RLENGTH - 3)
-                  exit
-                }
-              }
-            ')"
-          fi
-          if [ -z "$SIMULATOR_ID" ]; then
+          if [ -z "$SIMULATOR_NAME" ]; then
             echo "::error::未找到可用的 iOS Simulator"
-            printf '%s\n' "$DESTINATIONS"
             exit 1
           fi
-          echo "Using scheme-compatible iOS Simulator: $SIMULATOR_ID"
+          DESTINATION="platform=iOS Simulator,name=$SIMULATOR_NAME,OS=latest"
+          echo "Using iOS Simulator destination: $DESTINATION"
           xcodebuild test \
             -project ZhiZhou.xcodeproj \
             -scheme ZhiZhou \
             -configuration Debug \
             -derivedDataPath DerivedDataTests \
-            -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
+            -destination "$DESTINATION" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
