@@ -226,7 +226,10 @@ struct ThoughtPanelView: View {
     private func thoughtRow(_ thought: Thought) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 10) {
-                ThoughtAvatar(name: authorName(for: thought))
+                ThoughtAvatar(
+                    name: authorName(for: thought),
+                    url: avatarURL(for: thought)
+                )
 
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -400,6 +403,20 @@ struct ThoughtPanelView: View {
         return value.isEmpty ? "匿名读者" : value
     }
 
+    private func avatarURL(for thought: Thought) -> URL? {
+        let value = thought.avatarUrl.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !value.isEmpty {
+            if let absolute = URL(string: value), absolute.scheme != nil {
+                return absolute
+            }
+            if let base = ServerConfig.shared.baseURL,
+               let relative = URL(string: value, relativeTo: base)?.absoluteURL {
+                return relative
+            }
+        }
+        return APIClient.shared.avatarURL(userId: thought.userId)
+    }
+
     private func submit() async {
         guard canCompose else { return }
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -460,13 +477,31 @@ struct ThoughtPanelView: View {
 
 private struct ThoughtAvatar: View {
     let name: String
+    let url: URL?
 
     var body: some View {
-        Text(String(name.first ?? "匿"))
-            .font(.caption.weight(.bold))
-            .foregroundStyle(AppTheme.primary)
-            .frame(width: 34, height: 34)
-            .background(AppTheme.primaryLight, in: Circle())
+        CachedAsyncImage(
+            url: url,
+            targetSize: CGSize(width: 36, height: 36),
+            showsRetry: false
+        ) { image in
+            image
+                .resizable()
+                .scaledToFill()
+        } placeholder: {
+            ZStack {
+                AppTheme.primaryLight
+                Text(String(name.first ?? "匿"))
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(AppTheme.primary)
+            }
+        }
+            .frame(width: 36, height: 36)
+            .clipShape(Circle())
+            .overlay {
+                Circle()
+                    .strokeBorder(AppTheme.border.opacity(0.45), lineWidth: 0.5)
+            }
             .accessibilityHidden(true)
     }
 }

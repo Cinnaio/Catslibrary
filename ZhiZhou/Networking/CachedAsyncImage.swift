@@ -78,17 +78,20 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
 
     let url: URL?
     let targetSize: CGSize
+    let showsRetry: Bool
     let content: (Image) -> Content
     let placeholder: () -> Placeholder
 
     init(
         url: URL?,
         targetSize: CGSize = CGSize(width: 120, height: 168),
+        showsRetry: Bool = true,
         @ViewBuilder content: @escaping (Image) -> Content,
         @ViewBuilder placeholder: @escaping () -> Placeholder
     ) {
         self.url = url
         self.targetSize = targetSize
+        self.showsRetry = showsRetry
         self.content = content
         self.placeholder = placeholder
     }
@@ -100,7 +103,7 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
             } else {
                 ZStack {
                     placeholder()
-                    if loadFailed {
+                    if loadFailed && showsRetry {
                         Button {
                             retryToken &+= 1
                         } label: {

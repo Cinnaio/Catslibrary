@@ -267,7 +267,7 @@ struct ReaderView: View {
 
     /// 段落级段评入口：正文保持干净，仅在已有段评时显示轻量标记；选中文字可直接引用。
     private func readerParagraph(index: Int, text: String) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 4) {
             SelectableTextView(
                 attributedText: paragraphAttributedText(
                     text,
@@ -283,7 +283,7 @@ struct ReaderView: View {
 
             if let count = thoughtsByParagraph[index]?.count, count > 0 {
                 HStack {
-                    Spacer()
+                    Spacer(minLength: 0)
                     Button {
                         openThoughtPanel(for: index)
                     } label: {
@@ -296,8 +296,8 @@ struct ReaderView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("\(count) 条段评")
-                    Spacer()
                 }
+                .padding(.top, 2)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
