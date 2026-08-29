@@ -105,7 +105,12 @@ final class ThoughtSelectableTextView: UITextView {
             title: menuTitle,
             action: #selector(addThoughtFromSelection(_:))
         )
-        builder.insertChild(command, atStartOfMenu: .edit)
+        let thoughtMenu = UIMenu(
+            title: "",
+            options: .displayInline,
+            children: [command]
+        )
+        builder.insertChild(thoughtMenu, atStartOfMenu: .edit)
     }
 
     @objc private func addThoughtFromSelection(_ sender: Any?) {
