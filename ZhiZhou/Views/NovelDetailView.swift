@@ -189,7 +189,7 @@ struct NovelDetailView: View {
                     .disabled(selectedDownloadChapters.isEmpty || offlineStore.isBatchDownloading)
                 }
 
-                Text("长按章节后滑过列表，可连续选择")
+                Text("点按左侧圆圈选择，长按后拖动可连续选择")
                     .font(.caption)
                     .foregroundStyle(AppTheme.textSecondary)
             } else {
@@ -258,7 +258,6 @@ struct NovelDetailView: View {
                     )
                 }
             )
-            .simultaneousGesture(selectionGesture(for: chapter))
             .disabled(offlineStore.isDownloaded(chapter.id))
             .accessibilityLabel("第 \(chapter.order) 章，\(chapter.title)")
             .accessibilityValue(
@@ -282,6 +281,10 @@ struct NovelDetailView: View {
 
     private func chapterRowLabel(_ chapter: ChapterMeta, selectionMode: Bool) -> some View {
         HStack {
+            if selectionMode {
+                selectionIndicator(for: chapter)
+            }
+
             Text(chapter.title)
                 .lineLimit(2)
             Spacer()
@@ -295,24 +298,7 @@ struct NovelDetailView: View {
                 .font(.caption)
                 .foregroundStyle(AppTheme.textMuted)
 
-            if selectionMode {
-                Image(
-                    systemName: selectedChapterIDs.contains(chapter.id)
-                        ? "checkmark.circle.fill"
-                        : offlineStore.isDownloaded(chapter.id)
-                            ? "arrow.down.circle.fill"
-                            : "circle"
-                )
-                .font(.title3)
-                .foregroundStyle(
-                    offlineStore.isDownloaded(chapter.id)
-                        ? AppTheme.success
-                        : selectedChapterIDs.contains(chapter.id)
-                            ? AppTheme.primary
-                            : AppTheme.textMuted
-                )
-                .accessibilityHidden(true)
-            } else if offlineStore.isDownloaded(chapter.id) {
+            if !selectionMode && offlineStore.isDownloaded(chapter.id) {
                 Image(systemName: "arrow.down.circle.fill")
                     .font(.caption)
                     .foregroundStyle(AppTheme.success)
@@ -322,11 +308,33 @@ struct NovelDetailView: View {
         .contentShape(Rectangle())
     }
 
+    private func selectionIndicator(for chapter: ChapterMeta) -> some View {
+        Image(
+            systemName: selectedChapterIDs.contains(chapter.id)
+                ? "checkmark.circle.fill"
+                : offlineStore.isDownloaded(chapter.id)
+                    ? "arrow.down.circle.fill"
+                    : "circle"
+        )
+        .font(.title3)
+        .foregroundStyle(
+            offlineStore.isDownloaded(chapter.id)
+                ? AppTheme.success
+                : selectedChapterIDs.contains(chapter.id)
+                    ? AppTheme.primary
+                    : AppTheme.textMuted
+        )
+        .frame(width: 44, height: 44)
+        .contentShape(Rectangle())
+        .simultaneousGesture(selectionGesture(for: chapter))
+        .accessibilityHidden(true)
+    }
+
     private func selectionGesture(for chapter: ChapterMeta) -> some Gesture {
-        LongPressGesture(minimumDuration: 0.2, maximumDistance: 10)
+        LongPressGesture(minimumDuration: 0.25, maximumDistance: 8)
             .sequenced(
                 before: DragGesture(
-                    minimumDistance: 0,
+                    minimumDistance: 8,
                     coordinateSpace: .named("offlineChapterList")
                 )
             )
@@ -354,6 +362,11 @@ struct NovelDetailView: View {
         if selectionDragMode == nil {
             selectionDragMode = selectedChapterIDs.contains(chapter.id) ? .deselect : .select
             selectionDragLastIndex = chapters.firstIndex { $0.id == chapter.id }
+            if selectedChapterIDs.contains(chapter.id) {
+                selectedChapterIDs.remove(chapter.id)
+            } else {
+                selectedChapterIDs.insert(chapter.id)
+            }
             interactionFeedback += 1
         }
 
