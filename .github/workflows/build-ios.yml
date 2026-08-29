@@ -20,7 +20,8 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  tests:
+    name: Unit tests
     runs-on: macos-15
     steps:
       - name: Checkout
@@ -40,23 +41,8 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate
 
-      - name: Cache Xcode build data
-        uses: actions/cache@v4
-        with:
-          path: |
-            DerivedDataTests
-            DerivedData
-          key: ${{ runner.os }}-xcode26-derived-v1-${{ hashFiles('project.yml', '.github/workflows/build-ios.yml', 'ZhiZhou/**', 'ZhiZhouTests/**') }}
-          restore-keys: |
-            ${{ runner.os }}-xcode26-derived-v1-
-
       - name: Show Xcode version
         run: xcodebuild -version
-
-      - name: Validate property lists
-        run: |
-          plutil -lint ZhiZhou/Support/Info.plist
-          plutil -lint ZhiZhou/Support/PrivacyInfo.xcprivacy
 
       - name: Run unit tests
         env:
@@ -77,6 +63,35 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             -enableCodeCoverage "$ENABLE_CODE_COVERAGE"
+
+  build:
+    name: Build unsigned IPA
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Select Xcode 26 (iOS 26 SDK for Liquid Glass)
+        run: |
+          XCODE_26=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort | tail -n 1)
+          if [ -n "$XCODE_26" ]; then
+            sudo xcode-select -s "$XCODE_26"
+          fi
+          xcodebuild -version
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Validate property lists
+        run: |
+          plutil -lint ZhiZhou/Support/Info.plist
+          plutil -lint ZhiZhou/Support/PrivacyInfo.xcprivacy
 
       - name: Build (unsigned)
         run: |
