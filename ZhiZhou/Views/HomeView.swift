@@ -259,6 +259,7 @@ struct HomeView: View {
                 "limit": "20",
                 "sort": "updated_at",
                 "order": "desc",
+                "contentMode": ContentPolicy.clientMode,
             ]
             let trimmed = search.trimmingCharacters(in: .whitespaces)
             if !trimmed.isEmpty { params["search"] = trimmed }
@@ -290,8 +291,14 @@ struct HomeView: View {
 
     static func query(_ params: [String: String]) -> String {
         params.map { key, value in
-            "\(key)=\(value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? value)"
+            "\(key)=\(value.addingPercentEncoding(withAllowedCharacters: queryValueAllowed) ?? value)"
         }
         .joined(separator: "&")
     }
+
+    private static let queryValueAllowed: CharacterSet = {
+        var allowed = CharacterSet.urlQueryAllowed
+        allowed.remove(charactersIn: "&=+#?")
+        return allowed
+    }()
 }

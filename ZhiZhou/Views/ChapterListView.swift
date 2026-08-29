@@ -96,7 +96,7 @@ struct ChapterListView: View {
         defer { isLoading = false }
         do {
             let r: ChaptersResponse = try await APIClient.shared.get(
-                "/api/chapters?novelId=\(novel.id)"
+                ContentPolicy.safePath("/api/chapters?novelId=\(novel.id)")
             )
             chapters = r.chapters
             errorMessage = nil

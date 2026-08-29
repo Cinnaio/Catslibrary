@@ -593,14 +593,15 @@ private struct GenerationDetailSheet: View {
     }
 
     private func generateTitles() async {
-        guard let result = item.result, !result.isEmpty else {
+        let content = (draftText ?? item.result ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !content.isEmpty else {
             actionError = "草稿内容为空，无法生成标题"
             return
         }
         generatingTitles = true
         defer { generatingTitles = false }
         do {
-            let r = try await AdminAPI.aiWritingTitles(content: result, novelId: item.novelId ?? "", contextTitle: item.chapterTitle ?? "")
+            let r = try await AdminAPI.aiWritingTitles(content: content, novelId: item.novelId ?? "", contextTitle: item.chapterTitle ?? "")
             titleCandidates = r.titles ?? []
         } catch {
             actionError = AppCopy.friendlyError(error)

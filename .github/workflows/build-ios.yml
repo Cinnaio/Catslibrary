@@ -9,7 +9,7 @@
 # - 买 Apple Developer Program（$99/年）后，把 .p12 证书 + .mobileprovision 放进
 #   GitHub Secrets，用 fastlane match 或 xcodebuild -exportArchive 产出签名 ipa / TestFlight
 
-name: Build iOS (unsigned IPA)
+name: Build and Test iOS (unsigned IPA)
 
 on:
   push:
@@ -43,6 +43,30 @@ jobs:
       - name: Show Xcode version
         run: xcodebuild -version
 
+      - name: Validate property lists
+        run: |
+          plutil -lint ZhiZhou/Support/Info.plist
+          plutil -lint ZhiZhou/Support/PrivacyInfo.xcprivacy
+
+      - name: Run unit tests
+        run: |
+          SIMULATOR_ID=$(xcrun simctl list devices available | awk -F '[()]' '/^[[:space:]]*(iPhone|iPad)/ {print $2; exit}')
+          if [ -z "$SIMULATOR_ID" ]; then
+            echo "::error::未找到可用的 iOS Simulator"
+            xcrun simctl list devices available
+            exit 1
+          fi
+          xcodebuild test \
+            -project ZhiZhou.xcodeproj \
+            -scheme ZhiZhou \
+            -configuration Debug \
+            -derivedDataPath DerivedDataTests \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            -enableCodeCoverage YES
+
       - name: Build (unsigned)
         run: |
           xcodebuild \
@@ -55,6 +79,20 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             build
+
+      - name: Verify Release bundle
+        run: |
+          APP_PATH=$(find DerivedData/Build/Products/Release-iphoneos -maxdepth 1 -name "*.app" -print -quit)
+          if [ -z "$APP_PATH" ]; then
+            echo "::error::未找到 Release .app 产物"
+            exit 1
+          fi
+          test -f "$APP_PATH/PrivacyInfo.xcprivacy"
+          plutil -lint "$APP_PATH/PrivacyInfo.xcprivacy"
+          if plutil -extract NSAppTransportSecurity.NSAllowsArbitraryLoads raw -o - "$APP_PATH/Info.plist" >/dev/null 2>&1; then
+            echo "::error::Release 包仍包含 NSAllowsArbitraryLoads"
+            exit 1
+          fi
 
       - name: Package unsigned .ipa
         run: |

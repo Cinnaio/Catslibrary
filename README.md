@@ -18,7 +18,8 @@
 project.yml                        XcodeGen 工程描述
 ZhiZhou/
   ZhiZhouApp.swift                 App 入口
-  Support/Info.plist               （含 ATS：开发期允许 HTTP 明文）
+  Support/Info.plist               应用基础配置（固定 HTTPS）
+  Support/PrivacyInfo.xcprivacy    Apple 隐私清单（UserDefaults / 文件大小访问原因）
   Assets.xcassets/AppIcon.appiconset   App 图标（1024 单尺寸，可替换）
   Models/Models.swift              服务端模型（对齐 shared/types.ts）
   Models/AdminModels.swift         管理后台模型（admin.ts / admin-users.ts / site.ts 返回结构）
@@ -29,7 +30,8 @@ ZhiZhou/
     Keychain.swift                 token 安全存储
   Services/
     AppState.swift                 登录会话 + 启动引导
-    ReaderSettingsStore.swift      阅读设置（本地 + LWW 同步）
+    ReaderSettingsStore.swift      阅读设置（按账号本地保存 + LWW 同步）
+    ReaderLocalStore.swift          按账号隔离的设置与进度 outbox
     AdminFormat.swift              管理后台展示格式化（任务状态/举报理由/时间/字节）
   Theme/Theme.swift                设计 token + Liquid Glass 背景
   Views/
@@ -54,7 +56,7 @@ ZhiZhou/
       AdminScrapeSourcesView       源管理（启停 / 删除 / 测试 / 连通性）
       AdminProxyView               代理设置（配置 / 测试 / 日志）
       AdminAIServiceView           AI 服务入口（状态 / 供应商 / 参数 / 任务 / 审计）
-.github/workflows/build-ios.yml    macOS 构建 → 未签名 .ipa
+.github/workflows/build-ios.yml    macOS 测试、校验 → 未签名 .ipa
 ```
 
 > 服务器地址已固定为 `https://novel.mscraft.uk`（`ZhiZhou/Networking/ServerConfig.swift`），不再提供填写/修改入口。
@@ -97,13 +99,16 @@ ZhiZhou/
 知舟服务器若使用**自签名证书**（mkcert/openssl 自签）或证书过期/域名不匹配，iOS 会直接拒绝，登录时报
 `网络错误：TLS错误导致安全连接失败`。解决：
 
-- **开发期**：在「我的 → 高级」打开 **“信任无效证书（开发用）”** 开关，App 会跳过证书校验。注意这会使连接可被中间人攻击，仅限自用/开发。
-- **生产**：请关闭该开关，为域名配置受信任的正式证书（Let's Encrypt / 云厂商证书），并移除
-  Info.plist 中的 `NSAllowsArbitraryLoads`。
+- **开发期 Debug 构建**：在「我的 → 高级」打开 **“信任无效证书（开发用）”** 开关，App 会跳过证书校验。注意这会使连接可被中间人攻击，仅限自用/开发。
+- **生产 Release 构建**：不包含证书放行代码，必须为域名配置受信任的正式证书（Let's Encrypt / 云厂商证书）。
 
 ## 已知限制与后续路线
 
 - [x] 管理后台核心模块（原生 SwiftUI，见下）
+- [x] 阅读设置按账号隔离，并在网络恢复后自动同步
+- [x] 阅读进度本地 outbox：退后台、回到前台或下次登录继续上传
+- [x] Release 构建移除无效证书放行能力，并加入 Apple 隐私清单
+- [x] CI 生成工程后执行单元测试和 plist 校验
 - [ ] 离线阅读（SwiftData/Core Data 章节缓存 + 自动下载下一章）
 - [ ] 评论 / 段评 / 评分页（API 已就绪，UI 未做）
 - [ ] 推送通知（新章节提醒，需自建推送服务，如 APNs + 你的服务器）
@@ -135,7 +140,7 @@ ZhiZhou/
 知舟服务端支持 PO18 站点预设与 `contentMode: adult`。**App Store 严禁成人内容**，上架前必须：
 1. 客户端固定 `contentMode = "safe"`，不展示/不跳转成人内容
 2. 移除 ATS 的 `NSAllowsArbitraryLoads`（强制 HTTPS）
-3. 或在自签/TestFlight/企业分发场景内使用
+3. 提交前在 App Store Connect 核对隐私问卷，并确保 Release 构建使用受信任证书
 
 ## 构建细节
 

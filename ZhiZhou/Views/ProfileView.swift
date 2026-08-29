@@ -6,7 +6,9 @@ struct ProfileView: View {
 
     @State private var showLogoutConfirm = false
     @State private var showReaderSettings = false
+    #if DEBUG
     @AppStorage("zhizhou.allowInvalidCert") private var allowInvalidCert = false
+    #endif
     @State private var showAdvanced = false
 
     var body: some View {
@@ -63,14 +65,19 @@ struct ProfileView: View {
                 LabeledContent("当前地址", value: ServerConfig.serverURL)
             }
 
+            #if DEBUG
             Section {
                 DisclosureGroup("高级", isExpanded: $showAdvanced) {
                     Toggle("信任无效证书（开发用）", isOn: $allowInvalidCert)
-                    Text("仅用于自签名或过期证书排查，日常请关闭。")
+                        .onChange(of: allowInvalidCert) { _, value in
+                            APIClient.shared.allowsInvalidCertificates = value
+                        }
+                    Text("仅用于自签名或过期证书排查；Release 构建不包含此开关。")
                         .font(.caption)
                         .foregroundStyle(AppTheme.textMuted)
                 }
             }
+            #endif
 
             Section {
                 Button("退出登录", role: .destructive) {

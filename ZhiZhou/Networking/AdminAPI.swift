@@ -13,7 +13,7 @@ enum AdminAPI {
     static func novelIndex(q: String = "", limit: Int = 200) async throws -> NovelIndexResponse {
         var path = "/api/admin/novel-index?limit=\(limit)"
         if !q.isEmpty {
-            path += "&q=\(encode(q))"
+            path += "&q=\(encodeQueryValue(q))"
         }
         return try await APIClient.shared.get(path, auth: true)
     }
@@ -33,14 +33,14 @@ enum AdminAPI {
     }
 
     static func deleteComment(id: String) async throws {
-        let _: OkEnvelope = try await APIClient.shared.delete("/api/admin/comments?id=\(encode(id))", auth: true)
+        let _: OkEnvelope = try await APIClient.shared.delete("/api/admin/comments?id=\(encodeQueryValue(id))", auth: true)
     }
 
     // MARK: - 评论举报
 
-    /// status：open | resolved | dismissed | all；reason：spam | offensive | spoiler | other | all
-    static func commentReports(status: String = "open", reason: String = "all", limit: Int = 50, offset: Int = 0) async throws -> CommentReportsResponse {
-        let path = queryPath("/api/admin/comment-reports", ["status": status, "reason": reason, "limit": "\(limit)", "offset": "\(offset)"])
+    /// status：open | resolved | dismissed | all；reason：spam | offensive | spoiler | other | all；search：用户/评论关键词
+    static func commentReports(status: String = "open", reason: String = "all", search: String = "", limit: Int = 50, offset: Int = 0) async throws -> CommentReportsResponse {
+        let path = queryPath("/api/admin/comment-reports", ["status": status, "reason": reason, "search": search, "limit": "\(limit)", "offset": "\(offset)"])
         return try await APIClient.shared.get(path, auth: true)
     }
 
@@ -69,7 +69,7 @@ enum AdminAPI {
     /// hard=true 为管理员硬删除（不可恢复），false 为隐藏（管理员可隐藏任意想法）。
     static func deleteThought(id: String, hard: Bool = true) async throws {
         let suffix = hard ? "&hard=1" : ""
-        let _: OkEnvelope = try await APIClient.shared.delete("/api/thoughts?id=\(encode(id))\(suffix)", auth: true)
+        let _: OkEnvelope = try await APIClient.shared.delete("/api/thoughts?id=\(encodeQueryValue(id))\(suffix)", auth: true)
     }
 
     // MARK: - 用户 / 邀请码 / 注册设置
@@ -182,27 +182,27 @@ enum AdminAPI {
     /// PUT /api/novels/:id：更新小说（管理维护，title/author 必填）。
     static func updateNovel(id: String, _ fields: [String: Any]) async throws -> Novel {
         let r: NovelResponse = try await APIClient.shared.request(
-            "PUT", "/api/novels/\(encode(id))", body: try jsonBody(fields), auth: true
+            "PUT", "/api/novels/\(encodePathSegment(id))", body: try jsonBody(fields), auth: true
         )
         return r.novel
     }
 
     /// DELETE /api/novels/:id：删除小说（级联删除章节，不可恢复）。
     static func deleteNovel(id: String) async throws {
-        let _: OkEnvelope = try await APIClient.shared.delete("/api/novels/\(encode(id))", auth: true)
+        let _: OkEnvelope = try await APIClient.shared.delete("/api/novels/\(encodePathSegment(id))", auth: true)
     }
 
     // MARK: - 章节管理
 
     /// GET /api/chapters?novelId=：某部小说的章节列表（按顺序）。
     static func chapters(novelId: String) async throws -> [ChapterMeta] {
-        let r: ChaptersResponse = try await APIClient.shared.get("/api/chapters?novelId=\(encode(novelId))", auth: true)
+        let r: ChaptersResponse = try await APIClient.shared.get("/api/chapters?novelId=\(encodeQueryValue(novelId))", auth: true)
         return r.chapters
     }
 
     /// GET /api/chapters/:id：章节详情（含正文，管理编辑用）。
     static func chapterDetail(id: String) async throws -> ChapterFull {
-        let r: ChapterResponse = try await APIClient.shared.get("/api/chapters/\(encode(id))", auth: true)
+        let r: ChapterResponse = try await APIClient.shared.get("/api/chapters/\(encodePathSegment(id))", auth: true)
         return r.chapter
     }
 
@@ -215,21 +215,21 @@ enum AdminAPI {
     /// PUT /api/chapters/:id：更新章节（title / content / order）。
     static func updateChapter(id: String, _ fields: [String: Any]) async throws -> ChapterFull {
         let r: ChapterResponse = try await APIClient.shared.request(
-            "PUT", "/api/chapters/\(encode(id))", body: try jsonBody(fields), auth: true
+            "PUT", "/api/chapters/\(encodePathSegment(id))", body: try jsonBody(fields), auth: true
         )
         return r.chapter
     }
 
     /// DELETE /api/chapters/:id：删除章节（不可恢复）。
     static func deleteChapter(id: String) async throws {
-        let _: OkEnvelope = try await APIClient.shared.delete("/api/chapters/\(encode(id))", auth: true)
+        let _: OkEnvelope = try await APIClient.shared.delete("/api/chapters/\(encodePathSegment(id))", auth: true)
     }
 
     // MARK: - 原作者源站同步
 
     static func sourceBindings(novelId: String) async throws -> [SourceBinding] {
         let r: SourceBindingsResponse = try await APIClient.shared.get(
-            "/api/scrape?action=source-bindings&novelId=\(encode(novelId))", auth: true
+            "/api/scrape?action=source-bindings&novelId=\(encodeQueryValue(novelId))", auth: true
         )
         return r.bindings
     }
@@ -418,16 +418,16 @@ enum AdminAPI {
     }
 
     static func cancelAiTask(id: String) async throws {
-        let _: OkEnvelope = try await APIClient.shared.post("/api/ai/tasks/\(encode(id))/cancel", body: try jsonBody([:]), auth: true)
+        let _: OkEnvelope = try await APIClient.shared.post("/api/ai/tasks/\(encodePathSegment(id))/cancel", body: try jsonBody([:]), auth: true)
     }
 
     static func deleteAiTask(id: String) async throws {
-        let _: OkEnvelope = try await APIClient.shared.delete("/api/ai/tasks/\(encode(id))", auth: true)
+        let _: OkEnvelope = try await APIClient.shared.delete("/api/ai/tasks/\(encodePathSegment(id))", auth: true)
     }
 
     /// 按原参数重试失败/取消的创作任务，返回新任务 id。
     static func retryAiTask(id: String) async throws -> AdminJobActionResponse {
-        try await APIClient.shared.post("/api/ai/tasks/\(encode(id))/retry", body: try jsonBody([:]), auth: true)
+        try await APIClient.shared.post("/api/ai/tasks/\(encodePathSegment(id))/retry", body: try jsonBody([:]), auth: true)
     }
 
     // MARK: - AI 服务：审计
@@ -439,7 +439,7 @@ enum AdminAPI {
     static func aiAuditCalls(type: String = "all", limit: Int = 50, offset: Int = 0) async throws -> AiAuditCallsResponse {
         var path = "/api/ai/audit/calls?limit=\(limit)&offset=\(offset)"
         if type != "all" {
-            path += "&type=\(encode(type))"
+            path += "&type=\(encodeQueryValue(type))"
         }
         return try await APIClient.shared.get(path, auth: true)
     }
@@ -455,10 +455,10 @@ enum AdminAPI {
     static func loginAudit(status: String = "all", username: String = "", limit: Int = 50, offset: Int = 0) async throws -> LoginAuditResponse {
         var path = "/api/admin-users/login-audit?limit=\(limit)&offset=\(offset)"
         if status != "all" {
-            path += "&status=\(encode(status))"
+            path += "&status=\(encodeQueryValue(status))"
         }
         if !username.isEmpty {
-            path += "&username=\(encode(username))"
+            path += "&username=\(encodeQueryValue(username))"
         }
         return try await APIClient.shared.get(path, auth: true)
     }
@@ -566,17 +566,17 @@ enum AdminAPI {
 
     /// GET /api/ai/cover/candidates：某部小说的封面候选列表（含 dataUrl）。
     static func aiCoverCandidates(novelId: String) async throws -> AiCoverCandidatesResponse {
-        try await APIClient.shared.get("/api/ai/cover/candidates?novelId=\(encode(novelId))", auth: true)
+        try await APIClient.shared.get("/api/ai/cover/candidates?novelId=\(encodeQueryValue(novelId))", auth: true)
     }
 
     /// 采纳候选：覆盖为当前封面并删除候选。
     static func aiAdoptCoverCandidate(id: String) async throws {
-        let _: OkEnvelope = try await APIClient.shared.post("/api/ai/cover/candidates/\(encode(id))/adopt", body: try jsonBody([:]), auth: true)
+        let _: OkEnvelope = try await APIClient.shared.post("/api/ai/cover/candidates/\(encodePathSegment(id))/adopt", body: try jsonBody([:]), auth: true)
     }
 
     /// 弃用候选：删除，不影响当前封面。
     static func aiDiscardCoverCandidate(id: String) async throws {
-        let _: OkEnvelope = try await APIClient.shared.delete("/api/ai/cover/candidates/\(encode(id))", auth: true)
+        let _: OkEnvelope = try await APIClient.shared.delete("/api/ai/cover/candidates/\(encodePathSegment(id))", auth: true)
     }
 
     /// 上传本地图片替换当前封面（multipart/form-data）。
@@ -601,12 +601,12 @@ enum AdminAPI {
     // MARK: - AI 服务：单个任务查询
 
     static func aiTask(id: String) async throws -> AiTaskDetailResponse {
-        try await APIClient.shared.get("/api/ai/tasks/\(encode(id))", auth: true)
+        try await APIClient.shared.get("/api/ai/tasks/\(encodePathSegment(id))", auth: true)
     }
 
     /// 订阅封面描述词任务的实时 SSE 快照；断流后由页面回退到任务轮询。
     static func aiCoverPromptStream(id: String) -> AsyncThrowingStream<AiTaskStreamEvent, Error> {
-        let lines = APIClient.shared.streamLines("/api/ai/tasks/\(encode(id))/stream", auth: true)
+        let lines = APIClient.shared.streamLines("/api/ai/tasks/\(encodePathSegment(id))/stream", auth: true)
         return AsyncThrowingStream { continuation in
             let task = Task {
                 var dataLines: [String] = []
@@ -649,14 +649,14 @@ enum AdminAPI {
     /// scope：all | reader | writing；status：all | published | draft | rejected
     static func aiGenerations(kind: String = "all", scope: String = "all", status: String = "all", limit: Int = 50, offset: Int = 0) async throws -> AiGenerationsResponse {
         var path = "/api/ai/generations?limit=\(limit)&offset=\(offset)"
-        if kind != "all" { path += "&kind=\(encode(kind))" }
-        if scope != "all" { path += "&scope=\(encode(scope))" }
-        if status != "all" { path += "&status=\(encode(status))" }
+        if kind != "all" { path += "&kind=\(encodeQueryValue(kind))" }
+        if scope != "all" { path += "&scope=\(encodeQueryValue(scope))" }
+        if status != "all" { path += "&status=\(encodeQueryValue(status))" }
         return try await APIClient.shared.get(path, auth: true)
     }
 
     static func aiDeleteGeneration(id: String) async throws {
-        let _: OkEnvelope = try await APIClient.shared.delete("/api/ai/generations/\(encode(id))", auth: true)
+        let _: OkEnvelope = try await APIClient.shared.delete("/api/ai/generations/\(encodePathSegment(id))", auth: true)
     }
 
     static func aiDeleteGenerations(ids: [String]) async throws -> AiGenerationsBatchResponse {
@@ -672,7 +672,7 @@ enum AdminAPI {
 
     /// kind：write_outline | write_chapter | continue
     static func aiStartWriting(kind: String, body: [String: Any]) async throws -> AiTaskStartResponse {
-        try await APIClient.shared.post("/api/ai/writing/\(encode(kind))", body: try jsonBody(body), auth: true)
+        try await APIClient.shared.post("/api/ai/writing/\(encodePathSegment(kind))", body: try jsonBody(body), auth: true)
     }
 
     /// POST /api/ai/writing/titles：为正文生成候选章节标题。
@@ -690,7 +690,7 @@ enum AdminAPI {
     }
 
     static func aiGetStyleProfile(novelId: String) async throws -> AiProfileGetResponse {
-        try await APIClient.shared.get("/api/ai/writing/style-profile/\(encode(novelId))", auth: true)
+        try await APIClient.shared.get("/api/ai/writing/style-profile/\(encodePathSegment(novelId))", auth: true)
     }
 
     static func aiRefreshPlotState(novelId: String, sampleChapters: Int? = nil) async throws -> AiPlotStateResponse {
@@ -700,7 +700,7 @@ enum AdminAPI {
     }
 
     static func aiGetPlotState(novelId: String) async throws -> AiPlotStateGetResponse {
-        try await APIClient.shared.get("/api/ai/writing/plot-state/\(encode(novelId))", auth: true)
+        try await APIClient.shared.get("/api/ai/writing/plot-state/\(encodePathSegment(novelId))", auth: true)
     }
 
     static func aiRefreshRelationshipProfile(novelId: String, sampleChapters: Int? = nil) async throws -> AiProfileResponse {
@@ -708,29 +708,29 @@ enum AdminAPI {
     }
 
     static func aiGetRelationshipProfile(novelId: String) async throws -> AiProfileGetResponse {
-        try await APIClient.shared.get("/api/ai/writing/relationship-profile/\(encode(novelId))", auth: true)
+        try await APIClient.shared.get("/api/ai/writing/relationship-profile/\(encodePathSegment(novelId))", auth: true)
     }
 
     // MARK: - AI 服务：草稿编辑与发布
 
     static func aiUpdateDraft(id: String, result: String) async throws -> AiDraftUpdateResponse {
-        try await APIClient.shared.request("PUT", "/api/ai/writing/drafts/\(encode(id))", body: try jsonBody(["result": result]), auth: true)
+        try await APIClient.shared.request("PUT", "/api/ai/writing/drafts/\(encodePathSegment(id))", body: try jsonBody(["result": result]), auth: true)
     }
 
     static func aiPublishDraft(id: String, novelId: String, title: String) async throws -> AiPublishDraftResponse {
-        try await APIClient.shared.post("/api/ai/writing/drafts/\(encode(id))/publish", body: try jsonBody(["novelId": novelId, "title": title]), auth: true)
+        try await APIClient.shared.post("/api/ai/writing/drafts/\(encodePathSegment(id))/publish", body: try jsonBody(["novelId": novelId, "title": title]), auth: true)
     }
 
     static func aiPublishBatch(batchId: String, novelId: String) async throws -> AiPublishBatchResponse {
-        try await APIClient.shared.post("/api/ai/writing/batches/\(encode(batchId))/publish", body: try jsonBody(["novelId": novelId]), auth: true)
+        try await APIClient.shared.post("/api/ai/writing/batches/\(encodePathSegment(batchId))/publish", body: try jsonBody(["novelId": novelId]), auth: true)
     }
 
     static func aiUnpublishDraft(id: String) async throws {
-        let _: OkEnvelope = try await APIClient.shared.post("/api/ai/writing/drafts/\(encode(id))/unpublish", body: try jsonBody([:]), auth: true)
+        let _: OkEnvelope = try await APIClient.shared.post("/api/ai/writing/drafts/\(encodePathSegment(id))/unpublish", body: try jsonBody([:]), auth: true)
     }
 
     static func aiUnpublishBatch(batchId: String) async throws -> AiUnpublishBatchResponse {
-        try await APIClient.shared.post("/api/ai/writing/batches/\(encode(batchId))/unpublish", body: try jsonBody([:]), auth: true)
+        try await APIClient.shared.post("/api/ai/writing/batches/\(encodePathSegment(batchId))/unpublish", body: try jsonBody([:]), auth: true)
     }
 
     // MARK: - 内部辅助
@@ -763,15 +763,31 @@ enum AdminAPI {
         try JSONSerialization.data(withJSONObject: dict)
     }
 
-    private static func encode(_ value: String) -> String {
-        value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? value
+    private static let queryValueAllowed: CharacterSet = {
+        var allowed = CharacterSet.urlQueryAllowed
+        allowed.remove(charactersIn: "&=+#?")
+        return allowed
+    }()
+
+    private static let pathSegmentAllowed: CharacterSet = {
+        var allowed = CharacterSet.urlPathAllowed
+        allowed.remove(charactersIn: "/?#")
+        return allowed
+    }()
+
+    private static func encodeQueryValue(_ value: String) -> String {
+        value.addingPercentEncoding(withAllowedCharacters: queryValueAllowed) ?? value
+    }
+
+    private static func encodePathSegment(_ value: String) -> String {
+        value.addingPercentEncoding(withAllowedCharacters: pathSegmentAllowed) ?? value
     }
 
     /// 组装 query 字符串（空值字段自动跳过），拼在 path 之后。
     private static func queryPath(_ path: String, _ params: [String: String]) -> String {
         let query = params.compactMap { key, value -> String? in
             guard !value.isEmpty else { return nil }
-            return "\(key)=\(encode(value))"
+            return "\(key)=\(encodeQueryValue(value))"
         }.joined(separator: "&")
         return query.isEmpty ? path : path + "?" + query
     }

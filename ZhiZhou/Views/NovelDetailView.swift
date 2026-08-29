@@ -268,7 +268,9 @@ struct NovelDetailView: View {
     }
 
     private func loadDetail() async {
-        if let d: NovelDetailResponse = try? await APIClient.shared.get("/api/novels/\(novel.id)") {
+        if let d: NovelDetailResponse = try? await APIClient.shared.get(
+            ContentPolicy.safePath("/api/novels/\(novel.id)")
+        ) {
             displayNovel = d.novel
         }
     }
@@ -276,7 +278,7 @@ struct NovelDetailView: View {
     private func loadChapters() async {
         do {
             let r: ChaptersResponse = try await APIClient.shared.get(
-                "/api/chapters?novelId=\(novel.id)"
+                ContentPolicy.safePath("/api/chapters?novelId=\(novel.id)")
             )
             chapters = r.chapters
             errorMessage = nil
@@ -295,7 +297,7 @@ struct NovelDetailView: View {
 
     private func loadBookshelf() async {
         if let b: BookshelfResponse = try? await APIClient.shared.get(
-            "/api/bookshelf", auth: true
+            ContentPolicy.safePath("/api/bookshelf"), auth: true
         ) {
             inBookshelf = b.favorites.contains { $0.novelId == novel.id }
         }

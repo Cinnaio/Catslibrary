@@ -243,7 +243,7 @@ struct AdminModerationView: View {
                 comments = r.comments
                 totalCount = r.total
             case .reports:
-                let r: CommentReportsResponse = try await AdminAPI.commentReports(status: statusFilter)
+                let r: CommentReportsResponse = try await AdminAPI.commentReports(status: statusFilter, search: search)
                 reports = r.reports
                 totalCount = r.total
             case .thoughts:

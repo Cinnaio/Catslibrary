@@ -23,6 +23,30 @@ struct ErrorEnvelope: Decodable { let error: String? }
 /// 忽略响应体的空类型：任何合法 JSON 都能解码成功。
 struct EmptyResponse: Decodable {}
 
+/// 让 Swift Task 的取消能够传递到底层 URLSessionTask。
+private final class URLSessionTaskBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var task: URLSessionDataTask?
+    private var cancelled = false
+
+    func set(_ task: URLSessionDataTask) {
+        lock.lock()
+        let shouldCancel = cancelled
+        if !shouldCancel { self.task = task }
+        lock.unlock()
+        if shouldCancel { task.cancel() }
+        task.resume()
+    }
+
+    func cancel() {
+        lock.lock()
+        cancelled = true
+        let task = self.task
+        lock.unlock()
+        task?.cancel()
+    }
+}
+
 /// 类型化 fetch 封装 —— 语义对齐 web/src/lib/api.ts。
 /// - 鉴权：Authorization: Bearer <token>（token 存 Keychain）
 /// - 超时：请求 30s
@@ -31,7 +55,9 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
 
     private let decoder = JSONDecoder()
     private static let tokenKey = "zhizhou.token"
+    #if DEBUG
     private static let allowInvalidCertKey = "zhizhou.allowInvalidCert"
+    #endif
 
     /// 章节正文内存缓存：避免切回已读章节时重复下载（Data 按 URL 缓存）。
     private let chapterDataCache = NSCache<NSString, NSData>()
@@ -73,7 +99,8 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
 
     // MARK: - TLS
 
-    /// 是否信任无效证书（自签名/过期/域名不匹配）。默认关闭：固定连接公网 HTTPS 实例。
+    #if DEBUG
+    /// 仅 Debug 构建允许排查自签名证书；Release 构建不包含此能力。
     var allowsInvalidCertificates: Bool {
         get { UserDefaults.standard.object(forKey: Self.allowInvalidCertKey) as? Bool ?? false }
         set { UserDefaults.standard.set(newValue, forKey: Self.allowInvalidCertKey) }
@@ -97,6 +124,7 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
         }
         completionHandler(.useCredential, URLCredential(trust: trust))
     }
+    #endif
 
     // MARK: - 资源 URL
 
@@ -139,7 +167,8 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
         guard var comps = URLComponents(url: pathURL, resolvingAgainstBaseURL: false) else {
             return pathURL
         }
-        comps.query = queryPart
+        // 调用方已经分别编码了 query value；使用 percentEncodedQuery 避免把 `%26` 等再次编码。
+        comps.percentEncodedQuery = queryPart
         return comps.url ?? pathURL
     }
 
@@ -149,7 +178,8 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
         // 章节正文 GET 走内存缓存：离线/重访不重复下载
         if method == "GET", !auth, isChapterPath(path), let cached = chapterDataCache.object(forKey: url.absoluteString as NSString) {
             if T.self == EmptyResponse.self {
-                return EmptyResponse() as! T
+                guard let empty = EmptyResponse() as? T else { throw APIError.invalidResponse }
+                return empty
             }
             if let decoded = try? decoder.decode(T.self, from: cached as Data) {
                 return decoded
@@ -194,7 +224,8 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
         }
 
         if T.self == EmptyResponse.self {
-            return EmptyResponse() as! T
+            guard let empty = EmptyResponse() as? T else { throw APIError.invalidResponse }
+            return empty
         }
         do {
             return try decoder.decode(T.self, from: data)
@@ -211,6 +242,11 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
     }
 
     private func handleUnauthorized() {
+        invalidateSession()
+    }
+
+    /// 主动使当前会话失效，例如启动恢复收到 403 时。
+    func invalidateSession() {
         guard let token, !token.isEmpty else { return }
         self.token = nil
         onUnauthorized?()
@@ -288,18 +324,23 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
     /// async 包装在部分 iOS 版本上存在 task 级 serverTrust challenge 不回调的问题，
     /// 传统路径的 URLSessionTaskDelegate 证书放行是可靠触发的。
     private func perform(_ req: URLRequest) async throws -> (Data, URLResponse) {
-        try await withCheckedThrowingContinuation { continuation in
-            let task = session.dataTask(with: req) { data, response, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                } else if let data, let response {
-                    continuation.resume(returning: (data, response))
-                } else {
-                    continuation.resume(throwing: APIError.invalidResponse)
+        let taskBox = URLSessionTaskBox()
+        return try await withTaskCancellationHandler(operation: {
+            try await withCheckedThrowingContinuation { continuation in
+                let task = session.dataTask(with: req) { data, response, error in
+                    if let error {
+                        continuation.resume(throwing: error)
+                    } else if let data, let response {
+                        continuation.resume(returning: (data, response))
+                    } else {
+                        continuation.resume(throwing: APIError.invalidResponse)
+                    }
                 }
+                taskBox.set(task)
             }
-            task.resume()
-        }
+        }, onCancel: {
+            taskBox.cancel()
+        })
     }
 
     /// TLS/证书类错误的友好提示，引导用户开启开发用证书放行开关
@@ -310,7 +351,11 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
              .serverCertificateHasUnknownRoot,
              .serverCertificateNotYetValid,
              .secureConnectionFailed:
+            #if DEBUG
             return "TLS/证书错误（code \(error.code.rawValue)）：服务器证书不受信任。可在「我的 → 高级」中开启“信任无效证书（开发用）”后重试。"
+            #else
+            return "TLS/证书错误（code \(error.code.rawValue)）：服务器证书不受信任，请联系服务端配置受信任的 HTTPS 证书。"
+            #endif
         default:
             return "网络错误（code \(error.code.rawValue)）：\(error.localizedDescription)"
         }

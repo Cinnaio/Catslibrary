@@ -365,7 +365,9 @@ struct BookshelfView: View {
         isLoading = true
         defer { isLoading = false }
         do {
-            let r: BookshelfResponse = try await APIClient.shared.get("/api/bookshelf", auth: true)
+            let r: BookshelfResponse = try await APIClient.shared.get(
+                ContentPolicy.safePath("/api/bookshelf"), auth: true
+            )
             response = r
             errorMessage = nil
         } catch {

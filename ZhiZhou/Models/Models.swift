@@ -122,7 +122,7 @@ struct ReadingProgress: Codable {
 struct ProgressResponse: Codable { let progress: ReadingProgress? }
 
 /// POST /api/progress 的请求体（与 web/src/lib/api.ts saveOnExit 对齐）
-struct SaveProgressBody: Codable {
+struct SaveProgressBody: Codable, Equatable, Sendable {
     let novelId: String
     let chapterId: String
     let chapterTitle: String

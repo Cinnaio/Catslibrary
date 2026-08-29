@@ -42,8 +42,6 @@ struct ReaderView: View {
     /// 展示用百分比（@Observable 之外的可变参考 → 派生为可观察 State，驱动 Chrome 刷新）。
     @State private var progressPercent = 0.0
     @State private var suppressPercent = false
-    /// 保存失败的进度体：下次保存/回前台时重试，避免离线静默丢失。
-    @State private var pendingProgressBody: Data?
     /// 翻页模式：分页结果、当前页、每页对应的整章字符区间、待恢复的进度百分比。
     @State private var pages: [AttributedString] = []
     @State private var pageRanges: [NSRange] = []
@@ -143,7 +141,7 @@ struct ReaderView: View {
             if phase == .background || phase == .inactive {
                 saveProgressNow()
             } else if phase == .active {
-                flushPendingProgress()
+                flushProgress()
             }
         }
         .onAppear { applyWakeLock() }
@@ -650,7 +648,7 @@ struct ReaderView: View {
                     chapterMetas = preloadedChapters
                 } else {
                     let list: ChaptersResponse = try await APIClient.shared.get(
-                        "/api/chapters?novelId=\(novel.id)"
+                        ContentPolicy.safePath("/api/chapters?novelId=\(novel.id)")
                     )
                     chapterMetas = list.chapters
                 }
@@ -661,7 +659,7 @@ struct ReaderView: View {
 
             guard let meta = chapterMetas.first(where: { $0.order == chapterOrder }) else {
                 let list: ChaptersResponse = try await APIClient.shared.get(
-                    "/api/chapters?novelId=\(novel.id)"
+                    ContentPolicy.safePath("/api/chapters?novelId=\(novel.id)")
                 )
                 chapterMetas = list.chapters
                 chapterCount = list.chapters.count
@@ -684,7 +682,9 @@ struct ReaderView: View {
 
     private func loadContent(id: String) async throws {
         let order = chapterOrder
-        let r: ChapterResponse = try await APIClient.shared.get("/api/chapters/\(id)")
+        let r: ChapterResponse = try await APIClient.shared.get(
+            ContentPolicy.safePath("/api/chapters/\(id)")
+        )
         guard chapterOrder == order else { return }
         chapter = r.chapter
         errorMessage = nil
@@ -700,6 +700,11 @@ struct ReaderView: View {
             if let prog = p.progress, prog.chapterId == r.chapter.id, prog.scrollPercent > 0 {
                 restore = prog.scrollPercent
             }
+        }
+        // 网络返回旧快照时，优先使用本地尚未上传的同章进度，避免弱网下回退到旧位置。
+        if let pending = ReaderProgressStore.shared.pendingBody(for: novel.id),
+           pending.chapterId == r.chapter.id {
+            restore = pending.scrollPercent
         }
 
         let last = max(paragraphs.count - 1, 0)
@@ -750,44 +755,18 @@ struct ReaderView: View {
 
     private func saveProgressNow() {
         guard APIClient.shared.isAuthenticated, let body = progressBody() else { return }
-        // 先把快照放入待传队列。请求完成时只允许清除同一份快照，
-        // 防止旧请求晚返回后清掉新章节的进度。
-        pendingProgressBody = body
-        Task {
-            do {
-                try await APIClient.shared.requestVoid("POST", "/api/progress", body: body, auth: true)
-                if pendingProgressBody == body {
-                    pendingProgressBody = nil
-                }
-            } catch {
-                // 离线/失败时保留待传体，回前台或下次保存时重试
-                if pendingProgressBody == body {
-                    pendingProgressBody = body
-                }
-            }
-        }
+        ReaderProgressStore.shared.enqueue(body)
+        flushProgress()
     }
 
-    private func flushPendingProgress() {
-        guard let pending = pendingProgressBody else { return }
-        Task {
-            do {
-                try await APIClient.shared.requestVoid("POST", "/api/progress", body: pending, auth: true)
-                if pendingProgressBody == pending {
-                    pendingProgressBody = nil
-                }
-            } catch {
-                if pendingProgressBody == pending {
-                    pendingProgressBody = pending
-                }
-            }
-        }
+    private func flushProgress() {
+        Task { @MainActor in await ReaderProgressStore.shared.flush() }
     }
 
     /// 进度体与当前展示章节强一致：切章失败/错位时不写脏数据。
-    private func progressBody() -> Data? {
+    private func progressBody() -> SaveProgressBody? {
         guard let chapter, chapter.order == chapterOrder else { return nil }
-        let body = SaveProgressBody(
+        return SaveProgressBody(
             novelId: novel.id,
             chapterId: chapter.id,
             chapterTitle: chapter.title,
@@ -796,7 +775,6 @@ struct ReaderView: View {
             pageMode: settings.pageMode,
             clientUpdatedAt: Int64(Date().timeIntervalSince1970 * 1000)
         )
-        return try? APIClient.shared.jsonBody(body)
     }
 
     private func go(to order: Int) {

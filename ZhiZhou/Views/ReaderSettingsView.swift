@@ -68,6 +68,11 @@ struct ReaderSettingsView: View {
                     sectionDivider
 
                     clickPagingSection
+
+                    if settings.hasPendingSync || settings.lastSyncError != nil {
+                        sectionDivider
+                        syncStatusSection
+                    }
                 }
                 .padding(.horizontal, 32)
                 .padding(.top, 34)
@@ -231,6 +236,18 @@ struct ReaderSettingsView: View {
                 .foregroundStyle(AppTheme.textSecondary)
                 .lineSpacing(2)
         }
+    }
+
+    private var syncStatusSection: some View {
+        Label(
+            settings.lastSyncError == nil
+                ? "阅读设置将在回到前台时自动同步"
+                : "阅读设置同步失败，回到前台时会自动重试",
+            systemImage: settings.lastSyncError == nil ? "arrow.triangle.2.circlepath" : "exclamationmark.triangle"
+        )
+        .font(.footnote)
+        .foregroundStyle(settings.lastSyncError == nil ? AppTheme.textSecondary : AppTheme.seal)
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     private var sectionDivider: some View {
