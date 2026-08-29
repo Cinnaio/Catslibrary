@@ -65,12 +65,38 @@ struct AdminAICoverView: View {
 
     private let styleOptions: [(value: String, label: String)] = [
         ("auto", "自动推荐"),
+        ("soft_watercolor", "清透水彩"),
+        ("moonlit_dream", "月色梦境"),
+        ("ancient_guochao", "古风国色"),
+        ("romance_illustration", "人物言情插画"),
+        ("dark_cinematic", "暗夜电影感"),
+        ("pastel_romance", "粉彩轻甜"),
+        ("botanical_literary", "草木文学"),
+        ("minimal_typographic", "留白字章"),
         ("cinematic", "电影概念设计"),
         ("illustration", "编辑插画"),
         ("ink", "东方水墨"),
         ("minimal", "极简海报"),
         ("noir", "黑色电影"),
         ("graphic", "现代平面设计"),
+    ]
+
+    private let styleDescriptions: [String: String] = [
+        "auto": "自动推荐会结合题材和变体轮换，优先选择与故事气质匹配的方向。",
+        "soft_watercolor": "浅桃、奶油、薄荷或雾蓝的透明水彩，边缘柔和，画面轻盈留白。",
+        "moonlit_dream": "蓝紫月色、云雾和远景剪影，柔光低对比，适合诗意或清冷氛围。",
+        "ancient_guochao": "朱砂、青玉、墨色与克制金色，汉服人物或古建筑，带国风画册质感。",
+        "romance_illustration": "精致商业言情插画，突出人物关系、表情、发饰与服装细节。",
+        "dark_cinematic": "深紫、藏蓝与黑色的高反差电影感，局部轮廓光，保留危险和拉扯。",
+        "pastel_romance": "腮红、暖白、浅杏与淡紫的柔和粉彩，轻甜但不喧闹，适合细腻情感。",
+        "botanical_literary": "鼠尾草、橄榄绿和旧纸色的草木纹理，低噪、安静、偏文学气质。",
+        "minimal_typographic": "米白或浅色底，大面积留白，一处淡淡的水彩/符号质感，让书名成为主视觉。",
+        "cinematic": "有明确焦点和景深层次的电影概念设计。",
+        "illustration": "强调叙事、笔触和轮廓的编辑插画。",
+        "ink": "东方水墨与纸张肌理，克制细节和自然留白。",
+        "minimal": "以单一视觉隐喻和留白为主的极简海报。",
+        "noir": "硬朗方向光、深阴影和颗粒感的黑色电影。",
+        "graphic": "大胆色块、清晰层级和印刷肌理的现代平面设计。",
     ]
 
     private let compositionOptions: [(value: String, label: String)] = [
@@ -270,7 +296,7 @@ struct AdminAICoverView: View {
             .pickerStyle(.menu)
             .disabled(selectedNovelId.isEmpty || generatingPrompt || generating)
 
-            Text("会结合题材和变体轮换，让每一版都有明确的视觉方向。")
+            Text(styleDescriptions[stylePreset] ?? "会结合题材和变体轮换，让每一版都有明确的视觉方向。")
                 .font(.caption)
                 .foregroundStyle(AppTheme.textSecondary)
 
