@@ -50,12 +50,43 @@ jobs:
 
       - name: Run unit tests
         run: |
-          SIMULATOR_ID=$(xcrun simctl list devices available | awk -F '[()]' '/^[[:space:]]*(iPhone|iPad)/ {print $2; exit}')
+          # 让 xcodebuild 按当前 scheme 给出真正可用的目的地。
+          # simctl 的“available”列表可能包含当前 scheme/SDK 不接受的旧设备 UUID。
+          DESTINATIONS="$(xcodebuild \
+            -project ZhiZhou.xcodeproj \
+            -scheme ZhiZhou \
+            -configuration Debug \
+            -showdestinations 2>&1)"
+          SIMULATOR_ID="$(printf '%s\n' "$DESTINATIONS" | awk '
+            /Available destinations/ { available = 1; next }
+            /Ineligible destinations/ { available = 0 }
+            available && /platform:iOS Simulator/ && /name:iPhone/ {
+              match($0, /id:[^,}[:space:]]+/)
+              if (RSTART > 0) {
+                print substr($0, RSTART + 3, RLENGTH - 3)
+                exit
+              }
+            }
+          ')"
+          if [ -z "$SIMULATOR_ID" ]; then
+            SIMULATOR_ID="$(printf '%s\n' "$DESTINATIONS" | awk '
+              /Available destinations/ { available = 1; next }
+              /Ineligible destinations/ { available = 0 }
+              available && /platform:iOS Simulator/ {
+                match($0, /id:[^,}[:space:]]+/)
+                if (RSTART > 0) {
+                  print substr($0, RSTART + 3, RLENGTH - 3)
+                  exit
+                }
+              }
+            ')"
+          fi
           if [ -z "$SIMULATOR_ID" ]; then
             echo "::error::未找到可用的 iOS Simulator"
-            xcrun simctl list devices available
+            printf '%s\n' "$DESTINATIONS"
             exit 1
           fi
+          echo "Using scheme-compatible iOS Simulator: $SIMULATOR_ID"
           xcodebuild test \
             -project ZhiZhou.xcodeproj \
             -scheme ZhiZhou \
