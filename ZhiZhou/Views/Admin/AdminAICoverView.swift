@@ -32,6 +32,7 @@ struct AdminAICoverView: View {
     // 任务
     @State private var generating = false
     @State private var taskStatusText: String?
+    @State private var activeTask: AiTaskInfo?
     @State private var pollTask: Task<Void, Never>?
     @State private var promptPollTask: Task<Void, Never>?
 
@@ -126,6 +127,7 @@ struct AdminAICoverView: View {
             } else {
                 novelSection
                 configSection
+                taskProgressSection
                 candidateSection
             }
         }
@@ -286,12 +288,6 @@ struct AdminAICoverView: View {
 
             promptControls
 
-            if let taskStatusText {
-                Label(taskStatusText, systemImage: "hourglass")
-                    .font(.subheadline)
-                    .foregroundStyle(AppTheme.textSecondary)
-            }
-
             Button {
                 showPhotoPicker = true
             } label: {
@@ -431,6 +427,29 @@ struct AdminAICoverView: View {
             .frame(height: 96, alignment: .topLeading)
             .clipped()
             .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+        }
+    }
+
+    @ViewBuilder
+    private var taskProgressSection: some View {
+        if let activeTask {
+            Section("当前任务") {
+                AdminAITaskProgressView(
+                    task: activeTask,
+                    showsPromptPreview: activeTask.kind == "cover_prompt"
+                )
+                if let taskStatusText {
+                    Text(taskStatusText)
+                        .font(.caption)
+                        .foregroundStyle(activeTask.status == "failed" ? AppTheme.danger : AppTheme.textSecondary)
+                }
+            }
+        } else if let taskStatusText {
+            Section {
+                Label(taskStatusText, systemImage: "hourglass")
+                    .font(.subheadline)
+                    .foregroundStyle(AppTheme.textSecondary)
+            }
         }
     }
 
@@ -658,6 +677,7 @@ struct AdminAICoverView: View {
                 return
             }
             let detail = try await AdminAPI.aiTask(id: id)
+            activeTask = detail.task
             if let novelId = detail.task.novelId, !novelId.isEmpty {
                 selectedNovelId = novelId
                 await loadCandidates()
@@ -677,6 +697,7 @@ struct AdminAICoverView: View {
     private func generatePrompt(forceNewVariation: Bool = false) async {
         guard !selectedNovelId.isEmpty else { return }
         generatingPrompt = true
+        activeTask = nil
         taskStatusText = "提示词任务已提交，等待队列…"
         let clientRequestId = UUID().uuidString
         pendingPromptTaskId = ""
@@ -695,6 +716,8 @@ struct AdminAICoverView: View {
                 clientRequestId: clientRequestId
             )
             pendingPromptTaskId = result.taskId
+            activeTask = .pending(id: result.taskId, kind: "cover_prompt", novelId: selectedNovelId, total: result.total)
+            taskStatusText = nil
             startPromptStreaming(result.taskId)
         } catch {
             if case APIError.network = error {
@@ -741,6 +764,7 @@ struct AdminAICoverView: View {
     /// 应用服务端任务快照；running 快照也会把当前已生成的提示词显示出来。
     @discardableResult
     private func applyPromptTaskSnapshot(_ task: AiTaskInfo) -> Bool {
+        activeTask = task
         let status = task.status ?? ""
         if let resultText = task.result,
            let data = resultText.data(using: .utf8),
@@ -778,7 +802,7 @@ struct AdminAICoverView: View {
             promptPollTask = nil
             return true
         }
-        taskStatusText = status == "running" ? "提示词生成中（实时输出）…" : "提示词生成中（等待队列）…"
+        taskStatusText = nil
         return false
     }
 
@@ -820,6 +844,7 @@ struct AdminAICoverView: View {
             return
         }
         generating = true
+        activeTask = nil
         taskStatusText = "任务已提交，等待队列…"
         defer { generating = false }
         do {
@@ -832,6 +857,8 @@ struct AdminAICoverView: View {
                 composition: composition,
                 variationId: variationId
             )
+            activeTask = .pending(id: result.taskId, kind: "cover", novelId: selectedNovelId, total: result.total)
+            taskStatusText = nil
             pollCoverTask(result.taskId)
         } catch {
             actionError = AppCopy.friendlyError(error)
@@ -845,19 +872,24 @@ struct AdminAICoverView: View {
         pollTask = Task {
             var attempts = 0
             while !Task.isCancelled, attempts < 100 {
-                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                if attempts > 0 {
+                    try? await Task.sleep(nanoseconds: 3_000_000_000)
+                    guard !Task.isCancelled else { return }
+                }
                 attempts += 1
                 do {
                     let detail = try await AdminAPI.aiTask(id: id)
+                    activeTask = detail.task
                     let status = detail.task.status ?? ""
                     if ["completed", "failed", "cancelled"].contains(status) {
-                        taskStatusText = AdminFormat.aiTaskStatus(status)
+                        taskStatusText = status == "completed"
+                            ? "候选封面已更新，可在下方查看。"
+                            : AdminFormat.aiTaskStatus(status)
                         if status == "completed" {
                             await loadCandidates()
                         }
                         return
                     }
-                    taskStatusText = "生成中（\(AdminFormat.aiTaskStatus(status))）…"
                 } catch {
                     taskStatusText = AppCopy.friendlyError(error)
                     return

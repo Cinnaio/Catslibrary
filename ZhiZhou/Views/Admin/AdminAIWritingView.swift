@@ -43,6 +43,7 @@ struct AdminAIWritingView: View {
     // 任务
     @State private var starting = false
     @State private var taskStatusText: String?
+    @State private var activeTask: AiTaskInfo?
     @State private var pollTask: Task<Void, Never>?
 
     // 通用
@@ -76,13 +77,7 @@ struct AdminAIWritingView: View {
                     newSection
                 }
                 profileSection
-                if let taskStatusText {
-                    Section {
-                        Label(taskStatusText, systemImage: "hourglass")
-                            .font(.subheadline)
-                            .foregroundStyle(AppTheme.textSecondary)
-                    }
-                }
+                taskProgressSection
             }
         }
         .scrollContentBackground(.hidden)
@@ -267,6 +262,26 @@ struct AdminAIWritingView: View {
         }
     }
 
+    @ViewBuilder
+    private var taskProgressSection: some View {
+        if let activeTask {
+            Section("当前任务") {
+                AdminAITaskProgressView(task: activeTask)
+                if let taskStatusText {
+                    Text(taskStatusText)
+                        .font(.caption)
+                        .foregroundStyle(activeTask.status == "failed" ? AppTheme.danger : AppTheme.textSecondary)
+                }
+            }
+        } else if let taskStatusText {
+            Section {
+                Label(taskStatusText, systemImage: "hourglass")
+                    .font(.subheadline)
+                    .foregroundStyle(AppTheme.textSecondary)
+            }
+        }
+    }
+
     private var plotSummary: String {
         if plotChaptersThrough > 0 {
             return "已梳理到第 \(plotChaptersThrough) 章\(plotChapterCount > 0 ? "（全书 \(plotChapterCount) 章）" : "")"
@@ -283,7 +298,12 @@ struct AdminAIWritingView: View {
                     .foregroundStyle(AppTheme.textPrimary)
                 Spacer()
                 if busy {
-                    ProgressView().controlSize(.small)
+                    HStack(spacing: 6) {
+                        ProgressView().controlSize(.small)
+                        Text("正在提取…")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.textSecondary)
                 } else {
                     Button("提取 / 刷新") { action() }
                         .font(.caption)
@@ -362,6 +382,7 @@ struct AdminAIWritingView: View {
     private func startTask() async {
         guard canStart else { return }
         starting = true
+        activeTask = nil
         taskStatusText = "任务已提交，等待队列…"
         defer { starting = false }
         do {
@@ -377,6 +398,8 @@ struct AdminAIWritingView: View {
                     body["afterChapterId"] = afterChapterId
                 }
                 let result = try await AdminAPI.aiStartWriting(kind: "continue", body: body)
+                activeTask = .pending(id: result.taskId, kind: "continue", novelId: novelId, total: result.total)
+                taskStatusText = nil
                 pollWritingTask(result.taskId)
             } else if taskKind == .outline {
                 body = [
@@ -385,6 +408,8 @@ struct AdminAIWritingView: View {
                     "targetWords": targetWords,
                 ]
                 let result = try await AdminAPI.aiStartWriting(kind: "write_outline", body: body)
+                activeTask = .pending(id: result.taskId, kind: "write_outline", total: result.total)
+                taskStatusText = nil
                 pollWritingTask(result.taskId)
             } else {
                 body = [
@@ -396,6 +421,8 @@ struct AdminAIWritingView: View {
                     "targetWords": targetWords,
                 ]
                 let result = try await AdminAPI.aiStartWriting(kind: "write_chapter", body: body)
+                activeTask = .pending(id: result.taskId, kind: "write_chapter", novelId: novelId, total: result.total)
+                taskStatusText = nil
                 pollWritingTask(result.taskId)
             }
         } catch {
@@ -409,16 +436,19 @@ struct AdminAIWritingView: View {
         pollTask = Task {
             var attempts = 0
             while !Task.isCancelled, attempts < 200 {
-                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                if attempts > 0 {
+                    try? await Task.sleep(nanoseconds: 3_000_000_000)
+                    guard !Task.isCancelled else { return }
+                }
                 attempts += 1
                 do {
                     let detail = try await AdminAPI.aiTask(id: id)
+                    activeTask = detail.task
                     let status = detail.task.status ?? ""
                     if ["completed", "failed", "cancelled"].contains(status) {
                         taskStatusText = "任务\(AdminFormat.aiTaskStatus(status))，可在「已生成内容」查看草稿。"
                         return
                     }
-                    taskStatusText = "生成中（\(AdminFormat.aiTaskStatus(status))）…"
                 } catch {
                     taskStatusText = AppCopy.friendlyError(error)
                     return

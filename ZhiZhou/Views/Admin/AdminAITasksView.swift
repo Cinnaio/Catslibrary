@@ -69,9 +69,7 @@ struct AdminAITasksView: View {
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await load() }
         .task(id: statusFilter) {
-            try? await Task.sleep(nanoseconds: 150_000_000)
-            guard !Task.isCancelled else { return }
-            await load()
+            await monitorTasks()
         }
         .alert("操作失败", isPresented: errorAlertBinding) {
             Button("好", role: .cancel) {}
@@ -119,47 +117,12 @@ struct AdminAITasksView: View {
 
     private func taskRow(_ task: AiTaskInfo) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 8) {
-                Text(AdminFormat.aiTaskKind(task.kind ?? ""))
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundStyle(AppTheme.textPrimary)
-                    .lineLimit(1)
-                Spacer()
-                AdminStatusBadge(
-                    AdminFormat.aiTaskStatus(task.status ?? ""),
-                    tint: statusTint(task.status ?? "")
-                )
-            }
-            HStack(spacing: 8) {
-                if let total = task.total, total > 0, let current = task.current {
-                    Text("\(current)/\(total)")
-                        .font(.caption2)
-                        .foregroundStyle(AppTheme.textMuted)
-                }
-                if let step = task.step, !step.isEmpty {
-                    Text(step)
-                        .font(.caption2)
-                        .foregroundStyle(AppTheme.textMuted)
-                        .lineLimit(1)
-                }
-                if let createdAt = task.createdAt, createdAt > 0 {
-                    Text(AdminFormat.relativeTime(createdAt))
-                        .font(.caption2)
-                        .foregroundStyle(AppTheme.textMuted)
-                }
-            }
+            AdminAITaskProgressView(task: task, compact: true)
             if let prompt = task.prompt, !prompt.isEmpty {
                 Text(prompt)
                     .font(.caption2)
                     .foregroundStyle(AppTheme.textSecondary)
                     .lineLimit(1)
-            }
-            if let error = task.error, !error.isEmpty {
-                Text(error)
-                    .font(.caption2)
-                    .foregroundStyle(AppTheme.danger)
-                    .lineLimit(2)
             }
             HStack {
                 Spacer(minLength: 8)
@@ -207,16 +170,19 @@ struct AdminAITasksView: View {
         }
     }
 
-    private func statusTint(_ status: String) -> Color {
-        switch status {
-        case "queued", "running": return AppTheme.primary
-        case "completed": return AppTheme.success
-        case "failed", "cancelled": return AppTheme.danger
-        default: return AppTheme.textSecondary
+    // MARK: - 数据
+
+    private func monitorTasks() async {
+        await load()
+        while !Task.isCancelled {
+            let interval: UInt64 = tasks.contains(where: { $0.isRunning })
+                ? 2_000_000_000
+                : 15_000_000_000
+            try? await Task.sleep(nanoseconds: interval)
+            guard !Task.isCancelled else { return }
+            await load()
         }
     }
-
-    // MARK: - 数据
 
     private func load() async {
         isLoading = true

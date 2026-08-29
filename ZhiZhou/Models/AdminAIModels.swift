@@ -148,6 +148,37 @@ struct AiTaskInfo: Codable, Identifiable, Hashable {
     }
 }
 
+extension AiTaskInfo {
+    /// 请求刚返回 taskId、尚未取到首个服务端快照时使用的本地占位状态。
+    static func pending(
+        id: String,
+        kind: String,
+        novelId: String? = nil,
+        total: Int = 1,
+        prompt: String? = nil
+    ) -> AiTaskInfo {
+        let now = Int64(Date().timeIntervalSince1970 * 1000)
+        return AiTaskInfo(
+            id: id,
+            userId: nil,
+            novelId: novelId,
+            kind: kind,
+            status: "queued",
+            current: 0,
+            total: max(1, total),
+            step: "任务已提交，等待队列…",
+            prompt: prompt,
+            result: nil,
+            batchId: nil,
+            params: nil,
+            error: nil,
+            createdAt: now,
+            updatedAt: now,
+            finishedAt: nil
+        )
+    }
+}
+
 struct AiTasksResponse: Codable {
     let items: [AiTaskInfo]
     let total: Int?

@@ -510,8 +510,10 @@ private struct GenerationDetailSheet: View {
                             .disabled(generatingTitles)
                         if generatingTitles {
                             HStack {
-                                Spacer()
                                 ProgressView()
+                                Text("正在分析草稿并生成候选标题…")
+                                    .font(.caption)
+                                    .foregroundStyle(AppTheme.textSecondary)
                                 Spacer()
                             }
                         }
