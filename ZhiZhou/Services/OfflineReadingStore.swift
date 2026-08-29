@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import ZhiZhouCore
 
 /// 离线阅读下载目录：记录用户主动保存的章节，并协调章节缓存的下载与删除。
 @Observable
