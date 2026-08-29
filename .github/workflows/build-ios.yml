@@ -40,6 +40,16 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate
 
+      - name: Cache Xcode build data
+        uses: actions/cache@v4
+        with:
+          path: |
+            DerivedDataTests
+            DerivedData
+          key: ${{ runner.os }}-xcode26-derived-v1-${{ hashFiles('project.yml', '.github/workflows/build-ios.yml', 'ZhiZhou/**', 'ZhiZhouTests/**') }}
+          restore-keys: |
+            ${{ runner.os }}-xcode26-derived-v1-
+
       - name: Show Xcode version
         run: xcodebuild -version
 
@@ -49,39 +59,13 @@ jobs:
           plutil -lint ZhiZhou/Support/PrivacyInfo.xcprivacy
 
       - name: Run unit tests
+        env:
+          # 普通 push 只验证行为；手动运行时保留覆盖率采集。
+          ENABLE_CODE_COVERAGE: ${{ github.event_name == 'workflow_dispatch' && 'YES' || 'NO' }}
         run: |
-          # 不把 simctl UUID 直接传给 xcodebuild：runner 上可能存在
-          # simctl 可见但当前 Xcode 无法解析的旧 UUID。使用设备名称 + latest OS，
-          # 让 xcodebuild 自己选择当前 SDK 中可用的同型号模拟器。
-          SIMULATOR_NAME="$(xcrun simctl list devices available --json | python3 -c '
-          import json
-          import sys
-
-          data = json.load(sys.stdin)
-          iphones = []
-          ipads = []
-          for runtime, devices in data.get("devices", {}).items():
-              if not runtime.startswith("com.apple.CoreSimulator.SimRuntime.iOS-"):
-                  continue
-              for device in devices:
-                  if not device.get("isAvailable", True):
-                      continue
-                  name = device.get("name", "")
-                  if name.startswith("iPhone") and name not in iphones:
-                      iphones.append(name)
-                  elif name.startswith("iPad") and name not in ipads:
-                      ipads.append(name)
-
-          names = iphones or ipads
-          if not names:
-              raise SystemExit("未找到可用的 iOS Simulator")
-          print("iPhone 16" if "iPhone 16" in names else names[0])
-          ')"
-          if [ -z "$SIMULATOR_NAME" ]; then
-            echo "::error::未找到可用的 iOS Simulator"
-            exit 1
-          fi
-          DESTINATION="platform=iOS Simulator,name=$SIMULATOR_NAME,OS=latest"
+          # 直接传设备名称和 latest OS，让 xcodebuild 选择当前 SDK 中的模拟器。
+          # 避免 simctl 全量枚举设备在 GitHub runner 上产生额外等待。
+          DESTINATION='platform=iOS Simulator,name=iPhone 16,OS=latest'
           echo "Using iOS Simulator destination: $DESTINATION"
           xcodebuild test \
             -project ZhiZhou.xcodeproj \
@@ -92,7 +76,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            -enableCodeCoverage YES
+            -enableCodeCoverage "$ENABLE_CODE_COVERAGE"
 
       - name: Build (unsigned)
         run: |
