@@ -114,7 +114,6 @@ struct AppFeedbackOverlay: View {
                     center.dismiss()
                 }
                 .padding(.horizontal, 16)
-                .padding(.top, 8)
                 .transition(
                     reduceMotion
                         ? .opacity
@@ -122,6 +121,7 @@ struct AppFeedbackOverlay: View {
                 )
             }
         }
+        .frame(maxWidth: .infinity)
         .animation(
             reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 1),
             value: center.message?.id
@@ -139,32 +139,26 @@ private struct AppFeedbackBanner: View {
                 Image(systemName: message.kind.systemImage)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(message.kind.tint)
+                    .frame(width: 30, height: 30)
+                    .background(message.kind.tint.opacity(0.14), in: Circle())
 
                 Text(message.text)
-                    .font(.footnote.weight(.semibold))
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(AppTheme.textPrimary)
                     .multilineTextAlignment(.leading)
                     .lineLimit(2)
-
-                Spacer(minLength: 4)
-
-                Image(systemName: "xmark")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .accessibilityHidden(true)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(.horizontal, 14)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
             .frame(minHeight: 48)
-            .background(.regularMaterial, in: Capsule())
-            .overlay {
-                Capsule()
-                    .strokeBorder(message.kind.tint.opacity(0.28), lineWidth: 0.8)
-            }
-            .shadow(color: Color.black.opacity(0.12), radius: 12, y: 5)
+            .contentShape(Capsule())
+            .glassEffect(AppTheme.glassClear, in: Capsule())
         }
+        .frame(maxWidth: 360)
         .buttonStyle(ScaleButtonStyle(pressedScale: 0.985))
         .accessibilityLabel(message.text)
-        .accessibilityHint("点按关闭")
+        .accessibilityHint("点按关闭提示")
         .accessibilityAddTraits(.updatesFrequently)
     }
 }

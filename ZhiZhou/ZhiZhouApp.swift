@@ -30,8 +30,9 @@ struct ZhiZhouApp: App {
                         await ReaderProgressStore.shared.flush()
                     }
                 }
-                .overlay {
+                .overlay(alignment: .top) {
                     AppFeedbackOverlay(center: feedbackCenter)
+                        .safeAreaPadding(.top, 8)
                 }
         }
     }
