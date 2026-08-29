@@ -16,9 +16,11 @@ let paragraphIndent = "\u{3000}\u{3000}"
 struct ReaderView: View {
     let novel: Novel
     let preloadedChapters: [ChapterMeta]
+    let offlineOnly: Bool
     @State var chapterOrder: Int
 
     @Environment(ReaderSettingsStore.self) private var settings
+    @Environment(OfflineReadingStore.self) private var offlineStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.scenePhase) private var scenePhase
@@ -52,14 +54,23 @@ struct ReaderView: View {
     @State private var fontRevision = 0
     @State private var chapterIsSaved = false
 
-    init(novel: Novel, chapterOrder: Int, preloadedChapters: [ChapterMeta] = []) {
+    init(
+        novel: Novel,
+        chapterOrder: Int,
+        preloadedChapters: [ChapterMeta] = [],
+        offlineOnly: Bool = false
+    ) {
         self.novel = novel
         self.preloadedChapters = preloadedChapters
+        self.offlineOnly = offlineOnly
         _chapterOrder = State(initialValue: chapterOrder)
     }
 
     var totalOrderCount: Int {
-        max(chapterCount, novel.chapterCount, chapterMetas.count)
+        if offlineOnly {
+            return max(chapterCount, chapterMetas.map(\.order).max() ?? 0)
+        }
+        return max(chapterCount, novel.chapterCount, chapterMetas.count)
     }
 
     /// 系统深色：跟随 @Environment 而非 UIScreen.main（多窗口/iPad 更准，且实时响应外观切换）。
@@ -76,7 +87,19 @@ struct ReaderView: View {
         settings.pageMode == "page"
             && !pages.isEmpty
             && currentPage == pages.count - 1
-            && chapterOrder < totalOrderCount
+            && hasNextChapter
+    }
+
+    private var hasPreviousChapter: Bool {
+        offlineOnly
+            ? chapterMetas.contains { $0.order == chapterOrder - 1 }
+            : chapterOrder > 1
+    }
+
+    private var hasNextChapter: Bool {
+        offlineOnly
+            ? chapterMetas.contains { $0.order == chapterOrder + 1 }
+            : chapterOrder < totalOrderCount
     }
 
     var body: some View {
@@ -188,7 +211,7 @@ struct ReaderView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .id(index)
             }
-            if chapterOrder < totalOrderCount {
+            if hasNextChapter {
                 nextChapterButton
             }
         }
@@ -415,11 +438,11 @@ struct ReaderView: View {
                 } else {
                     GlassEffectContainer(spacing: 8) {
                         HStack(spacing: 8) {
-                            chromeSegmentButton(systemName: "chevron.left", label: "上一章", isEnabled: chapterOrder > 1) {
+                            chromeSegmentButton(systemName: "chevron.left", label: "上一章", isEnabled: hasPreviousChapter) {
                                 go(to: chapterOrder - 1)
                             }
                             readerStatusPill
-                            chromeSegmentButton(systemName: "chevron.right", label: "下一章", isEnabled: chapterOrder < totalOrderCount) {
+                            chromeSegmentButton(systemName: "chevron.right", label: "下一章", isEnabled: hasNextChapter) {
                                 go(to: chapterOrder + 1)
                             }
                         }
@@ -655,10 +678,20 @@ struct ReaderView: View {
                 if !preloadedChapters.isEmpty {
                     chapterMetas = preloadedChapters
                 } else {
-                    let list: ChaptersResponse = try await APIClient.shared.get(
-                        ContentPolicy.safePath("/api/chapters?novelId=\(novel.id)")
-                    )
-                    chapterMetas = list.chapters
+                    do {
+                        let list: ChaptersResponse = try await APIClient.shared.get(
+                            ContentPolicy.safePath("/api/chapters?novelId=\(novel.id)")
+                        )
+                        chapterMetas = list.chapters
+                    } catch {
+                        let saved = offlineStore.chapters(for: novel.id)
+                        guard !saved.isEmpty else {
+                            guard chapterOrder == order else { return }
+                            errorMessage = AppCopy.friendlyError(error)
+                            return
+                        }
+                        chapterMetas = saved
+                    }
                 }
             }
             chapterCount = chapterMetas.count
@@ -666,6 +699,10 @@ struct ReaderView: View {
             guard chapterOrder == order else { return } // 用户已切章，丢弃过期结果
 
             guard let meta = chapterMetas.first(where: { $0.order == chapterOrder }) else {
+                if offlineOnly {
+                    errorMessage = "这一章尚未下载，请联网后在详情页下载。"
+                    return
+                }
                 let list: ChaptersResponse = try await APIClient.shared.get(
                     ContentPolicy.safePath("/api/chapters?novelId=\(novel.id)")
                 )
@@ -803,6 +840,7 @@ struct ReaderView: View {
 
     private func go(to order: Int) {
         guard order >= 1, order <= totalOrderCount else { return }
+        if offlineOnly && !chapterMetas.contains(where: { $0.order == order }) { return }
         guard order != chapterOrder else { return }
         // 必须在修改 chapterOrder 前捕获旧章节进度，否则 resetForNewChapter
         // 会清空 chapter，旧章节就没有可保存的快照了。

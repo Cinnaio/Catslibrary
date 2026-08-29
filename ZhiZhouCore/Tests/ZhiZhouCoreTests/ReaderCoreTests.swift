@@ -155,4 +155,23 @@ final class ReaderCoreTests: XCTestCase {
         let exists = await cache.contains(url)
         XCTAssertFalse(exists)
     }
+
+    func testChapterCacheCanRemoveOneEntry() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ZhiZhouCoreTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let first = "https://example.com/api/chapters/chapter-1?contentMode=safe"
+        let second = "https://example.com/api/chapters/chapter-2?contentMode=safe"
+        let cache = ChapterDiskCache(directoryURL: directory, maxBytes: 1024 * 1024)
+
+        await cache.store(Data("one".utf8), for: first)
+        await cache.store(Data("two".utf8), for: second)
+        await cache.remove(first)
+
+        let firstExists = await cache.contains(first)
+        let secondExists = await cache.contains(second)
+        XCTAssertFalse(firstExists)
+        XCTAssertTrue(secondExists)
+    }
 }

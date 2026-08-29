@@ -3,6 +3,7 @@ import SwiftUI
 /// 应用存储管理：查看数据占用，下载/删除远程字体，清理图片和章节缓存。
 struct StorageManagerView: View {
     @Environment(FontStore.self) private var fontStore
+    @Environment(OfflineReadingStore.self) private var offlineStore
 
     @State private var showDeleteFontsConfirm = false
     @State private var showClearCachesConfirm = false
@@ -77,6 +78,18 @@ struct StorageManagerView: View {
                 }
             }
 
+            Section("离线阅读") {
+                LabeledContent("已下载章节", value: "\(offlineStore.totalChapterCount) 章")
+
+                if !offlineStore.books.isEmpty {
+                    NavigationLink {
+                        OfflineReadingView()
+                    } label: {
+                        Label("管理离线章节", systemImage: "arrow.down.circle.fill")
+                    }
+                }
+            }
+
             Section {
                 Text("字体会保存到应用的持久化数据目录；删除后可以再次从服务器下载。无网络时，阅读器会回退到系统字体。")
                     .font(.footnote)
@@ -91,6 +104,7 @@ struct StorageManagerView: View {
         .task {
             fontStore.registerCachedFonts()
             fontStore.refresh()
+            await offlineStore.refresh()
         }
         .confirmationDialog(
             "删除已下载的字体？",
@@ -110,6 +124,7 @@ struct StorageManagerView: View {
                 Task { @MainActor in
                     isClearingCaches = true
                     await fontStore.clearCaches()
+                    offlineStore.forgetAll()
                     isClearingCaches = false
                 }
             }

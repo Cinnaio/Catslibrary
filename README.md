@@ -32,6 +32,7 @@ ZhiZhou/
     AppState.swift                 登录会话 + 启动引导
     ReaderSettingsStore.swift      阅读设置（按账号本地保存 + LWW 同步）
     ReaderProgressStore.swift       进度上传适配器（Core outbox → API）
+    OfflineReadingStore.swift       离线章节目录、下载与删除协调
     AdminFormat.swift              管理后台展示格式化（任务状态/举报理由/时间/字节）
   Theme/Theme.swift                设计 token + Liquid Glass 背景
   Views/
@@ -42,6 +43,7 @@ ZhiZhou/
     ReaderView                     阅读器（核心）
     ChapterListView / ReaderSettingsView
     BookshelfView / ProfileView
+    OfflineReadingView              离线章节管理与阅读入口
     Admin/                         管理后台（原生 SwiftUI，入口在「我的」页，仅管理员可见）
       AdminRootView                管理首页（模块入口）
       AdminDashboardView           总览（内容规模 / 任务状态 / 最近任务 / 最近更新）
@@ -113,7 +115,7 @@ ZhiZhouCore/
 - [x] 阅读进度本地 outbox：退后台、回到前台或下次登录继续上传
 - [x] Release 构建移除无效证书放行能力，并加入 Apple 隐私清单
 - [x] CI 直接运行 Core 行为测试，并执行 Release 构建与 plist 校验
-- [ ] 离线阅读（SwiftData/Core Data 章节缓存 + 自动下载下一章）
+- [x] 离线阅读（按章下载/管理/无网打开，阅读中自动预取下一章）
 - [ ] 评论 / 段评 / 评分页（API 已就绪，UI 未做）
 - [ ] 推送通知（新章节提醒，需自建推送服务，如 APNs + 你的服务器）
 - [ ] CI 签名（$99 账号 + GitHub Secrets + fastlane match → 出签名 ipa / TestFlight）

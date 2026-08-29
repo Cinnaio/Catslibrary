@@ -3,6 +3,7 @@ import SwiftUI
 /// 个人中心：用户信息、阅读设置、存储管理、服务器信息、退出登录。
 struct ProfileView: View {
     @Environment(AppState.self) private var appState
+    @Environment(OfflineReadingStore.self) private var offlineStore
 
     @State private var showLogoutConfirm = false
     @State private var showReaderSettings = false
@@ -40,6 +41,20 @@ struct ProfileView: View {
                     showReaderSettings = true
                 } label: {
                     Label("阅读设置", systemImage: "textformat.size")
+                }
+
+                NavigationLink {
+                    OfflineReadingView()
+                } label: {
+                    HStack {
+                        Label("离线阅读", systemImage: "arrow.down.circle")
+                        Spacer()
+                        if offlineStore.totalChapterCount > 0 {
+                            Text("\(offlineStore.totalChapterCount) 章")
+                                .font(.footnote)
+                                .foregroundStyle(AppTheme.textSecondary)
+                        }
+                    }
                 }
             }
 

@@ -5,6 +5,7 @@ import ZhiZhouCore
 struct NovelDetailView: View {
     let novel: Novel
     @Environment(AppState.self) private var appState
+    @Environment(OfflineReadingStore.self) private var offlineStore
 
     @State private var chapters: [ChapterMeta] = []
     @State private var isLoading = false
@@ -17,6 +18,7 @@ struct NovelDetailView: View {
     @State private var showRemoveConfirm = false
     @State private var expandDescription = false
     @State private var interactionFeedback = 0
+    @State private var isShowingOffline = false
 
     var body: some View {
         List {
@@ -27,6 +29,9 @@ struct NovelDetailView: View {
             .listRowSeparator(.hidden)
 
             Section {
+                if !chapters.isEmpty {
+                    offlineSummary
+                }
                 if isLoading && chapters.isEmpty {
                     ProgressView()
                         .frame(maxWidth: .infinity, minHeight: 44)
@@ -44,27 +49,30 @@ struct NovelDetailView: View {
                     .listRowBackground(Color.clear)
                 }
                 ForEach(chapters) { chapter in
-                    NavigationLink {
-                        ReaderView(
-                            novel: currentNovel,
-                            chapterOrder: chapter.order,
-                            preloadedChapters: chapters
-                        )
-                    } label: {
-                        HStack {
-                            Text(chapter.title)
-                                .lineLimit(2)
-                            Spacer()
-                            if chapter.id == progress?.chapterId {
-                                Image(systemName: "bookmark.fill")
+                    HStack(spacing: 8) {
+                        NavigationLink {
+                            ReaderView(
+                                novel: currentNovel,
+                                chapterOrder: chapter.order,
+                                preloadedChapters: chapters
+                            )
+                        } label: {
+                            HStack {
+                                Text(chapter.title)
+                                    .lineLimit(2)
+                                Spacer()
+                                if chapter.id == progress?.chapterId {
+                                    Image(systemName: "bookmark.fill")
+                                        .font(.caption)
+                                        .foregroundStyle(AppTheme.seal)
+                                        .accessibilityLabel("上次读到这里")
+                                }
+                                Text("\(chapter.wordCount) 字")
                                     .font(.caption)
-                                    .foregroundStyle(AppTheme.seal)
-                                    .accessibilityLabel("上次读到这里")
+                                    .foregroundStyle(AppTheme.textMuted)
                             }
-                            Text("\(chapter.wordCount) 字")
-                                .font(.caption)
-                                .foregroundStyle(AppTheme.textMuted)
                         }
+                        offlineButton(for: chapter)
                     }
                 }
             } header: {
@@ -76,7 +84,10 @@ struct NovelDetailView: View {
         .pageBackground()
         .navigationTitle(currentNovel.title)
         .navigationBarTitleDisplayMode(.inline)
-        .task { await load() }
+        .task {
+            await offlineStore.refresh()
+            await load()
+        }
         .alert("操作未完成", isPresented: $showBookshelfError) {
             Button("好", role: .cancel) {}
         } message: {
@@ -85,6 +96,19 @@ struct NovelDetailView: View {
         .confirmationDialog("从书架移除这本书？", isPresented: $showRemoveConfirm, titleVisibility: .visible) {
             Button("移除", role: .destructive) { toggleBookshelf() }
             Button("取消", role: .cancel) {}
+        }
+        .alert(
+            "离线下载未完成",
+            isPresented: Binding(
+                get: { offlineStore.lastError != nil },
+                set: { if !$0 { offlineStore.clearError() } }
+            )
+        ) {
+            Button("好", role: .cancel) {
+                offlineStore.clearError()
+            }
+        } message: {
+            Text(offlineStore.lastError ?? "")
         }
         .sensoryFeedback(.selection, trigger: interactionFeedback)
     }
@@ -104,6 +128,99 @@ struct NovelDetailView: View {
             return "继续阅读"
         }
         return "开始阅读"
+    }
+
+    private var offlineSummary: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                Label("离线章节", systemImage: "arrow.down.circle")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                Spacer()
+                Text("\(offlineStore.downloadedCount(for: currentNovel.id))/\(chapters.count)")
+                    .font(.subheadline.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(AppTheme.textSecondary)
+            }
+
+            if offlineStore.batchNovelID == currentNovel.id {
+                HStack(spacing: 10) {
+                    ProgressView(value: offlineStore.batchProgress)
+                        .tint(AppTheme.primary)
+                    Button("停止") {
+                        offlineStore.cancelBatch()
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .buttonStyle(.borderless)
+                }
+                Text("正在保存第 \(min(offlineStore.batchCompleted + 1, offlineStore.batchTotal))/\(offlineStore.batchTotal) 章")
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.textSecondary)
+            } else {
+                Button {
+                    Task {
+                        await offlineStore.downloadAll(novel: currentNovel, chapters: chapters)
+                    }
+                } label: {
+                    Label(
+                        offlineStore.downloadedCount(for: currentNovel.id) == chapters.count
+                            ? "检查并更新离线章节"
+                            : "下载全部章节",
+                        systemImage: "arrow.down.circle.fill"
+                    )
+                    .frame(maxWidth: .infinity, minHeight: 36)
+                }
+                .buttonStyle(.bordered)
+                .tint(AppTheme.primary)
+            }
+
+            if isShowingOffline {
+                Label("当前显示已下载的章节目录", systemImage: "wifi.slash")
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.textSecondary)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    @ViewBuilder
+    private func offlineButton(for chapter: ChapterMeta) -> some View {
+        if offlineStore.isDownloading(chapter.id) {
+            ProgressView()
+                .frame(width: 44, height: 44)
+        } else {
+            Button {
+                Task {
+                    if offlineStore.isDownloaded(chapter.id) {
+                        await offlineStore.remove(
+                            novelID: currentNovel.id,
+                            chapterID: chapter.id
+                        )
+                    } else {
+                        await offlineStore.download(novel: currentNovel, chapter: chapter)
+                    }
+                }
+            } label: {
+                Image(
+                    systemName: offlineStore.isDownloaded(chapter.id)
+                        ? "checkmark.circle.fill"
+                        : "arrow.down.circle"
+                )
+                .font(.title3)
+                .foregroundStyle(
+                    offlineStore.isDownloaded(chapter.id)
+                        ? AppTheme.success
+                        : AppTheme.primary
+                )
+                .frame(width: 44, height: 44)
+            }
+            .buttonStyle(.borderless)
+            .disabled(offlineStore.isBatchDownloading)
+            .accessibilityLabel(
+                offlineStore.isDownloaded(chapter.id)
+                    ? "删除第 \(chapter.order) 章离线内容"
+                    : "下载第 \(chapter.order) 章"
+            )
+        }
     }
 
     private var headerCard: some View {
@@ -282,9 +399,17 @@ struct NovelDetailView: View {
                 ContentPolicy.safePath("/api/chapters?novelId=\(novel.id)")
             )
             chapters = r.chapters
+            isShowingOffline = false
             errorMessage = nil
         } catch {
-            errorMessage = AppCopy.friendlyError(error)
+            let saved = offlineStore.chapters(for: novel.id)
+            if !saved.isEmpty {
+                chapters = saved
+                isShowingOffline = true
+                errorMessage = nil
+            } else {
+                errorMessage = AppCopy.friendlyError(error)
+            }
         }
     }
 

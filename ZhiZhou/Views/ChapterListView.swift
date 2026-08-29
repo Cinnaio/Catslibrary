@@ -10,10 +10,12 @@ struct ChapterListView: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(OfflineReadingStore.self) private var offlineStore
     @State private var chapters: [ChapterMeta] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var hasScrolledToCurrent = false
+    @State private var isShowingOffline = false
 
     var body: some View {
         NavigationStack {
@@ -79,6 +81,13 @@ struct ChapterListView: View {
             .navigationTitle("目录")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                if isShowingOffline {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Label("离线", systemImage: "wifi.slash")
+                            .font(.caption)
+                            .foregroundStyle(AppTheme.textSecondary)
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("完成") { dismiss() }
                 }
@@ -100,9 +109,17 @@ struct ChapterListView: View {
                 ContentPolicy.safePath("/api/chapters?novelId=\(novel.id)")
             )
             chapters = r.chapters
+            isShowingOffline = false
             errorMessage = nil
         } catch {
-            errorMessage = AppCopy.friendlyError(error)
+            let saved = offlineStore.chapters(for: novel.id)
+            if !saved.isEmpty {
+                chapters = saved
+                isShowingOffline = true
+                errorMessage = nil
+            } else {
+                errorMessage = AppCopy.friendlyError(error)
+            }
         }
     }
 

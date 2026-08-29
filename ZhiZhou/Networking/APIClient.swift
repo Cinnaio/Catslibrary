@@ -193,6 +193,10 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
         if usesReaderChapterCache,
            let cached = chapterDataCache.object(forKey: url.absoluteString as NSString),
            let decoded = decode(cached as Data, as: T.self) {
+            // 内存缓存可能仍在，但磁盘缓存已因容量淘汰；离线下载需补回持久副本。
+            if !(await ChapterDiskCache.shared.contains(url.absoluteString)) {
+                await ChapterDiskCache.shared.store(cached as Data, for: url.absoluteString)
+            }
             return decoded
         }
 
@@ -309,6 +313,13 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
         let path = ContentPolicy.safePath("/api/chapters/\(id)")
         guard let url = try? makeURL(path) else { return false }
         return await ChapterDiskCache.shared.contains(url.absoluteString)
+    }
+
+    func removeCachedChapter(id: String) async {
+        let path = ContentPolicy.safePath("/api/chapters/\(id)")
+        guard let url = try? makeURL(path) else { return }
+        chapterDataCache.removeObject(forKey: url.absoluteString as NSString)
+        await ChapterDiskCache.shared.remove(url.absoluteString)
     }
 
     /// 读取服务端 SSE 文本行。用于可恢复任务的前台实时展示；连接中断不影响服务端任务本身。

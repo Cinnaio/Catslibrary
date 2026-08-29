@@ -37,6 +37,11 @@ public actor ChapterDiskCache {
         fileManager.fileExists(atPath: fileURL(for: key).path)
     }
 
+    public func remove(_ key: String) {
+        guard !key.isEmpty else { return }
+        try? fileManager.removeItem(at: fileURL(for: key))
+    }
+
     public func store(_ data: Data, for key: String) {
         guard !key.isEmpty, Int64(data.count) <= maxBytes else { return }
 
