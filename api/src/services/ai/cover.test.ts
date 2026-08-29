@@ -97,6 +97,42 @@ describe('buildImagePrompt', () => {
     }
   })
 
+  it('显式参考风格会进入最终图像提示词，并覆盖为可追溯元数据', async () => {
+    const originalBaseUrl = process.env.AI_TEXT_BASE_URL
+    const originalApiKey = process.env.AI_TEXT_API_KEY
+    delete process.env.AI_TEXT_BASE_URL
+    delete process.env.AI_TEXT_API_KEY
+
+    try {
+      const result = await buildImagePrompt(
+        {
+          title: '月光落在你肩上',
+          author: '某作者',
+          description: '两个人在多年后重逢，沿着旧街寻找一段没有说完的话。',
+          categories: ['现代言情'],
+        },
+        {
+          novelId: 'novel-reference-style',
+          variationId: 'variation-reference-style',
+          stylePreset: 'soft_watercolor',
+          composition: 'environment',
+          renderTitle: false,
+        },
+      )
+
+      expect(result.metadata.stylePreset).toBe('soft_watercolor')
+      expect(result.metadata.composition).toBe('environment')
+      expect(result.prompt).toContain('Primary visual preset (highest priority)')
+      expect(result.prompt).toContain('translucent peach')
+      expect(result.prompt).toContain('wide environmental storytelling')
+    } finally {
+      if (originalBaseUrl === undefined) delete process.env.AI_TEXT_BASE_URL
+      else process.env.AI_TEXT_BASE_URL = originalBaseUrl
+      if (originalApiKey === undefined) delete process.env.AI_TEXT_API_KEY
+      else process.env.AI_TEXT_API_KEY = originalApiKey
+    }
+  })
+
   it('言情题材保留多标签，不把悬疑言情完全压扁成单一题材', () => {
     expect(inferGenres('雨夜玫瑰', ['悬疑言情'])).toEqual(expect.arrayContaining(['romance', 'mystery']))
   })

@@ -84,6 +84,34 @@ describe('inferGenre', () => {
     expect(direction.compositionPrompt).toContain('object')
   })
 
+  it('包含参考封面的风格预设，并能把每个预设解析成可用视觉方向', () => {
+    const referenceStyles = [
+      'soft_watercolor',
+      'moonlit_dream',
+      'ancient_guochao',
+      'romance_illustration',
+      'dark_cinematic',
+      'pastel_romance',
+      'botanical_literary',
+      'minimal_typographic',
+    ] as const
+
+    for (const stylePreset of referenceStyles) {
+      expect(isCoverStylePreset(stylePreset)).toBe(true)
+      expect(COVER_STYLE_OPTIONS.some((option) => option.value === stylePreset)).toBe(true)
+      const direction = resolveCoverDirection({
+        novelId: 'reference-style-novel',
+        genre: 'romance',
+        stylePreset,
+        composition: 'off_center',
+        variationId: 'reference-style-variation',
+      })
+      expect(direction.stylePreset).toBe(stylePreset)
+      expect(direction.stylePrompt.length).toBeGreaterThan(30)
+      expect(direction.composition).toBe('off_center')
+    }
+  })
+
   it('视觉方向选项与非法值守卫完整', () => {
     expect(COVER_STYLE_OPTIONS.some((option) => option.value === 'auto')).toBe(true)
     expect(COVER_COMPOSITION_OPTIONS.some((option) => option.value === 'auto')).toBe(true)

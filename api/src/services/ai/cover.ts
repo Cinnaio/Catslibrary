@@ -405,12 +405,15 @@ function assembleCoverPrompt(args: {
   lines.push(['Chinese web novel cover design', platformStyle].filter(Boolean).join(', ') + '.')
 
   // 文字层：默认渲染书名+作者名，仅显式关闭才省略
+  lines.push(
+    `${style.tag}. Primary visual preset (highest priority): ${direction.stylePrompt}. ${direction.compositionPrompt}. Follow the selected preset for palette, texture, lighting, and lettering mood before generic genre defaults.`,
+  )
+
   if (renderTitle && titleHint) {
-    lines.push(`Title text '${titleHint}' at top center in ${style.titleFont}.`)
+    lines.push(`Title text '${titleHint}' at top center in ${style.titleFont}; adapt the treatment to the selected visual preset when it specifies a distinct lettering mood.`)
     if (authorHint) lines.push(`Author name '${authorHint}' at bottom center in ${style.authorFont}.`)
   }
 
-  lines.push(`${style.tag}. ${direction.stylePrompt}. ${direction.compositionPrompt}.`)
   if (categoryHint) lines.push(`Story categories: ${categoryHint}.`)
   if (storyHint) lines.push(`Story premise and visual anchors: ${storyHint}.`)
   if (romanceDNA) lines.push(`Story-specific romance direction (must drive the image): ${romanceDNA.prompt}.`)
@@ -535,7 +538,7 @@ async function generateSceneDescription(args: {
     '要求：',
     '1. 只输出一段英文描述（1-2 句），不要解释、不要引号、不要换行；',
     '2. 必须包含人物形象（服饰/姿态/道具）与场景背景两个层次，越具体越好；',
-    '3. 在模板基础上细化，可用模板中的风格、色彩、光效关键词；',
+    '3. 在模板基础上细化；主视觉方向优先于题材模板中的通用配色、光效和质感；',
     '4. 必须遵循给定的构图方向，让画面主体位置和镜头关系明确；',
     '5. 长度控制在 60-90 个英文单词以内；',
     '6. 不要包含任何文字/标题/水印描述（title、text、watermark 等词一律不要出现）。',
@@ -546,7 +549,7 @@ async function generateSceneDescription(args: {
     `- 背景：${style.background}`,
     `- 色彩：${style.color}`,
     `- 光效：${style.light}`,
-    `- 主视觉方向：${direction.stylePrompt}`,
+    `- 主视觉方向（优先）：${direction.stylePrompt}`,
     `- 构图方向：${direction.compositionPrompt}`,
     romanceDNA ? `- 言情视觉 DNA：${romanceDNA.prompt}` : '',
     titleHint ? `标题：${titleHint}` : '',

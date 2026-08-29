@@ -14,7 +14,22 @@ export type CoverPlatform = 'default' | 'fanqie' | 'qidian' | 'jinjiang' | 'zhih
  * 封面主视觉预设。auto 不是固定画风，而是根据题材、小说 ID 和 variationId 稳定选一套合适方向。
  * 平台风格与主视觉分离，避免「平台」参数把所有书压成同一套画风。
  */
-export type CoverStylePreset = 'auto' | 'cinematic' | 'illustration' | 'ink' | 'minimal' | 'noir' | 'graphic'
+export type CoverStylePreset =
+  | 'auto'
+  | 'cinematic'
+  | 'illustration'
+  | 'ink'
+  | 'minimal'
+  | 'noir'
+  | 'graphic'
+  | 'soft_watercolor'
+  | 'moonlit_dream'
+  | 'ancient_guochao'
+  | 'romance_illustration'
+  | 'dark_cinematic'
+  | 'pastel_romance'
+  | 'botanical_literary'
+  | 'minimal_typographic'
 
 /** 封面构图预设。auto 会按小说和变体稳定轮换。 */
 export type CoverComposition = 'auto' | 'portrait' | 'duo' | 'environment' | 'symbolic' | 'silhouette' | 'off_center'
@@ -31,6 +46,14 @@ export interface CoverDirection {
 
 export const COVER_STYLE_OPTIONS: Array<{ value: CoverStylePreset; label: string }> = [
   { value: 'auto', label: '自动推荐' },
+  { value: 'soft_watercolor', label: '清透水彩' },
+  { value: 'moonlit_dream', label: '月色梦境' },
+  { value: 'ancient_guochao', label: '古风国色' },
+  { value: 'romance_illustration', label: '人物言情插画' },
+  { value: 'dark_cinematic', label: '暗夜电影感' },
+  { value: 'pastel_romance', label: '粉彩轻甜' },
+  { value: 'botanical_literary', label: '草木文学' },
+  { value: 'minimal_typographic', label: '留白字章' },
   { value: 'cinematic', label: '电影概念设计' },
   { value: 'illustration', label: '编辑插画' },
   { value: 'ink', label: '东方水墨' },
@@ -212,6 +235,22 @@ const STYLE_PROMPTS: Record<ResolvedCoverStylePreset, string> = {
   noir: 'noir photographic artwork with hard directional light, deep shadow, atmospheric grain, partial concealment, and a tense independent-film-poster mood',
   graphic:
     'modern graphic design with bold color blocking, layered typography-safe shapes, crisp editorial composition, tactile print texture, and a distinctive visual identity',
+  soft_watercolor:
+    'airy Chinese book-jacket watercolor with translucent peach, ivory, powder-blue, mint, or apricot washes, soft bleeding edges, paper grain, botanical or cloud-like textures, gentle atmosphere, and generous breathing room',
+  moonlit_dream:
+    'poetic moonlit watercolor with layered cobalt, powder blue, icy white, and muted lavender, misty clouds or distant silhouettes, soft luminous bloom, quiet night atmosphere, and an open area reserved for elegant title lettering',
+  ancient_guochao:
+    'refined Chinese guochao ancient-romance illustration with expressive hanfu costume and period architecture, controlled vermilion, jade, ink, and muted gold accents, decorative brush-calligraphy energy, layered ornamental detail, and a clear readable silhouette',
+  romance_illustration:
+    'polished commercial Chinese web-novel romance illustration with expressive character close-ups, story-specific relationship gestures, clean linework blended with painterly rendering, carefully designed hair and costume details, and a balanced contemporary palette',
+  dark_cinematic:
+    'dark cinematic romance or fantasy artwork with deep plum, navy, charcoal, and black, one controlled crimson or violet accent, dramatic rim light, partial silhouette, intimate tension, atmospheric grain, and premium film-poster restraint',
+  pastel_romance:
+    'soft pastel romance cover with blush, warm ivory, peach, pale lilac, and champagne tones, delicate fabric and floral or architectural details, gentle diffused light, elegant emotional intimacy, and a polished light web-novel finish',
+  botanical_literary:
+    'quiet botanical literary cover with sage, olive, moss, faded blue, and warm paper tones, layered leaves or translucent plant textures, organic brushwork, low visual noise, natural light, and a calm understated mood',
+  minimal_typographic:
+    'quiet minimalist literary cover with an ivory, white, or single pale-tint field, one subtle watercolor wash or symbolic texture, extremely generous negative space, a large elegant Chinese title as the primary graphic, and a small restrained author line',
 }
 
 const COMPOSITION_PROMPTS: Record<ResolvedCoverComposition, string> = {
@@ -224,16 +263,16 @@ const COMPOSITION_PROMPTS: Record<ResolvedCoverComposition, string> = {
 }
 
 const GENRE_STYLE_POOLS: Record<Genre, ResolvedCoverStylePreset[]> = {
-  xianxia: ['cinematic', 'ink', 'illustration', 'minimal'],
-  urban: ['cinematic', 'illustration', 'minimal', 'graphic'],
-  ancient: ['ink', 'illustration', 'cinematic', 'minimal'],
-  romance: ['illustration', 'cinematic', 'minimal', 'graphic'],
-  mystery: ['noir', 'cinematic', 'minimal', 'illustration'],
-  scifi: ['cinematic', 'graphic', 'illustration', 'minimal'],
-  fantasy: ['cinematic', 'illustration', 'graphic', 'ink'],
-  historical: ['cinematic', 'ink', 'illustration', 'minimal'],
-  horror: ['noir', 'ink', 'cinematic', 'minimal'],
-  light: ['illustration', 'graphic', 'cinematic', 'minimal'],
+  xianxia: ['moonlit_dream', 'ink', 'ancient_guochao', 'cinematic', 'soft_watercolor', 'minimal_typographic'],
+  urban: ['romance_illustration', 'dark_cinematic', 'minimal_typographic', 'graphic', 'soft_watercolor', 'pastel_romance'],
+  ancient: ['ancient_guochao', 'soft_watercolor', 'pastel_romance', 'ink', 'cinematic', 'minimal_typographic'],
+  romance: ['romance_illustration', 'soft_watercolor', 'pastel_romance', 'dark_cinematic', 'moonlit_dream', 'minimal_typographic'],
+  mystery: ['dark_cinematic', 'noir', 'minimal_typographic', 'moonlit_dream', 'graphic', 'ink'],
+  scifi: ['cinematic', 'graphic', 'dark_cinematic', 'moonlit_dream', 'minimal_typographic', 'illustration'],
+  fantasy: ['cinematic', 'ancient_guochao', 'moonlit_dream', 'soft_watercolor', 'illustration', 'graphic'],
+  historical: ['ancient_guochao', 'ink', 'cinematic', 'dark_cinematic', 'minimal_typographic', 'soft_watercolor'],
+  horror: ['dark_cinematic', 'noir', 'ink', 'moonlit_dream', 'minimal_typographic', 'ancient_guochao'],
+  light: ['pastel_romance', 'soft_watercolor', 'romance_illustration', 'graphic', 'moonlit_dream', 'minimal_typographic'],
 }
 
 const COMPOSITION_POOL: ResolvedCoverComposition[] = ['portrait', 'duo', 'environment', 'symbolic', 'silhouette', 'off_center']

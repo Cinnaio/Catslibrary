@@ -44,13 +44,21 @@ const PLATFORM_OPTIONS = [
 ]
 
 const STYLE_OPTIONS = [
-  { value: 'auto', label: '自动推荐' },
-  { value: 'cinematic', label: '电影概念设计' },
-  { value: 'illustration', label: '编辑插画' },
-  { value: 'ink', label: '东方水墨' },
-  { value: 'minimal', label: '极简海报' },
-  { value: 'noir', label: '黑色电影' },
-  { value: 'graphic', label: '现代平面设计' },
+  { value: 'auto', label: '自动推荐', sub: '结合题材和变体，自动挑选匹配的视觉方向' },
+  { value: 'soft_watercolor', label: '清透水彩', sub: '浅桃、奶油、薄荷或雾蓝的透明水彩与轻盈留白' },
+  { value: 'moonlit_dream', label: '月色梦境', sub: '蓝紫月色、云雾和远景剪影，柔光低对比' },
+  { value: 'ancient_guochao', label: '古风国色', sub: '朱砂、青玉、墨色与克制金色的国风画册质感' },
+  { value: 'romance_illustration', label: '人物言情插画', sub: '精致商业言情插画，突出人物关系与细节' },
+  { value: 'dark_cinematic', label: '暗夜电影感', sub: '深紫、藏蓝与黑色高反差，局部轮廓光与情绪拉扯' },
+  { value: 'pastel_romance', label: '粉彩轻甜', sub: '暖白、浅杏与淡紫的柔和粉彩，轻甜但不喧闹' },
+  { value: 'botanical_literary', label: '草木文学', sub: '鼠尾草、橄榄绿和旧纸色的安静草木纹理' },
+  { value: 'minimal_typographic', label: '留白字章', sub: '浅色留白与一处淡淡质感，让书名成为主视觉' },
+  { value: 'cinematic', label: '电影概念设计', sub: '明确焦点、景深层次和电影海报完成度' },
+  { value: 'illustration', label: '编辑插画', sub: '强调叙事、笔触和轮廓的编辑插画' },
+  { value: 'ink', label: '东方水墨', sub: '水墨纸张肌理、克制细节和自然留白' },
+  { value: 'minimal', label: '极简海报', sub: '单一视觉隐喻、纪律感几何和大面积留白' },
+  { value: 'noir', label: '黑色电影', sub: '硬朗方向光、深阴影和颗粒感' },
+  { value: 'graphic', label: '现代平面设计', sub: '大胆色块、清晰层级和印刷肌理' },
 ]
 
 const COMPOSITION_OPTIONS = [
@@ -430,7 +438,9 @@ export default function AiCoverPanel() {
             <div className="grid gap-1.5">
               <Label>主视觉风格</Label>
               <CustomSelect options={STYLE_OPTIONS} value={stylePreset} onChange={setStylePreset} placeholder="选择主视觉风格" dropdownSide="bottom" />
-              <p className="text-xs text-muted-foreground">自动推荐会结合题材和变体轮换，避免所有书套同一种风格。</p>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                {STYLE_OPTIONS.find((option) => option.value === stylePreset)?.sub || '会结合题材和变体轮换，避免所有书套同一种风格。'}
+              </p>
             </div>
             <div className="grid gap-1.5">
               <Label>构图方向</Label>
