@@ -137,10 +137,8 @@ private struct AppFeedbackBanner: View {
         Button(action: onDismiss) {
             HStack(spacing: 10) {
                 Image(systemName: message.kind.systemImage)
-                    .font(.subheadline.weight(.semibold))
+                    .font(.title3.weight(.semibold))
                     .foregroundStyle(message.kind.tint)
-                    .frame(width: 30, height: 30)
-                    .background(message.kind.tint.opacity(0.14), in: Circle())
 
                 Text(message.text)
                     .font(.subheadline.weight(.semibold))
@@ -153,7 +151,12 @@ private struct AppFeedbackBanner: View {
             .padding(.vertical, 8)
             .frame(minHeight: 48)
             .contentShape(Capsule())
-            .glassEffect(AppTheme.glassClear, in: Capsule())
+            .background(AppTheme.surface, in: Capsule())
+            .overlay {
+                Capsule()
+                    .strokeBorder(AppTheme.border.opacity(0.65), lineWidth: 0.5)
+            }
+            .shadow(color: Color.black.opacity(0.12), radius: 12, y: 4)
         }
         .frame(maxWidth: 360)
         .buttonStyle(ScaleButtonStyle(pressedScale: 0.985))
