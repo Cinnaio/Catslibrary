@@ -110,6 +110,15 @@ final class OfflineReadingStore {
         }
 
         lastBatchWasCancelled = wasCancelled || batchCancellationRequested || Task.isCancelled
+        AppObservability.shared.track(
+            "offline_download_batch",
+            properties: [
+                "requested": String(chapters.count),
+                "completed": String(batchCompleted),
+                "failed": hadFailure ? "true" : "false",
+                "cancelled": lastBatchWasCancelled ? "true" : "false",
+            ]
+        )
         await refresh()
         if !hadFailure {
             lastError = nil
@@ -146,6 +155,7 @@ final class OfflineReadingStore {
 
         books.removeAll { novelIDs.contains($0.novel.id) }
         persist()
+        AppObservability.shared.track("offline_books_removed", properties: ["count": String(novelIDs.count)])
     }
 
     /// 删除离线目录中的全部章节；不影响尚未登记的普通阅读缓存。
@@ -156,6 +166,7 @@ final class OfflineReadingStore {
         }
         books = []
         persist()
+        AppObservability.shared.track("offline_books_removed_all")
     }
 
     /// 存储管理清空全局章节缓存后，同步丢弃已失效的离线目录。
@@ -207,6 +218,7 @@ final class OfflineReadingStore {
             return false
         } catch {
             lastError = "《\(novel.title)》第 \(chapter.order) 章下载失败：\(AppCopy.friendlyError(error))"
+            AppObservability.shared.capture(error: error, context: "offline.download")
             return false
         }
     }

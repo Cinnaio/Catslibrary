@@ -288,6 +288,7 @@ struct HomeView: View {
             await CoverPrefetcher.shared.prefetch(r.novels)
         } catch {
             guard seq == requestSeq else { return }
+            AppObservability.shared.capture(error: error, context: append ? "home.load_more" : "home.load")
             let message = AppCopy.friendlyError(error)
             if append || !novels.isEmpty {
                 loadMoreError = "加载失败，点按重试"

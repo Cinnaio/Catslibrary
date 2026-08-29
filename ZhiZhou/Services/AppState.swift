@@ -36,12 +36,14 @@ final class AppState {
         do {
             let r: MeResponse = try await APIClient.shared.get("/api/auth/me", auth: true)
             user = r.user
+            AppObservability.shared.track("auth_restore_succeeded")
             sessionRestoreFailed = false
             ReaderSettingsStore.shared.activate(userID: r.user.id)
             ReaderProgressStore.shared.activate(userID: r.user.id)
             await ReaderSettingsStore.shared.syncFromServer()
             await ReaderProgressStore.shared.flush()
         } catch let error as APIError {
+            AppObservability.shared.capture(error: error, context: "auth.bootstrap")
             switch error {
             case .unauthorized:
                 // APIClient 已清 token
@@ -54,35 +56,48 @@ final class AppState {
                 sessionRestoreFailed = APIClient.shared.isAuthenticated
             }
         } catch {
+            AppObservability.shared.capture(error: error, context: "auth.bootstrap")
             sessionRestoreFailed = APIClient.shared.isAuthenticated
         }
         isBooting = false
     }
 
     func login(username: String, password: String) async throws {
-        let body = try APIClient.shared.jsonBody(["username": username, "password": password])
-        let r: LoginResponse = try await APIClient.shared.post("/api/auth/login", body: body)
-        APIClient.shared.token = r.token
-        user = r.user
-        sessionRestoreFailed = false
-        ReaderSettingsStore.shared.activate(userID: r.user.id)
-        ReaderProgressStore.shared.activate(userID: r.user.id)
-        await ReaderSettingsStore.shared.syncFromServer()
-        await ReaderProgressStore.shared.flush()
+        do {
+            let body = try APIClient.shared.jsonBody(["username": username, "password": password])
+            let r: LoginResponse = try await APIClient.shared.post("/api/auth/login", body: body)
+            APIClient.shared.token = r.token
+            user = r.user
+            sessionRestoreFailed = false
+            ReaderSettingsStore.shared.activate(userID: r.user.id)
+            ReaderProgressStore.shared.activate(userID: r.user.id)
+            await ReaderSettingsStore.shared.syncFromServer()
+            await ReaderProgressStore.shared.flush()
+            AppObservability.shared.track("auth_login_succeeded")
+        } catch {
+            AppObservability.shared.capture(error: error, context: "auth.login")
+            throw error
+        }
     }
 
     func register(username: String, password: String, invite: String) async throws {
-        var payload: [String: String] = ["username": username, "password": password]
-        if !invite.isEmpty { payload["invite"] = invite }
-        let body = try APIClient.shared.jsonBody(payload)
-        let r: LoginResponse = try await APIClient.shared.post("/api/auth/register", body: body)
-        APIClient.shared.token = r.token
-        user = r.user
-        sessionRestoreFailed = false
-        ReaderSettingsStore.shared.activate(userID: r.user.id)
-        ReaderProgressStore.shared.activate(userID: r.user.id)
-        await ReaderSettingsStore.shared.syncFromServer()
-        await ReaderProgressStore.shared.flush()
+        do {
+            var payload: [String: String] = ["username": username, "password": password]
+            if !invite.isEmpty { payload["invite"] = invite }
+            let body = try APIClient.shared.jsonBody(payload)
+            let r: LoginResponse = try await APIClient.shared.post("/api/auth/register", body: body)
+            APIClient.shared.token = r.token
+            user = r.user
+            sessionRestoreFailed = false
+            ReaderSettingsStore.shared.activate(userID: r.user.id)
+            ReaderProgressStore.shared.activate(userID: r.user.id)
+            await ReaderSettingsStore.shared.syncFromServer()
+            await ReaderProgressStore.shared.flush()
+            AppObservability.shared.track("auth_register_succeeded")
+        } catch {
+            AppObservability.shared.capture(error: error, context: "auth.register")
+            throw error
+        }
     }
 
     func logout() async {
@@ -94,5 +109,6 @@ final class AppState {
         ReaderSettingsStore.shared.deactivate()
         ReaderProgressStore.shared.deactivate()
         user = nil
+        AppObservability.shared.track("auth_logout")
     }
 }

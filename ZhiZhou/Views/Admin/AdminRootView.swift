@@ -30,6 +30,11 @@ struct AdminRootView: View {
                 } label: {
                     Label("总览", systemImage: "gauge")
                 }
+                NavigationLink {
+                    AdminMobileTelemetryView()
+                } label: {
+                    Label("客户端监控", systemImage: "waveform.path.ecg")
+                }
             }
 
             Section("内容") {

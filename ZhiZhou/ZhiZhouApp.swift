@@ -13,6 +13,7 @@ struct ZhiZhouApp: App {
 
     init() {
         fontStore.registerCachedFonts()
+        AppObservability.shared.start()
     }
 
     var body: some Scene {
@@ -24,10 +25,11 @@ struct ZhiZhouApp: App {
                 .environment(offlineReadingStore)
                 .background(GlobalKeyboardDismissal())
                 .onChange(of: scenePhase) { _, phase in
-                    guard phase == .active else { return }
+                    guard phase == .active || phase == .background else { return }
                     Task { @MainActor in
                         await ReaderSettingsStore.shared.flush()
                         await ReaderProgressStore.shared.flush()
+                        await AppObservability.shared.flush()
                     }
                 }
                 .overlay(alignment: .top) {

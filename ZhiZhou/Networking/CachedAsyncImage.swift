@@ -5,8 +5,9 @@ import ImageIO
 /// 统一图片缓存（内存 + 磁盘），避免封面在滚动/重访时反复下载。
 enum ImageCache {
     static let sharedCache: URLCache = {
-        URLCache(memoryCapacity: 256 * 1024 * 1024,
-                 diskCapacity: 512 * 1024 * 1024,
+        // 封面使用缩略图解码；控制 URLCache 上限，避免长期滚动把设备缓存顶到数百 MB。
+        URLCache(memoryCapacity: 64 * 1024 * 1024,
+                 diskCapacity: 192 * 1024 * 1024,
                  diskPath: "ZhiZhouImageCache")
     }()
 
@@ -26,6 +27,7 @@ actor CoverPrefetcher {
 
     private var active = 0
     private var queued: [URL] = []
+    private var queueHead = 0
     private var seen: Set<String> = []
     private let maxConcurrent = 4
     /// seen 上限：防止长会话分页累积无限增长
@@ -45,13 +47,23 @@ actor CoverPrefetcher {
 
     private func pump() {
         while active < maxConcurrent, !queued.isEmpty {
-            let url = queued.removeFirst()
+            guard queueHead < queued.count else {
+                queued.removeAll(keepingCapacity: true)
+                queueHead = 0
+                break
+            }
+            let url = queued[queueHead]
+            queueHead += 1
             active += 1
             Task {
                 _ = try? await ImageCache.session.data(from: url)
                 active -= 1
                 pump()
             }
+        }
+        if queueHead == queued.count {
+            queued.removeAll(keepingCapacity: true)
+            queueHead = 0
         }
     }
 }

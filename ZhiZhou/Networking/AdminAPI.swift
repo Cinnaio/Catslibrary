@@ -163,6 +163,28 @@ enum AdminAPI {
         return r.logs
     }
 
+    // MARK: - 客户端监控
+
+    /// status：all | open | acknowledged | resolved | ignored；type：all | event | error | metric | diagnostic。
+    static func mobileTelemetry(
+        status: String = "open",
+        type: String = "all",
+        severity: String = "all",
+        search: String = "",
+        limit: Int = 80,
+        offset: Int = 0
+    ) async throws -> AdminMobileTelemetryResponse {
+        var params = ["status": status, "type": type, "severity": severity, "limit": "\(limit)", "offset": "\(offset)"]
+        if !search.isEmpty { params["search"] = search }
+        return try await APIClient.shared.get(queryPath("/api/admin/mobile-telemetry", params), auth: true)
+    }
+
+    static func updateMobileTelemetry(id: String, status: String, adminNote: String = "") async throws {
+        let _: OkEnvelope = try await APIClient.shared.request(
+            "PUT", "/api/admin/mobile-telemetry", body: try jsonBody(["id": id, "status": status, "adminNote": adminNote]), auth: true
+        )
+    }
+
     // MARK: - 小说管理
 
     /// GET /api/novels（管理列表：search / status / page / limit）。
