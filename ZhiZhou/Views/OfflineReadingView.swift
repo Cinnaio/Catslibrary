@@ -8,6 +8,11 @@ struct OfflineReadingView: View {
     @State private var isRemovingAll = false
     @State private var expandedBookIDs: Set<String> = []
     @State private var hasEstablishedInitialExpansion = false
+    @State private var isSelectingBooks = false
+    @State private var selectedBookIDs: Set<String> = []
+    @State private var expandedBookIDsBeforeSelection: Set<String>?
+    @State private var showDeleteSelectedConfirm = false
+    @State private var isRemovingSelectedBooks = false
 
     var body: some View {
         List {
@@ -24,11 +29,16 @@ struct OfflineReadingView: View {
                     summaryRow
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
+                    if isSelectingBooks {
+                        selectionSummaryRow
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                    }
                 }
 
                 ForEach(offlineStore.books) { book in
                     Section {
-                        if expandedBookIDs.contains(book.id) {
+                        if !isSelectingBooks && expandedBookIDs.contains(book.id) {
                             ForEach(book.chapters) { chapter in
                                 NavigationLink {
                                     ReaderView(
@@ -56,18 +66,28 @@ struct OfflineReadingView: View {
                         }
                     } header: {
                         Button {
-                            toggleBook(book.id)
+                            if isSelectingBooks {
+                                toggleBookSelection(book.id)
+                            } else {
+                                toggleBook(book.id)
+                            }
                         } label: {
-                            bookHeader(book)
+                            bookHeader(book, selectionMode: isSelectingBooks)
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("\(book.novel.title)，\(displayAuthor(for: book.novel))")
                         .accessibilityValue(
-                            expandedBookIDs.contains(book.id)
-                                ? "已展开，\(book.chapters.count)章"
-                                : "已收起，\(book.chapters.count)章"
+                            isSelectingBooks
+                                ? selectedBookIDs.contains(book.id) ? "已选择" : "未选择"
+                                : expandedBookIDs.contains(book.id)
+                                    ? "已展开，\(book.chapters.count)章"
+                                    : "已收起，\(book.chapters.count)章"
                         )
-                        .accessibilityHint("点按展开或收起章节")
+                        .accessibilityHint(
+                            isSelectingBooks
+                                ? "点按选择或取消选择这本书"
+                                : "点按展开或收起章节"
+                        )
                     }
                     .frostedRowBackground()
                 }
@@ -79,18 +99,52 @@ struct OfflineReadingView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if !offlineStore.books.isEmpty {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showClearConfirm = true
-                    } label: {
-                        if isRemovingAll {
-                            ProgressView()
-                        } else {
-                            Image(systemName: "trash")
+                if isSelectingBooks {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button("取消") {
+                            exitBookSelection()
                         }
                     }
-                    .disabled(isRemovingAll)
-                    .accessibilityLabel("清除全部离线章节")
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            showDeleteSelectedConfirm = true
+                        } label: {
+                            if isRemovingSelectedBooks {
+                                ProgressView()
+                            } else {
+                                Text("删除")
+                            }
+                        }
+                        .tint(AppTheme.danger)
+                        .disabled(
+                            selectedBookIDs.isEmpty
+                                || isRemovingSelectedBooks
+                                || offlineStore.isBatchDownloading
+                        )
+                        .accessibilityLabel("删除所选书籍")
+                    }
+                } else {
+                    ToolbarItemGroup(placement: .topBarTrailing) {
+                        Button {
+                            enterBookSelection()
+                        } label: {
+                            Label("选择", systemImage: "checkmark.circle")
+                        }
+                        .disabled(offlineStore.isBatchDownloading)
+                        .accessibilityLabel("选择书籍批量删除")
+
+                        Button {
+                            showClearConfirm = true
+                        } label: {
+                            if isRemovingAll {
+                                ProgressView()
+                            } else {
+                                Image(systemName: "trash")
+                            }
+                        }
+                        .disabled(isRemovingAll)
+                        .accessibilityLabel("清除全部离线章节")
+                    }
                 }
             }
         }
@@ -117,6 +171,18 @@ struct OfflineReadingView: View {
             Button("取消", role: .cancel) {}
         } message: {
             Text("已下载的章节会从本机删除，需要时可以重新下载。")
+        }
+        .confirmationDialog(
+            "删除所选书籍？",
+            isPresented: $showDeleteSelectedConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("删除 \(selectedBookIDs.count) 本", role: .destructive) {
+                removeSelectedBooks()
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("所选书籍的全部离线章节和本机缓存都会被删除。")
         }
         .alert(
             "下载未完成",
@@ -157,7 +223,41 @@ struct OfflineReadingView: View {
         .accessibilityElement(children: .combine)
     }
 
-    private func bookHeader(_ book: OfflineReadingStore.DownloadedBook) -> some View {
+    private var isAllBooksSelected: Bool {
+        let bookIDs = Set(offlineStore.books.map(\.id))
+        return !bookIDs.isEmpty && bookIDs.isSubset(of: selectedBookIDs)
+    }
+
+    private var selectionSummaryRow: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "checkmark.circle")
+                .font(.title3)
+                .foregroundStyle(AppTheme.primary)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text("已选 \(selectedBookIDs.count) 本")
+                    .font(.subheadline.weight(.semibold))
+                Text("选择要删除的离线书籍")
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.textSecondary)
+            }
+
+            Spacer()
+
+            Button(isAllBooksSelected ? "取消全选" : "全选") {
+                toggleAllBookSelection()
+            }
+            .font(.subheadline.weight(.semibold))
+            .buttonStyle(.borderless)
+            .frame(minHeight: 44)
+            .disabled(isRemovingSelectedBooks || offlineStore.isBatchDownloading)
+        }
+    }
+
+    private func bookHeader(
+        _ book: OfflineReadingStore.DownloadedBook,
+        selectionMode: Bool = false
+    ) -> some View {
         HStack(alignment: .top, spacing: 12) {
             CachedAsyncImage(
                 url: APIClient.shared.coverURL(
@@ -185,14 +285,29 @@ struct OfflineReadingView: View {
                         .foregroundStyle(AppTheme.textPrimary)
                         .lineLimit(2)
                     Spacer(minLength: 0)
-                    Image(
-                        systemName: expandedBookIDs.contains(book.id)
-                            ? "chevron.up"
-                            : "chevron.down"
-                    )
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .accessibilityHidden(true)
+                    if selectionMode {
+                        Image(
+                            systemName: selectedBookIDs.contains(book.id)
+                                ? "checkmark.circle.fill"
+                                : "circle"
+                        )
+                        .font(.title3)
+                        .foregroundStyle(
+                            selectedBookIDs.contains(book.id)
+                                ? AppTheme.primary
+                                : AppTheme.textMuted
+                        )
+                        .accessibilityHidden(true)
+                    } else {
+                        Image(
+                            systemName: expandedBookIDs.contains(book.id)
+                                ? "chevron.up"
+                                : "chevron.down"
+                        )
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .accessibilityHidden(true)
+                    }
                 }
 
                 Text(displayAuthor(for: book.novel))
@@ -225,6 +340,7 @@ struct OfflineReadingView: View {
             }
         }
         .padding(.vertical, 10)
+        .contentShape(Rectangle())
         .textCase(nil)
     }
 
@@ -257,8 +373,58 @@ struct OfflineReadingView: View {
         }
     }
 
+    private func enterBookSelection() {
+        guard !offlineStore.books.isEmpty else { return }
+        isSelectingBooks = true
+        selectedBookIDs.removeAll()
+        expandedBookIDsBeforeSelection = expandedBookIDs
+        expandedBookIDs.removeAll()
+    }
+
+    private func exitBookSelection() {
+        isSelectingBooks = false
+        selectedBookIDs.removeAll()
+        if let savedExpansion = expandedBookIDsBeforeSelection {
+            let currentBookIDs = Set(offlineStore.books.map(\.id))
+            expandedBookIDs = savedExpansion.intersection(currentBookIDs)
+        }
+        expandedBookIDsBeforeSelection = nil
+    }
+
+    private func toggleBookSelection(_ bookID: String) {
+        if selectedBookIDs.contains(bookID) {
+            selectedBookIDs.remove(bookID)
+        } else {
+            selectedBookIDs.insert(bookID)
+        }
+    }
+
+    private func toggleAllBookSelection() {
+        let bookIDs = Set(offlineStore.books.map(\.id))
+        if bookIDs.isSubset(of: selectedBookIDs) {
+            selectedBookIDs.removeAll()
+        } else {
+            selectedBookIDs = bookIDs
+        }
+    }
+
+    private func removeSelectedBooks() {
+        let bookIDs = selectedBookIDs
+        guard !bookIDs.isEmpty,
+              !isRemovingSelectedBooks,
+              !offlineStore.isBatchDownloading else { return }
+        isRemovingSelectedBooks = true
+        Task {
+            await offlineStore.removeBooks(novelIDs: bookIDs)
+            isRemovingSelectedBooks = false
+            exitBookSelection()
+            synchronizeExpandedBooks()
+        }
+    }
+
     private func synchronizeExpandedBooks() {
         let bookIDs = Set(offlineStore.books.map(\.id))
+        selectedBookIDs.formIntersection(bookIDs)
         expandedBookIDs.formIntersection(bookIDs)
         guard !hasEstablishedInitialExpansion,
               let firstBook = offlineStore.books.first else { return }

@@ -124,6 +124,23 @@ final class OfflineReadingStore {
         persist()
     }
 
+    /// 删除选中的离线书籍及其全部章节缓存。
+    func removeBooks(novelIDs: Set<String>) async {
+        guard !novelIDs.isEmpty else { return }
+
+        let chapterIDs = Set(
+            books
+                .filter { novelIDs.contains($0.novel.id) }
+                .flatMap { $0.chapters.map(\.id) }
+        )
+        for chapterID in chapterIDs {
+            await APIClient.shared.removeCachedChapter(id: chapterID)
+        }
+
+        books.removeAll { novelIDs.contains($0.novel.id) }
+        persist()
+    }
+
     /// 删除离线目录中的全部章节；不影响尚未登记的普通阅读缓存。
     func removeAll() async {
         let chapterIDs = books.flatMap { $0.chapters.map(\.id) }
