@@ -3,8 +3,11 @@ import SwiftUI
 /// 离线阅读管理：按小说展示已保存章节，点按即可在无网络时打开。
 struct OfflineReadingView: View {
     @Environment(OfflineReadingStore.self) private var offlineStore
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showClearConfirm = false
     @State private var isRemovingAll = false
+    @State private var expandedBookIDs: Set<String> = []
+    @State private var hasEstablishedInitialExpansion = false
 
     var body: some View {
         List {
@@ -25,32 +28,46 @@ struct OfflineReadingView: View {
 
                 ForEach(offlineStore.books) { book in
                     Section {
-                        ForEach(book.chapters) { chapter in
-                            NavigationLink {
-                                ReaderView(
-                                    novel: book.novel,
-                                    chapterOrder: chapter.order,
-                                    preloadedChapters: book.chapters,
-                                    offlineOnly: true
-                                )
-                            } label: {
-                                chapterRow(chapter)
-                            }
-                            .swipeActions(edge: .trailing) {
-                                Button(role: .destructive) {
-                                    Task {
-                                        await offlineStore.remove(
-                                            novelID: book.novel.id,
-                                            chapterID: chapter.id
-                                        )
-                                    }
+                        if expandedBookIDs.contains(book.id) {
+                            ForEach(book.chapters) { chapter in
+                                NavigationLink {
+                                    ReaderView(
+                                        novel: book.novel,
+                                        chapterOrder: chapter.order,
+                                        preloadedChapters: book.chapters,
+                                        offlineOnly: true
+                                    )
                                 } label: {
-                                    Label("删除", systemImage: "trash")
+                                    chapterRow(chapter)
+                                }
+                                .swipeActions(edge: .trailing) {
+                                    Button(role: .destructive) {
+                                        Task {
+                                            await offlineStore.remove(
+                                                novelID: book.novel.id,
+                                                chapterID: chapter.id
+                                            )
+                                        }
+                                    } label: {
+                                        Label("删除", systemImage: "trash")
+                                    }
                                 }
                             }
                         }
                     } header: {
-                        bookHeader(book)
+                        Button {
+                            toggleBook(book.id)
+                        } label: {
+                            bookHeader(book)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("\(book.novel.title)，\(displayAuthor(for: book.novel))")
+                        .accessibilityValue(
+                            expandedBookIDs.contains(book.id)
+                                ? "已展开，\(book.chapters.count)章"
+                                : "已收起，\(book.chapters.count)章"
+                        )
+                        .accessibilityHint("点按展开或收起章节")
                     }
                     .frostedRowBackground()
                 }
@@ -79,9 +96,11 @@ struct OfflineReadingView: View {
         }
         .task {
             await offlineStore.refresh()
+            synchronizeExpandedBooks()
         }
         .refreshable {
             await offlineStore.refresh()
+            synchronizeExpandedBooks()
         }
         .confirmationDialog(
             "清除全部离线章节？",
@@ -139,17 +158,112 @@ struct OfflineReadingView: View {
     }
 
     private func bookHeader(_ book: OfflineReadingStore.DownloadedBook) -> some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(book.novel.title)
-                .font(serifFont(.headline, .semibold))
-                .foregroundStyle(AppTheme.textPrimary)
-                .lineLimit(1)
-            Spacer()
-            Text("\(book.chapters.count) 章")
-                .font(.caption)
-                .foregroundStyle(AppTheme.textSecondary)
+        HStack(alignment: .top, spacing: 12) {
+            CachedAsyncImage(
+                url: APIClient.shared.coverURL(
+                    novelId: book.novel.id,
+                    updatedAt: book.novel.updatedAt
+                ),
+                targetSize: CGSize(width: 68, height: 96)
+            ) { image in
+                image.resizable().scaledToFill()
+            } placeholder: {
+                ZStack {
+                    AppTheme.primaryLight
+                    Image(systemName: "book.closed")
+                        .foregroundStyle(AppTheme.primary)
+                }
+            }
+            .frame(width: 68, height: 96)
+            .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+            .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(book.novel.title)
+                        .font(serifFont(.headline, .semibold))
+                        .foregroundStyle(AppTheme.textPrimary)
+                        .lineLimit(2)
+                    Spacer(minLength: 0)
+                    Image(
+                        systemName: expandedBookIDs.contains(book.id)
+                            ? "chevron.up"
+                            : "chevron.down"
+                    )
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .accessibilityHidden(true)
+                }
+
+                Text(displayAuthor(for: book.novel))
+                    .font(.subheadline)
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .lineLimit(1)
+
+                HStack(spacing: 6) {
+                    if let status = book.novel.statusLabel {
+                        Text(status)
+                            .modifier(ThemeTagModifier())
+                    }
+                    if book.novel.hasUpdate {
+                        Text("有更新")
+                            .modifier(ThemeTagModifier(emphasized: true))
+                    }
+                }
+
+                if !book.novel.categories.isEmpty {
+                    Text(book.novel.categories.prefix(2).joined(separator: " · "))
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.textMuted)
+                        .lineLimit(1)
+                }
+
+                Text(savedProgressText(for: book))
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .lineLimit(1)
+            }
         }
+        .padding(.vertical, 10)
         .textCase(nil)
+    }
+
+    private func displayAuthor(for novel: Novel) -> String {
+        novel.author.isEmpty ? "佚名" : novel.author
+    }
+
+    private func savedProgressText(for book: OfflineReadingStore.DownloadedBook) -> String {
+        let savedCount = book.chapters.count
+        let totalCount = max(book.novel.chapterCount, book.novel.remoteChapterCount, savedCount)
+        if totalCount > savedCount {
+            return "已保存 \(savedCount)/\(totalCount) 章 · 离线可读"
+        }
+        return "已保存 \(savedCount) 章 · 离线可读"
+    }
+
+    private func toggleBook(_ bookID: String) {
+        let update: () -> Void = {
+            if expandedBookIDs.contains(bookID) {
+                expandedBookIDs.remove(bookID)
+            } else {
+                expandedBookIDs.insert(bookID)
+            }
+        }
+
+        if reduceMotion {
+            update()
+        } else {
+            withAnimation(.easeInOut(duration: 0.2), update)
+        }
+    }
+
+    private func synchronizeExpandedBooks() {
+        let bookIDs = Set(offlineStore.books.map(\.id))
+        expandedBookIDs.formIntersection(bookIDs)
+        guard !hasEstablishedInitialExpansion,
+              let firstBook = offlineStore.books.first else { return }
+        expandedBookIDs.insert(firstBook.id)
+        hasEstablishedInitialExpansion = true
     }
 
     private func chapterRow(_ chapter: ChapterMeta) -> some View {
