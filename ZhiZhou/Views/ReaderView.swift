@@ -49,6 +49,7 @@ struct ReaderView: View {
     @State private var pendingRestorePercent: Double?
     @State private var interactionFeedback = 0
     @State private var fontRevision = 0
+    @State private var chapterIsSaved = false
 
     init(novel: Novel, chapterOrder: Int, preloadedChapters: [ChapterMeta] = []) {
         self.novel = novel
@@ -441,16 +442,21 @@ struct ReaderView: View {
                 .font(.footnote.weight(.semibold))
                 .monospacedDigit()
                 .foregroundStyle(AppTheme.primary.opacity(0.92))
-            Text(percentText)
-                .font(.caption2)
-                .monospacedDigit()
-                .foregroundStyle(AppTheme.primary.opacity(0.7))
+            HStack(spacing: 4) {
+                Text(percentText)
+                    .monospacedDigit()
+                Image(systemName: chapterIsSaved ? "arrow.down.circle.fill" : "icloud.slash")
+                    .accessibilityHidden(true)
+                Text(chapterIsSaved ? "离线可读" : "未缓存")
+            }
+            .font(.caption2)
+            .foregroundStyle(AppTheme.primary.opacity(0.7))
         }
         .padding(.horizontal, 12)
         .frame(minHeight: 44)
         .glassEffect(AppTheme.glassClear, in: Capsule())
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("第 \(chapterOrder) / \(totalOrderCount) 章，\(percentText)")
+        .accessibilityLabel("第 \(chapterOrder) / \(totalOrderCount) 章，\(percentText)，\(chapterIsSaved ? "离线可读" : "未缓存")")
     }
 
     private var nextChapterButton: some View {
@@ -633,6 +639,7 @@ struct ReaderView: View {
         currentPage = 0
         pendingRestorePercent = nil
         pendingScrollRestore = nil
+        chapterIsSaved = false
     }
 
     private func load() async {
@@ -690,15 +697,22 @@ struct ReaderView: View {
         errorMessage = nil
         paragraphs = Self.paragraphs(of: r.chapter)
         paragraphCount = paragraphs.count
+        chapterIsSaved = await APIClient.shared.hasCachedChapter(id: r.chapter.id)
+        guard chapterOrder == order else { return }
 
         var restore: Double = 0
         if APIClient.shared.isAuthenticated {
-            let p: ProgressResponse = try await APIClient.shared.get(
-                "/api/progress?novelId=\(novel.id)", auth: true
-            )
-            guard chapterOrder == order else { return }
-            if let prog = p.progress, prog.chapterId == r.chapter.id, prog.scrollPercent > 0 {
-                restore = prog.scrollPercent
+            do {
+                let p: ProgressResponse = try await APIClient.shared.get(
+                    "/api/progress?novelId=\(novel.id)", auth: true
+                )
+                guard chapterOrder == order else { return }
+                if let prog = p.progress, prog.chapterId == r.chapter.id, prog.scrollPercent > 0 {
+                    restore = prog.scrollPercent
+                }
+            } catch {
+                // 正文已经可以从磁盘缓存离线打开；进度失败不应遮挡当前章节。
+                guard chapterOrder == order else { return }
             }
         }
         // 网络返回旧快照时，优先使用本地尚未上传的同章进度，避免弱网下回退到旧位置。
@@ -715,6 +729,7 @@ struct ReaderView: View {
         scrolledParagraph = nil
         // 等 ScrollView 报告真实 contentSize 后再定位，避免仅靠 Task.yield 猜测 layout 时序。
         pendingScrollRestore = target
+        prefetchNextChapter()
     }
 
     private func updatePercent(from index: Int?) {
@@ -761,6 +776,14 @@ struct ReaderView: View {
 
     private func flushProgress() {
         Task { @MainActor in await ReaderProgressStore.shared.flush() }
+    }
+
+    private func prefetchNextChapter() {
+        guard let next = chapterMetas.first(where: { $0.order == chapterOrder + 1 }) else { return }
+        let nextID = next.id
+        Task {
+            await APIClient.shared.prefetchChapter(id: nextID)
+        }
     }
 
     /// 进度体与当前展示章节强一致：切章失败/错位时不写脏数据。

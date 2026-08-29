@@ -6,6 +6,7 @@ struct StorageManagerView: View {
 
     @State private var showDeleteFontsConfirm = false
     @State private var showClearCachesConfirm = false
+    @State private var isClearingCaches = false
 
     var body: some View {
         List {
@@ -65,7 +66,15 @@ struct StorageManagerView: View {
                 Button("清理图片和章节缓存", role: .destructive) {
                     showClearCachesConfirm = true
                 }
-                .disabled(fontStore.storage.cachesBytes == 0)
+                .disabled(fontStore.storage.cachesBytes == 0 || isClearingCaches)
+
+                if isClearingCaches {
+                    HStack(spacing: 10) {
+                        ProgressView()
+                        Text("正在清理缓存…")
+                            .foregroundStyle(AppTheme.textSecondary)
+                    }
+                }
             }
 
             Section {
@@ -98,7 +107,11 @@ struct StorageManagerView: View {
             titleVisibility: .visible
         ) {
             Button("清理缓存", role: .destructive) {
-                fontStore.clearCaches()
+                Task { @MainActor in
+                    isClearingCaches = true
+                    await fontStore.clearCaches()
+                    isClearingCaches = false
+                }
             }
         }
     }

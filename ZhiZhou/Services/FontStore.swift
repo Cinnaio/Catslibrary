@@ -172,9 +172,9 @@ final class FontStore {
         postFontChange()
     }
 
-    func clearCaches() {
+    func clearCaches() async {
         ImageCache.sharedCache.removeAllCachedResponses()
-        APIClient.shared.clearMemoryCaches()
+        await APIClient.shared.clearCaches()
         refresh()
     }
 

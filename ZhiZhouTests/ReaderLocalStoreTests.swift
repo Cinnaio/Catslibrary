@@ -122,4 +122,38 @@ final class ReaderLocalStoreTests: XCTestCase {
         XCTAssertEqual(store.pendingBody(for: "novel-1"), body)
         store.deactivate()
     }
+
+    func testChapterCacheSurvivesARecreatedCacheInstance() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ZhiZhouTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let url = "https://example.com/api/chapters/chapter-1?contentMode=safe"
+        let payload = Data("chapter content".utf8)
+        let cache = ChapterDiskCache(directoryURL: directory, maxBytes: 1024 * 1024)
+
+        await cache.store(payload, for: url)
+
+        let reopenedCache = ChapterDiskCache(directoryURL: directory, maxBytes: 1024 * 1024)
+        let restored = await reopenedCache.data(for: url)
+        let other = await reopenedCache.data(for: "https://example.com/api/chapters/chapter-2?contentMode=safe")
+
+        XCTAssertEqual(restored, payload)
+        XCTAssertNil(other)
+    }
+
+    func testChapterCacheCanBeCleared() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ZhiZhouTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let url = "https://example.com/api/chapters/chapter-1?contentMode=safe"
+        let cache = ChapterDiskCache(directoryURL: directory, maxBytes: 1024 * 1024)
+        await cache.store(Data("chapter content".utf8), for: url)
+
+        await cache.removeAll()
+
+        let exists = await cache.contains(url)
+        XCTAssertFalse(exists)
+    }
 }

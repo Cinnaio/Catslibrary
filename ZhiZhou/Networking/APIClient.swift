@@ -59,12 +59,23 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
     private static let allowInvalidCertKey = "zhizhou.allowInvalidCert"
     #endif
 
-    /// 章节正文内存缓存：避免切回已读章节时重复下载（Data 按 URL 缓存）。
-    private let chapterDataCache = NSCache<NSString, NSData>()
+    /// 阅读器章节数据内存缓存：避免切回已读章节时重复下载（Data 按 URL 缓存）。
+    private let chapterDataCache: NSCache<NSString, NSData> = {
+        let cache = NSCache<NSString, NSData>()
+        cache.countLimit = 20
+        cache.totalCostLimit = 16 * 1024 * 1024
+        return cache
+    }()
 
-    /// 清理章节正文内存缓存；磁盘缓存由 ImageCache 统一管理。
+    /// 兼容旧调用，仅清理章节内存缓存。
     func clearMemoryCaches() {
         chapterDataCache.removeAllObjects()
+    }
+
+    /// 清理章节内存与磁盘缓存，供存储管理页等待完成后刷新占用。
+    func clearCaches() async {
+        chapterDataCache.removeAllObjects()
+        await ChapterDiskCache.shared.removeAll()
     }
 
     /// lazy：URLSession 的 delegate 需要 self 已完全初始化，故延迟到首次使用时创建
@@ -175,15 +186,13 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
     func request<T: Decodable>(_ method: String, _ path: String, body: Data? = nil, auth: Bool = false, contentType: String? = nil) async throws -> T {
         let url = try makeURL(path)
 
-        // 章节正文 GET 走内存缓存：离线/重访不重复下载
-        if method == "GET", !auth, isChapterPath(path), let cached = chapterDataCache.object(forKey: url.absoluteString as NSString) {
-            if T.self == EmptyResponse.self {
-                guard let empty = EmptyResponse() as? T else { throw APIError.invalidResponse }
-                return empty
-            }
-            if let decoded = try? decoder.decode(T.self, from: cached as Data) {
-                return decoded
-            }
+        let usesReaderChapterCache = method == "GET" && !auth && isReaderChapterPath(path)
+
+        // 阅读器章节列表/正文优先走内存缓存：切章和打开目录时不重复下载。
+        if usesReaderChapterCache,
+           let cached = chapterDataCache.object(forKey: url.absoluteString as NSString),
+           let decoded = decode(cached as Data, as: T.self) {
+            return decoded
         }
 
         var req = URLRequest(url: url)
@@ -204,9 +213,27 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
         let response: URLResponse
         do {
             (data, response) = try await perform(req)
+        } catch is CancellationError {
+            throw CancellationError()
         } catch let error as URLError {
+            if error.code == .cancelled || Task.isCancelled {
+                throw CancellationError()
+            }
+            if usesReaderChapterCache,
+               let cached = await ChapterDiskCache.shared.data(for: url.absoluteString),
+               let decoded = decode(cached, as: T.self) {
+                return decoded
+            }
             throw APIError.network(friendlyDescription(for: error))
         } catch {
+            if Task.isCancelled {
+                throw CancellationError()
+            }
+            if usesReaderChapterCache,
+               let cached = await ChapterDiskCache.shared.data(for: url.absoluteString),
+               let decoded = decode(cached, as: T.self) {
+                return decoded
+            }
             throw APIError.network(error.localizedDescription)
         }
 
@@ -219,26 +246,35 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
             throw APIError.http(status: http.statusCode, message: message)
         }
 
-        if method == "GET", !auth, isChapterPath(path) {
-            chapterDataCache.setObject(data as NSData, forKey: url.absoluteString as NSString)
-        }
-
-        if T.self == EmptyResponse.self {
-            guard let empty = EmptyResponse() as? T else { throw APIError.invalidResponse }
-            return empty
-        }
-        do {
-            return try decoder.decode(T.self, from: data)
-        } catch {
+        guard let decoded = decode(data, as: T.self) else {
             throw APIError.invalidResponse
         }
+
+        if usesReaderChapterCache {
+            chapterDataCache.setObject(
+                data as NSData,
+                forKey: url.absoluteString as NSString,
+                cost: data.count
+            )
+            await ChapterDiskCache.shared.store(data, for: url.absoluteString)
+        }
+        return decoded
     }
 
-    private func isChapterPath(_ path: String) -> Bool {
-        // GET /api/chapters/{id} 正文（带不带 query 都算）
+    private func isReaderChapterPath(_ path: String) -> Bool {
+        // GET /api/chapters（目录）和 /api/chapters/{id}（正文）均可离线回退。
         let base = path.split(separator: "?").first.map(String.init) ?? path
         let parts = base.split(separator: "/").filter { !$0.isEmpty }.map(String.init)
-        return parts.count == 3 && parts[0] == "api" && parts[1] == "chapters"
+        return (parts.count == 2 || parts.count == 3)
+            && parts[0] == "api"
+            && parts[1] == "chapters"
+    }
+
+    private func decode<T: Decodable>(_ data: Data, as type: T.Type) -> T? {
+        if T.self == EmptyResponse.self {
+            return EmptyResponse() as? T
+        }
+        return try? decoder.decode(T.self, from: data)
     }
 
     private func handleUnauthorized() {
@@ -254,6 +290,24 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
 
     func get<T: Decodable>(_ path: String, auth: Bool = false) async throws -> T {
         try await request("GET", path, auth: auth)
+    }
+
+    /// 预取下一章：已有磁盘缓存时不触网，在线时复用正常章节缓存路径。
+    func prefetchChapter(id: String) async {
+        let path = ContentPolicy.safePath("/api/chapters/\(id)")
+        guard let url = try? makeURL(path) else { return }
+        if await ChapterDiskCache.shared.contains(url.absoluteString) { return }
+        do {
+            let _: ChapterResponse = try await get(path)
+        } catch {
+            // 预取是体验优化，失败不打扰当前章节阅读。
+        }
+    }
+
+    func hasCachedChapter(id: String) async -> Bool {
+        let path = ContentPolicy.safePath("/api/chapters/\(id)")
+        guard let url = try? makeURL(path) else { return false }
+        return await ChapterDiskCache.shared.contains(url.absoluteString)
     }
 
     /// 读取服务端 SSE 文本行。用于可恢复任务的前台实时展示；连接中断不影响服务端任务本身。
