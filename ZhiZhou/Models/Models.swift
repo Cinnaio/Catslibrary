@@ -193,6 +193,46 @@ struct ThoughtItem: Codable, Identifiable {
     let createdAt: Int64
 }
 
+/// 公开阅读页段评（GET/POST/DELETE /api/thoughts）。
+/// 与 AdminThought 分开命名，避免把管理后台的扩展字段带进阅读器。
+struct Thought: Codable, Identifiable, Hashable {
+    let id: String
+    let novelId: String
+    let chapterId: String
+    let paragraphIndex: Int
+    let paragraphHash: String
+    let selectedText: String
+    let thoughtText: String
+    let displayName: String
+    let status: String
+    let reportCount: Int
+    let createdAt: Int64
+    let updatedAt: Int64
+    let userId: String
+    let avatarUrl: String
+}
+
+struct PublicThoughtsResponse: Codable {
+    let thoughts: [Thought]
+    let counts: [String: Int]
+    let chapterId: String
+    let total: Int
+}
+
+struct ThoughtResponse: Codable {
+    let thought: Thought
+}
+
+struct ThoughtCreatePayload: Encodable {
+    let novelId: String
+    let chapterId: String
+    let paragraphIndex: Int
+    let paragraphHash: String
+    let selectedText: String
+    let thoughtText: String
+    let displayName: String
+}
+
 /// 阅读设置同步负载（LWW 合并结构，与后端 /api/auth/reader-settings 对齐）
 struct ReaderSettingsPayload: Codable {
     var settings: [String: String]

@@ -19,6 +19,7 @@ struct ReaderView: View {
     let offlineOnly: Bool
     @State var chapterOrder: Int
 
+    @Environment(AppState.self) private var appState
     @Environment(ReaderSettingsStore.self) private var settings
     @Environment(OfflineReadingStore.self) private var offlineStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -53,6 +54,12 @@ struct ReaderView: View {
     @State private var interactionFeedback = 0
     @State private var fontRevision = 0
     @State private var chapterIsSaved = false
+    @State private var chapterThoughts: [Thought] = []
+    @State private var thoughtsLoadTask: Task<Void, Never>?
+    @State private var isLoadingThoughts = false
+    @State private var thoughtsError: String?
+    @State private var activeThoughtParagraph: Int?
+    @State private var showThoughtPanel = false
 
     init(
         novel: Novel,
@@ -78,6 +85,15 @@ struct ReaderView: View {
     private var paper: Color { settings.backgroundColor(systemDark: systemIsDark) }
     private var ink: Color { settings.textColor(systemDark: systemIsDark) }
     private var scheme: ColorScheme? { settings.colorSchemeOverride(systemDark: systemIsDark) }
+
+    private var thoughtsByParagraph: [Int: [Thought]] {
+        Dictionary(grouping: chapterThoughts) { $0.paragraphIndex }
+    }
+
+    private var currentDisplayName: String {
+        guard let user = appState.user else { return "" }
+        return user.displayName.isEmpty ? user.username : user.displayName
+    }
 
     private var percentText: String {
         "已读 \(Int((progressPercent * 100).rounded()))%"
@@ -150,6 +166,37 @@ struct ReaderView: View {
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
         }
+        .sheet(isPresented: $showThoughtPanel, onDismiss: {
+            activeThoughtParagraph = nil
+        }) {
+            if let index = activeThoughtParagraph,
+               paragraphs.indices.contains(index),
+               let chapter {
+                ThoughtPanelView(
+                    chapterTitle: chapter.title,
+                    paragraphExcerpt: paragraphExcerpt(for: paragraphs[index]),
+                    thoughts: thoughtsByParagraph[index] ?? [],
+                    currentUserID: appState.user?.id,
+                    defaultDisplayName: currentDisplayName,
+                    isLoading: isLoadingThoughts,
+                    loadError: thoughtsError,
+                    canCompose: !offlineOnly && appState.user != nil,
+                    onRetry: { loadThoughts(for: chapter.id) },
+                    onSubmit: { text, displayName in
+                        try await submitThought(text: text, displayName: displayName)
+                    },
+                    onDelete: { id in
+                        try await deleteThought(id: id)
+                    }
+                )
+                .preferredColorScheme(scheme)
+                .presentationBackground(paper)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+            } else {
+                Color.clear
+            }
+        }
         .preferredColorScheme(scheme)
         .task { await load() }
         .onReceive(NotificationCenter.default.publisher(for: .zhiZhouFontStoreDidChange)) { _ in
@@ -174,6 +221,7 @@ struct ReaderView: View {
         .onDisappear {
             UIApplication.shared.isIdleTimerDisabled = false
             saveTask?.cancel()
+            thoughtsLoadTask?.cancel()
             saveProgressNow()
         }
     }
@@ -204,18 +252,61 @@ struct ReaderView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.bottom, 14)
             ForEach(Array(paragraphs.enumerated()), id: \.offset) { index, paragraph in
-                Text(paragraphIndent + paragraph)
-                    .font(settings.bodyFont)
-                    .lineSpacing(settings.lineSpacing)
-                    .multilineTextAlignment(.leading)
-                    .foregroundStyle(ink)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                readerParagraph(index: index, text: paragraph)
                     .id(index)
             }
             if hasNextChapter {
                 nextChapterButton
             }
         }
+    }
+
+    /// 段落级段评入口：正文保持干净，仅在已有段评时显示轻量标记；长按正文可查看或发布。
+    private func readerParagraph(index: Int, text: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(paragraphIndent + text)
+                .font(settings.bodyFont)
+                .lineSpacing(settings.lineSpacing)
+                .multilineTextAlignment(.leading)
+                .foregroundStyle(ink)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .textSelection(.enabled)
+
+            if let count = thoughtsByParagraph[index]?.count, count > 0 {
+                HStack {
+                    Spacer()
+                    Button {
+                        openThoughtPanel(for: index)
+                    } label: {
+                        Label("\(count) 条段评", systemImage: "text.bubble")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(AppTheme.primary)
+                            .padding(.horizontal, 9)
+                            .frame(minHeight: 28)
+                            .background(AppTheme.primaryLight, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("\(count) 条段评")
+                    Spacer()
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .contextMenu {
+            if !offlineOnly {
+                Button {
+                    openThoughtPanel(for: index)
+                } label: {
+                    let hasThoughts = thoughtsByParagraph[index]?.isEmpty == false
+                    Label(
+                        hasThoughts ? "查看段评" : "写段评",
+                        systemImage: "text.bubble"
+                    )
+                }
+            }
+        }
+        .accessibilityHint("长按查看或发布段评")
     }
 
     /// 滚动区。独立成子表达式，避免 body 表达式过复杂导致 Release 下类型检查超时。
@@ -503,6 +594,19 @@ struct ReaderView: View {
     /// 顶部操作组：只保留图标与 44pt 点按区，不再叠加玻璃容器和按钮底板。
     private var readerToolbarGroup: some View {
         HStack(spacing: 10) {
+            if !offlineOnly {
+                Button {
+                    openCurrentThoughtPanel()
+                } label: {
+                    Image(systemName: "text.bubble")
+                        .font(.system(size: 17, weight: .medium))
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .disabled(currentReadingParagraphIndex == nil)
+                .accessibilityLabel("当前段评")
+            }
+
             Button {
                 showTOC = true
                 interactionFeedback += 1
@@ -655,6 +759,7 @@ struct ReaderView: View {
     /// 切章前清空旧正文，避免失败时静默显示上一章内容。
     private func resetForNewChapter() {
         saveTask?.cancel()
+        thoughtsLoadTask?.cancel()
         chapter = nil
         paragraphs = []
         paragraphCount = 0
@@ -668,6 +773,11 @@ struct ReaderView: View {
         pendingRestorePercent = nil
         pendingScrollRestore = nil
         chapterIsSaved = false
+        chapterThoughts = []
+        isLoadingThoughts = false
+        thoughtsError = nil
+        activeThoughtParagraph = nil
+        showThoughtPanel = false
     }
 
     private func load() async {
@@ -739,6 +849,7 @@ struct ReaderView: View {
         errorMessage = nil
         paragraphs = Self.paragraphs(of: r.chapter)
         paragraphCount = paragraphs.count
+        loadThoughts(for: r.chapter.id)
         chapterIsSaved = await APIClient.shared.hasCachedChapter(id: r.chapter.id)
         guard chapterOrder == order else { return }
 
@@ -772,6 +883,116 @@ struct ReaderView: View {
         // 等 ScrollView 报告真实 contentSize 后再定位，避免仅靠 Task.yield 猜测 layout 时序。
         pendingScrollRestore = target
         prefetchNextChapter()
+    }
+
+    private func openThoughtPanel(for index: Int) {
+        guard !offlineOnly, paragraphs.indices.contains(index) else { return }
+        activeThoughtParagraph = index
+        showThoughtPanel = true
+        interactionFeedback &+= 1
+    }
+
+    private func openCurrentThoughtPanel() {
+        guard let index = currentReadingParagraphIndex else { return }
+        openThoughtPanel(for: index)
+    }
+
+    private var currentReadingParagraphIndex: Int? {
+        guard !paragraphs.isEmpty else { return nil }
+        if settings.pageMode == "page" {
+            return paragraphIndex(forPage: currentPage)
+        }
+        return scrolledParagraph ?? paragraphs.indices.first
+    }
+
+    /// 翻页模式下，把当前页起始字符映射回正文段落，保证工具栏段评仍然有明确对象。
+    private func paragraphIndex(forPage page: Int) -> Int? {
+        guard pageRanges.indices.contains(page), !paragraphs.isEmpty else { return nil }
+        let titleLength = (chapter?.title ?? "").utf16.count + 1
+        var cursor = titleLength
+
+        for (index, paragraph) in paragraphs.enumerated() {
+            if index > 0 { cursor += 1 }
+            let end = cursor + (paragraphIndent + paragraph).utf16.count
+            if pageRanges[page].location < end { return index }
+            cursor = end
+        }
+        return paragraphs.indices.last
+    }
+
+    private func loadThoughts(for chapterID: String) {
+        thoughtsLoadTask?.cancel()
+        chapterThoughts = []
+        thoughtsError = nil
+
+        guard !offlineOnly else {
+            isLoadingThoughts = false
+            return
+        }
+
+        isLoadingThoughts = true
+        thoughtsLoadTask = Task { @MainActor in
+            do {
+                let response: PublicThoughtsResponse = try await ThoughtsAPI.list(
+                    chapterID: chapterID
+                )
+                guard !Task.isCancelled, self.chapter?.id == chapterID else { return }
+                let responseIDs = Set(response.thoughts.map(\.id))
+                let localOnly = self.chapterThoughts.filter { !responseIDs.contains($0.id) }
+                self.chapterThoughts = (response.thoughts + localOnly).sorted {
+                    if $0.paragraphIndex != $1.paragraphIndex {
+                        return $0.paragraphIndex < $1.paragraphIndex
+                    }
+                    return $0.createdAt < $1.createdAt
+                }
+                self.thoughtsError = nil
+            } catch is CancellationError {
+                return
+            } catch {
+                guard self.chapter?.id == chapterID else { return }
+                self.thoughtsError = AppCopy.friendlyError(error)
+            }
+
+            guard self.chapter?.id == chapterID else { return }
+            self.isLoadingThoughts = false
+        }
+    }
+
+    private func submitThought(text: String, displayName: String) async throws {
+        guard let currentChapter = chapter,
+              let index = activeThoughtParagraph,
+              paragraphs.indices.contains(index)
+        else {
+            throw APIError.invalidResponse
+        }
+
+        let payload = ThoughtCreatePayload(
+            novelId: currentChapter.novelId,
+            chapterId: currentChapter.id,
+            paragraphIndex: index,
+            paragraphHash: Self.paragraphHash(paragraphs[index]),
+            selectedText: "",
+            thoughtText: String(text.trimmingCharacters(in: .whitespacesAndNewlines).prefix(300)),
+            displayName: String(displayName.trimmingCharacters(in: .whitespacesAndNewlines).prefix(20))
+        )
+        let thought = try await ThoughtsAPI.create(payload: payload)
+        guard self.chapter?.id == currentChapter.id else { return }
+        chapterThoughts.append(thought)
+        AppFeedback.success("段评已发布")
+    }
+
+    private func deleteThought(id: String) async throws {
+        try await ThoughtsAPI.remove(id: id)
+        chapterThoughts.removeAll { $0.id == id }
+        AppFeedback.success("段评已删除")
+    }
+
+    private func paragraphExcerpt(for text: String) -> String {
+        let normalized = Self.normalizedParagraphText(text)
+        guard !normalized.isEmpty else { return "这一段暂无文字" }
+        return normalized.count > 120
+            ? String(normalized.prefix(120)) + "…"
+            : normalized
     }
 
     private func updatePercent(from index: Int?) {
@@ -864,6 +1085,20 @@ struct ReaderView: View {
             .components(separatedBy: "\n")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
+    }
+
+    nonisolated private static func normalizedParagraphText(_ text: String) -> String {
+        text.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
+    }
+
+    /// 与 Web 段评使用相同的 FNV-1a + base36 段落指纹，方便正文变更时定位段落。
+    nonisolated private static func paragraphHash(_ text: String) -> String {
+        var hash: UInt32 = 2_166_136_261
+        for unit in normalizedParagraphText(text).utf16 {
+            hash ^= UInt32(unit)
+            hash = hash &* 16_777_619
+        }
+        return String(hash, radix: 36)
     }
 }
 
