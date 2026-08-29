@@ -1,4 +1,5 @@
 import UIKit
+import ZhiZhouCore
 
 /// 章节分页：把正文按给定字号/行距/视口尺寸切成多个 NSAttributedString 页。
 /// 基于 TextKit（NSLayoutManager + 逐页添加 NSTextContainer）排版，与 SwiftUI 渲染同源同宽度。
@@ -11,6 +12,9 @@ enum ChapterPaginator {
         let paragraphSpacing: CGFloat
         let title: String
         let paragraphs: [String]
+        let thoughtSelectionsByParagraph: [Int: [String]]
+        let thoughtHighlightColor: UIColor
+        let thoughtUnderlineColor: UIColor
     }
 
     /// 组装整章排版用的富文本（标题 + 首行缩进 + 段间距）。
@@ -33,10 +37,31 @@ enum ChapterPaginator {
         bodyPS.lineBreakMode = .byWordWrapping
         for (index, paragraph) in spec.paragraphs.enumerated() {
             if index > 0 { result.append(NSAttributedString(string: "\n")) }
-            result.append(NSAttributedString(string: paragraphIndent + paragraph, attributes: [
-                .font: spec.bodyFont,
-                .paragraphStyle: bodyPS,
-            ]))
+            let renderedParagraph = NSMutableAttributedString(
+                string: paragraphIndent + paragraph,
+                attributes: [
+                    .font: spec.bodyFont,
+                    .paragraphStyle: bodyPS,
+                ]
+            )
+            let indentLength = paragraphIndent.utf16.count
+            for range in ReaderTextHighlight.ranges(
+                in: paragraph,
+                matching: spec.thoughtSelectionsByParagraph[index] ?? []
+            ) {
+                renderedParagraph.addAttributes(
+                    [
+                        .backgroundColor: spec.thoughtHighlightColor,
+                        .underlineColor: spec.thoughtUnderlineColor,
+                        .underlineStyle: NSUnderlineStyle.single.rawValue,
+                    ],
+                    range: NSRange(
+                        location: indentLength + range.location,
+                        length: range.length
+                    )
+                )
+            }
+            result.append(renderedParagraph)
         }
         return result
     }

@@ -269,7 +269,10 @@ struct ReaderView: View {
     private func readerParagraph(index: Int, text: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             SelectableTextView(
-                attributedText: paragraphAttributedText(text),
+                attributedText: paragraphAttributedText(
+                    text,
+                    thoughts: thoughtsByParagraph[index] ?? []
+                ),
                 textColor: inkUIColor,
                 menuTitle: thoughtsByParagraph[index]?.isEmpty == false ? "查看段评" : "写段评",
                 isThoughtActionEnabled: !offlineOnly
@@ -302,11 +305,11 @@ struct ReaderView: View {
         .accessibilityHint("选中文字后从菜单进入段评")
     }
 
-    private func paragraphAttributedText(_ text: String) -> NSAttributedString {
+    private func paragraphAttributedText(_ text: String, thoughts: [Thought]) -> NSAttributedString {
         let style = NSMutableParagraphStyle()
         style.lineSpacing = settings.lineSpacing
         style.alignment = .natural
-        return NSAttributedString(
+        let renderedText = NSMutableAttributedString(
             string: paragraphIndent + text,
             attributes: [
                 .font: settings.bodyUIFont,
@@ -314,6 +317,28 @@ struct ReaderView: View {
                 .paragraphStyle: style,
             ]
         )
+        let indentLength = paragraphIndent.utf16.count
+        for range in ReaderTextHighlight.ranges(
+            in: text,
+            matching: thoughts.map(\.selectedText)
+        ) {
+            renderedText.addAttributes(
+                thoughtHighlightAttributes,
+                range: NSRange(
+                    location: indentLength + range.location,
+                    length: range.length
+                )
+            )
+        }
+        return renderedText
+    }
+
+    private var thoughtHighlightAttributes: [NSAttributedString.Key: Any] {
+        [
+            .backgroundColor: UIColor(AppTheme.primary).withAlphaComponent(0.13),
+            .underlineColor: UIColor(AppTheme.primary).withAlphaComponent(0.78),
+            .underlineStyle: NSUnderlineStyle.single.rawValue,
+        ]
     }
 
     /// 滚动区。独立成子表达式，避免 body 表达式过复杂导致 Release 下类型检查超时。
@@ -378,7 +403,8 @@ struct ReaderView: View {
         // 页面高度固定；工具栏是覆盖层，切换显示状态不应触发整章重新分页和页面跳动。
         let contentHeight = max(120, geo.size.height - 8 - 78)
         let pageSize = CGSize(width: contentWidth, height: contentHeight)
-        let key = "\(chapter?.id ?? "-"):\(Int(contentWidth)):\(Int(contentHeight)):\(settings.fontSizeIndex):\(settings.lineHeight):\(settings.paragraphSpacing):\(settings.useSerif):\(dynamicTypeSize):\(fontRevision)"
+        let thoughtIDs = chapterThoughts.map(\.id).joined(separator: ",")
+        let key = "\(chapter?.id ?? "-"):\(Int(contentWidth)):\(Int(contentHeight)):\(settings.fontSizeIndex):\(settings.lineHeight):\(settings.paragraphSpacing):\(settings.useSerif):\(dynamicTypeSize):\(fontRevision):\(thoughtIDs)"
 
         return Group {
             if isLoading && chapter == nil {
@@ -684,7 +710,12 @@ struct ReaderView: View {
             lineSpacing: settings.lineSpacing,
             paragraphSpacing: settings.paragraphSpacing,
             title: chapter.title,
-            paragraphs: paragraphs
+            paragraphs: paragraphs,
+            thoughtSelectionsByParagraph: thoughtsByParagraph.mapValues {
+                $0.map(\.selectedText)
+            },
+            thoughtHighlightColor: UIColor(AppTheme.primary).withAlphaComponent(0.13),
+            thoughtUnderlineColor: UIColor(AppTheme.primary).withAlphaComponent(0.78)
         )
         let result = await Task.detached(priority: .userInitiated) {
             guard !Task.isCancelled else { return [ChapterPaginator.Page]() }
@@ -973,9 +1004,7 @@ struct ReaderView: View {
                     chapterID: chapterID
                 )
                 guard !Task.isCancelled, self.chapter?.id == chapterID else { return }
-                let responseIDs = Set(response.thoughts.map(\.id))
-                let localOnly = self.chapterThoughts.filter { !responseIDs.contains($0.id) }
-                self.chapterThoughts = (response.thoughts + localOnly).sorted {
+                self.chapterThoughts = response.thoughts.sorted {
                     if $0.paragraphIndex != $1.paragraphIndex {
                         return $0.paragraphIndex < $1.paragraphIndex
                     }
@@ -1003,6 +1032,9 @@ struct ReaderView: View {
             throw APIError.invalidResponse
         }
 
+        thoughtsLoadTask?.cancel()
+        isLoadingThoughts = false
+
         let payload = ThoughtCreatePayload(
             novelId: currentChapter.novelId,
             chapterId: currentChapter.id,
@@ -1014,11 +1046,14 @@ struct ReaderView: View {
         )
         let thought = try await ThoughtsAPI.create(payload: payload)
         guard self.chapter?.id == currentChapter.id else { return }
+        chapterThoughts.removeAll { $0.id == thought.id }
         chapterThoughts.append(thought)
         AppFeedback.success("段评已发布")
     }
 
     private func deleteThought(id: String) async throws {
+        thoughtsLoadTask?.cancel()
+        isLoadingThoughts = false
         try await ThoughtsAPI.remove(id: id)
         chapterThoughts.removeAll { $0.id == id }
         AppFeedback.success("段评已删除")

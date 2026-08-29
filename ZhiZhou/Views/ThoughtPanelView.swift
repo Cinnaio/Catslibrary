@@ -102,21 +102,29 @@ struct ThoughtPanelView: View {
     }
 
     private var paragraphHeader: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(chapterTitle)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Label(
+                    selectedText.isEmpty ? "评论这一段" : "评论选中文字",
+                    systemImage: selectedText.isEmpty ? "text.quote" : "character.cursor.ibeam"
+                )
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(AppTheme.primary)
 
+                Spacer(minLength: 8)
+
+                Text(chapterTitle)
+                    .font(.caption2)
+                    .foregroundStyle(AppTheme.textMuted)
+                    .lineLimit(1)
+            }
+
             if !selectedText.isEmpty {
                 Text("「\(selectedText)」")
-                    .font(.subheadline.weight(.medium))
+                    .font(.callout.weight(.semibold))
                     .foregroundStyle(AppTheme.primaryDeep)
                     .lineLimit(4)
                     .multilineTextAlignment(.leading)
-
-                Text("所在段落")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(AppTheme.textMuted)
             }
 
             Text(paragraphExcerpt)
@@ -128,9 +136,13 @@ struct ThoughtPanelView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
         .background(
-            AppTheme.primaryLight,
+            AppTheme.surface,
             in: RoundedRectangle(cornerRadius: 16, style: .continuous)
         )
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(AppTheme.border.opacity(0.55), lineWidth: 0.5)
+        }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
             selectedText.isEmpty
@@ -279,22 +291,37 @@ struct ThoughtPanelView: View {
     @ViewBuilder
     private var composer: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Divider()
-
             if canCompose {
-                TextField("显示名称（可选）", text: $displayName)
-                    .textFieldStyle(.roundedBorder)
-                    .onChange(of: displayName) { _, value in
-                        if value.count > 20 {
-                            displayName = String(value.prefix(20))
-                        }
-                    }
+                HStack(spacing: 10) {
+                    Label("署名", systemImage: "person.crop.circle")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(AppTheme.textSecondary)
 
-                TextEditor(text: $draft)
+                    TextField("匿名读者", text: $displayName)
+                        .font(.subheadline)
+                        .textFieldStyle(.plain)
+                        .multilineTextAlignment(.trailing)
+                        .accessibilityLabel("段评署名")
+                }
+                .padding(.horizontal, 12)
+                .frame(minHeight: 40)
+                .background(
+                    AppTheme.surfaceSecondary,
+                    in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                )
+                .onChange(of: displayName) { _, value in
+                    if value.count > 20 {
+                        displayName = String(value.prefix(20))
+                    }
+                }
+
+                TextField("写下你对这段文字的想法…", text: $draft, axis: .vertical)
                     .focused($focusedField, equals: .thought)
-                    .frame(minHeight: 78, maxHeight: 126)
-                    .scrollContentBackground(.hidden)
-                    .padding(8)
+                    .font(.body)
+                    .lineLimit(2...5)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .frame(minHeight: 62, alignment: .topLeading)
                     .background(
                         AppTheme.surface,
                         in: RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -308,6 +335,7 @@ struct ThoughtPanelView: View {
                             draft = String(value.prefix(300))
                         }
                     }
+                    .accessibilityLabel("段评内容")
 
                 if let submitError {
                     Text(submitError)
@@ -328,17 +356,22 @@ struct ThoughtPanelView: View {
                     } label: {
                         if isSubmitting {
                             ProgressView()
-                                .tint(AppTheme.primary)
+                                .tint(.white)
                         } else {
-                            Label("发布", systemImage: "arrow.up.circle.fill")
+                            Label("发布", systemImage: "arrow.up")
                         }
                     }
-                    .buttonStyle(.glass(AppTheme.glassProminent))
-                    .tint(AppTheme.primary)
-                    .disabled(
-                        isSubmitting
-                            || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(canSubmit ? Color.white : AppTheme.textMuted)
+                    .padding(.horizontal, 15)
+                    .frame(minHeight: 40)
+                    .background(
+                        canSubmit ? AppTheme.primary : AppTheme.surfaceSecondary,
+                        in: Capsule()
                     )
+                    .buttonStyle(ScaleButtonStyle(pressedScale: 0.97))
+                    .disabled(!canSubmit)
+                    .accessibilityLabel(isSubmitting ? "正在发布段评" : "发布段评")
                 }
             } else {
                 Label("登录后才能发布段评", systemImage: "person.crop.circle")
@@ -349,9 +382,17 @@ struct ThoughtPanelView: View {
             }
         }
         .padding(.horizontal, 20)
-        .padding(.top, 2)
+        .padding(.top, 12)
         .padding(.bottom, 10)
-        .background(.regularMaterial)
+        .background(AppTheme.background)
+        .overlay(alignment: .top) {
+            Divider()
+        }
+    }
+
+    private var canSubmit: Bool {
+        !isSubmitting
+            && !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private func authorName(for thought: Thought) -> String {

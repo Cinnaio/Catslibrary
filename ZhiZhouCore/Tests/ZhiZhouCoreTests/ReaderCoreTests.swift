@@ -96,6 +96,24 @@ final class ReaderCoreTests: XCTestCase {
         XCTAssertEqual(ContentPolicy.safePath("/api/novels?page=1"), "/api/novels?page=1&contentMode=safe")
     }
 
+    func testThoughtSelectionsResolveToAllMatchingUTF16Ranges() {
+        let text = "密林间，树影斑驳。猫跃上石墙，猫回头。"
+
+        let ranges = ReaderTextHighlight.ranges(
+            in: text,
+            matching: ["树影", "猫", "猫", "", "不存在"]
+        )
+
+        XCTAssertEqual(
+            ranges,
+            [
+                NSRange(location: 4, length: 2),
+                NSRange(location: 9, length: 1),
+                NSRange(location: 15, length: 1),
+            ]
+        )
+    }
+
     func testPendingProgressDoesNotLeakAcrossUsers() {
         let outbox = ReaderProgressOutbox(
             localStore: ReaderLocalStore(defaults: defaults),
