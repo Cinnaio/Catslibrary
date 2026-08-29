@@ -49,6 +49,9 @@ struct SelectableTextView: UIViewRepresentable {
         if view.attributedText?.isEqual(to: renderedText) != true {
             view.attributedText = renderedText
         }
+        // 字体或容器宽度变化会让 UITextView 暂时保留旧的横向偏移；正文不可横向滚动，
+        // 每次重排后都把它归零，避免切换字号时文字整体向左漂移。
+        view.setContentOffset(.zero, animated: false)
         view.invalidateIntrinsicContentSize()
     }
 }

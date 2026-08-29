@@ -11,8 +11,8 @@ let paragraphIndent = "\u{3000}\u{3000}"
 
 /// 阅读器：滚动/翻页双模式、纸面主题、点击翻页开关、边缘滑动翻页、按段/页恢复进度。
 ///
-/// 布局：正文占满全屏（点击中部可收起/展开底部浮层），顶部为系统导航条
-/// （纸面底色），底部浮层放进度条与上一章/下一章/页码。沉浸时不遮挡正文。
+/// 布局：正文占满阅读区（点击中部可收起/展开阅读控制），顶部为系统导航条
+/// （纸面底色），底部安全区保留上一章/下一章/页码控制，避免正文被遮挡。
 struct ReaderView: View {
     let novel: Novel
     let preloadedChapters: [ChapterMeta]
@@ -54,6 +54,8 @@ struct ReaderView: View {
     @State private var interactionFeedback = 0
     @State private var fontRevision = 0
     @State private var chapterIsSaved = false
+    /// 底部控制区的稳定高度；隐藏时仍保留这段安全区，避免正文上下跳动。
+    private let readerChromeHeight: CGFloat = 78
     @State private var chapterThoughts: [Thought] = []
     @State private var thoughtsLoadTask: Task<Void, Never>?
     @State private var isLoadingThoughts = false
@@ -122,20 +124,18 @@ struct ReaderView: View {
 
     var body: some View {
         GeometryReader { geo in
-            ZStack(alignment: .bottom) {
-                if settings.pageMode == "page" {
-                    pagedReader(geo: geo)
-                } else {
-                    readerScroll(geo: geo)
-                }
-                // 底部浮层浮在正文之上，隐铬时整体淡出并停止响应点击。
-                readerChrome
+            if settings.pageMode == "page" {
+                pagedReader(geo: geo)
+            } else {
+                readerScroll(geo: geo)
             }
         }
         .background(paper.ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)
         .navigationTitle(chapter?.title ?? "阅读")
-        .toolbarBackground(.hidden, for: .navigationBar)
+        // 顶部控制出现时使用不透明纸面，避免正文在导航栏玻璃过渡中透出。
+        .toolbarBackground(paper, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
         .toolbar(showChrome ? .visible : .hidden, for: .navigationBar)
         .toolbar(.hidden, for: .bottomBar)
         .toolbar(.hidden, for: .tabBar)
@@ -353,13 +353,16 @@ struct ReaderView: View {
             }
             .padding(.horizontal, sideInset + 22)
             .padding(.top, 18)
-            // 工具栏只是覆盖层，正文底部始终保留相同的安全距离，避免隐铬时整页跳动。
-            .padding(.bottom, 132)
-            .frame(maxWidth: min(geo.size.width, 720))
+            // 固定正文容器宽度，字号变化时只重新排版，不让 SwiftUI 重新猜测横向尺寸。
+            .frame(width: min(geo.size.width, 720))
             .frame(maxWidth: .infinity)
             .scrollTargetLayout()
         }
         .ignoresSafeArea(edges: .horizontal)
+        // 控制区放进 ScrollView 的安全区，滚动到末尾时也不会压住正文。
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            readerChrome
+        }
         .scrollPosition(id: $scrolledParagraph)
         .background(paper)
         .contentShape(Rectangle())
@@ -400,8 +403,8 @@ struct ReaderView: View {
         let sideInset = max(geo.safeAreaInsets.leading, geo.safeAreaInsets.trailing) + 22
         // 与滚动模式一致：内容总宽上限 720，再扣对称留白，宽屏下正文不无脑拉满。
         let contentWidth = max(40, min(geo.size.width, 720) - sideInset * 2)
-        // 页面高度固定；工具栏是覆盖层，切换显示状态不应触发整章重新分页和页面跳动。
-        let contentHeight = max(120, geo.size.height - 8 - 78)
+        // 页面高度固定；底部安全区单独给阅读控制，不参与正文分页。
+        let contentHeight = max(120, geo.size.height - 8 - readerChromeHeight)
         let pageSize = CGSize(width: contentWidth, height: contentHeight)
         let thoughtIDs = chapterThoughts.map(\.id).joined(separator: ",")
         let key = "\(chapter?.id ?? "-"):\(Int(contentWidth)):\(Int(contentHeight)):\(settings.fontSizeIndex):\(settings.lineHeight):\(settings.paragraphSpacing):\(settings.useSerif):\(dynamicTypeSize):\(fontRevision):\(thoughtIDs)"
@@ -455,6 +458,10 @@ struct ReaderView: View {
         .task(id: key) { await rebuildPages(size: pageSize) }
         .onChange(of: currentPage) { _, page in
             updatePageProgress(page)
+        }
+        // 与滚动模式一致，控制区占据真实安全区而不是盖在页面上。
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            readerChrome
         }
     }
 
@@ -548,50 +555,44 @@ struct ReaderView: View {
         currentPage = target
     }
 
-    /// 底部浮层：进度条 + 上一章/页码/下一章。翻页到章末时变为居中的“下一章”按钮。
+    /// 底部阅读控制：上一章/页码/下一章。翻页到章末时变为居中的“下一章”按钮。
     private var readerChrome: some View {
         GlassEffectContainer(spacing: 12) {
-            VStack(spacing: 14) {
-                ReaderProgressBar(
-                    fraction: progressPercent,
-                    tint: AppTheme.primary,
-                    track: AppTheme.primary.opacity(0.18)
-                )
-
-                if atChapterEnd {
-                    Button {
-                        interactionFeedback += 1
-                        go(to: chapterOrder + 1)
-                    } label: {
-                        Label("下一章", systemImage: "arrow.forward")
-                            .font(.subheadline.weight(.semibold))
-                            .padding(.horizontal, 22)
-                            .frame(maxWidth: .infinity)
-                            .frame(minHeight: 44)
-                    }
-                    .buttonStyle(.glass(AppTheme.glassProminent))
-                    .tint(AppTheme.primary)
-                    .accessibilityLabel("下一章")
-                } else {
-                    GlassEffectContainer(spacing: 8) {
-                        HStack(spacing: 8) {
-                            chromeSegmentButton(systemName: "chevron.left", label: "上一章", isEnabled: hasPreviousChapter) {
-                                go(to: chapterOrder - 1)
-                            }
-                            readerStatusPill
-                            chromeSegmentButton(systemName: "chevron.right", label: "下一章", isEnabled: hasNextChapter) {
-                                go(to: chapterOrder + 1)
-                            }
+            if atChapterEnd {
+                Button {
+                    interactionFeedback += 1
+                    go(to: chapterOrder + 1)
+                } label: {
+                    Label("下一章", systemImage: "arrow.forward")
+                        .font(.subheadline.weight(.semibold))
+                        .padding(.horizontal, 22)
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: 44)
+                }
+                .buttonStyle(.glass(AppTheme.glassProminent))
+                .tint(AppTheme.primary)
+                .accessibilityLabel("下一章")
+            } else {
+                GlassEffectContainer(spacing: 8) {
+                    HStack(spacing: 8) {
+                        chromeSegmentButton(systemName: "chevron.left", label: "上一章", isEnabled: hasPreviousChapter) {
+                            go(to: chapterOrder - 1)
+                        }
+                        readerStatusPill
+                        chromeSegmentButton(systemName: "chevron.right", label: "下一章", isEnabled: hasNextChapter) {
+                            go(to: chapterOrder + 1)
                         }
                     }
-                    .frame(height: 52)
                 }
+                .frame(height: 52)
             }
             .padding(.horizontal, 20)
         }
         .padding(.top, 14)
         .padding(.bottom, 12)
         .frame(maxWidth: .infinity)
+        .frame(height: readerChromeHeight, alignment: .bottom)
+        .background(paper)
         .opacity(showChrome ? 1 : 0)
         .allowsHitTesting(showChrome)
         .accessibilityHidden(!showChrome)
@@ -1171,30 +1172,5 @@ struct ReaderView: View {
             hash = hash &* 16_777_619
         }
         return String(hash, radix: 36)
-    }
-}
-
-/// 底部阅读进度细线：纸面环境下明显的柔色进度轨道 + 黛青填充。
-private struct ReaderProgressBar: View {
-    var fraction: Double
-    var tint: Color
-    var track: Color
-
-    var body: some View {
-        GeometryReader { geo in
-            ZStack(alignment: .leading) {
-                Capsule()
-                    .fill(track)
-                    .frame(height: 4)
-                Capsule()
-                    .fill(tint)
-                    .frame(width: max(6, geo.size.width * min(1, max(0, fraction))), height: 4)
-            }
-            .padding(.vertical, 4)
-            .glassEffect(AppTheme.glassClear, in: Capsule())
-        }
-        .frame(height: 12)
-        .padding(.horizontal, 18)
-        .accessibilityHidden(true)
     }
 }
