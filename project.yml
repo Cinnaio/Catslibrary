@@ -17,8 +17,8 @@ targets:
         excludes:
           - "Support/Info.plist"
           - "Support/PrivacyInfo.xcprivacy"
-    resources:
       - path: ZhiZhou/Support/PrivacyInfo.xcprivacy
+        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.zhizhou.app
