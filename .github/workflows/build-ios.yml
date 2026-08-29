@@ -21,48 +21,14 @@ permissions:
 
 jobs:
   tests:
-    name: Unit tests
+    name: Core unit tests
     runs-on: macos-15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install XcodeGen
-        run: brew install xcodegen
-
-      - name: Select Xcode 26 (iOS 26 SDK for Liquid Glass)
-        run: |
-          XCODE_26=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort | tail -n 1)
-          if [ -n "$XCODE_26" ]; then
-            sudo xcode-select -s "$XCODE_26"
-          fi
-          xcodebuild -version
-
-      - name: Generate Xcode project
-        run: xcodegen generate
-
-      - name: Show Xcode version
-        run: xcodebuild -version
-
       - name: Run unit tests
-        env:
-          # 普通 push 只验证行为；手动运行时保留覆盖率采集。
-          ENABLE_CODE_COVERAGE: ${{ github.event_name == 'workflow_dispatch' && 'YES' || 'NO' }}
-        run: |
-          # 直接传设备名称和 latest OS，让 xcodebuild 选择当前 SDK 中的模拟器。
-          # 避免 simctl 全量枚举设备在 GitHub runner 上产生额外等待。
-          DESTINATION='platform=iOS Simulator,name=iPhone 16,OS=latest'
-          echo "Using iOS Simulator destination: $DESTINATION"
-          xcodebuild test \
-            -project ZhiZhou.xcodeproj \
-            -scheme ZhiZhou \
-            -configuration Debug \
-            -derivedDataPath DerivedDataTests \
-            -destination "$DESTINATION" \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
-            -enableCodeCoverage "$ENABLE_CODE_COVERAGE"
+        run: swift test --package-path ZhiZhouCore
 
   build:
     name: Build unsigned IPA

@@ -31,7 +31,7 @@ ZhiZhou/
   Services/
     AppState.swift                 登录会话 + 启动引导
     ReaderSettingsStore.swift      阅读设置（按账号本地保存 + LWW 同步）
-    ReaderLocalStore.swift          按账号隔离的设置与进度 outbox
+    ReaderProgressStore.swift       进度上传适配器（Core outbox → API）
     AdminFormat.swift              管理后台展示格式化（任务状态/举报理由/时间/字节）
   Theme/Theme.swift                设计 token + Liquid Glass 背景
   Views/
@@ -56,6 +56,10 @@ ZhiZhou/
       AdminScrapeSourcesView       源管理（启停 / 删除 / 测试 / 连通性）
       AdminProxyView               代理设置（配置 / 测试 / 日志）
       AdminAIServiceView           AI 服务入口（状态 / 供应商 / 参数 / 任务 / 审计）
+ZhiZhouCore/
+  Package.swift                     平台无关的阅读核心模块
+  Sources/ZhiZhouCore/              设置、进度、本地存储、安全策略、缓存
+  Tests/ZhiZhouCoreTests/           可在 macOS 直接运行的核心行为测试
 .github/workflows/build-ios.yml    macOS 测试、校验 → 未签名 .ipa
 ```
 
@@ -108,7 +112,7 @@ ZhiZhou/
 - [x] 阅读设置按账号隔离，并在网络恢复后自动同步
 - [x] 阅读进度本地 outbox：退后台、回到前台或下次登录继续上传
 - [x] Release 构建移除无效证书放行能力，并加入 Apple 隐私清单
-- [x] CI 生成工程后执行单元测试和 plist 校验
+- [x] CI 直接运行 Core 行为测试，并执行 Release 构建与 plist 校验
 - [ ] 离线阅读（SwiftData/Core Data 章节缓存 + 自动下载下一章）
 - [ ] 评论 / 段评 / 评分页（API 已就绪，UI 未做）
 - [ ] 推送通知（新章节提醒，需自建推送服务，如 APNs + 你的服务器）
@@ -145,6 +149,7 @@ ZhiZhou/
 ## 构建细节
 
 - 生成工程：`xcodegen generate`（需 XcodeGen，CI 已装）
+- 核心测试：`swift test --package-path ZhiZhouCore`（无需启动 iOS 模拟器）
 - 本地有 Mac 时：`open ZhiZhou.xcodeproj` 后直接 ⌘R 运行模拟器
 - 修改 Info.plist 后需在 `project.yml` 保持 `INFOPLIST_FILE` 指向不变
 

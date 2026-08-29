@@ -1,4 +1,5 @@
 import SwiftUI
+import ZhiZhouCore
 
 /// 发现页：紧凑宽度使用单列导航，宽屏保留侧栏书单与详情列。
 struct HomeView: View {
@@ -290,15 +291,6 @@ struct HomeView: View {
     }
 
     static func query(_ params: [String: String]) -> String {
-        params.map { key, value in
-            "\(key)=\(value.addingPercentEncoding(withAllowedCharacters: queryValueAllowed) ?? value)"
-        }
-        .joined(separator: "&")
+        ReaderQuery.encode(params)
     }
-
-    private static let queryValueAllowed: CharacterSet = {
-        var allowed = CharacterSet.urlQueryAllowed
-        allowed.remove(charactersIn: "&=+#?")
-        return allowed
-    }()
 }

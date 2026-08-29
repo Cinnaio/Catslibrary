@@ -1,15 +1,15 @@
 import Foundation
 import XCTest
-@testable import ZhiZhou
+@testable import ZhiZhouCore
 
 @MainActor
-final class ReaderLocalStoreTests: XCTestCase {
+final class ReaderCoreTests: XCTestCase {
     private var defaults: UserDefaults!
     private var suiteName = ""
 
     override func setUp() {
         super.setUp()
-        suiteName = "ZhiZhouTests.ReaderLocalStore.\(UUID().uuidString)"
+        suiteName = "ZhiZhouCoreTests.ReaderCore.\(UUID().uuidString)"
         defaults = UserDefaults(suiteName: suiteName)
     }
 
@@ -20,17 +20,16 @@ final class ReaderLocalStoreTests: XCTestCase {
     }
 
     func testSettingsAreStoredInTheActiveUserScope() {
-        let store = ReaderSettingsStore(localStore: ReaderLocalStore(defaults: defaults))
+        let localStore = ReaderLocalStore(defaults: defaults)
+        var alice = ReaderSettingsState()
+        alice.set("fontSize", "5", timestamp: 100)
+        localStore.saveSettings(alice.snapshot, userID: "alice")
 
-        store.activate(userID: "alice")
-        store.set("fontSize", "5")
-        store.activate(userID: "bob")
-        XCTAssertEqual(store.fontSizeIndex, 2)
+        let bob = ReaderSettingsState(snapshot: localStore.loadSettings(userID: "bob"))
+        let restoredAlice = ReaderSettingsState(snapshot: localStore.loadSettings(userID: "alice"))
 
-        store.set("fontSize", "0")
-        store.activate(userID: "alice")
-        XCTAssertEqual(store.fontSizeIndex, 5)
-        store.deactivate()
+        XCTAssertEqual(bob.fontSizeIndex, 2)
+        XCTAssertEqual(restoredAlice.fontSizeIndex, 5)
     }
 
     func testDirtyLocalSettingWinsAgainstAnOlderServerSnapshot() {
@@ -79,18 +78,15 @@ final class ReaderLocalStoreTests: XCTestCase {
     }
 
     func testClientContentModeCannotBeChangedToAdult() {
-        let store = ReaderSettingsStore(localStore: ReaderLocalStore(defaults: defaults))
+        var state = ReaderSettingsState()
+        state.set("contentMode", "adult", timestamp: 100)
 
-        store.activate(userID: "alice")
-        store.set("contentMode", "adult")
-
-        XCTAssertEqual(store.contentMode, "safe")
-        XCTAssertEqual(store.values["contentMode"], "safe")
-        store.deactivate()
+        XCTAssertEqual(state.contentMode, "safe")
+        XCTAssertEqual(state.values["contentMode"], "safe")
     }
 
-    func testHomeQueryEscapesReservedCharactersInValues() {
-        let query = HomeView.query(["search": "a&b+c=d?"])
+    func testQueryEscapesReservedCharactersInValues() {
+        let query = ReaderQuery.encode(["search": "a&b+c=d?"])
 
         XCTAssertEqual(query, "search=a%26b%2Bc%3Dd%3F")
     }
@@ -101,7 +97,10 @@ final class ReaderLocalStoreTests: XCTestCase {
     }
 
     func testPendingProgressDoesNotLeakAcrossUsers() {
-        let store = ReaderProgressStore(localStore: ReaderLocalStore(defaults: defaults))
+        let outbox = ReaderProgressOutbox(
+            localStore: ReaderLocalStore(defaults: defaults),
+            uploader: { _ in }
+        )
         let body = SaveProgressBody(
             novelId: "novel-1",
             chapterId: "chapter-1",
@@ -112,20 +111,20 @@ final class ReaderLocalStoreTests: XCTestCase {
             clientUpdatedAt: 100
         )
 
-        store.activate(userID: "alice")
-        store.enqueue(body)
-        store.activate(userID: "bob")
-        XCTAssertEqual(store.pendingCount, 0)
+        outbox.activate(userID: "alice")
+        outbox.enqueue(body)
+        outbox.activate(userID: "bob")
+        XCTAssertEqual(outbox.pendingCount, 0)
 
-        store.activate(userID: "alice")
-        XCTAssertEqual(store.pendingCount, 1)
-        XCTAssertEqual(store.pendingBody(for: "novel-1"), body)
-        store.deactivate()
+        outbox.activate(userID: "alice")
+        XCTAssertEqual(outbox.pendingCount, 1)
+        XCTAssertEqual(outbox.pendingBody(for: "novel-1"), body)
+        outbox.deactivate()
     }
 
     func testChapterCacheSurvivesARecreatedCacheInstance() async throws {
         let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("ZhiZhouTests-\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("ZhiZhouCoreTests-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: directory) }
 
         let url = "https://example.com/api/chapters/chapter-1?contentMode=safe"
@@ -144,7 +143,7 @@ final class ReaderLocalStoreTests: XCTestCase {
 
     func testChapterCacheCanBeCleared() async throws {
         let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("ZhiZhouTests-\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("ZhiZhouCoreTests-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: directory) }
 
         let url = "https://example.com/api/chapters/chapter-1?contentMode=safe"

@@ -1,4 +1,5 @@
 import SwiftUI
+import ZhiZhouCore
 
 /// 书架页：侧栏书单，详情列接着读或打开详情。
 struct BookshelfView: View {

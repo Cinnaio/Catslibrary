@@ -2,6 +2,7 @@ import Foundation
 import Observation
 import SwiftUI
 import UIKit
+import ZhiZhouCore
 
 /// 阅读设置：本地立即生效 + 与服务器 LWW 合并同步。
 /// 键值表与 api/src/services/reader-settings.ts 完全一致。
@@ -9,17 +10,7 @@ import UIKit
 @MainActor
 final class ReaderSettingsStore {
     static let shared = ReaderSettingsStore()
-    private static let defaultValues: [String: String] = [
-        "fontSize": "2",
-        "fontFamily": "serif",
-        "readerPageMode": "scroll",
-        "readerClickPaging": "on",
-        "readerTheme": "default",
-        "readerLineHeight": "1.95",
-        "readerParagraphSpacing": "1.4",
-        "readerWakeLock": "off",
-        "contentMode": "safe",
-    ]
+    private static let defaultValues = ReaderSettingsState.defaultValues
 
     private let localStore: ReaderLocalStore
     private(set) var activeUserID: String?
@@ -29,11 +20,7 @@ final class ReaderSettingsStore {
     private(set) var lastSyncError: String?
 
     private var syncTask: Task<Void, Never>?
-    private let knownKeys: Set<String> = [
-        "fontSize", "fontFamily", "readerPageMode", "readerTheme", "readerLineHeight",
-        "readerParagraphSpacing", "readerWakeLock", "readerPageWidth",
-        "readerAutoScrollSpeed", "readerClickPaging", "contentMode",
-    ]
+    private let knownKeys = ReaderSettingsState.knownKeys
 
     init(localStore: ReaderLocalStore = ReaderLocalStore()) {
         self.localStore = localStore
@@ -198,13 +185,9 @@ final class ReaderSettingsStore {
 
     func set(_ key: String, _ value: String) {
         guard knownKeys.contains(key) else { return }
-        var next = values
-        next[key] = key == "contentMode" ? ContentPolicy.clientMode : value
-        values = next
-        var stamps = updatedAt
-        stamps[key] = Int64(Date().timeIntervalSince1970 * 1000)
-        updatedAt = stamps
-        dirtyKeys.insert(key)
+        var state = ReaderSettingsState(snapshot: currentSnapshot)
+        state.set(key, value)
+        apply(state.snapshot)
         persistCurrent()
         scheduleSync()
     }
@@ -258,13 +241,10 @@ final class ReaderSettingsStore {
     }
 
     private func apply(_ snapshot: ReaderSettingsSnapshot) {
-        var nextValues = Self.defaultValues
-        for (key, value) in snapshot.values where knownKeys.contains(key) {
-            nextValues[key] = key == "contentMode" ? ContentPolicy.clientMode : value
-        }
-        values = nextValues
-        updatedAt = snapshot.updatedAt.filter { knownKeys.contains($0.key) }
-        dirtyKeys = snapshot.dirtyKeys.intersection(knownKeys)
+        let state = ReaderSettingsState(snapshot: snapshot)
+        values = state.values
+        updatedAt = state.updatedAt
+        dirtyKeys = state.dirtyKeys
     }
 
     private func persistCurrent() {
@@ -286,11 +266,9 @@ final class ReaderSettingsStore {
             try await APIClient.shared.requestVoid("PUT", "/api/auth/reader-settings", body: body, auth: true)
             guard activeUserID == userID else { return }
 
-            for key in snapshot.dirtyKeys where dirtyKeys.contains(key) {
-                if updatedAt[key] == snapshot.updatedAt[key], values[key] == snapshot.values[key] {
-                    dirtyKeys.remove(key)
-                }
-            }
+            var state = ReaderSettingsState(snapshot: currentSnapshot)
+            state.markUploaded(snapshot)
+            apply(state.snapshot)
             persistCurrent()
             lastSyncError = nil
         } catch {

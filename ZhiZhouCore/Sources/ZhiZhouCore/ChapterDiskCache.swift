@@ -2,18 +2,14 @@ import CryptoKit
 import Foundation
 
 /// 章节数据的持久化缓存。
-///
-/// 缓存键使用完整请求 URL 的 SHA-256，既能区分不同服务器/章节/安全模式，
-/// 又不会把用户内容或过长 query 写进文件名。缓存只存服务端已成功解码前的原始 JSON，
-/// 由 APIClient 在网络失败时负责按请求类型解码和回退。
-actor ChapterDiskCache {
-    static let shared = ChapterDiskCache()
+public actor ChapterDiskCache {
+    public static let shared = ChapterDiskCache()
 
     private let fileManager: FileManager
     private let directoryURL: URL
     private let maxBytes: Int64
 
-    init(
+    public init(
         directoryURL: URL? = nil,
         maxBytes: Int64 = 64 * 1024 * 1024,
         fileManager: FileManager = .default
@@ -26,11 +22,10 @@ actor ChapterDiskCache {
         self.maxBytes = max(1, maxBytes)
     }
 
-    func data(for key: String) -> Data? {
+    public func data(for key: String) -> Data? {
         let url = fileURL(for: key)
         guard let data = try? Data(contentsOf: url) else { return nil }
 
-        // 最近使用的文件优先保留，读取失败不影响正文回退。
         try? fileManager.setAttributes(
             [.modificationDate: Date()],
             ofItemAtPath: url.path
@@ -38,11 +33,11 @@ actor ChapterDiskCache {
         return data
     }
 
-    func contains(_ key: String) -> Bool {
+    public func contains(_ key: String) -> Bool {
         fileManager.fileExists(atPath: fileURL(for: key).path)
     }
 
-    func store(_ data: Data, for key: String) {
+    public func store(_ data: Data, for key: String) {
         guard !key.isEmpty, Int64(data.count) <= maxBytes else { return }
 
         do {
@@ -53,11 +48,11 @@ actor ChapterDiskCache {
             try data.write(to: fileURL(for: key), options: [.atomic])
             evictIfNeeded()
         } catch {
-            // 缓存失败不能影响在线阅读；下次请求仍会从服务端获取。
+            // 缓存失败不能影响在线阅读。
         }
     }
 
-    func removeAll() {
+    public func removeAll() {
         try? fileManager.removeItem(at: directoryURL)
     }
 

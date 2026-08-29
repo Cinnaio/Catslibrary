@@ -1,4 +1,5 @@
 import SwiftUI
+import ZhiZhouCore
 
 /// 小说详情页：继续阅读为主操作，目录为次要入口。
 struct NovelDetailView: View {

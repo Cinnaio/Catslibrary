@@ -1,4 +1,5 @@
 import Foundation
+import ZhiZhouCore
 
 enum APIError: LocalizedError, Equatable {
     case notConfigured

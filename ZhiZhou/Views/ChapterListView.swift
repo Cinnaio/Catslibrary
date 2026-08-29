@@ -1,4 +1,5 @@
 import SwiftUI
+import ZhiZhouCore
 
 /// 章节目录（阅读器内 sheet）：点选跳转章节，打开时自动定位到当前章节。
 struct ChapterListView: View {

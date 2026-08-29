@@ -8,10 +8,16 @@ options:
     iOS: "26.0"
   createIntermediateGroups: true
 
+packages:
+  ZhiZhouCore:
+    path: ZhiZhouCore
+
 targets:
   ZhiZhou:
     type: application
     platform: iOS
+    dependencies:
+      - package: ZhiZhouCore
     sources:
       - path: ZhiZhou
         excludes:
@@ -32,33 +38,12 @@ targets:
         SWIFT_VERSION: "5.0"
         ENABLE_PREVIEWS: YES
 
-  ZhiZhouTests:
-    type: bundle.unit-test
-    platform: iOS
-    sources:
-      - path: ZhiZhouTests
-    dependencies:
-      - target: ZhiZhou
-    settings:
-      base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.zhizhou.app.tests
-        GENERATE_INFOPLIST_FILE: YES
-        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/ZhiZhou.app/ZhiZhou"
-        BUNDLE_LOADER: "$(TEST_HOST)"
-        SWIFT_VERSION: "5.0"
-
 schemes:
   ZhiZhou:
     build:
       targets:
         ZhiZhou: all
-        ZhiZhouTests: [test]
     run:
       config: Debug
-    test:
-      config: Debug
-      gatherCoverageData: true
-      targets:
-        - name: ZhiZhouTests
     archive:
       config: Release
