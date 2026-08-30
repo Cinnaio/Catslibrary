@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router-dom'
 import { useToast, useConfirm } from '../../components/feedback'
 import CustomSelect from '../../components/admin/CustomSelect'
 import Pagination from '../../components/admin/Pagination'
-import { adminApi, chaptersApi, scrapeApi, type SourceSyncPreview, type TitleSource, type TitleSourceSearchResponse } from '../../lib/api'
+import { adminApi, chaptersApi, newOperationId, scrapeApi, type SourceSyncPreview, type TitleSource, type TitleSourceSearchResponse } from '../../lib/api'
 import { timeAgo } from '../../lib/format'
 import type { ChapterMeta } from '@shared/types'
 import { Button } from '@/components/ui/button'
@@ -51,7 +51,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
   const [draft, setDraft] = useState<ChapterDraft>({ order: 1, title: '', content: '' })
   const [renameModal, setRenameModal] = useState(false)
   const [renameTitles, setRenameTitles] = useState('')
-  const [renamePreview, setRenamePreview] = useState<Array<{ order: number; oldTitle: string; newTitle: string }> | null>(null)
+  const [renamePreview, setRenamePreview] = useState<Array<{ id?: string; order: number; oldTitle: string; newTitle: string }> | null>(null)
   const [sourceUrl, setSourceUrl] = useState('')
   const [sourcePreview, setSourcePreview] = useState<SourceSyncPreview | null>(null)
   const [sourceSearch, setSourceSearch] = useState<TitleSourceSearchResponse | null>(null)
@@ -247,7 +247,12 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
       toast('请先勾选要删除的章节', 'error')
       return
     }
-    const items = chapters.filter((c) => selectedIds.has(c.id)).map((c) => `第${c.order}章 ${c.title}`)
+    const chapterIds = chapters.filter((c) => selectedIds.has(c.id)).map((c) => c.id).filter(Boolean).sort()
+    if (!chapterIds.length) {
+      toast('确认时目标章节已不在当前列表，请刷新后重试', 'error')
+      return
+    }
+    const items = chapters.filter((c) => chapterIds.includes(c.id)).map((c) => `第${c.order}章 ${c.title}`)
     const ok = await confirm({
       title: '批量删除章节',
       message: `确定删除以下 ${selectedIds.size} 个章节？此操作不可撤销。`,
@@ -257,8 +262,8 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
     })
     if (!ok) return
     try {
-      await chaptersApi.batchDelete(selectedNovel, [...selectedIds])
-      toast(`成功删除 ${selectedIds.size} 个章节`, 'success')
+      await chaptersApi.batchDelete(selectedNovel, chapterIds, newOperationId('batch-delete-chapters'))
+      toast(`成功删除 ${chapterIds.length} 个章节`, 'success')
       void loadChapters(selectedNovel)
     } catch (err) {
       toast((err as Error).message || '批量删除失败', 'error')
@@ -359,6 +364,24 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
       return
     }
     if (sourcePreview) {
+      const confirmedChangeIds = sourcePreview.changes
+        .filter((change) => change.eligible)
+        .map((change) => change.localChapterId)
+        .filter(Boolean)
+        .sort()
+      const ok = await confirm({
+        title: '确认应用源站同步？',
+        message: `将更新确认快照中的 ${confirmedChangeIds.length} 个章节标题${sourceMetadataMode === 'replace' ? '，并覆盖已选小说信息' : ''}。`,
+        items: [
+          `目标快照：${confirmedChangeIds.length} 个章节`,
+          sourceMetadataMode === 'replace' ? '小说信息将按已勾选字段覆盖' : '小说信息只补全空字段',
+          '未标记为可自动更新的标题不会被改动',
+        ],
+        okText: '确认更新',
+        cancelText: '取消',
+        danger: sourceMetadataMode === 'replace',
+      })
+      if (!ok) return
       setRenaming(true)
       try {
         const result = await scrapeApi.sourceSyncApply({
@@ -366,6 +389,8 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
           applyMetadata: sourceMetadataFields.length > 0,
           metadataFields: sourceMetadataFields,
           metadataMode: sourceMetadataMode,
+          confirmedChangeIds,
+          operationId: newOperationId('source-sync-apply'),
         })
         const parts = [`已更新 ${result.updated} 个章节名`]
         if (result.metadataUpdated.length) parts.push(`补充 ${result.metadataUpdated.length} 项小说信息`)
@@ -384,9 +409,30 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
       .split('\n')
       .map((t) => t.trim())
       .filter(Boolean)
+    const confirmedChapterIds = (renamePreview || []).map((change) => change.id || '').filter(Boolean).sort()
+    if (!confirmedChapterIds.length) {
+      toast('预览结果缺少稳定章节 ID，请重新预览', 'error')
+      return
+    }
+    const ok = await confirm({
+      title: '确认批量更新章节名？',
+      message: `将按预览结果更新确认快照中的 ${confirmedChapterIds.length} 个章节标题。`,
+      items: [`目标快照：${confirmedChapterIds.length} 个章节`, '正文、章节顺序和阅读进度不会改变'],
+      okText: '确认更新',
+      cancelText: '取消',
+      danger: true,
+    })
+    if (!ok) return
     setRenaming(true)
     try {
-      const data = await chaptersApi.renameByOrder({ novelId: selectedNovel, titles, onlyWeakTitles: true, dryRun: false })
+      const data = await chaptersApi.renameByOrder({
+        novelId: selectedNovel,
+        titles,
+        onlyWeakTitles: true,
+        dryRun: false,
+        confirmedChapterIds,
+        operationId: newOperationId('rename-chapters-by-order'),
+      })
       const res = data as unknown as { updated?: number }
       toast(`已更新 ${res.updated || 0} 个章节名`, 'success')
       setRenameModal(false)

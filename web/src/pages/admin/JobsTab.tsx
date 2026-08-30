@@ -11,7 +11,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { CircleMinus, RotateCcw, RotateCw } from 'lucide-react'
-import { adminApi, authFetch, downloadLogsApi, scrapeApi } from '../../lib/api'
+import { adminApi, authFetch, downloadLogsApi, newOperationId, scrapeApi } from '../../lib/api'
 import { formatDateTime } from '../../lib/format'
 import { formatEta, formatJobSpeed, getJobDuration, isJobRunning, isJobTerminal, jobStatusLabel, truncateId } from '../../lib/admin'
 import { useConfirm, useToast } from '../../components/feedback'
@@ -212,7 +212,7 @@ export default function JobsTab(_props: { highlightNovelId?: string; onHighlight
   const runningCount = jobs.filter((j) => isJobRunning(j.status)).length
   const completedCount = jobs.filter((j) => j.status === 'completed').length
   const failedCount = jobs.filter((j) => j.status === 'failed' || j.status === 'cancelled' || j.status === 'partial').length
-  const hasCompleted = jobs.some((j) => j.status === 'completed')
+  const hasCompleted = jobs.some((j) => j.status === 'completed' || j.status === 'partial' || j.status === 'cancelled')
   const jobStatsText = `共 ${jobs.length} 个任务 · ${runningCount} 运行中 · ${completedCount} 已完成 · ${failedCount} 失败/终止/部分完成`
 
   function handleRefresh() {
@@ -232,7 +232,7 @@ export default function JobsTab(_props: { highlightNovelId?: string; onHighlight
     })
     if (!ok) return
     try {
-      await scrapePost({ action: 'cancel', jobId: job.id })
+      await scrapePost({ action: 'cancel', jobId: job.id, operationId: newOperationId('cancel-scrape-job') })
       toast('任务已终止', 'default')
       void loadJobs()
     } catch (err) {
@@ -271,15 +271,22 @@ export default function JobsTab(_props: { highlightNovelId?: string; onHighlight
   }
 
   async function clearCompleted() {
+    const jobIds = jobsRef.current
+      .filter((job) => job.status === 'completed' || job.status === 'partial' || job.status === 'cancelled')
+      .map((job) => job.id)
+      .filter(Boolean)
+      .sort()
+    if (!jobIds.length) return
     const ok = await confirm({
-      title: '清除已完成任务',
-      message: '确定清除所有已完成的任务记录？运行中任务不会受影响。',
+      title: '清除已结束任务',
+      message: `清除确认时的 ${jobIds.length} 个已结束任务记录？运行中任务不会受影响。`,
+      items: [`目标快照：${jobIds.length} 个任务`, '只会删除已完成、部分完成或已终止记录'],
       okText: '清除',
       danger: true,
     })
     if (!ok) return
     try {
-      await scrapePost({ action: 'clear-completed' })
+      await scrapePost({ action: 'clear-completed', jobIds, operationId: newOperationId('clear-completed-scrape-jobs') })
       toast('已清除', 'success')
       void loadJobs()
     } catch (err) {
@@ -423,7 +430,7 @@ export default function JobsTab(_props: { highlightNovelId?: string; onHighlight
         <span className="text-xs text-muted-foreground">{jobStatsText}</span>
         {hasCompleted && (
           <Button variant="destructive" size="sm" onClick={() => void clearCompleted()}>
-            清除已完成
+            清除已结束
           </Button>
         )}
       </div>

@@ -205,10 +205,15 @@ describe('内容 API 端到端（pglite）', () => {
   it('batch-delete 小说级联删除章节', async () => {
     const list = await req('/api/novels')
     const { novels } = await jsonOf<{ novels: Novel[] }>(list)
-    const batch = await req('/api/novels', json('POST', { action: 'batch-delete', novelIds: [novels[0]!.id] }, adminToken))
+    const payload = { action: 'batch-delete', novelIds: [novels[0]!.id], operationId: 'content-test-batch-delete-novel-001' }
+    const batch = await req('/api/novels', json('POST', payload, adminToken))
     expect(batch.status).toBe(200)
 
     const detail = await req(`/api/novels/${novels[0]!.id}`)
     expect(detail.status).toBe(404)
+
+    const replay = await req('/api/novels', json('POST', payload, adminToken))
+    expect(replay.status).toBe(200)
+    expect(replay.headers.get('x-idempotent-replay')).toBe('true')
   })
 })

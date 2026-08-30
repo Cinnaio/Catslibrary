@@ -8,9 +8,10 @@ import { rowToChapterFull, rowToChapterMeta } from '../db/mappers'
 import { newId } from '../services/auth'
 import { simplifyChapterForSource } from '../services/zh-convert'
 import { invalidateChapter } from '../services/ai/generations'
-import { requireAdmin } from '../middlewares/auth'
+import { requireAdmin, type AuthEnv } from '../middlewares/auth'
+import { idempotencyKeyFromRequest, withIdempotency } from '../services/idempotency'
 
-export const chaptersRoutes = new Hono()
+export const chaptersRoutes = new Hono<AuthEnv>()
 
 // ---------- 列表 ----------
 
@@ -176,15 +177,29 @@ async function createChaptersBatch(c: Context, db: ReturnType<typeof getDb>, nov
 }
 
 async function deleteChaptersBatch(c: Context, db: ReturnType<typeof getDb>, body: any) {
-  const novelId = body.novelId
-  const ids: string[] = Array.isArray(body.chapterIds) ? body.chapterIds.filter(Boolean) : []
+  const novelId = String(body.novelId || '').trim()
+  const ids: string[] = Array.isArray(body.chapterIds)
+    ? Array.from(new Set(body.chapterIds.map((id: unknown) => String(id || '').trim()).filter(Boolean)))
+    : []
   if (!novelId || !ids.length) return c.json({ error: 'novelId and chapterIds are required' }, 400)
-  const now = Date.now()
-  await withTx(db, async (q) => {
-    await q(`DELETE FROM chapters WHERE novel_id = $1 AND id IN (${ids.map((_, i) => `$${i + 2}`).join(',')})`, [novelId, ...ids])
-    await q('UPDATE novels SET chapter_count = (SELECT COUNT(*) FROM chapters WHERE novel_id = $1), updated_at = $2 WHERE id = $1', [novelId, now])
-  })
-  return c.json({ success: true })
+  const operationKey = idempotencyKeyFromRequest(c, body, ['operationId'])
+  return withIdempotency(
+    db,
+    {
+      scope: `chapters.batch-delete.${c.get('user').id}.${novelId}`,
+      operationKey,
+      payload: { action: 'batch-delete', novelId, chapterIds: ids },
+      audit: { actorUserId: c.get('user').id, action: 'batch-delete-chapters', targetCount: ids.length },
+    },
+    async () => {
+      const now = Date.now()
+      await withTx(db, async (q) => {
+        await q(`DELETE FROM chapters WHERE novel_id = $1 AND id IN (${ids.map((_, i) => `$${i + 2}`).join(',')})`, [novelId, ...ids])
+        await q('UPDATE novels SET chapter_count = (SELECT COUNT(*) FROM chapters WHERE novel_id = $1), updated_at = $2 WHERE id = $1', [novelId, now])
+      })
+      return c.json({ success: true, novelId, chapterIds: ids })
+    },
+  )
 }
 
 // ---------- rename-by-order（管理员：按顺序标题批量重命名） ----------
@@ -251,12 +266,32 @@ async function renameChaptersByOrder(c: Context, db: ReturnType<typeof getDb>, b
     })
   }
 
-  const now = Date.now()
-  await withTx(db, async (q) => {
-    for (const ch of changes) await q('UPDATE chapters SET title = $1 WHERE id = $2', [ch.newTitle, ch.id])
-    if (changes.length) await q('UPDATE novels SET updated_at = $1 WHERE id = $2', [now, novelId])
-  })
-  return c.json({ updated: changes.length, changes })
+  const operationKey = idempotencyKeyFromRequest(c, body, ['operationId'])
+  const hasSnapshot = Array.isArray(body.confirmedChapterIds)
+  const confirmedChapterIds: string[] = hasSnapshot
+    ? Array.from(new Set(body.confirmedChapterIds.map((id: unknown) => String(id || '').trim()).filter(Boolean)))
+    : []
+  if (operationKey && !hasSnapshot) {
+    return c.json({ error: '批量改名必须携带确认时的 confirmedChapterIds 快照', code: 'confirmation_snapshot_required' }, 409)
+  }
+  const targetChanges = hasSnapshot ? changes.filter((change) => confirmedChapterIds.includes(change.id)) : changes
+  return withIdempotency(
+    db,
+    {
+      scope: `chapters.rename-by-order.${c.get('user').id}.${novelId}`,
+      operationKey,
+      payload: { action: 'rename-by-order', novelId, titles, onlyWeakTitles, confirmedChapterIds },
+      audit: { actorUserId: c.get('user').id, action: 'rename-chapters-by-order', targetCount: targetChanges.length },
+    },
+    async () => {
+      const now = Date.now()
+      await withTx(db, async (q) => {
+        for (const ch of targetChanges) await q('UPDATE chapters SET title = $1 WHERE id = $2', [ch.newTitle, ch.id])
+        if (targetChanges.length) await q('UPDATE novels SET updated_at = $1 WHERE id = $2', [now, novelId])
+      })
+      return c.json({ updated: targetChanges.length, changes: targetChanges })
+    },
+  )
 }
 
 function isIntroChapterTitle(title: string): boolean {

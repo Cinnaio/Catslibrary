@@ -2,7 +2,7 @@
 // Scrape Tab — shared helpers, constants, and small components
 // ============================================================
 import React from 'react'
-import { authHeaders, url } from '../../../lib/api'
+import { authHeaders, operationHeaders, url } from '../../../lib/api'
 import { formatDateTime } from '../../../lib/format'
 import { Badge } from '@/components/ui/badge'
 import type { SourceRow } from './types'
@@ -11,9 +11,10 @@ import type { SourceRow } from './types'
 
 /** scrapeApi 未覆盖的 /scrape 动作（test/discover/list-sources/import-legado 等）走此 POST。 */
 export async function scrapePost(body: Record<string, unknown>, signal?: AbortSignal): Promise<any> {
+  const operationId = typeof body.operationId === 'string' ? body.operationId : ''
   const res = await fetch(url('/scrape'), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    headers: { 'Content-Type': 'application/json', ...operationHeaders(operationId), ...authHeaders() },
     body: JSON.stringify(body),
     signal,
   })

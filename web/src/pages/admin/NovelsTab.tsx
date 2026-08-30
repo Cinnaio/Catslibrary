@@ -4,7 +4,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { novelsApi, url, authHeaders } from '../../lib/api'
+import { newOperationId, novelsApi, url, authHeaders } from '../../lib/api'
 import { timeAgo } from '../../lib/format'
 import { useConfirm, useToast } from '../../components/feedback'
 import CustomSelect from '../../components/admin/CustomSelect'
@@ -387,7 +387,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
   }
 
   async function handleBatchDelete() {
-    const ids = Array.from(selected)
+    const ids = Array.from(selected).filter(Boolean).sort()
     if (ids.length === 0) {
       toast('请先选择小说', 'error')
       return
@@ -404,7 +404,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
     })
     if (!ok) return
     try {
-      const data = await novelsApi.batchDelete(ids)
+      const data = await novelsApi.batchDelete(ids, newOperationId('batch-delete-novels'))
       toast(`已删除 ${(data as { deleted?: number }).deleted || ids.length} 本小说`, 'success')
     } catch (err) {
       toast('批量删除失败: ' + ((err as Error).message || '请检查网络和认证令牌'), 'error')

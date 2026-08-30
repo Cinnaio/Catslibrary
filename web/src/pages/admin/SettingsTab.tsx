@@ -5,7 +5,7 @@
  */
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { adminApi, authApi } from '../../lib/api'
+import { adminApi, authApi, newOperationId } from '../../lib/api'
 import { timeAgo } from '../../lib/format'
 import { copyText } from '../../lib/admin'
 import { useConfirm, useToast } from '../../components/feedback'
@@ -69,6 +69,23 @@ interface LoginAudit {
   createdAt: number
 }
 
+interface AdminOperationAudit {
+  id: string
+  operationId: string
+  actorUserId: string
+  actorUsername: string
+  actorDisplayName: string
+  action: string
+  targetCount: number
+  status: string
+  responseStatus: number
+  replayCount: number
+  error: string
+  createdAt: number
+  updatedAt: number
+  finishedAt: number
+}
+
 const REGISTER_MODES: Array<{ value: 'open' | 'invite' | 'closed'; label: string; hint: string }> = [
   { value: 'open', label: '开放注册', hint: '任何人都可以注册' },
   { value: 'invite', label: '邀请注册', hint: '注册必须使用邀请码' },
@@ -98,9 +115,14 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
   const debouncedLoginAuditUsername = useDebouncedValue(loginAuditUsername, 400)
   const [loginAuditOffset, setLoginAuditOffset] = useState(0)
   const [loginAuditLoading, setLoginAuditLoading] = useState(false)
-  // 子标签持久化：刷新后停留在上次选的子页（概览/用户管理/注册与邀请码/登录审计）
+  const [operationAudits, setOperationAudits] = useState<AdminOperationAudit[]>([])
+  const [operationAuditTotal, setOperationAuditTotal] = useState(0)
+  const [operationAuditStatus, setOperationAuditStatus] = useState('all')
+  const [operationAuditOffset, setOperationAuditOffset] = useState(0)
+  const [operationAuditLoading, setOperationAuditLoading] = useState(false)
+  // 子标签持久化：刷新后停留在上次选的子页
   const [accountTab, setAccountTab] = usePersistentState<string>('settings_active_tab', 'overview', (v) =>
-    ['overview', 'users', 'registration', 'audit'].includes(v),
+    ['overview', 'users', 'registration', 'audit', 'operation-audit'].includes(v),
   )
 
   const load = useCallback(async () => {
@@ -154,6 +176,27 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
   useEffect(() => {
     void loadLoginAudit()
   }, [loadLoginAudit])
+
+  const loadOperationAudit = useCallback(async () => {
+    setOperationAuditLoading(true)
+    try {
+      const result = await adminApi.operationAudit.list({
+        status: operationAuditStatus === 'all' ? undefined : operationAuditStatus,
+        limit: 20,
+        offset: operationAuditOffset,
+      })
+      setOperationAudits(result.operations)
+      setOperationAuditTotal(result.total)
+    } catch (err) {
+      toast((err as Error).message || '操作审计加载失败', 'error')
+    } finally {
+      setOperationAuditLoading(false)
+    }
+  }, [operationAuditOffset, operationAuditStatus, toast])
+
+  useEffect(() => {
+    if (accountTab === 'operation-audit') void loadOperationAudit()
+  }, [accountTab, loadOperationAudit])
 
   // ---------- 当前管理员 / 注册设置 ----------
 
@@ -209,16 +252,21 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
   }
 
   async function clearInvites() {
+    const codes = invites
+      .filter((invite) => invite.usedAt > 0 || invite.disabledAt > 0)
+      .map((invite) => invite.code)
+      .sort()
+    if (!codes.length) return
     const ok = await confirm({
       title: '清理失效邀请码',
-      message: '删除所有已使用或已停用的邀请码？',
-      items: ['邀请码的使用记录将一并删除', '可用的邀请码不受影响'],
+      message: `删除确认时的 ${codes.length} 个已使用或已停用邀请码？`,
+      items: [`目标快照：${codes.length} 个邀请码`, '可用的邀请码不受影响'],
       okText: '清理',
       danger: true,
     })
     if (!ok) return
     try {
-      const res = (await adminApi.users.clearInvites()) as { removed?: number }
+      const res = (await adminApi.users.clearInvites(codes, newOperationId('clear-invites'))) as { removed?: number }
       toast('已清理 ' + (res.removed || 0) + ' 个邀请码', 'success')
       void load()
     } catch (err) {
@@ -333,6 +381,8 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
   const available = invites.length - spent
   const loginAuditPages = Math.max(1, Math.ceil(loginAuditTotal / 20))
   const loginAuditPage = Math.floor(loginAuditOffset / 20) + 1
+  const operationAuditPages = Math.max(1, Math.ceil(operationAuditTotal / 20))
+  const operationAuditPage = Math.floor(operationAuditOffset / 20) + 1
 
   function loginAuditStatusLabel(status: string): string {
     return status === 'success' ? '成功' : status === 'limited' ? '限流' : '失败'
@@ -340,6 +390,32 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
 
   function loginAuditReasonLabel(reason: string): string {
     return reason === 'invalid_credentials' ? '账号或密码错误' : reason === 'rate_limited' ? '尝试次数过多' : '登录成功'
+  }
+
+  function operationAuditStatusLabel(status: string): string {
+    return status === 'completed' ? '成功' : status === 'failed' ? '失败' : '处理中'
+  }
+
+  function operationAuditActionLabel(action: string): string {
+    const labels: Record<string, string> = {
+      'clear-invites': '清理邀请码',
+      'clear-completed-scrape-jobs': '清理抓取任务',
+      'cancel-scrape-job': '终止抓取任务',
+      'batch-delete-novels': '批量删除小说',
+      'batch-delete-chapters': '批量删除章节',
+      'rename-chapters-by-order': '批量改章节名',
+      'batch-delete-sources': '批量删除书源',
+      'delete-unreachable-sources': '删除不可达书源',
+      'source-sync-apply': '应用源站同步',
+      'ai.task.cancel': '终止 AI 任务',
+      'ai.task.retry': '重试 AI 任务',
+      'ai.generations.batch-delete': '删除 AI 生成内容',
+      'ai.cover.adopt': '采纳 AI 封面',
+      'ai.cover.upload': '上传并覆盖封面',
+      'ai.cover.generate': '生成 AI 封面',
+      'ai.cover.prompt': '生成封面描述词',
+    }
+    return labels[action] || action
   }
 
   return (
@@ -362,6 +438,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
           <TabsTrigger value="users">用户管理</TabsTrigger>
           <TabsTrigger value="registration">注册与邀请码</TabsTrigger>
           <TabsTrigger value="audit">登录审计</TabsTrigger>
+          <TabsTrigger value="operation-audit">操作审计</TabsTrigger>
         </TabsList>
 
         {accountTab === 'overview' && <div className="grid gap-4">
@@ -616,6 +693,89 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
             <Button variant="outline" size="sm" disabled={loginAuditPage <= 1 || loginAuditLoading} onClick={() => setLoginAuditOffset(loginAuditOffset - 20)}>上一页</Button>
             <span>{loginAuditPage} / {loginAuditPages}</span>
             <Button variant="outline" size="sm" disabled={loginAuditPage >= loginAuditPages || loginAuditLoading} onClick={() => setLoginAuditOffset(loginAuditOffset + 20)}>下一页</Button>
+          </div>
+        </div>
+      </section>}
+
+      {accountTab === 'operation-audit' && <section className="overflow-hidden rounded-xl border border-border bg-card">
+        <div className="account-settings-panel__header flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+          <div>
+            <h2 className="text-base font-semibold text-foreground">管理员操作审计</h2>
+            <p className="mt-0.5 text-sm text-muted-foreground">记录危险操作的发起人、目标数量、结果与重放次数，不保存目标正文或原始内容。</p>
+          </div>
+          <Button variant="secondary" size="sm" onClick={() => void loadOperationAudit()} disabled={operationAuditLoading}>
+            刷新
+          </Button>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3">
+          <Select
+            value={operationAuditStatus}
+            onValueChange={(value) => {
+              setOperationAuditStatus(value)
+              setOperationAuditOffset(0)
+            }}
+          >
+            <SelectTrigger className="h-9 w-[124px] bg-background" aria-label="操作结果">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent position="popper" align="start" sideOffset={4}>
+              <SelectItem value="all">全部结果</SelectItem>
+              <SelectItem value="pending">处理中</SelectItem>
+              <SelectItem value="completed">成功</SelectItem>
+              <SelectItem value="failed">失败</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>操作人</TableHead>
+                <TableHead>动作</TableHead>
+                <TableHead>目标数量</TableHead>
+                <TableHead>结果</TableHead>
+                <TableHead>重放</TableHead>
+                <TableHead>操作 ID</TableHead>
+                <TableHead>时间</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {operationAuditLoading && operationAudits.length === 0 ? (
+                <TableRow><TableCell colSpan={7} className="h-20 text-center text-sm text-muted-foreground">加载中…</TableCell></TableRow>
+              ) : operationAudits.length === 0 ? (
+                <TableRow><TableCell colSpan={7} className="h-20 text-center text-sm text-muted-foreground">暂无管理员操作记录</TableCell></TableRow>
+              ) : operationAudits.map((operation) => (
+                <TableRow key={operation.id}>
+                  <TableCell>
+                    <strong>{operation.actorDisplayName || operation.actorUsername || '未知管理员'}</strong>
+                    <div className="text-xs text-muted-foreground">{operation.actorUsername || '未知账号'}</div>
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap">{operationAuditActionLabel(operation.action)}</TableCell>
+                  <TableCell>{operation.targetCount}</TableCell>
+                  <TableCell>
+                    <Badge className={operation.status === 'completed' ? 'bg-success/10 text-success' : operation.status === 'failed' ? 'bg-destructive/10 text-destructive' : 'bg-warning/10 text-warning'}>
+                      {operationAuditStatusLabel(operation.status)}
+                    </Badge>
+                    {operation.status === 'failed' && operation.error && <div className="mt-1 text-xs text-destructive">{operation.error}</div>}
+                  </TableCell>
+                  <TableCell>{operation.replayCount}</TableCell>
+                  <TableCell className="max-w-[260px]">
+                    <code className="block truncate text-xs text-muted-foreground" title={operation.operationId}>{operation.operationId}</code>
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                    {operation.createdAt ? new Date(operation.createdAt).toLocaleString('zh-CN') : '—'}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3 text-sm text-muted-foreground">
+          <span>共 {operationAuditTotal} 条记录</span>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" disabled={operationAuditPage <= 1 || operationAuditLoading} onClick={() => setOperationAuditOffset(operationAuditOffset - 20)}>上一页</Button>
+            <span>{operationAuditPage} / {operationAuditPages}</span>
+            <Button variant="outline" size="sm" disabled={operationAuditPage >= operationAuditPages || operationAuditLoading} onClick={() => setOperationAuditOffset(operationAuditOffset + 20)}>下一页</Button>
           </div>
         </div>
       </section>}

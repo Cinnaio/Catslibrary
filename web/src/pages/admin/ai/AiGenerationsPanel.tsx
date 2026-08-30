@@ -1,7 +1,7 @@
 /** 已生成内容管理：列出 AI 产物，支持按类型筛选、批量删除、草稿发布。 */
 import { Fragment, useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { aiApi } from '@/lib/api'
+import { aiApi, newOperationId } from '@/lib/api'
 import { useToast, useConfirm } from '@/components/feedback'
 import { ErrorState, InlineError, LoadingState } from '@/components/admin/AsyncStates'
 import Pagination from '@/components/admin/Pagination'
@@ -208,8 +208,8 @@ export default function AiGenerationsPanel(props: {
     if (!ok) return
     setBatchDeleting(true)
     try {
-      const deletedIds = [...selectedIds]
-      const result = await aiApi.deleteGenerations(deletedIds)
+      const deletedIds = [...selectedIds].filter(Boolean).sort()
+      const result = await aiApi.deleteGenerations(deletedIds, newOperationId('ai-generations-delete'))
       toast('已删除 ' + result.deleted + ' 条生成记录', 'success', { action: { label: '撤销', onClick: () => void restoreDeleted(deletedIds) } })
       setSelectedIds(new Set())
       void load()

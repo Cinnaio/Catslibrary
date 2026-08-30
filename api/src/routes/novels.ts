@@ -10,9 +10,10 @@ import { cacheCoverForNovel } from '../services/covers'
 import { newId } from '../services/auth'
 import { simplifyNovelForSource } from '../services/zh-convert'
 import { escapeLike } from '../services/text'
-import { requireAdmin } from '../middlewares/auth'
+import { requireAdmin, type AuthEnv } from '../middlewares/auth'
+import { idempotencyKeyFromRequest, withIdempotency } from '../services/idempotency'
 
-export const novelsRoutes = new Hono()
+export const novelsRoutes = new Hono<AuthEnv>()
 
 const SORT_FIELDS: Record<string, boolean> = { updated_at: true, created_at: true, title: true, author: true, chapter_count: true }
 const SORT_ORDERS: Record<string, 'ASC' | 'DESC'> = { asc: 'ASC', desc: 'DESC' }
@@ -208,10 +209,24 @@ async function createNovel(c: Context, db: ReturnType<typeof getDb>, body: any) 
 }
 
 async function batchDeleteNovels(c: Context, db: ReturnType<typeof getDb>, body: any) {
-  const ids: string[] = Array.isArray(body.novelIds) ? body.novelIds.filter(Boolean) : []
+  const ids: string[] = Array.isArray(body.novelIds)
+    ? Array.from(new Set(body.novelIds.map((id: unknown) => String(id || '').trim()).filter(Boolean)))
+    : []
   if (!ids.length) return c.json({ error: 'novelIds array is required' }, 400)
-  const deleted = await run(db, `DELETE FROM novels WHERE id IN (${ids.map((_, i) => `$${i + 1}`).join(',')})`, ids)
-  return c.json({ success: true, deleted })
+  const operationKey = idempotencyKeyFromRequest(c, body, ['operationId'])
+  return withIdempotency(
+    db,
+    {
+      scope: `novels.batch-delete.${c.get('user').id}`,
+      operationKey,
+      payload: { action: 'batch-delete', novelIds: ids },
+      audit: { actorUserId: c.get('user').id, action: 'batch-delete-novels', targetCount: ids.length },
+    },
+    async () => {
+      const deleted = await run(db, `DELETE FROM novels WHERE id IN (${ids.map((_, i) => `$${i + 1}`).join(',')})`, ids)
+      return c.json({ success: true, deleted, novelIds: ids })
+    },
+  )
 }
 
 async function normalizeAllCategories(c: Context, db: ReturnType<typeof getDb>) {

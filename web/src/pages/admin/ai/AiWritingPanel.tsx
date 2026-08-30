@@ -1,6 +1,6 @@
 /** AI 创作工作台：新写 / 续写，生成结果先保存为草稿。 */
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { aiApi, chaptersApi, novelsApi, type AiTaskInfo } from '@/lib/api'
+import { aiApi, chaptersApi, newOperationId, novelsApi, type AiTaskInfo } from '@/lib/api'
 import { useToast, useConfirm } from '@/components/feedback'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -303,13 +303,13 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
 
   async function generateOutline() {
     if (!title.trim()) return toast('请填写作品标题', 'error')
-    await startTask(() => aiApi.writing.outline({ novelId, title, instruction, targetWords, chapterCount }), '大纲生成已开始，完成后到“已生成内容”查看')
+    await startTask(() => aiApi.writing.outline({ novelId, title, instruction, targetWords, chapterCount, operationId: newOperationId('ai-writing-outline') }), '大纲生成已开始，完成后到“已生成内容”查看')
   }
 
   async function generateChapter() {
     if (!novelId || !chapterTitle.trim()) return toast('请选择小说并填写章节标题', 'error')
     await startTask(
-      () => aiApi.writing.chapter({ novelId, title, outline, instruction, targetWords, chapterCount }),
+      () => aiApi.writing.chapter({ novelId, title, outline, instruction, targetWords, chapterCount, operationId: newOperationId('ai-writing-chapter') }),
       '章节生成已开始，完成后到“已生成内容”查看',
     )
   }
@@ -327,7 +327,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
       if (!ok) return
     }
     await startTask(
-      () => aiApi.writing.continue({ novelId, title: chapterTitle, instruction, targetWords, chapterCount, ...(afterChapterId ? { afterChapterId } : {}) }),
+      () => aiApi.writing.continue({ novelId, title: chapterTitle, instruction, targetWords, chapterCount, ...(afterChapterId ? { afterChapterId } : {}), operationId: newOperationId('ai-writing-continue') }),
       '续写任务已开始，完成后草稿在“已生成内容”',
     )
   }
@@ -383,8 +383,17 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
 
   async function cancelTask() {
     if (!task) return
+    const ok = await confirm({
+      title: '终止 AI 创作任务？',
+      message: '已生成的草稿和用量记录会保留，未完成的后续章节不会继续生成。',
+      items: [`操作目标：${task.id}`],
+      okText: '终止任务',
+      cancelText: '取消',
+      danger: true,
+    })
+    if (!ok) return
     try {
-      await aiApi.cancelTask(task.id)
+      await aiApi.cancelTask(task.id, newOperationId('ai-task-cancel'))
       const { task: next } = await aiApi.task(task.id)
       setTask(next)
       toast('任务已取消', 'success')

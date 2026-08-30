@@ -1,7 +1,7 @@
 /** AI 封面生成工作台：选小说 → 生成封面（落候选，不覆盖）→ 预览候选 → 采纳/弃用/上传替换。 */
 import { useEffect, useRef, useState } from 'react'
-import { aiApi, novelsApi, url, type AiCoverCandidate, type AiTaskInfo } from '@/lib/api'
-import { useToast } from '@/components/feedback'
+import { aiApi, newOperationId, novelsApi, url, type AiCoverCandidate, type AiTaskInfo } from '@/lib/api'
+import { useToast, useConfirm } from '@/components/feedback'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -161,6 +161,7 @@ function CoverCanvas({ src, title, hasNovel }: { src: string; title?: string; ha
 
 export default function AiCoverPanel() {
   const { toast } = useToast()
+  const { confirm } = useConfirm()
   const [novels, setNovels] = useState<Array<{ id: string; title: string; updatedAt?: number }>>([])
   const [novelId, setNovelId] = useState('')
   const [busy, setBusy] = useState(false)
@@ -297,7 +298,7 @@ export default function AiCoverPanel() {
     }
     setBusy(true)
     try {
-      const res = await aiApi.generateCover(novelId, { prompt: nextPrompt, renderTitle, platform, stylePreset, composition, variationId })
+      const res = await aiApi.generateCover(novelId, { prompt: nextPrompt, renderTitle, platform, stylePreset, composition, variationId, operationId: newOperationId('ai-cover-generate') })
       const { task: created } = await aiApi.task(res.taskId)
       setTask(created)
       toast('封面生成已开始', 'success')
@@ -319,6 +320,7 @@ export default function AiCoverPanel() {
         stylePreset,
         composition,
         variationId: requestedVariationId,
+        operationId: newOperationId('ai-cover-prompt'),
       })
       setPrompt(limitCoverPrompt(result.prompt, coverPromptMaxChars))
       setVariationId(result.metadata?.variationId || requestedVariationId)
@@ -333,8 +335,17 @@ export default function AiCoverPanel() {
 
   async function cancelTask() {
     if (!task) return
+    const ok = await confirm({
+      title: '终止封面生成任务？',
+      message: '已产生的任务记录和用量记录会保留，未完成的生成不会继续执行。',
+      items: [`操作目标：${task.id}`],
+      okText: '终止任务',
+      cancelText: '取消',
+      danger: true,
+    })
+    if (!ok) return
     try {
-      await aiApi.cancelTask(task.id)
+      await aiApi.cancelTask(task.id, newOperationId('ai-task-cancel'))
       const { task: next } = await aiApi.task(task.id)
       setTask(next)
       toast('任务已取消', 'success')
@@ -346,9 +357,18 @@ export default function AiCoverPanel() {
   /** 采纳候选：覆盖为当前封面，刷新候选与当前预览。 */
   async function adopt(candidate: AiCoverCandidate) {
     if (!novelId) return
+    const ok = await confirm({
+      title: '覆盖当前封面？',
+      message: '采纳后会用这个候选封面替换当前封面，读者端会立即看到新封面。',
+      items: [`操作目标：${candidate.id}`],
+      okText: '确认覆盖',
+      cancelText: '取消',
+      danger: true,
+    })
+    if (!ok) return
     setCandidateBusy(candidate.id)
     try {
-      await aiApi.adoptCoverCandidate(candidate.id)
+      await aiApi.adoptCoverCandidate(candidate.id, newOperationId('ai-cover-adopt'))
       await loadCandidates(novelId)
       setCoverVersion((v) => v + 1)
       toast('已采纳，当前封面已替换', 'success')
@@ -379,9 +399,18 @@ export default function AiCoverPanel() {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file || !novelId) return
+    const ok = await confirm({
+      title: '覆盖当前封面？',
+      message: `确定用「${file.name}」替换当前封面？读者端会立即看到新封面。`,
+      items: ['原封面不会自动保留为候选', '图片会直接写入当前封面'],
+      okText: '确认上传并覆盖',
+      cancelText: '取消',
+      danger: true,
+    })
+    if (!ok) return
     setCandidateBusy('upload')
     try {
-      await aiApi.uploadCover(novelId, file)
+      await aiApi.uploadCover(novelId, file, newOperationId('ai-cover-upload'))
       setCoverVersion((v) => v + 1)
       toast('已上传并替换当前封面', 'success')
     } catch (err) {

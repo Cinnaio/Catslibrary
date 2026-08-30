@@ -15,6 +15,7 @@ import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
+import { newOperationId } from '../../../lib/api'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import CustomSelect from '@/components/admin/CustomSelect'
 import type { SourceRow } from './types'
@@ -168,16 +169,18 @@ export default function SourcesView({ active }: { active: boolean }) {
   }
 
   async function batchDeleteSources() {
-    const hosts = [...selectedHosts]
+    const hosts = [...selectedHosts].filter(Boolean).sort()
+    if (!hosts.length) return
     const ok = await confirm({
       title: '批量删除书源',
       message: `确定删除已选择的 ${hosts.length} 个书源？删除后运行时不再按这些 host 匹配。`,
+      items: [`目标快照：${hosts.length} 个书源`, '删除后不可恢复'],
       okText: '删除',
       danger: true,
     })
     if (!ok) return
     try {
-      await scrapePost({ action: 'batch-delete-sources', hosts })
+      await scrapePost({ action: 'batch-delete-sources', hosts, operationId: newOperationId('batch-delete-sources') })
       setSelectedHosts(new Set())
       await loadScrapeSources()
       toast(`已删除 ${hosts.length} 个书源`, 'success')
@@ -252,15 +255,38 @@ export default function SourcesView({ active }: { active: boolean }) {
   }
 
   async function deleteUnreachableSources() {
+    const hosts: string[] = []
+    try {
+      const firstPage = await scrapePost({ action: 'list-sources', connectivity: 'unreachable', page: 1, pageSize: 100 })
+      const totalPages = Math.max(1, Number(firstPage.totalPages) || 1)
+      if (Array.isArray(firstPage.sources)) {
+        hosts.push(...firstPage.sources.map((source: { host?: unknown }) => String(source.host || '').trim()).filter(Boolean))
+      }
+      for (let page = 2; page <= totalPages; page += 1) {
+        const nextPage = await scrapePost({ action: 'list-sources', connectivity: 'unreachable', page, pageSize: 100 })
+        if (Array.isArray(nextPage.sources)) {
+          hosts.push(...nextPage.sources.map((source: { host?: unknown }) => String(source.host || '').trim()).filter(Boolean))
+        }
+      }
+    } catch (err) {
+      toast((err as Error).message || '读取不可访问书源失败', 'error')
+      return
+    }
+    const snapshot = [...new Set(hosts)].sort()
+    if (!snapshot.length) {
+      toast('没有可删除的不可访问书源', 'default')
+      return
+    }
     const ok = await confirm({
       title: '删除不可访问书源',
-      message: `确定删除最近检测不可访问的 ${unreachableCount} 个书源？此操作不可恢复。`,
+      message: `删除确认时的 ${snapshot.length} 个不可访问书源？此操作不可恢复。`,
+      items: [`目标快照：${snapshot.length} 个书源`, '只删除刚读取到的不可访问书源'],
       okText: '删除',
       danger: true,
     })
     if (!ok) return
     try {
-      const data = await scrapePost({ action: 'delete-unreachable-sources' })
+      const data = await scrapePost({ action: 'delete-unreachable-sources', hosts: snapshot, operationId: newOperationId('delete-unreachable-sources') })
       setSelectedHosts(new Set())
       await loadScrapeSources()
       toast(`已删除 ${data.deleted} 个不可访问书源`, 'success')
@@ -284,7 +310,7 @@ export default function SourcesView({ active }: { active: boolean }) {
     setImportStatus('正在导入…')
     setImportResult(null)
     try {
-      const data = await scrapePost({ action: 'import-legado', ...payload })
+      const data = await scrapePost({ action: 'import-legado', ...payload, operationId: newOperationId('import-legado') })
       const s = data.bySupport || {}
       setImportResult({
         ok: true,

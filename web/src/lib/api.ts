@@ -78,6 +78,19 @@ export function authHeaders(headers: Record<string, string> = {}): Record<string
   return result
 }
 
+/** 为一次管理员副作用生成可重放的客户端操作 ID。 */
+export function newOperationId(prefix = 'operation'): string {
+  const randomUUID = globalThis.crypto?.randomUUID
+  const suffix = typeof randomUUID === 'function'
+    ? randomUUID.call(globalThis.crypto)
+    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`
+  return `${prefix}-${suffix}`
+}
+
+export function operationHeaders(operationId: string): Record<string, string> {
+  return operationId ? { 'Idempotency-Key': operationId } : {}
+}
+
 // ---------- 请求 ----------
 
 export interface ApiError extends Error {
@@ -162,8 +175,8 @@ export const novelsApi = {
   remove(id: string): Promise<{ success: boolean }> {
     return request('DELETE', `/novels/${encodeURIComponent(id)}`, null, true)
   },
-  batchDelete(ids: string[]): Promise<{ ok: boolean }> {
-    return request('POST', '/novels', { action: 'batch-delete', novelIds: ids }, true)
+  batchDelete(ids: string[], operationId = newOperationId('batch-delete-novels')): Promise<{ ok: boolean }> {
+    return request('POST', '/novels', { action: 'batch-delete', novelIds: ids, operationId }, true, operationHeaders(operationId))
   },
   categories(): Promise<{ categories: string[] }> {
     return request('GET', '/categories')
@@ -192,10 +205,11 @@ export const chaptersApi = {
     return request('DELETE', `/chapters/${encodeURIComponent(id)}`, null, true)
   },
   renameByOrder(data: Record<string, unknown>): Promise<{ ok: boolean }> {
-    return request('POST', '/chapters', { action: 'rename-by-order', ...data }, true)
+    const operationId = typeof data.operationId === 'string' && data.operationId ? data.operationId : newOperationId('rename-chapters-by-order')
+    return request('POST', '/chapters', { action: 'rename-by-order', ...data, operationId }, true, operationHeaders(operationId))
   },
-  batchDelete(novelId: string, chapterIds: string[]): Promise<{ ok: boolean }> {
-    return request('POST', '/chapters', { action: 'batch-delete', novelId, chapterIds }, true)
+  batchDelete(novelId: string, chapterIds: string[], operationId = newOperationId('batch-delete-chapters')): Promise<{ ok: boolean }> {
+    return request('POST', '/chapters', { action: 'batch-delete', novelId, chapterIds, operationId }, true, operationHeaders(operationId))
   },
 }
 
@@ -721,6 +735,36 @@ export const adminApi = {
       return request('PUT', '/admin/mobile-telemetry', { id, status, adminNote }, true)
     },
   },
+  operationAudit: {
+    list(params: { status?: string; action?: string; limit?: number; offset?: number } = {}): Promise<{
+      operations: Array<{
+        id: string
+        operationId: string
+        actorUserId: string
+        actorUsername: string
+        actorDisplayName: string
+        action: string
+        targetCount: number
+        status: string
+        responseStatus: number
+        replayCount: number
+        error: string
+        createdAt: number
+        updatedAt: number
+        finishedAt: number
+      }>
+      total: number
+      limit: number
+      offset: number
+    }> {
+      const qs = new URLSearchParams()
+      if (params.status) qs.set('status', params.status)
+      if (params.action) qs.set('action', params.action)
+      if (params.limit) qs.set('limit', String(params.limit))
+      if (params.offset) qs.set('offset', String(params.offset))
+      return request('GET', `/admin/operations${qs.toString() ? '?' + qs : ''}`, null, true)
+    },
+  },
   users: {
     list(): Promise<Record<string, unknown>> {
       return request('GET', '/admin-users', null, true)
@@ -734,8 +778,8 @@ export const adminApi = {
     disableInvite(code: string): Promise<{ ok: boolean }> {
       return request('POST', '/admin-users', { action: 'disable-invite', code }, true)
     },
-    clearInvites(): Promise<{ success: boolean; removed: number }> {
-      return request('POST', '/admin-users', { action: 'clear-invites' }, true)
+    clearInvites(codes: string[], operationId = newOperationId('clear-invites')): Promise<{ success: boolean; removed: number }> {
+      return request('POST', '/admin-users', { action: 'clear-invites', operationId, codes }, true, operationHeaders(operationId))
     },
     setStatus(id: string, status: string): Promise<{ ok: boolean }> {
       return request('POST', '/admin-users', { action: 'user-status', id, status }, true)
@@ -891,8 +935,8 @@ export const scrapeApi = {
   retryFailed(jobId: string): Promise<{ ok: boolean }> {
     return request('POST', '/scrape', { action: 'retry-failed', jobId }, true)
   },
-  cancel(jobId: string): Promise<{ ok: boolean }> {
-    return request('POST', '/scrape', { action: 'cancel', jobId }, true)
+  cancel(jobId: string, operationId = newOperationId('cancel-scrape-job')): Promise<{ ok: boolean }> {
+    return request('POST', '/scrape', { action: 'cancel', jobId, operationId }, true, operationHeaders(operationId))
   },
   sourceBindings(novelId: string): Promise<{ bindings: Array<Record<string, unknown>> }> {
     return request('GET', `/scrape?action=source-bindings&novelId=${encodeURIComponent(novelId)}`, null, true)
@@ -908,8 +952,11 @@ export const scrapeApi = {
     applyMetadata?: boolean
     metadataFields?: string[]
     metadataMode?: 'missing' | 'replace'
+    confirmedChangeIds?: string[]
+    operationId?: string
   }): Promise<{ updated: number; metadataUpdated: string[]; mappings: number }> {
-    return request('POST', '/scrape', { action: 'source-sync-apply', ...data }, true)
+    const operationId = data.operationId || newOperationId('source-sync-apply')
+    return request('POST', '/scrape', { action: 'source-sync-apply', ...data, operationId }, true, operationHeaders(operationId))
   },
   po18Account(): Promise<Po18AccountStatus> {
     return request('GET', '/scrape?action=po18-account', null, true)
@@ -1102,8 +1149,9 @@ export const aiApi = {
   /** 为小说生成封面（后台任务模式），返回 taskId 供轮询；生成结果直接落 novel_covers。 */
   generateCover(
     novelId: string,
-    opts: { prompt?: string; renderTitle?: boolean; platform?: string; stylePreset?: string; composition?: string; variationId?: string } = {},
+    opts: { prompt?: string; renderTitle?: boolean; platform?: string; stylePreset?: string; composition?: string; variationId?: string; operationId?: string } = {},
   ): Promise<{ ok: boolean; taskId: string; batchId: string; total: number }> {
+    const operationId = opts.operationId || newOperationId('ai-cover-generate')
     return request(
       'POST',
       '/ai/cover/generate',
@@ -1115,14 +1163,17 @@ export const aiApi = {
         stylePreset: opts.stylePreset,
         composition: opts.composition,
         variationId: opts.variationId,
+        operationId,
       },
       true,
+      operationHeaders(operationId),
     )
   },
   generateCoverPrompt(
     novelId: string,
-    opts: { renderTitle?: boolean; platform?: string; stylePreset?: string; composition?: string; variationId?: string } = {},
+    opts: { renderTitle?: boolean; platform?: string; stylePreset?: string; composition?: string; variationId?: string; operationId?: string } = {},
   ): Promise<{ prompt: string; metadata?: AiCoverMetadata }> {
+    const operationId = opts.operationId || newOperationId('ai-cover-prompt')
     return request(
       'POST',
       '/ai/cover/prompt',
@@ -1133,8 +1184,10 @@ export const aiApi = {
         stylePreset: opts.stylePreset,
         composition: opts.composition,
         variationId: opts.variationId,
+        operationId,
       },
       true,
+      operationHeaders(operationId),
     )
   },
   /** AI 封面候选列表（含 dataUrl，供 <img> 直接展示）。 */
@@ -1142,19 +1195,20 @@ export const aiApi = {
     return request('GET', `/ai/cover/candidates?novelId=${encodeURIComponent(novelId)}`, null, true)
   },
   /** 采纳候选：覆盖为当前封面并删除候选。 */
-  adoptCoverCandidate(id: string): Promise<{ ok: boolean }> {
-    return request('POST', `/ai/cover/candidates/${encodeURIComponent(id)}/adopt`, {}, true)
+  adoptCoverCandidate(id: string, operationId = newOperationId('ai-cover-adopt')): Promise<{ ok: boolean }> {
+    return request('POST', `/ai/cover/candidates/${encodeURIComponent(id)}/adopt`, { operationId }, true, operationHeaders(operationId))
   },
   /** 弃用候选：删除，不触碰当前封面。 */
   discardCoverCandidate(id: string): Promise<{ ok: boolean }> {
     return request('DELETE', `/ai/cover/candidates/${encodeURIComponent(id)}`, null, true)
   },
   /** 上传本地图片替换当前封面：直接覆盖 novel_covers，读者端立即生效。 */
-  uploadCover(novelId: string, file: File): Promise<{ ok: boolean }> {
+  uploadCover(novelId: string, file: File, operationId = newOperationId('ai-cover-upload')): Promise<{ ok: boolean }> {
     const form = new FormData()
     form.append('cover', file)
     form.append('novelId', novelId)
-    return authFetch('/ai/cover/upload', { method: 'POST', body: form }).then(async (res) => {
+    form.append('operationId', operationId)
+    return authFetch('/ai/cover/upload', { method: 'POST', headers: operationHeaders(operationId), body: form }).then(async (res) => {
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error((data as { error?: string }).error || `HTTP ${res.status}`)
       return data
@@ -1163,13 +1217,16 @@ export const aiApi = {
   writing: {
     /** 创作类接口统一为后台任务模式：立即返回任务 id，用 aiApi.task 轮询进度，产物在「已生成内容」。 */
     outline(data: Record<string, unknown>): Promise<{ ok: boolean; taskId: string; batchId: string; total: number }> {
-      return request('POST', '/ai/writing/outline', data, true)
+      const operationId = typeof data.operationId === 'string' && data.operationId ? data.operationId : newOperationId('ai-writing-outline')
+      return request('POST', '/ai/writing/outline', { ...data, operationId }, true, operationHeaders(operationId))
     },
     chapter(data: Record<string, unknown>): Promise<{ ok: boolean; taskId: string; batchId: string; total: number }> {
-      return request('POST', '/ai/writing/chapter', data, true)
+      const operationId = typeof data.operationId === 'string' && data.operationId ? data.operationId : newOperationId('ai-writing-chapter')
+      return request('POST', '/ai/writing/chapter', { ...data, operationId }, true, operationHeaders(operationId))
     },
     continue(data: Record<string, unknown>): Promise<{ ok: boolean; taskId: string; batchId: string; total: number }> {
-      return request('POST', '/ai/writing/continue', data, true)
+      const operationId = typeof data.operationId === 'string' && data.operationId ? data.operationId : newOperationId('ai-writing-continue')
+      return request('POST', '/ai/writing/continue', { ...data, operationId }, true, operationHeaders(operationId))
     },
     /** 提取/刷新某部小说的风格画像：取样已发布章节 → 文本模型分析 → 落库，续写时复用。 */
     refreshStyleProfile(novelId: string): Promise<{ ok: boolean; profile: string; model: string; usage: { promptTokens: number; completionTokens: number } }> {
@@ -1252,16 +1309,16 @@ export const aiApi = {
   task(id: string): Promise<{ task: AiTaskInfo }> {
     return request('GET', `/ai/tasks/${encodeURIComponent(id)}`, null, true)
   },
-  cancelTask(id: string): Promise<{ ok: boolean }> {
-    return request('POST', `/ai/tasks/${encodeURIComponent(id)}/cancel`, {}, true)
+  cancelTask(id: string, operationId = newOperationId('ai-task-cancel')): Promise<{ ok: boolean }> {
+    return request('POST', `/ai/tasks/${encodeURIComponent(id)}/cancel`, { operationId }, true, operationHeaders(operationId))
   },
   /** 删除已结束的任务记录（completed/failed/cancelled），运行中需先取消。 */
   deleteTask(id: string): Promise<{ ok: boolean }> {
     return request('DELETE', `/ai/tasks/${encodeURIComponent(id)}`, null, true)
   },
   /** 按原参数重试失败/取消的创作任务，返回新任务 id。 */
-  retryTask(id: string): Promise<{ ok: boolean; taskId: string; batchId: string; total: number }> {
-    return request('POST', `/ai/tasks/${encodeURIComponent(id)}/retry`, {}, true)
+  retryTask(id: string, operationId = newOperationId('ai-task-retry')): Promise<{ ok: boolean; taskId: string; batchId: string; total: number }> {
+    return request('POST', `/ai/tasks/${encodeURIComponent(id)}/retry`, { operationId }, true, operationHeaders(operationId))
   },
   /** 已生成内容列表（管理端）：默认已发布，可筛类型。 */
   generations(
@@ -1307,8 +1364,8 @@ export const aiApi = {
   deleteGeneration(id: string): Promise<{ ok: boolean }> {
     return request('DELETE', `/ai/generations/${encodeURIComponent(id)}`, null, true)
   },
-  deleteGenerations(ids: string[]): Promise<{ ok: boolean; deleted: number }> {
-    return request('POST', '/ai/generations/batch-delete', { ids }, true)
+  deleteGenerations(ids: string[], operationId = newOperationId('ai-generations-delete')): Promise<{ ok: boolean; deleted: number }> {
+    return request('POST', '/ai/generations/batch-delete', { ids, operationId }, true, operationHeaders(operationId))
   },
   /** 撤销软删除：仅 10 秒窗口内的记录可恢复。 */
   restoreGenerations(ids: string[]): Promise<{ ok: boolean; restored: number }> {

@@ -1,6 +1,6 @@
 /** AI 任务管理：查看生成进度、错误和输入 Prompt；有任务运行时自动轮询刷新。 */
 import { useCallback, useEffect, useState } from 'react'
-import { aiApi, type AiTaskInfo } from '@/lib/api'
+import { aiApi, newOperationId, type AiTaskInfo } from '@/lib/api'
 import { useToast, useConfirm } from '@/components/feedback'
 import { ErrorState, InlineError, LoadingState } from '@/components/admin/AsyncStates'
 import { Badge } from '@/components/ui/badge'
@@ -63,14 +63,33 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
   }, [hasActive, load])
 
   async function cancel(id: string) {
-    try { await aiApi.cancelTask(id); toast('AI 任务已取消', 'success'); void load() }
+    const task = tasks.find((item) => item.id === id)
+    const ok = await confirm({
+      title: '终止 AI 任务？',
+      message: `确定终止${task ? `「${taskKindLabel(task.kind)}」` : ''}任务？已产生的结果和用量记录会保留。`,
+      items: [`操作目标：${id}`],
+      okText: '终止任务',
+      cancelText: '取消',
+      danger: true,
+    })
+    if (!ok) return
+    try { await aiApi.cancelTask(id, newOperationId('ai-task-cancel')); toast('AI 任务已取消', 'success'); void load() }
     catch (err) { toast((err as Error).message || '取消任务失败', 'error') }
   }
 
   async function retry(id: string) {
+    const task = tasks.find((item) => item.id === id)
+    const ok = await confirm({
+      title: '重新发起 AI 任务？',
+      message: '重试会再次调用 AI，并可能产生新的用量。原任务记录会保留。',
+      items: [`操作目标：${id}`, ...(task ? [`任务类型：${taskKindLabel(task.kind)}`] : [])],
+      okText: '确认重试',
+      cancelText: '取消',
+    })
+    if (!ok) return
     setRetryingId(id)
     try {
-      await aiApi.retryTask(id)
+      await aiApi.retryTask(id, newOperationId('ai-task-retry'))
       toast('已按原参数重新发起任务', 'success')
       void load()
     } catch (err) {
