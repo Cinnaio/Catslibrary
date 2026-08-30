@@ -44,8 +44,10 @@ final class AppState {
             await activateAccount(r.user)
             AppObservability.shared.track("auth_restore_succeeded")
             sessionRestoreFailed = false
-            await ReaderSettingsStore.shared.syncFromServer()
-            await ReaderProgressStore.shared.flush()
+            // 本地账号已恢复即可进入主界面；非关键同步放到首屏之后，避免慢网阻塞启动。
+            isBooting = false
+            syncAccountStateInBackground()
+            return
         } catch let error as APIError {
             AppObservability.shared.capture(error: error, context: "auth.bootstrap")
             if APIClient.shared.token != restoreToken {
@@ -97,8 +99,7 @@ final class AppState {
             APIClient.shared.token = r.token
             await activateAccount(r.user)
             sessionRestoreFailed = false
-            await ReaderSettingsStore.shared.syncFromServer()
-            await ReaderProgressStore.shared.flush()
+            syncAccountStateInBackground()
             AppObservability.shared.track("auth_login_succeeded")
         } catch {
             AppObservability.shared.capture(error: error, context: "auth.login")
@@ -115,8 +116,7 @@ final class AppState {
             APIClient.shared.token = r.token
             await activateAccount(r.user)
             sessionRestoreFailed = false
-            await ReaderSettingsStore.shared.syncFromServer()
-            await ReaderProgressStore.shared.flush()
+            syncAccountStateInBackground()
             AppObservability.shared.track("auth_register_succeeded")
         } catch {
             AppObservability.shared.capture(error: error, context: "auth.register")
@@ -146,6 +146,14 @@ final class AppState {
         ReaderProgressStore.shared.activate(userID: user.id)
         AdminAITaskCoordinator.shared.activate(userID: user.id)
         self.user = user
+    }
+
+    /// 账号已经可用后再同步非关键数据，避免认证冷启动和登录按钮被网络延迟拖住。
+    private func syncAccountStateInBackground() {
+        Task { @MainActor in
+            await ReaderSettingsStore.shared.syncFromServer()
+            await ReaderProgressStore.shared.flush()
+        }
     }
 
     private func deactivateLocalAccount(clearOfflineFallback: Bool) async {

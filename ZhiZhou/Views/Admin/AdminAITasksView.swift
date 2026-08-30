@@ -152,7 +152,7 @@ struct AdminAITasksView: View {
                         Image(systemName: "ellipsis.circle")
                             .font(.title3)
                             .foregroundStyle(AppTheme.textSecondary)
-                            .frame(width: 36, height: 36)
+                            .frame(width: 44, height: 44)
                     }
                     .disabled(busyId != nil)
                     .accessibilityLabel("任务操作")

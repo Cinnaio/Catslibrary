@@ -89,6 +89,11 @@ struct ReaderView: View {
     private var ink: Color { settings.textColor(systemDark: systemIsDark) }
     private var inkUIColor: UIColor { UIColor(ink) }
     private var scheme: ColorScheme? { settings.colorSchemeOverride(systemDark: systemIsDark) }
+    private var readerTitleFont: Font { settings.titleFont(for: dynamicTypeSize) }
+    private var readerBodyUIFont: UIFont { settings.bodyUIFont(for: dynamicTypeSize) }
+    private var readerTitleUIFont: UIFont { settings.titleUIFont(for: dynamicTypeSize) }
+    private var readerLineSpacing: CGFloat { settings.lineSpacing(for: dynamicTypeSize) }
+    private var readerParagraphSpacing: CGFloat { settings.paragraphSpacing(for: dynamicTypeSize) }
 
     private var thoughtsByParagraph: [Int: [Thought]] {
         Dictionary(grouping: chapterThoughts) { $0.paragraphIndex }
@@ -128,6 +133,13 @@ struct ReaderView: View {
                 pagedReader(geo: geo)
             } else {
                 readerScroll(geo: geo)
+            }
+        }
+        .overlay(alignment: .bottomTrailing) {
+            if !showChrome {
+                readerChromeRevealButton
+                    .padding(.trailing, 16)
+                    .padding(.bottom, 14)
             }
         }
         .background(paper.ignoresSafeArea())
@@ -250,7 +262,7 @@ struct ReaderView: View {
             .frame(maxWidth: .infinity, minHeight: 300)
         } else if let chapter {
             Text(chapter.title)
-                .font(settings.titleFont)
+                .font(readerTitleFont)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(ink)
                 .frame(maxWidth: .infinity)
@@ -307,12 +319,12 @@ struct ReaderView: View {
 
     private func paragraphAttributedText(_ text: String, thoughts: [Thought]) -> NSAttributedString {
         let style = NSMutableParagraphStyle()
-        style.lineSpacing = settings.lineSpacing
+        style.lineSpacing = readerLineSpacing
         style.alignment = .natural
         let renderedText = NSMutableAttributedString(
             string: paragraphIndent + text,
             attributes: [
-                .font: settings.bodyUIFont,
+                .font: readerBodyUIFont,
                 .foregroundColor: inkUIColor,
                 .paragraphStyle: style,
             ]
@@ -348,7 +360,7 @@ struct ReaderView: View {
     private func readerScroll(geo: GeometryProxy) -> some View {
         let sideInset = max(geo.safeAreaInsets.leading, geo.safeAreaInsets.trailing)
         return ScrollView {
-            LazyVStack(alignment: .leading, spacing: settings.paragraphSpacing) {
+            LazyVStack(alignment: .leading, spacing: readerParagraphSpacing) {
                 readingContent
             }
             .padding(.horizontal, sideInset + 22)
@@ -366,6 +378,7 @@ struct ReaderView: View {
         .scrollPosition(id: $scrolledParagraph)
         .background(paper)
         .contentShape(Rectangle())
+        .accessibilityHint("轻点中央显示阅读控制；使用顶部和底部按钮切换目录、设置和章节")
         .accessibilityAction(named: showChrome ? "隐藏阅读控制" : "显示阅读控制") {
             toggleChrome()
         }
@@ -407,7 +420,7 @@ struct ReaderView: View {
         let contentHeight = max(120, geo.size.height - 8 - readerChromeHeight)
         let pageSize = CGSize(width: contentWidth, height: contentHeight)
         let thoughtIDs = chapterThoughts.map(\.id).joined(separator: ",")
-        let key = "\(chapter?.id ?? "-"):\(Int(contentWidth)):\(Int(contentHeight)):\(settings.fontSizeIndex):\(settings.lineHeight):\(settings.paragraphSpacing):\(settings.useSerif):\(dynamicTypeSize):\(fontRevision):\(thoughtIDs)"
+        let key = "\(chapter?.id ?? "-"):\(Int(contentWidth)):\(Int(contentHeight)):\(settings.fontSizeIndex):\(settings.lineHeight):\(readerParagraphSpacing):\(settings.useSerif):\(dynamicTypeSize):\(fontRevision):\(thoughtIDs)"
 
         return Group {
             if isLoading && chapter == nil {
@@ -533,17 +546,15 @@ struct ReaderView: View {
         let horizontal = value.translation.width
         let vertical = value.translation.height
         let edgeWidth = min(72, max(44, width * 0.08))
-        let startsAtLeft = value.startLocation.x <= edgeWidth
         let startsAtRight = value.startLocation.x >= width - edgeWidth
 
-        guard (startsAtLeft || startsAtRight),
+        // 左缘保留给 NavigationStack 的系统返回手势；阅读器只响应右缘的下一章手势。
+        guard startsAtRight,
               abs(horizontal) >= 72,
               abs(horizontal) >= abs(vertical) * 1.35
         else { return }
 
-        if startsAtLeft, horizontal > 0 {
-            go(to: chapterOrder - 1)
-        } else if startsAtRight, horizontal < 0 {
+        if horizontal < 0 {
             go(to: chapterOrder + 1)
         }
     }
@@ -638,6 +649,20 @@ struct ReaderView: View {
         .accessibilityLabel("下一章")
     }
 
+    private var readerChromeRevealButton: some View {
+        Button {
+            toggleChrome()
+        } label: {
+            Image(systemName: "ellipsis.circle")
+                .font(.title3.weight(.semibold))
+                .frame(width: 44, height: 44)
+        }
+        .buttonStyle(.glass(AppTheme.glassClear))
+        .foregroundStyle(ink.opacity(0.9))
+        .accessibilityLabel("显示阅读控制")
+        .accessibilityHint("显示目录、阅读设置和章节切换")
+    }
+
     /// 顶部操作组：只保留图标与 44pt 点按区，不再叠加玻璃容器和按钮底板。
     private var readerToolbarGroup: some View {
         HStack(spacing: 10) {
@@ -708,10 +733,10 @@ struct ReaderView: View {
         // 锚点 = 重排前当前页的起始字符。只有 pageRanges 与当前页有效时才使用。
         let anchorChar: Int? = currentPage < pageRanges.count ? pageRanges[currentPage].location : nil
         let spec = ChapterPaginator.Spec(
-            bodyFont: settings.bodyUIFont,
-            titleFont: settings.titleUIFont,
-            lineSpacing: settings.lineSpacing,
-            paragraphSpacing: settings.paragraphSpacing,
+            bodyFont: readerBodyUIFont,
+            titleFont: readerTitleUIFont,
+            lineSpacing: readerLineSpacing,
+            paragraphSpacing: readerParagraphSpacing,
             title: chapter.title,
             paragraphs: paragraphs,
             thoughtSelectionsByParagraph: thoughtsByParagraph.mapValues {

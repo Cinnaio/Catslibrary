@@ -10,6 +10,7 @@ struct BookshelfView: View {
     @State private var actionError: String?
     @State private var isPerformingAction = false
     @State private var selection: BookshelfRoute?
+    @State private var compactDetailNovel: Novel?
     @State private var pendingRemove: FavoriteItem?
     @State private var pendingRecentRemove: RecentItem?
 
@@ -18,6 +19,11 @@ struct BookshelfView: View {
         if horizontalSizeClass != .regular {
             NavigationStack {
                 bookshelfList
+            }
+            .sheet(item: $compactDetailNovel) { novel in
+                NavigationStack {
+                    NovelDetailView(novel: novel)
+                }
             }
         } else {
             NavigationSplitView {
@@ -204,7 +210,7 @@ struct BookshelfView: View {
             }
             .contextMenu {
                 Button {
-                    selection = .detail(item.asNovel)
+                    compactDetailNovel = item.asNovel
                 } label: {
                     Label("书籍详情", systemImage: "info.circle")
                 }
@@ -250,7 +256,7 @@ struct BookshelfView: View {
             }
             .contextMenu {
                 Button {
-                    selection = .detail(favorite.asNovel)
+                    compactDetailNovel = favorite.asNovel
                 } label: {
                     Label("书籍详情", systemImage: "info.circle")
                 }

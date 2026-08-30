@@ -85,6 +85,104 @@ final class ReaderSettingsStore {
     var bodyFontSize: CGFloat {
         UIFontMetrics(forTextStyle: .body).scaledValue(for: bodyFontSizeUnscaled)
     }
+
+    /// 将 SwiftUI 的 DynamicTypeSize 映射到 UIKit trait，保证 TextKit 分页
+    /// 与 SwiftUI 正文展示使用同一套可访问字号。
+    private func contentSizeCategory(for size: DynamicTypeSize) -> UIContentSizeCategory {
+        switch size {
+        case .xSmall: return .extraSmall
+        case .small: return .small
+        case .medium: return .medium
+        case .large: return .large
+        case .xLarge: return .extraLarge
+        case .xxLarge: return .extraExtraLarge
+        case .xxxLarge: return .extraExtraExtraLarge
+        case .accessibility1: return .accessibilityMedium
+        case .accessibility2: return .accessibilityLarge
+        case .accessibility3: return .accessibilityExtraLarge
+        case .accessibility4: return .accessibilityExtraExtraLarge
+        case .accessibility5: return .accessibilityExtraExtraExtraLarge
+        @unknown default: return .large
+        }
+    }
+
+    private func readerTraits(for size: DynamicTypeSize) -> UITraitCollection {
+        UITraitCollection(
+            preferredContentSizeCategory: contentSizeCategory(for: size)
+        )
+    }
+
+    private func scaledReaderFont(
+        size: CGFloat,
+        weight: UIFont.Weight,
+        dynamicTypeSize: DynamicTypeSize
+    ) -> UIFont {
+        let base = useSerif
+            ? SongtiFont.uiFont(size: size, weight: weight)
+            : UIFont.systemFont(ofSize: size, weight: weight)
+        return UIFontMetrics(forTextStyle: .body).scaledFont(
+            for: base,
+            compatibleWith: readerTraits(for: dynamicTypeSize)
+        )
+    }
+
+    func bodyFontSize(for dynamicTypeSize: DynamicTypeSize) -> CGFloat {
+        scaledReaderFont(
+            size: bodyFontSizeUnscaled,
+            weight: .regular,
+            dynamicTypeSize: dynamicTypeSize
+        ).pointSize
+    }
+
+    func lineSpacing(for dynamicTypeSize: DynamicTypeSize) -> CGFloat {
+        let size = bodyFontSize(for: dynamicTypeSize)
+        switch lineHeight {
+        case ..<1.85:
+            return size * 0.95
+        case ..<2.05:
+            return size * 1.2
+        default:
+            return size * 1.55
+        }
+    }
+
+    func paragraphSpacing(for dynamicTypeSize: DynamicTypeSize) -> CGFloat {
+        let factor = Double(values["readerParagraphSpacing"] ?? "1.4") ?? 1.4
+        return max(4, bodyFontSize(for: dynamicTypeSize) * CGFloat(factor))
+    }
+
+    func bodyFont(for dynamicTypeSize: DynamicTypeSize) -> Font {
+        Font(scaledReaderFont(
+            size: bodyFontSizeUnscaled,
+            weight: .regular,
+            dynamicTypeSize: dynamicTypeSize
+        ))
+    }
+
+    func titleFont(for dynamicTypeSize: DynamicTypeSize) -> Font {
+        Font(scaledReaderFont(
+            size: bodyFontSizeUnscaled + 4,
+            weight: .bold,
+            dynamicTypeSize: dynamicTypeSize
+        ))
+    }
+
+    func bodyUIFont(for dynamicTypeSize: DynamicTypeSize) -> UIFont {
+        scaledReaderFont(
+            size: bodyFontSizeUnscaled,
+            weight: .regular,
+            dynamicTypeSize: dynamicTypeSize
+        )
+    }
+
+    func titleUIFont(for dynamicTypeSize: DynamicTypeSize) -> UIFont {
+        scaledReaderFont(
+            size: bodyFontSizeUnscaled + 4,
+            weight: .bold,
+            dynamicTypeSize: dynamicTypeSize
+        )
+    }
+
     var lineHeight: CGFloat { CGFloat(Double(values["readerLineHeight"] ?? "1.95") ?? 1.95) }
     var themeName: String { values["readerTheme"] ?? "default" }
     var useSerif: Bool { (values["fontFamily"] ?? "serif") == "serif" }

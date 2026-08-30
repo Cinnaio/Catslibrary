@@ -12,7 +12,8 @@ struct LoginView: View {
     @State private var password = ""
     @State private var invite = ""
     @State private var showPassword = false
-    @State private var registerMode: RegisterMode = .invite
+    @State private var registerMode: RegisterMode = .loading
+    @State private var registerStatusError: String?
     @State private var busy = false
     @State private var errorMessage: String?
     @State private var interactionFeedback = 0
@@ -20,7 +21,7 @@ struct LoginView: View {
     @FocusState private var focusedField: Field?
 
     enum Mode: Hashable { case login, register }
-    enum RegisterMode: String { case open, invite, closed }
+    enum RegisterMode: String { case loading, open, invite, closed, unavailable }
     private enum Field: Hashable { case username, invite, password }
 
     var body: some View {
@@ -38,13 +39,19 @@ struct LoginView: View {
 
                         fieldsGroup
 
-                        if mode != .register || registerMode != .closed {
+                        if mode != .register || registerMode == .open || registerMode == .invite {
                             submitButton
                                 .padding(.top, 16)
                         }
 
                         if mode == .register && registerMode == .closed {
                             registerClosedNote
+                                .padding(.top, 16)
+                        }
+
+                        if mode == .register,
+                           registerMode == .loading || registerMode == .unavailable {
+                            registerStatusNote
                                 .padding(.top, 16)
                         }
 
@@ -200,7 +207,7 @@ struct LoginView: View {
                         Image(systemName: showPassword ? "eye.slash" : "eye")
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(AppTheme.textSecondary)
-                            .frame(width: 36, height: 36)
+                            .frame(width: 44, height: 44)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(ScaleButtonStyle(pressedScale: 0.92))
@@ -321,7 +328,41 @@ struct LoginView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
-            .background(AppTheme.danger.opacity(0.09), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+            .background(
+                (errorMessage == nil ? AppTheme.warning : AppTheme.danger).opacity(0.09),
+                in: RoundedRectangle(cornerRadius: 15, style: .continuous)
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var registerStatusNote: some View {
+        switch registerMode {
+        case .loading:
+            Label("正在获取注册状态…", systemImage: "arrow.triangle.2.circlepath")
+                .foregroundStyle(AppTheme.textSecondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        case .unavailable:
+            VStack(alignment: .leading, spacing: 8) {
+                Label("暂时无法确认注册状态", systemImage: "wifi.slash")
+                    .foregroundStyle(AppTheme.warning)
+
+                if let registerStatusError {
+                    Text(registerStatusError)
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Button("重试") {
+                    Task { await fetchRegisterStatus() }
+                }
+                .fontWeight(.semibold)
+                .foregroundStyle(AppTheme.primary)
+                .buttonStyle(.bordered)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        case .open, .invite, .closed:
+            EmptyView()
         }
     }
 
@@ -330,7 +371,7 @@ struct LoginView: View {
     private var canSubmit: Bool {
         guard !busy, !username.trimmingCharacters(in: .whitespaces).isEmpty else { return false }
         if mode == .register {
-            if registerMode == .closed { return false }
+            guard registerMode == .open || registerMode == .invite else { return false }
             if registerMode == .invite, invite.trimmingCharacters(in: .whitespaces).isEmpty { return false }
             return password.count >= 8
         }
@@ -338,9 +379,15 @@ struct LoginView: View {
     }
 
     private func fetchRegisterStatus() async {
-        if let r: RegisterStatusResponse = try? await APIClient.shared.get("/api/auth/register-status") {
-            registerMode = RegisterMode(rawValue: r.mode) ?? .invite
+        registerMode = .loading
+        registerStatusError = nil
+        do {
+            let r: RegisterStatusResponse = try await APIClient.shared.get("/api/auth/register-status")
+            registerMode = RegisterMode(rawValue: r.mode) ?? .unavailable
             if registerMode == .closed, mode == .register { mode = .login }
+        } catch {
+            registerMode = .unavailable
+            registerStatusError = AppCopy.friendlyError(error)
         }
     }
 

@@ -183,7 +183,7 @@ struct AdminJobsView: View {
                     } label: {
                         Image(systemName: "ellipsis.circle")
                             .font(.title3)
-                            .frame(width: 36, height: 36)
+                            .frame(width: 44, height: 44)
                     }
                     .disabled(isBusy)
                     .accessibilityLabel("任务操作")

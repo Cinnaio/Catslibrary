@@ -6,6 +6,7 @@ struct NovelDetailView: View {
     let novel: Novel
     @Environment(AppState.self) private var appState
     @Environment(OfflineReadingStore.self) private var offlineStore
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var chapters: [ChapterMeta] = []
     @State private var isLoading = false
@@ -241,11 +242,13 @@ struct NovelDetailView: View {
     @ViewBuilder
     private func chapterRow(_ chapter: ChapterMeta) -> some View {
         if isSelectingOffline {
-            chapterRowLabel(chapter, selectionMode: true)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    toggleOfflineSelection(chapter)
-                }
+            Button {
+                toggleOfflineSelection(chapter)
+            } label: {
+                chapterRowLabel(chapter, selectionMode: true)
+            }
+            .buttonStyle(.plain)
+            .contentShape(Rectangle())
             .background(
                 GeometryReader { proxy in
                     Color.clear.preference(
@@ -256,7 +259,7 @@ struct NovelDetailView: View {
                     )
                 }
             )
-            .accessibilityAddTraits(.isButton)
+            .simultaneousGesture(selectionGesture(for: chapter))
             .disabled(offlineStore.isDownloaded(chapter.id))
             .accessibilityLabel("第 \(chapter.order) 章，\(chapter.title)")
             .accessibilityValue(
@@ -264,6 +267,7 @@ struct NovelDetailView: View {
                     ? "已下载"
                     : selectedChapterIDs.contains(chapter.id) ? "已选择" : "未选择"
             )
+            .accessibilityHint("点按选择或取消选择")
         } else {
             NavigationLink {
                 ReaderView(
@@ -325,7 +329,6 @@ struct NovelDetailView: View {
         )
         .frame(width: 44, height: 44)
         .contentShape(Rectangle())
-        .highPriorityGesture(selectionGesture(for: chapter))
         .accessibilityHidden(true)
     }
 
@@ -513,8 +516,12 @@ struct NovelDetailView: View {
                 if currentNovel.description.count > 80 {
                     Button(expandDescription ? "收起" : "展开简介") {
                         interactionFeedback += 1
-                        withAnimation(.easeInOut(duration: 0.2)) {
+                        if reduceMotion {
                             expandDescription.toggle()
+                        } else {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                expandDescription.toggle()
+                            }
                         }
                     }
                     .font(.footnote.weight(.semibold))

@@ -307,7 +307,7 @@ struct ThoughtPanelView: View {
                         .accessibilityLabel("段评署名")
                 }
                 .padding(.horizontal, 12)
-                .frame(minHeight: 40)
+                .frame(minHeight: 44)
                 .background(
                     AppTheme.surfaceSecondary,
                     in: RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -367,7 +367,7 @@ struct ThoughtPanelView: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(canSubmit ? Color.white : AppTheme.textMuted)
                     .padding(.horizontal, 15)
-                    .frame(minHeight: 40)
+                    .frame(minHeight: 44)
                     .background(
                         canSubmit ? AppTheme.primary : AppTheme.surfaceSecondary,
                         in: Capsule()

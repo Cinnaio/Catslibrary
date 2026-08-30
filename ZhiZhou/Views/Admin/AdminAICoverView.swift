@@ -375,7 +375,7 @@ struct AdminAICoverView: View {
                         }
                         Spacer(minLength: 0)
                     }
-                    .frame(minHeight: 38)
+                    .frame(minHeight: 44)
                 }
                 .buttonStyle(.bordered)
                 .tint(AppTheme.primary)
@@ -422,7 +422,7 @@ struct AdminAICoverView: View {
                             .frame(minWidth: 72, minHeight: 40)
                     } else {
                         Label("生成封面", systemImage: "sparkles")
-                            .frame(minHeight: 40)
+                            .frame(minHeight: 44)
                     }
                 }
                 .buttonStyle(.borderedProminent)
