@@ -8,7 +8,7 @@ extension Notification.Name {
     static let zhiZhouFontStoreDidChange = Notification.Name("ZhiZhou.FontStore.didChange")
 }
 
-enum RemoteFontAsset: String, CaseIterable, Identifiable {
+enum RemoteFontAsset: String, CaseIterable, Identifiable, Sendable {
     case regular = "NotoSerifSC-Regular.otf"
     case bold = "NotoSerifSC-Bold.otf"
 
@@ -48,7 +48,7 @@ enum RemoteFontAsset: String, CaseIterable, Identifiable {
 final class FontStore {
     static let shared = FontStore()
 
-    struct StorageSnapshot: Equatable {
+    struct StorageSnapshot: Equatable, Sendable {
         var appBundleBytes: Int64 = 0
         var documentsBytes: Int64 = 0
         var applicationSupportBytes: Int64 = 0
@@ -63,6 +63,11 @@ final class FontStore {
         var otherApplicationSupportBytes: Int64 {
             max(0, applicationSupportBytes - fontBytes)
         }
+    }
+
+    private struct RefreshResult: Sendable {
+        let storage: StorageSnapshot
+        let hasDownloadedFonts: Bool
     }
 
     enum FontStoreError: LocalizedError {
@@ -88,9 +93,9 @@ final class FontStore {
     var hasDownloadedFonts = false
 
     private let fileManager = FileManager.default
+    private var refreshTask: Task<Void, Never>?
 
     private init() {
-        refresh()
     }
 
     func downloadedBytes(for asset: RemoteFontAsset) -> Int64 {
@@ -101,20 +106,26 @@ final class FontStore {
     }
 
     func refresh() {
-        let documents = directoryURL(for: .documentDirectory)
-        let support = directoryURL(for: .applicationSupportDirectory)
-        let caches = directoryURL(for: .cachesDirectory)
+        refreshTask?.cancel()
+        let bundlePath = Bundle.main.bundleURL.path
+        let documentsPath = directoryURL(for: .documentDirectory).path
+        let supportPath = directoryURL(for: .applicationSupportDirectory).path
+        let cachesPath = directoryURL(for: .cachesDirectory).path
+        let imageCacheBytes = Int64(ImageCache.sharedCache.currentDiskUsage)
 
-        storage = StorageSnapshot(
-            appBundleBytes: directorySize(Bundle.main.bundleURL),
-            documentsBytes: directorySize(documents),
-            applicationSupportBytes: directorySize(support),
-            cachesBytes: directorySize(caches),
-            fontBytes: directorySize(fontDirectoryURL),
-            imageCacheBytes: Int64(ImageCache.sharedCache.currentDiskUsage)
-        )
-        hasDownloadedFonts = RemoteFontAsset.allCases.allSatisfy {
-            isValidCachedFile(for: $0)
+        refreshTask = Task { [weak self] in
+            let result = await Task.detached(priority: .utility) {
+                Self.makeRefreshResult(
+                    bundlePath: bundlePath,
+                    documentsPath: documentsPath,
+                    supportPath: supportPath,
+                    cachesPath: cachesPath,
+                    imageCacheBytes: imageCacheBytes
+                )
+            }.value
+            guard !Task.isCancelled, let self else { return }
+            self.storage = result.storage
+            self.hasDownloadedFonts = result.hasDownloadedFonts
         }
     }
 
@@ -230,6 +241,56 @@ final class FontStore {
         return checksum(of: url) == asset.sha256
     }
 
+    nonisolated private static func makeRefreshResult(
+        bundlePath: String,
+        documentsPath: String,
+        supportPath: String,
+        cachesPath: String,
+        imageCacheBytes: Int64
+    ) -> RefreshResult {
+        let fileManager = FileManager.default
+        let supportURL = URL(fileURLWithPath: supportPath, isDirectory: true)
+        let fontURL = supportURL.appendingPathComponent("Fonts", isDirectory: true)
+        let storage = StorageSnapshot(
+            appBundleBytes: directorySize(
+                URL(fileURLWithPath: bundlePath, isDirectory: true),
+                fileManager: fileManager
+            ),
+            documentsBytes: directorySize(
+                URL(fileURLWithPath: documentsPath, isDirectory: true),
+                fileManager: fileManager
+            ),
+            applicationSupportBytes: directorySize(
+                supportURL,
+                fileManager: fileManager
+            ),
+            cachesBytes: directorySize(
+                URL(fileURLWithPath: cachesPath, isDirectory: true),
+                fileManager: fileManager
+            ),
+            fontBytes: directorySize(fontURL, fileManager: fileManager),
+            imageCacheBytes: imageCacheBytes
+        )
+        let hasDownloadedFonts = RemoteFontAsset.allCases.allSatisfy {
+            isValidCachedFile(
+                for: $0,
+                fileManager: fileManager,
+                fontDirectoryURL: fontURL
+            )
+        }
+        return RefreshResult(storage: storage, hasDownloadedFonts: hasDownloadedFonts)
+    }
+
+    nonisolated private static func isValidCachedFile(
+        for asset: RemoteFontAsset,
+        fileManager: FileManager,
+        fontDirectoryURL: URL
+    ) -> Bool {
+        let url = fontDirectoryURL.appendingPathComponent(asset.rawValue, isDirectory: false)
+        guard fileManager.fileExists(atPath: url.path) else { return false }
+        return checksum(of: url) == asset.sha256
+    }
+
     private func checksum(of url: URL) -> String? {
         guard let data = try? Data(contentsOf: url) else { return nil }
         return SHA256.hash(data: data)
@@ -237,7 +298,14 @@ final class FontStore {
             .joined()
     }
 
-    private func directorySize(_ url: URL) -> Int64 {
+    nonisolated private static func checksum(of url: URL) -> String? {
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        return SHA256.hash(data: data)
+            .map { String(format: "%02x", $0) }
+            .joined()
+    }
+
+    nonisolated private static func directorySize(_ url: URL, fileManager: FileManager) -> Int64 {
         guard let enumerator = fileManager.enumerator(
             at: url,
             includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey],

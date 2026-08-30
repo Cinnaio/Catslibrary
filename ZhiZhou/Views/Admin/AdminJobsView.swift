@@ -3,9 +3,11 @@ import SwiftUI
 /// 任务管理：抓取任务列表（过滤 / 终止 / 整本重试 / 重试失败章节 / 清理已完成）+ 下载日志。
 /// 对齐 Web 端 admin JobsTab：运行中任务每 4 秒自动刷新，空闲每 20 秒。
 struct AdminJobsView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @State private var jobs: [AdminJobItem] = []
     @State private var logs: [AdminDownloadLog] = []
     @State private var novelTitles: [String: String] = [:]
+    @State private var lastNovelIndexRefresh: Date?
     @State private var isLoading = true
     @State private var errorMessage: String?
     @State private var filter: JobFilter = .all
@@ -87,7 +89,10 @@ struct AdminJobsView: View {
         .navigationTitle("任务管理")
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await loadAll() }
-        .task { await autoRefresh() }
+        .task(id: scenePhase) {
+            guard scenePhase == .active else { return }
+            await autoRefresh()
+        }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
@@ -237,15 +242,18 @@ struct AdminJobsView: View {
         case retryFailed = "retry-failed"
     }
 
-    private func loadAll() async {
+    private func loadAll(refreshNovelIndex: Bool = true) async {
         isLoading = true
         defer { isLoading = false }
         do {
             jobs = try await AdminAPI.scrapeJobs()
             logs = try await AdminAPI.downloadLogs(limit: 50)
             errorMessage = nil
-            if let index = try? await AdminAPI.novelIndex(limit: 2000) {
-                novelTitles = Dictionary(uniqueKeysWithValues: index.novels.map { ($0.id, $0.title) })
+            if refreshNovelIndex || lastNovelIndexRefresh == nil {
+                if let index = try? await AdminAPI.novelIndex(limit: 2000) {
+                    novelTitles = Dictionary(uniqueKeysWithValues: index.novels.map { ($0.id, $0.title) })
+                    lastNovelIndexRefresh = Date()
+                }
             }
         } catch {
             errorMessage = AppCopy.friendlyError(error)
@@ -254,10 +262,15 @@ struct AdminJobsView: View {
 
     /// 运行中每 4 秒、空闲每 20 秒自动刷新（对齐 Web 端）。
     private func autoRefresh() async {
+        await loadAll(refreshNovelIndex: true)
         while !Task.isCancelled {
-            await loadAll()
             let hasRunning = jobs.contains { AdminFormat.isJobRunning($0.status) }
             try? await Task.sleep(nanoseconds: (hasRunning ? 4 : 20) * 1_000_000_000)
+            guard !Task.isCancelled else { return }
+            let refreshNovelIndex = lastNovelIndexRefresh.map {
+                Date().timeIntervalSince($0) >= 300
+            } ?? true
+            await loadAll(refreshNovelIndex: refreshNovelIndex)
         }
     }
 

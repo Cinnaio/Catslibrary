@@ -2,6 +2,7 @@ import SwiftUI
 
 /// AI 任务：任务列表（过滤 / 取消 / 重试 / 删除记录）。
 struct AdminAITasksView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @State private var tasks: [AiTaskInfo] = []
     @State private var isLoading = true
     @State private var errorMessage: String?
@@ -69,7 +70,8 @@ struct AdminAITasksView: View {
         .navigationTitle("AI 任务")
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await load() }
-        .task(id: statusFilter) {
+        .task(id: "\(statusFilter)-\(scenePhase)") {
+            guard scenePhase == .active else { return }
             await monitorTasks()
         }
         .alert("操作失败", isPresented: errorAlertBinding) {

@@ -552,18 +552,17 @@ struct AdminAICoverView: View {
             }
 
             HStack(alignment: .top, spacing: 12) {
-                candidateImage(candidate)
-                    .frame(width: 96, height: 144)
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    .onLongPressGesture(minimumDuration: 0.35, maximumDistance: 24) {
-                        let generator = UIImpactFeedbackGenerator(style: .medium)
-                        generator.prepare()
-                        generator.impactOccurred()
-                        previewCandidate = candidate
-                    }
-                    .accessibilityLabel("候选封面")
-                    .accessibilityHint("长按查看大图")
+                Button {
+                    previewCandidate = candidate
+                } label: {
+                    candidateImage(candidate)
+                        .frame(width: 96, height: 144)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("候选封面")
+                .accessibilityHint("点按查看大图")
 
                 VStack(alignment: .leading, spacing: 8) {
                     if let promptText = candidate.prompt, !promptText.isEmpty {

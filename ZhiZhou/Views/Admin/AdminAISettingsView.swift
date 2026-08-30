@@ -40,6 +40,7 @@ struct AdminAISettingsView: View {
     @State private var isLoading = true
     @State private var errorMessage: String?
     @State private var saving = false
+    @State private var hasUnsavedChanges = false
     @State private var saveMessage: String?
     @State private var actionError: String?
     @FocusState private var focusedField: String?
@@ -75,6 +76,22 @@ struct AdminAISettingsView: View {
         ("ciweimao", "刺猬猫"),
     ]
 
+    private var settingsFingerprint: String {
+        [
+            String(recapEnabled), String(dailyQuota), String(maxChapterChars),
+            String(recapTemperature), String(recapMaxTokens), recapSystemPrompt,
+            String(catchupEnabled), String(catchupStaleDays), String(catchupMaxChapters),
+            String(catchupTemperature), String(catchupMaxTokens),
+            String(writingTemperature), String(writingMaxTokens), writingSystemPrompt,
+            String(styleProfileMaxTokens), String(plotStateMaxTokens),
+            String(relationshipProfileMaxTokens), String(titleMaxTokens),
+            String(maxConcurrentWritingTasks), imageSize, imageQuality,
+            imageResponseFormat, coverImageSize, String(coverRenderTitle),
+            coverPlatform, String(coverPromptMaxChars), String(taskRetentionDays),
+            String(logIpAddress), String(logUserAgent),
+        ].joined(separator: "|")
+    }
+
     var body: some View {
         List {
             if isLoading {
@@ -97,7 +114,15 @@ struct AdminAISettingsView: View {
                 }
             } else {
                 Section {
-                    Label("修改参数后，点击底部“保存全部参数”统一生效。数字输入会自动限制在允许范围内。", systemImage: "info.circle")
+                    Label(
+                        hasUnsavedChanges
+                            ? "有未保存的修改，点击底部按钮后统一生效。"
+                            : "修改参数后，点击底部按钮统一生效。",
+                        systemImage: hasUnsavedChanges ? "exclamationmark.circle" : "info.circle"
+                    )
+                        .font(.caption)
+                        .foregroundStyle(hasUnsavedChanges ? AppTheme.warning : AppTheme.textSecondary)
+                    Text("温度范围为 0–2；Tokens 表示模型输出上限；数字输入会自动限制在允许范围内。")
                         .font(.caption)
                         .foregroundStyle(AppTheme.textSecondary)
                 }
@@ -120,7 +145,7 @@ struct AdminAISettingsView: View {
                             Label("保存全部参数", systemImage: "checkmark.circle")
                         }
                     }
-                    .disabled(saving)
+                    .disabled(saving || !hasUnsavedChanges)
                     if let saveMessage {
                         Label(saveMessage, systemImage: "checkmark.circle.fill")
                             .font(.subheadline)
@@ -136,6 +161,11 @@ struct AdminAISettingsView: View {
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await load() }
         .task { await load() }
+        .onChange(of: settingsFingerprint) { _, _ in
+            guard !isLoading, !saving else { return }
+            hasUnsavedChanges = true
+            saveMessage = nil
+        }
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer()
@@ -155,10 +185,15 @@ struct AdminAISettingsView: View {
         DisclosureGroup("前情提要", isExpanded: $recapExpanded) {
             Toggle("启用前情提要", isOn: $recapEnabled)
             row("每日配额（次）", value: $dailyQuota, range: 0...10000)
+                .disabled(!recapEnabled)
             row("单章最大字符", value: $maxChapterChars, range: 100...100000)
+                .disabled(!recapEnabled)
             row("前情温度（0–2）", value: $recapTemperature, range: 0...2)
+                .disabled(!recapEnabled)
             row("前情最大 Tokens", value: $recapMaxTokens, range: 1...64000)
+                .disabled(!recapEnabled)
             promptEditor("系统提示词", text: $recapSystemPrompt)
+                .disabled(!recapEnabled)
         }
     }
 
@@ -166,9 +201,13 @@ struct AdminAISettingsView: View {
         DisclosureGroup("回顾总结", isExpanded: $catchupExpanded) {
             Toggle("启用回顾总结", isOn: $catchupEnabled)
             row("过期天数", value: $catchupStaleDays, range: 1...3650)
+                .disabled(!catchupEnabled)
             row("最多回顾章节", value: $catchupMaxChapters, range: 1...200)
+                .disabled(!catchupEnabled)
             row("回顾温度（0–2）", value: $catchupTemperature, range: 0...2)
+                .disabled(!catchupEnabled)
             row("回顾最大 Tokens", value: $catchupMaxTokens, range: 1...64000)
+                .disabled(!catchupEnabled)
         }
     }
 
@@ -380,6 +419,7 @@ struct AdminAISettingsView: View {
                 "logUserAgent": logUserAgent,
             ]
             _ = try await AdminAPI.saveAiSettings(patch)
+            hasUnsavedChanges = false
             saveMessage = "参数已保存"
         } catch {
             actionError = AppCopy.friendlyError(error)

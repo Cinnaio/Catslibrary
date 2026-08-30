@@ -101,7 +101,10 @@ struct AdminUsersView: View {
                 set: { if !$0 { resetResult = nil } }
             )) {
                 if let result = resetResult {
-                    Button("复制") { UIPasteboard.general.string = result.tempPassword }
+                    Button("复制") {
+                        UIPasteboard.general.string = result.tempPassword
+                        AppFeedback.success("临时密码已复制")
+                    }
                     Button("好", role: .cancel) {}
                 }
             } message: {
@@ -232,7 +235,7 @@ struct AdminUsersView: View {
     private func inviteRow(_ invite: AdminInvite) -> some View {
         Button {
             UIPasteboard.general.string = invite.code
-            UINotificationFeedbackGenerator().notificationOccurred(.success)
+            AppFeedback.success("邀请码已复制")
         } label: {
             HStack(spacing: 10) {
                 VStack(alignment: .leading, spacing: 3) {

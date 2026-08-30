@@ -54,11 +54,15 @@ struct OfflineReadingView: View {
                                 .swipeActions(edge: .trailing) {
                                     Button(role: .destructive) {
                                         Task {
-                                            await offlineStore.remove(
+                                            let removed = await offlineStore.remove(
                                                 novelID: book.novel.id,
                                                 chapterID: chapter.id
                                             )
-                                            AppFeedback.success("已删除离线章节")
+                                            if removed {
+                                                AppFeedback.success("已删除离线章节")
+                                            } else {
+                                                AppFeedback.error("离线章节删除失败，请重试")
+                                            }
                                         }
                                     } label: {
                                         Label("删除", systemImage: "trash")
@@ -167,9 +171,13 @@ struct OfflineReadingView: View {
             Button("清除全部", role: .destructive) {
                 Task {
                     isRemovingAll = true
-                    await offlineStore.removeAll()
+                    let removed = await offlineStore.removeAll()
                     isRemovingAll = false
-                    AppFeedback.success("已清除全部离线章节")
+                    if removed {
+                        AppFeedback.success("已清除全部离线章节")
+                    } else {
+                        AppFeedback.error("离线内容清除失败，请重试")
+                    }
                 }
             }
             Button("取消", role: .cancel) {}
@@ -422,9 +430,13 @@ struct OfflineReadingView: View {
               !offlineStore.isBatchDownloading else { return }
         isRemovingSelectedBooks = true
         Task {
-            await offlineStore.removeBooks(novelIDs: bookIDs)
+            let removed = await offlineStore.removeBooks(novelIDs: bookIDs)
             isRemovingSelectedBooks = false
-            AppFeedback.success("已删除 \(bookIDs.count) 本离线书籍")
+            if removed {
+                AppFeedback.success("已删除 \(bookIDs.count) 本离线书籍")
+            } else {
+                AppFeedback.error("离线书籍删除失败，请重试")
+            }
             exitBookSelection()
             synchronizeExpandedBooks()
         }

@@ -191,22 +191,26 @@ final class OfflineReadingStore {
         batchCancellationRequested = true
     }
 
-    func remove(novelID: String, chapterID: String) async {
-        guard let session = currentSession else { return }
+    @discardableResult
+    func remove(novelID: String, chapterID: String) async -> Bool {
+        guard let session = currentSession else { return false }
         await APIClient.shared.removeCachedChapter(id: chapterID, userID: session.userID)
-        guard isCurrent(session) else { return }
-        guard let bookIndex = books.firstIndex(where: { $0.novel.id == novelID }) else { return }
+        guard isCurrent(session) else { return false }
+        guard let bookIndex = books.firstIndex(where: { $0.novel.id == novelID }) else { return false }
+        guard books[bookIndex].chapters.contains(where: { $0.id == chapterID }) else { return false }
 
         books[bookIndex].chapters.removeAll { $0.id == chapterID }
         if books[bookIndex].chapters.isEmpty {
             books.remove(at: bookIndex)
         }
         persist()
+        return true
     }
 
     /// 删除选中的离线书籍及其全部章节缓存。
-    func removeBooks(novelIDs: Set<String>) async {
-        guard let session = currentSession, !novelIDs.isEmpty else { return }
+    @discardableResult
+    func removeBooks(novelIDs: Set<String>) async -> Bool {
+        guard let session = currentSession, !novelIDs.isEmpty else { return false }
 
         let chapterIDs = Set(
             books
@@ -215,27 +219,30 @@ final class OfflineReadingStore {
         )
         for chapterID in chapterIDs {
             await APIClient.shared.removeCachedChapter(id: chapterID, userID: session.userID)
-            guard isCurrent(session) else { return }
+            guard isCurrent(session) else { return false }
         }
 
-        guard isCurrent(session) else { return }
+        guard isCurrent(session) else { return false }
         books.removeAll { novelIDs.contains($0.novel.id) }
         persist()
         AppObservability.shared.track("offline_books_removed", properties: ["count": String(novelIDs.count)])
+        return true
     }
 
     /// 删除离线目录中的全部章节；不影响尚未登记的普通阅读缓存。
-    func removeAll() async {
-        guard let session = currentSession else { return }
+    @discardableResult
+    func removeAll() async -> Bool {
+        guard let session = currentSession else { return false }
         let chapterIDs = books.flatMap { $0.chapters.map(\.id) }
         for chapterID in chapterIDs {
             await APIClient.shared.removeCachedChapter(id: chapterID, userID: session.userID)
-            guard isCurrent(session) else { return }
+            guard isCurrent(session) else { return false }
         }
-        guard isCurrent(session) else { return }
+        guard isCurrent(session) else { return false }
         books = []
         persist()
         AppObservability.shared.track("offline_books_removed_all")
+        return true
     }
 
     /// 存储管理清空全局章节缓存后，同步丢弃已失效的离线目录。

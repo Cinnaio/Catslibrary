@@ -924,9 +924,15 @@ struct ReaderView: View {
             ContentPolicy.safePath("/api/chapters/\(id)")
         )
         guard chapterOrder == order else { return }
+        let content = r.chapter.content
+        let parsedParagraphs = await Task.detached(priority: .utility) {
+            guard !Task.isCancelled else { return [String]() }
+            return Self.paragraphs(from: content)
+        }.value
+        guard chapterOrder == order, !Task.isCancelled else { return }
         chapter = r.chapter
         errorMessage = nil
-        paragraphs = Self.paragraphs(of: r.chapter)
+        paragraphs = parsedParagraphs
         paragraphCount = paragraphs.count
         AppObservability.shared.track(
             "reader_chapter_loaded",
@@ -1175,13 +1181,13 @@ struct ReaderView: View {
     }
 
     /// 章节段落切分：静态纯函数，仅在加载时执行一次。
-    nonisolated private static func paragraphs(of chapter: ChapterFull) -> [String] {
-        let byBlankLine = chapter.content
+    nonisolated private static func paragraphs(from content: String) -> [String] {
+        let byBlankLine = content
             .components(separatedBy: "\n\n")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
         if byBlankLine.count > 1 { return byBlankLine }
-        return chapter.content
+        return content
             .components(separatedBy: "\n")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
