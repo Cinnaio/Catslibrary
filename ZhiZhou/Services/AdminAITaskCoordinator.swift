@@ -29,10 +29,10 @@ final class AdminAITaskCoordinator {
     private let defaults: UserDefaults
 
     init(
-        coordinator: AITaskCoordinator = AITaskCoordinator(),
+        coordinator: AITaskCoordinator? = nil,
         defaults: UserDefaults = .standard
     ) {
-        self.coordinator = coordinator
+        self.coordinator = coordinator ?? AITaskCoordinator()
         self.defaults = defaults
     }
 
