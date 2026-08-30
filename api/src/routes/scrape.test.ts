@@ -394,8 +394,18 @@ describe('scrape 路由（免网络动作）', () => {
       const unreachable = await req('/api/scrape', json('POST', { action: 'list-sources', connectivity: 'unreachable' }, adminToken))
       const unreachableData = await jsonOf<{ sources: Array<{ host: string }> }>(unreachable)
       expect(unreachableData.sources.map((source) => source.host)).toEqual(['another.example.com'])
-      const cleanup = await req('/api/scrape', json('POST', { action: 'delete-unreachable-sources' }, adminToken))
-      expect((await jsonOf<{ deleted: number }>(cleanup)).deleted).toBe(1)
+      const cleanup = await req(
+        '/api/scrape',
+        json('POST', { action: 'delete-unreachable-sources', operationId: 'scrape-test-delete-unreachable-001', hosts: ['another.example.com'] }, adminToken),
+      )
+      expect((await jsonOf<{ deleted: number; hosts: string[] }>(cleanup)).deleted).toBe(1)
+
+      const cleanupReplay = await req(
+        '/api/scrape',
+        json('POST', { action: 'delete-unreachable-sources', operationId: 'scrape-test-delete-unreachable-001', hosts: ['another.example.com'] }, adminToken),
+      )
+      expect(cleanupReplay.headers.get('x-idempotent-replay')).toBe('true')
+      expect((await jsonOf<{ deleted: number }>(cleanupReplay)).deleted).toBe(1)
     } finally {
       delete process.env.ALLOW_PRIVATE_FETCH
       fetchMock.mockRestore()

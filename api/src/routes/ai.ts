@@ -36,7 +36,7 @@ import { optionalUser, requireAdmin, requireUser, type AuthEnv } from '../middle
 import { cancelAiTask, countActiveWritingTasks, createAiTask, deleteAiTask, getAiTask, listAiTasks, updateAiTask } from '../services/ai/tasks'
 import { adoptCoverCandidate, deleteCoverCandidate, listCoverCandidates, storeCover, MAX_COVER_BYTES } from '../services/covers'
 import { clientIpFromContext } from '../services/ai/audit-context'
-import { idempotencyKeyFromRequest, withIdempotency } from '../services/idempotency'
+import { idempotencyKeyFromRequest, requestHash, withIdempotency } from '../services/idempotency'
 
 export const aiRoutes = new Hono<AuthEnv>()
 
@@ -669,9 +669,20 @@ aiRoutes.get('/cover/candidates', requireAdmin(), async (c) => {
 aiRoutes.post('/cover/candidates/:id/adopt', requireAdmin(), async (c) => {
   const db = getDb()
   const id = String(c.req.param('id') || '').trim()
-  const ok = await adoptCoverCandidate(db, id)
-  if (!ok) return c.json({ error: '候选封面不存在或已被处理' }, 404)
-  return c.json({ ok: true }, 200, { 'Cache-Control': 'no-store' })
+  const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>
+  return withIdempotency(
+    db,
+    {
+      scope: `ai.cover.adopt.${c.get('user').id}.${id}`,
+      operationKey: idempotencyKeyFromRequest(c, body, ['operationId']),
+      payload: { candidateId: id },
+    },
+    async () => {
+      const ok = await adoptCoverCandidate(db, id)
+      if (!ok) return c.json({ error: '候选封面不存在或已被处理' }, 404)
+      return c.json({ ok: true }, 200, { 'Cache-Control': 'no-store' })
+    },
+  )
 })
 
 /** 弃用候选：删除，不触碰当前封面。 */
@@ -701,10 +712,21 @@ aiRoutes.post('/cover/upload', requireAdmin(), async (c) => {
   if (!data.byteLength || data.byteLength > MAX_COVER_BYTES) {
     return c.json({ error: `封面不能超过 ${Math.round(MAX_COVER_BYTES / 1024 / 1024)}MB` }, 400)
   }
-  await storeCover(db, novelId, new Uint8Array(data), type, 'upload')
-  // 封面变了同步 bump novels.updated_at（前端封面 <img> 用 updatedAt 当 ?v= 破缓存戳）
-  await run(db, 'UPDATE novels SET updated_at = $1 WHERE id = $2', [Date.now(), novelId])
-  return c.json({ ok: true }, 200, { 'Cache-Control': 'no-store' })
+  const operationBody = { operationId: String(form?.get('operationId') || '') }
+  return withIdempotency(
+    db,
+    {
+      scope: `ai.cover.upload.${c.get('user').id}.${novelId}`,
+      operationKey: idempotencyKeyFromRequest(c, operationBody, ['operationId']),
+      payload: { novelId, type, bytes: data.byteLength, fileHash: requestHash(data.toString('base64')) },
+    },
+    async () => {
+      await storeCover(db, novelId, new Uint8Array(data), type, 'upload')
+      // 封面变了同步 bump novels.updated_at（前端封面 <img> 用 updatedAt 当 ?v= 破缓存戳）
+      await run(db, 'UPDATE novels SET updated_at = $1 WHERE id = $2', [Date.now(), novelId])
+      return c.json({ ok: true }, 200, { 'Cache-Control': 'no-store' })
+    },
+  )
 })
 
 aiRoutes.post('/writing/titles', requireAdmin(), async (c) => {
@@ -1171,9 +1193,18 @@ function delay(ms: number): Promise<void> {
 }
 
 aiRoutes.post('/tasks/:id/cancel', requireAdmin(), async (c) => {
-  const ok = await cancelAiTask(getDb(), String(c.req.param('id') || '').trim())
-  if (!ok) return c.json({ error: '任务不存在或已经结束' }, 404)
-  return c.json({ ok: true })
+  const db = getDb()
+  const id = String(c.req.param('id') || '').trim()
+  const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>
+  return withIdempotency(
+    db,
+    { scope: `ai.cancel.${c.get('user').id}.${id}`, operationKey: idempotencyKeyFromRequest(c, body, ['operationId']), payload: { taskId: id } },
+    async () => {
+      const ok = await cancelAiTask(db, id)
+      if (!ok) return c.json({ error: '任务不存在或已经结束' }, 404)
+      return c.json({ ok: true })
+    },
+  )
 })
 
 /**
@@ -1512,11 +1543,18 @@ aiRoutes.delete('/generations/:id', requireAdmin(), async (c) => {
 })
 
 aiRoutes.post('/generations/batch-delete', requireAdmin(), async (c) => {
-  const body = (await c.req.json().catch(() => ({}))) as { ids?: unknown }
+  const body = (await c.req.json().catch(() => ({}))) as { ids?: unknown; operationId?: unknown }
   const ids = Array.isArray(body.ids) ? body.ids.map((id) => String(id)) : []
   if (!ids.length) return c.json({ error: '请选择要删除的内容' }, 400)
-  const deleted = await deleteGenerations(getDb(), ids)
-  return c.json({ ok: true, deleted }, 200, { 'Cache-Control': 'no-store' })
+  const db = getDb()
+  return withIdempotency(
+    db,
+    { scope: `ai.generations.batch-delete.${c.get('user').id}`, operationKey: idempotencyKeyFromRequest(c, body, ['operationId']), payload: { ids } },
+    async () => {
+      const deleted = await deleteGenerations(db, ids)
+      return c.json({ ok: true, deleted, ids }, 200, { 'Cache-Control': 'no-store' })
+    },
+  )
 })
 
 /** 撤销软删除：仅 10 秒窗口内的记录可恢复（配合批量删除的「撤销」toast）。 */

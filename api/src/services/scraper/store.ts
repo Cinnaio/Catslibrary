@@ -100,7 +100,8 @@ export interface ScrapeStore {
   getJobLogs(jobId: string, opts?: { limit?: number }): Promise<ScrapeJobLog[]>
   getJobSummary(jobId: string): Promise<JobSummary>
   listActiveJobs(): Promise<JobData[]>
-  clearCompletedJobs(): Promise<number>
+  listCompletedJobIds(): Promise<string[]>
+  clearCompletedJobs(jobIds?: string[]): Promise<number>
   cancelJob(jobId: string): Promise<void>
   /** 抓取中的进度更新（条件写入，不覆盖 cancelled）。返回 false 表示任务已被取消或不存在。 */
   updateJobProgress(jobId: string, patch: { step: string; current: number; chapterCount: number; progress: number }): Promise<boolean>
@@ -413,8 +414,17 @@ export class PgScrapeStore implements ScrapeStore {
     return rows.map(rowToJob)
   }
 
-  async clearCompletedJobs(): Promise<number> {
-    const res = await this.db.query("DELETE FROM scrape_jobs WHERE status IN ('completed', 'partial', 'cancelled')")
+  async listCompletedJobIds(): Promise<string[]> {
+    const rows = await all<{ id: string }>(this.db, "SELECT id FROM scrape_jobs WHERE status IN ('completed', 'partial', 'cancelled') ORDER BY started_at ASC")
+    return rows.map((row) => String(row.id || '')).filter(Boolean)
+  }
+
+  async clearCompletedJobs(jobIds?: string[]): Promise<number> {
+    const res = jobIds === undefined
+      ? await this.db.query("DELETE FROM scrape_jobs WHERE status IN ('completed', 'partial', 'cancelled')")
+      : jobIds.length
+        ? await this.db.query("DELETE FROM scrape_jobs WHERE id = ANY($1) AND status IN ('completed', 'partial', 'cancelled')", [jobIds])
+        : { rowCount: 0 }
     return res.rowCount ?? 0
   }
 

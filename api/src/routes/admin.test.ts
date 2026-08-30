@@ -225,7 +225,12 @@ describe('管理 API 端到端（pglite）', () => {
     expect(reg.status).toBe(403)
 
     await req('/api/admin-users', json('POST', { action: 'disable-invite', code: codes[0] }, adminToken))
-    await req('/api/admin-users', json('POST', { action: 'clear-invites' }, adminToken))
+    const clear = await req(
+      '/api/admin-users',
+      json('POST', { action: 'clear-invites', operationId: 'admin-test-clear-invites-001', codes: [codes[0]] }, adminToken),
+    )
+    expect(clear.status).toBe(200)
+    expect((await jsonOf<{ removed: number; codes: string[] }>(clear)).codes).toEqual([codes[0]])
   })
 
   it('admin-users：用户状态/角色/重置密码', async () => {

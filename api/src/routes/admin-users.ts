@@ -7,6 +7,7 @@ import { all, first, run, withTx } from '../db/query'
 import { hashPassword, newSalt, newToken, publicUser, type UserRow } from '../services/auth'
 import { escapeLike } from '../services/text'
 import { requireAdmin, type AuthEnv } from '../middlewares/auth'
+import { idempotencyKeyFromRequest, withIdempotency } from '../services/idempotency'
 
 export const adminUsersRoutes = new Hono<AuthEnv>()
 
@@ -112,7 +113,7 @@ adminUsersRoutes.post('/', async (c) => {
     case 'disable-invite':
       return disableInvite(c, db, body.code)
     case 'clear-invites':
-      return clearInvites(c, db)
+      return clearInvites(c, db, body)
     case 'settings':
       return updateSettings(c, db, body.registerMode)
     case 'user-status':
@@ -186,9 +187,26 @@ async function disableInvite(c: Ctx, db: ReturnType<typeof getDb>, code: unknown
   return c.json({ success: true })
 }
 
-async function clearInvites(c: Ctx, db: ReturnType<typeof getDb>) {
-  const removed = await run(db, 'DELETE FROM invites WHERE used_at > 0 OR disabled_at > 0')
-  return c.json({ success: true, removed })
+async function clearInvites(c: Ctx, db: ReturnType<typeof getDb>, body: Record<string, any>) {
+  const operationKey = idempotencyKeyFromRequest(c, body, ['operationId'])
+  const hasSnapshot = Array.isArray(body.codes)
+  const codes = hasSnapshot
+    ? Array.from(new Set(body.codes.map((code: unknown) => String(code || '').trim()).filter(Boolean)))
+    : []
+  if (operationKey && !hasSnapshot) {
+    return c.json({ error: '批量清理邀请码必须携带确认时的 codes 快照', code: 'confirmation_snapshot_required' }, 409)
+  }
+
+  return withIdempotency(
+    db,
+    { scope: `admin-users.clear-invites.${c.get('user').id}`, operationKey, payload: { action: 'clear-invites', codes } },
+    async () => {
+      const removed = hasSnapshot
+        ? await run(db, 'DELETE FROM invites WHERE code = ANY($1) AND (used_at > 0 OR disabled_at > 0)', [codes])
+        : await run(db, 'DELETE FROM invites WHERE used_at > 0 OR disabled_at > 0')
+      return c.json({ success: true, removed, codes })
+    },
+  )
 }
 
 async function updateSettings(c: Ctx, db: ReturnType<typeof getDb>, modeValue: unknown) {

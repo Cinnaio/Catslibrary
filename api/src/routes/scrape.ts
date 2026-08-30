@@ -6,7 +6,7 @@ import { Hono, type Context } from 'hono'
 import { loadConfig } from '../config'
 import { getDb } from '../db/pool'
 import { first } from '../db/query'
-import { requireAdmin } from '../middlewares/auth'
+import { requireAdmin, type AuthEnv } from '../middlewares/auth'
 import { fetchHtml as fetchHtmlImpl, resolveProxyUrl, type FetchHtmlOptions } from '../services/scraper/fetch'
 import { runScrapeJob, testSelectors, type ScrapeDeps } from '../services/scraper/engine'
 import { detectMeta } from '../services/scraper/meta'
@@ -44,8 +44,9 @@ import {
   shouldBypassProxy,
 } from '../services/outbound-fetch'
 import { readRuntimeConfig, syncRuntimeConfigToEnv, writeRuntimeConfig } from '../runtime-config'
+import { idempotencyKeyFromRequest, withIdempotency } from '../services/idempotency'
 
-export const scrapeRoutes = new Hono()
+export const scrapeRoutes = new Hono<AuthEnv>()
 
 function makeDeps(db: ReturnType<typeof getDb>): ScrapeDeps {
   const store = new PgScrapeStore(db)
@@ -426,11 +427,34 @@ scrapeRoutes.post('/', async (c) => {
     case 'cancel': {
       const { jobId } = body
       if (!jobId) return c.json({ error: 'jobId required' }, 400)
-      await deps.store.cancelJob(jobId)
-      return c.json({ success: true, jobId })
+      const operationKey = idempotencyKeyFromRequest(c, body, ['operationId'])
+      return withIdempotency(
+        db,
+        { scope: `scrape.cancel.${c.get('user').id}.${String(jobId)}`, operationKey, payload: { action: 'cancel', jobId: String(jobId) } },
+        async () => {
+          await deps.store.cancelJob(String(jobId))
+          return c.json({ success: true, jobId: String(jobId) })
+        },
+      )
     }
-    case 'clear-completed':
-      return c.json({ success: true, deleted: await deps.store.clearCompletedJobs() })
+    case 'clear-completed': {
+      const operationKey = idempotencyKeyFromRequest(c, body, ['operationId'])
+      const hasSnapshot = Array.isArray(body.jobIds)
+      const jobIds: string[] | undefined = hasSnapshot
+        ? (Array.from(new Set(body.jobIds.map((id: unknown) => String(id || '').trim()).filter(Boolean))) as string[])
+        : undefined
+      if (operationKey && !hasSnapshot) {
+        return c.json({ error: '批量清理任务必须携带确认时的 jobIds 快照', code: 'confirmation_snapshot_required' }, 409)
+      }
+      return withIdempotency(
+        db,
+        { scope: `scrape.clear-completed.${c.get('user').id}`, operationKey, payload: { action: 'clear-completed', jobIds: jobIds || [] } },
+        async () => {
+          const snapshot = jobIds === undefined ? await deps.store.listCompletedJobIds() : jobIds
+          return c.json({ success: true, deleted: await deps.store.clearCompletedJobs(snapshot), jobIds: snapshot })
+        },
+      )
+    }
     case 'save-check': {
       const { novelId, remoteCount } = body
       if (!novelId || typeof remoteCount !== 'number') return c.json({ error: 'novelId and numeric remoteCount are required' }, 400)
@@ -465,23 +489,32 @@ scrapeRoutes.post('/', async (c) => {
     case 'source-sync-apply': {
       const runId = String(body.runId || '').trim()
       if (!runId) return c.json({ error: 'runId is required' }, 400)
-      try {
-        return c.json(
-          await applySourceSync(db, {
-            runId,
-            applyMetadata: body.applyMetadata === true,
-            metadataFields: Array.isArray(body.metadataFields) ? body.metadataFields.map((field: unknown) => String(field)) : [],
-            metadataMode: body.metadataMode === 'replace' ? 'replace' : 'missing',
-            confirmedChangeIds: Array.isArray(body.confirmedChangeIds)
-              ? body.confirmedChangeIds.map((id: unknown) => String(id)).filter(Boolean)
-              : [],
-          }),
-        )
-      } catch (err) {
-        const message = (err as Error).message || '源站同步应用失败'
-        const status = /不存在|已应用|发生变化|Novel not found|章节不存在/i.test(message) ? 409 : 500
-        return c.json({ error: message }, status as 409 | 500)
-      }
+      const confirmedChangeIds = Array.isArray(body.confirmedChangeIds)
+        ? body.confirmedChangeIds.map((id: unknown) => String(id)).filter(Boolean)
+        : []
+      const metadataFields = Array.isArray(body.metadataFields) ? body.metadataFields.map((field: unknown) => String(field)) : []
+      const operationKey = idempotencyKeyFromRequest(c, body, ['operationId'])
+      return withIdempotency(
+        db,
+        { scope: `scrape.source-sync-apply.${c.get('user').id}.${runId}`, operationKey, payload: { runId, applyMetadata: body.applyMetadata === true, metadataFields, metadataMode: body.metadataMode === 'replace' ? 'replace' : 'missing', confirmedChangeIds } },
+        async () => {
+          try {
+            return c.json(
+              await applySourceSync(db, {
+                runId,
+                applyMetadata: body.applyMetadata === true,
+                metadataFields,
+                metadataMode: body.metadataMode === 'replace' ? 'replace' : 'missing',
+                confirmedChangeIds,
+              }),
+            )
+          } catch (err) {
+            const message = (err as Error).message || '源站同步应用失败'
+            const status = /不存在|已应用|发生变化|Novel not found|章节不存在/i.test(message) ? 409 : 500
+            return c.json({ error: message }, status as 409 | 500)
+          }
+        },
+      )
     }
     case 'po18-account-save': {
       try {
@@ -605,7 +638,12 @@ scrapeRoutes.post('/', async (c) => {
     case 'import-configs': {
       const { configs } = body
       if (!Array.isArray(configs) || configs.length === 0) return c.json({ error: 'configs array is required' }, 400)
-      return c.json({ success: true, imported: await deps.store.importScrapeConfigs(configs) })
+      const operationKey = idempotencyKeyFromRequest(c, body, ['operationId'])
+      return withIdempotency(
+        db,
+        { scope: `scrape.import-configs.${c.get('user').id}`, operationKey, payload: { action: 'import-configs', configs } },
+        async () => c.json({ success: true, imported: await deps.store.importScrapeConfigs(configs) }),
+      )
     }
     case 'register': {
       const { jobId, novelId } = body
@@ -648,7 +686,11 @@ scrapeRoutes.post('/', async (c) => {
     case 'fix-cover':
       return handleFixCover(c, body)
     case 'import-legado':
-      return handleImportLegado(c, body)
+      return withIdempotency(
+        db,
+        { scope: `scrape.import-legado.${c.get('user').id}`, operationKey: idempotencyKeyFromRequest(c, body, ['operationId']), payload: { action: 'import-legado', body } },
+        () => handleImportLegado(c, body),
+      )
     case 'list-sources':
       return handleListSources(c, body)
     case 'toggle-source': {
@@ -674,7 +716,11 @@ scrapeRoutes.post('/', async (c) => {
       if (!Array.isArray(hosts) || hosts.length === 0) return c.json({ error: 'hosts 必填' }, 400)
       const normalizedHosts = Array.from(new Set(hosts.map((host: unknown) => String(host || '').trim()).filter(Boolean)))
       if (!normalizedHosts.length) return c.json({ error: 'hosts 不能为空' }, 400)
-      return c.json({ success: true, hosts: normalizedHosts, deleted: await deps.store.batchDeleteSources(normalizedHosts) })
+      return withIdempotency(
+        db,
+        { scope: `scrape.batch-delete-sources.${c.get('user').id}`, operationKey: idempotencyKeyFromRequest(c, body, ['operationId']), payload: { action: 'batch-delete-sources', hosts: normalizedHosts } },
+        async () => c.json({ success: true, hosts: normalizedHosts, deleted: await deps.store.batchDeleteSources(normalizedHosts) }),
+      )
     }
     case 'check-source-connectivity': {
       const requestedHosts = Array.isArray(body.hosts) ? Array.from(new Set(body.hosts.map((host: unknown) => String(host || '').trim()).filter(Boolean))) : []
@@ -710,10 +756,25 @@ scrapeRoutes.post('/', async (c) => {
       })
     }
     case 'delete-unreachable-sources': {
-      const deleted = await deps.store.batchDeleteSources(
-        (await deps.store.listAllSources()).filter((row) => row.connectivity === 'unreachable').map((row) => String(row.host || '')),
+      const operationKey = idempotencyKeyFromRequest(c, body, ['operationId'])
+      const hasSnapshot = Array.isArray(body.hosts)
+      const hosts: string[] | undefined = hasSnapshot
+        ? (Array.from(new Set(body.hosts.map((host: unknown) => String(host || '').trim()).filter(Boolean))) as string[])
+        : undefined
+      if (operationKey && !hasSnapshot) {
+        return c.json({ error: '删除不可达书源必须携带确认时的 hosts 快照', code: 'confirmation_snapshot_required' }, 409)
+      }
+      return withIdempotency(
+        db,
+        { scope: `scrape.delete-unreachable-sources.${c.get('user').id}`, operationKey, payload: { action: 'delete-unreachable-sources', hosts: hosts || [] } },
+        async () => {
+          const snapshot = hosts === undefined
+            ? (await deps.store.listAllSources()).filter((row) => row.connectivity === 'unreachable').map((row) => String(row.host || '')).filter(Boolean)
+            : hosts
+          const deleted = await deps.store.batchDeleteSources(snapshot)
+          return c.json({ success: true, hosts: snapshot, deleted })
+        },
       )
-      return c.json({ success: true, deleted })
     }
     case 'test-source': {
       const { host } = body
