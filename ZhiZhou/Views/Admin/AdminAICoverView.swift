@@ -7,10 +7,6 @@ import UniformTypeIdentifiers
 /// 对齐 Web 端 admin ai AiCoverPanel（/api/ai/cover/*）。
 struct AdminAICoverView: View {
     @Environment(\.scenePhase) private var scenePhase
-    @AppStorage("zhizhou.ai.coverPromptTaskId") private var pendingPromptTaskId = ""
-    @AppStorage("zhizhou.ai.coverPromptRequestId") private var pendingPromptRequestId = ""
-    @AppStorage("zhizhou.ai.coverPromptNovelId") private var pendingPromptNovelId = ""
-    @AppStorage("zhizhou.ai.coverPromptStartedAt") private var pendingPromptStartedAt = 0
 
     @State private var coverPromptMaxCharacters = 2000
 
@@ -166,15 +162,22 @@ struct AdminAICoverView: View {
         .task {
             await initialLoad()
             await resumePendingPromptTask()
+            await resumePendingCoverTask()
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
-                Task { await resumePendingPromptTask() }
+                Task {
+                    await resumePendingPromptTask()
+                    await resumePendingCoverTask()
+                }
             } else {
                 // 前台流连接不跨越系统挂起；服务端任务继续执行，回到前台后重新订阅。
                 promptPollTask?.cancel()
+                pollTask?.cancel()
                 promptPollTask = nil
+                pollTask = nil
                 generatingPrompt = false
+                generating = false
             }
         }
         .sheet(isPresented: $showNovelPicker) {
@@ -271,7 +274,11 @@ struct AdminAICoverView: View {
     }
 
     private var promptTaskInFlight: Bool {
-        generatingPrompt || !pendingPromptTaskId.isEmpty || !pendingPromptNovelId.isEmpty
+        generatingPrompt || (activeTask?.kind == "cover_prompt" && activeTask?.isRunning == true)
+    }
+
+    private var coverTaskInFlight: Bool {
+        generating || (activeTask?.kind == "cover" && activeTask?.isRunning == true)
     }
 
     // MARK: - 生成配置
@@ -355,7 +362,7 @@ struct AdminAICoverView: View {
                 .buttonStyle(.bordered)
                 .tint(AppTheme.primary)
                 .frame(maxWidth: .infinity)
-                .disabled(promptTaskInFlight || selectedNovelId.isEmpty)
+                .disabled(promptTaskInFlight || coverTaskInFlight || selectedNovelId.isEmpty)
 
                 Button {
                     Task { await generatePrompt(forceNewVariation: true) }
@@ -372,7 +379,7 @@ struct AdminAICoverView: View {
                 .buttonStyle(.bordered)
                 .tint(AppTheme.primary)
                 .frame(maxWidth: .infinity)
-                .disabled(promptTaskInFlight || generating || selectedNovelId.isEmpty)
+                .disabled(promptTaskInFlight || coverTaskInFlight || selectedNovelId.isEmpty)
             }
 
             if let promptMetadata {
@@ -403,7 +410,7 @@ struct AdminAICoverView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(AppTheme.primary)
                 .controlSize(.regular)
-                .disabled(generating || selectedNovelId.isEmpty)
+                .disabled(coverTaskInFlight || promptTaskInFlight || selectedNovelId.isEmpty)
                 Spacer(minLength: 0)
             }
         }
@@ -666,54 +673,20 @@ struct AdminAICoverView: View {
     /// App 回到前台或页面重新打开时，恢复尚未取回结果的提示词任务。
     private func resumePendingPromptTask() async {
         guard promptPollTask == nil else { return }
-        var id = pendingPromptTaskId
         do {
-            // 如果 App 在 POST 返回 taskId 前被挂起/终止，通过本地 requestId 从最近任务中找回。
-            if id.isEmpty, !pendingPromptNovelId.isEmpty {
-                for attempt in 0..<5 {
-                    let tasks = try await AdminAPI.aiTasks(status: "all", limit: 100, offset: 0)
-                    let requestMatch = tasks.items
-                        .filter { task in
-                            task.kind == "cover_prompt" &&
-                            task.novelId == pendingPromptNovelId &&
-                            (pendingPromptRequestId.isEmpty || task.params?.contains(pendingPromptRequestId) == true)
-                        }
-                        .max { ($0.createdAt ?? 0) < ($1.createdAt ?? 0) }
-                    let timeMatch = tasks.items
-                        .filter { task in
-                            task.kind == "cover_prompt" &&
-                            task.novelId == pendingPromptNovelId &&
-                            (pendingPromptStartedAt == 0 || (task.createdAt ?? 0) >= Int64(pendingPromptStartedAt - 120_000))
-                        }
-                        .max { ($0.createdAt ?? 0) < ($1.createdAt ?? 0) }
-                    if let recovered = requestMatch ?? timeMatch {
-                        id = recovered.id
-                        pendingPromptTaskId = recovered.id
-                        break
-                    }
-                    if attempt < 4 {
-                        try? await Task.sleep(nanoseconds: 1_000_000_000)
-                        guard !Task.isCancelled else { return }
-                    }
-                }
-            }
-            guard !id.isEmpty else {
-                generatingPrompt = false
-                taskStatusText = "正在恢复提示词任务…"
-                return
-            }
-            let detail = try await AdminAPI.aiTask(id: id)
-            activeTask = detail.task
-            if let novelId = detail.task.novelId, !novelId.isEmpty {
+            guard let task = try await AdminAITaskCoordinator.shared.resume(
+                key: AdminAITaskCoordinator.OperationKey.coverPrompt,
+                recoveryAttempts: 5
+            ) else { return }
+            activeTask = task
+            if let novelId = task.novelId, !novelId.isEmpty {
                 selectedNovelId = novelId
                 await loadCandidates()
             }
-            startPromptStreaming(id)
-        } catch {
-            if case APIError.http(status: 404, message: _) = error {
-                clearPendingPromptTask()
+            if !applyPromptTaskSnapshot(task) {
+                startPromptStreaming(task.id)
             }
-            // 网络暂时失败时保留任务 ID，下次回到前台继续查询。
+        } catch {
             generatingPrompt = false
             taskStatusText = "提示词任务暂时无法查询，请稍后重试"
             actionError = AppCopy.friendlyError(error)
@@ -725,43 +698,43 @@ struct AdminAICoverView: View {
         generatingPrompt = true
         activeTask = nil
         taskStatusText = "提示词任务已提交，等待队列…"
-        let clientRequestId = UUID().uuidString
-        pendingPromptTaskId = ""
-        pendingPromptRequestId = clientRequestId
-        pendingPromptNovelId = selectedNovelId
-        pendingPromptStartedAt = Int(Date().timeIntervalSince1970 * 1000)
         do {
             let requestedVariationId = forceNewVariation ? UUID().uuidString : variationId
-            let result = try await AdminAPI.aiCoverPrompt(
-                novelId: selectedNovelId,
-                renderTitle: renderTitle,
-                platform: platform,
-                stylePreset: stylePreset,
-                composition: composition,
-                variationId: requestedVariationId,
-                clientRequestId: clientRequestId
+            let launch = try await AdminAITaskCoordinator.shared.start(
+                key: AdminAITaskCoordinator.OperationKey.coverPrompt,
+                kind: "cover_prompt",
+                resourceID: selectedNovelId
+            ) { clientRequestID in
+                let result = try await AdminAPI.aiCoverPrompt(
+                    novelId: selectedNovelId,
+                    renderTitle: renderTitle,
+                    platform: platform,
+                    stylePreset: stylePreset,
+                    composition: composition,
+                    variationId: requestedVariationId,
+                    clientRequestId: clientRequestID
+                )
+                return result.taskId
+            }
+            let task = launch.snapshot ?? .pending(
+                id: launch.taskID,
+                kind: "cover_prompt",
+                novelId: selectedNovelId
             )
-            pendingPromptTaskId = result.taskId
-            activeTask = .pending(id: result.taskId, kind: "cover_prompt", novelId: selectedNovelId, total: result.total)
-            taskStatusText = nil
-            startPromptStreaming(result.taskId)
+            activeTask = task
+            taskStatusText = launch.reusedExistingOperation ? "已恢复正在处理的提示词任务" : nil
+            if !applyPromptTaskSnapshot(task) {
+                startPromptStreaming(launch.taskID)
+            }
         } catch {
             if case APIError.network = error {
                 generatingPrompt = false
                 taskStatusText = "请求中断，正在后台确认任务…"
             } else {
-                clearPendingPromptTask()
                 taskStatusText = nil
             }
             actionError = AppCopy.friendlyError(error)
         }
-    }
-
-    private func clearPendingPromptTask() {
-        pendingPromptTaskId = ""
-        pendingPromptRequestId = ""
-        pendingPromptNovelId = ""
-        pendingPromptStartedAt = 0
     }
 
     /// 前台优先订阅 SSE；连接断开、代理不支持或页面回到后台时自动回退到轮询。
@@ -771,10 +744,18 @@ struct AdminAICoverView: View {
         promptPollTask = Task {
             do {
                 for try await event in AdminAPI.aiCoverPromptStream(id: id) {
-                    guard !Task.isCancelled else { return }
+                    guard !Task.isCancelled,
+                          AdminAITaskCoordinator.shared.isCurrent(
+                            key: AdminAITaskCoordinator.OperationKey.coverPrompt,
+                            taskID: id
+                          ) else { return }
                     if applyPromptTaskSnapshot(event.task) { return }
                 }
-                guard !Task.isCancelled, pendingPromptTaskId == id else { return }
+                guard !Task.isCancelled,
+                      AdminAITaskCoordinator.shared.isCurrent(
+                        key: AdminAITaskCoordinator.OperationKey.coverPrompt,
+                        taskID: id
+                      ) else { return }
                 promptPollTask = nil
                 taskStatusText = "实时连接已结束，正在继续查询…"
                 startPromptPolling(id)
@@ -813,7 +794,10 @@ struct AdminAICoverView: View {
             } else {
                 taskStatusText = "封面描述词已生成，可继续编辑"
             }
-            clearPendingPromptTask()
+            AdminAITaskCoordinator.shared.finish(
+                key: AdminAITaskCoordinator.OperationKey.coverPrompt,
+                taskID: task.id
+            )
             generatingPrompt = false
             promptPollTask = nil
             return true
@@ -823,7 +807,10 @@ struct AdminAICoverView: View {
             if let error = task.error, !error.isEmpty {
                 actionError = error
             }
-            clearPendingPromptTask()
+            AdminAITaskCoordinator.shared.finish(
+                key: AdminAITaskCoordinator.OperationKey.coverPrompt,
+                taskID: task.id
+            )
             generatingPrompt = false
             promptPollTask = nil
             return true
@@ -846,10 +833,14 @@ struct AdminAICoverView: View {
                 attempts += 1
                 do {
                     let detail = try await AdminAPI.aiTask(id: id)
+                    guard AdminAITaskCoordinator.shared.isCurrent(
+                        key: AdminAITaskCoordinator.OperationKey.coverPrompt,
+                        taskID: id
+                    ) else { return }
                     if applyPromptTaskSnapshot(detail.task) { return }
                 } catch {
                     taskStatusText = AppCopy.friendlyError(error)
-                    // 保留 pendingPromptTaskId；下次回到前台时继续查询。
+                    // 协调器保留稳定任务 ID；下次回到前台时继续查询。
                     generatingPrompt = false
                     promptPollTask = nil
                     return
@@ -859,6 +850,34 @@ struct AdminAICoverView: View {
             generatingPrompt = false
             taskStatusText = "提示词仍在后台生成，稍后会自动恢复"
             promptPollTask = nil
+        }
+    }
+
+    private func resumePendingCoverTask() async {
+        guard pollTask == nil else { return }
+        do {
+            guard let task = try await AdminAITaskCoordinator.shared.resume(
+                key: AdminAITaskCoordinator.OperationKey.coverImage,
+                recoveryAttempts: 5
+            ) else { return }
+            activeTask = task
+            if let novelID = task.novelId, !novelID.isEmpty {
+                selectedNovelId = novelID
+            }
+            let status = task.status ?? ""
+            if status == "completed" {
+                taskStatusText = "候选封面已更新，可在下方查看。"
+                await loadCandidates()
+            } else if ["failed", "cancelled"].contains(status) {
+                taskStatusText = AdminFormat.aiTaskStatus(status)
+            } else {
+                generating = true
+                pollCoverTask(task.id)
+            }
+        } catch {
+            generating = false
+            taskStatusText = "封面任务暂时无法查询，请稍后重试"
+            actionError = AppCopy.friendlyError(error)
         }
     }
 
@@ -874,21 +893,42 @@ struct AdminAICoverView: View {
         taskStatusText = "任务已提交，等待队列…"
         defer { generating = false }
         do {
-            let result = try await AdminAPI.aiGenerateCover(
-                novelId: selectedNovelId,
-                prompt: finalPrompt,
-                renderTitle: renderTitle,
-                platform: platform,
-                stylePreset: stylePreset,
-                composition: composition,
-                variationId: variationId
+            let launch = try await AdminAITaskCoordinator.shared.start(
+                key: AdminAITaskCoordinator.OperationKey.coverImage,
+                kind: "cover",
+                resourceID: selectedNovelId
+            ) { clientRequestID in
+                let result = try await AdminAPI.aiGenerateCover(
+                    novelId: selectedNovelId,
+                    prompt: finalPrompt,
+                    renderTitle: renderTitle,
+                    platform: platform,
+                    stylePreset: stylePreset,
+                    composition: composition,
+                    variationId: variationId,
+                    clientRequestID: clientRequestID
+                )
+                return result.taskId
+            }
+            let task = launch.snapshot ?? .pending(
+                id: launch.taskID,
+                kind: "cover",
+                novelId: selectedNovelId
             )
-            activeTask = .pending(id: result.taskId, kind: "cover", novelId: selectedNovelId, total: result.total)
-            taskStatusText = nil
-            pollCoverTask(result.taskId)
+            activeTask = task
+            if task.isRunning {
+                taskStatusText = launch.reusedExistingOperation ? "已恢复正在处理的封面任务" : nil
+                pollCoverTask(launch.taskID)
+            } else {
+                let status = task.status ?? ""
+                taskStatusText = status == "completed"
+                    ? "候选封面已更新，可在下方查看。"
+                    : AdminFormat.aiTaskStatus(status)
+                if status == "completed" { await loadCandidates() }
+            }
         } catch {
             actionError = AppCopy.friendlyError(error)
-            taskStatusText = nil
+            taskStatusText = "请求中断时会按稳定请求 ID 自动恢复"
         }
     }
 
@@ -905,9 +945,17 @@ struct AdminAICoverView: View {
                 attempts += 1
                 do {
                     let detail = try await AdminAPI.aiTask(id: id)
+                    guard AdminAITaskCoordinator.shared.isCurrent(
+                        key: AdminAITaskCoordinator.OperationKey.coverImage,
+                        taskID: id
+                    ) else { return }
                     activeTask = detail.task
                     let status = detail.task.status ?? ""
                     if ["completed", "failed", "cancelled"].contains(status) {
+                        AdminAITaskCoordinator.shared.finish(
+                            key: AdminAITaskCoordinator.OperationKey.coverImage,
+                            taskID: detail.task.id
+                        )
                         taskStatusText = status == "completed"
                             ? "候选封面已更新，可在下方查看。"
                             : AdminFormat.aiTaskStatus(status)

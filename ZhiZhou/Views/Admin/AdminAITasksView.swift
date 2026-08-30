@@ -190,6 +190,7 @@ struct AdminAITasksView: View {
         do {
             let r = try await AdminAPI.aiTasks(status: "all", limit: 200, offset: 0)
             tasks = r.items
+            AdminAITaskCoordinator.shared.reconcile(tasks)
             errorMessage = nil
         } catch {
             errorMessage = AppCopy.friendlyError(error)
@@ -202,6 +203,7 @@ struct AdminAITasksView: View {
         defer { busyId = nil }
         do {
             try await AdminAPI.cancelAiTask(id: task.id)
+            AdminAITaskCoordinator.shared.finish(taskID: task.id)
             await load()
         } catch {
             actionError = AppCopy.friendlyError(error)
@@ -213,7 +215,17 @@ struct AdminAITasksView: View {
         busyId = task.id
         defer { busyId = nil }
         do {
-            _ = try await AdminAPI.retryAiTask(id: task.id)
+            _ = try await AdminAITaskCoordinator.shared.start(
+                key: AdminAITaskCoordinator.OperationKey.retry(taskID: task.id),
+                kind: task.kind ?? "retry",
+                resourceID: task.novelId
+            ) { clientRequestID in
+                let result = try await AdminAPI.retryAiTask(
+                    id: task.id,
+                    clientRequestID: clientRequestID
+                )
+                return result.jobId ?? ""
+            }
             await load()
         } catch {
             actionError = AppCopy.friendlyError(error)
@@ -226,6 +238,7 @@ struct AdminAITasksView: View {
         defer { busyId = nil }
         do {
             try await AdminAPI.deleteAiTask(id: task.id)
+            AdminAITaskCoordinator.shared.finish(taskID: task.id)
             tasks.removeAll { $0.id == task.id }
         } catch {
             actionError = AppCopy.friendlyError(error)

@@ -3,6 +3,8 @@ import SwiftUI
 /// AI 创作：新写 / 续写，大纲 / 章节 / 多章续写后台任务，画像提取（风格/情节/关系）与标题生成。
 /// 对齐 Web 端 admin ai AiWritingPanel（/api/ai/writing/*）。
 struct AdminAIWritingView: View {
+    @Environment(\.scenePhase) private var scenePhase
+
     enum Mode: String, CaseIterable, Identifiable {
         case new = "新写"
         case continueWriting = "续写"
@@ -51,6 +53,7 @@ struct AdminAIWritingView: View {
     @State private var actionError: String?
 
     private var canStart: Bool {
+        guard !starting, activeTask?.isRunning != true else { return false }
         if mode == .new {
             if taskKind == .outline {
                 return !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -84,7 +87,10 @@ struct AdminAIWritingView: View {
         .pageBackground()
         .navigationTitle("AI 创作")
         .navigationBarTitleDisplayMode(.large)
-        .task { await initialLoad() }
+        .task {
+            await initialLoad()
+            await resumeWritingTask()
+        }
         .sheet(isPresented: $showNovelPicker) {
             AdminNovelPickerSheet(
                 options: novelOptions,
@@ -103,6 +109,16 @@ struct AdminAIWritingView: View {
         }
         .onDisappear {
             pollTask?.cancel()
+            pollTask = nil
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                Task { await resumeWritingTask() }
+            } else {
+                pollTask?.cancel()
+                pollTask = nil
+                starting = false
+            }
         }
     }
 
@@ -379,54 +395,98 @@ struct AdminAIWritingView: View {
         }
     }
 
+    private func resumeWritingTask() async {
+        guard pollTask == nil else { return }
+        do {
+            guard let task = try await AdminAITaskCoordinator.shared.resume(
+                key: AdminAITaskCoordinator.OperationKey.writing,
+                recoveryAttempts: 5
+            ) else { return }
+            activeTask = task
+            if let taskNovelID = task.novelId, !taskNovelID.isEmpty {
+                novelId = taskNovelID
+                await onNovelSelected(taskNovelID)
+            }
+            if task.isRunning {
+                taskStatusText = "已恢复正在处理的创作任务"
+                pollWritingTask(task.id)
+            } else {
+                taskStatusText = "任务\(AdminFormat.aiTaskStatus(task.status ?? ""))，可在「已生成内容」查看草稿。"
+            }
+        } catch {
+            taskStatusText = "创作任务暂时无法查询，请稍后重试"
+            actionError = AppCopy.friendlyError(error)
+        }
+    }
+
     private func startTask() async {
         guard canStart else { return }
         starting = true
         activeTask = nil
         taskStatusText = "任务已提交，等待队列…"
         defer { starting = false }
+
+        var body: [String: Any]
+        let kind: String
+        let resourceID: String?
+        if mode == .continueWriting {
+            kind = "continue"
+            resourceID = novelId
+            body = [
+                "novelId": novelId,
+                "instruction": instruction.trimmingCharacters(in: .whitespacesAndNewlines),
+                "chapterCount": chapterCount,
+                "targetWords": targetWords,
+            ]
+            if !afterChapterId.isEmpty { body["afterChapterId"] = afterChapterId }
+        } else if taskKind == .outline {
+            kind = "write_outline"
+            resourceID = nil
+            body = [
+                "title": title.trimmingCharacters(in: .whitespacesAndNewlines),
+                "instruction": instruction.trimmingCharacters(in: .whitespacesAndNewlines),
+                "targetWords": targetWords,
+            ]
+        } else {
+            kind = "write_chapter"
+            resourceID = novelId
+            body = [
+                "novelId": novelId,
+                "title": title.trimmingCharacters(in: .whitespacesAndNewlines),
+                "instruction": instruction.trimmingCharacters(in: .whitespacesAndNewlines),
+                "outline": outline.trimmingCharacters(in: .whitespacesAndNewlines),
+                "context": context.trimmingCharacters(in: .whitespacesAndNewlines),
+                "targetWords": targetWords,
+            ]
+        }
+
         do {
-            var body: [String: Any] = [:]
-            if mode == .continueWriting {
-                body = [
-                    "novelId": novelId,
-                    "instruction": instruction.trimmingCharacters(in: .whitespacesAndNewlines),
-                    "chapterCount": chapterCount,
-                    "targetWords": targetWords,
-                ]
-                if !afterChapterId.isEmpty {
-                    body["afterChapterId"] = afterChapterId
-                }
-                let result = try await AdminAPI.aiStartWriting(kind: "continue", body: body)
-                activeTask = .pending(id: result.taskId, kind: "continue", novelId: novelId, total: result.total)
-                taskStatusText = nil
-                pollWritingTask(result.taskId)
-            } else if taskKind == .outline {
-                body = [
-                    "title": title.trimmingCharacters(in: .whitespacesAndNewlines),
-                    "instruction": instruction.trimmingCharacters(in: .whitespacesAndNewlines),
-                    "targetWords": targetWords,
-                ]
-                let result = try await AdminAPI.aiStartWriting(kind: "write_outline", body: body)
-                activeTask = .pending(id: result.taskId, kind: "write_outline", total: result.total)
-                taskStatusText = nil
-                pollWritingTask(result.taskId)
+            let launch = try await AdminAITaskCoordinator.shared.start(
+                key: AdminAITaskCoordinator.OperationKey.writing,
+                kind: kind,
+                resourceID: resourceID
+            ) { clientRequestID in
+                let result = try await AdminAPI.aiStartWriting(
+                    kind: kind,
+                    body: body,
+                    clientRequestID: clientRequestID
+                )
+                return result.taskId
+            }
+            let task = launch.snapshot ?? .pending(
+                id: launch.taskID,
+                kind: kind,
+                novelId: resourceID
+            )
+            activeTask = task
+            if task.isRunning {
+                taskStatusText = launch.reusedExistingOperation ? "已恢复正在处理的创作任务" : nil
+                pollWritingTask(task.id)
             } else {
-                body = [
-                    "novelId": novelId,
-                    "title": title.trimmingCharacters(in: .whitespacesAndNewlines),
-                    "instruction": instruction.trimmingCharacters(in: .whitespacesAndNewlines),
-                    "outline": outline.trimmingCharacters(in: .whitespacesAndNewlines),
-                    "context": context.trimmingCharacters(in: .whitespacesAndNewlines),
-                    "targetWords": targetWords,
-                ]
-                let result = try await AdminAPI.aiStartWriting(kind: "write_chapter", body: body)
-                activeTask = .pending(id: result.taskId, kind: "write_chapter", novelId: novelId, total: result.total)
-                taskStatusText = nil
-                pollWritingTask(result.taskId)
+                taskStatusText = "任务\(AdminFormat.aiTaskStatus(task.status ?? ""))，可在「已生成内容」查看草稿。"
             }
         } catch {
-            taskStatusText = nil
+            taskStatusText = "请求中断时会按稳定请求 ID 自动恢复"
             actionError = AppCopy.friendlyError(error)
         }
     }
@@ -443,9 +503,17 @@ struct AdminAIWritingView: View {
                 attempts += 1
                 do {
                     let detail = try await AdminAPI.aiTask(id: id)
+                    guard AdminAITaskCoordinator.shared.isCurrent(
+                        key: AdminAITaskCoordinator.OperationKey.writing,
+                        taskID: id
+                    ) else { return }
                     activeTask = detail.task
                     let status = detail.task.status ?? ""
                     if ["completed", "failed", "cancelled"].contains(status) {
+                        AdminAITaskCoordinator.shared.finish(
+                            key: AdminAITaskCoordinator.OperationKey.writing,
+                            taskID: detail.task.id
+                        )
                         taskStatusText = "任务\(AdminFormat.aiTaskStatus(status))，可在「已生成内容」查看草稿。"
                         return
                     }

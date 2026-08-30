@@ -89,6 +89,7 @@ struct AdminAIServiceView: View {
 
     private func loadActiveTasks() async {
         guard let response = try? await AdminAPI.aiTasks(status: "all", limit: 100, offset: 0) else { return }
+        AdminAITaskCoordinator.shared.reconcile(response.items)
         activeTasks = response.items.filter(\.isRunning)
     }
 }

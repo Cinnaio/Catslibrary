@@ -144,6 +144,7 @@ final class AppState {
         OfflineReadingStore.shared.activate(userID: user.id, token: APIClient.shared.token)
         ReaderSettingsStore.shared.activate(userID: user.id)
         ReaderProgressStore.shared.activate(userID: user.id)
+        AdminAITaskCoordinator.shared.activate(userID: user.id)
         self.user = user
     }
 
@@ -152,6 +153,7 @@ final class AppState {
         OfflineReadingStore.shared.deactivate(clearOfflineFallback: clearOfflineFallback)
         ReaderSettingsStore.shared.deactivate()
         ReaderProgressStore.shared.deactivate()
+        AdminAITaskCoordinator.shared.deactivate()
     }
 
     private func activateOfflineFallbackIfAvailable() async {
@@ -164,5 +166,6 @@ final class AppState {
         await APIClient.shared.setChapterCacheScope(userID: userID)
         ReaderSettingsStore.shared.activate(userID: userID)
         ReaderProgressStore.shared.activate(userID: userID)
+        AdminAITaskCoordinator.shared.activate(userID: userID)
     }
 }

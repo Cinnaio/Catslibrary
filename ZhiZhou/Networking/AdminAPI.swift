@@ -448,8 +448,14 @@ enum AdminAPI {
     }
 
     /// 按原参数重试失败/取消的创作任务，返回新任务 id。
-    static func retryAiTask(id: String) async throws -> AdminJobActionResponse {
-        try await APIClient.shared.post("/api/ai/tasks/\(encodePathSegment(id))/retry", body: try jsonBody([:]), auth: true)
+    static func retryAiTask(id: String, clientRequestID: String = "") async throws -> AdminJobActionResponse {
+        var payload: [String: Any] = [:]
+        if !clientRequestID.isEmpty { payload["clientRequestId"] = clientRequestID }
+        return try await APIClient.shared.post(
+            "/api/ai/tasks/\(encodePathSegment(id))/retry",
+            body: try jsonBody(payload),
+            auth: true
+        )
     }
 
     // MARK: - AI 服务：审计
@@ -551,11 +557,13 @@ enum AdminAPI {
         platform: String = "default",
         stylePreset: String = "auto",
         composition: String = "auto",
-        variationId: String = ""
+        variationId: String = "",
+        clientRequestID: String = ""
     ) async throws -> AiTaskStartResponse {
         try await APIClient.shared.post("/api/ai/cover/generate", body: try jsonBody([
             "novelId": novelId,
             "prompt": prompt,
+            "clientRequestId": clientRequestID,
             "renderTitle": renderTitle,
             "platform": platform,
             "stylePreset": stylePreset,
@@ -626,6 +634,31 @@ enum AdminAPI {
         try await APIClient.shared.get("/api/ai/tasks/\(encodePathSegment(id))", auth: true)
     }
 
+    /// Find a server task created from a durable client request. This closes the
+    /// interruption window between the POST reaching the server and its response
+    /// reaching the app.
+    static func recoverAiTask(
+        clientRequestID: String,
+        kind: String,
+        resourceID: String?,
+        startedAt: Int64
+    ) async throws -> AiTaskInfo? {
+        let response = try await aiTasks(status: "all", limit: 200, offset: 0)
+        let candidates = response.items.filter { task in
+            guard task.kind == kind else { return false }
+            guard let resourceID, !resourceID.isEmpty else { return true }
+            return task.novelId == resourceID
+        }
+        if !clientRequestID.isEmpty {
+            return candidates
+                .filter { $0.params?.contains(clientRequestID) == true }
+                .max { ($0.createdAt ?? 0) < ($1.createdAt ?? 0) }
+        }
+        return candidates
+            .filter { startedAt <= 0 || ($0.createdAt ?? 0) >= startedAt - 120_000 }
+            .max { ($0.createdAt ?? 0) < ($1.createdAt ?? 0) }
+    }
+
     /// 订阅封面描述词任务的实时 SSE 快照；断流后由页面回退到任务轮询。
     static func aiCoverPromptStream(id: String) -> AsyncThrowingStream<AiTaskStreamEvent, Error> {
         let lines = APIClient.shared.streamLines("/api/ai/tasks/\(encodePathSegment(id))/stream", auth: true)
@@ -693,8 +726,18 @@ enum AdminAPI {
     // MARK: - AI 服务：创作任务（后台任务模式）
 
     /// kind：write_outline | write_chapter | continue
-    static func aiStartWriting(kind: String, body: [String: Any]) async throws -> AiTaskStartResponse {
-        try await APIClient.shared.post("/api/ai/writing/\(encodePathSegment(kind))", body: try jsonBody(body), auth: true)
+    static func aiStartWriting(
+        kind: String,
+        body: [String: Any],
+        clientRequestID: String = ""
+    ) async throws -> AiTaskStartResponse {
+        var payload = body
+        if !clientRequestID.isEmpty { payload["clientRequestId"] = clientRequestID }
+        return try await APIClient.shared.post(
+            "/api/ai/writing/\(encodePathSegment(kind))",
+            body: try jsonBody(payload),
+            auth: true
+        )
     }
 
     /// POST /api/ai/writing/titles：为正文生成候选章节标题。
