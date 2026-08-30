@@ -3,6 +3,13 @@ import UIKit
 import PhotosUI
 import UniformTypeIdentifiers
 
+private struct PendingAdminCoverUpload {
+    let operationID: String
+    let novelID: String
+    let imageData: Data
+    let mimeType: String
+}
+
 /// AI 封面生成：选书 → 生成描述词 → 生成封面（后台任务）→ 轮询 → 候选采纳/弃用/上传。
 /// 对齐 Web 端 admin ai AiCoverPanel（/api/ai/cover/*）。
 struct AdminAICoverView: View {
@@ -39,11 +46,13 @@ struct AdminAICoverView: View {
     @State private var pendingDiscard: AiCoverCandidate?
     @State private var previewCandidate: AiCoverCandidate?
     @State private var promptCandidate: AiCoverCandidate?
+    @State private var pendingDangerousOperation: AdminDangerousOperation?
 
     // 上传
     @State private var showPhotoPicker = false
     @State private var pickedItem: PhotosPickerItem?
     @State private var uploading = false
+    @State private var pendingCoverUpload: PendingAdminCoverUpload?
 
     // 通用
     @State private var isLoading = true
@@ -198,7 +207,7 @@ struct AdminAICoverView: View {
         .photosPicker(isPresented: $showPhotoPicker, selection: $pickedItem, matching: .images)
         .onChange(of: pickedItem) { _, newItem in
             guard let newItem else { return }
-            Task { await uploadPicked(newItem) }
+            Task { await prepareUpload(newItem) }
         }
         .alert("操作失败", isPresented: errorAlertBinding) {
             Button("好", role: .cancel) {}
@@ -222,6 +231,15 @@ struct AdminAICoverView: View {
         } message: {
             Text("弃用后该候选封面将从列表中移除。")
         }
+        .adminDangerousOperationConfirmation(
+            $pendingDangerousOperation,
+            onConfirm: performDangerousOperation,
+            onCancel: { operation in
+                if pendingCoverUpload?.operationID == operation.operationID {
+                    pendingCoverUpload = nil
+                }
+            }
+        )
         .fullScreenCover(item: $previewCandidate) { candidate in
             AdminCoverCandidatePreview(image: dataUrlImage(candidate.dataUrl))
         }
@@ -592,8 +610,7 @@ struct AdminAICoverView: View {
             } else {
                 HStack(spacing: 12) {
                     Button {
-                        pendingDiscard = nil
-                        Task { await adopt(candidate) }
+                        requestAdopt(candidate)
                     } label: {
                         Label("采纳", systemImage: "checkmark")
                     }
@@ -983,12 +1000,27 @@ struct AdminAICoverView: View {
         }
     }
 
-    private func adopt(_ candidate: AiCoverCandidate) async {
+    private func requestAdopt(_ candidate: AiCoverCandidate) {
         guard candidateBusy.isEmpty else { return }
-        candidateBusy = candidate.id
+        pendingDangerousOperation = AdminDangerousOperation(
+            action: .adoptCoverCandidate,
+            kind: .overwrite,
+            targetIDs: [candidate.id, selectedNovelId],
+            title: "替换当前封面",
+            message: "采纳后将用这个候选替换当前封面，并从候选列表移除该图片。",
+            confirmLabel: "采纳并替换封面"
+        )
+    }
+
+    private func adopt(candidateID: String, operationID: String) async {
+        guard candidateBusy.isEmpty else { return }
+        candidateBusy = candidateID
         defer { candidateBusy = "" }
         do {
-            try await AdminAPI.aiAdoptCoverCandidate(id: candidate.id)
+            try await AdminAPI.aiAdoptCoverCandidate(
+                id: candidateID,
+                operationID: operationID
+            )
             await loadCandidates()
         } catch {
             actionError = AppCopy.friendlyError(error)
@@ -1007,10 +1039,13 @@ struct AdminAICoverView: View {
         }
     }
 
-    private func uploadPicked(_ item: PhotosPickerItem) async {
+    private func prepareUpload(_ item: PhotosPickerItem) async {
         guard !selectedNovelId.isEmpty else { return }
         uploading = true
-        defer { uploading = false }
+        defer {
+            uploading = false
+            pickedItem = nil
+        }
         do {
             guard let data = try await item.loadTransferable(type: Data.self) else {
                 actionError = "无法读取所选图片"
@@ -1020,11 +1055,57 @@ struct AdminAICoverView: View {
                 actionError = "封面必须是图片文件"
                 return
             }
-            try await AdminAPI.aiUploadCover(novelId: selectedNovelId, imageData: data, mimeType: mime)
+            let operation = AdminDangerousOperation(
+                action: .uploadCover,
+                kind: .overwrite,
+                targetIDs: [selectedNovelId],
+                title: "上传并替换封面",
+                message: "将用所选本地图片替换当前封面。现有封面不会保留为候选。",
+                confirmLabel: "上传并替换封面"
+            )
+            pendingCoverUpload = PendingAdminCoverUpload(
+                operationID: operation.operationID,
+                novelID: selectedNovelId,
+                imageData: data,
+                mimeType: mime
+            )
+            pendingDangerousOperation = operation
         } catch {
             actionError = AppCopy.friendlyError(error)
         }
-        pickedItem = nil
+    }
+
+    private func performDangerousOperation(_ operation: AdminDangerousOperation) {
+        switch operation.action {
+        case .adoptCoverCandidate:
+            guard let candidateID = operation.targetIDs.first else { return }
+            Task {
+                await adopt(candidateID: candidateID, operationID: operation.operationID)
+            }
+        case .uploadCover:
+            guard let upload = pendingCoverUpload,
+                  upload.operationID == operation.operationID else { return }
+            pendingCoverUpload = nil
+            Task { await uploadCover(upload) }
+        default:
+            break
+        }
+    }
+
+    private func uploadCover(_ upload: PendingAdminCoverUpload) async {
+        guard !uploading else { return }
+        uploading = true
+        defer { uploading = false }
+        do {
+            try await AdminAPI.aiUploadCover(
+                novelId: upload.novelID,
+                imageData: upload.imageData,
+                mimeType: upload.mimeType,
+                operationID: upload.operationID
+            )
+        } catch {
+            actionError = AppCopy.friendlyError(error)
+        }
     }
 
     private var errorAlertBinding: Binding<Bool> {

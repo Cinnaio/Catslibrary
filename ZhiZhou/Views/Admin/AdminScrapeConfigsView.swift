@@ -14,6 +14,8 @@ struct AdminScrapeConfigsView: View {
     @State private var importing = false
     @State private var importMessage: String?
     @State private var actionError: String?
+    @State private var pendingImportItems: [ScrapeConfigImportItem] = []
+    @State private var pendingDangerousOperation: AdminDangerousOperation?
 
     var body: some View {
         List {
@@ -68,6 +70,20 @@ struct AdminScrapeConfigsView: View {
         } message: {
             Text(actionError ?? "")
         }
+        .adminDangerousOperationConfirmation(
+            $pendingDangerousOperation,
+            onConfirm: { operation in
+                guard operation.action == .importScrapeConfigs else { return }
+                let items = pendingImportItems
+                pendingImportItems = []
+                Task { await importConfigs(items, operationID: operation.operationID) }
+            },
+            onCancel: { operation in
+                if operation.action == .importScrapeConfigs {
+                    pendingImportItems = []
+                }
+            }
+        )
     }
 
     // MARK: - 导出
@@ -121,7 +137,7 @@ struct AdminScrapeConfigsView: View {
                 )
                 .padding(.vertical, 4)
             Button {
-                Task { await importConfigs() }
+                requestImportConfigs()
             } label: {
                 if importing {
                     HStack {
@@ -204,9 +220,7 @@ struct AdminScrapeConfigsView: View {
         }
     }
 
-    private func importConfigs() async {
-        importing = true
-        defer { importing = false }
+    private func requestImportConfigs() {
         importMessage = nil
         do {
             let trimmed = importText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -219,7 +233,35 @@ struct AdminScrapeConfigsView: View {
                 actionError = "配置数组为空"
                 return
             }
-            let result = try await AdminAPI.scrapeImportConfigs(items)
+            let existingIDs = Set(configs.map(\.novelId))
+            let overwriteCount = items.filter { existingIDs.contains($0.novelId) }.count
+            pendingImportItems = items
+            pendingDangerousOperation = AdminDangerousOperation(
+                action: .importScrapeConfigs,
+                kind: .overwrite,
+                targetIDs: items.map(\.novelId).sorted(),
+                title: "导入并覆盖抓取配置",
+                message: "将导入 \(items.count) 条配置，其中 \(overwriteCount) 条会覆盖已有小说的抓取配置。",
+                confirmLabel: "确认导入配置"
+            )
+        } catch {
+            actionError = AppCopy.friendlyError(error)
+        }
+    }
+
+    private func importConfigs(
+        _ items: [ScrapeConfigImportItem],
+        operationID: String
+    ) async {
+        guard !items.isEmpty, !importing else { return }
+        importing = true
+        defer { importing = false }
+        importMessage = nil
+        do {
+            let result = try await AdminAPI.scrapeImportConfigs(
+                items,
+                operationID: operationID
+            )
             importMessage = "成功导入 \(result.imported ?? 0) 条配置"
             importText = ""
             await load()

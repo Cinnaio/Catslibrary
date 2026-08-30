@@ -296,6 +296,7 @@ private struct SourceSyncSheet: View {
     @State private var replaceMetadata = false
     @State private var expandedSearchSites: Set<String> = []
     @State private var confirmedChangeIds: Set<String> = []
+    @State private var pendingDangerousOperation: AdminDangerousOperation?
 
     private let metadataLabels: [(String, String)] = [
         ("title", "标题"),
@@ -490,7 +491,7 @@ private struct SourceSyncSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("应用同步") {
-                        Task { await applyPreview() }
+                        requestApplyPreview()
                     }
                     .disabled(preview == nil || isLoading)
                 }
@@ -507,6 +508,10 @@ private struct SourceSyncSheet: View {
                 Button("好", role: .cancel) {}
             } message: {
                 Text(errorMessage ?? "")
+            }
+            .adminDangerousOperationConfirmation($pendingDangerousOperation) { operation in
+                guard operation.action == .replaceSourceMetadata else { return }
+                Task { await applyPreview(operationID: operation.operationID) }
             }
         }
     }
@@ -722,7 +727,24 @@ private struct SourceSyncSheet: View {
         }
     }
 
-    private func applyPreview() async {
+    private func requestApplyPreview() {
+        guard let preview else { return }
+        guard replaceMetadata, !metadataFields.isEmpty else {
+            Task { await applyPreview() }
+            return
+        }
+        let fields = metadataFields.sorted()
+        pendingDangerousOperation = AdminDangerousOperation(
+            action: .replaceSourceMetadata,
+            kind: .overwrite,
+            targetIDs: [novel.id, preview.runId],
+            title: "覆盖已有小说信息",
+            message: "将用源站数据覆盖当前小说的 \(fields.count) 个已选信息字段。章节名只会应用预览中自动通过或已人工确认的变更。",
+            confirmLabel: "确认覆盖并同步"
+        )
+    }
+
+    private func applyPreview(operationID: String = "") async {
         guard let preview else { return }
         isLoading = true
         defer { isLoading = false }
@@ -731,7 +753,8 @@ private struct SourceSyncSheet: View {
                 runId: preview.runId,
                 metadataFields: Array(metadataFields),
                 replaceMetadata: replaceMetadata,
-                confirmedChangeIds: Array(confirmedChangeIds)
+                confirmedChangeIds: Array(confirmedChangeIds),
+                operationID: operationID
             )
             onApplied()
             dismiss()

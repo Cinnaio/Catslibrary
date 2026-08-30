@@ -9,6 +9,7 @@ struct AdminAITasksView: View {
     @State private var busyId: String?
     @State private var actionError: String?
     @State private var pendingDelete: AiTaskInfo?
+    @State private var pendingDangerousOperation: AdminDangerousOperation?
 
     var body: some View {
         List {
@@ -93,6 +94,11 @@ struct AdminAITasksView: View {
         } message: {
             Text("删除后任务记录不可恢复。")
         }
+        .adminDangerousOperationConfirmation($pendingDangerousOperation) { operation in
+            guard operation.action == .terminateAITask,
+                  let taskID = operation.targetIDs.first else { return }
+            Task { await cancel(taskID: taskID, operationID: operation.operationID) }
+        }
     }
 
     // MARK: - 列表
@@ -132,7 +138,7 @@ struct AdminAITasksView: View {
                     Menu {
                         if task.isRunning {
                             Button("取消任务", systemImage: "stop.circle") {
-                                Task { await cancel(task) }
+                                requestCancel(task)
                             }
                         } else {
                             Button("重试", systemImage: "arrow.clockwise") {
@@ -157,7 +163,7 @@ struct AdminAITasksView: View {
         .contextMenu {
             if task.isRunning {
                 Button("取消任务", systemImage: "stop.circle") {
-                    Task { await cancel(task) }
+                    requestCancel(task)
                 }
             } else {
                 Button("重试", systemImage: "arrow.clockwise") {
@@ -197,13 +203,25 @@ struct AdminAITasksView: View {
         }
     }
 
-    private func cancel(_ task: AiTaskInfo) async {
+    private func requestCancel(_ task: AiTaskInfo) {
         guard busyId == nil else { return }
-        busyId = task.id
+        pendingDangerousOperation = AdminDangerousOperation(
+            action: .terminateAITask,
+            kind: .terminate,
+            targetIDs: [task.id],
+            title: "取消 AI 任务",
+            message: "将终止“\(AdminFormat.aiTaskKind(task.kind ?? ""))”任务。任务可能已经产生部分用量，取消后不能继续。",
+            confirmLabel: "确认取消任务"
+        )
+    }
+
+    private func cancel(taskID: String, operationID: String) async {
+        guard busyId == nil else { return }
+        busyId = taskID
         defer { busyId = nil }
         do {
-            try await AdminAPI.cancelAiTask(id: task.id)
-            AdminAITaskCoordinator.shared.finish(taskID: task.id)
+            try await AdminAPI.cancelAiTask(id: taskID, operationID: operationID)
+            AdminAITaskCoordinator.shared.finish(taskID: taskID)
             await load()
         } catch {
             actionError = AppCopy.friendlyError(error)

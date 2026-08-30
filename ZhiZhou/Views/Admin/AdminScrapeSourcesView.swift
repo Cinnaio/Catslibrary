@@ -14,16 +14,15 @@ struct AdminScrapeSourcesView: View {
     @State private var cleaningUnreachable = false
     @State private var connectivityText: String?
     @State private var deleteTarget: ScrapeSourceRow?
-    @State private var showDeleteUnreachable = false
     @State private var testResultText: String?
     @State private var actionError: String?
+    @State private var pendingDangerousOperation: AdminDangerousOperation?
 
     // 批量操作
     @State private var selectionMode = false
     @State private var selectedHosts = Set<String>()
     @State private var batchBusy = false
     @State private var showBatchToggle = false
-    @State private var showBatchDelete = false
 
     // Legado 导入
     @State private var showLegadoImport = false
@@ -55,7 +54,7 @@ struct AdminScrapeSourcesView: View {
                         Task { await checkAll() }
                     }
                     Button("删除不可达书源", systemImage: "trash", role: .destructive) {
-                        showDeleteUnreachable = true
+                        requestDeleteUnreachable()
                     }
                     Divider()
                     Button(selectionMode ? "退出批量选择" : "批量选择", systemImage: "checkmark.circle") {
@@ -84,7 +83,15 @@ struct AdminScrapeSourcesView: View {
                 text: $legadoText,
                 importing: legadoImporting,
                 result: legadoResult,
-                onImport: { Task { await importLegado() } },
+                onImport: { operation, url, text in
+                    Task {
+                        await importLegado(
+                            operationID: operation.operationID,
+                            url: url,
+                            text: text
+                        )
+                    }
+                },
                 onClose: {
                     showLegadoImport = false
                     legadoUrl = ""
@@ -111,21 +118,6 @@ struct AdminScrapeSourcesView: View {
             Text("将对选中的 \(selectedHosts.count) 个书源批量修改启停状态。")
         }
         .confirmationDialog(
-            "批量删除书源",
-            isPresented: Binding(
-                get: { showBatchDelete },
-                set: { if !$0 { showBatchDelete = false } }
-            ),
-            titleVisibility: .visible
-        ) {
-            Button("删除所选（\(selectedHosts.count)）", role: .destructive) {
-                Task { await batchDelete() }
-            }
-            Button("取消", role: .cancel) { showBatchDelete = false }
-        } message: {
-            Text("将删除选中的 \(selectedHosts.count) 个书源，不可恢复。")
-        }
-        .confirmationDialog(
             "删除书源",
             isPresented: Binding(
                 get: { deleteTarget != nil },
@@ -141,17 +133,15 @@ struct AdminScrapeSourcesView: View {
         } message: {
             Text("删除后该书源将不再参与识别。")
         }
-        .confirmationDialog(
-            "删除不可达书源",
-            isPresented: $showDeleteUnreachable,
-            titleVisibility: .visible
-        ) {
-            Button("删除全部不可达", role: .destructive) {
-                Task { await deleteUnreachable() }
+        .adminDangerousOperationConfirmation($pendingDangerousOperation) { operation in
+            switch operation.action {
+            case .batchDeleteScrapeSources:
+                Task { await batchDelete(operation) }
+            case .deleteUnreachableScrapeSources:
+                Task { await deleteUnreachable(operationID: operation.operationID) }
+            default:
+                break
             }
-            Button("取消", role: .cancel) {}
-        } message: {
-            Text("将删除所有连通性检测为不可达的书源。")
         }
         .alert("测试结果", isPresented: testResultAlertBinding) {
             Button("好", role: .cancel) {}
@@ -235,7 +225,7 @@ struct AdminScrapeSourcesView: View {
                     Button("启停") { showBatchToggle = true }
                         .font(.subheadline)
                         .disabled(selectedHosts.isEmpty)
-                    Button("删除", role: .destructive) { showBatchDelete = true }
+                    Button("删除", role: .destructive) { requestBatchDelete() }
                         .font(.subheadline)
                         .disabled(selectedHosts.isEmpty)
                 }
@@ -440,12 +430,24 @@ struct AdminScrapeSourcesView: View {
         }
     }
 
-    private func deleteUnreachable() async {
+    private func requestDeleteUnreachable() {
+        guard !cleaningUnreachable else { return }
+        pendingDangerousOperation = AdminDangerousOperation(
+            action: .deleteUnreachableScrapeSources,
+            kind: .batchDelete,
+            targetIDs: ["connectivity:unreachable"],
+            title: "删除不可达书源",
+            message: "将删除服务端记录中最近一次连通性检测为不可达的全部书源，此操作不可恢复。",
+            confirmLabel: "删除全部不可达书源"
+        )
+    }
+
+    private func deleteUnreachable(operationID: String) async {
         guard !cleaningUnreachable else { return }
         cleaningUnreachable = true
         defer { cleaningUnreachable = false }
         do {
-            let result = try await AdminAPI.deleteUnreachableSources()
+            let result = try await AdminAPI.deleteUnreachableSources(operationID: operationID)
             connectivityText = "已删除 \(result.deleted ?? 0) 个不可达书源。"
             await load()
         } catch {
@@ -479,16 +481,31 @@ struct AdminScrapeSourcesView: View {
         }
     }
 
-    private func batchDelete() async {
-        guard !selectedHosts.isEmpty, !batchBusy else { return }
+    private func requestBatchDelete() {
+        let hosts = selectedHosts.sorted()
+        guard !hosts.isEmpty, !batchBusy else { return }
+        pendingDangerousOperation = AdminDangerousOperation(
+            action: .batchDeleteScrapeSources,
+            kind: .batchDelete,
+            targetIDs: hosts,
+            title: "批量删除书源",
+            message: "将删除确认时选中的 \(hosts.count) 个书源。目标已锁定，删除后不可恢复。",
+            confirmLabel: "删除 \(hosts.count) 个书源"
+        )
+    }
+
+    private func batchDelete(_ operation: AdminDangerousOperation) async {
+        let hosts = operation.targetIDs
+        guard !hosts.isEmpty, !batchBusy else { return }
         batchBusy = true
         defer { batchBusy = false }
         do {
-            let hosts = Array(selectedHosts)
-            let result = try await AdminAPI.batchDeleteSources(hosts: hosts)
+            let result = try await AdminAPI.batchDeleteSources(
+                hosts: hosts,
+                operationID: operation.operationID
+            )
             connectivityText = "已删除 \(result.deleted ?? 0) 个书源。"
             selectedHosts = []
-            showBatchDelete = false
             await load()
         } catch {
             actionError = AppCopy.friendlyError(error)
@@ -497,19 +514,20 @@ struct AdminScrapeSourcesView: View {
 
     // MARK: - Legado 导入
 
-    private func importLegado() async {
+    private func importLegado(operationID: String, url: String, text: String) async {
         guard !legadoImporting else { return }
         legadoImporting = true
         defer { legadoImporting = false }
         do {
-            let url = legadoUrl.trimmingCharacters(in: .whitespacesAndNewlines)
-            let text = legadoText.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !url.isEmpty || !text.isEmpty else {
                 legadoResult = "请填写书源池 URL 或粘贴书源 JSON。"
                 return
             }
             let payload: [String: Any] = url.isEmpty ? ["text": text] : ["url": url]
-            let result = try await AdminAPI.scrapeImportLegado(payload: payload)
+            let result = try await AdminAPI.scrapeImportLegado(
+                payload: payload,
+                operationID: operationID
+            )
             legadoResult = "导入完成：新增 \(result.imported ?? 0)，更新 \(result.updated ?? 0)。\(result.parseErrorCount.map { "解析失败 \($0) 条。" } ?? "")"
             await load()
         } catch {
@@ -539,8 +557,9 @@ private struct LegadoImportSheet: View {
     @Binding var text: String
     let importing: Bool
     let result: String?
-    let onImport: () -> Void
+    let onImport: (AdminDangerousOperation, String, String) -> Void
     let onClose: () -> Void
+    @State private var pendingDangerousOperation: AdminDangerousOperation?
 
     var body: some View {
         NavigationStack {
@@ -575,7 +594,7 @@ private struct LegadoImportSheet: View {
                 }
                 Section {
                     Button {
-                        onImport()
+                        requestImport()
                     } label: {
                         if importing {
                             HStack {
@@ -600,6 +619,26 @@ private struct LegadoImportSheet: View {
                 }
             }
         }
+        .adminDangerousOperationConfirmation($pendingDangerousOperation) { operation in
+            let trimmedURL = url.trimmingCharacters(in: .whitespacesAndNewlines)
+            let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            onImport(operation, trimmedURL, trimmedText)
+        }
         .presentationDetents([.medium, .large])
+    }
+
+    private func requestImport() {
+        let trimmedURL = url.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedURL.isEmpty || !trimmedText.isEmpty else { return }
+        let sourceID = trimmedURL.isEmpty ? "legado:pasted-json" : trimmedURL
+        pendingDangerousOperation = AdminDangerousOperation(
+            action: .importLegadoSources,
+            kind: .overwrite,
+            targetIDs: [sourceID],
+            title: "导入并更新书源",
+            message: "导入会新增书源，并按主机名更新已有书源配置。现有同名配置可能被覆盖。",
+            confirmLabel: "确认导入书源"
+        )
     }
 }

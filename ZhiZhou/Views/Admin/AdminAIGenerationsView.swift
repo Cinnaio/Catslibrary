@@ -23,6 +23,7 @@ struct AdminAIGenerationsView: View {
     @State private var selectedIds = Set<String>()
     @State private var batchBusy = false
     @State private var lastDeletedIds: [String] = []
+    @State private var pendingDangerousOperation: AdminDangerousOperation?
 
     // 详情
     @State private var viewing: AiGeneration?
@@ -74,7 +75,7 @@ struct AdminAIGenerationsView: View {
                             .font(.subheadline)
                             .disabled(batchBusy)
                             Button("删除所选", role: .destructive) {
-                                Task { await batchDelete() }
+                                requestBatchDelete()
                             }
                             .font(.subheadline)
                             .disabled(selectedIds.isEmpty || batchBusy)
@@ -155,6 +156,10 @@ struct AdminAIGenerationsView: View {
             Button("取消", role: .cancel) { pendingDelete = nil }
         } message: {
             Text("删除后内容不可恢复；已发布内容也会被移除。")
+        }
+        .adminDangerousOperationConfirmation($pendingDangerousOperation) { operation in
+            guard operation.action == .batchDeleteAIGenerations else { return }
+            Task { await batchDelete(operation) }
         }
     }
 
@@ -388,13 +393,29 @@ struct AdminAIGenerationsView: View {
         }
     }
 
-    private func batchDelete() async {
-        guard !selectedIds.isEmpty, !batchBusy else { return }
+    private func requestBatchDelete() {
+        let ids = selectedIds.sorted()
+        guard !ids.isEmpty, !batchBusy else { return }
+        pendingDangerousOperation = AdminDangerousOperation(
+            action: .batchDeleteAIGenerations,
+            kind: .batchDelete,
+            targetIDs: ids,
+            title: "批量删除生成内容",
+            message: "将删除确认时选中的 \(ids.count) 条生成内容；已发布内容也会被移除。目标已锁定，删除后仅可在短暂撤销窗口内恢复。",
+            confirmLabel: "删除 \(ids.count) 条内容"
+        )
+    }
+
+    private func batchDelete(_ operation: AdminDangerousOperation) async {
+        let ids = operation.targetIDs
+        guard !ids.isEmpty, !batchBusy else { return }
         batchBusy = true
         defer { batchBusy = false }
         do {
-            let ids = Array(selectedIds)
-            let result = try await AdminAPI.aiDeleteGenerations(ids: ids)
+            let result = try await AdminAPI.aiDeleteGenerations(
+                ids: ids,
+                operationID: operation.operationID
+            )
             lastDeletedIds = ids
             selectedIds = []
             if (result.deleted ?? 0) > 0 {

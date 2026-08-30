@@ -18,8 +18,8 @@ struct AdminUsersView: View {
     @State private var busyUserId: String?
     @State private var deleteConfirmUsername = ""
     @State private var showInviteDialog = false
-    @State private var showClearInvitesConfirm = false
     @State private var inviteBusy = false
+    @State private var pendingDangerousOperation: AdminDangerousOperation?
 
     // MARK: - Body
 
@@ -117,11 +117,9 @@ struct AdminUsersView: View {
             } message: {
                 Text("一次性生成多个未使用邀请码。")
             }
-            .confirmationDialog("清理邀请码", isPresented: $showClearInvitesConfirm, titleVisibility: .visible) {
-                Button("清理", role: .destructive) { Task { await clearInvites() } }
-                Button("取消", role: .cancel) {}
-            } message: {
-                Text("将删除所有已使用与已禁用的邀请码，未使用的保留。")
+            .adminDangerousOperationConfirmation($pendingDangerousOperation) { operation in
+                guard operation.action == .clearInvites else { return }
+                Task { await clearInvites(operationID: operation.operationID) }
             }
     }
 
@@ -192,7 +190,7 @@ struct AdminUsersView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Button("生成邀请码") { showInviteDialog = true }
-                    Button("清理已使用/已禁用", role: .destructive) { showClearInvitesConfirm = true }
+                    Button("清理已使用/已禁用", role: .destructive) { requestClearInvites() }
                 } label: {
                     if inviteBusy {
                         AdminInlineProgress()
@@ -285,12 +283,24 @@ struct AdminUsersView: View {
         }
     }
 
-    private func clearInvites() async {
+    private func requestClearInvites() {
+        guard !inviteBusy else { return }
+        pendingDangerousOperation = AdminDangerousOperation(
+            action: .clearInvites,
+            kind: .batchDelete,
+            targetIDs: ["invite:used", "invite:disabled"],
+            title: "清理邀请码",
+            message: "将批量删除所有已使用和已禁用的邀请码；未使用的邀请码会保留。",
+            confirmLabel: "清理这些邀请码"
+        )
+    }
+
+    private func clearInvites(operationID: String) async {
         guard !inviteBusy else { return }
         inviteBusy = true
         defer { inviteBusy = false }
         do {
-            try await AdminAPI.clearInvites()
+            try await AdminAPI.clearInvites(operationID: operationID)
             await load()
         } catch {
             actionError = AppCopy.friendlyError(error)

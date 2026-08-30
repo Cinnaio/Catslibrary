@@ -12,7 +12,7 @@ struct AdminJobsView: View {
     @State private var isBusy = false
     @State private var busyJobId: String?
     @State private var actionError: String?
-    @State private var showClearConfirm = false
+    @State private var pendingDangerousOperation: AdminDangerousOperation?
 
     enum JobFilter: String, CaseIterable, Identifiable {
         case all = "全部"
@@ -91,7 +91,7 @@ struct AdminJobsView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    Button("清理已完成任务", role: .destructive) { showClearConfirm = true }
+                    Button("清理已完成任务", role: .destructive) { requestClearCompleted() }
                 } label: {
                     if isBusy {
                         AdminInlineProgress()
@@ -102,11 +102,18 @@ struct AdminJobsView: View {
                 .disabled(isBusy)
             }
         }
-        .alert("清理已完成", isPresented: $showClearConfirm) {
-            Button("删除已完成任务", role: .destructive) { Task { await clearCompleted() } }
-            Button("取消", role: .cancel) {}
-        } message: {
-            Text("将删除所有已完成 / 部分完成 / 已取消的任务记录，不可恢复。")
+        .adminDangerousOperationConfirmation($pendingDangerousOperation) { operation in
+            switch operation.action {
+            case .terminateScrapeJob:
+                guard let jobID = operation.targetIDs.first else { return }
+                Task {
+                    await runAction(.cancel, jobID: jobID, operationID: operation.operationID)
+                }
+            case .clearCompletedScrapeJobs:
+                Task { await clearCompleted(operationID: operation.operationID) }
+            default:
+                break
+            }
         }
         .alert("操作失败", isPresented: errorAlertBinding) {
             Button("好", role: .cancel) {}
@@ -164,14 +171,14 @@ struct AdminJobsView: View {
                     Menu {
                         if AdminFormat.isJobRunning(job.status) {
                             Button("终止任务", systemImage: "stop.circle") {
-                                Task { await runAction(.cancel, job: job) }
+                                requestCancel(job)
                             }
                         }
                         Button("整本重试", systemImage: "arrow.clockwise") {
-                            Task { await runAction(.retry, job: job) }
+                            Task { await runAction(.retry, jobID: job.id) }
                         }
                         Button("重试失败章节", systemImage: "arrow.counterclockwise") {
-                            Task { await runAction(.retryFailed, job: job) }
+                            Task { await runAction(.retryFailed, jobID: job.id) }
                         }
                     } label: {
                         Image(systemName: "ellipsis.circle")
@@ -187,14 +194,14 @@ struct AdminJobsView: View {
         .contextMenu {
             if AdminFormat.isJobRunning(job.status) {
                 Button("终止任务", systemImage: "stop.circle") {
-                    Task { await runAction(.cancel, job: job) }
+                    requestCancel(job)
                 }
             }
             Button("整本重试", systemImage: "arrow.clockwise") {
-                Task { await runAction(.retry, job: job) }
+                Task { await runAction(.retry, jobID: job.id) }
             }
             Button("重试失败章节", systemImage: "arrow.counterclockwise") {
-                Task { await runAction(.retryFailed, job: job) }
+                Task { await runAction(.retryFailed, jobID: job.id) }
             }
         }
     }
@@ -254,28 +261,64 @@ struct AdminJobsView: View {
         }
     }
 
-    private func runAction(_ action: JobAction, job: AdminJobItem) async {
+    private func requestCancel(_ job: AdminJobItem) {
+        guard !isBusy else { return }
+        pendingDangerousOperation = AdminDangerousOperation(
+            action: .terminateScrapeJob,
+            kind: .terminate,
+            targetIDs: [job.id],
+            title: "终止抓取任务",
+            message: "将终止“\(title(for: job))”的当前抓取。已写入的章节不会自动回滚。",
+            confirmLabel: "确认终止任务"
+        )
+    }
+
+    private func requestClearCompleted() {
+        guard !isBusy else { return }
+        let targetStatuses = ["completed", "partial", "cancelled"]
+        pendingDangerousOperation = AdminDangerousOperation(
+            action: .clearCompletedScrapeJobs,
+            kind: .batchDelete,
+            targetIDs: targetStatuses,
+            title: "清理已完成任务",
+            message: "将删除所有已完成、部分完成和已取消的任务记录，不可恢复。",
+            confirmLabel: "删除这些任务记录"
+        )
+    }
+
+    private func runAction(
+        _ action: JobAction,
+        jobID: String,
+        operationID: String = ""
+    ) async {
         guard !isBusy else { return }
         isBusy = true
-        busyJobId = job.id
+        busyJobId = jobID
         defer {
             isBusy = false
             busyJobId = nil
         }
         do {
-            _ = try await AdminAPI.scrapeAction(action.rawValue, jobId: job.id)
+            _ = try await AdminAPI.scrapeAction(
+                action.rawValue,
+                jobId: jobID,
+                operationID: operationID
+            )
             await loadAll()
         } catch {
             actionError = AppCopy.friendlyError(error)
         }
     }
 
-    private func clearCompleted() async {
+    private func clearCompleted(operationID: String) async {
         guard !isBusy else { return }
         isBusy = true
         defer { isBusy = false }
         do {
-            _ = try await AdminAPI.scrapeAction("clear-completed")
+            _ = try await AdminAPI.scrapeAction(
+                "clear-completed",
+                operationID: operationID
+            )
             await loadAll()
         } catch {
             actionError = AppCopy.friendlyError(error)

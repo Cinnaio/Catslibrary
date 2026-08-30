@@ -91,8 +91,11 @@ enum AdminAPI {
         let _: OkEnvelope = try await postAction(["action": "disable-invite", "code": code])
     }
 
-    static func clearInvites() async throws {
-        let _: OkEnvelope = try await postAction(["action": "clear-invites"])
+    static func clearInvites(operationID: String) async throws {
+        let _: OkEnvelope = try await postAction([
+            "action": "clear-invites",
+            "operationId": operationID,
+        ])
     }
 
     /// status：active | disabled
@@ -150,10 +153,16 @@ enum AdminAPI {
     }
 
     /// POST /api/scrape 动作分发：cancel / retry / retry-failed / update / clear-completed。
-    static func scrapeAction(_ action: String, jobId: String? = nil, novelId: String? = nil) async throws -> AdminJobActionResponse {
+    static func scrapeAction(
+        _ action: String,
+        jobId: String? = nil,
+        novelId: String? = nil,
+        operationID: String = ""
+    ) async throws -> AdminJobActionResponse {
         var body: [String: Any] = ["action": action]
         if let jobId { body["jobId"] = jobId }
         if let novelId { body["novelId"] = novelId }
+        if !operationID.isEmpty { body["operationId"] = operationID }
         return try await APIClient.shared.post("/api/scrape", body: try jsonBody(body), auth: true)
     }
 
@@ -269,16 +278,19 @@ enum AdminAPI {
         runId: String,
         metadataFields: [String],
         replaceMetadata: Bool = false,
-        confirmedChangeIds: [String] = []
+        confirmedChangeIds: [String] = [],
+        operationID: String = ""
     ) async throws -> SourceSyncApplyResponse {
-        try await postScrape([
+        var body: [String: Any] = [
             "action": "source-sync-apply",
             "runId": runId,
             "applyMetadata": !metadataFields.isEmpty,
             "metadataFields": metadataFields,
             "metadataMode": replaceMetadata ? "replace" : "missing",
             "confirmedChangeIds": confirmedChangeIds,
-        ])
+        ]
+        if !operationID.isEmpty { body["operationId"] = operationID }
+        return try await postScrape(body)
     }
 
     /// POST /api/scrape action=title-source-search：同时搜索晋江与 POPO 原作者页面。
@@ -368,8 +380,11 @@ enum AdminAPI {
         return try await postScrape(body)
     }
 
-    static func deleteUnreachableSources() async throws -> AdminJobActionResponse {
-        try await postScrape(["action": "delete-unreachable-sources"])
+    static func deleteUnreachableSources(operationID: String) async throws -> AdminJobActionResponse {
+        try await postScrape([
+            "action": "delete-unreachable-sources",
+            "operationId": operationID,
+        ])
     }
 
     static func testScrapeSource(host: String) async throws -> ScrapeTestResponse {
@@ -439,8 +454,12 @@ enum AdminAPI {
         return try await APIClient.shared.get(path, auth: true)
     }
 
-    static func cancelAiTask(id: String) async throws {
-        let _: OkEnvelope = try await APIClient.shared.post("/api/ai/tasks/\(encodePathSegment(id))/cancel", body: try jsonBody([:]), auth: true)
+    static func cancelAiTask(id: String, operationID: String) async throws {
+        let _: OkEnvelope = try await APIClient.shared.post(
+            "/api/ai/tasks/\(encodePathSegment(id))/cancel",
+            body: try jsonBody(["operationId": operationID]),
+            auth: true
+        )
     }
 
     static func deleteAiTask(id: String) async throws {
@@ -526,14 +545,25 @@ enum AdminAPI {
         try await postScrape(["action": "list-configs"])
     }
 
-    static func scrapeImportConfigs(_ configs: [ScrapeConfigImportItem]) async throws -> ScrapeImportResponse {
-        try await postScrape(["action": "import-configs", "configs": try configs.map { try $0.asDictionary() }])
+    static func scrapeImportConfigs(
+        _ configs: [ScrapeConfigImportItem],
+        operationID: String
+    ) async throws -> ScrapeImportResponse {
+        try await postScrape([
+            "action": "import-configs",
+            "configs": try configs.map { try $0.asDictionary() },
+            "operationId": operationID,
+        ])
     }
 
     /// 导入 Legado 书源：payload 为 { url?: String } 或 { text?: String }（书源池 URL / 书源 JSON）。
-    static func scrapeImportLegado(payload: [String: Any]) async throws -> ScrapeImportResponse {
+    static func scrapeImportLegado(
+        payload: [String: Any],
+        operationID: String
+    ) async throws -> ScrapeImportResponse {
         var body = payload
         body["action"] = "import-legado"
+        body["operationId"] = operationID
         return try await postScrape(body)
     }
 
@@ -543,8 +573,12 @@ enum AdminAPI {
         try await postScrape(["action": "batch-toggle-sources", "hosts": hosts, "enabled": enabled])
     }
 
-    static func batchDeleteSources(hosts: [String]) async throws -> BatchSourcesResponse {
-        try await postScrape(["action": "batch-delete-sources", "hosts": hosts])
+    static func batchDeleteSources(hosts: [String], operationID: String) async throws -> BatchSourcesResponse {
+        try await postScrape([
+            "action": "batch-delete-sources",
+            "hosts": hosts,
+            "operationId": operationID,
+        ])
     }
 
     // MARK: - AI 服务：封面生成
@@ -600,8 +634,12 @@ enum AdminAPI {
     }
 
     /// 采纳候选：覆盖为当前封面并删除候选。
-    static func aiAdoptCoverCandidate(id: String) async throws {
-        let _: OkEnvelope = try await APIClient.shared.post("/api/ai/cover/candidates/\(encodePathSegment(id))/adopt", body: try jsonBody([:]), auth: true)
+    static func aiAdoptCoverCandidate(id: String, operationID: String) async throws {
+        let _: OkEnvelope = try await APIClient.shared.post(
+            "/api/ai/cover/candidates/\(encodePathSegment(id))/adopt",
+            body: try jsonBody(["operationId": operationID]),
+            auth: true
+        )
     }
 
     /// 弃用候选：删除，不影响当前封面。
@@ -610,13 +648,21 @@ enum AdminAPI {
     }
 
     /// 上传本地图片替换当前封面（multipart/form-data）。
-    static func aiUploadCover(novelId: String, imageData: Data, mimeType: String = "image/jpeg") async throws {
+    static func aiUploadCover(
+        novelId: String,
+        imageData: Data,
+        mimeType: String = "image/jpeg",
+        operationID: String
+    ) async throws {
         let boundary = "Boundary-\(UUID().uuidString)"
         var body = Data()
         func append(_ text: String) { body.append(Data(text.utf8)) }
         append("--\(boundary)\r\n")
         append("Content-Disposition: form-data; name=\"novelId\"\r\n\r\n")
         append("\(novelId)\r\n")
+        append("--\(boundary)\r\n")
+        append("Content-Disposition: form-data; name=\"operationId\"\r\n\r\n")
+        append("\(operationID)\r\n")
         append("--\(boundary)\r\n")
         append("Content-Disposition: form-data; name=\"cover\"; filename=\"cover.jpg\"\r\n")
         append("Content-Type: \(mimeType)\r\n\r\n")
@@ -714,8 +760,12 @@ enum AdminAPI {
         let _: OkEnvelope = try await APIClient.shared.delete("/api/ai/generations/\(encodePathSegment(id))", auth: true)
     }
 
-    static func aiDeleteGenerations(ids: [String]) async throws -> AiGenerationsBatchResponse {
-        try await APIClient.shared.post("/api/ai/generations/batch-delete", body: try jsonBody(["ids": ids]), auth: true)
+    static func aiDeleteGenerations(ids: [String], operationID: String) async throws -> AiGenerationsBatchResponse {
+        try await APIClient.shared.post(
+            "/api/ai/generations/batch-delete",
+            body: try jsonBody(["ids": ids, "operationId": operationID]),
+            auth: true
+        )
     }
 
     /// 撤销软删除：30 秒窗口内的删除记录可恢复。
