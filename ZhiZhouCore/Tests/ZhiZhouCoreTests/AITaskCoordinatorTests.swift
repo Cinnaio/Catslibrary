@@ -145,7 +145,95 @@ final class AITaskCoordinatorTests: XCTestCase {
         XCTAssertEqual(coordinator.record(for: "writing.generate")?.taskID, "task-2")
     }
 
+    func testDeactivationInvalidatesAnInFlightLaunch() async throws {
+        let coordinator = makeCoordinator()
+        coordinator.activate(userID: "admin-1")
+        let launchStarted = TestLatch()
+        let releaseLaunch = TestLatch()
+
+        let pending = Task { () throws -> AITaskLaunch in
+            try await coordinator.start(
+                key: "cover.prompt",
+                kind: "cover_prompt",
+                recover: { _ in nil },
+                launch: { _ in
+                    await launchStarted.signal()
+                    await releaseLaunch.wait()
+                    return "task-late"
+                }
+            )
+        }
+
+        await launchStarted.wait()
+        coordinator.deactivate()
+        await releaseLaunch.signal()
+
+        do {
+            _ = try await pending.value
+            XCTFail("Expected the old session launch to be rejected")
+        } catch let error as AITaskCoordinationError {
+            XCTAssertEqual(error, .sessionChanged)
+        }
+        XCTAssertNil(coordinator.record(for: "cover.prompt"))
+    }
+
+    func testAccountSwitchKeepsOldOperationOutOfTheNewAccountNamespace() async throws {
+        let coordinator = makeCoordinator()
+        coordinator.activate(userID: "admin-1")
+        let launchStarted = TestLatch()
+        let releaseLaunch = TestLatch()
+
+        let pending = Task { () throws -> AITaskLaunch in
+            try await coordinator.start(
+                key: "writing.generate",
+                kind: "continue",
+                resourceID: "novel-1",
+                recover: { _ in nil },
+                launch: { _ in
+                    await launchStarted.signal()
+                    await releaseLaunch.wait()
+                    return "task-old-account"
+                }
+            )
+        }
+
+        await launchStarted.wait()
+        coordinator.activate(userID: "admin-2")
+        await releaseLaunch.signal()
+
+        do {
+            _ = try await pending.value
+            XCTFail("Expected the account switch to reject the old launch")
+        } catch let error as AITaskCoordinationError {
+            XCTAssertEqual(error, .sessionChanged)
+        }
+        XCTAssertNil(coordinator.record(for: "writing.generate"))
+
+        coordinator.activate(userID: "admin-1")
+        let oldRecord = try XCTUnwrap(coordinator.record(for: "writing.generate"))
+        XCTAssertNil(oldRecord.taskID)
+        XCTAssertEqual(oldRecord.resourceID, "novel-1")
+    }
+
     private func makeCoordinator() -> AITaskCoordinator {
         AITaskCoordinator(localStore: AITaskLocalStore(defaults: defaults))
+    }
+}
+
+private actor TestLatch {
+    private var isSignaled = false
+    private var waiter: CheckedContinuation<Void, Never>?
+
+    func wait() async {
+        if isSignaled { return }
+        await withCheckedContinuation { continuation in
+            waiter = continuation
+        }
+    }
+
+    func signal() {
+        isSignaled = true
+        waiter?.resume()
+        waiter = nil
     }
 }
