@@ -196,6 +196,15 @@ describe('auth 端到端（pglite）', () => {
     expect(me.status).toBe(401)
   })
 
+  it('logout 后当前 token 立即失效，重复登出也不会恢复会话', async () => {
+    const login = await req('/api/auth/login', json('POST', { username: 'reader1', password: 'newpass123' }))
+    const { token } = await jsonOf<AuthResponse>(login)
+    const out = await req('/api/auth/logout', json('POST', undefined, token))
+    expect(out.status).toBe(200)
+    expect((await req('/api/auth/me', json('GET', undefined, token))).status).toBe(401)
+    expect((await req('/api/auth/logout', json('POST', undefined, token))).status).toBe(401)
+  })
+
   it('保持登录 remember=true 会给更长的会话有效期', async () => {
     const now = Date.now()
     // 不勾选：会话有效期应为默认 SESSION_TTL（30 天）
