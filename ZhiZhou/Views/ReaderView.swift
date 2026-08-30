@@ -587,8 +587,8 @@ struct ReaderView: View {
                     }
                     .frame(height: 52)
                 }
-                .padding(.horizontal, 20)
             }
+            .padding(.horizontal, 20)
         }
         .padding(.top, 14)
         .padding(.bottom, 12)
