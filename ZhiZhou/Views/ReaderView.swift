@@ -558,35 +558,37 @@ struct ReaderView: View {
     /// 底部阅读控制：上一章/页码/下一章。翻页到章末时变为居中的“下一章”按钮。
     private var readerChrome: some View {
         GlassEffectContainer(spacing: 12) {
-            if atChapterEnd {
-                Button {
-                    interactionFeedback += 1
-                    go(to: chapterOrder + 1)
-                } label: {
-                    Label("下一章", systemImage: "arrow.forward")
-                        .font(.subheadline.weight(.semibold))
-                        .padding(.horizontal, 22)
-                        .frame(maxWidth: .infinity)
-                        .frame(minHeight: 44)
-                }
-                .buttonStyle(.glass(AppTheme.glassProminent))
-                .tint(AppTheme.primary)
-                .accessibilityLabel("下一章")
-            } else {
-                GlassEffectContainer(spacing: 8) {
-                    HStack(spacing: 8) {
-                        chromeSegmentButton(systemName: "chevron.left", label: "上一章", isEnabled: hasPreviousChapter) {
-                            go(to: chapterOrder - 1)
-                        }
-                        readerStatusPill
-                        chromeSegmentButton(systemName: "chevron.right", label: "下一章", isEnabled: hasNextChapter) {
-                            go(to: chapterOrder + 1)
+            Group {
+                if atChapterEnd {
+                    Button {
+                        interactionFeedback += 1
+                        go(to: chapterOrder + 1)
+                    } label: {
+                        Label("下一章", systemImage: "arrow.forward")
+                            .font(.subheadline.weight(.semibold))
+                            .padding(.horizontal, 22)
+                            .frame(maxWidth: .infinity)
+                            .frame(minHeight: 44)
+                    }
+                    .buttonStyle(.glass(AppTheme.glassProminent))
+                    .tint(AppTheme.primary)
+                    .accessibilityLabel("下一章")
+                } else {
+                    GlassEffectContainer(spacing: 8) {
+                        HStack(spacing: 8) {
+                            chromeSegmentButton(systemName: "chevron.left", label: "上一章", isEnabled: hasPreviousChapter) {
+                                go(to: chapterOrder - 1)
+                            }
+                            readerStatusPill
+                            chromeSegmentButton(systemName: "chevron.right", label: "下一章", isEnabled: hasNextChapter) {
+                                go(to: chapterOrder + 1)
+                            }
                         }
                     }
+                    .frame(height: 52)
                 }
-                .frame(height: 52)
+                .padding(.horizontal, 20)
             }
-            .padding(.horizontal, 20)
         }
         .padding(.top, 14)
         .padding(.bottom, 12)
