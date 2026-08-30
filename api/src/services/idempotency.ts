@@ -3,6 +3,7 @@ import type { Context } from 'hono'
 import type { Db } from '../db/pool'
 import { first, run } from '../db/query'
 import { newId } from './auth'
+import { finishAdminOperationAudit, incrementAdminOperationReplay, startAdminOperationAudit } from './admin-operation-audit'
 
 const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000
 const MAX_KEY_LENGTH = 160
@@ -72,7 +73,13 @@ function replay(row: IdempotencyRow): Response {
  */
 export async function withIdempotency(
   db: Db,
-  options: { scope: string; operationKey?: string; payload: unknown; ttlMs?: number },
+  options: {
+    scope: string
+    operationKey?: string
+    payload: unknown
+    ttlMs?: number
+    audit?: { actorUserId: string; action: string; targetCount?: number }
+  },
   handler: () => Promise<Response>,
 ): Promise<Response> {
   const operationKey = String(options.operationKey || '').trim().slice(0, MAX_KEY_LENGTH)
@@ -100,9 +107,21 @@ export async function withIdempotency(
     if (existing && existing.request_hash !== hash) {
       return Response.json({ error: '同一操作 ID 携带了不同参数', code: 'idempotency_conflict' }, { status: 409 })
     }
+    await incrementAdminOperationReplay(db, scope, operationKey).catch(() => {})
     if (existing?.status === 'completed') return replay(existing)
     return Response.json({ error: '相同操作正在处理中，请稍后重试', code: 'idempotency_in_progress' }, { status: 409 })
   }
+
+  const auditId = options.audit
+    ? await startAdminOperationAudit(db, {
+        operationId: operationKey,
+        scope,
+        actorUserId: options.audit.actorUserId,
+        action: options.audit.action,
+        targetCount: options.audit.targetCount,
+        requestHash: hash,
+      }).catch(() => '')
+    : ''
 
   try {
     const response = await handler()
@@ -115,12 +134,15 @@ export async function withIdempotency(
          WHERE id = $5 AND status = 'pending'`,
         [response.status, response.headers.get('Content-Type') || 'application/json', body, Date.now(), inserted.id],
       )
+      await finishAdminOperationAudit(db, auditId, { status: 'completed', responseStatus: response.status }).catch(() => {})
     } else {
       await run(db, 'DELETE FROM api_idempotency WHERE id = $1', [inserted.id])
+      await finishAdminOperationAudit(db, auditId, { status: 'failed', responseStatus: response.status, error: `HTTP ${response.status}` }).catch(() => {})
     }
     return response
   } catch (error) {
     await run(db, 'DELETE FROM api_idempotency WHERE id = $1', [inserted.id]).catch(() => {})
+    await finishAdminOperationAudit(db, auditId, { status: 'failed', responseStatus: 500, error: '服务器处理异常' }).catch(() => {})
     throw error
   }
 }

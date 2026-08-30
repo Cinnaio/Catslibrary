@@ -430,7 +430,12 @@ scrapeRoutes.post('/', async (c) => {
       const operationKey = idempotencyKeyFromRequest(c, body, ['operationId'])
       return withIdempotency(
         db,
-        { scope: `scrape.cancel.${c.get('user').id}.${String(jobId)}`, operationKey, payload: { action: 'cancel', jobId: String(jobId) } },
+        {
+          scope: `scrape.cancel.${c.get('user').id}.${String(jobId)}`,
+          operationKey,
+          payload: { action: 'cancel', jobId: String(jobId) },
+          audit: { actorUserId: c.get('user').id, action: 'cancel-scrape-job', targetCount: 1 },
+        },
         async () => {
           await deps.store.cancelJob(String(jobId))
           return c.json({ success: true, jobId: String(jobId) })
@@ -448,7 +453,12 @@ scrapeRoutes.post('/', async (c) => {
       }
       return withIdempotency(
         db,
-        { scope: `scrape.clear-completed.${c.get('user').id}`, operationKey, payload: { action: 'clear-completed', jobIds: jobIds || [] } },
+        {
+          scope: `scrape.clear-completed.${c.get('user').id}`,
+          operationKey,
+          payload: { action: 'clear-completed', jobIds: jobIds || [] },
+          audit: { actorUserId: c.get('user').id, action: 'clear-completed-scrape-jobs', targetCount: jobIds?.length || 0 },
+        },
         async () => {
           const snapshot = jobIds === undefined ? await deps.store.listCompletedJobIds() : jobIds
           return c.json({ success: true, deleted: await deps.store.clearCompletedJobs(snapshot), jobIds: snapshot })
@@ -496,7 +506,12 @@ scrapeRoutes.post('/', async (c) => {
       const operationKey = idempotencyKeyFromRequest(c, body, ['operationId'])
       return withIdempotency(
         db,
-        { scope: `scrape.source-sync-apply.${c.get('user').id}.${runId}`, operationKey, payload: { runId, applyMetadata: body.applyMetadata === true, metadataFields, metadataMode: body.metadataMode === 'replace' ? 'replace' : 'missing', confirmedChangeIds } },
+        {
+          scope: `scrape.source-sync-apply.${c.get('user').id}.${runId}`,
+          operationKey,
+          payload: { runId, applyMetadata: body.applyMetadata === true, metadataFields, metadataMode: body.metadataMode === 'replace' ? 'replace' : 'missing', confirmedChangeIds },
+          audit: { actorUserId: c.get('user').id, action: 'source-sync-apply', targetCount: confirmedChangeIds.length },
+        },
         async () => {
           try {
             return c.json(
@@ -641,7 +656,12 @@ scrapeRoutes.post('/', async (c) => {
       const operationKey = idempotencyKeyFromRequest(c, body, ['operationId'])
       return withIdempotency(
         db,
-        { scope: `scrape.import-configs.${c.get('user').id}`, operationKey, payload: { action: 'import-configs', configs } },
+        {
+          scope: `scrape.import-configs.${c.get('user').id}`,
+          operationKey,
+          payload: { action: 'import-configs', configs },
+          audit: { actorUserId: c.get('user').id, action: 'import-scrape-configs', targetCount: configs.length },
+        },
         async () => c.json({ success: true, imported: await deps.store.importScrapeConfigs(configs) }),
       )
     }
@@ -688,7 +708,12 @@ scrapeRoutes.post('/', async (c) => {
     case 'import-legado':
       return withIdempotency(
         db,
-        { scope: `scrape.import-legado.${c.get('user').id}`, operationKey: idempotencyKeyFromRequest(c, body, ['operationId']), payload: { action: 'import-legado', body } },
+        {
+          scope: `scrape.import-legado.${c.get('user').id}`,
+          operationKey: idempotencyKeyFromRequest(c, body, ['operationId']),
+          payload: { action: 'import-legado', body },
+          audit: { actorUserId: c.get('user').id, action: 'import-legado', targetCount: 1 },
+        },
         () => handleImportLegado(c, body),
       )
     case 'list-sources':
@@ -718,7 +743,12 @@ scrapeRoutes.post('/', async (c) => {
       if (!normalizedHosts.length) return c.json({ error: 'hosts 不能为空' }, 400)
       return withIdempotency(
         db,
-        { scope: `scrape.batch-delete-sources.${c.get('user').id}`, operationKey: idempotencyKeyFromRequest(c, body, ['operationId']), payload: { action: 'batch-delete-sources', hosts: normalizedHosts } },
+        {
+          scope: `scrape.batch-delete-sources.${c.get('user').id}`,
+          operationKey: idempotencyKeyFromRequest(c, body, ['operationId']),
+          payload: { action: 'batch-delete-sources', hosts: normalizedHosts },
+          audit: { actorUserId: c.get('user').id, action: 'batch-delete-sources', targetCount: normalizedHosts.length },
+        },
         async () => c.json({ success: true, hosts: normalizedHosts, deleted: await deps.store.batchDeleteSources(normalizedHosts) }),
       )
     }
@@ -766,7 +796,12 @@ scrapeRoutes.post('/', async (c) => {
       }
       return withIdempotency(
         db,
-        { scope: `scrape.delete-unreachable-sources.${c.get('user').id}`, operationKey, payload: { action: 'delete-unreachable-sources', hosts: hosts || [] } },
+        {
+          scope: `scrape.delete-unreachable-sources.${c.get('user').id}`,
+          operationKey,
+          payload: { action: 'delete-unreachable-sources', hosts: hosts || [] },
+          audit: { actorUserId: c.get('user').id, action: 'delete-unreachable-sources', targetCount: hosts?.length || 0 },
+        },
         async () => {
           const snapshot = hosts === undefined
             ? (await deps.store.listAllSources()).filter((row) => row.connectivity === 'unreachable').map((row) => String(row.host || '')).filter(Boolean)

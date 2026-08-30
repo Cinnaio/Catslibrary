@@ -231,6 +231,34 @@ describe('管理 API 端到端（pglite）', () => {
     )
     expect(clear.status).toBe(200)
     expect((await jsonOf<{ removed: number; codes: string[] }>(clear)).codes).toEqual([codes[0]])
+
+    const replay = await req(
+      '/api/admin-users',
+      json('POST', { action: 'clear-invites', operationId: 'admin-test-clear-invites-001', codes: [codes[0]] }, adminToken),
+    )
+    expect(replay.status).toBe(200)
+    expect(replay.headers.get('x-idempotent-replay')).toBe('true')
+
+    const operations = await req('/api/admin/operations?action=clear-invites', json('GET', undefined, adminToken))
+    expect(operations.status).toBe(200)
+    const operationData = await jsonOf<{
+      operations: Array<{
+        operationId: string
+        actorUsername: string
+        action: string
+        targetCount: number
+        status: string
+        replayCount: number
+      }>
+    }>(operations)
+    expect(operationData.operations).toContainEqual(expect.objectContaining({
+      operationId: 'admin-test-clear-invites-001',
+      actorUsername: 'admin',
+      action: 'clear-invites',
+      targetCount: 1,
+      status: 'completed',
+      replayCount: 1,
+    }))
   })
 
   it('admin-users：用户状态/角色/重置密码', async () => {

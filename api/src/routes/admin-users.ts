@@ -199,7 +199,12 @@ async function clearInvites(c: Ctx, db: ReturnType<typeof getDb>, body: Record<s
 
   return withIdempotency(
     db,
-    { scope: `admin-users.clear-invites.${c.get('user').id}`, operationKey, payload: { action: 'clear-invites', codes } },
+    {
+      scope: `admin-users.clear-invites.${c.get('user').id}`,
+      operationKey,
+      payload: { action: 'clear-invites', codes },
+      audit: { actorUserId: c.get('user').id, action: 'clear-invites', targetCount: codes.length },
+    },
     async () => {
       const removed = hasSnapshot
         ? await run(db, 'DELETE FROM invites WHERE code = ANY($1) AND (used_at > 0 OR disabled_at > 0)', [codes])

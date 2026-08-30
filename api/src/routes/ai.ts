@@ -515,7 +515,12 @@ function startWritingRoute(kind: 'write_outline' | 'write_chapter' | 'continue')
     const operationKey = idempotencyKeyFromRequest(c, body)
     return withIdempotency(
       db,
-      { scope: `ai.writing.${kind}.${c.get('user').id}`, operationKey, payload: body },
+      {
+        scope: `ai.writing.${kind}.${c.get('user').id}`,
+        operationKey,
+        payload: body,
+        audit: { actorUserId: c.get('user').id, action: `ai.${kind}`, targetCount: 1 },
+      },
       async () => {
         if (!isTextAiConfigured()) return c.json({ error: 'AI 文本服务未配置', code: 'disabled' }, 503)
         const result = await startWritingJob(db, c.get('user'), kind, body, await auditRequestContext(c, db))
@@ -566,6 +571,7 @@ aiRoutes.post('/cover/generate', requireAdmin(), async (c) => {
       scope: `ai.cover.generate.${c.get('user').id}`,
       operationKey,
       payload: { novelId, prompt, renderTitle, platform, stylePreset, composition, variationId },
+      audit: { actorUserId: c.get('user').id, action: 'ai.cover.generate', targetCount: 1 },
     },
     async () => {
       const task = await createAiTask(db, {
@@ -610,16 +616,17 @@ aiRoutes.post('/cover/prompt', requireAdmin(), async (c) => {
   const stylePreset = typeof body.stylePreset === 'string' && body.stylePreset ? body.stylePreset : 'auto'
   const composition = typeof body.composition === 'string' && body.composition ? body.composition : 'auto'
   const variationId = typeof body.variationId === 'string' && body.variationId.trim() ? body.variationId.trim() : newCoverVariationId()
+  const operationKey = idempotencyKeyFromRequest(c, body)
 
   // iOS 端请求后台模式：先落任务，再异步执行，App 被挂起后可凭 taskId 恢复结果。
   if (body.async === true) {
-    const clientRequestId = idempotencyKeyFromRequest(c, body)
     return withIdempotency(
       db,
       {
         scope: `ai.cover.prompt.${c.get('user').id}`,
-        operationKey: clientRequestId,
+        operationKey,
         payload: { novelId, renderTitle, platform, stylePreset, composition, variationId, async: true },
+        audit: { actorUserId: c.get('user').id, action: 'ai.cover.prompt', targetCount: 1 },
       },
       async () => {
         const task = await createAiTask(db, {
@@ -628,7 +635,7 @@ aiRoutes.post('/cover/prompt', requireAdmin(), async (c) => {
           kind: 'cover_prompt',
           total: 1,
           prompt: '生成封面描述词',
-          params: coverPromptTaskParams({ novelId, renderTitle, platform, stylePreset, composition, variationId, clientRequestId }),
+          params: coverPromptTaskParams({ novelId, renderTitle, platform, stylePreset, composition, variationId, clientRequestId: operationKey }),
         })
         const audit = await auditRequestContext(c, db)
         void generateCoverPromptTask(db, {
@@ -647,12 +654,23 @@ aiRoutes.post('/cover/prompt', requireAdmin(), async (c) => {
     )
   }
 
-  try {
-    const result = await generateCoverPrompt(db, novelId, { renderTitle, platform, stylePreset, composition, variationId })
-    return c.json({ prompt: result.prompt, metadata: result.metadata })
-  } catch (err) {
-    return aiErrorResponse(c, err)
-  }
+  return withIdempotency(
+    db,
+    {
+      scope: `ai.cover.prompt.${c.get('user').id}`,
+      operationKey,
+      payload: { novelId, renderTitle, platform, stylePreset, composition, variationId, async: false },
+      audit: { actorUserId: c.get('user').id, action: 'ai.cover.prompt', targetCount: 1 },
+    },
+    async () => {
+      try {
+        const result = await generateCoverPrompt(db, novelId, { renderTitle, platform, stylePreset, composition, variationId })
+        return c.json({ prompt: result.prompt, metadata: result.metadata })
+      } catch (err) {
+        return aiErrorResponse(c, err)
+      }
+    },
+  )
 })
 
 // ---------- AI 封面候选管理：生成结果先落候选，采纳/弃用由管理员决定 ----------
@@ -676,6 +694,7 @@ aiRoutes.post('/cover/candidates/:id/adopt', requireAdmin(), async (c) => {
       scope: `ai.cover.adopt.${c.get('user').id}.${id}`,
       operationKey: idempotencyKeyFromRequest(c, body, ['operationId']),
       payload: { candidateId: id },
+      audit: { actorUserId: c.get('user').id, action: 'ai.cover.adopt', targetCount: 1 },
     },
     async () => {
       const ok = await adoptCoverCandidate(db, id)
@@ -719,6 +738,7 @@ aiRoutes.post('/cover/upload', requireAdmin(), async (c) => {
       scope: `ai.cover.upload.${c.get('user').id}.${novelId}`,
       operationKey: idempotencyKeyFromRequest(c, operationBody, ['operationId']),
       payload: { novelId, type, bytes: data.byteLength, fileHash: requestHash(data.toString('base64')) },
+      audit: { actorUserId: c.get('user').id, action: 'ai.cover.upload', targetCount: 1 },
     },
     async () => {
       await storeCover(db, novelId, new Uint8Array(data), type, 'upload')
@@ -1198,7 +1218,12 @@ aiRoutes.post('/tasks/:id/cancel', requireAdmin(), async (c) => {
   const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>
   return withIdempotency(
     db,
-    { scope: `ai.cancel.${c.get('user').id}.${id}`, operationKey: idempotencyKeyFromRequest(c, body, ['operationId']), payload: { taskId: id } },
+    {
+      scope: `ai.cancel.${c.get('user').id}.${id}`,
+      operationKey: idempotencyKeyFromRequest(c, body, ['operationId']),
+      payload: { taskId: id },
+      audit: { actorUserId: c.get('user').id, action: 'ai.task.cancel', targetCount: 1 },
+    },
     async () => {
       const ok = await cancelAiTask(db, id)
       if (!ok) return c.json({ error: '任务不存在或已经结束' }, 404)
@@ -1222,6 +1247,8 @@ aiRoutes.delete('/tasks/:id', requireAdmin(), async (c) => {
 /** 按原参数重试失败/取消的创作任务：新建任务执行，原任务保留作为记录。 */
 aiRoutes.post('/tasks/:id/retry', requireAdmin(), async (c) => {
   const db = getDb()
+  const requestBody = (await c.req.json().catch(() => ({}))) as Record<string, unknown>
+  const operationKey = idempotencyKeyFromRequest(c, requestBody, ['operationId'])
   const source = await getAiTask(db, String(c.req.param('id') || '').trim())
   if (!source) return c.json({ error: '任务不存在' }, 404)
   if (source.status !== 'failed' && source.status !== 'cancelled') return c.json({ error: '只有失败或已取消的任务可以重试' }, 409)
@@ -1234,11 +1261,14 @@ aiRoutes.post('/tasks/:id/retry', requireAdmin(), async (c) => {
     body = null
   }
   if (!body) return c.json({ error: '任务未记录原始参数（旧版本创建），无法重试' }, 422)
-  const operationKey = idempotencyKeyFromRequest(c, body)
-
   return withIdempotency(
     db,
-    { scope: `ai.retry.${c.get('user').id}.${source.id}`, operationKey, payload: { sourceTaskId: source.id, body } },
+    {
+      scope: `ai.retry.${c.get('user').id}.${source.id}`,
+      operationKey,
+      payload: { sourceTaskId: source.id, body },
+      audit: { actorUserId: c.get('user').id, action: 'ai.task.retry', targetCount: 1 },
+    },
     async () => {
 
     // 封面任务重试：按原参数（novelId）走独立的封面生成路径
@@ -1549,7 +1579,12 @@ aiRoutes.post('/generations/batch-delete', requireAdmin(), async (c) => {
   const db = getDb()
   return withIdempotency(
     db,
-    { scope: `ai.generations.batch-delete.${c.get('user').id}`, operationKey: idempotencyKeyFromRequest(c, body, ['operationId']), payload: { ids } },
+    {
+      scope: `ai.generations.batch-delete.${c.get('user').id}`,
+      operationKey: idempotencyKeyFromRequest(c, body, ['operationId']),
+      payload: { ids },
+      audit: { actorUserId: c.get('user').id, action: 'ai.generations.batch-delete', targetCount: ids.length },
+    },
     async () => {
       const deleted = await deleteGenerations(db, ids)
       return c.json({ ok: true, deleted, ids }, 200, { 'Cache-Control': 'no-store' })

@@ -8,6 +8,7 @@ import { AI_TASK_RECLAIM_INTERVAL_MS, failInterruptedAiTasks, listAiTasks, prune
 import { generateCoverPromptTask } from './services/ai/cover'
 import { ensureRuntimeSalts } from './runtime-config'
 import { pruneMobileTelemetry } from './routes/mobile-telemetry'
+import { pruneAdminOperationAudit } from './services/admin-operation-audit'
 
 async function resumeInterruptedCoverPromptTasks() {
   const db = getDb()
@@ -62,6 +63,8 @@ async function start() {
     if (pruned) console.log(`[zhi-zhou api] pruned ${pruned} finished AI task(s) older than ${settings.taskRetentionDays}d`)
     const prunedTelemetry = await pruneMobileTelemetry()
     if (prunedTelemetry) console.log(`[zhi-zhou api] pruned ${prunedTelemetry} mobile telemetry event(s) older than 90d`)
+    const prunedAdminOperations = await pruneAdminOperationAudit(getDb())
+    if (prunedAdminOperations) console.log(`[zhi-zhou api] pruned ${prunedAdminOperations} admin operation audit record(s) older than 180d`)
   }
 
   const server = serve({ fetch: app.fetch, port: config.port })
