@@ -145,14 +145,14 @@ struct ReaderView: View {
         .background(paper.ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)
         .navigationTitle(chapter?.title ?? "阅读")
-        // 顶部控制出现时使用不透明纸面，避免正文在导航栏玻璃过渡中透出。
+        // 顶部系统区域保持固定占位；只切换控制内容，避免状态栏出现时正文重新布局。
         .toolbarBackground(paper, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
-        .toolbar(showChrome ? .visible : .hidden, for: .navigationBar)
+        .toolbar(.visible, for: .navigationBar)
         .toolbar(.hidden, for: .bottomBar)
         .toolbar(.hidden, for: .tabBar)
-        .statusBarHidden(!showChrome)
-        .persistentSystemOverlays(showChrome ? .automatic : .hidden)
+        .statusBarHidden(false)
+        .persistentSystemOverlays(.automatic)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 readerToolbarGroup
@@ -704,6 +704,9 @@ struct ReaderView: View {
         .buttonStyle(ScaleButtonStyle(pressedScale: 0.92))
         .foregroundStyle(ink.opacity(0.82))
         .fixedSize()
+        .opacity(showChrome ? 1 : 0)
+        .allowsHitTesting(showChrome)
+        .accessibilityHidden(!showChrome)
     }
 
     /// 底部阅读控制组：上一章、章节进度、下一章共享一块轻量分段表面。
