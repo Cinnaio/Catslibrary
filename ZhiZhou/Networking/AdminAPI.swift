@@ -95,7 +95,7 @@ enum AdminAPI {
         let _: OkEnvelope = try await postAction([
             "action": "clear-invites",
             "operationId": operationID,
-        ])
+        ], idempotencyKey: operationID)
     }
 
     /// status：active | disabled
@@ -290,7 +290,7 @@ enum AdminAPI {
             "confirmedChangeIds": confirmedChangeIds,
         ]
         if !operationID.isEmpty { body["operationId"] = operationID }
-        return try await postScrape(body)
+        return try await postScrape(body, idempotencyKey: operationID.isEmpty ? nil : operationID)
     }
 
     /// POST /api/scrape action=title-source-search：同时搜索晋江与 POPO 原作者页面。
@@ -384,7 +384,7 @@ enum AdminAPI {
         try await postScrape([
             "action": "delete-unreachable-sources",
             "operationId": operationID,
-        ])
+        ], idempotencyKey: operationID)
     }
 
     static func testScrapeSource(host: String) async throws -> ScrapeTestResponse {
@@ -458,7 +458,8 @@ enum AdminAPI {
         let _: OkEnvelope = try await APIClient.shared.post(
             "/api/ai/tasks/\(encodePathSegment(id))/cancel",
             body: try jsonBody(["operationId": operationID]),
-            auth: true
+            auth: true,
+            idempotencyKey: operationID
         )
     }
 
@@ -473,7 +474,8 @@ enum AdminAPI {
         return try await APIClient.shared.post(
             "/api/ai/tasks/\(encodePathSegment(id))/retry",
             body: try jsonBody(payload),
-            auth: true
+            auth: true,
+            idempotencyKey: clientRequestID.isEmpty ? nil : clientRequestID
         )
     }
 
@@ -553,7 +555,7 @@ enum AdminAPI {
             "action": "import-configs",
             "configs": try configs.map { try $0.asDictionary() },
             "operationId": operationID,
-        ])
+        ], idempotencyKey: operationID)
     }
 
     /// 导入 Legado 书源：payload 为 { url?: String } 或 { text?: String }（书源池 URL / 书源 JSON）。
@@ -564,7 +566,7 @@ enum AdminAPI {
         var body = payload
         body["action"] = "import-legado"
         body["operationId"] = operationID
-        return try await postScrape(body)
+        return try await postScrape(body, idempotencyKey: operationID)
     }
 
     // MARK: - 爬虫：源批量操作（batch-toggle-sources / batch-delete-sources）
@@ -578,7 +580,7 @@ enum AdminAPI {
             "action": "batch-delete-sources",
             "hosts": hosts,
             "operationId": operationID,
-        ])
+        ], idempotencyKey: operationID)
     }
 
     // MARK: - AI 服务：封面生成
@@ -603,7 +605,7 @@ enum AdminAPI {
             "stylePreset": stylePreset,
             "composition": composition,
             "variationId": variationId,
-        ]), auth: true)
+        ]), auth: true, idempotencyKey: clientRequestID.isEmpty ? nil : clientRequestID)
     }
 
     /// POST /api/ai/cover/prompt：按书籍信息创建封面描述词后台任务。
@@ -625,7 +627,7 @@ enum AdminAPI {
             "stylePreset": stylePreset,
             "composition": composition,
             "variationId": variationId,
-        ]), auth: true)
+        ]), auth: true, idempotencyKey: clientRequestId.isEmpty ? nil : clientRequestId)
     }
 
     /// GET /api/ai/cover/candidates：某部小说的封面候选列表（含 dataUrl）。
@@ -638,7 +640,8 @@ enum AdminAPI {
         let _: OkEnvelope = try await APIClient.shared.post(
             "/api/ai/cover/candidates/\(encodePathSegment(id))/adopt",
             body: try jsonBody(["operationId": operationID]),
-            auth: true
+            auth: true,
+            idempotencyKey: operationID
         )
     }
 
@@ -670,7 +673,7 @@ enum AdminAPI {
         append("\r\n--\(boundary)--\r\n")
         let _: OkEnvelope = try await APIClient.shared.request(
             "POST", "/api/ai/cover/upload", body: body,
-            auth: true, contentType: "multipart/form-data; boundary=\(boundary)"
+            auth: true, contentType: "multipart/form-data; boundary=\(boundary)", idempotencyKey: operationID
         )
     }
 
@@ -764,7 +767,8 @@ enum AdminAPI {
         try await APIClient.shared.post(
             "/api/ai/generations/batch-delete",
             body: try jsonBody(["ids": ids, "operationId": operationID]),
-            auth: true
+            auth: true,
+            idempotencyKey: operationID
         )
     }
 
@@ -786,7 +790,8 @@ enum AdminAPI {
         return try await APIClient.shared.post(
             "/api/ai/writing/\(encodePathSegment(kind))",
             body: try jsonBody(payload),
-            auth: true
+            auth: true,
+            idempotencyKey: clientRequestID.isEmpty ? nil : clientRequestID
         )
     }
 
@@ -856,12 +861,12 @@ enum AdminAPI {
         return try await APIClient.shared.post("/api/ai/writing/\(scope)", body: try jsonBody(payload), auth: true)
     }
 
-    private static func postAction(_ dict: [String: Any]) async throws -> OkEnvelope {
-        try await APIClient.shared.post("/api/admin-users", body: try jsonBody(dict), auth: true)
+    private static func postAction(_ dict: [String: Any], idempotencyKey: String? = nil) async throws -> OkEnvelope {
+        try await APIClient.shared.post("/api/admin-users", body: try jsonBody(dict), auth: true, idempotencyKey: idempotencyKey)
     }
 
-    private static func postScrape<T: Decodable>(_ dict: [String: Any]) async throws -> T {
-        try await APIClient.shared.post("/api/scrape", body: try jsonBody(dict), auth: true)
+    private static func postScrape<T: Decodable>(_ dict: [String: Any], idempotencyKey: String? = nil) async throws -> T {
+        try await APIClient.shared.post("/api/scrape", body: try jsonBody(dict), auth: true, idempotencyKey: idempotencyKey)
     }
 
     /// 选择器 → JSON 字典（空值字段用空串占位，服务端容错）。

@@ -229,13 +229,21 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
         return comps.url ?? pathURL
     }
 
-    func request<T: Decodable>(_ method: String, _ path: String, body: Data? = nil, auth: Bool = false, contentType: String? = nil) async throws -> T {
+    func request<T: Decodable>(
+        _ method: String,
+        _ path: String,
+        body: Data? = nil,
+        auth: Bool = false,
+        contentType: String? = nil,
+        idempotencyKey: String? = nil
+    ) async throws -> T {
         try await requestInternal(
             method,
             path,
             body: body,
             auth: auth,
-            contentType: contentType
+            contentType: contentType,
+            idempotencyKey: idempotencyKey
         )
     }
 
@@ -245,6 +253,7 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
         body: Data? = nil,
         auth: Bool = false,
         contentType: String? = nil,
+        idempotencyKey: String? = nil,
         expectedReaderCacheScope: ChapterCacheScope.Snapshot? = nil
     ) async throws -> T {
         let url = try makeURL(path)
@@ -290,13 +299,19 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
         if let requestToken {
             req.setValue("Bearer \(requestToken)", forHTTPHeaderField: "Authorization")
         }
+        if let idempotencyKey, !idempotencyKey.isEmpty {
+            // The server stores the operation result under this key. A retry
+            // after a lost response therefore replays the original task
+            // instead of creating another quota-bearing job.
+            req.setValue(idempotencyKey, forHTTPHeaderField: "Idempotency-Key")
+        }
         // 与 Web 端一致：不做浏览器 HTTP 缓存，始终拿最新数据（章节正文除外，走上面内存缓存）
         req.setValue("no-store", forHTTPHeaderField: "Cache-Control")
 
         let data: Data
         let response: URLResponse
         do {
-            (data, response) = try await perform(req)
+            (data, response) = try await performIdempotent(req, key: idempotencyKey)
         } catch is CancellationError {
             throw CancellationError()
         } catch let error as URLError {
@@ -326,6 +341,18 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
         }
 
         guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+        if let idempotencyKey,
+           !idempotencyKey.isEmpty,
+           [502, 503, 504].contains(http.statusCode) {
+            // A gateway error can arrive after the server committed the
+            // operation. Repeating the same key is safe and may replay it.
+            let retried = try await perform(req)
+            guard let retriedHTTP = retried.1 as? HTTPURLResponse else { throw APIError.invalidResponse }
+            if (200..<300).contains(retriedHTTP.statusCode) {
+                return try decodeResponse(retried.0, response: retried.1, cacheScope: cacheScope, cacheKey: cacheKey, url: url, type: T.self)
+            }
+            // Keep the original response path for consistent error handling.
+        }
         guard (200..<300).contains(http.statusCode) else {
             if http.statusCode == 401, let requestToken {
                 handleUnauthorized(requestToken: requestToken)
@@ -348,6 +375,39 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
                 forKey: cacheKey,
                 cost: data.count
             )
+            await ChapterDiskCache.shared.store(data, for: url.absoluteString, scope: cacheScope.userID)
+            guard await chapterCacheScope.isCurrent(cacheScope) else { throw CancellationError() }
+        }
+        return decoded
+    }
+
+    private func performIdempotent(_ req: URLRequest, key: String?) async throws -> (Data, URLResponse) {
+        do {
+            return try await perform(req)
+        } catch let error as URLError {
+            guard let key, !key.isEmpty, !Task.isCancelled,
+                  error.code != .cancelled else { throw error }
+            return try await perform(req)
+        } catch {
+            guard let key, !key.isEmpty, !Task.isCancelled else { throw error }
+            return try await perform(req)
+        }
+    }
+
+    private func decodeResponse<T: Decodable>(
+        _ data: Data,
+        response: URLResponse,
+        cacheScope: ChapterCacheScope.Snapshot?,
+        cacheKey: NSString?,
+        url: URL,
+        type: T.Type
+    ) async throws -> T {
+        if let cacheScope, !(await chapterCacheScope.isCurrent(cacheScope)) {
+            throw CancellationError()
+        }
+        guard let decoded = decode(data, as: type) else { throw APIError.invalidResponse }
+        if let cacheScope, let cacheKey {
+            chapterDataCache.setObject(data as NSData, forKey: cacheKey, cost: data.count)
             await ChapterDiskCache.shared.store(data, for: url.absoluteString, scope: cacheScope.userID)
             guard await chapterCacheScope.isCurrent(cacheScope) else { throw CancellationError() }
         }
@@ -487,17 +547,17 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
         }
     }
 
-    func post<T: Decodable>(_ path: String, body: Data? = nil, auth: Bool = false) async throws -> T {
-        try await request("POST", path, body: body, auth: auth)
+    func post<T: Decodable>(_ path: String, body: Data? = nil, auth: Bool = false, idempotencyKey: String? = nil) async throws -> T {
+        try await request("POST", path, body: body, auth: auth, idempotencyKey: idempotencyKey)
     }
 
-    func delete<T: Decodable>(_ path: String, auth: Bool = false) async throws -> T {
-        try await request("DELETE", path, auth: auth)
+    func delete<T: Decodable>(_ path: String, auth: Bool = false, idempotencyKey: String? = nil) async throws -> T {
+        try await request("DELETE", path, auth: auth, idempotencyKey: idempotencyKey)
     }
 
     /// 只关心状态码的请求（登录/登出/加书架等）
-    func requestVoid(_ method: String, _ path: String, body: Data? = nil, auth: Bool = false) async throws {
-        let _: EmptyResponse = try await request(method, path, body: body, auth: auth)
+    func requestVoid(_ method: String, _ path: String, body: Data? = nil, auth: Bool = false, idempotencyKey: String? = nil) async throws {
+        let _: EmptyResponse = try await request(method, path, body: body, auth: auth, idempotencyKey: idempotencyKey)
     }
 
     func jsonBody(_ value: some Encodable) throws -> Data {
