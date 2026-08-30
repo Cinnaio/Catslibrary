@@ -6,7 +6,6 @@ struct ReaderSettingsView: View {
     @Environment(ReaderSettingsStore.self) private var settings
     @Environment(\.dismiss) private var dismiss
     @State private var interactionFeedback = 0
-    @State private var showingResetConfirmation = false
 
     private let themes: [(id: String, title: String, swatch: Color)] = [
         ("default", "系统", Color(.systemBackground)),
@@ -102,31 +101,12 @@ struct ReaderSettingsView: View {
             .sensoryFeedback(.selection, trigger: settings.fontSizeIndex)
             .sensoryFeedback(.selection, trigger: interactionFeedback)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("恢复默认") { showingResetConfirmation = true }
-                        .font(.subheadline)
-                        .foregroundStyle(AppTheme.textSecondary)
-                        .buttonStyle(ScaleButtonStyle(pressedScale: 0.96))
-                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("完成") { dismiss() }
                         .font(.body.weight(.semibold))
                         .foregroundStyle(AppTheme.primary)
                         .buttonStyle(ScaleButtonStyle(pressedScale: 0.96))
                 }
-            }
-            .confirmationDialog(
-                "恢复默认阅读设置？",
-                isPresented: $showingResetConfirmation,
-                titleVisibility: .visible
-            ) {
-                Button("恢复默认") {
-                    settings.resetToDefaults()
-                    interactionFeedback &+= 1
-                }
-                Button("取消", role: .cancel) {}
-            } message: {
-                Text("字号、字体、纸面和翻页方式会恢复默认，并同步到当前账号。")
             }
         }
         .presentationDragIndicator(.visible)

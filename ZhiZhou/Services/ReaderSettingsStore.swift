@@ -298,20 +298,6 @@ final class ReaderSettingsStore {
         scheduleSync()
     }
 
-    /// 恢复阅读器默认值：先在本地立即生效，再按当前账号同步到服务端。
-    func resetToDefaults() {
-        syncTask?.cancel()
-        var state = ReaderSettingsState(
-            snapshot: ReaderSettingsSnapshot(values: Self.defaultValues, updatedAt: [:])
-        )
-        for (key, value) in Self.defaultValues {
-            state.set(key, value)
-        }
-        apply(state.snapshot)
-        persistCurrent()
-        scheduleSync()
-    }
-
     /// 进入 App 时拉取服务端设置（LWW：服务端时间戳更新则采纳）
     func syncFromServer() async {
         guard let session = currentSession, APIClient.shared.isAuthenticated else { return }
