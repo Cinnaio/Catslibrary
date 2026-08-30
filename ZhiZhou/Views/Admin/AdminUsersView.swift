@@ -122,7 +122,7 @@ struct AdminUsersView: View {
             }
             .adminDangerousOperationConfirmation($pendingDangerousOperation) { operation in
                 guard operation.action == .clearInvites else { return }
-                Task { await clearInvites(operationID: operation.operationID) }
+                Task { await clearInvites(operationID: operation.operationID, codes: operation.targetIDs) }
             }
     }
 
@@ -288,22 +288,25 @@ struct AdminUsersView: View {
 
     private func requestClearInvites() {
         guard !inviteBusy else { return }
+        let codes = (overview?.invites ?? []).filter { $0.isUsed || $0.isDisabled }.map(\.code).sorted()
         pendingDangerousOperation = AdminDangerousOperation(
             action: .clearInvites,
             kind: .batchDelete,
-            targetIDs: ["invite:used", "invite:disabled"],
+            targetIDs: codes,
             title: "清理邀请码",
-            message: "将批量删除所有已使用和已禁用的邀请码；未使用的邀请码会保留。",
-            confirmLabel: "清理这些邀请码"
+            message: codes.isEmpty
+                ? "确认时没有发现已使用或已禁用的邀请码，不会删除新出现的记录。"
+                : "将删除确认时发现的 \(codes.count) 个已使用或已禁用邀请码；之后新增的记录会保留。",
+            confirmLabel: codes.isEmpty ? "确认空操作" : "清理 \(codes.count) 个邀请码"
         )
     }
 
-    private func clearInvites(operationID: String) async {
+    private func clearInvites(operationID: String, codes: [String]) async {
         guard !inviteBusy else { return }
         inviteBusy = true
         defer { inviteBusy = false }
         do {
-            try await AdminAPI.clearInvites(operationID: operationID)
+            try await AdminAPI.clearInvites(operationID: operationID, codes: codes)
             await load()
         } catch {
             actionError = AppCopy.friendlyError(error)

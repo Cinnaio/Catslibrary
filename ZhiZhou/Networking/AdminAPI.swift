@@ -91,10 +91,11 @@ enum AdminAPI {
         let _: OkEnvelope = try await postAction(["action": "disable-invite", "code": code])
     }
 
-    static func clearInvites(operationID: String) async throws {
+    static func clearInvites(operationID: String, codes: [String]) async throws {
         let _: OkEnvelope = try await postAction([
             "action": "clear-invites",
             "operationId": operationID,
+            "codes": codes,
         ], idempotencyKey: operationID)
     }
 
@@ -157,13 +158,20 @@ enum AdminAPI {
         _ action: String,
         jobId: String? = nil,
         novelId: String? = nil,
-        operationID: String = ""
+        operationID: String = "",
+        targetIDs: [String] = []
     ) async throws -> AdminJobActionResponse {
         var body: [String: Any] = ["action": action]
         if let jobId { body["jobId"] = jobId }
         if let novelId { body["novelId"] = novelId }
         if !operationID.isEmpty { body["operationId"] = operationID }
-        return try await APIClient.shared.post("/api/scrape", body: try jsonBody(body), auth: true)
+        if action == "clear-completed" { body["jobIds"] = targetIDs }
+        return try await APIClient.shared.post(
+            "/api/scrape",
+            body: try jsonBody(body),
+            auth: true,
+            idempotencyKey: operationID.isEmpty ? nil : operationID
+        )
     }
 
     /// GET /api/download-logs?limit=：最近下载日志。
@@ -380,10 +388,11 @@ enum AdminAPI {
         return try await postScrape(body)
     }
 
-    static func deleteUnreachableSources(operationID: String) async throws -> AdminJobActionResponse {
+    static func deleteUnreachableSources(operationID: String, hosts: [String]) async throws -> AdminJobActionResponse {
         try await postScrape([
             "action": "delete-unreachable-sources",
             "operationId": operationID,
+            "hosts": hosts,
         ], idempotencyKey: operationID)
     }
 

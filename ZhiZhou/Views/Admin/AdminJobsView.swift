@@ -115,7 +115,7 @@ struct AdminJobsView: View {
                     await runAction(.cancel, jobID: jobID, operationID: operation.operationID)
                 }
             case .clearCompletedScrapeJobs:
-                Task { await clearCompleted(operationID: operation.operationID) }
+                Task { await clearCompleted(operationID: operation.operationID, jobIDs: operation.targetIDs) }
             default:
                 break
             }
@@ -288,14 +288,19 @@ struct AdminJobsView: View {
 
     private func requestClearCompleted() {
         guard !isBusy else { return }
-        let targetStatuses = ["completed", "partial", "cancelled"]
+        let jobIDs = jobs
+            .filter { ["completed", "partial", "cancelled"].contains($0.status) }
+            .map(\.id)
+            .sorted()
         pendingDangerousOperation = AdminDangerousOperation(
             action: .clearCompletedScrapeJobs,
             kind: .batchDelete,
-            targetIDs: targetStatuses,
+            targetIDs: jobIDs,
             title: "清理已完成任务",
-            message: "将删除所有已完成、部分完成和已取消的任务记录，不可恢复。",
-            confirmLabel: "删除这些任务记录"
+            message: jobIDs.isEmpty
+                ? "确认时没有找到已完成、部分完成或已取消的任务，不会删除新出现的记录。"
+                : "将删除确认时发现的 \(jobIDs.count) 个已结束任务；之后新结束的任务会保留。",
+            confirmLabel: jobIDs.isEmpty ? "确认空操作" : "删除 \(jobIDs.count) 条记录"
         )
     }
 
@@ -323,14 +328,15 @@ struct AdminJobsView: View {
         }
     }
 
-    private func clearCompleted(operationID: String) async {
+    private func clearCompleted(operationID: String, jobIDs: [String]) async {
         guard !isBusy else { return }
         isBusy = true
         defer { isBusy = false }
         do {
             _ = try await AdminAPI.scrapeAction(
                 "clear-completed",
-                operationID: operationID
+                operationID: operationID,
+                targetIDs: jobIDs
             )
             await loadAll()
         } catch {

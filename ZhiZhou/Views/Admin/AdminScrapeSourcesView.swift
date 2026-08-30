@@ -138,7 +138,7 @@ struct AdminScrapeSourcesView: View {
             case .batchDeleteScrapeSources:
                 Task { await batchDelete(operation) }
             case .deleteUnreachableScrapeSources:
-                Task { await deleteUnreachable(operationID: operation.operationID) }
+                Task { await deleteUnreachable(operationID: operation.operationID, hosts: operation.targetIDs) }
             default:
                 break
             }
@@ -432,22 +432,28 @@ struct AdminScrapeSourcesView: View {
 
     private func requestDeleteUnreachable() {
         guard !cleaningUnreachable else { return }
+        let hosts = sources
+            .filter { $0.connectivity == "unreachable" }
+            .map(\.host)
+            .sorted()
         pendingDangerousOperation = AdminDangerousOperation(
             action: .deleteUnreachableScrapeSources,
             kind: .batchDelete,
-            targetIDs: ["connectivity:unreachable"],
+            targetIDs: hosts,
             title: "删除不可达书源",
-            message: "将删除服务端记录中最近一次连通性检测为不可达的全部书源，此操作不可恢复。",
-            confirmLabel: "删除全部不可达书源"
+            message: hosts.isEmpty
+                ? "确认时没有发现不可达书源，不会删除新出现的记录。"
+                : "将删除确认时发现的 \(hosts.count) 个不可达书源；之后状态变化的书源会保留。",
+            confirmLabel: hosts.isEmpty ? "确认空操作" : "删除 \(hosts.count) 个书源"
         )
     }
 
-    private func deleteUnreachable(operationID: String) async {
+    private func deleteUnreachable(operationID: String, hosts: [String]) async {
         guard !cleaningUnreachable else { return }
         cleaningUnreachable = true
         defer { cleaningUnreachable = false }
         do {
-            let result = try await AdminAPI.deleteUnreachableSources(operationID: operationID)
+            let result = try await AdminAPI.deleteUnreachableSources(operationID: operationID, hosts: hosts)
             connectivityText = "已删除 \(result.deleted ?? 0) 个不可达书源。"
             await load()
         } catch {
