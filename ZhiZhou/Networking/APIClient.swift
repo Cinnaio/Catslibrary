@@ -349,7 +349,7 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
             let retried = try await perform(req)
             guard let retriedHTTP = retried.1 as? HTTPURLResponse else { throw APIError.invalidResponse }
             if (200..<300).contains(retriedHTTP.statusCode) {
-                return try decodeResponse(retried.0, response: retried.1, cacheScope: cacheScope, cacheKey: cacheKey, url: url, type: T.self)
+                return try await decodeResponse(retried.0, response: retried.1, cacheScope: cacheScope, cacheKey: cacheKey, url: url, type: T.self)
             }
             // Keep the original response path for consistent error handling.
         }
