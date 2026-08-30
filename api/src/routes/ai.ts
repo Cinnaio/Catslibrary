@@ -36,6 +36,7 @@ import { optionalUser, requireAdmin, requireUser, type AuthEnv } from '../middle
 import { cancelAiTask, countActiveWritingTasks, createAiTask, deleteAiTask, getAiTask, listAiTasks, updateAiTask } from '../services/ai/tasks'
 import { adoptCoverCandidate, deleteCoverCandidate, listCoverCandidates, storeCover, MAX_COVER_BYTES } from '../services/covers'
 import { clientIpFromContext } from '../services/ai/audit-context'
+import { idempotencyKeyFromRequest, withIdempotency } from '../services/idempotency'
 
 export const aiRoutes = new Hono<AuthEnv>()
 
@@ -349,6 +350,7 @@ function writingTaskParams(body: Record<string, any>): string {
     ...(Number.isFinite(Number(body.temperature)) && body.temperature !== undefined && body.temperature !== null
       ? { temperature: Number(body.temperature) }
       : {}),
+    ...(typeof body.clientRequestId === 'string' && body.clientRequestId.trim() ? { clientRequestId: body.clientRequestId.trim().slice(0, 160) } : {}),
   })
 }
 
@@ -509,11 +511,18 @@ async function startWritingJob(
 function startWritingRoute(kind: 'write_outline' | 'write_chapter' | 'continue') {
   return async (c: Context<AuthEnv>) => {
     const db = getDb()
-    const body = await c.req.json().catch(() => ({}))
-    if (!isTextAiConfigured()) return c.json({ error: 'AI 文本服务未配置', code: 'disabled' }, 503)
-    const result = await startWritingJob(db, c.get('user'), kind, body, await auditRequestContext(c, db))
-    if (!result.ok) return c.json({ error: result.error }, result.status)
-    return c.json({ ok: true, taskId: result.task.id, batchId: result.task.batchId, total: result.task.total }, 202)
+    const body = (await c.req.json().catch(() => ({}))) as Record<string, any>
+    const operationKey = idempotencyKeyFromRequest(c, body)
+    return withIdempotency(
+      db,
+      { scope: `ai.writing.${kind}.${c.get('user').id}`, operationKey, payload: body },
+      async () => {
+        if (!isTextAiConfigured()) return c.json({ error: 'AI 文本服务未配置', code: 'disabled' }, 503)
+        const result = await startWritingJob(db, c.get('user'), kind, body, await auditRequestContext(c, db))
+        if (!result.ok) return c.json({ error: result.error }, result.status)
+        return c.json({ ok: true, taskId: result.task.id, batchId: result.task.batchId, total: result.task.total }, 202)
+      },
+    )
   }
 }
 
@@ -530,7 +539,7 @@ aiRoutes.post('/writing/continue', requireAdmin(), startWritingRoute('continue')
  */
 aiRoutes.post('/cover/generate', requireAdmin(), async (c) => {
   const db = getDb()
-  const body = await c.req.json().catch(() => ({}))
+  const body = (await c.req.json().catch(() => ({}))) as Record<string, any>
   const novelId = String(body.novelId || '').trim()
   if (!novelId) return c.json({ error: 'novelId 必填' }, 400)
   const novel = await first<{ title: string }>(db, 'SELECT title FROM novels WHERE id = $1', [novelId])
@@ -549,39 +558,50 @@ aiRoutes.post('/cover/generate', requireAdmin(), async (c) => {
   const stylePreset = typeof body.stylePreset === 'string' && body.stylePreset ? body.stylePreset : 'auto'
   const composition = typeof body.composition === 'string' && body.composition ? body.composition : 'auto'
   const variationId = typeof body.variationId === 'string' && body.variationId.trim() ? body.variationId.trim() : newCoverVariationId()
+  const operationKey = idempotencyKeyFromRequest(c, body)
 
-  const task = await createAiTask(db, {
-    userId: c.get('user').id,
-    novelId,
-    kind: 'cover',
-    total: 1,
-    prompt: prompt || '生成封面',
-    params: JSON.stringify({ novelId, prompt, renderTitle, platform, stylePreset, composition, variationId }),
-  })
-  void generateNovelCover(db, {
-    userId: c.get('user').id,
-    novelId,
-    renderTitle,
-    platform,
-    stylePreset,
-    composition,
-    variationId,
-    prompt,
-    taskId: task.id,
-    ...(await auditRequestContext(c, db)),
-  })
-    .then(() => updateAiTask(db, task.id, { status: 'completed', current: 1, step: '封面已生成，待采纳' }))
-    .catch(async (err) => {
-      console.error('[ai] 封面生成后台任务失败', err)
-      const message = err instanceof AiError ? err.message : '封面生成失败'
-      await updateAiTask(db, task.id, { status: 'failed', error: message }).catch(() => {})
-    })
-  return c.json({ ok: true, taskId: task.id, batchId: '', total: 1 }, 202)
+  return withIdempotency(
+    db,
+    {
+      scope: `ai.cover.generate.${c.get('user').id}`,
+      operationKey,
+      payload: { novelId, prompt, renderTitle, platform, stylePreset, composition, variationId },
+    },
+    async () => {
+      const task = await createAiTask(db, {
+        userId: c.get('user').id,
+        novelId,
+        kind: 'cover',
+        total: 1,
+        prompt: prompt || '生成封面',
+        params: JSON.stringify({ novelId, prompt, renderTitle, platform, stylePreset, composition, variationId, ...(operationKey ? { clientRequestId: operationKey } : {}) }),
+      })
+      void generateNovelCover(db, {
+        userId: c.get('user').id,
+        novelId,
+        renderTitle,
+        platform,
+        stylePreset,
+        composition,
+        variationId,
+        prompt,
+        taskId: task.id,
+        ...(await auditRequestContext(c, db)),
+      })
+        .then(() => updateAiTask(db, task.id, { status: 'completed', current: 1, step: '封面已生成，待采纳' }))
+        .catch(async (err) => {
+          console.error('[ai] 封面生成后台任务失败', err)
+          const message = err instanceof AiError ? err.message : '封面生成失败'
+          await updateAiTask(db, task.id, { status: 'failed', error: message }).catch(() => {})
+        })
+      return c.json({ ok: true, taskId: task.id, batchId: '', total: 1 }, 202)
+    },
+  )
 })
 
 aiRoutes.post('/cover/prompt', requireAdmin(), async (c) => {
   const db = getDb()
-  const body = await c.req.json().catch(() => ({}))
+  const body = (await c.req.json().catch(() => ({}))) as Record<string, any>
   const novelId = String(body.novelId || '').trim()
   if (!novelId) return c.json({ error: 'novelId 必填' }, 400)
   const settings = await getAiSettings(db)
@@ -593,28 +613,38 @@ aiRoutes.post('/cover/prompt', requireAdmin(), async (c) => {
 
   // iOS 端请求后台模式：先落任务，再异步执行，App 被挂起后可凭 taskId 恢复结果。
   if (body.async === true) {
-    const clientRequestId = typeof body.clientRequestId === 'string' ? body.clientRequestId.trim().slice(0, 120) : ''
-    const task = await createAiTask(db, {
-      userId: c.get('user').id,
-      novelId,
-      kind: 'cover_prompt',
-      total: 1,
-      prompt: '生成封面描述词',
-      params: coverPromptTaskParams({ novelId, renderTitle, platform, stylePreset, composition, variationId, clientRequestId }),
-    })
-    const audit = await auditRequestContext(c, db)
-    void generateCoverPromptTask(db, {
-      userId: c.get('user').id,
-      novelId,
-      renderTitle,
-      platform,
-      stylePreset,
-      composition,
-      variationId,
-      taskId: task.id,
-      ...audit,
-    })
-    return c.json({ ok: true, taskId: task.id, batchId: '', total: 1 }, 202)
+    const clientRequestId = idempotencyKeyFromRequest(c, body)
+    return withIdempotency(
+      db,
+      {
+        scope: `ai.cover.prompt.${c.get('user').id}`,
+        operationKey: clientRequestId,
+        payload: { novelId, renderTitle, platform, stylePreset, composition, variationId, async: true },
+      },
+      async () => {
+        const task = await createAiTask(db, {
+          userId: c.get('user').id,
+          novelId,
+          kind: 'cover_prompt',
+          total: 1,
+          prompt: '生成封面描述词',
+          params: coverPromptTaskParams({ novelId, renderTitle, platform, stylePreset, composition, variationId, clientRequestId }),
+        })
+        const audit = await auditRequestContext(c, db)
+        void generateCoverPromptTask(db, {
+          userId: c.get('user').id,
+          novelId,
+          renderTitle,
+          platform,
+          stylePreset,
+          composition,
+          variationId,
+          taskId: task.id,
+          ...audit,
+        })
+        return c.json({ ok: true, taskId: task.id, batchId: '', total: 1 }, 202)
+      },
+    )
   }
 
   try {
@@ -1173,9 +1203,15 @@ aiRoutes.post('/tasks/:id/retry', requireAdmin(), async (c) => {
     body = null
   }
   if (!body) return c.json({ error: '任务未记录原始参数（旧版本创建），无法重试' }, 422)
+  const operationKey = idempotencyKeyFromRequest(c, body)
 
-  // 封面任务重试：按原参数（novelId）走独立的封面生成路径
-  if (source.kind === 'cover') {
+  return withIdempotency(
+    db,
+    { scope: `ai.retry.${c.get('user').id}.${source.id}`, operationKey, payload: { sourceTaskId: source.id, body } },
+    async () => {
+
+    // 封面任务重试：按原参数（novelId）走独立的封面生成路径
+    if (source.kind === 'cover') {
     const novelId = String(body.novelId || '').trim()
     if (!novelId) return c.json({ error: '任务未记录 novelId，无法重试' }, 422)
     const settings = await getAiSettings(db)
@@ -1191,37 +1227,37 @@ aiRoutes.post('/tasks/:id/retry', requireAdmin(), async (c) => {
     const stylePreset = typeof body.stylePreset === 'string' && body.stylePreset ? body.stylePreset : 'auto'
     const composition = typeof body.composition === 'string' && body.composition ? body.composition : 'auto'
     const variationId = typeof body.variationId === 'string' && body.variationId.trim() ? body.variationId.trim() : newCoverVariationId()
-    const task = await createAiTask(db, {
-      userId: c.get('user').id,
-      novelId,
-      kind: 'cover',
-      total: 1,
-      prompt: prompt || '生成封面',
-      params: JSON.stringify({ novelId, prompt, renderTitle, platform, stylePreset, composition, variationId }),
-    })
-    const audit = await auditRequestContext(c, db)
-    void generateNovelCover(db, {
-      userId: c.get('user').id,
-      novelId,
-      renderTitle,
-      platform,
-      stylePreset,
-      composition,
-      variationId,
-      prompt,
-      taskId: task.id,
-      ...audit,
-    })
-      .then(() => updateAiTask(db, task.id, { status: 'completed', current: 1, step: '封面已生成，待采纳' }))
-      .catch(async (err) => {
-        console.error('[ai] 封面重试任务失败', err)
-        const message = err instanceof AiError ? err.message : '封面生成失败'
-        await updateAiTask(db, task.id, { status: 'failed', error: message }).catch(() => {})
+      const task = await createAiTask(db, {
+        userId: c.get('user').id,
+        novelId,
+        kind: 'cover',
+        total: 1,
+        prompt: prompt || '生成封面',
+        params: JSON.stringify({ novelId, prompt, renderTitle, platform, stylePreset, composition, variationId, ...(operationKey ? { clientRequestId: operationKey } : {}) }),
       })
-    return c.json({ ok: true, taskId: task.id, batchId: '', total: 1 }, 202)
-  }
+      const audit = await auditRequestContext(c, db)
+      void generateNovelCover(db, {
+        userId: c.get('user').id,
+        novelId,
+        renderTitle,
+        platform,
+        stylePreset,
+        composition,
+        variationId,
+        prompt,
+        taskId: task.id,
+        ...audit,
+      })
+        .then(() => updateAiTask(db, task.id, { status: 'completed', current: 1, step: '封面已生成，待采纳' }))
+        .catch(async (err) => {
+          console.error('[ai] 封面重试任务失败', err)
+          const message = err instanceof AiError ? err.message : '封面生成失败'
+          await updateAiTask(db, task.id, { status: 'failed', error: message }).catch(() => {})
+        })
+      return c.json({ ok: true, taskId: task.id, batchId: '', total: 1 }, 202)
+    }
 
-  if (source.kind === 'cover_prompt') {
+    if (source.kind === 'cover_prompt') {
     const novelId = String(body.novelId || '').trim()
     if (!novelId) return c.json({ error: '任务未记录 novelId，无法重试' }, 422)
     const renderTitle = typeof body.renderTitle === 'boolean' ? body.renderTitle : true
@@ -1229,43 +1265,53 @@ aiRoutes.post('/tasks/:id/retry', requireAdmin(), async (c) => {
     const stylePreset = typeof body.stylePreset === 'string' && body.stylePreset ? body.stylePreset : 'auto'
     const composition = typeof body.composition === 'string' && body.composition ? body.composition : 'auto'
     const variationId = typeof body.variationId === 'string' && body.variationId.trim() ? body.variationId.trim() : newCoverVariationId()
-    const task = await createAiTask(db, {
-      userId: c.get('user').id,
-      novelId,
-      kind: 'cover_prompt',
-      total: 1,
-      prompt: '生成封面描述词',
-      params: coverPromptTaskParams({ novelId, renderTitle, platform, stylePreset, composition, variationId, clientRequestId: newCoverVariationId() }),
-    })
-    const audit = await auditRequestContext(c, db)
-    void generateCoverPromptTask(db, {
-      userId: c.get('user').id,
-      novelId,
-      renderTitle,
-      platform,
-      stylePreset,
-      composition,
-      variationId,
-      taskId: task.id,
-      ...audit,
-    })
-    return c.json({ ok: true, taskId: task.id, batchId: '', total: 1 }, 202)
-  }
+      const task = await createAiTask(db, {
+        userId: c.get('user').id,
+        novelId,
+        kind: 'cover_prompt',
+        total: 1,
+        prompt: '生成封面描述词',
+        params: coverPromptTaskParams({
+          novelId,
+          renderTitle,
+          platform,
+          stylePreset,
+          composition,
+          variationId,
+          clientRequestId: operationKey || newCoverVariationId(),
+        }),
+      })
+      const audit = await auditRequestContext(c, db)
+      void generateCoverPromptTask(db, {
+        userId: c.get('user').id,
+        novelId,
+        renderTitle,
+        platform,
+        stylePreset,
+        composition,
+        variationId,
+        taskId: task.id,
+        ...audit,
+      })
+      return c.json({ ok: true, taskId: task.id, batchId: '', total: 1 }, 202)
+    }
 
-  if (!isTextAiConfigured()) return c.json({ error: 'AI 文本服务未配置', code: 'disabled' }, 503)
+    if (!isTextAiConfigured()) return c.json({ error: 'AI 文本服务未配置', code: 'disabled' }, 503)
 
   // 断点恢复：continue 任务重试时，先取原批次已生成的草稿，从已完成处接续，避免全量重来
   const resume = source.kind === 'continue' && source.batchId ? await loadResumeDrafts(db, source.batchId) : undefined
-  const result = await startWritingJob(
-    db,
-    c.get('user'),
-    source.kind as 'write_outline' | 'write_chapter' | 'continue',
-    body,
-    await auditRequestContext(c, db),
-    resume,
+    const result = await startWritingJob(
+      db,
+      c.get('user'),
+      source.kind as 'write_outline' | 'write_chapter' | 'continue',
+      { ...body, ...(operationKey ? { clientRequestId: operationKey } : {}) },
+      await auditRequestContext(c, db),
+      resume,
+    )
+    if (!result.ok) return c.json({ error: result.error }, result.status)
+    return c.json({ ok: true, taskId: result.task.id, batchId: result.task.batchId, total: result.task.total }, 202)
+    },
   )
-  if (!result.ok) return c.json({ error: result.error }, result.status)
-  return c.json({ ok: true, taskId: result.task.id, batchId: result.task.batchId, total: result.task.total }, 202)
 })
 
 // ---------- 审计接口 ----------

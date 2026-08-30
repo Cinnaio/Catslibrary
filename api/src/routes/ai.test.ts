@@ -1507,6 +1507,34 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     expect(usage.rows.length).toBeGreaterThan(0)
   })
 
+  it('异步 AI 请求：相同 clientRequestId 重放原任务，不重复调用上游', async () => {
+    const novelId = await firstNovelId(t)
+    fetchMock.mockClear()
+    const payload = { novelId, async: true, variationId: 'idempotent-prompt-test', clientRequestId: 'ios-request-id-001' }
+
+    const firstResponse = await req('/api/ai/cover/prompt', json('POST', payload, adminToken))
+    const first = await jsonOf<{ taskId: string }>(firstResponse)
+    expect(firstResponse.status).toBe(202)
+
+    const replayResponse = await req('/api/ai/cover/prompt', json('POST', payload, adminToken))
+    const replay = await jsonOf<{ taskId: string }>(replayResponse)
+    expect(replayResponse.status).toBe(202)
+    expect(replayResponse.headers.get('x-idempotent-replay')).toBe('true')
+    expect(replay.taskId).toBe(first.taskId)
+
+    const conflict = await req(
+      '/api/ai/cover/prompt',
+      json('POST', { ...payload, variationId: 'a-different-variation' }, adminToken),
+    )
+    expect(conflict.status).toBe(409)
+    expect((await jsonOf<{ code: string }>(conflict)).code).toBe('idempotency_conflict')
+
+    expect((await waitForTask(first.taskId, adminToken)).status).toBe('completed')
+    // 封面描述词流程本身包含一次分类和一次正文生成；重复 HTTP 请求
+    // 不应再增加这两个上游调用。
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
   it('cover prompt：上游流式分片会通过任务 SSE 实时推送，并最终持久化', async () => {
     const novelId = await firstNovelId(t)
     const previous = fetchMock.getMockImplementation()
