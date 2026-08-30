@@ -12,7 +12,7 @@ import { AiError, chat, chatStream, isTextAiConfigured, providerLabel, textProvi
 import { generateImage, isImageAiConfigured, imageProvider, imageProviderLabel } from './image'
 import { recordUsage } from './usage'
 import { getAiSettings } from './settings'
-import { createAiTask, isAiTaskCancelled, updateAiTask, getAiTask } from './tasks'
+import { createAiTask, isAiTaskActive, startAiTaskHeartbeat, updateAiTask, getAiTask } from './tasks'
 import { storeCoverCandidate, MAX_COVER_BYTES } from '../covers'
 import {
   GENRE_PRIORITY,
@@ -161,8 +161,9 @@ export async function generateCoverPromptTask(
     userAgent?: string
   },
 ): Promise<void> {
-  if (await isAiTaskCancelled(db, opts.taskId)) return
-  await updateAiTask(db, opts.taskId, { status: 'running', step: '正在生成封面描述词' })
+  if (!(await isAiTaskActive(db, opts.taskId))) return
+  if (!(await updateAiTask(db, opts.taskId, { status: 'running', step: '正在生成封面描述词' }))) return
+  const stopHeartbeat = startAiTaskHeartbeat(db, opts.taskId)
 
   try {
     let lastProgressAt = 0
@@ -172,7 +173,7 @@ export async function generateCoverPromptTask(
       // 上游 token 可能非常密集，限制快照写入频率，避免流式输出把数据库写爆。
       const firstSceneProgress = progress.phase === 'scene' && !hasPersistedSceneProgress
       if (!firstSceneProgress && now - lastProgressAt < 80) return
-      if (await isAiTaskCancelled(db, opts.taskId)) return
+      if (!(await isAiTaskActive(db, opts.taskId))) return
       lastProgressAt = now
       if (progress.phase === 'scene') hasPersistedSceneProgress = true
       await updateAiTask(db, opts.taskId, {
@@ -185,7 +186,7 @@ export async function generateCoverPromptTask(
     }
 
     const result = await generateCoverPrompt(db, opts.novelId, { ...opts, onProgress: persistProgress })
-    if (await isAiTaskCancelled(db, opts.taskId)) return
+    if (!(await isAiTaskActive(db, opts.taskId))) return
 
     if (result.textUsage) {
       await recordUsage(db, {
@@ -211,9 +212,11 @@ export async function generateCoverPromptTask(
       result: JSON.stringify({ prompt: result.prompt, metadata: result.metadata }),
     })
   } catch (err) {
-    if (await isAiTaskCancelled(db, opts.taskId)) return
+    if (!(await isAiTaskActive(db, opts.taskId))) return
     const message = err instanceof AiError ? err.message : '封面描述词生成失败'
     await updateAiTask(db, opts.taskId, { status: 'failed', error: message }).catch(() => {})
+  } finally {
+    stopHeartbeat()
   }
 }
 
@@ -726,8 +729,8 @@ export async function generateNovelCover(
         }),
       })
     ).id
-  await updateAiTask(db, taskId, { status: 'running', step: '正在生成封面描述词' })
-  if (await isAiTaskCancelled(db, taskId)) throw new AiError('invalid', '任务已取消')
+  if (!(await updateAiTask(db, taskId, { status: 'running', step: '正在生成封面描述词' }))) throw new AiError('invalid', '任务已停止')
+  const stopHeartbeat = startAiTaskHeartbeat(db, taskId)
 
   try {
     const imageProvider_ = imageProvider()
@@ -747,7 +750,7 @@ export async function generateNovelCover(
           variationId,
         })
     const { prompt, metadata, textUsage } = built
-    if (await isAiTaskCancelled(db, taskId)) throw new AiError('invalid', '任务已取消')
+    if (!(await isAiTaskActive(db, taskId))) throw new AiError('invalid', '任务已停止')
 
     // 把最终送图像模型的 prompt 落进任务 step：失败时据此定位是哪个词触发了上游安全策略
     await updateAiTask(db, taskId, { step: `正在生成封面（prompt：${prompt.slice(0, 200)}）` })
@@ -760,6 +763,7 @@ export async function generateNovelCover(
       responseFormat: imageSettings.imageResponseFormat,
       timeoutMs: 120_000,
     })
+    if (!(await isAiTaskActive(db, taskId))) throw new AiError('invalid', '任务已停止')
     if (img.data.byteLength > MAX_COVER_BYTES) {
       throw new AiError('invalid', `生成的图片过大（${img.data.byteLength} 字节，上限 ${MAX_COVER_BYTES}）`)
     }
@@ -775,6 +779,7 @@ export async function generateNovelCover(
     })
 
     // 记账：图像调用填 image_count；文本描述词调用（若发生）单独记一次文本用量，与图像分开审计
+    if (!(await isAiTaskActive(db, taskId))) throw new AiError('invalid', '任务已停止')
     if (textUsage) {
       await recordUsage(db, {
         userId: opts.userId,
@@ -806,12 +811,14 @@ export async function generateNovelCover(
     if (ownsTask) await updateAiTask(db, taskId, { status: 'completed', current: 1, step: '封面已生成，待采纳' })
     return { taskId }
   } catch (err) {
-    if (ownsTask) {
+    if (ownsTask && await isAiTaskActive(db, taskId)) {
       // 失败时把上游原因 + 实际 prompt 一起带出，方便定位是哪个词触发的安全拦截
       const reason = err instanceof AiError ? err.message : '封面生成失败'
       const { step } = await getTaskStep(db, taskId)
       await updateAiTask(db, taskId, { status: 'failed', error: `${reason}${step ? `（${step}）` : ''}` }).catch(() => {})
     }
     throw err
+  } finally {
+    stopHeartbeat()
   }
 }

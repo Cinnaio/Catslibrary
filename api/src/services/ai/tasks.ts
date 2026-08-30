@@ -4,6 +4,14 @@ import { newId } from '../auth'
 
 export type AiTaskStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
 
+export const AI_TASK_QUEUED_TIMEOUT_MS = 15 * 60_000
+export const AI_TASK_RUNNING_TIMEOUT_MS = 30 * 60_000
+export const AI_TASK_HEARTBEAT_INTERVAL_MS = 60_000
+export const AI_TASK_RECLAIM_INTERVAL_MS = 60_000
+
+const ACTIVE_STATUSES = ['queued', 'running'] as const
+const TERMINAL_STATUSES = ['completed', 'failed', 'cancelled'] as const
+
 export interface AiTask {
   id: string
   userId: string
@@ -50,7 +58,7 @@ export async function createAiTask(db: Db, input: { userId: string; novelId?: st
   return mapTask((await first<AiTaskRow>(db, 'SELECT * FROM ai_tasks WHERE id = $1', [id]))!)
 }
 
-export async function updateAiTask(db: Db, id: string, patch: { status?: AiTaskStatus; current?: number; total?: number; step?: string; prompt?: string; result?: string; batchId?: string; error?: string }): Promise<void> {
+export async function updateAiTask(db: Db, id: string, patch: { status?: AiTaskStatus; current?: number; total?: number; step?: string; prompt?: string; result?: string; batchId?: string; error?: string }): Promise<boolean> {
   const values: unknown[] = []
   const parts: string[] = []
   for (const [key, value] of Object.entries(patch)) {
@@ -58,12 +66,16 @@ export async function updateAiTask(db: Db, id: string, patch: { status?: AiTaskS
     if (!column) continue
     values.push(value); parts.push(`${column} = $${values.length}`)
   }
-  if (!parts.length) return
-  const finished = patch.status && ['completed', 'failed', 'cancelled'].includes(patch.status) ? Date.now() : 0
+  if (!parts.length) return false
+  const terminalStatus = patch.status && TERMINAL_STATUSES.includes(patch.status as (typeof TERMINAL_STATUSES)[number]) ? patch.status : undefined
+  const finished = terminalStatus ? Date.now() : 0
   values.push(Date.now(), id)
   parts.push(`updated_at = $${values.length - 1}`)
   if (finished) { values.splice(values.length - 1, 0, finished); parts.push(`finished_at = $${values.length - 1}`) }
-  await run(db, `UPDATE ai_tasks SET ${parts.join(', ')} WHERE id = $${values.length}`, values)
+  const activeOrSameTerminal = terminalStatus
+    ? `status IN ('queued','running') OR status = '${terminalStatus}'`
+    : `status IN ('queued','running')`
+  return (await run(db, `UPDATE ai_tasks SET ${parts.join(', ')} WHERE id = $${values.length} AND (${activeOrSameTerminal})`, values)) > 0
 }
 
 export async function getAiTask(db: Db, id: string): Promise<AiTask | undefined> {
@@ -74,6 +86,29 @@ export async function getAiTask(db: Db, id: string): Promise<AiTask | undefined>
 export async function isAiTaskCancelled(db: Db, id: string): Promise<boolean> {
   const row = await first<{ status: string }>(db, 'SELECT status FROM ai_tasks WHERE id = $1', [id])
   return row?.status === 'cancelled'
+}
+
+/** 任务仍可由当前执行器继续推进时返回 true；failed/cancelled 任务不会被旧回调重新唤醒。 */
+export async function isAiTaskActive(db: Db, id: string): Promise<boolean> {
+  const row = await first<{ status: string }>(db, 'SELECT status FROM ai_tasks WHERE id = $1', [id])
+  return row ? ACTIVE_STATUSES.includes(row.status as (typeof ACTIVE_STATUSES)[number]) : false
+}
+
+/** 仅刷新活跃任务的更新时间，用于长时间上游调用期间的存活心跳。 */
+export async function touchAiTask(db: Db, id: string): Promise<boolean> {
+  return (await run(db, `UPDATE ai_tasks SET updated_at = $1 WHERE id = $2 AND status IN ('queued','running')`, [Date.now(), id])) > 0
+}
+
+/**
+ * 启动任务存活心跳。返回停止函数；心跳只会刷新 queued/running，
+ * 因此任务被取消或回收后，旧执行器不会把它重新变成活跃任务。
+ */
+export function startAiTaskHeartbeat(db: Db, id: string, intervalMs = AI_TASK_HEARTBEAT_INTERVAL_MS): () => void {
+  const timer = setInterval(() => {
+    void touchAiTask(db, id).catch(() => {})
+  }, Math.max(1_000, Math.trunc(intervalMs)))
+  timer.unref?.()
+  return () => clearInterval(timer)
 }
 
 export async function cancelAiTask(db: Db, id: string): Promise<boolean> {
@@ -103,6 +138,30 @@ export async function failInterruptedAiTasks(db: Db, opts: { excludeKinds?: stri
     `UPDATE ai_tasks SET status = 'failed', step = '已中断', error = '服务重启，任务中断', updated_at = $1, finished_at = $1
      WHERE status IN ('queued','running')` + exclusionSql,
     [now, ...excluded],
+  )
+}
+
+/** 定期回收没有任何进展的孤儿任务，避免它们长期占用并发名额。 */
+export async function reclaimStaleAiTasks(
+  db: Db,
+  opts: { now?: number; queuedAfterMs?: number; runningAfterMs?: number; excludeKinds?: string[] } = {},
+): Promise<number> {
+  const now = Number.isFinite(opts.now) ? Number(opts.now) : Date.now()
+  const queuedAfterMs = Math.max(1_000, Math.trunc(opts.queuedAfterMs ?? AI_TASK_QUEUED_TIMEOUT_MS))
+  const runningAfterMs = Math.max(1_000, Math.trunc(opts.runningAfterMs ?? AI_TASK_RUNNING_TIMEOUT_MS))
+  const excluded = (opts.excludeKinds || []).map((kind) => String(kind).trim()).filter(Boolean)
+  const placeholders = excluded.map((_, index) => '$' + String(index + 4)).join(', ')
+  const exclusionSql = excluded.length ? ` AND kind NOT IN (${placeholders})` : ''
+  return run(
+    db,
+    `UPDATE ai_tasks
+     SET status = 'failed',
+         step = CASE WHEN status = 'queued' THEN '排队超时，已回收' ELSE '后台任务超时，已自动回收' END,
+         error = '后台任务超时，已自动回收',
+         updated_at = $1,
+         finished_at = $1
+     WHERE ((status = 'queued' AND updated_at < $2) OR (status = 'running' AND updated_at < $3))${exclusionSql}`,
+    [now, now - queuedAfterMs, now - runningAfterMs, ...excluded],
   )
 }
 

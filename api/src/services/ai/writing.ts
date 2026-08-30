@@ -5,7 +5,7 @@ import { chat, isTextAiConfigured, providerLabel, textProvider, AiError } from '
 import { saveGeneration, type Generation, type BatchDraft } from './generations'
 import { recordUsage } from './usage'
 import { getAiSettings } from './settings'
-import { createAiTask, isAiTaskCancelled, updateAiTask } from './tasks'
+import { createAiTask, isAiTaskActive, startAiTaskHeartbeat, updateAiTask } from './tasks'
 import { getStyleProfile } from './style-profile'
 import { getPlotState } from './plot-state'
 import { getRelationshipProfile } from './relationship-profile'
@@ -239,26 +239,35 @@ export async function generateWriting(db: Db, opts: {
   const maxTokens = opts.maxTokens ?? settings.writingMaxTokens
   const ownsTask = !opts.taskId
   const taskId = opts.taskId || (await createAiTask(db, { userId: opts.userId, novelId: opts.novelId, kind: opts.kind, prompt: user })).id
-  await updateAiTask(db, taskId, { status: 'running', step: 'AI 正在生成', prompt: user })
-  const res = await chat({ messages: [{ role: 'system', content: system }, { role: 'user', content: user }], temperature, maxTokens: Math.min(1000000, Math.max(300, maxTokens)), timeoutMs: 600000 })
-  // 续写/新写章节：解析 AI 输出的首行标题（提示词要求输出标题），标题存入 params_json.draftTitle
-  // 供发布时自动填充；正文剥掉标题行后落库，避免标题混入章节正文。
-  const parsedTitle = opts.kind === 'continue' || opts.kind === 'write_chapter' ? parseContinuationTitle(res.text) : null
-  const resultText = parsedTitle?.title ? parsedTitle.body : res.text
-  const generation = await saveGeneration(db, {
-    novelId: opts.novelId,
-    chapterId: '',
-    kind: opts.kind,
-    model: res.model,
-    paramsJson: JSON.stringify({ version: 5, temperature, maxTokens, targetWords: opts.targetWords || 0, chapterCount: opts.chapterCount || 1, ...(parsedTitle?.title ? { draftTitle: parsedTitle.title } : {}), ...(opts.batchId ? { batchId: opts.batchId, batchIndex: opts.batchIndex || 1, batchCount: opts.batchCount || 1 } : {}) }),
-    prompt: user,
-    result: resultText,
-    status: 'draft',
-    createdBy: opts.userId,
-  })
-  await recordUsage(db, { userId: opts.userId, model: res.model, provider: providerLabel(provider.baseUrl), promptTokens: res.promptTokens, completionTokens: res.completionTokens, costMillicents: Math.round(res.cost * 100000), novelId: opts.novelId, generationType: opts.kind, ipAddress: opts.ipAddress, userAgent: opts.userAgent })
-  if (ownsTask) await updateAiTask(db, taskId, { status: 'completed', current: 1, step: '已完成' })
-  return { generation, usage: { model: res.model, promptTokens: res.promptTokens, completionTokens: res.completionTokens } }
+  const started = await updateAiTask(db, taskId, { status: 'running', step: 'AI 正在生成', prompt: user })
+  if (!started) throw new AiError('invalid', '任务已停止')
+  const stopHeartbeat = startAiTaskHeartbeat(db, taskId)
+  try {
+    const res = await chat({ messages: [{ role: 'system', content: system }, { role: 'user', content: user }], temperature, maxTokens: Math.min(1000000, Math.max(300, maxTokens)), timeoutMs: 600000 })
+    // 旧执行器可能在上游调用期间被回收；不要让它把结果和用量写回已结束任务。
+    if (!(await isAiTaskActive(db, taskId))) throw new AiError('invalid', '任务已停止')
+    // 续写/新写章节：解析 AI 输出的首行标题（提示词要求输出标题），标题存入 params_json.draftTitle
+    // 供发布时自动填充；正文剥掉标题行后落库，避免标题混入章节正文。
+    const parsedTitle = opts.kind === 'continue' || opts.kind === 'write_chapter' ? parseContinuationTitle(res.text) : null
+    const resultText = parsedTitle?.title ? parsedTitle.body : res.text
+    const generation = await saveGeneration(db, {
+      novelId: opts.novelId,
+      chapterId: '',
+      kind: opts.kind,
+      model: res.model,
+      paramsJson: JSON.stringify({ version: 5, temperature, maxTokens, targetWords: opts.targetWords || 0, chapterCount: opts.chapterCount || 1, ...(parsedTitle?.title ? { draftTitle: parsedTitle.title } : {}), ...(opts.batchId ? { batchId: opts.batchId, batchIndex: opts.batchIndex || 1, batchCount: opts.batchCount || 1 } : {}) }),
+      prompt: user,
+      result: resultText,
+      status: 'draft',
+      createdBy: opts.userId,
+    })
+    if (!(await isAiTaskActive(db, taskId))) throw new AiError('invalid', '任务已停止')
+    await recordUsage(db, { userId: opts.userId, model: res.model, provider: providerLabel(provider.baseUrl), promptTokens: res.promptTokens, completionTokens: res.completionTokens, costMillicents: Math.round(res.cost * 100000), novelId: opts.novelId, generationType: opts.kind, ipAddress: opts.ipAddress, userAgent: opts.userAgent })
+    if (ownsTask) await updateAiTask(db, taskId, { status: 'completed', current: 1, step: '已完成' })
+    return { generation, usage: { model: res.model, promptTokens: res.promptTokens, completionTokens: res.completionTokens } }
+  } finally {
+    stopHeartbeat()
+  }
 }
 
 export async function generateContinuationChapters(db: Db, opts: {
@@ -296,7 +305,7 @@ export async function generateContinuationChapters(db: Db, opts: {
   const taskId = opts.taskId || (await createAiTask(db, { userId: opts.userId, novelId: opts.novelId, kind: 'continue', total: count, batchId, prompt: opts.instruction })).id
 
   for (let index = startIndex; index < count; index += 1) {
-    if (await isAiTaskCancelled(db, taskId)) break
+    if (!(await isAiTaskActive(db, taskId))) break
     const result = await generateWriting(db, {
       ...opts,
       kind: 'continue',
@@ -313,6 +322,7 @@ export async function generateContinuationChapters(db: Db, opts: {
       taskId,
     })
     generations.push(result.generation)
+    if (!(await isAiTaskActive(db, taskId))) break
     await updateAiTask(db, taskId, { current: index + 1, total: count, step: `已生成第 ${index + 1} / ${count} 章` })
     if (opts.taskId) await updateAiTask(db, opts.taskId, { current: index + 1, total: count, step: `已生成第 ${index + 1} / ${count} 章` })
     usage = {
@@ -323,7 +333,9 @@ export async function generateContinuationChapters(db: Db, opts: {
     context = `${context}\n\n第 ${index + 1} 章续写：\n${cleanWritingText(result.generation.result, 6000)}`.slice(-MAX_CONTEXT_CHARS)
   }
 
-  await updateAiTask(db, taskId, { status: generations.length === count ? 'completed' : 'cancelled', current: generations.length, total: count, step: generations.length === count ? '已完成' : '已取消' })
+  if (await isAiTaskActive(db, taskId)) {
+    await updateAiTask(db, taskId, { status: generations.length === count ? 'completed' : 'cancelled', current: generations.length, total: count, step: generations.length === count ? '已完成' : '已取消' })
+  }
   return { generations, usage }
 }
 

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { app } from '../app'
 import { setDbForTests } from '../db/pool'
-import { failInterruptedAiTasks, pruneFinishedAiTasks } from '../services/ai/tasks'
+import { failInterruptedAiTasks, pruneFinishedAiTasks, reclaimStaleAiTasks, updateAiTask } from '../services/ai/tasks'
 import { recordUsage } from '../services/ai/usage'
 import { createTestDb, type TestDb } from '../test/db'
 
@@ -1029,6 +1029,37 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     expect(Number(byId.get('task_interrupt_run')?.finished_at)).toBeGreaterThan(0)
     expect(byId.get('task_interrupt_queue')?.status).toBe('failed')
     expect(byId.get('task_interrupt_done')?.status).toBe('completed')
+  })
+
+  it('reclaimStaleAiTasks 回收无进展任务，迟到的完成回调不能复活任务', async () => {
+    const now = Date.now()
+    await t.db.query(
+      `INSERT INTO ai_tasks (id,user_id,novel_id,kind,status,current,total,step,prompt,batch_id,error,created_at,updated_at,finished_at) VALUES
+       ('task_reclaim_queue','u1','','continue','queued',0,1,'','','','',$1,$1,0),
+       ('task_reclaim_run','u1','','cover','running',0,1,'生成中','','','',$1,$1,0),
+       ('task_reclaim_fresh','u1','','continue','running',0,1,'生成中','','','',$2,$2,0),
+       ('task_reclaim_done','u1','','continue','failed',0,1,'已回收','','','',$1,$1,$1)`,
+      [now - 10_000, now - 100],
+    )
+
+    const affected = await reclaimStaleAiTasks(t.db, { now, queuedAfterMs: 1_000, runningAfterMs: 1_000 })
+    expect(affected).toBe(2)
+
+    const lateUpdate = await updateAiTask(t.db, 'task_reclaim_run', { status: 'completed', current: 1, step: '已完成' })
+    expect(lateUpdate).toBe(false)
+
+    const { rows } = await t.db.query<{ id: string; status: string; step: string; error: string; finished_at: number }>(
+      "SELECT id, status, step, error, finished_at FROM ai_tasks WHERE id LIKE 'task_reclaim_%' ORDER BY id",
+    )
+    const byId = new Map(rows.map((row) => [row.id, row]))
+    expect(byId.get('task_reclaim_queue')?.status).toBe('failed')
+    expect(byId.get('task_reclaim_queue')?.step).toContain('回收')
+    expect(byId.get('task_reclaim_run')?.status).toBe('failed')
+    expect(byId.get('task_reclaim_run')?.error).toContain('超时')
+    expect(Number(byId.get('task_reclaim_run')?.finished_at)).toBe(now)
+    expect(byId.get('task_reclaim_fresh')?.status).toBe('running')
+    expect(byId.get('task_reclaim_done')?.status).toBe('failed')
+    await t.db.query("DELETE FROM ai_tasks WHERE id LIKE 'task_reclaim_%'")
   })
 
   // ---------- 草稿发布：事务化与重复发布保护 ----------
