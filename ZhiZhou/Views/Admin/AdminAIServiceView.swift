@@ -2,6 +2,7 @@ import SwiftUI
 
 /// AI 服务：模块入口（状态与用量 / 供应商配置 / 运行参数 / 任务 / 审计）。
 struct AdminAIServiceView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @State private var activeTasks: [AiTaskInfo] = []
 
     var body: some View {
@@ -72,7 +73,10 @@ struct AdminAIServiceView: View {
         .navigationTitle("AI 服务")
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await loadActiveTasks() }
-        .task { await monitorActiveTasks() }
+        .task(id: scenePhase) {
+            guard scenePhase == .active else { return }
+            await monitorActiveTasks()
+        }
     }
 
     private func monitorActiveTasks() async {

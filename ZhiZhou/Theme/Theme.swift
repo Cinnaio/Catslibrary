@@ -72,6 +72,12 @@ enum AppTheme {
     static let textSecondary = Color(.secondaryLabel)
     static let textMuted = Color(.tertiaryLabel)
 
+    // MARK: 卡片层级
+    /// 内容卡片统一使用轻量阴影，避免不同页面出现深浅不一的浮层质感。
+    static let cardShadow = Color.black.opacity(0.10)
+    static let cardShadowRadius: CGFloat = 12
+    static let cardShadowY: CGFloat = 4
+
     // MARK: 状态色
     static let success = Color(light: "4E713F", dark: "A9BF97")
     static let warning = Color(light: "8A5B13", dark: "D9B06A")
@@ -256,7 +262,7 @@ extension View {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .strokeBorder(AppTheme.border, lineWidth: 1)
             )
-            .shadow(color: Color.black.opacity(0.16), radius: 10, y: 4)
+            .shadow(color: AppTheme.cardShadow, radius: AppTheme.cardShadowRadius, y: AppTheme.cardShadowY)
     }
 
     func frostedRowBackground() -> some View {

@@ -233,7 +233,7 @@ struct AdminDashboardView: View {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .strokeBorder(AppTheme.border.opacity(0.65), lineWidth: 1)
             )
-            .shadow(color: Color.black.opacity(0.06), radius: 8, y: 3)
+            .shadow(color: AppTheme.cardShadow, radius: AppTheme.cardShadowRadius, y: AppTheme.cardShadowY)
             .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 8, trailing: 16))
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)

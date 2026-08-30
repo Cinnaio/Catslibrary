@@ -1,4 +1,5 @@
 import SwiftUI
+import Charts
 
 /// 用量与审计：用户用量汇总 + 最近调用明细（类型筛选）+ 近 30 天调用趋势。
 struct AdminAIUsageView: View {
@@ -47,7 +48,30 @@ struct AdminAIUsageView: View {
 
                 if !trend.isEmpty {
                     Section("近 30 天趋势") {
-                        ForEach(Array(trend.suffix(14).reversed())) { point in
+                        Chart(recentTrend) { point in
+                            BarMark(
+                                x: .value("日期", point.date),
+                                y: .value("调用次数", Double(point.calls ?? 0))
+                            )
+                            .foregroundStyle(AppTheme.primary)
+                        }
+                        .frame(height: 150)
+                        .chartYAxis { AxisMarks(position: .leading) }
+                        .chartXAxis {
+                            AxisMarks(values: .automatic(desiredCount: 5)) { _ in
+                                AxisGridLine()
+                                AxisValueLabel()
+                            }
+                        }
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("近 14 天 AI 调用次数趋势")
+                        .accessibilityValue(
+                            recentTrend
+                                .map { "\($0.date) \($0.calls ?? 0) 次" }
+                                .joined(separator: "，")
+                        )
+
+                        ForEach(Array(recentTrend.reversed().prefix(5))) { point in
                             HStack(spacing: 8) {
                                 Text(point.date)
                                     .font(.caption)
@@ -72,6 +96,9 @@ struct AdminAIUsageView: View {
                                     .foregroundStyle(AppTheme.textMuted)
                             }
                         }
+                        Text("图表显示最近 14 天，明细列出最近 5 天。")
+                            .font(.caption2)
+                            .foregroundStyle(AppTheme.textMuted)
                     }
                 }
 
@@ -201,6 +228,10 @@ struct AdminAIUsageView: View {
 
     private var maxTrendCalls: Int {
         max(1, trend.map { $0.calls ?? 0 }.max() ?? 1)
+    }
+
+    private var recentTrend: [AiAuditTrendPoint] {
+        Array(trend.suffix(14))
     }
 
     // MARK: - 数据

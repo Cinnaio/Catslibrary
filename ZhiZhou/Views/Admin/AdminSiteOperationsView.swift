@@ -1,4 +1,5 @@
 import SwiftUI
+import Charts
 
 /// 站点运营：运营概览（指标 / 流量分析 / 内容健康度 / 公告编辑）。
 /// 对齐 Web 端 admin SiteOperationsTab（GET /api/admin/site 一次拉取全部数据）。
@@ -164,7 +165,56 @@ struct AdminSiteOperationsView: View {
         Group {
             if let trend = traffic?.dailyTrend, !trend.isEmpty {
                 Section("每日流量趋势（近 \(trend.count) 天）") {
-                    ForEach(Array(trend.suffix(14).reversed())) { point in
+                    let recentTrend = Array(trend.suffix(14))
+                    Chart {
+                        ForEach(recentTrend) { point in
+                            LineMark(
+                                x: .value("日期", point.date),
+                                y: .value("页面浏览", Double(point.pageViews ?? 0))
+                            )
+                            .foregroundStyle(by: .value("指标", "页面浏览"))
+                            .lineStyle(StrokeStyle(lineWidth: 2))
+                            PointMark(
+                                x: .value("日期", point.date),
+                                y: .value("页面浏览", Double(point.pageViews ?? 0))
+                            )
+                            .foregroundStyle(by: .value("指标", "页面浏览"))
+
+                            LineMark(
+                                x: .value("日期", point.date),
+                                y: .value("访客", Double(point.visitors ?? 0))
+                            )
+                            .foregroundStyle(by: .value("指标", "访客"))
+                            .lineStyle(StrokeStyle(lineWidth: 2))
+                            PointMark(
+                                x: .value("日期", point.date),
+                                y: .value("访客", Double(point.visitors ?? 0))
+                            )
+                            .foregroundStyle(by: .value("指标", "访客"))
+                        }
+                    }
+                    .frame(height: 170)
+                    .chartForegroundStyleScale([
+                        "页面浏览": AppTheme.primary,
+                        "访客": AppTheme.warning,
+                    ])
+                    .chartLegend(position: .bottom, alignment: .leading)
+                    .chartYAxis { AxisMarks(position: .leading) }
+                    .chartXAxis {
+                        AxisMarks(values: .automatic(desiredCount: 5)) { _ in
+                            AxisGridLine()
+                            AxisValueLabel()
+                        }
+                    }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("近 14 天页面浏览与访客趋势")
+                    .accessibilityValue(
+                        recentTrend
+                            .map { "\($0.date) 浏览 \($0.pageViews ?? 0) 次，访客 \($0.visitors ?? 0) 人" }
+                            .joined(separator: "，")
+                    )
+
+                    ForEach(Array(recentTrend.reversed().prefix(5))) { point in
                         HStack {
                             Text(point.date)
                                 .font(.caption)
@@ -178,6 +228,9 @@ struct AdminSiteOperationsView: View {
                                 .foregroundStyle(AppTheme.textMuted)
                         }
                     }
+                    Text("图表显示最近 14 天，明细列出最近 5 天。")
+                        .font(.caption2)
+                        .foregroundStyle(AppTheme.textMuted)
                 }
             }
             if let countries = traffic?.countries, !countries.isEmpty {

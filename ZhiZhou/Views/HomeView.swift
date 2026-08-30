@@ -113,7 +113,7 @@ struct HomeView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .pageBackground()
-        .navigationTitle("主页")
+        .navigationTitle("发现")
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await reload() }
         .task { await reload() }
