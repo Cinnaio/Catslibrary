@@ -5,8 +5,6 @@ import SwiftUI
 struct ReaderSettingsView: View {
     @Environment(ReaderSettingsStore.self) private var settings
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var interactionFeedback = 0
     @State private var showingResetConfirmation = false
 
@@ -20,8 +18,6 @@ struct ReaderSettingsView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    previewSection
-                    sectionDivider
                     fontSizeSection
                     sectionDivider
 
@@ -134,47 +130,6 @@ struct ReaderSettingsView: View {
             }
         }
         .presentationDragIndicator(.visible)
-    }
-
-    private var previewSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("预览")
-                .font(.body)
-                .foregroundStyle(AppTheme.textSecondary)
-
-            VStack(
-                alignment: .leading,
-                spacing: min(settings.paragraphSpacing(for: dynamicTypeSize), 32)
-            ) {
-                Text("知舟 · 阅读预览")
-                    .font(settings.titleFont(for: dynamicTypeSize))
-                    .foregroundStyle(settings.textColor(systemDark: colorScheme == .dark))
-
-                Text("暮色沿着窗棂慢慢落下，纸页上的字在安静的呼吸里变得清晰。")
-                    .font(settings.bodyFont(for: dynamicTypeSize))
-                    .foregroundStyle(settings.textColor(systemDark: colorScheme == .dark))
-                    .lineSpacing(settings.lineSpacing(for: dynamicTypeSize))
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Text("调整下面的字号、字体、行距和纸面，预览会即时更新。")
-                    .font(settings.bodyFont(for: dynamicTypeSize))
-                    .foregroundStyle(settings.textColor(systemDark: colorScheme == .dark))
-                    .lineSpacing(settings.lineSpacing(for: dynamicTypeSize))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(18)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                settings.backgroundColor(systemDark: colorScheme == .dark),
-                in: RoundedRectangle(cornerRadius: 18, style: .continuous)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .strokeBorder(AppTheme.border.opacity(0.75), lineWidth: 1)
-            )
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("阅读样式预览")
-        }
     }
 
     private var fontSizeSection: some View {
