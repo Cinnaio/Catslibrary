@@ -442,7 +442,7 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
     /// 读取服务端 SSE 文本行。用于可恢复任务的前台实时展示；连接中断不影响服务端任务本身。
     func streamLines(_ path: String, auth: Bool = false) -> AsyncThrowingStream<String, Error> {
         let requestToken = auth ? token : nil
-        AsyncThrowingStream { continuation in
+        return AsyncThrowingStream { continuation in
             let task = Task {
                 do {
                     let url = try makeURL(path)
