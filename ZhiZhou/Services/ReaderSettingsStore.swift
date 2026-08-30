@@ -12,8 +12,14 @@ final class ReaderSettingsStore {
     static let shared = ReaderSettingsStore()
     private static let defaultValues = ReaderSettingsState.defaultValues
 
+    private struct Session: Equatable {
+        let userID: String
+        let generation: UUID
+    }
+
     private let localStore: ReaderLocalStore
     private(set) var activeUserID: String?
+    private var sessionGeneration = UUID()
     var values: [String: String] = [:]
     var updatedAt: [String: Int64] = [:]
     private var dirtyKeys: Set<String> = []
@@ -38,6 +44,7 @@ final class ReaderSettingsStore {
 
         syncTask?.cancel()
         persistCurrent()
+        sessionGeneration = UUID()
         activeUserID = trimmed
 
         let snapshot = localStore.loadSettings(userID: trimmed)
@@ -50,6 +57,7 @@ final class ReaderSettingsStore {
     func deactivate() {
         syncTask?.cancel()
         persistCurrent()
+        sessionGeneration = UUID()
         activeUserID = nil
         apply(ReaderSettingsSnapshot(values: Self.defaultValues, updatedAt: [:]))
         lastSyncError = nil
@@ -194,7 +202,7 @@ final class ReaderSettingsStore {
 
     /// 进入 App 时拉取服务端设置（LWW：服务端时间戳更新则采纳）
     func syncFromServer() async {
-        guard let userID = activeUserID, APIClient.shared.isAuthenticated else { return }
+        guard let session = currentSession, APIClient.shared.isAuthenticated else { return }
         struct Remote: Codable {
             let settings: [String: String]
             let updatedAt: [String: Int64]
@@ -206,7 +214,7 @@ final class ReaderSettingsStore {
                 remote: ReaderSettingsSnapshot(values: remote.settings, updatedAt: remote.updatedAt),
                 knownKeys: knownKeys
             )
-            guard activeUserID == userID else { return }
+            guard isCurrent(session) else { return }
             apply(result.snapshot)
             persistCurrent()
             lastSyncError = nil
@@ -214,7 +222,7 @@ final class ReaderSettingsStore {
                 scheduleSync()
             }
         } catch {
-            guard activeUserID == userID else { return }
+            guard isCurrent(session) else { return }
             lastSyncError = error.localizedDescription
         }
     }
@@ -222,17 +230,17 @@ final class ReaderSettingsStore {
     /// 退出登录前可主动尝试发送一次；失败时 dirtyKeys 会留在本地快照中。
     func flush() async {
         syncTask?.cancel()
-        await pushCurrentSnapshot()
+        await pushCurrentSnapshot(for: currentSession)
     }
 
     /// 防抖同步：停止改动 800ms 后推送一次 LWW 负载
     private func scheduleSync() {
         syncTask?.cancel()
-        let userID = activeUserID
+        let session = currentSession
         syncTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 800_000_000)
             guard !Task.isCancelled, let self else { return }
-            await self.pushCurrentSnapshot(for: userID)
+            await self.pushCurrentSnapshot(for: session)
         }
     }
 
@@ -252,19 +260,17 @@ final class ReaderSettingsStore {
         localStore.saveSettings(currentSnapshot, userID: activeUserID)
     }
 
-    private func pushCurrentSnapshot(for expectedUserID: String? = nil) async {
-        guard let userID = activeUserID,
-              (expectedUserID == nil || expectedUserID == userID),
-              APIClient.shared.isAuthenticated,
-              !dirtyKeys.isEmpty
-        else { return }
+    private func pushCurrentSnapshot(for expectedSession: Session? = nil) async {
+        guard let session = currentSession else { return }
+        if let expectedSession, expectedSession != session { return }
+        guard APIClient.shared.isAuthenticated, !dirtyKeys.isEmpty else { return }
 
         let snapshot = currentSnapshot
         do {
             let payload = ReaderSettingsPayload(settings: snapshot.values, updatedAt: snapshot.updatedAt)
             let body = try APIClient.shared.jsonBody(payload)
             try await APIClient.shared.requestVoid("PUT", "/api/auth/reader-settings", body: body, auth: true)
-            guard activeUserID == userID else { return }
+            guard isCurrent(session) else { return }
 
             var state = ReaderSettingsState(snapshot: currentSnapshot)
             state.markUploaded(snapshot)
@@ -272,9 +278,18 @@ final class ReaderSettingsStore {
             persistCurrent()
             lastSyncError = nil
         } catch {
-            guard activeUserID == userID else { return }
+            guard isCurrent(session) else { return }
             lastSyncError = error.localizedDescription
             persistCurrent()
         }
+    }
+
+    private var currentSession: Session? {
+        guard let activeUserID else { return nil }
+        return Session(userID: activeUserID, generation: sessionGeneration)
+    }
+
+    private func isCurrent(_ session: Session) -> Bool {
+        activeUserID == session.userID && sessionGeneration == session.generation
     }
 }

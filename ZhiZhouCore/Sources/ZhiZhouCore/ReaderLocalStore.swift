@@ -28,12 +28,26 @@ public struct ReaderLocalStore {
         defaults.set(data, forKey: progressKey(userID: userID))
     }
 
+    public func loadProgressTombstones(userID: String) -> [String: Int64] {
+        guard let data = defaults.data(forKey: progressTombstoneKey(userID: userID)) else { return [:] }
+        return (try? JSONDecoder().decode([String: Int64].self, from: data)) ?? [:]
+    }
+
+    public func saveProgressTombstones(_ tombstones: [String: Int64], userID: String) {
+        guard let data = try? JSONEncoder().encode(tombstones) else { return }
+        defaults.set(data, forKey: progressTombstoneKey(userID: userID))
+    }
+
     private func settingsKey(userID: String) -> String {
         "zhizhou.readerSettings.user.\(encodedUserID(userID))"
     }
 
     private func progressKey(userID: String) -> String {
         "zhizhou.readerProgress.user.\(encodedUserID(userID))"
+    }
+
+    private func progressTombstoneKey(userID: String) -> String {
+        "zhizhou.readerProgress.tombstones.user.\(encodedUserID(userID))"
     }
 
     private func encodedUserID(_ userID: String) -> String {

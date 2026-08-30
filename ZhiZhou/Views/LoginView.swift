@@ -4,6 +4,7 @@ import SwiftUI
 /// 采用浅色、原生感的账号入口：品牌识别、清晰说明、胶囊输入与单一主操作。
 struct LoginView: View {
     @Environment(AppState.self) private var appState
+    @Environment(OfflineReadingStore.self) private var offlineStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var mode: Mode = .login
@@ -15,6 +16,7 @@ struct LoginView: View {
     @State private var busy = false
     @State private var errorMessage: String?
     @State private var interactionFeedback = 0
+    @State private var showOfflineReading = false
     @FocusState private var focusedField: Field?
 
     enum Mode: Hashable { case login, register }
@@ -63,6 +65,11 @@ struct LoginView: View {
             }
         }
         .task { await fetchRegisterStatus() }
+        .sheet(isPresented: $showOfflineReading) {
+            NavigationStack {
+                OfflineReadingView()
+            }
+        }
         .sensoryFeedback(.selection, trigger: interactionFeedback)
     }
 
@@ -287,6 +294,20 @@ struct LoginView: View {
                 if appState.sessionRestoreFailed {
                     Label("网络异常，未能恢复上次会话，请检查网络后重新登录", systemImage: "wifi.slash")
                         .foregroundStyle(AppTheme.warning)
+
+                    if !offlineStore.books.isEmpty {
+                        Button {
+                            showOfflineReading = true
+                        } label: {
+                            Label(
+                                "进入离线阅读（\(offlineStore.totalChapterCount) 章）",
+                                systemImage: "book.closed"
+                            )
+                        }
+                        .fontWeight(.semibold)
+                        .foregroundStyle(AppTheme.primary)
+                        .buttonStyle(.bordered)
+                    }
                 }
 
                 if let errorMessage {

@@ -410,16 +410,12 @@ struct BookshelfView: View {
         guard !isPerformingAction else { return }
         isPerformingAction = true
         defer { isPerformingAction = false }
-        do {
-            let _: OkEnvelope = try await APIClient.shared.delete(
-                "/api/progress?novelId=\(recent.novelId)&clientUpdatedAt=\(Int64(Date().timeIntervalSince1970 * 1000))",
-                auth: true
-            )
-            await load()
-            AppFeedback.success("已删除阅读记录")
-        } catch {
+        guard await ReaderProgressStore.shared.delete(novelID: recent.novelId) else {
             AppFeedback.error()
-            actionError = "删除阅读记录失败，请检查网络后重试。"
+            actionError = "阅读记录删除请求尚未同步，请稍后重试。"
+            return
         }
+        await load()
+        AppFeedback.success("已删除阅读记录")
     }
 }

@@ -140,6 +140,71 @@ final class ReaderCoreTests: XCTestCase {
         outbox.deactivate()
     }
 
+    func testProgressDeletionDiscardsPendingUploadAndSendsDelete() async {
+        let localStore = ReaderLocalStore(defaults: defaults)
+        var uploaded: [SaveProgressBody] = []
+        var deleted: [(String, Int64)] = []
+        let outbox = ReaderProgressOutbox(
+            localStore: localStore,
+            uploader: { body in uploaded.append(body) },
+            deleter: { novelID, deletedAt in deleted.append((novelID, deletedAt)) }
+        )
+        let body = SaveProgressBody(
+            novelId: "novel-1",
+            chapterId: "chapter-1",
+            chapterTitle: "第一章",
+            chapterOrder: 1,
+            scrollPercent: 0.45,
+            pageMode: "scroll",
+            clientUpdatedAt: 100
+        )
+
+        outbox.activate(userID: "alice")
+        outbox.enqueue(body)
+        outbox.discard(novelID: "novel-1", deletedAt: 200)
+        outbox.enqueue(body)
+        await outbox.flush()
+
+        XCTAssertTrue(uploaded.isEmpty)
+        XCTAssertEqual(deleted.map { $0.0 }, ["novel-1"])
+        XCTAssertEqual(deleted.map { $0.1 }, [200])
+        XCTAssertEqual(outbox.pendingCount, 0)
+        XCTAssertEqual(outbox.pendingDeleteCount, 0)
+        XCTAssertTrue(localStore.loadProgress(userID: "alice").isEmpty)
+        XCTAssertTrue(localStore.loadProgressTombstones(userID: "alice").isEmpty)
+    }
+
+    func testProgressDeletionTombstonePersistsUntilAcknowledged() async {
+        enum DeletionError: Error { case unavailable }
+
+        let localStore = ReaderLocalStore(defaults: defaults)
+        let failingOutbox = ReaderProgressOutbox(
+            localStore: localStore,
+            uploader: { _ in },
+            deleter: { _, _ in throw DeletionError.unavailable }
+        )
+        failingOutbox.activate(userID: "alice")
+        failingOutbox.discard(novelID: "novel-1", deletedAt: 300)
+        await failingOutbox.flush()
+
+        XCTAssertEqual(failingOutbox.pendingDelete(for: "novel-1"), 300)
+        failingOutbox.deactivate()
+
+        let reopenedOutbox = ReaderProgressOutbox(
+            localStore: localStore,
+            uploader: { _ in },
+            deleter: { _, _ in }
+        )
+        reopenedOutbox.activate(userID: "alice")
+
+        XCTAssertEqual(reopenedOutbox.pendingDelete(for: "novel-1"), 300)
+        reopenedOutbox.activate(userID: "bob")
+        XCTAssertNil(reopenedOutbox.pendingDelete(for: "novel-1"))
+        reopenedOutbox.activate(userID: "alice")
+        await reopenedOutbox.flush()
+        XCTAssertNil(reopenedOutbox.pendingDelete(for: "novel-1"))
+    }
+
     func testChapterCacheSurvivesARecreatedCacheInstance() async throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("ZhiZhouCoreTests-\(UUID().uuidString)", isDirectory: true)
@@ -172,6 +237,34 @@ final class ReaderCoreTests: XCTestCase {
 
         let exists = await cache.contains(url)
         XCTAssertFalse(exists)
+    }
+
+    func testChapterCacheIsolatedByAccountScope() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ZhiZhouCoreTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let url = "https://example.com/api/chapters/chapter-1?contentMode=safe"
+        let alicePayload = Data("alice chapter content".utf8)
+        let bobPayload = Data("bob chapter content".utf8)
+        let cache = ChapterDiskCache(directoryURL: directory, maxBytes: 1024 * 1024)
+
+        await cache.store(alicePayload, for: url, scope: "alice")
+        await cache.store(bobPayload, for: url, scope: "bob")
+
+        let alice = await cache.data(for: url, scope: "alice")
+        let bob = await cache.data(for: url, scope: "bob")
+        let unknown = await cache.data(for: url, scope: "unknown")
+
+        XCTAssertEqual(alice, alicePayload)
+        XCTAssertEqual(bob, bobPayload)
+        XCTAssertNil(unknown)
+
+        await cache.removeAll(scope: "alice")
+        let removedAlice = await cache.data(for: url, scope: "alice")
+        let retainedBob = await cache.data(for: url, scope: "bob")
+        XCTAssertNil(removedAlice)
+        XCTAssertEqual(retainedBob, bobPayload)
     }
 
     func testChapterCacheCanRemoveOneEntry() async throws {
