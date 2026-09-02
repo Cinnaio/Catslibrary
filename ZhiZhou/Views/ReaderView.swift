@@ -497,15 +497,13 @@ struct ReaderView: View {
                 guard contentSize.height > 0, let target = pendingScrollRestore else { return }
                 restoreScrollTarget(target, using: proxy, identity: scrollIdentity)
             }
-            .onScrollGeometryChange(for: CGFloat.self) { geometry in
-                let scrollableHeight = max(geometry.contentSize.height - geometry.containerSize.height, 1)
-                return min(1, max(0, geometry.contentOffset.y / scrollableHeight))
-            } action: { _, value in
-                updatePercent(fromScrollOffset: value)
-            }
             .onChange(of: pendingScrollRestore) { _, target in
                 guard let target else { return }
                 restoreScrollTarget(target, using: proxy, identity: scrollIdentity)
+            }
+            // 按段落更新阅读进度，避免滚动过程中每个 offset 变化都让整个阅读器重算。
+            .onChange(of: scrolledParagraph) { _, index in
+                updatePercent(from: index)
             }
             // 拖动正文时自动收起浮层，轻点恢复。
             .onScrollPhaseChange { _, newPhase in
@@ -1236,16 +1234,6 @@ struct ReaderView: View {
         guard !suppressPercent, let index, paragraphCount > 1 else { return }
         let value = min(1, max(0, Double(index) / Double(paragraphCount - 1)))
         setProgress(value)
-        pendingRestorePercent = value
-        debounceSaveProgress()
-    }
-
-    private func updatePercent(fromScrollOffset value: CGFloat) {
-        guard !suppressPercent else { return }
-        let next = min(1, max(0, Double(value)))
-        guard abs(next - percentBox.value) > 0.005 else { return }
-        setProgress(next)
-        pendingRestorePercent = next
         debounceSaveProgress()
     }
 
