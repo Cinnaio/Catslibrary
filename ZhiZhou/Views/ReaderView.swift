@@ -6,6 +6,48 @@ private final class ReaderPercentBox {
     var value: Double = 0
 }
 
+/// Caches the expensive text-to-NSAttributedString conversion for each
+/// paragraph. Scroll progress updates the reader chrome frequently, but does
+/// not change the paragraph's visual content.
+private final class ReaderParagraphTextCache {
+    private struct Entry {
+        let text: String
+        let thoughtsKey: String
+        let renderKey: String
+        let value: NSAttributedString
+    }
+
+    private var entries: [Int: Entry] = [:]
+
+    func value(
+        for index: Int,
+        text: String,
+        thoughtsKey: String,
+        renderKey: String,
+        make: () -> NSAttributedString
+    ) -> NSAttributedString {
+        if let entry = entries[index],
+           entry.text == text,
+           entry.thoughtsKey == thoughtsKey,
+           entry.renderKey == renderKey {
+            return entry.value
+        }
+
+        let value = make()
+        entries[index] = Entry(
+            text: text,
+            thoughtsKey: thoughtsKey,
+            renderKey: renderKey,
+            value: value
+        )
+        return value
+    }
+
+    func removeAll() {
+        entries.removeAll(keepingCapacity: true)
+    }
+}
+
 /// 中文段首缩进：两个全角空格（U+3000 宽恰为一个汉字，随字号自动缩放）。
 let paragraphIndent = "\u{3000}\u{3000}"
 
@@ -46,6 +88,7 @@ struct ReaderView: View {
     /// 展示用百分比（@Observable 之外的可变参考 → 派生为可观察 State，驱动 Chrome 刷新）。
     @State private var progressPercent = 0.0
     @State private var suppressPercent = false
+    @State private var paragraphTextCache = ReaderParagraphTextCache()
     /// 翻页模式：分页结果、当前页、每页对应的整章字符区间、待恢复的进度百分比。
     @State private var pages: [NSAttributedString] = []
     @State private var pageRanges: [NSRange] = []
@@ -56,6 +99,8 @@ struct ReaderView: View {
     @State private var chapterIsSaved = false
     /// 底部控制区的稳定高度；隐藏时仍保留这段安全区，避免正文上下跳动。
     private let readerChromeHeight: CGFloat = 78
+    /// Scroll target before the chapter title. Paragraph IDs start at zero.
+    private let readerTopScrollID = -1
     @State private var chapterThoughts: [Thought] = []
     @State private var thoughtsLoadTask: Task<Void, Never>?
     @State private var isLoadingThoughts = false
@@ -214,13 +259,12 @@ struct ReaderView: View {
             }
         }
         .preferredColorScheme(scheme)
-        .task { await load() }
+        .task(id: chapterOrder) { await load() }
         .onReceive(NotificationCenter.default.publisher(for: .zhiZhouFontStoreDidChange)) { _ in
             fontRevision &+= 1
         }
         .onChange(of: chapterOrder) { _, _ in
             resetForNewChapter()
-            Task { await load() }
         }
         .onChange(of: settings.pageMode) { _, mode in
             prepareForModeChange(to: mode)
@@ -261,14 +305,24 @@ struct ReaderView: View {
             .foregroundStyle(ink)
             .frame(maxWidth: .infinity, minHeight: 300)
         } else if let chapter {
+            let paragraphThoughts = thoughtsByParagraph
+            let renderKey = paragraphRenderKey
+            Color.clear
+                .frame(height: 1)
+                .id(readerTopScrollID)
             Text(chapter.title)
                 .font(readerTitleFont)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(ink)
                 .frame(maxWidth: .infinity)
                 .padding(.bottom, 14)
-            ForEach(Array(paragraphs.enumerated()), id: \.offset) { index, paragraph in
-                readerParagraph(index: index, text: paragraph)
+            ForEach(paragraphs.indices, id: \.self) { index in
+                readerParagraph(
+                    index: index,
+                    text: paragraphs[index],
+                    thoughts: paragraphThoughts[index] ?? [],
+                    renderKey: renderKey
+                )
                     .id(index)
             }
             if hasNextChapter {
@@ -278,28 +332,35 @@ struct ReaderView: View {
     }
 
     /// 段落级段评入口：正文保持干净，仅在已有段评时显示轻量标记；选中文字可直接引用。
-    private func readerParagraph(index: Int, text: String) -> some View {
+    private func readerParagraph(
+        index: Int,
+        text: String,
+        thoughts: [Thought],
+        renderKey: String
+    ) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             SelectableTextView(
                 attributedText: paragraphAttributedText(
-                    text,
-                    thoughts: thoughtsByParagraph[index] ?? []
+                    index: index,
+                    text: text,
+                    thoughts: thoughts,
+                    renderKey: renderKey
                 ),
                 textColor: inkUIColor,
-                menuTitle: thoughtsByParagraph[index]?.isEmpty == false ? "查看段评" : "写段评",
+                menuTitle: thoughts.isEmpty ? "写段评" : "查看段评",
                 isThoughtActionEnabled: !offlineOnly
             ) { selectedText, _ in
                 openThoughtPanel(for: index, selectedText: selectedText)
             }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            if let count = thoughtsByParagraph[index]?.count, count > 0 {
+            if !thoughts.isEmpty {
                 HStack {
                     Spacer(minLength: 0)
                     Button {
                         openThoughtPanel(for: index)
                     } label: {
-                        Label("\(count) 条段评", systemImage: "text.bubble")
+                        Label("\(thoughts.count) 条段评", systemImage: "text.bubble")
                             .font(.caption2.weight(.semibold))
                             .foregroundStyle(AppTheme.primary)
                             .padding(.horizontal, 9)
@@ -307,7 +368,7 @@ struct ReaderView: View {
                             .background(AppTheme.primaryLight, in: Capsule())
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("\(count) 条段评")
+                    .accessibilityLabel("\(thoughts.count) 条段评")
                 }
                 .padding(.top, 2)
             }
@@ -317,32 +378,62 @@ struct ReaderView: View {
         .accessibilityHint("选中文字后从菜单进入段评")
     }
 
-    private func paragraphAttributedText(_ text: String, thoughts: [Thought]) -> NSAttributedString {
-        let style = NSMutableParagraphStyle()
-        style.lineSpacing = readerLineSpacing
-        style.alignment = .natural
-        let renderedText = NSMutableAttributedString(
-            string: paragraphIndent + text,
-            attributes: [
-                .font: readerBodyUIFont,
-                .foregroundColor: inkUIColor,
-                .paragraphStyle: style,
-            ]
-        )
-        let indentLength = paragraphIndent.utf16.count
-        for range in ReaderTextHighlight.ranges(
-            in: text,
-            matching: thoughts.map(\.selectedText)
+    private func paragraphAttributedText(
+        index: Int,
+        text: String,
+        thoughts: [Thought],
+        renderKey: String
+    ) -> NSAttributedString {
+        let thoughtsKey = thoughts.isEmpty
+            ? ""
+            : thoughts.map { "\($0.id):\($0.selectedText)" }.joined(separator: "|")
+        return paragraphTextCache.value(
+            for: index,
+            text: text,
+            thoughtsKey: thoughtsKey,
+            renderKey: renderKey
         ) {
-            renderedText.addAttributes(
-                thoughtHighlightAttributes,
-                range: NSRange(
-                    location: indentLength + range.location,
-                    length: range.length
-                )
+            let style = NSMutableParagraphStyle()
+            style.lineSpacing = readerLineSpacing
+            style.alignment = .natural
+            let renderedText = NSMutableAttributedString(
+                string: paragraphIndent + text,
+                attributes: [
+                    .font: readerBodyUIFont,
+                    .foregroundColor: inkUIColor,
+                    .paragraphStyle: style,
+                ]
             )
+            let indentLength = paragraphIndent.utf16.count
+            for range in ReaderTextHighlight.ranges(
+                in: text,
+                matching: thoughts.map(\.selectedText)
+            ) {
+                renderedText.addAttributes(
+                    thoughtHighlightAttributes,
+                    range: NSRange(
+                        location: indentLength + range.location,
+                        length: range.length
+                    )
+                )
+            }
+            return renderedText
         }
-        return renderedText
+    }
+
+    private var paragraphRenderKey: String {
+        [
+            chapter?.id ?? "loading",
+            String(settings.fontSizeIndex),
+            "\(settings.lineHeight)",
+            "\(readerLineSpacing)",
+            "\(readerParagraphSpacing)",
+            settings.useSerif ? "serif" : "system",
+            String(describing: dynamicTypeSize),
+            String(fontRevision),
+            settings.themeName,
+            systemIsDark ? "dark" : "light",
+        ].joined(separator: ":")
     }
 
     private var thoughtHighlightAttributes: [NSAttributedString.Key: Any] {
@@ -359,56 +450,75 @@ struct ReaderView: View {
     /// 自己按“两侧取较大值”补一份对称留白，任何方向都左右等宽。
     private func readerScroll(geo: GeometryProxy) -> some View {
         let sideInset = max(geo.safeAreaInsets.leading, geo.safeAreaInsets.trailing)
-        return ScrollView {
-            LazyVStack(alignment: .leading, spacing: readerParagraphSpacing) {
-                readingContent
+        let scrollIdentity = readerScrollIdentity
+        return ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: readerParagraphSpacing) {
+                    readingContent
+                }
+                .padding(.horizontal, sideInset + 22)
+                .padding(.top, 18)
+                // 固定正文容器宽度，字号变化时只重新排版，不让 SwiftUI 重新猜测横向尺寸。
+                .frame(width: min(geo.size.width, 720))
+                .frame(maxWidth: .infinity)
+                .scrollTargetLayout()
             }
-            .padding(.horizontal, sideInset + 22)
-            .padding(.top, 18)
-            // 固定正文容器宽度，字号变化时只重新排版，不让 SwiftUI 重新猜测横向尺寸。
-            .frame(width: min(geo.size.width, 720))
-            .frame(maxWidth: .infinity)
-            .scrollTargetLayout()
-        }
-        .ignoresSafeArea(edges: .horizontal)
-        // 控制区放进 ScrollView 的安全区，滚动到末尾时也不会压住正文。
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            readerChrome
-        }
-        .scrollPosition(id: $scrolledParagraph)
-        .background(paper)
-        .contentShape(Rectangle())
-        .accessibilityHint("轻点中央显示阅读控制；使用顶部和底部按钮切换目录、设置和章节")
-        .accessibilityAction(named: showChrome ? "隐藏阅读控制" : "显示阅读控制") {
-            toggleChrome()
-        }
-        // 点按热区覆盖整个 ScrollView，包括短章节下面的空白区域。
-        .simultaneousGesture(
-            SpatialTapGesture().onEnded { value in
-                handleScrollTap(x: value.location.x, width: geo.size.width)
+            // A chapter change must create a fresh UIScrollView. Clearing the
+            // binding alone leaves the old content offset attached to the reused
+            // scroll container while the next chapter is loading.
+            .id(scrollIdentity)
+            .ignoresSafeArea(edges: .horizontal)
+            // 控制区放进 ScrollView 的安全区，滚动到末尾时也不会压住正文。
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                readerChrome
             }
-        )
-        // 仅识别从屏幕最外侧开始的横向滑动，避免普通上下滚动被误判为翻页。
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 18).onEnded { value in
-                handleEdgeSwipe(value, width: geo.size.width)
+            .scrollPosition(id: $scrolledParagraph)
+            .background(paper)
+            .contentShape(Rectangle())
+            .accessibilityHint("轻点中央显示阅读控制；使用顶部和底部按钮切换目录、设置和章节")
+            .accessibilityAction(named: showChrome ? "隐藏阅读控制" : "显示阅读控制") {
+                toggleChrome()
             }
-        )
-        .onScrollGeometryChange(for: CGSize.self) { geometry in
-            geometry.contentSize
-        } action: { _, contentSize in
-            restoreScrollIfReady(contentSize: contentSize)
+            // 点按热区覆盖整个 ScrollView，包括短章节下面的空白区域。
+            .simultaneousGesture(
+                SpatialTapGesture().onEnded { value in
+                    handleScrollTap(x: value.location.x, width: geo.size.width)
+                }
+            )
+            // 仅识别从屏幕最外侧开始的横向滑动，避免普通上下滚动被误判为翻页。
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 18).onEnded { value in
+                    handleEdgeSwipe(value, width: geo.size.width)
+                }
+            )
+            .onScrollGeometryChange(for: CGSize.self) { geometry in
+                geometry.contentSize
+            } action: { _, contentSize in
+                guard contentSize.height > 0, let target = pendingScrollRestore else { return }
+                restoreScrollTarget(target, using: proxy, identity: scrollIdentity)
+            }
+            .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                let scrollableHeight = max(geometry.contentSize.height - geometry.containerSize.height, 1)
+                return min(1, max(0, geometry.contentOffset.y / scrollableHeight))
+            } action: { _, value in
+                updatePercent(fromScrollOffset: value)
+            }
+            .onChange(of: pendingScrollRestore) { _, target in
+                guard let target else { return }
+                restoreScrollTarget(target, using: proxy, identity: scrollIdentity)
+            }
+            // 拖动正文时自动收起浮层，轻点恢复。
+            .onScrollPhaseChange { _, newPhase in
+                if newPhase == .interacting { hideChrome() }
+            }
         }
-        .onScrollGeometryChange(for: CGFloat.self) { geometry in
-            let scrollableHeight = max(geometry.contentSize.height - geometry.containerSize.height, 1)
-            return min(1, max(0, geometry.contentOffset.y / scrollableHeight))
-        } action: { _, value in
-            updatePercent(fromScrollOffset: value)
+    }
+
+    private var readerScrollIdentity: String {
+        if let chapter {
+            return "chapter:\(chapter.id)"
         }
-        // 拖动正文时自动收起浮层，轻点恢复。
-        .onScrollPhaseChange { _, newPhase in
-            if newPhase == .interacting { hideChrome() }
-        }
+        return "loading:\(chapterOrder)"
     }
 
     /// 翻页阅读区（TabView 负责左右滑动，点按左右区域可选）。水平安全区同样用两侧较大值做对称留白。
@@ -840,12 +950,15 @@ struct ReaderView: View {
     private func resetForNewChapter() {
         saveTask?.cancel()
         thoughtsLoadTask?.cancel()
+        paragraphTextCache.removeAll()
         chapter = nil
         paragraphs = []
         paragraphCount = 0
         setProgress(0)
         scrolledParagraph = nil
-        suppressPercent = false
+        // Keep geometry callbacks from the old scroll container from writing
+        // a new chapter's progress before its restore target is installed.
+        suppressPercent = true
         errorMessage = nil
         pages = []
         pageRanges = []
@@ -878,6 +991,8 @@ struct ReaderView: View {
                             ContentPolicy.safePath("/api/chapters?novelId=\(novel.id)")
                         )
                         chapterMetas = list.chapters
+                    } catch is CancellationError {
+                        throw CancellationError()
                     } catch {
                         let saved = offlineStore.chapters(for: novel.id)
                         guard !saved.isEmpty else {
@@ -913,6 +1028,8 @@ struct ReaderView: View {
             }
 
             try await loadContent(id: meta.id)
+        } catch is CancellationError {
+            return
         } catch {
             // 仅当前章节仍为目标时显示错误，避免切章后旧错误串台
             guard chapterOrder == order else { return }
@@ -933,6 +1050,10 @@ struct ReaderView: View {
             return Self.paragraphs(from: content)
         }.value
         guard chapterOrder == order, !Task.isCancelled else { return }
+        paragraphTextCache.removeAll()
+        suppressPercent = true
+        scrolledParagraph = nil
+        pendingScrollRestore = nil
         chapter = r.chapter
         errorMessage = nil
         paragraphs = parsedParagraphs
@@ -945,8 +1066,6 @@ struct ReaderView: View {
             ]
         )
         loadThoughts(for: r.chapter.id)
-        chapterIsSaved = await APIClient.shared.hasCachedChapter(id: r.chapter.id)
-        guard chapterOrder == order else { return }
 
         var restore: Double = 0
         if APIClient.shared.isAuthenticated {
@@ -958,6 +1077,8 @@ struct ReaderView: View {
                 if let prog = p.progress, prog.chapterId == r.chapter.id, prog.scrollPercent > 0 {
                     restore = prog.scrollPercent
                 }
+            } catch is CancellationError {
+                throw CancellationError()
             } catch {
                 // 正文已经可以从磁盘缓存离线打开；进度失败不应遮挡当前章节。
                 guard chapterOrder == order else { return }
@@ -975,9 +1096,13 @@ struct ReaderView: View {
         pendingRestorePercent = restore > 0 ? restore : nil
         suppressPercent = true
         scrolledParagraph = nil
-        // 等 ScrollView 报告真实 contentSize 后再定位，避免仅靠 Task.yield 猜测 layout 时序。
+        // contentSize 已准备好时由 geometry 回调定位；若进度响应更晚，
+        // pendingScrollRestore 的 change 回调会走同一条显式 proxy 路径。
         pendingScrollRestore = target
         prefetchNextChapter()
+        let isSaved = await APIClient.shared.hasCachedChapter(id: r.chapter.id)
+        guard chapterOrder == order else { return }
+        chapterIsSaved = isSaved
     }
 
     private func openThoughtPanel(for index: Int, selectedText: String = "") {
@@ -1000,7 +1125,10 @@ struct ReaderView: View {
         if settings.pageMode == "page" {
             return paragraphIndex(forPage: currentPage)
         }
-        return scrolledParagraph ?? paragraphs.indices.first
+        if let scrolledParagraph, paragraphs.indices.contains(scrolledParagraph) {
+            return scrolledParagraph
+        }
+        return paragraphs.indices.first
     }
 
     /// 翻页模式下，把当前页起始字符映射回正文段落，保证工具栏段评仍然有明确对象。
@@ -1121,12 +1249,21 @@ struct ReaderView: View {
         debounceSaveProgress()
     }
 
-    private func restoreScrollIfReady(contentSize: CGSize) {
-        guard let target = pendingScrollRestore, contentSize.height > 0 else { return }
-        pendingScrollRestore = nil
-        scrolledParagraph = target
+    /// A late progress response can install the restore target after the
+    /// scroll view has already reported its content size. Use the proxy as a
+    /// second, deterministic restore path for that timing window.
+    private func restoreScrollTarget(
+        _ target: Int,
+        using proxy: ScrollViewProxy,
+        identity: String
+    ) {
         Task { @MainActor in
             await Task.yield()
+            guard readerScrollIdentity == identity, pendingScrollRestore == target else { return }
+            let scrollID = target == 0 ? readerTopScrollID : target
+            proxy.scrollTo(scrollID, anchor: .top)
+            scrolledParagraph = scrollID
+            pendingScrollRestore = nil
             suppressPercent = false
         }
     }

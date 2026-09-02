@@ -36,23 +36,31 @@ struct SelectableTextView: UIViewRepresentable {
     private func configure(_ view: ThoughtSelectableTextView) {
         view.menuTitle = menuTitle
         view.isThoughtActionEnabled = isThoughtActionEnabled
-        view.textColor = textColor
+        if view.textColor?.isEqual(textColor) != true {
+            view.textColor = textColor
+        }
         view.onThought = onThought
-        let renderedText = NSMutableAttributedString(attributedString: attributedText)
-        if renderedText.length > 0 {
-            renderedText.addAttribute(
-                .foregroundColor,
-                value: textColor,
-                range: NSRange(location: 0, length: renderedText.length)
-            )
-        }
-        if view.attributedText?.isEqual(to: renderedText) != true {
+        let sameAttributedText = view.configuredAttributedText === attributedText
+            || view.configuredAttributedText?.isEqual(to: attributedText) == true
+        let needsTextUpdate = !sameAttributedText
+            || view.configuredTextColor?.isEqual(textColor) != true
+        if needsTextUpdate {
+            let renderedText = NSMutableAttributedString(attributedString: attributedText)
+            if renderedText.length > 0 {
+                renderedText.addAttribute(
+                    .foregroundColor,
+                    value: textColor,
+                    range: NSRange(location: 0, length: renderedText.length)
+                )
+            }
             view.attributedText = renderedText
+            view.configuredAttributedText = attributedText
+            view.configuredTextColor = textColor
+            // 字体或容器宽度变化会让 UITextView 暂时保留旧的横向偏移；正文不可横向滚动，
+            // 每次真正重排后都把它归零，避免切换字号时文字整体向左漂移。
+            view.setContentOffset(.zero, animated: false)
+            view.invalidateIntrinsicContentSize()
         }
-        // 字体或容器宽度变化会让 UITextView 暂时保留旧的横向偏移；正文不可横向滚动，
-        // 每次重排后都把它归零，避免切换字号时文字整体向左漂移。
-        view.setContentOffset(.zero, animated: false)
-        view.invalidateIntrinsicContentSize()
     }
 }
 
@@ -60,6 +68,12 @@ final class ThoughtSelectableTextView: UITextView {
     var menuTitle = "写段评"
     var isThoughtActionEnabled = true
     var onThought: ((String, NSRange) -> Void)?
+    /// The incoming attributed text is intentionally tracked separately from
+    /// `attributedText`: the rendered UIKit value also contains the bridge's
+    /// foreground-color attribute, so comparing the two directly would make
+    /// every SwiftUI update look like a text change.
+    var configuredAttributedText: NSAttributedString?
+    var configuredTextColor: UIColor?
 
     override init(frame: CGRect, textContainer: NSTextContainer?) {
         super.init(frame: frame, textContainer: textContainer)
