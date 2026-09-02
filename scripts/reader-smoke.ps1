@@ -3,6 +3,7 @@ $ErrorActionPreference = "Stop"
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $readerView = Get-Content (Join-Path $projectRoot "ZhiZhou/Views/ReaderView.swift") -Raw
 $selectableTextView = Get-Content (Join-Path $projectRoot "ZhiZhou/Views/SelectableTextView.swift") -Raw
+$infoPlist = Get-Content (Join-Path $projectRoot "ZhiZhou/Support/Info.plist") -Raw
 
 $failures = [System.Collections.Generic.List[string]]::new()
 
@@ -48,6 +49,9 @@ Require-ReaderPattern "chapter reset suppresses stale progress callbacks" (
 )
 Require-ReaderPattern "chapter change no longer starts an unmanaged duplicate load" (
     $readerView -match "(?s)\.onChange\(of: chapterOrder\) \{ _, _ in\s*resetForNewChapter\(\)\s*\}"
+)
+Require-ReaderPattern "ProMotion devices can use high refresh rates" (
+    $infoPlist -match "(?s)<key>CADisableMinimumFrameDurationOnPhone</key>\s*<true\s*/>"
 )
 
 if ($failures.Count -gt 0) {
