@@ -91,7 +91,7 @@ struct LoginView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
                 Image(systemName: "book.closed.fill")
-                    .font(.system(size: 21, weight: .semibold))
+                    .font(.title3.weight(.semibold))
                     .symbolRenderingMode(.hierarchical)
                     .foregroundStyle(AppTheme.primary)
                     .frame(width: 48, height: 48)
@@ -105,7 +105,7 @@ struct LoginView: View {
             }
 
             Text(mode == .login ? "登录知舟" : "创建知舟账号")
-                .font(.system(size: 34, weight: .bold, design: .rounded))
+                .font(.largeTitle.weight(.bold))
                 .foregroundStyle(AppTheme.textPrimary)
                 .padding(.top, 14)
 
@@ -155,7 +155,7 @@ struct LoginView: View {
 
     private var fieldsGroup: some View {
         VStack(spacing: 12) {
-            fieldSurface {
+            fieldSurface(isFocused: focusedField == .username) {
                 TextField("用户名", text: $username)
                     .textContentType(.username)
                     .textInputAutocapitalization(.never)
@@ -170,7 +170,7 @@ struct LoginView: View {
             }
 
             if mode == .register, registerMode == .invite {
-                fieldSurface {
+                fieldSurface(isFocused: focusedField == .invite) {
                     TextField("邀请码", text: $invite)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
@@ -182,7 +182,7 @@ struct LoginView: View {
                 }
             }
 
-            fieldSurface {
+            fieldSurface(isFocused: focusedField == .password) {
                 HStack(spacing: 10) {
                     Group {
                         if showPassword {
@@ -219,18 +219,15 @@ struct LoginView: View {
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: registerMode)
     }
 
-    private func fieldSurface<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+    private func fieldSurface<Content: View>(
+        isFocused: Bool,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
         content()
             .padding(.horizontal, 18)
             .frame(minHeight: 58)
-            .background(
-                Color(.tertiarySystemFill),
-                in: RoundedRectangle(cornerRadius: 17, style: .continuous)
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: 17, style: .continuous)
-                    .strokeBorder(AppTheme.border.opacity(0.28), lineWidth: 0.7)
-            }
+            .appFieldSurface(isFocused: isFocused, cornerRadius: 15)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: isFocused)
     }
 
     // MARK: - 主操作
@@ -288,10 +285,7 @@ struct LoginView: View {
             .font(.footnote)
             .foregroundStyle(AppTheme.textSecondary)
             .frame(maxWidth: .infinity, minHeight: 48)
-            .background(
-                Color(.tertiarySystemFill),
-                in: RoundedRectangle(cornerRadius: 16, style: .continuous)
-            )
+            .appFieldSurface(cornerRadius: 14)
     }
 
     @ViewBuilder
@@ -332,6 +326,13 @@ struct LoginView: View {
                 (errorMessage == nil ? AppTheme.warning : AppTheme.danger).opacity(0.09),
                 in: RoundedRectangle(cornerRadius: 15, style: .continuous)
             )
+            .overlay {
+                RoundedRectangle(cornerRadius: 15, style: .continuous)
+                    .strokeBorder(
+                        (errorMessage == nil ? AppTheme.warning : AppTheme.danger).opacity(0.22),
+                        lineWidth: 0.8
+                    )
+            }
         }
     }
 

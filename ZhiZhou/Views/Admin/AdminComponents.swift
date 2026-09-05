@@ -186,10 +186,10 @@ struct AdminFilterMenu<Content: View>: View {
             .foregroundStyle(AppTheme.textPrimary)
             .padding(.horizontal, 12)
             .frame(minHeight: 44)
-            .background(AppTheme.surface, in: Capsule())
+            .background(.thinMaterial, in: Capsule())
             .overlay(
                 Capsule()
-                    .strokeBorder(AppTheme.border, lineWidth: 1)
+                    .strokeBorder(AppTheme.border.opacity(0.55), lineWidth: 0.8)
             )
         }
         .accessibilityLabel(title)

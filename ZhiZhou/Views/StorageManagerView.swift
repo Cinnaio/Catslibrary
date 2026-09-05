@@ -104,6 +104,7 @@ struct StorageManagerView: View {
                     .lineSpacing(3)
             }
         }
+        .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
         .pageBackground()
         .navigationTitle("存储管理")

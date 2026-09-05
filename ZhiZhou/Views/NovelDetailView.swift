@@ -591,7 +591,7 @@ struct NovelDetailView: View {
             }
         }
         .padding(16)
-        .paperCard(cornerRadius: 22)
+        .paperCard(cornerRadius: 16)
     }
 
     private func toggleBookshelf() {

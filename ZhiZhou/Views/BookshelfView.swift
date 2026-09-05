@@ -93,6 +93,7 @@ struct BookshelfView: View {
                     }
                 }
             }
+            .listStyle(.insetGrouped)
             .navigationTitle("书架")
             .navigationBarTitleDisplayMode(.large)
             .navigationSplitViewColumnWidth(min: 300, ideal: 380, max: 520)

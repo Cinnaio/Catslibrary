@@ -7,7 +7,7 @@ struct NovelCardView: View {
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             cover
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 5) {
                 Text(novel.title)
                     .font(serifFont(.headline, .semibold))
                     .foregroundStyle(AppTheme.textPrimary)
@@ -43,7 +43,7 @@ struct NovelCardView: View {
             }
         }
         .padding(12)
-        .paperCard(cornerRadius: 18)
+        .paperCard()
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityText)
         .accessibilityAddTraits(.isButton)

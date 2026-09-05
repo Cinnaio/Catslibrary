@@ -17,6 +17,7 @@ struct ThoughtPanelView: View {
     let onDelete: (String) async throws -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var draft = ""
     @State private var displayName = ""
     @State private var isSubmitting = false
@@ -26,6 +27,7 @@ struct ThoughtPanelView: View {
     @FocusState private var focusedField: ComposerField?
 
     private enum ComposerField: Hashable {
+        case displayName
         case thought
     }
 
@@ -137,10 +139,10 @@ struct ThoughtPanelView: View {
         .padding(16)
         .background(
             AppTheme.surface,
-            in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+            in: RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous)
         )
         .overlay {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous)
                 .strokeBorder(AppTheme.border.opacity(0.55), lineWidth: 0.5)
         }
         .accessibilityElement(children: .combine)
@@ -283,10 +285,10 @@ struct ThoughtPanelView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             AppTheme.surface,
-            in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+            in: RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous)
         )
         .overlay {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous)
                 .strokeBorder(AppTheme.border.opacity(0.45), lineWidth: 0.5)
         }
     }
@@ -304,14 +306,16 @@ struct ThoughtPanelView: View {
                         .font(.subheadline)
                         .textFieldStyle(.plain)
                         .multilineTextAlignment(.trailing)
+                        .focused($focusedField, equals: .displayName)
                         .accessibilityLabel("段评署名")
                 }
                 .padding(.horizontal, 12)
                 .frame(minHeight: 44)
-                .background(
-                    AppTheme.surfaceSecondary,
-                    in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .appFieldSurface(
+                    isFocused: focusedField == .displayName,
+                    cornerRadius: 12
                 )
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: focusedField)
                 .onChange(of: displayName) { _, value in
                     if value.count > 20 {
                         displayName = String(value.prefix(20))
@@ -325,14 +329,11 @@ struct ThoughtPanelView: View {
                     .padding(.horizontal, 12)
                     .padding(.vertical, 10)
                     .frame(minHeight: 62, alignment: .topLeading)
-                    .background(
-                        AppTheme.surface,
-                        in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .appFieldSurface(
+                        isFocused: focusedField == .thought,
+                        cornerRadius: AppTheme.controlCornerRadius
                     )
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .strokeBorder(AppTheme.border.opacity(0.5), lineWidth: 0.5)
-                    }
+                    .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: focusedField)
                     .onChange(of: draft) { _, value in
                         if value.count > 300 {
                             draft = String(value.prefix(300))

@@ -96,6 +96,7 @@ struct AdminRootView: View {
                 searchSections
             }
         }
+        .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
         .pageBackground()
         .searchable(text: $searchText, prompt: "搜索后台功能")

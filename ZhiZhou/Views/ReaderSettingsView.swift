@@ -87,8 +87,8 @@ struct ReaderSettingsView: View {
                         syncStatusSection
                     }
                 }
-                .padding(.horizontal, 32)
-                .padding(.top, 34)
+                .padding(.horizontal, 24)
+                .padding(.top, 26)
                 .padding(.bottom, 32)
                 .frame(maxWidth: 520)
                 .frame(maxWidth: .infinity, alignment: .center)
@@ -274,7 +274,7 @@ struct ReaderSettingsView: View {
     private var sectionDivider: some View {
         Divider()
             .overlay(AppTheme.border.opacity(0.75))
-            .padding(.vertical, 26)
+            .padding(.vertical, 20)
     }
 
     private func adjustFontSize(by delta: Int) {

@@ -54,7 +54,7 @@ struct BrandMark: View {
                 .foregroundStyle(.white)
         }
         .frame(width: 76, height: 76)
-        .shadow(color: Color(light: "000000", dark: "FFFFFF").opacity(0.08), radius: 12, y: 5)
+        .shadow(color: Color(light: "1E3B31", dark: "000000").opacity(0.16), radius: 10, y: 4)
     }
 }
 
@@ -72,5 +72,7 @@ struct MainTabView: View {
             }
         }
         .tint(AppTheme.primary)
+        .toolbarBackground(.visible, for: .tabBar)
+        .toolbarBackground(.ultraThinMaterial, for: .tabBar)
     }
 }

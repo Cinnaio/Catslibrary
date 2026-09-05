@@ -65,6 +65,7 @@ enum AppTheme {
     static let background = Color(.systemGroupedBackground)
     static let surface = Color(.secondarySystemGroupedBackground)
     static let surfaceSecondary = Color(.secondarySystemBackground)
+    static let controlFill = Color(.tertiarySystemFill)
     static let border = Color(.separator)
 
     // MARK: 语义文字（层级：label > secondary > tertiary）
@@ -74,9 +75,12 @@ enum AppTheme {
 
     // MARK: 卡片层级
     /// 内容卡片统一使用轻量阴影，避免不同页面出现深浅不一的浮层质感。
-    static let cardShadow = Color.black.opacity(0.10)
-    static let cardShadowRadius: CGFloat = 12
-    static let cardShadowY: CGFloat = 4
+    /// 深色外观使用更深的阴影，避免在深色背景上留下灰色光晕。
+    static let cardShadow = Color(light: "29483E", dark: "000000").opacity(0.12)
+    static let cardShadowRadius: CGFloat = 10
+    static let cardShadowY: CGFloat = 3
+    static let cardCornerRadius: CGFloat = 14
+    static let controlCornerRadius: CGFloat = 13
 
     // MARK: 状态色
     static let success = Color(light: "4E713F", dark: "A9BF97")
@@ -241,7 +245,10 @@ private struct ScaleButtonStyleBody: View {
         configuration.label
             .scaleEffect((reduceMotion || !configuration.isPressed) ? 1 : pressedScale)
             .opacity(configuration.isPressed ? 0.86 : 1)
-            .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: configuration.isPressed)
+            .animation(
+                reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 1),
+                value: configuration.isPressed
+            )
     }
 }
 
@@ -255,14 +262,35 @@ extension View {
         }
     }
 
-    func paperCard(cornerRadius: CGFloat = 18) -> some View {
+    func paperCard(cornerRadius: CGFloat = AppTheme.cardCornerRadius) -> some View {
         self
             .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(AppTheme.border, lineWidth: 1)
+                    .strokeBorder(AppTheme.border.opacity(0.72), lineWidth: 0.8)
             )
             .shadow(color: AppTheme.cardShadow, radius: AppTheme.cardShadowRadius, y: AppTheme.cardShadowY)
+    }
+
+    /// 统一输入控件表面：聚焦时用品牌色描边，保持清晰的键盘输入反馈。
+    func appFieldSurface(
+        isFocused: Bool = false,
+        cornerRadius: CGFloat = AppTheme.controlCornerRadius
+    ) -> some View {
+        self
+            .background(
+                isFocused ? AppTheme.primaryLight.opacity(0.58) : AppTheme.controlFill,
+                in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .strokeBorder(
+                        isFocused
+                            ? AppTheme.primary.opacity(0.78)
+                            : AppTheme.border.opacity(0.3),
+                        lineWidth: isFocused ? 1.4 : 0.7
+                    )
+            }
     }
 
     func frostedRowBackground() -> some View {

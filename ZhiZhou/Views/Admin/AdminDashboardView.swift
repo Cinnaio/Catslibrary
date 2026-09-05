@@ -228,10 +228,10 @@ struct AdminDashboardView: View {
 
     private func panelRow<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         content()
-            .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .strokeBorder(AppTheme.border.opacity(0.65), lineWidth: 1)
+                RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous)
+                    .strokeBorder(AppTheme.border.opacity(0.72), lineWidth: 0.8)
             )
             .shadow(color: AppTheme.cardShadow, radius: AppTheme.cardShadowRadius, y: AppTheme.cardShadowY)
             .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 8, trailing: 16))

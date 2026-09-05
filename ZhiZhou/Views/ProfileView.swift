@@ -120,6 +120,7 @@ struct ProfileView: View {
                 }
             }
         }
+        .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
         .pageBackground()
         .navigationTitle("我的")

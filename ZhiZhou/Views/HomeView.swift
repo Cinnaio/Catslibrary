@@ -172,7 +172,11 @@ struct HomeView: View {
         }
         .padding(.horizontal, 14)
         .frame(minHeight: 44)
-        .background(Color(.secondarySystemFill), in: Capsule())
+        .background(.thinMaterial, in: Capsule())
+        .overlay {
+            Capsule()
+                .strokeBorder(AppTheme.border.opacity(0.45), lineWidth: 0.7)
+        }
     }
 
     @ViewBuilder
@@ -219,9 +223,15 @@ struct HomeView: View {
                 .padding(.horizontal, 14)
                 .frame(minHeight: 44)
                 .foregroundStyle(selected ? Color.white : AppTheme.textSecondary)
-                .background(selected ? AppTheme.primary : AppTheme.surface, in: Capsule())
+                .background(
+                    selected ? AnyShapeStyle(AppTheme.primary) : AnyShapeStyle(.thinMaterial),
+                    in: Capsule()
+                )
                 .overlay(
-                    Capsule().strokeBorder(selected ? Color.clear : AppTheme.border, lineWidth: 1)
+                    Capsule().strokeBorder(
+                        selected ? Color.clear : AppTheme.border.opacity(0.5),
+                        lineWidth: 0.8
+                    )
                 )
         }
         .buttonStyle(ScaleButtonStyle())
