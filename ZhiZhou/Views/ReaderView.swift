@@ -200,8 +200,10 @@ struct ReaderView: View {
         .statusBarHidden(false)
         .persistentSystemOverlays(.automatic)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                readerToolbarGroup
+            if showChrome {
+                ToolbarItem(placement: .topBarTrailing) {
+                    readerToolbarGroup
+                }
             }
         }
         .sensoryFeedback(.selection, trigger: chapterOrder)
@@ -856,9 +858,6 @@ struct ReaderView: View {
         .buttonStyle(ScaleButtonStyle(pressedScale: 0.92))
         .foregroundStyle(ink.opacity(0.82))
         .fixedSize()
-        .opacity(showChrome ? 1 : 0)
-        .allowsHitTesting(showChrome)
-        .accessibilityHidden(!showChrome)
     }
 
     /// 底部阅读控制组：上一章、章节进度、下一章共享一块轻量分段表面。

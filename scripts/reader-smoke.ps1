@@ -62,8 +62,12 @@ Require-ReaderPattern "ProMotion devices can use high refresh rates" (
 Require-ReaderPattern "system chrome keeps a stable layout reservation" (
     $readerView -match "\.toolbar\(\.visible, for: \.navigationBar\)" -and
     $readerView -match "\.statusBarHidden\(false\)" -and
-    $readerView -match "\.persistentSystemOverlays\(\.automatic\)" -and
-    $readerView -match "(?s)private var readerToolbarGroup.*?\.opacity\(showChrome \? 1 : 0\).*?\.allowsHitTesting\(showChrome\)"
+    $readerView -match "\.persistentSystemOverlays\(\.automatic\)"
+)
+Require-ReaderPattern "collapsed chrome removes the trailing toolbar group" (
+    $readerView -match '\.navigationTitle\(chapter\?\.title \?\? "阅读"\)' -and
+    $readerView -match "(?s)\.toolbar \{\s*if showChrome \{\s*ToolbarItem\(placement: \.topBarTrailing\)\s*\{\s*readerToolbarGroup\s*\}\s*\}\s*\}" -and
+    $readerView -notmatch "(?s)private var readerToolbarGroup.*?\.opacity\(showChrome \? 1 : 0\)"
 )
 
 if ($failures.Count -gt 0) {
