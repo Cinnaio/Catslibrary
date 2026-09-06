@@ -72,6 +72,20 @@ Require-NavigationPattern "admin operations expose a direct POPO account entry" 
     $adminRootView -match 'AdminModule\(id: "popo-account", title: "POPO 账号", systemImage: "person\.badge\.key", destination: \.popoAccount\)' -and
     $adminRootView -match 'case \.popoAccount: Po18AccountSheet\(\)'
 )
+Require-NavigationPattern "novel detail separates synopsis from the hero card" (
+    $detailView -match "(?s)if !currentNovel\.description\.isEmpty \{\s*Section \{\s*synopsisBlock" -and
+    $detailView -match "(?s)private var synopsisBlock.*?Text\(currentNovel\.description\)"
+)
+Require-NavigationPattern "novel detail hero exposes cover and reading progress" (
+    $detailView -match "targetSize: CGSize\(width: 112, height: 160\)" -and
+    $detailView -match "(?s)if let progress,.*?ProgressView\(value: value, total: 1\)" -and
+    $detailView -match "\.paperCard\(cornerRadius: 20\)"
+)
+Require-NavigationPattern "novel detail chapters use a solid grouped surface" (
+    $detailView -match '(?s)private var chapterSectionHeader.*?Text\("章节"\)' -and
+    $detailView -match "\.listRowBackground\(AppTheme\.surface\)" -and
+    $detailView -notmatch "\.frostedRowBackground\(\)"
+)
 
 if ($failures.Count -gt 0) {
     throw "Navigation smoke failed:`n - $($failures -join "`n - ")"

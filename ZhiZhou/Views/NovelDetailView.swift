@@ -1,7 +1,7 @@
 import SwiftUI
 import ZhiZhouCore
 
-/// 小说详情页：继续阅读为主操作，目录为次要入口。
+/// 小说详情页：封面与简介建立阅读上下文，继续阅读为主操作，目录与离线管理为次要入口。
 struct NovelDetailView: View {
     let novel: Novel
     @Environment(AppState.self) private var appState
@@ -34,6 +34,16 @@ struct NovelDetailView: View {
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
 
+            if !currentNovel.description.isEmpty {
+                Section {
+                    synopsisBlock
+                } header: {
+                    Text("简介")
+                }
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+            }
+
             Section {
                 if !chapters.isEmpty {
                     offlineSummary
@@ -58,9 +68,9 @@ struct NovelDetailView: View {
                     chapterRow(chapter)
                 }
             } header: {
-                Text("章节（\(chapters.count)）")
+                chapterSectionHeader
             }
-            .frostedRowBackground()
+            .listRowBackground(AppTheme.surface)
         }
         .onPreferenceChange(OfflineChapterFramePreferenceKey.self) { frames in
             selectionRowFrames = frames
@@ -468,11 +478,11 @@ struct NovelDetailView: View {
     }
 
     private var headerCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top, spacing: 14) {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(alignment: .top, spacing: 16) {
                 CachedAsyncImage(
                     url: APIClient.shared.coverURL(novelId: currentNovel.id, updatedAt: currentNovel.updatedAt),
-                    targetSize: CGSize(width: 88, height: 126)
+                    targetSize: CGSize(width: 112, height: 160)
                 ) { image in
                     image.resizable().scaledToFill()
                 } placeholder: {
@@ -482,17 +492,20 @@ struct NovelDetailView: View {
                             .foregroundStyle(AppTheme.primary)
                     }
                 }
-                .frame(width: 88, height: 126)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .frame(width: 112, height: 160)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .shadow(color: AppTheme.cardShadow, radius: 8, y: 4)
                 .accessibilityLabel("\(currentNovel.title) 封面")
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text(currentNovel.title)
-                        .font(serifFont(.title3, .semibold))
+                        .font(serifFont(.title2, .semibold))
                         .foregroundStyle(AppTheme.textPrimary)
+                        .lineLimit(3)
                     Text(currentNovel.author)
                         .font(.subheadline)
                         .foregroundStyle(AppTheme.textSecondary)
+                        .lineLimit(1)
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 64), alignment: .leading)], alignment: .leading, spacing: 6) {
                         if let status = currentNovel.statusLabel {
                             Text(status).modifier(ThemeTagModifier())
@@ -508,26 +521,20 @@ struct NovelDetailView: View {
                 Spacer(minLength: 0)
             }
 
-            if !currentNovel.description.isEmpty {
-                Text(currentNovel.description)
-                    .font(.footnote)
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .lineLimit(expandDescription ? nil : 4)
-                if currentNovel.description.count > 80 {
-                    Button(expandDescription ? "收起" : "展开简介") {
-                        interactionFeedback += 1
-                        if reduceMotion {
-                            expandDescription.toggle()
-                        } else {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                expandDescription.toggle()
-                            }
-                        }
+            if let progress,
+               let chapter = chapters.first(where: { $0.id == progress.chapterId }) {
+                let value = min(max(progress.scrollPercent, 0), 1)
+                VStack(alignment: .leading, spacing: 7) {
+                    HStack {
+                        Text("阅读进度")
+                        Spacer(minLength: 8)
+                        Text("第 \(chapter.order) 章 · 已读 \(Int((value * 100).rounded()))%")
                     }
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(AppTheme.primary)
-                    .buttonStyle(ScaleButtonStyle(pressedScale: 0.96))
-                    .frame(minHeight: 44, alignment: .leading)
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.textMuted)
+
+                    ProgressView(value: value, total: 1)
+                        .tint(AppTheme.primary)
                 }
             }
 
@@ -591,7 +598,46 @@ struct NovelDetailView: View {
             }
         }
         .padding(16)
-        .paperCard(cornerRadius: 16)
+        .paperCard(cornerRadius: 20)
+    }
+
+    private var synopsisBlock: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(currentNovel.description)
+                .font(.body)
+                .foregroundStyle(AppTheme.textSecondary)
+                .lineLimit(expandDescription ? nil : 4)
+
+            if currentNovel.description.count > 80 {
+                Button(expandDescription ? "收起简介" : "展开简介") {
+                    interactionFeedback += 1
+                    if reduceMotion {
+                        expandDescription.toggle()
+                    } else {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            expandDescription.toggle()
+                        }
+                    }
+                }
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AppTheme.primary)
+                .buttonStyle(ScaleButtonStyle(pressedScale: 0.96))
+                .frame(minHeight: 44, alignment: .leading)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private var chapterSectionHeader: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text("章节")
+                .font(.headline.weight(.semibold))
+                .foregroundStyle(AppTheme.textPrimary)
+            Spacer(minLength: 12)
+            Text("\(chapters.count) 章")
+                .font(.caption)
+                .foregroundStyle(AppTheme.textMuted)
+        }
     }
 
     private func toggleBookshelf() {
