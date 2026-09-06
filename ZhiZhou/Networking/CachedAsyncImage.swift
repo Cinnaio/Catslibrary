@@ -4,6 +4,15 @@ import ImageIO
 
 /// 统一图片缓存（内存 + 磁盘），避免封面在滚动/重访时反复下载。
 enum ImageCache {
+    /// 保留已解码的缩略图，避免 List 行重建后再次依赖网络或 URLCache 才能显示封面。
+    /// NSCache 会在内存紧张时自动淘汰，磁盘 URLCache 仍作为跨启动的第二层缓存。
+    static let decodedImageCache: NSCache<NSString, UIImage> = {
+        let cache = NSCache<NSString, UIImage>()
+        cache.countLimit = 256
+        cache.totalCostLimit = 32 * 1024 * 1024
+        return cache
+    }()
+
     static let sharedCache: URLCache = {
         // 封面使用缩略图解码；控制 URLCache 上限，避免长期滚动把设备缓存顶到数百 MB。
         URLCache(memoryCapacity: 64 * 1024 * 1024,
@@ -19,6 +28,36 @@ enum ImageCache {
         config.timeoutIntervalForResource = 40
         return URLSession(configuration: config)
     }()
+}
+
+/// 合并同一封面的并发请求：列表行被回收时，不让它的取消动作中断其他行正在等待的下载。
+private actor ImageRequestCache {
+    static let shared = ImageRequestCache()
+
+    private var inFlight: [String: Task<Data?, Never>] = [:]
+
+    func data(for url: URL) async -> Data? {
+        let key = url.absoluteString
+        if let task = inFlight[key] {
+            return await task.value
+        }
+
+        let task = Task {
+            do {
+                let (data, response) = try await ImageCache.session.data(from: url)
+                if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+                    return nil
+                }
+                return data
+            } catch {
+                return nil
+            }
+        }
+        inFlight[key] = task
+        let data = await task.value
+        inFlight[key] = nil
+        return data
+    }
 }
 
 /// 封面预取：限并发（默认 4）并按 URL 去重。
@@ -56,7 +95,7 @@ actor CoverPrefetcher {
             queueHead += 1
             active += 1
             Task {
-                _ = try? await ImageCache.session.data(from: url)
+                _ = await ImageRequestCache.shared.data(for: url)
                 active -= 1
                 pump()
             }
@@ -129,11 +168,21 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
             }
             let key = taskKey
             if loadedKey == key, image != nil { return }
-            image = nil
+            if loadedKey != nil, loadedKey != key {
+                // URL 变化时不能短暂展示上一本书的封面；同一 URL 重试时则保留现有图片。
+                image = nil
+            }
             loadFailed = false
             let maxPixel = max(targetSize.width, targetSize.height) * displayScale
             guard !Task.isCancelled else { return }
+            if let cached = ImageCache.decodedImageCache.object(forKey: key as NSString) {
+                image = cached
+                loadedKey = key
+                return
+            }
             if let img = await Self.fetch(url, maxPixel: maxPixel) {
+                guard !Task.isCancelled else { return }
+                ImageCache.decodedImageCache.setObject(img, forKey: key as NSString, cost: Self.imageCost(img))
                 image = img
                 loadedKey = key
             } else if !Task.isCancelled {
@@ -143,19 +192,19 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
     }
 
     private var taskKey: String {
-        "\(url?.absoluteString ?? "")-\(Int(targetSize.width))x\(Int(targetSize.height))"
+        let pixelWidth = Int((targetSize.width * displayScale).rounded(.up))
+        let pixelHeight = Int((targetSize.height * displayScale).rounded(.up))
+        return "\(url?.absoluteString ?? "")-\(pixelWidth)x\(pixelHeight)"
+    }
+
+    nonisolated private static func imageCost(_ image: UIImage) -> Int {
+        guard let cgImage = image.cgImage else { return 1 }
+        return max(1, cgImage.bytesPerRow * cgImage.height)
     }
 
     nonisolated private static func fetch(_ url: URL, maxPixel: CGFloat) async -> UIImage? {
-        do {
-            let (data, response) = try await ImageCache.session.data(from: url)
-            if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-                return nil
-            }
-            return downsample(data: data, maxPixel: maxPixel)
-        } catch {
-            return nil
-        }
+        guard let data = await ImageRequestCache.shared.data(for: url) else { return nil }
+        return downsample(data: data, maxPixel: maxPixel)
     }
 
     nonisolated private static func downsample(data: Data, maxPixel: CGFloat) -> UIImage? {

@@ -184,6 +184,7 @@ final class FontStore {
     }
 
     func clearCaches() async {
+        ImageCache.decodedImageCache.removeAllObjects()
         ImageCache.sharedCache.removeAllCachedResponses()
         await APIClient.shared.clearCaches()
         refresh()
