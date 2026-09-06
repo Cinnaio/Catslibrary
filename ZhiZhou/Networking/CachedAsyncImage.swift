@@ -42,7 +42,7 @@ private actor ImageRequestCache {
             return await task.value
         }
 
-        let task = Task {
+        let task: Task<Data?, Never> = Task {
             do {
                 let (data, response) = try await ImageCache.session.data(from: url)
                 if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
