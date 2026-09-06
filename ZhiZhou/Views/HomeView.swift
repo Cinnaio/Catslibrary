@@ -83,6 +83,7 @@ struct HomeView: View {
                 if let recentReading {
                     sectionHeader("继续阅读")
                         .padding(.top, 16)
+                        .padding(.bottom, 12)
                     continueReadingHero(recentReading)
                         .padding(.bottom, 28)
                 } else if bookshelf != nil {
@@ -95,7 +96,7 @@ struct HomeView: View {
                     "最近更新",
                     trailing: totalNovelCount > 0 ? "\(totalNovelCount) 本" : nil
                 )
-                .padding(.bottom, 10)
+                .padding(.bottom, 12)
 
                 catalogContent
             }
@@ -159,7 +160,7 @@ struct HomeView: View {
             emptyState
                 .frame(maxWidth: .infinity, minHeight: 220)
         } else {
-            LazyVStack(spacing: 0) {
+            LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(novels) { novel in
                     novelRow(novel)
                         .onAppear {

@@ -44,6 +44,13 @@ Require-NavigationPattern "continue reading hero omits a redundant chapter title
 Require-NavigationPattern "homepage content clears the floating tab bar" (
     $homeView -match "(?s)\.safeAreaInset\(edge: \.bottom, spacing: 0\)\s*\{\s*Color\.clear\s*\.frame\(height: 24\)\s*\}"
 )
+Require-NavigationPattern "homepage catalog rows align with the content edge" (
+    $homeView -match "(?s)else \{\s*LazyVStack\(alignment: \.leading, spacing: 0\)"
+)
+Require-NavigationPattern "homepage section headers keep breathing room" (
+    $homeView -match '(?s)sectionHeader\("继续阅读"\).*?\.padding\(\.bottom, 12\)' -and
+    $homeView -match '(?s)trailing: totalNovelCount.*?\.padding\(\.bottom, 12\)'
+)
 Require-NavigationPattern "homepage keeps one native pull-to-refresh indicator" (
     $homeView -match "\.refreshable \{[\s\S]*?await reload\(\)[\s\S]*?await loadReadingContext\(\)[\s\S]*?\}" -and
     $homeView -notmatch "\.toolbar[\s\S]*?isLoading && !novels\.isEmpty[\s\S]*?ProgressView"
