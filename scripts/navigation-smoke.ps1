@@ -22,22 +22,22 @@ function Require-NavigationPattern {
 # Compact-width entry points must own their destination so a tap cannot depend
 # on a selection binding or a destination registered on another navigation tree.
 Require-NavigationPattern "homepage compact row has a direct NovelDetailView destination" (
-    $homeView -match 'NavigationStack\(path: \$navigationPath\)[\s\S]*?navigationDestination\(for: Novel\.self\)[\s\S]*?NovelDetailView'
+    $homeView -match 'NavigationStack\(path: \$navigationPath\)[\s\S]*?navigationDestination\(for: HomeRoute\.self\)[\s\S]*?case \.novel\(let novel\):[\s\S]*?NovelDetailView'
 )
 Require-NavigationPattern "homepage compact row has no trailing NavigationLink indicator" (
     $homeView -notmatch "private func novelRow[\s\S]*?if horizontalSizeClass != \.regular[\s\S]*?NavigationLink"
 )
 Require-NavigationPattern "homepage compact row navigates through its path" (
-    $homeView -match "private func novelRow[\s\S]*?if horizontalSizeClass != \.regular[\s\S]*?navigationPath\.append\(novel\)"
+    $homeView -match "private func novelRow[\s\S]*?if horizontalSizeClass != \.regular[\s\S]*?navigationPath\.append\(\.novel\(novel\)\)"
 )
 Require-NavigationPattern "homepage uses the standard large title" (
-    $homeView -match 'navigationTitle\("主页"\)[\s\S]*?navigationBarTitleDisplayMode\(\.large\)'
+    $homeView -match 'navigationTitle\("发现"\)[\s\S]*?navigationBarTitleDisplayMode\(\.large\)'
 )
 Require-NavigationPattern "homepage removes the promotional header copy" (
     $homeView -notmatch "书海里，遇见好故事"
 )
 Require-NavigationPattern "homepage keeps one native pull-to-refresh indicator" (
-    $homeView -match "\.refreshable \{ await reload\(\) \}" -and
+    $homeView -match "\.refreshable \{[\s\S]*?await reload\(\)[\s\S]*?await loadReadingContext\(\)[\s\S]*?\}" -and
     $homeView -notmatch "\.toolbar[\s\S]*?isLoading && !novels\.isEmpty[\s\S]*?ProgressView"
 )
 Require-NavigationPattern "bookshelf recent row has a compact direct destination" (
@@ -54,7 +54,8 @@ Require-NavigationPattern "reader entry links own a direct ReaderView destinatio
     $detailView -match "NavigationLink[\s\S]*?ReaderView"
 )
 Require-NavigationPattern "admin operations expose a direct POPO account entry" (
-    $adminRootView -match 'Po18AccountSheet\(\)[\s\S]*?Label\("POPO 账号", systemImage: "person\.badge\.key"\)'
+    $adminRootView -match 'AdminModule\(id: "popo-account", title: "POPO 账号", systemImage: "person\.badge\.key", destination: \.popoAccount\)' -and
+    $adminRootView -match 'case \.popoAccount: Po18AccountSheet\(\)'
 )
 
 if ($failures.Count -gt 0) {

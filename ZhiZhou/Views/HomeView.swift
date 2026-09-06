@@ -1,17 +1,20 @@
 import SwiftUI
 import ZhiZhouCore
 
-/// 发现页：紧凑宽度使用单列导航，宽屏保留侧栏书单与详情列。
+/// 发现页：以继续阅读为首要入口，紧凑宽度使用单列导航，宽屏保留书单与详情列。
 struct HomeView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var novels: [Novel] = []
     @State private var categories: [String] = []
     @State private var selectedCategory: String?
     @State private var selectedNovel: Novel?
-    @State private var navigationPath: [Novel] = []
+    @State private var selectedReaderLaunch: ReaderLaunch?
+    @State private var navigationPath: [HomeRoute] = []
     @State private var search = ""
     @State private var page = 1
     @State private var totalPages = 1
+    @State private var totalNovelCount = 0
+    @State private var bookshelf: BookshelfResponse?
     @State private var isLoading = false
     @State private var isLoadingMore = false
     @State private var errorMessage: String?
@@ -22,12 +25,30 @@ struct HomeView: View {
     @State private var interactionFeedback = 0
     @State private var isFilterPending = false
 
+    private enum HomeRoute: Hashable {
+        case novel(Novel)
+        case reader(ReaderLaunch)
+    }
+
+    private var recentReading: RecentItem? {
+        bookshelf?.recent.first
+    }
+
     var body: some View {
         if horizontalSizeClass != .regular {
             NavigationStack(path: $navigationPath) {
                 homeList
-                    .navigationDestination(for: Novel.self) { novel in
-                        NovelDetailView(novel: novel)
+                    .navigationDestination(for: HomeRoute.self) { route in
+                        switch route {
+                        case .novel(let novel):
+                            NovelDetailView(novel: novel)
+                        case .reader(let launch):
+                            ReaderView(
+                                novel: launch.novel,
+                                chapterOrder: launch.chapterOrder,
+                                preloadedChapters: launch.preloadedChapters
+                            )
+                        }
                     }
             }
         } else {
@@ -36,13 +57,19 @@ struct HomeView: View {
                     .navigationSplitViewColumnWidth(min: 300, ideal: 380, max: 520)
             } detail: {
                 NavigationStack {
-                    if let selectedNovel {
+                    if let selectedReaderLaunch {
+                        ReaderView(
+                            novel: selectedReaderLaunch.novel,
+                            chapterOrder: selectedReaderLaunch.chapterOrder,
+                            preloadedChapters: selectedReaderLaunch.preloadedChapters
+                        )
+                    } else if let selectedNovel {
                         NovelDetailView(novel: selectedNovel)
                     } else {
                         ContentUnavailableView(
                             "选择一本书",
                             systemImage: "book.closed",
-                            description: Text("从书单打开详情，或到书架接着读")
+                            description: Text("从书单打开详情，或从继续阅读接着读")
                         )
                     }
                 }
@@ -52,100 +79,121 @@ struct HomeView: View {
     }
 
     private var homeList: some View {
-        List(selection: $selectedNovel) {
-            searchField
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 8, trailing: 16))
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                searchField
+                    .padding(.top, 8)
 
-            categoryChips
-                .padding(.vertical, 2)
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 10, trailing: 16))
+                categoryChips
+                    .padding(.top, 10)
 
-            if isLoading && novels.isEmpty {
-                ProgressView("加载中…")
-                    .frame(maxWidth: .infinity, minHeight: 200)
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
-            } else if let errorMessage, novels.isEmpty {
-                ContentUnavailableView {
-                    Label("加载失败", systemImage: "wifi.slash")
-                } description: {
-                    Text(errorMessage)
-                } actions: {
-                    Button("重试") { Task { await reload() } }
-                        .buttonStyle(.borderedProminent)
-                        .tint(AppTheme.primary)
+                if let recentReading {
+                    sectionHeader("继续阅读")
+                        .padding(.top, 22)
+                    continueReadingCard(recentReading)
+                        .padding(.bottom, 26)
+                } else if bookshelf != nil {
+                    startExploringCard
+                        .padding(.top, 22)
+                        .padding(.bottom, 26)
                 }
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
-            } else if novels.isEmpty {
-                emptyState
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
-            } else {
-                ForEach(novels) { novel in
-                    novelRow(novel)
-                    .contentShape(Rectangle())
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets(top: 7, leading: 16, bottom: 7, trailing: 16))
-                    .onAppear {
-                        if novel.id == novels.last?.id { loadMoreIfNeeded() }
-                    }
-                }
-                if isLoadingMore {
-                    ProgressView()
-                        .frame(maxWidth: .infinity, minHeight: 44)
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(Color.clear)
-                } else if let loadMoreError {
-                    Button(loadMoreError) { loadMoreIfNeeded() }
-                        .font(.footnote)
-                        .foregroundStyle(AppTheme.danger)
-                        .buttonStyle(ScaleButtonStyle(pressedScale: 0.98))
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(Color.clear)
-                }
+
+                sectionHeader(
+                    "最近更新",
+                    trailing: totalNovelCount > 0 ? "\(totalNovelCount) 本" : nil
+                )
+                .padding(.bottom, 10)
+
+                catalogContent
             }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 24)
         }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
+        .scrollIndicators(.hidden)
         .pageBackground()
         .navigationTitle("发现")
         .navigationBarTitleDisplayMode(.large)
-        .refreshable { await reload() }
-        .task { await reload() }
+        .refreshable {
+            await reload()
+            await loadReadingContext()
+        }
+        .task {
+            await reload()
+            await loadReadingContext()
+        }
         .onChange(of: search) { _, _ in
             scheduleReload()
         }
         .onChange(of: selectedCategory) { _, _ in
             scheduleReload()
         }
+        .onChange(of: navigationPath) { _, newPath in
+            guard newPath.isEmpty else { return }
+            Task { await loadReadingContext() }
+        }
         .sensoryFeedback(.selection, trigger: interactionFeedback)
+    }
+
+    @ViewBuilder
+    private var catalogContent: some View {
+        if isLoading && novels.isEmpty {
+            ProgressView("加载中…")
+                .frame(maxWidth: .infinity, minHeight: 220)
+        } else if let errorMessage, novels.isEmpty {
+            ContentUnavailableView {
+                Label("加载失败", systemImage: "wifi.slash")
+            } description: {
+                Text(errorMessage)
+            } actions: {
+                Button("重试") { Task { await reload() } }
+                    .buttonStyle(.borderedProminent)
+                    .tint(AppTheme.primary)
+            }
+            .frame(maxWidth: .infinity, minHeight: 220)
+        } else if novels.isEmpty {
+            emptyState
+                .frame(maxWidth: .infinity, minHeight: 220)
+        } else {
+            LazyVStack(spacing: 12) {
+                ForEach(novels) { novel in
+                    novelRow(novel)
+                        .onAppear {
+                            if novel.id == novels.last?.id { loadMoreIfNeeded() }
+                        }
+                }
+
+                if isLoadingMore {
+                    ProgressView()
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                } else if let loadMoreError {
+                    Button(loadMoreError) { loadMoreIfNeeded() }
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(AppTheme.danger)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .buttonStyle(ScaleButtonStyle(pressedScale: 0.98))
+                }
+            }
+        }
     }
 
     /// 紧凑宽度直接持有导航目标；宽屏则更新分栏详情选择。
     @ViewBuilder
     private func novelRow(_ novel: Novel) -> some View {
-        if horizontalSizeClass != .regular {
-            Button {
-                navigationPath.append(novel)
-            } label: {
-                NovelCardView(novel: novel)
-            }
-            .buttonStyle(ScaleButtonStyle(pressedScale: 0.985))
-        } else {
-            Button {
+        Button {
+            selectedReaderLaunch = nil
+            if horizontalSizeClass != .regular {
+                navigationPath.append(.novel(novel))
+            } else {
                 selectedNovel = novel
-            } label: {
-                NovelCardView(novel: novel)
             }
-            .buttonStyle(ScaleButtonStyle(pressedScale: 0.985))
-            .tag(novel)
+        } label: {
+            NovelCardView(
+                novel: novel,
+                isSelected: horizontalSizeClass == .regular && selectedNovel?.id == novel.id
+            )
         }
+        .buttonStyle(ScaleButtonStyle(pressedScale: 0.985))
+        .contentShape(Rectangle())
     }
 
     private var searchField: some View {
@@ -228,7 +276,7 @@ struct HomeView: View {
             Text(label)
                 .font(.subheadline.weight(selected ? .semibold : .regular))
                 .padding(.horizontal, 14)
-                .frame(minHeight: 44)
+                .frame(minHeight: 42)
                 .foregroundStyle(selected ? AppTheme.onPrimary : AppTheme.textSecondary)
                 .background {
                     if selected {
@@ -255,6 +303,104 @@ struct HomeView: View {
         .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
 
+    private func sectionHeader(_ title: String, trailing: String? = nil) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(title)
+                .font(serifFont(.title3, .semibold))
+                .foregroundStyle(AppTheme.textPrimary)
+            Spacer(minLength: 12)
+            if let trailing {
+                Text(trailing)
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.textMuted)
+            }
+        }
+    }
+
+    private func continueReadingCard(_ item: RecentItem) -> some View {
+        let progress = min(max(item.scrollPercent, 0), 1)
+        return Button {
+            openRecent(item)
+        } label: {
+            HStack(spacing: 14) {
+                NovelCoverView(
+                    novel: item.asNovel,
+                    size: CGSize(width: 64, height: 88)
+                )
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(item.novelTitle)
+                        .font(serifFont(.headline, .semibold))
+                        .foregroundStyle(AppTheme.textPrimary)
+                        .lineLimit(2)
+                    Text(item.chapterTitle)
+                        .font(.subheadline)
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .lineLimit(1)
+                    ProgressView(value: progress, total: 1)
+                        .tint(AppTheme.primary)
+                        .padding(.top, 3)
+                    HStack(spacing: 6) {
+                        Text("已读 \(Int((progress * 100).rounded()))%")
+                        Text("·")
+                        Text("第 \(item.chapterOrder) 章")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.textMuted)
+                }
+
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(AppTheme.primary)
+            }
+            .padding(14)
+            .background(AppTheme.primaryLight.opacity(0.82), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .strokeBorder(AppTheme.primary.opacity(0.24), lineWidth: 0.8)
+            }
+        }
+        .buttonStyle(ScaleButtonStyle(pressedScale: 0.985))
+        .accessibilityLabel("继续阅读《\(item.novelTitle)》")
+        .accessibilityHint("打开第 \(item.chapterOrder) 章")
+    }
+
+    private var startExploringCard: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "sparkles")
+                .font(.title3)
+                .foregroundStyle(AppTheme.primary)
+                .frame(width: 38, height: 38)
+                .background(AppTheme.primaryLight, in: Circle())
+            VStack(alignment: .leading, spacing: 3) {
+                Text("开始探索")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                Text("从最近更新里挑一本喜欢的书")
+                    .font(.footnote)
+                    .foregroundStyle(AppTheme.textSecondary)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(14)
+        .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(AppTheme.border.opacity(0.7), lineWidth: 0.8)
+        }
+    }
+
+    private func openRecent(_ item: RecentItem) {
+        let launch = item.asLaunch
+        selectedNovel = nil
+        if horizontalSizeClass != .regular {
+            navigationPath.append(.reader(launch))
+        } else {
+            selectedReaderLaunch = launch
+        }
+    }
+
     /// 搜索与分类共用同一条防抖加载通道，避免并发 reload 竞态。
     private func scheduleReload() {
         reloadTask?.cancel()
@@ -272,6 +418,18 @@ struct HomeView: View {
         page = 1
         loadMoreError = nil
         await fetchPage(1, append: false)
+    }
+
+    private func loadReadingContext() async {
+        guard APIClient.shared.isAuthenticated else { return }
+        do {
+            bookshelf = try await APIClient.shared.get(
+                ContentPolicy.safePath("/api/bookshelf"),
+                auth: true
+            )
+        } catch {
+            // 阅读入口不是发现页的阻塞条件，书架请求失败时继续展示目录。
+        }
     }
 
     private func loadMoreIfNeeded() {
@@ -309,6 +467,7 @@ struct HomeView: View {
             } else {
                 novels = r.novels
                 categories = r.availableCategories
+                totalNovelCount = r.total
             }
             page = r.page
             totalPages = r.totalPages

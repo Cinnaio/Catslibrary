@@ -1,62 +1,70 @@
 import SwiftUI
 
-/// 小说卡片（发现页列表项）：封面 + 标题/作者/简介/分类。
+/// 小说卡片（发现页列表项）：封面 + 标题/作者/状态/阅读元信息。
 struct NovelCardView: View {
     let novel: Novel
+    var isSelected = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            cover
+            NovelCoverView(novel: novel)
             VStack(alignment: .leading, spacing: 5) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    if let status = novel.statusLabel {
+                        Text(status)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(AppTheme.primary)
+                    }
+                    Spacer(minLength: 0)
+                    if novel.hasUpdate {
+                        Text("有更新")
+                            .modifier(ThemeTagModifier(emphasized: true))
+                    }
+                }
                 Text(novel.title)
                     .font(serifFont(.headline, .semibold))
                     .foregroundStyle(AppTheme.textPrimary)
                     .lineLimit(2)
-                Text(novel.author)
+                Text(novel.author.isEmpty ? "佚名" : novel.author)
                     .font(.subheadline)
                     .foregroundStyle(AppTheme.textSecondary)
                     .lineLimit(1)
-                if !novel.description.isEmpty {
-                    Text(novel.description)
-                        .font(.footnote)
-                        .foregroundStyle(AppTheme.textSecondary)
-                        .lineLimit(2)
+                HStack(spacing: 7) {
+                    if let category = novel.categories.first, !category.isEmpty {
+                        Text(category)
+                            .foregroundStyle(AppTheme.primary)
+                    }
+                    Text("\(novel.chapterCount) 章")
+                    if novel.updatedAt > 0 {
+                        Text("·")
+                        Text(AppFormat.relativeTime(novel.updatedAt))
+                    }
                 }
-                if hasTags {
+                .font(.caption)
+                .foregroundStyle(AppTheme.textMuted)
+                if novel.categories.count > 1 {
                     HStack(spacing: 8) {
-                        if let status = novel.statusLabel {
-                            Text(status)
-                                .modifier(ThemeTagModifier())
-                        }
-                        if novel.hasUpdate {
-                            Text("有更新")
-                                .modifier(ThemeTagModifier(emphasized: true))
-                        }
-                        ForEach(novel.categories.prefix(2), id: \.self) { category in
+                        ForEach(novel.categories.dropFirst().prefix(2), id: \.self) { category in
                             Text(category)
                                 .modifier(ThemeTagModifier())
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
-
-                HStack(spacing: 8) {
-                    Spacer(minLength: 0)
-                    Text("\(novel.chapterCount) 章")
-                        .font(.caption)
-                        .foregroundStyle(AppTheme.textMuted)
-                }
             }
         }
         .padding(12)
-        .paperCard()
+        .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous)
+                .strokeBorder(
+                    isSelected ? AppTheme.primary.opacity(0.78) : AppTheme.border.opacity(0.72),
+                    lineWidth: isSelected ? 1.4 : 0.8
+                )
+        }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityText)
         .accessibilityAddTraits(.isButton)
-    }
-
-    private var hasTags: Bool {
-        novel.statusLabel != nil || novel.hasUpdate || !novel.categories.isEmpty
     }
 
     private var accessibilityText: String {
@@ -66,11 +74,16 @@ struct NovelCardView: View {
         parts.append("\(novel.chapterCount) 章")
         return parts.filter { !$0.isEmpty }.joined(separator: "，")
     }
+}
 
-    private var cover: some View {
+struct NovelCoverView: View {
+    let novel: Novel
+    var size: CGSize = CGSize(width: 72, height: 104)
+
+    var body: some View {
         CachedAsyncImage(
             url: APIClient.shared.coverURL(novelId: novel.id, updatedAt: novel.updatedAt),
-            targetSize: CGSize(width: 76, height: 108)
+            targetSize: size
         ) { image in
             image.resizable().scaledToFill()
         } placeholder: {
@@ -80,8 +93,8 @@ struct NovelCardView: View {
                     .foregroundStyle(AppTheme.primary)
             }
         }
-        .frame(width: 76, height: 108)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .frame(width: size.width, height: size.height)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .accessibilityHidden(true)
     }
 }
