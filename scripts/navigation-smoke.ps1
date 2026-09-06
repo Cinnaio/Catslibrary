@@ -36,6 +36,14 @@ Require-NavigationPattern "homepage uses the standard large title" (
 Require-NavigationPattern "homepage removes the promotional header copy" (
     $homeView -notmatch "书海里，遇见好故事"
 )
+Require-NavigationPattern "continue reading hero omits a redundant chapter title" (
+    $homeView -match "(?s)private func continueReadingChapterTitle.*?normalizedTitle.*?normalizedOrder" -and
+    $homeView -match "(?s)if let chapterTitle = continueReadingChapterTitle\(item\).*?Text\(chapterTitle\)" -and
+    $homeView -notmatch "(?s)private func continueReadingHero.*?Text\(item\.chapterTitle\)"
+)
+Require-NavigationPattern "homepage content clears the floating tab bar" (
+    $homeView -match "(?s)\.safeAreaInset\(edge: \.bottom, spacing: 0\)\s*\{\s*Color\.clear\s*\.frame\(height: 24\)\s*\}"
+)
 Require-NavigationPattern "homepage keeps one native pull-to-refresh indicator" (
     $homeView -match "\.refreshable \{[\s\S]*?await reload\(\)[\s\S]*?await loadReadingContext\(\)[\s\S]*?\}" -and
     $homeView -notmatch "\.toolbar[\s\S]*?isLoading && !novels\.isEmpty[\s\S]*?ProgressView"

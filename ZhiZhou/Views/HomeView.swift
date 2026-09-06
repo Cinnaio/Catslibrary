@@ -103,6 +103,12 @@ struct HomeView: View {
             .padding(.bottom, 24)
         }
         .scrollIndicators(.hidden)
+        // Liquid Glass TabBar floats over the scroll content on iOS 26;
+        // reserve a small tail so the final row can rest clear of the bar.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            Color.clear
+                .frame(height: 24)
+        }
         .pageBackground()
         .navigationTitle("发现")
         .navigationBarTitleDisplayMode(.large)
@@ -254,10 +260,12 @@ struct HomeView: View {
                         Text("第 \(item.chapterOrder) 章")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(AppTheme.primary)
-                        Text(item.chapterTitle)
-                            .font(.subheadline.weight(.medium))
-                            .foregroundStyle(AppTheme.textSecondary)
-                            .lineLimit(2)
+                        if let chapterTitle = continueReadingChapterTitle(item) {
+                            Text(chapterTitle)
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(AppTheme.textSecondary)
+                                .lineLimit(2)
+                        }
                     }
 
                     VStack(alignment: .leading, spacing: 5) {
@@ -301,6 +309,15 @@ struct HomeView: View {
         .accessibilityLabel("继续阅读《\(item.novelTitle)》")
         .accessibilityValue("第 \(item.chapterOrder) 章，已读 \(Int((progress * 100).rounded()))%")
         .accessibilityHint("打开并从上次位置继续")
+    }
+
+    private func continueReadingChapterTitle(_ item: RecentItem) -> String? {
+        let title = item.chapterTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else { return nil }
+
+        let normalizedTitle = title.components(separatedBy: .whitespacesAndNewlines).joined()
+        let normalizedOrder = "第\(item.chapterOrder)章"
+        return normalizedTitle == normalizedOrder ? nil : title
     }
 
     private var startExploringHint: some View {
