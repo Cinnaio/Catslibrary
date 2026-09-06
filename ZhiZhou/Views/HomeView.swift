@@ -82,9 +82,9 @@ struct HomeView: View {
             LazyVStack(alignment: .leading, spacing: 0) {
                 if let recentReading {
                     sectionHeader("继续阅读")
-                        .padding(.top, 12)
-                    continueReadingRow(recentReading)
-                        .padding(.bottom, 22)
+                        .padding(.top, 16)
+                    continueReadingHero(recentReading)
+                        .padding(.bottom, 28)
                 } else if bookshelf != nil {
                     startExploringHint
                         .padding(.top, 16)
@@ -232,49 +232,75 @@ struct HomeView: View {
         }
     }
 
-    private func continueReadingRow(_ item: RecentItem) -> some View {
+    private func continueReadingHero(_ item: RecentItem) -> some View {
         let progress = min(max(item.scrollPercent, 0), 1)
         return Button {
             openRecent(item)
         } label: {
-            HStack(spacing: 14) {
+            HStack(alignment: .top, spacing: 16) {
                 NovelCoverView(
                     novel: item.asNovel,
-                    size: CGSize(width: 54, height: 76)
+                    size: CGSize(width: 88, height: 124)
                 )
+                .shadow(color: AppTheme.cardShadow, radius: 8, y: 4)
 
-                VStack(alignment: .leading, spacing: 5) {
+                VStack(alignment: .leading, spacing: 9) {
                     Text(item.novelTitle)
-                        .font(serifFont(.headline, .semibold))
+                        .font(serifFont(.title3, .semibold))
                         .foregroundStyle(AppTheme.textPrimary)
                         .lineLimit(2)
-                    Text(item.chapterTitle)
-                        .font(.subheadline)
-                        .foregroundStyle(AppTheme.textSecondary)
-                        .lineLimit(1)
-                    ProgressView(value: progress, total: 1)
-                        .tint(AppTheme.primary)
-                        .padding(.top, 3)
-                    HStack(spacing: 6) {
-                        Text("已读 \(Int((progress * 100).rounded()))%")
-                        Text("·")
-                        Text("第 \(item.chapterOrder) 章")
-                    }
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.textMuted)
-                }
 
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.right")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(AppTheme.primary)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("第 \(item.chapterOrder) 章")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(AppTheme.primary)
+                        Text(item.chapterTitle)
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(AppTheme.textSecondary)
+                            .lineLimit(2)
+                    }
+
+                    VStack(alignment: .leading, spacing: 5) {
+                        HStack {
+                            Text("阅读进度")
+                            Spacer(minLength: 8)
+                            Text("已读 \(Int((progress * 100).rounded()))%")
+                        }
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.textMuted)
+
+                        ProgressView(value: progress, total: 1)
+                            .tint(AppTheme.primary)
+                    }
+
+                    Label("继续阅读", systemImage: "arrow.right")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(AppTheme.primary)
+                }
             }
-            .padding(.vertical, 8)
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                LinearGradient(
+                    colors: [
+                        AppTheme.primaryLight.opacity(0.94),
+                        AppTheme.primaryLight.opacity(0.58)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ),
+                in: RoundedRectangle(cornerRadius: 20, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .stroke(AppTheme.primary.opacity(0.18), lineWidth: 0.9)
+            }
             .contentShape(Rectangle())
         }
-        .buttonStyle(ScaleButtonStyle(pressedScale: 0.99))
+        .buttonStyle(ScaleButtonStyle(pressedScale: 0.985))
         .accessibilityLabel("继续阅读《\(item.novelTitle)》")
-        .accessibilityHint("打开第 \(item.chapterOrder) 章")
+        .accessibilityValue("第 \(item.chapterOrder) 章，已读 \(Int((progress * 100).rounded()))%")
+        .accessibilityHint("打开并从上次位置继续")
     }
 
     private var startExploringHint: some View {
