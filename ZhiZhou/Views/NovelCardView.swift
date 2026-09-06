@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 小说卡片（发现页列表项）：封面 + 标题/作者/状态/阅读元信息。
+/// 小说行（发现页列表项）：封面 + 标题/作者/状态/阅读元信息。
 struct NovelCardView: View {
     let novel: Novel
     var isSelected = false
@@ -10,29 +10,26 @@ struct NovelCardView: View {
             NovelCoverView(novel: novel)
             VStack(alignment: .leading, spacing: 5) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    if let status = novel.statusLabel {
-                        Text(status)
-                            .font(.caption.weight(.semibold))
+                    Text(novel.title)
+                        .font(serifFont(.headline, .semibold))
+                        .foregroundStyle(AppTheme.textPrimary)
+                        .lineLimit(2)
+                    if novel.hasUpdate {
+                        Text("更新")
+                            .font(.caption2.weight(.semibold))
                             .foregroundStyle(AppTheme.primary)
                     }
-                    Spacer(minLength: 0)
-                    if novel.hasUpdate {
-                        Text("有更新")
-                            .modifier(ThemeTagModifier(emphasized: true))
-                    }
                 }
-                Text(novel.title)
-                    .font(serifFont(.headline, .semibold))
-                    .foregroundStyle(AppTheme.textPrimary)
-                    .lineLimit(2)
                 Text(novel.author.isEmpty ? "佚名" : novel.author)
                     .font(.subheadline)
                     .foregroundStyle(AppTheme.textSecondary)
                     .lineLimit(1)
                 HStack(spacing: 7) {
+                    if let status = novel.statusLabel {
+                        Text(status)
+                    }
                     if let category = novel.categories.first, !category.isEmpty {
                         Text(category)
-                            .foregroundStyle(AppTheme.primary)
                     }
                     Text("\(novel.chapterCount) 章")
                     if novel.updatedAt > 0 {
@@ -42,26 +39,14 @@ struct NovelCardView: View {
                 }
                 .font(.caption)
                 .foregroundStyle(AppTheme.textMuted)
-                if novel.categories.count > 1 {
-                    HStack(spacing: 8) {
-                        ForEach(novel.categories.dropFirst().prefix(2), id: \.self) { category in
-                            Text(category)
-                                .modifier(ThemeTagModifier())
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
             }
         }
-        .padding(12)
-        .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous)
-                .strokeBorder(
-                    isSelected ? AppTheme.primary.opacity(0.78) : AppTheme.border.opacity(0.72),
-                    lineWidth: isSelected ? 1.4 : 0.8
-                )
-        }
+        .padding(.vertical, 12)
+        .padding(.horizontal, 4)
+        .background(
+            isSelected ? AppTheme.primaryLight.opacity(0.42) : Color.clear,
+            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+        )
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityText)
         .accessibilityAddTraits(.isButton)
@@ -78,7 +63,7 @@ struct NovelCardView: View {
 
 struct NovelCoverView: View {
     let novel: Novel
-    var size: CGSize = CGSize(width: 72, height: 104)
+    var size: CGSize = CGSize(width: 60, height: 86)
 
     var body: some View {
         CachedAsyncImage(

@@ -38,7 +38,7 @@ ZhiZhou/
   Views/
     RootView / MainTabView         启动路由 / 三个 Tab（iOS 26 玻璃 Tab 栏）
     LoginView                      登录 / 注册（浅色原生感账号入口）
-    HomeView / NovelCardView       发现页（搜索/分类/分页，玻璃卡片）
+    HomeView / NovelCardView       发现页（系统搜索/筛选、继续阅读、轻量更新列表）
     NovelDetailView                详情 + 章节目录
     ReaderView                     阅读器（核心）
     ChapterListView / ReaderSettingsView
