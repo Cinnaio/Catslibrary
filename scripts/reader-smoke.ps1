@@ -59,6 +59,12 @@ Require-ReaderPattern "chapter change no longer starts an unmanaged duplicate lo
 Require-ReaderPattern "ProMotion devices can use high refresh rates" (
     $infoPlist -match "(?s)<key>CADisableMinimumFrameDurationOnPhone</key>\s*<true\s*/>"
 )
+Require-ReaderPattern "system chrome keeps a stable layout reservation" (
+    $readerView -match "\.toolbar\(\.visible, for: \.navigationBar\)" -and
+    $readerView -match "\.statusBarHidden\(false\)" -and
+    $readerView -match "\.persistentSystemOverlays\(\.automatic\)" -and
+    $readerView -match "(?s)private var readerToolbarGroup.*?\.opacity\(showChrome \? 1 : 0\).*?\.allowsHitTesting\(showChrome\)"
+)
 
 if ($failures.Count -gt 0) {
     throw "Reader smoke failed:`n - $($failures -join "`n - ")"

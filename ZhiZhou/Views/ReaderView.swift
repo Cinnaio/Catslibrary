@@ -191,14 +191,14 @@ struct ReaderView: View {
         .background(paper.ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)
         .navigationTitle(chapter?.title ?? "阅读")
-        // 阅读控制收起时同步隐藏顶部系统区域，把整屏留给正文。
+        // 顶部系统区域保持固定占位；只切换控制内容，避免正文在收起控制时重新布局。
         .toolbarBackground(paper, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
-        .toolbar(showChrome ? .visible : .hidden, for: .navigationBar)
+        .toolbar(.visible, for: .navigationBar)
         .toolbar(.hidden, for: .bottomBar)
         .toolbar(.hidden, for: .tabBar)
-        .statusBarHidden(!showChrome)
-        .persistentSystemOverlays(showChrome ? .automatic : .hidden)
+        .statusBarHidden(false)
+        .persistentSystemOverlays(.automatic)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 readerToolbarGroup
