@@ -111,7 +111,7 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
                                 .font(.caption2.weight(.semibold))
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 5)
-                                .background(.thinMaterial, in: Capsule())
+                                .appMaterialBackground(.thinMaterial, fallback: AppTheme.controlFill, in: Capsule())
                         }
                         .buttonStyle(ScaleButtonStyle(pressedScale: 0.94))
                         .foregroundStyle(AppTheme.textPrimary)

@@ -494,10 +494,7 @@ private struct GenerationDetailSheet: View {
                         .frame(minHeight: 260)
                         .font(.subheadline)
                         .scrollContentBackground(.hidden)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .strokeBorder(AppTheme.border, lineWidth: 1)
-                        )
+                        .appFieldSurface(cornerRadius: AppTheme.controlCornerRadius)
                         .padding(.vertical, 4)
                     } else {
                         Text(item.result ?? "（无内容）")

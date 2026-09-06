@@ -162,7 +162,7 @@ struct ReaderSettingsView: View {
         }
         .foregroundStyle(isDisabled ? AppTheme.textMuted : AppTheme.primary)
         .disabled(isDisabled)
-        .buttonStyle(.glass(AppTheme.glassClear))
+        .buttonStyle(AppGlassButtonStyle(glass: AppTheme.glassClear))
         .accessibilityLabel(label)
     }
 
@@ -192,7 +192,10 @@ struct ReaderSettingsView: View {
                                 .frame(minHeight: 44)
                                 .contentShape(Capsule())
                         }
-                        .buttonStyle(.glass(isSelected ? AppTheme.glass : AppTheme.glassClear))
+                        .buttonStyle(AppGlassButtonStyle(
+                            glass: isSelected ? AppTheme.glass : AppTheme.glassClear,
+                            fallback: isSelected ? AppTheme.primaryLight : AppTheme.controlFill
+                        ))
                         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
                         .accessibilityLabel(value.1)
                     }
@@ -307,7 +310,10 @@ struct ReaderSettingsView: View {
             }
             .frame(maxWidth: .infinity, minHeight: 56)
         }
-        .buttonStyle(.glass(selected ? AppTheme.glass : AppTheme.glassClear))
+        .buttonStyle(AppGlassButtonStyle(
+            glass: selected ? AppTheme.glass : AppTheme.glassClear,
+            fallback: selected ? AppTheme.primaryLight : AppTheme.controlFill
+        ))
         .accessibilityAddTraits(selected ? [.isSelected] : [])
         .accessibilityLabel(theme.title)
     }

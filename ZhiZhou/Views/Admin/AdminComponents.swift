@@ -186,7 +186,7 @@ struct AdminFilterMenu<Content: View>: View {
             .foregroundStyle(AppTheme.textPrimary)
             .padding(.horizontal, 12)
             .frame(minHeight: 44)
-            .background(.thinMaterial, in: Capsule())
+            .appMaterialBackground(.thinMaterial, fallback: AppTheme.controlFill, in: Capsule())
             .overlay(
                 Capsule()
                     .strokeBorder(AppTheme.border.opacity(0.55), lineWidth: 0.8)

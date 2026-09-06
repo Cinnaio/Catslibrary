@@ -109,7 +109,11 @@ struct Po18AccountSheet: View {
                 if isLoading {
                     ProgressView()
                         .padding(18)
-                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+                        .appMaterialBackground(
+                            .regularMaterial,
+                            fallback: AppTheme.surface,
+                            in: RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous)
+                        )
                 }
             }
             .alert("操作未完成", isPresented: Binding(

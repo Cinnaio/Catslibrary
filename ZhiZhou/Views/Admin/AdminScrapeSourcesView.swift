@@ -585,10 +585,7 @@ private struct LegadoImportSheet: View {
                         .frame(minHeight: 140)
                         .font(.caption2)
                         .scrollContentBackground(.hidden)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .strokeBorder(AppTheme.border, lineWidth: 1)
-                        )
+                        .appFieldSurface(cornerRadius: AppTheme.controlCornerRadius)
                         .padding(.vertical, 4)
                 }
                 if let result {

@@ -39,6 +39,8 @@ enum AppTheme {
     static let primary = Color(light: "3A6B5E", dark: "7FBFB0")
     static let primaryDeep = Color(light: "2C5348", dark: "9AD4C6")
     static let primaryLight = Color(light: "E3EFEB", dark: "243330")
+    /// 实心品牌色上的前景色。深色外观的 primary 较亮，不能继续固定使用白色。
+    static let onPrimary = Color(light: "FFFFFF", dark: "10231D")
 
     // MARK: Liquid Glass
     /// 交互控件统一使用系统 Liquid Glass，并以黛青做轻微染色。
@@ -252,6 +254,38 @@ private struct ScaleButtonStyleBody: View {
     }
 }
 
+/// Liquid Glass 按钮的统一降级版本：减少透明度时保留层级、边界和按压反馈。
+struct AppGlassButtonStyle: ButtonStyle {
+    let glass: Glass
+    var fallback: Color = AppTheme.controlFill
+
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        Group {
+            if reduceTransparency {
+                configuration.label
+                    .background(fallback, in: Capsule())
+                    .overlay {
+                        Capsule()
+                            .strokeBorder(AppTheme.border.opacity(0.55), lineWidth: 0.8)
+                    }
+            } else {
+                configuration.label
+                    .glassEffect(glass, in: Capsule())
+            }
+        }
+        .opacity(isEnabled ? (configuration.isPressed ? 0.86 : 1) : 0.45)
+        .scaleEffect((reduceMotion || !configuration.isPressed) ? 1 : 0.97)
+        .animation(
+            reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 1),
+            value: configuration.isPressed
+        )
+    }
+}
+
 // MARK: - View 扩展
 
 extension View {
@@ -293,8 +327,34 @@ extension View {
             }
     }
 
+    /// 透明度减少时退化为实色表面，避免材质层叠后文字与背景失去边界。
+    func appMaterialBackground<S: Shape>(
+        _ material: Material,
+        fallback: Color = AppTheme.surface,
+        in shape: S
+    ) -> some View {
+        modifier(AdaptiveMaterialBackgroundModifier(
+            material: material,
+            fallback: fallback,
+            shape: shape
+        ))
+    }
+
+    /// Liquid Glass 的透明度减少降级版本，保持按钮仍有明确的触控边界。
+    func appGlassEffect<S: Shape>(
+        _ glass: Glass,
+        fallback: Color = AppTheme.controlFill,
+        in shape: S
+    ) -> some View {
+        modifier(AdaptiveGlassEffectModifier(
+            glass: glass,
+            fallback: fallback,
+            shape: shape
+        ))
+    }
+
     func frostedRowBackground() -> some View {
-        self.listRowBackground(Rectangle().fill(.thinMaterial))
+        modifier(AdaptiveFrostedRowBackgroundModifier())
     }
 
     /// 浏览栈共用的详情 / 阅读器出口。
@@ -308,6 +368,57 @@ extension View {
                     preloadedChapters: launch.preloadedChapters
                 )
             }
+    }
+}
+
+private struct AdaptiveMaterialBackgroundModifier<S: Shape>: ViewModifier {
+    let material: Material
+    let fallback: Color
+    let shape: S
+
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    func body(content: Content) -> some View {
+        content.background(
+            reduceTransparency
+                ? AnyShapeStyle(fallback)
+                : AnyShapeStyle(material),
+            in: shape
+        )
+    }
+}
+
+private struct AdaptiveFrostedRowBackgroundModifier: ViewModifier {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    func body(content: Content) -> some View {
+        content.listRowBackground(
+            Rectangle().fill(
+                reduceTransparency
+                    ? AnyShapeStyle(AppTheme.surface)
+                    : AnyShapeStyle(.thinMaterial)
+            )
+        )
+    }
+}
+
+private struct AdaptiveGlassEffectModifier<S: Shape>: ViewModifier {
+    let glass: Glass
+    let fallback: Color
+    let shape: S
+
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    func body(content: Content) -> some View {
+        if reduceTransparency {
+            content
+                .background(fallback, in: shape)
+                .overlay {
+                    shape.stroke(AppTheme.border.opacity(0.55), lineWidth: 0.8)
+                }
+        } else {
+            content.glassEffect(glass, in: shape)
+        }
     }
 }
 

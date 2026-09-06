@@ -76,7 +76,7 @@ struct AdminAITaskProgressView: View {
                     }
                     .padding(10)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .appFieldSurface(cornerRadius: AppTheme.controlCornerRadius)
                 }
             }
         }

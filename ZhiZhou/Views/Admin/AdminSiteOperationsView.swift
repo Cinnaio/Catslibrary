@@ -132,10 +132,7 @@ struct AdminSiteOperationsView: View {
                 .font(.subheadline)
                 .scrollContentBackground(.hidden)
                 .focused($focusedField)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .strokeBorder(AppTheme.border, lineWidth: 1)
-                )
+                .appFieldSurface(cornerRadius: AppTheme.controlCornerRadius)
                 .padding(.vertical, 4)
             Button {
                 Task { await saveAnnouncement() }

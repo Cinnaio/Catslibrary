@@ -20,6 +20,7 @@ struct HomeView: View {
     /// 请求序号：丢弃过期响应（搜索/分类竞态守卫）
     @State private var requestSeq = 0
     @State private var interactionFeedback = 0
+    @State private var isFilterPending = false
 
     var body: some View {
         if horizontalSizeClass != .regular {
@@ -169,10 +170,16 @@ struct HomeView: View {
                 .buttonStyle(ScaleButtonStyle(pressedScale: 0.9))
                 .accessibilityLabel("清除搜索")
             }
+            if isFilterPending || (isLoading && !novels.isEmpty) {
+                ProgressView()
+                    .controlSize(.small)
+                    .tint(AppTheme.primary)
+                    .accessibilityLabel("正在更新搜索结果")
+            }
         }
         .padding(.horizontal, 14)
         .frame(minHeight: 44)
-        .background(.thinMaterial, in: Capsule())
+        .appMaterialBackground(.thinMaterial, fallback: AppTheme.controlFill, in: Capsule())
         .overlay {
             Capsule()
                 .strokeBorder(AppTheme.border.opacity(0.45), lineWidth: 0.7)
@@ -222,11 +229,20 @@ struct HomeView: View {
                 .font(.subheadline.weight(selected ? .semibold : .regular))
                 .padding(.horizontal, 14)
                 .frame(minHeight: 44)
-                .foregroundStyle(selected ? Color.white : AppTheme.textSecondary)
-                .background(
-                    selected ? AnyShapeStyle(AppTheme.primary) : AnyShapeStyle(.thinMaterial),
-                    in: Capsule()
-                )
+                .foregroundStyle(selected ? AppTheme.onPrimary : AppTheme.textSecondary)
+                .background {
+                    if selected {
+                        Capsule().fill(AppTheme.primary)
+                    } else {
+                        Capsule()
+                            .fill(.clear)
+                            .appMaterialBackground(
+                                .thinMaterial,
+                                fallback: AppTheme.controlFill,
+                                in: Capsule()
+                            )
+                    }
+                }
                 .overlay(
                     Capsule().strokeBorder(
                         selected ? Color.clear : AppTheme.border.opacity(0.5),
@@ -242,14 +258,17 @@ struct HomeView: View {
     /// 搜索与分类共用同一条防抖加载通道，避免并发 reload 竞态。
     private func scheduleReload() {
         reloadTask?.cancel()
+        isFilterPending = true
         reloadTask = Task {
             try? await Task.sleep(nanoseconds: 400_000_000)
             guard !Task.isCancelled else { return }
+            isFilterPending = false
             await reload()
         }
     }
 
     func reload() async {
+        isFilterPending = false
         page = 1
         loadMoreError = nil
         await fetchPage(1, append: false)

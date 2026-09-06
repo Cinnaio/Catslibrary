@@ -477,7 +477,7 @@ struct AdminAICoverView: View {
             .frame(maxWidth: .infinity)
             .frame(height: 96, alignment: .topLeading)
             .clipped()
-            .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+            .appFieldSurface(cornerRadius: AppTheme.controlCornerRadius)
         }
     }
 
@@ -630,12 +630,7 @@ struct AdminAICoverView: View {
             }
         }
         .padding(12)
-        .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(AppTheme.border, lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .paperCard()
         .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
@@ -1244,7 +1239,7 @@ private struct AdminCoverCandidatePreview: View {
                             .font(.headline.weight(.semibold))
                             .foregroundStyle(.white)
                             .frame(width: 40, height: 40)
-                            .background(.thinMaterial, in: Circle())
+                            .appMaterialBackground(.thinMaterial, fallback: Color.black.opacity(0.72), in: Circle())
                     }
                     .accessibilityLabel("关闭预览")
                 }

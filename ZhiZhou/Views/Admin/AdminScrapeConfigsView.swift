@@ -131,10 +131,7 @@ struct AdminScrapeConfigsView: View {
                 .frame(minHeight: 120)
                 .font(.callout)
                 .scrollContentBackground(.hidden)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .strokeBorder(AppTheme.border, lineWidth: 1)
-                )
+                .appFieldSurface(cornerRadius: AppTheme.controlCornerRadius)
                 .padding(.vertical, 4)
             Button {
                 requestImportConfigs()

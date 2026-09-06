@@ -178,7 +178,7 @@ struct ThoughtPanelView: View {
                     .foregroundStyle(AppTheme.textSecondary)
                     .multilineTextAlignment(.center)
                 Button("重试", action: onRetry)
-                    .buttonStyle(.glass(AppTheme.glassClear))
+                    .buttonStyle(AppGlassButtonStyle(glass: AppTheme.glassClear))
                     .tint(AppTheme.primary)
             }
             .frame(maxWidth: .infinity)
@@ -360,13 +360,13 @@ struct ThoughtPanelView: View {
                     } label: {
                         if isSubmitting {
                             ProgressView()
-                                .tint(.white)
+                                .tint(AppTheme.onPrimary)
                         } else {
                             Label("发布", systemImage: "arrow.up")
                         }
                     }
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(canSubmit ? Color.white : AppTheme.textMuted)
+                    .foregroundStyle(canSubmit ? AppTheme.onPrimary : AppTheme.textMuted)
                     .padding(.horizontal, 15)
                     .frame(minHeight: 44)
                     .background(

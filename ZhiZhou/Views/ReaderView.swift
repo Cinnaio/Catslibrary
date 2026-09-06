@@ -108,6 +108,7 @@ struct ReaderView: View {
     @State private var activeThoughtParagraph: Int?
     @State private var activeThoughtSelection = ""
     @State private var showThoughtPanel = false
+    @State private var edgeSwipeProgress: CGFloat = 0
 
     init(
         novel: Novel,
@@ -487,10 +488,28 @@ struct ReaderView: View {
             )
             // 仅识别从屏幕最外侧开始的横向滑动，避免普通上下滚动被误判为翻页。
             .simultaneousGesture(
-                DragGesture(minimumDistance: 18).onEnded { value in
-                    handleEdgeSwipe(value, width: geo.size.width)
-                }
+                DragGesture(minimumDistance: 18)
+                    .onChanged { value in
+                        updateEdgeSwipeProgress(value, width: geo.size.width)
+                    }
+                    .onEnded { value in
+                        handleEdgeSwipe(value, width: geo.size.width)
+                        edgeSwipeProgress = 0
+                    }
             )
+            .overlay(alignment: .trailing) {
+                if edgeSwipeProgress > 0 {
+                    Image(systemName: "chevron.left")
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(ink.opacity(0.36 + edgeSwipeProgress * 0.38))
+                        .frame(width: 44, height: 52)
+                        .background(AppTheme.surface.opacity(0.82), in: Capsule())
+                        .offset(x: 12 - edgeSwipeProgress * 12)
+                        .padding(.trailing, 8)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+            }
             .onScrollGeometryChange(for: CGSize.self) { geometry in
                 geometry.contentSize
             } action: { _, contentSize in
@@ -640,7 +659,8 @@ struct ReaderView: View {
             toggleChrome()
             return
         }
-        let edge = width * 0.26
+        // 保留较窄的边缘热区，避免普通阅读点按意外切章。
+        let edge = width * 0.18
         if x < edge {
             go(to: chapterOrder - 1)
         } else if x > width - edge {
@@ -648,6 +668,24 @@ struct ReaderView: View {
         } else {
             toggleChrome()
         }
+    }
+
+    private func updateEdgeSwipeProgress(_ value: DragGesture.Value, width: CGFloat) {
+        let edgeWidth = min(72, max(44, width * 0.08))
+        let startsAtRight = value.startLocation.x >= width - edgeWidth
+        let horizontal = -value.translation.width
+        let vertical = abs(value.translation.height)
+
+        guard startsAtRight,
+              horizontal > 0,
+              horizontal >= vertical * 1.15
+        else {
+            edgeSwipeProgress = 0
+            return
+        }
+
+        // 直接把手势位移映射到提示位置，给用户一个可逆的跟手反馈。
+        edgeSwipeProgress = min(1, horizontal / 96)
     }
 
     private func handleEdgeSwipe(_ value: DragGesture.Value, width: CGFloat) {
@@ -658,7 +696,7 @@ struct ReaderView: View {
 
         // 左缘保留给 NavigationStack 的系统返回手势；阅读器只响应右缘的下一章手势。
         guard startsAtRight,
-              abs(horizontal) >= 72,
+              min(horizontal, value.predictedEndTranslation.width) <= -88,
               abs(horizontal) >= abs(vertical) * 1.35
         else { return }
 
@@ -689,7 +727,10 @@ struct ReaderView: View {
                             .frame(maxWidth: .infinity)
                             .frame(minHeight: 44)
                     }
-                    .buttonStyle(.glass(AppTheme.glassProminent))
+                    .buttonStyle(AppGlassButtonStyle(
+                        glass: AppTheme.glassProminent,
+                        fallback: AppTheme.primaryLight
+                    ))
                     .tint(AppTheme.primary)
                     .accessibilityLabel("下一章")
                 } else {
@@ -737,7 +778,7 @@ struct ReaderView: View {
         }
         .padding(.horizontal, 12)
         .frame(minHeight: 44)
-        .glassEffect(AppTheme.glassClear, in: Capsule())
+        .appGlassEffect(AppTheme.glassClear, in: Capsule())
         .accessibilityElement(children: .combine)
         .accessibilityLabel("第 \(chapterOrder) / \(totalOrderCount) 章，\(percentText)，\(chapterIsSaved ? "离线可读" : "未缓存")")
     }
@@ -753,7 +794,10 @@ struct ReaderView: View {
                 .frame(minHeight: 44)
         }
         .foregroundStyle(AppTheme.primary)
-        .buttonStyle(.glass(AppTheme.glassProminent))
+        .buttonStyle(AppGlassButtonStyle(
+            glass: AppTheme.glassProminent,
+            fallback: AppTheme.primaryLight
+        ))
         .accessibilityLabel("下一章")
     }
 
@@ -765,7 +809,7 @@ struct ReaderView: View {
                 .font(.title3.weight(.semibold))
                 .frame(width: 44, height: 44)
         }
-        .buttonStyle(.glass(AppTheme.glassClear))
+        .buttonStyle(AppGlassButtonStyle(glass: AppTheme.glassClear))
         .foregroundStyle(ink.opacity(0.9))
         .accessibilityLabel("显示阅读控制")
         .accessibilityHint("显示目录、阅读设置和章节切换")
@@ -831,7 +875,7 @@ struct ReaderView: View {
         }
         .foregroundStyle(AppTheme.primary.opacity(isEnabled ? 0.95 : 0.28))
         .disabled(!isEnabled)
-        .buttonStyle(.glass(AppTheme.glassClear))
+        .buttonStyle(AppGlassButtonStyle(glass: AppTheme.glassClear))
         .accessibilityLabel(label)
     }
 
@@ -904,7 +948,7 @@ struct ReaderView: View {
         if reduceMotion {
             showChrome.toggle()
         } else {
-            withAnimation(.easeInOut(duration: 0.22)) { showChrome.toggle() }
+            withAnimation(.spring(response: 0.28, dampingFraction: 1)) { showChrome.toggle() }
         }
     }
 
@@ -913,7 +957,7 @@ struct ReaderView: View {
         if reduceMotion {
             showChrome = false
         } else {
-            withAnimation(.easeOut(duration: 0.2)) { showChrome = false }
+            withAnimation(.spring(response: 0.28, dampingFraction: 1)) { showChrome = false }
         }
     }
 

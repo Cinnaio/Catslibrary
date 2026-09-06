@@ -29,11 +29,7 @@ struct AdminAnnouncementView: View {
                     TextEditor(text: $text)
                         .padding(10)
                         .scrollContentBackground(.hidden)
-                        .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .strokeBorder(AppTheme.border, lineWidth: 1)
-                        )
+                        .appFieldSurface(cornerRadius: AppTheme.controlCornerRadius)
                         .padding(.horizontal, 16)
                         .padding(.top, 12)
 

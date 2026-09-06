@@ -167,21 +167,21 @@ struct AdminDiscoverView: View {
             } label: {
                 if isLoading {
                     ProgressView()
-                        .tint(.white)
+                        .tint(AppTheme.onPrimary)
                 } else {
                     Image(systemName: "magnifyingglass")
                 }
             }
             .frame(width: 44, height: 44)
             .background(AppTheme.primary, in: Circle())
-            .foregroundStyle(.white)
+            .foregroundStyle(AppTheme.onPrimary)
             .buttonStyle(.plain)
             .disabled(isLoading || query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             .accessibilityLabel("搜索 \(searchSource.displayName)")
         }
         .padding(.horizontal, 12)
         .frame(minHeight: 52)
-        .background(Color(.secondarySystemFill), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .appFieldSurface(cornerRadius: AppTheme.controlCornerRadius)
         .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
@@ -207,14 +207,14 @@ struct AdminDiscoverView: View {
             }
             .frame(width: 44, height: 44)
             .background(AppTheme.primary, in: Circle())
-            .foregroundStyle(.white)
+            .foregroundStyle(AppTheme.onPrimary)
             .buttonStyle(.plain)
             .disabled(isLoading || listUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             .accessibilityLabel("获取榜单")
         }
         .padding(.horizontal, 12)
         .frame(minHeight: 52)
-        .background(Color(.secondarySystemFill), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .appFieldSurface(cornerRadius: AppTheme.controlCornerRadius)
         .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)

@@ -22,19 +22,25 @@ struct NovelCardView: View {
                         .foregroundStyle(AppTheme.textSecondary)
                         .lineLimit(2)
                 }
+                if hasTags {
+                    HStack(spacing: 8) {
+                        if let status = novel.statusLabel {
+                            Text(status)
+                                .modifier(ThemeTagModifier())
+                        }
+                        if novel.hasUpdate {
+                            Text("有更新")
+                                .modifier(ThemeTagModifier(emphasized: true))
+                        }
+                        ForEach(novel.categories.prefix(2), id: \.self) { category in
+                            Text(category)
+                                .modifier(ThemeTagModifier())
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
                 HStack(spacing: 8) {
-                    if let status = novel.statusLabel {
-                        Text(status)
-                            .modifier(ThemeTagModifier())
-                    }
-                    if novel.hasUpdate {
-                        Text("有更新")
-                            .modifier(ThemeTagModifier(emphasized: true))
-                    }
-                    ForEach(novel.categories.prefix(2), id: \.self) { category in
-                        Text(category)
-                            .modifier(ThemeTagModifier())
-                    }
                     Spacer(minLength: 0)
                     Text("\(novel.chapterCount) 章")
                         .font(.caption)
@@ -47,6 +53,10 @@ struct NovelCardView: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityText)
         .accessibilityAddTraits(.isButton)
+    }
+
+    private var hasTags: Bool {
+        novel.statusLabel != nil || novel.hasUpdate || !novel.categories.isEmpty
     }
 
     private var accessibilityText: String {
