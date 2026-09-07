@@ -522,6 +522,6 @@ private struct DeleteUserSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
     }
 }

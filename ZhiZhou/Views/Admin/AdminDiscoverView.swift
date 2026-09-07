@@ -85,7 +85,7 @@ struct AdminDiscoverView: View {
                     Text(m.rawValue).tag(m)
                 }
             }
-            .pickerStyle(.segmented)
+            .accessibleSegmentedPicker()
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
             .onChange(of: mode) { _, _ in

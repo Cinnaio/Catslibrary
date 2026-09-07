@@ -1,10 +1,10 @@
 import SwiftUI
 
 /// 阅读设置面板：保留所有即时生效选项，采用轻量原生表单式布局。
-/// 视觉参考为旧版设置页：大留白、灰色分段控件、字号单行步进。
 struct ReaderSettingsView: View {
     @Environment(ReaderSettingsStore.self) private var settings
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var interactionFeedback = 0
 
     private let themes: [(id: String, title: String, swatch: Color)] = [
@@ -118,17 +118,23 @@ struct ReaderSettingsView: View {
                 .font(.body)
                 .foregroundStyle(AppTheme.textSecondary)
 
-            HStack(spacing: 16) {
+            settingsRowLayout {
                 Text("第 \(settings.fontSizeIndex + 1) 档 · \(Int(settings.bodyFontSize)) pt")
                     .font(.body)
                     .foregroundStyle(AppTheme.textPrimary)
                     .monospacedDigit()
-                    .lineLimit(1)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                Spacer(minLength: 8)
+                if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 8) }
                 fontStepper
             }
         }
+    }
+
+    private var settingsRowLayout: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 14))
+            : AnyLayout(HStackLayout(spacing: 16))
     }
 
     private var fontStepper: some View {
@@ -178,7 +184,7 @@ struct ReaderSettingsView: View {
                 .foregroundStyle(AppTheme.textSecondary)
 
             GlassEffectContainer(spacing: 6) {
-                HStack(spacing: 6) {
+                optionLayout {
                     ForEach(values, id: \.0) { value in
                         let isSelected = value.0 == selected
                         Button {
@@ -188,6 +194,9 @@ struct ReaderSettingsView: View {
                             Text(value.1)
                                 .font(.body.weight(isSelected ? .semibold : .regular))
                                 .foregroundStyle(isSelected ? AppTheme.textPrimary : AppTheme.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 8)
                                 .frame(maxWidth: .infinity)
                                 .frame(minHeight: 44)
                                 .contentShape(Capsule())
@@ -202,7 +211,15 @@ struct ReaderSettingsView: View {
                 }
             }
             .frame(minHeight: 44)
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel(title)
         }
+    }
+
+    private var optionLayout: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: 8))
+            : AnyLayout(HStackLayout(spacing: 6))
     }
 
     private var themeSection: some View {
@@ -212,7 +229,7 @@ struct ReaderSettingsView: View {
                 .foregroundStyle(AppTheme.textSecondary)
 
             LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 88), spacing: 10)],
+                columns: [GridItem(.adaptive(minimum: dynamicTypeSize.isAccessibilitySize ? 140 : 88), spacing: 10)],
                 spacing: 12
             ) {
                 ForEach(themes, id: \.id) { theme in

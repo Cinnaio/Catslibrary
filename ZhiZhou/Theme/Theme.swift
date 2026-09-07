@@ -116,8 +116,13 @@ enum AppTheme {
 enum SongtiFont {
     /// 按文本样式缩放（Dynamic Type）的衬线 Font，用于标题等系统样式字体。
     static func font(_ style: Font.TextStyle, weight: UIFont.Weight = .regular) -> Font {
-        let metrics = UIFontMetrics(forTextStyle: uiTextStyle(for: style))
-        return Font(metrics.scaledFont(for: uiFont(size: 17, weight: weight)))
+        let textStyle = uiTextStyle(for: style)
+        let baseSize = UIFont.preferredFont(
+            forTextStyle: textStyle,
+            compatibleWith: UITraitCollection(preferredContentSizeCategory: .large)
+        ).pointSize
+        let metrics = UIFontMetrics(forTextStyle: textStyle)
+        return Font(metrics.scaledFont(for: uiFont(size: baseSize, weight: weight)))
     }
 
     /// 固定点数的衬线 Font（调用方自行处理缩放，如阅读器字号档位）。

@@ -45,6 +45,14 @@ final class FrontendAuditTests: XCTestCase {
     }
 
     @MainActor
+    private func reveal(_ element: XCUIElement, app: XCUIApplication) {
+        for _ in 0..<8 {
+            if element.isHittable { return }
+            app.swipeUp()
+        }
+    }
+
+    @MainActor
     func testLightReadingJourney() {
         readingJourney(appearance: "light")
     }
@@ -61,7 +69,9 @@ final class FrontendAuditTests: XCTestCase {
         capture("\(appearance)-discovery", app: app)
         selectTab("我的", app: app)
         XCTAssertTrue(app.buttons["profile.edit"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["profile.continue"].waitForExistence(timeout: 15))
         capture("\(appearance)-profile", app: app)
+        reveal(app.buttons["阅读设置"], app: app)
         tap(app.buttons["阅读设置"])
         XCTAssertTrue(app.buttons["增大字号"].waitForExistence(timeout: 10))
         capture("\(appearance)-reader-settings", app: app)
@@ -83,8 +93,9 @@ final class FrontendAuditTests: XCTestCase {
         selectTab("我的", app: app)
         XCTAssertTrue(app.buttons["profile.edit"].waitForExistence(timeout: 15))
         capture("large-text-profile", app: app)
-        app.swipeUp()
-        tap(app.buttons["阅读设置"])
+        let settings = app.buttons["阅读设置"]
+        reveal(settings, app: app)
+        tap(settings)
         XCTAssertTrue(app.buttons["增大字号"].waitForExistence(timeout: 10))
         capture("large-text-settings", app: app)
         app.swipeUp()
@@ -105,7 +116,7 @@ final class FrontendAuditTests: XCTestCase {
         capture("profile-after-save", app: app)
         XCTAssertTrue(app.buttons["profile.edit"].waitForExistence(timeout: 10))
         let passwordLink = app.buttons["修改密码"]
-        if !passwordLink.isHittable { app.swipeUp() }
+        reveal(passwordLink, app: app)
         tap(passwordLink)
         let current = app.secureTextFields["当前密码"]
         tap(current)
@@ -157,5 +168,24 @@ final class FrontendAuditTests: XCTestCase {
         capture("session-restore-error", app: app)
         tap(app.buttons["session.retry"])
         XCTAssertTrue(app.buttons["catalog.audit-book-1"].waitForExistence(timeout: 15))
+    }
+
+    @MainActor
+    func testAdminCatalogAndSearch() {
+        let app = launch()
+        selectTab("我的", app: app)
+        reveal(app.buttons["管理后台"], app: app)
+        tap(app.buttons["管理后台"])
+        XCTAssertTrue(app.buttons["小说管理"].waitForExistence(timeout: 10))
+        capture("admin-modules", app: app)
+        tap(app.buttons["小说管理"])
+        XCTAssertTrue(app.staticTexts["山中来信"].firstMatch.waitForExistence(timeout: 15))
+        capture("admin-novels", app: app)
+        let search = app.searchFields.firstMatch
+        if !search.isHittable { app.swipeDown() }
+        tap(search)
+        search.typeText("absent-title")
+        XCTAssertTrue(app.staticTexts["没有匹配的小说"].waitForExistence(timeout: 15))
+        capture("admin-search-empty", app: app)
     }
 }

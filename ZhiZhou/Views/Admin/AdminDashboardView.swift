@@ -2,6 +2,7 @@ import SwiftUI
 
 /// 总览：内容规模、任务状态、最近任务与最近更新（GET /api/admin/stats）。
 struct AdminDashboardView: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var stats: AdminStats?
     @State private var isLoading = false
     @State private var errorMessage: String?
@@ -96,7 +97,7 @@ struct AdminDashboardView: View {
     // MARK: - 内容规模
 
     private func statsGrid(_ totals: AdminTotals) -> some View {
-        LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: dynamicTypeSize.isAccessibilitySize ? 240 : 140), spacing: 12)], spacing: 12) {
             statCell("小说", systemImage: "book", value: totals.novels, tint: AppTheme.primary)
             statCell("章节", systemImage: "doc.text", value: totals.chapters, tint: AppTheme.primary)
             statCell("用户", systemImage: "person", value: totals.users, tint: AppTheme.primary)

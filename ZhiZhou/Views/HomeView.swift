@@ -280,7 +280,7 @@ struct HomeView: View {
 
                     VStack(alignment: .leading, spacing: 5) {
                         HStack {
-                            Text("阅读进度")
+                            Text("本章进度")
                             Spacer(minLength: 8)
                             Text("已读 \(Int((progress * 100).rounded()))%")
                         }
@@ -317,7 +317,7 @@ struct HomeView: View {
         }
         .buttonStyle(ScaleButtonStyle(pressedScale: 0.985))
         .accessibilityLabel("继续阅读《\(item.novelTitle)》")
-        .accessibilityValue("第 \(item.chapterOrder) 章，已读 \(Int((progress * 100).rounded()))%")
+        .accessibilityValue("第 \(item.chapterOrder) 章，本章已读 \(Int((progress * 100).rounded()))%")
         .accessibilityHint("打开并从上次位置继续")
     }
 

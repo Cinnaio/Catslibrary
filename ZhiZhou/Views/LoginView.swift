@@ -35,10 +35,12 @@ struct LoginView: View {
                         brandHeader
 
                         accountSwitch
+                            .disabled(busy || isRestoringSession)
                             .padding(.top, 28)
                             .padding(.bottom, 18)
 
                         fieldsGroup
+                            .disabled(busy || isRestoringSession)
 
                         if mode != .register || registerMode == .open || registerMode == .invite {
                             submitButton
@@ -59,9 +61,6 @@ struct LoginView: View {
                         statusLine
                             .padding(.top, 16)
 
-                        Spacer(minLength: 24)
-
-                        syncNote
                     }
                     .padding(.horizontal, 24)
                     .padding(.vertical, 20)
@@ -202,6 +201,8 @@ struct LoginView: View {
                         }
                     }
                     .textContentType(mode == .register ? .newPassword : .password)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
                     .submitLabel(.go)
                     .foregroundStyle(AppTheme.textPrimary)
                     .tint(AppTheme.primary)
@@ -268,22 +269,6 @@ struct LoginView: View {
         .buttonStyle(ScaleButtonStyle())
         .disabled(!canSubmit)
         .accessibilityLabel(mode == .login ? "登录" : "注册")
-    }
-
-    private var syncNote: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Image(systemName: "arrow.triangle.2.circlepath")
-                .font(.system(size: 26, weight: .semibold))
-                .foregroundStyle(AppTheme.primary)
-                .accessibilityHidden(true)
-
-            Text(mode == .login ? "登录后同步书架与阅读进度。" : "注册后同步书架与阅读进度。")
-                .font(.footnote)
-                .foregroundStyle(AppTheme.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(.top, 42)
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var registerClosedNote: some View {
@@ -391,7 +376,7 @@ struct LoginView: View {
         if mode == .register {
             guard registerMode == .open || registerMode == .invite else { return false }
             if registerMode == .invite, invite.trimmingCharacters(in: .whitespaces).isEmpty { return false }
-            return password.count >= 8
+            return password.utf16.count >= 8
         }
         return !password.isEmpty
     }
@@ -410,8 +395,9 @@ struct LoginView: View {
     }
 
     private func submit() async {
+        guard !busy, !isRestoringSession else { return }
         guard canSubmit else {
-            if mode == .register, password.count < 8 {
+            if mode == .register, password.utf16.count < 8 {
                 errorMessage = "密码至少 8 位"
             } else if mode == .register, registerMode == .invite, invite.trimmingCharacters(in: .whitespaces).isEmpty {
                 errorMessage = "请填写邀请码"
@@ -419,6 +405,7 @@ struct LoginView: View {
             return
         }
         busy = true
+        focusedField = nil
         defer { busy = false }
         errorMessage = nil
         do {

@@ -53,7 +53,7 @@ struct AdminSiteOperationsView: View {
                             Text(item.rawValue).tag(item)
                         }
                     }
-                    .pickerStyle(.segmented)
+                    .accessibleSegmentedPicker()
                     .listRowBackground(Color.clear)
                 }
                 switch tab {

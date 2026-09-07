@@ -3,6 +3,7 @@ import SwiftUI
 struct ProfileView: View {
     @Environment(AppState.self) private var appState
     @Environment(OfflineReadingStore.self) private var offlineStore
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var reading = ProfileReadingStore()
     @State private var showEditProfile = false
     @State private var showReaderSettings = false
@@ -21,14 +22,16 @@ struct ProfileView: View {
                 }
 
                 Section {
-                    readingRows
-                } header: {
                     sectionHeading("我的阅读")
+                        .listRowSeparator(.hidden)
+                    readingRows
                 }
                 .listRowInsets(EdgeInsets(top: 14, leading: inset, bottom: 14, trailing: inset))
                 .listRowBackground(Color.clear)
 
                 Section {
+                    sectionHeading("应用设置")
+                        .listRowSeparator(.hidden)
                     Button {
                         showReaderSettings = true
                     } label: {
@@ -67,8 +70,6 @@ struct ProfileView: View {
                             Label("管理后台", systemImage: "gearshape.2")
                         }
                     }
-                } header: {
-                    sectionHeading("应用设置")
                 }
                 .listRowInsets(EdgeInsets(top: 16, leading: inset, bottom: 16, trailing: inset))
                 .listRowBackground(Color.clear)
@@ -104,7 +105,8 @@ struct ProfileView: View {
         }
         .sheet(isPresented: $showReaderSettings) {
             ReaderSettingsView()
-                .presentationDetents([.medium, .large])
+                .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large])
+                .presentationBackground(AppTheme.background)
         }
         .confirmationDialog("确定退出登录？", isPresented: $showLogoutConfirm, titleVisibility: .visible) {
             Button("退出登录", role: .destructive) {
@@ -122,7 +124,7 @@ struct ProfileView: View {
         Button {
             showEditProfile = true
         } label: {
-            HStack(alignment: .center, spacing: 16) {
+            identityLayout {
                 ProfileAvatar(user: user, size: 72)
                 VStack(alignment: .leading, spacing: 6) {
                     Text(user.displayName.isEmpty ? user.username : user.displayName)
@@ -137,13 +139,15 @@ struct ProfileView: View {
                         Text(bio)
                             .font(.subheadline)
                             .foregroundStyle(AppTheme.textSecondary)
-                            .lineLimit(3)
+                            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 3)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                Image(systemName: "chevron.right")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(AppTheme.textMuted)
+                if !dynamicTypeSize.isAccessibilitySize {
+                    Image(systemName: "chevron.right")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(AppTheme.textMuted)
+                }
             }
             .contentShape(Rectangle())
         }
@@ -151,6 +155,12 @@ struct ProfileView: View {
         .accessibilityElement(children: .combine)
         .accessibilityHint("编辑昵称、简介或头像")
         .accessibilityIdentifier("profile.edit")
+    }
+
+    private var identityLayout: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 14))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: 16))
     }
 
     @ViewBuilder
@@ -170,6 +180,7 @@ struct ProfileView: View {
                     ProfileRecentBookRow(item: item)
                 }
             }
+            .accessibilityIdentifier("profile.continue")
         } else if reading.hasLoaded {
             Label("暂无阅读记录", systemImage: "book.closed")
                 .foregroundStyle(AppTheme.textSecondary)

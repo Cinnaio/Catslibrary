@@ -225,7 +225,7 @@ struct ReaderView: View {
             ReaderSettingsView()
                 .preferredColorScheme(scheme)
                 .presentationBackground(paper)
-                .presentationDetents([.medium])
+                .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $showThoughtPanel, onDismiss: {

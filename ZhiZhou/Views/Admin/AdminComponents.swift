@@ -87,6 +87,10 @@ private struct AdminDangerousOperationConfirmationModifier: ViewModifier {
 }
 
 extension View {
+    func accessibleSegmentedPicker() -> some View {
+        modifier(AccessibleSegmentedPickerModifier())
+    }
+
     func adminDangerousOperationConfirmation(
         _ operation: Binding<AdminDangerousOperation?>,
         onConfirm: @escaping (AdminDangerousOperation) -> Void,
@@ -97,6 +101,19 @@ extension View {
             onConfirm: onConfirm,
             onCancel: onCancel
         ))
+    }
+}
+
+private struct AccessibleSegmentedPickerModifier: ViewModifier {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            content.pickerStyle(.menu)
+        } else {
+            content.pickerStyle(.segmented)
+        }
     }
 }
 
