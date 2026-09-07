@@ -1,5 +1,6 @@
 import SwiftUI
 import Combine
+import ZhiZhouCore
 
 /// 爬虫「发现」：PO18 / POPO 搜索（书名/作者）+ 榜单浏览 + 详情建书启动 + 批量抓取。
 /// 对齐 Web 端 admin scrape DiscoverView（/api/scrape action=discover / po18-search / popo-search）。
@@ -38,6 +39,11 @@ struct AdminDiscoverView: View {
 
     // 通用
     @State private var actionError: String?
+    @State private var requests = ListRequestGuard<[String]>()
+
+    private var requestQuery: [String] {
+        [mode.rawValue, searchSource.rawValue, query, searchType, listUrl, rankingKind ?? "", rankingType ?? ""]
+    }
 
     var body: some View {
         List {
@@ -476,10 +482,17 @@ struct AdminDiscoverView: View {
     }
 
     private func renderDiscover(_ operation: () async throws -> DiscoverResponse) async {
+        let ticket = requests.begin(requestQuery)
         isLoading = true
-        defer { isLoading = false }
+        defer {
+            if requests.accepts(ticket, query: ticket.query) {
+                requests.finish(ticket)
+                isLoading = false
+            }
+        }
         do {
             let r = try await operation()
+            guard !Task.isCancelled, requests.accepts(ticket, query: requestQuery) else { return }
             novels = r.novels
             selectedIndices = []
             let sourceText = displaySourceLabel(r.site) ?? r.novels.compactMap { sourceForNovel($0)?.displayName }.first
@@ -491,6 +504,7 @@ struct AdminDiscoverView: View {
             if let tp = r.totalPages, tp > 1 { totalPages = tp }
             errorMessage = nil
         } catch {
+            guard !Task.isCancelled, requests.accepts(ticket, query: requestQuery) else { return }
             novels = []
             totalText = nil
             errorMessage = AppCopy.friendlyError(error)
@@ -588,13 +602,11 @@ struct AdminDiscoverView: View {
     }
 
     private func batchScrape() async {
-        let indices = selectedIndices.sorted()
-        guard !indices.isEmpty else { return }
-        let state = BatchState(title: "批量抓取", total: indices.count)
+        let selected = selectedIndices.sorted().compactMap { novels.indices.contains($0) ? novels[$0] : nil }
+        guard !selected.isEmpty else { return }
+        let state = BatchState(title: "批量抓取", total: selected.count)
         batch = state
-        for index in indices {
-            guard index < novels.count else { continue }
-            let novel = novels[index]
+        for novel in selected {
             state.addEntry(BatchEntry(type: .novel, text: novel.title))
             if novel.isCollected {
                 state.addEntry(BatchEntry(type: .skip, text: "已在书库中，跳过"))

@@ -32,6 +32,8 @@ struct ChapterListView: View {
                         Button("重试") { Task { await load() } }
                             .buttonStyle(ScaleButtonStyle(pressedScale: 0.98))
                     }
+                } else if chapters.isEmpty {
+                    ContentUnavailableView("暂无章节", systemImage: "list.bullet", description: Text("这本书尚未发布章节"))
                 } else {
                     ScrollViewReader { proxy in
                         List(chapters) { chapter in
@@ -98,6 +100,7 @@ struct ChapterListView: View {
     }
 
     private func load() async {
+        guard !isLoading else { return }
         if chapters.isEmpty, !initialChapters.isEmpty {
             chapters = initialChapters
             return

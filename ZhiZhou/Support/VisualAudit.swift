@@ -69,6 +69,7 @@ private final class VisualAuditProtocol: URLProtocol {
     private static var currentUser = VisualAudit.user
     private static var removedRecent = false
     private static var catalogRequests = 0
+    private static var restoreRequests = 0
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
@@ -93,7 +94,13 @@ private final class VisualAuditProtocol: URLProtocol {
         case ("GET", "/api/auth/register-status"):
             body = ["mode": "open"]
         case ("GET", "/api/auth/me"):
-            body = ["user": Self.json(Self.currentUser)]
+            Self.restoreRequests += 1
+            if VisualAudit.scenario == "restore-error", Self.restoreRequests == 1 {
+                status = 503
+                body = ["error": "暂时无法恢复会话"]
+            } else {
+                body = ["user": Self.json(Self.currentUser)]
+            }
         case ("POST", "/api/auth/login"), ("POST", "/api/auth/register"):
             body = ["user": Self.json(Self.currentUser), "token": "audit-token"]
         case ("PUT", "/api/auth/me"):
@@ -118,7 +125,7 @@ private final class VisualAuditProtocol: URLProtocol {
         case ("GET", "/api/novels"):
             Self.catalogRequests += 1
             let search = queryValue("search") ?? ""
-            if VisualAudit.scenario == "refresh-error", Self.catalogRequests > 1 {
+            if VisualAudit.scenario == "refresh-error", Self.catalogRequests == 2 {
                 status = 503
                 body = ["error": "暂时无法刷新书单"]
             } else {

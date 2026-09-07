@@ -1,4 +1,5 @@
 import SwiftUI
+import ZhiZhouCore
 
 /// AI 已生成内容：列表 / 类型与状态筛选 / 批量删除 / 草稿编辑 / 发布 / 撤销发布 / 删除。
 /// 对齐 Web 端 admin ai AiGenerationsPanel（/api/ai/generations、/api/ai/writing/drafts|batches）。
@@ -17,6 +18,10 @@ struct AdminAIGenerationsView: View {
     // 分页
     @State private var offset = 0
     private let pageSize = 50
+    @State private var loadingMore = false
+    @State private var requests = ListRequestGuard<[String]>()
+
+    private var query: [String] { [kindFilter, scopeFilter, statusFilter] }
 
     // 批量
     @State private var selectionMode = false
@@ -62,6 +67,11 @@ struct AdminAIGenerationsView: View {
                     .listRowSeparator(.hidden)
                 }
             } else {
+                if let errorMessage {
+                    LoadErrorNotice(message: errorMessage, isLoading: isLoading) {
+                        Task { await load() }
+                    }
+                }
                 if selectionMode {
                     Section {
                         HStack {
@@ -104,6 +114,7 @@ struct AdminAIGenerationsView: View {
                         } label: {
                             HStack {
                                 Spacer()
+                                if loadingMore { ProgressView() }
                                 Text("加载更多（\(items.count)/\(totalCount)）")
                                     .font(.subheadline)
                                     .foregroundStyle(AppTheme.primary)
@@ -111,6 +122,7 @@ struct AdminAIGenerationsView: View {
                             }
                         }
                         .listRowBackground(Color.clear)
+                        .disabled(isLoading || loadingMore || errorMessage != nil)
                     }
                 }
             }
@@ -120,7 +132,10 @@ struct AdminAIGenerationsView: View {
         .navigationTitle("已生成内容")
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await load() }
-        .task { await load() }
+        .task(id: query) {
+            selectedIds = []
+            await load()
+        }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button(selectionMode ? "完成" : "选择") {
@@ -193,18 +208,6 @@ struct AdminAIGenerationsView: View {
                         Text("全部").tag("all")
                     }
                 }
-            }
-            .onChange(of: kindFilter) { _, _ in
-                offset = 0
-                Task { await load() }
-            }
-            .onChange(of: scopeFilter) { _, _ in
-                offset = 0
-                Task { await load() }
-            }
-            .onChange(of: statusFilter) { _, _ in
-                offset = 0
-                Task { await load() }
             }
         }
     }
@@ -332,39 +335,63 @@ struct AdminAIGenerationsView: View {
     // MARK: - 数据
 
     private func load() async {
+        let ticket = requests.begin(query)
         isLoading = true
-        defer { isLoading = false }
+        loadingMore = false
+        defer {
+            if requests.accepts(ticket, query: ticket.query) {
+                requests.finish(ticket)
+                isLoading = false
+            }
+        }
         do {
             let result = try await AdminAPI.aiGenerations(
-                kind: kindFilter,
-                scope: scopeFilter,
-                status: statusFilter,
+                kind: ticket.query[0],
+                scope: ticket.query[1],
+                status: ticket.query[2],
                 limit: pageSize,
                 offset: 0
             )
+            guard !Task.isCancelled, requests.accepts(ticket, query: query) else { return }
             items = result.items
+            selectedIds.formIntersection(items.map(\.id))
             totalCount = result.total ?? items.count
             offset = 0
             errorMessage = nil
+            requests.finish(ticket, succeeded: true)
+            isLoading = false
         } catch {
+            guard !Task.isCancelled, requests.accepts(ticket, query: query) else { return }
             errorMessage = AppCopy.friendlyError(error)
         }
     }
 
     private func loadMore() async {
+        guard !isLoading, !loadingMore, errorMessage == nil, offset + pageSize < totalCount,
+              let ticket = requests.beginNext(query) else { return }
+        loadingMore = true
+        defer {
+            if requests.accepts(ticket, query: ticket.query) {
+                requests.finish(ticket)
+                loadingMore = false
+            }
+        }
         do {
             let next = offset + pageSize
             let result = try await AdminAPI.aiGenerations(
-                kind: kindFilter,
-                scope: scopeFilter,
-                status: statusFilter,
+                kind: ticket.query[0],
+                scope: ticket.query[1],
+                status: ticket.query[2],
                 limit: pageSize,
                 offset: next
             )
-            items += result.items
+            guard !Task.isCancelled, requests.accepts(ticket, query: query) else { return }
+            let existing = Set(items.map(\.id))
+            items += result.items.filter { !existing.contains($0.id) }
             offset = next
             totalCount = result.total ?? items.count
         } catch {
+            guard !Task.isCancelled, requests.accepts(ticket, query: query) else { return }
             actionError = AppCopy.friendlyError(error)
         }
     }

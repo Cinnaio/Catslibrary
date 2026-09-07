@@ -1,4 +1,5 @@
 import SwiftUI
+import ZhiZhouCore
 
 /// 内容审核：评论 / 举报 / 想法（段评）三合一。
 /// 数据源：/api/admin/comments、/api/admin/comment-reports、/api/thoughts?admin=1。
@@ -24,6 +25,9 @@ struct AdminModerationView: View {
     @State private var pendingDeleteThought: AdminThought?
     @State private var pendingReport: CommentReport?
     @State private var busyActionKey: String?
+    @State private var requests = ListRequestGuard<[String]>()
+
+    private var query: [String] { [mode.rawValue, statusFilter, search] }
 
     var body: some View {
         List {
@@ -38,7 +42,6 @@ struct AdminModerationView: View {
                 .listRowSeparator(.hidden)
                 .onChange(of: mode) { _, _ in
                     resetFilters()
-                    Task { await load() }
                 }
             }
 
@@ -72,6 +75,11 @@ struct AdminModerationView: View {
                     .frame(maxWidth: .infinity, minHeight: 240)
                 }
             } else {
+                if let errorMessage {
+                    LoadErrorNotice(message: errorMessage, isLoading: isLoading) {
+                        Task { await load() }
+                    }
+                }
                 Section("共 \(totalCount) 条") {
                     switch mode {
                     case .comments:
@@ -119,8 +127,9 @@ struct AdminModerationView: View {
         .navigationTitle("内容审核")
         .navigationBarTitleDisplayMode(.large)
         .searchable(text: $search, prompt: "搜索内容 / 用户名 / 书名")
-        .task(id: search) {
+        .task(id: query) {
             try? await Task.sleep(for: .milliseconds(350))
+            guard !Task.isCancelled else { return }
             await load()
         }
         .refreshable { await load() }
@@ -130,7 +139,6 @@ struct AdminModerationView: View {
                     ForEach(statusOptions, id: \.value) { option in
                         Button(option.label) {
                             statusFilter = option.value
-                            Task { await load() }
                         }
                     }
                 } label: {
@@ -234,25 +242,35 @@ struct AdminModerationView: View {
     }
 
     private func load() async {
+        let ticket = requests.begin(query)
         isLoading = true
-        defer { isLoading = false }
+        defer {
+            if requests.accepts(ticket, query: ticket.query) {
+                requests.finish(ticket)
+                isLoading = false
+            }
+        }
         do {
             switch mode {
             case .comments:
                 let r: CommentsResponse = try await AdminAPI.comments(status: statusFilter, search: search)
+                guard !Task.isCancelled, requests.accepts(ticket, query: query) else { return }
                 comments = r.comments
                 totalCount = r.total
             case .reports:
                 let r: CommentReportsResponse = try await AdminAPI.commentReports(status: statusFilter, search: search)
+                guard !Task.isCancelled, requests.accepts(ticket, query: query) else { return }
                 reports = r.reports
                 totalCount = r.total
             case .thoughts:
                 let r: ThoughtsResponse = try await AdminAPI.thoughts(status: statusFilter, search: search)
+                guard !Task.isCancelled, requests.accepts(ticket, query: query) else { return }
                 thoughts = r.thoughts
                 totalCount = r.total
             }
             errorMessage = nil
         } catch {
+            guard !Task.isCancelled, requests.accepts(ticket, query: query) else { return }
             errorMessage = AppCopy.friendlyError(error)
         }
     }

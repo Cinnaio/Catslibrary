@@ -13,6 +13,7 @@ struct BookshelfView: View {
     @State private var compactDetailNovel: Novel?
     @State private var pendingRemove: FavoriteItem?
     @State private var pendingRecentRemove: RecentItem?
+    @State private var requests = ListRequestGuard<Bool>()
 
     @ViewBuilder
     var body: some View {
@@ -54,6 +55,11 @@ struct BookshelfView: View {
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
                 } else if let response {
+                    if let errorMessage {
+                        LoadErrorNotice(message: errorMessage, isLoading: isLoading) {
+                            Task { await load() }
+                        }
+                    }
                     if !response.recent.isEmpty {
                         Section("最近阅读") {
                             ForEach(response.recent) { item in
@@ -114,7 +120,7 @@ struct BookshelfView: View {
                 }
             }
             .overlay {
-                if let response, response.favorites.isEmpty && response.recent.isEmpty {
+                if let response, response.favorites.isEmpty && response.recent.isEmpty && errorMessage == nil {
                     ContentUnavailableView(
                         "书架空空",
                         systemImage: "books.vertical",
@@ -378,15 +384,23 @@ struct BookshelfView: View {
 
     private func load() async {
         guard APIClient.shared.isAuthenticated else { return }
+        let ticket = requests.begin(true)
         isLoading = true
-        defer { isLoading = false }
+        defer {
+            if requests.accepts(ticket, query: true) {
+                requests.finish(ticket)
+                isLoading = false
+            }
+        }
         do {
             let r: BookshelfResponse = try await APIClient.shared.get(
                 ContentPolicy.safePath("/api/bookshelf"), auth: true
             )
+            guard !Task.isCancelled, requests.accepts(ticket, query: true) else { return }
             response = r
             errorMessage = nil
         } catch {
+            guard !Task.isCancelled, requests.accepts(ticket, query: true) else { return }
             errorMessage = AppCopy.friendlyError(error)
         }
     }

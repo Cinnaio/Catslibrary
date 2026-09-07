@@ -9,6 +9,11 @@ struct AdminAIStatusView: View {
 
     var body: some View {
         List {
+            if let errorMessage, status != nil {
+                LoadErrorNotice(message: errorMessage, isLoading: isLoading) {
+                    Task { await load() }
+                }
+            }
             if isLoading && status == nil {
                 Section {
                     ProgressView("加载中…")

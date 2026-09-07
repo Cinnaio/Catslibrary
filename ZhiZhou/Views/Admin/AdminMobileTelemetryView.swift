@@ -1,4 +1,5 @@
 import SwiftUI
+import ZhiZhouCore
 
 /// 移动端远程问题追踪：查看匿名客户端事件并推进处理状态。
 struct AdminMobileTelemetryView: View {
@@ -8,6 +9,9 @@ struct AdminMobileTelemetryView: View {
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var busyEventID: String?
+    @State private var requests = ListRequestGuard<[String]>()
+
+    private var query: [String] { [statusFilter, search] }
 
     var body: some View {
         List {
@@ -62,6 +66,11 @@ struct AdminMobileTelemetryView: View {
                     .frame(maxWidth: .infinity, minHeight: 180)
                 }
             } else if let events = response?.events {
+                if let errorMessage {
+                    LoadErrorNotice(message: errorMessage, isLoading: isLoading) {
+                        Task { await load() }
+                    }
+                }
                 Section("事件（\(response?.total ?? events.count)）") {
                     ForEach(events) { event in
                         eventRow(event)
@@ -74,13 +83,10 @@ struct AdminMobileTelemetryView: View {
         .navigationTitle("客户端监控")
         .navigationBarTitleDisplayMode(.large)
         .searchable(text: $search, prompt: "搜索事件名、系统或设备")
-        .task(id: search) {
+        .task(id: query) {
             try? await Task.sleep(for: .milliseconds(350))
             guard !Task.isCancelled else { return }
             await load()
-        }
-        .onChange(of: statusFilter) { _, _ in
-            Task { await load() }
         }
         .refreshable { await load() }
         .toolbar {
@@ -163,12 +169,21 @@ struct AdminMobileTelemetryView: View {
     }
 
     private func load() async {
+        let ticket = requests.begin(query)
         isLoading = true
-        defer { isLoading = false }
+        defer {
+            if requests.accepts(ticket, query: ticket.query) {
+                requests.finish(ticket)
+                isLoading = false
+            }
+        }
         do {
-            response = try await AdminAPI.mobileTelemetry(status: statusFilter, search: search)
+            let result = try await AdminAPI.mobileTelemetry(status: ticket.query[0], search: ticket.query[1])
+            guard !Task.isCancelled, requests.accepts(ticket, query: query) else { return }
+            response = result
             errorMessage = nil
         } catch {
+            guard !Task.isCancelled, requests.accepts(ticket, query: query) else { return }
             errorMessage = AppCopy.friendlyError(error)
         }
     }

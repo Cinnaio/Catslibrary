@@ -1,4 +1,5 @@
 import SwiftUI
+import ZhiZhouCore
 
 /// 登录审计：登录记录查询（状态筛选 / 用户名搜索 / 分页）。
 /// 对齐 Web 端 admin SettingsTab 的「登录审计」子页（GET /api/admin-users/login-audit）。
@@ -12,6 +13,13 @@ struct AdminLoginAuditView: View {
 
     private let pageSize = 20
     @State private var offset = 0
+    @State private var loadingMore = false
+    @State private var paginationError: String?
+    @State private var requests = ListRequestGuard<[String]>()
+
+    private var query: [String] {
+        [statusFilter, username.trimmingCharacters(in: .whitespacesAndNewlines)]
+    }
 
     var body: some View {
         List {
@@ -60,16 +68,25 @@ struct AdminLoginAuditView: View {
                     .listRowSeparator(.hidden)
                 }
             } else {
+                if let errorMessage {
+                    LoadErrorNotice(message: errorMessage, isLoading: isLoading) {
+                        Task { await load() }
+                    }
+                }
                 Section("共 \(totalCount) 条") {
                     ForEach(audits) { item in
                         auditRow(item)
                     }
                     if offset + pageSize < totalCount {
+                        if let paginationError {
+                            Text(paginationError).font(.footnote).foregroundStyle(AppTheme.danger)
+                        }
                         Button {
                             Task { await loadMore() }
                         } label: {
                             HStack {
                                 Spacer()
+                                if loadingMore { ProgressView() }
                                 Text("加载更多（\(audits.count)/\(totalCount)）")
                                     .font(.subheadline)
                                     .foregroundStyle(AppTheme.primary)
@@ -77,6 +94,7 @@ struct AdminLoginAuditView: View {
                             }
                         }
                         .listRowBackground(Color.clear)
+                        .disabled(isLoading || loadingMore || errorMessage != nil)
                     }
                 }
             }
@@ -86,12 +104,7 @@ struct AdminLoginAuditView: View {
         .navigationTitle("登录审计")
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await load() }
-        .task(id: statusFilter) {
-            try? await Task.sleep(nanoseconds: 150_000_000)
-            guard !Task.isCancelled else { return }
-            await load()
-        }
-        .task(id: username) {
+        .task(id: query) {
             try? await Task.sleep(nanoseconds: 400_000_000)
             guard !Task.isCancelled else { return }
             await load()
@@ -167,38 +180,63 @@ struct AdminLoginAuditView: View {
     }
 
     private func load() async {
+        let ticket = requests.begin(query)
         isLoading = true
-        defer { isLoading = false }
+        loadingMore = false
+        paginationError = nil
+        defer {
+            if requests.accepts(ticket, query: ticket.query) {
+                requests.finish(ticket)
+                isLoading = false
+            }
+        }
         do {
             let result = try await AdminAPI.loginAudit(
-                status: statusFilter,
-                username: username.trimmingCharacters(in: .whitespacesAndNewlines),
+                status: ticket.query[0],
+                username: ticket.query[1],
                 limit: pageSize,
                 offset: 0
             )
+            guard !Task.isCancelled, requests.accepts(ticket, query: query) else { return }
             audits = result.audits
             totalCount = result.total
             offset = 0
             errorMessage = nil
+            requests.finish(ticket, succeeded: true)
+            isLoading = false
         } catch {
+            guard !Task.isCancelled, requests.accepts(ticket, query: query) else { return }
             errorMessage = AppCopy.friendlyError(error)
         }
     }
 
     private func loadMore() async {
+        guard !isLoading, !loadingMore, errorMessage == nil, offset + pageSize < totalCount,
+              let ticket = requests.beginNext(query) else { return }
+        loadingMore = true
+        paginationError = nil
+        defer {
+            if requests.accepts(ticket, query: ticket.query) {
+                requests.finish(ticket)
+                loadingMore = false
+            }
+        }
         do {
             let next = offset + pageSize
             let result = try await AdminAPI.loginAudit(
-                status: statusFilter,
-                username: username.trimmingCharacters(in: .whitespacesAndNewlines),
+                status: ticket.query[0],
+                username: ticket.query[1],
                 limit: pageSize,
                 offset: next
             )
-            audits += result.audits
+            guard !Task.isCancelled, requests.accepts(ticket, query: query) else { return }
+            let existing = Set(audits.map(\.id))
+            audits += result.audits.filter { !existing.contains($0.id) }
             offset = next
             totalCount = result.total
         } catch {
-            errorMessage = AppCopy.friendlyError(error)
+            guard !Task.isCancelled, requests.accepts(ticket, query: query) else { return }
+            paginationError = AppCopy.friendlyError(error)
         }
     }
 }

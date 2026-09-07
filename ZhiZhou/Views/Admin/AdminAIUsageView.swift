@@ -1,8 +1,10 @@
 import SwiftUI
+import ZhiZhouCore
 import Charts
 
 /// 用量与审计：用户用量汇总 + 最近调用明细（类型筛选）+ 近 30 天调用趋势。
 struct AdminAIUsageView: View {
+    @State private var requests = ListRequestGuard<String>()
     @State private var users: [AiAuditUser] = []
     @State private var calls: [AiAuditCall] = []
     @State private var trend: [AiAuditTrendPoint] = []
@@ -18,6 +20,11 @@ struct AdminAIUsageView: View {
 
     var body: some View {
         List {
+            if let errorMessage, !users.isEmpty || !calls.isEmpty || !trend.isEmpty {
+                LoadErrorNotice(message: errorMessage, isLoading: isLoading) {
+                    Task { await load() }
+                }
+            }
             if isLoading && users.isEmpty && trend.isEmpty {
                 Section {
                     ProgressView("加载中…")
@@ -237,18 +244,26 @@ struct AdminAIUsageView: View {
     // MARK: - 数据
 
     private func load() async {
+        let ticket = requests.begin(typeFilter)
         isLoading = true
-        defer { isLoading = false }
+        defer {
+            if requests.accepts(ticket, query: ticket.query) {
+                requests.finish(ticket)
+                isLoading = false
+            }
+        }
         do {
             async let usersTask = AdminAPI.aiAuditUsers(limit: 50, offset: 0)
-            async let callsTask = AdminAPI.aiAuditCalls(type: typeFilter, limit: 50, offset: 0)
+            async let callsTask = AdminAPI.aiAuditCalls(type: ticket.query, limit: 50, offset: 0)
             async let trendTask = AdminAPI.aiAuditTrend(days: 30)
             let (u, c, t) = try await (usersTask, callsTask, trendTask)
+            guard !Task.isCancelled, requests.accepts(ticket, query: typeFilter) else { return }
             users = u.users
             calls = c.calls
             trend = t.trend
             errorMessage = nil
         } catch {
+            guard !Task.isCancelled, requests.accepts(ticket, query: typeFilter) else { return }
             errorMessage = AppCopy.friendlyError(error)
         }
     }

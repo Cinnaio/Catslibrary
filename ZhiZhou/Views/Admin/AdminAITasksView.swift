@@ -1,7 +1,9 @@
 import SwiftUI
+import ZhiZhouCore
 
 /// AI 任务：任务列表（过滤 / 取消 / 重试 / 删除记录）。
 struct AdminAITasksView: View {
+    @State private var requests = ListRequestGuard<Bool>()
     @Environment(\.scenePhase) private var scenePhase
     @State private var tasks: [AiTaskInfo] = []
     @State private var isLoading = true
@@ -14,6 +16,11 @@ struct AdminAITasksView: View {
 
     var body: some View {
         List {
+            if let errorMessage, !tasks.isEmpty {
+                LoadErrorNotice(message: errorMessage, isLoading: isLoading) {
+                    Task { await load() }
+                }
+            }
             Section {
                 AdminFilterBar {
                     AdminFilterMenu("状态", value: taskStatusLabel) {
@@ -193,14 +200,22 @@ struct AdminAITasksView: View {
     }
 
     private func load() async {
+        let ticket = requests.begin(true)
         isLoading = true
-        defer { isLoading = false }
+        defer {
+            if requests.accepts(ticket, query: true) {
+                requests.finish(ticket)
+                isLoading = false
+            }
+        }
         do {
             let r = try await AdminAPI.aiTasks(status: "all", limit: 200, offset: 0)
+            guard !Task.isCancelled, requests.accepts(ticket, query: true) else { return }
             tasks = r.items
             AdminAITaskCoordinator.shared.reconcile(tasks)
             errorMessage = nil
         } catch {
+            guard !Task.isCancelled, requests.accepts(ticket, query: true) else { return }
             errorMessage = AppCopy.friendlyError(error)
         }
     }

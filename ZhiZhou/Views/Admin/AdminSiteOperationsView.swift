@@ -23,6 +23,11 @@ struct AdminSiteOperationsView: View {
 
     var body: some View {
         List {
+            if let errorMessage, overview != nil {
+                LoadErrorNotice(message: errorMessage, isLoading: isLoading) {
+                    Task { await load() }
+                }
+            }
             if isLoading && overview == nil {
                 Section {
                     ProgressView("加载中…")

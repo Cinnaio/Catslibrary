@@ -33,6 +33,8 @@ final class FrontendAuditTests: XCTestCase {
     @MainActor
     private func tap(_ element: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
         XCTAssertTrue(element.waitForExistence(timeout: 15), file: file, line: line)
+        let hittable = XCTNSPredicateExpectation(predicate: NSPredicate(format: "hittable == true"), object: element)
+        XCTAssertEqual(XCTWaiter.wait(for: [hittable], timeout: 10), .completed, file: file, line: line)
         element.tap()
     }
 
@@ -99,6 +101,8 @@ final class FrontendAuditTests: XCTestCase {
         nickname.typeText("A")
         capture("profile-edit", app: app)
         tap(app.buttons["保存"])
+        XCTAssertTrue(app.navigationBars["个人资料"].waitForNonExistence(timeout: 10))
+        capture("profile-after-save", app: app)
         XCTAssertTrue(app.buttons["profile.edit"].waitForExistence(timeout: 10))
         let passwordLink = app.buttons["修改密码"]
         if !passwordLink.isHittable { app.swipeUp() }
@@ -130,5 +134,28 @@ final class FrontendAuditTests: XCTestCase {
         selectTab("我的", app: emptyApp)
         tap(emptyApp.buttons.matching(NSPredicate(format: "label CONTAINS %@", "离线阅读")).firstMatch)
         capture("empty-offline-library", app: emptyApp)
+    }
+
+    @MainActor
+    func testDiscoveryRefreshFailureRetriesFirstPage() {
+        let app = launch("refresh-error")
+        XCTAssertTrue(app.buttons["catalog.audit-book-1"].waitForExistence(timeout: 15))
+        let list = app.scrollViews.firstMatch
+        list.swipeDown()
+        XCTAssertTrue(app.staticTexts["暂时无法刷新书单"].waitForExistence(timeout: 10))
+        capture("discovery-refresh-error", app: app)
+        tap(app.buttons["重试"])
+        XCTAssertTrue(app.staticTexts["暂时无法刷新书单"].waitForNonExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["catalog.audit-book-1"].exists)
+    }
+
+    @MainActor
+    func testSessionRestorationCanRetryWithoutCredentials() {
+        let app = launch("restore-error")
+        tap(app.buttons["session.retry"])
+        XCTAssertTrue(app.buttons["session.retry"].waitForExistence(timeout: 10))
+        capture("session-restore-error", app: app)
+        tap(app.buttons["session.retry"])
+        XCTAssertTrue(app.buttons["catalog.audit-book-1"].waitForExistence(timeout: 15))
     }
 }

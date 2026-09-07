@@ -29,7 +29,11 @@ final class AppState {
         if VisualAudit.enabled {
             APIClient.shared.token = VisualAudit.scenario == "login" ? nil : "audit-token"
             Task {
-                if VisualAudit.scenario != "login" { await activateAccount(VisualAudit.user) }
+                if VisualAudit.scenario == "restore-error" {
+                    sessionRestoreFailed = true
+                } else if VisualAudit.scenario != "login" {
+                    await activateAccount(VisualAudit.user)
+                }
                 isBooting = false
             }
             return

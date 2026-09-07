@@ -1,4 +1,5 @@
 import SwiftUI
+import ZhiZhouCore
 
 /// 小说管理：搜索 / 状态过滤 / 分页列表 / 编辑 / 新建 / 删除 / 增量更新。
 /// 对齐 Web 端 admin NovelsTab（管理维护用 /api/novels 系列接口）。
@@ -18,6 +19,11 @@ struct AdminNovelsView: View {
     @State private var busyNovelId: String?
     @State private var updatingNovelId: String?
     @State private var loadingMore = false
+    @State private var requests = ListRequestGuard<[String]>()
+
+    private var query: [String] {
+        [searchText.trimmingCharacters(in: .whitespacesAndNewlines), statusFilter == "all" ? "" : statusFilter]
+    }
 
     var body: some View {
         List {
@@ -52,6 +58,15 @@ struct AdminNovelsView: View {
                     .listRowSeparator(.hidden)
                 }
             } else {
+                if let errorMessage {
+                    LoadErrorNotice(message: errorMessage, isLoading: isLoading) {
+                        Task { await reload() }
+                    }
+                }
+                if novels.isEmpty {
+                    ContentUnavailableView("没有匹配的小说", systemImage: "books.vertical")
+                        .listRowBackground(Color.clear)
+                }
                 ForEach(novels) { novel in
                     novelRow(novel)
                 }
@@ -72,7 +87,7 @@ struct AdminNovelsView: View {
                             Spacer()
                         }
                     }
-                    .disabled(loadingMore)
+                    .disabled(loadingMore || isLoading || errorMessage != nil)
                     .listRowBackground(Color.clear)
                 }
             }
@@ -83,13 +98,10 @@ struct AdminNovelsView: View {
         .navigationBarTitleDisplayMode(.large)
         .searchable(text: $searchText, prompt: "搜索书名 / 作者")
         .refreshable { await reload() }
-        .task(id: searchText) {
+        .task(id: query) {
             try? await Task.sleep(nanoseconds: 350_000_000)
             guard !Task.isCancelled else { return }
             await reload()
-        }
-        .onChange(of: statusFilter) { _, _ in
-            Task { await reload() }
         }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -234,35 +246,51 @@ struct AdminNovelsView: View {
     // MARK: - 数据
 
     private func reload() async {
+        let ticket = requests.begin(query)
         isLoading = true
-        defer { isLoading = false }
+        loadingMore = false
+        defer {
+            if requests.accepts(ticket, query: ticket.query) {
+                requests.finish(ticket)
+                isLoading = false
+            }
+        }
         do {
-            let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-            let status = statusFilter == "all" ? "" : statusFilter
-            let r = try await AdminAPI.novels(search: trimmed, status: status, page: 1, limit: 20)
+            let r = try await AdminAPI.novels(search: ticket.query[0], status: ticket.query[1], page: 1, limit: 20)
+            guard !Task.isCancelled, requests.accepts(ticket, query: query) else { return }
             novels = r.novels
             page = r.page
             hasMore = r.hasMore
             loadedTotal = r.total
             errorMessage = nil
+            requests.finish(ticket, succeeded: true)
+            isLoading = false
         } catch {
+            guard !Task.isCancelled, requests.accepts(ticket, query: query) else { return }
             errorMessage = AppCopy.friendlyError(error)
         }
     }
 
     private func loadMore() async {
-        guard !loadingMore else { return }
+        guard !loadingMore, !isLoading, errorMessage == nil, hasMore,
+              let ticket = requests.beginNext(query) else { return }
         loadingMore = true
-        defer { loadingMore = false }
+        defer {
+            if requests.accepts(ticket, query: ticket.query) {
+                requests.finish(ticket)
+                loadingMore = false
+            }
+        }
         do {
-            let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-            let status = statusFilter == "all" ? "" : statusFilter
-            let r = try await AdminAPI.novels(search: trimmed, status: status, page: page + 1, limit: 20)
-            novels.append(contentsOf: r.novels)
+            let r = try await AdminAPI.novels(search: ticket.query[0], status: ticket.query[1], page: page + 1, limit: 20)
+            guard !Task.isCancelled, requests.accepts(ticket, query: query) else { return }
+            let existing = Set(novels.map(\.id))
+            novels.append(contentsOf: r.novels.filter { !existing.contains($0.id) })
             page = r.page
             hasMore = r.hasMore
             loadedTotal = r.total
         } catch {
+            guard !Task.isCancelled, requests.accepts(ticket, query: query) else { return }
             actionError = AppCopy.friendlyError(error)
         }
     }

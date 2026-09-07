@@ -129,6 +129,11 @@ struct AdminUsersView: View {
     /// 页面主体：恒渲染 List，加载态 / 错误态 / 内容按条件填充（与书架页同款可靠模式）。
     private var listHost: some View {
         List {
+            if let errorMessage, overview != nil {
+                LoadErrorNotice(message: errorMessage, isLoading: isLoading) {
+                    Task { await load() }
+                }
+            }
             if isLoading && overview == nil {
                 Section {
                     ProgressView("加载中…")

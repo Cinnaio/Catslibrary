@@ -20,8 +20,7 @@ struct HomeView: View {
     @State private var errorMessage: String?
     @State private var loadMoreError: String?
     @State private var reloadTask: Task<Void, Never>?
-    /// 请求序号：丢弃过期响应（搜索/分类竞态守卫）
-    @State private var requestSeq = 0
+    @State private var requests = ListRequestGuard<[String]>()
     @State private var interactionFeedback = 0
 
     private enum HomeRoute: Hashable {
@@ -31,6 +30,10 @@ struct HomeView: View {
 
     private var recentReading: RecentItem? {
         bookshelf?.recent.first
+    }
+
+    private var catalogQuery: [String] {
+        [search.trimmingCharacters(in: .whitespacesAndNewlines), selectedCategory ?? ""]
     }
 
     var body: some View {
@@ -161,6 +164,11 @@ struct HomeView: View {
                 .frame(maxWidth: .infinity, minHeight: 220)
         } else {
             LazyVStack(alignment: .leading, spacing: 0) {
+                if let errorMessage {
+                    LoadErrorNotice(message: errorMessage, isLoading: isLoading) {
+                        Task { await reload() }
+                    }
+                }
                 ForEach(novels) { novel in
                     novelRow(novel)
                         .onAppear {
@@ -390,9 +398,11 @@ struct HomeView: View {
     }
 
     func reload() async {
-        page = 1
         loadMoreError = nil
-        await fetchPage(1, append: false)
+        let ticket = requests.begin(catalogQuery)
+        isLoading = true
+        isLoadingMore = false
+        await fetchPage(1, append: false, ticket: ticket)
     }
 
     private func loadReadingContext() async {
@@ -408,17 +418,17 @@ struct HomeView: View {
     }
 
     private func loadMoreIfNeeded() {
-        guard !isLoading, !isLoadingMore, page < totalPages else { return }
-        Task { await fetchPage(page + 1, append: true) }
+        guard !isLoading, !isLoadingMore, errorMessage == nil, page < totalPages,
+              let ticket = requests.beginNext(catalogQuery) else { return }
+        isLoadingMore = true
+        let target = page + 1
+        Task { await fetchPage(target, append: true, ticket: ticket) }
     }
 
-    private func fetchPage(_ target: Int, append: Bool) async {
-        let seq = append ? requestSeq : requestSeq + 1
-        if !append { requestSeq = seq }
-        if target == 1 { isLoading = true } else { isLoadingMore = true }
+    private func fetchPage(_ target: Int, append: Bool, ticket: ListRequestGuard<[String]>.Ticket) async {
         defer {
-            // 仅当本响应仍是当前请求时才清 loading，避免过期响应干扰新请求的加载态
-            if seq == requestSeq {
+            if requests.accepts(ticket, query: ticket.query) {
+                requests.finish(ticket)
                 isLoading = false
                 isLoadingMore = false
             }
@@ -431,14 +441,15 @@ struct HomeView: View {
                 "order": "desc",
                 "contentMode": ContentPolicy.clientMode,
             ]
-            let trimmed = search.trimmingCharacters(in: .whitespaces)
+            let trimmed = ticket.query[0]
             if !trimmed.isEmpty { params["search"] = trimmed }
-            if let selectedCategory { params["category"] = selectedCategory }
+            if !ticket.query[1].isEmpty { params["category"] = ticket.query[1] }
 
             let r: NovelListResponse = try await APIClient.shared.get("/api/novels?" + Self.query(params))
-            guard seq == requestSeq else { return } // 过期响应直接丢弃
+            guard !Task.isCancelled, requests.accepts(ticket, query: catalogQuery) else { return }
             if append {
-                novels += r.novels
+                let existing = Set(novels.map(\.id))
+                novels += r.novels.filter { !existing.contains($0.id) }
             } else {
                 novels = r.novels
                 categories = r.availableCategories
@@ -448,12 +459,15 @@ struct HomeView: View {
             totalPages = r.totalPages
             errorMessage = nil
             loadMoreError = nil
+            requests.finish(ticket, succeeded: true)
+            isLoading = false
+            isLoadingMore = false
             await CoverPrefetcher.shared.prefetch(r.novels)
         } catch {
-            guard seq == requestSeq else { return }
+            guard !Task.isCancelled, requests.accepts(ticket, query: catalogQuery) else { return }
             AppObservability.shared.capture(error: error, context: append ? "home.load_more" : "home.load")
             let message = AppCopy.friendlyError(error)
-            if append || !novels.isEmpty {
+            if append {
                 loadMoreError = "加载失败，点按重试"
             } else {
                 errorMessage = message

@@ -1,8 +1,10 @@
 import SwiftUI
+import ZhiZhouCore
 
 /// 章节管理：选择小说 → 章节列表（搜索 / 编辑 / 新建 / 删除）。
 /// 对齐 Web 端 admin ChaptersTab（/api/chapters 系列接口）。
 struct AdminChaptersView: View {
+    @State private var requests = ListRequestGuard<String?>()
     @State private var novelOptions: [AdminNovelSummary] = []
     @State private var selectedNovel: AdminNovelSummary?
     @State private var chapters: [ChapterMeta] = []
@@ -18,6 +20,11 @@ struct AdminChaptersView: View {
 
     var body: some View {
         List {
+            if let errorMessage, !chapters.isEmpty {
+                LoadErrorNotice(message: errorMessage, isLoading: isLoading) {
+                    Task { await loadChapters() }
+                }
+            }
             if let selectedNovel {
                 Section {
                     HStack(spacing: 10) {
@@ -226,26 +233,35 @@ struct AdminChaptersView: View {
     // MARK: - 数据
 
     private func loadChapters() async {
+        let ticket = requests.begin(selectedNovel?.id)
+        isLoading = true
+        defer {
+            if requests.accepts(ticket, query: ticket.query) {
+                requests.finish(ticket)
+                isLoading = false
+            }
+        }
         guard let selectedNovel else {
             if novelOptions.isEmpty {
-                isLoading = true
-                defer { isLoading = false }
                 do {
                     let index = try await AdminAPI.novelIndex(limit: 2000)
+                    guard !Task.isCancelled, requests.accepts(ticket, query: self.selectedNovel?.id) else { return }
                     novelOptions = index.novels
                     errorMessage = nil
                 } catch {
+                    guard !Task.isCancelled, requests.accepts(ticket, query: self.selectedNovel?.id) else { return }
                     errorMessage = AppCopy.friendlyError(error)
                 }
             }
             return
         }
-        isLoading = true
-        defer { isLoading = false }
         do {
-            chapters = try await AdminAPI.chapters(novelId: selectedNovel.id)
+            let result = try await AdminAPI.chapters(novelId: selectedNovel.id)
+            guard !Task.isCancelled, requests.accepts(ticket, query: self.selectedNovel?.id) else { return }
+            chapters = result
             errorMessage = nil
         } catch {
+            guard !Task.isCancelled, requests.accepts(ticket, query: self.selectedNovel?.id) else { return }
             errorMessage = AppCopy.friendlyError(error)
         }
     }

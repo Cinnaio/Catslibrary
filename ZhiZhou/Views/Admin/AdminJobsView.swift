@@ -1,8 +1,10 @@
 import SwiftUI
+import ZhiZhouCore
 
 /// 任务管理：抓取任务列表（过滤 / 终止 / 整本重试 / 重试失败章节 / 清理已完成）+ 下载日志。
 /// 对齐 Web 端 admin JobsTab：运行中任务每 4 秒自动刷新，空闲每 20 秒。
 struct AdminJobsView: View {
+    @State private var requests = ListRequestGuard<Bool>()
     @Environment(\.scenePhase) private var scenePhase
     @State private var jobs: [AdminJobItem] = []
     @State private var logs: [AdminDownloadLog] = []
@@ -26,6 +28,11 @@ struct AdminJobsView: View {
 
     var body: some View {
         List {
+            if let errorMessage, !jobs.isEmpty {
+                LoadErrorNotice(message: errorMessage, isLoading: isLoading) {
+                    Task { await loadAll() }
+                }
+            }
             Section {
                 AdminFilterBar {
                     AdminFilterMenu("过滤", value: filter.rawValue) {
@@ -243,19 +250,31 @@ struct AdminJobsView: View {
     }
 
     private func loadAll(refreshNovelIndex: Bool = true) async {
+        let ticket = requests.begin(true)
         isLoading = true
-        defer { isLoading = false }
+        defer {
+            if requests.accepts(ticket, query: true) {
+                requests.finish(ticket)
+                isLoading = false
+            }
+        }
         do {
-            jobs = try await AdminAPI.scrapeJobs()
-            logs = try await AdminAPI.downloadLogs(limit: 50)
+            async let jobResult = AdminAPI.scrapeJobs()
+            async let logResult = AdminAPI.downloadLogs(limit: 50)
+            let (loadedJobs, loadedLogs) = try await (jobResult, logResult)
+            guard !Task.isCancelled, requests.accepts(ticket, query: true) else { return }
+            jobs = loadedJobs
+            logs = loadedLogs
             errorMessage = nil
             if refreshNovelIndex || lastNovelIndexRefresh == nil {
                 if let index = try? await AdminAPI.novelIndex(limit: 2000) {
+                    guard !Task.isCancelled, requests.accepts(ticket, query: true) else { return }
                     novelTitles = Dictionary(uniqueKeysWithValues: index.novels.map { ($0.id, $0.title) })
                     lastNovelIndexRefresh = Date()
                 }
             }
         } catch {
+            guard !Task.isCancelled, requests.accepts(ticket, query: true) else { return }
             errorMessage = AppCopy.friendlyError(error)
         }
     }

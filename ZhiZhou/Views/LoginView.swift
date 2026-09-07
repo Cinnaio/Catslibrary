@@ -15,6 +15,7 @@ struct LoginView: View {
     @State private var registerMode: RegisterMode = .loading
     @State private var registerStatusError: String?
     @State private var busy = false
+    @State private var isRestoringSession = false
     @State private var errorMessage: String?
     @State private var interactionFeedback = 0
     @State private var showOfflineReading = false
@@ -75,6 +76,11 @@ struct LoginView: View {
         .sheet(isPresented: $showOfflineReading) {
             NavigationStack {
                 OfflineReadingView()
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("关闭", systemImage: "xmark") { showOfflineReading = false }
+                        }
+                    }
             }
         }
         .sensoryFeedback(.selection, trigger: interactionFeedback)
@@ -293,8 +299,19 @@ struct LoginView: View {
         if appState.sessionRestoreFailed || errorMessage != nil {
             VStack(alignment: .leading, spacing: 8) {
                 if appState.sessionRestoreFailed {
-                    Label("网络异常，未能恢复上次会话，请检查网络后重新登录", systemImage: "wifi.slash")
+                    Label("暂时无法恢复上次会话", systemImage: "wifi.slash")
                         .foregroundStyle(AppTheme.warning)
+
+                    Button(isRestoringSession ? "正在恢复会话" : "重试连接", systemImage: "arrow.clockwise") {
+                        guard !isRestoringSession else { return }
+                        isRestoringSession = true
+                        Task {
+                            await appState.bootstrap()
+                            isRestoringSession = false
+                        }
+                    }
+                    .disabled(isRestoringSession || busy)
+                    .accessibilityIdentifier("session.retry")
 
                     if !offlineStore.books.isEmpty {
                         Button {
@@ -370,7 +387,7 @@ struct LoginView: View {
     // MARK: - 逻辑
 
     private var canSubmit: Bool {
-        guard !busy, !username.trimmingCharacters(in: .whitespaces).isEmpty else { return false }
+        guard !busy, !isRestoringSession, !username.trimmingCharacters(in: .whitespaces).isEmpty else { return false }
         if mode == .register {
             guard registerMode == .open || registerMode == .invite else { return false }
             if registerMode == .invite, invite.trimmingCharacters(in: .whitespaces).isEmpty { return false }

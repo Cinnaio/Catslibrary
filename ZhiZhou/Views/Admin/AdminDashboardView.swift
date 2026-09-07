@@ -8,6 +8,11 @@ struct AdminDashboardView: View {
 
     var body: some View {
         List {
+            if let errorMessage, stats != nil {
+                LoadErrorNotice(message: errorMessage, isLoading: isLoading) {
+                    Task { await load() }
+                }
+            }
             if isLoading && stats == nil {
                 Section {
                     ProgressView("加载中…")

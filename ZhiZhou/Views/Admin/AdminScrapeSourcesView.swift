@@ -1,4 +1,5 @@
 import SwiftUI
+import ZhiZhouCore
 
 /// 源管理：书源列表（搜索 / 启停 / 删除 / 测试 / 连通性检查 / 清理不可达）。
 /// 对齐 Web 端 admin scrape SourcesView。
@@ -7,6 +8,7 @@ struct AdminScrapeSourcesView: View {
     @State private var isLoading = true
     @State private var errorMessage: String?
     @State private var searchText = ""
+    @State private var requests = ListRequestGuard<String>()
     @State private var togglingHost: String?
     @State private var testingHost: String?
     @State private var checkingConnectivity = false
@@ -189,6 +191,11 @@ struct AdminScrapeSourcesView: View {
                     .listRowSeparator(.hidden)
                 }
             } else {
+                if let errorMessage {
+                    LoadErrorNotice(message: errorMessage, isLoading: isLoading) {
+                        Task { await load() }
+                    }
+                }
                 if selectionMode && !sources.isEmpty {
                     batchBarSection
                 }
@@ -358,17 +365,25 @@ struct AdminScrapeSourcesView: View {
     // MARK: - 数据
 
     private func load() async {
+        let ticket = requests.begin(searchText)
         isLoading = true
-        defer { isLoading = false }
+        defer {
+            if requests.accepts(ticket, query: ticket.query) {
+                requests.finish(ticket)
+                isLoading = false
+            }
+        }
         do {
-            let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+            let trimmed = ticket.query.trimmingCharacters(in: .whitespacesAndNewlines)
             let r = try await AdminAPI.scrapeSources(page: 1, pageSize: 100)
+            guard !Task.isCancelled, requests.accepts(ticket, query: searchText) else { return }
             let all = r.sources
             sources = trimmed.isEmpty ? all : all.filter {
                 $0.host.localizedCaseInsensitiveContains(trimmed) || $0.name.localizedCaseInsensitiveContains(trimmed)
             }
             errorMessage = nil
         } catch {
+            guard !Task.isCancelled, requests.accepts(ticket, query: searchText) else { return }
             errorMessage = AppCopy.friendlyError(error)
         }
     }
