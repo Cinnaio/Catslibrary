@@ -72,19 +72,20 @@ Require-NavigationPattern "admin operations expose a direct POPO account entry" 
     $adminRootView -match 'AdminModule\(id: "popo-account", title: "POPO 账号", systemImage: "person\.badge\.key", destination: \.popoAccount\)' -and
     $adminRootView -match 'case \.popoAccount: Po18AccountSheet\(\)'
 )
-Require-NavigationPattern "novel detail separates synopsis from the hero card" (
-    $detailView -match "(?s)if !currentNovel\.description\.isEmpty \{\s*Section \{\s*synopsisBlock" -and
-    $detailView -match "(?s)private var synopsisBlock.*?Text\(currentNovel\.description\)"
+Require-NavigationPattern "novel detail keeps synopsis expansion available when text is truncated" (
+    $detailView -match 'synopsisFullHeight > synopsisCollapsedHeight \+ 1' -and
+    $detailView -match 'lineLimit\(expandDescription \? nil : 4\)' -and
+    $detailView -match '(?s)private var synopsisText.*?Text\(currentNovel\.description\)'
 )
-Require-NavigationPattern "novel detail hero exposes cover and reading progress" (
-    $detailView -match "targetSize: CGSize\(width: 112, height: 160\)" -and
-    $detailView -match "(?s)if let progress,.*?ProgressView\(value: value, total: 1\)" -and
-    $detailView -match "\.paperCard\(cornerRadius: 20\)"
+Require-NavigationPattern "novel detail reserves space for its fixed reading or selection actions" (
+    $detailView -match '(?s)\.safeAreaInset\(edge: \.bottom, spacing: 0\)\s*\{\s*bottomBar' -and
+    $detailView -match '(?s)private var bottomBar.*?if isSelectingOffline \{\s*offlineSelectionBar\s*\} else \{\s*readingBar' -and
+    $detailView -match '(?s)private var readButton.*?NavigationLink\s*\{\s*ReaderView'
 )
-Require-NavigationPattern "novel detail chapters use a solid grouped surface" (
-    $detailView -match '(?s)private var chapterSectionHeader.*?Text\("章节"\)' -and
-    $detailView -match "\.listRowBackground\(AppTheme\.surface\)" -and
-    $detailView -notmatch "\.frostedRowBackground\(\)"
+Require-NavigationPattern "novel detail retains download actions in its sheet" (
+    $detailView -match '(?s)\.sheet\(isPresented: \$showOfflineOptions\)\s*\{\s*offlineDownloadSheet' -and
+    $detailView -match '(?s)private var offlineDownloadSheet.*?startAllDownload\(\).*?enterOfflineSelection\(\)' -and
+    $detailView -match '(?s)private var offlineSelectionBar.*?startSelectedDownload\(\).*?\.disabled\(selectedDownloadChapters\.isEmpty \|\| offlineStore\.isBatchDownloading\)'
 )
 
 if ($failures.Count -gt 0) {

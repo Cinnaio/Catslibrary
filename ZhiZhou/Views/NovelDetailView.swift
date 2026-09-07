@@ -1,15 +1,20 @@
 import SwiftUI
 import ZhiZhouCore
 
-/// 小说详情页：封面与简介建立阅读上下文，继续阅读为主操作，目录与离线管理为次要入口。
+/// 小说详情页：书籍信息与目录平铺，阅读操作固定在底部，离线管理按需展开。
 struct NovelDetailView: View {
     let novel: Novel
+    var showsCloseButton = false
     @Environment(AppState.self) private var appState
     @Environment(OfflineReadingStore.self) private var offlineStore
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ScaledMetric(relativeTo: .title2) private var bookTitleSize: CGFloat = 24
 
     @State private var chapters: [ChapterMeta] = []
-    @State private var isLoading = false
+    @State private var isLoading = true
     @State private var inBookshelf = false
     @State private var errorMessage: String?
     @State private var progress: ReadingProgress?
@@ -18,8 +23,11 @@ struct NovelDetailView: View {
     @State private var showBookshelfError = false
     @State private var showRemoveConfirm = false
     @State private var expandDescription = false
+    @State private var synopsisFullHeight: CGFloat = 0
+    @State private var synopsisCollapsedHeight: CGFloat = 0
     @State private var interactionFeedback = 0
     @State private var isShowingOffline = false
+    @State private var showOfflineOptions = false
     @State private var isSelectingOffline = false
     @State private var selectedChapterIDs: Set<String> = []
     @State private var selectionRowFrames: [String: CGRect] = [:]
@@ -27,58 +35,49 @@ struct NovelDetailView: View {
     @State private var selectionDragLastIndex: Int?
 
     var body: some View {
-        List {
-            Section {
-                headerCard
-            }
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
-
-            if !currentNovel.description.isEmpty {
-                Section {
-                    synopsisBlock
-                } header: {
-                    Text("简介")
-                }
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
-            }
-
-            Section {
-                if !chapters.isEmpty {
-                    offlineSummary
-                }
-                if isLoading && chapters.isEmpty {
-                    ProgressView()
-                        .frame(maxWidth: .infinity, minHeight: 44)
-                }
-                if let errorMessage, chapters.isEmpty {
-                    ContentUnavailableView {
-                        Label("章节加载失败", systemImage: "wifi.slash")
-                    } description: {
-                        Text(errorMessage)
-                    } actions: {
-                        Button("重试") { Task { await load() } }
-                            .buttonStyle(.borderedProminent)
-                            .tint(AppTheme.primary)
+        GeometryReader { geometry in
+            let sideInset = max(20, (geometry.size.width - 640) / 2)
+            ScrollViewReader { proxy in
+                detailList(sideInset: sideInset, compactHeader: geometry.size.height < 640)
+                    .onChange(of: isSelectingOffline) { _, isSelecting in
+                        if isSelecting, let chapter = downloadableChapters.first {
+                            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
+                                proxy.scrollTo(chapter.id, anchor: .top)
+                            }
+                        }
                     }
-                    .listRowBackground(Color.clear)
-                }
-                ForEach(chapters) { chapter in
-                    chapterRow(chapter)
-                }
-            } header: {
-                chapterSectionHeader
             }
-            .listRowBackground(AppTheme.surface)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                bottomBar
+            }
         }
         .onPreferenceChange(OfflineChapterFramePreferenceKey.self) { frames in
             selectionRowFrames = frames
         }
-        .scrollContentBackground(.hidden)
         .pageBackground()
         .navigationTitle(currentNovel.title)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar(horizontalSizeClass == .regular ? .visible : .hidden, for: .tabBar)
+        .toolbar {
+            if showsCloseButton {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("关闭", systemImage: "xmark") { dismiss() }
+                        .labelStyle(.iconOnly)
+                        .help("关闭详情")
+                }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("离线下载", systemImage: "arrow.down.circle") {
+                    showOfflineOptions = true
+                }
+                .labelStyle(.iconOnly)
+                .disabled(chapters.isEmpty || isSelectingOffline)
+                .help("离线下载")
+            }
+        }
+        .sheet(isPresented: $showOfflineOptions) {
+            offlineDownloadSheet
+        }
         .task {
             await offlineStore.refresh()
             await load()
@@ -95,7 +94,7 @@ struct NovelDetailView: View {
         .alert(
             "离线下载未完成",
             isPresented: Binding(
-                get: { offlineStore.lastError != nil },
+                get: { offlineStore.lastError != nil && !showOfflineOptions },
                 set: { if !$0 { offlineStore.clearError() } }
             )
         ) {
@@ -106,6 +105,72 @@ struct NovelDetailView: View {
             Text(offlineStore.lastError ?? "")
         }
         .sensoryFeedback(.selection, trigger: interactionFeedback)
+    }
+
+    private func detailList(sideInset: CGFloat, compactHeader: Bool) -> some View {
+        List {
+            bookHeader(compact: compactHeader)
+                .listRowInsets(EdgeInsets(top: 16, leading: sideInset, bottom: 24, trailing: sideInset))
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+
+            if !currentNovel.description.isEmpty {
+                synopsisBlock
+                    .listRowInsets(EdgeInsets(top: 0, leading: sideInset, bottom: 24, trailing: sideInset))
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+            }
+
+            Section {
+                if offlineStore.batchNovelID == currentNovel.id {
+                    downloadStatusRow
+                        .listRowSeparator(.hidden)
+                }
+                if isShowingOffline {
+                    Label("当前显示已下载的章节", systemImage: "wifi.slash")
+                        .font(.footnote)
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .listRowSeparator(.hidden)
+                }
+                if chapters.isEmpty {
+                    chapterEmptyState
+                        .listRowSeparator(.hidden)
+                }
+                ForEach(chapters) { chapter in
+                    chapterRow(chapter)
+                        .id(chapter.id)
+                        .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
+                }
+            } header: {
+                chapterSectionHeader
+                    .textCase(nil)
+                    .listRowInsets(EdgeInsets(top: 8, leading: sideInset, bottom: 8, trailing: sideInset))
+            }
+            .listRowInsets(EdgeInsets(top: 10, leading: sideInset, bottom: 10, trailing: sideInset))
+            .listRowBackground(Color.clear)
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+    }
+
+    @ViewBuilder
+    private var chapterEmptyState: some View {
+        if isLoading {
+            ProgressView("正在加载章节")
+                .frame(maxWidth: .infinity, minHeight: 88)
+        } else if let errorMessage {
+            ContentUnavailableView {
+                Label("章节加载失败", systemImage: "wifi.slash")
+            } description: {
+                Text(errorMessage)
+            } actions: {
+                Button("重试") { Task { await load() } }
+                    .buttonStyle(.borderedProminent)
+                    .tint(AppTheme.primary)
+            }
+        } else {
+            ContentUnavailableView("暂无章节", systemImage: "text.book.closed")
+        }
     }
 
     private var currentNovel: Novel { displayNovel ?? novel }
@@ -138,115 +203,93 @@ struct NovelDetailView: View {
         return !downloadableIDs.isEmpty && downloadableIDs.isSubset(of: selectedChapterIDs)
     }
 
-    private var offlineSummary: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
-                Label("离线章节", systemImage: "arrow.down.circle")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(AppTheme.textPrimary)
-                Spacer()
-                Text("\(offlineStore.downloadedCount(for: currentNovel.id))/\(chapters.count)")
-                    .font(.subheadline.monospacedDigit().weight(.semibold))
-                    .foregroundStyle(AppTheme.textSecondary)
-            }
-
-            if offlineStore.batchNovelID == currentNovel.id {
-                HStack(spacing: 10) {
-                    ProgressView(value: offlineStore.batchProgress)
-                        .tint(AppTheme.primary)
-                    Button("停止") {
-                        offlineStore.cancelBatch()
+    private var offlineDownloadSheet: some View {
+        NavigationStack {
+            List {
+                Section {
+                    LabeledContent("已保存章节") {
+                        Text("\(offlineStore.downloadedCount(for: currentNovel.id)) / \(chapters.count)")
+                            .monospacedDigit()
                     }
-                    .font(.subheadline.weight(.semibold))
-                    .buttonStyle(.borderless)
-                }
-                Text("正在保存第 \(min(offlineStore.batchCompleted + 1, offlineStore.batchTotal))/\(offlineStore.batchTotal) 章")
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
-            } else if isSelectingOffline {
-                HStack {
-                    Button("取消") {
-                        cancelOfflineSelection()
-                    }
-                    .buttonStyle(.borderless)
-                    .frame(minHeight: 44)
-
-                    Spacer()
-
-                    Button(isAllDownloadableSelected ? "取消全选" : "全选") {
-                        toggleOfflineSelectAll()
-                    }
-                    .buttonStyle(.borderless)
-                    .frame(minHeight: 44)
-                }
-
-                HStack(spacing: 10) {
-                    Text("已选 \(selectedDownloadChapters.count) 章")
-                        .font(.subheadline)
-                        .foregroundStyle(AppTheme.textSecondary)
-                    Spacer()
-                    Button {
-                        startSelectedDownload()
-                    } label: {
-                        Label("下载已选章节", systemImage: "arrow.down.circle.fill")
-                            .font(.subheadline.weight(.semibold))
-                            .lineLimit(1)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(AppTheme.primary)
-                    .controlSize(.small)
-                    .frame(minHeight: 44)
-                    .disabled(selectedDownloadChapters.isEmpty || offlineStore.isBatchDownloading)
-                }
-
-                Text("点按选择，按住左侧圆圈上下拖动可连续选择")
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
-            } else {
-                if downloadableChapters.isEmpty {
-                    Label("全部章节已保存", systemImage: "checkmark.circle.fill")
-                        .foregroundStyle(AppTheme.success)
-                        .frame(maxWidth: .infinity, minHeight: 44)
-                } else {
-                    HStack(spacing: 10) {
-                        Button {
+                    if offlineStore.batchNovelID == currentNovel.id {
+                        VStack(alignment: .leading, spacing: 10) {
+                            ProgressView(value: offlineStore.batchProgress)
+                                .tint(AppTheme.primary)
+                            Text("已处理 \(offlineStore.batchCompleted) / \(offlineStore.batchTotal) 章")
+                                .font(.footnote)
+                                .foregroundStyle(AppTheme.textSecondary)
+                        }
+                        Button("停止下载", systemImage: "stop.circle") {
+                            offlineStore.cancelBatch()
+                        }
+                    } else if downloadableChapters.isEmpty {
+                        Label("全部章节已保存", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(AppTheme.success)
+                    } else {
+                        Button("下载全部章节", systemImage: "arrow.down.circle") {
+                            showOfflineOptions = false
                             startAllDownload()
-                        } label: {
-                            Label("下载全部章节", systemImage: "arrow.down.circle.fill")
-                                .font(.subheadline.weight(.semibold))
-                                .lineLimit(1)
-                                .frame(maxWidth: .infinity)
                         }
-                        .buttonStyle(.borderedProminent)
-                        .tint(AppTheme.primary)
-                        .controlSize(.small)
-                        .frame(maxWidth: .infinity, minHeight: 44)
                         .disabled(offlineStore.isBatchDownloading)
 
-                        Button {
+                        Button("选择章节", systemImage: "checklist") {
+                            showOfflineOptions = false
                             enterOfflineSelection()
-                        } label: {
-                            Label("选择章节", systemImage: "checklist")
-                                .font(.subheadline.weight(.semibold))
-                                .lineLimit(1)
-                                .frame(maxWidth: .infinity)
                         }
-                        .buttonStyle(.bordered)
-                        .tint(AppTheme.primary)
-                        .controlSize(.small)
-                        .frame(maxWidth: .infinity, minHeight: 44)
                         .disabled(offlineStore.isBatchDownloading)
+
+                        if offlineStore.isBatchDownloading {
+                            Text("另一本书正在下载")
+                                .font(.footnote)
+                                .foregroundStyle(AppTheme.textSecondary)
+                        }
+                    }
+                } header: {
+                    Text(currentNovel.title)
+                        .textCase(nil)
+                }
+                if let error = offlineStore.lastError {
+                    Section {
+                        Label(error, systemImage: "exclamationmark.circle")
+                            .foregroundStyle(AppTheme.danger)
+                        Button("好") { offlineStore.clearError() }
                     }
                 }
             }
-
-            if isShowingOffline {
-                Label("当前显示已下载的章节目录", systemImage: "wifi.slash")
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
+            .navigationTitle("离线下载")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("关闭", systemImage: "xmark") { showOfflineOptions = false }
+                        .labelStyle(.iconOnly)
+                        .help("关闭下载面板")
+                }
             }
         }
-        .padding(.vertical, 4)
+        .tint(AppTheme.primary)
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+    }
+
+    private var downloadStatusRow: some View {
+        Button {
+            showOfflineOptions = true
+        } label: {
+            HStack(spacing: 10) {
+                ProgressView()
+                    .controlSize(.small)
+                Text("正在下载 · \(offlineStore.batchCompleted)/\(offlineStore.batchTotal)")
+                    .font(.footnote)
+                    .monospacedDigit()
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+            }
+            .foregroundStyle(AppTheme.textSecondary)
+            .frame(minHeight: 44)
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("查看下载进度或停止下载")
     }
 
     @ViewBuilder
@@ -269,7 +312,6 @@ struct NovelDetailView: View {
                     )
                 }
             )
-            .simultaneousGesture(selectionGesture(for: chapter))
             .disabled(offlineStore.isDownloaded(chapter.id))
             .accessibilityLabel("第 \(chapter.order) 章，\(chapter.title)")
             .accessibilityValue(
@@ -293,23 +335,28 @@ struct NovelDetailView: View {
     }
 
     private func chapterRowLabel(_ chapter: ChapterMeta, selectionMode: Bool) -> some View {
-        HStack {
+        HStack(alignment: .center, spacing: 12) {
             if selectionMode {
                 selectionIndicator(for: chapter)
+                    .highPriorityGesture(selectionGesture(for: chapter))
             }
 
-            Text(chapter.title)
-                .lineLimit(2)
-            Spacer()
-            if chapter.id == progress?.chapterId {
-                Image(systemName: "bookmark.fill")
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.seal)
-                    .accessibilityLabel("上次读到这里")
-            }
-            Text("\(chapter.wordCount) 字")
+            VStack(alignment: .leading, spacing: 5) {
+                Text(chapter.title)
+                    .font(.body)
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                HStack(spacing: 8) {
+                    Text("\(chapter.wordCount) 字")
+                    if chapter.id == progress?.chapterId {
+                        Label("上次读到", systemImage: "bookmark.fill")
+                            .foregroundStyle(AppTheme.primary)
+                    }
+                }
                 .font(.caption)
-                .foregroundStyle(AppTheme.textMuted)
+                .foregroundStyle(AppTheme.textSecondary)
+            }
+            Spacer(minLength: 0)
 
             if !selectionMode && offlineStore.isDownloaded(chapter.id) {
                 Image(systemName: "arrow.down.circle.fill")
@@ -318,6 +365,7 @@ struct NovelDetailView: View {
                     .accessibilityLabel("已保存离线内容")
             }
         }
+        .frame(minHeight: 44)
         .contentShape(Rectangle())
     }
 
@@ -477,138 +525,247 @@ struct NovelDetailView: View {
         }
     }
 
-    private var headerCard: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack(alignment: .top, spacing: 16) {
-                CachedAsyncImage(
-                    url: APIClient.shared.coverURL(novelId: currentNovel.id, updatedAt: currentNovel.updatedAt),
-                    targetSize: CGSize(width: 112, height: 160)
-                ) { image in
-                    image.resizable().scaledToFill()
-                } placeholder: {
-                    ZStack {
-                        AppTheme.primaryLight
-                        Image(systemName: "book.closed")
-                            .foregroundStyle(AppTheme.primary)
-                    }
+    private func bookHeader(compact: Bool) -> some View {
+        Group {
+            if compact && !dynamicTypeSize.isAccessibilitySize {
+                HStack(alignment: .center, spacing: 20) {
+                    bookCover(size: CGSize(width: 88, height: 126))
+                    bookInformation(centered: false)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .frame(width: 112, height: 160)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .shadow(color: AppTheme.cardShadow, radius: 8, y: 4)
-                .accessibilityLabel("\(currentNovel.title) 封面")
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(currentNovel.title)
-                        .font(serifFont(.title2, .semibold))
-                        .foregroundStyle(AppTheme.textPrimary)
-                        .lineLimit(3)
-                    Text(currentNovel.author)
-                        .font(.subheadline)
-                        .foregroundStyle(AppTheme.textSecondary)
-                        .lineLimit(1)
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 64), alignment: .leading)], alignment: .leading, spacing: 6) {
-                        if let status = currentNovel.statusLabel {
-                            Text(status).modifier(ThemeTagModifier())
-                        }
-                        if currentNovel.hasUpdate {
-                            Text("有更新").modifier(ThemeTagModifier(emphasized: true))
-                        }
-                        ForEach(currentNovel.categories.prefix(2), id: \.self) { category in
-                            Text(category).modifier(ThemeTagModifier())
-                        }
-                    }
+            } else {
+                VStack(spacing: 18) {
+                    bookCover(size: dynamicTypeSize.isAccessibilitySize
+                        ? CGSize(width: 88, height: 126)
+                        : CGSize(width: 128, height: 184))
+                    bookInformation(centered: true)
                 }
-                Spacer(minLength: 0)
-            }
-
-            if let progress,
-               let chapter = chapters.first(where: { $0.id == progress.chapterId }) {
-                let value = min(max(progress.scrollPercent, 0), 1)
-                VStack(alignment: .leading, spacing: 7) {
-                    HStack {
-                        Text("阅读进度")
-                        Spacer(minLength: 8)
-                        Text("第 \(chapter.order) 章 · 已读 \(Int((value * 100).rounded()))%")
-                    }
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.textMuted)
-
-                    ProgressView(value: value, total: 1)
-                        .tint(AppTheme.primary)
-                }
-            }
-
-            HStack(spacing: 10) {
-                if let chapter = continueChapter {
-                    NavigationLink {
-                        ReaderView(
-                            novel: currentNovel,
-                            chapterOrder: chapter.order,
-                            preloadedChapters: chapters
-                        )
-                    } label: {
-                        VStack(spacing: 2) {
-                            Label(continueTitle, systemImage: "book.fill")
-                                .font(.subheadline.weight(.semibold))
-                            Text(chapter.title)
-                                .font(.caption2)
-                                .lineLimit(1)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .frame(minHeight: 44)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(AppTheme.primary)
-                    .accessibilityHint("从第 \(chapter.order) 章开始")
-                } else {
-                    Button {
-                        // 章节尚未加载完成，禁用占位
-                    } label: {
-                        Label("开始阅读", systemImage: "book.fill")
-                            .font(.subheadline.weight(.semibold))
-                            .frame(maxWidth: .infinity)
-                            .frame(minHeight: 44)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(AppTheme.primary)
-                    .disabled(true)
-                }
-
-                Button {
-                    if inBookshelf {
-                        showRemoveConfirm = true
-                    } else {
-                        toggleBookshelf()
-                    }
-                } label: {
-                    Group {
-                        if bookshelfBusy {
-                            ProgressView()
-                                .controlSize(.small)
-                        } else {
-                            Image(systemName: inBookshelf ? "bookmark.fill" : "bookmark")
-                        }
-                    }
-                    .frame(width: 44, height: 44)
-                }
-                .buttonStyle(.bordered)
-                .tint(AppTheme.primary)
-                .disabled(bookshelfBusy)
-                .accessibilityLabel(inBookshelf ? "已在书架，点按移除" : "加入书架")
+                .frame(maxWidth: .infinity)
             }
         }
-        .padding(16)
-        .paperCard(cornerRadius: 20)
+    }
+
+    private func bookCover(size: CGSize) -> some View {
+        CachedAsyncImage(
+            url: APIClient.shared.coverURL(novelId: currentNovel.id, updatedAt: currentNovel.updatedAt),
+            targetSize: size
+        ) { image in
+            image.resizable().scaledToFit()
+        } placeholder: {
+            ZStack {
+                AppTheme.surfaceSecondary
+                Image(systemName: "book.closed")
+                    .font(.largeTitle)
+                    .foregroundStyle(AppTheme.primary)
+            }
+        }
+        .frame(width: size.width, height: size.height)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .shadow(color: AppTheme.cardShadow, radius: 10, y: 5)
+        .accessibilityHidden(true)
+    }
+
+    private func bookInformation(centered: Bool) -> some View {
+        VStack(alignment: centered ? .center : .leading, spacing: 8) {
+            Text(currentNovel.title)
+                .font(SongtiFont.font(size: bookTitleSize, weight: .semibold))
+                .foregroundStyle(AppTheme.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+            Text(currentNovel.author)
+                .font(.subheadline)
+                .foregroundStyle(AppTheme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if !bookMetadata.isEmpty {
+                Text(bookMetadata)
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if currentNovel.hasUpdate {
+                Text("有更新")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.seal)
+            }
+        }
+        .multilineTextAlignment(centered ? .center : .leading)
+    }
+
+    private var bookMetadata: String {
+        var parts = Array(currentNovel.categories.prefix(2))
+        if let status = currentNovel.statusLabel {
+            parts.append(status)
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    private var bottomBar: some View {
+        Group {
+            if isSelectingOffline {
+                offlineSelectionBar
+            } else {
+                readingBar
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 12)
+        .frame(maxWidth: 680)
+        .frame(maxWidth: .infinity)
+        .appMaterialBackground(.regularMaterial, in: Rectangle())
+    }
+
+    private var readingBar: some View {
+        VStack(spacing: 10) {
+            if let chapter = continueChapter {
+                readingContext(for: chapter)
+            }
+            HStack(spacing: 12) {
+                readButton
+                bookshelfButton
+            }
+        }
+    }
+
+    private func readingContext(for chapter: ChapterMeta) -> some View {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+            : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 12))
+        return layout {
+            Text(chapter.title)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            if let progress, progress.chapterId == chapter.id {
+                let value = min(max(progress.scrollPercent, 0), 1)
+                Text("本章已读 \(Int((value * 100).rounded()))%")
+                    .monospacedDigit()
+                    .fixedSize(horizontal: !dynamicTypeSize.isAccessibilitySize, vertical: true)
+            }
+        }
+        .font(.caption)
+        .foregroundStyle(AppTheme.textSecondary)
+    }
+
+    @ViewBuilder
+    private var readButton: some View {
+        if let chapter = continueChapter {
+            NavigationLink {
+                ReaderView(
+                    novel: currentNovel,
+                    chapterOrder: chapter.order,
+                    preloadedChapters: chapters
+                )
+            } label: {
+                primaryActionLabel(continueTitle, systemImage: "book.fill")
+            }
+            .buttonStyle(ScaleButtonStyle(pressedScale: 0.98))
+            .accessibilityHint("从第 \(chapter.order) 章开始，\(chapter.title)")
+        } else {
+            Button {} label: {
+                primaryActionLabel("开始阅读", systemImage: "book.fill")
+            }
+            .buttonStyle(ScaleButtonStyle(pressedScale: 0.98))
+            .disabled(true)
+            .opacity(0.45)
+        }
+    }
+
+    private var bookshelfButton: some View {
+        Button {
+            if inBookshelf {
+                showRemoveConfirm = true
+            } else {
+                toggleBookshelf()
+            }
+        } label: {
+            Group {
+                if bookshelfBusy {
+                    ProgressView().tint(AppTheme.primary)
+                } else {
+                    Image(systemName: inBookshelf ? "bookmark.fill" : "bookmark")
+                        .font(.title3)
+                        .foregroundStyle(AppTheme.primary)
+                }
+            }
+            .frame(width: 52, height: 52)
+            .background(AppTheme.controlFill, in: Circle())
+        }
+        .buttonStyle(ScaleButtonStyle())
+        .disabled(bookshelfBusy)
+        .accessibilityLabel(inBookshelf ? "已在书架，点按移除" : "加入书架")
+        .help(inBookshelf ? "移出书架" : "加入书架")
+    }
+
+    private var offlineSelectionBar: some View {
+        VStack(spacing: 8) {
+            HStack {
+                Button("取消") { cancelOfflineSelection() }
+                    .frame(minWidth: 44, minHeight: 44)
+                Spacer(minLength: 12)
+                Button(isAllDownloadableSelected ? "取消全选" : "全选") {
+                    toggleOfflineSelectAll()
+                }
+                .frame(minWidth: 44, minHeight: 44)
+            }
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(AppTheme.primary)
+            .buttonStyle(.plain)
+
+            Button {
+                startSelectedDownload()
+            } label: {
+                primaryActionLabel("下载 \(selectedDownloadChapters.count) 章", systemImage: "arrow.down.circle")
+            }
+            .buttonStyle(ScaleButtonStyle(pressedScale: 0.98))
+            .disabled(selectedDownloadChapters.isEmpty || offlineStore.isBatchDownloading)
+            .opacity(selectedDownloadChapters.isEmpty || offlineStore.isBatchDownloading ? 0.45 : 1)
+        }
+    }
+
+    private func primaryActionLabel(_ title: String, systemImage: String) -> some View {
+        Label(title, systemImage: systemImage)
+            .font(.headline)
+            .monospacedDigit()
+            .multilineTextAlignment(.center)
+            .foregroundStyle(AppTheme.onPrimary)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .frame(maxWidth: .infinity, minHeight: 52)
+            .background(AppTheme.primary, in: Capsule())
     }
 
     private var synopsisBlock: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(currentNovel.description)
-                .font(.body)
-                .foregroundStyle(AppTheme.textSecondary)
+            Text("简介")
+                .font(.headline)
+                .foregroundStyle(AppTheme.textPrimary)
+                .accessibilityAddTraits(.isHeader)
+            synopsisText
                 .lineLimit(expandDescription ? nil : 4)
+                .fixedSize(horizontal: false, vertical: true)
+                .background(alignment: .topLeading) {
+                    // Measure both variants at the same width, including while expanded.
+                    ZStack(alignment: .topLeading) {
+                        synopsisText
+                            .lineLimit(4)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .onGeometryChange(for: CGFloat.self) { geometry in
+                                geometry.size.height
+                            } action: { height in
+                                synopsisCollapsedHeight = height
+                            }
+                        synopsisText
+                            .fixedSize(horizontal: false, vertical: true)
+                            .onGeometryChange(for: CGFloat.self) { geometry in
+                                geometry.size.height
+                            } action: { height in
+                                synopsisFullHeight = height
+                            }
+                    }
+                    .hidden()
+                    .accessibilityHidden(true)
+                }
 
-            if currentNovel.description.count > 80 {
+            if expandDescription || synopsisFullHeight > synopsisCollapsedHeight + 1 {
                 Button(expandDescription ? "收起简介" : "展开简介") {
                     interactionFeedback += 1
                     if reduceMotion {
@@ -625,18 +782,25 @@ struct NovelDetailView: View {
                 .frame(minHeight: 44, alignment: .leading)
             }
         }
-        .padding(.vertical, 4)
+    }
+
+    private var synopsisText: some View {
+        Text(currentNovel.description)
+            .font(.body)
+            .foregroundStyle(AppTheme.textSecondary)
+            .lineSpacing(4)
     }
 
     private var chapterSectionHeader: some View {
         HStack(alignment: .firstTextBaseline) {
-            Text("章节")
+            Text(isSelectingOffline ? "选择章节" : "目录")
                 .font(.headline.weight(.semibold))
                 .foregroundStyle(AppTheme.textPrimary)
+                .accessibilityAddTraits(.isHeader)
             Spacer(minLength: 12)
-            Text("\(chapters.count) 章")
+            Text(isLoading && chapters.isEmpty ? "加载中" : "\(chapters.count) 章")
                 .font(.caption)
-                .foregroundStyle(AppTheme.textMuted)
+                .foregroundStyle(AppTheme.textSecondary)
         }
     }
 

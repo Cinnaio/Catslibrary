@@ -22,7 +22,7 @@ struct BookshelfView: View {
             }
             .sheet(item: $compactDetailNovel) { novel in
                 NavigationStack {
-                    NovelDetailView(novel: novel)
+                    NovelDetailView(novel: novel, showsCloseButton: true)
                 }
             }
         } else {
