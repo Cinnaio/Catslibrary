@@ -2,6 +2,16 @@ import XCTest
 @testable import ZhiZhouCore
 
 final class ListRequestGuardTests: XCTestCase {
+    func testReturningToSameBookStillRejectsItsEarlierResponse() {
+        var requests = ListRequestGuard<String>()
+        let first = requests.begin("book-a")
+        _ = requests.begin("book-b")
+        let latest = requests.begin("book-a")
+        XCTAssertFalse(requests.accepts(first, query: "book-a"))
+        requests.finish(first)
+        XCTAssertTrue(requests.accepts(latest, query: "book-a"))
+    }
+
     func testOlderSearchCannotReplaceNewSearchOrClearItsLoadingState() {
         var requests = ListRequestGuard<String>()
         let old = requests.begin("old")

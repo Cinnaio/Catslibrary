@@ -1,4 +1,5 @@
 import SwiftUI
+import ZhiZhouCore
 import UIKit
 import PhotosUI
 import UniformTypeIdentifiers
@@ -42,6 +43,8 @@ struct AdminAICoverView: View {
     // 候选
     @State private var candidates: [AiCoverCandidate] = []
     @State private var candidatesLoaded = false
+    @State private var candidateRequests = ListRequestGuard<String>()
+    @State private var candidatesNovelID = ""
     @State private var candidateBusy = ""
     @State private var pendingDiscard: AiCoverCandidate?
     @State private var previewCandidate: AiCoverCandidate?
@@ -985,11 +988,20 @@ struct AdminAICoverView: View {
 
     private func loadCandidates() async {
         guard !selectedNovelId.isEmpty else { return }
+        let ticket = candidateRequests.begin(selectedNovelId)
+        if candidatesNovelID != selectedNovelId {
+            candidates = []
+            candidatesLoaded = false
+            candidatesNovelID = selectedNovelId
+        }
+        defer { candidateRequests.finish(ticket) }
         do {
-            let result = try await AdminAPI.aiCoverCandidates(novelId: selectedNovelId)
+            let result = try await AdminAPI.aiCoverCandidates(novelId: ticket.query)
+            guard !Task.isCancelled, candidateRequests.accepts(ticket, query: selectedNovelId) else { return }
             candidates = result.items
             candidatesLoaded = true
         } catch {
+            guard !Task.isCancelled, candidateRequests.accepts(ticket, query: selectedNovelId) else { return }
             actionError = AppCopy.friendlyError(error)
         }
     }

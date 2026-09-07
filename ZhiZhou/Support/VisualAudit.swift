@@ -122,6 +122,10 @@ private final class VisualAuditProtocol: URLProtocol {
             body = ["user": Self.json(Self.currentUser)]
         case ("GET", "/api/auth/reader-settings"):
             body = ["settings": [:], "updatedAt": [:]]
+        case ("GET", "/api/ai/settings"):
+            body = ["settings": ["recapEnabled": true, "dailyQuota": 10]]
+        case ("GET", "/api/ai/tasks"):
+            body = ["items": [], "total": 0]
         case ("GET", "/api/novels"):
             Self.catalogRequests += 1
             let search = queryValue("search") ?? ""

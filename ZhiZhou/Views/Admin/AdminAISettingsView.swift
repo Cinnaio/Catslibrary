@@ -40,7 +40,11 @@ struct AdminAISettingsView: View {
     @State private var isLoading = true
     @State private var errorMessage: String?
     @State private var saving = false
-    @State private var hasUnsavedChanges = false
+    @State private var savedFingerprint: String?
+    @State private var loadingRequest = false
+    private var hasUnsavedChanges: Bool {
+        savedFingerprint.map { $0 != settingsFingerprint } ?? false
+    }
     @State private var saveMessage: String?
     @State private var actionError: String?
     @FocusState private var focusedField: String?
@@ -155,6 +159,7 @@ struct AdminAISettingsView: View {
             }
         }
         .scrollContentBackground(.hidden)
+        .disabled(saving)
         .pageBackground()
         .scrollDismissesKeyboard(.interactively)
         .navigationTitle("运行参数")
@@ -163,7 +168,6 @@ struct AdminAISettingsView: View {
         .task { await load() }
         .onChange(of: settingsFingerprint) { _, _ in
             guard !isLoading, !saving else { return }
-            hasUnsavedChanges = true
             saveMessage = nil
         }
         .toolbar {
@@ -338,13 +342,22 @@ struct AdminAISettingsView: View {
     // MARK: - 数据
 
     private func load() async {
+        guard !loadingRequest, !saving else { return }
+        guard !hasUnsavedChanges else {
+            actionError = "有未保存的修改，请先保存参数再刷新。"
+            return
+        }
+        loadingRequest = true
         isLoading = true
-        defer { isLoading = false }
+        defer { isLoading = false; loadingRequest = false }
         do {
             let r = try await AdminAPI.aiSettings()
+            guard !Task.isCancelled else { return }
             seed(r.settings)
+            savedFingerprint = settingsFingerprint
             errorMessage = nil
         } catch {
+            guard !Task.isCancelled else { return }
             errorMessage = AppCopy.friendlyError(error)
         }
     }
@@ -383,6 +396,7 @@ struct AdminAISettingsView: View {
     }
 
     private func save() async {
+        guard !saving, !loadingRequest else { return }
         normalizeValues()
         saving = true
         defer { saving = false }
@@ -419,7 +433,7 @@ struct AdminAISettingsView: View {
                 "logUserAgent": logUserAgent,
             ]
             _ = try await AdminAPI.saveAiSettings(patch)
-            hasUnsavedChanges = false
+            savedFingerprint = settingsFingerprint
             saveMessage = "参数已保存"
         } catch {
             actionError = AppCopy.friendlyError(error)

@@ -18,6 +18,15 @@ struct AdminAIProviderView: View {
     @State private var testing = false
     @State private var testResult: AiTestResponse?
     @State private var actionError: String?
+    @State private var savedText: [String]?
+    @State private var savedImage: [String]?
+    @State private var loadingRequest = false
+
+    private var hasUnsavedChanges: Bool {
+        (savedText.map { $0 != [textBaseUrl, textModel] } ?? false)
+            || (savedImage.map { $0 != [imageBaseUrl, imageModel] } ?? false)
+            || !textApiKey.isEmpty || !imageApiKey.isEmpty
+    }
 
     var body: some View {
         List {
@@ -115,6 +124,7 @@ struct AdminAIProviderView: View {
             }
         }
         .scrollContentBackground(.hidden)
+        .disabled(saving)
         .pageBackground()
         .navigationTitle("供应商配置")
         .navigationBarTitleDisplayMode(.large)
@@ -169,23 +179,34 @@ struct AdminAIProviderView: View {
     }
 
     private func load() async {
+        guard !loadingRequest, !saving else { return }
+        guard !hasUnsavedChanges else {
+            actionError = "有未保存的修改，请先保存供应商配置再刷新。"
+            return
+        }
+        loadingRequest = true
         isLoading = true
-        defer { isLoading = false }
+        defer { isLoading = false; loadingRequest = false }
         do {
             let r = try await AdminAPI.aiSettings()
+            guard !Task.isCancelled else { return }
             textBaseUrl = r.providerConfig?.baseUrl ?? ""
             textModel = r.providerConfig?.model ?? ""
             textHasKey = r.providerConfig?.hasApiKey ?? false
             imageBaseUrl = r.imageProviderConfig?.baseUrl ?? ""
             imageModel = r.imageProviderConfig?.model ?? ""
             imageHasKey = r.imageProviderConfig?.hasApiKey ?? false
+            savedText = [textBaseUrl, textModel]
+            savedImage = [imageBaseUrl, imageModel]
             errorMessage = nil
         } catch {
+            guard !Task.isCancelled else { return }
             errorMessage = AppCopy.friendlyError(error)
         }
     }
 
     private func save(scope: String, baseUrl: String, model: String, apiKey: String, clearKey: Bool) async {
+        guard !saving, !loadingRequest else { return }
         saving = true
         savingScope = scope
         defer {
@@ -207,9 +228,11 @@ struct AdminAIProviderView: View {
             if scope == "text" {
                 textHasKey = r.providerConfig?.hasApiKey ?? false
                 textApiKey = ""
+                savedText = [textBaseUrl, textModel]
             } else {
                 imageHasKey = r.imageProviderConfig?.hasApiKey ?? false
                 imageApiKey = ""
+                savedImage = [imageBaseUrl, imageModel]
             }
             saveMessage = scope == "text" ? "文本供应商已保存" : "图像供应商已保存"
         } catch {

@@ -151,8 +151,12 @@ final class FrontendAuditTests: XCTestCase {
     func testDiscoveryRefreshFailureRetriesFirstPage() {
         let app = launch("refresh-error")
         XCTAssertTrue(app.buttons["catalog.audit-book-1"].waitForExistence(timeout: 15))
+        // Keep the drag inside the visible catalog, above the floating tab bar.
+        // A ScrollView's accessibility frame can include off-screen content.
         let list = app.scrollViews.firstMatch
-        list.swipeDown()
+        let x = list.frame.midX / app.frame.width
+        app.coordinate(withNormalizedOffset: CGVector(dx: x, dy: 0.42))
+            .press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: x, dy: 0.82)))
         XCTAssertTrue(app.staticTexts["暂时无法刷新书单"].waitForExistence(timeout: 10))
         capture("discovery-refresh-error", app: app)
         tap(app.buttons["重试"])
@@ -171,6 +175,26 @@ final class FrontendAuditTests: XCTestCase {
     }
 
     @MainActor
+    func testAdminSettingsRefreshPreservesDraft() {
+        let app = launch()
+        selectTab("我的", app: app)
+        reveal(app.buttons["管理后台"], app: app)
+        tap(app.buttons["管理后台"])
+        reveal(app.buttons["AI 服务"], app: app)
+        tap(app.buttons["AI 服务"])
+        tap(app.buttons["运行参数"])
+        let enabled = app.switches["启用前情提要"]
+        tap(enabled)
+        XCTAssertEqual(enabled.value as? String, "0")
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.42))
+            .press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.82)))
+        XCTAssertTrue(app.alerts["操作失败"].waitForExistence(timeout: 10))
+        capture("admin-settings-draft-retained", app: app)
+        tap(app.alerts.buttons["好"])
+        XCTAssertEqual(enabled.value as? String, "0")
+    }
+
+    @MainActor
     func testAdminCatalogAndSearch() {
         let app = launch()
         selectTab("我的", app: app)
@@ -182,6 +206,9 @@ final class FrontendAuditTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["山中来信"].firstMatch.waitForExistence(timeout: 15))
         capture("admin-novels", app: app)
         let search = app.searchFields.firstMatch
+        if !search.exists && app.buttons["搜索"].firstMatch.exists {
+            tap(app.buttons["搜索"].firstMatch)
+        }
         if !search.isHittable { app.swipeDown() }
         tap(search)
         search.typeText("absent-title")

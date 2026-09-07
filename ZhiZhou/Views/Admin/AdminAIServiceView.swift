@@ -1,12 +1,20 @@
 import SwiftUI
+import ZhiZhouCore
 
 /// AI 服务：模块入口（状态与用量 / 供应商配置 / 运行参数 / 任务 / 审计）。
 struct AdminAIServiceView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var activeTasks: [AiTaskInfo] = []
+    @State private var requests = ListRequestGuard<String>()
+    @State private var errorMessage: String?
 
     var body: some View {
         List {
+            if let errorMessage {
+                LoadErrorNotice(message: errorMessage, isLoading: requests.isLoading) {
+                    Task { await loadActiveTasks() }
+                }
+            }
             if !activeTasks.isEmpty {
                 Section("正在处理") {
                     ForEach(activeTasks) { task in
@@ -92,8 +100,17 @@ struct AdminAIServiceView: View {
     }
 
     private func loadActiveTasks() async {
-        guard let response = try? await AdminAPI.aiTasks(status: "all", limit: 100, offset: 0) else { return }
-        AdminAITaskCoordinator.shared.reconcile(response.items)
-        activeTasks = response.items.filter(\.isRunning)
+        let ticket = requests.begin("active")
+        defer { requests.finish(ticket) }
+        do {
+            let response = try await AdminAPI.aiTasks(status: "all", limit: 100, offset: 0)
+            guard !Task.isCancelled, requests.accepts(ticket, query: "active") else { return }
+            AdminAITaskCoordinator.shared.reconcile(response.items)
+            activeTasks = response.items.filter(\.isRunning)
+            errorMessage = nil
+        } catch {
+            guard !Task.isCancelled, requests.accepts(ticket, query: "active") else { return }
+            errorMessage = AppCopy.friendlyError(error)
+        }
     }
 }

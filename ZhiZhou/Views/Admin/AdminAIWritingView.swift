@@ -1,4 +1,5 @@
 import SwiftUI
+import ZhiZhouCore
 
 /// AI 创作：新写 / 续写，大纲 / 章节 / 多章续写后台任务，画像提取（风格/情节/关系）与标题生成。
 /// 对齐 Web 端 admin ai AiWritingPanel（/api/ai/writing/*）。
@@ -23,6 +24,7 @@ struct AdminAIWritingView: View {
     @State private var showNovelPicker = false
     @State private var chapterOptions: [ChapterMeta] = []
     @State private var afterChapterId = ""
+    @State private var selectionRequests = ListRequestGuard<String>()
 
     // 表单
     @State private var mode: Mode = .new
@@ -53,7 +55,7 @@ struct AdminAIWritingView: View {
     @State private var actionError: String?
 
     private var canStart: Bool {
-        guard !starting, activeTask?.isRunning != true else { return false }
+        guard !starting, !selectionRequests.isLoading, activeTask?.isRunning != true else { return false }
         if mode == .new {
             if taskKind == .outline {
                 return !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -172,6 +174,7 @@ struct AdminAIWritingView: View {
                     Spacer()
                     Button("换一本") { showNovelPicker = true }
                         .font(.subheadline)
+                        .disabled(!profileBusy.isEmpty)
                 }
                 .listRowBackground(Color.clear)
             } else {
@@ -353,6 +356,16 @@ struct AdminAIWritingView: View {
     }
 
     private func onNovelSelected(_ id: String) async {
+        guard id == novelId else { return }
+        let ticket = selectionRequests.begin(id)
+        chapterOptions = []
+        afterChapterId = ""
+        styleProfile = ""
+        plotState = ""
+        plotChaptersThrough = 0
+        plotChapterCount = 0
+        relationshipProfile = ""
+        defer { selectionRequests.finish(ticket) }
         // 载入章节列表与已提取画像（并行发起，分别容错）
         async let chaptersTask = AdminAPI.chapters(novelId: id)
         async let styleTask = AdminAPI.aiGetStyleProfile(novelId: id)
@@ -362,6 +375,7 @@ struct AdminAIWritingView: View {
         let style = try? await styleTask
         let plot = try? await plotTask
         let relation = try? await relationTask
+        guard !Task.isCancelled, selectionRequests.accepts(ticket, query: novelId) else { return }
         chapterOptions = chapters
         styleProfile = style?.profile ?? ""
         plotState = plot?.state ?? ""
@@ -375,22 +389,28 @@ struct AdminAIWritingView: View {
             actionError = "请先选择小说"
             return
         }
+        guard profileBusy.isEmpty, !selectionRequests.isLoading else { return }
+        let selectedID = novelId
         profileBusy = scope
         defer { profileBusy = "" }
         do {
             switch scope {
             case "style":
-                let r = try await AdminAPI.aiRefreshStyleProfile(novelId: novelId)
+                let r = try await AdminAPI.aiRefreshStyleProfile(novelId: selectedID)
+                guard !Task.isCancelled, novelId == selectedID else { return }
                 styleProfile = r.profile ?? ""
             case "plot":
-                let r = try await AdminAPI.aiRefreshPlotState(novelId: novelId)
+                let r = try await AdminAPI.aiRefreshPlotState(novelId: selectedID)
+                guard !Task.isCancelled, novelId == selectedID else { return }
                 plotState = r.state ?? ""
                 plotChaptersThrough = r.chaptersThrough ?? 0
             default:
-                let r = try await AdminAPI.aiRefreshRelationshipProfile(novelId: novelId)
+                let r = try await AdminAPI.aiRefreshRelationshipProfile(novelId: selectedID)
+                guard !Task.isCancelled, novelId == selectedID else { return }
                 relationshipProfile = r.profile ?? ""
             }
         } catch {
+            guard !Task.isCancelled, novelId == selectedID else { return }
             actionError = AppCopy.friendlyError(error)
         }
     }
