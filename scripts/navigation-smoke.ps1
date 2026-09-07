@@ -77,8 +77,8 @@ Require-NavigationPattern "novel detail keeps synopsis expansion available when 
     $detailView -match 'lineLimit\(expandDescription \? nil : 4\)' -and
     $detailView -match '(?s)private var synopsisText.*?Text\(currentNovel\.description\)'
 )
-Require-NavigationPattern "novel detail reserves space for its fixed reading or selection actions" (
-    $detailView -match '(?s)\.safeAreaInset\(edge: \.bottom, spacing: 0\)\s*\{\s*bottomBar' -and
+Require-NavigationPattern "novel detail reserves space and a scroll edge for its fixed reading or selection actions" (
+    $detailView -match '(?s)\.safeAreaBar\(edge: \.bottom, spacing: 0\)\s*\{\s*bottomBar' -and
     $detailView -match '(?s)private var bottomBar.*?if isSelectingOffline \{\s*offlineSelectionBar\s*\} else \{\s*readingBar' -and
     $detailView -match '(?s)private var readButton.*?NavigationLink\s*\{\s*ReaderView'
 )

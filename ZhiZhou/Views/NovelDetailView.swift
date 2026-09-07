@@ -47,7 +47,7 @@ struct NovelDetailView: View {
                         }
                     }
             }
-            .safeAreaInset(edge: .bottom, spacing: 0) {
+            .safeAreaBar(edge: .bottom, spacing: 0) {
                 bottomBar
             }
         }
@@ -151,6 +151,7 @@ struct NovelDetailView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        .scrollEdgeEffectStyle(.soft, for: .bottom)
     }
 
     @ViewBuilder
@@ -600,7 +601,7 @@ struct NovelDetailView: View {
     }
 
     private var bottomBar: some View {
-        Group {
+        GlassEffectContainer(spacing: 12) {
             if isSelectingOffline {
                 offlineSelectionBar
             } else {
@@ -608,41 +609,25 @@ struct NovelDetailView: View {
             }
         }
         .padding(.horizontal, 20)
-        .padding(.vertical, 12)
+        .padding(.vertical, 10)
         .frame(maxWidth: 680)
         .frame(maxWidth: .infinity)
-        .appMaterialBackground(.regularMaterial, in: Rectangle())
     }
 
     private var readingBar: some View {
-        VStack(spacing: 10) {
-            if let chapter = continueChapter {
-                readingContext(for: chapter)
-            }
-            HStack(spacing: 12) {
-                readButton
-                bookshelfButton
-            }
+        HStack(spacing: 12) {
+            readButton
+            bookshelfButton
         }
     }
 
-    private func readingContext(for chapter: ChapterMeta) -> some View {
-        let layout = dynamicTypeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
-            : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 12))
-        return layout {
-            Text(chapter.title)
-                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            if let progress, progress.chapterId == chapter.id {
-                let value = min(max(progress.scrollPercent, 0), 1)
-                Text("本章已读 \(Int((value * 100).rounded()))%")
-                    .monospacedDigit()
-                    .fixedSize(horizontal: !dynamicTypeSize.isAccessibilitySize, vertical: true)
-            }
+    private func readingSubtitle(for chapter: ChapterMeta) -> String {
+        let chapterLabel = "第 \(chapter.order) 章"
+        if let progress, progress.chapterId == chapter.id {
+            let value = min(max(progress.scrollPercent, 0), 1)
+            return "\(chapterLabel) · 本章已读 \(Int((value * 100).rounded()))%"
         }
-        .font(.caption)
-        .foregroundStyle(AppTheme.textSecondary)
+        return chapterLabel
     }
 
     @ViewBuilder
@@ -655,17 +640,30 @@ struct NovelDetailView: View {
                     preloadedChapters: chapters
                 )
             } label: {
-                primaryActionLabel(continueTitle, systemImage: "book.fill")
+                primaryActionLabel(
+                    continueTitle,
+                    systemImage: "book.fill",
+                    subtitle: readingSubtitle(for: chapter)
+                )
             }
-            .buttonStyle(ScaleButtonStyle(pressedScale: 0.98))
+            .buttonStyle(AppGlassButtonStyle(
+                glass: AppTheme.glassProminent,
+                fallback: AppTheme.primaryLight
+            ))
             .accessibilityHint("从第 \(chapter.order) 章开始，\(chapter.title)")
         } else {
             Button {} label: {
-                primaryActionLabel("开始阅读", systemImage: "book.fill")
+                primaryActionLabel(
+                    "开始阅读",
+                    systemImage: "book.fill",
+                    subtitle: isLoading ? "正在加载章节" : "章节暂不可用"
+                )
             }
-            .buttonStyle(ScaleButtonStyle(pressedScale: 0.98))
+            .buttonStyle(AppGlassButtonStyle(
+                glass: AppTheme.glassProminent,
+                fallback: AppTheme.primaryLight
+            ))
             .disabled(true)
-            .opacity(0.45)
         }
     }
 
@@ -682,55 +680,77 @@ struct NovelDetailView: View {
                     ProgressView().tint(AppTheme.primary)
                 } else {
                     Image(systemName: inBookshelf ? "bookmark.fill" : "bookmark")
-                        .font(.title3)
+                        .font(.system(size: 20, weight: .medium))
                         .foregroundStyle(AppTheme.primary)
                 }
             }
             .frame(width: 52, height: 52)
-            .background(AppTheme.controlFill, in: Circle())
         }
-        .buttonStyle(ScaleButtonStyle())
+        .buttonStyle(AppGlassButtonStyle(glass: AppTheme.glass))
         .disabled(bookshelfBusy)
         .accessibilityLabel(inBookshelf ? "已在书架，点按移除" : "加入书架")
         .help(inBookshelf ? "移出书架" : "加入书架")
     }
 
     private var offlineSelectionBar: some View {
-        VStack(spacing: 8) {
-            HStack {
-                Button("取消") { cancelOfflineSelection() }
-                    .frame(minWidth: 44, minHeight: 44)
-                Spacer(minLength: 12)
-                Button(isAllDownloadableSelected ? "取消全选" : "全选") {
-                    toggleOfflineSelectAll()
-                }
-                .frame(minWidth: 44, minHeight: 44)
+        HStack(spacing: 12) {
+            Button {
+                cancelOfflineSelection()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 18, weight: .medium))
+                    .frame(width: 52, height: 52)
             }
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(AppTheme.primary)
-            .buttonStyle(.plain)
+            .buttonStyle(AppGlassButtonStyle(glass: AppTheme.glass))
+            .accessibilityLabel("取消选择")
+            .help("取消选择")
 
             Button {
                 startSelectedDownload()
             } label: {
-                primaryActionLabel("下载 \(selectedDownloadChapters.count) 章", systemImage: "arrow.down.circle")
+                primaryActionLabel(
+                    "下载",
+                    systemImage: "arrow.down",
+                    subtitle: "已选 \(selectedDownloadChapters.count) 章"
+                )
             }
-            .buttonStyle(ScaleButtonStyle(pressedScale: 0.98))
+            .buttonStyle(AppGlassButtonStyle(
+                glass: AppTheme.glassProminent,
+                fallback: AppTheme.primaryLight
+            ))
             .disabled(selectedDownloadChapters.isEmpty || offlineStore.isBatchDownloading)
-            .opacity(selectedDownloadChapters.isEmpty || offlineStore.isBatchDownloading ? 0.45 : 1)
+
+            Button {
+                toggleOfflineSelectAll()
+            } label: {
+                Image(systemName: isAllDownloadableSelected ? "checkmark.circle.fill" : "checkmark.circle")
+                    .font(.system(size: 22, weight: .medium))
+                    .frame(width: 52, height: 52)
+            }
+            .buttonStyle(AppGlassButtonStyle(glass: AppTheme.glass))
+            .disabled(downloadableChapters.isEmpty)
+            .accessibilityLabel(isAllDownloadableSelected ? "取消全选" : "全选可下载章节")
+            .help(isAllDownloadableSelected ? "取消全选" : "全选可下载章节")
         }
+        .foregroundStyle(AppTheme.primary)
     }
 
-    private func primaryActionLabel(_ title: String, systemImage: String) -> some View {
-        Label(title, systemImage: systemImage)
-            .font(.headline)
-            .monospacedDigit()
-            .multilineTextAlignment(.center)
-            .foregroundStyle(AppTheme.onPrimary)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
-            .frame(maxWidth: .infinity, minHeight: 52)
-            .background(AppTheme.primary, in: Capsule())
+    private func primaryActionLabel(_ title: String, systemImage: String, subtitle: String) -> some View {
+        VStack(spacing: 2) {
+            Label(title, systemImage: systemImage)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AppTheme.primary)
+            Text(subtitle)
+                .font(.caption2)
+                .foregroundStyle(AppTheme.textSecondary)
+                .monospacedDigit()
+        }
+        .multilineTextAlignment(.center)
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, minHeight: 52)
+        .accessibilityElement(children: .combine)
     }
 
     private var synopsisBlock: some View {
