@@ -1,130 +1,107 @@
 import SwiftUI
 
-/// 个人中心：用户信息、阅读设置、存储管理、服务器信息、退出登录。
 struct ProfileView: View {
     @Environment(AppState.self) private var appState
     @Environment(OfflineReadingStore.self) private var offlineStore
-
-    @State private var showLogoutConfirm = false
+    @State private var reading = ProfileReadingStore()
+    @State private var showEditProfile = false
     @State private var showReaderSettings = false
-    @State private var diagnosticsEnabled = AppObservability.shared.isDiagnosticsEnabled
-    #if DEBUG
-    @AppStorage("zhizhou.allowInvalidCert") private var allowInvalidCert = false
-    #endif
-    @State private var showAdvanced = false
+    @State private var showLogoutConfirm = false
+    @State private var isLoggingOut = false
 
     var body: some View {
-        List {
-            if let user = appState.user {
+        GeometryReader { geometry in
+            let inset = max(20, (geometry.size.width - 640) / 2)
+            List {
+                if let user = appState.user {
+                    identity(for: user)
+                        .listRowInsets(EdgeInsets(top: 12, leading: inset, bottom: 24, trailing: inset))
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                }
+
                 Section {
-                    HStack(spacing: 12) {
-                        avatar(for: user)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(user.displayName)
-                                .font(serifFont(.headline, .semibold))
-                                .foregroundStyle(AppTheme.textPrimary)
-                            Text("@\(user.username)")
-                                .font(.footnote)
-                                .foregroundStyle(AppTheme.textSecondary)
-                            Text(user.displayBio)
-                                .font(.caption)
-                                .foregroundStyle(AppTheme.textMuted)
-                                .lineLimit(2)
-                        }
-                    }
-                    .padding(.vertical, 4)
-                    .accessibilityElement(children: .combine)
+                    readingRows
+                } header: {
+                    sectionHeading("我的阅读")
                 }
-            }
+                .listRowInsets(EdgeInsets(top: 14, leading: inset, bottom: 14, trailing: inset))
+                .listRowBackground(Color.clear)
 
-            Section("阅读") {
-                Button {
-                    showReaderSettings = true
-                } label: {
-                    Label("阅读设置", systemImage: "textformat.size")
-                }
-
-                NavigationLink {
-                    OfflineReadingView()
-                } label: {
-                    HStack {
-                        Label("离线阅读", systemImage: "arrow.down.circle")
-                        Spacer()
-                        if offlineStore.totalChapterCount > 0 {
-                            Text("\(offlineStore.totalChapterCount) 章")
-                                .font(.footnote)
-                                .foregroundStyle(AppTheme.textSecondary)
-                        }
-                    }
-                }
-            }
-
-            Section("应用") {
-                NavigationLink {
-                    StorageManagerView()
-                } label: {
-                    Label("存储管理", systemImage: "internaldrive")
-                }
-            }
-
-            Section("隐私与诊断") {
-                Toggle("帮助改进知舟", isOn: $diagnosticsEnabled)
-                    .onChange(of: diagnosticsEnabled) { _, enabled in
-                        AppObservability.shared.setDiagnosticsEnabled(enabled)
-                        AppFeedback.success(enabled ? "匿名诊断已开启" : "匿名诊断已关闭")
-                    }
-
-                NavigationLink {
-                    PrivacyNoticeView()
-                } label: {
-                    Label("隐私说明", systemImage: "hand.raised")
-                }
-
-                Text("可选发送匿名的功能事件、性能指标和崩溃诊断，帮助定位问题；不会发送小说正文、搜索词、密码或账号信息。关闭后，尚未发送的本地诊断记录会立即清除。")
-                    .font(.footnote)
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .lineSpacing(3)
-            }
-
-            if appState.user?.role == "admin" {
-                Section("管理") {
-                    NavigationLink {
-                        AdminRootView()
+                Section {
+                    Button {
+                        showReaderSettings = true
                     } label: {
-                        Label("管理后台", systemImage: "gearshape.2")
-                    }
-                }
-            }
-
-            Section("服务器") {
-                LabeledContent("当前地址", value: ServerConfig.serverURL)
-            }
-
-            #if DEBUG
-            Section {
-                DisclosureGroup("高级", isExpanded: $showAdvanced) {
-                    Toggle("信任无效证书（开发用）", isOn: $allowInvalidCert)
-                        .onChange(of: allowInvalidCert) { _, value in
-                            APIClient.shared.allowsInvalidCertificates = value
+                        HStack {
+                            Label("阅读设置", systemImage: "textformat.size")
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(AppTheme.textMuted)
                         }
-                    Text("仅用于自签名或过期证书排查；Release 构建不包含此开关。")
-                        .font(.caption)
-                        .foregroundStyle(AppTheme.textMuted)
+                    }
+                    NavigationLink {
+                        ChangePasswordView()
+                    } label: {
+                        Label("修改密码", systemImage: "lock")
+                    }
+                    NavigationLink {
+                        StorageManagerView()
+                    } label: {
+                        Label("存储管理", systemImage: "internaldrive")
+                    }
+                    NavigationLink {
+                        ProfilePrivacyView()
+                    } label: {
+                        Label("隐私与诊断", systemImage: "hand.raised")
+                    }
+                    NavigationLink {
+                        ProfileAboutView()
+                    } label: {
+                        Label("关于知舟", systemImage: "info.circle")
+                    }
+                    if appState.user?.role == "admin" {
+                        NavigationLink {
+                            AdminRootView()
+                        } label: {
+                            Label("管理后台", systemImage: "gearshape.2")
+                        }
+                    }
+                } header: {
+                    sectionHeading("应用设置")
                 }
-            }
-            #endif
+                .listRowInsets(EdgeInsets(top: 16, leading: inset, bottom: 16, trailing: inset))
+                .listRowBackground(Color.clear)
 
-            Section {
-                Button("退出登录", role: .destructive) {
-                    showLogoutConfirm = true
+                Section {
+                    Button(role: .destructive) {
+                        showLogoutConfirm = true
+                    } label: {
+                        HStack(spacing: 12) {
+                            Label("退出登录", systemImage: "rectangle.portrait.and.arrow.right")
+                            Spacer()
+                            if isLoggingOut { ProgressView() }
+                        }
+                    }
+                    .disabled(isLoggingOut || appState.isUpdatingAccount)
                 }
+                .listRowInsets(EdgeInsets(top: 20, leading: inset, bottom: 20, trailing: inset))
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .refreshable { await refresh() }
         }
-        .listStyle(.insetGrouped)
-        .scrollContentBackground(.hidden)
         .pageBackground()
         .navigationTitle("我的")
         .navigationBarTitleDisplayMode(.large)
+        .task { await refresh() }
+        .sheet(isPresented: $showEditProfile) {
+            if let user = appState.user {
+                NavigationStack { ProfileEditView(user: user) }
+            }
+        }
         .sheet(isPresented: $showReaderSettings) {
             ReaderSettingsView()
                 .presentationDetents([.medium, .large])
@@ -132,36 +109,139 @@ struct ProfileView: View {
         .confirmationDialog("确定退出登录？", isPresented: $showLogoutConfirm, titleVisibility: .visible) {
             Button("退出登录", role: .destructive) {
                 Task {
+                    isLoggingOut = true
                     await appState.logout()
+                    isLoggingOut = false
                     AppFeedback.success("已退出登录")
                 }
             }
         }
     }
 
-    @ViewBuilder
-    private func avatar(for user: User) -> some View {
-        if let url = APIClient.shared.avatarURL(userId: user.id) {
-            CachedAsyncImage(url: url, targetSize: CGSize(width: 56, height: 56)) { image in
-                image.resizable().scaledToFill()
-            } placeholder: {
-                placeholder
+    private func identity(for user: User) -> some View {
+        Button {
+            showEditProfile = true
+        } label: {
+            HStack(alignment: .center, spacing: 16) {
+                ProfileAvatar(user: user, size: 72)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(user.displayName.isEmpty ? user.username : user.displayName)
+                        .font(serifFont(.title2, .semibold))
+                        .foregroundStyle(AppTheme.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text("@\(user.username)")
+                        .font(.subheadline)
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .lineLimit(1)
+                    if let bio = user.bio, !bio.isEmpty {
+                        Text(bio)
+                            .font(.subheadline)
+                            .foregroundStyle(AppTheme.textSecondary)
+                            .lineLimit(3)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(AppTheme.textMuted)
             }
-            .frame(width: 56, height: 56)
-            .clipShape(Circle())
-            .accessibilityHidden(true)
-        } else {
-            placeholder
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityHint("编辑昵称、简介或头像")
+    }
+
+    @ViewBuilder
+    private var readingRows: some View {
+        if !reading.hasLoaded && reading.isLoading {
+            ProgressView("正在加载阅读记录")
+                .font(.subheadline)
+                .frame(maxWidth: .infinity, minHeight: 76)
+        } else if let item = reading.recent.first {
+            NavigationLink {
+                ReaderView(novel: item.asNovel, chapterOrder: item.chapterOrder)
+            } label: {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("继续阅读")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(AppTheme.primary)
+                    ProfileRecentBookRow(item: item)
+                }
+            }
+        } else if reading.hasLoaded {
+            Label("暂无阅读记录", systemImage: "book.closed")
+                .foregroundStyle(AppTheme.textSecondary)
+                .frame(minHeight: 48)
+        }
+
+        if let error = reading.errorMessage {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(error)
+                    .font(.footnote)
+                    .foregroundStyle(AppTheme.textSecondary)
+                Button("重试", systemImage: "arrow.clockwise") {
+                    Task { await reading.refresh() }
+                }
+                .disabled(reading.isLoading)
+            }
+        }
+
+        NavigationLink {
+            ProfileReadingHistoryView(store: reading)
+        } label: {
+            Label("最近阅读", systemImage: "clock")
+        }
+        NavigationLink {
+            OfflineReadingView()
+        } label: {
+            LabeledContent {
+                Text("\(offlineStore.totalChapterCount) 章")
+                    .font(.subheadline)
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .monospacedDigit()
+            } label: {
+                Label("离线阅读", systemImage: "arrow.down.circle")
+            }
         }
     }
 
-    private var placeholder: some View {
-        ZStack {
-            AppTheme.primaryLight
-            Image(systemName: "person.fill")
-                .foregroundStyle(AppTheme.primary)
+    private func sectionHeading(_ title: String) -> some View {
+        Text(title)
+            .font(.headline)
+            .foregroundStyle(AppTheme.textPrimary)
+            .textCase(nil)
+            .padding(.top, 12)
+            .accessibilityAddTraits(.isHeader)
+    }
+
+    private func refresh() async {
+        async let refreshReading: Void = reading.refresh()
+        async let refreshOffline: Void = offlineStore.refresh()
+        _ = await (refreshReading, refreshOffline)
+    }
+}
+
+struct ProfileAvatar: View {
+    let user: User
+    var size: CGFloat = 72
+
+    var body: some View {
+        CachedAsyncImage(
+            url: APIClient.shared.avatarURL(userId: user.id, updatedAt: user.updatedAt),
+            targetSize: CGSize(width: size, height: size),
+            showsRetry: false
+        ) { image in
+            image.resizable().scaledToFill()
+        } placeholder: {
+            ZStack {
+                AppTheme.primaryLight
+                Text(String((user.displayName.isEmpty ? user.username : user.displayName).prefix(1)))
+                    .font(serifFont(.title2, .semibold))
+                    .foregroundStyle(AppTheme.primary)
+            }
         }
-        .frame(width: 56, height: 56)
+        .frame(width: size, height: size)
         .clipShape(Circle())
         .accessibilityHidden(true)
     }

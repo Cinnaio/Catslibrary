@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import ZhiZhouCore
 
 /// 应用全局状态：登录会话 + 启动引导。
 @Observable
@@ -11,6 +12,7 @@ final class AppState {
     var isBooting = true
     /// 启动时恢复会话因网络/服务器问题失败（token 仍在），提示用户稍后重试。
     var sessionRestoreFailed = false
+    private(set) var isUpdatingAccount = false
 
     private init() {
         // 任意 401（含运行中 token 过期）集中处理：清 token + 登出
@@ -122,6 +124,76 @@ final class AppState {
             AppObservability.shared.capture(error: error, context: "auth.register")
             throw error
         }
+    }
+
+    func updateProfile(displayName: String, bio: String) async throws {
+        if let error = AccountPolicy.profileError(displayName: displayName, bio: bio) {
+            throw APIError.http(status: 400, message: error)
+        }
+        let body = try APIClient.shared.jsonBody([
+            "displayName": displayName.trimmingCharacters(in: .whitespacesAndNewlines),
+            "bio": bio.trimmingCharacters(in: .whitespacesAndNewlines),
+        ])
+        try await updateAccount("PUT", "/api/auth/me", body: body)
+    }
+
+    func updateAvatar(_ imageData: Data) async throws {
+        guard !imageData.isEmpty, imageData.count <= 1_024 * 1_024 else {
+            throw APIError.http(status: 400, message: "头像不能超过 1MB")
+        }
+        let boundary = "Boundary-\(UUID().uuidString)"
+        var body = Data("--\(boundary)\r\nContent-Disposition: form-data; name=\"avatar\"; filename=\"avatar.jpg\"\r\nContent-Type: image/jpeg\r\n\r\n".utf8)
+        body.append(imageData)
+        body.append(Data("\r\n--\(boundary)--\r\n".utf8))
+        try await updateAccount(
+            "PUT", "/api/auth/avatar", body: body,
+            contentType: "multipart/form-data; boundary=\(boundary)"
+        )
+    }
+
+    func removeAvatar() async throws {
+        try await updateAccount("DELETE", "/api/auth/avatar")
+    }
+
+    private func updateAccount(_ method: String, _ path: String, body: Data? = nil, contentType: String? = nil) async throws {
+        guard !isUpdatingAccount, let userID = user?.id, let token = APIClient.shared.token else {
+            throw CancellationError()
+        }
+        isUpdatingAccount = true
+        defer { isUpdatingAccount = false }
+        let response: MeResponse = try await APIClient.shared.request(
+            method, path, body: body, auth: true, contentType: contentType, expectedToken: token
+        )
+        guard APIClient.shared.token == token, user?.id == userID, response.user.id == userID else {
+            throw CancellationError()
+        }
+        user = response.user
+    }
+
+    func changePassword(current: String, new: String, confirmation: String) async throws {
+        if let error = AccountPolicy.passwordError(current: current, new: new, confirmation: confirmation) {
+            throw APIError.http(status: 400, message: error)
+        }
+        guard !isUpdatingAccount, let userID = user?.id, let token = APIClient.shared.token else {
+            throw CancellationError()
+        }
+        isUpdatingAccount = true
+        defer { isUpdatingAccount = false }
+        await ReaderSettingsStore.shared.flush()
+        await ReaderProgressStore.shared.flush()
+        guard APIClient.shared.beginTokenRotation(expectedToken: token) else { throw CancellationError() }
+        defer { APIClient.shared.finishTokenRotation(expectedToken: token) }
+        let body = try APIClient.shared.jsonBody(["currentPassword": current, "newPassword": new])
+        let response: LoginResponse = try await APIClient.shared.request(
+            "POST", "/api/auth/change-password", body: body, auth: true, expectedToken: token
+        )
+        guard APIClient.shared.token == token, user?.id == userID, response.user.id == userID else {
+            throw CancellationError()
+        }
+        guard !response.token.isEmpty else { throw APIError.invalidResponse }
+        APIClient.shared.token = response.token
+        user = response.user
+        OfflineReadingStore.shared.activate(userID: userID, token: response.token)
     }
 
     func logout() async {

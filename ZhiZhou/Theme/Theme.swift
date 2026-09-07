@@ -436,7 +436,11 @@ enum AppCopy {
             return "网络连接失败，请检查网络后重试。"
         }
         if raw.contains("TLS") || raw.contains("安全连接") {
-            return "无法安全连接服务器。若使用自签名证书，打开「我的 → 高级」。"
+            #if DEBUG
+            return "无法安全连接服务器。若使用自签名证书，请检查「我的 → 关于知舟 → 开发设置」。"
+            #else
+            return "无法安全连接服务器，请联系管理员检查服务器证书。"
+            #endif
         }
         return raw.isEmpty ? "操作未完成，请稍后重试。" : raw
     }

@@ -127,6 +127,7 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
     // MARK: - 鉴权
 
     private let tokenLock = NSLock()
+    private var sessionRotation = SessionRotationGuard()
 
     var token: String? {
         get {
@@ -197,9 +198,13 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
         return URL(string: path.absoluteString + "?" + query)
     }
 
-    func avatarURL(userId: String) -> URL? {
+    func avatarURL(userId: String, updatedAt: Int64? = nil) -> URL? {
         guard let base = ServerConfig.shared.baseURL else { return nil }
-        return base.appending(path: "api/avatar/\(userId)")
+        let url = base.appending(path: "api/avatar/\(userId)")
+        guard let updatedAt else { return url }
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        components?.queryItems = [URLQueryItem(name: "v", value: String(updatedAt))]
+        return components?.url
     }
 
     // MARK: - 请求
@@ -235,7 +240,8 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
         body: Data? = nil,
         auth: Bool = false,
         contentType: String? = nil,
-        idempotencyKey: String? = nil
+        idempotencyKey: String? = nil,
+        expectedToken: String? = nil
     ) async throws -> T {
         try await requestInternal(
             method,
@@ -243,7 +249,8 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
             body: body,
             auth: auth,
             contentType: contentType,
-            idempotencyKey: idempotencyKey
+            idempotencyKey: idempotencyKey,
+            expectedToken: expectedToken
         )
     }
 
@@ -254,6 +261,7 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
         auth: Bool = false,
         contentType: String? = nil,
         idempotencyKey: String? = nil,
+        expectedToken: String? = nil,
         expectedReaderCacheScope: ChapterCacheScope.Snapshot? = nil
     ) async throws -> T {
         let url = try makeURL(path)
@@ -296,6 +304,7 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
             req.setValue(contentType ?? "application/json", forHTTPHeaderField: "Content-Type")
         }
         let requestToken = auth ? token : nil
+        if let expectedToken, requestToken != expectedToken { throw CancellationError() }
         if let requestToken {
             req.setValue("Bearer \(requestToken)", forHTTPHeaderField: "Authorization")
         }
@@ -354,10 +363,12 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
             // Keep the original response path for consistent error handling.
         }
         guard (200..<300).contains(http.statusCode) else {
-            if http.statusCode == 401, let requestToken {
+            let message = (try? decoder.decode(ErrorEnvelope.self, from: data))?.error
+            if let requestToken, AccountPolicy.shouldInvalidateSession(
+                method: method, path: path, statusCode: http.statusCode, errorMessage: message
+            ) {
                 handleUnauthorized(requestToken: requestToken)
             }
-            let message = (try? decoder.decode(ErrorEnvelope.self, from: data))?.error
             throw APIError.http(status: http.statusCode, message: message)
         }
 
@@ -436,10 +447,29 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
         invalidateSession(expectedToken: requestToken)
     }
 
+    func beginTokenRotation(expectedToken: String) -> Bool {
+        tokenLock.lock()
+        defer { tokenLock.unlock() }
+        guard Keychain.load(Self.tokenKey) == expectedToken else { return false }
+        return sessionRotation.begin(token: expectedToken)
+    }
+
+    func finishTokenRotation(expectedToken: String) {
+        tokenLock.lock()
+        let rejected = sessionRotation.finish(token: expectedToken, currentToken: Keychain.load(Self.tokenKey))
+        tokenLock.unlock()
+        if let rejected { invalidateSession(expectedToken: rejected) }
+    }
+
     /// 主动使当前会话失效，例如启动恢复收到 403 时。
     func invalidateSession(expectedToken: String? = nil) {
         tokenLock.lock()
         let currentToken = Keychain.load(Self.tokenKey)
+        if let expectedToken, currentToken == expectedToken,
+           sessionRotation.deferInvalidation(for: expectedToken) {
+            tokenLock.unlock()
+            return
+        }
         let shouldInvalidate: Bool
         if let currentToken, !currentToken.isEmpty {
             shouldInvalidate = expectedToken.map { $0 == currentToken } ?? true
