@@ -38,6 +38,19 @@ targets:
         SWIFT_VERSION: "5.0"
         ENABLE_PREVIEWS: YES
 
+  ZhiZhouUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: ZhiZhouUITests
+    dependencies:
+      - target: ZhiZhou
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "5.0"
+        TEST_TARGET_NAME: ZhiZhou
+
 schemes:
   ZhiZhou:
     build:
@@ -47,3 +60,13 @@ schemes:
       config: Debug
     archive:
       config: Release
+
+  ZhiZhouAudit:
+    build:
+      targets:
+        ZhiZhou: all
+        ZhiZhouUITests: [test]
+    test:
+      config: Debug
+      targets:
+        - ZhiZhouUITests

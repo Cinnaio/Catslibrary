@@ -1,0 +1,68 @@
+name: Native frontend audit
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: Native UI - ${{ matrix.device }}
+    runs-on: macos-15
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        device: [phone, tablet]
+    env:
+      AUDIT_DEVICE: ${{ matrix.device }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode and generate project
+        run: |
+          XCODE_PATH=$(ls -d /Applications/Xcode_26*.app | sort | tail -n 1)
+          sudo xcode-select -s "$XCODE_PATH"
+          xcodebuild -version
+          brew install xcodegen
+          xcodegen generate
+      - name: Create simulator
+        run: |
+          RUNTIME=$(xcrun simctl list runtimes --json | jq -r '.runtimes[] | select(.isAvailable and (.identifier | contains("iOS-26"))) | .identifier' | tail -n 1)
+          if [ "$AUDIT_DEVICE" = phone ]; then
+            DEVICE_TYPE=com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-generation
+          else
+            DEVICE_TYPE=$(xcrun simctl list devicetypes --json | jq -r '.devicetypes[] | select(.name | contains("iPad Pro 11-inch")) | .identifier' | tail -n 1)
+          fi
+          test -n "$RUNTIME"
+          test -n "$DEVICE_TYPE"
+          UDID=$(xcrun simctl create "Frontend Audit" "$DEVICE_TYPE" "$RUNTIME")
+          echo "AUDIT_UDID=$UDID" >> "$GITHUB_ENV"
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl status_bar "$UDID" override --time "9:41" --dataNetwork wifi --wifiMode active --wifiBars 3 --batteryState charged --batteryLevel 100
+      - name: Run native interaction and screenshot checks
+        run: |
+          mkdir -p audit-results
+          set -o pipefail
+          xcodebuild test \
+            -project ZhiZhou.xcodeproj \
+            -scheme ZhiZhouAudit \
+            -destination "platform=iOS Simulator,id=$AUDIT_UDID" \
+            -parallel-testing-enabled NO \
+            -resultBundlePath audit-results/FrontendAudit.xcresult \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee audit-results/xcodebuild.log
+      - name: Export screenshots
+        if: always()
+        run: |
+          if [ -d audit-results/FrontendAudit.xcresult ]; then
+            xcrun xcresulttool export attachments --path audit-results/FrontendAudit.xcresult --output-path audit-results/screenshots
+          fi
+      - name: Upload audit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-audit-${{ matrix.device }}
+          path: audit-results
+          if-no-files-found: warn

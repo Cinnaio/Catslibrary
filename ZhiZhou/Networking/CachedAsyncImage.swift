@@ -22,6 +22,9 @@ enum ImageCache {
 
     static let session: URLSession = {
         let config = URLSessionConfiguration.default
+        #if DEBUG && targetEnvironment(simulator)
+        VisualAudit.configure(config)
+        #endif
         config.urlCache = sharedCache
         config.requestCachePolicy = .returnCacheDataElseLoad
         config.timeoutIntervalForRequest = 20

@@ -25,6 +25,16 @@ final class AppState {
                 self.isBooting = false
             }
         }
+        #if DEBUG && targetEnvironment(simulator)
+        if VisualAudit.enabled {
+            APIClient.shared.token = VisualAudit.scenario == "login" ? nil : "audit-token"
+            Task {
+                if VisualAudit.scenario != "login" { await activateAccount(VisualAudit.user) }
+                isBooting = false
+            }
+            return
+        }
+        #endif
         Task { await bootstrap() }
     }
 

@@ -651,6 +651,7 @@ struct NovelDetailView: View {
                 fallback: AppTheme.primaryLight
             ))
             .accessibilityHint("从第 \(chapter.order) 章开始，\(chapter.title)")
+            .accessibilityIdentifier("detail.read")
         } else {
             Button {} label: {
                 primaryActionLabel(

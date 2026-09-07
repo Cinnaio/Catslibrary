@@ -24,6 +24,9 @@ struct ZhiZhouApp: App {
                 .environment(fontStore)
                 .environment(offlineReadingStore)
                 .background(GlobalKeyboardDismissal())
+                #if DEBUG && targetEnvironment(simulator)
+                .preferredColorScheme(VisualAudit.appearance)
+                #endif
                 .onChange(of: scenePhase) { _, phase in
                     guard phase == .active || phase == .background else { return }
                     Task { @MainActor in

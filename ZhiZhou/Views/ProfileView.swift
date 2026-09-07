@@ -150,6 +150,7 @@ struct ProfileView: View {
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
         .accessibilityHint("编辑昵称、简介或头像")
+        .accessibilityIdentifier("profile.edit")
     }
 
     @ViewBuilder

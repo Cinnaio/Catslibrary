@@ -119,6 +119,9 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
     /// lazy：URLSession 的 delegate 需要 self 已完全初始化，故延迟到首次使用时创建
     private lazy var session: URLSession = {
         let config = URLSessionConfiguration.default
+        #if DEBUG && targetEnvironment(simulator)
+        VisualAudit.configure(config)
+        #endif
         config.timeoutIntervalForRequest = 30
         config.timeoutIntervalForResource = 60
         return URLSession(configuration: config, delegate: self, delegateQueue: nil)

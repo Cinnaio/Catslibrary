@@ -204,6 +204,7 @@ struct HomeView: View {
         }
         .buttonStyle(ScaleButtonStyle(pressedScale: 0.985))
         .contentShape(Rectangle())
+        .accessibilityIdentifier("catalog.\(novel.id)")
     }
 
     @ViewBuilder
