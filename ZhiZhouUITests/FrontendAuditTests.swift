@@ -182,12 +182,20 @@ final class FrontendAuditTests: XCTestCase {
         tap(app.buttons["管理后台"])
         reveal(app.buttons["AI 服务"], app: app)
         tap(app.buttons["AI 服务"])
+        reveal(app.buttons["运行参数"], app: app)
         tap(app.buttons["运行参数"])
         let enabled = app.switches["启用前情提要"]
-        tap(enabled)
-        XCTAssertEqual(enabled.value as? String, "0")
+        XCTAssertTrue(enabled.waitForExistence(timeout: 10))
+        reveal(enabled, app: app)
+        // SwiftUI exposes the whole labeled row as the switch on iPad.
+        // Hit the trailing control rather than the center of the label.
+        enabled.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap()
+        let off = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == '0'"), object: enabled)
+        XCTAssertEqual(XCTWaiter.wait(for: [off], timeout: 5), .completed)
+        capture("admin-settings-edited", app: app)
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.42))
             .press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.82)))
+        capture("admin-settings-after-refresh", app: app)
         XCTAssertTrue(app.alerts["操作失败"].waitForExistence(timeout: 10))
         capture("admin-settings-draft-retained", app: app)
         tap(app.alerts.buttons["好"])

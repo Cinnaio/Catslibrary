@@ -107,6 +107,7 @@ struct HomeView: View {
             .padding(.bottom, 24)
         }
         .scrollIndicators(.hidden)
+        .scrollBounceBehavior(.always, axes: .vertical)
         // Liquid Glass TabBar floats over the scroll content on iOS 26;
         // reserve a small tail so the final row can rest clear of the bar.
         .safeAreaInset(edge: .bottom, spacing: 0) {
