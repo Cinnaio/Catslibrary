@@ -1,4 +1,5 @@
 import SwiftUI
+import ZhiZhouCore
 
 /// 总览：内容规模、任务状态、最近任务与最近更新（GET /api/admin/stats）。
 struct AdminDashboardView: View {
@@ -6,6 +7,7 @@ struct AdminDashboardView: View {
     @State private var stats: AdminStats?
     @State private var isLoading = false
     @State private var errorMessage: String?
+    @State private var requests = ListRequestGuard<String>()
 
     var body: some View {
         List {
@@ -84,12 +86,19 @@ struct AdminDashboardView: View {
     // MARK: - 加载
 
     private func load() async {
+        let ticket = requests.begin("stats")
         isLoading = true
-        defer { isLoading = false }
+        defer {
+            if requests.accepts(ticket, query: "stats") { isLoading = false }
+            requests.finish(ticket)
+        }
         do {
-            stats = try await AdminAPI.stats()
+            let response = try await AdminAPI.stats()
+            guard !Task.isCancelled, requests.accepts(ticket, query: "stats") else { return }
+            stats = response
             errorMessage = nil
         } catch {
+            guard !Task.isCancelled, requests.accepts(ticket, query: "stats") else { return }
             errorMessage = AppCopy.friendlyError(error)
         }
     }

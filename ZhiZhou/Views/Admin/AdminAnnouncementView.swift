@@ -27,6 +27,7 @@ struct AdminAnnouncementView: View {
             } else {
                 VStack(spacing: 0) {
                     TextEditor(text: $text)
+                        .disabled(isSaving)
                         .padding(10)
                         .scrollContentBackground(.hidden)
                         .appFieldSurface(cornerRadius: AppTheme.controlCornerRadius)
@@ -92,6 +93,7 @@ struct AdminAnnouncementView: View {
     }
 
     private func save() async {
+        guard !isSaving else { return }
         isSaving = true
         defer { isSaving = false }
         do {

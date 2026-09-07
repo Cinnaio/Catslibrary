@@ -19,6 +19,8 @@ struct AdminProxyView: View {
     @State private var logs: [ScrapeProxyLogItem] = []
     @State private var logsLoaded = false
     @State private var actionError: String?
+    @State private var savedConfig: [String]?
+    @State private var loadingRequest = false
 
     var body: some View {
         List {
@@ -53,6 +55,7 @@ struct AdminProxyView: View {
             }
         }
         .scrollContentBackground(.hidden)
+        .disabled(saving)
         .pageBackground()
         .navigationTitle("代理设置")
         .navigationBarTitleDisplayMode(.large)
@@ -228,27 +231,38 @@ struct AdminProxyView: View {
     // MARK: - 数据
 
     private func load() async {
+        guard !loadingRequest, !saving else { return }
+        guard savedConfig == nil || savedConfig == [proxyBase, proxyBypass] else {
+            actionError = "有未保存的修改，请先保存代理配置再刷新。"
+            return
+        }
+        loadingRequest = true
         isLoading = true
-        defer { isLoading = false }
+        defer { isLoading = false; loadingRequest = false }
         do {
             let cfg = try await AdminAPI.scrapeProxyConfig()
+            guard !Task.isCancelled else { return }
             proxyBase = cfg.config?.proxyBase ?? ""
             proxyBypass = cfg.config?.proxyBypass ?? ""
+            savedConfig = [proxyBase, proxyBypass]
             effectiveHost = cfg.effectiveHost ?? ""
             noProxy = cfg.noProxy ?? ""
             configured = cfg.configured ?? false
             source = cfg.source ?? ""
             errorMessage = nil
             if let logs = try? await AdminAPI.scrapeProxyLogs(limit: 50) {
+                guard !Task.isCancelled else { return }
                 self.logs = logs
                 logsLoaded = true
             }
         } catch {
+            guard !Task.isCancelled else { return }
             errorMessage = AppCopy.friendlyError(error)
         }
     }
 
     private func save() async {
+        guard !saving, !loadingRequest else { return }
         saving = true
         defer { saving = false }
         do {
@@ -260,6 +274,7 @@ struct AdminProxyView: View {
             noProxy = cfg.noProxy ?? ""
             configured = cfg.configured ?? false
             source = cfg.source ?? ""
+            savedConfig = [proxyBase, proxyBypass]
             saveMessage = "配置已保存"
         } catch {
             actionError = AppCopy.friendlyError(error)

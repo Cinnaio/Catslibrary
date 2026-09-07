@@ -1,8 +1,10 @@
 import SwiftUI
+import ZhiZhouCore
 import UIKit
 
 /// 用户与邀请码：注册模式、邀请码管理、用户管理（GET/POST /api/admin-users）。
 struct AdminUsersView: View {
+    @State private var overviewRequests = ListRequestGuard<String>()
     @State private var overview: AdminUsersResponse?
     @State private var isLoading = false
     @State private var errorMessage: String?
@@ -414,22 +416,32 @@ struct AdminUsersView: View {
     // MARK: - 动作
 
     private func load() async {
+        guard !isSavingMode else { return }
+        let ticket = overviewRequests.begin("users")
         isLoading = true
-        defer { isLoading = false }
+        defer {
+            if overviewRequests.accepts(ticket, query: "users") { isLoading = false }
+            overviewRequests.finish(ticket)
+        }
         do {
             let r = try await AdminAPI.usersOverview()
+            guard !Task.isCancelled, overviewRequests.accepts(ticket, query: "users") else { return }
             overview = r
             registerMode = r.settings.registerMode
             savedMode = registerMode
             errorMessage = nil
         } catch {
+            guard !Task.isCancelled, overviewRequests.accepts(ticket, query: "users") else { return }
             errorMessage = AppCopy.friendlyError(error)
         }
     }
 
     private func saveRegisterMode(_ mode: String) async {
+        guard !isSavingMode else { return }
+        let ticket = overviewRequests.begin("users")
+        isLoading = false
         isSavingMode = true
-        defer { isSavingMode = false }
+        defer { isSavingMode = false; overviewRequests.finish(ticket) }
         do {
             try await AdminAPI.setRegisterMode(mode)
             savedMode = mode

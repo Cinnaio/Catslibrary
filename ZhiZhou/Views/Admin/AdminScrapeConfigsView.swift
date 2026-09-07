@@ -1,4 +1,5 @@
 import SwiftUI
+import ZhiZhouCore
 import UIKit
 
 /// 爬虫配置导入导出：查看已保存配置 / 导出 JSON / 粘贴导入 / 快速复制。
@@ -7,6 +8,8 @@ struct AdminScrapeConfigsView: View {
     @State private var configs: [ScrapeConfigRow] = []
     @State private var isLoading = true
     @State private var errorMessage: String?
+    @State private var requests = ListRequestGuard<String>()
+    @State private var hasLoaded = false
     @State private var exportText = ""
     @State private var exportCount = 0
     @State private var exportMessage: String?
@@ -19,13 +22,13 @@ struct AdminScrapeConfigsView: View {
 
     var body: some View {
         List {
-            if isLoading {
+            if isLoading && !hasLoaded {
                 Section {
                     ProgressView("加载中…")
                         .frame(maxWidth: .infinity, minHeight: 160)
                         .listRowBackground(Color.clear)
                 }
-            } else if let errorMessage {
+            } else if let errorMessage, !hasLoaded {
                 Section {
                     ContentUnavailableView {
                         Label("加载失败", systemImage: "wifi.slash")
@@ -38,6 +41,11 @@ struct AdminScrapeConfigsView: View {
                     .listRowSeparator(.hidden)
                 }
             } else {
+                if let errorMessage {
+                    LoadErrorNotice(message: errorMessage, isLoading: isLoading) {
+                        Task { await load() }
+                    }
+                }
                 exportSection
                 importSection
                 if !configs.isEmpty {
@@ -188,12 +196,20 @@ struct AdminScrapeConfigsView: View {
     // MARK: - 数据
 
     private func load() async {
+        let ticket = requests.begin("configs")
         isLoading = true
-        defer { isLoading = false }
+        defer {
+            if requests.accepts(ticket, query: "configs") { isLoading = false }
+            requests.finish(ticket)
+        }
         do {
-            configs = try await AdminAPI.scrapeListConfigs().configs
+            let response = try await AdminAPI.scrapeListConfigs().configs
+            guard !Task.isCancelled, requests.accepts(ticket, query: "configs") else { return }
+            configs = response
+            hasLoaded = true
             errorMessage = nil
         } catch {
+            guard !Task.isCancelled, requests.accepts(ticket, query: "configs") else { return }
             errorMessage = AppCopy.friendlyError(error)
         }
     }
