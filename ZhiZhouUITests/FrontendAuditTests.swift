@@ -68,8 +68,11 @@ final class FrontendAuditTests: XCTestCase {
         XCTAssertTrue(app.buttons["catalog.audit-book-1"].waitForExistence(timeout: 15))
         capture("\(appearance)-discovery", app: app)
         selectTab("我的", app: app)
-        XCTAssertTrue(app.buttons["profile.edit"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons["profile.continue"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.buttons["profile.account"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["profile.continue"].exists)
+        XCTAssertFalse(app.buttons["最近阅读"].exists)
+        XCTAssertFalse(app.buttons["修改密码"].exists)
+        XCTAssertFalse(app.buttons["account.logout"].exists)
         capture("\(appearance)-profile", app: app)
         reveal(app.buttons["阅读设置"], app: app)
         tap(app.buttons["阅读设置"])
@@ -91,8 +94,12 @@ final class FrontendAuditTests: XCTestCase {
     func testLargeTextProfileAndSettings() {
         let app = launch(largeText: true)
         selectTab("我的", app: app)
-        XCTAssertTrue(app.buttons["profile.edit"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.buttons["profile.account"].waitForExistence(timeout: 15))
         capture("large-text-profile", app: app)
+        tap(app.buttons["profile.account"])
+        XCTAssertTrue(app.buttons["profile.edit"].waitForExistence(timeout: 10))
+        capture("large-text-account", app: app)
+        tap(app.navigationBars["账户与安全"].buttons.firstMatch)
         let settings = app.buttons["阅读设置"]
         reveal(settings, app: app)
         tap(settings)
@@ -106,6 +113,7 @@ final class FrontendAuditTests: XCTestCase {
     func testProfileEditingAndWrongPassword() {
         let app = launch()
         selectTab("我的", app: app)
+        tap(app.buttons["profile.account"])
         tap(app.buttons["profile.edit"])
         let nickname = app.textFields["昵称"]
         tap(nickname)
@@ -131,6 +139,32 @@ final class FrontendAuditTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["当前密码不正确"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.navigationBars["修改密码"].exists)
         capture("password-validation", app: app)
+    }
+
+    @MainActor
+    func testAccountLogoutCanBeCancelledAndConfirmed() {
+        let app = launch()
+        selectTab("我的", app: app)
+        tap(app.buttons["profile.account"])
+        capture("account", app: app)
+        tap(app.buttons["account.logout"])
+        let confirm = app.buttons.matching(NSPredicate(
+            format: "label == %@ AND identifier != %@", "退出登录", "account.logout"
+        )).firstMatch
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5))
+        if app.buttons["取消"].exists {
+            tap(app.buttons["取消"])
+        } else {
+            // iPad confirmation popovers dismiss by tapping outside the popover.
+            app.navigationBars["账户与安全"]
+                .coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        }
+        XCTAssertTrue(confirm.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["账户与安全"].exists)
+        XCTAssertTrue(app.buttons["profile.edit"].exists)
+        tap(app.buttons["account.logout"])
+        tap(confirm)
+        XCTAssertTrue(app.textFields["用户名"].waitForExistence(timeout: 15))
     }
 
     @MainActor

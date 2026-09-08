@@ -1,5 +1,85 @@
 import SwiftUI
 
+struct ProfileAccountView: View {
+    @Environment(AppState.self) private var appState
+    @State private var showEditProfile = false
+    @State private var showLogoutConfirm = false
+    @State private var isLoggingOut = false
+
+    var body: some View {
+        GeometryReader { geometry in
+            List {
+                if let user = appState.user {
+                    Section {
+                        Button {
+                            showEditProfile = true
+                        } label: {
+                            HStack(spacing: 12) {
+                                ProfileIdentityRow(user: user, subtitle: "@\(user.username)")
+                                Image(systemName: "pencil")
+                                    .font(.body)
+                                    .foregroundStyle(AppTheme.textSecondary)
+                                    .accessibilityHidden(true)
+                            }
+                        }
+                        .accessibilityHint("编辑昵称、简介或头像")
+                        .accessibilityIdentifier("profile.edit")
+                    }
+                }
+
+                Section {
+                    NavigationLink {
+                        ChangePasswordView()
+                    } label: {
+                        ProfileSettingsLabel("修改密码", systemImage: "lock.fill", color: .gray)
+                    }
+                }
+
+                Section {
+                    Button(role: .destructive) {
+                        showLogoutConfirm = true
+                    } label: {
+                        HStack(spacing: 12) {
+                            Text("退出登录")
+                            Spacer()
+                            if isLoggingOut {
+                                ProgressView().accessibilityLabel("正在退出登录")
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                    .accessibilityIdentifier("account.logout")
+                }
+            }
+            .listStyle(.insetGrouped)
+            .contentMargins(.horizontal, max(20, (geometry.size.width - 640) / 2), for: .scrollContent)
+            .scrollContentBackground(.hidden)
+            .disabled(isLoggingOut || appState.isUpdatingAccount)
+        }
+        .pageBackground()
+        .navigationTitle("账户与安全")
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(isLoggingOut)
+        .sheet(isPresented: $showEditProfile) {
+            if let user = appState.user {
+                NavigationStack { ProfileEditView(user: user) }
+            }
+        }
+        .confirmationDialog("确定退出登录？", isPresented: $showLogoutConfirm, titleVisibility: .visible) {
+            Button("退出登录", role: .destructive) {
+                guard !isLoggingOut, !appState.isUpdatingAccount else { return }
+                isLoggingOut = true
+                Task {
+                    await appState.logout()
+                    isLoggingOut = false
+                    AppFeedback.success("已退出登录")
+                }
+            }
+            Button("取消", role: .cancel) {}
+        }
+    }
+}
+
 struct ProfilePrivacyView: View {
     @State private var diagnosticsEnabled = AppObservability.shared.isDiagnosticsEnabled
 

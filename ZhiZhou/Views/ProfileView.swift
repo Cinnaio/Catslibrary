@@ -4,157 +4,110 @@ struct ProfileView: View {
     @Environment(AppState.self) private var appState
     @Environment(OfflineReadingStore.self) private var offlineStore
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @State private var reading = ProfileReadingStore()
-    @State private var showEditProfile = false
     @State private var showReaderSettings = false
-    @State private var showLogoutConfirm = false
-    @State private var isLoggingOut = false
 
     var body: some View {
         GeometryReader { geometry in
-            let inset = max(20, (geometry.size.width - 640) / 2)
             List {
                 if let user = appState.user {
-                    identity(for: user)
-                        .listRowInsets(EdgeInsets(top: 12, leading: inset, bottom: 24, trailing: inset))
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(Color.clear)
+                    Section {
+                        NavigationLink {
+                            ProfileAccountView()
+                        } label: {
+                            ProfileIdentityRow(user: user, subtitle: "账户与安全")
+                        }
+                        .accessibilityIdentifier("profile.account")
+                    }
                 }
 
-                Section {
-                    sectionHeading("我的阅读")
-                        .listRowSeparator(.hidden)
-                    readingRows
-                }
-                .listRowInsets(EdgeInsets(top: 14, leading: inset, bottom: 14, trailing: inset))
-                .listRowBackground(Color.clear)
-
-                Section {
-                    sectionHeading("应用设置")
-                        .listRowSeparator(.hidden)
+                Section("阅读") {
                     Button {
                         showReaderSettings = true
                     } label: {
-                        HStack {
-                            Label("阅读设置", systemImage: "textformat.size")
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .font(.footnote.weight(.semibold))
-                                .foregroundStyle(AppTheme.textMuted)
+                        ProfileSettingsLabel("阅读设置", systemImage: "textformat.size", color: .teal)
+                    }
+                    .accessibilityIdentifier("profile.reader-settings")
+                    NavigationLink {
+                        OfflineReadingView()
+                    } label: {
+                        LabeledContent {
+                            Text("\(offlineStore.totalChapterCount) 章")
+                                .font(.subheadline)
+                                .foregroundStyle(AppTheme.textSecondary)
+                                .monospacedDigit()
+                        } label: {
+                            ProfileSettingsLabel("离线阅读", systemImage: "arrow.down", color: .blue)
                         }
                     }
-                    NavigationLink {
-                        ChangePasswordView()
-                    } label: {
-                        Label("修改密码", systemImage: "lock")
-                    }
+                    .accessibilityIdentifier("profile.offline")
+                }
+
+                Section("通用") {
                     NavigationLink {
                         StorageManagerView()
                     } label: {
-                        Label("存储管理", systemImage: "internaldrive")
+                        ProfileSettingsLabel("存储管理", systemImage: "internaldrive", color: .gray)
                     }
                     NavigationLink {
                         ProfilePrivacyView()
                     } label: {
-                        Label("隐私与诊断", systemImage: "hand.raised")
+                        ProfileSettingsLabel("隐私与诊断", systemImage: "hand.raised.fill", color: .indigo)
                     }
                     NavigationLink {
                         ProfileAboutView()
                     } label: {
-                        Label("关于知舟", systemImage: "info.circle")
+                        ProfileSettingsLabel("关于知舟", systemImage: "info", color: .gray)
                     }
-                    if appState.user?.role == "admin" {
+                }
+
+                if appState.user?.role == "admin" {
+                    Section {
                         NavigationLink {
                             AdminRootView()
                         } label: {
-                            Label("管理后台", systemImage: "gearshape.2")
+                            ProfileSettingsLabel("管理后台", systemImage: "gearshape.2.fill", color: .gray)
                         }
                     }
                 }
-                .listRowInsets(EdgeInsets(top: 16, leading: inset, bottom: 16, trailing: inset))
-                .listRowBackground(Color.clear)
-
-                Section {
-                    Button(role: .destructive) {
-                        showLogoutConfirm = true
-                    } label: {
-                        HStack(spacing: 12) {
-                            Label("退出登录", systemImage: "rectangle.portrait.and.arrow.right")
-                            Spacer()
-                            if isLoggingOut { ProgressView() }
-                        }
-                    }
-                    .disabled(isLoggingOut || appState.isUpdatingAccount)
-                }
-                .listRowInsets(EdgeInsets(top: 20, leading: inset, bottom: 20, trailing: inset))
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
             }
-            .listStyle(.plain)
+            .listStyle(.insetGrouped)
+            .contentMargins(.horizontal, max(20, (geometry.size.width - 640) / 2), for: .scrollContent)
             .scrollContentBackground(.hidden)
-            .refreshable { await refresh() }
         }
         .pageBackground()
         .navigationTitle("我的")
         .navigationBarTitleDisplayMode(.large)
-        .task { await refresh() }
-        .sheet(isPresented: $showEditProfile) {
-            if let user = appState.user {
-                NavigationStack { ProfileEditView(user: user) }
-            }
-        }
+        .task { await offlineStore.refresh() }
         .sheet(isPresented: $showReaderSettings) {
             ReaderSettingsView()
                 .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large])
                 .presentationBackground(AppTheme.background)
         }
-        .confirmationDialog("确定退出登录？", isPresented: $showLogoutConfirm, titleVisibility: .visible) {
-            Button("退出登录", role: .destructive) {
-                Task {
-                    isLoggingOut = true
-                    await appState.logout()
-                    isLoggingOut = false
-                    AppFeedback.success("已退出登录")
-                }
-            }
-        }
     }
+}
 
-    private func identity(for user: User) -> some View {
-        Button {
-            showEditProfile = true
-        } label: {
-            identityLayout {
-                ProfileAvatar(user: user, size: 72)
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(user.displayName.isEmpty ? user.username : user.displayName)
-                        .font(serifFont(.title2, .semibold))
-                        .foregroundStyle(AppTheme.textPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Text("@\(user.username)")
-                        .font(.subheadline)
-                        .foregroundStyle(AppTheme.textSecondary)
-                        .lineLimit(1)
-                    if let bio = user.bio, !bio.isEmpty {
-                        Text(bio)
-                            .font(.subheadline)
-                            .foregroundStyle(AppTheme.textSecondary)
-                            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 3)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                if !dynamicTypeSize.isAccessibilitySize {
-                    Image(systemName: "chevron.right")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(AppTheme.textMuted)
-                }
+struct ProfileIdentityRow: View {
+    let user: User
+    let subtitle: String
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    var body: some View {
+        identityLayout {
+            ProfileAvatar(user: user, size: 56)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(user.displayName.isEmpty ? user.username : user.displayName)
+                    .font(.headline)
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(subtitle)
+                    .font(.subheadline)
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .contentShape(Rectangle())
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .buttonStyle(.plain)
+        .padding(.vertical, 8)
         .accessibilityElement(children: .combine)
-        .accessibilityHint("编辑昵称、简介或头像")
-        .accessibilityIdentifier("profile.edit")
     }
 
     private var identityLayout: AnyLayout {
@@ -162,75 +115,34 @@ struct ProfileView: View {
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: 14))
             : AnyLayout(HStackLayout(alignment: .center, spacing: 16))
     }
+}
 
-    @ViewBuilder
-    private var readingRows: some View {
-        if !reading.hasLoaded && reading.isLoading {
-            ProgressView("正在加载阅读记录")
-                .font(.subheadline)
-                .frame(maxWidth: .infinity, minHeight: 76)
-        } else if let item = reading.recent.first {
-            NavigationLink {
-                ReaderView(novel: item.asNovel, chapterOrder: item.chapterOrder)
-            } label: {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("继续阅读")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(AppTheme.primary)
-                    ProfileRecentBookRow(item: item)
-                }
-            }
-            .accessibilityIdentifier("profile.continue")
-        } else if reading.hasLoaded {
-            Label("暂无阅读记录", systemImage: "book.closed")
-                .foregroundStyle(AppTheme.textSecondary)
-                .frame(minHeight: 48)
-        }
+struct ProfileSettingsLabel: View {
+    let title: String
+    let systemImage: String
+    let color: Color
 
-        if let error = reading.errorMessage {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(error)
-                    .font(.footnote)
-                    .foregroundStyle(AppTheme.textSecondary)
-                Button("重试", systemImage: "arrow.clockwise") {
-                    Task { await reading.refresh() }
-                }
-                .disabled(reading.isLoading)
-            }
-        }
-
-        NavigationLink {
-            ProfileReadingHistoryView(store: reading)
-        } label: {
-            Label("最近阅读", systemImage: "clock")
-        }
-        NavigationLink {
-            OfflineReadingView()
-        } label: {
-            LabeledContent {
-                Text("\(offlineStore.totalChapterCount) 章")
-                    .font(.subheadline)
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .monospacedDigit()
-            } label: {
-                Label("离线阅读", systemImage: "arrow.down.circle")
-            }
-        }
+    init(_ title: String, systemImage: String, color: Color) {
+        self.title = title
+        self.systemImage = systemImage
+        self.color = color
     }
 
-    private func sectionHeading(_ title: String) -> some View {
-        Text(title)
-            .font(.headline)
-            .foregroundStyle(AppTheme.textPrimary)
-            .textCase(nil)
-            .padding(.top, 12)
-            .accessibilityAddTraits(.isHeader)
-    }
-
-    private func refresh() async {
-        async let refreshReading: Void = reading.refresh()
-        async let refreshOffline: Void = offlineStore.refresh()
-        _ = await (refreshReading, refreshOffline)
+    var body: some View {
+        Label {
+            Text(title)
+                .font(.body)
+                .foregroundStyle(AppTheme.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+        } icon: {
+            Image(systemName: systemImage)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 28, height: 28)
+                .background(color, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .accessibilityHidden(true)
+        }
+        .padding(.vertical, 2)
     }
 }
 
@@ -249,7 +161,7 @@ struct ProfileAvatar: View {
             ZStack {
                 AppTheme.primaryLight
                 Text(String((user.displayName.isEmpty ? user.username : user.displayName).prefix(1)))
-                    .font(serifFont(.title2, .semibold))
+                    .font(.system(size: size * 0.4, weight: .medium))
                     .foregroundStyle(AppTheme.primary)
             }
         }
