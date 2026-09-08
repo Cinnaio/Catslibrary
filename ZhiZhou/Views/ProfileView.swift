@@ -8,6 +8,7 @@ struct ProfileView: View {
 
     var body: some View {
         GeometryReader { geometry in
+            let inset = max(24, (geometry.size.width - 600) / 2)
             List {
                 if let user = appState.user {
                     Section {
@@ -17,64 +18,87 @@ struct ProfileView: View {
                             ProfileIdentityRow(user: user, subtitle: "账户与安全")
                         }
                         .accessibilityIdentifier("profile.account")
+                        .listRowInsets(EdgeInsets(top: 8, leading: inset, bottom: 28, trailing: inset))
+                        .listRowSeparator(.hidden)
                     }
+                    .listRowBackground(Color.clear)
                 }
 
-                Section("阅读") {
+                Section {
                     Button {
                         showReaderSettings = true
                     } label: {
-                        ProfileSettingsLabel("阅读设置", systemImage: "textformat.size", color: .teal)
+                        HStack(spacing: 12) {
+                            ProfileSettingsLabel("阅读设置", systemImage: "textformat")
+                            Spacer(minLength: 12)
+                            Image(systemName: "chevron.right")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(AppTheme.textMuted)
+                                .accessibilityHidden(true)
+                        }
                     }
                     .accessibilityIdentifier("profile.reader-settings")
                     NavigationLink {
                         OfflineReadingView()
                     } label: {
                         LabeledContent {
-                            Text("\(offlineStore.totalChapterCount) 章")
-                                .font(.subheadline)
-                                .foregroundStyle(AppTheme.textSecondary)
-                                .monospacedDigit()
+                            if offlineStore.totalChapterCount > 0 {
+                                Text("\(offlineStore.totalChapterCount) 章")
+                                    .font(.subheadline)
+                                    .foregroundStyle(AppTheme.textSecondary)
+                                    .monospacedDigit()
+                            }
                         } label: {
-                            ProfileSettingsLabel("离线阅读", systemImage: "arrow.down", color: .blue)
+                            ProfileSettingsLabel("离线阅读", systemImage: "arrow.down.circle")
                         }
                     }
                     .accessibilityIdentifier("profile.offline")
+                    .listRowSeparator(.hidden, edges: .bottom)
                 }
+                .listRowInsets(EdgeInsets(top: 12, leading: inset, bottom: 12, trailing: inset))
+                .listRowBackground(Color.clear)
 
-                Section("通用") {
+                Section {
                     NavigationLink {
                         StorageManagerView()
                     } label: {
-                        ProfileSettingsLabel("存储管理", systemImage: "internaldrive", color: .gray)
+                        ProfileSettingsLabel("存储管理", systemImage: "internaldrive")
                     }
+                    .listRowInsets(EdgeInsets(top: 28, leading: inset, bottom: 12, trailing: inset))
+                    .listRowSeparator(.hidden, edges: .top)
                     NavigationLink {
                         ProfilePrivacyView()
                     } label: {
-                        ProfileSettingsLabel("隐私与诊断", systemImage: "hand.raised.fill", color: .indigo)
+                        ProfileSettingsLabel("隐私与诊断", systemImage: "hand.raised")
                     }
                     NavigationLink {
                         ProfileAboutView()
                     } label: {
-                        ProfileSettingsLabel("关于知舟", systemImage: "info", color: .gray)
+                        ProfileSettingsLabel("关于知舟", systemImage: "info.circle")
                     }
+                    .listRowSeparator(.hidden, edges: .bottom)
                 }
+                .listRowInsets(EdgeInsets(top: 12, leading: inset, bottom: 12, trailing: inset))
+                .listRowBackground(Color.clear)
 
                 if appState.user?.role == "admin" {
                     Section {
                         NavigationLink {
                             AdminRootView()
                         } label: {
-                            ProfileSettingsLabel("管理后台", systemImage: "gearshape.2.fill", color: .gray)
+                            ProfileSettingsLabel("管理后台", systemImage: "slider.horizontal.3")
                         }
                     }
+                    .listRowInsets(EdgeInsets(top: 28, leading: inset, bottom: 12, trailing: inset))
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
                 }
             }
-            .listStyle(.insetGrouped)
-            .contentMargins(.horizontal, max(20, (geometry.size.width - 640) / 2), for: .scrollContent)
+            .listStyle(.plain)
+            .contentMargins(.top, 8, for: .scrollContent)
             .scrollContentBackground(.hidden)
         }
-        .pageBackground()
+        .background(Color(.systemBackground).ignoresSafeArea())
         .navigationTitle("我的")
         .navigationBarTitleDisplayMode(.large)
         .task { await offlineStore.refresh() }
@@ -93,10 +117,10 @@ struct ProfileIdentityRow: View {
 
     var body: some View {
         identityLayout {
-            ProfileAvatar(user: user, size: 56)
-            VStack(alignment: .leading, spacing: 4) {
+            ProfileAvatar(user: user, size: 60)
+            VStack(alignment: .leading, spacing: 6) {
                 Text(user.displayName.isEmpty ? user.username : user.displayName)
-                    .font(.headline)
+                    .font(.title2.weight(.semibold))
                     .foregroundStyle(AppTheme.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(subtitle)
@@ -106,7 +130,6 @@ struct ProfileIdentityRow: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.vertical, 8)
         .accessibilityElement(children: .combine)
     }
 
@@ -120,12 +143,11 @@ struct ProfileIdentityRow: View {
 struct ProfileSettingsLabel: View {
     let title: String
     let systemImage: String
-    let color: Color
+    @ScaledMetric(relativeTo: .body) private var symbolSize: CGFloat = 18
 
-    init(_ title: String, systemImage: String, color: Color) {
+    init(_ title: String, systemImage: String) {
         self.title = title
         self.systemImage = systemImage
-        self.color = color
     }
 
     var body: some View {
@@ -136,13 +158,14 @@ struct ProfileSettingsLabel: View {
                 .fixedSize(horizontal: false, vertical: true)
         } icon: {
             Image(systemName: systemImage)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: 28, height: 28)
-                .background(color, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .resizable()
+                .scaledToFit()
+                .symbolRenderingMode(.monochrome)
+                .foregroundStyle(AppTheme.textSecondary)
+                .frame(width: min(symbolSize, 22), height: min(symbolSize, 22))
+                .frame(width: 24, height: 24)
                 .accessibilityHidden(true)
         }
-        .padding(.vertical, 2)
     }
 }
 

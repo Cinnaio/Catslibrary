@@ -8,6 +8,7 @@ struct ProfileAccountView: View {
 
     var body: some View {
         GeometryReader { geometry in
+            let inset = max(24, (geometry.size.width - 600) / 2)
             List {
                 if let user = appState.user {
                     Section {
@@ -24,16 +25,21 @@ struct ProfileAccountView: View {
                         }
                         .accessibilityHint("编辑昵称、简介或头像")
                         .accessibilityIdentifier("profile.edit")
+                        .listRowInsets(EdgeInsets(top: 16, leading: inset, bottom: 28, trailing: inset))
+                        .listRowSeparator(.hidden)
                     }
+                    .listRowBackground(Color.clear)
                 }
 
                 Section {
                     NavigationLink {
                         ChangePasswordView()
                     } label: {
-                        ProfileSettingsLabel("修改密码", systemImage: "lock.fill", color: .gray)
+                        ProfileSettingsLabel("修改密码", systemImage: "lock")
                     }
                 }
+                .listRowInsets(EdgeInsets(top: 12, leading: inset, bottom: 12, trailing: inset))
+                .listRowBackground(Color.clear)
 
                 Section {
                     Button(role: .destructive) {
@@ -50,13 +56,16 @@ struct ProfileAccountView: View {
                     }
                     .accessibilityIdentifier("account.logout")
                 }
+                .listRowInsets(EdgeInsets(top: 28, leading: inset, bottom: 12, trailing: inset))
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
             }
-            .listStyle(.insetGrouped)
-            .contentMargins(.horizontal, max(20, (geometry.size.width - 640) / 2), for: .scrollContent)
+            .listStyle(.plain)
+            .contentMargins(.top, 8, for: .scrollContent)
             .scrollContentBackground(.hidden)
             .disabled(isLoggingOut || appState.isUpdatingAccount)
         }
-        .pageBackground()
+        .background(Color(.systemBackground).ignoresSafeArea())
         .navigationTitle("账户与安全")
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(isLoggingOut)
