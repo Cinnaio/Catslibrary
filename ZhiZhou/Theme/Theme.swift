@@ -82,6 +82,9 @@ enum AppTheme {
     static let cardCornerRadius: CGFloat = 8
     static let controlCornerRadius: CGFloat = 8
 
+    // 独立输入区与同组主操作使用更舒展的连续圆角，原生 Form 由系统绘制。
+    static let fieldCornerRadius: CGFloat = 16
+
     // MARK: 状态色
     static let success = Color(light: "4E713F", dark: "A9BF97")
     static let warning = Color(light: "8A5B13", dark: "D9B06A")
@@ -296,17 +299,14 @@ extension View {
     }
 
     /// 统一输入控件表面：聚焦时用品牌色描边，保持清晰的键盘输入反馈。
-    func appFieldSurface(
-        isFocused: Bool = false,
-        cornerRadius: CGFloat = AppTheme.controlCornerRadius
-    ) -> some View {
+    func appFieldSurface(isFocused: Bool = false) -> some View {
         self
             .background(
                 isFocused ? AppTheme.primaryLight.opacity(0.58) : AppTheme.controlFill,
-                in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                in: RoundedRectangle(cornerRadius: AppTheme.fieldCornerRadius, style: .continuous)
             )
             .overlay {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                RoundedRectangle(cornerRadius: AppTheme.fieldCornerRadius, style: .continuous)
                     .strokeBorder(
                         isFocused
                             ? AppTheme.primary.opacity(0.78)

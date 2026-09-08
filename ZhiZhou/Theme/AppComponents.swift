@@ -17,6 +17,10 @@ enum AppLayout {
     static let pageInset: CGFloat = 16
     static let readableWidth: CGFloat = 600
     static let iconSlot: CGFloat = 24
+    static let fieldMinHeight: CGFloat = 52
+    static let fieldHorizontalInset: CGFloat = 16
+    static let fieldVerticalInset: CGFloat = 4
+    static let textEditorInset: CGFloat = 8
 
     static func readableInset(for width: CGFloat) -> CGFloat {
         max(pageInset, (width - readableWidth) / 2)

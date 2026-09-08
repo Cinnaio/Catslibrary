@@ -313,8 +313,9 @@ struct ThoughtPanelView: View {
                         .focused($focusedField, equals: .displayName)
                         .accessibilityLabel("段评署名")
                 }
-                .padding(.horizontal, 12)
-                .frame(minHeight: 44)
+                .padding(.horizontal, AppLayout.fieldHorizontalInset)
+                .padding(.vertical, AppLayout.fieldVerticalInset)
+                .frame(minHeight: AppLayout.fieldMinHeight)
                 .appFieldSurface(
                     isFocused: focusedField == .displayName
                 )
@@ -329,12 +330,11 @@ struct ThoughtPanelView: View {
                     .focused($focusedField, equals: .thought)
                     .font(.body)
                     .lineLimit(2...5)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
+                    .padding(.horizontal, AppLayout.fieldHorizontalInset)
+                    .padding(.vertical, 12)
                     .frame(minHeight: 62, alignment: .topLeading)
                     .appFieldSurface(
-                        isFocused: focusedField == .thought,
-                        cornerRadius: AppTheme.controlCornerRadius
+                        isFocused: focusedField == .thought
                     )
                     .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: focusedField)
                     .onChange(of: draft) { _, value in

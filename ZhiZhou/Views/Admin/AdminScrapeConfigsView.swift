@@ -139,7 +139,8 @@ struct AdminScrapeConfigsView: View {
                 .frame(minHeight: 120)
                 .font(.callout)
                 .scrollContentBackground(.hidden)
-                .appFieldSurface(cornerRadius: AppTheme.controlCornerRadius)
+                .padding(AppLayout.textEditorInset)
+                .appFieldSurface()
                 .padding(.vertical, 4)
             Button {
                 requestImportConfigs()

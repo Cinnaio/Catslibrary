@@ -485,7 +485,8 @@ struct AdminAICoverView: View {
             .frame(maxWidth: .infinity)
             .frame(height: 96, alignment: .topLeading)
             .clipped()
-            .appFieldSurface(cornerRadius: AppTheme.controlCornerRadius)
+            .padding(AppLayout.textEditorInset)
+            .appFieldSurface()
         }
     }
 

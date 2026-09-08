@@ -225,9 +225,9 @@ struct LoginView: View {
         @ViewBuilder content: () -> Content
     ) -> some View {
         content()
-            .padding(.horizontal, 16)
-            .padding(.vertical, 4)
-            .frame(minHeight: 52)
+            .padding(.horizontal, AppLayout.fieldHorizontalInset)
+            .padding(.vertical, AppLayout.fieldVerticalInset)
+            .frame(minHeight: AppLayout.fieldMinHeight)
             .appFieldSurface(isFocused: isFocused)
             .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: isFocused)
     }
@@ -253,7 +253,7 @@ struct LoginView: View {
         }
         .buttonStyle(.borderedProminent)
         .controlSize(.large)
-        .buttonBorderShape(.roundedRectangle(radius: AppTheme.controlCornerRadius))
+        .buttonBorderShape(.roundedRectangle(radius: AppTheme.fieldCornerRadius))
         .tint(AppTheme.primary)
         .disabled(!canSubmit)
         .accessibilityLabel(mode == .login ? "登录" : "注册")
@@ -264,7 +264,6 @@ struct LoginView: View {
             .font(.footnote)
             .foregroundStyle(AppTheme.textSecondary)
             .frame(maxWidth: .infinity, minHeight: 48)
-            .appFieldSurface()
     }
 
     @ViewBuilder

@@ -521,7 +521,8 @@ private struct GenerationDetailSheet: View {
                         .frame(minHeight: 260)
                         .font(.subheadline)
                         .scrollContentBackground(.hidden)
-                        .appFieldSurface(cornerRadius: AppTheme.controlCornerRadius)
+                        .padding(AppLayout.textEditorInset)
+                        .appFieldSurface()
                         .padding(.vertical, 4)
                     } else {
                         Text(item.result ?? "（无内容）")

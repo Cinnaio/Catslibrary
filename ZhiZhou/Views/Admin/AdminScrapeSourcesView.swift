@@ -600,7 +600,6 @@ private struct LegadoImportSheet: View {
                         .frame(minHeight: 140)
                         .font(.caption2)
                         .scrollContentBackground(.hidden)
-                        .appFieldSurface(cornerRadius: AppTheme.controlCornerRadius)
                         .padding(.vertical, 4)
                 }
                 if let result {

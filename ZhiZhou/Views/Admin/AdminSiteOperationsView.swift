@@ -137,7 +137,8 @@ struct AdminSiteOperationsView: View {
                 .scrollContentBackground(.hidden)
                 .focused($focusedField)
                 .disabled(savingAnnouncement)
-                .appFieldSurface(cornerRadius: AppTheme.controlCornerRadius)
+                .padding(AppLayout.textEditorInset)
+                .appFieldSurface(isFocused: focusedField)
                 .padding(.vertical, 4)
             Button {
                 Task { await saveAnnouncement() }
