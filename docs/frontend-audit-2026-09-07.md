@@ -30,7 +30,7 @@
 | P1 | Saving announcement text can overwrite input entered while the request is running. | Follow-up | Fixed in 757754c; disable the editor during save and exclude duplicate submission |
 | P1 | AI task overview, dashboard, users and saved scrape configurations accept obsolete responses. | Follow-up | Fixed in 5d0a94c / 757754c; cancellation and generation checks; registration save invalidates an older overview |
 | P2 | Saved scrape configuration refresh replaces the existing list with a full-screen failure. | Follow-up | Fixed in 757754c; retain content and offer inline retry |
-| P1 | A short discovery list on tablet does not trigger the native pull-to-refresh check. | Follow-up | 2b93426 explicitly enables vertical bouncing; final native verification below |
+| P1 | A short discovery list on tablet does not trigger the native pull-to-refresh check. | Follow-up | Fixed; deterministic first non-empty-query retry fixture and final native verification |
 
 ## Delivery
 
@@ -59,6 +59,7 @@ Comments/ratings and push notifications remain separate product backlog features
 - 5d0a94c adds a Core case for A → B → A selection ordering, plus native verification that refreshing AI settings retains an unsaved toggle. Core/Release run 34170460589 succeeded.
 - 757754c completes the remaining source-level administration review. Core/Release run 34170594946 succeeded with 35 Core tests; its exact IPA was synchronized before the following native-test repair.
 - Native run 34170460939 passed 8/9 phone and 7/9 tablet checks. Both catalog search tests passed. The refresh/retry gesture was not reliable for the short fixture list, and the draft test initially needed a more precise settings scroll and switch hit target. 2b93426 enables discovery bouncing, reveals the link, targets the actual switch control and waits for its value before checking draft preservation; the fixture now fails the first non-empty query once so the reload contract has a deterministic signal.
+- Final native run 34172093922 passed all 9/9 phone and 9/9 tablet tests with 0 failures. This includes light/dark reading journeys, accessibility XXXL profile/settings layouts, profile save and wrong-password feedback, login and empty states, session restoration retry, catalog search, deterministic first-page refresh retry, and AI settings draft preservation. The matching `build-ios.yml` run 34172094059 passed Core tests and the unsigned IPA build; `build-run.json` and the local IPA record commit `20c04c8`.
 
 ### Coverage and limits
 
