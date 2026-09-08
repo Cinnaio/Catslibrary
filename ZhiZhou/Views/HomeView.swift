@@ -4,6 +4,7 @@ import ZhiZhouCore
 /// 发现页：以继续阅读为首要入口，紧凑宽度使用单列导航，宽屏保留书单与详情列。
 struct HomeView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var novels: [Novel] = []
     @State private var categories: [String] = []
     @State private var selectedCategory: String?
@@ -114,7 +115,7 @@ struct HomeView: View {
             Color.clear
                 .frame(height: 24)
         }
-        .pageBackground()
+        .pageBackground(.browsing)
         .navigationTitle("发现")
         .navigationBarTitleDisplayMode(.large)
         .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "搜索书名或作者")
@@ -244,7 +245,7 @@ struct HomeView: View {
             if let trailing {
                 Text(trailing)
                     .font(.caption)
-                    .foregroundStyle(AppTheme.textMuted)
+                    .foregroundStyle(AppTheme.textSecondary)
             }
         }
     }
@@ -265,7 +266,7 @@ struct HomeView: View {
                     Text(item.novelTitle)
                         .font(serifFont(.title3, .semibold))
                         .foregroundStyle(AppTheme.textPrimary)
-                        .lineLimit(2)
+                        .appTextLineLimit(2)
 
                     VStack(alignment: .leading, spacing: 3) {
                         Text("第 \(item.chapterOrder) 章")
@@ -275,18 +276,19 @@ struct HomeView: View {
                             Text(chapterTitle)
                                 .font(.subheadline.weight(.medium))
                                 .foregroundStyle(AppTheme.textSecondary)
-                                .lineLimit(2)
+                                .appTextLineLimit(2)
                         }
                     }
 
                     VStack(alignment: .leading, spacing: 5) {
-                        HStack {
+                        progressLayout {
                             Text("本章进度")
-                            Spacer(minLength: 8)
+                            if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 8) }
                             Text("已读 \(Int((progress * 100).rounded()))%")
+                                .monospacedDigit()
                         }
-                        .font(.caption)
-                        .foregroundStyle(AppTheme.textMuted)
+                        .font(.footnote)
+                        .foregroundStyle(AppTheme.textSecondary)
 
                         ProgressView(value: progress, total: 1)
                             .tint(AppTheme.primary)
@@ -297,23 +299,8 @@ struct HomeView: View {
                         .foregroundStyle(AppTheme.primary)
                 }
             }
-            .padding(16)
+            .padding(.vertical, 8)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                LinearGradient(
-                    colors: [
-                        AppTheme.primaryLight.opacity(0.94),
-                        AppTheme.primaryLight.opacity(0.58)
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                ),
-                in: RoundedRectangle(cornerRadius: 20, style: .continuous)
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .stroke(AppTheme.primary.opacity(0.18), lineWidth: 0.9)
-            }
             .contentShape(Rectangle())
         }
         .buttonStyle(ScaleButtonStyle(pressedScale: 0.985))
@@ -329,6 +316,12 @@ struct HomeView: View {
         let normalizedTitle = title.components(separatedBy: .whitespacesAndNewlines).joined()
         let normalizedOrder = "第\(item.chapterOrder)章"
         return normalizedTitle == normalizedOrder ? nil : title
+    }
+
+    private var progressLayout: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+            : AnyLayout(HStackLayout())
     }
 
     private var startExploringHint: some View {

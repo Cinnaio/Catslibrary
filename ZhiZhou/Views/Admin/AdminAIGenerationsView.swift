@@ -128,7 +128,7 @@ struct AdminAIGenerationsView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .pageBackground()
+        .appListStyle(.browsing)
         .navigationTitle("已生成内容")
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await load() }
@@ -250,7 +250,7 @@ struct AdminAIGenerationsView: View {
                 } label: {
                     Image(systemName: selectedIds.contains(item.id) ? "checkmark.circle.fill" : "circle")
                         .font(.title3)
-                        .foregroundStyle(selectedIds.contains(item.id) ? AppTheme.primary : AppTheme.textMuted)
+                        .foregroundStyle(selectedIds.contains(item.id) ? AppTheme.primary : AppTheme.textSecondary)
                         .frame(width: 44, height: 44)
                 }
                 .buttonStyle(.plain)
@@ -271,24 +271,24 @@ struct AdminAIGenerationsView: View {
                     Spacer()
                     Text(AdminFormat.relativeTime(item.createdAt ?? 0))
                         .font(.caption2)
-                        .foregroundStyle(AppTheme.textMuted)
+                        .foregroundStyle(AppTheme.textSecondary)
                 }
                 Text(item.novelTitle ?? "—")
                     .font(.subheadline)
                     .fontWeight(.medium)
                     .foregroundStyle(AppTheme.textPrimary)
-                    .lineLimit(1)
+                    .appTextLineLimit(1)
                 if let chapter = item.chapterTitle, !chapter.isEmpty {
                     Text(chapter)
                         .font(.caption)
                         .foregroundStyle(AppTheme.textSecondary)
-                        .lineLimit(1)
+                        .appTextLineLimit(1)
                 }
                 if let result = item.result, !result.isEmpty {
                     Text(result)
                         .font(.caption)
-                        .foregroundStyle(AppTheme.textMuted)
-                        .lineLimit(2)
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .appTextLineLimit(2)
                 }
                 HStack(spacing: 10) {
                     Button("查看") { viewing = item }
@@ -606,7 +606,7 @@ private struct GenerationDetailSheet: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .pageBackground()
+            .appListStyle(.settings)
             .navigationTitle(item.draftTitle?.isEmpty == false ? item.draftTitle! : "生成内容")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

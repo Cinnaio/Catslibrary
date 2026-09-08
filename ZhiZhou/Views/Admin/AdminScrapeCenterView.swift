@@ -55,7 +55,7 @@ struct AdminScrapeCenterView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .pageBackground()
+        .appListStyle(.settings)
         .navigationTitle("爬虫抓取中心")
         .navigationBarTitleDisplayMode(.large)
         .confirmationDialog(
@@ -111,7 +111,7 @@ struct AdminScrapeCenterView: View {
                     Text(meta.chapterListUrl ?? sourceUrl)
                         .font(.caption)
                         .foregroundStyle(AppTheme.textSecondary)
-                        .lineLimit(1)
+                        .appTextLineLimit(1)
                 }
             }
         }
@@ -218,7 +218,7 @@ struct AdminScrapeCenterView: View {
             if createdNovelId == nil {
                 Text("需先创建小说后才能开始抓取。")
                     .font(.caption)
-                    .foregroundStyle(AppTheme.textMuted)
+                    .foregroundStyle(AppTheme.textSecondary)
             }
         }
     }

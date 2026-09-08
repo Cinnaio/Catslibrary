@@ -51,7 +51,7 @@ struct AdminDiscoverView: View {
             resultsSection
         }
         .scrollContentBackground(.hidden)
-        .pageBackground()
+        .appListStyle(.browsing)
         // Liquid Glass 标签栏会悬浮在内容上方，给最后一条结果保留可见的滚动终点。
         .safeAreaInset(edge: .bottom, spacing: 0) {
             Color.clear.frame(height: 16)
@@ -163,7 +163,7 @@ struct AdminDiscoverView: View {
                     query = ""
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(AppTheme.textMuted)
+                        .foregroundStyle(AppTheme.textSecondary)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("清除搜索")
@@ -315,7 +315,7 @@ struct AdminDiscoverView: View {
             } label: {
                 Image(systemName: selectedIndices.contains(index) ? "checkmark.circle.fill" : "circle")
                     .font(.title3)
-                    .foregroundStyle(selectedIndices.contains(index) ? AppTheme.primary : AppTheme.textMuted)
+                    .foregroundStyle(selectedIndices.contains(index) ? AppTheme.primary : AppTheme.textSecondary)
                     .frame(width: 44, height: 44)
             }
             .buttonStyle(.plain)
@@ -360,13 +360,13 @@ struct AdminDiscoverView: View {
             Text(novel.title)
                 .font(.body.weight(.semibold))
                 .foregroundStyle(AppTheme.textPrimary)
-                .lineLimit(2)
+                .appTextLineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
 
             Text("\(novel.author?.isEmpty == false ? novel.author! : "佚名")\(novel.chapterCount.map { " · \($0) 章" } ?? "")")
                 .font(.subheadline)
                 .foregroundStyle(AppTheme.textSecondary)
-                .lineLimit(1)
+                .appTextLineLimit(1)
 
             HStack(spacing: 6) {
                 if let source = sourceForNovel(novel) {
@@ -385,8 +385,8 @@ struct AdminDiscoverView: View {
             if let desc = novel.description, !desc.isEmpty {
                 Text(desc)
                     .font(.footnote)
-                    .foregroundStyle(AppTheme.textMuted)
-                    .lineLimit(2)
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .appTextLineLimit(2)
                     .multilineTextAlignment(.leading)
             }
         }
@@ -414,7 +414,7 @@ struct AdminDiscoverView: View {
             RoundedRectangle(cornerRadius: 6)
                 .fill(AppTheme.surface.opacity(0.6))
             Image(systemName: "book")
-                .foregroundStyle(AppTheme.textMuted)
+                .foregroundStyle(AppTheme.textSecondary)
         }
         .frame(width: 60, height: 80)
     }
@@ -858,18 +858,18 @@ private struct DiscoverDetailSheet: View {
                                 HStack(spacing: 8) {
                                     Text("\(index + 1)")
                                         .font(.caption)
-                                        .foregroundStyle(AppTheme.textMuted)
+                                        .foregroundStyle(AppTheme.textSecondary)
                                         .frame(width: 26, alignment: .center)
                                     Text(link.text ?? link.href ?? "—")
                                         .font(.caption)
                                         .foregroundStyle(AppTheme.textPrimary)
-                                        .lineLimit(1)
+                                        .appTextLineLimit(1)
                                 }
                             }
                             if chapters.count > 20 {
                                 Text("等共 \(chapters.count) 章…")
                                     .font(.caption)
-                                    .foregroundStyle(AppTheme.textMuted)
+                                    .foregroundStyle(AppTheme.textSecondary)
                             }
                         }
                     } else if let count = chapterCount, count > 0 {
@@ -906,7 +906,7 @@ private struct DiscoverDetailSheet: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .pageBackground()
+            .appListStyle(.browsing)
             .navigationTitle(item.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -1065,13 +1065,13 @@ private struct BatchProgressSheet: View {
                             Text(entry.text)
                                 .font(.caption)
                                 .foregroundStyle(AppTheme.textPrimary)
-                                .lineLimit(2)
+                                .appTextLineLimit(2)
                         }
                     }
                 }
             }
             .scrollContentBackground(.hidden)
-            .pageBackground()
+            .appListStyle(.browsing)
             .navigationTitle(state.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

@@ -99,12 +99,10 @@ struct BookshelfView: View {
                     }
                 }
             }
-            .listStyle(.insetGrouped)
+            .appListStyle(.browsing)
             .navigationTitle("书架")
             .navigationBarTitleDisplayMode(.large)
             .navigationSplitViewColumnWidth(min: 300, ideal: 380, max: 520)
-            .scrollContentBackground(.hidden)
-            .pageBackground()
             .toolbar {
                 if response?.favorites.isEmpty == false || response?.recent.isEmpty == false {
                     if isPerformingAction {
@@ -301,32 +299,32 @@ struct BookshelfView: View {
         HStack(spacing: 10) {
             CachedAsyncImage(
                 url: APIClient.shared.coverURL(novelId: item.novelId, updatedAt: item.updatedAt),
-                targetSize: CGSize(width: 40, height: 56)
+                targetSize: CGSize(width: 60, height: 86)
             ) { image in
                 image.resizable().scaledToFill()
             } placeholder: {
                 AppTheme.primaryLight
             }
-            .frame(width: 40, height: 56)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .frame(width: 60, height: 86)
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius))
             .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(item.novelTitle)
-                    .font(serifFont(.subheadline, .semibold))
+                    .font(serifFont(.headline, .semibold))
                     .foregroundStyle(AppTheme.textPrimary)
-                    .lineLimit(2)
+                    .appTextLineLimit(2)
                 Text(item.chapterTitle)
                     .font(.footnote)
                     .foregroundStyle(AppTheme.textSecondary)
-                    .lineLimit(1)
+                    .appTextLineLimit(1)
+                Text(Self.percentText(item.scrollPercent))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .accessibilityLabel("阅读进度")
+                    .accessibilityValue("百分之 \(Self.percentValue(item.scrollPercent))")
             }
             Spacer()
-            Text(Self.percentText(item.scrollPercent))
-                .font(.caption)
-                .foregroundStyle(AppTheme.textMuted)
-                .accessibilityLabel("阅读进度")
-                .accessibilityValue("百分之 \(Self.percentValue(item.scrollPercent))")
         }
         .accessibilityElement(children: .combine)
     }
@@ -335,40 +333,40 @@ struct BookshelfView: View {
         HStack(spacing: 10) {
             CachedAsyncImage(
                 url: APIClient.shared.coverURL(novelId: favorite.novelId, updatedAt: favorite.novelUpdatedAt),
-                targetSize: CGSize(width: 40, height: 56)
+                targetSize: CGSize(width: 60, height: 86)
             ) { image in
                 image.resizable().scaledToFill()
             } placeholder: {
                 AppTheme.primaryLight
             }
-            .frame(width: 40, height: 56)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .frame(width: 60, height: 86)
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius))
             .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(favorite.title)
-                    .font(serifFont(.subheadline, .semibold))
+                    .font(serifFont(.headline, .semibold))
                     .foregroundStyle(AppTheme.textPrimary)
-                    .lineLimit(2)
+                    .appTextLineLimit(2)
                 Text(favorite.author)
-                    .font(.caption)
+                    .font(.subheadline)
                     .foregroundStyle(AppTheme.textSecondary)
-                    .lineLimit(1)
+                    .appTextLineLimit(1)
                 if let title = favorite.chapterTitle, !title.isEmpty {
                     Text(title)
                         .font(.caption)
-                        .foregroundStyle(AppTheme.textMuted)
-                        .lineLimit(1)
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .appTextLineLimit(1)
+                }
+                if let percent = favorite.scrollPercent, percent > 0 {
+                    Text(Self.percentText(percent))
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .accessibilityLabel("阅读进度")
+                        .accessibilityValue("百分之 \(Self.percentValue(percent))")
                 }
             }
             Spacer()
-            if let percent = favorite.scrollPercent, percent > 0 {
-                Text(Self.percentText(percent))
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.textMuted)
-                    .accessibilityLabel("阅读进度")
-                    .accessibilityValue("百分之 \(Self.percentValue(percent))")
-            }
         }
         .accessibilityElement(children: .combine)
     }

@@ -19,9 +19,7 @@ struct Po18AccountSheet: View {
         NavigationStack {
             Form {
                 Section {
-                    HStack {
-                        Text("当前状态")
-                        Spacer()
+                    LabeledContent("当前状态") {
                         Text(statusText)
                             .foregroundStyle(statusColor)
                     }
@@ -32,7 +30,7 @@ struct Po18AccountSheet: View {
                         if !status.lastError.isEmpty {
                             Text(status.lastError)
                                 .font(.footnote)
-                                .foregroundStyle(.red)
+                                .foregroundStyle(AppTheme.danger)
                         }
                     }
                 } header: {
@@ -46,13 +44,10 @@ struct Po18AccountSheet: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                     SecureField(status?.hasPassword == true ? "留空表示保持原密码" : "POPO 登录密码", text: $password)
-                    HStack {
-                        Button("保存账号") { Task { await saveAccount() } }
-                            .disabled(isLoading || username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                        Spacer()
-                        Button("获取验证码") { Task { await loadCaptcha() } }
-                            .disabled(isLoading)
-                    }
+                    Button("保存账号") { Task { await saveAccount() } }
+                        .disabled(isLoading || username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    Button("获取验证码") { Task { await loadCaptcha() } }
+                        .disabled(isLoading)
 
                     if let challenge {
                         if let image = captchaImage(challenge.imageDataUrl) {
@@ -64,7 +59,7 @@ struct Po18AccountSheet: View {
                         } else if challenge.captchaRequired {
                             Text("当前登录页需要验证码，请使用浏览器 Cookie 方式。")
                                 .font(.footnote)
-                                .foregroundStyle(.orange)
+                                .foregroundStyle(AppTheme.warning)
                         }
                         if challenge.captchaRequired {
                             TextField("验证码", text: $captchaText)
@@ -96,7 +91,7 @@ struct Po18AccountSheet: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .pageBackground()
+            .appListStyle(.settings)
             .navigationTitle("POPO 账号")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -148,8 +143,9 @@ struct Po18AccountSheet: View {
     private var statusColor: Color {
         switch status?.status {
         case "authenticated", "session_saved": return AppTheme.success
-        case "invalid", "error": return .red
-        default: return .orange
+        case "invalid", "error": return AppTheme.danger
+        case "needs_captcha", "credentials_saved": return AppTheme.warning
+        default: return AppTheme.textSecondary
         }
     }
 

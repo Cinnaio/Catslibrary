@@ -32,7 +32,7 @@ extension UIColor {
     }
 }
 
-/// 知舟设计系统 v2：语义色跟随系统浅/深外观，无强制浅色。
+/// 知舟设计系统：浏览、编辑与阅读纸面分别管理，语义色跟随系统外观。
 /// 阅读器纸面由 ReaderSettingsStore 独立管理（可选中夜间/护眼等）。
 enum AppTheme {
     // MARK: 品牌强调色（黛青：浅色深、深色亮，双向可用）
@@ -43,7 +43,7 @@ enum AppTheme {
     static let onPrimary = Color(light: "FFFFFF", dark: "10231D")
 
     // MARK: Liquid Glass
-    /// 交互控件统一使用系统 Liquid Glass，并以黛青做轻微染色。
+    /// 浮动阅读控制使用系统 Liquid Glass，并以黛青做轻微染色。
     /// interactive() 让玻璃表面在按下、悬停和聚焦时产生原生反馈。
     static var glass: Glass {
         .regular
@@ -64,6 +64,8 @@ enum AppTheme {
     }
 
     // MARK: 语义背景 / 分隔（跟随系统）
+    static let canvas = Color(.systemBackground)
+    /// 仅用于编辑表单；浏览列表使用 canvas，阅读正文使用用户纸面。
     static let background = Color(.systemGroupedBackground)
     static let surface = Color(.secondarySystemGroupedBackground)
     static let surfaceSecondary = Color(.secondarySystemBackground)
@@ -75,36 +77,16 @@ enum AppTheme {
     static let textSecondary = Color(.secondaryLabel)
     static let textMuted = Color(.tertiaryLabel)
 
-    // MARK: 卡片层级
-    /// 内容卡片统一使用轻量阴影，避免不同页面出现深浅不一的浮层质感。
-    /// 深色外观使用更深的阴影，避免在深色背景上留下灰色光晕。
+    // MARK: 封面与独立预览
     static let cardShadow = Color(light: "29483E", dark: "000000").opacity(0.12)
-    static let cardShadowRadius: CGFloat = 10
-    static let cardShadowY: CGFloat = 3
-    static let cardCornerRadius: CGFloat = 14
-    static let controlCornerRadius: CGFloat = 13
+    static let cardCornerRadius: CGFloat = 8
+    static let controlCornerRadius: CGFloat = 8
 
     // MARK: 状态色
     static let success = Color(light: "4E713F", dark: "A9BF97")
     static let warning = Color(light: "8A5B13", dark: "D9B06A")
     static let danger = Color(light: "A34438", dark: "E98F83")
     static let seal = Color(light: "B8453A", dark: "E8968D")
-
-    // MARK: 渐变
-    /// 品牌自适应渐变：装饰性视觉用，前景须为深色文字（避免亮色系在深色模式下对比不足）。
-    static let primaryGradient = LinearGradient(
-        colors: [Color(light: "4E7D70", dark: "9AD4C6"), Color(light: "3A6B5E", dark: "7FBFB0"), Color(light: "2C5348", dark: "5E9C8E")],
-        startPoint: .top,
-        endPoint: .bottom
-    )
-
-    /// 深色品牌渐变：白色前景（图标 / 按钮文字）在浅色与深色外观下都保持足够对比。
-    /// 深浅外观使用同一组深黛青色，避免亮色系按钮在深色模式下文字对比不足。
-    static let deepGradient = LinearGradient(
-        colors: [Color(hex: "4A7C6F"), Color(hex: "35695C"), Color(hex: "2A5448")],
-        startPoint: .top,
-        endPoint: .bottom
-    )
 }
 
 // MARK: - 字体
@@ -266,19 +248,23 @@ struct AppGlassButtonStyle: ButtonStyle {
 
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.isEnabled) private var isEnabled
 
     func makeBody(configuration: Configuration) -> some View {
         Group {
-            if reduceTransparency {
+            if reduceTransparency || contrast == .increased {
                 configuration.label
+                    .frame(minWidth: AppLayout.minimumTouchTarget, minHeight: AppLayout.minimumTouchTarget)
                     .background(fallback, in: Capsule())
+                    .background(AppTheme.canvas, in: Capsule())
                     .overlay {
                         Capsule()
                             .strokeBorder(AppTheme.border.opacity(0.55), lineWidth: 0.8)
                     }
             } else {
                 configuration.label
+                    .frame(minWidth: AppLayout.minimumTouchTarget, minHeight: AppLayout.minimumTouchTarget)
                     .glassEffect(glass, in: Capsule())
             }
         }
@@ -294,10 +280,9 @@ struct AppGlassButtonStyle: ButtonStyle {
 // MARK: - View 扩展
 
 extension View {
-    /// 浏览页统一系统分组背景。
-    func pageBackground() -> some View {
+    func pageBackground(_ style: AppPageStyle) -> some View {
         self.background {
-            Color(.systemGroupedBackground).ignoresSafeArea()
+            style.background.ignoresSafeArea()
         }
     }
 
@@ -308,7 +293,6 @@ extension View {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .strokeBorder(AppTheme.border.opacity(0.72), lineWidth: 0.8)
             )
-            .shadow(color: AppTheme.cardShadow, radius: AppTheme.cardShadowRadius, y: AppTheme.cardShadowY)
     }
 
     /// 统一输入控件表面：聚焦时用品牌色描边，保持清晰的键盘输入反馈。
@@ -358,10 +342,6 @@ extension View {
         ))
     }
 
-    func frostedRowBackground() -> some View {
-        modifier(AdaptiveFrostedRowBackgroundModifier())
-    }
-
     /// 浏览栈共用的详情 / 阅读器出口。
     func zhiZhouDestinations() -> some View {
         self
@@ -382,28 +362,16 @@ private struct AdaptiveMaterialBackgroundModifier<S: Shape>: ViewModifier {
     let shape: S
 
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorSchemeContrast) private var contrast
 
     func body(content: Content) -> some View {
-        content.background(
-            reduceTransparency
-                ? AnyShapeStyle(fallback)
-                : AnyShapeStyle(material),
-            in: shape
-        )
-    }
-}
-
-private struct AdaptiveFrostedRowBackgroundModifier: ViewModifier {
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-
-    func body(content: Content) -> some View {
-        content.listRowBackground(
-            Rectangle().fill(
-                reduceTransparency
-                    ? AnyShapeStyle(AppTheme.surface)
-                    : AnyShapeStyle(.thinMaterial)
-            )
-        )
+        if reduceTransparency || contrast == .increased {
+            content
+                .background(fallback, in: shape)
+                .background(AppTheme.canvas, in: shape)
+        } else {
+            content.background(material, in: shape)
+        }
     }
 }
 
@@ -413,11 +381,13 @@ private struct AdaptiveGlassEffectModifier<S: Shape>: ViewModifier {
     let shape: S
 
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorSchemeContrast) private var contrast
 
     func body(content: Content) -> some View {
-        if reduceTransparency {
+        if reduceTransparency || contrast == .increased {
             content
                 .background(fallback, in: shape)
+                .background(AppTheme.canvas, in: shape)
                 .overlay {
                     shape.stroke(AppTheme.border.opacity(0.55), lineWidth: 0.8)
                 }

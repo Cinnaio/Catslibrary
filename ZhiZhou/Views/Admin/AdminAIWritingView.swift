@@ -86,7 +86,7 @@ struct AdminAIWritingView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .pageBackground()
+        .appListStyle(.settings)
         .navigationTitle("AI 创作")
         .navigationBarTitleDisplayMode(.large)
         .task {
@@ -166,7 +166,7 @@ struct AdminAIWritingView: View {
                             .font(.subheadline)
                             .fontWeight(.medium)
                             .foregroundStyle(AppTheme.textPrimary)
-                            .lineLimit(1)
+                            .appTextLineLimit(1)
                         Text("\(novel.author.isEmpty ? "佚名" : novel.author) · \(novel.chapterCount) 章")
                             .font(.caption)
                             .foregroundStyle(AppTheme.textSecondary)
@@ -331,12 +331,12 @@ struct AdminAIWritingView: View {
             if value.isEmpty {
                 Text(empty)
                     .font(.caption)
-                    .foregroundStyle(AppTheme.textMuted)
+                    .foregroundStyle(AppTheme.textSecondary)
             } else {
                 Text(value)
                     .font(.caption)
                     .foregroundStyle(AppTheme.textSecondary)
-                    .lineLimit(4)
+                    .appTextLineLimit(4)
             }
         }
         .padding(.vertical, 2)
@@ -582,7 +582,7 @@ struct AdminNovelPickerSheet: View {
                             Text(novel.title)
                                 .font(.subheadline)
                                 .foregroundStyle(AppTheme.textPrimary)
-                                .lineLimit(1)
+                                .appTextLineLimit(1)
                             Text("\(novel.author.isEmpty ? "佚名" : novel.author) · \(novel.chapterCount) 章")
                                 .font(.caption)
                                 .foregroundStyle(AppTheme.textSecondary)
@@ -598,7 +598,7 @@ struct AdminNovelPickerSheet: View {
                 .buttonStyle(.plain)
             }
             .scrollContentBackground(.hidden)
-            .pageBackground()
+            .appListStyle(.browsing)
             .navigationTitle("选择小说")
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $search, prompt: "搜索书名 / 作者")

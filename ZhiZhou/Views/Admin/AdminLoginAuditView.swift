@@ -100,7 +100,7 @@ struct AdminLoginAuditView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .pageBackground()
+        .appListStyle(.browsing)
         .navigationTitle("登录审计")
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await load() }
@@ -127,7 +127,7 @@ struct AdminLoginAuditView: View {
                     .font(.subheadline)
                     .fontWeight(.medium)
                     .foregroundStyle(AppTheme.textPrimary)
-                    .lineLimit(1)
+                    .appTextLineLimit(1)
                 Spacer()
                 statusBadge(item)
             }
@@ -138,23 +138,23 @@ struct AdminLoginAuditView: View {
                 if !item.ipAddress.isEmpty {
                     Text(item.ipAddress)
                         .font(.caption2)
-                        .foregroundStyle(AppTheme.textMuted)
+                        .foregroundStyle(AppTheme.textSecondary)
                 }
                 Text(AdminFormat.dateTime(item.createdAt))
                     .font(.caption2)
-                    .foregroundStyle(AppTheme.textMuted)
+                    .foregroundStyle(AppTheme.textSecondary)
             }
             if let reason = reasonText(item.reason) {
                 Text(reason)
                     .font(.caption2)
                     .foregroundStyle(AppTheme.warning)
-                    .lineLimit(1)
+                    .appTextLineLimit(1)
             }
             if !item.userAgent.isEmpty {
                 Text(item.userAgent)
                     .font(.caption2)
-                    .foregroundStyle(AppTheme.textMuted)
-                    .lineLimit(1)
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .appTextLineLimit(1)
             }
         }
         .padding(.vertical, 2)

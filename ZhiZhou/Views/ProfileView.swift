@@ -8,7 +8,7 @@ struct ProfileView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let inset = max(24, (geometry.size.width - 600) / 2)
+            let inset = AppLayout.readableInset(for: geometry.size.width)
             List {
                 if let user = appState.user {
                     Section {
@@ -29,7 +29,7 @@ struct ProfileView: View {
                         showReaderSettings = true
                     } label: {
                         HStack(spacing: 12) {
-                            ProfileSettingsLabel("阅读设置", systemImage: "textformat")
+                            AppIconLabel("阅读设置", systemImage: "textformat")
                             Spacer(minLength: 12)
                             Image(systemName: "chevron.right")
                                 .font(.footnote.weight(.semibold))
@@ -49,7 +49,7 @@ struct ProfileView: View {
                                     .monospacedDigit()
                             }
                         } label: {
-                            ProfileSettingsLabel("离线阅读", systemImage: "arrow.down.circle")
+                            AppIconLabel("离线阅读", systemImage: "arrow.down.circle")
                         }
                     }
                     .accessibilityIdentifier("profile.offline")
@@ -62,19 +62,19 @@ struct ProfileView: View {
                     NavigationLink {
                         StorageManagerView()
                     } label: {
-                        ProfileSettingsLabel("存储管理", systemImage: "internaldrive")
+                        AppIconLabel("存储管理", systemImage: "internaldrive")
                     }
                     .listRowInsets(EdgeInsets(top: 28, leading: inset, bottom: 12, trailing: inset))
                     .listRowSeparator(.hidden, edges: .top)
                     NavigationLink {
                         ProfilePrivacyView()
                     } label: {
-                        ProfileSettingsLabel("隐私与诊断", systemImage: "hand.raised")
+                        AppIconLabel("隐私与诊断", systemImage: "hand.raised")
                     }
                     NavigationLink {
                         ProfileAboutView()
                     } label: {
-                        ProfileSettingsLabel("关于知舟", systemImage: "info.circle")
+                        AppIconLabel("关于知舟", systemImage: "info.circle")
                     }
                     .listRowSeparator(.hidden, edges: .bottom)
                 }
@@ -86,7 +86,7 @@ struct ProfileView: View {
                         NavigationLink {
                             AdminRootView()
                         } label: {
-                            ProfileSettingsLabel("管理后台", systemImage: "slider.horizontal.3")
+                            AppIconLabel("管理后台", systemImage: "slider.horizontal.3")
                         }
                     }
                     .listRowInsets(EdgeInsets(top: 28, leading: inset, bottom: 12, trailing: inset))
@@ -94,7 +94,7 @@ struct ProfileView: View {
                     .listRowBackground(Color.clear)
                 }
             }
-            .listStyle(.plain)
+            .appListStyle(.browsing, maximumWidth: nil)
             .contentMargins(.top, 8, for: .scrollContent)
             .scrollContentBackground(.hidden)
         }
@@ -137,35 +137,6 @@ struct ProfileIdentityRow: View {
         dynamicTypeSize.isAccessibilitySize
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: 14))
             : AnyLayout(HStackLayout(alignment: .center, spacing: 16))
-    }
-}
-
-struct ProfileSettingsLabel: View {
-    let title: String
-    let systemImage: String
-    @ScaledMetric(relativeTo: .body) private var symbolSize: CGFloat = 18
-
-    init(_ title: String, systemImage: String) {
-        self.title = title
-        self.systemImage = systemImage
-    }
-
-    var body: some View {
-        Label {
-            Text(title)
-                .font(.body)
-                .foregroundStyle(AppTheme.textPrimary)
-                .fixedSize(horizontal: false, vertical: true)
-        } icon: {
-            Image(systemName: systemImage)
-                .resizable()
-                .scaledToFit()
-                .symbolRenderingMode(.monochrome)
-                .foregroundStyle(AppTheme.textSecondary)
-                .frame(width: min(symbolSize, 22), height: min(symbolSize, 22))
-                .frame(width: 24, height: 24)
-                .accessibilityHidden(true)
-        }
     }
 }
 

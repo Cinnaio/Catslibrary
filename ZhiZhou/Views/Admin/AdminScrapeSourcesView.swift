@@ -39,7 +39,7 @@ struct AdminScrapeSourcesView: View {
             listContent
         }
         .scrollContentBackground(.hidden)
-        .pageBackground()
+        .appListStyle(.browsing)
         .navigationTitle("源管理")
         .navigationBarTitleDisplayMode(.large)
         .searchable(text: $searchText, prompt: "搜索主机 / 名称")
@@ -252,7 +252,7 @@ struct AdminScrapeSourcesView: View {
                     } label: {
                         Image(systemName: selectedHosts.contains(source.host) ? "checkmark.circle.fill" : "circle")
                             .font(.title3)
-                            .foregroundStyle(selectedHosts.contains(source.host) ? AppTheme.primary : AppTheme.textMuted)
+                            .foregroundStyle(selectedHosts.contains(source.host) ? AppTheme.primary : AppTheme.textSecondary)
                             .frame(width: 44, height: 44)
                     }
                     .buttonStyle(.plain)
@@ -263,7 +263,7 @@ struct AdminScrapeSourcesView: View {
                     .font(.subheadline)
                     .fontWeight(.medium)
                     .foregroundStyle(AppTheme.textPrimary)
-                    .lineLimit(2)
+                    .appTextLineLimit(2)
             }
             HStack(spacing: 10) {
                 if testingHost == source.host {
@@ -309,17 +309,17 @@ struct AdminScrapeSourcesView: View {
             Text(source.host)
                 .font(.caption)
                 .foregroundStyle(AppTheme.textSecondary)
-                .lineLimit(1)
+                .appTextLineLimit(1)
             HStack(spacing: 8) {
                 if let support = source.support, !support.isEmpty {
                     Text(support)
                         .font(.caption2)
-                        .foregroundStyle(AppTheme.textMuted)
+                        .foregroundStyle(AppTheme.textSecondary)
                 }
                 if let encoding = source.encoding, !encoding.isEmpty {
                     Text("编码 \(encoding)")
                         .font(.caption2)
-                        .foregroundStyle(AppTheme.textMuted)
+                        .foregroundStyle(AppTheme.textSecondary)
                 }
                 if let list = source.chapterList, !list.isEmpty {
                     Text("列表 ✓")
@@ -336,7 +336,7 @@ struct AdminScrapeSourcesView: View {
                 Text(error)
                     .font(.caption2)
                     .foregroundStyle(AppTheme.danger)
-                    .lineLimit(1)
+                    .appTextLineLimit(1)
             }
         }
         .padding(.vertical, 2)
@@ -358,7 +358,7 @@ struct AdminScrapeSourcesView: View {
         case "unreachable":
             AdminStatusBadge("不可达", tint: AppTheme.danger, systemImage: "xmark")
         default:
-            AdminStatusBadge("未检测", tint: AppTheme.textMuted, systemImage: "questionmark")
+            AdminStatusBadge("未检测", tint: AppTheme.textSecondary, systemImage: "questionmark")
         }
     }
 
@@ -628,7 +628,7 @@ private struct LegadoImportSheet: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .pageBackground()
+            .appListStyle(.settings)
             .navigationTitle("导入 Legado 书源")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

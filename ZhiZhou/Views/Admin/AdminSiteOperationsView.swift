@@ -17,7 +17,6 @@ struct AdminSiteOperationsView: View {
     @State private var errorMessage: String?
     @State private var announcement = ""
     @State private var savingAnnouncement = false
-    @State private var saveMessage: String?
     @State private var actionError: String?
     @FocusState private var focusedField: Bool
 
@@ -67,7 +66,7 @@ struct AdminSiteOperationsView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .pageBackground()
+        .appListStyle(.browsing)
         .scrollDismissesKeyboard(.interactively)
         .navigationTitle("站点运营")
         .navigationBarTitleDisplayMode(.large)
@@ -108,7 +107,7 @@ struct AdminSiteOperationsView: View {
                             Text(novel.title)
                                 .font(.subheadline)
                                 .foregroundStyle(AppTheme.textPrimary)
-                                .lineLimit(1)
+                                .appTextLineLimit(1)
                             Spacer()
                             Text("\(novel.views ?? 0) 次浏览")
                                 .font(.caption)
@@ -137,6 +136,7 @@ struct AdminSiteOperationsView: View {
                 .font(.subheadline)
                 .scrollContentBackground(.hidden)
                 .focused($focusedField)
+                .disabled(savingAnnouncement)
                 .appFieldSurface(cornerRadius: AppTheme.controlCornerRadius)
                 .padding(.vertical, 4)
             Button {
@@ -148,12 +148,10 @@ struct AdminSiteOperationsView: View {
                     Label("保存公告", systemImage: "checkmark.circle")
                 }
             }
-            .disabled(savingAnnouncement)
-            if let saveMessage {
-                Label(saveMessage, systemImage: "checkmark.circle.fill")
-                    .font(.subheadline)
-                    .foregroundStyle(AppTheme.success)
-            }
+            .disabled(savingAnnouncement || announcement.count > 240)
+            Text("\(announcement.count)/240")
+                .font(.footnote.monospacedDigit())
+                .foregroundStyle(announcement.count > 240 ? AppTheme.danger : AppTheme.textSecondary)
         } header: {
             Text("站点公告")
         } footer: {
@@ -227,12 +225,12 @@ struct AdminSiteOperationsView: View {
                                 .foregroundStyle(AppTheme.textPrimary)
                             Text("· \(point.visitors ?? 0) 访客")
                                 .font(.caption)
-                                .foregroundStyle(AppTheme.textMuted)
+                                .foregroundStyle(AppTheme.textSecondary)
                         }
                     }
                     Text("图表显示最近 14 天，明细列出最近 5 天。")
                         .font(.caption2)
-                        .foregroundStyle(AppTheme.textMuted)
+                        .foregroundStyle(AppTheme.textSecondary)
                 }
             }
             if let countries = traffic?.countries, !countries.isEmpty {
@@ -362,7 +360,7 @@ struct AdminSiteOperationsView: View {
                                     Text(novel.title)
                                         .font(.subheadline)
                                         .foregroundStyle(AppTheme.textPrimary)
-                                        .lineLimit(1)
+                                        .appTextLineLimit(1)
                                     Spacer()
                                     Text(AdminFormat.relativeTime(novel.updatedAt ?? 0))
                                         .font(.caption)
@@ -379,7 +377,7 @@ struct AdminSiteOperationsView: View {
                                 Text(category.category)
                                     .font(.subheadline)
                                     .foregroundStyle(AppTheme.textPrimary)
-                                    .lineLimit(1)
+                                    .appTextLineLimit(1)
                                 Spacer()
                                 Text("\(category.novels ?? 0) 本")
                                     .font(.caption)
@@ -395,7 +393,7 @@ struct AdminSiteOperationsView: View {
                                 Text(item.title)
                                     .font(.subheadline)
                                     .foregroundStyle(AppTheme.textPrimary)
-                                    .lineLimit(1)
+                                    .appTextLineLimit(1)
                                 Spacer()
                                 Text("\(item.score ?? 0)/6")
                                     .font(.caption)
@@ -461,12 +459,11 @@ struct AdminSiteOperationsView: View {
     private func saveAnnouncement() async {
         savingAnnouncement = true
         defer { savingAnnouncement = false }
-        saveMessage = nil
         do {
             let saved = String(announcement.prefix(240))
             _ = try await AdminAPI.setAnnouncement(saved)
             announcement = saved
-            saveMessage = "公告已保存"
+            AppFeedback.success("公告已保存")
         } catch {
             actionError = AppCopy.friendlyError(error)
         }

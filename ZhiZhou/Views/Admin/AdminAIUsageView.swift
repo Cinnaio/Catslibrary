@@ -79,11 +79,11 @@ struct AdminAIUsageView: View {
                         )
 
                         ForEach(Array(recentTrend.reversed().prefix(5))) { point in
-                            HStack(spacing: 8) {
+                            AppAdaptiveRow(spacing: 8) {
                                 Text(point.date)
                                     .font(.caption)
                                     .foregroundStyle(AppTheme.textSecondary)
-                                    .frame(width: 72, alignment: .leading)
+                                    .fixedSize(horizontal: false, vertical: true)
                                 ProgressView(
                                     value: Double(point.calls ?? 0),
                                     total: Double(maxTrendCalls)
@@ -96,16 +96,16 @@ struct AdminAIUsageView: View {
                                 if let tokens = point.promptTokens, tokens > 0 {
                                     Text("\(tokens) tok")
                                         .font(.caption2)
-                                        .foregroundStyle(AppTheme.textMuted)
+                                        .foregroundStyle(AppTheme.textSecondary)
                                 }
                                 Text(AdminFormat.aiCost(point.costMillicents))
                                     .font(.caption2)
-                                    .foregroundStyle(AppTheme.textMuted)
+                                    .foregroundStyle(AppTheme.textSecondary)
                             }
                         }
                         Text("图表显示最近 14 天，明细列出最近 5 天。")
                             .font(.caption2)
-                            .foregroundStyle(AppTheme.textMuted)
+                            .foregroundStyle(AppTheme.textSecondary)
                     }
                 }
 
@@ -137,7 +137,7 @@ struct AdminAIUsageView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .pageBackground()
+        .appListStyle(.browsing)
         .navigationTitle("用量与审计")
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await load() }
@@ -152,32 +152,32 @@ struct AdminAIUsageView: View {
 
     private func userRow(_ user: AiAuditUser) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 8) {
+            AppAdaptiveRow(spacing: 8) {
                 Text(user.displayName ?? user.username ?? user.id)
                     .font(.subheadline)
                     .fontWeight(.medium)
                     .foregroundStyle(AppTheme.textPrimary)
-                    .lineLimit(1)
+                    .appTextLineLimit(1)
                 Spacer()
                 Text("\(user.callCount ?? 0) 次")
                     .font(.caption)
                     .foregroundStyle(AppTheme.textSecondary)
             }
-            HStack(spacing: 8) {
+            AppAdaptiveRow(spacing: 8) {
                 Text("输入 \(user.totalPromptTokens ?? 0)")
                     .font(.caption2)
-                    .foregroundStyle(AppTheme.textMuted)
+                    .foregroundStyle(AppTheme.textSecondary)
                 Text("输出 \(user.totalCompletionTokens ?? 0)")
                     .font(.caption2)
-                    .foregroundStyle(AppTheme.textMuted)
+                    .foregroundStyle(AppTheme.textSecondary)
                 Text(AdminFormat.aiCost(user.totalCostMillicents))
                     .font(.caption2)
-                    .foregroundStyle(AppTheme.textMuted)
+                    .foregroundStyle(AppTheme.textSecondary)
             }
             if let last = user.lastCallAt, last > 0 {
                 Text("最近调用：\(AdminFormat.dateTime(last))")
                     .font(.caption2)
-                    .foregroundStyle(AppTheme.textMuted)
+                    .foregroundStyle(AppTheme.textSecondary)
             }
         }
         .padding(.vertical, 2)
@@ -185,7 +185,7 @@ struct AdminAIUsageView: View {
 
     private func callRow(_ call: AiAuditCall) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 6) {
+            AppAdaptiveRow(spacing: 6) {
                 AdminStatusBadge(
                     AdminFormat.aiTaskKind(call.type ?? ""),
                     tint: AppTheme.primary
@@ -193,41 +193,41 @@ struct AdminAIUsageView: View {
                 Text(call.username ?? call.displayName ?? "—")
                     .font(.subheadline)
                     .foregroundStyle(AppTheme.textPrimary)
-                    .lineLimit(1)
+                    .appTextLineLimit(1)
                 Spacer()
                 Text(AdminFormat.relativeTime(call.createdAt ?? 0))
                     .font(.caption2)
-                    .foregroundStyle(AppTheme.textMuted)
+                    .foregroundStyle(AppTheme.textSecondary)
             }
-            HStack(spacing: 8) {
+            AppAdaptiveRow(spacing: 8) {
                 if let model = call.model, !model.isEmpty {
                     Text(model)
                         .font(.caption2)
-                        .foregroundStyle(AppTheme.textMuted)
+                        .foregroundStyle(AppTheme.textSecondary)
                 }
                 Text("\(call.promptTokens ?? 0) → \(call.completionTokens ?? 0) tok")
                     .font(.caption2)
-                    .foregroundStyle(AppTheme.textMuted)
+                    .foregroundStyle(AppTheme.textSecondary)
                 if let count = call.imageCount, count > 0 {
                     Text("图 \(count)")
                         .font(.caption2)
-                        .foregroundStyle(AppTheme.textMuted)
+                        .foregroundStyle(AppTheme.textSecondary)
                 }
                 Text(AdminFormat.aiCost(call.costMillicents))
                     .font(.caption2)
-                    .foregroundStyle(AppTheme.textMuted)
+                    .foregroundStyle(AppTheme.textSecondary)
             }
             if let title = call.novelTitle, !title.isEmpty {
                 Text(title)
                     .font(.caption2)
                     .foregroundStyle(AppTheme.textSecondary)
-                    .lineLimit(1)
+                    .appTextLineLimit(1)
             }
             if let ip = call.ipAddress, !ip.isEmpty {
                 Text(ip)
                     .font(.caption2)
-                    .foregroundStyle(AppTheme.textMuted)
-                    .lineLimit(1)
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .appTextLineLimit(1)
             }
         }
         .padding(.vertical, 2)

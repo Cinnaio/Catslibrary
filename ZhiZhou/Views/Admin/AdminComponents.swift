@@ -87,10 +87,6 @@ private struct AdminDangerousOperationConfirmationModifier: ViewModifier {
 }
 
 extension View {
-    func accessibleSegmentedPicker() -> some View {
-        modifier(AccessibleSegmentedPickerModifier())
-    }
-
     func adminDangerousOperationConfirmation(
         _ operation: Binding<AdminDangerousOperation?>,
         onConfirm: @escaping (AdminDangerousOperation) -> Void,
@@ -101,19 +97,6 @@ extension View {
             onConfirm: onConfirm,
             onCancel: onCancel
         ))
-    }
-}
-
-private struct AccessibleSegmentedPickerModifier: ViewModifier {
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if dynamicTypeSize.isAccessibilitySize {
-            content.pickerStyle(.menu)
-        } else {
-            content.pickerStyle(.segmented)
-        }
     }
 }
 
@@ -133,9 +116,10 @@ struct AdminStatusBadge: View {
         HStack(spacing: 4) {
             Image(systemName: systemImage ?? "circle.fill")
                 .font(.system(size: systemImage == nil ? 6 : 9, weight: .semibold))
+                .accessibilityHidden(true)
             Text(title)
         }
-        .font(.caption2.weight(.medium))
+        .font(.caption.weight(.medium))
         .foregroundStyle(tint)
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
@@ -149,13 +133,14 @@ struct AdminInlineProgress: View {
     var body: some View {
         ProgressView()
             .controlSize(.small)
-            .frame(width: 32, height: 32)
+            .frame(width: AppLayout.minimumTouchTarget, height: AppLayout.minimumTouchTarget)
             .accessibilityLabel("处理中")
     }
 }
 
 /// 管理后台统一的紧凑筛选横条：多个筛选条件共享一行，超出窄屏时可横向滚动。
 struct AdminFilterBar<Content: View>: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     private let content: Content
 
     init(@ViewBuilder content: () -> Content) {
@@ -163,6 +148,23 @@ struct AdminFilterBar<Content: View>: View {
     }
 
     var body: some View {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 8) {
+                    content
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, AppLayout.pageInset)
+            } else {
+                filterScroll
+            }
+        }
+        .listRowInsets(EdgeInsets())
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+    }
+
+    private var filterScroll: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 content
@@ -171,13 +173,10 @@ struct AdminFilterBar<Content: View>: View {
             .padding(.vertical, 4)
         }
         .scrollClipDisabled()
-        .listRowInsets(EdgeInsets())
-        .listRowBackground(Color.clear)
-        .listRowSeparator(.hidden)
     }
 }
 
-/// 管理后台统一的筛选菜单按钮：保留原生 Menu 行为，视觉上收敛为轻量胶囊。
+/// 保留原生 Menu 行为，筛选条件使用实色轻量表面。
 struct AdminFilterMenu<Content: View>: View {
     let title: String
     let value: String
@@ -195,7 +194,7 @@ struct AdminFilterMenu<Content: View>: View {
         } label: {
             HStack(spacing: 6) {
                 Text("\(title) · \(value)")
-                    .lineLimit(1)
+                    .appTextLineLimit(1)
                 Image(systemName: "chevron.down")
                     .font(.caption2.weight(.semibold))
             }
@@ -203,11 +202,7 @@ struct AdminFilterMenu<Content: View>: View {
             .foregroundStyle(AppTheme.textPrimary)
             .padding(.horizontal, 12)
             .frame(minHeight: 44)
-            .appMaterialBackground(.thinMaterial, fallback: AppTheme.controlFill, in: Capsule())
-            .overlay(
-                Capsule()
-                    .strokeBorder(AppTheme.border.opacity(0.55), lineWidth: 0.8)
-            )
+            .background(AppTheme.controlFill, in: RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius))
         }
         .accessibilityLabel(title)
         .accessibilityValue(value)

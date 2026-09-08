@@ -1,5 +1,4 @@
 import SwiftUI
-import UIKit
 
 /// 站点公告：编辑并保存站点头部公告（GET/PUT /api/admin/site，最长 240 字）。
 struct AdminAnnouncementView: View {
@@ -8,6 +7,8 @@ struct AdminAnnouncementView: View {
     @State private var isSaving = false
     @State private var errorMessage: String?
     @State private var actionError: String?
+    @State private var savedText: String?
+    @FocusState private var isEditing: Bool
 
     private let maxLength = 240
 
@@ -25,51 +26,40 @@ struct AdminAnnouncementView: View {
                     Button("重试") { Task { await load() } }
                 }
             } else {
-                VStack(spacing: 0) {
-                    TextEditor(text: $text)
-                        .disabled(isSaving)
-                        .padding(10)
-                        .scrollContentBackground(.hidden)
-                        .appFieldSurface(cornerRadius: AppTheme.controlCornerRadius)
-                        .padding(.horizontal, 16)
-                        .padding(.top, 12)
-
-                    HStack {
-                        Text("\(text.count)/\(maxLength)")
-                            .font(.caption)
-                            .foregroundStyle(text.count > maxLength ? AppTheme.danger : AppTheme.textSecondary)
-                        Spacer()
-                        Button {
-                            Task { await save() }
-                        } label: {
-                            if isSaving {
-                                ProgressView()
-                                    .controlSize(.small)
-                            } else {
-                                Text("保存")
-                                    .fontWeight(.medium)
-                            }
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(AppTheme.primary)
-                        .disabled(isSaving || text.count > maxLength)
+                Form {
+                    Section("公告内容") {
+                        TextEditor(text: $text)
+                            .font(.body)
+                            .frame(minHeight: 180)
+                            .focused($isEditing)
+                            .disabled(isSaving)
+                            .accessibilityLabel("公告内容")
                     }
-                    .padding(16)
-
-                    Text("公告显示在网站头部与 App 首页，留空表示不展示。")
-                        .font(.caption)
-                        .foregroundStyle(AppTheme.textMuted)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 12)
-
-                    Spacer()
+                    Section {
+                        Text("\(text.count)/\(maxLength)")
+                            .font(.footnote.monospacedDigit())
+                            .foregroundStyle(text.count > maxLength ? AppTheme.danger : AppTheme.textSecondary)
+                    }
                 }
+                .appListStyle(.settings)
+                .scrollDismissesKeyboard(.interactively)
             }
         }
-        .pageBackground()
+        .pageBackground(.settings)
         .navigationTitle("站点公告")
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button {
+                    isEditing = false
+                    Task { await save() }
+                } label: {
+                    if isSaving { ProgressView() } else { Text("保存") }
+                }
+                .disabled(isLoading || isSaving || errorMessage != nil || text.count > maxLength || savedText == text)
+                .accessibilityLabel(isSaving ? "正在保存公告" : "保存公告")
+            }
+        }
         .task { await load() }
         .alert("操作未完成", isPresented: Binding(
             get: { actionError != nil },
@@ -86,6 +76,7 @@ struct AdminAnnouncementView: View {
         defer { isLoading = false }
         do {
             text = try await AdminAPI.announcement()
+            savedText = text
             errorMessage = nil
         } catch {
             errorMessage = AppCopy.friendlyError(error)
@@ -100,7 +91,8 @@ struct AdminAnnouncementView: View {
             let saved = String(text.prefix(maxLength))
             _ = try await AdminAPI.setAnnouncement(saved)
             text = saved
-            UINotificationFeedbackGenerator().notificationOccurred(.success)
+            savedText = saved
+            AppFeedback.success("公告已保存")
         } catch {
             actionError = AppCopy.friendlyError(error)
         }

@@ -14,7 +14,6 @@ struct AdminAIProviderView: View {
     @State private var errorMessage: String?
     @State private var saving = false
     @State private var savingScope: String?
-    @State private var saveMessage: String?
     @State private var testing = false
     @State private var testResult: AiTestResponse?
     @State private var actionError: String?
@@ -29,7 +28,7 @@ struct AdminAIProviderView: View {
     }
 
     var body: some View {
-        List {
+        Form {
             if isLoading {
                 Section {
                     ProgressView("加载中…")
@@ -100,7 +99,7 @@ struct AdminAIProviderView: View {
                                 Text(reply)
                                     .font(.caption)
                                     .foregroundStyle(AppTheme.textSecondary)
-                                    .lineLimit(3)
+                                    .appTextLineLimit(3)
                             }
                         } else {
                             Label("连接失败", systemImage: "xmark.octagon")
@@ -114,20 +113,13 @@ struct AdminAIProviderView: View {
                     }
                 }
 
-                if let saveMessage {
-                    Section {
-                        Label(saveMessage, systemImage: "checkmark.circle.fill")
-                            .font(.subheadline)
-                            .foregroundStyle(AppTheme.success)
-                    }
-                }
             }
         }
         .scrollContentBackground(.hidden)
         .disabled(saving)
-        .pageBackground()
+        .appListStyle(.settings)
         .navigationTitle("供应商配置")
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(.inline)
         .refreshable { await load() }
         .task { await load() }
         .alert("操作失败", isPresented: errorAlertBinding) {
@@ -234,7 +226,7 @@ struct AdminAIProviderView: View {
                 imageApiKey = ""
                 savedImage = [imageBaseUrl, imageModel]
             }
-            saveMessage = scope == "text" ? "文本供应商已保存" : "图像供应商已保存"
+            AppFeedback.success(scope == "text" ? "文本供应商已保存" : "图像供应商已保存")
         } catch {
             actionError = AppCopy.friendlyError(error)
         }

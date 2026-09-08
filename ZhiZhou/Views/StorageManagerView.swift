@@ -58,7 +58,7 @@ struct StorageManagerView: View {
                 if let lastError = fontStore.lastError {
                     Text(lastError)
                         .font(.footnote)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(AppTheme.danger)
                 }
             }
 
@@ -86,14 +86,15 @@ struct StorageManagerView: View {
             }
 
             Section("离线阅读") {
-                LabeledContent("已下载章节", value: "\(offlineStore.totalChapterCount) 章")
-
                 if !offlineStore.books.isEmpty {
                     NavigationLink {
                         OfflineReadingView()
                     } label: {
-                        Label("管理离线章节", systemImage: "arrow.down.circle.fill")
+                        LabeledContent("已下载章节", value: "\(offlineStore.totalChapterCount) 章")
                     }
+                    .accessibilityHint("管理已下载的离线章节")
+                } else {
+                    LabeledContent("已下载章节", value: "0 章")
                 }
             }
 
@@ -104,9 +105,7 @@ struct StorageManagerView: View {
                     .lineSpacing(3)
             }
         }
-        .listStyle(.insetGrouped)
-        .scrollContentBackground(.hidden)
-        .pageBackground()
+        .appListStyle(.settings)
         .navigationTitle("存储管理")
         .navigationBarTitleDisplayMode(.inline)
         .task {

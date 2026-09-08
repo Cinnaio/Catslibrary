@@ -49,7 +49,7 @@ struct ChangePasswordView: View {
         .autocorrectionDisabled()
         .scrollDismissesKeyboard(.interactively)
         .scrollContentBackground(.hidden)
-        .pageBackground()
+        .appListStyle(.settings)
         .navigationTitle("修改密码")
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(isSaving)

@@ -13,7 +13,7 @@ struct NovelCardView: View {
                     Text(novel.title)
                         .font(serifFont(.headline, .semibold))
                         .foregroundStyle(AppTheme.textPrimary)
-                        .lineLimit(2)
+                        .appTextLineLimit(2)
                     if novel.hasUpdate {
                         Text("更新")
                             .font(.caption2.weight(.semibold))
@@ -23,22 +23,11 @@ struct NovelCardView: View {
                 Text(novel.author.isEmpty ? "佚名" : novel.author)
                     .font(.subheadline)
                     .foregroundStyle(AppTheme.textSecondary)
-                    .lineLimit(1)
-                HStack(spacing: 7) {
-                    if let status = novel.statusLabel {
-                        Text(status)
-                    }
-                    if let category = novel.categories.first, !category.isEmpty {
-                        Text(category)
-                    }
-                    Text("\(novel.chapterCount) 章")
-                    if novel.updatedAt > 0 {
-                        Text("·")
-                        Text(AppFormat.relativeTime(novel.updatedAt))
-                    }
-                }
-                .font(.caption)
-                .foregroundStyle(AppTheme.textMuted)
+                    .appTextLineLimit(1)
+                Text(metadataText)
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(.vertical, 12)
@@ -58,6 +47,15 @@ struct NovelCardView: View {
         if novel.hasUpdate { parts.append("有更新") }
         parts.append("\(novel.chapterCount) 章")
         return parts.filter { !$0.isEmpty }.joined(separator: "，")
+    }
+
+    private var metadataText: String {
+        var parts: [String] = []
+        if let status = novel.statusLabel { parts.append(status) }
+        if let category = novel.categories.first, !category.isEmpty { parts.append(category) }
+        parts.append("\(novel.chapterCount) 章")
+        if novel.updatedAt > 0 { parts.append(AppFormat.relativeTime(novel.updatedAt)) }
+        return parts.joined(separator: " · ")
     }
 }
 
@@ -84,17 +82,16 @@ struct NovelCoverView: View {
     }
 }
 
-/// 分类/属性标签贴纸：语义表面 + 强调描边（跟随深浅色）
+/// 书籍属性使用轻量语义标签，更新状态用品牌色强调。
 struct ThemeTagModifier: ViewModifier {
     var emphasized: Bool = false
 
     func body(content: Content) -> some View {
         content
-            .font(.caption2.weight(emphasized ? .semibold : .regular))
-            .foregroundStyle(emphasized ? AppTheme.seal : AppTheme.primary)
+            .font(.caption.weight(emphasized ? .semibold : .regular))
+            .foregroundStyle(emphasized ? AppTheme.primary : AppTheme.textSecondary)
             .padding(.horizontal, 8)
-            .padding(.vertical, 5)
-            .background(AppTheme.primaryLight.opacity(0.86), in: Capsule())
-            .overlay(Capsule().strokeBorder(emphasized ? AppTheme.seal.opacity(0.35) : AppTheme.border, lineWidth: 0.75))
+            .padding(.vertical, 4)
+            .background(emphasized ? AppTheme.primaryLight : AppTheme.controlFill, in: Capsule())
     }
 }

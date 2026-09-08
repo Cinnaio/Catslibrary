@@ -9,7 +9,7 @@ struct AdminAITaskProgressView: View {
     var body: some View {
         TimelineView(.periodic(from: .now, by: task.isRunning ? 1 : 60)) { context in
             VStack(alignment: .leading, spacing: compact ? 7 : 10) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                AppAdaptiveRow {
                     Label {
                         Text(AdminFormat.aiTaskKind(task.kind ?? ""))
                     } icon: {
@@ -27,15 +27,15 @@ struct AdminAITaskProgressView: View {
                     )
                 }
 
-                HStack(spacing: 8) {
+                AppAdaptiveRow {
                     Text(progressLabel)
-                        .lineLimit(1)
+                        .appTextLineLimit(1)
 
                     Spacer(minLength: 8)
 
                     if let elapsed = elapsedLabel(at: context.date) {
                         Label(elapsed, systemImage: "clock")
-                            .lineLimit(1)
+                            .appTextLineLimit(1)
                     }
                 }
                 .font(.caption)
@@ -49,7 +49,7 @@ struct AdminAITaskProgressView: View {
                             .font(.system(size: 5, weight: .bold))
                             .padding(.top, 5)
                         Text(displayStep)
-                            .lineLimit(compact ? 2 : 3)
+                            .appTextLineLimit(compact ? 2 : 3)
                             .multilineTextAlignment(.leading)
                     }
                     .font(.caption)
@@ -60,7 +60,7 @@ struct AdminAITaskProgressView: View {
                     Text(error)
                         .font(.caption)
                         .foregroundStyle(AppTheme.danger)
-                        .lineLimit(compact ? 2 : 4)
+                        .appTextLineLimit(compact ? 2 : 4)
                 }
 
                 if showsPromptPreview, let prompt = promptPreview {
@@ -71,7 +71,7 @@ struct AdminAITaskProgressView: View {
                         Text(prompt)
                             .font(.caption)
                             .foregroundStyle(AppTheme.textSecondary)
-                            .lineLimit(compact ? 2 : 4)
+                            .appTextLineLimit(compact ? 2 : 4)
                             .lineSpacing(2)
                     }
                     .padding(10)

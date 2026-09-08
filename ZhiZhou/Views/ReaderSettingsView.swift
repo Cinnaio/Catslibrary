@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 阅读设置面板：保留所有即时生效选项，采用轻量原生表单式布局。
+/// 阅读偏好即时生效，面板表面独立于正文纸面。
 struct ReaderSettingsView: View {
     @Environment(ReaderSettingsStore.self) private var settings
     @Environment(\.dismiss) private var dismiss
@@ -15,322 +15,145 @@ struct ReaderSettingsView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    fontSizeSection
-                    sectionDivider
-
-                    segmentedSection(
-                        "翻页方式",
-                        values: [
-                            ("scroll", "上下滚动"),
-                            ("page", "左右翻页"),
-                        ],
-                        selected: settings.pageMode
-                    ) {
-                        settings.set("readerPageMode", $0)
-                        interactionFeedback &+= 1
+            Form {
+                Section("字号") {
+                    Stepper(value: Binding(
+                        get: { settings.fontSizeIndex },
+                        set: { settings.set("fontSize", String($0)) }
+                    ), in: 0...(settings.fontLevelCount - 1)) {
+                        Text("第 \(settings.fontSizeIndex + 1) 档 · \(Int(settings.bodyFontSize)) pt")
+                            .monospacedDigit()
+                            .fixedSize(horizontal: false, vertical: true)
                     }
-                    sectionDivider
+                    .accessibilityLabel("字号")
+                    .accessibilityValue("第 \(settings.fontSizeIndex + 1) 档，\(Int(settings.bodyFontSize)) 磅")
+                }
 
-                    segmentedSection(
-                        "字体",
-                        values: [
-                            ("serif", "衬线"),
-                            ("sans", "无衬线"),
-                        ],
-                        selected: settings.useSerif ? "serif" : "sans"
+                choiceSection("字体", values: [("serif", "衬线"), ("sans", "无衬线")], selection: Binding(
+                    get: { settings.useSerif ? "serif" : "sans" },
+                    set: { set("fontFamily", $0) }
+                ))
+                choiceSection("行距", values: [("1.75", "紧凑"), ("1.95", "标准"), ("2.15", "宽松")], selection: preference("readerLineHeight", default: "1.95"))
+                choiceSection("段间距", values: [("1.0", "紧凑"), ("1.4", "标准"), ("1.8", "宽松")], selection: preference("readerParagraphSpacing", default: "1.4"))
+
+                Section("纸面") {
+                    LazyVGrid(
+                        columns: [GridItem(.adaptive(minimum: dynamicTypeSize.isAccessibilitySize ? 120 : 72), spacing: 16)],
+                        spacing: 16
                     ) {
-                        settings.set("fontFamily", $0)
-                        interactionFeedback &+= 1
+                        ForEach(themes, id: \.id) { theme in
+                            themeButton(theme)
+                        }
                     }
-                    sectionDivider
+                    .padding(.vertical, 8)
+                }
 
-                    segmentedSection(
-                        "行距",
-                        values: [
-                            ("1.75", "紧凑"),
-                            ("1.95", "标准"),
-                            ("2.15", "宽松"),
-                        ],
-                        selected: settings.values["readerLineHeight"] ?? "1.95"
-                    ) {
-                        settings.set("readerLineHeight", $0)
-                        interactionFeedback &+= 1
-                    }
-                    sectionDivider
+                choiceSection("翻页方式", values: [("scroll", "上下滚动"), ("page", "左右翻页")], selection: Binding(
+                    get: { settings.pageMode },
+                    set: { set("readerPageMode", $0) }
+                ))
 
-                    segmentedSection(
-                        "段间距",
-                        values: [
-                            ("1.0", "紧凑"),
-                            ("1.4", "标准"),
-                            ("1.8", "宽松"),
-                        ],
-                        selected: settings.values["readerParagraphSpacing"] ?? "1.4"
-                    ) {
-                        settings.set("readerParagraphSpacing", $0)
-                        interactionFeedback &+= 1
-                    }
-                    sectionDivider
+                Section {
+                    Toggle("左右区域点击翻页", isOn: Binding(
+                        get: { settings.clickPagingEnabled },
+                        set: { set("readerClickPaging", $0 ? "on" : "off") }
+                    ))
+                    Toggle("阅读时保持屏幕常亮", isOn: Binding(
+                        get: { settings.wakeLockEnabled },
+                        set: { set("readerWakeLock", $0 ? "on" : "off") }
+                    ))
+                }
 
-                    themeSection
-                    sectionDivider
-
-                    wakeLockSection
-                    sectionDivider
-
-                    clickPagingSection
-
-                    if settings.hasPendingSync || settings.lastSyncError != nil {
-                        sectionDivider
-                        syncStatusSection
+                if settings.hasPendingSync || settings.lastSyncError != nil {
+                    Section {
+                        Label(
+                            settings.lastSyncError == nil
+                                ? "阅读设置等待同步"
+                                : "阅读设置同步失败，将自动重试",
+                            systemImage: settings.lastSyncError == nil ? "arrow.triangle.2.circlepath" : "exclamationmark.triangle"
+                        )
+                        .font(.footnote)
+                        .foregroundStyle(settings.lastSyncError == nil ? AppTheme.textSecondary : AppTheme.warning)
+                        .fixedSize(horizontal: false, vertical: true)
                     }
                 }
-                .padding(.horizontal, 24)
-                .padding(.top, 26)
-                .padding(.bottom, 32)
-                .frame(maxWidth: 520)
-                .frame(maxWidth: .infinity, alignment: .center)
             }
-            .background(.clear)
-            .scrollIndicators(.hidden)
+            .appListStyle(.settings)
+            .tint(AppTheme.primary)
             .navigationTitle("阅读设置")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(.hidden, for: .navigationBar)
             .sensoryFeedback(.selection, trigger: settings.fontSizeIndex)
             .sensoryFeedback(.selection, trigger: interactionFeedback)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .confirmationAction) {
                     Button("完成") { dismiss() }
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(AppTheme.primary)
-                        .buttonStyle(ScaleButtonStyle(pressedScale: 0.96))
                 }
             }
         }
+        .presentationBackground(AppTheme.background)
         .presentationDragIndicator(.visible)
     }
 
-    private var fontSizeSection: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Text("字号")
-                .font(.body)
-                .foregroundStyle(AppTheme.textSecondary)
-
-            settingsRowLayout {
-                Text("第 \(settings.fontSizeIndex + 1) 档 · \(Int(settings.bodyFontSize)) pt")
-                    .font(.body)
-                    .foregroundStyle(AppTheme.textPrimary)
-                    .monospacedDigit()
-                    .fixedSize(horizontal: false, vertical: true)
-
-                if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 8) }
-                fontStepper
-            }
-        }
-    }
-
-    private var settingsRowLayout: AnyLayout {
-        dynamicTypeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 14))
-            : AnyLayout(HStackLayout(spacing: 16))
-    }
-
-    private var fontStepper: some View {
-        GlassEffectContainer(spacing: 6) {
-            HStack(spacing: 6) {
-                fontStepButton(systemName: "minus", label: "减小字号", isDisabled: settings.fontSizeIndex == 0) {
-                    adjustFontSize(by: -1)
-                }
-
-                fontStepButton(systemName: "plus", label: "增大字号", isDisabled: settings.fontSizeIndex >= settings.fontLevelCount - 1) {
-                    adjustFontSize(by: 1)
-                }
-            }
-        }
-        .frame(height: 44)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("调整字号")
-    }
-
-    private func fontStepButton(
-        systemName: String,
-        label: String,
-        isDisabled: Bool,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: 17, weight: .medium))
-                .frame(width: 44, height: 44)
-                .contentShape(Capsule())
-        }
-        .foregroundStyle(isDisabled ? AppTheme.textMuted : AppTheme.primary)
-        .disabled(isDisabled)
-        .buttonStyle(AppGlassButtonStyle(glass: AppTheme.glassClear))
-        .accessibilityLabel(label)
-    }
-
-    private func segmentedSection(
+    private func choiceSection(
         _ title: String,
         values: [(String, String)],
-        selected: String,
-        onSelect: @escaping (String) -> Void
+        selection: Binding<String>
     ) -> some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Text(title)
-                .font(.body)
-                .foregroundStyle(AppTheme.textSecondary)
-
-            GlassEffectContainer(spacing: 6) {
-                optionLayout {
-                    ForEach(values, id: \.0) { value in
-                        let isSelected = value.0 == selected
-                        Button {
-                            guard !isSelected else { return }
-                            onSelect(value.0)
-                        } label: {
-                            Text(value.1)
-                                .font(.body.weight(isSelected ? .semibold : .regular))
-                                .foregroundStyle(isSelected ? AppTheme.textPrimary : AppTheme.textSecondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 8)
-                                .frame(maxWidth: .infinity)
-                                .frame(minHeight: 44)
-                                .contentShape(Capsule())
-                        }
-                        .buttonStyle(AppGlassButtonStyle(
-                            glass: isSelected ? AppTheme.glass : AppTheme.glassClear,
-                            fallback: isSelected ? AppTheme.primaryLight : AppTheme.controlFill
-                        ))
-                        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
-                        .accessibilityLabel(value.1)
-                    }
+        Section(title) {
+            Picker(title, selection: selection) {
+                ForEach(values, id: \.0) { value in
+                    Text(value.1).tag(value.0)
                 }
             }
-            .frame(minHeight: 44)
-            .accessibilityElement(children: .contain)
-            .accessibilityLabel(title)
+            .accessibleSegmentedPicker()
         }
     }
 
-    private var optionLayout: AnyLayout {
-        dynamicTypeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(spacing: 8))
-            : AnyLayout(HStackLayout(spacing: 6))
-    }
-
-    private var themeSection: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Text("纸面")
-                .font(.body)
-                .foregroundStyle(AppTheme.textSecondary)
-
-            LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: dynamicTypeSize.isAccessibilitySize ? 140 : 88), spacing: 10)],
-                spacing: 12
-            ) {
-                ForEach(themes, id: \.id) { theme in
-                    themeButton(theme)
-                }
-            }
-        }
-    }
-
-    private var wakeLockSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Toggle("阅读时保持屏幕常亮", isOn: Binding(
-                get: { settings.wakeLockEnabled },
-                set: {
-                    settings.set("readerWakeLock", $0 ? "on" : "off")
-                    interactionFeedback &+= 1
-                }
-            ))
-            .font(.body)
-            .foregroundStyle(AppTheme.textPrimary)
-            .tint(AppTheme.primary)
-
-            Text("与网页端同步阅读偏好。「系统」纸面会随系统深浅自动切换。")
-                .font(.footnote)
-                .foregroundStyle(AppTheme.textSecondary)
-                .lineSpacing(2)
-        }
-    }
-
-    private var clickPagingSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Toggle("左右区域点击翻页", isOn: Binding(
-                get: { settings.clickPagingEnabled },
-                set: {
-                    settings.set("readerClickPaging", $0 ? "on" : "off")
-                    interactionFeedback &+= 1
-                }
-            ))
-            .font(.body)
-            .foregroundStyle(AppTheme.textPrimary)
-            .tint(AppTheme.primary)
-
-            Text("关闭后，左右区域点按不会翻页；滚动模式下可从屏幕边缘向内滑动切换章节，翻页模式仍支持左右滑动。")
-                .font(.footnote)
-                .foregroundStyle(AppTheme.textSecondary)
-                .lineSpacing(2)
-        }
-    }
-
-    private var syncStatusSection: some View {
-        Label(
-            settings.lastSyncError == nil
-                ? "阅读设置将在回到前台时自动同步"
-                : "阅读设置同步失败，回到前台时会自动重试",
-            systemImage: settings.lastSyncError == nil ? "arrow.triangle.2.circlepath" : "exclamationmark.triangle"
+    private func preference(_ key: String, default fallback: String) -> Binding<String> {
+        Binding(
+            get: { settings.values[key] ?? fallback },
+            set: { set(key, $0) }
         )
-        .font(.footnote)
-        .foregroundStyle(settings.lastSyncError == nil ? AppTheme.textSecondary : AppTheme.seal)
-        .fixedSize(horizontal: false, vertical: true)
     }
 
-    private var sectionDivider: some View {
-        Divider()
-            .overlay(AppTheme.border.opacity(0.75))
-            .padding(.vertical, 20)
-    }
-
-    private func adjustFontSize(by delta: Int) {
-        let next = max(0, min(settings.fontSizeIndex + delta, settings.fontLevelCount - 1))
-        guard next != settings.fontSizeIndex else { return }
-        settings.set("fontSize", String(next))
+    private func set(_ key: String, _ value: String) {
+        settings.set(key, value)
+        interactionFeedback &+= 1
     }
 
     private func themeButton(_ theme: (id: String, title: String, swatch: Color)) -> some View {
         let selected = settings.normalizedTheme == theme.id
         return Button {
             guard !selected else { return }
-            settings.set("readerTheme", theme.id)
-            interactionFeedback &+= 1
+            set("readerTheme", theme.id)
         } label: {
-            VStack(spacing: 7) {
-                RoundedRectangle(cornerRadius: 9, style: .continuous)
+            VStack(spacing: 8) {
+                RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius)
                     .fill(theme.swatch)
-                    .frame(height: 30)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 9, style: .continuous)
-                            .strokeBorder(
-                                selected ? AppTheme.primary : AppTheme.border,
-                                lineWidth: selected ? 2 : 1
-                            )
-                    )
+                    .frame(height: 44)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius)
+                            .strokeBorder(selected ? AppTheme.primary : AppTheme.border, lineWidth: selected ? 2 : 1)
+                    }
+                    .overlay {
+                        if selected {
+                            Image(systemName: "checkmark")
+                                .font(.body.weight(.semibold))
+                                .foregroundStyle(AppTheme.primary)
+                                .padding(6)
+                                .background(AppTheme.canvas, in: Circle())
+                                .accessibilityHidden(true)
+                        }
+                    }
                 Text(theme.title)
-                    .font(.caption)
+                    .font(.subheadline)
                     .foregroundStyle(selected ? AppTheme.primary : AppTheme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .frame(maxWidth: .infinity, minHeight: 56)
+            .frame(maxWidth: .infinity, minHeight: AppLayout.minimumTouchTarget)
+            .contentShape(Rectangle())
         }
-        .buttonStyle(AppGlassButtonStyle(
-            glass: selected ? AppTheme.glass : AppTheme.glassClear,
-            fallback: selected ? AppTheme.primaryLight : AppTheme.controlFill
-        ))
+        .buttonStyle(.plain)
         .accessibilityAddTraits(selected ? [.isSelected] : [])
         .accessibilityLabel(theme.title)
     }

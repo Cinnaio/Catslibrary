@@ -15,6 +15,7 @@ private struct PendingAdminCoverUpload {
 /// 对齐 Web 端 admin ai AiCoverPanel（/api/ai/cover/*）。
 struct AdminAICoverView: View {
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @State private var coverPromptMaxCharacters = 2000
 
@@ -166,7 +167,7 @@ struct AdminAICoverView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .pageBackground()
+        .appListStyle(.settings)
         .navigationTitle("封面生成")
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await loadCandidates() }
@@ -271,7 +272,7 @@ struct AdminAICoverView: View {
                             .font(.subheadline)
                             .fontWeight(.medium)
                             .foregroundStyle(AppTheme.textPrimary)
-                            .lineLimit(1)
+                            .appTextLineLimit(1)
                         Text("\(novel.author.isEmpty ? "佚名" : novel.author) · \(novel.chapterCount) 章")
                             .font(.caption)
                             .foregroundStyle(AppTheme.textSecondary)
@@ -359,11 +360,17 @@ struct AdminAICoverView: View {
         }
     }
 
+    private var promptActionLayout: AnyLayout {
+        dynamicTypeSize >= .xxxLarge
+            ? AnyLayout(VStackLayout(spacing: 10))
+            : AnyLayout(HStackLayout(spacing: 10))
+    }
+
     private var promptControls: some View {
         VStack(alignment: .leading, spacing: 12) {
             promptEditor
 
-            HStack(spacing: 10) {
+            promptActionLayout {
                 Button {
                     Task { await generatePrompt() }
                 } label: {
@@ -373,8 +380,7 @@ struct AdminAICoverView: View {
                             ProgressView()
                         } else {
                             Label("AI 生成描述词", systemImage: "wand.and.stars")
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.82)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                         Spacer(minLength: 0)
                     }
@@ -391,11 +397,10 @@ struct AdminAICoverView: View {
                     HStack(spacing: 6) {
                         Spacer(minLength: 0)
                         Label("换一版方向", systemImage: "arrow.triangle.2.circlepath")
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.82)
+                            .fixedSize(horizontal: false, vertical: true)
                         Spacer(minLength: 0)
                     }
-                    .frame(minHeight: 38)
+                    .frame(minHeight: AppLayout.minimumTouchTarget)
                 }
                 .buttonStyle(.bordered)
                 .tint(AppTheme.primary)
@@ -447,11 +452,11 @@ struct AdminAICoverView: View {
                     .foregroundStyle(AppTheme.textSecondary)
                 Text("可选")
                     .font(.caption)
-                    .foregroundStyle(AppTheme.textMuted)
+                    .foregroundStyle(AppTheme.textSecondary)
                 Spacer()
                 Text("\(prompt.count)/\(coverPromptMaxCharacters)")
                     .font(.caption)
-                    .foregroundStyle(prompt.count >= coverPromptMaxCharacters ? AppTheme.warning : AppTheme.textMuted)
+                    .foregroundStyle(prompt.count >= coverPromptMaxCharacters ? AppTheme.warning : AppTheme.textSecondary)
             }
 
             ZStack(alignment: .topLeading) {
@@ -471,7 +476,7 @@ struct AdminAICoverView: View {
                 if prompt.isEmpty {
                     Text("留空自动生成，也可以直接编辑后用于生成")
                         .font(.subheadline)
-                        .foregroundStyle(AppTheme.textMuted)
+                        .foregroundStyle(AppTheme.textSecondary)
                         .padding(.top, 8)
                         .padding(.horizontal, 5)
                         .allowsHitTesting(false)
@@ -550,18 +555,18 @@ struct AdminAICoverView: View {
                 Spacer(minLength: 8)
                 Text(AdminFormat.relativeTime(candidate.createdAt ?? 0))
                     .font(.caption2)
-                    .foregroundStyle(AppTheme.textMuted)
-                    .lineLimit(1)
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .appTextLineLimit(1)
             }
 
-            HStack(alignment: .top, spacing: 12) {
+            candidateLayout {
                 Button {
                     previewCandidate = candidate
                 } label: {
                     candidateImage(candidate)
                         .frame(width: 96, height: 144)
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                        .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous))
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("候选封面")
@@ -572,14 +577,15 @@ struct AdminAICoverView: View {
                         Text(promptText)
                             .font(.caption)
                             .foregroundStyle(AppTheme.textSecondary)
-                            .lineLimit(3)
+                            .appTextLineLimit(3)
                             .lineSpacing(2)
 
                         Button {
                             promptCandidate = candidate
                         } label: {
                             Label("查看提示词", systemImage: "doc.text")
-                                .font(.caption.weight(.medium))
+                                .font(.subheadline.weight(.medium))
+                                .frame(minHeight: AppLayout.minimumTouchTarget)
                         }
                         .buttonStyle(.borderless)
                         .tint(AppTheme.primary)
@@ -590,11 +596,11 @@ struct AdminAICoverView: View {
                         VStack(alignment: .leading, spacing: 3) {
                             Text("\(label(for: metadata.stylePreset, in: styleOptions)) · \(label(for: metadata.composition, in: compositionOptions))")
                                 .font(.caption2.weight(.medium))
-                                .lineLimit(2)
+                                .appTextLineLimit(2)
                             if let direction = romanceDirectionLabel(metadata) {
                                 Text(direction)
                                     .font(.caption2)
-                                    .lineLimit(2)
+                                    .appTextLineLimit(2)
                             }
                         }
                         .foregroundStyle(AppTheme.primary)
@@ -610,11 +616,12 @@ struct AdminAICoverView: View {
                 ProgressView("处理中…")
                     .frame(maxWidth: .infinity, minHeight: 44)
             } else {
-                HStack(spacing: 12) {
+                promptActionLayout {
                     Button {
                         requestAdopt(candidate)
                     } label: {
                         Label("采纳", systemImage: "checkmark")
+                            .frame(minHeight: AppLayout.minimumTouchTarget)
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(AppTheme.primary)
@@ -625,6 +632,7 @@ struct AdminAICoverView: View {
                         pendingDiscard = candidate
                     } label: {
                         Label("弃用", systemImage: "trash")
+                            .frame(minHeight: AppLayout.minimumTouchTarget)
                     }
                     .buttonStyle(.bordered)
                     .tint(AppTheme.danger)
@@ -650,9 +658,15 @@ struct AdminAICoverView: View {
                 RoundedRectangle(cornerRadius: 8)
                     .fill(AppTheme.surface.opacity(0.6))
                 Image(systemName: "photo")
-                    .foregroundStyle(AppTheme.textMuted)
+                    .foregroundStyle(AppTheme.textSecondary)
             }
         }
+    }
+
+    private var candidateLayout: AnyLayout {
+        dynamicTypeSize >= .xxxLarge
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
+            : AnyLayout(HStackLayout(alignment: .top, spacing: 12))
     }
 
     /// data URL（data:image/png;base64,...）→ UIImage。
@@ -1165,7 +1179,7 @@ private struct NovelPickerSheet: View {
                             Text(novel.title)
                                 .font(.subheadline)
                                 .foregroundStyle(AppTheme.textPrimary)
-                                .lineLimit(1)
+                                .appTextLineLimit(1)
                             Text("\(novel.author.isEmpty ? "佚名" : novel.author) · \(novel.chapterCount) 章")
                                 .font(.caption)
                                 .foregroundStyle(AppTheme.textSecondary)
@@ -1181,7 +1195,7 @@ private struct NovelPickerSheet: View {
                 .buttonStyle(ScaleButtonStyle())
             }
             .scrollContentBackground(.hidden)
-            .pageBackground()
+            .appListStyle(.browsing)
             .navigationTitle("选择小说")
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $search, prompt: "搜索书名 / 作者")
@@ -1250,7 +1264,7 @@ private struct AdminCoverCandidatePreview: View {
                         Image(systemName: "xmark")
                             .font(.headline.weight(.semibold))
                             .foregroundStyle(.white)
-                            .frame(width: 40, height: 40)
+                            .frame(width: AppLayout.minimumTouchTarget, height: AppLayout.minimumTouchTarget)
                             .appMaterialBackground(.thinMaterial, fallback: Color.black.opacity(0.72), in: Circle())
                     }
                     .accessibilityLabel("关闭预览")
@@ -1259,11 +1273,6 @@ private struct AdminCoverCandidatePreview: View {
                 .padding(.top, 12)
 
                 Spacer()
-
-                Text("双击放大 · 捏合调整大小")
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.78))
-                    .padding(.bottom, 18)
             }
         }
         .statusBarHidden()
@@ -1286,7 +1295,7 @@ private struct AdminCoverPromptSheet: View {
                     .lineSpacing(4)
                     .padding(16)
             }
-            .background(Color(.systemGroupedBackground))
+            .pageBackground(.browsing)
             .navigationTitle("提示词")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

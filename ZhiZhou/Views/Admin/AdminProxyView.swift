@@ -12,7 +12,6 @@ struct AdminProxyView: View {
     @State private var isLoading = true
     @State private var errorMessage: String?
     @State private var saving = false
-    @State private var saveMessage: String?
     @State private var testUrl = ""
     @State private var testing = false
     @State private var testResult: ScrapeProxyTestResponse?
@@ -23,7 +22,7 @@ struct AdminProxyView: View {
     @State private var loadingRequest = false
 
     var body: some View {
-        List {
+        Form {
             if isLoading {
                 Section {
                     ProgressView("加载中…")
@@ -56,9 +55,9 @@ struct AdminProxyView: View {
         }
         .scrollContentBackground(.hidden)
         .disabled(saving)
-        .pageBackground()
+        .appListStyle(.settings)
         .navigationTitle("代理设置")
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(.inline)
         .refreshable { await load() }
         .task { await load() }
         .alert("操作失败", isPresented: errorAlertBinding) {
@@ -94,14 +93,9 @@ struct AdminProxyView: View {
             }
             .disabled(saving)
 
-            if let saveMessage {
-                Label(saveMessage, systemImage: "checkmark.circle.fill")
-                    .font(.subheadline)
-                    .foregroundStyle(AppTheme.success)
-            }
             LabeledContent("已配置") {
                 Text(configured ? "是" : "否")
-                    .foregroundStyle(configured ? AppTheme.success : AppTheme.textMuted)
+                    .foregroundStyle(configured ? AppTheme.success : AppTheme.textSecondary)
             }
             LabeledContent("配置来源") {
                 Text(sourceLabel(source))
@@ -119,7 +113,7 @@ struct AdminProxyView: View {
                     Text(noProxy)
                         .font(.caption)
                         .foregroundStyle(AppTheme.textSecondary)
-                        .lineLimit(2)
+                        .appTextLineLimit(2)
                 }
             }
         }
@@ -188,11 +182,11 @@ struct AdminProxyView: View {
             HStack(spacing: 6) {
                 Text(log.method ?? "GET")
                     .font(.caption2)
-                    .foregroundStyle(AppTheme.textMuted)
+                    .foregroundStyle(AppTheme.textSecondary)
                 Text(log.targetHost ?? log.target ?? "—")
                     .font(.subheadline)
                     .foregroundStyle(AppTheme.textPrimary)
-                    .lineLimit(1)
+                    .appTextLineLimit(1)
                 Spacer()
                 Text(log.ok == true ? "成功" : "失败")
                     .font(.caption2)
@@ -202,27 +196,27 @@ struct AdminProxyView: View {
                 if let status = log.status {
                     Text("HTTP \(status)")
                         .font(.caption2)
-                        .foregroundStyle(AppTheme.textMuted)
+                        .foregroundStyle(AppTheme.textSecondary)
                 }
                 if let duration = log.durationMs {
                     Text("\(duration) ms")
                         .font(.caption2)
-                        .foregroundStyle(AppTheme.textMuted)
+                        .foregroundStyle(AppTheme.textSecondary)
                 }
                 if let proxy = log.proxyHost, !proxy.isEmpty {
                     Text("via \(proxy)")
                         .font(.caption2)
-                        .foregroundStyle(AppTheme.textMuted)
+                        .foregroundStyle(AppTheme.textSecondary)
                 }
                 Text(AdminFormat.relativeTime(log.timestamp))
                     .font(.caption2)
-                    .foregroundStyle(AppTheme.textMuted)
+                    .foregroundStyle(AppTheme.textSecondary)
             }
             if let error = log.error, !error.isEmpty {
                 Text(error)
                     .font(.caption2)
                     .foregroundStyle(AppTheme.danger)
-                    .lineLimit(2)
+                    .appTextLineLimit(2)
             }
         }
         .padding(.vertical, 2)
@@ -275,7 +269,7 @@ struct AdminProxyView: View {
             configured = cfg.configured ?? false
             source = cfg.source ?? ""
             savedConfig = [proxyBase, proxyBypass]
-            saveMessage = "配置已保存"
+            AppFeedback.success("代理配置已保存")
         } catch {
             actionError = AppCopy.friendlyError(error)
         }

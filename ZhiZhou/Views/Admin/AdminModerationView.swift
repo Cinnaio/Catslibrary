@@ -123,7 +123,7 @@ struct AdminModerationView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .pageBackground()
+        .appListStyle(.browsing)
         .navigationTitle("内容审核")
         .navigationBarTitleDisplayMode(.large)
         .searchable(text: $search, prompt: "搜索内容 / 用户名 / 书名")
@@ -335,29 +335,29 @@ struct AdminModerationView: View {
 
     private func commentRow(_ comment: AdminComment) -> some View {
         VStack(alignment: .leading, spacing: 5) {
-            HStack(spacing: 8) {
+            AppAdaptiveRow(spacing: 8) {
                 Text(comment.userDisplayName.isEmpty ? comment.displayName : comment.userDisplayName)
                     .font(.subheadline)
                     .fontWeight(.medium)
                     .foregroundStyle(AppTheme.textPrimary)
-                    .lineLimit(1)
+                    .appTextLineLimit(1)
                 if comment.status == "hidden" {
                     statusBadge("已隐藏", tint: AppTheme.warning)
                 }
                 Spacer()
                 Text(AdminFormat.relativeTime(comment.createdAt))
                     .font(.caption2)
-                    .foregroundStyle(AppTheme.textMuted)
+                    .foregroundStyle(AppTheme.textSecondary)
             }
             Text(comment.commentText.isEmpty ? "（评论内容为空）" : comment.commentText)
                 .font(.callout)
                 .foregroundStyle(AppTheme.textPrimary)
-                .lineLimit(3)
-            HStack(spacing: 10) {
+                .appTextLineLimit(3)
+            AppAdaptiveRow(spacing: 10) {
                 Text(comment.novelTitle.isEmpty ? "未知书籍" : comment.novelTitle)
                     .font(.caption)
                     .foregroundStyle(AppTheme.textSecondary)
-                    .lineLimit(1)
+                    .appTextLineLimit(1)
                 if comment.reportCount > 0 {
                     Label("\(comment.reportCount)", systemImage: "flag.fill")
                         .font(.caption2)
@@ -391,7 +391,7 @@ struct AdminModerationView: View {
 
     private func reportRow(_ report: CommentReport) -> some View {
         VStack(alignment: .leading, spacing: 5) {
-            HStack(spacing: 8) {
+            AppAdaptiveRow(spacing: 8) {
                 Text(AdminFormat.reportReason(report.reason))
                     .font(.caption)
                     .padding(.horizontal, 8)
@@ -406,28 +406,28 @@ struct AdminModerationView: View {
                 Spacer()
                 Text(AdminFormat.relativeTime(report.createdAt))
                     .font(.caption2)
-                    .foregroundStyle(AppTheme.textMuted)
+                    .foregroundStyle(AppTheme.textSecondary)
             }
             Text(report.commentText.isEmpty ? "（评论已删除）" : report.commentText)
                 .font(.callout)
                 .foregroundStyle(AppTheme.textPrimary)
-                .lineLimit(3)
-            HStack(spacing: 10) {
+                .appTextLineLimit(3)
+            AppAdaptiveRow(spacing: 10) {
                 Text(report.novelTitle.isEmpty ? "未知书籍" : report.novelTitle)
                     .font(.caption)
                     .foregroundStyle(AppTheme.textSecondary)
-                    .lineLimit(1)
+                    .appTextLineLimit(1)
                 Spacer()
                 Text("举报：\(report.reporterDisplayName.isEmpty ? report.reporterUsername : report.reporterDisplayName)")
                     .font(.caption2)
-                    .foregroundStyle(AppTheme.textMuted)
-                    .lineLimit(1)
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .appTextLineLimit(1)
             }
             if !report.note.isEmpty {
                 Text("备注：\(report.note)")
                     .font(.caption2)
-                    .foregroundStyle(AppTheme.textMuted)
-                    .lineLimit(2)
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .appTextLineLimit(2)
             }
             actionRow {
                 Button("处理举报", systemImage: "checkmark.seal") {
@@ -442,35 +442,35 @@ struct AdminModerationView: View {
 
     private func thoughtRow(_ thought: AdminThought) -> some View {
         VStack(alignment: .leading, spacing: 5) {
-            HStack(spacing: 8) {
+            AppAdaptiveRow(spacing: 8) {
                 Text(thought.userDisplayName.isEmpty ? thought.displayName : thought.userDisplayName)
                     .font(.subheadline)
                     .fontWeight(.medium)
                     .foregroundStyle(AppTheme.textPrimary)
-                    .lineLimit(1)
+                    .appTextLineLimit(1)
                 if thought.status == "hidden" {
                     statusBadge("已隐藏", tint: AppTheme.warning)
                 }
                 Spacer()
                 Text(AdminFormat.relativeTime(thought.createdAt))
                     .font(.caption2)
-                    .foregroundStyle(AppTheme.textMuted)
+                    .foregroundStyle(AppTheme.textSecondary)
             }
             if !thought.selectedText.isEmpty {
                 Text("「\(thought.selectedText)」")
                     .font(.caption)
                     .foregroundStyle(AppTheme.textSecondary)
-                    .lineLimit(2)
+                    .appTextLineLimit(2)
             }
             Text(thought.thoughtText.isEmpty ? "（想法内容为空）" : thought.thoughtText)
                 .font(.callout)
                 .foregroundStyle(AppTheme.textPrimary)
-                .lineLimit(3)
-            HStack(spacing: 10) {
+                .appTextLineLimit(3)
+            AppAdaptiveRow(spacing: 10) {
                 Text("\(thought.novelTitle.isEmpty ? "未知书籍" : thought.novelTitle) · \(thought.chapterTitle.isEmpty ? "未知章节" : thought.chapterTitle)")
                     .font(.caption)
                     .foregroundStyle(AppTheme.textSecondary)
-                    .lineLimit(1)
+                    .appTextLineLimit(1)
                 if thought.reportCount > 0 {
                     Label("\(thought.reportCount)", systemImage: "flag.fill")
                         .font(.caption2)

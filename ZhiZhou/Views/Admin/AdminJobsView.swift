@@ -92,7 +92,7 @@ struct AdminJobsView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .pageBackground()
+        .appListStyle(.browsing)
         .navigationTitle("任务管理")
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await loadAll() }
@@ -152,7 +152,7 @@ struct AdminJobsView: View {
                     .font(.subheadline)
                     .fontWeight(.medium)
                     .foregroundStyle(AppTheme.textPrimary)
-                    .lineLimit(1)
+                    .appTextLineLimit(1)
                 Spacer()
                 AdminStatusBadge(
                     AdminFormat.jobStatus(job.status),
@@ -173,7 +173,7 @@ struct AdminJobsView: View {
                 Text(error)
                     .font(.caption2)
                     .foregroundStyle(AppTheme.danger)
-                    .lineLimit(2)
+                    .appTextLineLimit(2)
             }
             HStack {
                 Spacer()
@@ -224,7 +224,7 @@ struct AdminJobsView: View {
                 Text(log.targetTitle.isEmpty ? log.targetId : log.targetTitle)
                     .font(.subheadline)
                     .foregroundStyle(AppTheme.textPrimary)
-                    .lineLimit(1)
+                    .appTextLineLimit(1)
                 Text(typeLabel(log.type))
                     .font(.caption)
                     .foregroundStyle(AppTheme.textSecondary)
@@ -236,7 +236,7 @@ struct AdminJobsView: View {
                     .foregroundStyle(AppTheme.textSecondary)
                 Text(AdminFormat.dateTime(log.createdAt))
                     .font(.caption2)
-                    .foregroundStyle(AppTheme.textMuted)
+                    .foregroundStyle(AppTheme.textSecondary)
             }
         }
     }
@@ -399,7 +399,7 @@ struct AdminJobsView: View {
                 .monospacedDigit()
         }
         .font(.caption2)
-        .foregroundStyle(AppTheme.textMuted)
+        .foregroundStyle(AppTheme.textSecondary)
     }
 
     private func jobTint(_ status: String) -> Color {

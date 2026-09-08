@@ -23,7 +23,7 @@ struct RootView: View {
 struct BootView: View {
     var body: some View {
         ZStack {
-            Color(.systemGroupedBackground).ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
             VStack(spacing: 18) {
                 BrandMark()
 
@@ -43,18 +43,22 @@ struct BootView: View {
     }
 }
 
-/// 启动页与登录页共用的品牌标记，避免首次进入时尺寸、圆角和阴影发生跳变。
+/// 启动、登录与关于页面共用的品牌标记。
 struct BrandMark: View {
+    var size: CGFloat = 64
+
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(AppTheme.deepGradient)
+            RoundedRectangle(cornerRadius: size * 0.22, style: .continuous)
+                .fill(AppTheme.primaryLight)
             Image(systemName: "book.closed.fill")
-                .font(.title2)
-                .foregroundStyle(.white)
+                .resizable()
+                .scaledToFit()
+                .frame(width: size * 0.42, height: size * 0.42)
+                .foregroundStyle(AppTheme.primary)
         }
-        .frame(width: 76, height: 76)
-        .shadow(color: Color(light: "1E3B31", dark: "000000").opacity(0.16), radius: 10, y: 4)
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
     }
 }
 

@@ -47,10 +47,8 @@ struct ChapterListView: View {
                                         .foregroundStyle(chapter.order == currentOrder ? AppTheme.primary : Color.secondary)
                                         .frame(minWidth: 28, alignment: .trailing)
                                     Text(chapter.title)
-                                        .font(.subheadline)
-                                        .foregroundStyle(chapter.order == currentOrder ? AppTheme.primary : Color.primary)
-                                        .lineLimit(2)
-                                    Spacer()
+                                        .chapterTitleStyle()
+                                        .foregroundStyle(chapter.order == currentOrder ? AppTheme.primary : AppTheme.textPrimary)
                                     if chapter.order == currentOrder {
                                         Image(systemName: "checkmark")
                                             .font(.subheadline.weight(.bold))
@@ -58,6 +56,8 @@ struct ChapterListView: View {
                                             .accessibilityHidden(true)
                                     }
                                 }
+                                .frame(minHeight: AppLayout.minimumTouchTarget)
+                                .contentShape(Rectangle())
                             }
                             .buttonStyle(ScaleButtonStyle(pressedScale: 0.985))
                             .listRowBackground(
@@ -68,8 +68,7 @@ struct ChapterListView: View {
                             .id(chapter.id)
                             .accessibilityAddTraits(chapter.order == currentOrder ? [.isSelected] : [])
                         }
-                        .listStyle(.plain)
-                        .scrollContentBackground(.hidden)
+                        .appListStyle(.browsing)
                         .listRowSeparatorTint(AppTheme.border)
                         .onAppear {
                             scrollToCurrent(proxy)
@@ -81,6 +80,7 @@ struct ChapterListView: View {
                     }
                 }
             }
+            .pageBackground(.browsing)
             .navigationTitle("目录")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -97,6 +97,8 @@ struct ChapterListView: View {
             }
             .task { await load() }
         }
+        .presentationBackground(AppTheme.canvas)
+        .presentationDragIndicator(.visible)
     }
 
     private func load() async {

@@ -11,9 +11,12 @@ struct LoadErrorNotice: View {
                 .font(.footnote)
                 .foregroundStyle(AppTheme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
-            Button("重试", systemImage: "arrow.clockwise", action: retry)
-                .font(.subheadline.weight(.semibold))
-                .disabled(isLoading)
+            Button(action: retry) {
+                Label("重试", systemImage: "arrow.clockwise")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(minWidth: AppLayout.minimumTouchTarget, minHeight: AppLayout.minimumTouchTarget)
+            }
+            .disabled(isLoading)
         }
         .padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)

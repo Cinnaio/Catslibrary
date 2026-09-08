@@ -79,7 +79,7 @@ struct AdminMobileTelemetryView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .pageBackground()
+        .appListStyle(.browsing)
         .navigationTitle("客户端监控")
         .navigationBarTitleDisplayMode(.large)
         .searchable(text: $search, prompt: "搜索事件名、系统或设备")
@@ -124,7 +124,7 @@ struct AdminMobileTelemetryView: View {
                 Text(event.name)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(AppTheme.textPrimary)
-                    .lineLimit(1)
+                    .appTextLineLimit(1)
                 Spacer(minLength: 0)
                 statusMenu(for: event)
             }
@@ -136,7 +136,7 @@ struct AdminMobileTelemetryView: View {
             }
             Text("\(event.osVersion.isEmpty ? "系统未知" : event.osVersion) · \(event.deviceModel.isEmpty ? "设备未知" : event.deviceModel) · \(AdminFormat.relativeTime(event.receivedAt))")
                 .font(.caption)
-                .foregroundStyle(AppTheme.textMuted)
+                .foregroundStyle(AppTheme.textSecondary)
 
             DisclosureGroup("查看诊断属性") {
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -218,7 +218,7 @@ struct AdminMobileTelemetryView: View {
         switch status {
         case "open": return AppTheme.warning
         case "resolved": return AppTheme.success
-        case "ignored": return AppTheme.textMuted
+        case "ignored": return AppTheme.textSecondary
         default: return AppTheme.primary
         }
     }

@@ -36,7 +36,7 @@ struct NovelDetailView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let sideInset = max(20, (geometry.size.width - 640) / 2)
+            let sideInset = AppLayout.readableInset(for: geometry.size.width)
             ScrollViewReader { proxy in
                 detailList(sideInset: sideInset, compactHeader: geometry.size.height < 640)
                     .onChange(of: isSelectingOffline) { _, isSelecting in
@@ -54,7 +54,7 @@ struct NovelDetailView: View {
         .onPreferenceChange(OfflineChapterFramePreferenceKey.self) { frames in
             selectionRowFrames = frames
         }
-        .pageBackground()
+        .pageBackground(.browsing)
         .navigationTitle(currentNovel.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(horizontalSizeClass == .regular ? .visible : .hidden, for: .tabBar)
@@ -149,8 +149,7 @@ struct NovelDetailView: View {
             .listRowInsets(EdgeInsets(top: 10, leading: sideInset, bottom: 10, trailing: sideInset))
             .listRowBackground(Color.clear)
         }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
+        .appListStyle(.browsing, maximumWidth: nil)
         .scrollEdgeEffectStyle(.soft, for: .bottom)
     }
 
@@ -344,9 +343,8 @@ struct NovelDetailView: View {
 
             VStack(alignment: .leading, spacing: 5) {
                 Text(chapter.title)
-                    .font(.body)
+                    .chapterTitleStyle()
                     .foregroundStyle(AppTheme.textPrimary)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
                 HStack(spacing: 8) {
                     Text("\(chapter.wordCount) 字")
                     if chapter.id == progress?.chapterId {

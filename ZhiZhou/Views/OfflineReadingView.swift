@@ -39,6 +39,31 @@ struct OfflineReadingView: View {
 
                 ForEach(offlineStore.books) { book in
                     Section {
+                        Button {
+                            if isSelectingBooks {
+                                toggleBookSelection(book.id)
+                            } else {
+                                toggleBook(book.id)
+                            }
+                        } label: {
+                            bookHeader(book, selectionMode: isSelectingBooks)
+                        }
+                        .buttonStyle(ScaleButtonStyle(pressedScale: 0.985))
+                        .listRowSeparator(.hidden)
+                        .accessibilityLabel("\(book.novel.title)，\(displayAuthor(for: book.novel))")
+                        .accessibilityValue(
+                            isSelectingBooks
+                                ? selectedBookIDs.contains(book.id) ? "已选择" : "未选择"
+                                : expandedBookIDs.contains(book.id)
+                                    ? "已展开，\(book.chapters.count)章"
+                                    : "已收起，\(book.chapters.count)章"
+                        )
+                        .accessibilityHint(
+                            isSelectingBooks
+                                ? "点按选择或取消选择这本书"
+                                : "点按展开或收起章节"
+                        )
+
                         if !isSelectingBooks && expandedBookIDs.contains(book.id) {
                             ForEach(book.chapters) { chapter in
                                 NavigationLink {
@@ -70,37 +95,12 @@ struct OfflineReadingView: View {
                                 }
                             }
                         }
-                    } header: {
-                        Button {
-                            if isSelectingBooks {
-                                toggleBookSelection(book.id)
-                            } else {
-                                toggleBook(book.id)
-                            }
-                        } label: {
-                            bookHeader(book, selectionMode: isSelectingBooks)
-                        }
-                        .buttonStyle(ScaleButtonStyle(pressedScale: 0.985))
-                        .accessibilityLabel("\(book.novel.title)，\(displayAuthor(for: book.novel))")
-                        .accessibilityValue(
-                            isSelectingBooks
-                                ? selectedBookIDs.contains(book.id) ? "已选择" : "未选择"
-                                : expandedBookIDs.contains(book.id)
-                                    ? "已展开，\(book.chapters.count)章"
-                                    : "已收起，\(book.chapters.count)章"
-                        )
-                        .accessibilityHint(
-                            isSelectingBooks
-                                ? "点按选择或取消选择这本书"
-                                : "点按展开或收起章节"
-                        )
                     }
-                    .frostedRowBackground()
+                    .listRowBackground(AppTheme.canvas)
                 }
             }
         }
-        .scrollContentBackground(.hidden)
-        .pageBackground()
+        .appListStyle(.browsing)
         .navigationTitle("离线阅读")
         .navigationBarTitleDisplayMode(.inline)
         .sensoryFeedback(.selection, trigger: interactionFeedback)
@@ -295,7 +295,7 @@ struct OfflineReadingView: View {
                     Text(book.novel.title)
                         .font(serifFont(.headline, .semibold))
                         .foregroundStyle(AppTheme.textPrimary)
-                        .lineLimit(2)
+                        .appTextLineLimit(2)
                     Spacer(minLength: 0)
                     if selectionMode {
                         Image(
@@ -307,7 +307,7 @@ struct OfflineReadingView: View {
                         .foregroundStyle(
                             selectedBookIDs.contains(book.id)
                                 ? AppTheme.primary
-                                : AppTheme.textMuted
+                                : AppTheme.textSecondary
                         )
                         .accessibilityHidden(true)
                     } else {
@@ -325,7 +325,7 @@ struct OfflineReadingView: View {
                 Text(displayAuthor(for: book.novel))
                     .font(.subheadline)
                     .foregroundStyle(AppTheme.textSecondary)
-                    .lineLimit(1)
+                    .appTextLineLimit(1)
 
                 HStack(spacing: 6) {
                     if let status = book.novel.statusLabel {
@@ -341,14 +341,14 @@ struct OfflineReadingView: View {
                 if !book.novel.categories.isEmpty {
                     Text(book.novel.categories.prefix(2).joined(separator: " · "))
                         .font(.caption)
-                        .foregroundStyle(AppTheme.textMuted)
-                        .lineLimit(1)
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .appTextLineLimit(1)
                 }
 
                 Text(savedProgressText(for: book))
                     .font(.caption)
                     .foregroundStyle(AppTheme.textSecondary)
-                    .lineLimit(1)
+                    .appTextLineLimit(1)
             }
         }
         .padding(.vertical, 10)
@@ -456,14 +456,13 @@ struct OfflineReadingView: View {
         HStack(spacing: 12) {
             Text("\(chapter.order)")
                 .font(.caption.monospacedDigit())
-                .foregroundStyle(AppTheme.textMuted)
+                .foregroundStyle(AppTheme.textSecondary)
                 .frame(minWidth: 28, alignment: .trailing)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(chapter.title)
-                    .font(.subheadline)
+                    .chapterTitleStyle()
                     .foregroundStyle(AppTheme.textPrimary)
-                    .lineLimit(2)
                 Text("\(chapter.wordCount) 字 · 离线可读")
                     .font(.caption)
                     .foregroundStyle(AppTheme.textSecondary)

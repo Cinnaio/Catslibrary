@@ -93,7 +93,7 @@ struct AdminNovelsView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .pageBackground()
+        .appListStyle(.browsing)
         .navigationTitle("小说管理")
         .navigationBarTitleDisplayMode(.large)
         .searchable(text: $searchText, prompt: "搜索书名 / 作者")
@@ -168,7 +168,7 @@ struct AdminNovelsView: View {
                     RoundedRectangle(cornerRadius: 6)
                         .fill(AppTheme.surface.opacity(0.6))
                     Image(systemName: "book")
-                        .foregroundStyle(AppTheme.textMuted)
+                        .foregroundStyle(AppTheme.textSecondary)
                 }
             }
             .frame(width: 56, height: 72)
@@ -180,7 +180,7 @@ struct AdminNovelsView: View {
                         .font(.subheadline)
                         .fontWeight(.medium)
                         .foregroundStyle(AppTheme.textPrimary)
-                        .lineLimit(1)
+                        .appTextLineLimit(1)
                     if novel.hasUpdate {
                         AdminStatusBadge("有更新", tint: AppTheme.primary, systemImage: "arrow.triangle.2.circlepath")
                     }
@@ -188,11 +188,11 @@ struct AdminNovelsView: View {
                 Text(novel.author)
                     .font(.caption)
                     .foregroundStyle(AppTheme.textSecondary)
-                    .lineLimit(1)
+                    .appTextLineLimit(1)
                 HStack(spacing: 8) {
                     Text("\(novel.chapterCount) 章")
                         .font(.caption2)
-                        .foregroundStyle(AppTheme.textMuted)
+                        .foregroundStyle(AppTheme.textSecondary)
                     if novel.remoteChapterCount > novel.chapterCount {
                         Text("远端 \(novel.remoteChapterCount)")
                             .font(.caption2)
@@ -201,7 +201,7 @@ struct AdminNovelsView: View {
                     if let label = novel.statusLabel {
                         Text(label)
                             .font(.caption2)
-                            .foregroundStyle(AppTheme.textMuted)
+                            .foregroundStyle(AppTheme.textSecondary)
                     }
                 }
             }
@@ -376,7 +376,7 @@ private struct NovelEditSheet: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .pageBackground()
+            .appListStyle(.settings)
             .navigationTitle(isEditing ? "编辑小说" : "新建小说")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

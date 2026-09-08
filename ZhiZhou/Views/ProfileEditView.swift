@@ -64,7 +64,7 @@ struct ProfileEditView: View {
         .disabled(isSaving)
         .scrollDismissesKeyboard(.interactively)
         .scrollContentBackground(.hidden)
-        .pageBackground()
+        .appListStyle(.settings)
         .navigationTitle("个人资料")
         .navigationBarTitleDisplayMode(.inline)
         .interactiveDismissDisabled(hasChanges || isSaving || appState.isUpdatingAccount)
@@ -172,7 +172,7 @@ private struct ProfileAvatarEditor: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .pageBackground()
+        .appListStyle(.settings)
         .navigationTitle("头像")
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(isSaving)

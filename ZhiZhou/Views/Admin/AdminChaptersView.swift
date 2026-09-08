@@ -35,7 +35,7 @@ struct AdminChaptersView: View {
                                 .font(.subheadline)
                                 .fontWeight(.medium)
                                 .foregroundStyle(AppTheme.textPrimary)
-                                .lineLimit(1)
+                                .appTextLineLimit(1)
                             Text("\(selectedNovel.author) · \(selectedNovel.chapterCount) 章")
                                 .font(.caption)
                                 .foregroundStyle(AppTheme.textSecondary)
@@ -99,7 +99,7 @@ struct AdminChaptersView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .pageBackground()
+        .appListStyle(.browsing)
         .navigationTitle("章节管理")
         .navigationBarTitleDisplayMode(.large)
         .searchable(text: $chapterSearch, prompt: "搜索章节标题")
@@ -186,16 +186,13 @@ struct AdminChaptersView: View {
     private func chapterRow(_ chapter: ChapterMeta) -> some View {
         HStack(spacing: 10) {
             Text("\(chapter.order)")
-                .font(.caption)
-                .foregroundStyle(AppTheme.textMuted)
-                .frame(width: 34, alignment: .center)
-                .padding(.vertical, 3)
-                .background(AppTheme.surface.opacity(0.6), in: RoundedRectangle(cornerRadius: 5))
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(AppTheme.textSecondary)
+                .frame(minWidth: 28, alignment: .trailing)
             VStack(alignment: .leading, spacing: 3) {
                 Text(chapter.title)
-                    .font(.subheadline)
+                    .chapterTitleStyle()
                     .foregroundStyle(AppTheme.textPrimary)
-                    .lineLimit(1)
                 Text("\(chapter.wordCount) 字 · \(AdminFormat.relativeTime(chapter.createdAt))")
                     .font(.caption)
                     .foregroundStyle(AppTheme.textSecondary)
@@ -385,10 +382,10 @@ private struct SourceSyncSheet: View {
                         }
                         if !preview.unmatchedSource.isEmpty || !preview.unmatchedLocal.isEmpty {
                             Text("未匹配：源站 \(preview.unmatchedSource.count) 章，本地 \(preview.unmatchedLocal.count) 节")
-                                .foregroundStyle(.orange)
+                                .foregroundStyle(AppTheme.warning)
                         }
                         ForEach(preview.warnings, id: \.self) { warning in
-                            Text(warning).foregroundStyle(.orange)
+                            Text(warning).foregroundStyle(AppTheme.warning)
                         }
                     } header: {
                         Text("同步预览")
@@ -409,7 +406,7 @@ private struct SourceSyncSheet: View {
                                     Spacer()
                                     Text(metadataValue(key, preview: preview).isEmpty ? "未识别" : metadataValue(key, preview: preview))
                                         .foregroundStyle(AppTheme.textSecondary)
-                                        .lineLimit(1)
+                                        .appTextLineLimit(1)
                                 }
                             }
                             .disabled(metadataValue(key, preview: preview).isEmpty)
@@ -499,6 +496,7 @@ private struct SourceSyncSheet: View {
                     }
                 }
             }
+            .appListStyle(.settings)
             .navigationTitle("源站同步")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -536,7 +534,7 @@ private struct SourceSyncSheet: View {
         HStack(alignment: .top, spacing: 10) {
             Text("\(change.localOrder).")
                 .font(.footnote.monospacedDigit())
-                .foregroundStyle(AppTheme.textMuted)
+                .foregroundStyle(AppTheme.textSecondary)
                 .frame(width: 30, alignment: .trailing)
 
             VStack(alignment: .leading, spacing: 5) {
@@ -547,7 +545,7 @@ private struct SourceSyncSheet: View {
                     Text(change.oldTitle)
                         .font(.subheadline)
                         .foregroundStyle(AppTheme.textPrimary)
-                        .lineLimit(2)
+                        .appTextLineLimit(2)
                 }
 
                 HStack(alignment: .top, spacing: 6) {
@@ -558,7 +556,7 @@ private struct SourceSyncSheet: View {
                     Text(change.newTitle)
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(AppTheme.textPrimary)
-                        .lineLimit(2)
+                        .appTextLineLimit(2)
                 }
 
                 if change.partCount > 1 {
@@ -572,7 +570,7 @@ private struct SourceSyncSheet: View {
                 } else {
                     Text("低置信度 · 请确认后应用")
                         .font(.caption)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(AppTheme.warning)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -640,7 +638,7 @@ private struct SourceSyncSheet: View {
             if let error = bucket.error, !error.isEmpty {
                 Text(error)
                     .font(.footnote)
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(AppTheme.warning)
             }
 
             if bucket.results.isEmpty {
@@ -695,7 +693,7 @@ private struct SourceSyncSheet: View {
                         Text(candidate.title.isEmpty ? "未识别书名" : candidate.title)
                             .font(.body.weight(.medium))
                             .foregroundStyle(AppTheme.textPrimary)
-                            .lineLimit(2)
+                            .appTextLineLimit(2)
                             .layoutPriority(1)
 
                         if !candidate.status.isEmpty {
@@ -711,7 +709,7 @@ private struct SourceSyncSheet: View {
                     Text(candidate.author.isEmpty ? "作者未识别" : candidate.author)
                         .font(.footnote)
                         .foregroundStyle(AppTheme.textSecondary)
-                        .lineLimit(1)
+                        .appTextLineLimit(1)
                 }
 
                 Spacer(minLength: 8)
@@ -871,7 +869,7 @@ private struct NovelPickerSheet: View {
                                         Text(novel.title)
                                             .font(.subheadline)
                                             .foregroundStyle(AppTheme.textPrimary)
-                                            .lineLimit(1)
+                                            .appTextLineLimit(1)
                                         Text("\(novel.author) · \(novel.chapterCount) 章")
                                             .font(.caption)
                                             .foregroundStyle(AppTheme.textSecondary)
@@ -879,7 +877,7 @@ private struct NovelPickerSheet: View {
                                     Spacer()
                                     Image(systemName: "chevron.right")
                                         .font(.caption)
-                                        .foregroundStyle(AppTheme.textMuted)
+                                        .foregroundStyle(AppTheme.textSecondary)
                                 }
                             }
                         }
@@ -887,7 +885,7 @@ private struct NovelPickerSheet: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .pageBackground()
+            .appListStyle(.browsing)
             .navigationTitle("选择小说")
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $query, prompt: "搜索书名 / 作者")
@@ -948,7 +946,7 @@ private struct ChapterEditSheet: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .pageBackground()
+            .appListStyle(.settings)
             .navigationTitle(isEditing ? "编辑章节" : "新建章节")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

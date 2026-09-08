@@ -73,7 +73,7 @@ struct AdminAITasksView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .pageBackground()
+        .appListStyle(.browsing)
         .navigationTitle("AI 任务")
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await load() }
@@ -137,7 +137,7 @@ struct AdminAITasksView: View {
                 Text(prompt)
                     .font(.caption2)
                     .foregroundStyle(AppTheme.textSecondary)
-                    .lineLimit(1)
+                    .appTextLineLimit(1)
             }
             HStack {
                 Spacer(minLength: 8)

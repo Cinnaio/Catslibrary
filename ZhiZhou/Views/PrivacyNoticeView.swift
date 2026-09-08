@@ -23,7 +23,7 @@ struct PrivacyNoticeView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .pageBackground()
+        .appListStyle(.browsing)
         .navigationTitle("隐私说明")
         .navigationBarTitleDisplayMode(.inline)
     }

@@ -2,6 +2,7 @@ import SwiftUI
 
 /// 运行参数：前情提要 / 回顾总结 / AI 创作 / 封面 / 运维审计 全部可编辑项。
 struct AdminAISettingsView: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     // 前情提要
     @State private var recapEnabled = false
     @State private var dailyQuota = 20
@@ -45,7 +46,6 @@ struct AdminAISettingsView: View {
     private var hasUnsavedChanges: Bool {
         savedFingerprint.map { $0 != settingsFingerprint } ?? false
     }
-    @State private var saveMessage: String?
     @State private var actionError: String?
     @FocusState private var focusedField: String?
     @State private var recapExpanded = true
@@ -97,7 +97,7 @@ struct AdminAISettingsView: View {
     }
 
     var body: some View {
-        List {
+        Form {
             if isLoading {
                 Section {
                     ProgressView("加载中…")
@@ -117,60 +117,38 @@ struct AdminAISettingsView: View {
                     .listRowSeparator(.hidden)
                 }
             } else {
-                Section {
-                    Label(
-                        hasUnsavedChanges
-                            ? "有未保存的修改，点击底部按钮后统一生效。"
-                            : "修改参数后，点击底部按钮统一生效。",
-                        systemImage: hasUnsavedChanges ? "exclamationmark.circle" : "info.circle"
-                    )
-                        .font(.caption)
-                        .foregroundStyle(hasUnsavedChanges ? AppTheme.warning : AppTheme.textSecondary)
-                    Text("温度范围为 0–2；Tokens 表示模型输出上限；数字输入会自动限制在允许范围内。")
-                        .font(.caption)
-                        .foregroundStyle(AppTheme.textSecondary)
+                if hasUnsavedChanges {
+                    Section {
+                        Label("有未保存的修改", systemImage: "exclamationmark.circle")
+                            .font(.footnote)
+                            .foregroundStyle(AppTheme.warning)
+                    }
                 }
                 recapSection
                 catchupSection
                 writingSection
                 coverSection
                 opsSection
-                Section {
-                    Button {
-                        Task { await save() }
-                    } label: {
-                        if saving {
-                            HStack {
-                                Spacer()
-                                ProgressView()
-                                Spacer()
-                            }
-                        } else {
-                            Label("保存全部参数", systemImage: "checkmark.circle")
-                        }
-                    }
-                    .disabled(saving || !hasUnsavedChanges)
-                    if let saveMessage {
-                        Label(saveMessage, systemImage: "checkmark.circle.fill")
-                            .font(.subheadline)
-                            .foregroundStyle(AppTheme.success)
-                    }
-                }
             }
         }
-        .scrollContentBackground(.hidden)
+        .appListStyle(.settings)
         .disabled(saving)
-        .pageBackground()
         .scrollDismissesKeyboard(.interactively)
         .navigationTitle("运行参数")
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(.inline)
         .refreshable { await load() }
         .task { await load() }
-        .onChange(of: settingsFingerprint) { _, _ in
-            guard !isLoading, !saving else { return }
-            saveMessage = nil
-        }
         .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button {
+                    focusedField = nil
+                    Task { await save() }
+                } label: {
+                    if saving { ProgressView() } else { Text("保存") }
+                }
+                .disabled(saving || isLoading || errorMessage != nil || !hasUnsavedChanges)
+                .accessibilityLabel(saving ? "正在保存全部参数" : "保存全部参数")
+            }
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer()
                 Button("完成") { focusedField = nil }
@@ -279,32 +257,36 @@ struct AdminAISettingsView: View {
     }
 
     private func row(_ label: String, value: Binding<Int>, range: ClosedRange<Int>) -> some View {
-        HStack {
+        numericRowLayout {
             Text(label)
                 .foregroundStyle(AppTheme.textPrimary)
-                .lineLimit(2)
-            Spacer()
+                .fixedSize(horizontal: false, vertical: true)
+            if !dynamicTypeSize.isAccessibilitySize { Spacer() }
             TextField(label, value: bounded(value, to: range), format: .number)
                 .keyboardType(.numberPad)
-                .multilineTextAlignment(.trailing)
+                .multilineTextAlignment(dynamicTypeSize.isAccessibilitySize ? .leading : .trailing)
                 .foregroundStyle(AppTheme.textSecondary)
-                .frame(maxWidth: 120)
+                .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : 160)
+                .frame(minHeight: AppLayout.minimumTouchTarget)
                 .focused($focusedField, equals: label)
+                .accessibilityLabel(label)
         }
     }
 
     private func row(_ label: String, value: Binding<Double>, range: ClosedRange<Double>) -> some View {
-        HStack {
+        numericRowLayout {
             Text(label)
                 .foregroundStyle(AppTheme.textPrimary)
-                .lineLimit(2)
-            Spacer()
+                .fixedSize(horizontal: false, vertical: true)
+            if !dynamicTypeSize.isAccessibilitySize { Spacer() }
             TextField(label, value: bounded(value, to: range), format: .number)
                 .keyboardType(.decimalPad)
-                .multilineTextAlignment(.trailing)
+                .multilineTextAlignment(dynamicTypeSize.isAccessibilitySize ? .leading : .trailing)
                 .foregroundStyle(AppTheme.textSecondary)
-                .frame(maxWidth: 120)
+                .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : 160)
+                .frame(minHeight: AppLayout.minimumTouchTarget)
                 .focused($focusedField, equals: label)
+                .accessibilityLabel(label)
         }
     }
 
@@ -319,6 +301,12 @@ struct AdminAISettingsView: View {
                 .focused($focusedField, equals: label)
         }
         .padding(.vertical, 2)
+    }
+
+    private var numericRowLayout: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+            : AnyLayout(HStackLayout(spacing: 16))
     }
 
     private func bounded(_ value: Binding<Int>, to range: ClosedRange<Int>) -> Binding<Int> {
@@ -434,7 +422,7 @@ struct AdminAISettingsView: View {
             ]
             _ = try await AdminAPI.saveAiSettings(patch)
             savedFingerprint = settingsFingerprint
-            saveMessage = "参数已保存"
+            AppFeedback.success("参数已保存")
         } catch {
             actionError = AppCopy.friendlyError(error)
         }

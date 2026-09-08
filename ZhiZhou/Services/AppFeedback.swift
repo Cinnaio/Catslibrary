@@ -12,12 +12,14 @@ final class AppFeedbackCenter {
         enum Kind: Equatable {
             case success
             case info
+            case warning
             case error
 
             var systemImage: String {
                 switch self {
                 case .success: return "checkmark.circle.fill"
                 case .info: return "info.circle.fill"
+                case .warning: return "exclamationmark.triangle.fill"
                 case .error: return "exclamationmark.triangle.fill"
                 }
             }
@@ -26,6 +28,7 @@ final class AppFeedbackCenter {
                 switch self {
                 case .success: return AppTheme.success
                 case .info: return AppTheme.primary
+                case .warning: return AppTheme.warning
                 case .error: return AppTheme.danger
                 }
             }
@@ -51,6 +54,7 @@ final class AppFeedbackCenter {
 
         let next = Message(text: trimmed, kind: kind)
         message = next
+        UIAccessibility.post(notification: .announcement, argument: trimmed)
         dismissTask?.cancel()
         dismissTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 2_400_000_000)
@@ -86,7 +90,7 @@ enum AppFeedback {
     static func warning(_ message: String? = nil) {
         UINotificationFeedbackGenerator().notificationOccurred(.warning)
         if let message {
-            AppFeedbackCenter.shared.show(message, kind: .info)
+            AppFeedbackCenter.shared.show(message, kind: .warning)
         } else {
             AppFeedbackCenter.shared.dismiss()
         }
@@ -144,21 +148,21 @@ private struct AppFeedbackBanner: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(AppTheme.textPrimary)
                     .multilineTextAlignment(.leading)
-                    .lineLimit(2)
+                    .appTextLineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .frame(minHeight: 48)
-            .contentShape(Capsule())
-            .background(AppTheme.surface, in: Capsule())
+            .contentShape(RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius))
+            .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius))
             .overlay {
-                Capsule()
+                RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius)
                     .strokeBorder(AppTheme.border.opacity(0.65), lineWidth: 0.5)
             }
             .shadow(color: Color.black.opacity(0.12), radius: 12, y: 4)
         }
-        .frame(maxWidth: 360)
+        .frame(maxWidth: AppLayout.readableWidth)
         .buttonStyle(ScaleButtonStyle(pressedScale: 0.985))
         .accessibilityLabel(message.text)
         .accessibilityHint("点按关闭提示")

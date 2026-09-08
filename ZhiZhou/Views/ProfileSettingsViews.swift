@@ -8,7 +8,7 @@ struct ProfileAccountView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let inset = max(24, (geometry.size.width - 600) / 2)
+            let inset = AppLayout.readableInset(for: geometry.size.width)
             List {
                 if let user = appState.user {
                     Section {
@@ -35,7 +35,7 @@ struct ProfileAccountView: View {
                     NavigationLink {
                         ChangePasswordView()
                     } label: {
-                        ProfileSettingsLabel("修改密码", systemImage: "lock")
+                        AppIconLabel("修改密码", systemImage: "lock")
                     }
                 }
                 .listRowInsets(EdgeInsets(top: 12, leading: inset, bottom: 12, trailing: inset))
@@ -60,7 +60,7 @@ struct ProfileAccountView: View {
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
             }
-            .listStyle(.plain)
+            .appListStyle(.browsing, maximumWidth: nil)
             .contentMargins(.top, 8, for: .scrollContent)
             .scrollContentBackground(.hidden)
             .disabled(isLoggingOut || appState.isUpdatingAccount)
@@ -98,7 +98,7 @@ struct ProfilePrivacyView: View {
                 NavigationLink {
                     PrivacyNoticeView()
                 } label: {
-                    Label("隐私说明", systemImage: "hand.raised")
+                    AppIconLabel("隐私说明", systemImage: "hand.raised")
                 }
             }
             Section {
@@ -113,9 +113,7 @@ struct ProfilePrivacyView: View {
                 Text("可选发送匿名的功能事件、性能指标和崩溃诊断；不会发送小说正文、搜索词、密码或账号信息。关闭后，尚未发送的本地诊断记录会立即清除。")
             }
         }
-        .listStyle(.insetGrouped)
-        .scrollContentBackground(.hidden)
-        .pageBackground()
+        .appListStyle(.settings)
         .navigationTitle("隐私与诊断")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -130,7 +128,7 @@ struct ProfileAboutView: View {
         List {
             Section {
                 HStack(spacing: 16) {
-                    BrandMark()
+                    BrandMark(size: 48)
                     Text("知舟")
                         .font(serifFont(.title2, .semibold))
                         .foregroundStyle(AppTheme.textPrimary)
@@ -159,9 +157,7 @@ struct ProfileAboutView: View {
             }
             #endif
         }
-        .listStyle(.insetGrouped)
-        .scrollContentBackground(.hidden)
-        .pageBackground()
+        .appListStyle(.settings)
         .navigationTitle("关于知舟")
         .navigationBarTitleDisplayMode(.inline)
     }

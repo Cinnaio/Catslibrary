@@ -218,14 +218,14 @@ struct ReaderView: View {
                 go(to: order)
             }
             .preferredColorScheme(scheme)
-            .presentationBackground(paper)
-            .presentationDetents([.medium, .large])
+            .presentationBackground(AppTheme.canvas)
+            .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large])
         }
         .sheet(isPresented: $showSettings) {
             ReaderSettingsView()
                 .preferredColorScheme(scheme)
-                .presentationBackground(paper)
-                .presentationDetents([.medium, .large])
+                .presentationBackground(AppTheme.background)
+                .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large])
                 .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $showThoughtPanel, onDismiss: {
@@ -254,8 +254,8 @@ struct ReaderView: View {
                     }
                 )
                 .preferredColorScheme(scheme)
-                .presentationBackground(paper)
-                .presentationDetents([.medium, .large])
+                .presentationBackground(AppTheme.canvas)
+                .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large])
                 .presentationDragIndicator(.visible)
             } else {
                 Color.clear
@@ -367,7 +367,7 @@ struct ReaderView: View {
                             .font(.caption2.weight(.semibold))
                             .foregroundStyle(AppTheme.primary)
                             .padding(.horizontal, 9)
-                            .frame(minHeight: 28)
+                            .frame(minWidth: AppLayout.minimumTouchTarget, minHeight: AppLayout.minimumTouchTarget)
                             .background(AppTheme.primaryLight, in: Capsule())
                     }
                     .buttonStyle(.plain)

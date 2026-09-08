@@ -44,9 +44,9 @@ struct AdminPolicyView: View {
                 .scrollContentBackground(.hidden)
             }
         }
-        .pageBackground()
+        .appListStyle(.settings)
         .navigationTitle("内容安全")
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
         .alert("操作未完成", isPresented: Binding(
             get: { actionError != nil },
@@ -76,6 +76,7 @@ struct AdminPolicyView: View {
         do {
             try await AdminAPI.setContentPolicy(enabled: enabled)
             savedValue = enabled
+            AppFeedback.success(enabled ? "内容策略已开启" : "内容策略已关闭")
         } catch {
             actionError = AppCopy.friendlyError(error)
             // 回滚开关到上次保存值，保持与服务端一致

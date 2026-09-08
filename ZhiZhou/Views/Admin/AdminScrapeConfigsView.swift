@@ -68,7 +68,7 @@ struct AdminScrapeConfigsView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .pageBackground()
+        .appListStyle(.browsing)
         .navigationTitle("配置导入导出")
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await load() }
@@ -174,20 +174,20 @@ struct AdminScrapeConfigsView: View {
                 .font(.subheadline)
                 .fontWeight(.medium)
                 .foregroundStyle(AppTheme.textPrimary)
-                .lineLimit(1)
+                .appTextLineLimit(1)
             Text(config.sourceUrl)
                 .font(.caption)
                 .foregroundStyle(AppTheme.textSecondary)
-                .lineLimit(1)
+                .appTextLineLimit(1)
             HStack(spacing: 8) {
                 if !config.encoding.isEmpty {
                     Text(config.encoding)
                         .font(.caption2)
-                        .foregroundStyle(AppTheme.textMuted)
+                        .foregroundStyle(AppTheme.textSecondary)
                 }
                 Text("更新于 \(AdminFormat.relativeTime(config.updatedAt))")
                     .font(.caption2)
-                    .foregroundStyle(AppTheme.textMuted)
+                    .foregroundStyle(AppTheme.textSecondary)
             }
         }
         .padding(.vertical, 2)

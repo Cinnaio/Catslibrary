@@ -36,7 +36,7 @@ struct AdminAIStatusView: View {
                 Section("配置状态") {
                     LabeledContent("已配置") {
                         Text(status?.configured == true ? "是" : "否")
-                            .foregroundStyle(status?.configured == true ? AppTheme.success : AppTheme.textMuted)
+                            .foregroundStyle(status?.configured == true ? AppTheme.success : AppTheme.textSecondary)
                     }
                     if let model = status?.model, !model.isEmpty {
                         LabeledContent("模型", value: model)
@@ -44,11 +44,11 @@ struct AdminAIStatusView: View {
                     if let features = status?.features {
                         LabeledContent("前情提要") {
                             Text(features.recap == true ? "已开启" : "未开启")
-                                .foregroundStyle(features.recap == true ? AppTheme.success : AppTheme.textMuted)
+                                .foregroundStyle(features.recap == true ? AppTheme.success : AppTheme.textSecondary)
                         }
                         LabeledContent("回顾总结") {
                             Text(features.catchup == true ? "已开启" : "未开启")
-                                .foregroundStyle(features.catchup == true ? AppTheme.success : AppTheme.textMuted)
+                                .foregroundStyle(features.catchup == true ? AppTheme.success : AppTheme.textSecondary)
                         }
                     }
                     if let stale = status?.catchupStaleDays, stale > 0 {
@@ -78,7 +78,7 @@ struct AdminAIStatusView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .pageBackground()
+        .appListStyle(.browsing)
         .navigationTitle("状态与用量")
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await load() }

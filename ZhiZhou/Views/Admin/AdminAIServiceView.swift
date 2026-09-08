@@ -31,12 +31,12 @@ struct AdminAIServiceView: View {
                 NavigationLink {
                     AdminAIWritingView()
                 } label: {
-                    Label("AI 创作", systemImage: "pencil.and.outline")
+                    AppIconLabel("AI 创作", systemImage: "pencil.and.outline")
                 }
                 NavigationLink {
                     AdminAICoverView()
                 } label: {
-                    Label("封面生成", systemImage: "photo.on.rectangle.angled")
+                    AppIconLabel("封面生成", systemImage: "photo.on.rectangle.angled")
                 }
             }
 
@@ -44,12 +44,12 @@ struct AdminAIServiceView: View {
                 NavigationLink {
                     AdminAITasksView()
                 } label: {
-                    Label("AI 任务", systemImage: "list.bullet.rectangle")
+                    AppIconLabel("AI 任务", systemImage: "list.bullet.rectangle")
                 }
                 NavigationLink {
                     AdminAIGenerationsView()
                 } label: {
-                    Label("已生成内容", systemImage: "doc.text.magnifyingglass")
+                    AppIconLabel("已生成内容", systemImage: "doc.text.magnifyingglass")
                 }
             }
 
@@ -57,27 +57,27 @@ struct AdminAIServiceView: View {
                 NavigationLink {
                     AdminAIStatusView()
                 } label: {
-                    Label("状态与用量", systemImage: "gauge.with.dots.needle.50percent")
+                    AppIconLabel("状态与用量", systemImage: "gauge.with.dots.needle.50percent")
                 }
                 NavigationLink {
                     AdminAIUsageView()
                 } label: {
-                    Label("用量与审计", systemImage: "chart.bar.xaxis")
+                    AppIconLabel("用量与审计", systemImage: "chart.bar.xaxis")
                 }
                 NavigationLink {
                     AdminAIProviderView()
                 } label: {
-                    Label("供应商配置", systemImage: "server.rack")
+                    AppIconLabel("供应商配置", systemImage: "server.rack")
                 }
                 NavigationLink {
                     AdminAISettingsView()
                 } label: {
-                    Label("运行参数", systemImage: "slider.horizontal.3")
+                    AppIconLabel("运行参数", systemImage: "slider.horizontal.3")
                 }
             }
         }
         .scrollContentBackground(.hidden)
-        .pageBackground()
+        .appListStyle(.browsing)
         .navigationTitle("AI 服务")
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await loadActiveTasks() }

@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// 登录 / 注册（注册模式随服务端 register-status 动态切换）。
-/// 采用浅色、原生感的账号入口：品牌识别、清晰说明、胶囊输入与单一主操作。
+/// 品牌识别、原生账号输入与单一主操作。
 struct LoginView: View {
     @Environment(AppState.self) private var appState
     @Environment(OfflineReadingStore.self) private var offlineStore
@@ -86,7 +86,7 @@ struct LoginView: View {
     }
 
     private var loginBackdrop: some View {
-        AppTheme.background
+        AppTheme.canvas
             .ignoresSafeArea()
     }
 
@@ -95,13 +95,7 @@ struct LoginView: View {
     private var brandHeader: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
-                Image(systemName: "book.closed.fill")
-                    .font(.title3.weight(.semibold))
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(AppTheme.primary)
-                    .frame(width: 48, height: 48)
-                    .background(AppTheme.primaryLight, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
-                    .accessibilityHidden(true)
+                BrandMark(size: 48)
 
                 Text("知舟")
                     .font(serifFont(.title2, .bold))
@@ -231,9 +225,10 @@ struct LoginView: View {
         @ViewBuilder content: () -> Content
     ) -> some View {
         content()
-            .padding(.horizontal, 18)
-            .frame(minHeight: 58)
-            .appFieldSurface(isFocused: isFocused, cornerRadius: 15)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 4)
+            .frame(minHeight: 52)
+            .appFieldSurface(isFocused: isFocused)
             .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: isFocused)
     }
 
@@ -246,27 +241,20 @@ struct LoginView: View {
             Group {
                 if busy {
                     ProgressView()
-                        .tint(.white)
+                        .tint(AppTheme.onPrimary)
                 } else {
                     Text(mode == .login ? "登录" : "注册")
                         .font(.headline)
                 }
             }
-            .foregroundStyle(canSubmit || busy ? Color.white : AppTheme.textMuted)
+            .foregroundStyle(AppTheme.onPrimary)
             .frame(maxWidth: .infinity)
-            .frame(minHeight: 56)
-            .background(
-                canSubmit || busy
-                    ? AppTheme.deepGradient
-                    : LinearGradient(
-                        colors: [Color(.systemFill), Color(.systemFill)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    ),
-                in: RoundedRectangle(cornerRadius: 18, style: .continuous)
-            )
+            .frame(minHeight: 32)
         }
-        .buttonStyle(ScaleButtonStyle())
+        .buttonStyle(.borderedProminent)
+        .controlSize(.large)
+        .buttonBorderShape(.roundedRectangle(radius: AppTheme.controlCornerRadius))
+        .tint(AppTheme.primary)
         .disabled(!canSubmit)
         .accessibilityLabel(mode == .login ? "登录" : "注册")
     }
@@ -276,7 +264,7 @@ struct LoginView: View {
             .font(.footnote)
             .foregroundStyle(AppTheme.textSecondary)
             .frame(maxWidth: .infinity, minHeight: 48)
-            .appFieldSurface(cornerRadius: 14)
+            .appFieldSurface()
     }
 
     @ViewBuilder

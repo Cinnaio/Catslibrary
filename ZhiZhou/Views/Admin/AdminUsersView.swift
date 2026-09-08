@@ -175,7 +175,7 @@ struct AdminUsersView: View {
                     }
                     Text("开放注册无需邀请码；邀请制需邀请码注册；关闭注册停止新用户注册。")
                         .font(.caption)
-                        .foregroundStyle(AppTheme.textMuted)
+                        .foregroundStyle(AppTheme.textSecondary)
                 }
 
                 inviteSection(overview.invites)
@@ -191,7 +191,7 @@ struct AdminUsersView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .pageBackground()
+        .appListStyle(.browsing)
         .navigationTitle("用户与邀请码")
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await load() }
@@ -251,7 +251,7 @@ struct AdminUsersView: View {
                         .foregroundStyle(AppTheme.textPrimary)
                     Text(AdminFormat.dateTime(invite.createdAt))
                         .font(.caption2)
-                        .foregroundStyle(AppTheme.textMuted)
+                        .foregroundStyle(AppTheme.textSecondary)
                 }
                 Spacer()
                 if invite.isDisabled {
@@ -262,7 +262,7 @@ struct AdminUsersView: View {
                     Text("已使用 · \(invite.usedByName)")
                         .font(.caption2)
                         .foregroundStyle(AppTheme.textSecondary)
-                        .lineLimit(1)
+                        .appTextLineLimit(1)
                 } else {
                     Text("未使用")
                         .font(.caption2)
@@ -331,7 +331,7 @@ struct AdminUsersView: View {
                         .font(.subheadline)
                         .fontWeight(.medium)
                         .foregroundStyle(AppTheme.textPrimary)
-                        .lineLimit(1)
+                        .appTextLineLimit(1)
                     if user.isAdmin {
                         AdminStatusBadge("管理员", tint: AppTheme.primary, systemImage: "person.badge.key")
                     }
@@ -342,7 +342,7 @@ struct AdminUsersView: View {
                 Text("@\(user.username) · \(user.thoughtCount) 想法 · \(AdminFormat.relativeTime(user.lastLoginAt > 0 ? user.lastLoginAt : user.createdAt))")
                     .font(.caption)
                     .foregroundStyle(AppTheme.textSecondary)
-                    .lineLimit(2)
+                    .appTextLineLimit(2)
             }
             if busyUserId == user.id {
                 AdminInlineProgress()
@@ -522,6 +522,7 @@ private struct DeleteUserSheet: View {
                 }
             }
             .scrollContentBackground(.hidden)
+            .appListStyle(.settings)
             .navigationTitle("删除用户")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

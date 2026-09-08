@@ -81,7 +81,7 @@ struct AdminRootView: View {
                 } description: {
                     Text("当前账号没有访问管理后台的权限。")
                 }
-                .pageBackground()
+                .pageBackground(.browsing)
             }
         }
         .navigationTitle("管理后台")
@@ -96,9 +96,7 @@ struct AdminRootView: View {
                 searchSections
             }
         }
-        .listStyle(.insetGrouped)
-        .scrollContentBackground(.hidden)
-        .pageBackground()
+        .appListStyle(.browsing)
         .searchable(text: $searchText, prompt: "搜索后台功能")
     }
 
@@ -158,7 +156,7 @@ struct AdminRootView: View {
         NavigationLink {
             destination(for: module.destination)
         } label: {
-            Label(module.title, systemImage: module.systemImage)
+            AppIconLabel(module.title, systemImage: module.systemImage)
         }
     }
 

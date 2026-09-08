@@ -18,6 +18,7 @@ struct ThoughtPanelView: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var draft = ""
     @State private var displayName = ""
     @State private var isSubmitting = false
@@ -66,16 +67,19 @@ struct ThoughtPanelView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     paragraphHeader
                     thoughtsContent
+                    if dynamicTypeSize.isAccessibilitySize { composer }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, AppLayout.pageInset)
                 .padding(.top, 12)
                 .padding(.bottom, 20)
+                .frame(maxWidth: AppLayout.readableWidth)
+                .frame(maxWidth: .infinity)
             }
             .scrollDismissesKeyboard(.interactively)
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                composer
+                if !dynamicTypeSize.isAccessibilitySize { composer }
             }
-            .background(Color.clear)
+            .pageBackground(.browsing)
             .navigationTitle("本段段评")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -84,6 +88,8 @@ struct ThoughtPanelView: View {
                 }
             }
         }
+        .presentationBackground(AppTheme.canvas)
+        .presentationDragIndicator(.visible)
         .confirmationDialog(
             "删除这条段评？",
             isPresented: Binding(
@@ -105,7 +111,7 @@ struct ThoughtPanelView: View {
 
     private var paragraphHeader: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
+            metadataLayout {
                 Label(
                     selectedText.isEmpty ? "评论这一段" : "评论选中文字",
                     systemImage: selectedText.isEmpty ? "text.quote" : "character.cursor.ibeam"
@@ -113,37 +119,33 @@ struct ThoughtPanelView: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(AppTheme.primary)
 
-                Spacer(minLength: 8)
+                if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 8) }
 
                 Text(chapterTitle)
-                    .font(.caption2)
-                    .foregroundStyle(AppTheme.textMuted)
-                    .lineLimit(1)
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .appTextLineLimit(1)
             }
 
             if !selectedText.isEmpty {
                 Text("「\(selectedText)」")
                     .font(.callout.weight(.semibold))
                     .foregroundStyle(AppTheme.primaryDeep)
-                    .lineLimit(4)
+                    .appTextLineLimit(4)
                     .multilineTextAlignment(.leading)
             }
 
             Text(paragraphExcerpt)
                 .font(selectedText.isEmpty ? .callout : .caption)
                 .foregroundStyle(AppTheme.textSecondary)
-                .lineLimit(selectedText.isEmpty ? 5 : 3)
+                .appTextLineLimit(selectedText.isEmpty ? 5 : 3)
                 .multilineTextAlignment(.leading)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .background(
-            AppTheme.surface,
-            in: RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous)
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous)
-                .strokeBorder(AppTheme.border.opacity(0.55), lineWidth: 0.5)
+        .padding(.vertical, 12)
+        .padding(.leading, 12)
+        .overlay(alignment: .leading) {
+            Rectangle().fill(AppTheme.border).frame(width: 2)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
@@ -177,9 +179,12 @@ struct ThoughtPanelView: View {
                     .font(.caption)
                     .foregroundStyle(AppTheme.textSecondary)
                     .multilineTextAlignment(.center)
-                Button("重试", action: onRetry)
-                    .buttonStyle(AppGlassButtonStyle(glass: AppTheme.glassClear))
-                    .tint(AppTheme.primary)
+                Button(action: onRetry) {
+                    Label("重试", systemImage: "arrow.clockwise")
+                        .frame(minHeight: AppLayout.minimumTouchTarget)
+                }
+                .buttonStyle(.bordered)
+                .tint(AppTheme.primary)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 24)
@@ -201,6 +206,7 @@ struct ThoughtPanelView: View {
             VStack(spacing: 10) {
                 ForEach(thoughts) { thought in
                     thoughtRow(thought)
+                    Divider()
                 }
 
                 if isLoading {
@@ -214,11 +220,14 @@ struct ThoughtPanelView: View {
                         Text("更新失败：\(loadError)")
                             .font(.caption)
                             .foregroundStyle(AppTheme.textSecondary)
-                            .lineLimit(2)
+                            .appTextLineLimit(2)
                         Spacer(minLength: 8)
-                        Button("重试", action: onRetry)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(AppTheme.primary)
+                        Button(action: onRetry) {
+                            Label("重试", systemImage: "arrow.clockwise")
+                                .font(.subheadline.weight(.semibold))
+                                .frame(minWidth: AppLayout.minimumTouchTarget, minHeight: AppLayout.minimumTouchTarget)
+                        }
+                        .foregroundStyle(AppTheme.primary)
                     }
                 }
             }
@@ -234,25 +243,25 @@ struct ThoughtPanelView: View {
                 )
 
                 VStack(alignment: .leading, spacing: 3) {
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    metadataLayout {
                         Text(authorName(for: thought))
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(AppTheme.textPrimary)
-                            .lineLimit(1)
+                            .appTextLineLimit(1)
 
-                        Spacer(minLength: 8)
+                        if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 8) }
 
                         Text(Self.relativeTime(for: thought.createdAt))
-                            .font(.caption2)
-                            .foregroundStyle(AppTheme.textMuted)
-                            .lineLimit(1)
+                            .font(.caption)
+                            .foregroundStyle(AppTheme.textSecondary)
+                            .appTextLineLimit(1)
                     }
 
                     if !thought.selectedText.isEmpty {
                         Text("「\(thought.selectedText)」")
                             .font(.caption)
                             .foregroundStyle(AppTheme.textSecondary)
-                            .lineLimit(2)
+                            .appTextLineLimit(2)
                     }
                 }
             }
@@ -269,35 +278,30 @@ struct ThoughtPanelView: View {
                     Button(role: .destructive) {
                         pendingDelete = thought
                     } label: {
-                        if deletingIDs.contains(thought.id) {
-                            ProgressView()
-                                .controlSize(.small)
-                        } else {
-                            Label("删除", systemImage: "trash")
+                        Group {
+                            if deletingIDs.contains(thought.id) {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Label("删除", systemImage: "trash")
+                            }
                         }
+                        .frame(minWidth: AppLayout.minimumTouchTarget, minHeight: AppLayout.minimumTouchTarget)
                     }
                     .font(.caption.weight(.medium))
                     .disabled(deletingIDs.contains(thought.id))
                 }
             }
         }
-        .padding(14)
+        .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            AppTheme.surface,
-            in: RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous)
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous)
-                .strokeBorder(AppTheme.border.opacity(0.45), lineWidth: 0.5)
-        }
     }
 
     @ViewBuilder
     private var composer: some View {
         VStack(alignment: .leading, spacing: 10) {
             if canCompose {
-                HStack(spacing: 10) {
+                metadataLayout {
                     Label("署名", systemImage: "person.crop.circle")
                         .font(.caption.weight(.medium))
                         .foregroundStyle(AppTheme.textSecondary)
@@ -305,15 +309,14 @@ struct ThoughtPanelView: View {
                     TextField("匿名读者", text: $displayName)
                         .font(.subheadline)
                         .textFieldStyle(.plain)
-                        .multilineTextAlignment(.trailing)
+                        .multilineTextAlignment(dynamicTypeSize.isAccessibilitySize ? .leading : .trailing)
                         .focused($focusedField, equals: .displayName)
                         .accessibilityLabel("段评署名")
                 }
                 .padding(.horizontal, 12)
                 .frame(minHeight: 44)
                 .appFieldSurface(
-                    isFocused: focusedField == .displayName,
-                    cornerRadius: 12
+                    isFocused: focusedField == .displayName
                 )
                 .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: focusedField)
                 .onChange(of: displayName) { _, value in
@@ -345,7 +348,7 @@ struct ThoughtPanelView: View {
                     Text(submitError)
                         .font(.caption)
                         .foregroundStyle(AppTheme.danger)
-                        .lineLimit(2)
+                        .appTextLineLimit(2)
                 }
 
                 HStack(alignment: .center, spacing: 12) {
@@ -366,14 +369,9 @@ struct ThoughtPanelView: View {
                         }
                     }
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(canSubmit ? AppTheme.onPrimary : AppTheme.textMuted)
-                    .padding(.horizontal, 15)
-                    .frame(minHeight: 44)
-                    .background(
-                        canSubmit ? AppTheme.primary : AppTheme.surfaceSecondary,
-                        in: Capsule()
-                    )
-                    .buttonStyle(ScaleButtonStyle(pressedScale: 0.97))
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .tint(AppTheme.primary)
                     .disabled(!canSubmit)
                     .accessibilityLabel(isSubmitting ? "正在发布段评" : "发布段评")
                 }
@@ -385,10 +383,12 @@ struct ThoughtPanelView: View {
                     .padding(.vertical, 8)
             }
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, AppLayout.pageInset)
         .padding(.top, 12)
         .padding(.bottom, 10)
-        .background(AppTheme.background)
+        .frame(maxWidth: AppLayout.readableWidth)
+        .frame(maxWidth: .infinity)
+        .background(AppTheme.canvas)
         .overlay(alignment: .top) {
             Divider()
         }
@@ -397,6 +397,12 @@ struct ThoughtPanelView: View {
     private var canSubmit: Bool {
         !isSubmitting
             && !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var metadataLayout: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+            : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 10))
     }
 
     private func authorName(for thought: Thought) -> String {
