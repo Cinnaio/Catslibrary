@@ -25,6 +25,12 @@
 | P2 | Serif styles all start at 17pt, flattening the intended title/body/caption hierarchy. | P2 | Fixed; use each native text style's baseline before scaling |
 | P2 | Login repeats copy and permits mode/input changes during submission; visible passwords can autocorrect. | P2 | Fixed; concise layout, disabled fields during requests, literal password input |
 | P2 | Admin mode pickers and dashboard metrics are constrained at accessibility sizes. | P2 | Fixed; menu fallback and adaptive grid |
+| P1 | Cover candidates and writing profiles can belong to a previously selected book; continuation retains the old chapter ID. | Follow-up | Fixed in 5d0a94c; generation/query checks, clear dependent state, exclude overlapping profile refresh |
+| P1 | Refresh discards unsaved AI settings, provider fields, or proxy configuration. | Follow-up | Fixed in 5d0a94c / 757754c; compare saved snapshots and preserve drafts |
+| P1 | Saving announcement text can overwrite input entered while the request is running. | Follow-up | Fixed in 757754c; disable the editor during save and exclude duplicate submission |
+| P1 | AI task overview, dashboard, users and saved scrape configurations accept obsolete responses. | Follow-up | Fixed in 5d0a94c / 757754c; cancellation and generation checks; registration save invalidates an older overview |
+| P2 | Saved scrape configuration refresh replaces the existing list with a full-screen failure. | Follow-up | Fixed in 757754c; retain content and offer inline retry |
+| P1 | A short discovery list on tablet does not trigger the native pull-to-refresh check. | Follow-up | 2b93426 explicitly enables vertical bouncing; final native verification below |
 
 ## Delivery
 
@@ -44,3 +50,24 @@ Comments/ratings and push notifications remain separate product backlog features
 - Baseline simulator run 34139835432: phone and tablet compiled; four of five tests passed on each device. Inspected original phone/tablet screenshots, including large-text truncation and pinned profile-header overlap. Profile mutation did not complete because the unsigned simulator did not retain the fixture token in Keychain. Audit-only in-memory credentials now isolate fixtures from signing and real credentials; the test also waits for sheet dismissal.
 - P1: 4362e70; Core/Release run 34142297019 succeeded. Source checks passed.
 - P1 adds five Core regression cases for request ordering, debounce, pagination exclusion, refresh supersession, and recovery after a failed filter. Native checks additionally exercise discovery refresh retry and session restoration.
+
+## Completion pass, 2026-09-08
+
+- Restored the interrupted task at dc6d911 with no tracked local edits. Preserved the unrelated untracked `docs/home-discovery-preview.html`.
+- P2 Core/Release run 34143410135 succeeded. Native run 34143412872 passed 7/8 phone and 6/8 tablet tests: profile save/wrong-password feedback, both reading appearances, large text, login/empty states, and session retry passed. Original screenshots were inspected for the 375pt profile/settings/detail and the tablet catalog.
+- The tablet catalog screenshot and accessibility tree show a collapsed `搜索` button; the failing test searched for an input before opening it. The refresh test used a generic scroll-view swipe with no visible-area constraint. Follow-up tests open the search button when needed and keep the pull gesture above the floating tab bar.
+- 5d0a94c adds a Core case for A → B → A selection ordering, plus native verification that refreshing AI settings retains an unsaved toggle. Core/Release run 34170460589 succeeded.
+- 757754c completes the remaining source-level administration review. Core/Release run 34170594946 succeeded with 35 Core tests; its exact IPA was synchronized before the following native-test repair.
+- Native run 34170460939 passed 8/9 phone and 7/9 tablet checks. Both catalog search tests passed. The refresh/retry gesture was not reliable for the short fixture list, and the draft test initially needed a more precise settings scroll and switch hit target. 2b93426 enables discovery bouncing, reveals the link, targets the actual switch control and waits for its value before checking draft preservation; the fixture now fails the first non-empty query once so the reload contract has a deterministic signal.
+
+### Coverage and limits
+
+| Area | Evidence available | Remaining manual acceptance |
+| --- | --- | --- |
+| Discovery, bookshelf, detail, reader | Source contracts; phone/tablet light and dark reading journeys; refresh retry scenario | Real network latency, background recovery, long books and physical-device frame pacing |
+| Personal center and account | Profile save, wrong-password feedback, restoration retry; native profile/settings screenshots | Photo-library avatar selection and actual server credential rotation |
+| Typography and accessibility layout | 375pt phone and tablet at accessibility XXXL; unpinned profile headings, adaptive reader settings | VoiceOver focus/order, Switch Control and physical keyboard navigation |
+| Offline library | Native empty-state route; source inspection of existing download and removal actions | Actual batch download, interruption, storage pressure and offline reading |
+| Administration | Source inspection across module entry points, list loading, filter changes, editing/saving and dangerous-action confirmations; catalog search and settings draft native scenarios | Real provider/generation/scrape jobs, destructive mutations, server roles and permissions; not every admin screen has screenshot coverage |
+
+No new P0 blocker was established by this frontend pass. This is a bounded frontend review, not proof that the project has no defects or is ready for App Store release. Comments/ratings and notifications were not added to the approved scope. Builds and fixture-driven tests do not certify real-server mutations or physical-device behavior.

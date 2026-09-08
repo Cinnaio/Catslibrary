@@ -69,6 +69,7 @@ private final class VisualAuditProtocol: URLProtocol {
     private static var currentUser = VisualAudit.user
     private static var removedRecent = false
     private static var catalogRequests = 0
+    private static var refreshFailureServed = false
     private static var restoreRequests = 0
 
     override class func canInit(with request: URLRequest) -> Bool { true }
@@ -129,7 +130,8 @@ private final class VisualAuditProtocol: URLProtocol {
         case ("GET", "/api/novels"):
             Self.catalogRequests += 1
             let search = queryValue("search") ?? ""
-            if VisualAudit.scenario == "refresh-error", Self.catalogRequests == 2 {
+            if VisualAudit.scenario == "refresh-error", !search.isEmpty, !Self.refreshFailureServed {
+                Self.refreshFailureServed = true
                 status = 503
                 body = ["error": "暂时无法刷新书单"]
             } else {

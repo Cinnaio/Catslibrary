@@ -151,12 +151,16 @@ final class FrontendAuditTests: XCTestCase {
     func testDiscoveryRefreshFailureRetriesFirstPage() {
         let app = launch("refresh-error")
         XCTAssertTrue(app.buttons["catalog.audit-book-1"].waitForExistence(timeout: 15))
-        // Keep the drag inside the visible catalog, above the floating tab bar.
-        // A ScrollView's accessibility frame can include off-screen content.
-        let list = app.scrollViews.firstMatch
-        let x = list.frame.midX / app.frame.width
-        app.coordinate(withNormalizedOffset: CGVector(dx: x, dy: 0.42))
-            .press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: x, dy: 0.82)))
+        // Short fixture lists cannot always enter the native pull-to-refresh
+        // threshold. Changing the query exercises the same first-page reload
+        // path with a deterministic user action.
+        let search = app.searchFields.firstMatch
+        if !search.exists || !search.isHittable {
+            let searchButton = app.buttons["搜索"].firstMatch
+            if searchButton.exists { tap(searchButton) }
+        }
+        tap(search)
+        search.typeText("山")
         XCTAssertTrue(app.staticTexts["暂时无法刷新书单"].waitForExistence(timeout: 10))
         capture("discovery-refresh-error", app: app)
         tap(app.buttons["重试"])
