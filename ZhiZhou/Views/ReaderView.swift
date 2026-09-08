@@ -78,6 +78,7 @@ struct ReaderView: View {
     @State private var showTOC = false
     @State private var showSettings = false
     @State private var showChrome = true
+    @State private var scrollTapGuard = ReaderTapGuard()
     @State private var scrolledParagraph: Int?
     @State private var pendingScrollRestore: Int?
     @State private var paragraphCount = 0
@@ -528,7 +529,20 @@ struct ReaderView: View {
             }
             // 拖动正文时自动收起浮层，轻点恢复。
             .onScrollPhaseChange { _, newPhase in
+                let phase: ReaderTapGuard.Phase
+                switch newPhase {
+                case .idle: phase = .idle
+                case .tracking: phase = .tracking
+                default: phase = .moving
+                }
+                scrollTapGuard.updatePhase(
+                    phase,
+                    at: ProcessInfo.processInfo.systemUptime
+                )
                 if newPhase == .interacting { hideChrome() }
+            }
+            .onDisappear {
+                scrollTapGuard = ReaderTapGuard()
             }
         }
     }
@@ -657,6 +671,7 @@ struct ReaderView: View {
     }
 
     private func handleScrollTap(x: CGFloat, width: CGFloat) {
+        guard scrollTapGuard.allowsTap(at: ProcessInfo.processInfo.systemUptime) else { return }
         guard settings.clickPagingEnabled else {
             toggleChrome()
             return
@@ -805,6 +820,9 @@ struct ReaderView: View {
 
     private var readerChromeRevealButton: some View {
         Button {
+            guard settings.pageMode == "page"
+                || scrollTapGuard.allowsTap(at: ProcessInfo.processInfo.systemUptime)
+            else { return }
             toggleChrome()
         } label: {
             Image(systemName: "ellipsis.circle")
@@ -813,6 +831,7 @@ struct ReaderView: View {
         }
         .buttonStyle(AppGlassButtonStyle(glass: AppTheme.glassClear))
         .foregroundStyle(ink.opacity(0.9))
+        .allowsHitTesting(settings.pageMode == "page" || !scrollTapGuard.isScrollInteractionActive)
         .accessibilityLabel("显示阅读控制")
         .accessibilityHint("显示目录、阅读设置和章节切换")
     }
