@@ -74,7 +74,10 @@ Require-NavigationPattern "admin operations expose a direct POPO account entry" 
 )
 Require-NavigationPattern "novel detail keeps synopsis expansion available when text is truncated" (
     $detailView -match 'synopsisFullHeight > synopsisCollapsedHeight \+ 1' -and
-    $detailView -match 'lineLimit\(expandDescription \? nil : 4\)' -and
+    $detailView -match '(?s)private var synopsisContent.*?\.lineLimit\(4\).*?synopsisCollapsedHeight = height' -and
+    $detailView -match '(?s)\.frame\(height: synopsisVisibleHeight, alignment: \.topLeading\).*?synopsisFullHeight = height.*?\.clipped\(\)' -and
+    $detailView -match 'expandDescription \? synopsisFullHeight : synopsisCollapsedHeight' -and
+    $detailView -notmatch 'lineLimit\(expandDescription \?' -and
     $detailView -match '(?s)private var synopsisText.*?Text\(currentNovel\.description\)'
 )
 Require-NavigationPattern "novel detail reserves space and a scroll edge for its fixed reading or selection actions" (

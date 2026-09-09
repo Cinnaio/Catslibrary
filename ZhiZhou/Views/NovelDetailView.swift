@@ -758,49 +758,79 @@ struct NovelDetailView: View {
                 .font(.headline)
                 .foregroundStyle(AppTheme.textPrimary)
                 .accessibilityAddTraits(.isHeader)
-            synopsisText
-                .lineLimit(expandDescription ? nil : 4)
-                .fixedSize(horizontal: false, vertical: true)
-                .background(alignment: .topLeading) {
-                    // Measure both variants at the same width, including while expanded.
-                    ZStack(alignment: .topLeading) {
-                        synopsisText
-                            .lineLimit(4)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .onGeometryChange(for: CGFloat.self) { geometry in
-                                geometry.size.height
-                            } action: { height in
-                                synopsisCollapsedHeight = height
-                            }
-                        synopsisText
-                            .fixedSize(horizontal: false, vertical: true)
-                            .onGeometryChange(for: CGFloat.self) { geometry in
-                                geometry.size.height
-                            } action: { height in
-                                synopsisFullHeight = height
-                            }
-                    }
-                    .hidden()
-                    .accessibilityHidden(true)
-                }
+            synopsisContent
 
             if expandDescription || synopsisFullHeight > synopsisCollapsedHeight + 1 {
-                Button(expandDescription ? "收起简介" : "展开简介") {
+                Button {
                     interactionFeedback += 1
-                    if reduceMotion {
+                    withAnimation(reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 1)) {
                         expandDescription.toggle()
-                    } else {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            expandDescription.toggle()
-                        }
                     }
+                } label: {
+                    HStack(spacing: 6) {
+                        Text(expandDescription ? "收起简介" : "展开简介")
+                            .contentTransition(.opacity)
+                            .animation(.easeOut(duration: 0.16), value: expandDescription)
+                        Image(systemName: "chevron.down")
+                            .font(.caption.weight(.semibold))
+                            .rotationEffect(.degrees(expandDescription ? 180 : 0))
+                            .accessibilityHidden(true)
+                    }
+                    .frame(minHeight: 44, alignment: .leading)
+                    .contentShape(Rectangle())
                 }
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(AppTheme.primary)
                 .buttonStyle(ScaleButtonStyle(pressedScale: 0.96))
-                .frame(minHeight: 44, alignment: .leading)
+                .accessibilityIdentifier("detail.synopsis.toggle")
             }
         }
+    }
+
+    private var synopsisContent: some View {
+        // Keep both text layouts stable and animate only the clipped viewport.
+        synopsisText
+            .lineLimit(4)
+            .fixedSize(horizontal: false, vertical: true)
+            .onGeometryChange(for: CGFloat.self) { geometry in
+                geometry.size.height
+            } action: { height in
+                synopsisCollapsedHeight = height
+            }
+            .hidden()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(height: synopsisVisibleHeight, alignment: .topLeading)
+            .overlay(alignment: .topLeading) {
+                ZStack(alignment: .topLeading) {
+                    synopsisText
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .onGeometryChange(for: CGFloat.self) { geometry in
+                            geometry.size.height
+                        } action: { height in
+                            synopsisFullHeight = height
+                        }
+                        .opacity(reduceMotion && !expandDescription ? 0 : 1)
+
+                    synopsisText
+                        .lineLimit(4)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(AppTheme.canvas)
+                        .opacity(expandDescription ? 0 : 1)
+                }
+                .animation(.easeOut(duration: 0.16), value: expandDescription)
+                .allowsHitTesting(false)
+            }
+            .clipped()
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(currentNovel.description)
+            .accessibilityIdentifier("detail.synopsis")
+    }
+
+    private var synopsisVisibleHeight: CGFloat? {
+        let height = expandDescription ? synopsisFullHeight : synopsisCollapsedHeight
+        return height > 0 ? height : nil
     }
 
     private var synopsisText: some View {
