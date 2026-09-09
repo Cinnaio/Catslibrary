@@ -42,6 +42,7 @@ struct HomeView: View {
         if horizontalSizeClass != .regular {
             NavigationStack(path: $navigationPath) {
                 homeList
+                    .toolbar(.visible, for: .tabBar)
                     .navigationDestination(for: HomeRoute.self) { route in
                         switch route {
                         case .novel(let novel):
