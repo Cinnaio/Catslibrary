@@ -5,6 +5,7 @@ import ZhiZhouCore
 struct HomeView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var novels: [Novel] = []
     @State private var categories: [String] = []
     @State private var selectedCategory: String?
@@ -85,15 +86,19 @@ struct HomeView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
                 if let recentReading {
-                    sectionHeader("继续阅读")
-                        .padding(.top, 16)
-                        .padding(.bottom, 12)
-                    continueReadingHero(recentReading)
-                        .padding(.bottom, 28)
+                    VStack(alignment: .leading, spacing: 0) {
+                        sectionHeader("继续阅读")
+                            .padding(.bottom, 12)
+                        continueReadingHero(recentReading)
+                    }
+                    .padding(.top, 16)
+                    .padding(.bottom, 28)
+                    .transition(readingContextTransition)
                 } else if bookshelf != nil {
                     startExploringHint
                         .padding(.top, 16)
                         .padding(.bottom, 22)
+                        .transition(readingContextTransition)
                 }
 
                 sectionHeader(
@@ -129,8 +134,9 @@ struct HomeView: View {
             await loadReadingContext()
         }
         .task {
+            async let readingContext: Void = loadReadingContext()
             await reload()
-            await loadReadingContext()
+            await readingContext
         }
         .onChange(of: search) { _, _ in
             scheduleReload()
@@ -143,6 +149,13 @@ struct HomeView: View {
             Task { await loadReadingContext() }
         }
         .sensoryFeedback(.selection, trigger: interactionFeedback)
+    }
+
+    private var readingContextTransition: AnyTransition {
+        if reduceMotion {
+            return .opacity.animation(.easeOut(duration: 0.16))
+        }
+        return .offset(y: 8).combined(with: .opacity)
     }
 
     @ViewBuilder
@@ -402,10 +415,20 @@ struct HomeView: View {
     private func loadReadingContext() async {
         guard APIClient.shared.isAuthenticated else { return }
         do {
-            bookshelf = try await APIClient.shared.get(
+            let response: BookshelfResponse = try await APIClient.shared.get(
                 ContentPolicy.safePath("/api/bookshelf"),
                 auth: true
             )
+            guard !Task.isCancelled else { return }
+            // Animate structural changes only; progress refreshes keep the existing entrance in place.
+            let changesLayout = bookshelf == nil || bookshelf?.recent.isEmpty != response.recent.isEmpty
+            if changesLayout {
+                withAnimation(reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 1)) {
+                    bookshelf = response
+                }
+            } else {
+                bookshelf = response
+            }
         } catch {
             // 阅读入口不是发现页的阻塞条件，书架请求失败时继续展示目录。
         }
