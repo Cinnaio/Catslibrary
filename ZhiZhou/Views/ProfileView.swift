@@ -18,7 +18,7 @@ struct ProfileView: View {
                             ProfileIdentityRow(user: user, subtitle: "账户与安全")
                         }
                         .accessibilityIdentifier("profile.account")
-                        .listRowInsets(EdgeInsets(top: 8, leading: inset, bottom: 28, trailing: inset))
+                        .listRowInsets(EdgeInsets(top: 8, leading: inset, bottom: 12, trailing: inset))
                         .listRowSeparator(.hidden)
                     }
                     .listRowBackground(Color.clear)
@@ -54,6 +54,8 @@ struct ProfileView: View {
                     }
                     .accessibilityIdentifier("profile.offline")
                     .listRowSeparator(.hidden, edges: .bottom)
+                } header: {
+                    profileSectionHeader("阅读", inset: inset)
                 }
                 .listRowInsets(EdgeInsets(top: 12, leading: inset, bottom: 12, trailing: inset))
                 .listRowBackground(Color.clear)
@@ -64,7 +66,6 @@ struct ProfileView: View {
                     } label: {
                         AppIconLabel("存储管理", systemImage: "internaldrive")
                     }
-                    .listRowInsets(EdgeInsets(top: 28, leading: inset, bottom: 12, trailing: inset))
                     .listRowSeparator(.hidden, edges: .top)
                     NavigationLink {
                         ProfilePrivacyView()
@@ -77,6 +78,8 @@ struct ProfileView: View {
                         AppIconLabel("关于知舟", systemImage: "info.circle")
                     }
                     .listRowSeparator(.hidden, edges: .bottom)
+                } header: {
+                    profileSectionHeader("通用", inset: inset)
                 }
                 .listRowInsets(EdgeInsets(top: 12, leading: inset, bottom: 12, trailing: inset))
                 .listRowBackground(Color.clear)
@@ -88,8 +91,10 @@ struct ProfileView: View {
                         } label: {
                             AppIconLabel("管理后台", systemImage: "slider.horizontal.3")
                         }
+                    } header: {
+                        profileSectionHeader("管理", inset: inset)
                     }
-                    .listRowInsets(EdgeInsets(top: 28, leading: inset, bottom: 12, trailing: inset))
+                    .listRowInsets(EdgeInsets(top: 12, leading: inset, bottom: 12, trailing: inset))
                     .listRowSeparator(.hidden)
                     .listRowBackground(Color.clear)
                 }
@@ -107,6 +112,16 @@ struct ProfileView: View {
                 .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large])
                 .presentationBackground(AppTheme.background)
         }
+    }
+
+    private func profileSectionHeader(_ title: String, inset: CGFloat) -> some View {
+        Text(title)
+            .font(.footnote.weight(.medium))
+            .foregroundStyle(AppTheme.textSecondary)
+            .textCase(nil)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .listRowInsets(EdgeInsets(top: 16, leading: inset, bottom: 4, trailing: inset))
+            .accessibilityAddTraits(.isHeader)
     }
 }
 
