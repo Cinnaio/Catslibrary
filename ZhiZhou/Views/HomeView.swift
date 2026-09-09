@@ -42,7 +42,6 @@ struct HomeView: View {
         if horizontalSizeClass != .regular {
             NavigationStack(path: $navigationPath) {
                 homeList
-                    .toolbar(.visible, for: .tabBar)
                     .navigationDestination(for: HomeRoute.self) { route in
                         switch route {
                         case .novel(let novel):
@@ -56,6 +55,8 @@ struct HomeView: View {
                         }
                     }
             }
+            // 标签栏属于发现页根层；进入详情或阅读器后让内容获得完整高度。
+            .toolbar(navigationPath.isEmpty ? .visible : .hidden, for: .tabBar)
         } else {
             NavigationSplitView {
                 homeList

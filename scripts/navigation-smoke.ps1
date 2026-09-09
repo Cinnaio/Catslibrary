@@ -24,8 +24,9 @@ function Require-NavigationPattern {
 Require-NavigationPattern "homepage compact row has a direct NovelDetailView destination" (
     $homeView -match 'NavigationStack\(path: \$navigationPath\)[\s\S]*?navigationDestination\(for: HomeRoute\.self\)[\s\S]*?case \.novel\(let novel\):[\s\S]*?NovelDetailView'
 )
-Require-NavigationPattern "homepage compact root explicitly restores the tab bar when returning from a hidden destination" (
-    $homeView -match '(?s)NavigationStack\(path: \$navigationPath\)\s*\{\s*homeList\s*\.toolbar\(\.visible, for: \.tabBar\)'
+Require-NavigationPattern "homepage compact tab bar follows navigation depth" (
+    $homeView -match '(?s)NavigationStack\(path: \$navigationPath\)[\s\S]*?\.toolbar\(navigationPath\.isEmpty \? \.visible : \.hidden, for: \.tabBar\)' -and
+    $homeView -notmatch '(?s)homeList\s*\.toolbar\(\.visible, for: \.tabBar\)'
 )
 Require-NavigationPattern "homepage compact row has no trailing NavigationLink indicator" (
     $homeView -notmatch "private func novelRow[\s\S]*?if horizontalSizeClass != \.regular[\s\S]*?NavigationLink"
