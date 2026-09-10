@@ -14,7 +14,7 @@ struct AdminAIUsageView: View {
 
     private let typeOptions: [(value: String, label: String)] = [
         ("all", "全部"), ("summary", "前情提要"), ("catchup", "回顾总结"), ("continue", "续写"),
-        ("write_outline", "创作大纲"), ("write_chapter", "创作章节"), ("writing_title", "标题生成"),
+        ("write_outline", "创作大纲"), ("write_chapter", "创作章节"), ("rewrite_selection", "选段改写"), ("writing_title", "标题生成"),
         ("cover", "封面生成"), ("cover_prompt", "封面描述词"), ("test", "连通性测试"),
     ]
 

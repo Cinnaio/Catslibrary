@@ -295,6 +295,39 @@ struct AiCoverCandidate: Codable, Identifiable, Hashable {
     let dataUrl: String
 }
 
+struct AiCoverHistoryItem: Codable, Identifiable, Hashable {
+    let id: String
+    let novelId: String
+    let contentType: String?
+    let source: String?
+    let prompt: String?
+    let metadata: AiCoverMetadata?
+    let imageHash: String?
+    let createdAt: Int64?
+    let reason: String?
+    let actorId: String?
+}
+
+struct AiCurrentCoverState: Codable, Hashable {
+    let version: String
+    let source: String?
+    let prompt: String?
+    let metadata: AiCoverMetadata?
+    let updatedAt: Int64?
+    let hasImage: Bool?
+}
+
+struct AiCoverHistoryResponse: Codable {
+    let items: [AiCoverHistoryItem]
+    let total: Int?
+    let current: AiCurrentCoverState?
+}
+
+struct AiCoverReplaceResponse: Codable {
+    let ok: Bool?
+    let current: AiCurrentCoverState?
+}
+
 struct AiCoverCandidatesResponse: Codable {
     let items: [AiCoverCandidate]
     let total: Int?
@@ -306,6 +339,33 @@ struct AiTaskStartResponse: Codable {
     let taskId: String
     let batchId: String
     let total: Int
+}
+
+// MARK: - 结构化创作要求（POST /api/ai/writing/* 的 writingBrief）
+
+struct AiWritingBriefGoal: Codable, Hashable {
+    let index: Int
+    let goal: String
+}
+
+struct AiWritingBrief: Codable, Hashable {
+    let version: Int
+    let viewpoint: String
+    let pace: String
+    let objective: String
+    let requiredFacts: String
+    let forbiddenEvents: String
+    let chapterGoals: [AiWritingBriefGoal]
+
+    init(viewpoint: String, pace: String, objective: String, requiredFacts: String, forbiddenEvents: String, chapterGoals: [AiWritingBriefGoal]) {
+        self.version = 1
+        self.viewpoint = viewpoint
+        self.pace = pace
+        self.objective = objective
+        self.requiredFacts = requiredFacts
+        self.forbiddenEvents = forbiddenEvents
+        self.chapterGoals = chapterGoals
+    }
 }
 
 /// POST /api/ai/cover/prompt 的返回。
@@ -333,6 +393,8 @@ struct AiGeneration: Codable, Identifiable, Hashable {
     let batchCount: Int?
     /// 续写时从 AI 输出解析出的章节标题（发布时自动填写）。
     let draftTitle: String?
+    /// 服务端正文 UTF-8 SHA-256，用于选段改写的乐观并发校验。
+    let contentRevision: String?
 
     var isDraft: Bool { status == "draft" }
     var isPublished: Bool { status == "published" }
@@ -364,6 +426,24 @@ struct AiGenerationsBatchResponse: Codable {
     let restored: Int?
 }
 
+struct AiRewriteTaskResult: Codable, Hashable {
+    let version: Int?
+    let draftId: String?
+    let baseRevision: String?
+    let startUTF16: Int?
+    let endUTF16: Int?
+    let selectedText: String?
+    let mode: String?
+    let suggestion: String?
+}
+
+struct AiRewriteApplyResponse: Codable {
+    let ok: Bool?
+    let id: String?
+    let result: String?
+    let contentRevision: String?
+}
+
 // MARK: 草稿发布（POST /api/ai/writing/drafts/:id/publish 等）
 
 struct AiPublishedChapter: Codable, Hashable {
@@ -393,6 +473,7 @@ struct AiDraftUpdateResponse: Codable {
     let ok: Bool?
     let id: String?
     let result: String?
+    let contentRevision: String?
 }
 
 // MARK: 画像提取（POST/GET /api/ai/writing/style-profile 等）
@@ -411,6 +492,29 @@ struct AiProfileGetResponse: Codable {
     let updatedAt: Int64?
     let eligibility: String?
     let isOlderThanAnchor: Bool?
+    let manualOverride: AiManualProfileOverride?
+    let effectiveContent: String?
+    let effectiveOrigin: String?
+    let exclusionReason: String?
+    let baseProfileRevision: String?
+}
+
+struct AiManualProfileOverride: Codable, Hashable {
+    let content: String?
+    let source: AiProfileSource?
+    let revision: Int?
+    let baseProfileRevision: String?
+    let updatedBy: String?
+    let updatedAt: Int64?
+}
+
+struct AiProfileOverrideResponse: Codable {
+    let ok: Bool?
+    let override: AiManualProfileOverride?
+    let effectiveContent: String?
+    let effectiveOrigin: String?
+    let exclusionReason: String?
+    let baseProfileRevision: String?
 }
 
 struct AiProfileSource: Codable, Hashable {
@@ -441,6 +545,11 @@ struct AiPlotStateGetResponse: Codable {
     let updatedAt: Int64?
     let eligibility: String?
     let isOlderThanAnchor: Bool?
+    let manualOverride: AiManualProfileOverride?
+    let effectiveContent: String?
+    let effectiveOrigin: String?
+    let exclusionReason: String?
+    let baseProfileRevision: String?
 }
 
 /// POST /api/ai/writing/titles 的返回。

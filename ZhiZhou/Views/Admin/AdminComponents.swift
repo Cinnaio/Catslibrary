@@ -12,6 +12,7 @@ enum AdminDangerousAction: String {
     case terminateAITask = "ai-tasks.terminate"
     case terminateScrapeJob = "scrape-jobs.terminate"
     case adoptCoverCandidate = "ai-cover.adopt-candidate"
+    case restoreCoverHistory = "ai-cover.restore-history"
     case uploadCover = "ai-cover.upload"
     case replaceSourceMetadata = "source-sync.replace-metadata"
     case importScrapeConfigs = "scrape-configs.import"

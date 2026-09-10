@@ -145,6 +145,7 @@ struct AdminAITaskProgressView: View {
         case "continue": return "arrow.triangle.2.circlepath"
         case "write_outline": return "list.bullet.rectangle"
         case "write_chapter": return "book.closed"
+        case "rewrite_selection": return "text.badge.sparkles"
         default: return "sparkles"
         }
     }

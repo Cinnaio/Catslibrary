@@ -28,6 +28,7 @@ $actions = @(
     "terminateAITask",
     "terminateScrapeJob",
     "adoptCoverCandidate",
+    "restoreCoverHistory",
     "uploadCover",
     "replaceSourceMetadata",
     "importScrapeConfigs",
@@ -60,7 +61,7 @@ Require-AdminOperationPattern "AI task cancellation requires an operation ID" (
     $adminApi -match 'cancelAiTask\(id: String, operationID: String\)'
 )
 Require-AdminOperationPattern "cover overwrite APIs require an operation ID" (
-    $adminApi -match 'aiAdoptCoverCandidate\(id: String, operationID: String\)' -and
+    $adminApi -match 'aiAdoptCoverCandidate\([\s\S]*?operationID: String' -and
     $adminApi -match 'aiUploadCover\([\s\S]*?operationID: String'
 )
 

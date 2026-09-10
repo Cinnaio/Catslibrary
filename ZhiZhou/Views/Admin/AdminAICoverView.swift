@@ -9,6 +9,14 @@ private struct PendingAdminCoverUpload {
     let novelID: String
     let imageData: Data
     let mimeType: String
+    let expectedCoverVersion: String?
+}
+
+private struct AdminCoverPromptDraftSnapshot {
+    let prompt: String
+    let metadata: AiCoverMetadata?
+    let mode: String
+    let sourceSignature: String
 }
 
 /// AI 封面生成：选书 → 生成描述词 → 生成封面（后台任务）→ 轮询 → 候选采纳/弃用/上传。
@@ -16,6 +24,7 @@ private struct PendingAdminCoverUpload {
 struct AdminAICoverView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     @State private var coverPromptMaxCharacters = 2000
 
@@ -34,6 +43,7 @@ struct AdminAICoverView: View {
     @State private var prompt = ""
     @State private var promptMode = "auto"
     @State private var promptSourceSignature = ""
+    @State private var promptTaskOriginal: AdminCoverPromptDraftSnapshot?
     @State private var generatingPrompt = false
 
     // 任务
@@ -55,6 +65,13 @@ struct AdminAICoverView: View {
     @State private var pendingDiscard: AiCoverCandidate?
     @State private var previewCandidate: AiCoverCandidate?
     @State private var promptCandidate: AiCoverCandidate?
+    @State private var showPromptEditor = false
+    @State private var compareCandidateIDs: [String] = []
+    @State private var coverHistory: [AiCoverHistoryItem] = []
+    @State private var coverHistoryCurrent: AiCurrentCoverState?
+    @State private var coverHistoryLoaded = false
+    @State private var previewHistory: AiCoverHistoryItem?
+    @State private var historyBusyID = ""
     @State private var pendingDangerousOperation: AdminDangerousOperation?
     @State private var coverRefreshFailed = false
 
@@ -191,7 +208,10 @@ struct AdminAICoverView: View {
         .appListStyle(.settings)
         .navigationTitle("封面生成")
         .navigationBarTitleDisplayMode(.large)
-        .refreshable { await loadCandidates() }
+        .refreshable {
+            await loadCandidates()
+            await loadHistory()
+        }
         .scrollDismissesKeyboard(.interactively)
         .task {
             await initialLoad()
@@ -226,9 +246,18 @@ struct AdminAICoverView: View {
                     promptSourceSignature = ""
                     variationId = ""
                     promptMetadata = nil
+                    compareCandidateIDs = []
+                    coverHistory = []
+                    coverHistoryCurrent = nil
+                    coverHistoryLoaded = false
+                    previewHistory = nil
+                    historyBusyID = ""
                     coverRefreshFailed = false
                     showNovelPicker = false
-                    Task { await loadCandidates() }
+                    Task {
+                        await loadCandidates()
+                        await loadHistory()
+                    }
                 }
             )
         }
@@ -272,7 +301,28 @@ struct AdminAICoverView: View {
             AdminCoverCandidatePreview(image: dataUrlImage(candidate.dataUrl))
         }
         .sheet(item: $promptCandidate) { candidate in
-            AdminCoverPromptSheet(prompt: candidate.prompt ?? "")
+            AdminCoverPromptEditorSheet(
+                prompt: candidate.prompt ?? "",
+                maxCharacters: coverPromptMaxCharacters,
+                onSave: { edited in
+                    applyPromptEdit(edited)
+                    promptCandidate = nil
+                }
+            )
+        }
+        .sheet(isPresented: $showPromptEditor) {
+            AdminCoverPromptEditorSheet(
+                prompt: prompt,
+                maxCharacters: coverPromptMaxCharacters,
+                onSave: applyPromptEdit
+            )
+        }
+        .sheet(item: $previewHistory) { history in
+            AdminCoverHistoryPreviewSheet(
+                novelID: selectedNovelId,
+                item: history,
+                onRestore: { requestRestore(history) }
+            )
         }
         .onDisappear {
             pollTask?.cancel()
@@ -574,41 +624,30 @@ struct AdminAICoverView: View {
                     .foregroundStyle(prompt.count >= coverPromptMaxCharacters ? AppTheme.warning : AppTheme.textSecondary)
             }
 
-            ZStack(alignment: .topLeading) {
-                TextEditor(text: $prompt)
-                    .frame(height: 96)
-                    .font(.subheadline)
-                    .scrollContentBackground(.hidden)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .disabled(generatingPrompt)
-                    .onChange(of: prompt) { _, value in
-                        if value.count > coverPromptMaxCharacters {
-                            prompt = String(value.prefix(coverPromptMaxCharacters))
-                            return
-                        }
-                        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-                        if trimmed.isEmpty {
-                            promptMode = "auto"
-                            promptSourceSignature = ""
-                        } else if !generatingPrompt {
-                            // 保留 AI 描述词的来源签名；之后选择器变化仍会显示失配。
-                            promptMode = "exact"
-                        }
-                    }
-
+            VStack(alignment: .leading, spacing: 8) {
                 if prompt.isEmpty {
-                    Text("留空自动生成，也可以直接编辑后用于生成")
+                    Text("留空自动生成；已有描述词可打开完整编辑器修改。")
                         .font(.subheadline)
                         .foregroundStyle(AppTheme.textSecondary)
-                        .padding(.top, 8)
-                        .padding(.horizontal, 5)
-                        .allowsHitTesting(false)
+                } else {
+                    Text(prompt)
+                        .font(.subheadline)
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .lineLimit(3)
+                        .lineSpacing(2)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                Button {
+                    showPromptEditor = true
+                } label: {
+                    Label(prompt.isEmpty ? "填写完整描述词" : "编辑完整描述词", systemImage: "square.and.pencil")
+                        .frame(minHeight: AppLayout.minimumTouchTarget)
+                }
+                .buttonStyle(.borderless)
+                .tint(AppTheme.primary)
+                .disabled(generatingPrompt)
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 96, alignment: .topLeading)
-            .clipped()
             .padding(AppLayout.textEditorInset)
             .appFieldSurface()
         }
@@ -663,23 +702,189 @@ struct AdminAICoverView: View {
                 .listRowSeparator(.hidden)
                 .frame(maxWidth: .infinity, minHeight: 160)
             }
-        } else if candidatesLoaded && candidates.isEmpty {
-            Section("封面候选（0）") {
-                ContentUnavailableView {
-                    Label("暂无候选", systemImage: "photo.on.rectangle.angled")
-                } description: {
-                    Text("生成完成后，候选封面会出现在这里，采纳后替换当前封面。")
+        } else {
+            comparisonSection
+            if candidatesLoaded && candidates.isEmpty {
+                Section("封面候选（0）") {
+                    ContentUnavailableView {
+                        Label("暂无候选", systemImage: "photo.on.rectangle.angled")
+                    } description: {
+                        Text("生成完成后，候选封面会出现在这里，采纳后替换当前封面。")
+                    }
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
                 }
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
+            } else if !candidates.isEmpty {
+                Section("封面候选（\(candidates.count)）") {
+                    ForEach(candidates) { candidate in
+                        candidateRow(candidate)
+                    }
+                }
             }
-        } else if !candidates.isEmpty {
-            Section("封面候选（\(candidates.count)）") {
-                ForEach(candidates) { candidate in
-                    candidateRow(candidate)
+            historySection
+        }
+    }
+
+    @ViewBuilder
+    private var historySection: some View {
+        if coverHistoryLoaded {
+            Section("封面历史（\(coverHistory.count)）") {
+                Text("最多保留最近 10 个旧版本；历史图片仅管理员可查看。")
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if coverHistory.isEmpty {
+                    Text("暂时没有可恢复的旧封面。")
+                        .font(.subheadline)
+                        .foregroundStyle(AppTheme.textSecondary)
+                } else {
+                    ForEach(coverHistory) { history in
+                        Button {
+                            previewHistory = history
+                        } label: {
+                            HStack(alignment: .top, spacing: 12) {
+                                AuthenticatedCoverHistoryImage(novelID: selectedNovelId, historyID: history.id)
+                                    .frame(width: 72, height: 108)
+                                    .background(AppTheme.surface.opacity(0.45))
+                                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous))
+                                VStack(alignment: .leading, spacing: 5) {
+                                    Text(AdminFormat.relativeTime(history.createdAt ?? 0))
+                                        .font(.subheadline.weight(.medium))
+                                        .foregroundStyle(AppTheme.textPrimary)
+                                    Text("来源：\(history.source?.isEmpty == false ? history.source! : "未知") · \(history.reason?.isEmpty == false ? history.reason! : "替换")")
+                                        .font(.caption)
+                                        .foregroundStyle(AppTheme.textSecondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                    if let prompt = history.prompt, !prompt.isEmpty {
+                                        Text(prompt)
+                                            .font(.caption2)
+                                            .foregroundStyle(AppTheme.textSecondary)
+                                            .lineLimit(3)
+                                    }
+                                    Label("查看预览并恢复", systemImage: "arrow.uturn.backward.circle")
+                                        .font(.caption.weight(.medium))
+                                        .foregroundStyle(AppTheme.primary)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(historyBusyID == history.id)
+                    }
                 }
             }
         }
+    }
+
+    private var comparedCandidates: [AiCoverCandidate] {
+        compareCandidateIDs.compactMap { id in candidates.first { $0.id == id } }
+    }
+
+    private var comparisonLayout: AnyLayout {
+        horizontalSizeClass == .regular && dynamicTypeSize < .xxxLarge
+            ? AnyLayout(HStackLayout(alignment: .top, spacing: 12))
+            : AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
+    }
+
+    @ViewBuilder
+    private var comparisonSection: some View {
+        Section("封面对比") {
+            Text("当前封面固定为参考；最多选择两张候选。加入对比只改变本地比较状态，不会采纳或弃用。")
+                .font(.caption)
+                .foregroundStyle(AppTheme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if comparedCandidates.isEmpty {
+                Text("在候选中点“加入对比”后，会在这里并排或纵向显示。")
+                    .font(.subheadline)
+                    .foregroundStyle(AppTheme.textSecondary)
+            }
+            comparisonLayout {
+                currentCoverComparisonCard
+                ForEach(comparedCandidates) { candidate in
+                    candidateComparisonCard(candidate)
+                }
+            }
+        }
+    }
+
+    private var currentCoverComparisonCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            CachedAsyncImage(
+                url: selectedNovel.map { APIClient.shared.coverURL(novelId: $0.id, updatedAt: $0.updatedAt) },
+                targetSize: CGSize(width: 360, height: 540)
+            ) { image in
+                image
+                    .resizable()
+                    .scaledToFit()
+            } placeholder: {
+                ZStack {
+                    RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous)
+                        .fill(AppTheme.surface.opacity(0.65))
+                    Image(systemName: "photo")
+                        .foregroundStyle(AppTheme.textSecondary)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .aspectRatio(2.0 / 3.0, contentMode: .fit)
+            .background(AppTheme.surface.opacity(0.45))
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous))
+            Text("当前封面")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AppTheme.textPrimary)
+            Text("固定参考 · 不产生新请求")
+                .font(.caption2)
+                .foregroundStyle(AppTheme.textSecondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .paperCard()
+    }
+
+    private func candidateComparisonCard(_ candidate: AiCoverCandidate) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Group {
+                if let image = dataUrlImage(candidate.dataUrl) {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFit()
+                } else {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous)
+                            .fill(AppTheme.surface.opacity(0.65))
+                        Image(systemName: "photo.slash")
+                            .foregroundStyle(AppTheme.textSecondary)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .aspectRatio(2.0 / 3.0, contentMode: .fit)
+            .background(AppTheme.surface.opacity(0.45))
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous))
+            Text(["候选", String(candidate.id.prefix(8))].joined(separator: " "))
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AppTheme.textPrimary)
+            Text(candidate.taskId?.isEmpty == false ? "来源：AI 任务 \(candidate.taskId!.prefix(8))" : "来源：AI 生成候选")
+                .font(.caption2)
+                .foregroundStyle(AppTheme.textSecondary)
+            if let metadata = candidate.metadata, metadata.promptMode == "exact" {
+                Text("完整描述词")
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(AppTheme.primary)
+            } else if let metadata = candidate.metadata, (metadata.stylePreset != nil || metadata.composition != nil) {
+                Text("\(label(for: metadata.stylePreset, in: styleOptions)) · \(label(for: metadata.composition, in: compositionOptions))")
+                    .font(.caption2)
+                    .foregroundStyle(AppTheme.primary)
+            }
+            if let prompt = candidate.prompt, !prompt.isEmpty {
+                Text(prompt)
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .lineLimit(4)
+                    .lineSpacing(2)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .paperCard()
     }
 
     private func candidateRow(_ candidate: AiCoverCandidate) -> some View {
@@ -758,6 +963,17 @@ struct AdminAICoverView: View {
                     .frame(maxWidth: .infinity, minHeight: 44)
             } else {
                 promptActionLayout {
+                    Button {
+                        toggleCompare(candidate)
+                    } label: {
+                        Label(compareCandidateIDs.contains(candidate.id) ? "移出对比" : "加入对比", systemImage: compareCandidateIDs.contains(candidate.id) ? "checkmark.circle" : "rectangle.split.2x1")
+                            .frame(minHeight: AppLayout.minimumTouchTarget)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(AppTheme.primary)
+                    .frame(maxWidth: .infinity)
+                    .disabled(!compareCandidateIDs.contains(candidate.id) && compareCandidateIDs.count >= 2)
+
                     Button {
                         requestAdopt(candidate)
                     } label: {
@@ -839,6 +1055,18 @@ struct AdminAICoverView: View {
         min(10000, max(100, value))
     }
 
+    private func applyPromptEdit(_ value: String) {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        prompt = String(trimmed.prefix(coverPromptMaxCharacters))
+        if prompt.isEmpty {
+            promptMode = "auto"
+            promptSourceSignature = ""
+        } else {
+            promptMode = "exact"
+            promptSourceSignature = ""
+        }
+    }
+
     /// App 回到前台或页面重新打开时，恢复尚未取回结果的提示词任务。
     private func resumePendingPromptTask() async {
         guard promptPollTask == nil else { return }
@@ -851,6 +1079,7 @@ struct AdminAICoverView: View {
             if let novelId = task.novelId, !novelId.isEmpty {
                 selectedNovelId = novelId
                 await loadCandidates()
+                await loadHistory()
             }
             if !applyPromptTaskSnapshot(task) {
                 startPromptStreaming(task.id)
@@ -864,6 +1093,12 @@ struct AdminAICoverView: View {
 
     private func generatePrompt(forceNewVariation: Bool = false) async {
         guard !selectedNovelId.isEmpty else { return }
+        promptTaskOriginal = AdminCoverPromptDraftSnapshot(
+            prompt: prompt,
+            metadata: promptMetadata,
+            mode: promptMode,
+            sourceSignature: promptSourceSignature
+        )
         let frozenNovelID = selectedNovelId
         let frozenRenderTitle = renderTitle
         let frozenPlatform = platform
@@ -908,6 +1143,7 @@ struct AdminAICoverView: View {
                 startPromptStreaming(launch.taskID)
             }
         } catch {
+            restorePromptTaskOriginal()
             if case APIError.network = error {
                 generatingPrompt = false
                 taskStatusText = "请求中断，正在后台确认任务…"
@@ -992,11 +1228,13 @@ struct AdminAICoverView: View {
                 taskID: task.id
             )
             generatingPrompt = false
+            promptTaskOriginal = nil
             promptPollTask = nil
             pollingPaused = false
             return true
         }
         if ["failed", "cancelled"].contains(status) {
+            restorePromptTaskOriginal()
             taskStatusText = AdminFormat.aiTaskStatus(status)
             if let error = task.error, !error.isEmpty {
                 actionError = error
@@ -1085,6 +1323,7 @@ struct AdminAICoverView: View {
             activeTask = task
             if let novelID = task.novelId, !novelID.isEmpty {
                 selectedNovelId = novelID
+                await loadHistory()
             }
             let status = task.status ?? ""
             if status == "completed" {
@@ -1256,6 +1495,15 @@ struct AdminAICoverView: View {
         return false
     }
 
+    private func restorePromptTaskOriginal() {
+        guard let original = promptTaskOriginal else { return }
+        prompt = original.prompt
+        promptMetadata = original.metadata
+        promptMode = original.mode
+        promptSourceSignature = original.sourceSignature
+        promptTaskOriginal = nil
+    }
+
     private func taskQueryErrorText(_ error: Error) -> String {
         if case APIError.http(let status, _) = error {
             switch status {
@@ -1281,10 +1529,39 @@ struct AdminAICoverView: View {
             let result = try await AdminAPI.aiCoverCandidates(novelId: ticket.query)
             guard !Task.isCancelled, candidateRequests.accepts(ticket, query: selectedNovelId) else { return }
             candidates = result.items
+            compareCandidateIDs = compareCandidateIDs.filter { id in result.items.contains { $0.id == id } }
             candidatesLoaded = true
         } catch {
             guard !Task.isCancelled, candidateRequests.accepts(ticket, query: selectedNovelId) else { return }
             actionError = AppCopy.friendlyError(error)
+        }
+    }
+
+    private func loadHistory() async {
+        guard !selectedNovelId.isEmpty else { return }
+        let novelID = selectedNovelId
+        do {
+            let result = try await AdminAPI.aiCoverHistory(novelId: novelID)
+            guard !Task.isCancelled, selectedNovelId == novelID else { return }
+            coverHistory = result.items
+            coverHistoryCurrent = result.current
+            coverHistoryLoaded = true
+        } catch {
+            guard !Task.isCancelled, selectedNovelId == novelID else { return }
+            coverHistoryLoaded = false
+            // 老服务端尚未提供历史端点时不阻断候选/生图主流程。
+            if case APIError.http(let status, _) = error, status == 404 { return }
+            actionError = AppCopy.friendlyError(error)
+        }
+    }
+
+    private func toggleCompare(_ candidate: AiCoverCandidate) {
+        if let index = compareCandidateIDs.firstIndex(of: candidate.id) {
+            compareCandidateIDs.remove(at: index)
+        } else if compareCandidateIDs.count < 2 {
+            compareCandidateIDs.append(candidate.id)
+        } else {
+            actionError = "最多同时比较两张候选封面"
         }
     }
 
@@ -1319,14 +1596,14 @@ struct AdminAICoverView: View {
         pendingDangerousOperation = AdminDangerousOperation(
             action: .adoptCoverCandidate,
             kind: .overwrite,
-            targetIDs: [candidate.id, selectedNovelId],
+            targetIDs: [candidate.id, selectedNovelId, coverHistoryCurrent?.version ?? ""],
             title: "替换当前封面",
             message: "采纳后将用这个候选替换当前封面，并从候选列表移除该图片。",
             confirmLabel: "采纳并替换封面"
         )
     }
 
-    private func adopt(candidateID: String, operationID: String) async {
+    private func adopt(candidateID: String, operationID: String, expectedCoverVersion: String?) async {
         guard candidateBusy.isEmpty else { return }
         let novelID = selectedNovelId
         candidateBusy = candidateID
@@ -1334,11 +1611,13 @@ struct AdminAICoverView: View {
         do {
             try await AdminAPI.aiAdoptCoverCandidate(
                 id: candidateID,
-                operationID: operationID
+                operationID: operationID,
+                expectedCoverVersion: expectedCoverVersion
             )
             guard !Task.isCancelled, selectedNovelId == novelID else { return }
             let refreshed = await refreshSelectedNovel(novelID)
             await loadCandidates()
+            await loadHistory()
             if refreshed {
                 taskStatusText = "封面已采纳，当前预览已更新。"
             }
@@ -1354,6 +1633,7 @@ struct AdminAICoverView: View {
         do {
             try await AdminAPI.aiDiscardCoverCandidate(id: candidate.id)
             candidates.removeAll { $0.id == candidate.id }
+            compareCandidateIDs.removeAll { $0 == candidate.id }
         } catch {
             actionError = AppCopy.friendlyError(error)
         }
@@ -1380,14 +1660,15 @@ struct AdminAICoverView: View {
                 kind: .overwrite,
                 targetIDs: [selectedNovelId],
                 title: "上传并替换封面",
-                message: "将用所选本地图片替换当前封面。现有封面不会保留为候选。",
+                message: "将用所选本地图片替换当前封面；现有封面会保留在历史记录中。",
                 confirmLabel: "上传并替换封面"
             )
             pendingCoverUpload = PendingAdminCoverUpload(
                 operationID: operation.operationID,
                 novelID: selectedNovelId,
                 imageData: data,
-                mimeType: mime
+                mimeType: mime,
+                expectedCoverVersion: coverHistoryCurrent?.version
             )
             pendingDangerousOperation = operation
         } catch {
@@ -1399,8 +1680,23 @@ struct AdminAICoverView: View {
         switch operation.action {
         case .adoptCoverCandidate:
             guard let candidateID = operation.targetIDs.first else { return }
+            let expectedVersion = operation.targetIDs.dropFirst(2).first.flatMap { $0.isEmpty ? nil : $0 }
             Task {
-                await adopt(candidateID: candidateID, operationID: operation.operationID)
+                await adopt(candidateID: candidateID, operationID: operation.operationID, expectedCoverVersion: expectedVersion)
+            }
+        case .restoreCoverHistory:
+            guard operation.targetIDs.count >= 3,
+                  let historyID = operation.targetIDs.first,
+                  let novelID = operation.targetIDs.dropFirst().first,
+                  let expectedVersion = operation.targetIDs.dropFirst(2).first,
+                  !historyID.isEmpty, !novelID.isEmpty, !expectedVersion.isEmpty else { return }
+            Task {
+                await restoreHistory(
+                    historyID: historyID,
+                    novelID: novelID,
+                    expectedCoverVersion: expectedVersion,
+                    operationID: operation.operationID
+                )
             }
         case .uploadCover:
             guard let upload = pendingCoverUpload,
@@ -1421,14 +1717,58 @@ struct AdminAICoverView: View {
                 novelId: upload.novelID,
                 imageData: upload.imageData,
                 mimeType: upload.mimeType,
-                operationID: upload.operationID
+                operationID: upload.operationID,
+                expectedCoverVersion: upload.expectedCoverVersion
             )
             guard !Task.isCancelled, selectedNovelId == upload.novelID else { return }
             let refreshed = await refreshSelectedNovel(upload.novelID)
+            await loadHistory()
             if refreshed {
                 taskStatusText = "封面已上传，当前预览已更新。"
             }
         } catch {
+            actionError = AppCopy.friendlyError(error)
+        }
+    }
+
+    private func requestRestore(_ history: AiCoverHistoryItem) {
+        guard historyBusyID.isEmpty,
+              history.novelId == selectedNovelId,
+              let currentVersion = coverHistoryCurrent?.version,
+              !currentVersion.isEmpty else {
+            actionError = "当前封面版本尚未读取，刷新后再试"
+            return
+        }
+        pendingDangerousOperation = AdminDangerousOperation(
+            action: .restoreCoverHistory,
+            kind: .overwrite,
+            targetIDs: [history.id, selectedNovelId, currentVersion],
+            title: "恢复历史封面",
+            message: "将用这个历史版本替换当前封面，当前封面会继续保留在历史记录中。",
+            confirmLabel: "恢复并替换封面"
+        )
+    }
+
+    private func restoreHistory(historyID: String, novelID: String, expectedCoverVersion: String, operationID: String) async {
+        guard historyBusyID.isEmpty else { return }
+        historyBusyID = historyID
+        defer { historyBusyID = "" }
+        do {
+            try await AdminAPI.aiRestoreCoverHistory(
+                novelId: novelID,
+                historyID: historyID,
+                expectedCoverVersion: expectedCoverVersion,
+                operationID: operationID
+            )
+            guard !Task.isCancelled, selectedNovelId == novelID else { return }
+            let refreshed = await refreshSelectedNovel(novelID)
+            await loadHistory()
+            if refreshed {
+                taskStatusText = "历史封面已恢复，当前预览已更新。"
+            }
+        } catch {
+            guard selectedNovelId == novelID else { return }
+            await loadHistory()
             actionError = AppCopy.friendlyError(error)
         }
     }
@@ -1584,31 +1924,205 @@ private struct AdminCoverCandidatePreview: View {
     }
 }
 
-private struct AdminCoverPromptSheet: View {
-    let prompt: String
+private struct AuthenticatedCoverHistoryImage: View {
+    let novelID: String
+    let historyID: String
+
+    @State private var image: UIImage?
+    @State private var failed = false
+
+    var body: some View {
+        Group {
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+            } else if failed {
+                Image(systemName: "photo.slash")
+                    .foregroundStyle(AppTheme.textSecondary)
+            } else {
+                ProgressView()
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .task(id: "\(novelID)-\(historyID)") {
+            do {
+                let data = try await AdminAPI.aiCoverHistoryImage(novelId: novelID, historyID: historyID)
+                guard !Task.isCancelled, let decoded = UIImage(data: data) else { return }
+                image = decoded
+                failed = false
+            } catch {
+                guard !Task.isCancelled else { return }
+                failed = true
+            }
+        }
+        .accessibilityLabel("封面历史预览")
+    }
+}
+
+private struct AdminCoverHistoryPreviewSheet: View {
+    let novelID: String
+    let item: AiCoverHistoryItem
+    let onRestore: () -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @State private var image: UIImage?
+    @State private var failed = false
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                Text(prompt)
-                    .font(.body)
-                    .foregroundStyle(AppTheme.textPrimary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .textSelection(.enabled)
-                    .lineSpacing(4)
-                    .padding(16)
+                VStack(alignment: .leading, spacing: 12) {
+                    Group {
+                        if let image {
+                            Image(uiImage: image)
+                                .resizable()
+                                .scaledToFit()
+                        } else if failed {
+                            ContentUnavailableView("图片不可用", systemImage: "photo.slash")
+                        } else {
+                            ProgressView("加载历史图片…")
+                        }
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 300)
+                    .background(AppTheme.surface.opacity(0.45))
+                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous))
+
+                    Text("生成于 \(AdminFormat.relativeTime(item.createdAt ?? 0))")
+                        .font(.headline)
+                        .foregroundStyle(AppTheme.textPrimary)
+                    Text("来源：\(item.source?.isEmpty == false ? item.source! : "未知") · 原因：\(item.reason?.isEmpty == false ? item.reason! : "替换")")
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.textSecondary)
+                    if let prompt = item.prompt, !prompt.isEmpty {
+                        Text("提示词")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(AppTheme.textPrimary)
+                        Text(prompt)
+                            .font(.body)
+                            .foregroundStyle(AppTheme.textSecondary)
+                            .textSelection(.enabled)
+                    }
+                    Button {
+                        dismiss()
+                        onRestore()
+                    } label: {
+                        Label("恢复此版本", systemImage: "arrow.uturn.backward.circle.fill")
+                            .frame(maxWidth: .infinity, minHeight: 46)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(AppTheme.primary)
+                }
+                .padding(16)
             }
             .pageBackground(.browsing)
-            .navigationTitle("提示词")
+            .navigationTitle("历史封面")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("完成") { dismiss() }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("关闭") { dismiss() }
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.large])
+        .task(id: "\(novelID)-\(item.id)") {
+            do {
+                let data = try await AdminAPI.aiCoverHistoryImage(novelId: novelID, historyID: item.id)
+                guard !Task.isCancelled, let decoded = UIImage(data: data) else { return }
+                image = decoded
+                failed = false
+            } catch {
+                guard !Task.isCancelled else { return }
+                failed = true
+            }
+        }
+    }
+
+}
+
+private struct AdminCoverPromptEditorSheet: View {
+    let prompt: String
+    let maxCharacters: Int
+    let onSave: (String) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @FocusState private var editorFocused: Bool
+    @State private var draft = ""
+    @State private var showCloseConfirmation = false
+
+    private var isDirty: Bool { draft != prompt }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("完整描述词")
+                        .font(.headline)
+                        .foregroundStyle(AppTheme.textPrimary)
+                    TextEditor(text: $draft)
+                        .focused($editorFocused)
+                        .font(.body)
+                        .frame(minHeight: 320)
+                        .scrollContentBackground(.hidden)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .padding(AppLayout.textEditorInset)
+                        .appFieldSurface()
+                        .onChange(of: draft) { _, value in
+                            if value.count > maxCharacters {
+                                draft = String(value.prefix(maxCharacters))
+                            }
+                        }
+                    HStack {
+                        Text("长描述词可滚动编辑，生成失败时会保留原词。")
+                        Spacer()
+                        Text("\(draft.count)/\(maxCharacters)")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.textSecondary)
+                }
+                .padding(16)
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .pageBackground(.browsing)
+            .navigationTitle("编辑提示词")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("关闭") { requestClose() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("使用") { save() }
+                        .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+        }
+        .presentationDetents([.large])
+        .interactiveDismissDisabled(isDirty)
+        .confirmationDialog("有未保存的描述词修改", isPresented: $showCloseConfirmation, titleVisibility: .visible) {
+            Button("保存并使用") { save() }
+            Button("放弃修改", role: .destructive) { dismiss() }
+            Button("继续编辑", role: .cancel) {}
+        } message: {
+            Text("关闭后会丢失当前编辑。")
+        }
+        .onAppear {
+            draft = prompt
+            editorFocused = false
+        }
+    }
+
+    private func requestClose() {
+        if isDirty {
+            showCloseConfirmation = true
+        } else {
+            dismiss()
+        }
+    }
+
+    private func save() {
+        let value = String(draft.trimmingCharacters(in: .whitespacesAndNewlines).prefix(maxCharacters))
+        onSave(value)
+        dismiss()
     }
 }

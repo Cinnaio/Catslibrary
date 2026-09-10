@@ -492,6 +492,42 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
         try await request("GET", path, auth: auth)
     }
 
+    /// 读取需要鉴权的二进制资源（例如封面历史图片）。Token 只放在请求头，
+    /// 不拼进 URL，避免图片缓存或日志泄露会话凭证。
+    func data(_ path: String, auth: Bool = false) async throws -> Data {
+        let url = try makeURL(path)
+        var req = URLRequest(url: url)
+        req.httpMethod = "GET"
+        req.timeoutInterval = 30
+        let requestToken = auth ? token : nil
+        if let requestToken {
+            req.setValue("Bearer \(requestToken)", forHTTPHeaderField: "Authorization")
+        }
+        req.setValue("no-store", forHTTPHeaderField: "Cache-Control")
+        do {
+            let (data, response) = try await perform(req)
+            guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+            guard (200..<300).contains(http.statusCode) else {
+                let message = (try? decoder.decode(ErrorEnvelope.self, from: data))?.error
+                if http.statusCode == 401, let requestToken {
+                    handleUnauthorized(requestToken: requestToken)
+                }
+                throw APIError.http(status: http.statusCode, message: message)
+            }
+            return data
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as APIError {
+            throw error
+        } catch let error as URLError {
+            if error.code == .cancelled || Task.isCancelled { throw CancellationError() }
+            throw APIError.network(friendlyDescription(for: error))
+        } catch {
+            if Task.isCancelled { throw CancellationError() }
+            throw APIError.network(error.localizedDescription)
+        }
+    }
+
     /// 预取下一章：已有磁盘缓存时不触网，在线时复用正常章节缓存路径。
     func prefetchChapter(id: String) async {
         let path = ContentPolicy.safePath("/api/chapters/\(id)")

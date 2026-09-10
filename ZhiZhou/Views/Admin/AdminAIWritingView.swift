@@ -37,17 +37,41 @@ struct AdminAIWritingView: View {
     @State private var context = ""
     @State private var targetWords = 2000
     @State private var chapterCount = 1
+    @State private var showDetailedBrief = false
+    @State private var briefViewpoint = ""
+    @State private var briefPace = ""
+    @State private var briefObjective = ""
+    @State private var briefRequiredFacts = ""
+    @State private var briefForbiddenEvents = ""
+    @State private var chapterGoalsText = ""
+    @State private var pendingChapterCount: Int?
+    @State private var showChapterCountWarning = false
 
     // 画像
     @State private var styleProfile = ""
     @State private var styleEligibility = ""
+    @State private var styleEffectiveContent = ""
+    @State private var styleManualOverride: AiManualProfileOverride?
+    @State private var styleBaseProfileRevision = ""
     @State private var plotState = ""
     @State private var plotChaptersThrough = 0
     @State private var plotChapterCount = 0
     @State private var relationshipProfile = ""
     @State private var relationshipEligibility = ""
     @State private var plotEligibility = ""
+    @State private var plotEffectiveContent = ""
+    @State private var plotManualOverride: AiManualProfileOverride?
+    @State private var plotBaseProfileRevision = ""
+    @State private var relationshipEffectiveContent = ""
+    @State private var relationshipManualOverride: AiManualProfileOverride?
+    @State private var relationshipBaseProfileRevision = ""
     @State private var profileBusy = ""
+    @State private var profileEditorKind = ""
+    @State private var profileEditorText = ""
+    @State private var profileEditorRevision = 0
+    @State private var profileEditorBaseRevision = ""
+    @State private var profileEditorBusy = false
+    @State private var showingProfileEditor = false
 
     // 任务
     @State private var starting = false
@@ -117,10 +141,28 @@ struct AdminAIWritingView: View {
         } message: {
             Text(actionError ?? "")
         }
+        .alert("减少续写章数？", isPresented: $showChapterCountWarning) {
+            Button("保留并减少", role: .destructive) {
+                if let pendingChapterCount {
+                    chapterCount = pendingChapterCount
+                    let lines = chapterGoalsText.components(separatedBy: .newlines)
+                    chapterGoalsText = lines.prefix(pendingChapterCount).joined(separator: "\n")
+                }
+                self.pendingChapterCount = nil
+            }
+            Button("取消", role: .cancel) {
+                pendingChapterCount = nil
+            }
+        } message: {
+            Text(droppedChapterGoalsMessage)
+        }
         .sheet(isPresented: $showingTaskResults) {
             NavigationStack {
                 AdminAIGenerationsView(taskID: activeTask?.id)
             }
+        }
+        .sheet(isPresented: $showingProfileEditor) {
+            profileEditorSheet
         }
         .onDisappear {
             pollTask?.cancel()
@@ -227,6 +269,7 @@ struct AdminAIWritingView: View {
                 TextField("创作要求（可选）", text: $instruction, axis: .vertical)
                     .lineLimit(2...4)
             }
+            detailedBriefSection
             Stepper("目标字数：\(targetWords)", value: $targetWords, in: 500...8000, step: 500)
         }
     }
@@ -256,9 +299,40 @@ struct AdminAIWritingView: View {
             }
             TextField("续写要求（可选）", text: $instruction, axis: .vertical)
                 .lineLimit(2...4)
-            Stepper("续写章数：\(chapterCount)", value: $chapterCount, in: 1...10)
+            detailedBriefSection
+            Stepper("续写章数：\(chapterCount)", value: chapterCountBinding, in: 1...10)
             Stepper("目标字数：\(targetWords)", value: $targetWords, in: 500...8000, step: 500)
         }
+    }
+
+    @ViewBuilder
+    private var detailedBriefSection: some View {
+        DisclosureGroup("更多创作要求", isExpanded: $showDetailedBrief) {
+            TextField("叙事视角（最多 200 字）", text: $briefViewpoint, axis: .vertical)
+                .lineLimit(1...3)
+            TextField("节奏（最多 200 字）", text: $briefPace, axis: .vertical)
+                .lineLimit(1...3)
+            TextField("本章目标（最多 1000 字）", text: $briefObjective, axis: .vertical)
+                .lineLimit(2...5)
+            TextField("必须保留的事实（可选）", text: $briefRequiredFacts, axis: .vertical)
+                .lineLimit(2...5)
+            TextField("禁止发生的事件（可选）", text: $briefForbiddenEvents, axis: .vertical)
+                .lineLimit(2...5)
+            if mode == .continueWriting {
+                TextField("分章目标：每行对应一章，从第 1 章开始", text: $chapterGoalsText, axis: .vertical)
+                    .lineLimit(3...8)
+            }
+            if let error = writingBriefValidationError {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.warning)
+            } else if let preview = writingBriefPreview {
+                Text(preview)
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.textSecondary)
+            }
+        }
+        .font(.subheadline)
     }
 
     // MARK: - 画像
@@ -267,26 +341,32 @@ struct AdminAIWritingView: View {
         Section {
             profileRow(
                 label: "风格画像",
-                value: styleProfile,
+                value: styleEffectiveContent.isEmpty ? styleProfile : styleEffectiveContent,
                 status: styleEligibility,
+                origin: profileOrigin(for: styleManualOverride, effective: styleEffectiveContent),
                 busy: profileBusy == "style",
                 action: { Task { await refreshProfile("style") } },
+                edit: { beginProfileEdit(kind: "style", content: styleEffectiveContent.isEmpty ? styleProfile : styleEffectiveContent, override: styleManualOverride, baseRevision: styleBaseProfileRevision) },
                 empty: "未提取 · 提取后续写自动注入"
             )
             profileRow(
                 label: "情节状态",
-                value: plotState,
+                value: plotEffectiveContent.isEmpty ? plotState : plotEffectiveContent,
                 status: plotEligibility,
+                origin: profileOrigin(for: plotManualOverride, effective: plotEffectiveContent),
                 busy: profileBusy == "plot",
                 action: { Task { await refreshProfile("plot") } },
+                edit: { beginProfileEdit(kind: "plot", content: plotEffectiveContent.isEmpty ? plotState : plotEffectiveContent, override: plotManualOverride, baseRevision: plotBaseProfileRevision) },
                 empty: plotSummary
             )
             profileRow(
                 label: "关系画像",
-                value: relationshipProfile,
+                value: relationshipEffectiveContent.isEmpty ? relationshipProfile : relationshipEffectiveContent,
                 status: relationshipEligibility,
+                origin: profileOrigin(for: relationshipManualOverride, effective: relationshipEffectiveContent),
                 busy: profileBusy == "relationship",
                 action: { Task { await refreshProfile("relationship") } },
+                edit: { beginProfileEdit(kind: "relationship", content: relationshipEffectiveContent.isEmpty ? relationshipProfile : relationshipEffectiveContent, override: relationshipManualOverride, baseRevision: relationshipBaseProfileRevision) },
                 empty: "未提取 · 提取后续写自动注入"
             )
             Button {
@@ -348,7 +428,7 @@ struct AdminAIWritingView: View {
         return "未提取 · 提取后续写自动注入"
     }
 
-    private func profileRow(label: String, value: String, status: String = "", busy: Bool, action: @escaping () -> Void, empty: String) -> some View {
+    private func profileRow(label: String, value: String, status: String = "", origin: String = "", busy: Bool, action: @escaping () -> Void, edit: @escaping () -> Void, empty: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text(label)
@@ -364,8 +444,12 @@ struct AdminAIWritingView: View {
                     .font(.caption)
                     .foregroundStyle(AppTheme.textSecondary)
                 } else {
-                    Button("提取 / 刷新") { action() }
-                        .font(.caption)
+                    HStack(spacing: 10) {
+                        Button("提取 / 刷新") { action() }
+                            .font(.caption)
+                        Button("人工校正") { edit() }
+                            .font(.caption)
+                    }
                 }
             }
             if value.isEmpty {
@@ -382,6 +466,11 @@ struct AdminAIWritingView: View {
                 Text(profileStatusText(status))
                     .font(.caption2)
                     .foregroundStyle(status == "legacy_unknown" || status == "source_changed" || status == "beyond_anchor" ? AppTheme.warning : AppTheme.textSecondary)
+            }
+            if !origin.isEmpty {
+                Text(origin)
+                    .font(.caption2)
+                    .foregroundStyle(AppTheme.textSecondary)
             }
         }
         .padding(.vertical, 2)
@@ -410,12 +499,21 @@ struct AdminAIWritingView: View {
         defer { profileRequests.finish(profileTicket) }
         styleProfile = ""
         styleEligibility = ""
+        styleEffectiveContent = ""
+        styleManualOverride = nil
+        styleBaseProfileRevision = ""
         plotState = ""
         plotEligibility = ""
+        plotEffectiveContent = ""
+        plotManualOverride = nil
+        plotBaseProfileRevision = ""
         plotChaptersThrough = 0
         plotChapterCount = 0
         relationshipProfile = ""
         relationshipEligibility = ""
+        relationshipEffectiveContent = ""
+        relationshipManualOverride = nil
+        relationshipBaseProfileRevision = ""
         defer { selectionRequests.finish(ticket) }
         // 载入章节列表与已提取画像（并行发起，分别容错）
         async let chaptersTask = AdminAPI.chapters(novelId: id)
@@ -432,10 +530,19 @@ struct AdminAIWritingView: View {
         chapterLoadFailed = chaptersResult == nil
         if profileRequests.accepts(profileTicket, query: "\(id)|") {
             styleProfile = style?.profile ?? ""
+            styleEffectiveContent = style?.effectiveContent ?? style?.profile ?? ""
+            styleManualOverride = style?.manualOverride
+            styleBaseProfileRevision = style?.baseProfileRevision ?? ""
             plotState = plot?.state ?? ""
+            plotEffectiveContent = plot?.effectiveContent ?? plot?.state ?? ""
+            plotManualOverride = plot?.manualOverride
+            plotBaseProfileRevision = plot?.baseProfileRevision ?? ""
             plotChaptersThrough = plot?.chaptersThrough ?? 0
             plotChapterCount = plot?.chapterCount ?? 0
             relationshipProfile = relation?.profile ?? ""
+            relationshipEffectiveContent = relation?.effectiveContent ?? relation?.profile ?? ""
+            relationshipManualOverride = relation?.manualOverride
+            relationshipBaseProfileRevision = relation?.baseProfileRevision ?? ""
             styleEligibility = style?.eligibility ?? ""
             plotEligibility = plot?.eligibility ?? ""
             relationshipEligibility = relation?.eligibility ?? ""
@@ -455,9 +562,18 @@ struct AdminAIWritingView: View {
         let relation = try? await relationTask
         guard !Task.isCancelled, novelID == self.novelId, profileRequests.accepts(ticket, query: query) else { return }
         styleProfile = style?.profile ?? ""
+        styleEffectiveContent = style?.effectiveContent ?? style?.profile ?? ""
+        styleManualOverride = style?.manualOverride
+        styleBaseProfileRevision = style?.baseProfileRevision ?? ""
         plotState = plot?.state ?? ""
+        plotEffectiveContent = plot?.effectiveContent ?? plot?.state ?? ""
+        plotManualOverride = plot?.manualOverride
+        plotBaseProfileRevision = plot?.baseProfileRevision ?? ""
         plotChaptersThrough = plot?.source?.chapterOrdinal ?? plot?.chaptersThrough ?? 0
         relationshipProfile = relation?.profile ?? ""
+        relationshipEffectiveContent = relation?.effectiveContent ?? relation?.profile ?? ""
+        relationshipManualOverride = relation?.manualOverride
+        relationshipBaseProfileRevision = relation?.baseProfileRevision ?? ""
         styleEligibility = style?.eligibility ?? ""
         plotEligibility = plot?.eligibility ?? ""
         relationshipEligibility = relation?.eligibility ?? ""
@@ -491,17 +607,20 @@ struct AdminAIWritingView: View {
                 guard !Task.isCancelled, novelId == selectedID else { return }
                 styleProfile = r.profile ?? ""
                 styleEligibility = "usable"
+                await loadProfileStatuses(novelID: selectedID, anchorID: afterChapterId.isEmpty ? nil : afterChapterId)
             case "plot":
                 let r = try await AdminAPI.aiRefreshPlotState(novelId: selectedID, afterChapterId: afterChapterId.isEmpty ? nil : afterChapterId)
                 guard !Task.isCancelled, novelId == selectedID else { return }
                 plotState = r.state ?? ""
                 plotChaptersThrough = r.chaptersThrough ?? 0
                 plotEligibility = "usable"
+                await loadProfileStatuses(novelID: selectedID, anchorID: afterChapterId.isEmpty ? nil : afterChapterId)
             default:
                 let r = try await AdminAPI.aiRefreshRelationshipProfile(novelId: selectedID, afterChapterId: afterChapterId.isEmpty ? nil : afterChapterId)
                 guard !Task.isCancelled, novelId == selectedID else { return }
                 relationshipProfile = r.profile ?? ""
                 relationshipEligibility = "usable"
+                await loadProfileStatuses(novelID: selectedID, anchorID: afterChapterId.isEmpty ? nil : afterChapterId)
             }
         } catch {
             guard !Task.isCancelled, novelId == selectedID else { return }
@@ -535,6 +654,11 @@ struct AdminAIWritingView: View {
 
     private func startTask() async {
         guard canStart else { return }
+        if let writingBriefValidationError {
+            actionError = writingBriefValidationError
+            showDetailedBrief = true
+            return
+        }
         starting = true
         activeTask = nil
         taskStatusText = "任务已提交，等待队列…"
@@ -572,6 +696,9 @@ struct AdminAIWritingView: View {
                 "context": context.trimmingCharacters(in: .whitespacesAndNewlines),
                 "targetWords": targetWords,
             ]
+        }
+        if let writingBriefPayload {
+            body["writingBrief"] = writingBriefPayload
         }
 
         let requestPayloadJSON = (try? JSONSerialization.data(withJSONObject: body, options: [.sortedKeys])).flatMap { String(data: $0, encoding: .utf8) }
@@ -693,6 +820,214 @@ struct AdminAIWritingView: View {
             get: { actionError != nil },
             set: { if !$0 { actionError = nil } }
         )
+    }
+
+    private var chapterCountBinding: Binding<Int> {
+        Binding(
+            get: { chapterCount },
+            set: { requestChapterCountChange($0) }
+        )
+    }
+
+    private var parsedChapterGoals: [AiWritingBriefGoal] {
+        chapterGoalsText
+            .components(separatedBy: .newlines)
+            .enumerated()
+            .compactMap { index, value in
+                let goal = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                return goal.isEmpty ? nil : AiWritingBriefGoal(index: index + 1, goal: goal)
+            }
+    }
+
+    private var writingBriefPayload: [String: Any]? {
+        let values = [briefViewpoint, briefPace, briefObjective, briefRequiredFacts, briefForbiddenEvents]
+        guard values.contains(where: { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) || !parsedChapterGoals.isEmpty else { return nil }
+        let brief = AiWritingBrief(
+            viewpoint: briefViewpoint.trimmingCharacters(in: .whitespacesAndNewlines),
+            pace: briefPace.trimmingCharacters(in: .whitespacesAndNewlines),
+            objective: briefObjective.trimmingCharacters(in: .whitespacesAndNewlines),
+            requiredFacts: briefRequiredFacts.trimmingCharacters(in: .whitespacesAndNewlines),
+            forbiddenEvents: briefForbiddenEvents.trimmingCharacters(in: .whitespacesAndNewlines),
+            chapterGoals: parsedChapterGoals
+        )
+        guard let data = try? JSONEncoder().encode(brief),
+              let object = try? JSONSerialization.jsonObject(with: data),
+              let payload = object as? [String: Any] else { return nil }
+        return payload
+    }
+
+    private var writingBriefValidationError: String? {
+        let values: [(String, String, Int)] = [
+            ("叙事视角", briefViewpoint, 200),
+            ("节奏", briefPace, 200),
+            ("本章目标", briefObjective, 1000),
+            ("必须保留的事实", briefRequiredFacts, 3000),
+            ("禁止发生的事件", briefForbiddenEvents, 3000),
+        ]
+        for (label, value, limit) in values where value.unicodeScalars.count > limit {
+            return "\(label)超过 \(limit) 个 Unicode 标量"
+        }
+        for goal in parsedChapterGoals where goal.goal.unicodeScalars.count > 1000 {
+            return "第 \(goal.index) 章目标超过 1000 个 Unicode 标量"
+        }
+        let total = values.reduce(0) { $0 + $1.1.unicodeScalars.count } + parsedChapterGoals.reduce(0) { $0 + $1.goal.unicodeScalars.count }
+        if total > 12_000 { return "结构化要求总长度超过 12000 个 Unicode 标量" }
+        if parsedChapterGoals.contains(where: { $0.index > chapterCount }) {
+            return "分章目标不能超过本次续写章数"
+        }
+        return nil
+    }
+
+    private var writingBriefPreview: String? {
+        let parts = [
+            briefViewpoint.isEmpty ? nil : "视角：\(briefViewpoint)",
+            briefPace.isEmpty ? nil : "节奏：\(briefPace)",
+            briefObjective.isEmpty ? nil : "目标：\(briefObjective)",
+            parsedChapterGoals.isEmpty ? nil : "已填写 \(parsedChapterGoals.count) 个分章目标",
+        ].compactMap { $0 }
+        return parts.isEmpty ? nil : "提交预览 · " + parts.joined(separator: "；")
+    }
+
+    private var droppedChapterGoalsMessage: String {
+        guard let pendingChapterCount else { return "" }
+        let dropped = chapterGoalsText
+            .components(separatedBy: .newlines)
+            .enumerated()
+            .filter { index, value in index + 1 > pendingChapterCount && !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            .map { "第 \($0.offset + 1) 章" }
+        return dropped.isEmpty ? "减少章数后不会删除已填写目标。" : "以下目标将被删除：\(dropped.joined(separator: "、"))。是否继续？"
+    }
+
+    private func requestChapterCountChange(_ value: Int) {
+        let next = min(10, max(1, value))
+        guard next != chapterCount else { return }
+        if next < chapterCount,
+           chapterGoalsText.components(separatedBy: .newlines).enumerated().contains(where: { $0.offset + 1 > next && !$0.element.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
+            pendingChapterCount = next
+            showChapterCountWarning = true
+            return
+        }
+        chapterCount = next
+    }
+
+    @ViewBuilder
+    private var profileEditorSheet: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextEditor(text: $profileEditorText)
+                        .frame(minHeight: 220)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                } header: {
+                    Text("\(profileEditorKind.isEmpty ? "画像" : profileEditorKind)人工校正")
+                } footer: {
+                    Text("只记录当前起点之前可确认的事实。保存会绑定当前自动画像来源；自动画像刷新不会覆盖这里的未保存内容。")
+                }
+                if profileEditorRevision > 0 {
+                    Button("清除人工校正", role: .destructive) {
+                        Task { await deleteProfileOverride() }
+                    }
+                    .disabled(profileEditorBusy)
+                }
+                Button {
+                    Task { await saveProfileOverride() }
+                } label: {
+                    if profileEditorBusy {
+                        HStack { Spacer(); ProgressView(); Spacer() }
+                    } else {
+                        Text("保存人工校正")
+                    }
+                }
+                .disabled(profileEditorBusy || profileEditorText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || profileEditorText.unicodeScalars.count > 20_000 || profileEditorBaseRevision.isEmpty)
+            }
+            .scrollContentBackground(.hidden)
+            .appListStyle(.settings)
+            .navigationTitle("人工画像")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("关闭") { showingProfileEditor = false }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    private func profileOrigin(for manual: AiManualProfileOverride?, effective: String) -> String {
+        if let manual, let manualContent = manual.content, !manualContent.isEmpty, manualContent == effective {
+            return "最终使用：人工校正（第 \(manual.revision ?? 0) 版）"
+        }
+        if !effective.isEmpty { return "最终使用：自动画像" }
+        if manual != nil { return "人工校正存在，但当前起点未采用" }
+        return "当前起点未采用画像"
+    }
+
+    private func beginProfileEdit(kind: String, content: String, override: AiManualProfileOverride?, baseRevision: String) {
+        guard !baseRevision.isEmpty else {
+            actionError = "当前起点没有可绑定的自动画像来源，请先提取或刷新画像"
+            return
+        }
+        profileEditorKind = kind
+        profileEditorText = override?.content ?? content
+        profileEditorRevision = override?.revision ?? 0
+        profileEditorBaseRevision = baseRevision
+        showingProfileEditor = true
+    }
+
+    private func saveProfileOverride() async {
+        guard !profileEditorBusy, !profileEditorKind.isEmpty, !novelId.isEmpty else { return }
+        let selectedNovelID = novelId
+        let operationID = UUID().uuidString
+        profileEditorBusy = true
+        defer { profileEditorBusy = false }
+        do {
+            let response = try await AdminAPI.aiSaveProfileOverride(
+                kind: profileEditorKind,
+                novelId: selectedNovelID,
+                content: profileEditorText.trimmingCharacters(in: .whitespacesAndNewlines),
+                expectedRevision: profileEditorRevision,
+                baseProfileRevision: profileEditorBaseRevision,
+                afterChapterId: afterChapterId.isEmpty ? nil : afterChapterId,
+                operationID: operationID
+            )
+            guard !Task.isCancelled, selectedNovelID == novelId else { return }
+            if let saved = response.override {
+                switch profileEditorKind {
+                case "style": styleManualOverride = saved
+                case "plot": plotManualOverride = saved
+                default: relationshipManualOverride = saved
+                }
+            }
+            showingProfileEditor = false
+            await loadProfileStatuses(novelID: selectedNovelID, anchorID: afterChapterId.isEmpty ? nil : afterChapterId)
+        } catch {
+            guard !Task.isCancelled, selectedNovelID == novelId else { return }
+            actionError = AppCopy.friendlyError(error)
+        }
+    }
+
+    private func deleteProfileOverride() async {
+        guard !profileEditorBusy, !profileEditorKind.isEmpty, profileEditorRevision > 0, !novelId.isEmpty else { return }
+        let selectedNovelID = novelId
+        let operationID = UUID().uuidString
+        profileEditorBusy = true
+        defer { profileEditorBusy = false }
+        do {
+            _ = try await AdminAPI.aiDeleteProfileOverride(
+                kind: profileEditorKind,
+                novelId: selectedNovelID,
+                expectedRevision: profileEditorRevision,
+                afterChapterId: afterChapterId.isEmpty ? nil : afterChapterId,
+                operationID: operationID
+            )
+            guard !Task.isCancelled, selectedNovelID == novelId else { return }
+            showingProfileEditor = false
+            await loadProfileStatuses(novelID: selectedNovelID, anchorID: afterChapterId.isEmpty ? nil : afterChapterId)
+        } catch {
+            guard !Task.isCancelled, selectedNovelID == novelId else { return }
+            actionError = AppCopy.friendlyError(error)
+        }
     }
 }
 

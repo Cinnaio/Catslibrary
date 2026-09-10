@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import ZhiZhouCore
 
 /// AI 已生成内容：列表 / 类型与状态筛选 / 批量删除 / 草稿编辑 / 发布 / 撤销发布 / 删除。
@@ -517,6 +518,18 @@ private struct GenerationDetailSheet: View {
     @State private var saving = false
     @State private var savingAction: String?
     @State private var actionError: String?
+    @State private var contentRevision = ""
+    @State private var selectedRange: NSRange?
+    @State private var rewriteMode = "polish"
+    @State private var rewriteInstruction = ""
+    @State private var rewriteTaskID: String?
+    @State private var rewriteTaskStatus = ""
+    @State private var rewriteSuggestion: AiRewriteTaskResult?
+    @State private var rewriteSelectedText = ""
+    @State private var rewriteBaseRevision = ""
+    @State private var rewriteApplyOperationID = ""
+    @State private var rewriteBusy = false
+    @State private var rewritePollTask: Task<Void, Never>?
 
     private var isEditableDraft: Bool {
         item.isDraft && ["write_chapter", "continue", "write_outline"].contains(item.kind ?? "")
@@ -532,6 +545,21 @@ private struct GenerationDetailSheet: View {
 
     private var currentText: String {
         isEditing ? editorText : savedText
+    }
+
+    private var canRewriteSelection: Bool {
+        guard isPublishableDraft, !isEditing || !isDirty, let selectedRange else { return false }
+        return selectedRange.location >= 0 && selectedRange.length > 0 && selectedRange.location + selectedRange.length <= (savedText as NSString).length
+    }
+
+    private var rewriteSuggestionIsApplicable: Bool {
+        guard let suggestion = rewriteSuggestion,
+              suggestion.draftId == item.id,
+              let baseRevision = suggestion.baseRevision,
+              !baseRevision.isEmpty,
+              baseRevision == contentRevision,
+              !(isEditing && isDirty) else { return false }
+        return true
     }
 
     var body: some View {
@@ -556,13 +584,11 @@ private struct GenerationDetailSheet: View {
 
                 Section("内容") {
                     if isEditing {
-                        TextEditor(text: $editorText)
-                        .frame(minHeight: 260)
-                        .font(.subheadline)
-                        .scrollContentBackground(.hidden)
-                        .padding(AppLayout.textEditorInset)
-                        .appFieldSurface()
-                        .padding(.vertical, 4)
+                        DraftSelectionTextView(text: $editorText, selectedRange: $selectedRange)
+                            .frame(minHeight: 260)
+                            .padding(AppLayout.textEditorInset)
+                            .appFieldSurface()
+                            .padding(.vertical, 4)
                     } else {
                         Text(savedText.isEmpty ? "（无内容）" : savedText)
                             .font(.subheadline)
@@ -592,6 +618,75 @@ private struct GenerationDetailSheet: View {
                             Button("放弃编辑") {
                                 editorText = savedText
                                 isEditing = false
+                            }
+                        }
+                    }
+                    if isPublishableDraft {
+                        Section("选段改写") {
+                            Text("先点“编辑草稿”，在正文中选择一段；改写建议会单独生成，应用前仍需确认。")
+                                .font(.caption)
+                                .foregroundStyle(AppTheme.textSecondary)
+                            Picker("模式", selection: $rewriteMode) {
+                                Text("润色").tag("polish")
+                                Text("扩写").tag("expand")
+                                Text("精简").tag("shorten")
+                                Text("自定义").tag("custom")
+                            }
+                            if rewriteMode == "custom" {
+                                TextField("改写说明（最多 2000 字）", text: $rewriteInstruction, axis: .vertical)
+                                    .lineLimit(2...5)
+                            }
+                            Button {
+                                Task { await startRewrite() }
+                            } label: {
+                                if rewriteBusy {
+                                    Label("正在生成建议…", systemImage: "hourglass")
+                                } else {
+                                    Label("生成改写建议", systemImage: "wand.and.stars")
+                                }
+                            }
+                            .disabled(!canRewriteSelection || rewriteBusy || (rewriteMode == "custom" && rewriteInstruction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
+                            if !rewriteSelectedText.isEmpty {
+                                LabeledContent("已选中", value: "\(rewriteSelectedText.count) 字")
+                            }
+                            if !rewriteTaskStatus.isEmpty {
+                                Text(rewriteTaskStatus)
+                                    .font(.caption)
+                                    .foregroundStyle(AppTheme.textSecondary)
+                            }
+                            if let rewriteSuggestion {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("原选段")
+                                        .font(.caption.weight(.semibold))
+                                    Text(rewriteSuggestion.selectedText ?? "")
+                                        .font(.caption)
+                                        .foregroundStyle(AppTheme.textSecondary)
+                                    Text("改写建议")
+                                        .font(.caption.weight(.semibold))
+                                    Text(rewriteSuggestion.suggestion ?? "")
+                                        .font(.subheadline)
+                                        .textSelection(.enabled)
+                                    if !rewriteSuggestionIsApplicable {
+                                        Label("草稿正文已变化或有未保存修改，这条建议不可应用，请重新选择选段。", systemImage: "exclamationmark.triangle")
+                                            .font(.caption)
+                                            .foregroundStyle(AppTheme.warning)
+                                    }
+                                    HStack {
+                                        Button("复制建议") {
+                                            UIPasteboard.general.string = rewriteSuggestion.suggestion ?? ""
+                                        }
+                                        .buttonStyle(.bordered)
+                                        .disabled((rewriteSuggestion.suggestion ?? "").isEmpty)
+                                        Spacer()
+                                    }
+                                    Button("应用到草稿") {
+                                        Task { await applyRewrite() }
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    .tint(AppTheme.primary)
+                                    .disabled(rewriteBusy || !rewriteSuggestionIsApplicable)
+                                }
+                                .padding(.vertical, 4)
                             }
                         }
                     }
@@ -687,9 +782,15 @@ private struct GenerationDetailSheet: View {
             didNotifyClose = false
             savedText = item.result ?? ""
             editorText = savedText
+            contentRevision = item.contentRevision ?? ""
+            selectedRange = nil
+            rewriteTaskID = nil
+            rewriteTaskStatus = ""
+            rewriteSuggestion = nil
             publishTitle = item.draftTitle ?? ""
         }
         .onDisappear {
+            rewritePollTask?.cancel()
             // 系统下滑关闭不会经过工具栏按钮；仍要把已保存正文的刷新信号交给父列表。
             notifyClose(didMutate)
         }
@@ -714,11 +815,151 @@ private struct GenerationDetailSheet: View {
             let committed = (response.result ?? text).trimmingCharacters(in: .whitespacesAndNewlines)
             savedText = committed
             editorText = committed
+            contentRevision = response.contentRevision ?? contentRevision
+            selectedRange = nil
+            rewriteSuggestion = nil
+            rewriteTaskID = nil
             isEditing = false
             didMutate = true
             actionError = nil
         } catch {
             actionError = AppCopy.friendlyError(error)
+        }
+    }
+
+    private func startRewrite() async {
+        guard canRewriteSelection, let selectedRange else {
+            actionError = isEditing && isDirty ? "请先保存正文，再重新选择选段" : "请在已保存正文中选择一段"
+            return
+        }
+        let text = savedText as NSString
+        guard selectedRange.location >= 0, selectedRange.location + selectedRange.length <= text.length else {
+            actionError = "选段已失效，请重新选择"
+            return
+        }
+        if contentRevision.isEmpty {
+            do {
+                let latest = try await AdminAPI.aiGeneration(id: item.id).item
+                guard latest.isDraft, let latestText = latest.result, latestText == savedText else {
+                    actionError = "草稿正文已变化，请重新读取后选择"
+                    return
+                }
+                contentRevision = latest.contentRevision ?? ""
+            } catch {
+                actionError = AppCopy.friendlyError(error)
+                return
+            }
+        }
+        guard !contentRevision.isEmpty else {
+            actionError = "当前服务端不支持正文版本校验，请更新服务端后重试"
+            return
+        }
+        rewriteSelectedText = text.substring(with: selectedRange)
+        rewriteBaseRevision = contentRevision
+        rewriteSuggestion = nil
+        rewriteTaskStatus = "任务已提交，等待建议…"
+        rewriteBusy = true
+        defer { rewriteBusy = false }
+        do {
+            let requestID = UUID().uuidString
+            let response = try await AdminAPI.aiRewriteDraft(
+                id: item.id,
+                baseRevision: contentRevision,
+                startUTF16: selectedRange.location,
+                endUTF16: selectedRange.location + selectedRange.length,
+                selectedText: rewriteSelectedText,
+                mode: rewriteMode,
+                instruction: rewriteInstruction.trimmingCharacters(in: .whitespacesAndNewlines),
+                clientRequestID: requestID
+            )
+            rewriteTaskID = response.taskId
+            await pollRewriteTask(response.taskId)
+        } catch {
+            rewriteTaskStatus = "改写任务提交失败"
+            actionError = AppCopy.friendlyError(error)
+        }
+    }
+
+    private func pollRewriteTask(_ taskID: String) async {
+        rewritePollTask?.cancel()
+        rewritePollTask = Task { @MainActor in
+            for attempt in 0..<200 where !Task.isCancelled {
+                if attempt > 0 { try? await Task.sleep(nanoseconds: 3_000_000_000) }
+                guard !Task.isCancelled else { return }
+                do {
+                    let task = try await AdminAPI.aiTask(id: taskID).task
+                    rewriteTaskStatus = task.step?.isEmpty == false ? task.step! : "任务状态：\(AdminFormat.aiTaskStatus(task.status ?? ""))"
+                    if ["completed", "failed", "cancelled"].contains(task.status ?? "") {
+                        if task.status == "completed", let data = task.result?.data(using: .utf8), let result = try? JSONDecoder().decode(AiRewriteTaskResult.self, from: data) {
+                            rewriteSuggestion = result
+                            rewriteTaskStatus = "改写建议已生成，请确认后应用"
+                        } else if task.status != "completed" {
+                            actionError = task.error?.isEmpty == false ? task.error! : "改写建议未生成"
+                        }
+                        rewritePollTask = nil
+                        return
+                    }
+                } catch {
+                    if attempt >= 4 {
+                        rewriteTaskStatus = "任务仍在服务器运行，查询暂时中断；请稍后重试"
+                        rewritePollTask = nil
+                        return
+                    }
+                }
+            }
+            rewritePollTask = nil
+        }
+        await rewritePollTask?.value
+    }
+
+    private func applyRewrite() async {
+        guard let taskID = rewriteTaskID, let suggestion = rewriteSuggestion, let baseRevision = suggestion.baseRevision, !baseRevision.isEmpty else {
+            actionError = "改写建议已失效，请重新生成"
+            return
+        }
+        guard suggestion.draftId == item.id else {
+            actionError = "改写建议与当前草稿不匹配"
+            return
+        }
+        guard rewriteSuggestionIsApplicable else {
+            actionError = "草稿正文已变化或有未保存修改，这条建议不可应用，请重新选择选段"
+            return
+        }
+        rewriteBusy = true
+        if rewriteApplyOperationID.isEmpty { rewriteApplyOperationID = UUID().uuidString }
+        defer { rewriteBusy = false }
+        do {
+            let response = try await AdminAPI.aiApplyRewrite(draftID: item.id, taskID: taskID, baseRevision: baseRevision, operationID: rewriteApplyOperationID)
+            guard let result = response.result else {
+                actionError = "应用结果缺少正文，请刷新草稿确认"
+                return
+            }
+            savedText = result
+            editorText = result
+            contentRevision = response.contentRevision ?? contentRevision
+            selectedRange = nil
+            rewriteSuggestion = nil
+            rewriteTaskStatus = "改写已应用到草稿"
+            rewriteApplyOperationID = ""
+            isEditing = false
+            didMutate = true
+        } catch {
+            // 应用请求可能在服务端已提交后才丢响应；用同一 operationId 重放，禁止生成第二次替换。
+            do {
+                let response = try await AdminAPI.aiApplyRewrite(draftID: item.id, taskID: taskID, baseRevision: baseRevision, operationID: rewriteApplyOperationID)
+                guard let result = response.result else { throw error }
+                savedText = result
+                editorText = result
+                contentRevision = response.contentRevision ?? contentRevision
+                selectedRange = nil
+                rewriteSuggestion = nil
+                rewriteTaskStatus = "改写已应用到草稿"
+                rewriteApplyOperationID = ""
+                isEditing = false
+                didMutate = true
+            } catch {
+                actionError = AppCopy.friendlyError(error)
+            }
         }
     }
 
@@ -760,6 +1001,10 @@ private struct GenerationDetailSheet: View {
                 let committed = (response.result ?? text).trimmingCharacters(in: .whitespacesAndNewlines)
                 savedText = committed
                 editorText = committed
+                contentRevision = response.contentRevision ?? contentRevision
+                selectedRange = nil
+                rewriteSuggestion = nil
+                rewriteTaskID = nil
                 isEditing = false
                 didMutate = true
             }
@@ -835,6 +1080,60 @@ private struct GenerationDetailSheet: View {
             notifyClose(true)
         } catch {
             actionError = AppCopy.friendlyError(error)
+        }
+    }
+}
+
+/// 可编辑且回传真实 NSRange 的正文编辑器；NSRange 使用 UTF-16 坐标，和服务端改写契约一致。
+private struct DraftSelectionTextView: UIViewRepresentable {
+    @Binding var text: String
+    @Binding var selectedRange: NSRange?
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(text: $text, selectedRange: $selectedRange)
+    }
+
+    func makeUIView(context: Context) -> UITextView {
+        let view = UITextView()
+        view.delegate = context.coordinator
+        view.isEditable = true
+        view.isSelectable = true
+        view.isScrollEnabled = true
+        view.backgroundColor = .clear
+        view.font = .preferredFont(forTextStyle: .body)
+        view.text = text
+        view.textContainerInset = .zero
+        view.textContainer.lineFragmentPadding = 0
+        return view
+    }
+
+    func updateUIView(_ uiView: UITextView, context: Context) {
+        if uiView.text != text {
+            uiView.text = text
+            let length = (text as NSString).length
+            let location = min(uiView.selectedRange.location, length)
+            uiView.selectedRange = NSRange(location: location, length: 0)
+        }
+        if let selectedRange, selectedRange.location + selectedRange.length <= (text as NSString).length, uiView.selectedRange != selectedRange {
+            uiView.selectedRange = selectedRange
+        }
+    }
+
+    final class Coordinator: NSObject, UITextViewDelegate {
+        @Binding var text: String
+        @Binding var selectedRange: NSRange?
+
+        init(text: Binding<String>, selectedRange: Binding<NSRange?>) {
+            _text = text
+            _selectedRange = selectedRange
+        }
+
+        func textViewDidChange(_ textView: UITextView) {
+            text = textView.text
+        }
+
+        func textViewDidChangeSelection(_ textView: UITextView) {
+            selectedRange = textView.selectedRange.length > 0 ? textView.selectedRange : nil
         }
     }
 }

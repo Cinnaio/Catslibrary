@@ -104,6 +104,7 @@ enum AdminFormat {
         case "continue": return "续写"
         case "write_outline": return "大纲"
         case "write_chapter": return "章节创作"
+        case "rewrite_selection": return "选段改写"
         case "writing_title": return "标题生成"
         case "cover": return "封面"
         case "cover_prompt": return "封面描述词"

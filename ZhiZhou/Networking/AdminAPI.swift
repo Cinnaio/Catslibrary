@@ -647,11 +647,13 @@ enum AdminAPI {
         try await APIClient.shared.get("/api/ai/cover/candidates?novelId=\(encodeQueryValue(novelId))", auth: true)
     }
 
-    /// 采纳候选：覆盖为当前封面并删除候选。
-    static func aiAdoptCoverCandidate(id: String, operationID: String) async throws {
-        let _: OkEnvelope = try await APIClient.shared.post(
+    /// 采纳候选：覆盖为当前封面并删除候选；expectedCoverVersion 为空时兼容旧客户端。
+    static func aiAdoptCoverCandidate(id: String, operationID: String, expectedCoverVersion: String? = nil) async throws -> AiCoverReplaceResponse {
+        var payload: [String: Any] = ["operationId": operationID]
+        if let expectedCoverVersion, !expectedCoverVersion.isEmpty { payload["expectedCoverVersion"] = expectedCoverVersion }
+        return try await APIClient.shared.post(
             "/api/ai/cover/candidates/\(encodePathSegment(id))/adopt",
-            body: try jsonBody(["operationId": operationID]),
+            body: try jsonBody(payload),
             auth: true,
             idempotencyKey: operationID
         )
@@ -667,7 +669,8 @@ enum AdminAPI {
         novelId: String,
         imageData: Data,
         mimeType: String = "image/jpeg",
-        operationID: String
+        operationID: String,
+        expectedCoverVersion: String? = nil
     ) async throws {
         let boundary = "Boundary-\(UUID().uuidString)"
         var body = Data()
@@ -678,6 +681,11 @@ enum AdminAPI {
         append("--\(boundary)\r\n")
         append("Content-Disposition: form-data; name=\"operationId\"\r\n\r\n")
         append("\(operationID)\r\n")
+        if let expectedCoverVersion, !expectedCoverVersion.isEmpty {
+            append("--\(boundary)\r\n")
+            append("Content-Disposition: form-data; name=\"expectedCoverVersion\"\r\n\r\n")
+            append("\(expectedCoverVersion)\r\n")
+        }
         append("--\(boundary)\r\n")
         append("Content-Disposition: form-data; name=\"cover\"; filename=\"cover.jpg\"\r\n")
         append("Content-Type: \(mimeType)\r\n\r\n")
@@ -686,6 +694,27 @@ enum AdminAPI {
         let _: OkEnvelope = try await APIClient.shared.request(
             "POST", "/api/ai/cover/upload", body: body,
             auth: true, contentType: "multipart/form-data; boundary=\(boundary)", idempotencyKey: operationID
+        )
+    }
+
+    /// 获取封面历史元数据与当前封面版本；历史图片单独走鉴权二进制接口。
+    static func aiCoverHistory(novelId: String) async throws -> AiCoverHistoryResponse {
+        try await APIClient.shared.get("/api/ai/cover/history/\(encodePathSegment(novelId))", auth: true)
+    }
+
+    static func aiCoverHistoryImage(novelId: String, historyID: String) async throws -> Data {
+        try await APIClient.shared.data(
+            "/api/ai/cover/history/\(encodePathSegment(novelId))/\(encodePathSegment(historyID))/image",
+            auth: true
+        )
+    }
+
+    static func aiRestoreCoverHistory(novelId: String, historyID: String, expectedCoverVersion: String, operationID: String) async throws -> AiCoverReplaceResponse {
+        try await APIClient.shared.post(
+            "/api/ai/cover/history/\(encodePathSegment(novelId))/\(encodePathSegment(historyID))/restore",
+            body: try jsonBody(["expectedCoverVersion": expectedCoverVersion, "operationId": operationID]),
+            auth: true,
+            idempotencyKey: operationID
         )
     }
 
@@ -854,10 +883,67 @@ enum AdminAPI {
         try await getAiProfile("relationship-profile", novelId: novelId, afterChapterId: afterChapterId)
     }
 
+    /// PUT/DELETE /api/ai/writing/profiles/:kind/:novelId/override：人工画像校正。
+    static func aiSaveProfileOverride(kind: String, novelId: String, content: String, expectedRevision: Int, baseProfileRevision: String, afterChapterId: String? = nil, operationID: String) async throws -> AiProfileOverrideResponse {
+        var payload: [String: Any] = [
+            "content": content,
+            "expectedRevision": expectedRevision,
+            "baseProfileRevision": baseProfileRevision,
+            "operationId": operationID,
+        ]
+        if let afterChapterId, !afterChapterId.isEmpty { payload["afterChapterId"] = afterChapterId }
+        return try await APIClient.shared.request(
+            "PUT",
+            "/api/ai/writing/profiles/\(encodePathSegment(kind))/\(encodePathSegment(novelId))/override",
+            body: try jsonBody(payload),
+            auth: true,
+            idempotencyKey: operationID
+        )
+    }
+
+    static func aiDeleteProfileOverride(kind: String, novelId: String, expectedRevision: Int, afterChapterId: String? = nil, operationID: String) async throws -> AiProfileOverrideResponse {
+        var payload: [String: Any] = ["expectedRevision": expectedRevision, "operationId": operationID]
+        if let afterChapterId, !afterChapterId.isEmpty { payload["afterChapterId"] = afterChapterId }
+        return try await APIClient.shared.request(
+            "DELETE",
+            "/api/ai/writing/profiles/\(encodePathSegment(kind))/\(encodePathSegment(novelId))/override",
+            body: try jsonBody(payload),
+            auth: true,
+            idempotencyKey: operationID
+        )
+    }
+
     // MARK: - AI 服务：草稿编辑与发布
 
     static func aiUpdateDraft(id: String, result: String) async throws -> AiDraftUpdateResponse {
         try await APIClient.shared.request("PUT", "/api/ai/writing/drafts/\(encodePathSegment(id))", body: try jsonBody(["result": result]), auth: true)
+    }
+
+    static func aiRewriteDraft(id: String, baseRevision: String, startUTF16: Int, endUTF16: Int, selectedText: String, mode: String, instruction: String, clientRequestID: String) async throws -> AiTaskStartResponse {
+        let body: [String: Any] = [
+            "baseRevision": baseRevision,
+            "startUTF16": startUTF16,
+            "endUTF16": endUTF16,
+            "selectedText": selectedText,
+            "mode": mode,
+            "instruction": instruction,
+            "clientRequestId": clientRequestID,
+        ]
+        return try await APIClient.shared.post(
+            "/api/ai/writing/drafts/\(encodePathSegment(id))/rewrite",
+            body: try jsonBody(body),
+            auth: true,
+            idempotencyKey: clientRequestID
+        )
+    }
+
+    static func aiApplyRewrite(draftID: String, taskID: String, baseRevision: String, operationID: String) async throws -> AiRewriteApplyResponse {
+        try await APIClient.shared.post(
+            "/api/ai/writing/drafts/\(encodePathSegment(draftID))/rewrite/\(encodePathSegment(taskID))/apply",
+            body: try jsonBody(["baseRevision": baseRevision, "operationId": operationID]),
+            auth: true,
+            idempotencyKey: operationID
+        )
     }
 
     static func aiPublishDraft(id: String, novelId: String, title: String) async throws -> AiPublishDraftResponse {
