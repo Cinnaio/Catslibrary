@@ -3,7 +3,46 @@
  * generateWriting 本身走 AI/DB，这里只测可测的 parseContinuationTitle。
  */
 import { describe, it, expect } from 'vitest'
-import { cleanWritingTail, parseContinuationTitle } from './writing'
+import { cleanWritingTail, formatWritingBrief, parseContinuationTitle, validateWritingBrief } from './writing'
+
+describe('writingBrief', () => {
+  it('规范化字段、按批次序号排序，并按 Unicode 标量限制长度', () => {
+    const result = validateWritingBrief(
+      {
+        version: 1,
+        viewpoint: '第三人称限知',
+        pace: '舒缓',
+        objective: '发现矛盾',
+        requiredFacts: '伤势仍未痊愈',
+        forbiddenEvents: '不得揭露幕后人物',
+        chapterGoals: [{ index: 2, goal: '收束线索' }, { index: 1, goal: '发现证词矛盾' }],
+      },
+      2,
+    )
+    expect(result.error).toBeUndefined()
+    expect(result.brief?.chapterGoals).toEqual([
+      { index: 1, goal: '发现证词矛盾' },
+      { index: 2, goal: '收束线索' },
+    ])
+  })
+
+  it('拒绝版本、字段类型、重复或越界目标，以及单字段/总长度超限', () => {
+    expect(validateWritingBrief({ version: 2 }, 1).error).toContain('version')
+    expect(validateWritingBrief({ version: 1, pace: 1 }, 1).error).toContain('pace')
+    expect(validateWritingBrief({ version: 1, chapterGoals: [{ index: 1, goal: 'a' }, { index: 1, goal: 'b' }] }, 1).error).toContain('不能重复')
+    expect(validateWritingBrief({ version: 1, chapterGoals: [{ index: 2, goal: 'a' }] }, 1).error).toContain('范围')
+    expect(validateWritingBrief({ version: 1, viewpoint: '🙂'.repeat(201) }, 1).error).toContain('viewpoint')
+    expect(validateWritingBrief({ version: 1, viewpoint: 'v'.repeat(200), pace: 'p'.repeat(200), objective: 'a'.repeat(1000), requiredFacts: 'b'.repeat(3000), forbiddenEvents: 'c'.repeat(3000), chapterGoals: [1, 2, 3, 4, 5].map((index) => ({ index, goal: 'd'.repeat(1000) })) }, 5).error).toContain('总长度')
+  })
+
+  it('按结构化要求、对应章节目标、补充要求的固定顺序格式化', () => {
+    const brief = validateWritingBrief({ version: 1, viewpoint: '第一人称', pace: '紧凑', chapterGoals: [{ index: 2, goal: '第二章目标' }] }, 2).brief!
+    const formatted = formatWritingBrief(brief, 2)
+    expect(formatted.structured.indexOf('叙事视角')).toBeLessThan(formatted.structured.indexOf('节奏'))
+    expect(formatted.goal).toContain('第二章目标')
+    expect(formatWritingBrief(brief, 1).goal).toBe('')
+  })
+})
 
 describe('cleanWritingTail', () => {
   it('保留清洗后正文的末尾哨兵，而不是前缀', () => {

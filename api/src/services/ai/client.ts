@@ -6,7 +6,7 @@
 import { loadConfig, type AiProviderConfig } from '../../config'
 import { outboundFetch } from '../outbound-fetch'
 
-export type AiErrorCode = 'disabled' | 'timeout' | 'upstream' | 'invalid'
+export type AiErrorCode = 'disabled' | 'timeout' | 'upstream' | 'invalid' | 'conflict'
 
 export class AiError extends Error {
   code: AiErrorCode

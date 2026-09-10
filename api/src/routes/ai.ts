@@ -5,7 +5,7 @@
  */
 import { Hono, type Context } from 'hono'
 import { getDb } from '../db/pool'
-import { all, first, run, withTx } from '../db/query'
+import { all, first, withTx } from '../db/query'
 import { AiError, chat, isTextAiConfigured, providerLabel, textProvider } from '../services/ai/client'
 import { isImageAiConfigured, imageProvider, imageProviderLabel } from '../services/ai/image'
 import { generateCoverPrompt, generateCoverPromptTask, generateNovelCover, newCoverVariationId, normalizeCoverPrompt, normalizeCoverPromptMode } from '../services/ai/cover'
@@ -24,21 +24,24 @@ import {
   getGeneration,
   getGenerationDetail,
   updateGenerationResult,
+  generationContentRevision,
   UNDO_WINDOW_MS,
   type GenerationRow,
   type BatchResult,
 } from '../services/ai/generations'
 import { escapeLike } from '../services/text'
-import { generateContinuationChapters, generateWriting, generateWritingTitles, loadContinuationContext, parseContinuationTitle, type ContinuationSnapshotV1 } from '../services/ai/writing'
-import { extractStyleProfile, getStyleProfileForAnchor } from '../services/ai/style-profile'
-import { extractPlotState, getPlotStateForAnchor } from '../services/ai/plot-state'
-import { extractRelationshipProfile, getRelationshipProfileForAnchor } from '../services/ai/relationship-profile'
+import { generateContinuationChapters, generateWriting, generateWritingTitles, loadContinuationContext, parseContinuationTitle, type ContinuationSnapshotV1, validateWritingBrief } from '../services/ai/writing'
+import { extractStyleProfile } from '../services/ai/style-profile'
+import { extractPlotState } from '../services/ai/plot-state'
+import { extractRelationshipProfile } from '../services/ai/relationship-profile'
+import { deleteProfileOverride, getEffectiveProfileForAnchor, parseProfileKind, saveProfileOverride } from '../services/ai/profile-overrides'
 import { checkQuota, recordUsage, startOfToday, summarizeUsage } from '../services/ai/usage'
 import { optionalUser, requireAdmin, requireUser, type AuthEnv } from '../middlewares/auth'
 import { cancelAiTask, countActiveWritingTasks, createAiTask, deleteAiTask, getAiTask, listAiTasks, updateAiTask } from '../services/ai/tasks'
-import { adoptCoverCandidate, deleteCoverCandidate, listCoverCandidates, storeCover, MAX_COVER_BYTES } from '../services/covers'
+import { adoptCoverCandidate, deleteCoverCandidate, getCoverHistoryImage, getCurrentCoverState, listCoverCandidates, listCoverHistory, replaceCoverForAdmin, MAX_COVER_BYTES } from '../services/covers'
 import { clientIpFromContext } from '../services/ai/audit-context'
 import { idempotencyKeyFromRequest, requestHash, withIdempotency } from '../services/idempotency'
+import { buildRewriteTaskParams, parseRewriteSuggestion, parseRewriteTaskParams, runRewriteTask, validateRewriteSelection, type RewriteMode } from '../services/ai/rewrite'
 
 export const aiRoutes = new Hono<AuthEnv>()
 
@@ -353,6 +356,7 @@ function writingTaskParams(body: Record<string, any>, continuationSnapshot?: Con
       ? { temperature: Number(body.temperature) }
       : {}),
     ...(typeof body.clientRequestId === 'string' && body.clientRequestId.trim() ? { clientRequestId: body.clientRequestId.trim().slice(0, 160) } : {}),
+    ...(body.writingBrief ? { writingBrief: body.writingBrief } : {}),
     ...(continuationSnapshot ? { continuationSnapshot } : {}),
   })
 }
@@ -411,7 +415,27 @@ function parseContinuationSnapshot(value: unknown): ContinuationSnapshotV1 | und
   if (snapshot.version !== 1 || snapshot.contextPolicyVersion !== 1 || !anchor || !profiles) return undefined
   if (typeof anchor.chapterId !== 'string' || !anchor.chapterId || typeof anchor.title !== 'string' || !Number.isFinite(Number(anchor.sortOrder))) return undefined
   if (typeof snapshot.context !== 'string' || typeof profiles.style !== 'string' || typeof profiles.relationship !== 'string' || typeof profiles.plot !== 'string') return undefined
-  return snapshot as unknown as ContinuationSnapshotV1
+  // 旧任务没有 revision 字段时仍按旧语义恢复；新快照则把 revision 归一化为冻结的只读元数据。
+  const profileRevisions: Record<string, number> = {}
+  if (snapshot.profileRevisions && typeof snapshot.profileRevisions === 'object' && !Array.isArray(snapshot.profileRevisions)) {
+    for (const [kind, revision] of Object.entries(snapshot.profileRevisions as Record<string, unknown>)) {
+      if (kind === 'style' || kind === 'relationship' || kind === 'plot') {
+        const value = Number(revision)
+        if (!Number.isInteger(value) || value < 0) return undefined
+        profileRevisions[kind] = value
+      }
+    }
+  }
+  const profileBaseRevisions: Record<string, string> = {}
+  if (snapshot.profileBaseRevisions && typeof snapshot.profileBaseRevisions === 'object' && !Array.isArray(snapshot.profileBaseRevisions)) {
+    for (const [kind, revision] of Object.entries(snapshot.profileBaseRevisions as Record<string, unknown>)) {
+      if (kind === 'style' || kind === 'relationship' || kind === 'plot') {
+        if (typeof revision !== 'string') return undefined
+        profileBaseRevisions[kind] = revision
+      }
+    }
+  }
+  return { ...snapshot, profileRevisions, profileBaseRevisions } as unknown as ContinuationSnapshotV1
 }
 
 async function buildContinuationSnapshot(
@@ -422,21 +446,25 @@ async function buildContinuationSnapshot(
   const loaded = await loadContinuationContext(db, novelId, afterChapterId)
   if (!loaded) return undefined
   const [style, relationship, plot] = await Promise.all([
-    getStyleProfileForAnchor(db, novelId, loaded.anchor.chapterId),
-    getRelationshipProfileForAnchor(db, novelId, loaded.anchor.chapterId),
-    getPlotStateForAnchor(db, novelId, loaded.anchor.chapterId),
+    getEffectiveProfileForAnchor(db, { kind: 'style', novelId, afterChapterId: loaded.anchor.chapterId }),
+    getEffectiveProfileForAnchor(db, { kind: 'relationship', novelId, afterChapterId: loaded.anchor.chapterId }),
+    getEffectiveProfileForAnchor(db, { kind: 'plot', novelId, afterChapterId: loaded.anchor.chapterId }),
   ])
   const profiles = { style: '', relationship: '', plot: '' }
   const profileSources: Record<string, unknown> = {}
+  const profileRevisions: Record<string, number> = {}
+  const profileBaseRevisions: Record<string, string> = {}
   const excludedProfiles: ContinuationSnapshotV1['excludedProfiles'] = []
-  const use = (kind: 'style' | 'relationship' | 'plot', value: { profile?: string; state?: string; source?: unknown; eligibility: string }) => {
-    const profile = String(value.profile ?? value.state ?? '')
-    const allowed = value.eligibility === 'usable' && (kind !== 'plot' || profile.trim().length > 0)
+  const use = (kind: 'style' | 'relationship' | 'plot', value: { profile?: string; state?: string; effectiveContent?: string; effectiveOrigin?: string; source?: unknown; eligibility: string; exclusionReason?: string; manualOverride?: { revision?: number }; baseProfileRevision?: string }) => {
+    const profile = String(value.effectiveContent ?? value.profile ?? value.state ?? '')
+    profileRevisions[kind] = Number.isInteger(Number(value.manualOverride?.revision)) ? Math.max(0, Number(value.manualOverride?.revision)) : 0
+    profileBaseRevisions[kind] = String(value.baseProfileRevision || '')
+    const allowed = value.effectiveOrigin !== 'none' && profile.trim().length > 0
     if (allowed) {
       profiles[kind] = profile
       if (value.source) profileSources[kind] = value.source
     } else {
-      excludedProfiles.push({ kind, reason: value.eligibility })
+      excludedProfiles.push({ kind, reason: value.exclusionReason || value.eligibility })
     }
   }
   use('style', style)
@@ -449,6 +477,8 @@ async function buildContinuationSnapshot(
     context: loaded.context,
     profiles,
     profileSources,
+    profileRevisions,
+    profileBaseRevisions,
     excludedProfiles,
   }
 }
@@ -465,6 +495,10 @@ async function startWritingJob(
   const novelId = String(body.novelId || '').trim()
   const title = String(body.title || '').trim()
   const instruction = String(body.instruction || '').trim()
+  const requestedChapterCount = kind === 'continue' ? Math.max(1, Math.min(20, Math.trunc(Number(body.chapterCount) || 1))) : 1
+  const briefResult = validateWritingBrief(body.writingBrief, requestedChapterCount)
+  if (briefResult.error) return { ok: false, status: 422, error: briefResult.error }
+  const writingBrief = briefResult.brief
 
   // 并发上限（软限制，防误操作与上游限流）：运行中的创作任务过多时拒绝新任务
   const settings = await getAiSettings(db)
@@ -488,6 +522,7 @@ async function startWritingJob(
         maxTokens: body.maxTokens,
         temperature: body.temperature,
         ...writingOptions(body),
+        writingBrief,
         taskId: task.id,
         ...audit,
       }),
@@ -516,6 +551,7 @@ async function startWritingJob(
         maxTokens: body.maxTokens,
         temperature: body.temperature,
         ...writingOptions(body),
+        writingBrief,
         taskId: task.id,
         ...audit,
       }),
@@ -578,6 +614,7 @@ async function startWritingJob(
     ...(existing.length ? { existingDrafts: existing } : {}),
     profileOverrides: snapshot.profiles,
     continuationSnapshot: snapshot,
+    writingBrief,
     ...audit,
   }).catch(async (err) => {
     console.error('[ai] 续写后台任务失败', err)
@@ -590,7 +627,11 @@ async function startWritingJob(
 function startWritingRoute(kind: 'write_outline' | 'write_chapter' | 'continue') {
   return async (c: Context<AuthEnv>) => {
     const db = getDb()
-    const body = (await c.req.json().catch(() => ({}))) as Record<string, any>
+    const rawBody = (await c.req.json().catch(() => ({}))) as Record<string, any>
+    const chapterCount = kind === 'continue' ? Math.max(1, Math.min(20, Math.trunc(Number(rawBody.chapterCount) || 1))) : 1
+    const briefResult = validateWritingBrief(rawBody.writingBrief, chapterCount)
+    if (briefResult.error) return c.json({ error: briefResult.error }, 422)
+    const body = briefResult.brief ? { ...rawBody, writingBrief: briefResult.brief } : rawBody
     const operationKey = idempotencyKeyFromRequest(c, body)
     return withIdempotency(
       db,
@@ -776,18 +817,23 @@ aiRoutes.post('/cover/candidates/:id/adopt', requireAdmin(), async (c) => {
   const db = getDb()
   const id = String(c.req.param('id') || '').trim()
   const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>
+  const expectedCoverVersion = String(body.expectedCoverVersion || '').trim() || undefined
   return withIdempotency(
     db,
     {
       scope: `ai.cover.adopt.${c.get('user').id}.${id}`,
       operationKey: idempotencyKeyFromRequest(c, body, ['operationId']),
-      payload: { candidateId: id },
+      payload: { candidateId: id, expectedCoverVersion: expectedCoverVersion || '' },
       audit: { actorUserId: c.get('user').id, action: 'ai.cover.adopt', targetCount: 1 },
     },
     async () => {
-      const ok = await adoptCoverCandidate(db, id)
-      if (!ok) return c.json({ error: '候选封面不存在或已被处理' }, 404)
-      return c.json({ ok: true }, 200, { 'Cache-Control': 'no-store' })
+      try {
+        const result = await adoptCoverCandidate(db, id, { actorId: c.get('user').id, expectedCoverVersion })
+        if (!result) return c.json({ error: '候选封面不存在或已被处理' }, 404)
+        return c.json({ ok: true, current: result }, 200, { 'Cache-Control': 'no-store' })
+      } catch (err) {
+        return aiErrorResponse(c, err)
+      }
     },
   )
 })
@@ -820,19 +866,91 @@ aiRoutes.post('/cover/upload', requireAdmin(), async (c) => {
     return c.json({ error: `封面不能超过 ${Math.round(MAX_COVER_BYTES / 1024 / 1024)}MB` }, 400)
   }
   const operationBody = { operationId: String(form?.get('operationId') || '') }
+  const expectedCoverVersion = String(form?.get('expectedCoverVersion') || '').trim() || undefined
   return withIdempotency(
     db,
     {
       scope: `ai.cover.upload.${c.get('user').id}.${novelId}`,
       operationKey: idempotencyKeyFromRequest(c, operationBody, ['operationId']),
-      payload: { novelId, type, bytes: data.byteLength, fileHash: requestHash(data.toString('base64')) },
+      payload: { novelId, type, bytes: data.byteLength, fileHash: requestHash(data.toString('base64')), expectedCoverVersion: expectedCoverVersion || '' },
       audit: { actorUserId: c.get('user').id, action: 'ai.cover.upload', targetCount: 1 },
     },
     async () => {
-      await storeCover(db, novelId, new Uint8Array(data), type, 'upload')
-      // 封面变了同步 bump novels.updated_at（前端封面 <img> 用 updatedAt 当 ?v= 破缓存戳）
-      await run(db, 'UPDATE novels SET updated_at = $1 WHERE id = $2', [Date.now(), novelId])
-      return c.json({ ok: true }, 200, { 'Cache-Control': 'no-store' })
+      try {
+        const result = await replaceCoverForAdmin(db, {
+          novelId,
+          actorId: c.get('user').id,
+          source: 'upload',
+          reason: 'upload',
+          data: new Uint8Array(data),
+          contentType: type,
+          expectedCoverVersion,
+        })
+        return c.json({ ok: true, current: result }, 200, { 'Cache-Control': 'no-store' })
+      } catch (err) {
+        return aiErrorResponse(c, err)
+      }
+    },
+  )
+})
+
+// ---------- 封面历史：只返回元数据，图片通过管理员认证的独立路径读取 ----------
+
+aiRoutes.get('/cover/history/:novelId', requireAdmin(), async (c) => {
+  const db = getDb()
+  const novelId = String(c.req.param('novelId') || '').trim()
+  const current = await getCurrentCoverState(db, novelId)
+  if (!current) return c.json({ error: '小说不存在' }, 404)
+  const items = await listCoverHistory(db, novelId)
+  return c.json({ items, total: items.length, current }, 200, { 'Cache-Control': 'no-store' })
+})
+
+aiRoutes.get('/cover/history/:novelId/:id/image', requireAdmin(), async (c) => {
+  const novelId = String(c.req.param('novelId') || '').trim()
+  const historyId = String(c.req.param('id') || '').trim()
+  const image = await getCoverHistoryImage(getDb(), novelId, historyId)
+  if (!image) return c.json({ error: '封面历史不存在或已被清理' }, 404)
+  return new Response(image.data, {
+    status: 200,
+    headers: {
+      'Content-Type': image.contentType,
+      'Cache-Control': 'private, max-age=3600',
+      'X-Content-Type-Options': 'nosniff',
+    },
+  })
+})
+
+aiRoutes.post('/cover/history/:novelId/:id/restore', requireAdmin(), async (c) => {
+  const db = getDb()
+  const novelId = String(c.req.param('novelId') || '').trim()
+  const historyId = String(c.req.param('id') || '').trim()
+  const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>
+  const expectedCoverVersion = String(body.expectedCoverVersion || '').trim()
+  if (!expectedCoverVersion) return c.json({ error: 'expectedCoverVersion 必填以保护恢复操作' }, 422)
+  const operationKey = idempotencyKeyFromRequest(c, body, ['operationId'])
+  if (!operationKey) return c.json({ error: 'operationId 必填以保证恢复幂等' }, 422)
+  return withIdempotency(
+    db,
+    {
+      scope: `ai.cover.history.restore.${c.get('user').id}.${novelId}.${historyId}`,
+      operationKey,
+      payload: { novelId, historyId, expectedCoverVersion },
+      audit: { actorUserId: c.get('user').id, action: 'ai.cover.history.restore', targetCount: 1 },
+    },
+    async () => {
+      try {
+        const current = await replaceCoverForAdmin(db, {
+          novelId,
+          historyId,
+          actorId: c.get('user').id,
+          source: 'history',
+          reason: 'restore',
+          expectedCoverVersion,
+        })
+        return c.json({ ok: true, current }, 200, { 'Cache-Control': 'no-store' })
+      } catch (err) {
+        return aiErrorResponse(c, err)
+      }
     },
   )
 })
@@ -890,8 +1008,8 @@ aiRoutes.get('/writing/style-profile/:novelId', requireAdmin(), async (c) => {
   if (!novelId) return c.json({ error: 'novelId 必填' }, 400)
   const afterChapterId = String(c.req.query('afterChapterId') || '').trim() || undefined
   try {
-    const result = await getStyleProfileForAnchor(db, novelId, afterChapterId)
-    return c.json({ profile: result.profile, source: result.source, updatedAt: result.updatedAt, eligibility: result.eligibility, isOlderThanAnchor: result.isOlderThanAnchor })
+    const result = await getEffectiveProfileForAnchor(db, { kind: 'style', novelId, afterChapterId })
+    return c.json({ profile: result.profile, source: result.source, updatedAt: result.updatedAt, eligibility: result.eligibility, isOlderThanAnchor: result.isOlderThanAnchor, manualOverride: result.manualOverride, effectiveContent: result.effectiveContent, effectiveOrigin: result.effectiveOrigin, exclusionReason: result.exclusionReason, baseProfileRevision: result.baseProfileRevision })
   } catch (err) {
     return aiErrorResponse(c, err)
   }
@@ -935,10 +1053,10 @@ aiRoutes.get('/writing/plot-state/:novelId', requireAdmin(), async (c) => {
   const afterChapterId = String(c.req.query('afterChapterId') || '').trim() || undefined
   try {
     const [plotState, novel] = await Promise.all([
-      getPlotStateForAnchor(db, novelId, afterChapterId),
+      getEffectiveProfileForAnchor(db, { kind: 'plot', novelId, afterChapterId }),
       first<{ chapter_count: number }>(db, 'SELECT chapter_count FROM novels WHERE id = $1', [novelId]),
     ])
-    return c.json({ state: plotState.state, chaptersThrough: Number((plotState.source?.chapterOrdinal)) || 0, chapterCount: Number(novel?.chapter_count) || 0, source: plotState.source, updatedAt: plotState.updatedAt, eligibility: plotState.eligibility, isOlderThanAnchor: plotState.isOlderThanAnchor })
+    return c.json({ state: plotState.profile, chaptersThrough: Number((plotState.source?.chapterOrdinal)) || 0, chapterCount: Number(novel?.chapter_count) || 0, source: plotState.source, updatedAt: plotState.updatedAt, eligibility: plotState.eligibility, isOlderThanAnchor: plotState.isOlderThanAnchor, manualOverride: plotState.manualOverride, effectiveContent: plotState.effectiveContent, effectiveOrigin: plotState.effectiveOrigin, exclusionReason: plotState.exclusionReason, baseProfileRevision: plotState.baseProfileRevision })
   } catch (err) {
     return aiErrorResponse(c, err)
   }
@@ -978,11 +1096,82 @@ aiRoutes.get('/writing/relationship-profile/:novelId', requireAdmin(), async (c)
   if (!novelId) return c.json({ error: 'novelId 必填' }, 400)
   const afterChapterId = String(c.req.query('afterChapterId') || '').trim() || undefined
   try {
-    const result = await getRelationshipProfileForAnchor(db, novelId, afterChapterId)
-    return c.json({ profile: result.profile, source: result.source, updatedAt: result.updatedAt, eligibility: result.eligibility, isOlderThanAnchor: result.isOlderThanAnchor })
+    const result = await getEffectiveProfileForAnchor(db, { kind: 'relationship', novelId, afterChapterId })
+    return c.json({ profile: result.profile, source: result.source, updatedAt: result.updatedAt, eligibility: result.eligibility, isOlderThanAnchor: result.isOlderThanAnchor, manualOverride: result.manualOverride, effectiveContent: result.effectiveContent, effectiveOrigin: result.effectiveOrigin, exclusionReason: result.exclusionReason, baseProfileRevision: result.baseProfileRevision })
   } catch (err) {
     return aiErrorResponse(c, err)
   }
+})
+
+// ---------- 人工画像校正：独立于自动提取层，绑定自动画像来源版本 ----------
+
+aiRoutes.put('/writing/profiles/:kind/:novelId/override', requireAdmin(), async (c) => {
+  const db = getDb()
+  const kind = parseProfileKind(String(c.req.param('kind') || '').trim())
+  const novelId = String(c.req.param('novelId') || '').trim()
+  if (!kind) return c.json({ error: '画像类型无效' }, 422)
+  if (!novelId) return c.json({ error: 'novelId 必填' }, 400)
+  if (!(await first<{ id: string }>(db, 'SELECT id FROM novels WHERE id = $1', [novelId]))) return c.json({ error: '小说不存在' }, 404)
+  const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>
+  const expectedRevision = Number(body.expectedRevision)
+  const baseProfileRevision = String(body.baseProfileRevision || '').trim()
+  if (!Number.isInteger(expectedRevision) || expectedRevision < 0) return c.json({ error: 'expectedRevision 必须是非负整数' }, 422)
+  if (!baseProfileRevision) return c.json({ error: 'baseProfileRevision 必填' }, 422)
+  const operationKey = idempotencyKeyFromRequest(c, body)
+  return withIdempotency(
+    db,
+    {
+      scope: `ai.profile.override.${kind}.${novelId}.${c.get('user').id}`,
+      operationKey,
+      payload: { kind, novelId, ...body },
+      audit: { actorUserId: c.get('user').id, action: `ai.profile.${kind}.override`, targetCount: 1 },
+    },
+    async () => {
+      try {
+        const saved = await saveProfileOverride(db, {
+          kind,
+          novelId,
+          content: String(body.content || ''),
+          expectedRevision,
+          baseProfileRevision,
+          updatedBy: c.get('user').id,
+          ...(String(body.afterChapterId || '').trim() ? { afterChapterId: String(body.afterChapterId).trim() } : {}),
+        })
+        return c.json({ ok: true, override: saved.override, effectiveContent: saved.effective.effectiveContent, effectiveOrigin: saved.effective.effectiveOrigin, exclusionReason: saved.effective.exclusionReason, baseProfileRevision: saved.effective.baseProfileRevision }, 200, { 'Cache-Control': 'no-store' })
+      } catch (err) {
+        return aiErrorResponse(c, err)
+      }
+    },
+  )
+})
+
+aiRoutes.delete('/writing/profiles/:kind/:novelId/override', requireAdmin(), async (c) => {
+  const db = getDb()
+  const kind = parseProfileKind(String(c.req.param('kind') || '').trim())
+  const novelId = String(c.req.param('novelId') || '').trim()
+  if (!kind) return c.json({ error: '画像类型无效' }, 422)
+  if (!novelId) return c.json({ error: 'novelId 必填' }, 400)
+  const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>
+  const expectedRevision = Number(body.expectedRevision)
+  if (!Number.isInteger(expectedRevision) || expectedRevision < 0) return c.json({ error: 'expectedRevision 必须是非负整数' }, 422)
+  const operationKey = idempotencyKeyFromRequest(c, body)
+  return withIdempotency(
+    db,
+    {
+      scope: `ai.profile.override.${kind}.${novelId}.${c.get('user').id}`,
+      operationKey,
+      payload: { kind, novelId, ...body },
+      audit: { actorUserId: c.get('user').id, action: `ai.profile.${kind}.override.delete`, targetCount: 1 },
+    },
+    async () => {
+      try {
+        const result = await deleteProfileOverride(db, { kind, novelId, expectedRevision, ...(String(body.afterChapterId || '').trim() ? { afterChapterId: String(body.afterChapterId).trim() } : {}) })
+        return c.json({ ok: true, effectiveContent: result.effectiveContent, effectiveOrigin: result.effectiveOrigin, exclusionReason: result.exclusionReason, baseProfileRevision: result.baseProfileRevision }, 200, { 'Cache-Control': 'no-store' })
+      } catch (err) {
+        return aiErrorResponse(c, err)
+      }
+    },
+  )
 })
 
 aiRoutes.put('/writing/drafts/:id', requireAdmin(), async (c) => {
@@ -992,7 +1181,110 @@ aiRoutes.put('/writing/drafts/:id', requireAdmin(), async (c) => {
   if (!result) return c.json({ error: '内容不能为空' }, 400)
   const updated = await updateGenerationResult(getDb(), id, result)
   if (!updated) return c.json({ error: '草稿不存在、已发布、已删除或不可编辑' }, 409)
-  return c.json({ ok: true, id, result })
+  return c.json({ ok: true, id, result, contentRevision: generationContentRevision(result) })
+})
+
+// ---------- 草稿选段改写：建议与应用分离，正文以 SHA-256 做乐观并发校验 ----------
+
+aiRoutes.post('/writing/drafts/:id/rewrite', requireAdmin(), async (c) => {
+  const db = getDb()
+  const id = String(c.req.param('id') || '').trim()
+  const draft = await getGeneration(db, id)
+  if (!draft || draft.deleted_at || draft.status !== 'draft' || !['write_chapter', 'continue'].includes(draft.kind)) {
+    return c.json({ error: '可改写的章节草稿不存在' }, 404)
+  }
+  const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>
+  const baseRevision = String(body.baseRevision || '').trim()
+  if (!baseRevision) return c.json({ error: 'baseRevision 必填' }, 422)
+  if (generationContentRevision(draft.result) !== baseRevision) return c.json({ error: '草稿正文已变化，请重新选择选段', code: 'content_changed' }, 409)
+  const validation = validateRewriteSelection(draft.result, {
+    baseRevision,
+    startUTF16: body.startUTF16 as number,
+    endUTF16: body.endUTF16 as number,
+    selectedText: body.selectedText as string,
+    mode: body.mode as RewriteMode,
+    instruction: body.instruction as string,
+  })
+  if (validation.error || !validation.value) return c.json({ error: validation.error || '选区无效' }, 422)
+  const operationKey = idempotencyKeyFromRequest(c, body, ['clientRequestId'])
+  if (!operationKey) return c.json({ error: 'clientRequestId 必填以保证改写幂等' }, 422)
+  const params = buildRewriteTaskParams(id, draft.result, validation.value)
+  return withIdempotency(
+    db,
+    {
+      scope: `ai.writing.rewrite.${c.get('user').id}.${id}`,
+      operationKey,
+      payload: { ...params },
+      audit: { actorUserId: c.get('user').id, action: 'ai.writing.rewrite', targetCount: 1 },
+    },
+    async () => {
+      if (!isTextAiConfigured()) return c.json({ error: 'AI 文本服务未配置', code: 'disabled' }, 503)
+      if (await countActiveWritingTasks(db) >= (await getAiSettings(db)).maxConcurrentWritingTasks) return c.json({ error: '已有过多创作任务在运行，请稍后重试' }, 429)
+      const task = await createAiTask(db, {
+        userId: c.get('user').id,
+        novelId: draft.novel_id,
+        kind: 'rewrite_selection',
+        total: 1,
+        prompt: `改写草稿 ${id} 的选段`,
+        params: JSON.stringify({ ...params, ...(operationKey ? { clientRequestId: operationKey } : {}) }),
+      })
+      const audit = await auditRequestContext(c, db)
+      void runRewriteTask(db, { taskId: task.id, userId: c.get('user').id, params, ...audit })
+        .catch(async (err) => {
+          console.error('[ai] 选段改写任务失败', err)
+          const message = err instanceof AiError ? err.message : '改写建议生成失败'
+          await updateAiTask(db, task.id, { status: 'failed', error: message }).catch(() => {})
+        })
+      return c.json({ ok: true, taskId: task.id, total: 1 }, 202)
+    },
+  )
+})
+
+aiRoutes.post('/writing/drafts/:id/rewrite/:taskId/apply', requireAdmin(), async (c) => {
+  const db = getDb()
+  const id = String(c.req.param('id') || '').trim()
+  const taskId = String(c.req.param('taskId') || '').trim()
+  const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>
+  const operationKey = idempotencyKeyFromRequest(c, body, ['operationId'])
+  if (!operationKey) return c.json({ error: 'operationId 必填以保证应用幂等' }, 422)
+  const task = await getAiTask(db, taskId)
+  if (!task || task.kind !== 'rewrite_selection') return c.json({ error: '改写任务不存在' }, 404)
+  if (task.status !== 'completed') return c.json({ error: '改写建议尚未完成，不能应用' }, 409)
+  let params: ReturnType<typeof parseRewriteTaskParams> = undefined
+  try { params = parseRewriteTaskParams(task.params ? JSON.parse(task.params) : undefined) } catch { params = undefined }
+  const suggestion = params ? parseRewriteSuggestion(task.result, params) : undefined
+  if (!params || !suggestion || params.draftId !== id) return c.json({ error: '改写建议与草稿不匹配' }, 409)
+  const requestedBaseRevision = String(body.baseRevision || '').trim()
+  if (!requestedBaseRevision || requestedBaseRevision !== params.baseRevision) return c.json({ error: '应用基底版本不匹配，请重新读取建议', code: 'content_changed' }, 409)
+  return withIdempotency(
+    db,
+    {
+      scope: `ai.writing.rewrite.apply.${c.get('user').id}.${id}.${taskId}`,
+      operationKey,
+      payload: { draftId: id, taskId, baseRevision: requestedBaseRevision },
+      audit: { actorUserId: c.get('user').id, action: 'ai.writing.rewrite.apply', targetCount: 1 },
+    },
+    async () => {
+      try {
+        const applied = await withTx(db, async (q) => {
+          const locked = await q<GenerationRow>('SELECT * FROM ai_generations WHERE id = $1 FOR UPDATE', [id])
+          const row = locked.rows[0]
+          if (!row || row.deleted_at || row.status !== 'draft' || !['write_chapter', 'continue'].includes(row.kind)) throw new AiError('conflict', '草稿已发布、删除或不可编辑', 409)
+          const currentRevision = generationContentRevision(row.result)
+          if (currentRevision !== params!.baseRevision) throw new AiError('conflict', '草稿正文已变化，请重新选择选段', 409)
+          const selected = validateRewriteSelection(row.result, params!)
+          if (!selected.value) throw new AiError('conflict', selected.error || '原选段已变化，请重新选择', 409)
+          const result = row.result.slice(0, params!.startUTF16) + suggestion!.suggestion + row.result.slice(params!.endUTF16)
+          if (!result.trim() || Array.from(result).length > 12000) throw new AiError('invalid', '应用后的正文超出允许范围', 422)
+          await q('UPDATE ai_generations SET result = $1 WHERE id = $2 AND status = \'draft\' AND deleted_at = 0', [result, id])
+          return { id, result, contentRevision: generationContentRevision(result) }
+        })
+        return c.json({ ok: true, ...applied }, 200, { 'Cache-Control': 'no-store' })
+      } catch (err) {
+        return aiErrorResponse(c, err)
+      }
+    },
+  )
 })
 
 /** 事务内的业务性失败：回滚后由路由层转成对应的 4xx。 */
@@ -1235,7 +1527,7 @@ aiRoutes.get('/usage', requireAdmin(), async (c) => {
 })
 
 const TASK_STATUSES = new Set(['queued', 'running', 'completed', 'failed', 'cancelled'])
-const RETRIABLE_TASK_KINDS = new Set(['continue', 'write_outline', 'write_chapter', 'cover', 'cover_prompt'])
+const RETRIABLE_TASK_KINDS = new Set(['continue', 'write_outline', 'write_chapter', 'rewrite_selection', 'cover', 'cover_prompt'])
 
 aiRoutes.get('/tasks', requireAdmin(), async (c) => {
   const limit = Number.parseInt(c.req.query('limit') || '50', 10) || 50
@@ -1418,6 +1710,32 @@ aiRoutes.post('/tasks/:id/retry', requireAdmin(), async (c) => {
       audit: { actorUserId: c.get('user').id, action: 'ai.task.retry', targetCount: 1 },
     },
     async () => {
+
+    if (source.kind === 'rewrite_selection') {
+      let rewriteParams: ReturnType<typeof parseRewriteTaskParams> = undefined
+      try { rewriteParams = parseRewriteTaskParams(body) } catch { rewriteParams = undefined }
+      if (!rewriteParams) return c.json({ error: '任务参数损坏，无法重试' }, 422)
+      const draft = await getGeneration(db, rewriteParams.draftId)
+      if (!draft || draft.deleted_at || draft.status !== 'draft' || !['write_chapter', 'continue'].includes(draft.kind)) return c.json({ error: '原草稿已发布、删除或不可编辑，无法重试改写' }, 409)
+      if (!isTextAiConfigured()) return c.json({ error: 'AI 文本服务未配置', code: 'disabled' }, 503)
+      if (await countActiveWritingTasks(db) >= (await getAiSettings(db)).maxConcurrentWritingTasks) return c.json({ error: '已有过多创作任务在运行，请稍后重试' }, 429)
+      const task = await createAiTask(db, {
+        userId: c.get('user').id,
+        novelId: draft.novel_id,
+        kind: 'rewrite_selection',
+        total: 1,
+        prompt: `重试草稿 ${rewriteParams.draftId} 的选段改写`,
+        params: JSON.stringify({ ...rewriteParams, ...(operationKey ? { clientRequestId: operationKey } : {}) }),
+      })
+      const audit = await auditRequestContext(c, db)
+      void runRewriteTask(db, { taskId: task.id, userId: c.get('user').id, params: rewriteParams, ...audit })
+        .catch(async (err) => {
+          console.error('[ai] 选段改写重试失败', err)
+          const message = err instanceof AiError ? err.message : '改写建议生成失败'
+          await updateAiTask(db, task.id, { status: 'failed', error: message }).catch(() => {})
+        })
+      return c.json({ ok: true, taskId: task.id, batchId: '', total: 1 }, 202)
+    }
 
     // 封面任务重试：按原参数（novelId）走独立的封面生成路径
     if (source.kind === 'cover') {
@@ -1769,7 +2087,7 @@ aiRoutes.post('/generations/restore', requireAdmin(), async (c) => {
 /** AiError → HTTP：客户端只拿到 code 与可展示文案，上游细节留在服务端日志。 */
 function aiErrorResponse(c: Context, err: unknown) {
   if (err instanceof AiError) {
-    const status = err.code === 'disabled' ? 503 : err.code === 'invalid' ? 422 : err.code === 'timeout' ? 504 : 502
+    const status = err.code === 'disabled' ? 503 : err.code === 'invalid' ? 422 : err.code === 'conflict' ? 409 : err.code === 'timeout' ? 504 : 502
     return c.json({ error: err.message, code: err.code }, status)
   }
   console.error('[ai]', err)

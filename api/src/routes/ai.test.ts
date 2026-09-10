@@ -853,11 +853,15 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
         contextPolicyVersion: number
         anchor: { chapterId: string }
         excludedProfiles: Array<{ kind: string; reason: string }>
+        profileRevisions: Record<string, number>
+        profileBaseRevisions: Record<string, string>
       }
       expect(snapshot.version).toBe(1)
       expect(snapshot.contextPolicyVersion).toBe(1)
       expect(snapshot.anchor.chapterId).toBe(anchorID)
       expect(snapshot.excludedProfiles.map((profile) => profile.kind)).toEqual(['style', 'relationship', 'plot'])
+      expect(snapshot.profileRevisions).toEqual({ style: 0, relationship: 0, plot: 0 })
+      expect(Object.keys(snapshot.profileBaseRevisions).sort()).toEqual(['plot', 'relationship', 'style'])
     } finally {
       if (previousFetch) fetchMock.mockImplementation(previousFetch)
     }
@@ -868,6 +872,61 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     expect(emptyResult.status).toBe(422)
     const foreignResult = await req('/api/ai/writing/continue', json('POST', { novelId: emptyNovelId, afterChapterId: anchorID }, adminToken))
     expect(foreignResult.status).toBe(404)
+  })
+
+  it('结构化创作要求：按章节目标注入消息并冻结到任务参数，非法请求不创建任务', async () => {
+    const novelId = await firstNovelId(t)
+    const previousFetch = fetchMock.getMockImplementation()
+    const observedCalls: Array<Array<{ role: string; content: string }>> = []
+    fetchMock.mockImplementation(async (input, init) => {
+      const reqUrl = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as Request).url
+      if (reqUrl.includes('/chat/completions')) {
+        const requestBody = JSON.parse(String(init?.body || '{}')) as { messages?: Array<{ role: string; content: string }> }
+        observedCalls.push(requestBody.messages || [])
+      }
+      return new Response(JSON.stringify({ model: 'test-model', choices: [{ message: { content: '标题：结构化要求章\n\n结构化正文。' }, finish_reason: 'stop' }], usage: { prompt_tokens: 10, completion_tokens: 20 } }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    })
+    try {
+      const brief = {
+        version: 1,
+        viewpoint: '第三人称限知',
+        pace: '紧凑',
+        objective: '让主角发现矛盾',
+        requiredFacts: '伤势未愈',
+        forbiddenEvents: '不得揭露幕后人物',
+        chapterGoals: [{ index: 1, goal: '第一章发现证词冲突' }, { index: 2, goal: '第二章保留疑点' }],
+      }
+      const started = await req('/api/ai/writing/continue', json('POST', { novelId, chapterCount: 2, writingBrief: brief }, adminToken))
+      expect(started.status).toBe(202)
+      const { taskId, batchId } = await jsonOf<{ taskId: string; batchId: string }>(started)
+      expect((await waitForTask(taskId, adminToken)).status).toBe('completed')
+      expect(observedCalls).toHaveLength(2)
+      const firstCall = observedCalls[0]!.map((message) => message.content).join('\n')
+      const secondCall = observedCalls[1]!.map((message) => message.content).join('\n')
+      expect(firstCall).toContain('结构化创作要求')
+      expect(firstCall).toContain('第一章发现证词冲突')
+      expect(firstCall).not.toContain('第二章保留疑点')
+      expect(secondCall).toContain('第二章保留疑点')
+      expect(secondCall).not.toContain('第一章发现证词冲突')
+      const task = await t.db.query<{ params: string }>('SELECT params FROM ai_tasks WHERE id = $1', [taskId])
+      const params = JSON.parse(task.rows[0]!.params) as { writingBrief: typeof brief }
+      expect(params.writingBrief).toEqual(brief)
+      const drafts = await t.db.query<{ params_json: string }>("SELECT params_json FROM ai_generations WHERE kind = 'continue' AND params_json LIKE $1 ORDER BY created_at DESC LIMIT 2", [`%\\"batchId\\":\\"${batchId}\\"%`])
+      expect(drafts.rows).toHaveLength(2)
+
+      const invalid = await req('/api/ai/writing/continue', json('POST', {
+        novelId,
+        chapterCount: 1,
+        writingBrief: { ...brief, chapterGoals: [{ index: 2, goal: '越界目标' }] },
+      }, adminToken))
+      expect(invalid.status).toBe(422)
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+    } finally {
+      if (previousFetch) fetchMock.mockImplementation(previousFetch)
+    }
   })
 
   it('画像来源记录实际样本，起点之后的画像不自动注入', async () => {
@@ -892,6 +951,134 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     expect(styleAtFirst.source.chapterOrdinal).toBe(3)
     expect(styleAtFirst.source.sampleCount).toBe(3)
     expect(styleAtFirst.eligibility).toBe('beyond_anchor')
+  })
+
+  it('人工画像：绑定自动来源、按 revision 冲突保护，刷新自动层不覆盖人工层', async () => {
+    const novel = await req('/api/novels', json('POST', { title: '人工画像书', author: '某作者' }, adminToken))
+    const novelId = (await jsonOf<{ novel: { id: string } }>(novel)).novel.id
+    const chapter = await req('/api/chapters', json('POST', { novelId, title: '画像起点', content: LONG_CONTENT }, adminToken))
+    const anchorID = (await jsonOf<{ chapter: { id: string } }>(chapter)).chapter.id
+
+    const before = await jsonOf<{ effectiveOrigin?: string; baseProfileRevision?: string }>(await req(`/api/ai/writing/style-profile/${novelId}?afterChapterId=${anchorID}`, json('GET', undefined, adminToken)))
+    expect(before.effectiveOrigin).toBe('none')
+    expect(before.baseProfileRevision).toBeTruthy()
+
+    const refreshed = await req('/api/ai/writing/style-profile', json('POST', { novelId, afterChapterId: anchorID }, adminToken))
+    expect(refreshed.status).toBe(200)
+    const automatic = await jsonOf<{ baseProfileRevision: string; effectiveOrigin: string }>(await req(`/api/ai/writing/style-profile/${novelId}?afterChapterId=${anchorID}`, json('GET', undefined, adminToken)))
+    expect(automatic.effectiveOrigin).toBe('automatic')
+
+    const saved = await req(`/api/ai/writing/profiles/style/${novelId}/override`, json('PUT', {
+      content: '人工确认：句子短促，保留悬疑留白。',
+      expectedRevision: 0,
+      baseProfileRevision: automatic.baseProfileRevision,
+      afterChapterId: anchorID,
+      operationId: 'profile-override-save-1',
+    }, adminToken))
+    expect(saved.status).toBe(200)
+    const savedBody = await jsonOf<{ override: { revision: number }; effectiveOrigin: string; effectiveContent: string }>(saved)
+    expect(savedBody.override.revision).toBe(1)
+    expect(savedBody.effectiveOrigin).toBe('manual')
+    expect(savedBody.effectiveContent).toContain('人工确认')
+
+    const conflict = await req(`/api/ai/writing/profiles/style/${novelId}/override`, json('PUT', {
+      content: '另一位管理员的旧内容',
+      expectedRevision: 0,
+      baseProfileRevision: automatic.baseProfileRevision,
+      afterChapterId: anchorID,
+      operationId: 'profile-override-save-conflict',
+    }, adminToken))
+    expect(conflict.status).toBe(409)
+
+    await t.db.query('UPDATE chapters SET content = $1 WHERE id = $2', [`${LONG_CONTENT}来源已改变。`, anchorID])
+    const refreshedAgain = await req('/api/ai/writing/style-profile', json('POST', { novelId, afterChapterId: anchorID }, adminToken))
+    expect(refreshedAgain.status).toBe(200)
+    const changed = await jsonOf<{ effectiveOrigin: string; effectiveContent: string; exclusionReason?: string; manualOverride?: { revision: number } }>(await req(`/api/ai/writing/style-profile/${novelId}?afterChapterId=${anchorID}`, json('GET', undefined, adminToken)))
+    expect(changed.effectiveOrigin).toBe('automatic')
+    expect(changed.effectiveContent).not.toContain('人工确认')
+    expect(changed.exclusionReason).toBe('base_changed')
+    expect(changed.manualOverride?.revision).toBe(1)
+
+    const deleted = await req(`/api/ai/writing/profiles/style/${novelId}/override`, json('DELETE', { expectedRevision: 1, afterChapterId: anchorID, operationId: 'profile-override-delete-1' }, adminToken))
+    expect(deleted.status).toBe(200)
+    const afterDelete = await jsonOf<{ effectiveOrigin: string; manualOverride?: unknown }>(await req(`/api/ai/writing/style-profile/${novelId}?afterChapterId=${anchorID}`, json('GET', undefined, adminToken)))
+    expect(afterDelete.manualOverride).toBeUndefined()
+    expect(afterDelete.effectiveOrigin).toBe('automatic')
+  })
+
+  it('草稿选段改写：冻结正文版本、建议与应用分离，并按操作 ID 幂等重放', async () => {
+    const novel = await req('/api/novels', json('POST', { title: '选段改写书', author: '某作者' }, adminToken))
+    const novelId = (await jsonOf<{ novel: { id: string } }>(novel)).novel.id
+    let chatCalls = 0
+    const previousFetch = fetchMock.getMockImplementation()
+    fetchMock.mockImplementation(async (input, init) => {
+      const reqUrl = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as Request).url
+      if (reqUrl.includes('/chat/completions')) {
+        chatCalls += 1
+        const content = chatCalls === 1 ? '标题：雨夜\n\n少年🙂走进雨巷。' : '踏入雨巷。'
+        return new Response(JSON.stringify({ model: 'test-model', choices: [{ message: { content }, finish_reason: 'stop' }], usage: { prompt_tokens: 10, completion_tokens: 20 } }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      return previousFetch ? previousFetch(input, init) : new Response('{}', { status: 500 })
+    })
+
+    try {
+      const started = await req('/api/ai/writing/chapter', json('POST', { novelId, title: '雨夜', instruction: '写一个开场' }, adminToken))
+      expect(started.status).toBe(202)
+      const startedBody = await jsonOf<{ taskId: string }>(started)
+      expect((await waitForTask(startedBody.taskId, adminToken)).status).toBe('completed')
+      const rows = await t.db.query<{ id: string }>("SELECT id FROM ai_generations WHERE kind = 'write_chapter' AND novel_id = $1 ORDER BY created_at DESC LIMIT 1", [novelId])
+      const draftId = rows.rows[0]!.id
+      const detail = await jsonOf<{ item: { result: string; contentRevision: string; status: string } }>(await req(`/api/ai/generations/${draftId}`, json('GET', undefined, adminToken)))
+      expect(detail.item.status).toBe('draft')
+      expect(detail.item.result).toBe('少年🙂走进雨巷。')
+      const selectedText = '走进雨巷。'
+      const startUTF16 = detail.item.result.indexOf(selectedText)
+      const endUTF16 = startUTF16 + selectedText.length
+      const rewriteBody = {
+        baseRevision: detail.item.contentRevision,
+        startUTF16,
+        endUTF16,
+        selectedText,
+        mode: 'polish',
+        instruction: '',
+        clientRequestId: 'rewrite-client-1',
+      }
+      const rewrite = await req(`/api/ai/writing/drafts/${draftId}/rewrite`, json('POST', rewriteBody, adminToken))
+      expect(rewrite.status).toBe(202)
+      const rewriteTaskId = (await jsonOf<{ taskId: string }>(rewrite)).taskId
+      expect((await waitForTask(rewriteTaskId, adminToken)).status).toBe('completed')
+      expect(chatCalls).toBe(2)
+      const replay = await req(`/api/ai/writing/drafts/${draftId}/rewrite`, json('POST', rewriteBody, adminToken))
+      expect(replay.status).toBe(202)
+      expect(replay.headers.get('X-Idempotent-Replay')).toBe('true')
+      expect((await jsonOf<{ taskId: string }>(replay)).taskId).toBe(rewriteTaskId)
+      expect(chatCalls).toBe(2)
+
+      const task = await jsonOf<{ task: { kind: string; result: string } }>(await req(`/api/ai/tasks/${rewriteTaskId}`, json('GET', undefined, adminToken)))
+      expect(task.task.kind).toBe('rewrite_selection')
+      expect(JSON.parse(task.task.result).suggestion).toBe('踏入雨巷。')
+
+      const applyBody = { baseRevision: detail.item.contentRevision, operationId: 'rewrite-apply-1' }
+      const applied = await req(`/api/ai/writing/drafts/${draftId}/rewrite/${rewriteTaskId}/apply`, json('POST', applyBody, adminToken))
+      expect(applied.status).toBe(200)
+      const appliedBody = await jsonOf<{ result: string; contentRevision: string }>(applied)
+      expect(appliedBody.result).toBe('少年🙂踏入雨巷。')
+      expect(appliedBody.contentRevision).not.toBe(detail.item.contentRevision)
+      const appliedReplay = await req(`/api/ai/writing/drafts/${draftId}/rewrite/${rewriteTaskId}/apply`, json('POST', applyBody, adminToken))
+      expect(appliedReplay.status).toBe(200)
+      expect(appliedReplay.headers.get('X-Idempotent-Replay')).toBe('true')
+      expect(await appliedReplay.json()).toEqual(appliedBody)
+
+      const stale = await req(`/api/ai/writing/drafts/${draftId}/rewrite/${rewriteTaskId}/apply`, json('POST', { baseRevision: detail.item.contentRevision, operationId: 'rewrite-apply-stale' }, adminToken))
+      expect(stale.status).toBe(409)
+      const badSelection = await req(`/api/ai/writing/drafts/${draftId}/rewrite`, json('POST', { ...rewriteBody, baseRevision: appliedBody.contentRevision, clientRequestId: 'rewrite-client-bad', selectedText: '不再匹配' }, adminToken))
+      expect(badSelection.status).toBe(422)
+    } finally {
+      if (previousFetch) fetchMock.mockImplementation(previousFetch)
+    }
   })
 
   it('后台续写上游失败时任务标记 failed 并携带错误信息', async () => {
@@ -1981,6 +2168,236 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
       delete process.env.AI_IMAGE_MODEL
     }
   })
+
+  it('cover history：替换快照、鉴权读取、版本冲突、恢复幂等并限制保留量', async () => {
+    const novel = await req('/api/novels', json('POST', { title: '封面历史测试书', author: '某作者' }, adminToken))
+    const novelId = String((await jsonOf<{ novel: { id: string } }>(novel)).novel.id)
+    const oldData = Buffer.from('cover-history-old')
+    const firstUpdatedAt = Date.now()
+    await t.db.query(
+      `INSERT INTO novel_covers (novel_id, data, content_type, source, prompt, metadata, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [novelId, oldData, 'image/png', 'upload', '旧封面描述词', JSON.stringify({ stylePreset: 'ink' }), firstUpdatedAt],
+    )
+
+    const before = await req(`/api/ai/cover/history/${novelId}`, json('GET', undefined, adminToken))
+    expect(before.status).toBe(200)
+    const beforeBody = await jsonOf<{ items: Array<{ id: string }>; current: { version: string; source: string } }>(before)
+    expect(beforeBody.items).toHaveLength(0)
+    expect(beforeBody.current.source).toBe('upload')
+
+    const candidateId = 'cover-history-candidate-1'
+    const replacementData = Buffer.from('cover-history-replacement-1')
+    await t.db.query(
+      `INSERT INTO ai_cover_candidates (id, novel_id, data, content_type, prompt, task_id, metadata, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [candidateId, novelId, replacementData, 'image/png', '新封面描述词', 'task-cover-history-1', JSON.stringify({ stylePreset: 'moonlit_dream' }), Date.now()],
+    )
+
+    const adoptBody = { operationId: 'cover-history-adopt-1', expectedCoverVersion: beforeBody.current.version }
+    const adopted = await req(`/api/ai/cover/candidates/${candidateId}/adopt`, json('POST', adoptBody, adminToken))
+    expect(adopted.status).toBe(200)
+    const adoptedBody = await jsonOf<{ current: { version: string; source: string } }>(adopted)
+    expect(adoptedBody.current.source).toBe('ai')
+    expect((await t.db.query('SELECT id FROM ai_cover_candidates WHERE id = $1', [candidateId])).rows).toHaveLength(0)
+
+    const historyResponse = await req(`/api/ai/cover/history/${novelId}`, json('GET', undefined, adminToken))
+    const historyBody = await jsonOf<{
+      items: Array<{ id: string; source: string; prompt: string; metadata?: { stylePreset?: string } }>
+      current: { version: string; source: string }
+    }>(historyResponse)
+    expect(historyBody.items).toHaveLength(1)
+    expect(historyBody.items[0]!.source).toBe('upload')
+    expect(historyBody.items[0]!.prompt).toBe('旧封面描述词')
+    expect(historyBody.items[0]!.metadata?.stylePreset).toBe('ink')
+    const historyId = historyBody.items[0]!.id
+
+    const imageResponse = await req(`/api/ai/cover/history/${novelId}/${historyId}/image`, json('GET', undefined, adminToken))
+    expect(imageResponse.status).toBe(200)
+    expect(imageResponse.headers.get('content-type')).toContain('image/png')
+    expect(Buffer.from(await imageResponse.arrayBuffer()).equals(oldData)).toBe(true)
+    expect((await req(`/api/ai/cover/history/${novelId}/${historyId}/image`, json('GET', undefined, readerToken))).status).toBe(403)
+
+    const replay = await req(`/api/ai/cover/candidates/${candidateId}/adopt`, json('POST', adoptBody, adminToken))
+    expect(replay.status).toBe(200)
+    expect(replay.headers.get('X-Idempotent-Replay')).toBe('true')
+
+    const candidate2 = 'cover-history-candidate-2'
+    await t.db.query(
+      `INSERT INTO ai_cover_candidates (id, novel_id, data, content_type, prompt, task_id, metadata, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [candidate2, novelId, Buffer.from('cover-history-replacement-2'), 'image/png', '冲突候选', 'task-cover-history-2', '{}', Date.now()],
+    )
+    const conflict = await req(
+      `/api/ai/cover/candidates/${candidate2}/adopt`,
+      json('POST', { operationId: 'cover-history-adopt-conflict', expectedCoverVersion: beforeBody.current.version }, adminToken),
+    )
+    expect(conflict.status).toBe(409)
+    expect((await t.db.query('SELECT id FROM ai_cover_candidates WHERE id = $1', [candidate2])).rows).toHaveLength(1)
+
+    const restored = await req(
+      `/api/ai/cover/history/${novelId}/${historyId}/restore`,
+      json('POST', { operationId: 'cover-history-restore-1', expectedCoverVersion: historyBody.current.version }, adminToken),
+    )
+    expect(restored.status).toBe(200)
+    const restoredCover = await t.db.query<{ data: Buffer; source: string }>('SELECT data, source FROM novel_covers WHERE novel_id = $1', [novelId])
+    expect(Buffer.from(restoredCover.rows[0]!.data).equals(oldData)).toBe(true)
+    expect(restoredCover.rows[0]!.source).toBe('upload')
+    const afterRestore = await req(`/api/ai/cover/history/${novelId}`, json('GET', undefined, adminToken))
+    const afterRestoreBody = await jsonOf<{ items: Array<{ id: string }>; current: { version: string } }>(afterRestore)
+    expect(afterRestoreBody.items.map((item) => item.id)).toContain(historyId)
+    const restoreReplay = await req(
+      `/api/ai/cover/history/${novelId}/${historyId}/restore`,
+      json('POST', { operationId: 'cover-history-restore-1', expectedCoverVersion: historyBody.current.version }, adminToken),
+    )
+    expect(restoreReplay.status).toBe(200)
+    expect(restoreReplay.headers.get('X-Idempotent-Replay')).toBe('true')
+
+    // 同一图像 hash 的替换可以更新来源/元数据，但不伪造新的图片历史。
+    const sameHashCandidate = 'cover-history-same-hash'
+    await t.db.query(
+      `INSERT INTO ai_cover_candidates (id, novel_id, data, content_type, prompt, task_id, metadata, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [sameHashCandidate, novelId, oldData, 'image/png', '旧封面描述词', 'task-cover-history-same', JSON.stringify({ stylePreset: 'ink' }), Date.now()],
+    )
+    const sameHash = await req(
+      `/api/ai/cover/candidates/${sameHashCandidate}/adopt`,
+      json('POST', { operationId: 'cover-history-same-hash-op', expectedCoverVersion: afterRestoreBody.current.version }, adminToken),
+    )
+    expect(sameHash.status).toBe(200)
+    const sameHashHistory = await t.db.query('SELECT id FROM novel_cover_history WHERE novel_id = $1', [novelId])
+    expect(sameHashHistory.rows).toHaveLength(2)
+
+    // 事务中途校验失败时，候选必须保留，当前封面和历史不能被部分写入。
+    const invalidCandidate = 'cover-history-invalid'
+    await t.db.query(
+      `INSERT INTO ai_cover_candidates (id, novel_id, data, content_type, prompt, task_id, metadata, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [invalidCandidate, novelId, Buffer.from('not-image'), 'text/plain', '', '', '{}', Date.now()],
+    )
+    const invalidReplace = await req(
+      `/api/ai/cover/candidates/${invalidCandidate}/adopt`,
+      json('POST', { operationId: 'cover-history-invalid-op' }, adminToken),
+    )
+    expect(invalidReplace.status).toBe(422)
+    expect((await t.db.query('SELECT id FROM ai_cover_candidates WHERE id = $1', [invalidCandidate])).rows).toHaveLength(1)
+    expect((await t.db.query('SELECT id FROM novel_cover_history WHERE novel_id = $1', [novelId])).rows).toHaveLength(2)
+    expect((await req(`/api/ai/cover/history/other-novel/${historyId}/image`, json('GET', undefined, adminToken))).status).toBe(404)
+
+    // 连续替换会触发按数量清理，目标历史记录本身仍可恢复。
+    let expectedVersion = (await jsonOf<{ current: { version: string } }>(sameHash)).current.version
+    for (let index = 0; index < 11; index += 1) {
+      const id = `cover-history-retention-${index}`
+      await t.db.query(
+        `INSERT INTO ai_cover_candidates (id, novel_id, data, content_type, prompt, task_id, metadata, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [id, novelId, Buffer.from(`cover-history-retention-${index}`), 'image/png', '', '', '{}', Date.now() + index],
+      )
+      const replaced = await req(
+        `/api/ai/cover/candidates/${id}/adopt`,
+        json('POST', { operationId: `cover-history-retention-op-${index}`, expectedCoverVersion: expectedVersion }, adminToken),
+      )
+      expect(replaced.status).toBe(200)
+      expectedVersion = (await jsonOf<{ current: { version: string } }>(replaced)).current.version
+    }
+    const retained = await t.db.query<{ bytes: number }>(
+      'SELECT octet_length(data)::bigint AS bytes FROM novel_cover_history WHERE novel_id = $1',
+      [novelId],
+    )
+    expect(retained.rows.length).toBeLessThanOrEqual(10)
+    expect(retained.rows.reduce((sum, row) => sum + Number(row.bytes || 0), 0)).toBeLessThanOrEqual(50 * 1024 * 1024)
+
+    const deleted = await req(`/api/novels/${novelId}`, json('DELETE', undefined, adminToken))
+    expect(deleted.status).toBe(200)
+    expect((await t.db.query('SELECT id FROM novel_cover_history WHERE novel_id = $1', [novelId])).rows).toHaveLength(0)
+    expect((await t.db.query('SELECT id FROM ai_cover_candidates WHERE novel_id = $1', [novelId])).rows).toHaveLength(0)
+  })
+
+  it('cover history：未缓存外部旧图先物化，下载失败或期间换源时拒绝替换', async () => {
+    const previous = fetchMock.getMockImplementation()
+    process.env.COVER_FETCH_ENABLED = '0'
+    const firstNovel = await req(
+      '/api/novels',
+      json('POST', { title: '外部封面物化测试书', author: '某作者', coverUrl: 'https://covers.test/external-old.png' }, adminToken),
+    )
+    const firstNovelId = String((await jsonOf<{ novel: { id: string } }>(firstNovel)).novel.id)
+    const failedNovel = await req(
+      '/api/novels',
+      json('POST', { title: '外部封面失败测试书', author: '某作者', coverUrl: 'https://covers.test/external-failed.png' }, adminToken),
+    )
+    const failedNovelId = String((await jsonOf<{ novel: { id: string } }>(failedNovel)).novel.id)
+    const changingNovel = await req(
+      '/api/novels',
+      json('POST', { title: '外部封面换源测试书', author: '某作者', coverUrl: 'https://covers.test/external-changing.png' }, adminToken),
+    )
+    const changingNovelId = String((await jsonOf<{ novel: { id: string } }>(changingNovel)).novel.id)
+
+    const oldExternalData = Buffer.from('external-old-cover')
+    const insertCandidate = async (id: string, novelId: string) => {
+      await t.db.query(
+        `INSERT INTO ai_cover_candidates (id, novel_id, data, content_type, prompt, task_id, metadata, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [id, novelId, Buffer.from(`candidate-${id}`), 'image/png', '', '', '{}', Date.now()],
+      )
+    }
+    await insertCandidate('cover-external-success', firstNovelId)
+    await insertCandidate('cover-external-failed', failedNovelId)
+    await insertCandidate('cover-external-changing', changingNovelId)
+
+    process.env.COVER_FETCH_ENABLED = '1'
+    fetchMock.mockImplementation(async (input: string | URL | Request) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      if (url.endsWith('/external-old.png')) {
+        return new Response(oldExternalData, { status: 200, headers: { 'Content-Type': 'image/png' } })
+      }
+      if (url.endsWith('/external-failed.png')) {
+        return new Response('upstream unavailable', { status: 503, headers: { 'Content-Type': 'text/plain' } })
+      }
+      if (url.endsWith('/external-changing.png')) {
+        await t.db.query('UPDATE novels SET cover_url = $2 WHERE id = $1', [changingNovelId, 'https://covers.test/external-new.png'])
+        return new Response(oldExternalData, { status: 200, headers: { 'Content-Type': 'image/png' } })
+      }
+      return new Response('not found', { status: 404 })
+    })
+
+    try {
+      const firstCurrent = await jsonOf<{ current: { version: string } }>(
+        await req(`/api/ai/cover/history/${firstNovelId}`, json('GET', undefined, adminToken)),
+      )
+      const success = await req(
+        `/api/ai/cover/candidates/cover-external-success/adopt`,
+        json('POST', { operationId: 'cover-external-success-op', expectedCoverVersion: firstCurrent.current.version }, adminToken),
+      )
+      expect(success.status).toBe(200)
+      const backedUp = await t.db.query<{ data: Buffer; source: string }>(
+        'SELECT data, source FROM novel_cover_history WHERE novel_id = $1',
+        [firstNovelId],
+      )
+      expect(backedUp.rows).toHaveLength(1)
+      expect(Buffer.from(backedUp.rows[0]!.data).equals(oldExternalData)).toBe(true)
+      expect(backedUp.rows[0]!.source).toBe('https://covers.test/external-old.png')
+
+      const failed = await req(
+        `/api/ai/cover/candidates/cover-external-failed/adopt`,
+        json('POST', { operationId: 'cover-external-failed-op' }, adminToken),
+      )
+      expect(failed.status).toBe(409)
+      expect((await t.db.query('SELECT id FROM ai_cover_candidates WHERE id = $1', ['cover-external-failed'])).rows).toHaveLength(1)
+
+      const changing = await req(
+        `/api/ai/cover/candidates/cover-external-changing/adopt`,
+        json('POST', { operationId: 'cover-external-changing-op' }, adminToken),
+      )
+      expect(changing.status).toBe(409)
+      expect((await t.db.query('SELECT id FROM ai_cover_candidates WHERE id = $1', ['cover-external-changing'])).rows).toHaveLength(1)
+      expect((await t.db.query('SELECT novel_id FROM novel_covers WHERE novel_id = $1', [changingNovelId])).rows).toHaveLength(0)
+    } finally {
+      if (previous) fetchMock.mockImplementation(previous)
+      else fetchMock.mockReset()
+      process.env.COVER_FETCH_ENABLED = '0'
+    }
+  })
+
   it('已生成内容批量删除：软删除 10 秒内可撤销恢复，超时后清理', async () => {
     const novelId = await firstNovelId(t)
     // 直接插入一条发布态记录，避免 recap 缓存复用干扰

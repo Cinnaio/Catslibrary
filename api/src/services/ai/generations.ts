@@ -3,6 +3,7 @@
  * 同一 (kind, chapter_id, params) 的已发布产物直接复用，不重复烧钱。
  * params_json 参与命中判断，因此换模型或改提示词版本会自然失效重算。
  */
+import { createHash } from 'node:crypto'
 import type { Db } from '../../db/pool'
 import { all, first, run } from '../../db/query'
 import { newId } from '../auth'
@@ -136,6 +137,12 @@ export interface GenerationDetail extends Generation {
   /** 续写时从 AI 输出解析出的章节标题（params_json.draftTitle），供发布自动填充 */
   draftTitle: string
   prompt: string
+  /** 服务端实际存储正文的 SHA-256，用于改写应用的乐观并发校验。 */
+  contentRevision: string
+}
+
+export function generationContentRevision(result: string): string {
+  return createHash('sha256').update(String(result || ''), 'utf8').digest('hex')
 }
 
 function batchFields(paramsJson: string): { batchId: string; batchIndex: number; batchCount: number; draftTitle: string } {
@@ -224,6 +231,7 @@ export async function listTaskGenerations(db: Db, taskId: string): Promise<Gener
       chapterTitle: String(row.chapter_title || ''),
       ...batchFields(row.params_json),
       prompt: String(row.prompt || ''),
+      contentRevision: generationContentRevision(row.result),
     }))
   return items.sort((a, b) => {
     if (a.kind === 'continue' || b.kind === 'continue') return a.batchIndex - b.batchIndex || a.createdAt - b.createdAt || a.id.localeCompare(b.id)
@@ -279,6 +287,7 @@ export async function listGenerationDetails(
       chapterTitle: String(r.chapter_title || ''),
       ...batchFields(r.params_json),
       prompt: String(r.prompt || ''),
+      contentRevision: generationContentRevision(r.result),
     })),
     total: totalRow?.total || 0,
   }
@@ -365,6 +374,7 @@ export async function getGenerationDetail(db: Db, id: string): Promise<Generatio
     chapterTitle: String(row.chapter_title || ''),
     ...batchFields(row.params_json),
     prompt: String(row.prompt || ''),
+    contentRevision: generationContentRevision(row.result),
   }
 }
 

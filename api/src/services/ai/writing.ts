@@ -27,6 +27,97 @@ export interface WritingTitlesResult {
   usage: { model: string; promptTokens: number; completionTokens: number }
 }
 
+export interface WritingBriefGoalV1 {
+  index: number
+  goal: string
+}
+
+export interface WritingBriefV1 {
+  version: 1
+  viewpoint: string
+  pace: string
+  objective: string
+  requiredFacts: string
+  forbiddenEvents: string
+  chapterGoals: WritingBriefGoalV1[]
+}
+
+const WRITING_BRIEF_LIMITS = {
+  viewpoint: 200,
+  pace: 200,
+  objective: 1000,
+  requiredFacts: 3000,
+  forbiddenEvents: 3000,
+  goal: 1000,
+  total: 12000,
+} as const
+
+function scalarLength(value: string): number {
+  return Array.from(value).length
+}
+
+/** 规范化并校验用户编辑的结构化创作要求；不接受客户端提供的上下文或画像。 */
+export function validateWritingBrief(value: unknown, chapterCount = 1): { brief?: WritingBriefV1; error?: string } {
+  if (value === undefined) return {}
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return { error: 'writingBrief 必须是对象' }
+  const raw = value as Record<string, unknown>
+  if (raw.version !== 1) return { error: 'writingBrief.version 必须为 1' }
+  const textFields = ['viewpoint', 'pace', 'objective', 'requiredFacts', 'forbiddenEvents'] as const
+  const values = {} as Record<(typeof textFields)[number], string>
+  for (const field of textFields) {
+    const rawValue = raw[field]
+    if (rawValue !== undefined && typeof rawValue !== 'string') return { error: `writingBrief.${field} 必须是字符串` }
+    const valueText = String(rawValue ?? '').trim()
+    values[field] = valueText
+    if (scalarLength(valueText) > WRITING_BRIEF_LIMITS[field]) {
+      return { error: `writingBrief.${field} 超过 ${WRITING_BRIEF_LIMITS[field]} 个 Unicode 标量` }
+    }
+  }
+  const rawGoals = raw.chapterGoals
+  if (rawGoals !== undefined && !Array.isArray(rawGoals)) return { error: 'writingBrief.chapterGoals 必须是数组' }
+  const goals: WritingBriefGoalV1[] = []
+  const seen = new Set<number>()
+  for (const item of (rawGoals || []) as unknown[]) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return { error: 'writingBrief.chapterGoals 项必须是对象' }
+    const goal = item as Record<string, unknown>
+    if (!Number.isInteger(goal.index) || Number(goal.index) < 1 || Number(goal.index) > Math.max(1, Math.trunc(chapterCount))) {
+      return { error: 'writingBrief.chapterGoals.index 必须是本批范围内的正整数' }
+    }
+    if (typeof goal.goal !== 'string') return { error: 'writingBrief.chapterGoals.goal 必须是字符串' }
+    const index = Number(goal.index)
+    if (seen.has(index)) return { error: 'writingBrief.chapterGoals.index 不能重复' }
+    const text = goal.goal.trim()
+    if (scalarLength(text) > WRITING_BRIEF_LIMITS.goal) return { error: `writingBrief.chapterGoals.goal 超过 ${WRITING_BRIEF_LIMITS.goal} 个 Unicode 标量` }
+    seen.add(index)
+    goals.push({ index, goal: text })
+  }
+  goals.sort((a, b) => a.index - b.index)
+  const total = textFields.reduce((sum, field) => sum + scalarLength(values[field]), 0) + goals.reduce((sum, item) => sum + scalarLength(item.goal), 0)
+  if (total > WRITING_BRIEF_LIMITS.total) return { error: `writingBrief 总长度超过 ${WRITING_BRIEF_LIMITS.total} 个 Unicode 标量` }
+  return {
+    brief: {
+      version: 1,
+      ...values,
+      chapterGoals: goals,
+    },
+  }
+}
+
+/** 以固定顺序生成用户可编辑要求；每章只注入对应的目标。 */
+export function formatWritingBrief(brief: WritingBriefV1 | undefined, chapterIndex = 1): { structured: string; goal: string } {
+  if (!brief) return { structured: '', goal: '' }
+  const structured = [
+    '结构化创作要求（用户编辑）：',
+    `叙事视角：${brief.viewpoint || '未指定'}`,
+    `节奏：${brief.pace || '未指定'}`,
+    `本章目标：${brief.objective || '未指定'}`,
+    `必须保留的事实：${brief.requiredFacts || '未指定'}`,
+    `禁止发生的事件：${brief.forbiddenEvents || '未指定'}`,
+  ].join('\n')
+  const selectedGoal = brief.chapterGoals.find((item) => item.index === chapterIndex)?.goal || ''
+  return { structured, goal: selectedGoal ? `本批第 ${chapterIndex} 章目标（用户编辑）：\n${selectedGoal}` : '' }
+}
+
 export interface ContinuationAnchor {
   chapterId: string
   title: string
@@ -41,6 +132,10 @@ export interface ContinuationSnapshotV1 {
   context: string
   profiles: { style: string; relationship: string; plot: string }
   profileSources: Record<string, unknown>
+  /** 每类画像当时绑定的人工 revision；没有人工层时为 0。 */
+  profileRevisions: Record<string, number>
+  /** 自动画像正文与来源的稳定基底 revision，用于审计快照而非重算。 */
+  profileBaseRevisions: Record<string, string>
   excludedProfiles: Array<{ kind: 'style' | 'relationship' | 'plot'; reason: string }>
 }
 
@@ -231,6 +326,8 @@ export async function generateWriting(db: Db, opts: {
   /** 服务端冻结的续写画像；存在时包括空串也不能回退到全局画像。 */
   profileOverrides?: { style?: string; relationship?: string; plot?: string }
   continuationSnapshot?: ContinuationSnapshotV1
+  /** 服务端校验并冻结的用户创作要求。 */
+  writingBrief?: WritingBriefV1
 }): Promise<WritingResult> {
   if (!isTextAiConfigured()) throw new AiError('disabled', 'AI 文本服务未配置', 503)
   const provider = textProvider()
@@ -273,10 +370,13 @@ export async function generateWriting(db: Db, opts: {
     opts.chapterCount && opts.chapterCount > 1 ? `Continuation chapter count: ${Math.max(1, Math.min(20, Math.trunc(opts.chapterCount)))} chapters.` : '',
     opts.kind === 'continue' || opts.kind === 'write_chapter' ? '本次仅生成一章；不得继续输出下一章或额外章节标题。' : '',
   ].filter(Boolean)
+  const briefParts = formatWritingBrief(opts.writingBrief, opts.batchIndex || 1)
   const user = [
     ...optionInstructions,
     `作品：《${opts.title || '未命名作品'}》`,
-    opts.instruction ? `创作要求：${opts.instruction}` : '',
+    briefParts.structured,
+    briefParts.goal,
+    opts.instruction ? `补充创作要求：${opts.instruction}` : '',
     opts.outline ? `大纲：\n${cleanWritingText(opts.outline)}` : '',
     plotState?.state ? `本作情节状态（续写须保持人设与伏笔一致）：\n${plotState.state}` : '',
     opts.context ? `已有剧情上下文：\n${cleanWritingText(opts.context)}` : '',
@@ -336,6 +436,7 @@ export async function generateContinuationChapters(db: Db, opts: {
   existingDrafts?: BatchDraft[]
   profileOverrides?: { style?: string; relationship?: string; plot?: string }
   continuationSnapshot?: ContinuationSnapshotV1
+  writingBrief?: WritingBriefV1
 }): Promise<WritingBatchResult> {
   const count = Math.max(1, Math.min(20, Math.trunc(Number(opts.chapterCount) || 1)))
   const startIndex = Math.max(0, Math.min(count, Math.trunc(Number(opts.startIndex) || 0)))
@@ -370,6 +471,7 @@ export async function generateContinuationChapters(db: Db, opts: {
       taskId,
       profileOverrides: opts.profileOverrides,
       continuationSnapshot: opts.continuationSnapshot,
+      writingBrief: opts.writingBrief,
     })
     generations.push(result.generation)
     if (!(await isAiTaskActive(db, taskId))) break

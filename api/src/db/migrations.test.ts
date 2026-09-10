@@ -9,7 +9,7 @@ const MIGRATIONS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '
 
 /** 用 WASM PostgreSQL（pglite）验证迁移 SQL：无本地 PG 服务器也能保证语法与表结构正确。 */
 describe('数据库迁移', () => {
-  it('所有迁移按序执行成功，建出 26 张表', async () => {
+  it('所有迁移按序执行成功，建出核心表结构', async () => {
     const db = new PGlite({ extensions: { pg_trgm } })
     const files = (await readdir(MIGRATIONS_DIR))
       .filter((f) => f.endsWith('.sql'))
@@ -33,6 +33,7 @@ describe('数据库迁移', () => {
       'thoughts', 'novel_ratings', 'novel_comments', 'novel_comment_likes', 'novel_comment_reports',
       'user_bookmarks', 'user_bookshelf',
       'ai_generations', 'ai_usage', 'ai_tasks', 'api_keys', 'admin_operation_audit',
+      'novel_ai_profile_overrides', 'novel_cover_history',
     ]
     for (const t of expected) {
       expect(tables).toContain(t)
