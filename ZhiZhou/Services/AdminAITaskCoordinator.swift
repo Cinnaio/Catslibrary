@@ -49,8 +49,15 @@ final class AdminAITaskCoordinator {
         key: String,
         kind: String,
         resourceID: String? = nil,
+        requestPayloadJSON: String? = nil,
+        requestFingerprint: String? = nil,
         launch: @escaping (String) async throws -> String
     ) async throws -> Launch {
+        try coordinator.validateRequest(
+            for: key,
+            requestPayloadJSON: requestPayloadJSON,
+            requestFingerprint: requestFingerprint
+        )
         if coordinator.record(for: key) != nil,
            let existing = try await resume(key: key, recoveryAttempts: 2) {
             return Launch(
@@ -64,6 +71,8 @@ final class AdminAITaskCoordinator {
             key: key,
             kind: kind,
             resourceID: resourceID,
+            requestPayloadJSON: requestPayloadJSON,
+            requestFingerprint: requestFingerprint,
             recover: { record in
                 try await AdminAPI.recoverAiTask(
                     clientRequestID: record.requestID,

@@ -274,6 +274,8 @@ struct AiCoverMetadata: Codable, Hashable {
     let stylePreset: String?
     let composition: String?
     let variationId: String?
+    let promptMode: String?
+    let configurationApplied: Bool?
     let romanceSubtype: String?
     let romanceEmotion: String?
     let visualConcept: String?
@@ -344,6 +346,18 @@ struct AiGenerationsResponse: Codable {
     let offset: Int?
 }
 
+/// GET /api/ai/tasks/:id/generations：按真实任务关联的结果。
+struct AiTaskGenerationsResponse: Codable {
+    let items: [AiGeneration]
+    /// exact / legacy_batch / unavailable
+    let linkage: String?
+}
+
+/// GET /api/ai/generations/:id 的单条详情。
+struct AiGenerationDetailResponse: Codable {
+    let item: AiGeneration
+}
+
 struct AiGenerationsBatchResponse: Codable {
     let ok: Bool?
     let deleted: Int?
@@ -387,10 +401,27 @@ struct AiProfileResponse: Codable {
     let ok: Bool?
     let profile: String?
     let model: String?
+    let source: AiProfileSource?
+    let updatedAt: Int64?
 }
 
 struct AiProfileGetResponse: Codable {
     let profile: String?
+    let source: AiProfileSource?
+    let updatedAt: Int64?
+    let eligibility: String?
+    let isOlderThanAnchor: Bool?
+}
+
+struct AiProfileSource: Codable, Hashable {
+    let version: Int?
+    let chapterId: String?
+    let chapterTitle: String?
+    let sortOrder: Int?
+    let chapterOrdinal: Int?
+    let sampleCount: Int?
+    let samplePolicyVersion: Int?
+    let fingerprint: String?
 }
 
 struct AiPlotStateResponse: Codable {
@@ -398,12 +429,18 @@ struct AiPlotStateResponse: Codable {
     let state: String?
     let chaptersThrough: Int?
     let model: String?
+    let source: AiProfileSource?
+    let updatedAt: Int64?
 }
 
 struct AiPlotStateGetResponse: Codable {
     let state: String?
     let chaptersThrough: Int?
     let chapterCount: Int?
+    let source: AiProfileSource?
+    let updatedAt: Int64?
+    let eligibility: String?
+    let isOlderThanAnchor: Bool?
 }
 
 /// POST /api/ai/writing/titles 的返回。

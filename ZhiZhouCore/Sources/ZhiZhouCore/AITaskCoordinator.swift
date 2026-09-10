@@ -9,6 +9,11 @@ public struct AITaskOperationRecord: Codable, Equatable, Identifiable, Sendable 
     public let resourceID: String?
     public let startedAt: Int64
     public var taskID: String?
+    /// Original request payload captured before the network call. It lets the
+    /// UI explain/reconcile an interrupted request without rebuilding it from
+    /// mutable form state.
+    public let requestPayloadJSON: String?
+    public let requestFingerprint: String?
 
     public init(
         key: String,
@@ -16,7 +21,9 @@ public struct AITaskOperationRecord: Codable, Equatable, Identifiable, Sendable 
         kind: String,
         resourceID: String? = nil,
         startedAt: Int64,
-        taskID: String? = nil
+        taskID: String? = nil,
+        requestPayloadJSON: String? = nil,
+        requestFingerprint: String? = nil
     ) {
         self.key = key
         self.requestID = requestID
@@ -24,6 +31,8 @@ public struct AITaskOperationRecord: Codable, Equatable, Identifiable, Sendable 
         self.resourceID = resourceID
         self.startedAt = startedAt
         self.taskID = taskID
+        self.requestPayloadJSON = requestPayloadJSON
+        self.requestFingerprint = requestFingerprint
     }
 }
 
@@ -41,6 +50,8 @@ public enum AITaskCoordinationError: LocalizedError, Equatable {
     case inactiveSession
     case emptyTaskID
     case sessionChanged
+    case requestChanged
+    case missingRequestPayload
 
     public var errorDescription: String? {
         switch self {
@@ -50,6 +61,10 @@ public enum AITaskCoordinationError: LocalizedError, Equatable {
             return "AI 服务没有返回任务 ID"
         case .sessionChanged:
             return "账号已切换，本次 AI 任务结果已忽略"
+        case .requestChanged:
+            return "已有 AI 请求仍在恢复，当前表单参数已变化；请先完成或放弃原任务"
+        case .missingRequestPayload:
+            return "旧 AI 请求没有保存原始参数，无法安全重试；请重新发起任务"
         }
     }
 }
@@ -162,6 +177,22 @@ public final class AITaskCoordinator {
         persistCurrent()
     }
 
+    /// Validate a new form submission before any recovery lookup can join the
+    /// persisted operation. This keeps a changed request from being attached
+    /// to an older task merely because its server record is discoverable.
+    public func validateRequest(
+        for key: String,
+        requestPayloadJSON: String?,
+        requestFingerprint: String?
+    ) throws {
+        guard let record = recordsByKey[key] else { return }
+        try validateRequest(
+            record,
+            requestPayloadJSON: requestPayloadJSON,
+            requestFingerprint: requestFingerprint
+        )
+    }
+
     /// Resolve a persisted operation without creating a new server task.
     public func recover(key: String, using recoverer: @escaping Recoverer) async throws -> AITaskOperationRecord? {
         guard let session = currentSession else { throw AITaskCoordinationError.inactiveSession }
@@ -187,6 +218,8 @@ public final class AITaskCoordinator {
         key: String,
         kind: String,
         resourceID: String? = nil,
+        requestPayloadJSON: String? = nil,
+        requestFingerprint: String? = nil,
         recover: @escaping Recoverer,
         launch: @escaping Launcher
     ) async throws -> AITaskLaunch {
@@ -197,7 +230,15 @@ public final class AITaskCoordinator {
         }
         guard let session = currentSession else { throw AITaskCoordinationError.inactiveSession }
 
-        if let record = recordsByKey[normalizedKey], record.taskID?.isEmpty == false {
+        let existingRecord = recordsByKey[normalizedKey]
+        if let existingRecord {
+            try validateRequest(
+                existingRecord,
+                requestPayloadJSON: requestPayloadJSON,
+                requestFingerprint: requestFingerprint
+            )
+        }
+        if let record = existingRecord, record.taskID?.isEmpty == false {
             return AITaskLaunch(record: record, reusedExistingOperation: true)
         }
 
@@ -211,14 +252,15 @@ public final class AITaskCoordinator {
             )
         }
 
-        let existingRecord = recordsByKey[normalizedKey]
         let now = Int64(Date().timeIntervalSince1970 * 1000)
         let record = existingRecord ?? AITaskOperationRecord(
             key: normalizedKey,
             requestID: UUID().uuidString.lowercased(),
             kind: normalizedKind,
             resourceID: resourceID,
-            startedAt: now
+            startedAt: now,
+            requestPayloadJSON: requestPayloadJSON,
+            requestFingerprint: requestFingerprint
         )
         recordsByKey[normalizedKey] = record
         persistCurrent()
@@ -228,6 +270,9 @@ public final class AITaskCoordinator {
                let recoveredTaskID = try await recover(record),
                !recoveredTaskID.isEmpty {
                 return StartOutcome(taskID: recoveredTaskID, recovered: true)
+            }
+            if existingRecord != nil, record.requestPayloadJSON == nil {
+                throw AITaskCoordinationError.missingRequestPayload
             }
 
             let launchedTaskID = try await launch(record.requestID)
@@ -289,6 +334,18 @@ public final class AITaskCoordinator {
         recordsByKey[key] = record
         persistCurrent()
         return AITaskLaunch(record: record, reusedExistingOperation: reusedExistingOperation)
+    }
+
+    private func validateRequest(
+        _ record: AITaskOperationRecord,
+        requestPayloadJSON: String?,
+        requestFingerprint: String?
+    ) throws {
+        let existingFingerprint = record.requestFingerprint ?? record.requestPayloadJSON
+        let incomingFingerprint = requestFingerprint ?? requestPayloadJSON
+        guard existingFingerprint == nil || incomingFingerprint == existingFingerprint else {
+            throw AITaskCoordinationError.requestChanged
+        }
     }
 
     private var currentSession: Session? {

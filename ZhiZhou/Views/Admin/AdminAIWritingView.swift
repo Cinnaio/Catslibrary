@@ -23,8 +23,10 @@ struct AdminAIWritingView: View {
     @State private var novelId = ""
     @State private var showNovelPicker = false
     @State private var chapterOptions: [ChapterMeta] = []
+    @State private var chapterLoadFailed = false
     @State private var afterChapterId = ""
     @State private var selectionRequests = ListRequestGuard<String>()
+    @State private var profileRequests = ListRequestGuard<String>()
 
     // 表单
     @State private var mode: Mode = .new
@@ -38,10 +40,13 @@ struct AdminAIWritingView: View {
 
     // 画像
     @State private var styleProfile = ""
+    @State private var styleEligibility = ""
     @State private var plotState = ""
     @State private var plotChaptersThrough = 0
     @State private var plotChapterCount = 0
     @State private var relationshipProfile = ""
+    @State private var relationshipEligibility = ""
+    @State private var plotEligibility = ""
     @State private var profileBusy = ""
 
     // 任务
@@ -49,6 +54,9 @@ struct AdminAIWritingView: View {
     @State private var taskStatusText: String?
     @State private var activeTask: AiTaskInfo?
     @State private var pollTask: Task<Void, Never>?
+    @State private var pollingPaused = false
+    @State private var writingPollingToken = UUID()
+    @State private var showingTaskResults = false
 
     // 通用
     @State private var isLoading = true
@@ -62,7 +70,7 @@ struct AdminAIWritingView: View {
             }
             return !novelId.isEmpty && !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
-        return !novelId.isEmpty
+        return !novelId.isEmpty && !chapterLoadFailed && !chapterOptions.isEmpty
     }
 
     var body: some View {
@@ -109,6 +117,11 @@ struct AdminAIWritingView: View {
         } message: {
             Text(actionError ?? "")
         }
+        .sheet(isPresented: $showingTaskResults) {
+            NavigationStack {
+                AdminAIGenerationsView(taskID: activeTask?.id)
+            }
+        }
         .onDisappear {
             pollTask?.cancel()
             pollTask = nil
@@ -121,6 +134,10 @@ struct AdminAIWritingView: View {
                 pollTask = nil
                 starting = false
             }
+        }
+        .onChange(of: afterChapterId) { _, anchorID in
+            guard mode == .continueWriting, !novelId.isEmpty else { return }
+            Task { await loadProfileStatuses(novelID: novelId, anchorID: anchorID.isEmpty ? nil : anchorID) }
         }
     }
 
@@ -226,9 +243,16 @@ struct AdminAIWritingView: View {
                     }
                 }
             } else {
-                Text("此书暂无章节，将从空白续写（需先有已发布章节）。")
+                Text(chapterLoadFailed ? "章节列表加载失败，请重试后再选择续写起点。" : "此书暂无已发布章节，续写需要先有章节；可切换到新写。")
                     .font(.caption)
                     .foregroundStyle(AppTheme.warning)
+                if chapterLoadFailed {
+                    Button("重试加载章节") {
+                        Task { await onNovelSelected(novelId) }
+                    }
+                    .font(.subheadline.weight(.medium))
+                    .disabled(selectionRequests.isLoading)
+                }
             }
             TextField("续写要求（可选）", text: $instruction, axis: .vertical)
                 .lineLimit(2...4)
@@ -244,6 +268,7 @@ struct AdminAIWritingView: View {
             profileRow(
                 label: "风格画像",
                 value: styleProfile,
+                status: styleEligibility,
                 busy: profileBusy == "style",
                 action: { Task { await refreshProfile("style") } },
                 empty: "未提取 · 提取后续写自动注入"
@@ -251,6 +276,7 @@ struct AdminAIWritingView: View {
             profileRow(
                 label: "情节状态",
                 value: plotState,
+                status: plotEligibility,
                 busy: profileBusy == "plot",
                 action: { Task { await refreshProfile("plot") } },
                 empty: plotSummary
@@ -258,6 +284,7 @@ struct AdminAIWritingView: View {
             profileRow(
                 label: "关系画像",
                 value: relationshipProfile,
+                status: relationshipEligibility,
                 busy: profileBusy == "relationship",
                 action: { Task { await refreshProfile("relationship") } },
                 empty: "未提取 · 提取后续写自动注入"
@@ -291,6 +318,19 @@ struct AdminAIWritingView: View {
                         .font(.caption)
                         .foregroundStyle(activeTask.status == "failed" ? AppTheme.danger : AppTheme.textSecondary)
                 }
+                if pollingPaused, activeTask.isRunning {
+                    Button("继续查询任务") {
+                        pollingPaused = false
+                        pollWritingTask(activeTask.id)
+                    }
+                    .font(.subheadline)
+                }
+                if let status = activeTask.status, ["completed", "failed", "cancelled"].contains(status) {
+                    Button(status == "completed" ? "查看本次草稿" : "查看已生成内容") {
+                        showingTaskResults = true
+                    }
+                    .font(.subheadline.weight(.medium))
+                }
             }
         } else if let taskStatusText {
             Section {
@@ -308,7 +348,7 @@ struct AdminAIWritingView: View {
         return "未提取 · 提取后续写自动注入"
     }
 
-    private func profileRow(label: String, value: String, busy: Bool, action: @escaping () -> Void, empty: String) -> some View {
+    private func profileRow(label: String, value: String, status: String = "", busy: Bool, action: @escaping () -> Void, empty: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text(label)
@@ -338,6 +378,11 @@ struct AdminAIWritingView: View {
                     .foregroundStyle(AppTheme.textSecondary)
                     .appTextLineLimit(4)
             }
+            if !status.isEmpty, status != "usable" {
+                Text(profileStatusText(status))
+                    .font(.caption2)
+                    .foregroundStyle(status == "legacy_unknown" || status == "source_changed" || status == "beyond_anchor" ? AppTheme.warning : AppTheme.textSecondary)
+            }
         }
         .padding(.vertical, 2)
     }
@@ -359,29 +404,75 @@ struct AdminAIWritingView: View {
         guard id == novelId else { return }
         let ticket = selectionRequests.begin(id)
         chapterOptions = []
+        chapterLoadFailed = false
         afterChapterId = ""
+        let profileTicket = profileRequests.begin("\(id)|")
+        defer { profileRequests.finish(profileTicket) }
         styleProfile = ""
+        styleEligibility = ""
         plotState = ""
+        plotEligibility = ""
         plotChaptersThrough = 0
         plotChapterCount = 0
         relationshipProfile = ""
+        relationshipEligibility = ""
         defer { selectionRequests.finish(ticket) }
         // 载入章节列表与已提取画像（并行发起，分别容错）
         async let chaptersTask = AdminAPI.chapters(novelId: id)
         async let styleTask = AdminAPI.aiGetStyleProfile(novelId: id)
         async let plotTask = AdminAPI.aiGetPlotState(novelId: id)
         async let relationTask = AdminAPI.aiGetRelationshipProfile(novelId: id)
-        let chapters = (try? await chaptersTask) ?? []
+        let chaptersResult = try? await chaptersTask
+        let chapters = chaptersResult ?? []
         let style = try? await styleTask
         let plot = try? await plotTask
         let relation = try? await relationTask
         guard !Task.isCancelled, selectionRequests.accepts(ticket, query: novelId) else { return }
         chapterOptions = chapters
+        chapterLoadFailed = chaptersResult == nil
+        if profileRequests.accepts(profileTicket, query: "\(id)|") {
+            styleProfile = style?.profile ?? ""
+            plotState = plot?.state ?? ""
+            plotChaptersThrough = plot?.chaptersThrough ?? 0
+            plotChapterCount = plot?.chapterCount ?? 0
+            relationshipProfile = relation?.profile ?? ""
+            styleEligibility = style?.eligibility ?? ""
+            plotEligibility = plot?.eligibility ?? ""
+            relationshipEligibility = relation?.eligibility ?? ""
+        }
+    }
+
+    private func loadProfileStatuses(novelID: String, anchorID: String?) async {
+        guard novelID == self.novelId else { return }
+        let query = "\(novelID)|\(anchorID ?? "")"
+        let ticket = profileRequests.begin(query)
+        defer { profileRequests.finish(ticket) }
+        async let styleTask = AdminAPI.aiGetStyleProfile(novelId: novelID, afterChapterId: anchorID)
+        async let plotTask = AdminAPI.aiGetPlotState(novelId: novelID, afterChapterId: anchorID)
+        async let relationTask = AdminAPI.aiGetRelationshipProfile(novelId: novelID, afterChapterId: anchorID)
+        let style = try? await styleTask
+        let plot = try? await plotTask
+        let relation = try? await relationTask
+        guard !Task.isCancelled, novelID == self.novelId, profileRequests.accepts(ticket, query: query) else { return }
         styleProfile = style?.profile ?? ""
         plotState = plot?.state ?? ""
-        plotChaptersThrough = plot?.chaptersThrough ?? 0
-        plotChapterCount = plot?.chapterCount ?? 0
+        plotChaptersThrough = plot?.source?.chapterOrdinal ?? plot?.chaptersThrough ?? 0
         relationshipProfile = relation?.profile ?? ""
+        styleEligibility = style?.eligibility ?? ""
+        plotEligibility = plot?.eligibility ?? ""
+        relationshipEligibility = relation?.eligibility ?? ""
+    }
+
+    private func profileStatusText(_ status: String) -> String {
+        switch status {
+        case "usable": return "用于本次"
+        case "stale": return "来源较早，情节状态不会自动注入"
+        case "beyond_anchor": return "来源晚于当前起点，需重新提取"
+        case "legacy_unknown": return "来源未记录，需重新提取后才会注入"
+        case "source_changed": return "来源正文已变化，需重新提取"
+        case "missing": return "未提取"
+        default: return status
+        }
     }
 
     private func refreshProfile(_ scope: String) async {
@@ -396,18 +487,21 @@ struct AdminAIWritingView: View {
         do {
             switch scope {
             case "style":
-                let r = try await AdminAPI.aiRefreshStyleProfile(novelId: selectedID)
+                let r = try await AdminAPI.aiRefreshStyleProfile(novelId: selectedID, afterChapterId: afterChapterId.isEmpty ? nil : afterChapterId)
                 guard !Task.isCancelled, novelId == selectedID else { return }
                 styleProfile = r.profile ?? ""
+                styleEligibility = "usable"
             case "plot":
-                let r = try await AdminAPI.aiRefreshPlotState(novelId: selectedID)
+                let r = try await AdminAPI.aiRefreshPlotState(novelId: selectedID, afterChapterId: afterChapterId.isEmpty ? nil : afterChapterId)
                 guard !Task.isCancelled, novelId == selectedID else { return }
                 plotState = r.state ?? ""
                 plotChaptersThrough = r.chaptersThrough ?? 0
+                plotEligibility = "usable"
             default:
-                let r = try await AdminAPI.aiRefreshRelationshipProfile(novelId: selectedID)
+                let r = try await AdminAPI.aiRefreshRelationshipProfile(novelId: selectedID, afterChapterId: afterChapterId.isEmpty ? nil : afterChapterId)
                 guard !Task.isCancelled, novelId == selectedID else { return }
                 relationshipProfile = r.profile ?? ""
+                relationshipEligibility = "usable"
             }
         } catch {
             guard !Task.isCancelled, novelId == selectedID else { return }
@@ -480,11 +574,14 @@ struct AdminAIWritingView: View {
             ]
         }
 
+        let requestPayloadJSON = (try? JSONSerialization.data(withJSONObject: body, options: [.sortedKeys])).flatMap { String(data: $0, encoding: .utf8) }
         do {
             let launch = try await AdminAITaskCoordinator.shared.start(
                 key: AdminAITaskCoordinator.OperationKey.writing,
                 kind: kind,
-                resourceID: resourceID
+                resourceID: resourceID,
+                requestPayloadJSON: requestPayloadJSON,
+                requestFingerprint: requestPayloadJSON
             ) { clientRequestID in
                 let result = try await AdminAPI.aiStartWriting(
                     kind: kind,
@@ -513,12 +610,20 @@ struct AdminAIWritingView: View {
 
     private func pollWritingTask(_ id: String) {
         pollTask?.cancel()
+        let token = UUID()
+        writingPollingToken = token
+        pollingPaused = false
         pollTask = Task {
             var attempts = 0
+            var interval: UInt64 = 3_000_000_000
+            var consecutiveFailures = 0
+            defer {
+                if !Task.isCancelled, writingPollingToken == token { pollTask = nil }
+            }
             while !Task.isCancelled, attempts < 200 {
                 if attempts > 0 {
-                    try? await Task.sleep(nanoseconds: 3_000_000_000)
-                    guard !Task.isCancelled else { return }
+                    try? await Task.sleep(nanoseconds: interval)
+                    guard !Task.isCancelled, writingPollingToken == token else { return }
                 }
                 attempts += 1
                 do {
@@ -526,7 +631,8 @@ struct AdminAIWritingView: View {
                     guard AdminAITaskCoordinator.shared.isCurrent(
                         key: AdminAITaskCoordinator.OperationKey.writing,
                         taskID: id
-                    ) else { return }
+                    ), writingPollingToken == token else { return }
+                    consecutiveFailures = 0
                     activeTask = detail.task
                     let status = detail.task.status ?? ""
                     if ["completed", "failed", "cancelled"].contains(status) {
@@ -535,14 +641,51 @@ struct AdminAIWritingView: View {
                             taskID: detail.task.id
                         )
                         taskStatusText = "任务\(AdminFormat.aiTaskStatus(status))，可在「已生成内容」查看草稿。"
+                        pollingPaused = false
                         return
                     }
+                    interval = 3_000_000_000
                 } catch {
-                    taskStatusText = AppCopy.friendlyError(error)
+                    guard !Task.isCancelled, writingPollingToken == token else { return }
+                    if isTransientTaskError(error) {
+                        consecutiveFailures += 1
+                        interval = min(30_000_000_000, max(3_000_000_000, interval * 2))
+                        taskStatusText = "网络暂时不可用，正在退避重试（\(consecutiveFailures)/5）…"
+                        if consecutiveFailures < 5 { continue }
+                        pollingPaused = true
+                        pollTask = nil
+                        taskStatusText = "任务仍在服务器运行，查询暂时中断；点按“继续查询任务”恢复。"
+                        return
+                    }
+                    pollingPaused = false
+                    pollTask = nil
+                    taskStatusText = taskQueryErrorText(error)
                     return
                 }
             }
+            guard !Task.isCancelled, writingPollingToken == token else { return }
+            pollingPaused = true
+            pollTask = nil
+            taskStatusText = "任务仍在服务器运行，查询窗口已结束；点按“继续查询任务”恢复。"
         }
+    }
+
+    private func isTransientTaskError(_ error: Error) -> Bool {
+        if case APIError.network = error { return true }
+        if case APIError.http(let status, _) = error { return status == 408 || status == 429 || status >= 500 }
+        return false
+    }
+
+    private func taskQueryErrorText(_ error: Error) -> String {
+        if case APIError.http(let status, _) = error {
+            switch status {
+            case 401: return "登录已失效，请重新登录后继续查询任务"
+            case 403: return "当前账号没有查询该任务的权限"
+            case 404: return "任务记录不存在，无法继续查询"
+            default: break
+            }
+        }
+        return "无法读取任务状态：\(AppCopy.friendlyError(error))"
     }
 
     private var errorAlertBinding: Binding<Bool> {

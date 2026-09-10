@@ -4,8 +4,15 @@ import ZhiZhouCore
 /// AI 已生成内容：列表 / 类型与状态筛选 / 批量删除 / 草稿编辑 / 发布 / 撤销发布 / 删除。
 /// 对齐 Web 端 admin ai AiGenerationsPanel（/api/ai/generations、/api/ai/writing/drafts|batches）。
 struct AdminAIGenerationsView: View {
+    private let taskID: String?
+
+    init(taskID: String? = nil) {
+        self.taskID = taskID
+    }
+
     @State private var items: [AiGeneration] = []
     @State private var totalCount = 0
+    @State private var taskLinkage: String?
     @State private var isLoading = true
     @State private var errorMessage: String?
     @State private var actionError: String?
@@ -21,7 +28,7 @@ struct AdminAIGenerationsView: View {
     @State private var loadingMore = false
     @State private var requests = ListRequestGuard<[String]>()
 
-    private var query: [String] { [kindFilter, scopeFilter, statusFilter] }
+    private var query: [String] { [taskID ?? "", kindFilter, scopeFilter, statusFilter] }
 
     // 批量
     @State private var selectionMode = false
@@ -37,7 +44,7 @@ struct AdminAIGenerationsView: View {
 
     var body: some View {
         List {
-            filterSection
+            if taskID == nil { filterSection }
             if isLoading && items.isEmpty {
                 Section {
                     ProgressView("加载中…")
@@ -104,7 +111,16 @@ struct AdminAIGenerationsView: View {
                         .listRowBackground(Color.clear)
                     }
                 }
-                Section("共 \(totalCount) 条") {
+                Section(taskID == nil ? "共 \(totalCount) 条" : "本次任务结果（\(totalCount)）") {
+                    if taskID != nil, taskLinkage == "unavailable" {
+                        Text("旧任务未记录精确关联，暂时没有可安全归属到本次任务的内容。")
+                            .font(.caption)
+                            .foregroundStyle(AppTheme.textSecondary)
+                    } else if taskID != nil, taskLinkage == "legacy_batch" {
+                        Text("本次结果按历史批次关联。")
+                            .font(.caption)
+                            .foregroundStyle(AppTheme.textSecondary)
+                    }
                     ForEach(items) { item in
                         generationRow(item)
                     }
@@ -345,13 +361,21 @@ struct AdminAIGenerationsView: View {
             }
         }
         do {
-            let result = try await AdminAPI.aiGenerations(
-                kind: ticket.query[0],
-                scope: ticket.query[1],
-                status: ticket.query[2],
-                limit: pageSize,
-                offset: 0
-            )
+            let result: AiGenerationsResponse
+            if let taskID, !taskID.isEmpty {
+                let taskResult = try await AdminAPI.aiTaskGenerations(id: taskID)
+                taskLinkage = taskResult.linkage
+                result = AiGenerationsResponse(items: taskResult.items, total: taskResult.items.count, limit: taskResult.items.count, offset: 0)
+            } else {
+                taskLinkage = nil
+                result = try await AdminAPI.aiGenerations(
+                    kind: ticket.query[1],
+                    scope: ticket.query[2],
+                    status: ticket.query[3],
+                    limit: pageSize,
+                    offset: 0
+                )
+            }
             guard !Task.isCancelled, requests.accepts(ticket, query: query) else { return }
             items = result.items
             selectedIds.formIntersection(items.map(\.id))
@@ -379,9 +403,9 @@ struct AdminAIGenerationsView: View {
         do {
             let next = offset + pageSize
             let result = try await AdminAPI.aiGenerations(
-                kind: ticket.query[0],
-                scope: ticket.query[1],
-                status: ticket.query[2],
+                kind: ticket.query[1],
+                scope: ticket.query[2],
+                status: ticket.query[3],
                 limit: pageSize,
                 offset: next
             )
@@ -480,7 +504,13 @@ private struct GenerationDetailSheet: View {
     let item: AiGeneration
     let onClose: (Bool) -> Void
 
-    @State private var draftText: String?
+    @State private var savedText = ""
+    @State private var editorText = ""
+    @State private var isEditing = false
+    @State private var didMutate = false
+    @State private var showCloseConfirmation = false
+    @State private var publishStatusUnknown = false
+    @State private var didNotifyClose = false
     @State private var publishTitle = ""
     @State private var titleCandidates: [String] = []
     @State private var generatingTitles = false
@@ -490,6 +520,18 @@ private struct GenerationDetailSheet: View {
 
     private var isEditableDraft: Bool {
         item.isDraft && ["write_chapter", "continue", "write_outline"].contains(item.kind ?? "")
+    }
+
+    private var isPublishableDraft: Bool {
+        item.isDraft && ["write_chapter", "continue"].contains(item.kind ?? "")
+    }
+
+    private var isDirty: Bool {
+        editorText.trimmingCharacters(in: .whitespacesAndNewlines) != savedText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var currentText: String {
+        isEditing ? editorText : savedText
     }
 
     var body: some View {
@@ -513,11 +555,8 @@ private struct GenerationDetailSheet: View {
                 }
 
                 Section("内容") {
-                    if draftText != nil {
-                        TextEditor(text: Binding(
-                            get: { draftText ?? "" },
-                            set: { draftText = $0 }
-                        ))
+                    if isEditing {
+                        TextEditor(text: $editorText)
                         .frame(minHeight: 260)
                         .font(.subheadline)
                         .scrollContentBackground(.hidden)
@@ -525,7 +564,7 @@ private struct GenerationDetailSheet: View {
                         .appFieldSurface()
                         .padding(.vertical, 4)
                     } else {
-                        Text(item.result ?? "（无内容）")
+                        Text(savedText.isEmpty ? "（无内容）" : savedText)
                             .font(.subheadline)
                             .foregroundStyle(AppTheme.textSecondary)
                             .textSelection(.enabled)
@@ -534,8 +573,11 @@ private struct GenerationDetailSheet: View {
 
                 if isEditableDraft {
                     Section("草稿操作") {
-                        if draftText == nil {
-                            Button("编辑草稿") { draftText = item.result ?? "" }
+                        if !isEditing {
+                            Button("编辑草稿") {
+                                editorText = savedText
+                                isEditing = true
+                            }
                         } else {
                             Button {
                                 Task { await saveDraft() }
@@ -547,10 +589,14 @@ private struct GenerationDetailSheet: View {
                                 }
                             }
                                 .disabled(saving)
-                            Button("放弃编辑") { draftText = nil }
+                            Button("放弃编辑") {
+                                editorText = savedText
+                                isEditing = false
+                            }
                         }
                     }
-                    Section("发布为正式章节") {
+                    if isPublishableDraft {
+                        Section("发布为正式章节") {
                         TextField("章节标题", text: $publishTitle)
                         Button("AI 生成标题") { Task { await generateTitles() } }
                             .disabled(generatingTitles)
@@ -579,9 +625,10 @@ private struct GenerationDetailSheet: View {
                                 Label("发布", systemImage: "paperplane.fill")
                             }
                         }
-                        .disabled(publishTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || saving)
+                        .disabled(publishTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || saving || publishStatusUnknown)
                         .buttonStyle(.borderedProminent)
                         .tint(AppTheme.primary)
+                        }
                     }
                 } else if item.isPublished {
                     Section {
@@ -612,18 +659,50 @@ private struct GenerationDetailSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("关闭") { onClose(false) }
+                    Button("关闭") { requestClose() }
                 }
             }
         }
         .presentationDetents([.large])
+        .interactiveDismissDisabled(saving || (isEditing && isDirty))
+        .confirmationDialog(
+            "有未保存修改",
+            isPresented: $showCloseConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("保存并关闭") {
+                Task { await saveAndClose() }
+            }
+            .disabled(saving)
+            Button("放弃修改", role: .destructive) {
+                editorText = savedText
+                isEditing = false
+                notifyClose(didMutate)
+            }
+            Button("继续编辑", role: .cancel) {}
+        } message: {
+            Text("当前正文尚未保存。")
+        }
         .onAppear {
+            didNotifyClose = false
+            savedText = item.result ?? ""
+            editorText = savedText
             publishTitle = item.draftTitle ?? ""
+        }
+        .onDisappear {
+            // 系统下滑关闭不会经过工具栏按钮；仍要把已保存正文的刷新信号交给父列表。
+            notifyClose(didMutate)
         }
     }
 
+    private func notifyClose(_ refresh: Bool) {
+        guard !didNotifyClose else { return }
+        didNotifyClose = true
+        onClose(refresh)
+    }
+
     private func saveDraft() async {
-        guard let text = draftText?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return }
+        guard let text = normalizedEditorText else { return }
         saving = true
         savingAction = "draft"
         defer {
@@ -631,15 +710,20 @@ private struct GenerationDetailSheet: View {
             savingAction = nil
         }
         do {
-            _ = try await AdminAPI.aiUpdateDraft(id: item.id, result: text)
-            draftText = nil
+            let response = try await AdminAPI.aiUpdateDraft(id: item.id, result: text)
+            let committed = (response.result ?? text).trimmingCharacters(in: .whitespacesAndNewlines)
+            savedText = committed
+            editorText = committed
+            isEditing = false
+            didMutate = true
+            actionError = nil
         } catch {
             actionError = AppCopy.friendlyError(error)
         }
     }
 
     private func generateTitles() async {
-        let content = (draftText ?? item.result ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let content = currentText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !content.isEmpty else {
             actionError = "草稿内容为空，无法生成标题"
             return
@@ -662,15 +746,80 @@ private struct GenerationDetailSheet: View {
         }
         saving = true
         savingAction = "publish"
+        publishStatusUnknown = false
+        var publishRequestStarted = false
         defer {
             saving = false
             savingAction = nil
         }
         do {
+            // 发布前先提交当前编辑内容；服务端发布事务随后读取锁内最新正文。
+            if isEditing && isDirty {
+                guard let text = normalizedEditorText else { return }
+                let response = try await AdminAPI.aiUpdateDraft(id: item.id, result: text)
+                let committed = (response.result ?? text).trimmingCharacters(in: .whitespacesAndNewlines)
+                savedText = committed
+                editorText = committed
+                isEditing = false
+                didMutate = true
+            }
+            publishRequestStarted = true
             _ = try await AdminAPI.aiPublishDraft(id: item.id, novelId: novelId, title: title)
-            onClose(true)
+            notifyClose(true)
         } catch {
-            actionError = AppCopy.friendlyError(error)
+            if publishRequestStarted && isPublishOutcomeUnknown(error) {
+                publishStatusUnknown = true
+                actionError = "修改已保存，发布状态待确认。请稍后刷新此内容；确认前不会自动重复发布。"
+                await verifyPublishStatus()
+            } else {
+                actionError = AppCopy.friendlyError(error)
+            }
+        }
+    }
+
+    private func isPublishOutcomeUnknown(_ error: Error) -> Bool {
+        if case APIError.network = error { return true }
+        if case APIError.invalidResponse = error { return true }
+        return false
+    }
+
+    private var normalizedEditorText: String? {
+        let value = editorText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return value.isEmpty ? nil : value
+    }
+
+    private func requestClose() {
+        guard isEditing && isDirty else {
+            notifyClose(didMutate)
+            return
+        }
+        showCloseConfirmation = true
+    }
+
+    private func saveAndClose() async {
+        guard normalizedEditorText != nil else {
+            actionError = "内容不能为空"
+            return
+        }
+        await saveDraft()
+        guard !isEditing, actionError == nil else { return }
+        notifyClose(true)
+    }
+
+    private func verifyPublishStatus() async {
+        do {
+            let latest = try await AdminAPI.aiGeneration(id: item.id).item
+            if latest.isPublished {
+                publishStatusUnknown = false
+                notifyClose(true)
+            } else if latest.isDraft {
+                publishStatusUnknown = false
+                actionError = "修改已保存，发布尚未完成，可以再次发布。"
+            } else {
+                actionError = "发布状态已变化，请刷新后确认。"
+            }
+        } catch {
+            actionError = "发布状态暂时无法确认，请稍后刷新。"
         }
     }
 
@@ -683,7 +832,7 @@ private struct GenerationDetailSheet: View {
         }
         do {
             try await AdminAPI.aiUnpublishDraft(id: item.id)
-            onClose(true)
+            notifyClose(true)
         } catch {
             actionError = AppCopy.friendlyError(error)
         }

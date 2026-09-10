@@ -104,6 +104,72 @@ final class AITaskCoordinatorTests: XCTestCase {
         XCTAssertEqual(relaunchCalls, 0)
     }
 
+    func testChangedPayloadCannotJoinAnInFlightOperation() async throws {
+        let coordinator = makeCoordinator()
+        coordinator.activate(userID: "admin-1")
+        let launchStarted = TestLatch()
+        let releaseLaunch = TestLatch()
+        let original = Task {
+            try await coordinator.start(
+                key: "cover.image",
+                kind: "cover",
+                resourceID: "novel-1",
+                requestPayloadJSON: "{\"style\":\"a\"}",
+                requestFingerprint: "fingerprint-a",
+                recover: { _ in nil },
+                launch: { _ in
+                    await launchStarted.signal()
+                    await releaseLaunch.wait()
+                    return "task-original"
+                }
+            )
+        }
+
+        await launchStarted.wait()
+        do {
+            _ = try await coordinator.start(
+                key: "cover.image",
+                kind: "cover",
+                resourceID: "novel-1",
+                requestPayloadJSON: "{\"style\":\"b\"}",
+                requestFingerprint: "fingerprint-b",
+                recover: { _ in nil },
+                launch: { _ in "task-duplicate" }
+            )
+            XCTFail("Expected changed payload to be rejected")
+        } catch let error as AITaskCoordinationError {
+            XCTAssertEqual(error, .requestChanged)
+        }
+
+        await releaseLaunch.signal()
+        _ = try await original.value
+    }
+
+    func testLegacyPendingRecordWithoutPayloadDoesNotGuessAReplay() async throws {
+        let coordinator = makeCoordinator()
+        coordinator.activate(userID: "admin-1")
+        coordinator.register(AITaskOperationRecord(
+            key: "writing.generate",
+            requestID: "legacy-request",
+            kind: "continue",
+            startedAt: Int64(Date().timeIntervalSince1970 * 1000)
+        ))
+
+        do {
+            _ = try await coordinator.start(
+                key: "writing.generate",
+                kind: "continue",
+                requestPayloadJSON: "{\"novelId\":\"novel-1\"}",
+                requestFingerprint: "legacy-new-request",
+                recover: { _ in nil },
+                launch: { _ in "task-guessed" }
+            )
+            XCTFail("Expected legacy payload to require a fresh task")
+        } catch let error as AITaskCoordinationError {
+            XCTAssertEqual(error, .missingRequestPayload)
+        }
+    }
+
     func testRecordsAreScopedToTheActiveAccount() async throws {
         let coordinator = makeCoordinator()
         coordinator.activate(userID: "admin-1")

@@ -253,7 +253,9 @@ struct AdminAITasksView: View {
             _ = try await AdminAITaskCoordinator.shared.start(
                 key: AdminAITaskCoordinator.OperationKey.retry(taskID: task.id),
                 kind: task.kind ?? "retry",
-                resourceID: task.novelId
+                resourceID: task.novelId,
+                requestPayloadJSON: task.params,
+                requestFingerprint: task.params
             ) { clientRequestID in
                 let result = try await AdminAPI.retryAiTask(
                     id: task.id,

@@ -598,6 +598,7 @@ enum AdminAPI {
     static func aiGenerateCover(
         novelId: String,
         prompt: String = "",
+        promptMode: String? = nil,
         renderTitle: Bool = true,
         platform: String = "default",
         stylePreset: String = "auto",
@@ -605,7 +606,7 @@ enum AdminAPI {
         variationId: String = "",
         clientRequestID: String = ""
     ) async throws -> AiTaskStartResponse {
-        try await APIClient.shared.post("/api/ai/cover/generate", body: try jsonBody([
+        var payload: [String: Any] = [
             "novelId": novelId,
             "prompt": prompt,
             "clientRequestId": clientRequestID,
@@ -614,7 +615,9 @@ enum AdminAPI {
             "stylePreset": stylePreset,
             "composition": composition,
             "variationId": variationId,
-        ]), auth: true, idempotencyKey: clientRequestID.isEmpty ? nil : clientRequestID)
+        ]
+        if let promptMode { payload["promptMode"] = promptMode }
+        return try await APIClient.shared.post("/api/ai/cover/generate", body: try jsonBody(payload), auth: true, idempotencyKey: clientRequestID.isEmpty ? nil : clientRequestID)
     }
 
     /// POST /api/ai/cover/prompt：按书籍信息创建封面描述词后台任务。
@@ -690,6 +693,11 @@ enum AdminAPI {
 
     static func aiTask(id: String) async throws -> AiTaskDetailResponse {
         try await APIClient.shared.get("/api/ai/tasks/\(encodePathSegment(id))", auth: true)
+    }
+
+    /// GET /api/ai/tasks/:id/generations：精确返回该任务生成的全部草稿/章节。
+    static func aiTaskGenerations(id: String) async throws -> AiTaskGenerationsResponse {
+        try await APIClient.shared.get("/api/ai/tasks/\(encodePathSegment(id))/generations", auth: true)
     }
 
     /// Find a server task created from a durable client request. This closes the
@@ -768,6 +776,11 @@ enum AdminAPI {
         return try await APIClient.shared.get(path, auth: true)
     }
 
+    /// GET /api/ai/generations/:id：单条内容详情，用于发布结果核对。
+    static func aiGeneration(id: String) async throws -> AiGenerationDetailResponse {
+        try await APIClient.shared.get("/api/ai/generations/\(encodePathSegment(id))", auth: true)
+    }
+
     static func aiDeleteGeneration(id: String) async throws {
         let _: OkEnvelope = try await APIClient.shared.delete("/api/ai/generations/\(encodePathSegment(id))", auth: true)
     }
@@ -814,30 +827,31 @@ enum AdminAPI {
 
     // MARK: - AI 服务：画像提取
 
-    static func aiRefreshStyleProfile(novelId: String, sampleChapters: Int? = nil) async throws -> AiProfileResponse {
-        try await postAiProfile("style-profile", novelId: novelId, sampleChapters: sampleChapters)
+    static func aiRefreshStyleProfile(novelId: String, sampleChapters: Int? = nil, afterChapterId: String? = nil) async throws -> AiProfileResponse {
+        try await postAiProfile("style-profile", novelId: novelId, sampleChapters: sampleChapters, afterChapterId: afterChapterId)
     }
 
-    static func aiGetStyleProfile(novelId: String) async throws -> AiProfileGetResponse {
-        try await APIClient.shared.get("/api/ai/writing/style-profile/\(encodePathSegment(novelId))", auth: true)
+    static func aiGetStyleProfile(novelId: String, afterChapterId: String? = nil) async throws -> AiProfileGetResponse {
+        try await getAiProfile("style-profile", novelId: novelId, afterChapterId: afterChapterId)
     }
 
-    static func aiRefreshPlotState(novelId: String, sampleChapters: Int? = nil) async throws -> AiPlotStateResponse {
+    static func aiRefreshPlotState(novelId: String, sampleChapters: Int? = nil, afterChapterId: String? = nil) async throws -> AiPlotStateResponse {
         var payload: [String: Any] = ["novelId": novelId]
         if let sampleChapters { payload["sampleChapters"] = sampleChapters }
+        if let afterChapterId, !afterChapterId.isEmpty { payload["afterChapterId"] = afterChapterId }
         return try await APIClient.shared.post("/api/ai/writing/plot-state", body: try jsonBody(payload), auth: true)
     }
 
-    static func aiGetPlotState(novelId: String) async throws -> AiPlotStateGetResponse {
-        try await APIClient.shared.get("/api/ai/writing/plot-state/\(encodePathSegment(novelId))", auth: true)
+    static func aiGetPlotState(novelId: String, afterChapterId: String? = nil) async throws -> AiPlotStateGetResponse {
+        try await getAiProfile("plot-state", novelId: novelId, afterChapterId: afterChapterId)
     }
 
-    static func aiRefreshRelationshipProfile(novelId: String, sampleChapters: Int? = nil) async throws -> AiProfileResponse {
-        try await postAiProfile("relationship-profile", novelId: novelId, sampleChapters: sampleChapters)
+    static func aiRefreshRelationshipProfile(novelId: String, sampleChapters: Int? = nil, afterChapterId: String? = nil) async throws -> AiProfileResponse {
+        try await postAiProfile("relationship-profile", novelId: novelId, sampleChapters: sampleChapters, afterChapterId: afterChapterId)
     }
 
-    static func aiGetRelationshipProfile(novelId: String) async throws -> AiProfileGetResponse {
-        try await APIClient.shared.get("/api/ai/writing/relationship-profile/\(encodePathSegment(novelId))", auth: true)
+    static func aiGetRelationshipProfile(novelId: String, afterChapterId: String? = nil) async throws -> AiProfileGetResponse {
+        try await getAiProfile("relationship-profile", novelId: novelId, afterChapterId: afterChapterId)
     }
 
     // MARK: - AI 服务：草稿编辑与发布
@@ -864,10 +878,17 @@ enum AdminAPI {
 
     // MARK: - 内部辅助
 
-    private static func postAiProfile(_ scope: String, novelId: String, sampleChapters: Int?) async throws -> AiProfileResponse {
+    private static func postAiProfile(_ scope: String, novelId: String, sampleChapters: Int?, afterChapterId: String?) async throws -> AiProfileResponse {
         var payload: [String: Any] = ["novelId": novelId]
         if let sampleChapters { payload["sampleChapters"] = sampleChapters }
+        if let afterChapterId, !afterChapterId.isEmpty { payload["afterChapterId"] = afterChapterId }
         return try await APIClient.shared.post("/api/ai/writing/\(scope)", body: try jsonBody(payload), auth: true)
+    }
+
+    private static func getAiProfile(_ scope: String, novelId: String, afterChapterId: String?) async throws -> AiProfileGetResponse {
+        var path = "/api/ai/writing/\(scope)/\(encodePathSegment(novelId))"
+        if let afterChapterId, !afterChapterId.isEmpty { path += "?afterChapterId=\(encodeQueryValue(afterChapterId))" }
+        return try await APIClient.shared.get(path, auth: true)
     }
 
     private static func postAction(_ dict: [String: Any], idempotencyKey: String? = nil) async throws -> OkEnvelope {
