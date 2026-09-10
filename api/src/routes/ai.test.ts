@@ -2318,17 +2318,17 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     process.env.COVER_FETCH_ENABLED = '0'
     const firstNovel = await req(
       '/api/novels',
-      json('POST', { title: '外部封面物化测试书', author: '某作者', coverUrl: 'https://covers.test/external-old.png' }, adminToken),
+      json('POST', { title: '外部封面物化测试书', author: '某作者', coverUrl: 'https://198.51.100.42/external-old.png' }, adminToken),
     )
     const firstNovelId = String((await jsonOf<{ novel: { id: string } }>(firstNovel)).novel.id)
     const failedNovel = await req(
       '/api/novels',
-      json('POST', { title: '外部封面失败测试书', author: '某作者', coverUrl: 'https://covers.test/external-failed.png' }, adminToken),
+      json('POST', { title: '外部封面失败测试书', author: '某作者', coverUrl: 'https://198.51.100.42/external-failed.png' }, adminToken),
     )
     const failedNovelId = String((await jsonOf<{ novel: { id: string } }>(failedNovel)).novel.id)
     const changingNovel = await req(
       '/api/novels',
-      json('POST', { title: '外部封面换源测试书', author: '某作者', coverUrl: 'https://covers.test/external-changing.png' }, adminToken),
+      json('POST', { title: '外部封面换源测试书', author: '某作者', coverUrl: 'https://198.51.100.42/external-changing.png' }, adminToken),
     )
     const changingNovelId = String((await jsonOf<{ novel: { id: string } }>(changingNovel)).novel.id)
 
@@ -2354,7 +2354,7 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
         return new Response('upstream unavailable', { status: 503, headers: { 'Content-Type': 'text/plain' } })
       }
       if (url.endsWith('/external-changing.png')) {
-        await t.db.query('UPDATE novels SET cover_url = $2 WHERE id = $1', [changingNovelId, 'https://covers.test/external-new.png'])
+        await t.db.query('UPDATE novels SET cover_url = $2 WHERE id = $1', [changingNovelId, 'https://198.51.100.42/external-new.png'])
         return new Response(oldExternalData, { status: 200, headers: { 'Content-Type': 'image/png' } })
       }
       return new Response('not found', { status: 404 })
@@ -2375,7 +2375,7 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
       )
       expect(backedUp.rows).toHaveLength(1)
       expect(Buffer.from(backedUp.rows[0]!.data).equals(oldExternalData)).toBe(true)
-      expect(backedUp.rows[0]!.source).toBe('https://covers.test/external-old.png')
+      expect(backedUp.rows[0]!.source).toBe('https://198.51.100.42/external-old.png')
 
       const failed = await req(
         `/api/ai/cover/candidates/cover-external-failed/adopt`,
