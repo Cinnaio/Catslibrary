@@ -843,7 +843,7 @@ enum AdminAPI {
     }
 
     static func aiGetPlotState(novelId: String, afterChapterId: String? = nil) async throws -> AiPlotStateGetResponse {
-        try await getAiProfile("plot-state", novelId: novelId, afterChapterId: afterChapterId)
+        try await getAiPlotState(novelId: novelId, afterChapterId: afterChapterId)
     }
 
     static func aiRefreshRelationshipProfile(novelId: String, sampleChapters: Int? = nil, afterChapterId: String? = nil) async throws -> AiProfileResponse {
@@ -887,6 +887,12 @@ enum AdminAPI {
 
     private static func getAiProfile(_ scope: String, novelId: String, afterChapterId: String?) async throws -> AiProfileGetResponse {
         var path = "/api/ai/writing/\(scope)/\(encodePathSegment(novelId))"
+        if let afterChapterId, !afterChapterId.isEmpty { path += "?afterChapterId=\(encodeQueryValue(afterChapterId))" }
+        return try await APIClient.shared.get(path, auth: true)
+    }
+
+    private static func getAiPlotState(novelId: String, afterChapterId: String?) async throws -> AiPlotStateGetResponse {
+        var path = "/api/ai/writing/plot-state/\(encodePathSegment(novelId))"
         if let afterChapterId, !afterChapterId.isEmpty { path += "?afterChapterId=\(encodeQueryValue(afterChapterId))" }
         return try await APIClient.shared.get(path, auth: true)
     }
