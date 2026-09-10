@@ -1,6 +1,6 @@
 import { removeAdPatterns } from '@shared/ad-cleaner'
 import type { Db } from '../../db/pool'
-import { all } from '../../db/query'
+import { all, first } from '../../db/query'
 import { chat, isTextAiConfigured, providerLabel, textProvider, AiError } from './client'
 import { saveGeneration, type Generation, type BatchDraft } from './generations'
 import { recordUsage } from './usage'
@@ -27,6 +27,23 @@ export interface WritingTitlesResult {
   usage: { model: string; promptTokens: number; completionTokens: number }
 }
 
+export interface ContinuationAnchor {
+  chapterId: string
+  title: string
+  sortOrder: number
+  chapterOrdinal: number
+}
+
+export interface ContinuationSnapshotV1 {
+  version: 1
+  contextPolicyVersion: 1
+  anchor: { chapterId: string; title: string; sortOrder: number }
+  context: string
+  profiles: { style: string; relationship: string; plot: string }
+  profileSources: Record<string, unknown>
+  excludedProfiles: Array<{ kind: 'style' | 'relationship' | 'plot'; reason: string }>
+}
+
 export function cleanWritingText(raw: string, maxChars = MAX_CONTEXT_CHARS): string {
   return removeAdPatterns(String(raw || ''))
     .replace(/<br\s*\/?>(\s*)/gi, '\n')
@@ -37,6 +54,19 @@ export function cleanWritingText(raw: string, maxChars = MAX_CONTEXT_CHARS): str
     .replace(/\n{3,}/g, '\n\n')
     .trim()
     .slice(0, maxChars)
+}
+
+/** 续写上下文只保留正文尾部；普通标题/摘要等调用继续使用 cleanWritingText 的前缀语义。 */
+export function cleanWritingTail(raw: string, maxChars = MAX_CONTEXT_CHARS): string {
+  const cleaned = removeAdPatterns(String(raw || ''))
+    .replace(/<br\s*\/?>(\s*)/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+  return cleaned.slice(-Math.max(0, Math.trunc(maxChars)))
 }
 
 export function parseWritingTitles(raw: string): string[] {
@@ -198,16 +228,28 @@ export async function generateWriting(db: Db, opts: {
   ipAddress?: string
   userAgent?: string
   taskId?: string
+  /** 服务端冻结的续写画像；存在时包括空串也不能回退到全局画像。 */
+  profileOverrides?: { style?: string; relationship?: string; plot?: string }
+  continuationSnapshot?: ContinuationSnapshotV1
 }): Promise<WritingResult> {
   if (!isTextAiConfigured()) throw new AiError('disabled', 'AI 文本服务未配置', 503)
   const provider = textProvider()
   const settings = await getAiSettings(db)
   // 风格画像：把「保持风格一致」这句空话换成从原文提取的具体特征（句式/节奏/语气/设定）。
   // 未提取过则退回 settings 里的 system prompt 兜底——风格画像缺失不应阻断续写。
-  const styleProfile = opts.kind === 'write_outline' ? '' : await getStyleProfile(db, opts.novelId)
+  const hasProfileOverrides = opts.profileOverrides !== undefined
+  const styleProfile = opts.kind === 'write_outline'
+    ? ''
+    : hasProfileOverrides
+      ? String(opts.profileOverrides?.style || '')
+      : await getStyleProfile(db, opts.novelId)
   // 关系画像：角色关系动态/权力结构/心理边界，稳定的关系底色，与风格画像同属长期创作纪律。
   // 防 skill 踩坑：主从写成平等恋人、把奖赏手段当真心、从属试探写成主导。
-  const relationshipProfile = opts.kind === 'write_outline' ? '' : await getRelationshipProfile(db, opts.novelId)
+  const relationshipProfile = opts.kind === 'write_outline'
+    ? ''
+    : hasProfileOverrides
+      ? String(opts.profileOverrides?.relationship || '')
+      : await getRelationshipProfile(db, opts.novelId)
   const baseSystem = opts.kind === 'write_outline'
     ? '你是中文网络小说策划编辑。请输出可执行的章节大纲，包含主线冲突、人物目标、关键转折和章节安排。只输出内容，不要解释。'
     : settings.writingSystemPrompt
@@ -221,7 +263,11 @@ export async function generateWriting(db: Db, opts: {
   // 情节状态：结构化的角色处境/伏笔/待解决冲突。多章续写时上下文会截断丢前文，
   // 这里把提炼后的状态塞进 user 消息（时效性上下文，随剧情推进变，与 system 里的长期风格纪律区分）。
   // 大纲生成不需要情节状态；未提取过则跳过，不阻断续写。
-  const plotState = opts.kind === 'write_outline' ? null : await getPlotState(db, opts.novelId)
+  const plotState = opts.kind === 'write_outline'
+    ? null
+    : hasProfileOverrides
+      ? { state: String(opts.profileOverrides?.plot || ''), chaptersThrough: 0 }
+      : await getPlotState(db, opts.novelId)
   const optionInstructions = [
     opts.targetWords ? `Target length: approximately ${Math.max(300, Math.min(30000, Math.trunc(opts.targetWords)))} Chinese characters.` : '',
     opts.chapterCount && opts.chapterCount > 1 ? `Continuation chapter count: ${Math.max(1, Math.min(20, Math.trunc(opts.chapterCount)))} chapters.` : '',
@@ -255,7 +301,7 @@ export async function generateWriting(db: Db, opts: {
       chapterId: '',
       kind: opts.kind,
       model: res.model,
-      paramsJson: JSON.stringify({ version: 5, temperature, maxTokens, targetWords: opts.targetWords || 0, chapterCount: opts.chapterCount || 1, ...(parsedTitle?.title ? { draftTitle: parsedTitle.title } : {}), ...(opts.batchId ? { batchId: opts.batchId, batchIndex: opts.batchIndex || 1, batchCount: opts.batchCount || 1 } : {}) }),
+      paramsJson: JSON.stringify({ version: 6, temperature, maxTokens, targetWords: opts.targetWords || 0, chapterCount: opts.chapterCount || 1, ...(opts.taskId ? { taskId: opts.taskId } : {}), ...(parsedTitle?.title ? { draftTitle: parsedTitle.title } : {}), ...(opts.batchId ? { batchId: opts.batchId, batchIndex: opts.batchIndex || 1, batchCount: opts.batchCount || 1 } : {}), ...(opts.continuationSnapshot ? { continuationSnapshot: opts.continuationSnapshot } : {}) }),
       prompt: user,
       result: resultText,
       status: 'draft',
@@ -288,6 +334,8 @@ export async function generateContinuationChapters(db: Db, opts: {
   startIndex?: number
   /** 断点恢复：已生成的草稿，按 batchIndex 升序，用于跳过重生成并构建衔接上下文。 */
   existingDrafts?: BatchDraft[]
+  profileOverrides?: { style?: string; relationship?: string; plot?: string }
+  continuationSnapshot?: ContinuationSnapshotV1
 }): Promise<WritingBatchResult> {
   const count = Math.max(1, Math.min(20, Math.trunc(Number(opts.chapterCount) || 1)))
   const startIndex = Math.max(0, Math.min(count, Math.trunc(Number(opts.startIndex) || 0)))
@@ -297,7 +345,7 @@ export async function generateContinuationChapters(db: Db, opts: {
   // 断点恢复：把已生成章节串接进上下文，保证后续章节与前文衔接
   let context = opts.context
   for (const d of drafts) {
-    context = `${context}\n\n第 ${d.batchIndex} 章续写：\n${cleanWritingText(d.result, 6000)}`.slice(-MAX_CONTEXT_CHARS)
+    context = appendContinuationTail(context, d.batchIndex, d.result)
   }
   let usage = { model: '', promptTokens: 0, completionTokens: 0 }
   // 调用方（后台任务模式）可传入 batchId，保证任务行与草稿的批次号一致
@@ -320,6 +368,8 @@ export async function generateContinuationChapters(db: Db, opts: {
       batchIndex: index + 1,
       batchCount: count,
       taskId,
+      profileOverrides: opts.profileOverrides,
+      continuationSnapshot: opts.continuationSnapshot,
     })
     generations.push(result.generation)
     if (!(await isAiTaskActive(db, taskId))) break
@@ -330,7 +380,7 @@ export async function generateContinuationChapters(db: Db, opts: {
       promptTokens: usage.promptTokens + result.usage.promptTokens,
       completionTokens: usage.completionTokens + result.usage.completionTokens,
     }
-    context = `${context}\n\n第 ${index + 1} 章续写：\n${cleanWritingText(result.generation.result, 6000)}`.slice(-MAX_CONTEXT_CHARS)
+    context = appendContinuationTail(context, index + 1, result.generation.result)
   }
 
   if (await isAiTaskActive(db, taskId)) {
@@ -340,8 +390,59 @@ export async function generateContinuationChapters(db: Db, opts: {
 }
 
 export async function recentNovelContext(db: Db, novelId: string, afterChapterId?: string): Promise<string> {
-  const rows = await all<{ title: string; content: string }>(db, afterChapterId
-    ? 'SELECT title, content FROM chapters WHERE novel_id = $1 AND sort_order <= (SELECT sort_order FROM chapters WHERE id = $2) ORDER BY sort_order DESC LIMIT 3'
-    : 'SELECT title, content FROM chapters WHERE novel_id = $1 ORDER BY sort_order DESC LIMIT 3', [novelId, ...(afterChapterId ? [afterChapterId] : [])])
-  return rows.reverse().map((row) => `【${row.title}】\n${cleanWritingText(row.content, 4000)}`).join('\n\n').slice(-MAX_CONTEXT_CHARS)
+  const result = await loadContinuationContext(db, novelId, afterChapterId)
+  return result?.context || ''
+}
+
+/** 读取实际起点并构造确定性尾部上下文；无章节返回 undefined，由路由映射为 422。 */
+export async function loadContinuationContext(db: Db, novelId: string, afterChapterId?: string): Promise<{ context: string; anchor: ContinuationAnchor } | undefined> {
+  const requested = String(afterChapterId || '').trim()
+  const anchor = requested
+    ? await first<{ id: string; title: string; content: string; sort_order: number }>(db, 'SELECT id, title, content, sort_order FROM chapters WHERE id = $1 AND novel_id = $2', [requested, novelId])
+    : await first<{ id: string; title: string; content: string; sort_order: number }>(db, 'SELECT id, title, content, sort_order FROM chapters WHERE novel_id = $1 ORDER BY sort_order DESC, id DESC LIMIT 1', [novelId])
+  if (requested && !anchor) throw new AiError('invalid', '起点章节不存在或不属于该小说', 404)
+  if (!anchor) return undefined
+  const ordinal = await first<{ count: number }>(
+    db,
+    'SELECT COUNT(*)::int AS count FROM chapters WHERE novel_id = $1 AND (sort_order < $2 OR (sort_order = $2 AND id <= $3))',
+    [novelId, Number(anchor.sort_order) || 0, String(anchor.id)],
+  )
+  const rows = await all<{ id: string; title: string; content: string; sort_order: number }>(
+    db,
+    'SELECT id, title, content, sort_order FROM chapters WHERE novel_id = $1 AND (sort_order < $2 OR (sort_order = $2 AND id <= $3)) ORDER BY sort_order DESC, id DESC LIMIT 3',
+    [novelId, Number(anchor.sort_order) || 0, String(anchor.id)],
+  )
+  const ordered = rows.reverse()
+  const budgets = ordered.map((row, index) => index === ordered.length - 1 ? 6000 : 3000)
+  const parts = ordered.map((row, index) => ({
+    header: `【${row.title}】`,
+    body: cleanWritingTail(row.content, budgets[index] || 3000),
+  }))
+  let context = parts.map((part) => `${part.header}\n${part.body}`).join('\n\n')
+  // 分隔符和标题也计入总预算，从最早章节正文开始削减，起点尾部始终完整保留。
+  if (context.length > MAX_CONTEXT_CHARS && parts.length > 1) {
+    let overflow = context.length - MAX_CONTEXT_CHARS
+    for (let index = 0; index < parts.length - 1 && overflow > 0; index += 1) {
+      const part = parts[index]
+      if (!part) continue
+      const keep = Math.max(0, part.body.length - overflow)
+      part.body = part.body.slice(-keep)
+      overflow = Math.max(0, parts.map((part) => `${part.header}\n${part.body}`).join('\n\n').length - MAX_CONTEXT_CHARS)
+    }
+    context = parts.map((part) => `${part.header}\n${part.body}`).join('\n\n')
+  }
+  return {
+    context: context.slice(-MAX_CONTEXT_CHARS),
+    anchor: {
+      chapterId: String(anchor.id),
+      title: String(anchor.title || ''),
+      sortOrder: Number(anchor.sort_order) || 0,
+      chapterOrdinal: Number(ordinal?.count) || 0,
+    },
+  }
+}
+
+function appendContinuationTail(context: string, index: number, result: string): string {
+  const value = `${context}\n\n第 ${index} 章续写：\n${cleanWritingTail(result, 6000)}`
+  return value.length <= MAX_CONTEXT_CHARS ? value : value.slice(-MAX_CONTEXT_CHARS)
 }

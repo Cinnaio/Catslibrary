@@ -720,10 +720,22 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
 
     const edited = await req(`/api/ai/writing/drafts/${draftId}`, json('PUT', { result: '编辑后的章节正文。' }, adminToken))
     expect(edited.status).toBe(200)
+    const detail = await req(`/api/ai/generations/${draftId}`, json('GET', undefined, adminToken))
+    const detailBody = await jsonOf<{ item: { result: string; status: string } }>(detail)
+    expect(detail.status).toBe(200)
+    expect(detailBody.item.result).toBe('编辑后的章节正文。')
+    expect(detailBody.item.status).toBe('draft')
     const published = await req(`/api/ai/writing/drafts/${draftId}/publish`, json('POST', { novelId, title: 'AI 创作章' }, adminToken))
     expect(published.status).toBe(200)
     const publishedBody = await jsonOf<{ chapter: { id: string; title: string } }>(published)
     expect(publishedBody.chapter.title).toBe('AI 创作章')
+
+    // 发布后迟到的保存不能把正式章节降回草稿。
+    const lateSave = await req(`/api/ai/writing/drafts/${draftId}`, json('PUT', { result: '迟到的旧正文。' }, adminToken))
+    expect(lateSave.status).toBe(409)
+    const publishedDetail = await jsonOf<{ item: { result: string; status: string } }>(await req(`/api/ai/generations/${draftId}`, json('GET', undefined, adminToken)))
+    expect(publishedDetail.item.result).toBe('编辑后的章节正文。')
+    expect(publishedDetail.item.status).toBe('published')
 
     const savedChapter = await req(`/api/chapters/${publishedBody.chapter.id}`)
     expect((await jsonOf<{ chapter: { content: string } }>(savedChapter)).chapter.content).toBe('编辑后的章节正文。')
@@ -793,6 +805,93 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     expect(rows.rows.every((row) => JSON.parse(row.params_json).targetWords === 1200)).toBe(true)
     // 草稿的批次号与接口返回的一致，前端可按 batchId 归组
     expect(rows.rows.every((row) => JSON.parse(row.params_json).batchId === data.batchId)).toBe(true)
+
+    const taskResults = await jsonOf<{ items: Array<{ batchIndex?: number }>; linkage: string }>(
+      await req(`/api/ai/tasks/${data.taskId}/generations`, json('GET', undefined, adminToken)),
+    )
+    expect(taskResults.linkage).toBe('exact')
+    expect(taskResults.items).toHaveLength(20)
+    expect(taskResults.items.map((item) => item.batchIndex)).toEqual(Array.from({ length: 20 }, (_, index) => index + 1))
+  })
+
+  it('续写起点冻结尾部上下文与画像选择，并拒绝空书和别书起点', async () => {
+    const novel = await req('/api/novels', json('POST', { title: '续写边界书', author: '某作者' }, adminToken))
+    const novelId = (await jsonOf<{ novel: { id: string } }>(novel)).novel.id
+    const firstChapter = await req(
+      '/api/chapters',
+      json('POST', { novelId, title: '起点章节', content: `${'前文。'.repeat(2500)}起点末句哨兵。` }, adminToken),
+    )
+    const anchorID = (await jsonOf<{ chapter: { id: string } }>(firstChapter)).chapter.id
+    await req('/api/chapters', json('POST', { novelId, title: '未来章节', content: `${LONG_CONTENT}未来章节哨兵。` }, adminToken))
+
+    let observedMessages: Array<{ role: string; content: string }> = []
+    const previousFetch = fetchMock.getMockImplementation()
+    fetchMock.mockImplementation(async (input, init) => {
+      const reqUrl = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as Request).url
+      if (reqUrl.includes('/chat/completions')) {
+        const body = JSON.parse(String(init?.body || '{}')) as { messages?: Array<{ role: string; content: string }> }
+        observedMessages = body.messages || []
+      }
+      return new Response(JSON.stringify({ model: 'test-model', choices: [{ message: { content: '边界续写正文。' }, finish_reason: 'stop' }], usage: { prompt_tokens: 10, completion_tokens: 20 } }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    })
+
+    try {
+      const started = await req('/api/ai/writing/continue', json('POST', { novelId, afterChapterId: anchorID, chapterCount: 1 }, adminToken))
+      expect(started.status).toBe(202)
+      const { taskId } = await jsonOf<{ taskId: string }>(started)
+      expect((await waitForTask(taskId, adminToken)).status).toBe('completed')
+
+      const combined = observedMessages.map((message) => message.content).join('\n')
+      expect(combined).toContain('起点末句哨兵。')
+      expect(combined).not.toContain('未来章节哨兵。')
+      const taskRow = await t.db.query<{ params: string }>('SELECT params FROM ai_tasks WHERE id = $1', [taskId])
+      const snapshot = JSON.parse(taskRow.rows[0]!.params).continuationSnapshot as {
+        version: number
+        contextPolicyVersion: number
+        anchor: { chapterId: string }
+        excludedProfiles: Array<{ kind: string; reason: string }>
+      }
+      expect(snapshot.version).toBe(1)
+      expect(snapshot.contextPolicyVersion).toBe(1)
+      expect(snapshot.anchor.chapterId).toBe(anchorID)
+      expect(snapshot.excludedProfiles.map((profile) => profile.kind)).toEqual(['style', 'relationship', 'plot'])
+    } finally {
+      if (previousFetch) fetchMock.mockImplementation(previousFetch)
+    }
+
+    const emptyNovel = await req('/api/novels', json('POST', { title: '空书续写边界', author: '某作者' }, adminToken))
+    const emptyNovelId = (await jsonOf<{ novel: { id: string } }>(emptyNovel)).novel.id
+    const emptyResult = await req('/api/ai/writing/continue', json('POST', { novelId: emptyNovelId }, adminToken))
+    expect(emptyResult.status).toBe(422)
+    const foreignResult = await req('/api/ai/writing/continue', json('POST', { novelId: emptyNovelId, afterChapterId: anchorID }, adminToken))
+    expect(foreignResult.status).toBe(404)
+  })
+
+  it('画像来源记录实际样本，起点之后的画像不自动注入', async () => {
+    const novel = await req('/api/novels', json('POST', { title: '画像来源书', author: '某作者' }, adminToken))
+    const novelId = (await jsonOf<{ novel: { id: string } }>(novel)).novel.id
+    const ids: string[] = []
+    for (const [index, title] of ['第一章', '第十章', '第一百章'].entries()) {
+      const chapter = await req('/api/chapters', json('POST', { novelId, title, content: `${LONG_CONTENT}${title}内容。` }, adminToken))
+      ids.push((await jsonOf<{ chapter: { id: string } }>(chapter)).chapter.id)
+      await t.db.query('UPDATE chapters SET sort_order = $1 WHERE id = $2', [[10, 30, 100][index], ids[index]])
+    }
+
+    for (const endpoint of ['style-profile', 'plot-state', 'relationship-profile']) {
+      const refreshed = await req(`/api/ai/writing/${endpoint}`, json('POST', { novelId, afterChapterId: ids[2] }, adminToken))
+      expect(refreshed.status).toBe(200)
+    }
+    const styleAtFirst = await jsonOf<{ profile: string; source: { chapterId: string; chapterOrdinal: number; sampleCount: number }; eligibility: string }>(
+      await req(`/api/ai/writing/style-profile/${novelId}?afterChapterId=${encodeURIComponent(ids[0]!)}`, json('GET', undefined, adminToken)),
+    )
+    expect(styleAtFirst.profile).toBeTruthy()
+    expect(styleAtFirst.source.chapterId).toBe(ids[2])
+    expect(styleAtFirst.source.chapterOrdinal).toBe(3)
+    expect(styleAtFirst.source.sampleCount).toBe(3)
+    expect(styleAtFirst.eligibility).toBe('beyond_anchor')
   })
 
   it('后台续写上游失败时任务标记 failed 并携带错误信息', async () => {
@@ -880,12 +979,18 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
 
     // 原任务中断时已产出 2 章草稿
     const before = await t.db.query<{ id: string; params_json: string }>(
-      "SELECT id, params_json FROM ai_generations WHERE kind = 'continue' AND status = 'draft' AND params_json LIKE $1",
+      "SELECT id, params_json FROM ai_generations WHERE kind = 'continue' AND status = 'draft' AND params_json LIKE $1 ORDER BY created_at ASC, id ASC",
       [`%"batchId":"${batchId}"%`],
     )
     expect(before.rows).toHaveLength(2)
     const beforeIndices = before.rows.map((r) => Number((JSON.parse(r.params_json) as { batchIndex: number }).batchIndex)).sort((a, b) => a - b)
     expect(beforeIndices).toEqual([1, 2])
+
+    // 软删除同批最后一章也属于不确定缺口，重试必须停止而不能悄悄补写。
+    await t.db.query('UPDATE ai_generations SET deleted_at = $1 WHERE id = $2', [Date.now(), before.rows[1]!.id])
+    const blocked = await req(`/api/ai/tasks/${taskId}/retry`, json('POST', {}, adminToken))
+    expect(blocked.status).toBe(409)
+    await t.db.query('UPDATE ai_generations SET deleted_at = 0 WHERE id = $1', [before.rows[1]!.id])
 
     // 重试：默认 mock 成功，应只调 1 次 fetch（仅补生第 3 章）
     fetchMock.mockClear()
@@ -1086,7 +1191,7 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
 
     // 已发布的草稿不能再次发布
     const again = await req(`/api/ai/writing/drafts/${draft1}/publish`, json('POST', { novelId, title: '事务发布一' }, adminToken))
-    expect(again.status).toBe(404)
+    expect(again.status).toBe(409)
 
     const p2 = await req(`/api/ai/writing/drafts/${draft2}/publish`, json('POST', { novelId, title: '事务发布二' }, adminToken))
     expect(p2.status).toBe(200)
@@ -1151,6 +1256,7 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     // 新书隔离，避免影响其它用例的章节计数
     const novel = await req('/api/novels', json('POST', { title: '续写自动填充书', author: '某作者' }, adminToken))
     const novelId = (await jsonOf<{ novel: { id: string } }>(novel)).novel.id
+    await req('/api/chapters', json('POST', { novelId, title: '已有章节', content: LONG_CONTENT }, adminToken))
     fetchMock.mockImplementation(
       async () =>
         new Response(
@@ -1360,6 +1466,28 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     }
   })
 
+  it('cover：promptMode 与描述词必须一致，拒绝请求时不创建任务', async () => {
+    process.env.AI_IMAGE_BASE_URL = 'https://image.test/v1'
+    process.env.AI_IMAGE_API_KEY = 'img-key'
+    process.env.AI_IMAGE_MODEL = 'mimo-v2.5'
+    try {
+      const novelId = await firstNovelId(t)
+      const before = await t.db.query<{ count: number }>("SELECT COUNT(*)::int AS count FROM ai_tasks WHERE kind = 'cover'")
+      const autoWithPrompt = await req('/api/ai/cover/generate', json('POST', { novelId, prompt: '完整描述词', promptMode: 'auto' }, adminToken))
+      const exactWithoutPrompt = await req('/api/ai/cover/generate', json('POST', { novelId, promptMode: 'exact' }, adminToken))
+      const invalidMode = await req('/api/ai/cover/generate', json('POST', { novelId, promptMode: 'sideways' }, adminToken))
+      expect(autoWithPrompt.status).toBe(422)
+      expect(exactWithoutPrompt.status).toBe(422)
+      expect(invalidMode.status).toBe(422)
+      const after = await t.db.query<{ count: number }>("SELECT COUNT(*)::int AS count FROM ai_tasks WHERE kind = 'cover'")
+      expect(Number(after.rows[0]?.count)).toBe(Number(before.rows[0]?.count))
+    } finally {
+      delete process.env.AI_IMAGE_BASE_URL
+      delete process.env.AI_IMAGE_API_KEY
+      delete process.env.AI_IMAGE_MODEL
+    }
+  })
+
   it('cover：使用管理端配置的描述词上限', async () => {
     const before = await jsonOf<{ settings: { coverPromptMaxChars: number } }>(await req('/api/ai/settings', json('GET', undefined, adminToken)))
     await req('/api/ai/settings', json('PUT', { coverPromptMaxChars: 1000 }, adminToken))
@@ -1480,22 +1608,88 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
         json('POST', { novelId, stylePreset: 'minimal', composition: 'symbolic', variationId: 'route-test-variation' }, adminToken),
       )
       expect(variedPromptResponse.status).toBe(200)
-      const variedPrompt = await jsonOf<{ prompt: string; metadata: { stylePreset: string; composition: string; variationId: string } }>(variedPromptResponse)
+      const variedPrompt = await jsonOf<{ prompt: string; metadata: { stylePreset: string; composition: string; variationId: string; promptMode: string; configurationApplied: boolean } }>(variedPromptResponse)
       expect(variedPrompt.metadata).toEqual({
         genre: 'urban',
         genres: ['urban'],
         stylePreset: 'minimal',
         composition: 'symbolic',
         variationId: 'route-test-variation',
+        promptMode: 'auto',
+        configurationApplied: true,
       })
       expect(variedPrompt.prompt).toContain('minimalist graphic poster')
       expect(variedPrompt.prompt).toContain('one story-defining object or motif')
 
-      const res = await req('/api/ai/cover/generate', json('POST', { novelId, prompt: 'Moonlit city skyline, no text' }, adminToken))
+      const res = await req('/api/ai/cover/generate', json('POST', { novelId, prompt: 'Moonlit city skyline, no text', promptMode: 'exact' }, adminToken))
       const { taskId } = await jsonOf<{ taskId: string }>(res)
       expect((await waitForTask(taskId, adminToken)).status).toBe('completed')
       const submittedImageRequest = imageRequest as Record<string, unknown> | null
       expect(submittedImageRequest?.prompt).toBe('Moonlit city skyline, no text')
+      const candidate = await t.db.query<{ metadata: string; prompt: string }>('SELECT metadata, prompt FROM ai_cover_candidates WHERE task_id = $1', [taskId])
+      const metadata = JSON.parse(candidate.rows[0]!.metadata) as { promptMode?: string; configurationApplied?: boolean; stylePreset?: string }
+      expect(candidate.rows[0]!.prompt).toBe('Moonlit city skyline, no text')
+      expect(metadata.promptMode).toBe('exact')
+      expect(metadata.configurationApplied).toBe(false)
+      expect(metadata.stylePreset).toBeUndefined()
+    } finally {
+      if (prevImpl) fetchMock.mockImplementation(prevImpl)
+      else fetchMock.mockReset()
+      delete process.env.AI_IMAGE_BASE_URL
+      delete process.env.AI_IMAGE_API_KEY
+      delete process.env.AI_IMAGE_MODEL
+    }
+  })
+
+  it('cover：未显式 variationId 时同 clientRequestId 重放同一任务且只调用一次图像上游', async () => {
+    process.env.AI_IMAGE_BASE_URL = 'https://image.test/v1'
+    process.env.AI_IMAGE_API_KEY = 'img-key'
+    process.env.AI_IMAGE_MODEL = 'mimo-v2.5'
+    const prevImpl = fetchMock.getMockImplementation()
+    let imageCalls = 0
+    fetchMock.mockImplementation(async (input: string | URL | Request) => {
+      const reqUrl = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      if (reqUrl.includes('/images/generations')) {
+        imageCalls += 1
+        const pngB64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+        return new Response(JSON.stringify({ model: 'mimo-v2.5', data: [{ b64_json: pngB64 }] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      throw new Error(`unexpected text upstream: ${reqUrl}`)
+    })
+    try {
+      const novelId = await firstNovelId(t)
+      const beforeUsage = await t.db.query<{ count: number }>("SELECT COUNT(*)::int AS count FROM ai_usage WHERE generation_type = 'cover'")
+      const payload = {
+        novelId,
+        prompt: 'A moonlit city skyline, no text',
+        promptMode: 'exact',
+        clientRequestId: 'cover-image-idempotency-001',
+      }
+      const firstResponse = await req('/api/ai/cover/generate', json('POST', payload, adminToken))
+      const first = await jsonOf<{ taskId: string }>(firstResponse)
+      expect(firstResponse.status).toBe(202)
+
+      const replayResponse = await req('/api/ai/cover/generate', json('POST', payload, adminToken))
+      const replay = await jsonOf<{ taskId: string }>(replayResponse)
+      expect(replayResponse.status).toBe(202)
+      expect(replayResponse.headers.get('x-idempotent-replay')).toBe('true')
+      expect(replay.taskId).toBe(first.taskId)
+
+      const conflict = await req('/api/ai/cover/generate', json('POST', { ...payload, prompt: 'A different exact prompt' }, adminToken))
+      expect(conflict.status).toBe(409)
+      expect((await jsonOf<{ code: string }>(conflict)).code).toBe('idempotency_conflict')
+
+      expect((await waitForTask(first.taskId, adminToken)).status).toBe('completed')
+      expect(imageCalls).toBe(1)
+      const afterUsage = await t.db.query<{ count: number }>("SELECT COUNT(*)::int AS count FROM ai_usage WHERE generation_type = 'cover'")
+      expect(Number(afterUsage.rows[0]?.count) - Number(beforeUsage.rows[0]?.count)).toBe(1)
+      const taskRow = await t.db.query<{ params: string }>('SELECT params FROM ai_tasks WHERE id = $1', [first.taskId])
+      const params = JSON.parse(taskRow.rows[0]!.params) as { variationId?: string; promptMode?: string }
+      expect(params.variationId).toBeTruthy()
+      expect(params.promptMode).toBe('exact')
     } finally {
       if (prevImpl) fetchMock.mockImplementation(prevImpl)
       else fetchMock.mockReset()
@@ -1859,6 +2053,7 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
   it('整批发布可撤销：unpublish 删除本批章节并恢复全部草稿为 draft', async () => {
     const novel = await req('/api/novels', json('POST', { title: '整批撤销书', author: '某作者' }, adminToken))
     const novelId = (await jsonOf<{ novel: { id: string } }>(novel)).novel.id
+    await req('/api/chapters', json('POST', { novelId, title: '已有章节', content: LONG_CONTENT }, adminToken))
     const started = await req('/api/ai/writing/continue', json('POST', { novelId, chapterCount: 2 }, adminToken))
     expect(started.status).toBe(202)
     const { taskId, batchId } = await jsonOf<{ taskId: string; batchId: string }>(started)
@@ -1885,13 +2080,13 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     )
     expect(drafts.rows.length).toBe(2)
 
-    // 小说 chapter_count 与真实章节数一致（0）
+    // 小说 chapter_count 与真实章节数一致（保留启动续写前的已有章节）
     const { rows } = await t.db.query<{ chapter_count: number; actual: number }>(
       'SELECT n.chapter_count, (SELECT COUNT(*)::int FROM chapters c WHERE c.novel_id = n.id) AS actual FROM novels n WHERE n.id = $1',
       [novelId],
     )
-    expect(Number(rows[0]?.chapter_count)).toBe(0)
-    expect(Number(rows[0]?.actual)).toBe(0)
+    expect(Number(rows[0]?.chapter_count)).toBe(1)
+    expect(Number(rows[0]?.actual)).toBe(1)
   })
 })
 

@@ -113,6 +113,8 @@ export interface CoverCandidateMetadata {
   stylePreset?: string
   composition?: string
   variationId?: string
+  promptMode?: 'auto' | 'exact' | string
+  configurationApplied?: boolean
   romanceSubtype?: string
   romanceEmotion?: string
   visualConcept?: string
@@ -175,6 +177,8 @@ function parseCoverCandidateMetadata(value: unknown): CoverCandidateMetadata | u
     if (typeof obj.stylePreset === 'string' && obj.stylePreset) metadata.stylePreset = obj.stylePreset
     if (typeof obj.composition === 'string' && obj.composition) metadata.composition = obj.composition
     if (typeof obj.variationId === 'string' && obj.variationId) metadata.variationId = obj.variationId
+    if (obj.promptMode === 'auto' || obj.promptMode === 'exact') metadata.promptMode = obj.promptMode
+    if (typeof obj.configurationApplied === 'boolean') metadata.configurationApplied = obj.configurationApplied
     if (typeof obj.romanceSubtype === 'string' && obj.romanceSubtype) metadata.romanceSubtype = obj.romanceSubtype
     if (typeof obj.romanceEmotion === 'string' && obj.romanceEmotion) metadata.romanceEmotion = obj.romanceEmotion
     if (typeof obj.visualConcept === 'string' && obj.visualConcept) metadata.visualConcept = obj.visualConcept

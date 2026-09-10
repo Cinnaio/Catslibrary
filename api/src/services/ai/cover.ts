@@ -47,6 +47,8 @@ const HARD_MAX_COVER_PROMPT_CHARS = 10_000
 
 /** buildImagePrompt 的封面选项：文字层、平台风格、主视觉和构图均由调用方透传。 */
 export interface CoverPromptOptions {
+  /** auto 由选择器组装完整描述词；exact 原样使用调用方 prompt。 */
+  promptMode?: CoverPromptMode
   /** 渲染书名+作者名文字层：默认 true（story-cover 核心——书名与作者名是封面必需信息），显式 false 才关闭 */
   renderTitle?: boolean
   /** 平台风格调性；缺省或非法值按 'default'（通用竖版，不叠加平台专属风格） */
@@ -66,11 +68,13 @@ export interface CoverPromptOptions {
 }
 
 export interface CoverPromptMetadata {
-  genre: Genre
-  genres: Genre[]
-  stylePreset: ResolvedCoverStylePreset
-  composition: ResolvedCoverComposition
+  genre?: Genre
+  genres?: Genre[]
+  stylePreset?: ResolvedCoverStylePreset
+  composition?: ResolvedCoverComposition
   variationId: string
+  promptMode?: CoverPromptMode
+  configurationApplied?: boolean
   romanceSubtype?: RomanceSubtype
   romanceEmotion?: RomanceEmotion
   visualConcept?: RomanceVisualConcept
@@ -82,6 +86,19 @@ export interface CoverPromptProgress {
   prompt: string
   metadata: CoverPromptMetadata
   phase?: 'template' | 'scene'
+}
+
+export type CoverPromptMode = 'auto' | 'exact'
+
+/** 兼容旧客户端：未传 mode 时按 prompt 是否为空推导；显式 mode 必须与 prompt 语义一致。 */
+export function normalizeCoverPromptMode(value: unknown, prompt: string): CoverPromptMode {
+  const hasPrompt = String(prompt || '').trim().length > 0
+  if (value === undefined || value === null || value === '') return hasPrompt ? 'exact' : 'auto'
+  const mode = String(value).trim()
+  if (mode !== 'auto' && mode !== 'exact') throw new AiError('invalid', 'promptMode 必须是 auto 或 exact', 422)
+  if (mode === 'auto' && hasPrompt) throw new AiError('invalid', 'auto 模式不能携带完整描述词，请清空描述词或改用 exact', 422)
+  if (mode === 'exact' && !hasPrompt) throw new AiError('invalid', 'exact 模式必须提供完整描述词', 422)
+  return mode
 }
 
 /** 创建一次全新的封面变体；任务参数会持久化它，重试时仍可复现。 */
@@ -106,6 +123,8 @@ function buildCoverPromptMetadata(
     stylePreset: direction.stylePreset,
     composition: direction.composition,
     variationId,
+    promptMode: 'auto',
+    configurationApplied: true,
     ...(romanceDNA
       ? {
           romanceSubtype: romanceDNA.subtype,
@@ -641,34 +660,11 @@ function normalizeVariationId(value: unknown): string {
 }
 
 function metadataForCustomPrompt(meta: NovelMeta, opts: CoverPromptOptions, variationId: string): CoverPromptMetadata {
-  const inferredGenres = inferGenres(meta.title, meta.categories, meta.description)
-  const genre = inferredGenres[0] || 'urban'
-  const direction = resolveCoverDirection({
-    novelId: opts.novelId || meta.title || 'novel',
-    genre,
-    stylePreset: opts.stylePreset,
-    composition: opts.composition,
-    variationId,
-  })
-  const romanceDNA =
-    genre === 'romance' || inferredGenres.includes('romance')
-      ? resolveRomanceVisualDNA({ title: meta.title, categories: meta.categories, description: meta.description, variationId })
-      : null
   return {
-    genre,
-    genres: [genre, ...inferredGenres.filter((candidate) => candidate !== genre)],
-    stylePreset: direction.stylePreset,
-    composition: direction.composition,
+    // exact 是用户掌控的成品 prompt，选择器没有注入，因此不伪造题材/风格已生效。
     variationId,
-    ...(romanceDNA
-      ? {
-          romanceSubtype: romanceDNA.subtype,
-          romanceEmotion: romanceDNA.emotion,
-          visualConcept: romanceDNA.visualConcept,
-          visualAnchor: romanceDNA.visualAnchor,
-          storySetting: romanceDNA.setting,
-        }
-      : {}),
+    promptMode: 'exact',
+    configurationApplied: false,
   }
 }
 
@@ -693,18 +689,19 @@ export async function generateNovelCover(
     composition?: CoverComposition | string
     /** 变体标识；重试时复用以保留同一视觉方向 */
     variationId?: string
+    promptMode?: CoverPromptMode
     prompt?: string
     ipAddress?: string
     userAgent?: string
   },
 ): Promise<{ taskId: string }> {
-  if (!isImageAiConfigured()) throw new AiError('disabled', 'AI 图像服务未配置', 503)
-
   const meta = await loadNovelMeta(db, opts.novelId)
   if (!meta) throw new AiError('invalid', '小说不存在', 404)
 
   const settings = await getAiSettings(db)
   const customPrompt = normalizeCoverPrompt(opts.prompt, settings.coverPromptMaxChars)
+  const promptMode = normalizeCoverPromptMode(opts.promptMode, customPrompt)
+  if (!isImageAiConfigured()) throw new AiError('disabled', 'AI 图像服务未配置', 503)
   const renderTitle = !!opts.renderTitle
   const platform = normalizePlatform(opts.platform)
   const variationId = normalizeVariationId(opts.variationId)
@@ -725,6 +722,8 @@ export async function generateNovelCover(
           stylePreset: opts.stylePreset || 'auto',
           composition: opts.composition || 'auto',
           variationId,
+          prompt: customPrompt,
+          promptMode,
           coverPromptMaxChars: settings.coverPromptMaxChars,
         }),
       })
@@ -738,7 +737,7 @@ export async function generateNovelCover(
     const built = customPrompt
       ? {
           prompt: customPrompt,
-          metadata: metadataForCustomPrompt(meta, { ...opts, novelId: opts.novelId, variationId }, variationId),
+          metadata: metadataForCustomPrompt(meta, { ...opts, novelId: opts.novelId, variationId, promptMode }, variationId),
           textUsage: null,
         }
       : await buildImagePrompt(meta, {

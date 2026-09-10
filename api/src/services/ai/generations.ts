@@ -25,6 +25,7 @@ export interface GenerationRow {
   status: string
   created_by: string
   created_at: number
+  deleted_at?: number
 }
 
 export interface Generation {
@@ -156,6 +157,13 @@ export interface BatchDraft extends Generation {
   batchCount: number
 }
 
+export interface BatchResult extends BatchDraft {
+  /** 结果状态保留 draft/published/rejected，供恢复时检查连续性。 */
+  status: string
+  /** 断点恢复需要知道某个编号是否被软删除；普通结果端点仍排除这些记录。 */
+  deletedAt: number
+}
+
 /** 断点恢复：按 batchId 取该批次已生成的草稿（draft），按 batchIndex 升序，用于续写时跳过已生成章节。 */
 export async function listBatchDrafts(db: Db, batchId: string): Promise<BatchDraft[]> {
   if (!batchId) return []
@@ -166,9 +174,61 @@ export async function listBatchDrafts(db: Db, batchId: string): Promise<BatchDra
   )
   return rows
     .map((row) => ({ ...rowToGeneration(row), ...batchFields(row.params_json) }))
-    .filter((d) => d.batchId === batchId && d.batchIndex > 0 && d.result.trim())
+    .filter((d) => d.batchId === batchId && d.batchIndex > 0)
     .sort((a, b) => a.batchIndex - b.batchIndex)
 
+}
+
+/** 断点恢复使用的完整批次结果：已发布章节也算已生成，拒绝态保留以便路由拒绝不确定恢复。 */
+export async function listBatchResults(db: Db, batchId: string, opts: { includeDeleted?: boolean } = {}): Promise<BatchResult[]> {
+  if (!batchId) return []
+  const deletedFilter = opts.includeDeleted ? '' : ' AND deleted_at = 0'
+  const rows = await all<GenerationRow>(
+    db,
+    `SELECT * FROM ai_generations
+     WHERE kind = 'continue' AND status IN ('draft', 'published', 'rejected')${deletedFilter}
+       AND params_json LIKE $1 ORDER BY created_at ASC, id ASC`,
+    [`%\"batchId\":\"${batchId.replace(/[%_\\]/g, '\\$&')}\"%`],
+  )
+  return rows
+    .map((row) => ({ ...rowToGeneration(row), ...batchFields(row.params_json), deletedAt: Number(row.deleted_at) || 0 }))
+    // 保留空结果与 rejected 记录：它们代表同批的不确定产物，恢复路由必须拒绝静默续跑。
+    .filter((d) => d.batchId === batchId && d.batchIndex > 0)
+    .sort((a, b) => a.batchIndex - b.batchIndex || a.createdAt - b.createdAt || a.id.localeCompare(b.id))
+}
+
+/** 按任务精确关联生成结果；只接受 params_json 中解析后的 taskId，不能用时间接近猜测。 */
+export async function listTaskGenerations(db: Db, taskId: string): Promise<GenerationDetail[]> {
+  if (!taskId) return []
+  const rows = await all<GenerationRow & { novel_title: string; chapter_title: string }>(
+    db,
+    `SELECT g.*, COALESCE(n.title, '') AS novel_title, COALESCE(c.title, '') AS chapter_title
+     FROM ai_generations g
+     LEFT JOIN novels n ON n.id = g.novel_id
+     LEFT JOIN chapters c ON c.id = g.chapter_id
+     WHERE g.deleted_at = 0
+     ORDER BY g.created_at ASC, g.id ASC`,
+  )
+  const items = rows
+    .filter((row) => {
+      try {
+        const params = JSON.parse(row.params_json) as Record<string, unknown>
+        return params.taskId === taskId
+      } catch {
+        return false
+      }
+    })
+    .map((row) => ({
+      ...rowToGeneration(row),
+      novelTitle: String(row.novel_title || ''),
+      chapterTitle: String(row.chapter_title || ''),
+      ...batchFields(row.params_json),
+      prompt: String(row.prompt || ''),
+    }))
+  return items.sort((a, b) => {
+    if (a.kind === 'continue' || b.kind === 'continue') return a.batchIndex - b.batchIndex || a.createdAt - b.createdAt || a.id.localeCompare(b.id)
+    return a.createdAt - b.createdAt || a.id.localeCompare(b.id)
+  })
 }
 
 /** 「已生成内容」管理列表：带小说/章节标题、行数与分页。 */
@@ -270,8 +330,42 @@ export async function getGeneration(db: Db, id: string): Promise<GenerationRow |
   return first<GenerationRow>(db, 'SELECT * FROM ai_generations WHERE id = $1', [id])
 }
 
-export async function updateGenerationResult(db: Db, id: string, result: string, status: GenerationStatus = 'draft'): Promise<boolean> {
-  return (await run(db, 'UPDATE ai_generations SET result = $1, status = $2 WHERE id = $3', [result, status, id])) > 0
+/**
+ * 更新创作草稿正文。状态条件必须在 UPDATE 内完成：详情页读取到草稿后，
+ * 另一请求可能已经发布或软删除了它，迟到的保存不能把已发布内容降回 draft。
+ */
+export async function updateGenerationResult(db: Db, id: string, result: string): Promise<boolean> {
+  return (await run(
+    db,
+    `UPDATE ai_generations
+     SET result = $1
+     WHERE id = $2
+       AND status = 'draft'
+       AND deleted_at = 0
+       AND kind IN ('write_chapter', 'continue', 'write_outline')`,
+    [result, id],
+  )) > 0
+}
+
+/** 读取一条未软删除的管理端生成详情，供发布结果核对和任务结果页复用。 */
+export async function getGenerationDetail(db: Db, id: string): Promise<GenerationDetail | undefined> {
+  const row = await first<GenerationRow & { novel_title: string; chapter_title: string }>(
+    db,
+    `SELECT g.*, COALESCE(n.title, '') AS novel_title, COALESCE(c.title, '') AS chapter_title
+     FROM ai_generations g
+     LEFT JOIN novels n ON n.id = g.novel_id
+     LEFT JOIN chapters c ON c.id = g.chapter_id
+     WHERE g.id = $1 AND g.deleted_at = 0`,
+    [id],
+  )
+  if (!row) return undefined
+  return {
+    ...rowToGeneration(row),
+    novelTitle: String(row.novel_title || ''),
+    chapterTitle: String(row.chapter_title || ''),
+    ...batchFields(row.params_json),
+    prompt: String(row.prompt || ''),
+  }
 }
 
 /** 作废某章的缓存（重新生成 / 章节内容更新后调用）。 */

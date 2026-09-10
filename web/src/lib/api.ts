@@ -1069,6 +1069,8 @@ export interface AiCoverMetadata {
   stylePreset?: string
   composition?: string
   variationId?: string
+  promptMode?: 'auto' | 'exact'
+  configurationApplied?: boolean
   romanceSubtype?: string
   romanceEmotion?: string
   visualConcept?: string
@@ -1149,7 +1151,7 @@ export const aiApi = {
   /** 为小说生成封面（后台任务模式），返回 taskId 供轮询；生成结果直接落 novel_covers。 */
   generateCover(
     novelId: string,
-    opts: { prompt?: string; renderTitle?: boolean; platform?: string; stylePreset?: string; composition?: string; variationId?: string; operationId?: string } = {},
+    opts: { prompt?: string; promptMode?: 'auto' | 'exact'; renderTitle?: boolean; platform?: string; stylePreset?: string; composition?: string; variationId?: string; operationId?: string } = {},
   ): Promise<{ ok: boolean; taskId: string; batchId: string; total: number }> {
     const operationId = opts.operationId || newOperationId('ai-cover-generate')
     return request(
@@ -1158,6 +1160,7 @@ export const aiApi = {
       {
         novelId,
         prompt: opts.prompt ?? '',
+        promptMode: opts.promptMode,
         renderTitle: opts.renderTitle,
         platform: opts.platform,
         stylePreset: opts.stylePreset,

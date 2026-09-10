@@ -181,6 +181,9 @@ export default function AiCoverPanel() {
   const [variationId, setVariationId] = useState('')
   const [promptMetadata, setPromptMetadata] = useState<AiCoverCandidate['metadata']>()
   const [prompt, setPrompt] = useState('')
+  const [promptMode, setPromptMode] = useState<'auto' | 'exact'>('auto')
+  /** AI 描述词生成时冻结的配置；选择器变更后不能假装旧 prompt 已同步。 */
+  const [promptSourceSignature, setPromptSourceSignature] = useState('')
   const [coverPromptMaxChars, setCoverPromptMaxChars] = useState(DEFAULT_COVER_PROMPT_MAX_CHARS)
   const [generatingPrompt, setGeneratingPrompt] = useState(false)
   const [imageConfigured, setImageConfigured] = useState(false)
@@ -196,6 +199,9 @@ export default function AiCoverPanel() {
     novelIdRef.current = novelId
   }, [novelId])
   const taskActive = !!task && (task.status === 'queued' || task.status === 'running')
+  const configSignature = `${novelId}|${renderTitle ? '1' : '0'}|${platform}|${stylePreset}|${composition}|${variationId}`
+  const promptConfigMismatch = !!promptSourceSignature && promptSourceSignature !== configSignature
+  const usesExactPrompt = promptMode === 'exact' && !!prompt.trim() && !promptSourceSignature
 
   /** 拉取当前小说的候选列表。 */
   async function loadCandidates(id: string) {
@@ -293,12 +299,14 @@ export default function AiCoverPanel() {
     if (!novelId) return toast('请先选择小说', 'error')
     if (!imageConfigured) return toast('AI 图像服务未配置，请到「配置」标签页设置图像供应商', 'error')
     const nextPrompt = prompt.trim()
+    if (promptConfigMismatch) return toast('封面设定已变化，请先按新设定更新描述词，或确认使用现有描述词', 'error')
     if (coverPromptCharCount(nextPrompt) > coverPromptMaxChars) {
       return toast(`封面描述词不能超过 ${coverPromptMaxChars} 个字符`, 'error')
     }
     setBusy(true)
     try {
-      const res = await aiApi.generateCover(novelId, { prompt: nextPrompt, renderTitle, platform, stylePreset, composition, variationId, operationId: newOperationId('ai-cover-generate') })
+      const mode = nextPrompt ? 'exact' : 'auto'
+      const res = await aiApi.generateCover(novelId, { prompt: nextPrompt, promptMode: mode, renderTitle, platform, stylePreset, composition, variationId, operationId: newOperationId('ai-cover-generate') })
       const { task: created } = await aiApi.task(res.taskId)
       setTask(created)
       toast('封面生成已开始', 'success')
@@ -325,6 +333,8 @@ export default function AiCoverPanel() {
       setPrompt(limitCoverPrompt(result.prompt, coverPromptMaxChars))
       setVariationId(result.metadata?.variationId || requestedVariationId)
       setPromptMetadata(result.metadata)
+      setPromptMode('exact')
+      setPromptSourceSignature(`${novelId}|${renderTitle ? '1' : '0'}|${platform}|${stylePreset}|${composition}|${result.metadata?.variationId || requestedVariationId}`)
       toast('已生成封面描述词，可继续编辑', 'success')
     } catch (err) {
       toast((err as Error).message || '生成描述词失败', 'error')
@@ -442,6 +452,8 @@ export default function AiCoverPanel() {
               onChange={(value) => {
                 setNovelId(value)
                 setPrompt('')
+                setPromptMode('auto')
+                setPromptSourceSignature('')
                 setVariationId('')
                 setPromptMetadata(undefined)
                 void loadCandidates(value)
@@ -449,6 +461,7 @@ export default function AiCoverPanel() {
               placeholder="选择小说"
               searchable
               searchPlaceholder="搜索小说名称…"
+              disabled={busy || generatingPrompt || taskActive}
               dropdownSide="bottom"
             />
           </div>
@@ -461,19 +474,19 @@ export default function AiCoverPanel() {
             </p>
             <div className="grid gap-1.5">
               <Label>平台版式</Label>
-              <CustomSelect options={PLATFORM_OPTIONS} value={platform} onChange={setPlatform} placeholder="选择平台风格" dropdownSide="bottom" />
+              <CustomSelect options={PLATFORM_OPTIONS} value={platform} onChange={setPlatform} disabled={busy || generatingPrompt || taskActive || usesExactPrompt} placeholder="选择平台风格" dropdownSide="bottom" />
               <p className="text-xs text-muted-foreground">按目标平台调节版式与调性；通用为竖版 2:3，不决定主视觉画风。</p>
             </div>
             <div className="grid gap-1.5">
               <Label>主视觉风格</Label>
-              <CustomSelect options={STYLE_OPTIONS} value={stylePreset} onChange={setStylePreset} placeholder="选择主视觉风格" dropdownSide="bottom" />
+              <CustomSelect options={STYLE_OPTIONS} value={stylePreset} onChange={setStylePreset} disabled={busy || generatingPrompt || taskActive || usesExactPrompt} placeholder="选择主视觉风格" dropdownSide="bottom" />
               <p className="text-xs leading-relaxed text-muted-foreground">
                 {STYLE_OPTIONS.find((option) => option.value === stylePreset)?.sub || '会结合题材和变体轮换，避免所有书套同一种风格。'}
               </p>
             </div>
             <div className="grid gap-1.5">
               <Label>构图方向</Label>
-              <CustomSelect options={COMPOSITION_OPTIONS} value={composition} onChange={setComposition} placeholder="选择构图方向" dropdownSide="bottom" />
+              <CustomSelect options={COMPOSITION_OPTIONS} value={composition} onChange={setComposition} disabled={busy || generatingPrompt || taskActive || usesExactPrompt} placeholder="选择构图方向" dropdownSide="bottom" />
               <p className="text-xs text-muted-foreground">控制主体位置、镜头关系和留白方式。</p>
             </div>
             <div className="flex items-center justify-between gap-3 rounded-md border border-[var(--border)] bg-[var(--bg-card)] px-3.5 py-2.5">
@@ -483,7 +496,7 @@ export default function AiCoverPanel() {
                   在封面渲染书名+作者名（按题材套用字体），需模型支持中文渲染（如 gpt-image-2）。
                 </span>
               </div>
-              <Switch checked={renderTitle} disabled={busy || taskActive} onCheckedChange={setRenderTitle} />
+              <Switch checked={renderTitle} disabled={busy || generatingPrompt || taskActive || usesExactPrompt} onCheckedChange={setRenderTitle} />
             </div>
           </div>
 
@@ -534,7 +547,17 @@ export default function AiCoverPanel() {
               value={prompt}
               maxLength={coverPromptMaxChars}
               disabled={busy || taskActive || generatingPrompt}
-              onChange={(event) => setPrompt(limitCoverPrompt(event.target.value, coverPromptMaxChars))}
+              onChange={(event) => {
+                const nextPrompt = limitCoverPrompt(event.target.value, coverPromptMaxChars)
+                setPrompt(nextPrompt)
+                // 手工编辑后的正文是完整 exact prompt，不能再宣称由选择器生成。
+                if (nextPrompt.trim()) {
+                  setPromptMode('exact')
+                } else {
+                  setPromptMode('auto')
+                  setPromptSourceSignature('')
+                }
+              }}
               placeholder="留空将根据小说标题、分类和简介自动生成；也可以直接填写英文描述词。"
             />
             <div id="cover-prompt-hint" className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
@@ -546,10 +569,33 @@ export default function AiCoverPanel() {
             {promptMetadata && (
               <div className="grid gap-0.5 text-xs text-[var(--accent)]">
                 <p>
-                  本版方向：{STYLE_OPTIONS.find((option) => option.value === promptMetadata.stylePreset)?.label || promptMetadata.stylePreset} ·{' '}
-                  {COMPOSITION_OPTIONS.find((option) => option.value === promptMetadata.composition)?.label || promptMetadata.composition}
+                  {promptMetadata.promptMode === 'exact'
+                    ? '本版方向：完整描述词（当前配置不额外注入）'
+                    : <>本版方向：{STYLE_OPTIONS.find((option) => option.value === promptMetadata.stylePreset)?.label || promptMetadata.stylePreset} ·{' '}
+                      {COMPOSITION_OPTIONS.find((option) => option.value === promptMetadata.composition)?.label || promptMetadata.composition}</>}
                 </p>
                 {romanceDirectionLabel(promptMetadata) && <p>{romanceDirectionLabel(promptMetadata)}</p>}
+              </div>
+            )}
+            {promptConfigMismatch && (
+              <div className="grid gap-2 rounded-md border border-[color-mix(in_srgb,var(--color-warning)_45%,transparent)] bg-[color-mix(in_srgb,var(--color-warning)_10%,transparent)] p-3 text-xs leading-relaxed text-[var(--color-warning)]">
+                <p>封面设定已变化，当前描述词仍来自上一版设定。</p>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" size="sm" variant="outline" onClick={() => { setPromptMode('exact'); setPromptSourceSignature('') }}>
+                    使用现有描述词
+                  </Button>
+                  <Button type="button" size="sm" variant="ghost" disabled={generatingPrompt || taskActive} onClick={() => void generatePrompt()}>
+                    按新设定更新
+                  </Button>
+                </div>
+              </div>
+            )}
+            {!promptConfigMismatch && usesExactPrompt && (
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-[var(--border)] bg-[var(--admin-inset)] px-3 py-2 text-xs text-[var(--accent)]">
+                <span>画面以完整描述词为准</span>
+                <Button type="button" size="sm" variant="ghost" onClick={() => { setPrompt(''); setPromptMode('auto'); setPromptSourceSignature(''); setPromptMetadata(undefined) }}>
+                  返回配置生成
+                </Button>
               </div>
             )}
           </div>
@@ -682,7 +728,9 @@ export default function AiCoverPanel() {
                         </Button>
                       </div>
                       {candidate.prompt && <p className="line-clamp-2 text-[0.7rem] leading-snug text-muted-foreground">{candidate.prompt}</p>}
-                      {candidate.metadata && (candidate.metadata.stylePreset || candidate.metadata.composition) && (
+                      {candidate.metadata?.promptMode === 'exact' ? (
+                        <div className="text-[0.68rem] leading-snug text-[var(--accent)]">完整描述词 · 当前配置不额外注入</div>
+                      ) : candidate.metadata && (candidate.metadata.stylePreset || candidate.metadata.composition) ? (
                         <div className="grid gap-0.5 text-[0.68rem] leading-snug text-[var(--accent)]">
                           <p>
                             {STYLE_OPTIONS.find((option) => option.value === candidate.metadata?.stylePreset)?.label || candidate.metadata.stylePreset} ·{' '}
@@ -690,7 +738,7 @@ export default function AiCoverPanel() {
                           </p>
                           {romanceDirectionLabel(candidate.metadata) && <p>{romanceDirectionLabel(candidate.metadata)}</p>}
                         </div>
-                      )}
+                      ) : null}
                     </figcaption>
                   </figure>
                 ))}

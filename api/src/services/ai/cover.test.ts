@@ -3,7 +3,7 @@
  * judgeGenre 本身走网络（chat），这里只测可测的 parseGenreText。
  */
 import { describe, it, expect } from 'vitest'
-import { buildImagePrompt, parseGenreText } from './cover'
+import { buildImagePrompt, normalizeCoverPromptMode, parseGenreText } from './cover'
 import { inferGenres } from './cover-styles'
 
 describe('parseGenreText', () => {
@@ -29,6 +29,16 @@ describe('parseGenreText', () => {
     expect(parseGenreText('古言')).toBe('ancient')
     // 若模型回英文代号，同样生效
     expect(parseGenreText('ancient')).toBe('ancient')
+  })
+})
+
+describe('normalizeCoverPromptMode', () => {
+  it('兼容省略 mode，并拒绝互相矛盾的 prompt', () => {
+    expect(normalizeCoverPromptMode(undefined, '')).toBe('auto')
+    expect(normalizeCoverPromptMode(undefined, '完整描述词')).toBe('exact')
+    expect(() => normalizeCoverPromptMode('auto', '完整描述词')).toThrow('auto 模式不能携带')
+    expect(() => normalizeCoverPromptMode('exact', '')).toThrow('exact 模式必须')
+    expect(() => normalizeCoverPromptMode('unknown', '')).toThrow('promptMode 必须')
   })
 })
 

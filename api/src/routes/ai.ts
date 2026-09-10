@@ -8,29 +8,31 @@ import { getDb } from '../db/pool'
 import { all, first, run, withTx } from '../db/query'
 import { AiError, chat, isTextAiConfigured, providerLabel, textProvider } from '../services/ai/client'
 import { isImageAiConfigured, imageProvider, imageProviderLabel } from '../services/ai/image'
-import { generateCoverPrompt, generateCoverPromptTask, generateNovelCover, newCoverVariationId, normalizeCoverPrompt } from '../services/ai/cover'
+import { generateCoverPrompt, generateCoverPromptTask, generateNovelCover, newCoverVariationId, normalizeCoverPrompt, normalizeCoverPromptMode } from '../services/ai/cover'
 import { getAiSettings, saveAiSettings } from '../services/ai/settings'
 import { readRuntimeConfig, writeRuntimeConfig, syncRuntimeConfigToEnv, type RuntimeConfigKey } from '../runtime-config'
 import { generateRecap, getCachedRecap, loadChapterForRecap } from '../services/ai/summary'
 import { generateCatchup, getCachedCatchup, inspectCatchup } from '../services/ai/catchup'
 import {
   invalidateChapter,
-  listBatchDrafts,
+  listBatchResults,
+  listTaskGenerations,
   listGenerationDetails,
   deleteGeneration,
   deleteGenerations,
   restoreGenerations,
   getGeneration,
+  getGenerationDetail,
   updateGenerationResult,
   UNDO_WINDOW_MS,
   type GenerationRow,
-  type BatchDraft,
+  type BatchResult,
 } from '../services/ai/generations'
 import { escapeLike } from '../services/text'
-import { generateContinuationChapters, generateWriting, generateWritingTitles, parseContinuationTitle, recentNovelContext } from '../services/ai/writing'
-import { extractStyleProfile, getStyleProfile } from '../services/ai/style-profile'
-import { extractPlotState, getPlotState } from '../services/ai/plot-state'
-import { extractRelationshipProfile, getRelationshipProfile } from '../services/ai/relationship-profile'
+import { generateContinuationChapters, generateWriting, generateWritingTitles, loadContinuationContext, parseContinuationTitle, type ContinuationSnapshotV1 } from '../services/ai/writing'
+import { extractStyleProfile, getStyleProfileForAnchor } from '../services/ai/style-profile'
+import { extractPlotState, getPlotStateForAnchor } from '../services/ai/plot-state'
+import { extractRelationshipProfile, getRelationshipProfileForAnchor } from '../services/ai/relationship-profile'
 import { checkQuota, recordUsage, startOfToday, summarizeUsage } from '../services/ai/usage'
 import { optionalUser, requireAdmin, requireUser, type AuthEnv } from '../middlewares/auth'
 import { cancelAiTask, countActiveWritingTasks, createAiTask, deleteAiTask, getAiTask, listAiTasks, updateAiTask } from '../services/ai/tasks'
@@ -336,7 +338,7 @@ function writingOptions(body: Record<string, any>) {
 }
 
 /** 序列化创作请求参数存入任务行：失败/取消后可按原参数重试。 */
-function writingTaskParams(body: Record<string, any>): string {
+function writingTaskParams(body: Record<string, any>, continuationSnapshot?: ContinuationSnapshotV1): string {
   return JSON.stringify({
     novelId: String(body.novelId || '').trim(),
     title: String(body.title || '').trim(),
@@ -351,6 +353,7 @@ function writingTaskParams(body: Record<string, any>): string {
       ? { temperature: Number(body.temperature) }
       : {}),
     ...(typeof body.clientRequestId === 'string' && body.clientRequestId.trim() ? { clientRequestId: body.clientRequestId.trim().slice(0, 160) } : {}),
+    ...(continuationSnapshot ? { continuationSnapshot } : {}),
   })
 }
 
@@ -386,7 +389,7 @@ function finalizeWritingTask(db: ReturnType<typeof getDb>, taskId: string, job: 
     })
 }
 
-type StartWritingResult = { ok: true; task: { id: string; batchId: string; total: number } } | { ok: false; status: 400 | 404 | 429; error: string }
+type StartWritingResult = { ok: true; task: { id: string; batchId: string; total: number } } | { ok: false; status: 400 | 404 | 409 | 422 | 429; error: string }
 
 /**
  * 启动一个后台创作任务（大纲 / 章节 / 多章续写），立即返回任务信息。
@@ -395,9 +398,59 @@ type StartWritingResult = { ok: true; task: { id: string; batchId: string; total
  * 原始参数存入任务行，POST /tasks/:id/retry 据此重试。
  */
 /** 断点恢复：取原批次已生成的草稿，供 continue 任务重试时跳过已生成章节。 */
-async function loadResumeDrafts(db: ReturnType<typeof getDb>, batchId: string): Promise<{ batchId: string; drafts: BatchDraft[] } | undefined> {
-  const drafts = await listBatchDrafts(db, batchId)
-  return drafts.length ? { batchId, drafts } : undefined
+async function loadResumeDrafts(db: ReturnType<typeof getDb>, batchId: string): Promise<{ batchId: string; drafts: BatchResult[] } | undefined> {
+  const results = await listBatchResults(db, batchId, { includeDeleted: true })
+  return results.length ? { batchId, drafts: results } : undefined
+}
+
+function parseContinuationSnapshot(value: unknown): ContinuationSnapshotV1 | undefined {
+  if (!value || typeof value !== 'object') return undefined
+  const snapshot = value as Record<string, unknown>
+  const anchor = snapshot.anchor as Record<string, unknown> | undefined
+  const profiles = snapshot.profiles as Record<string, unknown> | undefined
+  if (snapshot.version !== 1 || snapshot.contextPolicyVersion !== 1 || !anchor || !profiles) return undefined
+  if (typeof anchor.chapterId !== 'string' || !anchor.chapterId || typeof anchor.title !== 'string' || !Number.isFinite(Number(anchor.sortOrder))) return undefined
+  if (typeof snapshot.context !== 'string' || typeof profiles.style !== 'string' || typeof profiles.relationship !== 'string' || typeof profiles.plot !== 'string') return undefined
+  return snapshot as unknown as ContinuationSnapshotV1
+}
+
+async function buildContinuationSnapshot(
+  db: ReturnType<typeof getDb>,
+  novelId: string,
+  afterChapterId: string | undefined,
+): Promise<ContinuationSnapshotV1 | undefined> {
+  const loaded = await loadContinuationContext(db, novelId, afterChapterId)
+  if (!loaded) return undefined
+  const [style, relationship, plot] = await Promise.all([
+    getStyleProfileForAnchor(db, novelId, loaded.anchor.chapterId),
+    getRelationshipProfileForAnchor(db, novelId, loaded.anchor.chapterId),
+    getPlotStateForAnchor(db, novelId, loaded.anchor.chapterId),
+  ])
+  const profiles = { style: '', relationship: '', plot: '' }
+  const profileSources: Record<string, unknown> = {}
+  const excludedProfiles: ContinuationSnapshotV1['excludedProfiles'] = []
+  const use = (kind: 'style' | 'relationship' | 'plot', value: { profile?: string; state?: string; source?: unknown; eligibility: string }) => {
+    const profile = String(value.profile ?? value.state ?? '')
+    const allowed = value.eligibility === 'usable' && (kind !== 'plot' || profile.trim().length > 0)
+    if (allowed) {
+      profiles[kind] = profile
+      if (value.source) profileSources[kind] = value.source
+    } else {
+      excludedProfiles.push({ kind, reason: value.eligibility })
+    }
+  }
+  use('style', style)
+  use('relationship', relationship)
+  use('plot', plot)
+  return {
+    version: 1,
+    contextPolicyVersion: 1,
+    anchor: { chapterId: loaded.anchor.chapterId, title: loaded.anchor.title, sortOrder: loaded.anchor.sortOrder },
+    context: loaded.context,
+    profiles,
+    profileSources,
+    excludedProfiles,
+  }
 }
 
 async function startWritingJob(
@@ -406,7 +459,8 @@ async function startWritingJob(
   kind: 'write_outline' | 'write_chapter' | 'continue',
   body: Record<string, any>,
   audit: { ipAddress?: string; userAgent?: string },
-  resume?: { batchId: string; drafts: BatchDraft[] },
+  resume?: { batchId: string; drafts: BatchResult[] },
+  internalSnapshot?: ContinuationSnapshotV1,
 ): Promise<StartWritingResult> {
   const novelId = String(body.novelId || '').trim()
   const title = String(body.title || '').trim()
@@ -472,8 +526,31 @@ async function startWritingJob(
   // continue：串行多章，任务完结状态由 generateContinuationChapters 自己收尾（completed/cancelled）
   const count = Math.max(1, Math.min(20, Math.trunc(Number(body.chapterCount) || 1)))
   const finalInstruction = String(body.instruction || title || '自然推进剧情，完成一个有悬念的章节段落').trim()
-  // 上下文与审计信息在请求内取好：后台执行时请求上下文已不可用
-  const context = await recentNovelContext(db, novelId, body.afterChapterId ? String(body.afterChapterId) : undefined)
+  let snapshot = internalSnapshot
+  if (!snapshot) {
+    try {
+      snapshot = await buildContinuationSnapshot(db, novelId, String(body.afterChapterId || '').trim() || undefined)
+    } catch (err) {
+      if (err instanceof AiError && (err.status === 404 || err.code === 'invalid')) {
+        return { ok: false, status: err.status === 404 ? 404 : 422, error: err.message }
+      }
+      throw err
+    }
+  }
+  if (!snapshot) return { ok: false, status: 422, error: '此书暂无已发布章节，请先使用新写' }
+
+  const existing = resume?.drafts || []
+  const indices = existing.map((draft) => draft.batchIndex)
+  const uniqueIndices = new Set(indices)
+  const maxExisting = indices.length ? Math.max(...indices) : 0
+  if (existing.some((draft) => draft.status === 'rejected' || draft.deletedAt > 0 || !draft.result.trim()) || uniqueIndices.size !== indices.length || indices.some((index) => index < 1 || index > count)) {
+    return { ok: false, status: 409, error: '本批已有结果编号不连续或状态不确定，请查看已生成内容后新建任务' }
+  }
+  for (let index = 1; index <= maxExisting; index += 1) {
+    if (!uniqueIndices.has(index)) return { ok: false, status: 409, error: '本批已有结果缺少中间章节，无法安全恢复，请新建任务' }
+  }
+  if (maxExisting >= count) return { ok: false, status: 409, error: '本批内容已全部生成，请查看已生成内容' }
+  const context = snapshot.context
   const batchId = resume?.batchId || `continue_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
   const task = await createAiTask(db, {
     userId: user.id,
@@ -482,10 +559,10 @@ async function startWritingJob(
     total: count,
     batchId,
     prompt: finalInstruction,
-    params: writingTaskParams(body),
+    params: writingTaskParams(body, snapshot),
   })
-  if (resume && resume.drafts.length)
-    await updateAiTask(db, task.id, { current: resume.drafts.length, step: `已生成 ${resume.drafts.length} / ${count} 章，断点恢复中` })
+  if (resume && maxExisting)
+    await updateAiTask(db, task.id, { current: maxExisting, step: `已生成 ${maxExisting} / ${count} 章，断点恢复中` })
   void generateContinuationChapters(db, {
     userId: user.id,
     novelId,
@@ -497,8 +574,10 @@ async function startWritingJob(
     ...writingOptions(body),
     batchId,
     taskId: task.id,
-    startIndex: resume?.drafts.length || 0,
-    ...(resume?.drafts.length ? { existingDrafts: resume.drafts } : {}),
+    startIndex: maxExisting,
+    ...(existing.length ? { existingDrafts: existing } : {}),
+    profileOverrides: snapshot.profiles,
+    continuationSnapshot: snapshot,
     ...audit,
   }).catch(async (err) => {
     console.error('[ai] 续写后台任务失败', err)
@@ -556,13 +635,19 @@ aiRoutes.post('/cover/generate', requireAdmin(), async (c) => {
   } catch (err) {
     return aiErrorResponse(c, err)
   }
+  let promptMode: 'auto' | 'exact'
+  try {
+    promptMode = normalizeCoverPromptMode(body.promptMode, prompt)
+  } catch (err) {
+    return aiErrorResponse(c, err)
+  }
   if (!isImageAiConfigured()) return c.json({ error: 'AI 图像服务未配置（AI_IMAGE_BASE_URL / AI_IMAGE_API_KEY）', code: 'disabled' }, 503)
   // 文字层默认取运行时设置（未支持中文渲染的模型建议关）；请求显式传布尔时覆盖
   const renderTitle = typeof body.renderTitle === 'boolean' ? body.renderTitle : settings.coverRenderTitle
   const platform = typeof body.platform === 'string' && body.platform ? body.platform : settings.coverPlatform
   const stylePreset = typeof body.stylePreset === 'string' && body.stylePreset ? body.stylePreset : 'auto'
   const composition = typeof body.composition === 'string' && body.composition ? body.composition : 'auto'
-  const variationId = typeof body.variationId === 'string' && body.variationId.trim() ? body.variationId.trim() : newCoverVariationId()
+  const requestedVariationId = typeof body.variationId === 'string' && body.variationId.trim() ? body.variationId.trim() : ''
   const operationKey = idempotencyKeyFromRequest(c, body)
 
   return withIdempotency(
@@ -570,17 +655,19 @@ aiRoutes.post('/cover/generate', requireAdmin(), async (c) => {
     {
       scope: `ai.cover.generate.${c.get('user').id}`,
       operationKey,
-      payload: { novelId, prompt, renderTitle, platform, stylePreset, composition, variationId },
+      payload: { novelId, prompt, promptMode, renderTitle, platform, stylePreset, composition, variationId: requestedVariationId || '(generated-once)' },
       audit: { actorUserId: c.get('user').id, action: 'ai.cover.generate', targetCount: 1 },
     },
     async () => {
+      // 默认变体只在幂等处理器首次执行时生成；重放直接复用已保存的响应/任务参数。
+      const variationId = requestedVariationId || newCoverVariationId()
       const task = await createAiTask(db, {
         userId: c.get('user').id,
         novelId,
         kind: 'cover',
         total: 1,
         prompt: prompt || '生成封面',
-        params: JSON.stringify({ novelId, prompt, renderTitle, platform, stylePreset, composition, variationId, ...(operationKey ? { clientRequestId: operationKey } : {}) }),
+        params: JSON.stringify({ novelId, prompt, promptMode, renderTitle, platform, stylePreset, composition, variationId, ...(operationKey ? { clientRequestId: operationKey } : {}) }),
       })
       void generateNovelCover(db, {
         userId: c.get('user').id,
@@ -590,6 +677,7 @@ aiRoutes.post('/cover/generate', requireAdmin(), async (c) => {
         stylePreset,
         composition,
         variationId,
+        promptMode,
         prompt,
         taskId: task.id,
         ...(await auditRequestContext(c, db)),
@@ -786,6 +874,7 @@ aiRoutes.post('/writing/style-profile', requireAdmin(), async (c) => {
     const result = await extractStyleProfile(db, {
       userId: c.get('user').id,
       novelId,
+      ...(String(body.afterChapterId || '').trim() ? { afterChapterId: String(body.afterChapterId).trim() } : {}),
       ...(await auditRequestContext(c, db)),
     })
     return c.json({ ok: true, ...result }, 200, { 'Cache-Control': 'no-store' })
@@ -799,8 +888,13 @@ aiRoutes.get('/writing/style-profile/:novelId', requireAdmin(), async (c) => {
   const db = getDb()
   const novelId = String(c.req.param('novelId') || '').trim()
   if (!novelId) return c.json({ error: 'novelId 必填' }, 400)
-  const profile = await getStyleProfile(db, novelId)
-  return c.json({ profile })
+  const afterChapterId = String(c.req.query('afterChapterId') || '').trim() || undefined
+  try {
+    const result = await getStyleProfileForAnchor(db, novelId, afterChapterId)
+    return c.json({ profile: result.profile, source: result.source, updatedAt: result.updatedAt, eligibility: result.eligibility, isOlderThanAnchor: result.isOlderThanAnchor })
+  } catch (err) {
+    return aiErrorResponse(c, err)
+  }
 })
 
 // ---------- 情节状态：从小说已发布章节提取结构化角色处境/伏笔/冲突，续写时拼进 user 消息 ----------
@@ -820,6 +914,7 @@ aiRoutes.post('/writing/plot-state', requireAdmin(), async (c) => {
     const result = await extractPlotState(db, {
       userId: c.get('user').id,
       novelId,
+      ...(String(body.afterChapterId || '').trim() ? { afterChapterId: String(body.afterChapterId).trim() } : {}),
       ...(Number(body.sampleChapters) ? { sampleChapters: Number(body.sampleChapters) } : {}),
       ...(await auditRequestContext(c, db)),
     })
@@ -837,11 +932,16 @@ aiRoutes.get('/writing/plot-state/:novelId', requireAdmin(), async (c) => {
   const db = getDb()
   const novelId = String(c.req.param('novelId') || '').trim()
   if (!novelId) return c.json({ error: 'novelId 必填' }, 400)
-  const [plotState, novel] = await Promise.all([
-    getPlotState(db, novelId),
-    first<{ chapter_count: number }>(db, 'SELECT chapter_count FROM novels WHERE id = $1', [novelId]),
-  ])
-  return c.json({ state: plotState.state, chaptersThrough: plotState.chaptersThrough, chapterCount: Number(novel?.chapter_count) || 0 })
+  const afterChapterId = String(c.req.query('afterChapterId') || '').trim() || undefined
+  try {
+    const [plotState, novel] = await Promise.all([
+      getPlotStateForAnchor(db, novelId, afterChapterId),
+      first<{ chapter_count: number }>(db, 'SELECT chapter_count FROM novels WHERE id = $1', [novelId]),
+    ])
+    return c.json({ state: plotState.state, chaptersThrough: Number((plotState.source?.chapterOrdinal)) || 0, chapterCount: Number(novel?.chapter_count) || 0, source: plotState.source, updatedAt: plotState.updatedAt, eligibility: plotState.eligibility, isOlderThanAnchor: plotState.isOlderThanAnchor })
+  } catch (err) {
+    return aiErrorResponse(c, err)
+  }
 })
 
 // ---------- 关系画像：从小说已发布章节提取角色关系动态/权力结构/心理边界，续写时拼进 system prompt ----------
@@ -861,6 +961,7 @@ aiRoutes.post('/writing/relationship-profile', requireAdmin(), async (c) => {
     const result = await extractRelationshipProfile(db, {
       userId: c.get('user').id,
       novelId,
+      ...(String(body.afterChapterId || '').trim() ? { afterChapterId: String(body.afterChapterId).trim() } : {}),
       ...(Number(body.sampleChapters) ? { sampleChapters: Number(body.sampleChapters) } : {}),
       ...(await auditRequestContext(c, db)),
     })
@@ -875,26 +976,29 @@ aiRoutes.get('/writing/relationship-profile/:novelId', requireAdmin(), async (c)
   const db = getDb()
   const novelId = String(c.req.param('novelId') || '').trim()
   if (!novelId) return c.json({ error: 'novelId 必填' }, 400)
-  const profile = await getRelationshipProfile(db, novelId)
-  return c.json({ profile })
+  const afterChapterId = String(c.req.query('afterChapterId') || '').trim() || undefined
+  try {
+    const result = await getRelationshipProfileForAnchor(db, novelId, afterChapterId)
+    return c.json({ profile: result.profile, source: result.source, updatedAt: result.updatedAt, eligibility: result.eligibility, isOlderThanAnchor: result.isOlderThanAnchor })
+  } catch (err) {
+    return aiErrorResponse(c, err)
+  }
 })
 
 aiRoutes.put('/writing/drafts/:id', requireAdmin(), async (c) => {
-  const id = String(c.req.param('id') || '')
+  const id = String(c.req.param('id') || '').trim()
   const body = await c.req.json().catch(() => ({}))
-  const row = await getGeneration(getDb(), id)
-  if (!row || row.status !== 'draft' || !['write_chapter', 'continue', 'write_outline'].includes(row.kind))
-    return c.json({ error: '草稿不存在或不可编辑' }, 404)
   const result = String(body.result ?? '').trim()
   if (!result) return c.json({ error: '内容不能为空' }, 400)
-  await updateGenerationResult(getDb(), id, result)
+  const updated = await updateGenerationResult(getDb(), id, result)
+  if (!updated) return c.json({ error: '草稿不存在、已发布、已删除或不可编辑' }, 409)
   return c.json({ ok: true, id, result })
 })
 
 /** 事务内的业务性失败：回滚后由路由层转成对应的 4xx。 */
 class PublishError extends Error {
   constructor(
-    readonly httpStatus: 404 | 409,
+    readonly httpStatus: 400 | 404 | 409,
     message: string,
   ) {
     super(message)
@@ -904,17 +1008,14 @@ class PublishError extends Error {
 
 aiRoutes.post('/writing/drafts/:id/publish', requireAdmin(), async (c) => {
   const db = getDb()
-  const id = String(c.req.param('id') || '')
+  const id = String(c.req.param('id') || '').trim()
   const body = await c.req.json().catch(() => ({}))
-  const row = await getGeneration(db, id)
-  if (!row || row.status !== 'draft' || !['write_chapter', 'continue'].includes(row.kind)) return c.json({ error: '可发布的章节草稿不存在' }, 404)
-  const novelId = String(body.novelId || row.novel_id || '').trim()
-  // 兼容修复前落库的草稿：标题可能仍在正文首行，发布时再解析一次并剥离。
-  const parsed = parseContinuationTitle(row.result)
-  const storedTitle = draftBatchParams(row.params_json).draftTitle
-  const title = String(body.title || '').trim() || storedTitle || parsed.title
-  const content = parsed.title ? parsed.body : row.result
-  if (!novelId || !title || !content.trim()) return c.json({ error: 'novelId、title 和内容必填' }, 400)
+  const rowHint = await getGeneration(db, id)
+  if (!rowHint || !['write_chapter', 'continue'].includes(rowHint.kind)) return c.json({ error: '可发布的章节草稿不存在' }, 404)
+  const requestedNovelId = String(body.novelId || '').trim()
+  const novelId = requestedNovelId || String(rowHint.novel_id || '').trim()
+  if (!novelId) return c.json({ error: 'novelId、title 和内容必填' }, 400)
+  const requestedTitle = String(body.title || '').trim()
   const chapterId = 'ch_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7)
   const now = Date.now()
   try {
@@ -923,6 +1024,22 @@ aiRoutes.post('/writing/drafts/:id/publish', requireAdmin(), async (c) => {
       // 锁小说行：同一本书的并发发布被串行化，MAX+1 取号不会重复
       const novel = await q('SELECT id FROM novels WHERE id = $1 FOR UPDATE', [novelId])
       if (!novel.rows.length) throw new PublishError(404, '小说不存在')
+      // 正文必须从小说锁之后重新读取并锁定，不能使用事务外的旧快照。
+      const locked = await q<GenerationRow>(
+        `SELECT * FROM ai_generations
+         WHERE id = $1 AND novel_id = $2 AND deleted_at = 0
+         FOR UPDATE`,
+        [id, novelId],
+      )
+      const row = locked.rows[0]
+      if (!row || !['write_chapter', 'continue'].includes(row.kind)) throw new PublishError(404, '可发布的章节草稿不存在')
+      if (row.status !== 'draft') throw new PublishError(409, '草稿已被发布或不可发布')
+      // 兼容修复前落库的草稿：标题可能仍在正文首行，发布时再解析一次并剥离。
+      const parsed = parseContinuationTitle(row.result)
+      const storedTitle = draftBatchParams(row.params_json).draftTitle
+      const title = requestedTitle || storedTitle || parsed.title
+      const content = parsed.title ? parsed.body : row.result
+      if (!title || !content.trim()) throw new PublishError(400, 'novelId、title 和内容必填')
       // 带条件更新原子占用草稿：同一草稿并发发布时只有一个请求能成功
       const claimed = await q("UPDATE ai_generations SET status = 'published', chapter_id = $1 WHERE id = $2 AND status = 'draft'", [chapterId, id])
       if (!claimed.rowCount) throw new PublishError(409, '草稿已被发布或不可发布')
@@ -939,9 +1056,9 @@ aiRoutes.post('/writing/drafts/:id/publish', requireAdmin(), async (c) => {
         now,
       ])
       await q('UPDATE novels SET chapter_count = (SELECT COUNT(*) FROM chapters WHERE novel_id = $1), updated_at = $2 WHERE id = $1', [novelId, now])
-      return nextOrder
+      return { order: nextOrder, title }
     })
-    return c.json({ ok: true, chapter: { id: chapterId, novelId, title, order } })
+    return c.json({ ok: true, chapter: { id: chapterId, novelId, title: order.title, order: order.order } })
   } catch (err) {
     if (err instanceof PublishError) return c.json({ error: err.message }, err.httpStatus)
     throw err
@@ -995,7 +1112,18 @@ aiRoutes.post('/writing/batches/:batchId/publish', requireAdmin(), async (c) => 
       const max = await q<{ max_order: number }>('SELECT COALESCE(MAX(sort_order), 0)::int AS max_order FROM chapters WHERE novel_id = $1', [novelId])
       let order = Number(max.rows[0]?.max_order || 0)
       const results: Array<{ id: string; title: string; order: number; generationId: string }> = []
-      for (const { row } of drafts) {
+      for (const { row: candidate } of drafts) {
+        // 与单条发布保持相同锁顺序：先锁小说，再锁草稿。草稿正文必须在锁内读取。
+        const locked = await q<GenerationRow>(
+          `SELECT * FROM ai_generations
+           WHERE id = $1 AND novel_id = $2 AND deleted_at = 0
+           FOR UPDATE`,
+          [candidate.id, novelId],
+        )
+        const row = locked.rows[0]
+        if (!row || row.status !== 'draft' || row.kind !== 'continue') continue
+        const batch = draftBatchParams(row.params_json)
+        if (batch.batchId !== batchId || !row.result.trim()) continue
         const chapterId = 'ch_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7)
         // 原子占用：并发下已被单独发布的草稿跳过，不打断整批
         const claimed = await q("UPDATE ai_generations SET status = 'published', chapter_id = $1 WHERE id = $2 AND status = 'draft'", [chapterId, row.id])
@@ -1208,6 +1336,22 @@ aiRoutes.get('/tasks/:id', requireAdmin(), async (c) => {
   return c.json({ task }, 200, { 'Cache-Control': 'no-store' })
 })
 
+/** 按真实 taskId 返回本次产生的所有内容；旧 continue 任务退回 batchId 关联并明确 linkage。 */
+aiRoutes.get('/tasks/:id/generations', requireAdmin(), async (c) => {
+  const db = getDb()
+  const taskId = String(c.req.param('id') || '').trim()
+  const task = await getAiTask(db, taskId)
+  if (!task) return c.json({ error: '任务不存在' }, 404)
+  let items = await listTaskGenerations(db, taskId)
+  let linkage: 'exact' | 'legacy_batch' | 'unavailable' = items.length ? 'exact' : 'unavailable'
+  if (!items.length && task.kind === 'continue' && task.batchId) {
+    const results = await listBatchResults(db, task.batchId)
+    items = (await Promise.all(results.map((result) => getGenerationDetail(db, result.id)))).filter((item): item is NonNullable<typeof item> => !!item)
+    linkage = items.length ? 'legacy_batch' : 'unavailable'
+  }
+  return c.json({ items, linkage }, 200, { 'Cache-Control': 'no-store' })
+})
+
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
@@ -1261,6 +1405,10 @@ aiRoutes.post('/tasks/:id/retry', requireAdmin(), async (c) => {
     body = null
   }
   if (!body) return c.json({ error: '任务未记录原始参数（旧版本创建），无法重试' }, 422)
+  const continuationSnapshot = source.kind === 'continue' ? parseContinuationSnapshot(body.continuationSnapshot) : undefined
+  if (source.kind === 'continue' && !continuationSnapshot) {
+    return c.json({ error: '旧任务未保存续写上下文，请重新创建任务' }, 422)
+  }
   return withIdempotency(
     db,
     {
@@ -1282,6 +1430,12 @@ aiRoutes.post('/tasks/:id/retry', requireAdmin(), async (c) => {
     } catch (err) {
       return aiErrorResponse(c, err)
     }
+    let promptMode: 'auto' | 'exact'
+    try {
+      promptMode = normalizeCoverPromptMode(body.promptMode, prompt)
+    } catch (err) {
+      return aiErrorResponse(c, err)
+    }
     if (!isImageAiConfigured()) return c.json({ error: 'AI 图像服务未配置', code: 'disabled' }, 503)
     const renderTitle = typeof body.renderTitle === 'boolean' ? body.renderTitle : settings.coverRenderTitle
     const platform = typeof body.platform === 'string' && body.platform ? body.platform : settings.coverPlatform
@@ -1294,7 +1448,7 @@ aiRoutes.post('/tasks/:id/retry', requireAdmin(), async (c) => {
         kind: 'cover',
         total: 1,
         prompt: prompt || '生成封面',
-        params: JSON.stringify({ novelId, prompt, renderTitle, platform, stylePreset, composition, variationId, ...(operationKey ? { clientRequestId: operationKey } : {}) }),
+        params: JSON.stringify({ novelId, prompt, promptMode, renderTitle, platform, stylePreset, composition, variationId, ...(operationKey ? { clientRequestId: operationKey } : {}) }),
       })
       const audit = await auditRequestContext(c, db)
       void generateNovelCover(db, {
@@ -1305,6 +1459,7 @@ aiRoutes.post('/tasks/:id/retry', requireAdmin(), async (c) => {
         stylePreset,
         composition,
         variationId,
+        promptMode,
         prompt,
         taskId: task.id,
         ...audit,
@@ -1368,6 +1523,7 @@ aiRoutes.post('/tasks/:id/retry', requireAdmin(), async (c) => {
       { ...body, ...(operationKey ? { clientRequestId: operationKey } : {}) },
       await auditRequestContext(c, db),
       resume,
+      continuationSnapshot,
     )
     if (!result.ok) return c.json({ error: result.error }, result.status)
     return c.json({ ok: true, taskId: result.task.id, batchId: result.task.batchId, total: result.task.total }, 202)
@@ -1560,6 +1716,15 @@ aiRoutes.get('/generations', requireAdmin(), async (c) => {
 
   const { items, total } = await listGenerationDetails(db, { kind, kinds: scopedKinds, status, limit, offset })
   return c.json({ items, total, limit, offset }, 200, { 'Cache-Control': 'no-store' })
+})
+
+/** 单条管理端生成详情：用于编辑页刷新和发布响应丢失后的精确核对。 */
+aiRoutes.get('/generations/:id', requireAdmin(), async (c) => {
+  const id = String(c.req.param('id') || '').trim()
+  if (!id) return c.json({ error: '生成内容 ID 必填' }, 400)
+  const item = await getGenerationDetail(getDb(), id)
+  if (!item) return c.json({ error: '生成内容不存在' }, 404)
+  return c.json({ item }, 200, { 'Cache-Control': 'no-store' })
 })
 
 /** 删除单条已生成内容：软删除（10 秒内可撤销），读者再访问该章/该回顾时会重新生成（计配额）。 */

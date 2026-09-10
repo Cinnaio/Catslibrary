@@ -10,10 +10,11 @@
  * skill 的踩坑铁律（设定以原文为准、人设不偏离）固化进提取时的 system prompt。
  */
 import type { Db } from '../../db/pool'
-import { all, first, run } from '../../db/query'
+import { first, run } from '../../db/query'
 import { AiError, chat, isTextAiConfigured, providerLabel, textProvider } from './client'
 import { getAiSettings } from './settings'
 import { recordUsage } from './usage'
+import { evaluateProfileSource, loadProfileSample, sampleText, type ProfileEligibility, type ProfileSource } from './profile-source'
 
 /** 默认取样章节数：剧情线比风格画像需要更长，8 章覆盖一条完整剧情弧。 */
 export const DEFAULT_PLOT_SAMPLE_CHAPTERS = 8
@@ -43,6 +44,8 @@ export interface PlotStateResult {
   chaptersThrough: number
   model: string
   usage: { promptTokens: number; completionTokens: number }
+  source?: ProfileSource
+  updatedAt?: number
 }
 
 /** 取样章节数夹到安全区间。 */
@@ -59,6 +62,7 @@ function clampSampleCount(value: unknown): number {
 export async function extractPlotState(db: Db, opts: {
   userId: string
   novelId: string
+  afterChapterId?: string
   /** 取样最近多少章正文，默认 8，范围 1-30。 */
   sampleChapters?: number
   ipAddress?: string
@@ -69,30 +73,26 @@ export async function extractPlotState(db: Db, opts: {
   const { novelId } = opts
   const sampleChapters = clampSampleCount(opts.sampleChapters)
 
-  const rows = await all<{ title: string; content: string }>(
-    db,
-    'SELECT title, content FROM chapters WHERE novel_id = $1 ORDER BY sort_order DESC LIMIT $2',
-    [novelId, sampleChapters],
-  )
+  const sample = await loadProfileSample(db, { novelId, afterChapterId: opts.afterChapterId, sampleCount: sampleChapters, clean: cleanForSample })
   const now = Date.now()
   const settings = await getAiSettings(db)
   // 无章节：写空状态，让续写跳过注入
-  if (!rows.length) {
+  if (!sample) {
     await run(
       db,
-      `INSERT INTO novel_plot_states (novel_id, state, chapters_through, model, created_at, updated_at)
-       VALUES ($1, $2, 0, $3, $4, $4)
-       ON CONFLICT (novel_id) DO UPDATE SET state = EXCLUDED.state, chapters_through = EXCLUDED.chapters_through, model = EXCLUDED.model, updated_at = EXCLUDED.updated_at`,
-      [novelId, FALLBACK_PLOT_STATE, '', now],
+      `INSERT INTO novel_plot_states (novel_id, state, chapters_through, model, source_json, created_at, updated_at)
+       VALUES ($1, $2, 0, $3, $4, $5, $5)
+       ON CONFLICT (novel_id) DO UPDATE SET state = EXCLUDED.state, chapters_through = EXCLUDED.chapters_through, model = EXCLUDED.model, source_json = EXCLUDED.source_json, updated_at = EXCLUDED.updated_at`,
+      [novelId, FALLBACK_PLOT_STATE, '', '', now],
     )
-    return { state: FALLBACK_PLOT_STATE, chaptersThrough: 0, model: '', usage: { promptTokens: 0, completionTokens: 0 } }
+    return { state: FALLBACK_PLOT_STATE, chaptersThrough: 0, model: '', updatedAt: now, usage: { promptTokens: 0, completionTokens: 0 } }
   }
 
-  const sample = rows.reverse().map((row) => `【${row.title}】\n${cleanForSample(row.content)}`).join('\n\n')
+  const sampleTextValue = sampleText(sample, cleanForSample)
   const res = await chat({
     messages: [
       { role: 'system', content: PLOT_EXTRACT_SYSTEM },
-      { role: 'user', content: `作品正文样例（最近 ${rows.length} 章）：\n${sample}` },
+      { role: 'user', content: `作品正文样例（最近 ${sample.rows.length} 章）：\n${sampleTextValue}` },
     ],
     temperature: 0.3,
     maxTokens: settings.plotStateMaxTokens,
@@ -101,10 +101,10 @@ export async function extractPlotState(db: Db, opts: {
   const state = res.text.trim() || FALLBACK_PLOT_STATE
   await run(
     db,
-    `INSERT INTO novel_plot_states (novel_id, state, chapters_through, model, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $5)
-     ON CONFLICT (novel_id) DO UPDATE SET state = EXCLUDED.state, chapters_through = EXCLUDED.chapters_through, model = EXCLUDED.model, updated_at = EXCLUDED.updated_at`,
-    [novelId, state, rows.length, res.model, now],
+    `INSERT INTO novel_plot_states (novel_id, state, chapters_through, model, source_json, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $6)
+     ON CONFLICT (novel_id) DO UPDATE SET state = EXCLUDED.state, chapters_through = EXCLUDED.chapters_through, model = EXCLUDED.model, source_json = EXCLUDED.source_json, updated_at = EXCLUDED.updated_at`,
+    [novelId, state, sample.source.chapterOrdinal, res.model, JSON.stringify(sample.source), now],
   )
   await recordUsage(db, {
     userId: opts.userId,
@@ -118,7 +118,7 @@ export async function extractPlotState(db: Db, opts: {
     ipAddress: opts.ipAddress,
     userAgent: opts.userAgent,
   })
-  return { state, chaptersThrough: rows.length, model: res.model, usage: { promptTokens: res.promptTokens, completionTokens: res.completionTokens } }
+  return { state, chaptersThrough: sample.source.chapterOrdinal, model: res.model, source: sample.source, updatedAt: now, usage: { promptTokens: res.promptTokens, completionTokens: res.completionTokens } }
 }
 
 /** 读取已存的情节状态；未提取过返回空对象，调用方决定是否兜底。 */
@@ -129,6 +129,17 @@ export async function getPlotState(db: Db, novelId: string): Promise<{ state: st
     [novelId],
   )
   return { state: row?.state || '', chaptersThrough: Number(row?.chapters_through) || 0 }
+}
+
+export async function getPlotStateForAnchor(db: Db, novelId: string, afterChapterId?: string): Promise<{
+  state: string
+  source?: ProfileSource
+  updatedAt: number
+  eligibility: ProfileEligibility
+  isOlderThanAnchor: boolean
+}> {
+  const result = await evaluateProfileSource(db, { kind: 'plot', novelId, afterChapterId, clean: cleanForSample })
+  return { state: result.profile, source: result.source, updatedAt: result.updatedAt, eligibility: result.eligibility, isOlderThanAnchor: result.isOlderThanAnchor }
 }
 
 /** 清洗取样正文：去 HTML/多余空白，单章截断。 */

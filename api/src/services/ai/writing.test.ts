@@ -3,7 +3,17 @@
  * generateWriting 本身走 AI/DB，这里只测可测的 parseContinuationTitle。
  */
 import { describe, it, expect } from 'vitest'
-import { parseContinuationTitle } from './writing'
+import { cleanWritingTail, parseContinuationTitle } from './writing'
+
+describe('cleanWritingTail', () => {
+  it('保留清洗后正文的末尾哨兵，而不是前缀', () => {
+    const source = `${'前文。'.repeat(3000)}唯一的章节结尾哨兵。`
+    const tail = cleanWritingTail(source, 32)
+    expect(tail).toContain('唯一的章节结尾哨兵。')
+    expect(tail.endsWith('唯一的章节结尾哨兵。')).toBe(true)
+    expect(tail.length).toBeLessThanOrEqual(32)
+  })
+})
 
 describe('parseContinuationTitle', () => {
   it('识别「标题：xxx」前缀并剥离标题行', () => {

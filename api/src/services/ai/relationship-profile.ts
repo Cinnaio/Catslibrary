@@ -12,10 +12,11 @@
  * 进展）区分；放 system（长期纪律层），与风格画像并列。
  */
 import type { Db } from '../../db/pool'
-import { all, first, run } from '../../db/query'
+import { first, run } from '../../db/query'
 import { AiError, chat, isTextAiConfigured, providerLabel, textProvider } from './client'
 import { getAiSettings } from './settings'
 import { recordUsage } from './usage'
+import { evaluateProfileSource, loadProfileSample, sampleText, type ProfileEligibility, type ProfileSource } from './profile-source'
 
 /** 默认取样章节数：关系动态比情节状态稳定，取稍长窗口看清关系演变。 */
 export const DEFAULT_RELATIONSHIP_SAMPLE_CHAPTERS = 10
@@ -42,6 +43,8 @@ export interface RelationshipProfileResult {
   profile: string
   model: string
   usage: { promptTokens: number; completionTokens: number }
+  source?: ProfileSource
+  updatedAt?: number
 }
 
 /**
@@ -51,6 +54,7 @@ export interface RelationshipProfileResult {
 export async function extractRelationshipProfile(db: Db, opts: {
   userId: string
   novelId: string
+  afterChapterId?: string
   /** 取样最近多少章正文，默认 10，范围 1-30。 */
   sampleChapters?: number
   ipAddress?: string
@@ -61,30 +65,26 @@ export async function extractRelationshipProfile(db: Db, opts: {
   const { novelId } = opts
   const sampleChapters = Math.min(30, Math.max(1, Math.trunc(Number(opts.sampleChapters)) || DEFAULT_RELATIONSHIP_SAMPLE_CHAPTERS))
 
-  const rows = await all<{ title: string; content: string }>(
-    db,
-    'SELECT title, content FROM chapters WHERE novel_id = $1 ORDER BY sort_order DESC LIMIT $2',
-    [novelId, sampleChapters],
-  )
+  const sample = await loadProfileSample(db, { novelId, afterChapterId: opts.afterChapterId, sampleCount: sampleChapters, clean: cleanForSample })
   const now = Date.now()
   const settings = await getAiSettings(db)
   // 无章节：写空画像，让续写跳过注入
-  if (!rows.length) {
+  if (!sample) {
     await run(
       db,
-      `INSERT INTO novel_relationship_profiles (novel_id, profile, model, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $4)
-       ON CONFLICT (novel_id) DO UPDATE SET profile = EXCLUDED.profile, model = EXCLUDED.model, updated_at = EXCLUDED.updated_at`,
-      [novelId, FALLBACK_RELATIONSHIP_PROFILE, '', now],
+      `INSERT INTO novel_relationship_profiles (novel_id, profile, model, source_json, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $5)
+       ON CONFLICT (novel_id) DO UPDATE SET profile = EXCLUDED.profile, model = EXCLUDED.model, source_json = EXCLUDED.source_json, updated_at = EXCLUDED.updated_at`,
+      [novelId, FALLBACK_RELATIONSHIP_PROFILE, '', '', now],
     )
-    return { profile: FALLBACK_RELATIONSHIP_PROFILE, model: '', usage: { promptTokens: 0, completionTokens: 0 } }
+    return { profile: FALLBACK_RELATIONSHIP_PROFILE, model: '', updatedAt: now, usage: { promptTokens: 0, completionTokens: 0 } }
   }
 
-  const sample = rows.reverse().map((row) => `【${row.title}】\n${cleanForSample(row.content)}`).join('\n\n')
+  const sampleTextValue = sampleText(sample, cleanForSample)
   const res = await chat({
     messages: [
       { role: 'system', content: RELATIONSHIP_EXTRACT_SYSTEM },
-      { role: 'user', content: `作品正文样例（最近 ${rows.length} 章）：\n${sample}` },
+      { role: 'user', content: `作品正文样例（最近 ${sample.rows.length} 章）：\n${sampleTextValue}` },
     ],
     temperature: 0.3,
     maxTokens: settings.relationshipProfileMaxTokens,
@@ -93,10 +93,10 @@ export async function extractRelationshipProfile(db: Db, opts: {
   const profile = res.text.trim() || FALLBACK_RELATIONSHIP_PROFILE
   await run(
     db,
-    `INSERT INTO novel_relationship_profiles (novel_id, profile, model, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $4)
-     ON CONFLICT (novel_id) DO UPDATE SET profile = EXCLUDED.profile, model = EXCLUDED.model, updated_at = EXCLUDED.updated_at`,
-    [novelId, profile, res.model, now],
+    `INSERT INTO novel_relationship_profiles (novel_id, profile, model, source_json, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $5)
+     ON CONFLICT (novel_id) DO UPDATE SET profile = EXCLUDED.profile, model = EXCLUDED.model, source_json = EXCLUDED.source_json, updated_at = EXCLUDED.updated_at`,
+    [novelId, profile, res.model, JSON.stringify(sample.source), now],
   )
   await recordUsage(db, {
     userId: opts.userId,
@@ -110,13 +110,23 @@ export async function extractRelationshipProfile(db: Db, opts: {
     ipAddress: opts.ipAddress,
     userAgent: opts.userAgent,
   })
-  return { profile, model: res.model, usage: { promptTokens: res.promptTokens, completionTokens: res.completionTokens } }
+  return { profile, model: res.model, source: sample.source, updatedAt: now, usage: { promptTokens: res.promptTokens, completionTokens: res.completionTokens } }
 }
 
 /** 读取已存的关系画像；未提取过返回空串，调用方决定是否兜底。 */
 export async function getRelationshipProfile(db: Db, novelId: string): Promise<string> {
   const row = await first<{ profile: string }>(db, 'SELECT profile FROM novel_relationship_profiles WHERE novel_id = $1', [novelId])
   return row?.profile || ''
+}
+
+export async function getRelationshipProfileForAnchor(db: Db, novelId: string, afterChapterId?: string): Promise<{
+  profile: string
+  source?: ProfileSource
+  updatedAt: number
+  eligibility: ProfileEligibility
+  isOlderThanAnchor: boolean
+}> {
+  return evaluateProfileSource(db, { kind: 'relationship', novelId, afterChapterId, clean: cleanForSample })
 }
 
 /** 清洗取样正文：去 HTML/多余空白，单章截断。 */
