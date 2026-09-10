@@ -811,7 +811,7 @@ struct AdminAICoverView: View {
     private var currentCoverComparisonCard: some View {
         VStack(alignment: .leading, spacing: 8) {
             CachedAsyncImage(
-                url: selectedNovel.map { APIClient.shared.coverURL(novelId: $0.id, updatedAt: $0.updatedAt) },
+                url: selectedNovel.flatMap { APIClient.shared.coverURL(novelId: $0.id, updatedAt: $0.updatedAt) },
                 targetSize: CGSize(width: 360, height: 540)
             ) { image in
                 image
