@@ -62,8 +62,8 @@ describe('buildImagePrompt', () => {
 
       expect(result.metadata.genre).toBe('scifi')
       expect(result.metadata.variationId).toBe('variation-a')
-      expect(result.prompt).toContain('Story categories: 科幻, 机甲')
       expect(result.prompt).toContain('少年驾驶旧机甲穿越废土')
+      expect(result.prompt).not.toContain('Story categories: 科幻, 机甲')
       expect(result.prompt).toContain('avoid generic stock cover layouts')
       expect(result.prompt).not.toContain('high detail digital painting')
     } finally {

@@ -38,14 +38,22 @@ describe('B6 phase-2 fixed fixtures', () => {
       expect(fixture.author.length).toBeGreaterThan(0)
       expect(Array.from(fixture.prompt).length).toBeLessThanOrEqual(2000)
       expect(fixture.expectedProviderCalls.image).toBe(1)
-      if (fixture.promptMode === 'exact') expect(fixture.renderTitle).toBe(false)
+      if (fixture.promptMode === 'exact') {
+        expect(fixture.renderTitle).toBe(false)
+        expect(fixture.expectedProviderCalls.text).toBe(0)
+        expect(fixture.prompt.length).toBeGreaterThan(0)
+      } else {
+        expect(fixture.prompt).toBe('')
+        expect(fixture.description.length).toBeGreaterThan(10)
+        expect(fixture.expectedProviderCalls.text).toBe(2)
+      }
     }
   })
 
   it('预算只记录预期供应商调用次数，不伪造费用', () => {
     expect(phase2FixtureBudget()).toEqual({
       writing: { text: 8, image: 0 },
-      cover: { text: 4, image: 6 },
+      cover: { text: 8, image: 6 },
     })
   })
 })

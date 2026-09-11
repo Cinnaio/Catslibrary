@@ -44,4 +44,17 @@ describe('resolveRomanceVisualDNA', () => {
     expect(other.setting).not.toBe(first.setting)
     expect(other.visualAnchor).not.toBe(first.visualAnchor)
   })
+
+  it('资料没有明确物件时不凭空补写合同、戒指或时代道具', () => {
+    const dna = resolveRomanceVisualDNA({
+      title: '未命名的相遇',
+      categories: ['现代言情'],
+      description: '两个人在一座陌生城市短暂相遇，谁也没有说明自己的来意。',
+      variationId: 'neutral-anchor',
+      composition: 'symbolic',
+    })
+
+    expect(dna.visualAnchor).toContain('if present')
+    expect(dna.visualAnchor).not.toMatch(/ring|contract|cup|pendant|invitation/iu)
+  })
 })

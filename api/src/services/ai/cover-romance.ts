@@ -7,6 +7,7 @@ export type RomanceSubtype = 'sweet' | 'contract' | 'workplace' | 'campus' | 're
 
 export type RomanceEmotion = 'sweet' | 'tension' | 'bittersweet' | 'healing' | 'dangerous' | 'playful'
 export type RomanceVisualConcept = 'object' | 'distance' | 'environment' | 'action' | 'threshold' | 'split' | 'silhouette' | 'aftermath'
+export type RomanceCoverComposition = 'portrait' | 'duo' | 'environment' | 'symbolic' | 'silhouette' | 'off_center'
 
 export interface RomanceVisualDNA {
   subtype: RomanceSubtype
@@ -123,15 +124,15 @@ const RELATIONSHIPS: Record<RomanceSubtype, string> = {
 }
 
 const SUBTYPE_SETTINGS: Record<RomanceSubtype, string> = {
-  sweet: 'a lived-in neighborhood, kitchen, bookstore, or other intimate everyday place',
-  contract: 'a modern penthouse, boardroom, wedding venue, or elevator where public image and private truth collide',
-  workplace: 'a specific workplace such as a studio, newsroom, hospital corridor, courtroom, or late-night office',
-  campus: 'a campus corridor, library, empty classroom, sports field, or bus stop after school',
-  reunion: 'a railway platform, airport arrival hall, old neighborhood, or familiar place changed by time',
-  healing: 'a quiet hospital corridor, therapy room, apartment at night, or early-morning street after rain',
-  suspense: 'a rain-darkened street, evidence room, bridge, archive, or dim location connected to the case',
-  revenge: 'a gala, courtroom, abandoned house, hotel corridor, or other place where a secret can be exposed',
-  historical: 'an old courtyard, river town, lantern-lit corridor, garden pavilion, or restrained palace interior',
+  sweet: 'a lived-in everyday place shaped by the premise, where a small act of care is visible',
+  contract: 'a public-facing modern setting where image and private truth collide',
+  workplace: 'a concrete workplace location drawn from the premise, with tools and unfinished work nearby',
+  campus: 'a lived-in campus location drawn from the premise, carrying the awkward energy of first love',
+  reunion: 'a familiar transit or neighborhood setting changed by time and the possibility of repair',
+  healing: 'a quiet place where practical care and recovery leave visible traces',
+  suspense: 'a dim location connected to the case, with evidence and danger sharing the frame',
+  revenge: 'a public or abandoned place where a hidden truth can be exposed',
+  historical: 'a restrained historical setting drawn from the premise and shaped by social duty',
   general: 'a story-specific location drawn from the premise, never a generic café, garden, or sunset beach',
 }
 
@@ -163,21 +164,28 @@ const EMOTION_VISUALS: Record<RomanceEmotion, { palette: string; lighting: strin
 }
 
 const ANCHOR_RULES: Array<{ words: string[]; anchor: string }> = [
-  { words: ['戒指', '婚戒', '钻戒', '珠宝', '项链'], anchor: 'a single wedding ring or unfinished necklace as the story-defining object' },
-  { words: ['相机', '摄影', '照片', '镜头', '拍摄'], anchor: 'an old camera, contact sheet, or half-developed photograph as the story-defining object' },
-  { words: ['雨伞', '雨夜', '下雨', '雨中'], anchor: 'one transparent umbrella and rain-slicked pavement as the story-defining visual motif' },
-  { words: ['车票', '火车', '车站', '机场', '航班'], anchor: 'a creased train ticket or departure board as the story-defining object' },
-  { words: ['医院', '医生', '急诊', '病历', '护士'], anchor: 'a hospital wristband, folded medical chart, or corridor light as the story-defining object' },
-  { words: ['信', '书信', '日记', '便签', '短信', '消息'], anchor: 'an opened letter or phone with one unread message as the story-defining object' },
-  { words: ['婚礼', '请柬', '婚纱'], anchor: 'a wedding invitation, veil, or empty ceremony chair as the story-defining object' },
+  { words: ['戒指', '婚戒', '钻戒', '珠宝', '项链'], anchor: 'a single wedding ring as the story-defining object' },
+  { words: ['相机', '摄影', '照片', '镜头', '拍摄'], anchor: 'an old camera as the story-defining object' },
+  { words: ['雨伞', '雨夜', '下雨', '雨中'], anchor: 'one transparent umbrella as the story-defining visual motif' },
+  { words: ['车票', '火车', '车站', '机场', '航班'], anchor: 'a creased train ticket as the story-defining object' },
+  { words: ['医院', '医生', '急诊', '病历', '护士'], anchor: 'a hospital wristband as the story-defining object' },
+  { words: ['书信', '日记', '便签', '短信', '消息'], anchor: 'an opened letter as the story-defining object' },
+  { words: ['婚礼', '请柬', '婚纱'], anchor: 'a wedding invitation as the story-defining object' },
 ]
 
-export function resolveRomanceVisualDNA(args: { title: string; categories?: string[]; description?: string; variationId?: string }): RomanceVisualDNA {
+export function resolveRomanceVisualDNA(args: {
+  title: string
+  categories?: string[]
+  description?: string
+  variationId?: string
+  composition?: RomanceCoverComposition | string
+}): RomanceVisualDNA {
   const text = `${args.title || ''} ${(args.categories || []).join(' ')} ${args.description || ''}`.toLowerCase()
   const subtype = firstSubtype(text)
   const emotion = resolveEmotion(text, subtype)
-  const concept = CONCEPTS[stableHash(`${args.variationId || 'default'}|${subtype}`) % CONCEPTS.length]!
-  const anchor = firstAnchor(text, subtype, concept.value)
+  const conceptPool = conceptsForComposition(args.composition)
+  const concept = conceptPool[stableHash(`${args.variationId || 'default'}|${subtype}`) % conceptPool.length]!
+  const anchor = firstAnchor(text, concept.value)
   const setting = resolveSetting(text, subtype)
   const relationshipDynamic = RELATIONSHIPS[subtype]
   const action = resolveAction(subtype, concept.value, anchor)
@@ -211,11 +219,13 @@ export function resolveRomanceVisualDNA(args: { title: string; categories?: stri
 }
 
 function firstSubtype(text: string): RomanceSubtype {
+  // 时代资料优先于“婚约/合同”等关系词，避免古代婚约被套成现代豪门场景。
+  if (hasAny(text, ['古言', '古代', '宫廷', '王府', '侯府', '将军', '丞相', '江南', '宫斗'])) return 'historical'
   return SUBTYPE_RULES.find((rule) => rule.words.some((word) => text.includes(word)))?.subtype || 'general'
 }
 
 function resolveEmotion(text: string, subtype: RomanceSubtype): RomanceEmotion {
-  if (['suspense', 'revenge'].includes(subtype) || hasAny(text, ['追杀', '凶案', '危险', '秘密', '血', '背叛'])) return 'dangerous'
+  if (['suspense', 'revenge'].includes(subtype) || hasAny(text, ['追杀', '凶案', '危险', '秘密', '血迹', '出血', '鲜血', '血案', '背叛'])) return 'dangerous'
   if (subtype === 'healing' || hasAny(text, ['治愈', '救赎', '陪伴', '失眠', '创伤'])) return 'healing'
   if (subtype === 'reunion' || hasAny(text, ['重逢', '久别', '遗憾', '离开', '错过', '旧爱'])) return 'bittersweet'
   if (['contract', 'workplace'].includes(subtype) || hasAny(text, ['合约', '契约', '对峙', '误会', '冷面'])) return 'tension'
@@ -223,35 +233,24 @@ function resolveEmotion(text: string, subtype: RomanceSubtype): RomanceEmotion {
   return 'sweet'
 }
 
-function firstAnchor(text: string, subtype: RomanceSubtype, concept: RomanceVisualConcept): string {
+function firstAnchor(text: string, concept: RomanceVisualConcept): string {
   const explicit = ANCHOR_RULES.find((rule) => rule.words.some((word) => text.includes(word)))?.anchor
   if (explicit) return explicit
-  const fallback: Record<RomanceSubtype, string> = {
-    sweet: 'two mismatched coffee cups or a shared grocery list as a small intimate object',
-    contract: 'a signed contract beside a ring box as the story-defining object',
-    workplace: 'an access card, marked-up draft, or work badge linking the two protagonists',
-    campus: 'a library card, handwritten note, or single shared earphone',
-    reunion: 'an old photograph or familiar key carried across the years',
-    healing: 'a bedside lamp, medicine box, or folded blanket showing practical care',
-    suspense: 'a sealed evidence envelope or hidden photograph connected to the secret',
-    revenge: 'a torn invitation, redacted file, or object returned after betrayal',
-    historical: 'a jade pendant, hairpin, oil-paper fan, or letter in classical surroundings',
-    general: 'one specific object from the premise, never a decorative generic romance prop',
-  }
-  const value = fallback[subtype]
+  // 资料没有明确物件时只保留条件性锚点，不能凭空加入合同、戒指、证物或时代道具。
+  const value = 'one specific object from the premise, if present, as the story-defining anchor'
   return concept === 'object' || concept === 'aftermath' ? value : `${value} used as a recurring visual motif`
 }
 
 function resolveSetting(text: string, subtype: RomanceSubtype): string {
-  if (hasAny(text, ['医院', '医生', '急诊', '病历'])) return 'a hospital corridor or emergency entrance with practical fluorescent and dawn light'
-  if (hasAny(text, ['摄影', '相机', '珠宝', '设计师', '工作室'])) return 'a working studio filled with concrete tools, drafts, and unfinished work'
-  if (hasAny(text, ['车站', '火车', '机场', '航班'])) return 'a transit space where departure and arrival create visible emotional pressure'
-  if (hasAny(text, ['校园', '大学', '高中', '同学'])) return 'a campus location with lived-in details rather than a generic romantic backdrop'
+  if (hasAny(text, ['医院', '医生', '急诊', '病历'])) return 'a hospital corridor with practical fluorescent and dawn light'
+  if (hasAny(text, ['摄影', '相机', '珠宝', '设计师', '工作室'])) return 'a working studio filled with concrete tools and unfinished work'
+  if (hasAny(text, ['车站', '火车', '机场', '航班'])) return 'a transit platform where departure creates visible emotional pressure'
+  if (hasAny(text, ['校园', '大学', '高中', '同学'])) return 'a lived-in campus corridor with details specific to the relationship'
   return SUBTYPE_SETTINGS[subtype]
 }
 
 function resolveAction(subtype: RomanceSubtype, concept: RomanceVisualConcept, anchor: string): string {
-  if (concept === 'object') return `one protagonist passes, hides, repairs, or discovers ${anchor}`
+  if (concept === 'object') return `one protagonist leaves ${anchorSubject(anchor)} in the other's path`
   if (concept === 'distance') return 'the protagonists move in different directions while one concrete gesture reveals who still cares'
   if (concept === 'environment') return 'the protagonists perform a story-specific task inside the setting, not a static pose'
   if (concept === 'threshold') return 'one protagonist pauses on one side of the boundary while the other chooses whether to turn back'
@@ -260,6 +259,24 @@ function resolveAction(subtype: RomanceSubtype, concept: RomanceVisualConcept, a
   if (concept === 'aftermath') return 'the setting shows the physical trace of a recent choice, encounter, or separation'
   if (subtype === 'suspense') return 'one protagonist protects evidence while the other watches the danger approaching'
   return 'a concrete gesture of hesitation, care, or confrontation replaces a generic embrace'
+}
+
+function anchorSubject(anchor: string): string {
+  return anchor.replace(/\s+as the story-defining (?:object|visual motif|anchor)$/iu, '').trim()
+}
+
+function conceptsForComposition(value: string | undefined): Array<{ value: RomanceVisualConcept; prompt: string }> {
+  const allowed: Record<RomanceCoverComposition, RomanceVisualConcept[]> = {
+    portrait: ['distance', 'action', 'silhouette'],
+    duo: ['distance', 'action', 'threshold', 'split'],
+    environment: ['environment', 'threshold', 'aftermath'],
+    symbolic: ['object', 'aftermath'],
+    silhouette: ['silhouette', 'distance', 'threshold'],
+    off_center: ['split', 'distance', 'object', 'threshold'],
+  }
+  const values = value && value in allowed ? allowed[value as RomanceCoverComposition] : null
+  if (!values) return CONCEPTS
+  return CONCEPTS.filter((concept) => values.includes(concept.value))
 }
 
 function hasAny(text: string, words: string[]): boolean {
