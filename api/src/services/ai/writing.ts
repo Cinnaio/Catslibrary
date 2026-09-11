@@ -10,6 +10,7 @@ import { getStyleProfile } from './style-profile'
 import { getPlotState } from './plot-state'
 import { getRelationshipProfile } from './relationship-profile'
 import { compileWritingPrompt, WRITING_PROMPT_PIPELINE_VERSION } from './writing-prompt'
+import { DEFAULT_WRITING_CONTENT_PREFERENCES, formatWritingContentPreferences, validateWritingContentPreferences, type WritingContentPreferencesV1 } from './writing-preferences'
 
 const MAX_CONTEXT_CHARS = 12000
 
@@ -139,6 +140,8 @@ export interface ContinuationSnapshotV1 {
   profileBaseRevisions: Record<string, string>
   /** 每类有效画像在快照时的来源层；旧快照缺失时按 legacy 兼容。 */
   profileOrigins?: Record<string, 'automatic' | 'manual' | 'legacy'>
+  /** 任务创建时冻结的成人内容参数；旧快照缺失时按关闭兼容。 */
+  contentPreferences?: WritingContentPreferencesV1
   excludedProfiles: Array<{ kind: 'style' | 'relationship' | 'plot'; reason: string }>
 }
 
@@ -337,12 +340,17 @@ export async function generateWriting(db: Db, opts: {
   batchDrafts?: Array<{ index: number; text: string }>
   profileSources?: Record<string, unknown>
   profileOrigins?: Record<string, 'automatic' | 'manual' | 'legacy'>
+  /** 服务端校验并冻结的成人内容参数。 */
+  contentPreferences?: WritingContentPreferencesV1
 }): Promise<WritingResult> {
   if (!isTextAiConfigured()) throw new AiError('disabled', 'AI 文本服务未配置', 503)
   const promptPipelineVersion = opts.promptPipelineVersion === undefined ? WRITING_PROMPT_PIPELINE_VERSION : Number(opts.promptPipelineVersion)
   if (!Number.isInteger(promptPipelineVersion) || (promptPipelineVersion !== 1 && promptPipelineVersion !== WRITING_PROMPT_PIPELINE_VERSION)) {
     throw new AiError('invalid', `不支持的 AI 提示词流水线版本：${String(opts.promptPipelineVersion)}`, 422)
   }
+  const contentPreferencesResult = validateWritingContentPreferences(opts.contentPreferences)
+  if (contentPreferencesResult.error) throw new AiError('invalid', contentPreferencesResult.error, 422)
+  const contentPreferences = contentPreferencesResult.preferences || { ...DEFAULT_WRITING_CONTENT_PREFERENCES }
   const provider = textProvider()
   const settings = await getAiSettings(db)
   // 风格画像：把「保持风格一致」这句空话换成从原文提取的具体特征（句式/节奏/语气/设定）。
@@ -388,6 +396,7 @@ export async function generateWriting(db: Db, opts: {
       profileSources: opts.continuationSnapshot?.profileSources,
       profileOrigins: opts.continuationSnapshot?.profileOrigins,
       continuationSnapshot: opts.continuationSnapshot,
+      contentPreferences,
       writingSystemPrompt: settings.writingSystemPrompt,
     })
     system = compiled.system
@@ -402,6 +411,7 @@ export async function generateWriting(db: Db, opts: {
     }
     if (styleProfile) systemParts.push(`本作风格特征（续写须严格遵循）：\n${styleProfile}`)
     if (relationshipProfile) systemParts.push(`本作角色关系动态（续写须保持人设与权力结构一致，不得逾越关系边界）：\n${relationshipProfile}`)
+    systemParts.push(formatWritingContentPreferences(contentPreferences))
     system = systemParts.join('\n\n')
     const optionInstructions = [
       opts.targetWords ? `Target length: approximately ${Math.max(300, Math.min(30000, Math.trunc(opts.targetWords)))} Chinese characters.` : '',
@@ -440,7 +450,7 @@ export async function generateWriting(db: Db, opts: {
       chapterId: '',
       kind: opts.kind,
       model: res.model,
-      paramsJson: JSON.stringify({ version: 6, ...(usePipeline ? { promptPipelineVersion: WRITING_PROMPT_PIPELINE_VERSION } : {}), temperature, maxTokens, targetWords: opts.targetWords || 0, chapterCount: opts.chapterCount || 1, ...(opts.taskId ? { taskId: opts.taskId } : {}), ...(parsedTitle?.title ? { draftTitle: parsedTitle.title } : {}), ...(opts.batchId ? { batchId: opts.batchId, batchIndex: opts.batchIndex || 1, batchCount: opts.batchCount || 1 } : {}), ...(opts.continuationSnapshot ? { continuationSnapshot: opts.continuationSnapshot } : {}) }),
+      paramsJson: JSON.stringify({ version: 6, ...(usePipeline ? { promptPipelineVersion: WRITING_PROMPT_PIPELINE_VERSION } : {}), temperature, maxTokens, targetWords: opts.targetWords || 0, chapterCount: opts.chapterCount || 1, contentPreferences, ...(opts.taskId ? { taskId: opts.taskId } : {}), ...(parsedTitle?.title ? { draftTitle: parsedTitle.title } : {}), ...(opts.batchId ? { batchId: opts.batchId, batchIndex: opts.batchIndex || 1, batchCount: opts.batchCount || 1 } : {}), ...(opts.continuationSnapshot ? { continuationSnapshot: opts.continuationSnapshot } : {}) }),
       prompt: user,
       result: resultText,
       status: 'draft',
@@ -477,6 +487,7 @@ export async function generateContinuationChapters(db: Db, opts: {
   continuationSnapshot?: ContinuationSnapshotV1
   writingBrief?: WritingBriefV1
   promptPipelineVersion?: number
+  contentPreferences?: WritingContentPreferencesV1
 }): Promise<WritingBatchResult> {
   const count = Math.max(1, Math.min(20, Math.trunc(Number(opts.chapterCount) || 1)))
   const startIndex = Math.max(0, Math.min(count, Math.trunc(Number(opts.startIndex) || 0)))
@@ -520,6 +531,7 @@ export async function generateContinuationChapters(db: Db, opts: {
       continuationSnapshot: opts.continuationSnapshot,
       writingBrief: opts.writingBrief,
       promptPipelineVersion,
+      contentPreferences: opts.contentPreferences,
       batchDrafts: usePipeline ? batchDrafts : undefined,
     })
     generations.push(result.generation)

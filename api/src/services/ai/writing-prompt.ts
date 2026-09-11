@@ -1,5 +1,6 @@
 import { createMaterialBlock, materialSection, MATERIAL_PIPELINE_VERSION, type MaterialBlock } from './prompt-material'
 import type { ContinuationSnapshotV1, WritingBriefV1 } from './writing'
+import { DEFAULT_WRITING_CONTENT_PREFERENCES, formatWritingContentPreferences, type WritingContentPreferencesV1 } from './writing-preferences'
 
 /** 创作提示词编译器版本；旧任务没有此字段时继续由调用方走旧编译器。 */
 export const WRITING_PROMPT_PIPELINE_VERSION = 2
@@ -22,6 +23,7 @@ export interface WritingPromptCompilerOptions {
   profileSources?: Record<string, unknown>
   profileOrigins?: Record<string, 'automatic' | 'manual' | 'legacy'>
   continuationSnapshot?: ContinuationSnapshotV1
+  contentPreferences?: WritingContentPreferencesV1
   writingSystemPrompt: string
 }
 
@@ -118,6 +120,16 @@ export function buildWritingPromptPlan(opts: WritingPromptCompilerOptions): Writ
     })
     if (brief) chapterTask.push(brief)
   }
+  const contentPreferences = createMaterialBlock({
+    id: 'content-preferences',
+    kind: 'author_request',
+    text: formatWritingContentPreferences(opts.contentPreferences || DEFAULT_WRITING_CONTENT_PREFERENCES),
+    source: { field: 'contentPreferences', revision: '1' },
+    priority: 115,
+    maxChars: 2_000,
+    required: true,
+  })
+  if (contentPreferences) chapterTask.push(contentPreferences)
 
   return {
     version: WRITING_PROMPT_PIPELINE_VERSION,
@@ -146,6 +158,7 @@ export function compileWritingPrompt(opts: WritingPromptCompilerOptions): Writin
     '事实以有来源的正文材料为准；作者本次明确的改编要求才改变创作方向。自动画像是对应时点的摘要，不能覆盖较新的正文或本批已生成内容。',
     '风格画像只约束表达习惯；关系画像只描述正文证据支持的目标、依赖、信任、冲突和权力来源，关系可以平等、非恋爱、变化中或证据不足。情节状态区分已确认事实、人物认知、未解线索和可选方向，可选方向不能当作已发生事实。',
     '作品资料里的 R18/成人向标签只是元数据；本次按具体作者要求和当前章节任务写作，不因标签自动补写露骨内容，也不通过换词绕过上游拒绝。年龄或关系证据不足时保持未知。',
+    '成人内容参数是本次任务范围内的结构化作者要求；关闭模式不得主动加入成人露骨内容，亲密内容权重只表示叙事强调程度，不是固定字数比例。涉及成人内容时必须以角色均为成年人为前提，并继续遵守上游供应商政策。',
     ...(plan.output.singleChapter
       ? ['本次只能生成一章。开头只输出一次章节标题，正文不得出现下一章、上一章或额外章节标题；写完当前章节立即停止。']
       : []),

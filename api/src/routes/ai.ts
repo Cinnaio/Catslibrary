@@ -45,6 +45,7 @@ import { clientIpFromContext } from '../services/ai/audit-context'
 import { idempotencyKeyFromRequest, requestHash, withIdempotency } from '../services/idempotency'
 import { buildRewriteTaskParams, parseRewriteSuggestion, parseRewriteTaskParams, runRewriteTask, validateRewriteSelection, type RewriteMode } from '../services/ai/rewrite'
 import { resolveStoredPipelineVersion } from '../services/ai/prompt-version'
+import { DEFAULT_WRITING_CONTENT_PREFERENCES, validateWritingContentPreferences, type WritingContentPreferencesV1 } from '../services/ai/writing-preferences'
 
 export const aiRoutes = new Hono<AuthEnv>()
 
@@ -340,6 +341,7 @@ function writingOptions(body: Record<string, any>) {
   return {
     targetWords: body.targetWords,
     chapterCount: body.chapterCount,
+    contentPreferences: body.contentPreferences,
   }
 }
 
@@ -360,6 +362,7 @@ function writingTaskParams(body: Record<string, any>, continuationSnapshot?: Con
       : {}),
     ...(typeof body.clientRequestId === 'string' && body.clientRequestId.trim() ? { clientRequestId: body.clientRequestId.trim().slice(0, 160) } : {}),
     ...(body.writingBrief ? { writingBrief: body.writingBrief } : {}),
+    contentPreferences: body.contentPreferences || { ...DEFAULT_WRITING_CONTENT_PREFERENCES },
     promptPipelineVersion,
     ...(continuationSnapshot ? { continuationSnapshot } : {}),
   })
@@ -441,13 +444,21 @@ function parseContinuationSnapshot(value: unknown): ContinuationSnapshotV1 | und
       }
     }
   }
-  return { ...snapshot, profileRevisions, profileBaseRevisions } as unknown as ContinuationSnapshotV1
+  const contentPreferencesResult = validateWritingContentPreferences(snapshot.contentPreferences)
+  if (contentPreferencesResult.error) return undefined
+  return {
+    ...snapshot,
+    profileRevisions,
+    profileBaseRevisions,
+    contentPreferences: contentPreferencesResult.preferences || { ...DEFAULT_WRITING_CONTENT_PREFERENCES },
+  } as unknown as ContinuationSnapshotV1
 }
 
 async function buildContinuationSnapshot(
   db: ReturnType<typeof getDb>,
   novelId: string,
   afterChapterId: string | undefined,
+  contentPreferences: WritingContentPreferencesV1 = DEFAULT_WRITING_CONTENT_PREFERENCES,
 ): Promise<ContinuationSnapshotV1 | undefined> {
   const loaded = await loadContinuationContext(db, novelId, afterChapterId)
   if (!loaded) return undefined
@@ -492,6 +503,7 @@ async function buildContinuationSnapshot(
     profileRevisions,
     profileBaseRevisions,
     profileOrigins,
+    contentPreferences,
     excludedProfiles,
   }
 }
@@ -517,6 +529,10 @@ async function startWritingJob(
   const briefResult = validateWritingBrief(body.writingBrief, requestedChapterCount)
   if (briefResult.error) return { ok: false, status: 422, error: briefResult.error }
   const writingBrief = briefResult.brief
+  const contentPreferencesResult = validateWritingContentPreferences(body.contentPreferences)
+  if (contentPreferencesResult.error) return { ok: false, status: 422, error: contentPreferencesResult.error }
+  const contentPreferences = contentPreferencesResult.preferences || { ...DEFAULT_WRITING_CONTENT_PREFERENCES }
+  body = { ...body, contentPreferences }
 
   // 并发上限（软限制，防误操作与上游限流）：运行中的创作任务过多时拒绝新任务
   const settings = await getAiSettings(db)
@@ -585,7 +601,7 @@ async function startWritingJob(
   let snapshot = internalSnapshot
   if (!snapshot) {
     try {
-      snapshot = await buildContinuationSnapshot(db, novelId, String(body.afterChapterId || '').trim() || undefined)
+      snapshot = await buildContinuationSnapshot(db, novelId, String(body.afterChapterId || '').trim() || undefined, contentPreferences)
     } catch (err) {
       if (err instanceof AiError && (err.status === 404 || err.code === 'invalid')) {
         return { ok: false, status: err.status === 404 ? 404 : 422, error: err.message }
@@ -594,6 +610,7 @@ async function startWritingJob(
     }
   }
   if (!snapshot) return { ok: false, status: 422, error: '此书暂无已发布章节，请先使用新写' }
+  const effectiveContentPreferences = snapshot.contentPreferences || contentPreferences
 
   const existing = resume?.drafts || []
   const indices = existing.map((draft) => draft.batchIndex)
@@ -636,6 +653,7 @@ async function startWritingJob(
     continuationSnapshot: snapshot,
     writingBrief,
     promptPipelineVersion,
+    contentPreferences: effectiveContentPreferences,
     ...audit,
   }).catch(async (err) => {
     console.error('[ai] 续写后台任务失败', err)
@@ -652,7 +670,13 @@ function startWritingRoute(kind: 'write_outline' | 'write_chapter' | 'continue')
     const chapterCount = kind === 'continue' ? Math.max(1, Math.min(20, Math.trunc(Number(rawBody.chapterCount) || 1))) : 1
     const briefResult = validateWritingBrief(rawBody.writingBrief, chapterCount)
     if (briefResult.error) return c.json({ error: briefResult.error }, 422)
-    const body = briefResult.brief ? { ...rawBody, writingBrief: briefResult.brief } : rawBody
+    const contentPreferencesResult = validateWritingContentPreferences(rawBody.contentPreferences)
+    if (contentPreferencesResult.error) return c.json({ error: contentPreferencesResult.error }, 422)
+    const body: Record<string, any> = {
+      ...rawBody,
+      ...(briefResult.brief ? { writingBrief: briefResult.brief } : {}),
+      contentPreferences: contentPreferencesResult.preferences || { ...DEFAULT_WRITING_CONTENT_PREFERENCES },
+    }
     // promptPipelineVersion 由服务端决定，不让客户端字段参与 request hash。
     const { promptPipelineVersion: _ignoredPromptPipelineVersion, ...idempotencyBody } = body
     const operationKey = idempotencyKeyFromRequest(c, body)

@@ -90,4 +90,27 @@ describe('writing prompt compiler', () => {
     expect(plan.style.find((block) => block.id === 'relationship-profile')).toMatchObject({ kind: 'manual_profile', source: { origin: 'manual' } })
     expect(plan.currentState.find((block) => block.id === 'plot-state')).toMatchObject({ kind: 'automatic_profile' })
   })
+
+  it('injects task-scoped content preferences without treating them as a fixed word ratio', () => {
+    const compiled = compileWritingPrompt({
+      kind: 'continue',
+      title: '参数化续写',
+      instruction: '保持人物关系自然推进',
+      contentPreferences: {
+        version: 1,
+        adultContentMode: 'explicit',
+        intimacyWeight: 'high',
+        adultCharactersConfirmed: true,
+      },
+      writingSystemPrompt: '指导',
+    })
+    expect(compiled.plan.chapterTask.find((block) => block.id === 'content-preferences')).toMatchObject({
+      kind: 'author_request',
+      source: { field: 'contentPreferences', revision: '1' },
+      required: true,
+    })
+    expect(compiled.user).toContain('亲密内容权重')
+    expect(compiled.user).toContain('不是固定字数或段落百分比')
+    expect(compiled.system).toContain('角色均为成年人')
+  })
 })

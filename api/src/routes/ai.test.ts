@@ -900,7 +900,13 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
         forbiddenEvents: '不得揭露幕后人物',
         chapterGoals: [{ index: 1, goal: '第一章发现证词冲突' }, { index: 2, goal: '第二章保留疑点' }],
       }
-      const started = await req('/api/ai/writing/continue', json('POST', { novelId, chapterCount: 2, writingBrief: brief }, adminToken))
+      const contentPreferences = {
+        version: 1,
+        adultContentMode: 'explicit',
+        intimacyWeight: 'high',
+        adultCharactersConfirmed: true,
+      }
+      const started = await req('/api/ai/writing/continue', json('POST', { novelId, chapterCount: 2, writingBrief: brief, contentPreferences }, adminToken))
       expect(started.status).toBe(202)
       const { taskId, batchId } = await jsonOf<{ taskId: string; batchId: string }>(started)
       expect((await waitForTask(taskId, adminToken)).status).toBe('completed')
@@ -909,12 +915,20 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
       const secondCall = observedCalls[1]!.map((message) => message.content).join('\n')
       expect(firstCall).toContain('CHAPTER_TASK')
       expect(firstCall).toContain('第一章发现证词冲突')
+      expect(firstCall).toContain('允许处理露骨 R18')
+      expect(firstCall).toContain('不是固定字数或段落百分比')
       expect(firstCall).not.toContain('第二章保留疑点')
       expect(secondCall).toContain('第二章保留疑点')
       expect(secondCall).not.toContain('第一章发现证词冲突')
       const task = await t.db.query<{ params: string }>('SELECT params FROM ai_tasks WHERE id = $1', [taskId])
-      const params = JSON.parse(task.rows[0]!.params) as { writingBrief: typeof brief }
+      const params = JSON.parse(task.rows[0]!.params) as {
+        writingBrief: typeof brief
+        contentPreferences: typeof contentPreferences
+        continuationSnapshot?: { contentPreferences?: typeof contentPreferences }
+      }
       expect(params.writingBrief).toEqual(brief)
+      expect(params.contentPreferences).toEqual(contentPreferences)
+      expect(params.continuationSnapshot?.contentPreferences).toEqual(contentPreferences)
       const drafts = await t.db.query<{ params_json: string }>("SELECT params_json FROM ai_generations WHERE kind = 'continue' AND params_json LIKE $1 ORDER BY created_at DESC LIMIT 2", [`%\\"batchId\\":\\"${batchId}\\"%`])
       expect(drafts.rows).toHaveLength(2)
 
@@ -924,6 +938,12 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
         writingBrief: { ...brief, chapterGoals: [{ index: 2, goal: '越界目标' }] },
       }, adminToken))
       expect(invalid.status).toBe(422)
+      const invalidPreferences = await req('/api/ai/writing/continue', json('POST', {
+        novelId,
+        chapterCount: 1,
+        contentPreferences: { ...contentPreferences, adultCharactersConfirmed: false },
+      }, adminToken))
+      expect(invalidPreferences.status).toBe(422)
       expect(fetchMock).toHaveBeenCalledTimes(2)
     } finally {
       if (previousFetch) fetchMock.mockImplementation(previousFetch)
