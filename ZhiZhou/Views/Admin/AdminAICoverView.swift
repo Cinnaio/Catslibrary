@@ -224,12 +224,14 @@ struct AdminAICoverView: View {
                     await resumePendingPromptTask()
                     await resumePendingCoverTask()
                 }
-            } else {
+            } else if phase == .background {
                 // 前台流连接不跨越系统挂起；服务端任务继续执行，回到前台后重新订阅。
                 promptPollTask?.cancel()
                 pollTask?.cancel()
                 promptPollTask = nil
                 pollTask = nil
+                promptPollingToken = UUID()
+                coverPollingToken = UUID()
                 generatingPrompt = false
                 generating = false
             }
@@ -1085,7 +1087,12 @@ struct AdminAICoverView: View {
                 startPromptStreaming(task.id)
             }
         } catch {
+            guard !Task.isCancelled else { return }
             generatingPrompt = false
+            if isTransientTaskError(error) {
+                taskStatusText = "提示词任务暂时无法查询，回到前台后会自动重试"
+                return
+            }
             taskStatusText = "提示词任务暂时无法查询，请稍后重试"
             actionError = AppCopy.friendlyError(error)
         }
@@ -1143,14 +1150,15 @@ struct AdminAICoverView: View {
                 startPromptStreaming(launch.taskID)
             }
         } catch {
+            guard !Task.isCancelled else { return }
             restorePromptTaskOriginal()
-            if case APIError.network = error {
+            if isTransientTaskError(error) {
                 generatingPrompt = false
                 taskStatusText = "请求中断，正在后台确认任务…"
             } else {
                 taskStatusText = nil
+                actionError = AppCopy.friendlyError(error)
             }
-            actionError = AppCopy.friendlyError(error)
         }
     }
 
@@ -1338,7 +1346,12 @@ struct AdminAICoverView: View {
                 pollCoverTask(task.id)
             }
         } catch {
+            guard !Task.isCancelled else { return }
             generating = false
+            if isTransientTaskError(error) {
+                taskStatusText = "封面任务暂时无法查询，回到前台后会自动重试"
+                return
+            }
             taskStatusText = "封面任务暂时无法查询，请稍后重试"
             actionError = AppCopy.friendlyError(error)
         }
@@ -1407,6 +1420,11 @@ struct AdminAICoverView: View {
                 if status == "completed" { await loadCandidates() }
             }
         } catch {
+            guard !Task.isCancelled else { return }
+            if isTransientTaskError(error) {
+                taskStatusText = "请求暂时中断，回到前台后会自动确认任务"
+                return
+            }
             actionError = AppCopy.friendlyError(error)
             taskStatusText = "请求中断时会按稳定请求 ID 自动恢复"
         }

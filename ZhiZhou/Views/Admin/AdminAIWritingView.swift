@@ -86,6 +86,7 @@ struct AdminAIWritingView: View {
     @State private var styleEffectiveContent = ""
     @State private var styleManualOverride: AiManualProfileOverride?
     @State private var styleBaseProfileRevision = ""
+    @State private var styleUpdatedAt: Int64 = 0
     @State private var plotState = ""
     @State private var plotChaptersThrough = 0
     @State private var plotChapterCount = 0
@@ -95,9 +96,11 @@ struct AdminAIWritingView: View {
     @State private var plotEffectiveContent = ""
     @State private var plotManualOverride: AiManualProfileOverride?
     @State private var plotBaseProfileRevision = ""
+    @State private var plotUpdatedAt: Int64 = 0
     @State private var relationshipEffectiveContent = ""
     @State private var relationshipManualOverride: AiManualProfileOverride?
     @State private var relationshipBaseProfileRevision = ""
+    @State private var relationshipUpdatedAt: Int64 = 0
     @State private var profileBusy = ""
     @State private var profileEditorKind = ""
     @State private var profileEditorText = ""
@@ -105,12 +108,18 @@ struct AdminAIWritingView: View {
     @State private var profileEditorBaseRevision = ""
     @State private var profileEditorBusy = false
     @State private var showingProfileEditor = false
+    @State private var pendingProfileRefreshScope = ""
+    @State private var pendingProfileRefreshNovelID = ""
+    @State private var pendingProfileRefreshAnchorID = ""
+    @State private var pendingProfileRefreshBaseline: Int64 = 0
+    @State private var isRecoveringProfileRefresh = false
 
     // 任务
     @State private var starting = false
     @State private var taskStatusText: String?
     @State private var activeTask: AiTaskInfo?
     @State private var pollTask: Task<Void, Never>?
+    @State private var isResumingWritingTask = false
     @State private var pollingPaused = false
     @State private var writingPollingToken = UUID()
     @State private var showingTaskResults = false
@@ -205,11 +214,13 @@ struct AdminAIWritingView: View {
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
-                Task { await resumeWritingTask() }
-            } else {
+                Task { await refreshAfterBecomingActive() }
+            } else if phase == .background {
+                // `.inactive` 只是切换过程中的短暂状态，不能在这里提前
+                // 丢掉恢复上下文；真正进入后台后只暂停前台轮询。
                 pollTask?.cancel()
                 pollTask = nil
-                starting = false
+                writingPollingToken = UUID()
             }
         }
         .onChange(of: afterChapterId) { _, anchorID in
@@ -577,6 +588,9 @@ struct AdminAIWritingView: View {
 
     private func onNovelSelected(_ id: String) async {
         guard id == novelId else { return }
+        if pendingProfileRefreshNovelID != id {
+            clearPendingProfileRefresh()
+        }
         let ticket = selectionRequests.begin(id)
         chapterOptions = []
         chapterLoadFailed = false
@@ -588,11 +602,13 @@ struct AdminAIWritingView: View {
         styleEffectiveContent = ""
         styleManualOverride = nil
         styleBaseProfileRevision = ""
+        styleUpdatedAt = 0
         plotState = ""
         plotEligibility = ""
         plotEffectiveContent = ""
         plotManualOverride = nil
         plotBaseProfileRevision = ""
+        plotUpdatedAt = 0
         plotChaptersThrough = 0
         plotChapterCount = 0
         relationshipProfile = ""
@@ -600,6 +616,7 @@ struct AdminAIWritingView: View {
         relationshipEffectiveContent = ""
         relationshipManualOverride = nil
         relationshipBaseProfileRevision = ""
+        relationshipUpdatedAt = 0
         defer { selectionRequests.finish(ticket) }
         // 载入章节列表与已提取画像（并行发起，分别容错）
         async let chaptersTask = AdminAPI.chapters(novelId: id)
@@ -619,23 +636,31 @@ struct AdminAIWritingView: View {
             styleEffectiveContent = style?.effectiveContent ?? style?.profile ?? ""
             styleManualOverride = style?.manualOverride
             styleBaseProfileRevision = style?.baseProfileRevision ?? ""
+            styleUpdatedAt = style?.updatedAt ?? 0
             plotState = plot?.state ?? ""
             plotEffectiveContent = plot?.effectiveContent ?? plot?.state ?? ""
             plotManualOverride = plot?.manualOverride
             plotBaseProfileRevision = plot?.baseProfileRevision ?? ""
+            plotUpdatedAt = plot?.updatedAt ?? 0
             plotChaptersThrough = plot?.chaptersThrough ?? 0
             plotChapterCount = plot?.chapterCount ?? 0
             relationshipProfile = relation?.profile ?? ""
             relationshipEffectiveContent = relation?.effectiveContent ?? relation?.profile ?? ""
             relationshipManualOverride = relation?.manualOverride
             relationshipBaseProfileRevision = relation?.baseProfileRevision ?? ""
+            relationshipUpdatedAt = relation?.updatedAt ?? 0
             styleEligibility = style?.eligibility ?? ""
             plotEligibility = plot?.eligibility ?? ""
             relationshipEligibility = relation?.eligibility ?? ""
         }
     }
 
-    private func loadProfileStatuses(novelID: String, anchorID: String?) async {
+    private func loadProfileStatuses(
+        novelID: String,
+        anchorID: String?,
+        minimumUpdatedAt: Int64? = nil,
+        minimumUpdatedScope: String? = nil
+    ) async {
         guard novelID == self.novelId else { return }
         let query = "\(novelID)|\(anchorID ?? "")"
         let ticket = profileRequests.begin(query)
@@ -647,22 +672,122 @@ struct AdminAIWritingView: View {
         let plot = try? await plotTask
         let relation = try? await relationTask
         guard !Task.isCancelled, novelID == self.novelId, profileRequests.accepts(ticket, query: query) else { return }
-        styleProfile = style?.profile ?? ""
-        styleEffectiveContent = style?.effectiveContent ?? style?.profile ?? ""
-        styleManualOverride = style?.manualOverride
-        styleBaseProfileRevision = style?.baseProfileRevision ?? ""
-        plotState = plot?.state ?? ""
-        plotEffectiveContent = plot?.effectiveContent ?? plot?.state ?? ""
-        plotManualOverride = plot?.manualOverride
-        plotBaseProfileRevision = plot?.baseProfileRevision ?? ""
-        plotChaptersThrough = plot?.source?.chapterOrdinal ?? plot?.chaptersThrough ?? 0
-        relationshipProfile = relation?.profile ?? ""
-        relationshipEffectiveContent = relation?.effectiveContent ?? relation?.profile ?? ""
-        relationshipManualOverride = relation?.manualOverride
-        relationshipBaseProfileRevision = relation?.baseProfileRevision ?? ""
-        styleEligibility = style?.eligibility ?? ""
-        plotEligibility = plot?.eligibility ?? ""
-        relationshipEligibility = relation?.eligibility ?? ""
+        let styleFloor = minimumUpdatedScope == "style" ? minimumUpdatedAt : nil
+        let plotFloor = minimumUpdatedScope == "plot" ? minimumUpdatedAt : nil
+        let relationshipFloor = minimumUpdatedScope == "relationship" ? minimumUpdatedAt : nil
+
+        // A failed sibling GET must not turn a successful refresh into an empty
+        // row. A response older than the POST result must not roll the row back
+        // while the server is still making the new source visible.
+        if let style,
+           shouldApplyProfileResponse(updatedAt: style.updatedAt, minimumUpdatedAt: styleFloor, currentUpdatedAt: styleUpdatedAt) {
+            applyStyleProfile(style)
+        }
+        if let plot,
+           shouldApplyProfileResponse(updatedAt: plot.updatedAt, minimumUpdatedAt: plotFloor, currentUpdatedAt: plotUpdatedAt) {
+            applyPlotProfile(plot)
+        }
+        if let relation,
+           shouldApplyProfileResponse(updatedAt: relation.updatedAt, minimumUpdatedAt: relationshipFloor, currentUpdatedAt: relationshipUpdatedAt) {
+            applyRelationshipProfile(relation)
+        }
+    }
+
+    private func shouldApplyProfileResponse(
+        updatedAt: Int64?,
+        minimumUpdatedAt: Int64?,
+        currentUpdatedAt: Int64
+    ) -> Bool {
+        let responseUpdatedAt = updatedAt ?? 0
+        if let minimumUpdatedAt, minimumUpdatedAt > 0, responseUpdatedAt < minimumUpdatedAt {
+            return false
+        }
+        if responseUpdatedAt == 0 {
+            return currentUpdatedAt == 0 && (minimumUpdatedAt ?? 0) == 0
+        }
+        return currentUpdatedAt == 0 || responseUpdatedAt >= currentUpdatedAt
+    }
+
+    private func applyStyleProfile(_ profile: AiProfileGetResponse) {
+        if let value = profile.profile {
+            styleProfile = value
+        }
+        if let value = profile.effectiveContent {
+            styleEffectiveContent = value
+        } else if let value = profile.profile {
+            styleEffectiveContent = value
+        }
+        styleManualOverride = profile.manualOverride
+        styleBaseProfileRevision = profile.baseProfileRevision ?? ""
+        styleUpdatedAt = profile.updatedAt ?? styleUpdatedAt
+        styleEligibility = profile.eligibility ?? ""
+    }
+
+    private func applyPlotProfile(_ profile: AiPlotStateGetResponse) {
+        if let value = profile.state {
+            plotState = value
+        }
+        if let value = profile.effectiveContent {
+            plotEffectiveContent = value
+        } else if let value = profile.state {
+            plotEffectiveContent = value
+        }
+        plotManualOverride = profile.manualOverride
+        plotBaseProfileRevision = profile.baseProfileRevision ?? ""
+        plotUpdatedAt = profile.updatedAt ?? plotUpdatedAt
+        plotChaptersThrough = profile.source?.chapterOrdinal ?? profile.chaptersThrough ?? plotChaptersThrough
+        plotEligibility = profile.eligibility ?? ""
+    }
+
+    private func applyRelationshipProfile(_ profile: AiProfileGetResponse) {
+        if let value = profile.profile {
+            relationshipProfile = value
+        }
+        if let value = profile.effectiveContent {
+            relationshipEffectiveContent = value
+        } else if let value = profile.profile {
+            relationshipEffectiveContent = value
+        }
+        relationshipManualOverride = profile.manualOverride
+        relationshipBaseProfileRevision = profile.baseProfileRevision ?? ""
+        relationshipUpdatedAt = profile.updatedAt ?? relationshipUpdatedAt
+        relationshipEligibility = profile.eligibility ?? ""
+    }
+
+    private func applyStyleRefreshResponse(_ response: AiProfileResponse) {
+        if let value = response.profile {
+            styleProfile = value
+            styleEffectiveContent = styleManualOverride?.content ?? value
+        }
+        styleEligibility = "usable"
+        if let updatedAt = response.updatedAt {
+            styleUpdatedAt = max(styleUpdatedAt, updatedAt)
+        }
+    }
+
+    private func applyPlotRefreshResponse(_ response: AiPlotStateResponse) {
+        if let value = response.state {
+            plotState = value
+            plotEffectiveContent = plotManualOverride?.content ?? value
+        }
+        if let chaptersThrough = response.chaptersThrough {
+            plotChaptersThrough = chaptersThrough
+        }
+        plotEligibility = "usable"
+        if let updatedAt = response.updatedAt {
+            plotUpdatedAt = max(plotUpdatedAt, updatedAt)
+        }
+    }
+
+    private func applyRelationshipRefreshResponse(_ response: AiProfileResponse) {
+        if let value = response.profile {
+            relationshipProfile = value
+            relationshipEffectiveContent = relationshipManualOverride?.content ?? value
+        }
+        relationshipEligibility = "usable"
+        if let updatedAt = response.updatedAt {
+            relationshipUpdatedAt = max(relationshipUpdatedAt, updatedAt)
+        }
     }
 
     private func profileStatusText(_ status: String) -> String {
@@ -683,45 +808,158 @@ struct AdminAIWritingView: View {
             return
         }
         guard profileBusy.isEmpty, !selectionRequests.isLoading else { return }
+        guard pendingProfileRefreshScope.isEmpty else {
+            taskStatusText = "画像提取仍在处理中，请等待结果刷新"
+            return
+        }
         let selectedID = novelId
+        let selectedAnchorID = afterChapterId.isEmpty ? nil : afterChapterId
+        pendingProfileRefreshScope = scope
+        pendingProfileRefreshNovelID = selectedID
+        pendingProfileRefreshAnchorID = selectedAnchorID ?? ""
+        pendingProfileRefreshBaseline = profileUpdatedAt(for: scope)
         profileBusy = scope
         defer { profileBusy = "" }
         do {
             switch scope {
             case "style":
-                let r = try await AdminAPI.aiRefreshStyleProfile(novelId: selectedID, afterChapterId: afterChapterId.isEmpty ? nil : afterChapterId)
+                let r = try await AdminAPI.aiRefreshStyleProfile(novelId: selectedID, afterChapterId: selectedAnchorID)
                 guard !Task.isCancelled, novelId == selectedID else { return }
-                styleProfile = r.profile ?? ""
-                styleEligibility = "usable"
-                await loadProfileStatuses(novelID: selectedID, anchorID: afterChapterId.isEmpty ? nil : afterChapterId)
+                applyStyleRefreshResponse(r)
+                clearPendingProfileRefresh()
+                await loadProfileStatuses(
+                    novelID: selectedID,
+                    anchorID: selectedAnchorID,
+                    minimumUpdatedAt: r.updatedAt,
+                    minimumUpdatedScope: "style"
+                )
             case "plot":
-                let r = try await AdminAPI.aiRefreshPlotState(novelId: selectedID, afterChapterId: afterChapterId.isEmpty ? nil : afterChapterId)
+                let r = try await AdminAPI.aiRefreshPlotState(novelId: selectedID, afterChapterId: selectedAnchorID)
                 guard !Task.isCancelled, novelId == selectedID else { return }
-                plotState = r.state ?? ""
-                plotChaptersThrough = r.chaptersThrough ?? 0
-                plotEligibility = "usable"
-                await loadProfileStatuses(novelID: selectedID, anchorID: afterChapterId.isEmpty ? nil : afterChapterId)
+                applyPlotRefreshResponse(r)
+                clearPendingProfileRefresh()
+                await loadProfileStatuses(
+                    novelID: selectedID,
+                    anchorID: selectedAnchorID,
+                    minimumUpdatedAt: r.updatedAt,
+                    minimumUpdatedScope: "plot"
+                )
             default:
-                let r = try await AdminAPI.aiRefreshRelationshipProfile(novelId: selectedID, afterChapterId: afterChapterId.isEmpty ? nil : afterChapterId)
+                let r = try await AdminAPI.aiRefreshRelationshipProfile(novelId: selectedID, afterChapterId: selectedAnchorID)
                 guard !Task.isCancelled, novelId == selectedID else { return }
-                relationshipProfile = r.profile ?? ""
-                relationshipEligibility = "usable"
-                await loadProfileStatuses(novelID: selectedID, anchorID: afterChapterId.isEmpty ? nil : afterChapterId)
+                applyRelationshipRefreshResponse(r)
+                clearPendingProfileRefresh()
+                await loadProfileStatuses(
+                    novelID: selectedID,
+                    anchorID: selectedAnchorID,
+                    minimumUpdatedAt: r.updatedAt,
+                    minimumUpdatedScope: "relationship"
+                )
             }
         } catch {
             guard !Task.isCancelled, novelId == selectedID else { return }
+            if isTransientTaskError(error) {
+                // The model may still be running on the server after the app
+                // was backgrounded. Re-read on the next foreground transition
+                // instead of presenting a false operation failure.
+                taskStatusText = "画像提取暂时中断，回到前台后会自动刷新"
+                await recoverProfileRefreshAfterBecomingActive()
+                return
+            }
+            clearPendingProfileRefresh()
             actionError = AppCopy.friendlyError(error)
         }
     }
 
+    private func profileUpdatedAt(for scope: String) -> Int64 {
+        switch scope {
+        case "style": return styleUpdatedAt
+        case "plot": return plotUpdatedAt
+        default: return relationshipUpdatedAt
+        }
+    }
+
+    private func clearPendingProfileRefresh() {
+        pendingProfileRefreshScope = ""
+        pendingProfileRefreshNovelID = ""
+        pendingProfileRefreshAnchorID = ""
+        pendingProfileRefreshBaseline = 0
+    }
+
+    /// 客户端超时不代表同步模型调用已经停止；回到前台后用只读 GET
+    /// 等待服务端把本次提取写入，而不是重新消耗一次模型调用。
+    private func recoverProfileRefreshAfterBecomingActive() async {
+        guard !isRecoveringProfileRefresh,
+              !pendingProfileRefreshScope.isEmpty,
+              !pendingProfileRefreshNovelID.isEmpty
+        else { return }
+
+        let scope = pendingProfileRefreshScope
+        let novelID = pendingProfileRefreshNovelID
+        let anchorID = pendingProfileRefreshAnchorID.isEmpty ? nil : pendingProfileRefreshAnchorID
+        let baseline = pendingProfileRefreshBaseline
+        let minimumUpdatedAt = baseline > 0 ? baseline + 1 : nil
+        isRecoveringProfileRefresh = true
+        defer { isRecoveringProfileRefresh = false }
+
+        for attempt in 0..<8 {
+            guard !Task.isCancelled,
+                  pendingProfileRefreshScope == scope,
+                  pendingProfileRefreshNovelID == novelID,
+                  novelId == novelID
+            else { return }
+
+            if attempt > 0 {
+                let delaySeconds = min(30, 2 << (attempt - 1))
+                do {
+                    try await Task.sleep(nanoseconds: UInt64(delaySeconds) * 1_000_000_000)
+                } catch {
+                    return
+                }
+            }
+
+            await loadProfileStatuses(
+                novelID: novelID,
+                anchorID: anchorID,
+                minimumUpdatedAt: minimumUpdatedAt,
+                minimumUpdatedScope: scope
+            )
+            if pendingProfileRefreshScope.isEmpty {
+                return
+            }
+            if profileUpdatedAt(for: scope) > baseline {
+                clearPendingProfileRefresh()
+                return
+            }
+        }
+
+        taskStatusText = "画像提取仍在服务器处理中，回到前台后会继续刷新"
+    }
+
+    private func refreshAfterBecomingActive() async {
+        await resumeWritingTask()
+        guard !Task.isCancelled, !novelId.isEmpty else { return }
+        if !pendingProfileRefreshScope.isEmpty {
+            await recoverProfileRefreshAfterBecomingActive()
+        } else {
+            await loadProfileStatuses(
+                novelID: novelId,
+                anchorID: afterChapterId.isEmpty ? nil : afterChapterId
+            )
+        }
+    }
+
     private func resumeWritingTask() async {
-        guard pollTask == nil else { return }
+        guard pollTask == nil, !isResumingWritingTask else { return }
+        isResumingWritingTask = true
+        defer { isResumingWritingTask = false }
         do {
             guard let task = try await AdminAITaskCoordinator.shared.resume(
                 key: AdminAITaskCoordinator.OperationKey.writing,
                 recoveryAttempts: 5
             ) else { return }
             activeTask = task
+            starting = false
             if let taskNovelID = task.novelId, !taskNovelID.isEmpty {
                 novelId = taskNovelID
                 await onNovelSelected(taskNovelID)
@@ -733,6 +971,11 @@ struct AdminAIWritingView: View {
                 taskStatusText = "任务\(AdminFormat.aiTaskStatus(task.status ?? ""))，可在「已生成内容」查看草稿。"
             }
         } catch {
+            guard !Task.isCancelled else { return }
+            if isTransientTaskError(error) {
+                taskStatusText = "创作任务暂时无法查询，回到前台后会自动重试"
+                return
+            }
             taskStatusText = "创作任务暂时无法查询，请稍后重试"
             actionError = AppCopy.friendlyError(error)
         }
@@ -817,6 +1060,11 @@ struct AdminAIWritingView: View {
                 taskStatusText = "任务\(AdminFormat.aiTaskStatus(task.status ?? ""))，可在「已生成内容」查看草稿。"
             }
         } catch {
+            guard !Task.isCancelled else { return }
+            if isTransientTaskError(error) {
+                taskStatusText = "请求暂时中断，回到前台后会自动确认任务"
+                return
+            }
             taskStatusText = "请求中断时会按稳定请求 ID 自动恢复"
             actionError = AppCopy.friendlyError(error)
         }

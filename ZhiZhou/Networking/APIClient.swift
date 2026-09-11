@@ -78,7 +78,7 @@ private actor ChapterCacheScope {
 
 /// 类型化 fetch 封装 —— 语义对齐 web/src/lib/api.ts。
 /// - 鉴权：Authorization: Bearer <token>（token 存 Keychain）
-/// - 超时：请求 30s
+/// - 超时：普通请求 30s；长耗时调用由调用方显式传入更长预算
 final class APIClient: NSObject, URLSessionTaskDelegate {
     static let shared = APIClient()
 
@@ -123,7 +123,9 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
         VisualAudit.configure(config)
         #endif
         config.timeoutIntervalForRequest = 30
-        config.timeoutIntervalForResource = 60
+        // AI 画像提取是同步的服务端模型调用，服务端自身可能进行多轮
+        // 上游重试；不能让 URLSession 的资源预算在回到前台前先把它判成失败。
+        config.timeoutIntervalForResource = 420
         return URLSession(configuration: config, delegate: self, delegateQueue: nil)
     }()
 
@@ -244,7 +246,8 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
         auth: Bool = false,
         contentType: String? = nil,
         idempotencyKey: String? = nil,
-        expectedToken: String? = nil
+        expectedToken: String? = nil,
+        timeout: TimeInterval = 30
     ) async throws -> T {
         try await requestInternal(
             method,
@@ -253,7 +256,8 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
             auth: auth,
             contentType: contentType,
             idempotencyKey: idempotencyKey,
-            expectedToken: expectedToken
+            expectedToken: expectedToken,
+            timeout: timeout
         )
     }
 
@@ -265,7 +269,8 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
         contentType: String? = nil,
         idempotencyKey: String? = nil,
         expectedToken: String? = nil,
-        expectedReaderCacheScope: ChapterCacheScope.Snapshot? = nil
+        expectedReaderCacheScope: ChapterCacheScope.Snapshot? = nil,
+        timeout: TimeInterval = 30
     ) async throws -> T {
         let url = try makeURL(path)
 
@@ -300,7 +305,7 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
 
         var req = URLRequest(url: url)
         req.httpMethod = method
-        req.timeoutInterval = 30
+        req.timeoutInterval = max(1, timeout)
         if let body {
             req.httpBody = body
             // multipart 上传（AI 封面上传等）由调用方指定完整 Content-Type（含 boundary）
@@ -616,8 +621,8 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
         }
     }
 
-    func post<T: Decodable>(_ path: String, body: Data? = nil, auth: Bool = false, idempotencyKey: String? = nil) async throws -> T {
-        try await request("POST", path, body: body, auth: auth, idempotencyKey: idempotencyKey)
+    func post<T: Decodable>(_ path: String, body: Data? = nil, auth: Bool = false, idempotencyKey: String? = nil, timeout: TimeInterval = 30) async throws -> T {
+        try await request("POST", path, body: body, auth: auth, idempotencyKey: idempotencyKey, timeout: timeout)
     }
 
     func delete<T: Decodable>(_ path: String, auth: Bool = false, idempotencyKey: String? = nil) async throws -> T {

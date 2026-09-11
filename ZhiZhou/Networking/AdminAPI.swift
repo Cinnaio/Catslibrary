@@ -968,7 +968,12 @@ enum AdminAPI {
         var payload: [String: Any] = ["novelId": novelId]
         if let sampleChapters { payload["sampleChapters"] = sampleChapters }
         if let afterChapterId, !afterChapterId.isEmpty { payload["afterChapterId"] = afterChapterId }
-        return try await APIClient.shared.post("/api/ai/writing/\(scope)", body: try jsonBody(payload), auth: true)
+        return try await APIClient.shared.post(
+            "/api/ai/writing/\(scope)",
+            body: try jsonBody(payload),
+            auth: true,
+            timeout: 420
+        )
     }
 
     private static func getAiProfile(_ scope: String, novelId: String, afterChapterId: String?) async throws -> AiProfileGetResponse {

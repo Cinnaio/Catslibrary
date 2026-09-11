@@ -101,35 +101,43 @@ final class AdminAITaskCoordinator {
 
         if resolved?.taskID?.isEmpty != false {
             for attempt in 0..<attempts {
-                resolved = try await coordinator.recover(key: key) { record in
-                    try await AdminAPI.recoverAiTask(
-                        clientRequestID: record.requestID,
-                        kind: record.kind,
-                        resourceID: record.resourceID,
-                        startedAt: record.startedAt
-                    )?.id
+                do {
+                    resolved = try await coordinator.recover(key: key) { record in
+                        try await AdminAPI.recoverAiTask(
+                            clientRequestID: record.requestID,
+                            kind: record.kind,
+                            resourceID: record.resourceID,
+                            startedAt: record.startedAt
+                        )?.id
+                    }
+                } catch {
+                    guard attempt + 1 < attempts, isTransient(error) else { throw error }
                 }
                 if resolved?.taskID?.isEmpty == false { break }
                 if attempt + 1 < attempts {
-                    try await Task.sleep(nanoseconds: 1_000_000_000)
+                    try await retryDelay(for: attempt)
                 }
             }
         }
 
         guard let taskID = resolved?.taskID, !taskID.isEmpty else { return nil }
-        do {
-            let task = try await AdminAPI.aiTask(id: taskID).task
-            if !task.isRunning {
-                coordinator.finish(key: key, expectedTaskID: taskID)
+        for attempt in 0..<attempts {
+            do {
+                let task = try await AdminAPI.aiTask(id: taskID).task
+                if !task.isRunning {
+                    coordinator.finish(key: key, expectedTaskID: taskID)
+                }
+                return task
+            } catch {
+                if case APIError.http(status: 404, message: _) = error {
+                    coordinator.finish(key: key, expectedTaskID: taskID)
+                    return nil
+                }
+                guard attempt + 1 < attempts, isTransient(error) else { throw error }
+                try await retryDelay(for: attempt)
             }
-            return task
-        } catch {
-            if case APIError.http(status: 404, message: _) = error {
-                coordinator.finish(key: key, expectedTaskID: taskID)
-                return nil
-            }
-            throw error
         }
+        return nil
     }
 
     func finish(key: String, taskID: String) {
@@ -142,6 +150,19 @@ final class AdminAITaskCoordinator {
 
     func isCurrent(key: String, taskID: String) -> Bool {
         coordinator.isCurrent(key: key, taskID: taskID)
+    }
+
+    private func isTransient(_ error: Error) -> Bool {
+        if case APIError.network = error { return true }
+        if case APIError.http(let status, _) = error {
+            return status == 408 || status == 429 || status >= 500
+        }
+        return false
+    }
+
+    private func retryDelay(for attempt: Int) async throws {
+        let seconds = min(8, 1 << attempt)
+        try await Task.sleep(nanoseconds: UInt64(seconds) * 1_000_000_000)
     }
 
     func reconcile(_ tasks: [AiTaskInfo]) {
