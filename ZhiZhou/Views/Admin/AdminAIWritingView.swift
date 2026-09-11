@@ -18,6 +18,36 @@ struct AdminAIWritingView: View {
         var id: String { rawValue }
     }
 
+    enum AdultContentMode: String, CaseIterable, Identifiable {
+        case off
+        case explicit
+
+        var id: String { rawValue }
+        var title: String {
+            switch self {
+            case .off: return "关闭"
+            case .explicit: return "允许露骨 R18"
+            }
+        }
+    }
+
+    enum IntimacyWeight: String, CaseIterable, Identifiable {
+        case none
+        case low
+        case medium
+        case high
+
+        var id: String { rawValue }
+        var title: String {
+            switch self {
+            case .none: return "无"
+            case .low: return "低"
+            case .medium: return "中"
+            case .high: return "高"
+            }
+        }
+    }
+
     // 选书
     @State private var novelOptions: [AdminNovelSummary] = []
     @State private var novelId = ""
@@ -46,6 +76,9 @@ struct AdminAIWritingView: View {
     @State private var chapterGoalsText = ""
     @State private var pendingChapterCount: Int?
     @State private var showChapterCountWarning = false
+    @State private var adultContentMode: AdultContentMode = .off
+    @State private var intimacyWeight: IntimacyWeight = .none
+    @State private var adultCharactersConfirmed = false
 
     // 画像
     @State private var styleProfile = ""
@@ -88,6 +121,7 @@ struct AdminAIWritingView: View {
 
     private var canStart: Bool {
         guard !starting, !selectionRequests.isLoading, activeTask?.isRunning != true else { return false }
+        guard contentPreferencesValidationError == nil else { return false }
         if mode == .new {
             if taskKind == .outline {
                 return !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -113,6 +147,7 @@ struct AdminAIWritingView: View {
                 } else {
                     newSection
                 }
+                contentPreferencesSection
                 profileSection
                 taskProgressSection
             }
@@ -180,6 +215,11 @@ struct AdminAIWritingView: View {
         .onChange(of: afterChapterId) { _, anchorID in
             guard mode == .continueWriting, !novelId.isEmpty else { return }
             Task { await loadProfileStatuses(novelID: novelId, anchorID: anchorID.isEmpty ? nil : anchorID) }
+        }
+        .onChange(of: adultContentMode) { _, value in
+            guard value == .off else { return }
+            intimacyWeight = .none
+            adultCharactersConfirmed = false
         }
     }
 
@@ -302,6 +342,36 @@ struct AdminAIWritingView: View {
             detailedBriefSection
             Stepper("续写章数：\(chapterCount)", value: chapterCountBinding, in: 1...10)
             Stepper("目标字数：\(targetWords)", value: $targetWords, in: 500...8000, step: 500)
+        }
+    }
+
+    @ViewBuilder
+    private var contentPreferencesSection: some View {
+        if mode == .continueWriting || taskKind == .chapter {
+            Section("成人内容参数") {
+                Picker("成人内容模式", selection: $adultContentMode) {
+                    ForEach(AdultContentMode.allCases) { option in
+                        Text(option.title).tag(option)
+                    }
+                }
+                if adultContentMode == .explicit {
+                    Picker("亲密内容权重", selection: $intimacyWeight) {
+                        ForEach(IntimacyWeight.allCases) { option in
+                            Text(option.title).tag(option)
+                        }
+                    }
+                    Toggle("确认涉及角色均为成年人", isOn: $adultCharactersConfirmed)
+                    if let error = contentPreferencesValidationError {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(AppTheme.warning)
+                    }
+                }
+            } footer: {
+                Text(adultContentMode == .explicit
+                    ? "权重表示亲密内容在剧情中的叙事强调程度，不是固定字数百分比；即使开启，上游模型仍可能依据其内容政策拒绝请求。"
+                    : "默认不主动加入成人露骨内容。该参数只作用于本次创作任务。")
+            }
         }
     }
 
@@ -714,6 +784,7 @@ struct AdminAIWritingView: View {
         if let writingBriefPayload {
             body["writingBrief"] = writingBriefPayload
         }
+        body["contentPreferences"] = writingContentPreferencesPayload
 
         let requestPayloadJSON = (try? JSONSerialization.data(withJSONObject: body, options: [.sortedKeys])).flatMap { String(data: $0, encoding: .utf8) }
         do {
@@ -868,6 +939,22 @@ struct AdminAIWritingView: View {
               let object = try? JSONSerialization.jsonObject(with: data),
               let payload = object as? [String: Any] else { return nil }
         return payload
+    }
+
+    private var writingContentPreferencesPayload: [String: Any] {
+        [
+            "version": 1,
+            "adultContentMode": adultContentMode.rawValue,
+            "intimacyWeight": adultContentMode == .explicit ? intimacyWeight.rawValue : IntimacyWeight.none.rawValue,
+            "adultCharactersConfirmed": adultContentMode == .explicit && adultCharactersConfirmed,
+        ]
+    }
+
+    private var contentPreferencesValidationError: String? {
+        guard adultContentMode == .explicit else { return nil }
+        if intimacyWeight == .none { return "开启露骨 R18 后请选择亲密内容权重" }
+        if !adultCharactersConfirmed { return "开启露骨 R18 前请确认涉及角色均为成年人" }
+        return nil
     }
 
     private var writingBriefValidationError: String? {
