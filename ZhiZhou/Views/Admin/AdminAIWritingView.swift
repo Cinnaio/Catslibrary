@@ -348,7 +348,7 @@ struct AdminAIWritingView: View {
     @ViewBuilder
     private var contentPreferencesSection: some View {
         if mode == .continueWriting || taskKind == .chapter {
-            Section("成人内容参数") {
+            Section {
                 Picker("成人内容模式", selection: $adultContentMode) {
                     ForEach(AdultContentMode.allCases) { option in
                         Text(option.title).tag(option)
@@ -367,6 +367,8 @@ struct AdminAIWritingView: View {
                             .foregroundStyle(AppTheme.warning)
                     }
                 }
+            } header: {
+                Text("成人内容参数")
             } footer: {
                 Text(adultContentMode == .explicit
                     ? "权重表示亲密内容在剧情中的叙事强调程度，不是固定字数百分比；即使开启，上游模型仍可能依据其内容政策拒绝请求。"
