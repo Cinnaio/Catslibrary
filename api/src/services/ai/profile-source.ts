@@ -6,6 +6,8 @@ import { AiError } from './client'
 /** V1 的画像输入来源。来源只描述真正送进模型的有序样本，不代表画像历史版本。 */
 export interface ProfileSource {
   version: 1
+  /** 提取提示词版本；旧 source 没有此字段时保持 legacy 兼容。 */
+  extractionPromptVersion?: number
   chapterId: string
   chapterTitle: string
   sortOrder: number
@@ -127,6 +129,7 @@ export function parseProfileSource(raw: unknown): ProfileSource | undefined {
     if (![sortOrder, chapterOrdinal, sampleCount].every(Number.isFinite) || sampleCount < 0) return undefined
     return {
       version: 1,
+      ...(Number.isInteger(Number(source.extractionPromptVersion)) ? { extractionPromptVersion: Number(source.extractionPromptVersion) } : {}),
       chapterId: source.chapterId,
       chapterTitle: source.chapterTitle,
       sortOrder,

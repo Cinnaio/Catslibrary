@@ -5,6 +5,7 @@
  */
 import { loadConfig, type AiProviderConfig } from '../../config'
 import { outboundFetch } from '../outbound-fetch'
+import { contentRefusalMessage, detectStructuredContentRefusal, detectStructuredContentRefusalFromDetail } from './prompt-policy'
 
 export type AiErrorCode = 'disabled' | 'timeout' | 'upstream' | 'invalid' | 'conflict'
 
@@ -172,10 +173,14 @@ async function once(endpoint: string, apiKey: string, body: string, model: strin
     // 上游错误：解析出网关返回的 message，连同状态码一并带出，方便定位「模型无可用渠道」等真实原因。
     const detail = (await res.text().catch(() => '')).slice(0, 500)
     console.error('[ai] upstream %d %s', res.status, detail)
+    const refusal = detectStructuredContentRefusalFromDetail(detail)
+    if (refusal) throw new AiError('invalid', contentRefusalMessage(refusal), 422)
     throw new AiError('upstream', describeUpstreamError(res.status, detail), res.status)
   }
 
   const data = (await res.json().catch(() => null)) as ChatCompletionResponse | null
+  const refusal = detectStructuredContentRefusal(data)
+  if (refusal) throw new AiError('invalid', contentRefusalMessage(refusal), 422)
   const choice = data?.choices?.[0]
   const text = extractContent(choice?.message?.content)
   const finishReason = String(choice?.finish_reason || '')
@@ -232,12 +237,16 @@ async function onceStream(
   if (!res.ok) {
     const detail = (await res.text().catch(() => '')).slice(0, 500)
     console.error('[ai] upstream %d %s', res.status, detail)
+    const refusal = detectStructuredContentRefusalFromDetail(detail)
+    if (refusal) throw new AiError('invalid', contentRefusalMessage(refusal), 422)
     throw new AiError('upstream', describeUpstreamError(res.status, detail), res.status)
   }
 
   const contentType = (res.headers.get('content-type') || '').toLowerCase()
   if (!contentType.includes('text/event-stream')) {
     const data = (await res.json().catch(() => null)) as ChatCompletionResponse | null
+    const refusal = detectStructuredContentRefusal(data)
+    if (refusal) throw new AiError('invalid', contentRefusalMessage(refusal), 422)
     const parsed = parseChatCompletion(data, model)
     if (!parsed.text) throw emptyChatResponseError(parsed.finishReason, data)
     await onDelta(parsed.text)
@@ -268,6 +277,9 @@ async function onceStream(
     } catch {
       throw new AiError('invalid', 'AI 流式响应格式不正确')
     }
+
+    const refusal = detectStructuredContentRefusal(data)
+    if (refusal) throw new AiError('invalid', contentRefusalMessage(refusal), 422)
 
     if (data.model) responseModel = String(data.model)
     const usage = data.usage
@@ -340,16 +352,26 @@ function extractContent(content: unknown, trim = true): string {
 
 interface ChatCompletionResponse {
   model?: string
-  choices?: Array<{ message?: { content?: unknown }; finish_reason?: string }>
+  refusal?: unknown
+  choices?: Array<{ message?: { content?: unknown; refusal?: unknown }; finish_reason?: string; finishReason?: string }>
   usage?: { prompt_tokens?: number; completion_tokens?: number }
   cost?: string | number
+  error?: unknown
+  code?: string
+  type?: string
+  message?: unknown
 }
 
 interface ChatCompletionStreamChunk {
   model?: string
-  choices?: Array<{ delta?: { content?: unknown }; finish_reason?: string }>
+  refusal?: unknown
+  choices?: Array<{ delta?: { content?: unknown; refusal?: unknown }; message?: { refusal?: unknown }; finish_reason?: string; finishReason?: string }>
   usage?: { prompt_tokens?: number; completion_tokens?: number }
   cost?: string | number
+  error?: unknown
+  code?: string
+  type?: string
+  message?: unknown
 }
 
 function isRetriable(err: AiError): boolean {

@@ -7,6 +7,7 @@
 import { loadConfig, type AiProviderConfig } from '../../config'
 import { outboundFetch } from '../outbound-fetch'
 import { AiError } from './client'
+import { contentRefusalMessage, detectStructuredContentRefusal, detectStructuredContentRefusalFromDetail } from './prompt-policy'
 
 export interface AiImageOptions {
   prompt: string
@@ -120,10 +121,14 @@ async function once(endpoint: string, apiKey: string, body: string, model: strin
   if (!res.ok) {
     const detail = (await res.text().catch(() => '')).slice(0, 500)
     console.error('[ai-image] upstream %d %s', res.status, detail)
+    const refusal = detectStructuredContentRefusalFromDetail(detail)
+    if (refusal) throw new AiError('invalid', contentRefusalMessage(refusal), 422)
     throw new AiError('upstream', describeUpstreamError(res.status, detail), res.status)
   }
 
   const data = (await res.json().catch(() => null)) as ImageGenerationResponse | null
+  const refusal = detectStructuredContentRefusal(data)
+  if (refusal) throw new AiError('invalid', contentRefusalMessage(refusal), 422)
   const b64 = await extractB64(data)
   if (!b64) {
     console.error('[ai-image] 空响应 %o', data || null)
@@ -174,6 +179,11 @@ interface ImageGenerationResponse {
   model?: string
   data?: Array<{ b64_json?: string; url?: string }>
   cost?: string | number
+  refusal?: unknown
+  error?: unknown
+  code?: string
+  type?: string
+  message?: unknown
 }
 
 function isRetriable(err: AiError): boolean {

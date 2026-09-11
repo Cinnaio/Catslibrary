@@ -4,7 +4,9 @@ import type { CoverDirection, GenreStyle, ResolvedCoverComposition, ResolvedCove
 
 /** 自动封面提示词的 UTF-16 上限与描述上下文上限。 */
 export const COVER_STORY_CONTEXT_MAX_CHARS = 800
-export const COVER_PROMPT_TEMPLATE_VERSION = 2
+/** 当前自动封面四层渲染版本；旧任务仍显式写入 legacy 版本。 */
+export const COVER_PROMPT_TEMPLATE_VERSION = 3
+export const LEGACY_COVER_PROMPT_TEMPLATE_VERSION = 2
 
 const MIN_COVER_PROMPT_MAX_CHARS = 100
 const HARD_MAX_COVER_PROMPT_CHARS = 10_000
@@ -33,6 +35,7 @@ export interface CoverPromptAssemblyArgs {
   renderTitle: boolean
   romanceDNA: RomanceVisualDNA | null
   maxPromptChars?: number
+  aspectRatio?: string
 }
 
 /**
@@ -169,7 +172,7 @@ export function assembleCoverPrompt(args: CoverPromptAssemblyArgs): string {
     })
   }
 
-  const tail = ['Professional novel cover artwork, portrait 2:3 ratio, strong thumbnail readability']
+  const tail = [`Professional novel cover artwork, portrait ${args.aspectRatio || '2:3'} ratio, strong thumbnail readability`]
   if (renderTitle) tail.push('keep title and author name inside the central safe area away from edges (inner ~85%)')
   else tail.push('no text')
   tail.push('avoid generic stock cover layouts, avoid repeated composition, no watermark, no logo, no extra text')

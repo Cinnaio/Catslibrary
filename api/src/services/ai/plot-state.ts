@@ -4,7 +4,7 @@
  * 多章续写时只靠「把上一章追加回 context」会在 10+ 章后因上下文截断而丢人设、忘伏笔、
  * 产生前后矛盾。这里取最近若干章已发布正文，让文本模型提炼成结构化的情节状态
  * （角色处境/情绪/目标、在场物品地点、已埋伏笔、待解决冲突），存进 novel_plot_states，
- * 续写时拼进 user 消息。一次提取长期复用，管理员手动触发刷新。
+ * 续写时作为带时点的当前状态材料块注入。一次提取长期复用，管理员手动触发刷新。
  *
  * 对应 skill 的 Step 3「情节状态追踪」+ Step 5「更新情节状态」。落成持久化数据，
  * skill 的踩坑铁律（设定以原文为准、人设不偏离）固化进提取时的 system prompt。
@@ -27,16 +27,16 @@ const MIN_SAMPLE_CHAPTERS = 1
 export const FALLBACK_PLOT_STATE = ''
 
 const PLOT_EXTRACT_SYSTEM = `你是中文网络小说情节分析师。请只根据给定的章节正文，提取当前的故事状态，不要复述剧情经过。
-严格按以下四块输出，每块用列表罗列，条目简洁具体（人名、关键设定、状态），不要空泛：
+严格按以下四块输出，每块用列表罗列，条目简洁具体（人名、关键设定、状态），不要空泛；每条标注它属于“已确认事实”“人物认知”“未解线索”或“可选方向”：
 
 1. 角色状态：每个主要角色当前的处境、情绪、下一步目标。
 2. 在场物品/地点：当前剧情里出现的重要地点和道具及其用途。
-3. 已埋伏笔：尚未回收的悬念或暗示，标注后续可能的回收方向。
+3. 已埋伏笔：尚未回收的悬念或暗示；把正文已有线索与可选回收方向分开，后者不能写成已经发生的事实。
 4. 待解决冲突：当前悬而未决的矛盾或威胁。
 
 重要约束：
 - 所有状态必须来自正文，正文未提到的不要臆造。
-- 人设以原文为准：角色的性格、说话方式、与他人的权力关系以正文表现为准，不要美化或改变。
+- 人设以原文为准：角色的性格、说话方式、与他人的关系以正文表现为准，不要美化或改变；旧状态不是永久设定。
 - 只输出分析结果，不要解释，不要重复正文，不要 Markdown 标题，用「1.」「2.」「3.」「4.」标记四块即可。`
 
 export interface PlotStateResult {
@@ -89,6 +89,7 @@ export async function extractPlotState(db: Db, opts: {
   }
 
   const sampleTextValue = sampleText(sample, cleanForSample)
+  const persistedSource: ProfileSource = { ...sample.source, extractionPromptVersion: 2 }
   const res = await chat({
     messages: [
       { role: 'system', content: PLOT_EXTRACT_SYSTEM },
@@ -104,7 +105,7 @@ export async function extractPlotState(db: Db, opts: {
     `INSERT INTO novel_plot_states (novel_id, state, chapters_through, model, source_json, created_at, updated_at)
      VALUES ($1, $2, $3, $4, $5, $6, $6)
      ON CONFLICT (novel_id) DO UPDATE SET state = EXCLUDED.state, chapters_through = EXCLUDED.chapters_through, model = EXCLUDED.model, source_json = EXCLUDED.source_json, updated_at = EXCLUDED.updated_at`,
-    [novelId, state, sample.source.chapterOrdinal, res.model, JSON.stringify(sample.source), now],
+    [novelId, state, sample.source.chapterOrdinal, res.model, JSON.stringify(persistedSource), now],
   )
   await recordUsage(db, {
     userId: opts.userId,
@@ -118,7 +119,7 @@ export async function extractPlotState(db: Db, opts: {
     ipAddress: opts.ipAddress,
     userAgent: opts.userAgent,
   })
-  return { state, chaptersThrough: sample.source.chapterOrdinal, model: res.model, source: sample.source, updatedAt: now, usage: { promptTokens: res.promptTokens, completionTokens: res.completionTokens } }
+  return { state, chaptersThrough: sample.source.chapterOrdinal, model: res.model, source: persistedSource, updatedAt: now, usage: { promptTokens: res.promptTokens, completionTokens: res.completionTokens } }
 }
 
 /** 读取已存的情节状态；未提取过返回空对象，调用方决定是否兜底。 */

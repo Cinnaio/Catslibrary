@@ -6,6 +6,8 @@ import { getDb } from './db/pool'
 import { getAiSettings } from './services/ai/settings'
 import { AI_TASK_RECLAIM_INTERVAL_MS, failInterruptedAiTasks, listAiTasks, pruneFinishedAiTasks, reclaimStaleAiTasks, updateAiTask } from './services/ai/tasks'
 import { generateCoverPromptTask } from './services/ai/cover'
+import { COVER_PROMPT_PIPELINE_VERSION } from './services/ai/cover-brief'
+import { resolveStoredPipelineVersion } from './services/ai/prompt-version'
 import { ensureRuntimeSalts } from './runtime-config'
 import { pruneMobileTelemetry } from './routes/mobile-telemetry'
 import { pruneAdminOperationAudit } from './services/admin-operation-audit'
@@ -27,6 +29,13 @@ async function resumeInterruptedCoverPromptTasks() {
       await updateAiTask(db, task.id, { status: 'failed', step: '已中断', error: '任务缺少原始参数，无法恢复' })
       continue
     }
+    const storedVersion = params.promptPipelineVersion
+    const resolvedPipeline = resolveStoredPipelineVersion(storedVersion, COVER_PROMPT_PIPELINE_VERSION, 2)
+    if (resolvedPipeline.error || !resolvedPipeline.version) {
+      await updateAiTask(db, task.id, { status: 'failed', step: '已中断', error: resolvedPipeline.error || '提示词流水线版本无效' })
+      continue
+    }
+    const promptPipelineVersion = resolvedPipeline.version
     resumed += 1
     void generateCoverPromptTask(db, {
       userId: task.userId,
@@ -36,6 +45,8 @@ async function resumeInterruptedCoverPromptTasks() {
       stylePreset: typeof params.stylePreset === 'string' && params.stylePreset ? params.stylePreset : 'auto',
       composition: typeof params.composition === 'string' && params.composition ? params.composition : 'auto',
       variationId: typeof params.variationId === 'string' ? params.variationId : '',
+      // 旧任务没有版本字段，恢复时沿用 legacy；新任务固定走当前资料 brief 流水线。
+      promptPipelineVersion,
       taskId: task.id,
     })
   }

@@ -1,10 +1,10 @@
 /**
  * 小说风格画像 —— novel-continuation-ai skill 的「风格指纹提取」落地。
  *
- * 续写质量取决于 system prompt 里有没有可执行的风格描述。原来只有一句
+ * 续写质量取决于提示词里有没有可执行的风格描述。原来只有一句
  * 「保持风格一致」，模型不知道一致指什么；这里取小说前若干章，让文本模型
- * 把语言/叙事/对话/设定四个维度量化提取成一段画像，存进 novel_style_profiles，
- * 续写时拼进 system prompt。一次提取长期复用，写作中途不变（管理员手动刷新）。
+ * 把语言/叙事/对话四个稳定表达维度量化提取成一段画像，存进 novel_style_profiles，
+ * 续写时作为带来源的风格材料注入。一次提取长期复用，写作中途不变（管理员手动刷新）。
  *
  * 这对应 skill 的 Step 2「分析原文风格」——但落成持久化数据，而非每次现分析。
  */
@@ -23,13 +23,13 @@ const STYLE_SAMPLE_CHARS = 3000
 /** 取样失败（小说无章节）时的兜底画像：退回原来的通用约束，不阻断续写。 */
 export const FALLBACK_STYLE_PROFILE = '保持人物动机、叙事视角和语言风格与上下文一致。'
 
-const STYLE_EXTRACT_SYSTEM = `你是中文网络小说风格分析师。请只根据给定的章节正文，提取这部小说的语言风格特征，不要总结剧情。
+const STYLE_EXTRACT_SYSTEM = `你是中文网络小说风格分析师。请只根据给定的章节正文，提取这部小说的稳定表达风格，不要总结剧情、人物当前处境或后续目标。
 从以下四个维度分析，每项 1-2 句话，给出可执行的具体描述（而非空泛评价）：
 
 1. 语言层面：句式偏好（短句凌厉/长句铺陈/对话驱动）、用词风格（文言味/网络语/文学性/白描）、修辞习惯（比喻频率/排比/留白）。
 2. 叙事层面：视角（第一/第三人称限知/全知）、节奏（快节奏打斗/慢热日常/章章有高潮）、氛围（严肃/轻松/悬疑/史诗感）。
 3. 对话层面：角色说话方式（书面化/口语化/角色专属语气词）、对话占比（密集对话推动剧情/动作描写为主）、潜台词风格（拐弯抹角/直来直去）。
-4. 世界观与设定：核心设定关键词（修仙/都市/悬疑/科幻/言情）、主角当前处境与目标、主要配角及关系。
+4. 叙述边界：信息揭示的距离、内心独白比例、场景切换与留白习惯；不要输出任何当前剧情状态。
 只输出分析结果，不要解释，不要重复正文，不要 Markdown 标题。`
 
 export interface StyleProfileResult {
@@ -71,6 +71,7 @@ export async function extractStyleProfile(db: Db, opts: {
   }
 
   const sampleTextValue = sampleText(sample, cleanForSample)
+  const persistedSource: ProfileSource = { ...sample.source, extractionPromptVersion: 2 }
   const res = await chat({
     messages: [
       { role: 'system', content: STYLE_EXTRACT_SYSTEM },
@@ -86,7 +87,7 @@ export async function extractStyleProfile(db: Db, opts: {
     `INSERT INTO novel_style_profiles (novel_id, profile, model, source_json, created_at, updated_at)
      VALUES ($1, $2, $3, $4, $5, $5)
      ON CONFLICT (novel_id) DO UPDATE SET profile = EXCLUDED.profile, model = EXCLUDED.model, source_json = EXCLUDED.source_json, updated_at = EXCLUDED.updated_at`,
-    [novelId, profile, res.model, JSON.stringify(sample.source), now],
+    [novelId, profile, res.model, JSON.stringify(persistedSource), now],
   )
   await recordUsage(db, {
     userId: opts.userId,
@@ -100,7 +101,7 @@ export async function extractStyleProfile(db: Db, opts: {
     ipAddress: opts.ipAddress,
     userAgent: opts.userAgent,
   })
-  return { profile, model: res.model, source: sample.source, updatedAt: now, usage: { promptTokens: res.promptTokens, completionTokens: res.completionTokens } }
+  return { profile, model: res.model, source: persistedSource, updatedAt: now, usage: { promptTokens: res.promptTokens, completionTokens: res.completionTokens } }
 }
 
 /** 读取已存的风格画像；未提取过返回空串，调用方决定是否兜底。 */

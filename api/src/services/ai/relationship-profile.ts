@@ -1,15 +1,11 @@
 /**
  * 小说关系画像 —— novel-continuation-ai skill 的「主从权力动态/心理边界」落地。
  *
- * 成人向言情（主从/控制/甜头奖惩）这类题材续写最容易翻车的地方，skill 已踩过坑：
- *   - 把主从关系写成平等恋人（从属突然有资格质问/提要求）
- *   - 把控制手段（奖赏/甜头）理解成真心感情
- *   - 从属的试探被写成主导
  * 这里取小说若干章，让文本模型提炼出这本书的角色关系动态、权力结构、心理边界与
- * 互动尺度基调，存进 novel_relationship_profiles，续写时拼进 system prompt。
+ * 互动尺度基调，存进 novel_relationship_profiles，续写时作为带来源的关系材料注入。
  *
  * 关系画像是「人物之间稳定的关系底色」，几十章内不变，与情节状态（频繁变化的当前
- * 进展）区分；放 system（长期纪律层），与风格画像并列。
+ * 进展）区分；在新编译器中与风格画像并列作为材料块。
  */
 import type { Db } from '../../db/pool'
 import { first, run } from '../../db/query'
@@ -29,14 +25,14 @@ export const FALLBACK_RELATIONSHIP_PROFILE = ''
 const RELATIONSHIP_EXTRACT_SYSTEM = `你是中文小说角色关系分析师。请只根据给定的章节正文，提炼角色之间的关系动态，不要复述剧情经过。
 按以下四块输出，每块用列表罗列，条目具体到人名与关系，不要空泛：
 
-1. 关系动态：每对主要角色之间谁主导、谁从属，权力结构如何（支配/依附/平等/博弈），权力来源（身份/情感/能力/信息）。
-2. 心理边界：从属角色在什么缝隙里试探、如何试探（没有资格直接提要求）；主导者如何运用奖赏/甜头（是策略、控制工具，还是心情好的施舍），奖惩机制是什么。
-3. 互动基调：情感/身体互动的尺度与氛围（克制/炽烈/暧昧/直接），是控制与服从的张力还是温情流露，互动推进的节奏。
-4. 雷区：若把主导者写成有感情的普通恋人、把从属写成有资格质问、把奖赏手段理解成真心喜欢，就会崩人设——列出本书当前不该逾越的关系边界。
+1. 关系动态：每对主要角色的目标、依赖、信任、冲突与互动方式；只有正文明确支持时才描述权力不对称，并说明权力来源（身份/情感/能力/信息）。允许关系平等、非恋爱、变化中或证据不足。
+2. 心理边界：角色如何提出请求、拒绝、试探或让步；区分正文证据与分析推断，不把照顾、奖赏或控制自动解释成爱情。
+3. 互动基调：情感/身体互动的尺度与氛围（克制/炽烈/暧昧/直接），关系推进的节奏与已发生的变化。
+4. 雷区：列出正文明确不应逾越的关系边界；如果正文没有足够证据，明确写“未确认”，不要替作品补出主从结构。
 
 重要约束：
 - 所有判断必须来自正文表现，正文未明确的不要臆造。
-- 关系以原文为准：不要美化、不要把主从关系改写成平等，不要把控制手段理解成感情。
+- 关系以原文为准：不要美化、不要把平等关系改写成主从，也不要把主从、依赖或控制擅自改写成爱情。
 - 只输出分析结果，不要解释，不要重复正文，不要 Markdown 标题，用「1.」「2.」「3.」「4.」标记四块即可。`
 
 export interface RelationshipProfileResult {
@@ -81,6 +77,7 @@ export async function extractRelationshipProfile(db: Db, opts: {
   }
 
   const sampleTextValue = sampleText(sample, cleanForSample)
+  const persistedSource: ProfileSource = { ...sample.source, extractionPromptVersion: 2 }
   const res = await chat({
     messages: [
       { role: 'system', content: RELATIONSHIP_EXTRACT_SYSTEM },
@@ -96,7 +93,7 @@ export async function extractRelationshipProfile(db: Db, opts: {
     `INSERT INTO novel_relationship_profiles (novel_id, profile, model, source_json, created_at, updated_at)
      VALUES ($1, $2, $3, $4, $5, $5)
      ON CONFLICT (novel_id) DO UPDATE SET profile = EXCLUDED.profile, model = EXCLUDED.model, source_json = EXCLUDED.source_json, updated_at = EXCLUDED.updated_at`,
-    [novelId, profile, res.model, JSON.stringify(sample.source), now],
+    [novelId, profile, res.model, JSON.stringify(persistedSource), now],
   )
   await recordUsage(db, {
     userId: opts.userId,
@@ -110,7 +107,7 @@ export async function extractRelationshipProfile(db: Db, opts: {
     ipAddress: opts.ipAddress,
     userAgent: opts.userAgent,
   })
-  return { profile, model: res.model, source: sample.source, updatedAt: now, usage: { promptTokens: res.promptTokens, completionTokens: res.completionTokens } }
+  return { profile, model: res.model, source: persistedSource, updatedAt: now, usage: { promptTokens: res.promptTokens, completionTokens: res.completionTokens } }
 }
 
 /** 读取已存的关系画像；未提取过返回空串，调用方决定是否兜底。 */

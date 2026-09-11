@@ -9,6 +9,7 @@ import { createAiTask, isAiTaskActive, startAiTaskHeartbeat, updateAiTask } from
 import { getStyleProfile } from './style-profile'
 import { getPlotState } from './plot-state'
 import { getRelationshipProfile } from './relationship-profile'
+import { compileWritingPrompt, WRITING_PROMPT_PIPELINE_VERSION } from './writing-prompt'
 
 const MAX_CONTEXT_CHARS = 12000
 
@@ -136,6 +137,8 @@ export interface ContinuationSnapshotV1 {
   profileRevisions: Record<string, number>
   /** 自动画像正文与来源的稳定基底 revision，用于审计快照而非重算。 */
   profileBaseRevisions: Record<string, string>
+  /** 每类有效画像在快照时的来源层；旧快照缺失时按 legacy 兼容。 */
+  profileOrigins?: Record<string, 'automatic' | 'manual' | 'legacy'>
   excludedProfiles: Array<{ kind: 'style' | 'relationship' | 'plot'; reason: string }>
 }
 
@@ -328,8 +331,18 @@ export async function generateWriting(db: Db, opts: {
   continuationSnapshot?: ContinuationSnapshotV1
   /** 服务端校验并冻结的用户创作要求。 */
   writingBrief?: WritingBriefV1
+  /** 新任务使用五层提示词编译器；旧任务缺字段时保留 legacy 消息协议。 */
+  promptPipelineVersion?: number
+  /** 新编译器使用独立的本批草稿材料；legacy 仍沿用拼接后的上下文。 */
+  batchDrafts?: Array<{ index: number; text: string }>
+  profileSources?: Record<string, unknown>
+  profileOrigins?: Record<string, 'automatic' | 'manual' | 'legacy'>
 }): Promise<WritingResult> {
   if (!isTextAiConfigured()) throw new AiError('disabled', 'AI 文本服务未配置', 503)
+  const promptPipelineVersion = opts.promptPipelineVersion === undefined ? WRITING_PROMPT_PIPELINE_VERSION : Number(opts.promptPipelineVersion)
+  if (!Number.isInteger(promptPipelineVersion) || (promptPipelineVersion !== 1 && promptPipelineVersion !== WRITING_PROMPT_PIPELINE_VERSION)) {
+    throw new AiError('invalid', `不支持的 AI 提示词流水线版本：${String(opts.promptPipelineVersion)}`, 422)
+  }
   const provider = textProvider()
   const settings = await getAiSettings(db)
   // 风格画像：把「保持风格一致」这句空话换成从原文提取的具体特征（句式/节奏/语气/设定）。
@@ -340,47 +353,73 @@ export async function generateWriting(db: Db, opts: {
     : hasProfileOverrides
       ? String(opts.profileOverrides?.style || '')
       : await getStyleProfile(db, opts.novelId)
-  // 关系画像：角色关系动态/权力结构/心理边界，稳定的关系底色，与风格画像同属长期创作纪律。
-  // 防 skill 踩坑：主从写成平等恋人、把奖赏手段当真心、从属试探写成主导。
+  // 关系画像：角色关系动态/权力结构/心理边界，作为有来源的关系材料注入。
   const relationshipProfile = opts.kind === 'write_outline'
     ? ''
     : hasProfileOverrides
       ? String(opts.profileOverrides?.relationship || '')
       : await getRelationshipProfile(db, opts.novelId)
-  const baseSystem = opts.kind === 'write_outline'
-    ? '你是中文网络小说策划编辑。请输出可执行的章节大纲，包含主线冲突、人物目标、关键转折和章节安排。只输出内容，不要解释。'
-    : settings.writingSystemPrompt
-  const systemParts = [baseSystem]
-  if (opts.kind === 'continue' || opts.kind === 'write_chapter') {
-    systemParts.push('本次请求只能创作一章。只在开头输出一次章节标题，正文中不得出现下一章、上一章或任何额外章节标题；写完本章立即停止。')
-  }
-  if (styleProfile) systemParts.push(`本作风格特征（续写须严格遵循）：\n${styleProfile}`)
-  if (relationshipProfile) systemParts.push(`本作角色关系动态（续写须保持人设与权力结构一致，不得逾越关系边界）：\n${relationshipProfile}`)
-  const system = systemParts.join('\n\n')
   // 情节状态：结构化的角色处境/伏笔/待解决冲突。多章续写时上下文会截断丢前文，
-  // 这里把提炼后的状态塞进 user 消息（时效性上下文，随剧情推进变，与 system 里的长期风格纪律区分）。
+  // 这里把提炼后的状态放进当前状态材料层（随剧情推进变，与风格材料区分）。
   // 大纲生成不需要情节状态；未提取过则跳过，不阻断续写。
   const plotState = opts.kind === 'write_outline'
-    ? null
+    ? undefined
     : hasProfileOverrides
       ? { state: String(opts.profileOverrides?.plot || ''), chaptersThrough: 0 }
       : await getPlotState(db, opts.novelId)
-  const optionInstructions = [
-    opts.targetWords ? `Target length: approximately ${Math.max(300, Math.min(30000, Math.trunc(opts.targetWords)))} Chinese characters.` : '',
-    opts.chapterCount && opts.chapterCount > 1 ? `Continuation chapter count: ${Math.max(1, Math.min(20, Math.trunc(opts.chapterCount)))} chapters.` : '',
-    opts.kind === 'continue' || opts.kind === 'write_chapter' ? '本次仅生成一章；不得继续输出下一章或额外章节标题。' : '',
-  ].filter(Boolean)
-  const briefParts = formatWritingBrief(opts.writingBrief, opts.batchIndex || 1)
-  const user = [
-    ...optionInstructions,
-    `作品：《${opts.title || '未命名作品'}》`,
-    briefParts.structured,
-    briefParts.goal,
-    opts.instruction ? `补充创作要求：${opts.instruction}` : '',
-    opts.outline ? `大纲：\n${cleanWritingText(opts.outline)}` : '',
-    plotState?.state ? `本作情节状态（续写须保持人设与伏笔一致）：\n${plotState.state}` : '',
-    opts.context ? `已有剧情上下文：\n${cleanWritingText(opts.context)}` : '',
-  ].filter(Boolean).join('\n\n')
+  const usePipeline = promptPipelineVersion === WRITING_PROMPT_PIPELINE_VERSION
+  let system = ''
+  let user = ''
+  if (usePipeline) {
+    const compiled = compileWritingPrompt({
+      kind: opts.kind,
+      title: opts.title,
+      instruction: opts.instruction,
+      outline: opts.outline,
+      context: opts.context,
+      targetWords: opts.targetWords,
+      chapterCount: opts.chapterCount,
+      batchIndex: opts.batchIndex,
+      writingBrief: opts.writingBrief,
+      styleProfile,
+      relationshipProfile,
+      plotState,
+      batchDrafts: opts.batchDrafts,
+      profileSources: opts.continuationSnapshot?.profileSources,
+      profileOrigins: opts.continuationSnapshot?.profileOrigins,
+      continuationSnapshot: opts.continuationSnapshot,
+      writingSystemPrompt: settings.writingSystemPrompt,
+    })
+    system = compiled.system
+    user = compiled.user
+  } else {
+    const baseSystem = opts.kind === 'write_outline'
+      ? '你是中文网络小说策划编辑。请输出可执行的章节大纲，包含主线冲突、人物目标、关键转折和章节安排。只输出内容，不要解释。'
+      : settings.writingSystemPrompt
+    const systemParts = [baseSystem]
+    if (opts.kind === 'continue' || opts.kind === 'write_chapter') {
+      systemParts.push('本次请求只能创作一章。只在开头输出一次章节标题，正文中不得出现下一章、上一章或任何额外章节标题；写完本章立即停止。')
+    }
+    if (styleProfile) systemParts.push(`本作风格特征（续写须严格遵循）：\n${styleProfile}`)
+    if (relationshipProfile) systemParts.push(`本作角色关系动态（续写须保持人设与权力结构一致，不得逾越关系边界）：\n${relationshipProfile}`)
+    system = systemParts.join('\n\n')
+    const optionInstructions = [
+      opts.targetWords ? `Target length: approximately ${Math.max(300, Math.min(30000, Math.trunc(opts.targetWords)))} Chinese characters.` : '',
+      opts.chapterCount && opts.chapterCount > 1 ? `Continuation chapter count: ${Math.max(1, Math.min(20, Math.trunc(opts.chapterCount)))} chapters.` : '',
+      opts.kind === 'continue' || opts.kind === 'write_chapter' ? '本次仅生成一章；不得继续输出下一章或额外章节标题。' : '',
+    ].filter(Boolean)
+    const briefParts = formatWritingBrief(opts.writingBrief, opts.batchIndex || 1)
+    user = [
+      ...optionInstructions,
+      `作品：《${opts.title || '未命名作品'}》`,
+      briefParts.structured,
+      briefParts.goal,
+      opts.instruction ? `补充创作要求：${opts.instruction}` : '',
+      opts.outline ? `大纲：\n${cleanWritingText(opts.outline)}` : '',
+      plotState?.state ? `本作情节状态（续写须保持人设与伏笔一致）：\n${plotState.state}` : '',
+      opts.context ? `已有剧情上下文：\n${cleanWritingText(opts.context)}` : '',
+    ].filter(Boolean).join('\n\n')
+  }
   const temperature = opts.temperature ?? settings.writingTemperature
   const maxTokens = opts.maxTokens ?? settings.writingMaxTokens
   const ownsTask = !opts.taskId
@@ -401,7 +440,7 @@ export async function generateWriting(db: Db, opts: {
       chapterId: '',
       kind: opts.kind,
       model: res.model,
-      paramsJson: JSON.stringify({ version: 6, temperature, maxTokens, targetWords: opts.targetWords || 0, chapterCount: opts.chapterCount || 1, ...(opts.taskId ? { taskId: opts.taskId } : {}), ...(parsedTitle?.title ? { draftTitle: parsedTitle.title } : {}), ...(opts.batchId ? { batchId: opts.batchId, batchIndex: opts.batchIndex || 1, batchCount: opts.batchCount || 1 } : {}), ...(opts.continuationSnapshot ? { continuationSnapshot: opts.continuationSnapshot } : {}) }),
+      paramsJson: JSON.stringify({ version: 6, ...(usePipeline ? { promptPipelineVersion: WRITING_PROMPT_PIPELINE_VERSION } : {}), temperature, maxTokens, targetWords: opts.targetWords || 0, chapterCount: opts.chapterCount || 1, ...(opts.taskId ? { taskId: opts.taskId } : {}), ...(parsedTitle?.title ? { draftTitle: parsedTitle.title } : {}), ...(opts.batchId ? { batchId: opts.batchId, batchIndex: opts.batchIndex || 1, batchCount: opts.batchCount || 1 } : {}), ...(opts.continuationSnapshot ? { continuationSnapshot: opts.continuationSnapshot } : {}) }),
       prompt: user,
       result: resultText,
       status: 'draft',
@@ -437,6 +476,7 @@ export async function generateContinuationChapters(db: Db, opts: {
   profileOverrides?: { style?: string; relationship?: string; plot?: string }
   continuationSnapshot?: ContinuationSnapshotV1
   writingBrief?: WritingBriefV1
+  promptPipelineVersion?: number
 }): Promise<WritingBatchResult> {
   const count = Math.max(1, Math.min(20, Math.trunc(Number(opts.chapterCount) || 1)))
   const startIndex = Math.max(0, Math.min(count, Math.trunc(Number(opts.startIndex) || 0)))
@@ -448,6 +488,13 @@ export async function generateContinuationChapters(db: Db, opts: {
   for (const d of drafts) {
     context = appendContinuationTail(context, d.batchIndex, d.result)
   }
+  // 新编译器把批次草稿作为独立材料块传递；旧协议继续使用原来的上下文拼接。
+  let batchDrafts = drafts.map((draft) => ({ index: draft.batchIndex, text: draft.result }))
+  const promptPipelineVersion = opts.promptPipelineVersion === undefined ? WRITING_PROMPT_PIPELINE_VERSION : Number(opts.promptPipelineVersion)
+  if (!Number.isInteger(promptPipelineVersion) || (promptPipelineVersion !== 1 && promptPipelineVersion !== WRITING_PROMPT_PIPELINE_VERSION)) {
+    throw new AiError('invalid', `不支持的 AI 提示词流水线版本：${String(opts.promptPipelineVersion)}`, 422)
+  }
+  const usePipeline = promptPipelineVersion === WRITING_PROMPT_PIPELINE_VERSION
   let usage = { model: '', promptTokens: 0, completionTokens: 0 }
   // 调用方（后台任务模式）可传入 batchId，保证任务行与草稿的批次号一致
   const batchId = opts.batchId || `continue_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
@@ -463,7 +510,7 @@ export async function generateContinuationChapters(db: Db, opts: {
         opts.instruction,
         `这是续写的第 ${index + 1} 章，共 ${count} 章。目标字数为本章约 ${Math.max(300, Math.min(30000, Math.trunc(Number(opts.targetWords) || 0)))} 字。`,
       ].filter(Boolean).join('\n'),
-      context,
+      context: usePipeline ? opts.context : context,
       chapterCount: 1,
       batchId,
       batchIndex: index + 1,
@@ -472,6 +519,8 @@ export async function generateContinuationChapters(db: Db, opts: {
       profileOverrides: opts.profileOverrides,
       continuationSnapshot: opts.continuationSnapshot,
       writingBrief: opts.writingBrief,
+      promptPipelineVersion,
+      batchDrafts: usePipeline ? batchDrafts : undefined,
     })
     generations.push(result.generation)
     if (!(await isAiTaskActive(db, taskId))) break
@@ -482,7 +531,8 @@ export async function generateContinuationChapters(db: Db, opts: {
       promptTokens: usage.promptTokens + result.usage.promptTokens,
       completionTokens: usage.completionTokens + result.usage.completionTokens,
     }
-    context = appendContinuationTail(context, index + 1, result.generation.result)
+    if (usePipeline) batchDrafts = [...batchDrafts, { index: index + 1, text: result.generation.result }]
+    else context = appendContinuationTail(context, index + 1, result.generation.result)
   }
 
   if (await isAiTaskActive(db, taskId)) {

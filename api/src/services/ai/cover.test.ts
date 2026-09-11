@@ -74,7 +74,7 @@ describe('buildImagePrompt', () => {
     }
   })
 
-  it('言情提示词按故事视觉 DNA 变化，不再固定情侣姿势、粉金配色和通用场景', async () => {
+  it('新流水线按已验证故事资料组装言情画面，不再注入旧 romance DNA 映射', async () => {
     const originalBaseUrl = process.env.AI_TEXT_BASE_URL
     const originalApiKey = process.env.AI_TEXT_API_KEY
     delete process.env.AI_TEXT_BASE_URL
@@ -93,12 +93,14 @@ describe('buildImagePrompt', () => {
 
       expect(result.metadata.genre).toBe('romance')
       expect(result.metadata.genres).toEqual(expect.arrayContaining(['romance', 'urban']))
-      expect(result.metadata.romanceSubtype).toBe('contract')
-      expect(result.metadata.visualAnchor).toContain('ring')
-      expect(result.prompt).toContain('Story-specific romance direction')
+      expect(result.metadata.romanceSubtype).toBeUndefined()
+      expect(result.metadata.visualAnchor).toBeUndefined()
+      expect(result.metadata.promptPipelineVersion).toBe(3)
+      expect(result.prompt).not.toContain('Story-specific romance direction')
       expect(result.prompt).not.toContain('a couple in a tender intimate interaction')
       expect(result.prompt).not.toContain('pink, warm white and light gold')
       expect(result.prompt).not.toContain('café, garden, cozy interior, sunset beach')
+      expect(result.prompt).toContain('戒指成为两人关系转折的证据')
     } finally {
       if (originalBaseUrl === undefined) delete process.env.AI_TEXT_BASE_URL
       else process.env.AI_TEXT_BASE_URL = originalBaseUrl
