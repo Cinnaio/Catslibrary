@@ -447,8 +447,10 @@ struct AdminAIWritingView: View {
                     HStack(spacing: 10) {
                         Button("提取 / 刷新") { action() }
                             .font(.caption)
+                            .buttonStyle(.borderless)
                         Button("人工校正") { edit() }
                             .font(.caption)
+                            .buttonStyle(.borderless)
                     }
                 }
             }
@@ -456,11 +458,23 @@ struct AdminAIWritingView: View {
                 Text(empty)
                     .font(.caption)
                     .foregroundStyle(AppTheme.textSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        guard !busy else { return }
+                        edit()
+                    }
             } else {
                 Text(value)
                     .font(.caption)
                     .foregroundStyle(AppTheme.textSecondary)
                     .appTextLineLimit(4)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        guard !busy else { return }
+                        edit()
+                    }
             }
             if !status.isEmpty, status != "usable" {
                 Text(profileStatusText(status))
