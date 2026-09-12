@@ -61,6 +61,14 @@ async function selectNovel() {
   await waitFor(() => expect(api.getStyleProfile).toHaveBeenCalledWith('novel_1'))
 }
 
+/** Radix Tabs 用键盘事件切换，click 不触发；切到续写模式后再断言。 */
+function switchToContinue() {
+  const tab = screen.getByRole('tab', { name: '续写' })
+  tab.focus()
+  fireEvent.keyDown(tab, { key: 'Enter' })
+  fireEvent.keyDown(tab, { key: ' ' })
+}
+
 describe('AiWritingPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -153,5 +161,25 @@ describe('AiWritingPanel', () => {
         consentRuleTier: 'default',
       },
     })
+  })
+
+  it('生成的大纲填入大纲框并提示章数', async () => {
+    api.plotSuggestions.mockResolvedValue({
+      suggestions: [],
+      outline: '第1章 重返皇城\n苏越带夭夜入城面见加刑天。\n第2章 婚夜\n两人在寝宫独处，约定共进退。',
+      usage: { model: 'm', promptTokens: 1, completionTokens: 1 },
+    })
+    await selectNovel()
+    switchToContinue()
+
+    fireEvent.click(screen.getByRole('button', { name: /按情节推荐生成大纲/ }))
+
+    await waitFor(() => expect(api.plotSuggestions).toHaveBeenCalled())
+    // 大纲模式要把 chapterCount 一并发给后端，后端据此产出对应章数
+    expect(api.plotSuggestions.mock.calls[0]![0]).toMatchObject({ novelId: 'novel_1', chapterCount: 1 })
+
+    const textarea = await screen.findByPlaceholderText(/第1章 重返皇城/) as HTMLTextAreaElement
+    await waitFor(() => expect(textarea.value).toContain('第1章 重返皇城'))
+    expect(textarea.value).toContain('第2章 婚夜')
   })
 })

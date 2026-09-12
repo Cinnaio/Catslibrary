@@ -3,7 +3,67 @@
  * generateWriting 本身走 AI/DB，这里只测可测的 parseContinuationTitle。
  */
 import { describe, it, expect } from 'vitest'
-import { cleanWritingTail, formatWritingBrief, parseContinuationTitle, parsePlotSuggestions, validateWritingBrief } from './writing'
+import { cleanWritingTail, formatWritingBrief, parseContinuationTitle, parsePlotSuggestions, splitOutlineByChapter, validateWritingBrief } from './writing'
+
+describe('splitOutlineByChapter', () => {
+  it('按「第N章」切分，每章只取自己的段落', () => {
+    const outline = '第1章 重返皇城\n苏越带夭夜入城，面见加刑天。\n第2章 婚夜\n两人在寝宫独处，约定共进退。\n第3章 战云压境\n云山率众陈兵城下。'
+    const sections = splitOutlineByChapter(outline, 3)
+    expect(sections).toHaveLength(3)
+    expect(sections[0]).toContain('重返皇城')
+    expect(sections[0]).not.toContain('婚夜')
+    expect(sections[1]).toContain('两人在寝宫独处')
+    expect(sections[1]).not.toContain('云山')
+    expect(sections[2]).toContain('云山率众陈兵城下')
+  })
+
+  it('支持中文数字与阿拉伯数字加顿号两种标记', () => {
+    const cn = splitOutlineByChapter('第一章 起\n甲。\n第二章 承\n乙。', 2)
+    expect(cn[0]).toContain('甲')
+    expect(cn[1]).toContain('乙')
+    const ar = splitOutlineByChapter('1、起\n甲。\n2、承\n乙。', 2)
+    expect(ar[0]).toContain('甲')
+    expect(ar[1]).toContain('乙')
+  })
+
+  it('支持「第十一章」这类复合中文数字', () => {
+    const sections = splitOutlineByChapter('第十一章 转折\n丙。\n第十二章 收束\n丁。', 12)
+    expect(sections[10]).toContain('丙')
+    expect(sections[11]).toContain('丁')
+  })
+
+  it('章节标记前的前言并入第 1 章', () => {
+    const sections = splitOutlineByChapter('本卷主线是苏越与夭夜的结盟。\n第1章 起\n甲。\n第2章 承\n乙。', 2)
+    expect(sections[0]).toContain('本卷主线')
+    expect(sections[0]).toContain('起')
+    expect(sections[0]).toContain('甲')
+    // 标记行里的标题文字保留在该章内，不与上章混在一起
+    expect(sections[0]).not.toContain('乙')
+    expect(sections[1]).toBe('承\n乙。')
+  })
+
+  it('缺失章节返回空串，由调用方决定是否回退', () => {
+    const sections = splitOutlineByChapter('第1章 起\n甲。\n第3章 转\n丙。', 3)
+    expect(sections[1]).toBe('')
+    expect(sections[2]).toContain('丙')
+  })
+
+  it('容忍 Markdown 标题前缀（模型常输出「## 第1章 ...」）', () => {
+    const outline = '## 第1章 起\n甲。\n\n## 第2章 承\n乙。\n\n### 第3章 转\n丙。'
+    const sections = splitOutlineByChapter(outline, 3)
+    expect(sections).toHaveLength(3)
+    expect(sections[0]).toContain('甲')
+    expect(sections[1]).toContain('乙')
+    expect(sections[2]).toContain('丙')
+    // 标题行本身不该混进上一章
+    expect(sections[0]).not.toContain('乙')
+  })
+
+  it('识别不出章节标记时返回空数组', () => {
+    expect(splitOutlineByChapter('写一段轻松的日常，交代两人关系。', 3)).toEqual([])
+    expect(splitOutlineByChapter('', 3)).toEqual([])
+  })
+})
 
 describe('parsePlotSuggestions', () => {
   it('解析 JSON 对象数组，保留 direction 与 effect', () => {

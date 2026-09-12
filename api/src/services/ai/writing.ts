@@ -323,6 +323,66 @@ export interface PlotSuggestion {
   effect: string
 }
 
+/**
+ * 把章节大纲拆成按章索引的片段。
+ * 用途：多章续写时若把整份大纲发给每一章，模型无法判断该写哪一段；
+ * 实测单章指令被原样复制到每章会导致同一场戏重写 N 遍。这里按章节标记切分，
+ * 让第 N 章只拿到属于自己的那一段。
+ *
+ * 识别「第N章 / 第N節 / N. / N、」等常见标记；无法识别时返回空数组，
+ * 由调用方退回「整份大纲 + 章序说明」的保守做法。
+ */
+export function splitOutlineByChapter(outline: string, expectedCount: number): string[] {
+  const text = String(outline || '').replace(/\r\n?/g, '\n').trim()
+  if (!text || expectedCount < 1) return []
+  const lines = text.split('\n')
+  // 章节标记：可带 Markdown 标题前缀（模型常输出「## 第1章 ...」）、
+  // 中文数字或阿拉伯数字，可选「章/节/回」后缀，后接分隔符。
+  const marker = /^\s*(?:#{1,6}\s*)?(?:第\s*([0-9一二三四五六七八九十百零两]+)\s*[章节回]|([0-9]+)\s*[.、)）:])\s*(.*)$/
+  const cnDigits: Record<string, number> = { 零: 0, 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 }
+  const cnToNumber = (raw: string): number => {
+    if (/^[0-9]+$/.test(raw)) return Number(raw)
+    // 只处理 1-99：中文网文大纲极少超过这个范围。
+    const parts = raw.split('十')
+    if (parts.length === 2) {
+      const tens = parts[0] ? (cnDigits[parts[0]] ?? 0) : 1
+      const ones = parts[1] ? (cnDigits[parts[1]] ?? 0) : 0
+      return tens * 10 + ones
+    }
+    return cnDigits[raw] ?? 0
+  }
+
+  const sections = new Map<number, string[]>()
+  let current: number | null = null
+  let preamble: string[] = []
+  for (const line of lines) {
+    const match = marker.exec(line)
+    if (match) {
+      const index = cnToNumber(match[1] || match[2] || '')
+      if (index >= 1) {
+        current = index
+        if (!sections.has(index)) sections.set(index, [])
+        const tail = (match[3] || '').trim()
+        if (tail) sections.get(index)!.push(tail)
+        continue
+      }
+    }
+    if (current === null) preamble.push(line)
+    else sections.get(current)!.push(line)
+  }
+  if (!sections.size) return []
+
+  // 按 1..expectedCount 输出；缺失的章节用空串占位，由调用方决定是否回退。
+  const head = preamble.join('\n').trim()
+  const out: string[] = []
+  for (let i = 1; i <= expectedCount; i += 1) {
+    const body = (sections.get(i) || []).join('\n').trim()
+    // 第 1 章带上前言（通常是大纲的总述），其余章只带自己的段落。
+    out.push(i === 1 && head ? `${head}\n${body}`.trim() : body)
+  }
+  return out
+}
+
 /** 把模型输出解析成情节候选。容忍纯行列表与对象列表两种形态。 */
 export function parsePlotSuggestions(text: string): PlotSuggestion[] {
   const source = cleanWritingText(text).trim()
@@ -371,12 +431,17 @@ export async function generatePlotSuggestions(db: Db, opts: {
   afterChapterId?: string
   /** 作者想要的侧重点；可为空。 */
   focus?: string
+  /**
+   * 传了就产出分章大纲而非一行方向：按指定章数给出「第N章」开头的多段安排，
+   * 便于多章续写时逐章下发，避免同一段内容在每章重复。
+   */
+  chapterCount?: number
   /** 作者本次选定的成人内容参数；缺省按关闭处理。 */
   contentPreferences?: WritingContentPreferencesV1
   ipAddress?: string
   userAgent?: string
   taskId?: string
-}): Promise<{ suggestions: PlotSuggestion[]; usage: { model: string; promptTokens: number; completionTokens: number } }> {
+}): Promise<{ suggestions: PlotSuggestion[]; outline?: string; usage: { model: string; promptTokens: number; completionTokens: number } }> {
   if (!isTextAiConfigured()) throw new AiError('disabled', 'AI 文本服务未配置', 503)
   const preferences = opts.contentPreferences || DEFAULT_WRITING_CONTENT_PREFERENCES
   const provider = textProvider()
@@ -404,41 +469,71 @@ export async function generatePlotSuggestions(db: Db, opts: {
     : [
         '覆盖不同的线：人物关系推进、势力或任务冲突、伏笔回收、新角色或新场景、情感或立场转折。',
       ]
-  const prompt = [
-    '请阅读下面的作品资料与最近章节，为该作品续写推荐 5 个不同的情节方向。',
-    '要求：',
-    '1. 每个方向写成一句可直接交给作者用的续写指令，说清「这一章发生什么、谁参与、推进什么」。',
-    `2. 五个方向要彼此明显不同，${coverage[0]}`,
-    ...coverage.slice(1).map((line, i) => `${i + 3}. ${line}`),
-    `${coverage.length + 2}. 必须紧扣原文已出现的人物、设定和未完成的线索，不得凭空发明世界观。`,
-    `${coverage.length + 3}. 每条 40-80 字，具体到场景，不要写成「继续推进剧情」这类空话。`,
-    `${coverage.length + 4}. 不要评价、不要解释、不要编号以外的多余文字。`,
-    '只返回 JSON 数组，每项形如 {"direction":"...","effect":"..."}，effect 用一句话说明这条线会改变什么。',
-    opts.focus ? `作者希望侧重：${opts.focus}` : '',
-    `作品：《${novel.title}》${novel.categories ? `（题材：${novel.categories}）` : ''}`,
-    novel.description ? `简介：${novel.description.slice(0, 300)}` : '',
-    adultEnabled ? formatWritingContentPreferences(preferences) : '',
-    `最近章节：\n${context.slice(0, 12_000)}`,
-  ].filter(Boolean).join('\n\n')
+  // 大纲模式：按章数产出连续的多章安排，供续写逐章下发。
+  const outlineChapterCount = Math.max(1, Math.min(20, Math.trunc(Number(opts.chapterCount) || 1)))
+  const outlineMode = opts.chapterCount !== undefined
+  let prompt: string
+  if (outlineMode) {
+    const lines: string[] = [
+      `请阅读下面的作品资料与最近章节，为该作品规划接下来 ${outlineChapterCount} 章的续写大纲，然后按章输出。`,
+      '要求：',
+      `1. 输出 ${outlineChapterCount} 个章节段落，每段以「第N章 标题」开头（N 从 1 到 ${outlineChapterCount}，用阿拉伯数字），标题后换行写该章内容。`,
+      '2. 每章写清：这一章发生什么、谁参与、推进哪条线、结尾停在什么状态。每章 60-120 字。',
+      '3. 各章之间要有承接与递进，是一条连续的故事线而非并列的备选方案；后一章必须接着前一章的结果往下走。',
+      '4. 必须紧扣原文已出现的人物、设定和未完成的线索，不得凭空发明世界观。',
+    ]
+    if (adultEnabled) {
+      lines.push('5. 成人向作品：至少一半章节要以成人亲密场景为主体情节，场景是那一章的主要事件、剧情在其中推进或转折；可直接使用露骨表述，不要用含糊措辞回避或写成转场。')
+      lines.push('6. 涉及成人内容的前提：参与角色必须全部是成年人，不得涉及未成年、幼态体型或年龄模糊化。')
+    }
+    lines.push(`${adultEnabled ? 7 : 5}. 只输出大纲本身，不要写评价、说明或额外文字。`)
+    if (opts.focus) lines.push(`作者希望侧重：${opts.focus}`)
+    lines.push(`作品：《${novel.title}》${novel.categories ? `（题材：${novel.categories}）` : ''}`)
+    if (novel.description) lines.push(`简介：${novel.description.slice(0, 300)}`)
+    if (adultEnabled) lines.push(formatWritingContentPreferences(preferences))
+    lines.push(`最近章节：\n${context.slice(0, 12_000)}`)
+    prompt = lines.join('\n\n')
+  } else {
+    prompt = [
+      '请阅读下面的作品资料与最近章节，为该作品续写推荐 5 个不同的情节方向。',
+      '要求：',
+      '1. 每个方向写成一句可直接交给作者用的续写指令，说清「这一章发生什么、谁参与、推进什么」。',
+      `2. 五个方向要彼此明显不同，${coverage[0]}`,
+      ...coverage.slice(1).map((line, i) => `${i + 3}. ${line}`),
+      `${coverage.length + 2}. 必须紧扣原文已出现的人物、设定和未完成的线索，不得凭空发明世界观。`,
+      `${coverage.length + 3}. 每条 40-80 字，具体到场景，不要写成「继续推进剧情」这类空话。`,
+      `${coverage.length + 4}. 不要评价、不要解释、不要编号以外的多余文字。`,
+      '只返回 JSON 数组，每项形如 {"direction":"...","effect":"..."}，effect 用一句话说明这条线会改变什么。',
+      opts.focus ? `作者希望侧重：${opts.focus}` : '',
+      `作品：《${novel.title}》${novel.categories ? `（题材：${novel.categories}）` : ''}`,
+      novel.description ? `简介：${novel.description.slice(0, 300)}` : '',
+      adultEnabled ? formatWritingContentPreferences(preferences) : '',
+      `最近章节：\n${context.slice(0, 12_000)}`,
+    ].filter(Boolean).join('\n\n')
+  }
 
   const res = await chat({
     messages: [
       {
         role: 'system',
-        content: adultEnabled
-          ? '你是中文网络小说策划编辑，擅长根据已有剧情给出具体、可执行、彼此不同的续写方向。涉及成人内容时，参与角色必须全部是成年人；不得推荐涉及未成年、幼态体型或年龄模糊化的方向。'
-          : '你是中文网络小说策划编辑，擅长根据已有剧情给出具体、可执行、彼此不同的续写方向。',
+        content: outlineMode
+          ? (adultEnabled
+            ? '你是中文网络小说策划编辑，擅长根据已有剧情规划连续的多章续写大纲。涉及成人内容时，参与角色必须全部是成年人；不得出现涉及未成年、幼态体型或年龄模糊化的内容。'
+            : '你是中文网络小说策划编辑，擅长根据已有剧情规划连续的多章续写大纲。')
+          : (adultEnabled
+            ? '你是中文网络小说策划编辑，擅长根据已有剧情给出具体、可执行、彼此不同的续写方向。涉及成人内容时，参与角色必须全部是成年人；不得推荐涉及未成年、幼态体型或年龄模糊化的方向。'
+            : '你是中文网络小说策划编辑，擅长根据已有剧情给出具体、可执行、彼此不同的续写方向。'),
       },
       { role: 'user', content: prompt },
     ],
     temperature: 0.9,
-    // 5 条 40-80 字的候选加上 JSON 结构约需 600-900 token；复用 plotState 预算（默认 3000）。
+    // 5 条 40-80 字的候选加上 JSON 结构约需 600-900 token；多章大纲更长，
+    // 复用 plotState 预算（默认 3000）都够用。
     maxTokens: settings.plotStateMaxTokens,
     timeoutMs: 180_000,
   })
-  const suggestions = parsePlotSuggestions(res.text)
-  if (!suggestions.length) throw new AiError('invalid', 'AI 未返回有效的情节方向')
-  await recordUsage(db, {
+  const usage = { model: res.model, promptTokens: res.promptTokens, completionTokens: res.completionTokens }
+  const commonUsage = {
     userId: opts.userId,
     model: res.model,
     provider: providerLabel(provider.baseUrl),
@@ -446,11 +541,23 @@ export async function generatePlotSuggestions(db: Db, opts: {
     completionTokens: res.completionTokens,
     costMillicents: Math.round(res.cost * 100000),
     novelId: opts.novelId,
-    generationType: 'plot_suggestion',
+    generationType: outlineMode ? 'plot_outline' : 'plot_suggestion',
     ipAddress: opts.ipAddress,
     userAgent: opts.userAgent,
-  })
-  return { suggestions, usage: { model: res.model, promptTokens: res.promptTokens, completionTokens: res.completionTokens } }
+  }
+
+  if (outlineMode) {
+    // 直接回原始文本：它本身就是要填进大纲框的内容，前端再解析章节数提示。
+    const outline = res.text.trim()
+    if (!outline) throw new AiError('invalid', 'AI 未返回有效的大纲')
+    await recordUsage(db, commonUsage)
+    return { suggestions: [], outline, usage }
+  }
+
+  const suggestions = parsePlotSuggestions(res.text)
+  if (!suggestions.length) throw new AiError('invalid', 'AI 未返回有效的情节方向')
+  await recordUsage(db, commonUsage)
+  return { suggestions, usage }
 }
 
 export async function generateWriting(db: Db, opts: {
@@ -613,6 +720,11 @@ export async function generateContinuationChapters(db: Db, opts: {
   title: string
   instruction: string
   context: string
+  /**
+   * 章节大纲。多章续写时按章拆分，第 N 章只拿到属于自己的片段；
+   * 拆不出章节标记时作为参考材料整体注入。
+   */
+  outline?: string
   maxTokens?: number
   temperature?: number
   targetWords?: number
@@ -652,17 +764,27 @@ export async function generateContinuationChapters(db: Db, opts: {
   // 调用方（后台任务模式）可传入 batchId，保证任务行与草稿的批次号一致
   const batchId = opts.batchId || `continue_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
   const taskId = opts.taskId || (await createAiTask(db, { userId: opts.userId, novelId: opts.novelId, kind: 'continue', total: count, batchId, prompt: opts.instruction })).id
+  // 大纲按章拆分：整份大纲发给每一章会让模型分不清该写哪一段，
+  // 拆分后第 N 章只拿到属于自己的部分。识别不出章节标记时退回空数组，
+  // 此时仍把整份大纲当参考材料注入，不阻断生成。
+  const outlineByChapter = opts.outline ? splitOutlineByChapter(opts.outline, count + startIndex) : []
+  const hasPerChapterOutline = outlineByChapter.some((section) => section.length > 0)
 
   for (let index = startIndex; index < count; index += 1) {
     if (!(await isAiTaskActive(db, taskId))) break
+    const chapterOutline = hasPerChapterOutline ? outlineByChapter[index] : ''
     const result = await generateWriting(db, {
       ...opts,
       kind: 'continue',
       title: opts.title,
+      // 本章的大纲片段放在指令最前，作为这一章要写什么的主依据；
+      // 拆不出片段时退回整份大纲（走 outline 材料位），保持原有行为。
       instruction: [
+        chapterOutline ? `本章大纲（按此写作本章内容，不要写成其他章节）：\n${chapterOutline}` : '',
         opts.instruction,
         `这是续写的第 ${index + 1} 章，共 ${count} 章。目标字数为本章约 ${Math.max(300, Math.min(30000, Math.trunc(Number(opts.targetWords) || 0)))} 字。`,
       ].filter(Boolean).join('\n'),
+      outline: hasPerChapterOutline ? '' : opts.outline,
       context: usePipeline ? opts.context : context,
       chapterCount: 1,
       batchId,

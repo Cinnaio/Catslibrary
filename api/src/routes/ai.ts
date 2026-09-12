@@ -642,6 +642,8 @@ async function startWritingJob(
     title: novel.title,
     instruction: finalInstruction,
     context,
+    // 大纲按章拆分后逐章下发，避免整份大纲或单章指令被复制到每一章。
+    outline: String(body.outline || '').trim(),
     maxTokens: body.maxTokens,
     temperature: body.temperature,
     ...writingOptions(body),
@@ -1040,16 +1042,21 @@ aiRoutes.post('/writing/plot-suggestions', requireAdmin(), async (c) => {
   // 与续写同一套校验：作者的成人内容选择决定方向构成，非法值不该静默降级。
   const contentPreferencesResult = validateWritingContentPreferences(body.contentPreferences)
   if (contentPreferencesResult.error) return c.json({ error: contentPreferencesResult.error }, 422)
+  // chapterCount 传了就产出按章大纲，不传就是一行行情节方向。
+  const chapterCount = body.chapterCount === undefined || body.chapterCount === null || body.chapterCount === ''
+    ? undefined
+    : Math.max(1, Math.min(20, Math.trunc(Number(body.chapterCount) || 1)))
   try {
     const result = await generatePlotSuggestions(db, {
       userId: c.get('user').id,
       novelId,
       afterChapterId: String(body.afterChapterId || '').trim() || undefined,
       focus: String(body.focus || '').trim(),
+      ...(chapterCount === undefined ? {} : { chapterCount }),
       contentPreferences: contentPreferencesResult.preferences,
       ...(await auditRequestContext(c, db)),
     })
-    return c.json({ suggestions: result.suggestions, usage: result.usage })
+    return c.json({ suggestions: result.suggestions, ...(result.outline ? { outline: result.outline } : {}), usage: result.usage })
   } catch (err) {
     return aiErrorResponse(c, err)
   }

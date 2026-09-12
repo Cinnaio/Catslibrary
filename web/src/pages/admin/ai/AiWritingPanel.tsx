@@ -34,6 +34,21 @@ function taskKindLabel(kind: string): string {
   return kind === 'continue' ? '续写' : kind === 'write_outline' ? '大纲' : kind === 'write_chapter' ? '章节' : kind === 'cover' ? '封面' : kind
 }
 
+/**
+ * 数出大纲里有几个章节段落。
+ * 与后端 splitOutlineByChapter 用同一套标记规则（「第N章」或「N.」），
+ * 让作者在提交前就知道大纲章数与续写章数是否对得上。
+ */
+function countOutlineChapters(outline: string): number {
+  const marker = /^\s*(?:#{1,6}\s*)?(?:第\s*[0-9一二三四五六七八九十百零两]+\s*[章节回]|[0-9]+\s*[.、)）:])\s*/
+  const seen = new Set<string>()
+  for (const line of String(outline || '').replace(/\r\n?/g, '\n').split('\n')) {
+    const match = marker.exec(line)
+    if (match) seen.add(match[0].trim())
+  }
+  return seen.size
+}
+
 /** 任务状态圆点：排队琥珀、运行中主色呼吸、完成绿、失败红、取消灰。 */
 function taskDotClass(status: string): string {
   if (status === 'running') return 'bg-primary motion-safe:animate-pulse'
@@ -163,6 +178,8 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
   const [suggestions, setSuggestions] = useState<Array<{ direction: string; effect: string }>>([])
   const [suggestBusy, setSuggestBusy] = useState(false)
   const [focus, setFocus] = useState('')
+  /** 用选中的情节方向生成多章大纲。 */
+  const [outlineBusy, setOutlineBusy] = useState(false)
   /** 作者本次任务的成人内容参数；不传时后端按关闭处理，与旧客户端行为一致。 */
   const [adultContentMode, setAdultContentMode] = useState<'off' | 'explicit'>('off')
   const [adultCharactersConfirmed, setAdultCharactersConfirmed] = useState(false)
@@ -364,7 +381,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
       if (!ok) return
     }
     await startTask(
-      () => aiApi.writing.continue({ novelId, title: chapterTitle, instruction, targetWords, chapterCount, contentPreferences: buildContentPreferences(), ...(afterChapterId ? { afterChapterId } : {}) , operationId: newOperationId('ai-writing-continue') }),
+      () => aiApi.writing.continue({ novelId, title: chapterTitle, instruction, targetWords, chapterCount, contentPreferences: buildContentPreferences(), ...(outline.trim() ? { outline } : {}), ...(afterChapterId ? { afterChapterId } : {}), operationId: newOperationId('ai-writing-continue') }),
       '续写任务已开始，完成后草稿在“已生成内容”',
     )
   }
@@ -401,6 +418,34 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
       toast((err as Error).message, 'error')
     } finally {
       setSuggestBusy(false)
+    }
+  }
+
+  /**
+   * 按当前章节数生成多章大纲，填进大纲框。
+   * 大纲会被后端按章拆分后逐章下发，因此要按「第N章」逐段给出。
+   */
+  async function generateOutlineForContinuation() {
+    if (!novelId) return toast('请选择小说', 'error')
+    setOutlineBusy(true)
+    try {
+      const res = await aiApi.writing.plotSuggestions({
+        novelId,
+        chapterCount,
+        ...(afterChapterId ? { afterChapterId } : {}),
+        ...(focus.trim() ? { focus: focus.trim() } : {}),
+        contentPreferences: buildContentPreferences(),
+      })
+      if (!res.outline) return toast('未返回可用的大纲', 'error')
+      setOutline(res.outline)
+      const parsed = countOutlineChapters(res.outline)
+      toast(parsed >= chapterCount
+        ? `已生成 ${parsed} 章大纲，可编辑后直接续写`
+        : `已生成 ${parsed} 章大纲，不足 ${chapterCount} 章，建议补足或调小续写章数`, parsed >= chapterCount ? 'success' : 'error')
+    } catch (err) {
+      toast((err as Error).message, 'error')
+    } finally {
+      setOutlineBusy(false)
     }
   }
 
@@ -658,17 +703,36 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                 </>
               )}
             </div>
-            {mode === 'new' && (
-              <div className="grid gap-1.5">
-                <Label>大纲（生成章节时使用）</Label>
-                <textarea data-slot="textarea"
-                  className="min-h-[140px] w-full border border-input bg-background px-3 py-2 text-sm"
-                  value={outline}
-                  onChange={(event) => setOutline(event.target.value)}
-                  placeholder="先生成大纲，或直接粘贴已有大纲"
-                />
+            <div className="grid gap-1.5">
+              <div className="flex items-center justify-between gap-3">
+                <Label>{mode === 'new' ? '大纲（生成章节时使用）' : '大纲（按章拆分后逐章下发）'}</Label>
+                {mode === 'continue' && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    disabled={busy || taskActive || !novelId}
+                    onClick={() => void generateOutlineForContinuation()}
+                  >
+                    {outlineBusy ? '生成中…' : '按情节推荐生成大纲'}
+                  </Button>
+                )}
               </div>
-            )}
+              <textarea data-slot="textarea"
+                className="min-h-[140px] w-full border border-input bg-background px-3 py-2 text-sm"
+                value={outline}
+                onChange={(event) => setOutline(event.target.value)}
+                placeholder={mode === 'new'
+                  ? '先生成大纲，或直接粘贴已有大纲'
+                  : '每章一行、以「第N章」开头，例如：\n第1章 重返皇城\n苏越带夭夜入城面见加刑天。\n第2章 婚夜\n两人在寝宫独处，约定共进退。'}
+              />
+              {mode === 'continue' && outline.trim() && (
+                <p className="text-xs text-muted-foreground">
+                  已识别 {countOutlineChapters(outline)} 个章节段落，将分别下发给对应章节，避免同一段内容在每章重复。写不满 {chapterCount} 章时，多出的大纲段落不生效，缺少的章节按创作要求生成。
+                </p>
+              )}
+            </div>
           </div>
           <div className="ai-writing-analysis grid gap-4 border-t pt-5">
             <div>
