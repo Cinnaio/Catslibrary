@@ -1321,6 +1321,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 .novel-editor__grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
   gap: 1rem;
 }
 .novel-editor__field--wide {
@@ -1328,6 +1329,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 }
 .novel-editor__field {
   display: grid;
+  align-content: start;
   gap: 0.4rem;
 }
 .novel-editor__field label {
@@ -3435,6 +3437,42 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   padding-bottom: 1rem;
 }
 
+/* 小说管理的搜索与新增操作属于同一组，放在页面标题右侧；标题区不再使用底部分隔线。 */
+.admin-redesign-page--novels > .admin-tab-header {
+  border-bottom: 0;
+}
+
+.admin-redesign-page--novels .admin-tab-header__actions .admin-search {
+  width: min(20rem, 100%);
+  max-width: 20rem;
+  flex: 0 1 20rem;
+}
+
+@media (min-width: 901px) {
+  .admin-redesign-page--novels .admin-tab-header__actions {
+    width: fit-content;
+    flex-wrap: nowrap;
+  }
+}
+
+@media (max-width: 900px) {
+  .admin-redesign-page--novels .admin-tab-header__actions {
+    width: 100%;
+    justify-content: stretch;
+    flex-wrap: nowrap;
+  }
+
+  .admin-redesign-page--novels .admin-tab-header__actions .admin-search {
+    width: auto;
+    max-width: none;
+    flex: 1 1 auto;
+  }
+
+  .admin-redesign-page--novels .admin-tab-header__actions > [data-slot='button'] {
+    flex: 0 0 auto;
+  }
+}
+
 .admin-redesign-page .admin-tab-header h2 {
   font-size: clamp(1.5rem, 1.25rem + 0.65vw, 2rem);
   letter-spacing: -0.04em;
@@ -3726,6 +3764,32 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 
 .admin-dialog [data-slot='dialog-footer'] [data-slot='button'] {
   min-width: 4.5rem;
+}
+
+/* 小说编辑弹窗：首尾容器使用对称的上下内边距，让标题和按钮在各自区域内稳定居中。 */
+[data-slot='dialog-content'].novel-editor-dialog {
+  row-gap: var(--admin-space-3);
+}
+
+.novel-editor-dialog [data-slot='dialog-header'] {
+  position: relative;
+  z-index: 1;
+  background: var(--admin-panel);
+  justify-content: center;
+  padding-block: var(--admin-space-4);
+}
+
+.novel-editor-dialog .admin-dialog__body {
+  padding-block: var(--admin-space-3) var(--admin-space-4);
+}
+
+.novel-editor-dialog [data-slot='dialog-footer'] {
+  position: relative;
+  z-index: 1;
+  align-items: center;
+  border-top: 0;
+  background: var(--admin-panel-muted);
+  padding-block: var(--admin-space-3);
 }
 
 /* 章节弹窗内容 */
@@ -4596,6 +4660,17 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
    thead 隐藏，tr 变 grid，每个 td 用 ::before 显示列标签。
    覆盖到 900px：8 列数据表在更窄容器里不可读。 */
 @media (max-width: 900px) {
+  /* shadcn Table 使用 data-slot 容器，不走旧版 .table-wrapper；移动卡片不应
+     继承表格默认的 2px 间距或横向滚动留白。 */
+  .admin-data-panel--grid [data-slot='table-container'] {
+    overflow: visible;
+  }
+
+  .admin-data-panel--grid table {
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
   .admin-data-panel--grid .table-wrapper {
     overflow-x: visible;
     border: 0;
@@ -4624,10 +4699,8 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 
   .admin-data-panel--grid tbody {
     display: grid;
-    /* 卡片间距必须显著大于卡片内部行距（0.25rem），否则违反接近性原则：
-       组内间距 ≈ 组间间距时，眼睛无法判断哪些字段属于同一张卡片，整列
-       看起来像一整块。1rem 是内部行距的 4 倍，分组关系一目了然。 */
-    gap: 1rem;
+    /* 卡片间距保持大于字段行距，但收紧首卡顶部与卡片之间的留白。 */
+    gap: 0.75rem;
   }
 
   .admin-data-panel--grid tbody tr {
@@ -4639,8 +4712,8 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
     align-items: start;
     /* 字段行距 0.375rem：0.25rem 时含徽章的行之间只剩 3-4px，视觉粘连；
        同时需显著小于卡片间距 1rem，才能保持「组内紧、组间松」。 */
-    gap: 0.375rem;
-    padding: 0.75rem 1rem;
+    gap: 0.25rem;
+    padding: 0.5rem 1rem;
     border: 1px solid var(--admin-border);
     border-radius: var(--radius-lg);
     background: var(--admin-panel);
@@ -4705,8 +4778,8 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   .admin-data-panel--grid tbody td[data-actions] {
     grid-column: 1 / -1;
     grid-template-columns: minmax(0, 1fr);
-    margin-top: 0.25rem;
-    padding-top: 0.75rem;
+    margin-top: 0.125rem;
+    padding-top: 0.5rem;
     border-top: 1px solid var(--admin-border);
   }
 

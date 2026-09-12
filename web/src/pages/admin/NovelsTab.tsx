@@ -467,19 +467,12 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
 
   return (
     <AdminPage
+      className="admin-redesign-page--novels"
       title="小说管理"
       meta={countLabel}
       description="维护书库作品、分类与连载状态，批量更新只作用于当前列表。"
       actions={
-        <Button onClick={() => openModal(null)}>
-          <span aria-hidden="true">＋</span>
-          添加小说
-        </Button>
-      }
-    >
-      <AdminDataPanel ariaLabel="作品目录" columns={NOVEL_COLUMNS}>
-        <AdminPanelHeading title="作品目录" description={query ? `匹配「${query}」的作品` : '按标题、作者、章节数和更新时间管理书库'} />
-        <AdminToolbar layout="stacked">
+        <>
           <AdminSearch
             id="novel-search"
             label="搜索小说"
@@ -489,7 +482,17 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
           />
-          {selected.size > 0 && (
+          <Button onClick={() => openModal(null)}>
+            <span aria-hidden="true">＋</span>
+            添加小说
+          </Button>
+        </>
+      }
+    >
+      <AdminDataPanel ariaLabel="作品目录" columns={NOVEL_COLUMNS}>
+        <AdminPanelHeading title="作品目录" description={query ? `匹配「${query}」的作品` : '按标题、作者、章节数和更新时间管理书库'} />
+        {selected.size > 0 && (
+          <AdminToolbar layout="inline">
             <div className="admin-toolbar__batch" aria-live="polite">
               <span className="admin-toolbar__batch-count">已选 {selected.size} 本</span>
               <div className="admin-toolbar__batch-actions">
@@ -504,8 +507,8 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
                 </Button>
               </div>
             </div>
-          )}
-        </AdminToolbar>
+          </AdminToolbar>
+        )}
         <Table>
           <TableCaption className="sr-only">小说目录列表，可按标题、作者、章节数和更新时间排序</TableCaption>
           <TableHeader>
@@ -645,7 +648,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
           if (!open) closeModal()
         }}
       >
-        <DialogContent className="admin-dialog sm:max-w-[540px]">
+        <DialogContent className="admin-dialog novel-editor-dialog sm:max-w-[540px]">
           <DialogHeader>
             <DialogTitle className="editor-modal__title">{editing ? '编辑小说' : '添加小说'}</DialogTitle>
           </DialogHeader>
