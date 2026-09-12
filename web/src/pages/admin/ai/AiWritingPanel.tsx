@@ -159,6 +159,14 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
   const [relationshipProfile, setRelationshipProfile] = useState('')
   const [relationshipBusy, setRelationshipBusy] = useState(false)
   const [relationshipSample, setRelationshipSample] = useState(10)
+  /** 情节方向候选：想不出写什么时先取候选，选中一条填入创作要求。 */
+  const [suggestions, setSuggestions] = useState<Array<{ direction: string; effect: string }>>([])
+  const [suggestBusy, setSuggestBusy] = useState(false)
+  const [focus, setFocus] = useState('')
+  /** 作者本次任务的成人内容参数；不传时后端按关闭处理，与旧客户端行为一致。 */
+  const [adultContentMode, setAdultContentMode] = useState<'off' | 'explicit'>('off')
+  const [adultCharactersConfirmed, setAdultCharactersConfirmed] = useState(false)
+  const [consentRuleTier, setConsentRuleTier] = useState<'default' | 'fictional_nonconsent'>('default')
   // 初始读取与手动重新提取可能并发；只让每类画像最新一轮请求更新页面。
   const styleRequestVersion = useRef(0)
   const plotRequestVersion = useRef(0)
@@ -306,16 +314,45 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
     await startTask(() => aiApi.writing.outline({ novelId, title, instruction, targetWords, chapterCount, operationId: newOperationId('ai-writing-outline') }), '大纲生成已开始，完成后到“已生成内容”查看')
   }
 
+  /**
+   * 组装本次任务的成人内容参数。
+   * 关闭模式一律回传 off，由后端归一化为默认值；开启模式必须先确认成年角色，
+   * 否则后端 422，所以这里在前端就挡住，避免白跑一次请求。
+   */
+  function buildContentPreferences() {
+    if (adultContentMode !== 'explicit' || !adultCharactersConfirmed) {
+      return { version: 1, adultContentMode: 'off', intimacyWeight: 'none', adultCharactersConfirmed: false }
+    }
+    return {
+      version: 1,
+      adultContentMode: 'explicit',
+      intimacyWeight: 'high',
+      adultCharactersConfirmed: true,
+      consentRuleTier,
+    }
+  }
+
+  /** 开启露骨模式但未确认成年角色时拦下，避免白跑一次必然 422 的请求。 */
+  function adultPreferencesReady(): boolean {
+    if (adultContentMode === 'explicit' && !adultCharactersConfirmed) {
+      toast('开启成人内容模式前请先确认涉及角色均为成年人', 'error')
+      return false
+    }
+    return true
+  }
+
   async function generateChapter() {
     if (!novelId || !chapterTitle.trim()) return toast('请选择小说并填写章节标题', 'error')
+    if (!adultPreferencesReady()) return
     await startTask(
-      () => aiApi.writing.chapter({ novelId, title, outline, instruction, targetWords, chapterCount, operationId: newOperationId('ai-writing-chapter') }),
+      () => aiApi.writing.chapter({ novelId, title, outline, instruction, targetWords, chapterCount, contentPreferences: buildContentPreferences(), operationId: newOperationId('ai-writing-chapter') }),
       '章节生成已开始，完成后到“已生成内容”查看',
     )
   }
 
   async function continueNovel() {
     if (!novelId) return toast('请选择小说', 'error')
+    if (!adultPreferencesReady()) return
     // 批量续写是连续 N 次模型调用，超过阈值先确认，避免误触烧钱
     if (chapterCount > CONFIRM_CHAPTER_COUNT) {
       const ok = await confirm({
@@ -327,7 +364,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
       if (!ok) return
     }
     await startTask(
-      () => aiApi.writing.continue({ novelId, title: chapterTitle, instruction, targetWords, chapterCount, ...(afterChapterId ? { afterChapterId } : {}), operationId: newOperationId('ai-writing-continue') }),
+      () => aiApi.writing.continue({ novelId, title: chapterTitle, instruction, targetWords, chapterCount, contentPreferences: buildContentPreferences(), ...(afterChapterId ? { afterChapterId } : {}) , operationId: newOperationId('ai-writing-continue') }),
       '续写任务已开始，完成后草稿在“已生成内容”',
     )
   }
@@ -344,6 +381,26 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
       toast((err as Error).message, 'error')
     } finally {
       setStyleBusy(false)
+    }
+  }
+
+  /** 取情节方向候选。开启成人内容模式时后端会给出以成人场景为主体的方向。 */
+  async function loadSuggestions() {
+    if (!novelId) return toast('请选择小说', 'error')
+    setSuggestBusy(true)
+    try {
+      const res = await aiApi.writing.plotSuggestions({
+        novelId,
+        ...(afterChapterId ? { afterChapterId } : {}),
+        ...(focus.trim() ? { focus: focus.trim() } : {}),
+        contentPreferences: buildContentPreferences(),
+      })
+      setSuggestions(res.suggestions)
+      if (!res.suggestions.length) toast('未返回可用的情节方向', 'error')
+    } catch (err) {
+      toast((err as Error).message, 'error')
+    } finally {
+      setSuggestBusy(false)
     }
   }
 
@@ -494,13 +551,112 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
           </div>
           <div className="ai-writing-notes grid gap-4 border-t pt-5">
             <div className="grid gap-1.5">
-              <Label>创作要求</Label>
+              <div className="flex items-center justify-between gap-3">
+                <Label>创作要求</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  disabled={busy || suggestBusy || !novelId}
+                  onClick={() => void loadSuggestions()}
+                >
+                  {suggestBusy ? '推荐中…' : '推荐情节'}
+                </Button>
+              </div>
               <textarea data-slot="textarea"
                 className="min-h-[100px] w-full border border-input bg-background px-3 py-2 text-sm"
                 value={instruction}
                 onChange={(event) => setInstruction(event.target.value)}
-                placeholder="人物、风格、冲突、节奏或本次剧情目标"
+                placeholder="人物、风格、冲突、节奏或本次剧情目标；想不出时可点「推荐情节」取候选"
               />
+              <div className="flex items-center gap-2">
+                <Input
+                  className="h-8 flex-1 text-xs"
+                  value={focus}
+                  onChange={(event) => setFocus(event.target.value)}
+                  placeholder="推荐侧重点（可留空，例如：想写感情升温的日常互动）"
+                />
+              </div>
+            </div>
+            {suggestions.length > 0 && (
+              <div className="grid gap-2">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs text-muted-foreground">点击任一条填入创作要求；填入后可再修改</p>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-xs"
+                    onClick={() => setSuggestions([])}
+                  >
+                    收起
+                  </Button>
+                </div>
+                <div className="grid gap-2">
+                  {suggestions.map((item, index) => (
+                    <button
+                      key={`${index}-${item.direction.slice(0, 12)}`}
+                      type="button"
+                      className="border border-input bg-background px-3 py-2 text-left text-sm hover:bg-accent"
+                      onClick={() => setInstruction(item.direction)}
+                    >
+                      <span className="block">{item.direction}</span>
+                      {item.effect && (
+                        <span className="mt-1 block text-xs text-muted-foreground">→ {item.effect}</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="grid gap-3 border-t pt-4">
+              <div>
+                <p className="text-sm font-medium">成人内容</p>
+                <p className="text-xs text-muted-foreground">
+                  开启后本次任务按成人向写作；推荐情节也会给出以成人场景为主体的方向。关闭时行为与以往一致。
+                </p>
+              </div>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={adultContentMode === 'explicit'}
+                  disabled={busy || taskActive}
+                  onChange={(event) => {
+                    const next = event.target.checked
+                    setAdultContentMode(next ? 'explicit' : 'off')
+                    if (!next) setAdultCharactersConfirmed(false)
+                  }}
+                />
+                开启露骨 R18 模式
+              </label>
+              {adultContentMode === 'explicit' && (
+                <>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={adultCharactersConfirmed}
+                      disabled={busy || taskActive}
+                      onChange={(event) => setAdultCharactersConfirmed(event.target.checked)}
+                    />
+                    已确认本次涉及角色均为成年人（必选）
+                  </label>
+                  <div className="grid gap-1.5">
+                    <Label className="text-xs">同意规则档位</Label>
+                    <CustomSelect
+                      options={[
+                        { value: 'default', label: '严格（默认，适用于绝大多数作品）' },
+                        { value: 'fictional_nonconsent', label: '虚构题材分级（原作主线即含强迫/下药等情节时使用）' },
+                      ]}
+                      value={consentRuleTier}
+                      onChange={(value) => setConsentRuleTier(value as 'default' | 'fictional_nonconsent')}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      放宽档只在作品原作本身即以此类情节为主线、且角色均为成年人时使用；它解除的是写法与篇幅限制，不解除成年前提。
+                    </p>
+                  </div>
+                </>
+              )}
             </div>
             {mode === 'new' && (
               <div className="grid gap-1.5">

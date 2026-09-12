@@ -1272,6 +1272,21 @@ export const aiApi = {
     }): Promise<{ titles: string[]; usage: { model: string; promptTokens: number; completionTokens: number } }> {
       return request('POST', '/ai/writing/titles', data, true)
     },
+    /**
+     * 推荐情节方向：基于最近章节给出若干条可直接用作创作要求的候选。
+     * 传入 contentPreferences 后，成人向作品会给出以成人场景为主体的方向。
+     */
+    plotSuggestions(data: {
+      novelId: string
+      afterChapterId?: string
+      focus?: string
+      contentPreferences?: unknown
+    }): Promise<{
+      suggestions: Array<{ direction: string; effect: string }>
+      usage: { model: string; promptTokens: number; completionTokens: number }
+    }> {
+      return request('POST', '/ai/writing/plot-suggestions', data, true)
+    },
     updateDraft(id: string, result: string): Promise<{ ok: boolean; id: string; result: string }> {
       return request('PUT', `/ai/writing/drafts/${encodeURIComponent(id)}`, { result }, true)
     },

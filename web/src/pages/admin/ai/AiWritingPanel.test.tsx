@@ -6,21 +6,29 @@ const api = vi.hoisted(() => ({
   refreshStyleProfile: vi.fn(),
   getPlotState: vi.fn(),
   getRelationshipProfile: vi.fn(),
+  plotSuggestions: vi.fn(),
+  continueNovel: vi.fn(),
+  chapterNovel: vi.fn(),
 }))
 
 vi.mock('@/lib/api', () => ({
   aiApi: {
     tasks: vi.fn().mockResolvedValue({ items: [] }),
+    task: vi.fn().mockResolvedValue({ task: { id: 't1', status: 'running', current: 0, total: 1, step: '' } }),
     generations: vi.fn().mockResolvedValue({ items: [] }),
     writing: {
       getStyleProfile: api.getStyleProfile,
       refreshStyleProfile: api.refreshStyleProfile,
       getPlotState: api.getPlotState,
       getRelationshipProfile: api.getRelationshipProfile,
+      plotSuggestions: api.plotSuggestions,
+      continue: api.continueNovel,
+      chapter: api.chapterNovel,
     },
   },
   chaptersApi: { list: vi.fn().mockResolvedValue({ chapters: [] }) },
   novelsApi: { list: vi.fn().mockResolvedValue({ novels: [{ id: 'novel_1', title: '测试小说' }] }) },
+  newOperationId: (prefix: string) => `${prefix}-test`,
 }))
 
 vi.mock('@/components/feedback', () => ({
@@ -45,11 +53,29 @@ function deferred<T>() {
   return { promise, resolve }
 }
 
+/** 选中小说并等到画像读取完成，后续断言才有稳定的起点。 */
+async function selectNovel() {
+  render(<AiWritingPanel />)
+  await screen.findByRole('option', { name: '测试小说' })
+  fireEvent.change(await screen.findByRole('combobox', { name: '目标小说' }), { target: { value: 'novel_1' } })
+  await waitFor(() => expect(api.getStyleProfile).toHaveBeenCalledWith('novel_1'))
+}
+
 describe('AiWritingPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     api.getPlotState.mockResolvedValue({ state: '', chaptersThrough: 0, chapterCount: 0 })
     api.getRelationshipProfile.mockResolvedValue({ profile: '' })
+    api.getStyleProfile.mockResolvedValue({ profile: '' })
+    api.plotSuggestions.mockResolvedValue({
+      suggestions: [
+        { direction: '苏越以斗宗身份现身朝堂，当众治愈加刑天。', effect: '绑定皇室' },
+        { direction: '夭夜在寝宫与他独处，借双修稳固修为。', effect: '关系推进' },
+      ],
+      usage: { model: 'm', promptTokens: 1, completionTokens: 1 },
+    })
+    api.continueNovel.mockResolvedValue({ ok: true, taskId: 't1', batchId: 'b1', total: 1 })
+    api.chapterNovel.mockResolvedValue({ ok: true, taskId: 't1', batchId: 'b1', total: 1 })
   })
 
   it('重新提取完成后不应被在途的旧风格画像读取覆盖', async () => {
@@ -69,5 +95,63 @@ describe('AiWritingPanel', () => {
     act(() => initialProfile.resolve({ profile: '' }))
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(screen.getByText('最新风格画像')).toBeInTheDocument()
+  })
+
+  it('点击候选项把情节方向填入创作要求', async () => {
+    await selectNovel()
+
+    fireEvent.click(screen.getByRole('button', { name: '推荐情节' }))
+    await waitFor(() => expect(api.plotSuggestions).toHaveBeenCalled())
+
+    fireEvent.click(await screen.findByText('夭夜在寝宫与他独处，借双修稳固修为。'))
+
+    const textarea = screen.getByPlaceholderText(/人物、风格、冲突、节奏或本次剧情目标/) as HTMLTextAreaElement
+    expect(textarea.value).toBe('夭夜在寝宫与他独处，借双修稳固修为。')
+  })
+
+  it('推荐时把侧重与内容参数一并发给后端', async () => {
+    await selectNovel()
+
+    fireEvent.change(screen.getByPlaceholderText(/推荐侧重点/), { target: { value: '想写日常互动' } })
+    fireEvent.click(screen.getByRole('button', { name: '推荐情节' }))
+
+    await waitFor(() => expect(api.plotSuggestions).toHaveBeenCalled())
+    expect(api.plotSuggestions.mock.calls[0]![0]).toMatchObject({
+      novelId: 'novel_1',
+      focus: '想写日常互动',
+      contentPreferences: { version: 1, adultContentMode: 'off', intimacyWeight: 'none', adultCharactersConfirmed: false },
+    })
+  })
+
+  it('开启露骨模式但未确认成年角色时不发起生成', async () => {
+    await selectNovel()
+
+    fireEvent.change(screen.getByPlaceholderText(/例如：第一章 雾中来客/), { target: { value: '第一章' } })
+    fireEvent.click(screen.getByRole('checkbox', { name: /开启露骨/ }))
+    fireEvent.click(screen.getByRole('button', { name: /生成章节/ }))
+
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(api.chapterNovel).not.toHaveBeenCalled()
+  })
+
+  it('确认成年角色后按放宽档传参', async () => {
+    await selectNovel()
+
+    fireEvent.change(screen.getByPlaceholderText(/例如：第一章 雾中来客/), { target: { value: '第一章' } })
+    fireEvent.click(screen.getByRole('checkbox', { name: /开启露骨/ }))
+    fireEvent.click(screen.getByRole('checkbox', { name: /已确认本次涉及角色均为成年人/ }))
+    fireEvent.click(screen.getByRole('button', { name: /生成章节/ }))
+
+    await waitFor(() => expect(api.chapterNovel).toHaveBeenCalled())
+    expect(api.chapterNovel.mock.calls[0]![0]).toMatchObject({
+      novelId: 'novel_1',
+      contentPreferences: {
+        version: 1,
+        adultContentMode: 'explicit',
+        intimacyWeight: 'high',
+        adultCharactersConfirmed: true,
+        consentRuleTier: 'default',
+      },
+    })
   })
 })
