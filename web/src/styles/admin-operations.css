@@ -2,7 +2,11 @@
    --admin-* 变量定义在 :root（而非 .admin-layout），这样 Radix portal 渲染在
    body 层的弹窗（dialog/popover）也能继承暖纸面板与边框语义。 */
 :root {
-  --admin-canvas: color-mix(in srgb, var(--bg-secondary) 82%, var(--accent-subtle));
+  /* 画布底色。层次需要「背景比卡片深」：
+     浅色主题下 --bg-primary 与 --bg-card 都是纯白，同色会让面板轮廓消失，
+     因此画布掺 6% 中性灰（不含暖色成分，去掉此前的米黄调）。
+     深色主题下 --bg-primary(#1B1C20) 本就比 --bg-card(#2A2B31) 深，无需覆盖。 */
+  --admin-canvas: color-mix(in srgb, var(--bg-primary) 94%, #6b7280 6%);
   --admin-panel: var(--bg-card);
   --admin-panel-muted: color-mix(in srgb, var(--bg-secondary) 78%, var(--accent-subtle));
   --admin-sidebar: color-mix(in srgb, var(--accent-subtle) 25%, var(--bg-card));
@@ -43,10 +47,11 @@
   --admin-hairline-highlight: rgba(255, 255, 255, 0.25);
 }
 
+/* 后台画布。曾叠加 2rem×2rem 的竖线网格作为纹理，但线密度高、在纯色底上
+   形成强烈的视觉噪点，滚到底部时尤其明显。改为纯色画布，层次靠侧栏阴影
+   与卡片描边表达。 */
 .admin-layout {
-  background:
-    linear-gradient(90deg, color-mix(in srgb, var(--admin-border) 34%, transparent) 1px, transparent 1px) 0 0 / 2rem 2rem,
-    var(--admin-canvas);
+  background: var(--admin-canvas);
 }
 
 .admin-layout__inset {
