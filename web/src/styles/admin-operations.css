@@ -1237,12 +1237,16 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   flex: 0 1 8rem;
   width: 8rem;
 }
-.moderation-toolbar__search {
+.moderation-toolbar__search-field {
+  min-width: 0;
   flex: 1 1 15rem;
   width: min(100%, 22rem);
 }
-.moderation-toolbar__refresh {
-  flex: 0 0 auto;
+.moderation-toolbar__search-field .admin-search {
+  max-width: none;
+}
+.moderation-toolbar__search-input {
+  width: 100%;
 }
 
 /* 章节管理 · 选择小说：标签与下拉框之间留出呼吸间距 */
@@ -2916,13 +2920,10 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
     flex-basis: 7.25rem;
   }
   .moderation-toolbar__user,
-  .moderation-toolbar__search {
+  .moderation-toolbar__search-field {
     width: auto;
     min-width: 0;
     flex: none;
-  }
-  .moderation-toolbar__refresh {
-    padding-inline: 0.7rem;
   }
   .admin-shell__topbar {
     padding-inline: 0.75rem;
@@ -3243,9 +3244,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   .moderation-toolbar__query {
     grid-template-columns: minmax(0, 0.68fr) minmax(0, 1.32fr) auto;
   }
-  .moderation-toolbar__refresh {
-    padding-inline: 0.55rem;
-  }
   .chapter-toolbar {
     align-items: stretch;
     flex-wrap: wrap;
@@ -3444,6 +3442,11 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 }
 
 .admin-redesign-page--chapters > .admin-tab-header {
+  margin-bottom: 0.25rem;
+  border-bottom: 0;
+}
+
+.admin-redesign-page--moderation > .admin-tab-header {
   margin-bottom: 0.25rem;
   border-bottom: 0;
 }
@@ -3655,25 +3658,157 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 
 /* 内容审核 */
 .admin-redesign-page--moderation .moderation-toolbar {
-  gap: 0.75rem;
+  display: flex;
+  min-height: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0 0.25rem;
 }
 
 .admin-redesign-page--moderation .moderation-toolbar__filters,
 .admin-redesign-page--moderation .moderation-toolbar__query {
-  gap: 0.5rem;
+  display: grid;
+  width: auto;
+  gap: 0.625rem;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.admin-redesign-page--moderation .moderation-toolbar__filters {
+  grid-template-columns: 4rem 11rem max-content 9rem max-content 9rem;
+}
+
+.admin-redesign-page--moderation .moderation-toolbar__label {
+  grid-column: 1;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.admin-redesign-page--moderation .moderation-toolbar__field-label {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.admin-redesign-page--moderation .moderation-toolbar__query {
+  grid-template-columns: 4rem 8rem 20rem;
 }
 
 .admin-redesign-page--moderation .moderation-toolbar__modes [data-slot='tabs-list'] {
   height: var(--admin-control-height);
 }
 
-.admin-redesign-page--moderation .moderation-toolbar__status,
-.admin-redesign-page--moderation .moderation-toolbar__reason {
-  flex-basis: 9rem;
+.admin-redesign-page--moderation .moderation-toolbar__modes {
+  width: 11rem;
+  flex: 0 0 11rem;
 }
 
-.admin-redesign-page--moderation .moderation-toolbar__search {
-  width: min(100%, 22rem);
+.admin-redesign-page--moderation .moderation-toolbar__modes [data-slot='tabs-trigger'] {
+  min-width: 0;
+  flex: 1 1 0;
+  padding-inline: 0.5rem;
+}
+
+.admin-redesign-page--moderation .moderation-toolbar__status,
+.admin-redesign-page--moderation .moderation-toolbar__reason {
+  width: 9rem;
+  flex: 0 0 9rem;
+}
+
+.admin-redesign-page--moderation .moderation-toolbar__reason-placeholder,
+.admin-redesign-page--moderation .moderation-toolbar__user-placeholder,
+.admin-redesign-page--moderation .moderation-toolbar__field-label--placeholder {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.admin-redesign-page--moderation .moderation-toolbar__reason-placeholder {
+  display: block;
+  min-height: var(--admin-control-height);
+}
+
+.admin-redesign-page--moderation .moderation-toolbar__user-placeholder {
+  display: block;
+  min-height: var(--admin-control-height);
+}
+
+.admin-redesign-page--moderation .moderation-toolbar__search-field {
+  width: 20rem;
+  flex: 0 0 20rem;
+}
+
+.admin-redesign-page--moderation .moderation-toolbar__search-field .admin-search {
+  max-width: none;
+}
+
+/* 控件带脱离表格面板后仍保持同一行；空间不足时再整组纵向堆叠。 */
+@media (max-width: 1240px) {
+  .admin-redesign-page--moderation .moderation-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .admin-redesign-page--moderation .moderation-toolbar__filters,
+  .admin-redesign-page--moderation .moderation-toolbar__query {
+    width: 100%;
+  }
+}
+
+.admin-redesign-page--moderation .moderation-list-status {
+  display: inline-flex;
+  min-width: 4.75rem;
+  min-height: 1.75rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--radius-full);
+  background: var(--admin-panel-muted);
+  padding: 0.2rem 0.6rem;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.admin-redesign-page--moderation .moderation-list-status.is-error {
+  border-color: color-mix(in srgb, var(--color-danger) 35%, var(--admin-border));
+  background: color-mix(in srgb, var(--color-danger) 8%, var(--admin-panel));
+  color: var(--color-danger);
+}
+
+.admin-redesign-page--moderation .moderation-empty {
+  display: grid;
+  min-height: 14rem;
+  align-content: center;
+  justify-items: center;
+  gap: 0.5rem;
+  padding: 2.5rem 1.25rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.admin-redesign-page--moderation .moderation-empty strong {
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-weight: 750;
+}
+
+.admin-redesign-page--moderation .moderation-empty p {
+  max-width: 36rem;
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.6;
+}
+
+.admin-redesign-page--moderation .moderation-empty--error strong {
+  color: var(--color-danger);
 }
 
 /* 书源管理 */
@@ -4189,9 +4324,13 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   }
 
   .admin-redesign-page--moderation .moderation-toolbar__user,
-  .admin-redesign-page--moderation .moderation-toolbar__search {
+  .admin-redesign-page--moderation .moderation-toolbar__search-field {
     width: auto;
     flex: 1 1 8rem;
+  }
+
+  .admin-redesign-page--moderation .moderation-toolbar__search-field .admin-search {
+    max-width: none;
   }
 
   .admin-redesign-page--sources .admin-panel-card [data-slot='card-header'],
@@ -5040,5 +5179,106 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 
   .admin-toolbar__batch-actions > button {
     flex: 1 1 calc(50% - 0.25rem);
+  }
+}
+
+/* 内容审核的移动卡片：审核内容是主信息，来源、用户和状态作为上下文跟随。 */
+.admin-redesign-page--moderation .admin-data-panel--grid table td.thought-admin-cell {
+  max-width: none;
+}
+
+.admin-redesign-page--moderation .admin-data-panel--grid table td[data-primary] {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.admin-redesign-page--moderation .moderation-source-cell a {
+  color: var(--accent-hover);
+  text-decoration: none;
+}
+
+.admin-redesign-page--moderation .moderation-source-cell a:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+@media (max-width: 900px) {
+  .admin-redesign-page--moderation .moderation-toolbar__filters {
+    grid-template-columns: 4rem minmax(11rem, 1fr) max-content 9rem max-content 9rem;
+  }
+
+  .admin-redesign-page--moderation .moderation-toolbar__query {
+    grid-template-columns: 4rem minmax(8rem, 1fr) minmax(0, 20rem);
+  }
+
+  .admin-redesign-page--moderation .moderation-toolbar__user,
+  .admin-redesign-page--moderation .moderation-toolbar__search-field {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .admin-redesign-page--moderation .moderation-toolbar__search-field .admin-search {
+    max-width: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .admin-redesign-page--moderation > .admin-tab-header {
+    margin-bottom: 0.25rem;
+    border-bottom: 0;
+  }
+
+  .admin-redesign-page--moderation .moderation-toolbar__filters {
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 0.375rem 0.5rem;
+  }
+
+  .admin-redesign-page--moderation .moderation-toolbar__filters .moderation-toolbar__label,
+  .admin-redesign-page--moderation .moderation-toolbar__filters .moderation-toolbar__modes {
+    grid-column: 1 / -1;
+  }
+
+  .admin-redesign-page--moderation .moderation-toolbar__query {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0.375rem 0.5rem;
+  }
+
+  .admin-redesign-page--moderation .moderation-toolbar__query .moderation-toolbar__label {
+    grid-column: 1 / -1;
+  }
+
+  .admin-redesign-page--moderation .moderation-toolbar__modes {
+    width: 100%;
+  }
+
+  .admin-redesign-page--moderation .moderation-toolbar__reason-placeholder {
+    width: auto;
+    flex: none;
+  }
+
+  .admin-redesign-page--moderation .moderation-toolbar__user,
+  .admin-redesign-page--moderation .moderation-toolbar__search-field {
+    min-width: 0;
+    width: 100%;
+    flex: none;
+  }
+
+  .admin-redesign-page--moderation .moderation-toolbar__search-field .admin-search {
+    max-width: none;
+  }
+
+  .admin-redesign-page--moderation .admin-data-panel--grid tbody td {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .admin-redesign-page--moderation .admin-data-panel--grid tbody td[data-primary] {
+    order: -1;
+    padding-right: 1rem;
+  }
+
+  .admin-redesign-page--moderation .admin-data-panel--grid tbody td[data-actions] > .admin-cell-actions {
+    flex-wrap: wrap;
+    gap: 0.5rem;
   }
 }
