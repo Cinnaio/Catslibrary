@@ -470,10 +470,6 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
 
   const pageAllSelected = pageRows.length > 0 && pageRows.every((c) => selectedIds.has(c.id))
   const pageSomeSelected = pageRows.some((c) => selectedIds.has(c.id))
-  const contextTitle = selectedNovelInfo?.title || '先选一本小说，再处理章节'
-  const contextDescription = selectedNovelInfo
-    ? `${selectedNovelInfo.author || '未知作者'} · 目录与正文编辑只作用于当前作品。`
-    : '切换作品会同步章节目录、字数与更新时间；搜索和批量操作只作用于当前作品。'
 
   return (
     <AdminPage
@@ -484,62 +480,29 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
         selectedNovel ? (search ? `匹配 ${filtered.length} / 共 ${chapters.length} 章` : `共 ${chapters.length} 章`) : `${novelOptions.length || '—'} 部作品`
       }
       actions={
-        <Button onClick={() => void openChapterModal(null)} disabled={!selectedNovel}>
-          <span aria-hidden="true">＋</span>
-          添加章节
-        </Button>
+        <>
+          <CustomSelect
+            className="chapter-novel-select"
+            searchable
+            searchPlaceholder="搜索书名 / 拼音…"
+            placeholder="请选择小说"
+            options={novelOptions.map((n) => ({
+              value: n.id,
+              label: n.title,
+              sub: `${n.author || '未知作者'} · ${n.chapterCount}章`,
+            }))}
+            value={selectedNovel}
+            onChange={pickNovel}
+            filter={(o, q) => novelFilter(o, q)}
+            onServerSearch={handleNovelServerSearch}
+          />
+          <Button onClick={() => void openChapterModal(null)} disabled={!selectedNovel}>
+            <span aria-hidden="true">＋</span>
+            添加章节
+          </Button>
+        </>
       }
     >
-      <AdminContextPanel
-        className="chapter-context-panel"
-        eyebrow="当前工作对象"
-        title={contextTitle}
-        description={contextDescription}
-        aside={
-          <div className="chapter-context-form">
-            <div className="chapter-context-form__field">
-              <Label>选择小说</Label>
-              <CustomSelect
-                className="chapter-novel-select"
-                searchable
-                searchPlaceholder="搜索书名 / 拼音…"
-                placeholder="请选择小说"
-                options={novelOptions.map((n) => ({
-                  value: n.id,
-                  label: n.title,
-                  sub: `${n.author || '未知作者'} · ${n.chapterCount}章`,
-                }))}
-                value={selectedNovel}
-                onChange={pickNovel}
-                filter={(o, q) => novelFilter(o, q)}
-                onServerSearch={handleNovelServerSearch}
-              />
-            </div>
-            <Button variant="secondary" disabled={!selectedNovel} onClick={() => selectedNovel && navigate(`/novel/${encodeURIComponent(selectedNovel)}`)}>
-              打开详情
-            </Button>
-          </div>
-        }
-      />
-
-      {selectedNovel ? (
-        <AdminMetricStrip
-          className="chapter-metric-strip"
-          ariaLabel="章节统计"
-          items={[
-            { label: '章节总数', value: chapters.length },
-            { label: '已排序', value: chapterStats.ordered, detail: chapters.length > 0 ? `${chapterStats.orderPercent}%` : undefined, detailTone: 'success' },
-            { label: '总字数', value: formattedWordCount, detail: chapterStats.totalWords > 0 && chapterStats.totalWords < 10000 ? '字' : undefined },
-            { label: '最近更新', value: chapterStats.latestCreatedAt ? timeAgo(chapterStats.latestCreatedAt) : '—' },
-          ]}
-        />
-      ) : (
-        <section className="chapter-metric-empty" aria-label="章节统计">
-          <span className="admin-section-kicker">章节统计</span>
-          <p>选择小说后显示章节数、排序状态、总字数和最近更新时间</p>
-        </section>
-      )}
-
       <div className="chapter-layout">
         <AdminDataPanel className="chapter-directory-panel overflow-hidden" ariaLabel="章节目录" columns={CHAPTER_COLUMNS}>
           <AdminPanelHeading
@@ -678,26 +641,6 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
             </>
           )}
         </AdminDataPanel>
-
-        <aside className="chapter-work-note" aria-labelledby="chapter-work-note-title">
-          <span className="admin-section-kicker">工作提示</span>
-          <h3 id="chapter-work-note-title">让目录保持可读</h3>
-          <p>融合源站章节名只影响标题，不会改动正文来源、章节顺序或阅读进度。</p>
-          <dl className="chapter-work-note__rows">
-            <div>
-              <dt>章节总数</dt>
-              <dd>{selectedNovel ? chapters.length : '—'}</dd>
-            </div>
-            <div>
-              <dt>已选章节</dt>
-              <dd>{selectedIds.size}</dd>
-            </div>
-            <div>
-              <dt>当前页</dt>
-              <dd>{selectedNovel ? `${currentPage} / ${totalPages}` : '—'}</dd>
-            </div>
-          </dl>
-        </aside>
       </div>
 
       <Dialog
@@ -776,25 +719,27 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
             <DialogDescription>补全弱标题的来源与变化会在这里先确认，正文、顺序和阅读进度不会改变。</DialogDescription>
           </DialogHeader>
           <div className="admin-dialog__body chapter-merge-dialog__body flex flex-col gap-3 overflow-y-auto max-h-[70vh]">
-            <div className="chapter-dialog-context chapter-merge-dialog__context">
-              <div>
-                <span>当前小说</span>
-                <strong>{selectedNovelInfo?.title || '未选择小说'}</strong>
+            <div className="chapter-merge-dialog__info">
+              <div className="chapter-merge-dialog__info-grid">
+                <div>
+                  <span>当前小说</span>
+                  <strong>{selectedNovelInfo?.title || '未选择小说'}</strong>
+                </div>
+                <div>
+                  <span>作者</span>
+                  <strong>{selectedNovelInfo?.author || '未知作者'}</strong>
+                </div>
+                <div>
+                  <span>章节</span>
+                  <strong>{selectedNovelInfo?.chapterCount || chapters.length} 章</strong>
+                </div>
               </div>
-              <div>
-                <span>作者</span>
-                <strong>{selectedNovelInfo?.author || '未知作者'}</strong>
-              </div>
-              <div>
-                <span>章节</span>
-                <strong>{selectedNovelInfo?.chapterCount || chapters.length} 章</strong>
-              </div>
-              <span className="chapter-merge-dialog__status">仅更新弱标题</span>
+              <div className="chapter-merge-dialog__badge">仅更新弱标题</div>
             </div>
             <section className="chapter-merge-dialog__source">
               <div className="chapter-dialog-section__heading">
                 <Label>从原作者源站读取</Label>
-                <span>建议优先使用</span>
+                <span className="text-muted-foreground">建议优先使用</span>
               </div>
               <div className="chapter-merge-dialog__source-grid grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,0.72fr)_auto]">
                 <Input aria-label="搜索书名" placeholder="书名" value={sourceSearchTitle} onChange={(e) => setSourceSearchTitle(e.target.value)} />
@@ -932,7 +877,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
             <section className="chapter-merge-dialog__manual chapter-dialog-section">
               <div className="chapter-dialog-section__heading">
                 <Label>手动章节标题</Label>
-                <span>每行一个</span>
+                <span className="text-muted-foreground">每行一个</span>
               </div>
               <Textarea
                 rows={4}

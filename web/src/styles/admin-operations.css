@@ -638,10 +638,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 }
 
 .chapter-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 18rem;
-  align-items: start;
-  gap: 1rem;
+  display: block;
 }
 
 .chapter-directory-panel {
@@ -676,8 +673,16 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 
 .chapter-directory-pagination {
   margin: 0;
-  padding: 0.75rem 1rem;
+  padding: 1rem 1.25rem;
   border-top: 1px solid var(--admin-border);
+  display: flex;
+  justify-content: center;
+  background: color-mix(in srgb, var(--admin-surface) 20%, transparent);
+}
+
+.chapter-directory-pagination .home-pagination {
+  margin-top: 0;
+  gap: 0.75rem;
 }
 
 .chapter-work-note {
@@ -3571,21 +3576,26 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 }
 
 .admin-redesign-page--chapters .chapter-novel-select {
-  width: 100%;
+  width: 280px;
   max-width: none;
+  height: var(--admin-control-height);
 }
 
 .admin-redesign-page--chapters .chapter-toolbar,
 .admin-redesign-page--moderation .moderation-toolbar {
   min-height: 3.75rem;
-  border-color: var(--admin-border);
-  background: color-mix(in srgb, var(--admin-panel) 94%, var(--accent-subtle));
-  padding: 0.75rem 1rem;
+  border: none;
+  border-bottom: 1px solid var(--admin-border);
+  background: color-mix(in srgb, var(--admin-surface) 40%, transparent);
+  padding: 0.875rem 1.25rem;
+  margin-bottom: 0;
+  border-radius: 0.5rem 0.5rem 0 0;
 }
 
 .admin-redesign-page--chapters .chapter-toolbar__search {
   min-width: 12rem;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
+  max-width: 20rem;
 }
 
 .admin-redesign-page--chapters .chapter-toolbar__search > .admin-search {
@@ -3621,26 +3631,26 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 
 .admin-redesign-page--chapters .chapter-directory-empty {
   display: grid;
-  min-height: 12rem;
+  min-height: 20rem;
   align-content: center;
   justify-items: center;
-  gap: 0.45rem;
-  padding: 2rem 1.25rem;
+  gap: 0.75rem;
+  padding: 3rem 1.5rem;
   color: var(--text-muted);
   text-align: center;
 }
 
 .admin-redesign-page--chapters .chapter-directory-empty strong {
   color: var(--text-primary);
-  font-size: 0.95rem;
-  font-weight: 750;
+  font-size: 1.125rem;
+  font-weight: 650;
 }
 
 .admin-redesign-page--chapters .chapter-directory-empty p {
-  max-width: 32rem;
+  max-width: 36rem;
   margin: 0;
-  font-size: 0.78rem;
-  line-height: 1.6;
+  font-size: 0.875rem;
+  line-height: 1.65;
 }
 
 /* 内容审核 */
@@ -3922,14 +3932,16 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 
 .chapter-dialog-section__heading [data-slot='label'],
 .chapter-dialog-section__heading > label {
-  color: var(--text-secondary);
-  font-size: 0.8rem;
+  color: var(--text-primary);
+  font-size: 0.875rem;
   font-weight: 650;
 }
 
-.chapter-dialog-section__heading > span {
+.chapter-dialog-section__heading > span,
+.chapter-dialog-section__heading .text-muted-foreground {
   color: var(--text-muted);
-  font-size: 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 500;
 }
 
 .chapter-editor-dialog__textarea {
@@ -3939,24 +3951,68 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   line-height: 1.75;
 }
 
-.chapter-merge-dialog__context {
-  align-items: flex-end;
+/* 融合弹窗：当前小说信息卡片 */
+.chapter-merge-dialog__info {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 1rem;
+  border-radius: var(--admin-radius);
+  border: 1px solid var(--admin-border);
+  background: color-mix(in srgb, var(--admin-surface) 20%, transparent);
+  padding: 0.875rem 1rem;
 }
 
-.chapter-merge-dialog__status {
-  margin-left: auto;
+.chapter-merge-dialog__info-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.chapter-merge-dialog__info-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.chapter-merge-dialog__info-grid span {
+  color: var(--text-muted);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.chapter-merge-dialog__info-grid strong {
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chapter-merge-dialog__badge {
+  flex-shrink: 0;
   border-radius: var(--radius-full);
   background: var(--accent-subtle);
   color: var(--accent-hover);
-  padding: 0.25rem 0.625rem;
-  font-size: 0.7rem;
+  padding: 0.375rem 0.75rem;
+  font-size: 0.6875rem;
   font-weight: 700;
+  letter-spacing: 0.01em;
 }
 
+/* 融合弹窗：章节来源和手动输入区域 */
 .chapter-merge-dialog__source,
 .chapter-merge-dialog__manual {
   display: grid;
-  gap: 0.625rem;
+  gap: 0.75rem;
+  border-radius: var(--admin-radius);
+  border: 1px solid var(--admin-border);
+  background: var(--admin-panel);
+  padding: 1rem;
 }
 
 .chapter-merge-dialog__source-grid {
@@ -3970,7 +4026,8 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 }
 
 .chapter-merge-dialog__url-field {
-  gap: 0.5rem;
+  display: grid;
+  gap: 0.625rem;
 }
 
 .chapter-merge-dialog__url-row {
@@ -3983,15 +4040,17 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 }
 
 .chapter-merge-dialog__search-results {
+  margin-top: 0.75rem;
+  padding-top: 0.875rem;
   border-top: 1px solid var(--admin-border);
-  padding-top: 0.75rem;
 }
 
 .chapter-merge-dialog__search-results button {
   width: 100%;
   border-color: var(--admin-border);
   border-radius: var(--admin-radius-sm);
-  background: var(--admin-panel);
+  background: var(--admin-surface);
+  transition: all 0.15s ease;
 }
 
 .chapter-merge-dialog__search-results button:hover {
@@ -4002,10 +4061,14 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 .chapter-merge-dialog__divider {
   display: flex;
   align-items: center;
-  gap: 0.625rem;
+  gap: 0.875rem;
   color: var(--text-muted);
-  font-size: 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   white-space: nowrap;
+  margin-block: 0.375rem;
 }
 
 .chapter-merge-dialog__divider::before,
@@ -4017,26 +4080,32 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 }
 
 .chapter-merge-dialog__textarea {
-  height: 6rem !important;
-  min-height: 6rem !important;
+  height: 8rem !important;
+  min-height: 8rem !important;
   resize: vertical;
-  line-height: 1.65;
+  line-height: 1.7;
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
 }
 
 .chapter-merge-dialog__hint,
 .chapter-merge-dialog__footer-note {
   color: var(--text-muted);
-  font-size: 0.7rem;
+  font-size: 0.75rem;
+  line-height: 1.5;
 }
 
 .chapter-merge-dialog__footer-note {
   margin-right: auto;
+  font-weight: 500;
 }
 
+/* 预览框通用样式 */
 .chapter-merge-dialog__body > .rounded-lg {
   border-color: var(--admin-border);
   border-radius: var(--admin-radius);
-  background: color-mix(in srgb, var(--accent-subtle) 36%, var(--admin-panel));
+  background: color-mix(in srgb, var(--accent-subtle) 25%, var(--admin-panel));
+  padding: 1rem;
 }
 
 @media (max-width: 900px) {
@@ -4136,6 +4205,20 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
     width: calc(100% - 1rem);
     max-height: calc(100svh - 1rem);
     border-radius: var(--admin-radius-dialog);
+  }
+
+  .chapter-merge-dialog__info {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  .chapter-merge-dialog__info-grid {
+    grid-template-columns: 1fr;
+    gap: 0.625rem;
+  }
+
+  .chapter-merge-dialog__badge {
+    justify-self: start;
   }
 
   .admin-dialog [data-slot='dialog-header'] {
