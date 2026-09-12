@@ -160,19 +160,19 @@ struct AdminNovelsView: View {
         HStack(spacing: 10) {
             CachedAsyncImage(
                 url: APIClient.shared.coverURL(novelId: novel.id, updatedAt: novel.updatedAt),
-                targetSize: CGSize(width: 56, height: 72)
+                targetSize: AppLayout.coverListThumbnail
             ) { image in
                 image.resizable().scaledToFill()
             } placeholder: {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 6)
+                    RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius)
                         .fill(AppTheme.surface.opacity(0.6))
                     Image(systemName: "book")
                         .foregroundStyle(AppTheme.textSecondary)
                 }
             }
-            .frame(width: 56, height: 72)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .frame(width: AppLayout.coverListThumbnail.width, height: AppLayout.coverListThumbnail.height)
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius))
 
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {

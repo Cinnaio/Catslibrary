@@ -397,7 +397,7 @@ struct AdminDiscoverView: View {
 
     @ViewBuilder
     private func coverThumb(_ novel: DiscoverNovel) -> some View {
-        let size = CGSize(width: 60, height: 80)
+        let size = AppLayout.coverDiscoverThumbnail
         if let url = novel.coverUrl, !url.isEmpty, let remote = URL(string: url) {
             CachedAsyncImage(url: remote, targetSize: size) { image in
                 image.resizable().scaledToFill()
@@ -405,7 +405,7 @@ struct AdminDiscoverView: View {
                 coverPlaceholder
             }
             .frame(width: size.width, height: size.height)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius))
         } else {
             coverPlaceholder
         }
@@ -413,12 +413,12 @@ struct AdminDiscoverView: View {
 
     private var coverPlaceholder: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 6)
+            RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius)
                 .fill(AppTheme.surface.opacity(0.6))
             Image(systemName: "book")
                 .foregroundStyle(AppTheme.textSecondary)
         }
-        .frame(width: 60, height: 80)
+        .frame(width: AppLayout.coverDiscoverThumbnail.width, height: AppLayout.coverDiscoverThumbnail.height)
     }
 
     // MARK: - 数据

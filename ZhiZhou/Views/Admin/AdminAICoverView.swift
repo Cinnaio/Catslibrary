@@ -362,21 +362,21 @@ struct AdminAICoverView: View {
                 HStack(alignment: .top, spacing: 12) {
                     CachedAsyncImage(
                         url: APIClient.shared.coverURL(novelId: novel.id, updatedAt: novel.updatedAt),
-                        targetSize: CGSize(width: 104, height: 156)
+                        targetSize: AppLayout.coverCurrentPreview
                     ) { image in
                         image
                             .resizable()
                             .scaledToFill()
                     } placeholder: {
                         ZStack {
-                            RoundedRectangle(cornerRadius: 8)
+                            RoundedRectangle(cornerRadius: AppLayout.controlCornerRadius)
                                 .fill(AppTheme.surface.opacity(0.6))
                             Image(systemName: "photo")
                                 .foregroundStyle(AppTheme.textSecondary)
                         }
                     }
-                    .frame(width: 104, height: 156)
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .frame(width: AppLayout.coverCurrentPreview.width, height: AppLayout.coverCurrentPreview.height)
+                    .clipShape(RoundedRectangle(cornerRadius: AppLayout.controlCornerRadius, style: .continuous))
                     .accessibilityLabel("当前封面")
 
                     VStack(alignment: .leading, spacing: 8) {
@@ -505,7 +505,7 @@ struct AdminAICoverView: View {
                         }
                         Spacer(minLength: 0)
                     }
-                    .frame(minHeight: 44)
+                    .frame(minHeight: AppLayout.minimumTouchTarget)
                 }
                 .buttonStyle(.bordered)
                 .tint(AppTheme.primary)
@@ -597,7 +597,7 @@ struct AdminAICoverView: View {
                             .frame(minWidth: 72, minHeight: 40)
                     } else {
                         Label("生成封面", systemImage: "sparkles")
-                            .frame(minHeight: 44)
+                            .frame(minHeight: AppLayout.minimumTouchTarget)
                     }
                 }
                 .buttonStyle(.borderedProminent)
@@ -744,9 +744,9 @@ struct AdminAICoverView: View {
                         Button {
                             previewHistory = history
                         } label: {
-                            HStack(alignment: .top, spacing: 12) {
+                            historyRowLayout {
                                 AuthenticatedCoverHistoryImage(novelID: selectedNovelId, historyID: history.id)
-                                    .frame(width: 72, height: 108)
+                                    .frame(width: AppLayout.coverHistoryThumbnail.width, height: AppLayout.coverHistoryThumbnail.height)
                                     .background(AppTheme.surface.opacity(0.45))
                                     .clipShape(RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous))
                                 VStack(alignment: .leading, spacing: 5) {
@@ -787,6 +787,13 @@ struct AdminAICoverView: View {
         horizontalSizeClass == .regular && dynamicTypeSize < .xxxLarge
             ? AnyLayout(HStackLayout(alignment: .top, spacing: 12))
             : AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
+    }
+
+    /// 历史封面行：大字体下缩略图让位，文字不再被固定宽度的图片挤压。
+    private var historyRowLayout: AnyLayout {
+        dynamicTypeSize >= .xxxLarge
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
+            : AnyLayout(HStackLayout(alignment: .top, spacing: 12))
     }
 
     @ViewBuilder
@@ -907,7 +914,7 @@ struct AdminAICoverView: View {
                     previewCandidate = candidate
                 } label: {
                     candidateImage(candidate)
-                        .frame(width: 96, height: 144)
+                        .frame(width: AppLayout.coverCandidateThumbnail.width, height: AppLayout.coverCandidateThumbnail.height)
                         .clipShape(RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous))
                         .contentShape(Rectangle())
                 }
@@ -962,7 +969,7 @@ struct AdminAICoverView: View {
 
             if candidateBusy == candidate.id {
                 ProgressView("处理中…")
-                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .frame(maxWidth: .infinity, minHeight: AppLayout.minimumTouchTarget)
             } else {
                 promptActionLayout {
                     Button {
@@ -1014,7 +1021,7 @@ struct AdminAICoverView: View {
                 .scaledToFill()
         } else {
             ZStack {
-                RoundedRectangle(cornerRadius: 8)
+                RoundedRectangle(cornerRadius: AppLayout.controlCornerRadius)
                     .fill(AppTheme.surface.opacity(0.6))
                 Image(systemName: "photo")
                     .foregroundStyle(AppTheme.textSecondary)

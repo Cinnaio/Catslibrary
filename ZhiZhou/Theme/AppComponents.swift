@@ -22,6 +22,18 @@ enum AppLayout {
     static let fieldVerticalInset: CGFloat = 4
     static let textEditorInset: CGFloat = 8
 
+    // MARK: 封面规格
+    /// 列表行缩略图（小说管理、发现候选等）。
+    static let coverListThumbnail = CGSize(width: 56, height: 72)
+    /// 发现页候选缩略图，比例同列表缩略图但更大。
+    static let coverDiscoverThumbnail = CGSize(width: 60, height: 80)
+    /// 封面生成页的历史记录缩略图。
+    static let coverHistoryThumbnail = CGSize(width: 72, height: 108)
+    /// 封面生成页的候选卡缩略图。
+    static let coverCandidateThumbnail = CGSize(width: 96, height: 144)
+    /// 封面生成页的当前封面预览。
+    static let coverCurrentPreview = CGSize(width: 104, height: 156)
+
     static func readableInset(for width: CGFloat) -> CGFloat {
         max(pageInset, (width - readableWidth) / 2)
     }
@@ -76,8 +88,17 @@ struct AppAdaptiveRow<Content: View>: View {
 }
 
 extension View {
-    func appListStyle(_ style: AppPageStyle, maximumWidth: CGFloat? = 800) -> some View {
-        modifier(AppListStyleModifier(style: style, maximumWidth: maximumWidth))
+    /// 浏览页与设置页共用同一入口；设置页在宽屏下独立收窄，不再拉到全宽。
+    func appListStyle(
+        _ style: AppPageStyle,
+        maximumWidth: CGFloat? = 800,
+        settingsMaximumWidth: CGFloat? = 700
+    ) -> some View {
+        modifier(AppListStyleModifier(
+            style: style,
+            maximumWidth: maximumWidth,
+            settingsMaximumWidth: settingsMaximumWidth
+        ))
     }
 
     func accessibleSegmentedPicker() -> some View {
@@ -99,6 +120,9 @@ extension View {
 private struct AppListStyleModifier: ViewModifier {
     let style: AppPageStyle
     let maximumWidth: CGFloat?
+    let settingsMaximumWidth: CGFloat?
+
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     func body(content: Content) -> some View {
         Group {
@@ -113,7 +137,18 @@ private struct AppListStyleModifier: ViewModifier {
                 } else {
                     content.listStyle(.plain)
                 }
-            case .settings: content.listStyle(.insetGrouped)
+            case .settings:
+                // insetGrouped 在 iPad 上会铺满宽度；用 scrollContent 边距收窄，
+                // 避免用 GeometryReader 包裹导致列表失去自身布局尺寸。
+                if let settingsMaximumWidth, horizontalSizeClass == .regular {
+                    GeometryReader { geometry in
+                        content
+                            .listStyle(.insetGrouped)
+                            .contentMargins(.horizontal, max(0, (geometry.size.width - settingsMaximumWidth) / 2), for: .scrollContent)
+                    }
+                } else {
+                    content.listStyle(.insetGrouped)
+                }
             }
         }
         .scrollContentBackground(.hidden)

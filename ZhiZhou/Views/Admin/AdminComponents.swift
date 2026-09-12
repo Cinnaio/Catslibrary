@@ -202,7 +202,7 @@ struct AdminFilterMenu<Content: View>: View {
             .font(.subheadline.weight(.medium))
             .foregroundStyle(AppTheme.textPrimary)
             .padding(.horizontal, 12)
-            .frame(minHeight: 44)
+            .frame(minHeight: AppLayout.minimumTouchTarget)
             .background(AppTheme.controlFill, in: RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius))
         }
         .accessibilityLabel(title)

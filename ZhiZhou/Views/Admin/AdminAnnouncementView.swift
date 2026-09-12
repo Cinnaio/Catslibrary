@@ -45,7 +45,6 @@ struct AdminAnnouncementView: View {
                 .scrollDismissesKeyboard(.interactively)
             }
         }
-        .pageBackground(.settings)
         .navigationTitle("站点公告")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
