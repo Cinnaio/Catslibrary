@@ -113,4 +113,16 @@ describe('writing prompt compiler', () => {
     expect(compiled.user).toContain('不是固定字数或段落百分比')
     expect(compiled.system).toContain('角色均为成年人')
   })
+
+  it('does not instruct the model to suppress requested adult content', () => {
+    const compiled = compileWritingPrompt({
+      kind: 'write_chapter',
+      title: '抑制回流检查',
+      instruction: '按作者要求推进本章',
+      writingSystemPrompt: '指导',
+    })
+    expect(compiled.system).not.toContain('不通过换词绕过上游拒绝')
+    expect(compiled.system).not.toContain('继续遵守上游供应商政策')
+    expect(compiled.system).toContain('按该要求直接写作')
+  })
 })

@@ -37,6 +37,12 @@ describe('writing content preferences', () => {
     const formatted = formatWritingContentPreferences({ version: 1, adultContentMode: 'explicit', intimacyWeight: 'high', adultCharactersConfirmed: true })
     expect(formatted).toContain('允许处理露骨 R18')
     expect(formatted).toContain('叙事强调程度')
-    expect(formatted).toContain('上游供应商内容政策')
+  })
+
+  it('does not hand the explicit decision back to the upstream policy', () => {
+    const formatted = formatWritingContentPreferences({ version: 1, adultContentMode: 'explicit', intimacyWeight: 'medium', adultCharactersConfirmed: true })
+    expect(formatted).not.toContain('上游供应商内容政策')
+    expect(formatted).not.toContain('绕过')
+    expect(formatted).not.toContain('仍须遵守')
   })
 })
