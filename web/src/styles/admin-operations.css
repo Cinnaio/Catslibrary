@@ -683,11 +683,12 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 .chapter-work-note {
   display: grid;
   gap: 0.7rem;
+  align-content: start;
   min-width: 0;
   padding: 1.25rem;
   border: 1px solid var(--admin-border);
   border-radius: var(--radius-xl);
-  background: var(--admin-panel);
+  background: var(--admin-panel-muted);
 }
 
 .chapter-work-note h3 {
@@ -722,11 +723,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   font-size: 0.8rem;
   font-weight: 700;
   text-align: right;
-}
-
-.chapter-work-note > [data-slot='button'] {
-  width: 100%;
-  margin-top: 0.25rem;
 }
 
 @media (max-width: 900px) {
@@ -3442,6 +3438,11 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   border-bottom: 0;
 }
 
+.admin-redesign-page--chapters > .admin-tab-header {
+  margin-bottom: 0.25rem;
+  border-bottom: 0;
+}
+
 .admin-redesign-page--novels .admin-tab-header__actions .admin-search {
   width: min(20rem, 100%);
   max-width: 20rem;
@@ -3576,7 +3577,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 
 .admin-redesign-page--chapters .chapter-toolbar,
 .admin-redesign-page--moderation .moderation-toolbar {
-  min-height: 4.25rem;
+  min-height: 3.75rem;
   border-color: var(--admin-border);
   background: color-mix(in srgb, var(--admin-panel) 94%, var(--accent-subtle));
   padding: 0.75rem 1rem;
@@ -3584,6 +3585,12 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 
 .admin-redesign-page--chapters .chapter-toolbar__search {
   min-width: 12rem;
+  flex: 1 1 auto;
+}
+
+.admin-redesign-page--chapters .chapter-toolbar__search > .admin-search {
+  width: 100%;
+  max-width: none;
 }
 
 .admin-redesign-page--chapters .chapter-toolbar__actions {
@@ -3592,6 +3599,48 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 
 .admin-redesign-page--chapters .chapter-toolbar__count {
   color: var(--text-muted);
+}
+
+.admin-redesign-page--chapters .chapter-metric-empty {
+  display: flex;
+  min-width: 0;
+  min-height: 4rem;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.875rem 1.25rem;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--radius-xl);
+  background: var(--admin-panel-muted);
+}
+
+.admin-redesign-page--chapters .chapter-metric-empty p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.admin-redesign-page--chapters .chapter-directory-empty {
+  display: grid;
+  min-height: 12rem;
+  align-content: center;
+  justify-items: center;
+  gap: 0.45rem;
+  padding: 2rem 1.25rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.admin-redesign-page--chapters .chapter-directory-empty strong {
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  font-weight: 750;
+}
+
+.admin-redesign-page--chapters .chapter-directory-empty p {
+  max-width: 32rem;
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.6;
 }
 
 /* 内容审核 */
@@ -3792,6 +3841,36 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   padding-block: var(--admin-space-3);
 }
 
+/* 章节编辑与融合弹窗沿用小说编辑弹窗的首尾容器节奏。 */
+[data-slot='dialog-content'].chapter-editor-dialog,
+[data-slot='dialog-content'].chapter-merge-dialog {
+  row-gap: var(--admin-space-3);
+}
+
+.chapter-editor-dialog [data-slot='dialog-header'],
+.chapter-merge-dialog [data-slot='dialog-header'] {
+  position: relative;
+  z-index: 1;
+  justify-content: center;
+  background: var(--admin-panel);
+  padding-block: var(--admin-space-4);
+}
+
+.chapter-editor-dialog .admin-dialog__body,
+.chapter-merge-dialog .admin-dialog__body {
+  padding-block: var(--admin-space-3) var(--admin-space-4);
+}
+
+.chapter-editor-dialog [data-slot='dialog-footer'],
+.chapter-merge-dialog [data-slot='dialog-footer'] {
+  position: relative;
+  z-index: 1;
+  align-items: center;
+  border-top: 0;
+  background: var(--admin-panel-muted);
+  padding-block: var(--admin-space-3);
+}
+
 /* 章节弹窗内容 */
 .chapter-dialog-context {
   display: flex;
@@ -3982,6 +4061,22 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
     margin-bottom: 1.125rem;
   }
 
+  .admin-redesign-page--chapters > .admin-tab-header {
+    margin-bottom: 0.25rem;
+    border-bottom: 0;
+  }
+
+  .admin-redesign-page--chapters .chapter-metric-empty {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .admin-redesign-page--chapters .chapter-directory-empty {
+    min-height: 10rem;
+    padding-inline: 1rem;
+  }
+
   .admin-redesign-page--chapters .chapter-toolbar {
     align-items: stretch;
     flex-wrap: wrap;
@@ -4058,6 +4153,16 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   .admin-dialog [data-slot='dialog-footer'] {
     flex-wrap: wrap;
     padding: 0 1rem 1.25rem;
+  }
+
+  .chapter-editor-dialog [data-slot='dialog-header'],
+  .chapter-merge-dialog [data-slot='dialog-header'] {
+    padding-block: var(--admin-space-4);
+  }
+
+  .chapter-editor-dialog [data-slot='dialog-footer'],
+  .chapter-merge-dialog [data-slot='dialog-footer'] {
+    padding-block: var(--admin-space-3);
   }
 
   .chapter-editor-dialog__fields {
