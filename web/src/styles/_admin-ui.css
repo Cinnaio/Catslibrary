@@ -1,14 +1,3 @@
-.novel-toolbar__batch {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  width: 100%;
-}
-.novel-toolbar__batch-count {
-  flex: 0 0 auto;
-  white-space: nowrap;
-}
 .editor-modal__title {
   margin: 0;
   font-size: 1.34rem;
@@ -36,42 +25,6 @@
   }
   .novel-editor__grid {
     grid-template-columns: 1fr;
-  }
-}
-.batch-actions-group {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: 6px;
-  min-width: 0;
-}
-.batch-actions-group.hidden {
-  display: none;
-}
-@media (max-width: 768px) {
-  .novel-toolbar__batch {
-    align-items: stretch;
-    width: 100%;
-  }
-  .novel-toolbar__batch {
-    justify-content: flex-start;
-    flex-wrap: wrap;
-  }
-  .batch-actions-group .btn {
-    flex: 1 1 calc(50% - 4px);
-    min-width: 0;
-  }
-  .novel-toolbar__batch {
-    padding-top: 10px;
-    border-top: 1px solid var(--border-light);
-  }
-  .novel-toolbar__batch-count {
-    width: 100%;
-  }
-  .batch-actions-group {
-    width: 100%;
-    justify-content: flex-start;
   }
 }
 .btn {
@@ -114,31 +67,11 @@
   min-width: 0;
   box-sizing: border-box;
 }
-.novel-toolbar__batch,
 .action-row {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
-}
-.novel-toolbar {
-  gap: 9px;
-}
-.novel-toolbar__batch {
-  justify-content: flex-end;
-  padding: 9px 10px;
-  border: 1px solid var(--border-light);
-  border-radius: 16px;
-  background: var(--admin-inset);
-}
-.novel-toolbar__batch.hidden {
-  display: none;
-}
-.novel-toolbar__batch-count {
-  padding: 2px 8px;
-  border-radius: var(--radius-full);
-  background: var(--bg-card);
-  border: 1px solid var(--border-light);
 }
 .admin-table-meta-row {
   display: flex;
@@ -173,9 +106,6 @@
   background: var(--accent-subtle);
   border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
   box-shadow: inset 0 0 0 1px var(--admin-hairline-highlight);
-}
-.admin-table__check {
-  width: 36px;
 }
 .th-sortable {
   cursor: pointer;
@@ -213,14 +143,6 @@
   transform: rotate(180deg);
 }
 @media (max-width: 900px) {
-  .novel-toolbar__batch {
-    align-items: stretch;
-    width: 100%;
-  }
-  .novel-toolbar__batch {
-    justify-content: flex-start;
-    flex-wrap: wrap;
-  }
   .admin-input--search,
   .admin-input--search-wide,
   .admin-input--user {

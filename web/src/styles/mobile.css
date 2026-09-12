@@ -29,11 +29,27 @@
     gap: 0;
     scrollbar-width: none;
   }
-  .admin__sidebar::-webkit-scrollbar { display: none; }
-  .admin__nav-group { display: flex; flex-direction: row; flex: none; width: max-content; min-width: 100%; gap: 4px; padding: 6px 0; }
-  .admin__nav-icon { display: none; }
-  .admin__sidebar-head { display: none; }
-  .admin__sidebar-bottom { display: none; }
+  .admin__sidebar::-webkit-scrollbar {
+    display: none;
+  }
+  .admin__nav-group {
+    display: flex;
+    flex-direction: row;
+    flex: none;
+    width: max-content;
+    min-width: 100%;
+    gap: 4px;
+    padding: 6px 0;
+  }
+  .admin__nav-icon {
+    display: none;
+  }
+  .admin__sidebar-head {
+    display: none;
+  }
+  .admin__sidebar-bottom {
+    display: none;
+  }
   .admin__main {
     border-left: none;
     padding: 20px 16px;
@@ -87,8 +103,14 @@
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
   }
-  .table-wrapper table { min-width: 600px; }
-  th, td { padding: 8px 10px; font-size: 0.82rem; }
+  .table-wrapper table {
+    min-width: 600px;
+  }
+  th,
+  td {
+    padding: 8px 10px;
+    font-size: 0.82rem;
+  }
 
   /* Action buttons in tables — stack vertically */
   td .btn--sm {
@@ -96,7 +118,9 @@
     width: 100%;
     margin-bottom: 4px;
   }
-  td .btn--sm:last-child { margin-bottom: 0; }
+  td .btn--sm:last-child {
+    margin-bottom: 0;
+  }
 
   /* Section header */
   .section-header {
@@ -107,14 +131,34 @@
 }
 @media (max-width: 640px) {
   /* Header */
-  .header__logo { min-height: 44px; font-size: 1.05rem; }
-  .header__logo-img { width: 26px; height: 26px; }
-  .header__inner { padding: 0 20px; }
-  .nav-link:not(.account-avatar) { padding: 6px 8px; font-size: 0.82rem; }
+  .header__logo {
+    min-height: 44px;
+    font-size: 1.05rem;
+  }
+  .header__logo-img {
+    width: 26px;
+    height: 26px;
+  }
+  .header__inner {
+    padding: 0 20px;
+  }
+  .nav-link:not(.account-avatar) {
+    padding: 6px 8px;
+    font-size: 0.82rem;
+  }
   /* 宽文字导航链接收进移动端抽屉，页头只留紧凑图标按钮 */
-  .nav-link--desktop { display: none; }
-  .account-avatar { width: 36px; height: 36px; }
-  .refresh-btn { display: inline-flex; width: 32px; height: 32px; }
+  .nav-link--desktop {
+    display: none;
+  }
+  .account-avatar {
+    width: 36px;
+    height: 36px;
+  }
+  .refresh-btn {
+    display: inline-flex;
+    width: 32px;
+    height: 32px;
+  }
   .header__actions .theme-btn {
     width: 56px;
     height: 32px;
@@ -123,7 +167,11 @@
     border-radius: var(--radius-full);
     background: var(--bg-secondary);
   }
-  .header__actions .theme-btn::before { left: -6px; top: 4px; bottom: 4px; }
+  .header__actions .theme-btn::before {
+    left: -6px;
+    top: 4px;
+    bottom: 4px;
+  }
   .header__actions .theme-btn.theme-menu-trigger--has-mobile::after {
     content: '';
     display: block;
@@ -138,10 +186,12 @@
     pointer-events: none;
     transition: transform 180ms cubic-bezier(0.23, 1, 0.32, 1);
   }
-  [data-theme="dark"] .header__actions .theme-btn.theme-menu-trigger--has-mobile::after {
+  [data-theme='dark'] .header__actions .theme-btn.theme-menu-trigger--has-mobile::after {
     transform: translateX(24px);
   }
-  .header__actions .theme-menu__trigger-main { display: none; }
+  .header__actions .theme-menu__trigger-main {
+    display: none;
+  }
   .header__actions .theme-menu__mobile-trigger-icons {
     position: relative;
     z-index: 1;
@@ -168,7 +218,10 @@
     background: transparent;
     border: 1px solid transparent;
     cursor: pointer;
-    transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+    transition:
+      color 0.15s ease,
+      background 0.15s ease,
+      border-color 0.15s ease;
   }
   .mobile-menu-trigger:hover {
     color: var(--accent);
@@ -181,37 +234,87 @@
   }
 
   /* Home */
-  h1 { font-size: 1.5rem; }
-  .recent-reading { padding-top: 10px; padding-bottom: 10px; }
-  .filter-row { gap: 10px; padding: 4px 0; }
-  .filter-row__label { font-size: 0.82rem; width: 2.6em; padding: 3px 0; }
-  .filter-btn { font-size: 0.82rem; padding: 3px 10px; }
-  .sort-tabs { gap: 22px; }
-  .sort-tab { font-size: 0.9rem; padding: 8px 2px 10px; }
-  .sort-tabs-row__meta { font-size: 0.72rem; }
-  .sort-tabs-row__meta h2 { font-size: 0.72rem; }
+  h1 {
+    font-size: 1.5rem;
+  }
+  .recent-reading {
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+  .filter-row {
+    gap: 10px;
+    padding: 4px 0;
+  }
+  .filter-row__label {
+    font-size: 0.82rem;
+    width: 2.6em;
+    padding: 3px 0;
+  }
+  .filter-btn {
+    font-size: 0.82rem;
+    padding: 3px 10px;
+  }
+  .sort-tabs {
+    gap: 22px;
+  }
+  .sort-tab {
+    font-size: 0.9rem;
+    padding: 8px 2px 10px;
+  }
+  .sort-tabs-row__meta {
+    font-size: 0.72rem;
+  }
+  .sort-tabs-row__meta h2 {
+    font-size: 0.72rem;
+  }
 
   /* Novel list → single column, smaller covers */
-  .grid--novels { grid-template-columns: 1fr; gap: 18px; }
-  .novel-card { gap: 12px; }
-  .novel-card__cover { width: 88px; height: 118px; }
-  .novel-card__cover-char { font-size: 1.5rem; }
-  .novel-card__title { font-size: 0.95rem; }
-  .novel-card__meta { font-size: 0.78rem; }
-  .novel-card__desc { font-size: 0.78rem; }
-  .novel-card__time { font-size: 0.7rem; }
+  .grid--novels {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+  .novel-card {
+    gap: 12px;
+  }
+  .novel-card__cover {
+    width: 88px;
+    height: 118px;
+  }
+  .novel-card__cover-char {
+    font-size: 1.5rem;
+  }
+  .novel-card__title {
+    font-size: 0.95rem;
+  }
+  .novel-card__meta {
+    font-size: 0.78rem;
+  }
+  .novel-card__desc {
+    font-size: 0.78rem;
+  }
+  .novel-card__time {
+    font-size: 0.7rem;
+  }
 
   /* Novel hero → stack */
-  .novel-hero__cover { width: 150px; }
-  .novel-hero__cover-fallback { font-size: 2.4rem; }
-  .novel-hero__title { font-size: 1.5rem; }
+  .novel-hero__cover {
+    width: 150px;
+  }
+  .novel-hero__cover-fallback {
+    font-size: 2.4rem;
+  }
+  .novel-hero__title {
+    font-size: 1.5rem;
+  }
 
   /* Chapter ledger → single column */
   .chapter-list {
     grid-template-columns: minmax(0, 1fr);
     column-gap: 0;
   }
-  .chapter-list__item--last-read { padding-left: 10px; }
+  .chapter-list__item--last-read {
+    padding-left: 10px;
+  }
   .chapter-list__title {
     width: 100%;
     white-space: normal;
@@ -231,29 +334,63 @@
     justify-content: center;
     gap: 8px;
   }
-  .reader-nav-group .reader-nav-btn { font-size: 0.75rem; padding: 5px 8px; }
-  .reader-chapter-trigger { font-size: 0.75rem !important; padding: 5px 6px !important; }
-  .chapter-dropdown { width: calc(100vw - 16px); }
-  .chapter-dropdown__scroll { max-height: 240px; }
+  .reader-nav-group .reader-nav-btn {
+    font-size: 0.75rem;
+    padding: 5px 8px;
+  }
+  .reader-chapter-trigger {
+    font-size: 0.75rem !important;
+    padding: 5px 6px !important;
+  }
+  .chapter-dropdown {
+    width: calc(100vw - 16px);
+  }
+  .chapter-dropdown__scroll {
+    max-height: 240px;
+  }
   /* Rows stay single-line here too: the virtual list needs one fixed row height,
      and wrapped rows would break its position maths. */
-  .reader-novel-title { display: none; }
-  .reader-controls { display: none; }
+  .reader-novel-title {
+    display: none;
+  }
+  .reader-controls {
+    display: none;
+  }
   /* Its trigger lives in .reader-controls — the mobile sheet takes over here. */
-  .reader-settings-panel { display: none; }
-  .reader-chapter-title { font-size: 1.35rem; margin-bottom: 32px; }
+  .reader-settings-panel {
+    display: none;
+  }
+  .reader-chapter-title {
+    font-size: 1.35rem;
+    margin-bottom: 32px;
+  }
   .reader-body {
     font-size: 1rem;
     line-height: var(--reader-line-height, 1.85);
     letter-spacing: 0;
     text-align: start;
   }
-  .reader-bottom { margin-bottom: 72px; }
-  .reader-bottom .reader-nav-btn { font-size: 0.85rem; padding: 6px 14px; }
-  .mobile-reader-bar { display: flex; }
-  .mobile-reader-bar-peek { display: flex; }
-  .mobile-settings-overlay:not(.hidden), .mobile-library-overlay:not(.hidden) { display: block; }
-  .mobile-settings-sheet:not(.hidden), .mobile-library-sheet:not(.hidden) { display: block; }
+  .reader-bottom {
+    margin-bottom: 72px;
+  }
+  .reader-bottom .reader-nav-btn {
+    font-size: 0.85rem;
+    padding: 6px 14px;
+  }
+  .mobile-reader-bar {
+    display: flex;
+  }
+  .mobile-reader-bar-peek {
+    display: flex;
+  }
+  .mobile-settings-overlay:not(.hidden),
+  .mobile-library-overlay:not(.hidden) {
+    display: block;
+  }
+  .mobile-settings-sheet:not(.hidden),
+  .mobile-library-sheet:not(.hidden) {
+    display: block;
+  }
 
   /* Modal → centered dialog, not full screen */
   .modal-overlay {
@@ -266,15 +403,24 @@
     border-radius: var(--radius-lg);
     margin: 0 auto;
   }
-  .modal__header { padding: 16px 18px; }
-  .modal__body { padding: 16px 18px; }
-  .modal__footer { padding: 12px 18px; }
+  .modal__header {
+    padding: 16px 18px;
+  }
+  .modal__body {
+    padding: 16px 18px;
+  }
+  .modal__footer {
+    padding: 12px 18px;
+  }
 
   /* Action row → stack */
   .action-row {
     flex-direction: column;
   }
-  .action-row .btn { width: 100%; justify-content: center; }
+  .action-row .btn {
+    width: 100%;
+    justify-content: center;
+  }
 
   /* Admin nav stays scrollable instead of crushed equal-width tabs */
   .admin__nav-item {
@@ -286,14 +432,26 @@
   }
 
   /* Table — even tighter on phone */
-  td .btn--sm { padding: 5px 8px; font-size: 0.75rem; }
-  .btn-table { width: 28px; height: 28px; }
+  td .btn--sm {
+    padding: 5px 8px;
+    font-size: 0.75rem;
+  }
+  .btn-table {
+    width: 28px;
+    height: 28px;
+  }
 
-  .form-group { margin-bottom: 12px; }
+  .form-group {
+    margin-bottom: 12px;
+  }
 
   /* Container padding — match desktop for consistent margins */
-  .container { padding: 0 20px; }
-  .section { padding: 24px 0; }
+  .container {
+    padding: 0 20px;
+  }
+  .section {
+    padding: 24px 0;
+  }
 
   /* Toast */
   .toast-container {
@@ -301,7 +459,9 @@
     right: 12px;
     top: 64px;
   }
-  .toast { max-width: 100%; }
+  .toast {
+    max-width: 100%;
+  }
 
   /* Admin phone polish */
   .page-admin .header__inner > div:first-child span.text-muted,
@@ -331,11 +491,6 @@
   .thoughts-toolbar select {
     flex: 1 1 100%;
     width: 100% !important;
-  }
-
-  .novel-toolbar__main .btn,
-  .batch-actions-group .btn {
-    flex: 1 1 100%;
   }
 
   .table-wrapper {
@@ -377,7 +532,9 @@
   }
 
   /* Hide inline search bar on mobile — use overlay instead（React 无 page-home 类，直接按 header 作用域隐藏） */
-  .header .search-bar { display: none; }
+  .header .search-bar {
+    display: none;
+  }
 
   /* Mobile search trigger in title row */
   .mobile-search-trigger {
@@ -392,28 +549,56 @@
     padding: 0;
     cursor: pointer;
     border-radius: var(--radius-sm);
-    transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+    transition:
+      color 0.15s ease,
+      background 0.15s ease,
+      border-color 0.15s ease;
   }
   .mobile-search-trigger:hover {
     color: var(--accent);
     background: var(--accent-subtle);
     border-color: var(--accent-light);
   }
-  .page-home .section--hero { overflow-x: hidden; }
+  .page-home .section--hero {
+    overflow-x: hidden;
+  }
 }
 
 /* Small phone (≤400px) */
 @media (max-width: 400px) {
-  .header__logo { font-size: 1rem; }
-  .header__inner { padding: 0 8px; }
-  .nav-link { font-size: 0.8rem; padding: 6px 10px; }
-  .btn { padding: 8px 14px; font-size: 0.85rem; }
-  h1 { font-size: 1.3rem; }
-  h2 { font-size: 1.15rem; }
-  .reader-chapter-title { font-size: 1.2rem; }
+  .header__logo {
+    font-size: 1rem;
+  }
+  .header__inner {
+    padding: 0 8px;
+  }
+  .nav-link {
+    font-size: 0.8rem;
+    padding: 6px 10px;
+  }
+  .btn {
+    padding: 8px 14px;
+    font-size: 0.85rem;
+  }
+  h1 {
+    font-size: 1.3rem;
+  }
+  h2 {
+    font-size: 1.15rem;
+  }
+  .reader-chapter-title {
+    font-size: 1.2rem;
+  }
 
   /* Tiny screens */
-  .novel-card__cover { width: 76px; height: 102px; }
-  .novel-card__title { font-size: 0.88rem; }
-  .filter-btn { padding: 3px 8px; }
+  .novel-card__cover {
+    width: 76px;
+    height: 102px;
+  }
+  .novel-card__title {
+    font-size: 0.88rem;
+  }
+  .filter-btn {
+    padding: 3px 8px;
+  }
 }

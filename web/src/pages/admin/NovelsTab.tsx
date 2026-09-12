@@ -13,30 +13,35 @@ import type { Novel } from '@shared/types'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableCaption,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { Table, TableBody, TableCell, TableHead, TableCaption, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
-import { BookOpen, Pencil, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, BookOpen, ChevronsUpDown, Pencil, Trash2 } from 'lucide-react'
 import AdminPage from '@/components/admin/AdminPage'
-import { AdminContextPanel, AdminDataPanel, AdminMetricStrip, AdminPanelHeading, AdminToolbar } from '@/components/admin/AdminWorkspace'
+import { AdminDataPanel, AdminPanelHeading, AdminSearch, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
 
 const PAGE_SIZE = 20
+
+/**
+ * 表格列定义：桌面端据此固定列宽（表头与内容对齐），移动端据此折成卡片并
+ * 显示字段名。顺序必须与 thead/tbody 的单元格顺序一致。
+ *
+ * 宽度全部用百分比：fixed 布局下百分比与 rem 混用时，定长列会先吃掉宽度，
+ * 剩余空间再分给百分比列，窄容器里百分比列会被压到不可读（900px 实测标题列
+ * 只剩 40px）。纯百分比合计 100%，任何宽度下都等比缩放。
+ */
+const NOVEL_COLUMNS: readonly AdminColumn[] = [
+  { key: 'check', width: '3%' },
+  { key: 'title', label: '标题', width: '21%', primary: true },
+  { key: 'author', label: '作者', width: '14%' },
+  { key: 'categories', label: '分类', width: '24%' },
+  { key: 'status', label: '状态', width: '9%' },
+  { key: 'chapters', label: '章节', width: '7%' },
+  { key: 'updated', label: '更新', width: '11%' },
+  { key: 'actions', actions: true, width: '11%' },
+]
 
 const STATUS_OPTIONS = [
   { value: 'ongoing', label: '连载中' },
@@ -108,15 +113,14 @@ function NovelSortButton({
   onSort: (field: string) => void
   children: string
 }) {
+  // 用图标而非 ↑↓↕ 字符：字符箭头在 12px 下渲染模糊且宽度不一，
+  // 切换排序时会造成表头文字左右抖动。
+  const Caret = active ? (order === 'asc' ? ArrowUp : ArrowDown) : ChevronsUpDown
   return (
-    <button
-      type="button"
-      className="admin-sort-button"
-      data-active={active}
-      onClick={() => onSort(field)}
-    >
-      {children}
-      <span className="admin-sort-caret" aria-hidden="true">{active ? (order === 'asc' ? '↑' : '↓') : '↕'}</span>
+    <button type="button" className="admin-sort-button" data-active={active} onClick={() => onSort(field)}>
+      {/* 文字包一层 span：裸文本节点不参与 flex gap，会导致图标紧贴文字 */}
+      <span>{children}</span>
+      <Caret className="admin-sort-caret" aria-hidden="true" />
     </button>
   )
 }
@@ -463,8 +467,6 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
 
   return (
     <AdminPage
-      className="admin-redesign-page admin-redesign-page--novels"
-      kicker="CONTENT CATALOG"
       title="小说管理"
       meta={countLabel}
       description="维护书库作品、分类与连载状态，批量更新只作用于当前列表。"
@@ -475,48 +477,22 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
         </Button>
       }
     >
-      <AdminContextPanel
-        className="novel-context-panel"
-        eyebrow="当前工作对象"
-        title="先找到作品，再维护书库"
-        description="搜索、排序和批量更新围绕当前作品列表展开，作品详情可继续进入阅读页查看。"
-        aside={
-          <AdminMetricStrip
-            className="novel-context-stats"
-            ariaLabel="书库统计"
-            items={[
-              { label: '作品总数', value: total },
-              { label: '当前页', value: novels.length },
-              { label: '已选作品', value: selected.size },
-            ]}
+      <AdminDataPanel ariaLabel="作品目录" columns={NOVEL_COLUMNS}>
+        <AdminPanelHeading title="作品目录" description={query ? `匹配「${query}」的作品` : '按标题、作者、章节数和更新时间管理书库'} />
+        <AdminToolbar layout="stacked">
+          <AdminSearch
+            id="novel-search"
+            label="搜索小说"
+            type="search"
+            data-admin-search
+            placeholder="搜索标题、作者或简介"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
           />
-        }
-      />
-
-      <AdminDataPanel className="novel-directory-panel overflow-hidden" ariaLabel="作品目录">
-        <AdminPanelHeading
-          className="novel-directory-panel__head"
-          title="作品目录"
-          description={query ? `匹配「${query}」的作品` : '按标题、作者、章节数和更新时间管理书库'}
-          actions={<span className="novel-directory-panel__sort">当前按更新时间排序</span>}
-        />
-        <AdminToolbar className="novel-toolbar">
-          <div className="novel-toolbar__primary">
-            <Label htmlFor="novel-search" className="sr-only">搜索小说</Label>
-            <Input
-              id="novel-search"
-              className="novel-toolbar__search"
-              type="search"
-              data-admin-search
-              placeholder="搜索标题、作者或简介"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-            />
-          </div>
           {selected.size > 0 && (
-            <div className="novel-toolbar__batch" aria-live="polite">
-              <span className="novel-toolbar__batch-count">已选 {selected.size} 本</span>
-              <div className="batch-actions-group">
+            <div className="admin-toolbar__batch" aria-live="polite">
+              <span className="admin-toolbar__batch-count">已选 {selected.size} 本</span>
+              <div className="admin-toolbar__batch-actions">
                 <Button variant="secondary" size="sm" onClick={() => void handleBatchUpdate()}>
                   批量更新
                 </Button>
@@ -534,22 +510,30 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
           <TableCaption className="sr-only">小说目录列表，可按标题、作者、章节数和更新时间排序</TableCaption>
           <TableHeader>
             <TableRow>
-              <TableHead scope="col" className="admin-table__check">
+              <TableHead scope="col">
                 <Checkbox aria-label="选择当前页全部小说" checked={allChecked} onCheckedChange={handleSelectAll} />
               </TableHead>
               <TableHead scope="col" aria-sort={sortAria('title')}>
-                <NovelSortButton field="title" active={sortField === 'title'} order={sortOrder} onSort={toggleSort}>标题</NovelSortButton>
+                <NovelSortButton field="title" active={sortField === 'title'} order={sortOrder} onSort={toggleSort}>
+                  标题
+                </NovelSortButton>
               </TableHead>
               <TableHead scope="col" aria-sort={sortAria('author')}>
-                <NovelSortButton field="author" active={sortField === 'author'} order={sortOrder} onSort={toggleSort}>作者</NovelSortButton>
+                <NovelSortButton field="author" active={sortField === 'author'} order={sortOrder} onSort={toggleSort}>
+                  作者
+                </NovelSortButton>
               </TableHead>
               <TableHead scope="col">分类</TableHead>
               <TableHead scope="col">状态</TableHead>
               <TableHead scope="col" aria-sort={sortAria('chapter_count')}>
-                <NovelSortButton field="chapter_count" active={sortField === 'chapter_count'} order={sortOrder} onSort={toggleSort}>章节</NovelSortButton>
+                <NovelSortButton field="chapter_count" active={sortField === 'chapter_count'} order={sortOrder} onSort={toggleSort}>
+                  章节
+                </NovelSortButton>
               </TableHead>
               <TableHead scope="col" aria-sort={sortAria('updated_at')}>
-                <NovelSortButton field="updated_at" active={sortField === 'updated_at'} order={sortOrder} onSort={toggleSort}>更新</NovelSortButton>
+                <NovelSortButton field="updated_at" active={sortField === 'updated_at'} order={sortOrder} onSort={toggleSort}>
+                  更新
+                </NovelSortButton>
               </TableHead>
               <TableHead scope="col">操作</TableHead>
             </TableRow>
@@ -570,27 +554,40 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
             ) : (
               novels.map((n) => (
                 <TableRow key={n.id} className={n.id === highlightId ? 'novel-row--highlight' : undefined}>
-                  <TableCell>
-                    <Checkbox
-                      className="novel-checkbox"
-                      aria-label={`选择小说：${n.title}`}
-                      checked={selected.has(n.id)}
-                      onCheckedChange={() => toggleRow(n.id)}
-                    />
+                  <TableCell data-check="">
+                    <Checkbox aria-label={`选择小说：${n.title}`} checked={selected.has(n.id)} onCheckedChange={() => toggleRow(n.id)} />
                   </TableCell>
-                  <TableCell>
+                  <TableCell data-primary="" data-label="标题">
                     <strong>{n.title}</strong>
                   </TableCell>
-                  <TableCell>{n.author}</TableCell>
-                  <TableCell className="admin-category-cell">
-                    {n.categories && n.categories.length > 0 ? n.categories.map((c) => <Badge variant="outline" className="mr-1" key={c}>{c}</Badge>) : '—'}
+                  <TableCell data-label="作者">{n.author}</TableCell>
+                  <TableCell data-label="分类">
+                    {n.categories && n.categories.length > 0 ? (
+                      // 全部标签都渲染，由 CSS 按视口截断显示数量（见
+                      // .admin-cell-tags__overflow）。这样桌面与移动可显示不同
+                      // 数量，且完整列表对读屏软件仍可见。
+                      <span className="admin-cell-tags" title={n.categories.join('、')}>
+                        {n.categories.map((c) => (
+                          <Badge variant="outline" key={c} className="admin-cell-tags__tag">
+                            {c}
+                          </Badge>
+                        ))}
+                        {n.categories.length > 3 && (
+                          <span className="admin-cell-tags__overflow" aria-hidden="true">
+                            +{n.categories.length - 3}
+                          </span>
+                        )}
+                      </span>
+                    ) : (
+                      '—'
+                    )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell data-label="状态">
                     <Badge className={n.status === 'completed' ? 'bg-success/10 text-success' : 'bg-info/10 text-info'}>
                       {n.status === 'completed' ? '已完结' : '连载中'}
                     </Badge>
                   </TableCell>
-                  <TableCell>
+                  <TableCell data-label="章节">
                     {n.chapterCount || 0}
                     {getNewCount(n) > 0 && (
                       <span
@@ -601,18 +598,34 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
                       </span>
                     )}
                   </TableCell>
-                  <TableCell className="text-sm text-muted">{timeAgo(n.updatedAt)}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
-                      <Button asChild variant="ghost" size="icon" aria-label={`阅读：${n.title}`} title="阅读">
+                  <TableCell data-label="更新" className="text-sm text-muted">
+                    {timeAgo(n.updatedAt)}
+                  </TableCell>
+                  <TableCell data-actions="">
+                    <div className="admin-cell-actions">
+                      <Button asChild variant="ghost" size="icon" className="admin-icon-button" aria-label={`阅读：${n.title}`} title="阅读">
                         <Link to={`/novel/${encodeURIComponent(n.id)}`}>
                           <BookOpen className="size-4" />
                         </Link>
                       </Button>
-                      <Button variant="ghost" size="icon" aria-label={`编辑：${n.title}`} title="编辑" onClick={() => openModal(n)}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="admin-icon-button"
+                        aria-label={`编辑：${n.title}`}
+                        title="编辑"
+                        onClick={() => openModal(n)}
+                      >
                         <Pencil className="size-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" aria-label={`删除：${n.title}`} title="删除" onClick={() => void handleDelete(n)}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="admin-icon-button admin-icon-button--danger"
+                        aria-label={`删除：${n.title}`}
+                        title="删除"
+                        onClick={() => void handleDelete(n)}
+                      >
                         <Trash2 className="size-4" />
                       </Button>
                     </div>
@@ -626,7 +639,12 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
 
       <Pagination page={page} totalPages={totalPages} onPage={setPage} />
 
-      <Dialog open={modalOpen} onOpenChange={(open) => { if (!open) closeModal() }}>
+      <Dialog
+        open={modalOpen}
+        onOpenChange={(open) => {
+          if (!open) closeModal()
+        }}
+      >
         <DialogContent className="admin-dialog sm:max-w-[540px]">
           <DialogHeader>
             <DialogTitle className="editor-modal__title">{editing ? '编辑小说' : '添加小说'}</DialogTitle>
@@ -655,7 +673,12 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
               </div>
               <div className="form-group novel-editor__field">
                 <Label id="novel-status-label">状态</Label>
-                <CustomSelect aria-labelledby="novel-status-label" options={STATUS_OPTIONS} value={draft.status} onChange={(v) => setDraft({ ...draft, status: v })} />
+                <CustomSelect
+                  aria-labelledby="novel-status-label"
+                  options={STATUS_OPTIONS}
+                  value={draft.status}
+                  onChange={(v) => setDraft({ ...draft, status: v })}
+                />
               </div>
               <div className="form-group novel-editor__field novel-editor__field--wide">
                 <Label htmlFor="novel-description">简介</Label>
@@ -706,9 +729,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
             <Button variant="secondary" onClick={closeModal}>
               取消
             </Button>
-            <Button onClick={() => void handleSave()}>
-              保存
-            </Button>
+            <Button onClick={() => void handleSave()}>保存</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

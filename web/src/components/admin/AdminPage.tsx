@@ -23,7 +23,10 @@ interface AdminPageProps {
 
 export default function AdminPage({ title, className, children, ...header }: AdminPageProps) {
   return (
-    <section className={cn('tab-content', className)}>
+    // admin-redesign-page 提供后台页面统一的区块间距（CSS 里的 grid + 1rem gap）
+    // 与卡片表面归一化。它是所有 tab 共用的容器契约，不可省略：此前 novels
+    // 缺失该类，导致工作对象卡与数据面板之间实测 0 间距。
+    <section className={cn('tab-content', 'admin-redesign-page', className)}>
       {title != null && <AdminTabHeader {...header} title={title} />}
       {children}
     </section>

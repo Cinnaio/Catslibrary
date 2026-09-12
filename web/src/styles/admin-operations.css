@@ -742,7 +742,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   .chapter-context-form > [data-slot='button'] {
     width: 100%;
   }
-
 }
 
 /* 其余后台 tab 沿用章节页的“先说明，再操作”节奏。 */
@@ -793,20 +792,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   color: var(--text-muted);
   font-size: 0.72rem;
   padding-top: 0.15rem;
-}
-
-.novel-directory-panel {
-  min-width: 0;
-}
-
-.admin-redesign-page--novels .novel-toolbar {
-  border-top: 0;
-  border-bottom: 1px solid var(--admin-border);
-  background: color-mix(in srgb, var(--admin-panel) 94%, var(--accent-subtle));
-}
-
-.admin-redesign-page--novels .novel-toolbar__search {
-  width: min(100%, 34rem);
 }
 
 .admin-redesign-page--jobs > .admin-table-meta-row {
@@ -914,7 +899,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   background: var(--bg-card);
 }
 .ai-generations-table tr:hover td.sticky {
-  background: var(--bg-muted);
+  background: var(--bg-hover);
 }
 
 /* AI 封面/创作任务进行中的流动指示条（在任务状态卡片底部） */
@@ -933,8 +918,12 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   animation: ai-task-sweep 1.4s var(--ease) infinite;
 }
 @keyframes ai-task-sweep {
-  from { transform: translateX(-105%); }
-  to   { transform: translateX(265%); }
+  from {
+    transform: translateX(-105%);
+  }
+  to {
+    transform: translateX(265%);
+  }
 }
 
 /* AI 封面预览：图片铺满 2:3 画框，与 .account-avatar img 同款写法。
@@ -1019,10 +1008,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   padding: var(--admin-space-5);
 }
 
-.novel-toolbar,
-.novel-toolbar__primary,
-.novel-toolbar__batch,
-.batch-actions-group,
 .action-row,
 .input-row {
   display: flex;
@@ -1030,53 +1015,10 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   gap: var(--admin-space-2);
 }
 
-.novel-toolbar {
-  width: min(100%, 34rem);
-  min-width: 0;
-  flex-direction: column;
-  align-items: stretch;
-}
-.novel-toolbar__primary {
-  min-width: 0;
-  justify-content: flex-end;
-}
-.novel-toolbar__search {
-  min-width: 0;
-  flex: 1 1 14rem;
-}
-
-/* 批量操作是独立的第二行，避免和搜索/添加按钮争抢同一排空间。 */
-.novel-toolbar__batch {
-  width: 100%;
-  box-sizing: border-box;
-  justify-content: space-between;
-  border: 0;
-  border-top: 1px solid var(--admin-border);
-  border-radius: 0;
-  background: transparent;
-  padding: var(--admin-space-2) 0 0;
-}
-.novel-toolbar__batch-count {
-  flex: 0 0 auto;
-  padding: 0;
-  color: var(--text-secondary);
-  font-size: 0.75rem;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-.batch-actions-group {
-  min-width: 0;
-  margin-left: auto;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-.batch-actions-group > button {
-  flex: 0 0 auto;
-  white-space: nowrap;
-}
-
+/* 空态/加载态单元格。此前带 !important 是层叠战争产物：需要压过 Tailwind
+   utility 的 padding，而本文件无 @layer，普通声明已足够。 */
 .table-empty {
-  padding: 3.5rem 1rem !important;
+  padding: 3.5rem 1rem;
   color: var(--text-muted);
   text-align: center;
 }
@@ -1124,54 +1066,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 .table-wrapper tbody tr:hover td {
   background: color-mix(in srgb, var(--accent-subtle) 64%, transparent);
 }
-.th-sortable {
-  cursor: pointer;
-  user-select: none;
-  white-space: nowrap;
-  transition: color 0.15s ease;
-}
-.th-sortable:hover {
-  color: var(--text-primary);
-}
-.th-sortable--active {
-  color: var(--accent);
-}
-.th-sort-caret {
-  display: inline-block;
-  width: 0;
-  height: 0;
-  margin-left: 5px;
-  vertical-align: middle;
-  border-left: 3.5px solid transparent;
-  border-right: 3.5px solid transparent;
-  border-top: 4px solid currentColor;
-  opacity: 0;
-  transition:
-    opacity 0.15s ease,
-    transform 0.15s ease;
-}
-.th-sortable:hover .th-sort-caret {
-  opacity: 0.4;
-}
-.th-sortable--active .th-sort-caret {
-  opacity: 1;
-}
-.th-sortable--asc .th-sort-caret {
-  transform: rotate(180deg);
-}
-
-.admin-table__check {
-  width: 3rem;
-}
-.admin-category-cell {
-  min-width: 12rem;
-}
-.admin-category-cell .tag {
-  display: inline-flex;
-  align-items: center;
-  margin: 2px 3px 2px 0;
-  vertical-align: middle;
-}
 .admin-mono-cell {
   font-family: var(--font-mono);
   font-size: 0.75rem;
@@ -1195,7 +1089,9 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   display: inline-flex;
   min-height: 2rem;
   align-items: center;
-  gap: 0.35rem;
+  /* 箭头与文字留足间隙：此前 0.35rem 配合窄字符宽度，视觉上「标题 ↕」
+     会被读成「标题|」 */
+  gap: 0.5rem;
   border: 0;
   background: transparent;
   color: inherit;
@@ -1203,17 +1099,33 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   letter-spacing: inherit;
   text-transform: inherit;
 }
+
 .admin-sort-button:hover,
 .admin-sort-button:focus-visible {
   color: var(--text-primary);
 }
+
 .admin-sort-button[data-active='true'] {
   color: var(--sh-primary);
 }
+
 .admin-sort-caret {
-  width: 0.8rem;
-  font-size: 0.8rem;
-  line-height: 1;
+  /* 定宽定高的图标位：切换三种图标时不因字形宽度不同而抖动 */
+  width: 0.875rem;
+  height: 0.875rem;
+  flex: 0 0 auto;
+  /* 未激活态降低对比：非当前排序列不应与激活列争抢注意力 */
+  opacity: 0.45;
+  transition: opacity 0.15s ease;
+}
+
+.admin-sort-button:hover .admin-sort-caret,
+.admin-sort-button:focus-visible .admin-sort-caret {
+  opacity: 0.75;
+}
+
+.admin-sort-button[data-active='true'] .admin-sort-caret {
+  opacity: 1;
 }
 
 .novel-row--highlight td {
@@ -3010,27 +2922,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   .admin-shell__status {
     display: none;
   }
-  .novel-toolbar {
-    width: 100%;
-    gap: 0.625rem;
-  }
-  .novel-toolbar__primary {
-    width: 100%;
-    align-items: stretch;
-    flex-direction: row;
-  }
-  .novel-toolbar__search {
-    min-width: 0;
-    flex: 1 1 auto;
-  }
-  .novel-toolbar__primary > [data-slot='button'] {
-    flex: 0 0 auto;
-    white-space: nowrap;
-  }
-  .novel-toolbar__batch {
-    align-items: center;
-    gap: 0.625rem;
-  }
   .chapter-toolbar {
     gap: 0.35rem;
     padding: 0.5rem 0.75rem;
@@ -3043,29 +2934,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   }
   .chapter-toolbar__count {
     font-size: 0.75rem;
-  }
-  .novel-toolbar__batch-count {
-    align-self: center;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-    padding: 0;
-    font-size: 0.75rem;
-  }
-  .batch-actions-group {
-    display: flex;
-    width: auto;
-    min-width: 0;
-    margin-left: auto;
-    flex: 1 1 auto;
-    gap: 0.35rem;
-  }
-  .batch-actions-group > button {
-    min-width: 0;
-    min-height: 2.375rem;
-    flex: 1 1 0;
-    padding: 0.4rem 0.35rem;
-    font-size: 0.8125rem;
   }
   .admin-pagination,
   .home-pagination {
@@ -3389,28 +3257,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   .chapter-toolbar__count {
     margin-right: auto;
   }
-  .novel-toolbar__primary {
-    gap: 0.35rem;
-  }
-  .novel-toolbar__primary > [data-slot='button'] {
-    padding-inline: 0.65rem;
-  }
-  .novel-toolbar__batch {
-    align-items: stretch;
-    flex-wrap: wrap;
-  }
-  .novel-toolbar__batch-count {
-    width: 100%;
-  }
-  .batch-actions-group {
-    width: 100%;
-    flex-basis: 100%;
-  }
-  .batch-actions-group > button {
-    min-height: 2.25rem;
-    padding-inline: 0.15rem;
-    font-size: 0.75rem;
-  }
   .source-panel__bar {
     padding: var(--admin-space-3);
   }
@@ -3513,7 +3359,9 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   height: 0.25rem;
   overflow: hidden;
   border-radius: 999px;
-  background: var(--bg-muted);
+  /* --admin-inset 是后台专用的凹槽底色；原 --bg-muted 未定义，进度条底槽
+     一直不可见，填充量因此无从判断。 */
+  background: var(--admin-inset);
 }
 
 .site-operations__country i {
@@ -4165,10 +4013,132 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 /* 共享运营面板 primitives —— 页面只提供内容，结构尺寸在这里集中维护。 */
 .admin-toolbar {
   min-width: 0;
+  width: 100%;
 }
 
 .admin-toolbar > * {
   min-width: 0;
+}
+
+/* 工具条按容器宽度伸缩：此前 .novel-toolbar 写死 min(100%, 34rem)，在宽容器里
+   右侧留出大片空白，且 34rem 与列宽无对应关系。改为跟随容器。 */
+.admin-toolbar--inline {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+/* 搜索占据剩余空间，其余控件按内容宽度靠右 */
+.admin-toolbar--inline > [data-slot='input'],
+.admin-toolbar--inline > * > [data-slot='input'] {
+  flex: 1 1 16rem;
+  min-width: 0;
+  max-width: none;
+}
+
+/* 搜索框：项目已有 .admin-layout [data-slot='input'] 的 --admin-border-strong，
+   此处仅补 hover/focus 态。不要用更弱的 --admin-border 覆盖它。 */
+.admin-toolbar [data-slot='input']:hover {
+  border-color: color-mix(in srgb, var(--admin-border-strong) 80%, var(--text-primary));
+}
+
+.admin-toolbar [data-slot='input']:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.admin-toolbar--stacked {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  /* 与上方 .admin-panel-heading 的 padding-inline 对齐（实测标题文字在
+     x=300、工具栏在 x=280，两者错开 20px 是「不协调」的结构性来源）。
+     表格本身贴面板边缘，因此面板内出现两条对齐基线：标题与工具条走
+     同一条（内缩 1.25rem），表格走自己的单元格内边距。 */
+  padding-inline: 1.25rem;
+  /* 上下留白对称：此前上 0px、下 16px，搜索框贴在标题区分隔线上，看起来
+     被挤在线边。0.875rem 与下方 1rem 近似，视觉上均衡。 */
+  padding-top: 0.875rem;
+  /* 工具栏与下方内容必须留出间距：此前紧贴首张卡片（实测 0px），搜索框
+     看起来像卡片的标题栏而非独立控件。 */
+  margin-bottom: 1rem;
+}
+
+/* 搜索框：相对定位容器承载内嵌图标。
+   光秃的 Input 只有 placeholder 作为「这是搜索」的线索，输入后线索消失。 */
+.admin-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  /* 不铺满整行：面板宽 1400px 时全宽输入框是一个超长条，与紧凑的表格行
+     节奏不搭。限制到 30rem（约 480px）——足够放下常见搜索词，又与表格
+     首屏内容宽度相称。窄容器下自动收缩。 */
+  width: 100%;
+  max-width: 30rem;
+}
+
+.admin-search__icon {
+  position: absolute;
+  left: 0.75rem;
+  width: 1rem;
+  height: 1rem;
+  color: var(--text-muted);
+  pointer-events: none;
+  transition: color 0.15s ease;
+}
+
+/* 图标占位：图标左边界 0.75rem + 图标 1rem + 间隙 0.5rem。
+   选择器需带上 .admin-search 提升特异性——Input 自带的 Tailwind px-3
+   是单类选择器，同特异性下由层叠顺序决定，会被 Tailwind 层胜出。 */
+.admin-search > .admin-search__input,
+.admin-search .admin-search__input {
+  padding-left: 2.25rem;
+}
+
+.admin-search:focus-within .admin-search__icon {
+  color: var(--accent);
+}
+
+/* 清除按钮（type=search 的原生 ×）与右侧内边距对齐 */
+.admin-search__input::-webkit-search-cancel-button {
+  margin-right: 0.25rem;
+}
+
+/* 批量操作独立成第二行，用分隔线区隔，避免挤压搜索框 */
+.admin-toolbar__batch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  width: 100%;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--admin-border);
+}
+
+.admin-toolbar__batch-count {
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.admin-toolbar__batch-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+.admin-toolbar__batch-actions > button {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .admin-section-kicker {
@@ -4283,22 +4253,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 }
 
 .admin-metric-strip--account,
-.novel-context-stats {
-  --admin-metric-columns: 4;
-  border: 0;
-  border-radius: 0;
-}
-
-.novel-context-stats {
-  --admin-metric-columns: 3;
-  background: var(--admin-border);
-}
-
-.novel-context-stats .admin-metric-strip__item {
-  min-height: 4.5rem;
-  background: var(--admin-panel-muted);
-}
-
 .admin-panel-heading {
   display: flex;
   align-items: flex-start;
@@ -4342,7 +4296,8 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 
 .admin-queue-summary {
   display: grid;
-  grid-template-columns: minmax(15rem, 1.5fr) repeat(3, minmax(7rem, 1fr));
+  /* 列数由组件按 stats.length 注入；此前硬编码 3，传 2 或 4 项时会留空白格。 */
+  grid-template-columns: minmax(15rem, 1.5fr) repeat(var(--admin-queue-columns, 3), minmax(7rem, 1fr));
   overflow: hidden;
   min-width: 0;
   border: 1px solid var(--admin-border);
@@ -4412,7 +4367,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   }
 
   .admin-queue-summary {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(var(--admin-queue-columns, 3), minmax(0, 1fr));
   }
 
   .admin-queue-summary__lead {
@@ -4430,18 +4385,36 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 }
 
 @media (max-width: 640px) {
+  /* 指标卡此前在窄屏压成单列纵向堆叠，3-4 项会吃掉近半屏高度，而这些数字
+     在手机上只是概览信息。改为 2×2 网格（4 项时）或单行（≤3 项），
+     纵向占用减半且仍可读。 */
   .admin-metric-strip,
   .admin-metric-strip--dashboard,
-  .admin-metric-strip--account,
-  .novel-context-stats,
+  .admin-metric-strip--account {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .admin-queue-summary {
     grid-template-columns: 1fr;
   }
 
-  .admin-metric-strip__item + .admin-metric-strip__item,
-  .novel-context-stats .admin-metric-strip__item + .admin-metric-strip__item {
-    border-top: 1px solid var(--admin-border);
+  /* 奇数项时最后一项跨满整行，避免留半格空位 */
+  .admin-metric-strip > .admin-metric-strip__item:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+
+  /* 2 列网格下用「左邻项」+「奇偶」组合还原正确的分隔线：
+     第 2n 项右侧无边框，第 3 项起需要上边框。 */
+  .admin-metric-strip__item + .admin-metric-strip__item {
+    border-left: 1px solid var(--admin-border);
+  }
+
+  .admin-metric-strip__item:nth-child(odd) {
     border-left: 0;
+  }
+
+  .admin-metric-strip__item:nth-child(n + 3) {
+    border-top: 1px solid var(--admin-border);
   }
 
   .admin-panel-heading {
@@ -4460,5 +4433,346 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   .admin-queue-summary > *:not(.admin-queue-summary__lead) + * {
     border-top: 1px solid var(--admin-border);
     border-left: 0;
+  }
+}
+
+/* ============================================================
+   数据表格：桌面列对齐 + 移动卡片化
+   调用方通过 <AdminDataPanel columns={[...]}> 传列定义，组件把列宽写成
+   --col-N-w 变量；这里消费变量做固定布局，并在窄屏把每行折成卡片。
+   ============================================================ */
+
+/* --- 桌面端：固定列宽，表头与内容严格对齐 ---------------------------
+   此前用 table-layout: auto，浏览器按各单元格内容分别算宽，表头「作者」与
+   内容「宁月」的列边界错开十余像素。fixed 布局只按第一行分配宽度，两者一致。
+   shadcn 未提供 colgroup 组件，故直接按列序给 th/td 定宽。
+
+   整段必须限定在 >900px：nth-child 选择器特异性高于移动端卡片规则，若不
+   限定会推翻卡片的 width:100%，把分类列压回 22% 并让标签纵向堆叠。
+   断点取 900px 而非 640px：8 列数据表在 640-900px 之间会被压到各列只剩
+   几十像素（实测 900px 下标题列仅 40px 宽，内容显示为残片），此区间折成
+   卡片比保留表格更可读。 */
+@media (min-width: 901px) {
+  .admin-data-panel--grid table {
+    table-layout: fixed;
+    width: 100%;
+  }
+
+  .admin-data-panel--grid table > thead > tr > th:nth-child(1),
+  .admin-data-panel--grid table > tbody > tr > td:nth-child(1) {
+    width: var(--col-1-w, auto);
+  }
+  .admin-data-panel--grid table > thead > tr > th:nth-child(2),
+  .admin-data-panel--grid table > tbody > tr > td:nth-child(2) {
+    width: var(--col-2-w, auto);
+  }
+  .admin-data-panel--grid table > thead > tr > th:nth-child(3),
+  .admin-data-panel--grid table > tbody > tr > td:nth-child(3) {
+    width: var(--col-3-w, auto);
+  }
+  .admin-data-panel--grid table > thead > tr > th:nth-child(4),
+  .admin-data-panel--grid table > tbody > tr > td:nth-child(4) {
+    width: var(--col-4-w, auto);
+  }
+  .admin-data-panel--grid table > thead > tr > th:nth-child(5),
+  .admin-data-panel--grid table > tbody > tr > td:nth-child(5) {
+    width: var(--col-5-w, auto);
+  }
+  .admin-data-panel--grid table > thead > tr > th:nth-child(6),
+  .admin-data-panel--grid table > tbody > tr > td:nth-child(6) {
+    width: var(--col-6-w, auto);
+  }
+  .admin-data-panel--grid table > thead > tr > th:nth-child(7),
+  .admin-data-panel--grid table > tbody > tr > td:nth-child(7) {
+    width: var(--col-7-w, auto);
+  }
+  .admin-data-panel--grid table > thead > tr > th:nth-child(8),
+  .admin-data-panel--grid table > tbody > tr > td:nth-child(8) {
+    width: var(--col-8-w, auto);
+  }
+}
+
+/* 定长行高：分类标签数量不同会让行高参差，锁定后列表节奏统一。
+   标签超出单行时收敛为省略，而不是把行撑高。 */
+.admin-data-panel--grid table td {
+  height: 3.25rem;
+  vertical-align: middle;
+  overflow: hidden;
+}
+
+.admin-data-panel--grid table td > .admin-cell-tags {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+  overflow: hidden;
+  flex-wrap: nowrap;
+}
+
+/* 分类标签：标签多时（实测最多 6 个）会把表格行高撑得参差。
+   统一只显示前 3 个，其余折叠为 +N。
+   计数徽章由组件按 categories.length - 3 生成，与此处显示的 3 个保持一致
+   —— 若桌面和移动显示数量不同，计数就无法同时正确。 */
+.admin-cell-tags__tag:nth-child(n + 4) {
+  display: none;
+}
+
+.admin-cell-tags__overflow {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  padding: 0.15rem 0.4rem;
+  border: 1px dashed var(--admin-border-strong, var(--admin-border));
+  border-radius: var(--radius-full, 9999px);
+  /* 用次级文字色而非 muted：muted 在浅底上对比不足，+N 几乎看不清，
+     而它承载「还有更多」的信息，需要可读。 */
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* 移动端卡片：分类独占整行，取消截断显示全部标签，计数徽章随之隐藏。
+   必须带 :nth-child(n + 4) 以匹配上面那条规则的特异性 (0,2,0)，
+   否则低特异性的 .admin-cell-tags__tag 覆盖不掉它。 */
+@media (max-width: 900px) {
+  .admin-cell-tags__tag:nth-child(n + 4) {
+    display: inline-flex;
+  }
+
+  .admin-cell-tags__overflow {
+    display: none;
+  }
+}
+36px
+  按钮配
+  4px
+  间距时三键几乎相连，删除是不可逆操作却紧邻阅读键，
+  易误触；这里拉开间距并把图标从
+  16px
+  提到
+  18px
+  增加可辨识度。
+  */
+  .admin-data-panel--grid
+  table
+  td
+  > .admin-cell-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.admin-icon-button {
+  width: 2rem;
+  height: 2rem;
+  color: var(--text-secondary);
+}
+
+.admin-icon-button svg {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+.admin-icon-button:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+/* 删除键 hover 前保持中性，避免整列图标都在喊「危险」；
+   hover 时才显示危险色，明确后果且不失克制。 */
+.admin-icon-button--danger:hover {
+  color: var(--color-danger);
+  background: color-mix(in srgb, var(--color-danger) 10%, transparent);
+}
+
+/* --- 窄屏/平板：每行折成卡片 -----------------------------------------
+   复用 AiGenerationsPanel 已验证的 grid-template-areas 思路并泛化：
+   thead 隐藏，tr 变 grid，每个 td 用 ::before 显示列标签。
+   覆盖到 900px：8 列数据表在更窄容器里不可读。 */
+@media (max-width: 900px) {
+  .admin-data-panel--grid .table-wrapper {
+    overflow-x: visible;
+    border: 0;
+    background: transparent;
+  }
+
+  /* mobile.css 给 .table-wrapper table 设了 min-width: 600px，会在窄屏强制
+     表格按桌面宽度排版并把容器撑出横向滚动；卡片模式下必须解除。 */
+  .admin-data-panel--grid .table-wrapper table {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .admin-data-panel--grid table,
+  .admin-data-panel--grid thead,
+  .admin-data-panel--grid tbody,
+  .admin-data-panel--grid tr,
+  .admin-data-panel--grid td {
+    display: block;
+    width: 100%;
+  }
+
+  .admin-data-panel--grid thead {
+    display: none;
+  }
+
+  .admin-data-panel--grid tbody {
+    display: grid;
+    /* 卡片间距必须显著大于卡片内部行距（0.25rem），否则违反接近性原则：
+       组内间距 ≈ 组间间距时，眼睛无法判断哪些字段属于同一张卡片，整列
+       看起来像一整块。1rem 是内部行距的 4 倍，分组关系一目了然。 */
+    gap: 1rem;
+  }
+
+  .admin-data-panel--grid tbody tr {
+    display: grid;
+    /* 单列布局：每个 td 独占一行，td 内部再分「标签 | 值」两列。
+       此前用 1fr/auto 双列，会把 td 挤成窄条（实测作者格仅 7px 宽），
+       分类标签因此纵向堆叠把卡片撑到 126px 高。 */
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    /* 字段行距 0.375rem：0.25rem 时含徽章的行之间只剩 3-4px，视觉粘连；
+       同时需显著小于卡片间距 1rem，才能保持「组内紧、组间松」。 */
+    gap: 0.375rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--admin-border);
+    border-radius: var(--radius-lg);
+    background: var(--admin-panel);
+  }
+
+  .admin-data-panel--grid tbody td {
+    grid-column: 1 / -1;
+    display: grid;
+    /* 标签列定宽：auto 会让「作者」「分类」「状态」各占不同宽度，导致同一张
+       卡片内多行的值起点参差。3.5rem 容纳「分类」「状态」两字中文而不换行。 */
+    grid-template-columns: 3.5rem minmax(0, 1fr);
+    align-items: center;
+    gap: 0.75rem;
+    /* 必须显式 width:100%：grid item 默认按内容收缩，不写的话带标签多的
+       单元格（如分类）会退化为窄条并纵向堆叠，把卡片撑到 126px 高。 */
+    width: 100%;
+    height: auto;
+    padding: 0;
+    overflow: visible;
+  }
+
+  /* 列标签：由 td 的 data-label 提供，避免在 JSX 里重复渲染一份隐藏文本 */
+  .admin-data-panel--grid tbody td[data-label]::before {
+    content: attr(data-label);
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  /* 移动端卡片里标签必须允许换行：桌面端的 nowrap + 固定列宽会把首个标签
+     挤窄甚至整条裁掉（如「强制」只剩「弱」）。但单个标签自身不折行，
+     否则「强制」会竖排成两行撑高卡片。 */
+  .admin-data-panel--grid tbody td > .admin-cell-tags {
+    flex-wrap: wrap;
+    overflow: visible;
+    row-gap: 0.25rem;
+  }
+
+  .admin-data-panel--grid tbody td > .admin-cell-tags > * {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  /* 主字段跨整行、字号加大，作为卡片标题 */
+  .admin-data-panel--grid tbody td[data-primary] {
+    grid-column: 1 / -1;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.25rem;
+    /* 与下方字段拉开一点距离，形成「标题 / 属性」两级层次 */
+    margin-bottom: 0.25rem;
+    font-size: 1rem;
+    font-weight: 700;
+  }
+
+  .admin-data-panel--grid tbody td[data-primary]::before {
+    display: none;
+  }
+
+  /* 操作区贴卡片底部。按钮不铺满整行：三个图标各占 1/3 宽会让图标之间
+     空出大片留白，看起来像布局碎裂；改为定宽居中留出足够触摸面积。 */
+  .admin-data-panel--grid tbody td[data-actions] {
+    grid-column: 1 / -1;
+    grid-template-columns: minmax(0, 1fr);
+    margin-top: 0.25rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--admin-border);
+  }
+
+  .admin-data-panel--grid tbody td[data-actions]::before {
+    display: none;
+  }
+
+  .admin-data-panel--grid tbody td[data-actions] > .admin-cell-actions {
+    display: flex;
+    align-items: center;
+    /* 整体居中、键间固定间距。
+       不要均布（flex:1 + space-around）：那会把三个图标拉到卡片两端，
+       中间留出大片空白，看起来像布局碎裂。 */
+    justify-content: center;
+    gap: 1.5rem;
+  }
+
+  .admin-data-panel--grid tbody td[data-actions] > .admin-cell-actions > * {
+    flex: 0 0 auto;
+    /* 44px 是触摸目标的最小可点区域 */
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+
+  /* 卡片模式下按钮放大到 44px，图标需同步放大，否则 16px 图标在 44px
+     按钮里显得空旷、可辨识度不足。20px 在 44px 按钮里比例协调。 */
+  .admin-data-panel--grid tbody td[data-actions] .admin-cell-actions svg {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+
+  /* 勾选框：绝对定位到卡片右上角。它是行选择器而非内容字段，若作为 grid
+     项参与排版会在卡片顶部留出一整行空白（实测多占 16px+gap）。 */
+  .admin-data-panel--grid tbody tr {
+    position: relative;
+  }
+
+  .admin-data-panel--grid tbody td[data-check] {
+    position: absolute;
+    top: 0.75rem;
+    right: 1rem;
+    width: auto;
+    padding: 0;
+    grid-template-columns: auto;
+  }
+
+  .admin-data-panel--grid tbody td[data-check]::before {
+    display: none;
+  }
+
+  /* 标题让出右侧空间，避免长标题压到悬浮的勾选框下方 */
+  .admin-data-panel--grid tbody td[data-primary] {
+    padding-right: 1.75rem;
+  }
+
+  /* 移动端工具栏：搜索整宽，批量操作换行铺满 */
+  .admin-toolbar--inline {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .admin-toolbar__batch {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .admin-toolbar__batch-actions {
+    margin-left: 0;
+  }
+
+  .admin-toolbar__batch-actions > button {
+    flex: 1 1 calc(50% - 0.25rem);
   }
 }
