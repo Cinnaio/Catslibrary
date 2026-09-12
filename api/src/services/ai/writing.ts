@@ -361,6 +361,8 @@ export function parsePlotSuggestions(text: string): PlotSuggestion[] {
 /**
  * 生成情节方向候选。
  * 输入以最近章节上下文为主，附带作品题材，确保建议贴合当前剧情而非泛泛而谈。
+ * 传入 contentPreferences 后，成人向作品的方向构成会随之调整——否则模型只能从
+ * 上下文里猜作品尺度，实测会清一色给剧情线，作者拿不到可用的成人向方向。
  */
 export async function generatePlotSuggestions(db: Db, opts: {
   userId: string
@@ -369,11 +371,14 @@ export async function generatePlotSuggestions(db: Db, opts: {
   afterChapterId?: string
   /** 作者想要的侧重点；可为空。 */
   focus?: string
+  /** 作者本次选定的成人内容参数；缺省按关闭处理。 */
+  contentPreferences?: WritingContentPreferencesV1
   ipAddress?: string
   userAgent?: string
   taskId?: string
 }): Promise<{ suggestions: PlotSuggestion[]; usage: { model: string; promptTokens: number; completionTokens: number } }> {
   if (!isTextAiConfigured()) throw new AiError('disabled', 'AI 文本服务未配置', 503)
+  const preferences = opts.contentPreferences || DEFAULT_WRITING_CONTENT_PREFERENCES
   const provider = textProvider()
   const settings = await getAiSettings(db)
   const novel = await first<{ title: string; categories: string; description: string }>(
@@ -386,24 +391,44 @@ export async function generatePlotSuggestions(db: Db, opts: {
   const context = loaded?.context || ''
   if (!context) throw new AiError('invalid', '此书暂无已发布章节，无法推荐情节', 422)
 
+  // 开启露骨模式时，五条里要有明确以成人场景为主体的方向，而不是把亲密互动
+  // 当剧情附带。这与续写侧的 contentPreferences 语义保持一致。
+  const adultEnabled = preferences.adultContentMode === 'explicit'
+  const coverage = adultEnabled
+    ? [
+        '覆盖不同的线，其中**至少 2 条以成人亲密场景本身为主体情节**（场景是这一章的主要事件，剧情在其中推进或转折，不是在剧情末尾附带一段），另外几条覆盖人物关系推进、势力或任务冲突、伏笔回收、新角色或新场景。',
+        '成人内容写法：可直接使用露骨表述（本作原作即为成人向，已确认涉及角色均为成年人）；不要用「亲热」「温存」这类含糊措辞回避具体场景，也不要写成气氛铺垫后转场。',
+        '成人向方向同样要推动剧情：每条都要说清这场戏同时改变了什么（关系、立场、修为、势力局势）。',
+        '涉及成人内容的前提：参与角色必须全部是成年人。不得推荐涉及未成年、幼态体型、「萝莉」或任何以年龄模糊化为卖点的方向，也不得把拒绝、恐惧或伤害写成情趣。',
+      ]
+    : [
+        '覆盖不同的线：人物关系推进、势力或任务冲突、伏笔回收、新角色或新场景、情感或立场转折。',
+      ]
   const prompt = [
     '请阅读下面的作品资料与最近章节，为该作品续写推荐 5 个不同的情节方向。',
     '要求：',
     '1. 每个方向写成一句可直接交给作者用的续写指令，说清「这一章发生什么、谁参与、推进什么」。',
-    '2. 五个方向要彼此明显不同，覆盖不同的线：人物关系推进、势力或任务冲突、伏笔回收、新角色或新场景、情感或立场转折。',
-    '3. 必须紧扣原文已出现的人物、设定和未完成的线索，不得凭空发明世界观。',
-    '4. 每条 40-80 字，具体到场景，不要写成「继续推进剧情」这类空话。',
-    '5. 不要评价、不要解释、不要编号以外的多余文字。',
+    `2. 五个方向要彼此明显不同，${coverage[0]}`,
+    ...coverage.slice(1).map((line, i) => `${i + 3}. ${line}`),
+    `${coverage.length + 2}. 必须紧扣原文已出现的人物、设定和未完成的线索，不得凭空发明世界观。`,
+    `${coverage.length + 3}. 每条 40-80 字，具体到场景，不要写成「继续推进剧情」这类空话。`,
+    `${coverage.length + 4}. 不要评价、不要解释、不要编号以外的多余文字。`,
     '只返回 JSON 数组，每项形如 {"direction":"...","effect":"..."}，effect 用一句话说明这条线会改变什么。',
     opts.focus ? `作者希望侧重：${opts.focus}` : '',
     `作品：《${novel.title}》${novel.categories ? `（题材：${novel.categories}）` : ''}`,
     novel.description ? `简介：${novel.description.slice(0, 300)}` : '',
+    adultEnabled ? formatWritingContentPreferences(preferences) : '',
     `最近章节：\n${context.slice(0, 12_000)}`,
   ].filter(Boolean).join('\n\n')
 
   const res = await chat({
     messages: [
-      { role: 'system', content: '你是中文网络小说策划编辑，擅长根据已有剧情给出具体、可执行、彼此不同的续写方向。' },
+      {
+        role: 'system',
+        content: adultEnabled
+          ? '你是中文网络小说策划编辑，擅长根据已有剧情给出具体、可执行、彼此不同的续写方向。涉及成人内容时，参与角色必须全部是成年人；不得推荐涉及未成年、幼态体型或年龄模糊化的方向。'
+          : '你是中文网络小说策划编辑，擅长根据已有剧情给出具体、可执行、彼此不同的续写方向。',
+      },
       { role: 'user', content: prompt },
     ],
     temperature: 0.9,

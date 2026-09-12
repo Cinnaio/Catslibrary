@@ -1037,12 +1037,16 @@ aiRoutes.post('/writing/plot-suggestions', requireAdmin(), async (c) => {
   const body = await c.req.json().catch(() => ({}))
   const novelId = String(body.novelId || '').trim()
   if (!novelId) return c.json({ error: 'novelId 必填' }, 400)
+  // 与续写同一套校验：作者的成人内容选择决定方向构成，非法值不该静默降级。
+  const contentPreferencesResult = validateWritingContentPreferences(body.contentPreferences)
+  if (contentPreferencesResult.error) return c.json({ error: contentPreferencesResult.error }, 422)
   try {
     const result = await generatePlotSuggestions(db, {
       userId: c.get('user').id,
       novelId,
       afterChapterId: String(body.afterChapterId || '').trim() || undefined,
       focus: String(body.focus || '').trim(),
+      contentPreferences: contentPreferencesResult.preferences,
       ...(await auditRequestContext(c, db)),
     })
     return c.json({ suggestions: result.suggestions, usage: result.usage })
