@@ -93,6 +93,9 @@ body:has(.reader-app:not(.hidden)) {
 .reader-paper {
   position: relative;
   overflow: hidden;
+  /* 分页模式下正文自身承担翻页手势，交给 JS 处理，避免浏览器先做原生滚动/缩放；
+     滚动模式需要保留纵向拖动，由 .reader-page-mode 缺席时的 pan-y 兜底。 */
+  touch-action: pan-y;
   padding: clamp(28px, 5vw, 64px) clamp(22px, 6vw, 76px);
   border: 1px solid var(--reader-line);
   border-radius: var(--reader-radius-paper);
@@ -100,6 +103,17 @@ body:has(.reader-app:not(.hidden)) {
     linear-gradient(180deg, rgba(255, 255, 255, 0.58), rgba(255, 255, 255, 0) 48%),
     var(--reader-paper);
   box-shadow: var(--reader-shadow);
+}
+
+/* 分页模式：横向翻页与点击热区全由 JS 接管，禁用浏览器原生手势竞争 */
+.reader-page-mode .reader-paper {
+  touch-action: manipulation;
+}
+
+/* 正文内的可滚动区域（目录/设置/段评面板）保持原生惯性滚动 */
+.reader-paper .thought-panel,
+.reader-paper .reader-controls {
+  touch-action: pan-y;
 }
 
 [data-theme="dark"] .reader-paper {

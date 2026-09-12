@@ -769,14 +769,24 @@ export default function Reader() {
     const el = contentRef.current
     if (!el) return
     const zone = el
+    // touchend 之后浏览器还会补发一次合成 click，两者都会命中本热区——
+    // 一次点按会连翻两页。这里用时间戳去重：touch 路径先执行，click 在 500ms 内被丢弃。
+    let lastTouchAt = 0
     function handleTap(e: MouseEvent | TouchEvent) {
       if (!pageMode || !readerClickPaging) return
+      if (e.type === 'click' && Date.now() - lastTouchAt < 500) return
+      if (e.type === 'touchend') lastTouchAt = Date.now()
       if (window.getSelection()?.toString().trim()) return
       const target = e.target as HTMLElement
       if (target.closest('button, a, input, textarea, select, .chapter-dropdown, .bookmark-panel, .reader-controls, .reader-nav-group, .thought-panel, .thought-selection-popover, .thought-marker')) return
       const rect = zone.getBoundingClientRect()
       if (!rect || rect.width === 0) return
-      const clientX = 'touches' in e ? e.touches[0]!.clientX : (e as MouseEvent).clientX
+      // touchend 的 touches 已清空，触点坐标在 changedTouches 上
+      const point = 'changedTouches' in e
+        ? (e.changedTouches[0] ?? (e as TouchEvent).touches[0])
+        : null
+      const clientX = point ? point.clientX : (e as MouseEvent).clientX
+      if (clientX === undefined) return
       const relX = (clientX - rect.left) / rect.width
       if (relX < 0.35) { e.preventDefault(); pageNavigate('prev') }
       else if (relX > 0.65) { e.preventDefault(); pageNavigate('next') }

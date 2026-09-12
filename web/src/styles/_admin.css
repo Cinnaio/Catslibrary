@@ -1,13 +1,15 @@
-.thought-admin-cell{
+.thought-admin-cell {
   max-width: 260px;
   white-space: normal;
   line-height: 1.6;
-}.thought-admin-user{
+}
+.thought-admin-user {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   white-space: nowrap;
-}.thought-admin-avatar{
+}
+.thought-admin-avatar {
   width: 24px;
   height: 24px;
   display: inline-grid;
@@ -19,9 +21,26 @@
   color: var(--accent);
   font-size: 0.72rem;
   font-weight: 700;
-}.thought-admin-avatar > *{ grid-area: 1 / 1; }.thought-admin-avatar:has(img) > span{ opacity: 0; }.thought-admin-avatar img{ width: 100%; height: 100%; object-fit: cover; }@keyframes rowHighlight{
-  0%   { background-color: var(--accent-light); }
-  100% { background-color: transparent; }
-}tr.novel-row--highlight td{
+}
+.thought-admin-avatar > * {
+  grid-area: 1 / 1;
+}
+.thought-admin-avatar:has(img) > span {
+  opacity: 0;
+}
+.thought-admin-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+@keyframes rowHighlight {
+  0% {
+    background-color: var(--accent-light);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+tr.novel-row--highlight td {
   animation: rowHighlight 1.8s ease-out;
 }
