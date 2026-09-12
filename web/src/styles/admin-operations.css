@@ -70,6 +70,16 @@
   box-shadow: var(--admin-shadow-soft);
   overflow: hidden;
 }
+
+/* 侧边栏导航滚动条：面板本身是圆角悬浮卡片，8px 的系统滚动条会贴着右缘切出一条
+   灰色轨道，破坏卡片轮廓。导航层级浅、滚动量小，隐去滚动条不影响可发现性
+   （导航项溢出时仍有滚轮/触摸滚动）。 */
+.admin-layout [data-slot='sidebar-content'] {
+  scrollbar-width: none;
+}
+.admin-layout [data-slot='sidebar-content']::-webkit-scrollbar {
+  display: none;
+}
 .admin-sidebar[data-slot='sheet-content'] {
   background: var(--admin-sidebar);
   animation-duration: 220ms;
