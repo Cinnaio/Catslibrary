@@ -311,6 +311,123 @@ export async function generateWritingTitles(db: Db, opts: {
   return { titles, usage: { model: res.model, promptTokens: res.promptTokens, completionTokens: res.completionTokens } }
 }
 
+/**
+ * 情节方向候选：给作者提供可直接用作续写指令的情节建议。
+ * 与 write_outline 的区别是它不产出章节大纲，只产出若干条一句话的方向，
+ * 作者选定一条后填进 instruction 即可——实测空指令会让模型自由发挥走向战斗线。
+ */
+export interface PlotSuggestion {
+  /** 一句话的情节方向，可直接作为续写指令主体。 */
+  direction: string
+  /** 这条方向会推进什么（人物关系/势力冲突/伏笔回收），一句话。 */
+  effect: string
+}
+
+/** 把模型输出解析成情节候选。容忍纯行列表与对象列表两种形态。 */
+export function parsePlotSuggestions(text: string): PlotSuggestion[] {
+  const source = cleanWritingText(text).trim()
+  if (!source) return []
+  // 优先按 JSON 解析：模型可能返回 [{direction, effect}]。
+  const jsonStart = source.indexOf('[')
+  const jsonEnd = source.lastIndexOf(']')
+  if (jsonStart >= 0 && jsonEnd > jsonStart) {
+    try {
+      const parsed = JSON.parse(source.slice(jsonStart, jsonEnd + 1)) as unknown
+      if (Array.isArray(parsed)) {
+        const out: PlotSuggestion[] = []
+        for (const item of parsed) {
+          if (typeof item === 'string' && item.trim()) out.push({ direction: item.trim(), effect: '' })
+          else if (item && typeof item === 'object') {
+            const rec = item as Record<string, unknown>
+            const direction = String(rec.direction ?? rec.plot ?? rec.text ?? '').trim()
+            if (direction) out.push({ direction, effect: String(rec.effect ?? rec.reason ?? '').trim() })
+          }
+        }
+        if (out.length) return out.slice(0, 6)
+      }
+    } catch {
+      // 非 JSON，退回行解析
+    }
+  }
+  // 行解析：去掉序号、项目符号与 markdown 标记，每行一条。
+  return source
+    .split('\n')
+    .map((line) => line.replace(/^\s*(?:[-*•]|\d+[.、)）])\s*/, '').trim())
+    .filter((line) => line.length >= 6 && !/^[{}\[\],]+$/.test(line))
+    .slice(0, 6)
+    .map((line) => ({ direction: line, effect: '' }))
+}
+
+/**
+ * 生成情节方向候选。
+ * 输入以最近章节上下文为主，附带作品题材，确保建议贴合当前剧情而非泛泛而谈。
+ */
+export async function generatePlotSuggestions(db: Db, opts: {
+  userId: string
+  novelId: string
+  /** 从哪一章之后续写；缺省用最后一章。 */
+  afterChapterId?: string
+  /** 作者想要的侧重点；可为空。 */
+  focus?: string
+  ipAddress?: string
+  userAgent?: string
+  taskId?: string
+}): Promise<{ suggestions: PlotSuggestion[]; usage: { model: string; promptTokens: number; completionTokens: number } }> {
+  if (!isTextAiConfigured()) throw new AiError('disabled', 'AI 文本服务未配置', 503)
+  const provider = textProvider()
+  const settings = await getAiSettings(db)
+  const novel = await first<{ title: string; categories: string; description: string }>(
+    db,
+    'SELECT title, categories, description FROM novels WHERE id = $1',
+    [opts.novelId],
+  )
+  if (!novel) throw new AiError('invalid', '小说不存在', 404)
+  const loaded = await loadContinuationContext(db, opts.novelId, opts.afterChapterId)
+  const context = loaded?.context || ''
+  if (!context) throw new AiError('invalid', '此书暂无已发布章节，无法推荐情节', 422)
+
+  const prompt = [
+    '请阅读下面的作品资料与最近章节，为该作品续写推荐 5 个不同的情节方向。',
+    '要求：',
+    '1. 每个方向写成一句可直接交给作者用的续写指令，说清「这一章发生什么、谁参与、推进什么」。',
+    '2. 五个方向要彼此明显不同，覆盖不同的线：人物关系推进、势力或任务冲突、伏笔回收、新角色或新场景、情感或立场转折。',
+    '3. 必须紧扣原文已出现的人物、设定和未完成的线索，不得凭空发明世界观。',
+    '4. 每条 40-80 字，具体到场景，不要写成「继续推进剧情」这类空话。',
+    '5. 不要评价、不要解释、不要编号以外的多余文字。',
+    '只返回 JSON 数组，每项形如 {"direction":"...","effect":"..."}，effect 用一句话说明这条线会改变什么。',
+    opts.focus ? `作者希望侧重：${opts.focus}` : '',
+    `作品：《${novel.title}》${novel.categories ? `（题材：${novel.categories}）` : ''}`,
+    novel.description ? `简介：${novel.description.slice(0, 300)}` : '',
+    `最近章节：\n${context.slice(0, 12_000)}`,
+  ].filter(Boolean).join('\n\n')
+
+  const res = await chat({
+    messages: [
+      { role: 'system', content: '你是中文网络小说策划编辑，擅长根据已有剧情给出具体、可执行、彼此不同的续写方向。' },
+      { role: 'user', content: prompt },
+    ],
+    temperature: 0.9,
+    // 5 条 40-80 字的候选加上 JSON 结构约需 600-900 token；复用 plotState 预算（默认 3000）。
+    maxTokens: settings.plotStateMaxTokens,
+    timeoutMs: 180_000,
+  })
+  const suggestions = parsePlotSuggestions(res.text)
+  if (!suggestions.length) throw new AiError('invalid', 'AI 未返回有效的情节方向')
+  await recordUsage(db, {
+    userId: opts.userId,
+    model: res.model,
+    provider: providerLabel(provider.baseUrl),
+    promptTokens: res.promptTokens,
+    completionTokens: res.completionTokens,
+    costMillicents: Math.round(res.cost * 100000),
+    novelId: opts.novelId,
+    generationType: 'plot_suggestion',
+    ipAddress: opts.ipAddress,
+    userAgent: opts.userAgent,
+  })
+  return { suggestions, usage: { model: res.model, promptTokens: res.promptTokens, completionTokens: res.completionTokens } }
+}
+
 export async function generateWriting(db: Db, opts: {
   userId: string
   novelId: string

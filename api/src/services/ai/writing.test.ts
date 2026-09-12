@@ -3,7 +3,45 @@
  * generateWriting 本身走 AI/DB，这里只测可测的 parseContinuationTitle。
  */
 import { describe, it, expect } from 'vitest'
-import { cleanWritingTail, formatWritingBrief, parseContinuationTitle, validateWritingBrief } from './writing'
+import { cleanWritingTail, formatWritingBrief, parseContinuationTitle, parsePlotSuggestions, validateWritingBrief } from './writing'
+
+describe('parsePlotSuggestions', () => {
+  it('解析 JSON 对象数组，保留 direction 与 effect', () => {
+    const text = '[{"direction":"苏越带夭夜入密室双修，借双修商定应对云岚宗的部署。","effect":"修为突破并定下战局立场"},{"direction":"夭夜在朝堂与云山使者对峙。","effect":"势力冲突升级"}]'
+    const out = parsePlotSuggestions(text)
+    expect(out).toHaveLength(2)
+    expect(out[0]!.direction).toContain('双修')
+    expect(out[0]!.effect).toContain('修为突破')
+    expect(out[1]!.direction).toContain('朝堂')
+  })
+
+  it('容忍纯字符串数组', () => {
+    const out = parsePlotSuggestions('["苏越与夭夜在婚房独处一晚。","蛇人族使者抵达皇都。"]')
+    expect(out).toHaveLength(2)
+    expect(out[0]!.direction).toContain('婚房')
+  })
+
+  it('模型返回行列表时剥离序号与项目符号', () => {
+    const text = '1. 苏越与夭夜在婚房独处，写一场完整的洞房戏。\n2. 美杜莎突然现身皇都，带来魂殿的消息。\n- 夭夜独自领兵迎敌，苏越暗中相护。'
+    const out = parsePlotSuggestions(text)
+    expect(out).toHaveLength(3)
+    expect(out[0]!.direction.startsWith('1.')).toBe(false)
+    expect(out[0]!.direction).toContain('洞房戏')
+    expect(out[2]!.direction.startsWith('-')).toBe(false)
+  })
+
+  it('忽略空行、纯符号行与过短内容', () => {
+    const out = parsePlotSuggestions('\n\n[ ]\n\n嗯\n\n苏越带夭夜返回乌坦城探访萧家旧宅，交代萧炎的近况。\n')
+    expect(out).toHaveLength(1)
+    expect(out[0]!.direction).toContain('乌坦城')
+  })
+
+  it('最多返回 6 条，空输入返回空数组', () => {
+    expect(parsePlotSuggestions('')).toEqual([])
+    const many = Array.from({ length: 9 }, (_, i) => `方向内容足够长的一条候选描述${i}。`).join('\n')
+    expect(parsePlotSuggestions(many).length).toBeLessThanOrEqual(6)
+  })
+})
 
 describe('writingBrief', () => {
   it('规范化字段、按批次序号排序，并按 Unicode 标量限制长度', () => {

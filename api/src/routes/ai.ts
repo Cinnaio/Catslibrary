@@ -30,7 +30,7 @@ import {
   type BatchResult,
 } from '../services/ai/generations'
 import { escapeLike } from '../services/text'
-import { generateContinuationChapters, generateWriting, generateWritingTitles, loadContinuationContext, parseContinuationTitle, type ContinuationSnapshotV1, validateWritingBrief } from '../services/ai/writing'
+import { generateContinuationChapters, generatePlotSuggestions, generateWriting, generateWritingTitles, loadContinuationContext, parseContinuationTitle, type ContinuationSnapshotV1, validateWritingBrief } from '../services/ai/writing'
 import { WRITING_PROMPT_PIPELINE_VERSION } from '../services/ai/writing-prompt'
 import { COVER_PROMPT_PIPELINE_VERSION } from '../services/ai/cover-brief'
 import { extractStyleProfile } from '../services/ai/style-profile'
@@ -1020,6 +1020,32 @@ aiRoutes.post('/writing/titles', requireAdmin(), async (c) => {
       ...(await auditRequestContext(c, db)),
     })
     return c.json({ titles: result.titles, usage: result.usage })
+  } catch (err) {
+    return aiErrorResponse(c, err)
+  }
+})
+
+// ---------- 情节方向推荐：给作者提供可直接用作续写指令的候选 ----------
+
+/**
+ * 基于最近章节上下文推荐若干条情节方向。
+ * 用途：续写的 instruction 留空时模型会自由发挥（实测密度在 4-9 之间随机波动），
+ * 作者想不出写什么时，可先取候选再挑一条填入指令。
+ */
+aiRoutes.post('/writing/plot-suggestions', requireAdmin(), async (c) => {
+  const db = getDb()
+  const body = await c.req.json().catch(() => ({}))
+  const novelId = String(body.novelId || '').trim()
+  if (!novelId) return c.json({ error: 'novelId 必填' }, 400)
+  try {
+    const result = await generatePlotSuggestions(db, {
+      userId: c.get('user').id,
+      novelId,
+      afterChapterId: String(body.afterChapterId || '').trim() || undefined,
+      focus: String(body.focus || '').trim(),
+      ...(await auditRequestContext(c, db)),
+    })
+    return c.json({ suggestions: result.suggestions, usage: result.usage })
   } catch (err) {
     return aiErrorResponse(c, err)
   }
