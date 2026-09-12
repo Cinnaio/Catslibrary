@@ -110,3 +110,4 @@ npm test --workspace=@zhi-zhou/web  # 仅前端
 
 - [PRODUCT.md](PRODUCT.md)：产品定位与能力边界
 - [DESIGN.md](DESIGN.md)：设计系统说明
+- [KNOWN-ISSUES.md](KNOWN-ISSUES.md)：已定位但暂不修复的问题与不可行修法

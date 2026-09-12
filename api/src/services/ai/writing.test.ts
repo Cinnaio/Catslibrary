@@ -145,6 +145,24 @@ describe('parseContinuationTitle', () => {
     expect(parseContinuationTitle('【笼中雀】')).toEqual({ title: '', body: '【笼中雀】' })
   })
 
+  // 线上真实失败样本（2026-09-12 十连续写第 5 章）：模型直接从叙述句开写，未输出标题行。
+  // 此处必须解析为空标题，交由 generateWriting 的补拟分支处理，而不是把正文首句误当标题剥掉。
+  it('模型漏输出标题行时返回空标题，不误剥正文首句', () => {
+    const text = [
+      '魂渊遁走，皇都上空的浓云散了大半，露出久违的日光。可那日光落在满城碎裂的砖瓦与倒伏的旗帜上，无人觉得温暖。',
+      '',
+      '苏越靠在夭夜肩头歇了片刻，体内生生不息运转，斗气每十秒便恢复一大截。',
+      '',
+      '“夜儿，清点伤亡。”',
+    ].join('\n')
+    expect(parseContinuationTitle(text)).toEqual({ title: '', body: text })
+  })
+
+  it('以句末标点结尾的短首行仍不当作裸标题', () => {
+    const text = '他赢了。\n\n众人沉默了很久。'
+    expect(parseContinuationTitle(text)).toEqual({ title: '', body: text })
+  })
+
   it('识别单次输出中混入的第二章标题', () => {
     const parsed = parseContinuationTitle('【笼门】HHHH\n\n第一章正文。\n\n【心甘情愿】HHH\n\n第二章正文。')
     expect(parsed.body).toBe('第一章正文。')
