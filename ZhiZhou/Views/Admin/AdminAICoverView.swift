@@ -369,14 +369,14 @@ struct AdminAICoverView: View {
                             .scaledToFill()
                     } placeholder: {
                         ZStack {
-                            RoundedRectangle(cornerRadius: AppLayout.controlCornerRadius)
+                            RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius)
                                 .fill(AppTheme.surface.opacity(0.6))
                             Image(systemName: "photo")
                                 .foregroundStyle(AppTheme.textSecondary)
                         }
                     }
                     .frame(width: AppLayout.coverCurrentPreview.width, height: AppLayout.coverCurrentPreview.height)
-                    .clipShape(RoundedRectangle(cornerRadius: AppLayout.controlCornerRadius, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius, style: .continuous))
                     .accessibilityLabel("当前封面")
 
                     VStack(alignment: .leading, spacing: 8) {
@@ -1021,7 +1021,7 @@ struct AdminAICoverView: View {
                 .scaledToFill()
         } else {
             ZStack {
-                RoundedRectangle(cornerRadius: AppLayout.controlCornerRadius)
+                RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius)
                     .fill(AppTheme.surface.opacity(0.6))
                 Image(systemName: "photo")
                     .foregroundStyle(AppTheme.textSecondary)
