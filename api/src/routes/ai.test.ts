@@ -916,7 +916,8 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
       expect(firstCall).toContain('CHAPTER_TASK')
       expect(firstCall).toContain('第一章发现证词冲突')
       expect(firstCall).toContain('允许处理露骨 R18')
-      expect(firstCall).toContain('不是固定字数或段落百分比')
+      // 权重以可执行的结构化要求下发（线上密度回归的根因：模糊语义拿不到密度）。
+      expect(firstCall).toContain('成人场景至少 2 个')
       expect(firstCall).not.toContain('第二章保留疑点')
       expect(secondCall).toContain('第二章保留疑点')
       expect(secondCall).not.toContain('第一章发现证词冲突')
@@ -927,8 +928,10 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
         continuationSnapshot?: { contentPreferences?: typeof contentPreferences }
       }
       expect(params.writingBrief).toEqual(brief)
-      expect(params.contentPreferences).toEqual(contentPreferences)
-      expect(params.continuationSnapshot?.contentPreferences).toEqual(contentPreferences)
+      // 校验器会为缺省档位补上 'default'，因此冻结值等于请求值加上默认同意规则档位。
+      const expectedPreferences = { ...contentPreferences, consentRuleTier: 'default' }
+      expect(params.contentPreferences).toEqual(expectedPreferences)
+      expect(params.continuationSnapshot?.contentPreferences).toEqual(expectedPreferences)
       const drafts = await t.db.query<{ params_json: string }>("SELECT params_json FROM ai_generations WHERE kind = 'continue' AND params_json LIKE $1 ORDER BY created_at DESC LIMIT 2", [`%\\"batchId\\":\\"${batchId}\\"%`])
       expect(drafts.rows).toHaveLength(2)
 

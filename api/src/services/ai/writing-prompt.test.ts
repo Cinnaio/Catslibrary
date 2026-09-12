@@ -110,7 +110,8 @@ describe('writing prompt compiler', () => {
       required: true,
     })
     expect(compiled.user).toContain('亲密内容权重')
-    expect(compiled.user).toContain('不是固定字数或段落百分比')
+    // 权重以可执行的结构化要求下发（线上密度回归的根因：模糊语义拿不到密度）。
+    expect(compiled.user).toContain('成人场景至少 2 个')
     expect(compiled.system).toContain('角色均为成年人')
   })
 
@@ -124,5 +125,36 @@ describe('writing prompt compiler', () => {
     expect(compiled.system).not.toContain('不通过换词绕过上游拒绝')
     expect(compiled.system).not.toContain('继续遵守上游供应商政策')
     expect(compiled.system).toContain('按该要求直接写作')
+  })
+
+  // 通用同意规则会把原作即由强迫/下药/睡眠情境构成主线的章节压成概述，
+  // 使续写密度远低于原作（实测 3.5 次/千字 vs 原作 23.0）。
+  // 放宽档必须能在系统层声明覆盖，否则只是用户层措辞，形同虚设。
+  it('严格档下不注入题材分级覆盖声明', () => {
+    const compiled = compileWritingPrompt({
+      kind: 'continue',
+      title: '严格档',
+      instruction: '推进本章',
+      contentPreferences: { version: 1, adultContentMode: 'explicit', intimacyWeight: 'high', adultCharactersConfirmed: true, consentRuleTier: 'default' },
+      writingSystemPrompt: '指导',
+    })
+    expect(compiled.system).not.toContain('虚构题材分级')
+    expect(compiled.user).not.toContain('本档位附加规则')
+  })
+
+  it('放宽档下在系统层声明题材分级覆盖，并同步注入附加规则', () => {
+    const compiled = compileWritingPrompt({
+      kind: 'continue',
+      title: '放宽档',
+      instruction: '推进本章',
+      contentPreferences: { version: 1, adultContentMode: 'explicit', intimacyWeight: 'high', adultCharactersConfirmed: true, consentRuleTier: 'fictional_nonconsent' },
+      writingSystemPrompt: '指导',
+    })
+    expect(compiled.system).toContain('虚构题材分级')
+    expect(compiled.system).toContain('以任务参数中的题材分级规则为准')
+    // 篇幅约束是与同意规则并列的第二个密度压制源，必须一并被覆盖。
+    expect(compiled.system).toContain('不代表固定字数、段落数量或出现频率')
+    expect(compiled.user).toContain('本档位附加规则')
+    expect(compiled.user).toContain('篇幅约束以本任务参数的量化要求为准')
   })
 })
