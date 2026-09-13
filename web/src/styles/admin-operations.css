@@ -147,29 +147,9 @@
   color: var(--accent-hover);
 }
 
-.scrape-intake__tab > svg {
-  width: 1rem;
-  height: 1rem;
-  color: var(--accent);
-}
-
-.scrape-intake__tab > span {
-  display: grid;
-  min-width: 0;
-  gap: 0.12rem;
-}
-
 .scrape-intake__tab strong {
   color: var(--text-primary);
   font-size: 0.8rem;
-}
-
-.scrape-intake__tab small {
-  overflow: hidden;
-  color: var(--text-muted);
-  font-size: 0.7rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .scrape-intake__form,
@@ -6627,25 +6607,41 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 
 .admin-redesign-page--scrape .scrape-intake__tabs {
   margin-top: 1rem;
-  width: min(34rem, calc(100% - 2.5rem));
+  width: min(18rem, calc(100% - 2.5rem));
   margin-right: auto;
 }
 
 .admin-redesign-page--scrape .scrape-intake__tabs > [data-slot='tabs-list'] {
-  min-height: 3.75rem;
+  min-height: 2.5rem;
   height: auto;
 }
 
 .admin-redesign-page--scrape .scrape-intake__tab {
-  min-height: 2.85rem;
+  min-height: 1.75rem;
   height: auto;
-  gap: 0.5rem;
-  padding: 0.4rem 0.7rem;
+  justify-content: center;
+  text-align: center;
+  padding: 0.15rem 0.35rem;
 }
 
 .admin-redesign-page--scrape .scrape-intake__tab[data-state='active'] {
   background: transparent;
   box-shadow: none;
+}
+
+.admin-redesign-page--scrape .scrape-intake__tab > strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-redesign-page--scrape .scrape-intake__tab[data-state='active'] > strong {
+  color: var(--accent-hover);
+  font-weight: 600;
 }
 
 .admin-redesign-page--scrape .scrape-intake__form {

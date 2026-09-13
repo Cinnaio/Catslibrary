@@ -1,4 +1,3 @@
-import { Link2, ListFilter, Search } from 'lucide-react'
 import CustomSelect from '@/components/admin/CustomSelect'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -26,9 +25,9 @@ interface ScrapeIntakeProps {
 }
 
 const MODES = [
-  { value: 'link' as const, label: '粘贴链接', description: '从一本书开始', icon: Link2 },
-  { value: 'search' as const, label: '搜索作品', description: '按书名或作者找', icon: Search },
-  { value: 'ranking' as const, label: '浏览榜单', description: '批量发现新书', icon: ListFilter },
+  { value: 'link' as const, label: '链接导入' },
+  { value: 'search' as const, label: '作品搜索' },
+  { value: 'ranking' as const, label: '榜单发现' },
 ]
 
 const INTAKE_MODE_INDEX: Record<IntakeMode, number> = {
@@ -64,13 +63,9 @@ export default function ScrapeIntake({
 
       <Tabs value={mode} onValueChange={(value) => onModeChange(value as IntakeMode)} className="scrape-intake__tabs">
         <TabsList aria-label="选择抓取入口" data-active-index={INTAKE_MODE_INDEX[mode]}>
-          {MODES.map(({ value, label, description, icon: Icon }) => (
+          {MODES.map(({ value, label }) => (
             <TabsTrigger value={value} key={value} className="scrape-intake__tab">
-              <Icon aria-hidden="true" />
-              <span>
-                <strong>{label}</strong>
-                <small>{description}</small>
-              </span>
+              <strong>{label}</strong>
             </TabsTrigger>
           ))}
         </TabsList>
