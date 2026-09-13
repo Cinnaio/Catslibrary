@@ -79,7 +79,7 @@ function AdminNavigation({ active }: AdminSidebarProps) {
                 const open = manualOpen[tab.id] ?? itemActive
                 return (
                   <Collapsible key={tab.id} open={open} onOpenChange={(nextOpen) => setParentOpen(tab.id, nextOpen)} asChild>
-                    <SidebarMenuItem>
+                    <SidebarMenuItem className="admin-nav-parent">
                       <SidebarMenuButton asChild isActive={itemActive} tooltip={tab.label}>
                         <NavLink
                           to={parentTo}
@@ -99,7 +99,7 @@ function AdminNavigation({ active }: AdminSidebarProps) {
                         </SidebarMenuAction>
                       </CollapsibleTrigger>
                       <CollapsibleContent>
-                        <SidebarMenuSub>
+                        <SidebarMenuSub className="admin-nav-sub">
                           {tab.children.map((child) => (
                             <SidebarMenuSubItem key={child.id}>
                               <SidebarMenuSubButton asChild isActive={matches(child.to)}>

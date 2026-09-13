@@ -1111,6 +1111,27 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   background: color-mix(in srgb, var(--accent-light) 90%, var(--accent));
 }
 
+/* 侧栏层级留白：父级负责定位，子菜单用更宽松的行高承接层级。
+   只作用于可展开项，普通导航仍保持高效的后台密度。 */
+.admin-shell__navigation .admin-nav-parent > [data-sidebar='menu-button'] {
+  min-height: 2.5rem;
+}
+
+/* icon 折叠态仍保持 shadcn 的 32px 方形点击区，避免展开态留白外溢。 */
+.admin-layout [data-collapsible='icon'] .admin-nav-parent > [data-sidebar='menu-button'] {
+  min-height: 2rem;
+}
+
+.admin-shell__navigation .admin-nav-sub {
+  gap: 0.375rem;
+  margin-block: 0.25rem;
+  padding-block: 0.25rem;
+}
+
+.admin-shell__navigation .admin-nav-sub [data-sidebar='menu-sub-button'] {
+  height: 2rem;
+}
+
 .admin-shell__topbar {
   display: flex;
   min-height: 3.5rem;
