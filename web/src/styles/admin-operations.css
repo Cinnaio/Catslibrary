@@ -91,16 +91,42 @@
 }
 
 .scrape-intake__tabs > [data-slot='tabs-list'] {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.35rem;
+  isolation: isolate;
   padding: 0.3rem;
   border: 1px solid var(--admin-border);
   border-radius: var(--admin-radius);
   background: var(--admin-inset);
 }
 
+.scrape-intake__tabs > [data-slot='tabs-list']::before {
+  position: absolute;
+  z-index: 0;
+  inset: 0.3rem auto 0.3rem 0.3rem;
+  width: calc((100% - 0.75rem) / 3);
+  border-radius: inherit;
+  background: var(--admin-panel);
+  box-shadow: var(--shadow);
+  content: '';
+  pointer-events: none;
+  transform: translateX(0);
+  transition: transform 180ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.scrape-intake__tabs > [data-slot='tabs-list'][data-active-index='1']::before {
+  transform: translateX(calc(100% + 0.1875rem));
+}
+
+.scrape-intake__tabs > [data-slot='tabs-list'][data-active-index='2']::before {
+  transform: translateX(calc((100% + 0.1875rem) * 2));
+}
+
 .scrape-intake__tab {
+  position: relative;
+  z-index: 1;
   display: flex;
   min-height: 3.25rem;
   align-items: center;
@@ -108,6 +134,17 @@
   gap: 0.65rem;
   padding: 0.55rem 0.7rem;
   text-align: left;
+  background: transparent;
+  box-shadow: none;
+}
+
+.scrape-intake__tab[data-state='active'] {
+  background: transparent;
+  box-shadow: none;
+}
+
+.scrape-intake__tab[data-state='active'] strong {
+  color: var(--accent-hover);
 }
 
 .scrape-intake__tab > svg {
@@ -2259,10 +2296,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 }
 .moderation-toolbar__modes {
   flex: 0 0 auto;
-}
-.moderation-toolbar__mode-select {
-  width: 11rem;
-  max-width: none;
 }
 .moderation-toolbar__modes [data-slot='tabs-list'] {
   height: var(--admin-control-height);
@@ -4927,7 +4960,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   z-index: 0;
   inset: 0.1875rem auto 0.1875rem 0.1875rem;
   width: calc((100% - 0.75rem) / 3);
-  border-radius: var(--admin-radius-sm);
+  border-radius: inherit;
   background: var(--admin-panel);
   box-shadow: var(--shadow);
   content: '';
@@ -6522,11 +6555,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
     width: 100%;
   }
 
-  .admin-redesign-page--moderation .moderation-toolbar__mode-select {
-    width: 100%;
-    max-width: none;
-  }
-
   .admin-redesign-page--moderation .moderation-toolbar__reason-placeholder {
     width: auto;
     flex: none;
@@ -6599,6 +6627,25 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 
 .admin-redesign-page--scrape .scrape-intake__tabs {
   margin-top: 1rem;
+  width: min(34rem, calc(100% - 2.5rem));
+  margin-right: auto;
+}
+
+.admin-redesign-page--scrape .scrape-intake__tabs > [data-slot='tabs-list'] {
+  min-height: 3.75rem;
+  height: auto;
+}
+
+.admin-redesign-page--scrape .scrape-intake__tab {
+  min-height: 2.85rem;
+  height: auto;
+  gap: 0.5rem;
+  padding: 0.4rem 0.7rem;
+}
+
+.admin-redesign-page--scrape .scrape-intake__tab[data-state='active'] {
+  background: transparent;
+  box-shadow: none;
 }
 
 .admin-redesign-page--scrape .scrape-intake__form {
@@ -6758,6 +6805,35 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 
   .admin-redesign-page--scrape .scrape-setup > .scrape-setup__config {
     padding-inline: 1rem;
+  }
+
+  .admin-redesign-page--scrape .scrape-intake__tabs > [data-slot='tabs-list'] {
+    min-height: 0;
+    height: auto;
+  }
+
+  .admin-redesign-page--scrape .scrape-intake__tabs {
+    width: auto;
+    margin-right: 1rem;
+  }
+
+  .admin-redesign-page--scrape .scrape-intake__tabs > [data-slot='tabs-list']::before {
+    inset: 0.3rem 0.3rem auto;
+    width: auto;
+    height: calc((100% - 0.75rem) / 3);
+  }
+
+  .admin-redesign-page--scrape .scrape-intake__tabs > [data-slot='tabs-list'][data-active-index='1']::before {
+    transform: translateY(calc(100% + 0.1875rem));
+  }
+
+  .admin-redesign-page--scrape .scrape-intake__tabs > [data-slot='tabs-list'][data-active-index='2']::before {
+    transform: translateY(calc((100% + 0.1875rem) * 2));
+  }
+
+  .admin-redesign-page--scrape .scrape-intake__tab {
+    min-height: 2.65rem;
+    padding: 0.4rem 0.7rem;
   }
 
   .admin-redesign-page--scrape .scrape-workbench__aside .admin-panel-heading,

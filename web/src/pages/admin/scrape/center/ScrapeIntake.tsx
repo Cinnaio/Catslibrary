@@ -31,6 +31,12 @@ const MODES = [
   { value: 'ranking' as const, label: '浏览榜单', description: '批量发现新书', icon: ListFilter },
 ]
 
+const INTAKE_MODE_INDEX: Record<IntakeMode, number> = {
+  link: 0,
+  search: 1,
+  ranking: 2,
+}
+
 export default function ScrapeIntake({
   mode,
   onModeChange,
@@ -57,7 +63,7 @@ export default function ScrapeIntake({
       />
 
       <Tabs value={mode} onValueChange={(value) => onModeChange(value as IntakeMode)} className="scrape-intake__tabs">
-        <TabsList aria-label="选择抓取入口">
+        <TabsList aria-label="选择抓取入口" data-active-index={INTAKE_MODE_INDEX[mode]}>
           {MODES.map(({ value, label, description, icon: Icon }) => (
             <TabsTrigger value={value} key={value} className="scrape-intake__tab">
               <Icon aria-hidden="true" />
