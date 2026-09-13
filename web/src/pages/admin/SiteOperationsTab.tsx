@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { BarChart3, Globe2, Megaphone, MonitorSmartphone, Route, ShieldAlert } from 'lucide-react'
 import { adminApi, novelsApi } from '@/lib/api'
@@ -11,7 +11,6 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 
 type Overview = Awaited<ReturnType<typeof adminApi.site.overview>>
@@ -49,6 +48,8 @@ function ShareRows({ items, names }: { items: Array<{ key: string; visits: numbe
 
 export default function SiteOperationsTab() {
   const { toast } = useToast()
+  const [searchParams] = useSearchParams()
+  const urlTab = searchParams.get('view')
   const [data, setData] = useState<Overview | null>(null)
   const [announcement, setAnnouncement] = useState('')
   const [tab, setTab] = usePersistentState<OperationTab>('site_operations_active_tab', 'overview', (value) => value === 'overview' || value === 'traffic' || value === 'content')
@@ -61,6 +62,13 @@ export default function SiteOperationsTab() {
   const [categoryBooks, setCategoryBooks] = useState<Awaited<ReturnType<typeof novelsApi.list>>['novels']>([])
   const [categoryBooksLoading, setCategoryBooksLoading] = useState(false)
   const [trendRange, setTrendRange] = useState<30 | 90>(30)
+
+  // 二级运营入口位于侧边栏，保留 URL 深链接并兼容此前的本地持久化位置。
+  useEffect(() => {
+    if (urlTab === 'overview' || urlTab === 'traffic' || urlTab === 'content') {
+      if (urlTab !== tab) setTab(urlTab)
+    }
+  }, [setTab, tab, urlTab])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -168,14 +176,6 @@ export default function SiteOperationsTab() {
       actions={<div className="flex gap-2"><Button variant="secondary" size="sm" onClick={() => void load()} disabled={loading || saving}>{loading ? '刷新中…' : '刷新'}</Button>{tab === 'content' && <Button variant="outline" size="sm" onClick={exportContentReport} disabled={!data}>导出 CSV</Button>}</div>}
     >
       <div className="grid gap-4">
-        <Tabs value={tab} onValueChange={(value) => setTab(value as OperationTab)}>
-          <TabsList className="w-full justify-start overflow-x-auto overflow-y-hidden sm:w-fit">
-            <TabsTrigger value="overview">运营概览</TabsTrigger>
-            <TabsTrigger value="traffic">流量分析</TabsTrigger>
-            <TabsTrigger value="content">内容分析</TabsTrigger>
-          </TabsList>
-        </Tabs>
-
         <div className="site-operations__panel">
           {tab === 'overview' && <>
             <AdminMetricStrip className="site-operations__metrics" ariaLabel="运营概览指标" items={overviewMetrics.map(([label, value, unit]) => ({ label, value: value.toLocaleString(), detail: unit }))} />

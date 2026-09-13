@@ -4,7 +4,7 @@
  * 无轮询：挂载 + 每次变更后重新拉取，无乐观更新。
  */
 import { useCallback, useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { adminApi, authApi, newOperationId } from '../../lib/api'
 import { timeAgo } from '../../lib/format'
 import { copyText } from '../../lib/admin'
@@ -17,7 +17,6 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import AdminPage from '@/components/admin/AdminPage'
 import { AdminMetricStrip } from '@/components/admin/AdminWorkspace'
 import { usePersistentState } from '@/hooks/usePersistentState'
@@ -99,7 +98,8 @@ function roleLabel(role: string): string {
 export default function SettingsTab(_props: { highlightNovelId?: string; onHighlightConsumed?: () => void }) {
   const { toast } = useToast()
   const { confirm } = useConfirm()
-  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const urlTab = searchParams.get('view')
 
   const [data, setData] = useState<SettingsData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -121,9 +121,16 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
   const [operationAuditOffset, setOperationAuditOffset] = useState(0)
   const [operationAuditLoading, setOperationAuditLoading] = useState(false)
   // 子标签持久化：刷新后停留在上次选的子页
-  const [accountTab, setAccountTab] = usePersistentState<string>('settings_active_tab', 'overview', (v) =>
-    ['overview', 'users', 'registration', 'audit', 'operation-audit'].includes(v),
+  const [accountTab, setAccountTab] = usePersistentState<string>('settings_active_tab', 'users', (v) =>
+    ['users', 'registration', 'audit', 'operation-audit'].includes(v),
   )
+
+  // 二级账户入口位于侧边栏，URL 优先于历史持久化值；旧的 overview 会自然回落到用户管理。
+  useEffect(() => {
+    if (urlTab && ['users', 'registration', 'audit', 'operation-audit'].includes(urlTab) && urlTab !== accountTab) {
+      setAccountTab(urlTab)
+    }
+  }, [accountTab, setAccountTab, urlTab])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -197,13 +204,6 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
   useEffect(() => {
     if (accountTab === 'operation-audit') void loadOperationAudit()
   }, [accountTab, loadOperationAudit])
-
-  // ---------- 当前管理员 / 注册设置 ----------
-
-  async function handleLogout() {
-    await authApi.logout()
-    navigate('/')
-  }
 
   async function saveRegisterSettings() {
     try {
@@ -432,51 +432,6 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
           </span>
         }
       >
-      <Tabs value={accountTab} onValueChange={setAccountTab} className="account-settings-tabs min-w-0">
-        <TabsList className="account-settings-tabs__list w-full max-w-full justify-start overflow-x-auto">
-          <TabsTrigger value="overview">概览</TabsTrigger>
-          <TabsTrigger value="users">用户管理</TabsTrigger>
-          <TabsTrigger value="registration">注册与邀请码</TabsTrigger>
-          <TabsTrigger value="audit">登录审计</TabsTrigger>
-          <TabsTrigger value="operation-audit">操作审计</TabsTrigger>
-        </TabsList>
-
-        {accountTab === 'overview' && <div className="grid gap-4">
-        <Card>
-          <CardHeader className="flex-row items-center justify-between gap-2">
-            <div className="min-w-0">
-              <CardTitle className="text-base">当前管理员</CardTitle>
-              <p className="mt-0.5 text-sm text-muted-foreground" id="adminCurrentUser">
-                {meUser ? (
-                  <>
-                    <strong className="font-medium text-foreground">{meUser.displayName || meUser.username}</strong>
-                    <span> · {roleLabel(meUser.role)}</span>
-                  </>
-                ) : (
-                  '—'
-                )}
-              </p>
-            </div>
-            <Button variant="secondary" size="sm" onClick={() => void handleLogout()}>
-              退出登录
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <AdminMetricStrip
-              className="admin-metric-strip--account"
-              ariaLabel="用户统计"
-              items={[
-                { label: '用户', value: users.length },
-                { label: '活跃', value: activeCount },
-                { label: '禁用', value: users.length - activeCount },
-                { label: '管理员', value: adminCount },
-              ]}
-            />
-          </CardContent>
-        </Card>
-
-        </div>}
-
         {accountTab === 'registration' && <div className="grid gap-4">
         <Card>
           <CardHeader>
@@ -512,7 +467,26 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
         </Card>
         </div>}
 
-        {accountTab === 'users' && <div className="overflow-hidden rounded-xl border border-border bg-card">
+        {accountTab === 'users' && <>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">用户概览</CardTitle>
+            <p className="mt-0.5 text-sm text-muted-foreground">快速查看用户规模与状态，再管理具体账号。</p>
+          </CardHeader>
+          <CardContent>
+            <AdminMetricStrip
+              className="admin-metric-strip--account"
+              ariaLabel="用户统计"
+              items={[
+                { label: '用户', value: users.length },
+                { label: '活跃', value: activeCount },
+                { label: '禁用', value: users.length - activeCount },
+                { label: '管理员', value: adminCount },
+              ]}
+            />
+          </CardContent>
+        </Card>
+        <div className="overflow-hidden rounded-xl border border-border bg-card">
       <div className="account-settings-panel__header flex flex-wrap items-center justify-between gap-2 px-4 py-3">
         <div>
           <h2 className="text-base font-semibold text-foreground">用户</h2>
@@ -603,7 +577,8 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
             </TableBody>
           </Table>
       </div>
-        </div>}
+        </div>
+        </>}
 
       {accountTab === 'audit' && <section className="overflow-hidden rounded-xl border border-border bg-card">
         <div className="account-settings-panel__header flex flex-wrap items-center justify-between gap-3 px-4 py-3">
@@ -885,7 +860,6 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
           )}
         </div>
       </>}
-      </Tabs>
     </AdminPage>
   )
 }

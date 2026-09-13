@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { adminTabPath, getTabLabel, isAdminTab } from './admin-registry'
+import { adminTabPath, getTabLabel, isAdminTab, NAV_GROUPS } from './admin-registry'
 
 describe('admin registry routes', () => {
   it('识别有效后台模块并生成稳定地址', () => {
@@ -9,5 +9,13 @@ describe('admin registry routes', () => {
     expect(isAdminTab(undefined)).toBe(false)
     expect(adminTabPath('content-policy')).toBe('/admin/content-policy')
     expect(getTabLabel('novels')).toBe('小说管理')
+  })
+
+  it('将审核类型合并到审核队列，并让二级入口保持扁平', () => {
+    const items = NAV_GROUPS.flatMap((group) => group.items)
+    const moderation = items.find((item) => item.id === 'moderation')
+
+    expect(moderation?.children?.map((child) => child.label)).toEqual(['审核队列', '安全策略'])
+    expect(items.flatMap((item) => item.children || []).every((child) => !('group' in child))).toBe(true)
   })
 })

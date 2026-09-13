@@ -3,7 +3,7 @@
  * 由 Novel-KV js/admin-moderation.js + admin.html #tab-moderation 平移。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { adminApi, thoughtsApi, url } from '../../lib/api'
 import { timeAgo } from '../../lib/format'
 import { useConfirm, useToast } from '../../components/feedback'
@@ -13,15 +13,12 @@ import { AdminDataPanel, AdminPanelHeading, AdminSearch, AdminToolbar, type Admi
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 type ModerationMode = 'thoughts' | 'comments' | 'reports'
 
-const MODERATION_MODE_INDEX: Record<ModerationMode, number> = {
-  thoughts: 0,
-  comments: 1,
-  reports: 2,
+function isModerationMode(value: string | null): value is ModerationMode {
+  return value === 'thoughts' || value === 'comments' || value === 'reports'
 }
 
 interface ThoughtRow {
@@ -188,8 +185,10 @@ function ThoughtUser({ t }: { t: ThoughtRow }) {
 export default function ModerationTab(_props: { highlightNovelId?: string; onHighlightConsumed?: () => void }) {
   const { toast } = useToast()
   const { confirm } = useConfirm()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const urlMode = searchParams.get('mode')
 
-  const [mode, setMode] = useState<ModerationMode>('thoughts')
+  const [mode, setMode] = useState<ModerationMode>(() => isModerationMode(urlMode) ? urlMode : 'thoughts')
   const [status, setStatus] = useState<string>('all')
   const [reason, setReason] = useState<string>('all')
   const [userInput, setUserInput] = useState('')
@@ -207,6 +206,22 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
   const userTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const cfg = MODERATION_TYPES[mode]
+
+  // 二级审核入口位于侧边栏，URL 变化时同步当前审核类型，保留刷新、返回和深链接能力。
+  useEffect(() => {
+    const nextMode = isModerationMode(urlMode) ? urlMode : urlMode === null ? 'thoughts' : null
+    if (!nextMode || nextMode === mode) return
+    if (searchTimer.current) clearTimeout(searchTimer.current)
+    if (userTimer.current) clearTimeout(userTimer.current)
+    setMode(nextMode)
+    setStatus(MODERATION_TYPES[nextMode].defaultStatus)
+    setReason('all')
+    setUserInput('')
+    setUserQuery('')
+    setSearchInput('')
+    setSearchQuery('')
+  }, [mode, urlMode])
+
   const load = useCallback(async () => {
     if (loadingRef.current) return
     loadingRef.current = true
@@ -249,25 +264,19 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
     }
   }, [])
 
-  function switchMode(next: ModerationMode) {
-    if (next === mode) return
-    if (searchTimer.current) clearTimeout(searchTimer.current)
-    if (userTimer.current) clearTimeout(userTimer.current)
-    setMode(next)
-    setStatus(MODERATION_TYPES[next].defaultStatus)
-    setReason('all')
-    setUserInput('')
-    setUserQuery('')
-    setSearchInput('')
-    setSearchQuery('')
-  }
-
   function handleStatusChange(value: string) {
     setStatus(value || 'all')
   }
 
   function handleReasonChange(value: string) {
     setReason(value || 'all')
+  }
+
+  function switchMode(nextMode: ModerationMode) {
+    if (nextMode === mode) return
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.set('mode', nextMode)
+    setSearchParams(nextParams, { replace: true })
   }
 
   function handleUserChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -568,15 +577,18 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
       <AdminToolbar className="moderation-toolbar" ariaLive="polite">
         <div className="moderation-toolbar__filters">
           <span className="moderation-toolbar__label">审核类型</span>
-          <Tabs className="moderation-toolbar__modes" value={mode} onValueChange={(v) => switchMode(v as ModerationMode)}>
-            <TabsList data-active-index={MODERATION_MODE_INDEX[mode]}>
-              {(Object.keys(MODERATION_TYPES) as ModerationMode[]).map((m) => (
-                <TabsTrigger key={m} value={m}>
-                  {MODERATION_TYPES[m].label}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
+          <CustomSelect
+            className="moderation-toolbar__mode-select admin-input--select-sm"
+            compact
+            options={[
+              { value: 'thoughts', label: '想法' },
+              { value: 'comments', label: '评论' },
+              { value: 'reports', label: '举报' },
+            ]}
+            value={mode}
+            aria-label="审核类型"
+            onChange={(value) => switchMode(value as ModerationMode)}
+          />
           <span className="moderation-toolbar__field-label">状态</span>
           <CustomSelect
             className="moderation-toolbar__status admin-input--select-sm"

@@ -1295,6 +1295,10 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 .moderation-toolbar__modes {
   flex: 0 0 auto;
 }
+.moderation-toolbar__mode-select {
+  width: 11rem;
+  max-width: none;
+}
 .moderation-toolbar__modes [data-slot='tabs-list'] {
   height: var(--admin-control-height);
 }
@@ -5551,6 +5555,11 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 
   .admin-redesign-page--moderation .moderation-toolbar__modes {
     width: 100%;
+  }
+
+  .admin-redesign-page--moderation .moderation-toolbar__mode-select {
+    width: 100%;
+    max-width: none;
   }
 
   .admin-redesign-page--moderation .moderation-toolbar__reason-placeholder {
