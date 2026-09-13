@@ -4,18 +4,7 @@
  * shell only composes, and the registry stays the single source of truth.
  */
 import type { ComponentType } from 'react'
-import {
-  BookOpen,
-  Bug,
-  Activity,
-  FileText,
-  LayoutDashboard,
-  MessageSquare,
-  Sparkles,
-  BarChart3,
-  UserCog,
-  type LucideIcon,
-} from 'lucide-react'
+import { BookOpen, Bug, Activity, FileText, LayoutDashboard, MessageSquare, Sparkles, BarChart3, UserCog, type LucideIcon } from 'lucide-react'
 import DashboardTab from './DashboardTab'
 import NovelsTab from './NovelsTab'
 import ChaptersTab from './ChaptersTab'
@@ -70,7 +59,6 @@ export const NAV_GROUPS: Array<{ label: string; items: AdminNavItem[] }> = [
         icon: Bug,
         children: [
           { id: 'scrape-center', label: '抓取中心', to: `${adminTabPath('scrape')}?view=center` },
-          { id: 'scrape-discover', label: '发现小说', to: `${adminTabPath('scrape')}?view=discover` },
           { id: 'scrape-sources', label: '书源管理', to: `${adminTabPath('scrape')}?view=sources` },
           { id: 'jobs', label: '任务队列', to: adminTabPath('jobs') },
           { id: 'scrape-proxy', label: '代理设置', to: `${adminTabPath('scrape')}?view=proxy` },
@@ -162,7 +150,9 @@ export function adminTabPath(id: string): string {
 }
 
 export function getTabLabel(id: string): string {
-  return TABS.find((t) => t.id === id)?.label
-    || NAV_GROUPS.flatMap((group) => group.items.flatMap((item) => item.children || [])).find((sub) => sub.id === id)?.label
-    || ''
+  return (
+    TABS.find((t) => t.id === id)?.label ||
+    NAV_GROUPS.flatMap((group) => group.items.flatMap((item) => item.children || [])).find((sub) => sub.id === id)?.label ||
+    ''
+  )
 }

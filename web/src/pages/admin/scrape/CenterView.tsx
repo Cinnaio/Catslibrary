@@ -1,19 +1,20 @@
 // ============================================================
-// 抓取中心 — CenterView
-// 工作台：左向导（三步）+ 右任务队列（有任务时才出现）。
+// 抓取中心 — 统一入口、发现、校验与任务追踪
 // ============================================================
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState, type ChangeEvent } from 'react'
+import { Archive, Download, FileUp, Sparkles } from 'lucide-react'
 import { novelsApi, scrapeApi } from '@/lib/api'
 import { useConfirm, useToast } from '@/components/feedback'
-import AdminTabHeader from '@/components/admin/AdminTabHeader'
+import { AdminContextPanel } from '@/components/admin/AdminWorkspace'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import type { CheckItem, ConfigRow, DetectedMeta } from './types'
+import type { CheckItem, ConfigRow, DetectedMeta, DiscoverNovel, BatchEntry, BatchState } from './types'
 import { scrapePost, parseCategories, po18CoverFallback } from './utils'
 import JobQueue from './center/JobQueue'
-import StepAnalyze from './center/StepAnalyze'
-import StepConfirm, { type NovelPreview } from './center/StepConfirm'
-import StepConfig, { type Selectors, type TestResult } from './center/StepConfig'
+import DiscoveryPanel from './center/DiscoveryPanel'
+import ScrapeIntake, { type IntakeMode } from './center/ScrapeIntake'
+import ScrapeSetupPanel, { type SetupPreview } from './center/ScrapeSetupPanel'
+import type { Selectors, TestResult } from './center/StepConfig'
 import { useScrapeJobs } from './center/useScrapeJobs'
 
 const PO18_PRESET = {
@@ -22,27 +23,45 @@ const PO18_PRESET = {
   selectors: { chapterList: '.chapters li a', chapterTitle: '#chaptertitle', chapterContent: '#novelcontent', nextPage: '.page a' },
 }
 
-const EMPTY_PREVIEW: NovelPreview = { title: '', author: '', category: '', status: 'ongoing', description: '', coverUrl: '' }
+const EMPTY_PREVIEW: SetupPreview = { title: '', author: '', category: '', status: 'ongoing', description: '', coverUrl: '' }
 const EMPTY_SELECTORS: Selectors = { chapterList: '', chapterTitle: '', chapterContent: '', nextPage: '' }
+
+interface ActiveCandidate {
+  item: DiscoverNovel
+  loading: boolean
+  error: string
+  meta: DetectedMeta | null
+}
 
 export default function CenterView() {
   const { toast } = useToast()
   const { confirm } = useConfirm()
+  const setupRef = useRef<HTMLDivElement>(null)
 
-  // Step 1 —— 分析
+  // 统一入口
+  const [intakeMode, setIntakeMode] = useState<IntakeMode>('link')
   const [sourceUrl, setSourceUrl] = useState('')
-  const [analyzing, setAnalyzing] = useState(false)
-  const [analyzeResult, setAnalyzeResult] = useState<{ ok: boolean | null; text: string }>({ ok: null, text: '' })
-  const [analyzeChecks, setAnalyzeChecks] = useState<CheckItem[]>([])
+  const [searchInput, setSearchInput] = useState('')
+  const [searchType, setSearchType] = useState('articlename')
+  const [siteValue, setSiteValue] = useState('')
+  const [discoverUrl, setDiscoverUrl] = useState('')
+  const [intakeLoading, setIntakeLoading] = useState(false)
 
-  // Step 2 —— 确认小说
-  const [showNovelPreview, setShowNovelPreview] = useState(false)
-  const [preview, setPreview] = useState<NovelPreview>(EMPTY_PREVIEW)
+  // 发现结果
+  const [novels, setNovels] = useState<DiscoverNovel[]>([])
+  const [selected, setSelected] = useState<Set<number>>(new Set())
+  const [discoveryError, setDiscoveryError] = useState('')
+  const [discoveryInfo, setDiscoveryInfo] = useState('')
+  const [discoveryLoading, setDiscoveryLoading] = useState(false)
+  const [totalPages, setTotalPages] = useState(1)
+  const [page, setPage] = useState(1)
+  const listUrlRef = useRef('')
+
+  // 当前待处理作品与抓取配置
+  const [activeCandidate, setActiveCandidate] = useState<ActiveCandidate | null>(null)
+  const [preview, setPreview] = useState<SetupPreview>(EMPTY_PREVIEW)
   const [confirming, setConfirming] = useState(false)
   const [currentScrapeNovelId, setCurrentScrapeNovelId] = useState('')
-
-  // Step 3 —— 抓取配置
-  const [showScrapeConfig, setShowScrapeConfig] = useState(false)
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const [sitePreset, setSitePreset] = useState('custom')
   const [chapterListUrl, setChapterListUrl] = useState('')
@@ -52,10 +71,11 @@ export default function CenterView() {
   const [testChecks, setTestChecks] = useState<CheckItem[]>([])
   const [configRows, setConfigRows] = useState<ConfigRow[]>([])
 
-  // 任务队列
+  // 任务队列与批量处理
   const { jobs, track, dismiss, toggleLog, cancel, retry, retryFailed } = useScrapeJobs()
+  const [batch, setBatch] = useState<BatchState | null>(null)
 
-  // 爬虫配置导入导出
+  // 爬虫配置迁移
   const [configImportStatus, setConfigImportStatus] = useState('')
   const configFileRef = useRef<HTMLInputElement>(null)
 
@@ -64,63 +84,205 @@ export default function CenterView() {
     return preview.coverUrl
   }, [preview.coverUrl])
 
-  // ---- Step 1: analyze ----
-  async function analyzeUrl() {
-    const s = sourceUrl.trim()
-    if (!s) {
-      toast('请先粘贴小说网址', 'error')
-      return
+  function resetSetup() {
+    setActiveCandidate(null)
+    setPreview(EMPTY_PREVIEW)
+    setCurrentScrapeNovelId('')
+    setAdvancedOpen(false)
+    setChapterListUrl('')
+    setSelectors(EMPTY_SELECTORS)
+    setActiveEncoding('')
+    setTestResult({ loading: false, data: null })
+    setTestChecks([])
+    setConfigRows([])
+  }
+
+  function hydrateFromMeta(item: DiscoverNovel, data: DetectedMeta) {
+    const novel = data.novel || {}
+    const rawCategories: string[] = Array.isArray(novel.categories) ? novel.categories : novel.category ? [novel.category] : []
+    const fallbackUrl = novel.sourceUrl || item.url
+    const coverUrl = novel.coverUrl && !/noimg\.jpg/i.test(novel.coverUrl) ? novel.coverUrl : po18CoverFallback(fallbackUrl) || item.coverUrl || ''
+    const nextSelectors: Selectors = {
+      chapterList: data.selectors?.chapterList || '',
+      chapterTitle: data.selectors?.chapterTitle || '',
+      chapterContent: data.selectors?.chapterContent || '',
+      nextPage: data.selectors?.nextPage || '',
     }
-    setAnalyzing(true)
-    setAnalyzeResult({ ok: null, text: '' })
+
+    setPreview({
+      title: novel.title || item.title || '',
+      author: novel.author || item.author || '',
+      category: rawCategories.filter(Boolean).join(', '),
+      status: novel.status || item.status || 'ongoing',
+      description: novel.description || item.description || '',
+      coverUrl,
+    })
+    setSourceUrl(fallbackUrl)
+    setChapterListUrl(data.chapterListUrl || fallbackUrl)
+    setSelectors(nextSelectors)
+    setActiveEncoding(data.encoding || '')
+    setSitePreset(data.site?.name?.toLowerCase().includes('po18') ? 'po18' : 'custom')
+    setConfigRows([
+      ['站点', data.site?.name || '通用站点'],
+      ['编码', data.encoding || 'utf-8'],
+      ['目录', data.chapterListUrl || fallbackUrl],
+      ['链接', data.chapterCount ? `${data.chapterCount}${data.hasMoreChapters ? '+' : ''} 个` : '未统计'],
+      ['正文', nextSelectors.chapterContent || '未配置'],
+    ])
+    setTestResult({ loading: false, data: null })
+    setTestChecks([
+      { label: '小说信息', ok: !!(novel.title || item.title) },
+      {
+        label: '章节目录',
+        ok: (data.chapterCount || 0) > 0,
+        detail: data.chapterCount ? `${data.chapterCount}${data.hasMoreChapters ? '+' : ''} 章` : '待测试',
+      },
+      { label: '编码', ok: true, detail: data.encoding || 'utf-8' },
+    ])
+  }
+
+  async function loadCandidate(item: DiscoverNovel) {
+    setSourceUrl(item.url)
+    setCurrentScrapeNovelId('')
+    setActiveCandidate({ item, loading: true, error: '', meta: null })
     try {
-      const data = (await scrapeApi.detectMeta(s)) as unknown as DetectedMeta & { chapterListUrl?: string; chapterCount?: number }
-      const n = data.novel || {}
-      setActiveEncoding(data.encoding || '')
-      setAnalyzeResult({
-        ok: true,
-        text: `识别成功 — ${data.site?.name || '通用'} · ${data.chapterCount || 0} 章 · 编码: ${data.encoding || 'utf-8'}`,
-      })
-      const rawCategories: string[] = Array.isArray(n.categories) ? n.categories : n.category ? [n.category] : []
-      setPreview({
-        title: n.title || '',
-        author: n.author || '',
-        category: rawCategories.filter(Boolean).join(', '),
-        status: n.status || 'ongoing',
-        description: n.description || '',
-        coverUrl: n.coverUrl && !/noimg\.jpg/i.test(n.coverUrl) ? n.coverUrl : po18CoverFallback(n.sourceUrl || s) || '',
-      })
-      setShowNovelPreview(true)
-      setChapterListUrl(data.chapterListUrl || s)
-      setSelectors({
-        chapterList: data.selectors?.chapterList || '',
-        chapterTitle: data.selectors?.chapterTitle || '',
-        chapterContent: data.selectors?.chapterContent || '',
-        nextPage: data.selectors?.nextPage || '',
-      })
-      setConfigRows([
-        ['站点', data.site?.name || '通用站点'],
-        ['编码', data.encoding || 'utf-8'],
-        ['目录', data.chapterListUrl || s],
-        ['列表', data.selectors?.chapterList || '未配置'],
-        ['内容', data.selectors?.chapterContent || '未配置'],
-      ])
-      setAnalyzeChecks([
-        { label: '小说信息', ok: !!n.title },
-        { label: '章节目录', ok: (data.chapterCount || 0) > 0, detail: (data.chapterCount || 0) + ' 章' },
-        { label: '编码', ok: true, detail: data.encoding || 'utf-8' },
-      ])
-      toast('小说信息识别完成', 'success')
+      const data = (await scrapePost({ action: 'detect-meta', sourceUrl: item.url })) as DetectedMeta
+      if (!data.novel) throw new Error(data.error || '源站没有返回小说信息')
+      hydrateFromMeta(item, data)
+      setActiveCandidate({ item, loading: false, error: '', meta: data })
+      window.setTimeout(() => setupRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0)
+      toast('作品信息已载入，请确认后继续', 'success')
     } catch (err) {
-      setAnalyzeResult({ ok: false, text: (err as Error).message })
-      setAnalyzeChecks([])
-      toast((err as Error).message, 'error')
-    } finally {
-      setAnalyzing(false)
+      setActiveCandidate({ item, loading: false, error: (err as Error).message, meta: null })
     }
   }
 
-  // ---- Step 2: confirm / create novel ----
+  async function analyzeUrl() {
+    const value = sourceUrl.trim()
+    if (!value) {
+      toast('请先粘贴小说源站链接', 'error')
+      return
+    }
+    setIntakeLoading(true)
+    setDiscoveryError('')
+    setActiveCandidate({ item: { title: '正在分析…', author: '', url: value }, loading: true, error: '', meta: null })
+    try {
+      const data = (await scrapeApi.detectMeta(value)) as unknown as DetectedMeta & { chapterListUrl?: string; chapterCount?: number }
+      if (!data.novel) throw new Error(data.error || '源站没有返回小说信息')
+      const item: DiscoverNovel = {
+        title: data.novel.title || '待确认作品',
+        author: data.novel.author || '',
+        coverUrl: data.novel.coverUrl || po18CoverFallback(value),
+        url: value,
+        description: data.novel.description || '',
+        chapterCount: data.chapterCount,
+        status: data.novel.status,
+      }
+      hydrateFromMeta(item, data)
+      setActiveCandidate({ item, loading: false, error: '', meta: data })
+      toast('链接分析完成，请确认作品信息', 'success')
+    } catch (err) {
+      setActiveCandidate({ item: { title: '分析失败', author: '', url: value }, loading: false, error: (err as Error).message, meta: null })
+      toast((err as Error).message, 'error')
+    } finally {
+      setIntakeLoading(false)
+    }
+  }
+
+  async function renderDiscoverResults(body: Record<string, unknown>, emptyMessage: string) {
+    setDiscoveryLoading(true)
+    setDiscoveryError('')
+    setDiscoveryInfo('')
+    setNovels([])
+    setSelected(new Set())
+    try {
+      const data = await scrapePost(body)
+      const result = Array.isArray(data.novels) ? (data.novels as DiscoverNovel[]) : []
+      if (result.length === 0) {
+        setDiscoveryError(data.error || emptyMessage)
+        return
+      }
+      setNovels(result)
+      setDiscoveryInfo(`找到 ${data.total || result.length} 本 · ${data.site || '源站结果'}`)
+      if (body.action === 'discover') setTotalPages(data.totalPages || 1)
+    } catch (err) {
+      setDiscoveryError('请求失败：' + (err as Error).message)
+    } finally {
+      setDiscoveryLoading(false)
+    }
+  }
+
+  async function fetchDiscoverList() {
+    const value = discoverUrl.trim()
+    if (!value) {
+      toast('请选择榜单或输入榜单 URL', 'error')
+      return
+    }
+    listUrlRef.current = value
+    setPage(1)
+    setTotalPages(1)
+    await renderDiscoverResults({ action: 'discover', listUrl: value }, '未在页面中找到小说')
+  }
+
+  async function fetchPo18Search() {
+    const value = searchInput.trim()
+    if (!value) {
+      toast('请输入搜索关键词', 'error')
+      return
+    }
+    listUrlRef.current = ''
+    setTotalPages(1)
+    await renderDiscoverResults({ action: 'po18-search', query: value, searchType }, '未找到搜索结果')
+  }
+
+  function submitIntake() {
+    if (intakeMode === 'link') void analyzeUrl()
+    else if (intakeMode === 'search') void fetchPo18Search()
+    else void fetchDiscoverList()
+  }
+
+  async function goPage(nextPage: number) {
+    if (!listUrlRef.current) return
+    const nextUrl = listUrlRef.current.replace(/_[0-9]+\/$/, `_${nextPage}/`)
+    listUrlRef.current = nextUrl
+    setDiscoverUrl(nextUrl)
+    setPage(nextPage)
+    await renderDiscoverResults({ action: 'discover', listUrl: nextUrl }, '未在页面中找到小说')
+  }
+
+  function toggleAll() {
+    setSelected((previous) => {
+      const selectable = novels.map((novel, index) => (!novel.existing ? index : -1)).filter((index) => index >= 0)
+      const allSelected = selectable.length > 0 && selectable.every((index) => previous.has(index))
+      return allSelected ? new Set() : new Set(selectable)
+    })
+  }
+
+  function toggleSelect(index: number) {
+    if (novels[index]?.existing) return
+    setSelected((previous) => {
+      const next = new Set(previous)
+      if (next.has(index)) next.delete(index)
+      else next.add(index)
+      return next
+    })
+  }
+
+  function applySitePreset(key: string) {
+    setSitePreset(key)
+    if (key === 'custom') return
+    setSelectors(PO18_PRESET.selectors)
+    setActiveEncoding(PO18_PRESET.encoding)
+    setConfigRows([
+      ['站点', PO18_PRESET.name],
+      ['编码', PO18_PRESET.encoding],
+      ['目录', chapterListUrl.trim() || '未填写'],
+      ['链接', PO18_PRESET.selectors.chapterList],
+      ['正文', PO18_PRESET.selectors.chapterContent],
+    ])
+    toast(`已应用 ${PO18_PRESET.name} 预设`, 'success')
+  }
+
   async function confirmNovel() {
     const title = preview.title.trim()
     const author = preview.author.trim()
@@ -130,7 +292,7 @@ export default function CenterView() {
     }
     setConfirming(true)
     try {
-      const res = await novelsApi.create({
+      const result = await novelsApi.create({
         title,
         author,
         description: preview.description,
@@ -139,43 +301,21 @@ export default function CenterView() {
         status: preview.status,
         sourceUrl: sourceUrl.trim(),
       })
-      const novelId = (res as { novel?: { id: string } }).novel?.id || (res as { id?: string }).id || ''
+      const novelId = (result as { novel?: { id: string } }).novel?.id || (result as { id?: string }).id || ''
+      if (!novelId) throw new Error('保存小说失败：没有返回小说 ID')
       setCurrentScrapeNovelId(novelId)
-      toast('小说已创建！现在可以开始抓取章节', 'success')
-      setShowScrapeConfig(true)
+      toast('书籍已保存，现在可以测试章节并启动任务', 'success')
     } catch (err) {
-      toast('创建失败: ' + (err as Error).message, 'error')
+      toast('保存失败：' + (err as Error).message, 'error')
     } finally {
       setConfirming(false)
     }
   }
 
-  function skipToScrape() {
-    setShowScrapeConfig(true)
-    toast('已跳过创建，请在高级配置中确认章节列表页 URL 与选择器', 'default')
-  }
-
-  // ---- 站点预设 ----
-  function applySitePreset(key: string) {
-    setSitePreset(key)
-    if (key === 'custom') return
-    setSelectors({ ...PO18_PRESET.selectors })
-    setActiveEncoding(PO18_PRESET.encoding)
-    setConfigRows([
-      ['站点', PO18_PRESET.name],
-      ['编码', PO18_PRESET.encoding],
-      ['目录', chapterListUrl.trim() || '未填写'],
-      ['列表', PO18_PRESET.selectors.chapterList],
-      ['内容', PO18_PRESET.selectors.chapterContent],
-    ])
-    toast(`已应用 ${PO18_PRESET.name} 预设`, 'success')
-  }
-
-  // ---- Step 3: test selectors ----
   async function testSelectors() {
     const src = chapterListUrl.trim()
     if (!src || !selectors.chapterList.trim()) {
-      toast('请填写章节列表页 URL 和选择器', 'error')
+      toast('请填写章节列表页 URL 和章节链接选择器', 'error')
       return
     }
     setTestResult({ loading: true, data: null })
@@ -188,12 +328,12 @@ export default function CenterView() {
       })
       if (data.links && data.links.length > 0) {
         const diagnostics = data.diagnostics || {}
-        const sampleOk = Array.isArray(data.sampleChapters) ? data.sampleChapters.filter((s: any) => s.ok).length : 0
+        const sampleOk = Array.isArray(data.sampleChapters) ? data.sampleChapters.filter((sample: any) => sample.ok).length : 0
         setTestChecks([
-          { label: '章节链接', ok: true, detail: data.links.length + ' 个' },
-          { label: '重复链接', ok: !diagnostics.duplicateCount, detail: (diagnostics.duplicateCount || 0) + ' 个' },
-          { label: '空标题', ok: !diagnostics.emptyTitleCount, detail: (diagnostics.emptyTitleCount || 0) + ' 个' },
-          { label: '样章内容', ok: sampleOk > 0, detail: sampleOk + '/' + (data.sampleChapters?.length || 0) + ' 可读' },
+          { label: '章节链接', ok: true, detail: `${data.links.length} 个` },
+          { label: '重复链接', ok: !diagnostics.duplicateCount, detail: `${diagnostics.duplicateCount || 0} 个` },
+          { label: '空标题', ok: !diagnostics.emptyTitleCount, detail: `${diagnostics.emptyTitleCount || 0} 个` },
+          { label: '样章正文', ok: sampleOk > 0, detail: `${sampleOk}/${data.sampleChapters?.length || 0} 可读` },
         ])
         setTestResult({ loading: false, data })
       } else {
@@ -203,45 +343,119 @@ export default function CenterView() {
     } catch (err) {
       setTestChecks([])
       setTestResult({ loading: false, error: (err as Error).message, data: null })
-      toast('抓取服务不可用。请确认自托管 API 服务正在运行。', 'default')
+      toast('抓取服务不可用，请确认自托管 API 服务正在运行', 'error')
     }
   }
 
-  // ---- Step 3: start scrape ----
   async function startScrape() {
     if (!currentScrapeNovelId) {
-      toast('请先在第二步确认/创建小说后再开始抓取', 'error')
+      toast('请先保存书籍信息', 'error')
       return
     }
     const src = chapterListUrl.trim()
-    const sel: Selectors = {
+    const currentSelectors: Selectors = {
       chapterList: selectors.chapterList.trim(),
       chapterTitle: selectors.chapterTitle.trim(),
       chapterContent: selectors.chapterContent.trim(),
       nextPage: selectors.nextPage.trim(),
     }
-    if (!src || !sel.chapterList || !sel.chapterContent) {
-      toast('请先执行智能分析并确认小说', 'error')
+    if (!src || !currentSelectors.chapterList || !currentSelectors.chapterContent) {
+      toast('请先填写章节列表页 URL、章节链接和章节正文选择器', 'error')
       return
     }
     const ok = await confirm({
-      title: '开始抓取',
-      message: '即将开始抓取小说，确认信息如下：',
-      okText: '开始抓取',
-      items: ['源站: ' + src, '章节列表: ' + (sel.chapterList || '—'), '章节内容: ' + (sel.chapterContent || '—'), '翻页: ' + (sel.nextPage || '无')],
+      title: '启动抓取任务',
+      message: '确认后会创建一个后台任务，页面可以继续处理其他作品。',
+      okText: '启动任务',
+      items: [
+        `作品：${preview.title || '未命名'}`,
+        `章节来源：${src}`,
+        `章节链接：${currentSelectors.chapterList}`,
+        `章节正文：${currentSelectors.chapterContent}`,
+      ],
     })
     if (!ok) return
     try {
-      const res = await scrapeApi.start({ novelId: currentScrapeNovelId, sourceUrl: src, encoding: activeEncoding || null, selectors: sel })
-      if (!res.jobId) throw new Error((res as { error?: string }).error || '未知错误')
-      track(res.jobId, preview.title.trim() || '(未命名)')
-      toast('抓取任务已启动！', 'success')
+      const result = await scrapeApi.start({ novelId: currentScrapeNovelId, sourceUrl: src, encoding: activeEncoding || null, selectors: currentSelectors })
+      if (!result.jobId) throw new Error((result as { error?: string }).error || '没有返回任务 ID')
+      track(result.jobId, preview.title.trim() || '(未命名作品)')
+      toast('抓取任务已加入右侧队列', 'success')
     } catch (err) {
-      toast('抓取失败: ' + (err as Error).message, 'error')
+      toast('启动失败：' + (err as Error).message, 'error')
     }
   }
 
-  // ---- 爬虫配置导入导出 ----
+  async function createAndScrape(item: DiscoverNovel, meta: DetectedMeta): Promise<string> {
+    const novel = meta.novel || {}
+    const createResult = await novelsApi.create({
+      title: novel.title || item.title,
+      author: novel.author || item.author || '未知',
+      description: novel.description || item.description || '',
+      coverUrl: novel.coverUrl || item.coverUrl || '',
+      categories: novel.categories || [],
+      status: novel.status || item.status || 'ongoing',
+      sourceUrl: novel.sourceUrl || item.url,
+    })
+    const novelId = (createResult as { novel?: { id: string } }).novel?.id || (createResult as { id?: string }).id || ''
+    if (!novelId) throw new Error('创建小说失败')
+    const currentSelectors = meta.selectors || {}
+    if (!currentSelectors.chapterList || !currentSelectors.chapterContent) throw new Error('源站未识别出完整章节选择器，无法启动批量任务')
+    const startResult = await scrapeApi.start({
+      novelId,
+      sourceUrl: meta.chapterListUrl || item.url,
+      encoding: meta.encoding || null,
+      selectors: currentSelectors,
+    })
+    if (!startResult.jobId) throw new Error((startResult as { error?: string }).error || '启动抓取失败')
+    track(startResult.jobId, novel.title || item.title || '(未命名作品)')
+    return novelId
+  }
+
+  async function batchScrapeDiscovered() {
+    const indices = Array.from(selected)
+      .filter((index) => !novels[index]?.existing)
+      .sort((a, b) => a - b)
+    if (indices.length === 0) {
+      toast('请先选择至少一本未收录作品', 'error')
+      return
+    }
+    const ok = await confirm({
+      title: '批量启动抓取',
+      message: `将依次分析、创建并启动 ${indices.length} 本作品。`,
+      okText: '开始处理',
+      items: indices.map((index) => novels[index]?.title || '未命名作品'),
+    })
+    if (!ok) return
+
+    setBatch({ title: '批量抓取', entries: [], total: indices.length, success: 0, fail: 0, done: false })
+    let success = 0
+    let fail = 0
+    const successfulIndices = new Set<number>()
+    const entries: BatchEntry[] = []
+    for (const index of indices) {
+      const item = novels[index]
+      if (!item) continue
+      entries.push({ type: 'novel', text: item.title })
+      setBatch((state) => (state ? { ...state, entries: [...entries] } : state))
+      try {
+        const meta = (await scrapePost({ action: 'detect-meta', sourceUrl: item.url })) as DetectedMeta
+        if (!meta.novel) throw new Error(meta.error || '检测失败')
+        await createAndScrape(item, meta)
+        entries.push({ type: 'ok', text: '已创建并启动任务' })
+        successfulIndices.add(index)
+        success++
+      } catch (err) {
+        entries.push({ type: 'err', text: (err as Error).message })
+        fail++
+      }
+      setBatch((state) => (state ? { ...state, entries: [...entries], success, fail } : state))
+    }
+    setBatch((state) => (state ? { ...state, done: true, success, fail } : state))
+    setNovels((current) => current.map((item, index) => (successfulIndices.has(index) ? { ...item, existing: true } : item)))
+    setSelected(new Set())
+    toast(`批量处理完成：${success} 成功，${fail} 失败`, fail > 0 ? 'error' : 'success')
+  }
+
   async function exportConfigs() {
     toast('正在导出爬虫配置…', 'default')
     try {
@@ -253,87 +467,174 @@ export default function CenterView() {
       }
       const blob = new Blob([JSON.stringify(configs, null, 2)], { type: 'application/json;charset=utf-8' })
       const objectUrl = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = objectUrl
-      a.download = `scrape_configs_${new Date().toISOString().slice(0, 10)}.json`
-      a.click()
+      const link = document.createElement('a')
+      link.href = objectUrl
+      link.download = `scrape_configs_${new Date().toISOString().slice(0, 10)}.json`
+      link.click()
       URL.revokeObjectURL(objectUrl)
-      toast('已导出 ' + configs.length + ' 条配置', 'success')
+      toast(`已导出 ${configs.length} 条配置`, 'success')
     } catch (err) {
-      toast('导出失败: ' + (err as Error).message, 'error')
+      toast('导出失败：' + (err as Error).message, 'error')
     }
   }
 
-  async function handleConfigFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    e.target.value = ''
+  async function handleConfigFileSelected(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
     if (!file) return
     try {
       const text = await file.text()
       const configs = JSON.parse(text)
       if (!Array.isArray(configs)) throw new Error('JSON 格式错误，应为数组')
-      setConfigImportStatus('正在导入 ' + configs.length + ' 条配置…')
+      setConfigImportStatus(`正在导入 ${configs.length} 条配置…`)
       const data = await scrapePost({ action: 'import-configs', configs })
       setConfigImportStatus('')
-      toast('成功导入 ' + (data.imported || 0) + ' 条配置', 'success')
+      toast(`成功导入 ${data.imported || 0} 条配置`, 'success')
     } catch (err) {
       setConfigImportStatus('')
-      toast('导入失败: ' + (err as Error).message, 'error')
+      toast('导入失败：' + (err as Error).message, 'error')
     }
   }
 
-  const hasJobs = jobs.length > 0
+  const setupState = activeCandidate?.loading ? 'loading' : activeCandidate?.error ? 'error' : activeCandidate?.meta ? 'ready' : 'none'
 
   return (
-    <>
-      <AdminTabHeader
-        title="抓取中心"
-        description="识别源站、检测章节、追踪任务，并在失败时恢复抓取。"
+    <div className="scrape-center">
+      <AdminContextPanel
+        className="scrape-center__context"
+        title="把下一本书送进知舟"
+        description="从一个链接、一次搜索或一张榜单开始。确认作品信息后，章节抓取会在后台持续运行。"
+        aside={
+          <div className="scrape-center__context-note">
+            <Sparkles aria-hidden="true" />
+            <div>
+              <strong>一条完整链路</strong>
+              <span>发现 → 校验 → 入库 → 追踪</span>
+            </div>
+          </div>
+        }
       />
 
-      <div className={`grid items-start gap-4 ${hasJobs ? 'lg:grid-cols-[minmax(0,1fr)_22rem]' : ''}`}>
-        <div className="grid min-w-0 gap-4">
-          <StepAnalyze
+      <div className="scrape-center__layout">
+        <main className="scrape-center__main">
+          <ScrapeIntake
+            mode={intakeMode}
+            onModeChange={setIntakeMode}
             sourceUrl={sourceUrl}
             onSourceUrlChange={setSourceUrl}
-            analyzing={analyzing}
-            result={analyzeResult}
-            checks={analyzeChecks}
-            onAnalyze={() => void analyzeUrl()}
+            searchInput={searchInput}
+            onSearchInputChange={setSearchInput}
+            searchType={searchType}
+            onSearchTypeChange={setSearchType}
+            siteValue={siteValue}
+            onSiteChange={(value) => {
+              setSiteValue(value)
+              setDiscoverUrl(value)
+            }}
+            discoverUrl={discoverUrl}
+            onDiscoverUrlChange={setDiscoverUrl}
+            loading={intakeLoading || discoveryLoading}
+            onSubmit={submitIntake}
           />
 
-          {showNovelPreview && (
-            <StepConfirm
-              preview={preview}
-              onPreviewChange={setPreview}
-              coverUrl={effectiveCover}
-              confirming={confirming}
-              novelId={currentScrapeNovelId}
-              onConfirm={() => void confirmNovel()}
-              onSkip={skipToScrape}
-            />
+          <DiscoveryPanel
+            novels={novels}
+            selected={selected}
+            loading={discoveryLoading}
+            error={discoveryError}
+            info={discoveryInfo}
+            page={page}
+            totalPages={totalPages}
+            batch={batch}
+            onToggleAll={toggleAll}
+            onToggleSelect={toggleSelect}
+            onInspect={(index) => {
+              const item = novels[index]
+              if (item) void loadCandidate(item)
+            }}
+            onBatchScrape={() => void batchScrapeDiscovered()}
+            onPage={(nextPage) => void goPage(nextPage)}
+            onClearBatch={() => setBatch(null)}
+          />
+
+          {activeCandidate && (
+            <div ref={setupRef}>
+              {setupState === 'loading' && (
+                <section className="admin-panel-card scrape-setup-state" role="status">
+                  <div className="scrape-setup-state__icon">
+                    <Archive aria-hidden="true" />
+                  </div>
+                  <div>
+                    <strong>正在分析源站</strong>
+                    <span>读取书名、章节目录和页面结构，请稍候…</span>
+                  </div>
+                </section>
+              )}
+              {setupState === 'error' && (
+                <section className="admin-panel-card scrape-setup-state is-error" role="alert">
+                  <div>
+                    <strong>这本书暂时无法继续</strong>
+                    <span>{activeCandidate.error}</span>
+                  </div>
+                  <Button variant="secondary" size="sm" onClick={() => void loadCandidate(activeCandidate.item)}>
+                    重新分析
+                  </Button>
+                </section>
+              )}
+              {setupState === 'ready' && activeCandidate.meta && (
+                <ScrapeSetupPanel
+                  item={activeCandidate.item}
+                  preview={preview}
+                  onPreviewChange={setPreview}
+                  coverUrl={effectiveCover}
+                  novelId={currentScrapeNovelId}
+                  confirming={confirming}
+                  advancedOpen={advancedOpen}
+                  onToggleAdvanced={() => setAdvancedOpen((open) => !open)}
+                  summary={configRows}
+                  sitePreset={sitePreset}
+                  onSitePresetChange={applySitePreset}
+                  chapterListUrl={chapterListUrl}
+                  onChapterListUrlChange={setChapterListUrl}
+                  encoding={activeEncoding}
+                  onEncodingChange={setActiveEncoding}
+                  selectors={selectors}
+                  onSelectorsChange={setSelectors}
+                  testResult={testResult}
+                  testChecks={testChecks}
+                  onTest={() => void testSelectors()}
+                  onConfirm={() => void confirmNovel()}
+                  onStart={() => void startScrape()}
+                  onReset={resetSetup}
+                />
+              )}
+            </div>
           )}
 
-          {showScrapeConfig && (
-            <StepConfig
-              summary={configRows}
-              advancedOpen={advancedOpen}
-              onToggleAdvanced={() => setAdvancedOpen(!advancedOpen)}
-              sitePreset={sitePreset}
-              onSitePresetChange={applySitePreset}
-              chapterListUrl={chapterListUrl}
-              onChapterListUrlChange={setChapterListUrl}
-              encoding={activeEncoding}
-              onEncodingChange={setActiveEncoding}
-              selectors={selectors}
-              onSelectorsChange={setSelectors}
-              testResult={testResult}
-              testChecks={testChecks}
-              onTest={() => void testSelectors()}
-              onStart={() => void startScrape()}
-            />
-          )}
-        </div>
+          <Card className="scrape-config-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Download aria-hidden="true" />
+                配置迁移
+              </CardTitle>
+              <CardDescription>导出或导入所有小说的章节选择器，换设备时可以继续使用。</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="scrape-config-card__actions">
+                <Button variant="secondary" size="sm" onClick={() => void exportConfigs()}>
+                  <Download aria-hidden="true" />
+                  导出配置
+                </Button>
+                <Button variant="secondary" size="sm" onClick={() => configFileRef.current?.click()}>
+                  <FileUp aria-hidden="true" />
+                  导入配置
+                </Button>
+                <input ref={configFileRef} type="file" accept=".json" hidden onChange={(event) => void handleConfigFileSelected(event)} />
+                <span aria-live="polite">{configImportStatus}</span>
+              </div>
+            </CardContent>
+          </Card>
+        </main>
 
         <JobQueue
           jobs={jobs}
@@ -344,28 +645,6 @@ export default function CenterView() {
           onToggleLog={toggleLog}
         />
       </div>
-
-      {/* 爬虫配置迁移 */}
-      <Card className="scrape-config-card">
-        <CardHeader className="px-6 pt-6">
-          <CardTitle className="text-base">爬虫配置</CardTitle>
-          <CardDescription>导出/导入所有小说的爬虫配置，方便换设备时迁移。</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="secondary" size="sm" onClick={() => void exportConfigs()}>
-              导出配置
-            </Button>
-            <Button variant="secondary" size="sm" onClick={() => configFileRef.current?.click()}>
-              导入配置
-            </Button>
-            <input ref={configFileRef} type="file" accept=".json" hidden onChange={(e) => void handleConfigFileSelected(e)} />
-            <span className="text-sm text-muted-foreground" aria-live="polite">
-              {configImportStatus}
-            </span>
-          </div>
-        </CardContent>
-      </Card>
-    </>
+    </div>
   )
 }

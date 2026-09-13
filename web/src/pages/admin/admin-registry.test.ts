@@ -18,4 +18,11 @@ describe('admin registry routes', () => {
     expect(moderation?.children?.map((child) => child.label)).toEqual(['审核队列', '安全策略'])
     expect(items.flatMap((item) => item.children || []).every((child) => !('group' in child))).toBe(true)
   })
+
+  it('将发现小说入口收拢到抓取中心', () => {
+    const scrape = NAV_GROUPS.flatMap((group) => group.items).find((item) => item.id === 'scrape')
+
+    expect(scrape?.children?.map((child) => child.label)).not.toContain('发现小说')
+    expect(scrape?.children?.map((child) => child.label)).toContain('抓取中心')
+  })
 })
