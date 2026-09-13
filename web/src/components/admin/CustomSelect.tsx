@@ -11,6 +11,8 @@ import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 
+const MAX_RENDERED_SEARCH_OPTIONS = 100
+
 export interface SelectOption {
   value: string
   label: string
@@ -70,6 +72,16 @@ export default function CustomSelect({
     return options.filter((o) => fn(o, q))
   }, [options, query, filter])
 
+  // 搜索下拉可能承载全库索引；只挂载首屏所需的候选，搜索仍基于完整 filtered 结果。
+  // 保留当前选项，避免已选小说不在前 100 项时打开下拉看不到选中态。
+  const visibleOptions = useMemo(() => {
+    if (!searchable || filtered.length <= MAX_RENDERED_SEARCH_OPTIONS) return filtered
+    const initial = filtered.slice(0, MAX_RENDERED_SEARCH_OPTIONS)
+    if (!value || initial.some((option) => option.value === value)) return initial
+    const selectedOption = filtered.find((option) => option.value === value)
+    return selectedOption ? [...initial.slice(0, MAX_RENDERED_SEARCH_OPTIONS - 1), selectedOption] : initial
+  }, [filtered, searchable, value])
+
   // 本地无命中且未补搜过 → 触发服务端补搜
   useEffect(() => {
     const q = query.trim()
@@ -109,9 +121,7 @@ export default function CustomSelect({
             className,
           )}
         >
-          <span className={cn('truncate', !selected && 'text-muted-foreground')}>
-            {selected?.label || placeholder}
-          </span>
+          <span className={cn('truncate', !selected && 'text-muted-foreground')}>{selected?.label || placeholder}</span>
           <ChevronsUpDown className="size-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
@@ -120,40 +130,42 @@ export default function CustomSelect({
         side={dropdownSide}
         className={cn(
           'admin-custom-select-popover w-(--radix-popover-trigger-width) min-w-[200px] p-0',
-          searchable && 'pt-1',   // 顶部留白，避免搜索框聚焦环向上溢出到触发器
+          searchable && 'pt-1', // 顶部留白，避免搜索框聚焦环向上溢出到触发器
           compact && 'w-auto',
         )}
       >
         <Command shouldFilter={false}>
-          {searchable && (
-            <CommandInput
-              placeholder={searchPlaceholder}
-              value={query}
-              onValueChange={setQuery}
-              autoFocus
-            />
-          )}
+          {searchable && <CommandInput placeholder={searchPlaceholder} value={query} onValueChange={setQuery} autoFocus />}
           <CommandList>
             {filtered.length === 0 ? (
               <CommandEmpty>{!query.trim() && options.length === 0 ? '暂无选项' : '没有匹配的选项'}</CommandEmpty>
             ) : (
-              <CommandGroup>
-                {filtered.map((o) => (
-                  <CommandItem
-                    key={o.value}
-                    value={o.value}
-                    onSelect={() => pick(o)}
-                    disabled={o.disabled}
-                    className="flex items-center justify-between gap-2"
-                  >
-                    <span className="flex min-w-0 flex-col">
-                      <span className="truncate">{o.label}</span>
-                      {o.sub && <span className="truncate text-xs text-muted-foreground">{o.sub}</span>}
-                    </span>
-                    {o.value === value && <Check className="size-4 shrink-0" />}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
+              <>
+                <CommandGroup>
+                  {visibleOptions.map((o) => (
+                    <CommandItem
+                      key={o.value}
+                      value={o.value}
+                      onSelect={() => pick(o)}
+                      disabled={o.disabled}
+                      className="flex items-center justify-between gap-2"
+                    >
+                      <span className="flex min-w-0 flex-col">
+                        <span className="truncate">{o.label}</span>
+                        {o.sub && <span className="truncate text-xs text-muted-foreground">{o.sub}</span>}
+                      </span>
+                      {o.value === value && <Check className="size-4 shrink-0" />}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+                {visibleOptions.length < filtered.length && (
+                  <p className="px-3 pb-2 text-xs text-muted-foreground" role="status">
+                    {query.trim()
+                      ? `显示前 ${visibleOptions.length} 项，共 ${filtered.length} 项，请继续输入关键词`
+                      : `共 ${filtered.length} 项，请输入关键词继续筛选`}
+                  </p>
+                )}
+              </>
             )}
           </CommandList>
         </Command>

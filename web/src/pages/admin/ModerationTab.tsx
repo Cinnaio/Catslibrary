@@ -18,6 +18,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 
 type ModerationMode = 'thoughts' | 'comments' | 'reports'
 
+const MODERATION_MODE_INDEX: Record<ModerationMode, number> = {
+  thoughts: 0,
+  comments: 1,
+  reports: 2,
+}
+
 interface ThoughtRow {
   id: string
   status?: string
@@ -563,7 +569,7 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
         <div className="moderation-toolbar__filters">
           <span className="moderation-toolbar__label">审核类型</span>
           <Tabs className="moderation-toolbar__modes" value={mode} onValueChange={(v) => switchMode(v as ModerationMode)}>
-            <TabsList>
+            <TabsList data-active-index={MODERATION_MODE_INDEX[mode]}>
               {(Object.keys(MODERATION_TYPES) as ModerationMode[]).map((m) => (
                 <TabsTrigger key={m} value={m}>
                   {MODERATION_TYPES[m].label}
@@ -599,7 +605,7 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
             <span className="moderation-toolbar__reason moderation-toolbar__reason-placeholder" aria-hidden="true" />
           )}
         </div>
-        <div className="moderation-toolbar__query">
+        <div className={`moderation-toolbar__query${cfg.showUser ? '' : ' moderation-toolbar__query--without-user'}`}>
           <span className="moderation-toolbar__label">查找内容</span>
           {cfg.showUser ? (
             <Input

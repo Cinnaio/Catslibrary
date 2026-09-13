@@ -98,12 +98,19 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
     }
   }, [])
 
+  const novelSelectOptions = useMemo(
+    () => novelOptions.map((n) => ({ value: n.id, label: n.title, sub: `${n.author || '未知作者'} · ${n.chapterCount}章` })),
+    [novelOptions],
+  )
+
+  const novelById = useMemo(() => new Map(novelOptions.map((novel) => [novel.id, novel])), [novelOptions])
+
   const novelFilter = useCallback(
     (o: { value: string; label: string }, q: string) => {
-      const item = novelOptions.find((n) => n.id === o.value)
+      const item = novelById.get(o.value)
       return item ? item.title.toLowerCase().includes(q) || item.author.toLowerCase().includes(q) : o.label.toLowerCase().includes(q)
     },
-    [novelOptions],
+    [novelById],
   )
 
   const selectedNovelInfo = useMemo(() => novelOptions.find((novel) => novel.id === selectedNovel) || null, [novelOptions, selectedNovel])
@@ -486,14 +493,10 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
             searchable
             searchPlaceholder="搜索书名 / 拼音…"
             placeholder="请选择小说"
-            options={novelOptions.map((n) => ({
-              value: n.id,
-              label: n.title,
-              sub: `${n.author || '未知作者'} · ${n.chapterCount}章`,
-            }))}
+            options={novelSelectOptions}
             value={selectedNovel}
             onChange={pickNovel}
-            filter={(o, q) => novelFilter(o, q)}
+            filter={novelFilter}
             onServerSearch={handleNovelServerSearch}
           />
           <Button onClick={() => void openChapterModal(null)} disabled={!selectedNovel}>
