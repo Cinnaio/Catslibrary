@@ -3,6 +3,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Progress } from '@/components/ui/progress'
+import { AdminPanelHeading } from '@/components/admin/AdminWorkspace'
 import type { BatchState, DiscoverNovel } from '../types'
 import { FALLBACK_COVER, coverOnError } from '../utils'
 
@@ -48,13 +49,16 @@ export default function DiscoveryPanel({
 
   return (
     <section className="admin-panel-card scrape-discovery" aria-labelledby="scrape-discovery-title">
-      <div className="scrape-discovery__heading">
-        <div>
-          <h3 id="scrape-discovery-title">发现结果</h3>
-          <p>{info || '正在从源站读取作品…'}</p>
-        </div>
-        {novels.length > 0 && <span className="scrape-discovery__count">{selected.size > 0 ? `已选 ${selected.size} 本` : `当前 ${novels.length} 本`}</span>}
-      </div>
+      <AdminPanelHeading
+        className="scrape-discovery__heading"
+        title={<span id="scrape-discovery-title">发现结果</span>}
+        description={info || '正在从源站读取作品…'}
+        status={
+          novels.length > 0 ? (
+            <span className="scrape-discovery__count">{selected.size > 0 ? `已选 ${selected.size} 本` : `当前 ${novels.length} 本`}</span>
+          ) : undefined
+        }
+      />
 
       {loading && (
         <div className="scrape-discovery__loading" role="status">

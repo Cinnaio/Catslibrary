@@ -3,6 +3,7 @@ import CustomSelect from '@/components/admin/CustomSelect'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { AdminPanelHeading } from '@/components/admin/AdminWorkspace'
 import { PO18_SITES } from '../utils'
 
 export type IntakeMode = 'link' | 'search' | 'ranking'
@@ -48,13 +49,12 @@ export default function ScrapeIntake({
 }: ScrapeIntakeProps) {
   return (
     <section className="admin-panel-card scrape-intake" aria-labelledby="scrape-intake-title">
-      <div className="scrape-intake__heading">
-        <div>
-          <h3 id="scrape-intake-title">从哪里开始？</h3>
-          <p>找到作品后，信息确认、章节校验和任务启动会在同一条流程里完成。</p>
-        </div>
-        <span className="scrape-intake__shortcut">快捷键 / 聚焦搜索</span>
-      </div>
+      <AdminPanelHeading
+        className="scrape-intake__heading"
+        title={<span id="scrape-intake-title">从哪里开始？</span>}
+        description="找到作品后，信息确认、章节校验和任务启动会在同一条流程里完成。"
+        actions={<span className="scrape-intake__shortcut">快捷键 / 聚焦搜索</span>}
+      />
 
       <Tabs value={mode} onValueChange={(value) => onModeChange(value as IntakeMode)} className="scrape-intake__tabs">
         <TabsList aria-label="选择抓取入口">

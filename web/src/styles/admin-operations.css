@@ -48,45 +48,6 @@
   min-width: 0;
 }
 
-.scrape-center__context {
-  grid-template-columns: minmax(0, 1fr) minmax(15rem, 0.8fr);
-  background: linear-gradient(110deg, var(--admin-panel) 0%, color-mix(in srgb, var(--accent-subtle) 58%, var(--admin-panel)) 100%);
-}
-
-.scrape-center__context-note {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.75rem;
-  min-height: 3.5rem;
-  padding: 0.75rem 1rem;
-  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--admin-border));
-  border-radius: var(--admin-radius);
-  background: color-mix(in srgb, var(--accent-subtle) 72%, transparent);
-  color: var(--accent-hover);
-}
-
-.scrape-center__context-note > svg {
-  width: 1.1rem;
-  height: 1.1rem;
-  flex: 0 0 auto;
-}
-
-.scrape-center__context-note div {
-  display: grid;
-  gap: 0.15rem;
-  text-align: right;
-}
-
-.scrape-center__context-note strong {
-  font-size: 0.82rem;
-}
-
-.scrape-center__context-note span {
-  color: var(--text-secondary);
-  font-size: 0.75rem;
-}
-
 .scrape-center__layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(18rem, 22rem);
@@ -110,38 +71,6 @@
 
 .scrape-intake {
   background: color-mix(in srgb, var(--admin-panel) 94%, var(--accent-subtle));
-}
-
-.scrape-intake__heading,
-.scrape-discovery__heading,
-.scrape-setup__heading,
-.scrape-setup__config-heading {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--admin-space-4);
-  min-width: 0;
-}
-
-.scrape-intake__heading h3,
-.scrape-discovery__heading h3,
-.scrape-setup__heading h3 {
-  margin: 0;
-  color: var(--text-primary);
-  font-size: 1.05rem;
-  font-weight: 750;
-  letter-spacing: -0.02em;
-}
-
-.scrape-intake__heading p,
-.scrape-discovery__heading p,
-.scrape-setup__heading p,
-.scrape-setup__config-heading p {
-  max-width: 60ch;
-  margin: 0.3rem 0 0;
-  color: var(--text-secondary);
-  font-size: 0.78rem;
-  line-height: 1.6;
 }
 
 .scrape-intake__shortcut,
@@ -255,10 +184,6 @@
 
 .scrape-intake__site {
   max-width: none;
-}
-
-.scrape-discovery__heading {
-  align-items: center;
 }
 
 .scrape-discovery__loading {
@@ -875,26 +800,6 @@
   min-width: 0;
 }
 
-.scrape-workbench__aside-heading {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.75rem;
-}
-
-.scrape-workbench__aside-heading h3 {
-  margin: 0;
-  color: var(--text-primary);
-  font-size: 0.9rem;
-  font-weight: 750;
-}
-
-.scrape-workbench__aside-heading p {
-  margin: 0.25rem 0 0;
-  color: var(--text-muted);
-  font-size: 0.72rem;
-}
-
 .scrape-workbench__count {
   display: grid;
   min-width: 1.65rem;
@@ -947,7 +852,6 @@
 }
 
 @media (max-width: 900px) {
-  .scrape-center__context,
   .scrape-center__layout {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -966,14 +870,6 @@
 }
 
 @media (max-width: 640px) {
-  .scrape-center__context-note {
-    justify-content: flex-start;
-  }
-
-  .scrape-center__context-note div {
-    text-align: left;
-  }
-
   .scrape-intake__tabs > [data-slot='tabs-list'] {
     grid-template-columns: 1fr;
   }
@@ -1037,13 +933,11 @@
     margin-left: 0.25rem;
   }
 
-  .scrape-setup__heading,
   .scrape-setup__config-heading {
     align-items: stretch;
     flex-direction: column;
   }
 
-  .scrape-setup__heading > button,
   .scrape-setup__config-heading > button {
     align-self: flex-start;
   }
@@ -6644,7 +6538,168 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   }
 }
 
-/* 抓取中心是可持续处理的工作台：配置迁移卡与队列都沿用同一层级间距。 */
-.admin-redesign-page--scrape .scrape-config-card {
-  margin-top: 0;
+/* 抓取中心与小说/章节管理共享同一套“页面标题 → 标准面板 → 内容”的节奏。
+   这里保留抓取工作台的双栏能力，但去掉展示型渐变和多层嵌套卡片，
+   让入口、发现结果、作品配置和任务队列都落在同一条面板基线上。 */
+.admin-redesign-page--scrape .scrape-center {
+  gap: 1rem;
+}
+
+.admin-redesign-page--scrape .scrape-center__layout {
+  grid-template-columns: minmax(0, 1fr) minmax(20rem, 24rem);
+  gap: 1rem;
+}
+
+.admin-redesign-page--scrape .scrape-center__main {
+  gap: 1rem;
+}
+
+.admin-redesign-page--scrape :is(.scrape-intake, .scrape-discovery, .scrape-setup) {
+  display: grid;
+  gap: 0;
+  overflow: hidden;
+  padding: 0;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--radius-xl);
+  background: var(--admin-panel);
+  box-shadow: none;
+}
+
+.admin-redesign-page--scrape .scrape-intake__tabs {
+  width: auto;
+  margin: 1rem 1.25rem 0;
+}
+
+.admin-redesign-page--scrape .scrape-intake__form {
+  margin: 0 1.25rem 1.25rem;
+}
+
+.admin-redesign-page--scrape .scrape-discovery > .scrape-discovery__loading,
+.admin-redesign-page--scrape .scrape-discovery > .scrape-discovery__empty {
+  margin: 1rem 1.25rem 1.25rem;
+}
+
+.admin-redesign-page--scrape .scrape-discovery > .scrape-discovery__toolbar {
+  margin: 0;
+  border-top: 0;
+  padding-inline: 1.25rem;
+}
+
+.admin-redesign-page--scrape .scrape-discovery > .scrape-discovery__list {
+  margin: 1rem 1.25rem 1.25rem;
+}
+
+.admin-redesign-page--scrape .scrape-discovery > .scrape-discovery__pagination,
+.admin-redesign-page--scrape .scrape-discovery > .scrape-batch {
+  margin-inline: 1.25rem;
+}
+
+.admin-redesign-page--scrape .scrape-discovery > .scrape-discovery__pagination {
+  margin-bottom: 1.25rem;
+}
+
+.admin-redesign-page--scrape .scrape-setup > .scrape-setup__book {
+  margin: 1rem 1.25rem 0;
+}
+
+.admin-redesign-page--scrape .scrape-setup > .scrape-setup__fields {
+  margin: 1rem 1.25rem 0;
+}
+
+.admin-redesign-page--scrape .scrape-setup > .scrape-setup__save-row {
+  margin: 1rem 1.25rem 0;
+  padding-bottom: 1rem;
+}
+
+.admin-redesign-page--scrape .scrape-setup > .scrape-setup__config {
+  margin: 0;
+  padding: 1rem 1.25rem 1.25rem;
+  background: var(--admin-panel-muted);
+}
+
+.admin-redesign-page--scrape .scrape-workbench__aside {
+  display: grid;
+  gap: 0;
+  overflow: hidden;
+  padding: 0;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--radius-xl);
+  background: var(--admin-panel);
+  box-shadow: none;
+}
+
+.admin-redesign-page--scrape .scrape-workbench__count {
+  display: inline-flex;
+  min-width: 0;
+  height: auto;
+  align-items: center;
+  padding: 0.3rem 0.55rem;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--radius-full);
+  background: var(--admin-panel-muted);
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 650;
+}
+
+.admin-redesign-page--scrape .scrape-job-queue {
+  gap: 0;
+}
+
+.admin-redesign-page--scrape .scrape-job {
+  border: 0;
+  border-radius: 0;
+  padding: 1rem 1.25rem;
+}
+
+.admin-redesign-page--scrape .scrape-job + .scrape-job {
+  border-top: 1px solid var(--admin-border);
+}
+
+.admin-redesign-page--scrape .scrape-job-queue__empty {
+  margin: 1rem 1.25rem 1.25rem;
+}
+
+@media (max-width: 1100px) {
+  .admin-redesign-page--scrape .scrape-center__layout {
+    grid-template-columns: minmax(0, 1fr) 18rem;
+  }
+}
+
+@media (max-width: 900px) {
+  .admin-redesign-page--scrape .scrape-center__layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-redesign-page--scrape .scrape-job-queue {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .admin-redesign-page--scrape .scrape-intake__tabs,
+  .admin-redesign-page--scrape .scrape-intake__form,
+  .admin-redesign-page--scrape .scrape-discovery > .scrape-discovery__loading,
+  .admin-redesign-page--scrape .scrape-discovery > .scrape-discovery__empty,
+  .admin-redesign-page--scrape .scrape-discovery > .scrape-discovery__list,
+  .admin-redesign-page--scrape .scrape-discovery > .scrape-batch,
+  .admin-redesign-page--scrape .scrape-discovery > .scrape-discovery__pagination,
+  .admin-redesign-page--scrape .scrape-setup > .scrape-setup__book,
+  .admin-redesign-page--scrape .scrape-setup > .scrape-setup__fields,
+  .admin-redesign-page--scrape .scrape-setup > .scrape-setup__save-row {
+    margin-inline: 1rem;
+  }
+
+  .admin-redesign-page--scrape .scrape-setup > .scrape-setup__config {
+    padding-inline: 1rem;
+  }
+
+  .admin-redesign-page--scrape .scrape-workbench__aside .admin-panel-heading,
+  .admin-redesign-page--scrape .scrape-workbench__aside .scrape-job {
+    padding-inline: 1rem;
+  }
+
+  .admin-redesign-page--scrape .scrape-job-queue__empty {
+    margin-inline: 1rem;
+  }
 }

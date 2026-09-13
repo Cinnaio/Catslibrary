@@ -3,6 +3,7 @@
 // consumers: scrape/CenterView.tsx
 // ============================================================
 import { Inbox } from 'lucide-react'
+import { AdminPanelHeading } from '@/components/admin/AdminWorkspace'
 import type { JobCard as JobCardData } from '../types'
 import JobCard from './JobCard'
 
@@ -17,14 +18,12 @@ interface JobQueueProps {
 
 export default function JobQueue({ jobs, ...handlers }: JobQueueProps) {
   return (
-    <aside className="scrape-workbench__aside" aria-label="抓取任务队列">
-      <div className="scrape-workbench__aside-heading">
-        <div>
-          <h3>任务队列</h3>
-          <p>{jobs.length > 0 ? '任务会在后台持续更新' : '启动任务后会显示在这里'}</p>
-        </div>
-        <span className="scrape-workbench__count">{jobs.length}</span>
-      </div>
+    <aside className="admin-data-panel scrape-workbench__aside" aria-label="抓取任务队列">
+      <AdminPanelHeading
+        title="任务队列"
+        description={jobs.length > 0 ? '任务会在后台持续更新' : '启动任务后会显示在这里'}
+        status={<span className="scrape-workbench__count">{jobs.length} 个</span>}
+      />
       <div className="scrape-job-queue">
         {jobs.length > 0 ? (
           jobs.map((job) => <JobCard key={job.jobId} job={job} {...handlers} />)

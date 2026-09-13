@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { AdminPanelHeading } from '@/components/admin/AdminWorkspace'
 import type { CheckItem, ConfigRow, DiscoverNovel } from '../types'
 import ScrapeChecks from './ScrapeChecks'
 import type { Selectors, TestResult } from './StepConfig'
@@ -88,16 +89,17 @@ export default function ScrapeSetupPanel({
 
   return (
     <section className="admin-panel-card scrape-setup" aria-labelledby="scrape-setup-title">
-      <div className="scrape-setup__heading">
-        <div>
-          <h3 id="scrape-setup-title">确认作品并配置章节</h3>
-          <p>先保存书籍信息，再测试章节选择器。所有修改只会在点击启动后写入抓取任务。</p>
-        </div>
-        <Button variant="ghost" size="sm" onClick={onReset}>
-          <RotateCcw aria-hidden="true" />
-          换一本
-        </Button>
-      </div>
+      <AdminPanelHeading
+        className="scrape-setup__heading"
+        title={<span id="scrape-setup-title">确认作品并配置章节</span>}
+        description="先保存书籍信息，再测试章节选择器。所有修改只会在点击启动后写入抓取任务。"
+        actions={
+          <Button variant="ghost" size="sm" onClick={onReset}>
+            <RotateCcw aria-hidden="true" />
+            换一本
+          </Button>
+        }
+      />
 
       <div className="scrape-setup__book">
         <div className={`scrape-setup__cover${showCover ? '' : ' is-empty'}`} data-letter={(preview.title || item.title || '书').slice(0, 1)}>

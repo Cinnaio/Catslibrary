@@ -2,10 +2,9 @@
 // 抓取中心 — 统一入口、发现、校验与任务追踪
 // ============================================================
 import { useMemo, useRef, useState, type ChangeEvent } from 'react'
-import { Archive, Download, FileUp, Sparkles } from 'lucide-react'
+import { Archive, Download, FileUp } from 'lucide-react'
 import { novelsApi, scrapeApi } from '@/lib/api'
 import { useConfirm, useToast } from '@/components/feedback'
-import { AdminContextPanel } from '@/components/admin/AdminWorkspace'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import type { CheckItem, ConfigRow, DetectedMeta, DiscoverNovel, BatchEntry, BatchState } from './types'
@@ -500,21 +499,6 @@ export default function CenterView() {
 
   return (
     <div className="scrape-center">
-      <AdminContextPanel
-        className="scrape-center__context"
-        title="把下一本书送进知舟"
-        description="从一个链接、一次搜索或一张榜单开始。确认作品信息后，章节抓取会在后台持续运行。"
-        aside={
-          <div className="scrape-center__context-note">
-            <Sparkles aria-hidden="true" />
-            <div>
-              <strong>一条完整链路</strong>
-              <span>发现 → 校验 → 入库 → 追踪</span>
-            </div>
-          </div>
-        }
-      />
-
       <div className="scrape-center__layout">
         <main className="scrape-center__main">
           <ScrapeIntake
