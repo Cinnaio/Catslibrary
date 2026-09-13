@@ -5,6 +5,7 @@ import { aiApi, newOperationId } from '@/lib/api'
 import { useToast, useConfirm } from '@/components/feedback'
 import { ErrorState, InlineError, LoadingState } from '@/components/admin/AsyncStates'
 import Pagination from '@/components/admin/Pagination'
+import { AdminToolbar } from '@/components/admin/AdminWorkspace'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -292,48 +293,48 @@ export default function AiGenerationsPanel(props: {
 
   return (
     <div className="space-y-4">
-      <Card className="ai-generations-card">
-        <CardHeader className="ai-generations-card__header flex-row items-center justify-between gap-2">
+      <AdminToolbar className="ai-generations-toolbar" ariaLive="polite">
+        {selectedCount > 0 && (
+          <Button variant="destructive" size="sm" disabled={batchDeleting} onClick={() => void removeSelected()}>
+            {batchDeleting ? '正在删除 ' + selectedCount + ' 条…' : '批量删除 (' + selectedCount + ')'}
+          </Button>
+        )}
+        <Label htmlFor="gen-filter-kind" className="text-xs text-muted-foreground">
+          类型
+        </Label>
+        <Select
+          value={filterKind}
+          onValueChange={(v) => {
+            setFilterKind(v as 'all' | 'summary' | 'catchup' | 'write_outline' | 'write_chapter' | 'continue')
+            setOffset(0)
+          }}
+        >
+          <SelectTrigger size="sm" id="gen-filter-kind" className="w-full sm:w-[140px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent position="popper" align="end" sideOffset={4}>
+            <SelectItem value="all">全部</SelectItem>
+            {props.scope !== 'writing' && (
+              <>
+                <SelectItem value="summary">前情提要</SelectItem>
+                <SelectItem value="catchup">回顾总结</SelectItem>
+              </>
+            )}
+            {props.scope !== 'reader' && (
+              <>
+                <SelectItem value="write_outline">创作大纲</SelectItem>
+                <SelectItem value="write_chapter">创作章节</SelectItem>
+                <SelectItem value="continue">续写</SelectItem>
+              </>
+            )}
+          </SelectContent>
+        </Select>
+      </AdminToolbar>
+      <Card className="admin-panel-card ai-generations-card">
+        <CardHeader className="ai-generations-card__header">
           <div>
             <CardTitle className="text-base">已生成内容</CardTitle>
             <p className="text-sm text-muted-foreground">AI 生成的内容记录，可删除后重新生成</p>
-          </div>
-          <div className="ai-generations-card__filter flex w-full items-center gap-2 sm:w-auto">
-            {selectedCount > 0 && (
-              <Button variant="destructive" size="sm" disabled={batchDeleting} onClick={() => void removeSelected()}>
-                {batchDeleting ? '正在删除 ' + selectedCount + ' 条…' : '批量删除 (' + selectedCount + ')'}
-              </Button>
-            )}
-            <Label htmlFor="gen-filter-kind" className="text-xs text-muted-foreground">
-              类型
-            </Label>
-            <Select
-              value={filterKind}
-              onValueChange={(v) => {
-                setFilterKind(v as 'all' | 'summary' | 'catchup' | 'write_outline' | 'write_chapter' | 'continue')
-                setOffset(0)
-              }}
-            >
-              <SelectTrigger size="sm" id="gen-filter-kind" className="w-full sm:w-[140px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent position="popper" align="end" sideOffset={4}>
-                <SelectItem value="all">全部</SelectItem>
-                {props.scope !== 'writing' && (
-                  <>
-                    <SelectItem value="summary">前情提要</SelectItem>
-                    <SelectItem value="catchup">回顾总结</SelectItem>
-                  </>
-                )}
-                {props.scope !== 'reader' && (
-                  <>
-                    <SelectItem value="write_outline">创作大纲</SelectItem>
-                    <SelectItem value="write_chapter">创作章节</SelectItem>
-                    <SelectItem value="continue">续写</SelectItem>
-                  </>
-                )}
-              </SelectContent>
-            </Select>
           </div>
         </CardHeader>
         <CardContent>

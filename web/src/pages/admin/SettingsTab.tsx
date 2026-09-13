@@ -18,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import AdminPage from '@/components/admin/AdminPage'
-import { AdminMetricStrip } from '@/components/admin/AdminWorkspace'
+import { AdminMetricStrip, AdminToolbar } from '@/components/admin/AdminWorkspace'
 import { usePersistentState } from '@/hooks/usePersistentState'
 
 interface AdminUser {
@@ -91,6 +91,13 @@ const REGISTER_MODES: Array<{ value: 'open' | 'invite' | 'closed'; label: string
   { value: 'closed', label: '关闭注册', hint: '停止接受新用户' },
 ]
 
+const ACCOUNT_TAB_META: Record<'users' | 'registration' | 'audit' | 'operation-audit', { title: string; description: string }> = {
+  users: { title: '用户管理', description: '管理站点用户、角色与登录状态。' },
+  registration: { title: '注册与邀请码', description: '控制新用户如何加入本站，并维护邀请码。' },
+  audit: { title: '登录审计', description: '查看登录成功、失败与限流事件。' },
+  'operation-audit': { title: '操作审计', description: '追踪管理员危险操作、目标数量与执行结果。' },
+}
+
 function roleLabel(role: string): string {
   return role === 'admin' ? '管理员' : '读者'
 }
@@ -124,6 +131,13 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
   const [accountTab, setAccountTab] = usePersistentState<string>('settings_active_tab', 'users', (v) =>
     ['users', 'registration', 'audit', 'operation-audit'].includes(v),
   )
+
+  const currentAccountTab = (['users', 'registration', 'audit', 'operation-audit'] as const).includes(
+    urlTab as 'users' | 'registration' | 'audit' | 'operation-audit',
+  )
+    ? (urlTab as keyof typeof ACCOUNT_TAB_META)
+    : (accountTab as keyof typeof ACCOUNT_TAB_META)
+  const currentAccountMeta = ACCOUNT_TAB_META[currentAccountTab] || ACCOUNT_TAB_META.users
 
   // 二级账户入口位于侧边栏，URL 优先于历史持久化值；旧的 overview 会自然回落到用户管理。
   useEffect(() => {
@@ -202,8 +216,8 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
   }, [operationAuditOffset, operationAuditStatus, toast])
 
   useEffect(() => {
-    if (accountTab === 'operation-audit') void loadOperationAudit()
-  }, [accountTab, loadOperationAudit])
+    if (currentAccountTab === 'operation-audit') void loadOperationAudit()
+  }, [currentAccountTab, loadOperationAudit])
 
   async function saveRegisterSettings() {
     try {
@@ -419,7 +433,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
   }
 
   return (
-    <AdminPage className="admin-redesign-page admin-redesign-page--settings" title="账户与注册" description="管理站点用户、注册方式与邀请码。" actions={
+    <AdminPage className="admin-redesign-page admin-redesign-page--settings" title={currentAccountMeta.title} description={currentAccountMeta.description} actions={
           <span id="schemaHealth">
             {schemaHealth &&
               (schemaHealth.ok ? (
@@ -432,7 +446,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
           </span>
         }
       >
-        {accountTab === 'registration' && <div className="grid gap-4">
+        {currentAccountTab === 'registration' && <div className="grid gap-4">
         <Card>
           <CardHeader>
             <CardTitle className="text-base">注册设置</CardTitle>
@@ -467,7 +481,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
         </Card>
         </div>}
 
-        {accountTab === 'users' && <>
+        {currentAccountTab === 'users' && <>
         <Card>
           <CardHeader>
             <CardTitle className="text-base">用户概览</CardTitle>
@@ -486,7 +500,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
             />
           </CardContent>
         </Card>
-        <div className="overflow-hidden rounded-xl border border-border bg-card">
+        <div className="admin-data-panel admin-data-panel--grid account-users-panel overflow-hidden">
       <div className="account-settings-panel__header flex flex-wrap items-center justify-between gap-2 px-4 py-3">
         <div>
           <h2 className="text-base font-semibold text-foreground">用户</h2>
@@ -529,7 +543,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
                   const self = meUser ? u.id === meUser.id : false
                   return (
                     <TableRow key={u.id}>
-                      <TableCell>
+                      <TableCell data-primary="" data-label="用户">
                         <strong>{u.displayName || u.username}</strong>
                         {self && (
                           <Badge variant="outline" className="ml-1.5">
@@ -539,22 +553,22 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
                         <br />
                         <span className="text-sm text-muted-foreground">{u.username}</span>
                       </TableCell>
-                      <TableCell>
+                      <TableCell data-label="角色">
                         <Badge variant="secondary" className={admin ? 'bg-info/10 text-info' : ''}>
                           {roleLabel(u.role)}
                         </Badge>
                       </TableCell>
-                      <TableCell>
+                      <TableCell data-label="状态">
                         <Badge className={disabled ? 'bg-destructive/10 text-destructive' : 'bg-success/10 text-success'}>
                           {disabled ? '已禁用' : '正常'}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{timeAgo(u.createdAt)}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{timeAgo(u.lastLoginAt)}</TableCell>
-                      <TableCell>{u.thoughtCount || 0}</TableCell>
-                      <TableCell>
+                      <TableCell data-label="注册" className="text-sm text-muted-foreground">{timeAgo(u.createdAt)}</TableCell>
+                      <TableCell data-label="最近登录" className="text-sm text-muted-foreground">{timeAgo(u.lastLoginAt)}</TableCell>
+                      <TableCell data-label="想法">{u.thoughtCount || 0}</TableCell>
+                      <TableCell data-actions="">
                         {!self && (
-                          <div className="flex flex-wrap items-center justify-end gap-2">
+                          <div className="admin-cell-actions flex flex-wrap items-center justify-end gap-2">
                             <Button variant="outline" size="sm" onClick={() => void updateUserRole(u)}>
                               {admin ? '设为读者' : '设为管理员'}
                             </Button>
@@ -580,17 +594,8 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
         </div>
         </>}
 
-      {accountTab === 'audit' && <section className="overflow-hidden rounded-xl border border-border bg-card">
-        <div className="account-settings-panel__header flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-          <div>
-            <h2 className="text-base font-semibold text-foreground">登录审计</h2>
-            <p className="mt-0.5 text-sm text-muted-foreground">记录登录成功、失败与限流事件，不保存密码或登录令牌</p>
-          </div>
-          <Button variant="secondary" size="sm" onClick={() => void loadLoginAudit()} disabled={loginAuditLoading}>
-            刷新
-          </Button>
-        </div>
-        <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3">
+      {currentAccountTab === 'audit' && <>
+        <AdminToolbar className="account-audit-toolbar" ariaLive="polite">
           <Select
             value={loginAuditStatus}
             onValueChange={(value) => {
@@ -618,6 +623,16 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
               setLoginAuditOffset(0)
             }}
           />
+        </AdminToolbar>
+      <section className="admin-data-panel admin-data-panel--grid account-audit-panel overflow-hidden">
+        <div className="account-settings-panel__header flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+          <div>
+            <h2 className="text-base font-semibold text-foreground">登录审计</h2>
+            <p className="mt-0.5 text-sm text-muted-foreground">记录登录成功、失败与限流事件，不保存密码或登录令牌</p>
+          </div>
+          <Button variant="secondary" size="sm" onClick={() => void loadLoginAudit()} disabled={loginAuditLoading}>
+            刷新
+          </Button>
         </div>
         <div>
           <div className="overflow-x-auto">
@@ -639,21 +654,21 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
                   <TableRow><TableCell colSpan={6} className="h-20 text-center text-sm text-muted-foreground">暂无登录审计记录</TableCell></TableRow>
                 ) : loginAudits.map((audit) => (
                   <TableRow key={audit.id}>
-                    <TableCell>
+                    <TableCell data-primary="" data-label="用户">
                       <strong>{audit.displayName || audit.username || '未知用户'}</strong>
                       <div className="text-xs text-muted-foreground">{audit.username || '未知用户名'}</div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell data-label="结果">
                       <Badge className={audit.status === 'success' ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}>
                         {loginAuditStatusLabel(audit.status)}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{loginAuditReasonLabel(audit.reason)}</TableCell>
-                    <TableCell><code className="text-xs">{audit.ipAddress || '未记录'}</code></TableCell>
-                    <TableCell className="max-w-[260px]">
+                    <TableCell data-label="原因" className="text-sm text-muted-foreground">{loginAuditReasonLabel(audit.reason)}</TableCell>
+                    <TableCell data-label="IP 地址"><code className="text-xs">{audit.ipAddress || '未记录'}</code></TableCell>
+                    <TableCell data-label="User-Agent" className="max-w-[260px]">
                       <code className="block truncate text-xs text-muted-foreground" title={audit.userAgent}>{audit.userAgent || '未记录'}</code>
                     </TableCell>
-                    <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                    <TableCell data-label="时间" className="whitespace-nowrap text-sm text-muted-foreground">
                       {audit.createdAt ? new Date(audit.createdAt).toLocaleString('zh-CN') : '—'}
                     </TableCell>
                   </TableRow>
@@ -670,19 +685,10 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
             <Button variant="outline" size="sm" disabled={loginAuditPage >= loginAuditPages || loginAuditLoading} onClick={() => setLoginAuditOffset(loginAuditOffset + 20)}>下一页</Button>
           </div>
         </div>
-      </section>}
+      </section></>}
 
-      {accountTab === 'operation-audit' && <section className="overflow-hidden rounded-xl border border-border bg-card">
-        <div className="account-settings-panel__header flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-          <div>
-            <h2 className="text-base font-semibold text-foreground">管理员操作审计</h2>
-            <p className="mt-0.5 text-sm text-muted-foreground">记录危险操作的发起人、目标数量、结果与重放次数，不保存目标正文或原始内容。</p>
-          </div>
-          <Button variant="secondary" size="sm" onClick={() => void loadOperationAudit()} disabled={operationAuditLoading}>
-            刷新
-          </Button>
-        </div>
-        <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3">
+      {currentAccountTab === 'operation-audit' && <>
+        <AdminToolbar className="account-operation-audit-toolbar" ariaLive="polite">
           <Select
             value={operationAuditStatus}
             onValueChange={(value) => {
@@ -700,6 +706,16 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
               <SelectItem value="failed">失败</SelectItem>
             </SelectContent>
           </Select>
+        </AdminToolbar>
+      <section className="admin-data-panel admin-data-panel--grid account-operation-audit-panel overflow-hidden">
+        <div className="account-settings-panel__header flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+          <div>
+            <h2 className="text-base font-semibold text-foreground">管理员操作审计</h2>
+            <p className="mt-0.5 text-sm text-muted-foreground">记录危险操作的发起人、目标数量、结果与重放次数，不保存目标正文或原始内容。</p>
+          </div>
+          <Button variant="secondary" size="sm" onClick={() => void loadOperationAudit()} disabled={operationAuditLoading}>
+            刷新
+          </Button>
         </div>
         <div className="overflow-x-auto">
           <Table>
@@ -721,23 +737,23 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
                 <TableRow><TableCell colSpan={7} className="h-20 text-center text-sm text-muted-foreground">暂无管理员操作记录</TableCell></TableRow>
               ) : operationAudits.map((operation) => (
                 <TableRow key={operation.id}>
-                  <TableCell>
+                  <TableCell data-primary="" data-label="操作人">
                     <strong>{operation.actorDisplayName || operation.actorUsername || '未知管理员'}</strong>
                     <div className="text-xs text-muted-foreground">{operation.actorUsername || '未知账号'}</div>
                   </TableCell>
-                  <TableCell className="whitespace-nowrap">{operationAuditActionLabel(operation.action)}</TableCell>
-                  <TableCell>{operation.targetCount}</TableCell>
-                  <TableCell>
+                  <TableCell data-label="动作" className="whitespace-nowrap">{operationAuditActionLabel(operation.action)}</TableCell>
+                  <TableCell data-label="目标数量">{operation.targetCount}</TableCell>
+                  <TableCell data-label="结果">
                     <Badge className={operation.status === 'completed' ? 'bg-success/10 text-success' : operation.status === 'failed' ? 'bg-destructive/10 text-destructive' : 'bg-warning/10 text-warning'}>
                       {operationAuditStatusLabel(operation.status)}
                     </Badge>
                     {operation.status === 'failed' && operation.error && <div className="mt-1 text-xs text-destructive">{operation.error}</div>}
                   </TableCell>
-                  <TableCell>{operation.replayCount}</TableCell>
-                  <TableCell className="max-w-[260px]">
+                  <TableCell data-label="重放">{operation.replayCount}</TableCell>
+                  <TableCell data-label="操作 ID" className="max-w-[260px]">
                     <code className="block truncate text-xs text-muted-foreground" title={operation.operationId}>{operation.operationId}</code>
                   </TableCell>
-                  <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                  <TableCell data-label="时间" className="whitespace-nowrap text-sm text-muted-foreground">
                     {operation.createdAt ? new Date(operation.createdAt).toLocaleString('zh-CN') : '—'}
                   </TableCell>
                 </TableRow>
@@ -753,9 +769,9 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
             <Button variant="outline" size="sm" disabled={operationAuditPage >= operationAuditPages || operationAuditLoading} onClick={() => setOperationAuditOffset(operationAuditOffset + 20)}>下一页</Button>
           </div>
         </div>
-      </section>}
+      </section></>}
 
-      {accountTab === 'registration' && <>
+      {currentAccountTab === 'registration' && <>
       <div className="account-settings-toolbar mb-3 mt-6 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-base font-semibold text-foreground">邀请码</h2>
         <div className="flex items-center gap-2">
@@ -786,7 +802,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
             </Button>
           </div>
         )}
-        <div className="overflow-hidden rounded-xl border border-border bg-card">
+        <div className="admin-data-panel admin-data-panel--grid account-invites-panel overflow-hidden">
           <Table>
             <TableHeader>
               <TableRow>
@@ -816,10 +832,10 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
                   const disabled = i.disabledAt > 0
                   return (
                     <TableRow key={i.code}>
-                      <TableCell>
+                      <TableCell data-primary="" data-label="邀请码">
                         <code>{i.code}</code>
                       </TableCell>
-                      <TableCell>
+                      <TableCell data-label="状态">
                         {used ? (
                           <Badge className="bg-success/10 text-success">已使用</Badge>
                         ) : disabled ? (
@@ -828,10 +844,10 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
                           <Badge className="bg-info/10 text-info">可用</Badge>
                         )}
                       </TableCell>
-                      <TableCell>{i.usedByName || i.usedBy || '—'}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{timeAgo(i.createdAt)}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center justify-end gap-2">
+                      <TableCell data-label="使用者">{i.usedByName || i.usedBy || '—'}</TableCell>
+                      <TableCell data-label="创建时间" className="text-sm text-muted-foreground">{timeAgo(i.createdAt)}</TableCell>
+                      <TableCell data-actions="">
+                        <div className="admin-cell-actions flex items-center justify-end gap-2">
                           <Button variant="outline" size="sm" onClick={() => void copyInvite(i.code)}>
                             复制
                           </Button>

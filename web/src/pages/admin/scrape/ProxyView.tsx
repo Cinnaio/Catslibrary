@@ -161,8 +161,8 @@ export default function ProxyView() {
   const environmentOverride = source === 'environment'
 
   return (
-    <div className="grid gap-4">
-      <Card>
+    <div className="proxy-settings-page grid gap-4">
+      <Card className="admin-panel-card proxy-config-panel">
         <CardHeader className="flex-row items-start justify-between gap-4">
           <div className="min-w-0">
             <CardTitle className="flex items-center gap-2 text-base">
@@ -226,7 +226,7 @@ export default function ProxyView() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="admin-panel-card proxy-test-panel">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <ShieldCheck className="size-4 text-primary" aria-hidden="true" />
@@ -282,7 +282,7 @@ export default function ProxyView() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="admin-panel-card proxy-logs-panel admin-data-panel--grid">
         <CardHeader className="flex-row items-start justify-between gap-4">
           <div>
             <CardTitle className="flex items-center gap-2 text-base">
@@ -323,27 +323,27 @@ export default function ProxyView() {
               ) : (
                 logs.map((log) => (
                   <TableRow key={log.id}>
-                    <TableCell className="whitespace-nowrap pl-6 text-xs text-muted-foreground">{formatTime(log.timestamp)}</TableCell>
-                    <TableCell>
+                    <TableCell data-label="时间" className="whitespace-nowrap pl-6 text-xs text-muted-foreground">{formatTime(log.timestamp)}</TableCell>
+                    <TableCell data-label="范围">
                       <code className="text-xs">{log.scope}</code>
                     </TableCell>
-                    <TableCell className="max-w-[360px] truncate text-xs" title={log.target}>
+                    <TableCell data-primary="" data-label="目标" className="max-w-[360px] truncate text-xs" title={log.target}>
                       {log.method} {log.target}
                     </TableCell>
-                    <TableCell>
+                    <TableCell data-label="链路">
                       <div className="grid gap-0.5">
                         <span className="text-xs">{logSourceLabel(log.proxySource)}</span>
                         {log.proxyHost && <code className="text-xs text-muted-foreground">{log.proxyHost}</code>}
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell data-label="结果">
                       <Badge className={log.ok ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}>
                         <span className="inline-block max-w-[240px] truncate align-bottom" title={log.status !== null ? String(log.status) : log.error || '失败'}>
                           {log.status ?? (log.error || '失败')}
                         </span>
                       </Badge>
                     </TableCell>
-                    <TableCell className="pr-6 text-right text-xs text-muted-foreground">{log.durationMs} ms</TableCell>
+                    <TableCell data-label="耗时" className="pr-6 text-right text-xs text-muted-foreground">{log.durationMs} ms</TableCell>
                   </TableRow>
                 ))
               )}

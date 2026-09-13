@@ -435,7 +435,7 @@ export default function AiCoverPanel() {
   const previewSrc = novelId ? url(`/cover/${encodeURIComponent(novelId)}?v=${coverVersion}&cover=2`) : ''
 
   return (
-    <Card>
+    <Card className="admin-panel-card ai-cover-card">
       <CardHeader>
         <CardTitle className="text-base">AI 封面生成</CardTitle>
         <p className="text-sm text-muted-foreground">根据小说标题、分类与简介生成封面 · 候选制，满意后采纳替换</p>

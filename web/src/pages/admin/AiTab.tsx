@@ -27,6 +27,17 @@ export { AiWritingPanel, AiGenerationsPanel, AiParamsPanel }
 const VALID_SUBS = ['writing', 'cover', 'tasks', 'content', 'usage', 'audit', 'config', 'params'] as const
 type SubTab = (typeof VALID_SUBS)[number]
 
+const AI_SUBTAB_META: Record<SubTab, { title: string; description: string }> = {
+  writing: { title: 'AI 创作', description: '组织大纲、章节与续写任务，保留现有创作上下文。' },
+  cover: { title: '封面生成', description: '生成、比较并应用小说封面候选图。' },
+  tasks: { title: 'AI 任务', description: '跟踪生成任务、批次状态与失败重试。' },
+  content: { title: '已生成内容', description: '审阅、编辑和管理 AI 生成的章节与摘要。' },
+  usage: { title: '用量统计', description: '观察调用次数、Token 用量和成本趋势。' },
+  audit: { title: '调用审计', description: '查看 AI 调用记录、关联内容与费用明细。' },
+  config: { title: 'AI 配置', description: '管理文本与图像供应商、模型和连接设置。' },
+  params: { title: '参数调优', description: '调整摘要、回顾、创作和生图的生成参数。' },
+}
+
 function isSubTab(value: string): value is SubTab {
   return (VALID_SUBS as readonly string[]).includes(value)
 }
@@ -43,6 +54,10 @@ export default function AiTab() {
   const urlBatch = searchParams.get('batch') || ''
   /** 子标签持久化：无 URL 参数时停留在上次选中的子页，不重置回默认 */
   const [activeSubTab, setActiveSubTab] = usePersistentState<string>('ai_active_subtab', 'writing', (v) => isSubTab(v))
+
+  // 标题直接响应 URL 深链；持久化状态尚未同步时也不会短暂显示父级标题。
+  const currentSubTab: SubTab = isSubTab(urlSub || '') ? (urlSub as SubTab) : isSubTab(activeSubTab) ? activeSubTab : 'writing'
+  const currentMeta = AI_SUBTAB_META[currentSubTab]
 
   // 地址栏 sub 变化（深链进入、浏览器返回）时同步子 tab
   useEffect(() => {
@@ -82,41 +97,41 @@ export default function AiTab() {
 
   return (
     <AdminPage
-      title="AI 服务"
-      description="集中管理生成能力、产出审阅、用量观测与模型配置。"
+      title={currentMeta.title}
+      description={currentMeta.description}
       meta={<Badge variant={provider?.configured ? 'default' : 'secondary'}>{provider?.configured ? '服务已连接' : loading ? '读取配置中' : '未配置'}</Badge>}
       className="admin-redesign-page admin-redesign-page--ai ai-admin-page ai-service"
     >
       <div className="ai-service-tabs__content min-w-0">
-        {activeSubTab === 'writing' && (
+        {currentSubTab === 'writing' && (
           <AiWritingPanel onViewBatch={openGenerations} />
         )}
 
-        {activeSubTab === 'cover' && (
+        {currentSubTab === 'cover' && (
           <AiCoverPanel />
         )}
 
-        {activeSubTab === 'tasks' && (
+        {currentSubTab === 'tasks' && (
           <AiTasksPanel onViewBatch={openGenerations} />
         )}
 
-        {activeSubTab === 'content' && (
+        {currentSubTab === 'content' && (
           <AiGenerationsPanel scope="all" status="all" focusBatchId={urlBatch} />
         )}
 
-        {activeSubTab === 'usage' && (
+        {currentSubTab === 'usage' && (
           <AiUsagePanel />
         )}
 
-        {activeSubTab === 'audit' && (
+        {currentSubTab === 'audit' && (
           <AiAuditPanel />
         )}
 
-        {activeSubTab === 'config' && (
+        {currentSubTab === 'config' && (
           <AiConfigPanel settings={settings} provider={provider} providerConfig={providerConfig} loading={loading} onReload={load} />
         )}
 
-        {activeSubTab === 'params' && (
+        {currentSubTab === 'params' && (
           <AiParamsPanel settings={settings} loading={loading} onReload={load} />
         )}
       </div>

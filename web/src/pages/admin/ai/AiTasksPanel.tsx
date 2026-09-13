@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { aiApi, newOperationId, type AiTaskInfo } from '@/lib/api'
 import { useToast, useConfirm } from '@/components/feedback'
 import { ErrorState, InlineError, LoadingState } from '@/components/admin/AsyncStates'
+import { AdminToolbar } from '@/components/admin/AdminWorkspace'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -116,25 +117,26 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
     } finally { setDeletingId(null) }
   }
 
-  return <Card className="ai-tasks-panel">
+  return <>
+    <AdminToolbar className="ai-tasks-toolbar" ariaLive="polite">
+      <Label htmlFor="task-filter-status" className="text-xs text-muted-foreground">状态</Label>
+      <Select value={filterStatus} onValueChange={(v) => { setLoading(true); setFilterStatus(v as typeof filterStatus) }}>
+        <SelectTrigger size="sm" id="task-filter-status" className="w-[120px]"><SelectValue /></SelectTrigger>
+        <SelectContent position="popper" align="end" sideOffset={4}>
+          <SelectItem value="all">全部</SelectItem>
+          <SelectItem value="queued">排队中</SelectItem>
+          <SelectItem value="running">生成中</SelectItem>
+          <SelectItem value="completed">已完成</SelectItem>
+          <SelectItem value="failed">失败</SelectItem>
+          <SelectItem value="cancelled">已取消</SelectItem>
+        </SelectContent>
+      </Select>
+    </AdminToolbar>
+  <Card className="admin-panel-card ai-tasks-panel">
     <CardHeader className="ai-tasks-header flex-row flex-wrap items-start justify-between gap-3">
       <div className="min-w-0">
         <CardTitle className="text-base">AI 任务管理</CardTitle>
         <p className="text-sm text-muted-foreground">独立于爬取任务，查看生成进度、错误和输入 Prompt</p>
-      </div>
-      <div className="ai-tasks-filter flex items-center gap-2">
-        <Label htmlFor="task-filter-status" className="text-xs text-muted-foreground">状态</Label>
-        <Select value={filterStatus} onValueChange={(v) => { setLoading(true); setFilterStatus(v as typeof filterStatus) }}>
-          <SelectTrigger size="sm" id="task-filter-status" className="w-[120px]"><SelectValue /></SelectTrigger>
-          <SelectContent position="popper" align="end" sideOffset={4}>
-            <SelectItem value="all">全部</SelectItem>
-            <SelectItem value="queued">排队中</SelectItem>
-            <SelectItem value="running">生成中</SelectItem>
-            <SelectItem value="completed">已完成</SelectItem>
-            <SelectItem value="failed">失败</SelectItem>
-            <SelectItem value="cancelled">已取消</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
     </CardHeader>
     <CardContent className="ai-tasks-content">
@@ -166,4 +168,5 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
       </>}
     </CardContent>
   </Card>
+  </>
 }

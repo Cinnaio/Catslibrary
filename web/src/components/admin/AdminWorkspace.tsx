@@ -146,7 +146,9 @@ export function AdminQueueSummary({ eyebrow, title, description, stats, ariaLabe
  *
  * 桌面端：据 width 生成 CSS 变量注入表格，配合 table-layout: fixed 让表头与
  * 内容严格对齐（此前 auto 布局下两者各算各的，列边界错开）。
- * 移动端：列自动转为卡片字段，见 admin-workspace.css 的 .admin-data-table。
+ * 移动端：列自动转为卡片字段，见 admin-operations.css 的
+ * .admin-data-panel--grid。列定义只提供 CSS 宽度/语义元数据，调用方仍需在
+ * TableCell 上写 data-label、data-primary、data-actions。
  */
 export interface AdminColumn {
   /** 稳定键名，用于生成单元格标签与 React key。 */

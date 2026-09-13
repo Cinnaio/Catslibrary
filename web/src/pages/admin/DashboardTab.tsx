@@ -82,9 +82,9 @@ export default function DashboardTab(_props: { highlightNovelId?: string; onHigh
       >
 
       {error ? (
-        <div className="rounded-xl border border-border bg-card p-6 text-sm text-destructive">总览加载失败：{error}</div>
+        <div className="admin-panel-card rounded-xl border border-border bg-card p-6 text-sm text-destructive">总览加载失败：{error}</div>
       ) : !data ? (
-        <div className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">加载中…</div>
+        <div className="admin-panel-card rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">加载中…</div>
       ) : (
         <div className="space-y-4">
           <AdminMetricStrip
@@ -100,7 +100,7 @@ export default function DashboardTab(_props: { highlightNovelId?: string; onHigh
             })}
           />
 
-          <div className="rounded-xl border border-border bg-muted/60 p-5">
+          <div className="admin-panel-card rounded-xl border border-border bg-muted/60 p-5">
             <div className="flex items-center justify-between gap-3">
               <span className="text-sm font-semibold text-foreground">任务状态</span>
               <span className="text-xs tabular-nums text-muted-foreground">
@@ -119,7 +119,7 @@ export default function DashboardTab(_props: { highlightNovelId?: string; onHigh
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
-            <Card>
+            <Card className="admin-panel-card">
               <CardHeader className="flex-row items-center justify-between gap-2">
                 <CardTitle className="text-base">最近抓取任务</CardTitle>
                 <span className="text-xs text-muted">按更新时间</span>
@@ -144,7 +144,7 @@ export default function DashboardTab(_props: { highlightNovelId?: string; onHigh
                 </div>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="admin-panel-card">
               <CardHeader className="flex-row items-center justify-between gap-2">
                 <CardTitle className="text-base">最近更新小说</CardTitle>
                 <span className="text-xs text-muted">书库动态</span>

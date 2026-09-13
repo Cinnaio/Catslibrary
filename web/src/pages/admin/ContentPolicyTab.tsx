@@ -65,7 +65,7 @@ export default function ContentPolicyTab() {
       description="控制读者是否可以主动切换并查看限制级内容。"
       actions={<Button variant="secondary" size="sm" onClick={() => void load()} disabled={loading || saving}>刷新</Button>}
     >
-      <Card className="max-w-3xl">
+      <Card className="admin-panel-card max-w-3xl content-policy-panel">
         <CardHeader className="flex-row items-start justify-between gap-4">
           <div className="min-w-0">
             <CardTitle className="flex items-center gap-2 text-base">

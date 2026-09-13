@@ -14,9 +14,10 @@ import {
 } from 'recharts'
 import { aiApi } from '@/lib/api'
 import { ErrorState, InlineError, LoadingState } from '@/components/admin/AsyncStates'
+import { AdminMetricStrip } from '@/components/admin/AdminWorkspace'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { UsageCell, formatCost } from './shared'
+import { formatCost } from './shared'
 
 interface TrendPoint {
   date: string
@@ -80,15 +81,18 @@ export default function AiUsagePanel() {
 
   return (
     <div className="space-y-4">
-      {/* 总览统计卡片 */}
-      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg bg-border sm:grid-cols-4">
-        <UsageCell label="总调用次数" value={totalCalls} />
-        <UsageCell label="总成本" value={formatCost(totalCost)} />
-        <UsageCell label="总 Token" value={totalTokens} />
-        <UsageCell label="平均单次成本" value={formatCost(avgCost)} />
-      </div>
+      <AdminMetricStrip
+        className="admin-metric-strip--ai-usage"
+        ariaLabel="AI 用量统计"
+        items={[
+          { label: '总调用次数', value: totalCalls },
+          { label: '总成本', value: formatCost(totalCost) },
+          { label: '总 Token', value: totalTokens },
+          { label: '平均单次成本', value: formatCost(avgCost) },
+        ]}
+      />
 
-      <Card>
+      <Card className="admin-panel-card ai-usage-card">
         <CardHeader className="flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
           <div className="min-w-0">
             <CardTitle className="text-base">成本与调用趋势</CardTitle>
@@ -189,7 +193,7 @@ export default function AiUsagePanel() {
       </Card>
 
       {/* Token 消耗趋势 */}
-      <Card>
+      <Card className="admin-panel-card ai-usage-card">
         <CardHeader>
           <CardTitle className="text-base">Token 消耗趋势</CardTitle>
           <p className="text-sm text-muted-foreground">每日输入/输出 Token 用量</p>

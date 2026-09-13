@@ -17,6 +17,12 @@ type Overview = Awaited<ReturnType<typeof adminApi.site.overview>>
 type OperationTab = 'overview' | 'traffic' | 'content'
 type Metric = readonly [label: string, value: number, unit: string]
 
+const OPERATION_TAB_META: Record<OperationTab, { title: string; description: string }> = {
+  overview: { title: '运营概览', description: '查看站点公告、访问趋势和运营健康度。' },
+  traffic: { title: '流量分析', description: '从匿名聚合数据观察访问趋势、地区、设备与来源。' },
+  content: { title: '内容分析', description: '查看书库分布、内容健康度与近期更新情况。' },
+}
+
 const COUNTRY_NAMES: Record<string, string> = {
   CN: '中国', HK: '中国香港', MO: '中国澳门', TW: '中国台湾', JP: '日本', KR: '韩国',
   SG: '新加坡', US: '美国', CA: '加拿大', GB: '英国', DE: '德国', AU: '澳大利亚',
@@ -62,6 +68,11 @@ export default function SiteOperationsTab() {
   const [categoryBooks, setCategoryBooks] = useState<Awaited<ReturnType<typeof novelsApi.list>>['novels']>([])
   const [categoryBooksLoading, setCategoryBooksLoading] = useState(false)
   const [trendRange, setTrendRange] = useState<30 | 90>(30)
+
+  const currentOperationTab: OperationTab = (urlTab === 'overview' || urlTab === 'traffic' || urlTab === 'content')
+    ? urlTab
+    : tab
+  const currentOperationMeta = OPERATION_TAB_META[currentOperationTab]
 
   // 二级运营入口位于侧边栏，保留 URL 深链接并兼容此前的本地持久化位置。
   useEffect(() => {
@@ -171,13 +182,13 @@ export default function SiteOperationsTab() {
   return (
     <AdminPage
       className="admin-redesign-page admin-redesign-page--site-operations site-operations"
-      title="站点运营"
-      description="从匿名聚合数据观察流量、读者与内容健康度。"
-      actions={<div className="flex gap-2"><Button variant="secondary" size="sm" onClick={() => void load()} disabled={loading || saving}>{loading ? '刷新中…' : '刷新'}</Button>{tab === 'content' && <Button variant="outline" size="sm" onClick={exportContentReport} disabled={!data}>导出 CSV</Button>}</div>}
+      title={currentOperationMeta.title}
+      description={currentOperationMeta.description}
+      actions={<div className="flex gap-2"><Button variant="secondary" size="sm" onClick={() => void load()} disabled={loading || saving}>{loading ? '刷新中…' : '刷新'}</Button>{currentOperationTab === 'content' && <Button variant="outline" size="sm" onClick={exportContentReport} disabled={!data}>导出 CSV</Button>}</div>}
     >
       <div className="grid gap-4">
         <div className="site-operations__panel">
-          {tab === 'overview' && <>
+          {currentOperationTab === 'overview' && <>
             <AdminMetricStrip className="site-operations__metrics" ariaLabel="运营概览指标" items={overviewMetrics.map(([label, value, unit]) => ({ label, value: value.toLocaleString(), detail: unit }))} />
             <div className="grid gap-4 lg:grid-cols-2">
               <Card>
@@ -199,7 +210,7 @@ export default function SiteOperationsTab() {
             </div>
           </>}
 
-          {tab === 'traffic' && <>
+          {currentOperationTab === 'traffic' && <>
             <AdminMetricStrip className="site-operations__metrics" ariaLabel="流量分析指标" items={trafficMetrics.map(([label, value, unit]) => ({ label, value: value.toLocaleString(), detail: unit }))} />
             <Card>
               <CardHeader>
@@ -228,7 +239,7 @@ export default function SiteOperationsTab() {
             </div>
           </>}
 
-          {tab === 'content' && <>
+          {currentOperationTab === 'content' && <>
             <AdminMetricStrip className="site-operations__metrics" ariaLabel="内容分析指标" items={contentMetrics.map(([label, value, unit]) => ({ label, value: value.toLocaleString(), detail: unit }))} />
             <div className="grid gap-4 lg:grid-cols-2">
               <CategoryDistribution categories={data?.contentHealth.categories || []} loading={loading} onSelect={(category) => void openNovelList({ category }, `分类：${category}`)} />

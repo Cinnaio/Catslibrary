@@ -3,6 +3,7 @@ import { Fragment, useCallback, useEffect, useState } from 'react'
 import { aiApi } from '@/lib/api'
 import { ErrorState, InlineError, LoadingState } from '@/components/admin/AsyncStates'
 import Pagination from '@/components/admin/Pagination'
+import { AdminToolbar } from '@/components/admin/AdminWorkspace'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
@@ -74,37 +75,37 @@ export default function AiAuditPanel() {
 
   return (
     <div className="space-y-4">
-      <Card>
-        <CardHeader className="flex-row items-center justify-between gap-2">
+      <AdminToolbar className="ai-audit-toolbar" ariaLive="polite">
+        <Label htmlFor="audit-filter-type" className="text-xs text-muted-foreground">类型</Label>
+        <Select
+          value={filterType}
+          onValueChange={(v) => {
+            setFilterType(v)
+            setOffset(0)
+          }}
+        >
+          <SelectTrigger size="sm" id="audit-filter-type" className="w-[140px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent position="popper" align="end" sideOffset={4}>
+            <SelectItem value="all">全部</SelectItem>
+            <SelectItem value="summary">前情提要</SelectItem>
+            <SelectItem value="catchup">回顾总结</SelectItem>
+            <SelectItem value="continue">续写</SelectItem>
+            <SelectItem value="write_outline">创作大纲</SelectItem>
+            <SelectItem value="write_chapter">创作章节</SelectItem>
+            <SelectItem value="writing_title">标题生成</SelectItem>
+            <SelectItem value="cover">封面生成</SelectItem>
+            <SelectItem value="cover_prompt">封面描述词</SelectItem>
+            <SelectItem value="test">连通性测试</SelectItem>
+          </SelectContent>
+        </Select>
+      </AdminToolbar>
+      <Card className="admin-panel-card ai-audit-panel">
+        <CardHeader className="ai-audit-card-header">
           <div>
             <CardTitle className="text-base">调用记录</CardTitle>
             <p className="text-sm text-muted-foreground">详细的 AI 调用审计日志，点击行可展开详情</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Label htmlFor="audit-filter-type" className="text-xs text-muted-foreground">类型</Label>
-            <Select
-              value={filterType}
-              onValueChange={(v) => {
-                setFilterType(v)
-                setOffset(0)
-              }}
-            >
-              <SelectTrigger size="sm" id="audit-filter-type" className="w-[140px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent position="popper" align="end" sideOffset={4}>
-                <SelectItem value="all">全部</SelectItem>
-                <SelectItem value="summary">前情提要</SelectItem>
-                <SelectItem value="catchup">回顾总结</SelectItem>
-                <SelectItem value="continue">续写</SelectItem>
-                <SelectItem value="write_outline">创作大纲</SelectItem>
-                <SelectItem value="write_chapter">创作章节</SelectItem>
-                <SelectItem value="writing_title">标题生成</SelectItem>
-                <SelectItem value="cover">封面生成</SelectItem>
-                <SelectItem value="cover_prompt">封面描述词</SelectItem>
-                <SelectItem value="test">连通性测试</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
         </CardHeader>
         <CardContent>

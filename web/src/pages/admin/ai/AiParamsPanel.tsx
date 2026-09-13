@@ -35,13 +35,13 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
   }
 
   if (!localSettings) {
-    return <div className="rounded-xl border border-border bg-card p-6"><LoadingState label="正在加载参数设置" /></div>
+    return <div className="admin-panel-card rounded-xl border border-border bg-card p-6"><LoadingState label="正在加载参数设置" /></div>
   }
 
   return (
     <div className="ai-params-panel">
       {/* 前情提要参数 */}
-      <Card className="ai-params-card ai-params-card--recap">
+      <Card className="admin-panel-card ai-params-card ai-params-card--recap">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base"><SlidersHorizontal className="size-4 text-primary" aria-hidden="true" />前情提要参数</CardTitle>
           <p className="text-sm text-muted-foreground">调整章节前情提要的生成参数</p>
@@ -91,7 +91,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
       </Card>
 
       {/* 回顾总结参数 */}
-      <Card className="ai-params-card">
+      <Card className="admin-panel-card ai-params-card">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base"><ClipboardList className="size-4 text-primary" aria-hidden="true" />回顾总结参数</CardTitle>
           <p className="text-sm text-muted-foreground">调整「回来接着读」功能的参数</p>
@@ -167,7 +167,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
         </CardContent>
       </Card>
 
-      <Card className="ai-params-card ai-params-card--writing">
+      <Card className="admin-panel-card ai-params-card ai-params-card--writing">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base"><Sparkles className="size-4 text-primary" aria-hidden="true" />AI 创作参数</CardTitle>
           <p className="text-sm text-muted-foreground">用于 AI 创作页的大纲、章节生成和续写</p>
@@ -215,7 +215,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
         </CardContent>
       </Card>
 
-      <Card className="ai-params-card">
+      <Card className="admin-panel-card ai-params-card">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base"><Image className="size-4 text-primary" aria-hidden="true" />AI 生图与封面参数</CardTitle>
           <p className="text-sm text-muted-foreground">用于小说封面生成的图像参数与描述词编辑上限</p>
@@ -241,7 +241,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
       </Card>
 
       {/* 任务与运维 */}
-      <Card className="ai-params-card">
+      <Card className="admin-panel-card ai-params-card">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base"><Wrench className="size-4 text-primary" aria-hidden="true" />任务与运维</CardTitle>
           <p className="text-sm text-muted-foreground">创作任务的并发控制与历史记录清理</p>
@@ -277,7 +277,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
       </Card>
 
       {/* 审计配置 */}
-      <Card className="ai-params-card ai-params-card--audit">
+      <Card className="admin-panel-card ai-params-card ai-params-card--audit">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base"><ShieldCheck className="size-4 text-primary" aria-hidden="true" />审计配置</CardTitle>
           <p className="text-sm text-muted-foreground">控制 AI 调用的审计信息记录</p>

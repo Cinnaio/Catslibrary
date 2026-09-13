@@ -5,7 +5,7 @@ import { formatDateTime } from '@/lib/format'
 import { useToast } from '@/components/feedback'
 import AdminPage from '@/components/admin/AdminPage'
 import AdminEmptyState from '@/components/admin/AdminEmptyState'
-import { AdminDataPanel, AdminMetricStrip, AdminToolbar } from '@/components/admin/AdminWorkspace'
+import { AdminDataPanel, AdminMetricStrip, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -28,6 +28,14 @@ const TYPE_LABELS: Record<string, string> = {
   diagnostic: '诊断',
 }
 
+const MOBILE_TELEMETRY_COLUMNS: readonly AdminColumn[] = [
+  { key: 'receivedAt', label: '接收时间', width: '10rem' },
+  { key: 'event', label: '事件', primary: true },
+  { key: 'device', label: '版本 / 设备', width: '12rem' },
+  { key: 'properties', label: '属性' },
+  { key: 'status', label: '处理状态', width: '8rem' },
+]
+
 function prettyProperties(value: string): string {
   try {
     return JSON.stringify(JSON.parse(value), null, 2)
@@ -39,25 +47,25 @@ function prettyProperties(value: string): string {
 function EventRow({ event, onStatusChange }: { event: MobileTelemetryEvent; onStatusChange: (event: MobileTelemetryEvent, status: string) => void }) {
   return (
     <TableRow>
-      <TableCell className="text-sm text-muted-foreground">{formatDateTime(event.receivedAt)}</TableCell>
-      <TableCell>
+      <TableCell data-label="接收时间" className="text-sm text-muted-foreground">{formatDateTime(event.receivedAt)}</TableCell>
+      <TableCell data-primary="" data-label="事件">
         <div className="flex items-center gap-2">
           <Badge variant={event.type === 'error' ? 'destructive' : 'secondary'}>{TYPE_LABELS[event.type] || event.type}</Badge>
           <span className="font-medium">{event.name}</span>
         </div>
       </TableCell>
-      <TableCell>
+      <TableCell data-label="版本 / 设备">
         <div className="text-sm">{event.appVersion || '—'}{event.buildVersion ? ` (${event.buildVersion})` : ''}</div>
         <div className="text-xs text-muted-foreground">{event.osVersion || '系统版本未知'} · {event.deviceModel || '设备未知'}</div>
       </TableCell>
-      <TableCell>
+      <TableCell data-label="属性">
         <details className="max-w-[28rem]">
           <summary className="cursor-pointer text-sm text-primary">查看属性</summary>
           <pre className="mt-2 max-h-52 overflow-auto whitespace-pre-wrap break-all rounded-md bg-muted p-3 text-xs leading-relaxed">{prettyProperties(event.properties)}</pre>
           {event.adminNote && <p className="mt-2 text-xs text-muted-foreground">备注：{event.adminNote}</p>}
         </details>
       </TableCell>
-      <TableCell>
+      <TableCell data-label="处理状态">
         <select
           className="h-8 rounded-md border border-input bg-background px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
           value={event.status}
@@ -134,7 +142,7 @@ export default function MobileTelemetryTab() {
         ]}
       />
 
-      <AdminToolbar className="flex-wrap">
+      <AdminToolbar className="mobile-telemetry-toolbar flex-wrap">
         <select
           className="h-9 rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
           value={status}
@@ -155,7 +163,7 @@ export default function MobileTelemetryTab() {
         </div>
       </AdminToolbar>
 
-      <AdminDataPanel className="overflow-hidden" ariaLabel="客户端监控事件列表">
+      <AdminDataPanel className="overflow-hidden" ariaLabel="客户端监控事件列表" columns={MOBILE_TELEMETRY_COLUMNS}>
         {loading && !data ? (
           <div className="flex min-h-48 items-center justify-center text-sm text-muted-foreground">正在读取客户端事件…</div>
         ) : error ? (

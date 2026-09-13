@@ -506,7 +506,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
 
   return (
     <div className="ai-writing-panel space-y-4">
-      <Card>
+      <Card className="admin-panel-card ai-writing-card">
         <CardHeader className="ai-writing-header flex-row flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
             <CardTitle className="text-base">AI 创作工作台</CardTitle>

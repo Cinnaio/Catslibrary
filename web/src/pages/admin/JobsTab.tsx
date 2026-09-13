@@ -16,7 +16,7 @@ import { formatDateTime } from '../../lib/format'
 import { formatEta, formatJobSpeed, getJobDuration, isJobRunning, isJobTerminal, jobStatusLabel, truncateId } from '../../lib/admin'
 import { useConfirm, useToast } from '../../components/feedback'
 import AdminPage from '@/components/admin/AdminPage'
-import { AdminDataPanel, AdminPanelHeading, AdminQueueSummary } from '@/components/admin/AdminWorkspace'
+import { AdminDataPanel, AdminPanelHeading, AdminQueueSummary, type AdminColumn } from '@/components/admin/AdminWorkspace'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -45,6 +45,25 @@ interface Job {
   etaSeconds?: number
   summary?: { successCount?: number; failedCount?: number; skippedCount?: number; speed?: number; etaSeconds?: number }
 }
+
+const JOB_COLUMNS: readonly AdminColumn[] = [
+  { key: 'id', label: '任务 ID', width: '9%' },
+  { key: 'novel', label: '小说', width: '18%', primary: true },
+  { key: 'type', label: '类型', width: '8%' },
+  { key: 'status', label: '状态', width: '12%' },
+  { key: 'progress', label: '进度', width: '11%' },
+  { key: 'result', label: '结果', width: '13%' },
+  { key: 'speed', label: '速度/ETA', width: '13%' },
+  { key: 'duration', label: '耗时', width: '8%' },
+  { key: 'actions', label: '操作', width: '8%', actions: true },
+]
+
+const DOWNLOAD_COLUMNS: readonly AdminColumn[] = [
+  { key: 'type', label: '类型', width: '22%' },
+  { key: 'target', label: '对象', width: '42%', primary: true },
+  { key: 'count', label: '数量', width: '16%' },
+  { key: 'time', label: '时间', width: '20%' },
+]
 
 interface DownloadLog {
   id: string
@@ -375,7 +394,7 @@ export default function JobsTab(_props: { highlightNovelId?: string; onHighlight
         ]}
       />
 
-      <AdminDataPanel className="overflow-hidden" ariaLabel="抓取任务列表">
+      <AdminDataPanel className="overflow-hidden" ariaLabel="抓取任务列表" columns={JOB_COLUMNS}>
         <Table>
           <TableHeader>
             <TableRow>
@@ -400,25 +419,25 @@ export default function JobsTab(_props: { highlightNovelId?: string; onHighlight
             ) : (
               filtered.map((j) => (
                 <TableRow key={j.id}>
-                  <TableCell className="admin-mono-cell text-sm text-muted-foreground">{truncateId(j.id)}</TableCell>
-                  <TableCell className="text-sm">{renderNovelTitle(j)}</TableCell>
-                  <TableCell>{j.updateMode ? '更新' : '抓取'}</TableCell>
-                  <TableCell>{renderStatus(j)}</TableCell>
-                  <TableCell>
+                  <TableCell data-label="任务 ID" className="admin-mono-cell text-sm text-muted-foreground">{truncateId(j.id)}</TableCell>
+                  <TableCell data-primary="" data-label="小说" className="text-sm">{renderNovelTitle(j)}</TableCell>
+                  <TableCell data-label="类型">{j.updateMode ? '更新' : '抓取'}</TableCell>
+                  <TableCell data-label="状态">{renderStatus(j)}</TableCell>
+                  <TableCell data-label="进度">
                     {j.current || 0}/{j.total || '?'}
                   </TableCell>
-                  <TableCell>
+                  <TableCell data-label="结果">
                     <span className="job-result-mini">✓{j.successCount || j.chapterCount || 0}</span>{' '}
                     <span className="job-result-mini job-result-mini--failed">✕{j.failedCount || 0}</span>{' '}
                     <span className="job-result-mini">↷{j.skippedCount || 0}</span>
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
+                  <TableCell data-label="速度/ETA" className="text-sm text-muted-foreground">
                     {formatJobSpeed(j.speed)} · {formatEta(j.etaSeconds)}
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
+                  <TableCell data-label="耗时" className="text-sm text-muted-foreground">
                     {j.startedAt ? getJobDuration(j.startedAt, isJobTerminal(j.status) ? (j.updatedAt ?? null) : null) : '—'}
                   </TableCell>
-                  <TableCell className="table-actions job-table-actions">{renderActions(j)}</TableCell>
+                  <TableCell data-actions="" className="table-actions job-table-actions">{renderActions(j)}</TableCell>
                 </TableRow>
               ))
             )}
@@ -444,7 +463,7 @@ export default function JobsTab(_props: { highlightNovelId?: string; onHighlight
           </Button>
         }
       />
-      <AdminDataPanel className="overflow-hidden" ariaLabel="下载日志">
+      <AdminDataPanel className="overflow-hidden" ariaLabel="下载日志" columns={DOWNLOAD_COLUMNS}>
         <Table>
           <TableHeader>
             <TableRow>
@@ -464,10 +483,10 @@ export default function JobsTab(_props: { highlightNovelId?: string; onHighlight
             ) : (
               downloadLogs.map((log) => (
                 <TableRow key={log.id}>
-                  <TableCell>{DOWNLOAD_TYPE_LABELS[log.type] || log.type}</TableCell>
-                  <TableCell className="text-sm">{log.targetTitle || log.targetId || '—'}</TableCell>
-                  <TableCell>{log.itemCount || 0}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{formatDateTime(log.createdAt)}</TableCell>
+                  <TableCell data-label="类型">{DOWNLOAD_TYPE_LABELS[log.type] || log.type}</TableCell>
+                  <TableCell data-primary="" data-label="对象" className="text-sm">{log.targetTitle || log.targetId || '—'}</TableCell>
+                  <TableCell data-label="数量">{log.itemCount || 0}</TableCell>
+                  <TableCell data-label="时间" className="text-sm text-muted-foreground">{formatDateTime(log.createdAt)}</TableCell>
                 </TableRow>
               ))
             )}

@@ -168,7 +168,7 @@ export default function AiConfigPanel(props: {
   return (
     <div className="ai-config-panel">
       {/* 供应商连接参数：可在后台直接修改，无需重启。 */}
-      <Card className="ai-config-providers-card min-w-0">
+      <Card className="admin-panel-card ai-config-providers-card min-w-0">
         <CardHeader>
           <div className="min-w-0">
             <CardTitle className="flex items-center gap-2 text-base"><Bot className="size-4 text-primary" aria-hidden="true" />模型供应商</CardTitle>
@@ -297,7 +297,7 @@ export default function AiConfigPanel(props: {
       </Card>
 
       <div className="ai-config-secondary">
-      <Card className="ai-config-card ai-config-policy-card">
+      <Card className="admin-panel-card ai-config-card ai-config-policy-card">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base"><BookOpenCheck className="size-4 text-primary" aria-hidden="true" />读者生成策略</CardTitle>
             <p className="text-sm text-muted-foreground">控制读者可用的前情提要与单次生成范围。</p>
@@ -350,7 +350,7 @@ export default function AiConfigPanel(props: {
           </CardContent>
       </Card>
 
-      <Card className="ai-config-card ai-config-health">
+      <Card className="admin-panel-card ai-config-card ai-config-health">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base"><Activity className="size-4 text-primary" aria-hidden="true" />服务检查与用量</CardTitle>
             <p className="text-sm text-muted-foreground">验证文本模型连接，并查看近期调用情况。</p>
