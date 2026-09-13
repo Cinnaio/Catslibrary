@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { AccentProvider } from '../context/AccentContext'
 import { ThemeProvider } from '../context/ThemeContext'
+import '../styles/theme-menu.css'
 import { ThemeMenu } from './ThemeMenu'
 
 describe('ThemeMenu', () => {
@@ -30,5 +31,19 @@ describe('ThemeMenu', () => {
     await user.click(screen.getByRole('menuitemradio', { name: '跟随系统' }))
 
     expect(screen.getByRole('button', { name: '主题设置，当前跟随系统' })).toBeInTheDocument()
+  })
+
+  it('关闭时弹层锚定在触发器右侧，避免隐形弹层撑宽页面', () => {
+    render(
+      <AccentProvider>
+        <ThemeProvider>
+          <ThemeMenu className="theme-btn" />
+        </ThemeProvider>
+      </AccentProvider>,
+    )
+
+    const popover = document.querySelector('.theme-menu__popover')!
+    expect(popover.parentElement).toHaveAttribute('data-align', 'end')
+    expect(popover).toHaveStyle({ right: '0px' })
   })
 })

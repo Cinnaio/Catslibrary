@@ -47,7 +47,15 @@ const MENU_W = 200
 const MENU_H = 252
 const MENU_GAP = 6
 
-export function ThemeMenu({ className, wrapperClassName, ariaLabel = '主题设置', title = '主题设置', align = 'end', children, mobileChildren }: ThemeMenuProps) {
+export function ThemeMenu({
+  className,
+  wrapperClassName,
+  ariaLabel = '主题设置',
+  title = '主题设置',
+  align = 'end',
+  children,
+  mobileChildren,
+}: ThemeMenuProps) {
   const { setting, setSetting } = useTheme()
   const { accent, setAccent } = useAccent()
   const isCustomAccent = accent != null && !ACCENT_PRESETS.some((p) => p.color === accent)
@@ -116,14 +124,12 @@ export function ThemeMenu({ className, wrapperClassName, ariaLabel = '主题设�
 
   const currentOption = OPTIONS.find((option) => option.value === setting)!
   const triggerLabel = `${ariaLabel}，当前${currentOption.label}`
-  const defaultIcon = setting === 'light'
-    ? <SunIcon className="theme-icon" />
-    : setting === 'dark'
-      ? <MoonIcon className="theme-icon" />
-      : <AutoIcon className="theme-icon" />
+  const closedPosition: CSSProperties = align === 'start' ? { top: 'calc(100% + 6px)', left: 0 } : { top: 'calc(100% + 6px)', right: 0 }
+  const defaultIcon =
+    setting === 'light' ? <SunIcon className="theme-icon" /> : setting === 'dark' ? <MoonIcon className="theme-icon" /> : <AutoIcon className="theme-icon" />
 
   return (
-    <div ref={wrapperRef} className={wrapperClassName ? `theme-menu ${wrapperClassName}` : 'theme-menu'}>
+    <div ref={wrapperRef} className={wrapperClassName ? `theme-menu ${wrapperClassName}` : 'theme-menu'} data-align={align}>
       <button
         ref={triggerRef}
         type="button"
@@ -139,7 +145,11 @@ export function ThemeMenu({ className, wrapperClassName, ariaLabel = '主题设�
         }}
       >
         <span className="theme-menu__trigger-main">{children ?? defaultIcon}</span>
-        {mobileChildren && <span className="theme-menu__mobile-trigger-icons" aria-hidden="true">{mobileChildren}</span>}
+        {mobileChildren && (
+          <span className="theme-menu__mobile-trigger-icons" aria-hidden="true">
+            {mobileChildren}
+          </span>
+        )}
       </button>
 
       <div
@@ -148,7 +158,7 @@ export function ThemeMenu({ className, wrapperClassName, ariaLabel = '主题设�
         data-side={side}
         role="menu"
         aria-label={ariaLabel}
-        style={position ?? undefined}
+        style={open ? (position ?? undefined) : closedPosition}
         aria-hidden={!open}
       >
         {OPTIONS.map((opt) => {
@@ -168,7 +178,17 @@ export function ThemeMenu({ className, wrapperClassName, ariaLabel = '主题设�
               {opt.icon}
               <span>{opt.label}</span>
               {active && (
-                <svg className="theme-menu__check" viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <svg
+                  className="theme-menu__check"
+                  viewBox="0 0 12 12"
+                  width="12"
+                  height="12"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
                   <polyline points="2 6 5 9 10 3" />
                 </svg>
               )}
