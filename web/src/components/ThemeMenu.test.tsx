@@ -26,10 +26,12 @@ describe('ThemeMenu', () => {
     expect(trigger.querySelectorAll('svg')).toHaveLength(1)
 
     await user.click(trigger)
+    expect(trigger).toHaveAttribute('data-state', 'open')
     const menu = screen.getByRole('menu', { name: '主题设置' })
     expect(menu).toHaveAttribute('data-side', 'bottom')
     await user.click(screen.getByRole('menuitemradio', { name: '跟随系统' }))
 
+    expect(trigger).toHaveAttribute('data-state', 'closed')
     expect(screen.getByRole('button', { name: '主题设置，当前跟随系统' })).toBeInTheDocument()
   })
 

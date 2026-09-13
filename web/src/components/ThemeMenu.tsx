@@ -8,6 +8,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProp
 import { useTheme, type ThemeSetting } from '../context/ThemeContext'
 import { AutoIcon, MoonIcon, SunIcon } from './icons'
 import { useAccent } from '../context/AccentContext'
+import { useExclusiveMenu } from '../hooks/useExclusiveMenu'
 
 interface ThemeMenuProps {
   className?: string
@@ -43,7 +44,7 @@ const ACCENT_PRESETS: Array<{ color: string; label: string }> = [
 ]
 
 /* 弹层估算尺寸（用于视口翻转判断） */
-const MENU_W = 200
+const MENU_W = 208
 const MENU_H = 252
 const MENU_GAP = 6
 
@@ -60,6 +61,7 @@ export function ThemeMenu({
   const { accent, setAccent } = useAccent()
   const isCustomAccent = accent != null && !ACCENT_PRESETS.some((p) => p.color === accent)
   const [open, setOpen] = useState(false)
+  const setExclusiveOpen = useExclusiveMenu('theme', setOpen)
   const [position, setPosition] = useState<(CSSProperties & { top: number; left: number }) | null>(null)
   const [side, setSide] = useState<'top' | 'bottom'>('bottom')
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -139,9 +141,10 @@ export function ThemeMenu({
         title={`${title}：${currentOption.label}`}
         aria-haspopup="menu"
         aria-expanded={open}
+        data-state={open ? 'open' : 'closed'}
         onClick={(e) => {
           e.stopPropagation()
-          setOpen((v) => !v)
+          setExclusiveOpen(!open)
         }}
       >
         <span className="theme-menu__trigger-main">{children ?? defaultIcon}</span>

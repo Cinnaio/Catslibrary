@@ -1,0 +1,212 @@
+/* 全站账户入口：页头、后台顶栏和移动端抽屉共用。 */
+.account-menu {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.account-menu__trigger {
+  outline: none;
+}
+
+.account-menu__trigger--site {
+  position: relative;
+  display: inline-grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  place-items: center;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--border-light);
+  border-radius: 50%;
+  background: var(--accent-subtle);
+  color: var(--accent);
+  font-family: var(--font-heading);
+  font-size: 0.86rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    color 0.16s ease,
+    background 0.16s ease,
+    border-color 0.16s ease,
+    transform 0.16s ease;
+}
+
+.account-menu__trigger--site:hover,
+.account-menu__trigger--site[data-state='open'] {
+  background: var(--accent-light);
+  border-color: var(--accent);
+}
+
+.account-menu__trigger--site:active {
+  transform: scale(0.96);
+}
+
+.account-menu__trigger--site img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.account-menu__trigger--admin {
+  cursor: pointer;
+}
+
+.account-menu__trigger--admin[data-state='open'] {
+  border-color: var(--accent);
+  background: var(--admin-panel-muted);
+  color: var(--accent);
+}
+
+.account-menu__chevron {
+  width: 0.75rem;
+  height: 0.75rem;
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  transition:
+    transform 0.16s ease,
+    color 0.16s ease;
+}
+
+.account-menu__trigger--admin[data-state='open'] .account-menu__chevron {
+  color: var(--accent);
+  transform: rotate(180deg);
+}
+
+.account-menu__content {
+  z-index: 200;
+  min-width: 13rem;
+  padding: 0.35rem;
+  border-color: var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-popover);
+}
+
+.account-menu__content[data-state='open'] {
+  animation: account-menu-enter 160ms var(--ease) both;
+}
+
+.account-menu__content[data-state='closed'] {
+  animation: account-menu-exit 120ms var(--ease) both;
+}
+
+@keyframes account-menu-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes account-menu-exit {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-3px) scale(0.98);
+  }
+}
+
+.account-menu__identity {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+  padding: 0.65rem 0.7rem 0.55rem;
+}
+
+.account-menu__identity-name {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 0.86rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-menu__identity-handle {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-menu__item {
+  min-height: 2.45rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: 0.84rem;
+  font-weight: 620;
+  transition:
+    color 0.14s ease,
+    background 0.14s ease;
+}
+
+.account-menu__item:hover,
+.account-menu__item:focus-visible {
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+
+.account-menu__item svg {
+  width: 1rem;
+  height: 1rem;
+  color: var(--accent);
+}
+
+.account-menu__item--danger,
+.account-menu__item--danger svg {
+  color: var(--color-danger);
+}
+
+.account-menu__item--danger:hover,
+.account-menu__item--danger:focus-visible {
+  background: color-mix(in srgb, var(--color-danger) 10%, transparent);
+  color: var(--color-danger);
+}
+
+.account-menu--mobile .account-menu__trigger--mobile {
+  display: inline-grid;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+
+.account-menu--mobile .account-menu__trigger--mobile:hover,
+.account-menu--mobile .account-menu__trigger--mobile[data-state='open'] {
+  background: var(--accent-subtle);
+}
+
+.account-menu--mobile .account-menu__content {
+  z-index: 1002;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .account-menu__trigger--site,
+  .account-menu__chevron,
+  .account-menu__item {
+    transition: none;
+  }
+
+  .account-menu__content[data-state='open'],
+  .account-menu__content[data-state='closed'] {
+    animation: none;
+  }
+}

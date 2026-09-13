@@ -5,10 +5,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   useSession: vi.fn(),
+  useToast: vi.fn(),
 }))
 
 vi.mock('../../context/SessionContext', () => ({
   useSession: mocks.useSession,
+}))
+
+vi.mock('../../components/feedback', () => ({
+  useToast: mocks.useToast,
 }))
 
 vi.mock('./AdminSidebar', () => ({
@@ -37,6 +42,7 @@ import AdminShell from './AdminShell'
 
 describe('AdminShell account controls', () => {
   beforeEach(() => {
+    mocks.useToast.mockReturnValue({ toast: vi.fn() })
     mocks.useSession.mockReturnValue({
       user: {
         id: 'user_1',
@@ -62,7 +68,7 @@ describe('AdminShell account controls', () => {
       </MemoryRouter>,
     )
 
-    const avatar = screen.getByRole('link', { name: '我的账户：猫' }).querySelector('.admin-shell__account-avatar')!
+    const avatar = screen.getByRole('button', { name: '账户菜单：猫' }).querySelector('.admin-shell__account-avatar')!
     expect(avatar.querySelector('img')).toHaveAttribute('src', 'https://example.com/avatar.png')
     expect(avatar.querySelector('span')).not.toBeInTheDocument()
   })
@@ -76,7 +82,7 @@ describe('AdminShell account controls', () => {
       </MemoryRouter>,
     )
 
-    const account = screen.getByRole('link', { name: '我的账户：猫' })
+    const account = screen.getByRole('button', { name: '账户菜单：猫' })
     const avatar = account.querySelector('.admin-shell__account-avatar')!
     fireEvent.error(avatar.querySelector('img')!)
 

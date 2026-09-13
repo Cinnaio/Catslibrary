@@ -12,10 +12,10 @@ import { Dialog as DialogPrimitive } from 'radix-ui'
 import { useSession } from '../context/SessionContext'
 import { useSearch } from '../context/SearchContext'
 import { useContentPolicy } from '../context/ContentPolicyContext'
-import { url } from '../lib/api'
 import { BookIcon, ChevronIcon, CloseIcon, MenuIcon, MoonIcon, RefreshIcon, SearchIcon, ShieldIcon, SunIcon } from './icons'
 import { ThemeMenu } from './ThemeMenu'
 import { useConfirm } from './feedback'
+import { AccountMenu } from './AccountMenu'
 
 export default function SiteHeader() {
   const location = useLocation()
@@ -30,12 +30,9 @@ export default function SiteHeader() {
   const mobileMenuTriggerRef = useRef<HTMLButtonElement>(null)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
-  const [avatarFailed, setAvatarFailed] = useState(false)
   const isHome = location.pathname === '/'
 
   const name = user?.displayName || user?.username || ''
-  const avatarUrl = user?.avatarUrl ? url(user.avatarUrl) : ''
-  const showAvatar = !!avatarUrl && !avatarFailed
   const isAdmin = user?.role === 'admin'
 
   function submitSearch(query: string) {
@@ -120,13 +117,7 @@ export default function SiteHeader() {
             )}
 
             {user ? (
-              <Link to="/profile" className="nav-link account-avatar" aria-label={`我的账户：${name}`} title={name}>
-                {showAvatar ? (
-                  <img src={avatarUrl} alt={name} onError={() => setAvatarFailed(true)} />
-                ) : (
-                  <span>{name.slice(0, 1)}</span>
-                )}
-              </Link>
+              <AccountMenu variant="site" />
             ) : (
               <Link to="/auth" className="nav-link nav-link--desktop" aria-label="登录" state={{ from: location.pathname }}>
                 登录
@@ -251,18 +242,18 @@ export default function SiteHeader() {
 
             <div className="mobile-drawer__body">
               {user ? (
-                <Link to="/profile" className="mobile-drawer__user" onClick={closeMenu}>
-                  <span className="mobile-drawer__avatar">
-                    {showAvatar ? <img src={avatarUrl} alt={name} /> : <span>{name.slice(0, 1)}</span>}
-                  </span>
-                  <span className="mobile-drawer__user-text">
-                    <span className="mobile-drawer__user-name">{name || '知舟读者'}</span>
-                    <span className="mobile-drawer__user-sub">
-                      {isAdmin ? '管理员 · ' : ''}@{user.username || 'reader'}
+                <div className="mobile-drawer__user">
+                  <AccountMenu variant="mobile" wrapperClassName="mobile-drawer__account-menu" onNavigate={closeMenu} />
+                  <Link to="/profile" className="mobile-drawer__user-main" onClick={closeMenu}>
+                    <span className="mobile-drawer__user-text">
+                      <span className="mobile-drawer__user-name">{name || '知舟读者'}</span>
+                      <span className="mobile-drawer__user-sub">
+                        {isAdmin ? '管理员 · ' : ''}@{user.username || 'reader'}
+                      </span>
                     </span>
-                  </span>
-                  <ChevronIcon className="mobile-drawer__chevron" />
-                </Link>
+                    <ChevronIcon className="mobile-drawer__chevron" />
+                  </Link>
+                </div>
               ) : (
                 <div className="mobile-drawer__guest">
                   <Link to="/auth" className="btn btn--primary mobile-drawer__login" state={{ from: location.pathname }} onClick={closeMenu}>

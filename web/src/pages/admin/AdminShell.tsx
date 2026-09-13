@@ -3,13 +3,11 @@
  * (topbar with context/page-title/account/theme controls) + scrollable content region. Tabs
  * render inside as children. Moved verbatim from the former Admin.tsx shell.
  */
-import { useState, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import type { ReactNode } from 'react'
 import { Separator } from '@/components/ui/separator'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
-import { useSession } from '../../context/SessionContext'
-import { url } from '../../lib/api'
 import { ThemeMenu } from '../../components/ThemeMenu'
+import { AccountMenu } from '../../components/AccountMenu'
 import AdminSidebar from './AdminSidebar'
 
 interface AdminShellProps {
@@ -19,12 +17,6 @@ interface AdminShellProps {
 }
 
 export default function AdminShell({ active, activeLabel, children }: AdminShellProps) {
-  const { user } = useSession()
-  const [failedAvatarUrl, setFailedAvatarUrl] = useState('')
-  const name = user?.displayName || user?.username || '管理员'
-  const avatarUrl = user?.avatarUrl ? url(user.avatarUrl) : ''
-  const showAvatar = !!avatarUrl && failedAvatarUrl !== avatarUrl
-
   return (
     <SidebarProvider className="admin-layout">
       <AdminSidebar active={active} />
@@ -36,12 +28,7 @@ export default function AdminShell({ active, activeLabel, children }: AdminShell
             <span className="truncate text-sm font-semibold text-foreground">{activeLabel}</span>
           </div>
           <div className="admin-shell__actions shrink-0">
-            <Link to="/profile" className="admin-shell__account" aria-label={`我的账户：${name}`} title={name}>
-              <span className="admin-shell__account-avatar" aria-hidden="true">
-                {showAvatar ? <img src={avatarUrl} alt="" onError={() => setFailedAvatarUrl(avatarUrl)} /> : <span>{name.slice(0, 1)}</span>}
-              </span>
-              <span className="admin-shell__account-name">{name}</span>
-            </Link>
+            <AccountMenu variant="admin" />
             <ThemeMenu className="theme-btn admin-shell__theme-btn" ariaLabel="主题设置" title="主题设置" />
           </div>
         </header>

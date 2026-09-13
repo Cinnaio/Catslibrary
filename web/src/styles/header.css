@@ -403,6 +403,20 @@
   border-color: var(--accent-light);
   background: var(--accent-subtle);
 }
+.mobile-drawer__user-main {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 12px;
+  color: inherit;
+  text-decoration: none;
+  outline: none;
+}
+.mobile-drawer__user-main:focus-visible {
+  border-radius: var(--radius-md);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
 .mobile-drawer__avatar {
   position: relative;
   display: inline-grid;
