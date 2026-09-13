@@ -1,5 +1,5 @@
 // ============================================================
-// 抓取任务卡 — 进度 / 指标 / 失败章节 / 日志（22rem 右栏紧凑布局）
+// 抓取任务记录 — 进度 / 指标 / 失败章节 / 日志
 // consumers: scrape/center/JobQueue.tsx
 // ============================================================
 import { useId } from 'react'
@@ -57,7 +57,7 @@ export default function JobCard({ job, onCancel, onRetry, onRetryFailed, onDismi
         : ''
 
   return (
-    <article className="admin-panel-card scrape-job">
+    <article className="scrape-job">
       <div className="scrape-job__head">
         <span className="scrape-job__name text-sm font-medium" title={job.novelTitle}>
           {job.novelTitle}

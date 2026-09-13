@@ -3,7 +3,7 @@
 // consumers: scrape/CenterView.tsx
 // ============================================================
 import { Inbox } from 'lucide-react'
-import { AdminPanelHeading } from '@/components/admin/AdminWorkspace'
+import { AdminDataPanel, AdminPanelHeading } from '@/components/admin/AdminWorkspace'
 import type { JobCard as JobCardData } from '../types'
 import JobCard from './JobCard'
 
@@ -18,7 +18,7 @@ interface JobQueueProps {
 
 export default function JobQueue({ jobs, ...handlers }: JobQueueProps) {
   return (
-    <aside className="admin-data-panel scrape-workbench__aside" aria-label="抓取任务队列">
+    <AdminDataPanel className="scrape-workbench__aside" ariaLabel="抓取任务队列">
       <AdminPanelHeading
         title="任务队列"
         description={jobs.length > 0 ? '任务会在后台持续更新' : '启动任务后会显示在这里'}
@@ -35,6 +35,6 @@ export default function JobQueue({ jobs, ...handlers }: JobQueueProps) {
           </div>
         )}
       </div>
-    </aside>
+    </AdminDataPanel>
   )
 }

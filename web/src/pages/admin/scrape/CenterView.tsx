@@ -5,8 +5,8 @@ import { useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { Archive, Download, FileUp } from 'lucide-react'
 import { novelsApi, scrapeApi } from '@/lib/api'
 import { useConfirm, useToast } from '@/components/feedback'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { AdminDataPanel, AdminPanelHeading } from '@/components/admin/AdminWorkspace'
 import type { CheckItem, ConfigRow, DetectedMeta, DiscoverNovel, BatchEntry, BatchState } from './types'
 import { scrapePost, parseCategories, po18CoverFallback } from './utils'
 import JobQueue from './center/JobQueue'
@@ -544,7 +544,7 @@ export default function CenterView() {
           {activeCandidate && (
             <div ref={setupRef}>
               {setupState === 'loading' && (
-                <section className="admin-panel-card scrape-setup-state" role="status">
+                <section className="scrape-setup-state" role="status">
                   <div className="scrape-setup-state__icon">
                     <Archive aria-hidden="true" />
                   </div>
@@ -555,7 +555,7 @@ export default function CenterView() {
                 </section>
               )}
               {setupState === 'error' && (
-                <section className="admin-panel-card scrape-setup-state is-error" role="alert">
+                <section className="scrape-setup-state is-error" role="alert">
                   <div>
                     <strong>这本书暂时无法继续</strong>
                     <span>{activeCandidate.error}</span>
@@ -595,29 +595,21 @@ export default function CenterView() {
             </div>
           )}
 
-          <Card className="scrape-config-card">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
+          <AdminDataPanel className="scrape-config-card" ariaLabel="配置迁移">
+            <AdminPanelHeading title="配置迁移" description="导出或导入所有小说的章节选择器，换设备时可以继续使用。" />
+            <div className="scrape-config-card__actions">
+              <Button variant="secondary" size="sm" onClick={() => void exportConfigs()}>
                 <Download aria-hidden="true" />
-                配置迁移
-              </CardTitle>
-              <CardDescription>导出或导入所有小说的章节选择器，换设备时可以继续使用。</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="scrape-config-card__actions">
-                <Button variant="secondary" size="sm" onClick={() => void exportConfigs()}>
-                  <Download aria-hidden="true" />
-                  导出配置
-                </Button>
-                <Button variant="secondary" size="sm" onClick={() => configFileRef.current?.click()}>
-                  <FileUp aria-hidden="true" />
-                  导入配置
-                </Button>
-                <input ref={configFileRef} type="file" accept=".json" hidden onChange={(event) => void handleConfigFileSelected(event)} />
-                <span aria-live="polite">{configImportStatus}</span>
-              </div>
-            </CardContent>
-          </Card>
+                导出配置
+              </Button>
+              <Button variant="secondary" size="sm" onClick={() => configFileRef.current?.click()}>
+                <FileUp aria-hidden="true" />
+                导入配置
+              </Button>
+              <input ref={configFileRef} type="file" accept=".json" hidden onChange={(event) => void handleConfigFileSelected(event)} />
+              <span aria-live="polite">{configImportStatus}</span>
+            </div>
+          </AdminDataPanel>
         </main>
 
         <JobQueue

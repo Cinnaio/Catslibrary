@@ -3,7 +3,7 @@ import CustomSelect from '@/components/admin/CustomSelect'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { AdminPanelHeading } from '@/components/admin/AdminWorkspace'
+import { AdminDataPanel, AdminPanelHeading } from '@/components/admin/AdminWorkspace'
 import { PO18_SITES } from '../utils'
 
 export type IntakeMode = 'link' | 'search' | 'ranking'
@@ -48,7 +48,7 @@ export default function ScrapeIntake({
   onSubmit,
 }: ScrapeIntakeProps) {
   return (
-    <section className="admin-panel-card scrape-intake" aria-labelledby="scrape-intake-title">
+    <AdminDataPanel className="scrape-intake" ariaLabel="抓取入口">
       <AdminPanelHeading
         className="scrape-intake__heading"
         title={<span id="scrape-intake-title">从哪里开始？</span>}
@@ -153,6 +153,6 @@ export default function ScrapeIntake({
           </div>
         )}
       </div>
-    </section>
+    </AdminDataPanel>
   )
 }

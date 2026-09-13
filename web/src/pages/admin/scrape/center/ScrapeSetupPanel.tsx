@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { AdminPanelHeading } from '@/components/admin/AdminWorkspace'
+import { AdminDataPanel, AdminPanelHeading } from '@/components/admin/AdminWorkspace'
 import type { CheckItem, ConfigRow, DiscoverNovel } from '../types'
 import ScrapeChecks from './ScrapeChecks'
 import type { Selectors, TestResult } from './StepConfig'
@@ -88,7 +88,7 @@ export default function ScrapeSetupPanel({
   const links: Array<{ text?: string; href: string }> = testResult.data?.links || []
 
   return (
-    <section className="admin-panel-card scrape-setup" aria-labelledby="scrape-setup-title">
+    <AdminDataPanel className="scrape-setup" ariaLabel="作品与章节配置">
       <AdminPanelHeading
         className="scrape-setup__heading"
         title={<span id="scrape-setup-title">确认作品并配置章节</span>}
@@ -284,6 +284,6 @@ export default function ScrapeSetupPanel({
         )}
         <ScrapeChecks items={testChecks} />
       </div>
-    </section>
+    </AdminDataPanel>
   )
 }

@@ -3,7 +3,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Progress } from '@/components/ui/progress'
-import { AdminPanelHeading } from '@/components/admin/AdminWorkspace'
+import { AdminDataPanel, AdminPanelHeading } from '@/components/admin/AdminWorkspace'
 import type { BatchState, DiscoverNovel } from '../types'
 import { FALLBACK_COVER, coverOnError } from '../utils'
 
@@ -48,7 +48,7 @@ export default function DiscoveryPanel({
   if (!loading && !error && !info && novels.length === 0 && !batch) return null
 
   return (
-    <section className="admin-panel-card scrape-discovery" aria-labelledby="scrape-discovery-title">
+    <AdminDataPanel className="scrape-discovery" ariaLabel="发现结果">
       <AdminPanelHeading
         className="scrape-discovery__heading"
         title={<span id="scrape-discovery-title">发现结果</span>}
@@ -187,6 +187,6 @@ export default function DiscoveryPanel({
           )}
         </div>
       )}
-    </section>
+    </AdminDataPanel>
   )
 }

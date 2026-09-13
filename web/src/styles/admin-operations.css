@@ -6538,45 +6538,61 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   }
 }
 
-/* 抓取中心与小说/章节管理共享同一套“页面标题 → 标准面板 → 内容”的节奏。
-   这里保留抓取工作台的双栏能力，但去掉展示型渐变和多层嵌套卡片，
-   让入口、发现结果、作品配置和任务队列都落在同一条面板基线上。 */
-.admin-redesign-page--scrape .scrape-center {
+/* 抓取中心完全复用小说管理的页面契约：标题栏无底线，内容以标准面板为单位，
+   面板标题、工具栏和连续列表共享同一条水平基线。抓取流程仍按入口 → 发现 →
+   配置 → 队列排列，但不再使用右侧工作台和嵌套卡片制造另一套视觉。 */
+.admin-redesign-page--scrape > .admin-tab-header {
+  margin-bottom: 0.25rem;
+  border-bottom: 0;
+}
+
+.admin-redesign-page--scrape .scrape-center,
+.admin-redesign-page--scrape .scrape-center__main {
+  display: grid;
   gap: 1rem;
 }
 
 .admin-redesign-page--scrape .scrape-center__layout {
-  grid-template-columns: minmax(0, 1fr) minmax(20rem, 24rem);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 1rem;
 }
 
-.admin-redesign-page--scrape .scrape-center__main {
-  gap: 1rem;
-}
-
-.admin-redesign-page--scrape :is(.scrape-intake, .scrape-discovery, .scrape-setup) {
+.admin-redesign-page--scrape :is(.scrape-intake, .scrape-discovery, .scrape-setup, .scrape-workbench__aside, .scrape-config-card) {
   display: grid;
   gap: 0;
   overflow: hidden;
+  min-width: 0;
   padding: 0;
-  border: 1px solid var(--admin-border);
+  border: 0;
   border-radius: var(--radius-xl);
   background: var(--admin-panel);
   box-shadow: none;
 }
 
-.admin-redesign-page--scrape .scrape-intake__tabs {
+.admin-redesign-page--scrape .scrape-intake__tabs,
+.admin-redesign-page--scrape .scrape-intake__form {
   width: auto;
-  margin: 1rem 1.25rem 0;
+  margin-inline: 1.25rem;
+}
+
+.admin-redesign-page--scrape .scrape-intake__tabs {
+  margin-top: 1rem;
 }
 
 .admin-redesign-page--scrape .scrape-intake__form {
-  margin: 0 1.25rem 1.25rem;
+  margin-bottom: 1.25rem;
 }
 
 .admin-redesign-page--scrape .scrape-discovery > .scrape-discovery__loading,
+.admin-redesign-page--scrape .scrape-discovery > .scrape-discovery__empty,
+.admin-redesign-page--scrape .scrape-discovery > .scrape-discovery__list,
+.admin-redesign-page--scrape .scrape-discovery > .scrape-batch {
+  margin: 1rem 1.25rem 0;
+}
+
 .admin-redesign-page--scrape .scrape-discovery > .scrape-discovery__empty {
-  margin: 1rem 1.25rem 1.25rem;
+  margin-bottom: 1.25rem;
 }
 
 .admin-redesign-page--scrape .scrape-discovery > .scrape-discovery__toolbar {
@@ -6586,46 +6602,76 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 }
 
 .admin-redesign-page--scrape .scrape-discovery > .scrape-discovery__list {
-  margin: 1rem 1.25rem 1.25rem;
+  overflow: visible;
+  margin-top: 1rem;
+  margin-bottom: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
-.admin-redesign-page--scrape .scrape-discovery > .scrape-discovery__pagination,
-.admin-redesign-page--scrape .scrape-discovery > .scrape-batch {
-  margin-inline: 1.25rem;
+.admin-redesign-page--scrape .scrape-discovery__row {
+  padding: 1rem 0;
+  border-color: var(--admin-border);
+}
+
+.admin-redesign-page--scrape .scrape-discovery__row:first-child {
+  border-top: 1px solid var(--admin-border);
+}
+
+.admin-redesign-page--scrape .scrape-discovery__row:last-child {
+  border-bottom: 1px solid var(--admin-border);
+}
+
+.admin-redesign-page--scrape .scrape-discovery__cover,
+.admin-redesign-page--scrape .scrape-setup__cover {
+  border: 1px solid var(--admin-border);
+  background: var(--admin-inset);
 }
 
 .admin-redesign-page--scrape .scrape-discovery > .scrape-discovery__pagination {
+  justify-content: flex-end;
+  margin: 1rem 1.25rem 1.25rem;
+}
+
+.admin-redesign-page--scrape .scrape-discovery > .scrape-batch {
   margin-bottom: 1.25rem;
 }
 
+.admin-redesign-page--scrape .scrape-setup > .scrape-setup__book,
+.admin-redesign-page--scrape .scrape-setup > .scrape-setup__fields,
+.admin-redesign-page--scrape .scrape-setup > .scrape-setup__save-row {
+  margin-inline: 1.25rem;
+}
+
 .admin-redesign-page--scrape .scrape-setup > .scrape-setup__book {
-  margin: 1rem 1.25rem 0;
+  margin-top: 1rem;
+  padding: 0 0 1rem;
+  border: 0;
+  border-bottom: 1px solid var(--admin-border);
+  border-radius: 0;
+  background: transparent;
 }
 
 .admin-redesign-page--scrape .scrape-setup > .scrape-setup__fields {
-  margin: 1rem 1.25rem 0;
+  margin-top: 1rem;
 }
 
 .admin-redesign-page--scrape .scrape-setup > .scrape-setup__save-row {
-  margin: 1rem 1.25rem 0;
-  padding-bottom: 1rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  padding-bottom: 0;
 }
 
 .admin-redesign-page--scrape .scrape-setup > .scrape-setup__config {
-  margin: 0;
+  margin-top: 1rem;
   padding: 1rem 1.25rem 1.25rem;
+  border-top: 1px solid var(--admin-border);
   background: var(--admin-panel-muted);
 }
 
 .admin-redesign-page--scrape .scrape-workbench__aside {
-  display: grid;
-  gap: 0;
-  overflow: hidden;
-  padding: 0;
-  border: 1px solid var(--admin-border);
-  border-radius: var(--radius-xl);
-  background: var(--admin-panel);
-  box-shadow: none;
+  position: static;
 }
 
 .admin-redesign-page--scrape .scrape-workbench__count {
@@ -6647,9 +6693,10 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 }
 
 .admin-redesign-page--scrape .scrape-job {
+  padding: 1rem 1.25rem;
   border: 0;
   border-radius: 0;
-  padding: 1rem 1.25rem;
+  background: var(--admin-panel);
 }
 
 .admin-redesign-page--scrape .scrape-job + .scrape-job {
@@ -6660,20 +6707,17 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   margin: 1rem 1.25rem 1.25rem;
 }
 
-@media (max-width: 1100px) {
-  .admin-redesign-page--scrape .scrape-center__layout {
-    grid-template-columns: minmax(0, 1fr) 18rem;
-  }
+.admin-redesign-page--scrape .scrape-setup-state {
+  min-width: 0;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--radius-xl);
+  background: var(--admin-panel);
 }
 
-@media (max-width: 900px) {
-  .admin-redesign-page--scrape .scrape-center__layout {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .admin-redesign-page--scrape .scrape-job-queue {
-    grid-template-columns: minmax(0, 1fr);
-  }
+.admin-redesign-page--scrape .scrape-config-card__actions {
+  margin: 0;
+  padding: 1rem 1.25rem 1.25rem;
 }
 
 @media (max-width: 640px) {
@@ -6686,7 +6730,8 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   .admin-redesign-page--scrape .scrape-discovery > .scrape-discovery__pagination,
   .admin-redesign-page--scrape .scrape-setup > .scrape-setup__book,
   .admin-redesign-page--scrape .scrape-setup > .scrape-setup__fields,
-  .admin-redesign-page--scrape .scrape-setup > .scrape-setup__save-row {
+  .admin-redesign-page--scrape .scrape-setup > .scrape-setup__save-row,
+  .admin-redesign-page--scrape .scrape-config-card__actions {
     margin-inline: 1rem;
   }
 
@@ -6695,7 +6740,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   }
 
   .admin-redesign-page--scrape .scrape-workbench__aside .admin-panel-heading,
-  .admin-redesign-page--scrape .scrape-workbench__aside .scrape-job {
+  .admin-redesign-page--scrape .scrape-job {
     padding-inline: 1rem;
   }
 
