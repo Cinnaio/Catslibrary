@@ -31,6 +31,7 @@
      三者并排时圆弧一致 */
   --admin-input-radius: 12px;
   --admin-button-radius: 12px;
+  --admin-motion-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 /* 深色主题：--admin-* 大多数由 color-mix 从语义色派生，会自动跟随 [data-theme="dark"]；
@@ -3500,6 +3501,157 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   box-shadow: none;
 }
 
+/* 小说、章节、审核三个高频 tab 的动效试点：只表达进入与状态反馈，不参与布局计算。 */
+@keyframes admin-tab-surface-enter {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes admin-tab-row-enter {
+  from {
+    opacity: 0;
+    transform: translateY(0.375rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes admin-tab-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.admin-redesign-page--novels > .admin-data-panel,
+.admin-redesign-page--chapters .chapter-directory-panel,
+.admin-redesign-page--moderation > .moderation-toolbar,
+.admin-redesign-page--moderation > .admin-data-panel {
+  animation: admin-tab-surface-enter 220ms var(--admin-motion-ease-out) both;
+}
+
+.admin-redesign-page--novels > .admin-data-panel {
+  animation-delay: 40ms;
+}
+
+.admin-redesign-page--chapters .chapter-directory-panel {
+  animation-delay: 40ms;
+}
+
+.admin-redesign-page--moderation > .admin-toolbar {
+  animation-delay: 30ms;
+}
+
+.admin-redesign-page--moderation > .admin-data-panel {
+  animation-delay: 70ms;
+}
+
+.admin-redesign-page--novels .admin-toolbar__batch {
+  animation: admin-tab-surface-enter 180ms var(--admin-motion-ease-out) both;
+}
+
+:is(.admin-redesign-page--novels, .admin-redesign-page--chapters, .admin-redesign-page--moderation)
+  [data-slot='table-body']
+  > [data-slot='table-row']:nth-child(-n + 8) {
+  animation: admin-tab-row-enter 180ms var(--admin-motion-ease-out) both;
+}
+
+:is(.admin-redesign-page--novels, .admin-redesign-page--chapters, .admin-redesign-page--moderation)
+  [data-slot='table-body']
+  > [data-slot='table-row']:nth-child(1) {
+  animation-delay: 30ms;
+}
+
+:is(.admin-redesign-page--novels, .admin-redesign-page--chapters, .admin-redesign-page--moderation)
+  [data-slot='table-body']
+  > [data-slot='table-row']:nth-child(2) {
+  animation-delay: 60ms;
+}
+
+:is(.admin-redesign-page--novels, .admin-redesign-page--chapters, .admin-redesign-page--moderation)
+  [data-slot='table-body']
+  > [data-slot='table-row']:nth-child(3) {
+  animation-delay: 90ms;
+}
+
+:is(.admin-redesign-page--novels, .admin-redesign-page--chapters, .admin-redesign-page--moderation)
+  [data-slot='table-body']
+  > [data-slot='table-row']:nth-child(4) {
+  animation-delay: 120ms;
+}
+
+:is(.admin-redesign-page--novels, .admin-redesign-page--chapters, .admin-redesign-page--moderation)
+  [data-slot='table-body']
+  > [data-slot='table-row']:nth-child(5) {
+  animation-delay: 150ms;
+}
+
+:is(.admin-redesign-page--novels, .admin-redesign-page--chapters, .admin-redesign-page--moderation)
+  [data-slot='table-body']
+  > [data-slot='table-row']:nth-child(6) {
+  animation-delay: 180ms;
+}
+
+:is(.admin-redesign-page--novels, .admin-redesign-page--chapters, .admin-redesign-page--moderation)
+  [data-slot='table-body']
+  > [data-slot='table-row']:nth-child(7) {
+  animation-delay: 210ms;
+}
+
+:is(.admin-redesign-page--novels, .admin-redesign-page--chapters, .admin-redesign-page--moderation)
+  [data-slot='table-body']
+  > [data-slot='table-row']:nth-child(8) {
+  animation-delay: 240ms;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .admin-redesign-page--novels .admin-tab-header__actions > [data-slot='button'],
+  .admin-redesign-page--chapters .admin-tab-header__actions > [data-slot='button'],
+  .admin-redesign-page--chapters .chapter-toolbar [data-slot='button'],
+  .admin-redesign-page--moderation .admin-tab-header__actions > [data-slot='button'],
+  .admin-redesign-page--novels .admin-toolbar__batch-actions > [data-slot='button'] {
+    transition:
+      transform 150ms ease,
+      background-color 150ms ease,
+      border-color 150ms ease,
+      box-shadow 150ms ease;
+  }
+
+  .admin-redesign-page--novels .admin-tab-header__actions > [data-slot='button']:hover:not(:disabled),
+  .admin-redesign-page--chapters .admin-tab-header__actions > [data-slot='button']:hover:not(:disabled),
+  .admin-redesign-page--chapters .chapter-toolbar [data-slot='button']:hover:not(:disabled),
+  .admin-redesign-page--moderation .admin-tab-header__actions > [data-slot='button']:hover:not(:disabled),
+  .admin-redesign-page--novels .admin-toolbar__batch-actions > [data-slot='button']:hover:not(:disabled) {
+    transform: translateY(-1px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-redesign-page--novels > .admin-data-panel,
+  .admin-redesign-page--chapters .chapter-directory-panel,
+  .admin-redesign-page--moderation > .admin-toolbar,
+  .admin-redesign-page--moderation > .admin-data-panel,
+  .admin-redesign-page--novels .admin-toolbar__batch {
+    animation: admin-tab-fade 140ms var(--admin-motion-ease-out) both;
+  }
+
+  :is(.admin-redesign-page--novels, .admin-redesign-page--chapters, .admin-redesign-page--moderation)
+    [data-slot='table-body']
+    > [data-slot='table-row']:nth-child(-n + 8) {
+    animation: none;
+  }
+}
+
 .admin-layout [data-slot='button'] {
   min-height: var(--admin-control-height);
 }
@@ -4561,24 +4713,33 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   margin-right: 0.25rem;
 }
 
-/* 批量操作独立成第二行，用分隔线区隔，避免挤压搜索框 */
+/* 选中作品后显示紧凑的状态操作条，贴着表头并与面板内容保持同一条对齐线。 */
 .admin-toolbar__batch {
   display: flex;
+  min-height: 3.25rem;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 0.75rem;
   width: 100%;
-  margin-top: 0.75rem;
-  padding-top: 0.75rem;
-  border-top: 1px solid var(--admin-border);
+  padding: 0.5rem 1.25rem;
+  border-bottom: 1px solid var(--admin-border);
+  background: color-mix(in srgb, var(--accent-subtle) 24%, var(--admin-panel));
 }
 
 .admin-toolbar__batch-count {
+  display: inline-flex;
+  min-height: 1.75rem;
+  align-items: center;
   flex: 0 0 auto;
-  color: var(--text-secondary);
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--admin-border));
+  border-radius: var(--radius-full);
+  background: var(--admin-panel);
+  padding: 0.2rem 0.6rem;
+  color: var(--accent-hover);
   font-size: 0.75rem;
   font-variant-numeric: tabular-nums;
+  font-weight: 650;
   white-space: nowrap;
 }
 
@@ -5229,6 +5390,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   .admin-toolbar__batch {
     flex-direction: column;
     align-items: stretch;
+    padding-inline: 0.75rem;
   }
 
   .admin-toolbar__batch-actions {
