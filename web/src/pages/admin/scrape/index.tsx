@@ -15,7 +15,7 @@ type ScrapeView = (typeof SCRAPE_VIEWS)[number]
 const SCRAPE_VIEW_META: Record<ScrapeView, { title: string; description: string }> = {
   center: { title: '抓取中心', description: '从链接、搜索或榜单进入，完成作品确认、章节校验和任务追踪。' },
   sources: { title: '书源管理', description: '导入、筛选、检测并维护可用于抓取的书源规则。' },
-  proxy: { title: '代理设置', description: '配置出站代理、检查路由并查看最近的请求记录。' },
+  proxy: { title: '代理设置', description: '配置出站代理、站点访问凭据，检查路由并查看最近的请求记录。' },
 }
 
 export default function ScrapeTab(_props: { highlightNovelId?: string; onHighlightConsumed?: () => void }) {

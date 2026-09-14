@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import Po18AccountPanel from './Po18AccountPanel'
 
 type ProxyConfig = { proxyBase: string; proxyBypass: string }
 type ProxySource = 'environment' | 'runtime' | 'none'
@@ -225,6 +226,8 @@ export default function ProxyView() {
           )}
         </CardContent>
       </Card>
+
+      <Po18AccountPanel active />
 
       <Card className="admin-panel-card proxy-test-panel">
         <CardHeader>

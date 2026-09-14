@@ -20,7 +20,6 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import CustomSelect from '@/components/admin/CustomSelect'
 import type { SourceRow } from './types'
 import { connectivityBadge, scrapePost, supportBadge } from './utils'
-import Po18AccountPanel from './Po18AccountPanel'
 
 export default function SourcesView({ active }: { active: boolean }) {
   const { toast } = useToast()
@@ -363,8 +362,6 @@ export default function SourcesView({ active }: { active: boolean }) {
           </>
         }
       />
-
-      <Po18AccountPanel active={active} />
 
       {/* Import card */}
       <div id="source-import-panel" className="source-workspace">
