@@ -83,8 +83,20 @@
   --admin-table-action-size-mobile:   2.75rem;
   --admin-table-icon-size:            1.125rem;
   --admin-table-icon-size-mobile:     1.25rem;
+  --admin-table-mobile-card-radius:   var(--radius-lg);
+  --admin-table-mobile-stack-gap:     0px;
+  --admin-table-mobile-stack-divider: var(--admin-table-border);
   --admin-table-sort-gap:             0.5rem;
   --admin-table-sort-caret-size:      0.875rem;
+
+  /* Admin dialogs — narrow-screen container and action-bar contract. */
+  --admin-dialog-mobile-max-height:       min(47.5rem, calc(100svh - 4rem));
+  --admin-dialog-mobile-footer-direction: row;
+  --admin-dialog-mobile-footer-wrap:      nowrap;
+  --admin-dialog-mobile-footer-gap:       0.5rem;
+  --admin-dialog-mobile-footer-padding:   0.75rem;
+  --admin-dialog-mobile-action-min-width: 4.5rem;
+  --admin-dialog-mobile-action-min-height: 2.75rem;
 
   /* Admin surfaces — derived from the shared palette so they follow theme.
      Defined on :root (public pages never reference them). */

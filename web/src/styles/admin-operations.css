@@ -4046,7 +4046,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   }
   .ai-generations-table tbody {
     display: grid;
-    gap: 0;
+    gap: var(--admin-table-mobile-stack-gap);
   }
   .ai-generations-table tbody tr.ai-generation-row:not(.ai-generation-row--child) {
     display: grid;
@@ -5897,6 +5897,24 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
     padding: 0 1rem 1.25rem;
   }
 
+  /* 放在通用移动端 footer 重置之后，确保小说编辑窗口的 token 不被覆盖：
+     正文仍可滚动，但窗口不占满视口，保存与取消始终保持同一行。 */
+  [data-slot='dialog-content'].novel-editor-dialog {
+    max-height: var(--admin-dialog-mobile-max-height);
+  }
+
+  .novel-editor-dialog [data-slot='dialog-footer'] {
+    flex-direction: var(--admin-dialog-mobile-footer-direction);
+    flex-wrap: var(--admin-dialog-mobile-footer-wrap);
+    gap: var(--admin-dialog-mobile-footer-gap);
+    padding-block: var(--admin-dialog-mobile-footer-padding);
+  }
+
+  .novel-editor-dialog [data-slot='dialog-footer'] [data-slot='button'] {
+    min-width: var(--admin-dialog-mobile-action-min-width);
+    min-height: var(--admin-dialog-mobile-action-min-height);
+  }
+
   .chapter-editor-dialog [data-slot='dialog-header'],
   .chapter-merge-dialog [data-slot='dialog-header'] {
     padding-block: var(--admin-space-4);
@@ -6602,8 +6620,8 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 
   .admin-data-panel--grid tbody {
     display: grid;
-    /* 卡片间距保持大于字段行距，但收紧首卡顶部与卡片之间的留白。 */
-    gap: 0.75rem;
+    /* 移动端改为连续数据带：首行贴合标题区，行间不留白，末行再以底部弧线收束。 */
+    gap: var(--admin-table-mobile-stack-gap);
   }
 
   .admin-data-panel--grid tbody tr {
@@ -6613,13 +6631,30 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
        分类标签因此纵向堆叠把卡片撑到 126px 高。 */
     grid-template-columns: minmax(0, 1fr);
     align-items: start;
-    /* 字段行距 0.375rem：0.25rem 时含徽章的行之间只剩 3-4px，视觉粘连；
-       同时需显著小于卡片间距 1rem，才能保持「组内紧、组间松」。 */
+    /* 字段行距保持紧凑；卡片之间的间距由 tbody 的连续列表 token 单独控制。 */
     gap: 0.25rem;
     padding: 0.5rem 1rem;
-    border: 1px solid var(--admin-table-border);
-    border-radius: var(--radius-lg);
+    /* 相邻行共享一条边界线；只有最后一行保留底部圆角，避免卡片之间出现
+       空白缝隙或重复的圆弧。 */
+    border: 0;
+    border-top: 1px solid var(--admin-table-mobile-stack-divider);
+    border-radius: 0;
     background: var(--admin-panel);
+  }
+
+  .admin-data-panel--grid tbody tr + tr {
+    border-top: 1px solid var(--admin-table-mobile-stack-divider);
+  }
+
+  .admin-data-panel--grid tbody tr:last-child {
+    border-bottom: 1px solid var(--admin-table-mobile-stack-divider);
+    border-bottom-left-radius: var(--admin-table-mobile-card-radius);
+    border-bottom-right-radius: var(--admin-table-mobile-card-radius);
+  }
+
+  /* 标题区本身已经有底部分隔线，首行不再重复绘制顶线，避免出现粗分割线。 */
+  .admin-data-panel--grid tbody tr:first-child {
+    border-top: 0;
   }
 
   .admin-data-panel--grid tbody td {
@@ -6685,7 +6720,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
     grid-template-columns: minmax(0, 1fr);
     margin-top: 0.125rem;
     padding-top: 0.5rem;
-    border-top: 1px solid var(--admin-table-border);
+    border-top: 1px solid var(--admin-table-mobile-stack-divider);
   }
 
   .admin-data-panel--grid tbody td[data-actions]::before {

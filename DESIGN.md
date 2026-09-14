@@ -222,6 +222,9 @@ components:
 - **Destructive:** 危险红背景 + 白色文字，用于删除操作
 - **Hover / Focus:** 背景色加深一档，focus 显示 4px 暖色光晕（rgba(139,96,69,0.24)）
 
+### Dialogs
+- **Mobile Editor:** 窄屏小说编辑窗口使用 `--admin-dialog-mobile-max-height` 收紧高度；底部操作区通过 `--admin-dialog-mobile-footer-*` 保持保存/取消同一行、不换行，并用 `--admin-dialog-mobile-action-min-*` 保留触控尺寸。
+
 ### Segmented Tabs
 - **Track:** 外框 12px（`--tabs-segmented-radius`），内缩和分隔间距 3px（`--tabs-segmented-inset` / `--tabs-segmented-gap`），轨道边框和底色使用消费方语义 token。
 - **Active Surface:** 激活表面 9px（`--tabs-segmented-inner-radius`），使用消费方的 surface 与 `--tabs-segmented-active-shadow`；未选中和选中文字分别使用 `--tabs-segmented-muted-foreground` / `--tabs-segmented-active-foreground`。
@@ -250,6 +253,7 @@ components:
 ### Table
 - **Admin Surface:** `AdminDataPanel` 是无外框、白色纸面，使用 20px 外圆角（`--admin-table-panel-radius`）；标题区与表格共享同一块纸面。
 - **Table Contract:** 表头、行分隔线、hover 背景和行高分别从 `--admin-table-header-*`、`--admin-table-border`、`--admin-table-row-hover-background`、`--admin-table-row-height` 读取；桌面端列宽仍由 `--col-N-w` 控制，900px 以下折成卡片。
+- **Mobile Stack:** 移动端使用 `--admin-table-mobile-stack-gap` 保持行间距为 0，行不绘制左右外部描线；首行取消顶线以接续标题区，内部行只保留单条 `--admin-table-mobile-stack-divider` 水平分隔，末行使用 `--admin-table-mobile-card-radius` 的底部圆角收束。
 - **Data Details:** 分类标签间距使用 `--admin-table-tag-gap`，行操作区使用 `--admin-table-action-*`，排序按钮使用 `--admin-table-sort-*`；删除仅在 hover 时进入危险色。
 - **Motion:** 面板进入使用 `--admin-table-surface-enter` + offset，前 8 行使用 `--admin-table-row-enter` + `--admin-table-row-stagger-step` 依次出现；行、排序箭头、图标按钮的状态反馈使用 `--admin-table-row-interaction`。`prefers-reduced-motion: reduce` 下取消行位移动效，仅保留短淡入。
 - **Legacy Wrapper:** 仍存在的 `.table-wrapper` 是旧版表格容器，保持 10px `--admin-radius`；新后台数据表格统一走上述 `AdminDataPanel` 契约。
