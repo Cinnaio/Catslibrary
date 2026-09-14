@@ -31,7 +31,7 @@
      三者并排时圆弧一致 */
   --admin-input-radius: 12px;
   --admin-button-radius: 12px;
-  --admin-motion-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --admin-motion-ease-out: var(--ease-out);
 }
 
 /* 2026 子 tab 统一层：新迁移页面共用范本的纸面层次，页面专属规则只负责
@@ -301,7 +301,7 @@
   content: '';
   pointer-events: none;
   transform: translateX(0);
-  transition: transform 180ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: transform var(--tabs-segmented-transition);
 }
 
 .scrape-intake__tabs > [data-slot='tabs-list'][data-active-index='1']::before {
@@ -1175,6 +1175,10 @@
   .scrape-skeleton-row,
   .scrape-setup-state__icon svg {
     animation: none;
+  }
+
+  .scrape-intake__tabs > [data-slot='tabs-list'] {
+    --tabs-segmented-duration: 0.001ms;
   }
 
   .scrape-discovery__row,
@@ -5160,58 +5164,64 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 
 /* 审核类型是高频的分段切换：只移动激活背景，文字和周围筛选控件保持原位。 */
 .admin-redesign-page--moderation .moderation-toolbar__modes [data-slot='tabs-list'] {
-  --moderation-tabs-inset: 0.1875rem;
-  --moderation-tabs-inner-radius: calc(var(--admin-button-radius) - var(--moderation-tabs-inset));
+  --tabs-segmented-track-background: var(--admin-panel-muted);
+  --tabs-segmented-track-border: var(--admin-border);
+  --tabs-segmented-active-background: var(--admin-panel);
   position: relative;
   isolation: isolate;
   width: 100%;
-  border-radius: var(--admin-button-radius);
+  gap: var(--tabs-segmented-gap);
+  border: 1px solid var(--tabs-segmented-track-border);
+  border-radius: var(--tabs-segmented-radius);
+  padding: var(--tabs-segmented-inset);
+  background: var(--tabs-segmented-track-background);
 }
 
 .admin-redesign-page--moderation .moderation-toolbar__modes [data-slot='tabs-trigger'] {
-  border-radius: var(--moderation-tabs-inner-radius);
+  border-radius: var(--tabs-segmented-inner-radius);
+  color: var(--tabs-segmented-muted-foreground);
 }
 
 .admin-redesign-page--moderation .moderation-toolbar__modes [data-slot='tabs-list']::before {
   position: absolute;
   z-index: 0;
-  inset: var(--moderation-tabs-inset) auto var(--moderation-tabs-inset) var(--moderation-tabs-inset);
+  inset: var(--tabs-segmented-inset) auto var(--tabs-segmented-inset) var(--tabs-segmented-inset);
   width: calc((100% - 0.75rem) / 3);
-  border-radius: var(--moderation-tabs-inner-radius);
-  background: var(--admin-panel);
-  box-shadow: var(--shadow);
+  border-radius: var(--tabs-segmented-inner-radius);
+  background: var(--tabs-segmented-active-background);
+  box-shadow: var(--tabs-segmented-active-shadow);
   content: '';
   pointer-events: none;
   transform: translateX(0);
-  transition: transform 180ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: transform var(--tabs-segmented-transition);
 }
 
 .admin-redesign-page--moderation .moderation-toolbar__modes [data-slot='tabs-list'][data-active-index='1']::before {
-  transform: translateX(calc(100% + 0.1875rem));
+  transform: translateX(calc(100% + var(--tabs-segmented-gap)));
 }
 
 .admin-redesign-page--moderation .moderation-toolbar__modes [data-slot='tabs-list'][data-active-index='2']::before {
-  transform: translateX(calc(200% + 0.375rem));
+  transform: translateX(calc(200% + var(--tabs-segmented-gap) + var(--tabs-segmented-gap)));
 }
 
 .admin-redesign-page--moderation .moderation-toolbar__modes [data-slot='tabs-trigger'] {
   z-index: 1;
   background: transparent;
   transition:
-    color 180ms cubic-bezier(0.23, 1, 0.32, 1),
-    border-color 180ms cubic-bezier(0.23, 1, 0.32, 1);
+    color var(--tabs-segmented-transition),
+    border-color var(--tabs-segmented-transition);
 }
 
 .admin-redesign-page--moderation .moderation-toolbar__modes [data-slot='tabs-trigger'][data-state='active'] {
   background: transparent;
   box-shadow: none;
-  color: var(--accent-hover);
+  color: var(--tabs-segmented-active-foreground);
 }
 
 @media (prefers-reduced-motion: reduce) {
   .admin-redesign-page--moderation .moderation-toolbar__modes [data-slot='tabs-list']::before,
   .admin-redesign-page--moderation .moderation-toolbar__modes [data-slot='tabs-trigger'] {
-    transition-duration: 0.001ms;
+    --tabs-segmented-duration: 0.001ms;
   }
 }
 

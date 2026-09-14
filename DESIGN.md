@@ -199,7 +199,7 @@ components:
 
 ## Shapes
 
-圆角策略温和而一致：公共控件 6px（--radius-sm），shadcn 控件 8px（--radius），管理后台控件 12px（--admin-button-radius / --admin-input-radius，与 tabs 药丸的 rounded-lg 对齐），卡片 10px（--radius-md），后台大面板 20px（--radius-2xl），对话框 16px（--admin-radius-dialog / --radius-xl）。
+圆角策略温和而一致：公共控件 6px（--radius-sm），shadcn 控件 8px（--radius），管理后台控件 12px（--admin-button-radius / --admin-input-radius，与 tabs 药丸的 rounded-lg 对齐），卡片 10px（--radius-md），后台大面板 20px（--radius-2xl），对话框 16px（--admin-radius-dialog / --radius-xl）。分段 Tabs 另有明确的内外弧线契约：外框 12px、3px 内缩、激活表面 9px，统一由 `--tabs-segmented-*` token 提供。
 
 - **公共控件圆角 (6px)**: 公共页按钮、输入框、标签、复选框——足够圆润但不接近圆形，像文具的倒角。
 - **shadcn 控件圆角 (8px)**: shadcn/ui 组件（button/input/dialog 基类）默认 8px。
@@ -221,6 +221,11 @@ components:
 - **Ghost:** 透明背景 + 次要文字色，用于图标按钮（表格行操作）
 - **Destructive:** 危险红背景 + 白色文字，用于删除操作
 - **Hover / Focus:** 背景色加深一档，focus 显示 4px 暖色光晕（rgba(139,96,69,0.24)）
+
+### Segmented Tabs
+- **Track:** 外框 12px（`--tabs-segmented-radius`），内缩和分隔间距 3px（`--tabs-segmented-inset` / `--tabs-segmented-gap`），轨道边框和底色使用消费方语义 token。
+- **Active Surface:** 激活表面 9px（`--tabs-segmented-inner-radius`），使用消费方的 surface 与 `--tabs-segmented-active-shadow`；未选中和选中文字分别使用 `--tabs-segmented-muted-foreground` / `--tabs-segmented-active-foreground`。
+- **Motion:** 激活表面只用 `transform` 移动，不触发布局重排；时长、曲线和复合写法统一从 `--tabs-segmented-duration`、`--tabs-segmented-ease`、`--tabs-segmented-transition` 读取。默认是 180ms ease-out，必须在 `prefers-reduced-motion: reduce` 下将时长压到近乎 0。
 
 ### Cards
 - **Corner Style:** 圆角 10px（--admin-radius）

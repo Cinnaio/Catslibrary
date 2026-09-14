@@ -42,6 +42,23 @@
   --radius-xl:        16px;   /* nested surfaces / dialogs */
   --radius-2xl:       20px;   /* large surfaces / panels */
 
+  /* Segmented Tabs — shared track/active-surface geometry and motion.
+     Surface and foreground tokens may be overridden by the consuming surface;
+     the geometry and transition stay consistent across themes and pages. */
+  --tabs-segmented-inset:             0.1875rem; /* 3px */
+  --tabs-segmented-gap:               var(--tabs-segmented-inset);
+  --tabs-segmented-radius:            var(--radius-lg); /* 12px track */
+  --tabs-segmented-inner-radius:      calc(var(--tabs-segmented-radius) - var(--tabs-segmented-inset)); /* 9px active surface */
+  --tabs-segmented-track-background:  var(--bg-secondary);
+  --tabs-segmented-track-border:      var(--border);
+  --tabs-segmented-active-background:  var(--bg-card);
+  --tabs-segmented-active-shadow:      var(--shadow);
+  --tabs-segmented-muted-foreground:  var(--text-muted);
+  --tabs-segmented-active-foreground: var(--accent-hover);
+  --tabs-segmented-duration:          180ms;
+  --tabs-segmented-ease:              var(--ease-out);
+  --tabs-segmented-transition:        var(--tabs-segmented-duration) var(--tabs-segmented-ease);
+
   /* Admin surfaces — derived from the shared palette so they follow theme.
      Defined on :root (public pages never reference them). */
   --admin-surface: color-mix(in srgb, var(--bg-card) 88%, var(--accent-subtle));
@@ -64,6 +81,7 @@
 
   /* Transition */
   --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 /* Dark theme — moonlit paper */
