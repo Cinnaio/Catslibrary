@@ -2004,11 +2004,17 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 }
 
 .admin-redesign-page [data-slot='card'],
-.admin-redesign-page > .overflow-hidden.rounded-xl.border,
-.admin-redesign-page > .admin-data-panel {
+.admin-redesign-page > .overflow-hidden.rounded-xl.border {
   border: 0;
   border-color: transparent;
   border-radius: var(--radius-2xl);
+  box-shadow: none;
+}
+
+.admin-redesign-page > .admin-data-panel {
+  border: 0;
+  border-color: transparent;
+  border-radius: var(--admin-table-panel-radius);
   box-shadow: none;
 }
 
@@ -2354,7 +2360,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   border-bottom: 1px solid var(--border-light);
 }
 .table-wrapper tbody tr:hover td {
-  background: color-mix(in srgb, var(--accent-subtle) 64%, transparent);
+  background: var(--admin-table-row-hover-background);
 }
 .admin-mono-cell {
   font-family: var(--font-mono);
@@ -2381,13 +2387,14 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   align-items: center;
   /* 箭头与文字留足间隙：此前 0.35rem 配合窄字符宽度，视觉上「标题 ↕」
      会被读成「标题|」 */
-  gap: 0.5rem;
+  gap: var(--admin-table-sort-gap);
   border: 0;
   background: transparent;
   color: inherit;
   font: inherit;
   letter-spacing: inherit;
   text-transform: inherit;
+  transition: color var(--admin-table-row-interaction);
 }
 
 .admin-sort-button:hover,
@@ -2401,12 +2408,12 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 
 .admin-sort-caret {
   /* 定宽定高的图标位：切换三种图标时不因字形宽度不同而抖动 */
-  width: 0.875rem;
-  height: 0.875rem;
+  width: var(--admin-table-sort-caret-size);
+  height: var(--admin-table-sort-caret-size);
   flex: 0 0 auto;
   /* 未激活态降低对比：非当前排序列不应与激活列争抢注意力 */
   opacity: 0.45;
-  transition: opacity 0.15s ease;
+  transition: opacity var(--admin-table-row-interaction);
 }
 
 .admin-sort-button:hover .admin-sort-caret,
@@ -2419,7 +2426,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 }
 
 .novel-row--highlight td {
-  animation: admin-highlight 1.8s ease-out;
+  animation: admin-highlight var(--admin-table-row-highlight);
 }
 @keyframes admin-highlight {
   0% {
@@ -4786,16 +4793,16 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 .admin-data-panel {
   border: 0;
   border-color: transparent;
-  border-radius: var(--radius-2xl);
+  border-radius: var(--admin-table-panel-radius);
   background: var(--admin-panel);
   box-shadow: none;
 }
 
-/* 小说、章节、审核三个高频 tab 的动效试点：只表达进入与状态反馈，不参与布局计算。 */
+/* 管理数据表格的统一动效：只表达进入与状态反馈，不参与布局计算。 */
 @keyframes admin-tab-surface-enter {
   from {
     opacity: 0;
-    transform: translateY(0.5rem);
+    transform: translateY(var(--admin-table-surface-enter-offset));
   }
   to {
     opacity: 1;
@@ -4806,7 +4813,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 @keyframes admin-tab-row-enter {
   from {
     opacity: 0;
-    transform: translateY(0.375rem);
+    transform: translateY(var(--admin-table-row-enter-offset));
   }
   to {
     opacity: 1;
@@ -4827,7 +4834,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 .admin-redesign-page--chapters .chapter-directory-panel,
 .admin-redesign-page--moderation > .moderation-toolbar,
 .admin-redesign-page--moderation > .admin-data-panel {
-  animation: admin-tab-surface-enter 220ms var(--admin-motion-ease-out) both;
+  animation: admin-tab-surface-enter var(--admin-table-surface-enter) both;
 }
 
 .admin-redesign-page--novels > .admin-data-panel {
@@ -4847,61 +4854,61 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 }
 
 .admin-redesign-page--novels .admin-toolbar__batch {
-  animation: admin-tab-surface-enter 180ms var(--admin-motion-ease-out) both;
+  animation: admin-tab-surface-enter var(--admin-table-row-enter) both;
 }
 
 :is(.admin-redesign-page--novels, .admin-redesign-page--chapters, .admin-redesign-page--moderation)
   [data-slot='table-body']
   > [data-slot='table-row']:nth-child(-n + 8) {
-  animation: admin-tab-row-enter 180ms var(--admin-motion-ease-out) both;
+  animation: admin-tab-row-enter var(--admin-table-row-enter) both;
 }
 
 :is(.admin-redesign-page--novels, .admin-redesign-page--chapters, .admin-redesign-page--moderation)
   [data-slot='table-body']
   > [data-slot='table-row']:nth-child(1) {
-  animation-delay: 30ms;
+  animation-delay: calc(var(--admin-table-row-stagger-step) * 1);
 }
 
 :is(.admin-redesign-page--novels, .admin-redesign-page--chapters, .admin-redesign-page--moderation)
   [data-slot='table-body']
   > [data-slot='table-row']:nth-child(2) {
-  animation-delay: 60ms;
+  animation-delay: calc(var(--admin-table-row-stagger-step) * 2);
 }
 
 :is(.admin-redesign-page--novels, .admin-redesign-page--chapters, .admin-redesign-page--moderation)
   [data-slot='table-body']
   > [data-slot='table-row']:nth-child(3) {
-  animation-delay: 90ms;
+  animation-delay: calc(var(--admin-table-row-stagger-step) * 3);
 }
 
 :is(.admin-redesign-page--novels, .admin-redesign-page--chapters, .admin-redesign-page--moderation)
   [data-slot='table-body']
   > [data-slot='table-row']:nth-child(4) {
-  animation-delay: 120ms;
+  animation-delay: calc(var(--admin-table-row-stagger-step) * 4);
 }
 
 :is(.admin-redesign-page--novels, .admin-redesign-page--chapters, .admin-redesign-page--moderation)
   [data-slot='table-body']
   > [data-slot='table-row']:nth-child(5) {
-  animation-delay: 150ms;
+  animation-delay: calc(var(--admin-table-row-stagger-step) * 5);
 }
 
 :is(.admin-redesign-page--novels, .admin-redesign-page--chapters, .admin-redesign-page--moderation)
   [data-slot='table-body']
   > [data-slot='table-row']:nth-child(6) {
-  animation-delay: 180ms;
+  animation-delay: calc(var(--admin-table-row-stagger-step) * 6);
 }
 
 :is(.admin-redesign-page--novels, .admin-redesign-page--chapters, .admin-redesign-page--moderation)
   [data-slot='table-body']
   > [data-slot='table-row']:nth-child(7) {
-  animation-delay: 210ms;
+  animation-delay: calc(var(--admin-table-row-stagger-step) * 7);
 }
 
 :is(.admin-redesign-page--novels, .admin-redesign-page--chapters, .admin-redesign-page--moderation)
   [data-slot='table-body']
   > [data-slot='table-row']:nth-child(8) {
-  animation-delay: 240ms;
+  animation-delay: calc(var(--admin-table-row-stagger-step) * 8);
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -4932,7 +4939,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   .admin-redesign-page--moderation > .admin-toolbar,
   .admin-redesign-page--moderation > .admin-data-panel,
   .admin-redesign-page--novels .admin-toolbar__batch {
-    animation: admin-tab-fade 140ms var(--admin-motion-ease-out) both;
+    animation: admin-tab-fade var(--admin-table-reduced-fade) both;
   }
 
   :is(.admin-redesign-page--novels, .admin-redesign-page--chapters, .admin-redesign-page--moderation)
@@ -6445,10 +6452,29 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   }
 }
 
+/* 数据表格的表头、分隔线和行反馈使用同一组语义 token；不改变列宽或布局。 */
+.admin-data-panel--grid table > thead > tr {
+  background: var(--admin-table-header-background);
+  color: var(--admin-table-header-foreground);
+  border-color: var(--admin-table-border);
+}
+
+.admin-data-panel--grid table > tbody > tr {
+  border-color: var(--admin-table-border);
+  transition:
+    color var(--admin-table-row-interaction),
+    background-color var(--admin-table-row-interaction),
+    border-color var(--admin-table-row-interaction);
+}
+
+.admin-data-panel--grid table > tbody > tr:hover {
+  background: var(--admin-table-row-hover-background);
+}
+
 /* 定长行高：分类标签数量不同会让行高参差，锁定后列表节奏统一。
    标签超出单行时收敛为省略，而不是把行撑高。 */
 .admin-data-panel--grid table td {
-  height: 3.25rem;
+  height: var(--admin-table-row-height);
   vertical-align: middle;
   overflow: hidden;
 }
@@ -6456,7 +6482,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 .admin-data-panel--grid table td > .admin-cell-tags {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: var(--admin-table-tag-gap);
   min-width: 0;
   overflow: hidden;
   flex-wrap: nowrap;
@@ -6501,18 +6527,23 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 .admin-data-panel--grid table td > .admin-cell-actions {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--admin-table-action-gap);
 }
 
 .admin-icon-button {
-  width: 2rem;
-  height: 2rem;
+  width: var(--admin-table-action-size);
+  height: var(--admin-table-action-size);
   color: var(--text-secondary);
+  transition:
+    background-color var(--admin-table-row-interaction),
+    border-color var(--admin-table-row-interaction),
+    box-shadow var(--admin-table-row-interaction),
+    color var(--admin-table-row-interaction);
 }
 
 .admin-icon-button svg {
-  width: 1.125rem;
-  height: 1.125rem;
+  width: var(--admin-table-icon-size);
+  height: var(--admin-table-icon-size);
 }
 
 .admin-icon-button:hover {
@@ -6586,7 +6617,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
        同时需显著小于卡片间距 1rem，才能保持「组内紧、组间松」。 */
     gap: 0.25rem;
     padding: 0.5rem 1rem;
-    border: 1px solid var(--admin-border);
+    border: 1px solid var(--admin-table-border);
     border-radius: var(--radius-lg);
     background: var(--admin-panel);
   }
@@ -6624,7 +6655,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   .admin-data-panel--grid tbody td > .admin-cell-tags {
     flex-wrap: wrap;
     overflow: visible;
-    row-gap: 0.25rem;
+    row-gap: var(--admin-table-tag-gap);
   }
 
   .admin-data-panel--grid tbody td > .admin-cell-tags > * {
@@ -6654,7 +6685,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
     grid-template-columns: minmax(0, 1fr);
     margin-top: 0.125rem;
     padding-top: 0.5rem;
-    border-top: 1px solid var(--admin-border);
+    border-top: 1px solid var(--admin-table-border);
   }
 
   .admin-data-panel--grid tbody td[data-actions]::before {
@@ -6668,21 +6699,21 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
        不要均布（flex:1 + space-around）：那会把三个图标拉到卡片两端，
        中间留出大片空白，看起来像布局碎裂。 */
     justify-content: center;
-    gap: 1.5rem;
+    gap: var(--admin-table-action-gap-mobile);
   }
 
   .admin-data-panel--grid tbody td[data-actions] > .admin-cell-actions > * {
     flex: 0 0 auto;
     /* 44px 是触摸目标的最小可点区域 */
-    min-width: 2.75rem;
-    min-height: 2.75rem;
+    min-width: var(--admin-table-action-size-mobile);
+    min-height: var(--admin-table-action-size-mobile);
   }
 
   /* 卡片模式下按钮放大到 44px，图标需同步放大，否则 16px 图标在 44px
      按钮里显得空旷、可辨识度不足。20px 在 44px 按钮里比例协调。 */
   .admin-data-panel--grid tbody td[data-actions] .admin-cell-actions svg {
-    width: 1.25rem;
-    height: 1.25rem;
+    width: var(--admin-table-icon-size-mobile);
+    height: var(--admin-table-icon-size-mobile);
   }
 
   /* 勾选框：绝对定位到卡片右上角。它是行选择器而非内容字段，若作为 grid

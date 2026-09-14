@@ -248,10 +248,11 @@ components:
 - **Typography:** 菜单项 0.875rem，分组标签 0.65rem uppercase + 0.1em 字距
 
 ### Table
-- **Style:** 包裹在 1px 边框容器中，圆角 10px，背景 admin-panel
-- **Header:** 粘性定位，暖灰背景（admin-panel-muted），0.68rem uppercase 标签
-- **Row:** 高度 3.25rem，hover 时微弱 primary/5% 背景色
-- **Sortable Headers:** 内联按钮样式，活跃态显示暖棕色
+- **Admin Surface:** `AdminDataPanel` 是无外框、白色纸面，使用 20px 外圆角（`--admin-table-panel-radius`）；标题区与表格共享同一块纸面。
+- **Table Contract:** 表头、行分隔线、hover 背景和行高分别从 `--admin-table-header-*`、`--admin-table-border`、`--admin-table-row-hover-background`、`--admin-table-row-height` 读取；桌面端列宽仍由 `--col-N-w` 控制，900px 以下折成卡片。
+- **Data Details:** 分类标签间距使用 `--admin-table-tag-gap`，行操作区使用 `--admin-table-action-*`，排序按钮使用 `--admin-table-sort-*`；删除仅在 hover 时进入危险色。
+- **Motion:** 面板进入使用 `--admin-table-surface-enter` + offset，前 8 行使用 `--admin-table-row-enter` + `--admin-table-row-stagger-step` 依次出现；行、排序箭头、图标按钮的状态反馈使用 `--admin-table-row-interaction`。`prefers-reduced-motion: reduce` 下取消行位移动效，仅保留短淡入。
+- **Legacy Wrapper:** 仍存在的 `.table-wrapper` 是旧版表格容器，保持 10px `--admin-radius`；新后台数据表格统一走上述 `AdminDataPanel` 契约。
 
 ### Admin Tab Header (AdminTabHeader)
 - **Style:** flex 布局，标题 + 操作栏底部分隔线，间距 1rem
