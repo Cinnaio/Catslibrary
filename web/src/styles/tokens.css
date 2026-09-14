@@ -55,6 +55,9 @@
   --tabs-segmented-active-shadow:      var(--shadow);
   --tabs-segmented-muted-foreground:  var(--text-muted);
   --tabs-segmented-active-foreground: var(--accent-hover);
+  --tabs-segmented-label-size:        0.875rem; /* 14px */
+  --tabs-segmented-label-weight:      400;
+  --tabs-segmented-label-line-height: 1.6;
   --tabs-segmented-duration:          180ms;
   --tabs-segmented-ease:              var(--ease-out);
   --tabs-segmented-transition:        var(--tabs-segmented-duration) var(--tabs-segmented-ease);

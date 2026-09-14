@@ -227,8 +227,10 @@ components:
 
 ### Segmented Tabs
 - **Track:** 外框 12px（`--tabs-segmented-radius`），内缩和分隔间距 3px（`--tabs-segmented-inset` / `--tabs-segmented-gap`），轨道边框和底色使用消费方语义 token。
+- **Label:** 标签统一使用 `--tabs-segmented-label-size`、`--tabs-segmented-label-weight`、`--tabs-segmented-label-line-height`（14px / 400 / 1.6）；选中态只切换到 `--tabs-segmented-active-foreground`，不额外改变字重。
 - **Active Surface:** 激活表面 9px（`--tabs-segmented-inner-radius`），使用消费方的 surface 与 `--tabs-segmented-active-shadow`；未选中和选中文字分别使用 `--tabs-segmented-muted-foreground` / `--tabs-segmented-active-foreground`。
 - **Motion:** 激活表面只用 `transform` 移动，不触发布局重排；时长、曲线和复合写法统一从 `--tabs-segmented-duration`、`--tabs-segmented-ease`、`--tabs-segmented-transition` 读取。默认是 180ms ease-out，必须在 `prefers-reduced-motion: reduce` 下将时长压到近乎 0。
+- **Consumers:** 抓取入口、审核类型以及其他后台分段 Tab 只覆盖消费方表面色值；几何、激活层、文字状态和动效统一读取 `--tabs-segmented-*`，不再维护页面级圆角、内缩、间距和位移字面量。
 
 ### Cards
 - **Corner Style:** 圆角 10px（--admin-radius）
