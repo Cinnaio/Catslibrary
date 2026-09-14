@@ -199,13 +199,13 @@ components:
 
 ## Shapes
 
-圆角策略温和而一致：公共控件 6px（--radius-sm），shadcn 控件 8px（--radius），管理后台控件 12px（--admin-button-radius / --admin-input-radius，与 tabs 药丸的 rounded-lg 对齐），卡片 10px（--radius-md），面板 16px（--radius-xl），对话框 12px（--radius-lg）。
+圆角策略温和而一致：公共控件 6px（--radius-sm），shadcn 控件 8px（--radius），管理后台控件 12px（--admin-button-radius / --admin-input-radius，与 tabs 药丸的 rounded-lg 对齐），卡片 10px（--radius-md），后台大面板 20px（--radius-2xl），对话框 16px（--admin-radius-dialog / --radius-xl）。
 
 - **公共控件圆角 (6px)**: 公共页按钮、输入框、标签、复选框——足够圆润但不接近圆形，像文具的倒角。
 - **shadcn 控件圆角 (8px)**: shadcn/ui 组件（button/input/dialog 基类）默认 8px。
 - **管理后台控件圆角 (12px)**: 管理后台的按钮与输入框统一 12px，与 tabs 药丸（rounded-lg）并排时圆弧一致。
 - **卡片圆角 (10px)**: 内容卡片、表格包裹器——微妙的弧度，不抢注意力。
-- **面板圆角 (16px)**: 管理后台大面板、统计卡片——更明显的圆润感，像精装书的封面弧度。
+- **后台大面板圆角 (20px)**: 管理后台大面板、统计卡片——更明显的圆润感，像精装书的封面弧度。
 - **全圆角 (9999px)**: 胶囊标签、计数徽章、状态条——仅用于信息密度极高的辅助元素。
 - **阅读页纸张圆角 (30px / 移动端 24px)**: `--reader-radius-paper`，唯一大于 2xl 的圆角。阅读表面要读起来像"一张纸"而不是一个卡片，弧度必须明显大过周围的控件；只用于 `.reader-paper`，其余阅读页元素仍走上面的通用档。
 

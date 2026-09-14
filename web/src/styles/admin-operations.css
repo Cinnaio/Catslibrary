@@ -2004,7 +2004,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 .admin-redesign-page > .admin-data-panel {
   border: 0;
   border-color: transparent;
-  border-radius: 1.25rem;
+  border-radius: var(--radius-2xl);
   box-shadow: none;
 }
 
@@ -2245,7 +2245,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
    注意：本文件无 @layer，故这条压过 Tailwind 的 @layer utilities —— 调 import 顺序会静默失效。 */
 .admin-panel-card {
   border: 0;
-  border-radius: 1.25rem; /* 20px — 与章节目录范本的大卡片一致 */
+  border-radius: var(--radius-2xl); /* 20px — 与章节目录范本的大卡片一致 */
   background: var(--admin-panel);
   box-shadow: none;
 }
@@ -4782,7 +4782,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 .admin-data-panel {
   border: 0;
   border-color: transparent;
-  border-radius: 1.25rem;
+  border-radius: var(--radius-2xl);
   background: var(--admin-panel);
   box-shadow: none;
 }
@@ -5160,17 +5160,24 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 
 /* 审核类型是高频的分段切换：只移动激活背景，文字和周围筛选控件保持原位。 */
 .admin-redesign-page--moderation .moderation-toolbar__modes [data-slot='tabs-list'] {
+  --moderation-tabs-inset: 0.1875rem;
+  --moderation-tabs-inner-radius: calc(var(--admin-button-radius) - var(--moderation-tabs-inset));
   position: relative;
   isolation: isolate;
   width: 100%;
+  border-radius: var(--admin-button-radius);
+}
+
+.admin-redesign-page--moderation .moderation-toolbar__modes [data-slot='tabs-trigger'] {
+  border-radius: var(--moderation-tabs-inner-radius);
 }
 
 .admin-redesign-page--moderation .moderation-toolbar__modes [data-slot='tabs-list']::before {
   position: absolute;
   z-index: 0;
-  inset: 0.1875rem auto 0.1875rem 0.1875rem;
+  inset: var(--moderation-tabs-inset) auto var(--moderation-tabs-inset) var(--moderation-tabs-inset);
   width: calc((100% - 0.75rem) / 3);
-  border-radius: inherit;
+  border-radius: var(--moderation-tabs-inner-radius);
   background: var(--admin-panel);
   box-shadow: var(--shadow);
   content: '';
