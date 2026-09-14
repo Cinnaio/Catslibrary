@@ -4,8 +4,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useConfirm, useToast } from '../../../components/feedback'
 import AdminTabHeader from '@/components/admin/AdminTabHeader'
-import AdminPanel from '@/components/admin/AdminPanel'
-import { AdminToolbar } from '@/components/admin/AdminWorkspace'
+import { AdminDataPanel, AdminPanelHeading, AdminToolbar } from '@/components/admin/AdminWorkspace'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -365,7 +364,8 @@ export default function SourcesView({ active }: { active: boolean }) {
 
       {/* Import card */}
       <div id="source-import-panel" className="source-workspace">
-        <AdminPanel className="source-import-panel" title="导入书源">
+        <AdminDataPanel className="source-import-panel" ariaLabel="导入书源">
+          <AdminPanelHeading title="导入书源" description="通过书源池 URL 或直接粘贴 JSON，批量添加可用于抓取的书源规则。" />
           <div className="source-import__body">
             <div className="form-group source-import__url-group">
               <Label className="source-import__label mb-1.5">书源池 URL</Label>
@@ -409,9 +409,10 @@ export default function SourcesView({ active }: { active: boolean }) {
               </div>
             )}
           </div>
-        </AdminPanel>
+        </AdminDataPanel>
 
         <section className="source-panel" aria-label="书源列表">
+          <AdminPanelHeading title="书源目录" description="管理已导入的书源规则、支持度与连接状态。" />
           <AdminToolbar className="source-panel__bar">
             <div className="source-panel__cluster source-panel__cluster--primary">
               <div className="source-panel__filter-group">

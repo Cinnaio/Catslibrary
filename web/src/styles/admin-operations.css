@@ -2123,6 +2123,148 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   padding-inline: 0.25rem;
 }
 
+/* 书源/任务管理与小说管理共享同一套数据工作区：页面标题负责入口，
+   数据面板负责内容，避免 Card 套 Card 造成层级噪音。 */
+:is(.admin-redesign-page--sources, .admin-redesign-page--jobs) {
+  gap: 1rem;
+}
+
+:is(.admin-redesign-page--sources, .admin-redesign-page--jobs) > .admin-tab-header {
+  margin-bottom: 0;
+  border-bottom: 0;
+}
+
+:is(.admin-redesign-page--sources, .admin-redesign-page--jobs) > .admin-data-panel,
+.admin-redesign-page--sources .source-panel,
+.admin-redesign-page--sources .admin-panel-card,
+.admin-redesign-page--jobs > [data-slot='card'] {
+  border: 0;
+  border-radius: var(--admin-table-panel-radius);
+  background: var(--admin-panel);
+  box-shadow: none;
+}
+
+.admin-redesign-page--sources .admin-panel-card,
+.admin-redesign-page--sources .source-panel {
+  overflow: hidden;
+  padding: 0;
+}
+
+.admin-redesign-page--sources .admin-panel-card [data-slot='card-header'],
+.admin-redesign-page--sources .source-panel__bar,
+.admin-redesign-page--jobs > [data-slot='card'] [data-slot='card-header'] {
+  border-bottom: 1px solid var(--admin-table-border);
+  background: transparent;
+}
+
+.admin-redesign-page--sources .admin-panel-card [data-slot='card-header'],
+.admin-redesign-page--jobs > [data-slot='card'] [data-slot='card-header'] {
+  padding: 1.25rem;
+}
+
+.admin-redesign-page--sources .admin-panel-card [data-slot='card-content'] {
+  padding: 1.25rem;
+}
+
+.admin-redesign-page--sources .source-import-panel > .source-import__body {
+  padding: 1.25rem;
+}
+
+.admin-redesign-page--sources .source-panel__bar {
+  padding: 1rem 1.25rem;
+}
+
+.admin-redesign-page--sources .source-panel > .admin-panel-heading {
+  padding: 1.25rem;
+  border-bottom: 1px solid var(--admin-table-border);
+}
+
+.admin-redesign-page--sources .source-panel > .admin-panel-heading + .source-panel__bar {
+  border-top: 0;
+}
+
+.admin-redesign-page--jobs > .admin-queue-summary--jobs {
+  margin: 0;
+  border: 0;
+  border-radius: var(--admin-table-panel-radius);
+  background: var(--admin-panel);
+  box-shadow: none;
+  animation: admin-tab-surface-enter var(--admin-table-surface-enter) 40ms both;
+}
+
+/* 书源目录工具栏按“筛选与统计 / 搜索与操作”分成两条稳定的工作行，
+   不让宽度变化把按钮挤成无明确起点的散乱换行。 */
+.admin-redesign-page--sources .source-panel__bar {
+  grid-template-columns: 1fr;
+  gap: 0;
+  padding: 0;
+  background: transparent;
+}
+
+.admin-redesign-page--sources .source-panel__cluster--primary,
+.admin-redesign-page--sources .source-panel__cluster--actions {
+  min-height: var(--admin-control-height);
+  padding: 0.75rem 1.25rem;
+}
+
+.admin-redesign-page--sources .source-panel__cluster--primary {
+  grid-template-columns: auto minmax(0, 1fr);
+  border-bottom: 1px solid var(--admin-table-border);
+}
+
+.admin-redesign-page--sources .source-panel__cluster--primary::after {
+  display: none;
+}
+
+.admin-redesign-page--sources .source-panel__cluster--actions {
+  justify-content: flex-start;
+  border-bottom: 1px solid var(--admin-table-border);
+  background: color-mix(in srgb, var(--admin-panel) 94%, var(--accent-subtle));
+}
+
+.admin-redesign-page--sources .source-panel__stats {
+  gap: 0.5rem;
+}
+
+@media (max-width: 640px) {
+  .admin-redesign-page--sources .source-panel__cluster--primary {
+    grid-template-columns: 1fr;
+    gap: var(--admin-space-3);
+  }
+
+  .admin-redesign-page--sources .source-panel__cluster--actions {
+    align-items: stretch;
+  }
+}
+
+:is(.admin-redesign-page--sources, .admin-redesign-page--jobs) > .admin-data-panel,
+.admin-redesign-page--sources .source-panel,
+.admin-redesign-page--jobs > [data-slot='card'] {
+  animation: admin-tab-surface-enter var(--admin-table-surface-enter) 40ms both;
+}
+
+:is(.admin-redesign-page--sources, .admin-redesign-page--jobs) [data-slot='table-body'] > [data-slot='table-row']:nth-child(-n + 8) {
+  animation: admin-tab-row-enter var(--admin-table-row-enter) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :is(.admin-redesign-page--sources, .admin-redesign-page--jobs) > .admin-data-panel,
+  .admin-redesign-page--sources .source-panel,
+  .admin-redesign-page--jobs > [data-slot='card'] {
+    animation: admin-tab-fade var(--admin-table-reduced-fade) both;
+  }
+
+  :is(.admin-redesign-page--sources, .admin-redesign-page--jobs) [data-slot='table-body'] > [data-slot='table-row']:nth-child(-n + 8) {
+    animation: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .admin-redesign-page--sources .source-import-panel > .source-import__body {
+    padding: 1rem;
+  }
+}
+
 .admin-redesign-page--dashboard > :is(.space-y-4, .rounded-xl),
 .admin-redesign-page--content-policy > [data-slot='card'] {
   min-width: 0;
