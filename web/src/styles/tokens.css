@@ -38,9 +38,9 @@
   --radius-sm:        6px;
   --radius-lg:        12px;
   --radius-full:      9999px;
-  --radius-md:        10px;   /* admin controls */
-  --radius-xl:        16px;   /* admin cards / surfaces */
-  --radius-2xl:       20px;   /* admin panels / modals */
+  --radius-md:        10px;   /* compact controls / cards */
+  --radius-xl:        16px;   /* nested surfaces / dialogs */
+  --radius-2xl:       20px;   /* large surfaces / panels */
 
   /* Admin surfaces — derived from the shared palette so they follow theme.
      Defined on :root (public pages never reference them). */

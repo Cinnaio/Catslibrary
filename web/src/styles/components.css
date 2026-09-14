@@ -449,7 +449,7 @@
 .auth-brand .header__logo-icon {
   width: 38px;
   height: 38px;
-  border-radius: 13px;
+  border-radius: var(--radius-lg);
 }
 .auth-brand .header__logo-icon svg {
   width: 24px;
@@ -941,7 +941,7 @@ select.native-select-hidden {
   flex-direction: column;
   background: radial-gradient(circle at 12% 0%, rgba(240, 230, 214, 0.72), transparent 15rem), linear-gradient(180deg, var(--bg-card), var(--accent-subtle));
   border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
-  border-radius: 24px;
+  border-radius: var(--radius-xl);
   box-shadow: 0 24px 70px rgba(40, 32, 24, 0.18);
   width: 100%;
   max-width: 560px;
@@ -995,7 +995,7 @@ select.native-select-hidden {
   position: relative;
   width: min(560px, calc(100vw - 32px));
   max-width: 560px;
-  border-radius: 24px;
+  border-radius: var(--radius-xl);
   overflow: hidden;
   background: var(--bg-card);
   box-shadow: 0 24px 72px rgba(40, 32, 24, 0.22);
@@ -1037,7 +1037,7 @@ select.native-select-hidden {
   display: grid;
   place-items: center;
   margin-top: 2px;
-  border-radius: 13px;
+  border-radius: var(--radius-lg);
   color: var(--color-danger);
   font-family: var(--font-heading);
   font-size: 1.15rem;
@@ -1066,7 +1066,7 @@ select.native-select-hidden {
   margin-left: auto;
   width: 32px;
   height: 32px;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   color: var(--text-muted);
 }
 
@@ -1093,7 +1093,7 @@ select.native-select-hidden {
   max-height: 210px;
   overflow-y: auto;
   border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
-  border-radius: 16px;
+  border-radius: var(--radius-xl);
   background: color-mix(in srgb, var(--bg-primary) 72%, var(--accent-subtle));
   color: var(--text-primary);
   font-size: 0.94rem;
@@ -1121,7 +1121,7 @@ select.native-select-hidden {
 
 .confirm-modal__footer .btn {
   min-width: 88px;
-  border-radius: 13px;
+  border-radius: var(--radius-lg);
 }
 
 .confirm-modal__ok {

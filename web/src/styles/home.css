@@ -40,7 +40,7 @@
   padding-top: clamp(28px, 5vw, 58px);
   padding-bottom: clamp(26px, 4vw, 46px);
   border: 1px solid var(--home-line);
-  border-radius: 30px;
+  border-radius: var(--radius-2xl);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.58), rgba(255, 255, 255, 0) 48%),
     var(--home-paper);
@@ -132,7 +132,7 @@
   margin-top: 24px;
   padding: 4px 4px 4px 16px;
   border: 1px solid var(--home-line);
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
   background: var(--bg-card);
   color: var(--text-muted);
   box-shadow: var(--shadow);
@@ -175,7 +175,7 @@
   place-items: center;
   padding: 0;
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: var(--accent);
   color: var(--accent-ink);
   cursor: pointer;
@@ -208,7 +208,7 @@
 .retry-banner,
 .home-page .empty-state {
   border: 1px solid var(--home-line);
-  border-radius: 22px;
+  border-radius: var(--radius-2xl);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.52), rgba(255, 255, 255, 0) 48%),
     var(--home-paper);
@@ -351,7 +351,7 @@
   min-width: 0;
   padding: 11px 12px;
   border: 1px solid var(--home-line);
-  border-radius: 16px;
+  border-radius: var(--radius-xl);
   background: var(--home-inset);
 }
 
@@ -409,7 +409,7 @@
   gap: 15px;
   padding: 16px;
   border: 1px solid var(--home-line);
-  border-radius: 22px;
+  border-radius: var(--radius-2xl);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.48), rgba(255, 255, 255, 0) 44%),
     var(--home-paper);
@@ -440,7 +440,7 @@
   width: 104px;
   height: 146px;
   border: 1px solid color-mix(in srgb, var(--accent) 16%, var(--home-line));
-  border-radius: 17px;
+  border-radius: var(--radius-xl);
   background:
     linear-gradient(145deg, color-mix(in srgb, var(--bg-card) 72%, var(--accent-subtle)), var(--accent-light));
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.32), 0 14px 28px rgba(40, 32, 24, 0.12);
@@ -493,7 +493,7 @@
 .home-pagination .form-input {
   width: 72px;
   height: 34px;
-  border-radius: 11px;
+  border-radius: var(--radius-md);
   background: var(--home-inset);
 }
 
@@ -526,7 +526,7 @@
   }
 
   .home-hero .home-shell {
-    border-radius: 24px;
+    border-radius: var(--radius-2xl);
   }
 
   .home-page .sort-tabs-row {
@@ -578,7 +578,7 @@
     min-height: 44px;
     padding: 10px 14px;
     border: 1px solid var(--home-line);
-    border-radius: 16px;
+    border-radius: var(--radius-xl);
     background: var(--home-paper);
     color: var(--text-primary);
     font-size: 0.88rem;
@@ -604,7 +604,7 @@
     display: none;
     gap: 10px;
     padding: 12px 14px;
-    border-radius: 18px;
+    border-radius: var(--radius-xl);
   }
 
   .home-page .home-filter-card--open {
@@ -698,7 +698,7 @@
   .recent-reading {
     gap: 8px;
     padding: 10px 12px;
-    border-radius: 18px;
+    border-radius: var(--radius-xl);
   }
 
   .recent-reading__head .home-kicker {
@@ -730,7 +730,7 @@
     flex: 0 0 min(214px, calc(100vw - 72px));
     min-height: 58px;
     padding: 8px 9px;
-    border-radius: 12px;
+    border-radius: var(--radius-lg);
     scroll-snap-align: start;
   }
 
@@ -758,13 +758,13 @@
 
   .home-page .novel-card {
     padding: 14px;
-    border-radius: 20px;
+    border-radius: var(--radius-2xl);
   }
 
   .home-page .novel-card__cover {
     width: 88px;
     height: 124px;
-    border-radius: 15px;
+    border-radius: var(--radius-xl);
   }
 
   .retry-banner {
