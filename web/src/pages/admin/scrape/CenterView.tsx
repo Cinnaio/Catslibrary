@@ -9,12 +9,10 @@ import { Button } from '@/components/ui/button'
 import { AdminDataPanel, AdminPanelHeading } from '@/components/admin/AdminWorkspace'
 import type { CheckItem, ConfigRow, DetectedMeta, DiscoverNovel, BatchEntry, BatchState } from './types'
 import { scrapePost, parseCategories, po18CoverFallback } from './utils'
-import JobQueue from './center/JobQueue'
 import DiscoveryPanel from './center/DiscoveryPanel'
 import ScrapeIntake, { type IntakeMode } from './center/ScrapeIntake'
 import ScrapeSetupPanel, { type SetupPreview } from './center/ScrapeSetupPanel'
 import type { Selectors, TestResult } from './center/StepConfig'
-import { useScrapeJobs } from './center/useScrapeJobs'
 
 const PO18_PRESET = {
   name: 'PO18',
@@ -70,8 +68,7 @@ export default function CenterView() {
   const [testChecks, setTestChecks] = useState<CheckItem[]>([])
   const [configRows, setConfigRows] = useState<ConfigRow[]>([])
 
-  // 任务队列与批量处理
-  const { jobs, track, dismiss, toggleLog, cancel, retry, retryFailed } = useScrapeJobs()
+  // 批量处理
   const [batch, setBatch] = useState<BatchState | null>(null)
 
   // 爬虫配置迁移
@@ -377,8 +374,7 @@ export default function CenterView() {
     try {
       const result = await scrapeApi.start({ novelId: currentScrapeNovelId, sourceUrl: src, encoding: activeEncoding || null, selectors: currentSelectors })
       if (!result.jobId) throw new Error((result as { error?: string }).error || '没有返回任务 ID')
-      track(result.jobId, preview.title.trim() || '(未命名作品)')
-      toast('抓取任务已加入右侧队列', 'success')
+      toast('抓取任务已启动，可在任务管理中查看', 'success')
     } catch (err) {
       toast('启动失败：' + (err as Error).message, 'error')
     }
@@ -406,7 +402,6 @@ export default function CenterView() {
       selectors: currentSelectors,
     })
     if (!startResult.jobId) throw new Error((startResult as { error?: string }).error || '启动抓取失败')
-    track(startResult.jobId, novel.title || item.title || '(未命名作品)')
     return novelId
   }
 
@@ -612,14 +607,6 @@ export default function CenterView() {
           </AdminDataPanel>
         </main>
 
-        <JobQueue
-          jobs={jobs}
-          onCancel={(id) => void cancel(id)}
-          onRetry={(id) => void retry(id)}
-          onRetryFailed={(id) => void retryFailed(id)}
-          onDismiss={dismiss}
-          onToggleLog={toggleLog}
-        />
       </div>
     </div>
   )

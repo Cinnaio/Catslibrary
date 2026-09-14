@@ -58,6 +58,9 @@
   --tabs-segmented-label-size:        0.875rem; /* 14px */
   --tabs-segmented-label-weight:      400;
   --tabs-segmented-label-line-height: 1.6;
+
+  /* Admin form labels stay quiet so the active segmented tab remains the visual lead. */
+  --admin-field-label-weight:         400;
   --tabs-segmented-duration:          180ms;
   --tabs-segmented-ease:              var(--ease-out);
   --tabs-segmented-transition:        var(--tabs-segmented-duration) var(--tabs-segmented-ease);

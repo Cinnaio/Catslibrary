@@ -36,6 +36,11 @@ const INTAKE_MODE_INDEX: Record<IntakeMode, number> = {
   ranking: 2,
 }
 
+const SEARCH_TYPE_INDEX = {
+  articlename: 0,
+  author: 1,
+} as const
+
 export default function ScrapeIntake({
   mode,
   onModeChange,
@@ -111,7 +116,10 @@ export default function ScrapeIntake({
                 }}
               />
               <Tabs value={searchType} onValueChange={onSearchTypeChange} aria-label="搜索类型">
-                <TabsList>
+                <TabsList
+                  className="scrape-intake__search-type"
+                  data-active-index={SEARCH_TYPE_INDEX[searchType as keyof typeof SEARCH_TYPE_INDEX] ?? 0}
+                >
                   <TabsTrigger value="articlename">书名</TabsTrigger>
                   <TabsTrigger value="author">作者</TabsTrigger>
                 </TabsList>

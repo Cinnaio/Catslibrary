@@ -360,7 +360,7 @@
 .scrape-intake__field > label {
   color: var(--text-secondary);
   font-size: 0.78rem;
-  font-weight: 700;
+  font-weight: var(--admin-field-label-weight);
 }
 
 .scrape-intake__field > p {
@@ -390,11 +390,72 @@
   height: var(--admin-control-height);
 }
 
+.scrape-intake__control-row--search > [data-slot='tabs'] {
+  align-self: stretch;
+}
+
+.scrape-intake__search-type {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-height: 2.5rem;
+  height: auto;
+  gap: var(--tabs-segmented-gap);
+  isolation: isolate;
+  padding: var(--tabs-segmented-inset);
+  border: 1px solid var(--tabs-segmented-track-border);
+  border-radius: var(--tabs-segmented-radius);
+  background: var(--tabs-segmented-track-background);
+}
+
+.scrape-intake__search-type::before {
+  position: absolute;
+  z-index: 0;
+  inset: var(--tabs-segmented-inset) auto var(--tabs-segmented-inset) var(--tabs-segmented-inset);
+  width: calc((100% - var(--tabs-segmented-gap) * 3) / 2);
+  border-radius: var(--tabs-segmented-inner-radius);
+  background: var(--tabs-segmented-active-background);
+  box-shadow: var(--tabs-segmented-active-shadow);
+  content: '';
+  pointer-events: none;
+  transform: translateX(0);
+  transition: transform var(--tabs-segmented-transition);
+}
+
+.scrape-intake__search-type[data-active-index='1']::before {
+  transform: translateX(calc(100% + var(--tabs-segmented-gap)));
+}
+
+.scrape-intake__search-type > [data-slot='tabs-trigger'] {
+  position: relative;
+  z-index: 1;
+  min-height: 1.75rem;
+  height: auto;
+  justify-content: center;
+  padding: 0.15rem 0.35rem;
+  border-radius: var(--tabs-segmented-inner-radius);
+  background: transparent;
+  box-shadow: none;
+  color: var(--tabs-segmented-muted-foreground);
+  transition:
+    color var(--tabs-segmented-transition),
+    border-color var(--tabs-segmented-transition);
+}
+
+.scrape-intake__search-type > [data-slot='tabs-trigger'][data-state='active'] {
+  background: transparent;
+  box-shadow: none;
+  color: var(--tabs-segmented-active-foreground);
+}
+
 .scrape-intake__control-row [data-slot='tabs-trigger'] {
   padding-inline: 0.7rem;
 }
 
 .scrape-intake__site {
+  align-self: stretch;
+  height: var(--admin-control-height);
+  min-height: var(--admin-control-height);
   max-width: none;
 }
 
@@ -6964,6 +7025,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 
 .admin-redesign-page--scrape .scrape-intake__tabs {
   margin-top: 1rem;
+  margin-bottom: 0.5rem;
   width: min(18rem, calc(100% - 2.5rem));
   margin-right: auto;
 }
