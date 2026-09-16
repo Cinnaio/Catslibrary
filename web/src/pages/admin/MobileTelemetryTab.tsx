@@ -191,7 +191,7 @@ export default function MobileTelemetryTab() {
           title="事件列表"
           description="按接收时间排列用户授权上传的匿名事件，逐条确认或归档。"
           status={
-            <span className={`mobile-telemetry-status${error ? ' is-error' : ''}`}>
+            <span className={`admin-panel-status${error ? ' is-error' : ''}`}>
               {loading ? '读取中' : error ? '读取失败' : data?.events.length ? `显示 ${data.events.length} 条` : '暂无内容'}
             </span>
           }

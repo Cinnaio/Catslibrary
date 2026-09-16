@@ -63,6 +63,31 @@
   flex: 0 1 20rem;
 }
 
+/* 面板标题旁的状态胶囊。AdminPanelHeading 的 status 槽位在任务、账户、审核、
+   监控与 AI 各面板都有消费，先前每页各写一份逐字相同的规则；现统一为
+   .admin-panel-status，页面只保留各自需要的变体。 */
+.admin-panel-status {
+  display: inline-flex;
+  min-width: 4.75rem;
+  min-height: 1.75rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--radius-full);
+  background: var(--admin-panel-muted);
+  padding: 0.2rem 0.6rem;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.admin-panel-status.is-error {
+  border-color: color-mix(in srgb, var(--color-danger) 35%, var(--admin-border));
+  background: color-mix(in srgb, var(--color-danger) 8%, var(--admin-panel));
+  color: var(--color-danger);
+}
+
 /* Account tables now use the same grid/card contract as novels and chapters.
    列宽由 <AdminDataPanel columns> 以行内 --col-N-w 注入，不再在此重复声明。 */
 .account-users-panel,
@@ -97,22 +122,6 @@
   display: flex;
   align-items: center;
   gap: var(--admin-space-2);
-}
-
-.account-list-status {
-  display: inline-flex;
-  min-width: 4.75rem;
-  min-height: 1.75rem;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--admin-border);
-  border-radius: var(--radius-full);
-  background: var(--admin-panel-muted);
-  padding: 0.2rem 0.6rem;
-  color: var(--text-muted);
-  font-size: 0.72rem;
-  font-weight: 650;
-  white-space: nowrap;
 }
 
 .account-invites-generated {
@@ -176,12 +185,6 @@
   min-width: 0;
 }
 
-.ai-service .ai-audit-card-header,
-.ai-service .ai-generations-card__header {
-  align-items: flex-start;
-  gap: 0.75rem;
-}
-
 .ai-service .ai-tasks-toolbar,
 .ai-service .ai-audit-toolbar,
 .ai-service .ai-generations-toolbar {
@@ -189,8 +192,8 @@
 }
 
 .ai-service .ai-task-list,
-.ai-service .ai-generations-table,
-.ai-service .ai-audit-panel > [data-slot='card-content'] > div.overflow-hidden {
+.ai-service .ai-audit-table,
+.ai-service .ai-generations-table {
   min-width: 0;
 }
 
@@ -1762,6 +1765,148 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   width: 7.5rem;
 }
 
+/* 面板从 Card 换成 AdminDataPanel 后，内边距不再由 CardContent 提供。
+   列表自带 border-top，故只在左右与底部留白，标题区由 AdminPanelHeading 负责。 */
+.ai-tasks-panel .ai-tasks-content {
+  padding: 0 1.25rem 1.25rem;
+}
+
+/* AI 面板的纵向堆叠：替代原先手写的 space-y-4，间距走统一刻度。 */
+.ai-service-stack {
+  display: grid;
+  min-width: 0;
+  gap: 1rem;
+}
+
+/* 面板内主体（表格与页脚）的内边距，补偿 CardContent 不再存在后的留白。 */
+.ai-list-body {
+  min-width: 0;
+  padding: 0 1.25rem 1.25rem;
+}
+
+/* 调用审计表含跨列展开行，保留原生 table 并给横向滚动边界。
+   不套用 AdminDataPanel 的卡片化（不加 .admin-data-panel--grid），避免 900px 以下
+   td 被折成字段后跨列详情行错配。已生成内容表沿用其既有的移动端卡片系统
+   （见下方 .ai-generations-table 的 900px 规则），这里只补滚动边界。 */
+.ai-audit-table,
+.ai-generations-table {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.ai-audit-table {
+  border: 1px solid var(--admin-border);
+  border-radius: var(--radius-xl);
+}
+
+.ai-audit-table__table {
+  width: 100%;
+  min-width: 48rem;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.ai-audit-table__table thead {
+  border-bottom: 1px solid var(--admin-border);
+  background: var(--admin-panel-muted);
+}
+
+.ai-audit-table__table th {
+  padding: 0.75rem 1rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 650;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.ai-audit-table__table td {
+  padding: 0.75rem 1rem;
+  vertical-align: top;
+}
+
+.ai-audit-table__table th.is-numeric,
+.ai-audit-table__table td.is-numeric {
+  text-align: right;
+}
+
+.ai-audit-row {
+  border-bottom: 1px solid var(--admin-border);
+  cursor: pointer;
+}
+
+.ai-audit-row:hover {
+  background: var(--admin-panel-muted);
+}
+
+.ai-audit-row--detail {
+  background: var(--admin-panel-muted);
+  cursor: default;
+}
+
+.ai-audit-cell__name {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.ai-audit-cell__strong {
+  color: var(--text-primary);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.ai-audit-cell__muted {
+  color: var(--text-muted);
+}
+
+.ai-audit-cell__sub {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.ai-audit-cell__content {
+  max-width: 17.5rem;
+}
+
+.ai-audit-cell__content > div {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-audit-detail {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+}
+
+.ai-audit-detail__usage {
+  display: flex;
+  margin-top: 0.75rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.ai-audit-detail__usage strong {
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 900px) {
+  .ai-list-body {
+    padding: 0 1rem 1rem;
+  }
+
+  .ai-audit-table,
+  .ai-generations-table {
+    border-radius: var(--radius-lg);
+  }
+}
+
 .ai-task-list {
   border-top: 1px solid var(--border);
 }
@@ -2428,28 +2573,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   justify-content: space-between;
 }
 
-.admin-redesign-page--mobile-telemetry .mobile-telemetry-status {
-  display: inline-flex;
-  min-width: 4.75rem;
-  min-height: 1.75rem;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--admin-border);
-  border-radius: var(--radius-full);
-  background: var(--admin-panel-muted);
-  padding: 0.2rem 0.6rem;
-  color: var(--text-muted);
-  font-size: 0.72rem;
-  font-weight: 650;
-  white-space: nowrap;
-}
-
-.admin-redesign-page--mobile-telemetry .mobile-telemetry-status.is-error {
-  border-color: color-mix(in srgb, var(--color-danger) 35%, var(--admin-border));
-  background: color-mix(in srgb, var(--color-danger) 8%, var(--admin-panel));
-  color: var(--color-danger);
-}
-
 .admin-redesign-page--mobile-telemetry .mobile-telemetry-top-events {
   border: 1px solid var(--admin-border);
   border-radius: var(--admin-table-panel-radius);
@@ -2873,18 +2996,49 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 }
 
 /* AI 列表分页：信息、页数选择和翻页控件保持在同一条紧凑控制带。 */
+/* 列表页脚：布局改由这里承担（原先靠 JSX 的 Tailwind 类），
+   保留原有的横向滚动与字号职责。 */
 .ai-list-footer {
+  display: flex;
   width: 100%;
   min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1rem;
   overflow-x: auto;
   padding-bottom: 0.125rem;
   scrollbar-width: thin;
 }
 .ai-list-total {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  font-size: 0.875rem;
   white-space: nowrap;
 }
 .ai-list-pagination-controls {
+  display: flex;
   min-width: 0;
+  margin-left: auto;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.75rem;
+}
+.ai-list-page-size {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+@media (max-width: 900px) {
+  .ai-list-footer,
+  .ai-list-pagination-controls {
+    align-items: flex-start;
+    flex-direction: column;
+    margin-left: 0;
+  }
 }
 .ai-list-pagination {
   flex-shrink: 0;
@@ -4399,21 +4553,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   .admin-layout__content {
     padding: 1rem;
   }
-  .ai-generations-card__header {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .ai-generations-card__filter {
-    width: 100%;
-  }
-  .ai-generations-card__filter > label {
-    flex: 0 0 auto;
-    white-space: nowrap;
-  }
-  .ai-generations-card__filter [data-slot='select-trigger'] {
-    min-width: 0;
-    flex: 1 1 auto;
-  }
   .ai-generation-dialog {
     top: 50%;
     max-height: calc(100svh - 2rem);
@@ -5702,28 +5841,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   }
 }
 
-.admin-redesign-page--moderation .moderation-list-status {
-  display: inline-flex;
-  min-width: 4.75rem;
-  min-height: 1.75rem;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--admin-border);
-  border-radius: var(--radius-full);
-  background: var(--admin-panel-muted);
-  padding: 0.2rem 0.6rem;
-  color: var(--text-muted);
-  font-size: 0.72rem;
-  font-weight: 650;
-  white-space: nowrap;
-}
-
-.admin-redesign-page--moderation .moderation-list-status.is-error {
-  border-color: color-mix(in srgb, var(--color-danger) 35%, var(--admin-border));
-  background: color-mix(in srgb, var(--color-danger) 8%, var(--admin-panel));
-  color: var(--color-danger);
-}
-
 .admin-redesign-page--moderation .moderation-empty {
   display: grid;
   min-height: 14rem;
@@ -6900,28 +7017,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 }
 
 /* 列表状态胶囊：与审核列表同构，任务与日志两个面板各有一枚。 */
-.admin-redesign-page--jobs .jobs-list-status {
-  display: inline-flex;
-  min-width: 4.75rem;
-  min-height: 1.75rem;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--admin-border);
-  border-radius: var(--radius-full);
-  background: var(--admin-panel-muted);
-  padding: 0.2rem 0.6rem;
-  color: var(--text-muted);
-  font-size: 0.72rem;
-  font-weight: 650;
-  white-space: nowrap;
-}
-
-.admin-redesign-page--jobs .jobs-list-status.is-error {
-  border-color: color-mix(in srgb, var(--color-danger) 35%, var(--admin-border));
-  background: color-mix(in srgb, var(--color-danger) 8%, var(--admin-panel));
-  color: var(--color-danger);
-}
-
 /* 空态/加载态/失败态共用一块竖直居中的纸面区，取代此前拼在表格里的空行。 */
 .admin-redesign-page--jobs .jobs-empty {
   min-height: 14rem;

@@ -537,7 +537,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
           <AdminPanelHeading
             title="用户目录"
             description="管理站点用户、角色与登录状态。"
-            status={<span className="account-list-status">{loading && !data ? '读取中' : users.length ? `共 ${users.length} 人` : '暂无用户'}</span>}
+            status={<span className="admin-panel-status">{loading && !data ? '读取中' : users.length ? `共 ${users.length} 人` : '暂无用户'}</span>}
             actions={
               <Button variant="secondary" size="sm" onClick={() => void load()} disabled={loading}>
                 刷新
@@ -662,7 +662,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
           title="登录记录"
           description="记录登录成功、失败与限流事件，不保存密码或登录令牌。"
           status={
-            <span className="account-list-status">
+            <span className="admin-panel-status">
               {loginAuditLoading && loginAudits.length === 0 ? '读取中' : loginAudits.length ? `显示 ${loginAudits.length} 条` : '暂无记录'}
             </span>
           }
@@ -747,7 +747,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
           title="操作记录"
           description="记录危险操作的发起人、目标数量、结果与重放次数，不保存目标正文或原始内容。"
           status={
-            <span className="account-list-status">
+            <span className="admin-panel-status">
               {operationAuditLoading && operationAudits.length === 0 ? '读取中' : operationAudits.length ? `显示 ${operationAudits.length} 条` : '暂无记录'}
             </span>
           }
@@ -815,7 +815,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
           <AdminPanelHeading
             title="邀请码"
             description="生成、复制与停用注册邀请码。"
-            status={<span className="account-list-status">{invites.length ? `共 ${invites.length} 个` : '暂无邀请码'}</span>}
+            status={<span className="admin-panel-status">{invites.length ? `共 ${invites.length} 个` : '暂无邀请码'}</span>}
             actions={
               <>
                 <Input

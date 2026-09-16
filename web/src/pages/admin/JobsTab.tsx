@@ -448,7 +448,7 @@ export default function JobsTab(_props: { highlightNovelId?: string; onHighlight
         <AdminPanelHeading
           title="抓取任务"
           description={filter === 'all' ? jobStatsText : `${FILTER_LABEL[filter]}：${filtered.length} / 共 ${jobs.length} 条`}
-          status={<span className={`jobs-list-status${jobsError ? ' is-error' : ''}`}>{listStatusLabel}</span>}
+          status={<span className={`admin-panel-status${jobsError ? ' is-error' : ''}`}>{listStatusLabel}</span>}
           actions={
             hasCompleted ? (
               <Button variant="destructive" size="sm" onClick={() => void clearCompleted()}>
@@ -540,7 +540,7 @@ export default function JobsTab(_props: { highlightNovelId?: string; onHighlight
         <AdminPanelHeading
           title="下载日志"
           description="记录最近的 TXT 与爬虫配置导出，便于核对分享与备份行为。"
-          status={<span className={`jobs-list-status${logsError ? ' is-error' : ''}`}>{logsStatusLabel}</span>}
+          status={<span className={`admin-panel-status${logsError ? ' is-error' : ''}`}>{logsStatusLabel}</span>}
           actions={
             <Button variant="secondary" size="sm" onClick={() => void loadDownloadLogs()} disabled={logsLoading}>
               {logsLoading ? '刷新中…' : '刷新'}

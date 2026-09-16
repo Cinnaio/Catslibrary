@@ -3,9 +3,9 @@ import { Fragment, useCallback, useEffect, useState } from 'react'
 import { aiApi } from '@/lib/api'
 import { ErrorState, InlineError, LoadingState } from '@/components/admin/AsyncStates'
 import Pagination from '@/components/admin/Pagination'
-import { AdminToolbar } from '@/components/admin/AdminWorkspace'
+import AdminEmptyState from '@/components/admin/AdminEmptyState'
+import { AdminDataPanel, AdminPanelHeading, AdminToolbar } from '@/components/admin/AdminWorkspace'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { DetailItem, formatCost } from './shared'
@@ -74,7 +74,7 @@ export default function AiAuditPanel() {
   }, [loadCalls])
 
   return (
-    <div className="space-y-4">
+    <div className="ai-service-stack">
       <AdminToolbar className="ai-audit-toolbar" ariaLive="polite">
         <Label htmlFor="audit-filter-type" className="text-xs text-muted-foreground">类型</Label>
         <Select
@@ -101,158 +101,160 @@ export default function AiAuditPanel() {
           </SelectContent>
         </Select>
       </AdminToolbar>
-      <Card className="admin-panel-card ai-audit-panel">
-        <CardHeader className="ai-audit-card-header">
-          <div>
-            <CardTitle className="text-base">调用记录</CardTitle>
-            <p className="text-sm text-muted-foreground">详细的 AI 调用审计日志，点击行可展开详情</p>
-          </div>
-        </CardHeader>
-        <CardContent>
+      <AdminDataPanel className="ai-audit-panel overflow-hidden" ariaLabel="AI 调用记录列表">
+        <AdminPanelHeading
+          title="调用记录"
+          description="详细的 AI 调用审计日志，点击行可展开详情。"
+          status={
+            <span className={`admin-panel-status${error && calls.length === 0 ? ' is-error' : ''}`}>
+              {loading && calls.length === 0 ? '读取中' : error && calls.length === 0 ? '读取失败' : calls.length ? `显示 ${calls.length} 条` : '暂无内容'}
+            </span>
+          }
+        />
+        <div className="ai-list-body">
           {loading && calls.length === 0 ? (
             <LoadingState label="正在加载调用记录" />
           ) : error && calls.length === 0 ? (
             <ErrorState message={error} onRetry={() => void loadCalls()} />
           ) : calls.length === 0 ? (
-            <div className="flex h-32 items-center justify-center text-muted-foreground">暂无调用记录</div>
+            <AdminEmptyState message="暂无调用记录" />
           ) : (
             <>
               {error && <InlineError message={error} onRetry={() => void loadCalls()} className="mb-3" />}
-              <div className="overflow-hidden rounded-xl border border-border">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="border-b bg-muted/50">
-                      <tr>
-                        <th className="px-4 py-3 text-left font-medium">用户</th>
-                        <th className="px-4 py-3 text-left font-medium">类型</th>
-                        <th className="px-4 py-3 text-left font-medium">关联内容</th>
-                        <th className="px-4 py-3 text-right font-medium">消耗</th>
-                        <th className="px-4 py-3 text-right font-medium">成本</th>
-                        <th className="px-4 py-3 text-left font-medium">时间</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {calls.map((call) => {
-                        const expanded = expandedId === call.id
-                        return (
-                          <Fragment key={call.id}>
-                            <tr
-                              className="cursor-pointer border-b last:border-0 hover:bg-muted/30"
-                              onClick={() => setExpandedId(expanded ? null : call.id)}
-                            >
-                              <td className="px-4 py-3">
-                                <div className="font-medium">{call.displayName || call.username || '—'}</div>
-                                {call.username && call.displayName && (
-                                  <div className="text-xs text-muted-foreground">@{call.username}</div>
-                                )}
-                              </td>
-                              <td className="px-4 py-3">
-                                <Badge variant="secondary">
-                                  {aiCallTypeLabel(call.type)}
-                                </Badge>
-                              </td>
-                              <td className="px-4 py-3">
-                                <div className="max-w-[280px]">
-                                  <div className="truncate font-medium text-foreground">
-                                    {call.novelTitle || <span className="text-muted-foreground">—</span>}
+              {/* 该表含跨列的展开详情行，不能走 AdminDataPanel 的卡片化：
+                  900px 以下 td 会被折成字段，colSpan 的详情行会错配。保留原生表格
+                  并给容器横向滚动边界。 */}
+              <div className="ai-audit-table">
+                <table className="ai-audit-table__table">
+                  <caption className="sr-only">AI 调用记录列表，含用户、类型、关联内容、消耗、成本与时间，行可展开详情</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">用户</th>
+                      <th scope="col">类型</th>
+                      <th scope="col">关联内容</th>
+                      <th scope="col" className="is-numeric">消耗</th>
+                      <th scope="col" className="is-numeric">成本</th>
+                      <th scope="col">时间</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {calls.map((call) => {
+                      const expanded = expandedId === call.id
+                      return (
+                        <Fragment key={call.id}>
+                          <tr
+                            className="ai-audit-row"
+                            aria-expanded={expanded}
+                            onClick={() => setExpandedId(expanded ? null : call.id)}
+                          >
+                            <td>
+                              <div className="ai-audit-cell__name">{call.displayName || call.username || '—'}</div>
+                              {call.username && call.displayName && (
+                                <div className="ai-audit-cell__sub">@{call.username}</div>
+                              )}
+                            </td>
+                            <td>
+                              <Badge variant="secondary">
+                                {aiCallTypeLabel(call.type)}
+                              </Badge>
+                            </td>
+                            <td>
+                              <div className="ai-audit-cell__content">
+                                <div className="ai-audit-cell__name">
+                                  {call.novelTitle || <span className="ai-audit-cell__muted">—</span>}
+                                </div>
+                                {call.chapterTitle && (
+                                  <div className="ai-audit-cell__sub">
+                                    <span aria-hidden="true">📖</span> {call.chapterTitle}
                                   </div>
-                                  {call.chapterTitle && (
-                                    <div className="truncate text-xs text-muted-foreground">
-                                      📖 {call.chapterTitle}
-                                    </div>
+                                )}
+                              </div>
+                            </td>
+                            <td className="is-numeric">
+                              {call.imageCount > 0 ? (
+                                <div className="ai-audit-cell__sub">
+                                  <span className="ai-audit-cell__muted">图片</span>{' '}
+                                  <span className="ai-audit-cell__strong">{call.imageCount.toLocaleString()}</span>
+                                </div>
+                              ) : (
+                                <>
+                                  <div className="ai-audit-cell__sub">
+                                    <span className="ai-audit-cell__muted">入</span>{' '}
+                                    <span className="ai-audit-cell__strong">{call.promptTokens.toLocaleString()}</span>
+                                  </div>
+                                  <div className="ai-audit-cell__sub">
+                                    <span className="ai-audit-cell__muted">出</span>{' '}
+                                    <span className="ai-audit-cell__strong">{call.completionTokens.toLocaleString()}</span>
+                                  </div>
+                                </>
+                              )}
+                            </td>
+                            <td className="is-numeric ai-audit-cell__strong">
+                              {formatCost(call.costMillicents)}
+                            </td>
+                            <td className="ai-audit-cell__muted">
+                              <div>{new Date(call.createdAt).toLocaleDateString('zh-CN')}</div>
+                              <div className="ai-audit-cell__sub">{new Date(call.createdAt).toLocaleTimeString('zh-CN')}</div>
+                            </td>
+                          </tr>
+                          {expanded && (
+                            <tr className="ai-audit-row ai-audit-row--detail">
+                              <td colSpan={6}>
+                                <div className="ai-audit-detail">
+                                  <DetailItem label="调用 ID" value={<code className="text-xs">{call.id}</code>} />
+                                  <DetailItem label="模型" value={<code className="text-xs">{call.model || '—'}</code>} />
+                                  <DetailItem
+                                    label="小说 ID"
+                                    value={<code className="text-xs">{call.novelId || '—'}</code>}
+                                  />
+                                  <DetailItem
+                                    label="章节 ID"
+                                    value={<code className="text-xs">{call.chapterId || '—'}</code>}
+                                  />
+                                  <DetailItem label="IP 地址" value={<code className="text-xs">{call.ipAddress || '未记录'}</code>} />
+                                  <DetailItem label="User-Agent" value={<code className="block max-w-full truncate text-xs" title={call.userAgent}>{call.userAgent || '未记录'}</code>} />
+                                </div>
+                                <div className="ai-audit-detail__usage">
+                                  {call.imageCount > 0 ? (
+                                    <span>
+                                      图片生成：
+                                      <strong>{call.imageCount.toLocaleString()} 张</strong>
+                                    </span>
+                                  ) : (
+                                    <>
+                                      <span>
+                                        输入 Token：
+                                        <strong>{call.promptTokens.toLocaleString()}</strong>
+                                      </span>
+                                      <span>
+                                        输出 Token：
+                                        <strong>{call.completionTokens.toLocaleString()}</strong>
+                                      </span>
+                                      <span>
+                                        合计：
+                                        <strong>{(call.promptTokens + call.completionTokens).toLocaleString()}</strong>
+                                      </span>
+                                    </>
                                   )}
+                                  <span>
+                                    成本：<strong>{formatCost(call.costMillicents)}</strong>
+                                  </span>
                                 </div>
                               </td>
-                              <td className="px-4 py-3 text-right tabular-nums">
-                                {call.imageCount > 0 ? (
-                                  <div className="text-xs">
-                                    <span className="text-muted-foreground">图片</span>{' '}
-                                    <span className="font-medium">{call.imageCount.toLocaleString()}</span>
-                                  </div>
-                                ) : (
-                                  <>
-                                    <div className="text-xs">
-                                      <span className="text-muted-foreground">入</span>{' '}
-                                      <span className="font-medium">{call.promptTokens.toLocaleString()}</span>
-                                    </div>
-                                    <div className="text-xs">
-                                      <span className="text-muted-foreground">出</span>{' '}
-                                      <span className="font-medium">{call.completionTokens.toLocaleString()}</span>
-                                    </div>
-                                  </>
-                                )}
-                              </td>
-                              <td className="px-4 py-3 text-right tabular-nums font-medium">
-                                {formatCost(call.costMillicents)}
-                              </td>
-                              <td className="px-4 py-3 text-muted-foreground">
-                                <div>{new Date(call.createdAt).toLocaleDateString('zh-CN')}</div>
-                                <div className="text-xs">{new Date(call.createdAt).toLocaleTimeString('zh-CN')}</div>
-                              </td>
                             </tr>
-                            {expanded && (
-                              <tr className="border-b last:border-0 bg-muted/20">
-                                <td colSpan={6} className="px-4 py-4">
-                                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                                    <DetailItem label="调用 ID" value={<code className="text-xs">{call.id}</code>} />
-                                    <DetailItem label="模型" value={<code className="text-xs">{call.model || '—'}</code>} />
-                                    <DetailItem
-                                      label="小说 ID"
-                                      value={<code className="text-xs">{call.novelId || '—'}</code>}
-                                    />
-                                    <DetailItem
-                                      label="章节 ID"
-                                      value={<code className="text-xs">{call.chapterId || '—'}</code>}
-                                    />
-                                    <DetailItem label="IP 地址" value={<code className="text-xs">{call.ipAddress || '未记录'}</code>} />
-                                    <DetailItem label="User-Agent" value={<code className="block max-w-full truncate text-xs" title={call.userAgent}>{call.userAgent || '未记录'}</code>} />
-                                  </div>
-                                  <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted-foreground">
-                                    {call.imageCount > 0 ? (
-                                      <span>
-                                        图片生成：
-                                        <strong className="text-foreground">
-                                          {call.imageCount.toLocaleString()} 张
-                                        </strong>
-                                      </span>
-                                    ) : (
-                                      <>
-                                        <span>
-                                          输入 Token：
-                                          <strong className="text-foreground">{call.promptTokens.toLocaleString()}</strong>
-                                        </span>
-                                        <span>
-                                          输出 Token：
-                                          <strong className="text-foreground">{call.completionTokens.toLocaleString()}</strong>
-                                        </span>
-                                        <span>
-                                          合计：
-                                          <strong className="text-foreground">
-                                            {(call.promptTokens + call.completionTokens).toLocaleString()}
-                                          </strong>
-                                        </span>
-                                      </>
-                                    )}
-                                    <span>
-                                      成本：<strong className="text-foreground">{formatCost(call.costMillicents)}</strong>
-                                    </span>
-                                  </div>
-                                </td>
-                              </tr>
-                            )}
-                          </Fragment>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                          )}
+                        </Fragment>
+                      )
+                    })}
+                  </tbody>
+                </table>
               </div>
-              <div className="ai-list-footer mt-4 flex items-center gap-4">
-                <span className="ai-list-total shrink-0 text-sm text-muted-foreground">
+              <div className="ai-list-footer">
+                <span className="ai-list-total">
                   共 {total} 条记录，显示 {offset + 1}-{Math.min(offset + limit, total)}
                 </span>
-                <div className="ai-list-pagination-controls ml-auto flex shrink-0 items-center gap-3">
-                  <div className="ai-list-page-size flex shrink-0 items-center gap-2 text-sm text-muted-foreground">
+                <div className="ai-list-pagination-controls">
+                  <div className="ai-list-page-size">
                     <Label htmlFor="audit-page-size">每页</Label>
                     <Select value={String(limit)} onValueChange={(value) => { setLimit(Number(value)); setOffset(0) }}>
                       <SelectTrigger size="sm" id="audit-page-size" className="w-[88px]" aria-label="每页显示数量"><SelectValue /></SelectTrigger>
@@ -269,8 +271,8 @@ export default function AiAuditPanel() {
               </div>
             </>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </AdminDataPanel>
     </div>
   )
 }

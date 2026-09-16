@@ -98,9 +98,9 @@ web workspace 有 `dev` / `build` / `preview` / `typecheck` / `test`，**没有*
 | T06 | 登录审计 | implemented | `SettingsTab.tsx` | 未执行 | 静态检查通过 | 浏览器视觉、查询条件与分页 |
 | T07 | 操作审计 | implemented | `SettingsTab.tsx` | 未执行 | 静态检查通过 | 浏览器视觉、筛选值与展开信息 |
 | T08 | 任务队列 | implemented | `JobsTab.tsx`、`admin-operations.css`、`_admin-ui.css` | 未执行 | 静态检查通过 | 浏览器视觉、键盘焦点顺序；提交 `8e37b4c` |
-| T09 | AI 任务 | pending | | | | |
-| T10 | 调用审计 | pending | | | | |
-| T11 | 已生成内容 | pending | | | | |
+| T09 | AI 任务 | implemented | `ai/AiTasksPanel.tsx`、`admin-operations.css` | 未执行 | 静态检查通过 | 浏览器视觉、轮询、批次动作 |
+| T10 | 调用审计 | implemented | `ai/AiAuditPanel.tsx`、`admin-operations.css` | 未执行 | 静态检查通过 | 浏览器视觉、展开详情行、分页 |
+| T11 | 已生成内容 | implemented | `ai/AiGenerationsPanel.tsx`、`admin-operations.css` | 未执行 | 静态检查通过 | 浏览器视觉、批次展开、深链与长文弹窗 |
 | T12 | 抓取中心 | pending | | | | |
 | T13 | 书源管理 | pending | | | | |
 | T14 | 代理设置 | pending | | | | |
@@ -263,6 +263,51 @@ web workspace 有 `dev` / `build` / `preview` / `typecheck` / `test`，**没有*
 
 **未执行**：手册 P2 要求的账号操作（重置密码、禁用、删除）、保存模式原时机、邀请码状态、查询条件与分页、审计展开信息的浏览器实测。故 T04–T07 记 `implemented`，非 `verified`。
 
+## 3C. P3 记录（AI 任务与生成内容）
+
+执行日期：2026-09-16。前置提交：`51fc94d`。本包处理 T08 之外的 T09–T11，即 `ai/` 下三个面板（172 / 276 / 661 行）。
+
+### 3C.1 共享状态胶囊抽取（跨包修正）
+
+执行中核对到一处既存重复：面板标题旁的状态胶囊在五个页面各写了一份**逐字相同**的规则体（含 `is-error` 变体），见改造前的 `.jobs-list-status`、`.account-list-status`、`.mobile-telemetry-status`、`.moderation-list-status`，而本包正要再加第五份。
+
+手册 §5 的门槛是「至少两个页面存在相同结构需求」。五处逐字相同已远超门槛，故抽为共享类 `.admin-panel-status`（含 `.is-error`），删除四处页面副本，并同步更新 `JobsTab.tsx`、`SettingsTab.tsx`、`MobileTelemetryTab.tsx`、`ModerationTab.tsx` 的类名。该类与 `AdminPanelHeading` 的 `status` 槽位配套，是这一槽位唯一的样式来源。替换后旧类名残留 0 处，新类名 8 处。
+
+### 3C.2 三面板改造
+
+- `AiTasksPanel`：`Card`+`CardHeader` 换成 `AdminDataPanel`+`AdminPanelHeading`，标题由「AI 任务管理」改为工作对象名「任务列表」，与页标题「AI 任务」不再同字面。空态改用 `AdminEmptyState`，替掉手写的高度居中 `div`。
+- `AiAuditPanel`：删掉 `:121` 自写的 `rounded-xl border` 容器与 `:123` 内层 `overflow-x-auto`，外框与滚动边界改由 `.ai-audit-table` 承担；`Card` 换面板，标题由「调用记录」保留（与页标题「调用审计」不同字面）。补齐 `<caption class="sr-only">` 与表头 `scope="col"`，数值列加 `.is-numeric` 统一右对齐。
+- `AiGenerationsPanel`：容器换面板，标题改为「生成内容」（页标题为「已生成内容」）；空态改用 `AdminEmptyState`；补 `caption` 与 `scope="col"`。
+
+### 3C.3 展开行的处理（手册 §4.4 与 P3 保留项）
+
+P3 表格明确要求「该表含展开详情行，必须保留」「不能为卡片化牺牲展开行」。核对 `.admin-data-panel--grid` 的移动端实现（`admin-operations.css:7457` 起）后确认：900px 以下它按 `data-label`/`data-primary`/`data-actions` 把每个 `td` 折成独立字段行，而 `tbody` 中**没有任何 `colspan` 处理**（全文件搜 `colspan` 无 CSS 命中）。因此含 `colSpan={6}` 详情行的表若挂上 `--grid`，详情行会被拆成错配字段。
+
+故两张表**不传 `columns`**，即不加 `.admin-data-panel--grid`：外框与标题走共享面板，表格保持原生结构。`.ai-generations-table` 原有的一套约 140 行移动端卡片规则（`:4601-4740`，含 `grid-template-areas` 与批次子行处理）继续生效，本包未改动它。
+
+改造中曾一度重写该表的 `<thead>`/`<td>` Tailwind 类并引入 `.ai-generations-table__table`，这会使上述既有移动端规则失去依托。已回退：`<table>` 恢复原 `w-full min-w-[760px] text-sm`，表头恢复原显隐类，仅保留新增的 `scope` 与 `caption`；自建的失效选择器一并删除。
+
+### 3C.4 死规则清理
+
+改造后零消费者并已删除：`.ai-audit-card-header`、`.ai-generations-card__header`（宽屏与 640px 两处）、`.ai-generations-card__filter` 系列、`.ai-service .ai-audit-panel > [data-slot='card-content'] > div.overflow-hidden`（依赖已被移除的 Card 结构）。
+
+`admin-operations.css` 中原有的 `.ai-list-footer` 系列此前只承担横向滚动与字号，布局靠 JSX 的 Tailwind 类；本包把布局职责（`display`/`gap`/`margin-left: auto` 与 900px 堆叠）合并进原规则，未在文件末尾追加同名覆盖。
+
+### 3C.5 P3 验证结果
+
+| 命令 | 结果 |
+| --- | --- |
+| `npm run typecheck --workspace=@zhi-zhou/web` | 通过 |
+| `npm run test --workspace=@zhi-zhou/web` | 通过（20 文件 / 68 测试） |
+| `npm run build --workspace=@zhi-zhou/web` | 通过 |
+| `git diff --check` | 通过 |
+| `npx eslint`（三个面板） | 0 error / 4 warning，均为既有 `set-state-in-effect` |
+| Impeccable `detect.mjs` | 返回空数组 |
+
+标题核验：面板标题「任务列表」「调用记录」「生成内容」与页标题「AI 任务」「调用审计」「已生成内容」均不同字面。
+
+**未执行**：AI 任务轮询与批次跳转、调用审计展开详情行在 900px 下的表现、批次展开与 `/admin/ai?sub=content&batch=...` 深链在刷新与后退后的上下文保持、长文弹窗。故 T09–T11 记 `implemented`，非 `verified`。
+
 ## 4. 范本回归
 
 - 小说管理 `/admin/novels`：
@@ -273,9 +318,9 @@ web workspace 有 `dev` / `build` / `preview` / `typecheck` / `test`，**没有*
 ## 5. 共享层变更
 
 - `AdminWorkspace.tsx`：无改动。未新增共享组件或 props。
-- `admin-operations.css`：新增 `.account-settings-panel__footer`/`__pager`、`.account-list-status`、`.account-invites-generated` 及 `__codes`、`.admin-input--invite-count`、`.content-policy-*`、`.mobile-telemetry-*` 等页面命名空间规则；修正三处失效或冲突的规则（`.mobile-telemetry-toolbar > select` 与 `[data-slot='input']` 选择器、`.admin-metric-strip--account` 的 heading 组归属）；删除四处 `--col-N-w` 与 `account-settings-panel__header`、`account-settings-toolbar` 死规则。
+- `admin-operations.css`：新增 `.admin-panel-status`（共享，替代五处逐字相同的页面状态胶囊，消费者 8 处）、`.ai-service-stack`、`.ai-list-body`、`.ai-audit-table*`、`.ai-audit-row*`、`.ai-audit-cell__*`、`.ai-audit-detail*`、`.ai-tasks-panel .ai-tasks-content`，以及账户、内容安全、客户端监控三处的页面命名空间规则；修正三处失效或冲突的规则（`.mobile-telemetry-toolbar > select` 与 `[data-slot='input']` 选择器、`.admin-metric-strip--account` 的 heading 组归属）并把 `.ai-list-footer` 的布局职责合并进原规则；删除 `--col-N-w` 四处、`account-settings-panel__header`、`account-settings-toolbar`、`.ai-audit-card-header`、`.ai-generations-card__header`、`.ai-generations-card__filter` 系列等死规则。
 - `tokens.css`：无改动。
-- 是否新增共享 class 或 token，以及其消费者：未新增 token。新增 class 均为单页命名空间，账户视图消费者为 `SettingsTab.tsx`，客户端监控为 `MobileTelemetryTab.tsx`，内容安全为 `ContentPolicyTab.tsx`，各一个消费者，符合手册 §5 对单页问题的命名空间要求。
+- 是否新增共享 class 或 token，以及其消费者：未新增 token。`.admin-panel-status` 为共享类，消费者为 `JobsTab.tsx`（2）、`SettingsTab.tsx`（4）、`MobileTelemetryTab.tsx`（1）、`ModerationTab.tsx`（1）、`AiAuditPanel.tsx`、`AiGenerationsPanel.tsx`、`AiTasksPanel.tsx`，共 8 处；`.ai-service-stack`/`.ai-list-body`/`.ai-audit-*` 为 AI 命名空间，消费者为 `AiAuditPanel.tsx` 与 `AiGenerationsPanel.tsx`；其余新增 class 均为单页命名空间。
 
 ## 6. 命令结果
 
@@ -297,6 +342,11 @@ web workspace 有 `dev` / `build` / `preview` / `typecheck` / `test`，**没有*
 | P2 | `npm run build --workspace=@zhi-zhou/web` | 通过 | 保留既有 >500kB chunk 警告 |
 | P2 | `npx eslint SettingsTab.tsx` | 0 error / 3 warning | warning 均为既有 `set-state-in-effect` |
 | P2 | Impeccable `detect.mjs --json` | 空数组 | 无机械检出 |
+| P3 | `npm run typecheck --workspace=@zhi-zhou/web` | 通过 | 无输出 |
+| P3 | `npm run test --workspace=@zhi-zhou/web` | 通过 | 20 文件 / 68 测试 |
+| P3 | `npm run build --workspace=@zhi-zhou/web` | 通过 | 保留既有 >500kB chunk 警告 |
+| P3 | `npx eslint`（AI 三面板） | 0 error / 4 warning | warning 均为既有 `set-state-in-effect` |
+| P3 | Impeccable `detect.mjs --json` | 空数组 | 无机械检出 |
 | 每包结束 | | | |
 | P7 最终 | | | |
 

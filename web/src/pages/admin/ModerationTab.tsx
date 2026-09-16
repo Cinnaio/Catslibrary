@@ -653,7 +653,7 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
         <AdminPanelHeading
           title="审核列表"
           description={`当前查看${cfg.label}，先确认内容上下文，再执行可见性操作。`}
-          status={<span className={`moderation-list-status${error ? ' is-error' : ''}`}>{listStatusLabel}</span>}
+          status={<span className={`admin-panel-status${error ? ' is-error' : ''}`}>{listStatusLabel}</span>}
         />
         {hasRows ? (
           <Table>

@@ -5,10 +5,10 @@ import { aiApi, newOperationId } from '@/lib/api'
 import { useToast, useConfirm } from '@/components/feedback'
 import { ErrorState, InlineError, LoadingState } from '@/components/admin/AsyncStates'
 import Pagination from '@/components/admin/Pagination'
-import { AdminToolbar } from '@/components/admin/AdminWorkspace'
+import AdminEmptyState from '@/components/admin/AdminEmptyState'
+import { AdminDataPanel, AdminPanelHeading, AdminToolbar } from '@/components/admin/AdminWorkspace'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -292,7 +292,7 @@ export default function AiGenerationsPanel(props: {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="ai-service-stack">
       <AdminToolbar className="ai-generations-toolbar" ariaLive="polite">
         {selectedCount > 0 && (
           <Button variant="destructive" size="sm" disabled={batchDeleting} onClick={() => void removeSelected()}>
@@ -330,46 +330,51 @@ export default function AiGenerationsPanel(props: {
           </SelectContent>
         </Select>
       </AdminToolbar>
-      <Card className="admin-panel-card ai-generations-card">
-        <CardHeader className="ai-generations-card__header">
-          <div>
-            <CardTitle className="text-base">已生成内容</CardTitle>
-            <p className="text-sm text-muted-foreground">AI 生成的内容记录，可删除后重新生成</p>
-          </div>
-        </CardHeader>
-        <CardContent>
+      <AdminDataPanel className="ai-generations-card overflow-hidden" ariaLabel="已生成内容列表">
+        <AdminPanelHeading
+          title="生成内容"
+          description="AI 生成的内容记录，可删除后重新生成。"
+          status={
+            <span className={`admin-panel-status${error && items.length === 0 ? ' is-error' : ''}`}>
+              {loading && items.length === 0 ? '读取中' : error && items.length === 0 ? '读取失败' : items.length ? `显示 ${items.length} 条` : '暂无内容'}
+            </span>
+          }
+        />
+        <div className="ai-list-body">
           {loading && items.length === 0 ? (
             <LoadingState label="正在加载已生成内容" />
           ) : error && items.length === 0 ? (
             <ErrorState message={error} onRetry={() => void load()} />
           ) : items.length === 0 ? (
-            <div className="flex h-32 items-center justify-center text-muted-foreground">暂无已生成内容</div>
+            <AdminEmptyState message="暂无已生成内容" />
           ) : (
             <>
               {error && <InlineError message={error} onRetry={() => void load()} className="mb-3" />}
-              <div className="ai-generations-table overflow-hidden rounded-xl border border-border">
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[760px] text-sm">
-                    <thead className="border-b bg-muted/50">
-                      <tr>
-                        <th className="w-10 px-4 py-3 text-left font-medium">
-                          <Checkbox
-                            aria-label="全选当前列表"
-                            checked={allSelected}
-                            onCheckedChange={(checked) => {
-                              for (const item of items) toggleItem(item, checked === true)
-                            }}
-                          />
-                        </th>
-                        <th className="px-4 py-3 text-left font-medium">类型</th>
-                        <th className="px-4 py-3 text-left font-medium">关联内容</th>
-                        <th className="px-4 py-3 text-left font-medium">内容预览</th>
-                        <th className="hidden px-4 py-3 text-left font-medium md:table-cell">模型</th>
-                        <th className="hidden px-4 py-3 text-left font-medium sm:table-cell">生成时间</th>
-                        <th className="sticky right-0 px-4 py-3 text-right font-medium">操作</th>
-                      </tr>
-                    </thead>
-                    <tbody>
+              {/* 批次展开行与冻结操作列都依赖原生 table 结构；不套用卡片化，
+                  否则跨列子行与 sticky 列在窄屏会错位。 */}
+              <div className="ai-generations-table">
+                <table className="w-full min-w-[760px] text-sm">
+                  <caption className="sr-only">已生成内容列表，含类型、关联内容、内容预览、模型与生成时间，批次可展开章节</caption>
+                  <thead className="border-b bg-muted/50">
+                    <tr>
+                      <th scope="col" className="w-10 px-4 py-3 text-left font-medium">
+                        <Checkbox
+                          aria-label="全选当前列表"
+                          checked={allSelected}
+                          onCheckedChange={(checked) => {
+                            for (const item of items) toggleItem(item, checked === true)
+                          }}
+                        />
+                      </th>
+                      <th scope="col" className="px-4 py-3 text-left font-medium">类型</th>
+                      <th scope="col" className="px-4 py-3 text-left font-medium">关联内容</th>
+                      <th scope="col" className="px-4 py-3 text-left font-medium">内容预览</th>
+                      <th scope="col" className="hidden px-4 py-3 text-left font-medium md:table-cell">模型</th>
+                      <th scope="col" className="hidden px-4 py-3 text-left font-medium sm:table-cell">生成时间</th>
+                      <th scope="col" className="sticky right-0 px-4 py-3 text-right font-medium">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
                       {items.map((item) => (
                         <Fragment key={item.id}>
                           <tr
@@ -515,7 +520,6 @@ export default function AiGenerationsPanel(props: {
                       ))}
                     </tbody>
                   </table>
-                </div>
               </div>
               <div className="ai-list-footer mt-4 flex items-center gap-4">
                 <span className="ai-list-total shrink-0 text-sm text-muted-foreground">
@@ -552,8 +556,8 @@ export default function AiGenerationsPanel(props: {
               </div>
             </>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </AdminDataPanel>
       <Dialog
         open={!!viewing}
         onOpenChange={(open) => {
