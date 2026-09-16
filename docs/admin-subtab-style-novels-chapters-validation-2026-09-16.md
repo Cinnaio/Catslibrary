@@ -90,9 +90,9 @@ web workspace 有 `dev` / `build` / `preview` / `typecheck` / `test`，**没有*
 
 | ID | 页面 | 状态 | 变更文件 | 桌面/移动/暗色证据 | 行为验证 | 未验证项 |
 | --- | --- | --- | --- | --- | --- | --- |
-| T01 | 内容审核 | pending | | | | |
-| T02 | 安全策略 | pending | | | | |
-| T03 | 客户端监控 | pending | | | | |
+| T01 | 内容审核 | implemented | `ModerationTab.tsx` | 未执行 | 静态检查通过 | 浏览器视觉、原因槽位切换证据、分页 |
+| T02 | 安全策略 | implemented | `ContentPolicyTab.tsx`、`admin-operations.css` | 未执行 | 静态检查通过 | 浏览器视觉、开关即时保存实测 |
+| T03 | 客户端监控 | implemented | `MobileTelemetryTab.tsx`、`admin-operations.css` | 未执行 | 静态检查通过 | 浏览器视觉、状态更新实测 |
 | T04 | 用户管理 | pending | | | | |
 | T05 | 注册与邀请码 | pending | | | | |
 | T06 | 登录审计 | pending | | | | |
@@ -169,6 +169,56 @@ web workspace 有 `dev` / `build` / `preview` / `typecheck` / `test`，**没有*
 
 第 2 节状态表初始为全部 `pending`，其中 T08 已由提交 `8e37b4c` 完成（`implemented`，非 `verified`）。其余 T01–T07、T09–T25 维持 `pending`，从 P1 起按手册执行包逐包推进。
 
+## 3A. P1 记录（审核、安全策略、客户端监控）
+
+执行日期：2026-09-16。前置提交：`2a46ec8`。
+
+### 3A.1 内容审核（T01）
+
+页面已具备工具栏/数据面板/面板标题三段结构，`moderation-toolbar`（`:584`）位于数据面板之外，符合手册 §4.1 对多条件筛选页的规定，位置不动。
+
+核对三套列定义与表头顺序：`thoughts` 8 列、`comments` 7 列、`reports` 7 列，宽度分别合计 100%，`MODERATION_COLUMNS` 与 `cfg.head` 逐项对应，无错配。唯一的偏差是操作列表头字面为空字符串，而范本用「操作」；三处 `head` 末项改为「操作」。
+
+其余改动：`thead` 补 `scope="col"`（原已具备）与 `TableCaption className="sr-only"`；页头 `meta` 的 fallback 由 `'审核队列'` 改为 `'读取中'`，避免与面板语义重复。
+
+空状态未改造：`AdminEmptyState` 只接受 `message`，而该页空态需要「标题 + 说明 + `role=alert/status`」三段，与监控页不同构。按手册 §5「只有至少两个目标页面存在相同结构需求时才扩展共享能力」，保留页面自有的 `.moderation-empty`（其 `--error` 变体样式已存在）。
+
+### 3A.2 安全策略（T02）
+
+保持单面板与 `max-w-3xl`（48rem）的可读宽度，宽度改由页面命名空间 CSS 承担（`.content-policy-panel`），未扩大页面宽度。开关行与状态文字抽出 `.content-policy-row`、`.content-policy-status` 一组类，圆角取 `--radius-lg`（12px，与原 `rounded-lg` 一致），底色按原 `bg-muted/30` 折算为 `--admin-panel-muted` 40% 透明。
+
+状态文字补了 `saving` 分支（原实现只在 `loading` 与最终态之间二选一，保存中没有反馈）。未添加保存按钮：该页是即时保存，手册 §4.5 明确要求保持不变。
+
+### 3A.3 客户端监控（T03）
+
+手册指明的三处缺口全部处理：
+
+| 缺口 | 处理 |
+| --- | --- |
+| 工具栏裸 `<select>`（原 `:146`）与裸 `<Input>`（`:155`） | 换成 `CustomSelect` + `AdminSearch`；旧 CSS 的 `> select` 与 `[data-slot='input']` 选择器同步改为 `[data-slot='button'][role='combobox']` 与 `.admin-search` |
+| 行内裸 `<select>`（原 `:69`） | 换成 `CustomSelect`，保留原有 `aria-label` 语义 |
+| 高频事件区裸 `div`（原 `:192`） | 升为 `.admin-panel-card` + `AdminPanelHeading` 的面板表面 |
+
+`data-actions` 一项**未按手册填 0 缺口处理**：该列是每行唯一的状态变更入口，但它是带真实表头标签的字段列而非操作按钮列；`data-actions` 在移动端会隐藏列标签并把内容贴到卡片底部，用于此列反而丢失「处理状态」语义。故保留为普通字段（`data-label="处理状态"`），列宽由 `8rem` 调为 `9rem` 容纳 `CustomSelect`。
+
+其余：页头保留刷新按钮（`load()` 同时刷新指标条、事件列表与高频事件，是页面级操作，不宜下沉到面板）；加载态保留原居中占位框而非换成 `AdminEmptyState`（加载中不是空状态）；事件表补 `TableCaption` 与 `scope="col"`。
+
+### 3A.4 P1 验证结果
+
+| 命令 | 结果 |
+| --- | --- |
+| `npm run typecheck --workspace=@zhi-zhou/web` | 通过 |
+| `npm run test --workspace=@zhi-zhou/web` | 通过（20 文件 / 68 测试） |
+| `npm run build --workspace=@zhi-zhou/web` | 通过 |
+| `git diff --check` | 通过 |
+| `npx eslint` 三个改动页面 | 4 warning（均为既有 `set-state-in-effect`），无 error、无未使用导入 |
+| Impeccable `detect.mjs` | 返回空数组 |
+| Prettier | `ContentPolicyTab.tsx`、`MobileTelemetryTab.tsx` 不符合；已用 HEAD 版本探针确认两文件在修改前就有 16 / 77 行差异，属既存问题，未整体格式化 |
+
+改动规模：4 文件，+269/−59 行。
+
+**未执行**：手册 P1 退出标准要求的移动端可用性实测、条件切换与分页语义实测、审核「原因」槽位手动切换证据，以及三页的浏览器视觉复核。故 T01–T03 记 `implemented`，非 `verified`。
+
 ## 4. 范本回归
 
 - 小说管理 `/admin/novels`：
@@ -178,10 +228,10 @@ web workspace 有 `dev` / `build` / `preview` / `typecheck` / `test`，**没有*
 
 ## 5. 共享层变更
 
-- `AdminWorkspace.tsx`：
-- `admin-operations.css`：
-- `tokens.css`：
-- 是否新增共享 class 或 token，以及其消费者：
+- `AdminWorkspace.tsx`：无改动。未新增共享组件或 props。
+- `admin-operations.css`：仅新增页面命名空间 `.content-policy-*` 与 `.mobile-telemetry-*` 规则；同时修正两处已失效的选择器（`.mobile-telemetry-toolbar > select`、`.mobile-telemetry-toolbar [data-slot='input']` → `[data-slot='button'][role='combobox']`、`.admin-search`），覆盖宽屏与 900px 两个媒体查询内的同名规则，未在文件末尾追加。
+- `tokens.css`：无改动。
+- 是否新增共享 class 或 token，以及其消费者：未新增 token。新增 class 均为单页命名空间，消费者分别为 `ContentPolicyTab.tsx`（`.content-policy-row`、`.content-policy-row__copy/__label/__hint`、`.content-policy-status`、`.content-policy-panel`）与 `MobileTelemetryTab.tsx`（`.mobile-telemetry-toolbar__label/__search`、`.mobile-telemetry-loading`、`.telemetry-properties` 及 `__summary/__body/__note`、`.telemetry-status-cell`、`.telemetry-status-select`、`.mobile-telemetry-status`、`.mobile-telemetry-top-events` 及 `__list`），各一个消费者，符合手册 §5 对单页问题的命名空间要求。
 
 ## 6. 命令结果
 
@@ -193,6 +243,11 @@ web workspace 有 `dev` / `build` / `preview` / `typecheck` / `test`，**没有*
 | P0 基线 | `git diff --check` | 通过 | 无空白问题 |
 | P0 | `npx eslint`（5 个改动文件） | 2 error / 5 warning | 均为既有；基线为 4 error，本次净消除 2 |
 | P0 | Impeccable `detect.mjs --json` | 空数组 | 无机械检出 |
+| P1 | `npm run typecheck --workspace=@zhi-zhou/web` | 通过 | 无输出 |
+| P1 | `npm run test --workspace=@zhi-zhou/web` | 通过 | 20 文件 / 68 测试 |
+| P1 | `npm run build --workspace=@zhi-zhou/web` | 通过 | 保留既有 >500kB chunk 警告 |
+| P1 | `npx eslint`（3 个改动页面） | 0 error / 4 warning | warning 均为既有 `set-state-in-effect` |
+| P1 | Prettier 探针 | 2 文件不符 | HEAD 版即已有 16 / 77 行差异，属既存 |
 | 每包结束 | | | |
 | P7 最终 | | | |
 

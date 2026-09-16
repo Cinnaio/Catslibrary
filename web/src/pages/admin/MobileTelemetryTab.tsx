@@ -5,11 +5,11 @@ import { formatDateTime } from '@/lib/format'
 import { useToast } from '@/components/feedback'
 import AdminPage from '@/components/admin/AdminPage'
 import AdminEmptyState from '@/components/admin/AdminEmptyState'
-import { AdminDataPanel, AdminMetricStrip, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
+import CustomSelect from '../../components/admin/CustomSelect'
+import { AdminDataPanel, AdminMetricStrip, AdminPanelHeading, AdminSearch, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 type FilterValue = 'all' | 'open' | 'acknowledged' | 'resolved' | 'ignored'
 
@@ -33,7 +33,7 @@ const MOBILE_TELEMETRY_COLUMNS: readonly AdminColumn[] = [
   { key: 'event', label: '事件', primary: true },
   { key: 'device', label: '版本 / 设备', width: '12rem' },
   { key: 'properties', label: '属性' },
-  { key: 'status', label: '处理状态', width: '8rem' },
+  { key: 'status', label: '处理状态', width: '9rem' },
 ]
 
 function prettyProperties(value: string): string {
@@ -47,7 +47,9 @@ function prettyProperties(value: string): string {
 function EventRow({ event, onStatusChange }: { event: MobileTelemetryEvent; onStatusChange: (event: MobileTelemetryEvent, status: string) => void }) {
   return (
     <TableRow>
-      <TableCell data-label="接收时间" className="text-sm text-muted-foreground">{formatDateTime(event.receivedAt)}</TableCell>
+      <TableCell data-label="接收时间" className="text-sm text-muted-foreground">
+        {formatDateTime(event.receivedAt)}
+      </TableCell>
       <TableCell data-primary="" data-label="事件">
         <div className="flex items-center gap-2">
           <Badge variant={event.type === 'error' ? 'destructive' : 'secondary'}>{TYPE_LABELS[event.type] || event.type}</Badge>
@@ -55,25 +57,32 @@ function EventRow({ event, onStatusChange }: { event: MobileTelemetryEvent; onSt
         </div>
       </TableCell>
       <TableCell data-label="版本 / 设备">
-        <div className="text-sm">{event.appVersion || '—'}{event.buildVersion ? ` (${event.buildVersion})` : ''}</div>
-        <div className="text-xs text-muted-foreground">{event.osVersion || '系统版本未知'} · {event.deviceModel || '设备未知'}</div>
+        <div className="text-sm">
+          {event.appVersion || '—'}
+          {event.buildVersion ? ` (${event.buildVersion})` : ''}
+        </div>
+        <div className="text-xs text-muted-foreground">
+          {event.osVersion || '系统版本未知'} · {event.deviceModel || '设备未知'}
+        </div>
       </TableCell>
       <TableCell data-label="属性">
-        <details className="max-w-[28rem]">
-          <summary className="cursor-pointer text-sm text-primary">查看属性</summary>
-          <pre className="mt-2 max-h-52 overflow-auto whitespace-pre-wrap break-all rounded-md bg-muted p-3 text-xs leading-relaxed">{prettyProperties(event.properties)}</pre>
-          {event.adminNote && <p className="mt-2 text-xs text-muted-foreground">备注：{event.adminNote}</p>}
+        <details className="telemetry-properties">
+          <summary className="telemetry-properties__summary">查看属性</summary>
+          <pre className="telemetry-properties__body">{prettyProperties(event.properties)}</pre>
+          {event.adminNote && <p className="telemetry-properties__note">备注：{event.adminNote}</p>}
         </details>
       </TableCell>
-      <TableCell data-label="处理状态">
-        <select
-          className="h-8 rounded-md border border-input bg-background px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      <TableCell data-label="处理状态" className="telemetry-status-cell">
+        <CustomSelect
+          className="telemetry-status-select admin-input--select-sm"
+          compact
+          options={Object.entries(STATUS_LABELS)
+            .filter(([key]) => key !== 'all')
+            .map(([value, label]) => ({ value, label }))}
           value={event.status}
-          aria-label={`${event.name} 状态`}
-          onChange={(e) => onStatusChange(event, e.target.value)}
-        >
-          {Object.entries(STATUS_LABELS).filter(([key]) => key !== 'all').map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-        </select>
+          aria-label={`${event.name} 处理状态`}
+          onChange={(next) => onStatusChange(event, next)}
+        />
       </TableCell>
     </TableRow>
   )
@@ -131,7 +140,12 @@ export default function MobileTelemetryTab() {
       className="admin-redesign-page admin-redesign-page--mobile-telemetry"
       title="客户端监控"
       description="查看用户主动授权后上传的匿名错误、性能与诊断事件；不包含小说正文或账号信息。"
-      actions={<Button variant="secondary" size="sm" onClick={() => void load()} disabled={loading}><RefreshCw className={loading ? 'animate-spin' : undefined} />刷新</Button>}
+      actions={
+        <Button variant="secondary" size="sm" onClick={() => void load()} disabled={loading}>
+          <RefreshCw className={loading ? 'animate-spin' : undefined} aria-hidden="true" />
+          刷新
+        </Button>
+      }
     >
       <AdminMetricStrip
         items={[
@@ -142,43 +156,64 @@ export default function MobileTelemetryTab() {
         ]}
       />
 
-      <AdminToolbar className="mobile-telemetry-toolbar flex-wrap">
-        <select
-          className="h-9 rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      <AdminToolbar className="mobile-telemetry-toolbar" ariaLive="polite">
+        <span className="mobile-telemetry-toolbar__label">处理状态</span>
+        <CustomSelect
+          className="mobile-telemetry-toolbar__status admin-input--select-sm"
+          compact
+          options={Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label }))}
           value={status}
           aria-label="筛选遥测状态"
-          onChange={(e) => setStatus(e.target.value as FilterValue)}
-        >
-          {Object.entries(STATUS_LABELS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-        </select>
-        <div className="flex min-w-60 flex-1 gap-2 sm:max-w-md">
-          <Input
+          onChange={(next) => setStatus(next as FilterValue)}
+        />
+        <div className="mobile-telemetry-toolbar__search">
+          <AdminSearch
+            id="telemetry-search"
+            label="搜索客户端事件"
+            type="search"
             data-admin-search
-            value={searchInput}
+            className="admin-input--compact"
             placeholder="搜索事件名、系统或设备…"
+            value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') submitSearch() }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') submitSearch()
+            }}
           />
-          <Button variant="secondary" onClick={submitSearch}>搜索</Button>
+          <Button variant="secondary" size="sm" onClick={submitSearch}>
+            搜索
+          </Button>
         </div>
       </AdminToolbar>
 
       <AdminDataPanel className="overflow-hidden" ariaLabel="客户端监控事件列表" columns={MOBILE_TELEMETRY_COLUMNS}>
+        <AdminPanelHeading
+          title="事件列表"
+          description="按接收时间排列用户授权上传的匿名事件，逐条确认或归档。"
+          status={
+            <span className={`mobile-telemetry-status${error ? ' is-error' : ''}`}>
+              {loading ? '读取中' : error ? '读取失败' : data?.events.length ? `显示 ${data.events.length} 条` : '暂无内容'}
+            </span>
+          }
+        />
         {loading && !data ? (
-          <div className="flex min-h-48 items-center justify-center text-sm text-muted-foreground">正在读取客户端事件…</div>
+          <div className="mobile-telemetry-loading" role="status">
+            正在读取客户端事件…
+          </div>
         ) : error ? (
           <AdminEmptyState message={error} icon={<Activity className="size-8 opacity-40" />} action={<Button variant="secondary" onClick={() => void load()}>重试</Button>} />
         ) : !data?.events.length ? (
           <AdminEmptyState message={status === 'open' ? '当前没有待查看的客户端问题' : '当前筛选条件下暂无事件'} icon={<Activity className="size-8 opacity-40" />} />
         ) : (
           <Table>
+            <TableCaption className="sr-only">客户端监控事件列表，包含接收时间、事件、版本设备、属性与处理状态</TableCaption>
             <TableHeader>
               <TableRow>
-                <TableHead>接收时间</TableHead>
-                <TableHead>事件</TableHead>
-                <TableHead>版本 / 设备</TableHead>
-                <TableHead>属性</TableHead>
-                <TableHead>处理状态</TableHead>
+                <TableHead scope="col">接收时间</TableHead>
+                <TableHead scope="col">事件</TableHead>
+                <TableHead scope="col">版本 / 设备</TableHead>
+                <TableHead scope="col">属性</TableHead>
+                <TableHead scope="col">处理状态</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -189,12 +224,16 @@ export default function MobileTelemetryTab() {
       </AdminDataPanel>
 
       {summary?.topEvents.length ? (
-        <div className="mt-4 rounded-lg border border-border bg-card p-4">
-          <h3 className="text-sm font-semibold">近 30 天高频事件</h3>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {summary.topEvents.map((item) => <Badge key={item.name} variant="outline">{item.name} · {item.count}</Badge>)}
+        <section className="admin-panel-card mobile-telemetry-top-events" aria-label="近 30 天高频事件">
+          <AdminPanelHeading title="近 30 天高频事件" description="按出现次数排列，用于判断高频问题集中在哪些事件。" />
+          <div className="mobile-telemetry-top-events__list">
+            {summary.topEvents.map((item) => (
+              <Badge key={item.name} variant="outline">
+                {item.name} · {item.count}
+              </Badge>
+            ))}
           </div>
-        </div>
+        </section>
       ) : null}
 
       {savingId && <span className="sr-only" role="status">正在更新客户端事件状态</span>}

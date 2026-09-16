@@ -65,7 +65,7 @@ export default function ContentPolicyTab() {
       description="控制读者是否可以主动切换并查看限制级内容。"
       actions={<Button variant="secondary" size="sm" onClick={() => void load()} disabled={loading || saving}>刷新</Button>}
     >
-      <Card className="admin-panel-card max-w-3xl content-policy-panel">
+      <Card className="admin-panel-card content-policy-panel">
         <CardHeader className="flex-row items-start justify-between gap-4">
           <div className="min-w-0">
             <CardTitle className="flex items-center gap-2 text-base">
@@ -79,10 +79,10 @@ export default function ContentPolicyTab() {
           <Badge variant={adultContentEnabled ? 'default' : 'secondary'}>{adultContentEnabled ? '已启用' : '已关闭'}</Badge>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/30 px-4 py-3">
-            <label htmlFor="adult-content-enabled" className="min-w-0 cursor-pointer">
-              <span className="block text-sm font-medium text-foreground">允许读者切换成人内容模式</span>
-              <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">
+          <div className="content-policy-row">
+            <label htmlFor="adult-content-enabled" className="content-policy-row__copy">
+              <span className="content-policy-row__label">允许读者切换成人内容模式</span>
+              <span className="content-policy-row__hint">
                 关闭时隐藏前台入口，并过滤被识别为限制级的作品与分类。
               </span>
             </label>
@@ -93,8 +93,14 @@ export default function ContentPolicyTab() {
               onCheckedChange={(enabled) => void updateAdultContent(enabled)}
             />
           </div>
-          <p className="mt-3 text-xs leading-relaxed text-muted-foreground" role="status">
-            {loading ? '正在读取站点内容策略…' : adultContentEnabled ? '读者仍默认处于安全模式，需自行确认后才能查看限制级内容。' : '成人内容模式已全站关闭，读者无法解除限制。'}
+          <p className="content-policy-status" role="status">
+            {loading
+              ? '正在读取站点内容策略…'
+              : saving
+                ? '正在保存…'
+                : adultContentEnabled
+                  ? '读者仍默认处于安全模式，需自行确认后才能查看限制级内容。'
+                  : '成人内容模式已全站关闭，读者无法解除限制。'}
           </p>
         </CardContent>
       </Card>

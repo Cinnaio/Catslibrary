@@ -14,7 +14,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 type ModerationMode = 'thoughts' | 'comments' | 'reports'
 
@@ -129,7 +129,7 @@ const MODERATION_COLUMNS: Record<ModerationMode, readonly AdminColumn[]> = {
 const MODERATION_TYPES: Record<ModerationMode, ModeConfig> = {
   thoughts: {
     label: '想法',
-    head: ['时间', '小说 / 章节', '段落', '划选文字', '想法', '昵称', '状态', ''],
+    head: ['时间', '小说 / 章节', '段落', '划选文字', '想法', '昵称', '状态', '操作'],
     columns: MODERATION_COLUMNS.thoughts,
     statusOptions: [
       ['all', '全部'],
@@ -143,7 +143,7 @@ const MODERATION_TYPES: Record<ModerationMode, ModeConfig> = {
   },
   comments: {
     label: '评论',
-    head: ['时间', '小说', '用户', '评论', '互动', '状态', ''],
+    head: ['时间', '小说', '用户', '评论', '互动', '状态', '操作'],
     columns: MODERATION_COLUMNS.comments,
     statusOptions: [
       ['all', '全部'],
@@ -157,7 +157,7 @@ const MODERATION_TYPES: Record<ModerationMode, ModeConfig> = {
   },
   reports: {
     label: '举报',
-    head: ['时间', '小说', '评论', '举报人', '原因', '状态', ''],
+    head: ['时间', '小说', '评论', '举报人', '原因', '状态', '操作'],
     columns: MODERATION_COLUMNS.reports,
     statusOptions: [
       ['open', '待处理'],
@@ -574,7 +574,7 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
       className="admin-redesign-page admin-redesign-page--moderation"
       title="内容审核"
       description="把想法、评论与举报放进同一条审核队列，先判断内容，再执行可见性操作。"
-      meta={total !== null ? `共 ${total} 条` : '审核队列'}
+      meta={total !== null ? `共 ${total} 条` : '读取中'}
       actions={
         <Button variant="secondary" onClick={() => void load()} disabled={loading}>
           {loading ? '刷新中…' : '刷新队列'}
@@ -657,6 +657,7 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
         />
         {hasRows ? (
           <Table>
+            <TableCaption className="sr-only">{`${cfg.label}审核列表，含时间、来源、内容、用户与处理状态`}</TableCaption>
             <TableHeader>
               <TableRow>
                 {cfg.head.map((h, i) => (

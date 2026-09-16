@@ -51,13 +51,14 @@
 }
 
 .admin-redesign-page--settings > :is(.account-audit-toolbar, .account-operation-audit-toolbar) [data-slot='select-trigger'],
-.admin-redesign-page--mobile-telemetry > .mobile-telemetry-toolbar > select,
+.admin-redesign-page--mobile-telemetry > .mobile-telemetry-toolbar [data-slot='button'][role='combobox'],
 .ai-service :is(.ai-tasks-toolbar, .ai-audit-toolbar, .ai-generations-toolbar) [data-slot='select-trigger'] {
   flex: 0 0 auto;
 }
 
 .admin-redesign-page--settings > :is(.account-audit-toolbar, .account-operation-audit-toolbar) [data-slot='input'],
-.admin-redesign-page--mobile-telemetry > .mobile-telemetry-toolbar [data-slot='input'] {
+.admin-redesign-page--mobile-telemetry > .mobile-telemetry-toolbar .admin-search,
+.ai-service :is(.ai-tasks-toolbar, .ai-audit-toolbar, .ai-generations-toolbar) [data-slot='input'] {
   width: min(100%, 20rem);
   flex: 0 1 20rem;
 }
@@ -201,8 +202,8 @@
 
   .admin-redesign-page--settings > :is(.account-audit-toolbar, .account-operation-audit-toolbar) [data-slot='select-trigger'],
   .admin-redesign-page--settings > :is(.account-audit-toolbar, .account-operation-audit-toolbar) [data-slot='input'],
-  .admin-redesign-page--mobile-telemetry > .mobile-telemetry-toolbar > select,
-  .admin-redesign-page--mobile-telemetry > .mobile-telemetry-toolbar [data-slot='input'],
+  .admin-redesign-page--mobile-telemetry > .mobile-telemetry-toolbar [data-slot='button'][role='combobox'],
+  .admin-redesign-page--mobile-telemetry > .mobile-telemetry-toolbar .admin-search,
   .ai-service :is(.ai-tasks-toolbar, .ai-audit-toolbar, .ai-generations-toolbar) [data-slot='select-trigger'] {
     width: 100%;
     max-width: none;
@@ -2283,6 +2284,180 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 @media (max-width: 640px) {
   .admin-redesign-page--sources .source-import-panel > .source-import__body {
     padding: 1rem;
+  }
+}
+
+/* 内容安全：单面板配置页。面板宽度收在可读区间，开关行与状态文字走同一
+   套字段节奏，不铺满整个内容区。 */
+.admin-redesign-page--content-policy .content-policy-panel {
+  max-width: 48rem;
+}
+
+.admin-redesign-page--content-policy .content-policy-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--admin-space-4);
+  border: 1px solid var(--admin-border);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--admin-panel-muted) 40%, transparent);
+  padding: var(--admin-space-3) var(--admin-space-4);
+}
+
+.admin-redesign-page--content-policy .content-policy-row__copy {
+  min-width: 0;
+  cursor: pointer;
+}
+
+.admin-redesign-page--content-policy .content-policy-row__label {
+  display: block;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.admin-redesign-page--content-policy .content-policy-row__hint {
+  display: block;
+  margin-top: 0.125rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 1.6;
+}
+
+.admin-redesign-page--content-policy .content-policy-status {
+  margin: var(--admin-space-3) 0 0;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 1.6;
+}
+
+@media (max-width: 640px) {
+  .admin-redesign-page--content-policy .content-policy-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: var(--admin-space-3);
+  }
+}
+
+/* 客户端监控：事件列表按「属性折叠区 + 状态胶囊 + 面板标题」收口，
+   高频事件区从裸 div 升为与其它面板同构的纸面。 */
+.admin-redesign-page--mobile-telemetry .mobile-telemetry-toolbar__label {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.admin-redesign-page--mobile-telemetry .mobile-telemetry-toolbar__search {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  gap: var(--admin-space-2);
+}
+
+.admin-redesign-page--mobile-telemetry .mobile-telemetry-loading {
+  display: flex;
+  min-height: 12rem;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.admin-redesign-page--mobile-telemetry .telemetry-properties {
+  max-width: 28rem;
+}
+
+.admin-redesign-page--mobile-telemetry .telemetry-properties__summary {
+  cursor: pointer;
+  color: var(--accent);
+  font-size: 0.875rem;
+}
+
+.admin-redesign-page--mobile-telemetry .telemetry-properties__body {
+  max-height: 13rem;
+  margin: var(--admin-space-2) 0 0;
+  overflow: auto;
+  border-radius: var(--admin-radius);
+  background: var(--admin-panel-muted);
+  padding: var(--admin-space-3);
+  font-size: 0.75rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.admin-redesign-page--mobile-telemetry .telemetry-properties__note {
+  margin: var(--admin-space-2) 0 0;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.admin-redesign-page--mobile-telemetry .telemetry-status-cell {
+  min-width: 8rem;
+}
+
+.admin-redesign-page--mobile-telemetry .telemetry-status-select {
+  width: 100%;
+  max-width: 9rem;
+  justify-content: space-between;
+}
+
+.admin-redesign-page--mobile-telemetry .mobile-telemetry-status {
+  display: inline-flex;
+  min-width: 4.75rem;
+  min-height: 1.75rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--radius-full);
+  background: var(--admin-panel-muted);
+  padding: 0.2rem 0.6rem;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.admin-redesign-page--mobile-telemetry .mobile-telemetry-status.is-error {
+  border-color: color-mix(in srgb, var(--color-danger) 35%, var(--admin-border));
+  background: color-mix(in srgb, var(--color-danger) 8%, var(--admin-panel));
+  color: var(--color-danger);
+}
+
+.admin-redesign-page--mobile-telemetry .mobile-telemetry-top-events {
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-table-panel-radius);
+  background: var(--admin-panel);
+  box-shadow: none;
+  padding: 0;
+  overflow: hidden;
+}
+
+.admin-redesign-page--mobile-telemetry .mobile-telemetry-top-events__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--admin-space-2);
+  padding: var(--admin-space-4) 1.25rem;
+}
+
+@media (max-width: 900px) {
+  .admin-redesign-page--mobile-telemetry .mobile-telemetry-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .admin-redesign-page--mobile-telemetry .mobile-telemetry-toolbar__search {
+    width: 100%;
+  }
+
+  .admin-redesign-page--mobile-telemetry .telemetry-properties {
+    max-width: none;
+  }
+
+  .admin-redesign-page--mobile-telemetry .telemetry-status-select {
+    max-width: none;
   }
 }
 
