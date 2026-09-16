@@ -306,7 +306,7 @@ const columns: readonly AdminColumn[] = [
 
 优先复用当前组件；只有至少两个目标页面存在相同结构需求时，才增加轻量共享能力。
 
-`AdminWorkspace.tsx` 现导出：`AdminToolbar`、`AdminSearch`、`AdminContextPanel`、`AdminMetricStrip`、`AdminQueueSummary`、`AdminDataPanel`、`AdminPanelHeading` 与 `AdminColumn` 接口。另有独立文件 `components/admin/AdminPanel.tsx`（`Card` 的薄包装，`admin-panel-card` + 可选 `title`/`description`），当前唯一消费者是 `scrape/Po18AccountPanel.tsx:166`。**不存在** `AdminPageHeading` 或 `AdminFormSection`——需要时按证据新增，不要引用不存在的 API。
+`AdminWorkspace.tsx` 现导出：`AdminToolbar`、`AdminSearch`、`AdminContextPanel`、`AdminMetricStrip`、`AdminQueueSummary`、`AdminDataPanel`、`AdminPanelHeading` 与 `AdminColumn` 接口。原独立文件 `components/admin/AdminPanel.tsx`（`Card` 的薄包装）**已删除**：PO18.tw 账号面板改造后它失去唯一消费者，成为零引用死代码。**不存在** `AdminPageHeading` 或 `AdminFormSection`——需要时按证据新增，不要引用不存在的 API。需要「卡片 + 标题条」时直接用 `Card` + `AdminPanelHeading`，二者组合会被共享层识别（见 §4.2 的归零规则）。
 
 `AdminPanelHeading` 是最常用的面板标题（小说、章节、审核、任务、书源、抓取中心各步均在用）；`AdminContextPanel` 当前**零消费者**（`ChaptersTab.tsx:23` 的 import 是死 import，见 §6 P0）。
 

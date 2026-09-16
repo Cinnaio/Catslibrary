@@ -225,6 +225,208 @@
   min-width: 48rem;
 }
 
+/* ---- PO18.tw 账号面板 ----------------------------------------------------
+   两条路径而非并列信息：账号登录是主路径，Cookie 兜底是它的备选。此前左右两栏
+   并排，左栏内容本就少，被等高拉伸后在按钮下方留出大片空白，且验证码区被推到
+   面板最底部、离开触发它的按钮。改为纵向分段：主路径在上，备路径用次级表面
+   表明从属，验证码紧随登录动作，破坏性操作隔离到页脚。 */
+.po18-account-panel {
+  min-width: 0;
+}
+
+.po18-account-body {
+  display: grid;
+  gap: var(--admin-space-5);
+}
+
+.po18-account-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--admin-space-2);
+}
+
+.po18-account-section {
+  display: grid;
+  gap: var(--admin-space-4);
+  min-width: 0;
+}
+
+/* 备路径：次级表面 + 左侧内缩，明确它从属于主路径。 */
+.po18-account-section--fallback {
+  padding: var(--admin-space-4);
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius);
+  background: var(--admin-panel-muted);
+}
+
+.po18-account-section__head {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.po18-account-section__title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.po18-account-section__title > svg {
+  color: var(--text-muted);
+}
+
+.po18-account-section__hint {
+  margin: 0;
+  max-width: 46rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.po18-account-fields {
+  display: grid;
+  gap: var(--admin-space-3);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-width: 40rem;
+}
+
+/* 兜底区两列：Cookie 输入占主位，验证链接次之。按钮已移出字段网格，
+   两列在顶部对齐即可，不会因某一列多出按钮而把另一列拉出空白。 */
+.po18-account-fallback-fields {
+  display: grid;
+  gap: var(--admin-space-4);
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  align-items: start;
+  min-width: 0;
+}
+
+.po18-account-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--admin-space-2);
+}
+
+/* 验证码挑战：虚线框与主表单区分，紧贴“获取验证码”。 */
+.po18-account-captcha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--admin-space-3);
+  padding: var(--admin-space-3);
+  border: 1px dashed var(--admin-border-strong);
+  border-radius: var(--admin-radius);
+  background: var(--admin-panel-muted);
+}
+
+.po18-account-captcha__image {
+  height: 2.5rem;
+  width: auto;
+  min-width: 6rem;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-sm);
+  background: #fff;
+  object-fit: contain;
+}
+
+.po18-account-captcha__note {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.po18-account-captcha > .grid {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.po18-account-error {
+  margin: 0;
+  padding: var(--admin-space-3);
+  border: 1px solid color-mix(in srgb, var(--destructive) 30%, transparent);
+  border-radius: var(--admin-radius);
+  background: color-mix(in srgb, var(--destructive) 8%, transparent);
+  color: var(--destructive);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.po18-account-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--admin-space-3);
+  padding-top: var(--admin-space-4);
+  border-top: 1px solid var(--admin-border);
+}
+
+.po18-account-footer__note {
+  flex: 1 1 22rem;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+@media (max-width: 900px) {
+  .po18-account-status {
+    justify-content: flex-start;
+  }
+
+  .po18-account-fields,
+  .po18-account-fallback-fields {
+    grid-template-columns: minmax(0, 1fr);
+    max-width: none;
+  }
+
+  /* 窄屏下按钮铺满，避免动作挤成两行参差不齐。 */
+  .po18-account-actions > [data-slot='button'],
+  .po18-account-footer > [data-slot='button'] {
+    flex: 1 1 auto;
+  }
+}
+
+@media (max-width: 560px) {
+  /* 验证码图片与输入框同排：图片固定宽，输入框吃掉剩余空间，
+     避免图片在窄屏独占一行、下方再跟一整行输入框。 */
+  .po18-account-captcha {
+    align-items: flex-start;
+  }
+
+  .po18-account-captcha__image {
+    width: 5.5rem;
+    min-width: 0;
+  }
+
+  .po18-account-captcha > .grid {
+    flex: 1 1 calc(100% - 6.5rem);
+    /* 让输入框与图片底部对齐，而不是顶端对齐后悬空。 */
+    align-self: flex-end;
+  }
+
+  .po18-account-captcha > [data-slot='button'] {
+    flex: 1 1 100%;
+  }
+
+  .po18-account-footer {
+    align-items: center;
+  }
+
+  .po18-account-footer__note {
+    flex: 1 1 100%;
+  }
+}
+
 /* AdminMetricStrip 的变体类名（--dashboard / --account / --ai-usage）只作为
    TSX 侧的语义钩子保留。列数一律由组件内联注入的 --admin-metric-columns
    决定（跟随 items.length），此前的 CSS 同名覆盖全部被内联声明压过，
