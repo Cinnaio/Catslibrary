@@ -1,7 +1,7 @@
 // ============================================================
 // 书源管理 — SourcesView
 // ============================================================
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useConfirm, useToast } from '../../../components/feedback'
 import AdminTabHeader from '@/components/admin/AdminTabHeader'
 import { AdminDataPanel, AdminPanelHeading, AdminToolbar } from '@/components/admin/AdminWorkspace'
@@ -48,6 +48,8 @@ export default function SourcesView({ active }: { active: boolean }) {
   const [supportFilter, setSupportFilter] = useState('')
   const [hostFilter, setHostFilter] = useState('')
   const supportFilterIndex = SOURCE_SUPPORT_FILTER_INDEX[supportFilter] ?? 0
+  const sourcePageRef = useRef<HTMLDivElement>(null)
+  const sourceScrollTopRef = useRef<number | null>(null)
   const hostFilterRef = useRef('')
   const hostDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -97,6 +99,19 @@ export default function SourcesView({ active }: { active: boolean }) {
     if (active) void loadScrapeSources()
   }, [active, loadScrapeSources])
 
+  useLayoutEffect(() => {
+    if (sourcesLoading || sourceScrollTopRef.current == null) return
+
+    const scrollContainer = sourcePageRef.current?.closest<HTMLElement>('.admin-layout__content')
+    if (!scrollContainer) {
+      sourceScrollTopRef.current = null
+      return
+    }
+
+    scrollContainer.scrollTop = sourceScrollTopRef.current
+    sourceScrollTopRef.current = null
+  }, [sources, sourcesLoading])
+
   useEffect(() => {
     return () => {
       if (hostDebounce.current) clearTimeout(hostDebounce.current)
@@ -113,6 +128,11 @@ export default function SourcesView({ active }: { active: boolean }) {
   }
 
   function onSupportFilterChange(value: string) {
+    if (active) {
+      const scrollContainer = sourcePageRef.current?.closest<HTMLElement>('.admin-layout__content')
+      if (scrollContainer) sourceScrollTopRef.current = scrollContainer.scrollTop
+      setSourcesLoading(true)
+    }
     setSupportFilter(value)
     setSourcePage(1)
   }
@@ -353,7 +373,7 @@ export default function SourcesView({ active }: { active: boolean }) {
   const testSampleOk = Array.isArray(testState.data?.sampleChapters) ? testState.data.sampleChapters.filter((s: any) => s.ok).length : 0
 
   return (
-    <div className="admin-redesign-page admin-redesign-page--sources">
+    <div ref={sourcePageRef} className="admin-redesign-page admin-redesign-page--sources">
       <AdminTabHeader
         title="书源管理"
         description="批量导入 Legado 社区书源池，智能分析小说时自动按 host 匹配书源选择器。仅消费书源规则数据，转换器为项目自研。"
@@ -482,7 +502,7 @@ export default function SourcesView({ active }: { active: boolean }) {
             左右滑动查看完整字段
           </div>
 
-          <div className="table-wrapper source-panel__table-wrapper">
+          <div className="table-wrapper source-panel__table-wrapper" aria-busy={sourcesLoading}>
             <Table className="source-table">
               <colgroup>
                 <col className="source-table__col source-table__col--select" />
@@ -517,7 +537,7 @@ export default function SourcesView({ active }: { active: boolean }) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sourcesLoading ? (
+                {sourcesLoading && sources.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={10} className="table-empty">
                       加载中…
