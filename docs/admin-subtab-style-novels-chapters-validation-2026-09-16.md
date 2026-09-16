@@ -1,0 +1,154 @@
+# 后台子 tab 样式收口验证记录
+
+日期：2026-09-16
+仓库：`E:\Developments\Projects\zhi-zhou`
+执行手册：[`admin-subtab-style-novels-chapters-manual-2026-09-16.md`](./admin-subtab-style-novels-chapters-manual-2026-09-16.md)
+编制基线：`2e40652a28c2841ed4ca527f2c7c04659ddf0c52`
+
+本文件是**空白执行记录**，在实施开始前不填写任何「通过」。第 1 节为编制期已确认的事实，可直接采信；第 2 节起由执行者在实施过程中逐项填写。
+
+## 1. 编制期已确认事实
+
+以下内容来自编制期对源码、组件与 CSS 的直接核查，不是运行期观测；执行时如有冲突以实际计算样式为准。
+
+### 1.1 执行环境
+
+- 编制基线 SHA：`2e40652a28c2841ed4ca527f2c7c04659ddf0c52`（2026-09-16 20:29:37 +0800，`style(admin): 统一书源批量操作栏`）。
+- 工作区在编制期是干净的（`git status --short` 无输出）。
+- 仓库根目录与后台目录没有 `AGENTS.md`；`rg --files -g AGENTS.md` 只命中 `node_modules/recharts/AGENTS.md`。
+- 提交约定见 `.cursor/rules/commit-language.mdc`：Conventional Commits 英文 type + 中文描述。
+
+### 1.2 编制基线距上一版手册已完成的工作
+
+2026-09-13 版手册的基线是 `75e1d1b`。到本基线之间有 13 个提交、30 个文件、+1472/−496 行已落地：
+
+- `style(admin): 统一后台子 tab 面板与卡片视觉`（`001ab53`）至 `style(admin): 统一书源批量操作栏`（`2e40652`）。
+- 涉及 `admin-operations.css`（+966 行区间）、`AdminWorkspace.tsx`、AI/账户/运营/书源/抓取各面板，以及 `tokens.css` 与公开页样式文件的圆角归并。
+- 这些成果已计入基线，新手册不重复要求；P0 的基线检查只用于确认它们没有回退。
+
+### 1.3 页面范围与范本
+
+- 导航注册表：5 个分组、9 个一级入口、25 个可导航子页（含范本 2 页）。
+- 固定范本：`/admin/novels`（`NovelsTab.tsx`）、`/admin/chapters`（`ChaptersTab.tsx`）。
+- 迁移目标：T01–T23，共 23 页。
+- 由范本降级为目标的页面：内容审核（T01）、安全策略（T02）。
+
+### 1.4 已存在的标题元数据映射（不需重做）
+
+| 父容器 | 映射常量 | 行号 | 覆盖的子页 |
+| --- | --- | --- | --- |
+| `AiTab.tsx` | `AI_SUBTAB_META` | `:30` | writing / cover / tasks / content / usage / audit / config / params |
+| `scrape/index.tsx` | `SCRAPE_VIEW_META` | `:15` | center / sources / proxy |
+| `SettingsTab.tsx` | `ACCOUNT_TAB_META` | `:94` | users / registration / audit / operation-audit |
+| `SiteOperationsTab.tsx` | `OPERATION_TAB_META` | `:20` | overview / traffic / content |
+
+`scrape/index.tsx:44-45` 在 `sources` 视图主动把 `title`/`description` 置 `undefined`，由 `SourcesView` 自带页头——这是唯一已正确处理标题归属的案例。
+
+### 1.5 待 P0 处理的已确认缺陷
+
+| 项 | 位置 | 事实 |
+| --- | --- | --- |
+| 标题不一致 | `JobsTab.tsx:369` vs `admin-registry.ts:63` | 页面写「任务管理」，导航写「任务队列」 |
+| 标题不一致 | `ContentPolicyTab.tsx:64` vs `admin-registry.ts:93` | 页面写「内容安全」，导航写「安全策略」 |
+| 标题不一致 | `DashboardTab.tsx:76` vs `admin-registry.ts:42` | 页面写「后台总览」，导航写「总览」 |
+| 标题不一致 | `AiTab.tsx:37` vs `admin-registry.ts:78` | 子页写「AI 配置」，导航写「配置」 |
+| 页内重复标题 | `SettingsTab.tsx:630` | `audit` 子页的 `<h2>登录审计</h2>` 与页标题字面相同 |
+| 近似重复标题 | `SettingsTab.tsx:713` | 「管理员操作审计」与页标题「操作审计」近似 |
+| 死 import | `ChaptersTab.tsx:23`、`:25` | `AdminContextPanel`、`AdminMetricStrip` 全文件仅 import 处命中 |
+
+### 1.6 结构性缺口（决定各包工作量）
+
+- `SettingsTab.tsx`：4 处裸 `Table`（`:514`、`:639`、`:721`、`:806`）已手写完整 `data-*` 语义，但没有 `AdminDataPanel` 包裹，也没有 `AdminColumn` 常量 → 列宽变量无处注入，`table-layout: fixed` 与 `.admin-data-panel--grid` 卡片化均不生效。
+- `scrape/ProxyView.tsx`：`:302` 裸 `Table`，同样已有 `data-*`（1/6/0/0）但无面板契约。
+- `ai/AiAuditPanel.tsx:123`、`ai/AiGenerationsPanel.tsx:352`：原生 `<table>` 未走 `AdminDataPanel`，含展开详情行，收敛时不得牺牲展开行。
+- 零 workspace 组件页面：`ContentPolicyTab.tsx`、`DashboardTab.tsx`、`ai/AiConfigPanel.tsx`、`ai/AiCoverPanel.tsx`、`ai/AiParamsPanel.tsx`、`ai/AiWritingPanel.tsx`。
+
+### 1.7 契约勘误（相对 2026-09-13 版手册）
+
+- `.admin-data-table` 在 CSS 与 TSX 中**均不存在**；真实选择器是 `.admin-data-panel--grid table`（`admin-operations.css:6770`）。`AdminWorkspace.tsx:176` 注释是过期引用。
+- 固定列宽覆盖第 **1–12** 列（`:6775-6822`），不是第 8 列；第 13 列起无规则。
+- 固定列宽区间 `@media (min-width: 901px)`（`:6769`）与卡片化 `@media (max-width: 900px)`（`:6935`）成对，分界 900/901。
+- `--admin-dialog-radius` 已不存在，现为 `--admin-radius-dialog`（`:22`，值 `--radius-xl` = 16px）。
+- `_admin-discover.css` 不存在；`_admin.css`、`_admin-ui.css` 仍在 `global.css:24-25` 导入，且 `.novel-editor__field { margin-bottom: 0 !important }` 由 `_admin-ui.css:13` 覆写 `admin-operations.css:2864` 的同名规则。
+
+### 1.8 命令与脚本现状
+
+web workspace 有 `dev` / `build` / `preview` / `typecheck` / `test`，**没有** lint 或 format script。ESLint 与 Prettier 用仓库根级配置直接调用（`npx eslint`、`npx prettier`）。
+
+## 2. 执行环境（实施时填写）
+
+- 实际起始 SHA：
+- 结束时工作区状态：
+- 本地服务地址、是否使用 mock：
+- 已有改动与保护方式：
+- 可访问的真实数据范围：
+
+## 3. 页面清单
+
+状态可用：`pending` / `in-progress` / `implemented` / `verified` / `blocked-auth` / `blocked-data`。
+`implemented` 仅表示代码完成；`verified` 需有适用行为和浏览器证据。
+
+| ID | 页面 | 状态 | 变更文件 | 桌面/移动/暗色证据 | 行为验证 | 未验证项 |
+| --- | --- | --- | --- | --- | --- | --- |
+| T01 | 内容审核 | pending | | | | |
+| T02 | 安全策略 | pending | | | | |
+| T03 | 客户端监控 | pending | | | | |
+| T04 | 用户管理 | pending | | | | |
+| T05 | 注册与邀请码 | pending | | | | |
+| T06 | 登录审计 | pending | | | | |
+| T07 | 操作审计 | pending | | | | |
+| T08 | 任务队列 | pending | | | | |
+| T09 | AI 任务 | pending | | | | |
+| T10 | 调用审计 | pending | | | | |
+| T11 | 已生成内容 | pending | | | | |
+| T12 | 抓取中心 | pending | | | | |
+| T13 | 书源管理 | pending | | | | |
+| T14 | 代理设置 | pending | | | | |
+| T15 | AI 创作 | pending | | | | |
+| T16 | 封面生成 | pending | | | | |
+| T17 | AI 配置 | pending | | | | |
+| T18 | 参数调优 | pending | | | | |
+| T19 | 总览 | pending | | | | |
+| T20 | 用量统计 | pending | | | | |
+| T21 | 运营概览 | pending | | | | |
+| T22 | 流量分析 | pending | | | | |
+| T23 | 内容分析 | pending | | | | |
+| T24 | 小说管理（范本回归） | pending | | | | |
+| T25 | 章节管理（范本回归） | pending | | | | |
+
+## 4. 范本回归
+
+- 小说管理 `/admin/novels`：
+- 章节管理 `/admin/chapters`：
+
+回归关注点：页头结构与标题、工具栏位置、面板表面与圆角、`data-*` 字段契约、移动端卡片化、弹窗三段式与焦点返回、`prefers-reduced-motion`。
+
+## 5. 共享层变更
+
+- `AdminWorkspace.tsx`：
+- `admin-operations.css`：
+- `tokens.css`：
+- 是否新增共享 class 或 token，以及其消费者：
+
+## 6. 命令结果
+
+| 阶段 | 命令 | 结果 | 关键输出/备注 |
+| --- | --- | --- | --- |
+| P0 基线 | `npm run typecheck --workspace=@zhi-zhou/web` | | |
+| P0 基线 | `npm run test --workspace=@zhi-zhou/web` | | |
+| P0 基线 | `npm run build --workspace=@zhi-zhou/web` | | |
+| P0 基线 | `git diff --check` | | |
+| 每包结束 | | | |
+| P7 最终 | | | |
+
+## 7. 浏览器验证边界
+
+- 已覆盖的视口与主题：
+- 未覆盖的视口与主题（及原因）：
+- 未执行的写操作（保存、删除、停用、重放、代理测试、AI 生成、抓取任务、CSV 导出）：
+- 未打开的弹窗与焦点返回检查：
+- 使用的数据来源（真实 / mock / 测试实例）及切换方式：
+
+## 8. 例外与遗留
+
+1. 页面、原因、影响、下一步：
