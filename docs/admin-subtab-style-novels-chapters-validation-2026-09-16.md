@@ -93,10 +93,10 @@ web workspace 有 `dev` / `build` / `preview` / `typecheck` / `test`，**没有*
 | T01 | 内容审核 | implemented | `ModerationTab.tsx` | 未执行 | 静态检查通过 | 浏览器视觉、原因槽位切换证据、分页 |
 | T02 | 安全策略 | implemented | `ContentPolicyTab.tsx`、`admin-operations.css` | 未执行 | 静态检查通过 | 浏览器视觉、开关即时保存实测 |
 | T03 | 客户端监控 | implemented | `MobileTelemetryTab.tsx`、`admin-operations.css` | 未执行 | 静态检查通过 | 浏览器视觉、状态更新实测 |
-| T04 | 用户管理 | pending | | | | |
-| T05 | 注册与邀请码 | pending | | | | |
-| T06 | 登录审计 | pending | | | | |
-| T07 | 操作审计 | pending | | | | |
+| T04 | 用户管理 | implemented | `SettingsTab.tsx`、`admin-operations.css` | 未执行 | 静态检查通过 | 浏览器视觉、账号操作与分页 |
+| T05 | 注册与邀请码 | implemented | `SettingsTab.tsx`、`admin-operations.css` | 未执行 | 静态检查通过 | 浏览器视觉、保存模式与邀请码动作 |
+| T06 | 登录审计 | implemented | `SettingsTab.tsx` | 未执行 | 静态检查通过 | 浏览器视觉、查询条件与分页 |
+| T07 | 操作审计 | implemented | `SettingsTab.tsx` | 未执行 | 静态检查通过 | 浏览器视觉、筛选值与展开信息 |
 | T08 | 任务队列 | implemented | `JobsTab.tsx`、`admin-operations.css`、`_admin-ui.css` | 未执行 | 静态检查通过 | 浏览器视觉、键盘焦点顺序；提交 `8e37b4c` |
 | T09 | AI 任务 | pending | | | | |
 | T10 | 调用审计 | pending | | | | |
@@ -219,6 +219,50 @@ web workspace 有 `dev` / `build` / `preview` / `typecheck` / `test`，**没有*
 
 **未执行**：手册 P1 退出标准要求的移动端可用性实测、条件切换与分页语义实测、审核「原因」槽位手动切换证据，以及三页的浏览器视觉复核。故 T01–T03 记 `implemented`，非 `verified`。
 
+## 3B. P2 记录（账户四视图）
+
+执行日期：2026-09-16。前置提交：`2c90dce`。本包集中改 `SettingsTab.tsx` 一个文件（881 → 924 行）。
+
+### 3B.1 结构性改造
+
+四个视图此前各自手写 `admin-data-panel admin-data-panel--grid <panel>` 容器、手写 `account-settings-panel__header` 标题条、并用一层 `<div className="overflow-x-auto">` 包表格，均无 `AdminColumn` 常量，列宽只在 CSS 里以 `--col-N-w` 声明。
+
+改为：
+
+- 新增 `USER_COLUMNS`、`LOGIN_AUDIT_COLUMNS`、`OPERATION_AUDIT_COLUMNS`、`INVITE_COLUMNS` 四组列定义，宽度取原 CSS 中的百分比原值，改由 `<AdminDataPanel columns>` 注入。
+- 四处 `<section …admin-data-panel…>` 换成 `<AdminDataPanel>`，`overflow-hidden` 保留（范本 `ChaptersTab.tsx:502`、`JobsTab.tsx:447` 同样显式添加，用于裁剪 20px 圆角内的表格）。
+- 四处标题条换成 `AdminPanelHeading`，标题改为工作对象名（用户目录／登录记录／操作记录／邀请码），描述与状态胶囊归位到 `description`／`status`。
+- 删除四处冗余的 `overflow-x-auto` 包裹层：shadcn `Table` 自带 `data-slot="table-container"` 且已是 `overflow-x-auto`（`table.tsx:9-12`），外层包裹重复。登录审计视图还多一层无类名 `<div>`，一并移除。
+- 四处表格补 `TableCaption className="sr-only"` 与表头 `scope="col"`（原有 25 处表头全部补齐）。
+- 页脚（共 N 条 + 分页）抽出 `.account-settings-panel__footer` / `__pager`，替代三处手写的 `border-t …` 组合。
+
+### 3B.2 指标条去 Card 包裹
+
+手册要求「现有指标条避免 Card 再包指标条」。核对其他页面：`MobileTelemetryTab.tsx:150`、`AiUsagePanel.tsx:84`、`DashboardTab.tsx:90`、`SiteOperationsTab.tsx:192` 的指标条**均为无 Card 直接放置**，账户视图是唯一例外。已移除 `Card + CardHeader + CardContent` 包裹。
+
+随之发现一处既存的类名语义冲突：`.admin-metric-strip--account` 被并入 `.admin-panel-heading` 同组规则，带 `display: flex` + `border-bottom`，即该页指标条此前被当作「Card 内标题条」渲染；而同一类名在窄屏规则（`:7017`）里又按网格处理。移除 Card 后这种双重语义会直接导致视觉失真。已把该类从 heading 组中拆出，改为标准指标条外观并声明 `--admin-metric-columns: 4`，与客户端监控页一致。
+
+### 3B.3 死规则清理
+
+改造后 `account-settings-panel__header`（两处）与 `account-settings-toolbar` 零消费者，连同 `--col-N-w` 的四处声明一并删除，避免同一份宽度在 JSX 与 CSS 两处各写一遍。按手册 §5 修正原规则，未在文件末尾追加覆盖。
+
+### 3B.4 P2 验证结果
+
+| 命令 | 结果 |
+| --- | --- |
+| `npm run typecheck --workspace=@zhi-zhou/web` | 通过 |
+| `npm run test --workspace=@zhi-zhou/web` | 通过（20 文件 / 68 测试） |
+| `npm run build --workspace=@zhi-zhou/web` | 通过 |
+| `git diff --check` | 通过 |
+| `npx eslint SettingsTab.tsx` | 0 error / 3 warning（既有 `set-state-in-effect`） |
+| Impeccable `detect.mjs` | 返回空数组 |
+
+结构核验：`<AdminDataPanel>` 4 处、`<AdminPanelHeading>` 4 处、`<TableCaption>` 4 处、`scope="col"` 25 处；`admin-data-panel--grid` 手写、`overflow-x-auto`、`account-settings-panel__header`、`account-settings-toolbar` 残留均为 0。
+
+改动规模：2 文件，+317/−253 行。
+
+**未执行**：手册 P2 要求的账号操作（重置密码、禁用、删除）、保存模式原时机、邀请码状态、查询条件与分页、审计展开信息的浏览器实测。故 T04–T07 记 `implemented`，非 `verified`。
+
 ## 4. 范本回归
 
 - 小说管理 `/admin/novels`：
@@ -229,9 +273,9 @@ web workspace 有 `dev` / `build` / `preview` / `typecheck` / `test`，**没有*
 ## 5. 共享层变更
 
 - `AdminWorkspace.tsx`：无改动。未新增共享组件或 props。
-- `admin-operations.css`：仅新增页面命名空间 `.content-policy-*` 与 `.mobile-telemetry-*` 规则；同时修正两处已失效的选择器（`.mobile-telemetry-toolbar > select`、`.mobile-telemetry-toolbar [data-slot='input']` → `[data-slot='button'][role='combobox']`、`.admin-search`），覆盖宽屏与 900px 两个媒体查询内的同名规则，未在文件末尾追加。
+- `admin-operations.css`：新增 `.account-settings-panel__footer`/`__pager`、`.account-list-status`、`.account-invites-generated` 及 `__codes`、`.admin-input--invite-count`、`.content-policy-*`、`.mobile-telemetry-*` 等页面命名空间规则；修正三处失效或冲突的规则（`.mobile-telemetry-toolbar > select` 与 `[data-slot='input']` 选择器、`.admin-metric-strip--account` 的 heading 组归属）；删除四处 `--col-N-w` 与 `account-settings-panel__header`、`account-settings-toolbar` 死规则。
 - `tokens.css`：无改动。
-- 是否新增共享 class 或 token，以及其消费者：未新增 token。新增 class 均为单页命名空间，消费者分别为 `ContentPolicyTab.tsx`（`.content-policy-row`、`.content-policy-row__copy/__label/__hint`、`.content-policy-status`、`.content-policy-panel`）与 `MobileTelemetryTab.tsx`（`.mobile-telemetry-toolbar__label/__search`、`.mobile-telemetry-loading`、`.telemetry-properties` 及 `__summary/__body/__note`、`.telemetry-status-cell`、`.telemetry-status-select`、`.mobile-telemetry-status`、`.mobile-telemetry-top-events` 及 `__list`），各一个消费者，符合手册 §5 对单页问题的命名空间要求。
+- 是否新增共享 class 或 token，以及其消费者：未新增 token。新增 class 均为单页命名空间，账户视图消费者为 `SettingsTab.tsx`，客户端监控为 `MobileTelemetryTab.tsx`，内容安全为 `ContentPolicyTab.tsx`，各一个消费者，符合手册 §5 对单页问题的命名空间要求。
 
 ## 6. 命令结果
 
@@ -248,6 +292,11 @@ web workspace 有 `dev` / `build` / `preview` / `typecheck` / `test`，**没有*
 | P1 | `npm run build --workspace=@zhi-zhou/web` | 通过 | 保留既有 >500kB chunk 警告 |
 | P1 | `npx eslint`（3 个改动页面） | 0 error / 4 warning | warning 均为既有 `set-state-in-effect` |
 | P1 | Prettier 探针 | 2 文件不符 | HEAD 版即已有 16 / 77 行差异，属既存 |
+| P2 | `npm run typecheck --workspace=@zhi-zhou/web` | 通过 | 无输出 |
+| P2 | `npm run test --workspace=@zhi-zhou/web` | 通过 | 20 文件 / 68 测试 |
+| P2 | `npm run build --workspace=@zhi-zhou/web` | 通过 | 保留既有 >500kB chunk 警告 |
+| P2 | `npx eslint SettingsTab.tsx` | 0 error / 3 warning | warning 均为既有 `set-state-in-effect` |
+| P2 | Impeccable `detect.mjs --json` | 空数组 | 无机械检出 |
 | 每包结束 | | | |
 | P7 最终 | | | |
 

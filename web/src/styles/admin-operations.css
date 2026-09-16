@@ -63,7 +63,8 @@
   flex: 0 1 20rem;
 }
 
-/* Account tables now use the same grid/card contract as novels and chapters. */
+/* Account tables now use the same grid/card contract as novels and chapters.
+   列宽由 <AdminDataPanel columns> 以行内 --col-N-w 注入，不再在此重复声明。 */
 .account-users-panel,
 .account-audit-panel,
 .account-operation-audit-panel,
@@ -72,60 +73,83 @@
   min-width: 0;
 }
 
-.account-users-panel {
-  --col-1-w: 24%;
-  --col-2-w: 11%;
-  --col-3-w: 11%;
-  --col-4-w: 12%;
-  --col-5-w: 14%;
-  --col-6-w: 8%;
-  --col-7-w: 20%;
-}
-
-.account-audit-panel {
-  --col-1-w: 19%;
-  --col-2-w: 11%;
-  --col-3-w: 17%;
-  --col-4-w: 13%;
-  --col-5-w: 25%;
-  --col-6-w: 15%;
-}
-
-.account-operation-audit-panel {
-  --col-1-w: 18%;
-  --col-2-w: 18%;
-  --col-3-w: 11%;
-  --col-4-w: 20%;
-  --col-5-w: 8%;
-  --col-6-w: 15%;
-  --col-7-w: 10%;
-}
-
-.account-invites-panel {
-  --col-1-w: 22%;
-  --col-2-w: 16%;
-  --col-3-w: 24%;
-  --col-4-w: 18%;
-  --col-5-w: 20%;
-}
-
-.account-users-panel [data-slot='table-container'],
-.account-audit-panel [data-slot='table-container'],
-.account-operation-audit-panel [data-slot='table-container'],
-.account-invites-panel [data-slot='table-container'] {
-  overflow-x: auto;
-}
-
-.account-users-panel .account-settings-panel__header,
-.account-audit-panel .account-settings-panel__header,
-.account-operation-audit-panel .account-settings-panel__header {
-  border-color: var(--admin-border);
-  background: color-mix(in srgb, var(--admin-panel) 96%, var(--accent-subtle));
-}
-
 .account-users-panel .admin-cell-actions,
 .account-invites-panel .admin-cell-actions {
   min-width: 0;
+}
+
+/* 账户四视图统一到共享数据面板后，页脚、状态胶囊与邀请码生成区沿用同一套
+   面板语言，不再各自手写 border-t / mt-* / bg-muted。 */
+.account-settings-panel__footer {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--admin-space-3);
+  border-top: 1px solid var(--admin-border);
+  padding: var(--admin-space-3) 1.25rem;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.account-settings-panel__pager {
+  display: flex;
+  align-items: center;
+  gap: var(--admin-space-2);
+}
+
+.account-list-status {
+  display: inline-flex;
+  min-width: 4.75rem;
+  min-height: 1.75rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--radius-full);
+  background: var(--admin-panel-muted);
+  padding: 0.2rem 0.6rem;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.account-invites-generated {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--admin-space-3);
+  margin: var(--admin-space-4) 1.25rem 0;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--radius-lg);
+  background: var(--admin-panel-muted);
+  padding: var(--admin-space-3) var(--admin-space-4);
+}
+
+.account-invites-generated__codes {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--admin-space-2);
+}
+
+.account-invites-generated__codes code {
+  border: 1px solid var(--admin-border);
+  border-radius: var(--radius-full);
+  background: var(--admin-panel);
+  padding: 0.125rem 0.625rem;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+
+.admin-redesign-page--settings .admin-input--invite-count {
+  width: 5.75rem;
+  flex: 0 0 auto;
 }
 
 .admin-panel-card,
@@ -2598,14 +2622,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   width: 100%;
   height: 100%;
   object-fit: cover;
-}
-
-.account-settings-toolbar {
-  min-height: 2.25rem;
-}
-
-.account-settings-panel__header {
-  border-bottom: 1px solid var(--admin-border);
 }
 
 .account-settings-tabs__list {
@@ -6708,7 +6724,12 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   --admin-metric-columns: 7;
 }
 
-.admin-metric-strip--account,
+/* 账户用户概览：4 项指标，走标准指标条网格外观（与客户端监控一致），
+   不再作为 Card 内的标题条使用。 */
+.admin-metric-strip--account {
+  --admin-metric-columns: 4;
+}
+
 .admin-panel-heading {
   display: flex;
   align-items: flex-start;

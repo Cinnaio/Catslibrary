@@ -15,10 +15,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import AdminPage from '@/components/admin/AdminPage'
-import { AdminMetricStrip, AdminToolbar } from '@/components/admin/AdminWorkspace'
+import { AdminDataPanel, AdminMetricStrip, AdminPanelHeading, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
 import { usePersistentState } from '@/hooks/usePersistentState'
 
 interface AdminUser {
@@ -101,6 +101,47 @@ const ACCOUNT_TAB_META: Record<'users' | 'registration' | 'audit' | 'operation-a
 function roleLabel(role: string): string {
   return role === 'admin' ? '管理员' : '读者'
 }
+
+/**
+ * 四个账户视图的列定义。宽度与 .account-*-panel 原来的 --col-N-w 取值一致，
+ * 现由组件注入，避免同一份宽度在 JSX 与 CSS 两处各写一遍。
+ */
+const USER_COLUMNS: readonly AdminColumn[] = [
+  { key: 'user', label: '用户', width: '24%', primary: true },
+  { key: 'role', label: '角色', width: '11%' },
+  { key: 'status', label: '状态', width: '11%' },
+  { key: 'created', label: '注册', width: '12%' },
+  { key: 'lastLogin', label: '最近登录', width: '14%' },
+  { key: 'thoughts', label: '想法', width: '8%' },
+  { key: 'actions', label: '操作', width: '20%', actions: true },
+]
+
+const LOGIN_AUDIT_COLUMNS: readonly AdminColumn[] = [
+  { key: 'user', label: '用户', width: '19%', primary: true },
+  { key: 'status', label: '结果', width: '11%' },
+  { key: 'reason', label: '原因', width: '17%' },
+  { key: 'ip', label: 'IP 地址', width: '13%' },
+  { key: 'userAgent', label: 'User-Agent', width: '25%' },
+  { key: 'time', label: '时间', width: '15%' },
+]
+
+const OPERATION_AUDIT_COLUMNS: readonly AdminColumn[] = [
+  { key: 'actor', label: '操作人', width: '18%', primary: true },
+  { key: 'action', label: '动作', width: '18%' },
+  { key: 'targetCount', label: '目标数量', width: '11%' },
+  { key: 'status', label: '结果', width: '20%' },
+  { key: 'replays', label: '重放', width: '8%' },
+  { key: 'operationId', label: '操作 ID', width: '15%' },
+  { key: 'time', label: '时间', width: '10%' },
+]
+
+const INVITE_COLUMNS: readonly AdminColumn[] = [
+  { key: 'code', label: '邀请码', width: '22%', primary: true },
+  { key: 'status', label: '状态', width: '16%' },
+  { key: 'usedBy', label: '使用者', width: '24%' },
+  { key: 'created', label: '创建时间', width: '18%' },
+  { key: 'actions', label: '操作', width: '20%', actions: true },
+]
 
 export default function SettingsTab(_props: { highlightNovelId?: string; onHighlightConsumed?: () => void }) {
   const { toast } = useToast()
@@ -446,8 +487,8 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
           </span>
         }
       >
-        {currentAccountTab === 'registration' && <div className="grid gap-4">
-        <Card>
+        {currentAccountTab === 'registration' && (
+        <Card className="admin-panel-card">
           <CardHeader>
             <CardTitle className="text-base">注册设置</CardTitle>
             <p className="text-sm text-muted-foreground">控制新用户如何加入本站。</p>
@@ -479,48 +520,41 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
             </div>
           </CardContent>
         </Card>
-        </div>}
+        )}
 
         {currentAccountTab === 'users' && <>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">用户概览</CardTitle>
-            <p className="mt-0.5 text-sm text-muted-foreground">快速查看用户规模与状态，再管理具体账号。</p>
-          </CardHeader>
-          <CardContent>
-            <AdminMetricStrip
-              className="admin-metric-strip--account"
-              ariaLabel="用户统计"
-              items={[
-                { label: '用户', value: users.length },
-                { label: '活跃', value: activeCount },
-                { label: '禁用', value: users.length - activeCount },
-                { label: '管理员', value: adminCount },
-              ]}
-            />
-          </CardContent>
-        </Card>
-        <div className="admin-data-panel admin-data-panel--grid account-users-panel overflow-hidden">
-      <div className="account-settings-panel__header flex flex-wrap items-center justify-between gap-2 px-4 py-3">
-        <div>
-          <h2 className="text-base font-semibold text-foreground">用户</h2>
-          <p className="mt-0.5 text-sm text-muted-foreground">管理站点用户、角色与登录状态</p>
-        </div>
-        <Button variant="secondary" size="sm" onClick={() => void load()} disabled={loading}>
-          刷新
-        </Button>
-      </div>
-      <div className="overflow-x-auto">
-        <Table>
+        <AdminMetricStrip
+          className="admin-metric-strip--account"
+          ariaLabel="用户统计"
+          items={[
+            { label: '用户', value: users.length },
+            { label: '活跃', value: activeCount },
+            { label: '禁用', value: users.length - activeCount },
+            { label: '管理员', value: adminCount },
+          ]}
+        />
+        <AdminDataPanel className="account-users-panel overflow-hidden" ariaLabel="用户列表" columns={USER_COLUMNS}>
+          <AdminPanelHeading
+            title="用户目录"
+            description="管理站点用户、角色与登录状态。"
+            status={<span className="account-list-status">{loading && !data ? '读取中' : users.length ? `共 ${users.length} 人` : '暂无用户'}</span>}
+            actions={
+              <Button variant="secondary" size="sm" onClick={() => void load()} disabled={loading}>
+                刷新
+              </Button>
+            }
+          />
+          <Table>
+            <TableCaption className="sr-only">站点用户列表，含角色、状态、注册时间、最近登录与想法数</TableCaption>
             <TableHeader>
               <TableRow>
-                <TableHead>用户</TableHead>
-                <TableHead>角色</TableHead>
-                <TableHead>状态</TableHead>
-                <TableHead>注册</TableHead>
-                <TableHead>最近登录</TableHead>
-                <TableHead>想法</TableHead>
-                <TableHead></TableHead>
+                <TableHead scope="col">用户</TableHead>
+                <TableHead scope="col">角色</TableHead>
+                <TableHead scope="col">状态</TableHead>
+                <TableHead scope="col">注册</TableHead>
+                <TableHead scope="col">最近登录</TableHead>
+                <TableHead scope="col">想法</TableHead>
+                <TableHead scope="col">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -590,8 +624,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
               )}
             </TableBody>
           </Table>
-      </div>
-        </div>
+        </AdminDataPanel>
         </>}
 
       {currentAccountTab === 'audit' && <>
@@ -624,68 +657,70 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
             }}
           />
         </AdminToolbar>
-      <section className="admin-data-panel admin-data-panel--grid account-audit-panel overflow-hidden">
-        <div className="account-settings-panel__header flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-          <div>
-            <h2 className="text-base font-semibold text-foreground">登录记录</h2>
-            <p className="mt-0.5 text-sm text-muted-foreground">记录登录成功、失败与限流事件，不保存密码或登录令牌</p>
-          </div>
-          <Button variant="secondary" size="sm" onClick={() => void loadLoginAudit()} disabled={loginAuditLoading}>
-            刷新
-          </Button>
-        </div>
-        <div>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>用户</TableHead>
-                  <TableHead>结果</TableHead>
-                  <TableHead>原因</TableHead>
-                  <TableHead>IP 地址</TableHead>
-                  <TableHead>User-Agent</TableHead>
-                  <TableHead>时间</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loginAuditLoading && loginAudits.length === 0 ? (
-                  <TableRow><TableCell colSpan={6} className="h-20 text-center text-sm text-muted-foreground">加载中…</TableCell></TableRow>
-                ) : loginAudits.length === 0 ? (
-                  <TableRow><TableCell colSpan={6} className="h-20 text-center text-sm text-muted-foreground">暂无登录审计记录</TableCell></TableRow>
-                ) : loginAudits.map((audit) => (
-                  <TableRow key={audit.id}>
-                    <TableCell data-primary="" data-label="用户">
-                      <strong>{audit.displayName || audit.username || '未知用户'}</strong>
-                      <div className="text-xs text-muted-foreground">{audit.username || '未知用户名'}</div>
-                    </TableCell>
-                    <TableCell data-label="结果">
-                      <Badge className={audit.status === 'success' ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}>
-                        {loginAuditStatusLabel(audit.status)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell data-label="原因" className="text-sm text-muted-foreground">{loginAuditReasonLabel(audit.reason)}</TableCell>
-                    <TableCell data-label="IP 地址"><code className="text-xs">{audit.ipAddress || '未记录'}</code></TableCell>
-                    <TableCell data-label="User-Agent" className="max-w-[260px]">
-                      <code className="block truncate text-xs text-muted-foreground" title={audit.userAgent}>{audit.userAgent || '未记录'}</code>
-                    </TableCell>
-                    <TableCell data-label="时间" className="whitespace-nowrap text-sm text-muted-foreground">
-                      {audit.createdAt ? new Date(audit.createdAt).toLocaleString('zh-CN') : '—'}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3 text-sm text-muted-foreground">
+      <AdminDataPanel className="account-audit-panel overflow-hidden" ariaLabel="登录记录列表" columns={LOGIN_AUDIT_COLUMNS}>
+        <AdminPanelHeading
+          title="登录记录"
+          description="记录登录成功、失败与限流事件，不保存密码或登录令牌。"
+          status={
+            <span className="account-list-status">
+              {loginAuditLoading && loginAudits.length === 0 ? '读取中' : loginAudits.length ? `显示 ${loginAudits.length} 条` : '暂无记录'}
+            </span>
+          }
+          actions={
+            <Button variant="secondary" size="sm" onClick={() => void loadLoginAudit()} disabled={loginAuditLoading}>
+              刷新
+            </Button>
+          }
+        />
+        <Table>
+          <TableCaption className="sr-only">登录记录列表，含用户、结果、原因、IP 地址、User-Agent 与时间</TableCaption>
+          <TableHeader>
+            <TableRow>
+              <TableHead scope="col">用户</TableHead>
+              <TableHead scope="col">结果</TableHead>
+              <TableHead scope="col">原因</TableHead>
+              <TableHead scope="col">IP 地址</TableHead>
+              <TableHead scope="col">User-Agent</TableHead>
+              <TableHead scope="col">时间</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loginAuditLoading && loginAudits.length === 0 ? (
+              <TableRow><TableCell colSpan={6} className="h-20 text-center text-sm text-muted-foreground">加载中…</TableCell></TableRow>
+            ) : loginAudits.length === 0 ? (
+              <TableRow><TableCell colSpan={6} className="h-20 text-center text-sm text-muted-foreground">暂无登录记录</TableCell></TableRow>
+            ) : loginAudits.map((audit) => (
+              <TableRow key={audit.id}>
+                <TableCell data-primary="" data-label="用户">
+                  <strong>{audit.displayName || audit.username || '未知用户'}</strong>
+                  <div className="text-xs text-muted-foreground">{audit.username || '未知用户名'}</div>
+                </TableCell>
+                <TableCell data-label="结果">
+                  <Badge className={audit.status === 'success' ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}>
+                    {loginAuditStatusLabel(audit.status)}
+                  </Badge>
+                </TableCell>
+                <TableCell data-label="原因" className="text-sm text-muted-foreground">{loginAuditReasonLabel(audit.reason)}</TableCell>
+                <TableCell data-label="IP 地址"><code className="text-xs">{audit.ipAddress || '未记录'}</code></TableCell>
+                <TableCell data-label="User-Agent" className="max-w-[260px]">
+                  <code className="block truncate text-xs text-muted-foreground" title={audit.userAgent}>{audit.userAgent || '未记录'}</code>
+                </TableCell>
+                <TableCell data-label="时间" className="whitespace-nowrap text-sm text-muted-foreground">
+                  {audit.createdAt ? new Date(audit.createdAt).toLocaleString('zh-CN') : '—'}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+        <div className="account-settings-panel__footer">
           <span>共 {loginAuditTotal} 条记录</span>
-          <div className="flex items-center gap-2">
+          <div className="account-settings-panel__pager">
             <Button variant="outline" size="sm" disabled={loginAuditPage <= 1 || loginAuditLoading} onClick={() => setLoginAuditOffset(loginAuditOffset - 20)}>上一页</Button>
             <span>{loginAuditPage} / {loginAuditPages}</span>
             <Button variant="outline" size="sm" disabled={loginAuditPage >= loginAuditPages || loginAuditLoading} onClick={() => setLoginAuditOffset(loginAuditOffset + 20)}>下一页</Button>
           </div>
         </div>
-      </section></>}
+      </AdminDataPanel></>}
 
       {currentAccountTab === 'operation-audit' && <>
         <AdminToolbar className="account-operation-audit-toolbar" ariaLive="polite">
@@ -707,110 +742,118 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
             </SelectContent>
           </Select>
         </AdminToolbar>
-      <section className="admin-data-panel admin-data-panel--grid account-operation-audit-panel overflow-hidden">
-        <div className="account-settings-panel__header flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-          <div>
-            <h2 className="text-base font-semibold text-foreground">操作记录</h2>
-            <p className="mt-0.5 text-sm text-muted-foreground">记录危险操作的发起人、目标数量、结果与重放次数，不保存目标正文或原始内容。</p>
-          </div>
-          <Button variant="secondary" size="sm" onClick={() => void loadOperationAudit()} disabled={operationAuditLoading}>
-            刷新
-          </Button>
-        </div>
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>操作人</TableHead>
-                <TableHead>动作</TableHead>
-                <TableHead>目标数量</TableHead>
-                <TableHead>结果</TableHead>
-                <TableHead>重放</TableHead>
-                <TableHead>操作 ID</TableHead>
-                <TableHead>时间</TableHead>
+      <AdminDataPanel className="account-operation-audit-panel overflow-hidden" ariaLabel="操作记录列表" columns={OPERATION_AUDIT_COLUMNS}>
+        <AdminPanelHeading
+          title="操作记录"
+          description="记录危险操作的发起人、目标数量、结果与重放次数，不保存目标正文或原始内容。"
+          status={
+            <span className="account-list-status">
+              {operationAuditLoading && operationAudits.length === 0 ? '读取中' : operationAudits.length ? `显示 ${operationAudits.length} 条` : '暂无记录'}
+            </span>
+          }
+          actions={
+            <Button variant="secondary" size="sm" onClick={() => void loadOperationAudit()} disabled={operationAuditLoading}>
+              刷新
+            </Button>
+          }
+        />
+        <Table>
+          <TableCaption className="sr-only">管理员操作记录列表，含操作人、动作、目标数量、结果、重放次数与操作 ID</TableCaption>
+          <TableHeader>
+            <TableRow>
+              <TableHead scope="col">操作人</TableHead>
+              <TableHead scope="col">动作</TableHead>
+              <TableHead scope="col">目标数量</TableHead>
+              <TableHead scope="col">结果</TableHead>
+              <TableHead scope="col">重放</TableHead>
+              <TableHead scope="col">操作 ID</TableHead>
+              <TableHead scope="col">时间</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {operationAuditLoading && operationAudits.length === 0 ? (
+              <TableRow><TableCell colSpan={7} className="h-20 text-center text-sm text-muted-foreground">加载中…</TableCell></TableRow>
+            ) : operationAudits.length === 0 ? (
+              <TableRow><TableCell colSpan={7} className="h-20 text-center text-sm text-muted-foreground">暂无管理员操作记录</TableCell></TableRow>
+            ) : operationAudits.map((operation) => (
+              <TableRow key={operation.id}>
+                <TableCell data-primary="" data-label="操作人">
+                  <strong>{operation.actorDisplayName || operation.actorUsername || '未知管理员'}</strong>
+                  <div className="text-xs text-muted-foreground">{operation.actorUsername || '未知账号'}</div>
+                </TableCell>
+                <TableCell data-label="动作" className="whitespace-nowrap">{operationAuditActionLabel(operation.action)}</TableCell>
+                <TableCell data-label="目标数量">{operation.targetCount}</TableCell>
+                <TableCell data-label="结果">
+                  <Badge className={operation.status === 'completed' ? 'bg-success/10 text-success' : operation.status === 'failed' ? 'bg-destructive/10 text-destructive' : 'bg-warning/10 text-warning'}>
+                    {operationAuditStatusLabel(operation.status)}
+                  </Badge>
+                  {operation.status === 'failed' && operation.error && <div className="mt-1 text-xs text-destructive">{operation.error}</div>}
+                </TableCell>
+                <TableCell data-label="重放">{operation.replayCount}</TableCell>
+                <TableCell data-label="操作 ID" className="max-w-[260px]">
+                  <code className="block truncate text-xs text-muted-foreground" title={operation.operationId}>{operation.operationId}</code>
+                </TableCell>
+                <TableCell data-label="时间" className="whitespace-nowrap text-sm text-muted-foreground">
+                  {operation.createdAt ? new Date(operation.createdAt).toLocaleString('zh-CN') : '—'}
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {operationAuditLoading && operationAudits.length === 0 ? (
-                <TableRow><TableCell colSpan={7} className="h-20 text-center text-sm text-muted-foreground">加载中…</TableCell></TableRow>
-              ) : operationAudits.length === 0 ? (
-                <TableRow><TableCell colSpan={7} className="h-20 text-center text-sm text-muted-foreground">暂无管理员操作记录</TableCell></TableRow>
-              ) : operationAudits.map((operation) => (
-                <TableRow key={operation.id}>
-                  <TableCell data-primary="" data-label="操作人">
-                    <strong>{operation.actorDisplayName || operation.actorUsername || '未知管理员'}</strong>
-                    <div className="text-xs text-muted-foreground">{operation.actorUsername || '未知账号'}</div>
-                  </TableCell>
-                  <TableCell data-label="动作" className="whitespace-nowrap">{operationAuditActionLabel(operation.action)}</TableCell>
-                  <TableCell data-label="目标数量">{operation.targetCount}</TableCell>
-                  <TableCell data-label="结果">
-                    <Badge className={operation.status === 'completed' ? 'bg-success/10 text-success' : operation.status === 'failed' ? 'bg-destructive/10 text-destructive' : 'bg-warning/10 text-warning'}>
-                      {operationAuditStatusLabel(operation.status)}
-                    </Badge>
-                    {operation.status === 'failed' && operation.error && <div className="mt-1 text-xs text-destructive">{operation.error}</div>}
-                  </TableCell>
-                  <TableCell data-label="重放">{operation.replayCount}</TableCell>
-                  <TableCell data-label="操作 ID" className="max-w-[260px]">
-                    <code className="block truncate text-xs text-muted-foreground" title={operation.operationId}>{operation.operationId}</code>
-                  </TableCell>
-                  <TableCell data-label="时间" className="whitespace-nowrap text-sm text-muted-foreground">
-                    {operation.createdAt ? new Date(operation.createdAt).toLocaleString('zh-CN') : '—'}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3 text-sm text-muted-foreground">
+            ))}
+          </TableBody>
+        </Table>
+        <div className="account-settings-panel__footer">
           <span>共 {operationAuditTotal} 条记录</span>
-          <div className="flex items-center gap-2">
+          <div className="account-settings-panel__pager">
             <Button variant="outline" size="sm" disabled={operationAuditPage <= 1 || operationAuditLoading} onClick={() => setOperationAuditOffset(operationAuditOffset - 20)}>上一页</Button>
             <span>{operationAuditPage} / {operationAuditPages}</span>
             <Button variant="outline" size="sm" disabled={operationAuditPage >= operationAuditPages || operationAuditLoading} onClick={() => setOperationAuditOffset(operationAuditOffset + 20)}>下一页</Button>
           </div>
         </div>
-      </section></>}
+      </AdminDataPanel></>}
 
       {currentAccountTab === 'registration' && <>
-      <div className="account-settings-toolbar mb-3 mt-6 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-base font-semibold text-foreground">邀请码</h2>
-        <div className="flex items-center gap-2">
-          <Input
-            type="number"
-            className="h-8 w-[92px]"
-            min={1}
-            max={50}
-            value={inviteCount}
-            onChange={(e) => setInviteCount(e.target.value)}
+        <AdminDataPanel className="account-invites-panel overflow-hidden" ariaLabel="邀请码列表" columns={INVITE_COLUMNS}>
+          <AdminPanelHeading
+            title="邀请码"
+            description="生成、复制与停用注册邀请码。"
+            status={<span className="account-list-status">{invites.length ? `共 ${invites.length} 个` : '暂无邀请码'}</span>}
+            actions={
+              <>
+                <Input
+                  type="number"
+                  className="admin-input--invite-count"
+                  min={1}
+                  max={50}
+                  value={inviteCount}
+                  aria-label="生成邀请码数量"
+                  onChange={(e) => setInviteCount(e.target.value)}
+                />
+                <Button size="sm" onClick={() => void createInvite()}>
+                  生成邀请码
+                </Button>
+              </>
+            }
           />
-          <Button size="sm" onClick={() => void createInvite()}>
-            生成邀请码
-          </Button>
-        </div>
-      </div>
-        {generatedCodes && generatedCodes.length > 0 && (
-          <div id="tokenStatus" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-muted/50 p-3.5">
-            <div className="flex flex-wrap items-center gap-2">
-              {generatedCodes.map((c) => (
-                <code key={c} className="rounded-full border border-border bg-card px-2.5 py-0.5 font-mono text-xs text-foreground">
-                  {c}
-                </code>
-              ))}
+          {generatedCodes && generatedCodes.length > 0 && (
+            <div id="tokenStatus" className="account-invites-generated" role="status">
+              <div className="account-invites-generated__codes">
+                {generatedCodes.map((c) => (
+                  <code key={c}>{c}</code>
+                ))}
+              </div>
+              <Button variant="secondary" size="sm" onClick={() => void copyNewInvites()}>
+                复制全部
+              </Button>
             </div>
-            <Button variant="secondary" size="sm" onClick={() => void copyNewInvites()}>
-              复制全部
-            </Button>
-          </div>
-        )}
-        <div className="admin-data-panel admin-data-panel--grid account-invites-panel overflow-hidden">
+          )}
           <Table>
+            <TableCaption className="sr-only">邀请码列表，含状态、使用者与创建时间</TableCaption>
             <TableHeader>
               <TableRow>
-                <TableHead>邀请码</TableHead>
-                <TableHead>状态</TableHead>
-                <TableHead>使用者</TableHead>
-                <TableHead>创建时间</TableHead>
-                <TableHead></TableHead>
+                <TableHead scope="col">邀请码</TableHead>
+                <TableHead scope="col">状态</TableHead>
+                <TableHead scope="col">使用者</TableHead>
+                <TableHead scope="col">创建时间</TableHead>
+                <TableHead scope="col">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -864,17 +907,17 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
               )}
             </TableBody>
           </Table>
-        </div>
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-          <span className="text-xs text-muted-foreground" id="inviteStats">
-            {invites.length ? `共 ${invites.length} 个 · 可用 ${available} · 失效 ${spent}` : ''}
-          </span>
-          {spent > 0 && (
-            <Button variant="destructive" size="sm" onClick={() => void clearInvites()}>
-              清理失效邀请码
-            </Button>
-          )}
-        </div>
+          <div className="account-settings-panel__footer">
+            <span id="inviteStats">
+              {invites.length ? `共 ${invites.length} 个 · 可用 ${available} · 失效 ${spent}` : '暂无邀请码'}
+            </span>
+            {spent > 0 && (
+              <Button variant="destructive" size="sm" onClick={() => void clearInvites()}>
+                清理失效邀请码
+              </Button>
+            )}
+          </div>
+        </AdminDataPanel>
       </>}
     </AdminPage>
   )
