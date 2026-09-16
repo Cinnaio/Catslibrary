@@ -10,17 +10,18 @@
  *   故仅 toast + 重载列表（偏离点）。
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { CircleMinus, RotateCcw, RotateCw } from 'lucide-react'
+import { Ban, CircleMinus, RotateCcw, RotateCw } from 'lucide-react'
 import { adminApi, authFetch, downloadLogsApi, newOperationId, scrapeApi } from '../../lib/api'
 import { formatDateTime } from '../../lib/format'
 import { formatEta, formatJobSpeed, getJobDuration, isJobRunning, isJobTerminal, jobStatusLabel, truncateId } from '../../lib/admin'
 import { useConfirm, useToast } from '../../components/feedback'
+import AdminEmptyState from '@/components/admin/AdminEmptyState'
 import AdminPage from '@/components/admin/AdminPage'
-import { AdminDataPanel, AdminPanelHeading, AdminQueueSummary, type AdminColumn } from '@/components/admin/AdminWorkspace'
+import { AdminDataPanel, AdminPanelHeading, AdminQueueSummary, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 // ---------- Types ----------
 
@@ -83,6 +84,28 @@ const FILTERS: Array<{ value: JobFilter; label: string }> = [
   { value: 'failed', label: '失败/终止' },
 ]
 
+/** 分段筛选的激活背景位移索引，供 CSS 的 [data-active-index] 消费。 */
+const FILTER_INDEX: Record<JobFilter, number> = {
+  all: 0,
+  running: 1,
+  completed: 2,
+  failed: 3,
+}
+
+const FILTER_EMPTY_LABEL: Record<JobFilter, string> = {
+  all: '暂无任务',
+  running: '当前没有运行中的任务',
+  completed: '当前没有已完成的任务',
+  failed: '当前没有失败或终止的任务',
+}
+
+const FILTER_LABEL: Record<JobFilter, string> = {
+  all: '全部',
+  running: '运行中',
+  completed: '已完成',
+  failed: '失败/终止',
+}
+
 const DOWNLOAD_TYPE_LABELS: Record<string, string> = {
   novel_txt: '单本 TXT',
   novel_txt_batch: '批量 TXT',
@@ -99,7 +122,7 @@ async function scrapePost(body: Record<string, unknown>): Promise<Record<string,
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
-  const data = await res.json().catch(() => ({})) as Record<string, unknown>
+  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>
   if (!res.ok) {
     const err = new Error((data.error as string) || `HTTP ${res.status}`)
     ;(err as { status?: number }).status = res.status
@@ -114,8 +137,10 @@ export default function JobsTab(_props: { highlightNovelId?: string; onHighlight
 
   const [jobs, setJobs] = useState<Job[]>([])
   const [jobsLoading, setJobsLoading] = useState(true)
+  const [jobsError, setJobsError] = useState<string | null>(null)
   const [downloadLogs, setDownloadLogs] = useState<DownloadLog[]>([])
   const [logsLoading, setLogsLoading] = useState(true)
+  const [logsError, setLogsError] = useState<string | null>(null)
   const [filter, setFilter] = useState<JobFilter>('all')
   const [novelTitles, setNovelTitles] = useState<Map<string, string>>(new Map())
 
@@ -131,11 +156,13 @@ export default function JobsTab(_props: { highlightNovelId?: string; onHighlight
       if (mountedRef.current) {
         jobsRef.current = list
         setJobs(list)
+        setJobsError(null)
       }
-    } catch {
+    } catch (err) {
       if (mountedRef.current) {
         jobsRef.current = []
         setJobs([])
+        setJobsError((err as Error).message || '任务列表加载失败')
       }
     } finally {
       if (mountedRef.current) setJobsLoading(false)
@@ -146,9 +173,15 @@ export default function JobsTab(_props: { highlightNovelId?: string; onHighlight
     try {
       const data = await downloadLogsApi.list(50)
       const list = Array.isArray(data.logs) ? (data.logs as DownloadLog[]) : []
-      if (mountedRef.current) setDownloadLogs(list)
-    } catch {
-      if (mountedRef.current) setDownloadLogs([])
+      if (mountedRef.current) {
+        setDownloadLogs(list)
+        setLogsError(null)
+      }
+    } catch (err) {
+      if (mountedRef.current) {
+        setDownloadLogs([])
+        setLogsError((err as Error).message || '下载日志加载失败')
+      }
     } finally {
       if (mountedRef.current) setLogsLoading(false)
     }
@@ -332,10 +365,29 @@ export default function JobsTab(_props: { highlightNovelId?: string; onHighlight
         </Badge>
       )
     }
-    if (j.status === 'completed') return <Badge variant="secondary" className="bg-success/10 text-success">✓ {label}</Badge>
-    if (j.status === 'partial') return <Badge variant="secondary" className="bg-warning/10 text-warning">⚠ {label}</Badge>
-    if (j.status === 'failed') return <Badge variant="secondary" className="bg-destructive/10 text-destructive">✕ {label}</Badge>
-    return <Badge variant="secondary" className="text-muted-foreground">— {label}</Badge>
+    if (j.status === 'completed')
+      return (
+        <Badge variant="secondary" className="bg-success/10 text-success">
+          ✓ {label}
+        </Badge>
+      )
+    if (j.status === 'partial')
+      return (
+        <Badge variant="secondary" className="bg-warning/10 text-warning">
+          ⚠ {label}
+        </Badge>
+      )
+    if (j.status === 'failed')
+      return (
+        <Badge variant="secondary" className="bg-destructive/10 text-destructive">
+          ✕ {label}
+        </Badge>
+      )
+    return (
+      <Badge variant="secondary" className="text-muted-foreground">
+        — {label}
+      </Badge>
+    )
   }
 
   function renderActions(j: Job): ReactNode {
@@ -365,26 +417,24 @@ export default function JobsTab(_props: { highlightNovelId?: string; onHighlight
 
   // ---------- 渲染 ----------
 
-  return (
-      <AdminPage className="admin-redesign-page admin-redesign-page--jobs" title="任务管理" actions={
-          <>
-            <Tabs value={filter} onValueChange={(v) => setFilter(v as JobFilter)}>
-              <TabsList>
-                {FILTERS.map((f) => (
-                  <TabsTrigger key={f.value} value={f.value}>{f.label}</TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
-            <Button variant="secondary" size="sm" onClick={handleRefresh}>
-              刷新
-            </Button>
-          </>
-        }
-      >
+  const listStatusLabel = jobsLoading ? '读取中' : jobsError ? '读取失败' : '队列正常'
+  const logsStatusLabel = logsLoading ? '读取中' : logsError ? '读取失败' : '日志正常'
+  const hasJobs = !jobsLoading && !jobsError && filtered.length > 0
 
+  return (
+    <AdminPage
+      className="admin-redesign-page admin-redesign-page--jobs"
+      title="任务队列"
+      description="跟踪抓取与更新任务的执行情况，并对失败任务执行重试或终止。"
+      actions={
+        <Button variant="secondary" onClick={handleRefresh} disabled={jobsLoading || logsLoading}>
+          {jobsLoading || logsLoading ? '刷新中…' : '刷新'}
+        </Button>
+      }
+    >
       <AdminQueueSummary
         className="admin-queue-summary--jobs"
-        eyebrow="任务队列"
+        eyebrow="执行概览"
         title={runningCount > 0 ? `当前有 ${runningCount} 个任务运行中` : '当前没有运行中的任务'}
         description="抓取、更新和失败重试都集中在这里跟踪"
         stats={[
@@ -395,32 +445,57 @@ export default function JobsTab(_props: { highlightNovelId?: string; onHighlight
       />
 
       <AdminDataPanel className="overflow-hidden" ariaLabel="抓取任务列表" columns={JOB_COLUMNS}>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>任务 ID</TableHead>
-              <TableHead>小说</TableHead>
-              <TableHead>类型</TableHead>
-              <TableHead>状态</TableHead>
-              <TableHead>进度</TableHead>
-              <TableHead>结果</TableHead>
-              <TableHead>速度/ETA</TableHead>
-              <TableHead>耗时</TableHead>
-              <TableHead></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filtered.length === 0 ? (
+        <AdminPanelHeading
+          title="抓取任务"
+          description={filter === 'all' ? jobStatsText : `${FILTER_LABEL[filter]}：${filtered.length} / 共 ${jobs.length} 条`}
+          status={<span className={`jobs-list-status${jobsError ? ' is-error' : ''}`}>{listStatusLabel}</span>}
+          actions={
+            hasCompleted ? (
+              <Button variant="destructive" size="sm" onClick={() => void clearCompleted()}>
+                清除已结束
+              </Button>
+            ) : undefined
+          }
+        />
+        <AdminToolbar className="jobs-toolbar" ariaLive="polite">
+          <div className="jobs-toolbar__filters">
+            <span className="jobs-toolbar__label">状态筛选</span>
+            <Tabs className="jobs-toolbar__modes" value={filter} onValueChange={(v) => setFilter(v as JobFilter)} aria-label="任务状态筛选">
+              <TabsList data-active-index={FILTER_INDEX[filter]}>
+                {FILTERS.map((f) => (
+                  <TabsTrigger key={f.value} value={f.value}>
+                    {f.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+          </div>
+        </AdminToolbar>
+        {hasJobs ? (
+          <Table>
+            <TableCaption className="sr-only">抓取任务列表，包含任务 ID、小说、状态、进度与行内操作</TableCaption>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={9} className="table-empty">
-                  {jobsLoading ? '加载中…' : '暂无任务'}
-                </TableCell>
+                <TableHead scope="col">任务 ID</TableHead>
+                <TableHead scope="col">小说</TableHead>
+                <TableHead scope="col">类型</TableHead>
+                <TableHead scope="col">状态</TableHead>
+                <TableHead scope="col">进度</TableHead>
+                <TableHead scope="col">结果</TableHead>
+                <TableHead scope="col">速度/ETA</TableHead>
+                <TableHead scope="col">耗时</TableHead>
+                <TableHead scope="col">操作</TableHead>
               </TableRow>
-            ) : (
-              filtered.map((j) => (
+            </TableHeader>
+            <TableBody>
+              {filtered.map((j) => (
                 <TableRow key={j.id}>
-                  <TableCell data-label="任务 ID" className="admin-mono-cell text-sm text-muted-foreground">{truncateId(j.id)}</TableCell>
-                  <TableCell data-primary="" data-label="小说" className="text-sm">{renderNovelTitle(j)}</TableCell>
+                  <TableCell data-label="任务 ID" className="admin-mono-cell text-sm text-muted-foreground">
+                    {truncateId(j.id)}
+                  </TableCell>
+                  <TableCell data-primary="" data-label="小说" className="text-sm">
+                    {renderNovelTitle(j)}
+                  </TableCell>
                   <TableCell data-label="类型">{j.updateMode ? '更新' : '抓取'}</TableCell>
                   <TableCell data-label="状态">{renderStatus(j)}</TableCell>
                   <TableCell data-label="进度">
@@ -437,61 +512,78 @@ export default function JobsTab(_props: { highlightNovelId?: string; onHighlight
                   <TableCell data-label="耗时" className="text-sm text-muted-foreground">
                     {j.startedAt ? getJobDuration(j.startedAt, isJobTerminal(j.status) ? (j.updatedAt ?? null) : null) : '—'}
                   </TableCell>
-                  <TableCell data-actions="" className="table-actions job-table-actions">{renderActions(j)}</TableCell>
+                  <TableCell data-actions="">
+                    <div className="admin-cell-actions">{renderActions(j)}</div>
+                  </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+              ))}
+            </TableBody>
+          </Table>
+        ) : jobsLoading ? (
+          <AdminEmptyState className="jobs-empty" icon={<span className="job-spinner" aria-hidden="true" />} message="正在读取任务队列…" />
+        ) : jobsError ? (
+          <AdminEmptyState
+            className="jobs-empty jobs-empty--error"
+            icon={<Ban className="size-8 opacity-40" aria-hidden="true" />}
+            message={`任务队列加载失败：${jobsError}`}
+          />
+        ) : (
+          <AdminEmptyState
+            className="jobs-empty"
+            icon={<CircleMinus className="size-8 opacity-40" aria-hidden="true" />}
+            message={FILTER_EMPTY_LABEL[filter]}
+          />
+        )}
       </AdminDataPanel>
 
-      <div className="admin-table-meta-row">
-        <span className="text-xs text-muted-foreground">{jobStatsText}</span>
-        {hasCompleted && (
-          <Button variant="destructive" size="sm" onClick={() => void clearCompleted()}>
-            清除已结束
-          </Button>
-        )}
-      </div>
-
-      <AdminPanelHeading
-        className="jobs-download-heading"
-        title="下载日志"
-        actions={
-          <Button variant="secondary" size="sm" onClick={() => void loadDownloadLogs()}>
-            刷新
-          </Button>
-        }
-      />
       <AdminDataPanel className="overflow-hidden" ariaLabel="下载日志" columns={DOWNLOAD_COLUMNS}>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>类型</TableHead>
-              <TableHead>对象</TableHead>
-              <TableHead>数量</TableHead>
-              <TableHead>时间</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {downloadLogs.length === 0 ? (
+        <AdminPanelHeading
+          title="下载日志"
+          description="记录最近的 TXT 与爬虫配置导出，便于核对分享与备份行为。"
+          status={<span className={`jobs-list-status${logsError ? ' is-error' : ''}`}>{logsStatusLabel}</span>}
+          actions={
+            <Button variant="secondary" size="sm" onClick={() => void loadDownloadLogs()} disabled={logsLoading}>
+              {logsLoading ? '刷新中…' : '刷新'}
+            </Button>
+          }
+        />
+        {logsLoading ? (
+          <AdminEmptyState className="jobs-empty" icon={<span className="job-spinner" aria-hidden="true" />} message="正在读取下载日志…" />
+        ) : logsError ? (
+          <AdminEmptyState
+            className="jobs-empty jobs-empty--error"
+            icon={<Ban className="size-8 opacity-40" aria-hidden="true" />}
+            message={`下载日志加载失败：${logsError}`}
+          />
+        ) : downloadLogs.length === 0 ? (
+          <AdminEmptyState className="jobs-empty" icon={<CircleMinus className="size-8 opacity-40" aria-hidden="true" />} message="暂无下载日志" />
+        ) : (
+          <Table>
+            <TableCaption className="sr-only">下载日志列表，包含类型、对象、数量与时间</TableCaption>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={4} className="table-empty">
-                  {logsLoading ? '加载中…' : '暂无下载日志'}
-                </TableCell>
+                <TableHead scope="col">类型</TableHead>
+                <TableHead scope="col">对象</TableHead>
+                <TableHead scope="col">数量</TableHead>
+                <TableHead scope="col">时间</TableHead>
               </TableRow>
-            ) : (
-              downloadLogs.map((log) => (
+            </TableHeader>
+            <TableBody>
+              {downloadLogs.map((log) => (
                 <TableRow key={log.id}>
                   <TableCell data-label="类型">{DOWNLOAD_TYPE_LABELS[log.type] || log.type}</TableCell>
-                  <TableCell data-primary="" data-label="对象" className="text-sm">{log.targetTitle || log.targetId || '—'}</TableCell>
+                  <TableCell data-primary="" data-label="对象" className="text-sm">
+                    {log.targetTitle || log.targetId || '—'}
+                  </TableCell>
                   <TableCell data-label="数量">{log.itemCount || 0}</TableCell>
-                  <TableCell data-label="时间" className="text-sm text-muted-foreground">{formatDateTime(log.createdAt)}</TableCell>
+                  <TableCell data-label="时间" className="text-sm text-muted-foreground">
+                    {formatDateTime(log.createdAt)}
+                  </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+              ))}
+            </TableBody>
+          </Table>
+        )}
       </AdminDataPanel>
     </AdminPage>
   )

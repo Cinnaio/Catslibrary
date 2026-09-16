@@ -2118,11 +2118,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   padding-top: 0.15rem;
 }
 
-.admin-redesign-page--jobs > .admin-table-meta-row {
-  margin-top: -0.35rem;
-  padding-inline: 0.25rem;
-}
-
 /* 书源/任务管理与小说管理共享同一套数据工作区：页面标题负责入口，
    数据面板负责内容，避免 Card 套 Card 造成层级噪音。 */
 :is(.admin-redesign-page--sources, .admin-redesign-page--jobs) {
@@ -2136,8 +2131,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 
 :is(.admin-redesign-page--sources, .admin-redesign-page--jobs) > .admin-data-panel,
 .admin-redesign-page--sources .source-panel,
-.admin-redesign-page--sources .admin-panel-card,
-.admin-redesign-page--jobs > [data-slot='card'] {
+.admin-redesign-page--sources .admin-panel-card {
   border: 0;
   border-radius: var(--admin-table-panel-radius);
   background: var(--admin-panel);
@@ -2151,14 +2145,12 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 }
 
 .admin-redesign-page--sources .admin-panel-card [data-slot='card-header'],
-.admin-redesign-page--sources .source-panel__bar,
-.admin-redesign-page--jobs > [data-slot='card'] [data-slot='card-header'] {
+.admin-redesign-page--sources .source-panel__bar {
   border-bottom: 1px solid var(--admin-table-border);
   background: transparent;
 }
 
-.admin-redesign-page--sources .admin-panel-card [data-slot='card-header'],
-.admin-redesign-page--jobs > [data-slot='card'] [data-slot='card-header'] {
+.admin-redesign-page--sources .admin-panel-card [data-slot='card-header'] {
   padding: 1.25rem;
 }
 
@@ -2269,8 +2261,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 }
 
 :is(.admin-redesign-page--sources, .admin-redesign-page--jobs) > .admin-data-panel,
-.admin-redesign-page--sources .source-panel,
-.admin-redesign-page--jobs > [data-slot='card'] {
+.admin-redesign-page--sources .source-panel {
   animation: admin-tab-surface-enter var(--admin-table-surface-enter) 40ms both;
 }
 
@@ -2280,8 +2271,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 
 @media (prefers-reduced-motion: reduce) {
   :is(.admin-redesign-page--sources, .admin-redesign-page--jobs) > .admin-data-panel,
-  .admin-redesign-page--sources .source-panel,
-  .admin-redesign-page--jobs > [data-slot='card'] {
+  .admin-redesign-page--sources .source-panel {
     animation: admin-tab-fade var(--admin-table-reduced-fade) both;
   }
 
@@ -2607,19 +2597,15 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   font-family: var(--font-mono);
   font-size: 0.75rem;
 }
-.job-table-actions {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
+.job-result-mini {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
-.admin-table-meta-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 12px;
+.job-result-mini--failed {
+  color: var(--color-danger);
 }
 
 .admin-sort-button {
@@ -6644,10 +6630,138 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   line-height: 1;
 }
 
-.jobs-download-heading {
-  margin-top: 0.5rem;
-  padding-inline: 0;
-  border-bottom: 0;
+/* 任务队列：状态筛选属于高频的分段切换，与审核类型共用同一套
+   --tabs-segmented-* 几何与位移契约，只在这里补页面级排布。
+   工具栏沿用章节目录工具栏的内边距与分隔线，面板标题已负责上边界，
+   故不再叠加 border-top。 */
+.admin-redesign-page--jobs .jobs-toolbar {
+  padding: var(--admin-space-2) var(--admin-space-3);
+  border-top: 0;
+  border-bottom: 1px solid var(--admin-border);
+}
+
+.admin-redesign-page--jobs .jobs-toolbar__filters {
+  display: flex;
+  align-items: center;
+  gap: var(--admin-space-3);
+  min-width: 0;
+}
+
+.admin-redesign-page--jobs .jobs-toolbar__label {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.admin-redesign-page--jobs .jobs-toolbar__modes {
+  flex: 0 0 auto;
+}
+
+.admin-redesign-page--jobs .jobs-toolbar__modes [data-slot='tabs-list'] {
+  position: relative;
+  isolation: isolate;
+  height: var(--admin-control-height);
+  width: 21rem;
+}
+
+/* 激活背景只位移、不重排：四段等宽，位移量按段宽 + 间隙递推。 */
+.admin-redesign-page--jobs .jobs-toolbar__modes [data-slot='tabs-list']::before {
+  position: absolute;
+  z-index: 0;
+  inset: var(--tabs-segmented-inset) auto var(--tabs-segmented-inset) var(--tabs-segmented-inset);
+  width: calc((100% - (var(--tabs-segmented-gap) * 6)) / 4);
+  border-radius: var(--tabs-segmented-inner-radius);
+  background: var(--tabs-segmented-active-background);
+  box-shadow: var(--tabs-segmented-active-shadow);
+  content: '';
+  pointer-events: none;
+  transform: translateX(0);
+  transition: transform var(--tabs-segmented-transition);
+}
+
+.admin-redesign-page--jobs .jobs-toolbar__modes [data-slot='tabs-list'][data-active-index='1']::before {
+  transform: translateX(calc(100% + var(--tabs-segmented-gap)));
+}
+
+.admin-redesign-page--jobs .jobs-toolbar__modes [data-slot='tabs-list'][data-active-index='2']::before {
+  transform: translateX(calc(200% + var(--tabs-segmented-gap) + var(--tabs-segmented-gap)));
+}
+
+.admin-redesign-page--jobs .jobs-toolbar__modes [data-slot='tabs-list'][data-active-index='3']::before {
+  transform: translateX(calc(300% + var(--tabs-segmented-gap) + var(--tabs-segmented-gap) + var(--tabs-segmented-gap)));
+}
+
+.admin-redesign-page--jobs .jobs-toolbar__modes [data-slot='tabs-trigger'] {
+  z-index: 1;
+  background: transparent;
+  box-shadow: none;
+}
+
+.admin-redesign-page--jobs .jobs-toolbar__modes [data-slot='tabs-trigger'][data-state='active'] {
+  background: transparent;
+  box-shadow: none;
+}
+
+/* 列表状态胶囊：与审核列表同构，任务与日志两个面板各有一枚。 */
+.admin-redesign-page--jobs .jobs-list-status {
+  display: inline-flex;
+  min-width: 4.75rem;
+  min-height: 1.75rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--radius-full);
+  background: var(--admin-panel-muted);
+  padding: 0.2rem 0.6rem;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.admin-redesign-page--jobs .jobs-list-status.is-error {
+  border-color: color-mix(in srgb, var(--color-danger) 35%, var(--admin-border));
+  background: color-mix(in srgb, var(--color-danger) 8%, var(--admin-panel));
+  color: var(--color-danger);
+}
+
+/* 空态/加载态/失败态共用一块竖直居中的纸面区，取代此前拼在表格里的空行。 */
+.admin-redesign-page--jobs .jobs-empty {
+  min-height: 14rem;
+  padding: 2.5rem 1.25rem;
+}
+
+.admin-redesign-page--jobs .jobs-empty--error {
+  color: var(--color-danger);
+}
+
+.admin-redesign-page--jobs .jobs-empty .job-spinner {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-width: 2px;
+}
+
+@media (max-width: 900px) {
+  .admin-redesign-page--jobs .jobs-toolbar__filters {
+    align-items: stretch;
+    flex-direction: column;
+    gap: var(--admin-space-2);
+  }
+
+  .admin-redesign-page--jobs .jobs-toolbar__modes {
+    width: 100%;
+  }
+
+  .admin-redesign-page--jobs .jobs-toolbar__modes [data-slot='tabs-list'] {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-redesign-page--jobs .jobs-toolbar__modes [data-slot='tabs-list']::before {
+    --tabs-segmented-duration: 0.001ms;
+  }
 }
 
 .admin-redesign-page--site-operations .admin-metric-strip {

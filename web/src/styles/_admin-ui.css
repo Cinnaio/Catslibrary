@@ -73,13 +73,6 @@
   flex-wrap: wrap;
   gap: 8px;
 }
-.admin-table-meta-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 12px;
-}
 .admin-input--compact {
   min-height: 34px;
   padding: 6px 11px;
@@ -148,10 +141,6 @@
   .admin-input--user {
     width: 100%;
     flex: 1 0 100%;
-  }
-  .admin-table-meta-row {
-    align-items: stretch;
-    flex-direction: column;
   }
   .novel-editor__grid {
     grid-template-columns: 1fr;
