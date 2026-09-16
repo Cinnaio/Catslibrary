@@ -4,9 +4,10 @@ import { Activity, BookOpenCheck, Bot, Image, Sparkles } from 'lucide-react'
 import { aiApi, type AiSettings, type AiUsageSummary, type AiProviderConfig } from '@/lib/api'
 import { useToast } from '@/components/feedback'
 import { useDebouncedCallback } from '@/hooks/useDebounce'
+import { AdminPanelHeading } from '@/components/admin/AdminWorkspace'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
@@ -169,12 +170,10 @@ export default function AiConfigPanel(props: {
     <div className="ai-config-panel">
       {/* 供应商连接参数：可在后台直接修改，无需重启。 */}
       <Card className="admin-panel-card ai-config-providers-card min-w-0">
-        <CardHeader>
-          <div className="min-w-0">
-            <CardTitle className="flex items-center gap-2 text-base"><Bot className="size-4 text-primary" aria-hidden="true" />模型供应商</CardTitle>
-            <p className="text-sm text-muted-foreground">连接文本与图像模型，保存后立即生效。</p>
-          </div>
-        </CardHeader>
+        <AdminPanelHeading
+          title={<span className="admin-panel-title"><Bot className="size-4 text-primary" aria-hidden="true" />模型供应商</span>}
+          description="连接文本与图像模型，保存后立即生效。"
+        />
         <CardContent className="ai-config-providers">
           <section className="ai-provider-section grid gap-3">
             <div className="ai-provider-section-heading flex flex-wrap items-center justify-between gap-2">
@@ -298,10 +297,10 @@ export default function AiConfigPanel(props: {
 
       <div className="ai-config-secondary">
       <Card className="admin-panel-card ai-config-card ai-config-policy-card">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base"><BookOpenCheck className="size-4 text-primary" aria-hidden="true" />读者生成策略</CardTitle>
-            <p className="text-sm text-muted-foreground">控制读者可用的前情提要与单次生成范围。</p>
-          </CardHeader>
+          <AdminPanelHeading
+            title={<span className="admin-panel-title"><BookOpenCheck className="size-4 text-primary" aria-hidden="true" />读者生成策略</span>}
+            description="控制读者可用的前情提要与单次生成范围。"
+          />
           <CardContent className="grid gap-4">
           <label className="ai-config-toggle flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/30 px-4 py-3">
             <span className="min-w-0">
@@ -351,10 +350,10 @@ export default function AiConfigPanel(props: {
       </Card>
 
       <Card className="admin-panel-card ai-config-card ai-config-health">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base"><Activity className="size-4 text-primary" aria-hidden="true" />服务检查与用量</CardTitle>
-            <p className="text-sm text-muted-foreground">验证文本模型连接，并查看近期调用情况。</p>
-          </CardHeader>
+          <AdminPanelHeading
+            title={<span className="admin-panel-title"><Activity className="size-4 text-primary" aria-hidden="true" />服务检查与用量</span>}
+            description="验证文本模型连接，并查看近期调用情况。"
+          />
           <CardContent className="grid gap-4">
           <div className="ai-config-test flex flex-wrap items-center gap-3">
             <Button variant="secondary" disabled={testing || !provider?.configured} onClick={() => void runTest()}>

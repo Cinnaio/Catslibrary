@@ -2,9 +2,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { aiApi, newOperationId, novelsApi, url, type AiCoverCandidate, type AiTaskInfo } from '@/lib/api'
 import { useToast, useConfirm } from '@/components/feedback'
+import { AdminPanelHeading } from '@/components/admin/AdminWorkspace'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import CustomSelect from '@/components/admin/CustomSelect'
@@ -436,10 +437,10 @@ export default function AiCoverPanel() {
 
   return (
     <Card className="admin-panel-card ai-cover-card">
-      <CardHeader>
-        <CardTitle className="text-base">AI 封面生成</CardTitle>
-        <p className="text-sm text-muted-foreground">根据小说标题、分类与简介生成封面 · 候选制，满意后采纳替换</p>
-      </CardHeader>
+      <AdminPanelHeading
+        title="封面生成工作台"
+        description="根据小说标题、分类与简介生成封面 · 候选制，满意后采纳替换。"
+      />
 
       <CardContent className="grid gap-8 lg:grid-cols-2 lg:items-start">
         {/* 左列：生成配置 */}

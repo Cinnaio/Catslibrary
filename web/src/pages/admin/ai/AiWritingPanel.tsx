@@ -2,8 +2,9 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { aiApi, chaptersApi, newOperationId, novelsApi, type AiTaskInfo } from '@/lib/api'
 import { useToast, useConfirm } from '@/components/feedback'
+import { AdminPanelHeading } from '@/components/admin/AdminWorkspace'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -507,18 +508,18 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
   return (
     <div className="ai-writing-panel space-y-4">
       <Card className="admin-panel-card ai-writing-card">
-        <CardHeader className="ai-writing-header flex-row flex-wrap items-start justify-between gap-4">
-          <div className="min-w-0">
-            <CardTitle className="text-base">AI 创作工作台</CardTitle>
-            <p className="text-sm text-muted-foreground">生成结果先保存为草稿，编辑确认后再发布为正式章节。</p>
-          </div>
-          <Tabs value={mode} onValueChange={(value) => setMode(value as 'new' | 'continue')}>
-            <TabsList>
-              <TabsTrigger value="new">新写</TabsTrigger>
-              <TabsTrigger value="continue">续写</TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </CardHeader>
+        <AdminPanelHeading
+          title="创作工作台"
+          description="生成结果先保存为草稿，编辑确认后再发布为正式章节。"
+          actions={
+            <Tabs value={mode} onValueChange={(value) => setMode(value as 'new' | 'continue')}>
+              <TabsList>
+                <TabsTrigger value="new">新写</TabsTrigger>
+                <TabsTrigger value="continue">续写</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          }
+        />
         <CardContent className="grid gap-5">
           <div className="ai-form-grid ai-writing-basics grid gap-3 sm:grid-cols-2">
             <div className="grid gap-1.5">

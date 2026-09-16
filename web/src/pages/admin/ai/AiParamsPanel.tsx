@@ -4,8 +4,9 @@ import { ClipboardList, Image, ShieldCheck, SlidersHorizontal, Sparkles, Wrench 
 import { aiApi, type AiSettings } from '@/lib/api'
 import { useToast } from '@/components/feedback'
 import { LoadingState } from '@/components/admin/AsyncStates'
+import { AdminPanelHeading } from '@/components/admin/AdminWorkspace'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
@@ -42,10 +43,10 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
     <div className="ai-params-panel">
       {/* 前情提要参数 */}
       <Card className="admin-panel-card ai-params-card ai-params-card--recap">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base"><SlidersHorizontal className="size-4 text-primary" aria-hidden="true" />前情提要参数</CardTitle>
-          <p className="text-sm text-muted-foreground">调整章节前情提要的生成参数</p>
-        </CardHeader>
+        <AdminPanelHeading
+          title={<span className="admin-panel-title"><SlidersHorizontal className="size-4 text-primary" aria-hidden="true" />前情提要参数</span>}
+          description="调整章节前情提要的生成参数"
+        />
         <CardContent className="grid gap-4">
           <div className="ai-form-grid grid gap-3 sm:grid-cols-2">
             <div className="grid gap-1.5">
@@ -92,10 +93,10 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
 
       {/* 回顾总结参数 */}
       <Card className="admin-panel-card ai-params-card">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base"><ClipboardList className="size-4 text-primary" aria-hidden="true" />回顾总结参数</CardTitle>
-          <p className="text-sm text-muted-foreground">调整「回来接着读」功能的参数</p>
-        </CardHeader>
+        <AdminPanelHeading
+          title={<span className="admin-panel-title"><ClipboardList className="size-4 text-primary" aria-hidden="true" />回顾总结参数</span>}
+          description="调整「回来接着读」功能的参数"
+        />
         <CardContent className="grid gap-4">
           <label className="flex items-start justify-between gap-4 rounded-lg border border-border bg-muted/30 p-4">
             <span className="min-w-0">
@@ -168,10 +169,10 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
       </Card>
 
       <Card className="admin-panel-card ai-params-card ai-params-card--writing">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base"><Sparkles className="size-4 text-primary" aria-hidden="true" />AI 创作参数</CardTitle>
-          <p className="text-sm text-muted-foreground">用于 AI 创作页的大纲、章节生成和续写</p>
-        </CardHeader>
+        <AdminPanelHeading
+          title={<span className="admin-panel-title"><Sparkles className="size-4 text-primary" aria-hidden="true" />AI 创作参数</span>}
+          description="用于 AI 创作页的大纲、章节生成和续写"
+        />
         <CardContent className="grid gap-4">
           <div className="ai-form-grid grid gap-3 sm:grid-cols-2">
             <div className="grid gap-1.5">
@@ -216,10 +217,10 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
       </Card>
 
       <Card className="admin-panel-card ai-params-card">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base"><Image className="size-4 text-primary" aria-hidden="true" />AI 生图与封面参数</CardTitle>
-          <p className="text-sm text-muted-foreground">用于小说封面生成的图像参数与描述词编辑上限</p>
-        </CardHeader>
+        <AdminPanelHeading
+          title={<span className="admin-panel-title"><Image className="size-4 text-primary" aria-hidden="true" />AI 生图与封面参数</span>}
+          description="用于小说封面生成的图像参数与描述词编辑上限"
+        />
         <CardContent className="ai-form-grid grid gap-4 sm:grid-cols-3">
           <div className="grid gap-1.5"><Label htmlFor="image-size">图像尺寸</Label><Select value={localSettings.imageSize} disabled={props.loading || saving} onValueChange={(value) => setLocalSettings({ ...localSettings, imageSize: value })}><SelectTrigger id="image-size" className="h-9 bg-background"><SelectValue /></SelectTrigger><SelectContent position="popper" align="start"><SelectItem value="1024x1024">1024 × 1024</SelectItem><SelectItem value="1792x1024">1792 × 1024（横向）</SelectItem><SelectItem value="1024x1792">1024 × 1792（纵向）</SelectItem><SelectItem value="512x512">512 × 512</SelectItem></SelectContent></Select></div>
           <div className="grid gap-1.5"><Label htmlFor="image-quality">图像质量</Label><Select value={localSettings.imageQuality} disabled={props.loading || saving} onValueChange={(value) => setLocalSettings({ ...localSettings, imageQuality: value })}><SelectTrigger id="image-quality" className="h-9 bg-background"><SelectValue /></SelectTrigger><SelectContent position="popper" align="start"><SelectItem value="standard">标准</SelectItem><SelectItem value="hd">高清（HD）</SelectItem></SelectContent></Select></div>
@@ -242,10 +243,10 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
 
       {/* 任务与运维 */}
       <Card className="admin-panel-card ai-params-card">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base"><Wrench className="size-4 text-primary" aria-hidden="true" />任务与运维</CardTitle>
-          <p className="text-sm text-muted-foreground">创作任务的并发控制与历史记录清理</p>
-        </CardHeader>
+        <AdminPanelHeading
+          title={<span className="admin-panel-title"><Wrench className="size-4 text-primary" aria-hidden="true" />任务与运维</span>}
+          description="创作任务的并发控制与历史记录清理"
+        />
         <CardContent className="ai-form-grid grid gap-3 sm:grid-cols-2">
           <div className="grid gap-1.5">
             <Label htmlFor="max-concurrent-tasks">创作任务并发上限</Label>
@@ -278,10 +279,10 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
 
       {/* 审计配置 */}
       <Card className="admin-panel-card ai-params-card ai-params-card--audit">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base"><ShieldCheck className="size-4 text-primary" aria-hidden="true" />审计配置</CardTitle>
-          <p className="text-sm text-muted-foreground">控制 AI 调用的审计信息记录</p>
-        </CardHeader>
+        <AdminPanelHeading
+          title={<span className="admin-panel-title"><ShieldCheck className="size-4 text-primary" aria-hidden="true" />审计配置</span>}
+          description="控制 AI 调用的审计信息记录"
+        />
         <CardContent className="grid gap-3">
           <label className="flex items-start justify-between gap-4 rounded-lg border border-border bg-muted/30 p-4">
             <span className="min-w-0">

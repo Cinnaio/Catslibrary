@@ -104,10 +104,10 @@ web workspace 有 `dev` / `build` / `preview` / `typecheck` / `test`，**没有*
 | T12 | 抓取中心 | implemented | `scrape/CenterView.tsx` | 未执行 | 静态检查通过 | 浏览器视觉、链接/搜索/榜单入口与发现结果 |
 | T13 | 书源管理 | implemented | `scrape/SourcesView.tsx`、`admin-operations.css` | 未执行 | 静态检查通过（含既有 `SourcesView.test.tsx`） | 浏览器视觉、筛选语义与批量动作 |
 | T14 | 代理设置 | implemented | `scrape/ProxyView.tsx`、`admin-operations.css` | 未执行 | 静态检查通过 | 浏览器视觉、保存/测试/路由检查与日志刷新 |
-| T15 | AI 创作 | pending | | | | |
-| T16 | 封面生成 | pending | | | | |
-| T17 | AI 配置 | pending | | | | |
-| T18 | 参数调优 | pending | | | | |
+| T15 | AI 创作 | implemented | `ai/AiWritingPanel.tsx`、`admin-operations.css` | 未执行 | 静态检查通过 | 浏览器视觉、切模式保留草稿、前置校验与任务跳转 |
+| T16 | 封面生成 | implemented | `ai/AiCoverPanel.tsx` | 未执行 | 静态检查通过 | 浏览器视觉、图片比例与候选选择/应用/弃用 |
+| T17 | AI 配置 | implemented | `ai/AiConfigPanel.tsx` | 未执行 | 静态检查通过 | 浏览器视觉、密钥遮罩与测试/保存行为 |
+| T18 | 参数调优 | implemented | `ai/AiParamsPanel.tsx`、`admin-operations.css` | 未执行 | 静态检查通过 | 浏览器视觉、数值范围/默认值/dirty 状态 |
 | T19 | 总览 | pending | | | | |
 | T20 | 用量统计 | pending | | | | |
 | T21 | 运营概览 | pending | | | | |
@@ -347,6 +347,49 @@ P3 表格明确要求「该表含展开详情行，必须保留」「不能为�
 
 **未执行**：链接/搜索/榜单入口、发现结果、作品确认、章节校验、抓取配置与开始任务；书源导入、连接检测、批量启停删与编辑测试弹窗；代理保存草稿/有效值区别、连通测试、路由检查与日志刷新的浏览器实测。故 T12–T14 记 `implemented`，非 `verified`。
 
+## 3E. P5 记录（生成与配置）
+
+执行日期：2026-09-16。前置提交：`0b54ccd`。本包处理 T15–T18，四个文件共 2266 行。
+
+### 3E.1 页面类型判定
+
+手册要求「先判定页面类型再套语言」。核对四个文件的渲染骨架后确认：四页**均无数据表格**，全部是表单 + 分组卡片（输入、下拉、开关、文本域、保存按钮），故按手册 §4.5 一律保留 `Card`/`CardContent`，不引入 `AdminDataPanel`/`AdminColumn`。改造落在标题条语言与字面去重上。
+
+### 3E.2 标题去重
+
+页标题由 `AiTab.tsx:31-38` 提供。两处原面板标题与页标题近义重复：`AI 创作工作台`（页标题「AI 创作」）、`AI 封面生成`（页标题「封面生成」）。改为工作对象名：`创作工作台`、`封面生成工作台`。`AI 配置` 页的 `模型供应商`/`读者生成策略`/`服务检查与用量` 与 `参数调优` 页的六组参数标题本就不同字面，保持不变。
+
+### 3E.3 标题条统一
+
+四个文件共 12 处 `CardHeader`+`CardTitle` 换成 `AdminPanelHeading`（标题、描述、状态/动作归位到对应槽位），使后台各页标题语言一致。随之移除各文件的 `CardHeader`/`CardTitle` 死导入。AI 创作页的「新写/续写」模式选择器移入 `AdminPanelHeading` 的 `actions` 槽位，原位置与标题同级。
+
+### 3E.4 共享层与既有规则的连带修正
+
+改造中核到两类跨页重复，均按手册 §5 提到共享层或修正原规则，而非逐页新增覆盖：
+
+`admin-panel-title`：标题内嵌图标的写法在后台共 24 处（AI 配置 3、参数调优 6、站点运营 12、内容安全 1 等），远超「两个页面」门槛。P4 中我最初按页面命名空间写成 `.proxy-panel-title`，本包改为共享类 `.admin-panel-title` 并同步代理设置的两处引用。
+
+`:has(> [data-slot='card-header'])`：该规则把带标题条的卡片 `padding` 归零，使标题区能从卡片边缘铺满。`CardHeader` 换成 `AdminPanelHeading` 后条件失配，卡片会重新拿到 `padding: var(--admin-space-5)`，与 `CardContent` 叠加成双层内边距。已把条件扩展为 `:has(> [data-slot='card-header'], > .admin-panel-heading)`。核对既有 17 处 `AdminPanelHeading` 消费者后确认安全：其中 `mobile-telemetry-top-events` 本就 `padding: 0`，结果不变；其余均由 `AdminDataPanel` 承载，不受该规则影响。
+
+`.ai-params-card [data-slot='card-header']` 与 `.ai-writing-panel .ai-writing-header [data-slot='tabs-list']`：两条规则分别按 `card-header` 与 `ai-writing-header` 选择器定制内边距与标签高度，换标题条后会失效。已按新结构修正为 `.ai-params-card > .admin-panel-heading`、`.ai-writing-panel .admin-panel-heading [data-slot='tabs-list']`。
+
+随后发现 P4 遗留问题并一并纠正：当时为代理设置的配置与测试卡片补过两条 `.proxy-*` 覆盖规则，在新的 `:has` 条件下已属多余（`padding: 0` 已由共享规则提供，标题条默认内边距正是范本行为），继续存在会让标题贴边。已删除这两条自加的覆盖。
+
+### 3E.5 P5 验证结果
+
+| 命令 | 结果 |
+| --- | --- |
+| `npm run typecheck --workspace=@zhi-zhou/web` | 通过 |
+| `npm run test --workspace=@zhi-zhou/web` | 通过（20 文件 / 68 测试，含 `AiWritingPanel.test.tsx`） |
+| `npm run build --workspace=@zhi-zhou/web` | 通过 |
+| `git diff --check` | 通过 |
+| `npx eslint`（四页 + ProxyView） | 0 error / 7 warning，均为既有 `set-state-in-effect` |
+| Impeccable `detect.mjs` | 返回空数组 |
+
+接口 payload 核验：对四页 diff 检索 `aiApi.`/`novelsApi.`/`chaptersApi.` 等调用行，无任何命中，即 payload 未发生变化。
+
+**未执行**：AI 创作切模式是否保留草稿、前置校验与生成阶段、现有任务跳转；封面比例的图片预览与候选选择/应用/弃用；密钥遮罩与「空密钥不等于清空」的行为；参数范围、默认值、枚举与 dirty 状态；暗色弹层与长表单滚动的浏览器实测。故 T15–T18 记 `implemented`，非 `verified`。
+
 ## 4. 范本回归
 
 - 小说管理 `/admin/novels`：
@@ -357,9 +400,9 @@ P3 表格明确要求「该表含展开详情行，必须保留」「不能为�
 ## 5. 共享层变更
 
 - `AdminWorkspace.tsx`：无改动。未新增共享组件或 props。
-- `admin-operations.css`：新增 `.admin-panel-status`（共享，替代五处逐字相同的页面状态胶囊，消费者 8 处）、`.ai-service-stack`、`.ai-list-body`、`.ai-audit-table*`、`.ai-audit-row*`、`.ai-audit-cell__*`、`.ai-audit-detail*`、`.ai-tasks-panel .ai-tasks-content`、`.proxy-panel-title`，以及账户、内容安全、客户端监控三处的页面命名空间规则；修正五处失效或冲突的规则（`.mobile-telemetry-toolbar > select` 与 `[data-slot='input']` 选择器、`.admin-metric-strip--account` 的 heading 组归属、`.source-panel` 与 `.admin-redesign-page--sources .source-panel` 的失效边框与圆角）、并把 `.ai-list-footer` 的布局职责与 `.proxy-logs-panel` 的标题内边距合并进原规则；删除 `--col-N-w` 四处、`account-settings-panel__header`、`account-settings-toolbar`、`.ai-audit-card-header`、`.ai-generations-card__header`、`.ai-generations-card__filter` 系列等死规则。
+- `admin-operations.css`：新增 `.admin-panel-status`（共享，替代五处逐字相同的页面状态胶囊，消费者 8 处）、`.admin-panel-title`（共享，标题内嵌图标，后台共 24 处同类写法）、`.ai-service-stack`、`.ai-list-body`、`.ai-audit-table*`、`.ai-audit-row*`、`.ai-audit-cell__*`、`.ai-audit-detail*`、`.ai-tasks-panel .ai-tasks-content`，以及账户、内容安全、客户端监控三处的页面命名空间规则；修正八处失效或冲突的规则：`.mobile-telemetry-toolbar > select` 与 `[data-slot='input']` 选择器、`.admin-metric-strip--account` 的 heading 组归属、`.source-panel` 与 `.admin-redesign-page--sources .source-panel` 的失效边框与圆角、`:has(> card-header)` 的 padding 归零条件扩展、`.ai-params-card [data-slot='card-header']` 系列、`.ai-writing-panel .ai-writing-header [data-slot='tabs-list']`；并把 `.ai-list-footer` 的布局职责合并进原规则；删除 `--col-N-w` 四处、`account-settings-panel__header`、`account-settings-toolbar`、`.ai-audit-card-header`、`.ai-generations-card__header`、`.ai-generations-card__filter` 系列等死规则。
 - `tokens.css`：无改动。
-- 是否新增共享 class 或 token，以及其消费者：未新增 token。`.admin-panel-status` 为共享类，消费者为 `JobsTab.tsx`（2）、`SettingsTab.tsx`（4）、`MobileTelemetryTab.tsx`（1）、`ModerationTab.tsx`（1）、`AiAuditPanel.tsx`、`AiGenerationsPanel.tsx`、`AiTasksPanel.tsx`，共 8 处；`.ai-service-stack`/`.ai-list-body`/`.ai-audit-*` 为 AI 命名空间，消费者为 `AiAuditPanel.tsx` 与 `AiGenerationsPanel.tsx`；其余新增 class 均为单页命名空间。
+- 是否新增共享 class 或 token，以及其消费者：未新增 token。`.admin-panel-status` 为共享类，消费者为 `JobsTab.tsx`（2）、`SettingsTab.tsx`（4）、`MobileTelemetryTab.tsx`（1）、`ModerationTab.tsx`（1）、`AiAuditPanel.tsx`、`AiGenerationsPanel.tsx`、`AiTasksPanel.tsx`，共 8 处；`.admin-panel-title` 为共享类，消费者为 `AiConfigPanel.tsx`（3）、`AiParamsPanel.tsx`（6）、`ProxyView.tsx`（2），新增后站点运营与内容安全的同类写法仍待 P6/P7 一并对齐；`.ai-service-stack`/`.ai-list-body`/`.ai-audit-*` 为 AI 命名空间，消费者为 `AiAuditPanel.tsx` 与 `AiGenerationsPanel.tsx`；其余新增 class 均为单页命名空间。
 
 ## 6. 命令结果
 
@@ -391,6 +434,11 @@ P3 表格明确要求「该表含展开详情行，必须保留」「不能为�
 | P4 | `npm run build --workspace=@zhi-zhou/web` | 通过 | 保留既有 >500kB chunk 警告 |
 | P4 | `npx eslint`（抓取两视图） | 0 error / 1 warning | warning 为既有 `set-state-in-effect` |
 | P4 | Impeccable `detect.mjs --json` | 空数组 | 无机械检出 |
+| P5 | `npm run typecheck --workspace=@zhi-zhou/web` | 通过 | 无输出 |
+| P5 | `npm run test --workspace=@zhi-zhou/web` | 通过 | 20 文件 / 68 测试（含 `AiWritingPanel.test.tsx`） |
+| P5 | `npm run build --workspace=@zhi-zhou/web` | 通过 | 保留既有 >500kB chunk 警告 |
+| P5 | `npx eslint` | 0 error / 7 warning | warning 均为既有 `set-state-in-effect` |
+| P5 | Impeccable `detect.mjs --json` | 空数组 | 无机械检出 |
 | 每包结束 | | | |
 | P7 最终 | | | |
 

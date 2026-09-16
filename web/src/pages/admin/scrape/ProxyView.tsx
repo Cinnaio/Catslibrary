@@ -177,7 +177,7 @@ export default function ProxyView() {
     <div className="proxy-settings-page grid gap-4">
       <Card className="admin-panel-card proxy-config-panel">
         <AdminPanelHeading
-          title={<span className="proxy-panel-title"><Waypoints className="size-4 text-primary" aria-hidden="true" />HTTP / HTTPS 出站代理</span>}
+          title={<span className="admin-panel-title"><Waypoints className="size-4 text-primary" aria-hidden="true" />HTTP / HTTPS 出站代理</span>}
           description="统一作用于 AI 文本、图像生成、远程图片、书源导入和网页抓取。Docker 部署优先使用 HTTP_PROXY / HTTPS_PROXY。"
           status={<Badge className={enabled ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}>{enabled ? '已启用' : '未启用'}</Badge>}
         />
@@ -236,7 +236,7 @@ export default function ProxyView() {
 
       <Card className="admin-panel-card proxy-test-panel">
         <AdminPanelHeading
-          title={<span className="proxy-panel-title"><ShieldCheck className="size-4 text-primary" aria-hidden="true" />代理连通性测试</span>}
+          title={<span className="admin-panel-title"><ShieldCheck className="size-4 text-primary" aria-hidden="true" />代理连通性测试</span>}
           description="先检查目标是否走代理；再用与正式请求相同的代理链路访问一次公开网址并写入下方日志。"
         />
         <CardContent className="grid gap-4">

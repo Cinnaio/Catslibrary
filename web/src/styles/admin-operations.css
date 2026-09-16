@@ -88,6 +88,14 @@
   color: var(--color-danger);
 }
 
+/* 标题内嵌图标：Card 标题与 AdminPanelHeading 标题共有 20 余处同类写法，
+   统一为一个共享类，避免各页各写一遍 flex + gap。 */
+.admin-panel-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 /* Account tables now use the same grid/card contract as novels and chapters.
    列宽由 <AdminDataPanel columns> 以行内 --col-N-w 注入，不再在此重复声明。 */
 .account-users-panel,
@@ -205,24 +213,6 @@
 .proxy-settings-page .proxy-test-panel,
 .proxy-settings-page .proxy-logs-panel {
   min-width: 0;
-}
-
-/* 面板标题带图标时保持图标与文字基线一致，并与既有 CardTitle 的图标节奏统一。 */
-.proxy-panel-title {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-/* 配置与测试仍是表单面板（手册 §4.5：表单保持 Card），标题改用 AdminPanelHeading
-   后需去掉其自带的外边距与底部分隔线，避免与 CardContent 的留白叠加成双层间距。 */
-.proxy-settings-page :is(.proxy-config-panel, .proxy-test-panel) > .admin-panel-heading {
-  padding: 0 0 1rem;
-  border-bottom: 0;
-}
-
-.proxy-settings-page .proxy-logs-panel > .admin-panel-heading {
-  padding: 1.5rem 1.5rem 1.25rem;
 }
 
 /* 日志表在面板内直接贴边，行内边距由表格自身提供。 */
@@ -1724,8 +1714,9 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   padding: 0.7rem 0.75rem;
 }
 
-/* AI 创作是连续工作流：模式靠近标题，字段与创作说明按层级排开。 */
-.ai-writing-panel .ai-writing-header [data-slot='tabs-list'] {
+/* AI 创作是连续工作流：模式靠近标题，字段与创作说明按层级排开。
+   标题条已由 AdminPanelHeading 承担，模式选择器位于其 actions 槽位。 */
+.ai-writing-panel .admin-panel-heading [data-slot='tabs-list'] {
   height: 2.25rem;
 }
 
@@ -2057,11 +2048,13 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
     grid-column: 1 / -1;
   }
 
-  .ai-params-card [data-slot='card-header'] {
+  .ai-params-card [data-slot='card-header'],
+  .ai-params-card > .admin-panel-heading {
     padding-bottom: 0.75rem;
   }
 
-  .ai-params-card [data-slot='card-header'] > p {
+  .ai-params-card [data-slot='card-header'] > p,
+  .ai-params-card > .admin-panel-heading .admin-panel-heading__copy > p {
     max-width: 30rem;
     line-height: 1.45;
   }
@@ -2863,8 +2856,10 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 }
 
 /* Card 自带的 py-6 只适合无标题的轻量表面；带 header/content 的卡片让内边距
-   由两个槽位各自管理，标题区才能像附件一样从卡片边缘铺到边缘。 */
-.admin-redesign-page :is(.admin-panel-card, [data-slot='card']):has(> [data-slot='card-header']) {
+   由两个槽位各自管理，标题区才能像附件一样从卡片边缘铺到边缘。
+   AdminPanelHeading 已逐步取代 CardHeader 承担标题条职责（代理设置、AI 各面板），
+   故同样纳入归零条件；否则换标题后卡片会重新拿到 padding，与 CardContent 叠加。 */
+.admin-redesign-page :is(.admin-panel-card, [data-slot='card']):has(> [data-slot='card-header'], > .admin-panel-heading) {
   padding: 0;
 }
 
