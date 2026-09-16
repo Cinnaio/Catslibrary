@@ -424,7 +424,7 @@ export default function JobsTab(_props: { highlightNovelId?: string; onHighlight
   return (
     <AdminPage
       className="admin-redesign-page admin-redesign-page--jobs"
-      title="任务队列"
+      title="任务管理"
       description="跟踪抓取与更新任务的执行情况，并对失败任务执行重试或终止。"
       actions={
         <Button variant="secondary" onClick={handleRefresh} disabled={jobsLoading || logsLoading}>

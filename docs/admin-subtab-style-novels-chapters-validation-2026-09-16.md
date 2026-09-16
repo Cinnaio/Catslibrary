@@ -97,7 +97,7 @@ web workspace 有 `dev` / `build` / `preview` / `typecheck` / `test`，**没有*
 | T05 | 注册与邀请码 | pending | | | | |
 | T06 | 登录审计 | pending | | | | |
 | T07 | 操作审计 | pending | | | | |
-| T08 | 任务队列 | pending | | | | |
+| T08 | 任务队列 | implemented | `JobsTab.tsx`、`admin-operations.css`、`_admin-ui.css` | 未执行 | 静态检查通过 | 浏览器视觉、键盘焦点顺序；提交 `8e37b4c` |
 | T09 | AI 任务 | pending | | | | |
 | T10 | 调用审计 | pending | | | | |
 | T11 | 已生成内容 | pending | | | | |
@@ -115,6 +115,59 @@ web workspace 有 `dev` / `build` / `preview` / `typecheck` / `test`，**没有*
 | T23 | 内容分析 | pending | | | | |
 | T24 | 小说管理（范本回归） | pending | | | | |
 | T25 | 章节管理（范本回归） | pending | | | | |
+
+## 3. P0 记录（标题一致性与清理）
+
+执行日期：2026-09-16。基线：`8e37b4c` 之上（T08 已先行完成）。
+
+### 3.1 标题口径决策
+
+§3.4 只要求「导航侧或页面侧二者取一」，未定方向。经确认采用**页标题不变、导航 label 自含化**：内容区主标题独立出现时需自含语义，而导航 label 有分组上下文，可承担更具体字面。
+
+| 文件:行 | 改动 | 依据 |
+| --- | --- | --- |
+| `admin-registry.ts:42` | `总览` → `后台总览` | 对齐 `DashboardTab.tsx:76` 页标题 |
+| `admin-registry.ts:63` | `任务队列` → `任务管理` | 对齐 `JobsTab.tsx:427`；该页含下载日志，「队列」覆盖不全 |
+| `admin-registry.ts:78` | `配置` → `AI 配置` | 对齐 `AiTab.tsx:37` 子页标题 |
+| `admin-registry.ts:93` | `安全策略` → `内容安全` | 对齐 `ContentPolicyTab.tsx:64` |
+
+`admin-registry.test.ts:18` 的断言随之更新为 `['审核队列', '内容安全']`；`Admin.test.tsx:22` 用的是测试自身 mock 的 labels，不读取真实注册表，无需改动。
+
+### 3.2 页内重复标题
+
+| 位置 | 改动 | 结果 |
+| --- | --- | --- |
+| `SettingsTab.tsx:630` | `登录审计` → `登录记录` | 不再与 `audit` 子页标题同字面 |
+| `SettingsTab.tsx:713` | `管理员操作审计` → `操作记录` | 不再与 `operation-audit` 子页标题近似重复 |
+
+`:506`（用户）、`:776`（邀请码）留待 P2 随该页面板契约一并处理，因它们与页标题并非同字面。
+
+### 3.3 死 import 清理
+
+删除 `ChaptersTab.tsx:23`/`:25` 的 `AdminContextPanel`、`AdminMetricStrip`。基线 ESLint 对这四行报 4 个 `no-unused-vars`（含 `:59`、`:171` 两处既有未使用变量）；清理后剩 2 个，行号平移 `-8` 与删除行数一致。净消除 2 个 error，未引入新问题。
+
+### 3.4 P0 验证结果
+
+| 命令 | 结果 |
+| --- | --- |
+| `npm run typecheck --workspace=@zhi-zhou/web` | 通过 |
+| `npm run test --workspace=@zhi-zhou/web` | 通过（20 文件 / 68 测试） |
+| `npm run build --workspace=@zhi-zhou/web` | 通过（保留既有 >500kB chunk 警告） |
+| `git diff --check` | 通过 |
+| `npx eslint` 五个改动文件 | 2 error（均为既有），5 warning（与基线逐条相同） |
+| Impeccable `detect.mjs` | 返回空数组 |
+
+改动规模：5 文件，+9/−17 行。
+
+**未执行**：P0 要求的两个范本已登录浏览器截图（桌面/窄屏/暗色/弹窗计算样式复核）。故 P0 标题项为静态完成，浏览器证据缺失。
+
+### 3.5 执行偏差记录
+
+首次对 `SettingsTab.tsx` 运行 `npx prettier --write` 造成 506/425 行全文件重排——该文件从未符合 Prettier，格式化淹没了 2 行真实改动。已 `git checkout --` 回滚并用精确编辑重做，diff 收敛至 2 行。**结论：仓库未统一的文件不得整体格式化**；后续包只对已符合 Prettier 的文件运行 `--write`。
+
+### 3.6 迁移进度
+
+第 2 节状态表初始为全部 `pending`，其中 T08 已由提交 `8e37b4c` 完成（`implemented`，非 `verified`）。其余 T01–T07、T09–T25 维持 `pending`，从 P1 起按手册执行包逐包推进。
 
 ## 4. 范本回归
 
@@ -134,10 +187,12 @@ web workspace 有 `dev` / `build` / `preview` / `typecheck` / `test`，**没有*
 
 | 阶段 | 命令 | 结果 | 关键输出/备注 |
 | --- | --- | --- | --- |
-| P0 基线 | `npm run typecheck --workspace=@zhi-zhou/web` | | |
-| P0 基线 | `npm run test --workspace=@zhi-zhou/web` | | |
-| P0 基线 | `npm run build --workspace=@zhi-zhou/web` | | |
-| P0 基线 | `git diff --check` | | |
+| P0 基线 | `npm run typecheck --workspace=@zhi-zhou/web` | 通过 | `tsc --noEmit` 无输出 |
+| P0 基线 | `npm run test --workspace=@zhi-zhou/web` | 通过 | 20 文件 / 68 测试 |
+| P0 基线 | `npm run build --workspace=@zhi-zhou/web` | 通过 | 保留既有 >500kB chunk 警告 |
+| P0 基线 | `git diff --check` | 通过 | 无空白问题 |
+| P0 | `npx eslint`（5 个改动文件） | 2 error / 5 warning | 均为既有；基线为 4 error，本次净消除 2 |
+| P0 | Impeccable `detect.mjs --json` | 空数组 | 无机械检出 |
 | 每包结束 | | | |
 | P7 最终 | | | |
 

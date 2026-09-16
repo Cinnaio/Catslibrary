@@ -39,7 +39,7 @@ export const NAV_GROUPS: Array<{ label: string; items: AdminNavItem[] }> = [
   {
     label: '监控',
     items: [
-      { id: 'dashboard', label: '总览', icon: LayoutDashboard },
+      { id: 'dashboard', label: '后台总览', icon: LayoutDashboard },
       { id: 'mobile-telemetry', label: '客户端监控', icon: Activity },
     ],
   },
@@ -60,7 +60,7 @@ export const NAV_GROUPS: Array<{ label: string; items: AdminNavItem[] }> = [
         children: [
           { id: 'scrape-center', label: '抓取中心', to: `${adminTabPath('scrape')}?view=center` },
           { id: 'scrape-sources', label: '书源管理', to: `${adminTabPath('scrape')}?view=sources` },
-          { id: 'jobs', label: '任务队列', to: adminTabPath('jobs') },
+          { id: 'jobs', label: '任务管理', to: adminTabPath('jobs') },
           { id: 'scrape-proxy', label: '代理设置', to: `${adminTabPath('scrape')}?view=proxy` },
         ],
       },
@@ -75,7 +75,7 @@ export const NAV_GROUPS: Array<{ label: string; items: AdminNavItem[] }> = [
           { id: 'ai-content', label: '已生成内容', to: `${adminTabPath('ai')}?sub=content` },
           { id: 'ai-usage', label: '用量统计', to: `${adminTabPath('ai')}?sub=usage` },
           { id: 'ai-audit', label: '调用审计', to: `${adminTabPath('ai')}?sub=audit` },
-          { id: 'ai-config', label: '配置', to: `${adminTabPath('ai')}?sub=config` },
+          { id: 'ai-config', label: 'AI 配置', to: `${adminTabPath('ai')}?sub=config` },
           { id: 'ai-params', label: '参数调优', to: `${adminTabPath('ai')}?sub=params` },
         ],
       },
@@ -90,7 +90,7 @@ export const NAV_GROUPS: Array<{ label: string; items: AdminNavItem[] }> = [
         icon: MessageSquare,
         children: [
           { id: 'moderation-queue', label: '审核队列', to: adminTabPath('moderation') },
-          { id: 'content-policy', label: '安全策略', to: adminTabPath('content-policy') },
+          { id: 'content-policy', label: '内容安全', to: adminTabPath('content-policy') },
         ],
       },
     ],

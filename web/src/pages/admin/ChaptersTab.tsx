@@ -19,15 +19,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { Pencil, Trash2 } from 'lucide-react'
 import AdminPage from '@/components/admin/AdminPage'
-import {
-  AdminContextPanel,
-  AdminDataPanel,
-  AdminMetricStrip,
-  AdminPanelHeading,
-  AdminSearch,
-  AdminToolbar,
-  type AdminColumn,
-} from '@/components/admin/AdminWorkspace'
+import { AdminDataPanel, AdminPanelHeading, AdminSearch, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
 
 const PAGE_SIZE = 50
 

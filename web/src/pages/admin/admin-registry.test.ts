@@ -15,7 +15,7 @@ describe('admin registry routes', () => {
     const items = NAV_GROUPS.flatMap((group) => group.items)
     const moderation = items.find((item) => item.id === 'moderation')
 
-    expect(moderation?.children?.map((child) => child.label)).toEqual(['审核队列', '安全策略'])
+    expect(moderation?.children?.map((child) => child.label)).toEqual(['审核队列', '内容安全'])
     expect(items.flatMap((item) => item.children || []).every((child) => !('group' in child))).toBe(true)
   })
 

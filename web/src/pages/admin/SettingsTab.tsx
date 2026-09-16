@@ -627,7 +627,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
       <section className="admin-data-panel admin-data-panel--grid account-audit-panel overflow-hidden">
         <div className="account-settings-panel__header flex flex-wrap items-center justify-between gap-3 px-4 py-3">
           <div>
-            <h2 className="text-base font-semibold text-foreground">登录审计</h2>
+            <h2 className="text-base font-semibold text-foreground">登录记录</h2>
             <p className="mt-0.5 text-sm text-muted-foreground">记录登录成功、失败与限流事件，不保存密码或登录令牌</p>
           </div>
           <Button variant="secondary" size="sm" onClick={() => void loadLoginAudit()} disabled={loginAuditLoading}>
@@ -710,7 +710,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
       <section className="admin-data-panel admin-data-panel--grid account-operation-audit-panel overflow-hidden">
         <div className="account-settings-panel__header flex flex-wrap items-center justify-between gap-3 px-4 py-3">
           <div>
-            <h2 className="text-base font-semibold text-foreground">管理员操作审计</h2>
+            <h2 className="text-base font-semibold text-foreground">操作记录</h2>
             <p className="mt-0.5 text-sm text-muted-foreground">记录危险操作的发起人、目标数量、结果与重放次数，不保存目标正文或原始内容。</p>
           </div>
           <Button variant="secondary" size="sm" onClick={() => void loadOperationAudit()} disabled={operationAuditLoading}>
