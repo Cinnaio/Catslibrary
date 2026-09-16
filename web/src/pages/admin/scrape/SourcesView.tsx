@@ -20,6 +20,14 @@ import CustomSelect from '@/components/admin/CustomSelect'
 import type { SourceRow } from './types'
 import { connectivityBadge, scrapePost, supportBadge } from './utils'
 
+const SOURCE_SUPPORT_FILTER_INDEX: Record<string, number> = {
+  '': 0,
+  full: 1,
+  partial: 2,
+  unsupported: 3,
+  enabled: 4,
+}
+
 export default function SourcesView({ active }: { active: boolean }) {
   const { toast } = useToast()
   const { confirm } = useConfirm()
@@ -39,6 +47,7 @@ export default function SourcesView({ active }: { active: boolean }) {
 
   const [supportFilter, setSupportFilter] = useState('')
   const [hostFilter, setHostFilter] = useState('')
+  const supportFilterIndex = SOURCE_SUPPORT_FILTER_INDEX[supportFilter] ?? 0
   const hostFilterRef = useRef('')
   const hostDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -348,17 +357,15 @@ export default function SourcesView({ active }: { active: boolean }) {
       <AdminTabHeader
         title="书源管理"
         description="批量导入 Legado 社区书源池，智能分析小说时自动按 host 匹配书源选择器。仅消费书源规则数据，转换器为项目自研。"
-        meta={`共 ${total} 个书源`}
         actions={
-          <>
-            <Button variant="secondary" onClick={openConnectivityDialog}>
-              检测连接
-            </Button>
-            <Button onClick={() => document.getElementById('source-import-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
-              <span aria-hidden="true">＋</span>
-              导入书源
-            </Button>
-          </>
+          <div className="source-header__stats" aria-label="书源统计">
+            <Badge variant="secondary">总数 {total}</Badge>
+            <Badge variant="secondary">已启用 {enabledCount}</Badge>
+            <Badge className="bg-success/10 text-success">可用 {bySupport.full || 0}</Badge>
+            <Badge className="bg-warning/10 text-warning">需核验 {bySupport.partial || 0}</Badge>
+            <Badge className="bg-secondary text-muted-foreground">不支持 {bySupport.unsupported || 0}</Badge>
+            <Badge className="bg-destructive/10 text-destructive">不可访问 {unreachableCount}</Badge>
+          </div>
         }
       />
 
@@ -418,22 +425,14 @@ export default function SourcesView({ active }: { active: boolean }) {
               <div className="source-panel__filter-group">
                 <span className="source-panel__section-label">筛选</span>
                 <Tabs className="source-panel__tabs" value={supportFilter} onValueChange={onSupportFilterChange}>
-                  <TabsList>
+                  <TabsList data-active-index={supportFilterIndex}>
                     <TabsTrigger value="">全部</TabsTrigger>
-                    <TabsTrigger value="full">full</TabsTrigger>
-                    <TabsTrigger value="partial">partial</TabsTrigger>
-                    <TabsTrigger value="unsupported">unsupported</TabsTrigger>
+                    <TabsTrigger value="full">完整支持</TabsTrigger>
+                    <TabsTrigger value="partial">部分支持</TabsTrigger>
+                    <TabsTrigger value="unsupported">不支持</TabsTrigger>
                     <TabsTrigger value="enabled">已启用</TabsTrigger>
                   </TabsList>
                 </Tabs>
-              </div>
-              <div className="source-panel__stats" aria-label="书源统计">
-                <Badge variant="secondary">总数 {total}</Badge>
-                <Badge variant="secondary">已启用 {enabledCount}</Badge>
-                <Badge className="bg-success/10 text-success">可用 {bySupport.full || 0}</Badge>
-                <Badge className="bg-warning/10 text-warning">需核验 {bySupport.partial || 0}</Badge>
-                <Badge className="bg-secondary text-muted-foreground">不支持 {bySupport.unsupported || 0}</Badge>
-                <Badge className="bg-destructive/10 text-destructive">不可访问 {unreachableCount}</Badge>
               </div>
             </div>
             <div className="source-panel__cluster source-panel__cluster--actions">
@@ -458,6 +457,10 @@ export default function SourcesView({ active }: { active: boolean }) {
               </Button>
               <Button variant="destructive" size="sm" disabled={unreachableCount === 0} onClick={() => void deleteUnreachableSources()}>
                 删除不可访问
+              </Button>
+              <Button size="sm" onClick={() => document.getElementById('source-import-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
+                <span aria-hidden="true">＋</span>
+                导入书源
               </Button>
             </div>
           </AdminToolbar>
