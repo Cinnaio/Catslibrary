@@ -219,6 +219,8 @@ rg --files -g AGENTS.md
 - 使用 `--admin-canvas`、`--admin-panel`、`--admin-border`、`--admin-space-*`、现有语义颜色；不要在新页面另建固定奶油底色或硬编码品牌色。
 - 数据面板是平面、清晰边框、统一圆角；不要增加更重阴影、渐变头图或浮起卡片。`Flat-By-Default` 规则适用于所有静止表面。
 - 页面节奏由 `AdminPage` 的 `.admin-redesign-page` 管理（`:4956`/`:2065`，`display: grid; gap: 1rem`）；面板内部由统一 padding 管理。清理目标区域叠加的 `mb-*`、`space-y-*`、多层 `Card`，避免双倍间距。
+- **`Card` 的 `gap-6` 必须与它的 `py-6` 一起归零。** `Card` 的类名是 `flex flex-col gap-6 rounded-xl border bg-card py-6 …`（`card.tsx:10`），`gap` 与 `padding` 是两个独立的间距来源。此前共享层只归零了 `padding` 而漏掉 `gap`，导致每一张「`Card` + 标题条」的卡片都在标题条与内容区之间多出 24px 死留白，表现为标题条下方一段无来由的空白。归零规则见 `admin-operations.css` 的 `.admin-redesign-page :is(.admin-panel-card, [data-slot='card']):has(> [data-slot='card-header'], > .admin-panel-heading)`，`padding` 与 `gap` 必须成对出现。注意 `CardContent` 等内部网格的 `gap`（`gap-4`/`gap-5`/`gap-8`）属于内容节奏，**不受影响也不得归零**。
+- 新增任何「卡片 + 标题条」结构时，先确认该规则的选择器能命中（宿主元素须是 `Card` 或带 `admin-panel-card` 的元素，且标题条必须是其**直接子元素**）。
 - 宽屏筛选保持单行，必要时按当前范本规则在窄屏分组换行。搜索框按用途设宽度（`.admin-search` 有 `max-width: 30rem`，`:6357`），窄屏允许铺满；长 URL、长提示词使用足够宽的输入区域。
 - 输入框与按钮以范本**计算样式**为准；不要把 JSX 的 `size="sm"` 或文档数字直接当成最终高度。
 - 保留亮色、暗色和现有强调色配置能力。`data-theme` 是当前暗色模式机制，不改成仅支持 `.dark`。

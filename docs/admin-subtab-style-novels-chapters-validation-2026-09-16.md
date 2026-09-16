@@ -477,7 +477,31 @@ P3 表格明确要求「该表含展开详情行，必须保留」「不能为�
 
 另需区分：Recharts 的 `tick={{ fill: 'var(--text-muted)' }}` 是 SVG 属性，直接引用 CSS 变量而非 Tailwind 类，本就正确，不受上述讨论影响。
 
-### 3G.5 P7 验证结果
+### 3G.5 交付后发现并修复：卡片 `gap-6` 造成的头部死留白
+
+**发现方式**：用户在实际登录态截图中指出「AI 服务里包括代理设置的卡片前段留白异常」。该问题在 P0–P7 的自动化检查与我的浏览器骨架测量中**均未暴露**，因为缺陷源于 `Card` 组件的类名组合，而我的骨架复刻了 DOM 结构与样式类名，却漏掉了 `Card` 组件自身的 Tailwind 类（`flex flex-col gap-6 …`）。
+
+**根因**：`Card` 的类名是 `flex flex-col gap-6 rounded-xl border bg-card py-6 text-card-foreground shadow-sm`（`card.tsx:10`）。共享层的归零规则（`admin-operations.css:2863`）只写了 `padding: 0`，**漏掉了 `gap`**。`gap` 与 `padding` 是相互独立的间距来源，于是每张「`Card` + 标题条」的卡片都在标题条与内容区之间多出 24px 死留白。
+
+**受影响范围**：15 处 `Card` + 标题条（`AdminPanelHeading` 13 处、`CardHeader` 2 处），分布在 `AiConfigPanel`（3）、`AiParamsPanel`（6）、`AiCoverPanel`（1）、`AiWritingPanel`（1）、`ProxyView`（2）、`ContentPolicyTab`（1）、`SettingsTab`（1）。使用原生 `<section>`/`<div>` 承载的卡片（如 `MobileTelemetryTab` 的 `mobile-telemetry-top-events`）不含 `flex gap`，不受影响；`AdminGate` 的卡片无标题条且不在 `.admin-redesign-page` 内，同样不受影响。
+
+**修复**：在既有归零规则内补 `gap: 0`，与 `padding: 0` 成对，避免同一问题再次只修一半。
+
+**实测数据**（真实浏览器，修复前 → 修复后）：
+
+| 卡片 | 卡片级 `row-gap` | 标题条底边→内容顶边 | 内容区自身 `gap` |
+| --- | --- | --- | --- |
+| 创作工作台（`ai-writing-card`） | 24px → 0 | 24px → 0 | 20px（保留） |
+| 代理设置（`proxy-config-panel`） | 24px → 0 | 24px → 0 | 20px（保留） |
+| 创作参数（`ai-params-card`） | 24px → 0 | 24px → 0 | 16px（保留） |
+| 旧式 `CardHeader`（`content-policy-panel`） | 24px → 0 | 24px → 0 | 16px（保留） |
+| 双列内容（`ai-cover-card`） | 24px → 0 | 24px → 0 | 32px、列数 2（保留） |
+
+关键回归确认：修复只作用于卡片自身的子元素间距，`CardContent` 内部的网格 `gap`（`gap-4`/`gap-5`/`gap-8`）与多列布局全部保留，未被误伤。
+
+**附**：此前提到的 `text-muted` 不是缺陷（见 §3G.4），而本次的 `gap` 是**真实缺陷**。两者的差别在于：前者只做了变量映射链的静态推理就下了结论，后者有用户在真实登录态下的视觉证据。这也再次说明登录态实景验证不可省略——整个 P0–P7 的自动化与骨架测量都放过了它。
+
+### 3G.6 P7 验证结果
 
 命令结果见 §6 的「P7 最终」分区，范本回归见 §4，浏览器验证边界见 §7。P7 未产生新的未提交风险，全量测试与构建均通过。
 

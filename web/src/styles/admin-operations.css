@@ -2859,9 +2859,15 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 /* Card 自带的 py-6 只适合无标题的轻量表面；带 header/content 的卡片让内边距
    由两个槽位各自管理，标题区才能像附件一样从卡片边缘铺到边缘。
    AdminPanelHeading 已逐步取代 CardHeader 承担标题条职责（代理设置、AI 各面板），
-   故同样纳入归零条件；否则换标题后卡片会重新拿到 padding，与 CardContent 叠加。 */
+   故同样纳入归零条件；否则换标题后卡片会重新拿到 padding，与 CardContent 叠加。
+
+   同样必须归零 gap：Card 自身的类名是 `flex flex-col gap-6`（card.tsx），
+   gap 与 padding 相互独立，只清 padding 会在标题条与内容区之间留下 24px
+   死留白——表现为标题条下方一段无来由的空白。两个槽位各自已有内边距，
+   gap 恒应为 0。 */
 .admin-redesign-page :is(.admin-panel-card, [data-slot='card']):has(> [data-slot='card-header'], > .admin-panel-heading) {
   padding: 0;
+  gap: 0;
 }
 
 .action-row,
