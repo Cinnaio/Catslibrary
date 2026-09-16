@@ -22,13 +22,8 @@ export default function Admin() {
     if (isAdminTab(tab)) localStorage.setItem(TAB_KEY, tab)
   }, [tab])
 
-  // 后台页面标题（便于浏览器标签识别）
-  useEffect(() => {
-    document.title = `${getTabLabel(active) || '管理台'} · 知舟`
-    return () => {
-      document.title = '知舟 — 小说阅读'
-    }
-  }, [active])
+  // 后台页面标题由 AdminShell 写入（见该文件的说明）：标题必须属于实际
+  // 可见的视图，否则鉴权门拦下内容时标签页仍会显示后台页签名。
 
   // 键盘路径：/ 聚焦当前 tab 的搜索框（Alex 效率收益）
   useEffect(() => {
