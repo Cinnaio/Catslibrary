@@ -225,9 +225,10 @@
   min-width: 48rem;
 }
 
-.admin-metric-strip--ai-usage {
-  --admin-metric-columns: 4;
-}
+/* AdminMetricStrip 的变体类名（--dashboard / --account / --ai-usage）只作为
+   TSX 侧的语义钩子保留。列数一律由组件内联注入的 --admin-metric-columns
+   决定（跟随 items.length），此前的 CSS 同名覆盖全部被内联声明压过，
+   故已删除；窄屏的列数覆盖见文末 @media (max-width: 640px)。 */
 
 @media (max-width: 900px) {
   .admin-redesign-page--settings > :is(.account-audit-toolbar, .account-operation-audit-toolbar),
@@ -5153,9 +5154,12 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   min-height: 34rem;
 }
 
+/* 运营指标条沿用 AdminMetricStrip 的网格：列数由其 --admin-metric-columns 决定
+   （组件内联注入、跟随项数；该规则定义在下方 :6799，特异性相同而更靠后，
+   故覆盖此处早先写死的 repeat(4, …)）。这里只保留运营页自己的表面语言，
+   其中 gap 是分隔发丝线的来源，.admin-metric-strip 未定义该属性。 */
 .site-operations__metrics {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 0.75rem;
@@ -5163,36 +5167,10 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   gap: 1px;
 }
 
-.site-operations__metrics--five {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-}
+/* 指标项现在由 AdminMetricStrip 渲染为 .admin-metric-strip__item；
+   此前的 .site-operations__metric（单数）及其子选择器已无 TSX 消费者，
+   随迁移一并删除。 */
 
-.site-operations__metric {
-  display: grid;
-  gap: 0.25rem;
-  min-height: 5.25rem;
-  align-content: center;
-  padding: 0.75rem 1rem;
-  background: var(--bg-card);
-}
-
-.site-operations__metric > span {
-  overflow: hidden;
-  color: var(--text-muted);
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.site-operations__metric strong {
-  color: var(--text-primary);
-  font-size: 1.5rem;
-  font-variant-numeric: tabular-nums;
-  line-height: 1.15;
-}
-
-.site-operations__metric small,
 .site-operations__country small {
   color: var(--text-muted);
   font-size: 0.75rem;
@@ -5273,9 +5251,8 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 }
 
 @media (min-width: 641px) and (max-width: 1100px) {
-  .site-operations__metrics--five {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
+  /* 5 项指标在中窄屏由 .admin-metric-strip 的列数变量 + 640px 覆盖处理；
+     此前的 .site-operations__metrics--five 类名在 TSX 中不存在，规则永不命中。 */
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -6856,15 +6833,10 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   font-weight: 750;
 }
 
-.admin-metric-strip--dashboard {
-  --admin-metric-columns: 7;
-}
-
-/* 账户用户概览：4 项指标，走标准指标条网格外观（与客户端监控一致），
-   不再作为 Card 内的标题条使用。 */
-.admin-metric-strip--account {
-  --admin-metric-columns: 4;
-}
+/* 指标条列数由 AdminMetricStrip 以内联 style 注入
+   （AdminWorkspace.tsx:97，跟随 items.length），内联声明会压过本文件的
+   同名规则，故原先这里的 --admin-metric-columns 覆盖整条失效。
+   列数契约统一交回组件：只在此处保留窄屏的 grid-template-columns 直接覆盖。 */
 
 .admin-panel-heading {
   display: flex;
@@ -7074,14 +7046,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   }
 }
 
-.admin-redesign-page--site-operations .admin-metric-strip {
-  --admin-metric-columns: 5;
-}
-
-.admin-redesign-page--site-operations .site-operations__metrics:not(.admin-metric-strip--five) {
-  --admin-metric-columns: 4;
-}
-
 @media (max-width: 900px) {
   .admin-context-panel {
     grid-template-columns: 1fr;
@@ -7125,10 +7089,9 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 @media (max-width: 640px) {
   /* 指标卡此前在窄屏压成单列纵向堆叠，3-4 项会吃掉近半屏高度，而这些数字
      在手机上只是概览信息。改为 2×2 网格（4 项时）或单行（≤3 项），
-     纵向占用减半且仍可读。 */
-  .admin-metric-strip,
-  .admin-metric-strip--dashboard,
-  .admin-metric-strip--account {
+     纵向占用减半且仍可读。
+     基础类名已覆盖全部页面变体，此前的 --dashboard/--account 列举是冗余。 */
+  .admin-metric-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 

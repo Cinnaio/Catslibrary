@@ -10,10 +10,10 @@ import { formatBytes, timeAgo } from '../../lib/format'
 import { jobStatusLabel } from '../../lib/admin'
 import AdminPage from '@/components/admin/AdminPage'
 import AdminEmptyState from '@/components/admin/AdminEmptyState'
-import { AdminMetricStrip } from '@/components/admin/AdminWorkspace'
+import { ErrorState, LoadingState } from '@/components/admin/AsyncStates'
+import { AdminDataPanel, AdminMetricStrip, AdminPanelHeading } from '@/components/admin/AdminWorkspace'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 interface AdminStats {
   totals: { novels: number; chapters: number; users: number; covers: number; failedJobs: number; todayChapters: number; dbSize: number | null }
@@ -82,9 +82,9 @@ export default function DashboardTab(_props: { highlightNovelId?: string; onHigh
       >
 
       {error ? (
-        <div className="admin-panel-card rounded-xl border border-border bg-card p-6 text-sm text-destructive">总览加载失败：{error}</div>
+        <ErrorState className="admin-panel-card" message={`总览加载失败：${error}`} onRetry={() => void load(true)} />
       ) : !data ? (
-        <div className="admin-panel-card rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">加载中…</div>
+        <LoadingState className="admin-panel-card" label="正在加载总览数据" />
       ) : (
         <div className="space-y-4">
           <AdminMetricStrip
@@ -100,7 +100,7 @@ export default function DashboardTab(_props: { highlightNovelId?: string; onHigh
             })}
           />
 
-          <div className="admin-panel-card rounded-xl border border-border bg-muted/60 p-5">
+          <AdminDataPanel className="dashboard-task-status p-5" ariaLabel="抓取任务状态">
             <div className="flex items-center justify-between gap-3">
               <span className="text-sm font-semibold text-foreground">任务状态</span>
               <span className="text-xs tabular-nums text-muted-foreground">
@@ -116,59 +116,55 @@ export default function DashboardTab(_props: { highlightNovelId?: string; onHigh
                 />
               ))}
             </div>
-          </div>
+          </AdminDataPanel>
 
           <div className="grid gap-4 lg:grid-cols-2">
-            <Card className="admin-panel-card">
-              <CardHeader className="flex-row items-center justify-between gap-2">
-                <CardTitle className="text-base">最近抓取任务</CardTitle>
-                <span className="text-xs text-muted">按更新时间</span>
-              </CardHeader>
-              <CardContent>
-                <div>
-                  {data.recentJobs.length === 0 ? (
-                    <AdminEmptyState message="暂无抓取任务" />
-                  ) : (
-                    data.recentJobs.map((j) => (
-                      <div className="flex items-center justify-between gap-3 border-b border-border py-3 last:border-0" key={j.id}>
-                        <div className="min-w-0">
-                          <div className="truncate font-medium text-foreground">{j.novelTitle || j.novelId || j.id}</div>
-                          <div className="mt-0.5 text-xs text-muted-foreground">
-                            {(j.step || '任务') + ' · ' + timeAgo(j.updatedAt)}
-                          </div>
+            <AdminDataPanel className="overflow-hidden" ariaLabel="最近抓取任务">
+              <AdminPanelHeading
+                title="最近抓取任务"
+                status={<span className="text-xs text-muted-foreground">按更新时间</span>}
+              />
+              <div className="px-6 py-2">
+                {data.recentJobs.length === 0 ? (
+                  <AdminEmptyState message="暂无抓取任务" />
+                ) : (
+                  data.recentJobs.map((j) => (
+                    <div className="flex items-center justify-between gap-3 border-b border-border py-3 last:border-0" key={j.id}>
+                      <div className="min-w-0">
+                        <div className="truncate font-medium text-foreground">{j.novelTitle || j.novelId || j.id}</div>
+                        <div className="mt-0.5 text-xs text-muted-foreground">
+                          {(j.step || '任务') + ' · ' + timeAgo(j.updatedAt)}
                         </div>
-                        <Badge className={PILL_CLASS[j.status] || ''}>{jobStatusLabel(j.status)}</Badge>
                       </div>
-                    ))
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="admin-panel-card">
-              <CardHeader className="flex-row items-center justify-between gap-2">
-                <CardTitle className="text-base">最近更新小说</CardTitle>
-                <span className="text-xs text-muted">书库动态</span>
-              </CardHeader>
-              <CardContent>
-                <div>
-                  {data.recentNovels.length === 0 ? (
-                    <AdminEmptyState message="暂无小说" />
-                  ) : (
-                    data.recentNovels.map((n) => (
-                      <Link className="flex items-center justify-between gap-3 border-b border-border py-3 last:border-0" to={`/novel/${encodeURIComponent(n.id)}`} key={n.id}>
-                        <div className="min-w-0">
-                          <div className="truncate font-medium text-foreground">{n.title}</div>
-                          <div className="mt-0.5 text-xs text-muted-foreground">
-                            {(n.author || '未知作者') + ' · ' + (n.chapterCount || 0) + ' 章 · ' + timeAgo(n.updatedAt)}
-                          </div>
+                      <Badge className={PILL_CLASS[j.status] || ''}>{jobStatusLabel(j.status)}</Badge>
+                    </div>
+                  ))
+                )}
+              </div>
+            </AdminDataPanel>
+            <AdminDataPanel className="overflow-hidden" ariaLabel="最近更新小说">
+              <AdminPanelHeading
+                title="最近更新小说"
+                status={<span className="text-xs text-muted-foreground">书库动态</span>}
+              />
+              <div className="px-6 py-2">
+                {data.recentNovels.length === 0 ? (
+                  <AdminEmptyState message="暂无小说" />
+                ) : (
+                  data.recentNovels.map((n) => (
+                    <Link className="flex items-center justify-between gap-3 border-b border-border py-3 last:border-0" to={`/novel/${encodeURIComponent(n.id)}`} key={n.id}>
+                      <div className="min-w-0">
+                        <div className="truncate font-medium text-foreground">{n.title}</div>
+                        <div className="mt-0.5 text-xs text-muted-foreground">
+                          {(n.author || '未知作者') + ' · ' + (n.chapterCount || 0) + ' 章 · ' + timeAgo(n.updatedAt)}
                         </div>
-                        <span className="shrink-0 text-muted-foreground" aria-hidden="true">›</span>
-                      </Link>
-                    ))
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+                      </div>
+                      <span className="shrink-0 text-muted-foreground" aria-hidden="true">›</span>
+                    </Link>
+                  ))
+                )}
+              </div>
+            </AdminDataPanel>
           </div>
         </div>
       )}

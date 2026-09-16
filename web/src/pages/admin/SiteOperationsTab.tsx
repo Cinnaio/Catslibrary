@@ -6,10 +6,10 @@ import { adminApi, novelsApi } from '@/lib/api'
 import { useToast } from '@/components/feedback'
 import { usePersistentState } from '@/hooks/usePersistentState'
 import AdminPage from '@/components/admin/AdminPage'
-import { AdminMetricStrip } from '@/components/admin/AdminWorkspace'
+import { AdminMetricStrip, AdminPanelHeading } from '@/components/admin/AdminWorkspace'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 
@@ -192,10 +192,10 @@ export default function SiteOperationsTab() {
             <AdminMetricStrip className="site-operations__metrics" ariaLabel="运营概览指标" items={overviewMetrics.map(([label, value, unit]) => ({ label, value: value.toLocaleString(), detail: unit }))} />
             <div className="grid gap-4 lg:grid-cols-2">
               <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base"><Megaphone className="size-4 text-primary" aria-hidden="true" />站点公告</CardTitle>
-                  <p className="text-sm text-muted-foreground">公告会显示在读者端页面顶部，留空即可撤下。</p>
-                </CardHeader>
+                <AdminPanelHeading
+                  title={<span className="admin-panel-title"><Megaphone className="size-4 text-primary" aria-hidden="true" />站点公告</span>}
+                  description="公告会显示在读者端页面顶部，留空即可撤下。"
+                />
                 <CardContent className="grid gap-3">
                   <Textarea value={announcement} maxLength={240} rows={4} placeholder="例如：今晚 23:00 将进行例行维护，阅读服务可能短暂波动。" onChange={(event) => setAnnouncement(event.target.value)} />
                   <div className="flex items-center justify-between gap-3"><span className="text-xs tabular-nums text-muted-foreground">{announcement.length}/240</span><Button size="sm" onClick={() => void saveAnnouncement()} disabled={loading || saving}>{saving ? '保存中…' : '保存公告'}</Button></div>
@@ -213,28 +213,28 @@ export default function SiteOperationsTab() {
           {currentOperationTab === 'traffic' && <>
             <AdminMetricStrip className="site-operations__metrics" ariaLabel="流量分析指标" items={trafficMetrics.map(([label, value, unit]) => ({ label, value: value.toLocaleString(), detail: unit }))} />
             <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base"><Route className="size-4 text-primary" aria-hidden="true" />近 7 日访问趋势</CardTitle>
-                <p className="text-sm text-muted-foreground">PV 与去重后的访客数，按站点服务器日期聚合。</p>
-              </CardHeader>
+              <AdminPanelHeading
+                title={<span className="admin-panel-title"><Route className="size-4 text-primary" aria-hidden="true" />近 7 日访问趋势</span>}
+                description="PV 与去重后的访客数，按站点服务器日期聚合。"
+              />
               <CardContent>
                 {chartData.length ? <TrafficChart data={chartData} /> : <p className="py-20 text-center text-sm text-muted-foreground">{loading ? '正在汇总访问数据…' : '暂无访问数据'}</p>}
               </CardContent>
             </Card>
             <div className="grid gap-4 xl:grid-cols-2">
               <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base"><Globe2 className="size-4 text-primary" aria-hidden="true" />访问地区</CardTitle>
-                  <p className="text-sm text-muted-foreground">只显示可识别的地区；本地访问或未接入代理地理信息不会被误标为某个地区。</p>
-                </CardHeader>
+                <AdminPanelHeading
+                  title={<span className="admin-panel-title"><Globe2 className="size-4 text-primary" aria-hidden="true" />访问地区</span>}
+                  description="只显示可识别的地区；本地访问或未接入代理地理信息不会被误标为某个地区。"
+                />
                 <CardContent>
                   {countries.length ? <div className="grid gap-3">{countries.map((country) => <div key={country.countryCode} className="site-operations__country"><span>{COUNTRY_NAMES[country.countryCode] || country.countryCode}</span><strong>{country.visits.toLocaleString()} <small>PV</small></strong><div><i style={{ width: `${country.visits / maxCountryVisits * 100}%` }} /></div></div>)}</div> : <div className="site-operations__geo-empty"><Globe2 className="size-5" aria-hidden="true" /><div><strong>暂未取得地区信息</strong><p>当前访问没有携带 Cloudflare 或 Vercel 的地区代码，常见于本地开发或未使用这些代理的部署。</p></div></div>}
                   {unclassifiedVisits > 0 && <p className="mt-4 text-xs leading-relaxed text-muted-foreground">另有 {unclassifiedVisits.toLocaleString()} PV 未携带地区代码，未计入上方地区排行。</p>}
                 </CardContent>
               </Card>
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
-                <Card><CardHeader><CardTitle className="flex items-center gap-2 text-base"><MonitorSmartphone className="size-4 text-primary" aria-hidden="true" />设备构成</CardTitle></CardHeader><CardContent><ShareRows items={traffic?.devices || []} names={DEVICE_NAMES} /></CardContent></Card>
-                <Card><CardHeader><CardTitle className="flex items-center gap-2 text-base"><Route className="size-4 text-primary" aria-hidden="true" />访问来源</CardTitle></CardHeader><CardContent><ShareRows items={traffic?.sources || []} names={SOURCE_NAMES} /></CardContent></Card>
+                <Card><AdminPanelHeading title={<span className="admin-panel-title"><MonitorSmartphone className="size-4 text-primary" aria-hidden="true" />设备构成</span>} /><CardContent><ShareRows items={traffic?.devices || []} names={DEVICE_NAMES} /></CardContent></Card>
+                <Card><AdminPanelHeading title={<span className="admin-panel-title"><Route className="size-4 text-primary" aria-hidden="true" />访问来源</span>} /><CardContent><ShareRows items={traffic?.sources || []} names={SOURCE_NAMES} /></CardContent></Card>
               </div>
             </div>
           </>}
@@ -256,7 +256,7 @@ export default function SiteOperationsTab() {
               <div className="grid content-start gap-4">
                 <CompletenessAndScrape health={data?.contentHealth} />
                 <Card>
-                  <CardHeader><CardTitle className="flex items-center gap-2 text-base"><ShieldAlert className="size-4 text-primary" aria-hidden="true" />内容风险提示</CardTitle></CardHeader>
+                  <AdminPanelHeading title={<span className="admin-panel-title"><ShieldAlert className="size-4 text-primary" aria-hidden="true" />内容风险提示</span>} />
                   <CardContent className="space-y-3">
                     <div className="flex items-start justify-between gap-3 rounded-lg border border-border bg-muted/30 p-3"><div><div className="text-sm font-medium text-foreground">待处理举报</div><p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">及时处理举报，避免读者端持续展示风险内容。</p></div><Badge variant={(data?.contentHealth.openReports || 0) > 0 ? 'destructive' : 'secondary'}>{data?.contentHealth.openReports || 0} 项</Badge></div>
                     <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm leading-relaxed text-muted-foreground">阅读转化漏斗需要新增阅读会话事件，不能依赖访问日志推断。</div>
@@ -288,16 +288,16 @@ export default function SiteOperationsTab() {
 }
 
 function PopularNovels({ novels, loading }: { novels: Overview['popularNovels']; loading: boolean }) {
-  return <Card><CardHeader><CardTitle className="flex items-center gap-2 text-base"><BarChart3 className="size-4 text-primary" aria-hidden="true" />近 7 日热门作品</CardTitle></CardHeader><CardContent>{novels.length ? novels.map((novel, index) => <div key={novel.novelId} className="flex items-center justify-between gap-3 border-b border-border py-3 last:border-0"><span className="min-w-0 truncate text-sm text-foreground">{index + 1}. {novel.title}</span><span className="shrink-0 text-xs tabular-nums text-muted-foreground">{novel.views.toLocaleString()} PV</span></div>) : <p className="py-8 text-center text-sm text-muted-foreground">{loading ? '正在汇总访问数据…' : '暂无访问数据'}</p>}</CardContent></Card>
+  return <Card><AdminPanelHeading title={<span className="admin-panel-title"><BarChart3 className="size-4 text-primary" aria-hidden="true" />近 7 日热门作品</span>} /><CardContent>{novels.length ? novels.map((novel, index) => <div key={novel.novelId} className="flex items-center justify-between gap-3 border-b border-border py-3 last:border-0"><span className="min-w-0 truncate text-sm text-foreground">{index + 1}. {novel.title}</span><span className="shrink-0 text-xs tabular-nums text-muted-foreground">{novel.views.toLocaleString()} PV</span></div>) : <p className="py-8 text-center text-sm text-muted-foreground">{loading ? '正在汇总访问数据…' : '暂无访问数据'}</p>}</CardContent></Card>
 }
 
 function CategoryDistribution({ categories, loading, onSelect }: { categories: Overview['contentHealth']['categories']; loading: boolean; onSelect: (category: string) => void }) {
   const max = Math.max(1, ...categories.map((item) => item.novels))
   return <Card>
-    <CardHeader>
-      <CardTitle className="flex items-center gap-2 text-base"><BarChart3 className="size-4 text-primary" aria-hidden="true" />分类分布</CardTitle>
-      <p className="text-sm text-muted-foreground">按作品标注的分类统计，单部作品可计入多个分类；点击分类查看作品。</p>
-    </CardHeader>
+    <AdminPanelHeading
+      title={<span className="admin-panel-title"><BarChart3 className="size-4 text-primary" aria-hidden="true" />分类分布</span>}
+      description="按作品标注的分类统计，单部作品可计入多个分类；点击分类查看作品。"
+    />
     <CardContent>
       {categories.length ? <div className="space-y-3">{categories.slice(0, 10).map((item) => <button key={item.category} type="button" className="block w-full text-left" onClick={() => onSelect(item.category)} title={`查看${item.category}分类作品`}>
         <div className="mb-1.5 flex items-center justify-between gap-3 text-sm"><span className="truncate font-medium text-foreground underline-offset-4 hover:text-primary hover:underline">{item.category}</span><span className="shrink-0 tabular-nums text-muted-foreground">{item.novels.toLocaleString()} 本</span></div>
@@ -317,7 +317,11 @@ function UpdateTrend({ trend, range, onRangeChange }: { trend: Overview['content
     return match ? `${match[1]}/${match[2]}` : ''
   }
   return <Card>
-    <CardHeader className="flex-row items-start justify-between gap-3"><div><CardTitle className="flex items-center gap-2 text-base"><Route className="size-4 text-primary" aria-hidden="true" />更新趋势</CardTitle><p className="mt-1 text-sm text-muted-foreground">按作品最近更新时间统计。</p></div><div className="flex gap-1"><Button variant={range === 30 ? 'secondary' : 'ghost'} size="sm" onClick={() => onRangeChange(30)}>30 日</Button><Button variant={range === 90 ? 'secondary' : 'ghost'} size="sm" onClick={() => onRangeChange(90)}>90 日</Button></div></CardHeader>
+    <AdminPanelHeading
+      title={<span className="admin-panel-title"><Route className="size-4 text-primary" aria-hidden="true" />更新趋势</span>}
+      description="按作品最近更新时间统计。"
+      actions={<div className="flex gap-1"><Button variant={range === 30 ? 'secondary' : 'ghost'} size="sm" onClick={() => onRangeChange(30)}>30 日</Button><Button variant={range === 90 ? 'secondary' : 'ghost'} size="sm" onClick={() => onRangeChange(90)}>90 日</Button></div>}
+    />
     <CardContent>{hasTrendData ? <div className="space-y-2"><div className="flex h-40 items-end gap-1 overflow-hidden">{visible.map((item) => <div key={item.date} className="group flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1" title={`${item.date}：${item.novels} 本`}><div className="w-full rounded-t bg-primary/70 transition-colors group-hover:bg-primary" style={{ height: `${Math.max(4, item.novels / max * 100)}%` }} /><span className="sr-only">{item.date} {item.novels} 本</span></div>)}</div><div className="flex justify-between text-[10px] tabular-nums text-muted-foreground" aria-hidden="true">{tickDates.map((date, index) => <span key={`${date}-${index}`}>{date ? formatTick(date) : ''}</span>)}</div></div> : <div className="flex min-h-24 items-center justify-center text-sm text-muted-foreground">暂无更新记录</div>}</CardContent>
   </Card>
 }
@@ -326,11 +330,11 @@ function CompletenessAndScrape({ health }: { health?: Overview['contentHealth'] 
   const scrape = health?.scrapeHealth
   return <div className="grid content-start gap-4">
     <Card>
-      <CardHeader><CardTitle className="flex items-center gap-2 text-base"><BarChart3 className="size-4 text-primary" aria-hidden="true" />作品资料完整度</CardTitle><p className="text-sm text-muted-foreground">按标题、作者、分类、简介、封面和章节六项计算。</p></CardHeader>
+      <AdminPanelHeading title={<span className="admin-panel-title"><BarChart3 className="size-4 text-primary" aria-hidden="true" />作品资料完整度</span>} description="按标题、作者、分类、简介、封面和章节六项计算。" />
       <CardContent><div className="divide-y divide-border rounded-lg border border-border">{health?.completeness.length ? health.completeness.slice(0, 5).map((item) => <Link key={item.id} to={`/novel/${encodeURIComponent(item.id)}`} className="flex items-center justify-between gap-3 px-3 py-2 hover:bg-muted/40"><span className="min-w-0 truncate text-sm text-foreground">{item.title}</span><Badge variant={item.score <= 3 ? 'destructive' : 'secondary'}>{item.score}/6</Badge></Link>) : <p className="p-4 text-center text-sm text-muted-foreground">暂无数据</p>}</div></CardContent>
     </Card>
     <Card>
-      <CardHeader><CardTitle className="flex items-center gap-2 text-base"><ShieldAlert className="size-4 text-primary" aria-hidden="true" />采集任务状态</CardTitle><p className="text-sm text-muted-foreground">近 {scrape?.windowDays || 30} 日任务汇总。</p></CardHeader>
+      <AdminPanelHeading title={<span className="admin-panel-title"><ShieldAlert className="size-4 text-primary" aria-hidden="true" />采集任务状态</span>} description={`近 ${scrape?.windowDays || 30} 日任务汇总。`} />
       <CardContent className="grid grid-cols-3 gap-2 text-center"><div className="rounded border border-border bg-muted/30 p-2"><strong className="block text-lg text-foreground">{scrape?.active || 0}</strong><span className="text-xs text-muted-foreground">进行中</span></div><div className="rounded border border-border bg-muted/30 p-2"><strong className="block text-lg text-foreground">{scrape?.failed || 0}</strong><span className="text-xs text-muted-foreground">失败</span></div><div className="rounded border border-border bg-muted/30 p-2"><strong className="block text-lg text-foreground">{scrape?.completed || 0}</strong><span className="text-xs text-muted-foreground">已完成</span></div></CardContent>
     </Card>
   </div>
@@ -346,10 +350,10 @@ function ContentQuality({ health, onSelect }: { health?: Overview['contentHealth
   ] as const
   const qualityKeys = ['uncategorized', 'missing_cover', 'missing_description', 'stale_ongoing'] as const
   return <Card>
-    <CardHeader>
-      <CardTitle className="flex items-center gap-2 text-base"><ShieldAlert className="size-4 text-primary" aria-hidden="true" />内容健康度</CardTitle>
-      <p className="text-sm text-muted-foreground">帮助定位需要补录或维护的作品。</p>
-    </CardHeader>
+    <AdminPanelHeading
+      title={<span className="admin-panel-title"><ShieldAlert className="size-4 text-primary" aria-hidden="true" />内容健康度</span>}
+      description="帮助定位需要补录或维护的作品。"
+    />
     <CardContent className="grid gap-3 sm:grid-cols-2">{items.map(([label, value, hint], index) => <button key={label} type="button" className="rounded-lg border border-border bg-muted/30 p-3 text-left transition-colors hover:bg-muted/60" onClick={() => onSelect(qualityKeys[index]!, label)} title={`查看${label}作品`}>
       <div className="flex items-center justify-between gap-2"><span className="text-sm font-medium text-foreground">{label}</span><Badge variant={value > 0 ? 'secondary' : 'outline'}>{value.toLocaleString()}</Badge></div>
       <p className="mt-1 line-clamp-1 text-xs leading-relaxed text-muted-foreground">{hint}</p>
@@ -360,10 +364,11 @@ function ContentQuality({ health, onSelect }: { health?: Overview['contentHealth
 function UpdateActivity({ health, onSelect }: { health?: Overview['contentHealth']; onSelect: () => void }) {
   const updates = health?.recentUpdates
   return <Card>
-    <CardHeader className="flex-row items-start justify-between gap-3">
-      <div><CardTitle className="flex items-center gap-2 text-base"><Route className="size-4 text-primary" aria-hidden="true" />更新活跃度</CardTitle><p className="mt-1 text-sm text-muted-foreground">按作品最近更新时间统计，不代表章节阅读量。</p></div>
-      <Button variant="ghost" size="sm" onClick={onSelect}>查看全部更新作品</Button>
-    </CardHeader>
+    <AdminPanelHeading
+      title={<span className="admin-panel-title"><Route className="size-4 text-primary" aria-hidden="true" />更新活跃度</span>}
+      description="按作品最近更新时间统计，不代表章节阅读量。"
+      actions={<Button variant="ghost" size="sm" onClick={onSelect}>查看全部更新作品</Button>}
+    />
     <CardContent className="grid gap-5 lg:grid-cols-[minmax(220px,0.7fr)_minmax(0,1.3fr)]">
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-lg border border-border bg-muted/30 p-3"><span className="text-xs text-muted-foreground">近 7 日更新</span><strong className="mt-1 block text-xl tabular-nums text-foreground">{(updates?.last7Days || 0).toLocaleString()} <small className="text-xs font-normal text-muted-foreground">本</small></strong></div>
@@ -381,7 +386,7 @@ function OperationPulse({ activeReaders, newComments, openReports, recognizedCou
     ['待处理举报', `${openReports.toLocaleString()} 项`],
     ['地区覆盖', recognizedCountries ? `${recognizedCountries} 个地区` : '尚未识别'],
   ]
-  return <Card><CardHeader><CardTitle className="flex items-center gap-2 text-base"><Route className="size-4 text-primary" aria-hidden="true" />本周运营关注</CardTitle><p className="text-sm text-muted-foreground">优先处理需要人工跟进的站点信号。</p></CardHeader><CardContent className="pt-0"><dl className="grid grid-cols-2 gap-x-6 gap-y-4">{items.map(([label, value]) => <div key={label} className="border-t border-border pt-3"><dt className="text-xs text-muted-foreground">{label}</dt><dd className="mt-1 text-sm font-semibold tabular-nums text-foreground">{value}</dd></div>)}</dl></CardContent></Card>
+  return <Card><AdminPanelHeading title={<span className="admin-panel-title"><Route className="size-4 text-primary" aria-hidden="true" />本周运营关注</span>} description="优先处理需要人工跟进的站点信号。" /><CardContent className="pt-0"><dl className="grid grid-cols-2 gap-x-6 gap-y-4">{items.map(([label, value]) => <div key={label} className="border-t border-border pt-3"><dt className="text-xs text-muted-foreground">{label}</dt><dd className="mt-1 text-sm font-semibold tabular-nums text-foreground">{value}</dd></div>)}</dl></CardContent></Card>
 }
 
 function TrafficChart({ data }: { data: Overview['traffic']['dailyTrend'] }) {

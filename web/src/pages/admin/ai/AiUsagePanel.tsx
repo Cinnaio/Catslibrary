@@ -14,9 +14,9 @@ import {
 } from 'recharts'
 import { aiApi } from '@/lib/api'
 import { ErrorState, InlineError, LoadingState } from '@/components/admin/AsyncStates'
-import { AdminMetricStrip } from '@/components/admin/AdminWorkspace'
+import AdminEmptyState from '@/components/admin/AdminEmptyState'
+import { AdminDataPanel, AdminMetricStrip, AdminPanelHeading } from '@/components/admin/AdminWorkspace'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatCost } from './shared'
 
 interface TrendPoint {
@@ -92,27 +92,27 @@ export default function AiUsagePanel() {
         ]}
       />
 
-      <Card className="admin-panel-card ai-usage-card">
-        <CardHeader className="flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
-          <div className="min-w-0">
-            <CardTitle className="text-base">成本与调用趋势</CardTitle>
-            <p className="text-sm text-muted-foreground">每日 AI 调用次数与成本消耗</p>
-          </div>
-          <div className="flex gap-2">
-            {[7, 30, 90].map((d) => (
-              <Button key={d} variant={days === d ? 'default' : 'outline'} size="sm" onClick={() => setDays(d)}>
-                {d} 天
-              </Button>
-            ))}
-          </div>
-        </CardHeader>
-        <CardContent className="min-w-0">
+      <AdminDataPanel className="ai-usage-card" ariaLabel="成本与调用趋势">
+        <AdminPanelHeading
+          title="成本与调用趋势"
+          description="每日 AI 调用次数与成本消耗"
+          actions={
+            <div className="flex gap-2">
+              {[7, 30, 90].map((d) => (
+                <Button key={d} variant={days === d ? 'default' : 'outline'} size="sm" onClick={() => setDays(d)}>
+                  {d} 天
+                </Button>
+              ))}
+            </div>
+          }
+        />
+        <div className="min-w-0 p-6">
           {loading && trend.length === 0 ? (
             <LoadingState label="正在加载用量趋势" className="h-80" />
           ) : error && trend.length === 0 ? (
             <ErrorState message={error} onRetry={() => void loadTrend()} className="h-80" />
           ) : trend.length === 0 ? (
-            <div className="flex h-80 items-center justify-center text-muted-foreground">暂无数据</div>
+            <AdminEmptyState message="所选范围内没有 AI 调用记录" />
           ) : (
             <>
               {error && <InlineError message={error} onRetry={() => void loadTrend()} className="mb-3" />}
@@ -189,22 +189,19 @@ export default function AiUsagePanel() {
             </div>
             </>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </AdminDataPanel>
 
       {/* Token 消耗趋势 */}
-      <Card className="admin-panel-card ai-usage-card">
-        <CardHeader>
-          <CardTitle className="text-base">Token 消耗趋势</CardTitle>
-          <p className="text-sm text-muted-foreground">每日输入/输出 Token 用量</p>
-        </CardHeader>
-        <CardContent>
+      <AdminDataPanel className="ai-usage-card" ariaLabel="Token 消耗趋势">
+        <AdminPanelHeading title="Token 消耗趋势" description="每日输入/输出 Token 用量" />
+        <div className="p-6">
           {loading && trend.length === 0 ? (
             <LoadingState label="正在加载 Token 趋势" className="h-64" />
           ) : error && trend.length === 0 ? (
             <ErrorState message={error} onRetry={() => void loadTrend()} className="h-64" />
           ) : trend.length === 0 ? (
-            <div className="flex h-64 items-center justify-center text-muted-foreground">暂无数据</div>
+            <AdminEmptyState message="所选范围内没有 Token 用量记录" />
           ) : (
             <>
               {error && <InlineError message={error} onRetry={() => void loadTrend()} className="mb-3" />}
@@ -271,8 +268,8 @@ export default function AiUsagePanel() {
             </div>
             </>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </AdminDataPanel>
     </div>
   )
 }

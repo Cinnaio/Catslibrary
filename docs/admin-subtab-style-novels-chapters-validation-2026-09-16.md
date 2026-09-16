@@ -108,11 +108,11 @@ web workspace 有 `dev` / `build` / `preview` / `typecheck` / `test`，**没有*
 | T16 | 封面生成 | implemented | `ai/AiCoverPanel.tsx` | 未执行 | 静态检查通过 | 浏览器视觉、图片比例与候选选择/应用/弃用 |
 | T17 | AI 配置 | implemented | `ai/AiConfigPanel.tsx` | 未执行 | 静态检查通过 | 浏览器视觉、密钥遮罩与测试/保存行为 |
 | T18 | 参数调优 | implemented | `ai/AiParamsPanel.tsx`、`admin-operations.css` | 未执行 | 静态检查通过 | 浏览器视觉、数值范围/默认值/dirty 状态 |
-| T19 | 总览 | pending | | | | |
-| T20 | 用量统计 | pending | | | | |
-| T21 | 运营概览 | pending | | | | |
-| T22 | 流量分析 | pending | | | | |
-| T23 | 内容分析 | pending | | | | |
+| T19 | 总览 | implemented | `DashboardTab.tsx`、`admin-operations.css` | 未执行 | 静态检查通过 | 浏览器视觉、真实指标与刷新 |
+| T20 | 用量统计 | implemented | `ai/AiUsagePanel.tsx` | 未执行 | 静态检查通过 | 浏览器视觉、图表缩放与 tooltip、日期范围切换、空/失败状态 |
+| T21 | 运营概览 | implemented | `SiteOperationsTab.tsx` | 未执行 | 静态检查通过 | 浏览器视觉、公告保存与运营信号 |
+| T22 | 流量分析 | implemented | `SiteOperationsTab.tsx` | 未执行 | 静态检查通过 | 浏览器视觉、暗色图例/坐标/tooltip 可读性 |
+| T23 | 内容分析 | implemented | `SiteOperationsTab.tsx`、`admin-operations.css` | 未执行 | 静态检查通过 | 浏览器视觉、列表详情弹窗与 CSV 导出 |
 | T24 | 小说管理（范本回归） | pending | | | | |
 | T25 | 章节管理（范本回归） | pending | | | | |
 
@@ -390,6 +390,57 @@ P3 表格明确要求「该表含展开详情行，必须保留」「不能为�
 
 **未执行**：AI 创作切模式是否保留草稿、前置校验与生成阶段、现有任务跳转；封面比例的图片预览与候选选择/应用/弃用；密钥遮罩与「空密钥不等于清空」的行为；参数范围、默认值、枚举与 dirty 状态；暗色弹层与长表单滚动的浏览器实测。故 T15–T18 记 `implemented`，非 `verified`。
 
+## 3F. P6 记录（统计与运营）
+
+执行日期：2026-09-16。前置提交：`0cf98cd`。本包处理 T19–T23：总览、用量统计与运营三个 view（overview/traffic/content），共 4 个文件。
+
+### 3F.1 页面类型判定
+
+手册要求「先判定页面类型」。三处均为统计展示型：总览是「指标条 + 状态条 + 两个只读列表」；用量统计是「指标条 + 两个 Recharts 图表面板 + 区间切换」；运营台是「指标条 + 多个展示卡片 + 一个详情弹窗」。均**无数据表格**，故按手册 §4.5 保留 `Card`，只统一标题条为 `AdminPanelHeading`。
+
+### 3F.2 总览（T19）
+
+`STAT_CARDS` 7 项与 `AdminMetricStrip` 内联注入的列数一致，指标本身未动。原「任务状态」块与两个列表是手写 `div.admin-panel-card` + 一层冗余的 `CardContent > div`，改为 `AdminDataPanel` 承载语义（`ariaLabel` 为「抓取任务状态」「最近抓取任务」「最近更新小说」）。列表的标题条由 `CardHeader` 换成 `AdminPanelHeading`，右侧的说明文字改走 `status` 槽位。
+
+修正既存的失效 token：列表头原用 `text-muted`，而 Tailwind 4 里该类解析到 `--color-muted` → `--sh-muted` → `--bg-secondary`，是**背景色**而非文字色，实际渲染为近不可见；已改为 `text-muted-foreground`。
+
+状态呈现按手册 §4.6 区分：首屏失败用 `ErrorState`（带就地重试，此前是无重试的裸 div），加载中用 `LoadingState`，列表为空用 `AdminEmptyState`，三者在代码里可辨。
+
+### 3F.3 用量统计（T20）
+
+两个图表面板换成 `AdminDataPanel` + `AdminPanelHeading`，区间切换（7/30/90 天）进入标题条的 `actions` 槽位。原有的三种状态改由组件表达，并把「暂无数据」拆成「所选范围内没有 AI 调用记录 / 没有 Token 用量记录」，符合手册 §4.6 对「筛选无结果」与「请求失败」的区分。
+
+**未**给图表面板加 `overflow-hidden`：手册明确要求不让 tooltip 被新增 overflow 裁剪，Recharts 的 tooltip 渲染在图表容器内，加裁剪会切掉它。两个图表的 `h-80`/`h-64` 固定高度与 `ResponsiveContainer width="100%"` 未动，容器链上保留了 `min-w-0`。
+
+### 3F.4 运营三视图（T21–T23）
+
+12 处 `CardHeader` + `CardTitle` 换成 `AdminPanelHeading`，其中「更新趋势」的区间按钮与「更新活跃度」的「查看全部更新作品」移入 `actions`。页标题仍由 `OPERATION_TAB_META` 按 view 提供（手册 §3.4 已确认完成，未重做）。CSV 导出的 8 段 `rows.push` 结构、`Blob`/`\uFEFF` 前缀与文件名模板逐字未动；作品详情弹窗、分页与「管理」跳转的 handler 未动。
+
+### 3F.5 清理的失效 CSS
+
+指标条列数上存在一条完整失效链，本包一并查清并收口。`AdminMetricStrip` 用**内联 style** 注入 `--admin-metric-columns`（`AdminWorkspace.tsx:97`，跟随 `items.length`），内联声明优先于本文件所有同名规则，故以下五处覆盖全部从未生效：
+
+`.admin-metric-strip--ai-usage`（`:228`）、`.admin-metric-strip--dashboard`（7）、`.admin-metric-strip--account`（4）、`.admin-redesign-page--site-operations .admin-metric-strip`（5）与 `.site-operations__metrics:not(.admin-metric-strip--five)`（4）。已全部删除，列数契约统一交回组件；三个变体类名在 TSX 中保留为语义钩子，CSS 侧归零。窄屏覆盖（`@media (max-width: 640px)` 的 `repeat(2, …)`）是直接改 `grid-template-columns`，不受内联变量影响，故保留。
+
+另删三处确认无消费者的规则：`.site-operations__metric`（单数，4 条）在迁移到 `AdminMetricStrip` 后已零 TSX 引用；`.site-operations__metrics--five` 的类名在 TSX 中不存在，其 `@media (min-width: 641px)` 规则永不命中；同一组 640px 规则里对 `--dashboard`/`--account` 的冗余列举（基础类名 `.admin-metric-strip` 已覆盖全部变体）。
+
+需要说明一处推理纠正：中途我曾判断 `.site-operations__metrics` 的 `repeat(4, …)` 会因特异性相同且先定义而**压过** `.admin-metric-strip` 的列数变量、导致 5 项指标挤出。核对行号后确认相反——`.admin-metric-strip` 定义在 `:6799`，位于该规则之后，列数变量本就胜出，不存在该 bug。当时误删了仍然生效的 `gap: 1px`（指标条发丝分隔线的唯一来源，`.admin-metric-strip` 未定义 `gap`），已在本包内恢复。
+
+### 3F.6 P6 验证结果
+
+| 命令 | 结果 |
+| --- | --- |
+| `npm run typecheck --workspace=@zhi-zhou/web` | 通过 |
+| `npm run test --workspace=@zhi-zhou/web` | 通过（20 文件 / 68 测试） |
+| `npm run build --workspace=@zhi-zhou/web` | 通过 |
+| `git diff --check` | 通过 |
+| `npx eslint`（三个文件） | 0 error / 3 warning，均为既有 `set-state-in-effect` |
+| Impeccable `detect.mjs` | 返回空数组 |
+
+契约核验：对三文件 diff 检索 `adminApi.`/`novelsApi.`/`aiApi.`/`link.download`/`rows.push`，无任何命中，即接口 payload、CSV 导出结构与单位未变。指标项数与列数逐个核对：总览 7 项（列数 7）、用量统计 4 项、运营 overview 5 项 / traffic 4 项 / content 5 项，均由组件按项数注入。
+
+**未执行**：三页在 1440/1024/901/900/390 各宽度的浏览器实测；图表在缩放与切 view 后是否保持非零宽度、tooltip 是否被裁剪；暗色下图例、坐标文字与 tooltip 的可读性；公告保存与清除；内容分析的作品详情弹窗、分页与 CSV 实际下载；列表在长文本下的截断表现。故 T19–T23 记 `implemented`，非 `verified`。
+
 ## 4. 范本回归
 
 - 小说管理 `/admin/novels`：
@@ -400,7 +451,7 @@ P3 表格明确要求「该表含展开详情行，必须保留」「不能为�
 ## 5. 共享层变更
 
 - `AdminWorkspace.tsx`：无改动。未新增共享组件或 props。
-- `admin-operations.css`：新增 `.admin-panel-status`（共享，替代五处逐字相同的页面状态胶囊，消费者 8 处）、`.admin-panel-title`（共享，标题内嵌图标，后台共 24 处同类写法）、`.ai-service-stack`、`.ai-list-body`、`.ai-audit-table*`、`.ai-audit-row*`、`.ai-audit-cell__*`、`.ai-audit-detail*`、`.ai-tasks-panel .ai-tasks-content`，以及账户、内容安全、客户端监控三处的页面命名空间规则；修正八处失效或冲突的规则：`.mobile-telemetry-toolbar > select` 与 `[data-slot='input']` 选择器、`.admin-metric-strip--account` 的 heading 组归属、`.source-panel` 与 `.admin-redesign-page--sources .source-panel` 的失效边框与圆角、`:has(> card-header)` 的 padding 归零条件扩展、`.ai-params-card [data-slot='card-header']` 系列、`.ai-writing-panel .ai-writing-header [data-slot='tabs-list']`；并把 `.ai-list-footer` 的布局职责合并进原规则；删除 `--col-N-w` 四处、`account-settings-panel__header`、`account-settings-toolbar`、`.ai-audit-card-header`、`.ai-generations-card__header`、`.ai-generations-card__filter` 系列等死规则。
+- `admin-operations.css`：新增 `.admin-panel-status`（共享，替代五处逐字相同的页面状态胶囊，消费者 8 处）、`.admin-panel-title`（共享，标题内嵌图标，后台共 24 处同类写法）、`.ai-service-stack`、`.ai-list-body`、`.ai-audit-table*`、`.ai-audit-row*`、`.ai-audit-cell__*`、`.ai-audit-detail*`、`.ai-tasks-panel .ai-tasks-content`，以及账户、内容安全、客户端监控三处的页面命名空间规则；修正十一处失效或冲突的规则：`.mobile-telemetry-toolbar > select` 与 `[data-slot='input']` 选择器、`.admin-metric-strip--account` 的 heading 组归属、`.source-panel` 与 `.admin-redesign-page--sources .source-panel` 的失效边框与圆角、`:has(> card-header)` 的 padding 归零条件扩展、`.ai-params-card [data-slot='card-header']` 系列、`.ai-writing-panel .ai-writing-header [data-slot='tabs-list']`、五处被内联变量压过的 `--admin-metric-columns` 覆盖；并把 `.ai-list-footer` 的布局职责合并进原规则；删除 `--col-N-w` 四处、`account-settings-panel__header`、`account-settings-toolbar`、`.ai-audit-card-header`、`.ai-generations-card__header`、`.ai-generations-card__filter` 系列、`.site-operations__metric`（单数，4 条）、`.site-operations__metrics--five` 与 640px 组的冗余变体列举等死规则。
 - `tokens.css`：无改动。
 - 是否新增共享 class 或 token，以及其消费者：未新增 token。`.admin-panel-status` 为共享类，消费者为 `JobsTab.tsx`（2）、`SettingsTab.tsx`（4）、`MobileTelemetryTab.tsx`（1）、`ModerationTab.tsx`（1）、`AiAuditPanel.tsx`、`AiGenerationsPanel.tsx`、`AiTasksPanel.tsx`，共 8 处；`.admin-panel-title` 为共享类，消费者为 `AiConfigPanel.tsx`（3）、`AiParamsPanel.tsx`（6）、`ProxyView.tsx`（2），新增后站点运营与内容安全的同类写法仍待 P6/P7 一并对齐；`.ai-service-stack`/`.ai-list-body`/`.ai-audit-*` 为 AI 命名空间，消费者为 `AiAuditPanel.tsx` 与 `AiGenerationsPanel.tsx`；其余新增 class 均为单页命名空间。
 
@@ -439,6 +490,11 @@ P3 表格明确要求「该表含展开详情行，必须保留」「不能为�
 | P5 | `npm run build --workspace=@zhi-zhou/web` | 通过 | 保留既有 >500kB chunk 警告 |
 | P5 | `npx eslint` | 0 error / 7 warning | warning 均为既有 `set-state-in-effect` |
 | P5 | Impeccable `detect.mjs --json` | 空数组 | 无机械检出 |
+| P6 | `npm run typecheck --workspace=@zhi-zhou/web` | 通过 | 无输出 |
+| P6 | `npm run test --workspace=@zhi-zhou/web` | 通过 | 20 文件 / 68 测试 |
+| P6 | `npm run build --workspace=@zhi-zhou/web` | 通过 | 保留既有 >500kB chunk 警告 |
+| P6 | `npx eslint`（三页） | 0 error / 3 warning | warning 均为既有 `set-state-in-effect` |
+| P6 | Impeccable `detect.mjs --json` | 空数组 | 无机械检出 |
 | 每包结束 | | | |
 | P7 最终 | | | |
 
