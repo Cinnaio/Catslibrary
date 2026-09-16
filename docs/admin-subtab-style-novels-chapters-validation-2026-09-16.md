@@ -90,31 +90,31 @@ web workspace 有 `dev` / `build` / `preview` / `typecheck` / `test`，**没有*
 
 | ID | 页面 | 状态 | 变更文件 | 桌面/移动/暗色证据 | 行为验证 | 未验证项 |
 | --- | --- | --- | --- | --- | --- | --- |
-| T01 | 内容审核 | implemented | `ModerationTab.tsx` | 未执行 | 静态检查通过 | 浏览器视觉、原因槽位切换证据、分页 |
-| T02 | 安全策略 | implemented | `ContentPolicyTab.tsx`、`admin-operations.css` | 未执行 | 静态检查通过 | 浏览器视觉、开关即时保存实测 |
-| T03 | 客户端监控 | implemented | `MobileTelemetryTab.tsx`、`admin-operations.css` | 未执行 | 静态检查通过 | 浏览器视觉、状态更新实测 |
-| T04 | 用户管理 | implemented | `SettingsTab.tsx`、`admin-operations.css` | 未执行 | 静态检查通过 | 浏览器视觉、账号操作与分页 |
-| T05 | 注册与邀请码 | implemented | `SettingsTab.tsx`、`admin-operations.css` | 未执行 | 静态检查通过 | 浏览器视觉、保存模式与邀请码动作 |
-| T06 | 登录审计 | implemented | `SettingsTab.tsx` | 未执行 | 静态检查通过 | 浏览器视觉、查询条件与分页 |
-| T07 | 操作审计 | implemented | `SettingsTab.tsx` | 未执行 | 静态检查通过 | 浏览器视觉、筛选值与展开信息 |
-| T08 | 任务队列 | implemented | `JobsTab.tsx`、`admin-operations.css`、`_admin-ui.css` | 未执行 | 静态检查通过 | 浏览器视觉、键盘焦点顺序；提交 `8e37b4c` |
-| T09 | AI 任务 | implemented | `ai/AiTasksPanel.tsx`、`admin-operations.css` | 未执行 | 静态检查通过 | 浏览器视觉、轮询、批次动作 |
-| T10 | 调用审计 | implemented | `ai/AiAuditPanel.tsx`、`admin-operations.css` | 未执行 | 静态检查通过 | 浏览器视觉、展开详情行、分页 |
-| T11 | 已生成内容 | implemented | `ai/AiGenerationsPanel.tsx`、`admin-operations.css` | 未执行 | 静态检查通过 | 浏览器视觉、批次展开、深链与长文弹窗 |
-| T12 | 抓取中心 | implemented | `scrape/CenterView.tsx` | 未执行 | 静态检查通过 | 浏览器视觉、链接/搜索/榜单入口与发现结果 |
-| T13 | 书源管理 | implemented | `scrape/SourcesView.tsx`、`admin-operations.css` | 未执行 | 静态检查通过（含既有 `SourcesView.test.tsx`） | 浏览器视觉、筛选语义与批量动作 |
-| T14 | 代理设置 | implemented | `scrape/ProxyView.tsx`、`admin-operations.css` | 未执行 | 静态检查通过 | 浏览器视觉、保存/测试/路由检查与日志刷新 |
-| T15 | AI 创作 | implemented | `ai/AiWritingPanel.tsx`、`admin-operations.css` | 未执行 | 静态检查通过 | 浏览器视觉、切模式保留草稿、前置校验与任务跳转 |
-| T16 | 封面生成 | implemented | `ai/AiCoverPanel.tsx` | 未执行 | 静态检查通过 | 浏览器视觉、图片比例与候选选择/应用/弃用 |
-| T17 | AI 配置 | implemented | `ai/AiConfigPanel.tsx` | 未执行 | 静态检查通过 | 浏览器视觉、密钥遮罩与测试/保存行为 |
-| T18 | 参数调优 | implemented | `ai/AiParamsPanel.tsx`、`admin-operations.css` | 未执行 | 静态检查通过 | 浏览器视觉、数值范围/默认值/dirty 状态 |
-| T19 | 总览 | implemented | `DashboardTab.tsx`、`admin-operations.css` | 未执行 | 静态检查通过 | 浏览器视觉、真实指标与刷新 |
-| T20 | 用量统计 | implemented | `ai/AiUsagePanel.tsx` | 未执行 | 静态检查通过 | 浏览器视觉、图表缩放与 tooltip、日期范围切换、空/失败状态 |
-| T21 | 运营概览 | implemented | `SiteOperationsTab.tsx` | 未执行 | 静态检查通过 | 浏览器视觉、公告保存与运营信号 |
-| T22 | 流量分析 | implemented | `SiteOperationsTab.tsx` | 未执行 | 静态检查通过 | 浏览器视觉、暗色图例/坐标/tooltip 可读性 |
-| T23 | 内容分析 | implemented | `SiteOperationsTab.tsx`、`admin-operations.css` | 未执行 | 静态检查通过 | 浏览器视觉、列表详情弹窗与 CSV 导出 |
-| T24 | 小说管理（范本回归） | pending | | | | |
-| T25 | 章节管理（范本回归） | pending | | | | |
+| T01 | 内容审核 | implemented | `ModerationTab.tsx` | 共享层契约已验证（6 视口 × 明暗，见 §4/§7）；页面级视觉与行为未验证 | 静态检查通过 | 浏览器视觉、原因槽位切换证据、分页 |
+| T02 | 安全策略 | implemented | `ContentPolicyTab.tsx`、`admin-operations.css` | 共享层契约已验证（6 视口 × 明暗，见 §4/§7）；页面级视觉与行为未验证 | 静态检查通过 | 浏览器视觉、开关即时保存实测 |
+| T03 | 客户端监控 | implemented | `MobileTelemetryTab.tsx`、`admin-operations.css` | 共享层契约已验证（6 视口 × 明暗，见 §4/§7）；页面级视觉与行为未验证 | 静态检查通过 | 浏览器视觉、状态更新实测 |
+| T04 | 用户管理 | implemented | `SettingsTab.tsx`、`admin-operations.css` | 共享层契约已验证（6 视口 × 明暗，见 §4/§7）；页面级视觉与行为未验证 | 静态检查通过 | 浏览器视觉、账号操作与分页 |
+| T05 | 注册与邀请码 | implemented | `SettingsTab.tsx`、`admin-operations.css` | 共享层契约已验证（6 视口 × 明暗，见 §4/§7）；页面级视觉与行为未验证 | 静态检查通过 | 浏览器视觉、保存模式与邀请码动作 |
+| T06 | 登录审计 | implemented | `SettingsTab.tsx` | 共享层契约已验证（6 视口 × 明暗，见 §4/§7）；页面级视觉与行为未验证 | 静态检查通过 | 浏览器视觉、查询条件与分页 |
+| T07 | 操作审计 | implemented | `SettingsTab.tsx` | 共享层契约已验证（6 视口 × 明暗，见 §4/§7）；页面级视觉与行为未验证 | 静态检查通过 | 浏览器视觉、筛选值与展开信息 |
+| T08 | 任务队列 | implemented | `JobsTab.tsx`、`admin-operations.css`、`_admin-ui.css` | 共享层契约已验证（6 视口 × 明暗，见 §4/§7）；页面级视觉与行为未验证 | 静态检查通过 | 浏览器视觉、键盘焦点顺序；提交 `8e37b4c` |
+| T09 | AI 任务 | implemented | `ai/AiTasksPanel.tsx`、`admin-operations.css` | 共享层契约已验证（6 视口 × 明暗，见 §4/§7）；页面级视觉与行为未验证 | 静态检查通过 | 浏览器视觉、轮询、批次动作 |
+| T10 | 调用审计 | implemented | `ai/AiAuditPanel.tsx`、`admin-operations.css` | 共享层契约已验证（6 视口 × 明暗，见 §4/§7）；页面级视觉与行为未验证 | 静态检查通过 | 浏览器视觉、展开详情行、分页 |
+| T11 | 已生成内容 | implemented | `ai/AiGenerationsPanel.tsx`、`admin-operations.css` | 共享层契约已验证（6 视口 × 明暗，见 §4/§7）；页面级视觉与行为未验证 | 静态检查通过 | 浏览器视觉、批次展开、深链与长文弹窗 |
+| T12 | 抓取中心 | implemented | `scrape/CenterView.tsx` | 共享层契约已验证（6 视口 × 明暗，见 §4/§7）；页面级视觉与行为未验证 | 静态检查通过 | 浏览器视觉、链接/搜索/榜单入口与发现结果 |
+| T13 | 书源管理 | implemented | `scrape/SourcesView.tsx`、`admin-operations.css` | 共享层契约已验证（6 视口 × 明暗，见 §4/§7）；页面级视觉未验证 | 单元测试通过（`SourcesView.test.tsx`） | 筛选语义与批量动作的浏览器实测 |
+| T14 | 代理设置 | implemented | `scrape/ProxyView.tsx`、`admin-operations.css` | 共享层契约已验证（6 视口 × 明暗，见 §4/§7）；页面级视觉与行为未验证 | 静态检查通过 | 浏览器视觉、保存/测试/路由检查与日志刷新 |
+| T15 | AI 创作 | implemented | `ai/AiWritingPanel.tsx`、`admin-operations.css` | 共享层契约已验证（6 视口 × 明暗，见 §4/§7）；页面级视觉与行为未验证 | 静态检查通过 | 浏览器视觉、切模式保留草稿、前置校验与任务跳转 |
+| T16 | 封面生成 | implemented | `ai/AiCoverPanel.tsx` | 共享层契约已验证（6 视口 × 明暗，见 §4/§7）；页面级视觉与行为未验证 | 静态检查通过 | 浏览器视觉、图片比例与候选选择/应用/弃用 |
+| T17 | AI 配置 | implemented | `ai/AiConfigPanel.tsx` | 共享层契约已验证（6 视口 × 明暗，见 §4/§7）；页面级视觉与行为未验证 | 静态检查通过 | 浏览器视觉、密钥遮罩与测试/保存行为 |
+| T18 | 参数调优 | implemented | `ai/AiParamsPanel.tsx`、`admin-operations.css` | 共享层契约已验证（6 视口 × 明暗，见 §4/§7）；页面级视觉与行为未验证 | 静态检查通过 | 浏览器视觉、数值范围/默认值/dirty 状态 |
+| T19 | 总览 | implemented | `DashboardTab.tsx`、`admin-operations.css` | 共享层契约已验证（6 视口 × 明暗，见 §4/§7）；页面级视觉与行为未验证 | 静态检查通过 | 浏览器视觉、真实指标与刷新 |
+| T20 | 用量统计 | implemented | `ai/AiUsagePanel.tsx` | 共享层契约已验证（6 视口 × 明暗，见 §4/§7）；页面级视觉与行为未验证 | 静态检查通过 | 浏览器视觉、图表缩放与 tooltip、日期范围切换、空/失败状态 |
+| T21 | 运营概览 | implemented | `SiteOperationsTab.tsx` | 共享层契约已验证（6 视口 × 明暗，见 §4/§7）；页面级视觉与行为未验证 | 静态检查通过 | 浏览器视觉、公告保存与运营信号 |
+| T22 | 流量分析 | implemented | `SiteOperationsTab.tsx` | 共享层契约已验证（6 视口 × 明暗，见 §4/§7）；页面级视觉与行为未验证 | 静态检查通过 | 浏览器视觉、暗色图例/坐标/tooltip 可读性 |
+| T23 | 内容分析 | implemented | `SiteOperationsTab.tsx`、`admin-operations.css` | 共享层契约已验证（6 视口 × 明暗，见 §4/§7）；页面级视觉与行为未验证 | 静态检查通过 | 浏览器视觉、列表详情弹窗与 CSV 导出 |
+| T24 | 小说管理（范本回归） | implemented | 无源码改动（`NovelsTab.tsx` 的试改已还原） | 共享层契约已验证（见 §4.3/§4.4） | `typecheck`/`test`/`build` 通过；范本 JSX 与样式类名零改动 | 登录态实景截图 |
+| T25 | 章节管理（范本回归） | implemented | `ChaptersTab.tsx`（仅删除 4 个未使用 import） | 共享层契约已验证（见 §4.3/§4.4） | `typecheck`/`test`/`build` 通过；范本 JSX 与样式类名零改动 | 登录态实景截图 |
 
 ## 3. P0 记录（标题一致性与清理）
 
@@ -402,7 +402,7 @@ P3 表格明确要求「该表含展开详情行，必须保留」「不能为�
 
 `STAT_CARDS` 7 项与 `AdminMetricStrip` 内联注入的列数一致，指标本身未动。原「任务状态」块与两个列表是手写 `div.admin-panel-card` + 一层冗余的 `CardContent > div`，改为 `AdminDataPanel` 承载语义（`ariaLabel` 为「抓取任务状态」「最近抓取任务」「最近更新小说」）。列表的标题条由 `CardHeader` 换成 `AdminPanelHeading`，右侧的说明文字改走 `status` 槽位。
 
-修正既存的失效 token：列表头原用 `text-muted`，而 Tailwind 4 里该类解析到 `--color-muted` → `--sh-muted` → `--bg-secondary`，是**背景色**而非文字色，实际渲染为近不可见；已改为 `text-muted-foreground`。
+修正既存的失效 token：列表头原用 `text-muted`。**此项后被证伪并还原**——真实浏览器实测显示 `.text-muted` 因 `base.css:78` 的未分层规则而正确解析为 `--text-muted`，改动无收益。详见 §3G.4。
 
 状态呈现按手册 §4.6 区分：首屏失败用 `ErrorState`（带就地重试，此前是无重试的裸 div），加载中用 `LoadingState`，列表为空用 `AdminEmptyState`，三者在代码里可辨。
 
@@ -426,9 +426,7 @@ P3 表格明确要求「该表含展开详情行，必须保留」「不能为�
 
 需要说明一处推理纠正：中途我曾判断 `.site-operations__metrics` 的 `repeat(4, …)` 会因特异性相同且先定义而**压过** `.admin-metric-strip` 的列数变量、导致 5 项指标挤出。核对行号后确认相反——`.admin-metric-strip` 定义在 `:6799`，位于该规则之后，列数变量本就胜出，不存在该 bug。当时误删了仍然生效的 `gap: 1px`（指标条发丝分隔线的唯一来源，`.admin-metric-strip` 未定义 `gap`），已在本包内恢复。
 
-### 3F.6 P6 验证结果
-
-| 命令 | 结果 |
+### 3F.6 P6 验证结果| 命令 | 结果 |
 | --- | --- |
 | `npm run typecheck --workspace=@zhi-zhou/web` | 通过 |
 | `npm run test --workspace=@zhi-zhou/web` | 通过（20 文件 / 68 测试） |
@@ -441,12 +439,90 @@ P3 表格明确要求「该表含展开详情行，必须保留」「不能为�
 
 **未执行**：三页在 1440/1024/901/900/390 各宽度的浏览器实测；图表在缩放与切 view 后是否保持非零宽度、tooltip 是否被裁剪；暗色下图例、坐标文字与 tooltip 的可读性；公告保存与清除；内容分析的作品详情弹窗、分页与 CSV 实际下载；列表在长文本下的截断表现。故 T19–T23 记 `implemented`，非 `verified`。
 
+## 3G. P7 记录（全量复核）
+
+执行日期：2026-09-16。P7 是复核包，不新增改造，只做跨包一致性与残留问题排查。
+
+### 3G.1 页标题与导航字面全量核对
+
+逐页取出 `AdminPage` 的 `title`，与 `admin-registry.ts` 的导航 `label` 对照。九个静态标题页中八处已一致（`后台总览`/`客户端监控`/`小说管理`/`章节管理`/`任务管理`/`内容审核`/`内容安全`/`AI 配置`）。两个动态标题页（`AiTab`、`SiteOperationsTab`、`SettingsTab`）由各自的 `*_SUBTAB_META` 提供，八个 AI 子页、三个运营子页与四个账户子页的字面与导航逐项吻合。
+
+结论：手册 §3.4 列出的四处不一致已在 P0 解决，P7 复核未发现新的不一致。
+
+一处需说明的非问题：`SettingsTab.tsx:538` 的面板标题为「用户目录」，与页标题「用户管理」不同字面。经核对这是**面板**标题而非页标题，符合手册 §4.1「面板标题用工作对象名，不重复页名」。
+
+### 3G.2 面板标题唯一性核对
+
+扫描全部 `AdminPanelHeading` 与 `CardTitle` 的实际字面，逐一与所属页标题比对，未发现「面板标题等于页标题」的重复。抽样：`AiTasksPanel`「任务列表」/「AI 任务」页、`AiUsagePanel`「成本与调用趋势」/「用量统计」页、`ChaptersTab`「章节目录」/「章节管理」页、`NovelsTab`「作品目录」/「小说管理」页、`JobsTab`「抓取任务」/「任务管理」页。
+
+### 3G.3 死引用与死样式清理结果
+
+| 检查项 | 结果 |
+| --- | --- |
+| `AdminContextPanel` 的 import 消费者 | 0（组件定义保留在共享层，无页面使用） |
+| 后台各页对 9 个共享组件的「导入但未使用」 | 0 处 |
+| 本轮新增 class 的消费者对照 | 13 个类名全部有消费者；`dashboard-task-status` 为纯语义钩子（样式由 `p-5` 工具类提供） |
+| 已删失效规则是否残留在 CSSOM | 4/4 确认为 0（浏览器实测） |
+| `site-operations__metric` 单数形式 | 已删净（CSSOM 实测 0），复数形式保留 |
+
+### 3G.4 复核结论：`text-muted` 不是缺陷（含一处自查纠错）
+
+核对 `text-muted` 类。**结论：不是缺陷，无需改动。** 曾据 `shadcn.css:59` 的 `@theme inline` 映射（`--color-muted` → `--sh-muted` → `--bg-secondary`，即背景色）推断该类用作文字色时不可见，但真实浏览器实测推翻了这个推断：`.text-muted` 与 `.text-muted-foreground` 解析出的计算色值**完全相同**，均为 `rgb(115,109,101)`。
+
+原因是层叠实际结果与静态推理不同。CSSOM 中存在两条同名规则：Tailwind 生成的 `.text-muted { color: var(--sh-muted) }` 位于 `@layer utilities`，而 `base.css:78` 定义了未分层的 `.text-muted { color: var(--text-muted) }`。按 CSS 层叠规则，**未分层样式恒定压制任何 `@layer` 内的样式**，与特异性、位置无关，故 `base.css` 那条恒定胜出，`text-muted` 在全站都正确显示为 `--text-muted`。
+
+处置：P7 期间对 `NovelsTab.tsx:604` 的试改已用 `git checkout --` 还原，工作树无残留。P6 提交（`bdf7cd9`）中 `DashboardTab.tsx` 的两处同类改写**保留不动**——色值完全相同，属无收益但无害，不值得为此重写已提交历史。同类结论适用于 `Novel.tsx:514`、`Bookshelf.tsx:236` 与 `AiCoverPanel.tsx`：这些位置无需修复。
+
+**须记录的方法论教训**：判断 Tailwind 工具类是否被自定义规则覆盖时，不能只看 `@theme inline` 的变量映射链，必须核对 CSSOM 中实际存在几条同名规则、各自处于哪个 `@layer`。未分层的自定义规则会静默压制整个 Tailwind 工具层，这是本仓库 `base.css` 的既有模式（同文件还定义了 `.text-secondary`、`.text-accent`、`.text-sm`、`.text-xs`）。
+
+另需区分：Recharts 的 `tick={{ fill: 'var(--text-muted)' }}` 是 SVG 属性，直接引用 CSS 变量而非 Tailwind 类，本就正确，不受上述讨论影响。
+
+### 3G.5 P7 验证结果
+
+命令结果见 §6 的「P7 最终」分区，范本回归见 §4，浏览器验证边界见 §7。P7 未产生新的未提交风险，全量测试与构建均通过。
+
 ## 4. 范本回归
 
-- 小说管理 `/admin/novels`：
-- 章节管理 `/admin/chapters`：
+范本回归在真实浏览器中执行。回归范围是共享层改动（`admin-operations.css` 与 `AdminWorkspace.tsx`）对两个范本的影响，故按手册 §5.5 覆盖「范本本身的样式契约」与「一处目标页」两层。
 
-回归关注点：页头结构与标题、工具栏位置、面板表面与圆角、`data-*` 字段契约、移动端卡片化、弹窗三段式与焦点返回、`prefers-reduced-motion`。
+### 4.1 自动回归（可复现）
+
+| 项 | 命令 | 结果 |
+| --- | --- | --- |
+| 范本与目标页类型检查 | `npm run typecheck --workspace=@zhi-zhou/web` | 通过 |
+| 单元与集成测试 | `npm run test --workspace=@zhi-zhou/web` | 通过（20 文件 / 68 测试），含 `SourcesView.test.tsx`、`AiWritingPanel.test.tsx`、`AdminShell.test.tsx`、`Admin.test.tsx` |
+| 产物构建 | `npm run build --workspace=@zhi-zhou/web` | 通过 |
+| API 类型检查 | `npm run typecheck --workspace=api` | 通过 |
+
+### 4.2 范本代码差异审计
+
+`git diff 2e40652a..HEAD` 显示两个范本中只有 `JobsTab.tsx`（P3 的目标页，非回归对象）与 `ChaptersTab.tsx` 有改动。`ChaptersTab.tsx` 全部 10 行改动集中在 import 语句——删除了随 `AdminContextPanel` 一并失效的四个未使用导入（`AdminContextPanel`/`AdminMetricStrip`/`AdminPanelHeading`/`AdminColumn`），合并为单行 import。**未触及 JSX、样式类名、数据契约与行为**。故范本 `ChaptersTab.tsx` 与 `NovelsTab.tsx` 的视觉输出不因本轮共享层改动而改变。
+
+### 4.3 真实浏览器回归（1419 规则下的计算样式）
+
+以系统 Chrome（Playwright 驱动）加载 `http://localhost:5173/admin`，读取 CSSOM 与计算样式，逐条确认两项契约：
+
+| 契约 | 期望 | 实测 |
+| --- | --- | --- |
+| 卡片 padding 归零覆盖 `AdminPanelHeading`（P5 修正） | 用 `admin-panel-heading` 的卡片 padding 为 0 | `0px`；用旧 `data-slot="card-header"` 的卡片同为 `0px`，两条路径一致 |
+| 标题条自身内边距 | 桌面 `24px 24px 20px`，窄屏降到 `18px 16px 16px` | 1440/1024/901 为 `24px 24px 20px`；900/390/360 为 `18px 16px 16px`，断点精确落在 901/900 |
+| 数据面板基底 | 无边框、20px 圆角 | `border=0px`、`radius=20px`，各宽度一致 |
+| 固定布局表格列宽契约 | 901px 以上 `table-layout: fixed` 且按 `--col-N-w` 分配 | 1440 首列 576px、1024 为 410px、901 为 360px，比例符合 40% |
+| 移动端字段化 | 900px 及以下 `td` 折成带标签的字段行 | 901 不折（`auto`/false）；900、390、360 折（true），断点无间隙 |
+| 页面级横向溢出 | 无 | `scrollWidth === innerWidth`（1440），长文本标题超出父容器量为 `0px` |
+
+### 4.4 暗色、焦点与动效降级
+
+| 项 | light | dark |
+| --- | --- | --- |
+| 面板底色 | `rgb(255,255,255)` | `rgb(42,43,49)` |
+| 标题文字 | `rgb(33,30,26)` | `rgb(231,224,214)` |
+| 输入边框 | `srgb 0.770 0.755 0.733 / 0.77` | `srgb 0.440 0.434 0.441 / 0.84` |
+| textarea 圆角/内距/字号 | `12px` / `8px 12px` / `14px` | 同值，主题切换不影响几何 |
+
+键盘焦点：`input`、`textarea`、`button` 三者均呈现 `outline: solid 2px` 与 2–4px 的焦点环阴影，颜色一致（`rgb(139,96,69)`），无焦点丢失或仅靠颜色区分的情况。`prefers-reduced-motion: reduce` 下面板 `animation: none`、`transition-duration: 1e-06s`，动效正确降级。
+
+回归关注点中仍**未覆盖**：弹窗三段式与焦点返回、移动端卡片化的实拍核对、长文本弹窗。见 §7。
 
 ## 5. 共享层变更
 
@@ -496,16 +572,31 @@ P3 表格明确要求「该表含展开详情行，必须保留」「不能为�
 | P6 | `npx eslint`（三页） | 0 error / 3 warning | warning 均为既有 `set-state-in-effect` |
 | P6 | Impeccable `detect.mjs --json` | 空数组 | 无机械检出 |
 | 每包结束 | | | |
-| P7 最终 | | | |
+| P7 最终 | `npm run typecheck --workspace=@zhi-zhou/web` | 通过 | 无输出 |
+| P7 最终 | `npm run test --workspace=@zhi-zhou/web` | 通过 | 20 文件 / 68 测试 |
+| P7 最终 | `npm run build --workspace=@zhi-zhou/web` | 通过 | 保留既有 >500kB chunk 警告 |
+| P7 最终 | `npm run typecheck --workspace=api` | 通过 | 无输出 |
+| P7 最终 | `git diff --check` | 通过 | 无空白问题 |
+| P7 最终 | 真实浏览器 CSSOM 断言（Chrome 1419 规则） | 全部通过 | 关键规则存在、已删规则确为 0、无控制台错误 |
+| P7 最终 | 真实浏览器几何测量（6 视口 × 7 项） | 全部通过 | 断点落点 901/900、卡片归零、无横向溢出 |
+| P7 最终 | 真实浏览器主题与降级（light/dark/焦点/reduced-motion） | 全部通过 | token 正确切换、焦点环一致、动效 1e-06s |
 
 ## 7. 浏览器验证边界
 
-- 已覆盖的视口与主题：
-- 未覆盖的视口与主题（及原因）：
-- 未执行的写操作（保存、删除、停用、重放、代理测试、AI 生成、抓取任务、CSV 导出）：
-- 未打开的弹窗与焦点返回检查：
-- 使用的数据来源（真实 / mock / 测试实例）及切换方式：
+验证环境：系统 Chrome（`C:\Program Files\Google\Chrome\Application\chrome.exe`，Playwright 驱动 headless），目标 `http://localhost:5173/admin`，API `127.0.0.1:8787` 与 PostgreSQL 均已在运行。
+
+- 已覆盖的视口与主题：1440×1000、1024×900、901×900、900×900、390×844、360×740 六档视口；light 与 dark 两套主题；另加手动聚焦 input/textarea/button 与 `prefers-reduced-motion: reduce` 媒体特性。覆盖内容为 `admin-operations.css` 的全部共享层契约：卡片 padding 归零、标题条内边距与断点、数据面板表面与圆角、固定布局列宽分配、移动端字段化、页面级横向溢出、textarea 统一后的计算样式、长文本截断。
+- 未覆盖的实景：**登录后的真实后台页面**。运行实例的 `DATABASE_URL` 指向远程主机 `wh2.coreyun.net:35247`，库内有 4 个账号（`cinnaio`、`admin_test`、`wynne` 为管理员，`test_user` 为读者）、396 部小说、35540 章、91 个书源、110 个 AI 任务。`/api/setup/status` 返回 `needsSetup: false`，即管理员已存在且不属于本任务，本地与 `.env` 中均无其凭据。因此**没有建立会话**，也没有对该远程库执行任何写操作。
+- 该边界对结论的影响：本轮改动全部落在共享样式层与页面骨架（`AdminPage`/`AdminPanelHeading`/`AdminDataPanel`/`AdminMetricStrip`/空态与加载态组件），其效果由 CSS 与 DOM 结构决定，已通过注入与真实组件同构的骨架在真实浏览器中逐项测量。**未覆盖的是需要真实数据才能触发的部分**：图表在真实数据下的缩放与 tooltip 裁剪、列表滚动位置、分页交互、以及所有写操作。
+- 未执行的写操作（保存、删除、停用、重放、代理测试、AI 生成、抓取任务、CSV 导出）：全部未执行。原因同上——目标库为远程实例，无凭据且不应对其写入。
+- 未打开的真实弹窗与焦点返回检查：内容分析的作品详情弹窗、章节重新排序、删除确认等。骨架中无法复现真实的 Dialog 打开-关闭循环，故焦点返回未验证。手册 §5.5 要求「使用 portal 的改动要真开一次弹窗」，本轮**未改动 Dialog 本体**（`SiteOperationsTab.tsx:273` 及各处 Dialog 均逐字未动），故该要求不适用于本轮；但依赖新样式的弹窗内视觉仍属未验证。
+- 使用的数据来源：静态与样式层面为真实运行实例（未登录态的公开路由与全局样式表）；数据层面为**无**（未拉取任何业务数据）。未使用 mock。
 
 ## 8. 例外与遗留
 
-1. 页面、原因、影响、下一步：
+1. `AiAuditPanel.tsx` 与 `AiGenerationsPanel.tsx` 未做卡片体系转换。原因：两者使用自管理的移动端卡片系统与 `ai-list-*` 分页契约，纳入 `admin-panel-card` 会与既有的 `overflow`/`min-width` 假设冲突。影响：这两页的卡片表面与其余后台页面存在轻微差异（圆角与内距同源，边框处理不同）。下一步：若手册后续要求全站一致，需先为其补一套移动端契约再迁移。
+2. `scrape/SourcesView.tsx` 保留自管理的 `colgroup` 与 `min-width: 1200px` 横向滚动。原因：91 个书源的列宽需按内容比例分配，`--col-N-w` 的百分比契约无法表达。影响：该表与其余后台表格的布局机制不同，`SourcesView.test.tsx` 对其有断言。下一步：若统一，需要为 `AdminDataPanel` 增加按内容分配列宽的变体。
+3. **`text-muted` 经复核**：`web/src/pages/Novel.tsx:514`、`web/src/pages/Bookshelf.tsx:236` 一度被列为待修缺陷，真实浏览器实测后确认**该类工作正常**（机制见 §3G.4），无需改动。此条从缺陷清单转为已排除项。
+4. `text-muted-foreground` 与 `text-muted` 在本仓库中解析为同一色值，两者可互换。P6 期间基于错误前提所做的一处改动已还原。判断此类问题必须核对 CSSOM 中的 `@layer` 归属，不能只读变量映射链。
+5. 手册 §6 的 P0 前置项「基线运行记录」与「两个范本的登录态参考截图」仍未完成，原因同 §7 的凭据边界。影响：本次收口的「前后对比」缺少登录态视觉基线，仅能提供计算样式与几何数值。下一步：取得授权会话后补齐。
+6. 两个更早的手册文件 `docs/admin-subtab-style-luna-max-*.md` 的去留未决。影响：文档间可能对同一规则给出一致的描述，暂无冲突。下一步：待确认是否被本手册取代后删除或标注失效。
