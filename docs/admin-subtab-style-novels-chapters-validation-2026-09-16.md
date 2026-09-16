@@ -101,9 +101,9 @@ web workspace 有 `dev` / `build` / `preview` / `typecheck` / `test`，**没有*
 | T09 | AI 任务 | implemented | `ai/AiTasksPanel.tsx`、`admin-operations.css` | 未执行 | 静态检查通过 | 浏览器视觉、轮询、批次动作 |
 | T10 | 调用审计 | implemented | `ai/AiAuditPanel.tsx`、`admin-operations.css` | 未执行 | 静态检查通过 | 浏览器视觉、展开详情行、分页 |
 | T11 | 已生成内容 | implemented | `ai/AiGenerationsPanel.tsx`、`admin-operations.css` | 未执行 | 静态检查通过 | 浏览器视觉、批次展开、深链与长文弹窗 |
-| T12 | 抓取中心 | pending | | | | |
-| T13 | 书源管理 | pending | | | | |
-| T14 | 代理设置 | pending | | | | |
+| T12 | 抓取中心 | implemented | `scrape/CenterView.tsx` | 未执行 | 静态检查通过 | 浏览器视觉、链接/搜索/榜单入口与发现结果 |
+| T13 | 书源管理 | implemented | `scrape/SourcesView.tsx`、`admin-operations.css` | 未执行 | 静态检查通过（含既有 `SourcesView.test.tsx`） | 浏览器视觉、筛选语义与批量动作 |
+| T14 | 代理设置 | implemented | `scrape/ProxyView.tsx`、`admin-operations.css` | 未执行 | 静态检查通过 | 浏览器视觉、保存/测试/路由检查与日志刷新 |
 | T15 | AI 创作 | pending | | | | |
 | T16 | 封面生成 | pending | | | | |
 | T17 | AI 配置 | pending | | | | |
@@ -308,6 +308,45 @@ P3 表格明确要求「该表含展开详情行，必须保留」「不能为�
 
 **未执行**：AI 任务轮询与批次跳转、调用审计展开详情行在 900px 下的表现、批次展开与 `/admin/ai?sub=content&batch=...` 深链在刷新与后退后的上下文保持、长文弹窗。故 T09–T11 记 `implemented`，非 `verified`。
 
+## 3D. P4 记录（抓取三视图）
+
+执行日期：2026-09-16。前置提交：`245376b`。本包处理 T12–T14。抓取中心的标题归属已正确（`index.tsx:44` 对 sources 传 `undefined`，由 `AdminTabHeader` 自持），保持只读。
+
+### 3D.1 代理设置（T14）
+
+手册点名 `:302` 的裸 `Table`。原结构为 `Card className="admin-panel-card proxy-logs-panel admin-data-panel--grid"` 手写 grid 类而无 `columns`，列宽无来源；表内用 `colSpan={6}` 行承载加载态与空态。
+
+改造：容器换成 `AdminDataPanel` + `columns={LOG_COLUMNS}`（六列，宽度合计 100%，目标列 `primary`），标题条换成 `AdminPanelHeading`，刷新按钮移到 `actions`；加载态与空态改用 `AdminEmptyState` 置于表格外，替掉原先的 `colSpan` 行——这与任务队列范本（`JobsTab.tsx:523-559`）一致，也避免跨列行在移动卡片模式下错配。
+
+配置与测试两个面板按手册 §4.5「表单保持 Card」保留 `Card`，仅把标题条换成 `AdminPanelHeading` 并去掉其自带外边距与分隔线，避免与 `CardContent` 留白叠加；`CardHeader`/`CardTitle`/`CardDescription` 随之成为死导入并移除。补齐 `caption`、表头 `scope="col"`（范本只在 `TableHead` 用 `scope`，`data-label` 仅出现在 `TableCell`）。
+
+### 3D.2 书源管理（T13）
+
+该表 10 列，用 `colgroup` 自管百分比列宽并配 `min-width: 1200px` 与 `.source-panel__scroll-hint` 的横向滚动提示；`SourcesView.test.tsx` 断言 `.source-panel__table-wrapper[aria-busy]` 与筛选后的滚动位置。
+
+因此**未**改用 `columns`/`--grid`：那会由 `--col-N-w` 与 `colgroup` 双重定义宽度，并让 900px 以下的卡片折叠接管、取消既有的横向滚动语义。改为把外层手写的 `<section className="source-panel" aria-label>` 换成 `AdminDataPanel`（同样渲染 `<section aria-label>`，语义等价），补齐 `caption` 与 10 处表头 `scope="col"`。
+
+随之发现一处既存的失效覆盖：`.admin-data-panel`（`:5358`）与 `.source-panel`（`:4136`）特异性相同而后者先定义，故 `border: 0` 与 20px 圆角生效，`.source-panel` 原写的 `border: 1px solid` 与 `--radius-xl`（16px）全部落空；`:5905` 的 sources 作用域覆盖同样被压成 16px，与章节目录范本的 20px 不一致。按手册 §5 修正这两处原规则，而非追加新的覆盖。
+
+### 3D.3 抓取中心（T12）
+
+`:593`/`:594` 已用 `AdminDataPanel`/`AdminPanelHeading`，本包未改动该文件。
+
+### 3D.4 P4 验证结果
+
+| 命令 | 结果 |
+| --- | --- |
+| `npm run typecheck --workspace=@zhi-zhou/web` | 通过 |
+| `npm run test --workspace=@zhi-zhou/web` | 通过（20 文件 / 68 测试，含 `SourcesView.test.tsx`） |
+| `npm run build --workspace=@zhi-zhou/web` | 通过 |
+| `git diff --check` | 通过 |
+| `npx eslint`（ProxyView、SourcesView） | 0 error / 1 warning（既有 `set-state-in-effect`） |
+| Impeccable `detect.mjs` | 返回空数组 |
+
+页头核验：抓取中心与代理设置由父级渲染页标题，书源管理由 `AdminTabHeader` 自持；面板标题为「配置迁移」「书源目录」「导入书源」「最近出站日志」「HTTP / HTTPS 出站代理」「代理连通性测试」，与页标题「抓取中心」「书源管理」「代理设置」均不同字面，无重复页头。
+
+**未执行**：链接/搜索/榜单入口、发现结果、作品确认、章节校验、抓取配置与开始任务；书源导入、连接检测、批量启停删与编辑测试弹窗；代理保存草稿/有效值区别、连通测试、路由检查与日志刷新的浏览器实测。故 T12–T14 记 `implemented`，非 `verified`。
+
 ## 4. 范本回归
 
 - 小说管理 `/admin/novels`：
@@ -318,7 +357,7 @@ P3 表格明确要求「该表含展开详情行，必须保留」「不能为�
 ## 5. 共享层变更
 
 - `AdminWorkspace.tsx`：无改动。未新增共享组件或 props。
-- `admin-operations.css`：新增 `.admin-panel-status`（共享，替代五处逐字相同的页面状态胶囊，消费者 8 处）、`.ai-service-stack`、`.ai-list-body`、`.ai-audit-table*`、`.ai-audit-row*`、`.ai-audit-cell__*`、`.ai-audit-detail*`、`.ai-tasks-panel .ai-tasks-content`，以及账户、内容安全、客户端监控三处的页面命名空间规则；修正三处失效或冲突的规则（`.mobile-telemetry-toolbar > select` 与 `[data-slot='input']` 选择器、`.admin-metric-strip--account` 的 heading 组归属）并把 `.ai-list-footer` 的布局职责合并进原规则；删除 `--col-N-w` 四处、`account-settings-panel__header`、`account-settings-toolbar`、`.ai-audit-card-header`、`.ai-generations-card__header`、`.ai-generations-card__filter` 系列等死规则。
+- `admin-operations.css`：新增 `.admin-panel-status`（共享，替代五处逐字相同的页面状态胶囊，消费者 8 处）、`.ai-service-stack`、`.ai-list-body`、`.ai-audit-table*`、`.ai-audit-row*`、`.ai-audit-cell__*`、`.ai-audit-detail*`、`.ai-tasks-panel .ai-tasks-content`、`.proxy-panel-title`，以及账户、内容安全、客户端监控三处的页面命名空间规则；修正五处失效或冲突的规则（`.mobile-telemetry-toolbar > select` 与 `[data-slot='input']` 选择器、`.admin-metric-strip--account` 的 heading 组归属、`.source-panel` 与 `.admin-redesign-page--sources .source-panel` 的失效边框与圆角）、并把 `.ai-list-footer` 的布局职责与 `.proxy-logs-panel` 的标题内边距合并进原规则；删除 `--col-N-w` 四处、`account-settings-panel__header`、`account-settings-toolbar`、`.ai-audit-card-header`、`.ai-generations-card__header`、`.ai-generations-card__filter` 系列等死规则。
 - `tokens.css`：无改动。
 - 是否新增共享 class 或 token，以及其消费者：未新增 token。`.admin-panel-status` 为共享类，消费者为 `JobsTab.tsx`（2）、`SettingsTab.tsx`（4）、`MobileTelemetryTab.tsx`（1）、`ModerationTab.tsx`（1）、`AiAuditPanel.tsx`、`AiGenerationsPanel.tsx`、`AiTasksPanel.tsx`，共 8 处；`.ai-service-stack`/`.ai-list-body`/`.ai-audit-*` 为 AI 命名空间，消费者为 `AiAuditPanel.tsx` 与 `AiGenerationsPanel.tsx`；其余新增 class 均为单页命名空间。
 
@@ -347,6 +386,11 @@ P3 表格明确要求「该表含展开详情行，必须保留」「不能为�
 | P3 | `npm run build --workspace=@zhi-zhou/web` | 通过 | 保留既有 >500kB chunk 警告 |
 | P3 | `npx eslint`（AI 三面板） | 0 error / 4 warning | warning 均为既有 `set-state-in-effect` |
 | P3 | Impeccable `detect.mjs --json` | 空数组 | 无机械检出 |
+| P4 | `npm run typecheck --workspace=@zhi-zhou/web` | 通过 | 无输出 |
+| P4 | `npm run test --workspace=@zhi-zhou/web` | 通过 | 20 文件 / 68 测试（含 `SourcesView.test.tsx`） |
+| P4 | `npm run build --workspace=@zhi-zhou/web` | 通过 | 保留既有 >500kB chunk 警告 |
+| P4 | `npx eslint`（抓取两视图） | 0 error / 1 warning | warning 为既有 `set-state-in-effect` |
+| P4 | Impeccable `detect.mjs --json` | 空数组 | 无机械检出 |
 | 每包结束 | | | |
 | P7 最终 | | | |
 

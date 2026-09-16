@@ -2,17 +2,29 @@ import { useCallback, useEffect, useState } from 'react'
 import { Globe2, Info, LoaderCircle, Network, RefreshCw, Route, Save, ScrollText, ShieldCheck, Waypoints } from 'lucide-react'
 import { scrapeApi } from '@/lib/api'
 import { useToast } from '@/components/feedback'
+import AdminEmptyState from '@/components/admin/AdminEmptyState'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { AdminDataPanel, AdminPanelHeading, type AdminColumn } from '@/components/admin/AdminWorkspace'
 import Po18AccountPanel from './Po18AccountPanel'
 
 type ProxyConfig = { proxyBase: string; proxyBypass: string }
 type ProxySource = 'environment' | 'runtime' | 'none'
 type ProxyLog = Awaited<ReturnType<typeof scrapeApi.proxyLogs>>['logs'][number]
+
+/** 出站日志列契约：目标为主字段，移动端折成卡片时跨整行。宽度合计 100%。 */
+const LOG_COLUMNS: readonly AdminColumn[] = [
+  { key: 'time', label: '时间', width: '14%' },
+  { key: 'scope', label: '范围', width: '10%' },
+  { key: 'target', label: '目标', width: '34%', primary: true },
+  { key: 'chain', label: '链路', width: '16%' },
+  { key: 'result', label: '结果', width: '16%' },
+  { key: 'duration', label: '耗时', width: '10%' },
+]
 
 function sourceLabel(source: ProxySource): string {
   if (source === 'environment') return '环境变量优先'
@@ -164,18 +176,11 @@ export default function ProxyView() {
   return (
     <div className="proxy-settings-page grid gap-4">
       <Card className="admin-panel-card proxy-config-panel">
-        <CardHeader className="flex-row items-start justify-between gap-4">
-          <div className="min-w-0">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Waypoints className="size-4 text-primary" aria-hidden="true" />
-              HTTP / HTTPS 出站代理
-            </CardTitle>
-            <CardDescription className="mt-1 max-w-2xl">
-              统一作用于 AI 文本、图像生成、远程图片、书源导入和网页抓取。Docker 部署优先使用 HTTP_PROXY / HTTPS_PROXY。
-            </CardDescription>
-          </div>
-          <Badge className={enabled ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}>{enabled ? '已启用' : '未启用'}</Badge>
-        </CardHeader>
+        <AdminPanelHeading
+          title={<span className="proxy-panel-title"><Waypoints className="size-4 text-primary" aria-hidden="true" />HTTP / HTTPS 出站代理</span>}
+          description="统一作用于 AI 文本、图像生成、远程图片、书源导入和网页抓取。Docker 部署优先使用 HTTP_PROXY / HTTPS_PROXY。"
+          status={<Badge className={enabled ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}>{enabled ? '已启用' : '未启用'}</Badge>}
+        />
         <CardContent className="grid gap-5">
           <div className="grid gap-4 md:grid-cols-2">
             <div className="grid gap-1.5">
@@ -230,13 +235,10 @@ export default function ProxyView() {
       <Po18AccountPanel active />
 
       <Card className="admin-panel-card proxy-test-panel">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <ShieldCheck className="size-4 text-primary" aria-hidden="true" />
-            代理连通性测试
-          </CardTitle>
-          <CardDescription>先检查目标是否走代理；再用与正式请求相同的代理链路访问一次公开网址并写入下方日志。</CardDescription>
-        </CardHeader>
+        <AdminPanelHeading
+          title={<span className="proxy-panel-title"><ShieldCheck className="size-4 text-primary" aria-hidden="true" />代理连通性测试</span>}
+          description="先检查目标是否走代理；再用与正式请求相同的代理链路访问一次公开网址并写入下方日志。"
+        />
         <CardContent className="grid gap-4">
           <div className="grid gap-1.5">
             <Label htmlFor="proxy-test-url">测试目标网址</Label>
@@ -285,75 +287,63 @@ export default function ProxyView() {
         </CardContent>
       </Card>
 
-      <Card className="admin-panel-card proxy-logs-panel admin-data-panel--grid">
-        <CardHeader className="flex-row items-start justify-between gap-4">
-          <div>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <ScrollText className="size-4 text-primary" aria-hidden="true" />
-              最近出站日志
-            </CardTitle>
-            <CardDescription className="mt-1">仅保留本进程最近 100 条；目标查询参数、请求头、正文及代理凭据不会记录。</CardDescription>
-          </div>
-          <Button variant="ghost" size="icon" onClick={() => void loadLogs()} disabled={logsLoading} title="刷新日志" aria-label="刷新日志">
-            <RefreshCw className={`size-4 ${logsLoading ? 'animate-spin' : ''}`} aria-hidden="true" />
-          </Button>
-        </CardHeader>
-        <CardContent className="px-0 pb-0">
+      <AdminDataPanel className="proxy-logs-panel overflow-hidden" ariaLabel="出站请求日志" columns={LOG_COLUMNS}>
+        <AdminPanelHeading
+          title="最近出站日志"
+          description="仅保留本进程最近 100 条；目标查询参数、请求头、正文及代理凭据不会记录。"
+          actions={
+            <Button variant="ghost" size="icon" onClick={() => void loadLogs()} disabled={logsLoading} title="刷新日志" aria-label="刷新日志">
+              <RefreshCw className={`size-4 ${logsLoading ? 'animate-spin' : ''}`} aria-hidden="true" />
+            </Button>
+          }
+        />
+        {logsLoading && !logs.length ? (
+          <AdminEmptyState icon={<LoaderCircle className="size-8 animate-spin opacity-40" aria-hidden="true" />} message="正在读取出站请求记录…" />
+        ) : !logs.length ? (
+          <AdminEmptyState icon={<ScrollText className="size-8 opacity-40" aria-hidden="true" />} message="暂无出站请求记录" />
+        ) : (
           <Table>
+            <TableCaption className="sr-only">出站请求记录，含时间、范围、目标、代理链路、结果与耗时</TableCaption>
             <TableHeader>
               <TableRow>
-                <TableHead className="pl-6">时间</TableHead>
-                <TableHead>范围</TableHead>
-                <TableHead>目标</TableHead>
-                <TableHead>链路</TableHead>
-                <TableHead>结果</TableHead>
-                <TableHead className="pr-6 text-right">耗时</TableHead>
+                <TableHead scope="col">时间</TableHead>
+                <TableHead scope="col">范围</TableHead>
+                <TableHead scope="col">目标</TableHead>
+                <TableHead scope="col">链路</TableHead>
+                <TableHead scope="col">结果</TableHead>
+                <TableHead scope="col" className="text-right">耗时</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {logsLoading && !logs.length ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="h-24 text-center text-sm text-muted-foreground">
-                    加载中…
+              {logs.map((log) => (
+                <TableRow key={log.id}>
+                  <TableCell data-label="时间" className="whitespace-nowrap text-xs text-muted-foreground">{formatTime(log.timestamp)}</TableCell>
+                  <TableCell data-label="范围">
+                    <code className="text-xs">{log.scope}</code>
                   </TableCell>
-                </TableRow>
-              ) : !logs.length ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="h-24 text-center text-sm text-muted-foreground">
-                    暂无出站请求记录
+                  <TableCell data-primary="" data-label="目标" className="max-w-[360px] truncate text-xs" title={log.target}>
+                    {log.method} {log.target}
                   </TableCell>
+                  <TableCell data-label="链路">
+                    <div className="grid gap-0.5">
+                      <span className="text-xs">{logSourceLabel(log.proxySource)}</span>
+                      {log.proxyHost && <code className="text-xs text-muted-foreground">{log.proxyHost}</code>}
+                    </div>
+                  </TableCell>
+                  <TableCell data-label="结果">
+                    <Badge className={log.ok ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}>
+                      <span className="inline-block max-w-[240px] truncate align-bottom" title={log.status !== null ? String(log.status) : log.error || '失败'}>
+                        {log.status ?? (log.error || '失败')}
+                      </span>
+                    </Badge>
+                  </TableCell>
+                  <TableCell data-label="耗时" className="text-right text-xs text-muted-foreground">{log.durationMs} ms</TableCell>
                 </TableRow>
-              ) : (
-                logs.map((log) => (
-                  <TableRow key={log.id}>
-                    <TableCell data-label="时间" className="whitespace-nowrap pl-6 text-xs text-muted-foreground">{formatTime(log.timestamp)}</TableCell>
-                    <TableCell data-label="范围">
-                      <code className="text-xs">{log.scope}</code>
-                    </TableCell>
-                    <TableCell data-primary="" data-label="目标" className="max-w-[360px] truncate text-xs" title={log.target}>
-                      {log.method} {log.target}
-                    </TableCell>
-                    <TableCell data-label="链路">
-                      <div className="grid gap-0.5">
-                        <span className="text-xs">{logSourceLabel(log.proxySource)}</span>
-                        {log.proxyHost && <code className="text-xs text-muted-foreground">{log.proxyHost}</code>}
-                      </div>
-                    </TableCell>
-                    <TableCell data-label="结果">
-                      <Badge className={log.ok ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}>
-                        <span className="inline-block max-w-[240px] truncate align-bottom" title={log.status !== null ? String(log.status) : log.error || '失败'}>
-                          {log.status ?? (log.error || '失败')}
-                        </span>
-                      </Badge>
-                    </TableCell>
-                    <TableCell data-label="耗时" className="pr-6 text-right text-xs text-muted-foreground">{log.durationMs} ms</TableCell>
-                  </TableRow>
-                ))
-              )}
+              ))}
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
+        )}
+      </AdminDataPanel>
     </div>
   )
 }

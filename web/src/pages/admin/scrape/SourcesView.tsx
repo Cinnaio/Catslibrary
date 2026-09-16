@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { newOperationId } from '../../../lib/api'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -438,7 +438,7 @@ export default function SourcesView({ active }: { active: boolean }) {
           </div>
         </AdminDataPanel>
 
-        <section className="source-panel" aria-label="书源列表">
+        <AdminDataPanel className="source-panel" ariaLabel="书源列表">
           <AdminPanelHeading title="书源目录" description="管理已导入的书源规则、支持度与连接状态。" />
           <AdminToolbar className="source-panel__bar">
             <div className="source-panel__cluster source-panel__cluster--primary">
@@ -508,6 +508,7 @@ export default function SourcesView({ active }: { active: boolean }) {
 
           <div className="table-wrapper source-panel__table-wrapper" aria-busy={sourcesLoading}>
             <Table className="source-table">
+              <TableCaption className="sr-only">书源列表，含站点、host、编码、支持度、连接状态、置信度、章节列表选择器与启用状态</TableCaption>
               <colgroup>
                 <col className="source-table__col source-table__col--select" />
                 <col className="source-table__col source-table__col--site" />
@@ -522,22 +523,22 @@ export default function SourcesView({ active }: { active: boolean }) {
               </colgroup>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="source-table__head source-table__head--select">
+                  <TableHead scope="col" className="source-table__head source-table__head--select">
                     <Checkbox
                       aria-label="选择当前列表中的全部书源"
                       checked={sources.length > 0 && sources.every((source) => selectedHosts.has(source.host))}
                       onCheckedChange={(checked) => toggleAllVisible(checked === true)}
                     />
                   </TableHead>
-                  <TableHead className="source-table__head source-table__head--site">站点</TableHead>
-                  <TableHead className="source-table__head source-table__head--host">host</TableHead>
-                  <TableHead className="source-table__head source-table__head--encoding">编码</TableHead>
-                  <TableHead className="source-table__head source-table__head--support">支持度</TableHead>
-                  <TableHead className="source-table__head source-table__head--connectivity">连接状态</TableHead>
-                  <TableHead className="source-table__head source-table__head--confidence">置信度</TableHead>
-                  <TableHead className="source-table__head source-table__head--selector">章节列表选择器</TableHead>
-                  <TableHead className="source-table__head source-table__head--enabled">启用</TableHead>
-                  <TableHead className="source-table__head source-table__head--actions text-right">操作</TableHead>
+                  <TableHead scope="col" className="source-table__head source-table__head--site">站点</TableHead>
+                  <TableHead scope="col" className="source-table__head source-table__head--host">host</TableHead>
+                  <TableHead scope="col" className="source-table__head source-table__head--encoding">编码</TableHead>
+                  <TableHead scope="col" className="source-table__head source-table__head--support">支持度</TableHead>
+                  <TableHead scope="col" className="source-table__head source-table__head--connectivity">连接状态</TableHead>
+                  <TableHead scope="col" className="source-table__head source-table__head--confidence">置信度</TableHead>
+                  <TableHead scope="col" className="source-table__head source-table__head--selector">章节列表选择器</TableHead>
+                  <TableHead scope="col" className="source-table__head source-table__head--enabled">启用</TableHead>
+                  <TableHead scope="col" className="source-table__head source-table__head--actions text-right">操作</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -647,7 +648,7 @@ export default function SourcesView({ active }: { active: boolean }) {
               </Button>
             </div>
           </div>
-        </section>
+        </AdminDataPanel>
       </div>
 
       <Dialog

@@ -207,6 +207,25 @@
   min-width: 0;
 }
 
+/* 面板标题带图标时保持图标与文字基线一致，并与既有 CardTitle 的图标节奏统一。 */
+.proxy-panel-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* 配置与测试仍是表单面板（手册 §4.5：表单保持 Card），标题改用 AdminPanelHeading
+   后需去掉其自带的外边距与底部分隔线，避免与 CardContent 的留白叠加成双层间距。 */
+.proxy-settings-page :is(.proxy-config-panel, .proxy-test-panel) > .admin-panel-heading {
+  padding: 0 0 1rem;
+  border-bottom: 0;
+}
+
+.proxy-settings-page .proxy-logs-panel > .admin-panel-heading {
+  padding: 1.5rem 1.5rem 1.25rem;
+}
+
+/* 日志表在面板内直接贴边，行内边距由表格自身提供。 */
 .proxy-settings-page .proxy-logs-panel [data-slot='table-container'] {
   scrollbar-width: thin;
   scrollbar-color: var(--admin-border-strong) transparent;
@@ -4117,9 +4136,13 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 .source-panel {
   overflow: hidden;
   min-width: 0;
-  border: 1px solid var(--admin-border);
-  border-radius: var(--radius-xl);
+  /* 书源面板现由 AdminDataPanel 承载容器语义：其 .admin-data-panel 规则
+     （同特异性、后定义在 :5358）会把 border 归零。转成面板语言，与
+     章节目录、任务队列一致。 */
+  border: 0;
+  border-radius: var(--admin-table-panel-radius);
   background: var(--admin-panel);
+  box-shadow: none;
 }
 .source-panel__bar {
   display: grid;
@@ -5879,10 +5902,11 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   margin-bottom: 0.25rem;
 }
 
+/* 书源面板已由 AdminDataPanel 承载，改用与其他数据面板一致的圆角；
+   原先的 border-color 在 border-width 归零后不再产生可见效果，故移除。 */
 .admin-redesign-page--sources .admin-panel-card,
 .admin-redesign-page--sources .source-panel {
-  border-color: var(--admin-border);
-  border-radius: var(--radius-xl);
+  border-radius: var(--admin-table-panel-radius);
   background: var(--admin-panel);
   box-shadow: none;
 }
