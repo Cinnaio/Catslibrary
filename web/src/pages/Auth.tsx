@@ -8,7 +8,7 @@
  */
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { AlertCircle, Eye, EyeOff, LoaderCircle, LogIn, UserPlus } from 'lucide-react'
+import { AlertCircle, ArrowLeft, Eye, EyeOff, LoaderCircle, LogIn, UserPlus } from 'lucide-react'
 import { authApi, getToken } from '../lib/api'
 import { useSession } from '../context/SessionContext'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
@@ -127,7 +127,7 @@ export default function Auth() {
   }
 
   return (
-    <main className="auth-page auth-page--with-header">
+    <main className="auth-page">
       <div className="auth-shell">
         <Card className="w-full max-w-sm">
           <CardContent className="auth-panel">
@@ -245,11 +245,16 @@ export default function Auth() {
               </div>
             </form>
 
-            <p className="auth-panel__foot">
-              <Link to="/" className="auth-panel__foot-link">
-                返回首页
-              </Link>
-            </p>
+            {/* 去掉站点页头后，这里是页面上唯一的出口，因此用真实按钮而非
+                12px 的灰色小链接承载——与门禁页的「返回首页」一致。 */}
+            <div className="auth-panel__foot">
+              <Button asChild variant="ghost">
+                <Link to="/">
+                  <ArrowLeft className="size-4" aria-hidden="true" />
+                  返回首页
+                </Link>
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
