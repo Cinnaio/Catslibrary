@@ -485,18 +485,22 @@ export default function SourcesView({ active }: { active: boolean }) {
             </div>
           </AdminToolbar>
           {selectedHosts.size > 0 && (
-            <div className="source-panel__bulk-actions">
-              <span className="text-sm text-muted-foreground">已选择 {selectedHosts.size}</span>
-              <Button variant="ghost" size="sm" onClick={() => setSelectedHosts(new Set())}>
-                清空
-              </Button>
-              <Button variant="secondary" size="sm" onClick={() => void batchDisableSources()}>
-                批量停用
-              </Button>
-              <Button variant="destructive" size="sm" onClick={() => void batchDeleteSources()}>
-                批量删除
-              </Button>
-            </div>
+            <AdminToolbar layout="inline">
+              <div className="admin-toolbar__batch" aria-live="polite">
+                <span className="admin-toolbar__batch-count">已选 {selectedHosts.size} 个书源</span>
+                <div className="admin-toolbar__batch-actions">
+                  <Button variant="secondary" size="sm" onClick={() => setSelectedHosts(new Set())}>
+                    清空
+                  </Button>
+                  <Button variant="secondary" size="sm" onClick={() => void batchDisableSources()}>
+                    批量停用
+                  </Button>
+                  <Button variant="destructive" size="sm" onClick={() => void batchDeleteSources()}>
+                    批量删除
+                  </Button>
+                </div>
+              </div>
+            </AdminToolbar>
           )}
           <div className="source-panel__scroll-hint" aria-hidden="true">
             左右滑动查看完整字段

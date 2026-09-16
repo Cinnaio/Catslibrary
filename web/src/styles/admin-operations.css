@@ -3874,17 +3874,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 .source-panel__scroll-hint {
   display: none;
 }
-.source-panel__bulk-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--admin-space-2);
-  padding: var(--admin-space-2) var(--admin-space-4);
-  border-bottom: 1px solid var(--admin-border);
-  background: color-mix(in srgb, var(--accent-subtle) 48%, var(--admin-panel));
-}
-.source-panel__bulk-actions .text-sm {
-  margin-right: auto;
-}
 .source-panel__pagination {
   display: flex;
   align-items: center;
@@ -5094,7 +5083,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   animation-delay: 70ms;
 }
 
-.admin-redesign-page--novels .admin-toolbar__batch {
+:is(.admin-redesign-page--novels, .admin-redesign-page--sources) .admin-toolbar__batch {
   animation: admin-tab-surface-enter var(--admin-table-row-enter) both;
 }
 
@@ -5157,7 +5146,8 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   .admin-redesign-page--chapters .admin-tab-header__actions > [data-slot='button'],
   .admin-redesign-page--chapters .chapter-toolbar [data-slot='button'],
   .admin-redesign-page--moderation .admin-tab-header__actions > [data-slot='button'],
-  .admin-redesign-page--novels .admin-toolbar__batch-actions > [data-slot='button'] {
+  .admin-redesign-page--novels .admin-toolbar__batch-actions > [data-slot='button'],
+  .admin-redesign-page--sources .admin-toolbar__batch-actions > [data-slot='button'] {
     transition:
       transform 150ms ease,
       background-color 150ms ease,
@@ -5169,7 +5159,8 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   .admin-redesign-page--chapters .admin-tab-header__actions > [data-slot='button']:hover:not(:disabled),
   .admin-redesign-page--chapters .chapter-toolbar [data-slot='button']:hover:not(:disabled),
   .admin-redesign-page--moderation .admin-tab-header__actions > [data-slot='button']:hover:not(:disabled),
-  .admin-redesign-page--novels .admin-toolbar__batch-actions > [data-slot='button']:hover:not(:disabled) {
+  .admin-redesign-page--novels .admin-toolbar__batch-actions > [data-slot='button']:hover:not(:disabled),
+  .admin-redesign-page--sources .admin-toolbar__batch-actions > [data-slot='button']:hover:not(:disabled) {
     transform: translateY(-1px);
   }
 }
@@ -5179,7 +5170,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   .admin-redesign-page--chapters .chapter-directory-panel,
   .admin-redesign-page--moderation > .admin-toolbar,
   .admin-redesign-page--moderation > .admin-data-panel,
-  .admin-redesign-page--novels .admin-toolbar__batch {
+  :is(.admin-redesign-page--novels, .admin-redesign-page--sources) .admin-toolbar__batch {
     animation: admin-tab-fade var(--admin-table-reduced-fade) both;
   }
 
@@ -5737,8 +5728,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   }
 }
 
-.admin-redesign-page--sources .source-panel__pagination,
-.admin-redesign-page--sources .source-panel__bulk-actions {
+.admin-redesign-page--sources .source-panel__pagination {
   border-color: var(--admin-border);
 }
 
