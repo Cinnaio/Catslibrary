@@ -14,6 +14,7 @@ colors:
   text-muted: "#736D65"
   border: "#ECE8E2"
   border-light: "#F3F0EB"
+  focus-ring: "rgba(139, 96, 69, 0.24)"
   success: "#4F7A52"
   warning: "#B07C2F"
   danger: "#BE123C"
@@ -39,22 +40,23 @@ typography:
     fontFamily: "'SF Mono', 'Fira Code', 'Consolas', monospace"
   # 枚举字号阶（机器可读字阶）。命名语义见正文 Typography 一节。
   scale:
-    label-sm: "0.7rem"        # 11.2px 导航标签/kicker/侧栏分组
-    table-head: "0.72rem"     # 11.52px 表头
+    label-sm: "0.7rem"        # 11.2px 导航分组标签/后台 kicker（紧凑档下限）
+    table-head: "0.72rem"     # 11.52px 表头/指标条标签
     label: "0.75rem"          # 12px 计数胶囊/元信息
     caption: "0.78rem"        # 12.5px 发现卡作者/描述
     body-compact: "0.8rem"    # 12.8px 表单标签/分页/排序
     source-toolbar: "0.82rem" # 13.1px 书源工具栏
-    body-sm: "0.875rem"       # 14px 辅助文字/页标题
+    body-sm: "0.875rem"       # 14px 辅助文字/面板标题/页头描述
     select-trigger: "0.9rem"  # 14.4px 下拉触发
     card-title: "0.95rem"     # 15.2px 发现卡标题
-    body: "1rem"              # 16px 正文/品牌标记
+    body: "1rem"              # 16px 正文/品牌标记/队列摘要数值
     modal-title: "1.15rem"    # 18.4px 弹窗标题
-    title-min: "1.25rem"      # 20px section-title clamp 下限
-    hero-min: "1.45rem"       # 23.2px hero 标题 clamp 下限
-    title-max: "1.6rem"       # 25.6px section-title clamp 上限
-    stat: "1.75rem"           # 28px Dashboard 统计数字
-    hero-max: "1.9rem"        # 30.4px hero 标题 clamp 上限
+    panel-title: "1.25rem"    # 20px 面板标题（AdminPanelHeading）
+    stat: "1.45rem"           # 23.2px 指标条数值（AdminMetricStrip）
+    page-title-min: "1.5rem"  # 24px 后台页标题 clamp 下限
+    page-title-max: "2rem"    # 32px 后台页标题 clamp 上限
+    hero-min: "1.35rem"       # 21.6px 公开页 hero clamp 下限
+    hero-max: "1.9rem"        # 30.4px 公开页 hero clamp 上限
     display: "2rem"           # 32px h1
     # 阅读表面专属档（reader.css）。刻意高于后台紧凑字阶——长时间阅读优先舒适度。
     reader-body: "1.1rem"          # 17.6px 阅读器正文（移动端降到 body 1rem）
@@ -65,14 +67,14 @@ typography:
     reader-watermark-sm: "3.2rem"  # 51.2px 移动端水印定值
     reader-watermark-max: "6rem"   # 96px 纸张「读」字水印 clamp 上限
 rounded:
-  sm: "6px"
-  md: "8px"
-  md-admin: "10px"
-  lg: "12px"
-  xl: "16px"
-  2xl: "20px"
+  sm: "6px"              # --radius-sm — 公共页控件
+  base: "8px"            # --radius — 全局基础圆角
+  md: "10px"             # --radius-md — 紧凑控件/卡片；也是 shadcn 桥接层 --sh-radius
+  lg: "12px"             # --radius-lg — 后台控件与分段 tabs 药丸
+  xl: "16px"             # --radius-xl — 嵌套表面/对话框/shadcn Card
+  2xl: "20px"            # --radius-2xl — 后台大面板/数据面板/后台卡片
   full: "9999px"
-  reader-paper: "30px"      # 阅读页纸张表面，移动端 24px；见 --reader-radius-paper
+  reader-paper: "30px"   # 阅读页纸张表面，移动端 24px；见 --reader-radius-paper
 spacing:
   xs: "4px"
   sm: "8px"
@@ -118,12 +120,15 @@ components:
 
 色彩来自奶茶和旧书页：暖棕作为唯一的强调色（像书脊上的烫金字），大面积使用接近白色的暖灰和奶油色作为呼吸空间。阴影克制而自然，像纸页层叠投下的微光。组件有微妙的触觉感——圆润但不幼稚，边框细致如精装书的切边。
 
+系统里有两种读者：沉浸的阅读者和高效的运营者。公共阅读页服务于前者，管理后台服务于后者。两者共享同一套色调、字体和材质，但密度完全不同——后台把信息压到紧凑档以便扫描，阅读页把字号放大到舒适档以便久读。两种模式的边界是明确的，字阶与间距各自成档、互不外溢。
+
 **Key Characteristics:**
 - 奶茶色暖调贯穿，拒绝冷色和高饱和度
 - 纸质感地面（接近白色的暖灰），文字如墨迹
 - 阴影极简，依赖色调层次而非投影创造深度
 - 系统字体 + 衬线字体用于阅读场景
 - 组件触感温暖，圆角适度，像精心制作的文具
+- 后台是同一世界的紧凑档：同一套 token，更高的信息密度
 
 ## Colors
 
@@ -137,10 +142,20 @@ components:
 - **Clean Paper** (#FFFFFF): 最浅的纸面，用于卡片和弹层背景。
 - **Warm Linen** (#F6F4F1): 微暖的灰白，用于页面地面和次级背景。
 - **Hover Tint** (#F5F2EE): 悬停态背景，比 Warm Linen 再暖一度。
-- **Faded Parchment** (#9A938A): 弱化文字，用于辅助信息、时间戳、占位符。
+- **Faded Parchment** (#9A938A): 弱化文字的历史值。当前 `--text-muted` 是 #736D65（白底 5.11:1），刻意加深以满足 AA——不要再改回更浅的 #9A938A。
 - **Warm Gray-Brown** (#5B554E): 次要文字，用于非强调的说明文字。
 - **Border Mist** (#ECE8E2): 边框和分隔线，极淡的暖灰。
-- **Deep Border** (color-mix 84%): 管理后台更强的边框线。
+- **Border Frost** (#F3F0EB): 比 Border Mist 更淡，用于表格行内侧分隔。
+
+### Admin Surfaces
+后台表面全部从上面这套色板派生，而不是另建一套颜色。它们定义在 `:root`，但公开页面不引用。
+
+- **Admin Canvas** (`color-mix(in srgb, var(--bg-primary) 94%, #6b7280 6%)`): 后台画布底色 `--admin-canvas`，比页面地面略沉，让纸面浮起。
+- **Admin Panel** (`var(--bg-card)`): 面板、弹窗、侧栏的表面基色 `--admin-panel`。
+- **Admin Panel Muted** (`color-mix(in srgb, var(--bg-secondary) 78%, var(--accent-subtle))`): 胶囊、弹窗页脚、次级表面 `--admin-panel-muted`。
+- **Admin Sidebar** (`color-mix(in srgb, var(--accent-subtle) 25%, var(--bg-card))`): 侧栏与移动抽屉底色 `--admin-sidebar`，带一点极淡的强调色倾向。
+- **Admin Border** (`color-mix(in srgb, var(--border) 88%, var(--text-primary) 4%)`): 后台通用描边 `--admin-border`。
+- **Admin Border Strong** (`color-mix(in srgb, var(--border) 62%, var(--text-primary) 15%)`): 后台控件与弹窗描边 `--admin-border-strong`，比通用描边更明确，用于输入框这类需要被看见边界的元素。
 
 ### Semantic
 - **Reading Green** (#4F7A52): 成功状态。柔和的书页绿，不刺眼。
@@ -149,10 +164,12 @@ components:
 - **Collector's Seal** (#b8453a): 收藏印章色，用于"已收录"标记。
 
 ### Dark Theme
-暗色模式不是反转，而是"月光下的书房"：深灰地面（#1B1C20）替代白色纸面，金色强调色（#BF8F52）替代棕色，文字变为暖白（#E7E0D6）。所有语义色相应提亮。
+暗色模式不是反转，而是"月光下的书房"：深灰地面（#1B1C20）替代白色纸面，金色强调色（#BF8F52）替代棕色，文字变为暖白（#E7E0D6）。所有语义色相应提亮。机制是 `[data-theme="dark"]`，不是 `.dark` 类；`@custom-variant dark` 只负责把它桥接给 Tailwind。
 
 ### Named Rules
 **The 10% Accent Rule.** 奶茶棕色强调色在任何页面上不超过 10% 的面积。它的稀有性就是力量——读者的眼睛自然被引导到最重要的交互点。
+
+**The Derived-Surface Rule.** 后台表面永远是 `color-mix` 派生自公开色板的结果，不新开一套颜色。新表面要先问"它是哪两个既有 token 的混合"，答不上来就不要加。
 
 ## Typography
 
@@ -163,26 +180,31 @@ components:
 **Character:** 系统字体带来原生、安静的感觉——不抢注意力，让内容本身成为视觉主角。衬线字体在阅读器中营造纸质书的氛围。
 
 ### Hierarchy
-- **Display** (700, clamp(1.25rem, 1rem + 0.5vw, 1.6rem), 1.15): 页面标题（section-title），沉稳而不张扬。
-- **Stat Value** (600, 1.75rem, 1.1): Dashboard 统计数字，与 12px 标签形成清晰的尺寸断裂——全后台唯一的"大数字"层级。
+- **Display** (700, clamp(1.5rem, 1.25rem + 0.65vw, 2rem) → 24–32px, 1.15): 后台页标题（AdminTabHeader 的 h2），随视口缩放，`letter-spacing: -0.04em`。它是页面上最大的文字，也是唯一的页面级标题。
+- **Panel Title** (750, 1.25rem, 1.3): 面板标题（AdminPanelHeading 的 h3），`letter-spacing: -0.03em`。刻意低于页标题一档，避免面板与页面争夺层级。
+- **Stat Value** (750, 1.45rem, 1): 指标条数值（AdminMetricStrip 的 strong），与 11.52px 标签形成尺寸断裂——全后台唯一的"大数字"层级。队列摘要用更小的 1rem，因为它与说明文字同处一个信息块，抬到 1.45rem 会撑破那块版面。
 - **Headline** (700, 2rem, 1.3): h1，用于页面级标题，letter-spacing: -0.02em。
 - **Title** (600, 1.3rem, 1.3): h2，段落标题。
 - **Body** (400, 16px, 1.6): 正文。行高 1.6 提供舒适的阅读节奏。
-- **Label** (750, 0.65rem, 0.1em uppercase): 分类标签（detail-kicker），极小但醒目，用于元数据和分类标签。
-- **Compact Label Scale (Admin)** (400-750, 0.7-0.8rem): 管理后台专属的紧凑密度字号阶梯，用于 OPERATE 模式的高信息密度扫描。包括：导航标签 (0.7rem)、kicker (0.7rem)、表头 (0.72rem uppercase + 0.07em)、计数胶囊 (0.75rem)、元信息 (0.75rem)、分页 (0.8rem)。这一档刻意低于公开阅读界面的字号——管理控制台优先扫描效率，阅读界面优先舒适度。**对比度不可妥协**：弱化文字须满足 AA ≥4.5:1，数据读取面（表头/内容）字号 ≥11px。
+- **Label** (750, 0.7–0.72rem, 0.08–0.1em uppercase): 分类标签。后台 kicker 用 0.72rem / 750 / 0.08em，侧栏分组标签用 0.7rem / 0.1em + uppercase。两者都压在 11px 可读下限之上，不再往下调。
+- **Compact Label Scale (Admin)** (400-750, 0.7-0.8rem): 管理后台专属的紧凑密度字号阶梯，用于 OPERATE 模式的高信息密度扫描。包括：导航分组标签 (0.7rem)、kicker (0.72rem)、表头 (0.72rem + 0.07em)、计数胶囊 (0.75rem)、元信息 (0.75rem)、分页 (0.8rem)。这一档刻意低于公开阅读界面的字号——管理控制台优先扫描效率，阅读界面优先舒适度。**对比度不可妥协**：弱化文字须满足 AA ≥4.5:1，数据读取面（表头/内容）字号 ≥11px。
 - **Reading Surface Scale (Reader)** (`reader.css`，与上一档相反的方向): 阅读页有自己的一档字号，全部高于通用档。正文 1.1rem/行高 2.05（移动端降到 1rem/1.85），章节标题 clamp(1.55rem, 3vw, 2.15rem)、移动端定值 1.35rem，纸张右上角的「读」字水印 clamp(3rem, 8vw, 6rem)、移动端 3.2rem。**这一档只在 `.reader-app` 内生效**，不得外溢到公共页或后台；反过来，阅读器内也不使用后台的紧凑档。
+
+后台表单标签另有 `--admin-field-label-weight: 400`——标签刻意保持常规字重，让当前选中的分段 tab 保持视觉主导；不要用加粗标签去和 tab 抢注意力。
 
 ### Named Rules
 **The Content-First Rule.** 字体永远是配角。系统字体不创造风格，内容本身创造风格。唯一例外是阅读器中的衬线体——那是为沉浸而存在的。
+
+**The One Title Rule.** 每个可导航页面只有一个内容区主标题，由页头承担。面板标题写工作对象名（"作品目录"、"章节目录"、"审核列表"），不重复页面名。页头上方不再出现小字眉题——`AdminTabHeader` 的 `kicker` 与 `hero` 变体已退役，两个 prop 仍被接受但被忽略。标题字号膨胀和"每页一个更大的标题"都是被明确否定的方向。
 
 ## Layout
 
 内容驱动的流式布局，最大宽度 1200px（--max-width-content），阅读器收窄到 680px（--max-width-reader）。
 
 - **公共页面**: 居中容器，20px 内边距，纵向流动。小说网格使用 auto-fill + minmax(330px, 1fr)，间距 36px × 44px。
-- **管理后台**: 左侧 236px 可折叠侧边栏 + 右侧内容区。内容区使用 1440px 最大宽度，内部 padding 1.25rem（桌面）/ 1rem（移动）。
-- **响应式断点**: 900px（侧边栏折叠、网格单列）、640px（紧凑间距、表格横向滚动）、400px（按钮全宽）。
-- **间距节奏**: 4/8/16/24/32/48px（xs → 2xl），管理后台使用 --admin-space-1 到 --admin-space-6 语义化间距。
+- **管理后台**: 左侧可折叠侧边栏 + 右侧内容区。侧栏是 shadcn Sidebar（`collapsible="icon"`, `variant="floating"`），展开态 16rem、图标态 3rem、移动抽屉 18rem。内容区宽度 `min(100%, 1440px)` 居中，内边距 1.5rem（桌面）/ 1rem（640px 以下）。滚动所有权在 `AdminShell` 的内容区，不在各 tab 内部。
+- **响应式断点**: 901px↑ 启用桌面固定列宽；900px 是主转折（表格折成卡片、工具栏转纵向、侧边栏折叠、网格单列）；640px 紧凑间距与页头收缩；400px 按钮全宽。审核工具条另有 1240px 的转纵向断点。
+- **间距节奏**: 全局 4/8/16/24/32/48px（xs → 2xl）；管理后台使用 `--admin-space-1` 到 `--admin-space-6` = 4/8/12/16/24/32px。后台的第三档是 12px 而不是 16px——这是紧凑档与全局节奏的刻意差异，不要用全局档去覆盖后台面板的内部间距。
 
 ## Elevation & Depth
 
@@ -192,37 +214,44 @@ components:
 - **Rest** (`0 1px 2px rgba(40,32,24,0.04), 0 1px 3px rgba(40,32,24,0.05)`): 卡片和按钮的静态投影，几乎不可见——像纸页微微浮起。
 - **Elevated** (`0 6px 16px rgba(40,32,24,0.08)`): 悬停态和次要弹层。
 - **Modal** (`0 24px 70px rgba(40,32,24,0.18)`): 模态对话框，最重的阴影但仍保持暖调。
-- **Admin Ambient** (`0 18px 48px rgba(40,32,24,0.10)`): 管理后台卡片和面板。
+- **Admin Ambient** (`0 18px 48px rgba(40,32,24,0.10)`): 管理后台浮起表面的全局阴影 token `--admin-shadow`。
+- **Admin Soft** (`0 10px 26px rgba(40,32,24,0.07)`): 轻量后台表面 `--admin-shadow-soft`。
+
+后台的数据面板和卡片在静止态**不使用**上述阴影：`--admin-panel-card` 与 `.admin-data-panel` 都是 `box-shadow: none`，靠 `--admin-panel` 的表面色与 `--admin-border` 描边分层。后台阴影只留给真正浮起的元素（弹窗、下拉、抽屉）。
 
 ### Named Rules
 **The Flat-By-Default Rule.** 所有表面在静止状态是平的。阴影仅作为状态响应出现（hover、elevation、focus），或为弹出层提供层次暗示。
 
+**The Tonal-Admin Rule.** 后台一个像素的阴影都不要加。面板靠表面色 + 1px 描边区分层次；一旦给数据面板加投影，它就会在密集列表里看起来像浮起的卡片，破坏扫描。
+
 ## Shapes
 
-圆角策略温和而一致：公共控件 6px（--radius-sm），shadcn 控件 8px（--radius），管理后台控件 12px（--admin-button-radius / --admin-input-radius，与 tabs 药丸的 rounded-lg 对齐），卡片 10px（--radius-md），后台大面板 20px（--radius-2xl），对话框 16px（--admin-radius-dialog / --radius-xl）。分段 Tabs 另有明确的内外弧线契约：外框 12px、3px 内缩、激活表面 9px，统一由 `--tabs-segmented-*` token 提供。
+圆角策略温和而一致：公共控件 6px（--radius-sm），全局基础圆角 8px（--radius），紧凑控件与卡片 10px（--radius-md），管理后台控件与分段 tabs 药丸 12px（--admin-button-radius / --admin-input-radius / --radius-lg），嵌套表面与对话框 16px（--radius-xl / --admin-radius-dialog），后台大面板与 `.admin-panel-card` 20px（--radius-2xl）。分段 Tabs 另有明确的内外弧线契约：外框 12px、3px 内缩、激活表面 9px，统一由 `--tabs-segmented-*` token 提供。
 
 - **公共控件圆角 (6px)**: 公共页按钮、输入框、标签、复选框——足够圆润但不接近圆形，像文具的倒角。
-- **shadcn 控件圆角 (8px)**: shadcn/ui 组件（button/input/dialog 基类）默认 8px。
-- **管理后台控件圆角 (12px)**: 管理后台的按钮与输入框统一 12px，与 tabs 药丸（rounded-lg）并排时圆弧一致。
-- **卡片圆角 (10px)**: 内容卡片、表格包裹器——微妙的弧度，不抢注意力。
-- **后台大面板圆角 (20px)**: 管理后台大面板、统计卡片——更明显的圆润感，像精装书的封面弧度。
+- **shadcn 控件圆角 (10px)**: shadcn/ui 基类（button/input/dialog）用 `rounded-md`，经 `shadcn.css` 的 `@theme inline` 桥接到 `--sh-radius`（即 `--radius-md` = 10px）。这是 Tailwind 与站点 token 的接缝，也是唯一一处"工具类默认值不等于同名 CSS 变量"的地方——调整前台圆角时先看这里，不要改 Tailwind 工具类。
+- **管理后台控件圆角 (12px)**: 后台的按钮、输入框、表单控件与 tabs 药丸统一 12px。作用范围是 `.admin-layout` 下的 `[data-slot='button']`、`[data-slot='input']`、`[data-slot='textarea']` 等，公开页面不受影响。
+- **卡片圆角 (10px)**: 紧凑卡片与旧版表格包裹器使用 `--radius-md`。
+- **嵌套表面与对话框圆角 (16px)**: shadcn `Card`（`rounded-xl`）、对话框、嵌套表面。
+- **后台大面板圆角 (20px)**: 数据面板（`--admin-table-panel-radius`）、`.admin-panel-card`——更明显的圆润感，像精装书的封面弧度。
 - **公开页面结构归并**: 紧凑字段使用 `--radius-md`，控件与菜单使用 `--radius-lg`，内嵌卡片、浮层与对话框使用 `--radius-xl`，Hero 与大卡片使用 `--radius-2xl`；公开页面不再直接新增 11/13/14/15/17/18/22/24/26/28/30px 档位。
 - **全圆角 (9999px)**: 胶囊标签、计数徽章、状态条——仅用于信息密度极高的辅助元素。
 - **阅读页纸张圆角 (30px / 移动端 24px)**: `--reader-radius-paper`，唯一大于 2xl 的圆角。阅读表面要读起来像"一张纸"而不是一个卡片，弧度必须明显大过周围的控件；只用于 `.reader-paper`，其余阅读页元素仍走上面的通用档。
 
 ## Components
 
-组件以 shadcn/ui 为基础，通过 CSS custom properties 桥接到知舟的暖色调系统。所有组件继承 --admin-radius / --admin-radius-sm 的圆角规范。
+组件以 shadcn/ui 为基础，通过 CSS custom properties 桥接到知舟的暖色调系统。后台组件另有一套 workspace 原语（`components/admin/AdminWorkspace.tsx`）：`AdminToolbar`、`AdminSearch`、`AdminContextPanel`、`AdminMetricStrip`、`AdminQueueSummary`、`AdminDataPanel`、`AdminPanelHeading`。
 
 ### Buttons
-- **Shape:** 公共页圆角 6px（--radius-sm），管理后台圆角 12px（--admin-button-radius），高度 2.25rem（--admin-control-height）
+- **Shape:** 公共页圆角 6px（--radius-sm）；管理后台圆角 12px（--admin-button-radius）。后台按钮最小高度 2.5rem（--admin-control-height），图标按钮不套用该高度。
 - **Primary:** 奶茶棕背景（#8B6045）+ 白色文字，用于主要操作（保存、确认）
 - **Secondary:** 暖灰背景（#F6F4F1）+ 深色文字，用于次要操作（刷新、取消）
 - **Ghost:** 透明背景 + 次要文字色，用于图标按钮（表格行操作）
 - **Destructive:** 危险红背景 + 白色文字，用于删除操作
-- **Hover / Focus:** 背景色加深一档，focus 显示 4px 暖色光晕（rgba(139,96,69,0.24)）
+- **Hover / Focus:** 背景色加深一档；键盘焦点是 3px 半透明暖色光晕（`--focus-ring: rgba(139,96,69,0.24)`，经 `--sh-ring` 桥接），并伴随边框变色。焦点态必须同时有颜色变化和光晕，不要只留光晕。
 
 ### Dialogs
+- **Admin Dialog:** 后台弹窗统一 `.admin-dialog`：三行栅格（页头 / 可滚动正文 `.admin-dialog__body` / 页脚），最大高度 `calc(100dvh - 2rem)`，外框 16px（--admin-radius-dialog）。宽度按任务定——小说编辑 540px、章节编辑 620px、章节融合 760px——不把弹窗拉成同一个宽度。页头/页脚/关闭按钮由 `data-slot='dialog-*'` 契约配合 Radix 实现。
 - **Mobile Editor:** 窄屏小说编辑窗口使用 `--admin-dialog-mobile-max-height` 收紧高度；底部操作区通过 `--admin-dialog-mobile-footer-*` 保持保存/取消同一行、不换行，并用 `--admin-dialog-mobile-action-min-*` 保留触控尺寸。
 
 ### Segmented Tabs
@@ -233,37 +262,43 @@ components:
 - **Consumers:** 抓取入口、审核类型以及其他后台分段 Tab 只覆盖消费方表面色值；几何、激活层、文字状态和动效统一读取 `--tabs-segmented-*`，不再维护页面级圆角、内缩、间距和位移字面量。
 
 ### Cards
-- **Corner Style:** 圆角 10px（--admin-radius）
-- **Background:** 白色/卡片色（var(--bg-card)），管理后台面板使用 admin-panel 标准化
-- **Shadow Strategy:** 静止无投影，hover 不变（Flat-By-Default Rule）
-- **Border:** 1px solid var(--admin-border)，暖灰色边框线
-- **Internal Padding:** 24px（--admin-space-5）
+- **Corner Style:** shadcn `Card` 为 16px（`rounded-xl`）；后台 `.admin-panel-card` 与数据面板为 20px（--radius-2xl）
+- **Background:** 白色/卡片色（var(--bg-card)），管理后台面板使用 `--admin-panel` 标准化
+- **Shadow Strategy:** 静止无投影，hover 也不加（Flat-By-Default Rule + Tonal-Admin Rule）
+- **Border:** 后台卡片本身 `border: 0`，靠表面色分层；内部页头用 1px `--admin-border` 底线分区
+- **Internal Padding:** 24px（--admin-space-5）；数据面板页头 `1.5rem 1.5rem 1.25rem`
 
 ### Inputs / Fields
-- **Style:** 1px 边框（var(--border)），白色背景，公共页圆角 6px、管理后台圆角 12px（--admin-input-radius），高度 2.25rem
-- **Focus:** 2px 暖棕色轮廓 + 4px 光晕，不改变边框颜色
-- **Compact Variant:** 高度 2rem，用于工具栏紧凑场景
+- **Style:** 管理后台输入框用 `--admin-border-strong` 描边、`--admin-panel` 底色、12px 圆角（--admin-input-radius），高度 2.5rem（--admin-control-height）。公共页保持 1px `var(--border)` + 6px 圆角。
+- **Focus:** 边框切换到强调色或 `--ring`，外加 3px 半透明光晕——焦点是可见的颜色变化，不只是光晕。
+- **Compact Variant:** `.admin-input--compact` 最小高度 34px（2.125rem），用于工具栏紧凑场景，与按钮一起取 12px 圆角。
+- **Multiline:** 输入框的固定高度规则不得作用于 textarea。长提示词、章节正文、JSON 使用可伸缩的多行区域。
 
 ### Named Rules
 **The Fit-Content Rule.** 输入框宽度随用途与提示信息而定，不设拉伸：短提示短框，长内容长框。避免 `flex-1` / `w-full` 把输入框撑满整行——工具栏里的过滤/搜索框用 `min-w` 限定下限、内容自然决定宽度，长 URL 输入才放宽。
 
+**The Data-Panel Contract Rule.** 后台数据表一律走 `AdminDataPanel` + `columns`。`columns` 只做两件事：注入 `--col-N-w` 宽度变量、添加 `.admin-data-panel--grid`。它**不会**渲染单元格，也不会写 data 属性——调用方必须让「列定义顺序 = thead 顺序 = tbody 单元格顺序」三者一致，并手动标注 `data-primary` / `data-label` / `data-actions` / `data-check`。少写一个 `data-label`，那张卡片在 900px 以下就会缺一个字段标签；只传 `columns` 而不标属性，等于什么都没做。
+
 ### Navigation (Sidebar)
-- **Style:** 可折叠侧边栏，展开态 236px 宽，图标态 48px
+- **Style:** shadcn 可折叠侧边栏（`collapsible="icon"`, `variant="floating"`），展开态 16rem、图标态 3rem、移动端抽屉 18rem。底色 `--admin-sidebar`。
 - **Active State:** 左侧 2px 暖棕色竖线指示器（inset box-shadow）
-- **Typography:** 菜单项 0.875rem，分组标签 0.65rem uppercase + 0.1em 字距
+- **Typography:** 菜单项 0.875rem；分组标签 0.7rem + 0.1em 字距 + uppercase，颜色 `--text-muted`
 
 ### Table
-- **Admin Surface:** `AdminDataPanel` 是无外框、白色纸面，使用 20px 外圆角（`--admin-table-panel-radius`）；标题区与表格共享同一块纸面。
-- **Table Contract:** 表头、行分隔线、hover 背景和行高分别从 `--admin-table-header-*`、`--admin-table-border`、`--admin-table-row-hover-background`、`--admin-table-row-height` 读取；桌面端列宽仍由 `--col-N-w` 控制，900px 以下折成卡片。
+- **Admin Surface:** `AdminDataPanel` 是无外框、纸面色表面，使用 20px 外圆角（`--admin-table-panel-radius`）；标题区与表格共享同一块纸面。
+- **Table Contract:** 表头、行分隔线、hover 背景和行高分别从 `--admin-table-header-*`、`--admin-table-border`、`--admin-table-row-hover-background`、`--admin-table-row-height` 读取。桌面端列宽由 `--col-N-w` 注入：`@media (min-width: 901px)` 下启用 `table-layout: fixed` 并逐列消费该变量，规则覆盖第 1–12 列；**第 13 列起没有对应规则**，落到剩余宽度分配。范本统一使用百分比列宽且合计 100%——fixed 布局下百分比与 rem 混用时，定长列会先吃掉宽度。
+- **Breakpoint:** 900px 及以下是卡片化：thead 隐藏，`tr`/`td` 转 grid，`data-label` 变伪元素。与 901px↑ 的固定列宽成对，分界值是 900/901。
 - **Mobile Stack:** 移动端使用 `--admin-table-mobile-stack-gap` 保持行间距为 0，行不绘制左右外部描线；首行取消顶线以接续标题区，内部行只保留单条 `--admin-table-mobile-stack-divider` 水平分隔，末行使用 `--admin-table-mobile-card-radius` 的底部圆角收束。
-- **Data Details:** 分类标签间距使用 `--admin-table-tag-gap`，行操作区使用 `--admin-table-action-*`，排序按钮使用 `--admin-table-sort-*`；删除仅在 hover 时进入危险色。
+- **Data Details:** 分类标签间距使用 `--admin-table-tag-gap`，行操作区使用 `--admin-table-action-*`，排序按钮使用 `--admin-table-sort-*`；删除仅在 hover 时进入危险色。`.admin-cell-tags` 在桌面只显示前 3 个标签加 `+N` 徽章，900px 以下恢复全部并隐藏 `+N`——这是刻意的视口相关截断，完整列表始终对读屏可见。
 - **Motion:** 面板进入使用 `--admin-table-surface-enter` + offset，前 8 行使用 `--admin-table-row-enter` + `--admin-table-row-stagger-step` 依次出现；行、排序箭头、图标按钮的状态反馈使用 `--admin-table-row-interaction`。`prefers-reduced-motion: reduce` 下取消行位移动效，仅保留短淡入。
-- **Legacy Wrapper:** 仍存在的 `.table-wrapper` 是旧版表格容器，保持 10px `--admin-radius`；新后台数据表格统一走上述 `AdminDataPanel` 契约。
+- **Legacy Wrapper:** `.table-wrapper` 是旧版表格容器（10px `--admin-radius`、粘性表头），当前唯一消费者是书源表 `scrape/SourcesView.tsx` 的 `.source-panel__table-wrapper`；它在卡片模式下被 `--admin-table-*` 规则接管。不要再新增 `.table-wrapper`，新后台数据表格一律走 `AdminDataPanel`。
 
 ### Admin Tab Header (AdminTabHeader)
-- **Style:** flex 布局，标题 + 操作栏底部分隔线，间距 1rem
-- **Kicker:** 0.65rem uppercase + 0.1em 字距，暖灰色——用于分类标签
-- **Title:** clamp(1.25rem ~ 1.6rem) 自适应，700 字重
+- **Style:** 每个后台子页唯一的内容区页头：左侧标题 + 元信息胶囊 + 描述，右侧操作区。`flex-wrap` + `items-end`，间距 1rem，`margin-bottom: 1.5rem`，底部分隔线由各页变体关闭（小说、章节、审核页无底线）。
+- **Anatomy:** 只有一套。历史 `kicker` 眉题与 `hero` 变体已退役——标题上方不再出现小字，页面之间也不再有标题字号膨胀。
+- **Title:** `text-2xl`（1.5rem）起，CSS 覆写为 `clamp(1.5rem, 1.25rem + 0.65vw, 2rem)` / 700 / `letter-spacing: -0.04em`。
+- **Meta:** 标题右侧的 `admin-tab-header__meta` 胶囊承载列表计数等次要信息，左侧以竖线分隔。
+- **Ownership:** 页头由父容器通过 `AdminPage` 提供，`title` 传 `undefined` 时不渲染页头——供自带页头的子视图使用。
 
 ### Custom Combobox (CustomSelect)
 - **Style:** 基于 Popover + Command (cmdk) 的搜索下拉
@@ -279,11 +314,16 @@ components:
 - **Do** 在阅读器场景使用衬线字体营造沉浸感
 - **Do** 保持卡片和面板的扁平设计，仅在弹出层使用阴影
 - **Do** 在暗色模式使用月光暖调（金色强调 + 深灰地面），不要简单反转
+- **Do** 后台数据表统一走 `AdminDataPanel` + `columns` 契约，并手动标注 `data-primary` / `data-label` / `data-actions`
+- **Do** 让每个页面只保留一个内容区主标题，面板标题写工作对象名
+- **Do** 用 `data-slot` 属性匹配 shadcn 组件（`table.tsx` / `dialog.tsx` 都带契约），而不是依赖 Tailwind 生成的类名
 
 ### Don't:
 - **Don't** 使用纯黑（#000000）或纯白作为大面积背景——永远带暖调
 - **Don't** 使用冷色蓝/紫/绿作为强调色——系统只有暖棕一个强调色
-- **Don't** 给卡片添加 hover 阴影效果——Flat-By-Default Rule
-- **Don't** 使用超过 3 种字号层级——保持排版的克制和统一
-- **Don't** 在管理后台使用花哨的动画——仅使用 160ms ease-out 的微妙过渡
+- **Don't** 给卡片或数据面板添加 hover 阴影效果——Flat-By-Default Rule 与 Tonal-Admin Rule
+- **Don't** 在同一个信息块里堆叠超过 3 级字号——字阶本身是分档的（通用 / 后台紧凑 / 阅读表面），但单块内保持克制，不要为了"更醒目"临时插一档
+- **Don't** 给后台加装饰性动效。状态反馈统一 150ms（`--admin-table-row-interaction`），面板进入 220ms（`--admin-table-surface-enter`），分段 tabs 位移 180ms——除此之外不加动效
 - **Don't** 忽略 prefers-reduced-motion 媒体查询——尊重用户的动画偏好
+- **Don't** 给数据面板套用 `columns` 之外的列宽方案，或手写 `--col-N-w`。列宽契约只有一个入口
+- **Don't** 在页标题上方再加小字眉题，或用面板标题重复当前页面名

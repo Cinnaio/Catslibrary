@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-08-11T22:46:08.000Z",
+  "generatedAt": "2026-09-16T00:00:00.000Z",
   "title": "Design System: 知舟 (Zhi Zhou)",
   "extensions": {
     "colorMeta": {
@@ -24,6 +24,11 @@
         "role": "primary",
         "displayName": "Cream Wash",
         "canonical": "#F8F3EC"
+      },
+      "focus-ring": {
+        "role": "primary",
+        "displayName": "Warm Focus Halo",
+        "canonical": "rgba(139, 96, 69, 0.24)"
       },
       "text-primary": {
         "role": "neutral",
@@ -126,7 +131,7 @@
       "body": { "displayName": "System Sans", "purpose": "All body text and UI labels. PingFang SC / Microsoft YaHei for CJK." },
       "serif": { "displayName": "Noto Serif SC", "purpose": "Reading mode only. Creates paper-book immersion." },
       "mono": { "displayName": "SF Mono", "purpose": "Code display and monospace data (job IDs, URLs)." },
-      "scale": { "displayName": "Enumerated Type Scale", "purpose": "Machine-readable size ramp (frontmatter). Compact admin band (labels/counts/table): label-sm 0.7rem → table-head 0.72rem → label 0.75rem → caption 0.78rem → body-compact 0.8rem → source-toolbar 0.82rem → body-sm 0.875rem → select-trigger 0.9rem → card-title 0.95rem → body 1rem → modal-title 1.15rem → title 1.25rem → hero 1.45rem → stat 1.75rem → display 2rem. Reading Surface band (reader.css, scoped to .reader-app only — never leaks to public/admin, and the reader never uses the compact admin band): reader-body 1.1rem / line-height 2.05 (mobile drops to body 1rem / 1.85) → reader-glyph 1.35rem (icon-button glyphs / mobile chapter title) → reader-title clamp(1.55rem, 3vw, 2.15rem) (mobile fixed 1.35rem) → reader-watermark clamp(3rem, 8vw, 6rem) (mobile 3.2rem), the serif 读 watermark on the paper." }
+      "scale": { "displayName": "Enumerated Type Scale", "purpose": "Machine-readable size ramp (frontmatter). General band: label-sm 0.7rem → table-head 0.72rem → label 0.75rem → caption 0.78rem → body-compact 0.8rem → source-toolbar 0.82rem → body-sm 0.875rem → select-trigger 0.9rem → card-title 0.95rem → body 1rem → modal-title 1.15rem → panel-title 1.25rem → stat 1.45rem → page-title clamp(1.5rem, 1.25rem + 0.65vw, 2rem) → display 2rem. The admin page title is the single largest text and the only page-level heading on a navigable page; panel titles sit one step below it so panels never compete with the page. Reading Surface band (reader.css, scoped to .reader-app only — never leaks to public/admin, and the reader never uses the compact admin band): reader-body 1.1rem / line-height 2.05 (mobile drops to body 1rem / 1.85) → reader-glyph 1.35rem (icon-button glyphs / mobile chapter title) → reader-title clamp(1.55rem, 3vw, 2.15rem) (mobile fixed 1.35rem) → reader-watermark clamp(3rem, 8vw, 6rem) (mobile 3.2rem), the serif 读 watermark on the paper." }
     },
     "shadows": [
       { "name": "rest", "value": "0 1px 2px rgba(40,32,24,0.04), 0 1px 3px rgba(40,32,24,0.05)", "purpose": "Subtle card/button resting shadow — like paper lifting slightly." },
@@ -134,8 +139,8 @@
       { "name": "large", "value": "0 16px 40px rgba(40,32,24,0.12)", "purpose": "Large floating surfaces." },
       { "name": "popover", "value": "0 8px 28px rgba(40,32,24,0.12)", "purpose": "Dropdowns and pickers." },
       { "name": "modal", "value": "0 24px 70px rgba(40,32,24,0.18)", "purpose": "Modal dialog overlay — heaviest shadow, still warm-toned." },
-      { "name": "admin-ambient", "value": "0 18px 48px rgba(40,32,24,0.10)", "purpose": "Admin panel cards and surfaces." },
-      { "name": "admin-soft", "value": "0 10px 26px rgba(40,32,24,0.07)", "purpose": "Lightweight admin surfaces." },
+      { "name": "admin-ambient", "value": "0 18px 48px rgba(40,32,24,0.10)", "purpose": "Floating admin surfaces only (--admin-shadow). Admin panels and data panels stay box-shadow:none." },
+      { "name": "admin-soft", "value": "0 10px 26px rgba(40,32,24,0.07)", "purpose": "Lightweight floating admin surfaces (--admin-shadow-soft)." },
       { "name": "reader-paper", "value": "0 22px 58px rgba(40,32,24,0.10)", "purpose": "The reading surface itself — the paper sheet lifts physically above the page (--reader-shadow)." },
       { "name": "reader-soft", "value": "0 12px 30px rgba(40,32,24,0.07)", "purpose": "Frosted reader top bar, chapter dropdown, settings popover (--reader-shadow-soft)." },
       { "name": "dark-rest", "value": "0 1px 2px rgba(0,0,0,0.22), 0 1px 3px rgba(0,0,0,0.28)", "purpose": "Dark theme resting shadow." },
@@ -144,20 +149,27 @@
       { "name": "dark-reader-soft", "value": "0 12px 30px rgba(0,0,0,0.24)", "purpose": "Frosted reader surfaces in dark theme." }
     ],
     "motion": [
-      { "name": "ease-standard", "value": "cubic-bezier(0.4, 0, 0.2, 1)", "purpose": "Default easing for state transitions." },
-      { "name": "admin-enter", "value": "160ms ease-out", "purpose": "Tab content entrance — opacity + 3px translateY." },
-      { "name": "admin-highlight", "value": "1.8s ease-out", "purpose": "Row highlight animation after navigation." },
+      { "name": "ease-standard", "value": "cubic-bezier(0.4, 0, 0.2, 1)", "purpose": "Default easing for state transitions (--ease)." },
+      { "name": "ease-out", "value": "cubic-bezier(0.23, 1, 0.32, 1)", "purpose": "Discrete entrances and exits (--ease-out)." },
+      { "name": "admin-row-interaction", "value": "150ms cubic-bezier(0.4, 0, 0.2, 1)", "purpose": "Admin table rows, sort carets, icon buttons (--admin-table-row-interaction). The default admin state transition." },
+      { "name": "admin-surface-enter", "value": "220ms cubic-bezier(0.23, 1, 0.32, 1)", "purpose": "Admin panel/surface entrance (--admin-table-surface-enter) with 0.5rem offset." },
+      { "name": "admin-row-enter", "value": "180ms cubic-bezier(0.23, 1, 0.32, 1)", "purpose": "First 8 table rows entrance (--admin-table-row-enter) with 30ms stagger step." },
+      { "name": "admin-highlight", "value": "1.8s cubic-bezier(0.23, 1, 0.32, 1)", "purpose": "Row highlight after deep-link navigation (--admin-table-row-highlight)." },
+      { "name": "tabs-segmented", "value": "180ms cubic-bezier(0.23, 1, 0.32, 1)", "purpose": "Segmented tab active-surface transform; must collapse to ~0 under prefers-reduced-motion." },
       { "name": "theme-transition", "value": "0.18s ease", "purpose": "Color transition during theme switch." },
       { "name": "reader-state", "value": "150ms ease", "purpose": "Reader control hover / panel open state transitions (reader.css transition: all 0.15s)." },
       { "name": "reader-loading-sweep", "value": "0.9s ease-in-out", "purpose": "Reading surface loading bar — accent sweep across the top edge." }
     ],
     "breakpoints": [
-      { "name": "xs", "value": "400px" },
-      { "name": "sm", "value": "640px" },
-      { "name": "md", "value": "768px" },
-      { "name": "lg", "value": "900px" },
-      { "name": "xl", "value": "1200px" },
-      { "name": "wide", "value": "1440px" }
+      { "name": "xs", "value": "400px", "purpose": "Buttons go full width; discover toolbar swaps radius." },
+      { "name": "sm", "value": "640px", "purpose": "Compact spacing, smaller page-header margin, toolbars wrap; admin canvas padding drops to 1rem." },
+      { "name": "md", "value": "768px", "purpose": "Mobile shell and public grid single column (mobile.css)." },
+      { "name": "md-wide", "value": "880px", "purpose": "AI params form grid collapses to one column." },
+      { "name": "lg", "value": "900px", "purpose": "THE admin pivot: tables fold into cards, toolbars go vertical, context panels stack. Pairs with 901px fixed column widths." },
+      { "name": "lg-up", "value": "901px", "purpose": "Desktop fixed table column widths activate (--col-N-w, columns 1-12)." },
+      { "name": "xl", "value": "1100px", "purpose": "Scrape center layout gains its aside; AI provider config becomes two columns." },
+      { "name": "toolbar", "value": "1240px", "purpose": "Moderation toolbar turns vertical and its filters go full width." },
+      { "name": "wide", "value": "1440px", "purpose": "Admin content column max width." }
     ]
   },
   "components": [
@@ -165,9 +177,9 @@
       "name": "Primary Button",
       "kind": "button",
       "refersTo": "button-primary",
-      "description": "Main action button. Milk-tea brown background, white text. Admin variant uses 12px radius.",
+      "description": "Main action button. Milk-tea brown background, white text. Public pages use 6px radius; admin uses 12px (--admin-button-radius) with a 2.5rem minimum height.",
       "html": "<button class=\"ds-btn-primary\">保存</button>",
-      "css": ".ds-btn-primary { background: #8B6045; color: #FFFFFF; padding: 8px 16px; border: none; border-radius: 6px; font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: background 0.15s ease; min-height: 2.25rem; } .ds-btn-primary:hover { background: #74503A; } .ds-btn-primary:focus-visible { outline: 2px solid #8B6045; outline-offset: 2px; box-shadow: 0 0 0 4px rgba(139,96,69,0.24); }"
+      "css": ".ds-btn-primary { background: #8B6045; color: #FFFFFF; padding: 8px 16px; border: none; border-radius: 6px; font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: background 0.15s ease; min-height: 2.25rem; } .ds-btn-primary:hover { background: #74503A; } .ds-btn-primary:focus-visible { outline: none; border-color: #74503A; box-shadow: 0 0 0 3px rgba(139,96,69,0.24); }"
     },
     {
       "name": "Secondary Button",
@@ -175,53 +187,61 @@
       "refersTo": "button-secondary",
       "description": "Default action button. Warm linen background, dark text.",
       "html": "<button class=\"ds-btn-secondary\">刷新</button>",
-      "css": ".ds-btn-secondary { background: #F6F4F1; color: #211E1A; padding: 8px 16px; border: 1px solid #ECE8E2; border-radius: 6px; font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: background 0.15s ease; min-height: 2.25rem; } .ds-btn-secondary:hover { background: #F5F2EE; }"
+      "css": ".ds-btn-secondary { background: #F6F4F1; color: #211E1A; padding: 8px 16px; border: 1px solid #ECE8E2; border-radius: 6px; font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: background 0.15s ease; min-height: 2.25rem; } .ds-btn-secondary:hover { background: #F5F2EE; } .ds-btn-secondary:focus-visible { outline: none; border-color: #8B6045; box-shadow: 0 0 0 3px rgba(139,96,69,0.24); }"
     },
     {
       "name": "Ghost Button",
       "kind": "button",
       "refersTo": "button-ghost",
-      "description": "Icon-only row action. Transparent, appears on hover.",
+      "description": "Icon-only row action. Transparent, appears on hover. In admin tables the delete action only turns danger-colored on hover.",
       "html": "<button class=\"ds-btn-ghost\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M12 5v14M5 12h14\"/></svg></button>",
-      "css": ".ds-btn-ghost { background: transparent; color: #5B554E; padding: 8px; border: none; border-radius: 6px; cursor: pointer; transition: color 0.15s, background 0.15s; display: inline-flex; align-items: center; justify-content: center; min-width: 2rem; min-height: 2rem; } .ds-btn-ghost:hover { color: #211E1A; background: rgba(139,96,69,0.05); }"
+      "css": ".ds-btn-ghost { background: transparent; color: #5B554E; padding: 8px; border: none; border-radius: 6px; cursor: pointer; transition: color 0.15s, background 0.15s; display: inline-flex; align-items: center; justify-content: center; min-width: 2rem; min-height: 2rem; } .ds-btn-ghost:hover { color: #211E1A; background: rgba(139,96,69,0.05); } .ds-btn-ghost:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(139,96,69,0.24); }"
     },
     {
-      "name": "Destructive Button",
-      "kind": "button",
-      "refersTo": "button-destructive",
-      "description": "Destructive action (delete). Vermilion danger background, white text.",
-      "html": "<button class=\"ds-btn-danger\">删除</button>",
-      "css": ".ds-btn-danger { background: #BE123C; color: #FFFFFF; padding: 8px 16px; border: none; border-radius: 6px; font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: background 0.15s ease; min-height: 2.25rem; } .ds-btn-danger:hover { background: #9E1534; } .ds-btn-danger:focus-visible { outline: 2px solid #BE123C; outline-offset: 2px; }"
-    },
-    {
-      "name": "Card",
+      "name": "Admin Panel Card",
       "kind": "card",
       "refersTo": "card",
-      "description": "Content surface. Clean paper background, warm border, no shadow at rest.",
-      "html": "<div class=\"ds-card\"><div class=\"ds-card-header\">标题</div><div class=\"ds-card-content\">内容</div></div>",
-      "css": ".ds-card { background: var(--bg-card, #FFFFFF); border: 1px solid var(--admin-border, #ECE8E2); border-radius: 10px; padding: 24px; box-shadow: none; } .ds-card-header { margin-bottom: 16px; } .ds-card-header h3 { font-size: 1rem; font-weight: 600; color: #211E1A; margin: 0; }"
+      "description": "Admin content surface (.admin-panel-card). 20px radius, paper-colored, NO border and NO shadow — it separates from the canvas by surface tone alone. Header区 has a 1px bottom hairline.",
+      "html": "<div class=\"ds-admin-panel\"><div class=\"ds-admin-panel-header\"><h3>作品目录</h3><p>按标题、作者、章节数和更新时间管理书库</p></div><div class=\"ds-admin-panel-body\">内容</div></div>",
+      "css": ".ds-admin-panel { background: #FFFFFF; border: 0; border-radius: 20px; box-shadow: none; overflow: hidden; } .ds-admin-panel-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; padding: 1.5rem 1.5rem 1.25rem; border-bottom: 1px solid #E4E0D9; } .ds-admin-panel-header h3 { margin: 0; color: #211E1A; font-size: 1.25rem; font-weight: 750; letter-spacing: -0.03em; line-height: 1.3; } .ds-admin-panel-header p { margin: 0.35rem 0 0; color: #736D65; font-size: 0.875rem; } .ds-admin-panel-body { padding: 1.5rem; }"
     },
     {
       "name": "Input Field",
       "kind": "input",
       "refersTo": "input",
-      "description": "Text input. Clean border, warm focus ring. Admin variant uses 12px radius.",
+      "description": "Text input. Public pages: 6px radius on a faint border. Admin: 12px radius, stronger border (--admin-border-strong), 2.5rem height. Focus is a visible border shift plus a 3px halo — never a halo alone.",
       "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"搜索…\" />",
-      "css": ".ds-input { background: #FFFFFF; color: #211E1A; border: 1px solid #ECE8E2; border-radius: 6px; padding: 8px 12px; font-size: 0.875rem; min-height: 2.25rem; width: 100%; transition: border-color 0.15s, box-shadow 0.15s; } .ds-input:focus { outline: none; border-color: #8B6045; box-shadow: 0 0 0 3px rgba(139,96,69,0.2); } .ds-input::placeholder { color: #9A938A; }"
+      "css": ".ds-input { background: #FFFFFF; color: #211E1A; border: 1px solid #ECE8E2; border-radius: 6px; padding: 8px 12px; font-size: 0.875rem; min-height: 2.25rem; width: 100%; transition: border-color 0.15s, box-shadow 0.15s; } .ds-input:focus-visible { outline: none; border-color: #8B6045; box-shadow: 0 0 0 3px rgba(139,96,69,0.24); } .ds-input::placeholder { color: #736D65; } .ds-input--admin { border-radius: 12px; border-color: #DAD4CB; min-height: 2.5rem; }"
     },
     {
-      "name": "Table",
+      "name": "Admin Data Panel Table",
       "kind": "custom",
-      "refersTo": "table",
-      "description": "Data table with sticky header and warm border container.",
-      "html": "<div class=\"ds-table-wrap\"><table class=\"ds-table\"><thead><tr><th>标题</th><th>状态</th></tr></thead><tbody><tr><td>示例</td><td><span class=\"ds-badge\">完成</span></td></tr></tbody></table></div>",
-      "css": ".ds-table-wrap { border: 1px solid var(--admin-border, #ECE8E2); border-radius: 10px; background: var(--bg-card, #FFFFFF); overflow: hidden; } .ds-table { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 46rem; } .ds-table th { position: sticky; top: 0; height: 2.5rem; border-bottom: 1px solid #ECE8E2; background: #F0EDE9; color: #9A938A; font-size: 0.68rem; font-weight: 750; letter-spacing: 0.07em; text-transform: uppercase; text-align: left; padding: 0 16px; } .ds-table td { height: 3.25rem; border-bottom: 1px solid #ECE8E2; color: #5B554E; padding: 0 16px; } .ds-table tbody tr:hover td { background: rgba(139,96,69,0.05); }"
+      "refersTo": "admin-data-panel",
+      "description": "The canonical admin data table. AdminDataPanel is a 20px-radius paper surface with no border; its table header is transparent with a hairline, rows are 3.25rem. Below 900px rows become cards driven by the data-label attributes the caller must write.",
+      "html": "<div class=\"ds-data-panel\"><div class=\"ds-data-panel-head\"><h3>作品目录</h3></div><table class=\"ds-data-table\"><thead><tr><th>标题</th><th>状态</th><th>操作</th></tr></thead><tbody><tr><td data-primary data-label=\"标题\">长夜将明</td><td data-label=\"状态\"><span class=\"ds-badge\">连载</span></td><td data-actions data-label=\"操作\"><span class=\"ds-cell-actions\">…</span></td></tr></tbody></table></div>",
+      "css": ".ds-data-panel { background: #FFFFFF; border: 0; border-radius: 20px; box-shadow: none; } .ds-data-panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; padding: 1.5rem 1.5rem 1.25rem; border-bottom: 1px solid #E4E0D9; } .ds-data-panel-head h3 { margin: 0; color: #211E1A; font-size: 1.25rem; font-weight: 750; letter-spacing: -0.03em; } .ds-data-table { width: 100%; border-collapse: separate; border-spacing: 0; } .ds-data-table th { height: 2.5rem; padding: 0 1.25rem; background: transparent; border-bottom: 1px solid #E4E0D9; color: #211E1A; font-size: 0.72rem; font-weight: 750; letter-spacing: 0.07em; text-align: left; } .ds-data-table td { height: 3.25rem; padding: 0 1.25rem; border-bottom: 1px solid #E4E0D9; color: #5B554E; font-size: 0.875rem; } .ds-data-table tbody tr { transition: background 150ms cubic-bezier(0.4,0,0.2,1); } .ds-data-table tbody tr:hover td { background: rgba(248,243,236,0.64); } .ds-cell-actions { display: inline-flex; align-items: center; gap: 0.5rem; } @media (max-width: 900px) { .ds-data-table thead { display: none; } .ds-data-table tr { display: grid; } .ds-data-table td { display: grid; grid-template-columns: 6rem 1fr; height: auto; padding: 0.6rem 1.25rem; } .ds-data-table td::before { content: attr(data-label); color: #736D65; font-size: 0.72rem; } }"
     },
     {
-      "name": "Badge",
+      "name": "Admin Tab Header",
+      "kind": "custom",
+      "refersTo": "admin-tab-header",
+      "description": "The single content-area page header for every admin sub-page: title + meta capsule + description on the left, actions on the right. One anatomy only — the legacy kicker eyebrow and hero variant are retired.",
+      "html": "<header class=\"ds-tab-header\"><div><h2>小说管理<span class=\"ds-tab-header-meta\">128 部</span></h2><p>按标题、作者、章节数和更新时间管理书库</p></div><div class=\"ds-tab-header-actions\"><input class=\"ds-input ds-input--admin\" placeholder=\"搜索作品\" /><button class=\"ds-btn-primary\">新增小说</button></div></header>",
+      "css": ".ds-tab-header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 1rem; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid #E4E0D9; } .ds-tab-header h2 { display: flex; flex-wrap: wrap; align-items: center; gap: 0 0.5rem; margin: 0; color: #211E1A; font-size: clamp(1.5rem, 1.25rem + 0.65vw, 2rem); font-weight: 700; letter-spacing: -0.04em; line-height: 1.15; } .ds-tab-header-meta { margin-left: 0.25rem; padding-left: 0.75rem; border-left: 1px solid #E4E0D9; color: #736D65; font-size: 0.72rem; font-weight: 500; } .ds-tab-header p { margin: 0.35rem 0 0; color: #736D65; font-size: 0.875rem; } .ds-tab-header-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0.5rem; min-width: 0; }"
+    },
+    {
+      "name": "Segmented Tabs",
+      "kind": "chip",
+      "refersTo": "tabs-segmented",
+      "description": "Inset segmented control: 12px track, 3px inset, 9px active surface. Geometry and motion come from --tabs-segmented-* tokens; consumers only swap surface colors.",
+      "html": "<div class=\"ds-segmented\"><button class=\"ds-segmented-item ds-active\">抓取入口</button><button class=\"ds-segmented-item\">书源管理</button><button class=\"ds-segmented-item\">代理设置</button></div>",
+      "css": ".ds-segmented { display: inline-flex; align-items: center; gap: 3px; padding: 3px; border: 1px solid #ECE8E2; border-radius: 12px; background: #F6F4F1; } .ds-segmented-item { padding: 0.35rem 0.85rem; border: 0; border-radius: 9px; background: transparent; color: #736D65; font-size: 14px; font-weight: 400; line-height: 1.6; cursor: pointer; transition: color 180ms cubic-bezier(0.23,1,0.32,1), background 180ms cubic-bezier(0.23,1,0.32,1); } .ds-segmented-item:hover { color: #211E1A; } .ds-segmented-item.ds-active { background: #FFFFFF; color: #74503A; box-shadow: 0 1px 2px rgba(40,32,24,0.04), 0 1px 3px rgba(40,32,24,0.05); }"
+    },
+    {
+      "name": "Badge / Status Pill",
       "kind": "chip",
       "refersTo": "badge",
-      "description": "Status indicator pill. Semantic color variants.",
+      "description": "Status indicator pill. Fully rounded, semantic color variants at 10% tint.",
       "html": "<span class=\"ds-badge\">已完成</span>",
       "css": ".ds-badge { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; background: #F6F4F1; color: #5B554E; border: 1px solid #ECE8E2; } .ds-badge-success { background: rgba(79,122,82,0.1); color: #4F7A52; } .ds-badge-warning { background: rgba(176,124,47,0.1); color: #B07C2F; } .ds-badge-danger { background: rgba(190,18,60,0.1); color: #BE123C; }"
     },
@@ -229,9 +249,17 @@
       "name": "Sidebar Navigation",
       "kind": "nav",
       "refersTo": "navigation",
-      "description": "Collapsible admin sidebar (236px expanded / 48px icon). Active item carries a 2px warm-brown left indicator via inset box-shadow; group labels are tiny uppercase kickers.",
-      "html": "<nav class=\"ds-sidenav\"><div class=\"ds-sidenav-label\">书库</div><a class=\"ds-sidenav-item ds-active\" href=\"#\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\"><path d=\"M4 19.5A2.5 2.5 0 0 1 6.5 17H20\"/><path d=\"M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z\"/></svg><span>小说管理</span></a><a class=\"ds-sidenav-item\" href=\"#\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\"><path d=\"M12 5v14M5 12h14\"/></svg><span>章节管理</span></a></nav>",
-      "css": ".ds-sidenav { display: flex; flex-direction: column; gap: 2px; width: 236px; padding: 8px 10px; background: var(--bg-secondary, #F6F4F1); border-right: 1px solid var(--border, #ECE8E2); } .ds-sidenav-label { height: 1.75rem; display: flex; align-items: center; padding: 0 10px; color: #736D65; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; } .ds-sidenav-item { display: flex; align-items: center; gap: 10px; min-height: 2.25rem; padding: 0 10px; border-radius: 6px; color: #5B554E; font-size: 0.875rem; text-decoration: none; transition: color 0.15s, background 0.15s; } .ds-sidenav-item svg { flex-shrink: 0; } .ds-sidenav-item:hover { color: #211E1A; background: rgba(139,96,69,0.06); } .ds-sidenav-item.ds-active { color: #8B6045; background: rgba(139,96,69,0.08); box-shadow: inset 2px 0 0 #8B6045; }"
+      "description": "Collapsible shadcn sidebar (variant=floating, collapsible=icon): 16rem expanded / 3rem icon / 18rem mobile drawer. Active item carries a 2px warm-brown left indicator via inset box-shadow; group labels are tiny uppercase kickers. Note: the legacy .admin grid (236px) is no longer the width source.",
+      "html": "<nav class=\"ds-sidenav\"><div class=\"ds-sidenav-label\">内容库</div><a class=\"ds-sidenav-item ds-active\" href=\"#\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\"><path d=\"M4 19.5A2.5 2.5 0 0 1 6.5 17H20\"/><path d=\"M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z\"/></svg><span>小说管理</span></a><a class=\"ds-sidenav-item\" href=\"#\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\"><path d=\"M12 5v14M5 12h14\"/></svg><span>章节管理</span></a></nav>",
+      "css": ".ds-sidenav { display: flex; flex-direction: column; gap: 2px; width: 16rem; padding: 8px 10px; background: color-mix(in srgb, #F8F3EC 25%, #FFFFFF); border-right: 1px solid #ECE8E2; } .ds-sidenav-label { height: 1.75rem; display: flex; align-items: center; padding: 0 10px; color: #736D65; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; } .ds-sidenav-item { display: flex; align-items: center; gap: 10px; min-height: 2rem; padding: 0 10px; border-radius: 10px; color: #5B554E; font-size: 0.875rem; text-decoration: none; transition: color 0.15s, background 0.15s; } .ds-sidenav-item svg { flex-shrink: 0; } .ds-sidenav-item:hover { color: #211E1A; background: rgba(139,96,69,0.06); } .ds-sidenav-item.ds-active { color: #8B6045; background: rgba(139,96,69,0.08); box-shadow: inset 2px 0 0 #8B6045; }"
+    },
+    {
+      "name": "Admin Dialog",
+      "kind": "custom",
+      "refersTo": "admin-dialog",
+      "description": "Admin modal: three-row grid (header / scrollable body / footer), 16px radius, max-height calc(100dvh - 2rem). Width is chosen per task — 540px novel editor, 620px chapter editor, 760px chapter merge — not forced to one value.",
+      "html": "<div class=\"ds-admin-dialog\"><div class=\"ds-admin-dialog-header\"><h2>编辑小说</h2></div><div class=\"ds-admin-dialog-body\">…</div><div class=\"ds-admin-dialog-footer\"><button class=\"ds-btn-secondary\">取消</button><button class=\"ds-btn-primary\">保存</button></div></div>",
+      "css": ".ds-admin-dialog { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; width: 540px; max-height: calc(100dvh - 2rem); overflow: hidden; border-radius: 16px; background: #FFFFFF; box-shadow: 0 24px 70px rgba(40,32,24,0.18); } .ds-admin-dialog-header { padding: 1.5rem 1.75rem 0; } .ds-admin-dialog-header h2 { margin: 0; color: #211E1A; font-size: 1.15rem; font-weight: 700; letter-spacing: -0.03em; } .ds-admin-dialog-body { overflow-y: auto; padding: 1.25rem 1.75rem 1.5rem; } .ds-admin-dialog-footer { display: flex; justify-content: flex-end; gap: 0.5rem; padding: 1rem 1.75rem; background: color-mix(in srgb, #F6F4F1 78%, #F8F3EC); border-top: 1px solid #E4E0D9; }"
     },
     {
       "name": "Reader Paper",
@@ -244,19 +272,24 @@
   ],
   "narrative": {
     "northStar": "The Paper Sanctuary",
-    "overview": "知舟的设计语言来自一个简单的感觉：在温暖的光线下翻阅纸质书。界面是安静的，像书房里被台灯照亮的纸页——没有刺眼的对比，没有冰冷的玻璃感，只有柔和的奶油色地面和深沉的墨色文字。这不是一个\"科技产品\"的界面，而是一个\"阅读空间\"的界面。\n\n色彩来自奶茶和旧书页：暖棕作为唯一的强调色（像书脊上的烫金字），大面积使用接近白色的暖灰和奶油色作为呼吸空间。阴影克制而自然，像纸页层叠投下的微光。组件有微妙的触觉感——圆润但不幼稚，边框细致如精装书的切边。",
+    "overview": "知舟的设计语言来自一个简单的感觉：在温暖的光线下翻阅纸质书。界面是安静的，像书房里被台灯照亮的纸页——没有刺眼的对比，没有冰冷的玻璃感，只有柔和的奶油色地面和深沉的墨色文字。这不是一个\"科技产品\"的界面，而是一个\"阅读空间\"的界面。\n\n色彩来自奶茶和旧书页：暖棕作为唯一的强调色（像书脊上的烫金字），大面积使用接近白色的暖灰和奶油色作为呼吸空间。阴影克制而自然，像纸页层叠投下的微光。组件有微妙的触觉感——圆润但不幼稚，边框细致如精装书的切边。\n\n系统里有两种读者：沉浸的阅读者和高效的运营者。公共阅读页服务于前者，管理后台服务于后者。两者共享同一套色调、字体和材质，但密度完全不同——后台把信息压到紧凑档以便扫描，阅读页把字号放大到舒适档以便久读。两种模式的边界是明确的，字阶与间距各自成档、互不外溢。",
     "keyCharacteristics": [
       "奶茶色暖调贯穿，拒绝冷色和高饱和度",
       "纸质感地面（接近白色的暖灰），文字如墨迹",
       "阴影极简，依赖色调层次而非投影创造深度",
       "系统字体 + 衬线字体用于阅读场景",
-      "组件触感温暖，圆角适度，像精心制作的文具"
+      "组件触感温暖，圆角适度，像精心制作的文具",
+      "后台是同一世界的紧凑档：同一套 token，更高的信息密度"
     ],
     "rules": [
       { "name": "The 10% Accent Rule", "body": "奶茶棕色强调色在任何页面上不超过 10% 的面积。它的稀有性就是力量——读者的眼睛自然被引导到最重要的交互点。", "section": "colors" },
+      { "name": "The Derived-Surface Rule", "body": "后台表面永远是 color-mix 派生自公开色板的结果，不新开一套颜色。新表面要先问\"它是哪两个既有 token 的混合\"，答不上来就不要加。", "section": "colors" },
       { "name": "The Content-First Rule", "body": "字体永远是配角。系统字体不创造风格，内容本身创造风格。唯一例外是阅读器中的衬线体——那是为沉浸而存在的。", "section": "typography" },
+      { "name": "The One Title Rule", "body": "每个可导航页面只有一个内容区主标题，由页头承担。面板标题写工作对象名（\"作品目录\"、\"章节目录\"、\"审核列表\"），不重复页面名。页头上方不再出现小字眉题——AdminTabHeader 的 kicker 与 hero 变体已退役，两个 prop 仍被接受但被忽略。标题字号膨胀和\"每页一个更大的标题\"都是被明确否定的方向。", "section": "typography" },
       { "name": "The Flat-By-Default Rule", "body": "所有表面在静止状态是平的。阴影仅作为状态响应出现（hover、elevation、focus），或为弹出层提供层次暗示。", "section": "elevation" },
-      { "name": "The Fit-Content Rule", "body": "输入框宽度随用途与提示信息而定，不设拉伸：短提示短框，长内容长框。避免 flex-1 / w-full 把输入框撑满整行——工具栏里的过滤/搜索框用 min-w 限定下限、内容自然决定宽度，长 URL 输入才放宽。", "section": "components" }
+      { "name": "The Tonal-Admin Rule", "body": "后台一个像素的阴影都不要加。面板靠表面色 + 1px 描边区分层次；一旦给数据面板加投影，它就会在密集列表里看起来像浮起的卡片，破坏扫描。", "section": "elevation" },
+      { "name": "The Fit-Content Rule", "body": "输入框宽度随用途与提示信息而定，不设拉伸：短提示短框，长内容长框。避免 flex-1 / w-full 把输入框撑满整行——工具栏里的过滤/搜索框用 min-w 限定下限、内容自然决定宽度，长 URL 输入才放宽。", "section": "components" },
+      { "name": "The Data-Panel Contract Rule", "body": "后台数据表一律走 AdminDataPanel + columns。columns 只做两件事：注入 --col-N-w 宽度变量、添加 .admin-data-panel--grid。它不会渲染单元格，也不会写 data 属性——调用方必须让「列定义顺序 = thead 顺序 = tbody 单元格顺序」三者一致，并手动标注 data-primary / data-label / data-actions / data-check。少写一个 data-label，那张卡片在 900px 以下就会缺一个字段标签；只传 columns 而不标属性，等于什么都没做。", "section": "components" }
     ],
     "dos": [
       "Do 使用暖灰色调作为地面和背景，保持\"纸面\"质感",
@@ -264,15 +297,20 @@
       "Do 在管理后台使用 --admin-* 语义化间距和圆角变量",
       "Do 在阅读器场景使用衬线字体营造沉浸感",
       "Do 保持卡片和面板的扁平设计，仅在弹出层使用阴影",
-      "Do 在暗色模式使用月光暖调（金色强调 + 深灰地面），不要简单反转"
+      "Do 在暗色模式使用月光暖调（金色强调 + 深灰地面），不要简单反转",
+      "Do 后台数据表统一走 AdminDataPanel + columns 契约，并手动标注 data-primary / data-label / data-actions",
+      "Do 让每个页面只保留一个内容区主标题，面板标题写工作对象名",
+      "Do 用 data-slot 属性匹配 shadcn 组件（table.tsx / dialog.tsx 都带契约），而不是依赖 Tailwind 生成的类名"
     ],
     "donts": [
       "Don't 使用纯黑（#000000）或纯白作为大面积背景——永远带暖调",
       "Don't 使用冷色蓝/紫/绿作为强调色——系统只有暖棕一个强调色",
-      "Don't 给卡片添加 hover 阴影效果——Flat-By-Default Rule",
-      "Don't 使用超过 3 种字号层级——保持排版的克制和统一",
-      "Don't 在管理后台使用花哨的动画——仅使用 160ms ease-out 的微妙过渡",
-      "Don't 忽略 prefers-reduced-motion 媒体查询——尊重用户的动画偏好"
+      "Don't 给卡片或数据面板添加 hover 阴影效果——Flat-By-Default Rule 与 Tonal-Admin Rule",
+      "Don't 在同一个信息块里堆叠超过 3 级字号——字阶本身是分档的（通用 / 后台紧凑 / 阅读表面），但单块内保持克制，不要为了\"更醒目\"临时插一档",
+      "Don't 给后台加装饰性动效。状态反馈统一 150ms（--admin-table-row-interaction），面板进入 220ms（--admin-table-surface-enter），分段 tabs 位移 180ms——除此之外不加动效",
+      "Don't 忽略 prefers-reduced-motion 媒体查询——尊重用户的动画偏好",
+      "Don't 给数据面板套用 columns 之外的列宽方案，或手写 --col-N-w。列宽契约只有一个入口",
+      "Don't 在页标题上方再加小字眉题，或用面板标题重复当前页面名"
     ]
   }
 }
