@@ -766,57 +766,12 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
               )}
             </div>
           </div>
-          <div className="grid gap-4 border-t pt-5">
-            <div>
-              <p className="text-sm font-medium">小说分析</p>
-              <p className="text-xs text-muted-foreground">提取后自动注入续写：风格画像定文风，关系画像定人设边界，情节状态防断档。</p>
-            </div>
-            <ProfileSection
-              label="风格画像"
-              extracted={!!styleProfile}
-              busy={styleBusy}
-              disabled={busy || styleBusy || taskActive || !novelId}
-              actionText={styleBusy ? '提取中…' : styleProfile ? '重新提取' : '提取风格画像'}
-              onAction={() => void refreshStyleProfile()}
-              emptyHint="续写时会按通用的「保持风格一致」约束兜底；提取后则按本作原文的句式、节奏、语气、设定续写，文风一致性更好。建议在有 2 章以上正文后提取一次。"
-              content={styleProfile ? <ProfileText text={styleProfile} /> : undefined}
-            />
-            {mode === 'continue' && (
-              <ProfileSection
-                label="关系画像"
-                extracted={!!relationshipProfile}
-                busy={relationshipBusy}
-                disabled={busy || relationshipBusy || taskActive || !novelId}
-                actionText={relationshipBusy ? '提取中…' : relationshipProfile ? '重新提取' : '提取关系画像'}
-                onAction={() => void refreshRelationshipProfile()}
-                emptyHint="提取后把角色关系动态、权力结构、心理边界、互动尺度塞进续写，防止主从写成平等恋人、把奖赏手段当真心、从属试探写成主导。关系底色较稳定，建议取较长窗口看清演变。"
-                sampleLabel="关系画像取样章数"
-                sample={{ value: relationshipSample, min: 1, max: 30, onChange: (value) => setRelationshipSample(Math.max(1, Math.min(30, value || 10))) }}
-                content={relationshipProfile ? <ProfileText text={relationshipProfile} /> : undefined}
-              />
-            )}
-            {mode === 'continue' && (
-              <ProfileSection
-                label="情节状态"
-                extracted={!!plotState}
-                busy={plotBusy}
-                disabled={busy || plotBusy || taskActive || !novelId}
-                actionText={plotBusy ? '提取中…' : plotState ? '重新提取' : '提取情节状态'}
-                onAction={() => void refreshPlotState()}
-                emptyHint="多章续写时上下文会截断丢前文，提取后把角色处境、伏笔、待解决冲突塞进续写，人设不漂移、伏笔不遗忘。建议续写前更新一次。"
-                sampleLabel="情节状态取样章数"
-                sample={{ value: plotSample, min: 1, max: 30, onChange: (value) => setPlotSample(Math.max(1, Math.min(30, value || 8))) }}
-                content={plotState ? <ProfileText text={plotState} /> : undefined}
-                footnote={
-                  plotState ? (
-                    <p className="text-xs leading-5 text-muted-foreground">
-                      基于最近 {plotChaptersThrough} 章提取{plotChapterCount > 0 ? `（本书共 ${plotChapterCount} 章）` : ''}。情节状态反映「当前」进展，只取最近几章即可，无需等于全书章节数；若上次提取后又发布了新章节，建议重新提取。
-                    </p>
-                  ) : undefined
-                }
-              />
-            )}
-          </div>
+          {/* 执行区刻意排在「小说分析」之前：任务是每次都要跑的，三张画像是提取一次、
+              长期复用的资产（实测占 913px，是页面最高的区块）。原先把执行区放在最底部，
+              每次执行都得先滚过基本不变的分析文本 —— 续写模式下主按钮距顶部 2023px，
+              需滚 1123px 才出现，且中间还夹着两个「重新提取」按钮。
+              移到画像之前后，按钮落在约 190px 处，滚动任意位置都完整可见。
+              任务状态卡一并上移：它是「刚刚那次执行」的回执，属于本区语义。 */}
           <div className="ai-writing-actions grid gap-3 border-t pt-5">
             {mode === 'continue' && pendingDrafts > 0 && !taskActive && (
               <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
@@ -871,6 +826,57 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                 </Button>
               )}
             </div>
+          </div>
+          <div className="grid gap-4 border-t pt-5">
+            <div>
+              <p className="text-sm font-medium">小说分析</p>
+              <p className="text-xs text-muted-foreground">提取后自动注入续写：风格画像定文风，关系画像定人设边界，情节状态防断档。</p>
+            </div>
+            <ProfileSection
+              label="风格画像"
+              extracted={!!styleProfile}
+              busy={styleBusy}
+              disabled={busy || styleBusy || taskActive || !novelId}
+              actionText={styleBusy ? '提取中…' : styleProfile ? '重新提取' : '提取风格画像'}
+              onAction={() => void refreshStyleProfile()}
+              emptyHint="续写时会按通用的「保持风格一致」约束兜底；提取后则按本作原文的句式、节奏、语气、设定续写，文风一致性更好。建议在有 2 章以上正文后提取一次。"
+              content={styleProfile ? <ProfileText text={styleProfile} /> : undefined}
+            />
+            {mode === 'continue' && (
+              <ProfileSection
+                label="关系画像"
+                extracted={!!relationshipProfile}
+                busy={relationshipBusy}
+                disabled={busy || relationshipBusy || taskActive || !novelId}
+                actionText={relationshipBusy ? '提取中…' : relationshipProfile ? '重新提取' : '提取关系画像'}
+                onAction={() => void refreshRelationshipProfile()}
+                emptyHint="提取后把角色关系动态、权力结构、心理边界、互动尺度塞进续写，防止主从写成平等恋人、把奖赏手段当真心、从属试探写成主导。关系底色较稳定，建议取较长窗口看清演变。"
+                sampleLabel="关系画像取样章数"
+                sample={{ value: relationshipSample, min: 1, max: 30, onChange: (value) => setRelationshipSample(Math.max(1, Math.min(30, value || 10))) }}
+                content={relationshipProfile ? <ProfileText text={relationshipProfile} /> : undefined}
+              />
+            )}
+            {mode === 'continue' && (
+              <ProfileSection
+                label="情节状态"
+                extracted={!!plotState}
+                busy={plotBusy}
+                disabled={busy || plotBusy || taskActive || !novelId}
+                actionText={plotBusy ? '提取中…' : plotState ? '重新提取' : '提取情节状态'}
+                onAction={() => void refreshPlotState()}
+                emptyHint="多章续写时上下文会截断丢前文，提取后把角色处境、伏笔、待解决冲突塞进续写，人设不漂移、伏笔不遗忘。建议续写前更新一次。"
+                sampleLabel="情节状态取样章数"
+                sample={{ value: plotSample, min: 1, max: 30, onChange: (value) => setPlotSample(Math.max(1, Math.min(30, value || 8))) }}
+                content={plotState ? <ProfileText text={plotState} /> : undefined}
+                footnote={
+                  plotState ? (
+                    <p className="text-xs leading-5 text-muted-foreground">
+                      基于最近 {plotChaptersThrough} 章提取{plotChapterCount > 0 ? `（本书共 ${plotChapterCount} 章）` : ''}。情节状态反映「当前」进展，只取最近几章即可，无需等于全书章节数；若上次提取后又发布了新章节，建议重新提取。
+                    </p>
+                  ) : undefined
+                }
+              />
+            )}
           </div>
         </CardContent>
       </Card>
