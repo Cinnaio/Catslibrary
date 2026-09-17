@@ -137,7 +137,7 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
         title="任务列表"
         description="独立于爬取任务，查看生成进度、错误和输入 Prompt。"
         status={
-          <span className="ai-list-status">
+          <span className={`admin-panel-status${error && tasks.length === 0 ? ' is-error' : ''}`}>
             {loading && tasks.length === 0 ? '读取中' : error && tasks.length === 0 ? '读取失败' : tasks.length ? `显示 ${tasks.length} 条` : '暂无内容'}
           </span>
         }

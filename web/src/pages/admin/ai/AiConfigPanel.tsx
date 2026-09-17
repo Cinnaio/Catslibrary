@@ -176,7 +176,7 @@ export default function AiConfigPanel(props: {
         />
         <CardContent className="ai-config-providers">
           <section className="ai-provider-section grid gap-3">
-            <div className="ai-provider-section-heading flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="min-w-0">
                 <h3 className="flex items-center gap-2 text-sm font-medium text-foreground"><Sparkles className="size-3.5 text-primary" aria-hidden="true" />文本供应商</h3>
                 <p className="mt-0.5 truncate text-xs text-muted-foreground">{provider?.configured ? `${provider.host} · ${provider.model}` : '未配置，AI 文本功能不可用'}</p>
@@ -237,7 +237,7 @@ export default function AiConfigPanel(props: {
 
           {/* 图像供应商连接参数：用于 AI 封面生成。 */}
           <section className="ai-provider-section grid gap-3">
-            <div className="ai-provider-section-heading flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="min-w-0">
                 <h3 className="flex items-center gap-2 text-sm font-medium text-foreground"><Image className="size-3.5 text-primary" aria-hidden="true" />图像供应商</h3>
                 <p className="mt-0.5 truncate text-xs text-muted-foreground">{imageProviderConfig?.hasApiKey ? `已配置 · ${imageProviderConfig.model || '默认模型'}` : '未配置，AI 封面生成不可用'}</p>
@@ -296,13 +296,13 @@ export default function AiConfigPanel(props: {
       </Card>
 
       <div className="ai-config-secondary">
-      <Card className="admin-panel-card ai-config-card ai-config-policy-card">
+      <Card className="admin-panel-card ai-config-card">
           <AdminPanelHeading
             title={<span className="admin-panel-title"><BookOpenCheck className="size-4 text-primary" aria-hidden="true" />读者生成策略</span>}
             description="控制读者可用的前情提要与单次生成范围。"
           />
           <CardContent className="grid gap-4">
-          <label className="ai-config-toggle flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/30 px-4 py-3">
+          <label className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/30 px-4 py-3">
             <span className="min-w-0">
               <span className="block text-sm font-medium text-foreground">阅读器前情提要</span>
               <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">读者进入章节时可回顾上一章，结果按章缓存，全站共用一份</span>
@@ -349,7 +349,7 @@ export default function AiConfigPanel(props: {
           </CardContent>
       </Card>
 
-      <Card className="admin-panel-card ai-config-card ai-config-health">
+      <Card className="admin-panel-card ai-config-card">
           <AdminPanelHeading
             title={<span className="admin-panel-title"><Activity className="size-4 text-primary" aria-hidden="true" />服务检查与用量</span>}
             description="验证文本模型连接，并查看近期调用情况。"

@@ -736,7 +736,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
               )}
             </div>
           </div>
-          <div className="ai-writing-analysis grid gap-4 border-t pt-5">
+          <div className="grid gap-4 border-t pt-5">
             <div>
               <p className="text-sm font-medium">小说分析</p>
               <p className="text-xs text-muted-foreground">提取后自动注入续写：风格画像定文风，关系画像定人设边界，情节状态防断档。</p>

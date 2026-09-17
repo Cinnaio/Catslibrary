@@ -602,7 +602,7 @@ export default function AiGenerationsPanel(props: {
                     </div>
                   ))}
               </div>
-              <div className="ai-generation-result-label shrink-0 text-xs font-medium text-muted-foreground">生成正文</div>
+              <div className="shrink-0 text-xs font-medium text-muted-foreground">生成正文</div>
               {editingText === null ? (
                 <div className="min-h-0 flex-1 overflow-y-auto rounded-md border bg-muted/20 p-4 text-sm leading-7 whitespace-pre-wrap sm:p-5">
                   {viewing.result || '暂无内容'}
