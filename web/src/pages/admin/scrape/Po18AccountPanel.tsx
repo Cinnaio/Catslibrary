@@ -188,7 +188,7 @@ export default function Po18AccountPanel({ active }: { active: boolean }) {
         <section className="po18-account-section" aria-labelledby="po18-login-title">
           <div className="po18-account-section__head">
             <h4 id="po18-login-title" className="po18-account-section__title">
-              <UserRound className="size-3.5" aria-hidden="true" />
+              <UserRound className="size-4" aria-hidden="true" />
               账号登录
             </h4>
             <p className="po18-account-section__hint">填写 PO18.tw 登录账号；密码留空表示沿用已保存的密码。</p>
@@ -230,32 +230,47 @@ export default function Po18AccountPanel({ active }: { active: boolean }) {
             </Button>
           </div>
 
-          {/* 验证码挑战：紧贴触发它的按钮，出现时无需滚动到面板底部。 */}
+          {/* 验证码挑战：紧贴触发它的按钮，出现时无需滚动到面板底部。
+              结构与「代理连通性测试」的输入行一致：图片 + 输入框 + 紧邻的提交按钮。
+              标签置于整行上方，既保留常驻字段标签，又不让标签高度把图片挤到错位。 */}
           {challenge && (
             <div className="po18-account-captcha" role="group" aria-label="登录验证码">
-              {challenge.imageDataUrl ? (
-                <img src={challenge.imageDataUrl} alt="PO18.tw 登录验证码" className="po18-account-captcha__image" />
-              ) : (
-                <span className="po18-account-captcha__note">
-                  <CircleCheck className="size-3.5 shrink-0" aria-hidden="true" />
-                  当前登录页未检测到图片验证码，可直接尝试登录。
-                </span>
-              )}
               {challenge.captchaRequired && (
-                <div className="grid gap-1.5">
-                  <Label htmlFor="po18-account-captcha">验证码</Label>
+                <Label htmlFor="po18-account-captcha" className="po18-account-captcha__label">
+                  验证码
+                </Label>
+              )}
+              <div className="po18-account-captcha__row">
+                {challenge.imageDataUrl ? (
+                  <img
+                    src={challenge.imageDataUrl}
+                    alt="PO18.tw 登录验证码"
+                    className="po18-account-captcha__image"
+                  />
+                ) : (
+                  <span className="po18-account-captcha__note">
+                    <CircleCheck className="size-3.5 shrink-0" aria-hidden="true" />
+                    未检测到图片验证码，可直接尝试登录。
+                  </span>
+                )}
+                {challenge.captchaRequired && (
                   <Input
                     id="po18-account-captcha"
                     value={captcha}
                     onChange={(e) => setCaptcha(e.target.value)}
                     placeholder="填写图片中的字符"
                     autoComplete="off"
+                    className="po18-account-captcha__input"
                   />
-                </div>
-              )}
-              <Button size="sm" disabled={disabled || (challenge.captchaRequired && !captcha.trim())} onClick={() => void login()}>
-                {busy === 'login' ? '登录中…' : '提交登录'}
-              </Button>
+                )}
+                <Button
+                  size="sm"
+                  disabled={disabled || (challenge.captchaRequired && !captcha.trim())}
+                  onClick={() => void login()}
+                >
+                  {busy === 'login' ? '登录中…' : '提交登录'}
+                </Button>
+              </div>
             </div>
           )}
         </section>
@@ -264,7 +279,7 @@ export default function Po18AccountPanel({ active }: { active: boolean }) {
         <section className="po18-account-section po18-account-section--fallback" aria-labelledby="po18-fallback-title">
           <div className="po18-account-section__head">
             <h4 id="po18-fallback-title" className="po18-account-section__title">
-              <Cookie className="size-3.5" aria-hidden="true" />
+              <Cookie className="size-4" aria-hidden="true" />
               浏览器 Cookie 兜底
             </h4>
             <p className="po18-account-section__hint">验证码无法通过或自动登录不成功时，在浏览器登录 PO18.tw 后复制 Cookie 粘贴到这里。Cookie 不会回显。</p>

@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import CustomSelect from '@/components/admin/CustomSelect'
+import { PenLine } from 'lucide-react'
 
 // 后台创作任务的进度轮询间隔
 const TASK_POLL_INTERVAL = 3000
@@ -509,7 +510,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
     <div className="ai-writing-panel space-y-4">
       <Card className="admin-panel-card ai-writing-card">
         <AdminPanelHeading
-          title="创作工作台"
+          title={<span className="admin-panel-title"><PenLine className="size-4 text-primary" aria-hidden="true" />创作工作台</span>}
           description="生成结果先保存为草稿，编辑确认后再发布为正式章节。"
           actions={
             <Tabs value={mode} onValueChange={(value) => setMode(value as 'new' | 'continue')}>

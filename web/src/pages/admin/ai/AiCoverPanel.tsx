@@ -438,7 +438,7 @@ export default function AiCoverPanel() {
   return (
     <Card className="admin-panel-card ai-cover-card">
       <AdminPanelHeading
-        title="封面生成工作台"
+        title={<span className="admin-panel-title"><Palette className="size-4 text-primary" aria-hidden="true" />封面生成工作台</span>}
         description="根据小说标题、分类与简介生成封面 · 候选制，满意后采纳替换。"
       />
 
