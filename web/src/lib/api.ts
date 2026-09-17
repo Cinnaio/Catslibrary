@@ -1041,6 +1041,9 @@ export interface AiUsageSummary {
   costMillicents: number
 }
 
+/** 选段改写的四种模式，与 api/src/services/ai/rewrite.ts 的 RewriteMode 一致。 */
+export type RewriteMode = 'polish' | 'expand' | 'shorten' | 'custom'
+
 export interface AiTaskInfo {
   id: string
   userId: string
@@ -1290,8 +1293,40 @@ export const aiApi = {
     }> {
       return request('POST', '/ai/writing/plot-suggestions', data, true)
     },
-    updateDraft(id: string, result: string): Promise<{ ok: boolean; id: string; result: string }> {
+    updateDraft(id: string, result: string): Promise<{ ok: boolean; id: string; result: string; contentRevision: string }> {
       return request('PUT', `/ai/writing/drafts/${encodeURIComponent(id)}`, { result }, true)
+    },
+    /**
+     * 选段改写（建议阶段）：传 UTF-16 半开区间与选中文本，服务端校验选区与正文一致后
+     * 起一个后台任务。返回 taskId，用 task(taskId) 轮询；建议在 task.result 的 JSON 里。
+     * 只有 write_chapter / continue 的草稿可改写。
+     */
+    rewriteDraft(
+      id: string,
+      data: {
+        baseRevision: string
+        startUTF16: number
+        endUTF16: number
+        selectedText: string
+        mode: RewriteMode
+        instruction?: string
+        clientRequestId?: string
+      },
+    ): Promise<{ ok: boolean; taskId: string; total: number }> {
+      const clientRequestId = data.clientRequestId || newOperationId('ai-rewrite')
+      return request('POST', `/ai/writing/drafts/${encodeURIComponent(id)}/rewrite`, { ...data, clientRequestId }, true)
+    },
+    /**
+     * 应用改写建议：服务端在事务内重新校验草稿仍是 draft 且正文版本未变，
+     * 已变化返回 409 且 code='content_changed'，此时应重新读取正文再选段。
+     */
+    applyDraftRewrite(
+      id: string,
+      taskId: string,
+      data: { baseRevision: string; operationId?: string },
+    ): Promise<{ ok: boolean; id: string; result: string; contentRevision: string }> {
+      const operationId = data.operationId || newOperationId('ai-rewrite-apply')
+      return request('POST', `/ai/writing/drafts/${encodeURIComponent(id)}/rewrite/${encodeURIComponent(taskId)}/apply`, { baseRevision: data.baseRevision, operationId }, true)
     },
     publishDraft(id: string, data: { novelId: string; title: string }): Promise<{ ok: boolean; chapter: { id: string; title: string; order: number } }> {
       return request('POST', `/ai/writing/drafts/${encodeURIComponent(id)}/publish`, data, true)
@@ -1368,6 +1403,8 @@ export const aiApi = {
       batchCount: number
       /** 续写时从 AI 输出解析出的章节标题，用于发布自动填充 */
       draftTitle: string
+      /** 正文 SHA-256 版本；选段改写与保存都要拿它做乐观并发校验 */
+      contentRevision: string
     }>
     total: number
     limit: number
@@ -1380,6 +1417,29 @@ export const aiApi = {
     if (filters.limit) params.set('limit', String(filters.limit))
     if (filters.offset) params.set('offset', String(filters.offset))
     return request('GET', `/ai/generations?${params}`, null, true)
+  },
+  /** 单条生成详情：改写/保存后用它取权威的 result 与 contentRevision。 */
+  generation(id: string): Promise<{
+    item: {
+      id: string
+      novelId: string
+      novelTitle: string
+      chapterId: string
+      chapterTitle: string
+      kind: string
+      model: string
+      result: string
+      status: string
+      createdAt: number
+      prompt: string
+      batchId: string
+      batchIndex: number
+      batchCount: number
+      draftTitle: string
+      contentRevision: string
+    }
+  }> {
+    return request('GET', `/ai/generations/${encodeURIComponent(id)}`, null, true)
   },
   /** 删除单条已生成内容（管理端）：读者再访问时会重新生成并计配额。 */
   deleteGeneration(id: string): Promise<{ ok: boolean }> {

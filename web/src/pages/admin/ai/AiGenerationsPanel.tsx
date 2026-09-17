@@ -6,6 +6,7 @@ import { useToast, useConfirm } from '@/components/feedback'
 import { ErrorState, InlineError, LoadingState } from '@/components/admin/AsyncStates'
 import Pagination from '@/components/admin/Pagination'
 import AiPanelEmptyState from './AiPanelEmptyState'
+import DraftRewrite from './DraftRewrite'
 import { useAiConfigured } from './useAiConfigured'
 import { AdminDataPanel, AdminPanelHeading, AdminToolbar } from '@/components/admin/AdminWorkspace'
 import { Badge } from '@/components/ui/badge'
@@ -35,11 +36,17 @@ interface AiGenerationListItem {
   batchCount: number
   /** 续写时从 AI 输出解析出的章节标题，用于发布自动填充 */
   draftTitle: string
+  /** 正文 SHA-256 版本；选段改写的前置校验字段 */
+  contentRevision: string
   groupItems?: AiGenerationListItem[]
 }
 
 /** 可编辑的草稿类型：与后端 PUT /writing/drafts/:id 的白名单一致。 */
 const EDITABLE_KINDS = new Set(['write_chapter', 'continue', 'write_outline'])
+
+/** 可改写选段的类型：与后端 POST /writing/drafts/:id/rewrite 的白名单一致。
+ *  大纲不作为散文改写，故不在其列。 */
+const REWRITABLE_KINDS = new Set(['write_chapter', 'continue'])
 
 export default function AiGenerationsPanel(props: {
   scope: 'all' | 'reader' | 'writing'
@@ -268,8 +275,10 @@ export default function AiGenerationsPanel(props: {
     if (!text) return toast('内容不能为空', 'error')
     setSavingEdit(true)
     try {
-      await aiApi.writing.updateDraft(item.id, text)
-      setViewing({ ...item, result: text })
+      // 保存后正文版本必变；把新的 contentRevision 一并写回，
+      // 否则紧接着的选段改写会拿着旧版本号提交，被服务端 409 拒绝。
+      const saved = await aiApi.writing.updateDraft(item.id, text)
+      setViewing((current) => (current ? { ...current, result: text, contentRevision: saved.contentRevision } : current))
       setEditingText(null)
       toast('草稿已保存', 'success')
       void load()
@@ -277,6 +286,21 @@ export default function AiGenerationsPanel(props: {
       toast((err as Error).message || '保存失败', 'error')
     } finally {
       setSavingEdit(false)
+    }
+  }
+
+  /** 重新读取当前草稿的权威正文与版本号。
+   *  改写应用遇到 409（正文已变化）时必须走这里：本地缓存的结果与版本号都已过期，
+   *  不重新读取就无法再选段。 */
+  async function refreshViewing() {
+    const id = viewing?.id
+    if (!id) return
+    try {
+      const { item } = await aiApi.generation(id)
+      setViewing((current) => (current && current.id === id ? { ...current, ...item } : current))
+      setEditingText(null)
+    } catch (err) {
+      toast((err as Error).message || '重新读取草稿失败', 'error')
     }
   }
 
@@ -628,6 +652,18 @@ export default function AiGenerationsPanel(props: {
                   value={editingText}
                   onChange={(event) => setEditingText(event.target.value)}
                   disabled={savingEdit}
+                />
+              )}
+              {viewing.status === 'draft' && editingText === null && REWRITABLE_KINDS.has(viewing.kind) && (
+                <DraftRewrite
+                  draftId={viewing.id}
+                  content={viewing.result}
+                  contentRevision={viewing.contentRevision || ''}
+                  onApplied={({ result, contentRevision }) => {
+                    setViewing((current) => (current ? { ...current, result, contentRevision } : current))
+                    void load()
+                  }}
+                  onStale={() => void refreshViewing()}
                 />
               )}
               {viewing.status === 'draft' && editingText === null && (viewing.kind === 'write_chapter' || viewing.kind === 'continue') && (
