@@ -288,6 +288,7 @@ components:
 - **Admin Surface:** `AdminDataPanel` 是无外框、纸面色表面，使用 20px 外圆角（`--admin-table-panel-radius`）；标题区与表格共享同一块纸面。
 - **Table Contract:** 表头、行分隔线、hover 背景和行高分别从 `--admin-table-header-*`、`--admin-table-border`、`--admin-table-row-hover-background`、`--admin-table-row-height` 读取。桌面端列宽由 `--col-N-w` 注入：`@media (min-width: 901px)` 下启用 `table-layout: fixed` 并逐列消费该变量，规则覆盖第 1–12 列；**第 13 列起没有对应规则**，落到剩余宽度分配。范本统一使用百分比列宽且合计 100%——fixed 布局下百分比与 rem 混用时，定长列会先吃掉宽度。
 - **Breakpoint:** 900px 及以下是卡片化：thead 隐藏，`tr`/`td` 转 grid，`data-label` 变伪元素。与 901px↑ 的固定列宽成对，分界值是 900/901。
+- **Container-Query Exception:** 例外是 `AiGenerationsPanel` 的已生成内容表。它脱离 `AdminDataPanel`（含跨列批次子行与 sticky 冻结操作列），内宽需要 760px，而 901–1100px 视口下内容区只有 756px —— 此时表格已溢出，sticky 操作列会整列压住「内容预览」，该列完全不可见。视口断点在这张表上是错的变量，故卡片化改由 `@container (max-width: 48rem)` 依容器自身宽度触发。新增依赖真实列宽的表格时优先考虑同样做法；`AdminDataPanel` 标准表格仍走 900/901。
 - **Mobile Stack:** 移动端使用 `--admin-table-mobile-stack-gap` 保持行间距为 0，行不绘制左右外部描线；首行取消顶线以接续标题区，内部行只保留单条 `--admin-table-mobile-stack-divider` 水平分隔，末行使用 `--admin-table-mobile-card-radius` 的底部圆角收束。
 - **Data Details:** 分类标签间距使用 `--admin-table-tag-gap`，行操作区使用 `--admin-table-action-*`，排序按钮使用 `--admin-table-sort-*`；删除仅在 hover 时进入危险色。`.admin-cell-tags` 在桌面只显示前 3 个标签加 `+N` 徽章，900px 以下恢复全部并隐藏 `+N`——这是刻意的视口相关截断，完整列表始终对读屏可见。
 - **Motion:** 面板进入使用 `--admin-table-surface-enter` + offset，前 8 行使用 `--admin-table-row-enter` + `--admin-table-row-stagger-step` 依次出现；行、排序箭头、图标按钮的状态反馈使用 `--admin-table-row-interaction`。`prefers-reduced-motion: reduce` 下取消行位移动效，仅保留短淡入。

@@ -2037,13 +2037,22 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 
 /* 调用审计表含跨列展开行，保留原生 table 并给横向滚动边界。
    不套用 AdminDataPanel 的卡片化（不加 .admin-data-panel--grid），避免 900px 以下
-   td 被折成字段后跨列详情行错配。已生成内容表沿用其既有的移动端卡片系统
-   （见下方 .ai-generations-table 的 900px 规则），这里只补滚动边界。 */
+   td 被折成字段后跨列详情行错配。已生成内容表另走自己的卡片系统
+   （见下方 @container (max-width: 48rem) 块），这里只补滚动边界。 */
 .ai-audit-table,
 .ai-generations-table {
   min-width: 0;
   max-width: 100%;
   overflow-x: auto;
+}
+
+/* 生成内容表的卡片化按「容器宽度」而不是视口宽度触发。表内需要 760px，
+   而内容区还要扣掉侧栏，于是 901–1100px 这段视口下表格已经溢出（实测
+   1100px 溢出 4px，800px 溢出 296px）。溢出时 sticky 冻结的操作列会整列
+   压住「内容预览」，该列在 800px 下完全不可见 —— 是数据丢失，不是观感问题。
+   视口断点在这里是错的变量：容器查询直接以可用宽度判断，两侧都不再有破版带。 */
+.ai-generations-table {
+  container-type: inline-size;
 }
 
 .ai-audit-table {
@@ -4847,145 +4856,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   }
   .ai-service-tabs__list [data-slot='tabs-trigger'] {
     min-width: max-content;
-  }
-  .ai-generations-table table {
-    display: block;
-    min-width: 0;
-  }
-  .ai-generations-table thead {
-    display: none;
-  }
-  .ai-generations-table tbody {
-    display: grid;
-    gap: var(--admin-table-mobile-stack-gap);
-  }
-  .ai-generations-table tbody tr.ai-generation-row:not(.ai-generation-row--child) {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    grid-template-areas:
-      'check type time'
-      'related related related'
-      'preview preview preview'
-      'meta meta meta'
-      'actions actions actions';
-    gap: 0.625rem 0.75rem;
-    padding: 1rem;
-    min-width: 0;
-    background: var(--admin-panel);
-  }
-  .ai-generations-table tbody tr.ai-generation-row:not(.ai-generation-row--child) td {
-    display: block;
-    min-width: 0;
-    padding: 0;
-  }
-  .ai-generations-table tbody tr.ai-generation-row:not(.ai-generation-row--child) td:nth-child(1) {
-    grid-area: check;
-  }
-  .ai-generations-table tbody tr.ai-generation-row:not(.ai-generation-row--child) td:nth-child(2) {
-    grid-area: type;
-    align-self: center;
-  }
-  .ai-generations-table tbody tr.ai-generation-row:not(.ai-generation-row--child) td:nth-child(3) {
-    grid-area: related;
-  }
-  .ai-generations-table tbody tr.ai-generation-row:not(.ai-generation-row--child) td:nth-child(4) {
-    display: block;
-    grid-area: preview;
-  }
-  .ai-generations-table tbody tr.ai-generation-row:not(.ai-generation-row--child) td:nth-child(5) {
-    display: block;
-    grid-area: meta;
-    font-size: 0.72rem;
-  }
-  .ai-generations-table tbody tr.ai-generation-row:not(.ai-generation-row--child) td:nth-child(6) {
-    display: block;
-    grid-area: time;
-    align-self: start;
-  }
-  .ai-generations-table tbody tr.ai-generation-row:not(.ai-generation-row--child) td:nth-child(6) > div {
-    white-space: nowrap;
-  }
-  .ai-generations-table tbody tr.ai-generation-row:not(.ai-generation-row--child) td:nth-child(7) {
-    grid-area: actions;
-    justify-self: start;
-  }
-  .ai-generations-table tbody tr.ai-generation-row:not(.ai-generation-row--child) td:nth-child(7) > div {
-    flex-wrap: wrap;
-    justify-content: flex-start;
-    gap: 0.375rem;
-  }
-  .ai-generations-table tbody tr.ai-generation-row:not(.ai-generation-row--child) td:nth-child(7) button {
-    min-width: 3.5rem;
-  }
-  .ai-generations-table tbody tr.ai-generation-row:not(.ai-generation-row--child) td:nth-child(3) > div,
-  .ai-generations-table tbody tr.ai-generation-row:not(.ai-generation-row--child) td:nth-child(3) p {
-    min-width: 0;
-    max-width: 100%;
-    overflow-wrap: anywhere;
-  }
-  .ai-generation-preview::before {
-    display: block;
-    margin-bottom: 0.125rem;
-    color: var(--text-muted);
-    content: attr(data-preview-label);
-    font-size: 0.68rem;
-    font-weight: 600;
-    letter-spacing: 0;
-  }
-  .ai-generations-table tbody tr.ai-generation-row--child {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas:
-      'head time'
-      'title title'
-      'preview preview'
-      'status status'
-      'ops ops';
-    align-items: start;
-    gap: 0.375rem 0.75rem;
-    padding: 0.875rem 1rem;
-    background: color-mix(in srgb, var(--admin-panel) 92%, var(--accent-subtle));
-  }
-  .ai-generations-table tbody tr.ai-generation-row--child td {
-    display: block;
-    min-width: 0;
-    padding: 0;
-  }
-  .ai-generations-table tbody tr.ai-generation-row--child td:nth-child(1) {
-    display: none;
-  }
-  /* 类型与时间构成章节条目的头部，标题、正文摘要和操作分层排列。 */
-  .ai-generations-table tbody tr.ai-generation-row--child td:nth-child(2) {
-    grid-area: head;
-  }
-  .ai-generations-table tbody tr.ai-generation-row--child td:nth-child(3) {
-    grid-area: title;
-    overflow-wrap: anywhere;
-  }
-  /* 预览独占一行，状态与时间各自占位，避免窄屏文字重叠 */
-  .ai-generations-table tbody tr.ai-generation-row--child td:nth-child(4) {
-    grid-area: preview;
-  }
-  .ai-generations-table tbody tr.ai-generation-row--child td:nth-child(5) {
-    grid-area: status;
-    font-size: 0.72rem;
-  }
-  .ai-generations-table tbody tr.ai-generation-row--child td:nth-child(6) {
-    grid-area: time;
-    white-space: nowrap;
-  }
-  /* 操作列独占一行并从左开始排列，避免窄屏下与正文争夺宽度。 */
-  .ai-generations-table tbody tr.ai-generation-row--child td:nth-child(7) {
-    grid-area: ops;
-    justify-self: start;
-  }
-  .ai-generations-table tbody tr.ai-generation-row--child td:nth-child(7) > div {
-    flex-wrap: wrap;
-    justify-content: flex-start;
-    gap: 0.375rem;
-  }
-  .ai-generations-table tbody tr.ai-generation-row--child td:nth-child(7) button {
-    min-width: 3.5rem;
   }
   .moderation-toolbar {
     align-items: stretch;
@@ -8164,5 +8034,153 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 
   .admin-redesign-page--scrape .scrape-job-queue__empty {
     margin-inline: 1rem;
+  }
+}
+
+
+/* 生成内容表的卡片化：跟随容器宽度而不是视口宽度。表格内需要 760px，
+   视口 901–1100px 下容器只有 756px，表格已溢出且 sticky 冻结的操作列
+   整列压住「内容预览」（800px 视口下该列完全不可见，属数据丢失）。
+   48rem = 768px，比表格所需的 760px 留少量余量；容器查询以实际可用
+   宽度判断，于是 901–1100px 的破版带消失，两侧行为也连续。 */
+@container (max-width: 48rem) {
+  .ai-generations-table table {
+    display: block;
+    min-width: 0;
+  }
+  .ai-generations-table thead {
+    display: none;
+  }
+  .ai-generations-table tbody {
+    display: grid;
+    gap: var(--admin-table-mobile-stack-gap);
+  }
+  .ai-generations-table tbody tr.ai-generation-row:not(.ai-generation-row--child) {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      'check type time'
+      'related related related'
+      'preview preview preview'
+      'meta meta meta'
+      'actions actions actions';
+    gap: 0.625rem 0.75rem;
+    padding: 1rem;
+    min-width: 0;
+    background: var(--admin-panel);
+  }
+  .ai-generations-table tbody tr.ai-generation-row:not(.ai-generation-row--child) td {
+    display: block;
+    min-width: 0;
+    padding: 0;
+  }
+  .ai-generations-table tbody tr.ai-generation-row:not(.ai-generation-row--child) td:nth-child(1) {
+    grid-area: check;
+  }
+  .ai-generations-table tbody tr.ai-generation-row:not(.ai-generation-row--child) td:nth-child(2) {
+    grid-area: type;
+    align-self: center;
+  }
+  .ai-generations-table tbody tr.ai-generation-row:not(.ai-generation-row--child) td:nth-child(3) {
+    grid-area: related;
+  }
+  .ai-generations-table tbody tr.ai-generation-row:not(.ai-generation-row--child) td:nth-child(4) {
+    display: block;
+    grid-area: preview;
+  }
+  .ai-generations-table tbody tr.ai-generation-row:not(.ai-generation-row--child) td:nth-child(5) {
+    display: block;
+    grid-area: meta;
+    font-size: 0.72rem;
+  }
+  .ai-generations-table tbody tr.ai-generation-row:not(.ai-generation-row--child) td:nth-child(6) {
+    display: block;
+    grid-area: time;
+    align-self: start;
+  }
+  .ai-generations-table tbody tr.ai-generation-row:not(.ai-generation-row--child) td:nth-child(6) > div {
+    white-space: nowrap;
+  }
+  .ai-generations-table tbody tr.ai-generation-row:not(.ai-generation-row--child) td:nth-child(7) {
+    grid-area: actions;
+    justify-self: start;
+  }
+  .ai-generations-table tbody tr.ai-generation-row:not(.ai-generation-row--child) td:nth-child(7) > div {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 0.375rem;
+  }
+  .ai-generations-table tbody tr.ai-generation-row:not(.ai-generation-row--child) td:nth-child(7) button {
+    min-width: 3.5rem;
+  }
+  .ai-generations-table tbody tr.ai-generation-row:not(.ai-generation-row--child) td:nth-child(3) > div,
+  .ai-generations-table tbody tr.ai-generation-row:not(.ai-generation-row--child) td:nth-child(3) p {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+  .ai-generation-preview::before {
+    display: block;
+    margin-bottom: 0.125rem;
+    color: var(--text-muted);
+    content: attr(data-preview-label);
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0;
+  }
+  .ai-generations-table tbody tr.ai-generation-row--child {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'head time'
+      'title title'
+      'preview preview'
+      'status status'
+      'ops ops';
+    align-items: start;
+    gap: 0.375rem 0.75rem;
+    padding: 0.875rem 1rem;
+    background: color-mix(in srgb, var(--admin-panel) 92%, var(--accent-subtle));
+  }
+  .ai-generations-table tbody tr.ai-generation-row--child td {
+    display: block;
+    min-width: 0;
+    padding: 0;
+  }
+  .ai-generations-table tbody tr.ai-generation-row--child td:nth-child(1) {
+    display: none;
+  }
+  /* 类型与时间构成章节条目的头部，标题、正文摘要和操作分层排列。 */
+  .ai-generations-table tbody tr.ai-generation-row--child td:nth-child(2) {
+    grid-area: head;
+  }
+  .ai-generations-table tbody tr.ai-generation-row--child td:nth-child(3) {
+    grid-area: title;
+    overflow-wrap: anywhere;
+  }
+  /* 预览独占一行，状态与时间各自占位，避免窄屏文字重叠 */
+  .ai-generations-table tbody tr.ai-generation-row--child td:nth-child(4) {
+    grid-area: preview;
+  }
+  .ai-generations-table tbody tr.ai-generation-row--child td:nth-child(5) {
+    grid-area: status;
+    font-size: 0.72rem;
+  }
+  .ai-generations-table tbody tr.ai-generation-row--child td:nth-child(6) {
+    grid-area: time;
+    white-space: nowrap;
+  }
+  /* 操作列独占一行并从左开始排列，避免窄屏下与正文争夺宽度。 */
+  .ai-generations-table tbody tr.ai-generation-row--child td:nth-child(7) {
+    grid-area: ops;
+    justify-self: start;
+  }
+  .ai-generations-table tbody tr.ai-generation-row--child td:nth-child(7) > div {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 0.375rem;
+  }
+  .ai-generations-table tbody tr.ai-generation-row--child td:nth-child(7) button {
+    min-width: 3.5rem;
   }
 }
