@@ -1125,6 +1125,69 @@ export interface AiCoverReplacement extends AiCurrentCoverState {
   historyId?: string
 }
 
+// ---------- 人工画像校正 ----------
+
+export type AiProfileKind = 'style' | 'plot' | 'relationship'
+
+/** 自动画像的可用性；非 usable 时后端不会采用自动层。 */
+export type AiProfileEligibility = 'usable' | 'missing' | 'legacy_unknown' | 'beyond_anchor' | 'stale' | 'source_changed'
+
+/** 人工画像覆盖层：绑定在某个自动画像版本上，自动画像一变即失效。 */
+export interface AiManualProfileOverride {
+  content: string
+  source?: AiProfileSource
+  /** 乐观并发用的自增版本号；删除/保存都要带上当前值 */
+  revision: number
+  /** 保存时绑定的自动画像版本；与当前自动画像不一致则人工层不生效 */
+  baseProfileRevision: string
+  updatedBy: string
+  updatedAt: number
+}
+
+export interface AiProfileSource {
+  version?: number
+  chapterId?: string
+  chapterTitle?: string
+  sortOrder?: number
+  chapterOrdinal?: number
+  sampleCount?: number
+  samplePolicyVersion?: number
+  fingerprint?: string
+}
+
+/**
+ * 画像读取的统一回包。三个 GET 路由（style/plot/relationship）都返回这一组字段：
+ * `profile`/`state` 是自动层原文，`effectiveContent` 才是真正会被注入续写的内容
+ * （有人工层且仍然有效时是人工层，否则是自动层）。
+ */
+export interface AiEffectiveProfile {
+  eligibility: AiProfileEligibility
+  isOlderThanAnchor: boolean
+  manualOverride?: AiManualProfileOverride
+  effectiveContent: string
+  effectiveOrigin: 'manual' | 'automatic' | 'none'
+  /** 人工层被跳过时的原因，如 base_changed / source_changed */
+  exclusionReason?: string
+  /** 当前自动画像的版本摘要，保存人工校正时必须回传 */
+  baseProfileRevision: string
+  source?: AiProfileSource
+  updatedAt?: number
+}
+
+export interface AiStyleProfileResponse extends AiEffectiveProfile {
+  profile: string
+}
+
+export interface AiPlotStateResponse extends AiEffectiveProfile {
+  state: string
+  chaptersThrough: number
+  chapterCount: number
+}
+
+export interface AiRelationshipProfileResponse extends AiEffectiveProfile {
+  profile: string
+}
+
 export interface AiProviderConfig {
   baseUrl: string
   model: string
@@ -1325,7 +1388,7 @@ export const aiApi = {
       return request('POST', '/ai/writing/style-profile', { novelId }, true)
     },
     /** 读取已存的风格画像（未提取过返回空串）。 */
-    getStyleProfile(novelId: string): Promise<{ profile: string }> {
+    getStyleProfile(novelId: string): Promise<AiStyleProfileResponse> {
       return request('GET', `/ai/writing/style-profile/${encodeURIComponent(novelId)}`, null, true)
     },
     /** 提取/刷新某部小说的情节状态：取样最近 N 章正文 → 文本模型结构化分析 → 落库，续写时复用。 */
@@ -1338,7 +1401,7 @@ export const aiApi = {
       return request('POST', '/ai/writing/plot-state', data, true)
     },
     /** 读取已存的情节状态（未提取过返回空串）与已发布章节数（用于判断是否过期）。 */
-    getPlotState(novelId: string): Promise<{ state: string; chaptersThrough: number; chapterCount: number }> {
+    getPlotState(novelId: string): Promise<AiPlotStateResponse> {
       return request('GET', `/ai/writing/plot-state/${encodeURIComponent(novelId)}`, null, true)
     },
     /** 提取/刷新某部小说的关系画像：取样最近 N 章正文 → 文本模型提炼角色关系动态/权力结构/心理边界 → 落库。 */
@@ -1351,8 +1414,55 @@ export const aiApi = {
       return request('POST', '/ai/writing/relationship-profile', data, true)
     },
     /** 读取已存的关系画像（未提取过返回空串）。 */
-    getRelationshipProfile(novelId: string): Promise<{ profile: string }> {
+    getRelationshipProfile(novelId: string): Promise<AiRelationshipProfileResponse> {
       return request('GET', `/ai/writing/relationship-profile/${encodeURIComponent(novelId)}`, null, true)
+    },
+    /**
+     * 保存人工画像校正。人工层绑定当前自动画像版本：自动画像一变，人工层即被跳过
+     * （不是删除），以免拿旧校正覆盖新提取的画像。
+     * expectedRevision 与 baseProfileRevision 都由上一次读取回传，用于乐观并发。
+     */
+    saveProfileOverride(
+      novelId: string,
+      kind: AiProfileKind,
+      data: { content: string; expectedRevision: number; baseProfileRevision: string; operationId?: string },
+    ): Promise<{
+      ok: boolean
+      override: AiManualProfileOverride
+      effectiveContent: string
+      effectiveOrigin: 'manual' | 'automatic' | 'none'
+      exclusionReason?: string
+      baseProfileRevision: string
+    }> {
+      const operationId = data.operationId || newOperationId(`ai-profile-${kind}-override`)
+      return request(
+        'PUT',
+        `/ai/writing/profiles/${kind}/${encodeURIComponent(novelId)}/override`,
+        { ...data, operationId },
+        true,
+        operationHeaders(operationId),
+      )
+    },
+    /** 删除人工画像校正，回到自动层。 */
+    deleteProfileOverride(
+      novelId: string,
+      kind: AiProfileKind,
+      data: { expectedRevision: number; operationId?: string },
+    ): Promise<{
+      ok: boolean
+      effectiveContent: string
+      effectiveOrigin: 'manual' | 'automatic' | 'none'
+      exclusionReason?: string
+      baseProfileRevision: string
+    }> {
+      const operationId = data.operationId || newOperationId(`ai-profile-${kind}-override-delete`)
+      return request(
+        'DELETE',
+        `/ai/writing/profiles/${kind}/${encodeURIComponent(novelId)}/override`,
+        { ...data, operationId },
+        true,
+        operationHeaders(operationId),
+      )
     },
     titles(data: {
       content: string

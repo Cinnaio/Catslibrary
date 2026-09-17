@@ -1,6 +1,6 @@
 /** AI 创作工作台：新写 / 续写，生成结果先保存为草稿。 */
-import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { aiApi, chaptersApi, newOperationId, novelsApi, type AiTaskInfo } from '@/lib/api'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { aiApi, chaptersApi, newOperationId, novelsApi, type AiEffectiveProfile, type AiTaskInfo } from '@/lib/api'
 import { useToast, useConfirm } from '@/components/feedback'
 import { AdminPanelHeading } from '@/components/admin/AdminWorkspace'
 import { Button } from '@/components/ui/button'
@@ -12,6 +12,7 @@ import { Switch } from '@/components/ui/switch'
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import CustomSelect from '@/components/admin/CustomSelect'
+import ProfileOverrideEditor from './ProfileOverrideEditor'
 import { Textarea } from '@/components/ui/textarea'
 import { PenLine, Sparkles, ArrowRight, ChevronRight } from 'lucide-react'
 
@@ -213,15 +214,23 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
   const [afterChapterId, setAfterChapterId] = useState('')
   /** 选中小说的风格画像（已提取则展示，续写时自动注入 system prompt） */
   const [styleProfile, setStyleProfile] = useState('')
+  /**
+   * 三份画像的完整回包。除了原文，还带人工校正层与基准版本号：
+   * 人工校正必须回传 baseProfileRevision，且「已保存」与「正在生效」是两回事，
+   * 所以不能只存一个字符串。
+   */
+  const [styleEffective, setStyleEffective] = useState<AiEffectiveProfile | null>(null)
   const [styleBusy, setStyleBusy] = useState(false)
   /** 选中小说的情节状态（已提取则展示，续写时自动注入 user 消息） */
   const [plotState, setPlotState] = useState('')
+  const [plotEffective, setPlotEffective] = useState<AiEffectiveProfile | null>(null)
   const [plotChaptersThrough, setPlotChaptersThrough] = useState(0)
   const [plotChapterCount, setPlotChapterCount] = useState(0)
   const [plotBusy, setPlotBusy] = useState(false)
   const [plotSample, setPlotSample] = useState(8)
   /** 选中小说的关系画像（已提取则展示，续写时自动注入 system prompt） */
   const [relationshipProfile, setRelationshipProfile] = useState('')
+  const [relationshipEffective, setRelationshipEffective] = useState<AiEffectiveProfile | null>(null)
   const [relationshipBusy, setRelationshipBusy] = useState(false)
   const [relationshipSample, setRelationshipSample] = useState(10)
   /** 情节方向候选：想不出写什么时先取候选，选中一条填入创作要求。 */
@@ -238,6 +247,8 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
   const styleRequestVersion = useRef(0)
   const plotRequestVersion = useRef(0)
   const relationshipRequestVersion = useRef(0)
+  /** 自增即触发整组画像重读：人工校正保存/删除后，需要拿到新的基准版本与修订号 */
+  const [profileReloadToken, setProfileReloadToken] = useState(0)
   const taskActive = !!task && (task.status === 'queued' || task.status === 'running')
 
   useEffect(() => {
@@ -263,23 +274,92 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
     }
   }, [])
 
+  /**
+   * 按类型读取画像。人工校正保存/删除、以及重新提取之后都要重读（拿新的基准版本号），
+   * 但只重读受影响的那一种 —— 三种一起读会把无关的慢请求变成别人的等待。
+   * 用 useCallback 固定身份：它只依赖 setState 与 ref（都稳定），
+   * 否则下面的 effect 每渲染一次就会重跑一次。
+   */
+  const loadProfile = useCallback(async (kind: 'style' | 'plot' | 'relationship', id: string, cancelled: () => boolean) => {
+    if (kind === 'style') {
+      const version = ++styleRequestVersion.current
+      const res = await aiApi.writing.getStyleProfile(id).catch(() => null)
+      if (!res || cancelled() || version !== styleRequestVersion.current) return
+      setStyleProfile(res.profile || '')
+      setStyleEffective(res)
+      return
+    }
+    if (kind === 'plot') {
+      const version = ++plotRequestVersion.current
+      const res = await aiApi.writing.getPlotState(id).catch(() => null)
+      if (!res || cancelled() || version !== plotRequestVersion.current) return
+      setPlotState(res.state || '')
+      setPlotEffective(res)
+      setPlotChaptersThrough(res.chaptersThrough || 0)
+      setPlotChapterCount(res.chapterCount || 0)
+      return
+    }
+    const version = ++relationshipRequestVersion.current
+    const res = await aiApi.writing.getRelationshipProfile(id).catch(() => null)
+    if (!res || cancelled() || version !== relationshipRequestVersion.current) return
+    setRelationshipProfile(res.profile || '')
+    setRelationshipEffective(res)
+  }, [])
+
+  /**
+   * 只同步人工校正所需的元数据（baseProfileRevision / manualOverride / effectiveOrigin），
+   * 不动画像正文。重新提取后用：正文以 POST 回包为准，第二次 GET 只为拿新基准版本号，
+   * 若让它连正文一起写回，反而可能用一次更早发起的读取盖掉刚提取出来的结果。
+   */
+  const syncEffective = useCallback(async (kind: 'style' | 'plot' | 'relationship', id: string) => {
+    if (kind === 'style') {
+      const res = await aiApi.writing.getStyleProfile(id).catch(() => null)
+      if (res) setStyleEffective(res)
+      return
+    }
+    if (kind === 'plot') {
+      const res = await aiApi.writing.getPlotState(id).catch(() => null)
+      if (res) {
+        setPlotEffective(res)
+        setPlotChaptersThrough(res.chaptersThrough || 0)
+        setPlotChapterCount(res.chapterCount || 0)
+      }
+      return
+    }
+    const res = await aiApi.writing.getRelationshipProfile(id).catch(() => null)
+    if (res) setRelationshipEffective(res)
+  }, [])
+
+  /** 切书时把三份画像一次读全。 */
+  const loadAllProfiles = useCallback(async (id: string, cancelled: () => boolean) => {
+    await Promise.all([
+      loadProfile('style', id, cancelled),
+      loadProfile('plot', id, cancelled),
+      loadProfile('relationship', id, cancelled),
+    ])
+  }, [loadProfile])
+
   // 选中小说后加载章节列表（倒序），用于选择续写起点
   useEffect(() => {
     setAfterChapterId('')
     // 切书（包括清空选择）立即作废上一部小说的所有在途画像请求。
-    const styleVersion = ++styleRequestVersion.current
-    const plotVersion = ++plotRequestVersion.current
-    const relationshipVersion = ++relationshipRequestVersion.current
+    let cancelled = false
     if (!novelId) {
       setChapterOptions([])
       setStyleProfile('')
+      setStyleEffective(null)
       setPlotState('')
+      setPlotEffective(null)
       setPlotChaptersThrough(0)
       setPlotChapterCount(0)
       setRelationshipProfile('')
+      setRelationshipEffective(null)
+      // 递增版本号，令在途请求的结果被丢弃
+      styleRequestVersion.current++
+      plotRequestVersion.current++
+      relationshipRequestVersion.current++
       return
     }
-    let cancelled = false
     chaptersApi
       .list(novelId)
       .then((res) => {
@@ -290,35 +370,21 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
         setChapterOptions([{ value: '', label: '从最新章节续写（默认）' }, ...options])
       })
       .catch(() => setChapterOptions([]))
-    // 读已存的风格画像：有则展示，没有则空（续写时后端会兜底，不阻断）
-    aiApi.writing
-      .getStyleProfile(novelId)
-      .then((res) => {
-        if (!cancelled && styleVersion === styleRequestVersion.current) setStyleProfile(res.profile || '')
-      })
-      .catch(() => {})
-    // 读已存的情节状态与已发布章节数：后者大于前者说明状态落后于最新章节（过期提醒）
-    aiApi.writing
-      .getPlotState(novelId)
-      .then((res) => {
-        if (!cancelled && plotVersion === plotRequestVersion.current) {
-          setPlotState(res.state || '')
-          setPlotChaptersThrough(res.chaptersThrough || 0)
-          setPlotChapterCount(res.chapterCount || 0)
-        }
-      })
-      .catch(() => {})
-    // 读已存的关系画像：有则展示，没有则空（续写时后端会兜底，不阻断）
-    aiApi.writing
-      .getRelationshipProfile(novelId)
-      .then((res) => {
-        if (!cancelled && relationshipVersion === relationshipRequestVersion.current) setRelationshipProfile(res.profile || '')
-      })
-      .catch(() => {})
+    void loadAllProfiles(novelId, () => cancelled)
     return () => {
       cancelled = true
     }
-  }, [novelId])
+  }, [novelId, loadAllProfiles])
+
+  // 人工校正变更后重读画像：只刷新画像，不动续写起点与章节列表
+  useEffect(() => {
+    if (!novelId || profileReloadToken === 0) return
+    let cancelled = false
+    void loadAllProfiles(novelId, () => cancelled)
+    return () => {
+      cancelled = true
+    }
+  }, [novelId, profileReloadToken, loadAllProfiles])
 
   // 统计选中小说的未发布续写草稿；任务结束后刷新（新草稿刚落库）
   const taskStatus = task?.status || ''
@@ -442,8 +508,12 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
     setStyleBusy(true)
     try {
       const res = await aiApi.writing.refreshStyleProfile(novelId)
+      // 用 POST 回包立刻更新界面：提取结果是权威内容，不该等第二次 GET 才显示
       if (version === styleRequestVersion.current) setStyleProfile(res.profile)
       toast('风格画像已更新，后续续写将自动套用', 'success')
+      // 再同步基准版本号：重新提取会改变 baseProfileRevision，人工校正的基准随之失效，
+      // 不同步的话校正编辑器会拿着旧基准去保存（必然 409）。只补元数据、不覆盖正文。
+      await syncEffective('style', novelId)
     } catch (err) {
       toast((err as Error).message, 'error')
     } finally {
@@ -505,12 +575,13 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
     setPlotBusy(true)
     try {
       const res = await aiApi.writing.refreshPlotState(novelId, plotSample)
+      // 与 refreshStyleProfile 同理：正文立即用 POST 回包，再补元数据
       if (version === plotRequestVersion.current) {
         setPlotState(res.state)
         setPlotChaptersThrough(res.chaptersThrough)
       }
-      // 章节数本地已加载过，直接用；接口返回的 chaptersThrough 已是最新取样数
       toast('情节状态已更新，后续续写将自动套用', 'success')
+      await syncEffective('plot', novelId)
     } catch (err) {
       toast((err as Error).message, 'error')
     } finally {
@@ -526,6 +597,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
       const res = await aiApi.writing.refreshRelationshipProfile(novelId, relationshipSample)
       if (version === relationshipRequestVersion.current) setRelationshipProfile(res.profile)
       toast('关系画像已更新，后续续写将自动套用', 'success')
+      await syncEffective('relationship', novelId)
     } catch (err) {
       toast((err as Error).message, 'error')
     } finally {
@@ -880,7 +952,22 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
               actionText={styleBusy ? '提取中…' : styleProfile ? '重新提取' : '提取风格画像'}
               onAction={() => void refreshStyleProfile()}
               emptyHint="续写时会按通用的「保持风格一致」约束兜底；提取后则按本作原文的句式、节奏、语气、设定续写，文风一致性更好。建议在有 2 章以上正文后提取一次。"
-              content={styleProfile ? <ProfileText text={styleProfile} /> : undefined}
+              content={
+                styleProfile ? (
+                  <>
+                    <ProfileText text={styleProfile} />
+                    {styleEffective && (
+                      <ProfileOverrideEditor
+                        novelId={novelId}
+                        kind="style"
+                        effective={styleEffective}
+                        onChanged={() => setProfileReloadToken((n) => n + 1)}
+                        disabled={busy || taskActive}
+                      />
+                    )}
+                  </>
+                ) : undefined
+              }
             />
             {mode === 'continue' && (
               <ProfileSection
@@ -893,7 +980,22 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                 emptyHint="提取后把角色关系动态、权力结构、心理边界、互动尺度塞进续写，防止主从写成平等恋人、把奖赏手段当真心、从属试探写成主导。关系底色较稳定，建议取较长窗口看清演变。"
                 sampleLabel="关系画像取样章数"
                 sample={{ value: relationshipSample, min: 1, max: 30, onChange: (value) => setRelationshipSample(Math.max(1, Math.min(30, value || 10))) }}
-                content={relationshipProfile ? <ProfileText text={relationshipProfile} /> : undefined}
+                content={
+                  relationshipProfile ? (
+                    <>
+                      <ProfileText text={relationshipProfile} />
+                      {relationshipEffective && (
+                        <ProfileOverrideEditor
+                          novelId={novelId}
+                          kind="relationship"
+                          effective={relationshipEffective}
+                          onChanged={() => setProfileReloadToken((n) => n + 1)}
+                          disabled={busy || taskActive}
+                        />
+                      )}
+                    </>
+                  ) : undefined
+                }
               />
             )}
             {mode === 'continue' && (
@@ -907,7 +1009,22 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                 emptyHint="多章续写时上下文会截断丢前文，提取后把角色处境、伏笔、待解决冲突塞进续写，人设不漂移、伏笔不遗忘。建议续写前更新一次。"
                 sampleLabel="情节状态取样章数"
                 sample={{ value: plotSample, min: 1, max: 30, onChange: (value) => setPlotSample(Math.max(1, Math.min(30, value || 8))) }}
-                content={plotState ? <ProfileText text={plotState} /> : undefined}
+                content={
+                  plotState ? (
+                    <>
+                      <ProfileText text={plotState} />
+                      {plotEffective && (
+                        <ProfileOverrideEditor
+                          novelId={novelId}
+                          kind="plot"
+                          effective={plotEffective}
+                          onChanged={() => setProfileReloadToken((n) => n + 1)}
+                          disabled={busy || taskActive}
+                        />
+                      )}
+                    </>
+                  ) : undefined
+                }
                 footnote={
                   plotState ? (
                     <p className="text-xs leading-5 text-muted-foreground">
