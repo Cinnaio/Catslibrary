@@ -2020,6 +2020,64 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   min-height: 7rem;
 }
 
+/* ——— 小屏触控目标命中区 ———
+   WCAG 2.2 2.5.8（AA）要求目标至少 24×24；审计报告写的 44px 实为 2.5.5（AAA）
+   的门槛，本设计系统的紧凑档与之直接冲突，故按 AA 达标而非强行放大视觉尺寸。
+
+   实测（390px 视口，AI 服务全部面板）：绝大多数控件已达标 —— 按钮 40px、分段 tabs
+   32px、下拉 32~36px、开关 32×18.4（有外层 label 包裹，有效目标 326×20）。
+   真正不达 AA 的只有两类：
+     1. 表格内独立 Checkbox（内容预览列表）16×16，无外层 label；
+     2. 内容预览的标题 <a> 高度 18.8px。
+   两者都是替换/内联元素，::after 对 input 无效，故用「透明描边 + 外扩」的方式
+   扩命中区：给元素加 4px 透明边框并把负外边距抵消，视觉尺寸不变，点击区域达到
+   24×24。仅在 900px 及以下（触屏为主的断点）生效，桌面保持原样。 */
+@media (max-width: 900px) {
+  /* 表格单元格内的 Checkbox（Radix 渲染为 button，非替换元素，::after 可用）。
+     不能用 padding 扩：元素已 box-sizing: border-box 且 size-4 定死 16×16，
+     加内边距只会挤压内容、不会放大元素。故用绝对定位的透明 ::after 把命中区
+     撑到 24×24，并以 50% 定位居中，视觉与布局均不变。 */
+  .ai-generations-table td [data-slot='checkbox'] {
+    position: relative;
+  }
+
+  .ai-generations-table td [data-slot='checkbox']::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 24px;
+    height: 24px;
+    transform: translate(-50%, -50%);
+  }
+
+  /* 内容预览的标题链接：同一单元格内「书名链接」与「📖 章节链接」上下紧贴，
+     中心距实测仅 17.4px，两个目标都低于 24 —— 间距例外也救不了（例外要求相邻
+     目标中心距 ≥24），故必须实打实放大命中盒。
+
+     难点是要在不移动文字的前提下把盒子从 16~18.8px 撑到 24px：单纯加
+     padding-block 会把文字下推；加 padding 再用负 margin 抵消，负 margin 又会在
+     块级容器里与相邻块合并，实测造成后续链接累计下移 4~8px、行高 +4px。
+
+     解法是把包裹链接的 div 变成 flex column —— flex 项的 margin 不与任何东西
+     合并，于是 padding-block: 4px 把盒子撑到 24~26.8px，margin-block: -4px 再把
+     占位高度扣回原值，净占位与文字位置都不变，只有可点击区域变大。
+     链接带 Tailwind 的 truncate（overflow: hidden），不能用绝对定位的 ::after
+     扩命中区（实测伪元素确实为 294×24，但被裁剪后命中高度只有 20px）。 */
+  .ai-generations-table td div:has(> a),
+  .ai-generation-row td div:has(> a) {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ai-generations-table td a,
+  .ai-generation-row td a {
+    padding-block: 4px;
+    margin-block: -4px;
+  }
+}
+
 .ai-writing-panel .ai-writing-actions > .flex:last-child [data-slot='button'] {
   min-width: 7.5rem;
 }
