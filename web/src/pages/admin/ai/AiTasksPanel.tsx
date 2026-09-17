@@ -3,7 +3,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { aiApi, newOperationId, type AiTaskInfo } from '@/lib/api'
 import { useToast, useConfirm } from '@/components/feedback'
 import { ErrorState, InlineError, LoadingState } from '@/components/admin/AsyncStates'
-import AdminEmptyState from '@/components/admin/AdminEmptyState'
+import AiPanelEmptyState from './AiPanelEmptyState'
+import { useAiConfigured } from './useAiConfigured'
 import { AdminDataPanel, AdminPanelHeading, AdminToolbar } from '@/components/admin/AdminWorkspace'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -32,6 +33,7 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
   const [filterStatus, setFilterStatus] = useState<'all' | 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'>('all')
   const [retryingId, setRetryingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const configured = useAiConfigured()
 
   const load = useCallback(async () => {
     try {
@@ -143,7 +145,13 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
         }
       />
       <div className="ai-tasks-content">
-        {loading && tasks.length === 0 ? <LoadingState label="正在加载 AI 任务" /> : error && tasks.length === 0 ? <ErrorState message={error} onRetry={() => void load()} /> : tasks.length === 0 ? <AdminEmptyState message="暂无 AI 任务" /> : <>
+        {loading && tasks.length === 0 ? <LoadingState label="正在加载 AI 任务" /> : error && tasks.length === 0 ? <ErrorState message={error} onRetry={() => void load()} /> : tasks.length === 0 ? <AiPanelEmptyState
+          configured={configured}
+          unconfiguredMessage="尚未配置文本 AI 供应商，无法发起生成任务"
+          unconfiguredHint="配置文本供应商后，才能从「AI 创作」发起任务。"
+          emptyMessage="暂无 AI 任务"
+          hint="在「AI 创作」或「封面生成」里发起任务后，这里会显示进度与失败原因。"
+        /> : <>
           {error && <InlineError message={error} onRetry={() => void load()} className="mb-3" />}
           <div className="ai-task-list">
           {tasks.map((task) => <div key={task.id} className="ai-task-row grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">

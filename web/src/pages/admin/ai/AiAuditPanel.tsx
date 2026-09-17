@@ -4,7 +4,8 @@ import { ChevronRight } from 'lucide-react'
 import { aiApi } from '@/lib/api'
 import { ErrorState, InlineError, LoadingState } from '@/components/admin/AsyncStates'
 import Pagination from '@/components/admin/Pagination'
-import AdminEmptyState from '@/components/admin/AdminEmptyState'
+import AiPanelEmptyState from './AiPanelEmptyState'
+import { useAiConfigured } from './useAiConfigured'
 import { AdminDataPanel, AdminPanelHeading, AdminToolbar } from '@/components/admin/AdminWorkspace'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
@@ -55,6 +56,7 @@ export default function AiAuditPanel() {
   const [offset, setOffset] = useState(0)
   const [filterType, setFilterType] = useState<string>('all')
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const configured = useAiConfigured()
 
   const loadCalls = useCallback(async () => {
     setLoading(true)
@@ -118,7 +120,15 @@ export default function AiAuditPanel() {
           ) : error && calls.length === 0 ? (
             <ErrorState message={error} onRetry={() => void loadCalls()} />
           ) : calls.length === 0 ? (
-            <AdminEmptyState message="暂无调用记录" />
+            <AiPanelEmptyState
+              configured={configured}
+              unconfiguredMessage="尚未配置文本 AI 供应商，没有可审计的调用"
+              unconfiguredHint="配置文本供应商后，每次调用都会留下审计明细。"
+              emptyMessage={
+                filterType === 'all' ? '暂无调用记录' : '当前类型筛选下没有调用记录'
+              }
+              hint={filterType === 'all' ? '发起任意 AI 生成后，这里会留下调用明细。' : '把类型筛选切回「全部」可以看所有记录。'}
+            />
           ) : (
             <>
               {error && <InlineError message={error} onRetry={() => void loadCalls()} className="mb-3" />}

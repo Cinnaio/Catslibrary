@@ -14,7 +14,8 @@ import {
 } from 'recharts'
 import { aiApi } from '@/lib/api'
 import { ErrorState, InlineError, LoadingState } from '@/components/admin/AsyncStates'
-import AdminEmptyState from '@/components/admin/AdminEmptyState'
+import AiPanelEmptyState from './AiPanelEmptyState'
+import { useAiConfigured } from './useAiConfigured'
 import { AdminDataPanel, AdminMetricStrip, AdminPanelHeading } from '@/components/admin/AdminWorkspace'
 import { Button } from '@/components/ui/button'
 import { formatCost } from './shared'
@@ -54,6 +55,7 @@ export default function AiUsagePanel() {
   const [days, setDays] = useState(30)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const configured = useAiConfigured()
 
   const loadTrend = useCallback(async () => {
     setLoading(true)
@@ -113,7 +115,13 @@ export default function AiUsagePanel() {
           ) : error && trend.length === 0 ? (
             <ErrorState message={error} onRetry={() => void loadTrend()} className="h-80" />
           ) : trend.length === 0 ? (
-            <AdminEmptyState message="所选范围内没有 AI 调用记录" />
+            <AiPanelEmptyState
+              configured={configured}
+              unconfiguredMessage="尚未配置文本 AI 供应商，暂时没有用量可统计"
+              unconfiguredHint="配置文本供应商后，这里会显示调用次数、Token 与成本趋势。"
+              emptyMessage="所选范围内没有 AI 调用记录"
+              hint={`最近 ${days} 天内没有调用；可切换到 90 天再看看。`}
+            />
           ) : (
             <>
               {error && <InlineError message={error} onRetry={() => void loadTrend()} className="mb-3" />}
@@ -196,7 +204,13 @@ export default function AiUsagePanel() {
           ) : error && trend.length === 0 ? (
             <ErrorState message={error} onRetry={() => void loadTrend()} className="h-64" />
           ) : trend.length === 0 ? (
-            <AdminEmptyState message="所选范围内没有 Token 用量记录" />
+            <AiPanelEmptyState
+              configured={configured}
+              unconfiguredMessage="尚未配置文本 AI 供应商，暂时没有 Token 用量"
+              unconfiguredHint="配置文本供应商后，这里会显示输入/输出 Token 消耗。"
+              emptyMessage="所选范围内没有 Token 用量记录"
+              hint={`最近 ${days} 天内没有消耗；可切换到 90 天再看看。`}
+            />
           ) : (
             <>
               {error && <InlineError message={error} onRetry={() => void loadTrend()} className="mb-3" />}

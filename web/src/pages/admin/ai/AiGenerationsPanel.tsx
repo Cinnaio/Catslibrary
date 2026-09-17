@@ -5,7 +5,8 @@ import { aiApi, newOperationId } from '@/lib/api'
 import { useToast, useConfirm } from '@/components/feedback'
 import { ErrorState, InlineError, LoadingState } from '@/components/admin/AsyncStates'
 import Pagination from '@/components/admin/Pagination'
-import AdminEmptyState from '@/components/admin/AdminEmptyState'
+import AiPanelEmptyState from './AiPanelEmptyState'
+import { useAiConfigured } from './useAiConfigured'
 import { AdminDataPanel, AdminPanelHeading, AdminToolbar } from '@/components/admin/AdminWorkspace'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -47,6 +48,7 @@ export default function AiGenerationsPanel(props: {
 }) {
   const { toast } = useToast()
   const { confirm } = useConfirm()
+  const configured = useAiConfigured()
   const [items, setItems] = useState<AiGenerationListItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -347,7 +349,13 @@ export default function AiGenerationsPanel(props: {
           ) : error && items.length === 0 ? (
             <ErrorState message={error} onRetry={() => void load()} />
           ) : items.length === 0 ? (
-            <AdminEmptyState message="暂无已生成内容" />
+            <AiPanelEmptyState
+              configured={configured}
+              unconfiguredMessage="尚未配置文本 AI 供应商，还没有可审阅的产物"
+              unconfiguredHint="配置文本供应商后，生成的草稿会出现在这里。"
+              emptyMessage="暂无已生成内容"
+              hint="生成完成后草稿会出现在这里，可编辑后再发布为正式章节。"
+            />
           ) : (
             <>
               {error && <InlineError message={error} onRetry={() => void load()} className="mb-3" />}
