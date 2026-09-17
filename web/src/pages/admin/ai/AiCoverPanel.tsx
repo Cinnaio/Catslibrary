@@ -541,6 +541,12 @@ export default function AiCoverPanel() {
                 换一版
               </Button>
             </div>
+            {/* 此处刻意不用共享 Textarea 组件：共享组件走 .admin-layout
+                [data-slot='textarea']，描边为 --admin-border-strong、底色 --admin-panel；
+                本输入框按设计使用更浅的 --border 描边（实测浅色下 #ECE8E2 对
+                color-mix 后的深一档），且需要 resize-y 与 --bg-card 底色。换成共享组件
+                会改变封面输入框的视觉，属设计决策，故保留手写并在此说明，避免被
+                当成遗漏而「顺手统一」。 */}
             <textarea
               id="cover-prompt"
               aria-describedby="cover-prompt-hint"

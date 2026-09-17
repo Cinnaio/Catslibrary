@@ -10,6 +10,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 export default function AiParamsPanel(props: { settings: AiSettings | null; loading: boolean; onReload: () => void }) {
@@ -79,9 +80,14 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor="recap-prompt">系统提示词</Label>
-            <textarea data-slot="textarea"
+            {/* 迁移到共享 Textarea 组件：此前手写一长串工具类，与组件内已有一份
+                逐字重复。组件自带 field-sizing-content、min-h-16、shadow-xs 与
+                text-base(移动端)，与迁移前的计算值不同，故显式中和为
+                field-sizing-fixed / min-h-[100px] / shadow-none / text-sm，
+                使视觉与行为逐项保持原状。 */}
+            <Textarea
               id="recap-prompt"
-              className="min-h-[100px] w-full border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              className="field-sizing-fixed min-h-[100px] shadow-none text-sm"
               value={localSettings.recapSystemPrompt}
               disabled={props.loading || saving}
               onChange={(e) => setLocalSettings({ ...localSettings, recapSystemPrompt: e.target.value })}
@@ -210,7 +216,15 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor="writing-prompt">创作系统提示词</Label>
-            <textarea data-slot="textarea" id="writing-prompt" className="min-h-[120px] w-full border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" value={localSettings.writingSystemPrompt} disabled={props.loading || saving} onChange={(e) => setLocalSettings({ ...localSettings, writingSystemPrompt: e.target.value })} />
+            {/* 同上：中和组件自带的 field-sizing-content / min-h-16 / shadow-xs，
+                保持迁移前的 120px 固定高度与无阴影。 */}
+            <Textarea
+              id="writing-prompt"
+              className="field-sizing-fixed min-h-[120px] shadow-none text-sm"
+              value={localSettings.writingSystemPrompt}
+              disabled={props.loading || saving}
+              onChange={(e) => setLocalSettings({ ...localSettings, writingSystemPrompt: e.target.value })}
+            />
             <p className="text-xs text-muted-foreground">定义 AI 创作的角色、文风和输出约束</p>
           </div>
         </CardContent>

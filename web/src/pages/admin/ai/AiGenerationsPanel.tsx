@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Textarea } from '@/components/ui/textarea'
 import { kindLabel } from './shared'
 
 interface AiGenerationListItem {
@@ -605,13 +606,17 @@ export default function AiGenerationsPanel(props: {
                   ))}
               </div>
               <div className="shrink-0 text-xs font-medium text-muted-foreground">生成正文</div>
+              {/* 编辑区在弹性对话框中占满剩余高度：共享 Textarea 自带的 min-h-16 与
+                 field-sizing-content 会与 min-h-0 / flex-1 冲突（Tailwind 把
+                 min-h-16 排在 min-h-0 之后，同为工具类时前者胜出），故显式中和为
+                 field-sizing-fixed 与 min-h-0，保持原有的填满行为。 */}
               {editingText === null ? (
                 <div className="min-h-0 flex-1 overflow-y-auto rounded-md border bg-muted/20 p-4 text-sm leading-7 whitespace-pre-wrap sm:p-5">
                   {viewing.result || '暂无内容'}
                 </div>
               ) : (
-                <textarea data-slot="textarea"
-                  className="min-h-0 flex-1 resize-none rounded-md border border-input bg-background p-4 text-sm leading-7 focus-visible:border-ring focus-visible:outline-none sm:p-5"
+                <Textarea
+                  className="field-sizing-fixed min-h-0 flex-1 resize-none shadow-none p-4 text-sm leading-7 sm:p-5"
                   value={editingText}
                   onChange={(event) => setEditingText(event.target.value)}
                   disabled={savingEdit}

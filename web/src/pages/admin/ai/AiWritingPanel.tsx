@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import CustomSelect from '@/components/admin/CustomSelect'
+import { Textarea } from '@/components/ui/textarea'
 import { PenLine } from 'lucide-react'
 
 // 后台创作任务的进度轮询间隔
@@ -623,9 +624,9 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                   {suggestBusy ? '推荐中…' : '推荐情节'}
                 </Button>
               </div>
-              <textarea data-slot="textarea"
+              <Textarea
                 id="ai-writing-instruction"
-                className="min-h-[100px] w-full border border-input bg-background px-3 py-2 text-sm"
+                className="field-sizing-fixed min-h-[100px] shadow-none text-sm"
                 value={instruction}
                 onChange={(event) => setInstruction(event.target.value)}
                 placeholder="人物、风格、冲突、节奏或本次剧情目标；想不出时可点「推荐情节」取候选"
@@ -736,9 +737,9 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                   </Button>
                 )}
               </div>
-              <textarea data-slot="textarea"
+              <Textarea
                 id="ai-writing-outline"
-                className="min-h-[140px] w-full border border-input bg-background px-3 py-2 text-sm"
+                className="field-sizing-fixed min-h-[140px] shadow-none text-sm"
                 value={outline}
                 onChange={(event) => setOutline(event.target.value)}
                 placeholder={mode === 'new'
