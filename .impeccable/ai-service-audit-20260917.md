@@ -5,7 +5,30 @@
 - **日期**：2026-09-17
 - **方法**：真实 dev server（`http://localhost:5173`）+ 真实 API（`http://127.0.0.1:8787`，管理员会话）；8 面板 × 4 视口 × 2 主题共 64 张截图；5 轮 DOM 计算样式探针（溢出 / 触控尺寸 / 异常盒模型 / 键盘可达性 / 对比度 / reduced-motion 实况）；impeccable detector 静态扫描；`tsc --noEmit` 与 `eslint` 基线；对 `admin-operations.css` 做括号感知的 @media 归属解析（逐条验证断点，避免行号漂移与归属误判）。
 
-> **证据口径说明**：本报告所有行号均经脚本重解析验证。`admin-operations.css` 为纯 LF 单行结尾、8164 行、199030 字节；该文件含 49 个 `@media` 块，其中 16 个是 `max-width: 900px`，且 AI 相关规则分散在 5 个不同块中 —— 这是本次审计最关键的结构性事实。
+> **证据口径说明**：本报告所有行号均经脚本重解析验证。审计时 `admin-operations.css` 为纯 LF 单行结尾、8164 行、199030 字节；该文件含 49 个 `@media` 块，其中 16 个是 `max-width: 900px`，且 AI 相关规则分散在 5 个不同块中 —— 这是本次审计最关键的结构性事实。（该文件在修复过程中增长至 8342 行 / 204548 字节、51 个 `@media` 块、17 个 900px 块，行号引用已随之下移，见下方修订记录。）
+
+---
+
+## 修订与落地记录（2026-09-17 同日复核）
+
+本报告发布后按发现逐项修复，修复过程中**用实测修正了报告自身的 5 处结论**。诚实记录如下，后续读者请以本节为准。
+
+| 报告原结论 | 实测修正 | 依据 |
+|---|---|---|
+| P1 #2：生成内容表在 **641–900px** 区间违反卡片化契约，横向溢出 156px | 阈值**不是视口断点而是容器查询** `@container (max-width: 48rem)`：容器 <768px 时卡片化，对应视口约 1112px。修复后**全部 12 档视口（390–1200px）横向溢出均为 0** | 脚本逐档实测：1150px 容器 806px 仍是表头 + `table-row`；1100px 容器 756px 已 `thead{display:none}` + `tr{display:grid}`；溢出列全 0 |
+| P1 #2 次生问题：「sticky 操作列错位」属观感问题 | 实为**数据丢失**：800px 视口下「内容预览」整列被操作列完全覆盖 | 元素截图（`genstruct-800.png`） |
+| P2：面板标题图标色散落在 **13 处**内联 | 实为 **28 处**（`AiParamsPanel` 6、`AiConfigPanel` 5、`SiteOperationsTab` 14、`ProxyView` 2、其余 1 处） | 全仓统计 `className="size-N text-primary"` |
+| P3 #154：触控目标低于 44px | 44px 是 WCAG **2.5.5（AAA）** 门槛；AA 对应 **2.5.8（24×24）**。逐项实测后，按钮 40px、tabs 32px、下拉 32–36px 均已达标；真正不达 AA 的只有内容预览表的 Checkbox（16×16）与链接（16–18.8px），共 28 处 | 390px 视口 `elementFromPoint` 真实命中测试 |
+| P3 #163：需抽 `ui/textarea.tsx` | 该组件**已存在**且已被 7 个文件使用；真正问题是 AI 面板 4 处绕过它手写 | 全仓检索 + 实际渲染实测 |
+
+**报告未发现、修复时新查出的问题（2 项）**
+
+1. `.admin-panel-status` 声明的 `min-width: 4.75rem` 从未生效 —— 被同文件第 7083 行同特异性的 `.admin-panel-heading__actions > *` 按源码顺序覆盖，计算值为 `0px`。全站 9 个胶囊宽度 57.2–82px（极差 24.8px），8 个低于声明的下限。
+2. `AiWritingPanel` 有 16 个控件缺少可访问名称（`<Label>` 只作视觉标题、未配 `htmlFor`；`CustomSelect` 渲染 `button[role=combobox]` 且接口不支持 `id`）。
+
+**修复落地（15 个提交，全部含实测证据）**：P0 工具栏巨型方框 `751d74c` → 生成表容器查询 `5405152` → 审计表键盘可达 `305cf79` → reduced-motion 守卫 `4f46e7d` → 死类清理 `06dc163` → 分页标签 `829bc4a` → caption 去冗余 `a72817c` → 图表常量收口 `ec2bead` → 筛选宽度自适应 `f44612d` → 图标色单条规则 `5604fe0` → 状态胶囊最小宽度 `6e49a2c` → 创作面板标签 `9260dbb` → textarea 共用组件 `6f56aa5` → 触控目标达 AA `6bada8d` → 空态分级 `db98702`。审计报告本身在 `6844677` 提交。
+
+**仍未处理**：AI 规则分散在 5 个 `@media` 块间这一结构性问题（本报告最昂贵的发现），以及窗口缩至 900px 以下时全站工具栏由横排转竖排的密度损失 —— 两项都需要设计决策，不是单点修复。
 
 ---
 
@@ -15,7 +38,7 @@
 |---|------|------|----------|
 | 1 | Accessibility | 1 | 审计表 50 行可点击但 `tabIndex=-1`、无 `role`/键盘处理；无限动画无 reduced-motion 守卫 |
 | 2 | Performance | 3 | 无布局抖动、无阻塞资源；图表为纯 SVG 无动画开销 |
-| 3 | Responsive Design | 1 | ≤900px 工具栏 Select 被撑成 192px 巨型方框；生成内容表 641–900px 区间违反卡片化契约 |
+| 3 | Responsive Design | 1 | ≤900px 工具栏 Select 被撑成 192px 巨型方框；生成内容表窄屏违反卡片化契约（阈值经复核为容器查询而非视口断点） |
 | 4 | Theming | 3 | token 体系完整、双主题实测正确；图表字面值与图标色散落构成轻度漂移 |
 | 5 | Implementation Integrity | 2 | 5 个死类（1 处真实视觉损坏）；两处注释与实现/规范脱节 |
 | **Total** | | **10/20** | **Acceptable（需实质工作）** |
@@ -38,15 +61,15 @@
 
 ## 执行摘要
 
-- **Audit Health Score：10/20（Acceptable）**
-- **问题总数：13**（P0 × 1，P1 × 4，P2 × 5，P3 × 3）
+- **Audit Health Score：10/20（Acceptable）** —— 截至本次复核，报告的 13 项发现已全部落地，另新查出并修复 2 项报告未发现的问题（见修订记录）
+- **问题总数：13**（P0 × 1，P1 × 4，P2 × 5，P3 × 3），其中 5 项的措辞或计数经实测修正
 - **Top 5 关键问题**
-  1. **[P0] ≤900px 工具栏 Select 被撑成 192px 巨型方框** —— 8 个面板中 3 个（AI 任务 / 已生成内容 / 调用审计）的主筛选器在平板与手机上完全不可用，工具栏高度从 58px 膨胀到 246px。根因是一行 row 方向的 `flex: 1 1 12rem` 落在 `flex-direction: column` 容器里。
-  2. **[P1] 生成内容表在 641–900px 区间既未卡片化、又强制 760px 宽** —— 违反 DESIGN.md L290 的 900px 卡片化契约，横向溢出 156px，每行需双向滚动且 sticky 操作列错位。
-  3. **[P1] 调用审计表 50 行键盘不可达** —— 展开详情（IP / UA / Token 明细）是唯一入口且仅响应鼠标。
-  4. **[P1] `ai-list-status` 使任务面板计数胶囊退化** —— 全站 10 次同类使用中唯一的裸文本。
-  5. **[P1] `ai-task-sweep` 无限动画无 reduced-motion 守卫** —— 该文件 8 个 reduce 块中，有一个已经处理了同一个 `.ai-service` 选择器，却遗漏了本条。
-- **建议下一步**：先修 P0（单点 CSS 改动，影响 3 个面板的主要交互路径），再按 `/impeccable adapt` → `/impeccable harden` → `/impeccable polish` 收口。
+  1. **[P0] ≤900px 工具栏 Select 被撑成 192px 巨型方框** —— 8 个面板中 3 个（AI 任务 / 已生成内容 / 调用审计）的主筛选器在平板与手机上完全不可用，工具栏高度从 58px 膨胀到 246px。根因是一行 row 方向的 `flex: 1 1 12rem` 落在 `flex-direction: column` 容器里。**已修复（`751d74c`，实测 246 → 86px）**
+  2. **[P1] 生成内容表在窄屏既未卡片化、又强制 760px 宽** —— 原标题写的「641–900px」区间有误：实测阈值是容器查询，且 800px 下「内容预览」列被操作列完全覆盖（数据丢失，非观感问题）。**已修复（`5405152`，12 档视口溢出全为 0）**
+  3. **[P1] 调用审计表 50 行键盘不可达** —— 展开详情（IP / UA / Token 明细）是唯一入口且仅响应鼠标。**已修复（`305cf79`，50 行改为真实 button，焦点环 2px）**
+  4. **[P1] `ai-list-status` 使任务面板计数胶囊退化** —— 全站 10 次同类使用中唯一的裸文本。**已修复（`06dc163`）**
+  5. **[P1] `ai-task-sweep` 无限动画无 reduced-motion 守卫** —— 该文件 8 个 reduce 块中，有一个已经处理了同一个 `.ai-service` 选择器，却遗漏了本条。**已修复（`4f46e7d`，实测 `::after` 为 `display:none`）**
+- **建议下一步**：P0/P1 均已收口。剩余的是**结构性**工作 —— AI 规则分散在 5 个 `@media` 块间（本报告最昂贵的发现，未处理）与 900px 以下工具栏转竖排造成的密度损失，两者都需设计决策。
 
 ---
 
@@ -64,6 +87,8 @@
 - **建议命令**：`/impeccable adapt`
 
 ### [P1] 生成内容表在 641–900px 区间违反卡片化契约
+
+> **【已修订】** 标题中的「641–900px」有误，实际阈值是容器查询而非视口断点；且「sticky 列错位」低估了后果（800px 下内容预览列被完全覆盖，属数据丢失）。详见上方修订记录。此发现已由 `5405152` 修复，修复后 12 档视口溢出全为 0。
 
 - **位置**：`web/src/pages/admin/ai/AiGenerationsPanel.tsx:356`（`<table className="w-full min-w-[760px] text-sm">`）与 `web/src/styles/admin-operations.css:4847-4850`（`.ai-generations-table table { display:block; min-width:0 }`）
 - **类别**：Responsive
@@ -135,10 +160,12 @@
 
 ### [P2] 面板标题图标色散落在 13 处内联
 
+> **【已修订】** 计数有误：全仓实为 **28 处**，非 13 处（遗漏了 `SiteOperationsTab` 14 处与 `ProxyView` 2 处）。已由 `5604fe0` 修复，颜色下沉为 `.admin-panel-title > svg` 单条规则。
+
 - **位置**：`AiParamsPanel.tsx:47, 97, 173, 221, 247, 283`（6 处）、`AiConfigPanel.tsx:174, 181, 242, 301, 354`（5 处）、`AiWritingPanel.tsx:513`、`AiCoverPanel.tsx`（1 处），形如 `<SlidersHorizontal className="size-4 text-primary" aria-hidden="true" />`
 - **类别**：Theming
 - **实测证据**：脚本统计 `className="size-N text-primary"` 模式共 **13** 处（AiConfigPanel 5、AiParamsPanel 6、AiWritingPanel 1、AiCoverPanel 1）。共享类 `.admin-panel-title`（`admin-operations.css:86-90`）只提供 `inline-flex` + `gap`，**不负责颜色**，因此颜色策略分散在各调用点。
-- **影响**：当前符合 10% Accent Rule（图标确为点缀，未被滥用）。但若产品决定面板图标改用 `--text-muted` 或按状态着色，需改 13 处，容易出现漏改导致面板间图标色不一致。
+- **影响**：当前符合 10% Accent Rule（图标确为点缀，未被滥用）。但若产品决定面板图标改用 `--text-muted` 或按状态着色，需改 28 处，容易出现漏改导致面板间图标色不一致。
 - **建议**：把颜色提升为 `.admin-panel-title > svg`（或 `[data-slot='svg']`）单条规则，TSX 只保留 `size-*` 与 `aria-hidden`。
 - **建议命令**：`/impeccable polish`
 
@@ -153,6 +180,8 @@
 
 ### [P3] 触控目标低于 44px
 
+> **【已修订】** 44px 是 WCAG 2.5.5（AAA）门槛，AA 对应 2.5.8（24×24）。逐项实测后本报告列举的 tabs 32px / switch 32×18px / select 36px **均已达标 AA**（switch 另有外层 label 包裹，有效目标 326×20）；真正不达 AA 的是报告未列出的内容预览表 Checkbox（16×16）与链接（16–18.8px），共 28 处，已由 `6bada8d` 修复。
+
 - **位置**：`AiWritingPanel.tsx:517-519`（`TabsTrigger` 54×**32**）、`AiParamsPanel.tsx:106` 的 `<Switch>` 与 `AiConfigPanel.tsx:310`、`AiCoverPanel.tsx:500` 同款（**32×18**）、`AiParamsPanel.tsx:225-227` 三个 `SelectTrigger`（各 **36** 高）
 - **类别**：Responsive
 - **实测证据**：三档视口一致检出：`[data-slot='tabs-trigger']` 54×32px，`[data-slot='switch']` 32×18px，`size="default"` 的 `select-trigger` 高 36px。按钮主体普遍 40px 高。
@@ -161,6 +190,8 @@
 - **建议命令**：`/impeccable adapt`
 
 ### [P3] `AiParamsPanel` 手写 textarea 与后台控件层分叉
+
+> **【已修订】** 建议中的 `web/src/components/ui/textarea.tsx` **已存在**且已被 7 个文件使用，无需新抽。真正的问题是 4 处绕过该组件手写，已由 `6f56aa5` 修复；`AiCoverPanel` 那处按设计使用了不同 token（`--border` / `--bg-card` + `resize-y`），刻意保留并在原处加注说明。
 
 - **位置**：`AiParamsPanel.tsx:82-88`、`AiParamsPanel.tsx:213`
 - **类别**：Implementation Integrity
@@ -191,16 +222,18 @@
 
 ## 推荐动作（按优先级）
 
-1. **[P0] `/impeccable adapt`** —— 修 ≤900px 工具栏 Select 巨型方框：`admin-operations.css:480-484` 的 `flex: 1 1 12rem` 在 L7761 的 column 主轴下使 12rem 成为高度基（12rem = 实测 192px）。改为 column 安全的写法。
-2. **[P1] `/impeccable adapt`** —— 生成内容表：把 `admin-operations.css:4847-4986` 的卡片化规则从 640px 块提到 900px 块以对齐 DESIGN.md:290，或撤掉 `AiGenerationsPanel.tsx:356` 的 `min-w-[760px]` 并修正 L2037 注释。二选一。
-3. **[P1] `/impeccable harden`** —— 给 `.ai-audit-row`（`AiAuditPanel.tsx:145`）真实键盘入口；同时抽 `ui/textarea.tsx` 收口 `AiParamsPanel` 手写样式。
-4. **[P1] `/impeccable polish`** —— 清死类：`AiTasksPanel.tsx:140` 的 `ai-list-status` → `admin-panel-status`；删除 `ai-config-toggle` / `ai-provider-section-heading` / `ai-writing-analysis` / `ai-generation-result-label` 四个废弃钩子。
-5. **[P1] `/impeccable animate`** —— 在 `admin-operations.css:491` 块补 `.ai-task-progress::after { animation: none }`。
-6. **[P2] `/impeccable polish`** —— 图表轴/提示/图例样式抽到 `shared.tsx` 常量并去字面值；面板标题图标色提升为 `.admin-panel-title > svg` 规则。
-7. **[P2] `/impeccable clarify`** —— `Pagination.tsx:36` 加 `aria-label`（全站受益）；两处 `<caption>` 去列名复述。
-8. **[P2] `/impeccable adapt`** —— 筛选下拉宽度改自适应，消除静默截断。
-9. **[P3] `/impeccable onboard`** —— 空状态区分「无数据」与「未配置」。
-10. **[最后] `/impeccable polish`** —— 全量收口复检，重跑 `/impeccable audit` 对比分数。
+> **状态（2026-09-17 复核）**：下列 1–9 项均已落地，提交号见修订记录。第 10 项的全量复检已执行（`tsc` 0 错误、68 项测试通过、生产构建通过、eslint 无新增警告）。
+
+1. **[P0] `/impeccable adapt`** —— 修 ≤900px 工具栏 Select 巨型方框：`admin-operations.css:480-484` 的 `flex: 1 1 12rem` 在 L7761 的 column 主轴下使 12rem 成为高度基（12rem = 实测 192px）。改为 column 安全的写法。**已修复 `751d74c`**
+2. **[P1] `/impeccable adapt`** —— 生成内容表：把卡片化规则提到 900px 块以对齐 DESIGN.md:290，或撤掉 `min-w-[760px]` 并修正 L2037 注释。**实际采用了后者并进一步改进：改为容器查询 `@container (max-width: 48rem)`，让阈值跟随容器而非视口，`5405152`**
+3. **[P1] `/impeccable harden`** —— 给 `.ai-audit-row`（`AiAuditPanel.tsx:145`）真实键盘入口；同时抽 `ui/textarea.tsx` 收口 `AiParamsPanel` 手写样式。**前者 `305cf79`；后者该组件已存在，实际只需让 AI 面板改用，`6f56aa5`**
+4. **[P1] `/impeccable polish`** —— 清死类：`ai-list-status` → `admin-panel-status`；删除四个废弃钩子。**已修复 `06dc163`**
+5. **[P1] `/impeccable animate`** —— 在 `admin-operations.css:491` 块补 `.ai-task-progress::after` 的 reduce 处理。**已修复 `4f46e7d`（用 `display: none` 而非 `animation: none`，避免静态色条叠加）**
+6. **[P2] `/impeccable polish`** —— 图表轴/提示/图例样式抽常量；面板图标色提升为单条规则。**已修复 `ec2bead` + `5604fe0`**
+7. **[P2] `/impeccable clarify`** —— `Pagination.tsx:36` 加 `aria-label`；两处 `<caption>` 去列名复述。**已修复 `829bc4a` + `a72817c`（Home.tsx 同名输入框一并处理）**
+8. **[P2] `/impeccable adapt`** —— 筛选下拉宽度改自适应，消除静默截断。**已修复 `f44612d`（实测 120/140/140/88px，`min-width` 已生效）**
+9. **[P3] `/impeccable onboard`** —— 空状态区分「无数据」与「未配置」。**已修复 `db98702`**
+10. **[最后] `/impeccable polish`** —— 全量收口复检，重跑 `/impeccable audit` 对比分数。**已执行复检**
 
 ---
 
