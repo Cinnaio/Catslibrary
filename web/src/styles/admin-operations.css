@@ -7080,7 +7080,18 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   flex: 0 0 auto;
 }
 
-.admin-panel-heading__actions > * {
+/* 允许操作区的直接子项收缩，避免 flex 项被 min-content 撑破容器。
+   用 :where() 把该守卫的特异性降到 0，使任何自带 min-width 的组件（如
+   .admin-panel-status 的 4.75rem）都能覆盖它。此前是本文件内两条同特异性
+   规则（0,1,0）按源码顺序比拼，守卫在第 7083 行、状态胶囊在第 69 行，后者
+   被覆盖，声明的 4.75rem 下限计算为 0px —— 实测全站 9 个胶囊宽度 57.2~82px，
+   同语义文本（如「显示 20 条」）在不同容器下宽度不一致，下限形同虚设。
+
+   注：与 .admin-toolbar > * 的修法不同，那里必须用 :not([class*='min-w-'])。
+   原因是二者冲突的性质不同：工具条内是工具类（位于 @layer utilities）被未分层
+   的守卫压制，而层序先于特异性比较，:where() 无法解决；此处两条规则同在未分层
+   的同一文件内，纯属特异性相同时的源码顺序问题，降低守卫特异性即可根治。 */
+:where(.admin-panel-heading__actions) > * {
   min-width: 0;
 }
 
