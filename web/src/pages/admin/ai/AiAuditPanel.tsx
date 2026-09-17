@@ -85,7 +85,7 @@ export default function AiAuditPanel() {
             setOffset(0)
           }}
         >
-          <SelectTrigger size="sm" id="audit-filter-type" className="w-[140px]">
+          <SelectTrigger size="sm" id="audit-filter-type" className="min-w-[8.75rem]">
             <SelectValue />
           </SelectTrigger>
           <SelectContent position="popper" align="end" sideOffset={4}>
@@ -287,7 +287,7 @@ export default function AiAuditPanel() {
                   <div className="ai-list-page-size">
                     <Label htmlFor="audit-page-size">每页</Label>
                     <Select value={String(limit)} onValueChange={(value) => { setLimit(Number(value)); setOffset(0) }}>
-                      <SelectTrigger size="sm" id="audit-page-size" className="w-[88px]" aria-label="每页显示数量"><SelectValue /></SelectTrigger>
+                      <SelectTrigger size="sm" id="audit-page-size" className="min-w-[5.5rem]" aria-label="每页显示数量"><SelectValue /></SelectTrigger>
                       <SelectContent position="popper" align="end" sideOffset={4}>
                         <SelectItem value="10">10 条</SelectItem>
                         <SelectItem value="20">20 条</SelectItem>

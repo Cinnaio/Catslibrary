@@ -121,7 +121,7 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
     <AdminToolbar className="ai-tasks-toolbar" ariaLive="polite">
       <Label htmlFor="task-filter-status" className="text-xs text-muted-foreground">状态</Label>
       <Select value={filterStatus} onValueChange={(v) => { setLoading(true); setFilterStatus(v as typeof filterStatus) }}>
-        <SelectTrigger size="sm" id="task-filter-status" className="w-[120px]"><SelectValue /></SelectTrigger>
+        <SelectTrigger size="sm" id="task-filter-status" className="min-w-[7.5rem]"><SelectValue /></SelectTrigger>
         <SelectContent position="popper" align="end" sideOffset={4}>
           <SelectItem value="all">全部</SelectItem>
           <SelectItem value="queued">排队中</SelectItem>

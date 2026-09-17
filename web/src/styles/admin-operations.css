@@ -2011,10 +2011,11 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   min-width: 7.5rem;
 }
 
-/* AI 任务采用列表行而不是逐项卡片，便于扫描状态并横向完成操作。 */
-.ai-tasks-panel .ai-tasks-filter [data-slot='select-trigger'] {
-  width: 7.5rem;
-}
+/* AI 任务采用列表行而不是逐项卡片，便于扫描状态并横向完成操作。
+   注：此处原有的 .ai-tasks-panel .ai-tasks-filter [data-slot='select-trigger']
+   { width: 7.5rem } 已删除 —— .ai-tasks-filter 在 TSX 中已不存在（grep 全仓 0 命中），
+   该规则是死代码。宽度现由组件上的 min-w-[7.5rem] 承担，与其余筛选器一致。
+   （真正压制该 min-width 的是下方 .admin-toolbar > * 的 min-width: 0，已在那里修正。） */
 
 /* 面板从 Card 换成 AdminDataPanel 后，内边距不再由 CardContent 提供。
    列表自带 border-top，故只在左右与底部留白，标题区由 AdminPanelHeading 负责。 */
@@ -6774,7 +6775,14 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   width: 100%;
 }
 
-.admin-toolbar > * {
+/* 允许工具条内的直接子项收缩，避免 flex 项被 min-content 撑破容器。
+   但必须让出显式声明了 min-width 的控件：本文件未套 @layer，而未分层样式优先于
+   任何 @layer 中的规则（Tailwind v4 的工具类都在 @layer utilities 内），因此
+   这条 min-width: 0 会无视优先级地抹掉工具类里的 min-w-*。实测用 CDP 取匹配规则
+   可复现：筛选器同时命中 .min-w-[8.75rem] 与本案，最终计算值仍为 0px，控件塌回
+   78px（内容宽度），长标签被静默截断。改为跳过自带 min-w-* 的元素后，显式下限
+   生效。 */
+.admin-toolbar > *:not([class*='min-w-']) {
   min-width: 0;
 }
 

@@ -309,7 +309,7 @@ export default function AiGenerationsPanel(props: {
             setOffset(0)
           }}
         >
-          <SelectTrigger size="sm" id="gen-filter-kind" className="w-full sm:w-[140px]">
+          <SelectTrigger size="sm" id="gen-filter-kind" className="w-full sm:w-auto sm:min-w-[8.75rem]">
             <SelectValue />
           </SelectTrigger>
           <SelectContent position="popper" align="end" sideOffset={4}>
@@ -537,7 +537,7 @@ export default function AiGenerationsPanel(props: {
                         setOffset(0)
                       }}
                     >
-                      <SelectTrigger size="sm" id="generation-page-size" className="w-[88px]" aria-label="每页显示数量">
+                      <SelectTrigger size="sm" id="generation-page-size" className="min-w-[5.5rem]" aria-label="每页显示数量">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent position="popper" align="end" sideOffset={4}>
