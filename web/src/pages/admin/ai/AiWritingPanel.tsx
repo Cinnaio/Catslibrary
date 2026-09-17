@@ -4,6 +4,7 @@ import { aiApi, chaptersApi, newOperationId, novelsApi, type AiEffectiveProfile,
 import { useToast, useConfirm } from '@/components/feedback'
 import { AdminPanelHeading } from '@/components/admin/AdminWorkspace'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -961,12 +962,26 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                 )}
               </div>
             </div>
-            <div className="grid gap-3 border-t pt-4">
-              <div>
-                <p className="text-sm font-medium">成人内容</p>
-                <p className="text-xs text-muted-foreground">
-                  开启后本次任务按成人向写作；推荐情节也会给出以成人场景为主体的方向。关闭时行为与以往一致。
-                </p>
+            {/* 成人内容与大纲是两件不同的事：一个是本次任务的写作尺度，一个是内容结构
+                输入。此前两者同处一个 grid、只靠 border-top 分隔，展开后的确认项又紧贴
+                大纲标签，读起来像同一组设置。现按本页其它段的写法独立成段。
+
+                段内沿用本面板族既有的「开关行」范式（对照 AiParamsPanel 的
+                「回来接着读功能」、AiSettingsCard 的「阅读器前情提要」）：文字在左、
+                Switch 在右、整行可点，而不是为 R18 另造一套视觉。 */}
+            <div className="grid gap-3 border-t pt-5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium">成人内容</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    开启后本次任务按成人向写作；推荐情节也会给出以成人场景为主体的方向。关闭时行为与以往一致。
+                  </p>
+                </div>
+                {/* 状态徽标与「AI 设置」页的「已配置 / 未配置」同构：
+                    开关收起时正文没有「当前是否启用」的落点，徽标把它提到标题行。 */}
+                <Badge className={adultContentMode === 'explicit' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}>
+                  {adultContentMode === 'explicit' ? '已启用' : '未启用'}
+                </Badge>
               </div>
               {/* 用 Switch 替代原生 checkbox：原生框实测 13×13，低于 WCAG 2.2 AA
                   的 24×24；同面板族的「参数调优」也用 Switch 表达同一类布尔开关。
@@ -975,7 +990,13 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                   button 是 labelable 元素，label 既转发点击又提供可访问名称
                   （最小复现页与真实页面均实测转发，CDP 无障碍树确认名称正确）。
                   刻意不抄一份切换逻辑到文字上 —— 那样会有两处需要同步。 */}
-              <label className="flex items-center gap-3 text-sm">
+              <label className="flex items-start justify-between gap-4 rounded-lg border border-border bg-muted/30 p-4">
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium text-foreground">开启露骨 R18 模式</span>
+                  <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">
+                    按作者本次给出的成人内容参数写作；成人场景是章节主体而非情节之外的点缀。
+                  </span>
+                </span>
                 <Switch
                   checked={adultContentMode === 'explicit'}
                   disabled={busy || taskActive}
@@ -984,10 +1005,11 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                     if (!checked) setAdultCharactersConfirmed(false)
                   }}
                 />
-                <span>开启露骨 R18 模式</span>
               </label>
               {adultContentMode === 'explicit' && (
-                <div className="ai-writing-consent grid gap-3">
+                /* 确认项挂上 is-confirmed：勾选后整行文字降级为弱化色，
+                   未勾选时保持主色 —— 用户在点「生成」之前就能看出还差这一步。 */
+                <div className={`ai-writing-consent grid gap-3${adultCharactersConfirmed ? ' is-confirmed' : ''}`}>
                   <label className="ai-writing-consent__row">
                     <Checkbox
                       checked={adultCharactersConfirmed}
@@ -1014,7 +1036,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                 </div>
               )}
             </div>
-            <div className="grid gap-1.5">
+            <div className="grid gap-1.5 border-t pt-5">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <Label htmlFor="ai-writing-outline">{mode === 'new' ? '大纲（生成章节时使用）' : '大纲（按章拆分后逐章下发）'}</Label>
                 {mode === 'continue' && (

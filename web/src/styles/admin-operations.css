@@ -2555,6 +2555,20 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   background: var(--admin-panel-muted);
 }
 
+/* 勾选后把整行文字降级为弱化色：未勾选时它是这个分区里唯一的强文字，
+   看起来就是「还差这一步」；此时主按钮已经可用，界面必须自己说清这个缺口。 */
+.ai-writing-consent.is-confirmed > .ai-writing-consent__row > span {
+  color: var(--text-muted);
+}
+
+/* 窄屏下确认项再收一档内边距。它嵌在开关行之下，两层内缩在 400px 视口里要吃掉
+   约 24px，档位选择框的文案因此多折一行。收窄只作用于确认项，不影响开关行。 */
+@media (max-width: 640px) {
+  .ai-writing-consent {
+    padding: 0.625rem 0.75rem;
+  }
+}
+
 .ai-writing-consent > .ai-writing-consent__row {
   display: flex;
   align-items: flex-start;
