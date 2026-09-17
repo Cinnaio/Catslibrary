@@ -185,4 +185,41 @@ describe('AiWritingPanel', () => {
     await waitFor(() => expect(textarea.value).toContain('第1章 重返皇城'))
     expect(textarea.value).toContain('第2章 婚夜')
   })
+
+  it('目标字数清空时允许为空，不被立刻塞回默认值', async () => {
+    await selectNovel()
+
+    const input = screen.getByLabelText('目标字数') as HTMLInputElement
+    expect(input.value).toBe('2000')
+
+    // 清空的瞬间不得被 300 覆盖：否则数字改不动（先删后打字的常规操作会被打断）
+    fireEvent.change(input, { target: { value: '' } })
+    expect(input.value).toBe('')
+
+    fireEvent.change(input, { target: { value: '5000' } })
+    expect(input.value).toBe('5000')
+  })
+
+  it('未失焦就提交时，目标字数按当前文字态归一化后发出', async () => {
+    await selectNovel()
+
+    const input = screen.getByLabelText('目标字数') as HTMLInputElement
+    fireEvent.change(input, { target: { value: '4500' } })
+    // 刻意不触发 blur：用户在输入框里直接点按钮是常规路径
+    fireEvent.change(screen.getByPlaceholderText(/例如：第一章 雾中来客/), { target: { value: '第一章' } })
+    fireEvent.click(screen.getByRole('button', { name: /生成章节/ }))
+
+    await waitFor(() => expect(api.chapterNovel).toHaveBeenCalled())
+    expect(api.chapterNovel.mock.calls[0]![0]).toMatchObject({ novelId: 'novel_1', targetWords: 4500 })
+  })
+
+  it('超出范围的目标字数在失焦时被夹回合法区间', async () => {
+    await selectNovel()
+
+    const input = screen.getByLabelText('目标字数') as HTMLInputElement
+    fireEvent.change(input, { target: { value: '999999' } })
+    fireEvent.blur(input)
+
+    expect(input.value).toBe('30000')
+  })
 })

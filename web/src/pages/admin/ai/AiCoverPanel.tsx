@@ -467,6 +467,9 @@ export default function AiCoverPanel() {
                 setPromptMetadata(undefined)
                 // 版本号属于上一本书，必须清掉：否则会把旧版本号发给新书的采纳/上传
                 setCurrentCoverVersion('')
+                // 立即清空旧书候选：候选请求是异步的，不清空就会在慢网络下出现
+                // 「新书标题 + 旧书候选」，而采纳/弃用按候选 ID 操作，会打到错误的目标上。
+                setCandidates([])
                 void loadCandidates(value)
               }}
               placeholder="选择小说"
@@ -618,11 +621,18 @@ export default function AiCoverPanel() {
           </div>
 
           {/* 生成 CTA */}
-          <Button size="lg" className="w-full gap-2" disabled={busy || taskActive || !novelId} onClick={() => void generate()}>
+          {/* generatingPrompt 必须进禁用条件：描述词仍在生成时放行，图片任务会读到旧值或空值，
+              而新描述词稍后才回填到输入框，界面参数与实际任务输入就对不上了。 */}
+          <Button size="lg" className="w-full gap-2" disabled={busy || taskActive || generatingPrompt || !novelId} onClick={() => void generate()}>
             {busy || taskActive ? (
               <>
                 <Loader2 className="size-4 animate-spin" />
                 正在生成…
+              </>
+            ) : generatingPrompt ? (
+              <>
+                <Loader2 className="size-4 animate-spin" />
+                正在准备描述词…
               </>
             ) : (
               <>
@@ -667,7 +677,7 @@ export default function AiCoverPanel() {
                 className="hidden"
                 onChange={(e) => void handleUploadFile(e)}
               />
-              <Button variant="outline" size="sm" disabled={candidateBusy === 'upload'} onClick={() => fileInputRef.current?.click()}>
+              <Button variant="outline" size="sm" disabled={candidateBusy === 'upload' || !novelId} onClick={() => fileInputRef.current?.click()}>
                 {candidateBusy === 'upload' ? (
                   <>
                     <Loader2 className="size-3.5 animate-spin" />

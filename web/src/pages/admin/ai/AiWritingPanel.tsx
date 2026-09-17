@@ -23,6 +23,44 @@ const WRITING_TASK_KINDS = new Set(['continue', 'write_outline', 'write_chapter'
 // 超过该章数的批量续写需要二次确认（成本意识）
 const CONFIRM_CHAPTER_COUNT = 5
 
+/**
+ * 数值输入的文字态与数值态分离。
+ * 直接把受控值写成 number 会让清空输入框的瞬间被塞回默认值（「300」跳回来），
+ * 编辑期无法出现空串，等于数字改不动。这里保留文字态，非法或空输入只留在文字上，
+ * 失焦或提交时才归一化回合法数值。
+ */
+function useEditableNumber(initial: number, min: number, max: number) {
+  const [value, setValue] = useState(initial)
+  const [text, setText] = useState(String(initial))
+  const valueRef = useRef(initial)
+
+  const onChangeText = useCallback(
+    (raw: string) => {
+      setText(raw)
+      const parsed = Math.trunc(Number(raw))
+      // 编辑期只接受范围内的合法值；空串或非法输入保留文字态，等失焦归一化
+      if (raw.trim() !== '' && Number.isFinite(parsed)) {
+        const next = Math.max(min, Math.min(max, parsed))
+        valueRef.current = next
+        setValue(next)
+      }
+    },
+    [min, max],
+  )
+
+  /** 把文字态归一化成合法数值并回写，返回可直接提交的值。 */
+  const commit = useCallback(() => {
+    const parsed = Math.trunc(Number(text))
+    const next = text.trim() !== '' && Number.isFinite(parsed) ? Math.max(min, Math.min(max, parsed)) : valueRef.current
+    valueRef.current = next
+    setValue(next)
+    setText(String(next))
+    return next
+  }, [text, min, max])
+
+  return { value, text, onChangeText, commit }
+}
+
 function taskStatusLabel(status: string): string {
   return status === 'queued'
     ? '排队中'
@@ -202,8 +240,11 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
   const [chapterTitle, setChapterTitle] = useState('')
   const [instruction, setInstruction] = useState('')
   const [outline, setOutline] = useState('')
-  const [targetWords, setTargetWords] = useState(2000)
-  const [chapterCount, setChapterCount] = useState(1)
+  /** 目标字数与章节数的文字态/数值态分离：编辑期允许为空，失焦或提交时归一化 */
+  const targetWordsInput = useEditableNumber(2000, 300, 30000)
+  const chapterCountInput = useEditableNumber(1, 1, 20)
+  const targetWords = targetWordsInput.value
+  const chapterCount = chapterCountInput.value
   const [busy, setBusy] = useState(false)
   /** 当前创作后台任务；null 表示未启动过 */
   const [task, setTask] = useState<AiTaskInfo | null>(null)
@@ -444,7 +485,10 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
 
   async function generateOutline() {
     if (!title.trim()) return toast('请填写作品标题', 'error')
-    await startTask(() => aiApi.writing.outline({ novelId, title, instruction, targetWords, chapterCount, operationId: newOperationId('ai-writing-outline') }), '大纲生成已开始，完成后到“已生成内容”查看')
+    // 提交前归一化：用户可能没触发失焦就点了按钮，文字态里的值必须先落成合法数值
+    const words = targetWordsInput.commit()
+    const count = chapterCountInput.commit()
+    await startTask(() => aiApi.writing.outline({ novelId, title, instruction, targetWords: words, chapterCount: count, operationId: newOperationId('ai-writing-outline') }), '大纲生成已开始，完成后到“已生成内容”查看')
   }
 
   /**
@@ -477,8 +521,10 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
   async function generateChapter() {
     if (!novelId || !chapterTitle.trim()) return toast('请选择小说并填写章节标题', 'error')
     if (!adultPreferencesReady()) return
+    const words = targetWordsInput.commit()
+    const count = chapterCountInput.commit()
     await startTask(
-      () => aiApi.writing.chapter({ novelId, title, outline, instruction, targetWords, chapterCount, contentPreferences: buildContentPreferences(), operationId: newOperationId('ai-writing-chapter') }),
+      () => aiApi.writing.chapter({ novelId, title, outline, instruction, targetWords: words, chapterCount: count, contentPreferences: buildContentPreferences(), operationId: newOperationId('ai-writing-chapter') }),
       '章节生成已开始，完成后到“已生成内容”查看',
     )
   }
@@ -486,18 +532,20 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
   async function continueNovel() {
     if (!novelId) return toast('请选择小说', 'error')
     if (!adultPreferencesReady()) return
+    const words = targetWordsInput.commit()
+    const count = chapterCountInput.commit()
     // 批量续写是连续 N 次模型调用，超过阈值先确认，避免误触烧钱
-    if (chapterCount > CONFIRM_CHAPTER_COUNT) {
+    if (count > CONFIRM_CHAPTER_COUNT) {
       const ok = await confirm({
-        title: `批量续写 ${chapterCount} 章？`,
-        message: `将按顺序连续调用 AI ${chapterCount} 次（每章一次），生成期间可随时取消，已生成章节会保留为草稿。`,
+        title: `批量续写 ${count} 章？`,
+        message: `将按顺序连续调用 AI ${count} 次（每章一次），生成期间可随时取消，已生成章节会保留为草稿。`,
         okText: '开始续写',
         cancelText: '取消',
       })
       if (!ok) return
     }
     await startTask(
-      () => aiApi.writing.continue({ novelId, title: chapterTitle, instruction, targetWords, chapterCount, contentPreferences: buildContentPreferences(), ...(outline.trim() ? { outline } : {}), ...(afterChapterId ? { afterChapterId } : {}), operationId: newOperationId('ai-writing-continue') }),
+      () => aiApi.writing.continue({ novelId, title: chapterTitle, instruction, targetWords: words, chapterCount: count, contentPreferences: buildContentPreferences(), ...(outline.trim() ? { outline } : {}), ...(afterChapterId ? { afterChapterId } : {}), operationId: newOperationId('ai-writing-continue') }),
       '续写任务已开始，完成后草稿在“已生成内容”',
     )
   }
@@ -685,8 +733,9 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                   min={300}
                   max={30000}
                   step={100}
-                  value={targetWords}
-                  onChange={(event) => setTargetWords(Number(event.target.value) || 300)}
+                  value={targetWordsInput.text}
+                  onChange={(event) => targetWordsInput.onChangeText(event.target.value)}
+                  onBlur={targetWordsInput.commit}
                 />
                 <span>字</span>
               </div>
@@ -700,8 +749,9 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                     type="number"
                     min={1}
                     max={20}
-                    value={chapterCount}
-                    onChange={(event) => setChapterCount(Math.max(1, Math.min(20, Number(event.target.value) || 1)))}
+                    value={chapterCountInput.text}
+                    onChange={(event) => chapterCountInput.onChangeText(event.target.value)}
+                    onBlur={chapterCountInput.commit}
                   />
                   <span>章</span>
                 </div>
@@ -855,7 +905,8 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                     type="button"
                     variant="outline"
                     size="sm"
-                    disabled={busy || taskActive || !novelId}
+                    // outlineBusy 必须进禁用条件：否则生成期间可重复点击，重复发起同一批大纲请求
+                    disabled={busy || taskActive || outlineBusy || !novelId}
                     onClick={() => void generateOutlineForContinuation()}
                   >
                     {outlineBusy ? '生成中…' : '按情节推荐生成大纲'}
