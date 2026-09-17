@@ -3052,6 +3052,17 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   }
 }
 
+/* 流动条是永不结束的装饰动效，必须响应系统的减弱动效偏好。
+   这里移除扫过的光带而不是只停住它：animation: none 会把 ::after 留在
+   translateX(0)，左起 38% 的渐变条看起来像「已加载 38%」，是被动效撤回后
+   才出现的错误读数。去掉后保留 --accent-light 轨道，仍能表达「进行中」，
+   而具体进度由任务状态卡片上已有的文字承担。 */
+@media (prefers-reduced-motion: reduce) {
+  .ai-task-progress::after {
+    display: none;
+  }
+}
+
 /* AI 封面预览：图片铺满 2:3 画框，与 .account-avatar img 同款写法。
    必须放在无 @layer 的普通规则里：base.css 的 `img { height: auto }` 是非 layer 规则，
    优先级高于 Tailwind 的 @layer utilities，会让 `h-full` 失效，导致源图比例
