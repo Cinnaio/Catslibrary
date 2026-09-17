@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Home 页 —— 小说网格、搜索（含拼音）、分类/状态筛选、排序、分页、最近阅读。
  * 由 Novel-KV js/home.js 平移为 React。
  */
@@ -459,6 +459,7 @@ export default function Home() {
               <span className="home-pagination__info">第 {currentPage} / {totalPages} 页</span>
               <span className="home-pagination__jump">
                 跳转 <input type="number" className="form-input" min={1} value={currentPage}
+                  aria-label="跳转到指定页"
                   onChange={(e) => {
                     const p = Math.min(Math.max(parseInt(e.target.value) || 1, 1), totalPages)
                     setCurrentPage(p)

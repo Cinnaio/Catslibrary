@@ -36,6 +36,11 @@ export default function Pagination({ page, totalPages, onPage, className }: Pagi
         <Input
           type="number"
           className="h-8 w-[72px]"
+          /* 可见文案「跳转 … 页」是输入框两侧的裸文本节点，不在任何 <label> 内，
+             无法与控件建立程序化关联，读屏只会念「数字 输入框」。此处补名称；
+             不用 <label> 是因为可见文本被输入框劈成两半，套 label 会连带把
+             「页」字读进名称里。 */
+          aria-label="跳转到指定页"
           min={1}
           max={totalPages}
           value={jump}
