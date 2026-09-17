@@ -120,7 +120,7 @@ describe('AiWritingPanel', () => {
   it('推荐时把侧重与内容参数一并发给后端', async () => {
     await selectNovel()
 
-    fireEvent.change(screen.getByPlaceholderText(/推荐侧重点/), { target: { value: '想写日常互动' } })
+    fireEvent.change(screen.getByLabelText('推荐侧重点（可选）'), { target: { value: '想写日常互动' } })
     fireEvent.click(screen.getByRole('button', { name: '推荐情节' }))
 
     await waitFor(() => expect(api.plotSuggestions).toHaveBeenCalled())
@@ -135,7 +135,7 @@ describe('AiWritingPanel', () => {
     await selectNovel()
 
     fireEvent.change(screen.getByPlaceholderText(/例如：第一章 雾中来客/), { target: { value: '第一章' } })
-    fireEvent.click(screen.getByRole('checkbox', { name: /开启露骨/ }))
+    fireEvent.click(screen.getByRole('switch', { name: /开启露骨/ }))
     fireEvent.click(screen.getByRole('button', { name: /生成章节/ }))
 
     await new Promise((resolve) => setTimeout(resolve, 0))
@@ -146,7 +146,7 @@ describe('AiWritingPanel', () => {
     await selectNovel()
 
     fireEvent.change(screen.getByPlaceholderText(/例如：第一章 雾中来客/), { target: { value: '第一章' } })
-    fireEvent.click(screen.getByRole('checkbox', { name: /开启露骨/ }))
+    fireEvent.click(screen.getByRole('switch', { name: /开启露骨/ }))
     fireEvent.click(screen.getByRole('checkbox', { name: /已确认本次涉及角色均为成年人/ }))
     fireEvent.click(screen.getByRole('button', { name: /生成章节/ }))
 

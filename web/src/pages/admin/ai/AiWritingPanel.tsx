@@ -7,10 +7,12 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import CustomSelect from '@/components/admin/CustomSelect'
 import { Textarea } from '@/components/ui/textarea'
-import { PenLine } from 'lucide-react'
+import { PenLine, Sparkles } from 'lucide-react'
 
 // 后台创作任务的进度轮询间隔
 const TASK_POLL_INTERVAL = 3000
@@ -611,35 +613,38 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
           </div>
           <div className="ai-writing-notes grid gap-4 border-t pt-5">
             <div className="grid gap-1.5">
-              <div className="flex items-center justify-between gap-3">
-                <Label htmlFor="ai-writing-instruction">创作要求</Label>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-7 px-2 text-xs"
-                  disabled={busy || suggestBusy || !novelId}
-                  onClick={() => void loadSuggestions()}
-                >
-                  {suggestBusy ? '推荐中…' : '推荐情节'}
-                </Button>
-              </div>
+              <Label htmlFor="ai-writing-instruction">创作要求</Label>
               <Textarea
                 id="ai-writing-instruction"
                 className="field-sizing-fixed min-h-[100px] shadow-none text-sm"
                 value={instruction}
                 onChange={(event) => setInstruction(event.target.value)}
-                placeholder="人物、风格、冲突、节奏或本次剧情目标；想不出时可点「推荐情节」取候选"
+                placeholder="人物、风格、冲突、节奏或本次剧情目标"
               />
-              <div className="flex items-center gap-2">
-                <Input
-                  className="h-8 flex-1 text-xs"
-                  aria-label="推荐侧重点（可选）"
-                  value={focus}
-                  onChange={(event) => setFocus(event.target.value)}
-                  placeholder="推荐侧重点（可留空，例如：想写感情升温的日常互动）"
-                />
-              </div>
+            </div>
+            {/* 「推荐侧重点」不是创作要求的一部分，而是「推荐情节」的输入参数。
+                收进工具行与按钮同行，用户一眼看到「填什么 → 点哪个」。 */}
+            <div className="ai-writing-assist">
+              <Input
+                aria-label="推荐侧重点（可选）"
+                value={focus}
+                onChange={(event) => setFocus(event.target.value)}
+                placeholder="侧重点（可留空，例如：感情升温的日常互动）"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={busy || suggestBusy || !novelId}
+                onClick={() => void loadSuggestions()}
+              >
+                {suggestBusy ? '推荐中…' : (
+                  <>
+                    <Sparkles className="size-3.5" aria-hidden="true" />
+                    推荐情节
+                  </>
+                )}
+              </Button>
             </div>
             {suggestions.length > 0 && (
               <div className="grid gap-2">
@@ -679,29 +684,33 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                   开启后本次任务按成人向写作；推荐情节也会给出以成人场景为主体的方向。关闭时行为与以往一致。
                 </p>
               </div>
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
+              {/* 用 Switch 替代原生 checkbox：原生框实测 13×13，低于 WCAG 2.2 AA
+                  的 24×24；同面板族的「参数调优」也用 Switch 表达同一类布尔开关。
+
+                  外层用 <label> 包裹即可，不必手写 onClick + aria-labelledby：
+                  button 是 labelable 元素，label 既转发点击又提供可访问名称
+                  （最小复现页与真实页面均实测转发，CDP 无障碍树确认名称正确）。
+                  刻意不抄一份切换逻辑到文字上 —— 那样会有两处需要同步。 */}
+              <label className="flex items-center gap-3 text-sm">
+                <Switch
                   checked={adultContentMode === 'explicit'}
                   disabled={busy || taskActive}
-                  onChange={(event) => {
-                    const next = event.target.checked
-                    setAdultContentMode(next ? 'explicit' : 'off')
-                    if (!next) setAdultCharactersConfirmed(false)
+                  onCheckedChange={(checked) => {
+                    setAdultContentMode(checked ? 'explicit' : 'off')
+                    if (!checked) setAdultCharactersConfirmed(false)
                   }}
                 />
-                开启露骨 R18 模式
+                <span>开启露骨 R18 模式</span>
               </label>
               {adultContentMode === 'explicit' && (
-                <>
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
+                <div className="ai-writing-consent grid gap-3">
+                  <label className="ai-writing-consent__row">
+                    <Checkbox
                       checked={adultCharactersConfirmed}
                       disabled={busy || taskActive}
-                      onChange={(event) => setAdultCharactersConfirmed(event.target.checked)}
+                      onCheckedChange={(checked) => setAdultCharactersConfirmed(checked === true)}
                     />
-                    已确认本次涉及角色均为成年人（必选）
+                    <span>已确认本次涉及角色均为成年人（必选）</span>
                   </label>
                   <div className="grid gap-1.5">
                     <Label id="ai-writing-consent-tier-label" className="text-xs">同意规则档位</Label>
@@ -718,18 +727,17 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                       放宽档只在作品原作本身即以此类情节为主线、且角色均为成年人时使用；它解除的是写法与篇幅限制，不解除成年前提。
                     </p>
                   </div>
-                </>
+                </div>
               )}
             </div>
             <div className="grid gap-1.5">
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <Label htmlFor="ai-writing-outline">{mode === 'new' ? '大纲（生成章节时使用）' : '大纲（按章拆分后逐章下发）'}</Label>
                 {mode === 'continue' && (
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="h-7 px-2 text-xs"
                     disabled={busy || taskActive || !novelId}
                     onClick={() => void generateOutlineForContinuation()}
                   >
