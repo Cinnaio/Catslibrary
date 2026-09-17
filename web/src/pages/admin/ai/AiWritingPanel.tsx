@@ -12,7 +12,7 @@ import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import CustomSelect from '@/components/admin/CustomSelect'
 import { Textarea } from '@/components/ui/textarea'
-import { PenLine, Sparkles } from 'lucide-react'
+import { PenLine, Sparkles, ArrowRight } from 'lucide-react'
 
 // 后台创作任务的进度轮询间隔
 const TASK_POLL_INTERVAL = 3000
@@ -660,17 +660,22 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                     收起
                   </Button>
                 </div>
-                <div className="grid gap-2">
+                <div className="ai-writing-suggest">
                   {suggestions.map((item, index) => (
                     <button
                       key={`${index}-${item.direction.slice(0, 12)}`}
                       type="button"
-                      className="border border-input bg-background px-3 py-2 text-left text-sm hover:bg-accent"
+                      className="ai-writing-suggest__item"
+                      // 让读屏知道当前框里的内容是否就是这一条
+                      aria-pressed={instruction === item.direction}
                       onClick={() => setInstruction(item.direction)}
                     >
-                      <span className="block">{item.direction}</span>
+                      <span className="ai-writing-suggest__direction">{item.direction}</span>
                       {item.effect && (
-                        <span className="mt-1 block text-xs text-muted-foreground">→ {item.effect}</span>
+                        <span className="ai-writing-suggest__effect">
+                          <ArrowRight className="size-3" aria-hidden="true" />
+                          <span>{item.effect}</span>
+                        </span>
                       )}
                     </button>
                   ))}

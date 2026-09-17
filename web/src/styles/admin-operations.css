@@ -2053,6 +2053,80 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   flex: 0 0 auto;
 }
 
+/* 「推荐情节」候选：一组互斥的方向建议，选一条填入创作要求。
+
+   原实现是 border-radius: 0 的裸边框块堆叠 —— 同页面的面板 20px、输入框与按钮
+   12px，圆角契约里没有 0px 这一档；五张直角长卡（实测 1088×83）叠起来是一片
+   文本墙，每行约 77 个全角字，远超可扫描字宽。
+
+   现改为两列候选网格：单卡约 536px，每行落到约 38 个全角字，进入可读区间，
+   同时补上圆角、焦点环与选中回执（此前点完看不出取了哪一条）。 */
+.ai-writing-suggest {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 26rem), 1fr));
+  gap: 0.5rem;
+}
+
+.ai-writing-suggest__item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.625rem 0.875rem;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-input-radius);
+  background: var(--admin-panel);
+  color: var(--text-primary);
+  text-align: left;
+  transition: border-color var(--admin-table-row-interaction), background-color var(--admin-table-row-interaction);
+}
+
+.ai-writing-suggest__item:hover {
+  border-color: color-mix(in srgb, var(--accent) 52%, var(--admin-border));
+  background: var(--admin-table-row-hover-background);
+}
+
+.ai-writing-suggest__item:focus-visible {
+  outline: none;
+  border-color: var(--sh-primary);
+  box-shadow: 0 0 0 2px var(--focus-ring);
+}
+
+/* 这些按钮执行的是「把该条文本填进创作要求」，不是持久化的选择，
+   故用 aria-pressed 表达「它当前是否就是框里的那一份」，读屏可播报该状态。 */
+.ai-writing-suggest__item[aria-pressed='true'] {
+  border-color: var(--sh-primary);
+  background: var(--accent-subtle);
+}
+
+.ai-writing-suggest__direction {
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+.ai-writing-suggest__effect {
+  display: flex;
+  gap: 0.375rem;
+  align-items: flex-start;
+  /* 同一行两张卡正文长短不一时，把效果行压到底部，两卡的效果行对齐成一条线 */
+  margin-top: auto;
+  padding-top: 0.25rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.ai-writing-suggest__effect > svg {
+  flex: 0 0 auto;
+  margin-top: 0.1875rem;
+  color: var(--accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-writing-suggest__item {
+    transition: none;
+  }
+}
+
 /* 窄屏下输入框与按钮挤在一行会把 placeholder 截断、按钮压到刚够两个字。
    改为上下堆叠，两者都拿到整行宽度。 */
 @media (max-width: 640px) {
