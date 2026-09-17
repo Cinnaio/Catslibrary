@@ -169,7 +169,7 @@ export default function Po18AccountPanel({ active }: { active: boolean }) {
       <AdminPanelHeading
         title={
           <span className="admin-panel-title">
-            <KeyRound className="size-4 text-primary" aria-hidden="true" />
+            <KeyRound className="size-4" aria-hidden="true" />
             PO18.tw 原作者账号
           </span>
         }

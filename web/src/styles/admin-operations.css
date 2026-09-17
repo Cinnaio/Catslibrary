@@ -89,11 +89,24 @@
 }
 
 /* 标题内嵌图标：Card 标题与 AdminPanelHeading 标题共有 20 余处同类写法，
-   统一为一个共享类，避免各页各写一遍 flex + gap。 */
+   统一为一个共享类，避免各页各写一遍 flex + gap。
+
+   图标颜色在此集中声明，TSX 只保留 size-4 与 aria-hidden。此前 28 处调用点
+   各写一遍 text-primary，等于把颜色策略散在 28 个文件位置；若产品决定面板
+   图标改用 --text-muted 或按状态着色，需改 28 处，漏改即出现面板间图标色
+   不一致。实测 28 处全部为「单个 size-4 图标 + text-primary」，无一例外，
+   故下沉为单条规则是安全的。
+
+   用直接子选择器（>）而非后代选择器：实测 28 处的图标都是 .admin-panel-title
+   的直接子元素，且后代选择器会误伤将来嵌在标题里的状态徽章图标。 */
 .admin-panel-title {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
+}
+
+.admin-panel-title > svg {
+  color: var(--accent);
 }
 
 /* Account tables now use the same grid/card contract as novels and chapters.

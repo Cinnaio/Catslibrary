@@ -510,7 +510,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
     <div className="ai-writing-panel space-y-4">
       <Card className="admin-panel-card ai-writing-card">
         <AdminPanelHeading
-          title={<span className="admin-panel-title"><PenLine className="size-4 text-primary" aria-hidden="true" />创作工作台</span>}
+          title={<span className="admin-panel-title"><PenLine className="size-4" aria-hidden="true" />创作工作台</span>}
           description="生成结果先保存为草稿，编辑确认后再发布为正式章节。"
           actions={
             <Tabs value={mode} onValueChange={(value) => setMode(value as 'new' | 'continue')}>

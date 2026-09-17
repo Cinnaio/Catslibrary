@@ -171,7 +171,7 @@ export default function AiConfigPanel(props: {
       {/* 供应商连接参数：可在后台直接修改，无需重启。 */}
       <Card className="admin-panel-card ai-config-providers-card min-w-0">
         <AdminPanelHeading
-          title={<span className="admin-panel-title"><Bot className="size-4 text-primary" aria-hidden="true" />模型供应商</span>}
+          title={<span className="admin-panel-title"><Bot className="size-4" aria-hidden="true" />模型供应商</span>}
           description="连接文本与图像模型，保存后立即生效。"
         />
         <CardContent className="ai-config-providers">
@@ -298,7 +298,7 @@ export default function AiConfigPanel(props: {
       <div className="ai-config-secondary">
       <Card className="admin-panel-card ai-config-card">
           <AdminPanelHeading
-            title={<span className="admin-panel-title"><BookOpenCheck className="size-4 text-primary" aria-hidden="true" />读者生成策略</span>}
+            title={<span className="admin-panel-title"><BookOpenCheck className="size-4" aria-hidden="true" />读者生成策略</span>}
             description="控制读者可用的前情提要与单次生成范围。"
           />
           <CardContent className="grid gap-4">
@@ -351,7 +351,7 @@ export default function AiConfigPanel(props: {
 
       <Card className="admin-panel-card ai-config-card">
           <AdminPanelHeading
-            title={<span className="admin-panel-title"><Activity className="size-4 text-primary" aria-hidden="true" />服务检查与用量</span>}
+            title={<span className="admin-panel-title"><Activity className="size-4" aria-hidden="true" />服务检查与用量</span>}
             description="验证文本模型连接，并查看近期调用情况。"
           />
           <CardContent className="grid gap-4">
