@@ -18,6 +18,7 @@ import AdminEmptyState from '@/components/admin/AdminEmptyState'
 import { AdminDataPanel, AdminMetricStrip, AdminPanelHeading } from '@/components/admin/AdminWorkspace'
 import { Button } from '@/components/ui/button'
 import { formatCost } from './shared'
+import { chartAxisLine, chartGrid, chartLegendStyle, chartTick, chartTooltipLabelStyle, chartTooltipStyle } from './chart-theme'
 
 interface TrendPoint {
   date: string
@@ -125,17 +126,17 @@ export default function AiUsagePanel() {
                       <stop offset="95%" stopColor="var(--accent)" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                  <CartesianGrid {...chartGrid} />
                   <XAxis
                     dataKey="date"
-                    tick={{ fontSize: 12, fill: 'var(--text-muted)' }}
+                    tick={chartTick}
                     tickLine={false}
-                    axisLine={{ stroke: 'var(--border)' }}
+                    axisLine={chartAxisLine}
                     minTickGap={24}
                   />
                   <YAxis
                     yAxisId="calls"
-                    tick={{ fontSize: 12, fill: 'var(--text-muted)' }}
+                    tick={chartTick}
                     tickLine={false}
                     axisLine={false}
                     width={40}
@@ -143,28 +144,22 @@ export default function AiUsagePanel() {
                   <YAxis
                     yAxisId="cost"
                     orientation="right"
-                    tick={{ fontSize: 12, fill: 'var(--text-muted)' }}
+                    tick={chartTick}
                     tickLine={false}
                     axisLine={false}
                     width={60}
                     tickFormatter={(v: number) => formatCost(v)}
                   />
                   <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'var(--bg-card)',
-                      border: '1px solid var(--border)',
-                      borderRadius: '8px',
-                      fontSize: '12px',
-                      color: 'var(--text-primary)',
-                    }}
-                    labelStyle={{ color: 'var(--text-primary)', fontWeight: 600 }}
+                    contentStyle={chartTooltipStyle}
+                    labelStyle={chartTooltipLabelStyle}
                     formatter={(value, name) => {
                       if (name === '成本') return [formatCost(Number(value)), name as string]
                       return [Number(value).toLocaleString(), name as string]
                     }}
                   />
                   <Legend
-                    wrapperStyle={{ fontSize: '12px', paddingTop: '8px' }}
+                    wrapperStyle={chartLegendStyle}
                     iconType="circle"
                   />
                   <Bar
@@ -218,33 +213,27 @@ export default function AiUsagePanel() {
                       <stop offset="95%" stopColor="var(--color-info)" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                  <CartesianGrid {...chartGrid} />
                   <XAxis
                     dataKey="date"
-                    tick={{ fontSize: 12, fill: 'var(--text-muted)' }}
+                    tick={chartTick}
                     tickLine={false}
-                    axisLine={{ stroke: 'var(--border)' }}
+                    axisLine={chartAxisLine}
                     minTickGap={24}
                   />
                   <YAxis
-                    tick={{ fontSize: 12, fill: 'var(--text-muted)' }}
+                    tick={chartTick}
                     tickLine={false}
                     axisLine={false}
                     width={50}
                     tickFormatter={(v: number) => (v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v))}
                   />
                   <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'var(--bg-card)',
-                      border: '1px solid var(--border)',
-                      borderRadius: '8px',
-                      fontSize: '12px',
-                      color: 'var(--text-primary)',
-                    }}
-                    labelStyle={{ color: 'var(--text-primary)', fontWeight: 600 }}
+                    contentStyle={chartTooltipStyle}
+                    labelStyle={chartTooltipLabelStyle}
                     formatter={(value, name) => [Number(value).toLocaleString(), name as string]}
                   />
-                  <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '8px' }} iconType="circle" />
+                  <Legend wrapperStyle={chartLegendStyle} iconType="circle" />
                   <Area
                     type="monotone"
                     dataKey="promptTokens"
