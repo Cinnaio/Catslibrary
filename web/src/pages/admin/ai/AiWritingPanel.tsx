@@ -785,121 +785,144 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                 此前它只是「一个标签 + 一个 textarea」，与下方的侧重点输入框视觉同级，
                 用户分不清哪个才是给模型的要求；空着会怎样也没有任何提示。
                 现把它立为带标题行与状态提示的主区。 */}
-            <section className="ai-writing-brief">
-              <div className="ai-writing-brief__head">
-                <Label htmlFor="ai-writing-instruction">创作要求</Label>
-                <span className="ai-writing-brief__count">
-                  {instruction.replace(/\s/g, '').length > 0 ? `${instruction.replace(/\s/g, '').length} 字` : '未填写'}
-                </span>
-              </div>
-              <Textarea
-                id="ai-writing-instruction"
-                className="field-sizing-fixed min-h-[8rem] shadow-none text-sm"
-                value={instruction}
-                onChange={(event) => setInstruction(event.target.value)}
-                aria-describedby="ai-writing-instruction-hint"
-                placeholder={'说清这一章发生什么、谁参与、推进哪条线。\n例如：苏越在朝堂以斗宗身份现身，当众治愈加刑天，逼云山表态。'}
-              />
-              <p id="ai-writing-instruction-hint" className="ai-writing-brief__hint">
-                {instruction.trim()
-                  ? mode === 'continue' && chapterCount > 1
-                    ? `本要求会原样下发给这 ${chapterCount} 章的每一章。多章建议只写整体方向与尺度，逐章内容交给下方大纲。`
-                    : '本要求会随生成请求下发给模型；可先「推荐情节」挑一条，再按需改写。'
-                  : '留空时模型自行发挥，情节走向随机——同一本书同一起点，两批结果可能完全不同。建议先「推荐情节」挑一条。'}
-              </p>
-            </section>
-            {/* 「推荐侧重点」不是创作要求的一部分，而是「推荐情节」的输入参数。
-                它此前只有 aria-label、没有可见标签，用户看到上下两个输入框会以为
-                这是第二处创作要求；现补可见标签，坐实「这是给按钮用的参数」。 */}
-            <div className="ai-writing-assist">
-              <span className="ai-writing-assist__label" aria-hidden="true">侧重点</span>
-              <Input
-                aria-label="推荐侧重点（可选）"
-                value={focus}
-                onChange={(event) => setFocus(event.target.value)}
-                placeholder="可留空，例如：感情升温的日常互动"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={busy || suggestBusy || !novelId}
-                onClick={() => void loadSuggestions()}
-              >
-                {suggestBusy ? '推荐中…' : (
-                  <>
-                    <Sparkles className="size-3.5" aria-hidden="true" />
-                    推荐情节
-                  </>
-                )}
-              </Button>
-            </div>
-            {suggestions.length > 0 && (
-              <div className="ai-writing-suggest-block">
-                <div className="ai-writing-suggest-block__head">
-                  <p className="text-xs text-muted-foreground">
-                    点一条填入创作要求，填入后可继续修改
+            {/* 创作要求与候选改为左右两栏：候选是「填进要求」的选项，
+                点完必须能立刻看到左侧正文的变化；上下排布时两者相隔一屏，
+                用户点完要滚回去核对填了什么。同屏后这个动作才闭环。
+
+                左列创作要求因此收窄到约半幅：原来整幅宽 1248px 时一行可容
+                上百个全角字，远超舒适阅读宽度，分栏后自然落到可读区间。 */}
+            <div className="ai-writing-brief-layout">
+              <div className="ai-writing-brief-layout__main">
+                <section className="ai-writing-brief">
+                  <div className="ai-writing-brief__head">
+                    <Label htmlFor="ai-writing-instruction">创作要求</Label>
+                    <span className="ai-writing-brief__count">
+                      {instruction.replace(/\s/g, '').length > 0 ? `${instruction.replace(/\s/g, '').length} 字` : '未填写'}
+                    </span>
+                  </div>
+                  <Textarea
+                    id="ai-writing-instruction"
+                    className="field-sizing-fixed min-h-[8rem] shadow-none text-sm"
+                    value={instruction}
+                    onChange={(event) => setInstruction(event.target.value)}
+                    aria-describedby="ai-writing-instruction-hint"
+                    placeholder={'说清这一章发生什么、谁参与、推进哪条线。\n例如：苏越在朝堂以斗宗身份现身，当众治愈加刑天，逼云山表态。'}
+                  />
+                  <p id="ai-writing-instruction-hint" className="ai-writing-brief__hint">
+                    {instruction.trim()
+                      ? mode === 'continue' && chapterCount > 1
+                        ? `本要求会原样下发给这 ${chapterCount} 章的每一章。多章建议只写整体方向与尺度，逐章内容交给下方大纲。`
+                        : '本要求会随生成请求下发给模型；可先「推荐情节」挑一条，再按需改写。'
+                      : '留空时模型自行发挥，情节走向随机——同一本书同一起点，两批结果可能完全不同。建议先「推荐情节」挑一条。'}
                   </p>
+                </section>
+                {/* 「推荐侧重点」不是创作要求的一部分，而是「推荐情节」的输入参数。
+                    它此前只有 aria-label、没有可见标签，用户看到上下两个输入框会以为
+                    这是第二处创作要求；现补可见标签，坐实「这是给按钮用的参数」。 */}
+                <div className="ai-writing-assist">
+                  <span className="ai-writing-assist__label" aria-hidden="true">侧重点</span>
+                  <Input
+                    aria-label="推荐侧重点（可选）"
+                    value={focus}
+                    onChange={(event) => setFocus(event.target.value)}
+                    placeholder="可留空，例如：感情升温的日常互动"
+                  />
                   <Button
                     type="button"
-                    variant="ghost"
+                    variant="outline"
                     size="sm"
-                    className="h-6 px-2 text-xs"
-                    onClick={() => setSuggestions([])}
+                    disabled={busy || suggestBusy || !novelId}
+                    onClick={() => void loadSuggestions()}
                   >
-                    收起
+                    {suggestBusy ? '推荐中…' : (
+                      <>
+                        <Sparkles className="size-3.5" aria-hidden="true" />
+                        推荐情节
+                      </>
+                    )}
                   </Button>
                 </div>
-                <div className="ai-writing-suggest">
-                  {suggestions.map((item, index) => (
-                    <button
-                      key={`${index}-${item.direction.slice(0, 12)}`}
-                      type="button"
-                      className="ai-writing-suggest__item"
-                      // 让读屏知道当前框里的内容是否就是这一条
-                      aria-pressed={instruction === item.direction}
-                      onClick={() => {
-                        // 整段覆盖，先留下原文以便撤销；同一条重复点不覆盖撤销记录
-                        if (instruction !== item.direction) {
-                          setSuggestionFill({ applied: item.direction, previous: instruction })
-                        }
-                        setInstruction(item.direction)
-                      }}
-                    >
-                      <span className="ai-writing-suggest__index" aria-hidden="true">{index + 1}</span>
-                      <span className="ai-writing-suggest__body">
-                        <span className="ai-writing-suggest__direction">{item.direction}</span>
-                        {item.effect && (
-                          <span className="ai-writing-suggest__effect">
-                            <ArrowRight className="size-3" aria-hidden="true" />
-                            <span>{item.effect}</span>
+              </div>
+              <div className="ai-writing-brief-layout__aside">
+                {suggestions.length > 0 ? (
+                  <div className="ai-writing-suggest-block">
+                    <div className="ai-writing-suggest-block__head">
+                      <p className="text-xs text-muted-foreground">
+                        点一条填入左侧创作要求，填入后可继续修改
+                      </p>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-xs"
+                        onClick={() => setSuggestions([])}
+                      >
+                        收起
+                      </Button>
+                    </div>
+                    <div className="ai-writing-suggest">
+                      {suggestions.map((item, index) => (
+                        <button
+                          key={`${index}-${item.direction.slice(0, 12)}`}
+                          type="button"
+                          className="ai-writing-suggest__item"
+                          // 让读屏知道当前框里的内容是否就是这一条
+                          aria-pressed={instruction === item.direction}
+                          onClick={() => {
+                            // 整段覆盖，先留下原文以便撤销；同一条重复点不覆盖撤销记录
+                            if (instruction !== item.direction) {
+                              setSuggestionFill({ applied: item.direction, previous: instruction })
+                            }
+                            setInstruction(item.direction)
+                          }}
+                        >
+                          <span className="ai-writing-suggest__index" aria-hidden="true">{index + 1}</span>
+                          <span className="ai-writing-suggest__body">
+                            <span className="ai-writing-suggest__direction">{item.direction}</span>
+                            {item.effect && (
+                              <span className="ai-writing-suggest__effect">
+                                <ArrowRight className="size-3" aria-hidden="true" />
+                                <span>{item.effect}</span>
+                              </span>
+                            )}
                           </span>
-                        )}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-                {/* 填入是整段覆盖，且用户可能已经手写过内容——给一次后悔的机会。
-                    只在「当前要求确实还是那条候选」时显示，避免撤销按钮指向过期状态。 */}
-                {suggestionFill && instruction === suggestionFill.applied && (
-                  <div className="ai-writing-suggest-undo">
-                    <span>已填入该条候选，原内容已被替换</span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 px-2 text-xs"
-                      onClick={() => {
-                        setInstruction(suggestionFill.previous)
-                        setSuggestionFill(null)
-                      }}
-                    >
-                      撤销填入
-                    </Button>
+                        </button>
+                      ))}
+                    </div>
+                    {/* 填入是整段覆盖，且用户可能已经手写过内容——给一次后悔的机会。
+                        只在「当前要求确实还是那条候选」时显示，避免撤销按钮指向过期状态。 */}
+                    {suggestionFill && instruction === suggestionFill.applied && (
+                      <div className="ai-writing-suggest-undo">
+                        <span>已填入该条候选，原内容已被替换</span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 text-xs"
+                          onClick={() => {
+                            setInstruction(suggestionFill.previous)
+                            setSuggestionFill(null)
+                          }}
+                        >
+                          撤销填入
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  /* 候选尚未取回时的空态。刻意常驻而非隐藏：否则整块会在点击
+                     「推荐情节」的瞬间从单栏跳成双栏，页面高度骤变。这里交代
+                     清楚候选从哪来，也顺带说明它依赖已发布章节这一前提。 */
+                  <div className="ai-writing-suggest-empty">
+                    <Sparkles className="size-4" aria-hidden="true" />
+                    <p>
+                      这里会列出可直接填入的续写方向。<br />
+                      取自该书最新章节的上下文，需已有已发布章节；也可先填左侧「侧重点」再取。
+                    </p>
                   </div>
                 )}
               </div>
-            )}
+            </div>
             <div className="grid gap-3 border-t pt-4">
               <div>
                 <p className="text-sm font-medium">成人内容</p>

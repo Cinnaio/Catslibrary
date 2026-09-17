@@ -239,4 +239,24 @@ describe('AiWritingPanel', () => {
 
     expect(input.value).toBe('30000')
   })
+
+  it('未取候选时右列显示空态，取回后原地替换为候选列表', async () => {
+    await selectNovel()
+
+    // 空态常驻：否则整块会在取候选的瞬间从单栏跳成双栏、页面高度骤变。
+    // 它同时交代了候选的来源与「需已有已发布章节」这个前提。
+    const aside = document.querySelector('.ai-writing-brief-layout__aside')
+    expect(aside?.querySelector('.ai-writing-suggest-empty')).toBeTruthy()
+    expect(aside?.querySelector('.ai-writing-suggest__item')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: '推荐情节' }))
+    await waitFor(() => expect(api.plotSuggestions).toHaveBeenCalled())
+
+    await waitFor(() => {
+      expect(document.querySelector('.ai-writing-suggest-empty')).toBeNull()
+      expect(document.querySelectorAll('.ai-writing-suggest__item').length).toBe(2)
+    })
+    // 候选与创作要求同处一个两栏容器：点选后无需滚动即可看到左侧变化
+    expect(document.querySelector('.ai-writing-brief-layout')?.contains(document.querySelector('#ai-writing-instruction'))).toBe(true)
+  })
 })
