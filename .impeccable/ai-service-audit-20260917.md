@@ -237,6 +237,27 @@
 
 ---
 
+## 功能缺口（样式收口后追加，2026-09-17）
+
+样式项全部落地后重新审视「界面是否完整承载了后端能力」，发现的问题与视觉无关：**三个后端已完整实现、且已有 API 测试的能力，前端调用数为 0**。根因是提交 `ee06c2d`（feat(ai): 落实第二批续写与封面增强，2026-09-10）只改了 `api/`，没有配套前端。把 `api/src/routes/ai.ts` 的 53 条路由与 `web/src/lib/api.ts` 逐一对照后确认：
+
+1. **选段改写**（`POST /writing/rewrite` + `POST /writing/rewrite/:id/apply`，AC 测试 `ai.test.ts:996`）—— 完全无入口。已生成内容的草稿只能整段重写或手工编辑，无法「选中一段让 AI 只改这一段」。
+2. **封面历史与恢复**（`GET /cover/history/:novelId`、`/history/:id/image`、`POST /history/:id/restore`，AC 测试 `ai.test.ts:2441`）—— 完全无入口。封面被误替换后无法回滚，尽管后端已保留最近 10 张快照。
+3. **人工画像校正**（`PUT`/`DELETE /writing/profiles/:kind/:novelId/override`，AC 测试 `ai.test.ts:1065`）—— 完全无入口。更隐蔽的是，三个画像 GET 早已返回 `manualOverride` / `effectiveContent` / `effectiveOrigin` / `exclusionReason` / `baseProfileRevision`，而 `web/src/lib/api.ts` 把这些字段的**类型声明**写成 `{ profile: string }` —— 数据一直在传，只是被前端丢弃。
+
+三项均已接入，提交 `d3d36a1`（选段改写）、`0966097`（封面历史）、`728bebf`（人工校正）。
+
+### 由此暴露的两个非视觉缺陷
+
+- **乐观并发形同虚设**：`adoptCoverCandidate` 与 `uploadCover` 从不发送 `expectedCoverVersion`，后端 `coverVersion()` 校验因此永远收不到值、永不触发（`covers.ts` 的两处 409 成为死代码）。接入封面历史时一并修好。这类「后端有校验、前端不传值」的缺口不会被类型检查或测试发现 —— 两边各自的测试都是绿的。
+- **契约靠人记忆**：`manualOverride` 与 `effectiveContent` 一直被返回却从未被声明，说明类型层没有跟随 API 演进。建议后续在 `api/src/routes/ai.ts` 的响应对象上导出类型供前端引用，而非各写一份。
+
+### 验证方式
+
+三项均做了真实后端契约验证，不依赖 mock：改写缺陷由实机 E2E 发现（70 字选段返回 2069 字建议，起因是 prompt 把选段后的 2000 字上下文直接接在选段之后，诱导模型续写），修复后同一选段返回 75 字；封面历史造出两张可区分散图，确认走鉴权 Blob（非鉴权直连返回 401）；人工校正覆盖 7 项契约（错误基准 409、过期修订号 409、生效切换、重新提取后自动停用而非删除、幂等重放、删除复原）。所有探针数据已复原，`novel_cover_history` 与 `novel_ai_profile_overrides` 均回到 0 行。
+
+---
+
 ## 复现资产
 
 - 截图：`.tmp/shots-ai/{sub}__{theme}__{viewport}.png` —— 8 面板 × 2 主题 × 4 视口（desktop-1600 / laptop-1280 / tablet-900 / mobile-390），共 64 张
