@@ -96,6 +96,8 @@ function ProfileSection(props: {
   actionText: string
   onAction: () => void
   emptyHint: string
+  /** 取样章数输入框的可访问名称；同一页有多个实例，故由调用方给出唯一名称 */
+  sampleLabel?: string
   sample?: { value: number; min: number; max: number; onChange: (value: number) => void }
   content?: ReactNode
   footnote?: ReactNode
@@ -119,6 +121,9 @@ function ProfileSection(props: {
                 type="number"
                 min={sample.min}
                 max={sample.max}
+                /* 「取样」是裸文本，与输入框没有程序化关联；单位「章」在控件之后，
+                   套 label 会把单位一并读进名称，故用 aria-label。 */
+                aria-label={props.sampleLabel || '取样章数'}
                 className="h-10 w-13 px-1 text-center sm:h-8 sm:w-[4.5rem]"
                 value={sample.value}
                 onChange={(event) => sample.onChange(Number(event.target.value))}
@@ -524,7 +529,9 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
         <CardContent className="grid gap-5">
           <div className="ai-form-grid ai-writing-basics grid gap-3 sm:grid-cols-2">
             <div className="grid gap-1.5">
-              <Label>目标小说</Label>
+              <Label id="ai-writing-novel-label">目标小说</Label>
+              {/* CustomSelect 渲染的是 button[role=combobox]，不接受 id，故用
+                  aria-labelledby 指向标签，保留可见文案作为可访问名称。 */}
               <CustomSelect
                 options={novels.map((novel) => ({ value: novel.id, label: novel.title }))}
                 value={novelId}
@@ -534,11 +541,13 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                 searchPlaceholder="搜索小说名称…"
                 dropdownSide="bottom"
                 className="ai-writing-novel-select"
+                aria-labelledby="ai-writing-novel-label"
               />
             </div>
             <div className="grid gap-1.5">
-              <Label>{mode === 'new' ? '作品标题' : '章节标题（可选）'}</Label>
+              <Label htmlFor="ai-writing-title">{mode === 'new' ? '作品标题' : '章节标题（可选）'}</Label>
               <Input
+                id="ai-writing-title"
                 value={mode === 'new' ? title : chapterTitle}
                 onChange={(event) => (mode === 'new' ? setTitle(event.target.value) : setChapterTitle(event.target.value))}
                 placeholder={mode === 'new' ? '例如：雾城来信' : '例如：第十二章 暴雨前夜'}
@@ -547,15 +556,16 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
           </div>
           {mode === 'new' && (
             <div className="ai-writing-chapter-title grid gap-1.5">
-              <Label>章节标题</Label>
-              <Input value={chapterTitle} onChange={(event) => setChapterTitle(event.target.value)} placeholder="例如：第一章 雾中来客" />
+              <Label htmlFor="ai-writing-chapter-title">章节标题</Label>
+              <Input id="ai-writing-chapter-title" value={chapterTitle} onChange={(event) => setChapterTitle(event.target.value)} placeholder="例如：第一章 雾中来客" />
             </div>
           )}
           <div className="ai-form-grid ai-writing-options grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <div className="grid gap-1.5">
-              <Label>{mode === 'continue' ? '每章目标字数' : '目标字数'}</Label>
+              <Label htmlFor="ai-writing-target-words">{mode === 'continue' ? '每章目标字数' : '目标字数'}</Label>
               <div className="ai-writing-number-input">
                 <Input
+                  id="ai-writing-target-words"
                   type="number"
                   min={300}
                   max={30000}
@@ -568,9 +578,10 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
             </div>
             {mode === 'continue' && (
               <div className="grid gap-1.5">
-                <Label>续写章节数</Label>
+                <Label htmlFor="ai-writing-chapter-count">续写章节数</Label>
                 <div className="ai-writing-number-input">
                   <Input
+                    id="ai-writing-chapter-count"
                     type="number"
                     min={1}
                     max={20}
@@ -583,7 +594,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
             )}
             {mode === 'continue' && chapterOptions.length > 1 && (
               <div className="grid gap-1.5">
-                <Label>续写起点</Label>
+                <Label id="ai-writing-after-chapter-label">续写起点</Label>
                 <CustomSelect
                   options={chapterOptions}
                   value={afterChapterId}
@@ -592,6 +603,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                   searchable
                   searchPlaceholder="搜索章节…"
                   dropdownSide="bottom"
+                  aria-labelledby="ai-writing-after-chapter-label"
                 />
               </div>
             )}
@@ -599,7 +611,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
           <div className="ai-writing-notes grid gap-4 border-t pt-5">
             <div className="grid gap-1.5">
               <div className="flex items-center justify-between gap-3">
-                <Label>创作要求</Label>
+                <Label htmlFor="ai-writing-instruction">创作要求</Label>
                 <Button
                   type="button"
                   variant="outline"
@@ -612,6 +624,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                 </Button>
               </div>
               <textarea data-slot="textarea"
+                id="ai-writing-instruction"
                 className="min-h-[100px] w-full border border-input bg-background px-3 py-2 text-sm"
                 value={instruction}
                 onChange={(event) => setInstruction(event.target.value)}
@@ -620,6 +633,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
               <div className="flex items-center gap-2">
                 <Input
                   className="h-8 flex-1 text-xs"
+                  aria-label="推荐侧重点（可选）"
                   value={focus}
                   onChange={(event) => setFocus(event.target.value)}
                   placeholder="推荐侧重点（可留空，例如：想写感情升温的日常互动）"
@@ -689,7 +703,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                     已确认本次涉及角色均为成年人（必选）
                   </label>
                   <div className="grid gap-1.5">
-                    <Label className="text-xs">同意规则档位</Label>
+                    <Label id="ai-writing-consent-tier-label" className="text-xs">同意规则档位</Label>
                     <CustomSelect
                       options={[
                         { value: 'default', label: '严格（默认，适用于绝大多数作品）' },
@@ -697,6 +711,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                       ]}
                       value={consentRuleTier}
                       onChange={(value) => setConsentRuleTier(value as 'default' | 'fictional_nonconsent')}
+                      aria-labelledby="ai-writing-consent-tier-label"
                     />
                     <p className="text-xs text-muted-foreground">
                       放宽档只在作品原作本身即以此类情节为主线、且角色均为成年人时使用；它解除的是写法与篇幅限制，不解除成年前提。
@@ -707,7 +722,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
             </div>
             <div className="grid gap-1.5">
               <div className="flex items-center justify-between gap-3">
-                <Label>{mode === 'new' ? '大纲（生成章节时使用）' : '大纲（按章拆分后逐章下发）'}</Label>
+                <Label htmlFor="ai-writing-outline">{mode === 'new' ? '大纲（生成章节时使用）' : '大纲（按章拆分后逐章下发）'}</Label>
                 {mode === 'continue' && (
                   <Button
                     type="button"
@@ -722,6 +737,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                 )}
               </div>
               <textarea data-slot="textarea"
+                id="ai-writing-outline"
                 className="min-h-[140px] w-full border border-input bg-background px-3 py-2 text-sm"
                 value={outline}
                 onChange={(event) => setOutline(event.target.value)}
@@ -760,6 +776,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                 actionText={relationshipBusy ? '提取中…' : relationshipProfile ? '重新提取' : '提取关系画像'}
                 onAction={() => void refreshRelationshipProfile()}
                 emptyHint="提取后把角色关系动态、权力结构、心理边界、互动尺度塞进续写，防止主从写成平等恋人、把奖赏手段当真心、从属试探写成主导。关系底色较稳定，建议取较长窗口看清演变。"
+                sampleLabel="关系画像取样章数"
                 sample={{ value: relationshipSample, min: 1, max: 30, onChange: (value) => setRelationshipSample(Math.max(1, Math.min(30, value || 10))) }}
                 content={relationshipProfile ? <ProfileText text={relationshipProfile} /> : undefined}
               />
@@ -773,6 +790,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                 actionText={plotBusy ? '提取中…' : plotState ? '重新提取' : '提取情节状态'}
                 onAction={() => void refreshPlotState()}
                 emptyHint="多章续写时上下文会截断丢前文，提取后把角色处境、伏笔、待解决冲突塞进续写，人设不漂移、伏笔不遗忘。建议续写前更新一次。"
+                sampleLabel="情节状态取样章数"
                 sample={{ value: plotSample, min: 1, max: 30, onChange: (value) => setPlotSample(Math.max(1, Math.min(30, value || 8))) }}
                 content={plotState ? <ProfileText text={plotState} /> : undefined}
                 footnote={
