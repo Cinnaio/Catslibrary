@@ -480,7 +480,11 @@
   .ai-service :is(.ai-tasks-toolbar, .ai-audit-toolbar, .ai-generations-toolbar) [data-slot='select-trigger'] {
     width: 100%;
     max-width: none;
-    flex: 1 1 12rem;
+    /* 只能是 0 0 auto：.admin-toolbar--inline 在本断点转 column，此时 flex-basis
+       落在块轴（高度）上。此前的 `1 1 12rem` 让 12rem 成为高度基数，把控件撑成
+       192px 高的空框（工具栏随之涨到 246px，登录审计页 422px）。整宽由
+       align-items: stretch + width: 100% 承担，不需要弹性增长。 */
+    flex: 0 0 auto;
   }
 
   .proxy-settings-page .proxy-logs-panel [data-slot='table'] {
