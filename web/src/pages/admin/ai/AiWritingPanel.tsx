@@ -302,6 +302,12 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
   const styleRequestVersion = useRef(0)
   const plotRequestVersion = useRef(0)
   const relationshipRequestVersion = useRef(0)
+  /**
+   * 候选请求序号：只让最后一次请求的结果生效。
+   * 切书后旧书的响应可能才回来，若无守卫会把上一部的方向写进新书的候选列表；
+   * 手动连点「推荐情节」同理，先发的慢响应不该覆盖后发的。
+   */
+  const suggestionSeq = useRef(0)
   /** 自增即触发整组画像重读：人工校正保存/删除后，需要拿到新的基准版本与修订号 */
   const [profileReloadToken, setProfileReloadToken] = useState(0)
   const taskActive = !!task && (task.status === 'queued' || task.status === 'running')
@@ -399,6 +405,17 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
     setAfterChapterId('')
     // 切书（包括清空选择）立即作废上一部小说的所有在途画像请求。
     let cancelled = false
+    // 候选属于某一部小说：切到另一部必须清掉，否则 A 书的方向会留在右列，
+    // 而标题仍写「点一条填入左侧创作要求」，用户会以为这是 B 书的方向。
+    // 与封面页切书清空候选同理，且一并递增序号，挡住在途响应回写。
+    suggestionSeq.current++
+    setSuggestions([])
+    setSuggestionFill(null)
+    setSuggestCollapsed(false)
+    // 忙碌态必须在这里一并归零：在途请求返回时 finally 的守卫会拦住它的
+    // setSuggestBusy(false)（序号已对不上），不重置的话按钮会永久停在「推荐中…」。
+    // 新书此时并没有在途的候选请求，归零是安全的。
+    setSuggestBusy(false)
     if (!novelId) {
       setChapterOptions([])
       setStyleProfile('')
@@ -586,6 +603,8 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
   /** 取情节方向候选。开启成人内容模式时后端会给出以成人场景为主体的方向。 */
   async function loadSuggestions() {
     if (!novelId) return toast('请选择小说', 'error')
+    const seq = ++suggestionSeq.current
+    const requestedNovelId = novelId
     setSuggestBusy(true)
     try {
       const res = await aiApi.writing.plotSuggestions({
@@ -594,14 +613,17 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
         ...(focus.trim() ? { focus: focus.trim() } : {}),
         contentPreferences: buildContentPreferences(),
       })
+      // 期间切了书或又发起了新一轮：这一份已过期，丢弃而不是写进当前页面
+      if (seq !== suggestionSeq.current || requestedNovelId !== novelId) return
       setSuggestions(res.suggestions)
       // 取回新一批就展开：用户刚点过按钮，期待看到结果
       setSuggestCollapsed(false)
       if (!res.suggestions.length) toast('未返回可用的情节方向', 'error')
     } catch (err) {
+      if (seq !== suggestionSeq.current) return
       toast((err as Error).message, 'error')
     } finally {
-      setSuggestBusy(false)
+      if (seq === suggestionSeq.current) setSuggestBusy(false)
     }
   }
 

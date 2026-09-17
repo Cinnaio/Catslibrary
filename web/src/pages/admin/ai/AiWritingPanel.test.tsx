@@ -27,7 +27,15 @@ vi.mock('@/lib/api', () => ({
     },
   },
   chaptersApi: { list: vi.fn().mockResolvedValue({ chapters: [] }) },
-  novelsApi: { list: vi.fn().mockResolvedValue({ novels: [{ id: 'novel_1', title: '测试小说' }] }) },
+  // 两本小说：切书隔离与在途响应回写都需要真的能切到另一部
+  novelsApi: {
+    list: vi.fn().mockResolvedValue({
+      novels: [
+        { id: 'novel_1', title: '测试小说' },
+        { id: 'novel_2', title: '第二本书' },
+      ],
+    }),
+  },
   newOperationId: (prefix: string) => `${prefix}-test`,
 }))
 
@@ -54,11 +62,11 @@ function deferred<T>() {
 }
 
 /** 选中小说并等到画像读取完成，后续断言才有稳定的起点。 */
-async function selectNovel() {
+async function selectNovel(novelId = 'novel_1', title = '测试小说') {
   render(<AiWritingPanel />)
-  await screen.findByRole('option', { name: '测试小说' })
-  fireEvent.change(await screen.findByRole('combobox', { name: '目标小说' }), { target: { value: 'novel_1' } })
-  await waitFor(() => expect(api.getStyleProfile).toHaveBeenCalledWith('novel_1'))
+  await screen.findByRole('option', { name: title })
+  fireEvent.change(await screen.findByRole('combobox', { name: '目标小说' }), { target: { value: novelId } })
+  await waitFor(() => expect(api.getStyleProfile).toHaveBeenCalledWith(novelId))
 }
 
 /** Radix Tabs 用键盘事件切换，click 不触发；切到续写模式后再断言。 */
@@ -259,6 +267,50 @@ describe('AiWritingPanel', () => {
     // 取回候选后进入分栏，候选与创作要求同处一个容器，点选无需滚动即可看到左侧变化
     expect(document.querySelector('.ai-writing-brief-layout')?.classList.contains('is-aside-empty')).toBe(false)
     expect(document.querySelector('.ai-writing-brief-layout')?.contains(document.querySelector('#ai-writing-instruction'))).toBe(true)
+  })
+
+  it('切换小说时立即清空上一本的候选与撤销记录', async () => {
+    await selectNovel()
+
+    fireEvent.click(screen.getByRole('button', { name: '推荐情节' }))
+    await waitFor(() => expect(document.querySelectorAll('.ai-writing-suggest__item').length).toBe(2))
+
+    // 候选属于某一部小说，切书后留在右列会被误认成新书的方向
+    fireEvent.change(screen.getByRole('combobox', { name: '目标小说' }), { target: { value: 'novel_2' } })
+    await waitFor(() => expect(document.querySelectorAll('.ai-writing-suggest__item').length).toBe(0))
+    expect(document.querySelector('.ai-writing-suggest-placeholder')).toBeTruthy()
+    expect(document.querySelector('.ai-writing-brief-layout')?.classList.contains('is-aside-empty')).toBe(true)
+  })
+
+  it('切书后在途的候选响应不回写到新书', async () => {
+    const pending = deferred<{ suggestions: Array<{ direction: string; effect: string }>; usage: { model: string; promptTokens: number; completionTokens: number } }>()
+    api.plotSuggestions.mockReturnValue(pending.promise)
+
+    await selectNovel()
+    fireEvent.click(screen.getByRole('button', { name: '推荐情节' }))
+    await waitFor(() => expect(api.plotSuggestions).toHaveBeenCalled())
+
+    // 慢响应：请求发出后先切到另一本书。
+    // 切书 effect 会同步清空候选，故等 value 落地即可确认已切过去。
+    const select = screen.getByRole('combobox', { name: '目标小说' }) as HTMLSelectElement
+    fireEvent.change(select, { target: { value: 'novel_2' } })
+    await waitFor(() => expect(select.value).toBe('novel_2'))
+
+    // 旧书的响应此刻才回来，不得出现在新书的候选列表里。
+    // resolve 放在 act 外：act 会等待被丢弃的 promise 链，而该链在守卫处
+    // 提前 return，act 内部会一直等下去（实测挂到超时）。
+    pending.resolve({
+      suggestions: [{ direction: '这是上一本书的情节方向', effect: '不应出现' }],
+      usage: { model: 'm', promptTokens: 1, completionTokens: 1 },
+    })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(screen.queryByText('这是上一本书的情节方向')).toBeNull()
+    expect(document.querySelectorAll('.ai-writing-suggest__item').length).toBe(0)
+    expect(document.querySelector('.ai-writing-suggest-placeholder')).toBeTruthy()
+    // 在途请求返回时 finally 的守卫会拦住对 busy 的复位，故切书必须自己归零；
+    // 否则按钮永久停在「推荐中…」，而新书其实没有任何在途请求。
+    expect(screen.getByRole('button', { name: '推荐情节' })).toBeEnabled()
   })
 
   it('候选收起后列表隐藏但数据保留，可再次展开', async () => {
