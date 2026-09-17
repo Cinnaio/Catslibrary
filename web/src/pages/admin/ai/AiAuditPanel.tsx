@@ -1,5 +1,6 @@
 /** 调用审计：分页调用记录，行可展开详情。 */
 import { Fragment, useCallback, useEffect, useState } from 'react'
+import { ChevronRight } from 'lucide-react'
 import { aiApi } from '@/lib/api'
 import { ErrorState, InlineError, LoadingState } from '@/components/admin/AsyncStates'
 import Pagination from '@/components/admin/Pagination'
@@ -140,18 +141,45 @@ export default function AiAuditPanel() {
                   <tbody>
                     {calls.map((call) => {
                       const expanded = expandedId === call.id
+                      const detailId = `ai-audit-detail-${call.id}`
+                      const recordName = call.displayName || call.username || '未记录用户'
+                      // 可及名称必须逐行唯一：整列按钮若都叫「XX 的调用详情」，
+                      // 读屏按按钮导航时会连听 50 遍相同标签而无法区分记录。
+                      const recordLabel = `${recordName} ${aiCallTypeLabel(call.type)} ${new Date(call.createdAt).toLocaleString('zh-CN')}`
                       return (
                         <Fragment key={call.id}>
                           <tr
                             className="ai-audit-row"
-                            aria-expanded={expanded}
                             onClick={() => setExpandedId(expanded ? null : call.id)}
                           >
                             <td>
-                              <div className="ai-audit-cell__name">{call.displayName || call.username || '—'}</div>
-                              {call.username && call.displayName && (
-                                <div className="ai-audit-cell__sub">@{call.username}</div>
-                              )}
+                              <div className="ai-audit-cell__identity">
+                                {/* 整行 onClick 只服务鼠标；键盘与读屏需要一个真实控件。
+                                    aria-expanded 放在 <tr> 上无效（role=row 不接受该属性），
+                                    故把展开状态与 aria-controls 交给身份列内这个 button。
+                                    stopPropagation 必须保留：Enter 触发的 click 会冒泡到
+                                    行上，不拦截就会连开两次而净效果为零。
+                                    aria-controls 仅在展开时给出，避免指向尚未渲染的行。 */}
+                                <button
+                                  type="button"
+                                  className="ai-audit-row__toggle"
+                                  aria-expanded={expanded}
+                                  aria-controls={expanded ? detailId : undefined}
+                                  aria-label={`${recordLabel} 的调用详情`}
+                                  onClick={(event) => {
+                                    event.stopPropagation()
+                                    setExpandedId(expanded ? null : call.id)
+                                  }}
+                                >
+                                  <ChevronRight className="ai-audit-row__caret" aria-hidden="true" />
+                                </button>
+                                <div className="ai-audit-cell__identity-text">
+                                  <div className="ai-audit-cell__name">{call.displayName || call.username || '—'}</div>
+                                  {call.username && call.displayName && (
+                                    <div className="ai-audit-cell__sub">@{call.username}</div>
+                                  )}
+                                </div>
+                              </div>
                             </td>
                             <td>
                               <Badge variant="secondary">
@@ -198,7 +226,7 @@ export default function AiAuditPanel() {
                             </td>
                           </tr>
                           {expanded && (
-                            <tr className="ai-audit-row ai-audit-row--detail">
+                            <tr className="ai-audit-row ai-audit-row--detail" id={detailId}>
                               <td colSpan={6}>
                                 <div className="ai-audit-detail">
                                   <DetailItem label="调用 ID" value={<code className="text-xs">{call.id}</code>} />
