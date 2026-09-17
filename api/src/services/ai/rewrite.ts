@@ -133,18 +133,53 @@ function modeInstruction(mode: RewriteMode): string {
   }
 }
 
+/**
+ * 检测模型是否「顺着上下文续写」而没有只改写选段。
+ *
+ * 实测：polish 模式提交 70 字选段返回 2069 字建议，且建议正文里原样出现了
+ * 「选段后文」的内容 —— 即模型把上下文当成了待写内容往后写。若直接应用，
+ * 正文会变长并在替换点之后重复一大段剧情。这是最危险的一种失败：
+ * 结果非空、格式合法、后端 12000 字上限也拦不住，只有读完才能发现。
+ *
+ * 判定依据是「逐字重复了上下文」，而不是单纯的字数比 —— 扩写模式本就会变长，
+ * 按字数比拦截会误伤正常用例。取 40 字连续原文作为阈值：正常改写不会
+ * 逐字复现这么长的相邻原文。
+ */
+const CONTINUATION_PROBE_CHARS = 40
+
+export function detectRewriteContinuation(suggestion: string, params: Pick<RewriteTaskParams, 'contextBefore' | 'contextAfter' | 'selectedText'>): 'after' | 'before' | undefined {
+  const text = String(suggestion || '')
+  const tail = String(params.contextAfter || '')
+  const head = String(params.contextBefore || '')
+  // 后文更容易触发（模型倾向于往下写）；两者都查，前后夹写同样有问题
+  if (tail.length >= CONTINUATION_PROBE_CHARS && text.includes(tail.slice(0, CONTINUATION_PROBE_CHARS))) return 'after'
+  if (head.length >= CONTINUATION_PROBE_CHARS && text.includes(head.slice(-CONTINUATION_PROBE_CHARS))) return 'before'
+  return undefined
+}
+
 export async function runRewriteTask(db: Db, opts: { taskId: string; userId: string; params: RewriteTaskParams; ipAddress?: string; userAgent?: string }): Promise<RewriteSuggestionResult> {
   if (!isTextAiConfigured()) throw new AiError('disabled', 'AI 文本服务未配置', 503)
   const provider = textProvider()
   const settings = await getAiSettings(db)
   const { params } = opts
-  const system = '你是中文网络小说编辑。只输出改写后的选段正文，不要解释、不要添加标题，不要泄露或扩写选段之外的内容。'
+  // 提示词刻意把「待改写选段」放在上下文之前，并显式给出字数上界。
+  // 原先把 2000 字后文放在选段之后，模型会把那段后文当成待写内容继续往下写：
+  // 实测 polish 模式提交 70 字选段，返回 2069 字建议（约 30 倍），
+  // 应用后正文 2555 → 4554 字且剧情重复。上下文改为只用于衔接语气，
+  // 并明确「不得重复、不得续写、字数应与选段相当」。
+  const selectedCount = Array.from(params.selectedText).length
+  const system = [
+    '你是中文网络小说编辑，只做「改写」不做「续写」。',
+    '只输出被改写后的那一段正文本身，不要解释、不要标题、不要分段标注、不要输出任何上下文。',
+    '严格保持原意与叙事视角；上下文只用来对齐人称、时态与语气，不得把它们写进结果，',
+    '也不得在选段结束之后继续写新情节。',
+  ].join('')
   const user = [
-    `改写模式：${modeInstruction(params.mode)}`,
+    `改写任务：${modeInstruction(params.mode)}`,
     params.instruction ? `用户补充要求：${params.instruction}` : '',
-    `选段前文（仅供衔接）：\n${params.contextBefore}`,
-    `待改写选段：\n${params.selectedText}`,
-    `选段后文（仅供衔接）：\n${params.contextAfter}`,
+    `【待改写选段】（${selectedCount} 字，只输出它的改写版，字数应与它相当）：\n${params.selectedText}`,
+    params.contextBefore ? `【选段之前的内容｜仅供衔接，绝对不要输出或改写】：\n${params.contextBefore}` : '',
+    params.contextAfter ? `【选段之后的内容｜仅供衔接，绝对不要输出、改写或续写】：\n${params.contextAfter}` : '',
   ].filter(Boolean).join('\n\n')
   const started = await updateAiTask(db, opts.taskId, { status: 'running', step: 'AI 正在生成改写建议', prompt: user })
   if (!started) throw new AiError('invalid', '任务已停止')
@@ -155,6 +190,12 @@ export async function runRewriteTask(db: Db, opts: { taskId: string; userId: str
     const suggestion = res.text.trim()
     if (!suggestion) throw new AiError('invalid', 'AI 未返回有效改写建议')
     if (Array.from(suggestion).length > MAX_RESULT_SCALARS) throw new AiError('invalid', `改写建议超过 ${MAX_RESULT_SCALARS} 个 Unicode 标量`)
+    // 模型把上下文当成待写内容续写时，直接判失败而不是返回建议 ——
+    // 这种建议一旦被应用会污染正文（重复大段剧情），且从字数上不容易察觉。
+    const continuation = detectRewriteContinuation(suggestion, params)
+    if (continuation) {
+      throw new AiError('invalid', continuation === 'after' ? '改写建议续写了选段之后的内容，未通过校验，请缩小选段或重试' : '改写建议重复了选段之前的内容，未通过校验，请缩小选段或重试')
+    }
     const result: RewriteSuggestionResult = { version: 1, draftId: params.draftId, baseRevision: params.baseRevision, startUTF16: params.startUTF16, endUTF16: params.endUTF16, selectedText: params.selectedText, mode: params.mode, suggestion }
     await recordUsage(db, { userId: opts.userId, model: res.model, provider: providerLabel(provider.baseUrl), promptTokens: res.promptTokens, completionTokens: res.completionTokens, costMillicents: Math.round(res.cost * 100000), generationType: 'rewrite_selection', ipAddress: opts.ipAddress, userAgent: opts.userAgent })
     await updateAiTask(db, opts.taskId, { status: 'completed', current: 1, total: 1, step: '改写建议已生成', result: JSON.stringify(result) })
