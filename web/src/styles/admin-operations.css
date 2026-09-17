@@ -2183,6 +2183,50 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   }
 }
 
+/* 封面历史的折叠触发器与画像触发器同规格：都是「一组内容的标题」，
+   只是折叠对象不同。共用一套规则，避免两处样式各自漂移。 */
+.ai-history-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.125rem 0.25rem;
+  margin-inline: -0.25rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: var(--admin-field-label-weight);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.ai-history-trigger:hover {
+  background: var(--admin-panel-muted);
+}
+
+.ai-history-trigger:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--focus-ring);
+}
+
+.ai-history-trigger__caret {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  transition: transform var(--admin-table-row-interaction);
+}
+
+.ai-history-trigger[aria-expanded='true'] .ai-history-trigger__caret {
+  transform: rotate(90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-history-trigger__caret {
+    transition: none;
+  }
+}
+
 /* 窄屏下输入框与按钮挤在一行会把 placeholder 截断、按钮压到刚够两个字。
    改为上下堆叠，两者都拿到整行宽度。 */
 @media (max-width: 640px) {

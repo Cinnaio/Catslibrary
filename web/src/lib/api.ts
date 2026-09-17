@@ -1093,6 +1093,38 @@ export interface AiCoverCandidate {
   dataUrl: string
 }
 
+/** 封面历史快照（只有元数据；图片需带管理员鉴权另行读取）。 */
+export interface AiCoverHistoryItem {
+  id: string
+  novelId: string
+  contentType: string
+  source: string
+  prompt: string
+  metadata?: AiCoverMetadata
+  imageHash: string
+  createdAt: number
+  reason: string
+  actorId: string
+}
+
+/**
+ * 当前封面状态。version 是「图片哈希 + 元数据」的摘要，用于乐观并发：
+ * 恢复历史、采纳候选、上传替换都要带上它，否则会覆盖掉别人的改动。
+ */
+export interface AiCurrentCoverState {
+  version: string
+  source: string
+  prompt: string
+  metadata?: AiCoverMetadata
+  updatedAt: number
+  hasImage: boolean
+}
+
+export interface AiCoverReplacement extends AiCurrentCoverState {
+  novelId: string
+  historyId?: string
+}
+
 export interface AiProviderConfig {
   baseUrl: string
   model: string
@@ -1201,24 +1233,78 @@ export const aiApi = {
     return request('GET', `/ai/cover/candidates?novelId=${encodeURIComponent(novelId)}`, null, true)
   },
   /** 采纳候选：覆盖为当前封面并删除候选。 */
-  adoptCoverCandidate(id: string, operationId = newOperationId('ai-cover-adopt')): Promise<{ ok: boolean }> {
-    return request('POST', `/ai/cover/candidates/${encodeURIComponent(id)}/adopt`, { operationId }, true, operationHeaders(operationId))
+  adoptCoverCandidate(
+    id: string,
+    operationId = newOperationId('ai-cover-adopt'),
+    expectedCoverVersion?: string,
+  ): Promise<{ ok: boolean; current: AiCoverReplacement }> {
+    return request(
+      'POST',
+      `/ai/cover/candidates/${encodeURIComponent(id)}/adopt`,
+      { operationId, ...(expectedCoverVersion ? { expectedCoverVersion } : {}) },
+      true,
+      operationHeaders(operationId),
+    )
   },
   /** 弃用候选：删除，不触碰当前封面。 */
   discardCoverCandidate(id: string): Promise<{ ok: boolean }> {
     return request('DELETE', `/ai/cover/candidates/${encodeURIComponent(id)}`, null, true)
   },
   /** 上传本地图片替换当前封面：直接覆盖 novel_covers，读者端立即生效。 */
-  uploadCover(novelId: string, file: File, operationId = newOperationId('ai-cover-upload')): Promise<{ ok: boolean }> {
+  uploadCover(
+    novelId: string,
+    file: File,
+    operationId = newOperationId('ai-cover-upload'),
+    expectedCoverVersion?: string,
+  ): Promise<{ ok: boolean; current: AiCoverReplacement }> {
     const form = new FormData()
     form.append('cover', file)
     form.append('novelId', novelId)
     form.append('operationId', operationId)
+    if (expectedCoverVersion) form.append('expectedCoverVersion', expectedCoverVersion)
     return authFetch('/ai/cover/upload', { method: 'POST', headers: operationHeaders(operationId), body: form }).then(async (res) => {
       const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error((data as { error?: string }).error || `HTTP ${res.status}`)
+      if (!res.ok) {
+        const err = new Error((data as { error?: string }).error || `HTTP ${res.status}`) as ApiError
+        err.status = res.status
+        err.data = data
+        throw err
+      }
       return data
     })
+  },
+  /** 封面历史快照列表（倒序，后端最多保留 10 条）+ 当前封面状态。 */
+  coverHistory(novelId: string): Promise<{ items: AiCoverHistoryItem[]; total: number; current: AiCurrentCoverState }> {
+    return request('GET', `/ai/cover/history/${encodeURIComponent(novelId)}`, null, true)
+  },
+  /**
+   * 读取历史快照的图片。该路由要求管理员鉴权，不能用 <img src> 直连，
+   * 必须带 token 取回 Blob 再由调用方转成 object URL。
+   */
+  async coverHistoryImage(novelId: string, historyId: string): Promise<Blob> {
+    const res = await authFetch(`/ai/cover/history/${encodeURIComponent(novelId)}/${encodeURIComponent(historyId)}/image`)
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      const err = new Error((data as { error?: string }).error || `HTTP ${res.status}`) as ApiError
+      err.status = res.status
+      throw err
+    }
+    return res.blob()
+  },
+  /** 恢复历史快照为当前封面（把当前封面推入历史）。 */
+  restoreCoverHistory(
+    novelId: string,
+    historyId: string,
+    expectedCoverVersion: string,
+    operationId = newOperationId('ai-cover-restore'),
+  ): Promise<{ ok: boolean; current: AiCoverReplacement }> {
+    return request(
+      'POST',
+      `/ai/cover/history/${encodeURIComponent(novelId)}/${encodeURIComponent(historyId)}/restore`,
+      { operationId, expectedCoverVersion },
+      true,
+      operationHeaders(operationId),
+    )
   },
   writing: {
     /** 创作类接口统一为后台任务模式：立即返回任务 id，用 aiApi.task 轮询进度，产物在「已生成内容」。 */

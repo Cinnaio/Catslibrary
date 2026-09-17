@@ -9,6 +9,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import CustomSelect from '@/components/admin/CustomSelect'
+import CoverHistory from './CoverHistory'
 import { BookOpen, CircleAlert, Loader2, Palette, Sparkles, Trash2, Upload, Wand2 } from 'lucide-react'
 
 // 后台封面任务的进度轮询间隔（与 AiWritingPanel 对齐）
@@ -191,6 +192,12 @@ export default function AiCoverPanel() {
   /** 当前小说的 AI 封面候选（未采纳）；生成成功/采纳/弃用后刷新 */
   const [candidates, setCandidates] = useState<AiCoverCandidate[]>([])
   const [candidateBusy, setCandidateBusy] = useState('')
+  /**
+   * 当前封面版本号（图片哈希 + 元数据摘要），由 CoverHistory 读取后回传。
+   * 采纳候选、上传替换、恢复历史都带上它做乐观并发：后端不一致就 409，
+   * 避免把别人刚换上的封面覆盖掉。
+   */
+  const [currentCoverVersion, setCurrentCoverVersion] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
   /** 候选请求序号：只让最后一次请求的结果生效，避免切书后过期响应覆盖新书候选 */
   const candidateSeq = useRef(0)
@@ -379,7 +386,8 @@ export default function AiCoverPanel() {
     if (!ok) return
     setCandidateBusy(candidate.id)
     try {
-      await aiApi.adoptCoverCandidate(candidate.id, newOperationId('ai-cover-adopt'))
+      // 带当前封面版本号：期间若有人换过封面，后端会 409 而不是静默覆盖
+      await aiApi.adoptCoverCandidate(candidate.id, newOperationId('ai-cover-adopt'), currentCoverVersion)
       await loadCandidates(novelId)
       setCoverVersion((v) => v + 1)
       toast('已采纳，当前封面已替换', 'success')
@@ -421,7 +429,7 @@ export default function AiCoverPanel() {
     if (!ok) return
     setCandidateBusy('upload')
     try {
-      await aiApi.uploadCover(novelId, file, newOperationId('ai-cover-upload'))
+      await aiApi.uploadCover(novelId, file, newOperationId('ai-cover-upload'), currentCoverVersion)
       setCoverVersion((v) => v + 1)
       toast('已上传并替换当前封面', 'success')
     } catch (err) {
@@ -457,6 +465,8 @@ export default function AiCoverPanel() {
                 setPromptSourceSignature('')
                 setVariationId('')
                 setPromptMetadata(undefined)
+                // 版本号属于上一本书，必须清掉：否则会把旧版本号发给新书的采纳/上传
+                setCurrentCoverVersion('')
                 void loadCandidates(value)
               }}
               placeholder="选择小说"
@@ -752,6 +762,16 @@ export default function AiCoverPanel() {
               </div>
             )}
           </section>
+
+          {/* 封面历史：仅选中小说的快照，供误替换后回滚 */}
+          {novelId && (
+            <CoverHistory
+              novelId={novelId}
+              coverVersion={coverVersion}
+              onRestored={() => setCoverVersion((v) => v + 1)}
+              onCurrentVersion={setCurrentCoverVersion}
+            />
+          )}
         </div>
       </CardContent>
     </Card>
