@@ -116,8 +116,25 @@ describe('AiWritingPanel', () => {
 
     fireEvent.click(await screen.findByText('夭夜在寝宫与他独处，借双修稳固修为。'))
 
-    const textarea = screen.getByPlaceholderText(/人物、风格、冲突、节奏或本次剧情目标/) as HTMLTextAreaElement
+    const textarea = screen.getByLabelText('创作要求') as HTMLTextAreaElement
     expect(textarea.value).toBe('夭夜在寝宫与他独处，借双修稳固修为。')
+  })
+
+  it('填入候选后可以撤销，恢复被覆盖的原文', async () => {
+    await selectNovel()
+
+    // 先手写一段内容
+    const textarea = screen.getByLabelText('创作要求') as HTMLTextAreaElement
+    fireEvent.change(textarea, { target: { value: '我自己写的创作要求' } })
+
+    fireEvent.click(screen.getByRole('button', { name: '推荐情节' }))
+    await waitFor(() => expect(api.plotSuggestions).toHaveBeenCalled())
+    // 点击候选是整段覆盖，属于高代价动作，必须可回退
+    fireEvent.click(await screen.findByText('夭夜在寝宫与他独处，借双修稳固修为。'))
+    expect(textarea.value).toBe('夭夜在寝宫与他独处，借双修稳固修为。')
+
+    fireEvent.click(screen.getByRole('button', { name: '撤销填入' }))
+    expect(textarea.value).toBe('我自己写的创作要求')
   })
 
   it('推荐时把侧重与内容参数一并发给后端', async () => {

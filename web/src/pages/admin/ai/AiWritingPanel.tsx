@@ -240,10 +240,11 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
   const [chapterTitle, setChapterTitle] = useState('')
   const [instruction, setInstruction] = useState('')
   const [outline, setOutline] = useState('')
-  /** 目标字数与章节数的文字态/数值态分离：编辑期允许为空，失焦或提交时归一化 */
+  /** 目标字数与章节数的文字态/数值态分离：编辑期允许为空，失焦或提交时归一化。
+   *  目标字数的数值本身只在提交时通过 commit() 取用（展示走 text），故不单独解构 value。
+   *  章数的数值参与 UI 判断（批量确认阈值、大纲章数对比），需要保留。 */
   const targetWordsInput = useEditableNumber(2000, 300, 30000)
   const chapterCountInput = useEditableNumber(1, 1, 20)
-  const targetWords = targetWordsInput.value
   const chapterCount = chapterCountInput.value
   const [busy, setBusy] = useState(false)
   /** 当前创作后台任务；null 表示未启动过 */
@@ -277,6 +278,12 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
   /** 情节方向候选：想不出写什么时先取候选，选中一条填入创作要求。 */
   const [suggestions, setSuggestions] = useState<Array<{ direction: string; effect: string }>>([])
   const [suggestBusy, setSuggestBusy] = useState(false)
+  /**
+   * 最近一次由候选填入的内容，以及被它替换掉的原文。
+   * 点一条候选会整段覆盖创作要求，此前没有回退手段——用户手写的草稿点错一下就没了。
+   * 记录替换前的原文，提供一个「撤销填入」，让这个动作可逆。
+   */
+  const [suggestionFill, setSuggestionFill] = useState<{ applied: string; previous: string } | null>(null)
   const [focus, setFocus] = useState('')
   /** 用选中的情节方向生成多章大纲。 */
   const [outlineBusy, setOutlineBusy] = useState(false)
@@ -774,24 +781,43 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
             )}
           </div>
           <div className="ai-writing-notes grid gap-4 border-t pt-5">
-            <div className="grid gap-1.5">
-              <Label htmlFor="ai-writing-instruction">创作要求</Label>
+            {/* 创作要求是这一页权重最高的输入：它逐章下发，直接决定写出什么。
+                此前它只是「一个标签 + 一个 textarea」，与下方的侧重点输入框视觉同级，
+                用户分不清哪个才是给模型的要求；空着会怎样也没有任何提示。
+                现把它立为带标题行与状态提示的主区。 */}
+            <section className="ai-writing-brief">
+              <div className="ai-writing-brief__head">
+                <Label htmlFor="ai-writing-instruction">创作要求</Label>
+                <span className="ai-writing-brief__count">
+                  {instruction.replace(/\s/g, '').length > 0 ? `${instruction.replace(/\s/g, '').length} 字` : '未填写'}
+                </span>
+              </div>
               <Textarea
                 id="ai-writing-instruction"
-                className="field-sizing-fixed min-h-[100px] shadow-none text-sm"
+                className="field-sizing-fixed min-h-[8rem] shadow-none text-sm"
                 value={instruction}
                 onChange={(event) => setInstruction(event.target.value)}
-                placeholder="人物、风格、冲突、节奏或本次剧情目标"
+                aria-describedby="ai-writing-instruction-hint"
+                placeholder={'说清这一章发生什么、谁参与、推进哪条线。\n例如：苏越在朝堂以斗宗身份现身，当众治愈加刑天，逼云山表态。'}
               />
-            </div>
+              <p id="ai-writing-instruction-hint" className="ai-writing-brief__hint">
+                {instruction.trim()
+                  ? mode === 'continue' && chapterCount > 1
+                    ? `本要求会原样下发给这 ${chapterCount} 章的每一章。多章建议只写整体方向与尺度，逐章内容交给下方大纲。`
+                    : '本要求会随生成请求下发给模型；可先「推荐情节」挑一条，再按需改写。'
+                  : '留空时模型自行发挥，情节走向随机——同一本书同一起点，两批结果可能完全不同。建议先「推荐情节」挑一条。'}
+              </p>
+            </section>
             {/* 「推荐侧重点」不是创作要求的一部分，而是「推荐情节」的输入参数。
-                收进工具行与按钮同行，用户一眼看到「填什么 → 点哪个」。 */}
+                它此前只有 aria-label、没有可见标签，用户看到上下两个输入框会以为
+                这是第二处创作要求；现补可见标签，坐实「这是给按钮用的参数」。 */}
             <div className="ai-writing-assist">
+              <span className="ai-writing-assist__label" aria-hidden="true">侧重点</span>
               <Input
                 aria-label="推荐侧重点（可选）"
                 value={focus}
                 onChange={(event) => setFocus(event.target.value)}
-                placeholder="侧重点（可留空，例如：感情升温的日常互动）"
+                placeholder="可留空，例如：感情升温的日常互动"
               />
               <Button
                 type="button"
@@ -809,9 +835,11 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
               </Button>
             </div>
             {suggestions.length > 0 && (
-              <div className="grid gap-2">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-xs text-muted-foreground">点击任一条填入创作要求；填入后可再修改</p>
+              <div className="ai-writing-suggest-block">
+                <div className="ai-writing-suggest-block__head">
+                  <p className="text-xs text-muted-foreground">
+                    点一条填入创作要求，填入后可继续修改
+                  </p>
                   <Button
                     type="button"
                     variant="ghost"
@@ -830,18 +858,46 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                       className="ai-writing-suggest__item"
                       // 让读屏知道当前框里的内容是否就是这一条
                       aria-pressed={instruction === item.direction}
-                      onClick={() => setInstruction(item.direction)}
+                      onClick={() => {
+                        // 整段覆盖，先留下原文以便撤销；同一条重复点不覆盖撤销记录
+                        if (instruction !== item.direction) {
+                          setSuggestionFill({ applied: item.direction, previous: instruction })
+                        }
+                        setInstruction(item.direction)
+                      }}
                     >
-                      <span className="ai-writing-suggest__direction">{item.direction}</span>
-                      {item.effect && (
-                        <span className="ai-writing-suggest__effect">
-                          <ArrowRight className="size-3" aria-hidden="true" />
-                          <span>{item.effect}</span>
-                        </span>
-                      )}
+                      <span className="ai-writing-suggest__index" aria-hidden="true">{index + 1}</span>
+                      <span className="ai-writing-suggest__body">
+                        <span className="ai-writing-suggest__direction">{item.direction}</span>
+                        {item.effect && (
+                          <span className="ai-writing-suggest__effect">
+                            <ArrowRight className="size-3" aria-hidden="true" />
+                            <span>{item.effect}</span>
+                          </span>
+                        )}
+                      </span>
                     </button>
                   ))}
                 </div>
+                {/* 填入是整段覆盖，且用户可能已经手写过内容——给一次后悔的机会。
+                    只在「当前要求确实还是那条候选」时显示，避免撤销按钮指向过期状态。 */}
+                {suggestionFill && instruction === suggestionFill.applied && (
+                  <div className="ai-writing-suggest-undo">
+                    <span>已填入该条候选，原内容已被替换</span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-xs"
+                      onClick={() => {
+                        setInstruction(suggestionFill.previous)
+                        setSuggestionFill(null)
+                      }}
+                    >
+                      撤销填入
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
             <div className="grid gap-3 border-t pt-4">
@@ -923,9 +979,20 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                   : '每章一行、以「第N章」开头，例如：\n第1章 重返皇城\n苏越带夭夜入城面见加刑天。\n第2章 婚夜\n两人在寝宫独处，约定共进退。'}
               />
               {mode === 'continue' && outline.trim() && (
-                <p className="text-xs text-muted-foreground">
-                  已识别 {countOutlineChapters(outline)} 个章节段落，将分别下发给对应章节，避免同一段内容在每章重复。写不满 {chapterCount} 章时，多出的大纲段落不生效，缺少的章节按创作要求生成。
-                </p>
+                /* 大纲章数与续写章数必须对得上才有意义，此前只报「识别到 N 段」，
+                   用户得自己心算够不够；现直接给出对比结论与差值。 */
+                <div className={`ai-writing-outline-status${countOutlineChapters(outline) >= chapterCount ? ' is-ok' : ' is-short'}`}>
+                  <span className="ai-writing-outline-status__figure">
+                    {countOutlineChapters(outline)}
+                    <span aria-hidden="true"> / </span>
+                    {chapterCount}
+                  </span>
+                  <span className="ai-writing-outline-status__text">
+                    {countOutlineChapters(outline) >= chapterCount
+                      ? `已识别 ${countOutlineChapters(outline)} 个章节段落，够这 ${chapterCount} 章逐章下发，同一段内容不会在每章重复。`
+                      : `已识别 ${countOutlineChapters(outline)} 个章节段落，不足 ${chapterCount} 章：多出的续写章会按创作要求生成，可能与已写内容重复。建议补足大纲或调小续写章数。`}
+                  </span>
+                </div>
               )}
             </div>
           </div>
