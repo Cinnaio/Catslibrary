@@ -354,7 +354,9 @@ export default function AiGenerationsPanel(props: {
                   否则跨列子行与 sticky 列在窄屏会错位。 */}
               <div className="ai-generations-table">
                 <table className="w-full min-w-[760px] text-sm">
-                  <caption className="sr-only">已生成内容列表，含类型、关联内容、内容预览、模型与生成时间，批次可展开章节</caption>
+                  {/* caption 只给表格名称与交互提示。列名由 <th scope="col"> 完整提供，
+                      在此复述会让读屏用户先听一遍列名、再听一遍表头。 */}
+                  <caption className="sr-only">已生成内容，批次行可展开章节</caption>
                   <thead className="border-b bg-muted/50">
                     <tr>
                       <th scope="col" className="w-10 px-4 py-3 text-left font-medium">

@@ -127,7 +127,9 @@ export default function AiAuditPanel() {
                   并给容器横向滚动边界。 */}
               <div className="ai-audit-table">
                 <table className="ai-audit-table__table">
-                  <caption className="sr-only">AI 调用记录列表，含用户、类型、关联内容、消耗、成本与时间，行可展开详情</caption>
+                  {/* caption 只给表格名称与交互提示。列名由 <th scope="col"> 完整提供，
+                      在此复述会让读屏用户先听一遍列名、再听一遍表头。 */}
+                  <caption className="sr-only">AI 调用记录，行可展开查看详情</caption>
                   <thead>
                     <tr>
                       <th scope="col">用户</th>
