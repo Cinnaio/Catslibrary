@@ -240,23 +240,46 @@ describe('AiWritingPanel', () => {
     expect(input.value).toBe('30000')
   })
 
-  it('未取候选时右列显示空态，取回后原地替换为候选列表', async () => {
+  it('未取候选时右列显示内联提示，取回后替换为候选列表', async () => {
     await selectNovel()
 
-    // 空态常驻：否则整块会在取候选的瞬间从单栏跳成双栏、页面高度骤变。
-    // 它同时交代了候选的来源与「需已有已发布章节」这个前提。
+    // 未取候选时不占一整块空态：改为一行提示，且此时不分栏（左列独占整幅）
     const aside = document.querySelector('.ai-writing-brief-layout__aside')
-    expect(aside?.querySelector('.ai-writing-suggest-empty')).toBeTruthy()
+    expect(aside?.querySelector('.ai-writing-suggest-placeholder')).toBeTruthy()
     expect(aside?.querySelector('.ai-writing-suggest__item')).toBeNull()
+    expect(document.querySelector('.ai-writing-brief-layout')?.classList.contains('is-aside-empty')).toBe(true)
 
     fireEvent.click(screen.getByRole('button', { name: '推荐情节' }))
     await waitFor(() => expect(api.plotSuggestions).toHaveBeenCalled())
 
     await waitFor(() => {
-      expect(document.querySelector('.ai-writing-suggest-empty')).toBeNull()
+      expect(document.querySelector('.ai-writing-suggest-placeholder')).toBeNull()
       expect(document.querySelectorAll('.ai-writing-suggest__item').length).toBe(2)
     })
-    // 候选与创作要求同处一个两栏容器：点选后无需滚动即可看到左侧变化
+    // 取回候选后进入分栏，候选与创作要求同处一个容器，点选无需滚动即可看到左侧变化
+    expect(document.querySelector('.ai-writing-brief-layout')?.classList.contains('is-aside-empty')).toBe(false)
     expect(document.querySelector('.ai-writing-brief-layout')?.contains(document.querySelector('#ai-writing-instruction'))).toBe(true)
+  })
+
+  it('候选收起后列表隐藏但数据保留，可再次展开', async () => {
+    await selectNovel()
+
+    fireEvent.click(screen.getByRole('button', { name: '推荐情节' }))
+    await waitFor(() => expect(document.querySelectorAll('.ai-writing-suggest__item').length).toBe(2))
+
+    // 收起只切换显示：此前实现是 setSuggestions([])，会把已取回的结果直接丢掉，
+    // 右列随即退回空态，想再看只能重新请求（等于为已拿到的结果重复付费）。
+    fireEvent.click(screen.getByRole('button', { name: '收起' }))
+    expect(document.querySelectorAll('.ai-writing-suggest__item').length).toBe(0)
+    // 关键：不得回到「尚未取候选」的空态，也不得退出分栏
+    expect(document.querySelector('.ai-writing-suggest-placeholder')).toBeNull()
+    expect(document.querySelector('.ai-writing-brief-layout')?.classList.contains('is-aside-empty')).toBe(false)
+    // 收起后要交代「有什么被收起来了」
+    expect(screen.getByText(/已取回 2 条方向/)).toBeTruthy()
+
+    // 无需重新请求即可展开回来
+    fireEvent.click(screen.getByRole('button', { name: '展开' }))
+    expect(document.querySelectorAll('.ai-writing-suggest__item').length).toBe(2)
+    expect(api.plotSuggestions).toHaveBeenCalledTimes(1)
   })
 })

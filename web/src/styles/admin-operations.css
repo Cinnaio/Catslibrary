@@ -2191,6 +2191,13 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
     gap: 1.5rem;
   }
 
+  /* 尚无候选时右列没有内容可承载，此时分栏只会留下一片空列。
+     让左列在这段时间独占整幅：创作要求因此立刻拿到宽书写区，
+     取回候选后再分栏，右列出现的位置也正好是用户点过按钮的地方。 */
+  .ai-writing-brief-layout.is-aside-empty {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   /* 左列内部：创作要求吸收剩余高度，侧重点行保持自然高度 */
   .ai-writing-brief-layout__main {
     grid-template-rows: minmax(0, 1fr) auto;
@@ -2269,26 +2276,28 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   background: var(--bg-card);
 }
 
-/* 候选尚未取回时的空态。常驻而非隐藏：否则整块会在点击「推荐情节」的瞬间
-   从单栏跳成双栏、页面高度骤变。虚线边界表明「这里将有内容」，与实线的
-   候选项区分开，不至于被误读成一条不可点的候选。 */
-.ai-writing-suggest-empty {
+/* 尚未取候选时的内联提示。
+   此前是一整块虚线空态，与左列等高后右下方空出一大片（实测约 400px），
+   既浪费空间又把视线从创作要求上拖走；而它承载的信息只有「候选从哪来」
+   一句话。改为与「侧重点」行等高的一行提示，且左侧图标用暖色作为锚点。
+   单列布局下它跟在侧重点行之后，取回候选后原地变成右侧列表。 */
+.ai-writing-suggest-placeholder {
   display: flex;
   align-items: flex-start;
-  gap: 0.625rem;
-  padding: 0.875rem 1rem;
-  border: 1px dashed var(--admin-border-strong);
-  border-radius: var(--admin-input-radius);
+  gap: 0.5rem;
+  /* 与 .ai-writing-assist 的控件高度对齐，两行读起来是同一层级的辅助信息 */
+  min-height: 2.25rem;
+  padding-top: 0.375rem;
   color: var(--text-muted);
   font-size: 0.75rem;
-  line-height: 1.7;
+  line-height: 1.6;
 }
 
-.ai-writing-suggest-empty > svg {
+.ai-writing-suggest-placeholder > svg {
   flex: 0 0 auto;
   margin-top: 0.1875rem;
   color: var(--accent);
-  opacity: 0.75;
+  opacity: 0.8;
 }
 
 /* 分栏后单列堆叠，候选卡不再需要「同行两卡等高」的对齐处理，

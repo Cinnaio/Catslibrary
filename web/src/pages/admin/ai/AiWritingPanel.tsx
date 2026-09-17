@@ -284,6 +284,13 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
    * 记录替换前的原文，提供一个「撤销填入」，让这个动作可逆。
    */
   const [suggestionFill, setSuggestionFill] = useState<{ applied: string; previous: string } | null>(null)
+  /**
+   * 候选列表的展开 / 收起。
+   * 收起只隐藏列表，不清空已取回的数据 —— 此前「收起」直接 setSuggestions([])，
+   * 右列随即退回「这里会列出可直接填入的续写方向」的空态，与用户刚取回候选的
+   * 事实相矛盾；想再看只能重新点「推荐情节」，等于为一个已经拿到的结果重复付费。
+   */
+  const [suggestCollapsed, setSuggestCollapsed] = useState(false)
   const [focus, setFocus] = useState('')
   /** 用选中的情节方向生成多章大纲。 */
   const [outlineBusy, setOutlineBusy] = useState(false)
@@ -588,6 +595,8 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
         contentPreferences: buildContentPreferences(),
       })
       setSuggestions(res.suggestions)
+      // 取回新一批就展开：用户刚点过按钮，期待看到结果
+      setSuggestCollapsed(false)
       if (!res.suggestions.length) toast('未返回可用的情节方向', 'error')
     } catch (err) {
       toast((err as Error).message, 'error')
@@ -791,7 +800,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
 
                 左列创作要求因此收窄到约半幅：原来整幅宽 1248px 时一行可容
                 上百个全角字，远超舒适阅读宽度，分栏后自然落到可读区间。 */}
-            <div className="ai-writing-brief-layout">
+            <div className={`ai-writing-brief-layout${suggestions.length === 0 ? ' is-aside-empty' : ''}`}>
               <div className="ai-writing-brief-layout__main">
                 <section className="ai-writing-brief">
                   <div className="ai-writing-brief__head">
@@ -848,50 +857,57 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                   <div className="ai-writing-suggest-block">
                     <div className="ai-writing-suggest-block__head">
                       <p className="text-xs text-muted-foreground">
-                        点一条填入左侧创作要求，填入后可继续修改
+                        {suggestCollapsed
+                          ? `已取回 ${suggestions.length} 条方向，展开后点击即填入左侧创作要求`
+                          : '点一条填入左侧创作要求，填入后可继续修改'}
                       </p>
+                      {/* 只切换显示，不丢弃数据：收起后仍可展开回来，不必重新请求 */}
                       <Button
                         type="button"
                         variant="ghost"
                         size="sm"
                         className="h-6 px-2 text-xs"
-                        onClick={() => setSuggestions([])}
+                        aria-expanded={!suggestCollapsed}
+                        aria-controls="ai-writing-suggest-list"
+                        onClick={() => setSuggestCollapsed((value) => !value)}
                       >
-                        收起
+                        {suggestCollapsed ? '展开' : '收起'}
                       </Button>
                     </div>
-                    <div className="ai-writing-suggest">
-                      {suggestions.map((item, index) => (
-                        <button
-                          key={`${index}-${item.direction.slice(0, 12)}`}
-                          type="button"
-                          className="ai-writing-suggest__item"
-                          // 让读屏知道当前框里的内容是否就是这一条
-                          aria-pressed={instruction === item.direction}
-                          onClick={() => {
-                            // 整段覆盖，先留下原文以便撤销；同一条重复点不覆盖撤销记录
-                            if (instruction !== item.direction) {
-                              setSuggestionFill({ applied: item.direction, previous: instruction })
-                            }
-                            setInstruction(item.direction)
-                          }}
-                        >
-                          <span className="ai-writing-suggest__index" aria-hidden="true">{index + 1}</span>
-                          <span className="ai-writing-suggest__body">
-                            <span className="ai-writing-suggest__direction">{item.direction}</span>
-                            {item.effect && (
-                              <span className="ai-writing-suggest__effect">
-                                <ArrowRight className="size-3" aria-hidden="true" />
-                                <span>{item.effect}</span>
-                              </span>
-                            )}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
+                    {!suggestCollapsed && (
+                      <div id="ai-writing-suggest-list" className="ai-writing-suggest">
+                        {suggestions.map((item, index) => (
+                          <button
+                            key={`${index}-${item.direction.slice(0, 12)}`}
+                            type="button"
+                            className="ai-writing-suggest__item"
+                            // 让读屏知道当前框里的内容是否就是这一条
+                            aria-pressed={instruction === item.direction}
+                            onClick={() => {
+                              // 整段覆盖，先留下原文以便撤销；同一条重复点不覆盖撤销记录
+                              if (instruction !== item.direction) {
+                                setSuggestionFill({ applied: item.direction, previous: instruction })
+                              }
+                              setInstruction(item.direction)
+                            }}
+                          >
+                            <span className="ai-writing-suggest__index" aria-hidden="true">{index + 1}</span>
+                            <span className="ai-writing-suggest__body">
+                              <span className="ai-writing-suggest__direction">{item.direction}</span>
+                              {item.effect && (
+                                <span className="ai-writing-suggest__effect">
+                                  <ArrowRight className="size-3" aria-hidden="true" />
+                                  <span>{item.effect}</span>
+                                </span>
+                              )}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                     {/* 填入是整段覆盖，且用户可能已经手写过内容——给一次后悔的机会。
                         只在「当前要求确实还是那条候选」时显示，避免撤销按钮指向过期状态。 */}
-                    {suggestionFill && instruction === suggestionFill.applied && (
+                    {!suggestCollapsed && suggestionFill && instruction === suggestionFill.applied && (
                       <div className="ai-writing-suggest-undo">
                         <span>已填入该条候选，原内容已被替换</span>
                         <Button
@@ -910,16 +926,16 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                     )}
                   </div>
                 ) : (
-                  /* 候选尚未取回时的空态。刻意常驻而非隐藏：否则整块会在点击
-                     「推荐情节」的瞬间从单栏跳成双栏，页面高度骤变。这里交代
-                     清楚候选从哪来，也顺带说明它依赖已发布章节这一前提。 */
-                  <div className="ai-writing-suggest-empty">
-                    <Sparkles className="size-4" aria-hidden="true" />
-                    <p>
-                      这里会列出可直接填入的续写方向。<br />
-                      取自该书最新章节的上下文，需已有已发布章节；也可先填左侧「侧重点」再取。
-                    </p>
-                  </div>
+                  /* 尚未取候选时的占位。此前是一整块虚线空态，与左列等高后右下方
+                     会空出一大片（实测约 400px），既浪费空间又把视线拖走。
+                     改为一条与「侧重点」行等高的内联提示：既能说明候选从哪来，
+                     又不占据左列正文的高度，右列多余的空白随之收起。 */
+                  <p className="ai-writing-suggest-placeholder">
+                    <Sparkles className="size-3.5" aria-hidden="true" />
+                    <span>
+                      点左侧「推荐情节」，这里会列出可直接填入的续写方向（取自最新章节，需已发布章节）。
+                    </span>
+                  </p>
                 )}
               </div>
             </div>
