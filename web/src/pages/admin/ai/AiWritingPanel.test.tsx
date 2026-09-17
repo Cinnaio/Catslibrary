@@ -98,6 +98,9 @@ describe('AiWritingPanel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '提取风格画像' }))
     await waitFor(() => expect(api.refreshStyleProfile).toHaveBeenCalledWith('novel_1'))
+    // 画像默认折叠，正文不在 DOM 中；展开后才能断言竞态结果。
+    // 这条用例守护的是「在途旧请求不得覆盖新结果」，与折叠无关，故只补一步展开。
+    fireEvent.click(screen.getByRole('button', { name: /风格画像/ }))
     await screen.findByText('最新风格画像')
 
     act(() => initialProfile.resolve({ profile: '' }))

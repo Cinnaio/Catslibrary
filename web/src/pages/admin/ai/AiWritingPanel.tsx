@@ -9,10 +9,11 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
+import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import CustomSelect from '@/components/admin/CustomSelect'
 import { Textarea } from '@/components/ui/textarea'
-import { PenLine, Sparkles, ArrowRight } from 'lucide-react'
+import { PenLine, Sparkles, ArrowRight, ChevronRight } from 'lucide-react'
 
 // 后台创作任务的进度轮询间隔
 const TASK_POLL_INTERVAL = 3000
@@ -90,7 +91,12 @@ function ProfileText({ text }: { text: string }) {
   )
 }
 
-/** 画像提取模块的统一骨架：标题 + 提取状态徽标 + 操作区（可选取样章数），内容面板或空态提示。 */
+/** 画像提取模块的统一骨架：可展开的标题行（画像名 + 状态徽标 + 操作区）+ 内容面板或空态提示。
+ *
+ * 已提取时默认折叠：画像正文实测每张 200~290px，三张合计占续写模式整页 43%，
+ * 但它们是提取一次、长期复用的资产，不该在每次执行任务时都被滚过。
+ * 未提取时没有可折叠的内容，标题行退回纯文本（不可点），空态提示保持常显 ——
+ * 否则「未提取」会被折叠成一行无信息量的标题，反而看不出该怎么开始。 */
 function ProfileSection(props: {
   label: string
   extracted: boolean
@@ -106,15 +112,45 @@ function ProfileSection(props: {
   footnote?: ReactNode
 }) {
   const sample = props.sample
+  const contentId = `ai-profile-${props.label}`
+  const collapsible = Boolean(props.content)
+  // 已提取则默认收起；正文较长，展开态按需触发，与「提取一次、复看少数几次」的使用频率一致
+  const [open, setOpen] = useState(false)
+
+  const heading = (
+    <>
+      <span>{props.label}</span>
+      {/* 状态徽标加 aria-hidden：否则按钮的可访问名称会把两段连读成
+          「风格画像已提取」（实测），既啰嗦又让「已提取/未提取」抢掉主体名。
+          状态改由 aria-expanded 与展开后的内容表达，不再重复播报。 */}
+      <span
+        aria-hidden={collapsible || undefined}
+        className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-2 py-0.5 text-[11px] text-muted-foreground"
+      >
+        <span className={`size-1.5 rounded-full ${props.extracted ? 'bg-[var(--color-success)]' : 'bg-muted-foreground/40'}`} />
+        {props.extracted ? '已提取' : '未提取'}
+      </span>
+    </>
+  )
+
   return (
     <div className="grid gap-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 sm:justify-between">
         <div className="flex shrink-0 items-center gap-2.5">
-          <Label>{props.label}</Label>
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-2 py-0.5 text-[11px] text-muted-foreground">
-            <span className={`size-1.5 rounded-full ${props.extracted ? 'bg-[var(--color-success)]' : 'bg-muted-foreground/40'}`} />
-            {props.extracted ? '已提取' : '未提取'}
-          </span>
+          {collapsible ? (
+            <button
+              type="button"
+              className="ai-profile-trigger"
+              aria-expanded={open}
+              aria-controls={contentId}
+              onClick={() => setOpen((value) => !value)}
+            >
+              <ChevronRight className="ai-profile-trigger__caret size-3.5" aria-hidden="true" />
+              {heading}
+            </button>
+          ) : (
+            <span className="inline-flex items-center gap-2.5 text-sm font-medium">{heading}</span>
+          )}
         </div>
         <div className="flex basis-full items-center justify-between border-t border-border/70 pt-2.5 sm:ml-auto sm:basis-auto sm:border-t-0 sm:pt-0">
           {sample && (
@@ -140,7 +176,11 @@ function ProfileSection(props: {
         </div>
       </div>
       {props.content ? (
-        <div className="rounded-lg border bg-muted/30 px-4 py-3.5 sm:rounded-md sm:px-3.5 sm:py-3">{props.content}</div>
+        <Collapsible open={open} onOpenChange={setOpen}>
+          <CollapsibleContent id={contentId}>
+            <div className="rounded-lg border bg-muted/30 px-4 py-3.5 sm:rounded-md sm:px-3.5 sm:py-3">{props.content}</div>
+          </CollapsibleContent>
+        </Collapsible>
       ) : (
         <div className="rounded-lg border border-dashed px-4 py-3.5 sm:rounded-md sm:px-3.5 sm:py-3">
           <p className="text-sm leading-6 text-muted-foreground sm:text-[13px]">{props.emptyHint}</p>
