@@ -232,17 +232,14 @@
    表明从属，验证码紧随登录动作，破坏性操作隔离到页脚。 */
 .po18-account-panel {
   min-width: 0;
-  /* 字段宽度契约：主路径与备路径共用同一上限。此前主路径限制 40rem、备路径
-     完全铺满，同一张卡片里上下两块的输入框宽度各说各话，实测右边界相差
-     735px（上面空出一大片，下面一直顶到边缘）。收敛为单一变量定义，避免
-     日后再次漂移。 */
-  --po18-field-max: 40rem;
 }
 
 .po18-account-body {
   display: grid;
   gap: var(--admin-space-5);
-}.po18-account-status {
+}
+
+.po18-account-status {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -256,12 +253,8 @@
   min-width: 0;
 }
 
-/* 备路径：次级表面 + 左侧内缩，明确它从属于主路径。
-   宽度贴合内容而非铺满卡片：这层浅色表面若铺满整宽、内容只占左半边，右侧
-   就变成一大片空背景——主路径没有表面色所以看不出来，这里会显形。让容器
-   由内容决定边界，读起来才是「卡片里的一张次级卡片」。 */
+/* 备路径：次级表面，表明它从属于主路径。 */
 .po18-account-section--fallback {
-  max-width: calc(var(--po18-field-max) + 2 * var(--admin-space-4));
   padding: var(--admin-space-4);
   border: 1px solid var(--admin-border);
   border-radius: var(--admin-radius);
@@ -297,24 +290,21 @@
   line-height: 1.5;
 }
 
+/* 主路径与备路径的字段都铺满整卡、两列等宽，与同页「出站代理」面板的栅格
+   一致。此前主路径限宽 40rem、备路径用 1.15fr / 1fr 不等宽，导致同一张卡片
+   里输入框出现三种宽度，上面挤在左侧空出 752px、下面顶到边缘。 */
 .po18-account-fields {
   display: grid;
   gap: var(--admin-space-3);
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  max-width: var(--po18-field-max);
 }
 
-/* 兜底区字段：单列纵向。
-   此前是 minmax(0, 1.15fr) / minmax(0, 1fr) 两列，结果是同一张卡片里出现三种
-   输入框宽度（主路径 314 / Cookie 718 / 验证链接 624），主备两区的右边界相差
-   735px，兜底区内部两列又相差 94px。Cookie 字符串通常很长，本来就该独占一行；
-   「会话验证链接」是可选字段，不该和主字段平分版面。改为纵向堆叠后，两区共用
-   --po18-field-max 同一个宽度上限，卡片左右不再一宽一窄。 */
+/* 兜底区字段：等宽两列。Cookie 与验证链接各占一半，与主路径同宽对齐。 */
 .po18-account-fallback-fields {
   display: grid;
   gap: var(--admin-space-4);
-  grid-template-columns: minmax(0, 1fr);
-  max-width: var(--po18-field-max);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
   min-width: 0;
 }
 
