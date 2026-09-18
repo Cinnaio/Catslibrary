@@ -621,7 +621,7 @@ struct AdminAIWritingView: View {
     }
 
     private var continuationAssistSection: some View {
-        Section("本次情节与大纲") {
+        Section {
             TextField("创作重点（可选，例如：强化冲突、推进感情线）", text: $suggestionFocus, axis: .vertical)
                 .lineLimit(1...3)
 
@@ -709,6 +709,8 @@ struct AdminAIWritingView: View {
                 }
             }
             .padding(.top, 6)
+        } header: {
+            Text("本次情节与大纲")
         } footer: {
             Text(continuationScope == .multiple
                 ? "推荐情节用于补充创作要求；生成的大纲会按章节拆分后交给后台任务。"
@@ -717,7 +719,7 @@ struct AdminAIWritingView: View {
     }
 
     private var launchSection: some View {
-        Section("生成回执") {
+        Section {
             if mode == .continueWriting {
                 LabeledContent("小说", value: selectedNovel?.title ?? "未选择")
                 LabeledContent("续写起点", value: selectedAnchorTitle)
@@ -742,6 +744,8 @@ struct AdminAIWritingView: View {
             .disabled(starting || !canStart)
             .buttonStyle(.borderedProminent)
             .tint(AppTheme.primary)
+        } header: {
+            Text("生成回执")
         } footer: {
             Text("任务完成后，草稿会出现在「已生成内容」中，可编辑后发布为正式章节。")
         }
