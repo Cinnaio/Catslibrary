@@ -22,7 +22,14 @@ import {
 } from '../services/auth'
 import { createSession, deleteSessionByToken } from '../services/sessions'
 import { SESSION_TTL, REMEMBER_TTL } from '../services/auth'
-import { cleanReaderSettings, cleanUpdatedAt, mergeReaderSettings, parseSettingsState } from '../services/reader-settings'
+import {
+  cleanReaderSettings,
+  cleanUpdatedAt,
+  flattenReaderSettings,
+  mergeReaderSettingsDocument,
+  normalizeReaderDevice,
+  parseSettingsDocument,
+} from '../services/reader-settings'
 import { clientIpFromContext } from '../services/ai/audit-context'
 
 const PUBLIC_USER_COLUMNS = 'id, username, display_name, bio, role, status, created_at, updated_at, last_login_at'
@@ -153,23 +160,33 @@ authRoutes.put('/me', requireUser(), async (c) => {
 })
 
 authRoutes.get('/reader-settings', requireUser(), async (c) => {
-  const state = parseSettingsState(c.get('user').reader_settings ?? '')
-  return c.json({ settings: state.values, updatedAt: state.updatedAt })
+  const device = normalizeReaderDevice(c.req.query('device'))
+  const state = parseSettingsDocument(c.get('user').reader_settings ?? '')
+  const settings = flattenReaderSettings(state, device)
+  return c.json({ settings: settings.values, updatedAt: settings.updatedAt, device })
 })
 
 authRoutes.put('/reader-settings', requireUser(), async (c) => {
   const db = getDb()
   const user = c.get('user')
   const body = await c.req.json().catch(() => ({}))
-  const current = parseSettingsState(user.reader_settings ?? '')
+  const device = normalizeReaderDevice(body.device)
   const incoming = {
     values: cleanReaderSettings(body.settings || {}),
     updatedAt: cleanUpdatedAt(body.updatedAt || {}),
   }
-  const merged = mergeReaderSettings(current, incoming)
-  const now = Date.now()
-  await run(db, 'UPDATE users SET reader_settings = $1, updated_at = $2 WHERE id = $3', [JSON.stringify(merged), now, user.id])
-  return c.json({ success: true, settings: merged.values, updatedAt: merged.updatedAt })
+  // 设备端可能同时保存设置，必须在数据库行锁内重新读取最新文档，
+  // 否则 desktop/mobile 的整列 JSON 更新会互相覆盖。
+  const merged = await withTx(db, async (query) => {
+    const result = await query<{ reader_settings: string }>('SELECT reader_settings FROM users WHERE id = $1 FOR UPDATE', [user.id])
+    const current = parseSettingsDocument(result.rows[0]?.reader_settings ?? '')
+    const next = mergeReaderSettingsDocument(current, device, incoming)
+    const now = Date.now()
+    await query('UPDATE users SET reader_settings = $1, updated_at = $2 WHERE id = $3', [JSON.stringify(next), now, user.id])
+    return next
+  })
+  const settings = flattenReaderSettings(merged, device)
+  return c.json({ success: true, settings: settings.values, updatedAt: settings.updatedAt, device })
 })
 
 authRoutes.post('/logout', requireUser(), async (c) => {

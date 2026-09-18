@@ -3,7 +3,7 @@
  * 零依赖：AbortSignal.timeout 超时、token 存储（localStorage/sessionStorage）、
  * 通用 request(method, path, body, useAuth)。
  */
-import type { ChapterFull, ChapterMeta, Comment, Novel, NovelListResponse, ReaderSettings, Thought, User } from '@shared/types'
+import type { ChapterFull, ChapterMeta, Comment, Novel, NovelListResponse, ReaderDevice, ReaderSettings, Thought, User } from '@shared/types'
 
 /** API base：Vite 注入 VITE_API_BASE（生产经 NOVEL_API_BASE define），默认同源 /api。 */
 function resolveBase(): string {
@@ -566,11 +566,15 @@ export const authApi = {
       .catch(() => {})
       .then(() => clearToken())
   },
-  readerSettings(): Promise<{ settings: Record<string, string>; updatedAt: Record<string, number> }> {
-    return request('GET', '/auth/reader-settings', null, true)
+  readerSettings(device?: ReaderDevice): Promise<{ settings: Record<string, string>; updatedAt: Record<string, number>; device?: ReaderDevice }> {
+    const query = device ? `?device=${device}` : ''
+    return request('GET', `/auth/reader-settings${query}`, null, true)
   },
-  updateReaderSettings(settings: ReaderSettings): Promise<{ settings: Record<string, string>; updatedAt: Record<string, number> }> {
-    return request('PUT', '/auth/reader-settings', { settings: settings.values, updatedAt: settings.updatedAt }, true)
+  updateReaderSettings(
+    settings: ReaderSettings,
+    device?: ReaderDevice,
+  ): Promise<{ settings: Record<string, string>; updatedAt: Record<string, number>; device?: ReaderDevice }> {
+    return request('PUT', '/auth/reader-settings', { settings: settings.values, updatedAt: settings.updatedAt, ...(device ? { device } : {}) }, true)
   },
   uploadAvatar(file: File): Promise<{ ok: boolean }> {
     const form = new FormData()
