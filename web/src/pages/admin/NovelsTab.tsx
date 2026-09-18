@@ -638,9 +638,10 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
             )}
           </TableBody>
         </Table>
+        {/* 页脚归位到面板内：与书源、账户审计、AI 各面板一致——
+            分页属于这张表，靠 1px 上边线与表格分区，共享面板纸面。 */}
+        <Pagination page={page} totalPages={totalPages} onPage={setPage} />
       </AdminDataPanel>
-
-      <Pagination page={page} totalPages={totalPages} onPage={setPage} />
 
       <Dialog
         open={modalOpen}

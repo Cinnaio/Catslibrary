@@ -124,8 +124,9 @@
   min-width: 0;
 }
 
-/* 账户四视图统一到共享数据面板后，页脚、状态胶囊与邀请码生成区沿用同一套
-   面板语言，不再各自手写 border-t / mt-* / bg-muted。 */
+/* 账户四视图统一到共享数据面板后，页脚沿用同一套面板语言。
+   分页页脚由 .admin-pagination 承担；本类现在只服务邀请码那一处
+   （有统计文案 + 清理按钮，没有分页）。 */
 .account-settings-panel__footer {
   display: flex;
   min-width: 0;
@@ -137,12 +138,6 @@
   padding: var(--admin-space-3) 1.25rem;
   color: var(--text-muted);
   font-size: 0.875rem;
-}
-
-.account-settings-panel__pager {
-  display: flex;
-  align-items: center;
-  gap: var(--admin-space-2);
 }
 
 .account-invites-generated {
@@ -843,7 +838,6 @@
 
 .scrape-discovery__toolbar svg,
 .scrape-discovery__action svg,
-.scrape-discovery__pagination svg,
 .scrape-batch svg {
   width: 0.9rem;
   height: 0.9rem;
@@ -988,14 +982,8 @@
   color: var(--accent);
 }
 
-.scrape-discovery__pagination {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  color: var(--text-muted);
-  font-size: 0.75rem;
-}
+/* .scrape-discovery__pagination 已随收敛删除：该类消费者归零，
+   分页由 .admin-pagination 统一承担。 */
 
 .scrape-batch {
   display: grid;
@@ -3368,19 +3356,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   border-top: 0;
 }
 
-.chapter-directory-pagination {
-  margin: 0;
-  padding: 1rem 1.25rem;
-  border-top: 1px solid var(--admin-border);
-  display: flex;
-  justify-content: center;
-  background: color-mix(in srgb, var(--admin-surface) 20%, transparent);
-}
-
-.chapter-directory-pagination .home-pagination {
-  margin-top: 0;
-  gap: 0.75rem;
-}
+/* 章节目录页脚：页脚表面与内边距由 .admin-pagination 统一提供，此处无覆盖。 */
 
 .chapter-work-note {
   display: grid;
@@ -4219,83 +4195,96 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   font-weight: 700;
 }
 
-.admin-pagination,
-.home-pagination {
+/* ——— 后台统一分页页脚 — consumers: components/admin/Pagination.tsx ———
+   全站后台唯一的分页形态：数据面板页脚。左计数、右控件，靠 1px 上边线
+   与表格分区，共享面板纸面。不再有「独立控制带」一档，也不再提供对齐变体。
+
+   容器只走 .admin-pagination 命名空间：此前与 .home-pagination 共用选择器，
+   导致 home.css 的卡片表面规则组（未加 .home-page 作用域）把前台 20px 大圆角
+   漏进后台，而边框/底色/投影又被后台规则覆盖，后台分页因此处在半前台半后台
+   的中间态。前台分页仍由 .home-pagination 独立承担，两套刻意不共享。 */
+.admin-pagination {
   display: flex;
+  min-width: 0;
   align-items: center;
-  justify-content: flex-end;
-  gap: var(--admin-space-2);
-  margin-top: var(--admin-space-3);
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--admin-space-3);
+  /* 页脚表面：与 AdminDataPanel 页头同一条分区契约，页脚不是独立卡片。 */
+  margin: 0;
+  padding: var(--admin-space-3) 1.25rem;
+  border-top: 1px solid var(--admin-border);
   color: var(--text-muted);
   font-size: 0.8rem;
 }
 
-/* AI 列表分页：信息、页数选择和翻页控件保持在同一条紧凑控制带。 */
-/* 列表页脚：布局改由这里承担（原先靠 JSX 的 Tailwind 类），
-   保留原有的横向滚动与字号职责。 */
-.ai-list-footer {
-  display: flex;
-  width: 100%;
+.admin-pagination__summary {
   min-width: 0;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 1rem;
-  margin-top: 1rem;
-  overflow-x: auto;
-  padding-bottom: 0.125rem;
-  scrollbar-width: thin;
-}
-.ai-list-total {
-  flex: 0 0 auto;
-  color: var(--text-muted);
-  font-size: 0.875rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
-.ai-list-pagination-controls {
+
+.admin-pagination__controls {
   display: flex;
   min-width: 0;
-  margin-left: auto;
-  flex: 0 0 auto;
   align-items: center;
-  gap: 0.75rem;
+  flex-wrap: wrap;
+  gap: var(--admin-space-2);
 }
-.ai-list-page-size {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 0.5rem;
+
+.admin-pagination__info,
+.admin-pagination__jump {
   color: var(--text-muted);
-  font-size: 0.875rem;
+  white-space: nowrap;
 }
-@media (max-width: 900px) {
-  .ai-list-footer,
-  .ai-list-pagination-controls {
+
+.admin-pagination__jump {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* 跳转输入框：定宽，不参与弹性分配（Fit-Content Rule）。
+   必须带 .admin-layout 前缀且写到 [type='number'] 这一层：shadcn Input 自带
+   w-full，而 .ai-admin-page [data-slot='input'][type='number']（width: 9rem）
+   也会命中分页跳转框——单类选择器会被压掉，实测 AI 面板下宽度失控为 144px。 */
+.admin-layout .admin-pagination__jump-input[type='number'] {
+  width: 4rem;
+  min-width: 4rem;
+  text-align: center;
+}
+
+.admin-pagination__page-size {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.admin-pagination__page-size [data-slot='select-trigger'] {
+  min-width: 5.5rem;
+}
+
+/* 窄屏：计数与控件各占一行、控件左起，避免计数与按钮互压。 */
+@media (max-width: 640px) {
+  .admin-pagination {
     align-items: flex-start;
     flex-direction: column;
-    margin-left: 0;
+    gap: var(--admin-space-2);
+  }
+
+  .admin-pagination__controls {
+    width: 100%;
+    justify-content: flex-start;
   }
 }
-.ai-list-pagination {
-  flex-shrink: 0;
-  gap: 0.5rem;
-  margin-top: 0;
-  padding: 0;
-}
-.ai-list-pagination .home-pagination__info,
-.ai-list-pagination .home-pagination__jump {
-  font-size: 0.8125rem;
-  white-space: nowrap;
-}
-.ai-list-pagination .home-pagination__jump {
-  gap: 0.25rem;
-}
-.ai-list-pagination .home-pagination__jump .form-input {
-  width: 3.5rem;
-  height: 2rem;
-}
-.ai-list-page-size [data-slot='select-trigger'] {
-  height: 2rem;
-}
+
+/* AI 列表页脚：统一分页组件承担布局，这里不保留任何页面级覆盖——
+   原先为 AI 面板另设的紧凑尺寸（info 0.8125rem、跳转框 3.5rem、下拉 2rem）
+   与 ai-list-footer / -total / -pagination-controls / -page-size 四个自持
+   容器类已随收敛全部删除。 */
 
 /* 内容审核 · 筛选、查询与操作保持一条清晰的控制带。 */
 .moderation-toolbar {
@@ -5440,32 +5429,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 .source-panel__scroll-hint {
   display: none;
 }
-.source-panel__pagination {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--admin-space-3);
-  padding: var(--admin-space-3) var(--admin-space-4);
-  border-top: 1px solid var(--admin-border);
-}
-.source-panel__pagination-controls {
-  display: flex;
-  align-items: center;
-  gap: var(--admin-space-2);
-}
-.source-panel__page-size {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  color: var(--text-muted);
-  font-size: 0.82rem;
-  white-space: nowrap;
-}
-.source-panel__page-size [data-slot='select-trigger'] {
-  min-width: 4.25rem;
-  border-color: var(--admin-border);
-  background: var(--admin-panel);
-}
+/* 书源面板页脚：表面与内边距由 .admin-pagination 统一提供，此处无覆盖。 */
 .source-page-size__content {
   z-index: 100;
   min-width: 4.25rem;
@@ -5478,13 +5442,8 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 .source-page-size__content [data-slot='select-item'] {
   min-height: 2.25rem;
 }
-.source-panel__page-indicator {
-  min-width: 6rem;
-  color: var(--text-muted);
-  font-size: 0.82rem;
-  text-align: center;
-  white-space: nowrap;
-}
+/* .source-panel__page-indicator 已随统一分页组件迁移删除：
+   页码改由 .admin-pagination__info 承担，该类消费者归零。 */
 .source-connectivity-dialog__body {
   display: grid;
   gap: var(--admin-space-4);
@@ -6114,17 +6073,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
     color: var(--text-muted);
     font-size: 0.72rem;
     text-align: right;
-  }
-  .source-panel__pagination {
-    align-items: stretch;
-    flex-direction: column;
-  }
-  .source-panel__pagination-controls {
-    justify-content: space-between;
-    flex-wrap: wrap;
-  }
-  .source-panel__page-indicator {
-    flex: 1 1 auto;
   }
   .source-panel__table-wrapper [data-slot='table-container'] {
     -webkit-overflow-scrolling: touch;
@@ -7094,18 +7042,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   .admin-redesign-page--sources .source-panel .source-table > tbody > tr > td {
     transition: none;
   }
-}
-
-.admin-redesign-page--sources .source-panel__pagination {
-  border-color: var(--admin-border);
-}
-
-.admin-redesign-page--sources .source-page-size-select {
-  width: 5rem;
-}
-
-.admin-redesign-page--sources .source-page-size-select > [data-slot='button'] {
-  min-width: 5rem;
 }
 
 .admin-redesign-page--sources .source-connectivity-scope {
@@ -8926,11 +8862,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   background: var(--admin-inset);
 }
 
-.admin-redesign-page--scrape .scrape-discovery > .scrape-discovery__pagination {
-  justify-content: flex-end;
-  margin: 1rem 1.25rem 1.25rem;
-}
-
 .admin-redesign-page--scrape .scrape-discovery > .scrape-batch {
   margin-bottom: 1.25rem;
 }
@@ -9100,7 +9031,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   .admin-redesign-page--scrape .scrape-discovery > .scrape-discovery__empty,
   .admin-redesign-page--scrape .scrape-discovery > .scrape-discovery__list,
   .admin-redesign-page--scrape .scrape-discovery > .scrape-batch,
-  .admin-redesign-page--scrape .scrape-discovery > .scrape-discovery__pagination,
   .admin-redesign-page--scrape .scrape-setup > .scrape-setup__book,
   .admin-redesign-page--scrape .scrape-setup > .scrape-setup__fields,
   .admin-redesign-page--scrape .scrape-setup > .scrape-setup__save-row,

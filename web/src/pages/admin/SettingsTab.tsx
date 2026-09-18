@@ -19,6 +19,7 @@ import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, Tabl
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import AdminPage from '@/components/admin/AdminPage'
 import { AdminDataPanel, AdminMetricStrip, AdminPanelHeading, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
+import Pagination from '@/components/admin/Pagination'
 import { usePersistentState } from '@/hooks/usePersistentState'
 
 interface AdminUser {
@@ -712,14 +713,13 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
             ))}
           </TableBody>
         </Table>
-        <div className="account-settings-panel__footer">
-          <span>共 {loginAuditTotal} 条记录</span>
-          <div className="account-settings-panel__pager">
-            <Button variant="outline" size="sm" disabled={loginAuditPage <= 1 || loginAuditLoading} onClick={() => setLoginAuditOffset(loginAuditOffset - 20)}>上一页</Button>
-            <span>{loginAuditPage} / {loginAuditPages}</span>
-            <Button variant="outline" size="sm" disabled={loginAuditPage >= loginAuditPages || loginAuditLoading} onClick={() => setLoginAuditOffset(loginAuditOffset + 20)}>下一页</Button>
-          </div>
-        </div>
+        <Pagination
+          page={loginAuditPage}
+          totalPages={loginAuditPages}
+          onPage={(next) => setLoginAuditOffset((next - 1) * 20)}
+          busy={loginAuditLoading}
+          summary={`共 ${loginAuditTotal} 条记录`}
+        />
       </AdminDataPanel></>}
 
       {currentAccountTab === 'operation-audit' && <>
@@ -800,14 +800,13 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
             ))}
           </TableBody>
         </Table>
-        <div className="account-settings-panel__footer">
-          <span>共 {operationAuditTotal} 条记录</span>
-          <div className="account-settings-panel__pager">
-            <Button variant="outline" size="sm" disabled={operationAuditPage <= 1 || operationAuditLoading} onClick={() => setOperationAuditOffset(operationAuditOffset - 20)}>上一页</Button>
-            <span>{operationAuditPage} / {operationAuditPages}</span>
-            <Button variant="outline" size="sm" disabled={operationAuditPage >= operationAuditPages || operationAuditLoading} onClick={() => setOperationAuditOffset(operationAuditOffset + 20)}>下一页</Button>
-          </div>
-        </div>
+        <Pagination
+          page={operationAuditPage}
+          totalPages={operationAuditPages}
+          onPage={(next) => setOperationAuditOffset((next - 1) * 20)}
+          busy={operationAuditLoading}
+          summary={`共 ${operationAuditTotal} 条记录`}
+        />
       </AdminDataPanel></>}
 
       {currentAccountTab === 'registration' && <>

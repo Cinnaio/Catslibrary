@@ -556,39 +556,18 @@ export default function AiGenerationsPanel(props: {
                     </tbody>
                   </table>
               </div>
-              <div className="ai-list-footer mt-4 flex items-center gap-4">
-                <span className="ai-list-total shrink-0 text-sm text-muted-foreground">
-                  共 {total} 条，显示 {offset + 1}-{Math.min(offset + limit, total)}
-                </span>
-                <div className="ai-list-pagination-controls ml-auto flex shrink-0 items-center gap-3">
-                  <div className="ai-list-page-size flex shrink-0 items-center gap-2 text-sm text-muted-foreground">
-                    <Label htmlFor="generation-page-size">每页</Label>
-                    <Select
-                      value={String(limit)}
-                      onValueChange={(value) => {
-                        setLimit(Number(value))
-                        setOffset(0)
-                      }}
-                    >
-                      <SelectTrigger size="sm" id="generation-page-size" className="min-w-[5.5rem]" aria-label="每页显示数量">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent position="popper" align="end" sideOffset={4}>
-                        <SelectItem value="10">10 条</SelectItem>
-                        <SelectItem value="20">20 条</SelectItem>
-                        <SelectItem value="50">50 条</SelectItem>
-                        <SelectItem value="100">100 条</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <Pagination
-                    className="ai-list-pagination"
-                    page={Math.floor(offset / limit) + 1}
-                    totalPages={Math.max(1, Math.ceil(total / limit))}
-                    onPage={(page) => setOffset((page - 1) * limit)}
-                  />
-                </div>
-              </div>
+              <Pagination
+                page={Math.floor(offset / limit) + 1}
+                totalPages={Math.max(1, Math.ceil(total / limit))}
+                onPage={(page) => setOffset((page - 1) * limit)}
+                busy={loading}
+                summary={
+                  <>
+                    共 {total} 条，显示 {offset + 1}-{Math.min(offset + limit, total)}
+                  </>
+                }
+                pageSize={{ value: limit, onChange: setLimit, options: [10, 20, 50, 100] }}
+              />
             </>
           )}
         </div>

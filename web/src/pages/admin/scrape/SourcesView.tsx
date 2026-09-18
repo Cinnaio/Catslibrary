@@ -5,6 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { useConfirm, useToast } from '../../../components/feedback'
 import AdminTabHeader from '@/components/admin/AdminTabHeader'
 import { AdminDataPanel, AdminPanelHeading, AdminToolbar } from '@/components/admin/AdminWorkspace'
+import Pagination from '@/components/admin/Pagination'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -613,41 +614,19 @@ export default function SourcesView({ active }: { active: boolean }) {
               </TableBody>
             </Table>
           </div>
-          <div className="source-panel__pagination" aria-label="书源分页">
-            <span className="text-sm text-muted-foreground">
-              显示 {sourceMatchedTotal === 0 ? 0 : (sourcePage - 1) * sourcePageSize + 1}-{Math.min(sourcePage * sourcePageSize, sourceMatchedTotal)} /{' '}
-              {sourceMatchedTotal}
-            </span>
-            <div className="source-panel__pagination-controls">
-              <div className="source-panel__page-size">
-                <span>每页</span>
-                <CustomSelect
-                  className="source-page-size-select"
-                  aria-label="每页显示数量"
-                  compact
-                  options={[
-                    { value: '25', label: '25' },
-                    { value: '50', label: '50' },
-                    { value: '100', label: '100' },
-                  ]}
-                  value={String(sourcePageSize)}
-                  onChange={(value) => {
-                    setSourcePageSize(Number(value))
-                    setSourcePage(1)
-                  }}
-                />
-              </div>
-              <Button variant="secondary" size="sm" disabled={sourcePage <= 1} onClick={() => setSourcePage((page) => page - 1)}>
-                上一页
-              </Button>
-              <span className="source-panel__page-indicator">
-                第 {sourcePage} / {sourceTotalPages} 页
-              </span>
-              <Button variant="secondary" size="sm" disabled={sourcePage >= sourceTotalPages} onClick={() => setSourcePage((page) => page + 1)}>
-                下一页
-              </Button>
-            </div>
-          </div>
+          <Pagination
+            page={sourcePage}
+            totalPages={sourceTotalPages}
+            onPage={setSourcePage}
+            busy={sourcesLoading}
+            summary={
+              <>
+                显示 {sourceMatchedTotal === 0 ? 0 : (sourcePage - 1) * sourcePageSize + 1}-
+                {Math.min(sourcePage * sourcePageSize, sourceMatchedTotal)} / {sourceMatchedTotal}
+              </>
+            }
+            pageSize={{ value: sourcePageSize, onChange: setSourcePageSize }}
+          />
         </AdminDataPanel>
       </div>
 

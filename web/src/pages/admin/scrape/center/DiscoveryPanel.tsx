@@ -1,9 +1,10 @@
-import { Check, ChevronLeft, ChevronRight, ExternalLink, RefreshCw, SearchX } from 'lucide-react'
+import { Check, ExternalLink, RefreshCw, SearchX } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Progress } from '@/components/ui/progress'
 import { AdminDataPanel, AdminPanelHeading } from '@/components/admin/AdminWorkspace'
+import Pagination from '@/components/admin/Pagination'
 import type { BatchState, DiscoverNovel } from '../types'
 import { FALLBACK_COVER, coverOnError } from '../utils'
 
@@ -142,21 +143,7 @@ export default function DiscoveryPanel({
             ))}
           </div>
 
-          {totalPages > 1 && (
-            <div className="scrape-discovery__pagination">
-              <Button variant="ghost" size="sm" disabled={page <= 1} onClick={() => onPage(page - 1)} aria-label="上一页">
-                <ChevronLeft aria-hidden="true" />
-                上一页
-              </Button>
-              <span>
-                第 {page} / {totalPages} 页
-              </span>
-              <Button variant="ghost" size="sm" disabled={page >= totalPages} onClick={() => onPage(page + 1)} aria-label="下一页">
-                下一页
-                <ChevronRight aria-hidden="true" />
-              </Button>
-            </div>
-          )}
+          {totalPages > 1 && <Pagination page={page} totalPages={totalPages} onPage={onPage} summary={`本页 ${novels.length} 本`} />}
         </>
       )}
 

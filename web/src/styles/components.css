@@ -1447,8 +1447,11 @@ select.native-select-hidden {
   color: var(--color-warning);
 }
 
-/* --- Home Pagination ------------------------------------------ */
-.home-pagination {
+/* --- Home Pagination ------------------------------------------
+   前台分页的旧定义。home.css 里已有一份更完整的（含卡片皮肤与 jump 输入框规格），
+   这份是历史遗留。原先为裸选择器，会与后台分页类名冲突并把 border-top /
+   margin-top: 28px 漏进后台；现补 .home-page 作用域，仅作用于前台。 */
+.home-page .home-pagination {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1457,27 +1460,27 @@ select.native-select-hidden {
   padding-top: 16px;
   border-top: 1px solid var(--border-light);
 }
-.home-pagination .btn--secondary:disabled {
+.home-page .home-pagination .btn--secondary:disabled {
   opacity: 0.35;
   cursor: default;
 }
-.home-pagination .btn--secondary:disabled:hover {
+.home-page .home-pagination .btn--secondary:disabled:hover {
   background: var(--bg-card);
   border-color: var(--border);
 }
-.home-pagination__info {
+.home-page .home-pagination__info {
   font-size: 0.82rem;
   color: var(--text-secondary);
   white-space: nowrap;
 }
-.home-pagination__jump {
+.home-page .home-pagination__jump {
   display: flex;
   align-items: center;
   gap: 4px;
   font-size: 0.82rem;
   color: var(--text-muted);
 }
-.home-pagination__jump .form-input {
+.home-page .home-pagination__jump .form-input {
   width: 56px;
   padding: 5px 6px;
   font-size: 0.82rem;

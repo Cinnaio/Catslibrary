@@ -7,6 +7,7 @@ import { useToast } from '@/components/feedback'
 import { usePersistentState } from '@/hooks/usePersistentState'
 import AdminPage from '@/components/admin/AdminPage'
 import { AdminMetricStrip, AdminPanelHeading } from '@/components/admin/AdminWorkspace'
+import Pagination from '@/components/admin/Pagination'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -280,7 +281,13 @@ export default function SiteOperationsTab() {
               <Button variant="outline" size="sm" className="shrink-0" onClick={() => { sessionStorage.setItem('adminEditNovel', JSON.stringify({ id: novel.id })); window.location.href = '/admin' }}>管理</Button>
             </div>)}</div> : <p className="p-8 text-center text-sm text-muted-foreground">该列表暂无作品</p>}
           </div>
-          {selectedListTotal > 20 && <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground"><span>第 {selectedListPage} / {Math.ceil(selectedListTotal / 20)} 页</span><div className="flex gap-2"><Button variant="outline" size="sm" disabled={selectedListPage <= 1 || categoryBooksLoading} onClick={() => void openNovelList(selectedListParams, selectedListTitle, selectedListPage - 1)}>上一页</Button><Button variant="outline" size="sm" disabled={selectedListPage >= Math.ceil(selectedListTotal / 20) || categoryBooksLoading} onClick={() => void openNovelList(selectedListParams, selectedListTitle, selectedListPage + 1)}>下一页</Button></div></div>}
+          {selectedListTotal > 20 && <Pagination
+            page={selectedListPage}
+            totalPages={Math.ceil(selectedListTotal / 20)}
+            busy={categoryBooksLoading}
+            summary={`共 ${selectedListTotal.toLocaleString()} 本`}
+            onPage={(next) => void openNovelList(selectedListParams, selectedListTitle, next)}
+          />}
         </DialogContent>
       </Dialog>
     </AdminPage>

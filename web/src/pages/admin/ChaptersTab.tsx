@@ -632,7 +632,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
                   ))}
                 </TableBody>
               </Table>
-              <Pagination page={currentPage} totalPages={totalPages} className="chapter-directory-pagination" onPage={setPage} />
+              <Pagination page={currentPage} totalPages={totalPages} onPage={setPage} />
             </>
           )}
         </AdminDataPanel>

@@ -204,7 +204,7 @@
 .home-filter-card,
 .recent-reading,
 .sort-tabs-row,
-.home-pagination,
+.home-page .home-pagination,
 .retry-banner,
 .home-page .empty-state {
   border: 1px solid var(--home-line);
@@ -218,7 +218,7 @@
 [data-theme="dark"] .home-filter-card,
 [data-theme="dark"] .recent-reading,
 [data-theme="dark"] .sort-tabs-row,
-[data-theme="dark"] .home-pagination,
+[data-theme="dark"] .home-page .home-pagination,
 [data-theme="dark"] .retry-banner,
 [data-theme="dark"] .home-page .empty-state {
   background:
@@ -481,7 +481,12 @@
   background: var(--color-danger);
 }
 
-.home-pagination {
+/* 前台分页：阅读场景的卡片皮肤，与后台 .admin-pagination 刻意分开。
+   这条裸选择器曾在未加 .home-page 前缀的情况下与后台共用类名，
+   使后台分页也继承到这里的 20px 圆角（同文件其它规则都带了 .home-page
+   作用域，唯独此处漏了）。后台现已改用 .admin-pagination，这里补上作用域
+   以防将来再有元素复用到该类名时泄漏。 */
+.home-page .home-pagination {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -490,15 +495,15 @@
   padding: 14px;
 }
 
-.home-pagination .form-input {
+.home-page .home-pagination .form-input {
   width: 72px;
   height: 34px;
   border-radius: var(--radius-md);
   background: var(--home-inset);
 }
 
-.home-pagination__info,
-.home-pagination__jump {
+.home-page .home-pagination__info,
+.home-page .home-pagination__jump {
   color: var(--text-secondary);
   font-size: 0.86rem;
 }
