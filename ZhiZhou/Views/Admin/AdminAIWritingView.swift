@@ -689,13 +689,21 @@ struct AdminAIWritingView: View {
                             ProgressView()
                                 .controlSize(.small)
                         } else {
-                            Text(outline.isEmpty ? "AI 生成" : "重新生成")
+                            Text(outline.isEmpty
+                                ? (continuationScope == .multiple ? "按情节推荐生成大纲（多章）" : "按情节推荐生成大纲（单章）")
+                                : "重新生成")
                         }
                     }
                     .font(.caption.weight(.medium))
                     .disabled(!canUseContinuationAssist || suggestionBusy || outlineBusy)
                 }
-                TextField("可手动编辑，也可让 AI 按当前范围生成", text: $outline, axis: .vertical)
+                TextField(
+                    continuationScope == .multiple
+                        ? "每章一行、以「第N章」开头；可手动编辑生成结果"
+                        : "可留空，也可补充本章提纲；生成后仍可手动编辑",
+                    text: $outline,
+                    axis: .vertical
+                )
                     .lineLimit(4...12)
                 if let outlineStatusText {
                     Text(outlineStatusText)
@@ -713,8 +721,8 @@ struct AdminAIWritingView: View {
             Text("本次情节与大纲")
         } footer: {
             Text(continuationScope == .multiple
-                ? "推荐情节会写入当前续写要求；AI 大纲会围绕当前要求展开，并按章节拆分后交给后台任务。"
-                : "推荐情节会写入当前续写要求；AI 大纲会围绕当前要求展开，生成后仍可手动修改。")
+                ? "推荐情节用于补充创作要求；生成的大纲会按章节拆分后交给后台任务。"
+                : "推荐情节可以直接填入续写要求；大纲生成后仍可手动修改。")
         }
     }
 
@@ -1048,7 +1056,6 @@ struct AdminAIWritingView: View {
         guard canUseContinuationAssist else { return }
         let selectedNovelID = novelId
         let selectedAnchorID = afterChapterId
-        let selectedInstruction = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
         let token = UUID()
         outlineRequestToken = token
         outlineBusy = true
@@ -1064,15 +1071,13 @@ struct AdminAIWritingView: View {
                 novelId: selectedNovelID,
                 afterChapterId: selectedAnchorID.isEmpty ? nil : selectedAnchorID,
                 focus: suggestionFocus,
-                instruction: selectedInstruction,
                 chapterCount: chapterCount,
                 contentPreferences: writingContentPreferencesPayload
             )
             guard !Task.isCancelled,
                   outlineRequestToken == token,
                   selectedNovelID == novelId,
-                  selectedAnchorID == afterChapterId,
-                  selectedInstruction == instruction.trimmingCharacters(in: .whitespacesAndNewlines)
+                  selectedAnchorID == afterChapterId
             else { return }
             guard let generated = result.outline?.trimmingCharacters(in: .whitespacesAndNewlines), !generated.isEmpty else {
                 outlineError = "服务端没有返回可用的大纲，请稍后重试。"
@@ -1089,8 +1094,7 @@ struct AdminAIWritingView: View {
             guard !Task.isCancelled,
                   outlineRequestToken == token,
                   selectedNovelID == novelId,
-                  selectedAnchorID == afterChapterId,
-                  selectedInstruction == instruction.trimmingCharacters(in: .whitespacesAndNewlines)
+                  selectedAnchorID == afterChapterId
             else { return }
             outlineError = AppCopy.friendlyError(error)
         }

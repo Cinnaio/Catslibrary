@@ -851,7 +851,6 @@ enum AdminAPI {
         novelId: String,
         afterChapterId: String? = nil,
         focus: String = "",
-        instruction: String = "",
         chapterCount: Int? = nil,
         contentPreferences: [String: Any]
     ) async throws -> AiPlotSuggestionsResponse {
@@ -865,10 +864,6 @@ enum AdminAPI {
         let trimmedFocus = focus.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmedFocus.isEmpty {
             payload["focus"] = trimmedFocus
-        }
-        let trimmedInstruction = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmedInstruction.isEmpty {
-            payload["instruction"] = trimmedInstruction
         }
         if let chapterCount {
             payload["chapterCount"] = chapterCount
