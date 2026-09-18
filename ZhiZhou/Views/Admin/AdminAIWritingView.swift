@@ -713,8 +713,8 @@ struct AdminAIWritingView: View {
             Text("本次情节与大纲")
         } footer: {
             Text(continuationScope == .multiple
-                ? "推荐情节用于补充创作要求；生成的大纲会按章节拆分后交给后台任务。"
-                : "推荐情节可以直接填入续写要求；大纲生成后仍可手动修改。")
+                ? "推荐情节会写入当前续写要求；AI 大纲会围绕当前要求展开，并按章节拆分后交给后台任务。"
+                : "推荐情节会写入当前续写要求；AI 大纲会围绕当前要求展开，生成后仍可手动修改。")
         }
     }
 
@@ -1012,6 +1012,7 @@ struct AdminAIWritingView: View {
         guard canUseContinuationAssist else { return }
         let selectedNovelID = novelId
         let selectedAnchorID = afterChapterId
+        let selectedInstruction = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
         let token = UUID()
         suggestionRequestToken = token
         suggestionBusy = true
@@ -1053,20 +1054,26 @@ struct AdminAIWritingView: View {
         outlineBusy = true
         outlineError = nil
         outlineStatusText = nil
+        defer {
+            if outlineRequestToken == token {
+                outlineBusy = false
+            }
+        }
         do {
             let result = try await AdminAPI.aiPlotSuggestions(
                 novelId: selectedNovelID,
                 afterChapterId: selectedAnchorID.isEmpty ? nil : selectedAnchorID,
                 focus: suggestionFocus,
+                instruction: selectedInstruction,
                 chapterCount: chapterCount,
                 contentPreferences: writingContentPreferencesPayload
             )
             guard !Task.isCancelled,
                   outlineRequestToken == token,
                   selectedNovelID == novelId,
-                  selectedAnchorID == afterChapterId
+                  selectedAnchorID == afterChapterId,
+                  selectedInstruction == instruction.trimmingCharacters(in: .whitespacesAndNewlines)
             else { return }
-            outlineBusy = false
             guard let generated = result.outline?.trimmingCharacters(in: .whitespacesAndNewlines), !generated.isEmpty else {
                 outlineError = "服务端没有返回可用的大纲，请稍后重试。"
                 return
@@ -1082,9 +1089,9 @@ struct AdminAIWritingView: View {
             guard !Task.isCancelled,
                   outlineRequestToken == token,
                   selectedNovelID == novelId,
-                  selectedAnchorID == afterChapterId
+                  selectedAnchorID == afterChapterId,
+                  selectedInstruction == instruction.trimmingCharacters(in: .whitespacesAndNewlines)
             else { return }
-            outlineBusy = false
             outlineError = AppCopy.friendlyError(error)
         }
     }
