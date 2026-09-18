@@ -2,13 +2,45 @@ import SwiftUI
 import UIKit
 import ZhiZhouCore
 
-/// AI 已生成内容：列表 / 类型与状态筛选 / 批量删除 / 草稿编辑 / 发布 / 撤销发布 / 删除。
+/// AI 已生成内容：列表 / 类型与状态筛选 / 批量删除 / 批次发布 / 草稿编辑 / 发布 / 撤销发布 / 删除。
 /// 对齐 Web 端 admin ai AiGenerationsPanel（/api/ai/generations、/api/ai/writing/drafts|batches）。
 struct AdminAIGenerationsView: View {
     private let taskID: String?
 
     init(taskID: String? = nil) {
         self.taskID = taskID
+    }
+
+    private struct GenerationDisplayGroup: Identifiable {
+        let id: String
+        let batchID: String?
+        let items: [AiGeneration]
+        let expectedCount: Int
+
+        var isBatch: Bool { batchID != nil }
+        var representative: AiGeneration { items[0] }
+        var itemIDs: [String] { items.map(\.id) }
+        var draftCount: Int { items.filter(\.isDraft).count }
+        var publishedCount: Int { items.filter(\.isPublished).count }
+        var latestCreatedAt: Int64 { items.compactMap(\.createdAt).max() ?? 0 }
+
+        var novelID: String? {
+            guard let novelID = representative.novelId?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !novelID.isEmpty else { return nil }
+            return novelID
+        }
+
+        var progressText: String {
+            if items.count < expectedCount {
+                return "续写批次 · 当前显示 \(items.count)/\(expectedCount) 项"
+            }
+            return "续写批次 · 共 \(expectedCount) 章"
+        }
+
+        var publishConfirmationMessage: String {
+            let novel = representative.novelTitle?.isEmpty == false ? representative.novelTitle! : "未知小说"
+            return "将按批次编号从小到大，把这个批次中可发布的草稿发布为《\(novel)》的正式章节。已有单独发布的草稿会自动跳过；标题优先使用 AI 标题，缺失时按正式章节序号回退。"
+        }
     }
 
     @State private var items: [AiGeneration] = []
@@ -37,6 +69,9 @@ struct AdminAIGenerationsView: View {
     @State private var batchBusy = false
     @State private var lastDeletedIds: [String] = []
     @State private var pendingDangerousOperation: AdminDangerousOperation?
+    @State private var expandedBatchIDs = Set<String>()
+    @State private var pendingBatchPublish: GenerationDisplayGroup?
+    @State private var publishingBatchID: String?
 
     // 详情
     @State private var viewing: AiGeneration?
@@ -91,12 +126,12 @@ struct AdminAIGenerationsView: View {
                                 selectedIds = Set(items.map { $0.id })
                             }
                             .font(.subheadline)
-                            .disabled(batchBusy)
+                            .disabled(batchBusy || publishingBatchID != nil)
                             Button("删除所选", role: .destructive) {
                                 requestBatchDelete()
                             }
                             .font(.subheadline)
-                            .disabled(selectedIds.isEmpty || batchBusy)
+                            .disabled(selectedIds.isEmpty || batchBusy || publishingBatchID != nil)
                         }
                         .listRowBackground(Color.clear)
                     }
@@ -122,8 +157,17 @@ struct AdminAIGenerationsView: View {
                             .font(.caption)
                             .foregroundStyle(AppTheme.textSecondary)
                     }
-                    ForEach(items) { item in
-                        generationRow(item)
+                    ForEach(displayGroups) { group in
+                        if group.isBatch {
+                            generationBatchRow(group)
+                            if expandedBatchIDs.contains(group.id) {
+                                ForEach(group.items) { item in
+                                    generationRow(item, isBatchChild: true)
+                                }
+                            }
+                        } else if let item = group.items.first {
+                            generationRow(item)
+                        }
                     }
                     if offset + pageSize < totalCount {
                         Button {
@@ -188,6 +232,23 @@ struct AdminAIGenerationsView: View {
             Button("取消", role: .cancel) { pendingDelete = nil }
         } message: {
             Text("删除后内容不可恢复；已发布内容也会被移除。")
+        }
+        .confirmationDialog(
+            "整批发布续写草稿",
+            isPresented: Binding(
+                get: { pendingBatchPublish != nil },
+                set: { if !$0 { pendingBatchPublish = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: pendingBatchPublish
+        ) { batch in
+            Button("整批发布 \(batch.draftCount) 章") {
+                pendingBatchPublish = nil
+                Task { await publishBatch(batch) }
+            }
+            Button("取消", role: .cancel) { pendingBatchPublish = nil }
+        } message: { batch in
+            Text(batch.publishConfirmationMessage)
         }
         .adminDangerousOperationConfirmation($pendingDangerousOperation) { operation in
             guard operation.action == .batchDeleteAIGenerations else { return }
@@ -259,20 +320,75 @@ struct AdminAIGenerationsView: View {
 
     // MARK: - 行
 
-    private func generationRow(_ item: AiGeneration) -> some View {
+    private func generationBatchRow(_ group: GenerationDisplayGroup) -> some View {
+        let item = group.representative
+        let isExpanded = expandedBatchIDs.contains(group.id)
+
+        return HStack(alignment: .top, spacing: 10) {
+            if selectionMode {
+                selectionControl(
+                    ids: group.itemIDs,
+                    label: "\(item.novelTitle ?? "此小说")续写批次"
+                )
+            }
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(spacing: 6) {
+                    AdminStatusBadge("续写批次", tint: AppTheme.primary)
+                    if group.draftCount > 0 {
+                        AdminStatusBadge("\(group.draftCount) 个草稿", tint: AppTheme.warning)
+                    }
+                    if group.publishedCount > 0 {
+                        AdminStatusBadge("\(group.publishedCount) 已发布", tint: AppTheme.success)
+                    }
+                    Spacer()
+                    Text(AdminFormat.relativeTime(group.latestCreatedAt))
+                        .font(.caption2)
+                        .foregroundStyle(AppTheme.textSecondary)
+                }
+                Text(item.novelTitle ?? "—")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .appTextLineLimit(1)
+                Text(group.progressText)
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.textSecondary)
+                Text("发布时按批次编号从小到大排列；已单独发布的草稿会自动跳过。")
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .appTextLineLimit(2)
+
+                HStack(spacing: 10) {
+                    Button {
+                        toggleBatchExpansion(group.id)
+                    } label: {
+                        Label(
+                            isExpanded ? "收起章节" : "查看章节",
+                            systemImage: isExpanded ? "chevron.up" : "chevron.down"
+                        )
+                    }
+                    .font(.subheadline.weight(.medium))
+
+                    Spacer(minLength: 4)
+                    if publishingBatchID == group.batchID {
+                        AdminInlineProgress()
+                    } else if group.draftCount > 0 {
+                        Button("整批发布", systemImage: "paperplane.fill") {
+                            requestBatchPublish(group)
+                        }
+                        .font(.subheadline.weight(.semibold))
+                        .disabled(batchBusy || busyItemId != nil)
+                    }
+                }
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func generationRow(_ item: AiGeneration, isBatchChild: Bool = false) -> some View {
         HStack(alignment: .top, spacing: 10) {
             if selectionMode {
-                Button {
-                    toggleSelect(item.id)
-                } label: {
-                    Image(systemName: selectedIds.contains(item.id) ? "checkmark.circle.fill" : "circle")
-                        .font(.title3)
-                        .foregroundStyle(selectedIds.contains(item.id) ? AppTheme.primary : AppTheme.textSecondary)
-                        .frame(width: 44, height: 44)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(selectedIds.contains(item.id) ? "取消选择\(item.novelTitle ?? "此项")" : "选择\(item.novelTitle ?? "此项")")
-                .accessibilityValue(selectedIds.contains(item.id) ? "已选择" : "未选择")
+                selectionControl(ids: [item.id], label: item.novelTitle ?? "此项")
             }
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
@@ -280,6 +396,9 @@ struct AdminAIGenerationsView: View {
                         AdminFormat.aiTaskKind(item.kind ?? ""),
                         tint: AppTheme.primary
                     )
+                    if isBatchChild, let batchIndex = item.batchIndex, batchIndex > 0 {
+                        AdminStatusBadge("批次第 \(batchIndex) 项", tint: AppTheme.textSecondary)
+                    }
                     if item.isDraft {
                         AdminStatusBadge("草稿", tint: AppTheme.warning)
                     } else if item.isPublished {
@@ -332,21 +451,139 @@ struct AdminAIGenerationsView: View {
                                 .foregroundStyle(AppTheme.textSecondary)
                                 .frame(width: 44, height: 44)
                         }
-                        .disabled(busyItemId != nil || batchBusy)
+                        .disabled(busyItemId != nil || batchBusy || publishingBatchID != nil)
                         .accessibilityLabel("内容操作")
                     }
                 }
             }
         }
         .padding(.vertical, 2)
+        .padding(.leading, isBatchChild ? 20 : 0)
     }
 
-    private func toggleSelect(_ id: String) {
-        if selectedIds.contains(id) {
-            selectedIds.remove(id)
-        } else {
-            selectedIds.insert(id)
+    private func selectionControl(ids: [String], label: String) -> some View {
+        let selectedCount = ids.filter { selectedIds.contains($0) }.count
+        let isFullySelected = selectedCount == ids.count
+        let isPartiallySelected = selectedCount > 0 && !isFullySelected
+
+        return Button {
+            toggleSelect(ids)
+        } label: {
+            Image(
+                systemName: isFullySelected
+                    ? "checkmark.circle.fill"
+                    : isPartiallySelected ? "minus.circle.fill" : "circle"
+            )
+                .font(.title3)
+                .foregroundStyle(isFullySelected || isPartiallySelected ? AppTheme.primary : AppTheme.textSecondary)
+                .frame(width: 44, height: 44)
         }
+        .buttonStyle(.plain)
+        .disabled(batchBusy || publishingBatchID != nil)
+        .accessibilityLabel(isFullySelected ? "取消选择\(label)" : "选择\(label)")
+        .accessibilityValue("已选择 \(selectedCount) / \(ids.count) 条")
+    }
+
+    private func toggleSelect(_ ids: [String]) {
+        let ids = ids.filter { !$0.isEmpty }
+        guard !ids.isEmpty else { return }
+        if ids.allSatisfy({ selectedIds.contains($0) }) {
+            ids.forEach { selectedIds.remove($0) }
+        } else {
+            ids.forEach { selectedIds.insert($0) }
+        }
+    }
+
+    private func toggleBatchExpansion(_ id: String) {
+        if expandedBatchIDs.contains(id) {
+            expandedBatchIDs.remove(id)
+        } else {
+            expandedBatchIDs.insert(id)
+        }
+    }
+
+    private func requestBatchPublish(_ batch: GenerationDisplayGroup) {
+        guard batch.draftCount > 0, batch.batchID != nil, batch.novelID != nil else {
+            actionError = "该批次没有可发布的草稿或缺少关联小说"
+            return
+        }
+        guard publishingBatchID == nil, !batchBusy else { return }
+        pendingBatchPublish = batch
+    }
+
+    private func publishBatch(_ batch: GenerationDisplayGroup) async {
+        guard let batchID = batch.batchID,
+              let novelID = batch.novelID,
+              !batchID.isEmpty,
+              !novelID.isEmpty,
+              batch.draftCount > 0,
+              publishingBatchID == nil,
+              !batchBusy else { return }
+
+        publishingBatchID = batchID
+        defer { publishingBatchID = nil }
+        do {
+            let response = try await AdminAPI.aiPublishBatch(batchId: batchID, novelId: novelID)
+            let count = response.published?.count ?? 0
+            if count > 0 {
+                AppFeedback.success("已整批发布 \(count) 章")
+            } else {
+                AppFeedback.warning("没有可发布的草稿")
+            }
+            await load()
+        } catch {
+            actionError = AppCopy.friendlyError(error)
+        }
+    }
+
+    private var displayGroups: [GenerationDisplayGroup] {
+        var grouped: [String: [AiGeneration]] = [:]
+        var order: [String] = []
+
+        for item in items {
+            let batchID = normalizedBatchID(item.batchId)
+            let key = batchID.map { "batch|\($0)" } ?? "item|\(item.id)"
+            if grouped[key] == nil { order.append(key) }
+            grouped[key, default: []].append(item)
+        }
+
+        return order.compactMap { key in
+            guard let values = grouped[key], !values.isEmpty else { return nil }
+            let sorted = values.sorted(by: generationOrder)
+            let first = sorted[0]
+            let batchID = normalizedBatchID(first.batchId)
+            let expectedCount = max(
+                sorted.count,
+                sorted.compactMap(\.batchCount).max() ?? 0
+            )
+            let isBatch = first.kind == "continue"
+                && batchID != nil
+                && (expectedCount > 1 || sorted.count > 1)
+
+            return GenerationDisplayGroup(
+                id: isBatch ? "batch|\(batchID!)" : first.id,
+                batchID: isBatch ? batchID : nil,
+                items: sorted,
+                expectedCount: isBatch ? expectedCount : sorted.count
+            )
+        }
+    }
+
+    private func normalizedBatchID(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func generationOrder(_ lhs: AiGeneration, _ rhs: AiGeneration) -> Bool {
+        let leftIndex = lhs.batchIndex ?? Int.max
+        let rightIndex = rhs.batchIndex ?? Int.max
+        if leftIndex != rightIndex { return leftIndex < rightIndex }
+
+        let leftCreated = lhs.createdAt ?? 0
+        let rightCreated = rhs.createdAt ?? 0
+        if leftCreated != rightCreated { return leftCreated < rightCreated }
+        return lhs.id < rhs.id
     }
 
     // MARK: - 数据
