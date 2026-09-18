@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AdminDataPanel, AdminPanelHeading } from '@/components/admin/AdminWorkspace'
-import { PO18_SITES } from '../utils'
+import { RANKING_SITES } from '../utils'
 
 export type IntakeMode = 'link' | 'search' | 'ranking'
 
@@ -138,11 +138,11 @@ export default function ScrapeIntake({
             <div className="scrape-intake__control-row scrape-intake__control-row--ranking">
               <CustomSelect
                 className="scrape-intake__site"
-                options={PO18_SITES}
+                options={RANKING_SITES}
                 value={siteValue}
                 onChange={onSiteChange}
-                placeholder="选择 PO18 榜单"
-                aria-label="选择 PO18 榜单"
+                placeholder="选择 POPO / PO18 榜单"
+                aria-label="选择榜单来源"
               />
               <Input
                 id="scrape-ranking-url"
@@ -158,7 +158,7 @@ export default function ScrapeIntake({
                 {loading ? '加载中…' : '加载榜单'}
               </Button>
             </div>
-            <p>榜单适合批量挑选作品；选择后不会立即写入书库，确认后才会创建和启动任务。</p>
+            <p>POPO 榜单列表可直接读取；进入作品详情与章节校验时需要源站账号或 Cookie。选择后不会立即写入书库，确认后才会创建和启动任务。</p>
           </div>
         )}
       </div>

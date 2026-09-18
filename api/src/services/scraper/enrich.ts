@@ -474,13 +474,18 @@ export async function discoverList(
   }
 
   let totalPages = 1
+  // POPO 榜单详情（/rank/more）一次返回完整名次、没有翻页控件；它的表格里存在
+  // 章节名恰好是纯数字的锚点（如 <a class="l_chaptname">36</a>），会被下面的
+  // 宽松分页正则误判成页码，因此该场景直接固定为单页。
   const pageMatch =
-    html.match(/共\s*(\d+)\s*页/i) ||
-    html.match(/<[aA][^>]*>(\d+)<\/[aA]>(?!\s*<[aA][^>]*>)/) ||
-    html.match(/<span[^>]*class\s*=\s*["']page["'][^>]*>[\s\S]*?(\d+)[^<]*页/)
+    source.id === 'po18tw' && ranking
+      ? null
+      : html.match(/共\s*(\d+)\s*页/i) ||
+        html.match(/<[aA][^>]*>(\d+)<\/[aA]>(?!\s*<[aA][^>]*>)/) ||
+        html.match(/<span[^>]*class\s*=\s*["']page["'][^>]*>[\s\S]*?(\d+)[^<]*页/)
   if (pageMatch) {
     totalPages = Number.parseInt(pageMatch[1]!, 10) || 1
-  } else {
+  } else if (!(source.id === 'po18tw' && ranking)) {
     const pageLinks = html.match(/<a[^>]*href\s*=\s*["'][^"']*_(\d+)\/["'][^>]*>/gi)
     if (pageLinks && pageLinks.length > 0) {
       let maxPage = 1

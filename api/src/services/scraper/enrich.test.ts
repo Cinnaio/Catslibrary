@@ -309,4 +309,32 @@ describe('POPO 发现', () => {
     expect(params.get('type')).toBe('monthly')
     expect(result.novels.map((novel) => novel.title)).toEqual(['珍珠榜第一', '珍珠榜第四'])
   })
+
+  it('POPO 榜单不把纯数字章节名当成页码', async () => {
+    const landingPage = `<form id="rank-form1" action="/rank/more" method="post">
+      <input type="hidden" name="kind" value="">
+      <input type="hidden" name="type" value="weekly">
+    </form>`
+    // 章节目录标题恰好是纯数字，此前会被宽松分页正则误判为 36 页。
+    const rankingPage = `<div class="table" id="R1_W">
+      <div class="row">
+        <div class="r1">1</div>
+        <div class="r2"><a class="l_bookname" href="/books/640891">被误判的书</a></div>
+        <div class="r3"><a class="l_chaptname" href="/books/640891/articles/7816525">36</a></div>
+        <div class="r4"><a class="l_author" href="/users/u1">作者甲</a></div>
+      </div><!--row-->
+    </div>`
+
+    const result = await discoverList(
+      'https://www.po18.tw/rank/index',
+      {
+        db: { query: vi.fn().mockResolvedValue({ rows: [] }) } as never,
+        fetchHtml: async (_url, options) => ({ html: options?.method === 'POST' ? rankingPage : landingPage, encoding: 'utf-8' }),
+      },
+      { po18Ranking: { kind: 'stocked', type: 'total' } },
+    )
+
+    expect(result.novels.map((novel) => novel.title)).toEqual(['被误判的书'])
+    expect(result.totalPages).toBe(1)
+  })
 })

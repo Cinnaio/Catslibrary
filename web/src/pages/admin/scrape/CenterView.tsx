@@ -8,7 +8,7 @@ import { useConfirm, useToast } from '@/components/feedback'
 import { Button } from '@/components/ui/button'
 import { AdminDataPanel, AdminPanelHeading } from '@/components/admin/AdminWorkspace'
 import type { CheckItem, ConfigRow, DetectedMeta, DiscoverNovel, BatchEntry, BatchState } from './types'
-import { scrapePost, parseCategories, po18CoverFallback } from './utils'
+import { scrapePost, parseCategories, po18CoverFallback, resolveRankingSource } from './utils'
 import DiscoveryPanel from './center/DiscoveryPanel'
 import ScrapeIntake, { type IntakeMode } from './center/ScrapeIntake'
 import ScrapeSetupPanel, { type SetupPreview } from './center/ScrapeSetupPanel'
@@ -53,6 +53,8 @@ export default function CenterView() {
   const [totalPages, setTotalPages] = useState(1)
   const [page, setPage] = useState(1)
   const listUrlRef = useRef('')
+  /** 榜单发现请求的基准参数，翻页时复用，避免丢失 kind/type。 */
+  const rankingRef = useRef<{ rankingKind?: string; rankingType?: string }>({})
 
   // 当前待处理作品与抓取配置
   const [activeCandidate, setActiveCandidate] = useState<ActiveCandidate | null>(null)
@@ -214,10 +216,16 @@ export default function CenterView() {
       toast('请选择榜单或输入榜单 URL', 'error')
       return
     }
-    listUrlRef.current = value
+    // 下拉选中的预设携带 kind/type；地址被手改过就当自定义 URL，只按地址发现。
+    const preset = resolveRankingSource(siteValue)
+    const usePreset = !!preset && preset.listUrl === value
+    const listUrl = usePreset ? preset.listUrl : value
+    const ranking = usePreset ? { rankingKind: preset.rankingKind, rankingType: preset.rankingType } : {}
+    rankingRef.current = ranking
+    listUrlRef.current = listUrl
     setPage(1)
     setTotalPages(1)
-    await renderDiscoverResults({ action: 'discover', listUrl: value }, '未在页面中找到小说')
+    await renderDiscoverResults({ action: 'discover', listUrl, ...ranking }, '未在页面中找到小说')
   }
 
   async function fetchPo18Search() {
@@ -227,6 +235,7 @@ export default function CenterView() {
       return
     }
     listUrlRef.current = ''
+    rankingRef.current = {}
     setTotalPages(1)
     await renderDiscoverResults({ action: 'po18-search', query: value, searchType }, '未找到搜索结果')
   }
@@ -243,7 +252,7 @@ export default function CenterView() {
     listUrlRef.current = nextUrl
     setDiscoverUrl(nextUrl)
     setPage(nextPage)
-    await renderDiscoverResults({ action: 'discover', listUrl: nextUrl }, '未在页面中找到小说')
+    await renderDiscoverResults({ action: 'discover', listUrl: nextUrl, ...rankingRef.current }, '未在页面中找到小说')
   }
 
   function toggleAll() {
@@ -508,7 +517,8 @@ export default function CenterView() {
             siteValue={siteValue}
             onSiteChange={(value) => {
               setSiteValue(value)
-              setDiscoverUrl(value)
+              // 输入框展示真实请求地址；POPO 的 15 个榜单共用 /rank/index，靠 kind/type 区分。
+              setDiscoverUrl(resolveRankingSource(value)?.listUrl || value)
             }}
             discoverUrl={discoverUrl}
             onDiscoverUrlChange={setDiscoverUrl}
