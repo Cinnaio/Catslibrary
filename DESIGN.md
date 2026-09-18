@@ -254,6 +254,8 @@ components:
 - **Admin Dialog:** 后台弹窗统一 `.admin-dialog`：三行栅格（页头 / 可滚动正文 `.admin-dialog__body` / 页脚），最大高度 `calc(100dvh - 2rem)`，外框 16px（--admin-radius-dialog）。宽度按任务定——小说编辑 540px、章节编辑 620px、章节融合 760px——不把弹窗拉成同一个宽度。页头/页脚/关闭按钮由 `data-slot='dialog-*'` 契约配合 Radix 实现。
 - **Header Alignment:** 页头一律居中，与 `DialogHeader` 的实际渲染一致（其 `text-center` 与 `sm:text-left` 中后者被 Tailwind 输出顺序压掉，居中才是既有事实）。标题避让右上角关闭按钮时用左右对称留白（`padding-inline`）而非只留右侧，否则居中标题会视觉偏左；描述块用 `margin-inline: auto` 跟随居中。
 - **Scroll Ownership:** 一个弹窗只设一个滚动所有者。`.admin-dialog` 由 `.admin-dialog__body` 承担；自建三行栅格（如 `.ai-generation-dialog`）必须显式指定中间滚动区，且**不得**依赖外层 `overflow: hidden` 裁切——超出内容会被静默截断且无法滚动恢复。长正文（数千字）用固定高度或视口相关上限 + 框内滚动，不随内容长高。
+- **Hidden Scrollbar:** 弹窗内不显示滚动进度条。`.admin-dialog` 及其全部后代读 `scrollbar-width: none` + `-ms-overflow-style: none`，并配 `::-webkit-scrollbar { display: none }`——base.css 的全局 8px 滚动条会在正文右缘切出一条与纸面异色的竖轨。滚动能力保留（滚轮、触摸、键盘照常），只隐藏进度条；正文与内嵌滚动区（章节列表、抓取日志、Prompt 预览）由一条通配后代规则统一覆盖，不逐个容器重复声明。
+- **Segmented Surface:** 三段式栅格只区分结构，不区分颜色。页头、正文、页脚共用同一表面色 `--admin-panel`，页脚不得用 `--admin-panel-muted` 或任何加深底色，也不靠 `border-top` 分隔；末段与内容的界限只由间距（`--admin-space-*`）和按钮自身视觉承担。
 - **Mobile Editor:** 窄屏小说编辑窗口使用 `--admin-dialog-mobile-max-height` 收紧高度；底部操作区通过 `--admin-dialog-mobile-footer-*` 保持保存/取消同一行、不换行，并用 `--admin-dialog-mobile-action-min-*` 保留触控尺寸。
 
 ### Segmented Tabs
