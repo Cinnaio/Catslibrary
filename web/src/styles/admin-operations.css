@@ -2548,19 +2548,13 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   }
 }
 
-/* R18 展开后的确认项：整块内缩并下沉底色，与上方开关形成从属关系，
-   避免展开的两行勾选和档位选择看起来与「成人内容」平级。 */
+/* R18 展开后的档位选择项：整块内缩并下沉底色，与上方开关形成从属关系，
+   避免展开的档位选择看起来与「成人内容」平级。 */
 .ai-writing-consent {
   padding: 0.75rem 0.875rem;
   border: 1px solid var(--admin-border);
   border-radius: var(--admin-radius);
   background: var(--admin-panel-muted);
-}
-
-/* 勾选后把整行文字降级为弱化色：未勾选时它是这个分区里唯一的强文字，
-   看起来就是「还差这一步」；此时主按钮已经可用，界面必须自己说清这个缺口。 */
-.ai-writing-consent.is-confirmed > .ai-writing-consent__row > span {
-  color: var(--text-muted);
 }
 
 /* 窄屏下确认项再收一档内边距。它嵌在开关行之下，两层内缩在 400px 视口里要吃掉
@@ -2569,18 +2563,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   .ai-writing-consent {
     padding: 0.625rem 0.75rem;
   }
-}
-
-.ai-writing-consent > .ai-writing-consent__row {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.625rem;
-  font-size: 0.875rem;
-  line-height: 1.25rem;
-}
-
-.ai-writing-consent > .ai-writing-consent__row > [data-slot='checkbox'] {
-  margin-top: 0.125rem;
 }
 
 /* ——— 小屏触控目标命中区 ———

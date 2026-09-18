@@ -197,23 +197,12 @@ describe('AiWritingPanel', () => {
     })
   })
 
-  it('开启露骨模式但未确认成年角色时不发起生成', async () => {
+  it('开启露骨模式后不再出现成年确认勾选，直接生成', async () => {
     await selectNovel()
 
     fireEvent.change(screen.getByPlaceholderText(/例如：第一章 雾中来客/), { target: { value: '第一章' } })
     fireEvent.click(screen.getByRole('switch', { name: /开启露骨/ }))
-    fireEvent.click(screen.getByRole('button', { name: /生成章节/ }))
-
-    await new Promise((resolve) => setTimeout(resolve, 0))
-    expect(api.chapterNovel).not.toHaveBeenCalled()
-  })
-
-  it('确认成年角色后按放宽档传参', async () => {
-    await selectNovel()
-
-    fireEvent.change(screen.getByPlaceholderText(/例如：第一章 雾中来客/), { target: { value: '第一章' } })
-    fireEvent.click(screen.getByRole('switch', { name: /开启露骨/ }))
-    fireEvent.click(screen.getByRole('checkbox', { name: /已确认本次涉及角色均为成年人/ }))
+    expect(screen.queryByRole('checkbox', { name: /已确认本次涉及角色均为成年人/ })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: /生成章节/ }))
 
     await waitFor(() => expect(api.chapterNovel).toHaveBeenCalled())
@@ -229,12 +218,12 @@ describe('AiWritingPanel', () => {
     })
   })
 
-  it('续写基线中的 R18 确认仍会原样传递到续写请求', async () => {
+  it('续写基线中的 R18 参数原样传递，且不含确认勾选', async () => {
     await selectNovel()
     switchToContinue()
 
     fireEvent.click(screen.getByRole('switch', { name: /开启露骨/ }))
-    fireEvent.click(screen.getByRole('checkbox', { name: /已确认本次涉及角色均为成年人/ }))
+    expect(screen.queryByRole('checkbox', { name: /已确认本次涉及角色均为成年人/ })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: '生成续写' }))
 
     await waitFor(() => expect(api.continueNovel).toHaveBeenCalled())

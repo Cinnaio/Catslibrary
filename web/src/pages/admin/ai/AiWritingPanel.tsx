@@ -8,7 +8,6 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -314,7 +313,6 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
   const [outlineBusy, setOutlineBusy] = useState(false)
   /** 作者本次任务的成人内容参数；不传时后端按关闭处理，与旧客户端行为一致。 */
   const [adultContentMode, setAdultContentMode] = useState<'off' | 'explicit'>('off')
-  const [adultCharactersConfirmed, setAdultCharactersConfirmed] = useState(false)
   const [consentRuleTier, setConsentRuleTier] = useState<'default' | 'fictional_nonconsent'>('default')
   // 初始读取与手动重新提取可能并发；只让每类画像最新一轮请求更新页面。
   const styleRequestVersion = useRef(0)
@@ -552,11 +550,11 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
 
   /**
    * 组装本次任务的成人内容参数。
-   * 关闭模式一律回传 off，由后端归一化为默认值；开启模式必须先确认成年角色，
-   * 否则后端 422，所以这里在前端就挡住，避免白跑一次请求。
+   * 关闭模式一律回传 off，由后端归一化为默认值；开启模式按作者本次选定的
+   * 同意规则档位下发，不再在生成前插入额外的确认卡点。
    */
   function buildContentPreferences() {
-    if (adultContentMode !== 'explicit' || !adultCharactersConfirmed) {
+    if (adultContentMode !== 'explicit') {
       return { version: 1, adultContentMode: 'off', intimacyWeight: 'none', adultCharactersConfirmed: false }
     }
     return {
@@ -568,18 +566,8 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
     }
   }
 
-  /** 开启露骨模式但未确认成年角色时拦下，避免白跑一次必然 422 的请求。 */
-  function adultPreferencesReady(): boolean {
-    if (adultContentMode === 'explicit' && !adultCharactersConfirmed) {
-      toast('开启成人内容模式前请先确认涉及角色均为成年人', 'error')
-      return false
-    }
-    return true
-  }
-
   async function generateChapter() {
     if (!novelId || !chapterTitle.trim()) return toast('请选择小说并填写章节标题', 'error')
-    if (!adultPreferencesReady()) return
     const words = targetWordsInput.commit()
     const count = chapterCountInput.commit()
     await startTask(
@@ -600,7 +588,6 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
 
   async function continueNovel() {
     if (!novelId) return toast('请选择小说', 'error')
-    if (!adultPreferencesReady()) return
     const words = targetWordsInput.commit()
     const count = chapterCountInput.commit()
     // 批量续写是连续 N 次模型调用，超过阈值先确认，避免误触烧钱
@@ -776,7 +763,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
             <p>它会同时影响续写和推荐情节；生成前必须在这里确认本次尺度。</p>
           </div>
           <Badge className={adultContentMode === 'explicit' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}>
-            {adultContentMode === 'explicit' ? (adultCharactersConfirmed ? 'R18 已确认' : 'R18 待确认') : '常规内容'}
+            {adultContentMode === 'explicit' ? 'R18 已启用' : '常规内容'}
           </Badge>
         </div>
         <label className="ai-writing-content-scope__toggle">
@@ -789,20 +776,11 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
             disabled={busy || taskActive}
             onCheckedChange={(checked) => {
               setAdultContentMode(checked ? 'explicit' : 'off')
-              if (!checked) setAdultCharactersConfirmed(false)
             }}
           />
         </label>
         {adultContentMode === 'explicit' && (
-          <div className={`ai-writing-consent grid gap-3${adultCharactersConfirmed ? ' is-confirmed' : ''}`}>
-            <label className="ai-writing-consent__row">
-              <Checkbox
-                checked={adultCharactersConfirmed}
-                disabled={busy || taskActive}
-                onCheckedChange={(checked) => setAdultCharactersConfirmed(checked === true)}
-              />
-              <span>已确认本次涉及角色均为成年人（必选）</span>
-            </label>
+          <div className="ai-writing-consent grid gap-3">
             <div className="grid gap-1.5">
               <Label id="ai-writing-consent-tier-label" className="text-xs">
                 同意规则档位
@@ -1277,22 +1255,11 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                     disabled={busy || taskActive}
                     onCheckedChange={(checked) => {
                       setAdultContentMode(checked ? 'explicit' : 'off')
-                      if (!checked) setAdultCharactersConfirmed(false)
                     }}
                   />
                 </label>
                 {adultContentMode === 'explicit' && (
-                  /* 确认项挂上 is-confirmed：勾选后整行文字降级为弱化色，
-                   未勾选时保持主色 —— 用户在点「生成」之前就能看出还差这一步。 */
-                  <div className={`ai-writing-consent grid gap-3${adultCharactersConfirmed ? ' is-confirmed' : ''}`}>
-                    <label className="ai-writing-consent__row">
-                      <Checkbox
-                        checked={adultCharactersConfirmed}
-                        disabled={busy || taskActive}
-                        onCheckedChange={(checked) => setAdultCharactersConfirmed(checked === true)}
-                      />
-                      <span>已确认本次涉及角色均为成年人（必选）</span>
-                    </label>
+                  <div className="ai-writing-consent grid gap-3">
                     <div className="grid gap-1.5">
                       <Label id="ai-writing-consent-tier-label" className="text-xs">
                         同意规则档位
@@ -1379,8 +1346,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                 {novelId ? (
                   <>
                     将续写《{selectedNovelTitle || '当前小说'}》{afterChapterId ? '指定章节之后' : '最新已发布章节之后'} ·{' '}
-                    {isMultiChapter ? `${chapterCount} 章规划` : '单章精写'} ·{' '}
-                    {adultContentMode === 'explicit' ? (adultCharactersConfirmed ? 'R18 已确认' : 'R18 待确认') : '常规内容'}
+                    {isMultiChapter ? `${chapterCount} 章规划` : '单章精写'} · {adultContentMode === 'explicit' ? 'R18 已启用' : '常规内容'}
                     {activeProfileLabels.length > 0 ? ` · 已注入：${activeProfileLabels.join('、')}` : ' · 尚未提取小说分析'}
                   </>
                 ) : (
