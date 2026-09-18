@@ -2092,7 +2092,9 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   background: var(--bg-card);
   color: var(--text-primary);
   text-align: left;
-  transition: border-color var(--admin-table-row-interaction), background-color var(--admin-table-row-interaction);
+  transition:
+    border-color var(--admin-table-row-interaction),
+    background-color var(--admin-table-row-interaction);
 }
 
 .ai-writing-suggest__item:hover {
@@ -2641,6 +2643,190 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 
 .ai-writing-panel .ai-writing-actions > .flex:last-child [data-slot='button'] {
   min-width: 7.5rem;
+}
+
+/* 续写工作台按一次任务的决策顺序排布：先定对象与规模，再确认续写基线，随后写
+   本次情节并生成。每一段仍是同一张纸面，靠留白和细分隔建立层次，不叠加卡片。 */
+.ai-writing-panel .ai-writing-workspace {
+  display: grid;
+  gap: 0;
+}
+
+.ai-writing-workspace > :where(.ai-writing-baseline, .ai-writing-notes, .ai-writing-actions, .ai-writing-identity + .ai-writing-actions) {
+  border-top: 1px solid var(--admin-border);
+  padding-top: 1.5rem;
+}
+
+.ai-writing-identity,
+.ai-writing-baseline,
+.ai-writing-analysis,
+.ai-writing-content-scope {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.ai-writing-section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.ai-writing-section-heading h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  line-height: 1.35;
+}
+
+.ai-writing-section-heading p {
+  max-width: 72ch;
+  margin: 0.35rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 1.6;
+}
+
+.ai-writing-identity__mode,
+.ai-writing-baseline__novel,
+.ai-writing-analysis__count {
+  flex: 0 1 auto;
+  min-width: 0;
+  border-radius: 999px;
+  background: var(--admin-panel-muted);
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 1.25rem;
+  overflow: hidden;
+  padding: 0.125rem 0.625rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-writing-baseline {
+  margin-top: 1.5rem;
+}
+
+.ai-writing-baseline > :where(.ai-writing-continuation-start, .ai-writing-content-scope, .ai-writing-analysis) {
+  border-top: 1px solid var(--admin-border);
+  padding-top: 1.25rem;
+}
+
+.ai-writing-continuation-start {
+  max-width: 28rem;
+}
+
+.ai-writing-continuation-start__status {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 1.6;
+}
+
+.ai-writing-run-scale__choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.ai-writing-run-scale__choices [data-slot='button'] {
+  min-width: 6.75rem;
+}
+
+.ai-writing-content-scope__toggle {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-input-radius);
+  background: var(--admin-panel-muted);
+  cursor: pointer;
+  padding: 0.875rem 1rem;
+}
+
+.ai-writing-content-scope__toggle:has([data-slot='switch']:focus-visible) {
+  border-color: var(--sh-primary);
+  box-shadow: 0 0 0 2px var(--focus-ring);
+}
+
+.ai-writing-content-scope__toggle > [data-slot='switch'] {
+  flex: 0 0 auto;
+  margin-top: 0.125rem;
+}
+
+.ai-writing-profile-list {
+  display: grid;
+  border-top: 1px solid var(--admin-border);
+}
+
+.ai-writing-profile-list > * {
+  min-width: 0;
+  border-bottom: 1px solid var(--admin-border);
+  padding: 1rem 0;
+}
+
+.ai-writing-profile-list > *:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.ai-writing-profile-list .ai-profile-trigger,
+.ai-writing-profile-list .inline-flex.items-center.gap-2\.5 {
+  font-size: 0.875rem;
+}
+
+.ai-writing-workspace > .ai-writing-notes {
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.ai-writing-workspace > .ai-writing-actions {
+  margin-top: 1.5rem;
+}
+
+.ai-writing-section-heading--actions {
+  align-items: flex-end;
+}
+
+.ai-writing-launch-summary {
+  margin: 0;
+  border-left: 1px solid color-mix(in srgb, var(--accent) 52%, var(--admin-border));
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  line-height: 1.65;
+  padding-left: 0.75rem;
+}
+
+@media (max-width: 640px) {
+  .ai-writing-section-heading {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .ai-writing-identity__mode,
+  .ai-writing-baseline__novel,
+  .ai-writing-analysis__count {
+    align-self: flex-start;
+    max-width: 100%;
+  }
+
+  .ai-writing-run-scale__choices {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ai-writing-run-scale__choices [data-slot='button'] {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .ai-writing-content-scope__toggle {
+    padding: 0.75rem;
+  }
 }
 
 /* AI 任务采用列表行而不是逐项卡片，便于扫描状态并横向完成操作。
@@ -8753,7 +8939,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
     margin-inline: 1rem;
   }
 }
-
 
 /* 生成内容表的卡片化：跟随容器宽度而不是视口宽度。表格内需要 760px，
    视口 901–1100px 下容器只有 756px，表格已溢出且 sticky 冻结的操作列

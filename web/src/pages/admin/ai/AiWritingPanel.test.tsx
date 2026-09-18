@@ -48,7 +48,11 @@ vi.mock('@/components/admin/CustomSelect', () => ({
   default: (props: { options: Array<{ value: string; label: string }>; value: string; onChange: (value: string) => void }) => (
     <select aria-label="目标小说" value={props.value} onChange={(event) => props.onChange(event.target.value)}>
       <option value="">请选择小说</option>
-      {props.options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+      {props.options.map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
     </select>
   ),
 }))
@@ -57,13 +61,16 @@ import AiWritingPanel from './AiWritingPanel'
 
 function deferred<T>() {
   let resolve!: (value: T) => void
-  const promise = new Promise<T>((next) => { resolve = next })
+  const promise = new Promise<T>((next) => {
+    resolve = next
+  })
   return { promise, resolve }
 }
 
 /** 选中小说并等到画像读取完成，后续断言才有稳定的起点。 */
 async function selectNovel(novelId = 'novel_1', title = '测试小说') {
   render(<AiWritingPanel />)
+  switchToNew()
   await screen.findByRole('option', { name: title })
   fireEvent.change(await screen.findByRole('combobox', { name: '目标小说' }), { target: { value: novelId } })
   await waitFor(() => expect(api.getStyleProfile).toHaveBeenCalledWith(novelId))
@@ -72,6 +79,13 @@ async function selectNovel(novelId = 'novel_1', title = '测试小说') {
 /** Radix Tabs 用键盘事件切换，click 不触发；切到续写模式后再断言。 */
 function switchToContinue() {
   const tab = screen.getByRole('tab', { name: '续写' })
+  tab.focus()
+  fireEvent.keyDown(tab, { key: 'Enter' })
+  fireEvent.keyDown(tab, { key: ' ' })
+}
+
+function switchToNew() {
+  const tab = screen.getByRole('tab', { name: '新写' })
   tab.focus()
   fireEvent.keyDown(tab, { key: 'Enter' })
   fireEvent.keyDown(tab, { key: ' ' })
@@ -92,6 +106,30 @@ describe('AiWritingPanel', () => {
     })
     api.continueNovel.mockResolvedValue({ ok: true, taskId: 't1', batchId: 'b1', total: 1 })
     api.chapterNovel.mockResolvedValue({ ok: true, taskId: 't1', batchId: 'b1', total: 1 })
+  })
+
+  it('默认进入续写，并把内容尺度和小说分析放在创作要求之前', () => {
+    render(<AiWritingPanel />)
+
+    expect(screen.getByRole('tab', { name: '续写' })).toHaveAttribute('data-state', 'active')
+    expect(screen.getByRole('heading', { name: '续写基线' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '内容尺度' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '小说分析' })).toBeInTheDocument()
+
+    const baseline = screen.getByRole('heading', { name: '续写基线' }).closest('.ai-writing-baseline')
+    expect(baseline?.contains(screen.getByRole('switch', { name: /开启露骨/ }))).toBe(true)
+    expect(baseline?.contains(screen.getByText('风格画像'))).toBe(true)
+  })
+
+  it('在续写中切换多章规划会露出章节数输入，并将默认规模设为两章', async () => {
+    await selectNovel()
+    switchToContinue()
+
+    fireEvent.click(screen.getByRole('button', { name: '多章规划' }))
+
+    const count = screen.getByLabelText('续写章节数') as HTMLInputElement
+    expect(count.value).toBe('2')
+    expect(screen.getByText('多章续写大纲')).toBeInTheDocument()
   })
 
   it('重新提取完成后不应被在途的旧风格画像读取覆盖', async () => {
@@ -191,6 +229,27 @@ describe('AiWritingPanel', () => {
     })
   })
 
+  it('续写基线中的 R18 确认仍会原样传递到续写请求', async () => {
+    await selectNovel()
+    switchToContinue()
+
+    fireEvent.click(screen.getByRole('switch', { name: /开启露骨/ }))
+    fireEvent.click(screen.getByRole('checkbox', { name: /已确认本次涉及角色均为成年人/ }))
+    fireEvent.click(screen.getByRole('button', { name: '生成续写' }))
+
+    await waitFor(() => expect(api.continueNovel).toHaveBeenCalled())
+    expect(api.continueNovel.mock.calls[0]![0]).toMatchObject({
+      novelId: 'novel_1',
+      contentPreferences: {
+        version: 1,
+        adultContentMode: 'explicit',
+        intimacyWeight: 'high',
+        adultCharactersConfirmed: true,
+        consentRuleTier: 'default',
+      },
+    })
+  })
+
   it('生成的大纲填入大纲框并提示章数', async () => {
     api.plotSuggestions.mockResolvedValue({
       suggestions: [],
@@ -199,14 +258,15 @@ describe('AiWritingPanel', () => {
     })
     await selectNovel()
     switchToContinue()
+    fireEvent.click(screen.getByRole('button', { name: '多章规划' }))
 
     fireEvent.click(screen.getByRole('button', { name: /按情节推荐生成大纲/ }))
 
     await waitFor(() => expect(api.plotSuggestions).toHaveBeenCalled())
     // 大纲模式要把 chapterCount 一并发给后端，后端据此产出对应章数
-    expect(api.plotSuggestions.mock.calls[0]![0]).toMatchObject({ novelId: 'novel_1', chapterCount: 1 })
+    expect(api.plotSuggestions.mock.calls[0]![0]).toMatchObject({ novelId: 'novel_1', chapterCount: 2 })
 
-    const textarea = await screen.findByPlaceholderText(/第1章 重返皇城/) as HTMLTextAreaElement
+    const textarea = (await screen.findByLabelText('多章续写大纲')) as HTMLTextAreaElement
     await waitFor(() => expect(textarea.value).toContain('第1章 重返皇城'))
     expect(textarea.value).toContain('第2章 婚夜')
   })
@@ -283,7 +343,10 @@ describe('AiWritingPanel', () => {
   })
 
   it('切书后在途的候选响应不回写到新书', async () => {
-    const pending = deferred<{ suggestions: Array<{ direction: string; effect: string }>; usage: { model: string; promptTokens: number; completionTokens: number } }>()
+    const pending = deferred<{
+      suggestions: Array<{ direction: string; effect: string }>
+      usage: { model: string; promptTokens: number; completionTokens: number }
+    }>()
     api.plotSuggestions.mockReturnValue(pending.promise)
 
     await selectNovel()
