@@ -5703,7 +5703,8 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
     padding-inline: 0.25rem;
   }
   .ai-generation-dialog [data-slot='dialog-title'] {
-    padding-right: 1.5rem;
+    /* 与 page 头居中一致：避让右上角关闭按钮要左右对称，只留右侧会让标题视觉偏左 */
+    padding-inline: 1.5rem;
     line-height: 1.25;
   }
   .ai-generation-publish {
@@ -7045,15 +7046,19 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   width: min(calc(100% - 2rem), 47.5rem);
 }
 
+/* 页头居中。DialogHeader 自带的 text-center / sm:text-left 中，sm:text-left 实际
+   被 Tailwind 输出顺序压掉（.text-center 在 utilities 层出现两次且晚于 sm 变体），
+   故居中才是页头的既有事实；此处与之对齐，不再单独把后台弹窗拉成左对齐。 */
 .admin-dialog [data-slot='dialog-header'] {
   gap: 0.375rem;
   border-bottom: 0;
   padding: 1.625rem 1.75rem 0;
-  text-align: left;
+  text-align: center;
 }
 
 .admin-dialog [data-slot='dialog-title'] {
-  padding-right: 3rem;
+  /* 右上角关闭按钮需要避让，居中时左右对称留白，否则整行会视觉偏左 */
+  padding-inline: 3rem;
   color: var(--text-primary);
   font-size: 1.5rem;
   letter-spacing: -0.04em;
@@ -7062,6 +7067,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 
 .admin-dialog [data-slot='dialog-description'] {
   max-width: 60ch;
+  margin-inline: auto;
   color: var(--text-secondary);
   font-size: 0.875rem;
   line-height: 1.55;

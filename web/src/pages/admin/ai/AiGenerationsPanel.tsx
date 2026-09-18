@@ -605,67 +605,73 @@ export default function AiGenerationsPanel(props: {
           }
         }}
       >
-        <DialogContent className="ai-generation-dialog flex h-[min(85svh,900px)] max-h-[calc(100svh-2rem)] w-[calc(100%-1.5rem)] max-w-4xl flex-col gap-3 overflow-hidden p-4 sm:gap-4 sm:p-6">
+        <DialogContent className="ai-generation-dialog flex h-[min(85svh,900px)] max-h-[calc(100svh-2rem)] w-[calc(100%-1.5rem)] flex-col gap-3 overflow-hidden p-4 sm:max-w-4xl sm:gap-4 sm:p-6">
           <DialogHeader>
             <DialogTitle>{viewing ? `${kindLabel(viewing.kind)} · 完整内容` : '完整内容'}</DialogTitle>
             <DialogDescription>仅管理员可查看 AI 生成的完整内容。</DialogDescription>
           </DialogHeader>
           {viewing && (
             <>
-              <details className="shrink-0 rounded-md border bg-muted/10 p-3">
-                <summary className="cursor-pointer text-sm font-medium">本次生成 Prompt</summary>
-                <pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap text-xs leading-5 text-muted-foreground">
-                  {viewing.prompt || '未记录 Prompt'}
-                </pre>
-              </details>
-              <div className="flex shrink-0 items-center gap-2">
-                <span className="text-xs text-muted-foreground">约 {(editingText ?? viewing.result).replace(/<[^>]*>/g, '').length} 字</span>
-                {viewing.status === 'draft' &&
-                  EDITABLE_KINDS.has(viewing.kind) &&
-                  (editingText === null ? (
-                    <Button variant="outline" size="sm" className="ml-auto" onClick={() => setEditingText(viewing.result)}>
-                      编辑正文
-                    </Button>
-                  ) : (
-                    <div className="ml-auto flex gap-2">
-                      <Button variant="ghost" size="sm" disabled={savingEdit} onClick={() => setEditingText(null)}>
-                        取消
+              {/* 中间区是唯一的滚动所有者。此前 DialogContent 用 overflow-hidden 直接
+                  裁掉底部发布区（1600×1000 下 25px、1280×900 下 110px），且只读正文
+                  与改写文本框互相争夺弹性空间，把 4000 余字正文压成一行。现由本区接管
+                  滚动，发布区常驻可见。 */}
+              <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
+                <details className="shrink-0 rounded-md border bg-muted/10 p-3">
+                  <summary className="cursor-pointer text-sm font-medium">本次生成 Prompt</summary>
+                  <pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap text-xs leading-5 text-muted-foreground">
+                    {viewing.prompt || '未记录 Prompt'}
+                  </pre>
+                </details>
+                <div className="flex shrink-0 items-center gap-2">
+                  <span className="text-xs text-muted-foreground">约 {(editingText ?? viewing.result).replace(/<[^>]*>/g, '').length} 字</span>
+                  {viewing.status === 'draft' &&
+                    EDITABLE_KINDS.has(viewing.kind) &&
+                    (editingText === null ? (
+                      <Button variant="outline" size="sm" className="ml-auto" onClick={() => setEditingText(viewing.result)}>
+                        编辑正文
                       </Button>
-                      <Button size="sm" disabled={savingEdit || !editingText.trim()} onClick={() => void saveEdit(viewing)}>
-                        {savingEdit ? '保存中…' : '保存草稿'}
-                      </Button>
-                    </div>
-                  ))}
-              </div>
-              <div className="shrink-0 text-xs font-medium text-muted-foreground">生成正文</div>
-              {/* 编辑区在弹性对话框中占满剩余高度：共享 Textarea 自带的 min-h-16 与
-                 field-sizing-content 会与 min-h-0 / flex-1 冲突（Tailwind 把
-                 min-h-16 排在 min-h-0 之后，同为工具类时前者胜出），故显式中和为
-                 field-sizing-fixed 与 min-h-0，保持原有的填满行为。 */}
-              {editingText === null ? (
-                <div className="min-h-0 flex-1 overflow-y-auto rounded-md border bg-muted/20 p-4 text-sm leading-7 whitespace-pre-wrap sm:p-5">
-                  {viewing.result || '暂无内容'}
+                    ) : (
+                      <div className="ml-auto flex gap-2">
+                        <Button variant="ghost" size="sm" disabled={savingEdit} onClick={() => setEditingText(null)}>
+                          取消
+                        </Button>
+                        <Button size="sm" disabled={savingEdit || !editingText.trim()} onClick={() => void saveEdit(viewing)}>
+                          {savingEdit ? '保存中…' : '保存草稿'}
+                        </Button>
+                      </div>
+                    ))}
                 </div>
-              ) : (
-                <Textarea
-                  className="field-sizing-fixed min-h-0 flex-1 resize-none shadow-none p-4 text-sm leading-7 sm:p-5"
-                  value={editingText}
-                  onChange={(event) => setEditingText(event.target.value)}
-                  disabled={savingEdit}
-                />
-              )}
-              {viewing.status === 'draft' && editingText === null && REWRITABLE_KINDS.has(viewing.kind) && (
-                <DraftRewrite
-                  draftId={viewing.id}
-                  content={viewing.result}
-                  contentRevision={viewing.contentRevision || ''}
-                  onApplied={({ result, contentRevision }) => {
-                    setViewing((current) => (current ? { ...current, result, contentRevision } : current))
-                    void load()
-                  }}
-                  onStale={() => void refreshViewing()}
-                />
-              )}
+                <div className="shrink-0 text-xs font-medium text-muted-foreground">生成正文</div>
+                {/* 编辑态沿用改写区的既有做法：固定高度 + 框内滚动（field-sizing-fixed）。
+                   field-sizing-content 会随全文长高，把中间的滚动行程翻倍。 */}
+                {editingText === null ? (
+                  /* 预览区给出视口相关的上限：不设上限时四千余字会把中间区撑出两千余
+                     像素的滚动行程。超出部分在框内滚动，中间区只负责其余区块。 */
+                  <div className="min-h-[12rem] max-h-[min(45svh,28rem)] flex-1 overflow-y-auto rounded-md border bg-muted/20 p-4 text-sm leading-7 whitespace-pre-wrap sm:p-5">
+                    {viewing.result || '暂无内容'}
+                  </div>
+                ) : (
+                  <Textarea
+                    className="field-sizing-fixed min-h-[20rem] max-h-[50svh] resize-y shadow-none p-4 text-sm leading-7 sm:p-5"
+                    value={editingText}
+                    onChange={(event) => setEditingText(event.target.value)}
+                    disabled={savingEdit}
+                  />
+                )}
+                {viewing.status === 'draft' && editingText === null && REWRITABLE_KINDS.has(viewing.kind) && (
+                  <DraftRewrite
+                    draftId={viewing.id}
+                    content={viewing.result}
+                    contentRevision={viewing.contentRevision || ''}
+                    onApplied={({ result, contentRevision }) => {
+                      setViewing((current) => (current ? { ...current, result, contentRevision } : current))
+                      void load()
+                    }}
+                    onStale={() => void refreshViewing()}
+                  />
+                )}
+              </div>
               {viewing.status === 'draft' && editingText === null && (viewing.kind === 'write_chapter' || viewing.kind === 'continue') && (
                 <div className="ai-generation-publish shrink-0 border-t pt-4">
                   <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
