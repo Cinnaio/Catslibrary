@@ -368,6 +368,29 @@ struct AiWritingBrief: Codable, Hashable {
     }
 }
 
+/// POST /api/ai/writing/plot-suggestions 返回的单条续写方向。
+struct AiPlotSuggestion: Codable, Hashable, Identifiable {
+    let direction: String
+    let effect: String
+
+    /// 服务端没有单独返回候选 ID；用完整内容作为稳定的 ForEach 标识。
+    var id: String { "\(direction)\n\(effect)" }
+}
+
+/// 推荐情节与续写大纲接口共用的本次调用用量摘要。
+struct AiWritingUsage: Codable, Hashable {
+    let model: String?
+    let promptTokens: Int?
+    let completionTokens: Int?
+}
+
+/// POST /api/ai/writing/plot-suggestions。
+struct AiPlotSuggestionsResponse: Codable {
+    let suggestions: [AiPlotSuggestion]
+    let outline: String?
+    let usage: AiWritingUsage?
+}
+
 /// POST /api/ai/cover/prompt 的返回。
 struct AiCoverPromptResponse: Codable {
     let prompt: String

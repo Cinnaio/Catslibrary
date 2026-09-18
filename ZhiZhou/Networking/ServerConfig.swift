@@ -5,7 +5,7 @@ final class ServerConfig {
     static let shared = ServerConfig()
 
     /// 固定服务器地址（应用内置，不可更改）
-    static let serverURL = "https://novel.mscraft.uk"
+    static let serverURL = "https://story.mscraft.uk"
 
     private init() {}
 

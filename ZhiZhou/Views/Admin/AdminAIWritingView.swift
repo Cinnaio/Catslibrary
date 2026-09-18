@@ -18,6 +18,13 @@ struct AdminAIWritingView: View {
         var id: String { rawValue }
     }
 
+    enum ContinuationScope: String, CaseIterable, Identifiable {
+        case single = "单章精写"
+        case multiple = "多章规划"
+
+        var id: String { rawValue }
+    }
+
     enum AdultContentMode: String, CaseIterable, Identifiable {
         case off
         case explicit
@@ -59,9 +66,11 @@ struct AdminAIWritingView: View {
     @State private var profileRequests = ListRequestGuard<String>()
 
     // 表单
-    @State private var mode: Mode = .new
+    @State private var mode: Mode = .continueWriting
     @State private var taskKind: TaskKind = .chapter
+    @State private var continuationScope: ContinuationScope = .single
     @State private var title = ""
+    @State private var continuationTitle = ""
     @State private var instruction = ""
     @State private var outline = ""
     @State private var context = ""
@@ -79,6 +88,39 @@ struct AdminAIWritingView: View {
     @State private var adultContentMode: AdultContentMode = .off
     @State private var intimacyWeight: IntimacyWeight = .none
     @State private var adultCharactersConfirmed = false
+
+    enum ConsentRuleTier: String, CaseIterable, Identifiable {
+        case standard = "default"
+        case fictionalNonconsent = "fictional_nonconsent"
+
+        var id: String { rawValue }
+        var title: String {
+            switch self {
+            case .standard: return "默认边界"
+            case .fictionalNonconsent: return "虚构非自愿情节"
+            }
+        }
+    }
+
+    @State private var consentRuleTier: ConsentRuleTier = .standard
+
+    // 续写辅助：推荐情节与按章大纲请求必须绑定当前小说/起点，避免旧响应回写。
+    @State private var suggestionFocus = ""
+    @State private var suggestions: [AiPlotSuggestion] = []
+    @State private var suggestionBusy = false
+    @State private var suggestionError: String?
+    @State private var suggestionFillBackup: String?
+    @State private var suggestionFilledValue: String?
+    @State private var pendingSuggestion: AiPlotSuggestion?
+    @State private var suggestionRequestToken = UUID()
+    @State private var outlineBusy = false
+    @State private var outlineError: String?
+    @State private var outlineStatusText: String?
+    @State private var outlineRequestToken = UUID()
+    @State private var pendingGeneratedOutline = ""
+    @State private var showOutlineOverwriteWarning = false
+    @State private var showLargeTaskWarning = false
+    @State private var pendingContinuationScope: ContinuationScope?
 
     // 画像
     @State private var styleProfile = ""
@@ -123,6 +165,7 @@ struct AdminAIWritingView: View {
     @State private var pollingPaused = false
     @State private var writingPollingToken = UUID()
     @State private var showingTaskResults = false
+    @State private var pendingDangerousOperation: AdminDangerousOperation?
 
     // 通用
     @State private var isLoading = true
@@ -158,6 +201,10 @@ struct AdminAIWritingView: View {
                 }
                 contentPreferencesSection
                 profileSection
+                if mode == .continueWriting {
+                    continuationAssistSection
+                }
+                launchSection
                 taskProgressSection
             }
         }
@@ -192,13 +239,62 @@ struct AdminAIWritingView: View {
                     let lines = chapterGoalsText.components(separatedBy: .newlines)
                     chapterGoalsText = lines.prefix(pendingChapterCount).joined(separator: "\n")
                 }
+                if let pendingContinuationScope {
+                    continuationScope = pendingContinuationScope
+                }
                 self.pendingChapterCount = nil
+                self.pendingContinuationScope = nil
             }
             Button("取消", role: .cancel) {
                 pendingChapterCount = nil
+                pendingContinuationScope = nil
             }
         } message: {
             Text(droppedChapterGoalsMessage)
+        }
+        .confirmationDialog(
+            "确认启动多章续写？",
+            isPresented: $showLargeTaskWarning,
+            titleVisibility: .visible
+        ) {
+            Button("继续生成 \(chapterCount) 章", role: .destructive) {
+                Task { await startTask(confirmedLargeTask: true) }
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("将连续调用 AI 生成 \(chapterCount) 章。已经完成的草稿会保留，未开始的章节可以稍后重新生成。")
+        }
+        .confirmationDialog(
+            "使用推荐情节",
+            isPresented: Binding(
+                get: { pendingSuggestion != nil },
+                set: { if !$0 { pendingSuggestion = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("替换当前要求") {
+                guard let suggestion = pendingSuggestion else { return }
+                pendingSuggestion = nil
+                applySuggestion(suggestion, replacing: true)
+            }
+            Button("追加到当前要求") {
+                guard let suggestion = pendingSuggestion else { return }
+                pendingSuggestion = nil
+                applySuggestion(suggestion, replacing: false)
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("当前已经填写了续写要求。请选择替换，或把推荐内容追加到末尾。")
+        }
+        .alert("覆盖现有大纲？", isPresented: $showOutlineOverwriteWarning) {
+            Button("生成并覆盖", role: .destructive) {
+                applyPendingGeneratedOutline()
+            }
+            Button("取消", role: .cancel) {
+                pendingGeneratedOutline = ""
+            }
+        } message: {
+            Text("当前大纲中已有内容，生成新的大纲会替换它。")
         }
         .sheet(isPresented: $showingTaskResults) {
             NavigationStack {
@@ -207,6 +303,11 @@ struct AdminAIWritingView: View {
         }
         .sheet(isPresented: $showingProfileEditor) {
             profileEditorSheet
+        }
+        .adminDangerousOperationConfirmation($pendingDangerousOperation) { operation in
+            guard operation.action == .terminateAITask,
+                  let taskID = operation.targetIDs.first else { return }
+            Task { await cancelWritingTask(taskID: taskID, operationID: operation.operationID) }
         }
         .onDisappear {
             pollTask?.cancel()
@@ -225,12 +326,52 @@ struct AdminAIWritingView: View {
         }
         .onChange(of: afterChapterId) { _, anchorID in
             guard mode == .continueWriting, !novelId.isEmpty else { return }
+            resetContinuationAssistState(clearOutline: true)
             Task { await loadProfileStatuses(novelID: novelId, anchorID: anchorID.isEmpty ? nil : anchorID) }
         }
+        .onChange(of: continuationScope) { _, value in
+            if value == .single, chapterCount > 1 {
+                let hasExtraGoals = chapterGoalsText
+                    .components(separatedBy: .newlines)
+                    .enumerated()
+                    .contains { index, line in
+                        index >= 1 && !line.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    }
+                if hasExtraGoals {
+                    pendingContinuationScope = .single
+                    continuationScope = .multiple
+                    pendingChapterCount = 1
+                    showChapterCountWarning = true
+                } else {
+                    chapterCount = 1
+                }
+            } else if value == .multiple, chapterCount < 2 {
+                chapterCount = 2
+            }
+            resetContinuationAssistState(clearOutline: true)
+        }
+        .onChange(of: mode) { _, _ in
+            resetContinuationAssistState(clearOutline: true)
+        }
         .onChange(of: adultContentMode) { _, value in
-            guard value == .off else { return }
-            intimacyWeight = .none
-            adultCharactersConfirmed = false
+            if value == .off {
+                intimacyWeight = .none
+                adultCharactersConfirmed = false
+                consentRuleTier = .standard
+            }
+            resetContinuationAssistState(clearOutline: true)
+        }
+        .onChange(of: intimacyWeight) { _, _ in
+            resetContinuationAssistState(clearOutline: true)
+        }
+        .onChange(of: consentRuleTier) { _, _ in
+            resetContinuationAssistState(clearOutline: true)
+        }
+        .onChange(of: adultCharactersConfirmed) { _, _ in
+            resetContinuationAssistState(clearOutline: true)
+        }
+        .onChange(of: suggestionFocus) { _, _ in
+            resetContinuationAssistState()
         }
     }
 
@@ -348,11 +489,26 @@ struct AdminAIWritingView: View {
                     .disabled(selectionRequests.isLoading)
                 }
             }
+            TextField("本次章节标题（可选）", text: $continuationTitle)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
             TextField("续写要求（可选）", text: $instruction, axis: .vertical)
                 .lineLimit(2...4)
+            Picker("写作范围", selection: $continuationScope) {
+                ForEach(ContinuationScope.allCases) { scope in
+                    Text(scope.rawValue).tag(scope)
+                }
+            }
+            .accessibleSegmentedPicker()
             detailedBriefSection
-            Stepper("续写章数：\(chapterCount)", value: chapterCountBinding, in: 1...10)
-            Stepper("目标字数：\(targetWords)", value: $targetWords, in: 500...8000, step: 500)
+            if continuationScope == .multiple {
+                Stepper("续写章数：\(chapterCount)", value: chapterCountBinding, in: 2...20)
+            } else {
+                Text("本次生成 1 章")
+                    .font(.subheadline)
+                    .foregroundStyle(AppTheme.textSecondary)
+            }
+            Stepper("目标字数：\(targetWords)", value: $targetWords, in: 300...30000, step: 500)
         }
     }
 
@@ -368,6 +524,11 @@ struct AdminAIWritingView: View {
                 if adultContentMode == .explicit {
                     Picker("亲密内容权重", selection: $intimacyWeight) {
                         ForEach(IntimacyWeight.allCases) { option in
+                            Text(option.title).tag(option)
+                        }
+                    }
+                    Picker("同意规则", selection: $consentRuleTier) {
+                        ForEach(ConsentRuleTier.allCases) { option in
                             Text(option.title).tag(option)
                         }
                     }
@@ -452,6 +613,123 @@ struct AdminAIWritingView: View {
                 edit: { beginProfileEdit(kind: "relationship", content: relationshipEffectiveContent.isEmpty ? relationshipProfile : relationshipEffectiveContent, override: relationshipManualOverride, baseRevision: relationshipBaseProfileRevision) },
                 empty: "未提取 · 提取后续写自动注入"
             )
+        } header: {
+            Text("创作画像")
+        } footer: {
+            Text("画像会按当前小说与续写起点注入本次任务；可手动校正后再提交。")
+        }
+    }
+
+    private var continuationAssistSection: some View {
+        Section("本次情节与大纲") {
+            TextField("创作重点（可选，例如：强化冲突、推进感情线）", text: $suggestionFocus, axis: .vertical)
+                .lineLimit(1...3)
+
+            Button {
+                Task { await loadPlotSuggestions() }
+            } label: {
+                HStack {
+                    Label("推荐情节", systemImage: "wand.and.stars")
+                    Spacer()
+                    if suggestionBusy {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                }
+            }
+            .disabled(!canUseContinuationAssist || suggestionBusy || outlineBusy)
+
+            if let suggestionError {
+                Text(suggestionError)
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.warning)
+            }
+
+            if !suggestions.isEmpty {
+                ForEach(suggestions) { suggestion in
+                    Button {
+                        chooseSuggestion(suggestion)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text(suggestion.direction)
+                                .font(.subheadline)
+                                .foregroundStyle(AppTheme.textPrimary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            Text(suggestion.effect)
+                                .font(.caption)
+                                .foregroundStyle(AppTheme.textSecondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .padding(.vertical, 3)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("选择后填入续写要求")
+                }
+                if suggestionFillBackup != nil {
+                    Button("撤销上次填入") {
+                        guard instruction == suggestionFilledValue else { return }
+                        instruction = suggestionFillBackup ?? ""
+                        suggestionFillBackup = nil
+                        suggestionFilledValue = nil
+                    }
+                    .font(.caption)
+                    .disabled(suggestionFilledValue != instruction)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("续写大纲")
+                        .font(.subheadline.weight(.medium))
+                    Spacer()
+                    Button {
+                        Task { await generateContinuationOutline() }
+                    } label: {
+                        if outlineBusy {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Text(outline.isEmpty ? "AI 生成" : "重新生成")
+                        }
+                    }
+                    .font(.caption.weight(.medium))
+                    .disabled(!canUseContinuationAssist || suggestionBusy || outlineBusy)
+                }
+                TextField("可手动编辑，也可让 AI 按当前范围生成", text: $outline, axis: .vertical)
+                    .lineLimit(4...12)
+                if let outlineStatusText {
+                    Text(outlineStatusText)
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.textSecondary)
+                }
+                if let outlineError {
+                    Text(outlineError)
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.warning)
+                }
+            }
+            .padding(.top, 6)
+        } footer: {
+            Text(continuationScope == .multiple
+                ? "推荐情节用于补充创作要求；生成的大纲会按章节拆分后交给后台任务。"
+                : "推荐情节可以直接填入续写要求；大纲生成后仍可手动修改。")
+        }
+    }
+
+    private var launchSection: some View {
+        Section("生成回执") {
+            if mode == .continueWriting {
+                LabeledContent("小说", value: selectedNovel?.title ?? "未选择")
+                LabeledContent("续写起点", value: selectedAnchorTitle)
+                LabeledContent("写作范围", value: continuationScope == .multiple ? "多章规划，共 \(chapterCount) 章" : "单章精写")
+                LabeledContent("目标字数", value: "每章约 \(targetWords) 字")
+                LabeledContent("R18", value: adultContentMode == .explicit ? "开启" : "关闭")
+                if profileInjectionCount > 0 {
+                    Text("本次将注入 \(profileInjectionCount) 项小说分析画像")
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.textSecondary)
+                }
+            }
             Button {
                 Task { await startTask() }
             } label: {
@@ -464,8 +742,6 @@ struct AdminAIWritingView: View {
             .disabled(starting || !canStart)
             .buttonStyle(.borderedProminent)
             .tint(AppTheme.primary)
-        } header: {
-            Text("创作画像")
         } footer: {
             Text("任务完成后，草稿会出现在「已生成内容」中，可编辑后发布为正式章节。")
         }
@@ -485,6 +761,12 @@ struct AdminAIWritingView: View {
                     Button("继续查询任务") {
                         pollingPaused = false
                         pollWritingTask(activeTask.id)
+                    }
+                    .font(.subheadline)
+                }
+                if activeTask.isRunning {
+                    Button("取消任务", role: .destructive) {
+                        requestCancelWritingTask(activeTask)
                     }
                     .font(.subheadline)
                 }
@@ -509,6 +791,26 @@ struct AdminAIWritingView: View {
             return "已梳理到第 \(plotChaptersThrough) 章\(plotChapterCount > 0 ? "（全书 \(plotChapterCount) 章）" : "")"
         }
         return "未提取 · 提取后续写自动注入"
+    }
+
+    private var canUseContinuationAssist: Bool {
+        mode == .continueWriting
+            && !novelId.isEmpty
+            && !chapterLoadFailed
+            && !chapterOptions.isEmpty
+            && !selectionRequests.isLoading
+            && contentPreferencesValidationError == nil
+    }
+
+    private var selectedAnchorTitle: String {
+        guard !afterChapterId.isEmpty else { return "最新章节之后" }
+        return chapterOptions.first { $0.id == afterChapterId }?.title ?? "指定章节之后"
+    }
+
+    private var profileInjectionCount: Int {
+        [styleEffectiveContent, plotEffectiveContent, relationshipEffectiveContent]
+            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            .count
     }
 
     private func profileRow(label: String, value: String, status: String = "", origin: String = "", busy: Bool, action: @escaping () -> Void, edit: @escaping () -> Void, empty: String) -> some View {
@@ -588,6 +890,14 @@ struct AdminAIWritingView: View {
 
     private func onNovelSelected(_ id: String) async {
         guard id == novelId else { return }
+        resetContinuationAssistState(clearOutline: true)
+        if mode == .continueWriting {
+            continuationTitle = ""
+            instruction = ""
+            suggestionFocus = ""
+            chapterGoalsText = ""
+            showDetailedBrief = false
+        }
         if pendingProfileRefreshNovelID != id {
             clearPendingProfileRefresh()
         }
@@ -653,6 +963,134 @@ struct AdminAIWritingView: View {
             plotEligibility = plot?.eligibility ?? ""
             relationshipEligibility = relation?.eligibility ?? ""
         }
+    }
+
+    private func resetContinuationAssistState(clearOutline: Bool = false) {
+        suggestionRequestToken = UUID()
+        outlineRequestToken = UUID()
+        suggestionBusy = false
+        outlineBusy = false
+        suggestionError = nil
+        outlineError = nil
+        outlineStatusText = nil
+        suggestions = []
+        suggestionFillBackup = nil
+        suggestionFilledValue = nil
+        pendingSuggestion = nil
+        pendingGeneratedOutline = ""
+        showOutlineOverwriteWarning = false
+        if clearOutline {
+            outline = ""
+        }
+    }
+
+    private func chooseSuggestion(_ suggestion: AiPlotSuggestion) {
+        let current = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
+        if current.isEmpty {
+            applySuggestion(suggestion, replacing: true)
+        } else {
+            pendingSuggestion = suggestion
+        }
+    }
+
+    private func applySuggestion(_ suggestion: AiPlotSuggestion, replacing: Bool) {
+        suggestionFillBackup = instruction
+        if replacing {
+            instruction = suggestion.direction
+        } else {
+            let current = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
+            instruction = current.isEmpty ? suggestion.direction : "\(current)\n\n\(suggestion.direction)"
+        }
+        suggestionFilledValue = instruction
+    }
+
+    private func loadPlotSuggestions() async {
+        guard canUseContinuationAssist else { return }
+        let selectedNovelID = novelId
+        let selectedAnchorID = afterChapterId
+        let token = UUID()
+        suggestionRequestToken = token
+        suggestionBusy = true
+        suggestionError = nil
+        do {
+            let result = try await AdminAPI.aiPlotSuggestions(
+                novelId: selectedNovelID,
+                afterChapterId: selectedAnchorID.isEmpty ? nil : selectedAnchorID,
+                focus: suggestionFocus,
+                contentPreferences: writingContentPreferencesPayload
+            )
+            guard !Task.isCancelled,
+                  suggestionRequestToken == token,
+                  selectedNovelID == novelId,
+                  selectedAnchorID == afterChapterId
+            else { return }
+            suggestionBusy = false
+            suggestions = result.suggestions
+            if result.suggestions.isEmpty {
+                suggestionError = "暂时没有生成可用的情节方向，请调整创作重点后重试。"
+            }
+        } catch {
+            guard !Task.isCancelled,
+                  suggestionRequestToken == token,
+                  selectedNovelID == novelId,
+                  selectedAnchorID == afterChapterId
+            else { return }
+            suggestionBusy = false
+            suggestionError = AppCopy.friendlyError(error)
+        }
+    }
+
+    private func generateContinuationOutline() async {
+        guard canUseContinuationAssist else { return }
+        let selectedNovelID = novelId
+        let selectedAnchorID = afterChapterId
+        let token = UUID()
+        outlineRequestToken = token
+        outlineBusy = true
+        outlineError = nil
+        outlineStatusText = nil
+        do {
+            let result = try await AdminAPI.aiPlotSuggestions(
+                novelId: selectedNovelID,
+                afterChapterId: selectedAnchorID.isEmpty ? nil : selectedAnchorID,
+                focus: suggestionFocus,
+                chapterCount: chapterCount,
+                contentPreferences: writingContentPreferencesPayload
+            )
+            guard !Task.isCancelled,
+                  outlineRequestToken == token,
+                  selectedNovelID == novelId,
+                  selectedAnchorID == afterChapterId
+            else { return }
+            outlineBusy = false
+            guard let generated = result.outline?.trimmingCharacters(in: .whitespacesAndNewlines), !generated.isEmpty else {
+                outlineError = "服务端没有返回可用的大纲，请稍后重试。"
+                return
+            }
+            if outline.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                outline = generated
+                outlineStatusText = "已生成 \(chapterCount) 章大纲，可继续编辑。"
+            } else {
+                pendingGeneratedOutline = generated
+                showOutlineOverwriteWarning = true
+            }
+        } catch {
+            guard !Task.isCancelled,
+                  outlineRequestToken == token,
+                  selectedNovelID == novelId,
+                  selectedAnchorID == afterChapterId
+            else { return }
+            outlineBusy = false
+            outlineError = AppCopy.friendlyError(error)
+        }
+    }
+
+    private func applyPendingGeneratedOutline() {
+        guard !pendingGeneratedOutline.isEmpty else { return }
+        outline = pendingGeneratedOutline
+        outlineStatusText = "已生成 \(chapterCount) 章大纲，可继续编辑。"
+        pendingGeneratedOutline = ""
+        outlineError = nil
     }
 
     private func loadProfileStatuses(
@@ -981,11 +1419,15 @@ struct AdminAIWritingView: View {
         }
     }
 
-    private func startTask() async {
+    private func startTask(confirmedLargeTask: Bool = false) async {
         guard canStart else { return }
         if let writingBriefValidationError {
             actionError = writingBriefValidationError
             showDetailedBrief = true
+            return
+        }
+        if mode == .continueWriting, continuationScope == .multiple, chapterCount > 5, !confirmedLargeTask {
+            showLargeTaskWarning = true
             return
         }
         starting = true
@@ -999,13 +1441,17 @@ struct AdminAIWritingView: View {
         if mode == .continueWriting {
             kind = "continue"
             resourceID = novelId
+            let requestedChapterCount = continuationScope == .single ? 1 : min(20, max(2, chapterCount))
             body = [
                 "novelId": novelId,
+                "title": continuationTitle.trimmingCharacters(in: .whitespacesAndNewlines),
                 "instruction": instruction.trimmingCharacters(in: .whitespacesAndNewlines),
-                "chapterCount": chapterCount,
+                "chapterCount": requestedChapterCount,
                 "targetWords": targetWords,
             ]
             if !afterChapterId.isEmpty { body["afterChapterId"] = afterChapterId }
+            let trimmedOutline = outline.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmedOutline.isEmpty { body["outline"] = trimmedOutline }
         } else if taskKind == .outline {
             kind = "write_outline"
             resourceID = nil
@@ -1066,6 +1512,35 @@ struct AdminAIWritingView: View {
                 return
             }
             taskStatusText = "请求中断时会按稳定请求 ID 自动恢复"
+            actionError = AppCopy.friendlyError(error)
+        }
+    }
+
+    private func requestCancelWritingTask(_ task: AiTaskInfo) {
+        guard task.isRunning else { return }
+        pendingDangerousOperation = AdminDangerousOperation(
+            action: .terminateAITask,
+            kind: .terminate,
+            targetIDs: [task.id],
+            title: "取消续写任务",
+            message: "已经完成的草稿会保留，未开始的章节不会继续生成。取消后可以在「已生成内容」中查看已有草稿。",
+            confirmLabel: "确认取消任务"
+        )
+    }
+
+    private func cancelWritingTask(taskID: String, operationID: String) async {
+        guard activeTask?.id == taskID else { return }
+        do {
+            try await AdminAPI.cancelAiTask(id: taskID, operationID: operationID)
+            pollTask?.cancel()
+            pollTask = nil
+            AdminAITaskCoordinator.shared.finish(taskID: taskID)
+            if let latest = try? await AdminAPI.aiTask(id: taskID).task {
+                activeTask = latest
+            }
+            taskStatusText = "任务已取消，已经完成的草稿仍可在「已生成内容」查看。"
+        } catch {
+            guard !Task.isCancelled else { return }
             actionError = AppCopy.friendlyError(error)
         }
     }
@@ -1197,6 +1672,7 @@ struct AdminAIWritingView: View {
             "adultContentMode": adultContentMode.rawValue,
             "intimacyWeight": adultContentMode == .explicit ? intimacyWeight.rawValue : IntimacyWeight.none.rawValue,
             "adultCharactersConfirmed": adultContentMode == .explicit && adultCharactersConfirmed,
+            "consentRuleTier": adultContentMode == .explicit ? consentRuleTier.rawValue : ConsentRuleTier.standard.rawValue,
         ]
     }
 
@@ -1250,7 +1726,7 @@ struct AdminAIWritingView: View {
     }
 
     private func requestChapterCountChange(_ value: Int) {
-        let next = min(10, max(1, value))
+        let next = min(20, max(1, value))
         guard next != chapterCount else { return }
         if next < chapterCount,
            chapterGoalsText.components(separatedBy: .newlines).enumerated().contains(where: { $0.offset + 1 > next && !$0.element.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {

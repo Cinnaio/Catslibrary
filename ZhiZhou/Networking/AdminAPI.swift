@@ -846,6 +846,35 @@ enum AdminAPI {
         )
     }
 
+    /// POST /api/ai/writing/plot-suggestions：推荐续写情节，或按章生成续写大纲。
+    static func aiPlotSuggestions(
+        novelId: String,
+        afterChapterId: String? = nil,
+        focus: String = "",
+        chapterCount: Int? = nil,
+        contentPreferences: [String: Any]
+    ) async throws -> AiPlotSuggestionsResponse {
+        var payload: [String: Any] = [
+            "novelId": novelId,
+            "contentPreferences": contentPreferences,
+        ]
+        if let afterChapterId, !afterChapterId.isEmpty {
+            payload["afterChapterId"] = afterChapterId
+        }
+        let trimmedFocus = focus.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedFocus.isEmpty {
+            payload["focus"] = trimmedFocus
+        }
+        if let chapterCount {
+            payload["chapterCount"] = chapterCount
+        }
+        return try await APIClient.shared.post(
+            "/api/ai/writing/plot-suggestions",
+            body: try jsonBody(payload),
+            auth: true
+        )
+    }
+
     /// POST /api/ai/writing/titles：为正文生成候选章节标题。
     static func aiWritingTitles(content: String, novelId: String = "", contextTitle: String = "") async throws -> AiTitlesResponse {
         var payload: [String: Any] = ["content": content]
