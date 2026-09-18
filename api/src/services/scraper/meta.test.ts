@@ -49,4 +49,35 @@ describe('PO18 详情元数据', () => {
     expect(result.chapterCount).toBe(1)
     expect(result.selectors).toEqual(PO18TW_SELECTORS)
   })
+
+  it('POPO 探测应把受保护章节单独计数，不计入可抓章节', async () => {
+    // 第 1 章可下载、第 2 章需订购。确认页要同时显示「可抓 1 章 / 受保护 1 章」，
+    // 因此 protectedChapterCount 必须随 detect-meta 一起返回，而不是只留长度。
+    const listPage = `
+      <div class="c_l"><div class="l_counter">0001</div><div class="l_chaptname">第一章</div><div class="l_btn"><a href="/books/901935/articles/101">免費閱讀</a></div></div>
+      <div class="c_l"><div class="l_counter">0002</div><div class="l_chaptname">第二章</div><div class="l_btn">訂購</div></div>`
+    const result = await detectMeta('https://www.po18.tw/books/901935', {
+      store: null,
+      fetchHtml: async (url) => ({
+        html: url.endsWith('/articles') ? listPage : '<h1 class="book_name">POPO 测试小说</h1>',
+        encoding: 'utf-8',
+      }),
+    })
+
+    expect(result.chapterCount).toBe(1)
+    expect(result.protectedChapterCount).toBe(1)
+  })
+
+  it('通用站点没有受保护章节的概念，该计数恒为 0', async () => {
+    const listPage = `<div class="chapter-list"><a href="/b/1/c/1">第一章</a></div>`
+    const result = await detectMeta('https://example.com/book/1', {
+      store: null,
+      fetchHtml: async (url) => ({
+        html: url.includes('/c/') ? listPage : '<h1>通用小说</h1>',
+        encoding: 'utf-8',
+      }),
+    })
+
+    expect(result.protectedChapterCount).toBe(0)
+  })
 })

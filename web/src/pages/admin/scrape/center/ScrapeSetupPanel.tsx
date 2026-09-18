@@ -5,8 +5,9 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AdminDataPanel, AdminPanelHeading } from '@/components/admin/AdminWorkspace'
-import type { CheckItem, ConfigRow, DiscoverNovel } from '../types'
+import type { CheckItem, DiscoverNovel } from '../types'
 import ScrapeChecks from './ScrapeChecks'
 import type { Selectors, TestResult } from './StepConfig'
 import ScrapeField from './ScrapeField'
@@ -29,7 +30,12 @@ interface ScrapeSetupPanelProps {
   confirming: boolean
   advancedOpen: boolean
   onToggleAdvanced: () => void
-  summary: ConfigRow[]
+  /** 智能分析得到的可抓取章节数。统计失败时为 0，界面显示为「—」。 */
+  chapterCount: number
+  /** 章节数只是目录前几页的统计（长目录书）。 */
+  hasMoreChapters: boolean
+  /** 需订购/购买才能读取正文的章节数。 */
+  protectedChapterCount: number
   sitePreset: string
   onSitePresetChange: (value: string) => void
   chapterListUrl: string
@@ -58,6 +64,12 @@ const SELECTOR_FIELDS: Array<{ key: keyof Selectors; label: string; placeholder:
   { key: 'nextPage', label: '下一页', placeholder: '.next a（可选）' },
 ]
 
+/** 选择器来源分段的激活层位移索引，与 TabsTrigger 顺序一致。 */
+const PRESET_INDEX: Record<string, number> = {
+  po18: 0,
+  custom: 1,
+}
+
 export default function ScrapeSetupPanel({
   item,
   preview,
@@ -67,7 +79,9 @@ export default function ScrapeSetupPanel({
   confirming,
   advancedOpen,
   onToggleAdvanced,
-  summary,
+  chapterCount,
+  hasMoreChapters,
+  protectedChapterCount,
   sitePreset,
   onSitePresetChange,
   chapterListUrl,
@@ -86,6 +100,7 @@ export default function ScrapeSetupPanel({
   const advancedId = useId()
   const showCover = Boolean(coverUrl)
   const links: Array<{ text?: string; href: string }> = testResult.data?.links || []
+  const chapterText = chapterCount > 0 ? `${chapterCount}${hasMoreChapters ? '+' : ''}` : '—'
 
   return (
     <AdminDataPanel className="scrape-setup" ariaLabel="作品与章节配置">
@@ -185,7 +200,7 @@ export default function ScrapeSetupPanel({
 
       <div className="scrape-setup__config">
         <div className="scrape-setup__config-heading">
-          <div>
+          <div className="scrape-setup__config-copy">
             <h4>
               <Settings2 aria-hidden="true" />
               章节配置
@@ -197,29 +212,16 @@ export default function ScrapeSetupPanel({
           </Button>
         </div>
 
-        {!advancedOpen && summary.length > 0 && (
-          <dl className="scrape-setup__summary">
-            {summary.map(([key, value]) => (
-              <div key={key}>
-                <dt>{key}</dt>
-                <dd title={value}>{value}</dd>
-              </div>
-            ))}
-          </dl>
-        )}
-
         {advancedOpen && (
           <div id={advancedId} className="scrape-setup__advanced">
             <div className="scrape-setup__preset-row">
               <span>选择器来源</span>
-              <div className="scrape-setup__preset-tabs">
-                <Button variant={sitePreset === 'po18' ? 'default' : 'secondary'} size="sm" onClick={() => onSitePresetChange('po18')}>
-                  PO18 预设
-                </Button>
-                <Button variant={sitePreset === 'custom' ? 'default' : 'secondary'} size="sm" onClick={() => onSitePresetChange('custom')}>
-                  自定义
-                </Button>
-              </div>
+              <Tabs value={sitePreset} onValueChange={onSitePresetChange} className="scrape-setup__preset-tabs">
+                <TabsList aria-label="选择器来源" data-active-index={PRESET_INDEX[sitePreset] ?? 0}>
+                  <TabsTrigger value="po18">PO18 预设</TabsTrigger>
+                  <TabsTrigger value="custom">自定义</TabsTrigger>
+                </TabsList>
+              </Tabs>
             </div>
             <div className="scrape-setup__config-fields">
               <ScrapeField label="章节列表页 URL" className="scrape-setup__field--wide">
@@ -249,21 +251,45 @@ export default function ScrapeSetupPanel({
           </div>
         )}
 
-        <div className="scrape-setup__test-row">
-          <Button variant="secondary" onClick={onTest} disabled={!chapterListUrl.trim() || !selectors.chapterList.trim()}>
-            <FlaskConical aria-hidden="true" />
-            测试章节选择器
-          </Button>
+        {/* 折叠态：只留两个决定「要不要现在抓」的数字和一个开始按钮。
+            完整配置项（URL / 编码 / 选择器）平时不该占据视线——它们由智能分析
+            填好，只有异常时才需要人介入。 */}
+        <div className="scrape-setup__run">
+          <dl className="scrape-setup__run-stats">
+            <div className="scrape-setup__run-stat">
+              <dt>可抓章节</dt>
+              <dd>{chapterText}</dd>
+            </div>
+            <div className="scrape-setup__run-stat">
+              <dt>受保护章节</dt>
+              <dd className={protectedChapterCount > 0 ? 'is-warning' : undefined}>{protectedChapterCount}</dd>
+            </div>
+          </dl>
           <Button className="scrape-setup__start" onClick={onStart} disabled={!novelId || !selectors.chapterContent.trim()}>
             开始抓取
           </Button>
         </div>
 
-        {(testResult.loading || testResult.data || testResult.empty || testResult.error) && (
+        {/* 选择器测试与诊断只在展开高级配置（或已产出结果）时出现。
+            折叠态把主操作留给「开始抓取」，避免次要动作争夺注意力。 */}
+        {(advancedOpen || testResult.data || testResult.empty || testResult.error) && (
+          <div className="scrape-setup__test-row">
+            <Button variant="secondary" onClick={onTest} disabled={!chapterListUrl.trim() || !selectors.chapterList.trim()}>
+              <FlaskConical aria-hidden="true" />
+              测试章节选择器
+            </Button>
+          </div>
+        )}
+
+        {testResult.loading && (
           <div className="scrape-setup__test-result" role="status">
-            {testResult.loading ? (
-              <span>正在读取样章并检查选择器…</span>
-            ) : links.length > 0 ? (
+            <span>正在读取样章并检查选择器…</span>
+          </div>
+        )}
+
+        {!testResult.loading && (testResult.data || testResult.empty || testResult.error) && (
+          <div className="scrape-setup__test-result" role="status">
+            {links.length > 0 ? (
               <>
                 <Badge className="bg-success/10 text-success">
                   <Check aria-hidden="true" />

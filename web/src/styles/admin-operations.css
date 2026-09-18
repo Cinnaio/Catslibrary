@@ -1106,15 +1106,19 @@
   }
 }
 
+/* 作品分区。ScrapeSetupPanel 的唯一消费者是抓取中心，该页把每一段拉平成
+   面板内的水平分区（1px 底线 + 间距），不再套内嵌卡片；这里与页面规则对齐，
+   避免两层意图各自声明 border/背景/圆角。 */
 .scrape-setup__book {
   display: grid;
   grid-template-columns: 4.5rem minmax(0, 1fr);
   align-items: center;
   gap: 0.85rem;
-  padding: 0.75rem;
-  border: 1px solid var(--admin-border);
-  border-radius: var(--admin-radius);
-  background: var(--admin-inset);
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .scrape-setup__cover {
@@ -1134,6 +1138,14 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+/* 共享的 .scrape-discovery__cover.is-broken::before 把字号定在 1.25rem ——
+   那是发现卡 3.35rem 封面（约 1.4rem 宽）的档位。本面板封面是 4.5rem，
+   沿用会让占位首字明显偏小。此处回填本表面自己的字号，避免上面声明的
+   1.6rem 成为被覆盖的死值。 */
+.scrape-setup__cover.is-empty::before {
+  font-size: 1.6rem;
 }
 
 .scrape-setup__book-copy {
@@ -1174,12 +1186,33 @@
   min-width: 0;
 }
 
+/* ScrapeField 的标签与抓取入口字段取同一规格。此前 ScrapeField 直接用 shadcn
+   Label 默认值（0.875rem / 500 / --text-foreground），而同一页的
+   .scrape-intake__field > label 是 0.78rem / 400 / --text-secondary —— 同一张
+   表单里两种标签语言，面板内的表单因此比入口区更「重」。 */
+.admin-layout .scrape-field > [data-slot='label'] {
+  color: var(--text-secondary);
+  font-size: 0.78rem; /* caption 档 */
+  font-weight: var(--admin-field-label-weight);
+  line-height: 1.4;
+}
+
 .scrape-setup__field--wide {
   grid-column: 1 / -1;
 }
 
-.scrape-setup__description {
-  min-height: 6rem;
+/* 简介框定高：无论简介长短都占同一尺寸，避免面板高度被简介长度牵着走。
+   shadcn Textarea 基类带 field-sizing-content（高度跟随内容），只写 min-height
+   压不住它——简介长时整块面板会跟着长高，「保存书籍并继续」与章节配置被推走。
+   这里固定高度并让超出部分在框内滚动，既保住版面节奏，也给超长简介留出口。
+   resize: vertical 保留：是否放大由用户决定，不由内容决定。
+   选择器带上 .admin-layout 前缀，特异性高于基类的 field-sizing 工具类与
+   .admin-layout [data-slot='textarea']，避免被层序压掉。
+   注：不改全局 Textarea —— DESIGN.md 要求长提示词/章节正文/JSON 保持可伸缩。 */
+.admin-layout .scrape-setup__description {
+  field-sizing: fixed;
+  height: 7rem;
+  overflow-y: auto;
   resize: vertical;
   line-height: 1.65;
 }
@@ -1199,7 +1232,7 @@
 
 .scrape-setup__save-row span {
   color: var(--text-muted);
-  font-size: 0.73rem;
+  font-size: 0.78rem; /* caption 档 */
 }
 
 .scrape-setup__config {
@@ -1209,14 +1242,38 @@
   border-top: 1px solid var(--admin-border);
 }
 
+/* 章节配置分区头：标题块 + 折叠按钮。此前只声明了 h4 与 button 的样式，
+   容器本身没有 display，标题与按钮按块级流堆叠，媒体查询里的 flex-direction
+   与 align-self 全部作用在非 flex 容器上而不生效。 */
+.scrape-setup__config-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.scrape-setup__config-copy {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
 .scrape-setup__config-heading h4 {
   display: flex;
   align-items: center;
   gap: 0.4rem;
   margin: 0;
   color: var(--text-primary);
-  font-size: 0.88rem;
-  font-weight: 750;
+  font-size: 0.875rem; /* 后台面板内小节标题，与 --admin-field-label 同档 */
+  font-weight: 700;
+}
+
+.scrape-setup__config-heading p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.78rem; /* caption 档 */
+  line-height: 1.5;
 }
 
 .scrape-setup__config-heading h4 svg {
@@ -1231,47 +1288,14 @@
   transition: transform 160ms var(--admin-motion-ease-out);
 }
 
-.scrape-setup__summary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.45rem;
-  margin: 0;
-}
-
-.scrape-setup__summary > div {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  min-width: 0;
-  padding: 0.35rem 0.5rem;
-  border: 1px solid var(--admin-border);
-  border-radius: var(--admin-radius-sm);
-  background: var(--admin-inset);
-}
-
-.scrape-setup__summary dt {
-  color: var(--text-muted);
-  font-size: 0.7rem;
-  font-weight: 700;
-}
-
-.scrape-setup__summary dd {
-  max-width: 16rem;
-  margin: 0;
-  overflow: hidden;
-  color: var(--text-primary);
-  font-size: 0.73rem;
-  font-weight: 650;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
+/* 高级配置：面板内的嵌套表面，取 16px（--radius-xl）——DESIGN.md
+   「嵌套表面与对话框 16px」，与面板自身 20px 形成一档递进。 */
 .scrape-setup__advanced {
   display: grid;
   gap: 0.8rem;
   padding: 0.8rem;
   border: 1px solid var(--admin-border);
-  border-radius: var(--admin-radius);
+  border-radius: var(--radius-xl);
   background: var(--admin-inset);
 }
 
@@ -1285,33 +1309,91 @@
   font-weight: 650;
 }
 
+/* 选择器来源分段的页面级排布见文末 .admin-redesign-page--scrape 区块：
+   几何、激活层与动效统一读 --tabs-segmented-*，此处只声明自身占位。 */
 .scrape-setup__preset-tabs {
-  display: flex;
-  gap: 0.35rem;
+  flex: 0 0 auto;
 }
 
+/* 选择器网格分组：advanced 内部再降一档到 12px（--radius-lg），
+   与控件圆角同档，避免 16px 套 16px 的浑浊层次。 */
 .scrape-setup__fieldset {
   display: grid;
   gap: 0.65rem;
   margin: 0;
   padding: 0.75rem;
   border: 1px solid var(--admin-border);
-  border-radius: var(--admin-radius-sm);
+  border-radius: var(--radius-lg);
 }
 
 .scrape-setup__fieldset legend {
   padding: 0 0.35rem;
   color: var(--text-secondary);
-  font-size: 0.75rem;
+  font-size: 0.78rem; /* caption 档 */
   font-weight: 700;
 }
 
 .scrape-setup__test-row {
-  justify-content: flex-end;
+  /* 次要动作：只在展开高级配置或已有测试结果时出现，起点对齐即可。 */
+  justify-content: flex-start;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--admin-border);
 }
 
 .scrape-setup__start {
   min-width: 7.5rem;
+}
+
+/* 折叠态主操作行：两个结论性数字 + 开始按钮。
+   数字是「要不要现在抓」的唯一决策依据（能抓多少、有多少抓不到），
+   所以用 --admin-table-* 的标签档配一个明显更大的数值档，形成读数节奏；
+   它不参与布局计算，也不引入新的字号层级。 */
+.scrape-setup__run {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--admin-border);
+}
+
+.scrape-setup__run-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  margin: 0;
+  min-width: 0;
+}
+
+.scrape-setup__run-stat {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.scrape-setup__run-stat dt {
+  color: var(--text-muted);
+  font-size: 0.72rem; /* table-head 档 */
+  font-weight: 650;
+}
+
+.scrape-setup__run-stat dd {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 1.45rem; /* stat 档：与 0.72rem 标签形成尺寸断裂 */
+  font-weight: 750;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 受保护章节是「抓不到」的信息，用警告色提示，但不做成红色错误——
+   它是源站的正常商业模式，不是故障。 */
+.scrape-setup__run-stat dd.is-warning {
+  color: var(--color-warning);
+}
+
+.scrape-setup__run .scrape-setup__start {
+  margin-left: auto;
 }
 
 .scrape-setup__test-result {
@@ -1319,10 +1401,10 @@
   gap: 0.5rem;
   padding: 0.65rem 0.75rem;
   border: 1px solid var(--admin-border);
-  border-radius: var(--admin-radius-sm);
+  border-radius: var(--radius-lg);
   background: var(--admin-inset);
   color: var(--text-muted);
-  font-size: 0.75rem;
+  font-size: 0.78rem; /* caption 档 */
 }
 
 .scrape-setup__test-result ul {
@@ -1523,6 +1605,22 @@
 
   .scrape-setup__test-row > button {
     flex: 1 1 auto;
+  }
+
+  /* 折叠态主操作行：窄屏下数字与按钮各占一行，按钮全宽——
+     避免 1.45rem 的数值与按钮挤在同一行时互相压扁。 */
+  .scrape-setup__run {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .scrape-setup__run-stats {
+    gap: 1.25rem;
+  }
+
+  .scrape-setup__run .scrape-setup__start {
+    width: 100%;
+    margin-left: 0;
   }
 
   .scrape-job-queue {
@@ -8724,7 +8822,10 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   min-width: 0;
   padding: 0;
   border: 0;
-  border-radius: var(--radius-xl);
+  /* 与同列「配置迁移」面板取同一档外框圆角。此处原为 --radius-xl(16px)，
+     而 .admin-data-panel 走 --admin-table-panel-radius(20px)，同一列相邻两个
+     面板弧线不一致——这就是「确认作品并配置章节」看起来不属于这一页的来源。 */
+  border-radius: var(--admin-table-panel-radius);
   background: var(--admin-panel);
   box-shadow: none;
 }
@@ -8863,11 +8964,87 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   margin-top: 1rem;
   padding: 1rem 1.25rem 1.25rem;
   border-top: 1px solid var(--admin-border);
-  background: var(--admin-panel-muted);
+  /* Tonal-Admin Rule：面板内不再开加深底色分区。分区只由 1px 描边 + 间距表达，
+     原先的 var(--admin-panel-muted) 让面板下半部整体变灰，与上半部形成断层。 */
+  background: var(--admin-panel);
 }
 
 .admin-redesign-page--scrape .scrape-workbench__aside {
   position: static;
+}
+
+/* 选择器来源分段（ScrapeSetupPanel）。此前是两个手搓 Button，选中态靠切换
+   variant，既没有激活层位移也没有 --tabs-segmented-* 契约，与同页「抓取入口」
+   的正规分段控件观感不同源。现统一为 Tabs，几何/激活层/动效全部读契约 token，
+   这里只补页面级排布：宽度跟随内容。 */
+.admin-redesign-page--scrape .scrape-setup__preset-tabs {
+  width: auto;
+  flex: 0 0 auto;
+  align-items: flex-start;
+}
+
+.admin-redesign-page--scrape .scrape-setup__preset-tabs > [data-slot='tabs-list'] {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  /* 保留基类的 width: fit-content；弹性列容器默认 stretch，必须显式退到起点，
+     否则药丸会被拉满 preset-row 的剩余宽度，与「抓取入口」的紧凑分段不一致。 */
+  align-self: flex-start;
+  height: auto;
+  min-height: 0;
+  gap: var(--tabs-segmented-gap);
+  isolation: isolate;
+  padding: var(--tabs-segmented-inset);
+  border: 1px solid var(--tabs-segmented-track-border);
+  border-radius: var(--tabs-segmented-radius);
+  background: var(--tabs-segmented-track-background);
+}
+
+.admin-redesign-page--scrape .scrape-setup__preset-tabs > [data-slot='tabs-list']::before {
+  position: absolute;
+  z-index: 0;
+  inset: var(--tabs-segmented-inset) auto var(--tabs-segmented-inset) var(--tabs-segmented-inset);
+  width: calc((100% - var(--tabs-segmented-gap) * 3) / 2);
+  border-radius: var(--tabs-segmented-inner-radius);
+  background: var(--tabs-segmented-active-background);
+  box-shadow: var(--tabs-segmented-active-shadow);
+  content: '';
+  pointer-events: none;
+  transform: translateX(0);
+  transition: transform var(--tabs-segmented-transition);
+}
+
+.admin-redesign-page--scrape .scrape-setup__preset-tabs > [data-slot='tabs-list'][data-active-index='1']::before {
+  transform: translateX(calc(100% + var(--tabs-segmented-gap)));
+}
+
+.admin-redesign-page--scrape .scrape-setup__preset-tabs [data-slot='tabs-trigger'] {
+  position: relative;
+  z-index: 1;
+  height: auto;
+  min-height: 1.9rem;
+  padding: 0.3rem 0.75rem;
+  border: 0;
+  border-radius: var(--tabs-segmented-inner-radius);
+  background: transparent;
+  box-shadow: none;
+  color: var(--tabs-segmented-muted-foreground);
+  font-size: var(--tabs-segmented-label-size);
+  font-weight: var(--tabs-segmented-label-weight);
+  line-height: var(--tabs-segmented-label-line-height);
+  transition: color var(--tabs-segmented-transition);
+}
+
+.admin-redesign-page--scrape .scrape-setup__preset-tabs [data-slot='tabs-trigger'][data-state='active'] {
+  background: transparent;
+  box-shadow: none;
+  color: var(--tabs-segmented-active-foreground);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-redesign-page--scrape .scrape-setup__preset-tabs > [data-slot='tabs-list'] {
+    --tabs-segmented-duration: 0.001ms;
+  }
 }
 
 .admin-redesign-page--scrape .scrape-workbench__count {

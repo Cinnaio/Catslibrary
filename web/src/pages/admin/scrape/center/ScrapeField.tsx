@@ -16,7 +16,7 @@ export default function ScrapeField({ label, className, children }: ScrapeFieldP
   const id = useId()
   const labelId = `${id}-label`
   return (
-    <div className={className ? `grid gap-1.5 ${className}` : 'grid gap-1.5'}>
+    <div className={className ? `scrape-field grid gap-1.5 ${className}` : 'scrape-field grid gap-1.5'}>
       <Label id={labelId} htmlFor={id}>
         {label}
       </Label>

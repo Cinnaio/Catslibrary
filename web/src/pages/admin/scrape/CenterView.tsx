@@ -7,7 +7,7 @@ import { novelsApi, scrapeApi } from '@/lib/api'
 import { useConfirm, useToast } from '@/components/feedback'
 import { Button } from '@/components/ui/button'
 import { AdminDataPanel, AdminPanelHeading } from '@/components/admin/AdminWorkspace'
-import type { CheckItem, ConfigRow, DetectedMeta, DiscoverNovel, BatchEntry, BatchState } from './types'
+import type { CheckItem, DetectedMeta, DiscoverNovel, BatchEntry, BatchState } from './types'
 import { scrapePost, parseCategories, po18CoverFallback, resolveRankingSource } from './utils'
 import DiscoveryPanel from './center/DiscoveryPanel'
 import ScrapeIntake, { type IntakeMode } from './center/ScrapeIntake'
@@ -68,7 +68,6 @@ export default function CenterView() {
   const [activeEncoding, setActiveEncoding] = useState('')
   const [testResult, setTestResult] = useState<TestResult>({ loading: false, data: null })
   const [testChecks, setTestChecks] = useState<CheckItem[]>([])
-  const [configRows, setConfigRows] = useState<ConfigRow[]>([])
 
   // 批量处理
   const [batch, setBatch] = useState<BatchState | null>(null)
@@ -92,7 +91,6 @@ export default function CenterView() {
     setActiveEncoding('')
     setTestResult({ loading: false, data: null })
     setTestChecks([])
-    setConfigRows([])
   }
 
   function hydrateFromMeta(item: DiscoverNovel, data: DetectedMeta) {
@@ -120,13 +118,6 @@ export default function CenterView() {
     setSelectors(nextSelectors)
     setActiveEncoding(data.encoding || '')
     setSitePreset(data.site?.name?.toLowerCase().includes('po18') ? 'po18' : 'custom')
-    setConfigRows([
-      ['站点', data.site?.name || '通用站点'],
-      ['编码', data.encoding || 'utf-8'],
-      ['目录', data.chapterListUrl || fallbackUrl],
-      ['链接', data.chapterCount ? `${data.chapterCount}${data.hasMoreChapters ? '+' : ''} 个` : '未统计'],
-      ['正文', nextSelectors.chapterContent || '未配置'],
-    ])
     setTestResult({ loading: false, data: null })
     setTestChecks([
       { label: '小说信息', ok: !!(novel.title || item.title) },
@@ -278,13 +269,6 @@ export default function CenterView() {
     if (key === 'custom') return
     setSelectors(PO18_PRESET.selectors)
     setActiveEncoding(PO18_PRESET.encoding)
-    setConfigRows([
-      ['站点', PO18_PRESET.name],
-      ['编码', PO18_PRESET.encoding],
-      ['目录', chapterListUrl.trim() || '未填写'],
-      ['链接', PO18_PRESET.selectors.chapterList],
-      ['正文', PO18_PRESET.selectors.chapterContent],
-    ])
     toast(`已应用 ${PO18_PRESET.name} 预设`, 'success')
   }
 
@@ -580,7 +564,9 @@ export default function CenterView() {
                   confirming={confirming}
                   advancedOpen={advancedOpen}
                   onToggleAdvanced={() => setAdvancedOpen((open) => !open)}
-                  summary={configRows}
+                  chapterCount={activeCandidate.meta.chapterCount || 0}
+                  hasMoreChapters={Boolean(activeCandidate.meta.hasMoreChapters)}
+                  protectedChapterCount={activeCandidate.meta.protectedChapterCount || 0}
                   sitePreset={sitePreset}
                   onSitePresetChange={applySitePreset}
                   chapterListUrl={chapterListUrl}

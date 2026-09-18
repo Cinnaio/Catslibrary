@@ -323,6 +323,8 @@ export interface DetectMetaResult {
   chapterListUrl: string
   chapterCount: number
   hasMoreChapters: boolean
+  /** 需订购/购买才能读取正文的章节数（仅 PO18 目录有该语义，其余站点为 0）。 */
+  protectedChapterCount: number
   encoding: string
 }
 
@@ -346,11 +348,18 @@ export async function detectMeta(sourceUrl: string, deps: MetaDeps): Promise<Det
 
   let chapterCount = 0
   let hasMoreChapters = false
+  // 受保护章节（需订购/购买）只在 PO18 目录里有明确语义；通用站点没有这个概念，恒为 0。
+  let protectedChapterCount = 0
   if (isPo18tw) {
     try {
       const list = await deps.fetchHtml(chapterListUrl, { forceEncoding: encoding })
       if (isPo18twLoginPage(list.html)) throw new Error('POPO 目录需要登录，请先配置 POPO 账号或 Cookie')
-      chapterCount = parsePo18twChapterLinks(list.html, chapterListUrl).links.length
+      // parsePo18twChapterLinks 本就会把行分成可下载 / 受保护两类；
+      // 此前只取了 links.length（即可抓取数），protectedCount 被丢弃，
+      // 于是确认页无法在启动前告知用户有多少章抓不到。
+      const parsed = parsePo18twChapterLinks(list.html, chapterListUrl)
+      chapterCount = parsed.links.length
+      protectedChapterCount = parsed.protectedCount
     } catch {
       /* 章节统计失败不阻断分析 */
     }
@@ -372,6 +381,7 @@ export async function detectMeta(sourceUrl: string, deps: MetaDeps): Promise<Det
     chapterListUrl,
     chapterCount,
     hasMoreChapters,
+    protectedChapterCount,
     encoding: encoding || 'utf-8',
   }
 }
