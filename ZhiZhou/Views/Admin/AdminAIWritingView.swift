@@ -1012,7 +1012,6 @@ struct AdminAIWritingView: View {
         guard canUseContinuationAssist else { return }
         let selectedNovelID = novelId
         let selectedAnchorID = afterChapterId
-        let selectedInstruction = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
         let token = UUID()
         suggestionRequestToken = token
         suggestionBusy = true
@@ -1049,6 +1048,7 @@ struct AdminAIWritingView: View {
         guard canUseContinuationAssist else { return }
         let selectedNovelID = novelId
         let selectedAnchorID = afterChapterId
+        let selectedInstruction = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
         let token = UUID()
         outlineRequestToken = token
         outlineBusy = true
