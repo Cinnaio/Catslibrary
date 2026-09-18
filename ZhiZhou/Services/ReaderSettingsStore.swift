@@ -11,6 +11,8 @@ import ZhiZhouCore
 final class ReaderSettingsStore {
     static let shared = ReaderSettingsStore()
     private static let defaultValues = ReaderSettingsState.defaultValues
+    /// 原生 iPhone/iPad 客户端统一归入服务端的 mobile 分区。
+    private static let syncDevice: ReaderDevice = .mobile
 
     private struct Session: Equatable {
         let userID: String
@@ -306,7 +308,10 @@ final class ReaderSettingsStore {
             let updatedAt: [String: Int64]
         }
         do {
-            let remote: Remote = try await APIClient.shared.get("/api/auth/reader-settings", auth: true)
+            let remote: Remote = try await APIClient.shared.get(
+                "/api/auth/reader-settings?device=\(Self.syncDevice.rawValue)",
+                auth: true
+            )
             let result = ReaderSettingsMerge.merge(
                 local: currentSnapshot,
                 remote: ReaderSettingsSnapshot(values: remote.settings, updatedAt: remote.updatedAt),
@@ -365,9 +370,18 @@ final class ReaderSettingsStore {
 
         let snapshot = currentSnapshot
         do {
-            let payload = ReaderSettingsPayload(settings: snapshot.values, updatedAt: snapshot.updatedAt)
+            let payload = ReaderSettingsPayload(
+                settings: snapshot.values,
+                updatedAt: snapshot.updatedAt,
+                device: Self.syncDevice
+            )
             let body = try APIClient.shared.jsonBody(payload)
-            try await APIClient.shared.requestVoid("PUT", "/api/auth/reader-settings", body: body, auth: true)
+            try await APIClient.shared.requestVoid(
+                "PUT",
+                "/api/auth/reader-settings",
+                body: body,
+                auth: true
+            )
             guard isCurrent(session) else { return }
 
             var state = ReaderSettingsState(snapshot: currentSnapshot)

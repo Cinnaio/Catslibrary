@@ -122,7 +122,7 @@ private final class VisualAuditProtocol: URLProtocol {
         case ("PUT", "/api/auth/avatar"), ("DELETE", "/api/auth/avatar"):
             body = ["user": Self.json(Self.currentUser)]
         case ("GET", "/api/auth/reader-settings"):
-            body = ["settings": [:], "updatedAt": [:]]
+            body = ["settings": [:], "updatedAt": [:], "device": "mobile"]
         case ("GET", "/api/ai/settings"):
             body = ["settings": ["recapEnabled": true, "dailyQuota": 10]]
         case ("GET", "/api/ai/tasks"):

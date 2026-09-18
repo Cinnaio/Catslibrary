@@ -234,9 +234,15 @@ struct ThoughtCreatePayload: Encodable {
 }
 
 /// 阅读设置同步负载（LWW 合并结构，与后端 /api/auth/reader-settings 对齐）
+enum ReaderDevice: String, Codable, Sendable {
+    case desktop
+    case mobile
+}
+
 struct ReaderSettingsPayload: Codable {
     var settings: [String: String]
     var updatedAt: [String: Int64]
+    var device: ReaderDevice
 }
 
 /// 忽略具体内容、只看状态码的响应（如 { success: true } 这类）
