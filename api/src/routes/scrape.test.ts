@@ -204,6 +204,59 @@ describe('scrape 路由（免网络动作）', () => {
     }
   })
 
+  it('POPO 抓取中心回查详情封面应携带已保存会话', async () => {
+    const previousKey = process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY
+    process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY = 'scrape-route-test-key'
+    const landingPage = `<form id="rank-form1" action="/rank/more" method="post">
+      <input type="hidden" name="_po18rf-tk001" value="csrf-token">
+      <input type="hidden" name="kind" value="">
+      <input type="hidden" name="type" value="weekly">
+    </form>`
+    const rankingPage = `<div class="table" id="R2_M">
+      <div class="row">
+        <div class="r1">5</div>
+        <div class="r2"><a class="l_bookname" href="/books/891916">淫龙驯服手册（人外 1v1 h）</a></div>
+        <div class="r4"><a class="l_author" href="/users/author-five">小甜包</a></div>
+      </div><!--row-->
+    </div>`
+    const detailPage = `<div class="book_cover R-rated"><img src="https://cdn0.po18.tw/bc/13/891916/M20260101000000.jpg"></div>`
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.endsWith('/rank/more')) return new Response(rankingPage, { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } })
+      if (url.endsWith('/books/891916')) return new Response(detailPage, { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } })
+      return new Response(landingPage, { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } })
+    })
+    try {
+      await req(
+        '/api/scrape',
+        json('POST', { action: 'po18-account-save', username: 'author-account', sessionCookie: 'PHPSESSID=authenticated' }, adminToken),
+      )
+      const discovered = await req(
+        '/api/scrape',
+        json(
+          'POST',
+          { action: 'discover', listUrl: 'https://www.po18.tw/rank/index', rankingKind: 'pearl', rankingType: 'monthly' },
+          adminToken,
+        ),
+      )
+      expect(discovered.status).toBe(200)
+      const result = await jsonOf<{ novels: Array<{ bookId: string; coverUrl: string }> }>(discovered)
+      expect(result.novels.find((novel) => novel.bookId === '891916')).toMatchObject({
+        coverUrl: 'https://cdn0.po18.tw/bc/13/891916/M20260101000000.jpg',
+      })
+
+      const detailCall = fetchMock.mock.calls.find(([input]) => String(input).endsWith('/books/891916'))
+      const detailHeaders = new Headers(detailCall?.[1]?.headers)
+      expect(detailHeaders.get('Cookie')).toContain('PHPSESSID=authenticated')
+      expect(detailHeaders.get('Cookie')).toContain('po18Limit=1')
+    } finally {
+      fetchMock.mockRestore()
+      await req('/api/scrape', json('POST', { action: 'po18-account-clear' }, adminToken))
+      if (previousKey === undefined) delete process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY
+      else process.env.SOURCE_ACCOUNT_ENCRYPTION_KEY = previousKey
+    }
+  })
+
   it('管理员可以保存开发代理，Docker 环境代理优先并可测试', async () => {
     const runtimeDir = mkdtempSync(join(tmpdir(), 'zhi-zhou-proxy-'))
     const previousRuntimeDir = process.env.RUNTIME_CONFIG_DIR

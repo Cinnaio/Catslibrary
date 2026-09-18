@@ -837,7 +837,7 @@ scrapeRoutes.post('/', async (c) => {
       try {
         const result = await discoverList(
           String(listUrl),
-          { db, fetchHtml: deps.fetchHtml, getPreset: (url) => getPresetForUrl(url, deps.store) },
+          { db, fetchHtml: withPo18Session(db, deps.fetchHtml), getPreset: (url) => getPresetForUrl(url, deps.store) },
           rankingKind && rankingType
             ? { po18Ranking: { kind: rankingKind as Po18RankingKind, type: rankingType as Po18RankingType } }
             : undefined,

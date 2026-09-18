@@ -261,13 +261,16 @@ describe('POPO 发现', () => {
     })
   })
 
-  it('POPO 榜单详情应按榜单类型和周期提交官方表单，并解析无封面名次', async () => {
+  it('POPO 榜单详情应按榜单类型和周期提交官方表单，并复用首页封面', async () => {
     const requests: Array<{ url: string; method: string; cookie: string; body: string }> = []
     const landingPage = `<form id="rank-form1" action="/rank/more" method="post">
       <input type="hidden" name="_po18rf-tk001" value="csrf-token">
       <input type="hidden" name="kind" value="">
       <input type="hidden" name="type" value="weekly">
-    </form>`
+    </form>
+    <div id="R2_W"><ol class="ranking">
+      <li class="R_cover"><a class="book_cover" href="/books/111111"><img src="https://cdn0.po18.tw/bc/11/111111/M.jpg" alt="珍珠榜第一"></a></li>
+    </ol></div>`
     const rankingPage = `<div class="table" id="R2_W">
       <div class="row">
         <div class="r1">1</div>
@@ -279,7 +282,13 @@ describe('POPO 发现', () => {
         <div class="r2"><a href="/books/222222" class="l_bookname">珍珠榜第四</a></div>
         <div class="r4"><a href="/users/author-four" class="l_author">作者丁</a></div>
       </div><!--row-->
+      <div class="row">
+        <div class="r1">5</div>
+        <div class="r2"><a class="l_bookname" href="/books/891916">淫龙驯服手册（人外 1v1 h）</a></div>
+        <div class="r4"><a class="l_author" href="/users/author-five">小甜包</a></div>
+      </div><!--row-->
     </div>`
+    const detailPage = `<div class="book_cover R-rated"><img src="https://cdn0.po18.tw/bc/13/891916/M20260101000000.jpg" alt="淫龙驯服手册（人外 1v1 h）"></div>`
 
     const result = await discoverList(
       'https://www.po18.tw/rank/index',
@@ -292,22 +301,46 @@ describe('POPO 发现', () => {
             cookie: new Headers(options?.headers).get('Cookie') || '',
             body: String(options?.body || ''),
           })
+          if (/\/books\/891916\/?$/.test(url)) return { html: detailPage, encoding: 'utf-8' }
+          if (/\/books\/\d+\/?$/.test(url)) return { html: '<html><body></body></html>', encoding: 'utf-8' }
           return { html: options?.method === 'POST' ? rankingPage : landingPage, encoding: 'utf-8' }
         },
       },
       { po18Ranking: { kind: 'pearl', type: 'monthly' } },
     )
 
-    expect(requests.map((item) => [item.url, item.method])).toEqual([
+    expect(requests.slice(0, 2).map((item) => [item.url, item.method])).toEqual([
       ['https://www.po18.tw/rank/index', 'GET'],
       ['https://www.po18.tw/rank/more', 'POST'],
     ])
+    expect(requests.some((item) => item.url === 'https://www.po18.tw/books/891916')).toBe(true)
     expect(requests[1]!.cookie).toBe('po18Limit=1')
     const params = new URLSearchParams(requests[1]!.body)
     expect(params.get('_po18rf-tk001')).toBe('csrf-token')
     expect(params.get('kind')).toBe('pearl')
     expect(params.get('type')).toBe('monthly')
-    expect(result.novels.map((novel) => novel.title)).toEqual(['珍珠榜第一', '珍珠榜第四'])
+    expect(result.novels).toMatchObject([
+      { title: '珍珠榜第一', coverUrl: 'https://cdn0.po18.tw/bc/11/111111/M.jpg' },
+      { title: '珍珠榜第四' },
+      { title: '淫龙驯服手册（人外 1v1 h）', coverUrl: 'https://cdn0.po18.tw/bc/13/891916/M20260101000000.jpg' },
+    ])
+
+    const cachedResult = await discoverList(
+      'https://www.po18.tw/rank/index',
+      {
+        db: { query: vi.fn().mockResolvedValue({ rows: [] }) } as never,
+        fetchHtml: async () => {
+          throw new Error('榜单缓存命中时不应重新请求')
+        },
+        getPreset: async () => ({ name: 'PO18.tw' }),
+      },
+      { po18Ranking: { kind: 'pearl', type: 'monthly' } },
+    )
+
+    expect(cachedResult.novels.find((novel) => novel.bookId === '891916')).toMatchObject({
+      title: '淫龙驯服手册（人外 1v1 h）',
+      coverUrl: 'https://cdn0.po18.tw/bc/13/891916/M20260101000000.jpg',
+    })
   })
 
   it('POPO 榜单不把纯数字章节名当成页码', async () => {
