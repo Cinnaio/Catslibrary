@@ -721,8 +721,8 @@ struct AdminAIWritingView: View {
             Text("本次情节与大纲")
         } footer: {
             Text(continuationScope == .multiple
-                ? "推荐情节用于补充创作要求；生成的大纲会按章节拆分后交给后台任务。"
-                : "推荐情节可以直接填入续写要求；大纲生成后仍可手动修改。")
+                ? "选定的推荐情节会作为大纲主线，按章节展开；生成后仍可手动修改。"
+                : "选定的推荐情节会作为本章大纲方向；生成后仍可手动修改。")
         }
     }
 
@@ -1056,6 +1056,7 @@ struct AdminAIWritingView: View {
         guard canUseContinuationAssist else { return }
         let selectedNovelID = novelId
         let selectedAnchorID = afterChapterId
+        let selectedPlotDirection = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
         let token = UUID()
         outlineRequestToken = token
         outlineBusy = true
@@ -1072,7 +1073,8 @@ struct AdminAIWritingView: View {
                 afterChapterId: selectedAnchorID.isEmpty ? nil : selectedAnchorID,
                 focus: suggestionFocus,
                 chapterCount: chapterCount,
-                contentPreferences: writingContentPreferencesPayload
+                contentPreferences: writingContentPreferencesPayload,
+                plotDirection: selectedPlotDirection
             )
             guard !Task.isCancelled,
                   outlineRequestToken == token,

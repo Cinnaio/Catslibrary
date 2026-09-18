@@ -847,12 +847,14 @@ enum AdminAPI {
     }
 
     /// POST /api/ai/writing/plot-suggestions：推荐续写情节，或按章生成续写大纲。
+    /// `plotDirection` 用于传递作者在大纲模式下选定的情节主线；为空时不发送。
     static func aiPlotSuggestions(
         novelId: String,
         afterChapterId: String? = nil,
         focus: String = "",
         chapterCount: Int? = nil,
-        contentPreferences: [String: Any]
+        contentPreferences: [String: Any],
+        plotDirection: String = ""
     ) async throws -> AiPlotSuggestionsResponse {
         var payload: [String: Any] = [
             "novelId": novelId,
@@ -867,6 +869,10 @@ enum AdminAPI {
         }
         if let chapterCount {
             payload["chapterCount"] = chapterCount
+        }
+        let trimmedPlotDirection = plotDirection.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedPlotDirection.isEmpty {
+            payload["plotDirection"] = trimmedPlotDirection
         }
         return try await APIClient.shared.post(
             "/api/ai/writing/plot-suggestions",
