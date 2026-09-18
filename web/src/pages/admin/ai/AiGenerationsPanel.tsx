@@ -642,7 +642,7 @@ export default function AiGenerationsPanel(props: {
                       </div>
                     ))}
                 </div>
-                <div className="shrink-0 text-xs font-medium text-muted-foreground">生成正文</div>
+                <div className="admin-dialog-section-label shrink-0">生成正文</div>
                 {/* 编辑态沿用改写区的既有做法：固定高度 + 框内滚动（field-sizing-fixed）。
                    field-sizing-content 会随全文长高，把中间的滚动行程翻倍。 */}
                 {editingText === null ? (

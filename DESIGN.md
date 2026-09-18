@@ -256,6 +256,8 @@ components:
 - **Scroll Ownership:** 一个弹窗只设一个滚动所有者。`.admin-dialog` 由 `.admin-dialog__body` 承担；自建三行栅格（如 `.ai-generation-dialog`）必须显式指定中间滚动区，且**不得**依赖外层 `overflow: hidden` 裁切——超出内容会被静默截断且无法滚动恢复。长正文（数千字）用固定高度或视口相关上限 + 框内滚动，不随内容长高。
 - **Hidden Scrollbar:** 弹窗内不显示滚动进度条。`.admin-dialog` 及其全部后代读 `scrollbar-width: none` + `-ms-overflow-style: none`，并配 `::-webkit-scrollbar { display: none }`——base.css 的全局 8px 滚动条会在正文右缘切出一条与纸面异色的竖轨。滚动能力保留（滚轮、触摸、键盘照常），只隐藏进度条；正文与内嵌滚动区（章节列表、抓取日志、Prompt 预览）由一条通配后代规则统一覆盖，不逐个容器重复声明。
 - **Segmented Surface:** 三段式栅格只区分结构，不区分颜色。页头、正文、页脚共用同一表面色 `--admin-panel`，页脚不得用 `--admin-panel-muted` 或任何加深底色，也不靠 `border-top` 分隔；末段与内容的界限只由间距（`--admin-space-*`）和按钮自身视觉承担。
+- **Field Labels:** 弹窗内的小标题（`标题`/`作者`/`正文`…）统一为 12px / 500 / `--text-muted`，读 `--admin-dialog-label-size`·`-weight`·`-color`·`-line-height`·`-letter-spacing`。不再出现 0.8rem/650/次级色、0.6875rem/600/大写等分叉写法，也不用 `text-transform: uppercase`（大写只对拉丁字母可见，会让中英标签风格分叉）。覆盖范围含 `.admin-dialog` 与自建三段式的 `.ai-generation-dialog`；无 `Label` 元素可挂的裸 `div` 用 `.admin-dialog-section-label` 表达同一语义。
+- **Helper Copy:** 控件下方的辅助说明与标签同尺寸同色，只降一档字重至 400（`--admin-dialog-hint-*`，或裸元素用 `.admin-dialog-hint`）。辅助说明不得比它说明的标签更粗或更大，否则主次颠倒。
 - **Mobile Editor:** 窄屏小说编辑窗口使用 `--admin-dialog-mobile-max-height` 收紧高度；底部操作区通过 `--admin-dialog-mobile-footer-*` 保持保存/取消同一行、不换行，并用 `--admin-dialog-mobile-action-min-*` 保留触控尺寸。
 
 ### Segmented Tabs

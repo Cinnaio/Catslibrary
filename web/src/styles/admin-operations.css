@@ -4337,11 +4337,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   align-content: start;
   gap: 0.4rem;
 }
-.novel-editor__field label {
-  color: var(--text-secondary);
-  font-size: 0.8rem;
-  font-weight: 650;
-}
+/* 字号/颜色/字重统一由弹窗小标题契约提供（见文件后段 --admin-dialog-label-*）。 */
 
 /* ————————————————————————————————————————————————
    抓取中心 · CenterView — consumers: scrape/CenterView.tsx, scrape/center/*
@@ -7018,6 +7014,61 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   width: 100%;
 }
 
+/* 弹窗内小标题统一规格：12px / 500 / 弱化色。
+   参考形态取自完整内容弹窗的「生成正文」小标题（text-xs/font-medium/muted）。
+   此前各弹窗各写一套——小说编辑 0.8rem/650/次级色、章节融合 0.6875rem/600/大写、
+   章节上下文 0.7rem、正文区 0.875rem/650/主色。四套规格并列出现时，同一屏里的
+   「标题」「简介」「正文」字号粗细互不相同，看起来像四个不同的表单。
+   现统一走 --admin-dialog-label-* token。两族弹窗一起覆盖：.admin-dialog 与
+   自建三段式的 .ai-generation-dialog，避免只对齐一族、另一族仍留在旧规格。 */
+.admin-dialog [data-slot='label'],
+.ai-generation-dialog [data-slot='label'],
+.admin-dialog .novel-editor__field label,
+.admin-dialog .chapter-dialog-field > label,
+.admin-dialog .chapter-dialog-section__heading [data-slot='label'],
+.admin-dialog .chapter-dialog-section__heading > label,
+.admin-dialog .chapter-dialog-context > span:first-child,
+.admin-dialog .chapter-dialog-context > div > span,
+.admin-dialog .chapter-merge-dialog__info-grid span {
+  color: var(--admin-dialog-label-color);
+  font-size: var(--admin-dialog-label-size);
+  font-weight: var(--admin-dialog-label-weight);
+  line-height: var(--admin-dialog-label-line-height);
+  letter-spacing: var(--admin-dialog-label-letter-spacing);
+  text-transform: none;
+}
+
+/* 弹窗内辅助说明与标签同规格，仅降一档字重。 */
+.admin-dialog .novel-editor__field > p,
+.admin-dialog .chapter-dialog-section__heading > span,
+.admin-dialog .chapter-dialog-section__heading .text-muted-foreground,
+.admin-dialog .chapter-merge-dialog__hint,
+.admin-dialog .chapter-merge-dialog__footer-note {
+  color: var(--admin-dialog-hint-color);
+  font-size: var(--admin-dialog-hint-size);
+  font-weight: var(--admin-dialog-hint-weight);
+  line-height: var(--admin-dialog-hint-line-height);
+}
+
+/* 无 Label 元素可挂的小标题（裸 div）用这个类表达同一语义，规格与上面完全一致。
+   .admin-dialog-section-label 自身即完整契约，不依赖 .admin-dialog 祖先，
+   因此自建三段式弹窗（.ai-generation-dialog）也能直接用。 */
+.admin-dialog-section-label {
+  color: var(--admin-dialog-label-color);
+  font-size: var(--admin-dialog-label-size);
+  font-weight: var(--admin-dialog-label-weight);
+  line-height: var(--admin-dialog-label-line-height);
+  letter-spacing: var(--admin-dialog-label-letter-spacing);
+}
+
+/* 同理，无合适元素可挂的辅助说明用这个类；规格与上面 hint 分支一致。 */
+.admin-dialog-hint {
+  color: var(--admin-dialog-hint-color);
+  font-size: var(--admin-dialog-hint-size);
+  font-weight: var(--admin-dialog-hint-weight);
+  line-height: var(--admin-dialog-hint-line-height);
+}
+
 /* 弹窗：白色纸面、灰色遮罩、平整的头/身/底三段结构。
    遮罩统一走 --overlay-bg token（浅/深主题各自有色值），不再写死暖棕——
    本文件是后台样式层，但这条曾经无作用域，会连带覆盖读者端公开页的弹窗遮罩。 */
@@ -7199,8 +7250,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 .chapter-dialog-context > span:first-child,
 .chapter-dialog-context > div > span {
   display: block;
-  color: var(--text-muted);
-  font-size: 0.7rem;
 }
 
 .chapter-dialog-context > strong,
@@ -7235,20 +7284,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   gap: 0.75rem;
 }
 
-.chapter-dialog-section__heading [data-slot='label'],
-.chapter-dialog-section__heading > label {
-  color: var(--text-primary);
-  font-size: 0.875rem;
-  font-weight: 650;
-}
-
-.chapter-dialog-section__heading > span,
-.chapter-dialog-section__heading .text-muted-foreground {
-  color: var(--text-muted);
-  font-size: 0.75rem;
-  font-weight: 500;
-}
-
 .chapter-editor-dialog__textarea {
   height: min(42vh, 20rem) !important;
   min-height: 16rem !important;
@@ -7279,14 +7314,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   flex-direction: column;
   gap: 0.25rem;
   min-width: 0;
-}
-
-.chapter-merge-dialog__info-grid span {
-  color: var(--text-muted);
-  font-size: 0.6875rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
 }
 
 .chapter-merge-dialog__info-grid strong {

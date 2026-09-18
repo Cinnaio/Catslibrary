@@ -751,9 +751,9 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
                     const label = site === 'jjwxc' ? '晋江' : 'PO18.tw'
                     return (
                       <div key={site}>
-                        <div className="mb-1 flex items-center justify-between gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        <div className="admin-dialog-section-label mb-1 flex items-center justify-between gap-2">
                           <span>{label}</span>
-                          <span>{results.length ? `${results.length} 个结果` : bucket?.ok ? '没有匹配结果' : '搜索不可用'}</span>
+                          <span className="admin-dialog-hint">{results.length ? `${results.length} 个结果` : bucket?.ok ? '没有匹配结果' : '搜索不可用'}</span>
                         </div>
                         {bucket?.error && <p className="mb-2 text-xs text-amber-600">{bucket.error}</p>}
                         {results.length > 0 && (

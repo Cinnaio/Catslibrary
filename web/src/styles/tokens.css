@@ -104,6 +104,21 @@
   --admin-dialog-mobile-action-min-width: 4.5rem;
   --admin-dialog-mobile-action-min-height: 2.75rem;
 
+  /* Admin dialog field labels — one quiet spec for every 小标题 in a dialog.
+     Values mirror the reference `text-xs font-medium text-muted-foreground`:
+     12px / 500 / --text-muted. The dialog is read top-down as a form, so the
+     label must not compete with the primary action or the dialog title. */
+  --admin-dialog-label-size:           0.75rem;
+  --admin-dialog-label-weight:         500;
+  --admin-dialog-label-color:          var(--text-muted);
+  --admin-dialog-label-line-height:    1.5;
+  --admin-dialog-label-letter-spacing: 0;
+  /* Helper copy under a control: same size and color, one weight lighter. */
+  --admin-dialog-hint-size:            0.75rem;
+  --admin-dialog-hint-weight:          400;
+  --admin-dialog-hint-color:           var(--text-muted);
+  --admin-dialog-hint-line-height:     1.5;
+
   /* Admin surfaces — derived from the shared palette so they follow theme.
      Defined on :root (public pages never reference them). */
   --admin-surface: color-mix(in srgb, var(--bg-card) 88%, var(--accent-subtle));
