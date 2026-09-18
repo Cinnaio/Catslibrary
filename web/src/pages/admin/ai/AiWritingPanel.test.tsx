@@ -197,6 +197,44 @@ describe('AiWritingPanel', () => {
     })
   })
 
+  it('生成大纲时把创作要求里选定的情节方向一并下发', async () => {
+    api.plotSuggestions.mockResolvedValue({
+      suggestions: [],
+      outline: '第1章 起\n甲。\n第2章 承\n乙。',
+      usage: { model: 'm', promptTokens: 1, completionTokens: 1 },
+    })
+    await selectNovel()
+    switchToContinue()
+    fireEvent.click(screen.getByRole('button', { name: '多章规划' }))
+
+    const textarea = screen.getByLabelText('创作要求') as HTMLTextAreaElement
+    fireEvent.change(textarea, { target: { value: '夭夜在寝宫与他独处，借双修稳固修为。' } })
+    fireEvent.click(screen.getByRole('button', { name: /按情节推荐生成大纲/ }))
+
+    await waitFor(() => expect(api.plotSuggestions).toHaveBeenCalled())
+    // 不传这条方向时后端会绕开用户的选择自行规划，大纲会与选定情节脱节
+    expect(api.plotSuggestions.mock.calls[0]![0]).toMatchObject({
+      novelId: 'novel_1',
+      chapterCount: 2,
+      plotDirection: '夭夜在寝宫与他独处，借双修稳固修为。',
+    })
+  })
+
+  it('创作要求为空时不发送 plotDirection，避免下发空字符串', async () => {
+    api.plotSuggestions.mockResolvedValue({
+      suggestions: [],
+      outline: '第1章 起\n甲。',
+      usage: { model: 'm', promptTokens: 1, completionTokens: 1 },
+    })
+    await selectNovel()
+    switchToContinue()
+    fireEvent.click(screen.getByRole('button', { name: '多章规划' }))
+    fireEvent.click(screen.getByRole('button', { name: /按情节推荐生成大纲/ }))
+
+    await waitFor(() => expect(api.plotSuggestions).toHaveBeenCalled())
+    expect(api.plotSuggestions.mock.calls[0]![0]).not.toHaveProperty('plotDirection')
+  })
+
   it('开启露骨模式后不再出现成年确认勾选，直接生成', async () => {
     await selectNovel()
 

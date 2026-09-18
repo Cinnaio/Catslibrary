@@ -432,6 +432,11 @@ export async function generatePlotSuggestions(db: Db, opts: {
   /** 作者想要的侧重点；可为空。 */
   focus?: string
   /**
+   * 作者本次选定的情节方向，通常直接取自上一步的推荐候选项。
+   * 大纲模式必须围绕它展开分章，否则会绕开用户的选择按最近章节自行规划。
+   */
+  plotDirection?: string
+  /**
    * 传了就产出分章大纲而非一行方向：按指定章数给出「第N章」开头的多段安排，
    * 便于多章续写时逐章下发，避免同一段内容在每章重复。
    */
@@ -474,8 +479,17 @@ export async function generatePlotSuggestions(db: Db, opts: {
   const outlineMode = opts.chapterCount !== undefined
   let prompt: string
   if (outlineMode) {
+    // 作者在上一步选定的情节方向必须成为大纲主线。此前这个值只参与候选生成，
+    // 大纲侧完全读不到它，于是模型按最近章节另起一条线，与用户的选择脱节。
+    const selectedDirection = cleanWritingText(opts.plotDirection || '', 1200)
     const lines: string[] = [
       `请阅读下面的作品资料与最近章节，为该作品规划接下来 ${outlineChapterCount} 章的续写大纲，然后按章输出。`,
+      ...(selectedDirection
+        ? [
+            `作者已选定本次续写的情节方向，大纲必须围绕它展开：\n${selectedDirection}`,
+            '这条方向是大纲的主线：各章要体现它的推进、变化与结果，不得整体替换成另一条情节线。可以在这一方向内部细化人物、场景与冲突。',
+          ]
+        : []),
       '要求：',
       `1. 输出 ${outlineChapterCount} 个章节段落，每段以「第N章 标题」开头（N 从 1 到 ${outlineChapterCount}，用阿拉伯数字），标题后换行写该章内容。`,
       '2. 每章写清：这一章发生什么、谁参与、推进哪条线、结尾停在什么状态。每章 60-120 字。',

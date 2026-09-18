@@ -260,6 +260,32 @@ user 层的任何量化要求在 system 层都会被压制。
 `instruction`（创作要求）本身仍会逐章原样下发。要彻底解决需按章拆分指令、
 或让第 2 章起改由前文自然承接。
 
+### 与「选定情节方向」叠加后的新维度（2026-09-17 记录）
+
+`plotDirection` 接通后（见下文功能章节），大纲与选定方向会**同时**进入每一章的指令。
+续写循环拼出的单章指令形如：
+
+```
+本章大纲（按此写作本章内容，不要写成其他章节）：
+<第 N 章的片段>
+<作者选定的情节方向，完整原文>
+这是续写的第 N 章，共 N 章。目标字数为本章约 2000 字。
+```
+
+这里有两条冗余：一是选定方向已在大纲生成阶段被展开成 N 章安排，续写阶段又原样
+重复一次；二是这条方向对每一章都完整重复，而不是只作整体语境。
+
+**尚未实测，属结构推断，勿当成已验证结论**：若方向写得偏具体（例如点名了某一场戏
+或某个地点），后续章节可能被反复拉回该场景，或提前把方向里的结局交代掉，削弱
+大纲本应有的递进。方向写得越偏"整体方向与尺度"（UI 提示词推荐的那种写法），
+这种风险越低。
+
+**为什么暂不改**：`instruction` 是单章精写的主路径，多章时被复用的行为是既有设计
+（同节上文），单独为大纲模式剥离方向会引入两条不同的指令组装分支。在拿到
+「方向具体 → 后续章节跑偏」的实测样本前不动，避免为未验证的假设增加分支。
+若将来要改，方向应是「大纲模式下不再把 `plotDirection` 追加进逐章指令」，
+即让大纲片段单独承担逐章内容。
+
 ## 功能：情节方向推荐与分章大纲（`/api/ai/writing/plot-suggestions`）
 
 **状态**：已实现（2026-09-12）
@@ -273,7 +299,7 @@ user 层的任何量化要求在 system 层都会被压制。
 **请求**
 
 ```json
-{ "novelId": "...", "afterChapterId": "...", "focus": "想写感情升温的日常互动", "chapterCount": 3, "contentPreferences": { "version": 1, "adultContentMode": "explicit", "intimacyWeight": "high", "adultCharactersConfirmed": true, "consentRuleTier": "fictional_nonconsent" } }
+{ "novelId": "...", "afterChapterId": "...", "focus": "想写感情升温的日常互动", "chapterCount": 3, "plotDirection": "夭夜在寝宫与他独处，借双修稳固修为。", "contentPreferences": { "version": 1, "adultContentMode": "explicit", "intimacyWeight": "high", "adultCharactersConfirmed": true, "consentRuleTier": "fictional_nonconsent" } }
 ```
 
 `afterChapterId` 缺省用最后一章；`focus` 可为空，填写后建议会围绕该侧重点；
@@ -288,6 +314,12 @@ user 层的任何量化要求在 system 层都会被压制。
 传 `chapterCount`：返回 `outline`，是按「第N章 标题」逐段写出的连续多章安排，
 可直接填进续写的大纲框。与方向的区别在于它是一条递进的故事线而非并列备选，
 第 N 章接着第 N-1 章的结果往下走——这是让多章续写不重复的关键。
+
+`plotDirection` 是可选的、由作者选定的情节方向，通常直接取自上一步的候选项
+（前端在生成大纲时把创作要求里选定的那条传下来）。传入后大纲提示词会在要求列表
+之前注入这段方向，并声明它是主线、各章要体现其推进与结果、不得整体替换成另一条
+情节线，同时允许在同一方向内部细化人物、场景与冲突。**这个参数只在大纲模式下
+生效**，一行式方向模式忽略它（该模式本就是用来产出候选的）。
 
 **实现要点**
 
@@ -304,6 +336,19 @@ user 层的任何量化要求在 system 层都会被压制。
   三种模型输出形态；大纲模式直接返回原始文本，不做结构化解析。
 - `usage.generationType` 区分为 `plot_suggestion` 与 `plot_outline`。
 - 一次调用约 8300 prompt + 550 completion token，成本可忽略。
+
+**已修复缺口：大纲曾绕开作者选定的情节方向（2026-09-17）**
+
+此前 `plotDirection` 这个参数位在前后端都不存在：前端生成大纲时只发
+`novelId / chapterCount / afterChapterId / focus / contentPreferences`，
+没有把创作要求里选定的那条方向带下来；后端大纲分支的提示词也只读最近章节上下文，
+没有任何「作者已选定方向」的输入位。结果是模型按最近章节自行规划一条线，
+与用户的选定脱节——这是参数断链，不是提示词权重问题。
+
+现已接通：前端在 `instruction` 非空时下发 `plotDirection`（空则不传，避免下发空串），
+路由透传，`generatePlotSuggestions` 在 `outlineMode` 分支用 `cleanWritingText`
+清洗到 1200 字后注入提示词。回归用例覆盖三个行为：选定方向确实进入提示词、
+未传时不出现主线约束、前端正确下发且空值不发该字段。
 
 **实测输出（《我在斗气大陆与美女双修》，传 explicit 参数）**
 

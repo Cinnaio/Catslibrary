@@ -815,6 +815,77 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     expect(taskResults.items.map((item) => item.batchIndex)).toEqual(Array.from({ length: 20 }, (_, index) => index + 1))
   })
 
+  it('大纲生成把作者选定的情节方向作为主线下发', async () => {
+    const novel = await req('/api/novels', json('POST', { title: '大纲方向书', author: '某作者' }, adminToken))
+    const novelId = (await jsonOf<{ novel: { id: string } }>(novel)).novel.id
+    await req('/api/chapters', json('POST', { novelId, title: '已有章节', content: `${LONG_CONTENT}已有章节哨兵。` }, adminToken))
+
+    let observedMessages: Array<{ role: string; content: string }> = []
+    const previousFetch = fetchMock.getMockImplementation()
+    fetchMock.mockImplementation(async (input, init) => {
+      const reqUrl = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as Request).url
+      if (reqUrl.includes('/chat/completions')) {
+        const body = JSON.parse(String(init?.body || '{}')) as { messages?: Array<{ role: string; content: string }> }
+        observedMessages = body.messages || []
+      }
+      return new Response(
+        JSON.stringify({
+          model: 'test-model',
+          choices: [{ message: { content: '第1章 起\n甲。\n第2章 承\n乙。' }, finish_reason: 'stop' }],
+          usage: { prompt_tokens: 10, completion_tokens: 20 },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      )
+    })
+
+    try {
+      const direction = '夭夜在寝宫与他独处，借双修稳固修为。'
+      const res = await req('/api/ai/writing/plot-suggestions', json('POST', { novelId, chapterCount: 2, plotDirection: direction }, adminToken))
+      expect(res.status).toBe(200)
+      const data = await jsonOf<{ outline?: string }>(res)
+      expect(data.outline).toContain('第1章')
+      // 选定方向必须落到大纲提示词里，否则模型会按最近章节另起一条线
+      const combined = observedMessages.map((message) => message.content).join('\n')
+      expect(combined).toContain(direction)
+      expect(combined).toContain('大纲必须围绕它展开')
+    } finally {
+      if (previousFetch) fetchMock.mockImplementation(previousFetch)
+    }
+  })
+
+  it('未传情节方向时大纲提示词不出现主线约束', async () => {
+    const novel = await req('/api/novels', json('POST', { title: '大纲无方向书', author: '某作者' }, adminToken))
+    const novelId = (await jsonOf<{ novel: { id: string } }>(novel)).novel.id
+    await req('/api/chapters', json('POST', { novelId, title: '已有章节', content: `${LONG_CONTENT}已有章节哨兵。` }, adminToken))
+
+    let observedMessages: Array<{ role: string; content: string }> = []
+    const previousFetch = fetchMock.getMockImplementation()
+    fetchMock.mockImplementation(async (input, init) => {
+      const reqUrl = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as Request).url
+      if (reqUrl.includes('/chat/completions')) {
+        const body = JSON.parse(String(init?.body || '{}')) as { messages?: Array<{ role: string; content: string }> }
+        observedMessages = body.messages || []
+      }
+      return new Response(
+        JSON.stringify({
+          model: 'test-model',
+          choices: [{ message: { content: '第1章 起\n甲。\n第2章 承\n乙。' }, finish_reason: 'stop' }],
+          usage: { prompt_tokens: 10, completion_tokens: 20 },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      )
+    })
+
+    try {
+      const res = await req('/api/ai/writing/plot-suggestions', json('POST', { novelId, chapterCount: 2 }, adminToken))
+      expect(res.status).toBe(200)
+      const combined = observedMessages.map((message) => message.content).join('\n')
+      expect(combined).not.toContain('大纲必须围绕它展开')
+    } finally {
+      if (previousFetch) fetchMock.mockImplementation(previousFetch)
+    }
+  })
+
   it('续写起点冻结尾部上下文与画像选择，并拒绝空书和别书起点', async () => {
     const novel = await req('/api/novels', json('POST', { title: '续写边界书', author: '某作者' }, adminToken))
     const novelId = (await jsonOf<{ novel: { id: string } }>(novel)).novel.id

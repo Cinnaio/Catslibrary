@@ -676,6 +676,9 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
         chapterCount,
         ...(afterChapterId ? { afterChapterId } : {}),
         ...(focus.trim() ? { focus: focus.trim() } : {}),
+        // 创作要求里往往就是「推荐情节」里选定的那一条。不传下去的话，
+        // 大纲会绕开这条方向按最近章节自行规划，与用户的选定脱节。
+        ...(instruction.trim() ? { plotDirection: instruction.trim() } : {}),
         contentPreferences: buildContentPreferences(),
       })
       if (!res.outline) return toast('未返回可用的大纲', 'error')

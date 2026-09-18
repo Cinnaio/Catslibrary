@@ -1052,6 +1052,8 @@ aiRoutes.post('/writing/plot-suggestions', requireAdmin(), async (c) => {
       novelId,
       afterChapterId: String(body.afterChapterId || '').trim() || undefined,
       focus: String(body.focus || '').trim(),
+      // 作者选定的情节方向（通常来自推荐候选）。大纲模式据此展开分章，而不是另起一条线。
+      plotDirection: String(body.plotDirection || '').trim() || undefined,
       ...(chapterCount === undefined ? {} : { chapterCount }),
       contentPreferences: contentPreferencesResult.preferences,
       ...(await auditRequestContext(c, db)),

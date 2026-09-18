@@ -1479,12 +1479,14 @@ export const aiApi = {
      * 推荐情节方向：基于最近章节给出若干条可直接用作创作要求的候选。
      * 传入 contentPreferences 后，成人向作品会给出以成人场景为主体的方向。
      * 传入 chapterCount 则改为产出按章大纲（返回 outline），适用于多章续写。
+     * plotDirection 是作者选定的情节方向（通常取自推荐候选项），大纲模式据此展开分章安排。
      */
     plotSuggestions(data: {
       novelId: string
       afterChapterId?: string
       focus?: string
       chapterCount?: number
+      plotDirection?: string
       contentPreferences?: unknown
     }): Promise<{
       suggestions: Array<{ direction: string; effect: string }>
