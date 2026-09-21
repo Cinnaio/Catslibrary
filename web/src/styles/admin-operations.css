@@ -37,8 +37,7 @@
 /* 2026 子 tab 统一层：新迁移页面共用范本的纸面层次，页面专属规则只负责
    自己的业务布局。工具栏放在数据面板外时仍保持明确的独立表面。 */
 .admin-redesign-page--settings > :is(.account-audit-toolbar, .account-operation-audit-toolbar),
-.admin-redesign-page--mobile-telemetry > .mobile-telemetry-toolbar,
-.ai-service :is(.ai-tasks-toolbar, .ai-audit-toolbar, .ai-generations-toolbar) {
+.admin-redesign-page--mobile-telemetry > .mobile-telemetry-toolbar {
   display: flex;
   min-width: 0;
   align-items: center;
@@ -48,6 +47,31 @@
   border: 1px solid var(--admin-border);
   border-radius: var(--radius-xl);
   background: color-mix(in srgb, var(--admin-panel) 94%, var(--accent-subtle));
+}
+
+/* AI 服务三个列表面板的筛选条不是浮在画布上的独立卡片，而是面板内部的一条
+   筛选带：它只作用于下方的数据区，属主是同一个面板。此前它与数据面板并列
+   成为两个等权表面，同一件事（看这批任务 / 这批产出）被拆成两个盒子，面板的
+   「标题 → 筛选 → 数据」三段关系因此断开。现与章节范本的 .chapter-toolbar
+   对齐：位于 AdminPanelHeading 之下、数据区之上，无独立圆角外框，只保留一条
+   底线与数据区分隔，水平内边距与面板标题同基线（1.5rem）。
+   配套：TSX 中这三个工具条已移入 AdminDataPanel 内部。 */
+.ai-service .ai-tasks-toolbar,
+.ai-service .ai-audit-toolbar,
+.ai-service .ai-generations-toolbar {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  min-height: 3.25rem;
+  /* 左右内缩与数据区（.ai-list-body / .ai-tasks-content 的 1.25rem）对齐，
+     使筛选器左边缘与下方表格同一条基线，而不是另起一条。 */
+  padding: 0.75rem 1.25rem;
+  border: 0;
+  border-bottom: 1px solid var(--admin-border);
+  border-radius: 0;
+  background: color-mix(in srgb, var(--admin-surface) 40%, transparent);
 }
 
 .admin-redesign-page--settings > :is(.account-audit-toolbar, .account-operation-audit-toolbar) [data-slot='select-trigger'],
@@ -2903,12 +2927,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
    该规则是死代码。宽度现由组件上的 min-w-[7.5rem] 承担，与其余筛选器一致。
    （真正压制该 min-width 的是下方 .admin-toolbar > * 的 min-width: 0，已在那里修正。） */
 
-/* 面板从 Card 换成 AdminDataPanel 后，内边距不再由 CardContent 提供。
-   列表自带 border-top，故只在左右与底部留白，标题区由 AdminPanelHeading 负责。 */
-.ai-tasks-panel .ai-tasks-content {
-  padding: 0 1.25rem 1.25rem;
-}
-
 /* AI 面板的纵向堆叠：替代原先手写的 space-y-4，间距走统一刻度。 */
 .ai-service-stack {
   display: grid;
@@ -2916,8 +2934,12 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   gap: 1rem;
 }
 
-/* 面板内主体（表格与页脚）的内边距，补偿 CardContent 不再存在后的留白。 */
-.ai-list-body {
+/* 面板内主体（表格与页脚）的内边距，补偿 CardContent 不再存在后的留白。
+   .ai-tasks-content 与 .ai-list-body 是同一语义的两个类名（各自面板的主体
+   容器），此前只有后者在 ≤900px 收窄，同族面板的左右留白因此相差 4px，
+   面板内工具条也就无法与下方数据区共用一条左基线。合并为一条规则。 */
+.ai-list-body,
+.ai-tasks-panel .ai-tasks-content {
   min-width: 0;
   padding: 0 1.25rem 1.25rem;
 }
@@ -3099,8 +3121,17 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 }
 
 @media (max-width: 900px) {
-  .ai-list-body {
+  /* 工具条与数据区的左右留白必须同步收窄。只改数据区会让面板内工具条
+     比下方表格多出 4px 内缩，两条左基线再次错开。 */
+  .ai-list-body,
+  .ai-tasks-panel .ai-tasks-content {
     padding: 0 1rem 1rem;
+  }
+
+  .ai-service .ai-tasks-toolbar,
+  .ai-service .ai-audit-toolbar,
+  .ai-service .ai-generations-toolbar {
+    padding-inline: 1rem;
   }
 
   .ai-audit-table,

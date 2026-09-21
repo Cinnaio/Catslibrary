@@ -320,43 +320,6 @@ export default function AiGenerationsPanel(props: {
 
   return (
     <div className="ai-service-stack">
-      <AdminToolbar className="ai-generations-toolbar" ariaLive="polite">
-        {selectedCount > 0 && (
-          <Button variant="destructive" size="sm" disabled={batchDeleting} onClick={() => void removeSelected()}>
-            {batchDeleting ? '正在删除 ' + selectedCount + ' 条…' : '批量删除 (' + selectedCount + ')'}
-          </Button>
-        )}
-        <Label htmlFor="gen-filter-kind" className="text-xs text-muted-foreground">
-          类型
-        </Label>
-        <Select
-          value={filterKind}
-          onValueChange={(v) => {
-            setFilterKind(v as 'all' | 'summary' | 'catchup' | 'write_outline' | 'write_chapter' | 'continue')
-            setOffset(0)
-          }}
-        >
-          <SelectTrigger size="sm" id="gen-filter-kind" className="w-full sm:w-auto sm:min-w-[8.75rem]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent position="popper" align="end" sideOffset={4}>
-            <SelectItem value="all">全部</SelectItem>
-            {props.scope !== 'writing' && (
-              <>
-                <SelectItem value="summary">前情提要</SelectItem>
-                <SelectItem value="catchup">回顾总结</SelectItem>
-              </>
-            )}
-            {props.scope !== 'reader' && (
-              <>
-                <SelectItem value="write_outline">创作大纲</SelectItem>
-                <SelectItem value="write_chapter">创作章节</SelectItem>
-                <SelectItem value="continue">续写</SelectItem>
-              </>
-            )}
-          </SelectContent>
-        </Select>
-      </AdminToolbar>
       <AdminDataPanel className="ai-generations-card overflow-hidden" ariaLabel="已生成内容列表">
         <AdminPanelHeading
           title="生成内容"
@@ -367,6 +330,46 @@ export default function AiGenerationsPanel(props: {
             </span>
           }
         />
+        {/* 类型筛选与批量删除都只作用于下方列表，同属这个面板：筛选带放在标题
+            之下、数据之上，与章节范本的目录面板同构。外置会让同一件事出现两个
+            等权表面（筛选卡 + 数据卡）。 */}
+        <AdminToolbar className="ai-generations-toolbar" ariaLive="polite">
+          {selectedCount > 0 && (
+            <Button variant="destructive" size="sm" disabled={batchDeleting} onClick={() => void removeSelected()}>
+              {batchDeleting ? '正在删除 ' + selectedCount + ' 条…' : '批量删除 (' + selectedCount + ')'}
+            </Button>
+          )}
+          <Label htmlFor="gen-filter-kind" className="text-xs text-muted-foreground">
+            类型
+          </Label>
+          <Select
+            value={filterKind}
+            onValueChange={(v) => {
+              setFilterKind(v as 'all' | 'summary' | 'catchup' | 'write_outline' | 'write_chapter' | 'continue')
+              setOffset(0)
+            }}
+          >
+            <SelectTrigger size="sm" id="gen-filter-kind" className="w-full sm:w-auto sm:min-w-[8.75rem]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent position="popper" align="end" sideOffset={4}>
+              <SelectItem value="all">全部</SelectItem>
+              {props.scope !== 'writing' && (
+                <>
+                  <SelectItem value="summary">前情提要</SelectItem>
+                  <SelectItem value="catchup">回顾总结</SelectItem>
+                </>
+              )}
+              {props.scope !== 'reader' && (
+                <>
+                  <SelectItem value="write_outline">创作大纲</SelectItem>
+                  <SelectItem value="write_chapter">创作章节</SelectItem>
+                  <SelectItem value="continue">续写</SelectItem>
+                </>
+              )}
+            </SelectContent>
+          </Select>
+        </AdminToolbar>
         <div className="ai-list-body">
           {loading && items.length === 0 ? (
             <LoadingState label="正在加载已生成内容" />

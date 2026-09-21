@@ -300,6 +300,17 @@ components:
 - **Motion:** 面板进入使用 `--admin-table-surface-enter` + offset，前 8 行使用 `--admin-table-row-enter` + `--admin-table-row-stagger-step` 依次出现；行、排序箭头、图标按钮的状态反馈使用 `--admin-table-row-interaction`。`prefers-reduced-motion: reduce` 下取消行位移动效，仅保留短淡入。
 - **Legacy Wrapper:** `.table-wrapper` 是旧版表格容器（10px `--admin-radius`、粘性表头），当前唯一消费者是书源表 `scrape/SourcesView.tsx` 的 `.source-panel__table-wrapper`；它在卡片模式下被 `--admin-table-*` 规则接管。不要再新增 `.table-wrapper`，新后台数据表格一律走 `AdminDataPanel`。
 
+### Panel Toolbar (AdminToolbar)
+
+- **Ownership:** 工具条归属于它筛选的那份数据，而不是页面。筛选/搜索/批量操作只作用于某个 `AdminDataPanel` 的列表时，该 `AdminToolbar` 必须渲染在**那个面板内部**，位于 `AdminPanelHeading` 之下、数据区（表格 / 列表 / 页脚）之上。
+- **Anatomy:** 面板内工具条是面板的一段，不是独立表面。无自身圆角、无四边描边，只有一条 `--admin-border` 底线与数据区分隔；表面色用 `color-mix(in srgb, var(--admin-surface) 40%, transparent)` 与画布轻微区分。水平内边距与数据区（`.ai-list-body` / `.ai-tasks-content` 的 `1.25rem`，≤900px 降为 `1rem`）**必须同步**——只改一侧会让工具条与下方表格错开 4px，出现两条左基线。
+- **Geometry:** `display: flex` + `flex-wrap: wrap` + `gap: 0.75rem`，靠换行适配窄屏而不另写断点；`min-height` 与纵向内边距按内容定档（AI 三面板 3.25rem / `0.75rem`，章节目录面板 3.75rem / `0.875rem`），不做强制统一。
+- **Slots:** 组合顺序固定为「批量操作（仅在有选中项时出现）→ 字段标签 → 筛选控件 → 其余动作」；不要为筛选器新建一套卡片外观。
+- **External Form:** 外置工具条（`AdminPage` 直接子级）是**例外**，只用于面板确实需要独立成卡、或其控件跨多个面板生效的场景；此时才使用独立表面语言（`--radius-xl` 圆角 + 描边 + `--admin-panel` 表面色）。
+- **References:** 章节管理的 `.chapter-toolbar` 与 AI 服务三个列表面板（AI 任务 / 已生成内容 / 调用审计）均已采用面板内形态。几何契约以本节为准：章节范本保留了历史的 `border-radius: 0.5rem 0.5rem 0 0`，实测在 40% 透明底色与 20px 面板圆角下不可见，属未收口的残留值，新面板不要复制。
+
+**The Panel-Owned Toolbar Rule.** 一个筛选器不能与它所筛选的数据面板并列为两个等权表面。筛选条、标题、列表构成同一属主的三段（标题 → 筛选 → 数据）；筛选条浮在面板之外，会让读者以为它作用于整页，也会把一件工作拆成两个盒子。
+
 ### Admin Tab Header (AdminTabHeader)
 - **Style:** 每个后台子页唯一的内容区页头：左侧标题 + 元信息胶囊 + 描述，右侧操作区。`flex-wrap` + `items-end`，间距 1rem，`margin-bottom: 1.5rem`，底部分隔线由各页变体关闭（小说、章节、审核页无底线）。
 - **Anatomy:** 只有一套。历史 `kicker` 眉题与 `hero` 变体已退役——标题上方不再出现小字，页面之间也不再有标题字号膨胀。

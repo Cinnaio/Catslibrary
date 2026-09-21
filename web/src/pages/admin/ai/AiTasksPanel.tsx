@@ -120,20 +120,6 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
   }
 
   return <>
-    <AdminToolbar className="ai-tasks-toolbar" ariaLive="polite">
-      <Label htmlFor="task-filter-status" className="text-xs text-muted-foreground">状态</Label>
-      <Select value={filterStatus} onValueChange={(v) => { setLoading(true); setFilterStatus(v as typeof filterStatus) }}>
-        <SelectTrigger size="sm" id="task-filter-status" className="min-w-[7.5rem]"><SelectValue /></SelectTrigger>
-        <SelectContent position="popper" align="end" sideOffset={4}>
-          <SelectItem value="all">全部</SelectItem>
-          <SelectItem value="queued">排队中</SelectItem>
-          <SelectItem value="running">生成中</SelectItem>
-          <SelectItem value="completed">已完成</SelectItem>
-          <SelectItem value="failed">失败</SelectItem>
-          <SelectItem value="cancelled">已取消</SelectItem>
-        </SelectContent>
-      </Select>
-    </AdminToolbar>
     <AdminDataPanel className="ai-tasks-panel overflow-hidden" ariaLabel="AI 任务列表">
       <AdminPanelHeading
         title="任务列表"
@@ -144,6 +130,22 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
           </span>
         }
       />
+      {/* 筛选条属于面板内部：它只筛「任务列表」这一份数据，与标题、列表构成
+          同一个属主。外置会把它变成与数据面板等权的第二个表面。 */}
+      <AdminToolbar className="ai-tasks-toolbar" ariaLive="polite">
+        <Label htmlFor="task-filter-status" className="text-xs text-muted-foreground">状态</Label>
+        <Select value={filterStatus} onValueChange={(v) => { setLoading(true); setFilterStatus(v as typeof filterStatus) }}>
+          <SelectTrigger size="sm" id="task-filter-status" className="min-w-[7.5rem]"><SelectValue /></SelectTrigger>
+          <SelectContent position="popper" align="end" sideOffset={4}>
+            <SelectItem value="all">全部</SelectItem>
+            <SelectItem value="queued">排队中</SelectItem>
+            <SelectItem value="running">生成中</SelectItem>
+            <SelectItem value="completed">已完成</SelectItem>
+            <SelectItem value="failed">失败</SelectItem>
+            <SelectItem value="cancelled">已取消</SelectItem>
+          </SelectContent>
+        </Select>
+      </AdminToolbar>
       <div className="ai-tasks-content">
         {loading && tasks.length === 0 ? <LoadingState label="正在加载 AI 任务" /> : error && tasks.length === 0 ? <ErrorState message={error} onRetry={() => void load()} /> : tasks.length === 0 ? <AiPanelEmptyState
           configured={configured}

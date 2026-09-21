@@ -78,32 +78,6 @@ export default function AiAuditPanel() {
 
   return (
     <div className="ai-service-stack">
-      <AdminToolbar className="ai-audit-toolbar" ariaLive="polite">
-        <Label htmlFor="audit-filter-type" className="text-xs text-muted-foreground">类型</Label>
-        <Select
-          value={filterType}
-          onValueChange={(v) => {
-            setFilterType(v)
-            setOffset(0)
-          }}
-        >
-          <SelectTrigger size="sm" id="audit-filter-type" className="min-w-[8.75rem]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent position="popper" align="end" sideOffset={4}>
-            <SelectItem value="all">全部</SelectItem>
-            <SelectItem value="summary">前情提要</SelectItem>
-            <SelectItem value="catchup">回顾总结</SelectItem>
-            <SelectItem value="continue">续写</SelectItem>
-            <SelectItem value="write_outline">创作大纲</SelectItem>
-            <SelectItem value="write_chapter">创作章节</SelectItem>
-            <SelectItem value="writing_title">标题生成</SelectItem>
-            <SelectItem value="cover">封面生成</SelectItem>
-            <SelectItem value="cover_prompt">封面描述词</SelectItem>
-            <SelectItem value="test">连通性测试</SelectItem>
-          </SelectContent>
-        </Select>
-      </AdminToolbar>
       <AdminDataPanel className="ai-audit-panel overflow-hidden" ariaLabel="AI 调用记录列表">
         <AdminPanelHeading
           title="调用记录"
@@ -114,6 +88,33 @@ export default function AiAuditPanel() {
             </span>
           }
         />
+        {/* 类型筛选只作用于本面板的调用记录，与标题、表格同属一个面板。 */}
+        <AdminToolbar className="ai-audit-toolbar" ariaLive="polite">
+          <Label htmlFor="audit-filter-type" className="text-xs text-muted-foreground">类型</Label>
+          <Select
+            value={filterType}
+            onValueChange={(v) => {
+              setFilterType(v)
+              setOffset(0)
+            }}
+          >
+            <SelectTrigger size="sm" id="audit-filter-type" className="min-w-[8.75rem]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent position="popper" align="end" sideOffset={4}>
+              <SelectItem value="all">全部</SelectItem>
+              <SelectItem value="summary">前情提要</SelectItem>
+              <SelectItem value="catchup">回顾总结</SelectItem>
+              <SelectItem value="continue">续写</SelectItem>
+              <SelectItem value="write_outline">创作大纲</SelectItem>
+              <SelectItem value="write_chapter">创作章节</SelectItem>
+              <SelectItem value="writing_title">标题生成</SelectItem>
+              <SelectItem value="cover">封面生成</SelectItem>
+              <SelectItem value="cover_prompt">封面描述词</SelectItem>
+              <SelectItem value="test">连通性测试</SelectItem>
+            </SelectContent>
+          </Select>
+        </AdminToolbar>
         <div className="ai-list-body">
           {loading && calls.length === 0 ? (
             <LoadingState label="正在加载调用记录" />
