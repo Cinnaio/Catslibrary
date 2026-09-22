@@ -11,6 +11,7 @@ import { AdminDataPanel, AdminPanelHeading, AdminToolbar, type AdminColumn } fro
 import { kindLabel as taskKindLabel, taskStatusLabel, taskStepText } from './labels'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -48,6 +49,7 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
   const [filterStatus, setFilterStatus] = useState<'all' | 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'>('all')
   const [retryingId, setRetryingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [viewingPrompt, setViewingPrompt] = useState<AiTask | null>(null)
   /** 分页：与已生成内容、调用审计同构（offset 分页）。后端 /tasks 已在
    *  listAiTasks 里返回 total，无需改接口。 */
   const [total, setTotal] = useState(0)
@@ -258,6 +260,9 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
                               查看产出
                             </Button>
                           )}
+                          <Button variant="outline" size="sm" onClick={() => setViewingPrompt(task)}>
+                            查看 Prompt
+                          </Button>
                           {(task.status === 'failed' || task.status === 'cancelled') && !!task.params && (
                             <Button variant="outline" size="sm" disabled={retryingId === task.id} onClick={() => void retry(task.id)}>
                               {retryingId === task.id ? '重试中…' : '重试'}
@@ -305,6 +310,22 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
           )}
         </div>
       </AdminDataPanel>
+      <Dialog open={!!viewingPrompt} onOpenChange={(open) => { if (!open) setViewingPrompt(null) }}>
+        <DialogContent className="ai-generation-dialog flex max-h-[calc(100svh-2rem)] w-[calc(100%-1.5rem)] flex-col gap-3 overflow-hidden p-4 sm:max-w-3xl sm:gap-4 sm:p-6">
+          <DialogHeader>
+            <DialogTitle>{viewingPrompt ? `${taskKindLabel(viewingPrompt.kind)} · 输入 Prompt` : '输入 Prompt'}</DialogTitle>
+            <DialogDescription>查看提交给 AI 服务的完整 Prompt，仅供查看，不会修改任务记录。</DialogDescription>
+          </DialogHeader>
+          {viewingPrompt && (
+            <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
+              <div className="admin-dialog-section-label shrink-0">输入 Prompt</div>
+              <pre className="min-h-[12rem] max-h-[min(65svh,36rem)] overflow-auto rounded-md border bg-muted/20 p-4 whitespace-pre-wrap break-words text-xs leading-6 text-muted-foreground sm:p-5">
+                {viewingPrompt.prompt || '未记录 Prompt'}
+              </pre>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </>
   )
 }
