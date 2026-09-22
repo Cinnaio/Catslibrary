@@ -121,6 +121,14 @@ describe('AiWritingPanel', () => {
     expect(baseline?.contains(screen.getByText('风格画像'))).toBe(true)
   })
 
+  it('从任务页带入小说参数时只在小说列表就绪后预选对应小说', async () => {
+    render(<AiWritingPanel initialNovelId="novel_2" />)
+
+    const novelSelect = await screen.findByRole('combobox', { name: '目标小说' })
+    await screen.findByRole('option', { name: '第二本书' })
+    await waitFor(() => expect(novelSelect).toHaveValue('novel_2'))
+  })
+
   it('在续写中切换多章规划会露出章节数输入，并将默认规模设为两章', async () => {
     await selectNovel()
     switchToContinue()

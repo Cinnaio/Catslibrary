@@ -52,6 +52,7 @@ export default function AiTab() {
   const [searchParams, setSearchParams] = useSearchParams()
   const urlSub = searchParams.get('sub')
   const urlBatch = searchParams.get('batch') || ''
+  const urlNovel = searchParams.get('novel') || ''
   /** 子标签持久化：无 URL 参数时停留在上次选中的子页，不重置回默认 */
   const [activeSubTab, setActiveSubTab] = usePersistentState<string>('ai_active_subtab', 'writing', (v) => isSubTab(v))
 
@@ -72,6 +73,7 @@ export default function AiTab() {
       next.set('sub', 'content')
       if (batchId) next.set('batch', batchId)
       else next.delete('batch')
+      next.delete('novel')
       setSearchParams(next, { replace: false })
     },
     [searchParams, setActiveSubTab, setSearchParams],
@@ -104,7 +106,7 @@ export default function AiTab() {
     >
       <div className="ai-service-tabs__content min-w-0">
         {currentSubTab === 'writing' && (
-          <AiWritingPanel onViewBatch={openGenerations} />
+          <AiWritingPanel onViewBatch={openGenerations} initialNovelId={urlNovel || undefined} />
         )}
 
         {currentSubTab === 'cover' && (

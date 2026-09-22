@@ -44,6 +44,81 @@ export function taskStatusLabel(status: string): string {
   return STATUS_LABELS[status] || status
 }
 
+const DEFAULT_PROMPT_DIGEST_MAX = 48
+
+/**
+ * 从完整 Prompt 中提取能区分任务的短摘要。
+ *
+ * 创作任务的 Prompt 是编译后的多层材料，开头通常只是流水线版本与资料块，
+ * 直接截取会让列表里的每一行看起来都一样。优先保留章节目标、视角和目标
+ * 字数；没有这些结构化片段时，再取第一条不是大写资料头、不是版本标记的内容。
+ */
+export function promptDigest(prompt: string, max = DEFAULT_PROMPT_DIGEST_MAX): string {
+  const raw = String(prompt || '').trim()
+  if (!raw) return '无'
+
+  const limit = Number.isFinite(max) ? Math.max(1, Math.trunc(max)) : DEFAULT_PROMPT_DIGEST_MAX
+  const normalized = raw.replace(/\s+/g, ' ').trim()
+  const semantic: string[] = []
+
+  const goal = raw
+    .replace(/\\r?\\n/g, '\n')
+    .match(/chapterGoal\[\d+\]\s*=\s*([^\n"'}\]]{2,180})/i)?.[1]
+    ?.replace(/\s+/g, ' ')
+    .trim()
+  if (goal) semantic.push(`章节目标：${goal}`)
+
+  const viewpoint = normalized.match(/(?:viewpoint|叙事视角|视角)\s*(?:[=:：，,])\s*([^"'}\]\n，,；;。]{2,100})/i)?.[1]?.trim()
+  if (viewpoint) semantic.push(`视角：${viewpoint}`)
+
+  const targetWords = normalized.match(/(?:目标长度约|目标字数(?:约|为)?|targetWords\s*[=:：])\s*([\d,]+)(?:\s*个?中文字符?|\s*字)?/i)?.[0]
+  if (targetWords) semantic.push(targetWords.trim())
+
+  if (semantic.length) return truncatePromptDigest(semantic.join(' · '), limit)
+
+  const lines = raw
+    .replace(/\r\n?/g, '\n')
+    .replace(/\\r?\\n/g, '\n')
+    .split(/\n+/)
+    .map((line) => line.replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+  const fallback = lines.find((line) => !isPromptNoiseLine(line)) || normalized
+  return truncatePromptDigest(fallback, limit)
+}
+
+function isPromptNoiseLine(line: string): boolean {
+  if (/^CREATIVE_TASK_PIPELINE\b/i.test(line) || /\bversion\s*[=:]/i.test(line)) return true
+  if (/^[\[{]/.test(line)) return true
+  const header = line.match(/^[A-Z][A-Z0-9_]*(?:\s+\(.*\))?$/)
+  return Boolean(header)
+}
+
+function truncatePromptDigest(value: string, max: number): string {
+  const compact = value.replace(/\s+/g, ' ').trim()
+  if (compact.length <= max) return compact
+  if (max <= 1) return '…'.slice(0, max)
+  return `${compact.slice(0, max - 1)}…`
+}
+
+export interface RetryModeInput {
+  status: string
+  current: number
+  error: string
+  params: string
+}
+
+/** 内容策略拒绝意味着旧参数重试仍会失败，应回到创作页调整内容。 */
+export function isPolicyRefusedTask(task: Pick<RetryModeInput, 'error'>): boolean {
+  return /内容策略拒绝|上游拒绝|非露骨表达|content_refused/i.test(String(task.error || ''))
+}
+
+/** 失败任务的操作语义：有产出时断点恢复，策略拒绝时先调整内容，其余按原参数重试。 */
+export function retryMode(task: RetryModeInput): 'resume' | 'adjust' | 'retry' {
+  if (Number(task.current) > 0) return 'resume'
+  if (isPolicyRefusedTask(task)) return 'adjust'
+  return 'retry'
+}
+
 /** taskStepText 只依赖这几个字段，用结构类型参数避免耦合到完整 AiTaskInfo。 */
 export interface TaskStepInput {
   status: string

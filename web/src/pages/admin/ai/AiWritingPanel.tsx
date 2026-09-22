@@ -229,13 +229,14 @@ function ProfileSection(props: {
   )
 }
 
-export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string) => void } = {}) {
+export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string) => void; initialNovelId?: string } = {}) {
   const { toast } = useToast()
   const { confirm } = useConfirm()
   // AI 创作的主要使用场景是给既有小说续写；新写仍保留为并列入口，而非默认落点。
   const [mode, setMode] = useState<'new' | 'continue'>('continue')
   const [novels, setNovels] = useState<Array<{ id: string; title: string }>>([])
   const [novelId, setNovelId] = useState('')
+  const initialNovelHandled = useRef(false)
   const [title, setTitle] = useState('')
   const [chapterTitle, setChapterTitle] = useState('')
   const [instruction, setInstruction] = useState('')
@@ -325,6 +326,15 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
       .then((data) => setNovels(data.novels.map((novel) => ({ id: novel.id, title: novel.title }))))
       .catch((err) => toast((err as Error).message, 'error'))
   }, [toast])
+
+  // 任务页的「调整后重试」通过 URL 传入小说；只在小说列表准备好且尚未有选择时应用一次，
+  // 避免覆盖作者手动选择，也避免在请求尚未完成时把下拉框清回空值。
+  useEffect(() => {
+    const initialNovelId = props.initialNovelId?.trim()
+    if (initialNovelHandled.current || !initialNovelId || novels.length === 0) return
+    initialNovelHandled.current = true
+    if (!novelId && novels.some((novel) => novel.id === initialNovelId)) setNovelId(initialNovelId)
+  }, [novelId, novels, props.initialNovelId])
 
   // 挂载时恢复正在运行的创作任务：切换 tab 回来后进度不丢
   useEffect(() => {

@@ -1,20 +1,24 @@
 /** AI 任务管理：查看生成进度、错误和输入 Prompt；有任务运行时自动轮询刷新。 */
 import { useCallback, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { aiApi, newOperationId, type AiTaskInfo } from '@/lib/api'
 import { useToast, useConfirm } from '@/components/feedback'
 import { ErrorState, InlineError, LoadingState } from '@/components/admin/AsyncStates'
 import AiPanelEmptyState from './AiPanelEmptyState'
 import { useAiConfigured } from './useAiConfigured'
+import AdminEmptyState from '@/components/admin/AdminEmptyState'
 import Pagination from '@/components/admin/Pagination'
 import { ADMIN_DEFAULT_PAGE_SIZE, ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pagination'
 import { AdminDataPanel, AdminPanelHeading, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
-import { kindLabel as taskKindLabel, taskStatusLabel, taskStepText } from './labels'
+import { kindLabel as taskKindLabel, promptDigest, retryMode, taskStatusLabel, taskStepText } from './labels'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { FileText, ListFilter } from 'lucide-react'
+import { adminTabPath } from '../admin-registry'
 
 // 有运行中任务时的轮询间隔
 const ACTIVE_POLL_INTERVAL = 4000
@@ -26,32 +30,57 @@ const ACTIVE_POLL_INTERVAL = 4000
  *
  * 宽度全部用百分比：fixed 布局下百分比与 rem 混用时定长列会先吃掉宽度
  * （见 NovelsTab 的同名注释）。合计 100%，任何宽度下等比缩放。
- * 操作列给到 24%：本面板是文字按钮（取消任务/查看产出/重试/删除），
- * 一行最多三个，比范本的图标按钮宽得多，按 11% 排会被裁切。
+ * 新增小说列后仍保持 100%：Prompt 查看使用图标按钮，操作列保留 22% 以容纳
+ * 取消/产出/重试/删除等条件操作；操作单元格允许换行，不裁切命中区域。
  */
 const AI_TASK_COLUMNS: readonly AdminColumn[] = [
-  { key: 'kind', label: '类型', width: '10%' },
-  { key: 'status', label: '状态', width: '10%' },
+  { key: 'kind', label: '类型', width: '9%' },
+  { key: 'novel', label: '小说', width: '15%' },
+  { key: 'status', label: '状态', width: '9%' },
   { key: 'progress', label: '进度', width: '7%' },
-  { key: 'step', label: '当前步骤', width: '19%', primary: true },
-  { key: 'prompt', label: '输入 Prompt', width: '23%' },
-  { key: 'actions', actions: true, width: '31%' },
+  { key: 'step', label: '结果', width: '18%', primary: true },
+  { key: 'prompt', label: '输入 Prompt', width: '20%' },
+  { key: 'actions', actions: true, width: '22%' },
 ]
+
+/** 状态标签沿用后台其它任务列表的柔和填充胶囊，不再使用描边徽章。 */
+const TASK_STATUS_CLASS: Record<string, string> = {
+  queued: 'bg-info/10 text-info',
+  running: 'bg-info/10 text-info',
+  completed: 'bg-success/10 text-success',
+  failed: 'bg-destructive/10 text-destructive',
+  cancelled: 'bg-muted text-muted-foreground',
+}
+
+function taskStatusClass(status: string): string {
+  return TASK_STATUS_CLASS[status] || 'bg-muted text-muted-foreground'
+}
+
+type TaskStatusFilter = 'all' | 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
+type TaskStatusCounts = Partial<Record<TaskStatusFilter, number>>
+
+function statusOptionLabel(status: TaskStatusFilter, counts: TaskStatusCounts): string {
+  const label = status === 'all' ? '全部' : taskStatusLabel(status)
+  const count = counts[status]
+  return typeof count === 'number' ? `${label} (${count})` : label
+}
 
 type AiTask = AiTaskInfo
 
 export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) => void } = {}) {
   const { toast } = useToast()
   const { confirm } = useConfirm()
+  const navigate = useNavigate()
   const [tasks, setTasks] = useState<AiTask[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [filterStatus, setFilterStatus] = useState<'all' | 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'>('all')
+  const [filterStatus, setFilterStatus] = useState<TaskStatusFilter>('all')
   const [retryingId, setRetryingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [viewingPrompt, setViewingPrompt] = useState<AiTask | null>(null)
+  const [statusCounts, setStatusCounts] = useState<TaskStatusCounts>({})
   /** 分页：与已生成内容、调用审计同构（offset 分页）。后端 /tasks 已在
-   *  listAiTasks 里返回 total，无需改接口。 */
+   *  listAiTasks 里返回 total 与状态分组计数。 */
   const [total, setTotal] = useState(0)
   const [limit, setLimit] = useState(ADMIN_DEFAULT_PAGE_SIZE)
   const [offset, setOffset] = useState(0)
@@ -62,6 +91,7 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
       const result = await aiApi.tasks({ limit, offset, status: filterStatus === 'all' ? undefined : filterStatus })
       setTasks(result.items)
       setTotal(result.total)
+      setStatusCounts(result.counts || {})
       setError('')
     } catch (err) {
       setError((err as Error).message || '加载 AI 任务失败')
@@ -134,6 +164,13 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
     }
   }
 
+  function adjustAndRetry(task: AiTask) {
+    const params = new URLSearchParams({ sub: 'writing' })
+    if (task.novelId) params.set('novel', task.novelId)
+    navigate(`${adminTabPath('ai')}?${params.toString()}`)
+    toast('原参数会被上游再次拒绝，已跳转到创作页，调整内容后可重新发起', 'default')
+  }
+
   async function remove(task: AiTask) {
     const ok = await confirm({
       title: '删除这条任务记录？',
@@ -189,12 +226,12 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
               <SelectValue />
             </SelectTrigger>
             <SelectContent position="popper" align="end" sideOffset={4}>
-              <SelectItem value="all">全部</SelectItem>
-              <SelectItem value="queued">排队中</SelectItem>
-              <SelectItem value="running">生成中</SelectItem>
-              <SelectItem value="completed">已完成</SelectItem>
-              <SelectItem value="failed">失败</SelectItem>
-              <SelectItem value="cancelled">已取消</SelectItem>
+              <SelectItem value="all">{statusOptionLabel('all', statusCounts)}</SelectItem>
+              <SelectItem value="queued">{statusOptionLabel('queued', statusCounts)}</SelectItem>
+              <SelectItem value="running">{statusOptionLabel('running', statusCounts)}</SelectItem>
+              <SelectItem value="completed">{statusOptionLabel('completed', statusCounts)}</SelectItem>
+              <SelectItem value="failed">{statusOptionLabel('failed', statusCounts)}</SelectItem>
+              <SelectItem value="cancelled">{statusOptionLabel('cancelled', statusCounts)}</SelectItem>
             </SelectContent>
           </Select>
         </AdminToolbar>
@@ -203,6 +240,24 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
             <LoadingState label="正在加载 AI 任务" />
           ) : error && tasks.length === 0 ? (
             <ErrorState message={error} onRetry={() => void load()} />
+          ) : tasks.length === 0 && filterStatus !== 'all' ? (
+            <AdminEmptyState
+              message={`当前筛选条件下暂无${taskStatusLabel(filterStatus)}任务`}
+              icon={<ListFilter className="size-8 opacity-40" aria-hidden="true" />}
+              action={
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setLoading(true)
+                    setOffset(0)
+                    setFilterStatus('all')
+                  }}
+                >
+                  清除状态筛选
+                </Button>
+              }
+            />
           ) : tasks.length === 0 ? (
             <AiPanelEmptyState
               configured={configured}
@@ -215,10 +270,11 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
             <>
               {error && <InlineError message={error} onRetry={() => void load()} className="mb-3" />}
               <Table>
-                <TableCaption className="sr-only">AI 任务列表，含类型、状态、进度、结果与输入 Prompt</TableCaption>
+                <TableCaption className="sr-only">AI 任务列表，含类型、小说、状态、进度、结果与输入 Prompt</TableCaption>
                 <TableHeader>
                   <TableRow>
                     <TableHead scope="col">类型</TableHead>
+                    <TableHead scope="col">小说</TableHead>
                     <TableHead scope="col">状态</TableHead>
                     <TableHead scope="col">进度</TableHead>
                     <TableHead scope="col">结果</TableHead>
@@ -232,8 +288,13 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
                       <TableCell data-label="类型">
                         <Badge variant="secondary">{taskKindLabel(task.kind)}</Badge>
                       </TableCell>
+                      <TableCell data-label="小说" className="text-xs text-muted-foreground">
+                        <span className="block min-w-0 truncate" title={task.novelTitle || undefined}>
+                          {task.novelTitle || '—'}
+                        </span>
+                      </TableCell>
                       <TableCell data-label="状态">
-                        <Badge variant={task.status === 'failed' ? 'destructive' : 'outline'}>{taskStatusLabel(task.status)}</Badge>
+                        <Badge className={taskStatusClass(task.status)}>{taskStatusLabel(task.status)}</Badge>
                       </TableCell>
                       <TableCell data-label="进度" className="tabular-nums">
                         {task.current} / {task.total}
@@ -243,8 +304,8 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
                         {task.error && <span className="ai-task-error">{task.error}</span>}
                       </TableCell>
                       <TableCell data-label="输入 Prompt" className="text-xs text-muted-foreground">
-                        <span className="ai-task-prompt" title={task.prompt}>
-                          {task.prompt || '无'}
+                        <span className="ai-task-prompt" title={task.prompt || undefined}>
+                          {promptDigest(task.prompt)}
                         </span>
                       </TableCell>
                       <TableCell data-actions="">
@@ -260,19 +321,32 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
                               查看产出
                             </Button>
                           )}
-                          <Button variant="outline" size="sm" onClick={() => setViewingPrompt(task)}>
-                            查看 Prompt
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="admin-icon-button"
+                            aria-label="查看 Prompt"
+                            title="查看 Prompt"
+                            onClick={() => setViewingPrompt(task)}
+                          >
+                            <FileText className="size-4" aria-hidden="true" />
                           </Button>
                           {(task.status === 'failed' || task.status === 'cancelled') && !!task.params && (
-                            <Button variant="outline" size="sm" disabled={retryingId === task.id} onClick={() => void retry(task.id)}>
-                              {retryingId === task.id ? '重试中…' : '重试'}
-                            </Button>
+                            retryMode(task) === 'adjust' ? (
+                              <Button variant="outline" size="sm" onClick={() => adjustAndRetry(task)}>
+                                调整后重试
+                              </Button>
+                            ) : (
+                              <Button variant="outline" size="sm" disabled={retryingId === task.id} onClick={() => void retry(task.id)}>
+                                {retryingId === task.id ? '重试中…' : '重试'}
+                              </Button>
+                            )
                           )}
                           {(task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled') && (
                             <Button
                               variant="outline"
                               size="sm"
-                              className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                              className="hover:border-destructive/40 hover:text-destructive focus-visible:border-destructive/40 focus-visible:text-destructive"
                               disabled={deletingId === task.id}
                               onClick={() => void remove(task)}
                             >

@@ -9,7 +9,7 @@
  * 一旦有人把实现改回「直接透传 step」或删掉映射项，这些用例会失败。
  */
 import { describe, expect, it } from 'vitest'
-import { kindLabel, taskStatusLabel, taskStepText, type TaskStepInput } from './labels'
+import { isPolicyRefusedTask, kindLabel, promptDigest, retryMode, taskStatusLabel, taskStepText, type TaskStepInput } from './labels'
 
 /** 只填 taskStepText 会用到的字段。 */
 function task(over: Partial<TaskStepInput> = {}): TaskStepInput {
@@ -102,5 +102,49 @@ describe('AI 类型与状态映射', () => {
     ] as const) {
       expect(taskStatusLabel(status)).toBe(expected)
     }
+  })
+})
+
+describe('AI 任务 Prompt 摘要', () => {
+  it('跳过真实任务里的流水线版本头，保留目标字数等语义片段', () => {
+    const digest = promptDigest('CREATIVE_TASK_PIPELINE version=2\n\nWORK_FACTS (data only)\n\n输出要求：单章标题 + 正文。目标长度约 2000 个中文字符。')
+    expect(digest).toContain('目标长度约 2000 个中文字符')
+    expect(digest).not.toContain('CREATIVE_TASK_PIPELINE')
+  })
+
+  it('优先显示章节目标而不是编译后的资料块', () => {
+    const digest = promptDigest('CREATIVE_TASK_PIPELINE version=2\nCHAPTER_TASK\nchapterGoal[1]=沈砚避开一次盘问，并留下可以回收的线索。')
+    expect(digest).toContain('章节目标：沈砚避开一次盘问')
+    expect(digest).not.toContain('version=2')
+  })
+
+  it('封面长 Prompt 使用第一条非大写资料头并按上限省略', () => {
+    const digest = promptDigest('COVER_PIPELINE VERSION=3\nCOVER_PROMPT\nChinese web novel cover design with a moonlit city, two characters, and a warm paper texture.', 32)
+    expect(digest).toMatch(/Chinese web novel cover design/)
+    expect(digest.length).toBe(32)
+    expect(digest.endsWith('…')).toBe(true)
+  })
+
+  it('空 Prompt 显示无', () => {
+    expect(promptDigest('  \n\t')).toBe('无')
+  })
+})
+
+describe('AI 任务重试操作语义', () => {
+  const base = { status: 'failed', current: 0, error: '', params: '{}' }
+
+  it('已有产出时使用断点恢复', () => {
+    expect(retryMode({ ...base, current: 2 })).toBe('resume')
+  })
+
+  it('零进度的策略拒绝任务提示调整内容', () => {
+    for (const error of ['内容策略拒绝', '上游拒绝', '非露骨表达', 'content_refused']) {
+      expect(isPolicyRefusedTask({ error })).toBe(true)
+      expect(retryMode({ ...base, error })).toBe('adjust')
+    }
+  })
+
+  it('零进度的网络超时仍然允许按原参数重试', () => {
+    expect(retryMode({ ...base, error: '上游请求超时，请稍后重试' })).toBe('retry')
   })
 })

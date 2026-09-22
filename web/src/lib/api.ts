@@ -1052,6 +1052,7 @@ export interface AiTaskInfo {
   id: string
   userId: string
   novelId: string
+  novelTitle: string
   kind: string
   status: string
   current: number
@@ -1557,6 +1558,7 @@ export const aiApi = {
     total: number
     limit: number
     offset: number
+    counts: Partial<Record<'all' | 'queued' | 'running' | 'completed' | 'failed' | 'cancelled', number>>
   }> {
     const params = new URLSearchParams({ limit: String(filters.limit || 50), offset: String(filters.offset || 0) })
     if (filters.status) params.set('status', filters.status)

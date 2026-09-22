@@ -16,6 +16,7 @@ export interface AiTask {
   id: string
   userId: string
   novelId: string
+  novelTitle: string
   kind: string
   status: AiTaskStatus
   current: number
@@ -37,11 +38,13 @@ interface AiTaskRow {
   id: string; user_id: string; novel_id: string; kind: string; status: string
   current: number; total: number; step: string; prompt: string; batch_id: string
   result: string; params: string; error: string; created_at: number; updated_at: number; finished_at: number
+  novel_title?: string
 }
 
 function mapTask(row: AiTaskRow): AiTask {
   return {
     id: String(row.id), userId: String(row.user_id || ''), novelId: String(row.novel_id || ''),
+    novelTitle: String(row.novel_title || ''),
     kind: String(row.kind || ''), status: (String(row.status || 'queued') as AiTaskStatus),
     current: Number(row.current) || 0, total: Number(row.total) || 1, step: String(row.step || ''),
     prompt: String(row.prompt || ''), result: String(row.result || ''), batchId: String(row.batch_id || ''), params: String(row.params || ''),
@@ -189,7 +192,10 @@ export async function pruneFinishedAiTasks(db: Db, retentionDays: number): Promi
   )
 }
 
-export async function listAiTasks(db: Db, opts: { limit?: number; offset?: number; status?: string; kind?: string } = {}): Promise<{ items: AiTask[]; total: number }> {
+export async function listAiTasks(
+  db: Db,
+  opts: { limit?: number; offset?: number; status?: string; kind?: string } = {},
+): Promise<{ items: AiTask[]; total: number; counts: Record<AiTaskStatus | 'all', number> }> {
   const limit = Math.min(Math.max(Math.trunc(opts.limit || 50), 1), 100)
   const offset = Math.max(Math.trunc(opts.offset || 0), 0)
 
@@ -197,15 +203,53 @@ export async function listAiTasks(db: Db, opts: { limit?: number; offset?: numbe
   const params: unknown[] = []
   if (opts.status) {
     params.push(opts.status)
-    conditions.push(`status = $${params.length}`)
+    conditions.push(`t.status = $${params.length}`)
   }
   if (opts.kind) {
     params.push(opts.kind)
-    conditions.push(`kind = $${params.length}`)
+    conditions.push(`t.kind = $${params.length}`)
   }
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
 
-  const rows = await all<AiTaskRow>(db, `SELECT * FROM ai_tasks ${where} ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`, [...params, limit, offset])
-  const total = await first<{ total: number }>(db, `SELECT COUNT(*)::int AS total FROM ai_tasks ${where}`, params)
-  return { items: rows.map(mapTask), total: Number(total?.total) || 0 }
+  const rows = await all<AiTaskRow>(
+    db,
+    `SELECT t.*, COALESCE(n.title, '') AS novel_title
+     FROM ai_tasks t
+     LEFT JOIN novels n ON n.id = t.novel_id
+     ${where}
+     ORDER BY t.created_at DESC
+     LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+    [...params, limit, offset],
+  )
+  const total = await first<{ total: number }>(db, `SELECT COUNT(*)::int AS total FROM ai_tasks t ${where}`, params)
+
+  // 状态选项显示全量计数；当前 status 筛选不应把其它选项的计数变成 0。
+  const countConditions: string[] = []
+  const countParams: unknown[] = []
+  if (opts.kind) {
+    countParams.push(opts.kind)
+    countConditions.push(`t.kind = $${countParams.length}`)
+  }
+  const countWhere = countConditions.length ? `WHERE ${countConditions.join(' AND ')}` : ''
+  const statusRows = await all<{ status: string; total: number }>(
+    db,
+    `SELECT t.status, COUNT(*)::int AS total FROM ai_tasks t ${countWhere} GROUP BY t.status`,
+    countParams,
+  )
+  const counts: Record<AiTaskStatus | 'all', number> = {
+    all: 0,
+    queued: 0,
+    running: 0,
+    completed: 0,
+    failed: 0,
+    cancelled: 0,
+  }
+  for (const row of statusRows) {
+    if (row.status in counts && row.status !== 'all') {
+      counts[row.status as AiTaskStatus] = Number(row.total) || 0
+    }
+  }
+  counts.all = counts.queued + counts.running + counts.completed + counts.failed + counts.cancelled
+
+  return { items: rows.map(mapTask), total: Number(total?.total) || 0, counts }
 }

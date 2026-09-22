@@ -1197,13 +1197,19 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
 
   it('失败任务可按原参数重试：新任务完成并产出草稿，任务列表支持状态筛选', async () => {
     // 上一个用例留下一个失败的续写任务（chapterCount: 2）
-    const failedList = await jsonOf<{ items: Array<{ id: string; status: string; kind: string; params: string }> }>(
+    const failedList = await jsonOf<{
+      items: Array<{ id: string; status: string; kind: string; params: string; novelTitle: string }>
+      counts: { all: number; failed: number }
+    }>(
       await req('/api/ai/tasks?status=failed', json('GET', undefined, adminToken)),
     )
     expect(failedList.items.every((item) => item.status === 'failed')).toBe(true)
     const failed = failedList.items.find((item) => item.kind === 'continue')
     expect(failed).toBeDefined()
     expect(failed!.params.length).toBeGreaterThan(0)
+    expect(failed!.novelTitle.length).toBeGreaterThan(0)
+    expect(failedList.counts.failed).toBeGreaterThanOrEqual(failedList.items.length)
+    expect(failedList.counts.all).toBeGreaterThanOrEqual(failedList.counts.failed)
 
     const retried = await req(`/api/ai/tasks/${failed!.id}/retry`, json('POST', {}, adminToken))
     expect(retried.status).toBe(202)
