@@ -5,21 +5,61 @@ import { useToast, useConfirm } from '@/components/feedback'
 import { ErrorState, InlineError, LoadingState } from '@/components/admin/AsyncStates'
 import AiPanelEmptyState from './AiPanelEmptyState'
 import { useAiConfigured } from './useAiConfigured'
-import { AdminDataPanel, AdminPanelHeading, AdminToolbar } from '@/components/admin/AdminWorkspace'
+import { AdminDataPanel, AdminPanelHeading, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 // 有运行中任务时的轮询间隔
 const ACTIVE_POLL_INTERVAL = 4000
 
+/**
+ * 表格列定义：与小说管理、章节管理同一套契约 —— 桌面端据此固定列宽，
+ * 移动端据此折成卡片并显示字段名。顺序必须与 thead/tbody 单元格顺序一致，
+ * 且每格必须标注 data-label / data-primary / data-actions。
+ *
+ * 宽度全部用百分比：fixed 布局下百分比与 rem 混用时定长列会先吃掉宽度
+ * （见 NovelsTab 的同名注释）。合计 100%，任何宽度下等比缩放。
+ * 操作列给到 24%：本面板是文字按钮（取消任务/查看产出/重试/删除），
+ * 一行最多三个，比范本的图标按钮宽得多，按 11% 排会被裁切。
+ */
+const AI_TASK_COLUMNS: readonly AdminColumn[] = [
+  { key: 'kind', label: '类型', width: '10%' },
+  { key: 'status', label: '状态', width: '10%' },
+  { key: 'progress', label: '进度', width: '7%' },
+  { key: 'step', label: '当前步骤', width: '19%', primary: true },
+  { key: 'prompt', label: '输入 Prompt', width: '23%' },
+  { key: 'actions', actions: true, width: '31%' },
+]
+
 function taskKindLabel(kind: string): string {
-  return kind === 'continue' ? '续写' : kind === 'write_outline' ? '创作大纲' : kind === 'write_chapter' ? '创作章节' : kind === 'cover' ? '封面' : kind === 'cover_prompt' ? '封面描述词' : kind
+  return kind === 'continue'
+    ? '续写'
+    : kind === 'write_outline'
+      ? '创作大纲'
+      : kind === 'write_chapter'
+        ? '创作章节'
+        : kind === 'cover'
+          ? '封面'
+          : kind === 'cover_prompt'
+            ? '封面描述词'
+            : kind
 }
 
 function taskStatusLabel(status: string): string {
-  return status === 'queued' ? '排队中' : status === 'running' ? '生成中' : status === 'completed' ? '已完成' : status === 'cancelled' ? '已取消' : status === 'failed' ? '失败' : status
+  return status === 'queued'
+    ? '排队中'
+    : status === 'running'
+      ? '生成中'
+      : status === 'completed'
+        ? '已完成'
+        : status === 'cancelled'
+          ? '已取消'
+          : status === 'failed'
+            ? '失败'
+            : status
 }
 
 type AiTask = AiTaskInfo
@@ -42,10 +82,14 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
       setError('')
     } catch (err) {
       setError((err as Error).message || '加载 AI 任务失败')
-    } finally { setLoading(false) }
+    } finally {
+      setLoading(false)
+    }
   }, [filterStatus])
 
-  useEffect(() => { void load() }, [load])
+  useEffect(() => {
+    void load()
+  }, [load])
 
   // 有排队/运行中的任务时自动轮询；页面隐藏暂停，恢复可见立即刷新
   const hasActive = tasks.some((task) => task.status === 'queued' || task.status === 'running')
@@ -76,8 +120,13 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
       danger: true,
     })
     if (!ok) return
-    try { await aiApi.cancelTask(id, newOperationId('ai-task-cancel')); toast('AI 任务已取消', 'success'); void load() }
-    catch (err) { toast((err as Error).message || '取消任务失败', 'error') }
+    try {
+      await aiApi.cancelTask(id, newOperationId('ai-task-cancel'))
+      toast('AI 任务已取消', 'success')
+      void load()
+    } catch (err) {
+      toast((err as Error).message || '取消任务失败', 'error')
+    }
   }
 
   async function retry(id: string) {
@@ -97,7 +146,9 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
       void load()
     } catch (err) {
       toast((err as Error).message || '重试失败', 'error')
-    } finally { setRetryingId(null) }
+    } finally {
+      setRetryingId(null)
+    }
   }
 
   async function remove(task: AiTask) {
@@ -116,70 +167,137 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
       void load()
     } catch (err) {
       toast((err as Error).message || '删除任务失败', 'error')
-    } finally { setDeletingId(null) }
+    } finally {
+      setDeletingId(null)
+    }
   }
 
-  return <>
-    <AdminDataPanel className="ai-tasks-panel overflow-hidden" ariaLabel="AI 任务列表">
-      <AdminPanelHeading
-        title="任务列表"
-        description="独立于爬取任务，查看生成进度、错误和输入 Prompt。"
-        status={
-          <span className={`admin-panel-status${error && tasks.length === 0 ? ' is-error' : ''}`}>
-            {loading && tasks.length === 0 ? '读取中' : error && tasks.length === 0 ? '读取失败' : tasks.length ? `显示 ${tasks.length} 条` : '暂无内容'}
-          </span>
-        }
-      />
-      {/* 筛选条属于面板内部：它只筛「任务列表」这一份数据，与标题、列表构成
+  return (
+    <>
+      <AdminDataPanel className="ai-tasks-panel overflow-hidden" ariaLabel="AI 任务列表" columns={AI_TASK_COLUMNS}>
+        <AdminPanelHeading
+          title="任务列表"
+          description="独立于爬取任务，查看生成进度、错误和输入 Prompt。"
+          status={
+            <span className={`admin-panel-status${error && tasks.length === 0 ? ' is-error' : ''}`}>
+              {loading && tasks.length === 0 ? '读取中' : error && tasks.length === 0 ? '读取失败' : tasks.length ? `显示 ${tasks.length} 条` : '暂无内容'}
+            </span>
+          }
+        />
+        {/* 筛选条属于面板内部：它只筛「任务列表」这一份数据，与标题、列表构成
           同一个属主。外置会把它变成与数据面板等权的第二个表面。 */}
-      <AdminToolbar className="ai-tasks-toolbar" ariaLive="polite">
-        <Label htmlFor="task-filter-status" className="text-xs text-muted-foreground">状态</Label>
-        <Select value={filterStatus} onValueChange={(v) => { setLoading(true); setFilterStatus(v as typeof filterStatus) }}>
-          <SelectTrigger size="sm" id="task-filter-status" className="min-w-[7.5rem]"><SelectValue /></SelectTrigger>
-          <SelectContent position="popper" align="end" sideOffset={4}>
-            <SelectItem value="all">全部</SelectItem>
-            <SelectItem value="queued">排队中</SelectItem>
-            <SelectItem value="running">生成中</SelectItem>
-            <SelectItem value="completed">已完成</SelectItem>
-            <SelectItem value="failed">失败</SelectItem>
-            <SelectItem value="cancelled">已取消</SelectItem>
-          </SelectContent>
-        </Select>
-      </AdminToolbar>
-      <div className="ai-tasks-content">
-        {loading && tasks.length === 0 ? <LoadingState label="正在加载 AI 任务" /> : error && tasks.length === 0 ? <ErrorState message={error} onRetry={() => void load()} /> : tasks.length === 0 ? <AiPanelEmptyState
-          configured={configured}
-          unconfiguredMessage="尚未配置文本 AI 供应商，无法发起生成任务"
-          unconfiguredHint="配置文本供应商后，才能从「AI 创作」发起任务。"
-          emptyMessage="暂无 AI 任务"
-          hint="在「AI 创作」或「封面生成」里发起任务后，这里会显示进度与失败原因。"
-        /> : <>
-          {error && <InlineError message={error} onRetry={() => void load()} className="mb-3" />}
-          <div className="ai-task-list">
-          {tasks.map((task) => <div key={task.id} className="ai-task-row grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
-            <div className="ai-task-main min-w-0">
-              <div className="flex flex-wrap items-center gap-2"><Badge variant="secondary">{taskKindLabel(task.kind)}</Badge><Badge variant={task.status === 'failed' ? 'destructive' : 'outline'}>{taskStatusLabel(task.status)}</Badge><span className="text-xs text-muted-foreground">{task.current} / {task.total}</span></div>
-              <p className="mt-1 text-sm text-muted-foreground">{task.step || '等待处理'}</p>
-              <p className="mt-1 truncate text-xs text-muted-foreground" title={task.prompt}>Prompt：{task.prompt || '无'}</p>
-              {task.error && <p className="mt-1 text-xs text-destructive">{task.error}</p>}
-            </div>
-            <div className="ai-task-actions flex flex-row flex-wrap items-center justify-start gap-2 sm:justify-end">
-              {(task.status === 'queued' || task.status === 'running') && <Button variant="outline" size="sm" onClick={() => void cancel(task.id)}>取消任务</Button>}
-              {/* 部分完成的批次（失败/取消但已产出若干章）也能从这里找到草稿 */}
-              {task.batchId && task.current > 0 && props.onViewBatch && (
-                <Button variant="outline" size="sm" onClick={() => props.onViewBatch?.(task.batchId)}>查看产出</Button>
-              )}
-              {(task.status === 'failed' || task.status === 'cancelled') && !!task.params && (
-                <Button variant="outline" size="sm" disabled={retryingId === task.id} onClick={() => void retry(task.id)}>{retryingId === task.id ? '重试中…' : '重试'}</Button>
-              )}
-              {(task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled') && (
-                <Button variant="outline" size="sm" className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" disabled={deletingId === task.id} onClick={() => void remove(task)}>{deletingId === task.id ? '删除中…' : '删除'}</Button>
-              )}
-            </div>
-          </div>)}
-          </div>
-        </>}
-      </div>
-    </AdminDataPanel>
-  </>
+        <AdminToolbar className="ai-tasks-toolbar" ariaLive="polite">
+          <Label htmlFor="task-filter-status" className="text-xs text-muted-foreground">
+            状态
+          </Label>
+          <Select
+            value={filterStatus}
+            onValueChange={(v) => {
+              setLoading(true)
+              setFilterStatus(v as typeof filterStatus)
+            }}
+          >
+            <SelectTrigger size="sm" id="task-filter-status" className="min-w-[7.5rem]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent position="popper" align="end" sideOffset={4}>
+              <SelectItem value="all">全部</SelectItem>
+              <SelectItem value="queued">排队中</SelectItem>
+              <SelectItem value="running">生成中</SelectItem>
+              <SelectItem value="completed">已完成</SelectItem>
+              <SelectItem value="failed">失败</SelectItem>
+              <SelectItem value="cancelled">已取消</SelectItem>
+            </SelectContent>
+          </Select>
+        </AdminToolbar>
+        <div className="ai-tasks-content">
+          {loading && tasks.length === 0 ? (
+            <LoadingState label="正在加载 AI 任务" />
+          ) : error && tasks.length === 0 ? (
+            <ErrorState message={error} onRetry={() => void load()} />
+          ) : tasks.length === 0 ? (
+            <AiPanelEmptyState
+              configured={configured}
+              unconfiguredMessage="尚未配置文本 AI 供应商，无法发起生成任务"
+              unconfiguredHint="配置文本供应商后，才能从「AI 创作」发起任务。"
+              emptyMessage="暂无 AI 任务"
+              hint="在「AI 创作」或「封面生成」里发起任务后，这里会显示进度与失败原因。"
+            />
+          ) : (
+            <>
+              {error && <InlineError message={error} onRetry={() => void load()} className="mb-3" />}
+              <Table>
+                <TableCaption className="sr-only">AI 任务列表，含类型、状态、进度、当前步骤与输入 Prompt</TableCaption>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead scope="col">类型</TableHead>
+                    <TableHead scope="col">状态</TableHead>
+                    <TableHead scope="col">进度</TableHead>
+                    <TableHead scope="col">当前步骤</TableHead>
+                    <TableHead scope="col">输入 Prompt</TableHead>
+                    <TableHead scope="col">操作</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {tasks.map((task) => (
+                    <TableRow key={task.id}>
+                      <TableCell data-label="类型">
+                        <Badge variant="secondary">{taskKindLabel(task.kind)}</Badge>
+                      </TableCell>
+                      <TableCell data-label="状态">
+                        <Badge variant={task.status === 'failed' ? 'destructive' : 'outline'}>{taskStatusLabel(task.status)}</Badge>
+                      </TableCell>
+                      <TableCell data-label="进度" className="tabular-nums">
+                        {task.current} / {task.total}
+                      </TableCell>
+                      <TableCell data-primary="" data-label="当前步骤">
+                        <span>{task.step || '等待处理'}</span>
+                        {task.error && <span className="ai-task-error">{task.error}</span>}
+                      </TableCell>
+                      <TableCell data-label="输入 Prompt" className="text-xs text-muted-foreground">
+                        <span className="ai-task-prompt" title={task.prompt}>
+                          {task.prompt || '无'}
+                        </span>
+                      </TableCell>
+                      <TableCell data-actions="">
+                        <div className="admin-cell-actions">
+                          {(task.status === 'queued' || task.status === 'running') && (
+                            <Button variant="outline" size="sm" onClick={() => void cancel(task.id)}>
+                              取消任务
+                            </Button>
+                          )}
+                          {/* 部分完成的批次（失败/取消但已产出若干章）也能从这里找到草稿 */}
+                          {task.batchId && task.current > 0 && props.onViewBatch && (
+                            <Button variant="outline" size="sm" onClick={() => props.onViewBatch?.(task.batchId)}>
+                              查看产出
+                            </Button>
+                          )}
+                          {(task.status === 'failed' || task.status === 'cancelled') && !!task.params && (
+                            <Button variant="outline" size="sm" disabled={retryingId === task.id} onClick={() => void retry(task.id)}>
+                              {retryingId === task.id ? '重试中…' : '重试'}
+                            </Button>
+                          )}
+                          {(task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled') && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                              disabled={deletingId === task.id}
+                              onClick={() => void remove(task)}
+                            >
+                              {deletingId === task.id ? '删除中…' : '删除'}
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </>
+          )}
+        </div>
+      </AdminDataPanel>
+    </>
+  )
 }

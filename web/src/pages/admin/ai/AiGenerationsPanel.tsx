@@ -8,13 +8,14 @@ import Pagination from '@/components/admin/Pagination'
 import AiPanelEmptyState from './AiPanelEmptyState'
 import DraftRewrite from './DraftRewrite'
 import { useAiConfigured } from './useAiConfigured'
-import { AdminDataPanel, AdminPanelHeading, AdminToolbar } from '@/components/admin/AdminWorkspace'
+import { AdminDataPanel, AdminPanelHeading, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { kindLabel } from './shared'
@@ -47,6 +48,36 @@ const EDITABLE_KINDS = new Set(['write_chapter', 'continue', 'write_outline'])
 /** 可改写选段的类型：与后端 POST /writing/drafts/:id/rewrite 的白名单一致。
  *  大纲不作为散文改写，故不在其列。 */
 const REWRITABLE_KINDS = new Set(['write_chapter', 'continue'])
+
+/**
+ * 表格列定义：与小说管理、章节管理同一套契约 —— 桌面端据此固定列宽
+ * （fixed 布局下百分比合计 100%，任何宽度等比缩放），移动端据此折成卡片。
+ * 顺序必须与 thead/tbody 单元格顺序一致，每格标注 data-label / data-primary /
+ * data-actions / data-check。
+ *
+ * 宽度按实测需求反推，不是估的：
+ *  - 操作列：单行放下「查看章节 + 删除」两个文字按钮需 144px（82+54+8 间距），
+ *    加单元格左右 8px 内边距即 160px。1280px 视口下表宽 936px，故下限 17.1%，
+ *    取 21% 留余量。
+ *  - 模型列：最长模型名 deepseek-v4.1-flash 需 122px 才不截断，同样加内边距
+ *    138px，1280px 下占 14.7%，取 15%。低于此值时按单行省略 + title 降级。
+ *  - 关联内容 / 内容预览各 20%，是剩余宽度的主要承载者，保持可读。
+ *  - 「模型」列不传 label：按 AdminColumn 契约，该列在移动端卡片里隐藏。
+ *
+ * 原先本表脱离 AdminDataPanel 并自带 `min-w-[760px]`，导致 901–1100px 视口下
+ * 表格溢出、sticky 冻结的操作列整列压住「内容预览」（数据丢失），只能靠
+ * @container 查询打补丁。改用范本契约后 fixed 布局不再需要最小宽度，
+ * 溢出从根上消失，那条容器查询例外随之删除。
+ */
+const AI_GENERATION_COLUMNS: readonly AdminColumn[] = [
+  { key: 'check', width: '4%' },
+  { key: 'kind', label: '类型', width: '9%' },
+  { key: 'related', label: '关联内容', width: '20%', primary: true },
+  { key: 'preview', label: '内容预览', width: '20%' },
+  { key: 'model', width: '15%' },
+  { key: 'createdAt', label: '生成时间', width: '11%' },
+  { key: 'actions', actions: true, width: '21%' },
+]
 
 export default function AiGenerationsPanel(props: {
   scope: 'all' | 'reader' | 'writing'
@@ -261,7 +292,9 @@ export default function AiGenerationsPanel(props: {
     setPublishingBatchId(item.batchId)
     try {
       const result = await aiApi.writing.publishBatch(item.batchId, { novelId: item.novelId })
-      toast('已发布 ' + result.published.length + ' 章为正式章节', 'success', { action: { label: '撤销发布', onClick: () => void undoBatchPublish(item.batchId) } })
+      toast('已发布 ' + result.published.length + ' 章为正式章节', 'success', {
+        action: { label: '撤销发布', onClick: () => void undoBatchPublish(item.batchId) },
+      })
       void load()
     } catch (err) {
       toast((err as Error).message || '整批发布失败', 'error')
@@ -320,7 +353,7 @@ export default function AiGenerationsPanel(props: {
 
   return (
     <div className="ai-service-stack">
-      <AdminDataPanel className="ai-generations-card overflow-hidden" ariaLabel="已生成内容列表">
+      <AdminDataPanel className="ai-generations-card overflow-hidden" ariaLabel="已生成内容列表" columns={AI_GENERATION_COLUMNS}>
         <AdminPanelHeading
           title="生成内容"
           description="AI 生成的内容记录，可删除后重新生成。"
@@ -386,179 +419,176 @@ export default function AiGenerationsPanel(props: {
           ) : (
             <>
               {error && <InlineError message={error} onRetry={() => void load()} className="mb-3" />}
-              {/* 批次展开行与冻结操作列都依赖原生 table 结构；不套用卡片化，
-                  否则跨列子行与 sticky 列在窄屏会错位。 */}
-              <div className="ai-generations-table">
-                <table className="w-full min-w-[760px] text-sm">
-                  {/* caption 只给表格名称与交互提示。列名由 <th scope="col"> 完整提供，
-                      在此复述会让读屏用户先听一遍列名、再听一遍表头。 */}
-                  <caption className="sr-only">已生成内容，批次行可展开章节</caption>
-                  <thead className="border-b bg-muted/50">
-                    <tr>
-                      <th scope="col" className="w-10 px-4 py-3 text-left font-medium">
-                        <Checkbox
-                          aria-label="全选当前列表"
-                          checked={allSelected}
-                          onCheckedChange={(checked) => {
-                            for (const item of items) toggleItem(item, checked === true)
-                          }}
-                        />
-                      </th>
-                      <th scope="col" className="px-4 py-3 text-left font-medium">类型</th>
-                      <th scope="col" className="px-4 py-3 text-left font-medium">关联内容</th>
-                      <th scope="col" className="px-4 py-3 text-left font-medium">内容预览</th>
-                      <th scope="col" className="hidden px-4 py-3 text-left font-medium md:table-cell">模型</th>
-                      <th scope="col" className="hidden px-4 py-3 text-left font-medium sm:table-cell">生成时间</th>
-                      <th scope="col" className="sticky right-0 px-4 py-3 text-right font-medium">操作</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                      {items.map((item) => (
-                        <Fragment key={item.id}>
-                          <tr
-                            className="ai-generation-row border-b last:border-0 hover:bg-muted/30"
-                            data-focus-batch={item.groupItems ? item.batchId : undefined}
-                          >
-                            <td className="px-4 py-3">
-                              <Checkbox
-                                aria-label={`选择${item.chapterTitle || item.kind}`}
-                                checked={idsForItem(item).every((id) => selectedIds.has(id))}
-                                onCheckedChange={(checked) => toggleItem(item, checked === true)}
-                              />
-                            </td>
-                            <td className="px-4 py-3">
-                              <Badge variant="secondary">{kindLabel(item.kind)}</Badge>
-                            </td>
-                            <td className="px-4 py-3">
-                              <div className="max-w-[220px]">
-                                {item.novelId ? (
-                                  <Link
-                                    to={`/novel/${encodeURIComponent(item.novelId)}`}
-                                    className="block truncate font-medium text-foreground hover:text-primary hover:underline"
-                                    title={`打开《${item.novelTitle || '未知小说'}》详情`}
-                                  >
-                                    {item.novelTitle || <span className="text-muted-foreground">—</span>}
-                                  </Link>
-                                ) : (
-                                  <div className="truncate font-medium text-foreground">
-                                    {item.novelTitle || <span className="text-muted-foreground">—</span>}
-                                  </div>
-                                )}
-                                {item.chapterTitle ? (
-                                  item.novelId && item.chapterId ? (
-                                    <Link
-                                      to={`/read/${encodeURIComponent(item.novelId)}/${encodeURIComponent(item.chapterId)}`}
-                                      className="block truncate text-xs text-muted-foreground hover:text-primary hover:underline"
-                                      title="阅读该章节"
-                                    >
-                                      📖 {item.chapterTitle}
-                                    </Link>
-                                  ) : (
-                                    <div className="truncate text-xs text-muted-foreground">📖 {item.chapterTitle}</div>
-                                  )
-                                ) : null}
-                              </div>
-                            </td>
-                            <td className="max-w-[340px] px-4 py-3">
-                              <p
-                                className="ai-generation-preview line-clamp-2 whitespace-pre-line text-xs leading-relaxed text-muted-foreground"
-                                data-preview-label={item.groupItems ? '内容摘要' : '正文预览'}
+              <Table>
+                {/* caption 只给表格名称与交互提示。列名由 <th scope="col"> 完整提供，
+                    在此复述会让读屏用户先听一遍列名、再听一遍表头。 */}
+                <TableCaption className="sr-only">已生成内容，批次行可展开章节</TableCaption>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead scope="col">
+                      <Checkbox
+                        aria-label="全选当前列表"
+                        checked={allSelected}
+                        onCheckedChange={(checked) => {
+                          for (const item of items) toggleItem(item, checked === true)
+                        }}
+                      />
+                    </TableHead>
+                    <TableHead scope="col">类型</TableHead>
+                    <TableHead scope="col">关联内容</TableHead>
+                    <TableHead scope="col">内容预览</TableHead>
+                    <TableHead scope="col">模型</TableHead>
+                    <TableHead scope="col">生成时间</TableHead>
+                    <TableHead scope="col">操作</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {items.map((item) => (
+                    <Fragment key={item.id}>
+                      <TableRow className="ai-generation-row" data-focus-batch={item.groupItems ? item.batchId : undefined}>
+                        <TableCell data-check="">
+                          <Checkbox
+                            aria-label={`选择${item.chapterTitle || item.kind}`}
+                            checked={idsForItem(item).every((id) => selectedIds.has(id))}
+                            onCheckedChange={(checked) => toggleItem(item, checked === true)}
+                          />
+                        </TableCell>
+                        <TableCell data-label="类型">
+                          <Badge variant="secondary">{kindLabel(item.kind)}</Badge>
+                        </TableCell>
+                        <TableCell data-primary="" data-label="关联内容">
+                          {item.novelId ? (
+                            <Link
+                              to={`/novel/${encodeURIComponent(item.novelId)}`}
+                              className="ai-generation-related__title"
+                              title={`打开《${item.novelTitle || '未知小说'}》详情`}
+                            >
+                              {item.novelTitle || <span className="text-muted-foreground">—</span>}
+                            </Link>
+                          ) : (
+                            <div className="ai-generation-related__title">{item.novelTitle || <span className="text-muted-foreground">—</span>}</div>
+                          )}
+                          {item.chapterTitle ? (
+                            item.novelId && item.chapterId ? (
+                              <Link
+                                to={`/read/${encodeURIComponent(item.novelId)}/${encodeURIComponent(item.chapterId)}`}
+                                className="ai-generation-related__sub"
+                                title="阅读该章节"
                               >
-                                {item.result || '—'}
-                              </p>
-                            </td>
-                            <td className="hidden px-4 py-3 text-xs text-muted-foreground md:table-cell">{item.model || '—'}</td>
-                            <td className="hidden px-4 py-3 text-muted-foreground sm:table-cell">
-                              <div>{new Date(item.createdAt).toLocaleDateString('zh-CN')}</div>
-                              <div className="text-xs">{new Date(item.createdAt).toLocaleTimeString('zh-CN')}</div>
-                            </td>
-                            <td className="sticky right-0 px-4 py-3 text-right">
-                              <div className="flex justify-end gap-2">
-                                {item.groupItems ? (
-                                  <>
-                                    {item.groupItems.some((chapter) => chapter.status === 'draft') && (
-                                      <Button size="sm" disabled={publishingBatchId === item.batchId} onClick={() => void publishBatch(item)}>
-                                        {publishingBatchId === item.batchId ? '发布中…' : '整批发布'}
-                                      </Button>
-                                    )}
-                                    <Button variant="outline" size="sm" onClick={() => setExpandedBatchId(expandedBatchId === item.id ? null : item.id)}>
-                                      {expandedBatchId === item.id ? '收起章节' : '查看章节'}
-                                    </Button>
-                                  </>
-                                ) : (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => {
-                                      setViewing(item)
-                                      setPublishTitle(item.draftTitle || item.chapterTitle || '')
-                                      setTitleCandidates([])
-                                    }}
-                                  >
-                                    查看
+                                📖 {item.chapterTitle}
+                              </Link>
+                            ) : (
+                              <div className="ai-generation-related__sub">📖 {item.chapterTitle}</div>
+                            )
+                          ) : null}
+                        </TableCell>
+                        <TableCell data-label="内容预览">
+                          <p className="ai-generation-preview" data-preview-label={item.groupItems ? '内容摘要' : '正文预览'}>
+                            {item.result || '—'}
+                          </p>
+                        </TableCell>
+                        <TableCell data-label="模型" className="text-xs text-muted-foreground">
+                          <span className="ai-generation-model" title={item.model || ''}>
+                            {item.model || '—'}
+                          </span>
+                        </TableCell>
+                        <TableCell data-label="生成时间" className="text-muted-foreground">
+                          <div className="ai-generation-time">
+                            <span>{new Date(item.createdAt).toLocaleDateString('zh-CN')}</span>
+                            <span className="text-xs">{new Date(item.createdAt).toLocaleTimeString('zh-CN')}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell data-actions="">
+                          <div className="admin-cell-actions">
+                            {item.groupItems ? (
+                              <>
+                                {item.groupItems.some((chapter) => chapter.status === 'draft') && (
+                                  <Button size="sm" disabled={publishingBatchId === item.batchId} onClick={() => void publishBatch(item)}>
+                                    {publishingBatchId === item.batchId ? '发布中…' : '整批发布'}
                                   </Button>
                                 )}
+                                <Button variant="outline" size="sm" onClick={() => setExpandedBatchId(expandedBatchId === item.id ? null : item.id)}>
+                                  {expandedBatchId === item.id ? '收起章节' : '查看章节'}
+                                </Button>
+                              </>
+                            ) : (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setViewing(item)
+                                  setPublishTitle(item.draftTitle || item.chapterTitle || '')
+                                  setTitleCandidates([])
+                                }}
+                              >
+                                查看
+                              </Button>
+                            )}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                              disabled={!!item.groupItems || deletingId === item.id}
+                              onClick={() => void remove(item)}
+                            >
+                              {deletingId === item.id ? '删除中…' : '删除'}
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                      {/* 批次展开的章节子行：每格与主行保持同样的 data-label，
+                          使容器查询下的卡片化能给出与主行一致的字段名。
+                          子行不参与批量选择，故首格用 data-check 之外的普通格。 */}
+                      {item.groupItems &&
+                        expandedBatchId === item.id &&
+                        item.groupItems.map((chapter) => (
+                          <TableRow key={chapter.id} className="ai-generation-row ai-generation-row--child">
+                            <TableCell />
+                            <TableCell data-label="类型">
+                              <span className="text-xs text-muted-foreground">第 {chapter.batchIndex} 章</span>
+                            </TableCell>
+                            <TableCell data-label="章节">
+                              <span className="text-xs text-muted-foreground">{chapter.draftTitle || chapter.chapterTitle || '待命名章节'}</span>
+                            </TableCell>
+                            <TableCell data-label="内容预览">
+                              <p className="ai-generation-preview" data-preview-label="正文预览">
+                                {chapter.result || '暂无内容'}
+                              </p>
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground">{chapter.status}</TableCell>
+                            <TableCell data-label="生成时间" className="text-xs text-muted-foreground">
+                              {new Date(chapter.createdAt).toLocaleTimeString('zh-CN')}
+                            </TableCell>
+                            <TableCell data-actions="">
+                              <div className="admin-cell-actions">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    setViewing(chapter)
+                                    setPublishTitle(chapter.draftTitle || chapter.chapterTitle || '')
+                                    setTitleCandidates([])
+                                  }}
+                                >
+                                  查看
+                                </Button>
                                 <Button
                                   variant="outline"
                                   size="sm"
                                   className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                                  disabled={!!item.groupItems || deletingId === item.id}
-                                  onClick={() => void remove(item)}
+                                  disabled={deletingId === chapter.id}
+                                  onClick={() => void remove(chapter)}
                                 >
-                                  {deletingId === item.id ? '删除中…' : '删除'}
+                                  {deletingId === chapter.id ? '删除中…' : '删除'}
                                 </Button>
                               </div>
-                            </td>
-                          </tr>
-                          {item.groupItems &&
-                            expandedBatchId === item.id &&
-                            item.groupItems.map((chapter) => (
-                              <tr key={chapter.id} className="ai-generation-row ai-generation-row--child border-b bg-muted/20 last:border-0">
-                                <td className="px-4 py-2" />
-                                <td className="px-4 py-2 pl-8">
-                                  <span className="text-xs text-muted-foreground">第 {chapter.batchIndex} 章</span>
-                                </td>
-                                <td className="px-4 py-2">
-                                  <span className="text-xs text-muted-foreground">{chapter.draftTitle || chapter.chapterTitle || '待命名章节'}</span>
-                                </td>
-                                <td className="max-w-[340px] px-4 py-2">
-                                  <p className="ai-generation-preview line-clamp-1 text-xs text-muted-foreground" data-preview-label="正文预览">
-                                    {chapter.result || '暂无内容'}
-                                  </p>
-                                </td>
-                                <td className="hidden px-4 py-2 text-xs text-muted-foreground sm:table-cell">{chapter.status}</td>
-                                <td className="hidden px-4 py-2 text-xs text-muted-foreground md:table-cell">{new Date(chapter.createdAt).toLocaleTimeString('zh-CN')}</td>
-                                <td className="sticky right-0 px-4 py-2 text-right">
-                                  <div className="flex justify-end gap-2">
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => {
-                                        setViewing(chapter)
-                                        setPublishTitle(chapter.draftTitle || chapter.chapterTitle || '')
-                                        setTitleCandidates([])
-                                      }}
-                                    >
-                                      查看
-                                    </Button>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                                      disabled={deletingId === chapter.id}
-                                      onClick={() => void remove(chapter)}
-                                    >
-                                      {deletingId === chapter.id ? '删除中…' : '删除'}
-                                    </Button>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                        </Fragment>
-                      ))}
-                    </tbody>
-                  </table>
-              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                    </Fragment>
+                  ))}
+                </TableBody>
+              </Table>
               <Pagination
                 page={Math.floor(offset / limit) + 1}
                 totalPages={Math.max(1, Math.ceil(total / limit))}

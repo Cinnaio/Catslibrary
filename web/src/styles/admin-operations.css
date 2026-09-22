@@ -231,9 +231,8 @@
   justify-content: flex-start;
 }
 
-.ai-service .ai-task-list,
-.ai-service .ai-audit-table,
-.ai-service .ai-generations-table {
+.ai-service .ai-tasks-content,
+.ai-service .ai-audit-table {
   min-width: 0;
 }
 
@@ -2692,11 +2691,11 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
      不能用 padding 扩：元素已 box-sizing: border-box 且 size-4 定死 16×16，
      加内边距只会挤压内容、不会放大元素。故用绝对定位的透明 ::after 把命中区
      撑到 24×24，并以 50% 定位居中，视觉与布局均不变。 */
-  .ai-generations-table td [data-slot='checkbox'] {
+  .ai-generations-card td [data-slot='checkbox'] {
     position: relative;
   }
 
-  .ai-generations-table td [data-slot='checkbox']::after {
+  .ai-generations-card td [data-slot='checkbox']::after {
     content: '';
     position: absolute;
     top: 50%;
@@ -2719,14 +2718,12 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
      占位高度扣回原值，净占位与文字位置都不变，只有可点击区域变大。
      链接带 Tailwind 的 truncate（overflow: hidden），不能用绝对定位的 ::after
      扩命中区（实测伪元素确实为 294×24，但被裁剪后命中高度只有 20px）。 */
-  .ai-generations-table td div:has(> a),
   .ai-generation-row td div:has(> a) {
     display: flex;
     flex-direction: column;
     align-items: stretch;
   }
 
-  .ai-generations-table td a,
   .ai-generation-row td a {
     padding-block: 4px;
     margin-block: -4px;
@@ -2946,22 +2943,95 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 
 /* 调用审计表含跨列展开行，保留原生 table 并给横向滚动边界。
    不套用 AdminDataPanel 的卡片化（不加 .admin-data-panel--grid），避免 900px 以下
-   td 被折成字段后跨列详情行错配。已生成内容表另走自己的卡片系统
-   （见下方 @container (max-width: 48rem) 块），这里只补滚动边界。 */
-.ai-audit-table,
-.ai-generations-table {
+   td 被折成字段后跨列详情行错配。已生成内容表已改用范本契约（见下方说明），
+   这里只补滚动边界。 */
+.ai-audit-table {
   min-width: 0;
   max-width: 100%;
   overflow-x: auto;
 }
 
-/* 生成内容表的卡片化按「容器宽度」而不是视口宽度触发。表内需要 760px，
-   而内容区还要扣掉侧栏，于是 901–1100px 这段视口下表格已经溢出（实测
-   1100px 溢出 4px，800px 溢出 296px）。溢出时 sticky 冻结的操作列会整列
-   压住「内容预览」，该列在 800px 下完全不可见 —— 是数据丢失，不是观感问题。
-   视口断点在这里是错的变量：容器查询直接以可用宽度判断，两侧都不再有破版带。 */
-.ai-generations-table {
-  container-type: inline-size;
+/* 已生成内容表已收敛到 AdminDataPanel 契约（columns + shadcn Table + data-*），
+   与小说管理同源。原先这里有一条 @container (max-width: 48rem) 块，为该表
+   自带 min-w-[760px] 造成的 901–1100px 破版带打补丁；改用 fixed 布局与百分比
+   列宽后表格不再需要最小宽度，溢出从根上消失，该块随之删除。
+   本表也不再使用 sticky 冻结列——fixed 布局下列宽已由 columns 预先分配，
+   横向滚动不会发生，冻结列失去存在理由，且它与卡片化互斥。 */
+
+/* 关联内容列：小说名与章节名两行，与章节范本的主字段处理一致（主字段
+   加粗、次级信息降一档并跟随 muted），避免两行等重导致的主次不分。 */
+.ai-generations-card .ai-generation-related__title {
+  display: block;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-generations-card .ai-generation-related__title:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.ai-generations-card .ai-generation-related__sub {
+  display: block;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-generations-card .ai-generation-related__sub:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+/* 内容预览是长文本：桌面端截两行，完整内容经「查看」弹窗获得。
+   用 -webkit-line-clamp 而非固定高度，行数随字号自适应。 */
+.ai-generations-card .ai-generation-preview {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 1.6;
+  white-space: pre-line;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+/* 子行的预览只给一行：它是批次内的章节条目，摘要长度不该与主行等量，
+   否则展开后视觉上分不出哪一行是批次、哪一行是章节。 */
+.ai-generations-card .ai-generation-row--child .ai-generation-preview {
+  -webkit-line-clamp: 1;
+}
+
+/* 模型名（如 deepseek-v4.1-flash）在固定列宽里会被中间截断成「deepsee」，
+   且不带任何省略提示，看起来像数据损坏。改为单行省略 + title 承载全称。 */
+.ai-generations-card .ai-generation-model {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 生成时间两行（日期 / 时间）各自不可断行：窄列下浏览器会在「10:52:03」
+   中间折行，读起来像两个字段。日期与时间各自 nowrap，列不够时靠省略。 */
+.ai-generations-card .ai-generation-time {
+  display: flex;
+  flex-direction: column;
+}
+
+.ai-generations-card .ai-generation-time > span {
+  white-space: nowrap;
+}
+
+/* 子行是批次内的从属条目：用次级表面色区分层级，不给独立描边
+   （Tonal-Admin Rule：面板内不再叠加边框造层次）。 */
+.ai-generations-card .ai-generation-row--child {
+  background: color-mix(in srgb, var(--admin-panel) 92%, var(--accent-subtle));
 }
 
 .ai-audit-table {
@@ -3134,29 +3204,36 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
     padding-inline: 1rem;
   }
 
-  .ai-audit-table,
-  .ai-generations-table {
+  .ai-audit-table {
     border-radius: var(--radius-lg);
   }
 }
 
-.ai-task-list {
-  border-top: 1px solid var(--border);
+/* AI 任务面板已改为与小说管理同源的表格（AdminDataPanel + columns + Table），
+   行高、表头、分隔线、hover 与移动卡片化全部由 .admin-data-panel--grid 承担，
+   原先自定义的行列表规则（.ai-task-list / .ai-task-row / .ai-task-main /
+   .ai-task-actions）随之删除——它们是「表格以外的第二套行系统」，
+   正是本面板与范本行高差 59px（111 vs 52）的来源。 */
+
+/* 当前步骤列：主字段字号与范本一致，错误信息在下方用危险色补一行。
+   此前错误信息是行内第三段文字，会与步骤、Prompt 争夺注意力；
+   现并入主字段，层级从属于步骤。 */
+.ai-tasks-panel .ai-task-error {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--color-danger);
+  font-size: 0.75rem;
+  line-height: 1.45;
 }
 
-.ai-task-row {
-  align-items: center;
-  min-width: 0;
-  padding-block: 1rem;
-  border-bottom: 1px solid var(--border);
-}
-
-.ai-task-main > p:first-of-type {
-  margin-top: 0.375rem;
-}
-
-.ai-task-actions [data-slot='button'] {
-  min-width: 4.75rem;
+/* 输入 Prompt 是长文本，用单行省略 + title 承载全文：与范本对长文本的处理
+   一致（桌面端不撑高行，完整内容仍可通过 title 与后续详情入口获得）。
+   不用 nowrap 让它撑开列宽——fixed 布局下列宽已由 columns 决定。 */
+.ai-tasks-panel .ai-task-prompt {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ai-params-panel {
@@ -3925,14 +4002,8 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   opacity: 1;
 }
 
-/* 已生成内容表格：操作列 sticky 固定，横向滚动时不被推出视口 */
-.ai-generations-table td.sticky,
-.ai-generations-table th.sticky {
-  background: var(--bg-card);
-}
-.ai-generations-table tr:hover td.sticky {
-  background: var(--bg-hover);
-}
+/* 已生成内容表已改用范本契约（fixed 布局 + 百分比列宽），横向滚动不再发生，
+   sticky 冻结列失去存在理由，规则随之删除。 */
 
 /* AI 封面/创作任务进行中的流动指示条（在任务状态卡片底部） */
 .ai-task-progress {
@@ -8405,6 +8476,29 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   gap: var(--admin-table-action-gap);
 }
 
+/* AI 两面板用的是文字按钮（查看章节 / 整批发布 / 删除），单按钮 54~82px，
+   比范本的 32px 图标按钮宽得多。901px 视口（桌面固定布局的最窄点）下
+   操作列可用宽度实测只有 95~118px，装不下两个按钮。
+
+   修复必须成对：flex-wrap 允许换行，同时解除该单元格的固定行高。
+   只加 wrap 会更糟——td 的 height: var(--admin-table-row-height)(52px) 配
+   overflow: hidden，会让折到第二行的按钮被裁到可视区之外（实测行高被内容
+   撑到 105px，但第二颗按钮的命中测试返回的是 td 而非按钮自身，即不可点击）。
+   故这里对操作列改为 height: auto，行高由内容决定；其余列仍走统一行高，
+   保持列表节奏。 */
+.ai-tasks-panel td[data-actions] > .admin-cell-actions,
+.ai-generations-card td[data-actions] > .admin-cell-actions {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
+.ai-tasks-panel table td[data-actions],
+.ai-generations-card table td[data-actions] {
+  height: auto;
+  min-height: var(--admin-table-row-height);
+  overflow: visible;
+}
+
 .admin-icon-button {
   width: var(--admin-table-action-size);
   height: var(--admin-table-action-size);
@@ -9109,152 +9203,5 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 
   .admin-redesign-page--scrape .scrape-job-queue__empty {
     margin-inline: 1rem;
-  }
-}
-
-/* 生成内容表的卡片化：跟随容器宽度而不是视口宽度。表格内需要 760px，
-   视口 901–1100px 下容器只有 756px，表格已溢出且 sticky 冻结的操作列
-   整列压住「内容预览」（800px 视口下该列完全不可见，属数据丢失）。
-   48rem = 768px，比表格所需的 760px 留少量余量；容器查询以实际可用
-   宽度判断，于是 901–1100px 的破版带消失，两侧行为也连续。 */
-@container (max-width: 48rem) {
-  .ai-generations-table table {
-    display: block;
-    min-width: 0;
-  }
-  .ai-generations-table thead {
-    display: none;
-  }
-  .ai-generations-table tbody {
-    display: grid;
-    gap: var(--admin-table-mobile-stack-gap);
-  }
-  .ai-generations-table tbody tr.ai-generation-row:not(.ai-generation-row--child) {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    grid-template-areas:
-      'check type time'
-      'related related related'
-      'preview preview preview'
-      'meta meta meta'
-      'actions actions actions';
-    gap: 0.625rem 0.75rem;
-    padding: 1rem;
-    min-width: 0;
-    background: var(--admin-panel);
-  }
-  .ai-generations-table tbody tr.ai-generation-row:not(.ai-generation-row--child) td {
-    display: block;
-    min-width: 0;
-    padding: 0;
-  }
-  .ai-generations-table tbody tr.ai-generation-row:not(.ai-generation-row--child) td:nth-child(1) {
-    grid-area: check;
-  }
-  .ai-generations-table tbody tr.ai-generation-row:not(.ai-generation-row--child) td:nth-child(2) {
-    grid-area: type;
-    align-self: center;
-  }
-  .ai-generations-table tbody tr.ai-generation-row:not(.ai-generation-row--child) td:nth-child(3) {
-    grid-area: related;
-  }
-  .ai-generations-table tbody tr.ai-generation-row:not(.ai-generation-row--child) td:nth-child(4) {
-    display: block;
-    grid-area: preview;
-  }
-  .ai-generations-table tbody tr.ai-generation-row:not(.ai-generation-row--child) td:nth-child(5) {
-    display: block;
-    grid-area: meta;
-    font-size: 0.72rem;
-  }
-  .ai-generations-table tbody tr.ai-generation-row:not(.ai-generation-row--child) td:nth-child(6) {
-    display: block;
-    grid-area: time;
-    align-self: start;
-  }
-  .ai-generations-table tbody tr.ai-generation-row:not(.ai-generation-row--child) td:nth-child(6) > div {
-    white-space: nowrap;
-  }
-  .ai-generations-table tbody tr.ai-generation-row:not(.ai-generation-row--child) td:nth-child(7) {
-    grid-area: actions;
-    justify-self: start;
-  }
-  .ai-generations-table tbody tr.ai-generation-row:not(.ai-generation-row--child) td:nth-child(7) > div {
-    flex-wrap: wrap;
-    justify-content: flex-start;
-    gap: 0.375rem;
-  }
-  .ai-generations-table tbody tr.ai-generation-row:not(.ai-generation-row--child) td:nth-child(7) button {
-    min-width: 3.5rem;
-  }
-  .ai-generations-table tbody tr.ai-generation-row:not(.ai-generation-row--child) td:nth-child(3) > div,
-  .ai-generations-table tbody tr.ai-generation-row:not(.ai-generation-row--child) td:nth-child(3) p {
-    min-width: 0;
-    max-width: 100%;
-    overflow-wrap: anywhere;
-  }
-  .ai-generation-preview::before {
-    display: block;
-    margin-bottom: 0.125rem;
-    color: var(--text-muted);
-    content: attr(data-preview-label);
-    font-size: 0.68rem;
-    font-weight: 600;
-    letter-spacing: 0;
-  }
-  .ai-generations-table tbody tr.ai-generation-row--child {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas:
-      'head time'
-      'title title'
-      'preview preview'
-      'status status'
-      'ops ops';
-    align-items: start;
-    gap: 0.375rem 0.75rem;
-    padding: 0.875rem 1rem;
-    background: color-mix(in srgb, var(--admin-panel) 92%, var(--accent-subtle));
-  }
-  .ai-generations-table tbody tr.ai-generation-row--child td {
-    display: block;
-    min-width: 0;
-    padding: 0;
-  }
-  .ai-generations-table tbody tr.ai-generation-row--child td:nth-child(1) {
-    display: none;
-  }
-  /* 类型与时间构成章节条目的头部，标题、正文摘要和操作分层排列。 */
-  .ai-generations-table tbody tr.ai-generation-row--child td:nth-child(2) {
-    grid-area: head;
-  }
-  .ai-generations-table tbody tr.ai-generation-row--child td:nth-child(3) {
-    grid-area: title;
-    overflow-wrap: anywhere;
-  }
-  /* 预览独占一行，状态与时间各自占位，避免窄屏文字重叠 */
-  .ai-generations-table tbody tr.ai-generation-row--child td:nth-child(4) {
-    grid-area: preview;
-  }
-  .ai-generations-table tbody tr.ai-generation-row--child td:nth-child(5) {
-    grid-area: status;
-    font-size: 0.72rem;
-  }
-  .ai-generations-table tbody tr.ai-generation-row--child td:nth-child(6) {
-    grid-area: time;
-    white-space: nowrap;
-  }
-  /* 操作列独占一行并从左开始排列，避免窄屏下与正文争夺宽度。 */
-  .ai-generations-table tbody tr.ai-generation-row--child td:nth-child(7) {
-    grid-area: ops;
-    justify-self: start;
-  }
-  .ai-generations-table tbody tr.ai-generation-row--child td:nth-child(7) > div {
-    flex-wrap: wrap;
-    justify-content: flex-start;
-    gap: 0.375rem;
-  }
-  .ai-generations-table tbody tr.ai-generation-row--child td:nth-child(7) button {
-    min-width: 3.5rem;
   }
 }
