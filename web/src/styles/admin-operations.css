@@ -3291,6 +3291,173 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   }
 }
 
+/* ── Prompt 结构化视图 ─────────────────────────────────────────────────────
+   弹窗展示的是真正发给模型的 user message，正文里的换行被 JSON 转义成字面
+   \n、段落头后面还挂着写给模型的英文防注入约束，直接塞进 <pre> 几乎不可读。
+   parsePromptView 把这些材料块解析出来后，用这里的层级呈现：
+   材料块标题 → 段落 → 单块（可折叠）。
+   注意：只做展示层排版，不改变任何发往模型的内容。 */
+
+/* 视图切换行：左侧小标题沿用弹窗既有 section label，右侧是切换按钮。 */
+.ai-prompt-view__switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+/* 元信息行：流水线版本、是否含任务要求。弱化处理，它是脚注不是正文。 */
+.ai-prompt-view__meta {
+  margin: 0 0 0.75rem;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  line-height: 1.5;
+}
+
+.ai-prompt-view__section + .ai-prompt-view__section {
+  margin-top: 1rem;
+}
+
+/* 段落头：中文段名 + 该段性质说明。性质说明用来替代原文那句英文约束，
+   让用户能分辨「只作参考的资料」与「本次要执行的要求」——这两类在提示词里
+   是刻意分开的，资料块混入执行语义会让模型按更保守的一侧处理。 */
+.ai-prompt-view__section-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.375rem;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.ai-prompt-view__section-head h4 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.ai-prompt-view__section-head span {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+/* 指令型段落（作者要求）用强调色区分于资料型，但不单独靠颜色承载语义。 */
+.ai-prompt-view__section[data-instructions] .ai-prompt-view__section-head h4 {
+  color: var(--color-info);
+}
+
+/* 单块：默认折叠的长材料（整章正文可达上万字），summary 是块级标题行。 */
+.ai-prompt-view__block {
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
+}
+
+.ai-prompt-view__block + .ai-prompt-view__block {
+  margin-top: 0.5rem;
+}
+
+.ai-prompt-view__block > summary {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.ai-prompt-view__block > summary::-webkit-details-marker {
+  display: none;
+}
+
+/* 折叠指示器：用字符而非 svg，避免为一处细节引入图标依赖。 */
+.ai-prompt-view__block > summary::before {
+  content: '▸';
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  transition: transform var(--admin-table-row-interaction);
+}
+
+.ai-prompt-view__block[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.ai-prompt-view__block > summary:hover {
+  background: var(--bg-hover);
+  border-radius: var(--radius-sm);
+}
+
+.ai-prompt-view__block > summary:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+  border-radius: var(--radius-sm);
+}
+
+.ai-prompt-view__block-title {
+  color: var(--text-primary);
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+/* 材料类型与来源：回答「这段从哪来」，弱化到辅助信息层级。 */
+.ai-prompt-view__block-kind,
+.ai-prompt-view__block-source {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+}
+
+.ai-prompt-view__block-source {
+  margin-inline-start: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 块内正文：JSON.parse 后换行已还原为真实换行，这里只保留空白。
+   不用等宽字体——正文是中文小说，等宽会让段落更难读。 */
+.ai-prompt-view__block-text {
+  margin: 0;
+  padding: 0 0.75rem 0.75rem;
+  max-height: min(50svh, 28rem);
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 0.78rem;
+  line-height: 1.7;
+}
+
+/* 段落外的尾部文本（如「输出要求：…」），不属于任何材料块。 */
+.ai-prompt-view__note {
+  margin: 1rem 0 0;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* 原始文本视图：保持等宽与逐字对齐，供核对使用。 */
+.ai-prompt-view__raw {
+  margin: 0;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  line-height: 1.7;
+}
+
 .ai-params-panel {
   display: grid;
   gap: 1rem;

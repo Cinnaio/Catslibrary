@@ -1,7 +1,8 @@
 /** AI 任务管理：查看生成进度、错误和输入 Prompt；有任务运行时自动轮询刷新。 */
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { aiApi, newOperationId, type AiTaskInfo } from '@/lib/api'
+import { parsePromptView } from '@/lib/prompt-view'
 import { useToast, useConfirm } from '@/components/feedback'
 import { ErrorState, InlineError, LoadingState } from '@/components/admin/AsyncStates'
 import AiPanelEmptyState from './AiPanelEmptyState'
@@ -78,6 +79,8 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
   const [retryingId, setRetryingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [viewingPrompt, setViewingPrompt] = useState<AiTask | null>(null)
+  /** Prompt 弹窗的结构化/原始视图切换；关闭弹窗时复位，避免下次打开停留在原始文本。 */
+  const [showRawPrompt, setShowRawPrompt] = useState(false)
   const [statusCounts, setStatusCounts] = useState<TaskStatusCounts>({})
   /** 分页：与已生成内容、调用审计同构（offset 分页）。后端 /tasks 已在
    *  listAiTasks 里返回 total 与状态分组计数。 */
@@ -85,6 +88,13 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
   const [limit, setLimit] = useState(ADMIN_DEFAULT_PAGE_SIZE)
   const [offset, setOffset] = useState(0)
   const configured = useAiConfigured()
+
+  /**
+   * 当前弹窗的 Prompt 结构。prompt 可能是上万字的编译产物（含整章正文），
+   * 放在渲染路径里每次重渲染都解析一遍代价过高，故只随 viewingPrompt 变化计算。
+   * 解析失败时 structured 为 false，弹窗退回原文展示。
+   */
+  const promptView = useMemo(() => parsePromptView(viewingPrompt?.prompt || ''), [viewingPrompt])
 
   const load = useCallback(async () => {
     try {
@@ -385,18 +395,71 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
           )}
         </div>
       </AdminDataPanel>
-      <Dialog open={!!viewingPrompt} onOpenChange={(open) => { if (!open) setViewingPrompt(null) }}>
+      <Dialog open={!!viewingPrompt} onOpenChange={(open) => { if (!open) { setViewingPrompt(null); setShowRawPrompt(false) } }}>
         <DialogContent className="ai-generation-dialog flex max-h-[calc(100svh-2rem)] w-[calc(100%-1.5rem)] flex-col gap-3 overflow-hidden p-4 sm:max-w-3xl sm:gap-4 sm:p-6">
           <DialogHeader>
             <DialogTitle>{viewingPrompt ? `${taskKindLabel(viewingPrompt.kind)} · 输入 Prompt` : '输入 Prompt'}</DialogTitle>
-            <DialogDescription>查看提交给 AI 服务的完整 Prompt，仅供查看，不会修改任务记录。</DialogDescription>
+            <DialogDescription>
+              {promptView.structured
+                ? '这是实际提交给 AI 服务的完整 Prompt，已按材料块整理；可由「原始文本」查看未经排版的内容。'
+                : '查看提交给 AI 服务的完整 Prompt，仅供查看，不会修改任务记录。'}
+            </DialogDescription>
           </DialogHeader>
           {viewingPrompt && (
-            <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
-              <div className="admin-dialog-section-label shrink-0">输入 Prompt</div>
-              <pre className="min-h-[12rem] max-h-[min(65svh,36rem)] overflow-auto rounded-md border bg-muted/20 p-4 whitespace-pre-wrap break-words text-xs leading-6 text-muted-foreground sm:p-5">
-                {viewingPrompt.prompt || '未记录 Prompt'}
-              </pre>
+            <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
+              {/* 视图切换：结构化视图便于阅读，原始文本用于逐字核对。
+                  没有解析出材料块（封面图像 prompt、选段改写、旧版编译器输出）时
+                  不提供切换按钮，但仍保留区段标签，与其它弹窗的读法一致。 */}
+              <div className="ai-prompt-view__switch shrink-0">
+                <div className="admin-dialog-section-label">
+                  {promptView.structured ? (showRawPrompt ? '原始文本' : `材料块 · ${promptView.blockCount} 块`) : '输入 Prompt'}
+                </div>
+                {promptView.structured && (
+                  <Button variant="outline" size="sm" onClick={() => setShowRawPrompt((prev) => !prev)}>
+                    {showRawPrompt ? '结构化视图' : '原始文本'}
+                  </Button>
+                )}
+              </div>
+              <div className="ai-prompt-view min-h-0 flex-1 overflow-y-auto">
+                {!viewingPrompt.prompt ? (
+                  <p className="text-sm text-muted-foreground">未记录 Prompt</p>
+                ) : showRawPrompt || !promptView.structured ? (
+                  <pre className="ai-prompt-view__raw">{viewingPrompt.prompt}</pre>
+                ) : (
+                  <>
+                    {promptView.version && (
+                      <p className="ai-prompt-view__meta">
+                        提示词流水线版本 {promptView.version}
+                        {promptView.hasInstructions ? ' · 含本次任务要求' : ''}
+                      </p>
+                    )}
+                    {promptView.sections.map((section) => (
+                      <section key={section.id} className="ai-prompt-view__section" data-instructions={section.instructions ? '' : undefined}>
+                        <header className="ai-prompt-view__section-head">
+                          <h4>{section.label}</h4>
+                          <span>{section.hint}</span>
+                        </header>
+                        {section.blocks.map((block, blockIndex) => (
+                          <details key={`${section.id}-${block.id}-${blockIndex}`} className="ai-prompt-view__block">
+                            <summary>
+                              <span className="ai-prompt-view__block-title">{block.idLabel}</span>
+                              {block.kindLabel && <span className="ai-prompt-view__block-kind">{block.kindLabel}</span>}
+                              {block.source && <span className="ai-prompt-view__block-source">{block.source}</span>}
+                            </summary>
+                            <pre className="ai-prompt-view__block-text">{block.text}</pre>
+                          </details>
+                        ))}
+                      </section>
+                    ))}
+                    {/* 尾部文本（如「输出要求：…」）不套在材料结构里，单独平铺。 */}
+                    {promptView.notes.map((note, index) => (
+                      <p key={`prompt-note-${index}`} className="ai-prompt-view__note">
+                        {note}
+                      </p>
+                    ))}
+                  </>
+                )}
+              </div>
             </div>
           )}
         </DialogContent>

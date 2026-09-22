@@ -10,6 +10,7 @@
  * taskKindLabel/taskStatusLabel，三份枚举表互不一致，导致 `rewrite_selection`
  * 在任务列表里直接吐出英文原始值。
  */
+import { isMaterialHeaderLine, isPipelineVersionLine } from '@/lib/prompt-view'
 
 const KIND_LABELS: Record<string, string> = {
   summary: '前情提要',
@@ -86,11 +87,14 @@ export function promptDigest(prompt: string, max = DEFAULT_PROMPT_DIGEST_MAX): s
   return truncatePromptDigest(fallback, limit)
 }
 
+/**
+ * 噪声行判定。段落头与版本头交给 lib/prompt-view 统一识别：
+ * 两处各自维护格式判断时，后端一改材料结构就会同时失效。
+ */
 function isPromptNoiseLine(line: string): boolean {
-  if (/^CREATIVE_TASK_PIPELINE\b/i.test(line) || /\bversion\s*[=:]/i.test(line)) return true
-  if (/^[\[{]/.test(line)) return true
-  const header = line.match(/^[A-Z][A-Z0-9_]*(?:\s+\(.*\))?$/)
-  return Boolean(header)
+  if (isPipelineVersionLine(line)) return true
+  if (isMaterialHeaderLine(line)) return true
+  return /^[\[{]/.test(line)
 }
 
 function truncatePromptDigest(value: string, max: number): string {
@@ -119,8 +123,7 @@ export function retryMode(task: RetryModeInput): 'resume' | 'adjust' | 'retry' {
   return 'retry'
 }
 
-/** taskStepText 只依赖这几个字段，用结构类型参数避免耦合到完整 AiTaskInfo。 */
-export interface TaskStepInput {
+/** taskStepText 只依赖这几个字段，用结构类型参数避免耦合到完整 AiTaskInfo。 */ export interface TaskStepInput {
   status: string
   step: string
   current: number
