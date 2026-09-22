@@ -4,6 +4,7 @@ import { ChevronRight } from 'lucide-react'
 import { aiApi } from '@/lib/api'
 import { ErrorState, InlineError, LoadingState } from '@/components/admin/AsyncStates'
 import Pagination from '@/components/admin/Pagination'
+import { ADMIN_DEFAULT_PAGE_SIZE, ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pagination'
 import AiPanelEmptyState from './AiPanelEmptyState'
 import { useAiConfigured } from './useAiConfigured'
 import { AdminDataPanel, AdminPanelHeading, AdminToolbar } from '@/components/admin/AdminWorkspace'
@@ -52,7 +53,7 @@ export default function AiAuditPanel() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [total, setTotal] = useState(0)
-  const [limit, setLimit] = useState(50)
+  const [limit, setLimit] = useState(ADMIN_DEFAULT_PAGE_SIZE)
   const [offset, setOffset] = useState(0)
   const [filterType, setFilterType] = useState<string>('all')
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -300,7 +301,7 @@ export default function AiAuditPanel() {
                     共 {total} 条记录，显示 {offset + 1}-{Math.min(offset + limit, total)}
                   </>
                 }
-                pageSize={{ value: limit, onChange: setLimit, options: [10, 20, 50, 100] }}
+                pageSize={{ value: limit, onChange: setLimit, options: ADMIN_PAGE_SIZE_OPTIONS }}
               />
             </>
           )}

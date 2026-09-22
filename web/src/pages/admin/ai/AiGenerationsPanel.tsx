@@ -5,6 +5,7 @@ import { aiApi, newOperationId } from '@/lib/api'
 import { useToast, useConfirm } from '@/components/feedback'
 import { ErrorState, InlineError, LoadingState } from '@/components/admin/AsyncStates'
 import Pagination from '@/components/admin/Pagination'
+import { ADMIN_DEFAULT_PAGE_SIZE, ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pagination'
 import AiPanelEmptyState from './AiPanelEmptyState'
 import DraftRewrite from './DraftRewrite'
 import { useAiConfigured } from './useAiConfigured'
@@ -91,7 +92,7 @@ export default function AiGenerationsPanel(props: {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [total, setTotal] = useState(0)
-  const [limit, setLimit] = useState(50)
+  const [limit, setLimit] = useState(ADMIN_DEFAULT_PAGE_SIZE)
   const [offset, setOffset] = useState(0)
   const [filterKind, setFilterKind] = useState<'all' | 'summary' | 'catchup' | 'write_outline' | 'write_chapter' | 'continue'>('all')
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -599,7 +600,7 @@ export default function AiGenerationsPanel(props: {
                     共 {total} 条，显示 {offset + 1}-{Math.min(offset + limit, total)}
                   </>
                 }
-                pageSize={{ value: limit, onChange: setLimit, options: [10, 20, 50, 100] }}
+                pageSize={{ value: limit, onChange: setLimit, options: ADMIN_PAGE_SIZE_OPTIONS }}
               />
             </>
           )}

@@ -20,6 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import AdminPage from '@/components/admin/AdminPage'
 import { AdminDataPanel, AdminMetricStrip, AdminPanelHeading, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
 import Pagination from '@/components/admin/Pagination'
+import { ADMIN_DEFAULT_PAGE_SIZE, ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pagination'
 import { usePersistentState } from '@/hooks/usePersistentState'
 
 interface AdminUser {
@@ -163,11 +164,13 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
   // 防抖：搜索输入停顿 400ms 后才发请求，避免每击键打一次接口
   const debouncedLoginAuditUsername = useDebouncedValue(loginAuditUsername, 400)
   const [loginAuditOffset, setLoginAuditOffset] = useState(0)
+  const [loginAuditLimit, setLoginAuditLimit] = useState(ADMIN_DEFAULT_PAGE_SIZE)
   const [loginAuditLoading, setLoginAuditLoading] = useState(false)
   const [operationAudits, setOperationAudits] = useState<AdminOperationAudit[]>([])
   const [operationAuditTotal, setOperationAuditTotal] = useState(0)
   const [operationAuditStatus, setOperationAuditStatus] = useState('all')
   const [operationAuditOffset, setOperationAuditOffset] = useState(0)
+  const [operationAuditLimit, setOperationAuditLimit] = useState(ADMIN_DEFAULT_PAGE_SIZE)
   const [operationAuditLoading, setOperationAuditLoading] = useState(false)
   // 子标签持久化：刷新后停留在上次选的子页
   const [accountTab, setAccountTab] = usePersistentState<string>('settings_active_tab', 'users', (v) =>
@@ -224,7 +227,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
       const result = await adminApi.users.loginAudit({
         status: loginAuditStatus === 'all' ? undefined : loginAuditStatus,
         username: debouncedLoginAuditUsername.trim() || undefined,
-        limit: 20,
+        limit: loginAuditLimit,
         offset: loginAuditOffset,
       })
       setLoginAudits(result.audits)
@@ -234,7 +237,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
     } finally {
       setLoginAuditLoading(false)
     }
-  }, [loginAuditOffset, loginAuditStatus, debouncedLoginAuditUsername, toast])
+  }, [loginAuditOffset, loginAuditLimit, loginAuditStatus, debouncedLoginAuditUsername, toast])
 
   useEffect(() => {
     void loadLoginAudit()
@@ -245,7 +248,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
     try {
       const result = await adminApi.operationAudit.list({
         status: operationAuditStatus === 'all' ? undefined : operationAuditStatus,
-        limit: 20,
+        limit: operationAuditLimit,
         offset: operationAuditOffset,
       })
       setOperationAudits(result.operations)
@@ -255,7 +258,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
     } finally {
       setOperationAuditLoading(false)
     }
-  }, [operationAuditOffset, operationAuditStatus, toast])
+  }, [operationAuditOffset, operationAuditLimit, operationAuditStatus, toast])
 
   useEffect(() => {
     if (currentAccountTab === 'operation-audit') void loadOperationAudit()
@@ -435,10 +438,10 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
   const adminCount = users.filter((u) => u.role === 'admin').length
   const spent = invites.filter((i) => i.usedAt > 0 || i.disabledAt > 0).length
   const available = invites.length - spent
-  const loginAuditPages = Math.max(1, Math.ceil(loginAuditTotal / 20))
-  const loginAuditPage = Math.floor(loginAuditOffset / 20) + 1
-  const operationAuditPages = Math.max(1, Math.ceil(operationAuditTotal / 20))
-  const operationAuditPage = Math.floor(operationAuditOffset / 20) + 1
+  const loginAuditPages = Math.max(1, Math.ceil(loginAuditTotal / loginAuditLimit))
+  const loginAuditPage = Math.floor(loginAuditOffset / loginAuditLimit) + 1
+  const operationAuditPages = Math.max(1, Math.ceil(operationAuditTotal / operationAuditLimit))
+  const operationAuditPage = Math.floor(operationAuditOffset / operationAuditLimit) + 1
 
   function loginAuditStatusLabel(status: string): string {
     return status === 'success' ? '成功' : status === 'limited' ? '限流' : '失败'
@@ -716,9 +719,10 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
         <Pagination
           page={loginAuditPage}
           totalPages={loginAuditPages}
-          onPage={(next) => setLoginAuditOffset((next - 1) * 20)}
+          onPage={(next) => setLoginAuditOffset((next - 1) * loginAuditLimit)}
           busy={loginAuditLoading}
           summary={`共 ${loginAuditTotal} 条记录`}
+          pageSize={{ value: loginAuditLimit, onChange: (size) => { setLoginAuditLimit(size); setLoginAuditOffset(0) }, options: ADMIN_PAGE_SIZE_OPTIONS }}
         />
       </AdminDataPanel></>}
 
@@ -803,9 +807,10 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
         <Pagination
           page={operationAuditPage}
           totalPages={operationAuditPages}
-          onPage={(next) => setOperationAuditOffset((next - 1) * 20)}
+          onPage={(next) => setOperationAuditOffset((next - 1) * operationAuditLimit)}
           busy={operationAuditLoading}
           summary={`共 ${operationAuditTotal} 条记录`}
+          pageSize={{ value: operationAuditLimit, onChange: (size) => { setOperationAuditLimit(size); setOperationAuditOffset(0) }, options: ADMIN_PAGE_SIZE_OPTIONS }}
         />
       </AdminDataPanel></>}
 

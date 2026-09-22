@@ -8,6 +8,7 @@ import { usePersistentState } from '@/hooks/usePersistentState'
 import AdminPage from '@/components/admin/AdminPage'
 import { AdminMetricStrip, AdminPanelHeading } from '@/components/admin/AdminWorkspace'
 import Pagination from '@/components/admin/Pagination'
+import { ADMIN_DEFAULT_PAGE_SIZE } from '@/lib/admin-pagination'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -118,7 +119,7 @@ export default function SiteOperationsTab() {
     setCategoryBooks([])
     setCategoryBooksLoading(true)
     try {
-      const result = await novelsApi.list({ page, limit: 20, sort: 'title', order: 'asc', ...params })
+      const result = await novelsApi.list({ page, limit: ADMIN_DEFAULT_PAGE_SIZE, sort: 'title', order: 'asc', ...params })
       setCategoryBooks(result.novels || [])
       setSelectedListTotal(result.total || 0)
     } catch (err) {
@@ -281,9 +282,9 @@ export default function SiteOperationsTab() {
               <Button variant="outline" size="sm" className="shrink-0" onClick={() => { sessionStorage.setItem('adminEditNovel', JSON.stringify({ id: novel.id })); window.location.href = '/admin' }}>管理</Button>
             </div>)}</div> : <p className="p-8 text-center text-sm text-muted-foreground">该列表暂无作品</p>}
           </div>
-          {selectedListTotal > 20 && <Pagination
+          {selectedListTotal > ADMIN_DEFAULT_PAGE_SIZE && <Pagination
             page={selectedListPage}
-            totalPages={Math.ceil(selectedListTotal / 20)}
+            totalPages={Math.ceil(selectedListTotal / ADMIN_DEFAULT_PAGE_SIZE)}
             busy={categoryBooksLoading}
             summary={`共 ${selectedListTotal.toLocaleString()} 本`}
             onPage={(next) => void openNovelList(selectedListParams, selectedListTitle, next)}

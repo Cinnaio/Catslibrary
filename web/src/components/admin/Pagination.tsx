@@ -21,11 +21,12 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pagination'
 
 export interface PaginationPageSize {
   value: number
   onChange: (size: number) => void
-  /** 可选项，默认 25 / 50 / 100。 */
+  /** 可选项；不传时用 ADMIN_PAGE_SIZE_OPTIONS（10 / 20 / 50 / 100）。 */
   options?: readonly number[]
 }
 
@@ -33,7 +34,7 @@ interface PaginationProps {
   page: number
   totalPages: number
   onPage: (page: number) => void
-  /** 左侧计数文案（如「共 128 条，显示 1-20」）。 */
+  /** 左侧计数文案（如「共 128 条，显示 1-10」）。 */
   summary?: React.ReactNode
   /** 每页条数选择；传入即渲染。 */
   pageSize?: PaginationPageSize
@@ -41,8 +42,6 @@ interface PaginationProps {
   busy?: boolean
   className?: string
 }
-
-const DEFAULT_PAGE_SIZES = [25, 50, 100] as const
 
 export default function Pagination({ page, totalPages, onPage, summary, pageSize, busy = false, className }: PaginationProps) {
   // null = 未处于编辑态，输入框直接显示 page；输入期间由 draft 接管。
@@ -78,7 +77,7 @@ export default function Pagination({ page, totalPages, onPage, summary, pageSize
                 <SelectValue />
               </SelectTrigger>
               <SelectContent position="popper" align="end" sideOffset={4}>
-                {(pageSize.options || DEFAULT_PAGE_SIZES).map((size) => (
+                {(pageSize.options || ADMIN_PAGE_SIZE_OPTIONS).map((size) => (
                   <SelectItem key={size} value={String(size)}>
                     {size} 条
                   </SelectItem>

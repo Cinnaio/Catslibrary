@@ -5,6 +5,8 @@ import { useToast, useConfirm } from '@/components/feedback'
 import { ErrorState, InlineError, LoadingState } from '@/components/admin/AsyncStates'
 import AiPanelEmptyState from './AiPanelEmptyState'
 import { useAiConfigured } from './useAiConfigured'
+import Pagination from '@/components/admin/Pagination'
+import { ADMIN_DEFAULT_PAGE_SIZE, ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pagination'
 import { AdminDataPanel, AdminPanelHeading, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -73,19 +75,25 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
   const [filterStatus, setFilterStatus] = useState<'all' | 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'>('all')
   const [retryingId, setRetryingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  /** 分页：与已生成内容、调用审计同构（offset 分页）。后端 /tasks 已在
+   *  listAiTasks 里返回 total，无需改接口。 */
+  const [total, setTotal] = useState(0)
+  const [limit, setLimit] = useState(ADMIN_DEFAULT_PAGE_SIZE)
+  const [offset, setOffset] = useState(0)
   const configured = useAiConfigured()
 
   const load = useCallback(async () => {
     try {
-      const result = await aiApi.tasks({ limit: 100, status: filterStatus === 'all' ? undefined : filterStatus })
+      const result = await aiApi.tasks({ limit, offset, status: filterStatus === 'all' ? undefined : filterStatus })
       setTasks(result.items)
+      setTotal(result.total)
       setError('')
     } catch (err) {
       setError((err as Error).message || '加载 AI 任务失败')
     } finally {
       setLoading(false)
     }
-  }, [filterStatus])
+  }, [filterStatus, limit, offset])
 
   useEffect(() => {
     void load()
@@ -164,7 +172,9 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
     try {
       await aiApi.deleteTask(task.id)
       toast('任务已删除', 'success')
-      void load()
+      // 当前页删空时回退一页，避免停在空页（与已生成内容表同构）。
+      if (tasks.length === 1 && offset > 0) setOffset(Math.max(0, offset - limit))
+      else void load()
     } catch (err) {
       toast((err as Error).message || '删除任务失败', 'error')
     } finally {
@@ -180,7 +190,7 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
           description="独立于爬取任务，查看生成进度、错误和输入 Prompt。"
           status={
             <span className={`admin-panel-status${error && tasks.length === 0 ? ' is-error' : ''}`}>
-              {loading && tasks.length === 0 ? '读取中' : error && tasks.length === 0 ? '读取失败' : tasks.length ? `显示 ${tasks.length} 条` : '暂无内容'}
+              {loading && tasks.length === 0 ? '读取中' : error && tasks.length === 0 ? '读取失败' : total ? `共 ${total} 条` : '暂无内容'}
             </span>
           }
         />
@@ -194,6 +204,9 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
             value={filterStatus}
             onValueChange={(v) => {
               setLoading(true)
+              // 换筛选条件必须回第 1 页：留在原 offset 会落在越界区间，
+              // 表现为「筛完一片空白」。
+              setOffset(0)
               setFilterStatus(v as typeof filterStatus)
             }}
           >
@@ -294,6 +307,27 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
                   ))}
                 </TableBody>
               </Table>
+              <Pagination
+                page={Math.floor(offset / limit) + 1}
+                totalPages={Math.max(1, Math.ceil(total / limit))}
+                onPage={(page) => setOffset((page - 1) * limit)}
+                busy={loading}
+                summary={
+                  <>
+                    共 {total} 条，显示 {offset + 1}-{Math.min(offset + limit, total)}
+                  </>
+                }
+                pageSize={{
+                  value: limit,
+                  // 改变每页条数后由 Pagination 内部回调 onPage(1) 回到首页，
+                  // 这里只需把 offset 一并归零，避免与 limit 变化不同步。
+                  onChange: (size) => {
+                    setLimit(size)
+                    setOffset(0)
+                  },
+                  options: ADMIN_PAGE_SIZE_OPTIONS,
+                }}
+              />
             </>
           )}
         </div>

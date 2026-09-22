@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom'
 import { useToast, useConfirm } from '../../components/feedback'
 import CustomSelect from '../../components/admin/CustomSelect'
 import Pagination from '../../components/admin/Pagination'
+import { ADMIN_DEFAULT_PAGE_SIZE, ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pagination'
 import { adminApi, chaptersApi, newOperationId, scrapeApi, type SourceSyncPreview, type TitleSource, type TitleSourceSearchResponse } from '../../lib/api'
 import { timeAgo } from '../../lib/format'
 import type { ChapterMeta } from '@shared/types'
@@ -20,8 +21,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { Pencil, Trash2 } from 'lucide-react'
 import AdminPage from '@/components/admin/AdminPage'
 import { AdminDataPanel, AdminPanelHeading, AdminSearch, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
-
-const PAGE_SIZE = 50
 
 const CHAPTER_COLUMNS: readonly AdminColumn[] = [
   { key: 'check', width: '8%' },
@@ -55,6 +54,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
   const [chapters, setChapters] = useState<ChapterMeta[]>([])
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(ADMIN_DEFAULT_PAGE_SIZE)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [modal, setModal] = useState<{ open: boolean; chapter: ChapterMeta | null; loading: boolean }>({ open: false, chapter: null, loading: false })
   const [draft, setDraft] = useState<ChapterDraft>({ order: 1, title: '', content: '' })
@@ -163,9 +163,9 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
   const formattedWordCount =
     chapterStats.totalWords >= 10000 ? `${(chapterStats.totalWords / 10000).toFixed(1)}万` : chapterStats.totalWords.toLocaleString('zh-CN')
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const currentPage = Math.min(page, totalPages)
-  const pageRows = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+  const pageRows = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 
   // 搜索防抖
   useEffect(() => {
@@ -632,7 +632,26 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
                   ))}
                 </TableBody>
               </Table>
-              <Pagination page={currentPage} totalPages={totalPages} onPage={setPage} />
+              <Pagination
+                page={currentPage}
+                totalPages={totalPages}
+                onPage={setPage}
+                summary={
+                  <>
+                    共 {filtered.length} 章，显示 {filtered.length === 0 ? 0 : (currentPage - 1) * pageSize + 1}-
+                    {Math.min(currentPage * pageSize, filtered.length)}
+                  </>
+                }
+                pageSize={{
+                  value: pageSize,
+                  // 本地切片分页：改页大小后回第 1 页，避免落在越界区间。
+                  onChange: (size) => {
+                    setPageSize(size)
+                    setPage(1)
+                  },
+                  options: ADMIN_PAGE_SIZE_OPTIONS,
+                }}
+              />
             </>
           )}
         </AdminDataPanel>

@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import Pagination from './Pagination'
+import { ADMIN_DEFAULT_PAGE_SIZE, ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pagination'
 
 if (!globalThis.ResizeObserver) {
   globalThis.ResizeObserver = class {
@@ -102,5 +103,24 @@ describe('admin Pagination（后台统一分页）', () => {
     expect(screen.getByText('共 3 条')).toBeTruthy()
     // 单页时不应出现翻页按钮，但页脚信息保留
     expect(screen.queryByRole('button', { name: '下一页' })).toBeNull()
+  })
+
+  /**
+   * 全站默认每页条数契约。这些常量是后台所有列表页的唯一来源，
+   * 一旦被改回 20/25/50，各页会静默回到分叉状态（历史上正是这样分叉的）。
+   */
+  it('默认每页 10 条，且档位为 10 / 20 / 50 / 100', () => {
+    expect(ADMIN_DEFAULT_PAGE_SIZE).toBe(10)
+    expect([...ADMIN_PAGE_SIZE_OPTIONS]).toEqual([10, 20, 50, 100])
+  })
+
+  it('未传 options 时下拉使用全站档位，且默认值 10 在可选档位内', async () => {
+    render(<Pagination page={1} totalPages={5} onPage={() => {}} pageSize={{ value: ADMIN_DEFAULT_PAGE_SIZE, onChange: () => {} }} />)
+    await userEvent.click(screen.getByLabelText('每页显示数量'))
+    // 默认值必须在档位里，否则 Select 会显示空白
+    expect(await screen.findByRole('option', { name: '10 条' })).toBeTruthy()
+    expect(screen.getByRole('option', { name: '20 条' })).toBeTruthy()
+    expect(screen.getByRole('option', { name: '50 条' })).toBeTruthy()
+    expect(screen.getByRole('option', { name: '100 条' })).toBeTruthy()
   })
 })

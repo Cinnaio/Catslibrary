@@ -301,6 +301,15 @@ components:
 - **Motion:** 面板进入使用 `--admin-table-surface-enter` + offset，前 8 行使用 `--admin-table-row-enter` + `--admin-table-row-stagger-step` 依次出现；行、排序箭头、图标按钮的状态反馈使用 `--admin-table-row-interaction`。`prefers-reduced-motion: reduce` 下取消行位移动效，仅保留短淡入。
 - **Legacy Wrapper:** `.table-wrapper` 是旧版表格容器（10px `--admin-radius`、粘性表头），当前唯一消费者是书源表 `scrape/SourcesView.tsx` 的 `.source-panel__table-wrapper`；它在卡片模式下被 `--admin-table-*` 规则接管。不要再新增 `.table-wrapper`，新后台数据表格一律走 `AdminDataPanel`。
 
+### Pagination (Pagination)
+
+- **Single Source:** 全站后台分页只有一个实现（`components/admin/Pagination.tsx`），固定为「数据面板页脚」形态：左计数、右控件（每页条数 → 上一页 → 第 X / Y 页 → 跳转 → 下一页），靠 1px 上边线与表格分区，共享面板纸面。它属于表格，必须渲染在 `AdminDataPanel` 内部。
+- **Default Page Size:** 默认每页 **10** 条，档位 **10 / 20 / 50 / 100**。两个常量 `ADMIN_DEFAULT_PAGE_SIZE` 与 `ADMIN_PAGE_SIZE_OPTIONS` 定义在 `lib/admin-pagination.ts`（独立模块，不是 `Pagination.tsx`——组件文件必须保持「只导出组件」，否则运行时常量导出会破坏 HMR 边界），是全站唯一来源——页面 `useState(ADMIN_DEFAULT_PAGE_SIZE)` 取初值并把 `ADMIN_PAGE_SIZE_OPTIONS` 传给 `pageSize.options`。**不要在页面里再写 `useState(50)` 或字面档位数组**：历史上小说 20 / 章节 50 / 审计 50 / 生成内容 50 / 书源 50 五处分叉，正是这么来的。
+- **Presentation, Not API:** 10 是**展示层**默认值，后端各列表路由未传 `limit` 时仍回落到 50。这样未显式传参的调用方（含公开页）不会被静默截断。需要「一次拉全」的页面（抓取中心候选列表 `PAGE_SIZE=100`、审核队列 `limit: '80'`、章节索引 `limit: '2000'`）显式传自己的 limit，不消费本默认值。
+- **Page-Size Change Resets Page:** 改变每页条数必须回到第 1 页（组件内部已回调 `onPage(1)`，调用方需把 offset 一并归零）；换筛选条件同理。留在原 offset 会落在越界区间，表现为「改完一片空白」。
+- **Delete-Then-Empty Guard:** 当前页删到空且不在第 1 页时，回退一页而不是留在空页。
+- **Front-stage Exception:** 前台 `Home` 保留自己的实现（内联原生控件 + `.home-pagination`），两套刻意分开：前台是阅读场景的卡片皮肤，后台是紧凑控制带。后台不得复用前台类名（曾因 home.css 的裸 `.home-pagination` 选择器把前台 20px 圆角漏进后台）。
+
 ### Panel Toolbar (AdminToolbar)
 
 - **Ownership:** 工具条归属于它筛选的那份数据，而不是页面。筛选/搜索/批量操作只作用于某个 `AdminDataPanel` 的列表时，该 `AdminToolbar` 必须渲染在**那个面板内部**，位于 `AdminPanelHeading` 之下、数据区（表格 / 列表 / 页脚）之上。

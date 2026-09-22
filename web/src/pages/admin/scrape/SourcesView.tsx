@@ -6,6 +6,7 @@ import { useConfirm, useToast } from '../../../components/feedback'
 import AdminTabHeader from '@/components/admin/AdminTabHeader'
 import { AdminDataPanel, AdminPanelHeading, AdminToolbar } from '@/components/admin/AdminWorkspace'
 import Pagination from '@/components/admin/Pagination'
+import { ADMIN_DEFAULT_PAGE_SIZE, ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pagination'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -41,7 +42,7 @@ export default function SourcesView({ active }: { active: boolean }) {
   const [bySupport, setBySupport] = useState<Record<string, number>>({})
   const [unreachableCount, setUnreachableCount] = useState(0)
   const [sourcePage, setSourcePage] = useState(1)
-  const [sourcePageSize, setSourcePageSize] = useState(50)
+  const [sourcePageSize, setSourcePageSize] = useState(ADMIN_DEFAULT_PAGE_SIZE)
   const [sourceTotalPages, setSourceTotalPages] = useState(1)
   const [sourceMatchedTotal, setSourceMatchedTotal] = useState(0)
   const [selectedHosts, setSelectedHosts] = useState<Set<string>>(new Set())
@@ -625,7 +626,7 @@ export default function SourcesView({ active }: { active: boolean }) {
                 {Math.min(sourcePage * sourcePageSize, sourceMatchedTotal)} / {sourceMatchedTotal}
               </>
             }
-            pageSize={{ value: sourcePageSize, onChange: setSourcePageSize }}
+            pageSize={{ value: sourcePageSize, onChange: setSourcePageSize, options: ADMIN_PAGE_SIZE_OPTIONS }}
           />
         </AdminDataPanel>
       </div>

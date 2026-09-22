@@ -9,6 +9,7 @@ import { timeAgo } from '../../lib/format'
 import { useConfirm, useToast } from '../../components/feedback'
 import CustomSelect from '../../components/admin/CustomSelect'
 import Pagination from '../../components/admin/Pagination'
+import { ADMIN_DEFAULT_PAGE_SIZE, ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pagination'
 import type { Novel } from '@shared/types'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -21,8 +22,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { ArrowDown, ArrowUp, BookOpen, ChevronsUpDown, Pencil, Trash2 } from 'lucide-react'
 import AdminPage from '@/components/admin/AdminPage'
 import { AdminDataPanel, AdminPanelHeading, AdminSearch, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
-
-const PAGE_SIZE = 20
 
 /**
  * 表格列定义：桌面端据此固定列宽（表头与内容对齐），移动端据此折成卡片并
@@ -133,6 +132,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
   const [novels, setNovels] = useState<Novel[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(ADMIN_DEFAULT_PAGE_SIZE)
   const [totalPages, setTotalPages] = useState(1)
   const [sortField, setSortField] = useState('updated_at')
   const [sortOrder, setSortOrder] = useState('desc')
@@ -171,7 +171,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
     setLoading(true)
     setLoadError('')
     try {
-      const params: Record<string, string | number> = { page, limit: PAGE_SIZE, sort: sortField, order: sortOrder }
+      const params: Record<string, string | number> = { page, limit: pageSize, sort: sortField, order: sortOrder }
       if (query) params.search = query
       const data = await novelsApi.list(params)
       if (seq !== seqRef.current) return
@@ -193,7 +193,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
     } finally {
       if (seq === seqRef.current) setLoading(false)
     }
-  }, [page, sortField, sortOrder, query, toast])
+  }, [page, pageSize, sortField, sortOrder, query, toast])
 
   useEffect(() => {
     void load()
@@ -640,7 +640,26 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
         </Table>
         {/* 页脚归位到面板内：与书源、账户审计、AI 各面板一致——
             分页属于这张表，靠 1px 上边线与表格分区，共享面板纸面。 */}
-        <Pagination page={page} totalPages={totalPages} onPage={setPage} />
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          onPage={setPage}
+          busy={loading}
+          summary={
+            <>
+              共 {total} 本，显示 {total === 0 ? 0 : (page - 1) * pageSize + 1}-{Math.min(page * pageSize, total)}
+            </>
+          }
+          pageSize={{
+            value: pageSize,
+            // 本地常量换成 state 才能改页大小；改动后回第 1 页避免越界。
+            onChange: (size) => {
+              setPageSize(size)
+              setPage(1)
+            },
+            options: ADMIN_PAGE_SIZE_OPTIONS,
+          }}
+        />
       </AdminDataPanel>
 
       <Dialog
