@@ -17,7 +17,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { FileText, ListFilter } from 'lucide-react'
+import { ListFilter } from 'lucide-react'
 import { adminTabPath } from '../admin-registry'
 
 // 有运行中任务时的轮询间隔
@@ -303,10 +303,19 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
                         <span className="ai-task-step">{taskStepText(task)}</span>
                         {task.error && <span className="ai-task-error">{task.error}</span>}
                       </TableCell>
+                      {/* 「查看 Prompt」的入口就是 Prompt 格本身：它此前是一个 32px 图标按钮，
+                          夹在「查看产出 / 重试 / 删除」之间。左侧按钮数量随状态变化（进行中有取消、
+                          失败有重试、有产出才有查看产出），flex-start 排布下图标逐行横向漂移。
+                          入口回到数据所属的格子后，操作列只剩状态相关的主行动与删除。 */}
                       <TableCell data-label="输入 Prompt" className="text-xs text-muted-foreground">
-                        <span className="ai-task-prompt" title={task.prompt || undefined}>
-                          {promptDigest(task.prompt)}
-                        </span>
+                        <button
+                          type="button"
+                          className="ai-task-prompt-button"
+                          title={task.prompt ? '查看完整 Prompt' : undefined}
+                          onClick={() => setViewingPrompt(task)}
+                        >
+                          <span className="ai-task-prompt">{promptDigest(task.prompt)}</span>
+                        </button>
                       </TableCell>
                       <TableCell data-actions="">
                         <div className="admin-cell-actions">
@@ -321,16 +330,8 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
                               查看产出
                             </Button>
                           )}
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="admin-icon-button"
-                            aria-label="查看 Prompt"
-                            title="查看 Prompt"
-                            onClick={() => setViewingPrompt(task)}
-                          >
-                            <FileText className="size-4" aria-hidden="true" />
-                          </Button>
+                          {/* Prompt 入口已移到 Prompt 格，操作列不再放图标按钮：
+                              图标与文字按钮同排是两种视觉重量、两种点击预期混在一起。 */}
                           {(task.status === 'failed' || task.status === 'cancelled') && !!task.params && (
                             retryMode(task) === 'adjust' ? (
                               <Button variant="outline" size="sm" onClick={() => adjustAndRetry(task)}>
@@ -346,7 +347,7 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
                             <Button
                               variant="outline"
                               size="sm"
-                              className="hover:border-destructive/40 hover:text-destructive focus-visible:border-destructive/40 focus-visible:text-destructive"
+                              className="ai-task-delete hover:border-destructive/40 hover:text-destructive focus-visible:border-destructive/40 focus-visible:text-destructive"
                               disabled={deletingId === task.id}
                               onClick={() => void remove(task)}
                             >

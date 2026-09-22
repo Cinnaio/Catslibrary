@@ -3248,6 +3248,49 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   white-space: nowrap;
 }
 
+/* Prompt 格的点击入口。此前「查看 Prompt」是操作列里的 32px 图标按钮，
+   夹在「查看产出 / 重试 / 删除」之间；而操作列按钮数量随状态变化（进行中有
+   取消、失败有重试、有产出才有查看产出），flex-start 排布下图标逐行横向漂移，
+   扫描时同一位置的控件含义每行都不同。入口回到数据所属的格子后，操作列只剩
+   状态相关的主行动，漂移的根源消失。
+
+   按钮撑满单元格并继承文字色：视觉上仍是 Prompt 文本，不是可点的控件，
+   避免整列长出 121 个按钮框。hover/focus 才用底色点出可点性。 */
+.ai-tasks-panel .ai-task-prompt-button {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding: 0.125rem 0.25rem;
+  margin: -0.125rem -0.25rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--admin-table-row-interaction);
+}
+
+.ai-tasks-panel .ai-task-prompt-button:hover {
+  background: var(--bg-hover);
+}
+
+.ai-tasks-panel .ai-task-prompt-button:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
+/* 卡片模式下 td 的 padding 为 0（见 .admin-data-panel--grid tbody td），
+   此时 padding 与负外边距这对组合失去对齐意义，只会让按钮左右各溢出
+   0.25rem 压到标签列上。移动端取消两者，文字回到 td 的默认起点。 */
+@media (max-width: 900px) {
+  .ai-tasks-panel .ai-task-prompt-button {
+    padding: 0;
+    margin: 0;
+  }
+}
+
 .ai-params-panel {
   display: grid;
   gap: 1rem;
@@ -8502,6 +8545,21 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 .ai-generations-card td[data-actions] > .admin-cell-actions {
   flex-wrap: wrap;
   justify-content: flex-start;
+}
+
+/* 单行内的槽位稳定：删除永远贴最右，状态相关的主行动留在左侧。
+   操作列的按钮数量随状态变化（进行中有取消、失败有重试、有产出才有查看产出），
+   flex-start 均左排布下每行的按钮起点都不同，删除键逐行横向移动——
+   人对危险操作有肌肉记忆，位置漂移是实打实的误点风险。
+   margin-inline-start: auto 把删除推到右端，形成一条固定右基线；
+   左侧按钮数量仍可变，但删除的位置不再随之变化。
+
+   仅在桌面固定布局生效（与 .admin-data-panel--grid 的卡片模式断点一致）：
+   卡片模式下操作区是 justify-content: center，auto 外边距会把删除顶出居中排布。 */
+@media (min-width: 901px) {
+  .ai-tasks-panel td[data-actions] > .admin-cell-actions > .ai-task-delete {
+    margin-inline-start: auto;
+  }
 }
 
 .ai-tasks-panel table td[data-actions],
