@@ -8,6 +8,7 @@ import { useAiConfigured } from './useAiConfigured'
 import Pagination from '@/components/admin/Pagination'
 import { ADMIN_DEFAULT_PAGE_SIZE, ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pagination'
 import { AdminDataPanel, AdminPanelHeading, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
+import { kindLabel as taskKindLabel, taskStatusLabel, taskStepText } from './labels'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -35,34 +36,6 @@ const AI_TASK_COLUMNS: readonly AdminColumn[] = [
   { key: 'prompt', label: '输入 Prompt', width: '23%' },
   { key: 'actions', actions: true, width: '31%' },
 ]
-
-function taskKindLabel(kind: string): string {
-  return kind === 'continue'
-    ? '续写'
-    : kind === 'write_outline'
-      ? '创作大纲'
-      : kind === 'write_chapter'
-        ? '创作章节'
-        : kind === 'cover'
-          ? '封面'
-          : kind === 'cover_prompt'
-            ? '封面描述词'
-            : kind
-}
-
-function taskStatusLabel(status: string): string {
-  return status === 'queued'
-    ? '排队中'
-    : status === 'running'
-      ? '生成中'
-      : status === 'completed'
-        ? '已完成'
-        : status === 'cancelled'
-          ? '已取消'
-          : status === 'failed'
-            ? '失败'
-            : status
-}
 
 type AiTask = AiTaskInfo
 
@@ -240,13 +213,13 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
             <>
               {error && <InlineError message={error} onRetry={() => void load()} className="mb-3" />}
               <Table>
-                <TableCaption className="sr-only">AI 任务列表，含类型、状态、进度、当前步骤与输入 Prompt</TableCaption>
+                <TableCaption className="sr-only">AI 任务列表，含类型、状态、进度、结果与输入 Prompt</TableCaption>
                 <TableHeader>
                   <TableRow>
                     <TableHead scope="col">类型</TableHead>
                     <TableHead scope="col">状态</TableHead>
                     <TableHead scope="col">进度</TableHead>
-                    <TableHead scope="col">当前步骤</TableHead>
+                    <TableHead scope="col">结果</TableHead>
                     <TableHead scope="col">输入 Prompt</TableHead>
                     <TableHead scope="col">操作</TableHead>
                   </TableRow>
@@ -263,8 +236,8 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
                       <TableCell data-label="进度" className="tabular-nums">
                         {task.current} / {task.total}
                       </TableCell>
-                      <TableCell data-primary="" data-label="当前步骤">
-                        <span>{task.step || '等待处理'}</span>
+                      <TableCell data-primary="" data-label="结果">
+                        <span className="ai-task-step">{taskStepText(task)}</span>
                         {task.error && <span className="ai-task-error">{task.error}</span>}
                       </TableCell>
                       <TableCell data-label="输入 Prompt" className="text-xs text-muted-foreground">

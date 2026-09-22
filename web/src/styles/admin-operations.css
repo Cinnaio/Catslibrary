@@ -3215,15 +3215,27 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
    .ai-task-actions）随之删除——它们是「表格以外的第二套行系统」，
    正是本面板与范本行高差 59px（111 vs 52）的来源。 */
 
-/* 当前步骤列：主字段字号与范本一致，错误信息在下方用危险色补一行。
+/* 结果列：主字段字号与范本一致，错误信息在其下用危险色补一行。
    此前错误信息是行内第三段文字，会与步骤、Prompt 争夺注意力；
    现并入主字段，层级从属于步骤。 */
+.ai-tasks-panel .ai-task-step {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 错误信息允许换行：它是用户唯一能看到的失败线索（实测最长 33 字，
+   单行 nowrap 会被裁掉后半截，把「已经告诉你原因」变成「莫名其妙失败」）。
+   不设 line-clamp：错误原因必须完整可读，几行换行可接受。 */
 .ai-tasks-panel .ai-task-error {
   display: block;
   margin-top: 0.25rem;
   color: var(--color-danger);
   font-size: 0.75rem;
   line-height: 1.45;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 /* 输入 Prompt 是长文本，用单行省略 + title 承载全文：与范本对长文本的处理

@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import CustomSelect from '@/components/admin/CustomSelect'
 import CoverHistory from './CoverHistory'
+import { taskStatusLabel } from './labels'
 import { BookOpen, CircleAlert, Loader2, Palette, Sparkles, Trash2, Upload, Wand2 } from 'lucide-react'
 
 // 后台封面任务的进度轮询间隔（与 AiWritingPanel 对齐）
@@ -115,20 +116,6 @@ function romanceDirectionLabel(metadata?: AiCoverCandidate['metadata']): string 
   ]
     .filter(Boolean)
     .join(' · ')
-}
-
-function taskStatusLabel(status: string): string {
-  return status === 'queued'
-    ? '排队中'
-    : status === 'running'
-      ? '生成中'
-      : status === 'completed'
-        ? '已完成'
-        : status === 'cancelled'
-          ? '已取消'
-          : status === 'failed'
-            ? '失败'
-            : status
 }
 
 /** 任务状态指示点颜色：按状态语义映射到站点语义色。 */

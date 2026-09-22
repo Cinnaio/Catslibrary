@@ -12,6 +12,7 @@ import { Switch } from '@/components/ui/switch'
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import CustomSelect from '@/components/admin/CustomSelect'
+import { kindLabel as taskKindLabel, taskStatusLabel } from './labels'
 import ProfileOverrideEditor from './ProfileOverrideEditor'
 import { Textarea } from '@/components/ui/textarea'
 import { PenLine, Sparkles, ArrowRight, ChevronRight } from 'lucide-react'
@@ -70,24 +71,6 @@ function useEditableNumber(initial: number, min: number, max: number) {
   )
 
   return { value, text, onChangeText, commit, setCommittedValue }
-}
-
-function taskStatusLabel(status: string): string {
-  return status === 'queued'
-    ? '排队中'
-    : status === 'running'
-      ? '生成中'
-      : status === 'completed'
-        ? '已完成'
-        : status === 'cancelled'
-          ? '已取消'
-          : status === 'failed'
-            ? '失败'
-            : status
-}
-
-function taskKindLabel(kind: string): string {
-  return kind === 'continue' ? '续写' : kind === 'write_outline' ? '大纲' : kind === 'write_chapter' ? '章节' : kind === 'cover' ? '封面' : kind
 }
 
 /**

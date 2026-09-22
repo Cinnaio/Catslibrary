@@ -32,12 +32,5 @@ export function formatCost(millicents: number): string {
   return (Number(millicents) / 100_000).toFixed(4)
 }
 
-export function kindLabel(kind: string): string {
-  return kind === 'summary' ? '前情提要'
-    : kind === 'catchup' ? '回顾总结'
-      : kind === 'write_outline' ? '创作大纲'
-        : kind === 'write_chapter' ? '创作章节'
-          : kind === 'continue' ? '续写'
-            : kind === 'cover' ? '封面'
-              : kind
-}
+/* 枚举与文案映射已移到 ./labels.ts（纯 .ts，避免本文件的 fast-refresh 被
+   非组件导出破坏，见该文件顶部说明）。本文件只保留组件。 */
