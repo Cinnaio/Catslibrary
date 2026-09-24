@@ -8,7 +8,6 @@ vi.mock('../context/SessionContext', () => ({
 }))
 
 vi.mock('../context/ContentPolicyContext', () => ({
-  isRestrictedContent: () => false,
   useContentPolicy: () => ({
     mode: 'safe',
     safeMode: true,

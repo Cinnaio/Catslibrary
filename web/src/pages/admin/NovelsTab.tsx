@@ -814,7 +814,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
                   value={draft.contentRating}
                   onChange={(v) => setDraft({ ...draft, contentRating: v as ContentRating })}
                 />
-                <p className="text-xs text-muted-foreground">未标注时会按标题、简介和分类的规则兜底判定</p>
+                <p className="text-xs text-muted-foreground">未标注时保存会自动初判；命中成人标签或文本特征的作品会标为限制级。</p>
               </div>
             </div>
           </div>

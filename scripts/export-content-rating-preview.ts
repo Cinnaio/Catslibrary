@@ -3,8 +3,8 @@
  *
  * 用途：生产环境不便直调 API 时，在能连库的机器上生成人工过目用的 Markdown 清单。
  *
- * 关键：直接 import shared/restricted-patterns.ts —— 与后端预填接口、前台兜底判定
- * 用的是同一份正则模块。若此处复制一份正则，"过目清单"与"实际写入结果"就可能不一致。
+ * 与后端预填共用 shared/restricted-rules.ts 的判级入口；分类按完整标签匹配，
+ * 标题和简介才用文本正则。前台只读取已落库的 content_rating 字段。
  *
  * 用法：
  *   npx tsx scripts/export-content-rating-preview.ts                 # 写入 docs/ 下带日期的文件
@@ -16,6 +16,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { RESTRICTED_PATTERNS } from '../shared/restricted-patterns.ts'
+import { isRestrictedCategoryTag } from '../shared/restricted-categories.ts'
+import { isRestrictedByRules } from '../shared/restricted-rules.ts'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -73,13 +75,17 @@ const entries = []
 for (const r of rows) {
   let categories: string[] = []
   try {
-    categories = JSON.parse(r.categories || '[]')
+    const parsed: unknown = JSON.parse(r.categories || '[]')
+    categories = Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : []
   } catch {
     categories = []
   }
-  const text = [r.title, r.description, ...categories].filter(Boolean).join(' ')
-  const hits = matchOf(text)
-  if (!hits.length) continue
+  const text = [r.title, r.description].filter(Boolean).join(' ')
+  const hits = [
+    ...categories.filter(isRestrictedCategoryTag).map((tag) => ({ pattern: `tag:${tag}`, word: tag, snippet: `分类标签：${tag}` })),
+    ...matchOf(text),
+  ]
+  if (!isRestrictedByRules({ title: r.title, description: r.description, categories })) continue
   entries.push({ id: r.id, title: r.title, author: r.author, categories, chapters: r.chapter_count, hits })
 }
 
@@ -94,15 +100,15 @@ for (const e of entries) {
 }
 
 const lines: string[] = []
-lines.push('# 正则预填命中清单（只读导出，未写入数据库）')
+lines.push('# 内容分级规则预填命中清单（只读导出，未写入数据库）')
 lines.push('')
 lines.push(`- 导出时间：${new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}`)
 lines.push(`- 扫描范围：\`content_rating = 'unknown'\` 的全部 ${rows.length} 本`)
 if (rows.length) lines.push(`- 命中：**${entries.length} 本**（命中率 ${((entries.length / rows.length) * 100).toFixed(1)}%）`)
-lines.push(`- 落库后：\`restricted\` ${entries.length} 本，\`unknown\` 保持 ${rows.length - entries.length} 本，**\`general\` 仍为 0**`)
+lines.push(`- 本次预计新增 \`restricted\` ${entries.length} 本，\`unknown\` 剩余 ${rows.length - entries.length} 本；不会自动写 \`general\``)
 lines.push('')
-lines.push('> 判定依据是 `shared/restricted-patterns.ts` 的正则，与后端预填接口、前台兜底判定共用同一模块。')
-lines.push('> 这批书**当前就已经**被前台正则判定为受限（安全模式不可见），预填只是把「猜」固化为「已确认」，不改变任何一本书的可见性。')
+lines.push('> 判定依据是分类标签精确枚举或标题/简介文本特征，与后端预填共用 `shared/restricted-rules.ts`。')
+lines.push('> 当前前台只读 `content_rating` 字段；尚未预填的命中书仍为 `unknown`，预填后安全模式可见性会改变。')
 lines.push('')
 lines.push('## 一、按规则聚合（先看这里，找过度匹配）')
 lines.push('')

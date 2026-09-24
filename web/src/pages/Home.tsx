@@ -12,7 +12,8 @@ import { timeAgo } from '../lib/format'
 import { getDemoNovels } from '../lib/demo'
 import { useSession } from '../context/SessionContext'
 import { useSearch } from '../context/SearchContext'
-import { isRestrictedContent, useContentPolicy } from '../context/ContentPolicyContext'
+import { useContentPolicy } from '../context/ContentPolicyContext'
+import { filterVisibleCategories } from '@shared/restricted-categories'
 import NovelCard from '../components/NovelCard'
 import ContentRestrictionNotice from '../components/ContentRestrictionNotice'
 
@@ -173,7 +174,8 @@ export default function Home() {
       setNovels(filtered.slice(start, start + PAGE_LIMIT))
       const cats = new Set<string>()
       getDemoNovels().forEach((n) => n.categories.forEach((c) => cats.add(c)))
-      const visibleCategories = safeMode ? [...cats].filter((category) => !isRestrictedContent(category)) : [...cats]
+      // 分类名用显式枚举过滤，不再复用作品判级逻辑（详见 shared/restricted-categories.ts）。
+      const visibleCategories = safeMode ? filterVisibleCategories([...cats]) : [...cats]
       setCategories(visibleCategories.sort((a, b) => a.length - b.length || a.localeCompare(b)))
       setHiddenRestricted(restrictedCount > 0 || visibleCategories.length !== cats.size)
       void loadRecent()
@@ -215,9 +217,7 @@ export default function Home() {
       if (seq !== loadSeq.current) return
       setTotalPages(pages)
       setNovels(items)
-      const visibleCategories = safeMode
-        ? availableCategories.filter((category) => !isRestrictedContent(category))
-        : availableCategories
+      const visibleCategories = safeMode ? filterVisibleCategories(availableCategories) : availableCategories
       setCategories(visibleCategories)
       setHiddenRestricted(restrictedInPage || visibleCategories.length !== availableCategories.length)
       setApiFailed(false)

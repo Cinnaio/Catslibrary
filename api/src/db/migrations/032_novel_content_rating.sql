@@ -9,8 +9,8 @@
 --
 -- 为什么需要 unknown：全库存量书籍尚未人工判定。若只有两态，默认 general 等于把
 -- 全部未判定书静默放行（比现状更危险），默认 restricted 则全站被拦。unknown 让
--- "未判定"成为一个可见、可统计、可收敛的状态，并在判定层回落到原有正则兜底——
--- 因此本迁移本身不改变任何一本书的可见性。
+-- "未判定"成为一个可见、可统计、可收敛的状态。当前读取侧只认此字段，API 启动
+-- 会在开始接收请求前运行规则预填；不能单独运行迁移后直接对外提供新前端。
 ALTER TABLE novels ADD COLUMN IF NOT EXISTS content_rating TEXT NOT NULL DEFAULT 'unknown';
 
 -- 支撑后台「仅看未标注」筛选与标注进度统计（对齐 idx_novels_status 的既有做法）。

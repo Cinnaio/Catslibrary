@@ -3,6 +3,7 @@
  * 章节匹配允许 1 个源站章节对应多个本地拆分章节。
  */
 import { all, first, withTx } from '../db/query'
+import { ratingFromRules } from '@shared/restricted-rules'
 import type { Db } from '../db/pool'
 import { newId } from './auth'
 import { detectMeta } from './scraper/meta'
@@ -642,7 +643,7 @@ export async function applySourceSync(
   const now = Date.now()
 
   await withTx(db, async (q) => {
-    const novel = await q('SELECT title, author, description, cover_url, categories, status FROM novels WHERE id = $1', [run.novel_id])
+    const novel = await q('SELECT title, author, description, cover_url, categories, status, content_rating FROM novels WHERE id = $1', [run.novel_id])
     const novelRow = novel.rows[0] as Record<string, unknown> | undefined
     if (!novelRow) throw new Error('Novel not found')
     for (const change of changesToApply) {
@@ -675,13 +676,23 @@ export async function applySourceSync(
     if (nextCover !== currentNovel.cover_url) metadataUpdated.push('coverUrl')
     if (nextCategories !== currentNovel.categories) metadataUpdated.push('categories')
     if (nextStatus !== currentNovel.status) metadataUpdated.push('status')
-    await q('UPDATE novels SET title = $1, author = $2, description = $3, cover_url = $4, categories = $5, status = $6, updated_at = $7 WHERE id = $8', [
+    const nextRating = currentNovel.content_rating === 'unknown'
+      ? ratingFromRules({
+          title: String(nextTitle || ''),
+          description: String(nextDescription || ''),
+          categories: safeJsonParse<string[]>(String(nextCategories || '[]'), []),
+        })
+      : currentNovel.content_rating
+    await q(`UPDATE novels SET title = $1, author = $2, description = $3, cover_url = $4, categories = $5,
+      status = $6, content_rating = CASE WHEN content_rating = 'unknown' THEN $7 ELSE content_rating END,
+      updated_at = $8 WHERE id = $9`, [
       nextTitle,
       nextAuthor,
       nextDescription,
       nextCover,
       nextCategories,
       nextStatus,
+      nextRating,
       now,
       run.novel_id,
     ])

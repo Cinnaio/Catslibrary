@@ -1,14 +1,15 @@
 /**
- * 内容分级预填（标注来源 ②）—— 可直接执行的独立脚本。
+ * 内容分级预填 —— 可直接执行的独立脚本。
  *
- * 为什么需要它：预填原本只是 API 动作 `POST /api/novels {action:'prefill-content-rating'}`，
- * 需要管理员 token 才能触发。若不知道这个动作存在，部署后就会看到「398 本一本都没分级」
- * ——字段建好了但没人填，等于没建。本脚本让它在服务器上一条命令即可完成。
+ * 用途：在服务器上人工预览或补跑规则，不需要管理员 token。
+ *
+ * API 启动时会在开始接收请求前自动预填。本脚本保留给人工预览、补跑和回滚。
+ * 读取侧只认字段；不要单独迁移后跳过预填就开放新前端。
  *
  * 红线：只写 'restricted'，绝不写 'general'。
- * 正则认不出「肉」「高Ｈ」这类漏网标签（P0-3 实测 43 个样本标签漏网 37 个）。若把
- * 「未命中」当成「一般」，等于把漏网永久固化成「已认证安全」——现在是每次加载重新猜，
- * 还有机会被后续规则捞到；一旦写死 general 就再也不会被检视。未命中一律保持 unknown。
+ * 规则是枚举法（成人标签 + 文本正则），认不出的一律保持 unknown——若把「未命中」
+ * 当成「一般」，等于把漏网永久固化成「已认证安全」，此后不再被检视。
+ * general 只能由人工给出（系统不替运营做「这本书安全」的承诺）。
  *
  * 幂等：只处理 content_rating = 'unknown' 的书，已人工判定过的绝不覆盖。
  *
@@ -23,7 +24,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { RESTRICTED_PATTERNS } from '../shared/restricted-patterns.ts'
+import { isRestrictedByRules } from '../shared/restricted-rules.ts'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -47,16 +48,16 @@ const { default: pg } = await import('pg')
 const client = new pg.Client({ connectionString: resolveDatabaseUrl(), ssl: false })
 await client.connect()
 
-/** 命中判定：标题 + 简介 + 分类拼接后逐条匹配。 */
+/** 命中判定：成人分类标签 OR 标题/简介的限制级文本特征。与后端预填同源同语义。 */
 function isRestricted(row: { title: string; description: string; categories: string }): boolean {
   let cats: string[] = []
   try {
-    cats = JSON.parse(row.categories || '[]')
+    const parsed: unknown = JSON.parse(row.categories || '[]')
+    cats = Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : []
   } catch {
     cats = []
   }
-  const text = [row.title, row.description, ...cats].filter(Boolean).join(' ')
-  return RESTRICTED_PATTERNS.some((p) => p.test(text))
+  return isRestrictedByRules({ title: row.title, description: row.description, categories: cats })
 }
 
 const snapshot = async () => {
@@ -74,6 +75,7 @@ if (undoIndex !== -1) {
   const backupFile = args[undoIndex + 1]
   if (!backupFile || !fs.existsSync(backupFile)) throw new Error(`备份文件不存在：${backupFile}`)
   const backup = JSON.parse(fs.readFileSync(backupFile, 'utf8')) as { ids: string[] }
+  if (!Array.isArray(backup.ids) || backup.ids.length === 0) throw new Error('备份文件没有可回滚的 ids')
   const ph = backup.ids.map((_, i) => `$${i + 1}`).join(',')
   // 只退回仍是 restricted 的书，不覆盖人工改过的值
   const res = await client.query(
@@ -126,7 +128,7 @@ try {
   for (const r of matched) {
     // 刻意不写 updated_at：分级是治理属性而非内容更新。刷新它会把存量书顶到首页
     // 最前（列表默认 sort=updated_at DESC），并让 quality=stale_ongoing 判定失真。
-    await client.query(`UPDATE novels SET content_rating = 'restricted' WHERE id = $1`, [r.id])
+    await client.query(`UPDATE novels SET content_rating = 'restricted' WHERE id = $1 AND content_rating = 'unknown'`, [r.id])
   }
   await client.query('COMMIT')
 } catch (err) {

@@ -2,10 +2,11 @@
  * /api/novels —— 小说列表/创建/详情/更新/删除 + 管理维护动作（由 Novel-KV 平移）。
  */
 import { Hono, type Context } from 'hono'
-import { hasRestrictedText } from '@shared/restricted-patterns'
+import { ratingFromRules } from '@shared/restricted-rules'
 import { getDb } from '../db/pool'
 import { all, first, run, withTx } from '../db/query'
 import { novelToRow, rowToNovel, safeJsonParse, toContentRating, type NovelRow } from '../db/mappers'
+import { prefillUnknownContentRatings } from '../services/content-rating'
 import { normalizeCategories } from '../services/categories'
 import { cacheCoverForNovel } from '../services/covers'
 import { newId } from '../services/auth'
@@ -155,16 +156,25 @@ novelsRoutes.put('/:id', requireAdmin(), async (c) => {
   const description = body.description ?? existing.description
   const coverUrl = body.coverUrl ?? existing.coverUrl
   const rawCategories = body.categories ?? existing.categories
-  const categories = JSON.stringify(normalizeCategories(rawCategories))
+  const normalizedCategories = normalizeCategories(rawCategories)
+  const categories = JSON.stringify(normalizedCategories)
   const status = body.status ?? existing.status
-  const contentRating = toContentRating(body.contentRating ?? existing.contentRating)
+  const ruleRating = ratingFromRules({ title, description, categories: normalizedCategories })
+  // Explicit manual ratings win. Selecting unknown re-runs the rules; otherwise
+  // the database expression preserves a human rating written after this request's
+  // initial SELECT as well.
+  const ratingOverride = body.contentRating === 'general' || body.contentRating === 'restricted'
+    ? body.contentRating
+    : body.contentRating === 'unknown' ? ruleRating : null
   const sourceUrl = body.sourceUrl ?? existing.sourceUrl
 
-  await run(
-    db,
-    'UPDATE novels SET title=$1, author=$2, description=$3, cover_url=$4, categories=$5, status=$6, content_rating=$7, source_url=$8, updated_at=$9 WHERE id=$10',
-    [title, author, description, coverUrl, categories, status, contentRating, sourceUrl, now, id],
+  const { rows: updatedRows } = await db.query<{ content_rating: string }>(
+    `UPDATE novels SET title=$1, author=$2, description=$3, cover_url=$4, categories=$5, status=$6,
+       content_rating=CASE WHEN $7::text IS NOT NULL THEN $7::text WHEN content_rating='unknown' THEN $8 ELSE content_rating END,
+       source_url=$9, updated_at=$10 WHERE id=$11 RETURNING content_rating`,
+    [title, author, description, coverUrl, categories, status, ratingOverride, ruleRating, sourceUrl, now, id],
   )
+  const contentRating = toContentRating(updatedRows[0]?.content_rating)
 
   // 封面源变更时后台刷新封面缓存（失败由 /api/cover/:id 自愈）
   if (coverUrl !== existing.coverUrl) {
@@ -179,7 +189,7 @@ novelsRoutes.put('/:id', requireAdmin(), async (c) => {
     author,
     description,
     coverUrl,
-    categories: normalizeCategories(rawCategories),
+    categories: normalizedCategories,
     status,
     contentRating,
     sourceUrl,
@@ -214,7 +224,15 @@ async function createNovel(c: Context, db: ReturnType<typeof getDb>, body: any) 
       coverUrl: body.coverUrl || '',
       categories: normalizeCategories(body.categories || []),
       status: body.status || 'ongoing',
-      contentRating: toContentRating(body.contentRating),
+      // Admin forms send unknown by default. It means "not manually reviewed",
+      // so the write rules still run. Only explicit general/restricted overrides them.
+      contentRating: body.contentRating === 'general' || body.contentRating === 'restricted'
+        ? body.contentRating
+        : ratingFromRules({
+            title: body.title,
+            description: body.description || '',
+            categories: normalizeCategories(body.categories || []),
+          }),
       sourceUrl,
       chapterCount: 0,
       remoteChapterCount: 0,
@@ -260,7 +278,9 @@ async function batchDeleteNovels(c: Context, db: ReturnType<typeof getDb>, body:
 }
 
 async function normalizeAllCategories(c: Context, db: ReturnType<typeof getDb>) {
-  const rows = await all<{ id: string; title: string; categories: string }>(db, 'SELECT id, title, categories FROM novels')
+  const rows = await all<{ id: string; title: string; description: string; categories: string; content_rating: string }>(
+    db, 'SELECT id, title, description, categories, content_rating FROM novels',
+  )
   if (!rows.length) return c.json({ ok: true, total: 0, changed: 0, message: 'No novels found.' })
 
   const now = Date.now()
@@ -271,7 +291,12 @@ async function normalizeAllCategories(c: Context, db: ReturnType<typeof getDb>) 
     const oldCategories = safeJsonParse<string[]>(row.categories, [])
     const newCategories = normalizeCategories(oldCategories)
     if (JSON.stringify([...oldCategories].sort()) === JSON.stringify([...newCategories].sort())) continue
-    updates.push(['UPDATE novels SET categories = $1, updated_at = $2 WHERE id = $3', [JSON.stringify(newCategories), now, row.id]])
+    const rating = row.content_rating === 'unknown'
+      ? ratingFromRules({ title: row.title, description: row.description, categories: newCategories })
+      : row.content_rating
+    updates.push([`UPDATE novels SET categories = $1,
+      content_rating = CASE WHEN content_rating = 'unknown' THEN $2 ELSE content_rating END,
+      updated_at = $3 WHERE id = $4`, [JSON.stringify(newCategories), rating, now, row.id]])
     changed.push({ id: row.id, title: row.title, before: oldCategories, after: newCategories })
   }
 
@@ -286,12 +311,23 @@ async function normalizeAllCategories(c: Context, db: ReturnType<typeof getDb>) 
 
 async function undoNormalizeCategories(c: Context, db: ReturnType<typeof getDb>, changes: unknown) {
   if (!Array.isArray(changes) || !changes.length) return c.json({ error: 'changes array is required' }, 400)
+  const rows = await all<{ id: string; title: string; description: string; content_rating: string }>(
+    db, 'SELECT id, title, description, content_rating FROM novels',
+  )
+  const byId = new Map(rows.map((row) => [row.id, row]))
   const now = Date.now()
   const updates: Array<[string, unknown[]]> = []
   let restored = 0
   for (const ch of changes) {
     if (!ch.id || !Array.isArray(ch.categories)) continue
-    updates.push(['UPDATE novels SET categories = $1, updated_at = $2 WHERE id = $3', [JSON.stringify(ch.categories), now, ch.id]])
+    const row = byId.get(ch.id)
+    if (!row) continue
+    const rating = row.content_rating === 'unknown'
+      ? ratingFromRules({ title: row.title, description: row.description, categories: ch.categories })
+      : row.content_rating
+    updates.push([`UPDATE novels SET categories = $1,
+      content_rating = CASE WHEN content_rating = 'unknown' THEN $2 ELSE content_rating END,
+      updated_at = $3 WHERE id = $4`, [JSON.stringify(ch.categories), rating, now, ch.id]])
     restored++
   }
   if (updates.length) {
@@ -308,7 +344,9 @@ async function replaceCategory(c: Context, db: ReturnType<typeof getDb>, body: a
   if (!from || !to) return c.json({ error: 'from and to are required' }, 400)
   if (from === to) return c.json({ error: 'from and to must be different' }, 400)
 
-  const rows = await all<{ id: string; title: string; categories: string }>(db, 'SELECT id, title, categories FROM novels')
+  const rows = await all<{ id: string; title: string; description: string; categories: string; content_rating: string }>(
+    db, 'SELECT id, title, description, categories, content_rating FROM novels',
+  )
   const now = Date.now()
   const updates: Array<[string, unknown[]]> = []
   const changed: Array<{ id: string; title: string; before: string[]; after: string[] }> = []
@@ -318,7 +356,12 @@ async function replaceCategory(c: Context, db: ReturnType<typeof getDb>, body: a
     if (!oldCategories.includes(from)) continue
     const newCategories = normalizeCategories(oldCategories.map((c) => (c === from ? to : c)))
     if (JSON.stringify(oldCategories) === JSON.stringify(newCategories)) continue
-    updates.push(['UPDATE novels SET categories = $1, updated_at = $2 WHERE id = $3', [JSON.stringify(newCategories), now, row.id]])
+    const rating = row.content_rating === 'unknown'
+      ? ratingFromRules({ title: row.title, description: row.description, categories: newCategories })
+      : row.content_rating
+    updates.push([`UPDATE novels SET categories = $1,
+      content_rating = CASE WHEN content_rating = 'unknown' THEN $2 ELSE content_rating END,
+      updated_at = $3 WHERE id = $4`, [JSON.stringify(newCategories), rating, now, row.id]])
     changed.push({ id: row.id, title: row.title, before: oldCategories, after: newCategories })
   }
 
@@ -331,55 +374,21 @@ async function replaceCategory(c: Context, db: ReturnType<typeof getDb>, body: a
 }
 
 /**
- * 标注来源 ②：用限制级正则给存量书预填初值。
+ * 存量分级预填：用统一规则（成人标签 OR 限制级文本特征）给未判定的书填初值。
  *
  * 红线：只写 'restricted'，绝不写 'general'。
- * 正则认不出「肉」这类漏网标签（P0-3 实测 43 个样本标签漏网 37 个）。若把「未命中」
- * 当成「一般」，等于把漏网永久固化成「已认证安全」——现在是每次加载重新猜，还有机会
- * 被后续规则捞到；一旦写死 general 就再也不会被检视。未命中一律保持 unknown。
+ * 标签与正则都是枚举法，认不出的一律保持 unknown——若把「未命中」当成「一般」，
+ * 等于把漏网永久固化成「已认证安全」，此后不再被检视。general 只能由人工给出。
  *
  * 只改 unknown，已人工判定过的书（general/restricted）绝不覆盖。
  */
 async function prefillContentRating(c: Context, db: ReturnType<typeof getDb>, body: any) {
-  const rows = await all<{ id: string; title: string; description: string; categories: string }>(
-    db,
-    `SELECT id, title, description, categories FROM novels WHERE content_rating = 'unknown'`,
-  )
-  const updates: Array<[string, unknown[]]> = []
-  const matched: Array<{ id: string; title: string }> = []
-
-  for (const row of rows) {
-    const hit = hasRestrictedText({
-      title: row.title,
-      description: row.description,
-      categories: safeJsonParse<string[]>(row.categories, []),
-    })
-    if (!hit) continue
-    // 刻意不写 updated_at：分级是治理属性而非内容更新。刷新它会把存量书顶到首页
-    // 最前（列表默认 sort=updated_at DESC），并让 quality=stale_ongoing 的判定失真。
-    updates.push(['UPDATE novels SET content_rating = $1 WHERE id = $2', ['restricted', row.id]])
-    matched.push({ id: row.id, title: row.title })
-  }
-
-  if (updates.length && body?.dryRun !== true) {
-    await withTx(db, async (q) => {
-      for (const [sql, p] of updates) await q(sql, p)
-    })
-  }
-
-  const remaining = await first<{ count: number }>(db, `SELECT COUNT(*)::int AS count FROM novels WHERE content_rating = 'unknown'`)
+  const result = await prefillUnknownContentRatings(db, body?.dryRun === true)
 
   return c.json({
     ok: true,
-    scanned: rows.length,
-    matched: matched.length,
-    applied: body?.dryRun === true ? 0 : matched.length,
+    ...result,
     dryRun: body?.dryRun === true,
-    // 回滚凭据：仅本次被改为 restricted 的 id。
-    ids: matched.map((m) => m.id),
-    unknown: remaining?.count ?? 0,
-    // 供人工复核用的前 50 条命中样本。
-    sample: matched.slice(0, 50),
   })
 }
 

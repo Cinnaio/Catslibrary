@@ -1,14 +1,10 @@
 /**
  * 安全模式的判定基线 —— 限制级特征正则。
  *
- * 这份列表同时服务两处，因此必须留在 shared 而不是 web：
- *   1. 前台 `isRestrictedContent` 的兜底判定（`contentRating === 'unknown'` 时回落）
- *   2. 存量分级的正则预填（`POST /api/novels {action:'prefill-content-rating'}`）
- * 一旦各留一份，「预填结果」与「前台判定」就会出现两套口径，而这正是方案 B 要消除的
- * 那类不可验证状态。
+ * 写入侧判级（新建、更新、存量预填）的文本信号。读取侧只认数据库字段。
  *
  * 注意：这是枚举法，对开放集合天然不完备（P0-3 实测 43 个样本标签漏网 37 个）。
- * 它的定位是「未标注期间的等价兜底」，不是判定终点；补规则一律加在这里。
+ * 它的定位是初判信号，不是人工复核的替代品；补文本规则一律加在这里。
  */
 export const RESTRICTED_PATTERNS: RegExp[] = [
   /成人/i,
@@ -46,23 +42,21 @@ export const RESTRICTED_PATTERNS: RegExp[] = [
   /h\s*文/i,
 ]
 
-/** 参与判定的小说文本字段。与 `ContentMetadata` 结构兼容。 */
+/** 参与写入侧文本初判的字段；分类标签由独立的精确枚举处理。 */
 export interface RestrictedTextSource {
   title?: string
   description?: string
-  categories?: string[]
 }
 
-/** 单条文本是否命中限制级特征（用于分类名等纯字符串场景）。 */
+/** 单条标题或简介文本是否命中限制级特征。 */
 export function matchesRestrictedPattern(text: string): boolean {
   if (!text) return false
   return RESTRICTED_PATTERNS.some((pattern) => pattern.test(text))
 }
 
-/** 标题 / 简介 / 分类拼成一段文本后判定。 */
-export function hasRestrictedText(metadata: RestrictedTextSource | string | null | undefined): boolean {
+/** 标题与简介拼成一段文本后判定。 */
+export function hasRestrictedText(metadata: RestrictedTextSource | null | undefined): boolean {
   if (!metadata) return false
-  if (typeof metadata === 'string') return matchesRestrictedPattern(metadata)
-  const text = [metadata.title, metadata.description, ...(metadata.categories || [])].filter(Boolean).join(' ')
+  const text = [metadata.title, metadata.description].filter(Boolean).join(' ')
   return matchesRestrictedPattern(text)
 }

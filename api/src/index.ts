@@ -11,6 +11,7 @@ import { resolveStoredPipelineVersion } from './services/ai/prompt-version'
 import { ensureRuntimeSalts } from './runtime-config'
 import { pruneMobileTelemetry } from './routes/mobile-telemetry'
 import { pruneAdminOperationAudit } from './services/admin-operation-audit'
+import { prefillUnknownContentRatings } from './services/content-rating'
 
 async function resumeInterruptedCoverPromptTasks() {
   const db = getDb()
@@ -61,6 +62,10 @@ async function start() {
   if (config.configured) {
     const applied = await migrate({ keepPoolOpen: true })
     if (applied.length) console.log(`[zhi-zhou api] applied migrations: ${applied.join(', ')}`)
+    // New installs and old databases must be rated before this process accepts
+    // requests: the reader now uses content_rating as its sole R18 signal.
+    const ratingPrefill = await prefillUnknownContentRatings(getDb())
+    console.log(`[zhi-zhou api] content rating prefill: scanned=${ratingPrefill.scanned}, applied=${ratingPrefill.applied}, unknown=${ratingPrefill.unknown}`)
     const reclaimed = await reclaimStaleAiTasks(getDb())
     if (reclaimed) console.log(`[zhi-zhou api] reclaimed ${reclaimed} stale AI task(s)`)
     // 提示词任务参数和结果可持久化，服务重启后自动接管；有副作用的图片/写作任务仍标记失败，交给管理员确认后重试。

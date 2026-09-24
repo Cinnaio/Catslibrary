@@ -1,5 +1,4 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { hasRestrictedText } from '@shared/restricted-patterns'
 import type { ContentRating } from '@shared/types'
 import { authApi, contentPolicyApi, getToken } from '../lib/api'
 import { useOptionalSession } from './SessionContext'
@@ -8,35 +7,38 @@ export type ContentMode = 'safe' | 'adult'
 
 const STORAGE_KEY = 'zhizhou-content-mode'
 
-// 限制级特征正则已移到 shared/restricted-patterns.ts：它同时服务这里的兜底判定与
-// 后端的存量预填，各留一份会让「预填结果」与「前台判定」出现两套口径。
+// 写入侧用 shared/restricted-* 为作品标注分级；读取侧只读字段。
 
 export interface ContentMetadata {
   title?: string
   description?: string
   categories?: string[]
   /**
-   * 内容分级字段（方案 B）。三态语义：
-   *   'restricted' → 受限
+   * 内容分级字段。**读取侧的唯一判据**：
+   *   'restricted' → 受限（即 R18）
    *   'general'    → 放行
-   *   'unknown'    → 回落正则兜底（与 B 上线前的行为完全一致）
-   * 不传（undefined，如分类名或临时对象）等价于 unknown。
+   *   'unknown'    → 尚未判定；不视为 R18，故放行
    */
   contentRating?: ContentRating
 }
 
 /**
- * 判定一本书/一个标签是否属于限制级。
+ * 判定一本作品是否属于限制级 —— **只读字段，不再猜文本**。
  *
- * 优先读事实（contentRating），只有 unknown 才去猜文本。这样 B 的上线是行为等价的：
- * 未标注期间与今天逐本一致，标注一本就把这本书从「猜」升级为「确定」。
+ * 「R18 ≡ restricted」：只有显式标为 restricted 的书才算限制级。
+ *
+ * 为什么读取侧不再回落正则：写入侧（创建/更新/预填/标签判定）已把「成人标签 OR
+ * 文本特征」的规则结果落成 `contentRating` 字段；读取侧再猜一次就是第二套口径，
+ * 会出现「字段说 unknown、文本说命中」的自相矛盾。判定依据只有一个：字段。
+ *
+ * `unknown` 是未完成的标注，不等于已证实安全。当前策略将它放行；自动规则会尽量
+ * 收敛存量和新书，剩余作品仍需人工复核。
+ *
+ * 因而本函数等价于 `contentRating !== 'restricted'` 的反面。
  */
-export function isRestrictedContent(metadata: ContentMetadata | string | null | undefined): boolean {
+export function isRestrictedContent(metadata: ContentMetadata | null | undefined): boolean {
   if (!metadata) return false
-  // 字符串是分类名等纯文本场景，没有字段可读，直接走正则。
-  if (typeof metadata !== 'string' && metadata.contentRating === 'restricted') return true
-  if (typeof metadata !== 'string' && metadata.contentRating === 'general') return false
-  return hasRestrictedText(metadata)
+  return metadata.contentRating === 'restricted'
 }
 
 function readInitialMode(): ContentMode {

@@ -12,6 +12,7 @@ import { loadConfig } from '../config'
 import { getDb, resetPool } from '../db/pool'
 import { migrate } from '../db/migrate'
 import { first } from '../db/query'
+import { prefillUnknownContentRatings } from '../services/content-rating'
 import {
   applyRuntimeConfigToEnv,
   configuredRuntimeKeys,
@@ -135,14 +136,16 @@ setupRoutes.post('/database', async (c) => {
     resetPool()
     try {
       const applied = await migrate({ keepPoolOpen: true })
-      return c.json({ ok: true, applied })
+      const ratingPrefill = await prefillUnknownContentRatings(getDb())
+      return c.json({ ok: true, applied, contentRatingPrefill: { applied: ratingPrefill.applied, unknown: ratingPrefill.unknown } })
     } catch (err) {
-      // 迁移失败：回滚写入，避免卡在「已配置但库不完整」的半初始化状态
+      // Migration or rating prefill failed: keep setup closed to readers until
+      // the existing database has a complete, field-based content policy.
       writeRuntimeConfig({ DATABASE_URL: '' })
       delete process.env.DATABASE_URL
       resetPool()
-      console.error('[setup] 迁移失败:', err)
-      return c.json({ error: '数据库迁移失败：请确认该账号有建表权限' }, 400)
+      console.error('[setup] 数据库初始化失败:', err)
+      return c.json({ error: '数据库初始化失败：请检查迁移与内容分级预填日志' }, 400)
     }
   } finally {
     databaseSetupInFlight = false
