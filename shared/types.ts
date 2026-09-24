@@ -3,6 +3,12 @@
  * 与 api/src/db/mappers.ts 的行映射字段一一对应（API 层负责 snake_case→camelCase）。
  */
 
+/**
+ * 内容分级（三态）。unknown 是默认值，表示尚未人工判定——判定层会回落到标题/简介/
+ * 分类的正则兜底，因此 unknown 不等于"安全"。详见 docs/novel-content-rating-plan-2026-09-23.md。
+ */
+export type ContentRating = 'general' | 'restricted' | 'unknown'
+
 export interface Novel {
   id: string
   title: string
@@ -11,6 +17,7 @@ export interface Novel {
   coverUrl: string
   categories: string[]
   status: string
+  contentRating: ContentRating
   sourceUrl: string
   chapterCount: number
   remoteChapterCount: number
@@ -27,6 +34,14 @@ export interface NovelListResponse {
   totalPages: number
   hasMore: boolean
   availableCategories: string[]
+  /** 全库标注进度（不受当前筛选影响），用于标注作业台显示「还剩多少未判定」。 */
+  ratingCounts?: RatingCounts
+}
+
+export interface RatingCounts {
+  general: number
+  restricted: number
+  unknown: number
 }
 
 export interface ChapterMeta {

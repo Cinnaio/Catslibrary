@@ -12,6 +12,7 @@ const novel: Novel = {
   coverUrl: '',
   categories: [],
   status: 'ongoing',
+  contentRating: 'general',
   sourceUrl: '',
   chapterCount: 10,
   remoteChapterCount: 12,

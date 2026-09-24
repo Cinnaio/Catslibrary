@@ -10,7 +10,7 @@ import { useConfirm, useToast } from '../../components/feedback'
 import CustomSelect from '../../components/admin/CustomSelect'
 import Pagination from '../../components/admin/Pagination'
 import { ADMIN_DEFAULT_PAGE_SIZE, ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pagination'
-import type { Novel } from '@shared/types'
+import type { ContentRating, Novel } from '@shared/types'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -35,22 +35,49 @@ const NOVEL_COLUMNS: readonly AdminColumn[] = [
   { key: 'check', width: '3%' },
   { key: 'title', label: '标题', width: '21%', primary: true },
   { key: 'author', label: '作者', width: '14%' },
-  { key: 'categories', label: '分类', width: '24%' },
+  { key: 'categories', label: '分类', width: '18%' },
   { key: 'status', label: '状态', width: '9%' },
+  { key: 'rating', label: '分级', width: '9%' },
   { key: 'chapters', label: '章节', width: '7%' },
-  { key: 'updated', label: '更新', width: '11%' },
+  { key: 'updated', label: '更新', width: '8%' },
   { key: 'actions', actions: true, width: '11%' },
 ]
+
+/** 分级徽章文案与配色。unknown 用弱化中性色，避免被误读成「一般」。 */
+const RATING_BADGE: Record<ContentRating, { label: string; className: string }> = {
+  general: { label: '一般', className: 'bg-info/10 text-info' },
+  restricted: { label: '限制级', className: 'bg-destructive/10 text-destructive' },
+  unknown: { label: '未标注', className: 'bg-muted text-muted-foreground' },
+}
 
 const STATUS_OPTIONS = [
   { value: 'ongoing', label: '连载中' },
   { value: 'completed', label: '已完结' },
 ]
 
+/**
+ * 内容分级筛选。「未标注」是默认主力项：标注作业的真实入口是「找出还没判定的」，
+ * 而不是逐本翻目录。空字符串代表不筛选。
+ */
+const RATING_FILTER_OPTIONS = [
+  { value: '', label: '全部分级' },
+  { value: 'unknown', label: '仅看未标注' },
+  { value: 'restricted', label: '限制级' },
+  { value: 'general', label: '一般' },
+]
+
+/** 编辑弹窗里的分级选项。 */
+const CONTENT_RATING_OPTIONS = [
+  { value: 'unknown', label: '未标注' },
+  { value: 'general', label: '一般' },
+  { value: 'restricted', label: '限制级' },
+]
+
 interface NovelDraft {
   title: string
   author: string
   status: string
+  contentRating: ContentRating
   description: string
   coverUrl: string
   categories: string
@@ -61,6 +88,7 @@ const EMPTY_DRAFT: NovelDraft = {
   title: '',
   author: '',
   status: 'ongoing',
+  contentRating: 'unknown',
   description: '',
   coverUrl: '',
   categories: '',
@@ -138,6 +166,8 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
   const [sortOrder, setSortOrder] = useState('desc')
   const [searchInput, setSearchInput] = useState('')
   const [query, setQuery] = useState('')
+  const [ratingFilter, setRatingFilter] = useState('')
+  const [ratingCounts, setRatingCounts] = useState<{ general: number; restricted: number; unknown: number } | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -173,6 +203,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
     try {
       const params: Record<string, string | number> = { page, limit: pageSize, sort: sortField, order: sortOrder }
       if (query) params.search = query
+      if (ratingFilter) params.contentRating = ratingFilter
       const data = await novelsApi.list(params)
       if (seq !== seqRef.current) return
       const rows = Array.isArray(data.novels) ? data.novels : []
@@ -180,6 +211,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
       setNovels(rows)
       setTotalPages(tp)
       setTotal(data.total || 0)
+      if (data.ratingCounts) setRatingCounts(data.ratingCounts)
       // 结果收缩导致越界 → 钳回末页重试
       if (page > tp && tp >= 1 && rows.length === 0) {
         setPage(tp)
@@ -193,7 +225,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
     } finally {
       if (seq === seqRef.current) setLoading(false)
     }
-  }, [page, pageSize, sortField, sortOrder, query, toast])
+  }, [page, pageSize, sortField, sortOrder, query, ratingFilter, toast])
 
   useEffect(() => {
     void load()
@@ -308,6 +340,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
             title: novel.title || '',
             author: novel.author || '',
             status: novel.status || 'ongoing',
+            contentRating: novel.contentRating || 'unknown',
             description: novel.description || '',
             coverUrl: novel.coverUrl || '',
             categories: (novel.categories || []).join(', '),
@@ -349,6 +382,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
       coverUrl: draft.coverUrl.trim(),
       categories: parseCategories(draft.categories),
       status: draft.status,
+      contentRating: draft.contentRating,
       sourceUrl,
     }
     try {
@@ -491,6 +525,26 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
     >
       <AdminDataPanel ariaLabel="作品目录" columns={NOVEL_COLUMNS}>
         <AdminPanelHeading title="作品目录" description={query ? `匹配「${query}」的作品` : '按标题、作者、章节数和更新时间管理书库'} />
+        <AdminToolbar layout="inline">
+          <div className="admin-toolbar__filters">
+            <Label id="novel-rating-filter-label">分级</Label>
+            <CustomSelect
+              compact
+              aria-labelledby="novel-rating-filter-label"
+              options={RATING_FILTER_OPTIONS}
+              value={ratingFilter}
+              onChange={(v) => {
+                setRatingFilter(v)
+                setPage(1)
+              }}
+            />
+            {ratingCounts && (
+              <span className="text-xs tabular-nums text-muted-foreground" data-testid="rating-progress">
+                待标注 {ratingCounts.unknown} · 限制级 {ratingCounts.restricted}
+              </span>
+            )}
+          </div>
+        </AdminToolbar>
         {selected.size > 0 && (
           <AdminToolbar layout="inline">
             <div className="admin-toolbar__batch" aria-live="polite">
@@ -528,6 +582,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
               </TableHead>
               <TableHead scope="col">分类</TableHead>
               <TableHead scope="col">状态</TableHead>
+              <TableHead scope="col">分级</TableHead>
               <TableHead scope="col" aria-sort={sortAria('chapter_count')}>
                 <NovelSortButton field="chapter_count" active={sortField === 'chapter_count'} order={sortOrder} onSort={toggleSort}>
                   章节
@@ -588,6 +643,11 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
                   <TableCell data-label="状态">
                     <Badge className={n.status === 'completed' ? 'bg-success/10 text-success' : 'bg-info/10 text-info'}>
                       {n.status === 'completed' ? '已完结' : '连载中'}
+                    </Badge>
+                  </TableCell>
+                  <TableCell data-label="分级">
+                    <Badge className={RATING_BADGE[n.contentRating || 'unknown'].className}>
+                      {RATING_BADGE[n.contentRating || 'unknown'].label}
                     </Badge>
                   </TableCell>
                   <TableCell data-label="章节">
@@ -745,6 +805,16 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
                   value={draft.sourceUrl}
                   onChange={(e) => setDraft({ ...draft, sourceUrl: e.target.value })}
                 />
+              </div>
+              <div className="form-group novel-editor__field">
+                <Label id="novel-rating-label">内容分级</Label>
+                <CustomSelect
+                  aria-labelledby="novel-rating-label"
+                  options={CONTENT_RATING_OPTIONS}
+                  value={draft.contentRating}
+                  onChange={(v) => setDraft({ ...draft, contentRating: v as ContentRating })}
+                />
+                <p className="text-xs text-muted-foreground">未标注时会按标题、简介和分类的规则兜底判定</p>
               </div>
             </div>
           </div>

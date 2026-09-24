@@ -2,9 +2,10 @@
  * /api/novels —— 小说列表/创建/详情/更新/删除 + 管理维护动作（由 Novel-KV 平移）。
  */
 import { Hono, type Context } from 'hono'
+import { hasRestrictedText } from '@shared/restricted-patterns'
 import { getDb } from '../db/pool'
 import { all, first, run, withTx } from '../db/query'
-import { novelToRow, rowToNovel, safeJsonParse, type NovelRow } from '../db/mappers'
+import { novelToRow, rowToNovel, safeJsonParse, toContentRating, type NovelRow } from '../db/mappers'
 import { normalizeCategories } from '../services/categories'
 import { cacheCoverForNovel } from '../services/covers'
 import { newId } from '../services/auth'
@@ -25,6 +26,12 @@ novelsRoutes.get('/', async (c) => {
   const search = (c.req.query('search') || '').trim()
   const category = c.req.query('category') || ''
   const status = c.req.query('status') || ''
+  // 必须区分「未传参」与「显式传 unknown」：前者不筛选，后者是「仅看未标注」。
+  // 若这里直接用 toContentRating()，缺省会被归一成 'unknown' 从而变成强制筛选。
+  const rawContentRating = (c.req.query('contentRating') || '').trim()
+  const contentRating = rawContentRating === 'general' || rawContentRating === 'restricted' || rawContentRating === 'unknown'
+    ? rawContentRating
+    : ''
   const quality = c.req.query('quality') || ''
   const page = Number.parseInt(c.req.query('page') || '1', 10) || 1
   const limit = Math.min(Number.parseInt(c.req.query('limit') || '50', 10) || 50, 100)
@@ -47,6 +54,11 @@ novelsRoutes.get('/', async (c) => {
   if (status) {
     params.push(status)
     conditions.push(`status = $${params.length}`)
+  }
+  // contentRating=unknown 是「仅看未标注」筛选；支撑人工标注作业台。
+  if (contentRating) {
+    params.push(contentRating)
+    conditions.push(`content_rating = $${params.length}`)
   }
   if (quality === 'uncategorized') conditions.push("(categories = '[]' OR categories = '' OR categories IS NULL)")
   if (quality === 'missing_cover') {
@@ -75,6 +87,16 @@ novelsRoutes.get('/', async (c) => {
     availableCategories = await loadAvailableCategories(db)
   }
 
+  // 标注进度：让「还剩多少没判」成为可见数字，否则几百本书里挑未标注的无法作业。
+  const progressRows = await all<{ content_rating: string; count: number }>(
+    db,
+    'SELECT content_rating, COUNT(*)::int AS count FROM novels GROUP BY content_rating',
+  )
+  const ratingCounts = { general: 0, restricted: 0, unknown: 0 }
+  for (const r of progressRows) {
+    ratingCounts[toContentRating(r.content_rating)] += Number(r.count) || 0
+  }
+
   return c.json(
     {
       novels,
@@ -84,6 +106,7 @@ novelsRoutes.get('/', async (c) => {
       totalPages: Math.ceil(total / limit),
       hasMore: offset + limit < total,
       availableCategories,
+      ratingCounts,
     },
     200,
     { 'Cache-Control': 'public, max-age=30, stale-while-revalidate=120' },
@@ -99,6 +122,8 @@ novelsRoutes.post('/', requireAdmin(), async (c) => {
   if (body.action === 'normalize-categories-undo') return undoNormalizeCategories(c, db, body.changes)
   if (body.action === 'replace-category') return replaceCategory(c, db, body)
   if (body.action === 'batch-delete') return batchDeleteNovels(c, db, body)
+  if (body.action === 'prefill-content-rating') return prefillContentRating(c, db, body)
+  if (body.action === 'undo-prefill-content-rating') return undoPrefillContentRating(c, db, body)
   return createNovel(c, db, body)
 })
 
@@ -132,12 +157,13 @@ novelsRoutes.put('/:id', requireAdmin(), async (c) => {
   const rawCategories = body.categories ?? existing.categories
   const categories = JSON.stringify(normalizeCategories(rawCategories))
   const status = body.status ?? existing.status
+  const contentRating = toContentRating(body.contentRating ?? existing.contentRating)
   const sourceUrl = body.sourceUrl ?? existing.sourceUrl
 
   await run(
     db,
-    'UPDATE novels SET title=$1, author=$2, description=$3, cover_url=$4, categories=$5, status=$6, source_url=$7, updated_at=$8 WHERE id=$9',
-    [title, author, description, coverUrl, categories, status, sourceUrl, now, id],
+    'UPDATE novels SET title=$1, author=$2, description=$3, cover_url=$4, categories=$5, status=$6, content_rating=$7, source_url=$8, updated_at=$9 WHERE id=$10',
+    [title, author, description, coverUrl, categories, status, contentRating, sourceUrl, now, id],
   )
 
   // 封面源变更时后台刷新封面缓存（失败由 /api/cover/:id 自愈）
@@ -145,6 +171,8 @@ novelsRoutes.put('/:id', requireAdmin(), async (c) => {
     cacheCoverForNovel(db, id).catch((e) => console.warn('[cover] cache on update failed:', (e as Error).message))
   }
 
+  // 响应体显式重列字段：这里漏掉 contentRating 不会报错，但 ...existing 展开的是
+  // 更新前的值，接口会静默返回旧分级——改完界面不变，属于最难查的一类 bug。
   const updated = {
     ...existing,
     title,
@@ -153,6 +181,7 @@ novelsRoutes.put('/:id', requireAdmin(), async (c) => {
     coverUrl,
     categories: normalizeCategories(rawCategories),
     status,
+    contentRating,
     sourceUrl,
     updatedAt: now,
   }
@@ -185,6 +214,7 @@ async function createNovel(c: Context, db: ReturnType<typeof getDb>, body: any) 
       coverUrl: body.coverUrl || '',
       categories: normalizeCategories(body.categories || []),
       status: body.status || 'ongoing',
+      contentRating: toContentRating(body.contentRating),
       sourceUrl,
       chapterCount: 0,
       remoteChapterCount: 0,
@@ -197,9 +227,9 @@ async function createNovel(c: Context, db: ReturnType<typeof getDb>, body: any) 
 
   const row = novelToRow(novel)
   await db.query(
-    `INSERT INTO novels (id, title, author, description, cover_url, categories, status, source_url, chapter_count, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-    [row.id, row.title, row.author, row.description, row.cover_url, row.categories, row.status, row.source_url, row.chapter_count, row.created_at, row.updated_at],
+    `INSERT INTO novels (id, title, author, description, cover_url, categories, status, content_rating, source_url, chapter_count, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+    [row.id, row.title, row.author, row.description, row.cover_url, row.categories, row.status, row.content_rating, row.source_url, row.chapter_count, row.created_at, row.updated_at],
   )
 
   // 封面后台缓存；创建响应不等外部图片下载
@@ -298,6 +328,75 @@ async function replaceCategory(c: Context, db: ReturnType<typeof getDb>, body: a
     })
   }
   return c.json({ ok: true, total: rows.length, changed: changed.length, details: changed })
+}
+
+/**
+ * 标注来源 ②：用限制级正则给存量书预填初值。
+ *
+ * 红线：只写 'restricted'，绝不写 'general'。
+ * 正则认不出「肉」这类漏网标签（P0-3 实测 43 个样本标签漏网 37 个）。若把「未命中」
+ * 当成「一般」，等于把漏网永久固化成「已认证安全」——现在是每次加载重新猜，还有机会
+ * 被后续规则捞到；一旦写死 general 就再也不会被检视。未命中一律保持 unknown。
+ *
+ * 只改 unknown，已人工判定过的书（general/restricted）绝不覆盖。
+ */
+async function prefillContentRating(c: Context, db: ReturnType<typeof getDb>, body: any) {
+  const rows = await all<{ id: string; title: string; description: string; categories: string }>(
+    db,
+    `SELECT id, title, description, categories FROM novels WHERE content_rating = 'unknown'`,
+  )
+  const updates: Array<[string, unknown[]]> = []
+  const matched: Array<{ id: string; title: string }> = []
+
+  for (const row of rows) {
+    const hit = hasRestrictedText({
+      title: row.title,
+      description: row.description,
+      categories: safeJsonParse<string[]>(row.categories, []),
+    })
+    if (!hit) continue
+    // 刻意不写 updated_at：分级是治理属性而非内容更新。刷新它会把存量书顶到首页
+    // 最前（列表默认 sort=updated_at DESC），并让 quality=stale_ongoing 的判定失真。
+    updates.push(['UPDATE novels SET content_rating = $1 WHERE id = $2', ['restricted', row.id]])
+    matched.push({ id: row.id, title: row.title })
+  }
+
+  if (updates.length && body?.dryRun !== true) {
+    await withTx(db, async (q) => {
+      for (const [sql, p] of updates) await q(sql, p)
+    })
+  }
+
+  const remaining = await first<{ count: number }>(db, `SELECT COUNT(*)::int AS count FROM novels WHERE content_rating = 'unknown'`)
+
+  return c.json({
+    ok: true,
+    scanned: rows.length,
+    matched: matched.length,
+    applied: body?.dryRun === true ? 0 : matched.length,
+    dryRun: body?.dryRun === true,
+    // 回滚凭据：仅本次被改为 restricted 的 id。
+    ids: matched.map((m) => m.id),
+    unknown: remaining?.count ?? 0,
+    // 供人工复核用的前 50 条命中样本。
+    sample: matched.slice(0, 50),
+  })
+}
+
+/** 预填回滚：把给定 id 且当前仍为 restricted 的书退回 unknown（不触碰人工改动的值）。 */
+async function undoPrefillContentRating(c: Context, db: ReturnType<typeof getDb>, body: any) {
+  const ids: string[] = Array.isArray(body?.ids)
+    ? Array.from(new Set(body.ids.map((id: unknown) => String(id || '').trim()).filter(Boolean)))
+    : []
+  if (!ids.length) return c.json({ error: 'ids array is required' }, 400)
+
+  const placeholders = ids.map((_, i) => `$${i + 1}`).join(',')
+  const restored = await run(
+    db,
+    `UPDATE novels SET content_rating = 'unknown' WHERE content_rating = 'restricted' AND id IN (${placeholders})`,
+    ids,
+  )
+  return c.json({ ok: true, restored })
 }
 
 async function loadAvailableCategories(db: ReturnType<typeof getDb>): Promise<string[]> {

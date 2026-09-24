@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button'
 
 interface AdminStats {
   totals: { novels: number; chapters: number; users: number; covers: number; failedJobs: number; todayChapters: number; dbSize: number | null }
+  contentRating: { general: number; restricted: number; unknown: number }
   jobStatus: { running: number; completed: number; failed: number }
   recentJobs: Array<{ id: string; novelId: string; novelTitle: string; status: string; step: string; current: number; total: number; chapterCount: number; progress: number; error: string; startedAt: number; updatedAt: number }>
   recentNovels: Array<{ id: string; title: string; author: string; chapterCount: number; updatedAt: number }>
@@ -70,6 +71,7 @@ export default function DashboardTab(_props: { highlightNovelId?: string; onHigh
 
   const totals = data?.totals
   const jobStatus = data?.jobStatus || { running: 0, completed: 0, failed: 0 }
+  const contentRating = data?.contentRating || { general: 0, restricted: 0, unknown: 0 }
   const totalJobs = Math.max(1, jobStatus.running + jobStatus.completed + jobStatus.failed)
 
   return (
@@ -90,14 +92,29 @@ export default function DashboardTab(_props: { highlightNovelId?: string; onHigh
           <AdminMetricStrip
             className="admin-metric-strip--dashboard"
             ariaLabel="后台总览指标"
-            items={STAT_CARDS.map((card) => {
-              const raw = totals ? totals[card.key] : 0
-              return {
-                label: card.label,
-                value: card.key === 'dbSize' ? formatBytes(typeof raw === 'number' ? raw : null) : formatNumber(raw as number),
-                detail: card.unit,
-              }
-            })}
+            items={[
+              ...STAT_CARDS.map((card) => {
+                const raw = totals ? totals[card.key] : 0
+                return {
+                  label: card.label,
+                  value: card.key === 'dbSize' ? formatBytes(typeof raw === 'number' ? raw : null) : formatNumber(raw as number),
+                  detail: card.unit,
+                }
+              }),
+              // 标注进度：unknown 就是「还没人工判定的存量」。没有这个数字，
+              // 存量书的标注工作没有方向盘，也无法判断何时可以弃用正则兜底。
+              {
+                label: '待标注分级',
+                value: formatNumber(contentRating.unknown),
+                detail: '本',
+                detailTone: contentRating.unknown > 0 ? ('muted' as const) : ('success' as const),
+              },
+              {
+                label: '限制级',
+                value: formatNumber(contentRating.restricted),
+                detail: '本',
+              },
+            ]}
           />
 
           <AdminDataPanel className="dashboard-task-status p-5" ariaLabel="抓取任务状态">

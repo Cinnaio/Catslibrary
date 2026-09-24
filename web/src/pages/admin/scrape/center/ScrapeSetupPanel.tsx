@@ -1,5 +1,6 @@
 import { useId } from 'react'
 import { Check, ChevronDown, FlaskConical, RotateCcw, Settings2 } from 'lucide-react'
+import type { ContentRating } from '@shared/types'
 import CustomSelect from '@/components/admin/CustomSelect'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -17,6 +18,7 @@ export interface SetupPreview {
   author: string
   category: string
   status: string
+  contentRating: ContentRating
   description: string
   coverUrl: string
 }
@@ -55,6 +57,17 @@ interface ScrapeSetupPanelProps {
 const STATUS_OPTIONS = [
   { value: 'ongoing', label: '连载中' },
   { value: 'completed', label: '已完结' },
+]
+
+/**
+ * 内容分级选项。顺序刻意把「未标注」放在首位并作为默认值：
+ * 抓取时源站信息不足以可靠判定成人向，默认必须是不判定（回落正则兜底），
+ * 而不是替运营做出「这是安全内容」的承诺。
+ */
+const CONTENT_RATING_OPTIONS = [
+  { value: 'unknown', label: '未标注' },
+  { value: 'general', label: '一般' },
+  { value: 'restricted', label: '限制级' },
 ]
 
 const SELECTOR_FIELDS: Array<{ key: keyof Selectors; label: string; placeholder: string }> = [
@@ -176,6 +189,16 @@ export default function ScrapeSetupPanel({
               options={STATUS_OPTIONS}
               value={preview.status}
               onChange={(value) => onPreviewChange({ ...preview, status: value })}
+            />
+          )}
+        </ScrapeField>
+        <ScrapeField label="内容分级">
+          {({ labelId }) => (
+            <CustomSelect
+              aria-labelledby={labelId}
+              options={CONTENT_RATING_OPTIONS}
+              value={preview.contentRating}
+              onChange={(value) => onPreviewChange({ ...preview, contentRating: value as ContentRating })}
             />
           )}
         </ScrapeField>

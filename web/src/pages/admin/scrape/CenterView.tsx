@@ -20,7 +20,9 @@ const PO18_PRESET = {
   selectors: { chapterList: '.chapters li a', chapterTitle: '#chaptertitle', chapterContent: '#novelcontent', nextPage: '.page a' },
 }
 
-const EMPTY_PREVIEW: SetupPreview = { title: '', author: '', category: '', status: 'ongoing', description: '', coverUrl: '' }
+// contentRating 必须与 SetupPreview 同批初始化：漏掉这一格不会报错，
+// 但 onPreviewChange({ ...preview, contentRating }) 会因为键不存在而静默丢字段。
+const EMPTY_PREVIEW: SetupPreview = { title: '', author: '', category: '', status: 'ongoing', contentRating: 'unknown', description: '', coverUrl: '' }
 const EMPTY_SELECTORS: Selectors = { chapterList: '', chapterTitle: '', chapterContent: '', nextPage: '' }
 
 interface ActiveCandidate {
@@ -110,6 +112,8 @@ export default function CenterView() {
       author: novel.author || item.author || '',
       category: rawCategories.filter(Boolean).join(', '),
       status: novel.status || item.status || 'ongoing',
+      // 候选阶段源站元数据没有分级，一律留待人工在「确认作品」处判定。
+      contentRating: 'unknown',
       description: novel.description || item.description || '',
       coverUrl,
     })
@@ -288,6 +292,7 @@ export default function CenterView() {
         coverUrl: preview.coverUrl || '',
         categories: parseCategories(preview.category),
         status: preview.status,
+        contentRating: preview.contentRating,
         sourceUrl: sourceUrl.trim(),
       })
       const novelId = (result as { novel?: { id: string } }).novel?.id || (result as { id?: string }).id || ''

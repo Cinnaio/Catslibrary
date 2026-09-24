@@ -5,7 +5,7 @@
 import { Hono } from 'hono'
 import { getDb } from '../db/pool'
 import { all, first, run } from '../db/query'
-import { rowToCommentAdmin, rowToCommentReport } from '../db/mappers'
+import { rowToCommentAdmin, rowToCommentReport, toContentRating } from '../db/mappers'
 import { cleanText, clampInt, escapeLike } from '../services/text'
 import { requireAdmin, type AuthEnv } from '../middlewares/auth'
 import { getAdultContentEnabled, setAdultContentEnabled } from './content-policy'
@@ -38,7 +38,7 @@ adminRoutes.get('/stats', async (c) => {
   start.setHours(0, 0, 0, 0)
   const todayStart = start.getTime()
 
-  const [novels, chapters, users, covers, failedJobs, todayChapters, running, completed, dbSize, recentJobsRows, recentNovelsRows] = await Promise.all([
+  const [novels, chapters, users, covers, failedJobs, todayChapters, running, completed, dbSize, recentJobsRows, recentNovelsRows, ratingRows] = await Promise.all([
     count(db, 'SELECT COUNT(*)::int AS total FROM novels'),
     count(db, 'SELECT COUNT(*)::int AS total FROM chapters'),
     count(db, 'SELECT COUNT(*)::int AS total FROM users'),
@@ -64,7 +64,18 @@ adminRoutes.get('/stats', async (c) => {
        ORDER BY updated_at DESC
        LIMIT 6`,
     ),
+    // 标注进度：unknown 就是「还没人工判定的存量」，是标注作业的方向盘。
+    all<{ content_rating: string; count: number }>(
+      db,
+      'SELECT content_rating, COUNT(*)::int AS count FROM novels GROUP BY content_rating',
+    ),
   ])
+
+  const ratingCounts = { general: 0, restricted: 0, unknown: 0 }
+  for (const r of ratingRows) {
+    const key = toContentRating(r.content_rating)
+    ratingCounts[key] += Number(r.count) || 0
+  }
 
   return c.json(
     {
@@ -77,6 +88,7 @@ adminRoutes.get('/stats', async (c) => {
         todayChapters,
         dbSize,
       },
+      contentRating: ratingCounts,
       jobStatus: { running, completed, failed: failedJobs },
       recentJobs: recentJobsRows.map(rowToJobSummary),
       recentNovels: recentNovelsRows.map((row) => ({

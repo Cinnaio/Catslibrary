@@ -1,6 +1,7 @@
 /**
  * 行映射 —— snake_case DB 列 ↔ camelCase API 字段（由 Novel-KV _db.js 平移）。
  */
+import type { ContentRating } from '@shared/types'
 
 export interface NovelRow {
   id: string
@@ -10,6 +11,7 @@ export interface NovelRow {
   cover_url: string
   categories: string
   status: string
+  content_rating: string
   source_url: string
   chapter_count: number
   remote_chapter_count: number
@@ -26,6 +28,7 @@ export interface Novel {
   coverUrl: string
   categories: string[]
   status: string
+  contentRating: ContentRating
   sourceUrl: string
   chapterCount: number
   remoteChapterCount: number
@@ -93,6 +96,14 @@ export interface Rating {
   updatedAt: number
 }
 
+/**
+ * 归一化内容分级。非枚举值（历史脏数据、规则回填写错）一律按「未判定」处理，
+ * 而不是当成安全——宁可让它继续走正则兜底，也不能静默放行。
+ */
+export function toContentRating(value: unknown): ContentRating {
+  return value === 'general' || value === 'restricted' ? value : 'unknown'
+}
+
 export function rowToNovel(row: NovelRow | undefined | null): Novel | null {
   if (!row) return null
   return {
@@ -103,6 +114,7 @@ export function rowToNovel(row: NovelRow | undefined | null): Novel | null {
     coverUrl: row.cover_url,
     categories: safeJsonParse(row.categories, []),
     status: row.status,
+    contentRating: toContentRating(row.content_rating),
     sourceUrl: row.source_url,
     chapterCount: row.chapter_count,
     remoteChapterCount: row.remote_chapter_count || 0,
@@ -121,6 +133,7 @@ export function novelToRow(novel: Novel): Record<string, unknown> {
     cover_url: novel.coverUrl || '',
     categories: JSON.stringify(novel.categories || []),
     status: novel.status || 'ongoing',
+    content_rating: toContentRating(novel.contentRating),
     source_url: novel.sourceUrl || '',
     chapter_count: novel.chapterCount || 0,
     created_at: novel.createdAt,

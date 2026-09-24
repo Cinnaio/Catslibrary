@@ -1,4 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { hasRestrictedText } from '@shared/restricted-patterns'
+import type { ContentRating } from '@shared/types'
 import { authApi, contentPolicyApi, getToken } from '../lib/api'
 import { useOptionalSession } from './SessionContext'
 
@@ -6,55 +8,35 @@ export type ContentMode = 'safe' | 'adult'
 
 const STORAGE_KEY = 'zhizhou-content-mode'
 
-// 只匹配明确的限制级标记，避免把普通的悬疑、武侠或爱情作品误判为成人内容。
-const RESTRICTED_PATTERNS = [
-  /成人/i,
-  /色情/i,
-  /情色/i,
-  /肉文/i,
-  /肉梗/i,
-  /多肉/i,
-  /吃肉/i,
-  /福利文/i,
-  /限制级/i,
-  /涉黄/i,
-  /未删减/i,
-  /18\s*禁/i,
-  /未满\s*18/i,
-  /未成年/i,
-  /露骨/i,
-  /性描写/i,
-  /性爱/i,
-  /艳情/i,
-  /工口/i,
-  /黄暴/i,
-  /重口(?:味)?/i,
-  /纯肉|肉肉|后期肉|前期.*后期.*肉/i,
-  /调教|监禁|强制爱|床上|含进身体|发出禁忌|养成妹妹/i,
-  /性幻想|性行为|性侵|性器|性欲|无套|双处/i,
-  /乳晕|亲密行为|滚到一起|做了吗|剧情.*肉/i,
-  /觊觎|阴暗.*变态|强取豪夺/i,
-  /强奸|强X|轮奸|乱伦/i,
-  /被操|操得|操她|操我|操死|肏她|肏我/i,
-  /高\s*h|h\s*高/i,
-  /b\s*d\s*s\s*m|\bsm\b/i,
-  /r\s*[-_]?\s*18/i,
-  /18\s*\+/i,
-  /h\s*文/i,
-]
+// 限制级特征正则已移到 shared/restricted-patterns.ts：它同时服务这里的兜底判定与
+// 后端的存量预填，各留一份会让「预填结果」与「前台判定」出现两套口径。
 
 export interface ContentMetadata {
   title?: string
   description?: string
   categories?: string[]
+  /**
+   * 内容分级字段（方案 B）。三态语义：
+   *   'restricted' → 受限
+   *   'general'    → 放行
+   *   'unknown'    → 回落正则兜底（与 B 上线前的行为完全一致）
+   * 不传（undefined，如分类名或临时对象）等价于 unknown。
+   */
+  contentRating?: ContentRating
 }
 
+/**
+ * 判定一本书/一个标签是否属于限制级。
+ *
+ * 优先读事实（contentRating），只有 unknown 才去猜文本。这样 B 的上线是行为等价的：
+ * 未标注期间与今天逐本一致，标注一本就把这本书从「猜」升级为「确定」。
+ */
 export function isRestrictedContent(metadata: ContentMetadata | string | null | undefined): boolean {
   if (!metadata) return false
-  const text = typeof metadata === 'string'
-    ? metadata
-    : [metadata.title, metadata.description, ...(metadata.categories || [])].filter(Boolean).join(' ')
-  return RESTRICTED_PATTERNS.some((pattern) => pattern.test(text))
+  // 字符串是分类名等纯文本场景，没有字段可读，直接走正则。
+  if (typeof metadata !== 'string' && metadata.contentRating === 'restricted') return true
+  if (typeof metadata !== 'string' && metadata.contentRating === 'general') return false
+  return hasRestrictedText(metadata)
 }
 
 function readInitialMode(): ContentMode {

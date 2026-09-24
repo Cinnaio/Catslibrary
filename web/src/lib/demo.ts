@@ -12,6 +12,7 @@ function base(id: string, title: string, author: string, description: string, ca
     description,
     categories,
     status,
+    contentRating: 'general',
     coverUrl: '',
     sourceUrl: '',
     chapterCount: 0,

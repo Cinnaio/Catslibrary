@@ -18,8 +18,10 @@ export default tseslint.config(
   },
 
   // TypeScript 源码（api + web + shared + 脚本）
+  // scripts/**/*.ts 也纳入：直接 import shared 下 TS 模块的脚本必须以 .ts 编写
+  // （.mjs 无法直接 import .ts），若不覆盖就会完全逃过 lint。
   {
-    files: ['api/**/*.ts', 'web/src/**/*.{ts,tsx}', 'shared/**/*.ts'],
+    files: ['api/**/*.ts', 'web/src/**/*.{ts,tsx}', 'shared/**/*.ts', 'scripts/**/*.ts'],
     extends: [...tseslint.configs.recommended],
     rules: {
       // 路由层大量动态 JSON 载荷，全面标注收益低；保持可用性优先
@@ -57,7 +59,7 @@ export default tseslint.config(
 
   // Node 环境（api、脚本）
   {
-    files: ['api/**/*.ts', 'scripts/**/*.mjs', '*.mjs'],
+    files: ['api/**/*.ts', 'scripts/**/*.{mjs,ts}', '*.mjs'],
     languageOptions: {
       globals: globals.node,
     },
