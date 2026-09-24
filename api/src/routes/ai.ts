@@ -8,7 +8,14 @@ import { getDb } from '../db/pool'
 import { all, first, withTx } from '../db/query'
 import { AiError, chat, isTextAiConfigured, providerLabel, textProvider } from '../services/ai/client'
 import { isImageAiConfigured, imageProvider, imageProviderLabel } from '../services/ai/image'
-import { generateCoverPrompt, generateCoverPromptTask, generateNovelCover, newCoverVariationId, normalizeCoverPrompt, normalizeCoverPromptMode } from '../services/ai/cover'
+import {
+  generateCoverPrompt,
+  generateCoverPromptTask,
+  generateNovelCover,
+  newCoverVariationId,
+  normalizeCoverPrompt,
+  normalizeCoverPromptMode,
+} from '../services/ai/cover'
 import { getAiSettings, saveAiSettings } from '../services/ai/settings'
 import { readRuntimeConfig, writeRuntimeConfig, syncRuntimeConfigToEnv, type RuntimeConfigKey } from '../runtime-config'
 import { generateRecap, getCachedRecap, loadChapterForRecap } from '../services/ai/summary'
@@ -30,7 +37,16 @@ import {
   type BatchResult,
 } from '../services/ai/generations'
 import { escapeLike } from '../services/text'
-import { generateContinuationChapters, generatePlotSuggestions, generateWriting, generateWritingTitles, loadContinuationContext, parseContinuationTitle, type ContinuationSnapshotV1, validateWritingBrief } from '../services/ai/writing'
+import {
+  generateContinuationChapters,
+  generatePlotSuggestions,
+  generateWriting,
+  generateWritingTitles,
+  loadContinuationContext,
+  parseContinuationTitle,
+  type ContinuationSnapshotV1,
+  validateWritingBrief,
+} from '../services/ai/writing'
 import { WRITING_PROMPT_PIPELINE_VERSION } from '../services/ai/writing-prompt'
 import { COVER_PROMPT_PIPELINE_VERSION } from '../services/ai/cover-brief'
 import { extractStyleProfile } from '../services/ai/style-profile'
@@ -40,12 +56,29 @@ import { deleteProfileOverride, getEffectiveProfileForAnchor, parseProfileKind, 
 import { checkQuota, recordUsage, startOfToday, summarizeUsage } from '../services/ai/usage'
 import { optionalUser, requireAdmin, requireUser, type AuthEnv } from '../middlewares/auth'
 import { cancelAiTask, countActiveWritingTasks, createAiTask, deleteAiTask, getAiTask, listAiTasks, updateAiTask } from '../services/ai/tasks'
-import { adoptCoverCandidate, deleteCoverCandidate, getCoverHistoryImage, getCurrentCoverState, listCoverCandidates, listCoverHistory, replaceCoverForAdmin, MAX_COVER_BYTES } from '../services/covers'
+import {
+  adoptCoverCandidate,
+  deleteCoverCandidate,
+  getCoverHistoryImage,
+  getCurrentCoverState,
+  listCoverCandidates,
+  listCoverHistory,
+  replaceCoverForAdmin,
+  MAX_COVER_BYTES,
+} from '../services/covers'
 import { clientIpFromContext } from '../services/ai/audit-context'
 import { idempotencyKeyFromRequest, requestHash, withIdempotency } from '../services/idempotency'
-import { buildRewriteTaskParams, parseRewriteSuggestion, parseRewriteTaskParams, runRewriteTask, validateRewriteSelection, type RewriteMode } from '../services/ai/rewrite'
+import {
+  buildRewriteTaskParams,
+  parseRewriteSuggestion,
+  parseRewriteTaskParams,
+  runRewriteTask,
+  validateRewriteSelection,
+  type RewriteMode,
+} from '../services/ai/rewrite'
 import { resolveStoredPipelineVersion } from '../services/ai/prompt-version'
 import { DEFAULT_WRITING_CONTENT_PREFERENCES, validateWritingContentPreferences, type WritingContentPreferencesV1 } from '../services/ai/writing-preferences'
+import { evaluateWritingPublishPolicy } from '../services/ai/writing-publish-policy'
 import { restrictedContentResponse, resolveContentAccess } from '../services/content-access'
 
 export const aiRoutes = new Hono<AuthEnv>()
@@ -380,7 +413,11 @@ function writingOptions(body: Record<string, any>) {
 }
 
 /** 序列化创作请求参数存入任务行：失败/取消后可按原参数重试。 */
-function writingTaskParams(body: Record<string, any>, continuationSnapshot?: ContinuationSnapshotV1, promptPipelineVersion = WRITING_PROMPT_PIPELINE_VERSION): string {
+function writingTaskParams(
+  body: Record<string, any>,
+  continuationSnapshot?: ContinuationSnapshotV1,
+  promptPipelineVersion = WRITING_PROMPT_PIPELINE_VERSION,
+): string {
   return JSON.stringify({
     novelId: String(body.novelId || '').trim(),
     title: String(body.title || '').trim(),
@@ -456,8 +493,15 @@ function parseContinuationSnapshot(value: unknown): ContinuationSnapshotV1 | und
   const anchor = snapshot.anchor as Record<string, unknown> | undefined
   const profiles = snapshot.profiles as Record<string, unknown> | undefined
   if (snapshot.version !== 1 || snapshot.contextPolicyVersion !== 1 || !anchor || !profiles) return undefined
-  if (typeof anchor.chapterId !== 'string' || !anchor.chapterId || typeof anchor.title !== 'string' || !Number.isFinite(Number(anchor.sortOrder))) return undefined
-  if (typeof snapshot.context !== 'string' || typeof profiles.style !== 'string' || typeof profiles.relationship !== 'string' || typeof profiles.plot !== 'string') return undefined
+  if (typeof anchor.chapterId !== 'string' || !anchor.chapterId || typeof anchor.title !== 'string' || !Number.isFinite(Number(anchor.sortOrder)))
+    return undefined
+  if (
+    typeof snapshot.context !== 'string' ||
+    typeof profiles.style !== 'string' ||
+    typeof profiles.relationship !== 'string' ||
+    typeof profiles.plot !== 'string'
+  )
+    return undefined
   // 旧任务没有 revision 字段时仍按旧语义恢复；新快照则把 revision 归一化为冻结的只读元数据。
   const profileRevisions: Record<string, number> = {}
   if (snapshot.profileRevisions && typeof snapshot.profileRevisions === 'object' && !Array.isArray(snapshot.profileRevisions)) {
@@ -507,7 +551,20 @@ async function buildContinuationSnapshot(
   const profileBaseRevisions: Record<string, string> = {}
   const profileOrigins: Record<string, 'automatic' | 'manual' | 'legacy'> = {}
   const excludedProfiles: ContinuationSnapshotV1['excludedProfiles'] = []
-  const use = (kind: 'style' | 'relationship' | 'plot', value: { profile?: string; state?: string; effectiveContent?: string; effectiveOrigin?: string; source?: unknown; eligibility: string; exclusionReason?: string; manualOverride?: { revision?: number }; baseProfileRevision?: string }) => {
+  const use = (
+    kind: 'style' | 'relationship' | 'plot',
+    value: {
+      profile?: string
+      state?: string
+      effectiveContent?: string
+      effectiveOrigin?: string
+      source?: unknown
+      eligibility: string
+      exclusionReason?: string
+      manualOverride?: { revision?: number }
+      baseProfileRevision?: string
+    },
+  ) => {
     const profile = String(value.effectiveContent ?? value.profile ?? value.state ?? '')
     profileRevisions[kind] = Number.isInteger(Number(value.manualOverride?.revision)) ? Math.max(0, Number(value.manualOverride?.revision)) : 0
     profileBaseRevisions[kind] = String(value.baseProfileRevision || '')
@@ -577,7 +634,13 @@ async function startWritingJob(
 
   if (kind === 'write_outline') {
     if (!title) return { ok: false, status: 400, error: 'title 必填' }
-    const task = await createAiTask(db, { userId: user.id, novelId, kind, prompt: instruction || title, params: writingTaskParams(body, undefined, promptPipelineVersion) })
+    const task = await createAiTask(db, {
+      userId: user.id,
+      novelId,
+      kind,
+      prompt: instruction || title,
+      params: writingTaskParams(body, undefined, promptPipelineVersion),
+    })
     finalizeWritingTask(
       db,
       task.id,
@@ -605,7 +668,13 @@ async function startWritingJob(
 
   if (kind === 'write_chapter') {
     if (!title) return { ok: false, status: 400, error: 'novelId 和 title 必填' }
-    const task = await createAiTask(db, { userId: user.id, novelId, kind, prompt: instruction || title, params: writingTaskParams(body, undefined, promptPipelineVersion) })
+    const task = await createAiTask(db, {
+      userId: user.id,
+      novelId,
+      kind,
+      prompt: instruction || title,
+      params: writingTaskParams(body, undefined, promptPipelineVersion),
+    })
     finalizeWritingTask(
       db,
       task.id,
@@ -650,7 +719,11 @@ async function startWritingJob(
   const indices = existing.map((draft) => draft.batchIndex)
   const uniqueIndices = new Set(indices)
   const maxExisting = indices.length ? Math.max(...indices) : 0
-  if (existing.some((draft) => draft.status === 'rejected' || draft.deletedAt > 0 || !draft.result.trim()) || uniqueIndices.size !== indices.length || indices.some((index) => index < 1 || index > count)) {
+  if (
+    existing.some((draft) => draft.status === 'rejected' || draft.deletedAt > 0 || !draft.result.trim()) ||
+    uniqueIndices.size !== indices.length ||
+    indices.some((index) => index < 1 || index > count)
+  ) {
     return { ok: false, status: 409, error: '本批已有结果编号不连续或状态不确定，请查看已生成内容后新建任务' }
   }
   for (let index = 1; index <= maxExisting; index += 1) {
@@ -668,8 +741,7 @@ async function startWritingJob(
     prompt: finalInstruction,
     params: writingTaskParams(body, snapshot, promptPipelineVersion),
   })
-  if (resume && maxExisting)
-    await updateAiTask(db, task.id, { current: maxExisting, step: `已生成 ${maxExisting} / ${count} 章，断点恢复中` })
+  if (resume && maxExisting) await updateAiTask(db, task.id, { current: maxExisting, step: `已生成 ${maxExisting} / ${count} 章，断点恢复中` })
   void generateContinuationChapters(db, {
     userId: user.id,
     novelId,
@@ -726,7 +798,16 @@ function startWritingRoute(kind: 'write_outline' | 'write_chapter' | 'continue')
       },
       async () => {
         if (!isTextAiConfigured()) return c.json({ error: 'AI 文本服务未配置', code: 'disabled' }, 503)
-        const result = await startWritingJob(db, c.get('user'), kind, body, await auditRequestContext(c, db), undefined, undefined, WRITING_PROMPT_PIPELINE_VERSION)
+        const result = await startWritingJob(
+          db,
+          c.get('user'),
+          kind,
+          body,
+          await auditRequestContext(c, db),
+          undefined,
+          undefined,
+          WRITING_PROMPT_PIPELINE_VERSION,
+        )
         if (!result.ok) return c.json({ error: result.error }, result.status)
         return c.json({ ok: true, taskId: result.task.id, batchId: result.task.batchId, total: result.task.total }, 202)
       },
@@ -791,7 +872,18 @@ aiRoutes.post('/cover/generate', requireAdmin(), async (c) => {
         kind: 'cover',
         total: 1,
         prompt: prompt || '生成封面',
-        params: JSON.stringify({ novelId, prompt, promptMode, renderTitle, platform, stylePreset, composition, variationId, promptPipelineVersion: COVER_PROMPT_PIPELINE_VERSION, ...(operationKey ? { clientRequestId: operationKey } : {}) }),
+        params: JSON.stringify({
+          novelId,
+          prompt,
+          promptMode,
+          renderTitle,
+          platform,
+          stylePreset,
+          composition,
+          variationId,
+          promptPipelineVersion: COVER_PROMPT_PIPELINE_VERSION,
+          ...(operationKey ? { clientRequestId: operationKey } : {}),
+        }),
       })
       void generateNovelCover(db, {
         userId: c.get('user').id,
@@ -849,7 +941,16 @@ aiRoutes.post('/cover/prompt', requireAdmin(), async (c) => {
           kind: 'cover_prompt',
           total: 1,
           prompt: '生成封面描述词',
-          params: coverPromptTaskParams({ novelId, renderTitle, platform, stylePreset, composition, variationId, clientRequestId: operationKey, promptPipelineVersion }),
+          params: coverPromptTaskParams({
+            novelId,
+            renderTitle,
+            platform,
+            stylePreset,
+            composition,
+            variationId,
+            clientRequestId: operationKey,
+            promptPipelineVersion,
+          }),
         })
         const audit = await auditRequestContext(c, db)
         void generateCoverPromptTask(db, {
@@ -1077,9 +1178,10 @@ aiRoutes.post('/writing/plot-suggestions', requireAdmin(), async (c) => {
   const contentPreferencesResult = validateWritingContentPreferences(body.contentPreferences)
   if (contentPreferencesResult.error) return c.json({ error: contentPreferencesResult.error }, 422)
   // chapterCount 传了就产出按章大纲，不传就是一行行情节方向。
-  const chapterCount = body.chapterCount === undefined || body.chapterCount === null || body.chapterCount === ''
-    ? undefined
-    : Math.max(1, Math.min(20, Math.trunc(Number(body.chapterCount) || 1)))
+  const chapterCount =
+    body.chapterCount === undefined || body.chapterCount === null || body.chapterCount === ''
+      ? undefined
+      : Math.max(1, Math.min(20, Math.trunc(Number(body.chapterCount) || 1)))
   try {
     const result = await generatePlotSuggestions(db, {
       userId: c.get('user').id,
@@ -1132,7 +1234,18 @@ aiRoutes.get('/writing/style-profile/:novelId', requireAdmin(), async (c) => {
   const afterChapterId = String(c.req.query('afterChapterId') || '').trim() || undefined
   try {
     const result = await getEffectiveProfileForAnchor(db, { kind: 'style', novelId, afterChapterId })
-    return c.json({ profile: result.profile, source: result.source, updatedAt: result.updatedAt, eligibility: result.eligibility, isOlderThanAnchor: result.isOlderThanAnchor, manualOverride: result.manualOverride, effectiveContent: result.effectiveContent, effectiveOrigin: result.effectiveOrigin, exclusionReason: result.exclusionReason, baseProfileRevision: result.baseProfileRevision })
+    return c.json({
+      profile: result.profile,
+      source: result.source,
+      updatedAt: result.updatedAt,
+      eligibility: result.eligibility,
+      isOlderThanAnchor: result.isOlderThanAnchor,
+      manualOverride: result.manualOverride,
+      effectiveContent: result.effectiveContent,
+      effectiveOrigin: result.effectiveOrigin,
+      exclusionReason: result.exclusionReason,
+      baseProfileRevision: result.baseProfileRevision,
+    })
   } catch (err) {
     return aiErrorResponse(c, err)
   }
@@ -1179,7 +1292,20 @@ aiRoutes.get('/writing/plot-state/:novelId', requireAdmin(), async (c) => {
       getEffectiveProfileForAnchor(db, { kind: 'plot', novelId, afterChapterId }),
       first<{ chapter_count: number }>(db, 'SELECT chapter_count FROM novels WHERE id = $1', [novelId]),
     ])
-    return c.json({ state: plotState.profile, chaptersThrough: Number((plotState.source?.chapterOrdinal)) || 0, chapterCount: Number(novel?.chapter_count) || 0, source: plotState.source, updatedAt: plotState.updatedAt, eligibility: plotState.eligibility, isOlderThanAnchor: plotState.isOlderThanAnchor, manualOverride: plotState.manualOverride, effectiveContent: plotState.effectiveContent, effectiveOrigin: plotState.effectiveOrigin, exclusionReason: plotState.exclusionReason, baseProfileRevision: plotState.baseProfileRevision })
+    return c.json({
+      state: plotState.profile,
+      chaptersThrough: Number(plotState.source?.chapterOrdinal) || 0,
+      chapterCount: Number(novel?.chapter_count) || 0,
+      source: plotState.source,
+      updatedAt: plotState.updatedAt,
+      eligibility: plotState.eligibility,
+      isOlderThanAnchor: plotState.isOlderThanAnchor,
+      manualOverride: plotState.manualOverride,
+      effectiveContent: plotState.effectiveContent,
+      effectiveOrigin: plotState.effectiveOrigin,
+      exclusionReason: plotState.exclusionReason,
+      baseProfileRevision: plotState.baseProfileRevision,
+    })
   } catch (err) {
     return aiErrorResponse(c, err)
   }
@@ -1220,7 +1346,18 @@ aiRoutes.get('/writing/relationship-profile/:novelId', requireAdmin(), async (c)
   const afterChapterId = String(c.req.query('afterChapterId') || '').trim() || undefined
   try {
     const result = await getEffectiveProfileForAnchor(db, { kind: 'relationship', novelId, afterChapterId })
-    return c.json({ profile: result.profile, source: result.source, updatedAt: result.updatedAt, eligibility: result.eligibility, isOlderThanAnchor: result.isOlderThanAnchor, manualOverride: result.manualOverride, effectiveContent: result.effectiveContent, effectiveOrigin: result.effectiveOrigin, exclusionReason: result.exclusionReason, baseProfileRevision: result.baseProfileRevision })
+    return c.json({
+      profile: result.profile,
+      source: result.source,
+      updatedAt: result.updatedAt,
+      eligibility: result.eligibility,
+      isOlderThanAnchor: result.isOlderThanAnchor,
+      manualOverride: result.manualOverride,
+      effectiveContent: result.effectiveContent,
+      effectiveOrigin: result.effectiveOrigin,
+      exclusionReason: result.exclusionReason,
+      baseProfileRevision: result.baseProfileRevision,
+    })
   } catch (err) {
     return aiErrorResponse(c, err)
   }
@@ -1260,7 +1397,18 @@ aiRoutes.put('/writing/profiles/:kind/:novelId/override', requireAdmin(), async 
           updatedBy: c.get('user').id,
           ...(String(body.afterChapterId || '').trim() ? { afterChapterId: String(body.afterChapterId).trim() } : {}),
         })
-        return c.json({ ok: true, override: saved.override, effectiveContent: saved.effective.effectiveContent, effectiveOrigin: saved.effective.effectiveOrigin, exclusionReason: saved.effective.exclusionReason, baseProfileRevision: saved.effective.baseProfileRevision }, 200, { 'Cache-Control': 'no-store' })
+        return c.json(
+          {
+            ok: true,
+            override: saved.override,
+            effectiveContent: saved.effective.effectiveContent,
+            effectiveOrigin: saved.effective.effectiveOrigin,
+            exclusionReason: saved.effective.exclusionReason,
+            baseProfileRevision: saved.effective.baseProfileRevision,
+          },
+          200,
+          { 'Cache-Control': 'no-store' },
+        )
       } catch (err) {
         return aiErrorResponse(c, err)
       }
@@ -1288,8 +1436,23 @@ aiRoutes.delete('/writing/profiles/:kind/:novelId/override', requireAdmin(), asy
     },
     async () => {
       try {
-        const result = await deleteProfileOverride(db, { kind, novelId, expectedRevision, ...(String(body.afterChapterId || '').trim() ? { afterChapterId: String(body.afterChapterId).trim() } : {}) })
-        return c.json({ ok: true, effectiveContent: result.effectiveContent, effectiveOrigin: result.effectiveOrigin, exclusionReason: result.exclusionReason, baseProfileRevision: result.baseProfileRevision }, 200, { 'Cache-Control': 'no-store' })
+        const result = await deleteProfileOverride(db, {
+          kind,
+          novelId,
+          expectedRevision,
+          ...(String(body.afterChapterId || '').trim() ? { afterChapterId: String(body.afterChapterId).trim() } : {}),
+        })
+        return c.json(
+          {
+            ok: true,
+            effectiveContent: result.effectiveContent,
+            effectiveOrigin: result.effectiveOrigin,
+            exclusionReason: result.exclusionReason,
+            baseProfileRevision: result.baseProfileRevision,
+          },
+          200,
+          { 'Cache-Control': 'no-store' },
+        )
       } catch (err) {
         return aiErrorResponse(c, err)
       }
@@ -1342,7 +1505,8 @@ aiRoutes.post('/writing/drafts/:id/rewrite', requireAdmin(), async (c) => {
     },
     async () => {
       if (!isTextAiConfigured()) return c.json({ error: 'AI 文本服务未配置', code: 'disabled' }, 503)
-      if (await countActiveWritingTasks(db) >= (await getAiSettings(db)).maxConcurrentWritingTasks) return c.json({ error: '已有过多创作任务在运行，请稍后重试' }, 429)
+      if ((await countActiveWritingTasks(db)) >= (await getAiSettings(db)).maxConcurrentWritingTasks)
+        return c.json({ error: '已有过多创作任务在运行，请稍后重试' }, 429)
       const task = await createAiTask(db, {
         userId: c.get('user').id,
         novelId: draft.novel_id,
@@ -1352,12 +1516,11 @@ aiRoutes.post('/writing/drafts/:id/rewrite', requireAdmin(), async (c) => {
         params: JSON.stringify({ ...params, ...(operationKey ? { clientRequestId: operationKey } : {}) }),
       })
       const audit = await auditRequestContext(c, db)
-      void runRewriteTask(db, { taskId: task.id, userId: c.get('user').id, params, ...audit })
-        .catch(async (err) => {
-          console.error('[ai] 选段改写任务失败', err)
-          const message = err instanceof AiError ? err.message : '改写建议生成失败'
-          await updateAiTask(db, task.id, { status: 'failed', error: message }).catch(() => {})
-        })
+      void runRewriteTask(db, { taskId: task.id, userId: c.get('user').id, params, ...audit }).catch(async (err) => {
+        console.error('[ai] 选段改写任务失败', err)
+        const message = err instanceof AiError ? err.message : '改写建议生成失败'
+        await updateAiTask(db, task.id, { status: 'failed', error: message }).catch(() => {})
+      })
       return c.json({ ok: true, taskId: task.id, total: 1 }, 202)
     },
   )
@@ -1374,11 +1537,16 @@ aiRoutes.post('/writing/drafts/:id/rewrite/:taskId/apply', requireAdmin(), async
   if (!task || task.kind !== 'rewrite_selection') return c.json({ error: '改写任务不存在' }, 404)
   if (task.status !== 'completed') return c.json({ error: '改写建议尚未完成，不能应用' }, 409)
   let params: ReturnType<typeof parseRewriteTaskParams> = undefined
-  try { params = parseRewriteTaskParams(task.params ? JSON.parse(task.params) : undefined) } catch { params = undefined }
+  try {
+    params = parseRewriteTaskParams(task.params ? JSON.parse(task.params) : undefined)
+  } catch {
+    params = undefined
+  }
   const suggestion = params ? parseRewriteSuggestion(task.result, params) : undefined
   if (!params || !suggestion || params.draftId !== id) return c.json({ error: '改写建议与草稿不匹配' }, 409)
   const requestedBaseRevision = String(body.baseRevision || '').trim()
-  if (!requestedBaseRevision || requestedBaseRevision !== params.baseRevision) return c.json({ error: '应用基底版本不匹配，请重新读取建议', code: 'content_changed' }, 409)
+  if (!requestedBaseRevision || requestedBaseRevision !== params.baseRevision)
+    return c.json({ error: '应用基底版本不匹配，请重新读取建议', code: 'content_changed' }, 409)
   return withIdempotency(
     db,
     {
@@ -1392,14 +1560,15 @@ aiRoutes.post('/writing/drafts/:id/rewrite/:taskId/apply', requireAdmin(), async
         const applied = await withTx(db, async (q) => {
           const locked = await q<GenerationRow>('SELECT * FROM ai_generations WHERE id = $1 FOR UPDATE', [id])
           const row = locked.rows[0]
-          if (!row || row.deleted_at || row.status !== 'draft' || !['write_chapter', 'continue'].includes(row.kind)) throw new AiError('conflict', '草稿已发布、删除或不可编辑', 409)
+          if (!row || row.deleted_at || row.status !== 'draft' || !['write_chapter', 'continue'].includes(row.kind))
+            throw new AiError('conflict', '草稿已发布、删除或不可编辑', 409)
           const currentRevision = generationContentRevision(row.result)
           if (currentRevision !== params!.baseRevision) throw new AiError('conflict', '草稿正文已变化，请重新选择选段', 409)
           const selected = validateRewriteSelection(row.result, params!)
           if (!selected.value) throw new AiError('conflict', selected.error || '原选段已变化，请重新选择', 409)
           const result = row.result.slice(0, params!.startUTF16) + suggestion!.suggestion + row.result.slice(params!.endUTF16)
           if (!result.trim() || Array.from(result).length > 12000) throw new AiError('invalid', '应用后的正文超出允许范围', 422)
-          await q('UPDATE ai_generations SET result = $1 WHERE id = $2 AND status = \'draft\' AND deleted_at = 0', [result, id])
+          await q("UPDATE ai_generations SET result = $1 WHERE id = $2 AND status = 'draft' AND deleted_at = 0", [result, id])
           return { id, result, contentRevision: generationContentRevision(result) }
         })
         return c.json({ ok: true, ...applied }, 200, { 'Cache-Control': 'no-store' })
@@ -1415,6 +1584,7 @@ class PublishError extends Error {
   constructor(
     readonly httpStatus: 400 | 404 | 409,
     message: string,
+    readonly code?: string,
   ) {
     super(message)
     this.name = 'PublishError'
@@ -1437,7 +1607,7 @@ aiRoutes.post('/writing/drafts/:id/publish', requireAdmin(), async (c) => {
     // 插章节、刷计数、改草稿状态放同一事务，任一步失败整体回滚，不留半成品
     const order = await withTx(db, async (q) => {
       // 锁小说行：同一本书的并发发布被串行化，MAX+1 取号不会重复
-      const novel = await q('SELECT id FROM novels WHERE id = $1 FOR UPDATE', [novelId])
+      const novel = await q<{ id: string; content_rating: string }>('SELECT id, content_rating FROM novels WHERE id = $1 FOR UPDATE', [novelId])
       if (!novel.rows.length) throw new PublishError(404, '小说不存在')
       // 正文必须从小说锁之后重新读取并锁定，不能使用事务外的旧快照。
       const locked = await q<GenerationRow>(
@@ -1455,27 +1625,24 @@ aiRoutes.post('/writing/drafts/:id/publish', requireAdmin(), async (c) => {
       const title = requestedTitle || storedTitle || parsed.title
       const content = parsed.title ? parsed.body : row.result
       if (!title || !content.trim()) throw new PublishError(400, 'novelId、title 和内容必填')
+      // 必须在小说行锁内读取当前分级；显式 R18 草稿不得静默进入 general/unknown。
+      const policy = evaluateWritingPublishPolicy(row, novel.rows[0]!.content_rating)
+      if (!policy.ok) throw new PublishError(policy.httpStatus, policy.message, policy.code)
       // 带条件更新原子占用草稿：同一草稿并发发布时只有一个请求能成功
       const claimed = await q("UPDATE ai_generations SET status = 'published', chapter_id = $1 WHERE id = $2 AND status = 'draft'", [chapterId, id])
       if (!claimed.rowCount) throw new PublishError(409, '草稿已被发布或不可发布')
       const max = await q<{ max_order: number }>('SELECT COALESCE(MAX(sort_order), 0)::int AS max_order FROM chapters WHERE novel_id = $1', [novelId])
       const nextOrder = Number(max.rows[0]?.max_order || 0) + 1
-      await q('INSERT INTO chapters (id, novel_id, title, content, sort_order, word_count, source_url, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)', [
-        chapterId,
-        novelId,
-        title,
-        content,
-        nextOrder,
-        content.replace(/<[^>]*>/g, '').length,
-        '',
-        now,
-      ])
+      await q(
+        'INSERT INTO chapters (id, novel_id, title, content, sort_order, word_count, source_url, source_type, ai_task_id, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
+        [chapterId, novelId, title, content, nextOrder, content.replace(/<[^>]*>/g, '').length, '', policy.metadata.sourceType, policy.metadata.aiTaskId, now],
+      )
       await q('UPDATE novels SET chapter_count = (SELECT COUNT(*) FROM chapters WHERE novel_id = $1), updated_at = $2 WHERE id = $1', [novelId, now])
       return { order: nextOrder, title }
     })
     return c.json({ ok: true, chapter: { id: chapterId, novelId, title: order.title, order: order.order } })
   } catch (err) {
-    if (err instanceof PublishError) return c.json({ error: err.message }, err.httpStatus)
+    if (err instanceof PublishError) return c.json({ error: err.message, ...(err.code ? { code: err.code } : {}) }, err.httpStatus)
     throw err
   }
 })
@@ -1522,11 +1689,19 @@ aiRoutes.post('/writing/batches/:batchId/publish', requireAdmin(), async (c) => 
   const now = Date.now()
   try {
     const published = await withTx(db, async (q) => {
-      const novel = await q('SELECT id FROM novels WHERE id = $1 FOR UPDATE', [novelId])
+      const novel = await q<{ id: string; content_rating: string }>('SELECT id, content_rating FROM novels WHERE id = $1 FOR UPDATE', [novelId])
       if (!novel.rows.length) throw new PublishError(404, '小说不存在')
-      const max = await q<{ max_order: number }>('SELECT COALESCE(MAX(sort_order), 0)::int AS max_order FROM chapters WHERE novel_id = $1', [novelId])
-      let order = Number(max.rows[0]?.max_order || 0)
-      const results: Array<{ id: string; title: string; order: number; generationId: string }> = []
+
+      // 先锁定并完整准备本批草稿，所有分级/正文校验通过后才允许任何一条状态变更，
+      // 避免批量发布出现“前几章成功、后面才发现显式 R18 不匹配”的半成功结果。
+      const prepared: Array<{
+        row: GenerationRow
+        draftTitle: string
+        parsedTitle: string
+        content: string
+        sourceType: string
+        aiTaskId: string
+      }> = []
       for (const { row: candidate } of drafts) {
         // 与单条发布保持相同锁顺序：先锁小说，再锁草稿。草稿正文必须在锁内读取。
         const locked = await q<GenerationRow>(
@@ -1539,25 +1714,41 @@ aiRoutes.post('/writing/batches/:batchId/publish', requireAdmin(), async (c) => 
         if (!row || row.status !== 'draft' || row.kind !== 'continue') continue
         const batch = draftBatchParams(row.params_json)
         if (batch.batchId !== batchId || !row.result.trim()) continue
+
+        // 与单章发布完全相同的冻结参数和当前作品分级校验。
+        const policy = evaluateWritingPublishPolicy(row, novel.rows[0]!.content_rating)
+        if (!policy.ok) throw new PublishError(policy.httpStatus, policy.message, policy.code)
+
+        // 兼容修复前的旧草稿：标题可能还在正文首行。
+        const parsed = parseContinuationTitle(row.result)
+        const content = parsed.title ? parsed.body : row.result
+        if (!content.trim()) throw new PublishError(400, 'novelId、title 和内容必填')
+        prepared.push({
+          row,
+          draftTitle: batch.draftTitle,
+          parsedTitle: parsed.title,
+          content,
+          sourceType: policy.metadata.sourceType,
+          aiTaskId: policy.metadata.aiTaskId,
+        })
+      }
+      if (!prepared.length) throw new PublishError(409, '草稿已被发布或不可发布')
+
+      const max = await q<{ max_order: number }>('SELECT COALESCE(MAX(sort_order), 0)::int AS max_order FROM chapters WHERE novel_id = $1', [novelId])
+      let order = Number(max.rows[0]?.max_order || 0)
+      const results: Array<{ id: string; title: string; order: number; generationId: string }> = []
+      for (const item of prepared) {
+        const row = item.row
         const chapterId = 'ch_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7)
-        // 原子占用：并发下已被单独发布的草稿跳过，不打断整批
+        // 原子占用：小说行锁已串行化正常发布竞争；条件仍保留作最后一道状态保护。
         const claimed = await q("UPDATE ai_generations SET status = 'published', chapter_id = $1 WHERE id = $2 AND status = 'draft'", [chapterId, row.id])
         if (!claimed.rowCount) continue
         order += 1
-        // 兼容修复前的旧草稿：标题可能还在正文首行。
-        const parsed = parseContinuationTitle(row.result)
-        const title = draftBatchParams(row.params_json).draftTitle || parsed.title || `第 ${order} 章`
-        const content = parsed.title ? parsed.body : row.result
-        await q('INSERT INTO chapters (id, novel_id, title, content, sort_order, word_count, source_url, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)', [
-          chapterId,
-          novelId,
-          title,
-          content,
-          order,
-          content.replace(/<[^>]*>/g, '').length,
-          '',
-          now,
-        ])
+        const title = item.draftTitle || item.parsedTitle || `第 ${order} 章`
+        await q(
+          'INSERT INTO chapters (id, novel_id, title, content, sort_order, word_count, source_url, source_type, ai_task_id, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
+          [chapterId, novelId, title, item.content, order, item.content.replace(/<[^>]*>/g, '').length, '', item.sourceType, item.aiTaskId, now],
+        )
         results.push({ id: chapterId, title, order, generationId: row.id })
       }
       if (!results.length) throw new PublishError(409, '草稿已被发布或不可发布')
@@ -1566,7 +1757,7 @@ aiRoutes.post('/writing/batches/:batchId/publish', requireAdmin(), async (c) => 
     })
     return c.json({ ok: true, published, novelId })
   } catch (err) {
-    if (err instanceof PublishError) return c.json({ error: err.message }, err.httpStatus)
+    if (err instanceof PublishError) return c.json({ error: err.message, ...(err.code ? { code: err.code } : {}) }, err.httpStatus)
     throw err
   }
 })
@@ -1834,156 +2025,172 @@ aiRoutes.post('/tasks/:id/retry', requireAdmin(), async (c) => {
       audit: { actorUserId: c.get('user').id, action: 'ai.task.retry', targetCount: 1 },
     },
     async () => {
-
-    if (source.kind === 'rewrite_selection') {
-      let rewriteParams: ReturnType<typeof parseRewriteTaskParams> = undefined
-      try { rewriteParams = parseRewriteTaskParams(body) } catch { rewriteParams = undefined }
-      if (!rewriteParams) return c.json({ error: '任务参数损坏，无法重试' }, 422)
-      const draft = await getGeneration(db, rewriteParams.draftId)
-      if (!draft || draft.deleted_at || draft.status !== 'draft' || !['write_chapter', 'continue'].includes(draft.kind)) return c.json({ error: '原草稿已发布、删除或不可编辑，无法重试改写' }, 409)
-      if (!isTextAiConfigured()) return c.json({ error: 'AI 文本服务未配置', code: 'disabled' }, 503)
-      if (await countActiveWritingTasks(db) >= (await getAiSettings(db)).maxConcurrentWritingTasks) return c.json({ error: '已有过多创作任务在运行，请稍后重试' }, 429)
-      const task = await createAiTask(db, {
-        userId: c.get('user').id,
-        novelId: draft.novel_id,
-        kind: 'rewrite_selection',
-        total: 1,
-        prompt: `重试草稿 ${rewriteParams.draftId} 的选段改写`,
-        params: JSON.stringify({ ...rewriteParams, ...(operationKey ? { clientRequestId: operationKey } : {}) }),
-      })
-      const audit = await auditRequestContext(c, db)
-      void runRewriteTask(db, { taskId: task.id, userId: c.get('user').id, params: rewriteParams, ...audit })
-        .catch(async (err) => {
+      if (source.kind === 'rewrite_selection') {
+        let rewriteParams: ReturnType<typeof parseRewriteTaskParams> = undefined
+        try {
+          rewriteParams = parseRewriteTaskParams(body)
+        } catch {
+          rewriteParams = undefined
+        }
+        if (!rewriteParams) return c.json({ error: '任务参数损坏，无法重试' }, 422)
+        const draft = await getGeneration(db, rewriteParams.draftId)
+        if (!draft || draft.deleted_at || draft.status !== 'draft' || !['write_chapter', 'continue'].includes(draft.kind))
+          return c.json({ error: '原草稿已发布、删除或不可编辑，无法重试改写' }, 409)
+        if (!isTextAiConfigured()) return c.json({ error: 'AI 文本服务未配置', code: 'disabled' }, 503)
+        if ((await countActiveWritingTasks(db)) >= (await getAiSettings(db)).maxConcurrentWritingTasks)
+          return c.json({ error: '已有过多创作任务在运行，请稍后重试' }, 429)
+        const task = await createAiTask(db, {
+          userId: c.get('user').id,
+          novelId: draft.novel_id,
+          kind: 'rewrite_selection',
+          total: 1,
+          prompt: `重试草稿 ${rewriteParams.draftId} 的选段改写`,
+          params: JSON.stringify({ ...rewriteParams, ...(operationKey ? { clientRequestId: operationKey } : {}) }),
+        })
+        const audit = await auditRequestContext(c, db)
+        void runRewriteTask(db, { taskId: task.id, userId: c.get('user').id, params: rewriteParams, ...audit }).catch(async (err) => {
           console.error('[ai] 选段改写重试失败', err)
           const message = err instanceof AiError ? err.message : '改写建议生成失败'
           await updateAiTask(db, task.id, { status: 'failed', error: message }).catch(() => {})
         })
-      return c.json({ ok: true, taskId: task.id, batchId: '', total: 1 }, 202)
-    }
+        return c.json({ ok: true, taskId: task.id, batchId: '', total: 1 }, 202)
+      }
 
-    // 封面任务重试：按原参数（novelId）走独立的封面生成路径
-    if (source.kind === 'cover') {
-    const novelId = String(body.novelId || '').trim()
-    if (!novelId) return c.json({ error: '任务未记录 novelId，无法重试' }, 422)
-    const settings = await getAiSettings(db)
-    let prompt = ''
-    try {
-      prompt = normalizeCoverPrompt(body.prompt, settings.coverPromptMaxChars)
-    } catch (err) {
-      return aiErrorResponse(c, err)
-    }
-    let promptMode: 'auto' | 'exact'
-    try {
-      promptMode = normalizeCoverPromptMode(body.promptMode, prompt)
-    } catch (err) {
-      return aiErrorResponse(c, err)
-    }
-    if (!isImageAiConfigured()) return c.json({ error: 'AI 图像服务未配置', code: 'disabled' }, 503)
-    const renderTitle = typeof body.renderTitle === 'boolean' ? body.renderTitle : settings.coverRenderTitle
-    const platform = typeof body.platform === 'string' && body.platform ? body.platform : settings.coverPlatform
-    const stylePreset = typeof body.stylePreset === 'string' && body.stylePreset ? body.stylePreset : 'auto'
-    const composition = typeof body.composition === 'string' && body.composition ? body.composition : 'auto'
-    const variationId = typeof body.variationId === 'string' && body.variationId.trim() ? body.variationId.trim() : newCoverVariationId()
-    const resolvedCoverPipeline = resolveStoredPipelineVersion(body.promptPipelineVersion, COVER_PROMPT_PIPELINE_VERSION, 2)
-    if (resolvedCoverPipeline.error || !resolvedCoverPipeline.version) return c.json({ error: resolvedCoverPipeline.error || '提示词流水线版本无效' }, 422)
-    const promptPipelineVersion = resolvedCoverPipeline.version
-      const task = await createAiTask(db, {
-        userId: c.get('user').id,
-        novelId,
-        kind: 'cover',
-        total: 1,
-        prompt: prompt || '生成封面',
-        params: JSON.stringify({ novelId, prompt, promptMode, renderTitle, platform, stylePreset, composition, variationId, promptPipelineVersion, ...(operationKey ? { clientRequestId: operationKey } : {}) }),
-      })
-      const audit = await auditRequestContext(c, db)
-      void generateNovelCover(db, {
-        userId: c.get('user').id,
-        novelId,
-        renderTitle,
-        platform,
-        stylePreset,
-        composition,
-        variationId,
-        promptMode,
-        prompt,
-        promptPipelineVersion,
-        taskId: task.id,
-        ...audit,
-      })
-        .then(() => updateAiTask(db, task.id, { status: 'completed', current: 1, step: '封面已生成，待采纳' }))
-        .catch(async (err) => {
-          console.error('[ai] 封面重试任务失败', err)
-          const message = err instanceof AiError ? err.message : '封面生成失败'
-          await updateAiTask(db, task.id, { status: 'failed', error: message }).catch(() => {})
+      // 封面任务重试：按原参数（novelId）走独立的封面生成路径
+      if (source.kind === 'cover') {
+        const novelId = String(body.novelId || '').trim()
+        if (!novelId) return c.json({ error: '任务未记录 novelId，无法重试' }, 422)
+        const settings = await getAiSettings(db)
+        let prompt = ''
+        try {
+          prompt = normalizeCoverPrompt(body.prompt, settings.coverPromptMaxChars)
+        } catch (err) {
+          return aiErrorResponse(c, err)
+        }
+        let promptMode: 'auto' | 'exact'
+        try {
+          promptMode = normalizeCoverPromptMode(body.promptMode, prompt)
+        } catch (err) {
+          return aiErrorResponse(c, err)
+        }
+        if (!isImageAiConfigured()) return c.json({ error: 'AI 图像服务未配置', code: 'disabled' }, 503)
+        const renderTitle = typeof body.renderTitle === 'boolean' ? body.renderTitle : settings.coverRenderTitle
+        const platform = typeof body.platform === 'string' && body.platform ? body.platform : settings.coverPlatform
+        const stylePreset = typeof body.stylePreset === 'string' && body.stylePreset ? body.stylePreset : 'auto'
+        const composition = typeof body.composition === 'string' && body.composition ? body.composition : 'auto'
+        const variationId = typeof body.variationId === 'string' && body.variationId.trim() ? body.variationId.trim() : newCoverVariationId()
+        const resolvedCoverPipeline = resolveStoredPipelineVersion(body.promptPipelineVersion, COVER_PROMPT_PIPELINE_VERSION, 2)
+        if (resolvedCoverPipeline.error || !resolvedCoverPipeline.version) return c.json({ error: resolvedCoverPipeline.error || '提示词流水线版本无效' }, 422)
+        const promptPipelineVersion = resolvedCoverPipeline.version
+        const task = await createAiTask(db, {
+          userId: c.get('user').id,
+          novelId,
+          kind: 'cover',
+          total: 1,
+          prompt: prompt || '生成封面',
+          params: JSON.stringify({
+            novelId,
+            prompt,
+            promptMode,
+            renderTitle,
+            platform,
+            stylePreset,
+            composition,
+            variationId,
+            promptPipelineVersion,
+            ...(operationKey ? { clientRequestId: operationKey } : {}),
+          }),
         })
-      return c.json({ ok: true, taskId: task.id, batchId: '', total: 1 }, 202)
-    }
-
-    if (source.kind === 'cover_prompt') {
-    const novelId = String(body.novelId || '').trim()
-    if (!novelId) return c.json({ error: '任务未记录 novelId，无法重试' }, 422)
-    const renderTitle = typeof body.renderTitle === 'boolean' ? body.renderTitle : true
-    const platform = typeof body.platform === 'string' && body.platform ? body.platform : 'default'
-    const stylePreset = typeof body.stylePreset === 'string' && body.stylePreset ? body.stylePreset : 'auto'
-    const composition = typeof body.composition === 'string' && body.composition ? body.composition : 'auto'
-    const variationId = typeof body.variationId === 'string' && body.variationId.trim() ? body.variationId.trim() : newCoverVariationId()
-    const resolvedCoverPipeline = resolveStoredPipelineVersion(body.promptPipelineVersion, COVER_PROMPT_PIPELINE_VERSION, 2)
-    if (resolvedCoverPipeline.error || !resolvedCoverPipeline.version) return c.json({ error: resolvedCoverPipeline.error || '提示词流水线版本无效' }, 422)
-    const promptPipelineVersion = resolvedCoverPipeline.version
-      const task = await createAiTask(db, {
-        userId: c.get('user').id,
-        novelId,
-        kind: 'cover_prompt',
-        total: 1,
-        prompt: '生成封面描述词',
-        params: coverPromptTaskParams({
+        const audit = await auditRequestContext(c, db)
+        void generateNovelCover(db, {
+          userId: c.get('user').id,
           novelId,
           renderTitle,
           platform,
           stylePreset,
           composition,
           variationId,
-          clientRequestId: operationKey || newCoverVariationId(),
+          promptMode,
+          prompt,
           promptPipelineVersion,
-        }),
-      })
-      const audit = await auditRequestContext(c, db)
-      void generateCoverPromptTask(db, {
-        userId: c.get('user').id,
-        novelId,
-        renderTitle,
-        platform,
-        stylePreset,
-        composition,
-        variationId,
-        promptPipelineVersion,
-        taskId: task.id,
-        ...audit,
-      })
-      return c.json({ ok: true, taskId: task.id, batchId: '', total: 1 }, 202)
-    }
+          taskId: task.id,
+          ...audit,
+        })
+          .then(() => updateAiTask(db, task.id, { status: 'completed', current: 1, step: '封面已生成，待采纳' }))
+          .catch(async (err) => {
+            console.error('[ai] 封面重试任务失败', err)
+            const message = err instanceof AiError ? err.message : '封面生成失败'
+            await updateAiTask(db, task.id, { status: 'failed', error: message }).catch(() => {})
+          })
+        return c.json({ ok: true, taskId: task.id, batchId: '', total: 1 }, 202)
+      }
 
-    if (!isTextAiConfigured()) return c.json({ error: 'AI 文本服务未配置', code: 'disabled' }, 503)
+      if (source.kind === 'cover_prompt') {
+        const novelId = String(body.novelId || '').trim()
+        if (!novelId) return c.json({ error: '任务未记录 novelId，无法重试' }, 422)
+        const renderTitle = typeof body.renderTitle === 'boolean' ? body.renderTitle : true
+        const platform = typeof body.platform === 'string' && body.platform ? body.platform : 'default'
+        const stylePreset = typeof body.stylePreset === 'string' && body.stylePreset ? body.stylePreset : 'auto'
+        const composition = typeof body.composition === 'string' && body.composition ? body.composition : 'auto'
+        const variationId = typeof body.variationId === 'string' && body.variationId.trim() ? body.variationId.trim() : newCoverVariationId()
+        const resolvedCoverPipeline = resolveStoredPipelineVersion(body.promptPipelineVersion, COVER_PROMPT_PIPELINE_VERSION, 2)
+        if (resolvedCoverPipeline.error || !resolvedCoverPipeline.version) return c.json({ error: resolvedCoverPipeline.error || '提示词流水线版本无效' }, 422)
+        const promptPipelineVersion = resolvedCoverPipeline.version
+        const task = await createAiTask(db, {
+          userId: c.get('user').id,
+          novelId,
+          kind: 'cover_prompt',
+          total: 1,
+          prompt: '生成封面描述词',
+          params: coverPromptTaskParams({
+            novelId,
+            renderTitle,
+            platform,
+            stylePreset,
+            composition,
+            variationId,
+            clientRequestId: operationKey || newCoverVariationId(),
+            promptPipelineVersion,
+          }),
+        })
+        const audit = await auditRequestContext(c, db)
+        void generateCoverPromptTask(db, {
+          userId: c.get('user').id,
+          novelId,
+          renderTitle,
+          platform,
+          stylePreset,
+          composition,
+          variationId,
+          promptPipelineVersion,
+          taskId: task.id,
+          ...audit,
+        })
+        return c.json({ ok: true, taskId: task.id, batchId: '', total: 1 }, 202)
+      }
 
-  // 断点恢复：continue 任务重试时，先取原批次已生成的草稿，从已完成处接续，避免全量重来
-  const resume = source.kind === 'continue' && source.batchId ? await loadResumeDrafts(db, source.batchId) : undefined
-    // 旧任务没有版本字段，恢复时必须保留 legacy 消息协议；新任务沿用原版本。
-    const resolvedWritingPipeline = resolveStoredPipelineVersion(body.promptPipelineVersion, WRITING_PROMPT_PIPELINE_VERSION, 1)
-    if (resolvedWritingPipeline.error || !resolvedWritingPipeline.version) return c.json({ error: resolvedWritingPipeline.error || '提示词流水线版本无效' }, 422)
-    const retryPromptPipelineVersion = resolvedWritingPipeline.version
-    const retryWritingBody = { ...body, promptPipelineVersion: retryPromptPipelineVersion }
-    const result = await startWritingJob(
-      db,
-      c.get('user'),
-      source.kind as 'write_outline' | 'write_chapter' | 'continue',
-      { ...retryWritingBody, ...(operationKey ? { clientRequestId: operationKey } : {}) },
-      await auditRequestContext(c, db),
-      resume,
-      continuationSnapshot,
-      retryPromptPipelineVersion,
-    )
-    if (!result.ok) return c.json({ error: result.error }, result.status)
-    return c.json({ ok: true, taskId: result.task.id, batchId: result.task.batchId, total: result.task.total }, 202)
+      if (!isTextAiConfigured()) return c.json({ error: 'AI 文本服务未配置', code: 'disabled' }, 503)
+
+      // 断点恢复：continue 任务重试时，先取原批次已生成的草稿，从已完成处接续，避免全量重来
+      const resume = source.kind === 'continue' && source.batchId ? await loadResumeDrafts(db, source.batchId) : undefined
+      // 旧任务没有版本字段，恢复时必须保留 legacy 消息协议；新任务沿用原版本。
+      const resolvedWritingPipeline = resolveStoredPipelineVersion(body.promptPipelineVersion, WRITING_PROMPT_PIPELINE_VERSION, 1)
+      if (resolvedWritingPipeline.error || !resolvedWritingPipeline.version)
+        return c.json({ error: resolvedWritingPipeline.error || '提示词流水线版本无效' }, 422)
+      const retryPromptPipelineVersion = resolvedWritingPipeline.version
+      const retryWritingBody = { ...body, promptPipelineVersion: retryPromptPipelineVersion }
+      const result = await startWritingJob(
+        db,
+        c.get('user'),
+        source.kind as 'write_outline' | 'write_chapter' | 'continue',
+        { ...retryWritingBody, ...(operationKey ? { clientRequestId: operationKey } : {}) },
+        await auditRequestContext(c, db),
+        resume,
+        continuationSnapshot,
+        retryPromptPipelineVersion,
+      )
+      if (!result.ok) return c.json({ error: result.error }, result.status)
+      return c.json({ ok: true, taskId: result.task.id, batchId: result.task.batchId, total: result.task.total }, 202)
     },
   )
 })
