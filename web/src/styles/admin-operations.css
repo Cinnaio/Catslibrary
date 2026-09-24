@@ -418,10 +418,12 @@
 .po18-account-error {
   margin: 0;
   padding: var(--admin-space-3);
-  border: 1px solid color-mix(in srgb, var(--destructive) 30%, transparent);
+  /* 此处曾引用一个全站未定义的语义色变量，color-mix() 遇到未定义变量会让整条
+     声明被浏览器丢弃——红边框/红底/红字全部静默失效。现改用已定义的语义色。 */
+  border: 1px solid color-mix(in srgb, var(--color-danger) 30%, transparent);
   border-radius: var(--admin-radius);
-  background: color-mix(in srgb, var(--destructive) 8%, transparent);
-  color: var(--destructive);
+  background: color-mix(in srgb, var(--color-danger) 8%, transparent);
+  color: var(--color-danger);
   font-size: 0.875rem;
   line-height: 1.5;
 }
@@ -4315,13 +4317,10 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   white-space: nowrap;
 }
 
-.detail-kicker {
-  margin: 0 0 0.3rem;
-  color: var(--text-muted);
-  font-size: 0.7rem; /* 11.2px — ≥11px 可读下限 */
-  font-weight: 750;
-  letter-spacing: 0.1em;
-}
+/* .detail-kicker 的定义已移除（2026-09-23）。
+   它是前台类名（detail.css:33），本文件无 @layer 且最后导入，这里的声明会静默
+   压掉前台的 color/字号/字重/字距——品牌棕变成弱化灰、850 变 750。
+   后台若需要同类小标题，用 .admin-tab-header__meta 或新起 .admin-* 命名。 */
 
 /* 后台面板表面。scrape 步进卡 / 任务卡通过组合 .admin-panel-card 复用，不再另立覆写。
    注意：本文件无 @layer，故这条压过 Tailwind 的 @layer utilities —— 调 import 顺序会静默失效。 */
@@ -4512,12 +4511,11 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
     background: transparent;
   }
 }
-.badge-update {
-  margin-left: 0.35rem;
-  color: var(--color-success);
-  font-size: 0.75rem;
-  font-weight: 700;
-}
+/* .badge-update 的定义已移除（2026-09-23）。
+   它是前台类名（components.css:199 定义白字红底）。此处曾把 color 改成
+   var(--color-success)，而 background 仍是前台的 var(--color-danger)——
+   形成绿字红底，实测对比度 1.27:1（前台原设计 6.29:1），文本不可读。
+   后台表格内的「有 N 章待更新」请改用 .admin-panel-status 或 badge 原语。 */
 
 /* ——— 后台统一分页页脚 — consumers: components/admin/Pagination.tsx ———
    全站后台唯一的分页形态：数据面板页脚。左计数、右控件，靠 1px 上边线
@@ -6167,8 +6165,9 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   .chapter-toolbar__count {
     font-size: 0.75rem;
   }
-  .admin-pagination,
-  .home-pagination {
+  /* .home-pagination 已从此组合选择器移除（2026-09-23）：前台分页由
+     .home-page .home-pagination 独立承担，无条件复用后台断点规则。 */
+  .admin-pagination {
     justify-content: center;
     flex-wrap: wrap;
   }
@@ -6194,9 +6193,8 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   .scrape-step__fieldset {
     padding: var(--admin-space-3);
   }
-  .form-group {
-    margin-bottom: 12px;
-  }
+  /* .form-group 的定义已移除（2026-09-23）：前台由 components.css:790 与
+     mobile.css:444 承担（本断点下同为 12px），后台面板用 --admin-space-*。 */
   .scrape-center-hero__meta {
     justify-content: flex-start;
   }
