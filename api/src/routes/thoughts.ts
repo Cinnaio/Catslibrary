@@ -10,6 +10,7 @@ import { sha256Hex } from '../services/hash'
 import { optionalUser, requireAdmin, type AuthEnv } from '../middlewares/auth'
 import { clientIpFromContext } from '../services/ai/audit-context'
 import { cleanText, clampInt, escapeLike, looksLikeSpam } from '../services/text'
+import { contentPolicyHeaders, restrictedContentResponse, resolveContentAccess } from '../services/content-access'
 
 const MAX_THOUGHT_LEN = 300
 const MAX_SELECTED_LEN = 200
@@ -76,6 +77,19 @@ thoughtsRoutes.delete('/', optionalUser(), async (c) => {
 async function listThoughtsPublic(c: Context<AuthEnv>, db: ReturnType<typeof getDb>) {
   const chapterId = (c.req.query('chapterId') || '').trim()
   if (!chapterId) return c.json({ error: 'chapterId query parameter is required' }, 400)
+  const chapter = await first<{ id: string; novel_id: string; content_rating: string }>(
+    db,
+    `SELECT c.id, c.novel_id, n.content_rating
+     FROM chapters c
+     JOIN novels n ON n.id = c.novel_id
+     WHERE c.id = $1`,
+    [chapterId],
+  )
+  if (!chapter) return c.json({ error: 'Chapter not found' }, 404)
+  if (chapter.content_rating === 'restricted') {
+    const access = await resolveContentAccess(c)
+    if (!access.canViewRestricted) return restrictedContentResponse(c, access.reason)
+  }
   const rows = await all<Record<string, unknown>>(
     db,
     `SELECT t.*, u.updated_at AS user_updated_at
@@ -92,12 +106,14 @@ async function listThoughtsPublic(c: Context<AuthEnv>, db: ReturnType<typeof get
     const key = String(t.paragraphIndex)
     counts[key] = (counts[key] || 0) + 1
   }
-  return c.json({ thoughts, counts, chapterId, total: thoughts.length })
+  return c.json({ thoughts, counts, chapterId, total: thoughts.length }, 200, contentPolicyHeaders())
 }
 
 async function listMyThoughts(c: Context<AuthEnv>, db: ReturnType<typeof getDb>) {
   const user = c.get('user')
   if (!user) return c.json({ error: '需要登录' }, 401)
+  const access = await resolveContentAccess(c)
+  const ratingFilter = access.canViewRestricted ? '' : " AND COALESCE(n.content_rating, 'general') <> 'restricted'"
   const limit = clampInt(c.req.query('limit'), 1, 100, 50)
   const rows = await all<Record<string, unknown>>(
     db,
@@ -107,12 +123,12 @@ async function listMyThoughts(c: Context<AuthEnv>, db: ReturnType<typeof getDb>)
      LEFT JOIN novels n ON n.id = t.novel_id
      LEFT JOIN chapters c ON c.id = t.chapter_id
      LEFT JOIN users u ON u.id = t.user_id
-     WHERE t.user_id = $1
+     WHERE t.user_id = $1${ratingFilter}
      ORDER BY t.created_at DESC
      LIMIT $2`,
     [user.id, limit],
   )
-  return c.json({ thoughts: rows.map(rowToThoughtAdmin).filter((t) => t !== null), total: rows.length })
+  return c.json({ thoughts: rows.map(rowToThoughtAdmin).filter((t) => t !== null), total: rows.length }, 200, contentPolicyHeaders())
 }
 
 async function listThoughtsAdmin(c: Context<AuthEnv>, db: ReturnType<typeof getDb>) {
@@ -185,9 +201,20 @@ async function createThought(c: Context<AuthEnv>, body: any) {
   if (!thoughtText) return c.json({ error: '想法内容不能为空' }, 400)
   if (looksLikeSpam(thoughtText)) return c.json({ error: '想法内容看起来像垃圾信息' }, 400)
 
-  const chapter = await first<{ id: string; novel_id: string }>(db, 'SELECT id, novel_id FROM chapters WHERE id = $1', [chapterId])
+  const chapter = await first<{ id: string; novel_id: string; content_rating: string }>(
+    db,
+    `SELECT c.id, c.novel_id, n.content_rating
+     FROM chapters c
+     JOIN novels n ON n.id = c.novel_id
+     WHERE c.id = $1`,
+    [chapterId],
+  )
   if (!chapter) return c.json({ error: 'Chapter not found' }, 404)
   if (chapter.novel_id !== novelId) return c.json({ error: 'chapterId does not belong to novelId' }, 400)
+  if (chapter.content_rating === 'restricted') {
+    const access = await resolveContentAccess(c)
+    if (!access.canViewRestricted) return restrictedContentResponse(c, access.reason)
+  }
 
   const user = c.get('user')
   if ((c.req.header('Authorization') || '').trim() && !user) return c.json({ error: '需要登录' }, 401)
@@ -211,7 +238,7 @@ async function createThought(c: Context<AuthEnv>, body: any) {
   )
 
   const row = await first<Record<string, unknown>>(db, 'SELECT * FROM thoughts WHERE id = $1', [id])
-  return c.json({ thought: rowToThought(row) }, 201)
+  return c.json({ thought: rowToThought(row) }, 201, contentPolicyHeaders())
 }
 
 async function checkRateLimit(db: ReturnType<typeof getDb>, clientHash: string, ipHash: string): Promise<string | null> {

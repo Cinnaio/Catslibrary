@@ -69,7 +69,7 @@ export default function SiteHeader() {
       okText: '确认查看',
       cancelText: '暂不查看',
     })
-    if (confirmed) setMode('adult')
+    if (confirmed) await setMode('adult')
   }
 
   return (

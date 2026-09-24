@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { ContentRating } from '@shared/types'
 import { authApi, contentPolicyApi, getToken } from '../lib/api'
 import { useOptionalSession } from './SessionContext'
@@ -53,7 +53,7 @@ interface ContentPolicyContextValue {
   mode: ContentMode
   safeMode: boolean
   adultContentEnabled: boolean
-  setMode: (mode: ContentMode) => void
+  setMode: (mode: ContentMode) => Promise<void>
   refreshPolicy: () => Promise<void>
   isAllowed: (metadata: ContentMetadata | null | undefined) => boolean
 }
@@ -65,6 +65,32 @@ export function ContentPolicyProvider({ children }: { children: ReactNode }) {
   const user = session?.user ?? null
   const [mode, setModeState] = useState<ContentMode>(readInitialMode)
   const [adultContentEnabled, setAdultContentEnabled] = useState(false)
+  const [adultAccessReady, setAdultAccessReady] = useState(false)
+  const adultAccessReadyRef = useRef(false)
+  const adultUnlockPromiseRef = useRef<Promise<void> | null>(null)
+
+  const persistMode = useCallback((next: ContentMode) => {
+    try {
+      localStorage.setItem(STORAGE_KEY, next)
+    } catch {
+      /* ignore unavailable storage */
+    }
+  }, [])
+
+  const ensureAdultAccess = useCallback(async () => {
+    if (adultAccessReadyRef.current) return
+    if (!adultUnlockPromiseRef.current) {
+      adultUnlockPromiseRef.current = contentPolicyApi.unlock()
+        .then(() => {
+          adultAccessReadyRef.current = true
+          setAdultAccessReady(true)
+        })
+        .finally(() => {
+          adultUnlockPromiseRef.current = null
+        })
+    }
+    await adultUnlockPromiseRef.current
+  }, [])
 
   const refreshPolicy = useCallback(async () => {
     try {
@@ -88,7 +114,9 @@ export function ContentPolicyProvider({ children }: { children: ReactNode }) {
       const remoteMode = data.settings?.contentMode
       if (remoteMode === 'safe' || remoteMode === 'adult') {
         setModeState(remoteMode)
-        localStorage.setItem(STORAGE_KEY, remoteMode)
+        adultAccessReadyRef.current = remoteMode === 'safe'
+        setAdultAccessReady(remoteMode === 'safe')
+        persistMode(remoteMode)
         return
       }
       void authApi.updateReaderSettings({
@@ -99,26 +127,57 @@ export function ContentPolicyProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true
     }
-  }, [user, adultContentEnabled])
+  }, [user, adultContentEnabled, persistMode])
+
+  // 初次加载时本地/账号可能记着 adult，但服务端还没有本设备访问凭证。
+  // 先完成服务端解锁，再让 isAllowed 放行，避免页面先拿到 403 后不重新加载。
+  useEffect(() => {
+    if (!adultContentEnabled || mode !== 'adult' || adultAccessReadyRef.current) return
+    let cancelled = false
+    void ensureAdultAccess().catch(() => {
+      if (cancelled) return
+      adultAccessReadyRef.current = false
+      setAdultAccessReady(false)
+      setModeState('safe')
+      persistMode('safe')
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [adultContentEnabled, mode, ensureAdultAccess, persistMode])
 
   useEffect(() => {
     if (!adultContentEnabled && mode === 'adult') {
+      adultAccessReadyRef.current = false
+      setAdultAccessReady(false)
       setModeState('safe')
-      try {
-        localStorage.setItem(STORAGE_KEY, 'safe')
-      } catch {
-        /* ignore unavailable storage */
-      }
+      persistMode('safe')
+      void contentPolicyApi.lock().catch(() => {})
     }
-  }, [adultContentEnabled, mode])
+  }, [adultContentEnabled, mode, persistMode])
 
-  const setMode = useCallback((next: ContentMode) => {
+  const setMode = useCallback(async (next: ContentMode) => {
     const resolvedMode = adultContentEnabled ? next : 'safe'
-    setModeState(resolvedMode)
-    try {
-      localStorage.setItem(STORAGE_KEY, resolvedMode)
-    } catch {
-      /* ignore unavailable storage */
+    if (resolvedMode === 'adult') {
+      setModeState('adult')
+      adultAccessReadyRef.current = false
+      setAdultAccessReady(false)
+      try {
+        await ensureAdultAccess()
+      } catch {
+        adultAccessReadyRef.current = false
+        setAdultAccessReady(false)
+        setModeState('safe')
+        persistMode('safe')
+        return
+      }
+      persistMode('adult')
+    } else {
+      adultAccessReadyRef.current = false
+      setAdultAccessReady(false)
+      setModeState('safe')
+      persistMode('safe')
+      await contentPolicyApi.lock().catch(() => {})
     }
     if (user && getToken()) {
       void authApi.updateReaderSettings({
@@ -126,11 +185,11 @@ export function ContentPolicyProvider({ children }: { children: ReactNode }) {
         updatedAt: { contentMode: Date.now() },
       }).catch(() => {})
     }
-  }, [adultContentEnabled, user])
+  }, [adultContentEnabled, ensureAdultAccess, persistMode, user])
 
   const isAllowed = useCallback((metadata: ContentMetadata | null | undefined) => {
-    return (adultContentEnabled && mode === 'adult') || !isRestrictedContent(metadata)
-  }, [adultContentEnabled, mode])
+    return (adultContentEnabled && adultAccessReady && mode === 'adult') || !isRestrictedContent(metadata)
+  }, [adultAccessReady, adultContentEnabled, mode])
 
   const value = useMemo(
     () => ({ mode, safeMode: mode === 'safe', adultContentEnabled, setMode, refreshPolicy, isAllowed }),

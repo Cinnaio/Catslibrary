@@ -98,6 +98,13 @@ export interface ApiError extends Error {
   data?: unknown
 }
 
+/** 服务端拒绝读取限制级内容时，页面应展示解锁提示而不是误报资源不存在。 */
+export function isRestrictedContentError(error: unknown): boolean {
+  const apiError = error as ApiError | null
+  const data = apiError?.data as { code?: unknown } | undefined
+  return apiError?.status === 403 && data?.code === 'restricted_content'
+}
+
 const API_TIMEOUT_MS = 30000
 
 function timedFetch(input: RequestInfo | URL, opts: RequestInit = {}, timeoutMs = API_TIMEOUT_MS): Promise<Response> {
@@ -120,7 +127,9 @@ async function request<T = unknown>(
   const headers = { ...(hasBody ? { 'Content-Type': 'application/json' } : {}), ...extraHeaders }
   if (useAuth) Object.assign(headers, authHeaders())
 
-  const opts: RequestInit = { method, headers }
+  // 内容访问凭证由服务端以 HttpOnly Cookie 保存；include 也兼容 API 与 Web
+  // 不同源部署，服务端 CORS 只会对明确允许的来源开放凭证。
+  const opts: RequestInit = { method, headers, credentials: 'include' }
   if (hasBody) opts.body = JSON.stringify(body)
   // 禁用浏览器 HTTP 缓存：管理员读写后必须拿到最新数据（后端 max-age 只留给 CDN/代理层）
   opts.cache = 'no-store'
@@ -161,10 +170,10 @@ export function authFetch(path: string, init: RequestInit = {}): Promise<Respons
 export const novelsApi = {
   list(params: Record<string, string | number> = {}): Promise<NovelListResponse> {
     const qs = new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString()
-    return request('GET', `/novels${qs ? '?' + qs : ''}`)
+    return request('GET', `/novels${qs ? '?' + qs : ''}`, null, true)
   },
   get(id: string): Promise<{ novel: Novel }> {
-    return request('GET', `/novels/${encodeURIComponent(id)}`)
+    return request('GET', `/novels/${encodeURIComponent(id)}`, null, true)
   },
   create(data: Record<string, unknown>): Promise<{ novel: Novel }> {
     return request('POST', '/novels', data, true)
@@ -179,7 +188,7 @@ export const novelsApi = {
     return request('POST', '/novels', { action: 'batch-delete', novelIds: ids, operationId }, true, operationHeaders(operationId))
   },
   categories(): Promise<{ categories: string[] }> {
-    return request('GET', '/categories')
+    return request('GET', '/categories', null, true)
   },
 }
 
@@ -187,13 +196,13 @@ export const novelsApi = {
 
 export const chaptersApi = {
   list(novelId: string): Promise<{ chapters: ChapterMeta[] }> {
-    return request('GET', `/chapters?novelId=${encodeURIComponent(novelId)}`)
+    return request('GET', `/chapters?novelId=${encodeURIComponent(novelId)}`, null, true)
   },
   get(id: string): Promise<{ chapter: ChapterFull }> {
-    return request('GET', `/chapters/${encodeURIComponent(id)}`)
+    return request('GET', `/chapters/${encodeURIComponent(id)}`, null, true)
   },
   getByOrder(novelId: string, order: number): Promise<{ chapter: ChapterFull }> {
-    return request('GET', `/chapters?novelId=${encodeURIComponent(novelId)}&order=${encodeURIComponent(order)}`)
+    return request('GET', `/chapters?novelId=${encodeURIComponent(novelId)}&order=${encodeURIComponent(order)}`, null, true)
   },
   create(data: Record<string, unknown>): Promise<{ chapter: ChapterMeta }> {
     return request('POST', '/chapters', data, true)
@@ -304,7 +313,7 @@ export interface Po18CaptchaResponse {
 
 export const categoriesApi = {
   list(): Promise<{ categories: string[] }> {
-    return request('GET', '/categories')
+    return request('GET', '/categories', null, true)
   },
 }
 
@@ -826,6 +835,12 @@ export const adminApi = {
 export const contentPolicyApi = {
   settings(): Promise<{ adultContentEnabled: boolean }> {
     return request('GET', '/content-policy')
+  },
+  unlock(): Promise<{ adultContentEnabled: boolean; expiresIn: number }> {
+    return request('POST', '/content-policy/unlock', { confirmed: true })
+  },
+  lock(): Promise<{ ok: boolean }> {
+    return request('POST', '/content-policy/lock', {})
   },
 }
 

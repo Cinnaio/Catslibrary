@@ -3,14 +3,21 @@ import { Hono } from 'hono'
 import { getDb } from '../db/pool'
 import { all } from '../db/query'
 import { safeJsonParse } from '../db/mappers'
+import { optionalUser, type AuthEnv } from '../middlewares/auth'
+import { contentPolicyHeaders, resolveContentAccess } from '../services/content-access'
 
-export const categoriesRoutes = new Hono()
+export const categoriesRoutes = new Hono<AuthEnv>()
 
-categoriesRoutes.get('/', async (c) => {
+categoriesRoutes.get('/', optionalUser(), async (c) => {
   const db = getDb()
+  const access = await resolveContentAccess(c)
   const rows = await all<{ categories: string }>(
     db,
-    `SELECT DISTINCT categories FROM novels WHERE categories IS NOT NULL AND categories != '[]'`,
+    `SELECT DISTINCT categories
+     FROM novels
+     WHERE categories IS NOT NULL
+       AND categories != '[]'
+       ${access.canViewRestricted ? '' : "AND COALESCE(content_rating, 'unknown') <> 'restricted'"}`,
   )
   const set = new Set<string>()
   for (const row of rows) {
@@ -26,6 +33,6 @@ categoriesRoutes.get('/', async (c) => {
   return c.json(
     { categories: [...set].sort((a, b) => a.length - b.length || a.localeCompare(b)) },
     200,
-    { 'Cache-Control': 'public, max-age=120' },
+    contentPolicyHeaders(),
   )
 })

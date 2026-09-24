@@ -52,7 +52,7 @@ describe('内容 API 端到端（pglite）', () => {
 
     const created = await req(
       '/api/novels',
-      json('POST', { title: '我的天师女友', author: '不记得了', categories: ['古言1v1兄妹', '穿越'], description: '测试' }, adminToken),
+      json('POST', { title: '我的天师女友', author: '不记得了', categories: ['古言1v1兄妹', '穿越'], description: '测试', contentRating: 'general' }, adminToken),
     )
     expect(created.status).toBe(201)
     const { novel } = await jsonOf<{ novel: Novel }>(created)

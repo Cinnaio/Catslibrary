@@ -7,7 +7,8 @@ import { loadConfig } from '../config'
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Reader-Id',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Reader-Id, X-Content-Access',
+  'Access-Control-Allow-Credentials': 'true',
   'Access-Control-Max-Age': '86400',
 }
 

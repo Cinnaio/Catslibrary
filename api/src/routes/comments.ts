@@ -10,6 +10,7 @@ import { sha256Hex } from '../services/hash'
 import { optionalUser, requireUser, type AuthEnv } from '../middlewares/auth'
 import { clientIpFromContext } from '../services/ai/audit-context'
 import { cleanText, clampInt, looksLikeSpam } from '../services/text'
+import { contentPolicyHeaders, restrictedContentResponse, resolveContentAccess } from '../services/content-access'
 
 const MAX_COMMENT_LEN = 1000
 const MAX_REPLY_LEN = 500
@@ -24,12 +25,33 @@ const thoughtHashSalt = () => process.env.THOUGHT_HASH_SALT?.trim() || 'zhi-zhou
 
 export const commentsRoutes = new Hono<AuthEnv>()
 
+async function commentContentAccessError(c: Context<AuthEnv>, db: ReturnType<typeof getDb>, commentId: string): Promise<Response | undefined> {
+  const comment = await first<{ id: string; content_rating: string }>(
+    db,
+    `SELECT c.id, n.content_rating
+     FROM novel_comments c
+     JOIN novels n ON n.id = c.novel_id
+     WHERE c.id = $1`,
+    [commentId],
+  )
+  if (!comment) return c.json({ error: 'Comment not found' }, 404)
+  if (comment.content_rating !== 'restricted') return undefined
+  const access = await resolveContentAccess(c)
+  return access.canViewRestricted ? undefined : restrictedContentResponse(c, access.reason)
+}
+
 // ---------- 列表 ----------
 
 commentsRoutes.get('/', optionalUser(), async (c) => {
   const db = getDb()
   const novelId = cleanText(c.req.query('novelId'), 80)
   if (!novelId) return c.json({ error: 'novelId query parameter is required' }, 400)
+  const novel = await first<{ id: string; content_rating: string }>(db, 'SELECT id, content_rating FROM novels WHERE id = $1', [novelId])
+  if (!novel) return c.json({ error: 'Novel not found' }, 404)
+  if (novel.content_rating === 'restricted') {
+    const access = await resolveContentAccess(c)
+    if (!access.canViewRestricted) return restrictedContentResponse(c, access.reason)
+  }
   const sort = cleanText(c.req.query('sort'), 20) === 'hot' ? 'hot' : 'latest'
   const limit = clampInt(c.req.query('limit'), 1, 50, 20)
   const offset = clampInt(c.req.query('offset'), 0, 100000, 0)
@@ -82,7 +104,7 @@ commentsRoutes.get('/', optionalUser(), async (c) => {
     for (const comment of comments) comment.replies = byParent[comment.id] || []
   }
 
-  return c.json({ comments, total: totalRow?.total || 0, limit, offset, sort })
+  return c.json({ comments, total: totalRow?.total || 0, limit, offset, sort }, 200, contentPolicyHeaders())
 })
 
 // ---------- 创建 / 编辑 / 删除 ----------
@@ -100,8 +122,12 @@ commentsRoutes.post('/', requireUser(), async (c) => {
   if (text.length < 2) return c.json({ error: '评论内容至少需要 2 个字符' }, 400)
   if (looksLikeSpam(text, MAX_COMMENT_LINKS)) return c.json({ error: '评论内容看起来像垃圾信息' }, 400)
 
-  const novel = await first<{ id: string }>(db, 'SELECT id FROM novels WHERE id = $1', [novelId])
+  const novel = await first<{ id: string; content_rating: string }>(db, 'SELECT id, content_rating FROM novels WHERE id = $1', [novelId])
   if (!novel) return c.json({ error: 'Novel not found' }, 404)
+  if (novel.content_rating === 'restricted') {
+    const access = await resolveContentAccess(c)
+    if (!access.canViewRestricted) return restrictedContentResponse(c, access.reason)
+  }
 
   if (parentId) {
     const parent = await first<{ id: string; novel_id: string; parent_id: string | null; status: string }>(
@@ -150,8 +176,17 @@ commentsRoutes.put('/', requireUser(), async (c) => {
   const hasSpoiler = body.hasSpoiler ? 1 : 0
   if (!id) return c.json({ error: 'id is required' }, 400)
 
-  const row = await first<Record<string, unknown>>(db, 'SELECT * FROM novel_comments WHERE id = $1', [id])
+  const row = await first<Record<string, unknown>>(
+    db,
+    `SELECT c.*, n.content_rating
+     FROM novel_comments c
+     JOIN novels n ON n.id = c.novel_id
+     WHERE c.id = $1`,
+    [id],
+  )
   if (!row) return c.json({ error: 'Comment not found' }, 404)
+  const accessError = await commentContentAccessError(c, db, id)
+  if (accessError) return accessError
   const isAdmin = user.role === 'admin'
   const now = Date.now()
 
@@ -186,6 +221,8 @@ commentsRoutes.delete('/', requireUser(), async (c) => {
 
   const row = await first<{ user_id: string }>(db, 'SELECT user_id FROM novel_comments WHERE id = $1', [id])
   if (!row) return c.json({ error: 'Comment not found' }, 404)
+  const accessError = await commentContentAccessError(c, db, id)
+  if (accessError) return accessError
   if (row.user_id !== user.id && user.role !== 'admin') return c.json({ error: '只能删除自己的评论' }, 403)
   await run(db, "UPDATE novel_comments SET status = 'hidden', updated_at = $1 WHERE id = $2", [Date.now(), id])
   return c.json({ success: true, id, status: 'hidden' })
@@ -199,8 +236,19 @@ commentsRoutes.post('/:id/like', requireUser(), async (c) => {
   const commentId = cleanText(c.req.param('id'), 80)
   if (!commentId) return c.json({ error: 'comment id is required' }, 400)
 
-  const comment = await first<{ id: string; status: string }>(db, "SELECT id, status FROM novel_comments WHERE id = $1", [commentId])
+  const comment = await first<{ id: string; status: string; content_rating: string }>(
+    db,
+    `SELECT c.id, c.status, n.content_rating
+     FROM novel_comments c
+     JOIN novels n ON n.id = c.novel_id
+     WHERE c.id = $1`,
+    [commentId],
+  )
   if (!comment || comment.status !== 'visible') return c.json({ error: 'Comment not found' }, 404)
+  if (comment.content_rating === 'restricted') {
+    const access = await resolveContentAccess(c)
+    if (!access.canViewRestricted) return restrictedContentResponse(c, access.reason)
+  }
 
   // 原子去重：并发双击时「检查-插入」会撞 UNIQUE(comment_id, user_id) 抛 500，
   // 改用 ON CONFLICT DO NOTHING，仅真正插入成功的一方递增计数
@@ -221,6 +269,8 @@ commentsRoutes.delete('/:id/like', requireUser(), async (c) => {
   const user = c.get('user')
   const commentId = cleanText(c.req.param('id'), 80)
   if (!commentId) return c.json({ error: 'comment id is required' }, 400)
+  const accessError = await commentContentAccessError(c, db, commentId)
+  if (accessError) return accessError
 
   const deleted = await run(db, 'DELETE FROM novel_comment_likes WHERE comment_id = $1 AND user_id = $2', [commentId, user.id])
   if (deleted) {
@@ -239,8 +289,19 @@ commentsRoutes.post('/:id/report', requireUser(), async (c) => {
   const reason = REASONS.has(cleanText(body.reason, 20)) ? cleanText(body.reason, 20) : 'other'
   const note = cleanText(body.note, 200)
 
-  const comment = await first<{ id: string; status: string }>(db, 'SELECT id, status FROM novel_comments WHERE id = $1', [commentId])
+  const comment = await first<{ id: string; status: string; content_rating: string }>(
+    db,
+    `SELECT c.id, c.status, n.content_rating
+     FROM novel_comments c
+     JOIN novels n ON n.id = c.novel_id
+     WHERE c.id = $1`,
+    [commentId],
+  )
   if (!comment) return c.json({ error: 'Comment not found' }, 404)
+  if (comment.content_rating === 'restricted') {
+    const access = await resolveContentAccess(c)
+    if (!access.canViewRestricted) return restrictedContentResponse(c, access.reason)
+  }
 
   // 原子去重：依赖部分唯一索引 idx_comment_reports_open_once，避免并发重复举报撞唯一约束抛 500
   const inserted = await run(

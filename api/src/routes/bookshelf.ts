@@ -6,12 +6,15 @@ import { getDb } from '../db/pool'
 import { all, run } from '../db/query'
 import { rowToThoughtAdmin } from '../db/mappers'
 import { requireUser, type AuthEnv } from '../middlewares/auth'
+import { contentPolicyHeaders, restrictedContentResponse, resolveContentAccess } from '../services/content-access'
 
 export const bookshelfRoutes = new Hono<AuthEnv>()
 
 bookshelfRoutes.get('/', requireUser(), async (c) => {
   const db = getDb()
   const userId = c.get('user').id
+  const access = await resolveContentAccess(c)
+  const ratingFilter = access.canViewRestricted ? '' : " AND COALESCE(n.content_rating, 'unknown') <> 'restricted'"
 
   const [favRows, recentRows, thoughtRows] = await Promise.all([
     all<Record<string, unknown>>(
@@ -25,7 +28,7 @@ bookshelfRoutes.get('/', requireUser(), async (c) => {
        JOIN novels n ON n.id = b.novel_id
        LEFT JOIN reading_progress rp ON rp.user_id = b.user_id AND rp.novel_id = b.novel_id AND COALESCE(rp.deleted_at, 0) = 0
        LEFT JOIN chapters c ON c.id = rp.chapter_id
-       WHERE b.user_id = $1
+       WHERE b.user_id = $1${ratingFilter}
        ORDER BY b.updated_at DESC
        LIMIT 50`,
       [userId],
@@ -37,7 +40,7 @@ bookshelfRoutes.get('/', requireUser(), async (c) => {
        FROM reading_progress rp
        LEFT JOIN novels n ON n.id = rp.novel_id
        LEFT JOIN chapters c ON c.id = rp.chapter_id
-       WHERE rp.user_id = $1 AND COALESCE(rp.deleted_at, 0) = 0
+       WHERE rp.user_id = $1 AND COALESCE(rp.deleted_at, 0) = 0${ratingFilter}
        ORDER BY rp.updated_at DESC
        LIMIT 10`,
       [userId],
@@ -50,7 +53,7 @@ bookshelfRoutes.get('/', requireUser(), async (c) => {
        LEFT JOIN novels n ON n.id = t.novel_id
        LEFT JOIN chapters c ON c.id = t.chapter_id
        LEFT JOIN users u ON u.id = t.user_id
-       WHERE t.user_id = $1 AND t.status = 'visible'
+       WHERE t.user_id = $1 AND t.status = 'visible'${ratingFilter}
        ORDER BY t.created_at DESC
        LIMIT 20`,
       [userId],
@@ -61,7 +64,7 @@ bookshelfRoutes.get('/', requireUser(), async (c) => {
     favorites: favRows.map(rowToFavorite).filter(Boolean),
     recent: recentRows.map(rowToRecent).filter(Boolean),
     thoughts: thoughtRows.map(rowToThoughtAdmin).filter(Boolean),
-  })
+  }, 200, contentPolicyHeaders())
 })
 
 bookshelfRoutes.post('/', requireUser(), async (c) => {
@@ -70,8 +73,12 @@ bookshelfRoutes.post('/', requireUser(), async (c) => {
   const body = await c.req.json().catch(() => ({}))
   const novelId = cleanId(body.novelId)
   if (!novelId) return c.json({ error: 'novelId is required' }, 400)
-  const novel = await all<{ id: string }>(db, 'SELECT id FROM novels WHERE id = $1', [novelId])
+  const novel = await all<{ id: string; content_rating: string }>(db, 'SELECT id, content_rating FROM novels WHERE id = $1', [novelId])
   if (!novel.length) return c.json({ error: '小说不存在' }, 404)
+  if (novel[0]!.content_rating === 'restricted') {
+    const access = await resolveContentAccess(c)
+    if (!access.canViewRestricted) return restrictedContentResponse(c, access.reason)
+  }
   const now = Date.now()
   await db.query(
     `INSERT INTO user_bookshelf (user_id, novel_id, created_at, updated_at)

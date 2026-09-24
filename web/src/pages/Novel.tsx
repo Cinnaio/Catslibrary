@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { ChapterMeta, Comment, Novel, ReadingHistoryEntry } from '@shared/types'
-import { chaptersApi, commentsApi, novelsApi, progressApi, ratingsApi, url } from '../lib/api'
+import { chaptersApi, commentsApi, isRestrictedContentError, novelsApi, progressApi, ratingsApi, url } from '../lib/api'
 import { getNovelBookmarks, getNovelHistory } from '../lib/storage'
 import { getDemoNovel } from '../lib/demo'
 import { timeAgo } from '../lib/format'
@@ -54,7 +54,7 @@ export default function Novel() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
   const { user } = useSession()
-  const { mode, setMode, isAllowed } = useContentPolicy()
+  const { mode, setMode, isAllowed, adultContentEnabled } = useContentPolicy()
   const { toast } = useToast()
   const { confirm } = useConfirm()
 
@@ -170,8 +170,13 @@ export default function Novel() {
       setLoading(false)
       // 社区
       void Promise.all([loadRating(id), loadComments(id, true, 'latest')])
-    } catch {
+    } catch (err) {
       if (stale()) return
+      if (isRestrictedContentError(err)) {
+        setBlocked(true)
+        setLoading(false)
+        return
+      }
       // 演示数据回退
       const demo = getDemoNovel(id)
       if (demo) {
@@ -313,7 +318,7 @@ export default function Novel() {
     return (
       <main className="detail-page">
         <div className="container detail-shell">
-          <ContentRestrictionNotice mode={mode} onModeChange={setMode} />
+          <ContentRestrictionNotice mode={mode} onModeChange={setMode} canUnlock={adultContentEnabled} />
         </div>
       </main>
     )

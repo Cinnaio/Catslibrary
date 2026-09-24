@@ -46,6 +46,7 @@ import { idempotencyKeyFromRequest, requestHash, withIdempotency } from '../serv
 import { buildRewriteTaskParams, parseRewriteSuggestion, parseRewriteTaskParams, runRewriteTask, validateRewriteSelection, type RewriteMode } from '../services/ai/rewrite'
 import { resolveStoredPipelineVersion } from '../services/ai/prompt-version'
 import { DEFAULT_WRITING_CONTENT_PREFERENCES, validateWritingContentPreferences, type WritingContentPreferencesV1 } from '../services/ai/writing-preferences'
+import { restrictedContentResponse, resolveContentAccess } from '../services/content-access'
 
 export const aiRoutes = new Hono<AuthEnv>()
 
@@ -55,6 +56,33 @@ async function auditRequestContext(c: Context<AuthEnv>, db: ReturnType<typeof ge
     ipAddress: settings.logIpAddress ? clientIpFromContext(c) : undefined,
     userAgent: settings.logUserAgent ? c.req.header('User-Agent') || '' : undefined,
   }
+}
+
+/**
+ * 读者侧 AI 摘要的输入本身就是正文或正文派生内容，必须沿用章节访问策略。
+ * 这一步放在缓存读取之前，避免通过已有摘要缓存绕过限制级内容拦截。
+ */
+async function chapterContentAccessError(c: Context<AuthEnv>, db: ReturnType<typeof getDb>, chapterId: string): Promise<Response | undefined> {
+  const chapter = await first<{ content_rating: string }>(
+    db,
+    `SELECT n.content_rating
+     FROM chapters c
+     JOIN novels n ON n.id = c.novel_id
+     WHERE c.id = $1`,
+    [chapterId],
+  )
+  if (!chapter) return c.json({ error: '章节不存在' }, 404)
+  if (chapter.content_rating !== 'restricted') return undefined
+  const access = await resolveContentAccess(c)
+  return access.canViewRestricted ? undefined : restrictedContentResponse(c, access.reason)
+}
+
+async function novelContentAccessError(c: Context<AuthEnv>, db: ReturnType<typeof getDb>, novelId: string): Promise<Response | undefined> {
+  const novel = await first<{ content_rating: string }>(db, 'SELECT content_rating FROM novels WHERE id = $1', [novelId])
+  if (!novel) return c.json({ error: '小说不存在' }, 404)
+  if (novel.content_rating !== 'restricted') return undefined
+  const access = await resolveContentAccess(c)
+  return access.canViewRestricted ? undefined : restrictedContentResponse(c, access.reason)
 }
 
 // ---------- 能力探测（匿名可用，前端据此决定是否渲染 AI 入口） ----------
@@ -97,6 +125,8 @@ aiRoutes.get('/recap', requireUser(), async (c) => {
 
   const settings = await getAiSettings(db)
   if (!settings.recapEnabled || !isTextAiConfigured()) return c.json({ recap: '', cached: false }, 200, { 'Cache-Control': 'no-store' })
+  const accessError = await chapterContentAccessError(c, db, chapterId)
+  if (accessError) return accessError
 
   const cached = await getCachedRecap(db, chapterId, textProvider().model)
   return c.json(cached ? { recap: cached.result, cached: true, model: cached.model, id: cached.id } : { recap: '', cached: false }, 200, {
@@ -115,6 +145,8 @@ aiRoutes.post('/recap', requireUser(), async (c) => {
   const settings = await getAiSettings(db)
   if (!settings.recapEnabled) return c.json({ error: 'AI 前情提要已关闭', code: 'disabled' }, 403)
   if (!isTextAiConfigured()) return c.json({ error: 'AI 文本服务未配置', code: 'disabled' }, 503)
+  const accessError = await chapterContentAccessError(c, db, chapterId)
+  if (accessError) return accessError
 
   const force = !!body.force && isAdmin
   const model = textProvider().model
@@ -165,6 +197,8 @@ aiRoutes.post('/catchup', requireUser(), async (c) => {
   const settings = await getAiSettings(db)
   if (!settings.catchupEnabled) return c.json({ error: 'AI 回顾总结已关闭', code: 'disabled' }, 403)
   if (!isTextAiConfigured()) return c.json({ error: 'AI 文本服务未配置', code: 'disabled' }, 503)
+  const accessError = await novelContentAccessError(c, db, novelId)
+  if (accessError) return accessError
 
   const model = textProvider().model
   const inspection = await inspectCatchup(db, user.id, novelId, model)

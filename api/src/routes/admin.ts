@@ -8,7 +8,7 @@ import { all, first, run } from '../db/query'
 import { rowToCommentAdmin, rowToCommentReport, toContentRating } from '../db/mappers'
 import { cleanText, clampInt, escapeLike } from '../services/text'
 import { requireAdmin, type AuthEnv } from '../middlewares/auth'
-import { getAdultContentEnabled, setAdultContentEnabled } from './content-policy'
+import { getAdultContentEnabled, setAdultContentEnabled } from '../services/content-policy'
 
 export const adminRoutes = new Hono<AuthEnv>()
 

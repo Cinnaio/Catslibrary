@@ -6,6 +6,7 @@ import { Hono, type Context } from 'hono'
 import { getDb } from '../db/pool'
 import { first } from '../db/query'
 import { optionalUser, type AuthEnv } from '../middlewares/auth'
+import { contentPolicyHeaders, resolveContentAccess } from '../services/content-access'
 
 export const progressRoutes = new Hono<AuthEnv>()
 
@@ -104,6 +105,8 @@ async function listRecent(c: Context<AuthEnv>) {
   const db = getDb()
   const userId = c.get('user')?.id
   if (!userId) return c.json({ progress: [], tombstones: [] })
+  const access = await resolveContentAccess(c)
+  const ratingFilter = access.canViewRestricted ? '' : " AND COALESCE(n.content_rating, 'unknown') <> 'restricted'"
 
   let limit = Number.parseInt(c.req.query('limit') || '5', 10)
   if (!Number.isFinite(limit) || limit < 1) limit = 5
@@ -115,7 +118,7 @@ async function listRecent(c: Context<AuthEnv>) {
      FROM reading_progress rp
      LEFT JOIN novels n ON n.id = rp.novel_id
      LEFT JOIN chapters c ON c.id = rp.chapter_id
-     WHERE rp.user_id = $1 AND COALESCE(rp.deleted_at, 0) = 0
+     WHERE rp.user_id = $1 AND COALESCE(rp.deleted_at, 0) = 0${ratingFilter}
      ORDER BY rp.updated_at DESC
      LIMIT $2`,
     [userId, limit],
@@ -141,7 +144,7 @@ async function listRecent(c: Context<AuthEnv>) {
   return c.json({
     progress,
     tombstones: tombRows.map((r) => ({ novelId: r.novel_id, deletedAt: r.deleted_at, updatedAt: r.updated_at || r.deleted_at })),
-  })
+  }, 200, contentPolicyHeaders())
 }
 
 progressRoutes.delete('/', optionalUser(), async (c) => {

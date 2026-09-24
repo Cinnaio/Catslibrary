@@ -36,6 +36,8 @@ export interface NovelListResponse {
   availableCategories: string[]
   /** 全库标注进度（不受当前筛选影响），用于标注作业台显示「还剩多少未判定」。 */
   ratingCounts?: RatingCounts
+  /** 服务端已过滤限制级作品时，供前端保留「安全模式已隐藏部分作品」提示。 */
+  hiddenRestricted?: boolean
 }
 
 export interface RatingCounts {

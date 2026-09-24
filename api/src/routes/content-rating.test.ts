@@ -54,8 +54,8 @@ interface RatingCounts {
 }
 
 /** 读全库标注进度。计数用增量断言而非绝对值，避免被 fixture 变动误伤。 */
-async function counts(): Promise<RatingCounts> {
-  const data = await jsonOf<{ ratingCounts: RatingCounts }>(await req('/api/novels'))
+async function counts(token = ''): Promise<RatingCounts> {
+  const data = await jsonOf<{ ratingCounts: RatingCounts }>(await req('/api/novels', token ? json('GET', undefined, token) : undefined))
   return data.ratingCounts
 }
 
@@ -84,7 +84,7 @@ describe('小说内容分级字段（方案 B）', () => {
     const plain = await jsonOf<{ novel: Novel }>(await req(`/api/novels/${plainId}`))
     expect(plain.novel.contentRating).toBe('unknown')
 
-    const adult = await jsonOf<{ novel: Novel }>(await req(`/api/novels/${adultId}`))
+    const adult = await jsonOf<{ novel: Novel }>(await req(`/api/novels/${adultId}`, json('GET', undefined, adminToken)))
     expect(adult.novel.contentRating).toBe('restricted')
   })
 
@@ -97,7 +97,7 @@ describe('小说内容分级字段（方案 B）', () => {
   })
 
   it('PUT 更新后响应体与读回值都是新分级（防止 ...existing 静默返回旧值）', async () => {
-    const before = await jsonOf<{ novel: Novel }>(await req(`/api/novels/${plainId}`))
+    const before = await jsonOf<{ novel: Novel }>(await req(`/api/novels/${plainId}`, json('GET', undefined, adminToken)))
     const prevUpdatedAt = before.novel.updatedAt
 
     const put = await req(`/api/novels/${plainId}`, json('PUT', { contentRating: 'restricted' }, adminToken))
@@ -105,7 +105,7 @@ describe('小说内容分级字段（方案 B）', () => {
     // 关键断言：响应体必须是新值。漏加该字段时这里是 'unknown'，而界面表现为「点了没反应」。
     expect((await jsonOf<{ novel: Novel }>(put)).novel.contentRating).toBe('restricted')
 
-    const after = await jsonOf<{ novel: Novel }>(await req(`/api/novels/${plainId}`))
+    const after = await jsonOf<{ novel: Novel }>(await req(`/api/novels/${plainId}`, json('GET', undefined, adminToken)))
     expect(after.novel.contentRating).toBe('restricted')
 
     // 只改分级不改内容：其余字段不受影响
@@ -120,41 +120,41 @@ describe('小说内容分级字段（方案 B）', () => {
   })
 
   it('未传 contentRating 时不施加筛选；显式传值时按值筛选', async () => {
-    const all = await jsonOf<{ total: number }>(await req('/api/novels'))
-    const base = await counts()
+    const all = await jsonOf<{ total: number }>(await req('/api/novels', json('GET', undefined, adminToken)))
+    const base = await counts(adminToken)
     // 未传参 → 全量，且进度统计覆盖全部书
     expect(base.general + base.restricted + base.unknown).toBe(all.total)
     expect(base.general).toBe(0)
     expect(base.restricted).toBe(3)
 
-    const unknownOnly = await jsonOf<{ novels: Novel[]; total: number }>(await req('/api/novels?contentRating=unknown'))
+    const unknownOnly = await jsonOf<{ novels: Novel[]; total: number }>(await req('/api/novels?contentRating=unknown', json('GET', undefined, adminToken)))
     expect(unknownOnly.total).toBe(base.unknown)
     expect(unknownOnly.novels.every((n) => n.contentRating === 'unknown')).toBe(true)
 
-    const restrictedOnly = await jsonOf<{ novels: Novel[]; total: number }>(await req('/api/novels?contentRating=restricted'))
+    const restrictedOnly = await jsonOf<{ novels: Novel[]; total: number }>(await req('/api/novels?contentRating=restricted', json('GET', undefined, adminToken)))
     expect(restrictedOnly.total).toBe(base.restricted)
     expect(restrictedOnly.novels.every((n) => n.contentRating === 'restricted')).toBe(true)
 
     // 非法筛选值不构成筛选条件，也不报错
-    const bogus = await jsonOf<{ total: number }>(await req('/api/novels?contentRating=bogus'))
+    const bogus = await jsonOf<{ total: number }>(await req('/api/novels?contentRating=bogus', json('GET', undefined, adminToken)))
     expect(bogus.total).toBe(all.total)
   })
 
   it('概览接口返回标注进度', async () => {
     const stats = await jsonOf<{ contentRating: RatingCounts }>(await req('/api/admin/stats', json('GET', undefined, adminToken)))
-    expect(stats.contentRating).toEqual(await counts())
+    expect(stats.contentRating).toEqual(await counts(adminToken))
   })
 
   describe('分类标签与文本规则预填', () => {
     it('dryRun 只扫描不写入', async () => {
-      const before = await counts()
+      const before = await counts(adminToken)
       const res = await req('/api/novels', json('POST', { action: 'prefill-content-rating', dryRun: true }, adminToken))
       expect(res.status).toBe(200)
       const data = await jsonOf<{ applied: number; dryRun: boolean; unknown: number }>(res)
       expect(data.dryRun).toBe(true)
       expect(data.applied).toBe(0)
       expect(data.unknown).toBe(before.unknown)
-      expect(await counts()).toEqual(before)
+      expect(await counts(adminToken)).toEqual(before)
     })
 
     it('命中项写 restricted（由创建期漏判的书补判），未命中项保持 unknown', async () => {
@@ -165,13 +165,13 @@ describe('小说内容分级字段（方案 B）', () => {
       const aId = (await jsonOf<{ novel: Novel }>(a)).novel.id
       const bId = (await jsonOf<{ novel: Novel }>(b)).novel.id
       // 创建期已判为 restricted（这本身是新建行为，见「创建时自动判级」用例）
-      expect((await jsonOf<{ novel: Novel }>(await req(`/api/novels/${aId}`))).novel.contentRating).toBe('restricted')
+      expect((await jsonOf<{ novel: Novel }>(await req(`/api/novels/${aId}`, json('GET', undefined, adminToken)))).novel.contentRating).toBe('restricted')
 
       // 还原为 unknown，模拟预填上线前的存量数据
       await t.db.query(`UPDATE novels SET content_rating = 'unknown' WHERE id IN ($1, $2)`, [aId, bId])
 
-      const before = await counts()
-      const updatedAtBefore = Object.fromEntries((await jsonOf<{ novels: Novel[] }>(await req('/api/novels?limit=100'))).novels.map((n) => [n.id, n.updatedAt]))
+      const before = await counts(adminToken)
+      const updatedAtBefore = Object.fromEntries((await jsonOf<{ novels: Novel[] }>(await req('/api/novels?limit=100', json('GET', undefined, adminToken)))).novels.map((n) => [n.id, n.updatedAt]))
 
       const res = await req('/api/novels', json('POST', { action: 'prefill-content-rating' }, adminToken))
       const data = await jsonOf<{ scanned: number; matched: number; applied: number; ids: string[]; unknown: number }>(res)
@@ -179,13 +179,13 @@ describe('小说内容分级字段（方案 B）', () => {
       expect(data.applied).toBe(2)
 
       // 红线：预填不产生任何 general
-      const after = await counts()
+      const after = await counts(adminToken)
       expect(after.general).toBe(0)
       expect(after.restricted).toBe(before.restricted + 2)
       expect(after.unknown).toBe(before.unknown - 2)
 
       // 分级是治理属性而非内容更新：不得刷新 updated_at（否则存量书会被顶到首页最前）
-      const touched = await jsonOf<{ novels: Novel[] }>(await req('/api/novels?contentRating=restricted&limit=100'))
+      const touched = await jsonOf<{ novels: Novel[] }>(await req('/api/novels?contentRating=restricted&limit=100', json('GET', undefined, adminToken)))
       for (const n of touched.novels) {
         if (n.id in updatedAtBefore) expect(n.updatedAt).toBe(updatedAtBefore[n.id])
       }
@@ -194,7 +194,7 @@ describe('小说内容分级字段（方案 B）', () => {
       const undo = await req('/api/novels', json('POST', { action: 'undo-prefill-content-rating', ids: data.ids }, adminToken))
       expect(undo.status).toBe(200)
       expect((await jsonOf<{ restored: number }>(undo)).restored).toBe(2)
-      expect(await counts()).toEqual(before)
+      expect(await counts(adminToken)).toEqual(before)
     })
 
     it('创建时自动判级：成人标签或限制级文本命中即落 restricted，绝不落 general', async () => {
@@ -232,14 +232,14 @@ describe('小说内容分级字段（方案 B）', () => {
       // 人工把一本文本命中的书判成 general
       const target = await req('/api/novels', json('POST', { title: '成人向但已复核为一般', author: 'x', contentRating: 'general' }, adminToken))
       const targetId = (await jsonOf<{ novel: Novel }>(target)).novel.id
-      const generalBefore = (await counts()).general
+      const generalBefore = (await counts(adminToken)).general
 
       await req('/api/novels', json('POST', { action: 'prefill-content-rating' }, adminToken))
 
-      const after = await jsonOf<{ novel: Novel }>(await req(`/api/novels/${targetId}`))
+      const after = await jsonOf<{ novel: Novel }>(await req(`/api/novels/${targetId}`, json('GET', undefined, adminToken)))
       expect(after.novel.contentRating).toBe('general')
       // general 只会增不减，且预填不得把它改成 restricted
-      expect((await counts()).general).toBe(generalBefore)
+      expect((await counts(adminToken)).general).toBe(generalBefore)
     })
 
     it('更新未判定书的元数据会补判，人工 general 仍优先', async () => {

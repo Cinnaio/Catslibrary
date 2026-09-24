@@ -19,7 +19,7 @@ describe('ContentPolicyContext', () => {
 
     await waitFor(() => expect(result.current.adultContentEnabled).toBe(true))
 
-    act(() => result.current.setMode('adult'))
+    await act(async () => { await result.current.setMode('adult') })
     expect(result.current.mode).toBe('adult')
     expect(result.current.isAllowed({ contentRating: 'restricted' })).toBe(true)
     expect(localStorage.getItem('zhizhou-content-mode')).toBe('adult')
@@ -30,7 +30,7 @@ describe('ContentPolicyContext', () => {
     const { result } = renderHook(() => useContentPolicy(), { wrapper: ContentPolicyProvider })
 
     await waitFor(() => expect(result.current.adultContentEnabled).toBe(false))
-    act(() => result.current.setMode('adult'))
+    await act(async () => { await result.current.setMode('adult') })
 
     expect(result.current.mode).toBe('safe')
     expect(result.current.isAllowed({ contentRating: 'restricted' })).toBe(false)
@@ -80,7 +80,7 @@ describe('ContentPolicyContext', () => {
       expect(result.current.isAllowed({})).toBe(true)
 
       // 成人模式：一律放行，开关语义未变
-      act(() => result.current.setMode('adult'))
+      await act(async () => { await result.current.setMode('adult') })
       expect(result.current.isAllowed({ contentRating: 'restricted' })).toBe(true)
       expect(result.current.isAllowed({ contentRating: 'general' })).toBe(true)
       expect(result.current.isAllowed({ contentRating: 'unknown' })).toBe(true)

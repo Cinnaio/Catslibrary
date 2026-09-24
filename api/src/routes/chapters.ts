@@ -8,17 +8,24 @@ import { rowToChapterFull, rowToChapterMeta } from '../db/mappers'
 import { newId } from '../services/auth'
 import { simplifyChapterForSource } from '../services/zh-convert'
 import { invalidateChapter } from '../services/ai/generations'
-import { requireAdmin, type AuthEnv } from '../middlewares/auth'
+import { optionalUser, requireAdmin, type AuthEnv } from '../middlewares/auth'
+import { contentPolicyHeaders, restrictedContentResponse, resolveContentAccess } from '../services/content-access'
 import { idempotencyKeyFromRequest, withIdempotency } from '../services/idempotency'
 
 export const chaptersRoutes = new Hono<AuthEnv>()
 
 // ---------- 列表 ----------
 
-chaptersRoutes.get('/', async (c) => {
+chaptersRoutes.get('/', optionalUser(), async (c) => {
   const db = getDb()
   const novelId = c.req.query('novelId')
   if (!novelId) return c.json({ error: 'novelId query parameter is required' }, 400)
+  const novel = await first<{ id: string; content_rating: string }>(db, 'SELECT id, content_rating FROM novels WHERE id = $1', [novelId])
+  if (!novel) return c.json({ error: 'Novel not found' }, 404)
+  if (novel.content_rating === 'restricted') {
+    const access = await resolveContentAccess(c)
+    if (!access.canViewRestricted) return restrictedContentResponse(c, access.reason)
+  }
   // 显式列，绝不 SELECT *：content 是整章正文，避免整本小说被拉走
   const rows = await all<Record<string, unknown>>(
     db,
@@ -26,7 +33,7 @@ chaptersRoutes.get('/', async (c) => {
     [novelId],
   )
   const chapters = rows.map(rowToChapterMeta).filter((ch) => ch !== null)
-  return c.json({ chapters, novelId, total: chapters.length }, 200, { 'Cache-Control': 'public, max-age=60, stale-while-revalidate=300' })
+  return c.json({ chapters, novelId, total: chapters.length }, 200, contentPolicyHeaders())
 })
 
 // ---------- 创建 / 批量 / 维护（管理员） ----------
@@ -52,13 +59,24 @@ chaptersRoutes.delete('/', requireAdmin(), async (c) => {
 
 // ---------- 详情 / 更新 / 删除 ----------
 
-chaptersRoutes.get('/:id', async (c) => {
+chaptersRoutes.get('/:id', optionalUser(), async (c) => {
   const db = getDb()
   const id = c.req.param('id')
   if (!id || id.includes('/')) return c.json({ error: 'Invalid chapter ID' }, 400)
-  const row = await first<Record<string, unknown>>(db, 'SELECT * FROM chapters WHERE id = $1', [id])
+  const row = await first<Record<string, unknown>>(
+    db,
+    `SELECT c.*, n.content_rating
+     FROM chapters c
+     JOIN novels n ON n.id = c.novel_id
+     WHERE c.id = $1`,
+    [id],
+  )
   if (!row) return c.json({ error: 'Chapter not found' }, 404)
-  return c.json({ chapter: rowToChapterFull(row) })
+  if (row.content_rating === 'restricted') {
+    const access = await resolveContentAccess(c)
+    if (!access.canViewRestricted) return restrictedContentResponse(c, access.reason)
+  }
+  return c.json({ chapter: rowToChapterFull(row) }, 200, contentPolicyHeaders())
 })
 
 chaptersRoutes.put('/:id', requireAdmin(), async (c) => {

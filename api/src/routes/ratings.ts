@@ -7,6 +7,7 @@ import { all, first, run } from '../db/query'
 import { newId } from '../services/auth'
 import { cleanText } from '../services/text'
 import { optionalUser, requireUser, type AuthEnv } from '../middlewares/auth'
+import { contentPolicyHeaders, restrictedContentResponse, resolveContentAccess } from '../services/content-access'
 
 export const ratingsRoutes = new Hono<AuthEnv>()
 
@@ -14,8 +15,12 @@ ratingsRoutes.get('/', optionalUser(), async (c) => {
   const db = getDb()
   const novelId = cleanText(c.req.query('novelId'), 80)
   if (!novelId) return c.json({ error: 'novelId query parameter is required' }, 400)
-  const exists = await first<{ id: string }>(db, 'SELECT id FROM novels WHERE id = $1', [novelId])
+  const exists = await first<{ id: string; content_rating: string }>(db, 'SELECT id, content_rating FROM novels WHERE id = $1', [novelId])
   if (!exists) return c.json({ error: 'Novel not found' }, 404)
+  if (exists.content_rating === 'restricted') {
+    const access = await resolveContentAccess(c)
+    if (!access.canViewRestricted) return restrictedContentResponse(c, access.reason)
+  }
   return ratingSummary(c, novelId, c.get('user')?.id)
 })
 
@@ -28,8 +33,12 @@ ratingsRoutes.post('/', requireUser(), async (c) => {
   if (!novelId) return c.json({ error: 'novelId is required' }, 400)
   if (!Number.isInteger(rating) || rating < 1 || rating > 5) return c.json({ error: '评分必须是 1 到 5 星' }, 400)
 
-  const exists = await first<{ id: string }>(db, 'SELECT id FROM novels WHERE id = $1', [novelId])
+  const exists = await first<{ id: string; content_rating: string }>(db, 'SELECT id, content_rating FROM novels WHERE id = $1', [novelId])
   if (!exists) return c.json({ error: 'Novel not found' }, 404)
+  if (exists.content_rating === 'restricted') {
+    const access = await resolveContentAccess(c)
+    if (!access.canViewRestricted) return restrictedContentResponse(c, access.reason)
+  }
 
   const now = Date.now()
   const existing = await first<{ id: string; created_at: number }>(
@@ -50,6 +59,12 @@ ratingsRoutes.delete('/', requireUser(), async (c) => {
   const user = c.get('user')
   const novelId = cleanText(c.req.query('novelId'), 80)
   if (!novelId) return c.json({ error: 'novelId query parameter is required' }, 400)
+  const exists = await first<{ id: string; content_rating: string }>(db, 'SELECT id, content_rating FROM novels WHERE id = $1', [novelId])
+  if (!exists) return c.json({ error: 'Novel not found' }, 404)
+  if (exists.content_rating === 'restricted') {
+    const access = await resolveContentAccess(c)
+    if (!access.canViewRestricted) return restrictedContentResponse(c, access.reason)
+  }
   await run(db, 'DELETE FROM novel_ratings WHERE novel_id = $1 AND user_id = $2', [novelId, user.id])
   return ratingSummary(c, novelId, undefined)
 })
@@ -80,5 +95,5 @@ async function ratingSummary(c: Context<AuthEnv>, novelId: string, userId: strin
     myRating = mine ? mine.rating : null
   }
 
-  return c.json({ novelId, average: count ? Math.round((sum / count) * 10) / 10 : 0, count, distribution, myRating })
+  return c.json({ novelId, average: count ? Math.round((sum / count) * 10) / 10 : 0, count, distribution, myRating }, 200, contentPolicyHeaders())
 }

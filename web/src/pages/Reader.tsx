@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { ChapterFull, ChapterMeta, Thought } from '@shared/types'
-import { bookmarksApi, chaptersApi, getToken, novelsApi, thoughtsApi } from '../lib/api'
+import { bookmarksApi, chaptersApi, getToken, isRestrictedContentError, novelsApi, thoughtsApi } from '../lib/api'
 import { addBookmark, getAllBookmarks, isBookmarked, removeBookmark, saveHistory, toggleBookmark } from '../lib/storage'
 import {
   chapterLabel,
@@ -45,7 +45,7 @@ export default function Reader() {
   const { novelId = '', chapterId = '' } = useParams()
   const navigate = useNavigate()
   const { user } = useSession()
-  const { mode, setMode, isAllowed } = useContentPolicy()
+  const { mode, setMode, isAllowed, adultContentEnabled } = useContentPolicy()
   const { toast } = useToast()
   const { settings, set, fontSize, pageMode } = useReaderSettings()
   const { queue: queueProgress, flush: flushProgress } = useProgressSync()
@@ -169,7 +169,13 @@ export default function Reader() {
         let useDemo = false
         try {
           ch = await loadChapterData(chapterId, false)
-        } catch {
+        } catch (error) {
+          if (isRestrictedContentError(error)) {
+            if (cancelled) return
+            setBlocked(true)
+            setLoading(false)
+            return
+          }
           useDemo = true
           ch = await loadChapterData(chapterId, true)
           setDemoMode(true)
@@ -1039,7 +1045,7 @@ export default function Reader() {
   if (blocked) {
     return (
       <div className="reader-blocked-state">
-        <ContentRestrictionNotice mode={mode} onModeChange={setMode} />
+        <ContentRestrictionNotice mode={mode} onModeChange={setMode} canUnlock={adultContentEnabled} />
       </div>
     )
   }

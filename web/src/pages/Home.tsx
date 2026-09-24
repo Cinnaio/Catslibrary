@@ -219,7 +219,7 @@ export default function Home() {
       setNovels(items)
       const visibleCategories = safeMode ? filterVisibleCategories(availableCategories) : availableCategories
       setCategories(visibleCategories)
-      setHiddenRestricted(restrictedInPage || visibleCategories.length !== availableCategories.length)
+      setHiddenRestricted(Boolean(data.hiddenRestricted) || restrictedInPage || visibleCategories.length !== availableCategories.length)
       setApiFailed(false)
       setLoading(false)
       void loadRecent()

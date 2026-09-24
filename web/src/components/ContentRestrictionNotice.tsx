@@ -4,7 +4,7 @@ import { useConfirm } from './feedback'
 
 interface ContentRestrictionNoticeProps {
   mode: ContentMode
-  onModeChange: (mode: ContentMode) => void
+  onModeChange: (mode: ContentMode) => void | Promise<void>
   title?: string
   description?: string
   canUnlock?: boolean
@@ -29,7 +29,7 @@ export default function ContentRestrictionNotice({
       okText: '确认查看',
       cancelText: '暂不查看',
     })
-    if (confirmed) onModeChange('adult')
+    if (confirmed) await onModeChange('adult')
   }
 
   return (

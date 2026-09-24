@@ -12,7 +12,8 @@ import { cacheCoverForNovel } from '../services/covers'
 import { newId } from '../services/auth'
 import { simplifyNovelForSource } from '../services/zh-convert'
 import { escapeLike } from '../services/text'
-import { requireAdmin, type AuthEnv } from '../middlewares/auth'
+import { optionalUser, requireAdmin, type AuthEnv } from '../middlewares/auth'
+import { contentPolicyHeaders, restrictedContentResponse, resolveContentAccess } from '../services/content-access'
 import { idempotencyKeyFromRequest, withIdempotency } from '../services/idempotency'
 
 export const novelsRoutes = new Hono<AuthEnv>()
@@ -22,8 +23,10 @@ const SORT_ORDERS: Record<string, 'ASC' | 'DESC'> = { asc: 'ASC', desc: 'DESC' }
 
 // ---------- 列表（公开） ----------
 
-novelsRoutes.get('/', async (c) => {
+novelsRoutes.get('/', optionalUser(), async (c) => {
   const db = getDb()
+  const access = await resolveContentAccess(c)
+  const canViewRestricted = access.canViewRestricted
   const search = (c.req.query('search') || '').trim()
   const category = c.req.query('category') || ''
   const status = c.req.query('status') || ''
@@ -56,6 +59,7 @@ novelsRoutes.get('/', async (c) => {
     params.push(status)
     conditions.push(`status = $${params.length}`)
   }
+  if (!canViewRestricted) conditions.push("COALESCE(content_rating, 'unknown') <> 'restricted'")
   // contentRating=unknown 是「仅看未标注」筛选；支撑人工标注作业台。
   if (contentRating) {
     params.push(contentRating)
@@ -85,14 +89,17 @@ novelsRoutes.get('/', async (c) => {
   // 分类筛选 UI 用的全量分类集合（管理列表用 includeCategories=0 走 /api/categories）
   let availableCategories: string[] = []
   if (c.req.query('includeCategories') !== '0') {
-    availableCategories = await loadAvailableCategories(db)
+    availableCategories = await loadAvailableCategories(db, canViewRestricted)
   }
 
   // 标注进度：让「还剩多少没判」成为可见数字，否则几百本书里挑未标注的无法作业。
   const progressRows = await all<{ content_rating: string; count: number }>(
     db,
-    'SELECT content_rating, COUNT(*)::int AS count FROM novels GROUP BY content_rating',
+    canViewRestricted
+      ? 'SELECT content_rating, COUNT(*)::int AS count FROM novels GROUP BY content_rating'
+      : "SELECT content_rating, COUNT(*)::int AS count FROM novels WHERE COALESCE(content_rating, 'unknown') <> 'restricted' GROUP BY content_rating",
   )
+  const hiddenRestricted = !canViewRestricted && !!(await first<{ exists: boolean }>(db, "SELECT EXISTS (SELECT 1 FROM novels WHERE content_rating = 'restricted') AS exists"))?.exists
   const ratingCounts = { general: 0, restricted: 0, unknown: 0 }
   for (const r of progressRows) {
     ratingCounts[toContentRating(r.content_rating)] += Number(r.count) || 0
@@ -108,9 +115,10 @@ novelsRoutes.get('/', async (c) => {
       hasMore: offset + limit < total,
       availableCategories,
       ratingCounts,
+      hiddenRestricted,
     },
     200,
-    { 'Cache-Control': 'public, max-age=30, stale-while-revalidate=120' },
+    contentPolicyHeaders(),
   )
 })
 
@@ -130,13 +138,17 @@ novelsRoutes.post('/', requireAdmin(), async (c) => {
 
 // ---------- 详情 / 更新 / 删除 ----------
 
-novelsRoutes.get('/:id', async (c) => {
+novelsRoutes.get('/:id', optionalUser(), async (c) => {
   const db = getDb()
   const id = c.req.param('id')
   if (!id || id.includes('/')) return c.json({ error: 'Invalid novel ID' }, 400)
   const row = await first<NovelRow>(db, 'SELECT * FROM novels WHERE id = $1', [id])
   if (!row) return c.json({ error: 'Novel not found' }, 404)
-  return c.json({ novel: rowToNovel(row) })
+  if (row.content_rating === 'restricted') {
+    const access = await resolveContentAccess(c)
+    if (!access.canViewRestricted) return restrictedContentResponse(c, access.reason)
+  }
+  return c.json({ novel: rowToNovel(row) }, 200, contentPolicyHeaders())
 })
 
 novelsRoutes.put('/:id', requireAdmin(), async (c) => {
@@ -408,9 +420,12 @@ async function undoPrefillContentRating(c: Context, db: ReturnType<typeof getDb>
   return c.json({ ok: true, restored })
 }
 
-async function loadAvailableCategories(db: ReturnType<typeof getDb>): Promise<string[]> {
+async function loadAvailableCategories(db: ReturnType<typeof getDb>, includeRestricted = true): Promise<string[]> {
   try {
-    const rows = await all<{ categories: string }>(db, `SELECT DISTINCT categories FROM novels WHERE categories IS NOT NULL AND categories != '[]'`)
+    const rows = await all<{ categories: string }>(
+      db,
+      `SELECT DISTINCT categories FROM novels WHERE categories IS NOT NULL AND categories != '[]'${includeRestricted ? '' : " AND COALESCE(content_rating, 'unknown') <> 'restricted'"}`,
+    )
     const set = new Set<string>()
     for (const row of rows) {
       try {

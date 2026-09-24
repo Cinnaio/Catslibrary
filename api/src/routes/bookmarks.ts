@@ -3,14 +3,25 @@ import { Hono } from 'hono'
 import { getDb } from '../db/pool'
 import { all, withTx } from '../db/query'
 import { requireUser, type AuthEnv } from '../middlewares/auth'
+import { contentPolicyHeaders, resolveContentAccess } from '../services/content-access'
 
 export const bookmarksRoutes = new Hono<AuthEnv>()
 
 bookmarksRoutes.get('/', requireUser(), async (c) => {
   const db = getDb()
   const userId = c.get('user').id
-  const rows = await all<Record<string, unknown>>(db, 'SELECT * FROM user_bookmarks WHERE user_id = $1 ORDER BY updated_at DESC', [userId])
-  return c.json({ bookmarks: rows.map(rowToBookmark).filter(Boolean) })
+  const access = await resolveContentAccess(c)
+  const ratingFilter = access.canViewRestricted ? '' : " AND COALESCE(n.content_rating, 'general') <> 'restricted'"
+  const rows = await all<Record<string, unknown>>(
+    db,
+    `SELECT b.*
+     FROM user_bookmarks b
+     LEFT JOIN novels n ON n.id = b.novel_id
+     WHERE b.user_id = $1${ratingFilter}
+     ORDER BY b.updated_at DESC`,
+    [userId],
+  )
+  return c.json({ bookmarks: rows.map(rowToBookmark).filter(Boolean) }, 200, contentPolicyHeaders())
 })
 
 bookmarksRoutes.put('/', requireUser(), async (c) => {
