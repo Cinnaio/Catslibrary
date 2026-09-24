@@ -79,34 +79,60 @@ SELECT content_rating, COUNT(*) FROM novels GROUP BY 1;   -- 应全部是 unknow
 
 ---
 
-## 二、预填（第 2 步：独立进行，可随时回滚）
+## 二、预填（第 2 步：**必须执行，否则一本都不会分级**）
 
-**这一步与发布解耦**。分级字段已生效，但 398 本仍是 `unknown`（走正则兜底）。预填是把"正则猜的"固化成"已确认的"。
+> **这一步不是可选项。** 迁移只加字段，默认值一律是 `unknown`；不执行预填，
+> 部署完你会看到「398 本一本都没分级」。字段建好但没人填，等于没建。
 
-### 2.1 先干跑
-
-```bash
-curl -X POST https://你的域名/api/novels \
-  -H "Authorization: Bearer <管理员token>" \
-  -H 'Content-Type: application/json' \
-  -d '{"action":"prefill-content-rating","dryRun":true}'
-```
-
-返回：
-
-```json
-{ "ok": true, "scanned": 398, "matched": 202, "applied": 0, "dryRun": true, "ids": [...], "unknown": 398, "sample": [...] }
-```
-
-`matched` 就是**将会**被改成 `restricted` 的本数，`sample` 是前 50 条供过目。
-
-> 无 token 时：用 `POST /api/auth/login` 取 token，或走 `GET /api/auth/bootstrap-admin` 判断是否已有管理员。
-> 若生产不便直连 API，可在生产机上跑一次性脚本直连数据库（见附录 A）。
-
-### 2.2 过目命中清单
+### 2.1 执行预填
 
 ```bash
-# 在能连库的机器上执行（读 .env 的 DATABASE_URL）；只读，不写库
+# 1) 先干跑（只统计，不写库）
+npx tsx scripts/prefill-content-rating.ts --dry-run
+
+# 2) 确认后实际写入（自动写回滚凭据）
+npx tsx scripts/prefill-content-rating.ts
+```
+
+预期输出：
+
+```
+起始分布: {"g":0,"r":0,"u":398,"total":398}
+扫描 unknown 398 本 → 命中 202 本；未命中 196 本保持 unknown
+回滚凭据已写入: data/content-rating-prefill-backup-<时间戳>.json
+写入后分布: {"g":0,"r":202,"u":196,"total":398}
+✓ 完成：restricted 0 → 202，unknown 398 → 196，general 仍为 0
+```
+
+该脚本与 API 动作 `POST /api/novels {action:'prefill-content-rating'}` 同源同语义，
+区别是不需要管理员 token，适合服务器上直接执行。二者任选其一，**重复执行是幂等的**
+（只处理 `unknown`，已判定的绝不覆盖）。
+
+回滚：
+
+```bash
+npx tsx scripts/prefill-content-rating.ts --undo "data/content-rating-prefill-backup-<时间戳>.json"
+```
+
+### 2.2 为什么只分了 202 本，剩下 196 本怎么办
+
+**这是设计结果，不是故障。** 预填只写 `restricted`，**绝不写 `general`**：
+
+正则认不出「肉」「高Ｈ」这类漏网标签（P0-3 实测 43 个样本标签漏网 37 个）。若把
+「未命中」当成「一般」，等于把漏网永久固化成「已认证安全」——现在是每次加载重新猜，
+还有机会被后续规则捞到；一旦写死 `general` 就再也不会被检视。
+
+所以剩下的 196 本保持 `unknown`，**继续走正则兜底，前台行为与部署前完全一致**。
+它们需要人工逐本判定（后台「小说管理」→ 按「仅看未标注」筛选），或等新书在
+「确认作品并配置章节」处顺手标注。
+
+**`general` 永远只会由人工产生。** 这是刻意的：系统不替运营做「这本书安全」的承诺。
+
+### 2.3 过目命中清单（可选）
+
+想先看会改哪些书，在能连库的机器上执行（只读，不写库）：
+
+```bash
 npx tsx scripts/export-content-rating-preview.ts            # 写入 docs/ 下带日期的文件
 npx tsx scripts/export-content-rating-preview.ts --stdout   # 输出到标准输出
 ```
@@ -115,31 +141,11 @@ npx tsx scripts/export-content-rating-preview.ts --stdout   # 输出到标准输
 
 **误命中结论：202 本里纯误判仅 1 本**（`云端孤岛`，`强X` 匹配到「倔强x假正经」的人物配对写法）。另有 5 本存在旁证误命中，但都有其他正常命中，不影响结论。
 
-> 该脚本直接 import `shared/restricted-patterns.ts`，与预填接口共用同一份正则模块——若脚本自带一份正则副本，"过目清单"与"实际写入结果"就可能不一致，那样评审就失去意义。
-
-### 2.3 落库
-
-```bash
-curl -X POST https://你的域名/api/novels \
-  -H "Authorization: Bearer <管理员token>" \
-  -H 'Content-Type: application/json' \
-  -d '{"action":"prefill-content-rating"}'
-```
-
-**把返回的 `ids` 存下来**（约 202 个），这是回滚凭据。
-
-落库后核对：
-
-```sql
-SELECT content_rating, COUNT(*) FROM novels GROUP BY 1;
--- 期望：restricted 202 / unknown 196 / general 0
-```
-
-**`general` 必须为 0** —— 这是红线：正则只写 `restricted`，绝不写 `general`。因为正则认不出漏网标签（`肉` 之类），若把"未命中"当成"一般"，等于把漏网永久认证为安全。
+> 该脚本直接 import `shared/restricted-patterns.ts`，与预填脚本共用同一份正则模块——若脚本自带一份正则副本，"过目清单"与"实际写入结果"就可能不一致，那样评审就失去意义。
 
 ### 2.4 修正个别误判
 
-`云端孤岛` 这类可在后台「小说管理」里手工改回 `general`（或 `unknown`）。**人工判定优先于正则**，这正是方案 B 的设计意图——改了就不会被预填覆盖。
+`云端孤岛` 这类可在后台「小说管理」里手工改回 `general`（或 `unknown`）。**人工判定优先于正则**，改了就不会被预填覆盖（预填只处理 `unknown`）。
 
 ---
 
@@ -148,6 +154,10 @@ SELECT content_rating, COUNT(*) FROM novels GROUP BY 1;
 ### 3.1 回滚预填（推荐，精准）
 
 ```bash
+# 脚本方式（自动读取写入时的备份文件）
+npx tsx scripts/prefill-content-rating.ts --undo "data/content-rating-prefill-backup-<时间戳>.json"
+
+# 或 API 方式
 curl -X POST https://你的域名/api/novels \
   -H "Authorization: Bearer <管理员token>" \
   -H 'Content-Type: application/json' \
@@ -177,15 +187,15 @@ npm ci && npm run build && 重启 API
 
 ## 四、已验证的实测记录
 
-在真实库（398 本）上完整跑通：
+在真实库（398 本）上完整跑通。**下表最后一行是实际执行结果，非演练**：
 
 | 步骤 | 结果 |
 |---|---|
 | 起始状态 | general=0 restricted=0 unknown=398 |
 | 干跑 | 命中 202，**不写库**（计数不变） |
-| 落库 | general=0 **restricted=202** unknown=196 |
+| 落库（演练 + 回滚） | general=0 restricted=202 unknown=196 → 回滚至 unknown=398 |
 | **可见性等价校验** | ✓ **398 本逐本一致，零变化** |
-| 回滚 | 202 本 → unknown，恢复至起始态 |
+| **实际执行预填** | general=0 **restricted=202** unknown=196，回滚凭据存于 `data/` |
 
 代码侧验证：
 
@@ -196,6 +206,7 @@ npm ci && npm run build && 重启 API
 | `npm test` | **44 文件 / 393 测试全通过**（含新增 10 条后端契约） |
 | `web` 测试 | **28 文件 / 159 测试全通过**（含新增 5 条判定契约） |
 | `npm run build` | 通过，迁移已拷入 `dist/migrations` |
+| `npx tsx scripts/prefill-content-rating.ts --dry-run` | 输出正确：命中 202 / 保持 unknown 196 / general 0 |
 
 ---
 
