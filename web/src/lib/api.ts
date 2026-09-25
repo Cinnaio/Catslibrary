@@ -81,9 +81,7 @@ export function authHeaders(headers: Record<string, string> = {}): Record<string
 /** 为一次管理员副作用生成可重放的客户端操作 ID。 */
 export function newOperationId(prefix = 'operation'): string {
   const randomUUID = globalThis.crypto?.randomUUID
-  const suffix = typeof randomUUID === 'function'
-    ? randomUUID.call(globalThis.crypto)
-    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`
+  const suffix = typeof randomUUID === 'function' ? randomUUID.call(globalThis.crypto) : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`
   return `${prefix}-${suffix}`
 }
 
@@ -749,6 +747,8 @@ export interface AdminContentRatingRuleCandidate {
   reviewedAt: number
   reviewReason: string
   updatedAt: number
+  revision: number
+  ruleVersion: string
   exampleCount: number
   latestExample: AdminContentRatingRuleCandidateExample | null
 }
@@ -760,6 +760,25 @@ export interface AdminContentRatingRuleCandidateListResponse {
   offset: number
   counts: Record<AdminContentRatingRuleCandidateStatus, number>
   kinds: AdminContentRatingRuleCandidateKind[]
+  activeRuleVersion: string
+}
+
+export interface AdminContentRatingRuleCandidatePreviewItem {
+  novelId: string
+  title: string
+  author: string
+  revision: number
+  source: string
+  matchedFields: string[]
+  evidence: AdminContentRatingEvidence[]
+}
+
+export interface AdminContentRatingRuleCandidatePreviewResponse {
+  candidate: AdminContentRatingRuleCandidate
+  currentRuleVersion: string
+  prospectiveRuleVersion: string
+  affectedCount: number
+  items: AdminContentRatingRuleCandidatePreviewItem[]
 }
 
 export const adminApi = {
@@ -807,13 +826,15 @@ export const adminApi = {
     },
   },
   contentRatings: {
-    list(params: {
-      rating?: ContentRating | ''
-      source?: AdminContentRatingSource | ''
-      search?: string
-      limit?: number
-      offset?: number
-    } = {}): Promise<AdminContentRatingListResponse> {
+    list(
+      params: {
+        rating?: ContentRating | ''
+        source?: AdminContentRatingSource | ''
+        search?: string
+        limit?: number
+        offset?: number
+      } = {},
+    ): Promise<AdminContentRatingListResponse> {
       const query = new URLSearchParams()
       if (params.rating) query.set('rating', params.rating)
       if (params.source) query.set('source', params.source)
@@ -834,13 +855,15 @@ export const adminApi = {
     },
   },
   contentRatingRuleCandidates: {
-    list(params: {
-      status?: AdminContentRatingRuleCandidateStatus | ''
-      kind?: AdminContentRatingRuleCandidateKind | ''
-      search?: string
-      limit?: number
-      offset?: number
-    } = {}): Promise<AdminContentRatingRuleCandidateListResponse> {
+    list(
+      params: {
+        status?: AdminContentRatingRuleCandidateStatus | ''
+        kind?: AdminContentRatingRuleCandidateKind | ''
+        search?: string
+        limit?: number
+        offset?: number
+      } = {},
+    ): Promise<AdminContentRatingRuleCandidateListResponse> {
       const query = new URLSearchParams()
       if (params.status) query.set('status', params.status)
       if (params.kind) query.set('kind', params.kind)
@@ -850,18 +873,34 @@ export const adminApi = {
       const qs = query.toString()
       return request('GET', `/admin/content-rating-rule-candidates${qs ? '?' + qs : ''}`, null, true)
     },
-    create(data: {
-      novelId: string
-      kind: AdminContentRatingRuleCandidateKind
-      value: string
-      reason: string
-    }): Promise<{
+    create(data: { novelId: string; kind: AdminContentRatingRuleCandidateKind; value: string; reason: string }): Promise<{
       ok: boolean
       created: boolean
       exampleAdded: boolean
       candidate: AdminContentRatingRuleCandidate
     }> {
       return request('POST', '/admin/content-rating-rule-candidates', data, true)
+    },
+    preview(candidateId: string, params: { limit?: number; offset?: number } = {}): Promise<AdminContentRatingRuleCandidatePreviewResponse> {
+      const query = new URLSearchParams()
+      if (params.limit != null) query.set('limit', String(params.limit))
+      if (params.offset != null) query.set('offset', String(params.offset))
+      const qs = query.toString()
+      return request('GET', `/admin/content-rating-rule-candidates/${encodeURIComponent(candidateId)}/preview${qs ? '?' + qs : ''}`, null, true)
+    },
+    review(
+      candidateId: string,
+      data: { decision: 'approve' | 'reject'; expectedRevision: number; reason: string },
+    ): Promise<{
+      ok: boolean
+      decision: 'approve' | 'reject'
+      candidate: AdminContentRatingRuleCandidate
+      ruleVersion: string
+      matchedCount: number
+      appliedCount: number
+      operationId: string
+    }> {
+      return request('POST', `/admin/content-rating-rule-candidates/${encodeURIComponent(candidateId)}/review`, data, true)
     },
   },
   stats(): Promise<Record<string, unknown>> {
@@ -1422,7 +1461,16 @@ export const aiApi = {
   /** 为小说生成封面（后台任务模式），返回 taskId 供轮询；生成结果直接落 novel_covers。 */
   generateCover(
     novelId: string,
-    opts: { prompt?: string; promptMode?: 'auto' | 'exact'; renderTitle?: boolean; platform?: string; stylePreset?: string; composition?: string; variationId?: string; operationId?: string } = {},
+    opts: {
+      prompt?: string
+      promptMode?: 'auto' | 'exact'
+      renderTitle?: boolean
+      platform?: string
+      stylePreset?: string
+      composition?: string
+      variationId?: string
+      operationId?: string
+    } = {},
   ): Promise<{ ok: boolean; taskId: string; batchId: string; total: number }> {
     const operationId = opts.operationId || newOperationId('ai-cover-generate')
     return request(
@@ -1697,7 +1745,12 @@ export const aiApi = {
       data: { baseRevision: string; operationId?: string },
     ): Promise<{ ok: boolean; id: string; result: string; contentRevision: string }> {
       const operationId = data.operationId || newOperationId('ai-rewrite-apply')
-      return request('POST', `/ai/writing/drafts/${encodeURIComponent(id)}/rewrite/${encodeURIComponent(taskId)}/apply`, { baseRevision: data.baseRevision, operationId }, true)
+      return request(
+        'POST',
+        `/ai/writing/drafts/${encodeURIComponent(id)}/rewrite/${encodeURIComponent(taskId)}/apply`,
+        { baseRevision: data.baseRevision, operationId },
+        true,
+      )
     },
     publishDraft(id: string, data: { novelId: string; title: string }): Promise<{ ok: boolean; chapter: { id: string; title: string; order: number } }> {
       return request('POST', `/ai/writing/drafts/${encodeURIComponent(id)}/publish`, data, true)

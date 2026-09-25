@@ -2,7 +2,20 @@ import { isRestrictedCategoryTag, normalizeCategoryTag } from '@shared/restricte
 import type { Db, DbClient } from '../db/pool'
 import { all, first } from '../db/query'
 import { newId } from './auth'
-import { parseContentRatingEvidence, serializeContentRatingEvidence } from './content-rating-governance'
+import {
+  applyContentRatingChange,
+  CONTENT_RATING_RULE_VERSION,
+  parseContentRatingEvidence,
+  serializeContentRatingEvidence,
+  type ContentRatingEvidenceItem,
+} from './content-rating-governance'
+import {
+  buildContentRatingRuleSet,
+  evaluateSingleDynamicRule,
+  loadContentRatingRuleSet,
+  loadCurrentContentRatingRuleVersion,
+  type DynamicContentRatingRule,
+} from './content-rating-rules'
 
 export const CONTENT_RATING_RULE_CANDIDATE_KINDS = ['category', 'phrase'] as const
 export type ContentRatingRuleCandidateKind = (typeof CONTENT_RATING_RULE_CANDIDATE_KINDS)[number]
@@ -26,6 +39,19 @@ export interface CreateContentRatingRuleCandidateInput {
   actorUserId: string
 }
 
+export interface ContentRatingRuleCandidatePreviewOptions {
+  limit: number
+  offset: number
+}
+
+export interface ReviewContentRatingRuleCandidateInput {
+  candidateId: string
+  decision: 'approve' | 'reject'
+  expectedRevision: number
+  reason: string
+  actorUserId: string
+}
+
 interface CandidateRow {
   id: string
   kind: string
@@ -43,6 +69,8 @@ interface CandidateRow {
   reviewed_at: number
   review_reason: string
   updated_at: number
+  review_revision: number
+  rule_version: string
   example_count: number
   latest_example_novel_id?: string
   latest_example_novel_title?: string
@@ -88,12 +116,21 @@ export class ContentRatingRuleCandidateSourceError extends Error {
 }
 
 export class ContentRatingRuleCandidateConflictError extends Error {
-  readonly code: 'rule_candidate_exists' | 'rule_candidate_not_pending'
+  readonly code: 'rule_candidate_exists' | 'rule_candidate_not_pending' | 'rule_candidate_conflict'
 
-  constructor(code: 'rule_candidate_exists' | 'rule_candidate_not_pending', message: string) {
+  constructor(code: 'rule_candidate_exists' | 'rule_candidate_not_pending' | 'rule_candidate_conflict', message: string) {
     super(message)
     this.name = 'ContentRatingRuleCandidateConflictError'
     this.code = code
+  }
+}
+
+export class ContentRatingRuleCandidateNotFoundError extends Error {
+  readonly code = 'rule_candidate_not_found'
+
+  constructor(message = '规则候选不存在') {
+    super(message)
+    this.name = 'ContentRatingRuleCandidateNotFoundError'
   }
 }
 
@@ -153,6 +190,7 @@ const candidateSelect = `
          c.created_by, creator.username AS creator_username, creator.display_name AS creator_display_name,
          c.created_at, c.reviewed_by, reviewer.username AS reviewer_username,
          reviewer.display_name AS reviewer_display_name, c.reviewed_at, c.review_reason, c.updated_at,
+         c.review_revision, c.rule_version,
          COUNT(e.id)::int AS example_count,
          (ARRAY_AGG(e.novel_id ORDER BY e.created_at DESC))[1] AS latest_example_novel_id,
          (ARRAY_AGG(n.title ORDER BY e.created_at DESC))[1] AS latest_example_novel_title,
@@ -188,6 +226,8 @@ function candidateItem(row: CandidateRow) {
     reviewedAt: Number(row.reviewed_at) || 0,
     reviewReason: String(row.review_reason || ''),
     updatedAt: Number(row.updated_at) || 0,
+    revision: Number(row.review_revision) || 0,
+    ruleVersion: String(row.rule_version || ''),
     exampleCount: Number(row.example_count) || 0,
     latestExample: row.latest_example_novel_id
       ? {
@@ -206,6 +246,8 @@ function candidateItem(row: CandidateRow) {
   }
 }
 
+export type ContentRatingRuleCandidateItem = ReturnType<typeof candidateItem>
+
 async function loadCandidate(query: DbClient['query'], id: string): Promise<CandidateRow | undefined> {
   const result = await query<CandidateRow>(
     `${candidateSelect}
@@ -219,7 +261,12 @@ async function loadCandidate(query: DbClient['query'], id: string): Promise<Cand
 export async function listContentRatingRuleCandidates(
   db: Db,
   options: ContentRatingRuleCandidateListOptions,
-): Promise<{ rows: ReturnType<typeof candidateItem>[]; total: number; counts: Record<ContentRatingRuleCandidateStatus, number> }> {
+): Promise<{
+  rows: ContentRatingRuleCandidateItem[]
+  total: number
+  counts: Record<ContentRatingRuleCandidateStatus, number>
+  activeRuleVersion: string
+}> {
   const conditions: string[] = []
   const params: unknown[] = []
   if (isContentRatingRuleCandidateStatus(options.status)) {
@@ -256,7 +303,12 @@ export async function listContentRatingRuleCandidates(
   )
   const counts: Record<ContentRatingRuleCandidateStatus, number> = { pending: 0, approved: 0, rejected: 0 }
   for (const row of countRows) if (isContentRatingRuleCandidateStatus(row.status)) counts[row.status] = Number(row.count) || 0
-  return { rows: rows.map(candidateItem), total: Number(total?.total) || 0, counts }
+  return {
+    rows: rows.map(candidateItem),
+    total: Number(total?.total) || 0,
+    counts,
+    activeRuleVersion: await loadCurrentContentRatingRuleVersion(db.query.bind(db)),
+  }
 }
 
 export async function createContentRatingRuleCandidate(
@@ -330,9 +382,210 @@ export async function createContentRatingRuleCandidate(
     ],
   )
   const exampleAdded = !!example.rows[0]?.id
-  if (exampleAdded) await query('UPDATE content_rating_rule_candidates SET updated_at = $1 WHERE id = $2', [now, candidateId])
+  if (exampleAdded) {
+    await query('UPDATE content_rating_rule_candidates SET updated_at = $1, review_revision = review_revision + 1 WHERE id = $2', [now, candidateId])
+  }
 
   const row = await loadCandidate(query, candidateId)
   if (!row) throw new Error('规则候选读取失败')
   return { candidate: candidateItem(row), created, exampleAdded }
+}
+
+interface PreviewNovelRow {
+  id: string
+  title: string
+  author: string
+  description: string
+  categories: string
+  content_rating_revision: number
+  content_rating_source: string
+}
+
+function parseCategories(raw: string): string[] {
+  try {
+    const value: unknown = JSON.parse(raw || '[]')
+    return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
+  } catch {
+    return []
+  }
+}
+
+function candidateRule(row: CandidateRow): DynamicContentRatingRule {
+  return {
+    id: String(row.id),
+    kind: row.kind === 'category' ? 'category' : 'phrase',
+    value: String(row.value || ''),
+    normalizedValue: String(row.normalized_value || ''),
+  }
+}
+
+function previewItem(row: PreviewNovelRow, evidence: ContentRatingEvidenceItem[]) {
+  return {
+    novelId: String(row.id),
+    title: String(row.title || ''),
+    author: String(row.author || ''),
+    revision: Number(row.content_rating_revision) || 0,
+    source: String(row.content_rating_source || 'legacy'),
+    matchedFields: Array.from(new Set(evidence.map((item) => item.field).filter((field): field is string => !!field))),
+    evidence,
+  }
+}
+
+export async function previewContentRatingRuleCandidate(
+  db: Db,
+  candidateId: string,
+  options: ContentRatingRuleCandidatePreviewOptions,
+): Promise<{
+  candidate: ContentRatingRuleCandidateItem
+  currentRuleVersion: string
+  prospectiveRuleVersion: string
+  affectedCount: number
+  items: ReturnType<typeof previewItem>[]
+}> {
+  const row = await loadCandidate(db.query.bind(db), cleanText(candidateId, 160))
+  if (!row) throw new ContentRatingRuleCandidateNotFoundError()
+
+  const currentRuleSet = await loadContentRatingRuleSet(db.query.bind(db))
+  const rule = candidateRule(row)
+  const prospectiveRuleSet = row.status === 'pending' ? buildContentRatingRuleSet([...currentRuleSet.rules, rule]) : currentRuleSet
+  const rows = await all<PreviewNovelRow>(
+    db,
+    `SELECT id, title, author, description, categories, content_rating_revision, content_rating_source
+       FROM novels
+      WHERE content_rating = 'unknown'
+      ORDER BY title ASC, id ASC`,
+  )
+  const matches =
+    row.status === 'rejected'
+      ? []
+      : rows.flatMap((novel) => {
+          const result = evaluateSingleDynamicRule({ title: novel.title, description: novel.description, categories: parseCategories(novel.categories) }, rule)
+          return result.matched ? [previewItem(novel, result.evidence)] : []
+        })
+  return {
+    candidate: candidateItem(row),
+    currentRuleVersion: await loadCurrentContentRatingRuleVersion(db.query.bind(db)),
+    prospectiveRuleVersion: prospectiveRuleSet.version,
+    affectedCount: matches.length,
+    items: matches.slice(options.offset, options.offset + options.limit),
+  }
+}
+
+type ReviewNovelRow = PreviewNovelRow
+
+export async function reviewContentRatingRuleCandidate(
+  query: DbClient['query'],
+  input: ReviewContentRatingRuleCandidateInput,
+): Promise<{
+  candidate: ContentRatingRuleCandidateItem
+  decision: 'approve' | 'reject'
+  ruleVersion: string
+  matchedCount: number
+  appliedCount: number
+  operationId: string
+}> {
+  const candidateId = cleanText(input.candidateId, 160)
+  const reason = cleanText(input.reason, 500)
+  const actorUserId = cleanText(input.actorUserId, 160)
+  if (!candidateId) throw new ContentRatingRuleCandidateValidationError('candidateId is required')
+  if (input.decision !== 'approve' && input.decision !== 'reject') {
+    throw new ContentRatingRuleCandidateValidationError('decision must be approve or reject')
+  }
+  if (!Number.isInteger(input.expectedRevision) || input.expectedRevision < 0) {
+    throw new ContentRatingRuleCandidateValidationError('expectedRevision is required')
+  }
+  if (!reason) throw new ContentRatingRuleCandidateValidationError('审核决定必须填写理由')
+  if (!actorUserId) throw new ContentRatingRuleCandidateValidationError('actorUserId is required')
+
+  const state = await query<{ rule_version: string }>(`SELECT rule_version FROM content_rating_rule_state WHERE id = 'global' FOR UPDATE`)
+  const candidateResult = await query<CandidateRow>(
+    `SELECT id, kind, value, normalized_value, target_rating, status, created_by, created_at,
+            reviewed_by, reviewed_at, review_reason, updated_at, review_revision, rule_version
+       FROM content_rating_rule_candidates WHERE id = $1 FOR UPDATE`,
+    [candidateId],
+  )
+  const current = candidateResult.rows[0]
+  if (!current) throw new ContentRatingRuleCandidateNotFoundError()
+  if (current.status !== 'pending') {
+    throw new ContentRatingRuleCandidateConflictError('rule_candidate_not_pending', '该规则候选已经审核，不能重复处理')
+  }
+  const currentRevision = Number(current.review_revision) || 0
+  if (currentRevision !== input.expectedRevision) {
+    throw new ContentRatingRuleCandidateConflictError('rule_candidate_conflict', '规则候选已被其他管理员更新，请刷新后重新审核')
+  }
+
+  const now = Date.now()
+  const currentRuleVersion = String(state.rows[0]?.rule_version || CONTENT_RATING_RULE_VERSION)
+  if (input.decision === 'reject') {
+    await query(
+      `UPDATE content_rating_rule_candidates
+          SET status = 'rejected', reviewed_by = $1, reviewed_at = $2, review_reason = $3,
+              rule_version = $4, updated_at = $2, review_revision = review_revision + 1
+        WHERE id = $5`,
+      [actorUserId, now, reason, currentRuleVersion, candidateId],
+    )
+    const reviewed = await loadCandidate(query, candidateId)
+    if (!reviewed) throw new ContentRatingRuleCandidateNotFoundError()
+    return {
+      candidate: candidateItem(reviewed),
+      decision: 'reject',
+      ruleVersion: currentRuleVersion,
+      matchedCount: 0,
+      appliedCount: 0,
+      operationId: '',
+    }
+  }
+
+  await query(
+    `UPDATE content_rating_rule_candidates
+        SET status = 'approved', reviewed_by = $1, reviewed_at = $2, review_reason = $3,
+            updated_at = $2, review_revision = review_revision + 1
+      WHERE id = $4`,
+    [actorUserId, now, reason, candidateId],
+  )
+  const ruleSet = await loadContentRatingRuleSet(query)
+  const ruleVersion = ruleSet.version
+  await query(`UPDATE content_rating_rule_candidates SET rule_version = $1, updated_at = $2 WHERE id = $3`, [ruleVersion, now, candidateId])
+  await query(`UPDATE content_rating_rule_state SET rule_version = $1, updated_by = $2, updated_at = $3 WHERE id = 'global'`, [ruleVersion, actorUserId, now])
+
+  const operationId = newId('rating-rule-apply')
+  const approvedRule = candidateRule(current)
+  const novels = await query<ReviewNovelRow>(
+    `SELECT id, title, author, description, categories, content_rating_revision, content_rating_source
+       FROM novels WHERE content_rating = 'unknown' FOR UPDATE`,
+  )
+  let matchedCount = 0
+  let appliedCount = 0
+  for (const novel of novels.rows) {
+    const decision = evaluateSingleDynamicRule(
+      { title: novel.title, description: novel.description, categories: parseCategories(novel.categories) },
+      approvedRule,
+    )
+    if (!decision.matched) continue
+    matchedCount++
+    const result = await applyContentRatingChange(query, {
+      novelId: novel.id,
+      rating: 'restricted',
+      source: 'prefill',
+      actorUserId,
+      reason: `规则候选「${String(current.value || '').slice(0, 120)}」审核通过后应用限制级规则`,
+      evidence: decision.evidence,
+      ruleVersion,
+      operationId,
+      expectedRevision: Number(novel.content_rating_revision) || 0,
+      now,
+    })
+    if (result.changed) appliedCount++
+  }
+
+  const reviewed = await loadCandidate(query, candidateId)
+  if (!reviewed) throw new ContentRatingRuleCandidateNotFoundError()
+  return {
+    candidate: candidateItem(reviewed),
+    decision: 'approve',
+    ruleVersion,
+    matchedCount,
+    appliedCount,
+    operationId,
+  }
 }

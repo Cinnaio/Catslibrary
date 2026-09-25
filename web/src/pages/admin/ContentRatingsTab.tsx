@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { History, Pencil, PlusCircle, RefreshCw, ShieldCheck } from 'lucide-react'
+import { CheckCircle2, Eye, History, Pencil, PlusCircle, RefreshCw, ShieldCheck, XCircle } from 'lucide-react'
 import {
   adminApi,
   type AdminContentRatingEvidence,
@@ -7,6 +7,8 @@ import {
   type AdminContentRatingItem,
   type AdminContentRatingRuleCandidateKind,
   type AdminContentRatingRuleCandidateListResponse,
+  type AdminContentRatingRuleCandidate,
+  type AdminContentRatingRuleCandidatePreviewResponse,
   type AdminContentRatingSource,
   type ApiError,
 } from '@/lib/api'
@@ -173,18 +175,24 @@ function RuleCandidatePanel({
   loading,
   error,
   onRetry,
+  onPreview,
 }: {
   data: AdminContentRatingRuleCandidateListResponse | null
   loading: boolean
   error: string
   onRetry: () => void
+  onPreview: (candidate: AdminContentRatingRuleCandidate) => void
 }) {
   return (
     <AdminDataPanel ariaLabel="内容分级规则候选">
       <AdminPanelHeading
         title="规则候选"
-        description="人工经验先进入待审核候选，不会因为一次提交立即影响其他作品。"
-        status={<span className="text-xs text-muted-foreground">待审核 {data ? formatNumber(data.counts.pending) : '—'} 条</span>}
+        description="先预览会影响哪些未标注作品，再批准应用或拒绝候选；审核动作会保留理由和规则版本。"
+        status={
+          <span className="text-xs text-muted-foreground">
+            待审核 {data ? formatNumber(data.counts.pending) : '—'} 条 · 当前规则 {data?.activeRuleVersion || '—'}
+          </span>
+        }
       />
       {error ? (
         <InlineError message={`规则候选加载失败：${error}`} onRetry={onRetry} className="mx-5 my-4" />
@@ -211,6 +219,12 @@ function RuleCandidatePanel({
                   <span>提交人：{candidate.createdByName || '系统'}</span>
                   <span>{timeAgo(candidate.updatedAt) || '刚刚'}</span>
                 </div>
+              </div>
+              <div className="flex shrink-0 flex-wrap items-center gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => onPreview(candidate)}>
+                  <Eye className="size-3.5" aria-hidden="true" />
+                  预览影响
+                </Button>
               </div>
             </article>
           ))}
@@ -253,9 +267,18 @@ export default function ContentRatingsTab() {
   const [candidateReason, setCandidateReason] = useState('')
   const [candidateFormError, setCandidateFormError] = useState('')
   const [candidateSaving, setCandidateSaving] = useState(false)
+  const [candidatePreviewCandidate, setCandidatePreviewCandidate] = useState<AdminContentRatingRuleCandidate | null>(null)
+  const [candidatePreview, setCandidatePreview] = useState<AdminContentRatingRuleCandidatePreviewResponse | null>(null)
+  const [candidatePreviewLoading, setCandidatePreviewLoading] = useState(false)
+  const [candidatePreviewError, setCandidatePreviewError] = useState('')
+  const [candidateReviewDecision, setCandidateReviewDecision] = useState<'approve' | 'reject' | null>(null)
+  const [candidateReviewReason, setCandidateReviewReason] = useState('')
+  const [candidateReviewError, setCandidateReviewError] = useState('')
+  const [candidateReviewSaving, setCandidateReviewSaving] = useState(false)
 
   const listSeqRef = useRef(0)
   const historySeqRef = useRef(0)
+  const candidatePreviewSeqRef = useRef(0)
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -337,6 +360,34 @@ export default function ContentRatingsTab() {
     setCandidateFormError('')
   }, [])
 
+  const closeCandidatePreview = useCallback(() => {
+    setCandidatePreviewCandidate(null)
+    setCandidatePreview(null)
+    setCandidatePreviewError('')
+    setCandidateReviewDecision(null)
+    setCandidateReviewReason('')
+    setCandidateReviewError('')
+  }, [])
+
+  const openCandidatePreview = useCallback(async (candidate: AdminContentRatingRuleCandidate) => {
+    const seq = ++candidatePreviewSeqRef.current
+    setCandidatePreviewCandidate(candidate)
+    setCandidatePreview(null)
+    setCandidatePreviewError('')
+    setCandidateReviewDecision(null)
+    setCandidateReviewReason('')
+    setCandidateReviewError('')
+    setCandidatePreviewLoading(true)
+    try {
+      const response = await adminApi.contentRatingRuleCandidates.preview(candidate.id, { limit: 100, offset: 0 })
+      if (seq === candidatePreviewSeqRef.current) setCandidatePreview(response)
+    } catch (error) {
+      if (seq === candidatePreviewSeqRef.current) setCandidatePreviewError(errorMessage(error, '规则影响预览失败，请稍后重试'))
+    } finally {
+      if (seq === candidatePreviewSeqRef.current) setCandidatePreviewLoading(false)
+    }
+  }, [])
+
   const openHistory = useCallback(async (item: AdminContentRatingItem) => {
     const seq = ++historySeqRef.current
     setHistoryNovel(item)
@@ -415,6 +466,36 @@ export default function ContentRatingsTab() {
       setCandidateFormError(errorMessage(error, '规则候选保存失败，请稍后重试'))
     } finally {
       setCandidateSaving(false)
+    }
+  }
+
+  async function reviewCandidate() {
+    if (!candidatePreviewCandidate || !candidatePreview || !candidateReviewDecision) return
+    const reason = candidateReviewReason.trim()
+    if (!reason) {
+      setCandidateReviewError('请填写本次审核决定的理由。')
+      return
+    }
+
+    setCandidateReviewSaving(true)
+    setCandidateReviewError('')
+    try {
+      const result = await adminApi.contentRatingRuleCandidates.review(candidatePreviewCandidate.id, {
+        decision: candidateReviewDecision,
+        expectedRevision: candidatePreview.candidate.revision,
+        reason,
+      })
+      closeCandidatePreview()
+      toast(result.decision === 'approve' ? `规则已批准并应用，影响 ${formatNumber(result.appliedCount)} 本作品` : '规则候选已拒绝，未修改任何作品', 'success')
+      await Promise.all([load(true), loadCandidates()])
+    } catch (error) {
+      if ((error as ApiError | null)?.status === 409) {
+        setCandidateReviewError('规则候选已被其他管理员处理，请关闭后重新加载候选列表。')
+      } else {
+        setCandidateReviewError(errorMessage(error, '规则审核失败，请稍后重试'))
+      }
+    } finally {
+      setCandidateReviewSaving(false)
     }
   }
 
@@ -617,7 +698,13 @@ export default function ContentRatingsTab() {
           </AdminDataPanel>
         )}
 
-        <RuleCandidatePanel data={candidateData} loading={candidateLoading} error={candidateError} onRetry={() => void loadCandidates()} />
+        <RuleCandidatePanel
+          data={candidateData}
+          loading={candidateLoading}
+          error={candidateError}
+          onRetry={() => void loadCandidates()}
+          onPreview={(candidate) => void openCandidatePreview(candidate)}
+        />
       </div>
 
       <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)}>
@@ -760,6 +847,129 @@ export default function ContentRatingsTab() {
             <Button type="button" onClick={() => void saveCandidate()} disabled={candidateSaving || !candidateValue.trim() || !candidateReason.trim()}>
               {candidateSaving ? '保存中…' : '保存待审核候选'}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!candidatePreviewCandidate} onOpenChange={(open) => !open && !candidateReviewSaving && closeCandidatePreview()}>
+        <DialogContent className="max-h-[min(86vh,800px)] overflow-y-auto sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>预览规则影响 · {candidatePreviewCandidate?.value || '规则候选'}</DialogTitle>
+            <DialogDescription>批准会把命中的未标注作品改为限制级，并把规则版本写入分级审计；一般作品和已人工确认的作品不会被覆盖。</DialogDescription>
+          </DialogHeader>
+
+          {candidatePreviewLoading ? (
+            <LoadingState label="正在计算未标注作品的影响范围" rows={4} />
+          ) : candidatePreviewError ? (
+            <ErrorState message={candidatePreviewError} onRetry={() => candidatePreviewCandidate && void openCandidatePreview(candidatePreviewCandidate)} />
+          ) : candidatePreview ? (
+            <div className="grid gap-4">
+              <div className="rounded-md border border-border bg-muted/30 p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="outline">{candidateKindLabel(candidatePreview.candidate.kind)}</Badge>
+                  <code className="rounded bg-background px-2 py-1 text-sm">{candidatePreview.candidate.value}</code>
+                  <Badge className="bg-warning/10 text-warning">待审核</Badge>
+                </div>
+                <div className="mt-3 grid gap-2 text-sm sm:grid-cols-3">
+                  <div>
+                    <span className="text-muted-foreground">预计影响</span>
+                    <strong className="ml-2 text-foreground">{formatNumber(candidatePreview.affectedCount)} 本</strong>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">当前规则</span>
+                    <code className="ml-2 text-xs text-foreground">{candidatePreview.currentRuleVersion}</code>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">批准后版本</span>
+                    <code className="ml-2 text-xs text-foreground">{candidatePreview.prospectiveRuleVersion}</code>
+                  </div>
+                </div>
+              </div>
+
+              {candidatePreview.items.length === 0 ? (
+                <AdminEmptyState message="当前没有命中的未标注作品；批准后仍会对后续新作品生效。" />
+              ) : (
+                <div className="rounded-md border border-border">
+                  <div className="border-b border-border px-4 py-3 text-sm font-medium text-foreground">将被改为限制级的未标注作品</div>
+                  <div className="divide-y divide-border px-4">
+                    {candidatePreview.items.map((item) => (
+                      <article className="flex flex-wrap items-start justify-between gap-3 py-3" key={item.novelId}>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-foreground">{item.title}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {item.author || '未知作者'} · 修订 {item.revision} · {item.matchedFields.join('、') || '规则命中'}
+                          </p>
+                        </div>
+                        <EvidenceList evidence={item.evidence} compact />
+                      </article>
+                    ))}
+                  </div>
+                  {candidatePreview.affectedCount > candidatePreview.items.length && (
+                    <p className="border-t border-border px-4 py-3 text-xs text-muted-foreground">
+                      仅展示前 {candidatePreview.items.length} 本，实际影响范围为 {formatNumber(candidatePreview.affectedCount)} 本。
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {candidateReviewDecision && (
+                <div className="grid gap-2 rounded-md border border-border bg-background p-4">
+                  <Label htmlFor="content-rating-candidate-review-reason">{candidateReviewDecision === 'approve' ? '批准理由' : '拒绝理由'}</Label>
+                  <Textarea
+                    id="content-rating-candidate-review-reason"
+                    value={candidateReviewReason}
+                    onChange={(event) => setCandidateReviewReason(event.target.value)}
+                    placeholder={
+                      candidateReviewDecision === 'approve'
+                        ? '说明为什么影响范围可接受，并批准该规则进入自动判定。'
+                        : '说明为什么样本不足、误命中风险过高或暂不纳入规则。'
+                    }
+                    rows={4}
+                    maxLength={500}
+                    aria-invalid={!!candidateReviewError}
+                  />
+                  <p className="text-xs text-muted-foreground">理由会写入候选审核记录；批准后命中的作品会各自产生分级审计记录。</p>
+                </div>
+              )}
+
+              {candidateReviewError && (
+                <p className="text-sm text-destructive" role="alert">
+                  {candidateReviewError}
+                </p>
+              )}
+            </div>
+          ) : null}
+
+          <DialogFooter>
+            {!candidateReviewDecision ? (
+              <>
+                <Button type="button" variant="outline" onClick={closeCandidatePreview} disabled={candidateReviewSaving}>
+                  取消
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setCandidateReviewDecision('reject')}
+                  disabled={candidatePreviewLoading || !candidatePreview}
+                >
+                  <XCircle className="size-3.5" aria-hidden="true" />
+                  拒绝候选
+                </Button>
+                <Button type="button" onClick={() => setCandidateReviewDecision('approve')} disabled={candidatePreviewLoading || !candidatePreview}>
+                  <CheckCircle2 className="size-3.5" aria-hidden="true" />
+                  批准并应用
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button type="button" variant="outline" onClick={() => setCandidateReviewDecision(null)} disabled={candidateReviewSaving}>
+                  返回预览
+                </Button>
+                <Button type="button" onClick={() => void reviewCandidate()} disabled={candidateReviewSaving || !candidateReviewReason.trim()}>
+                  {candidateReviewSaving ? '提交中…' : candidateReviewDecision === 'approve' ? '确认批准并应用' : '确认拒绝候选'}
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

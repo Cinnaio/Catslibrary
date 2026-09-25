@@ -1,8 +1,7 @@
-import { hasRestrictedCategoryTag } from '@shared/restricted-categories'
-import { hasRestrictedText } from '@shared/restricted-patterns'
 import type { Db, DbClient } from '../db/pool'
 import { withTx } from '../db/query'
-import { applyContentRatingChange, CONTENT_RATING_RULE_VERSION, evidenceForRatingRules } from './content-rating-governance'
+import { applyContentRatingChange, CONTENT_RATING_RULE_VERSION } from './content-rating-governance'
+import { evaluateContentRatingRules, loadContentRatingRuleSet } from './content-rating-rules'
 import { newId } from './auth'
 
 interface UnratedNovelRow {
@@ -51,16 +50,14 @@ export interface ContentRatingPrefillOptions {
  * concurrent manual rating cannot be overwritten by a prefill in progress.
  * This runs before the API starts listening as well as through the admin action.
  */
-export async function prefillUnknownContentRatings(
-  db: Db,
-  options: ContentRatingPrefillOptions | boolean = {},
-): Promise<ContentRatingPrefillResult> {
+export async function prefillUnknownContentRatings(db: Db, options: ContentRatingPrefillOptions | boolean = {}): Promise<ContentRatingPrefillResult> {
   const normalized = typeof options === 'boolean' ? { dryRun: options } : options
   const dryRun = normalized.dryRun === true
   const operationId = normalized.operationId?.trim() || newId('rating-prefill')
   const actorUserId = normalized.actorUserId?.trim() || 'system'
 
   const execute = async (query: DbClient['query']): Promise<ContentRatingPrefillResult> => {
+    const ruleSet = await loadContentRatingRuleSet(query)
     const { rows } = await query<UnratedNovelRow>(
       `SELECT id, title, description, categories FROM novels WHERE content_rating = 'unknown'${dryRun ? '' : ' FOR UPDATE'}`,
     )
@@ -71,11 +68,14 @@ export async function prefillUnknownContentRatings(
 
     for (const row of rows) {
       const categories = parseCategories(row.categories)
-      const tag = hasRestrictedCategoryTag(categories)
-      const text = hasRestrictedText({ title: row.title, description: row.description })
-      if (!tag && !text) continue
-      const reason = [tag ? 'tag' : '', text ? 'text' : ''].filter(Boolean)
-      const evidence = evidenceForRatingRules({ title: row.title, description: row.description, categories })
+      const decision = evaluateContentRatingRules({ title: row.title, description: row.description, categories }, ruleSet)
+      if (!decision.matched) continue
+      const dynamicCategory = decision.dynamicMatches.some((rule) => rule.kind === 'category')
+      const dynamicPhrase = decision.dynamicMatches.some((rule) => rule.kind === 'phrase')
+      const tag = decision.staticTagMatched || dynamicCategory
+      const text = decision.staticTextMatched || dynamicPhrase
+      const reason = [tag ? 'tag' : '', text ? 'text' : '', ...decision.dynamicMatches.map((rule) => `rule:${rule.id}`)].filter(Boolean)
+      const evidence = decision.evidence
       matches.push({ id: row.id, title: row.title, reason, evidence })
       if (tag) byTag++
       if (text) byText++
@@ -88,16 +88,14 @@ export async function prefillUnknownContentRatings(
           actorUserId,
           reason: `规则预填：命中${tag ? '成人标签' : ''}${tag && text ? '与' : ''}${text ? '限制级文本特征' : ''}`,
           evidence,
-          ruleVersion: CONTENT_RATING_RULE_VERSION,
+          ruleVersion: decision.ruleVersion || CONTENT_RATING_RULE_VERSION,
           operationId,
         })
         if (result.changed) ids.push(row.id)
       }
     }
 
-    const remaining = await query<{ count: number }>(
-      `SELECT COUNT(*)::int AS count FROM novels WHERE content_rating = 'unknown'`,
-    )
+    const remaining = await query<{ count: number }>(`SELECT COUNT(*)::int AS count FROM novels WHERE content_rating = 'unknown'`)
     return {
       scanned: rows.length,
       matched: matches.length,
@@ -143,12 +141,14 @@ export async function undoPrefilledContentRatings(
       throw new Error('ids or operationId is required')
     }
 
-    const rows = await query<UnratedNovelRow & {
-      content_rating_revision: number
-      content_rating_evidence: string
-      content_rating_rule_version: string
-      content_rating_operation_id: string
-    }>(
+    const rows = await query<
+      UnratedNovelRow & {
+        content_rating_revision: number
+        content_rating_evidence: string
+        content_rating_rule_version: string
+        content_rating_operation_id: string
+      }
+    >(
       `SELECT id, title, description, categories, content_rating_revision, content_rating_evidence,
               content_rating_rule_version, content_rating_operation_id
          FROM novels WHERE ${conditions.join(' AND ')} FOR UPDATE`,

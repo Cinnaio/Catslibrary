@@ -11,9 +11,7 @@ const MIGRATIONS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '
 describe('数据库迁移', () => {
   it('所有迁移按序执行成功，建出核心表结构', async () => {
     const db = new PGlite({ extensions: { pg_trgm } })
-    const files = (await readdir(MIGRATIONS_DIR))
-      .filter((f) => f.endsWith('.sql'))
-      .sort((a, b) => Number.parseInt(a, 10) - Number.parseInt(b, 10))
+    const files = (await readdir(MIGRATIONS_DIR)).filter((f) => f.endsWith('.sql')).sort((a, b) => Number.parseInt(a, 10) - Number.parseInt(b, 10))
     expect(files.length).toBeGreaterThan(0)
 
     for (const f of files) {
@@ -21,20 +19,44 @@ describe('数据库迁移', () => {
       await db.exec(sql) // 语法错误/依赖顺序错误会在此抛出
     }
 
-    const { rows } = await db.query<{ tablename: string }>(
-      `SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename`,
-    )
+    const { rows } = await db.query<{ tablename: string }>(`SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename`)
     const tables = rows.map((r) => r.tablename)
     const expected = [
-      'users', 'user_sessions', 'user_avatars', 'login_failures', 'login_audit', 'invites', 'app_settings',
-      'novels', 'chapters',
-      'scrape_configs', 'scrape_sources', 'scrape_jobs', 'scrape_job_items', 'scrape_job_logs',
-      'reading_progress', 'novel_covers', 'download_logs',
-      'thoughts', 'novel_ratings', 'novel_comments', 'novel_comment_likes', 'novel_comment_reports',
-      'user_bookmarks', 'user_bookshelf',
-      'ai_generations', 'ai_usage', 'ai_tasks', 'api_keys', 'admin_operation_audit',
-      'novel_ai_profile_overrides', 'novel_cover_history', 'novel_content_rating_audit',
-      'content_rating_rule_candidates', 'content_rating_rule_candidate_examples',
+      'users',
+      'user_sessions',
+      'user_avatars',
+      'login_failures',
+      'login_audit',
+      'invites',
+      'app_settings',
+      'novels',
+      'chapters',
+      'scrape_configs',
+      'scrape_sources',
+      'scrape_jobs',
+      'scrape_job_items',
+      'scrape_job_logs',
+      'reading_progress',
+      'novel_covers',
+      'download_logs',
+      'thoughts',
+      'novel_ratings',
+      'novel_comments',
+      'novel_comment_likes',
+      'novel_comment_reports',
+      'user_bookmarks',
+      'user_bookshelf',
+      'ai_generations',
+      'ai_usage',
+      'ai_tasks',
+      'api_keys',
+      'admin_operation_audit',
+      'novel_ai_profile_overrides',
+      'novel_cover_history',
+      'novel_content_rating_audit',
+      'content_rating_rule_candidates',
+      'content_rating_rule_candidate_examples',
+      'content_rating_rule_state',
     ]
     for (const t of expected) {
       expect(tables).toContain(t)
@@ -44,20 +66,14 @@ describe('数据库迁移', () => {
     const { rows: trgmRows } = await db.query<{ indexname: string }>(
       `SELECT indexname FROM pg_indexes WHERE indexname LIKE 'idx_novels_%_trgm' ORDER BY indexname`,
     )
-    expect(trgmRows.map((r) => r.indexname)).toEqual([
-      'idx_novels_author_trgm',
-      'idx_novels_description_trgm',
-      'idx_novels_title_trgm',
-    ])
+    expect(trgmRows.map((r) => r.indexname)).toEqual(['idx_novels_author_trgm', 'idx_novels_description_trgm', 'idx_novels_title_trgm'])
   })
 
   it('011：pg_trgm 扩展不可用时迁移优雅降级（跳过索引不报错）', async () => {
     const db = new PGlite() // 不装载 pg_trgm
     await db.exec(await readFile(path.join(MIGRATIONS_DIR, '001_init.sql'), 'utf8'))
     await db.exec(await readFile(path.join(MIGRATIONS_DIR, '011_novel_search_trgm.sql'), 'utf8'))
-    const { rows } = await db.query<{ indexname: string }>(
-      `SELECT indexname FROM pg_indexes WHERE indexname LIKE 'idx_novels_%_trgm'`,
-    )
+    const { rows } = await db.query<{ indexname: string }>(`SELECT indexname FROM pg_indexes WHERE indexname LIKE 'idx_novels_%_trgm'`)
     expect(rows.length).toBe(0)
   })
 
@@ -79,9 +95,7 @@ describe('数据库迁移', () => {
   it('部分唯一索引（举报待处理去重）创建成功', async () => {
     const db = new PGlite()
     await db.exec(await readFile(path.join(MIGRATIONS_DIR, '001_init.sql'), 'utf8'))
-    const { rows } = await db.query<{ indexname: string }>(
-      `SELECT indexname FROM pg_indexes WHERE indexname = 'idx_comment_reports_open_once'`,
-    )
+    const { rows } = await db.query<{ indexname: string }>(`SELECT indexname FROM pg_indexes WHERE indexname = 'idx_comment_reports_open_once'`)
     expect(rows.length).toBe(1)
   })
 })

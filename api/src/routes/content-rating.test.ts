@@ -72,10 +72,7 @@ describe('小说内容分级字段（方案 B）', () => {
     expect(plain.status).toBe(201)
     plainId = (await jsonOf<{ novel: Novel }>(plain)).novel.id
 
-    const adult = await req(
-      '/api/novels',
-      json('POST', { title: '暗涌', author: '某作者', categories: ['言情'], contentRating: 'restricted' }, adminToken),
-    )
+    const adult = await req('/api/novels', json('POST', { title: '暗涌', author: '某作者', categories: ['言情'], contentRating: 'restricted' }, adminToken))
     expect(adult.status).toBe(201)
     adultId = (await jsonOf<{ novel: Novel }>(adult)).novel.id
   })
@@ -131,7 +128,9 @@ describe('小说内容分级字段（方案 B）', () => {
     expect(unknownOnly.total).toBe(base.unknown)
     expect(unknownOnly.novels.every((n) => n.contentRating === 'unknown')).toBe(true)
 
-    const restrictedOnly = await jsonOf<{ novels: Novel[]; total: number }>(await req('/api/novels?contentRating=restricted', json('GET', undefined, adminToken)))
+    const restrictedOnly = await jsonOf<{ novels: Novel[]; total: number }>(
+      await req('/api/novels?contentRating=restricted', json('GET', undefined, adminToken)),
+    )
     expect(restrictedOnly.total).toBe(base.restricted)
     expect(restrictedOnly.novels.every((n) => n.contentRating === 'restricted')).toBe(true)
 
@@ -171,7 +170,9 @@ describe('小说内容分级字段（方案 B）', () => {
       await t.db.query(`UPDATE novels SET content_rating = 'unknown' WHERE id IN ($1, $2)`, [aId, bId])
 
       const before = await counts(adminToken)
-      const updatedAtBefore = Object.fromEntries((await jsonOf<{ novels: Novel[] }>(await req('/api/novels?limit=100', json('GET', undefined, adminToken)))).novels.map((n) => [n.id, n.updatedAt]))
+      const updatedAtBefore = Object.fromEntries(
+        (await jsonOf<{ novels: Novel[] }>(await req('/api/novels?limit=100', json('GET', undefined, adminToken)))).novels.map((n) => [n.id, n.updatedAt]),
+      )
 
       const res = await req('/api/novels', json('POST', { action: 'prefill-content-rating' }, adminToken))
       const data = await jsonOf<{ scanned: number; matched: number; applied: number; ids: string[]; unknown: number }>(res)
@@ -292,23 +293,28 @@ describe('小说内容分级字段（方案 B）', () => {
     })
 
     it('人工 restricted 作品可以沉淀待审核候选，但候选不会立即改变全局规则', async () => {
-      const manual = await req(
-        '/api/novels',
-        json('POST', { title: '人工候选来源书', author: 'x', contentRating: 'restricted' }, adminToken),
-      )
+      const manual = await req('/api/novels', json('POST', { title: '人工候选来源书', author: 'x', contentRating: 'restricted' }, adminToken))
       const manualId = (await jsonOf<{ novel: Novel }>(manual)).novel.id
 
       const created = await req(
         '/api/admin/content-rating-rule-candidates',
-        json('POST', {
-          novelId: manualId,
-          kind: 'category',
-          value: '新成人标签',
-          reason: '人工复核确认该分类在本库语境下稳定指向限制级',
-        }, adminToken),
+        json(
+          'POST',
+          {
+            novelId: manualId,
+            kind: 'category',
+            value: '新成人标签',
+            reason: '人工复核确认该分类在本库语境下稳定指向限制级',
+          },
+          adminToken,
+        ),
       )
       expect(created.status).toBe(201)
-      const createdBody = await jsonOf<{ created: boolean; exampleAdded: boolean; candidate: { kind: string; value: string; status: string; exampleCount: number } }>(created)
+      const createdBody = await jsonOf<{
+        created: boolean
+        exampleAdded: boolean
+        candidate: { kind: string; value: string; status: string; exampleCount: number }
+      }>(created)
       expect(createdBody).toMatchObject({ created: true, exampleAdded: true })
       expect(createdBody.candidate).toMatchObject({ kind: 'category', value: '新成人标签', status: 'pending', exampleCount: 1 })
 
@@ -334,6 +340,94 @@ describe('小说内容分级字段（方案 B）', () => {
       )
       expect(rejected.status).toBe(422)
       expect((await jsonOf<{ code: string }>(rejected)).code).toBe('rule_candidate_source_invalid')
+    })
+
+    it('P2 会预览影响范围、保护审核并把批准规则用于 unknown 与新作品', async () => {
+      const pendingBook = await req('/api/novels', json('POST', { title: '候选批准前仍待标注', author: 'x', categories: ['新成人标签'] }, adminToken))
+      const pendingBookId = (await jsonOf<{ novel: Novel }>(pendingBook)).novel.id
+      expect((await jsonOf<{ novel: Novel }>(await req(`/api/novels/${pendingBookId}`, json('GET', undefined, adminToken)))).novel.contentRating).toBe(
+        'unknown',
+      )
+
+      const candidates = await jsonOf<{
+        items: Array<{ id: string; value: string; revision: number; status: string }>
+        activeRuleVersion: string
+      }>(await req('/api/admin/content-rating-rule-candidates?status=pending&search=新成人标签', json('GET', undefined, adminToken)))
+      const categoryCandidate = candidates.items.find((candidate) => candidate.value === '新成人标签')
+      expect(categoryCandidate).toMatchObject({ status: 'pending' })
+      expect(categoryCandidate?.revision).toBeGreaterThan(0)
+
+      const preview = await req(`/api/admin/content-rating-rule-candidates/${categoryCandidate!.id}/preview`, json('GET', undefined, adminToken))
+      expect(preview.status).toBe(200)
+      const previewBody = await jsonOf<{ affectedCount: number; prospectiveRuleVersion: string; items: Array<{ novelId: string; matchedFields: string[] }> }>(
+        preview,
+      )
+      expect(previewBody.affectedCount).toBeGreaterThanOrEqual(1)
+      expect(previewBody.items.some((item) => item.novelId === pendingBookId)).toBe(true)
+      expect(previewBody.prospectiveRuleVersion).toMatch(/^restricted-rules-v2-/)
+
+      const approved = await req(
+        `/api/admin/content-rating-rule-candidates/${categoryCandidate!.id}/review`,
+        json('POST', { decision: 'approve', expectedRevision: categoryCandidate!.revision, reason: '影响范围确认，批准作为分类自动规则' }, adminToken),
+      )
+      expect(approved.status).toBe(200)
+      const approvedBody = await jsonOf<{ decision: string; ruleVersion: string; matchedCount: number; appliedCount: number; candidate: { status: string } }>(
+        approved,
+      )
+      expect(approvedBody).toMatchObject({ decision: 'approve', candidate: { status: 'approved' } })
+      expect(approvedBody.ruleVersion).toMatch(/^restricted-rules-v2-/)
+      expect(approvedBody.matchedCount).toBeGreaterThanOrEqual(1)
+      expect(approvedBody.appliedCount).toBeGreaterThanOrEqual(1)
+
+      const applied = await jsonOf<{
+        items: Array<{ id: string; contentRating: string; source: string; ruleVersion: string; evidence: Array<{ type: string; rule?: string }> }>
+      }>(await req(`/api/admin/content-ratings?search=候选批准前仍待标注`, json('GET', undefined, adminToken)))
+      expect(applied.items.find((item) => item.id === pendingBookId)).toMatchObject({ contentRating: 'restricted', source: 'prefill' })
+      expect(applied.items.find((item) => item.id === pendingBookId)?.ruleVersion).toBe(approvedBody.ruleVersion)
+      expect(applied.items.find((item) => item.id === pendingBookId)?.evidence.some((item) => item.type === 'rule-candidate')).toBe(true)
+
+      const future = await req('/api/novels', json('POST', { title: '批准规则覆盖新作品', author: 'x', categories: ['新成人标签'] }, adminToken))
+      const futureBody = await jsonOf<{ novel: Novel }>(future)
+      expect(futureBody.novel.contentRating).toBe('restricted')
+      const manualGeneral = await req(
+        '/api/novels',
+        json('POST', { title: '人工一般优先', author: 'x', categories: ['新成人标签'], contentRating: 'general' }, adminToken),
+      )
+      expect((await jsonOf<{ novel: Novel }>(manualGeneral)).novel.contentRating).toBe('general')
+
+      const stale = await req(
+        `/api/admin/content-rating-rule-candidates/${categoryCandidate!.id}/review`,
+        json('POST', { decision: 'reject', expectedRevision: categoryCandidate!.revision, reason: '旧页面重复提交' }, adminToken),
+      )
+      expect(stale.status).toBe(409)
+      expect((await jsonOf<{ code: string }>(stale)).code).toBe('rule_candidate_not_pending')
+
+      const phraseSource = await req('/api/novels', json('POST', { title: '短语来源人工书', author: 'x', contentRating: 'restricted' }, adminToken))
+      const phraseSourceId = (await jsonOf<{ novel: Novel }>(phraseSource)).novel.id
+      const phraseCandidateResponse = await req(
+        '/api/admin/content-rating-rule-candidates',
+        json('POST', { novelId: phraseSourceId, kind: 'phrase', value: '星河密语', reason: '人工复核后确认该短语在本库语境下稳定指向限制级' }, adminToken),
+      )
+      expect(phraseCandidateResponse.status).toBe(201)
+      const phraseCandidate = (await jsonOf<{ candidate: { id: string; revision: number } }>(phraseCandidateResponse)).candidate
+      expect(phraseCandidate.revision).toBeGreaterThan(0)
+      const stalePending = await req(
+        `/api/admin/content-rating-rule-candidates/${phraseCandidate.id}/review`,
+        json('POST', { decision: 'reject', expectedRevision: phraseCandidate.revision - 1, reason: '旧页面审核' }, adminToken),
+      )
+      expect(stalePending.status).toBe(409)
+      expect((await jsonOf<{ code: string }>(stalePending)).code).toBe('rule_candidate_conflict')
+      const rejected = await req(
+        `/api/admin/content-rating-rule-candidates/${phraseCandidate.id}/review`,
+        json('POST', { decision: 'reject', expectedRevision: phraseCandidate.revision, reason: '样本不足，暂不纳入规则' }, adminToken),
+      )
+      expect(rejected.status).toBe(200)
+      const rejectedBody = await jsonOf<{ candidate: { status: string }; appliedCount: number }>(rejected)
+      expect(rejectedBody.candidate.status).toBe('rejected')
+      expect(rejectedBody.appliedCount).toBe(0)
+
+      const rejectedFuture = await req('/api/novels', json('POST', { title: '被拒规则不应生效', author: 'x', description: '普通描述，星河密语' }, adminToken))
+      expect((await jsonOf<{ novel: Novel }>(rejectedFuture)).novel.contentRating).toBe('unknown')
     })
 
     it('预填回滚只撤销原始自动批次，不能覆盖之后的人工修改', async () => {

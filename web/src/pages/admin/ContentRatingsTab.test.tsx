@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   update: vi.fn(),
   candidateList: vi.fn(),
   candidateCreate: vi.fn(),
+  candidatePreview: vi.fn(),
+  candidateReview: vi.fn(),
   toast: vi.fn(),
 }))
 
@@ -22,6 +24,8 @@ vi.mock('@/lib/api', () => ({
     contentRatingRuleCandidates: {
       list: mocks.candidateList,
       create: mocks.candidateCreate,
+      preview: mocks.candidatePreview,
+      review: mocks.candidateReview,
     },
   },
 }))
@@ -92,8 +96,54 @@ describe('ContentRatingsTab', () => {
       offset: 0,
       counts: { pending: 0, approved: 0, rejected: 0 },
       kinds: ['category', 'phrase'],
+      activeRuleVersion: 'restricted-rules-v1',
     })
     mocks.candidateCreate.mockResolvedValue({ created: true, exampleAdded: true, candidate: {} })
+    mocks.candidatePreview.mockResolvedValue({
+      candidate: {
+        id: 'candidate-1',
+        kind: 'category',
+        value: '新成人标签',
+        normalizedValue: '新成人标签',
+        targetRating: 'restricted',
+        status: 'pending',
+        createdBy: 'admin-1',
+        createdByName: '站长',
+        createdAt: Date.now(),
+        reviewedBy: '',
+        reviewedByName: '',
+        reviewedAt: 0,
+        reviewReason: '',
+        updatedAt: Date.now(),
+        revision: 1,
+        ruleVersion: '',
+        exampleCount: 1,
+        latestExample: null,
+      },
+      currentRuleVersion: 'restricted-rules-v1',
+      prospectiveRuleVersion: 'restricted-rules-v2-preview',
+      affectedCount: 1,
+      items: [
+        {
+          novelId: 'unknown-1',
+          title: '待标注作品',
+          author: '作者',
+          revision: 2,
+          source: 'legacy',
+          matchedFields: ['categories'],
+          evidence: [{ type: 'rule-candidate', field: 'categories', value: '新成人标签', rule: 'candidate-1' }],
+        },
+      ],
+    })
+    mocks.candidateReview.mockResolvedValue({
+      ok: true,
+      decision: 'approve',
+      candidate: { status: 'approved' },
+      ruleVersion: 'restricted-rules-v2-preview',
+      matchedCount: 1,
+      appliedCount: 1,
+      operationId: 'rating-rule-apply-1',
+    })
   })
 
   it('展示分级概览、来源和可解释证据', async () => {
@@ -149,6 +199,58 @@ describe('ContentRatingsTab', () => {
       })
     })
     expect(mocks.toast).toHaveBeenCalledWith('已生成待审核规则候选，不会立即影响其他作品', 'success')
+  })
+
+  it('审核规则候选前必须先预览影响范围，并按候选 revision 提交批准', async () => {
+    const user = userEvent.setup()
+    mocks.candidateList.mockResolvedValue({
+      items: [
+        {
+          id: 'candidate-1',
+          kind: 'category',
+          value: '新成人标签',
+          normalizedValue: '新成人标签',
+          targetRating: 'restricted',
+          status: 'pending',
+          createdBy: 'admin-1',
+          createdByName: '站长',
+          createdAt: Date.now(),
+          reviewedBy: '',
+          reviewedByName: '',
+          reviewedAt: 0,
+          reviewReason: '',
+          updatedAt: Date.now(),
+          revision: 1,
+          ruleVersion: '',
+          exampleCount: 1,
+          latestExample: null,
+        },
+      ],
+      total: 1,
+      limit: 20,
+      offset: 0,
+      counts: { pending: 1, approved: 0, rejected: 0 },
+      kinds: ['category', 'phrase'],
+      activeRuleVersion: 'restricted-rules-v1',
+    })
+    render(<ContentRatingsTab />)
+
+    await user.click(await screen.findByRole('button', { name: '预览影响' }))
+    expect(await screen.findByText('待标注作品')).toBeInTheDocument()
+    expect(mocks.candidatePreview).toHaveBeenCalledWith('candidate-1', { limit: 100, offset: 0 })
+
+    await user.click(screen.getByRole('button', { name: '批准并应用' }))
+    await user.type(screen.getByLabelText('批准理由'), '影响范围确认，批准作为分类自动规则')
+    await user.click(screen.getByRole('button', { name: '确认批准并应用' }))
+
+    await waitFor(() => {
+      expect(mocks.candidateReview).toHaveBeenCalledWith('candidate-1', {
+        decision: 'approve',
+        expectedRevision: 1,
+        reason: '影响范围确认，批准作为分类自动规则',
+      })
+    })
+    expect(mocks.toast).toHaveBeenCalledWith('规则已批准并应用，影响 1 本作品', 'success')
   })
 
   it('可以查看变更历史，并在并发冲突时刷新而不覆盖他人的修改', async () => {
