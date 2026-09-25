@@ -1,15 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { CheckCircle2, Eye, History, Pencil, PlusCircle, RefreshCw, ShieldCheck, XCircle } from 'lucide-react'
+import { Bot, CheckCircle2, Eye, History, Pencil, PlusCircle, RefreshCw, ShieldCheck, Sparkles, XCircle } from 'lucide-react'
 import {
   adminApi,
+  aiApi,
   type AdminContentRatingEvidence,
   type AdminContentRatingHistoryItem,
   type AdminContentRatingItem,
+  type AdminContentRatingAiListResponse,
+  type AdminContentRatingAiSuggestion,
   type AdminContentRatingRuleCandidateKind,
   type AdminContentRatingRuleCandidateListResponse,
   type AdminContentRatingRuleCandidate,
   type AdminContentRatingRuleCandidatePreviewResponse,
   type AdminContentRatingSource,
+  type AiTaskInfo,
   type ApiError,
 } from '@/lib/api'
 import { formatDateTime, timeAgo } from '@/lib/format'
@@ -51,6 +55,7 @@ const EDIT_RATING_OPTIONS: SelectOption[] = [
 
 const SOURCE_LABEL: Record<AdminContentRatingSource, string> = {
   manual: '人工修改',
+  ai_task: 'AI 建议（人工确认）',
   prefill: '规则预填',
   source_import: '书源导入',
   migration: '数据迁移',
@@ -234,6 +239,90 @@ function RuleCandidatePanel({
   )
 }
 
+function AiSuggestionPanel({
+  data,
+  loading,
+  error,
+  scanning,
+  task,
+  onRetry,
+  onScan,
+  onReview,
+}: {
+  data: AdminContentRatingAiListResponse | null
+  loading: boolean
+  error: string
+  scanning: boolean
+  task: AiTaskInfo | null
+  onRetry: () => void
+  onScan: () => void
+  onReview: (suggestion: AdminContentRatingAiSuggestion) => void
+}) {
+  return (
+    <AdminDataPanel ariaLabel="LLM 内容分级建议">
+      <AdminPanelHeading
+        title={
+          <span className="flex items-center gap-2">
+            <Sparkles className="size-4 text-primary" aria-hidden="true" />
+            LLM 分级建议
+          </span>
+        }
+        description="LLM 只分析未标注作品并生成待审核建议，输出限定为限制级或继续未标注；不会直接修改作品，也不会推断一般。"
+        status={
+          <span className="text-xs text-muted-foreground">
+            待审核 {data ? formatNumber(data.counts.pending) : '—'} 条
+            {task && task.status !== 'completed' && task.status !== 'failed' && task.status !== 'cancelled' ? ` · ${task.step || '分析中'}` : ''}
+          </span>
+        }
+        actions={
+          <Button type="button" size="sm" variant="secondary" onClick={onScan} disabled={scanning || (!!task && ['queued', 'running'].includes(task.status))}>
+            <Bot className={scanning ? 'size-3.5 animate-pulse' : 'size-3.5'} aria-hidden="true" />
+            {scanning ? '创建任务…' : '分析 unknown'}
+          </Button>
+        }
+      />
+      {error ? (
+        <InlineError message={`LLM 建议加载失败：${error}`} onRetry={onRetry} className="mx-5 my-4" />
+      ) : loading ? (
+        <LoadingState label="正在加载 LLM 分级建议" rows={2} />
+      ) : !data || data.items.length === 0 ? (
+        <AdminEmptyState message="还没有待审核的 LLM 分级建议；分析任务只会读取 unknown 作品。" />
+      ) : (
+        <div className="divide-y divide-border px-5">
+          {data.items.map((suggestion) => (
+            <article className="flex flex-wrap items-start justify-between gap-3 py-4" key={suggestion.id}>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium text-foreground">{suggestion.title || '未命名作品'}</span>
+                  <Badge className={suggestion.suggestedRating === 'restricted' ? 'bg-destructive/10 text-destructive' : 'bg-muted text-muted-foreground'}>
+                    {suggestion.suggestedRating === 'restricted' ? '建议限制级' : '建议继续未标注'}
+                  </Badge>
+                  <Badge variant="outline">置信度 {Math.round(suggestion.confidence * 100)}%</Badge>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {suggestion.author || '未知作者'} · 模型 {suggestion.model || '未记录'} · {suggestion.promptVersion}
+                </p>
+                <p className="mt-2 text-sm leading-relaxed text-foreground">{suggestion.reason || '未记录 AI 理由'}</p>
+                {suggestion.evidence.length > 0 && (
+                  <div className="mt-2">
+                    <EvidenceList evidence={suggestion.evidence} compact />
+                  </div>
+                )}
+              </div>
+              <div className="flex shrink-0 flex-wrap items-center gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => onReview(suggestion)}>
+                  <Eye className="size-3.5" aria-hidden="true" />
+                  审核建议
+                </Button>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </AdminDataPanel>
+  )
+}
+
 export default function ContentRatingsTab() {
   const { toast } = useToast()
   const [data, setData] = useState<Awaited<ReturnType<typeof adminApi.contentRatings.list>> | null>(null)
@@ -275,6 +364,17 @@ export default function ContentRatingsTab() {
   const [candidateReviewReason, setCandidateReviewReason] = useState('')
   const [candidateReviewError, setCandidateReviewError] = useState('')
   const [candidateReviewSaving, setCandidateReviewSaving] = useState(false)
+
+  const [aiData, setAiData] = useState<AdminContentRatingAiListResponse | null>(null)
+  const [aiLoading, setAiLoading] = useState(true)
+  const [aiError, setAiError] = useState('')
+  const [aiScanning, setAiScanning] = useState(false)
+  const [aiTask, setAiTask] = useState<AiTaskInfo | null>(null)
+  const [aiReviewSuggestion, setAiReviewSuggestion] = useState<AdminContentRatingAiSuggestion | null>(null)
+  const [aiReviewDecision, setAiReviewDecision] = useState<'approve' | 'reject' | null>(null)
+  const [aiReviewReason, setAiReviewReason] = useState('')
+  const [aiReviewError, setAiReviewError] = useState('')
+  const [aiReviewSaving, setAiReviewSaving] = useState(false)
 
   const listSeqRef = useRef(0)
   const historySeqRef = useRef(0)
@@ -344,6 +444,50 @@ export default function ContentRatingsTab() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadCandidates()
   }, [loadCandidates])
+
+  const loadAiSuggestions = useCallback(async () => {
+    setAiLoading(true)
+    setAiError('')
+    try {
+      const response = await adminApi.contentRatingAi.list({ status: 'pending', limit: 20, offset: 0 })
+      setAiData(response)
+    } catch (error) {
+      setAiError(errorMessage(error, '请检查网络后重试'))
+    } finally {
+      setAiLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    // This effect keeps the LLM review queue synchronized with the pending suggestions.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadAiSuggestions()
+  }, [loadAiSuggestions])
+
+  useEffect(() => {
+    const taskId = aiTask?.id
+    const taskStatus = aiTask?.status
+    if (!taskId || !taskStatus || !['queued', 'running'].includes(taskStatus)) return
+    let active = true
+    const poll = async () => {
+      try {
+        const response = await aiApi.task(taskId)
+        if (!active) return
+        setAiTask(response.task)
+        if (['completed', 'failed', 'cancelled'].includes(response.task.status)) {
+          await Promise.all([loadAiSuggestions(), load(true)])
+        }
+      } catch (error) {
+        if (active) setAiError(errorMessage(error, 'LLM 任务状态读取失败'))
+      }
+    }
+    void poll()
+    const timer = window.setInterval(() => void poll(), 1_500)
+    return () => {
+      active = false
+      window.clearInterval(timer)
+    }
+  }, [aiTask?.id, aiTask?.status, load, loadAiSuggestions])
 
   const openEdit = useCallback((item: AdminContentRatingItem) => {
     setEditing(item)
@@ -496,6 +640,76 @@ export default function ContentRatingsTab() {
       }
     } finally {
       setCandidateReviewSaving(false)
+    }
+  }
+
+  async function scanAiSuggestions() {
+    setAiScanning(true)
+    setAiError('')
+    try {
+      const result = await adminApi.contentRatingAi.scan({ limit: 20 })
+      if (!result.taskId) {
+        toast(result.message || '当前没有可分析的 unknown 作品', 'info')
+      } else {
+        setAiTask(result.task || null)
+        toast(`已提交 LLM 分析任务，将生成 ${formatNumber(result.selected)} 条待审核建议`, 'success')
+      }
+      await loadAiSuggestions()
+    } catch (error) {
+      setAiError(errorMessage(error, 'LLM 分析任务创建失败，请检查文本 AI 配置'))
+    } finally {
+      setAiScanning(false)
+    }
+  }
+
+  function openAiReview(suggestion: AdminContentRatingAiSuggestion) {
+    setAiReviewSuggestion(suggestion)
+    setAiReviewDecision(null)
+    setAiReviewReason('')
+    setAiReviewError('')
+  }
+
+  function closeAiReview(force = false) {
+    if (aiReviewSaving && !force) return
+    setAiReviewSuggestion(null)
+    setAiReviewDecision(null)
+    setAiReviewReason('')
+    setAiReviewError('')
+  }
+
+  async function reviewAiSuggestion() {
+    if (!aiReviewSuggestion || !aiReviewDecision) return
+    const reason = aiReviewReason.trim()
+    if (!reason) {
+      setAiReviewError('请填写本次审核决定的理由。')
+      return
+    }
+
+    setAiReviewSaving(true)
+    setAiReviewError('')
+    try {
+      const result = await adminApi.contentRatingAi.review(aiReviewSuggestion.id, {
+        decision: aiReviewDecision,
+        expectedRevision: aiReviewSuggestion.revision,
+        reason,
+      })
+      closeAiReview(true)
+      if (result.decision === 'approve' && result.applied) {
+        toast('AI 建议已批准，作品已标为限制级；操作已写入审计记录', 'success')
+      } else if (result.decision === 'approve') {
+        toast('AI 建议已批准，但未标为限制级的建议仍保持 unknown', 'success')
+      } else {
+        toast('AI 分级建议已拒绝，作品分级未修改', 'success')
+      }
+      await Promise.all([load(true), loadAiSuggestions()])
+    } catch (error) {
+      if ((error as ApiError | null)?.status === 409) {
+        setAiReviewError('作品或 AI 建议已被其他管理员更新，请关闭后重新加载。')
+      } else {
+        setAiReviewError(errorMessage(error, 'AI 建议审核失败，请稍后重试'))
+      }
+    } finally {
+      setAiReviewSaving(false)
     }
   }
 
@@ -704,6 +918,17 @@ export default function ContentRatingsTab() {
           error={candidateError}
           onRetry={() => void loadCandidates()}
           onPreview={(candidate) => void openCandidatePreview(candidate)}
+        />
+
+        <AiSuggestionPanel
+          data={aiData}
+          loading={aiLoading}
+          error={aiError}
+          scanning={aiScanning}
+          task={aiTask}
+          onRetry={() => void loadAiSuggestions()}
+          onScan={() => void scanAiSuggestions()}
+          onReview={openAiReview}
         />
       </div>
 
@@ -967,6 +1192,103 @@ export default function ContentRatingsTab() {
                 </Button>
                 <Button type="button" onClick={() => void reviewCandidate()} disabled={candidateReviewSaving || !candidateReviewReason.trim()}>
                   {candidateReviewSaving ? '提交中…' : candidateReviewDecision === 'approve' ? '确认批准并应用' : '确认拒绝候选'}
+                </Button>
+              </>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!aiReviewSuggestion} onOpenChange={(open) => !open && closeAiReview()}>
+        <DialogContent className="max-h-[min(86vh,800px)] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>审核 LLM 分级建议 · {aiReviewSuggestion?.title || '作品'}</DialogTitle>
+            <DialogDescription>批准限制级建议前请核对元数据证据。LLM 不能直接发布分级；批准“继续未标注”也不会把作品改为一般。</DialogDescription>
+          </DialogHeader>
+
+          {aiReviewSuggestion && (
+            <div className="grid gap-4">
+              <div className="rounded-md border border-border bg-muted/30 p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-muted-foreground">AI 建议</span>
+                  <Badge
+                    className={aiReviewSuggestion.suggestedRating === 'restricted' ? 'bg-destructive/10 text-destructive' : 'bg-muted text-muted-foreground'}
+                  >
+                    {aiReviewSuggestion.suggestedRating === 'restricted' ? '限制级' : '继续未标注'}
+                  </Badge>
+                  <Badge variant="outline">置信度 {Math.round(aiReviewSuggestion.confidence * 100)}%</Badge>
+                </div>
+                <p className="mt-3 text-sm leading-relaxed text-foreground">{aiReviewSuggestion.reason || '未记录 AI 理由'}</p>
+                <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                  <span>模型：{aiReviewSuggestion.model || '未记录'}</span>
+                  <span>提示版本：{aiReviewSuggestion.promptVersion}</span>
+                  <span>作品修订：{aiReviewSuggestion.novelRevision}</span>
+                </div>
+                {aiReviewSuggestion.evidence.length > 0 && (
+                  <div className="mt-3">
+                    <p className="mb-2 text-xs font-medium text-muted-foreground">模型提取的证据</p>
+                    <EvidenceList evidence={aiReviewSuggestion.evidence} />
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-md border border-border p-4 text-sm">
+                <p className="font-medium text-foreground">审核边界</p>
+                <p className="mt-2 leading-relaxed text-muted-foreground">
+                  当前作品仍是 <RatingBadge rating={aiReviewSuggestion.currentRating} />
+                  ；提交时会再次锁定作品并校验修订号。只有管理员批准“限制级”建议时，才会写入
+                  <code className="mx-1 rounded bg-muted px-1.5 py-0.5 text-xs">ai_task</code>
+                  分级审计。
+                </p>
+              </div>
+
+              {aiReviewDecision && (
+                <div className="grid gap-2 rounded-md border border-border bg-background p-4">
+                  <Label htmlFor="content-rating-ai-review-reason">{aiReviewDecision === 'approve' ? '批准理由' : '拒绝理由'}</Label>
+                  <Textarea
+                    id="content-rating-ai-review-reason"
+                    value={aiReviewReason}
+                    onChange={(event) => setAiReviewReason(event.target.value)}
+                    placeholder={
+                      aiReviewDecision === 'approve' ? '说明为什么元数据证据足以支持这次人工确认。' : '说明为什么证据不足、存在误判风险或暂不采纳该建议。'
+                    }
+                    rows={4}
+                    maxLength={500}
+                    aria-invalid={!!aiReviewError}
+                  />
+                </div>
+              )}
+
+              {aiReviewError && (
+                <p className="text-sm text-destructive" role="alert">
+                  {aiReviewError}
+                </p>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            {!aiReviewDecision ? (
+              <>
+                <Button type="button" variant="outline" onClick={closeAiReview} disabled={aiReviewSaving}>
+                  取消
+                </Button>
+                <Button type="button" variant="outline" onClick={() => setAiReviewDecision('reject')} disabled={aiReviewSaving}>
+                  <XCircle className="size-3.5" aria-hidden="true" />
+                  拒绝建议
+                </Button>
+                <Button type="button" onClick={() => setAiReviewDecision('approve')} disabled={aiReviewSaving}>
+                  <CheckCircle2 className="size-3.5" aria-hidden="true" />
+                  进入批准确认
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button type="button" variant="outline" onClick={() => setAiReviewDecision(null)} disabled={aiReviewSaving}>
+                  返回查看
+                </Button>
+                <Button type="button" onClick={() => void reviewAiSuggestion()} disabled={aiReviewSaving || !aiReviewReason.trim()}>
+                  {aiReviewSaving ? '提交中…' : aiReviewDecision === 'approve' ? '确认批准建议' : '确认拒绝建议'}
                 </Button>
               </>
             )}

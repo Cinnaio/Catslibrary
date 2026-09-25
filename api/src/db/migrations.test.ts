@@ -57,6 +57,7 @@ describe('数据库迁移', () => {
       'content_rating_rule_candidates',
       'content_rating_rule_candidate_examples',
       'content_rating_rule_state',
+      'content_rating_ai_suggestions',
     ]
     for (const t of expected) {
       expect(tables).toContain(t)

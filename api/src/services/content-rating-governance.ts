@@ -7,7 +7,7 @@ import { newId } from './auth'
 /** 当前规则版本写入分级记录，规则调整时递增，便于筛出需要重新复核的作品。 */
 export const CONTENT_RATING_RULE_VERSION = 'restricted-rules-v1'
 
-export const CONTENT_RATING_SOURCES = ['manual', 'prefill', 'source_import', 'migration', 'system', 'legacy'] as const
+export const CONTENT_RATING_SOURCES = ['manual', 'ai_task', 'prefill', 'source_import', 'migration', 'system', 'legacy'] as const
 export type ContentRatingSource = (typeof CONTENT_RATING_SOURCES)[number]
 
 export interface ContentRatingEvidenceItem {

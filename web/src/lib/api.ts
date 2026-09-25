@@ -665,7 +665,7 @@ export interface MobileTelemetryResponse {
   }
 }
 
-export type AdminContentRatingSource = 'manual' | 'prefill' | 'source_import' | 'migration' | 'system' | 'legacy'
+export type AdminContentRatingSource = 'manual' | 'ai_task' | 'prefill' | 'source_import' | 'migration' | 'system' | 'legacy'
 
 export interface AdminContentRatingEvidence {
   type: string
@@ -779,6 +779,42 @@ export interface AdminContentRatingRuleCandidatePreviewResponse {
   prospectiveRuleVersion: string
   affectedCount: number
   items: AdminContentRatingRuleCandidatePreviewItem[]
+}
+
+export type AdminContentRatingAiSuggestionStatus = 'pending' | 'approved' | 'rejected' | 'stale' | 'failed'
+
+export interface AdminContentRatingAiSuggestion {
+  id: string
+  novelId: string
+  title: string
+  author: string
+  taskId: string
+  novelRevision: number
+  currentRating: ContentRating
+  currentSource: AdminContentRatingSource
+  currentRevision: number
+  inputSnapshot: { novelId?: string; title?: string; author?: string; description?: string; categories?: string[]; ratingRevision?: number }
+  suggestedRating: 'restricted' | 'unknown'
+  confidence: number
+  reason: string
+  evidence: AdminContentRatingEvidence[]
+  model: string
+  promptVersion: string
+  status: AdminContentRatingAiSuggestionStatus
+  revision: number
+  reviewedBy: string
+  reviewedByName: string
+  reviewedAt: number
+  reviewReason: string
+  error: string
+  createdAt: number
+  updatedAt: number
+}
+
+export interface AdminContentRatingAiListResponse {
+  items: AdminContentRatingAiSuggestion[]
+  total: number
+  counts: Record<AdminContentRatingAiSuggestionStatus, number>
 }
 
 export const adminApi = {
@@ -901,6 +937,46 @@ export const adminApi = {
       operationId: string
     }> {
       return request('POST', `/admin/content-rating-rule-candidates/${encodeURIComponent(candidateId)}/review`, data, true)
+    },
+  },
+  contentRatingAi: {
+    list(
+      params: {
+        status?: AdminContentRatingAiSuggestionStatus | ''
+        search?: string
+        limit?: number
+        offset?: number
+      } = {},
+    ): Promise<AdminContentRatingAiListResponse> {
+      const query = new URLSearchParams()
+      if (params.status) query.set('status', params.status)
+      if (params.search) query.set('search', params.search)
+      if (params.limit != null) query.set('limit', String(params.limit))
+      if (params.offset != null) query.set('offset', String(params.offset))
+      const qs = query.toString()
+      return request('GET', `/admin/content-rating-ai${qs ? '?' + qs : ''}`, null, true)
+    },
+    scan(data: { novelIds?: string[]; limit?: number } = {}): Promise<{
+      ok: boolean
+      taskId: string
+      selected: number
+      total: number
+      message?: string
+      task?: AiTaskInfo
+    }> {
+      return request('POST', '/admin/content-rating-ai/scan', data, true)
+    },
+    review(
+      suggestionId: string,
+      data: { decision: 'approve' | 'reject'; expectedRevision: number; reason: string },
+    ): Promise<{
+      ok: boolean
+      decision: 'approve' | 'reject'
+      suggestion: AdminContentRatingAiSuggestion
+      applied: boolean
+      operationId: string
+    }> {
+      return request('POST', `/admin/content-rating-ai/${encodeURIComponent(suggestionId)}/review`, data, true)
     },
   },
   stats(): Promise<Record<string, unknown>> {

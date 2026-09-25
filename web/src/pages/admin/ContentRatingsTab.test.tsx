@@ -1,7 +1,7 @@
 import userEvent from '@testing-library/user-event'
 import { render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AdminContentRatingItem } from '@/lib/api'
+import type { AdminContentRatingAiSuggestion, AdminContentRatingItem } from '@/lib/api'
 
 const mocks = vi.hoisted(() => ({
   list: vi.fn(),
@@ -11,6 +11,10 @@ const mocks = vi.hoisted(() => ({
   candidateCreate: vi.fn(),
   candidatePreview: vi.fn(),
   candidateReview: vi.fn(),
+  aiList: vi.fn(),
+  aiScan: vi.fn(),
+  aiReview: vi.fn(),
+  aiTask: vi.fn(),
   toast: vi.fn(),
 }))
 
@@ -26,6 +30,14 @@ vi.mock('@/lib/api', () => ({
       create: mocks.candidateCreate,
       preview: mocks.candidatePreview,
       review: mocks.candidateReview,
+    },
+    contentRatingAi: {
+      list: mocks.aiList,
+      scan: mocks.aiScan,
+      review: mocks.aiReview,
+    },
+    aiApi: {
+      task: mocks.aiTask,
     },
   },
 }))
@@ -63,7 +75,7 @@ const response = {
   limit: 20,
   offset: 0,
   counts: { general: 4, restricted: 1, unknown: 2 },
-  sources: ['manual', 'prefill', 'source_import', 'migration', 'system', 'legacy'],
+  sources: ['manual', 'ai_task', 'prefill', 'source_import', 'migration', 'system', 'legacy'],
 }
 
 describe('ContentRatingsTab', () => {
@@ -144,6 +156,12 @@ describe('ContentRatingsTab', () => {
       appliedCount: 1,
       operationId: 'rating-rule-apply-1',
     })
+    mocks.aiList.mockResolvedValue({
+      items: [],
+      total: 0,
+      counts: { pending: 0, approved: 0, rejected: 0, stale: 0, failed: 0 },
+    })
+    mocks.aiScan.mockResolvedValue({ ok: true, taskId: '', selected: 0, total: 0, message: '没有可分析的 unknown 作品' })
   })
 
   it('展示分级概览、来源和可解释证据', async () => {
@@ -273,5 +291,61 @@ describe('ContentRatingsTab', () => {
 
     await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith(expect.stringContaining('已被其他管理员修改'), 'error'))
     expect(mocks.list).toHaveBeenCalledTimes(2)
+  })
+
+  it('LLM 建议必须经过人工审核，批准 restricted 时按建议 revision 提交', async () => {
+    const user = userEvent.setup()
+    const suggestion: AdminContentRatingAiSuggestion = {
+      id: 'ratingai-1',
+      novelId: 'unknown-1',
+      title: '待审核 AI 作品',
+      author: '作者',
+      taskId: 'aitask-1',
+      novelRevision: 4,
+      currentRating: 'unknown',
+      currentSource: 'system',
+      currentRevision: 4,
+      inputSnapshot: { title: '待审核 AI 作品', categories: ['测试成人标签'] },
+      suggestedRating: 'restricted',
+      confidence: 0.91,
+      reason: '元数据出现明确限制级分类',
+      evidence: [{ type: 'llm', field: 'categories', value: '测试成人标签' }],
+      model: 'rating-test-model',
+      promptVersion: 'content-rating-ai-v1',
+      status: 'pending',
+      revision: 0,
+      reviewedBy: '',
+      reviewedByName: '',
+      reviewedAt: 0,
+      reviewReason: '',
+      error: '',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    }
+    mocks.aiList.mockResolvedValueOnce({ items: [suggestion], total: 1, counts: { pending: 1, approved: 0, rejected: 0, stale: 0, failed: 0 } })
+    mocks.aiList.mockResolvedValue({ items: [], total: 0, counts: { pending: 0, approved: 0, rejected: 0, stale: 0, failed: 0 } })
+    mocks.aiReview.mockResolvedValue({
+      ok: true,
+      decision: 'approve',
+      suggestion: { ...suggestion, status: 'approved' },
+      applied: true,
+      operationId: 'rating-ai-1',
+    })
+    render(<ContentRatingsTab />)
+
+    expect(await screen.findByText('待审核 AI 作品')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '审核建议' }))
+    await user.click(screen.getByRole('button', { name: '进入批准确认' }))
+    await user.type(screen.getByLabelText('批准理由'), '人工复核 AI 提取证据后确认')
+    await user.click(screen.getByRole('button', { name: '确认批准建议' }))
+
+    await waitFor(() => {
+      expect(mocks.aiReview).toHaveBeenCalledWith('ratingai-1', {
+        decision: 'approve',
+        expectedRevision: 0,
+        reason: '人工复核 AI 提取证据后确认',
+      })
+    })
+    expect(mocks.toast).toHaveBeenCalledWith('AI 建议已批准，作品已标为限制级；操作已写入审计记录', 'success')
   })
 })
