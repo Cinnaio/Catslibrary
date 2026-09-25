@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { History, Pencil, RefreshCw, ShieldCheck } from 'lucide-react'
+import { History, Pencil, PlusCircle, RefreshCw, ShieldCheck } from 'lucide-react'
 import {
   adminApi,
   type AdminContentRatingEvidence,
   type AdminContentRatingHistoryItem,
   type AdminContentRatingItem,
+  type AdminContentRatingRuleCandidateKind,
+  type AdminContentRatingRuleCandidateListResponse,
   type AdminContentRatingSource,
   type ApiError,
 } from '@/lib/api'
@@ -21,6 +23,7 @@ import { AdminDataPanel, AdminMetricStrip, AdminPanelHeading, AdminSearch, Admin
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
@@ -61,7 +64,12 @@ const RATING_COLUMNS: readonly AdminColumn[] = [
   { key: 'source', label: '来源', width: '14%' },
   { key: 'evidence', label: '判定证据', width: '23%' },
   { key: 'updated', label: '最近操作', width: '16%' },
-  { key: 'actions', label: '操作', width: '10%', actions: true },
+  { key: 'actions', label: '操作', width: '14%', actions: true },
+]
+
+const CANDIDATE_KIND_OPTIONS: SelectOption[] = [
+  { value: 'category', label: '分类标签' },
+  { value: 'phrase', label: '文本短语' },
 ]
 
 const EMPTY_COUNTS = { general: 0, restricted: 0, unknown: 0 }
@@ -156,6 +164,62 @@ function RatingHistoryRow({ entry }: { entry: AdminContentRatingHistoryItem }) {
   )
 }
 
+function candidateKindLabel(kind: AdminContentRatingRuleCandidateKind): string {
+  return kind === 'category' ? '分类标签' : '文本短语'
+}
+
+function RuleCandidatePanel({
+  data,
+  loading,
+  error,
+  onRetry,
+}: {
+  data: AdminContentRatingRuleCandidateListResponse | null
+  loading: boolean
+  error: string
+  onRetry: () => void
+}) {
+  return (
+    <AdminDataPanel ariaLabel="内容分级规则候选">
+      <AdminPanelHeading
+        title="规则候选"
+        description="人工经验先进入待审核候选，不会因为一次提交立即影响其他作品。"
+        status={<span className="text-xs text-muted-foreground">待审核 {data ? formatNumber(data.counts.pending) : '—'} 条</span>}
+      />
+      {error ? (
+        <InlineError message={`规则候选加载失败：${error}`} onRetry={onRetry} className="mx-5 my-4" />
+      ) : loading ? (
+        <LoadingState label="正在加载规则候选" rows={2} />
+      ) : !data || data.items.length === 0 ? (
+        <AdminEmptyState message="还没有待审核的规则候选" />
+      ) : (
+        <div className="divide-y divide-border px-5">
+          {data.items.map((candidate) => (
+            <article className="flex flex-wrap items-start justify-between gap-3 py-4" key={candidate.id}>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="outline">{candidateKindLabel(candidate.kind)}</Badge>
+                  <code className="max-w-full truncate rounded bg-muted px-2 py-1 text-sm text-foreground" title={candidate.value}>
+                    {candidate.value}
+                  </code>
+                  <Badge className="bg-warning/10 text-warning">待审核</Badge>
+                </div>
+                <p className="mt-2 text-sm leading-relaxed text-foreground">{candidate.latestExample?.reason || '未记录候选理由'}</p>
+                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                  <span>例证 {candidate.exampleCount} 本</span>
+                  {candidate.latestExample?.novelTitle && <span>来源：{candidate.latestExample.novelTitle}</span>}
+                  <span>提交人：{candidate.createdByName || '系统'}</span>
+                  <span>{timeAgo(candidate.updatedAt) || '刚刚'}</span>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </AdminDataPanel>
+  )
+}
+
 export default function ContentRatingsTab() {
   const { toast } = useToast()
   const [data, setData] = useState<Awaited<ReturnType<typeof adminApi.contentRatings.list>> | null>(null)
@@ -179,6 +243,16 @@ export default function ContentRatingsTab() {
   const [history, setHistory] = useState<AdminContentRatingHistoryItem[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
   const [historyError, setHistoryError] = useState('')
+
+  const [candidateData, setCandidateData] = useState<AdminContentRatingRuleCandidateListResponse | null>(null)
+  const [candidateLoading, setCandidateLoading] = useState(true)
+  const [candidateError, setCandidateError] = useState('')
+  const [candidateNovel, setCandidateNovel] = useState<AdminContentRatingItem | null>(null)
+  const [candidateKind, setCandidateKind] = useState<AdminContentRatingRuleCandidateKind>('category')
+  const [candidateValue, setCandidateValue] = useState('')
+  const [candidateReason, setCandidateReason] = useState('')
+  const [candidateFormError, setCandidateFormError] = useState('')
+  const [candidateSaving, setCandidateSaving] = useState(false)
 
   const listSeqRef = useRef(0)
   const historySeqRef = useRef(0)
@@ -229,11 +303,38 @@ export default function ContentRatingsTab() {
     void load()
   }, [load])
 
+  const loadCandidates = useCallback(async () => {
+    setCandidateLoading(true)
+    setCandidateError('')
+    try {
+      const response = await adminApi.contentRatingRuleCandidates.list({ status: 'pending', limit: 20, offset: 0 })
+      setCandidateData(response)
+    } catch (error) {
+      setCandidateError(errorMessage(error, '请检查网络后重试'))
+    } finally {
+      setCandidateLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    // This effect keeps the pending-candidate panel synchronized with the remote audit queue.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadCandidates()
+  }, [loadCandidates])
+
   const openEdit = useCallback((item: AdminContentRatingItem) => {
     setEditing(item)
     setDraftRating(item.contentRating)
     setDraftReason('')
     setEditError('')
+  }, [])
+
+  const openCandidate = useCallback((item: AdminContentRatingItem) => {
+    setCandidateNovel(item)
+    setCandidateKind('category')
+    setCandidateValue('')
+    setCandidateReason('')
+    setCandidateFormError('')
   }, [])
 
   const openHistory = useCallback(async (item: AdminContentRatingItem) => {
@@ -271,6 +372,7 @@ export default function ContentRatingsTab() {
       setEditing(null)
       toast('作品分级已更新，修改理由已写入审计记录', 'success')
       await load(true)
+      await loadCandidates()
     } catch (error) {
       if (isConflictError(error)) {
         setEditing(null)
@@ -281,6 +383,38 @@ export default function ContentRatingsTab() {
       }
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function saveCandidate() {
+    if (!candidateNovel) return
+    const value = candidateValue.trim()
+    const reason = candidateReason.trim()
+    if (!value) {
+      setCandidateFormError('请填写要沉淀的分类标签或文本短语。')
+      return
+    }
+    if (!reason) {
+      setCandidateFormError('请填写为什么这个值可以作为限制级判断依据。')
+      return
+    }
+
+    setCandidateSaving(true)
+    setCandidateFormError('')
+    try {
+      const result = await adminApi.contentRatingRuleCandidates.create({
+        novelId: candidateNovel.id,
+        kind: candidateKind,
+        value,
+        reason,
+      })
+      setCandidateNovel(null)
+      toast(result.created ? '已生成待审核规则候选，不会立即影响其他作品' : '候选已存在，已尝试补充这本书的人工例证', 'success')
+      await loadCandidates()
+    } catch (error) {
+      setCandidateFormError(errorMessage(error, '规则候选保存失败，请稍后重试'))
+    } finally {
+      setCandidateSaving(false)
     }
   }
 
@@ -451,6 +585,19 @@ export default function ContentRatingsTab() {
                           >
                             <Pencil aria-hidden="true" />
                           </Button>
+                          {item.contentRating === 'restricted' && item.source === 'manual' && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="admin-icon-button"
+                              aria-label={`从 ${item.title} 沉淀规则候选`}
+                              title="沉淀规则候选"
+                              onClick={() => openCandidate(item)}
+                            >
+                              <PlusCircle aria-hidden="true" />
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -469,6 +616,8 @@ export default function ContentRatingsTab() {
             />
           </AdminDataPanel>
         )}
+
+        <RuleCandidatePanel data={candidateData} loading={candidateLoading} error={candidateError} onRetry={() => void loadCandidates()} />
       </div>
 
       <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)}>
@@ -534,6 +683,82 @@ export default function ContentRatingsTab() {
             </Button>
             <Button type="button" onClick={() => void saveEdit()} disabled={saving || !draftReason.trim()}>
               {saving ? '保存中…' : '保存分级'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!candidateNovel} onOpenChange={(open) => !open && setCandidateNovel(null)}>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>沉淀规则候选 · {candidateNovel?.title || '作品'}</DialogTitle>
+            <DialogDescription>这里只记录人工经验，等后续预览和批准后才会影响新作品；本次操作不会立即修改其他作品的分级。</DialogDescription>
+          </DialogHeader>
+
+          {candidateNovel && (
+            <div className="grid gap-4">
+              <div className="rounded-md border border-border bg-muted/30 p-3 text-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-muted-foreground">人工来源</span>
+                  <RatingBadge rating={candidateNovel.contentRating} />
+                  <span className="text-xs text-muted-foreground">
+                    修订 {candidateNovel.revision} · {candidateNovel.updatedByName || '管理员'}
+                  </span>
+                </div>
+                <p className="mt-2 text-xs leading-relaxed text-muted-foreground">只有人工确认的 restricted 作品可以生成候选；候选会保留这本书作为人工例证。</p>
+              </div>
+
+              <div className="grid gap-2">
+                <Label>候选类型</Label>
+                <CustomSelect
+                  options={CANDIDATE_KIND_OPTIONS}
+                  value={candidateKind}
+                  onChange={(value) => setCandidateKind(value as AdminContentRatingRuleCandidateKind)}
+                  aria-label="候选类型"
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="content-rating-candidate-value">{candidateKind === 'category' ? '分类标签' : '文本短语'}</Label>
+                <Input
+                  id="content-rating-candidate-value"
+                  value={candidateValue}
+                  onChange={(event) => setCandidateValue(event.target.value)}
+                  placeholder={candidateKind === 'category' ? '例如：新的成人分类标签' : '例如：能够稳定指向限制级的短语'}
+                  maxLength={160}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {candidateKind === 'category' ? '分类候选将按完整标签匹配，不会做模糊子串匹配。' : '文本候选先以字面短语保存，后续预览阶段再评估误命中范围。'}
+                </p>
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="content-rating-candidate-reason">候选理由</Label>
+                <Textarea
+                  id="content-rating-candidate-reason"
+                  value={candidateReason}
+                  onChange={(event) => setCandidateReason(event.target.value)}
+                  placeholder="说明为什么这个标签或短语能作为限制级依据，以及你在这本书中观察到的证据。"
+                  rows={4}
+                  maxLength={500}
+                  aria-invalid={!!candidateFormError}
+                />
+              </div>
+
+              {candidateFormError && (
+                <p className="text-sm text-destructive" role="alert">
+                  {candidateFormError}
+                </p>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setCandidateNovel(null)} disabled={candidateSaving}>
+              取消
+            </Button>
+            <Button type="button" onClick={() => void saveCandidate()} disabled={candidateSaving || !candidateValue.trim() || !candidateReason.trim()}>
+              {candidateSaving ? '保存中…' : '保存待审核候选'}
             </Button>
           </DialogFooter>
         </DialogContent>

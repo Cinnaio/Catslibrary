@@ -291,6 +291,51 @@ describe('小说内容分级字段（方案 B）', () => {
       expect(history.history[0]?.reason).toContain('人工复核')
     })
 
+    it('人工 restricted 作品可以沉淀待审核候选，但候选不会立即改变全局规则', async () => {
+      const manual = await req(
+        '/api/novels',
+        json('POST', { title: '人工候选来源书', author: 'x', contentRating: 'restricted' }, adminToken),
+      )
+      const manualId = (await jsonOf<{ novel: Novel }>(manual)).novel.id
+
+      const created = await req(
+        '/api/admin/content-rating-rule-candidates',
+        json('POST', {
+          novelId: manualId,
+          kind: 'category',
+          value: '新成人标签',
+          reason: '人工复核确认该分类在本库语境下稳定指向限制级',
+        }, adminToken),
+      )
+      expect(created.status).toBe(201)
+      const createdBody = await jsonOf<{ created: boolean; exampleAdded: boolean; candidate: { kind: string; value: string; status: string; exampleCount: number } }>(created)
+      expect(createdBody).toMatchObject({ created: true, exampleAdded: true })
+      expect(createdBody.candidate).toMatchObject({ kind: 'category', value: '新成人标签', status: 'pending', exampleCount: 1 })
+
+      const duplicate = await req(
+        '/api/admin/content-rating-rule-candidates',
+        json('POST', { novelId: manualId, kind: 'category', value: '新成人标签', reason: '再次补充同一本人工例证' }, adminToken),
+      )
+      expect(duplicate.status).toBe(200)
+      const duplicateBody = await jsonOf<{ created: boolean; exampleAdded: boolean }>(duplicate)
+      expect(duplicateBody.created).toBe(false)
+      expect(duplicateBody.exampleAdded).toBe(false)
+
+      const list = await req('/api/admin/content-rating-rule-candidates?status=pending', json('GET', undefined, adminToken))
+      const listBody = await jsonOf<{ items: Array<{ value: string; exampleCount: number }>; counts: { pending: number } }>(list)
+      expect(listBody.items.find((candidate) => candidate.value === '新成人标签')).toMatchObject({ exampleCount: 1 })
+      expect(listBody.counts.pending).toBeGreaterThanOrEqual(1)
+
+      const automatic = await req('/api/novels', json('POST', { title: '规则来源书', author: 'x', categories: ['h'] }, adminToken))
+      const automaticId = (await jsonOf<{ novel: Novel }>(automatic)).novel.id
+      const rejected = await req(
+        '/api/admin/content-rating-rule-candidates',
+        json('POST', { novelId: automaticId, kind: 'category', value: '另一个新标签', reason: '不能从自动命中直接沉淀人工候选' }, adminToken),
+      )
+      expect(rejected.status).toBe(422)
+      expect((await jsonOf<{ code: string }>(rejected)).code).toBe('rule_candidate_source_invalid')
+    })
+
     it('预填回滚只撤销原始自动批次，不能覆盖之后的人工修改', async () => {
       const created = await req('/api/novels', json('POST', { title: '18禁回滚隔离测试书', author: 'x' }, adminToken))
       const id = (await jsonOf<{ novel: Novel }>(created)).novel.id

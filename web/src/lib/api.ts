@@ -718,6 +718,50 @@ export interface AdminContentRatingListResponse {
   sources: AdminContentRatingSource[]
 }
 
+export type AdminContentRatingRuleCandidateKind = 'category' | 'phrase'
+export type AdminContentRatingRuleCandidateStatus = 'pending' | 'approved' | 'rejected'
+
+export interface AdminContentRatingRuleCandidateExample {
+  novelId: string
+  novelTitle: string
+  novelAuthor: string
+  revision: number
+  operationId: string
+  reason: string
+  evidence: AdminContentRatingEvidence[]
+  createdBy: string
+  createdByName: string
+  createdAt: number
+}
+
+export interface AdminContentRatingRuleCandidate {
+  id: string
+  kind: AdminContentRatingRuleCandidateKind
+  value: string
+  normalizedValue: string
+  targetRating: 'restricted'
+  status: AdminContentRatingRuleCandidateStatus
+  createdBy: string
+  createdByName: string
+  createdAt: number
+  reviewedBy: string
+  reviewedByName: string
+  reviewedAt: number
+  reviewReason: string
+  updatedAt: number
+  exampleCount: number
+  latestExample: AdminContentRatingRuleCandidateExample | null
+}
+
+export interface AdminContentRatingRuleCandidateListResponse {
+  items: AdminContentRatingRuleCandidate[]
+  total: number
+  limit: number
+  offset: number
+  counts: Record<AdminContentRatingRuleCandidateStatus, number>
+  kinds: AdminContentRatingRuleCandidateKind[]
+}
+
 export const adminApi = {
   site: {
     overview(): Promise<{
@@ -787,6 +831,37 @@ export const adminApi = {
       data: { contentRating: ContentRating; reason: string; expectedRevision: number; evidence?: AdminContentRatingEvidence[] },
     ): Promise<{ item: AdminContentRatingItem }> {
       return request('PUT', `/admin/content-ratings/${encodeURIComponent(novelId)}`, data, true)
+    },
+  },
+  contentRatingRuleCandidates: {
+    list(params: {
+      status?: AdminContentRatingRuleCandidateStatus | ''
+      kind?: AdminContentRatingRuleCandidateKind | ''
+      search?: string
+      limit?: number
+      offset?: number
+    } = {}): Promise<AdminContentRatingRuleCandidateListResponse> {
+      const query = new URLSearchParams()
+      if (params.status) query.set('status', params.status)
+      if (params.kind) query.set('kind', params.kind)
+      if (params.search) query.set('search', params.search)
+      if (params.limit != null) query.set('limit', String(params.limit))
+      if (params.offset != null) query.set('offset', String(params.offset))
+      const qs = query.toString()
+      return request('GET', `/admin/content-rating-rule-candidates${qs ? '?' + qs : ''}`, null, true)
+    },
+    create(data: {
+      novelId: string
+      kind: AdminContentRatingRuleCandidateKind
+      value: string
+      reason: string
+    }): Promise<{
+      ok: boolean
+      created: boolean
+      exampleAdded: boolean
+      candidate: AdminContentRatingRuleCandidate
+    }> {
+      return request('POST', '/admin/content-rating-rule-candidates', data, true)
     },
   },
   stats(): Promise<Record<string, unknown>> {

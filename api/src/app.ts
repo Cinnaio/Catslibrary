@@ -25,6 +25,7 @@ import { adminSiteRoutes, siteRoutes } from './routes/site'
 import { adminMobileTelemetryRoutes, mobileTelemetryRoutes } from './routes/mobile-telemetry'
 import { adminOperationRoutes } from './routes/admin-operations'
 import { contentRatingRoutes } from './routes/content-ratings'
+import { contentRatingRuleCandidateRoutes } from './routes/content-rating-rule-candidates'
 
 /** 全局应用：中间件装配 + 路由注册（阶段化增量挂载）。 */
 export const app = new Hono()
@@ -75,3 +76,4 @@ app.route('/api/mobile/telemetry', mobileTelemetryRoutes)
 app.route('/api/admin/mobile-telemetry', adminMobileTelemetryRoutes)
 app.route('/api/admin/operations', adminOperationRoutes)
 app.route('/api/admin/content-ratings', contentRatingRoutes)
+app.route('/api/admin/content-rating-rule-candidates', contentRatingRuleCandidateRoutes)

@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   list: vi.fn(),
   history: vi.fn(),
   update: vi.fn(),
+  candidateList: vi.fn(),
+  candidateCreate: vi.fn(),
   toast: vi.fn(),
 }))
 
@@ -16,6 +18,10 @@ vi.mock('@/lib/api', () => ({
       list: mocks.list,
       history: mocks.history,
       update: mocks.update,
+    },
+    contentRatingRuleCandidates: {
+      list: mocks.candidateList,
+      create: mocks.candidateCreate,
     },
   },
 }))
@@ -79,6 +85,15 @@ describe('ContentRatingsTab', () => {
       ],
     })
     mocks.update.mockResolvedValue({ item })
+    mocks.candidateList.mockResolvedValue({
+      items: [],
+      total: 0,
+      limit: 20,
+      offset: 0,
+      counts: { pending: 0, approved: 0, rejected: 0 },
+      kinds: ['category', 'phrase'],
+    })
+    mocks.candidateCreate.mockResolvedValue({ created: true, exampleAdded: true, candidate: {} })
   })
 
   it('展示分级概览、来源和可解释证据', async () => {
@@ -110,6 +125,30 @@ describe('ContentRatingsTab', () => {
     })
     expect(dialog).not.toBeInTheDocument()
     expect(mocks.toast).toHaveBeenCalledWith('作品分级已更新，修改理由已写入审计记录', 'success')
+  })
+
+  it('人工 restricted 作品可以沉淀待审核候选，但不会直接扩散规则', async () => {
+    const user = userEvent.setup()
+    mocks.list.mockResolvedValue({
+      ...response,
+      items: [{ ...item, source: 'manual', reason: '人工复核确认限制级' }],
+    })
+    render(<ContentRatingsTab />)
+
+    await user.click(await screen.findByRole('button', { name: '从 潮汐之后 沉淀规则候选' }))
+    await user.type(screen.getByLabelText('分类标签'), '新成人标签')
+    await user.type(screen.getByLabelText('候选理由'), '人工复核确认该分类在本库语境下稳定指向限制级')
+    await user.click(screen.getByRole('button', { name: '保存待审核候选' }))
+
+    await waitFor(() => {
+      expect(mocks.candidateCreate).toHaveBeenCalledWith({
+        novelId: 'novel-1',
+        kind: 'category',
+        value: '新成人标签',
+        reason: '人工复核确认该分类在本库语境下稳定指向限制级',
+      })
+    })
+    expect(mocks.toast).toHaveBeenCalledWith('已生成待审核规则候选，不会立即影响其他作品', 'success')
   })
 
   it('可以查看变更历史，并在并发冲突时刷新而不覆盖他人的修改', async () => {
