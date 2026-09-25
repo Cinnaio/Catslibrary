@@ -12,6 +12,14 @@ export interface NovelRow {
   categories: string
   status: string
   content_rating: string
+  content_rating_revision: number
+  content_rating_source: string
+  content_rating_reason: string
+  content_rating_evidence: string
+  content_rating_rule_version: string
+  content_rating_updated_by: string
+  content_rating_updated_at: number
+  content_rating_operation_id: string
   source_url: string
   chapter_count: number
   remote_chapter_count: number

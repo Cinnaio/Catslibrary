@@ -11,6 +11,8 @@ import { extractJjwxcTitles, extractPo18twTitles } from './scraper/enrich'
 import type { FetchHtmlOptions, FetchResult } from './scraper/fetch'
 import type { ScrapeStore } from './scraper/store'
 import { getPo18Session } from './source-account'
+import { applyContentRatingChange, CONTENT_RATING_RULE_VERSION, evidenceForRatingRules } from './content-rating-governance'
+import { toContentRating } from '../db/mappers'
 
 export type SourceSyncConfidence = 'high' | 'medium' | 'low'
 
@@ -619,6 +621,7 @@ export async function applySourceSync(
     metadataFields?: string[]
     metadataMode?: 'missing' | 'replace'
     confirmedChangeIds?: string[]
+    actorUserId?: string
   },
 ): Promise<{ updated: number; metadataUpdated: string[]; mappings: number }> {
   const run = await first<SourceSyncRunRow>(db, 'SELECT * FROM source_sync_runs WHERE id = $1', [opts.runId])
@@ -643,7 +646,7 @@ export async function applySourceSync(
   const now = Date.now()
 
   await withTx(db, async (q) => {
-    const novel = await q('SELECT title, author, description, cover_url, categories, status, content_rating FROM novels WHERE id = $1', [run.novel_id])
+    const novel = await q('SELECT title, author, description, cover_url, categories, status, content_rating FROM novels WHERE id = $1 FOR UPDATE', [run.novel_id])
     const novelRow = novel.rows[0] as Record<string, unknown> | undefined
     if (!novelRow) throw new Error('Novel not found')
     for (const change of changesToApply) {
@@ -682,20 +685,34 @@ export async function applySourceSync(
           description: String(nextDescription || ''),
           categories: safeJsonParse<string[]>(String(nextCategories || '[]'), []),
         })
-      : currentNovel.content_rating
+      : toContentRating(currentNovel.content_rating)
     await q(`UPDATE novels SET title = $1, author = $2, description = $3, cover_url = $4, categories = $5,
-      status = $6, content_rating = CASE WHEN content_rating = 'unknown' THEN $7 ELSE content_rating END,
-      updated_at = $8 WHERE id = $9`, [
+      status = $6, updated_at = $7 WHERE id = $8`, [
       nextTitle,
       nextAuthor,
       nextDescription,
       nextCover,
       nextCategories,
       nextStatus,
-      nextRating,
       now,
       run.novel_id,
     ])
+    if (currentNovel.content_rating === 'unknown' && nextRating !== 'unknown') {
+      await applyContentRatingChange(q, {
+        novelId: run.novel_id,
+        rating: nextRating,
+        source: 'source_import',
+        actorUserId: opts.actorUserId || 'system',
+        reason: '源站元数据同步后重新执行分级规则',
+        evidence: evidenceForRatingRules({
+          title: String(nextTitle || ''),
+          description: String(nextDescription || ''),
+          categories: safeJsonParse<string[]>(String(nextCategories || '[]'), []),
+        }),
+        ruleVersion: CONTENT_RATING_RULE_VERSION,
+        operationId: run.id,
+      })
+    }
     for (const mapping of mappings) {
       const localIds = mapping.localChapterIds
       const partCount = localIds.length

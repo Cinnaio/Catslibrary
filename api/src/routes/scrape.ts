@@ -521,6 +521,7 @@ scrapeRoutes.post('/', async (c) => {
                 metadataFields,
                 metadataMode: body.metadataMode === 'replace' ? 'replace' : 'missing',
                 confirmedChangeIds,
+                actorUserId: c.get('user').id,
               }),
             )
           } catch (err) {

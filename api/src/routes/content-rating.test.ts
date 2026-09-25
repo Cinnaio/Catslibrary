@@ -253,5 +253,70 @@ describe('小说内容分级字段（方案 B）', () => {
       const afterMetadataUpdate = await req(`/api/novels/${id}`, json('PUT', { description: '18禁，高H' }, adminToken))
       expect((await jsonOf<{ novel: Novel }>(afterMetadataUpdate)).novel.contentRating).toBe('general')
     })
+
+    it('分级管理接口返回来源与证据，并拒绝覆盖过期版本', async () => {
+      const created = await req('/api/novels', json('POST', { title: '治理审计测试书', author: 'x', categories: ['h'] }, adminToken))
+      const id = (await jsonOf<{ novel: Novel }>(created)).novel.id
+      const list = await jsonOf<{ items: Array<{ id: string; contentRating: string; source: string; revision: number; evidence: Array<{ type: string }> }> }>(
+        await req('/api/admin/content-ratings?search=治理审计测试书', json('GET', undefined, adminToken)),
+      )
+      const item = list.items.find((entry) => entry.id === id)
+      expect(item?.contentRating).toBe('restricted')
+      expect(item?.source).toBe('system')
+      expect(item?.evidence.some((entry) => entry.type === 'category')).toBe(true)
+
+      const manual = await req(
+        `/api/admin/content-ratings/${id}`,
+        json('PUT', { contentRating: 'general', reason: '人工复核后确认不属于限制级', expectedRevision: item!.revision }, adminToken),
+      )
+      expect(manual.status).toBe(200)
+      const manualItem = (await jsonOf<{ item: { contentRating: string; source: string; revision: number } }>(manual)).item
+      expect(manualItem.contentRating).toBe('general')
+      expect(manualItem.source).toBe('manual')
+      expect(manualItem.revision).toBe(item!.revision + 1)
+
+      const conflict = await req(
+        `/api/admin/content-ratings/${id}`,
+        json('PUT', { contentRating: 'restricted', reason: '旧页面提交', expectedRevision: item!.revision }, adminToken),
+      )
+      expect(conflict.status).toBe(409)
+      const conflictBody = await jsonOf<{ code: string; currentRevision: number }>(conflict)
+      expect(conflictBody.code).toBe('content_rating_conflict')
+      expect(conflictBody.currentRevision).toBe(manualItem.revision)
+
+      const history = await jsonOf<{ history: Array<{ fromRating: string; toRating: string; source: string; reason: string }> }>(
+        await req(`/api/admin/content-ratings/${id}/history`, json('GET', undefined, adminToken)),
+      )
+      expect(history.history[0]).toMatchObject({ fromRating: 'restricted', toRating: 'general', source: 'manual' })
+      expect(history.history[0]?.reason).toContain('人工复核')
+    })
+
+    it('预填回滚只撤销原始自动批次，不能覆盖之后的人工修改', async () => {
+      const created = await req('/api/novels', json('POST', { title: '18禁回滚隔离测试书', author: 'x' }, adminToken))
+      const id = (await jsonOf<{ novel: Novel }>(created)).novel.id
+      await t.db.query("UPDATE novels SET content_rating = 'unknown' WHERE id = $1", [id])
+
+      const prefillResponse = await req('/api/novels', json('POST', { action: 'prefill-content-rating' }, adminToken))
+      const prefill = await jsonOf<{ ids: string[]; operationId: string }>(prefillResponse)
+      expect(prefill.ids).toContain(id)
+
+      const beforeManual = await jsonOf<{ items: Array<{ id: string; revision: number }> }>(
+        await req(`/api/admin/content-ratings?search=18禁回滚隔离测试书`, json('GET', undefined, adminToken)),
+      )
+      const item = beforeManual.items.find((entry) => entry.id === id)!
+      const manual = await req(
+        `/api/admin/content-ratings/${id}`,
+        json('PUT', { contentRating: 'general', reason: '人工复核后确认不属于限制级', expectedRevision: item.revision }, adminToken),
+      )
+      expect(manual.status).toBe(200)
+
+      const undo = await req('/api/novels', json('POST', { action: 'undo-prefill-content-rating', operationId: prefill.operationId }, adminToken))
+      expect(undo.status).toBe(200)
+      expect((await jsonOf<{ restored: number }>(undo)).restored).toBe(0)
+      const after = await jsonOf<{ items: Array<{ id: string; contentRating: string; source: string }> }>(
+        await req(`/api/admin/content-ratings?search=18禁回滚隔离测试书`, json('GET', undefined, adminToken)),
+      )
+      expect(after.items.find((entry) => entry.id === id)).toMatchObject({ contentRating: 'general', source: 'manual' })
+    })
   })
 })
