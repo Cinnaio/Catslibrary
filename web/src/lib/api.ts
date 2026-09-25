@@ -3,7 +3,7 @@
  * 零依赖：AbortSignal.timeout 超时、token 存储（localStorage/sessionStorage）、
  * 通用 request(method, path, body, useAuth)。
  */
-import type { ChapterFull, ChapterMeta, Comment, Novel, NovelListResponse, ReaderDevice, ReaderSettings, Thought, User } from '@shared/types'
+import type { ChapterFull, ChapterMeta, Comment, ContentRating, Novel, NovelListResponse, ReaderDevice, ReaderSettings, Thought, User } from '@shared/types'
 
 /** API base：Vite 注入 VITE_API_BASE（生产经 NOVEL_API_BASE define），默认同源 /api。 */
 function resolveBase(): string {
@@ -667,6 +667,57 @@ export interface MobileTelemetryResponse {
   }
 }
 
+export type AdminContentRatingSource = 'manual' | 'prefill' | 'source_import' | 'migration' | 'system' | 'legacy'
+
+export interface AdminContentRatingEvidence {
+  type: string
+  field?: string
+  value?: string
+  rule?: string
+}
+
+export interface AdminContentRatingItem {
+  id: string
+  title: string
+  author: string
+  contentRating: ContentRating
+  revision: number
+  source: AdminContentRatingSource
+  reason: string
+  evidence: AdminContentRatingEvidence[]
+  ruleVersion: string
+  updatedBy: string
+  updatedByName: string
+  contentRatingUpdatedAt: number
+  operationId: string
+  chapterCount: number
+  updatedAt: number
+}
+
+export interface AdminContentRatingHistoryItem {
+  id: string
+  novelId: string
+  fromRating: ContentRating
+  toRating: ContentRating
+  source: AdminContentRatingSource
+  reason: string
+  evidence: AdminContentRatingEvidence[]
+  ruleVersion: string
+  operationId: string
+  actorUserId: string
+  actorName: string
+  createdAt: number
+}
+
+export interface AdminContentRatingListResponse {
+  items: AdminContentRatingItem[]
+  total: number
+  limit: number
+  offset: number
+  counts: { general: number; restricted: number; unknown: number }
+  sources: AdminContentRatingSource[]
+}
+
 export const adminApi = {
   site: {
     overview(): Promise<{
@@ -709,6 +760,33 @@ export const adminApi = {
     },
     update(adultContentEnabled: boolean): Promise<{ adultContentEnabled: boolean }> {
       return request('PUT', '/admin/content-policy', { adultContentEnabled }, true)
+    },
+  },
+  contentRatings: {
+    list(params: {
+      rating?: ContentRating | ''
+      source?: AdminContentRatingSource | ''
+      search?: string
+      limit?: number
+      offset?: number
+    } = {}): Promise<AdminContentRatingListResponse> {
+      const query = new URLSearchParams()
+      if (params.rating) query.set('rating', params.rating)
+      if (params.source) query.set('source', params.source)
+      if (params.search) query.set('search', params.search)
+      if (params.limit != null) query.set('limit', String(params.limit))
+      if (params.offset != null) query.set('offset', String(params.offset))
+      const qs = query.toString()
+      return request('GET', `/admin/content-ratings${qs ? '?' + qs : ''}`, null, true)
+    },
+    history(novelId: string): Promise<{ history: AdminContentRatingHistoryItem[] }> {
+      return request('GET', `/admin/content-ratings/${encodeURIComponent(novelId)}/history`, null, true)
+    },
+    update(
+      novelId: string,
+      data: { contentRating: ContentRating; reason: string; expectedRevision: number; evidence?: AdminContentRatingEvidence[] },
+    ): Promise<{ item: AdminContentRatingItem }> {
+      return request('PUT', `/admin/content-ratings/${encodeURIComponent(novelId)}`, data, true)
     },
   },
   stats(): Promise<Record<string, unknown>> {

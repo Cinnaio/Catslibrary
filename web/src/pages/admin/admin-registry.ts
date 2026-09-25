@@ -14,6 +14,7 @@ import ModerationTab from './ModerationTab'
 import AiTab from './AiTab'
 import SettingsTab from './SettingsTab'
 import ContentPolicyTab from './ContentPolicyTab'
+import ContentRatingsTab from './ContentRatingsTab'
 import SiteOperationsTab from './SiteOperationsTab'
 import MobileTelemetryTab from './MobileTelemetryTab'
 
@@ -91,6 +92,7 @@ export const NAV_GROUPS: Array<{ label: string; items: AdminNavItem[] }> = [
         children: [
           { id: 'moderation-queue', label: '审核队列', to: adminTabPath('moderation') },
           { id: 'content-policy', label: '内容安全', to: adminTabPath('content-policy') },
+          { id: 'content-ratings', label: '分级管理', to: adminTabPath('content-ratings') },
         ],
       },
     ],
@@ -134,6 +136,7 @@ export const TAB_COMPONENTS = {
   moderation: ModerationTab,
   ai: AiTab,
   'content-policy': ContentPolicyTab,
+  'content-ratings': ContentRatingsTab,
   'site-operations': SiteOperationsTab,
   'mobile-telemetry': MobileTelemetryTab,
   settings: SettingsTab,
