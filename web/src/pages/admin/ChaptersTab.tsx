@@ -8,6 +8,7 @@ import { useToast, useConfirm } from '../../components/feedback'
 import CustomSelect from '../../components/admin/CustomSelect'
 import Pagination from '../../components/admin/Pagination'
 import { ADMIN_DEFAULT_PAGE_SIZE, ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pagination'
+import { useDialogFocus, useDialogHotkeys } from '@/hooks/useDialogHotkeys'
 import { adminApi, chaptersApi, newOperationId, scrapeApi, type SourceSyncPreview, type TitleSource, type TitleSourceSearchResponse } from '../../lib/api'
 import { timeAgo } from '../../lib/format'
 import type { ChapterMeta } from '@shared/types'
@@ -20,6 +21,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { Pencil, Trash2 } from 'lucide-react'
 import AdminPage from '@/components/admin/AdminPage'
+import AdminRowActions from '@/components/admin/AdminRowActions'
+import AdminSelectionBar from '@/components/admin/AdminSelectionBar'
 import { AdminDataPanel, AdminPanelHeading, AdminSearch, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
 
 const CHAPTER_COLUMNS: readonly AdminColumn[] = [
@@ -57,6 +60,8 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
   const [pageSize, setPageSize] = useState(ADMIN_DEFAULT_PAGE_SIZE)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [modal, setModal] = useState<{ open: boolean; chapter: ChapterMeta | null; loading: boolean }>({ open: false, chapter: null, loading: false })
+  // 提交中标志：与 Ctrl+Enter 快捷键共用，防止正文较长时重复提交。
+  const [chapterSaving, setChapterSaving] = useState(false)
   const [draft, setDraft] = useState<ChapterDraft>({ order: 1, title: '', content: '' })
   const [renameModal, setRenameModal] = useState(false)
   const [renameTitles, setRenameTitles] = useState('')
@@ -216,6 +221,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
   }
 
   async function saveChapter() {
+    if (chapterSaving) return
     if (!selectedNovel) {
       toast('请先选择小说', 'error')
       return
@@ -224,6 +230,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
       toast('请选择小说并填写标题', 'error')
       return
     }
+    setChapterSaving(true)
     try {
       if (modal.chapter) {
         await chaptersApi.update(modal.chapter.id, { novelId: selectedNovel, title: draft.title.trim(), content: draft.content, order: draft.order })
@@ -236,8 +243,15 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
       void loadChapters(selectedNovel)
     } catch (err) {
       toast((err as Error).message || '保存失败', 'error')
+    } finally {
+      setChapterSaving(false)
     }
   }
+
+  // 章节弹窗键盘路径：Ctrl/Cmd + Enter 提交（正文换行仍走裸 Enter，不冲突）；
+  // 正文加载中时关闭，避免把未取回的内容写回覆盖源文。
+  useDialogHotkeys({ open: modal.open, onSubmit: saveChapter, submitting: chapterSaving, enabled: !modal.loading })
+  useDialogFocus(modal.open, '.chapter-editor-dialog__fields [data-slot="input"]')
 
   async function deleteChapter(chapter: ChapterMeta) {
     const ok = await confirm({
@@ -528,34 +542,38 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
                 />
               </div>
               <div className="chapter-toolbar__actions">
-                {selectedIds.size > 0 ? (
-                  <>
-                    <span className="chapter-toolbar__count text-sm text-muted-foreground tabular-nums">已选 {selectedIds.size} 章</span>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() =>
-                        setSelectedIds((prev) => {
-                          const pageIds = pageRows.map((c) => c.id)
-                          const next = new Set(prev)
-                          pageIds.forEach((id) => (next.has(id) ? next.delete(id) : next.add(id)))
-                          return next
-                        })
-                      }
-                    >
-                      反选
-                    </Button>
-                    <Button variant="destructive" size="sm" onClick={() => void batchDelete()}>
-                      批量删除 ({selectedIds.size})
-                    </Button>
-                  </>
-                ) : (
+                {selectedIds.size === 0 && (
                   <Button variant="secondary" size="sm" onClick={() => void openRenameModal()}>
                     融合章节名
                   </Button>
                 )}
               </div>
             </AdminToolbar>
+          )}
+          {selectedNovel && selectedIds.size > 0 && (
+            <AdminSelectionBar
+              count={selectedIds.size}
+              label={`已选 ${selectedIds.size} 章`}
+              onClear={() => setSelectedIds(new Set())}
+            >
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() =>
+                  setSelectedIds((prev) => {
+                    const pageIds = pageRows.map((c) => c.id)
+                    const next = new Set(prev)
+                    pageIds.forEach((id) => (next.has(id) ? next.delete(id) : next.add(id)))
+                    return next
+                  })
+                }
+              >
+                反选本页
+              </Button>
+              <Button variant="destructive" size="sm" onClick={() => void batchDelete()}>
+                批量删除 ({selectedIds.size})
+              </Button>
+            </AdminSelectionBar>
           )}
           {!selectedNovel ? (
             <div className="chapter-directory-empty" role="status">
@@ -605,7 +623,13 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
                         {timeAgo(c.createdAt)}
                       </TableCell>
                       <TableCell data-actions="">
-                        <div className="admin-cell-actions">
+                        <AdminRowActions
+                          label={`第${c.order}章`}
+                          items={[
+                            // 编辑是高频主操作，常驻；删除不可逆且低频，收进菜单。
+                            { label: '删除章节', icon: Trash2, onSelect: () => void deleteChapter(c), danger: true },
+                          ]}
+                        >
                           <Button
                             variant="ghost"
                             size="icon"
@@ -616,17 +640,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
                           >
                             <Pencil className="size-4" />
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="admin-icon-button admin-icon-button--danger"
-                            aria-label={`删除：第${c.order}章 ${c.title}`}
-                            title="删除"
-                            onClick={() => void deleteChapter(c)}
-                          >
-                            <Trash2 className="size-4" />
-                          </Button>
-                        </div>
+                        </AdminRowActions>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -706,11 +720,11 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
             </section>
           </div>
           <DialogFooter>
-            <Button variant="secondary" onClick={() => setModal({ open: false, chapter: null, loading: false })}>
+            <Button variant="secondary" onClick={() => setModal({ open: false, chapter: null, loading: false })} disabled={chapterSaving}>
               取消
             </Button>
-            <Button disabled={modal.loading} onClick={() => void saveChapter()}>
-              保存
+            <Button disabled={modal.loading || chapterSaving} onClick={() => void saveChapter()}>
+              {chapterSaving ? '保存中…' : '保存'}
             </Button>
           </DialogFooter>
         </DialogContent>

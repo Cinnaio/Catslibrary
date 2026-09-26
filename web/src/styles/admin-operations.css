@@ -9504,3 +9504,135 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
     margin-inline: 1rem;
   }
 }
+
+/* ============================================================
+   阶段一 · 操作便利性
+   行内操作收敛（主操作常驻 + 次级/危险操作进菜单）、跨页选择计数常驻、
+   批量条吸附。以下规则只服务这三件事，消费者见注释。
+   ============================================================ */
+
+/* --- 行内操作菜单（AdminRowActions）-----------------------------------
+   消费者：NovelsTab / ChaptersTab / ModerationTab 的行操作列。
+   菜单项 44px 触控高度在触屏上偏矮，这里统一到 2.5rem 并让图标列定宽，
+   使「图标 + 文字」在多项之间左对齐成一条竖线，扫读时不必逐项找起点。 */
+.admin-row-actions__menu {
+  min-width: 11rem;
+  padding: 0.25rem;
+}
+
+.admin-row-actions__menu-label {
+  padding: 0.4rem 0.5rem 0.25rem;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+
+.admin-row-actions__item {
+  min-height: 2.25rem;
+  gap: 0.5rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: var(--admin-radius-sm);
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.admin-row-actions__item-icon {
+  flex: 0 0 auto;
+  width: 1rem;
+  height: 1rem;
+  color: var(--text-muted);
+}
+
+.admin-row-actions__item:hover .admin-row-actions__item-icon,
+.admin-row-actions__item:focus .admin-row-actions__item-icon {
+  color: currentColor;
+}
+
+/* 危险项在菜单里仍要显眼但不能喊：图标在默认态就取危险色，
+   与相邻的普通项一眼可分，无需先 hover 才知道后果。 */
+.admin-row-actions__item--danger .admin-row-actions__item-icon {
+  color: var(--color-danger);
+}
+
+/* --- 跨页选择计数常驻 ------------------------------------------------
+   分页翻页后勾选状态跨页存活，但计数条只出现在工具栏顶端；滚到表格中段
+   勾选时，「已选几项」在视口外，操作员无法判断影响范围。
+
+   sticky 的参照系是最近的滚动容器（AdminShell 的 .admin-layout__content），
+   不是视口，因此 top 取 0（吸附在滚动口顶端）。曾用负 top 去抵消内容区
+   内边距，实测把整条推到滚动口之上（y=-36，上半截被裁掉）——内边距的
+   补偿交给 sticky 元素自己的 margin 与相邻间距，不能用负偏移。 */
+.admin-selection-bar {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--admin-border));
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--accent-subtle) 88%, var(--admin-panel));
+  box-shadow: var(--admin-shadow-soft);
+}
+
+.admin-selection-bar__count {
+  display: inline-flex;
+  min-height: 1.75rem;
+  align-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--admin-border));
+  border-radius: var(--radius-full);
+  background: var(--admin-panel);
+  padding: 0.2rem 0.7rem;
+  color: var(--accent-hover);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.admin-selection-bar__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+@media (max-width: 640px) {
+  .admin-selection-bar {
+    position: static;
+    padding: 0.5rem 0.75rem;
+  }
+
+  .admin-selection-bar__actions {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .admin-selection-bar__actions > button {
+    flex: 1 1 auto;
+    min-height: 2.5rem;
+  }
+}
+
+/* --- 卡片模式下操作菜单全宽纵向展开 ----------------------------------
+   ≤900px 每行折成卡片，操作区已居中横向排布。此时下拉菜单若仍按桌面
+   宽度浮出，在 360px 视口里会贴边裁切；菜单改为跟随触发器右对齐并
+   放开最小宽度约束。 */
+@media (max-width: 900px) {
+  .admin-data-panel--grid tbody td[data-actions] > .admin-cell-actions .admin-row-actions__menu,
+  .admin-data-panel--grid tbody td[data-actions] > .admin-cell-actions + .admin-row-actions__menu {
+    min-width: min(15rem, calc(100vw - 3rem));
+  }
+
+  .admin-row-actions__item {
+    min-height: 2.75rem;
+    font-size: 0.875rem;
+  }
+}

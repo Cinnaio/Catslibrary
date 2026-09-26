@@ -8,6 +8,7 @@ import { adminApi, thoughtsApi, url } from '../../lib/api'
 import { timeAgo } from '../../lib/format'
 import { useConfirm, useToast } from '../../components/feedback'
 import AdminPage from '@/components/admin/AdminPage'
+import AdminRowActions from '@/components/admin/AdminRowActions'
 import CustomSelect from '../../components/admin/CustomSelect'
 import { AdminDataPanel, AdminPanelHeading, AdminSearch, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
 import { Badge } from '@/components/ui/badge'
@@ -15,6 +16,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Check, X } from 'lucide-react'
 
 type ModerationMode = 'thoughts' | 'comments' | 'reports'
 
@@ -533,17 +535,19 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
         </TableCell>
         <TableCell data-actions="">
           {pending ? (
-            <div className="admin-cell-actions">
+            <AdminRowActions
+              label={`举报 ${r.id.slice(0, 8)}`}
+              items={[
+                // 「隐藏并解决」是这条举报的主处置，常驻；
+                // 「解决」（保留内容）与「驳回」是判断性结论，收进菜单减少误点。
+                { label: '解决（保留内容）', icon: Check, onSelect: () => void resolveReport(r.id, 'resolved', 'none') },
+                { label: '驳回举报', icon: X, onSelect: () => void resolveReport(r.id, 'dismissed', 'none') },
+              ]}
+            >
               <Button variant="ghost" size="sm" title="隐藏并解决" onClick={() => void resolveReport(r.id, 'resolved', 'hide')}>
                 隐藏并解决
               </Button>
-              <Button variant="ghost" size="sm" title="解决" onClick={() => void resolveReport(r.id, 'resolved', 'none')}>
-                解决
-              </Button>
-              <Button variant="ghost" size="sm" title="驳回" onClick={() => void resolveReport(r.id, 'dismissed', 'none')}>
-                驳回
-              </Button>
-            </div>
+            </AdminRowActions>
           ) : (
             '—'
           )}

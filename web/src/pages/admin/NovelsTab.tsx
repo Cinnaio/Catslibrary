@@ -3,13 +3,14 @@
  * 由 Novel-KV js/admin-novels.js + admin.html #tab-novels 平移。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { newOperationId, novelsApi, url, authHeaders } from '../../lib/api'
 import { timeAgo } from '../../lib/format'
 import { useConfirm, useToast } from '../../components/feedback'
 import CustomSelect from '../../components/admin/CustomSelect'
 import Pagination from '../../components/admin/Pagination'
 import { ADMIN_DEFAULT_PAGE_SIZE, ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pagination'
+import { useDialogFocus, useDialogHotkeys } from '@/hooks/useDialogHotkeys'
 import type { ContentRating, Novel } from '@shared/types'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -21,6 +22,8 @@ import { Table, TableBody, TableCell, TableHead, TableCaption, TableHeader, Tabl
 import { Textarea } from '@/components/ui/textarea'
 import { ArrowDown, ArrowUp, BookOpen, ChevronsUpDown, Pencil, Trash2 } from 'lucide-react'
 import AdminPage from '@/components/admin/AdminPage'
+import AdminRowActions from '@/components/admin/AdminRowActions'
+import AdminSelectionBar from '@/components/admin/AdminSelectionBar'
 import { AdminDataPanel, AdminPanelHeading, AdminSearch, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
 
 /**
@@ -153,6 +156,7 @@ function NovelSortButton({
 }
 
 export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { highlightNovelId?: string; onHighlightConsumed?: () => void }) {
+  const navigate = useNavigate()
   const { toast } = useToast()
   const { confirm } = useConfirm()
 
@@ -176,6 +180,8 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Novel | null>(null)
   const [draft, setDraft] = useState<NovelDraft>(EMPTY_DRAFT)
+  // 提交中标志：键盘快捷键（Ctrl+Enter）与保存按钮共用，防止重复提交。
+  const [saving, setSaving] = useState(false)
 
   // --- Highlight (jump from detail page "管理") ---
   const [highlightId, setHighlightId] = useState<string | null>(null)
@@ -357,6 +363,8 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
   }
 
   async function handleSave() {
+    // 提交闸门：重复点保存或按住 Ctrl+Enter 只走一次。
+    if (saving) return
     const title = draft.title.trim()
     const author = draft.author.trim()
     const sourceUrl = draft.sourceUrl.trim()
@@ -385,6 +393,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
       contentRating: draft.contentRating,
       sourceUrl,
     }
+    setSaving(true)
     try {
       if (editing) {
         await novelsApi.update(editing.id, data)
@@ -397,8 +406,14 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
       void load()
     } catch (err) {
       toast('保存失败: ' + ((err as Error).message || '请检查网络和认证令牌'), 'error')
+    } finally {
+      setSaving(false)
     }
   }
+
+  // 弹窗键盘路径：Ctrl/Cmd + Enter 或 Ctrl/Cmd + S 提交；打开后焦点落到标题输入。
+  useDialogHotkeys({ open: modalOpen, onSubmit: handleSave, submitting: saving })
+  useDialogFocus(modalOpen, '#novel-title')
 
   // --- Delete ---
   async function handleDelete(novel: Novel) {
@@ -546,22 +561,21 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
           </div>
         </AdminToolbar>
         {selected.size > 0 && (
-          <AdminToolbar layout="inline">
-            <div className="admin-toolbar__batch" aria-live="polite">
-              <span className="admin-toolbar__batch-count">已选 {selected.size} 本</span>
-              <div className="admin-toolbar__batch-actions">
-                <Button variant="secondary" size="sm" onClick={() => void handleBatchUpdate()}>
-                  批量更新
-                </Button>
-                <Button variant="secondary" size="sm" onClick={invertSelection}>
-                  反选
-                </Button>
-                <Button variant="destructive" size="sm" onClick={() => void handleBatchDelete()}>
-                  批量删除
-                </Button>
-              </div>
-            </div>
-          </AdminToolbar>
+          <AdminSelectionBar
+            count={selected.size}
+            label={`已选 ${selected.size} 本`}
+            onClear={() => setSelected(new Set())}
+          >
+            <Button variant="secondary" size="sm" onClick={() => void handleBatchUpdate()}>
+              批量更新
+            </Button>
+            <Button variant="secondary" size="sm" onClick={invertSelection}>
+              反选
+            </Button>
+            <Button variant="destructive" size="sm" onClick={() => void handleBatchDelete()}>
+              批量删除 ({selected.size})
+            </Button>
+          </AdminSelectionBar>
         )}
         <Table>
           <TableCaption className="sr-only">小说目录列表，可按标题、作者、章节数和更新时间排序</TableCaption>
@@ -665,12 +679,15 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
                     {timeAgo(n.updatedAt)}
                   </TableCell>
                   <TableCell data-actions="">
-                    <div className="admin-cell-actions">
-                      <Button asChild variant="ghost" size="icon" className="admin-icon-button" aria-label={`阅读：${n.title}`} title="阅读">
-                        <Link to={`/novel/${encodeURIComponent(n.id)}`}>
-                          <BookOpen className="size-4" />
-                        </Link>
-                      </Button>
+                    <AdminRowActions
+                      label={n.title}
+                      items={[
+                        // 阅读是只读出口，编辑是日常主操作，两者常驻；
+                        // 删除低频且不可逆，收进菜单以免与主操作同权重并列。
+                        { label: '查看详情', icon: BookOpen, onSelect: () => navigate(`/novel/${encodeURIComponent(n.id)}`) },
+                        { label: '删除小说', icon: Trash2, onSelect: () => void handleDelete(n), danger: true },
+                      ]}
+                    >
                       <Button
                         variant="ghost"
                         size="icon"
@@ -681,17 +698,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
                       >
                         <Pencil className="size-4" />
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="admin-icon-button admin-icon-button--danger"
-                        aria-label={`删除：${n.title}`}
-                        title="删除"
-                        onClick={() => void handleDelete(n)}
-                      >
-                        <Trash2 className="size-4" />
-                      </Button>
-                    </div>
+                    </AdminRowActions>
                   </TableCell>
                 </TableRow>
               ))
@@ -819,10 +826,12 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
             </div>
           </div>
           <DialogFooter>
-            <Button variant="secondary" onClick={closeModal}>
+            <Button variant="secondary" onClick={closeModal} disabled={saving}>
               取消
             </Button>
-            <Button onClick={() => void handleSave()}>保存</Button>
+            <Button onClick={() => void handleSave()} disabled={saving}>
+              {saving ? '保存中…' : '保存'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
