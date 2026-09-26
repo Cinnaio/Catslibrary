@@ -73,6 +73,9 @@ export default function DashboardTab(_props: { highlightNovelId?: string; onHigh
   const jobStatus = data?.jobStatus || { running: 0, completed: 0, failed: 0 }
   const contentRating = data?.contentRating || { general: 0, restricted: 0, unknown: 0 }
   const totalJobs = Math.max(1, jobStatus.running + jobStatus.completed + jobStatus.failed)
+  // 三项全零时 totalJobs 被 Math.max 兜成 1，三条 0% 的片段渲染成一条空轨道；
+  // 必须单独判断「真的没有任务」，否则空轨道看起来像坏掉的进度条。
+  const hasJobs = jobStatus.running + jobStatus.completed + jobStatus.failed > 0
 
   return (
     <AdminPage className="admin-redesign-page admin-redesign-page--dashboard" title="后台总览" description="书库、抓取任务和站点数据的即时状态。" actions={
@@ -95,10 +98,14 @@ export default function DashboardTab(_props: { highlightNovelId?: string; onHigh
             items={[
               ...STAT_CARDS.map((card) => {
                 const raw = totals ? totals[card.key] : 0
+                // dbSize 为 null 表示后端没取到库大小（非 PostgreSQL / 权限不足），
+                // 与「库是空的」是两件事。单给一个「—」操作员无法分辨，
+                // 因此把单位位换成原因说明。
+                const dbSizeUnknown = card.key === 'dbSize' && (raw === null || raw === undefined)
                 return {
                   label: card.label,
                   value: card.key === 'dbSize' ? formatBytes(typeof raw === 'number' ? raw : null) : formatNumber(raw as number),
-                  detail: card.unit,
+                  detail: dbSizeUnknown ? '未统计' : card.unit,
                 }
               }),
               // 标注进度：unknown 就是「还没人工判定的存量」。没有这个数字，
@@ -124,15 +131,21 @@ export default function DashboardTab(_props: { highlightNovelId?: string; onHigh
                 运行 {jobStatus.running} · 完成 {jobStatus.completed} · 失败 {jobStatus.failed}
               </span>
             </div>
-            <div className="mt-3 flex h-2 gap-1 overflow-hidden rounded-full bg-border" aria-hidden="true">
-              {(['running', 'completed', 'failed'] as const).map((key) => (
-                <div
-                  key={key}
-                  className={`h-full rounded-full ${key === 'running' ? 'bg-info' : key === 'completed' ? 'bg-success' : 'bg-destructive'}`}
-                  style={{ width: `${(jobStatus[key] / totalJobs) * 100}%` }}
-                />
-              ))}
-            </div>
+            {hasJobs ? (
+              <div className="mt-3 flex h-2 gap-1 overflow-hidden rounded-full bg-border" aria-hidden="true">
+                {(['running', 'completed', 'failed'] as const).map((key) => (
+                  <div
+                    key={key}
+                    className={`h-full rounded-full ${key === 'running' ? 'bg-info' : key === 'completed' ? 'bg-success' : 'bg-destructive'}`}
+                    style={{ width: `${(jobStatus[key] / totalJobs) * 100}%` }}
+                  />
+                ))}
+              </div>
+            ) : (
+              // 全零时原本渲染一条空轨道——看起来像「进度条坏了」而不是
+              // 「还没有任务」。改为明确陈述 + 指向下一步。
+              <p className="admin-empty-value mt-3 text-xs">暂无抓取任务记录，从「爬虫抓取」发起第一次抓取后这里会显示进度。</p>
+            )}
           </AdminDataPanel>
 
           <div className="grid gap-4 lg:grid-cols-2">
@@ -143,7 +156,10 @@ export default function DashboardTab(_props: { highlightNovelId?: string; onHigh
               />
               <div className="px-6 py-2">
                 {data.recentJobs.length === 0 ? (
-                  <AdminEmptyState message="暂无抓取任务" />
+                  <AdminEmptyState
+                    message="暂无抓取任务"
+                    hint="从「爬虫抓取」提交一个链接或搜索书名，任务进度与结果会汇总到这里。"
+                  />
                 ) : (
                   data.recentJobs.map((j) => (
                     <div className="flex items-center justify-between gap-3 border-b border-border py-3 last:border-0" key={j.id}>
@@ -166,7 +182,7 @@ export default function DashboardTab(_props: { highlightNovelId?: string; onHigh
               />
               <div className="px-6 py-2">
                 {data.recentNovels.length === 0 ? (
-                  <AdminEmptyState message="暂无小说" />
+                  <AdminEmptyState message="书库还是空的" hint="抓取或手动添加小说后，最近更新的作品会出现在这里。" />
                 ) : (
                   data.recentNovels.map((n) => (
                     <Link className="flex items-center justify-between gap-3 border-b border-border py-3 last:border-0" to={`/novel/${encodeURIComponent(n.id)}`} key={n.id}>

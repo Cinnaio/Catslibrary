@@ -119,6 +119,21 @@
   --admin-dialog-hint-color:           var(--text-muted);
   --admin-dialog-hint-line-height:     1.5;
 
+  /* Admin type scale — five named tiers, in one place.
+     后台此前把同一档字号（0.72/0.75/0.78/0.875rem）在各页面里逐条手写，
+     结果整张表的字阶挤在 11.2~14px 之间：表头、单元格、行标题、说明文字
+     几乎同号，长列表扫读时没有任何尺寸锚点，只能靠字形粗细去猜层级。
+
+     这里把「档」变成可用变量，新增/迁移规则只引用档位而不是再抄一个
+     小数。档位之间的比值刻意做大（行标题 14px vs 单元格 13px vs 表头
+     11.5px），用字号而非颜色承担层级——弱化文字色已经承担了「次要」语义，
+     字号再不动，两个维度就互相抵消了。 */
+  --admin-table-head-size:   0.72rem;  /* 表头、计数胶囊：最小档，靠字重撑住 */
+  --admin-table-cell-size:   0.8125rem; /* 表格正文单元格 13px */
+  --admin-table-title-size:  0.875rem;  /* 行主字段（书名/章节名）14px，加粗 */
+  --admin-section-title-size: 1.25rem; /* 面板内小节标题 20px */
+  --admin-stat-size:         1.45rem;   /* 指标数值 23.2px，与 0.72rem 标签形成断裂 */
+
   /* Admin surfaces — derived from the shared palette so they follow theme.
      Defined on :root (public pages never reference them). */
   --admin-surface: color-mix(in srgb, var(--bg-card) 88%, var(--accent-subtle));

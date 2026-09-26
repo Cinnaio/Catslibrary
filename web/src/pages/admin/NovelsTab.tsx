@@ -24,7 +24,7 @@ import { ArrowDown, ArrowUp, BookOpen, ChevronsUpDown, Pencil, Trash2 } from 'lu
 import AdminPage from '@/components/admin/AdminPage'
 import AdminRowActions from '@/components/admin/AdminRowActions'
 import AdminSelectionBar from '@/components/admin/AdminSelectionBar'
-import { AdminDataPanel, AdminPanelHeading, AdminSearch, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
+import { AdminDataPanel, AdminCellText, AdminPanelHeading, AdminSearch, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
 
 /**
  * 表格列定义：桌面端据此固定列宽（表头与内容对齐），移动端据此折成卡片并
@@ -630,9 +630,13 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
                     <Checkbox aria-label={`选择小说：${n.title}`} checked={selected.has(n.id)} onCheckedChange={() => toggleRow(n.id)} />
                   </TableCell>
                   <TableCell data-primary="" data-label="标题">
-                    <strong>{n.title}</strong>
+                    {/* 长书名（实测有 60+ 字）会被定长行高 + overflow:hidden
+                        静默裁掉；改为截断 + 省略号，完整值挂 title 与读屏。 */}
+                    <AdminCellText strong>{n.title || '—'}</AdminCellText>
                   </TableCell>
-                  <TableCell data-label="作者">{n.author}</TableCell>
+                  <TableCell data-label="作者">
+                    <AdminCellText>{n.author || '—'}</AdminCellText>
+                  </TableCell>
                   <TableCell data-label="分类">
                     {n.categories && n.categories.length > 0 ? (
                       // 全部标签都渲染，由 CSS 按视口截断显示数量（见
@@ -651,7 +655,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
                         )}
                       </span>
                     ) : (
-                      '—'
+                      <span className="admin-empty-value">—</span>
                     )}
                   </TableCell>
                   <TableCell data-label="状态">

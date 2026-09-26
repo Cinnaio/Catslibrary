@@ -3,7 +3,6 @@
  * 由 Novel-KV js/admin-chapters.js 平移。
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useToast, useConfirm } from '../../components/feedback'
 import CustomSelect from '../../components/admin/CustomSelect'
 import Pagination from '../../components/admin/Pagination'
@@ -23,7 +22,7 @@ import { Pencil, Trash2 } from 'lucide-react'
 import AdminPage from '@/components/admin/AdminPage'
 import AdminRowActions from '@/components/admin/AdminRowActions'
 import AdminSelectionBar from '@/components/admin/AdminSelectionBar'
-import { AdminDataPanel, AdminPanelHeading, AdminSearch, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
+import { AdminDataPanel, AdminCellText, AdminPanelHeading, AdminSearch, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
 
 const CHAPTER_COLUMNS: readonly AdminColumn[] = [
   { key: 'check', width: '8%' },
@@ -50,7 +49,6 @@ interface ChapterDraft {
 export default function ChaptersTab(_props: { highlightNovelId?: string; onHighlightConsumed?: () => void }) {
   const { toast } = useToast()
   const { confirm } = useConfirm()
-  const navigate = useNavigate()
 
   const [novelOptions, setNovelOptions] = useState<IndexNovel[]>([])
   const [selectedNovel, setSelectedNovel] = useState('')
@@ -164,9 +162,6 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
       latestCreatedAt,
     }
   }, [chapters])
-
-  const formattedWordCount =
-    chapterStats.totalWords >= 10000 ? `${(chapterStats.totalWords / 10000).toFixed(1)}万` : chapterStats.totalWords.toLocaleString('zh-CN')
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const currentPage = Math.min(page, totalPages)
@@ -614,11 +609,13 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
                           onCheckedChange={() => toggleSelect(c.id)}
                         />
                       </TableCell>
-                      <TableCell data-label="序号">{c.order || '—'}</TableCell>
+                      <TableCell data-label="序号">{c.order || <span className="admin-empty-value">—</span>}</TableCell>
                       <TableCell data-primary="" data-label="章节标题">
-                        <strong>{c.title}</strong>
+                        <AdminCellText strong>{c.title || '—'}</AdminCellText>
                       </TableCell>
-                      <TableCell data-label="字数">{c.wordCount || '—'}</TableCell>
+                      <TableCell data-label="字数">
+                        {c.wordCount ? c.wordCount.toLocaleString('zh-CN') : <span className="admin-empty-value">—</span>}
+                      </TableCell>
                       <TableCell data-label="创建时间" className="text-sm text-muted-foreground">
                         {timeAgo(c.createdAt)}
                       </TableCell>
