@@ -3,43 +3,45 @@ import ZhiZhouCore
 
 // MARK: - 内容分级后台
 
+fileprivate enum AdminContentRatingModule: String, CaseIterable, Identifiable {
+    case ratings = "分级"
+    case rules = "规则候选"
+    case ai = "LLM 建议"
+
+    var id: String { rawValue }
+}
+
 struct AdminContentRatingsView: View {
-    private enum Section: String, CaseIterable, Identifiable {
-        case ratings = "分级"
-        case rules = "规则候选"
-        case ai = "LLM 建议"
-
-        var id: String { rawValue }
-    }
-
-    @State private var section: Section = .ratings
+    @State private var section: AdminContentRatingModule = .ratings
 
     var body: some View {
-        VStack(spacing: 0) {
-            Picker("分级管理模块", selection: $section) {
-                ForEach(Section.allCases) { item in
-                    Text(item.rawValue).tag(item)
-                }
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal, AppLayout.pageInset)
-            .padding(.vertical, 10)
-
-            Divider()
-
-            Group {
-                switch section {
-                case .ratings:
-                    AdminContentRatingCatalogView()
-                case .rules:
-                    AdminContentRatingRuleCandidatesView()
-                case .ai:
-                    AdminContentRatingAISuggestionsView()
-                }
+        Group {
+            switch section {
+            case .ratings:
+                AdminContentRatingCatalogView(module: $section)
+            case .rules:
+                AdminContentRatingRuleCandidatesView(module: $section)
+            case .ai:
+                AdminContentRatingAISuggestionsView(module: $section)
             }
         }
         .navigationTitle("分级管理")
         .navigationBarTitleDisplayMode(.large)
+    }
+}
+
+fileprivate struct AdminContentRatingModulePicker: View {
+    @Binding var selection: AdminContentRatingModule
+
+    var body: some View {
+        Picker("分级管理模块", selection: $selection) {
+            ForEach(AdminContentRatingModule.allCases) { item in
+                Text(item.rawValue).tag(item)
+            }
+        }
+        .accessibleSegmentedPicker()
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
     }
 }
 
@@ -79,7 +81,7 @@ fileprivate func evidenceSummary(_ evidence: [AdminContentRatingEvidence]) -> St
     evidence.map { item in
         let key = item.field ?? item.type
         let value = item.value ?? item.rule ?? ""
-        return value.isEmpty ? key : "(key)=(value)"
+        return value.isEmpty ? key : "\(key)=\(value)"
     }.joined(separator: "；")
 }
 
@@ -147,7 +149,7 @@ fileprivate struct EvidenceList: View {
     private func evidenceLine(_ item: AdminContentRatingEvidence) -> String {
         let key = item.field ?? item.type
         let value = item.value ?? item.rule ?? ""
-        return value.isEmpty ? key : "(key)：(value)"
+        return value.isEmpty ? key : "\(key)：\(value)"
     }
 }
 
@@ -156,6 +158,7 @@ fileprivate struct EvidenceList: View {
 private struct AdminContentRatingCatalogView: View {
     private let pageSize = 20
 
+    @Binding private var module: AdminContentRatingModule
     @State private var requests = ListRequestGuard<AdminContentRatingQuery>()
     @State private var items: [AdminContentRatingItem] = []
     @State private var counts = AdminContentRatingCounts(general: 0, restricted: 0, unknown: 0)
@@ -170,6 +173,10 @@ private struct AdminContentRatingCatalogView: View {
     @State private var historyItem: AdminContentRatingItem?
     @State private var candidateItem: AdminContentRatingItem?
 
+    init(module: Binding<AdminContentRatingModule>) {
+        self._module = module
+    }
+
     private var query: AdminContentRatingQuery {
         AdminContentRatingQuery(rating: ratingFilter, source: sourceFilter, search: searchInput.trimmingCharacters(in: .whitespacesAndNewlines), page: page)
     }
@@ -180,6 +187,10 @@ private struct AdminContentRatingCatalogView: View {
 
     var body: some View {
         List {
+            Section {
+                AdminContentRatingModulePicker(selection: $module)
+            }
+
             if let errorMessage, !items.isEmpty {
                 LoadErrorNotice(message: errorMessage, isLoading: isLoading) {
                     Task { await load() }
@@ -187,14 +198,6 @@ private struct AdminContentRatingCatalogView: View {
             }
 
             Section {
-                TextField("搜索作品、作者或分级理由", text: $searchInput)
-                    .textInputAutocapitalization(.never)
-                    .submitLabel(.search)
-                    .onSubmit {
-                        page = 0
-                        Task { await load() }
-                    }
-
                 AdminFilterBar {
                     AdminFilterMenu("分级", value: ratingFilterTitle) {
                         Button("全部") { changeRatingFilter("") }
@@ -218,7 +221,7 @@ private struct AdminContentRatingCatalogView: View {
                     summaryChip("未标注", count: counts.unknown, tint: AppTheme.warning)
                 }
             } header: {
-                Text("全量分布 · 共 (total) 部")
+                Text("全量分布 · 共 \(total) 部")
             }
 
             if isLoading && items.isEmpty {
@@ -264,7 +267,12 @@ private struct AdminContentRatingCatalogView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .appListStyle(.settings)
+        .appListStyle(.browsing)
+        .searchable(text: $searchInput, prompt: "搜索作品、作者或分级理由")
+        .onSubmit(of: .search) {
+            page = 0
+            Task { await load() }
+        }
         .refreshable { await load() }
         .scrollDismissesKeyboard(.interactively)
         .task { await load() }
@@ -359,7 +367,7 @@ private struct AdminContentRatingCatalogView: View {
             .disabled(page == 0 || isLoading)
 
             Spacer()
-            Text("(page + 1) / (pageCount)")
+            Text("\(page + 1) / \(pageCount)")
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(AppTheme.textSecondary)
             Spacer()
@@ -735,6 +743,7 @@ private struct AdminContentRatingCandidateSheet: View {
 private struct AdminContentRatingRuleCandidatesView: View {
     private let pageSize = 20
 
+    @Binding private var module: AdminContentRatingModule
     @State private var requests = ListRequestGuard<AdminContentRatingRuleQuery>()
     @State private var items: [AdminContentRatingRuleCandidate] = []
     @State private var counts = AdminContentRatingRuleCandidateCounts(pending: 0, approved: 0, rejected: 0)
@@ -747,6 +756,10 @@ private struct AdminContentRatingRuleCandidatesView: View {
     @State private var isLoading = true
     @State private var errorMessage: String?
     @State private var previewCandidate: AdminContentRatingRuleCandidate?
+
+    init(module: Binding<AdminContentRatingModule>) {
+        self._module = module
+    }
 
     private var query: AdminContentRatingRuleQuery {
         AdminContentRatingRuleQuery(
@@ -763,6 +776,10 @@ private struct AdminContentRatingRuleCandidatesView: View {
 
     var body: some View {
         List {
+            Section {
+                AdminContentRatingModulePicker(selection: $module)
+            }
+
             if let errorMessage, !items.isEmpty {
                 LoadErrorNotice(message: errorMessage, isLoading: isLoading) {
                     Task { await load() }
@@ -770,14 +787,6 @@ private struct AdminContentRatingRuleCandidatesView: View {
             }
 
             Section {
-                TextField("搜索规则值、例证作品或理由", text: $searchInput)
-                    .textInputAutocapitalization(.never)
-                    .submitLabel(.search)
-                    .onSubmit {
-                        page = 0
-                        Task { await load() }
-                    }
-
                 AdminFilterBar {
                     AdminFilterMenu("状态", value: ruleStatusTitle) {
                         Button("全部") { changeStatus("") }
@@ -849,7 +858,12 @@ private struct AdminContentRatingRuleCandidatesView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .appListStyle(.settings)
+        .appListStyle(.browsing)
+        .searchable(text: $searchInput, prompt: "搜索规则值、例证作品或理由")
+        .onSubmit(of: .search) {
+            page = 0
+            Task { await load() }
+        }
         .refreshable { await load() }
         .scrollDismissesKeyboard(.interactively)
         .task { await load() }
@@ -934,7 +948,7 @@ private struct AdminContentRatingRuleCandidatesView: View {
             }
             .disabled(page == 0 || isLoading)
             Spacer()
-            Text("(page + 1) / (pageCount)")
+            Text("\(page + 1) / \(pageCount)")
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(AppTheme.textSecondary)
             Spacer()
@@ -1170,6 +1184,7 @@ private struct AdminContentRatingRuleCandidateReviewSheet: View {
 private struct AdminContentRatingAISuggestionsView: View {
     private let pageSize = 20
 
+    @Binding private var module: AdminContentRatingModule
     @Environment(\.scenePhase) private var scenePhase
     @State private var requests = ListRequestGuard<AdminContentRatingAIQuery>()
     @State private var items: [AdminContentRatingAISuggestion] = []
@@ -1190,6 +1205,10 @@ private struct AdminContentRatingAISuggestionsView: View {
     @State private var pollingToken = UUID()
     @State private var reviewingSuggestion: AdminContentRatingAISuggestion?
 
+    init(module: Binding<AdminContentRatingModule>) {
+        self._module = module
+    }
+
     private var query: AdminContentRatingAIQuery {
         AdminContentRatingAIQuery(
             status: statusFilter,
@@ -1204,6 +1223,10 @@ private struct AdminContentRatingAISuggestionsView: View {
 
     var body: some View {
         List {
+            Section {
+                AdminContentRatingModulePicker(selection: $module)
+            }
+
             if let errorMessage, !items.isEmpty {
                 LoadErrorNotice(message: errorMessage, isLoading: isLoading) {
                     Task { await loadSuggestions() }
@@ -1213,14 +1236,6 @@ private struct AdminContentRatingAISuggestionsView: View {
             analysisControlSection
 
             Section {
-                TextField("搜索作品或作者", text: $searchInput)
-                    .textInputAutocapitalization(.never)
-                    .submitLabel(.search)
-                    .onSubmit {
-                        page = 0
-                        Task { await loadSuggestions() }
-                    }
-
                 AdminFilterBar {
                     AdminFilterMenu("状态", value: aiStatusTitle) {
                         Button("全部") { changeStatus("") }
@@ -1270,7 +1285,12 @@ private struct AdminContentRatingAISuggestionsView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .appListStyle(.settings)
+        .appListStyle(.browsing)
+        .searchable(text: $searchInput, prompt: "搜索作品或作者")
+        .onSubmit(of: .search) {
+            page = 0
+            Task { await loadSuggestions() }
+        }
         .refreshable { await refreshAll() }
         .scrollDismissesKeyboard(.interactively)
         .task { await initialLoad() }
@@ -1597,7 +1617,7 @@ private struct AdminContentRatingAISuggestionsView: View {
             }
             .disabled(page == 0 || isLoading)
             Spacer()
-            Text("(page + 1) / (pageCount)")
+            Text("\(page + 1) / \(pageCount)")
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(AppTheme.textSecondary)
             Spacer()
