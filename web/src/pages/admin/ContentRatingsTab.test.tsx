@@ -352,14 +352,15 @@ describe('ContentRatingsTab', () => {
     expect(await screen.findByText('待审核 AI 作品')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: '审核建议' }))
     await user.click(screen.getByRole('button', { name: '进入批准确认' }))
-    await user.type(screen.getByLabelText('批准理由'), '人工复核 AI 提取证据后确认')
+    await user.click(screen.getByRole('button', { name: '复用 AI 建议理由' }))
+    expect(screen.getByLabelText('批准理由')).toHaveValue('元数据出现明确限制级分类')
     await user.click(screen.getByRole('button', { name: '确认批准建议' }))
 
     await waitFor(() => {
       expect(mocks.aiReview).toHaveBeenCalledWith('ratingai-1', {
         decision: 'approve',
         expectedRevision: 0,
-        reason: '人工复核 AI 提取证据后确认',
+        reason: '元数据出现明确限制级分类',
       })
     })
     expect(mocks.toast).toHaveBeenCalledWith('AI 建议已批准，作品已标为限制级；操作已写入审计记录', 'success')

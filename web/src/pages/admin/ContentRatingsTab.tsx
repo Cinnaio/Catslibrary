@@ -1498,7 +1498,21 @@ export default function ContentRatingsTab() {
 
               {aiReviewDecision && (
                 <div className="grid gap-2 rounded-md border border-border bg-background p-4">
-                  <Label htmlFor="content-rating-ai-review-reason">{aiReviewDecision === 'approve' ? '批准理由' : '拒绝理由'}</Label>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <Label htmlFor="content-rating-ai-review-reason">{aiReviewDecision === 'approve' ? '批准理由' : '拒绝理由'}</Label>
+                    {aiReviewDecision === 'approve' && aiReviewSuggestion.reason.trim() && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-auto px-2 py-1 text-xs"
+                        onClick={() => setAiReviewReason(aiReviewSuggestion.reason.trim().slice(0, 500))}
+                        disabled={aiReviewSaving}
+                      >
+                        复用 AI 建议理由
+                      </Button>
+                    )}
+                  </div>
                   <Textarea
                     id="content-rating-ai-review-reason"
                     value={aiReviewReason}
