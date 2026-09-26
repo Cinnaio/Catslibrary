@@ -108,7 +108,10 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
     <ConfirmContext.Provider value={{ confirm }}>
       {children}
       <AlertDialog
-        open={state?.visible}
+        // 必须给布尔而不是 undefined：首帧 state 为 null 时 open=undefined
+        // 会让 Radix 按「非受控」初始化，第二帧传入 true 再切成受控——
+        // React 会就此告警，且非受控初值在部分版本下会让关闭回调不可靠。
+        open={state?.visible === true}
         onOpenChange={(open) => {
           if (!open) close(false) // Esc / 遮罩点击（按钮路径已由 resolveRef 去重）
         }}
@@ -128,7 +131,16 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
             </div>
           )}
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => close(false)}>{state?.cancelText || '取消'}</AlertDialogCancel>
+            {/* 危险操作显式把初始焦点钉在「取消」。
+                Radix 的 AlertDialog 默认会把焦点给 Cancel，但这是实现细节、
+                不是契约；本条显式声明它，让「危险确认框的初始焦点绝不落在
+                执行键上」成为可读、可测的约定而不是顺带得到的行为。
+                这样即使日后替换弹窗原语或调整 Radix 版本，误触 Enter
+                （键盘场景下最廉价的按键，操作员刚点完行内删除、手还在原位）
+                也只会安全关闭确认框，而不是直接执行不可逆操作。 */}
+            <AlertDialogCancel autoFocus={danger} onClick={() => close(false)}>
+              {state?.cancelText || '取消'}
+            </AlertDialogCancel>
             <AlertDialogAction
               variant={danger ? 'destructive' : 'default'}
               onClick={() => close(true)}

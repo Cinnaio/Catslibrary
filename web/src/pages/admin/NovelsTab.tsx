@@ -360,6 +360,11 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
   function closeModal() {
     setModalOpen(false)
     setEditing(null)
+    // 必须复位提交态：用户可能在请求飞行中按 Esc / 点遮罩关掉弹窗，
+    // handleSave 的 finally 虽会复位，但若组件在此期间已卸载或该次提交
+    // 抛在 setState 之前，残留的 true 会让「下次打开」直接是禁用态的
+    // 「保存中…」——一个再也点不动的弹窗。
+    setSaving(false)
   }
 
   async function handleSave() {

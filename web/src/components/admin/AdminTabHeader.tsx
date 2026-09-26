@@ -1,20 +1,20 @@
 /**
- * AdminTabHeader — unified page header for every admin tab.
- * One anatomy: title + meta capsule + description on the left, actions right.
- * Built on shadcn/ui tokens. The legacy `kicker` eyebrow and `hero` variant
- * are retired (eyebrows above headings and per-tab title inflation are banned);
- * both props are still accepted for API compatibility and ignored.
+ * AdminTabHeader —— 所有后台 tab 共用的页头。
+ * 一套解剖：标题 + 元信息胶囊 + 描述在左，操作区在右。
+ *
+ * 曾接受 kicker（眉标）与 variant（'hero' | 'section'）两个 prop：
+ * 两个值渲染出的 DOM 完全相同，即「英雄页头」与普通页头视觉上无从区分——
+ * 一个不改变任何渲染结果的 prop 比没有更糟，它让调用方以为自己在做选择。
+ * 实际也无人传入（全库 grep 为空），故整体移除。
  */
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
 interface AdminTabHeaderProps {
-  kicker?: string
   title: string
   description?: string
   meta?: ReactNode
   actions?: ReactNode
-  variant?: 'hero' | 'section'
   className?: string
 }
 

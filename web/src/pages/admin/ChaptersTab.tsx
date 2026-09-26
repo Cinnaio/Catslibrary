@@ -196,6 +196,18 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
     })
   }
 
+  /**
+   * 关闭章节编辑弹窗。
+   * 三处调用点（保存成功、Esc/遮罩关闭、取消按钮）此前各写一遍 setModal，
+   * 且都没有复位 chapterSaving——用户若在请求飞行中关掉弹窗，残留的
+   * 提交态会让下次打开直接是禁用的「保存中…」。收成一个入口后，
+   * 复位只可能漏一次。
+   */
+  function closeChapterModal() {
+    setModal({ open: false, chapter: null, loading: false })
+    setChapterSaving(false)
+  }
+
   async function openChapterModal(chapter: ChapterMeta | null) {
     setModal({ open: true, chapter, loading: false })
     if (chapter) {
@@ -234,7 +246,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
         await chaptersApi.create({ novelId: selectedNovel, title: draft.title.trim(), content: draft.content, order: draft.order })
         toast('章节已创建', 'success')
       }
-      setModal({ open: false, chapter: null, loading: false })
+      closeChapterModal()
       void loadChapters(selectedNovel)
     } catch (err) {
       toast((err as Error).message || '保存失败', 'error')
@@ -671,7 +683,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
       <Dialog
         open={modal.open}
         onOpenChange={(open) => {
-          if (!open) setModal({ open: false, chapter: null, loading: false })
+          if (!open) closeChapterModal()
         }}
       >
         <DialogContent className="admin-dialog chapter-editor-dialog sm:max-w-[620px]">
@@ -717,7 +729,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
             </section>
           </div>
           <DialogFooter>
-            <Button variant="secondary" onClick={() => setModal({ open: false, chapter: null, loading: false })} disabled={chapterSaving}>
+            <Button variant="secondary" onClick={closeChapterModal} disabled={chapterSaving}>
               取消
             </Button>
             <Button disabled={modal.loading || chapterSaving} onClick={() => void saveChapter()}>

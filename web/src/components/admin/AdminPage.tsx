@@ -11,12 +11,10 @@ import { cn } from '@/lib/utils'
 import AdminTabHeader from './AdminTabHeader'
 
 interface AdminPageProps {
-  kicker?: string
   title?: string // 可选：scrape 视图切换器无标题头
   description?: string
   meta?: ReactNode
   actions?: ReactNode
-  variant?: 'hero' | 'section'
   className?: string // 附加到 .tab-content，如 SettingsTab 的 account-admin
   children: ReactNode
 }
