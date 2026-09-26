@@ -817,6 +817,17 @@ export interface AdminContentRatingAiListResponse {
   counts: Record<AdminContentRatingAiSuggestionStatus, number>
 }
 
+/** 分级任务的批次进度快照：含剩余缺口与能否断点恢复。 */
+export interface AdminContentRatingAiTaskProgress {
+  task: AiTaskInfo
+  total: number
+  done: number
+  remaining: number
+  canResume: boolean
+  resumable: boolean
+  promptVersion: string
+}
+
 export const adminApi = {
   site: {
     overview(): Promise<{
@@ -977,6 +988,22 @@ export const adminApi = {
       operationId: string
     }> {
       return request('POST', `/admin/content-rating-ai/${encodeURIComponent(suggestionId)}/review`, data, true)
+    },
+    /** 批次进度：已处理 / 剩余缺口，以及中断后能否断点恢复。 */
+    progress(taskId: string): Promise<AdminContentRatingAiTaskProgress> {
+      return request('GET', `/admin/content-rating-ai/tasks/${encodeURIComponent(taskId)}/progress`, null, true)
+    },
+    /** 断点恢复：跳过已有结果的作品，只补未分析/失败的部分。 */
+    resume(taskId: string): Promise<{
+      ok: boolean
+      taskId: string
+      selected: number
+      total: number
+      skipped: number
+      message?: string
+      task?: AiTaskInfo
+    }> {
+      return request('POST', `/admin/content-rating-ai/tasks/${encodeURIComponent(taskId)}/resume`, {}, true)
     },
   },
   stats(): Promise<Record<string, unknown>> {

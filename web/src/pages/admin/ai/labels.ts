@@ -21,6 +21,7 @@ const KIND_LABELS: Record<string, string> = {
   rewrite_selection: '选段改写',
   cover: '封面',
   cover_prompt: '封面描述词',
+  content_rating_review: 'LLM 分级建议',
 }
 
 /**

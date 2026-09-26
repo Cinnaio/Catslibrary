@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Bot, CheckCircle2, Eye, History, Pencil, PlusCircle, RefreshCw, ShieldCheck, Sparkles, XCircle } from 'lucide-react'
+import { Bot, CheckCircle2, Eye, History, Pencil, Play, PlusCircle, RefreshCw, ShieldCheck, Sparkles, Square, XCircle } from 'lucide-react'
 import {
   adminApi,
   aiApi,
@@ -8,6 +8,7 @@ import {
   type AdminContentRatingItem,
   type AdminContentRatingAiListResponse,
   type AdminContentRatingAiSuggestion,
+  type AdminContentRatingAiTaskProgress,
   type AdminContentRatingRuleCandidateKind,
   type AdminContentRatingRuleCandidateListResponse,
   type AdminContentRatingRuleCandidate,
@@ -239,14 +240,123 @@ function RuleCandidatePanel({
   )
 }
 
+/**
+ * 分级任务的进度控制条：进度可视化 + 中止 + 断点恢复。
+ *
+ * 进度不直接用 task.current/total：那只是本次执行器的游标，进程重启或断点恢复后
+ * 会归零。真正的口径是服务端 /progress 算出的「批次已处理 / 剩余缺口」，
+ * 所以这里始终以 progress 数据为准，task 只用来判断活动状态。
+ */
+function AiTaskProgressBar({
+  task,
+  progress,
+  onCancel,
+  onResume,
+  cancelling,
+  resuming,
+}: {
+  task: AiTaskInfo | null
+  progress: AdminContentRatingAiTaskProgress | null
+  onCancel: () => void
+  onResume: () => void
+  cancelling: boolean
+  resuming: boolean
+}) {
+  if (!task) return null
+
+  const total = progress?.total ?? Math.max(1, Number(task.total) || 1)
+  const done = progress ? progress.done : Number(task.current) || 0
+  const remaining = progress ? progress.remaining : Math.max(0, total - done)
+  const percent = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0
+  const active = task.status === 'queued' || task.status === 'running'
+  const failed = task.status === 'failed'
+  const cancelled = task.status === 'cancelled'
+
+  return (
+    <div className="border-b border-border px-5 py-4" aria-label="LLM 分级任务进度">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-1 flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge
+              className={
+                ['queued', 'running'].includes(task.status)
+                  ? 'bg-info/10 text-info'
+                  : task.status === 'failed'
+                    ? 'bg-destructive/10 text-destructive'
+                    : task.status === 'cancelled'
+                      ? 'bg-muted text-muted-foreground'
+                      : 'bg-success/10 text-success'
+              }
+            >
+              {task.status === 'queued'
+                ? '排队中'
+                : task.status === 'running'
+                  ? '分析中'
+                  : task.status === 'completed'
+                    ? '已完成'
+                    : task.status === 'cancelled'
+                      ? '已中止'
+                      : '已中断'}
+            </Badge>
+            <span className="text-xs tabular-nums text-muted-foreground">
+              已处理 {formatNumber(done)} / {formatNumber(total)} 本{remaining > 0 ? ` · 剩余 ${formatNumber(remaining)} 本` : ' · 无缺口'}
+            </span>
+            {task.step && (
+              <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground" title={task.step}>
+                {task.step}
+              </span>
+            )}
+          </div>
+
+          {/* 进度条：未完成的缺口用 muted 底，已处理部分用 primary 填充 */}
+          <div
+            className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
+            role="progressbar"
+            aria-valuenow={percent}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label={`LLM 分级任务已完成 ${percent}%`}
+          >
+            <div className={`h-full rounded-full transition-[width] ${failed || cancelled ? 'bg-warning' : 'bg-primary'}`} style={{ width: `${percent}%` }} />
+          </div>
+
+          {task.error && <p className="text-xs text-destructive">{task.error}</p>}
+          {cancelled && <p className="text-xs text-muted-foreground">任务已中止，已完成的建议保留在下方待审核列表；可断点恢复只补剩余作品。</p>}
+          {failed && <p className="text-xs text-muted-foreground">任务中断，已完成的建议已保留；可断点恢复只补未分析的部分。</p>}
+        </div>
+
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {active && (
+            <Button type="button" variant="outline" size="sm" onClick={onCancel} disabled={cancelling}>
+              <Square className="size-3.5" aria-hidden="true" />
+              {cancelling ? '中止中…' : '中止任务'}
+            </Button>
+          )}
+          {!active && (progress?.canResume ?? false) && (
+            <Button type="button" size="sm" onClick={onResume} disabled={resuming}>
+              <Play className="size-3.5" aria-hidden="true" />
+              {resuming ? '恢复中…' : `断点恢复（${formatNumber(remaining)} 本）`}
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function AiSuggestionPanel({
   data,
   loading,
   error,
   scanning,
   task,
+  progress,
+  cancelling,
+  resuming,
   onRetry,
   onScan,
+  onCancel,
+  onResume,
   onReview,
 }: {
   data: AdminContentRatingAiListResponse | null
@@ -254,10 +364,16 @@ function AiSuggestionPanel({
   error: string
   scanning: boolean
   task: AiTaskInfo | null
+  progress: AdminContentRatingAiTaskProgress | null
+  cancelling: boolean
+  resuming: boolean
   onRetry: () => void
   onScan: () => void
+  onCancel: () => void
+  onResume: () => void
   onReview: (suggestion: AdminContentRatingAiSuggestion) => void
 }) {
+  const active = !!task && ['queued', 'running'].includes(task.status)
   return (
     <AdminDataPanel ariaLabel="LLM 内容分级建议">
       <AdminPanelHeading
@@ -267,20 +383,16 @@ function AiSuggestionPanel({
             LLM 分级建议
           </span>
         }
-        description="LLM 只分析未标注作品并生成待审核建议，输出限定为限制级或继续未标注；不会直接修改作品，也不会推断一般。"
-        status={
-          <span className="text-xs text-muted-foreground">
-            待审核 {data ? formatNumber(data.counts.pending) : '—'} 条
-            {task && task.status !== 'completed' && task.status !== 'failed' && task.status !== 'cancelled' ? ` · ${task.step || '分析中'}` : ''}
-          </span>
-        }
+        description="LLM 只分析未标注作品并生成待审核建议，输出限定为限制级或继续未标注；不会直接修改作品，也不会推断一般。任务可随时中止并断点恢复。"
+        status={<span className="text-xs text-muted-foreground">待审核 {data ? formatNumber(data.counts.pending) : '—'} 条</span>}
         actions={
-          <Button type="button" size="sm" variant="secondary" onClick={onScan} disabled={scanning || (!!task && ['queued', 'running'].includes(task.status))}>
+          <Button type="button" size="sm" variant="secondary" onClick={onScan} disabled={scanning || active}>
             <Bot className={scanning ? 'size-3.5 animate-pulse' : 'size-3.5'} aria-hidden="true" />
             {scanning ? '创建任务…' : '分析 unknown'}
           </Button>
         }
       />
+      <AiTaskProgressBar task={task} progress={progress} onCancel={onCancel} onResume={onResume} cancelling={cancelling} resuming={resuming} />
       {error ? (
         <InlineError message={`LLM 建议加载失败：${error}`} onRetry={onRetry} className="mx-5 my-4" />
       ) : loading ? (
@@ -370,6 +482,9 @@ export default function ContentRatingsTab() {
   const [aiError, setAiError] = useState('')
   const [aiScanning, setAiScanning] = useState(false)
   const [aiTask, setAiTask] = useState<AiTaskInfo | null>(null)
+  const [aiProgress, setAiProgress] = useState<AdminContentRatingAiTaskProgress | null>(null)
+  const [aiCancelling, setAiCancelling] = useState(false)
+  const [aiResuming, setAiResuming] = useState(false)
   const [aiReviewSuggestion, setAiReviewSuggestion] = useState<AdminContentRatingAiSuggestion | null>(null)
   const [aiReviewDecision, setAiReviewDecision] = useState<'approve' | 'reject' | null>(null)
   const [aiReviewReason, setAiReviewReason] = useState('')
@@ -464,6 +579,19 @@ export default function ContentRatingsTab() {
     void loadAiSuggestions()
   }, [loadAiSuggestions])
 
+  /** 拉取批次进度：批次口径（已处理/剩余缺口）以服务端为准，避免恢复后游标归零造成误读。 */
+  const loadAiProgress = useCallback(async (taskId: string) => {
+    try {
+      const result = await adminApi.contentRatingAi.progress(taskId)
+      setAiTask(result.task)
+      setAiProgress(result)
+      return result
+    } catch {
+      // 优先级低于建议列表：进度读取失败不应打断审核流程，界面回退到任务自身字段。
+      return null
+    }
+  }, [])
+
   useEffect(() => {
     const taskId = aiTask?.id
     const taskStatus = aiTask?.status
@@ -471,10 +599,11 @@ export default function ContentRatingsTab() {
     let active = true
     const poll = async () => {
       try {
-        const response = await aiApi.task(taskId)
+        const result = await adminApi.contentRatingAi.progress(taskId)
         if (!active) return
-        setAiTask(response.task)
-        if (['completed', 'failed', 'cancelled'].includes(response.task.status)) {
+        setAiTask(result.task)
+        setAiProgress(result)
+        if (['completed', 'failed', 'cancelled'].includes(result.task.status)) {
           await Promise.all([loadAiSuggestions(), load(true)])
         }
       } catch (error) {
@@ -649,16 +778,60 @@ export default function ContentRatingsTab() {
     try {
       const result = await adminApi.contentRatingAi.scan({ limit: 20 })
       if (!result.taskId) {
-        toast(result.message || '当前没有可分析的 unknown 作品', 'info')
+        toast(result.message || '当前没有可分析的 unknown 作品', 'default')
       } else {
         setAiTask(result.task || null)
+        setAiProgress(null)
         toast(`已提交 LLM 分析任务，将生成 ${formatNumber(result.selected)} 条待审核建议`, 'success')
+        // 立即拉一次批次进度，让进度条在首个轮询周期前就有正确总数
+        await loadAiProgress(result.taskId)
       }
       await loadAiSuggestions()
     } catch (error) {
       setAiError(errorMessage(error, 'LLM 分析任务创建失败，请检查文本 AI 配置'))
     } finally {
       setAiScanning(false)
+    }
+  }
+
+  /** 中止：任务停下后已有建议全部保留；缺口留给断点恢复。 */
+  async function cancelAiTask() {
+    const taskId = aiTask?.id
+    if (!taskId) return
+    setAiCancelling(true)
+    setAiError('')
+    try {
+      await aiApi.cancelTask(taskId)
+      toast('已中止分析任务，已生成的建议保留在下方列表', 'success')
+      await Promise.all([loadAiProgress(taskId), loadAiSuggestions()])
+    } catch (error) {
+      setAiError(errorMessage(error, '中止任务失败'))
+    } finally {
+      setAiCancelling(false)
+    }
+  }
+
+  /** 断点恢复：跳过已有终态建议的作品，只补未分析与失败的部分。 */
+  async function resumeAiTask() {
+    const taskId = aiTask?.id
+    if (!taskId) return
+    setAiResuming(true)
+    setAiError('')
+    try {
+      const result = await adminApi.contentRatingAi.resume(taskId)
+      if (!result.taskId) {
+        toast(result.message || '没有需要补跑的作品，批次已完成', 'default')
+        await loadAiProgress(taskId)
+      } else {
+        setAiTask(result.task || null)
+        toast(`已断点恢复：跳过 ${formatNumber(result.skipped)} 本，补跑 ${formatNumber(result.selected)} 本`, 'success')
+        await loadAiProgress(result.taskId)
+      }
+      await loadAiSuggestions()
+    } catch (error) {
+      setAiError(errorMessage(error, '断点恢复失败'))
+    } finally {
+      setAiResuming(false)
     }
   }
 
@@ -926,8 +1099,13 @@ export default function ContentRatingsTab() {
           error={aiError}
           scanning={aiScanning}
           task={aiTask}
+          progress={aiProgress}
+          cancelling={aiCancelling}
+          resuming={aiResuming}
           onRetry={() => void loadAiSuggestions()}
           onScan={() => void scanAiSuggestions()}
+          onCancel={() => void cancelAiTask()}
+          onResume={() => void resumeAiTask()}
           onReview={openAiReview}
         />
       </div>
@@ -1270,7 +1448,7 @@ export default function ContentRatingsTab() {
           <DialogFooter>
             {!aiReviewDecision ? (
               <>
-                <Button type="button" variant="outline" onClick={closeAiReview} disabled={aiReviewSaving}>
+                <Button type="button" variant="outline" onClick={() => closeAiReview()} disabled={aiReviewSaving}>
                   取消
                 </Button>
                 <Button type="button" variant="outline" onClick={() => setAiReviewDecision('reject')} disabled={aiReviewSaving}>

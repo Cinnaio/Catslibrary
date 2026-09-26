@@ -15,6 +15,9 @@ const mocks = vi.hoisted(() => ({
   aiScan: vi.fn(),
   aiReview: vi.fn(),
   aiTask: vi.fn(),
+  aiProgress: vi.fn(),
+  aiResume: vi.fn(),
+  cancelTask: vi.fn(),
   toast: vi.fn(),
 }))
 
@@ -35,10 +38,13 @@ vi.mock('@/lib/api', () => ({
       list: mocks.aiList,
       scan: mocks.aiScan,
       review: mocks.aiReview,
+      progress: mocks.aiProgress,
+      resume: mocks.aiResume,
     },
-    aiApi: {
-      task: mocks.aiTask,
-    },
+  },
+  aiApi: {
+    task: mocks.aiTask,
+    cancelTask: mocks.cancelTask,
   },
 }))
 
@@ -347,5 +353,114 @@ describe('ContentRatingsTab', () => {
       })
     })
     expect(mocks.toast).toHaveBeenCalledWith('AI 建议已批准，作品已标为限制级；操作已写入审计记录', 'success')
+  })
+
+  it('分析任务显示批次进度，并可随时中止', async () => {
+    const user = userEvent.setup()
+    mocks.aiList.mockResolvedValue({ items: [], total: 0, counts: { pending: 0, approved: 0, rejected: 0, stale: 0, failed: 0 } })
+    mocks.aiScan.mockResolvedValue({
+      ok: true,
+      taskId: 'aitask-run',
+      selected: 40,
+      total: 40,
+      task: { id: 'aitask-run', status: 'running', current: 0, total: 40, step: '准备作品元数据' },
+    })
+    mocks.aiProgress.mockResolvedValue({
+      task: { id: 'aitask-run', status: 'running', current: 12, total: 40, step: '已分析 12 / 40 本 · 成功 12' },
+      total: 40,
+      done: 12,
+      remaining: 28,
+      canResume: false,
+      resumable: true,
+      promptVersion: 'content-rating-ai-v1',
+    })
+    mocks.cancelTask.mockResolvedValue({ ok: true })
+    render(<ContentRatingsTab />)
+
+    await user.click(screen.getByRole('button', { name: '分析 unknown' }))
+
+    // 进度用批次口径（已处理/剩余缺口），不是执行器游标
+    expect(await screen.findByText(/已处理 12 \/ 40 本/)).toBeInTheDocument()
+    expect(screen.getByText(/剩余 28 本/)).toBeInTheDocument()
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '30')
+
+    await user.click(screen.getByRole('button', { name: /中止任务/ }))
+    await waitFor(() => expect(mocks.cancelTask).toHaveBeenCalledWith('aitask-run'))
+    expect(mocks.toast).toHaveBeenCalledWith('已中止分析任务，已生成的建议保留在下方列表', 'success')
+  })
+
+  it('中断后只在仍有缺口时提供断点恢复，并按跳过/补跑数量提示', async () => {
+    const user = userEvent.setup()
+    mocks.aiList.mockResolvedValue({ items: [], total: 0, counts: { pending: 0, approved: 0, rejected: 0, stale: 0, failed: 0 } })
+    mocks.aiScan.mockResolvedValue({
+      ok: true,
+      taskId: 'aitask-failed',
+      selected: 40,
+      total: 40,
+      task: { id: 'aitask-failed', status: 'running', current: 3, total: 40, step: '准备作品元数据' },
+    })
+    // 首次进度读取时任务已中断且有 28 本缺口 → 允许恢复
+    mocks.aiProgress.mockResolvedValueOnce({
+      task: { id: 'aitask-failed', status: 'failed', current: 12, total: 40, step: '已分析 12 / 40 本', error: '上游超时' },
+      total: 40,
+      done: 12,
+      remaining: 28,
+      canResume: true,
+      resumable: true,
+      promptVersion: 'content-rating-ai-v1',
+    })
+    mocks.aiProgress.mockResolvedValue({
+      task: { id: 'aitask-failed', status: 'failed', current: 12, total: 40, step: '已分析 12 / 40 本', error: '上游超时' },
+      total: 40,
+      done: 12,
+      remaining: 28,
+      canResume: true,
+      resumable: true,
+      promptVersion: 'content-rating-ai-v1',
+    })
+    mocks.aiResume.mockResolvedValue({
+      ok: true,
+      taskId: 'aitask-resumed',
+      selected: 28,
+      total: 40,
+      skipped: 12,
+      task: { id: 'aitask-resumed', status: 'queued', current: 0, total: 28, step: '' },
+    })
+    render(<ContentRatingsTab />)
+
+    await user.click(screen.getByRole('button', { name: '分析 unknown' }))
+
+    const resumeButton = await screen.findByRole('button', { name: /断点恢复（28 本）/ })
+    await user.click(resumeButton)
+
+    await waitFor(() => expect(mocks.aiResume).toHaveBeenCalledWith('aitask-failed'))
+    expect(mocks.toast).toHaveBeenCalledWith('已断点恢复：跳过 12 本，补跑 28 本', 'success')
+  })
+
+  it('批次已无缺口时不再渲染断点恢复入口', async () => {
+    const user = userEvent.setup()
+    mocks.aiList.mockResolvedValue({ items: [], total: 0, counts: { pending: 0, approved: 0, rejected: 0, stale: 0, failed: 0 } })
+    mocks.aiScan.mockResolvedValue({
+      ok: true,
+      taskId: 'aitask-done',
+      selected: 5,
+      total: 5,
+      task: { id: 'aitask-done', status: 'running', current: 0, total: 5, step: '准备作品元数据' },
+    })
+    mocks.aiProgress.mockResolvedValue({
+      task: { id: 'aitask-done', status: 'cancelled', current: 5, total: 5, step: '已取消' },
+      total: 5,
+      done: 5,
+      remaining: 0,
+      canResume: false,
+      resumable: false,
+      promptVersion: 'content-rating-ai-v1',
+    })
+    render(<ContentRatingsTab />)
+
+    await user.click(screen.getByRole('button', { name: '分析 unknown' }))
+
+    expect(await screen.findByText(/剩余 0 本|无缺口/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /断点恢复/ })).not.toBeInTheDocument()
   })
 })

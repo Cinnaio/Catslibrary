@@ -213,4 +213,81 @@ describe('LLM 内容分级建议审核闭环', () => {
     expect(staleReview.status).toBe(409)
     expect((await jsonOf<{ code: string }>(staleReview)).code).toBe('content_rating_ai_stale')
   })
+
+  it('进度接口按批次口径统计缺口，无缺口时不允许断点恢复', async () => {
+    const created = await req('/api/novels', json('POST', { title: '进度口径作品', author: '测试作者' }, adminToken))
+    const novelId = (await jsonOf<{ novel: { id: string } }>(created)).novel.id
+    const scan = await req('/api/admin/content-rating-ai/scan', json('POST', { novelIds: [novelId] }, adminToken))
+    expect(scan.status).toBe(202)
+    const taskId = (await jsonOf<{ taskId: string }>(scan)).taskId
+
+    await waitForSuggestion(novelId)
+
+    const progress = await req(`/api/admin/content-rating-ai/tasks/${taskId}/progress`, json('GET', undefined, adminToken))
+    expect(progress.status).toBe(200)
+    const body = await jsonOf<{ total: number; done: number; remaining: number; canResume: boolean; resumable: boolean }>(progress)
+    expect(body).toMatchObject({ total: 1, done: 1, remaining: 0, canResume: false, resumable: false })
+  })
+
+  it('断点恢复跳过已有建议的作品，只补缺口并保留原任务记录', async () => {
+    const doneNovel = await req('/api/novels', json('POST', { title: '已完成作品', author: '测试作者' }, adminToken))
+    const doneId = (await jsonOf<{ novel: { id: string } }>(doneNovel)).novel.id
+    const gapNovel = await req('/api/novels', json('POST', { title: '待补跑作品', author: '测试作者' }, adminToken))
+    const gapId = (await jsonOf<{ novel: { id: string } }>(gapNovel)).novel.id
+
+    const scan = await req('/api/admin/content-rating-ai/scan', json('POST', { novelIds: [doneId, gapId], limit: 10 }, adminToken))
+    expect(scan.status).toBe(202)
+    const taskId = (await jsonOf<{ taskId: string }>(scan)).taskId
+    await waitForSuggestion(doneId)
+    await waitForSuggestion(gapId)
+
+    // 制造缺口：把其中一本的建议改为 failed，使其重新成为待补跑目标
+    await t.db.query(`UPDATE content_rating_ai_suggestions SET status = 'failed' WHERE novel_id = $1`, [gapId])
+
+    const progress = await req(`/api/admin/content-rating-ai/tasks/${taskId}/progress`, json('GET', undefined, adminToken))
+    expect(await jsonOf<{ done: number; remaining: number; canResume: boolean }>(progress)).toMatchObject({
+      done: 1,
+      remaining: 1,
+      // 原任务已 completed，仍有缺口时恢复才可用
+      canResume: true,
+    })
+
+    const resumed = await req(`/api/admin/content-rating-ai/tasks/${taskId}/resume`, json('POST', {}, adminToken))
+    expect(resumed.status).toBe(202)
+    const resumedBody = await jsonOf<{ taskId: string; selected: number; skipped: number; total: number }>(resumed)
+    // total/selected 都是本次补跑的规模，skipped 是本批次里被跳过的已完成作品数
+    expect(resumedBody).toMatchObject({ selected: 1, skipped: 1, total: 1 })
+    expect(resumedBody.taskId).not.toBe(taskId)
+
+    // 原任务记录保留，新任务通过 params.resumedFrom 指向它
+    const source = await t.db.query<{ status: string }>('SELECT status FROM ai_tasks WHERE id = $1', [taskId])
+    expect(source.rows[0]?.status).toBe('completed')
+    const child = await t.db.query<{ params: string }>('SELECT params FROM ai_tasks WHERE id = $1', [resumedBody.taskId])
+    expect(child.rows[0]?.params).toContain(taskId)
+
+    // 补跑只针对缺口作品，已完成的那本不会被重复送模型
+    await waitForSuggestion(gapId, 'pending')
+  })
+
+  it('中止任务后不再产生新的模型调用，已完成建议保留', async () => {
+    const first = await req('/api/novels', json('POST', { title: '中止首本', author: '测试作者' }, adminToken))
+    const firstId = (await jsonOf<{ novel: { id: string } }>(first)).novel.id
+    const second = await req('/api/novels', json('POST', { title: '中止次本', author: '测试作者' }, adminToken))
+    const secondId = (await jsonOf<{ novel: { id: string } }>(second)).novel.id
+
+    const scan = await req('/api/admin/content-rating-ai/scan', json('POST', { novelIds: [firstId, secondId], limit: 10 }, adminToken))
+    expect(scan.status).toBe(202)
+    const taskId = (await jsonOf<{ taskId: string }>(scan)).taskId
+
+    // 立刻取消：执行器在下一次循环的取消检查点看到 cancelled 后必须停止
+    await t.db.query(`UPDATE ai_tasks SET status = 'cancelled', updated_at = $1, finished_at = $1 WHERE id = $2`, [Date.now(), taskId])
+
+    const task = await t.db.query<{ status: string }>('SELECT status FROM ai_tasks WHERE id = $1', [taskId])
+    expect(task.rows[0]?.status).toBe('cancelled')
+
+    // 取消后等待一小段时间，执行器不得把任务状态改回 completed
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    const after = await t.db.query<{ status: string }>('SELECT status FROM ai_tasks WHERE id = $1', [taskId])
+    expect(after.rows[0]?.status).toBe('cancelled')
+  })
 })
