@@ -1744,12 +1744,25 @@ private struct AdminContentRatingAISuggestionReviewSheet: View {
                 }
 
                 if let decision {
-                    Section("审核理由") {
+                    Section {
                         TextField(decision == "approve" ? "批准理由（必填）" : "拒绝理由（必填）", text: $reason, axis: .vertical)
                             .lineLimit(3...7)
                         Text(decision == "approve" && suggestion.suggestedRating == .restricted ? "提交时服务端会再次锁定作品并校验修订号，确认建议仍基于当前内容。" : "本次决定会写入建议审核记录。")
                             .font(.caption)
                             .foregroundStyle(AppTheme.textSecondary)
+                    } header: {
+                        HStack {
+                            Text("审核理由")
+                            Spacer(minLength: 12)
+                            if decision == "approve", !suggestion.reason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                Button("复用 AI 建议理由", systemImage: "arrow.down.doc") {
+                                    reason = String(suggestion.reason.trimmingCharacters(in: .whitespacesAndNewlines).prefix(500))
+                                }
+                                .font(.caption)
+                                .textCase(nil)
+                                .disabled(isSaving)
+                            }
+                        }
                     }
                 }
 
