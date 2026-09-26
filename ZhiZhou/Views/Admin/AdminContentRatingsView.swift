@@ -657,7 +657,7 @@ private struct AdminContentRatingCandidateSheet: View {
                         .foregroundStyle(AppTheme.textSecondary)
                 }
 
-                Section("候选内容") {
+                Section {
                     Picker("候选类型", selection: $kind) {
                         ForEach(AdminContentRatingRuleKind.allCases) { value in
                             Text(value.title).tag(value)
@@ -667,6 +667,8 @@ private struct AdminContentRatingCandidateSheet: View {
                         .lineLimit(2...4)
                     TextField("候选理由（必填）", text: $reason, axis: .vertical)
                         .lineLimit(3...7)
+                } header: {
+                    Text("候选内容")
                 } footer: {
                     Text(kind == .category ? "分类候选按完整标签匹配，不做模糊子串匹配。" : "文本候选以字面短语保存，批准前可以预览可能命中的未标注作品。")
                 }
