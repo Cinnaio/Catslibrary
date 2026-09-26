@@ -828,6 +828,17 @@ export interface AdminContentRatingAiTaskProgress {
   promptVersion: string
 }
 
+/** 当前批次快照；从未跑过分级任务时 task 为 null。 */
+export interface AdminContentRatingAiLatestBatch {
+  task: AiTaskInfo | null
+  total: number
+  done: number
+  remaining: number
+  canResume: boolean
+  resumable: boolean
+  promptVersion: string
+}
+
 export const adminApi = {
   site: {
     overview(): Promise<{
@@ -992,6 +1003,10 @@ export const adminApi = {
     /** 批次进度：已处理 / 剩余缺口，以及中断后能否断点恢复。 */
     progress(taskId: string): Promise<AdminContentRatingAiTaskProgress> {
       return request('GET', `/admin/content-rating-ai/tasks/${encodeURIComponent(taskId)}/progress`, null, true)
+    },
+    /** 当前批次：刷新页面后据此恢复进度条与控制入口。 */
+    latest(): Promise<AdminContentRatingAiLatestBatch> {
+      return request('GET', '/admin/content-rating-ai/latest', null, true)
     },
     /** 断点恢复：跳过已有结果的作品，只补未分析/失败的部分。 */
     resume(taskId: string): Promise<{

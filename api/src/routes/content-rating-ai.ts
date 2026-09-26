@@ -4,7 +4,7 @@ import { withTx } from '../db/query'
 import { requireAdmin, type AuthEnv } from '../middlewares/auth'
 import { clampInt } from '../services/text'
 import { isTextAiConfigured } from '../services/ai/client'
-import { getAiTask } from '../services/ai/tasks'
+import { getAiTask, getLatestAiTaskByKind } from '../services/ai/tasks'
 import {
   listContentRatingAiSuggestions,
   parseContentRatingAiTaskParams,
@@ -15,6 +15,7 @@ import {
   ContentRatingAiConflictError,
   ContentRatingAiNotFoundError,
   ContentRatingAiValidationError,
+  CONTENT_RATING_AI_TASK_KIND,
 } from '../services/content-rating-ai'
 
 export const contentRatingAiRoutes = new Hono<AuthEnv>()
@@ -58,6 +59,39 @@ contentRatingAiRoutes.post('/scan', async (c) => {
     if (error instanceof ContentRatingAiValidationError) return c.json({ error: error.message, code: error.code }, 422)
     throw error
   }
+})
+
+/**
+ * 当前批次：返回该类型最近一条任务及其进度快照。
+ *
+ * 前端挂载时用它对齐服务端状态。没有这个入口，刷新页面就等于丢掉任务 id，
+ * 进度条、中止、断点恢复全部失效——任务还在跑，界面却再也定位不到它。
+ * 没有历史任务时返回 task:null，前端据此显示未开始状态。
+ */
+contentRatingAiRoutes.get('/latest', async (c) => {
+  const db = getDb()
+  const task = await getLatestAiTaskByKind(db, CONTENT_RATING_AI_TASK_KIND)
+  if (!task)
+    return c.json({ task: null, total: 0, done: 0, remaining: 0, canResume: false, resumable: false, promptVersion: '' }, 200, { 'Cache-Control': 'no-store' })
+  const params = parseContentRatingAiTaskParams(task.params)
+  if (!params)
+    return c.json({ task, total: 0, done: 0, remaining: 0, canResume: false, resumable: false, promptVersion: '' }, 200, { 'Cache-Control': 'no-store' })
+  const remaining = await selectContentRatingAiResumeTargets(db, params)
+  const done = Math.max(0, params.novelIds.length - remaining.length)
+  const active = task.status === 'queued' || task.status === 'running'
+  return c.json(
+    {
+      task,
+      total: params.novelIds.length,
+      done,
+      remaining: remaining.length,
+      canResume: !active && remaining.length > 0,
+      resumable: remaining.length > 0,
+      promptVersion: params.promptVersion,
+    },
+    200,
+    { 'Cache-Control': 'no-store' },
+  )
 })
 
 /**

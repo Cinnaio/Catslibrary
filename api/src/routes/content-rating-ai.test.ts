@@ -290,4 +290,29 @@ describe('LLM 内容分级建议审核闭环', () => {
     const after = await t.db.query<{ status: string }>('SELECT status FROM ai_tasks WHERE id = $1', [taskId])
     expect(after.rows[0]?.status).toBe('cancelled')
   })
+
+  it('/latest 返回最近的批次快照，前端据此在刷新后接管任务', async () => {
+    const created = await req('/api/novels', json('POST', { title: '最新批次作品', author: '测试作者' }, adminToken))
+    const novelId = (await jsonOf<{ novel: { id: string } }>(created)).novel.id
+    const scan = await req('/api/admin/content-rating-ai/scan', json('POST', { novelIds: [novelId], limit: 10 }, adminToken))
+    const taskId = (await jsonOf<{ taskId: string }>(scan)).taskId
+    await waitForSuggestion(novelId)
+
+    const latest = await req('/api/admin/content-rating-ai/latest', json('GET', undefined, adminToken))
+    expect(latest.status).toBe(200)
+    const body = await jsonOf<{ task: { id: string } | null; total: number; done: number; remaining: number; canResume: boolean; promptVersion: string }>(
+      latest,
+    )
+    // 刚跑完的批次就是「最近一条」，进度口径与 /tasks/:id/progress 一致
+    expect(body.task?.id).toBe(taskId)
+    expect(body).toMatchObject({ total: 1, done: 1, remaining: 0, canResume: false, promptVersion: 'content-rating-ai-v1' })
+  })
+
+  it('/latest 在没有任何历史批次时返回 task:null，而不是报错', async () => {
+    // 清掉本文件此前用例留下的分级任务，模拟全新环境
+    await t.db.query("DELETE FROM ai_tasks WHERE kind = 'content_rating_review'")
+    const latest = await req('/api/admin/content-rating-ai/latest', json('GET', undefined, adminToken))
+    expect(latest.status).toBe(200)
+    expect(await jsonOf<{ task: unknown; canResume: boolean }>(latest)).toMatchObject({ task: null, canResume: false })
+  })
 })

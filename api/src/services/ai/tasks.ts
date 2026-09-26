@@ -192,6 +192,22 @@ export async function pruneFinishedAiTasks(db: Db, retentionDays: number): Promi
   )
 }
 
+/**
+ * 取某类任务最近的一条记录（含活动中的）。
+ *
+ * 用途：让「当前批次」成为服务端事实，而不是前端内存态。分级任务的进度条、
+ * 中止、断点恢复都挂在任务 id 上，一旦前端只把它放在 useState 里，刷新页面
+ * 就等于丢失了整条控制链路——任务还在跑，界面却再也找不到它。
+ * 按 created_at 倒序取一条即可：同 kind 的批次天然串行，最新的一定是用户
+ * 正在关心（或刚刚关心过）的那条。
+ */
+export async function getLatestAiTaskByKind(db: Db, kind: string): Promise<AiTask | undefined> {
+  const normalized = String(kind || '').trim()
+  if (!normalized) return undefined
+  const row = await first<AiTaskRow>(db, 'SELECT t.* FROM ai_tasks t WHERE t.kind = $1 ORDER BY t.created_at DESC, t.id DESC LIMIT 1', [normalized])
+  return row ? mapTask(row) : undefined
+}
+
 export async function listAiTasks(
   db: Db,
   opts: { limit?: number; offset?: number; status?: string; kind?: string } = {},

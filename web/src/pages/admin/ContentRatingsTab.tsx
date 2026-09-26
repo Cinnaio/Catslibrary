@@ -82,6 +82,21 @@ const CANDIDATE_KIND_OPTIONS: SelectOption[] = [
 
 const EMPTY_COUNTS = { general: 0, restricted: 0, unknown: 0 }
 
+/**
+ * 单次 LLM 分析的批次规模。服务端上限 100，这里给几档显式选项。
+ *
+ * 为什么必须可调：批次就是断点的边界。固定 20 时，398 本 unknown 要跑 20 次
+ * 手动点击，且每次中止后「剩余缺口」只在这一批内计算，用户看到的是「无缺口」，
+ * 会误以为全库已经分析完。放开选择后，一次点满 100 就能覆盖整批。
+ */
+const AI_BATCH_LIMIT_OPTIONS: SelectOption[] = [
+  { value: '20', label: '20 本' },
+  { value: '50', label: '50 本' },
+  { value: '100', label: '100 本（单批上限）' },
+]
+const DEFAULT_AI_BATCH_LIMIT = 20
+const AI_BATCH_LIMIT_MAX = 100
+
 function formatNumber(value: number): string {
   return Number(value || 0).toLocaleString('zh-CN')
 }
@@ -353,6 +368,8 @@ function AiSuggestionPanel({
   progress,
   cancelling,
   resuming,
+  batchLimit,
+  onBatchLimit,
   onRetry,
   onScan,
   onCancel,
@@ -367,6 +384,8 @@ function AiSuggestionPanel({
   progress: AdminContentRatingAiTaskProgress | null
   cancelling: boolean
   resuming: boolean
+  batchLimit: number
+  onBatchLimit: (value: number) => void
   onRetry: () => void
   onScan: () => void
   onCancel: () => void
@@ -386,10 +405,19 @@ function AiSuggestionPanel({
         description="LLM 只分析未标注作品并生成待审核建议，输出限定为限制级或继续未标注；不会直接修改作品，也不会推断一般。任务可随时中止并断点恢复。"
         status={<span className="text-xs text-muted-foreground">待审核 {data ? formatNumber(data.counts.pending) : '—'} 条</span>}
         actions={
-          <Button type="button" size="sm" variant="secondary" onClick={onScan} disabled={scanning || active}>
-            <Bot className={scanning ? 'size-3.5 animate-pulse' : 'size-3.5'} aria-hidden="true" />
-            {scanning ? '创建任务…' : '分析 unknown'}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <CustomSelect
+              options={AI_BATCH_LIMIT_OPTIONS}
+              value={String(batchLimit)}
+              onChange={(value) => onBatchLimit(Math.min(AI_BATCH_LIMIT_MAX, Math.max(1, Number(value) || DEFAULT_AI_BATCH_LIMIT)))}
+              aria-label="单批分析数量"
+              className="w-40"
+            />
+            <Button type="button" size="sm" variant="secondary" onClick={onScan} disabled={scanning || active}>
+              <Bot className={scanning ? 'size-3.5 animate-pulse' : 'size-3.5'} aria-hidden="true" />
+              {scanning ? '创建任务…' : '分析 unknown'}
+            </Button>
+          </div>
         }
       />
       <AiTaskProgressBar task={task} progress={progress} onCancel={onCancel} onResume={onResume} cancelling={cancelling} resuming={resuming} />
@@ -485,6 +513,7 @@ export default function ContentRatingsTab() {
   const [aiProgress, setAiProgress] = useState<AdminContentRatingAiTaskProgress | null>(null)
   const [aiCancelling, setAiCancelling] = useState(false)
   const [aiResuming, setAiResuming] = useState(false)
+  const [aiBatchLimit, setAiBatchLimit] = useState<number>(DEFAULT_AI_BATCH_LIMIT)
   const [aiReviewSuggestion, setAiReviewSuggestion] = useState<AdminContentRatingAiSuggestion | null>(null)
   const [aiReviewDecision, setAiReviewDecision] = useState<'approve' | 'reject' | null>(null)
   const [aiReviewReason, setAiReviewReason] = useState('')
@@ -589,6 +618,30 @@ export default function ContentRatingsTab() {
     } catch {
       // 优先级低于建议列表：进度读取失败不应打断审核流程，界面回退到任务自身字段。
       return null
+    }
+  }, [])
+
+  /**
+   * 挂载时对齐服务端「当前批次」。
+   *
+   * 任务 id 只存在内存里时，刷新页面就丢掉了整条控制链路：进度条消失、无法中止、
+   * 无法断点恢复，而任务在服务端可能还在跑。这里改为以服务端最近一条
+   * content_rating_review 任务为准，刷新后仍能接管。
+   */
+  useEffect(() => {
+    let active = true
+    void (async () => {
+      try {
+        const latest = await adminApi.contentRatingAi.latest()
+        if (!active || !latest.task) return
+        setAiTask(latest.task)
+        setAiProgress({ ...latest, task: latest.task })
+      } catch {
+        // 对齐失败只是拿不到上次的进度，不影响新建任务；不打断审核流程。
+      }
+    })()
+    return () => {
+      active = false
     }
   }, [])
 
@@ -776,7 +829,7 @@ export default function ContentRatingsTab() {
     setAiScanning(true)
     setAiError('')
     try {
-      const result = await adminApi.contentRatingAi.scan({ limit: 20 })
+      const result = await adminApi.contentRatingAi.scan({ limit: aiBatchLimit })
       if (!result.taskId) {
         toast(result.message || '当前没有可分析的 unknown 作品', 'default')
       } else {
@@ -1102,6 +1155,8 @@ export default function ContentRatingsTab() {
           progress={aiProgress}
           cancelling={aiCancelling}
           resuming={aiResuming}
+          batchLimit={aiBatchLimit}
+          onBatchLimit={setAiBatchLimit}
           onRetry={() => void loadAiSuggestions()}
           onScan={() => void scanAiSuggestions()}
           onCancel={() => void cancelAiTask()}

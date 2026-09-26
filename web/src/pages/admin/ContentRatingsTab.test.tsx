@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   aiReview: vi.fn(),
   aiTask: vi.fn(),
   aiProgress: vi.fn(),
+  aiLatest: vi.fn(),
   aiResume: vi.fn(),
   cancelTask: vi.fn(),
   toast: vi.fn(),
@@ -39,6 +40,7 @@ vi.mock('@/lib/api', () => ({
       scan: mocks.aiScan,
       review: mocks.aiReview,
       progress: mocks.aiProgress,
+      latest: mocks.aiLatest,
       resume: mocks.aiResume,
     },
   },
@@ -85,8 +87,15 @@ const response = {
 }
 
 describe('ContentRatingsTab', () => {
+  // 这个面板的交互链较长（打开 Dialog/Popover、等异步列表、轮询进度），
+  // 默认 5s 在满负载并行跑的机器上会随机吃紧；文件内统一给足预算，
+  // 避免用例变成「单独跑能过、全量跑偶发超时」的不稳定测试。
+  vi.setConfig({ testTimeout: 20_000 })
+
   beforeEach(() => {
-    vi.clearAllMocks()
+    // resetAllMocks 而非 clearAllMocks：后者只清调用记录，会留下上一用例的
+    // mockResolvedValue 实现，导致轮询类用例被前一个用例的返回值污染。
+    vi.resetAllMocks()
     mocks.list.mockResolvedValue(response)
     mocks.history.mockResolvedValue({
       history: [
@@ -168,6 +177,7 @@ describe('ContentRatingsTab', () => {
       counts: { pending: 0, approved: 0, rejected: 0, stale: 0, failed: 0 },
     })
     mocks.aiScan.mockResolvedValue({ ok: true, taskId: '', selected: 0, total: 0, message: '没有可分析的 unknown 作品' })
+    mocks.aiLatest.mockResolvedValue({ task: null, total: 0, done: 0, remaining: 0, canResume: false, resumable: false, promptVersion: '' })
   })
 
   it('展示分级概览、来源和可解释证据', async () => {
@@ -462,5 +472,88 @@ describe('ContentRatingsTab', () => {
 
     expect(await screen.findByText(/剩余 0 本|无缺口/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /断点恢复/ })).not.toBeInTheDocument()
+  })
+
+  it('刷新页面后从服务端对齐当前批次，进度条与控制入口不丢失', async () => {
+    mocks.aiList.mockResolvedValue({ items: [], total: 0, counts: { pending: 0, approved: 0, rejected: 0, stale: 0, failed: 0 } })
+    // 模拟刷新：本地没有任何任务内存态，只有服务端记着上次的批次
+    mocks.aiLatest.mockResolvedValue({
+      task: { id: 'aitask-running', status: 'running', current: 30, total: 100, step: '已分析 30 / 100 本 · 成功 29 · 失败 1' },
+      total: 100,
+      done: 30,
+      remaining: 70,
+      canResume: false,
+      resumable: true,
+      promptVersion: 'content-rating-ai-v1',
+    })
+    render(<ContentRatingsTab />)
+
+    expect(await screen.findByText(/已处理 30 \/ 100 本/)).toBeInTheDocument()
+    // 剩余缺口：与「已处理」同属一行，用整个进度区的文本断言（跨节点匹配）
+    const region = screen.getByLabelText('LLM 分级任务进度')
+    expect(region.textContent?.replace(/\s+/g, ' ')).toContain('剩余 70 本')
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '30')
+    // 运行中的任务刷新后仍可中止
+    expect(screen.getByRole('button', { name: /中止任务/ })).toBeInTheDocument()
+  })
+
+  it('刷新后接管已中止的批次，缺口仍可断点恢复', async () => {
+    mocks.aiList.mockResolvedValue({ items: [], total: 0, counts: { pending: 0, approved: 0, rejected: 0, stale: 0, failed: 0 } })
+    mocks.aiLatest.mockResolvedValue({
+      task: { id: 'aitask-stopped', status: 'cancelled', current: 20, total: 100, step: '已取消' },
+      total: 100,
+      done: 20,
+      remaining: 80,
+      canResume: true,
+      resumable: true,
+      promptVersion: 'content-rating-ai-v1',
+    })
+    render(<ContentRatingsTab />)
+
+    expect(await screen.findByRole('button', { name: /断点恢复（80 本）/ })).toBeInTheDocument()
+    expect(screen.getByText(/已处理 20 \/ 100 本/)).toBeInTheDocument()
+  })
+
+  it('单批分析数量可调，默认 20，改为 100 后按 100 提交', async () => {
+    const user = userEvent.setup()
+    mocks.aiList.mockResolvedValue({ items: [], total: 0, counts: { pending: 0, approved: 0, rejected: 0, stale: 0, failed: 0 } })
+    render(<ContentRatingsTab />)
+
+    // 默认不改变既有行为：没选过就是 20
+    expect(screen.getByLabelText('单批分析数量')).toHaveTextContent('20 本')
+
+    // 改成 100 后提交，服务端按 100 选目标，避免用户被迫点 20 次
+    await user.click(screen.getByLabelText('单批分析数量'))
+    await user.click(await screen.findByRole('option', { name: '100 本（单批上限）' }))
+    expect(screen.getByLabelText('单批分析数量')).toHaveTextContent('100 本（单批上限）')
+
+    mocks.aiScan.mockResolvedValue({
+      ok: true,
+      taskId: 'aitask-batch',
+      selected: 100,
+      total: 100,
+      task: { id: 'aitask-batch', status: 'running', current: 0, total: 100, step: '准备作品元数据' },
+    })
+    mocks.aiProgress.mockResolvedValue({
+      task: { id: 'aitask-batch', status: 'running', current: 0, total: 100, step: '准备作品元数据' },
+      total: 100,
+      done: 0,
+      remaining: 100,
+      canResume: false,
+      resumable: true,
+      promptVersion: 'content-rating-ai-v1',
+    })
+    await user.click(screen.getByRole('button', { name: '分析 unknown' }))
+
+    await waitFor(() => expect(mocks.aiScan).toHaveBeenCalledWith({ limit: 100 }))
+  })
+
+  it('服务端上限之外的数量会被收敛到 20，不会把非法值发出去', async () => {
+    const user = userEvent.setup()
+    mocks.aiList.mockResolvedValue({ items: [], total: 0, counts: { pending: 0, approved: 0, rejected: 0, stale: 0, failed: 0 } })
+    render(<ContentRatingsTab />)
+
+    await user.click(screen.getByRole('button', { name: '分析 unknown' }))
+    await waitFor(() => expect(mocks.aiScan).toHaveBeenCalledWith({ limit: 20 }))
   })
 })
