@@ -24,7 +24,12 @@ Require-PreferencePattern "all four intimacy weights are present" (
     $writingView -match 'case medium' -and
     $writingView -match 'case high'
 )
-Require-PreferencePattern "adult character confirmation is present" ($writingView -match 'adultCharactersConfirmed')
+Require-PreferencePattern "adult character confirmation is fixed by explicit mode" (
+    $writingView -match '"adultCharactersConfirmed": adultContentMode == \.explicit'
+)
+Require-PreferencePattern "explicit mode displays automatic adult confirmation" (
+    $writingView -match 'adultCharactersConfirmed: true'
+)
 Require-PreferencePattern "content preference section is rendered separately" ($writingView -match 'private var contentPreferencesSection')
 Require-PreferencePattern "invalid preference combinations block submit" ($writingView -match 'guard contentPreferencesValidationError == nil else')
 Require-PreferencePattern "request payload contains content preferences" ($writingView -match 'body\["contentPreferences"\] = writingContentPreferencesPayload')

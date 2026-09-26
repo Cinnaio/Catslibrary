@@ -87,7 +87,6 @@ struct AdminAIWritingView: View {
     @State private var showChapterCountWarning = false
     @State private var adultContentMode: AdultContentMode = .off
     @State private var intimacyWeight: IntimacyWeight = .none
-    @State private var adultCharactersConfirmed = false
 
     enum ConsentRuleTier: String, CaseIterable, Identifiable {
         case standard = "default"
@@ -356,7 +355,6 @@ struct AdminAIWritingView: View {
         .onChange(of: adultContentMode) { _, value in
             if value == .off {
                 intimacyWeight = .none
-                adultCharactersConfirmed = false
                 consentRuleTier = .standard
             }
             resetContinuationAssistState(clearOutline: true)
@@ -365,9 +363,6 @@ struct AdminAIWritingView: View {
             resetContinuationAssistState(clearOutline: true)
         }
         .onChange(of: consentRuleTier) { _, _ in
-            resetContinuationAssistState(clearOutline: true)
-        }
-        .onChange(of: adultCharactersConfirmed) { _, _ in
             resetContinuationAssistState(clearOutline: true)
         }
         .onChange(of: suggestionFocus) { _, _ in
@@ -532,7 +527,7 @@ struct AdminAIWritingView: View {
                             Text(option.title).tag(option)
                         }
                     }
-                    Toggle("确认涉及角色均为成年人", isOn: $adultCharactersConfirmed)
+                    LabeledContent("成年人确认", value: "adultCharactersConfirmed: true")
                     if let error = contentPreferencesValidationError {
                         Text(error)
                             .font(.caption)
@@ -1688,7 +1683,7 @@ struct AdminAIWritingView: View {
             "version": 1,
             "adultContentMode": adultContentMode.rawValue,
             "intimacyWeight": adultContentMode == .explicit ? intimacyWeight.rawValue : IntimacyWeight.none.rawValue,
-            "adultCharactersConfirmed": adultContentMode == .explicit && adultCharactersConfirmed,
+            "adultCharactersConfirmed": adultContentMode == .explicit,
             "consentRuleTier": adultContentMode == .explicit ? consentRuleTier.rawValue : ConsentRuleTier.standard.rawValue,
         ]
     }
@@ -1696,7 +1691,6 @@ struct AdminAIWritingView: View {
     private var contentPreferencesValidationError: String? {
         guard adultContentMode == .explicit else { return nil }
         if intimacyWeight == .none { return "开启露骨 R18 后请选择亲密内容权重" }
-        if !adultCharactersConfirmed { return "开启露骨 R18 前请确认涉及角色均为成年人" }
         return nil
     }
 
