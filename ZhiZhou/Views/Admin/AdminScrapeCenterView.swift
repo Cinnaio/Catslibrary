@@ -3,6 +3,7 @@ import SwiftUI
 /// 抓取中心：采集向导 —— 输入源站 URL → 智能分析 → 确认/创建小说 → 配置选择器 → 测试 → 启动抓取。
 /// 对齐 Web 端 admin scrape CenterView；任务进度在「任务管理」查看。
 struct AdminScrapeCenterView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var sourceUrl = ""
     @State private var analyzing = false
     @State private var analyzeError: String?
@@ -37,14 +38,27 @@ struct AdminScrapeCenterView: View {
     private var showConfirmStep: Bool { meta != nil }
     private var showConfigStep: Bool { createdNovelId != nil || skippedCreate }
 
+    private var stepTransition: AnyTransition {
+        if reduceMotion {
+            return .opacity.animation(AppMotion.micro)
+        }
+        return .move(edge: .bottom).combined(with: .opacity)
+    }
+
+    private var resultTransition: AnyTransition {
+        .opacity.animation(AppMotion.micro)
+    }
+
     var body: some View {
         List {
             analyzeSection
             if showConfirmStep {
                 confirmSection
+                    .transition(stepTransition)
             }
             if showConfigStep {
                 configSection
+                    .transition(stepTransition)
             }
             if let startMessage {
                 Section {
@@ -52,10 +66,14 @@ struct AdminScrapeCenterView: View {
                         .font(.subheadline)
                         .foregroundStyle(AppTheme.success)
                 }
+                .transition(resultTransition)
             }
         }
         .scrollContentBackground(.hidden)
         .appListStyle(.settings)
+        .animation(reduceMotion ? AppMotion.micro : AppMotion.structural, value: showConfirmStep)
+        .animation(reduceMotion ? AppMotion.micro : AppMotion.structural, value: showConfigStep)
+        .animation(reduceMotion ? AppMotion.micro : AppMotion.state, value: startMessage != nil)
         .navigationTitle("爬虫抓取中心")
         .navigationBarTitleDisplayMode(.large)
         .confirmationDialog(
@@ -194,11 +212,13 @@ struct AdminScrapeCenterView: View {
 
             if let testResult {
                 testChecksSection(result: testResult)
+                    .transition(resultTransition)
             }
             if let testError {
                 Text(testError)
                     .font(.caption)
                     .foregroundStyle(AppTheme.danger)
+                    .transition(resultTransition)
             }
 
             Button {

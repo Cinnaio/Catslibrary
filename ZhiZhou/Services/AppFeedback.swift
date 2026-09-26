@@ -127,7 +127,7 @@ struct AppFeedbackOverlay: View {
         }
         .frame(maxWidth: .infinity)
         .animation(
-            reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 1),
+            reduceMotion ? AppMotion.micro : AppMotion.press,
             value: center.message?.id
         )
     }

@@ -66,6 +66,11 @@ struct LoginView: View {
                     .padding(.vertical, 20)
                     .frame(maxWidth: 460)
                     .frame(maxWidth: .infinity, minHeight: proxy.size.height, alignment: .top)
+                    .animation(reduceMotion ? AppMotion.micro : AppMotion.state, value: registerMode)
+                    .animation(
+                        reduceMotion ? AppMotion.micro : AppMotion.state,
+                        value: appState.sessionRestoreFailed || errorMessage != nil
+                    )
                 }
                 .scrollDismissesKeyboard(.interactively)
                 .scrollBounceBehavior(.basedOnSize)
@@ -83,6 +88,13 @@ struct LoginView: View {
             }
         }
         .sensoryFeedback(.selection, trigger: interactionFeedback)
+    }
+
+    private var statusTransition: AnyTransition {
+        if reduceMotion {
+            return .opacity.animation(AppMotion.micro)
+        }
+        return .move(edge: .top).combined(with: .opacity)
     }
 
     private var loginBackdrop: some View {
@@ -143,7 +155,7 @@ struct LoginView: View {
     }
 
     private func switchMode() {
-        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
+        withAnimation(reduceMotion ? AppMotion.micro : AppMotion.state) {
             mode = mode == .login ? .register : .login
             errorMessage = nil
             focusedField = nil
@@ -216,8 +228,8 @@ struct LoginView: View {
                 }
             }
         }
-        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: mode)
-        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: registerMode)
+        .animation(reduceMotion ? AppMotion.micro : AppMotion.state, value: mode)
+        .animation(reduceMotion ? AppMotion.micro : AppMotion.state, value: registerMode)
     }
 
     private func fieldSurface<Content: View>(
@@ -229,7 +241,7 @@ struct LoginView: View {
             .padding(.vertical, AppLayout.fieldVerticalInset)
             .frame(minHeight: AppLayout.fieldMinHeight)
             .appFieldSurface(isFocused: isFocused)
-            .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: isFocused)
+            .animation(AppMotion.micro, value: isFocused)
     }
 
     // MARK: - 主操作
@@ -322,6 +334,7 @@ struct LoginView: View {
                         lineWidth: 0.8
                     )
             }
+            .transition(statusTransition)
         }
     }
 
@@ -351,6 +364,7 @@ struct LoginView: View {
                 .buttonStyle(.bordered)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .transition(statusTransition)
         case .open, .invite, .closed:
             EmptyView()
         }

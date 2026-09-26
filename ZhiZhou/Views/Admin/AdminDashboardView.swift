@@ -3,6 +3,7 @@ import ZhiZhouCore
 
 /// 总览：内容规模、任务状态、最近任务与最近更新（GET /api/admin/stats）。
 struct AdminDashboardView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var stats: AdminStats?
     @State private var isLoading = false
@@ -119,6 +120,8 @@ struct AdminDashboardView: View {
                 .font(.title3.weight(.semibold))
                 .monospacedDigit()
                 .foregroundStyle(AppTheme.textPrimary)
+                .contentTransition(reduceMotion ? .opacity : .numericText())
+                .animation(reduceMotion ? AppMotion.micro : AppMotion.value, value: value)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .frame(minHeight: 62, alignment: .leading)
@@ -141,6 +144,8 @@ struct AdminDashboardView: View {
             Text("\(value)")
                 .font(.headline.weight(.semibold))
                 .foregroundStyle(tint)
+                .contentTransition(reduceMotion ? .opacity : .numericText())
+                .animation(reduceMotion ? AppMotion.micro : AppMotion.value, value: value)
             Text(title)
                 .font(.caption)
                 .foregroundStyle(AppTheme.textSecondary)

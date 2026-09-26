@@ -4,6 +4,7 @@ import ZhiZhouCore
 /// 书架页：侧栏书单，详情列接着读或打开详情。
 struct BookshelfView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var response: BookshelfResponse?
     @State private var isLoading = false
     @State private var errorMessage: String?
@@ -380,7 +381,7 @@ struct BookshelfView: View {
         "\(percentValue(raw))%"
     }
 
-    private func load() async {
+    private func load(animate: Bool = false) async {
         guard APIClient.shared.isAuthenticated else { return }
         let ticket = requests.begin(true)
         isLoading = true
@@ -395,8 +396,15 @@ struct BookshelfView: View {
                 ContentPolicy.safePath("/api/bookshelf"), auth: true
             )
             guard !Task.isCancelled, requests.accepts(ticket, query: true) else { return }
-            response = r
-            errorMessage = nil
+            if animate {
+                withAnimation(reduceMotion ? AppMotion.micro : AppMotion.state) {
+                    response = r
+                    errorMessage = nil
+                }
+            } else {
+                response = r
+                errorMessage = nil
+            }
         } catch {
             guard !Task.isCancelled, requests.accepts(ticket, query: true) else { return }
             errorMessage = AppCopy.friendlyError(error)
@@ -417,7 +425,7 @@ struct BookshelfView: View {
             if case .detail(let novel) = selection, novel.id == favorite.novelId {
                 selection = nil
             }
-            await load()
+            await load(animate: true)
             AppFeedback.success("已移出书架")
         } catch {
             AppFeedback.error()
@@ -434,7 +442,7 @@ struct BookshelfView: View {
             actionError = "阅读记录删除请求尚未同步，请稍后重试。"
             return
         }
-        await load()
+        await load(animate: true)
         AppFeedback.success("已删除阅读记录")
     }
 }

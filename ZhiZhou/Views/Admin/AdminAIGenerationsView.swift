@@ -5,6 +5,7 @@ import ZhiZhouCore
 /// AI 已生成内容：列表 / 类型与状态筛选 / 批量删除 / 批次发布 / 草稿编辑 / 发布 / 撤销发布 / 删除。
 /// 对齐 Web 端 admin ai AiGenerationsPanel（/api/ai/generations、/api/ai/writing/drafts|batches）。
 struct AdminAIGenerationsView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private let taskID: String?
 
     init(taskID: String? = nil) {
@@ -163,6 +164,7 @@ struct AdminAIGenerationsView: View {
                             if expandedBatchIDs.contains(group.id) {
                                 ForEach(group.items) { item in
                                     generationRow(item, isBatchChild: true)
+                                        .transition(batchChildTransition)
                                 }
                             }
                         } else if let item = group.items.first {
@@ -366,6 +368,7 @@ struct AdminAIGenerationsView: View {
                             isExpanded ? "收起章节" : "查看章节",
                             systemImage: isExpanded ? "chevron.up" : "chevron.down"
                         )
+                        .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace))
                     }
                     .font(.subheadline.weight(.medium))
 
@@ -495,11 +498,20 @@ struct AdminAIGenerationsView: View {
     }
 
     private func toggleBatchExpansion(_ id: String) {
-        if expandedBatchIDs.contains(id) {
-            expandedBatchIDs.remove(id)
-        } else {
-            expandedBatchIDs.insert(id)
+        withAnimation(reduceMotion ? AppMotion.micro : AppMotion.state) {
+            if expandedBatchIDs.contains(id) {
+                expandedBatchIDs.remove(id)
+            } else {
+                expandedBatchIDs.insert(id)
+            }
         }
+    }
+
+    private var batchChildTransition: AnyTransition {
+        if reduceMotion {
+            return .opacity.animation(AppMotion.micro)
+        }
+        return .move(edge: .top).combined(with: .opacity)
     }
 
     private func requestBatchPublish(_ batch: GenerationDisplayGroup) {

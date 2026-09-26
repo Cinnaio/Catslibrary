@@ -92,6 +92,29 @@ enum AppTheme {
     static let seal = Color(light: "B8453A", dark: "E8968D")
 }
 
+/// Shared motion vocabulary for state changes that should feel consistent across
+/// browsing, reading, and admin workflows. All springs are critically damped by
+/// default; use lower damping only when a real gesture carries momentum.
+enum AppMotion {
+    /// Press and focus feedback: immediate, subtle, and non-distracting.
+    static let micro = Animation.easeOut(duration: 0.16)
+
+    /// Content expansion and ordinary state replacement.
+    static let state = Animation.easeInOut(duration: 0.22)
+
+    /// Selection modes and workflow stages that need a small amount of physicality.
+    static let structural = Animation.spring(response: 0.30, dampingFraction: 1)
+
+    /// Panel-like surfaces that enter from a nearby control or edge.
+    static let panel = Animation.spring(response: 0.32, dampingFraction: 1)
+
+    /// Numeric values changing after a refresh.
+    static let value = Animation.easeOut(duration: 0.20)
+
+    /// Existing button press language retained as a shared token.
+    static let press = Animation.spring(response: 0.28, dampingFraction: 1)
+}
+
 // MARK: - 字体
 
 /// 中文衬线字体解析。
@@ -238,7 +261,7 @@ private struct ScaleButtonStyleBody: View {
             .scaleEffect((reduceMotion || !configuration.isPressed) ? 1 : pressedScale)
             .opacity(configuration.isPressed ? 0.86 : 1)
             .animation(
-                reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 1),
+                reduceMotion ? nil : AppMotion.press,
                 value: configuration.isPressed
             )
     }
@@ -274,7 +297,7 @@ struct AppGlassButtonStyle: ButtonStyle {
         .opacity(isEnabled ? (configuration.isPressed ? 0.86 : 1) : 0.45)
         .scaleEffect((reduceMotion || !configuration.isPressed) ? 1 : 0.97)
         .animation(
-            reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 1),
+            reduceMotion ? nil : AppMotion.press,
             value: configuration.isPressed
         )
     }

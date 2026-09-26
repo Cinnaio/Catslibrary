@@ -385,6 +385,7 @@ struct NovelDetailView: View {
                     : AppTheme.textMuted
         )
         .frame(width: 44, height: 44)
+        .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace))
         .contentShape(Rectangle())
         .accessibilityHidden(true)
     }
@@ -455,39 +456,51 @@ struct NovelDetailView: View {
     }
 
     private func enterOfflineSelection() {
-        isSelectingOffline = true
-        selectedChapterIDs.removeAll()
-        selectionRowFrames.removeAll()
-        selectionDragMode = nil
-        selectionDragLastIndex = nil
+        withSelectionModeAnimation {
+            isSelectingOffline = true
+            selectedChapterIDs.removeAll()
+            selectionRowFrames.removeAll()
+            selectionDragMode = nil
+            selectionDragLastIndex = nil
+        }
     }
 
     private func cancelOfflineSelection() {
-        isSelectingOffline = false
-        selectedChapterIDs.removeAll()
-        selectionRowFrames.removeAll()
-        selectionDragMode = nil
-        selectionDragLastIndex = nil
+        withSelectionModeAnimation {
+            isSelectingOffline = false
+            selectedChapterIDs.removeAll()
+            selectionRowFrames.removeAll()
+            selectionDragMode = nil
+            selectionDragLastIndex = nil
+        }
     }
 
     private func toggleOfflineSelection(_ chapter: ChapterMeta) {
         guard !offlineStore.isDownloaded(chapter.id) else { return }
-        if selectedChapterIDs.contains(chapter.id) {
-            selectedChapterIDs.remove(chapter.id)
-        } else {
-            selectedChapterIDs.insert(chapter.id)
+        withAnimation(reduceMotion ? AppMotion.micro : AppMotion.state) {
+            if selectedChapterIDs.contains(chapter.id) {
+                selectedChapterIDs.remove(chapter.id)
+            } else {
+                selectedChapterIDs.insert(chapter.id)
+            }
         }
         interactionFeedback += 1
     }
 
     private func toggleOfflineSelectAll() {
         let downloadableIDs = Set(downloadableChapters.map(\.id))
-        if downloadableIDs.isSubset(of: selectedChapterIDs) {
-            selectedChapterIDs.subtract(downloadableIDs)
-        } else {
-            selectedChapterIDs.formUnion(downloadableIDs)
+        withAnimation(reduceMotion ? AppMotion.micro : AppMotion.state) {
+            if downloadableIDs.isSubset(of: selectedChapterIDs) {
+                selectedChapterIDs.subtract(downloadableIDs)
+            } else {
+                selectedChapterIDs.formUnion(downloadableIDs)
+            }
         }
         interactionFeedback += 1
+    }
+
+    private func withSelectionModeAnimation(_ update: () -> Void) {
+        withAnimation(reduceMotion ? AppMotion.micro : AppMotion.structural, update)
     }
 
     private func startAllDownload() {
@@ -510,8 +523,10 @@ struct NovelDetailView: View {
         let chaptersToDownload = selectedDownloadChapters
         guard !chaptersToDownload.isEmpty, !offlineStore.isBatchDownloading else { return }
         let novelToDownload = currentNovel
-        isSelectingOffline = false
-        selectedChapterIDs.removeAll()
+        withSelectionModeAnimation {
+            isSelectingOffline = false
+            selectedChapterIDs.removeAll()
+        }
         Task {
             await offlineStore.downloadAll(novel: novelToDownload, chapters: chaptersToDownload)
             if offlineStore.lastBatchWasCancelled {
@@ -602,14 +617,23 @@ struct NovelDetailView: View {
         GlassEffectContainer(spacing: 12) {
             if isSelectingOffline {
                 offlineSelectionBar
+                    .transition(selectionModeTransition)
             } else {
                 readingBar
+                    .transition(selectionModeTransition)
             }
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 10)
         .frame(maxWidth: 680)
         .frame(maxWidth: .infinity)
+    }
+
+    private var selectionModeTransition: AnyTransition {
+        if reduceMotion {
+            return .opacity.animation(AppMotion.micro)
+        }
+        return .move(edge: .bottom).combined(with: .opacity)
     }
 
     private var readingBar: some View {

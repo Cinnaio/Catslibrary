@@ -34,6 +34,7 @@ struct OfflineReadingView: View {
                         selectionSummaryRow
                             .listRowBackground(Color.clear)
                             .listRowSeparator(.hidden)
+                            .transition(selectionModeTransition)
                     }
                 }
 
@@ -266,6 +267,13 @@ struct OfflineReadingView: View {
         }
     }
 
+    private var selectionModeTransition: AnyTransition {
+        if reduceMotion {
+            return .opacity.animation(AppMotion.micro)
+        }
+        return .move(edge: .top).combined(with: .opacity)
+    }
+
     private func bookHeader(
         _ book: OfflineReadingStore.DownloadedBook,
         selectionMode: Bool = false
@@ -309,6 +317,7 @@ struct OfflineReadingView: View {
                                 ? AppTheme.primary
                                 : AppTheme.textSecondary
                         )
+                        .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace))
                         .accessibilityHidden(true)
                     } else {
                         Image(
@@ -318,6 +327,7 @@ struct OfflineReadingView: View {
                         )
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(AppTheme.textSecondary)
+                        .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace))
                         .accessibilityHidden(true)
                     }
                 }
@@ -382,44 +392,52 @@ struct OfflineReadingView: View {
         if reduceMotion {
             update()
         } else {
-            withAnimation(.easeInOut(duration: 0.2), update)
+            withAnimation(AppMotion.state, update)
         }
     }
 
     private func enterBookSelection() {
         guard !offlineStore.books.isEmpty else { return }
-        isSelectingBooks = true
-        selectedBookIDs.removeAll()
-        expandedBookIDsBeforeSelection = expandedBookIDs
-        expandedBookIDs.removeAll()
+        withAnimation(reduceMotion ? AppMotion.micro : AppMotion.structural) {
+            isSelectingBooks = true
+            selectedBookIDs.removeAll()
+            expandedBookIDsBeforeSelection = expandedBookIDs
+            expandedBookIDs.removeAll()
+        }
     }
 
     private func exitBookSelection() {
-        isSelectingBooks = false
-        selectedBookIDs.removeAll()
-        if let savedExpansion = expandedBookIDsBeforeSelection {
-            let currentBookIDs = Set(offlineStore.books.map(\.id))
-            expandedBookIDs = savedExpansion.intersection(currentBookIDs)
+        withAnimation(reduceMotion ? AppMotion.micro : AppMotion.structural) {
+            isSelectingBooks = false
+            selectedBookIDs.removeAll()
+            if let savedExpansion = expandedBookIDsBeforeSelection {
+                let currentBookIDs = Set(offlineStore.books.map(\.id))
+                expandedBookIDs = savedExpansion.intersection(currentBookIDs)
+            }
+            expandedBookIDsBeforeSelection = nil
         }
-        expandedBookIDsBeforeSelection = nil
     }
 
     private func toggleBookSelection(_ bookID: String) {
         interactionFeedback &+= 1
-        if selectedBookIDs.contains(bookID) {
-            selectedBookIDs.remove(bookID)
-        } else {
-            selectedBookIDs.insert(bookID)
+        withAnimation(reduceMotion ? AppMotion.micro : AppMotion.state) {
+            if selectedBookIDs.contains(bookID) {
+                selectedBookIDs.remove(bookID)
+            } else {
+                selectedBookIDs.insert(bookID)
+            }
         }
     }
 
     private func toggleAllBookSelection() {
         let bookIDs = Set(offlineStore.books.map(\.id))
         interactionFeedback &+= 1
-        if bookIDs.isSubset(of: selectedBookIDs) {
-            selectedBookIDs.removeAll()
-        } else {
-            selectedBookIDs = bookIDs
+        withAnimation(reduceMotion ? AppMotion.micro : AppMotion.state) {
+            if bookIDs.isSubset(of: selectedBookIDs) {
+                selectedBookIDs.removeAll()
+            } else {
+                selectedBookIDs = bookIDs
+            }
         }
     }
 
