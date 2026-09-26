@@ -6712,47 +6712,11 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   flex: 0 1 18rem;
 }
 
-/* 页头内的纯文字元信息（AI 服务的连接状态）：与计数胶囊同一档，
-   但这一处是「状态」而非「计数」，故不用胶囊底色，只用竖线分隔。 */
-.admin-tab-header__meta-inline {
-  display: inline-flex;
-  align-items: center;
-  align-self: center;
-  margin-left: 0.35rem;
-  border-left: 1px solid var(--admin-border-strong);
-  padding-left: 0.65rem;
-  color: var(--text-muted);
-  font-size: 0.72rem;
-  font-weight: 500;
-  letter-spacing: 0.01em;
-  line-height: 1.35;
-  white-space: nowrap;
-}
-
-/* 页头元信息位里的状态文字（如数据库结构体检）：与计数胶囊同处一行，
-   成功/失败只用文字色区分，不再借 Badge 的胶囊底——页头一行里不适合再叠底色块。 */
-.admin-tab-header__status--ok,
-.admin-tab-header__status--bad {
-  display: inline-flex;
-  align-items: center;
-  align-self: center;
-  margin-left: 0.35rem;
-  border-left: 1px solid var(--admin-border-strong);
-  padding-left: 0.65rem;
-  font-size: 0.72rem;
-  font-weight: 500;
-  letter-spacing: 0.01em;
-  line-height: 1.35;
-  white-space: nowrap;
-}
-
-.admin-tab-header__status--ok {
-  color: var(--color-success);
-}
-
-.admin-tab-header__status--bad {
-  color: var(--color-danger);
-}
+/* 页头元信息位只由 .admin-tab-header__meta 承载（竖线、间距、0.72rem 都在那里）。
+   2026-09-25 撤掉三个重复实现：__meta-inline / __status--ok / __status--bad 各自
+   又写了一遍 border-left + padding-left + 0.72rem，与 __meta 叠加后页头出现两条
+   竖线（`参数调优 || 服务已连接`）。调用方现在只往 meta 插槽里放内容，
+   样式一律由 __meta 提供；状态与计数用文字本身区分，不再靠底色块。 */
 
 /* 用量统计面板标题栏里的合计读数：贴着它汇总的那张图，是次级文字而非大数字。 */
 .ai-usage-totals {

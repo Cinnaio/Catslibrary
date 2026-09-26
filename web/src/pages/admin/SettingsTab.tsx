@@ -359,9 +359,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
     const ok = await confirm({
       title: disable ? '禁用用户' : '恢复用户',
       message: `确认${disable ? '禁用' : '恢复'} ${u.username}？`,
-      items: disable
-        ? ['该用户的所有登录会话将被立即清除', '禁用后该用户无法登录，可随时恢复']
-        : ['该用户将可以重新登录'],
+      items: disable ? ['该用户的所有登录会话将被立即清除', '禁用后该用户无法登录，可随时恢复'] : ['该用户将可以重新登录'],
       okText: disable ? '禁用' : '恢复',
       danger: disable,
     })
@@ -479,33 +477,34 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
 
   // 页头计数胶囊：每个子页只放一个定位用的规模数字（见 DESIGN.md · Admin Page Anatomy），
   // 它替代原先那块会把页头与数据面板隔开的 AdminMetricStrip。
-  const accountHeaderMeta = currentAccountTab === 'users'
-    ? (users.length ? `${users.length} 人 · 活跃 ${activeCount} · 管理员 ${adminCount}` : undefined)
-    : currentAccountTab === 'registration'
-      ? (invites.length ? `邀请码 ${invites.length} 个 · 可用 ${available}` : undefined)
-      : currentAccountTab === 'audit'
-        ? (loginAuditTotal ? `${loginAuditTotal} 条登录记录` : undefined)
-        : (operationAuditTotal ? `${operationAuditTotal} 条操作记录` : undefined)
+  //
+  // 数据库结构体检也拼进这一串：它原先被塞进 actions，把一颗只读徽章放进了操作区。
+  // 两者合成**一个**字符串而非两个并列节点——meta 插槽自己就带竖线与小字号，
+  // 传入多个节点会渲染出多余的分隔符（页头出现两条竖线）。
+  const accountHeaderMeta = (() => {
+    const parts: string[] = []
+    if (currentAccountTab === 'users') {
+      if (users.length) parts.push(`${users.length} 人 · 活跃 ${activeCount} · 管理员 ${adminCount}`)
+    } else if (currentAccountTab === 'registration') {
+      if (invites.length) parts.push(`邀请码 ${invites.length} 个 · 可用 ${available}`)
+    } else if (currentAccountTab === 'audit') {
+      if (loginAuditTotal) parts.push(`${loginAuditTotal} 条登录记录`)
+    } else if (operationAuditTotal) {
+      parts.push(`${operationAuditTotal} 条操作记录`)
+    }
+    // 结构体检只在异常时进页头：正常是常态，常态不该占页头的位置。
+    if (schemaHealth && !schemaHealth.ok) parts.push(`数据库缺失 ${(schemaHealth.missing || []).join('、')}`)
+    return parts.length ? parts.join(' · ') : undefined
+  })()
 
   return (
     <AdminPage
       className="admin-redesign-page admin-redesign-page--settings"
       title={currentAccountMeta.title}
-      meta={
-        <>
-          {accountHeaderMeta}
-          {/* 数据库结构体检是「状态」而非动作，与计数胶囊同处页头元信息位；
-              原先它被塞进 actions，把一颗只读徽章放进了操作区。 */}
-          {schemaHealth && (
-            <span id="schemaHealth" className={schemaHealth.ok ? 'admin-tab-header__status--ok' : 'admin-tab-header__status--bad'}>
-              {schemaHealth.ok ? '数据库正常' : `数据库缺失 ${(schemaHealth.missing || []).join('、')}`}
-            </span>
-          )}
-        </>
-      }
+      meta={accountHeaderMeta}
       description={currentAccountMeta.description}
     >
-        {currentAccountTab === 'registration' && (
+      {currentAccountTab === 'registration' && (
         <Card className="admin-panel-card">
           <CardHeader>
             <CardTitle className="text-base">注册设置</CardTitle>
@@ -538,395 +537,461 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
             </div>
           </CardContent>
         </Card>
-        )}
+      )}
 
-        {currentAccountTab === 'users' && <>
-        <AdminDataPanel className="account-users-panel overflow-hidden" ariaLabel="用户列表" columns={USER_COLUMNS}>
-          <AdminPanelHeading
-            title="用户目录"
-            description="管理站点用户、角色与登录状态。"
-            status={<span className="admin-panel-status">{loading && !data ? '读取中' : users.length ? `共 ${users.length} 人` : '暂无用户'}</span>}
-            actions={
-              <Button variant="secondary" size="sm" onClick={() => void load()} disabled={loading}>
-                刷新
-              </Button>
-            }
-          />
-          <Table>
-            <TableCaption className="sr-only">站点用户列表，含角色、状态、注册时间、最近登录与想法数</TableCaption>
-            <TableHeader>
-              <TableRow>
-                <TableHead scope="col">用户</TableHead>
-                <TableHead scope="col">角色</TableHead>
-                <TableHead scope="col">状态</TableHead>
-                <TableHead scope="col">注册</TableHead>
-                <TableHead scope="col">最近登录</TableHead>
-                <TableHead scope="col">想法</TableHead>
-                <TableHead scope="col">操作</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading && !data ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="h-24 text-center text-sm text-muted-foreground">
-                    加载中…
-                  </TableCell>
-                </TableRow>
-              ) : users.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="h-24 text-center text-sm text-muted-foreground">
-                    暂无用户
-                  </TableCell>
-                </TableRow>
-              ) : (
-                users.map((u) => {
-                  const disabled = u.status === 'disabled'
-                  const admin = u.role === 'admin'
-                  const self = meUser ? u.id === meUser.id : false
-                  return (
-                    <TableRow key={u.id}>
-                      <TableCell data-primary="" data-label="用户">
-                        <strong>{u.displayName || u.username}</strong>
-                        {self && (
-                          <Badge variant="outline" className="ml-1.5">
-                            本人
-                          </Badge>
-                        )}
-                        <br />
-                        <span className="text-sm text-muted-foreground">{u.username}</span>
-                      </TableCell>
-                      <TableCell data-label="角色">
-                        <Badge variant="secondary" className={admin ? 'bg-info/10 text-info' : ''}>
-                          {roleLabel(u.role)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell data-label="状态">
-                        <Badge className={disabled ? 'bg-destructive/10 text-destructive' : 'bg-success/10 text-success'}>
-                          {disabled ? '已禁用' : '正常'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell data-label="注册" className="text-sm text-muted-foreground">{timeAgo(u.createdAt)}</TableCell>
-                      <TableCell data-label="最近登录" className="text-sm text-muted-foreground">{timeAgo(u.lastLoginAt)}</TableCell>
-                      <TableCell data-label="想法">{u.thoughtCount || 0}</TableCell>
-                      <TableCell data-actions="">
-                        {!self && (
-                          <div className="admin-cell-actions flex flex-wrap items-center justify-end gap-2">
-                            <Button variant="outline" size="sm" onClick={() => void updateUserRole(u)}>
-                              {admin ? '设为读者' : '设为管理员'}
-                            </Button>
-                            <Button variant="outline" size="sm" onClick={() => void resetUserPassword(u)}>
-                              重置密码
-                            </Button>
-                            <Button variant="outline" size="sm" onClick={() => void updateUserStatus(u)}>
-                              {disabled ? '恢复' : '禁用'}
-                            </Button>
-                            <Button variant="destructive" size="sm" onClick={() => void deleteUser(u)}>
-                              删除
-                            </Button>
-                          </div>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  )
-                })
-              )}
-            </TableBody>
-          </Table>
-        </AdminDataPanel>
-        </>}
-
-      {currentAccountTab === 'audit' && <>
-        <AdminToolbar className="account-audit-toolbar" ariaLive="polite">
-          <Select
-            value={loginAuditStatus}
-            onValueChange={(value) => {
-              setLoginAuditStatus(value)
-              setLoginAuditOffset(0)
-            }}
-          >
-            <SelectTrigger className="h-9 w-[124px] bg-background" aria-label="登录结果">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent position="popper" align="start" sideOffset={4}>
-              <SelectItem value="all">全部结果</SelectItem>
-              <SelectItem value="success">成功</SelectItem>
-              <SelectItem value="failure">失败</SelectItem>
-              <SelectItem value="limited">限流</SelectItem>
-            </SelectContent>
-          </Select>
-          <Input
-            className="h-9 w-48"
-            value={loginAuditUsername}
-            placeholder="搜索用户名"
-            aria-label="搜索登录用户名"
-            onChange={(event) => {
-              setLoginAuditUsername(event.target.value)
-              setLoginAuditOffset(0)
-            }}
-          />
-        </AdminToolbar>
-      <AdminDataPanel className="account-audit-panel overflow-hidden" ariaLabel="登录记录列表" columns={LOGIN_AUDIT_COLUMNS}>
-        <AdminPanelHeading
-          title="登录记录"
-          description="记录登录成功、失败与限流事件，不保存密码或登录令牌。"
-          status={
-            <span className="admin-panel-status">
-              {loginAuditLoading && loginAudits.length === 0 ? '读取中' : loginAudits.length ? `显示 ${loginAudits.length} 条` : '暂无记录'}
-            </span>
-          }
-          actions={
-            <Button variant="secondary" size="sm" onClick={() => void loadLoginAudit()} disabled={loginAuditLoading}>
-              刷新
-            </Button>
-          }
-        />
-        <Table>
-          <TableCaption className="sr-only">登录记录列表，含用户、结果、原因、IP 地址、User-Agent 与时间</TableCaption>
-          <TableHeader>
-            <TableRow>
-              <TableHead scope="col">用户</TableHead>
-              <TableHead scope="col">结果</TableHead>
-              <TableHead scope="col">原因</TableHead>
-              <TableHead scope="col">IP 地址</TableHead>
-              <TableHead scope="col">User-Agent</TableHead>
-              <TableHead scope="col">时间</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loginAuditLoading && loginAudits.length === 0 ? (
-              <TableRow><TableCell colSpan={6} className="h-20 text-center text-sm text-muted-foreground">加载中…</TableCell></TableRow>
-            ) : loginAudits.length === 0 ? (
-              <TableRow><TableCell colSpan={6} className="h-20 text-center text-sm text-muted-foreground">暂无登录记录</TableCell></TableRow>
-            ) : loginAudits.map((audit) => (
-              <TableRow key={audit.id}>
-                <TableCell data-primary="" data-label="用户">
-                  <strong>{audit.displayName || audit.username || '未知用户'}</strong>
-                  <div className="text-xs text-muted-foreground">{audit.username || '未知用户名'}</div>
-                </TableCell>
-                <TableCell data-label="结果">
-                  <Badge className={audit.status === 'success' ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}>
-                    {loginAuditStatusLabel(audit.status)}
-                  </Badge>
-                </TableCell>
-                <TableCell data-label="原因" className="text-sm text-muted-foreground">{loginAuditReasonLabel(audit.reason)}</TableCell>
-                <TableCell data-label="IP 地址"><code className="text-xs">{audit.ipAddress || '未记录'}</code></TableCell>
-                <TableCell data-label="User-Agent" className="max-w-[260px]">
-                  <code className="block truncate text-xs text-muted-foreground" title={audit.userAgent}>{audit.userAgent || '未记录'}</code>
-                </TableCell>
-                <TableCell data-label="时间" className="whitespace-nowrap text-sm text-muted-foreground">
-                  {audit.createdAt ? new Date(audit.createdAt).toLocaleString('zh-CN') : '—'}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-        <Pagination
-          page={loginAuditPage}
-          totalPages={loginAuditPages}
-          onPage={(next) => setLoginAuditOffset((next - 1) * loginAuditLimit)}
-          busy={loginAuditLoading}
-          summary={`共 ${loginAuditTotal} 条记录`}
-          pageSize={{ value: loginAuditLimit, onChange: (size) => { setLoginAuditLimit(size); setLoginAuditOffset(0) }, options: ADMIN_PAGE_SIZE_OPTIONS }}
-        />
-      </AdminDataPanel></>}
-
-      {currentAccountTab === 'operation-audit' && <>
-        <AdminToolbar className="account-operation-audit-toolbar" ariaLive="polite">
-          <Select
-            value={operationAuditStatus}
-            onValueChange={(value) => {
-              setOperationAuditStatus(value)
-              setOperationAuditOffset(0)
-            }}
-          >
-            <SelectTrigger className="h-9 w-[124px] bg-background" aria-label="操作结果">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent position="popper" align="start" sideOffset={4}>
-              <SelectItem value="all">全部结果</SelectItem>
-              <SelectItem value="pending">处理中</SelectItem>
-              <SelectItem value="completed">成功</SelectItem>
-              <SelectItem value="failed">失败</SelectItem>
-            </SelectContent>
-          </Select>
-        </AdminToolbar>
-      <AdminDataPanel className="account-operation-audit-panel overflow-hidden" ariaLabel="操作记录列表" columns={OPERATION_AUDIT_COLUMNS}>
-        <AdminPanelHeading
-          title="操作记录"
-          description="记录危险操作的发起人、目标数量、结果与重放次数，不保存目标正文或原始内容。"
-          status={
-            <span className="admin-panel-status">
-              {operationAuditLoading && operationAudits.length === 0 ? '读取中' : operationAudits.length ? `显示 ${operationAudits.length} 条` : '暂无记录'}
-            </span>
-          }
-          actions={
-            <Button variant="secondary" size="sm" onClick={() => void loadOperationAudit()} disabled={operationAuditLoading}>
-              刷新
-            </Button>
-          }
-        />
-        <Table>
-          <TableCaption className="sr-only">管理员操作记录列表，含操作人、动作、目标数量、结果、重放次数与操作 ID</TableCaption>
-          <TableHeader>
-            <TableRow>
-              <TableHead scope="col">操作人</TableHead>
-              <TableHead scope="col">动作</TableHead>
-              <TableHead scope="col">目标数量</TableHead>
-              <TableHead scope="col">结果</TableHead>
-              <TableHead scope="col">重放</TableHead>
-              <TableHead scope="col">操作 ID</TableHead>
-              <TableHead scope="col">时间</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {operationAuditLoading && operationAudits.length === 0 ? (
-              <TableRow><TableCell colSpan={7} className="h-20 text-center text-sm text-muted-foreground">加载中…</TableCell></TableRow>
-            ) : operationAudits.length === 0 ? (
-              <TableRow><TableCell colSpan={7} className="h-20 text-center text-sm text-muted-foreground">暂无管理员操作记录</TableCell></TableRow>
-            ) : operationAudits.map((operation) => (
-              <TableRow key={operation.id}>
-                <TableCell data-primary="" data-label="操作人">
-                  <strong>{operation.actorDisplayName || operation.actorUsername || '未知管理员'}</strong>
-                  <div className="text-xs text-muted-foreground">{operation.actorUsername || '未知账号'}</div>
-                </TableCell>
-                <TableCell data-label="动作" className="whitespace-nowrap">{operationAuditActionLabel(operation.action)}</TableCell>
-                <TableCell data-label="目标数量">{operation.targetCount}</TableCell>
-                <TableCell data-label="结果">
-                  <Badge className={operation.status === 'completed' ? 'bg-success/10 text-success' : operation.status === 'failed' ? 'bg-destructive/10 text-destructive' : 'bg-warning/10 text-warning'}>
-                    {operationAuditStatusLabel(operation.status)}
-                  </Badge>
-                  {operation.status === 'failed' && operation.error && <div className="mt-1 text-xs text-destructive">{operation.error}</div>}
-                </TableCell>
-                <TableCell data-label="重放">{operation.replayCount}</TableCell>
-                <TableCell data-label="操作 ID" className="max-w-[260px]">
-                  <code className="block truncate text-xs text-muted-foreground" title={operation.operationId}>{operation.operationId}</code>
-                </TableCell>
-                <TableCell data-label="时间" className="whitespace-nowrap text-sm text-muted-foreground">
-                  {operation.createdAt ? new Date(operation.createdAt).toLocaleString('zh-CN') : '—'}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-        <Pagination
-          page={operationAuditPage}
-          totalPages={operationAuditPages}
-          onPage={(next) => setOperationAuditOffset((next - 1) * operationAuditLimit)}
-          busy={operationAuditLoading}
-          summary={`共 ${operationAuditTotal} 条记录`}
-          pageSize={{ value: operationAuditLimit, onChange: (size) => { setOperationAuditLimit(size); setOperationAuditOffset(0) }, options: ADMIN_PAGE_SIZE_OPTIONS }}
-        />
-      </AdminDataPanel></>}
-
-      {currentAccountTab === 'registration' && <>
-        <AdminDataPanel className="account-invites-panel overflow-hidden" ariaLabel="邀请码列表" columns={INVITE_COLUMNS}>
-          <AdminPanelHeading
-            title="邀请码"
-            description="生成、复制与停用注册邀请码。"
-            status={<span className="admin-panel-status">{invites.length ? `共 ${invites.length} 个` : '暂无邀请码'}</span>}
-            actions={
-              <>
-                <Input
-                  type="number"
-                  className="admin-input--invite-count"
-                  min={1}
-                  max={50}
-                  value={inviteCount}
-                  aria-label="生成邀请码数量"
-                  onChange={(e) => setInviteCount(e.target.value)}
-                />
-                <Button size="sm" onClick={() => void createInvite()}>
-                  生成邀请码
+      {currentAccountTab === 'users' && (
+        <>
+          <AdminDataPanel className="account-users-panel overflow-hidden" ariaLabel="用户列表" columns={USER_COLUMNS}>
+            <AdminPanelHeading
+              title="用户目录"
+              description="管理站点用户、角色与登录状态。"
+              status={<span className="admin-panel-status">{loading && !data ? '读取中' : users.length ? `共 ${users.length} 人` : '暂无用户'}</span>}
+              actions={
+                <Button variant="secondary" size="sm" onClick={() => void load()} disabled={loading}>
+                  刷新
                 </Button>
-              </>
-            }
-          />
-          {generatedCodes && generatedCodes.length > 0 && (
-            <div id="tokenStatus" className="account-invites-generated" role="status">
-              <div className="account-invites-generated__codes">
-                {generatedCodes.map((c) => (
-                  <code key={c}>{c}</code>
-                ))}
-              </div>
-              <Button variant="secondary" size="sm" onClick={() => void copyNewInvites()}>
-                复制全部
-              </Button>
-            </div>
-          )}
-          <Table>
-            <TableCaption className="sr-only">邀请码列表，含状态、使用者与创建时间</TableCaption>
-            <TableHeader>
-              <TableRow>
-                <TableHead scope="col">邀请码</TableHead>
-                <TableHead scope="col">状态</TableHead>
-                <TableHead scope="col">使用者</TableHead>
-                <TableHead scope="col">创建时间</TableHead>
-                <TableHead scope="col">操作</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading && !data ? (
+              }
+            />
+            <Table>
+              <TableCaption className="sr-only">站点用户列表，含角色、状态、注册时间、最近登录与想法数</TableCaption>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center text-sm text-muted-foreground">
-                    加载中…
-                  </TableCell>
+                  <TableHead scope="col">用户</TableHead>
+                  <TableHead scope="col">角色</TableHead>
+                  <TableHead scope="col">状态</TableHead>
+                  <TableHead scope="col">注册</TableHead>
+                  <TableHead scope="col">最近登录</TableHead>
+                  <TableHead scope="col">想法</TableHead>
+                  <TableHead scope="col">操作</TableHead>
                 </TableRow>
-              ) : invites.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center text-sm text-muted-foreground">
-                    暂无邀请码
-                  </TableCell>
-                </TableRow>
-              ) : (
-                invites.map((i) => {
-                  const used = i.usedAt > 0
-                  const disabled = i.disabledAt > 0
-                  return (
-                    <TableRow key={i.code}>
-                      <TableCell data-primary="" data-label="邀请码">
-                        <code>{i.code}</code>
-                      </TableCell>
-                      <TableCell data-label="状态">
-                        {used ? (
-                          <Badge className="bg-success/10 text-success">已使用</Badge>
-                        ) : disabled ? (
-                          <Badge variant="secondary">已停用</Badge>
-                        ) : (
-                          <Badge className="bg-info/10 text-info">可用</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell data-label="使用者">{i.usedByName || i.usedBy || '—'}</TableCell>
-                      <TableCell data-label="创建时间" className="text-sm text-muted-foreground">{timeAgo(i.createdAt)}</TableCell>
-                      <TableCell data-actions="">
-                        <div className="admin-cell-actions flex items-center justify-end gap-2">
-                          <Button variant="outline" size="sm" onClick={() => void copyInvite(i.code)}>
-                            复制
-                          </Button>
-                          {!used && !disabled && (
-                            <Button variant="outline" size="sm" onClick={() => void disableInvite(i.code)}>
-                              停用
-                            </Button>
+              </TableHeader>
+              <TableBody>
+                {loading && !data ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="h-24 text-center text-sm text-muted-foreground">
+                      加载中…
+                    </TableCell>
+                  </TableRow>
+                ) : users.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="h-24 text-center text-sm text-muted-foreground">
+                      暂无用户
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  users.map((u) => {
+                    const disabled = u.status === 'disabled'
+                    const admin = u.role === 'admin'
+                    const self = meUser ? u.id === meUser.id : false
+                    return (
+                      <TableRow key={u.id}>
+                        <TableCell data-primary="" data-label="用户">
+                          <strong>{u.displayName || u.username}</strong>
+                          {self && (
+                            <Badge variant="outline" className="ml-1.5">
+                              本人
+                            </Badge>
                           )}
-                        </div>
+                          <br />
+                          <span className="text-sm text-muted-foreground">{u.username}</span>
+                        </TableCell>
+                        <TableCell data-label="角色">
+                          <Badge variant="secondary" className={admin ? 'bg-info/10 text-info' : ''}>
+                            {roleLabel(u.role)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell data-label="状态">
+                          <Badge className={disabled ? 'bg-destructive/10 text-destructive' : 'bg-success/10 text-success'}>
+                            {disabled ? '已禁用' : '正常'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell data-label="注册" className="text-sm text-muted-foreground">
+                          {timeAgo(u.createdAt)}
+                        </TableCell>
+                        <TableCell data-label="最近登录" className="text-sm text-muted-foreground">
+                          {timeAgo(u.lastLoginAt)}
+                        </TableCell>
+                        <TableCell data-label="想法">{u.thoughtCount || 0}</TableCell>
+                        <TableCell data-actions="">
+                          {!self && (
+                            <div className="admin-cell-actions flex flex-wrap items-center justify-end gap-2">
+                              <Button variant="outline" size="sm" onClick={() => void updateUserRole(u)}>
+                                {admin ? '设为读者' : '设为管理员'}
+                              </Button>
+                              <Button variant="outline" size="sm" onClick={() => void resetUserPassword(u)}>
+                                重置密码
+                              </Button>
+                              <Button variant="outline" size="sm" onClick={() => void updateUserStatus(u)}>
+                                {disabled ? '恢复' : '禁用'}
+                              </Button>
+                              <Button variant="destructive" size="sm" onClick={() => void deleteUser(u)}>
+                                删除
+                              </Button>
+                            </div>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </AdminDataPanel>
+        </>
+      )}
+
+      {currentAccountTab === 'audit' && (
+        <>
+          <AdminToolbar className="account-audit-toolbar" ariaLive="polite">
+            <Select
+              value={loginAuditStatus}
+              onValueChange={(value) => {
+                setLoginAuditStatus(value)
+                setLoginAuditOffset(0)
+              }}
+            >
+              <SelectTrigger className="h-9 w-[124px] bg-background" aria-label="登录结果">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent position="popper" align="start" sideOffset={4}>
+                <SelectItem value="all">全部结果</SelectItem>
+                <SelectItem value="success">成功</SelectItem>
+                <SelectItem value="failure">失败</SelectItem>
+                <SelectItem value="limited">限流</SelectItem>
+              </SelectContent>
+            </Select>
+            <Input
+              className="h-9 w-48"
+              value={loginAuditUsername}
+              placeholder="搜索用户名"
+              aria-label="搜索登录用户名"
+              onChange={(event) => {
+                setLoginAuditUsername(event.target.value)
+                setLoginAuditOffset(0)
+              }}
+            />
+          </AdminToolbar>
+          <AdminDataPanel className="account-audit-panel overflow-hidden" ariaLabel="登录记录列表" columns={LOGIN_AUDIT_COLUMNS}>
+            <AdminPanelHeading
+              title="登录记录"
+              description="记录登录成功、失败与限流事件，不保存密码或登录令牌。"
+              status={
+                <span className="admin-panel-status">
+                  {loginAuditLoading && loginAudits.length === 0 ? '读取中' : loginAudits.length ? `显示 ${loginAudits.length} 条` : '暂无记录'}
+                </span>
+              }
+              actions={
+                <Button variant="secondary" size="sm" onClick={() => void loadLoginAudit()} disabled={loginAuditLoading}>
+                  刷新
+                </Button>
+              }
+            />
+            <Table>
+              <TableCaption className="sr-only">登录记录列表，含用户、结果、原因、IP 地址、User-Agent 与时间</TableCaption>
+              <TableHeader>
+                <TableRow>
+                  <TableHead scope="col">用户</TableHead>
+                  <TableHead scope="col">结果</TableHead>
+                  <TableHead scope="col">原因</TableHead>
+                  <TableHead scope="col">IP 地址</TableHead>
+                  <TableHead scope="col">User-Agent</TableHead>
+                  <TableHead scope="col">时间</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {loginAuditLoading && loginAudits.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="h-20 text-center text-sm text-muted-foreground">
+                      加载中…
+                    </TableCell>
+                  </TableRow>
+                ) : loginAudits.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="h-20 text-center text-sm text-muted-foreground">
+                      暂无登录记录
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  loginAudits.map((audit) => (
+                    <TableRow key={audit.id}>
+                      <TableCell data-primary="" data-label="用户">
+                        <strong>{audit.displayName || audit.username || '未知用户'}</strong>
+                        <div className="text-xs text-muted-foreground">{audit.username || '未知用户名'}</div>
+                      </TableCell>
+                      <TableCell data-label="结果">
+                        <Badge className={audit.status === 'success' ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}>
+                          {loginAuditStatusLabel(audit.status)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell data-label="原因" className="text-sm text-muted-foreground">
+                        {loginAuditReasonLabel(audit.reason)}
+                      </TableCell>
+                      <TableCell data-label="IP 地址">
+                        <code className="text-xs">{audit.ipAddress || '未记录'}</code>
+                      </TableCell>
+                      <TableCell data-label="User-Agent" className="max-w-[260px]">
+                        <code className="block truncate text-xs text-muted-foreground" title={audit.userAgent}>
+                          {audit.userAgent || '未记录'}
+                        </code>
+                      </TableCell>
+                      <TableCell data-label="时间" className="whitespace-nowrap text-sm text-muted-foreground">
+                        {audit.createdAt ? new Date(audit.createdAt).toLocaleString('zh-CN') : '—'}
                       </TableCell>
                     </TableRow>
-                  )
-                })
-              )}
-            </TableBody>
-          </Table>
-          <div className="account-settings-panel__footer">
-            <span id="inviteStats">
-              {invites.length ? `共 ${invites.length} 个 · 可用 ${available} · 失效 ${spent}` : '暂无邀请码'}
-            </span>
-            {spent > 0 && (
-              <Button variant="destructive" size="sm" onClick={() => void clearInvites()}>
-                清理失效邀请码
-              </Button>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+            <Pagination
+              page={loginAuditPage}
+              totalPages={loginAuditPages}
+              onPage={(next) => setLoginAuditOffset((next - 1) * loginAuditLimit)}
+              busy={loginAuditLoading}
+              summary={`共 ${loginAuditTotal} 条记录`}
+              pageSize={{
+                value: loginAuditLimit,
+                onChange: (size) => {
+                  setLoginAuditLimit(size)
+                  setLoginAuditOffset(0)
+                },
+                options: ADMIN_PAGE_SIZE_OPTIONS,
+              }}
+            />
+          </AdminDataPanel>
+        </>
+      )}
+
+      {currentAccountTab === 'operation-audit' && (
+        <>
+          <AdminToolbar className="account-operation-audit-toolbar" ariaLive="polite">
+            <Select
+              value={operationAuditStatus}
+              onValueChange={(value) => {
+                setOperationAuditStatus(value)
+                setOperationAuditOffset(0)
+              }}
+            >
+              <SelectTrigger className="h-9 w-[124px] bg-background" aria-label="操作结果">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent position="popper" align="start" sideOffset={4}>
+                <SelectItem value="all">全部结果</SelectItem>
+                <SelectItem value="pending">处理中</SelectItem>
+                <SelectItem value="completed">成功</SelectItem>
+                <SelectItem value="failed">失败</SelectItem>
+              </SelectContent>
+            </Select>
+          </AdminToolbar>
+          <AdminDataPanel className="account-operation-audit-panel overflow-hidden" ariaLabel="操作记录列表" columns={OPERATION_AUDIT_COLUMNS}>
+            <AdminPanelHeading
+              title="操作记录"
+              description="记录危险操作的发起人、目标数量、结果与重放次数，不保存目标正文或原始内容。"
+              status={
+                <span className="admin-panel-status">
+                  {operationAuditLoading && operationAudits.length === 0 ? '读取中' : operationAudits.length ? `显示 ${operationAudits.length} 条` : '暂无记录'}
+                </span>
+              }
+              actions={
+                <Button variant="secondary" size="sm" onClick={() => void loadOperationAudit()} disabled={operationAuditLoading}>
+                  刷新
+                </Button>
+              }
+            />
+            <Table>
+              <TableCaption className="sr-only">管理员操作记录列表，含操作人、动作、目标数量、结果、重放次数与操作 ID</TableCaption>
+              <TableHeader>
+                <TableRow>
+                  <TableHead scope="col">操作人</TableHead>
+                  <TableHead scope="col">动作</TableHead>
+                  <TableHead scope="col">目标数量</TableHead>
+                  <TableHead scope="col">结果</TableHead>
+                  <TableHead scope="col">重放</TableHead>
+                  <TableHead scope="col">操作 ID</TableHead>
+                  <TableHead scope="col">时间</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {operationAuditLoading && operationAudits.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="h-20 text-center text-sm text-muted-foreground">
+                      加载中…
+                    </TableCell>
+                  </TableRow>
+                ) : operationAudits.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="h-20 text-center text-sm text-muted-foreground">
+                      暂无管理员操作记录
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  operationAudits.map((operation) => (
+                    <TableRow key={operation.id}>
+                      <TableCell data-primary="" data-label="操作人">
+                        <strong>{operation.actorDisplayName || operation.actorUsername || '未知管理员'}</strong>
+                        <div className="text-xs text-muted-foreground">{operation.actorUsername || '未知账号'}</div>
+                      </TableCell>
+                      <TableCell data-label="动作" className="whitespace-nowrap">
+                        {operationAuditActionLabel(operation.action)}
+                      </TableCell>
+                      <TableCell data-label="目标数量">{operation.targetCount}</TableCell>
+                      <TableCell data-label="结果">
+                        <Badge
+                          className={
+                            operation.status === 'completed'
+                              ? 'bg-success/10 text-success'
+                              : operation.status === 'failed'
+                                ? 'bg-destructive/10 text-destructive'
+                                : 'bg-warning/10 text-warning'
+                          }
+                        >
+                          {operationAuditStatusLabel(operation.status)}
+                        </Badge>
+                        {operation.status === 'failed' && operation.error && <div className="mt-1 text-xs text-destructive">{operation.error}</div>}
+                      </TableCell>
+                      <TableCell data-label="重放">{operation.replayCount}</TableCell>
+                      <TableCell data-label="操作 ID" className="max-w-[260px]">
+                        <code className="block truncate text-xs text-muted-foreground" title={operation.operationId}>
+                          {operation.operationId}
+                        </code>
+                      </TableCell>
+                      <TableCell data-label="时间" className="whitespace-nowrap text-sm text-muted-foreground">
+                        {operation.createdAt ? new Date(operation.createdAt).toLocaleString('zh-CN') : '—'}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+            <Pagination
+              page={operationAuditPage}
+              totalPages={operationAuditPages}
+              onPage={(next) => setOperationAuditOffset((next - 1) * operationAuditLimit)}
+              busy={operationAuditLoading}
+              summary={`共 ${operationAuditTotal} 条记录`}
+              pageSize={{
+                value: operationAuditLimit,
+                onChange: (size) => {
+                  setOperationAuditLimit(size)
+                  setOperationAuditOffset(0)
+                },
+                options: ADMIN_PAGE_SIZE_OPTIONS,
+              }}
+            />
+          </AdminDataPanel>
+        </>
+      )}
+
+      {currentAccountTab === 'registration' && (
+        <>
+          <AdminDataPanel className="account-invites-panel overflow-hidden" ariaLabel="邀请码列表" columns={INVITE_COLUMNS}>
+            <AdminPanelHeading
+              title="邀请码"
+              description="生成、复制与停用注册邀请码。"
+              status={<span className="admin-panel-status">{invites.length ? `共 ${invites.length} 个` : '暂无邀请码'}</span>}
+              actions={
+                <>
+                  <Input
+                    type="number"
+                    className="admin-input--invite-count"
+                    min={1}
+                    max={50}
+                    value={inviteCount}
+                    aria-label="生成邀请码数量"
+                    onChange={(e) => setInviteCount(e.target.value)}
+                  />
+                  <Button size="sm" onClick={() => void createInvite()}>
+                    生成邀请码
+                  </Button>
+                </>
+              }
+            />
+            {generatedCodes && generatedCodes.length > 0 && (
+              <div id="tokenStatus" className="account-invites-generated" role="status">
+                <div className="account-invites-generated__codes">
+                  {generatedCodes.map((c) => (
+                    <code key={c}>{c}</code>
+                  ))}
+                </div>
+                <Button variant="secondary" size="sm" onClick={() => void copyNewInvites()}>
+                  复制全部
+                </Button>
+              </div>
             )}
-          </div>
-        </AdminDataPanel>
-      </>}
+            <Table>
+              <TableCaption className="sr-only">邀请码列表，含状态、使用者与创建时间</TableCaption>
+              <TableHeader>
+                <TableRow>
+                  <TableHead scope="col">邀请码</TableHead>
+                  <TableHead scope="col">状态</TableHead>
+                  <TableHead scope="col">使用者</TableHead>
+                  <TableHead scope="col">创建时间</TableHead>
+                  <TableHead scope="col">操作</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {loading && !data ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="h-24 text-center text-sm text-muted-foreground">
+                      加载中…
+                    </TableCell>
+                  </TableRow>
+                ) : invites.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="h-24 text-center text-sm text-muted-foreground">
+                      暂无邀请码
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  invites.map((i) => {
+                    const used = i.usedAt > 0
+                    const disabled = i.disabledAt > 0
+                    return (
+                      <TableRow key={i.code}>
+                        <TableCell data-primary="" data-label="邀请码">
+                          <code>{i.code}</code>
+                        </TableCell>
+                        <TableCell data-label="状态">
+                          {used ? (
+                            <Badge className="bg-success/10 text-success">已使用</Badge>
+                          ) : disabled ? (
+                            <Badge variant="secondary">已停用</Badge>
+                          ) : (
+                            <Badge className="bg-info/10 text-info">可用</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell data-label="使用者">{i.usedByName || i.usedBy || '—'}</TableCell>
+                        <TableCell data-label="创建时间" className="text-sm text-muted-foreground">
+                          {timeAgo(i.createdAt)}
+                        </TableCell>
+                        <TableCell data-actions="">
+                          <div className="admin-cell-actions flex items-center justify-end gap-2">
+                            <Button variant="outline" size="sm" onClick={() => void copyInvite(i.code)}>
+                              复制
+                            </Button>
+                            {!used && !disabled && (
+                              <Button variant="outline" size="sm" onClick={() => void disableInvite(i.code)}>
+                                停用
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })
+                )}
+              </TableBody>
+            </Table>
+            <div className="account-settings-panel__footer">
+              <span id="inviteStats">{invites.length ? `共 ${invites.length} 个 · 可用 ${available} · 失效 ${spent}` : '暂无邀请码'}</span>
+              {spent > 0 && (
+                <Button variant="destructive" size="sm" onClick={() => void clearInvites()}>
+                  清理失效邀请码
+                </Button>
+              )}
+            </div>
+          </AdminDataPanel>
+        </>
+      )}
     </AdminPage>
   )
 }
