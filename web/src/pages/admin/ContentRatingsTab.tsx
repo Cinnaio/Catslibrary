@@ -423,7 +423,7 @@ function AiSuggestionPanel({
       <AiTaskProgressBar task={task} progress={progress} onCancel={onCancel} onResume={onResume} cancelling={cancelling} resuming={resuming} />
       {error ? (
         <InlineError message={`LLM 建议加载失败：${error}`} onRetry={onRetry} className="mx-5 my-4" />
-      ) : loading ? (
+      ) : loading && !data ? (
         <LoadingState label="正在加载 LLM 分级建议" rows={2} />
       ) : !data || data.items.length === 0 ? (
         <AdminEmptyState message="还没有待审核的 LLM 分级建议；分析任务只会读取 unknown 作品。" />
@@ -523,6 +523,8 @@ export default function ContentRatingsTab() {
   const listSeqRef = useRef(0)
   const historySeqRef = useRef(0)
   const candidatePreviewSeqRef = useRef(0)
+  const aiListSeqRef = useRef(0)
+  const aiProgressRef = useRef<{ taskId: string; done: number } | null>(null)
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -590,15 +592,16 @@ export default function ContentRatingsTab() {
   }, [loadCandidates])
 
   const loadAiSuggestions = useCallback(async () => {
+    const seq = ++aiListSeqRef.current
     setAiLoading(true)
     setAiError('')
     try {
       const response = await adminApi.contentRatingAi.list({ status: 'pending', limit: 20, offset: 0 })
-      setAiData(response)
+      if (seq === aiListSeqRef.current) setAiData(response)
     } catch (error) {
-      setAiError(errorMessage(error, '请检查网络后重试'))
+      if (seq === aiListSeqRef.current) setAiError(errorMessage(error, '请检查网络后重试'))
     } finally {
-      setAiLoading(false)
+      if (seq === aiListSeqRef.current) setAiLoading(false)
     }
   }, [])
 
@@ -608,18 +611,38 @@ export default function ContentRatingsTab() {
     void loadAiSuggestions()
   }, [loadAiSuggestions])
 
+  /**
+   * 应用批次进度，并在服务端处理出新结果时增量刷新待审核队列。
+   *
+   * done 是服务端在每本作品完成（成功或失败）后递增的批次游标；只在它前进时
+   * 拉取列表，避免 1.5 秒轮询在没有新结果时反复打满审核接口。任务结束时仍强制
+   * 刷新一次，用来收敛最后一个结果和终态信息。
+   */
+  const applyAiProgress = useCallback(
+    async (result: AdminContentRatingAiTaskProgress) => {
+      const previous = aiProgressRef.current
+      const taskId = result.task.id
+      const hasNewResult = previous?.taskId === taskId ? result.done > previous.done : result.done > 0
+      const finished = ['completed', 'failed', 'cancelled'].includes(result.task.status)
+      aiProgressRef.current = { taskId, done: result.done }
+      setAiTask(result.task)
+      setAiProgress(result)
+      if (hasNewResult || finished) await loadAiSuggestions()
+    },
+    [loadAiSuggestions],
+  )
+
   /** 拉取批次进度：批次口径（已处理/剩余缺口）以服务端为准，避免恢复后游标归零造成误读。 */
   const loadAiProgress = useCallback(async (taskId: string) => {
     try {
       const result = await adminApi.contentRatingAi.progress(taskId)
-      setAiTask(result.task)
-      setAiProgress(result)
+      await applyAiProgress(result)
       return result
     } catch {
       // 优先级低于建议列表：进度读取失败不应打断审核流程，界面回退到任务自身字段。
       return null
     }
-  }, [])
+  }, [applyAiProgress])
 
   /**
    * 挂载时对齐服务端「当前批次」。
@@ -636,6 +659,7 @@ export default function ContentRatingsTab() {
         if (!active || !latest.task) return
         setAiTask(latest.task)
         setAiProgress({ ...latest, task: latest.task })
+        aiProgressRef.current = { taskId: latest.task.id, done: latest.done }
       } catch {
         // 对齐失败只是拿不到上次的进度，不影响新建任务；不打断审核流程。
       }
@@ -654,11 +678,8 @@ export default function ContentRatingsTab() {
       try {
         const result = await adminApi.contentRatingAi.progress(taskId)
         if (!active) return
-        setAiTask(result.task)
-        setAiProgress(result)
-        if (['completed', 'failed', 'cancelled'].includes(result.task.status)) {
-          await Promise.all([loadAiSuggestions(), load(true)])
-        }
+        await applyAiProgress(result)
+        if (['completed', 'failed', 'cancelled'].includes(result.task.status)) await load(true)
       } catch (error) {
         if (active) setAiError(errorMessage(error, 'LLM 任务状态读取失败'))
       }

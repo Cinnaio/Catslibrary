@@ -365,6 +365,61 @@ describe('ContentRatingsTab', () => {
     expect(mocks.toast).toHaveBeenCalledWith('AI 建议已批准，作品已标为限制级；操作已写入审计记录', 'success')
   })
 
+  it('LLM 任务每完成一条结果就自动刷新待审核列表', async () => {
+    const suggestion: AdminContentRatingAiSuggestion = {
+      id: 'ratingai-live-1',
+      novelId: 'unknown-live-1',
+      title: '实时出现的 AI 建议',
+      author: '作者',
+      taskId: 'aitask-live',
+      novelRevision: 1,
+      currentRating: 'unknown',
+      currentSource: 'system',
+      currentRevision: 1,
+      inputSnapshot: { title: '实时出现的 AI 建议' },
+      suggestedRating: 'restricted',
+      confidence: 0.88,
+      reason: '实时结果已生成',
+      evidence: [{ type: 'llm', field: 'title', value: '明确证据' }],
+      model: 'rating-test-model',
+      promptVersion: 'content-rating-ai-v1',
+      status: 'pending',
+      revision: 0,
+      reviewedBy: '',
+      reviewedByName: '',
+      reviewedAt: 0,
+      reviewReason: '',
+      error: '',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    }
+    mocks.aiList.mockResolvedValueOnce({ items: [], total: 0, counts: { pending: 0, approved: 0, rejected: 0, stale: 0, failed: 0 } })
+    mocks.aiList.mockResolvedValue({ items: [suggestion], total: 1, counts: { pending: 1, approved: 0, rejected: 0, stale: 0, failed: 0 } })
+    mocks.aiLatest.mockResolvedValue({
+      task: { id: 'aitask-live', status: 'running', current: 0, total: 2, step: '准备作品元数据' },
+      total: 2,
+      done: 0,
+      remaining: 2,
+      canResume: false,
+      resumable: true,
+      promptVersion: 'content-rating-ai-v1',
+    })
+    mocks.aiProgress.mockResolvedValue({
+      task: { id: 'aitask-live', status: 'running', current: 1, total: 2, step: '已分析 1 / 2 本 · 成功 1' },
+      total: 2,
+      done: 1,
+      remaining: 1,
+      canResume: false,
+      resumable: true,
+      promptVersion: 'content-rating-ai-v1',
+    })
+
+    render(<ContentRatingsTab />)
+
+    expect(await screen.findByText('实时出现的 AI 建议')).toBeInTheDocument()
+    expect(mocks.aiList.mock.calls.length).toBeGreaterThanOrEqual(2)
+  })
+
   it('分析任务显示批次进度，并可随时中止', async () => {
     const user = userEvent.setup()
     mocks.aiList.mockResolvedValue({ items: [], total: 0, counts: { pending: 0, approved: 0, rejected: 0, stale: 0, failed: 0 } })
