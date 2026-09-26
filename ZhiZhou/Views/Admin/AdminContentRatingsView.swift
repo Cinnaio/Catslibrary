@@ -1203,6 +1203,8 @@ private struct AdminContentRatingAISuggestionsView: View {
     @State private var isResuming = false
     @State private var pollTask: Task<Void, Never>?
     @State private var pollingToken = UUID()
+    @State private var lastProgressTaskID: String?
+    @State private var lastProgressDone = -1
     @State private var reviewingSuggestion: AdminContentRatingAISuggestion?
 
     init(module: Binding<AdminContentRatingModule>) {
@@ -1467,6 +1469,8 @@ private struct AdminContentRatingAISuggestionsView: View {
             guard !Task.isCancelled else { return }
             task = latest.task
             if let latestTask = latest.task {
+                lastProgressTaskID = latestTask.id
+                lastProgressDone = latest.done
                 progress = AdminContentRatingAITaskProgress(
                     task: latestTask,
                     total: latest.total,
@@ -1480,6 +1484,8 @@ private struct AdminContentRatingAISuggestionsView: View {
                     startPolling(latestTask.id)
                 }
             } else {
+                lastProgressTaskID = nil
+                lastProgressDone = -1
                 progress = nil
             }
         } catch {
@@ -1487,12 +1493,29 @@ private struct AdminContentRatingAISuggestionsView: View {
         }
     }
 
+    /// 应用服务端批次进度，并在 done 前进时把新生成的建议加载进审核列表。
+    /// 任务终态仍会强制刷新一次，收敛最后一个结果和失败/取消状态。
+    private func applyProgress(_ result: AdminContentRatingAITaskProgress) async {
+        let hasNewResult: Bool
+        if lastProgressTaskID == result.task.id {
+            hasNewResult = result.done > lastProgressDone
+        } else {
+            hasNewResult = result.done > 0
+        }
+        lastProgressTaskID = result.task.id
+        lastProgressDone = result.done
+        task = result.task
+        progress = result
+        if hasNewResult || !result.task.isRunning {
+            await loadSuggestions()
+        }
+    }
+
     private func loadProgress(_ taskID: String) async {
         do {
             let result = try await AdminAPI.contentRatingAITaskProgress(taskID: taskID)
             guard !Task.isCancelled else { return }
-            task = result.task
-            progress = result
+            await applyProgress(result)
         } catch {
             errorMessage = AppCopy.friendlyError(error)
         }
@@ -1578,11 +1601,9 @@ private struct AdminContentRatingAISuggestionsView: View {
                     let result = try await AdminAPI.contentRatingAITaskProgress(taskID: taskID)
                     guard !Task.isCancelled, pollingToken == token else { return }
                     consecutiveFailures = 0
-                    task = result.task
-                    progress = result
+                    await applyProgress(result)
                     if !result.task.isRunning {
                         pollTask = nil
-                        await loadSuggestions()
                         return
                     }
                 } catch {

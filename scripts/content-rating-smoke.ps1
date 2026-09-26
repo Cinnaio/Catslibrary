@@ -28,6 +28,8 @@ Assert-Contains -Path "ZhiZhou/Views/Admin/AdminContentRatingsView.swift" -Patte
 Assert-Contains -Path "ZhiZhou/Views/Admin/AdminContentRatingsView.swift" -Pattern "cancelAiTask" -Description "LLM 中止任务"
 Assert-Contains -Path "ZhiZhou/Views/Admin/AdminContentRatingsView.swift" -Pattern "resumeContentRatingAITask" -Description "LLM 断点恢复"
 Assert-Contains -Path "ZhiZhou/Views/Admin/AdminContentRatingsView.swift" -Pattern "reviewContentRatingAISuggestion" -Description "LLM 建议人工复核"
+Assert-Contains -Path "ZhiZhou/Views/Admin/AdminContentRatingsView.swift" -Pattern "lastProgressDone" -Description "LLM 新结果增量刷新游标"
+Assert-Contains -Path "ZhiZhou/Views/Admin/AdminContentRatingsView.swift" -Pattern 'await applyProgress(result)' -Description "LLM 新结果自动加载"
 
 $view = Get-Content -LiteralPath (Join-Path $projectRoot 'ZhiZhou/Views/Admin/AdminContentRatingsView.swift') -Raw
 $tabCount = ([regex]::Matches($view, 'case (ratings|rules|ai) =')).Count
