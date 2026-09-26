@@ -999,7 +999,7 @@ export default function ContentRatingsTab() {
               status={<span className="text-xs text-muted-foreground">{loading ? '正在同步…' : `${formatNumber(data.total)} 本匹配`}</span>}
             />
 
-            <AdminToolbar ariaLive="polite">
+            <AdminToolbar className="content-ratings-toolbar" ariaLive="polite">
               <AdminSearch
                 id="content-rating-search"
                 type="search"

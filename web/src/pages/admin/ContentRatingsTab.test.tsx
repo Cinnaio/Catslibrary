@@ -569,4 +569,16 @@ describe('ContentRatingsTab', () => {
       expect(trigger.className).not.toContain('max-w-none')
     }
   })
+
+  it('工具条带自己的内间距类名，避免贴边与压住表头', async () => {
+    render(<ContentRatingsTab />)
+    await screen.findByText('潮汐之后')
+
+    // 回归：.admin-toolbar--inline 自身没有内间距，各页面须由自己的 class 补齐
+    // （padding + border-bottom + margin-bottom）。裸用会让控件贴住面板左右边缘，
+    // 且 padding-bottom 落在盒内、表格紧贴表头。
+    const toolbar = document.querySelector('.content-ratings-toolbar')
+    expect(toolbar).not.toBeNull()
+    expect(toolbar?.className).toContain('admin-toolbar')
+  })
 })

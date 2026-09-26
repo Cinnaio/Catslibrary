@@ -525,7 +525,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
     >
       <AdminDataPanel ariaLabel="作品目录" columns={NOVEL_COLUMNS}>
         <AdminPanelHeading title="作品目录" description={query ? `匹配「${query}」的作品` : '按标题、作者、章节数和更新时间管理书库'} />
-        <AdminToolbar layout="inline">
+        <AdminToolbar layout="inline" className="novels-toolbar">
           <div className="admin-toolbar__filters">
             <Label id="novel-rating-filter-label">分级</Label>
             <CustomSelect

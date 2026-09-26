@@ -313,7 +313,9 @@ components:
 ### Panel Toolbar (AdminToolbar)
 
 - **Ownership:** 工具条归属于它筛选的那份数据，而不是页面。筛选/搜索/批量操作只作用于某个 `AdminDataPanel` 的列表时，该 `AdminToolbar` 必须渲染在**那个面板内部**，位于 `AdminPanelHeading` 之下、数据区（表格 / 列表 / 页脚）之上。
-- **Anatomy:** 面板内工具条是面板的一段，不是独立表面。无自身圆角、无四边描边，只有一条 `--admin-border` 底线与数据区分隔；表面色用 `color-mix(in srgb, var(--admin-surface) 40%, transparent)` 与画布轻微区分。水平内边距与数据区（`.ai-list-body` / `.ai-tasks-content` 的 `1.25rem`，≤900px 降为 `1rem`）**必须同步**——只改一侧会让工具条与下方表格错开 4px，出现两条左基线。
+- **Anatomy:** 面板内工具条是面板的一段，不是独立表面。无自身圆角、无四边描边，只有一条 `--admin-border` 底线与数据区分隔；表面色用 `color-mix(in srgb, var(--admin-surface) 40%, transparent)` 与画布轻微区分。水平内边距与数据区（`.ai-list-body` / `.ai-tasks-content` 的 `1.25rem`，≤900px 降为 `1rem`）**必须同步**——只改一侧会让工具条与下方表格错开，出现两条左基线。
+- **内间距归属：** `.admin-toolbar--inline` 自身**只有 flex 布局**（`display: flex` + `flex-wrap` + `gap`），不含内间距。每个工具条必须由**自己的 class** 补 `padding: 0.75rem 1.25rem` 与 `border-bottom: 1px solid var(--admin-border)`（范本见 `.ai-service .ai-tasks-toolbar`、`.chapter-toolbar`、`.moderation-toolbar`）。裸用 `<AdminToolbar>` 而不给 `className` 会得到零内边距：控件贴住面板左右边缘，且表头被压在筛选条下沿。
+- **下边距必须外置：** `padding-bottom` 落在盒内，表格仍会紧贴 `border-bottom`（实测工具条 `bottom` 与 `thead top` 差 0px）。工具条与数据区之间需要 `margin-bottom: 1rem`，不能用 padding 代替。
 - **Geometry:** `display: flex` + `flex-wrap: wrap` + `gap: 0.75rem`，靠换行适配窄屏而不另写断点；`min-height` 与纵向内边距按内容定档（AI 三面板 3.25rem / `0.75rem`，章节目录面板 3.75rem / `0.875rem`），不做强制统一。
 - **Slots:** 组合顺序固定为「批量操作（仅在有选中项时出现）→ 字段标签 → 筛选控件 → 其余动作」；不要为筛选器新建一套卡片外观。
 - **External Form:** 外置工具条（`AdminPage` 直接子级）是**例外**，只用于面板确实需要独立成卡、或其控件跨多个面板生效的场景；此时才使用独立表面语言（`--radius-xl` 圆角 + 描边 + `--admin-panel` 表面色）。
@@ -345,6 +347,13 @@ components:
 - **Source of truth:** 紧凑筛选器的默认宽度上限是 `--admin-filter-width`（11rem），定义在 `admin-operations.css` 的 `:root`。新增紧凑筛选器时优先复用该变量，不要就地写魔法数字。
 - **Caller patterns（二选一）：** 短选项筛选器直接 `compact`（走 11rem）；需要更宽或更窄时，由外层容器 `flex: 0 0 <宽度>` 或 `className` 覆盖，并在调用点说明理由。
 - **Verification:** 改动筛选器宽度后，实测该工具条的**子元素数量与换行数**（`AdminToolbar` 设计为同行排布，除非窄屏换行）；用 `getBoundingClientRect().width` 确认下拉不等于工具条宽度。
+
+**`.admin-toolbar__filters`（标签 + 控件 + 计数说明的筛选器组）**
+
+- 它按内容排列：`display: flex` + `flex: 0 0 max-content` + `flex-wrap: nowrap`，子项 `flex: 0 0 auto`；≤900px 才放开换行。
+- **不要用 `width: max-content` + `max-width: 100%` 表达同一意图。** 百分比 `max-width` 在 flex 行里按已分配空间解析，与 `max-content` 形成循环依赖：浏览器按规范收敛到 286px，而子项里的 `CustomSelect` 触发器带 `w-full`，又按 `w-full` 长到 `max-w`（176px），最终子项共占 348px、溢出容器右界 62px。`flex-basis: max-content` 直接参与 flex 分配，绕开这一层耦合。
+- 筛选条内的 `CustomSelect` 触发器必须 `width: auto`（选择器 `[data-slot='popover-trigger']`，注意不是 `data-slot='button'`）：否则 `w-full` 与父级 `max-content` 循环，元素宽度随容器收敛而非随内容。
+- 该类名曾被当作「有类名、无规则」的占位容器使用，`display` 落到 `block`，标签、下拉、计数各自成块。它不是占位类，布局必须显式声明。
 
 
 ## Do's and Don'ts

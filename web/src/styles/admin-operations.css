@@ -8087,6 +8087,64 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   margin-right: 0.25rem;
 }
 
+/* 面板内工具条的通用内间距契约。
+   .admin-toolbar--inline 自身只有 flex 布局，没有内间距；各页面按约定在自己的
+   class 里补 `padding: <纵向> 1.25rem`，使控件左边缘与下方表格同一条基线
+   （范本见 .ai-service .ai-tasks-toolbar、.chapter-toolbar、.moderation-toolbar）。
+   裸用 AdminToolbar 而不给 class 时，工具条会贴住面板左右边缘、并紧贴表头
+   （实测下边距 0px，表头被压在筛选条下沿），因此这两个页面在此补齐。 */
+.novels-toolbar,
+.content-ratings-toolbar {
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--admin-border);
+  /* padding-bottom 落在盒内，表格仍紧贴 border-bottom（实测
+     工具条 bottom 与 thead top 差 0px，表头被压在筛选条下沿）。
+     下边距因此必须外置为 margin。 */
+  margin-bottom: 1rem;
+}
+
+/* 工具条内的筛选器组：横向排列。
+   .admin-toolbar__filters 曾是「有类名、无规则」——display 落到 block，
+   标签、下拉、计数说明各自成块（实测三个不同 top），补上 flex 后仍不对：
+   flex-wrap 时容器按 min-content 求宽（内容实需 348px，容器只得到 286px）；
+   改成 nowrap 后 flex 转而压缩子项（计数被压到 70px 宽、折成 3 行）。
+
+   定宽必须走 flex-basis: max-content，而不是 width: max-content：
+   后者受 max-width: 100% 影响，而该百分比在 flex 行里按已分配空间解析，
+   实测仍得 286px、子项溢出容器右界 62px（连 !important 都无法修正）。
+   basis 直接参与 flex 分配，不经过 width 与百分比 max-width 的这一层耦合。
+
+   .admin-toolbar > *:not([class*='min-w-']) 的 min-width: 0 会命中本容器
+   （类名不含 min-w-），故用 flex-basis 而非 min-width 表达下限。 */
+.admin-toolbar__filters {
+  display: flex;
+  flex: 0 0 max-content;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 0.5rem 0.75rem;
+}
+
+/* 子元素不参与收缩，且按内容取宽。
+   父级禁止换行后 flex 会转而压缩子项（实测计数说明被压到 70px 宽、折成 3 行，
+   标签被压到 16px）。而 CustomSelect 的触发器自带 w-full，与父级的
+   max-content 形成循环依赖：浏览器按规范取 286px 定容器，触发器再按 w-full
+   长到 max-w（176px），结果子项共占 348px、溢出容器右界 62px。
+   故在筛选条内让触发器退回内容宽度（max-content 实测 114px），打断循环。 */
+.admin-toolbar__filters > * {
+  flex: 0 0 auto;
+}
+
+.admin-toolbar__filters [data-slot='popover-trigger'] {
+  width: auto;
+}
+
+/* 窄屏才允许换行：此时工具条本身已转纵向，横向空间不足以容纳整条筛选条。 */
+@media (max-width: 900px) {
+  .admin-toolbar__filters {
+    flex-wrap: wrap;
+  }
+}
+
 /* 选中作品后显示紧凑的状态操作条，贴着表头并与面板内容保持同一条对齐线。 */
 .admin-toolbar__batch {
   display: flex;
