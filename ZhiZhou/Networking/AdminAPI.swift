@@ -132,6 +132,188 @@ enum AdminAPI {
         )
     }
 
+    // MARK: - 内容分级治理
+
+    /// GET /api/admin/content-ratings：作品分级、来源、证据和审计摘要。
+    static func contentRatings(
+        rating: String = "",
+        source: String = "",
+        search: String = "",
+        limit: Int = 25,
+        offset: Int = 0
+    ) async throws -> AdminContentRatingListResponse {
+        let path = queryPath(
+            "/api/admin/content-ratings",
+            [
+                "rating": rating,
+                "source": source,
+                "search": search,
+                "limit": "\(limit)",
+                "offset": "\(offset)",
+            ]
+        )
+        return try await APIClient.shared.get(path, auth: true)
+    }
+
+    static func contentRatingHistory(novelID: String) async throws -> [AdminContentRatingHistoryItem] {
+        let response: AdminContentRatingHistoryResponse = try await APIClient.shared.get(
+            "/api/admin/content-ratings/\(encodePathSegment(novelID))/history",
+            auth: true
+        )
+        return response.history
+    }
+
+    static func updateContentRating(
+        novelID: String,
+        rating: String,
+        reason: String,
+        expectedRevision: Int
+    ) async throws -> AdminContentRatingUpdateResponse {
+        try await APIClient.shared.request(
+            "PUT",
+            "/api/admin/content-ratings/\(encodePathSegment(novelID))",
+            body: try jsonBody([
+                "contentRating": rating,
+                "reason": reason,
+                "expectedRevision": expectedRevision,
+            ]),
+            auth: true
+        )
+    }
+
+    /// GET /api/admin/content-rating-rule-candidates：动态规则候选队列。
+    static func contentRatingRuleCandidates(
+        status: String = "",
+        kind: String = "",
+        search: String = "",
+        limit: Int = 20,
+        offset: Int = 0
+    ) async throws -> AdminContentRatingRuleCandidateListResponse {
+        let path = queryPath(
+            "/api/admin/content-rating-rule-candidates",
+            [
+                "status": status,
+                "kind": kind,
+                "search": search,
+                "limit": "\(limit)",
+                "offset": "\(offset)",
+            ]
+        )
+        return try await APIClient.shared.get(path, auth: true)
+    }
+
+    static func createContentRatingRuleCandidate(
+        novelID: String,
+        kind: String,
+        value: String,
+        reason: String
+    ) async throws -> AdminContentRatingRuleCandidateCreateResponse {
+        try await APIClient.shared.post(
+            "/api/admin/content-rating-rule-candidates",
+            body: try jsonBody([
+                "novelId": novelID,
+                "kind": kind,
+                "value": value,
+                "reason": reason,
+            ]),
+            auth: true
+        )
+    }
+
+    static func previewContentRatingRuleCandidate(
+        candidateID: String,
+        limit: Int = 100,
+        offset: Int = 0
+    ) async throws -> AdminContentRatingRuleCandidatePreviewResponse {
+        let path = queryPath(
+            "/api/admin/content-rating-rule-candidates/\(encodePathSegment(candidateID))/preview",
+            ["limit": "\(limit)", "offset": "\(offset)"]
+        )
+        return try await APIClient.shared.get(path, auth: true)
+    }
+
+    static func reviewContentRatingRuleCandidate(
+        candidateID: String,
+        decision: String,
+        expectedRevision: Int,
+        reason: String
+    ) async throws -> AdminContentRatingRuleCandidateReviewResponse {
+        try await APIClient.shared.post(
+            "/api/admin/content-rating-rule-candidates/\(encodePathSegment(candidateID))/review",
+            body: try jsonBody([
+                "decision": decision,
+                "expectedRevision": expectedRevision,
+                "reason": reason,
+            ]),
+            auth: true
+        )
+    }
+
+    /// GET /api/admin/content-rating-ai：LLM 分级建议审核队列。
+    static func contentRatingAISuggestions(
+        status: String = "",
+        search: String = "",
+        limit: Int = 20,
+        offset: Int = 0
+    ) async throws -> AdminContentRatingAISuggestionListResponse {
+        let path = queryPath(
+            "/api/admin/content-rating-ai",
+            [
+                "status": status,
+                "search": search,
+                "limit": "\(limit)",
+                "offset": "\(offset)",
+            ]
+        )
+        return try await APIClient.shared.get(path, auth: true)
+    }
+
+    static func startContentRatingAIScan(limit: Int = 20, novelIDs: [String] = []) async throws -> AdminContentRatingAIScanResponse {
+        var payload: [String: Any] = ["limit": limit]
+        if !novelIDs.isEmpty { payload["novelIds"] = novelIDs }
+        return try await APIClient.shared.post(
+            "/api/admin/content-rating-ai/scan",
+            body: try jsonBody(payload),
+            auth: true
+        )
+    }
+
+    static func latestContentRatingAITask() async throws -> AdminContentRatingAILatestBatch {
+        try await APIClient.shared.get("/api/admin/content-rating-ai/latest", auth: true)
+    }
+
+    static func contentRatingAITaskProgress(taskID: String) async throws -> AdminContentRatingAITaskProgress {
+        try await APIClient.shared.get(
+            "/api/admin/content-rating-ai/tasks/\(encodePathSegment(taskID))/progress",
+            auth: true
+        )
+    }
+
+    static func resumeContentRatingAITask(taskID: String) async throws -> AdminContentRatingAIResumeResponse {
+        try await APIClient.shared.post(
+            "/api/admin/content-rating-ai/tasks/\(encodePathSegment(taskID))/resume",
+            body: try jsonBody([:]),
+            auth: true
+        )
+    }
+
+    static func reviewContentRatingAISuggestion(
+        suggestionID: String,
+        decision: String,
+        expectedRevision: Int,
+        reason: String
+    ) async throws -> AdminContentRatingAIReviewResponse {
+        try await APIClient.shared.post(
+            "/api/admin/content-rating-ai/\(encodePathSegment(suggestionID))/review",
+            body: try jsonBody([
+                "decision": decision,
+                "expectedRevision": expectedRevision,
+                "reason": reason,
+            ]),
+            auth: true
+        )
+    }
+
     // MARK: - 站点公告
 
     static func announcement() async throws -> String {

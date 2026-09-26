@@ -10,6 +10,7 @@ struct AdminRootView: View {
         case dashboard
         case telemetry
         case moderation
+        case contentRatings
         case novels
         case chapters
         case jobs
@@ -47,6 +48,7 @@ struct AdminRootView: View {
         ]),
         AdminModuleGroup(id: "content", title: "内容", modules: [
             AdminModule(id: "moderation", title: "内容审核", systemImage: "bubble.left.and.bubble.right", destination: .moderation),
+            AdminModule(id: "content-ratings", title: "分级管理", systemImage: "checkmark.shield", destination: .contentRatings),
             AdminModule(id: "novels", title: "小说管理", systemImage: "books.vertical", destination: .novels),
             AdminModule(id: "chapters", title: "章节管理", systemImage: "doc.text", destination: .chapters),
         ]),
@@ -166,6 +168,7 @@ struct AdminRootView: View {
         case .dashboard: AdminDashboardView()
         case .telemetry: AdminMobileTelemetryView()
         case .moderation: AdminModerationView()
+        case .contentRatings: AdminContentRatingsView()
         case .novels: AdminNovelsView()
         case .chapters: AdminChaptersView()
         case .jobs: AdminJobsView()
