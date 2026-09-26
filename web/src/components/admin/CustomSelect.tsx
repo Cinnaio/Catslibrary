@@ -116,7 +116,11 @@ export default function CustomSelect({
           disabled={disabled}
           className={cn(
             'w-full max-w-[400px] justify-between bg-card font-normal text-[0.9rem]',
-            compact && 'h-8 max-w-none',
+            // compact 只负责「更矮」，宽度上限必须保留：
+            // 原实现用 max-w-none 解除约束，裸用 compact 时按钮会被 flex 容器
+            // 拉满整行（实测 .admin-toolbar--inline 下各占 1440px，两个筛选器
+            // 各占一行）。调用方仍可用 className 覆盖，如 w-40。
+            compact && 'h-8 max-w-[var(--admin-filter-width)]',
             chip && 'rounded-full',
             className,
           )}

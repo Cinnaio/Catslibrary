@@ -13,6 +13,12 @@
   --admin-border: color-mix(in srgb, var(--border) 88%, var(--text-primary) 4%);
   --admin-border-strong: color-mix(in srgb, var(--border) 62%, var(--text-primary) 15%);
   --admin-control-height: 2.5rem;
+  /* 紧凑筛选器（CustomSelect compact）的宽度上限。
+     曾经的 compact 只调高度、却用 max-w-none 解除宽度约束，调用方不额外给
+     class 时按钮会被 flex 容器拉到满宽（实测 .admin-toolbar--inline 下各占
+     1440px，两个筛选器各占一行，工具条被撑成三行）。宽度上限因此必须由
+     compact 自带，而不是指望每个调用点自己兜。 */
+  --admin-filter-width: 11rem;
   --admin-radius: var(--radius-md);
   --admin-radius-sm: var(--radius-sm);
   /* 弹窗外框圆角。曾同时存在 --admin-radius-dialog(12px) 与 --admin-dialog-radius(16px)

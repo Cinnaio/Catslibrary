@@ -556,4 +556,17 @@ describe('ContentRatingsTab', () => {
     await user.click(screen.getByRole('button', { name: '分析 unknown' }))
     await waitFor(() => expect(mocks.aiScan).toHaveBeenCalledWith({ limit: 20 }))
   })
+
+  it('筛选下拉带宽度上限，不会在工具条里撑满整行', async () => {
+    render(<ContentRatingsTab />)
+    await screen.findByText('潮汐之后')
+
+    // 回归：compact 曾解除宽度约束，两个筛选器各占一整行（实测 1440px），
+    // 工具条被撑成三行。宽度上限必须由控件自身提供。
+    for (const name of ['按分级筛选', '按来源筛选']) {
+      const trigger = screen.getByLabelText(name)
+      expect(trigger.className).toContain('max-w-[var(--admin-filter-width)]')
+      expect(trigger.className).not.toContain('max-w-none')
+    }
+  })
 })
