@@ -26,7 +26,7 @@ import { ErrorState, InlineError, LoadingState } from '@/components/admin/AsyncS
 import CustomSelect, { type SelectOption } from '@/components/admin/CustomSelect'
 import Pagination from '@/components/admin/Pagination'
 import { ADMIN_DEFAULT_PAGE_SIZE, ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pagination'
-import { AdminDataPanel, AdminMetricStrip, AdminPanelHeading, AdminSearch, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
+import { AdminDataPanel, AdminPanelHeading, AdminSearch, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -67,12 +67,12 @@ const SOURCE_LABEL: Record<AdminContentRatingSource, string> = {
 const SOURCE_OPTIONS: SelectOption[] = [{ value: '', label: '全部来源' }, ...Object.entries(SOURCE_LABEL).map(([value, label]) => ({ value, label }))]
 
 const RATING_COLUMNS: readonly AdminColumn[] = [
-  { key: 'work', label: '作品', width: '25%', primary: true },
-  { key: 'rating', label: '当前分级', width: '12%' },
+  { key: 'work', label: '作品', width: '23%', primary: true },
+  { key: 'rating', label: '当前分级', width: '11%' },
   { key: 'source', label: '来源', width: '14%' },
-  { key: 'evidence', label: '判定证据', width: '23%' },
+  { key: 'evidence', label: '判定证据', width: '24%' },
   { key: 'updated', label: '最近操作', width: '16%' },
-  { key: 'actions', label: '操作', width: '14%', actions: true },
+  { key: 'actions', label: '操作', width: '12%', actions: true },
 ]
 
 const CANDIDATE_KIND_OPTIONS: SelectOption[] = [
@@ -633,16 +633,19 @@ export default function ContentRatingsTab() {
   )
 
   /** 拉取批次进度：批次口径（已处理/剩余缺口）以服务端为准，避免恢复后游标归零造成误读。 */
-  const loadAiProgress = useCallback(async (taskId: string) => {
-    try {
-      const result = await adminApi.contentRatingAi.progress(taskId)
-      await applyAiProgress(result)
-      return result
-    } catch {
-      // 优先级低于建议列表：进度读取失败不应打断审核流程，界面回退到任务自身字段。
-      return null
-    }
-  }, [applyAiProgress])
+  const loadAiProgress = useCallback(
+    async (taskId: string) => {
+      try {
+        const result = await adminApi.contentRatingAi.progress(taskId)
+        await applyAiProgress(result)
+        return result
+      } catch {
+        // 优先级低于建议列表：进度读取失败不应打断审核流程，界面回退到任务自身字段。
+        return null
+      }
+    },
+    [applyAiProgress],
+  )
 
   /**
    * 挂载时对齐服务端「当前批次」。
@@ -974,217 +977,211 @@ export default function ContentRatingsTab() {
     <AdminPage
       className="admin-redesign-page--content-ratings"
       title="分级管理"
-      description="把作品的分级结果、判定依据和修改历史放在同一张治理账本上。"
+      meta={data ? `${formatNumber(data.total)} 本` : undefined}
+      description="维护书库的分级结果与判定依据，人工修改必须留下理由，未标注不会被当作一般。"
       actions={
-        <Button variant="secondary" size="sm" onClick={() => void load(true)} disabled={loading || refreshing}>
-          <RefreshCw className={refreshing ? 'size-3.5 animate-spin' : 'size-3.5'} />
-          {refreshing ? '同步中…' : '刷新账本'}
-        </Button>
+        <>
+          <AdminSearch
+            id="content-rating-search"
+            type="search"
+            label="搜索作品分级记录"
+            placeholder="搜索标题、作者或修改理由…"
+            value={searchInput}
+            onChange={(event) => setSearchInput(event.target.value)}
+          />
+          <Button variant="secondary" size="sm" onClick={() => void load(true)} disabled={loading || refreshing}>
+            <RefreshCw className={refreshing ? 'size-3.5 animate-spin' : 'size-3.5'} />
+            {refreshing ? '同步中…' : '刷新账本'}
+          </Button>
+        </>
       }
     >
-      <div className="space-y-4">
-        <AdminMetricStrip
-          ariaLabel="内容分级概览"
-          items={[
-            { id: 'all', label: '全部作品', value: data ? formatNumber(counts.general + counts.restricted + counts.unknown) : '—', detail: '本' },
-            {
-              id: 'unknown',
-              label: '待标注',
-              value: data ? formatNumber(counts.unknown) : '—',
-              detail: counts.unknown > 0 ? '需要复核' : '已清零',
-              detailTone: counts.unknown > 0 ? 'muted' : 'success',
-            },
-            { id: 'restricted', label: '限制级', value: data ? formatNumber(counts.restricted) : '—', detail: '需成人模式' },
-            { id: 'general', label: '一般', value: data ? formatNumber(counts.general) : '—', detail: '已完成判定' },
-          ]}
-        />
-
-        {loadError && data && <InlineError message={`分级账本同步失败：${loadError}`} onRetry={() => void load(true)} />}
-
-        {!data ? (
-          loading ? (
-            <LoadingState className="admin-panel-card" label="正在加载内容分级账本" />
-          ) : (
-            <ErrorState className="admin-panel-card" message={`分级账本加载失败：${loadError || '未知错误'}`} onRetry={() => void load(true)} />
-          )
+      {!data ? (
+        loading ? (
+          <LoadingState className="admin-panel-card" label="正在加载内容分级账本" />
         ) : (
-          <AdminDataPanel ariaLabel="内容分级账本" columns={RATING_COLUMNS}>
-            <AdminPanelHeading
-              title={
-                <span className="flex items-center gap-2">
-                  <ShieldCheck className="size-4 text-primary" aria-hidden="true" />
-                  作品分级账本
-                </span>
-              }
-              description="自动判定只提供依据，人工修改必须留下理由；未标注不会被当作一般。"
-              status={<span className="text-xs text-muted-foreground">{loading ? '正在同步…' : `${formatNumber(data.total)} 本匹配`}</span>}
-            />
+          <ErrorState className="admin-panel-card" message={`分级账本加载失败：${loadError || '未知错误'}`} onRetry={() => void load(true)} />
+        )
+      ) : (
+        <AdminDataPanel ariaLabel="内容分级账本" columns={RATING_COLUMNS}>
+          <AdminPanelHeading
+            title={
+              <span className="flex items-center gap-2">
+                <ShieldCheck className="size-4 text-primary" aria-hidden="true" />
+                作品分级账本
+              </span>
+            }
+            description="自动判定只提供依据，人工修改必须留下理由；未标注不会被当作一般。"
+            status={<span className="text-xs text-muted-foreground">{loading ? '正在同步…' : `${formatNumber(data.total)} 本匹配`}</span>}
+          />
 
-            <AdminToolbar className="content-ratings-toolbar" ariaLive="polite">
-              <AdminSearch
-                id="content-rating-search"
-                type="search"
-                label="搜索作品分级记录"
-                placeholder="搜索标题、作者或修改理由…"
-                value={searchInput}
-                onChange={(event) => setSearchInput(event.target.value)}
-              />
+          {loadError && <InlineError message={`分级账本同步失败：${loadError}`} onRetry={() => void load(true)} className="mx-5 my-4" />}
+
+          <AdminToolbar className="content-ratings-toolbar" ariaLive="polite">
+            <div className="admin-toolbar__filters">
+              <Label id="content-rating-filter-label">分级</Label>
               <CustomSelect
+                compact
+                aria-labelledby="content-rating-filter-label"
                 options={RATING_OPTIONS}
                 value={ratingFilter}
                 onChange={(value) => {
                   setRatingFilter(value as ContentRating | '')
                   setPage(1)
                 }}
-                compact
-                aria-label="按分级筛选"
               />
-              <CustomSelect
-                options={sourceOptions}
-                value={sourceFilter}
-                onChange={(value) => {
-                  setSourceFilter(value as AdminContentRatingSource | '')
-                  setPage(1)
-                }}
-                compact
-                aria-label="按来源筛选"
-              />
-            </AdminToolbar>
-
-            {data.items.length === 0 ? (
-              <AdminEmptyState message={query || ratingFilter || sourceFilter ? '当前筛选条件下没有作品' : '暂无内容分级记录'} />
-            ) : (
-              <Table className="admin-data-table">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>作品</TableHead>
-                    <TableHead>当前分级</TableHead>
-                    <TableHead>来源</TableHead>
-                    <TableHead>判定证据</TableHead>
-                    <TableHead>最近操作</TableHead>
-                    <TableHead className="text-right">操作</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {data.items.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell data-primary="" data-label="作品">
-                        <div className="min-w-0">
-                          <div className="truncate font-medium text-foreground" title={item.title}>
-                            {item.title || '未命名作品'}
-                          </div>
-                          <div className="mt-1 truncate text-xs text-muted-foreground">
-                            {(item.author || '未知作者') + ' · ' + formatNumber(item.chapterCount) + ' 章'}
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell data-label="当前分级">
-                        <RatingBadge rating={item.contentRating} />
-                      </TableCell>
-                      <TableCell data-label="来源">
-                        <div className="min-w-0">
-                          <div className="truncate text-sm text-foreground">{sourceLabel(item.source)}</div>
-                          <div className="mt-1 truncate text-xs text-muted-foreground">修订 {item.revision}</div>
-                        </div>
-                      </TableCell>
-                      <TableCell data-label="判定证据">
-                        <EvidenceList evidence={item.evidence} compact />
-                        {item.ruleVersion && <div className="mt-1 truncate text-xs text-muted-foreground">规则：{item.ruleVersion}</div>}
-                      </TableCell>
-                      <TableCell data-label="最近操作">
-                        <div className="min-w-0">
-                          <div className="truncate text-sm text-foreground">{item.updatedByName || '系统'}</div>
-                          <time
-                            className="mt-1 block truncate text-xs text-muted-foreground"
-                            dateTime={item.contentRatingUpdatedAt ? new Date(item.contentRatingUpdatedAt).toISOString() : undefined}
-                            title={formatDateTime(item.contentRatingUpdatedAt)}
-                          >
-                            {timeAgo(item.contentRatingUpdatedAt) || '尚无操作时间'}
-                          </time>
-                        </div>
-                      </TableCell>
-                      <TableCell data-actions="">
-                        <div className="admin-cell-actions justify-end">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="admin-icon-button"
-                            aria-label={`查看 ${item.title} 的分级历史`}
-                            title="查看历史"
-                            onClick={() => void openHistory(item)}
-                          >
-                            <History aria-hidden="true" />
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="admin-icon-button"
-                            aria-label={`修改 ${item.title} 的分级`}
-                            title="修改分级"
-                            onClick={() => openEdit(item)}
-                          >
-                            <Pencil aria-hidden="true" />
-                          </Button>
-                          {item.contentRating === 'restricted' && item.source === 'manual' && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="admin-icon-button"
-                              aria-label={`从 ${item.title} 沉淀规则候选`}
-                              title="沉淀规则候选"
-                              onClick={() => openCandidate(item)}
-                            >
-                              <PlusCircle aria-hidden="true" />
-                            </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-
-            <Pagination
-              page={page}
-              totalPages={totalPages}
-              onPage={setPage}
-              summary={summary}
-              pageSize={{ value: pageSize, options: ADMIN_PAGE_SIZE_OPTIONS, onChange: setPageSize }}
-              busy={loading || refreshing}
+              {/* 判定缺口的读数与能筛出它的控件同处一个筛选器组：这是数字唯一的去处，
+                  也是它存在的理由。与之并列的「限制级 / 一般」计数不再单独成块——
+                  把下拉切到对应档位，计数就在页脚。 */}
+              <span className="text-xs tabular-nums text-muted-foreground" data-testid="rating-progress">
+                待标注 {formatNumber(counts.unknown)} · 限制级 {formatNumber(counts.restricted)}
+              </span>
+            </div>
+            <CustomSelect
+              options={sourceOptions}
+              value={sourceFilter}
+              onChange={(value) => {
+                setSourceFilter(value as AdminContentRatingSource | '')
+                setPage(1)
+              }}
+              compact
+              aria-label="按来源筛选"
             />
-          </AdminDataPanel>
-        )}
+          </AdminToolbar>
 
-        <RuleCandidatePanel
-          data={candidateData}
-          loading={candidateLoading}
-          error={candidateError}
-          onRetry={() => void loadCandidates()}
-          onPreview={(candidate) => void openCandidatePreview(candidate)}
-        />
+          {data.items.length === 0 ? (
+            <AdminEmptyState message={query || ratingFilter || sourceFilter ? '当前筛选条件下没有作品' : '暂无内容分级记录'} />
+          ) : (
+            <Table className="admin-data-table">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>作品</TableHead>
+                  <TableHead>当前分级</TableHead>
+                  <TableHead>来源</TableHead>
+                  <TableHead>判定证据</TableHead>
+                  <TableHead>最近操作</TableHead>
+                  <TableHead className="text-right">操作</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.items.map((item) => (
+                  <TableRow key={item.id}>
+                    <TableCell data-primary="" data-label="作品">
+                      <div className="min-w-0">
+                        <div className="truncate font-medium text-foreground" title={item.title}>
+                          {item.title || '未命名作品'}
+                        </div>
+                        <div className="mt-1 truncate text-xs text-muted-foreground">
+                          {(item.author || '未知作者') + ' · ' + formatNumber(item.chapterCount) + ' 章'}
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell data-label="当前分级">
+                      <RatingBadge rating={item.contentRating} />
+                    </TableCell>
+                    <TableCell data-label="来源">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm text-foreground">{sourceLabel(item.source)}</div>
+                        <div className="mt-1 truncate text-xs text-muted-foreground">修订 {item.revision}</div>
+                      </div>
+                    </TableCell>
+                    <TableCell data-label="判定证据">
+                      <EvidenceList evidence={item.evidence} compact />
+                      {item.ruleVersion && <div className="mt-1 truncate text-xs text-muted-foreground">规则：{item.ruleVersion}</div>}
+                    </TableCell>
+                    <TableCell data-label="最近操作">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm text-foreground">{item.updatedByName || '系统'}</div>
+                        <time
+                          className="mt-1 block truncate text-xs text-muted-foreground"
+                          dateTime={item.contentRatingUpdatedAt ? new Date(item.contentRatingUpdatedAt).toISOString() : undefined}
+                          title={formatDateTime(item.contentRatingUpdatedAt)}
+                        >
+                          {timeAgo(item.contentRatingUpdatedAt) || '尚无操作时间'}
+                        </time>
+                      </div>
+                    </TableCell>
+                    <TableCell data-actions="">
+                      <div className="admin-cell-actions justify-end">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="admin-icon-button"
+                          aria-label={`查看 ${item.title} 的分级历史`}
+                          title="查看历史"
+                          onClick={() => void openHistory(item)}
+                        >
+                          <History aria-hidden="true" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="admin-icon-button"
+                          aria-label={`修改 ${item.title} 的分级`}
+                          title="修改分级"
+                          onClick={() => openEdit(item)}
+                        >
+                          <Pencil aria-hidden="true" />
+                        </Button>
+                        {item.contentRating === 'restricted' && item.source === 'manual' && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="admin-icon-button"
+                            aria-label={`从 ${item.title} 沉淀规则候选`}
+                            title="沉淀规则候选"
+                            onClick={() => openCandidate(item)}
+                          >
+                            <PlusCircle aria-hidden="true" />
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
 
-        <AiSuggestionPanel
-          data={aiData}
-          loading={aiLoading}
-          error={aiError}
-          scanning={aiScanning}
-          task={aiTask}
-          progress={aiProgress}
-          cancelling={aiCancelling}
-          resuming={aiResuming}
-          batchLimit={aiBatchLimit}
-          onBatchLimit={setAiBatchLimit}
-          onRetry={() => void loadAiSuggestions()}
-          onScan={() => void scanAiSuggestions()}
-          onCancel={() => void cancelAiTask()}
-          onResume={() => void resumeAiTask()}
-          onReview={openAiReview}
-        />
-      </div>
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            onPage={setPage}
+            summary={summary}
+            pageSize={{ value: pageSize, options: ADMIN_PAGE_SIZE_OPTIONS, onChange: setPageSize }}
+            busy={loading || refreshing}
+          />
+        </AdminDataPanel>
+      )}
+
+      <RuleCandidatePanel
+        data={candidateData}
+        loading={candidateLoading}
+        error={candidateError}
+        onRetry={() => void loadCandidates()}
+        onPreview={(candidate) => void openCandidatePreview(candidate)}
+      />
+
+      <AiSuggestionPanel
+        data={aiData}
+        loading={aiLoading}
+        error={aiError}
+        scanning={aiScanning}
+        task={aiTask}
+        progress={aiProgress}
+        cancelling={aiCancelling}
+        resuming={aiResuming}
+        batchLimit={aiBatchLimit}
+        onBatchLimit={setAiBatchLimit}
+        onRetry={() => void loadAiSuggestions()}
+        onScan={() => void scanAiSuggestions()}
+        onCancel={() => void cancelAiTask()}
+        onResume={() => void resumeAiTask()}
+        onReview={openAiReview}
+      />
 
       <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)}>
         <DialogContent className="sm:max-w-xl">

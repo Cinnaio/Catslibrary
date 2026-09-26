@@ -6,7 +6,7 @@ import { useToast } from '@/components/feedback'
 import AdminPage from '@/components/admin/AdminPage'
 import AdminEmptyState from '@/components/admin/AdminEmptyState'
 import CustomSelect from '../../components/admin/CustomSelect'
-import { AdminDataPanel, AdminMetricStrip, AdminPanelHeading, AdminSearch, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
+import { AdminDataPanel, AdminPanelHeading, AdminSearch, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -139,6 +139,7 @@ export default function MobileTelemetryTab() {
     <AdminPage
       className="admin-redesign-page admin-redesign-page--mobile-telemetry"
       title="客户端监控"
+      meta={summary ? `待查看 ${summary.open} · 近 30 天事件 ${summary.errors + summary.diagnostics}` : undefined}
       description="查看用户主动授权后上传的匿名错误、性能与诊断事件；不包含小说正文或账号信息。"
       actions={
         <Button variant="secondary" size="sm" onClick={() => void load()} disabled={loading}>
@@ -147,15 +148,6 @@ export default function MobileTelemetryTab() {
         </Button>
       }
     >
-      <AdminMetricStrip
-        items={[
-          { id: 'open', label: '待查看', value: summary?.open ?? '—', detail: '优先处理' },
-          { id: 'errors', label: '近 30 天错误', value: summary?.errors ?? '—' },
-          { id: 'diagnostics', label: '近 30 天诊断', value: summary?.diagnostics ?? '—' },
-          { id: 'installs', label: '匿名安装数', value: summary?.installs ?? '—' },
-        ]}
-      />
-
       <AdminToolbar className="mobile-telemetry-toolbar" ariaLive="polite">
         <span className="mobile-telemetry-toolbar__label">处理状态</span>
         <CustomSelect
@@ -201,9 +193,20 @@ export default function MobileTelemetryTab() {
             正在读取客户端事件…
           </div>
         ) : error ? (
-          <AdminEmptyState message={error} icon={<Activity className="size-8 opacity-40" />} action={<Button variant="secondary" onClick={() => void load()}>重试</Button>} />
+          <AdminEmptyState
+            message={error}
+            icon={<Activity className="size-8 opacity-40" />}
+            action={
+              <Button variant="secondary" onClick={() => void load()}>
+                重试
+              </Button>
+            }
+          />
         ) : !data?.events.length ? (
-          <AdminEmptyState message={status === 'open' ? '当前没有待查看的客户端问题' : '当前筛选条件下暂无事件'} icon={<Activity className="size-8 opacity-40" />} />
+          <AdminEmptyState
+            message={status === 'open' ? '当前没有待查看的客户端问题' : '当前筛选条件下暂无事件'}
+            icon={<Activity className="size-8 opacity-40" />}
+          />
         ) : (
           <Table>
             <TableCaption className="sr-only">客户端监控事件列表，包含接收时间、事件、版本设备、属性与处理状态</TableCaption>
@@ -217,7 +220,9 @@ export default function MobileTelemetryTab() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.events.map((event) => <EventRow key={event.id} event={event} onStatusChange={updateStatus} />)}
+              {data.events.map((event) => (
+                <EventRow key={event.id} event={event} onStatusChange={updateStatus} />
+              ))}
             </TableBody>
           </Table>
         )}
@@ -236,7 +241,11 @@ export default function MobileTelemetryTab() {
         </section>
       ) : null}
 
-      {savingId && <span className="sr-only" role="status">正在更新客户端事件状态</span>}
+      {savingId && (
+        <span className="sr-only" role="status">
+          正在更新客户端事件状态
+        </span>
+      )}
     </AdminPage>
   )
 }

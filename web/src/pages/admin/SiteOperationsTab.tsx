@@ -6,7 +6,7 @@ import { adminApi, novelsApi } from '@/lib/api'
 import { useToast } from '@/components/feedback'
 import { usePersistentState } from '@/hooks/usePersistentState'
 import AdminPage from '@/components/admin/AdminPage'
-import { AdminMetricStrip, AdminPanelHeading } from '@/components/admin/AdminWorkspace'
+import { AdminPanelHeading } from '@/components/admin/AdminWorkspace'
 import Pagination from '@/components/admin/Pagination'
 import { ADMIN_DEFAULT_PAGE_SIZE } from '@/lib/admin-pagination'
 import { Badge } from '@/components/ui/badge'
@@ -167,31 +167,37 @@ export default function SiteOperationsTab() {
   const mobileVisits = traffic?.devices.find((item) => item.key === 'mobile')?.visits || 0
   const maxCountryVisits = Math.max(1, ...countries.map((item) => item.visits))
 
-  const overviewMetrics: Metric[] = [
-    ['今日浏览', metrics?.todayPageViews || 0, 'PV'], ['今日访客', metrics?.todayVisitors || 0, 'UV'],
-    ['近 7 日浏览', metrics?.weekPageViews || 0, 'PV'], ['近 7 日访客', metrics?.weekVisitors || 0, 'UV'], ['活跃读者', metrics?.activeReaders || 0, '人'],
-  ]
-  const trafficMetrics: Metric[] = [
-    ['近 7 日浏览', metrics?.weekPageViews || 0, 'PV'], ['近 7 日访客', metrics?.weekVisitors || 0, 'UV'],
-    ['已识别地区', countries.length, '个'], ['移动端访问', mobileVisits, 'PV'],
-  ]
-  const contentMetrics: Metric[] = [
-    ['收录作品', data?.contentHealth.novels || 0, '本'], ['分类数量', data?.contentHealth.categories.length || 0, '个'],
-    ['连载中', data?.contentHealth.statuses.ongoing || 0, '本'], ['已完结', data?.contentHealth.statuses.completed || 0, '本'],
-    ['近 30 日更新', data?.contentHealth.recentUpdates.last30Days || 0, '本'],
-  ]
+  /* 页头计数胶囊：每个子页只放一个定位用的规模数字——它回答「这个视图覆盖多大范围」，
+     是筛选器与图表标题都替代不了的信息。原先的 AdminMetricStrip 把同样的数字抬成
+     1.45rem 的独立表面，与卡片标题里的口径重复（见 DESIGN.md 的 The No-Third-Pass Rule）。 */
+  const headerMeta = currentOperationTab === 'overview'
+    ? (metrics ? `${metrics.todayPageViews.toLocaleString()} PV / ${metrics.todayVisitors.toLocaleString()} UV` : undefined)
+    : currentOperationTab === 'traffic'
+      ? `${(metrics?.weekPageViews || 0).toLocaleString()} PV / ${(metrics?.weekVisitors || 0).toLocaleString()} UV（近 7 日）`
+      : `${(data?.contentHealth.novels || 0).toLocaleString()} 本 / ${(data?.contentHealth.categories.length || 0).toLocaleString()} 个分类`
 
   return (
     <AdminPage
       className="admin-redesign-page admin-redesign-page--site-operations site-operations"
       title={currentOperationMeta.title}
+      meta={data ? headerMeta : undefined}
       description={currentOperationMeta.description}
-      actions={<div className="flex gap-2"><Button variant="secondary" size="sm" onClick={() => void load()} disabled={loading || saving}>{loading ? '刷新中…' : '刷新'}</Button>{currentOperationTab === 'content' && <Button variant="outline" size="sm" onClick={exportContentReport} disabled={!data}>导出 CSV</Button>}</div>}
+      actions={
+        <>
+          <Button variant="secondary" size="sm" onClick={() => void load()} disabled={loading || saving}>
+            {loading ? '刷新中…' : '刷新'}
+          </Button>
+          {currentOperationTab === 'content' && (
+            <Button variant="outline" size="sm" onClick={exportContentReport} disabled={!data}>
+              导出 CSV
+            </Button>
+          )}
+        </>
+      }
     >
       <div className="grid gap-4">
         <div className="site-operations__panel">
           {currentOperationTab === 'overview' && <>
-            <AdminMetricStrip className="site-operations__metrics" ariaLabel="运营概览指标" items={overviewMetrics.map(([label, value, unit]) => ({ label, value: value.toLocaleString(), detail: unit }))} />
             <div className="grid gap-4 lg:grid-cols-2">
               <Card>
                 <AdminPanelHeading
@@ -213,7 +219,6 @@ export default function SiteOperationsTab() {
           </>}
 
           {currentOperationTab === 'traffic' && <>
-            <AdminMetricStrip className="site-operations__metrics" ariaLabel="流量分析指标" items={trafficMetrics.map(([label, value, unit]) => ({ label, value: value.toLocaleString(), detail: unit }))} />
             <Card>
               <AdminPanelHeading
                 title={<span className="admin-panel-title"><Route className="size-4" aria-hidden="true" />近 7 日访问趋势</span>}
@@ -242,7 +247,6 @@ export default function SiteOperationsTab() {
           </>}
 
           {currentOperationTab === 'content' && <>
-            <AdminMetricStrip className="site-operations__metrics" ariaLabel="内容分析指标" items={contentMetrics.map(([label, value, unit]) => ({ label, value: value.toLocaleString(), detail: unit }))} />
             <div className="grid gap-4 lg:grid-cols-2">
               <CategoryDistribution categories={data?.contentHealth.categories || []} loading={loading} onSelect={(category) => void openNovelList({ category }, `分类：${category}`)} />
               <div className="grid content-start gap-4">

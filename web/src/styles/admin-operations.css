@@ -6649,6 +6649,186 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   flex: 0 1 20rem;
 }
 
+/* ——— 单行账本式页头的通用几何（DESIGN.md · Admin Page Anatomy） ———
+   页头是一行：左侧标题 + 计数胶囊 + 描述，右侧该页的看家动作。
+   下列页面各自只覆盖两处与范本不同的地方（是否留底线、搜索框多宽），
+   动作区的排布、换行与不压缩规则统一由下面这组基础选择器提供——
+   此前只有小说管理页有这套规则，其余页面各写各的，收口在 2026-09-25。 */
+.admin-redesign-page--content-ratings > .admin-tab-header,
+.admin-redesign-page--content-policy > .admin-tab-header,
+.admin-redesign-page--site-operations > .admin-tab-header,
+.admin-redesign-page--ai > .admin-tab-header {
+  border-bottom: 0;
+}
+
+/* 动作区：桌面端贴合内容宽度、不换行；窄屏占满并把剩余宽度给搜索框。 */
+.admin-redesign-page--content-ratings .admin-tab-header__actions,
+.admin-redesign-page--content-policy .admin-tab-header__actions,
+.admin-redesign-page--site-operations .admin-tab-header__actions,
+.admin-redesign-page--ai .admin-tab-header__actions {
+  gap: 0.5rem;
+}
+
+@media (min-width: 901px) {
+  .admin-redesign-page--content-ratings .admin-tab-header__actions,
+  .admin-redesign-page--content-policy .admin-tab-header__actions,
+  .admin-redesign-page--site-operations .admin-tab-header__actions,
+  .admin-redesign-page--ai .admin-tab-header__actions {
+    width: fit-content;
+    flex-wrap: nowrap;
+  }
+}
+
+@media (max-width: 900px) {
+  .admin-redesign-page--content-ratings .admin-tab-header__actions,
+  .admin-redesign-page--content-policy .admin-tab-header__actions,
+  .admin-redesign-page--site-operations .admin-tab-header__actions,
+  .admin-redesign-page--ai .admin-tab-header__actions {
+    width: 100%;
+    justify-content: stretch;
+    flex-wrap: nowrap;
+  }
+
+  /* 搜索框是唯一可伸缩的成员：其余按钮保持自身尺寸，不被压扁。 */
+  :is(.admin-redesign-page--content-ratings, .admin-redesign-page--content-policy, .admin-redesign-page--site-operations, .admin-redesign-page--ai)
+    .admin-tab-header__actions
+    .admin-search {
+    width: auto;
+    max-width: none;
+    flex: 1 1 auto;
+  }
+
+  :is(.admin-redesign-page--content-ratings, .admin-redesign-page--content-policy, .admin-redesign-page--site-operations, .admin-redesign-page--ai)
+    .admin-tab-header__actions
+    > [data-slot='button'] {
+    flex: 0 0 auto;
+  }
+}
+
+/* 分级管理：搜索的是标题/作者/理由三项短文本，搜索框刻意窄于小说管理。 */
+.admin-redesign-page--content-ratings .admin-tab-header__actions .admin-search {
+  width: min(18rem, 100%);
+  max-width: 18rem;
+  flex: 0 1 18rem;
+}
+
+/* 页头内的纯文字元信息（AI 服务的连接状态）：与计数胶囊同一档，
+   但这一处是「状态」而非「计数」，故不用胶囊底色，只用竖线分隔。 */
+.admin-tab-header__meta-inline {
+  display: inline-flex;
+  align-items: center;
+  align-self: center;
+  margin-left: 0.35rem;
+  border-left: 1px solid var(--admin-border-strong);
+  padding-left: 0.65rem;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+/* 页头元信息位里的状态文字（如数据库结构体检）：与计数胶囊同处一行，
+   成功/失败只用文字色区分，不再借 Badge 的胶囊底——页头一行里不适合再叠底色块。 */
+.admin-tab-header__status--ok,
+.admin-tab-header__status--bad {
+  display: inline-flex;
+  align-items: center;
+  align-self: center;
+  margin-left: 0.35rem;
+  border-left: 1px solid var(--admin-border-strong);
+  padding-left: 0.65rem;
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+.admin-tab-header__status--ok {
+  color: var(--color-success);
+}
+
+.admin-tab-header__status--bad {
+  color: var(--color-danger);
+}
+
+/* 用量统计面板标题栏里的合计读数：贴着它汇总的那张图，是次级文字而非大数字。 */
+.ai-usage-totals {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.875rem;
+  color: var(--text-muted);
+  font-size: var(--admin-table-head-size);
+  font-variant-numeric: tabular-nums;
+}
+
+.ai-usage-totals > span {
+  white-space: nowrap;
+}
+
+.ai-usage-totals strong {
+  color: var(--text-primary);
+  font-weight: 750;
+}
+
+/* 总览的库存读数行：一行看完 7+2 项，替代原先吃掉半屏的 AdminMetricStrip。
+   横向可滚而不换行——换行会把任务状态与最近任务推下去，正是这次要解决的问题。 */
+.dashboard-stat-line {
+  padding: 0.75rem 1.25rem;
+}
+
+.dashboard-stat-line__grid {
+  display: flex;
+  overflow-x: auto;
+  align-items: baseline;
+  gap: 1.5rem;
+  margin: 0;
+  scrollbar-width: none;
+}
+
+.dashboard-stat-line__grid::-webkit-scrollbar {
+  display: none;
+}
+
+.dashboard-stat-line__grid > div {
+  display: grid;
+  flex: 0 0 auto;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.dashboard-stat-line__grid dt {
+  color: var(--text-muted);
+  font-size: var(--admin-table-head-size);
+  white-space: nowrap;
+}
+
+.dashboard-stat-line__grid dd {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--admin-table-title-size);
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.dashboard-stat-line__grid dd small {
+  color: var(--text-muted);
+  font-size: var(--admin-table-head-size);
+  font-weight: 500;
+}
+
+.dashboard-stat-line__note {
+  color: var(--text-muted);
+  font-size: var(--admin-table-head-size);
+}
+
 @media (min-width: 901px) {
   .admin-redesign-page--novels .admin-tab-header__actions {
     width: fit-content;

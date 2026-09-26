@@ -1,6 +1,10 @@
 /**
- * 总览 tab —— 指标条（shadcn utilities，无同尺寸图标卡）、任务状态条、最近任务/小说（只读，手动刷新）。
+ * 总览 tab —— 库存读数行、任务状态条、最近任务/小说（只读，手动刷新）。
  * 由 Novel-KV js/admin-dashboard.js 平移。
+ *
+ * 库存读数原为 AdminMetricStrip（1.45rem 大数字 + 独立表面）：它吃掉首屏上半屏，
+ * 而真正要看的任务状态与最近任务被推到折叠线以下。现改为一行紧凑读数
+ * （.dashboard-stat-line），同屏看到全部 9 项。
  */
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
@@ -11,7 +15,7 @@ import { jobStatusLabel } from '../../lib/admin'
 import AdminPage from '@/components/admin/AdminPage'
 import AdminEmptyState from '@/components/admin/AdminEmptyState'
 import { ErrorState, LoadingState } from '@/components/admin/AsyncStates'
-import { AdminDataPanel, AdminMetricStrip, AdminPanelHeading } from '@/components/admin/AdminWorkspace'
+import { AdminDataPanel, AdminPanelHeading } from '@/components/admin/AdminWorkspace'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 
@@ -19,7 +23,20 @@ interface AdminStats {
   totals: { novels: number; chapters: number; users: number; covers: number; failedJobs: number; todayChapters: number; dbSize: number | null }
   contentRating: { general: number; restricted: number; unknown: number }
   jobStatus: { running: number; completed: number; failed: number }
-  recentJobs: Array<{ id: string; novelId: string; novelTitle: string; status: string; step: string; current: number; total: number; chapterCount: number; progress: number; error: string; startedAt: number; updatedAt: number }>
+  recentJobs: Array<{
+    id: string
+    novelId: string
+    novelTitle: string
+    status: string
+    step: string
+    current: number
+    total: number
+    chapterCount: number
+    progress: number
+    error: string
+    startedAt: number
+    updatedAt: number
+  }>
   recentNovels: Array<{ id: string; title: string; author: string; chapterCount: number; updatedAt: number }>
 }
 
@@ -78,51 +95,63 @@ export default function DashboardTab(_props: { highlightNovelId?: string; onHigh
   const hasJobs = jobStatus.running + jobStatus.completed + jobStatus.failed > 0
 
   return (
-    <AdminPage className="admin-redesign-page admin-redesign-page--dashboard" title="后台总览" description="书库、抓取任务和站点数据的即时状态。" actions={
-          <Button variant="secondary" size="sm" onClick={() => void load(true)} disabled={loading}>
-            <RefreshCw className={loading ? 'size-3.5 animate-spin' : 'size-3.5'} />
-            {loading ? '加载中…' : '刷新总览'}
-          </Button>
-        }
-      >
-
+    <AdminPage
+      className="admin-redesign-page admin-redesign-page--dashboard"
+      title="后台总览"
+      meta={totals ? `${formatNumber(totals.novels)} 本 · ${formatNumber(totals.chapters)} 章 · 待标注 ${formatNumber(contentRating.unknown)} 本` : undefined}
+      description="书库、抓取任务和站点数据的即时状态。"
+      actions={
+        <Button variant="secondary" size="sm" onClick={() => void load(true)} disabled={loading}>
+          <RefreshCw className={loading ? 'size-3.5 animate-spin' : 'size-3.5'} />
+          {loading ? '加载中…' : '刷新总览'}
+        </Button>
+      }
+    >
       {error ? (
         <ErrorState className="admin-panel-card" message={`总览加载失败：${error}`} onRetry={() => void load(true)} />
       ) : !data ? (
         <LoadingState className="admin-panel-card" label="正在加载总览数据" />
       ) : (
         <div className="space-y-4">
-          <AdminMetricStrip
-            className="admin-metric-strip--dashboard"
-            ariaLabel="后台总览指标"
-            items={[
-              ...STAT_CARDS.map((card) => {
+          {/* 库存统计是总览的实义内容（它就是这个页面的「数据」），故保留为一行紧凑
+              读数而非删除。但它不再用 AdminMetricStrip 的 1.45rem 大数字 + 独立表面：
+              那套层级的用途是「一眼读到数」，而这里要的是同屏看到全部 9 项，
+              且不能让概览把任务状态与最近任务推到折叠线以下。 */}
+          <AdminDataPanel className="dashboard-stat-line" ariaLabel="书库统计">
+            <dl className="dashboard-stat-line__grid">
+              {STAT_CARDS.map((card) => {
                 const raw = totals ? totals[card.key] : 0
                 // dbSize 为 null 表示后端没取到库大小（非 PostgreSQL / 权限不足），
                 // 与「库是空的」是两件事。单给一个「—」操作员无法分辨，
                 // 因此把单位位换成原因说明。
                 const dbSizeUnknown = card.key === 'dbSize' && (raw === null || raw === undefined)
-                return {
-                  label: card.label,
-                  value: card.key === 'dbSize' ? formatBytes(typeof raw === 'number' ? raw : null) : formatNumber(raw as number),
-                  detail: dbSizeUnknown ? '未统计' : card.unit,
-                }
-              }),
-              // 标注进度：unknown 就是「还没人工判定的存量」。没有这个数字，
-              // 存量书的标注工作没有方向盘，也无法判断何时可以弃用正则兜底。
-              {
-                label: '待标注分级',
-                value: formatNumber(contentRating.unknown),
-                detail: '本',
-                detailTone: contentRating.unknown > 0 ? ('muted' as const) : ('success' as const),
-              },
-              {
-                label: '限制级',
-                value: formatNumber(contentRating.restricted),
-                detail: '本',
-              },
-            ]}
-          />
+                return (
+                  <div key={card.key}>
+                    <dt>{card.label}</dt>
+                    <dd>
+                      {card.key === 'dbSize' ? formatBytes(typeof raw === 'number' ? raw : null) : formatNumber(raw as number)}
+                      {!dbSizeUnknown && card.unit && <small>{card.unit}</small>}
+                    </dd>
+                    {dbSizeUnknown && <span className="dashboard-stat-line__note">未统计</span>}
+                  </div>
+                )
+              })}
+              <div>
+                <dt>待标注分级</dt>
+                <dd>
+                  {formatNumber(contentRating.unknown)}
+                  <small>本</small>
+                </dd>
+              </div>
+              <div>
+                <dt>限制级</dt>
+                <dd>
+                  {formatNumber(contentRating.restricted)}
+                  <small>本</small>
+                </dd>
+              </div>
+            </dl>
+          </AdminDataPanel>
 
           <AdminDataPanel className="dashboard-task-status p-5" ariaLabel="抓取任务状态">
             <div className="flex items-center justify-between gap-3">
@@ -150,24 +179,16 @@ export default function DashboardTab(_props: { highlightNovelId?: string; onHigh
 
           <div className="grid gap-4 lg:grid-cols-2">
             <AdminDataPanel className="overflow-hidden" ariaLabel="最近抓取任务">
-              <AdminPanelHeading
-                title="最近抓取任务"
-                status={<span className="text-xs text-muted-foreground">按更新时间</span>}
-              />
+              <AdminPanelHeading title="最近抓取任务" status={<span className="text-xs text-muted-foreground">按更新时间</span>} />
               <div className="px-6 py-2">
                 {data.recentJobs.length === 0 ? (
-                  <AdminEmptyState
-                    message="暂无抓取任务"
-                    hint="从「爬虫抓取」提交一个链接或搜索书名，任务进度与结果会汇总到这里。"
-                  />
+                  <AdminEmptyState message="暂无抓取任务" hint="从「爬虫抓取」提交一个链接或搜索书名，任务进度与结果会汇总到这里。" />
                 ) : (
                   data.recentJobs.map((j) => (
                     <div className="flex items-center justify-between gap-3 border-b border-border py-3 last:border-0" key={j.id}>
                       <div className="min-w-0">
                         <div className="truncate font-medium text-foreground">{j.novelTitle || j.novelId || j.id}</div>
-                        <div className="mt-0.5 text-xs text-muted-foreground">
-                          {(j.step || '任务') + ' · ' + timeAgo(j.updatedAt)}
-                        </div>
+                        <div className="mt-0.5 text-xs text-muted-foreground">{(j.step || '任务') + ' · ' + timeAgo(j.updatedAt)}</div>
                       </div>
                       <Badge className={PILL_CLASS[j.status] || ''}>{jobStatusLabel(j.status)}</Badge>
                     </div>
@@ -176,23 +197,26 @@ export default function DashboardTab(_props: { highlightNovelId?: string; onHigh
               </div>
             </AdminDataPanel>
             <AdminDataPanel className="overflow-hidden" ariaLabel="最近更新小说">
-              <AdminPanelHeading
-                title="最近更新小说"
-                status={<span className="text-xs text-muted-foreground">书库动态</span>}
-              />
+              <AdminPanelHeading title="最近更新小说" status={<span className="text-xs text-muted-foreground">书库动态</span>} />
               <div className="px-6 py-2">
                 {data.recentNovels.length === 0 ? (
                   <AdminEmptyState message="书库还是空的" hint="抓取或手动添加小说后，最近更新的作品会出现在这里。" />
                 ) : (
                   data.recentNovels.map((n) => (
-                    <Link className="flex items-center justify-between gap-3 border-b border-border py-3 last:border-0" to={`/novel/${encodeURIComponent(n.id)}`} key={n.id}>
+                    <Link
+                      className="flex items-center justify-between gap-3 border-b border-border py-3 last:border-0"
+                      to={`/novel/${encodeURIComponent(n.id)}`}
+                      key={n.id}
+                    >
                       <div className="min-w-0">
                         <div className="truncate font-medium text-foreground">{n.title}</div>
                         <div className="mt-0.5 text-xs text-muted-foreground">
                           {(n.author || '未知作者') + ' · ' + (n.chapterCount || 0) + ' 章 · ' + timeAgo(n.updatedAt)}
                         </div>
                       </div>
-                      <span className="shrink-0 text-muted-foreground" aria-hidden="true">›</span>
+                      <span className="shrink-0 text-muted-foreground" aria-hidden="true">
+                        ›
+                      </span>
                     </Link>
                   ))
                 )}

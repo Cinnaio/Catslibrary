@@ -16,7 +16,7 @@ import { aiApi } from '@/lib/api'
 import { ErrorState, InlineError, LoadingState } from '@/components/admin/AsyncStates'
 import AiPanelEmptyState from './AiPanelEmptyState'
 import { useAiConfigured } from './useAiConfigured'
-import { AdminDataPanel, AdminMetricStrip, AdminPanelHeading } from '@/components/admin/AdminWorkspace'
+import { AdminDataPanel, AdminPanelHeading } from '@/components/admin/AdminWorkspace'
 import { Button } from '@/components/ui/button'
 import { formatCost } from './shared'
 import { chartAxisLine, chartGrid, chartLegendStyle, chartTick, chartTooltipLabelStyle, chartTooltipStyle } from './chart-theme'
@@ -84,21 +84,20 @@ export default function AiUsagePanel() {
 
   return (
     <div className="space-y-4">
-      <AdminMetricStrip
-        className="admin-metric-strip--ai-usage"
-        ariaLabel="AI 用量统计"
-        items={[
-          { label: '总调用次数', value: totalCalls },
-          { label: '总成本', value: formatCost(totalCost) },
-          { label: '总 Token', value: totalTokens },
-          { label: '平均单次成本', value: formatCost(avgCost) },
-        ]}
-      />
-
+      {/* 合计读数贴在它汇总的那张图上：这是数字唯一的去处，切到别的天数区间它就会
+          跟着变。原先它被抬成独立的 AdminMetricStrip，与这张图的标题各说一遍同一
+          件事（见 DESIGN.md 的 The No-Third-Pass Rule）。 */}
       <AdminDataPanel className="ai-usage-card" ariaLabel="成本与调用趋势">
         <AdminPanelHeading
           title="成本与调用趋势"
           description="每日 AI 调用次数与成本消耗"
+          status={
+            <span className="ai-usage-totals">
+              <span>总调用 <strong>{totalCalls.toLocaleString()}</strong></span>
+              <span>总成本 <strong>{formatCost(totalCost)}</strong></span>
+              <span>平均单次 <strong>{formatCost(avgCost)}</strong></span>
+            </span>
+          }
           actions={
             <div className="flex gap-2">
               {[7, 30, 90].map((d) => (
@@ -197,7 +196,15 @@ export default function AiUsagePanel() {
 
       {/* Token 消耗趋势 */}
       <AdminDataPanel className="ai-usage-card" ariaLabel="Token 消耗趋势">
-        <AdminPanelHeading title="Token 消耗趋势" description="每日输入/输出 Token 用量" />
+        <AdminPanelHeading
+          title="Token 消耗趋势"
+          description="每日输入/输出 Token 用量"
+          status={
+            <span className="ai-usage-totals">
+              <span>总 Token <strong>{totalTokens.toLocaleString()}</strong></span>
+            </span>
+          }
+        />
         <div className="p-6">
           {loading && trend.length === 0 ? (
             <LoadingState label="正在加载 Token 趋势" className="h-64" />

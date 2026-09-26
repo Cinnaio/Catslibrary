@@ -18,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import AdminPage from '@/components/admin/AdminPage'
-import { AdminDataPanel, AdminMetricStrip, AdminPanelHeading, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
+import { AdminDataPanel, AdminPanelHeading, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
 import Pagination from '@/components/admin/Pagination'
 import { ADMIN_DEFAULT_PAGE_SIZE, ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pagination'
 import { usePersistentState } from '@/hooks/usePersistentState'
@@ -477,20 +477,34 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
     return labels[action] || action
   }
 
+  // 页头计数胶囊：每个子页只放一个定位用的规模数字（见 DESIGN.md · Admin Page Anatomy），
+  // 它替代原先那块会把页头与数据面板隔开的 AdminMetricStrip。
+  const accountHeaderMeta = currentAccountTab === 'users'
+    ? (users.length ? `${users.length} 人 · 活跃 ${activeCount} · 管理员 ${adminCount}` : undefined)
+    : currentAccountTab === 'registration'
+      ? (invites.length ? `邀请码 ${invites.length} 个 · 可用 ${available}` : undefined)
+      : currentAccountTab === 'audit'
+        ? (loginAuditTotal ? `${loginAuditTotal} 条登录记录` : undefined)
+        : (operationAuditTotal ? `${operationAuditTotal} 条操作记录` : undefined)
+
   return (
-    <AdminPage className="admin-redesign-page admin-redesign-page--settings" title={currentAccountMeta.title} description={currentAccountMeta.description} actions={
-          <span id="schemaHealth">
-            {schemaHealth &&
-              (schemaHealth.ok ? (
-                <Badge className="bg-success/10 text-success">数据库正常</Badge>
-              ) : (
-                <Badge className="bg-destructive/10 text-destructive">
-                  数据库缺失 {(schemaHealth.missing || []).join('、')}
-                </Badge>
-              ))}
-          </span>
-        }
-      >
+    <AdminPage
+      className="admin-redesign-page admin-redesign-page--settings"
+      title={currentAccountMeta.title}
+      meta={
+        <>
+          {accountHeaderMeta}
+          {/* 数据库结构体检是「状态」而非动作，与计数胶囊同处页头元信息位；
+              原先它被塞进 actions，把一颗只读徽章放进了操作区。 */}
+          {schemaHealth && (
+            <span id="schemaHealth" className={schemaHealth.ok ? 'admin-tab-header__status--ok' : 'admin-tab-header__status--bad'}>
+              {schemaHealth.ok ? '数据库正常' : `数据库缺失 ${(schemaHealth.missing || []).join('、')}`}
+            </span>
+          )}
+        </>
+      }
+      description={currentAccountMeta.description}
+    >
         {currentAccountTab === 'registration' && (
         <Card className="admin-panel-card">
           <CardHeader>
@@ -527,16 +541,6 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
         )}
 
         {currentAccountTab === 'users' && <>
-        <AdminMetricStrip
-          className="admin-metric-strip--account"
-          ariaLabel="用户统计"
-          items={[
-            { label: '用户', value: users.length },
-            { label: '活跃', value: activeCount },
-            { label: '禁用', value: users.length - activeCount },
-            { label: '管理员', value: adminCount },
-          ]}
-        />
         <AdminDataPanel className="account-users-panel overflow-hidden" ariaLabel="用户列表" columns={USER_COLUMNS}>
           <AdminPanelHeading
             title="用户目录"

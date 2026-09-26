@@ -5,10 +5,11 @@
  */
 import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { RefreshCw } from 'lucide-react'
 import { aiApi, type AiSettings, type AiProviderConfig } from '../../lib/api'
 import { useToast } from '../../components/feedback'
 import AdminPage from '@/components/admin/AdminPage'
-import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import type { Provider } from './ai/shared'
 import { usePersistentState } from '@/hooks/usePersistentState'
 import AiConfigPanel from './ai/AiConfigPanel'
@@ -101,41 +102,33 @@ export default function AiTab() {
     <AdminPage
       title={currentMeta.title}
       description={currentMeta.description}
-      meta={<Badge variant={provider?.configured ? 'default' : 'secondary'}>{provider?.configured ? '服务已连接' : loading ? '读取配置中' : '未配置'}</Badge>}
+      meta={<span className="admin-tab-header__meta-inline">{provider?.configured ? '服务已连接' : loading ? '读取配置中' : '未配置'}</span>}
       className="admin-redesign-page admin-redesign-page--ai ai-admin-page ai-service"
+      actions={
+        <Button variant="secondary" size="sm" onClick={() => void load()} disabled={loading}>
+          <RefreshCw className={loading ? 'size-3.5 animate-spin' : 'size-3.5'} aria-hidden="true" />
+          {loading ? '刷新中…' : '刷新'}
+        </Button>
+      }
     >
       <div className="ai-service-tabs__content min-w-0">
-        {currentSubTab === 'writing' && (
-          <AiWritingPanel onViewBatch={openGenerations} initialNovelId={urlNovel || undefined} />
-        )}
+        {currentSubTab === 'writing' && <AiWritingPanel onViewBatch={openGenerations} initialNovelId={urlNovel || undefined} />}
 
-        {currentSubTab === 'cover' && (
-          <AiCoverPanel />
-        )}
+        {currentSubTab === 'cover' && <AiCoverPanel />}
 
-        {currentSubTab === 'tasks' && (
-          <AiTasksPanel onViewBatch={openGenerations} />
-        )}
+        {currentSubTab === 'tasks' && <AiTasksPanel onViewBatch={openGenerations} />}
 
-        {currentSubTab === 'content' && (
-          <AiGenerationsPanel scope="all" status="all" focusBatchId={urlBatch} />
-        )}
+        {currentSubTab === 'content' && <AiGenerationsPanel scope="all" status="all" focusBatchId={urlBatch} />}
 
-        {currentSubTab === 'usage' && (
-          <AiUsagePanel />
-        )}
+        {currentSubTab === 'usage' && <AiUsagePanel />}
 
-        {currentSubTab === 'audit' && (
-          <AiAuditPanel />
-        )}
+        {currentSubTab === 'audit' && <AiAuditPanel />}
 
         {currentSubTab === 'config' && (
           <AiConfigPanel settings={settings} provider={provider} providerConfig={providerConfig} loading={loading} onReload={load} />
         )}
 
-        {currentSubTab === 'params' && (
-          <AiParamsPanel settings={settings} loading={loading} onReload={load} />
-        )}
+        {currentSubTab === 'params' && <AiParamsPanel settings={settings} loading={loading} onReload={load} />}
       </div>
     </AdminPage>
   )

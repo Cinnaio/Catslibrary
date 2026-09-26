@@ -187,8 +187,22 @@ describe('ContentRatingsTab', () => {
     expect(screen.getByText('规则预填')).toBeInTheDocument()
     expect(screen.getByText('分类：成人')).toBeInTheDocument()
     expect(screen.getByText('修订 3')).toBeInTheDocument()
-    expect(screen.getByText('待标注')).toBeInTheDocument()
-    expect(screen.getByText('2')).toBeInTheDocument()
+    // 概览不再单独占一块指标条：页头只留「本数」胶囊，判定缺口随分级筛选器同处一行。
+    expect(screen.getByText('1 本')).toBeInTheDocument()
+    expect(screen.getByText(/待标注 2 · 限制级 1/)).toBeInTheDocument()
+  })
+
+  it('页头收在一行：标题 + 本数胶囊在左，搜索与页面操作在右', async () => {
+    render(<ContentRatingsTab />)
+    await screen.findByText('潮汐之后')
+
+    const header = document.querySelector('.admin-tab-header')
+    expect(header).not.toBeNull()
+    expect(screen.getByRole('heading', { level: 2, name: /分级管理/ })).toBeInTheDocument()
+    expect(header?.querySelector('.admin-tab-header__meta')).toHaveTextContent('本')
+    // 搜索框属于页头动作区，不再是面板工具条里的一段
+    expect(header?.querySelector('.admin-search')).not.toBeNull()
+    expect(screen.getByRole('button', { name: /刷新账本/ })).toBeInTheDocument()
   })
 
   it('人工修改必须带理由，并携带当前 revision 提交', async () => {
@@ -619,7 +633,7 @@ describe('ContentRatingsTab', () => {
 
     // 回归：compact 曾解除宽度约束，两个筛选器各占一整行（实测 1440px），
     // 工具条被撑成三行。宽度上限必须由控件自身提供。
-    for (const name of ['按分级筛选', '按来源筛选']) {
+    for (const name of ['分级', '按来源筛选']) {
       const trigger = screen.getByLabelText(name)
       expect(trigger.className).toContain('max-w-[var(--admin-filter-width)]')
       expect(trigger.className).not.toContain('max-w-none')

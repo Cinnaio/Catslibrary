@@ -4,7 +4,6 @@ import { adminApi } from '@/lib/api'
 import { useContentPolicy } from '@/context/ContentPolicyContext'
 import { useConfirm, useToast } from '@/components/feedback'
 import AdminPage from '@/components/admin/AdminPage'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
@@ -62,8 +61,13 @@ export default function ContentPolicyTab() {
     <AdminPage
       className="admin-redesign-page admin-redesign-page--content-policy"
       title="内容安全"
+      meta={loading ? undefined : adultContentEnabled ? '成人模式已启用' : '成人模式已关闭'}
       description="控制读者是否可以主动切换并查看限制级内容。"
-      actions={<Button variant="secondary" size="sm" onClick={() => void load()} disabled={loading || saving}>刷新</Button>}
+      actions={
+        <Button variant="secondary" size="sm" onClick={() => void load()} disabled={loading || saving}>
+          {loading ? '刷新中…' : '刷新'}
+        </Button>
+      }
     >
       <Card className="admin-panel-card content-policy-panel">
         <CardHeader className="flex-row items-start justify-between gap-4">
@@ -76,15 +80,12 @@ export default function ContentPolicyTab() {
               启用后，年满 18 岁的读者可在前台自行确认并查看限制级作品；关闭后，站点统一使用安全模式。
             </p>
           </div>
-          <Badge variant={adultContentEnabled ? 'default' : 'secondary'}>{adultContentEnabled ? '已启用' : '已关闭'}</Badge>
         </CardHeader>
         <CardContent>
           <div className="content-policy-row">
             <label htmlFor="adult-content-enabled" className="content-policy-row__copy">
               <span className="content-policy-row__label">允许读者切换成人内容模式</span>
-              <span className="content-policy-row__hint">
-                关闭时隐藏前台入口，并过滤被识别为限制级的作品与分类。
-              </span>
+              <span className="content-policy-row__hint">关闭时隐藏前台入口，并过滤被识别为限制级的作品与分类。</span>
             </label>
             <Switch
               id="adult-content-enabled"

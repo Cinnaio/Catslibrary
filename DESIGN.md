@@ -52,7 +52,7 @@ typography:
     body: "1rem"              # 16px 正文/品牌标记/队列摘要数值
     modal-title: "1.15rem"    # 18.4px 弹窗标题
     panel-title: "1.25rem"    # 20px 面板标题（AdminPanelHeading）
-    stat: "1.45rem"           # 23.2px 指标条数值（AdminMetricStrip）
+    stat: "1.45rem"           # 23.2px 指标条数值（AdminMetricStrip）——已全站停用，勿用于新页面
     page-title-min: "1.5rem"  # 24px 后台页标题 clamp 下限
     page-title-max: "2rem"    # 32px 后台页标题 clamp 上限
     hero-min: "1.35rem"       # 21.6px 公开页 hero clamp 下限
@@ -197,6 +197,45 @@ components:
 
 **The One Title Rule.** 每个可导航页面只有一个内容区主标题，由页头承担。面板标题写工作对象名（"作品目录"、"章节目录"、"审核列表"），不重复页面名。页头上方不再出现小字眉题——`AdminTabHeader` 的 `kicker` 与 `hero` 变体已退役，两个 prop 仍被接受但被忽略。标题字号膨胀和"每页一个更大的标题"都是被明确否定的方向。
 
+**The Single-Door Rule.** 一个动作只开一扇门。页头上的操作作用于整页（搜索、新建），面板工具条上的操作作用于那一份数据（筛选、批量、清除）；同一个动作在两处都出现，读者就要先判断"我点的是哪一个"。分级管理页的「刷新账本」因此只留在页头，面板内不再重复。
+
+**The No-Third-Pass Rule.** 同一个数字在一屏里最多出现两次（页头胶囊一次、页脚计数一次）。若某个读数已被这两处覆盖，它就不能再另起一块表面；唯一例外是**贴在筛选器旁边的缺口读数**（「待标注 67 · 限制级 340」），因为它与下拉是同一件事的两种表达，且能被那个下拉直接筛出来。
+
+## Admin Page Anatomy
+
+后台**一个 tab 一个内容区主标题**。主标题由 `AdminTabHeader` 承担，与它下面的数据面板是两层不同职责的陈述：页头说**这是什么页**，面板标题说**这一块在干什么活**。
+
+### 页头版式：单行账本式
+
+页头是**一行**，不是两块堆叠（2026-09-25 收口，以小说管理为范本）。
+
+- **左**：`h2` 页名 + `admin-tab-header__meta` 计数胶囊（竖线分隔，0.72rem/500/`--text-muted`）+ 一行描述。
+- **右**：该页的**看家动作**——搜索框与主操作按钮。桌面端 `width: fit-content` + `flex-wrap: nowrap`（标题在左、动作在右，中间留白）；900px 及以下动作区转 `width: 100%`、搜索框 `flex: 1 1 auto` 吃掉剩余宽度、按钮 `flex: 0 0 auto` 不被压缩。
+- **无底线**：`border-bottom: 0`。与面板之间的区隔靠 `.admin-redesign-page` 的 1rem grid gap，不靠分隔线。
+- **只放页面级动作**：搜索与「新建」这类作用于整页的动作归页头；筛选、批量、刷新某一份数据归面板工具条。两处都放同一个动作等于开了两扇门。
+- **元信息位只放两类东西**：规模计数（`__meta` 胶囊）与只读状态（`__meta-inline` / `__status--ok|bad`，纯文字 + 竖线，不叠底色块）。动作不属于这里。
+
+**已收口页面**：小说管理、章节管理、内容审核、分级管理、内容安全、站点运营（概览/流量/内容）、AI 服务（创作/封面/任务/已生成内容/用量/审计/配置/参数，页头由 `AiTab` 统一提供）、账户与注册（用户/注册/登录审计/操作审计）、客户端监控、后台总览。
+
+几何规则按页名分组写在 `admin-operations.css`（`.admin-redesign-page--{content-ratings,content-policy,site-operations,ai}`），新增页面只需把自己加进那组选择器；不要各写各的动作区样式。
+
+### 指标条已停用
+
+**`AdminMetricStrip` 全站不再有页面调用**（2026-09-25 收口）。分级管理页率先移除，随后是站点运营三个子页、AI 用量统计、客户端监控、账户与注册、后台总览。组件本体保留在 `AdminWorkspace.tsx`（`admin-readability.test.tsx` 仍断言它的三段结构），但**没有任何页面再渲染它**。
+
+理由：它把面板页头的几个字段抽出来、放大成 1.45rem 的独立表面，插在页头与面板之间。分级管理表里只有三个数字——总数、待标注、限制级——却占了完整一行、吃掉半屏高度，而页头胶囊已经有总数、页脚计数又会再说一遍。**同一个口径在一屏里出现三次，第三次就只剩噪音。**
+
+- **数字必须与能筛出它、或汇总它的那块内容相邻**。分级账本保留「待标注 67 · 限制级 340」贴着分级下拉；AI 用量统计的「总调用 / 总成本 / 平均单次」贴着它汇总的那张趋势图（`.ai-usage-totals`，0.72rem 次级文字）。读数和控件是同一件事的两种表达，不是两块信息。
+- **规模数字进页头胶囊**。站点运营三个子页各放一个定位用的数字（`128 PV / 96 UV`、`407 本 / 24 个分类`）——它回答"这个视图覆盖多大范围"，是筛选器和图表标题都替代不了的。
+- **判据**：任何概览读数若不能一键筛出它描述的数据、或已由页头胶囊 / 面板标题栏状态 / 页脚计数表达，就不该单独成块。
+- **例外已取消**：此前 DashboardTab 与 SiteOperationsTab 的指标条被保留，理由是"数字本身即内容"。实际收口后它们同样由页头胶囊承担，且阅读体验更好——概览条把首屏高度吃掉一半，而真正要看的数据被推到折叠线以下。
+
+### 身份线三段
+
+面板标题（`h3`，写工作对象名）→ 面板内工具条（搜索 / 筛选 / 批量）→ 数据区（表格 / 列表 / 页脚）。三者同属一份数据，必须同处一个 `AdminDataPanel` 盒子内。
+
+- **`AdminPage` 是容器契约**：它提供 `.tab-content` + `.admin-redesign-page`（统一区块间距、卡片表面归一化，不可省略），并接收 `title` / `description` / `meta` / `actions` 四个 prop 转交 `AdminTabHeader`。子视图自带页头时传 `title={undefined}` 关闭父级页头（`scrape` 的书源子页即此用法）。
+
 ## Layout
 
 内容驱动的流式布局，最大宽度 1200px（--max-width-content），阅读器收窄到 680px（--max-width-reader）。
@@ -324,11 +363,21 @@ components:
 **The Panel-Owned Toolbar Rule.** 一个筛选器不能与它所筛选的数据面板并列为两个等权表面。筛选条、标题、列表构成同一属主的三段（标题 → 筛选 → 数据）；筛选条浮在面板之外，会让读者以为它作用于整页，也会把一件工作拆成两个盒子。
 
 ### Admin Tab Header (AdminTabHeader)
-- **Style:** 每个后台子页唯一的内容区页头：左侧标题 + 元信息胶囊 + 描述，右侧操作区。`flex-wrap` + `items-end`，间距 1rem，`margin-bottom: 1.5rem`，底部分隔线由各页变体关闭（小说、章节、审核页无底线）。
+- **Style:** 每个后台子页唯一的内容区页头，**单行账本式**：左侧标题 + 元信息胶囊 + 描述，右侧该页的看家动作（搜索 + 主操作）。`flex-wrap` + `items-end`，间距 1rem，底部分隔线由各页变体关闭（小说、章节、审核、分级、内容安全、站点运营、AI 服务页无底线）。
 - **Anatomy:** 只有一套。历史 `kicker` 眉题与 `hero` 变体已退役——标题上方不再出现小字，页面之间也不再有标题字号膨胀。
 - **Title:** `text-2xl`（1.5rem）起，CSS 覆写为 `clamp(1.5rem, 1.25rem + 0.65vw, 2rem)` / 700 / `letter-spacing: -0.04em`。
-- **Meta:** 标题右侧的 `admin-tab-header__meta` 胶囊承载列表计数等次要信息，左侧以竖线分隔。
-- **Ownership:** 页头由父容器通过 `AdminPage` 提供，`title` 传 `undefined` 时不渲染页头——供自带页头的子视图使用。
+- **Meta:** 标题右侧的 `admin-tab-header__meta` 胶囊承载列表计数等次要信息（竖线分隔、0.72rem/500/`--text-muted`、`tabular-nums`）。这是全站**唯一**该放在页头的数字——它回答"这个列表有多大"，是筛选器与页脚计数都替代不了的定位信息。只读状态用 `admin-tab-header__meta-inline`（纯文字，不叠底）或 `admin-tab-header__status--ok|bad`（成功/失败色）。
+- **Actions 几何:** 桌面端 `width: fit-content` + `flex-wrap: nowrap`（左标题、右动作，中间留白）；900px 及以下 `width: 100%`，搜索框 `flex: 1 1 auto`、按钮 `flex: 0 0 auto`。搜索框自身定宽：小说管理 20rem，分级管理 18rem——**永不给 `flex: 1` 让它撑满页头**。
+- **Ownership:** 页头由父容器通过 `AdminPage` 提供，`title` 传 `undefined` 时不渲染页头——供自带页头的子视图使用（`scrape/sources` 是唯一消费者）。子 tab 型页面（AI 服务、站点运营、账户与注册）的页头也由父容器统一提供，子面板不再自建页头。
+- **动作归属:** 只有作用于**整页**的动作进页头。筛选某一份数据的下拉、批量操作、清除按钮归面板工具条（`AdminToolbar`），两者不重复同一个动作。
+
+### Admin Metric Strip (AdminMetricStrip) — 停用
+- **状态:** **全站无页面调用**（2026-09-25 起）。组件保留在 `AdminWorkspace.tsx` 供测试锚定三段结构，但新页面不得再引入。
+- **禁止场景:** 一个指标条的每个数字都能在页头胶囊、筛选器旁的计数说明、面板标题栏状态、页脚计数里读到，它只是把同一批口径再说第三遍。概览读数应当**贴在能筛出它或汇总它的那块内容旁边**：
+  - 分级账本 → 「待标注 67 · 限制级 340」贴着分级下拉；
+  - AI 用量统计 → 「总调用 / 总成本 / 平均单次」贴着趋势图（`.ai-usage-totals`）；
+  - 后台总览 → 库存 9 项收成一行紧凑读数（`.dashboard-stat-line`），不与任务状态争夺首屏。
+- **测试锚点:** `admin-readability.test.tsx` 仍断言 `AdminMetricStrip` 的三段结构（label / value / detail 各自成元素）。
 
 ### Custom Combobox (CustomSelect)
 - **Style:** 基于 Popover + Command (cmdk) 的搜索下拉
@@ -367,6 +416,8 @@ components:
 - **Do** 在暗色模式使用月光暖调（金色强调 + 深灰地面），不要简单反转
 - **Do** 后台数据表统一走 `AdminDataPanel` + `columns` 契约，并手动标注 `data-primary` / `data-label` / `data-actions`
 - **Do** 让每个页面只保留一个内容区主标题，面板标题写工作对象名
+- **Do** 让页头保持单行：标题 + 计数胶囊在左，搜索与整页动作在右；搜索框给定宽，不靠 flex 撑满
+- **Do** 把筛选读数贴在能筛出它的控件旁边（「待标注 67 · 限制级 340」紧邻分级下拉），而不是另起指标条
 - **Do** 用 `data-slot` 属性匹配 shadcn 组件（`table.tsx` / `dialog.tsx` 都带契约），而不是依赖 Tailwind 生成的类名
 - **Do** 给放进 flex 工具条的紧凑控件一个显式宽度（控件自身 `max-w-*` 或容器 `flex: 0 0 <宽度>`）；短选项筛选器直接用 `CustomSelect compact`
 
@@ -379,5 +430,7 @@ components:
 - **Don't** 忽略 prefers-reduced-motion 媒体查询——尊重用户的动画偏好
 - **Don't** 给数据面板套用 `columns` 之外的列宽方案，或手写 `--col-N-w`。列宽契约只有一个入口
 - **Don't** 在页标题上方再加小字眉题，或用面板标题重复当前页面名
+- **Don't** 在列表型后台页再插 `AdminMetricStrip`：它的数字若能在页头胶囊、筛选器计数、页脚计数里读到，就只是第三次复述（见 The No-Third-Pass Rule）
+- **Don't** 把同一个动作同时放进页头和面板工具条（见 The Single-Door Rule）
 - **Don't** 让 `w-full` 的元素在 flex 容器里失去 `max-width`——`max-w-none` + `w-full` 会让筛选器独占整行，把工具条撑成多行
 - **Don't** 依赖 flex 布局替控件决定宽度：`flex: 0 0 auto` 配合 `w-full` 的宽高组合在 `flex-wrap` 下没有稳定结果
