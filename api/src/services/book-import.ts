@@ -36,19 +36,44 @@ const MAX_IMPORT_CHAPTERS = 1000
  * 前面的章级标题变成空章（实测一份 53 章的文件因此只剩 34 章）。
  * 因此标题长度封顶，且不允许以句读结尾。
  */
-const CHAPTER_HEADING_TEXT = '(?:第\\s*[0-9０-９零〇一二三四五六七八九十百千万两壹贰叁肆伍陆柒捌玖拾佰仟]+\\s*[章节回卷集部篇]|chapter\\s*\\d+|\\d+[.、．])(?:\\s*.*)?'
-const CHAPTER_HEADING = new RegExp(`^\\s*(${CHAPTER_HEADING_TEXT})\\s*$`, 'i')
+const CHAPTER_HEADING_TEXT = '(?:第\\s*[0-9０-９零〇一二三四五六七八九十百千万两壹贰叁肆伍陆柒捌玖拾佰仟]+\\s*[章节回卷集部篇]|chapter\\s*\\d+|\\d+[.、．])'
+const CHAPTER_HEADING = new RegExp(`^\\s*(${CHAPTER_HEADING_TEXT}(?:\\s*.*)?)\\s*$`, 'i')
+
+/**
+ * 裸数字标题：`0073 我们做夫妻也是可以的`、`32 她才不想要呢……`。
+ * 同一份站点导出里常与「第0073章 标题」混用（本站几十章后切换了写法），
+ * 只认「第NNN章」会让中间几十章整段丢失。要求数字后必须有空白与标题文字，
+ * 且数字≤4位，避免把「2016年」这类正文年份切成分章。
+ */
+const BARE_NUMBER_HEADING = /^\s*([0-9０-９]{1,4})\s+(\S[^\n]*?)\s*$/
+
 const MAX_CHAPTER_TITLE_LENGTH = 40
 const SENTENCE_ENDING = /[。！？；…]$/
+const MAX_BARE_TITLE_LENGTH = 36
 
-/** 判断一行是否为可用的章节标题行。 */
+/**
+ * 判断一行是否为可用的章节标题行。
+ * 返回标题原文（已去首尾空白），非标题返回 null。
+ */
 export function isChapterHeadingLine(line: string): string | null {
-  const match = String(line || '').match(CHAPTER_HEADING)
-  if (!match) return null
-  const title = match[1]!.trim()
-  if (title.length > MAX_CHAPTER_TITLE_LENGTH) return null
-  if (SENTENCE_ENDING.test(title)) return null
-  return title
+  const raw = String(line || '')
+  const match = raw.match(CHAPTER_HEADING)
+  if (match) {
+    const title = match[1]!.trim()
+    if (title.length <= MAX_CHAPTER_TITLE_LENGTH && !SENTENCE_ENDING.test(title)) return title
+    return null
+  }
+  // 裸数字标题：`0073 我们做夫妻也是可以的【2500珠加更】`
+  const bare = raw.match(BARE_NUMBER_HEADING)
+  if (bare) {
+    const body = bare[2]!
+    // 只靠长度收窄：真实章节名常含逗号（「手交，被哥哥射在手里（微h）」），
+    // 用标点过滤会误杀大量合法标题，而正文长句几乎都超过 36 字。
+    if (body.length > MAX_BARE_TITLE_LENGTH) return null
+    if (SENTENCE_ENDING.test(body)) return null
+    return `${bare[1]!.normalize('NFKC')} ${body}`.trim()
+  }
+  return null
 }
 
 /**
@@ -242,6 +267,10 @@ export function importChapterKey(title: unknown): string {
     const digits = numbered[0].replace(/[^0-9０-９零〇一二三四五六七八九十百千万两壹贰叁肆伍陆柒捌玖拾佰仟]/gu, '')
     if (digits) return `#${normalizeImportChapterNumber(digits)}`
   }
+  // 裸数字标题（`0073 我们做夫妻也是可以的`）同样以编号为键，
+  // 否则它与「第0073章」写法会被当成两章。
+  const bare = normalized.match(BARE_NUMBER_HEADING)
+  if (bare) return `#${normalizeImportChapterNumber(bare[1]!)}`
   return normalizeImportChapterTitle(raw)
 }
 
@@ -289,14 +318,16 @@ export function normalizeImportChapterNumber(value: unknown): string {
  */
 export function parseTextImport(input: string, fileName = '未命名.txt'): BookImportPayload {
   const lines = String(input || '').replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n').split('\n')
-  const chapters: BookImportChapterInput[] = []
-  let current: BookImportChapterInput | null = null
-  const byKey = new Map<string, BookImportChapterInput>()
+  /** 切分期的内部章节：额外记住它是否由权威标题（第NNN章 / NNN）开出，用于识别重抄标题。 */
+  type WorkingChapter = BookImportChapterInput & { fromAuthoritative?: boolean }
+  const chapters: WorkingChapter[] = []
+  let current: WorkingChapter | null = null
+  const byKey = new Map<string, WorkingChapter>()
 
   const stripHeading = (title: string) => title.replace(/\s+/g, ' ').trim()
 
-  const beginChapter = (title: string, keys: string[]) => {
-    const chapter: BookImportChapterInput = { title, order: chapters.length + 1, content: '' }
+  const beginChapter = (title: string, keys: string[], fromAuthoritative = false) => {
+    const chapter: WorkingChapter = { title, order: chapters.length + 1, content: '', fromAuthoritative }
     chapters.push(chapter)
     for (const key of keys) if (key && !byKey.has(key)) byKey.set(key, chapter)
     current = chapter
@@ -315,21 +346,21 @@ export function parseTextImport(input: string, fileName = '未命名.txt'): Book
       // 卷标题里的章节号优先，用它判断「第三卷 第四十九章 反击」是否等于已有的第 49 章。
       const embedded = title.match(EMBEDDED_VOLUME_CHAPTER)
       const embeddedKey = embedded ? importChapterKey(title.slice(embedded.index!)) : ''
-      const merged = (embeddedKey && byKey.get(embeddedKey)) || (key && byKey.get(key)) || undefined
-      if (merged) {
-        // 同一章的第二种写法（第九章 = 第0009章）归并进已有章节：正文续接，标题取更完整的一个。
+      // 完整章级标题（第0003章 / 0032）是权威章节边界，永远自己开一章：
+      // 这份导出里「第0003章」标题后面正文开头写的是「第四章」（原文编号本身错位），
+      // 若让它归并进已有的第 4 章，就会整章丢失。
+      const authoritative = /^第\s*[0-9０-９]+\s*[章节回]/u.test(title) || /^[0-9０-９]{1,4}\s/u.test(title)
+      // 非权威标题（「第一章」「第九章」）只在「当前章节是权威标题开出来、且尚未见到正文」
+      // 时才算重抄的标题副本——这是「第0001章 标题 / 第一章 / 正文」这种两层写法。
+      // 若当前章节已经有正文，或本文件根本不用「第NNN章」（纯「第一章 标题」的常见格式），
+      // 它就是一个正常的章节边界，必须开新章。
+      const openChapter = current
+      if (!authoritative && openChapter && openChapter.fromAuthoritative && !openChapter.content.trim()) {
         const stripped = stripHeading(title)
-        if (stripped && merged.title !== stripped && !merged.content.includes(`${stripped}\n`)) {
-          merged.content += `${stripped}\n`
-        }
-        const nextLength = title.replace(/\s+/g, '').length
-        const currentLength = merged.title.replace(/\s+/g, '').length
-        // 章级标题「第0009章 标题」比正文首行的「第九章」更完整，用它当章节名。
-        if (/^第\s*[0-9]/.test(title) && nextLength > currentLength) merged.title = title
-        current = merged
+        if (stripped && !openChapter.content.includes(`${stripped}\n`)) openChapter.content += `${stripped}\n`
         continue
       }
-      beginChapter(title, [embeddedKey, key])
+      beginChapter(title, [embeddedKey, key], authoritative)
       continue
     }
     if (current) {
@@ -973,5 +1004,5 @@ export async function rollbackImport(db: Db, run: StoredImportRun): Promise<Book
 }
 
 export function bookImportTestHelpers() {
-  return { normalizeImportTitle, normalizeImportChapterTitle, normalizeImportContent, importContentHash, importChapterKey, fileStem, titlesMatch, buildChapterDiff, buildMetadataDiff, parseTextImport }
+  return { normalizeImportTitle, normalizeImportChapterTitle, normalizeImportContent, importContentHash, importChapterKey, isChapterHeadingLine, fileStem, titlesMatch, buildChapterDiff, buildMetadataDiff, parseTextImport }
 }

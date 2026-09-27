@@ -106,6 +106,52 @@ describe('book import normalization and diffing', () => {
     expect(book.chapters[0]?.content).toContain('正文乙')
   })
 
+  /**
+   * 站点导出常在同一份文件里混用三种标题写法：`第0001章 标题`、`32 标题`、`0073 标题`。
+   * 只认「第NNN章」会让中段几十章整段丢失（实测 73 章的文件只解析出 34 章）。
+   */
+  it('accepts bare-number headings mixed with 第NNN章 headings', () => {
+    const text = [
+      '第0001章 起',
+      '正文甲。',
+      '2 她不想说话',
+      '正文乙。',
+      '003 我们走吧',
+      '正文丙。',
+    ].join('\n')
+    const book = helpers.parseTextImport(text, '混排.txt')
+
+    expect(book.chapters.map((chapter) => chapter.title)).toEqual(['第0001章 起', '2 她不想说话', '003 我们走吧'])
+    expect(book.chapters.every((chapter) => chapter.content.trim().length > 0)).toBe(true)
+  })
+
+  it('does not split prose that merely starts with a number', () => {
+    // 「第一回体验性爱……」是一句正文，不是标题；它曾把整章正文挂到自己名下。
+    const prose = '第一回体验性爱就被内射，谢溪大脑空白了一瞬，身体也仿佛被置于一整片虚空之中，那东西粘稠湿润，热量惊人，浇在她最敏感的嫩肉上。'
+    const book = helpers.parseTextImport(`第0001章 起\n${prose}\n正文继续。`, '长句.txt')
+
+    expect(book.chapters).toHaveLength(1)
+    expect(book.chapters[0]?.content).toContain('第一回体验性爱')
+  })
+
+  it('keeps a chapter whose in-body heading is misnumbered', () => {
+    // 原文编号错位：`第0003章` 的正文首行写的是「第四章」，而真正的 `第0004章` 在其后。
+    // 权威标题必须自成一章，否则第 3 章会被整章吞掉。
+    const text = ['第0003章 甲', '第四章', '正文甲。', '第0004章 乙', '正文乙。'].join('\n')
+    const book = helpers.parseTextImport(text, '错位.txt')
+
+    expect(book.chapters.map((chapter) => chapter.title)).toEqual(['第0003章 甲', '第0004章 乙'])
+    expect(book.chapters[0]?.content).toContain('正文甲')
+    expect(book.chapters[1]?.content).toContain('正文乙')
+  })
+
+  it('still treats plain 第一章 / 第二章 files as separate chapters', () => {
+    // 这类文件没有「第NNN章」权威标题，中文数字标题就是真正的章节边界。
+    const book = helpers.parseTextImport('第一章 初见\n她推开门。\n第二章 夜行\n风从窗外吹进来。', '纯中文数字.txt')
+
+    expect(book.chapters.map((chapter) => chapter.title)).toEqual(['第一章 初见', '第二章 夜行'])
+  })
+
   it('classifies new, unchanged, changed and ambiguous chapters', () => {
     const chapters = helpers.buildChapterDiff(
       {
