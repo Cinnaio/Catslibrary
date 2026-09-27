@@ -1,47 +1,59 @@
 /* 书籍导入工作流：沿用 Paper Sanctuary 的纸面、细分隔线与低饱和状态色。
-   三段式横向内边距统一 1.75rem（与 .admin-dialog__body 一致）。
 
-   注意选择器特异性：全局有两条竞争规则给弹窗页头/页脚设了下内边距——
-   `.admin-dialog [data-slot='dialog-header']`（0,2,0，1.5rem）与
-   `.admin-dialog [data-slot='dialog-footer']`（0,2,0，1.5rem）。
-   本文件的 `.book-import__footer` 只有 (0,1,0)，即便后加载也压不过它们，
-   因此这里必须用同等特异性的选择器把横向值拉平，否则页脚会比正文外突 0.25rem。 */
+   弹窗三段（页头 / 正文 / 页脚）遵循 .admin-dialog 的设计约定：
+   页头与页脚**不加边框、不加底色**，分隔完全交给间距与按钮视觉
+   （见 admin-operations.css 中 `.admin-dialog [data-slot='dialog-header']`
+   的 border-bottom:0 与 footer 的 border-top:0）。本文件只补齐横向内边距，
+   让三段与正文的 1.75rem 对齐，不重新引入被设计系统去掉的分隔线。 */
 .book-import-dialog {
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  /* 内容行按实际子元素数量自动排布：页头 / 管理员提示 / 正文 / 进度条(可选) / 页脚。
+     正文占满剩余空间并可滚动，其余各段按内容高度。写成固定行数会在进度条出现或
+     消失时错位（进度条是条件渲染的）。 */
+  grid-template-rows: auto auto minmax(0, 1fr);
+  align-content: start;
   gap: 0;
   max-height: min(90svh, 800px);
   overflow: hidden;
   padding: 0;
 }
 
-/* 页头同样受 `.admin-dialog [data-slot='dialog-header']`(0,2,0) 的 1.5rem 支配，
-   必须用同等特异性覆盖才能与正文 1.75rem 对齐。 */
+/* 最后一段（页脚）永远贴底；进度条存在时它排在页脚之前。 */
+.book-import-dialog > :last-child {
+  align-self: end;
+}
+
+/* 页头沿用设计系统的居中版式与无边框，只调整上下内边距：
+   标题在弹窗里居中、右上角关闭按钮向右避让，与其余后台弹窗一致。 */
 .book-import-dialog [data-slot='dialog-header'] {
-  align-items: flex-start;
-  padding: 1.25rem 1.75rem 1rem;
-  border-bottom: 1px solid var(--admin-border);
+  gap: 0.375rem;
+  border-bottom: 0;
+  padding: 1.625rem 1.75rem 0.5rem;
+  text-align: center;
 }
 
-/* 保留类名选择器供 JSX 语义引用；视觉值统一由上面的特异性规则提供。 */
+/* 保留类名选择器供 JSX 语义引用；版式由上面的页头规则提供（居中、无边框）。 */
 .book-import__header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
+  display: grid;
+  justify-items: center;
+  gap: 0.375rem;
+  text-align: center;
 }
 
+/* 管理员提示：作为页头的第二行小字居中排布，不再右浮动。 */
 .book-import__header-note {
-  padding-top: 0.2rem;
+  margin: 0.4rem 0 0;
+  padding: 0 1.75rem;
   color: var(--text-muted);
   font-size: 0.72rem;
-  white-space: nowrap;
+  text-align: center;
 }
 
+/* 正文吸收多余空间并可滚动，保证页头与页脚始终紧凑贴边；
+   横向内边距与 .admin-dialog__body 的 1.75rem 对齐，避免步骤条、分区卡
+   与标题各缩进一个值导致右缘参差。 */
 .book-import__body {
   min-height: 0;
   overflow-y: auto;
-  /* 与 .admin-dialog__body 对齐：弹窗三段共用 1.75rem 横向内边距，
-     否则步骤条、分区卡与标题会各缩进一个值，右缘参差。 */
   padding: 1rem 1.75rem 1.25rem;
   scrollbar-color: var(--admin-border-strong) transparent;
 }
@@ -729,14 +741,13 @@
   height: 0.3rem;
 }
 
-/* 页脚交给 .admin-dialog [data-slot='dialog-footer'] 处理对齐与去背景；
-   这里用同特异性选择器只覆盖横向内边距，并显式保留去背景的意图。
-   写成 `.book-import__footer` 会因特异性不足被全局 1.5rem 压掉。 */
+/* 页脚同样遵循设计系统：无上边框、无底色，仅靠间距与按钮视觉收束三段式。
+   横向沿用 1.75rem 与正文对齐，避免按钮组比内容更靠外。 */
 .book-import-dialog [data-slot='dialog-footer'] {
   min-height: 4.25rem;
-  border-top: 1px solid var(--admin-border);
+  border-top: 0;
   background: transparent;
-  padding: 0.85rem 1.75rem 1rem;
+  padding: 0.5rem 1.75rem 1.625rem;
 }
 
 .book-import__result {

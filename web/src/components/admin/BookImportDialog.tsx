@@ -240,12 +240,12 @@ export default function BookImportDialog({
     <Dialog open={open} onOpenChange={(nextOpen) => !busy && onOpenChange(nextOpen)}>
       <DialogContent className="admin-dialog book-import-dialog sm:max-w-[980px]" aria-describedby="book-import-description">
         <DialogHeader className="book-import__header">
-          <div>
-            <DialogTitle>导入书籍</DialogTitle>
-            <DialogDescription id="book-import-description">先分析来源，再确认同名作品和章节差异；提交后仍可以安全撤回。</DialogDescription>
-          </div>
-          <div className="book-import__header-note">管理员操作 · 保留导入快照</div>
+          <DialogTitle>导入书籍</DialogTitle>
+          <DialogDescription id="book-import-description">先分析来源，再确认同名作品和章节差异；提交后仍可以安全撤回。</DialogDescription>
         </DialogHeader>
+        {/* 管理员提示原本和标题并排右浮动，会把居中页头挤成左对齐。
+            按设计系统「页头居中」的约定移到标题下方，作为说明的第二行小字。 */}
+        <p className="book-import__header-note">管理员操作 · 保留导入快照</p>
 
         <div className="book-import__body">
           <ol className="book-import__steps" aria-label="导入进度">
