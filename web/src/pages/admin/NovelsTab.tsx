@@ -20,7 +20,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableCaption, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
-import { ArrowDown, ArrowUp, BookOpen, ChevronsUpDown, FileUp, Pencil, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, BookOpen, CirclePlus, ChevronsUpDown, FileUp, Pencil, Trash2 } from 'lucide-react'
 import AdminPage from '@/components/admin/AdminPage'
 import AdminRowActions from '@/components/admin/AdminRowActions'
 import AdminSelectionBar from '@/components/admin/AdminSelectionBar'
@@ -527,15 +527,6 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
       description="维护书库作品、分类与连载状态，批量更新只作用于当前列表。"
       actions={
         <>
-          <AdminSearch
-            id="novel-search"
-            label="搜索小说"
-            type="search"
-            data-admin-search
-            placeholder="搜索标题、作者或简介"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-          />
           <Button onClick={() => setBookImportOpen(true)}>
             <FileUp aria-hidden="true" />
             导入书籍
@@ -548,11 +539,22 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
       }
     >
       <AdminToolbar layout="inline" className="novels-rating-toolbar">
-        <div className="admin-toolbar__filters">
-          <Label id="novel-rating-filter-label">分级</Label>
+        <AdminSearch
+          id="novel-search"
+          label="搜索小说"
+          type="search"
+          data-admin-search
+          placeholder="搜索标题、作者或简介"
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+        />
+        <div className="novels-rating-toolbar__filter">
           <CustomSelect
             compact
-            aria-labelledby="novel-rating-filter-label"
+            chip
+            filterChip
+            leadingIcon={<CirclePlus className="size-[var(--admin-filter-chip-icon-size)]" />}
+            aria-label="按分级筛选小说"
             options={RATING_FILTER_OPTIONS}
             value={ratingFilter}
             onChange={(v) => {

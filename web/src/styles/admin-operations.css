@@ -8153,6 +8153,34 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   gap: 0.75rem;
 }
 
+/* 筛选胶囊：与普通 CustomSelect 的 outline 触发器区分开。
+   前置图标表达“添加筛选”，虚线边界保留可操作性但不制造新的卡片层。 */
+.admin-layout [data-slot='popover-trigger'].admin-filter-chip {
+  width: auto;
+  min-width: var(--admin-filter-chip-min-width);
+  max-width: none;
+  height: var(--admin-filter-chip-height);
+  gap: var(--admin-filter-chip-gap);
+  border-color: var(--admin-filter-chip-border);
+  border-style: var(--admin-filter-chip-border-style);
+  border-radius: var(--admin-filter-chip-radius);
+  background: var(--admin-filter-chip-background);
+  padding-inline: var(--admin-filter-chip-padding-inline);
+  color: var(--admin-filter-chip-foreground);
+  font-size: var(--admin-filter-chip-font-size);
+  font-weight: var(--admin-filter-chip-font-weight);
+}
+
+.admin-layout [data-slot='popover-trigger'].admin-filter-chip:hover {
+  border-color: var(--accent);
+  background: var(--admin-filter-chip-hover-background);
+}
+
+.admin-layout [data-slot='popover-trigger'].admin-filter-chip:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
 /* 搜索占据剩余空间，其余控件按内容宽度靠右 */
 .admin-toolbar--inline > [data-slot='input'],
 .admin-toolbar--inline > * > [data-slot='input'] {
@@ -8231,14 +8259,27 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   margin-right: 0.25rem;
 }
 
-/* 小说管理只保留一个表格外的分级筛选：它是轻量控制行，不再伪装成第三张
-   等权卡片；数据面板从选择条/表格开始，避免筛选区与数据区重复包裹。 */
+/* 小说管理的搜索与分级筛选共享一条表格外轻量控制行：搜索占据剩余空间，
+   分级胶囊靠右收口；不伪装成第三张等权卡片，数据面板从选择条/表格开始。 */
 .novels-rating-toolbar {
-  width: fit-content;
+  width: 100%;
   max-width: 100%;
   padding: 0;
   border: 0;
   background: transparent;
+}
+
+.novels-rating-toolbar > .admin-search {
+  width: auto;
+  max-width: none;
+  flex: 1 1 auto;
+}
+
+.novels-rating-toolbar__filter {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  margin-left: auto;
 }
 
 /* 面板内工具条的通用内间距契约。
@@ -8294,6 +8335,18 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 
 /* 窄屏才允许换行：此时工具条本身已转纵向，横向空间不足以容纳整条筛选条。 */
 @media (max-width: 900px) {
+  .novels-rating-toolbar {
+    align-items: stretch;
+  }
+
+  .novels-rating-toolbar > .admin-search {
+    flex: 1 1 100%;
+  }
+
+  .novels-rating-toolbar__filter {
+    align-self: flex-end;
+  }
+
   .admin-toolbar__filters {
     flex-wrap: wrap;
   }

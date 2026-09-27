@@ -4,7 +4,7 @@
  * 内部改为 shadcn 组件：键盘导航/焦点管理由 cmdk 接管。
  * onServerSearch 的「本地空结果才补搜」副作用原样保留。
  */
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Check, ChevronsUpDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -29,6 +29,9 @@ interface CustomSelectProps {
   placeholder?: string
   compact?: boolean
   chip?: boolean
+  /** 以筛选胶囊呈现：使用前置图标作为“添加筛选”提示，不显示默认下拉箭头。 */
+  filterChip?: boolean
+  leadingIcon?: ReactNode
   searchable?: boolean
   searchPlaceholder?: string
   /** 搜索过滤（title/author/拼音），默认大小写不敏感子串 */
@@ -49,6 +52,8 @@ export default function CustomSelect({
   placeholder = '请选择',
   compact,
   chip,
+  filterChip,
+  leadingIcon,
   searchable,
   searchPlaceholder = '搜索…',
   filter,
@@ -122,11 +127,19 @@ export default function CustomSelect({
             // 各占一行）。调用方仍可用 className 覆盖，如 w-40。
             compact && 'h-8 max-w-[var(--admin-filter-width)]',
             chip && 'rounded-full',
+            filterChip && 'admin-filter-chip',
             className,
           )}
         >
-          <span className={cn('truncate', !selected && 'text-muted-foreground')}>{selected?.label || placeholder}</span>
-          <ChevronsUpDown className="size-4 shrink-0 opacity-50" />
+          <span className="custom-select__value flex min-w-0 items-center gap-2">
+            {leadingIcon && (
+              <span className="custom-select__leading-icon flex shrink-0 items-center" aria-hidden="true">
+                {leadingIcon}
+              </span>
+            )}
+            <span className={cn('truncate', !selected && 'text-muted-foreground')}>{selected?.label || placeholder}</span>
+          </span>
+          {!filterChip && <ChevronsUpDown className="size-4 shrink-0 opacity-50" />}
         </Button>
       </PopoverTrigger>
       <PopoverContent

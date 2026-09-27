@@ -65,6 +65,23 @@
   --tabs-segmented-ease:              var(--ease-out);
   --tabs-segmented-transition:        var(--tabs-segmented-duration) var(--tabs-segmented-ease);
 
+  /* Admin filter chips — the quiet “add a filter” control used beside list searches.
+     Keep the geometry separate from ordinary selects so a filter row can stay compact
+     without making form controls across the admin surface pill-shaped. */
+  --admin-filter-chip-height:         2.5rem;
+  --admin-filter-chip-min-width:      8rem;
+  --admin-filter-chip-radius:         var(--radius-full);
+  --admin-filter-chip-border:         var(--admin-border-strong);
+  --admin-filter-chip-border-style:   dashed;
+  --admin-filter-chip-background:     var(--admin-panel);
+  --admin-filter-chip-foreground:     var(--text-primary);
+  --admin-filter-chip-hover-background: var(--accent-subtle);
+  --admin-filter-chip-padding-inline: 0.875rem;
+  --admin-filter-chip-gap:            0.5rem;
+  --admin-filter-chip-icon-size:      1rem;
+  --admin-filter-chip-font-size:      0.875rem;
+  --admin-filter-chip-font-weight:    400;
+
   /* Admin data tables — shared surface, density, state and motion contract.
      The consuming admin layer can still override these semantic values without
      forking the table implementation on novels, chapters, moderation or jobs. */

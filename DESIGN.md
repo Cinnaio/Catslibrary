@@ -369,11 +369,11 @@ components:
 - **下边距必须外置：** `padding-bottom` 落在盒内，表格仍会紧贴 `border-bottom`（实测工具条 `bottom` 与 `thead top` 差 0px）。工具条与数据区之间需要 `margin-bottom: 1rem`，不能用 padding 代替。
 - **Geometry:** `display: flex` + `flex-wrap: wrap` + `gap: 0.75rem`，靠换行适配窄屏而不另写断点；`min-height` 与纵向内边距按内容定档（AI 三面板 3.25rem / `0.75rem`，章节目录面板 3.75rem / `0.875rem`），不做强制统一。
 - **Slots:** 组合顺序固定为「批量操作（仅在有选中项时出现）→ 字段标签 → 筛选控件 → 其余动作」；不要为筛选器新建一套卡片外观。
-- **External Form:** 外置工具条（`AdminPage` 直接子级）是**例外**。跨多个面板生效或确实需要独立成卡时，才使用独立表面语言（`--radius-xl` 圆角 + 描边 + `--admin-panel` 表面色）；如果只是一个筛选器，则使用“单筛选外置行”，不能再创建等权卡片。
-- **单筛选外置行:** 小说管理采用 `AdminPage` 页头 → `.novels-rating-toolbar` → `AdminDataPanel` 的结构。外置行只保留“分级”标签和 `CustomSelect`，使用透明背景、无描边、无圆角；分级统计数字和说明面板不再重复出现。它位于表格面板之外，但不是第三张卡片，表格面板从选择条、表格和分页开始。
+- **External Form:** 外置工具条（`AdminPage` 直接子级）是**例外**。跨多个面板生效或确实需要独立成卡时，才使用独立表面语言（`--radius-xl` 圆角 + 描边 + `--admin-panel` 表面色）；如果只是作用于一个数据集的轻量搜索/筛选组合，则使用透明的“列表控制行”，不能再创建等权卡片。
+- **小说列表控制行:** 小说管理采用 `AdminPage` 页头 → `.novels-rating-toolbar` → `AdminDataPanel` 的结构。搜索框位于左侧并占据剩余空间，分级筛选胶囊位于右侧；控制行使用透明背景、无描边、无圆角，不再把筛选区伪装成第三张卡片。它位于表格面板之外，但表格面板仍从选择条、表格和分页开始。
 - **References:** 章节管理的 `.chapter-toolbar` 与 AI 服务三个列表面板（AI 任务 / 已生成内容 / 调用审计）均已采用面板内形态。几何契约以本节为准：章节范本保留了历史的 `border-radius: 0.5rem 0.5rem 0 0`，实测在 40% 透明底色与 20px 面板圆角下不可见，属未收口的残留值，新面板不要复制。
 
-**The Panel-Owned Toolbar Rule.** 默认情况下，一个筛选器不能与它所筛选的数据面板并列为两个等权表面。筛选条、标题、列表构成同一属主的三段（标题 → 筛选 → 数据）；若说明内容已经由相邻 `AdminContextPanel` 承担，筛选条仍必须留在 `AdminDataPanel` 内，作为数据面板的第一段。只有页面明确没有说明面板、且只保留一个分级筛选时，才允许使用透明的“单筛选外置行”；它不得带卡片边框、背景或统计副文案。
+**The Panel-Owned Toolbar Rule.** 默认情况下，一个筛选器不能与它所筛选的数据面板并列为两个等权表面。筛选条、标题、列表构成同一属主的三段（标题 → 筛选 → 数据）；若说明内容已经由相邻 `AdminContextPanel` 承担，筛选条仍必须留在 `AdminDataPanel` 内，作为数据面板的第一段。只有页面明确没有说明面板、且只保留一个轻量筛选条件，或需要让同一数据集的搜索与该筛选条件保持同一控制行时，才允许使用透明的外置列表控制行；它不得带卡片边框、背景或统计副文案。
 
 ### Admin Tab Header (AdminTabHeader)
 - **Style:** 每个后台子页唯一的内容区页头，**单行账本式**：左侧标题 + 元信息胶囊 + 描述，右侧该页的看家动作（搜索 + 主操作）。`flex-wrap` + `items-end`，间距 1rem，底部分隔线由各页变体关闭（小说、章节、审核、分级、内容安全、站点运营、AI 服务页无底线）。
@@ -403,6 +403,14 @@ components:
 - **`compact` 的语义是「更矮」，不是「解除宽度约束」：** `compact` 只改高度（`h-8`）并保留宽度上限 `max-w-[var(--admin-filter-width)]`（11rem）。调用方可用 `className` 覆盖该上限。
 - **在 `AdminToolbar` 中的宽度契约：** 筛选器要么由 `CustomSelect` 自身的 `compact` 提供上限（11rem，适合「全部分级 / 全部来源」这类短选项），要么由外层容器用 `flex: 0 0 <宽度>` 固定（如 `.moderation-toolbar__status { flex: 0 0 9rem }`）。两者取其一即可，不必同时写。
 - **`.admin-toolbar__filters` 是裸容器，没有任何 CSS 宽度规则：** 它不提供宽度约束，放在里面的 `compact` 下拉依赖 `compact` 自带的上限。
+
+### Filter Chip (CustomSelect `filterChip`)
+
+- **Purpose:** 用于与列表搜索并排的可选筛选条件，视觉上对应“状态 / 模型 / 可见性”一类的添加筛选控件；它不是普通表单下拉，也不是独立卡片。
+- **Anatomy:** 前置 `CirclePlus` 图标 + 当前筛选文案 + 可点击触发器；隐藏普通下拉的 ChevronsUpDown，以加号图标表达“添加/打开筛选”。当前值仍由同一个 `CustomSelect` 下拉承载，不改变筛选行为。
+- **Tokens:** 高度使用 `--admin-filter-chip-height`，最小宽度使用 `--admin-filter-chip-min-width`，圆角使用 `--admin-filter-chip-radius`，虚线边界使用 `--admin-filter-chip-border` / `--admin-filter-chip-border-style`，内间距、图标尺寸、文字字号与状态底色均使用同组 `--admin-filter-chip-*` token；禁止在调用点重新写魔法值。
+- **Layout:** 当它与搜索框位于同一条 `AdminToolbar` 时，搜索框 `flex: 1 1 auto`，筛选胶囊 `flex: 0 0 auto` 并靠右；≤900px 搜索框独占第一行，筛选胶囊仍贴右对齐。
+- **Accessibility:** 触发器保留 `role="combobox"`、`aria-expanded` 和可读的 `aria-label`；图标仅作装饰，不能替代控件名称。
 
 **The Bounded-Compact Rule.** 紧凑控件可以更矮、更窄，但不能「无上限」。一个 `w-full` + `max-width: none` 的按钮放进 `flex-wrap` 容器，会独占一整行——单个筛选器撑满 1440px，三个控件把工具条撑成三行，视觉上从「筛选条」退化成「三个孤立的表单行」。**宽度上限必须由控件自身或容器显式给出，永远不要留给 flex 布局去决定。**
 
