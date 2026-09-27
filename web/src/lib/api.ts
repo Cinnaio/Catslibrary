@@ -3,7 +3,22 @@
  * 零依赖：AbortSignal.timeout 超时、token 存储（localStorage/sessionStorage）、
  * 通用 request(method, path, body, useAuth)。
  */
-import type { ChapterFull, ChapterMeta, Comment, ContentRating, Novel, NovelListResponse, ReaderDevice, ReaderSettings, Thought, User } from '@shared/types'
+import type {
+  BookImportCommitResult,
+  BookImportHistoryItem,
+  BookImportPreview,
+  BookImportRollbackResult,
+  ChapterFull,
+  ChapterMeta,
+  Comment,
+  ContentRating,
+  Novel,
+  NovelListResponse,
+  ReaderDevice,
+  ReaderSettings,
+  Thought,
+  User,
+} from '@shared/types'
 
 /** API base：Vite 注入 VITE_API_BASE（生产经 NOVEL_API_BASE define），默认同源 /api。 */
 function resolveBase(): string {
@@ -217,6 +232,47 @@ export const chaptersApi = {
   },
   batchDelete(novelId: string, chapterIds: string[], operationId = newOperationId('batch-delete-chapters')): Promise<{ ok: boolean }> {
     return request('POST', '/chapters', { action: 'batch-delete', novelId, chapterIds, operationId }, true, operationHeaders(operationId))
+  },
+}
+
+// ---------- 书籍导入 ----------
+
+async function parseUploadResponse<T>(response: Response): Promise<T> {
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error((data as { error?: string }).error || `HTTP ${response.status}`)
+  return data as T
+}
+
+export const bookImportApi = {
+  previewFile(file: File, sourceUrl = ''): Promise<BookImportPreview> {
+    const form = new FormData()
+    form.append('file', file)
+    if (sourceUrl.trim()) form.append('sourceUrl', sourceUrl.trim())
+    return authFetch('/book-import/preview', { method: 'POST', body: form }).then((response) => parseUploadResponse<BookImportPreview>(response))
+  },
+  previewUrl(sourceUrl: string): Promise<BookImportPreview> {
+    return request('POST', '/book-import/preview', { sourceType: 'url', sourceUrl }, true, {}, 120000)
+  },
+  selectTarget(runId: string, targetNovelId: string | null): Promise<BookImportPreview> {
+    return request('POST', `/book-import/${encodeURIComponent(runId)}/target`, { targetNovelId }, true)
+  },
+  commit(
+    runId: string,
+    data: {
+      targetNovelId?: string | null
+      selectedChapterIds: string[]
+      metadataFields: string[]
+      metadataMode: 'missing' | 'replace'
+    },
+    operationId = newOperationId('book-import-commit'),
+  ): Promise<BookImportCommitResult> {
+    return request('POST', `/book-import/${encodeURIComponent(runId)}/commit`, { ...data, operationId }, true, operationHeaders(operationId), 60000)
+  },
+  rollback(runId: string, operationId = newOperationId('book-import-rollback')): Promise<BookImportRollbackResult> {
+    return request('POST', `/book-import/${encodeURIComponent(runId)}/rollback`, { operationId }, true, operationHeaders(operationId))
+  },
+  history(limit = 20): Promise<{ items: BookImportHistoryItem[] }> {
+    return request('GET', `/book-import/history?limit=${encodeURIComponent(limit)}`, null, true)
   },
 }
 

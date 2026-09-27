@@ -20,10 +20,11 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableCaption, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
-import { ArrowDown, ArrowUp, BookOpen, ChevronsUpDown, Pencil, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, BookOpen, ChevronsUpDown, FileUp, Pencil, Trash2 } from 'lucide-react'
 import AdminPage from '@/components/admin/AdminPage'
 import AdminRowActions from '@/components/admin/AdminRowActions'
 import AdminSelectionBar from '@/components/admin/AdminSelectionBar'
+import BookImportDialog from '@/components/admin/BookImportDialog'
 import { AdminDataPanel, AdminCellText, AdminPanelHeading, AdminSearch, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
 
 /**
@@ -180,6 +181,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Novel | null>(null)
   const [draft, setDraft] = useState<NovelDraft>(EMPTY_DRAFT)
+  const [bookImportOpen, setBookImportOpen] = useState(false)
   // 提交中标志：键盘快捷键（Ctrl+Enter）与保存按钮共用，防止重复提交。
   const [saving, setSaving] = useState(false)
 
@@ -536,7 +538,11 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
           />
-          <Button onClick={() => openModal(null)}>
+          <Button onClick={() => setBookImportOpen(true)}>
+            <FileUp aria-hidden="true" />
+            导入书籍
+          </Button>
+          <Button variant="secondary" onClick={() => openModal(null)}>
             <span aria-hidden="true">＋</span>
             添加小说
           </Button>
@@ -737,6 +743,8 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
           }}
         />
       </AdminDataPanel>
+
+      <BookImportDialog key={bookImportOpen ? 'open' : 'closed'} open={bookImportOpen} onOpenChange={setBookImportOpen} onCompleted={() => void load()} />
 
       <Dialog
         open={modalOpen}

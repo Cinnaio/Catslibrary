@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@hono/node-server": "^1",
+    "fflate": "^0.8.3",
     "hono": "^4",
     "iconv-lite": "^0.7",
     "opencc-js": "^1.4",
