@@ -152,6 +152,9 @@ export function normalizeImportChapterTitle(value: unknown): string {
     .replace(/^第\s*[0-9０-９]+\s*[章节回卷集部篇]?\s*/i, '')
     .replace(/^第\s*[零〇一二三四五六七八九十百千万两壹贰叁肆伍陆柒捌玖拾佰仟]+\s*[章节回卷集部篇]?\s*/i, '')
     .replace(/^chapter\s*\d+\s*/i, '')
+    // 裸数字标题的编号前缀同样要剥（「32 她才不想要呢」→「她才不想要呢」）。
+    // 库里存的是不带编号的章节名，不剥这一层，导入侧每个裸数字章节都会被误判成新增。
+    .replace(/^[0-9０-９]{1,4}\s+/, '')
     .replace(/[^\p{L}\p{N}]+/gu, '')
 }
 

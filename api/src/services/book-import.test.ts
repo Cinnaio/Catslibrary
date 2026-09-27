@@ -125,6 +125,32 @@ describe('book import normalization and diffing', () => {
     expect(book.chapters.every((chapter) => chapter.content.trim().length > 0)).toBe(true)
   })
 
+  /**
+   * 增量导入的关键前提：导入侧的裸数字标题必须与库里「不带编号的章节名」算同一章。
+   * 库里的 title 存的是「她才不想要呢……【400珠加更】」，导入侧是「32 她才不想要呢……【400珠加更】」；
+   * 若编号前缀不参与归一化，两边的键永远不同，`43` 个已存在章节会被整片误判成新增。
+   */
+  it('matches a bare-number chapter to the same local chapter title', () => {
+    expect(helpers.normalizeImportChapterTitle('32 她才不想要呢……【400珠加更】')).toBe(
+      helpers.normalizeImportChapterTitle('她才不想要呢……【400珠加更】'),
+    )
+    expect(helpers.normalizeImportChapterTitle('0073 我们做夫妻也是可以的【2500珠加更】')).toBe(
+      helpers.normalizeImportChapterTitle('我们做夫妻也是可以的【2500珠加更】'),
+    )
+
+    // 端到端：本地已有该章时不能再报「新增」。
+    // 标题字面不同（导入侧带编号）会判为「有变化」——这正是需要人工确认的增量，
+    // 但绝不能是「新增」，否则同一章会被重复插一份。
+    const book = helpers.parseTextImport('32 她才不想要呢……【400珠加更】\n同一段正文。', '裸数字.txt')
+    const diff = helpers.buildChapterDiff(book, [
+      { id: 'ch-32', title: '她才不想要呢……【400珠加更】', sort_order: 32, content: '同一段正文。', source_url: '' },
+    ])
+
+    expect(diff.map((chapter) => chapter.status)).toEqual(['changed'])
+    expect(diff[0]?.localChapterId).toBe('ch-32')
+    expect(diff[0]?.status).not.toBe('new')
+  })
+
   it('does not split prose that merely starts with a number', () => {
     // 「第一回体验性爱……」是一句正文，不是标题；它曾把整章正文挂到自己名下。
     const prose = '第一回体验性爱就被内射，谢溪大脑空白了一瞬，身体也仿佛被置于一整片虚空之中，那东西粘稠湿润，热量惊人，浇在她最敏感的嫩肉上。'
