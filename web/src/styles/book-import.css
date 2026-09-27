@@ -692,8 +692,13 @@
   }
 }
 
-/* 选中态用 :has 跟随 radio 自身状态，避免再往 DOM 里塞一类状态属性。 */
+/* 章节列表是 Radix ScrollArea：其 Viewport 带 size-full（height:100%）。
+   只给根元素 max-height 而没给确定高度时，百分比高度无从解析，viewport 会
+   随内容长高并把根元素顶破——列表因此越过容器、压在下面的提示文字上。
+   这里给根元素一个确定高度，viewport 才能撑满并正确滚动。 */
 .book-import__chapter-list {
+  /* height 必须确定，min/max 只做上限收敛，不能替代它。 */
+  height: min(22rem, 45svh);
   max-height: 22rem;
   border: 1px solid var(--admin-border);
   border-radius: var(--admin-radius-sm);
