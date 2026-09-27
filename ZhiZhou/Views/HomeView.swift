@@ -34,6 +34,14 @@ struct HomeView: View {
         bookshelf?.recent.first
     }
 
+    private var featuredNovel: Novel? {
+        novels.first
+    }
+
+    private var recentUpdates: [Novel] {
+        Array(novels.prefix(8))
+    }
+
     private var catalogQuery: [String] {
         [search.trimmingCharacters(in: .whitespacesAndNewlines), selectedCategory ?? ""]
     }
@@ -103,16 +111,38 @@ struct HomeView: View {
                         .transition(readingContextTransition)
                 }
 
-                sectionHeader(
-                    "最近更新",
-                    trailing: totalNovelCount > 0 ? "\(totalNovelCount) 本" : nil
-                )
-                .padding(.bottom, 12)
+                if !novels.isEmpty {
+                    if recentReading == nil, let featuredNovel {
+                        VStack(alignment: .leading, spacing: 12) {
+                            sectionHeader("今日发现")
+                            featuredNovelHero(featuredNovel)
+                        }
+                        .padding(.bottom, 28)
+                    }
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        sectionHeader(
+                            selectedCategory == nil ? "最近更新" : "筛选结果",
+                            trailing: totalNovelCount > 0 ? "\(totalNovelCount) 本" : nil
+                        )
+                        recentUpdatesRail
+                    }
+                    .padding(.bottom, 28)
+
+                    if !categories.isEmpty {
+                        categoryRail
+                            .padding(.bottom, 28)
+                    }
+
+                    sectionHeader("全部作品")
+                        .padding(.bottom, 12)
+                }
 
                 catalogContent
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 24)
+            .animation(reduceMotion ? AppMotion.micro : AppMotion.state, value: novels.isEmpty)
         }
         .scrollIndicators(.hidden)
         .scrollBounceBehavior(.always, axes: .vertical)
@@ -215,12 +245,7 @@ struct HomeView: View {
     @ViewBuilder
     private func novelRow(_ novel: Novel) -> some View {
         Button {
-            selectedReaderLaunch = nil
-            if horizontalSizeClass != .regular {
-                navigationPath.append(.novel(novel))
-            } else {
-                selectedNovel = novel
-            }
+            openNovel(novel)
         } label: {
             NovelCardView(
                 novel: novel,
@@ -230,6 +255,15 @@ struct HomeView: View {
         .buttonStyle(ScaleButtonStyle(pressedScale: 0.985))
         .contentShape(Rectangle())
         .accessibilityIdentifier("catalog.\(novel.id)")
+    }
+
+    private func openNovel(_ novel: Novel) {
+        selectedReaderLaunch = nil
+        if horizontalSizeClass != .regular {
+            navigationPath.append(.novel(novel))
+        } else {
+            selectedNovel = novel
+        }
     }
 
     @ViewBuilder
@@ -263,6 +297,141 @@ struct HomeView: View {
                     .foregroundStyle(AppTheme.textSecondary)
             }
         }
+    }
+
+    private var categoryRail: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionHeader("按分类发现")
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    categoryChip("全部", isSelected: selectedCategory == nil) {
+                        setCategory(nil)
+                    }
+
+                    ForEach(categories, id: \.self) { category in
+                        categoryChip(category, isSelected: selectedCategory == category) {
+                            setCategory(category)
+                        }
+                    }
+                }
+                .padding(.horizontal, 1)
+            }
+            .scrollClipDisabled()
+        }
+    }
+
+    private func categoryChip(
+        _ title: String,
+        isSelected: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(isSelected ? AppTheme.onPrimary : AppTheme.textPrimary)
+                .padding(.horizontal, 14)
+                .frame(minHeight: 38)
+                .background(
+                    isSelected ? AppTheme.primary : AppTheme.controlFill,
+                    in: Capsule()
+                )
+        }
+        .buttonStyle(ScaleButtonStyle(pressedScale: 0.96))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    private var recentUpdatesRail: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            LazyHStack(alignment: .top, spacing: 14) {
+                ForEach(recentUpdates) { novel in
+                    Button {
+                        openNovel(novel)
+                    } label: {
+                        HomeNovelCard(novel: novel)
+                    }
+                    .buttonStyle(ScaleButtonStyle(pressedScale: 0.985))
+                    .accessibilityLabel("查看《\(novel.title)》")
+                    .accessibilityHint("打开作品详情")
+                }
+            }
+            .padding(.horizontal, 1)
+            .scrollTargetLayout()
+        }
+        .scrollClipDisabled()
+        .scrollTargetBehavior(.viewAligned)
+    }
+
+    private func featuredNovelHero(_ novel: Novel) -> some View {
+        Button {
+            openNovel(novel)
+        } label: {
+            ZStack(alignment: .bottomLeading) {
+                CachedAsyncImage(
+                    url: APIClient.shared.coverURL(novelId: novel.id, updatedAt: novel.updatedAt),
+                    targetSize: CGSize(width: 720, height: 420)
+                ) { image in
+                    image
+                        .resizable()
+                        .scaledToFill()
+                } placeholder: {
+                    AppTheme.primaryLight
+                        .overlay {
+                            Image(systemName: "book.closed.fill")
+                                .font(.system(size: 42, weight: .medium))
+                                .foregroundStyle(AppTheme.primary.opacity(0.65))
+                        }
+                }
+                .frame(maxWidth: .infinity, minHeight: 300)
+                .clipped()
+                .overlay {
+                    LinearGradient(
+                        colors: [
+                            .clear,
+                            Color.black.opacity(0.08),
+                            Color.black.opacity(0.78),
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                }
+
+                VStack(alignment: .leading, spacing: 7) {
+                    Text("最近更新")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.82))
+
+                    Text(novel.title)
+                        .font(serifFont(.title2, .bold))
+                        .foregroundStyle(.white)
+                        .appTextLineLimit(2)
+
+                    HStack(spacing: 6) {
+                        Text(novel.author.isEmpty ? "佚名" : novel.author)
+                        if let status = novel.statusLabel, !status.isEmpty {
+                            Text("·")
+                            Text(status)
+                        }
+                    }
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.82))
+
+                    Label("打开详情", systemImage: "arrow.up.right")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(.top, 3)
+                }
+                .padding(20)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxWidth: .infinity, minHeight: 300)
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .shadow(color: AppTheme.cardShadow, radius: 16, y: 7)
+            .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        }
+        .buttonStyle(ScaleButtonStyle(pressedScale: 0.985))
+        .accessibilityLabel("查看《\(novel.title)》")
+        .accessibilityHint("打开作品详情")
     }
 
     private func continueReadingHero(_ item: RecentItem) -> some View {
@@ -315,7 +484,21 @@ struct HomeView: View {
                 }
             }
             .padding(.vertical, 8)
+            .padding(.horizontal, 18)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                LinearGradient(
+                    colors: [
+                        AppTheme.surface,
+                        AppTheme.primaryLight.opacity(0.68),
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ),
+                in: RoundedRectangle(cornerRadius: 24, style: .continuous)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .shadow(color: AppTheme.cardShadow, radius: 12, y: 5)
             .contentShape(Rectangle())
         }
         .buttonStyle(ScaleButtonStyle(pressedScale: 0.985))
@@ -496,5 +679,48 @@ struct HomeView: View {
 
     static func query(_ params: [String: String]) -> String {
         ReaderQuery.encode(params)
+    }
+}
+
+private struct HomeNovelCard: View {
+    let novel: Novel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            NovelCoverView(
+                novel: novel,
+                size: CGSize(width: 132, height: 184)
+            )
+            .frame(width: 132, height: 184)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+            Text(novel.title)
+                .font(serifFont(.subheadline, .semibold))
+                .foregroundStyle(AppTheme.textPrimary)
+                .appTextLineLimit(2)
+
+            Text(novel.author.isEmpty ? "佚名" : novel.author)
+                .font(.caption)
+                .foregroundStyle(AppTheme.textSecondary)
+                .appTextLineLimit(1)
+
+            Text(metadataText)
+                .font(.caption2)
+                .foregroundStyle(AppTheme.textMuted)
+                .appTextLineLimit(1)
+        }
+        .frame(width: 132, alignment: .leading)
+        .contentShape(Rectangle())
+    }
+
+    private var metadataText: String {
+        var parts: [String] = []
+        if let status = novel.statusLabel, !status.isEmpty {
+            parts.append(status)
+        }
+        if novel.chapterCount > 0 {
+            parts.append("\(novel.chapterCount) 章")
+        }
+        return parts.isEmpty ? "最近更新" : parts.joined(separator: " · ")
     }
 }
