@@ -82,6 +82,17 @@
   --admin-filter-chip-font-size:      0.875rem;
   --admin-filter-chip-font-weight:    400;
 
+  /* Admin sidebar — floating navigation rhythm and active-state contract. */
+  --admin-sidebar-nav-height:             2.25rem;
+  --admin-sidebar-nav-radius:             var(--radius-lg);
+  --admin-sidebar-nav-padding-inline:    0.75rem;
+  --admin-sidebar-nav-gap:                0.75rem;
+  --admin-sidebar-group-gap:              0.75rem;
+  --admin-sidebar-active-background:      var(--accent);
+  --admin-sidebar-active-foreground:      var(--accent-ink);
+  --admin-sidebar-sub-active-background:  var(--accent-light);
+  --admin-sidebar-footer-fade-height:     3rem;
+
   /* Admin pagination — shared geometry for the in-panel and detached footer variants. */
   --admin-pagination-gap:                0.5rem;
   --admin-pagination-padding-block:      0.75rem;

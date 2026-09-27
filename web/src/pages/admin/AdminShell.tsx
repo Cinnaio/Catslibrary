@@ -7,7 +7,6 @@ import { useEffect, type ReactNode } from 'react'
 import { Separator } from '@/components/ui/separator'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import { ThemeMenu } from '../../components/ThemeMenu'
-import { AccountMenu } from '../../components/AccountMenu'
 import AdminSidebar from './AdminSidebar'
 
 interface AdminShellProps {
@@ -41,7 +40,6 @@ export default function AdminShell({ active, activeLabel, children }: AdminShell
             <span className="truncate text-sm font-semibold text-foreground">{activeLabel}</span>
           </div>
           <div className="admin-shell__actions shrink-0">
-            <AccountMenu variant="admin" />
             <ThemeMenu className="theme-btn admin-shell__theme-btn" ariaLabel="主题设置" title="主题设置" />
           </div>
         </header>

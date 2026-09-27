@@ -253,7 +253,7 @@ components:
 内容驱动的流式布局，最大宽度 1200px（--max-width-content），阅读器收窄到 680px（--max-width-reader）。
 
 - **公共页面**: 居中容器，20px 内边距，纵向流动。小说网格使用 auto-fill + minmax(330px, 1fr)，间距 36px × 44px。
-- **管理后台**: 左侧可折叠侧边栏 + 右侧内容区。侧栏是 shadcn Sidebar（`collapsible="icon"`, `variant="floating"`），展开态 16rem、图标态 3rem、移动抽屉 18rem。内容区宽度 `min(100%, 1440px)` 居中，内边距 1.5rem（桌面）/ 1rem（640px 以下）。滚动所有权在 `AdminShell` 的内容区，不在各 tab 内部。
+- **管理后台**: 左侧可折叠侧边栏 + 右侧内容区。侧栏是 shadcn Sidebar（`collapsible="icon"`, `variant="floating"`），展开态 16rem、图标态 3rem、移动抽屉 18rem。桌面侧栏保留轻微外部留白、圆角与独立纸面，但不使用外描边或阴影；内容区宽度 `min(100%, 1440px)` 居中，内边距 1.5rem（桌面）/ 1rem（640px 以下）。滚动所有权在 `AdminShell` 的内容区，不在各 tab 内部。
 - **响应式断点**: 901px↑ 启用桌面固定列宽；900px 是主转折（表格折成卡片、工具栏转纵向、侧边栏折叠、网格单列）；640px 紧凑间距与页头收缩；400px 按钮全宽。审核工具条另有 1240px 的转纵向断点。
 - **间距节奏**: 全局 4/8/16/24/32/48px（xs → 2xl）；管理后台使用 `--admin-space-1` 到 `--admin-space-6` = 4/8/12/16/24/32px。后台的第三档是 12px 而不是 16px——这是紧凑档与全局节奏的刻意差异，不要用全局档去覆盖后台面板的内部间距。双表面工作区的兄弟表面间距固定读取 `--admin-page-section-gap`，当前为 16px。
 
@@ -337,9 +337,11 @@ components:
 **The Data-Panel Contract Rule.** 后台数据表一律走 `AdminDataPanel` + `columns`。`columns` 只做两件事：注入 `--col-N-w` 宽度变量、添加 `.admin-data-panel--grid`。它**不会**渲染单元格，也不会写 data 属性——调用方必须让「列定义顺序 = thead 顺序 = tbody 单元格顺序」三者一致，并手动标注 `data-primary` / `data-label` / `data-actions` / `data-check`。少写一个 `data-label`，那张卡片在 900px 以下就会缺一个字段标签；只传 `columns` 而不标属性，等于什么都没做。
 
 ### Navigation (Sidebar)
-- **Style:** shadcn 可折叠侧边栏（`collapsible="icon"`, `variant="floating"`），展开态 16rem、图标态 3rem、移动端抽屉 18rem。底色 `--admin-sidebar`。
-- **Active State:** 左侧 2px 暖棕色竖线指示器（inset box-shadow）
-- **Typography:** 菜单项 0.875rem；分组标签 0.7rem + 0.1em 字距 + uppercase，颜色 `--text-muted`
+- **Style:** shadcn 可折叠侧边栏（`collapsible="icon"`, `variant="floating"`），展开态 16rem、图标态 3rem、移动端抽屉 18rem。桌面侧栏使用 `--admin-sidebar` 独立纸面，保留轻微外部留白和 `--radius-xl` 圆角，不使用外描边或阴影；不要把它改成边到边的 `sidebar` 变体。导航溢出时保留滚动能力，但隐藏滚动条视觉轨道。
+- **Brand / Account:** 侧栏顶部品牌容器是返回首页的入口；账户菜单固定在侧栏底部，承载个人中心与退出登录。账户区域与上方导航之间使用 `--admin-sidebar-footer-fade-height` 的渐变过渡，不添加硬分隔线。
+- **Active State:** 当前项使用整行 `--admin-sidebar-active-background` 品牌色背景与 `--admin-sidebar-active-foreground` 前景色，取消旧的局部浅色/竖线指示器；悬停态不得覆盖当前项的品牌色。
+- **Typography:** 菜单项 0.875rem / 500；分组标签 0.75rem / 600，正常字距、不使用 uppercase，颜色 `--text-muted`。
+- **Geometry Tokens:** 菜单项高度、圆角、内边距、图标与文字间距分别读取 `--admin-sidebar-nav-height`、`--admin-sidebar-nav-radius`、`--admin-sidebar-nav-padding-inline`、`--admin-sidebar-nav-gap`；分组顶部留白使用 `--admin-sidebar-group-gap`。
 
 ### Table
 - **Admin Surface:** `AdminDataPanel` 是无外框、纸面色表面，使用 `--admin-data-panel-radius`（20px）外圆角；需要说明时，标题/说明属于相邻的 `AdminContextPanel`，不再与筛选和表格挤在同一张大卡片里。

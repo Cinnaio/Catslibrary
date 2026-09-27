@@ -5,8 +5,9 @@
  */
 import { useState } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
-import { ChevronRight, Home } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { AccountMenu } from '../../components/AccountMenu'
 import {
   Sidebar,
   SidebarContent,
@@ -124,19 +125,23 @@ function AdminNavigation({ active }: AdminSidebarProps) {
 }
 
 export default function AdminSidebar({ active }: AdminSidebarProps) {
+  const { setOpenMobile } = useSidebar()
+
   return (
     <Sidebar className="admin-sidebar" variant="floating" collapsible="icon">
       <SidebarHeader className="admin-shell__brand">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" className="gap-3" aria-label="知舟管理台">
-              <span className="admin-shell__brand-mark" aria-hidden="true">
-                <img src="/images/logo.png" alt="" />
-              </span>
-              <span className="admin-shell__brand-copy">
-                <strong>知舟</strong>
-                <small>馆藏运营台</small>
-              </span>
+            <SidebarMenuButton asChild size="lg" className="gap-3">
+              <Link to="/" aria-label="返回知舟首页" onClick={() => setOpenMobile(false)}>
+                <span className="admin-shell__brand-mark" aria-hidden="true">
+                  <img src="/images/logo.png" alt="" />
+                </span>
+                <span className="admin-shell__brand-copy">
+                  <strong>知舟</strong>
+                  <small>馆藏运营台</small>
+                </span>
+              </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
@@ -144,17 +149,8 @@ export default function AdminSidebar({ active }: AdminSidebarProps) {
       <SidebarContent className="admin-shell__navigation">
         <AdminNavigation active={active} />
       </SidebarContent>
-      <SidebarFooter>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip="回主页">
-              <Link to="/">
-                <Home />
-                <span>回主页</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
+      <SidebarFooter className="admin-shell__footer">
+        <AccountMenu variant="admin" wrapperClassName="admin-shell__sidebar-account" onNavigate={() => setOpenMobile(false)} />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

@@ -1688,27 +1688,24 @@
   background: transparent;
 }
 
-/* ——— 侧栏：浮动卡片面板 ——
-   侧栏从画布背景中浮起：米白纸面、16px 圆角、细描边与柔和阴影，
-   四周留白，与内容区自然分离（shadcn floating 变体的 p-2 基础上
-   增大上下留白，让面板更像悬浮卡片）。 */
+/* ——— 侧栏：轻量浮动导航面板 ———
+   参考运营型工作台的 floating 侧栏：保留与画布之间的轻微呼吸距离和独立
+   纸面，但降低卡片装饰感；层级主要由分组留白与整行活动态表达。 */
 .admin-layout [data-slot='sidebar-container'] {
   inset-block: 0.5rem 0.75rem;
-  height: auto; /* 覆写 shadcn 的 h-svh：height 与 top/bottom 同设时 bottom 会被忽略，导致面板底部贴边 */
+  height: auto;
   padding-block: 0.5rem;
   border-right: none;
 }
 .admin-layout [data-slot='sidebar-inner'] {
   background: var(--admin-sidebar);
-  border: 1px solid var(--admin-border);
+  border: 0;
   border-radius: var(--radius-xl);
-  box-shadow: var(--admin-shadow-soft);
+  box-shadow: none;
   overflow: hidden;
 }
 
-/* 侧边栏导航滚动条：面板本身是圆角悬浮卡片，8px 的系统滚动条会贴着右缘切出一条
-   灰色轨道，破坏卡片轮廓。导航层级浅、滚动量小，隐去滚动条不影响可发现性
-   （导航项溢出时仍有滚轮/触摸滚动）。 */
+/* 隐藏滚动条本身，但保留滚轮、触摸和键盘滚动能力，避免窄侧栏出现第二条视觉轨道。 */
 .admin-layout [data-slot='sidebar-content'] {
   scrollbar-width: none;
 }
@@ -1726,7 +1723,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 }
 
 .admin-shell__brand {
-  padding: 0.875rem 0.75rem 0.625rem;
+  padding: 1rem 0.75rem 0.75rem;
   border-bottom: none;
 }
 
@@ -1756,7 +1753,8 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   outline: none;
 }
 .admin-shell__brand [data-slot='sidebar-menu-button']:focus-visible {
-  box-shadow: none;
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 .admin-shell__brand-copy {
@@ -1776,24 +1774,46 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 }
 
 .admin-shell__navigation [data-sidebar='group'] {
-  padding: 0.5rem 0.5rem 0;
+  padding: var(--admin-sidebar-group-gap) var(--admin-sidebar-nav-padding-inline) 0;
 }
 .admin-shell__navigation [data-sidebar='group-label'] {
   height: 1.75rem;
-  padding-inline: 0.625rem;
+  padding-inline: var(--admin-sidebar-nav-padding-inline);
   color: var(--text-muted);
-  font-size: 0.7rem; /* 11.2px — ≥11px 可读下限 */
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0;
 }
 
 .admin-shell__navigation [data-sidebar='menu-button'] {
-  min-height: 2.25rem;
-  border-radius: var(--admin-radius-sm);
+  min-height: var(--admin-sidebar-nav-height);
+  gap: var(--admin-sidebar-nav-gap);
+  border-radius: var(--admin-sidebar-nav-radius);
+  padding-inline: var(--admin-sidebar-nav-padding-inline);
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.admin-shell__navigation [data-sidebar='menu-button']:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 .admin-shell__navigation [data-sidebar='menu-button'][data-active='true'] {
-  background: color-mix(in srgb, var(--accent-light) 90%, var(--accent));
+  background: var(--admin-sidebar-active-background);
+  color: var(--admin-sidebar-active-foreground);
+  font-weight: 600;
+}
+
+.admin-shell__navigation [data-sidebar='menu-button'][data-active='true']:hover {
+  background: var(--admin-sidebar-active-background);
+  color: var(--admin-sidebar-active-foreground);
+}
+
+.admin-shell__navigation [data-sidebar='menu-sub-button'][data-active='true'] {
+  background: var(--admin-sidebar-sub-active-background);
+  color: var(--accent-hover);
+  font-weight: 600;
 }
 
 /* 侧栏层级留白：父级负责定位，子菜单用更宽松的行高承接层级。
@@ -1808,13 +1828,66 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 }
 
 .admin-shell__navigation .admin-nav-sub {
-  gap: 0.375rem;
+  gap: 0.25rem;
   margin-block: 0.25rem;
   padding-block: 0.25rem;
 }
 
 .admin-shell__navigation .admin-nav-sub [data-sidebar='menu-sub-button'] {
   height: 2rem;
+}
+
+.admin-layout [data-slot='sidebar-footer'] {
+  position: relative;
+  z-index: 2;
+  padding: 0.75rem;
+  border-top: 0;
+  background: var(--admin-sidebar);
+}
+
+/* 账户入口固定在侧栏底部；渐变从上方内容区淡入 footer 纸面，避免出现硬切分隔线。 */
+.admin-layout [data-slot='sidebar-footer']::before {
+  position: absolute;
+  z-index: 0;
+  inset-inline: 0;
+  bottom: 100%;
+  height: var(--admin-sidebar-footer-fade-height);
+  pointer-events: none;
+  background: linear-gradient(to bottom, transparent, var(--admin-sidebar));
+  content: '';
+}
+
+.admin-layout [data-slot='sidebar-footer'] > * {
+  position: relative;
+  z-index: 1;
+}
+
+.admin-shell__sidebar-account {
+  display: block;
+  width: 100%;
+}
+
+.admin-shell__sidebar-account .admin-shell__account {
+  width: 100%;
+  max-width: none;
+  border-color: transparent;
+  border-radius: var(--admin-sidebar-nav-radius);
+  padding: 0.5rem 0.625rem;
+}
+
+.admin-shell__sidebar-account .admin-shell__account-name {
+  flex: 1 1 auto;
+}
+
+.admin-layout [data-collapsible='icon'] .admin-shell__sidebar-account .admin-shell__account {
+  width: 2rem;
+  justify-content: center;
+  padding-inline: 0;
+}
+
+.admin-layout [data-collapsible='icon'] .admin-shell__sidebar-account .admin-shell__account-name,
+.admin-layout [data-collapsible='icon'] .admin-shell__sidebar-account .account-menu__chevron {
+  display: none;
 }
 
 .admin-shell__topbar {

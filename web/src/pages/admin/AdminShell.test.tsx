@@ -1,20 +1,7 @@
 import type { ReactNode } from 'react'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const mocks = vi.hoisted(() => ({
-  useSession: vi.fn(),
-  useToast: vi.fn(),
-}))
-
-vi.mock('../../context/SessionContext', () => ({
-  useSession: mocks.useSession,
-}))
-
-vi.mock('../../components/feedback', () => ({
-  useToast: mocks.useToast,
-}))
+import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('./AdminSidebar', () => ({
   default: () => <aside data-testid="admin-sidebar" />,
@@ -40,26 +27,8 @@ vi.mock('@/components/ui/sidebar', () => ({
 
 import AdminShell from './AdminShell'
 
-describe('AdminShell account controls', () => {
-  beforeEach(() => {
-    mocks.useToast.mockReturnValue({ toast: vi.fn() })
-    mocks.useSession.mockReturnValue({
-      user: {
-        id: 'user_1',
-        username: 'cat',
-        displayName: '猫',
-        role: 'admin',
-        status: 'active',
-        createdAt: 0,
-        updatedAt: 0,
-        lastLoginAt: 0,
-        bio: '',
-        avatarUrl: 'https://example.com/avatar.png',
-      },
-    })
-  })
-
-  it('头像加载成功时不把首字母叠加到图片上', () => {
+describe('AdminShell topbar controls', () => {
+  it('将账户入口交给侧栏，并保留顶栏主题入口', () => {
     render(
       <MemoryRouter>
         <AdminShell active="jobs" activeLabel="任务管理">
@@ -68,25 +37,7 @@ describe('AdminShell account controls', () => {
       </MemoryRouter>,
     )
 
-    const avatar = screen.getByRole('button', { name: '账户菜单：猫' }).querySelector('.admin-shell__account-avatar')!
-    expect(avatar.querySelector('img')).toHaveAttribute('src', 'https://example.com/avatar.png')
-    expect(avatar.querySelector('span')).not.toBeInTheDocument()
-  })
-
-  it('头像加载失败时显示首字母兜底', () => {
-    render(
-      <MemoryRouter>
-        <AdminShell active="jobs" activeLabel="任务管理">
-          <div />
-        </AdminShell>
-      </MemoryRouter>,
-    )
-
-    const account = screen.getByRole('button', { name: '账户菜单：猫' })
-    const avatar = account.querySelector('.admin-shell__account-avatar')!
-    fireEvent.error(avatar.querySelector('img')!)
-
-    expect(avatar).toHaveTextContent('猫')
-    expect(avatar.querySelector('img')).not.toBeInTheDocument()
+    expect(screen.getByTestId('theme-menu')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '账户菜单：猫' })).not.toBeInTheDocument()
   })
 })
