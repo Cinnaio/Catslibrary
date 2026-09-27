@@ -29,7 +29,39 @@ import type { SitePreset } from './scraper/presets'
 
 const MAX_IMPORT_BYTES = 25 * 1024 * 1024
 const MAX_IMPORT_CHAPTERS = 1000
-const CHAPTER_HEADING = /^\s*((?:第\s*[0-9０-９零〇一二三四五六七八九十百千万两壹贰叁肆伍陆柒捌玖拾佰仟]+\s*[章节回卷集部篇]|chapter\s*\d+|\d+[.、．])(?:\s*.*)?)\s*$/i
+/**
+ * 章节标题识别。
+ * 真实 TXT 里正文首行可能以「第一回体验性爱……」这种长句开头，它同样符合
+ * 「第 + 数字 + 回」却是一句正文。这样一行被当成标题，会把整章正文挂到它名下、
+ * 前面的章级标题变成空章（实测一份 53 章的文件因此只剩 34 章）。
+ * 因此标题长度封顶，且不允许以句读结尾。
+ */
+const CHAPTER_HEADING_TEXT = '(?:第\\s*[0-9０-９零〇一二三四五六七八九十百千万两壹贰叁肆伍陆柒捌玖拾佰仟]+\\s*[章节回卷集部篇]|chapter\\s*\\d+|\\d+[.、．])(?:\\s*.*)?'
+const CHAPTER_HEADING = new RegExp(`^\\s*(${CHAPTER_HEADING_TEXT})\\s*$`, 'i')
+const MAX_CHAPTER_TITLE_LENGTH = 40
+const SENTENCE_ENDING = /[。！？；…]$/
+
+/** 判断一行是否为可用的章节标题行。 */
+export function isChapterHeadingLine(line: string): string | null {
+  const match = String(line || '').match(CHAPTER_HEADING)
+  if (!match) return null
+  const title = match[1]!.trim()
+  if (title.length > MAX_CHAPTER_TITLE_LENGTH) return null
+  if (SENTENCE_ENDING.test(title)) return null
+  return title
+}
+
+/**
+ * 卷/部/篇是容器级标题，不是章节。真实站点导出的 TXT 里「第三卷」往往直接跟在
+ * 上一章正文后面，若当章节切，上一章正文会被截到卷标题为止。
+ */
+const VOLUME_HEADING = /^第\s*[0-9０-９零〇一二三四五六七八九十百千万两壹贰叁肆伍陆柒捌玖拾佰仟]+\s*[卷部篇](?:\s|$)/u
+
+/** 卷标题里常带章节名（如「第三卷 第四十九章 反击」），取末尾章节编号用于去重。 */
+const EMBEDDED_VOLUME_CHAPTER = /第\s*[0-9０-９零〇一二三四五六七八九十百千万两壹贰叁肆伍陆柒捌玖拾佰仟]+\s*[章回节]/u
+
+/** 「第0009章」「第九章」这类标题前缀；中文数字也要剥，两种写法指的是同一章。 */
+const NUMBERED_HEADING_PREFIX = /^第\s*[0-9０-９零〇一二三四五六七八九十百千万两壹贰叁肆伍陆柒捌玖拾佰仟]+\s*[章节回卷集部篇]?\s*/u
 
 export interface StoredImportRun {
   id: string
@@ -90,7 +122,10 @@ export function normalizeImportChapterTitle(value: unknown): string {
   return text(value)
     .normalize('NFKC')
     .toLocaleLowerCase()
-    .replace(/^第\s*[0-9]+\s*[章节回卷集部篇]?\s*/i, '')
+    // 中文数字编号（第一章、第九章）此前不参与剥号，导致「第0009章 谢俞」与正文首行
+    // 的「第九章」算成两个不同章节，正文被挂到后者、前者成为空章。两种写法都要剥。
+    .replace(/^第\s*[0-9０-９]+\s*[章节回卷集部篇]?\s*/i, '')
+    .replace(/^第\s*[零〇一二三四五六七八九十百千万两壹贰叁肆伍陆柒捌玖拾佰仟]+\s*[章节回卷集部篇]?\s*/i, '')
     .replace(/^chapter\s*\d+\s*/i, '')
     .replace(/[^\p{L}\p{N}]+/gu, '')
 }
@@ -153,36 +188,164 @@ export function normalizeImportPayload(raw: Partial<BookImportPayload>): BookImp
   }
 }
 
+/**
+ * 文件名里的排版噪声：[更73]、[完结]、【完结】这类更新标记，以及「作者：归雾」「by 归雾」署名。
+ * 它们属于导出习惯，不属于书名——不去掉会让「[更73] 某某 作者：归雾」与库里的「某某」永不相等。
+ */
+const FILE_NAME_NOISE = [
+  /^[\s]*[[【(（]\s*(?:更|更新|完结|全本|番外|精校|校对|未删减|完结+番外)\s*[0-9０-９]*\s*[\]】)）]\s*/u,
+  /[\s]*[[【(（]\s*(?:更|更新|完结|全本|番外|精校|校对|未删减|完结+番外)\s*[0-9０-９]*\s*[\]】)）][\s]*/gu,
+  /[\s]*[-—–_|｜]?\s*(?:作者|著者|原著)\s*[:：]?\s*\S+\s*$/u,
+  /[\s]*[-—–_|｜]\s*(?:by|By|BY)\s+\S+\s*$/u,
+]
+
 function fileStem(name: string): string {
-  return text(name).replace(/\.[^.]+$/, '').replace(/[._-]+/g, ' ').trim()
+  let stem = text(name).replace(/\.[^.]+$/, '')
+  for (const pattern of FILE_NAME_NOISE) stem = stem.replace(pattern, '')
+  return stem.replace(/[._-]+/g, ' ').replace(/\s{2,}/g, ' ').trim()
 }
 
+/**
+ * 匹配用的标题归一化：去掉卷册标记、更新标记、空白与标点。
+ * 只做格式噪声处理，不做繁简转换——那是刻意保留的，避免不同版本被静默合并。
+ */
+function matchKey(value: unknown): string {
+  return normalizeImportTitle(
+    text(value)
+      .replace(/[[【(（]\s*(?:更|更新|完结|全本|番外|精校|校对|未删减)[^\])）】]*[\])）】]/gu, '')
+      .replace(/\b(?:第\s*[0-9]+\s*[卷部册]|卷[0-9]+)\b/gu, ''),
+  )
+}
+
+/** 书名相同、或一侧完整包含另一侧（长边至少 4 字）时算同一本书。 */
+function titlesMatch(a: unknown, b: unknown): boolean {
+  const left = matchKey(a)
+  const right = matchKey(b)
+  if (!left || !right) return false
+  if (left === right) return true
+  const [short, long] = left.length <= right.length ? [left, right] : [right, left]
+  return short.length >= 4 && long.includes(short)
+}
+
+/**
+ * 切分阶段的章节去重键。
+ * 「第0001章 初入」和正文首行重抄的「第一章」指的是同一章，但两者剥号后的标题文本
+ * 完全不同（初入 / 空）。真正的共同点是章节编号，所以键取编号本身。
+ * 无编号标题（「前言」）回退到归一化标题。
+ */
+export function importChapterKey(title: unknown): string {
+  const raw = text(title)
+  if (!raw) return ''
+  const normalized = raw.normalize('NFKC').trim()
+  const numbered = normalized.match(NUMBERED_HEADING_PREFIX)
+  if (numbered) {
+    const digits = numbered[0].replace(/[^0-9０-９零〇一二三四五六七八九十百千万两壹贰叁肆伍陆柒捌玖拾佰仟]/gu, '')
+    if (digits) return `#${normalizeImportChapterNumber(digits)}`
+  }
+  return normalizeImportChapterTitle(raw)
+}
+
+const CHINESE_DIGITS: Record<string, number> = {
+  零: 0, 〇: 0, 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9,
+  壹: 1, 贰: 2, 叁: 3, 肆: 4, 伍: 5, 陆: 6, 柒: 7, 捌: 8, 玖: 9,
+}
+const CHINESE_UNITS: Record<string, number> = { 十: 10, 拾: 10, 百: 100, 佰: 100, 千: 1000, 仟: 1000, 万: 10000 }
+
+/** 把「0009」「九」「十九」「一百零八」统一成数字字符串，用于跨写法去重。 */
+export function normalizeImportChapterNumber(value: unknown): string {
+  const raw = String(value ?? '').normalize('NFKC').trim()
+  if (!raw) return ''
+  if (/^[0-9]+$/.test(raw)) return String(Number(raw))
+  let total = 0
+  let section = 0
+  let current = 0
+  for (const char of raw) {
+    if (char in CHINESE_DIGITS) {
+      current = CHINESE_DIGITS[char]!
+      continue
+    }
+    const unit = CHINESE_UNITS[char]
+    if (unit === undefined) continue
+    if (unit === 10000) {
+      total = (total + section + current) * unit
+      section = 0
+      current = 0
+      continue
+    }
+    section += (current || 1) * unit
+    current = 0
+  }
+  const result = total + section + current
+  return result > 0 ? String(result) : raw
+}
+
+/**
+ * TXT 章节切分。
+ *
+ * 真实站点导出的 TXT 有两层标题：章级「第0009章 标题」和正文首行的「第九章」。
+ * 两者都命中章节规则，若一行一章直接切，前半段会被上一行截走——抽出「第0009章」
+ * 得到空正文，真正的正文挂在下一行的「第九章」上。所以这里先按标题编号去重，
+ * 重复编号只作为正文首行保留，同时兼容 0001/第一章 混排与 第一章/1. 混排。
+ */
 export function parseTextImport(input: string, fileName = '未命名.txt'): BookImportPayload {
   const lines = String(input || '').replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n').split('\n')
   const chapters: BookImportChapterInput[] = []
   let current: BookImportChapterInput | null = null
+  const byKey = new Map<string, BookImportChapterInput>()
 
-  const pushCurrent = () => {
-    if (!current) return
-    current.content = current.content.trim()
-    if (current.content || current.title) chapters.push(current)
+  const stripHeading = (title: string) => title.replace(/\s+/g, ' ').trim()
+
+  const beginChapter = (title: string, keys: string[]) => {
+    const chapter: BookImportChapterInput = { title, order: chapters.length + 1, content: '' }
+    chapters.push(chapter)
+    for (const key of keys) if (key && !byKey.has(key)) byKey.set(key, chapter)
+    current = chapter
   }
 
   for (const line of lines) {
-    const heading = line.match(CHAPTER_HEADING)
-    if (heading) {
-      pushCurrent()
-      current = { title: text(heading[1]), order: chapters.length + 1, content: '' }
-    } else if (current) {
+    const headingTitle = isChapterHeadingLine(line)
+    if (headingTitle && VOLUME_HEADING.test(headingTitle)) {
+      // 卷标题并进正文：既保住卷名，也防止它把上一章的正文截走。
+      if (current) current.content += `${text(headingTitle)}\n`
+      continue
+    }
+    if (headingTitle) {
+      const title = text(headingTitle)
+      const key = importChapterKey(title)
+      // 卷标题里的章节号优先，用它判断「第三卷 第四十九章 反击」是否等于已有的第 49 章。
+      const embedded = title.match(EMBEDDED_VOLUME_CHAPTER)
+      const embeddedKey = embedded ? importChapterKey(title.slice(embedded.index!)) : ''
+      const merged = (embeddedKey && byKey.get(embeddedKey)) || (key && byKey.get(key)) || undefined
+      if (merged) {
+        // 同一章的第二种写法（第九章 = 第0009章）归并进已有章节：正文续接，标题取更完整的一个。
+        const stripped = stripHeading(title)
+        if (stripped && merged.title !== stripped && !merged.content.includes(`${stripped}\n`)) {
+          merged.content += `${stripped}\n`
+        }
+        const nextLength = title.replace(/\s+/g, '').length
+        const currentLength = merged.title.replace(/\s+/g, '').length
+        // 章级标题「第0009章 标题」比正文首行的「第九章」更完整，用它当章节名。
+        if (/^第\s*[0-9]/.test(title) && nextLength > currentLength) merged.title = title
+        current = merged
+        continue
+      }
+      beginChapter(title, [embeddedKey, key])
+      continue
+    }
+    if (current) {
       current.content += `${line}\n`
     } else if (text(line)) {
-      current = { title: '正文', order: 1, content: `${line}\n` }
+      const chapter: BookImportChapterInput = { title: '正文', order: 1, content: `${line}\n` }
+      chapters.push(chapter)
+      current = chapter
     }
   }
-  pushCurrent()
 
-  if (!chapters.length) chapters.push({ title: '正文', order: 1, content: String(input || '').trim() })
-  return normalizeImportPayload({ title: fileStem(fileName) || '未命名作品', author: '未知作者', chapters })
+  // 空正文的编号章节是章节切分炸掉的信号，宁可丢弃也不要写入空章。
+  const kept = chapters.filter((chapter) => chapter.content.trim() || !importChapterKey(chapter.title))
+  const payloadChapters = kept.length ? kept : chapters
+  if (!payloadChapters.length) payloadChapters.push({ title: '正文', order: 1, content: String(input || '').trim() })
+  return normalizeImportPayload({ title: fileStem(fileName) || '未命名作品', author: '未知作者', chapters: payloadChapters })
 }
 
 function xmlText(xml: string, tag: string): string {
@@ -419,13 +582,19 @@ export function buildMetadataDiff(book: BookImportPayload, novel: Novel | null):
 export function buildChapterDiff(book: BookImportPayload, local: ChapterRow[]): BookImportChapterDiff[] {
   const bySourceUrl = new Map<string, ChapterRow>()
   const byOrderAndTitle = new Map<string, ChapterRow>()
+  const byOrder = new Map<number, ChapterRow[]>()
   const byTitle = new Map<string, ChapterRow[]>()
   for (const chapter of local) {
     const sourceUrl = safeSourceUrl(chapter.source_url)
     if (sourceUrl) bySourceUrl.set(sourceUrl, chapter)
     const key = `${chapter.sort_order}:${normalizeImportChapterTitle(chapter.title)}`
     byOrderAndTitle.set(key, chapter)
+    const orderValues = byOrder.get(chapter.sort_order) || []
+    orderValues.push(chapter)
+    byOrder.set(chapter.sort_order, orderValues)
+    // 纯编号标题（第三章）归一化后为空串，不能当作「同名」——否则整本会被算成一个同名桶。
     const titleKey = normalizeImportChapterTitle(chapter.title)
+    if (!titleKey) continue
     const values = byTitle.get(titleKey) || []
     values.push(chapter)
     byTitle.set(titleKey, values)
@@ -437,9 +606,11 @@ export function buildChapterDiff(book: BookImportPayload, local: ChapterRow[]): 
     const titleKey = normalizeImportChapterTitle(incoming.title)
     const strong = sourceUrl ? bySourceUrl.get(sourceUrl) : undefined
     const exact = strong || byOrderAndTitle.get(`${incoming.order}:${titleKey}`)
-    const sameTitle = byTitle.get(titleKey) || []
-    const candidate = exact || (sameTitle.length === 1 ? sameTitle[0] : undefined)
-    const conflict = !exact && sameTitle.length > 1
+    // 只有编号没有标题时按序号对齐：序号唯一才认，避免不同写法互相抢。
+    const sameOrder = !titleKey ? byOrder.get(incoming.order) || [] : []
+    const sameTitle = titleKey ? byTitle.get(titleKey) || [] : []
+    const candidate = exact || (sameOrder.length === 1 ? sameOrder[0] : undefined) || (sameTitle.length === 1 ? sameTitle[0] : undefined)
+    const conflict = !exact && (sameTitle.length > 1 || (!titleKey && sameOrder.length > 1))
     if (candidate) used.add(candidate.id)
     const contentChanged = candidate ? importContentHash(candidate.content) !== importContentHash(incoming.content) : false
     const titleChanged = candidate ? normalizeImportChapterTitle(candidate.title) !== titleKey || candidate.title !== incoming.title : false
@@ -454,6 +625,9 @@ export function buildChapterDiff(book: BookImportPayload, local: ChapterRow[]): 
       status = contentChanged || titleChanged ? 'changed' : 'unchanged'
       confidence = exact ? 'high' : 'medium'
       reason = exact ? (sourceUrl ? '来源地址一致' : '序号与标题一致') : '标题一致，序号不同或来源地址缺失'
+    } else if (!titleKey) {
+      confidence = 'low'
+      reason = '章节只有编号没有标题，按序号未能唯一对应'
     }
     return {
       id: `chapter-${index + 1}`,
@@ -477,17 +651,18 @@ export function buildChapterDiff(book: BookImportPayload, local: ChapterRow[]): 
 async function findCandidates(db: Db, book: BookImportPayload): Promise<BookImportNovelCandidate[]> {
   const rows = await all<NovelRow>(db, 'SELECT * FROM novels ORDER BY updated_at DESC')
   const incomingTitle = normalizeImportTitle(book.title)
-  const incomingAuthor = normalizeImportTitle(book.author)
+  const incomingAuthor = matchKey(book.author)
   const incomingSource = safeSourceUrl(book.sourceUrl)
   return rows
     .map((row) => {
       const novel = rowToNovel(row)
       if (!novel) return null
       const sameSource = incomingSource && safeSourceUrl(novel.sourceUrl) === incomingSource
-      const sameTitle = normalizeImportTitle(novel.title) === incomingTitle
+      const sameTitle = titlesMatch(novel.title, book.title)
       if (!sameSource && !sameTitle) return null
-      const sameAuthor = incomingAuthor && normalizeImportTitle(novel.author) === incomingAuthor
-      const score = sameSource ? 100 : sameAuthor ? 90 : 80
+      const sameAuthor = incomingAuthor && matchKey(novel.author) === incomingAuthor
+      // 作者也对得上时才给最高分，避免「书名包含」的弱匹配盖过真正的同名同作者作品。
+      const score = sameSource ? 100 : sameTitle && sameAuthor ? 95 : sameAuthor ? 90 : 80
       const matchReason: BookImportNovelCandidate['matchReason'] = sameSource ? 'source-url' : sameAuthor ? 'title-author' : 'title'
       return { novel, matchReason, score }
     })
@@ -798,5 +973,5 @@ export async function rollbackImport(db: Db, run: StoredImportRun): Promise<Book
 }
 
 export function bookImportTestHelpers() {
-  return { normalizeImportTitle, normalizeImportChapterTitle, normalizeImportContent, importContentHash, buildChapterDiff, buildMetadataDiff, parseTextImport }
+  return { normalizeImportTitle, normalizeImportChapterTitle, normalizeImportContent, importContentHash, importChapterKey, fileStem, titlesMatch, buildChapterDiff, buildMetadataDiff, parseTextImport }
 }

@@ -30,6 +30,82 @@ describe('book import normalization and diffing', () => {
     expect(helpers.normalizeImportChapterTitle('第 12 章 归途')).toBe('归途')
   })
 
+  it('derives the book title from a decorated export filename', () => {
+    // 站点导出的文件名形如「[更73] 书名 作者：某某」，书名不该带上更新标记和署名。
+    expect(helpers.fileStem('[更73] 和哥哥在乱交世界里假装do爱 作者：归雾.txt')).toBe('和哥哥在乱交世界里假装do爱')
+    expect(helpers.fileStem('【完结】某某书 作者：张三.txt')).toBe('某某书')
+    expect(helpers.fileStem('雾中书.txt')).toBe('雾中书')
+  })
+
+  it('matches a decorated title against the clean library title', () => {
+    expect(helpers.titlesMatch('和哥哥在乱交世界里假装do爱', '[更73] 和哥哥在乱交世界里假装do爱 作者：归雾')).toBe(true)
+    expect(helpers.titlesMatch('和哥哥在乱交世界里假装do爱', '和哥哥在乱交世界里假装do爱')).toBe(true)
+    // 太短的包含关系不算同一本，避免单字书名把整库都匹配上。
+    expect(helpers.titlesMatch('爱', '和哥哥在乱交世界里假装do爱')).toBe(false)
+    expect(helpers.titlesMatch('魔王哥哥的千层馅饼', '和哥哥在乱交世界里假装do爱')).toBe(false)
+  })
+
+  it('picks the same book from the real library as a candidate', async () => {
+    const libraryTitle = '和哥哥在乱交世界里假装do爱'
+    const created = await testDb.db.query<{ id: string }>(
+      `INSERT INTO novels (id, title, author, description, cover_url, categories, status, content_rating, source_url, chapter_count, created_at, updated_at)
+       VALUES ('novel-target-1', $1, '归雾', '', '', '[]', 'ongoing', 'unknown', 'https://www.po18.tw/books/902326', 0, $2, $2) RETURNING id`,
+      [libraryTitle, Date.now()],
+    )
+    const preview = await createPreview(testDb.db, {
+      sourceType: 'file',
+      sourceLabel: '[更73] 和哥哥在乱交世界里假装do爱 作者：归雾.txt',
+      sourceUrl: '',
+      payload: helpers.parseTextImport('第0001章 初见\n她推开门。\n第一章\n门开了。\n', '[更73] 和哥哥在乱交世界里假装do爱 作者：归雾.txt'),
+    })
+
+    expect(preview.book.title).toBe('和哥哥在乱交世界里假装do爱')
+    expect(preview.candidates.map((candidate) => candidate.novel.id)).toContain(created.rows[0]!.id)
+    // 唯一候选自动成为导入目标，增量导入才不会误建一本新书。
+    expect(preview.targetNovelId).toBe('novel-target-1')
+  })
+
+  /**
+   * 站点导出的 TXT 会在正文里重复一遍章节标题（章级「第0009章 标题」+ 正文首行「第九章」）。
+   * 修复前：正文全挂到「第九章」上，抽出「第0009章」得到空正文。
+   */
+  it('merges the duplicated chapter heading instead of emitting empty chapters', () => {
+    const text = [
+      '第0001章\t初入',
+      '',
+      '    第一章',
+      '    她推开门。',
+      '',
+      '第0002章\t夜行',
+      '',
+      '    第二章',
+      '    风从窗外吹进来。',
+    ].join('\n')
+    const book = helpers.parseTextImport(text, '两层标题.txt')
+
+    expect(book.chapters).toHaveLength(2)
+    expect(book.chapters.every((chapter) => chapter.content.trim().length > 0)).toBe(true)
+    expect(book.chapters[0]?.title).toBe('第0001章\t初入')
+    expect(book.chapters[0]?.content).toContain('第一章')
+    expect(book.chapters[0]?.content).toContain('她推开门')
+  })
+
+  it('keeps volume headings inside the previous chapter body', () => {
+    const book = helpers.parseTextImport('第一章 起\n正文甲。\n第三卷 风起\n第二章 承\n正文乙。', '卷标题.txt')
+
+    expect(book.chapters.map((chapter) => chapter.title)).toEqual(['第一章 起', '第二章 承'])
+    expect(book.chapters[0]?.content).toContain('正文甲')
+    expect(book.chapters[0]?.content).toContain('第三卷 风起')
+  })
+
+  it('matches a volume-prefixed chapter heading to the plain one', () => {
+    const book = helpers.parseTextImport('第49章 反击\n正文甲。\n第三卷 第49章 反击\n正文乙。', '卷内章节.txt')
+
+    expect(book.chapters).toHaveLength(1)
+    expect(book.chapters[0]?.content).toContain('正文甲')
+    expect(book.chapters[0]?.content).toContain('正文乙')
+  })
+
   it('classifies new, unchanged, changed and ambiguous chapters', () => {
     const chapters = helpers.buildChapterDiff(
       {
