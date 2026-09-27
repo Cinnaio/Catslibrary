@@ -8839,6 +8839,11 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 }
 
 /* 数据表格的表头、分隔线和行反馈使用同一组语义 token；不改变列宽或布局。 */
+.admin-redesign-page--novels .novels-data-panel > [data-slot='table-container'] {
+  border-top-left-radius: var(--admin-data-panel-radius);
+  border-top-right-radius: var(--admin-data-panel-radius);
+}
+
 .admin-data-panel--grid table > thead > tr {
   background: var(--admin-table-header-background);
   color: var(--admin-table-header-foreground);

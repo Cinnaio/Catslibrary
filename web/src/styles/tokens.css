@@ -70,7 +70,7 @@
      forking the table implementation on novels, chapters, moderation or jobs. */
   --admin-table-panel-radius:         var(--radius-2xl);
   --admin-table-border:               color-mix(in srgb, var(--border) 88%, var(--text-primary) 4%);
-  --admin-table-header-background:    transparent;
+  --admin-table-header-background:    color-mix(in srgb, var(--accent) 10%, var(--admin-panel));
   --admin-table-header-foreground:    var(--text-primary);
   --admin-table-row-height:            3.25rem;
   --admin-table-row-hover-background: color-mix(in srgb, var(--accent-subtle) 64%, transparent);
