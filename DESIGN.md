@@ -246,6 +246,7 @@ components:
 - `AdminDataPanel` 只承载 `AdminToolbar`、选择条、表格/列表和 `Pagination`，使用 `--admin-data-panel-*` token；表格卡片保持无外描边，内部只用分隔线表达区段。
 - 两个表面之间的距离统一使用 `--admin-page-section-gap`。不要把说明重新塞回数据面板，也不要为工具条再创建第三张等权卡片。
 - 图一式的拆分不改变分页、筛选、批量操作、空状态或移动端 900px 卡片化契约；它只把说明与操作的阅读顺序变成“先理解对象，再处理数据”。
+- 如果页面没有需要保留的工作对象说明，且只剩一个高频筛选器，不要为了填补层级强行创建 `AdminContextPanel`；使用下方“单筛选外置行”例外。
 
 ## Layout
 
@@ -368,10 +369,11 @@ components:
 - **下边距必须外置：** `padding-bottom` 落在盒内，表格仍会紧贴 `border-bottom`（实测工具条 `bottom` 与 `thead top` 差 0px）。工具条与数据区之间需要 `margin-bottom: 1rem`，不能用 padding 代替。
 - **Geometry:** `display: flex` + `flex-wrap: wrap` + `gap: 0.75rem`，靠换行适配窄屏而不另写断点；`min-height` 与纵向内边距按内容定档（AI 三面板 3.25rem / `0.75rem`，章节目录面板 3.75rem / `0.875rem`），不做强制统一。
 - **Slots:** 组合顺序固定为「批量操作（仅在有选中项时出现）→ 字段标签 → 筛选控件 → 其余动作」；不要为筛选器新建一套卡片外观。
-- **External Form:** 外置工具条（`AdminPage` 直接子级）是**例外**，只用于面板确实需要独立成卡、或其控件跨多个面板生效的场景；此时才使用独立表面语言（`--radius-xl` 圆角 + 描边 + `--admin-panel` 表面色）。
+- **External Form:** 外置工具条（`AdminPage` 直接子级）是**例外**。跨多个面板生效或确实需要独立成卡时，才使用独立表面语言（`--radius-xl` 圆角 + 描边 + `--admin-panel` 表面色）；如果只是一个筛选器，则使用“单筛选外置行”，不能再创建等权卡片。
+- **单筛选外置行:** 小说管理采用 `AdminPage` 页头 → `.novels-rating-toolbar` → `AdminDataPanel` 的结构。外置行只保留“分级”标签和 `CustomSelect`，使用透明背景、无描边、无圆角；分级统计数字和说明面板不再重复出现。它位于表格面板之外，但不是第三张卡片，表格面板从选择条、表格和分页开始。
 - **References:** 章节管理的 `.chapter-toolbar` 与 AI 服务三个列表面板（AI 任务 / 已生成内容 / 调用审计）均已采用面板内形态。几何契约以本节为准：章节范本保留了历史的 `border-radius: 0.5rem 0.5rem 0 0`，实测在 40% 透明底色与 20px 面板圆角下不可见，属未收口的残留值，新面板不要复制。
 
-**The Panel-Owned Toolbar Rule.** 一个筛选器不能与它所筛选的数据面板并列为两个等权表面。筛选条、标题、列表构成同一属主的三段（标题 → 筛选 → 数据）；若说明内容已经由相邻 `AdminContextPanel` 承担，筛选条仍必须留在 `AdminDataPanel` 内，作为数据面板的第一段，而不是浮在页面之外。
+**The Panel-Owned Toolbar Rule.** 默认情况下，一个筛选器不能与它所筛选的数据面板并列为两个等权表面。筛选条、标题、列表构成同一属主的三段（标题 → 筛选 → 数据）；若说明内容已经由相邻 `AdminContextPanel` 承担，筛选条仍必须留在 `AdminDataPanel` 内，作为数据面板的第一段。只有页面明确没有说明面板、且只保留一个分级筛选时，才允许使用透明的“单筛选外置行”；它不得带卡片边框、背景或统计副文案。
 
 ### Admin Tab Header (AdminTabHeader)
 - **Style:** 每个后台子页唯一的内容区页头，**单行账本式**：左侧标题 + 元信息胶囊 + 描述，右侧该页的看家动作（搜索 + 主操作）。`flex-wrap` + `items-end`，间距 1rem，底部分隔线由各页变体关闭（小说、章节、审核、分级、内容安全、站点运营、AI 服务页无底线）。

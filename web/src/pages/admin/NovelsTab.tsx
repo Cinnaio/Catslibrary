@@ -25,7 +25,7 @@ import AdminPage from '@/components/admin/AdminPage'
 import AdminRowActions from '@/components/admin/AdminRowActions'
 import AdminSelectionBar from '@/components/admin/AdminSelectionBar'
 import BookImportDialog from '@/components/admin/BookImportDialog'
-import { AdminContextPanel, AdminDataPanel, AdminCellText, AdminSearch, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
+import { AdminDataPanel, AdminCellText, AdminSearch, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
 
 /**
  * 表格列定义：桌面端据此固定列宽（表头与内容对齐），移动端据此折成卡片并
@@ -172,7 +172,6 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
   const [searchInput, setSearchInput] = useState('')
   const [query, setQuery] = useState('')
   const [ratingFilter, setRatingFilter] = useState('')
-  const [ratingCounts, setRatingCounts] = useState<{ general: number; restricted: number; unknown: number } | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -219,7 +218,6 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
       setNovels(rows)
       setTotalPages(tp)
       setTotal(data.total || 0)
-      if (data.ratingCounts) setRatingCounts(data.ratingCounts)
       // 结果收缩导致越界 → 钳回末页重试
       if (page > tp && tp >= 1 && rows.length === 0) {
         setPage(tp)
@@ -549,33 +547,23 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
         </>
       }
     >
-      <AdminContextPanel
-        className="novels-context-panel"
-        title="作品目录"
-        description={query ? `匹配「${query}」的作品` : '按标题、作者、章节数和更新时间管理书库'}
-      />
+      <AdminToolbar layout="inline" className="novels-rating-toolbar">
+        <div className="admin-toolbar__filters">
+          <Label id="novel-rating-filter-label">分级</Label>
+          <CustomSelect
+            compact
+            aria-labelledby="novel-rating-filter-label"
+            options={RATING_FILTER_OPTIONS}
+            value={ratingFilter}
+            onChange={(v) => {
+              setRatingFilter(v)
+              setPage(1)
+            }}
+          />
+        </div>
+      </AdminToolbar>
 
       <AdminDataPanel className="novels-data-panel" ariaLabel="作品目录数据" columns={NOVEL_COLUMNS}>
-        <AdminToolbar layout="inline" className="novels-toolbar">
-          <div className="admin-toolbar__filters">
-            <Label id="novel-rating-filter-label">分级</Label>
-            <CustomSelect
-              compact
-              aria-labelledby="novel-rating-filter-label"
-              options={RATING_FILTER_OPTIONS}
-              value={ratingFilter}
-              onChange={(v) => {
-                setRatingFilter(v)
-                setPage(1)
-              }}
-            />
-            {ratingCounts && (
-              <span className="text-xs tabular-nums text-muted-foreground" data-testid="rating-progress">
-                待标注 {ratingCounts.unknown} · 限制级 {ratingCounts.restricted}
-              </span>
-            )}
-          </div>
-        </AdminToolbar>
         {selected.size > 0 && (
           <AdminSelectionBar count={selected.size} label={`已选 ${selected.size} 本`} onClear={() => setSelected(new Set())}>
             <Button variant="secondary" size="sm" onClick={() => void handleBatchUpdate()}>
