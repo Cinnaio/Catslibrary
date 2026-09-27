@@ -6,10 +6,9 @@
    的 border-bottom:0 与 footer 的 border-top:0）。本文件只补齐横向内边距，
    让三段与正文的 1.75rem 对齐，不重新引入被设计系统去掉的分隔线。 */
 .book-import-dialog {
-  /* 内容行按实际子元素数量自动排布：页头 / 管理员提示 / 正文 / 进度条(可选) / 页脚。
-     正文占满剩余空间并可滚动，其余各段按内容高度。写成固定行数会在进度条出现或
-     消失时错位（进度条是条件渲染的）。 */
-  grid-template-rows: auto auto minmax(0, 1fr);
+  /* 四段：页头 / 正文(可滚动) / 进度条(条件渲染) / 页脚。
+     正文占满剩余高度，其余按内容；页脚恒定贴底。 */
+  grid-template-rows: auto minmax(0, 1fr) auto;
   align-content: start;
   gap: 0;
   max-height: min(90svh, 800px);
@@ -17,7 +16,7 @@
   padding: 0;
 }
 
-/* 最后一段（页脚）永远贴底；进度条存在时它排在页脚之前。 */
+/* 页脚始终贴底（进度条存在时排在它的上一行）。 */
 .book-import-dialog > :last-child {
   align-self: end;
 }
@@ -39,10 +38,9 @@
   text-align: center;
 }
 
-/* 管理员提示：作为页头的第二行小字居中排布，不再右浮动。 */
+/* 管理员提示：页头内第三行小字，居中。 */
 .book-import__header-note {
-  margin: 0.4rem 0 0;
-  padding: 0 1.75rem;
+  margin: 0.3rem 0 0;
   color: var(--text-muted);
   font-size: 0.72rem;
   text-align: center;
@@ -58,11 +56,18 @@
   scrollbar-color: var(--admin-border-strong) transparent;
 }
 
+/* 步骤条整体居中：宽度收紧到内容所需，靠 margin-inline:auto 居中，
+   而不是让四个 1fr 列铺满弹窗宽度（铺满时首尾贴边、视觉重心偏左）。 */
 .book-import__steps {
+  /* 步骤条整体居中：列宽按内容收缩，两侧留等距；连接线长度由 --step-gap 推导，
+     改间距时线宽自动跟随，不会出现线与圆点脱节。 */
+  --step-gap: 2.25rem;
+  --step-line-inset: 0.6rem;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0;
-  margin: 0 0 1.25rem;
+  grid-template-columns: repeat(4, minmax(0, auto));
+  justify-content: center;
+  gap: var(--step-gap);
+  margin: 0 auto 1.25rem;
   padding: 0;
   list-style: none;
 }
@@ -71,6 +76,7 @@
   position: relative;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 0.45rem;
   min-width: 0;
   color: var(--text-muted);
@@ -78,14 +84,16 @@
   font-weight: 500;
 }
 
+/* 连接线落在相邻两项的间隙里，两端各留 --step-line-inset 避开圆形标记。 */
 .book-import__step:not(:last-child)::after {
   position: absolute;
-  top: 0.75rem;
-  right: 0.75rem;
-  left: 1.7rem;
+  top: 50%;
+  left: calc(100% + var(--step-line-inset));
+  width: calc(var(--step-gap) - var(--step-line-inset) * 2);
   height: 1px;
   background: var(--admin-border);
   content: '';
+  transform: translateY(-50%);
 }
 
 .book-import__step[data-active='true'] {
@@ -519,45 +527,63 @@
   color: var(--admin-border-strong);
 }
 
-/* 导入方式选择器：原本是一行裸 label，脱离「作品信息变化」分区单独悬浮，
-   视觉上像掉在弹窗顶部的残留控件。改成带底色与内边距的分段式容器，
-   让它明确属于所在分区。 */
+/* 导入方式选择器：对齐设计系统的分段控件契约（--tabs-segmented-*），
+   与「审核类型」「书源面板」等处的分段切换保持同一套几何、底色与激活态。
+   两个选项等宽，激活项用 ::before 滑块承载，而不是给每个 label 单独描边——
+   后者会在容器里画出两个各自成框的胶囊，看起来像掉进来的独立控件。 */
 .book-import__mode-picker {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  isolation: isolate;
+  gap: var(--tabs-segmented-gap);
   margin-top: 0.9rem;
-  padding: 0.3rem;
-  border: 1px solid var(--admin-border);
-  border-radius: var(--admin-radius-sm);
-  background: var(--admin-panel-muted);
-  color: var(--text-muted);
-  font-size: 0.75rem;
+  padding: var(--tabs-segmented-inset);
+  border: 1px solid var(--tabs-segmented-track-border);
+  border-radius: var(--tabs-segmented-radius);
+  background: var(--tabs-segmented-track-background);
+  color: var(--tabs-segmented-muted-foreground);
+  font-size: var(--tabs-segmented-label-size);
+  font-weight: var(--tabs-segmented-label-weight);
+}
+
+/* 激活滑块：用 :has 跟随哪一侧的 radio 被选中，无需额外的状态属性。 */
+.book-import__mode-picker::before {
+  position: absolute;
+  z-index: 0;
+  inset: var(--tabs-segmented-inset) auto var(--tabs-segmented-inset) var(--tabs-segmented-inset);
+  width: calc((100% - (var(--tabs-segmented-gap) * 3)) / 2);
+  border-radius: var(--tabs-segmented-inner-radius);
+  background: var(--tabs-segmented-active-background);
+  box-shadow: var(--tabs-segmented-active-shadow);
+  content: '';
+  pointer-events: none;
+  transform: translateX(0);
+  transition: transform var(--tabs-segmented-transition);
+}
+
+.book-import__mode-picker:has(label:nth-child(2) input:checked)::before {
+  transform: translateX(calc(100% + var(--tabs-segmented-gap)));
 }
 
 .book-import__mode-picker label {
+  position: relative;
+  z-index: 1;
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  flex: 1 1 auto;
   justify-content: center;
+  gap: 0.4rem;
+  min-height: 2rem;
   padding: 0.35rem 0.6rem;
-  border: 1px solid transparent;
-  border-radius: calc(var(--admin-radius-sm) - 2px);
+  border: 0;
+  border-radius: var(--tabs-segmented-inner-radius);
+  color: inherit;
   cursor: pointer;
-  transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease;
+  transition: color var(--tabs-segmented-transition);
 }
 
-.book-import__mode-picker label:hover {
-  border-color: var(--admin-border);
-  background: var(--admin-panel);
-}
-
-/* 选中态用 :has 跟随 radio 自身状态，避免再往 DOM 里塞一类状态属性。 */
 .book-import__mode-picker label:has(input:checked) {
-  border-color: color-mix(in srgb, var(--accent) 40%, var(--admin-border));
-  background: color-mix(in srgb, var(--accent-subtle) 70%, var(--admin-panel));
-  color: var(--text-primary);
+  color: var(--tabs-segmented-active-foreground);
 }
 
 .book-import__mode-picker label:has(input:focus-visible) {
@@ -565,10 +591,42 @@
   outline-offset: 1px;
 }
 
-.book-import__mode-picker input {
-  accent-color: var(--accent);
+/* 原生 radio 只承担可访问性与键盘交互，不参与视觉。 */
+.book-import__mode-picker input[type='radio'] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
+/* 选中项前的圆点指示：与单选语义一致，且不依赖原生控件外观。 */
+.book-import__mode-picker label::before {
+  flex: 0 0 auto;
+  width: 0.7rem;
+  height: 0.7rem;
+  border: 1px solid var(--admin-border-strong);
+  border-radius: 999px;
+  background: var(--admin-panel);
+  content: '';
+  transition: border-color var(--tabs-segmented-transition), box-shadow var(--tabs-segmented-transition);
+}
+
+.book-import__mode-picker label:has(input:checked)::before {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 0.18rem var(--accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .book-import__mode-picker::before,
+  .book-import__mode-picker label,
+  .book-import__mode-picker label::before {
+    transition: none;
+  }
+}
+
+/* 选中态用 :has 跟随 radio 自身状态，避免再往 DOM 里塞一类状态属性。 */
 .book-import__chapter-list {
   max-height: 22rem;
   border: 1px solid var(--admin-border);
@@ -820,17 +878,20 @@
     padding-left: 1rem;
   }
 
-  /* 窄屏下分段式选择器改纵向堆叠，两个选项各占满一行，避免文字被压成两行。 */
+  /* 窄屏下分段式选择器保持两列等分（本来就是 grid），只把文字收紧。 */
   .book-import__mode-picker {
-    flex-direction: column;
-  }
-
-  .book-import__mode-picker label {
-    justify-content: flex-start;
+    font-size: 0.8rem;
   }
 
   .book-import__header-note {
     display: none;
+  }
+
+  /* 窄屏步骤条：等分四列铺满，连接线随之缩短到间隙的最窄可读宽度。 */
+  .book-import__steps {
+    --step-gap: 0.5rem;
+    --step-line-inset: 0.1rem;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .book-import__step {
@@ -840,11 +901,6 @@
 
   .book-import__step[data-active='true'] {
     font-size: 0.7rem;
-  }
-
-  .book-import__step:not(:last-child)::after {
-    right: 0;
-    left: calc(50% + 0.75rem);
   }
 
   .book-import__book-summary,

@@ -242,10 +242,10 @@ export default function BookImportDialog({
         <DialogHeader className="book-import__header">
           <DialogTitle>导入书籍</DialogTitle>
           <DialogDescription id="book-import-description">先分析来源，再确认同名作品和章节差异；提交后仍可以安全撤回。</DialogDescription>
+          {/* 管理员提示并进页头：独立成行时会与步骤条抢同一段垂直空间（实测重叠）。
+              放在页头内既与标题同组居中，也不再影响弹窗栅格行数。 */}
+          <p className="book-import__header-note">管理员操作 · 保留导入快照</p>
         </DialogHeader>
-        {/* 管理员提示原本和标题并排右浮动，会把居中页头挤成左对齐。
-            按设计系统「页头居中」的约定移到标题下方，作为说明的第二行小字。 */}
-        <p className="book-import__header-note">管理员操作 · 保留导入快照</p>
 
         <div className="book-import__body">
           <ol className="book-import__steps" aria-label="导入进度">
