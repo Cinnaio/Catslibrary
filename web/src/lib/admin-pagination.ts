@@ -6,7 +6,7 @@
  * 会报错（运行时常量导出会破坏 HMR 边界——改动常量导致整个组件模块重载，
  * 已挂载的列表状态全丢）。类型导出不受影响，常量不行。
  *
- * 默认 10 条是**展示层**契约，不是接口默认值：后端各列表路由未传 limit 时仍
+ * 默认 15 条是**展示层**契约，不是接口默认值：后端各列表路由未传 limit 时仍
  * 回落到 50，避免未显式传参的调用方（含公开页）突遭截断。需要「一次拉全」的
  * 页面显式传自己的 limit，不消费这里的默认值。
  *
@@ -15,7 +15,7 @@
  * 不要再在各页面里手写 `useState(50)` 或字面档位数组——历史上小说 20 /
  * 章节 50 / 审计 50 / 生成内容 50 / 书源 50 五处分叉，正是这么来的。
  */
-export const ADMIN_DEFAULT_PAGE_SIZE = 10
+export const ADMIN_DEFAULT_PAGE_SIZE = 15
 
 /** 每页条数下拉档位；默认值必须在其列，否则 Select 显示空白。 */
-export const ADMIN_PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const
+export const ADMIN_PAGE_SIZE_OPTIONS = [15, 20, 50, 100] as const

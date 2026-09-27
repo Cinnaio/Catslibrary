@@ -243,7 +243,7 @@ components:
 `AdminPage` 页头 → `AdminContextPanel` 说明面板 → `AdminDataPanel` 数据面板。
 
 - `AdminContextPanel` 只承载工作对象标题和辅助说明，使用 `--admin-context-panel-*` token；它是独立的嵌套表面，保留 1px 暖色描边，不加阴影。
-- `AdminDataPanel` 只承载 `AdminToolbar`、选择条、表格/列表和 `Pagination`，使用 `--admin-data-panel-*` token；表格卡片保持无外描边，内部只用分隔线表达区段。
+- `AdminDataPanel` 只承载 `AdminToolbar`、选择条和表格/列表，使用 `--admin-data-panel-*` token；表格卡片保持无外描边，内部只用分隔线表达区段。分页默认属于面板；需要像小说管理这样形成独立控制行时，`Pagination variant="detached"` 放在 `AdminDataPanel` 外部，且不使用卡片背景、边框或圆角。
 - 两个表面之间的距离统一使用 `--admin-page-section-gap`。不要把说明重新塞回数据面板，也不要为工具条再创建第三张等权卡片。
 - 图一式的拆分不改变分页、筛选、批量操作、空状态或移动端 900px 卡片化契约；它只把说明与操作的阅读顺序变成“先理解对象，再处理数据”。
 - 如果页面没有需要保留的工作对象说明，且只剩一个高频筛选器，不要为了填补层级强行创建 `AdminContextPanel`；使用下方“单筛选外置行”例外。
@@ -354,9 +354,11 @@ components:
 
 ### Pagination (Pagination)
 
-- **Single Source:** 全站后台分页只有一个实现（`components/admin/Pagination.tsx`），固定为「数据面板页脚」形态：左计数、右控件（每页条数 → 上一页 → 第 X / Y 页 → 跳转 → 下一页），靠 1px 上边线与表格分区，共享面板纸面。它属于表格，必须渲染在 `AdminDataPanel` 内部。
-- **Default Page Size:** 默认每页 **10** 条，档位 **10 / 20 / 50 / 100**。两个常量 `ADMIN_DEFAULT_PAGE_SIZE` 与 `ADMIN_PAGE_SIZE_OPTIONS` 定义在 `lib/admin-pagination.ts`（独立模块，不是 `Pagination.tsx`——组件文件必须保持「只导出组件」，否则运行时常量导出会破坏 HMR 边界），是全站唯一来源——页面 `useState(ADMIN_DEFAULT_PAGE_SIZE)` 取初值并把 `ADMIN_PAGE_SIZE_OPTIONS` 传给 `pageSize.options`。**不要在页面里再写 `useState(50)` 或字面档位数组**：历史上小说 20 / 章节 50 / 审计 50 / 生成内容 50 / 书源 50 五处分叉，正是这么来的。
-- **Presentation, Not API:** 10 是**展示层**默认值，后端各列表路由未传 `limit` 时仍回落到 50。这样未显式传参的调用方（含公开页）不会被静默截断。需要「一次拉全」的页面（抓取中心候选列表 `PAGE_SIZE=100`、审核队列 `limit: '80'`、章节索引 `limit: '2000'`）显式传自己的 limit，不消费本默认值。
+- **Single Source:** 全站后台分页只有一个实现（`components/admin/Pagination.tsx`），默认是「数据面板页脚」形态：左计数、右控件（每页条数 → 翻页 → 第 X / Y 页 → 跳转），共享分页 token。需要把表格与页码控件分开时，使用 `variant="detached"`：分页作为 `AdminDataPanel` 的同级元素，形成透明、无边框、无圆角的独立控制行，只靠页面区块间距与内容对齐表达层级。
+- **Detached Geometry:** 分页控制行的关键控件统一使用 `--admin-pagination-control-size: 2rem`：每页条数下拉触发器、翻页图标按钮和外置分页的页码输入框共用同一高度。页码输入框使用 `--admin-pagination-jump-width` 固定宽度，取消水平内边距，并让数字在控件内部水平居中；不要在调用点重新写高度、宽度或对齐魔法值。
+- **Novels Footer Rhythm:** 小说管理的 `variant="detached"` 分页与表格相邻但不套卡片；分页控制行通过 `margin-top: calc(-1 * var(--admin-space-2))` 抵消默认区块间距的一档，使表格与分页保持连续的页脚节奏。该收紧只属于小说列表，不外溢到其他后台页面。
+- **Default Page Size:** 默认每页 **15** 条，档位 **15 / 20 / 50 / 100**。两个常量 `ADMIN_DEFAULT_PAGE_SIZE` 与 `ADMIN_PAGE_SIZE_OPTIONS` 定义在 `lib/admin-pagination.ts`（独立模块，不是 `Pagination.tsx`——组件文件必须保持「只导出组件」，否则运行时常量导出会破坏 HMR 边界），是全站唯一来源——页面 `useState(ADMIN_DEFAULT_PAGE_SIZE)` 取初值并把 `ADMIN_PAGE_SIZE_OPTIONS` 传给 `pageSize.options`。**不要在页面里再写 `useState(50)` 或字面档位数组**：历史上小说 20 / 章节 50 / 审计 50 / 生成内容 50 / 书源 50 五处分叉，正是这么来的。
+- **Presentation, Not API:** 15 是**展示层**默认值，后端各列表路由未传 limit 时仍回落到 50。这样未显式传参的调用方（含公开页）不会被静默截断。需要「一次拉全」的页面（抓取中心候选列表 `PAGE_SIZE=100`、审核队列 `limit: '80'`、章节索引 `limit: '2000'`）显式传自己的 limit，不消费本默认值。
 - **Page-Size Change Resets Page:** 改变每页条数必须回到第 1 页（组件内部已回调 `onPage(1)`，调用方需把 offset 一并归零）；换筛选条件同理。留在原 offset 会落在越界区间，表现为「改完一片空白」。
 - **Delete-Then-Empty Guard:** 当前页删到空且不在第 1 页时，回退一页而不是留在空页。
 - **Front-stage Exception:** 前台 `Home` 保留自己的实现（内联原生控件 + `.home-pagination`），两套刻意分开：前台是阅读场景的卡片皮肤，后台是紧凑控制带。后台不得复用前台类名（曾因 home.css 的裸 `.home-pagination` 选择器把前台 20px 圆角漏进后台）。

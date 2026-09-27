@@ -709,29 +709,30 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
             )}
           </TableBody>
         </Table>
-        {/* 页脚归位到面板内：与书源、账户审计、AI 各面板一致——
-            分页属于这张表，靠 1px 上边线与表格分区，共享面板纸面。 */}
-        <Pagination
-          page={page}
-          totalPages={totalPages}
-          onPage={setPage}
-          busy={loading}
-          summary={
-            <>
-              共 {total} 本，显示 {total === 0 ? 0 : (page - 1) * pageSize + 1}-{Math.min(page * pageSize, total)}
-            </>
-          }
-          pageSize={{
-            value: pageSize,
-            // 本地常量换成 state 才能改页大小；改动后回第 1 页避免越界。
-            onChange: (size) => {
-              setPageSize(size)
-              setPage(1)
-            },
-            options: ADMIN_PAGE_SIZE_OPTIONS,
-          }}
-        />
       </AdminDataPanel>
+
+      <Pagination
+        variant="detached"
+        className="novels-pagination"
+        page={page}
+        totalPages={totalPages}
+        onPage={setPage}
+        busy={loading}
+        summary={
+          <>
+            共 {total} 本，显示 {total === 0 ? 0 : (page - 1) * pageSize + 1}-{Math.min(page * pageSize, total)}
+          </>
+        }
+        pageSize={{
+          value: pageSize,
+          // 本地常量换成 state 才能改页大小；改动后回第 1 页避免越界。
+          onChange: (size) => {
+            setPageSize(size)
+            setPage(1)
+          },
+          options: ADMIN_PAGE_SIZE_OPTIONS,
+        }}
+      />
 
       <BookImportDialog key={bookImportOpen ? 'open' : 'closed'} open={bookImportOpen} onOpenChange={setBookImportOpen} onCompleted={() => void load()} />
 

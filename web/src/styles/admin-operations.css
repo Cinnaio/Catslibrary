@@ -4524,8 +4524,8 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
    后台表格内的「有 N 章待更新」请改用 .admin-panel-status 或 badge 原语。 */
 
 /* ——— 后台统一分页页脚 — consumers: components/admin/Pagination.tsx ———
-   全站后台唯一的分页形态：数据面板页脚。左计数、右控件，靠 1px 上边线
-   与表格分区，共享面板纸面。不再有「独立控制带」一档，也不再提供对齐变体。
+   全站后台唯一的分页实现：默认是数据面板页脚；detached 变体作为列表表格
+   与页码控件之间的独立控制带。两者共享计数、页大小和翻页交互契约。
 
    容器只走 .admin-pagination 命名空间：此前与 .home-pagination 共用选择器，
    导致 home.css 的卡片表面规则组（未加 .home-page 作用域）把前台 20px 大圆角
@@ -4537,13 +4537,20 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   align-items: center;
   flex-wrap: wrap;
   justify-content: space-between;
-  gap: var(--admin-space-3);
+  gap: var(--admin-pagination-gap);
   /* 页脚表面：与 AdminDataPanel 页头同一条分区契约，页脚不是独立卡片。 */
   margin: 0;
-  padding: var(--admin-space-3) 1.25rem;
+  padding: var(--admin-pagination-padding-block) var(--admin-pagination-padding-inline);
   border-top: 1px solid var(--admin-border);
   color: var(--text-muted);
-  font-size: 0.8rem;
+  font-size: var(--admin-pagination-font-size);
+}
+
+.admin-pagination--detached {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding-inline: var(--admin-pagination-padding-inline);
 }
 
 .admin-pagination__summary {
@@ -4558,7 +4565,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   min-width: 0;
   align-items: center;
   flex-wrap: wrap;
-  gap: var(--admin-space-2);
+  gap: var(--admin-pagination-gap);
 }
 
 .admin-pagination__info,
@@ -4570,7 +4577,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 .admin-pagination__jump {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: var(--admin-pagination-gap);
 }
 
 /* 跳转输入框：定宽，不参与弹性分配（Fit-Content Rule）。
@@ -4578,21 +4585,40 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
    w-full，而 .ai-admin-page [data-slot='input'][type='number']（width: 9rem）
    也会命中分页跳转框——单类选择器会被压掉，实测 AI 面板下宽度失控为 144px。 */
 .admin-layout .admin-pagination__jump-input[type='number'] {
-  width: 4rem;
-  min-width: 4rem;
+  width: var(--admin-pagination-jump-width);
+  min-width: var(--admin-pagination-jump-width);
+  text-align: center;
+}
+
+.admin-layout .admin-pagination--detached .admin-pagination__jump-input[type='number'] {
+  height: var(--admin-pagination-control-size);
+  min-height: var(--admin-pagination-control-size);
+  padding-inline: 0;
   text-align: center;
 }
 
 .admin-pagination__page-size {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: var(--admin-pagination-gap);
   color: var(--text-muted);
   white-space: nowrap;
 }
 
 .admin-pagination__page-size [data-slot='select-trigger'] {
-  min-width: 5.5rem;
+  min-width: var(--admin-pagination-page-size-width);
+}
+
+.admin-pagination__icon-button {
+  width: var(--admin-pagination-control-size);
+  min-width: var(--admin-pagination-control-size);
+  height: var(--admin-pagination-control-size);
+  padding: 0;
+}
+
+.admin-pagination__icon-button > svg {
+  width: 1rem;
+  height: 1rem;
 }
 
 /* 窄屏：计数与控件各占一行、控件左起，避免计数与按钮互压。 */
@@ -4600,7 +4626,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   .admin-pagination {
     align-items: flex-start;
     flex-direction: column;
-    gap: var(--admin-space-2);
+    gap: var(--admin-pagination-gap);
   }
 
   .admin-pagination__controls {
@@ -8280,6 +8306,11 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   flex: 0 0 auto;
   align-items: center;
   margin-left: auto;
+}
+
+/* 分页已移到表格外，但仍属于小说列表的连续操作区；在默认区块间距基础上再收紧一档。 */
+.admin-redesign-page--novels > .novels-pagination {
+  margin-top: calc(-1 * var(--admin-space-2));
 }
 
 /* 面板内工具条的通用内间距契约。

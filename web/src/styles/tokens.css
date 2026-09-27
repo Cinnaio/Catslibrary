@@ -82,6 +82,15 @@
   --admin-filter-chip-font-size:      0.875rem;
   --admin-filter-chip-font-weight:    400;
 
+  /* Admin pagination — shared geometry for the in-panel and detached footer variants. */
+  --admin-pagination-gap:                0.5rem;
+  --admin-pagination-padding-block:      0.75rem;
+  --admin-pagination-padding-inline:     1.25rem;
+  --admin-pagination-font-size:          0.8rem;
+  --admin-pagination-jump-width:         4rem;
+  --admin-pagination-page-size-width:    5.5rem;
+  --admin-pagination-control-size:       2rem;
+
   /* Admin data tables — shared surface, density, state and motion contract.
      The consuming admin layer can still override these semantic values without
      forking the table implementation on novels, chapters, moderation or jobs. */

@@ -1,9 +1,8 @@
 /**
- * 管理后台统一页脚 —— 计数 / 每页条数 / 上一页 / 第 X / Y 页 / 跳转 / 下一页。
+ * 管理后台统一分页 —— 计数 / 每页条数 / 翻页 / 第 X / Y 页 / 跳转。
  *
- * 全站后台的唯一分页实现，固定为「数据面板页脚」这一种形态：
- * 左计数、右控件，靠 1px 上边线与表格分区，共享面板纸面。
- * 不再提供对齐或跳转框开关——只有一个正确位置，避免再次分叉。
+ * 全站后台的唯一分页实现，默认是「数据面板页脚」形态；`detached` 变体用于
+ * 需要把分页从数据表面分离出来的列表，仍复用同一套状态与交互契约。
  *
  * 现状与历史：后台曾并存 6 套实现，在按钮变体（secondary / outline / ghost /
  * 原生 .btn）、页数措辞（「第 X / Y 页」/「X / Y」）、跳转框有无、容器对齐与
@@ -18,6 +17,7 @@
  * 两套刻意分开：前台是阅读场景的卡片皮肤，后台是紧凑控制带。
  */
 import { useState } from 'react'
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -26,7 +26,7 @@ import { ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pagination'
 export interface PaginationPageSize {
   value: number
   onChange: (size: number) => void
-  /** 可选项；不传时用 ADMIN_PAGE_SIZE_OPTIONS（10 / 20 / 50 / 100）。 */
+  /** 可选项；不传时用 ADMIN_PAGE_SIZE_OPTIONS（15 / 20 / 50 / 100）。 */
   options?: readonly number[]
 }
 
@@ -40,10 +40,12 @@ interface PaginationProps {
   pageSize?: PaginationPageSize
   /** 翻页请求进行中：只禁用按钮，不隐藏控件，避免布局跳动。 */
   busy?: boolean
+  /** detached 将分页从数据表面中分离，适合小说管理这类表格下方独立控制带。 */
+  variant?: 'panel' | 'detached'
   className?: string
 }
 
-export default function Pagination({ page, totalPages, onPage, summary, pageSize, busy = false, className }: PaginationProps) {
+export default function Pagination({ page, totalPages, onPage, summary, pageSize, busy = false, variant = 'panel', className }: PaginationProps) {
   // null = 未处于编辑态，输入框直接显示 page；输入期间由 draft 接管。
   const [draft, setDraft] = useState<string | null>(null)
 
@@ -58,13 +60,13 @@ export default function Pagination({ page, totalPages, onPage, summary, pageSize
   }
 
   return (
-    <div className={className ? `admin-pagination ${className}` : 'admin-pagination'}>
+    <div className={`admin-pagination${variant === 'detached' ? ' admin-pagination--detached' : ''}${className ? ` ${className}` : ''}`}>
       {summary ? <span className="admin-pagination__summary">{summary}</span> : null}
 
       <div className="admin-pagination__controls">
         {pageSize ? (
           <div className="admin-pagination__page-size">
-            <span>每页</span>
+            <span>{variant === 'detached' ? '每页行数' : '每页'}</span>
             <Select
               value={String(pageSize.value)}
               onValueChange={(value) => {
@@ -89,8 +91,21 @@ export default function Pagination({ page, totalPages, onPage, summary, pageSize
 
         {showPager ? (
           <>
-            <Button variant="secondary" size="sm" disabled={busy || page <= 1} onClick={() => goTo(page - 1)}>
-              上一页
+            {variant === 'detached' && (
+              <Button variant="ghost" size="icon" className="admin-pagination__icon-button" aria-label="第一页" title="第一页" disabled={busy || page <= 1} onClick={() => goTo(1)}>
+                <ChevronsLeft aria-hidden="true" />
+              </Button>
+            )}
+            <Button
+              variant={variant === 'detached' ? 'ghost' : 'secondary'}
+              size={variant === 'detached' ? 'icon' : 'sm'}
+              className={variant === 'detached' ? 'admin-pagination__icon-button' : undefined}
+              aria-label="上一页"
+              title="上一页"
+              disabled={busy || page <= 1}
+              onClick={() => goTo(page - 1)}
+            >
+              {variant === 'detached' ? <ChevronLeft aria-hidden="true" /> : '上一页'}
             </Button>
             <span className="admin-pagination__info">
               第 {page} / {totalPages} 页
@@ -126,9 +141,22 @@ export default function Pagination({ page, totalPages, onPage, summary, pageSize
               />
               页
             </span>
-            <Button variant="secondary" size="sm" disabled={busy || page >= totalPages} onClick={() => goTo(page + 1)}>
-              下一页
+            <Button
+              variant={variant === 'detached' ? 'ghost' : 'secondary'}
+              size={variant === 'detached' ? 'icon' : 'sm'}
+              className={variant === 'detached' ? 'admin-pagination__icon-button' : undefined}
+              aria-label="下一页"
+              title="下一页"
+              disabled={busy || page >= totalPages}
+              onClick={() => goTo(page + 1)}
+            >
+              {variant === 'detached' ? <ChevronRight aria-hidden="true" /> : '下一页'}
             </Button>
+            {variant === 'detached' && (
+              <Button variant="ghost" size="icon" className="admin-pagination__icon-button" aria-label="最后一页" title="最后一页" disabled={busy || page >= totalPages} onClick={() => goTo(totalPages)}>
+                <ChevronsRight aria-hidden="true" />
+              </Button>
+            )}
           </>
         ) : null}
       </div>
