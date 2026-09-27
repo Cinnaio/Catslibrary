@@ -140,15 +140,81 @@
   margin: 0 auto;
 }
 
+/* 来源切换（文件 / URL）：对齐设计系统的分段控件契约（--tabs-segmented-*），
+   与审核类型、书源面板、抓取入口等处同一套几何与激活滑块。
+   此前只给了边框和底色、没有激活滑块，选中的一侧靠 Radix 的默认样式表现，
+   在两个等分单元格里显得像两个独立按钮而非一个分段控件。 */
 .book-import__source-tabs {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--tabs-segmented-gap);
+  isolation: isolate;
   width: 100%;
-  border: 1px solid var(--admin-border);
-  background: var(--admin-panel-muted);
+  /* 高度对齐后台控件基线；组件自带的 h-9 同时被显式覆盖，
+     避免 span 高度与内边距叠加后比同页其他分段控件高出一截。 */
+  height: auto;
+  min-height: var(--admin-control-height);
+  padding: var(--tabs-segmented-inset);
+  border: 1px solid var(--tabs-segmented-track-border);
+  border-radius: var(--tabs-segmented-radius);
+  background: var(--tabs-segmented-track-background);
+}
+
+.book-import__source-tabs::before {
+  position: absolute;
+  z-index: 0;
+  inset: var(--tabs-segmented-inset) auto var(--tabs-segmented-inset) var(--tabs-segmented-inset);
+  width: calc((100% - (var(--tabs-segmented-gap) * 3)) / 2);
+  border-radius: var(--tabs-segmented-inner-radius);
+  background: var(--tabs-segmented-active-background);
+  box-shadow: var(--tabs-segmented-active-shadow);
+  content: '';
+  pointer-events: none;
+  transform: translateX(0);
+  transition: transform var(--tabs-segmented-transition);
+}
+
+.book-import__source-tabs[data-active-index='1']::before {
+  transform: translateX(calc(100% + var(--tabs-segmented-gap)));
 }
 
 .book-import__source-tabs [data-slot='tabs-trigger'] {
+  position: relative;
+  z-index: 1;
   gap: 0.4rem;
+  min-width: 0;
   min-height: 2.25rem;
+  border: 0;
+  border-radius: var(--tabs-segmented-inner-radius);
+  /* 必须显式清掉组件自带的底色与投影：滑块已经承担激活态，
+     否则 Tailwind 的 data-[state=active]:bg-background 会叠出第二层色块。 */
+  background: transparent;
+  box-shadow: none;
+  color: var(--tabs-segmented-muted-foreground);
+  font-size: var(--tabs-segmented-label-size);
+  font-weight: var(--tabs-segmented-label-weight);
+  transition: color var(--tabs-segmented-transition);
+}
+
+/* 激活项只换文字色与字重，底色一律交给 ::before 滑块。 */
+.book-import__source-tabs [data-slot='tabs-trigger'][data-state='active'],
+.book-import__source-tabs [data-slot='tabs-trigger'][data-state='active']:hover {
+  background: transparent;
+  box-shadow: none;
+  color: var(--tabs-segmented-active-foreground);
+  font-weight: 600;
+}
+
+.book-import__source-tabs [data-slot='tabs-trigger']:hover {
+  color: var(--text-primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .book-import__source-tabs::before,
+  .book-import__source-tabs [data-slot='tabs-trigger'] {
+    transition: none;
+  }
 }
 
 .book-import__source-content {

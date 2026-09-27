@@ -34,6 +34,9 @@ import {
 type ImportStep = 'source' | 'match' | 'diff' | 'result'
 type SourceMode = 'file' | 'url'
 
+/** 来源分段控件的激活滑块位移索引，供 CSS 的 [data-active-index] 消费。 */
+const SOURCE_MODE_INDEX: Record<SourceMode, number> = { file: 0, url: 1 }
+
 const STEP_LABELS: Array<{ id: ImportStep; label: string }> = [
   { id: 'source', label: '选择来源' },
   { id: 'match', label: '确认作品' },
@@ -274,7 +277,9 @@ export default function BookImportDialog({
           {step === 'source' && (
             <div className="book-import__source">
               <Tabs value={sourceMode} onValueChange={(value) => setSourceMode(value as SourceMode)}>
-                <TabsList className="book-import__source-tabs" aria-label="选择导入来源">
+                {/* data-active-index 供 CSS 移动分段控件的激活滑块，
+                    与书源面板、审核类型等处同一约定。 */}
+                <TabsList className="book-import__source-tabs" aria-label="选择导入来源" data-active-index={SOURCE_MODE_INDEX[sourceMode]}>
                   <TabsTrigger value="file">
                     <FileText aria-hidden="true" /> 文件
                   </TabsTrigger>
