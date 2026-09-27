@@ -95,6 +95,23 @@
   --admin-table-sort-gap:             0.5rem;
   --admin-table-sort-caret-size:      0.875rem;
 
+  /* Admin page anatomy — context copy and data work remain separate surfaces.
+     Context panels explain the work; data panels own filters, rows and paging.
+     Keep these semantic roles independent so a list can split like the approved
+     reference without inventing page-local spacing or surface values. */
+  --admin-page-section-gap:           1rem;
+  --admin-context-panel-background:   var(--admin-panel);
+  --admin-context-panel-border:       var(--admin-border);
+  --admin-context-panel-border-width: 1px;
+  --admin-context-panel-radius:       var(--radius-xl);
+  --admin-context-panel-padding:      1.25rem;
+  --admin-context-panel-gap:          1.5rem;
+  --admin-data-panel-background:      var(--admin-panel);
+  --admin-data-panel-radius:          var(--admin-table-panel-radius);
+  --admin-data-panel-toolbar-background: color-mix(in srgb, var(--admin-surface) 40%, transparent);
+  --admin-data-panel-toolbar-padding-block: 0.75rem;
+  --admin-data-panel-toolbar-padding-inline: 1.25rem;
+
   /* Admin dialogs — narrow-screen container and action-bar contract. */
   --admin-dialog-mobile-max-height:       min(47.5rem, calc(100svh - 4rem));
   --admin-dialog-mobile-footer-direction: row;

@@ -3626,7 +3626,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 /* 章节管理页的页面专属布局；卡片、指标、工具栏和标题都复用共享组件。 */
 .admin-redesign-page--chapters {
   display: grid;
-  gap: 1rem;
+  gap: var(--admin-page-section-gap);
 }
 
 .admin-redesign-page--chapters > .admin-tab-header {
@@ -3764,7 +3764,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 /* 其余后台 tab 沿用章节页的“先说明，再操作”节奏。 */
 .admin-redesign-page:not(.admin-redesign-page--chapters) {
   display: grid;
-  gap: 1rem;
+  gap: var(--admin-page-section-gap);
 }
 
 .admin-redesign-page:not(.admin-redesign-page--chapters) > .admin-tab-header {
@@ -3782,7 +3782,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 .admin-redesign-page > .admin-data-panel {
   border: 0;
   border-color: transparent;
-  border-radius: var(--admin-table-panel-radius);
+  border-radius: var(--admin-data-panel-radius);
   box-shadow: none;
 }
 
@@ -3821,7 +3821,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 /* 书源/任务管理与小说管理共享同一套数据工作区：页面标题负责入口，
    数据面板负责内容，避免 Card 套 Card 造成层级噪音。 */
 :is(.admin-redesign-page--sources, .admin-redesign-page--jobs) {
-  gap: 1rem;
+  gap: var(--admin-page-section-gap);
 }
 
 :is(.admin-redesign-page--sources, .admin-redesign-page--jobs) > .admin-tab-header {
@@ -6633,6 +6633,16 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   border-bottom: 0;
 }
 
+/* 作品目录按图一的“说明面板 → 数据面板”拆分：说明只负责交代当前
+   工作对象，筛选、选择、表格和分页由下方数据面板独占，避免一张大卡片
+   把解释性内容和高频操作压成同一层级。无 aside 时收成单列，让说明文字
+   与面板宽度对齐，而不是停在旧版两列网格的左半边。 */
+.admin-redesign-page--novels > .novels-context-panel {
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+  gap: 0;
+}
+
 .admin-redesign-page--chapters > .admin-tab-header {
   margin-bottom: 0.25rem;
   border-bottom: 0;
@@ -6832,8 +6842,8 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 .admin-data-panel {
   border: 0;
   border-color: transparent;
-  border-radius: var(--admin-table-panel-radius);
-  background: var(--admin-panel);
+  border-radius: var(--admin-data-panel-radius);
+  background: var(--admin-data-panel-background);
   box-shadow: none;
 }
 
@@ -8239,7 +8249,8 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
    （实测下边距 0px，表头被压在筛选条下沿），因此这两个页面在此补齐。 */
 .novels-toolbar,
 .content-ratings-toolbar {
-  padding: 0.75rem 1.25rem;
+  padding: var(--admin-data-panel-toolbar-padding-block) var(--admin-data-panel-toolbar-padding-inline);
+  background: var(--admin-data-panel-toolbar-background);
   border-bottom: 1px solid var(--admin-border);
   /* padding-bottom 落在盒内，表格仍紧贴 border-bottom（实测
      工具条 bottom 与 thead top 差 0px，表头被压在筛选条下沿）。
@@ -8343,12 +8354,12 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   display: grid;
   grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.35fr);
   align-items: end;
-  gap: 1.5rem;
+  gap: var(--admin-context-panel-gap);
   min-width: 0;
-  padding: 1.25rem;
-  border: 1px solid var(--admin-border);
-  border-radius: var(--radius-xl);
-  background: var(--admin-panel);
+  padding: var(--admin-context-panel-padding);
+  border: var(--admin-context-panel-border-width) solid var(--admin-context-panel-border);
+  border-radius: var(--admin-context-panel-radius);
+  background: var(--admin-context-panel-background);
   box-shadow: none;
 }
 

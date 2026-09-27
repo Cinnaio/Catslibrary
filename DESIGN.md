@@ -232,9 +232,20 @@ components:
 
 ### 身份线三段
 
-面板标题（`h3`，写工作对象名）→ 面板内工具条（搜索 / 筛选 / 批量）→ 数据区（表格 / 列表 / 页脚）。三者同属一份数据，必须同处一个 `AdminDataPanel` 盒子内。
+面板标题（`h3`，写工作对象名）→ 面板内工具条（搜索 / 筛选 / 批量）→ 数据区（表格 / 列表 / 页脚）。三者同属一份数据，默认同处一个 `AdminDataPanel` 盒子内；当页面需要把工作对象说明与数据操作明确拆开时，使用下面的双表面结构。
 
 - **`AdminPage` 是容器契约**：它提供 `.tab-content` + `.admin-redesign-page`（统一区块间距、卡片表面归一化，不可省略），并接收 `title` / `description` / `meta` / `actions` 四个 prop 转交 `AdminTabHeader`。子视图自带页头时传 `title={undefined}` 关闭父级页头（`scrape` 的书源子页即此用法）。
+
+### 双表面数据工作区
+
+当列表页同时包含“这份数据是什么”的说明和“如何操作这份数据”的高频控件时，说明面板与数据面板必须拆成两个相邻但职责不同的表面，结构固定为：
+
+`AdminPage` 页头 → `AdminContextPanel` 说明面板 → `AdminDataPanel` 数据面板。
+
+- `AdminContextPanel` 只承载工作对象标题和辅助说明，使用 `--admin-context-panel-*` token；它是独立的嵌套表面，保留 1px 暖色描边，不加阴影。
+- `AdminDataPanel` 只承载 `AdminToolbar`、选择条、表格/列表和 `Pagination`，使用 `--admin-data-panel-*` token；表格卡片保持无外描边，内部只用分隔线表达区段。
+- 两个表面之间的距离统一使用 `--admin-page-section-gap`。不要把说明重新塞回数据面板，也不要为工具条再创建第三张等权卡片。
+- 图一式的拆分不改变分页、筛选、批量操作、空状态或移动端 900px 卡片化契约；它只把说明与操作的阅读顺序变成“先理解对象，再处理数据”。
 
 ## Layout
 
@@ -243,7 +254,7 @@ components:
 - **公共页面**: 居中容器，20px 内边距，纵向流动。小说网格使用 auto-fill + minmax(330px, 1fr)，间距 36px × 44px。
 - **管理后台**: 左侧可折叠侧边栏 + 右侧内容区。侧栏是 shadcn Sidebar（`collapsible="icon"`, `variant="floating"`），展开态 16rem、图标态 3rem、移动抽屉 18rem。内容区宽度 `min(100%, 1440px)` 居中，内边距 1.5rem（桌面）/ 1rem（640px 以下）。滚动所有权在 `AdminShell` 的内容区，不在各 tab 内部。
 - **响应式断点**: 901px↑ 启用桌面固定列宽；900px 是主转折（表格折成卡片、工具栏转纵向、侧边栏折叠、网格单列）；640px 紧凑间距与页头收缩；400px 按钮全宽。审核工具条另有 1240px 的转纵向断点。
-- **间距节奏**: 全局 4/8/16/24/32/48px（xs → 2xl）；管理后台使用 `--admin-space-1` 到 `--admin-space-6` = 4/8/12/16/24/32px。后台的第三档是 12px 而不是 16px——这是紧凑档与全局节奏的刻意差异，不要用全局档去覆盖后台面板的内部间距。
+- **间距节奏**: 全局 4/8/16/24/32/48px（xs → 2xl）；管理后台使用 `--admin-space-1` 到 `--admin-space-6` = 4/8/12/16/24/32px。后台的第三档是 12px 而不是 16px——这是紧凑档与全局节奏的刻意差异，不要用全局档去覆盖后台面板的内部间距。双表面工作区的兄弟表面间距固定读取 `--admin-page-section-gap`，当前为 16px。
 
 ## Elevation & Depth
 
@@ -307,11 +318,11 @@ components:
 - **Consumers:** 抓取入口、审核类型以及其他后台分段 Tab 只覆盖消费方表面色值；几何、激活层、文字状态和动效统一读取 `--tabs-segmented-*`，不再维护页面级圆角、内缩、间距和位移字面量。
 
 ### Cards
-- **Corner Style:** shadcn `Card` 为 16px（`rounded-xl`）；后台 `.admin-panel-card` 与数据面板为 20px（--radius-2xl）
-- **Background:** 白色/卡片色（var(--bg-card)），管理后台面板使用 `--admin-panel` 标准化
+- **Corner Style:** shadcn `Card` 为 16px（`rounded-xl`）；说明面板使用 `--admin-context-panel-radius`（16px），后台数据面板使用 `--admin-data-panel-radius`（20px）
+- **Background:** 白色/卡片色（var(--bg-card)），管理后台说明面板与数据面板分别使用 `--admin-context-panel-background` / `--admin-data-panel-background` 标准化
 - **Shadow Strategy:** 静止无投影，hover 也不加（Flat-By-Default Rule + Tonal-Admin Rule）
-- **Border:** 后台卡片本身 `border: 0`，靠表面色分层；内部页头用 1px `--admin-border` 底线分区
-- **Internal Padding:** 24px（--admin-space-5）；数据面板页头 `1.5rem 1.5rem 1.25rem`
+- **Border:** 说明面板保留 `--admin-context-panel-border-width` 的 `--admin-context-panel-border` 描边；数据面板本身 `border: 0`，靠表面色分层，内部工具条/页头用 1px `--admin-border` 底线分区
+- **Internal Padding:** 说明面板使用 `--admin-context-panel-padding`；数据面板工具条使用 `--admin-data-panel-toolbar-padding-block` × `--admin-data-panel-toolbar-padding-inline`，存在面板标题时仍使用 `1.5rem 1.5rem 1.25rem`
 
 ### Inputs / Fields
 - **Style:** 管理后台输入框用 `--admin-border-strong` 描边、`--admin-panel` 底色、12px 圆角（--admin-input-radius），高度 2.5rem（--admin-control-height）。公共页保持 1px `var(--border)` + 6px 圆角。
@@ -330,7 +341,7 @@ components:
 - **Typography:** 菜单项 0.875rem；分组标签 0.7rem + 0.1em 字距 + uppercase，颜色 `--text-muted`
 
 ### Table
-- **Admin Surface:** `AdminDataPanel` 是无外框、纸面色表面，使用 20px 外圆角（`--admin-table-panel-radius`）；标题区与表格共享同一块纸面。
+- **Admin Surface:** `AdminDataPanel` 是无外框、纸面色表面，使用 `--admin-data-panel-radius`（20px）外圆角；需要说明时，标题/说明属于相邻的 `AdminContextPanel`，不再与筛选和表格挤在同一张大卡片里。
 - **Table Contract:** 表头、行分隔线、hover 背景和行高分别从 `--admin-table-header-*`、`--admin-table-border`、`--admin-table-row-hover-background`、`--admin-table-row-height` 读取。桌面端列宽由 `--col-N-w` 注入：`@media (min-width: 901px)` 下启用 `table-layout: fixed` 并逐列消费该变量，规则覆盖第 1–12 列；**第 13 列起没有对应规则**，落到剩余宽度分配。范本统一使用百分比列宽且合计 100%——fixed 布局下百分比与 rem 混用时，定长列会先吃掉宽度。
 - **Breakpoint:** 900px 及以下是卡片化：thead 隐藏，`tr`/`td` 转 grid，`data-label` 变伪元素。与 901px↑ 的固定列宽成对，分界值是 900/901。
 - **Container-Query Exception:** **已撤销（2026-09-19）**。该例外曾用于 `AiGenerationsPanel` 的已生成内容表：当时那张表脱离 `AdminDataPanel` 并自带 `min-w-[760px]`，901–1100px 视口下内宽只有 756px，表格溢出且 sticky 冻结的操作列整列压住「内容预览」（数据丢失），只能改由 `@container (max-width: 48rem)` 按容器宽度卡片化。该表现已收敛到标准契约（`fixed` 布局 + 百分比列宽），不再需要最小宽度，溢出从根上消失，`@container` 块与 sticky 冻结列一并删除。**结论：最小宽度是破损的根因，容器查询只是补丁——遇到同类问题先问「为什么需要这个固定宽度」，而不是先加一个容器查询。** 当前全站数据表统一走 900/901 视口断点，无例外。
@@ -351,7 +362,7 @@ components:
 
 ### Panel Toolbar (AdminToolbar)
 
-- **Ownership:** 工具条归属于它筛选的那份数据，而不是页面。筛选/搜索/批量操作只作用于某个 `AdminDataPanel` 的列表时，该 `AdminToolbar` 必须渲染在**那个面板内部**，位于 `AdminPanelHeading` 之下、数据区（表格 / 列表 / 页脚）之上。
+- **Ownership:** 工具条归属于它筛选的那份数据，而不是页面。筛选/搜索/批量操作只作用于某个 `AdminDataPanel` 的列表时，该 `AdminToolbar` 必须渲染在**那个面板内部**；有 `AdminPanelHeading` 时位于标题之下，没有标题时作为数据面板的第一段，始终在数据区（表格 / 列表 / 页脚）之上。
 - **Anatomy:** 面板内工具条是面板的一段，不是独立表面。无自身圆角、无四边描边，只有一条 `--admin-border` 底线与数据区分隔；表面色用 `color-mix(in srgb, var(--admin-surface) 40%, transparent)` 与画布轻微区分。水平内边距与数据区（`.ai-list-body` / `.ai-tasks-content` 的 `1.25rem`，≤900px 降为 `1rem`）**必须同步**——只改一侧会让工具条与下方表格错开，出现两条左基线。
 - **内间距归属：** `.admin-toolbar--inline` 自身**只有 flex 布局**（`display: flex` + `flex-wrap` + `gap`），不含内间距。每个工具条必须由**自己的 class** 补 `padding: 0.75rem 1.25rem` 与 `border-bottom: 1px solid var(--admin-border)`（范本见 `.ai-service .ai-tasks-toolbar`、`.chapter-toolbar`、`.moderation-toolbar`）。裸用 `<AdminToolbar>` 而不给 `className` 会得到零内边距：控件贴住面板左右边缘，且表头被压在筛选条下沿。
 - **下边距必须外置：** `padding-bottom` 落在盒内，表格仍会紧贴 `border-bottom`（实测工具条 `bottom` 与 `thead top` 差 0px）。工具条与数据区之间需要 `margin-bottom: 1rem`，不能用 padding 代替。
@@ -360,7 +371,7 @@ components:
 - **External Form:** 外置工具条（`AdminPage` 直接子级）是**例外**，只用于面板确实需要独立成卡、或其控件跨多个面板生效的场景；此时才使用独立表面语言（`--radius-xl` 圆角 + 描边 + `--admin-panel` 表面色）。
 - **References:** 章节管理的 `.chapter-toolbar` 与 AI 服务三个列表面板（AI 任务 / 已生成内容 / 调用审计）均已采用面板内形态。几何契约以本节为准：章节范本保留了历史的 `border-radius: 0.5rem 0.5rem 0 0`，实测在 40% 透明底色与 20px 面板圆角下不可见，属未收口的残留值，新面板不要复制。
 
-**The Panel-Owned Toolbar Rule.** 一个筛选器不能与它所筛选的数据面板并列为两个等权表面。筛选条、标题、列表构成同一属主的三段（标题 → 筛选 → 数据）；筛选条浮在面板之外，会让读者以为它作用于整页，也会把一件工作拆成两个盒子。
+**The Panel-Owned Toolbar Rule.** 一个筛选器不能与它所筛选的数据面板并列为两个等权表面。筛选条、标题、列表构成同一属主的三段（标题 → 筛选 → 数据）；若说明内容已经由相邻 `AdminContextPanel` 承担，筛选条仍必须留在 `AdminDataPanel` 内，作为数据面板的第一段，而不是浮在页面之外。
 
 ### Admin Tab Header (AdminTabHeader)
 - **Style:** 每个后台子页唯一的内容区页头，**单行账本式**：左侧标题 + 元信息胶囊 + 描述，右侧该页的看家动作（搜索 + 主操作）。`flex-wrap` + `items-end`，间距 1rem，底部分隔线由各页变体关闭（小说、章节、审核、分级、内容安全、站点运营、AI 服务页无底线）。

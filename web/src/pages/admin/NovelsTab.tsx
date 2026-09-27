@@ -25,7 +25,7 @@ import AdminPage from '@/components/admin/AdminPage'
 import AdminRowActions from '@/components/admin/AdminRowActions'
 import AdminSelectionBar from '@/components/admin/AdminSelectionBar'
 import BookImportDialog from '@/components/admin/BookImportDialog'
-import { AdminDataPanel, AdminCellText, AdminPanelHeading, AdminSearch, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
+import { AdminContextPanel, AdminDataPanel, AdminCellText, AdminSearch, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
 
 /**
  * 表格列定义：桌面端据此固定列宽（表头与内容对齐），移动端据此折成卡片并
@@ -549,8 +549,13 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
         </>
       }
     >
-      <AdminDataPanel ariaLabel="作品目录" columns={NOVEL_COLUMNS}>
-        <AdminPanelHeading title="作品目录" description={query ? `匹配「${query}」的作品` : '按标题、作者、章节数和更新时间管理书库'} />
+      <AdminContextPanel
+        className="novels-context-panel"
+        title="作品目录"
+        description={query ? `匹配「${query}」的作品` : '按标题、作者、章节数和更新时间管理书库'}
+      />
+
+      <AdminDataPanel className="novels-data-panel" ariaLabel="作品目录数据" columns={NOVEL_COLUMNS}>
         <AdminToolbar layout="inline" className="novels-toolbar">
           <div className="admin-toolbar__filters">
             <Label id="novel-rating-filter-label">分级</Label>
@@ -572,11 +577,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
           </div>
         </AdminToolbar>
         {selected.size > 0 && (
-          <AdminSelectionBar
-            count={selected.size}
-            label={`已选 ${selected.size} 本`}
-            onClear={() => setSelected(new Set())}
-          >
+          <AdminSelectionBar count={selected.size} label={`已选 ${selected.size} 本`} onClear={() => setSelected(new Set())}>
             <Button variant="secondary" size="sm" onClick={() => void handleBatchUpdate()}>
               批量更新
             </Button>
@@ -624,13 +625,13 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={8} className="table-empty">
+                <TableCell colSpan={NOVEL_COLUMNS.length} className="table-empty">
                   加载中…
                 </TableCell>
               </TableRow>
             ) : novels.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="table-empty">
+                <TableCell colSpan={NOVEL_COLUMNS.length} className="table-empty">
                   {loadError ? `加载失败：${loadError}` : emptyMessage}
                 </TableCell>
               </TableRow>
@@ -675,9 +676,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
                     </Badge>
                   </TableCell>
                   <TableCell data-label="分级">
-                    <Badge className={RATING_BADGE[n.contentRating || 'unknown'].className}>
-                      {RATING_BADGE[n.contentRating || 'unknown'].label}
-                    </Badge>
+                    <Badge className={RATING_BADGE[n.contentRating || 'unknown'].className}>{RATING_BADGE[n.contentRating || 'unknown'].label}</Badge>
                   </TableCell>
                   <TableCell data-label="章节">
                     {n.chapterCount || 0}
