@@ -124,7 +124,6 @@ struct ChapterListView: View {
                 isShowingOffline = true
                 errorMessage = nil
             } else {
-                AppObservability.shared.capture(error: error, context: "chapter_list.load")
                 errorMessage = AppCopy.friendlyError(error)
             }
         }

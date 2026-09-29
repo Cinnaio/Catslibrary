@@ -12,8 +12,11 @@ struct ZhiZhouApp: App {
     private let feedbackCenter = AppFeedbackCenter.shared
 
     init() {
+        let defaults = UserDefaults.standard
+        defaults.removeObject(forKey: "zhizhou.telemetry.consent.v1")
+        defaults.removeObject(forKey: "zhizhou.telemetry.install-id.v1")
+        defaults.removeObject(forKey: "zhizhou.telemetry.queue.v1")
         fontStore.registerCachedFonts()
-        AppObservability.shared.start()
     }
 
     var body: some Scene {
@@ -32,7 +35,6 @@ struct ZhiZhouApp: App {
                     Task { @MainActor in
                         await ReaderSettingsStore.shared.flush()
                         await ReaderProgressStore.shared.flush()
-                        await AppObservability.shared.flush()
                     }
                 }
                 .overlay(alignment: .top) {

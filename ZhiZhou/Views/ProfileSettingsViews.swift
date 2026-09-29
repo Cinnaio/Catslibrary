@@ -74,36 +74,6 @@ struct ProfileAccountView: View {
     }
 }
 
-struct ProfilePrivacyView: View {
-    @State private var diagnosticsEnabled = AppObservability.shared.isDiagnosticsEnabled
-
-    var body: some View {
-        List {
-            Section {
-                NavigationLink {
-                    PrivacyNoticeView()
-                } label: {
-                    AppIconLabel("隐私说明", systemImage: "hand.raised")
-                }
-            }
-            Section {
-                Toggle("帮助改进知舟", isOn: $diagnosticsEnabled)
-                    .onChange(of: diagnosticsEnabled) { _, enabled in
-                        AppObservability.shared.setDiagnosticsEnabled(enabled)
-                        AppFeedback.success(enabled ? "匿名诊断已开启" : "匿名诊断已关闭")
-                    }
-            } header: {
-                Text("诊断")
-            } footer: {
-                Text("可选发送匿名的功能事件、性能指标和崩溃诊断；不会发送小说正文、搜索词、密码或账号信息。关闭后，尚未发送的本地诊断记录会立即清除。")
-            }
-        }
-        .appListStyle(.settings)
-        .navigationTitle("隐私与诊断")
-        .navigationBarTitleDisplayMode(.inline)
-    }
-}
-
 struct ProfileAboutView: View {
     #if DEBUG
     @AppStorage("zhizhou.allowInvalidCert") private var allowInvalidCert = false

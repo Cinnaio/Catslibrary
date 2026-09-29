@@ -8,7 +8,6 @@ struct AdminRootView: View {
 
     private enum Destination {
         case dashboard
-        case telemetry
         case moderation
         case contentRatings
         case novels
@@ -44,7 +43,6 @@ struct AdminRootView: View {
     private let moduleGroups: [AdminModuleGroup] = [
         AdminModuleGroup(id: "monitoring", title: "监控", modules: [
             AdminModule(id: "dashboard", title: "总览", systemImage: "gauge", destination: .dashboard),
-            AdminModule(id: "telemetry", title: "客户端监控", systemImage: "waveform.path.ecg", destination: .telemetry),
         ]),
         AdminModuleGroup(id: "content", title: "内容", modules: [
             AdminModule(id: "moderation", title: "内容审核", systemImage: "bubble.left.and.bubble.right", destination: .moderation),
@@ -166,7 +164,6 @@ struct AdminRootView: View {
     private func destination(for destination: Destination) -> some View {
         switch destination {
         case .dashboard: AdminDashboardView()
-        case .telemetry: AdminMobileTelemetryView()
         case .moderation: AdminModerationView()
         case .contentRatings: AdminContentRatingsView()
         case .novels: AdminNovelsView()

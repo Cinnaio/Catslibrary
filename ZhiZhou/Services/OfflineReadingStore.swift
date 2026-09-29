@@ -171,15 +171,6 @@ final class OfflineReadingStore {
 
         guard isCurrent(session) else { return }
         lastBatchWasCancelled = wasCancelled || batchCancellationRequested || Task.isCancelled
-        AppObservability.shared.track(
-            "offline_download_batch",
-            properties: [
-                "requested": String(chapters.count),
-                "completed": String(batchCompleted),
-                "failed": hadFailure ? "true" : "false",
-                "cancelled": lastBatchWasCancelled ? "true" : "false",
-            ]
-        )
         await refresh(session: session)
         guard isCurrent(session) else { return }
         if !hadFailure {
@@ -225,7 +216,6 @@ final class OfflineReadingStore {
         guard isCurrent(session) else { return false }
         books.removeAll { novelIDs.contains($0.novel.id) }
         persist()
-        AppObservability.shared.track("offline_books_removed", properties: ["count": String(novelIDs.count)])
         return true
     }
 
@@ -241,7 +231,6 @@ final class OfflineReadingStore {
         guard isCurrent(session) else { return false }
         books = []
         persist()
-        AppObservability.shared.track("offline_books_removed_all")
         return true
     }
 
@@ -312,7 +301,6 @@ final class OfflineReadingStore {
         } catch {
             if isCurrent(session) {
                 lastError = "《\(novel.title)》第 \(chapter.order) 章下载失败：\(AppCopy.friendlyError(error))"
-                AppObservability.shared.capture(error: error, context: "offline.download")
             }
             return false
         }

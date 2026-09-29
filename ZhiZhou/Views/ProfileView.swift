@@ -58,9 +58,9 @@ struct ProfileView: View {
                     AppIconLabel("存储管理", systemImage: "internaldrive")
                 }
                 NavigationLink {
-                    ProfilePrivacyView()
+                    PrivacyNoticeView()
                 } label: {
-                    AppIconLabel("隐私与诊断", systemImage: "hand.raised")
+                    AppIconLabel("隐私说明", systemImage: "hand.raised")
                 }
                 NavigationLink {
                     ProfileAboutView()

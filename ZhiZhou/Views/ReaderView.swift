@@ -1093,7 +1093,6 @@ struct ReaderView: View {
         } catch {
             // 仅当前章节仍为目标时显示错误，避免切章后旧错误串台
             guard chapterOrder == order else { return }
-            AppObservability.shared.capture(error: error, context: "reader.chapter")
             errorMessage = AppCopy.friendlyError(error)
         }
     }
@@ -1118,13 +1117,6 @@ struct ReaderView: View {
         errorMessage = nil
         paragraphs = parsedParagraphs
         paragraphCount = paragraphs.count
-        AppObservability.shared.track(
-            "reader_chapter_loaded",
-            properties: [
-                "mode": offlineOnly ? "offline" : "online",
-                "readerMode": settings.pageMode,
-            ]
-        )
         loadThoughts(for: r.chapter.id)
 
         var restore: Double = 0
@@ -1241,7 +1233,6 @@ struct ReaderView: View {
             } catch {
                 guard self.chapter?.id == chapterID else { return }
                 self.thoughtsError = AppCopy.friendlyError(error)
-                AppObservability.shared.capture(error: error, context: "reader.thoughts")
             }
 
             guard self.chapter?.id == chapterID else { return }

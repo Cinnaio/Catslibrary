@@ -58,14 +58,12 @@ final class AppState {
                 return
             }
             await activateAccount(r.user)
-            AppObservability.shared.track("auth_restore_succeeded")
             sessionRestoreFailed = false
             // 本地账号已恢复即可进入主界面；非关键同步放到首屏之后，避免慢网阻塞启动。
             isBooting = false
             syncAccountStateInBackground()
             return
-        } catch let error as APIError {
-            AppObservability.shared.capture(error: error, context: "auth.bootstrap")
+        } catch is APIError {
             if APIClient.shared.token != restoreToken {
                 if !APIClient.shared.isAuthenticated {
                     await deactivateLocalAccount(clearOfflineFallback: true)
@@ -91,7 +89,6 @@ final class AppState {
                 }
             }
         } catch {
-            AppObservability.shared.capture(error: error, context: "auth.bootstrap")
             if APIClient.shared.token != restoreToken {
                 if !APIClient.shared.isAuthenticated {
                     await deactivateLocalAccount(clearOfflineFallback: true)
@@ -116,9 +113,7 @@ final class AppState {
             await activateAccount(r.user)
             sessionRestoreFailed = false
             syncAccountStateInBackground()
-            AppObservability.shared.track("auth_login_succeeded")
         } catch {
-            AppObservability.shared.capture(error: error, context: "auth.login")
             throw error
         }
     }
@@ -133,9 +128,7 @@ final class AppState {
             await activateAccount(r.user)
             sessionRestoreFailed = false
             syncAccountStateInBackground()
-            AppObservability.shared.track("auth_register_succeeded")
         } catch {
-            AppObservability.shared.capture(error: error, context: "auth.register")
             throw error
         }
     }
@@ -222,7 +215,6 @@ final class AppState {
         await deactivateLocalAccount(clearOfflineFallback: true)
         user = nil
         sessionRestoreFailed = false
-        AppObservability.shared.track("auth_logout")
     }
 
     private func activateAccount(_ user: User) async {
