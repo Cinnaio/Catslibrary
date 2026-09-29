@@ -68,7 +68,7 @@ struct AdminScrapeConfigsView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .appListStyle(.browsing)
+        .appListStyle(.settings)
         .navigationTitle("配置导入导出")
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await load() }

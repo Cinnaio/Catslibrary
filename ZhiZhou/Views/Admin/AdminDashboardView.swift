@@ -65,7 +65,7 @@ struct AdminDashboardView: View {
                 }
             }
         }
-        .appListStyle(.browsing)
+        .appListStyle(.settings)
         .navigationTitle("总览")
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await load() }

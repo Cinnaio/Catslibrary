@@ -93,7 +93,7 @@ struct AdminNovelsView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .appListStyle(.browsing)
+        .appListStyle(.settings)
         .navigationTitle("小说管理")
         .navigationBarTitleDisplayMode(.large)
         .searchable(text: $searchText, prompt: "搜索书名 / 作者")

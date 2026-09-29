@@ -39,7 +39,7 @@ struct AdminScrapeSourcesView: View {
             listContent
         }
         .scrollContentBackground(.hidden)
-        .appListStyle(.browsing)
+        .appListStyle(.settings)
         .navigationTitle("源管理")
         .navigationBarTitleDisplayMode(.large)
         .searchable(text: $searchText, prompt: "搜索主机 / 名称")

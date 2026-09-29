@@ -7,103 +7,79 @@ struct ProfileView: View {
     @State private var showReaderSettings = false
 
     var body: some View {
-        GeometryReader { geometry in
-            let inset = AppLayout.readableInset(for: geometry.size.width)
-            List {
-                if let user = appState.user {
-                    Section {
-                        NavigationLink {
-                            ProfileAccountView()
-                        } label: {
-                            ProfileIdentityRow(user: user, subtitle: "账户与安全")
-                        }
-                        .accessibilityIdentifier("profile.account")
-                        .listRowInsets(EdgeInsets(top: 8, leading: inset, bottom: 12, trailing: inset))
-                        .listRowSeparator(.hidden)
-                    }
-                    .listRowBackground(Color.clear)
-                }
-
-                Section {
-                    Button {
-                        showReaderSettings = true
-                    } label: {
-                        HStack(spacing: 12) {
-                            AppIconLabel("阅读设置", systemImage: "textformat")
-                            Spacer(minLength: 12)
-                            Image(systemName: "chevron.right")
-                                .font(.footnote.weight(.semibold))
-                                .foregroundStyle(AppTheme.textMuted)
-                                .accessibilityHidden(true)
-                        }
-                    }
-                    .accessibilityIdentifier("profile.reader-settings")
-                    NavigationLink {
-                        OfflineReadingView()
-                    } label: {
-                        LabeledContent {
-                            if offlineStore.totalChapterCount > 0 {
-                                Text("\(offlineStore.totalChapterCount) 章")
-                                    .font(.subheadline)
-                                    .foregroundStyle(AppTheme.textSecondary)
-                                    .monospacedDigit()
-                            }
-                        } label: {
-                            AppIconLabel("离线阅读", systemImage: "arrow.down.circle")
-                        }
-                    }
-                    .accessibilityIdentifier("profile.offline")
-                    .listRowSeparator(.hidden, edges: .bottom)
-                } header: {
-                    profileSectionHeader("阅读", inset: inset)
-                }
-                .listRowInsets(EdgeInsets(top: 12, leading: inset, bottom: 12, trailing: inset))
-                .listRowBackground(Color.clear)
-
+        List {
+            if let user = appState.user {
                 Section {
                     NavigationLink {
-                        StorageManagerView()
+                        ProfileAccountView()
                     } label: {
-                        AppIconLabel("存储管理", systemImage: "internaldrive")
+                        ProfileIdentityRow(user: user, subtitle: "账户与安全")
                     }
-                    .listRowSeparator(.hidden, edges: .top)
-                    NavigationLink {
-                        ProfilePrivacyView()
-                    } label: {
-                        AppIconLabel("隐私与诊断", systemImage: "hand.raised")
-                    }
-                    NavigationLink {
-                        ProfileAboutView()
-                    } label: {
-                        AppIconLabel("关于知舟", systemImage: "info.circle")
-                    }
-                    .listRowSeparator(.hidden, edges: .bottom)
-                } header: {
-                    profileSectionHeader("通用", inset: inset)
-                }
-                .listRowInsets(EdgeInsets(top: 12, leading: inset, bottom: 12, trailing: inset))
-                .listRowBackground(Color.clear)
-
-                if appState.user?.role == "admin" {
-                    Section {
-                        NavigationLink {
-                            AdminRootView()
-                        } label: {
-                            AppIconLabel("管理后台", systemImage: "slider.horizontal.3")
-                        }
-                    } header: {
-                        profileSectionHeader("管理", inset: inset)
-                    }
-                    .listRowInsets(EdgeInsets(top: 12, leading: inset, bottom: 12, trailing: inset))
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
+                    .accessibilityIdentifier("profile.account")
                 }
             }
-            .appListStyle(.browsing, maximumWidth: nil)
-            .contentMargins(.top, 8, for: .scrollContent)
-            .scrollContentBackground(.hidden)
+
+            Section("阅读") {
+                Button {
+                    showReaderSettings = true
+                } label: {
+                    HStack(spacing: 12) {
+                        AppIconLabel("阅读设置", systemImage: "textformat")
+                        Spacer(minLength: 12)
+                        Image(systemName: "chevron.right")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(AppTheme.textMuted)
+                            .accessibilityHidden(true)
+                    }
+                }
+                .accessibilityIdentifier("profile.reader-settings")
+
+                NavigationLink {
+                    OfflineReadingView()
+                } label: {
+                    LabeledContent {
+                        if offlineStore.totalChapterCount > 0 {
+                            Text("\(offlineStore.totalChapterCount) 章")
+                                .font(.subheadline)
+                                .foregroundStyle(AppTheme.textSecondary)
+                                .monospacedDigit()
+                        }
+                    } label: {
+                        AppIconLabel("离线阅读", systemImage: "arrow.down.circle")
+                    }
+                }
+                .accessibilityIdentifier("profile.offline")
+            }
+
+            Section("通用") {
+                NavigationLink {
+                    StorageManagerView()
+                } label: {
+                    AppIconLabel("存储管理", systemImage: "internaldrive")
+                }
+                NavigationLink {
+                    ProfilePrivacyView()
+                } label: {
+                    AppIconLabel("隐私与诊断", systemImage: "hand.raised")
+                }
+                NavigationLink {
+                    ProfileAboutView()
+                } label: {
+                    AppIconLabel("关于知舟", systemImage: "info.circle")
+                }
+            }
+
+            if appState.user?.role == "admin" {
+                Section("管理") {
+                    NavigationLink {
+                        AdminRootView()
+                    } label: {
+                        AppIconLabel("管理后台", systemImage: "slider.horizontal.3")
+                    }
+                }
+            }
         }
-        .background(Color(.systemBackground).ignoresSafeArea())
+        .appListStyle(.settings)
         .navigationTitle("我的")
         .navigationBarTitleDisplayMode(.large)
         .task { await offlineStore.refresh() }
@@ -112,16 +88,6 @@ struct ProfileView: View {
                 .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large])
                 .presentationBackground(AppTheme.background)
         }
-    }
-
-    private func profileSectionHeader(_ title: String, inset: CGFloat) -> some View {
-        Text(title)
-            .font(.footnote.weight(.medium))
-            .foregroundStyle(AppTheme.textSecondary)
-            .textCase(nil)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .listRowInsets(EdgeInsets(top: 16, leading: inset, bottom: 4, trailing: inset))
-            .accessibilityAddTraits(.isHeader)
     }
 }
 
@@ -135,7 +101,7 @@ struct ProfileIdentityRow: View {
             ProfileAvatar(user: user, size: 60)
             VStack(alignment: .leading, spacing: 6) {
                 Text(user.displayName.isEmpty ? user.username : user.displayName)
-                    .font(.title2.weight(.semibold))
+                    .font(.headline.weight(.semibold))
                     .foregroundStyle(AppTheme.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(subtitle)

@@ -51,7 +51,7 @@ struct AdminDiscoverView: View {
             resultsSection
         }
         .scrollContentBackground(.hidden)
-        .appListStyle(.browsing)
+        .appListStyle(.settings)
         // Liquid Glass 标签栏会悬浮在内容上方，给最后一条结果保留可见的滚动终点。
         .safeAreaInset(edge: .bottom, spacing: 0) {
             Color.clear.frame(height: 16)
@@ -86,8 +86,6 @@ struct AdminDiscoverView: View {
                 }
             }
             .accessibleSegmentedPicker()
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
             .onChange(of: mode) { _, _ in
                 novels = []
                 totalText = nil
@@ -908,7 +906,7 @@ private struct DiscoverDetailSheet: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .appListStyle(.browsing)
+            .appListStyle(.settings)
             .navigationTitle(item.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -1073,7 +1071,7 @@ private struct BatchProgressSheet: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .appListStyle(.browsing)
+            .appListStyle(.settings)
             .navigationTitle(state.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

@@ -77,7 +77,7 @@ struct AdminAIServiceView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .appListStyle(.browsing)
+        .appListStyle(.settings)
         .navigationTitle("AI 服务")
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await loadActiveTasks() }

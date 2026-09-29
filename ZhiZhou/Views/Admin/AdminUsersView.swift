@@ -191,7 +191,7 @@ struct AdminUsersView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .appListStyle(.browsing)
+        .appListStyle(.settings)
         .navigationTitle("用户与邀请码")
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await load() }

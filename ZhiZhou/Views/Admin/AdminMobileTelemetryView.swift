@@ -79,7 +79,7 @@ struct AdminMobileTelemetryView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .appListStyle(.browsing)
+        .appListStyle(.settings)
         .navigationTitle("客户端监控")
         .navigationBarTitleDisplayMode(.large)
         .searchable(text: $search, prompt: "搜索事件名、系统或设备")

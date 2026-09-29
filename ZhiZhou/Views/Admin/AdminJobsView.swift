@@ -92,7 +92,7 @@ struct AdminJobsView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .appListStyle(.browsing)
+        .appListStyle(.settings)
         .navigationTitle("任务管理")
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await loadAll() }

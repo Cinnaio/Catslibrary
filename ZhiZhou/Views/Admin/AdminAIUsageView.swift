@@ -137,7 +137,7 @@ struct AdminAIUsageView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .appListStyle(.browsing)
+        .appListStyle(.settings)
         .navigationTitle("用量与审计")
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await load() }

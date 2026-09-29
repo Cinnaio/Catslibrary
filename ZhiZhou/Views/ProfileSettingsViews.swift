@@ -7,65 +7,50 @@ struct ProfileAccountView: View {
     @State private var isLoggingOut = false
 
     var body: some View {
-        GeometryReader { geometry in
-            let inset = AppLayout.readableInset(for: geometry.size.width)
-            List {
-                if let user = appState.user {
-                    Section {
-                        Button {
-                            showEditProfile = true
-                        } label: {
-                            HStack(spacing: 12) {
-                                ProfileIdentityRow(user: user, subtitle: "@\(user.username)")
-                                Image(systemName: "pencil")
-                                    .font(.body)
-                                    .foregroundStyle(AppTheme.textSecondary)
-                                    .accessibilityHidden(true)
-                            }
-                        }
-                        .accessibilityHint("编辑昵称、简介或头像")
-                        .accessibilityIdentifier("profile.edit")
-                        .listRowInsets(EdgeInsets(top: 16, leading: inset, bottom: 28, trailing: inset))
-                        .listRowSeparator(.hidden)
-                    }
-                    .listRowBackground(Color.clear)
-                }
-
+        List {
+            if let user = appState.user {
                 Section {
-                    NavigationLink {
-                        ChangePasswordView()
-                    } label: {
-                        AppIconLabel("修改密码", systemImage: "lock")
-                    }
-                }
-                .listRowInsets(EdgeInsets(top: 12, leading: inset, bottom: 12, trailing: inset))
-                .listRowBackground(Color.clear)
-
-                Section {
-                    Button(role: .destructive) {
-                        showLogoutConfirm = true
+                    Button {
+                        showEditProfile = true
                     } label: {
                         HStack(spacing: 12) {
-                            Text("退出登录")
-                            Spacer()
-                            if isLoggingOut {
-                                ProgressView().accessibilityLabel("正在退出登录")
-                            }
+                            ProfileIdentityRow(user: user, subtitle: "@\(user.username)")
+                            Image(systemName: "pencil")
+                                .font(.body)
+                                .foregroundStyle(AppTheme.textSecondary)
+                                .accessibilityHidden(true)
                         }
-                        .padding(.vertical, 4)
                     }
-                    .accessibilityIdentifier("account.logout")
+                    .accessibilityHint("编辑昵称、简介或头像")
+                    .accessibilityIdentifier("profile.edit")
                 }
-                .listRowInsets(EdgeInsets(top: 28, leading: inset, bottom: 12, trailing: inset))
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
             }
-            .appListStyle(.browsing, maximumWidth: nil)
-            .contentMargins(.top, 8, for: .scrollContent)
-            .scrollContentBackground(.hidden)
-            .disabled(isLoggingOut || appState.isUpdatingAccount)
+
+            Section {
+                NavigationLink {
+                    ChangePasswordView()
+                } label: {
+                    AppIconLabel("修改密码", systemImage: "lock")
+                }
+            }
+
+            Section {
+                Button(role: .destructive) {
+                    showLogoutConfirm = true
+                } label: {
+                    HStack(spacing: 12) {
+                        Text("退出登录")
+                        Spacer()
+                        if isLoggingOut {
+                            ProgressView().accessibilityLabel("正在退出登录")
+                        }
+                    }
+                }
+                .accessibilityIdentifier("account.logout")
+            }
         }
-        .background(Color(.systemBackground).ignoresSafeArea())
+        .appListStyle(.settings)
+        .disabled(isLoggingOut || appState.isUpdatingAccount)
         .navigationTitle("账户与安全")
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(isLoggingOut)
@@ -134,7 +119,6 @@ struct ProfileAboutView: View {
                         .foregroundStyle(AppTheme.textPrimary)
                 }
                 .padding(.vertical, 12)
-                .listRowBackground(Color.clear)
                 LabeledContent("版本", value: version)
             }
             Section("服务器") {

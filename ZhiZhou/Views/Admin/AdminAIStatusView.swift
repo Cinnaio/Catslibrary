@@ -78,7 +78,7 @@ struct AdminAIStatusView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .appListStyle(.browsing)
+        .appListStyle(.settings)
         .navigationTitle("状态与用量")
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await load() }

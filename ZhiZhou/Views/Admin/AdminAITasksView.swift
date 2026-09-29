@@ -73,7 +73,7 @@ struct AdminAITasksView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .appListStyle(.browsing)
+        .appListStyle(.settings)
         .navigationTitle("AI 任务")
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await load() }

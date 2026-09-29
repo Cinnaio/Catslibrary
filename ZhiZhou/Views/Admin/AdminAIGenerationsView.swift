@@ -191,7 +191,7 @@ struct AdminAIGenerationsView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .appListStyle(.browsing)
+        .appListStyle(.settings)
         .navigationTitle("已生成内容")
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await load() }

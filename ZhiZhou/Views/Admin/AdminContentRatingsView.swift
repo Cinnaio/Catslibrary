@@ -40,8 +40,6 @@ fileprivate struct AdminContentRatingModulePicker: View {
             }
         }
         .accessibleSegmentedPicker()
-        .listRowBackground(Color.clear)
-        .listRowSeparator(.hidden)
     }
 }
 
@@ -267,7 +265,7 @@ private struct AdminContentRatingCatalogView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .appListStyle(.browsing)
+        .appListStyle(.settings)
         .searchable(text: $searchInput, prompt: "搜索作品、作者或分级理由")
         .onSubmit(of: .search) {
             page = 0
@@ -858,7 +856,7 @@ private struct AdminContentRatingRuleCandidatesView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .appListStyle(.browsing)
+        .appListStyle(.settings)
         .searchable(text: $searchInput, prompt: "搜索规则值、例证作品或理由")
         .onSubmit(of: .search) {
             page = 0
@@ -1287,7 +1285,7 @@ private struct AdminContentRatingAISuggestionsView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .appListStyle(.browsing)
+        .appListStyle(.settings)
         .searchable(text: $searchInput, prompt: "搜索作品或作者")
         .onSubmit(of: .search) {
             page = 0

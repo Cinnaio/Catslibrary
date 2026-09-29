@@ -100,7 +100,7 @@ struct AdminLoginAuditView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .appListStyle(.browsing)
+        .appListStyle(.settings)
         .navigationTitle("登录审计")
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await load() }

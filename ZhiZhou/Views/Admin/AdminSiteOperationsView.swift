@@ -53,7 +53,6 @@ struct AdminSiteOperationsView: View {
                         }
                     }
                     .accessibleSegmentedPicker()
-                    .listRowBackground(Color.clear)
                 }
                 switch tab {
                 case .overview:
@@ -66,7 +65,7 @@ struct AdminSiteOperationsView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .appListStyle(.browsing)
+        .appListStyle(.settings)
         .scrollDismissesKeyboard(.interactively)
         .navigationTitle("站点运营")
         .navigationBarTitleDisplayMode(.large)

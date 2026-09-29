@@ -1865,7 +1865,7 @@ private struct NovelPickerSheet: View {
                 .buttonStyle(ScaleButtonStyle())
             }
             .scrollContentBackground(.hidden)
-            .appListStyle(.browsing)
+            .appListStyle(.settings)
             .navigationTitle("选择小说")
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $search, prompt: "搜索书名 / 作者")

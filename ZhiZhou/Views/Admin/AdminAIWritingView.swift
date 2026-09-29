@@ -380,8 +380,6 @@ struct AdminAIWritingView: View {
                 }
             }
             .accessibleSegmentedPicker()
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
             if mode == .new {
                 AdminFilterBar {
                     AdminFilterMenu("任务类型", value: taskKind.rawValue) {
@@ -1914,7 +1912,7 @@ struct AdminNovelPickerSheet: View {
                 .buttonStyle(.plain)
             }
             .scrollContentBackground(.hidden)
-            .appListStyle(.browsing)
+            .appListStyle(.settings)
             .navigationTitle("选择小说")
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $search, prompt: "搜索书名 / 作者")

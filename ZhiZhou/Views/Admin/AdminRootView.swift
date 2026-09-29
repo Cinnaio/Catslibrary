@@ -98,7 +98,7 @@ struct AdminRootView: View {
                 searchSections
             }
         }
-        .appListStyle(.browsing)
+        .appListStyle(.settings)
         .searchable(text: $searchText, prompt: "搜索后台功能")
     }
 

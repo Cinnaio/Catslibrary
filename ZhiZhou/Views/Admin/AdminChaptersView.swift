@@ -99,7 +99,7 @@ struct AdminChaptersView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .appListStyle(.browsing)
+        .appListStyle(.settings)
         .navigationTitle("章节管理")
         .navigationBarTitleDisplayMode(.large)
         .searchable(text: $chapterSearch, prompt: "搜索章节标题")
@@ -885,7 +885,7 @@ private struct NovelPickerSheet: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .appListStyle(.browsing)
+            .appListStyle(.settings)
             .navigationTitle("选择小说")
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $query, prompt: "搜索书名 / 作者")

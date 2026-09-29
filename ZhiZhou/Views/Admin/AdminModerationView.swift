@@ -38,8 +38,6 @@ struct AdminModerationView: View {
                     }
                 }
                 .accessibleSegmentedPicker()
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
                 .onChange(of: mode) { _, _ in
                     resetFilters()
                 }
@@ -123,7 +121,7 @@ struct AdminModerationView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .appListStyle(.browsing)
+        .appListStyle(.settings)
         .navigationTitle("内容审核")
         .navigationBarTitleDisplayMode(.large)
         .searchable(text: $search, prompt: "搜索内容 / 用户名 / 书名")
