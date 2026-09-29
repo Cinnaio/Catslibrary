@@ -2,12 +2,12 @@
    --admin-* 变量定义在 :root（而非 .admin-layout），这样 Radix portal 渲染在
    body 层的弹窗（dialog/popover）也能继承暖纸面板与边框语义。 */
 :root {
-  /* 后台表面统一沿用主题色派生：画布用中性灰压住亮度，表格保持纸白，
-     表头和侧栏再承接品牌暖意。明暗主题和自定义强调色会自动重算。 */
-  --admin-canvas: color-mix(in srgb, var(--bg-secondary) 86%, var(--text-muted) 14%);
+  /* 后台表面统一沿用主题色派生：画布用一档清楚的灰米色区分白色内容，
+     侧栏保持暖白，表格保持纸白；品牌强调集中在操作与选中态。 */
+  --admin-canvas: color-mix(in srgb, var(--bg-secondary) 55%, var(--border) 45%);
   --admin-panel: var(--bg-card);
   --admin-panel-muted: color-mix(in srgb, var(--bg-secondary) 78%, var(--accent-subtle));
-  --admin-sidebar: color-mix(in srgb, var(--bg-card) 72%, var(--accent-subtle) 28%);
+  --admin-sidebar: color-mix(in srgb, var(--bg-card) 76%, var(--accent-light) 24%);
   --admin-border: color-mix(in srgb, var(--border) 88%, var(--text-primary) 4%);
   --admin-border-strong: color-mix(in srgb, var(--border) 62%, var(--text-primary) 15%);
   --admin-control-height: 2.5rem;
@@ -38,10 +38,10 @@
   --admin-motion-ease-out: var(--ease-out);
 }
 
-/* 暗色模式下保持“画布低于表格、侧栏略暖”的表面顺序，避免明暗切换后层级反转。 */
+/* 暗色模式保留炭灰地面、略亮导航和纸面数据区的层级，不机械反转亮色主题。 */
 [data-theme='dark'] {
-  --admin-canvas: color-mix(in srgb, var(--bg-primary) 88%, var(--accent-subtle) 12%);
-  --admin-sidebar: color-mix(in srgb, var(--bg-card) 78%, var(--accent-subtle) 22%);
+  --admin-canvas: color-mix(in srgb, var(--bg-primary) 82%, var(--bg-card) 18%);
+  --admin-sidebar: color-mix(in srgb, var(--bg-card) 58%, var(--bg-primary) 42%);
 }
 
 /* 2026 子 tab 统一层：新迁移页面共用范本的纸面层次，页面专属规则只负责
