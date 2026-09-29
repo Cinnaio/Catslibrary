@@ -22,7 +22,6 @@ import { downloadLogsRoutes } from './routes/download-logs'
 import { setupRoutes } from './routes/setup'
 import { contentPolicyRoutes } from './routes/content-policy'
 import { adminSiteRoutes, siteRoutes } from './routes/site'
-import { adminMobileTelemetryRoutes, mobileTelemetryRoutes } from './routes/mobile-telemetry'
 import { adminOperationRoutes } from './routes/admin-operations'
 import { contentRatingRoutes } from './routes/content-ratings'
 import { contentRatingRuleCandidateRoutes } from './routes/content-rating-rule-candidates'
@@ -74,8 +73,6 @@ app.route('/api/setup', setupRoutes)
 app.route('/api/content-policy', contentPolicyRoutes)
 app.route('/api/site', siteRoutes)
 app.route('/api/admin/site', adminSiteRoutes)
-app.route('/api/mobile/telemetry', mobileTelemetryRoutes)
-app.route('/api/admin/mobile-telemetry', adminMobileTelemetryRoutes)
 app.route('/api/admin/operations', adminOperationRoutes)
 app.route('/api/admin/content-ratings', contentRatingRoutes)
 app.route('/api/admin/content-rating-rule-candidates', contentRatingRuleCandidateRoutes)

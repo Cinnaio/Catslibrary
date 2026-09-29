@@ -4,7 +4,7 @@
  * shell only composes, and the registry stays the single source of truth.
  */
 import type { ComponentType } from 'react'
-import { BookOpen, Bug, Activity, FileText, LayoutDashboard, MessageSquare, Sparkles, BarChart3, UserCog, type LucideIcon } from 'lucide-react'
+import { BookOpen, Bug, FileText, LayoutDashboard, MessageSquare, Sparkles, BarChart3, UserCog, type LucideIcon } from 'lucide-react'
 import DashboardTab from './DashboardTab'
 import NovelsTab from './NovelsTab'
 import ChaptersTab from './ChaptersTab'
@@ -16,7 +16,6 @@ import SettingsTab from './SettingsTab'
 import ContentPolicyTab from './ContentPolicyTab'
 import ContentRatingsTab from './ContentRatingsTab'
 import SiteOperationsTab from './SiteOperationsTab'
-import MobileTelemetryTab from './MobileTelemetryTab'
 
 export interface AdminTabProps {
   highlightNovelId?: string
@@ -41,7 +40,6 @@ export const NAV_GROUPS: Array<{ label: string; items: AdminNavItem[] }> = [
     label: '监控',
     items: [
       { id: 'dashboard', label: '后台总览', icon: LayoutDashboard },
-      { id: 'mobile-telemetry', label: '客户端监控', icon: Activity },
     ],
   },
   {
@@ -138,7 +136,6 @@ export const TAB_COMPONENTS = {
   'content-policy': ContentPolicyTab,
   'content-ratings': ContentRatingsTab,
   'site-operations': SiteOperationsTab,
-  'mobile-telemetry': MobileTelemetryTab,
   settings: SettingsTab,
 } satisfies Record<string, ComponentType<AdminTabProps>>
 
