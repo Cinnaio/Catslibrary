@@ -86,6 +86,8 @@ struct AdminDiscoverView: View {
                 }
             }
             .accessibleSegmentedPicker()
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
             .onChange(of: mode) { _, _ in
                 novels = []
                 totalText = nil
