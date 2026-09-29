@@ -102,6 +102,9 @@
   --admin-pagination-page-size-width:    5.5rem;
   --admin-pagination-control-size:       2rem;
 
+  /* 后台页标题：共享页头固定使用紧凑的 20px 字号。 */
+  --admin-page-title-size:               1.25rem;
+
   /* Admin data tables — shared surface, density, state and motion contract.
      The consuming admin layer can still override these semantic values without
      forking the table implementation on novels, chapters, moderation or jobs. */
@@ -249,7 +252,7 @@
   --admin-shadow-soft: 0 12px 30px rgba(0, 0, 0, 0.24);
   --shadow-modal: 0 30px 86px rgba(0, 0, 0, 0.52);
   --admin-table-background: color-mix(in srgb, var(--bg-card) 92%, var(--accent-subtle) 8%);
-  --admin-table-header-background: color-mix(in srgb, var(--bg-secondary) 85%, var(--accent) 15%);
+  --admin-table-header-background: color-mix(in srgb, var(--admin-table-background) 85%, var(--text-muted) 15%);
 }
 
 /* ============================================================

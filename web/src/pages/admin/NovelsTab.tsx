@@ -515,15 +515,12 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
     void load()
   }
 
-  const countLabel = query ? `匹配 ${total} 本 · 第${page}/${totalPages}页` : `共 ${total} 本 · 第${page}/${totalPages}页`
-
   const emptyMessage = query ? `没有匹配「${query}」的小说` : '暂无小说，点击「+ 添加小说」开始'
 
   return (
     <AdminPage
       className="admin-redesign-page--novels"
       title="小说管理"
-      meta={countLabel}
       description="维护书库作品、分类与连载状态，批量更新只作用于当前列表。"
       actions={
         <>

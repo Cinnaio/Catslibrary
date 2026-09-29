@@ -53,8 +53,7 @@ typography:
     modal-title: "1.15rem"    # 18.4px 弹窗标题
     panel-title: "1.25rem"    # 20px 面板标题（AdminPanelHeading）
     stat: "1.45rem"           # 23.2px 指标条数值（AdminMetricStrip）——已全站停用，勿用于新页面
-    page-title-min: "1.5rem"  # 24px 后台页标题 clamp 下限
-    page-title-max: "2rem"    # 32px 后台页标题 clamp 上限
+    page-title: "1.25rem"        # 20px 后台页标题固定字号
     hero-min: "1.35rem"       # 21.6px 公开页 hero clamp 下限
     hero-max: "1.9rem"        # 30.4px 公开页 hero clamp 上限
     display: "2rem"           # 32px h1
@@ -153,7 +152,7 @@ components:
 - **Admin Canvas** (`color-mix(in srgb, var(--bg-secondary) 55%, var(--border) 45%)`): 后台画布底色 `--admin-canvas`，使用可辨识的灰米色地面拉开与白色内容的明度差；暖色保持低饱和，不铺成深灰棕。
 - **Admin Panel** (`var(--bg-card)`): 普通面板与弹窗的表面基色 `--admin-panel`；数据表面另走 `--admin-table-background`，侧栏另走 `--admin-sidebar`。
 - **Admin Table** (`color-mix(in srgb, var(--bg-card) 96%, var(--accent-subtle) 4%)`): 表格内容区使用 `--admin-table-background`，保持接近纸白，让行内容成为后台阅读的主层。
-- **Admin Table Header** (`color-mix(in srgb, var(--bg-secondary) 85%, var(--accent) 15%)`): 表头使用 `--admin-table-header-background`，以低比例品牌强调色保留用户偏好的中等明度层级，同时转为奶茶棕暖调（默认亮色约为 `#E6DED7`）；文字仍使用 `--admin-table-header-foreground`。暗色主题沿用同一混色关系，形成暖炭灰表头。
+- **Admin Table Header:** 表头使用 `--admin-table-header-background`。亮色主题以 85% 次级背景混合 15% 品牌强调色，形成奶茶棕暖调（默认约 `#E6DED7`）；暗色主题以 85% 表格内容底色混合 15% 弱化文字色，形成中性炭灰（默认约 `#3D3C3E`），与表格行保持清晰层级并去掉棕金偏色。文字仍使用 `--admin-table-header-foreground`。
 - **Admin Panel Muted** (`color-mix(in srgb, var(--bg-secondary) 78%, var(--accent-subtle))`): 胶囊、弹窗页脚、次级表面 `--admin-panel-muted`。
 - **Admin Sidebar** (`color-mix(in srgb, var(--bg-card) 76%, var(--accent-light) 24%)`): 侧栏与移动抽屉底色 `--admin-sidebar`，使用暖白独立于灰米画布，品牌棕保留给导航选中态；暗色主题使用 58% 面板底色与 42% 主背景混合，形成稳定的炭灰导航层。
 - **Admin Border** (`color-mix(in srgb, var(--border) 88%, var(--text-primary) 4%)`): 后台通用描边 `--admin-border`。
@@ -182,7 +181,7 @@ components:
 **Character:** 系统字体带来原生、安静的感觉——不抢注意力，让内容本身成为视觉主角。衬线字体在阅读器中营造纸质书的氛围。
 
 ### Hierarchy
-- **Display** (700, clamp(1.5rem, 1.25rem + 0.65vw, 2rem) → 24–32px, 1.15): 后台页标题（AdminTabHeader 的 h2），随视口缩放，`letter-spacing: -0.04em`。它是页面上最大的文字，也是唯一的页面级标题。
+- **Page Title** (700, `var(--admin-page-title-size)` → 20px, 1.15): 后台页标题（AdminTabHeader 的 h2），保持紧凑固定字号，`letter-spacing: -0.04em`。它是页面上最大的文字，也是唯一的页面级标题。
 - **Panel Title** (750, 1.25rem, 1.3): 面板标题（AdminPanelHeading 的 h3），`letter-spacing: -0.03em`。刻意低于页标题一档，避免面板与页面争夺层级。
 - **Stat Value** (750, 1.45rem, 1): 指标条数值（AdminMetricStrip 的 strong），与 11.52px 标签形成尺寸断裂——全后台唯一的"大数字"层级。队列摘要用更小的 1rem，因为它与说明文字同处一个信息块，抬到 1.45rem 会撑破那块版面。
 - **Headline** (700, 2rem, 1.3): h1，用于页面级标题，letter-spacing: -0.02em。
@@ -211,11 +210,11 @@ components:
 
 页头是**一行**，不是两块堆叠（2026-09-25 收口，以小说管理为范本）。
 
-- **左**：`h2` 页名 + `admin-tab-header__meta` 计数胶囊（竖线分隔，0.72rem/500/`--text-muted`）+ 一行描述。
+- **左**：`h2` 页名 + 可选的 `admin-tab-header__meta` 信息（竖线分隔，0.72rem/500/`--text-muted`）+ 一行描述。
 - **右**：该页的**看家动作**——搜索框与主操作按钮。桌面端 `width: fit-content` + `flex-wrap: nowrap`（标题在左、动作在右，中间留白）；900px 及以下动作区转 `width: 100%`、搜索框 `flex: 1 1 auto` 吃掉剩余宽度、按钮 `flex: 0 0 auto` 不被压缩。
 - **无底线**：`border-bottom: 0`。与面板之间的区隔靠 `.admin-redesign-page` 的 1rem grid gap，不靠分隔线。
 - **只放页面级动作**：搜索与「新建」这类作用于整页的动作归页头；筛选、批量、刷新某一份数据归面板工具条。两处都放同一个动作等于开了两扇门。
-- **元信息位只放两类东西**：规模计数与只读状态，两者拼成**同一串文字**（用 `·` 连接）后再交给 `meta` 插槽——插槽会为整串画一条竖线。动作不属于这里。
+- **元信息位只放两类东西**：能补充页面上下文的规模摘要与只读状态，两者拼成**同一串文字**（用 `·` 连接）后再交给 `meta` 插槽——插槽会为整串画一条竖线。动作不属于这里；小说总数与当前页码保留在列表下方的分页区，不在标题旁重复展示。
 
 **已收口页面**：小说管理、章节管理、内容审核、分级管理、内容安全、站点运营（概览/流量/内容）、AI 服务（创作/封面/任务/已生成内容/用量/审计/配置/参数，页头由 `AiTab` 统一提供）、账户与注册（用户/注册/登录审计/操作审计）、客户端监控、后台总览。
 
@@ -347,7 +346,7 @@ components:
 
 ### Table
 - **Admin Surface:** `AdminDataPanel` 是无外框、纸面色表面，使用 `--admin-data-panel-radius`（20px）外圆角；需要说明时，标题/说明属于相邻的 `AdminContextPanel`，不再与筛选和表格挤在同一张大卡片里。
-- **Table Contract:** 表格内容区、表头、行分隔线、hover 背景和行高分别从 `--admin-table-background`、`--admin-table-header-*`、`--admin-table-border`、`--admin-table-row-hover-background`、`--admin-table-row-height` 读取。表头底色通过 `--admin-table-header-background` 以 85% 次级背景色混合 15% 品牌强调色，在保持原有明度层级的同时呈现低饱和奶茶棕暖调；表头文字继续使用 `--admin-table-header-foreground`，保持正文对比度和排序状态清晰。小说表格的滚动容器裁切表头底色，并以 `--admin-data-panel-radius` 保留左右上角圆弧，避免表头底色盖平数据面板圆角。桌面端列宽由 `--col-N-w` 注入：`@media (min-width: 901px)` 下启用 `table-layout: fixed` 并逐列消费该变量，规则覆盖第 1–12 列；**第 13 列起没有对应规则**，落到剩余宽度分配。范本统一使用百分比列宽且合计 100%——fixed 布局下百分比与 rem 混用时，定长列会先吃掉宽度。
+- **Table Contract:** 表格内容区、表头、行分隔线、hover 背景和行高分别从 `--admin-table-background`、`--admin-table-header-*`、`--admin-table-border`、`--admin-table-row-hover-background`、`--admin-table-row-height` 读取。亮色表头以 85% 次级背景色混合 15% 品牌强调色，保留低饱和奶茶棕暖调；暗色表头以 85% 表格内容底色混合 15% 弱化文字色，形成中性炭灰层级，避免品牌金棕色让表头与表格内容过于接近。表头文字继续使用 `--admin-table-header-foreground`，保持正文对比度和排序状态清晰。小说表格的滚动容器裁切表头底色，并以 `--admin-data-panel-radius` 保留左右上角圆弧，避免表头底色盖平数据面板圆角。桌面端列宽由 `--col-N-w` 注入：`@media (min-width: 901px)` 下启用 `table-layout: fixed` 并逐列消费该变量，规则覆盖第 1–12 列；**第 13 列起没有对应规则**，落到剩余宽度分配。范本统一使用百分比列宽且合计 100%——fixed 布局下百分比与 rem 混用时，定长列会先吃掉宽度。
 - **Breakpoint:** 900px 及以下是卡片化：thead 隐藏，`tr`/`td` 转 grid，`data-label` 变伪元素。与 901px↑ 的固定列宽成对，分界值是 900/901。
 - **Container-Query Exception:** **已撤销（2026-09-19）**。该例外曾用于 `AiGenerationsPanel` 的已生成内容表：当时那张表脱离 `AdminDataPanel` 并自带 `min-w-[760px]`，901–1100px 视口下内宽只有 756px，表格溢出且 sticky 冻结的操作列整列压住「内容预览」（数据丢失），只能改由 `@container (max-width: 48rem)` 按容器宽度卡片化。该表现已收敛到标准契约（`fixed` 布局 + 百分比列宽），不再需要最小宽度，溢出从根上消失，`@container` 块与 sticky 冻结列一并删除。**结论：最小宽度是破损的根因，容器查询只是补丁——遇到同类问题先问「为什么需要这个固定宽度」，而不是先加一个容器查询。** 当前全站数据表统一走 900/901 视口断点，无例外。
 - **Action Column Sizing:** 操作列宽度按**实测内容**反推，不套用固定百分比。判据是「同一行最宽的按钮组合能否单行放下」：文字按钮（如「查看章节」82px + 「删除」54px + 8px 间距 = 144px）比 32px 图标按钮宽得多，901px 视口（桌面固定布局最窄点）下若按图标按钮的 11% 分配，`td` 的 `overflow: hidden` 会把末位按钮整颗裁掉且不可点击。故文字按钮面板的操作列取 21%，并在该列解除固定行高（`height: auto` + `min-height: var(--admin-table-row-height)`）配 `flex-wrap`，使极窄容器下降级为换行而非裁切。范本小说表的图标按钮在同宽度下反而会裁切，属既有缺陷，**不要复制它的百分比**。
@@ -382,10 +381,10 @@ components:
 **The Panel-Owned Toolbar Rule.** 默认情况下，一个筛选器不能与它所筛选的数据面板并列为两个等权表面。筛选条、标题、列表构成同一属主的三段（标题 → 筛选 → 数据）；若说明内容已经由相邻 `AdminContextPanel` 承担，筛选条仍必须留在 `AdminDataPanel` 内，作为数据面板的第一段。只有页面明确没有说明面板、且只保留一个轻量筛选条件，或需要让同一数据集的搜索与该筛选条件保持同一控制行时，才允许使用透明的外置列表控制行；它不得带卡片边框、背景或统计副文案。
 
 ### Admin Tab Header (AdminTabHeader)
-- **Style:** 每个后台子页唯一的内容区页头，**单行账本式**：左侧标题 + 元信息胶囊 + 描述，右侧该页的看家动作（搜索 + 主操作）。`flex-wrap` + `items-end`，间距 1rem，底部分隔线由各页变体关闭（小说、章节、审核、分级、内容安全、站点运营、AI 服务页无底线）。
+- **Style:** 每个后台子页唯一的内容区页头，**单行账本式**：左侧标题 + 可选元信息 + 描述，右侧该页的看家动作（搜索 + 主操作）。`flex-wrap` + `items-end`，间距 1rem，底部分隔线由各页变体关闭（小说、章节、审核、分级、内容安全、站点运营、AI 服务页无底线）。
 - **Anatomy:** 只有一套。历史 `kicker` 眉题与 `hero` 变体已退役——标题上方不再出现小字，页面之间也不再有标题字号膨胀。
-- **Title:** `text-2xl`（1.5rem）起，CSS 覆写为 `clamp(1.5rem, 1.25rem + 0.65vw, 2rem)` / 700 / `letter-spacing: -0.04em`。
-- **Meta:** 标题右侧的 `admin-tab-header__meta` 胶囊承载列表计数等次要信息（竖线分隔、0.72rem/500/`--text-muted`、`tabular-nums`）。这是全站**唯一**该放在页头的数字——它回答"这个列表有多大"，是筛选器与页脚计数都替代不了的定位信息。
+- **Title:** 共享字号 token `--admin-page-title-size`（20px）；保持 700 字重与 `letter-spacing: -0.04em`。
+- **Meta:** 标题右侧的 `admin-tab-header__meta` 胶囊是可选信息位，用于补充页面级规模摘要或只读状态（竖线分隔、0.72rem/500/`--text-muted`、`tabular-nums`）。若相同的总数或页码已在列表分页区出现，就不在标题旁重复；小说管理即省略该项。
   - **插槽自带样式，只传内容**：竖线、左边距与字号由 `__meta` 提供。调用方**必须传一串字符串**（多项用 `·` 连接），不要传 `<>…</>` 或多个并列节点——多节点的每一段都会被插槽包一次，页头会长出多余的分隔符（实测 `参数调优 ‖ 服务已连接` 出现两条竖线）。
   - **宁可没有**：`meta` 是可选增强，不是页头的固定字段。拿不出一句真正有信息量的话就传 `undefined`，返回的是一行干净的标题；**常态不该占页头的位置**（数据库结构正常时不写"数据库正常"，只在缺失时报告异常）。
   - **不是每个子页都要有**：同一 tab 的多个子页共用一份页头，各子页的 `meta` 应按语义分别决定——只有当那句话对这个子页成立时才给（AI 服务的「服务已连接」只出现在依赖供应商的子页，参数调优与调用审计不显示）。

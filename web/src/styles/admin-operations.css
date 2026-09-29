@@ -6922,7 +6922,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 }
 
 .admin-redesign-page .admin-tab-header h2 {
-  font-size: clamp(1.5rem, 1.25rem + 0.65vw, 2rem);
+  font-size: var(--admin-page-title-size);
   letter-spacing: -0.04em;
   line-height: 1.15;
 }
