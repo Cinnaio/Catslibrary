@@ -2,14 +2,12 @@
    --admin-* 变量定义在 :root（而非 .admin-layout），这样 Radix portal 渲染在
    body 层的弹窗（dialog/popover）也能继承暖纸面板与边框语义。 */
 :root {
-  /* 画布底色。层次需要「背景比卡片深」：
-     浅色主题下 --bg-primary 与 --bg-card 都是纯白，同色会让面板轮廓消失，
-     因此画布掺 6% 中性灰（不含暖色成分，去掉此前的米黄调）。
-     深色主题下 --bg-primary(#1B1C20) 本就比 --bg-card(#2A2B31) 深，无需覆盖。 */
-  --admin-canvas: color-mix(in srgb, var(--bg-primary) 94%, #6b7280 6%);
+  /* 后台表面统一沿用主题色派生：画布用中性灰压住亮度，表格保持纸白，
+     表头和侧栏再承接品牌暖意。明暗主题和自定义强调色会自动重算。 */
+  --admin-canvas: color-mix(in srgb, var(--bg-secondary) 86%, var(--text-muted) 14%);
   --admin-panel: var(--bg-card);
   --admin-panel-muted: color-mix(in srgb, var(--bg-secondary) 78%, var(--accent-subtle));
-  --admin-sidebar: color-mix(in srgb, var(--accent-subtle) 25%, var(--bg-card));
+  --admin-sidebar: color-mix(in srgb, var(--bg-card) 72%, var(--accent-subtle) 28%);
   --admin-border: color-mix(in srgb, var(--border) 88%, var(--text-primary) 4%);
   --admin-border-strong: color-mix(in srgb, var(--border) 62%, var(--text-primary) 15%);
   --admin-control-height: 2.5rem;
@@ -38,6 +36,12 @@
   --admin-input-radius: 12px;
   --admin-button-radius: 12px;
   --admin-motion-ease-out: var(--ease-out);
+}
+
+/* 暗色模式下保持“画布低于表格、侧栏略暖”的表面顺序，避免明暗切换后层级反转。 */
+[data-theme='dark'] {
+  --admin-canvas: color-mix(in srgb, var(--bg-primary) 88%, var(--accent-subtle) 12%);
+  --admin-sidebar: color-mix(in srgb, var(--bg-card) 78%, var(--accent-subtle) 22%);
 }
 
 /* 2026 子 tab 统一层：新迁移页面共用范本的纸面层次，页面专属规则只负责
@@ -1678,8 +1682,8 @@
 }
 
 /* 后台画布。曾叠加 2rem×2rem 的竖线网格作为纹理，但线密度高、在纯色底上
-   形成强烈的视觉噪点，滚到底部时尤其明显。改为纯色画布，层次靠侧栏阴影
-   与卡片描边表达。 */
+   形成强烈的视觉噪点，滚到底部时尤其明显。改为中性偏灰的纸面画布，层次靠
+   画布、表格、表头、侧栏的语义表面阶梯和间距表达。 */
 .admin-layout {
   background: var(--admin-canvas);
 }
@@ -9001,6 +9005,12 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   border-top-right-radius: var(--admin-data-panel-radius);
 }
 
+/* 表格内容区使用独立的纸面色，避免依赖父级面板的继承关系；移动端卡片也沿用同一层。 */
+.admin-data-panel--grid [data-slot='table-container'],
+.admin-data-panel--grid [data-slot='table'] {
+  background: var(--admin-table-background);
+}
+
 .admin-data-panel--grid table > thead > tr {
   background: var(--admin-table-header-background);
   color: var(--admin-table-header-foreground);
@@ -9207,7 +9217,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
     border: 0;
     border-top: 1px solid var(--admin-table-mobile-stack-divider);
     border-radius: 0;
-    background: var(--admin-panel);
+    background: var(--admin-table-background);
   }
 
   .admin-data-panel--grid tbody tr + tr {

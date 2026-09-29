@@ -148,12 +148,14 @@ components:
 - **Border Frost** (#F3F0EB): 比 Border Mist 更淡，用于表格行内侧分隔。
 
 ### Admin Surfaces
-后台表面全部从上面这套色板派生，而不是另建一套颜色。它们定义在 `:root`，但公开页面不引用。
+后台表面全部从上面这套色板派生，而不是另建一套颜色。它们定义在 `:root`，但公开页面不引用；明暗主题和用户自定义强调色都会沿用同一套关系重新计算。
 
-- **Admin Canvas** (`color-mix(in srgb, var(--bg-primary) 94%, #6b7280 6%)`): 后台画布底色 `--admin-canvas`，比页面地面略沉，让纸面浮起。
-- **Admin Panel** (`var(--bg-card)`): 面板、弹窗、侧栏的表面基色 `--admin-panel`。
+- **Admin Canvas** (`color-mix(in srgb, var(--bg-secondary) 86%, var(--text-muted) 14%)`): 后台画布底色 `--admin-canvas`，使用中性偏灰的弱化色压住亮度与暖色感，作为整套后台最沉但不抢内容的基础层。
+- **Admin Panel** (`var(--bg-card)`): 普通面板与弹窗的表面基色 `--admin-panel`；数据表面另走 `--admin-table-background`，侧栏另走 `--admin-sidebar`。
+- **Admin Table** (`color-mix(in srgb, var(--bg-card) 96%, var(--accent-subtle) 4%)`): 表格内容区使用 `--admin-table-background`，保持接近纸白，让行内容成为后台阅读的主层。
+- **Admin Table Header** (`color-mix(in srgb, var(--admin-table-background) 68%, var(--accent-light) 32%)`): 表头使用 `--admin-table-header-background`，以可识别的品牌浅色形成扫描带；文字仍使用 `--admin-table-header-foreground`，不依赖低对比度的浅色文字。暗色主题使用同一语义关系的 30% 浅强调色。
 - **Admin Panel Muted** (`color-mix(in srgb, var(--bg-secondary) 78%, var(--accent-subtle))`): 胶囊、弹窗页脚、次级表面 `--admin-panel-muted`。
-- **Admin Sidebar** (`color-mix(in srgb, var(--accent-subtle) 25%, var(--bg-card))`): 侧栏与移动抽屉底色 `--admin-sidebar`，带一点极淡的强调色倾向。
+- **Admin Sidebar** (`color-mix(in srgb, var(--bg-card) 72%, var(--accent-subtle) 28%)`): 侧栏与移动抽屉底色 `--admin-sidebar`，比表格内容区更有品牌倾向，但仍保持适合长时间运营工作的低饱和纸面。
 - **Admin Border** (`color-mix(in srgb, var(--border) 88%, var(--text-primary) 4%)`): 后台通用描边 `--admin-border`。
 - **Admin Border Strong** (`color-mix(in srgb, var(--border) 62%, var(--text-primary) 15%)`): 后台控件与弹窗描边 `--admin-border-strong`，比通用描边更明确，用于输入框这类需要被看见边界的元素。
 
@@ -169,7 +171,7 @@ components:
 ### Named Rules
 **The 10% Accent Rule.** 奶茶棕色强调色在任何页面上不超过 10% 的面积。它的稀有性就是力量——读者的眼睛自然被引导到最重要的交互点。
 
-**The Derived-Surface Rule.** 后台表面永远是 `color-mix` 派生自公开色板的结果，不新开一套颜色。新表面要先问"它是哪两个既有 token 的混合"，答不上来就不要加。
+**The Derived-Surface Rule.** 后台表面永远是 `color-mix` 派生自公开色板的结果，不新开一套颜色。画布负责压低明度，表格负责承载阅读，表头和侧栏负责传递品牌——新表面要先问"它是哪两个既有 token 的混合"，答不上来就不要加。暗色主题保持相同的层级顺序，不机械反转明暗关系。
 
 ## Typography
 
@@ -345,7 +347,7 @@ components:
 
 ### Table
 - **Admin Surface:** `AdminDataPanel` 是无外框、纸面色表面，使用 `--admin-data-panel-radius`（20px）外圆角；需要说明时，标题/说明属于相邻的 `AdminContextPanel`，不再与筛选和表格挤在同一张大卡片里。
-- **Table Contract:** 表头、行分隔线、hover 背景和行高分别从 `--admin-table-header-*`、`--admin-table-border`、`--admin-table-row-hover-background`、`--admin-table-row-height` 读取。表头底色通过 `--admin-table-header-background` 混入 10% 当前品牌强调色，形成低对比度的暖色识别带；表头文字继续使用 `--admin-table-header-foreground`，保持正文对比度和排序状态清晰。小说表格的滚动容器裁切表头底色，并以 `--admin-data-panel-radius` 保留左右上角圆弧，避免品牌底色盖平数据面板圆角。桌面端列宽由 `--col-N-w` 注入：`@media (min-width: 901px)` 下启用 `table-layout: fixed` 并逐列消费该变量，规则覆盖第 1–12 列；**第 13 列起没有对应规则**，落到剩余宽度分配。范本统一使用百分比列宽且合计 100%——fixed 布局下百分比与 rem 混用时，定长列会先吃掉宽度。
+- **Table Contract:** 表格内容区、表头、行分隔线、hover 背景和行高分别从 `--admin-table-background`、`--admin-table-header-*`、`--admin-table-border`、`--admin-table-row-hover-background`、`--admin-table-row-height` 读取。表头底色通过 `--admin-table-header-background` 混入 32% 主题浅强调色（暗色主题为 30%），形成可扫描的暖色识别带；表头文字继续使用 `--admin-table-header-foreground`，保持正文对比度和排序状态清晰。小说表格的滚动容器裁切表头底色，并以 `--admin-data-panel-radius` 保留左右上角圆弧，避免品牌底色盖平数据面板圆角。桌面端列宽由 `--col-N-w` 注入：`@media (min-width: 901px)` 下启用 `table-layout: fixed` 并逐列消费该变量，规则覆盖第 1–12 列；**第 13 列起没有对应规则**，落到剩余宽度分配。范本统一使用百分比列宽且合计 100%——fixed 布局下百分比与 rem 混用时，定长列会先吃掉宽度。
 - **Breakpoint:** 900px 及以下是卡片化：thead 隐藏，`tr`/`td` 转 grid，`data-label` 变伪元素。与 901px↑ 的固定列宽成对，分界值是 900/901。
 - **Container-Query Exception:** **已撤销（2026-09-19）**。该例外曾用于 `AiGenerationsPanel` 的已生成内容表：当时那张表脱离 `AdminDataPanel` 并自带 `min-w-[760px]`，901–1100px 视口下内宽只有 756px，表格溢出且 sticky 冻结的操作列整列压住「内容预览」（数据丢失），只能改由 `@container (max-width: 48rem)` 按容器宽度卡片化。该表现已收敛到标准契约（`fixed` 布局 + 百分比列宽），不再需要最小宽度，溢出从根上消失，`@container` 块与 sticky 冻结列一并删除。**结论：最小宽度是破损的根因，容器查询只是补丁——遇到同类问题先问「为什么需要这个固定宽度」，而不是先加一个容器查询。** 当前全站数据表统一走 900/901 视口断点，无例外。
 - **Action Column Sizing:** 操作列宽度按**实测内容**反推，不套用固定百分比。判据是「同一行最宽的按钮组合能否单行放下」：文字按钮（如「查看章节」82px + 「删除」54px + 8px 间距 = 144px）比 32px 图标按钮宽得多，901px 视口（桌面固定布局最窄点）下若按图标按钮的 11% 分配，`td` 的 `overflow: hidden` 会把末位按钮整颗裁掉且不可点击。故文字按钮面板的操作列取 21%，并在该列解除固定行高（`height: auto` + `min-height: var(--admin-table-row-height)`）配 `flex-wrap`，使极窄容器下降级为换行而非裁切。范本小说表的图标按钮在同宽度下反而会裁切，属既有缺陷，**不要复制它的百分比**。

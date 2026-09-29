@@ -106,8 +106,9 @@
      The consuming admin layer can still override these semantic values without
      forking the table implementation on novels, chapters, moderation or jobs. */
   --admin-table-panel-radius:         var(--radius-2xl);
+  --admin-table-background:           color-mix(in srgb, var(--bg-card) 96%, var(--accent-subtle) 4%);
   --admin-table-border:               color-mix(in srgb, var(--border) 88%, var(--text-primary) 4%);
-  --admin-table-header-background:    color-mix(in srgb, var(--accent) 10%, var(--admin-panel));
+  --admin-table-header-background:    color-mix(in srgb, var(--admin-table-background) 68%, var(--accent-light) 32%);
   --admin-table-header-foreground:    var(--text-primary);
   --admin-table-row-height:            3.25rem;
   --admin-table-row-hover-background: color-mix(in srgb, var(--accent-subtle) 64%, transparent);
@@ -143,7 +144,7 @@
   --admin-context-panel-radius:       var(--radius-xl);
   --admin-context-panel-padding:      1.25rem;
   --admin-context-panel-gap:          1.5rem;
-  --admin-data-panel-background:      var(--admin-panel);
+  --admin-data-panel-background:      var(--admin-table-background);
   --admin-data-panel-radius:          var(--admin-table-panel-radius);
   --admin-data-panel-toolbar-background: color-mix(in srgb, var(--admin-surface) 40%, transparent);
   --admin-data-panel-toolbar-padding-block: 0.75rem;
@@ -247,6 +248,8 @@
   --admin-shadow: 0 20px 54px rgba(0, 0, 0, 0.34);
   --admin-shadow-soft: 0 12px 30px rgba(0, 0, 0, 0.24);
   --shadow-modal: 0 30px 86px rgba(0, 0, 0, 0.52);
+  --admin-table-background: color-mix(in srgb, var(--bg-card) 92%, var(--accent-subtle) 8%);
+  --admin-table-header-background: color-mix(in srgb, var(--admin-table-background) 70%, var(--accent-light) 30%);
 }
 
 /* ============================================================
