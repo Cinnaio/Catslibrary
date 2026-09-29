@@ -123,7 +123,17 @@ export default function AiTab() {
       <div className="ai-service-tabs__content min-w-0">
         {currentSubTab === 'writing' && <AiWritingPanel onViewBatch={openGenerations} initialNovelId={urlNovel || undefined} />}
 
-        {currentSubTab === 'cover' && <AiCoverPanel />}
+        {currentSubTab === 'cover' && (
+          <AiCoverPanel
+            initialNovelId={urlNovel || undefined}
+            onNovelChange={(novelId) => {
+              const next = new URLSearchParams(searchParams)
+              if (novelId) next.set('novel', novelId)
+              else next.delete('novel')
+              setSearchParams(next, { replace: false })
+            }}
+          />
+        )}
 
         {currentSubTab === 'tasks' && <AiTasksPanel onViewBatch={openGenerations} />}
 

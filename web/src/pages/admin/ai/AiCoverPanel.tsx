@@ -6,6 +6,7 @@ import { AdminPanelHeading } from '@/components/admin/AdminWorkspace'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import CustomSelect from '@/components/admin/CustomSelect'
@@ -19,6 +20,54 @@ const COVER_TASK_KINDS = new Set(['cover'])
 const DEFAULT_COVER_PROMPT_MAX_CHARS = 2000
 const MIN_COVER_PROMPT_MAX_CHARS = 100
 const HARD_MAX_COVER_PROMPT_CHARS = 10000
+type CoverNovel = Awaited<ReturnType<typeof novelsApi.list>>['novels'][number]
+
+const CONTENT_RATING_LABELS = {
+  general: '一般',
+  restricted: '限制级',
+  unknown: '未标注',
+} as const
+
+const GENRE_LABELS: Record<string, string> = {
+  xianxia: '仙侠',
+  urban: '都市',
+  ancient: '古代',
+  romance: '言情',
+  mystery: '悬疑',
+  scifi: '科幻',
+  fantasy: '奇幻',
+  historical: '历史',
+  horror: '惊悚',
+  light: '轻小说',
+}
+
+const FACT_LABELS: Record<string, string> = {
+  person: '人物',
+  setting: '地点',
+  object: '物件',
+  event: '事件',
+  relationship: '关系',
+  mood: '情绪',
+  premise: '故事前提',
+}
+
+const ADULT_RATING_LABEL = /(?:^|[\s,，;；|/])(?:r18|18\+|18禁|成人向|成人内容)(?=$|[\s,，;；|/])/iu
+const BRACKETED_ADULT_RATING_LABEL = /[\[【(（]\s*(?:r18|18\+|18禁|成人向|成人内容)\s*[\]】)）]/iu
+
+function hasAdultRatingCategory(categories: readonly string[]): boolean {
+  return categories.some((category) => ADULT_RATING_LABEL.test(category) || BRACKETED_ADULT_RATING_LABEL.test(category))
+}
+
+function novelStatusLabel(status: string): string {
+  if (status === 'completed') return '已完结'
+  if (status === 'ongoing') return '连载中'
+  return status || '状态未知'
+}
+
+function candidateTime(createdAt: number): string {
+  if (!createdAt) return '时间未知'
+  return new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(createdAt))
+}
 
 function normalizeCoverPromptLimit(value: unknown): number {
   const n = Math.trunc(Number(value))
@@ -128,31 +177,60 @@ function statusDotColor(status: string): string {
 }
 
 /** 封面主视觉的 2:3 画框（当前封面 / 空态）。 */
-function CoverCanvas({ src, title, hasNovel }: { src: string; title?: string; hasNovel: boolean }) {
+function CoverCanvas({
+  src,
+  title,
+  hasNovel,
+  className = '',
+  onPreview,
+}: {
+  src: string
+  title?: string
+  hasNovel: boolean
+  className?: string
+  onPreview?: () => void
+}) {
   const [failed, setFailed] = useState(false)
   useEffect(() => {
     setFailed(false)
   }, [src])
 
-  return (
-    <div className="ai-cover-frame relative aspect-[2/3] w-full overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--admin-inset)] shadow-md ring-1 ring-inset ring-[var(--border-light)]">
+  const frameClassName = `ai-cover-frame relative aspect-[2/3] w-full overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--admin-inset)] ${className}`
+  const content = (
+    <>
       {failed || !src ? (
         <div className="flex h-full flex-col items-center justify-center gap-2 px-4 text-center">
           <BookOpen className="size-6 text-[var(--accent)]/45" />
           <p className="text-xs leading-relaxed text-muted-foreground">{hasNovel ? '暂无封面图片' : '选择小说后预览封面'}</p>
         </div>
       ) : (
-        <img src={src} alt={title || '封面预览'} onError={() => setFailed(true)} />
+        <img src={src} alt={title || '封面预览'} loading="lazy" decoding="async" onError={() => setFailed(true)} />
       )}
-    </div>
+    </>
+  )
+
+  return onPreview ? (
+    <button type="button" className={`${frameClassName} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`} onClick={onPreview} aria-label={`查看大图：${title || '封面预览'}`}>
+      {content}
+    </button>
+  ) : (
+    <div className={frameClassName}>{content}</div>
   )
 }
 
-export default function AiCoverPanel() {
+export default function AiCoverPanel({
+  initialNovelId,
+  onNovelChange,
+}: {
+  initialNovelId?: string
+  onNovelChange?: (novelId: string) => void
+} = {}) {
   const { toast } = useToast()
   const { confirm } = useConfirm()
-  const [novels, setNovels] = useState<Array<{ id: string; title: string; updatedAt?: number }>>([])
-  const [novelId, setNovelId] = useState('')
+  const [novels, setNovels] = useState<CoverNovel[]>([])
+  const [novelsLoading, setNovelsLoading] = useState(true)
+  const [novelsLoadError, setNovelsLoadError] = useState('')
+  const [novelId, setNovelId] = useState(initialNovelId || '')
   const [busy, setBusy] = useState(false)
   /** 当前封面生成任务；null 表示未启动过 */
   const [task, setTask] = useState<AiTaskInfo | null>(null)
@@ -178,7 +256,11 @@ export default function AiCoverPanel() {
   const [imageConfigured, setImageConfigured] = useState(false)
   /** 当前小说的 AI 封面候选（未采纳）；生成成功/采纳/弃用后刷新 */
   const [candidates, setCandidates] = useState<AiCoverCandidate[]>([])
+  const [candidatesLoading, setCandidatesLoading] = useState(false)
+  const [candidateError, setCandidateError] = useState('')
   const [candidateBusy, setCandidateBusy] = useState('')
+  const [previewImage, setPreviewImage] = useState<{ src: string; title: string } | null>(null)
+  const [advancedOpen, setAdvancedOpen] = useState(false)
   /**
    * 当前封面版本号（图片哈希 + 元数据摘要），由 CoverHistory 读取后回传。
    * 采纳候选、上传替换、恢复历史都带上它做乐观并发：后端不一致就 409，
@@ -200,32 +282,82 @@ export default function AiCoverPanel() {
 
   /** 拉取当前小说的候选列表。 */
   async function loadCandidates(id: string) {
-    if (!id) return
     const seq = ++candidateSeq.current
+    setCandidateError('')
+    if (!id) {
+      setCandidates([])
+      setCandidatesLoading(false)
+      return
+    }
+    setCandidatesLoading(true)
     try {
       const { items } = await aiApi.coverCandidates(id)
-      if (seq === candidateSeq.current) setCandidates(items)
+      if (seq === candidateSeq.current && id === novelIdRef.current) setCandidates(items)
     } catch {
-      if (seq === candidateSeq.current) setCandidates([])
+      if (seq === candidateSeq.current && id === novelIdRef.current) {
+        setCandidates([])
+        setCandidateError('候选列表加载失败，请重试。')
+      }
+    } finally {
+      if (seq === candidateSeq.current) setCandidatesLoading(false)
     }
   }
+
+  useEffect(() => {
+    const id = novelIdRef.current
+    if (id) void loadCandidates(id)
+  }, [])
+
+  function clearNovelContext() {
+    setPrompt('')
+    setPromptMode('auto')
+    setPromptSourceSignature('')
+    setVariationId('')
+    setPromptMetadata(undefined)
+    setCurrentCoverVersion('')
+    setCandidates([])
+    setCandidateError('')
+    setPreviewImage(null)
+  }
+
+  function selectNovel(value: string) {
+    novelIdRef.current = value
+    setNovelId(value)
+    clearNovelContext()
+    onNovelChange?.(value)
+    void loadCandidates(value)
+  }
+
+  useEffect(() => {
+    const nextId = initialNovelId || ''
+    if (novelIdRef.current === nextId) return
+    novelIdRef.current = nextId
+    setNovelId(nextId)
+    clearNovelContext()
+    void loadCandidates(nextId)
+  }, [initialNovelId])
 
   useEffect(() => {
     // 目标小说下拉要覆盖全库：后端 /novels 的 limit 封顶 100，需翻页拉全，避免下拉里小说不全
     let cancelled = false
     const PAGE_SIZE = 100
     void (async () => {
-      const all: Array<{ id: string; title: string; updatedAt?: number }> = []
+      const all: CoverNovel[] = []
       try {
         const first = await novelsApi.list({ limit: PAGE_SIZE, page: 1 })
-        all.push(...first.novels.map((novel) => ({ id: novel.id, title: novel.title, updatedAt: novel.updatedAt })))
+        all.push(...first.novels)
         for (let page = 2; page <= first.totalPages && !cancelled; page++) {
           const data = await novelsApi.list({ limit: PAGE_SIZE, page })
-          all.push(...data.novels.map((novel) => ({ id: novel.id, title: novel.title, updatedAt: novel.updatedAt })))
+          all.push(...data.novels)
         }
         if (!cancelled) setNovels(all)
       } catch (err) {
-        if (!cancelled) toast((err as Error).message, 'error')
+        if (!cancelled) {
+          setNovelsLoadError((err as Error).message || '书库加载失败。')
+          toast((err as Error).message, 'error')
+        }
+      } finally {
+        if (!cancelled) setNovelsLoading(false)
       }
     })()
     void aiApi
@@ -255,8 +387,11 @@ export default function AiCoverPanel() {
         const running = result.items.find((item) => COVER_TASK_KINDS.has(item.kind) && (item.status === 'queued' || item.status === 'running'))
         if (running) {
           setTask((prev) => prev ?? running)
-          setNovelId(running.novelId)
-          void loadCandidates(running.novelId)
+          if (!novelIdRef.current) {
+            novelIdRef.current = running.novelId
+            setNovelId(running.novelId)
+          }
+          if (running.novelId === novelIdRef.current) void loadCandidates(running.novelId)
         }
       })
       .catch(() => {})
@@ -301,7 +436,17 @@ export default function AiCoverPanel() {
     setBusy(true)
     try {
       const mode = nextPrompt ? 'exact' : 'auto'
-      const res = await aiApi.generateCover(novelId, { prompt: nextPrompt, promptMode: mode, renderTitle, platform, stylePreset, composition, variationId, operationId: newOperationId('ai-cover-generate') })
+      const res = await aiApi.generateCover(novelId, {
+        prompt: nextPrompt,
+        promptMode: mode,
+        renderTitle,
+        platform,
+        stylePreset,
+        composition,
+        variationId,
+        ...(!usesExactPrompt && promptMetadata ? { promptMetadata } : {}),
+        operationId: newOperationId('ai-cover-generate'),
+      })
       const { task: created } = await aiApi.task(res.taskId)
       setTask(created)
       toast('封面生成已开始', 'success')
@@ -429,348 +574,439 @@ export default function AiCoverPanel() {
   const selected = novels.find((n) => n.id === novelId)
   // /api/cover/:id 公开无鉴权（与 NovelCard 同源），img 直接拉，带 coverVersion 破缓存
   const previewSrc = novelId ? url(`/cover/${encodeURIComponent(novelId)}?v=${coverVersion}&cover=2`) : ''
+  const recentNovels = novels.slice(0, 5)
+  const hasCurrentGeneratedPrompt = !!prompt.trim() && !!promptSourceSignature && !promptConfigMismatch
+  const canGenerateCover =
+    !!novelId &&
+    !busy &&
+    !taskActive &&
+    !generatingPrompt &&
+    !promptConfigMismatch &&
+    (usesExactPrompt || hasCurrentGeneratedPrompt)
+  const taskNovel = task ? novels.find((novel) => novel.id === task.novelId) : undefined
+  const showAdultMetadataNote = !!selected && (selected.contentRating === 'restricted' || hasAdultRatingCategory(selected.categories))
 
   return (
     <Card className="admin-panel-card ai-cover-card">
       <AdminPanelHeading
         title={<span className="admin-panel-title"><Palette className="size-4" aria-hidden="true" />封面生成工作台</span>}
-        description="根据小说标题、分类与简介生成封面 · 候选制，满意后采纳替换。"
+        description="先确认作品与故事方向，再生成、比较并采纳封面候选。"
       />
 
-      <CardContent className="grid gap-8 lg:grid-cols-2 lg:items-start">
-        {/* 左列：生成配置 */}
-        <div className="grid content-start gap-5">
-          <div className="grid gap-1.5">
-            <Label>目标小说</Label>
-            <CustomSelect
-              options={novels.map((novel) => ({ value: novel.id, label: novel.title }))}
-              value={novelId}
-              onChange={(value) => {
-                setNovelId(value)
-                setPrompt('')
-                setPromptMode('auto')
-                setPromptSourceSignature('')
-                setVariationId('')
-                setPromptMetadata(undefined)
-                // 版本号属于上一本书，必须清掉：否则会把旧版本号发给新书的采纳/上传
-                setCurrentCoverVersion('')
-                // 立即清空旧书候选：候选请求是异步的，不清空就会在慢网络下出现
-                // 「新书标题 + 旧书候选」，而采纳/弃用按候选 ID 操作，会打到错误的目标上。
-                setCandidates([])
-                void loadCandidates(value)
-              }}
-              placeholder="选择小说"
-              searchable
-              searchPlaceholder="搜索小说名称…"
-              disabled={busy || generatingPrompt || taskActive}
-              dropdownSide="bottom"
-            />
-          </div>
-
-          {/* 封面设定：平台版式 + 主视觉方向 + 封面文字层 */}
-          <div className="grid gap-3 rounded-lg border border-[var(--border)] bg-[var(--admin-inset)] p-3.5">
-            <p className="flex items-center gap-1.5 text-xs font-medium text-[var(--text-muted)]">
-              <Palette className="size-3.5" />
-              封面设定
-            </p>
-            <div className="grid gap-1.5">
-              <Label>平台版式</Label>
-              <CustomSelect options={PLATFORM_OPTIONS} value={platform} onChange={setPlatform} disabled={busy || generatingPrompt || taskActive || usesExactPrompt} placeholder="选择平台风格" dropdownSide="bottom" />
-              <p className="text-xs text-muted-foreground">按目标平台调节版式与调性；通用为竖版 2:3，不决定主视觉画风。</p>
-            </div>
-            <div className="grid gap-1.5">
-              <Label>主视觉风格</Label>
-              <CustomSelect options={STYLE_OPTIONS} value={stylePreset} onChange={setStylePreset} disabled={busy || generatingPrompt || taskActive || usesExactPrompt} placeholder="选择主视觉风格" dropdownSide="bottom" />
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                {STYLE_OPTIONS.find((option) => option.value === stylePreset)?.sub || '会结合题材和变体轮换，避免所有书套同一种风格。'}
-              </p>
-            </div>
-            <div className="grid gap-1.5">
-              <Label>构图方向</Label>
-              <CustomSelect options={COMPOSITION_OPTIONS} value={composition} onChange={setComposition} disabled={busy || generatingPrompt || taskActive || usesExactPrompt} placeholder="选择构图方向" dropdownSide="bottom" />
-              <p className="text-xs text-muted-foreground">控制主体位置、镜头关系和留白方式。</p>
-            </div>
-            <div className="flex items-center justify-between gap-3 rounded-md border border-[var(--border)] bg-[var(--bg-card)] px-3.5 py-2.5">
-              <div className="grid gap-0.5">
-                <span className="text-sm font-medium text-foreground">渲染封面文字</span>
-                <span className="text-xs leading-relaxed text-muted-foreground">
-                  在封面渲染书名+作者名（按题材套用字体），需模型支持中文渲染（如 gpt-image-2）。
-                </span>
+      <CardContent className="grid gap-6">
+        {!selected ? (
+          <section className="grid gap-5" aria-labelledby="cover-start-title">
+            <div className="flex flex-col gap-4 rounded-xl bg-[var(--admin-panel-muted)] p-5 sm:p-6">
+              <div className="flex items-start gap-3">
+                <BookOpen className="mt-0.5 size-5 shrink-0 text-[var(--accent)]" aria-hidden="true" />
+                <div className="grid gap-1">
+                  <h3 id="cover-start-title" className="text-base font-semibold text-foreground">{novelsLoading && novelId ? '正在载入这本小说…' : '先选择要设计封面的小说'}</h3>
+                  <p className="text-sm leading-relaxed text-muted-foreground">选中后会把作者、分类、分级、简介和当前封面放在同一处，生成前先核对作品上下文。</p>
+                </div>
               </div>
-              <Switch checked={renderTitle} disabled={busy || generatingPrompt || taskActive || usesExactPrompt} onCheckedChange={setRenderTitle} />
-            </div>
-          </div>
-
-          {!imageConfigured && (
-            <div className="flex items-start gap-2.5 rounded-lg border border-[color-mix(in_srgb,var(--color-warning)_45%,transparent)] bg-[color-mix(in_srgb,var(--color-warning)_12%,transparent)] px-3.5 py-3 text-sm leading-relaxed text-[var(--color-warning)]">
-              <CircleAlert className="mt-0.5 size-4 shrink-0" />
-              <p>AI 图像服务未配置（AI_IMAGE_BASE_URL / AI_IMAGE_API_KEY）。请到「配置」标签页设置图像供应商后再生成。</p>
-            </div>
-          )}
-
-          {/* 封面描述词 */}
-          <div className="grid gap-1.5">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <Label htmlFor="cover-prompt">封面描述词</Label>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={busy || taskActive || generatingPrompt || !novelId}
-                onClick={() => void generatePrompt()}
-              >
-                {generatingPrompt ? (
-                  <>
-                    <Loader2 className="size-3.5 animate-spin" />
-                    生成中…
-                  </>
-                ) : (
-                  <>
-                    <Wand2 className="size-3.5" />
-                    自动生成描述词
-                  </>
-                )}
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                disabled={busy || taskActive || generatingPrompt || !novelId}
-                onClick={() => void generatePrompt(true)}
-              >
-                换一版
-              </Button>
-            </div>
-            {/* 此处刻意不用共享 Textarea 组件：共享组件走 .admin-layout
-                [data-slot='textarea']，描边为 --admin-border-strong、底色 --admin-panel；
-                本输入框按设计使用更浅的 --border 描边（实测浅色下 #ECE8E2 对
-                color-mix 后的深一档），且需要 resize-y 与 --bg-card 底色。换成共享组件
-                会改变封面输入框的视觉，属设计决策，故保留手写并在此说明，避免被
-                当成遗漏而「顺手统一」。 */}
-            <textarea
-              id="cover-prompt"
-              aria-describedby="cover-prompt-hint"
-              className="min-h-[7.5rem] w-full resize-y rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-3.5 py-2.5 text-sm leading-relaxed ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              value={prompt}
-              maxLength={coverPromptMaxChars}
-              disabled={busy || taskActive || generatingPrompt}
-              onChange={(event) => {
-                const nextPrompt = limitCoverPrompt(event.target.value, coverPromptMaxChars)
-                setPrompt(nextPrompt)
-                // 手工编辑后的正文是完整 exact prompt，不能再宣称由选择器生成。
-                if (nextPrompt.trim()) {
-                  setPromptMode('exact')
-                } else {
-                  setPromptMode('auto')
-                  setPromptSourceSignature('')
-                }
-              }}
-              placeholder="留空将根据小说标题、分类和简介自动生成；也可以直接填写英文描述词。"
-            />
-            <div id="cover-prompt-hint" className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-              <p>留空自动生成，可编辑后用于生成；换一版会改变视觉变体。</p>
-              <span className={coverPromptCharCount(prompt) >= coverPromptMaxChars ? 'font-medium text-[var(--color-warning)]' : ''}>
-                {coverPromptCharCount(prompt)}/{coverPromptMaxChars}
-              </span>
-            </div>
-            {promptMetadata && (
-              <div className="grid gap-0.5 text-xs text-[var(--accent)]">
-                <p>
-                  {promptMetadata.promptMode === 'exact'
-                    ? '本版方向：完整描述词（当前配置不额外注入）'
-                    : <>本版方向：{STYLE_OPTIONS.find((option) => option.value === promptMetadata.stylePreset)?.label || promptMetadata.stylePreset} ·{' '}
-                      {COMPOSITION_OPTIONS.find((option) => option.value === promptMetadata.composition)?.label || promptMetadata.composition}</>}
-                </p>
-                {romanceDirectionLabel(promptMetadata) && <p>{romanceDirectionLabel(promptMetadata)}</p>}
+              <div className="grid gap-1.5 sm:max-w-md">
+                <Label id="cover-start-novel-label">目标小说</Label>
+                <CustomSelect
+                  options={novels.map((novel) => ({ value: novel.id, label: novel.title }))}
+                  value={novelId}
+                  onChange={selectNovel}
+                  placeholder={novelsLoading ? '正在加载书库…' : '搜索并选择小说'}
+                  searchable
+                  searchPlaceholder="搜索书名…"
+                  disabled={novelsLoading || busy || generatingPrompt || taskActive || !!candidateBusy}
+                  dropdownSide="bottom"
+                  aria-labelledby="cover-start-novel-label"
+                />
               </div>
-            )}
-            {promptConfigMismatch && (
-              <div className="grid gap-2 rounded-md border border-[color-mix(in_srgb,var(--color-warning)_45%,transparent)] bg-[color-mix(in_srgb,var(--color-warning)_10%,transparent)] p-3 text-xs leading-relaxed text-[var(--color-warning)]">
-                <p>封面设定已变化，当前描述词仍来自上一版设定。</p>
-                <div className="flex flex-wrap gap-2">
-                  <Button type="button" size="sm" variant="outline" onClick={() => { setPromptMode('exact'); setPromptSourceSignature('') }}>
-                    使用现有描述词
-                  </Button>
-                  <Button type="button" size="sm" variant="ghost" disabled={generatingPrompt || taskActive} onClick={() => void generatePrompt()}>
-                    按新设定更新
-                  </Button>
+            </div>
+
+            {!novelsLoading && recentNovels.length > 0 && (
+              <div className="grid gap-2">
+                <h4 className="text-sm font-semibold text-foreground">最近更新</h4>
+                <div className="divide-y divide-[var(--admin-line)] rounded-lg border border-[var(--admin-border)] bg-[var(--admin-panel)]">
+                  {recentNovels.map((novel) => (
+                    <button
+                      key={novel.id}
+                      type="button"
+                      className="flex w-full items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                      onClick={() => selectNovel(novel.id)}
+                      disabled={busy || generatingPrompt || taskActive || !!candidateBusy}
+                    >
+                      <div className="relative size-12 shrink-0 overflow-hidden rounded-md bg-[var(--admin-inset)]">
+                        {novel.coverUrl ? (
+                          <img src={novel.coverUrl} alt="" className="absolute inset-0 size-full object-cover" loading="lazy" />
+                        ) : (
+                          <BookOpen className="absolute inset-0 m-auto size-4 text-[var(--accent)]/50" aria-hidden="true" />
+                        )}
+                      </div>
+                      <span className="grid min-w-0 flex-1 gap-0.5">
+                        <span className="truncate text-sm font-medium text-foreground">{novel.title || '未命名小说'}</span>
+                        <span className="truncate text-xs text-muted-foreground">{novel.author || '作者未填写'}{novel.categories.length ? ` · ${novel.categories.slice(0, 3).join('、')}` : ''}</span>
+                      </span>
+                      <span className="shrink-0 text-xs text-[var(--accent)]">选择</span>
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
-            {!promptConfigMismatch && usesExactPrompt && (
-              <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-[var(--border)] bg-[var(--admin-inset)] px-3 py-2 text-xs text-[var(--accent)]">
-                <span>画面以完整描述词为准</span>
-                <Button type="button" size="sm" variant="ghost" onClick={() => { setPrompt(''); setPromptMode('auto'); setPromptSourceSignature(''); setPromptMetadata(undefined) }}>
-                  返回配置生成
-                </Button>
-              </div>
+
+            {!novelsLoading && novels.length === 0 && (
+              <p className="text-sm text-muted-foreground">{novelsLoadError ? '书库加载失败，请刷新页面后重试。' : '书库里还没有小说，请先到小说管理添加作品。'}</p>
             )}
-          </div>
-
-          {/* 生成 CTA */}
-          {/* generatingPrompt 必须进禁用条件：描述词仍在生成时放行，图片任务会读到旧值或空值，
-              而新描述词稍后才回填到输入框，界面参数与实际任务输入就对不上了。 */}
-          <Button size="lg" className="w-full gap-2" disabled={busy || taskActive || generatingPrompt || !novelId} onClick={() => void generate()}>
-            {busy || taskActive ? (
-              <>
-                <Loader2 className="size-4 animate-spin" />
-                正在生成…
-              </>
-            ) : generatingPrompt ? (
-              <>
-                <Loader2 className="size-4 animate-spin" />
-                正在准备描述词…
-              </>
-            ) : (
-              <>
-                <Sparkles className="size-4" />
-                生成封面
-              </>
-            )}
-          </Button>
-
-          {/* 任务状态 */}
-          {task && (
-            <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--admin-inset)]">
-              <div className="flex flex-wrap items-center gap-2.5 px-3.5 py-3 text-sm">
-                <span className="relative flex size-2.5">
-                  {taskActive && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--accent)] opacity-60" />}
-                  <span className={`relative inline-flex size-2.5 rounded-full ${statusDotColor(task.status)}`} />
-                </span>
-                <span className="font-medium text-foreground">{taskStatusLabel(task.status)}</span>
-                <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{task.step || '等待处理'}</span>
-                {taskActive && (
-                  <Button variant="outline" size="sm" onClick={() => void cancelTask()}>
-                    取消任务
-                  </Button>
-                )}
-              </div>
-              {taskActive && <div className="ai-task-progress" />}
-              {task.error && <p className="border-t border-[var(--border)] px-3.5 py-2 text-xs leading-relaxed text-destructive">{task.error}</p>}
-            </div>
-          )}
-        </div>
-
-        {/* 右列：画布与候选 */}
-        <div className="grid content-start gap-6 lg:border-l lg:border-[var(--admin-line)] lg:pl-8">
-          {/* 当前封面 */}
-          <section className="grid gap-3">
-            <div className="flex items-center justify-between gap-2">
-              <h3 className="text-sm font-semibold text-foreground">当前封面</h3>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/jpeg,image/png,image/webp,image/gif"
-                className="hidden"
-                onChange={(e) => void handleUploadFile(e)}
-              />
-              <Button variant="outline" size="sm" disabled={candidateBusy === 'upload' || !novelId} onClick={() => fileInputRef.current?.click()}>
-                {candidateBusy === 'upload' ? (
-                  <>
-                    <Loader2 className="size-3.5 animate-spin" />
-                    上传中…
-                  </>
-                ) : (
-                  <>
-                    <Upload className="size-3.5" />
-                    上传替换
-                  </>
-                )}
-              </Button>
-            </div>
-
-            <div className="grid justify-items-center gap-3">
-              <div className="relative w-full max-w-[13.5rem]">
-                <CoverCanvas src={previewSrc} title={selected?.title} hasNovel={!!novelId} />
-                {selected && (
-                  <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 max-w-full truncate whitespace-nowrap rounded-full border border-[var(--border)] bg-[var(--bg-card)] px-2.5 py-0.5 text-[0.7rem] text-[var(--text-muted)] shadow-sm">
-                    {selected.title}
-                  </span>
-                )}
-              </div>
-              <p className="max-w-[13.5rem] text-center text-[0.72rem] leading-relaxed text-muted-foreground">
-                上传的图片会立即替换为当前封面（读者端 /api/cover/:id 生效）；AI 生成的新封面先入候选，确认后「采纳」才会替换。
-              </p>
-            </div>
           </section>
+        ) : (
+          <>
+            <section className="grid gap-4 border-b border-[var(--admin-line)] pb-6 md:grid-cols-[6rem_minmax(0,1fr)]" aria-labelledby="cover-book-title">
+              <CoverCanvas src={previewSrc} title={`${selected.title} 当前封面`} hasNovel className="max-w-24 rounded-md" />
+              <div className="grid min-w-0 content-start gap-3">
+                <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-start">
+                  <div className="grid min-w-0 gap-1">
+                    <h3 id="cover-book-title" className="break-words text-lg font-semibold text-foreground">{selected.title || '未命名小说'}</h3>
+                    <p className="text-sm text-muted-foreground">{selected.author ? `作者：${selected.author}` : '作者未填写'} · {selected.chapterCount || 0} 章</p>
+                  </div>
+                  <div className="grid gap-1.5 sm:w-64">
+                    <Label id="cover-change-novel-label">更换小说</Label>
+                    <CustomSelect
+                      options={novels.map((novel) => ({ value: novel.id, label: novel.title }))}
+                      value={novelId}
+                      onChange={selectNovel}
+                      placeholder="搜索并选择小说"
+                      searchable
+                      searchPlaceholder="搜索书名…"
+                      disabled={busy || generatingPrompt || taskActive || !!candidateBusy}
+                      dropdownSide="bottom"
+                      aria-labelledby="cover-change-novel-label"
+                    />
+                  </div>
+                </div>
 
-          {/* AI 候选封面 */}
-          <section className="grid gap-3">
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm font-semibold text-foreground">AI 候选封面</h3>
-              {candidates.length > 0 && <Badge variant="secondary">{candidates.length}</Badge>}
-            </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge className={selected.contentRating === 'restricted' ? 'bg-destructive/10 text-destructive' : selected.contentRating === 'general' ? 'bg-info/10 text-info' : 'bg-muted text-muted-foreground'}>
+                    {CONTENT_RATING_LABELS[selected.contentRating || 'unknown']}
+                  </Badge>
+                  <Badge variant="outline">{novelStatusLabel(selected.status)}</Badge>
+                  {selected.categories.map((category) => (
+                    <Badge key={category} variant="secondary">{category}</Badge>
+                  ))}
+                </div>
 
-            {candidates.length === 0 ? (
-              <div className="grid gap-2 rounded-lg border border-dashed border-[var(--border)] bg-[var(--admin-inset)] px-4 py-8 text-center">
-                <BookOpen className="mx-auto size-5 text-[var(--accent)]/55" />
-                <p className="text-xs leading-relaxed text-muted-foreground">
-                  暂无候选。生成成功后这里会出现新封面，确认效果后可「采纳」为当前封面，不满意可「弃用」或重新生成。
-                </p>
+                <div className="grid gap-1.5 text-sm leading-relaxed">
+                  <p className="text-foreground/90">{selected.description?.trim() || '这本小说还没有简介，自动推荐会更多依赖书名和分类。'}</p>
+                  {selected.description?.trim() && selected.description.length > 320 && (
+                    <details className="text-xs text-muted-foreground">
+                      <summary className="w-fit cursor-pointer rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">展开完整简介</summary>
+                      <p className="mt-2 whitespace-pre-wrap leading-relaxed">{selected.description}</p>
+                    </details>
+                  )}
+                </div>
+
+                {showAdultMetadataNote && (
+                  <p className="flex items-start gap-2 rounded-md bg-[var(--admin-panel-muted)] px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+                    <CircleAlert className="mt-0.5 size-3.5 shrink-0 text-[var(--color-warning)]" aria-hidden="true" />
+                    限制级分级和作品标签会原样保留。自动封面分析把独立的 R18 / 成人向标签作为元数据，不转成露骨画面指令；封面场景仍保持非露骨。
+                  </p>
+                )}
               </div>
-            ) : (
-              <div className="flex flex-wrap justify-center gap-4">
-                {candidates.map((candidate, index) => (
-                  <figure key={candidate.id} className="group grid w-[9rem] gap-2">
-                    <div className="ai-cover-frame relative aspect-[2/3] w-full overflow-hidden rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] shadow-sm transition-shadow duration-200 group-hover:shadow-md">
-                      <img src={candidate.dataUrl} alt="AI 封面候选" className="transition-transform duration-300 group-hover:scale-[1.03]" />
-                      <span className="absolute left-1.5 top-1.5 rounded-full bg-[var(--overlay-bg)] px-2 py-0.5 text-xs font-medium text-white/95 backdrop-blur-sm">
-                        候选 {index + 1}
-                      </span>
+            </section>
+
+            <div className="grid items-start gap-8 xl:grid-cols-[minmax(17rem,0.86fr)_minmax(0,1.14fr)]">
+              <div className="grid min-w-0 content-start gap-5">
+                <section className="grid gap-3" aria-labelledby="cover-design-title">
+                  <div className="grid gap-1">
+                    <h3 id="cover-design-title" className="text-sm font-semibold text-foreground">本次设计方向</h3>
+                    <p className="text-xs leading-relaxed text-muted-foreground">选择风格与构图后先生成方向预览，再决定是否生成图片。</p>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="grid gap-1.5">
+                      <Label id="cover-style-label">主视觉风格</Label>
+                      <CustomSelect options={STYLE_OPTIONS} value={stylePreset} onChange={setStylePreset} disabled={busy || generatingPrompt || taskActive || usesExactPrompt} placeholder="选择主视觉风格" dropdownSide="bottom" aria-labelledby="cover-style-label" />
                     </div>
-                    <figcaption className="grid gap-1.5">
-                      <div className="flex gap-1.5">
-                        <Button size="sm" className="flex-1 gap-1" disabled={!!candidateBusy} onClick={() => void adopt(candidate)}>
-                          {candidateBusy === candidate.id ? (
-                            <>
-                              <Loader2 className="size-3.5 animate-spin" />
-                              处理中
-                            </>
-                          ) : (
-                            '采纳'
-                          )}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={!!candidateBusy}
-                          onClick={() => void discard(candidate)}
-                          aria-label="弃用该候选"
-                          title="弃用"
-                        >
-                          <Trash2 className="size-3.5" />
-                        </Button>
-                      </div>
-                      {candidate.prompt && <p className="line-clamp-2 text-[0.7rem] leading-snug text-muted-foreground">{candidate.prompt}</p>}
-                      {candidate.metadata?.promptMode === 'exact' ? (
-                        <div className="text-[0.68rem] leading-snug text-[var(--accent)]">完整描述词 · 当前配置不额外注入</div>
-                      ) : candidate.metadata && (candidate.metadata.stylePreset || candidate.metadata.composition) ? (
-                        <div className="grid gap-0.5 text-[0.68rem] leading-snug text-[var(--accent)]">
-                          <p>
-                            {STYLE_OPTIONS.find((option) => option.value === candidate.metadata?.stylePreset)?.label || candidate.metadata.stylePreset} ·{' '}
-                            {COMPOSITION_OPTIONS.find((option) => option.value === candidate.metadata?.composition)?.label || candidate.metadata.composition}
-                          </p>
-                          {romanceDirectionLabel(candidate.metadata) && <p>{romanceDirectionLabel(candidate.metadata)}</p>}
-                        </div>
-                      ) : null}
-                    </figcaption>
-                  </figure>
-                ))}
-              </div>
-            )}
-          </section>
+                    <div className="grid gap-1.5">
+                      <Label id="cover-composition-label">构图方向</Label>
+                      <CustomSelect options={COMPOSITION_OPTIONS} value={composition} onChange={setComposition} disabled={busy || generatingPrompt || taskActive || usesExactPrompt} placeholder="选择构图方向" dropdownSide="bottom" aria-labelledby="cover-composition-label" />
+                    </div>
+                  </div>
 
-          {/* 封面历史：仅选中小说的快照，供误替换后回滚 */}
-          {novelId && (
-            <CoverHistory
-              novelId={novelId}
-              coverVersion={coverVersion}
-              onRestored={() => setCoverVersion((v) => v + 1)}
-              onCurrentVersion={setCurrentCoverVersion}
-            />
-          )}
-        </div>
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    {STYLE_OPTIONS.find((option) => option.value === stylePreset)?.sub || '自动结合题材推荐画风。'} {composition === 'auto' ? '构图会随变体变化。' : `构图：${COMPOSITION_OPTIONS.find((option) => option.value === composition)?.label || composition}。`}
+                  </p>
+
+                  <div className="flex items-center justify-between gap-3 border-y border-[var(--admin-line)] py-3">
+                    <div className="grid gap-0.5">
+                      <span className="text-sm font-medium text-foreground">渲染书名与作者</span>
+                      <span className="text-xs leading-relaxed text-muted-foreground">需要模型支持中文文字渲染。</span>
+                    </div>
+                    <Switch checked={renderTitle} disabled={busy || generatingPrompt || taskActive || usesExactPrompt} onCheckedChange={setRenderTitle} aria-label="生成封面时渲染书名和作者" />
+                  </div>
+                </section>
+
+                <section className="grid gap-3 rounded-lg bg-[var(--admin-inset)] p-4" aria-labelledby="cover-understanding-title" aria-live="polite">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="grid gap-0.5">
+                      <h3 id="cover-understanding-title" className="text-sm font-semibold text-foreground">AI 对本书的理解</h3>
+                      <p className="text-xs text-muted-foreground">根据当前小说简介与分类提炼，仅用于本次封面。</p>
+                    </div>
+                    {!usesExactPrompt && promptMetadata && (
+                      <Button type="button" variant="ghost" size="sm" disabled={busy || taskActive || generatingPrompt} onClick={() => void generatePrompt(true)}>
+                        <Wand2 className="size-3.5" />
+                        换一个画面方向
+                      </Button>
+                    )}
+                  </div>
+
+                  {usesExactPrompt ? (
+                    <p className="text-sm leading-relaxed text-muted-foreground">当前使用完整描述词，画面由你填写的内容决定，风格与构图选项不会额外注入。</p>
+                  ) : promptMetadata?.storyBrief ? (
+                    <div className="grid gap-3 text-sm leading-relaxed">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant="secondary">{GENRE_LABELS[promptMetadata.genre || promptMetadata.storyBrief.genre] || promptMetadata.genre || promptMetadata.storyBrief.genre}</Badge>
+                        {promptMetadata.contentMode === 'non_explicit' && <Badge variant="outline">非露骨封面</Badge>}
+                      </div>
+                      {promptMetadata.storyBrief.premise && <p className="text-foreground">{promptMetadata.storyBrief.premise}</p>}
+                      {promptMetadata.storyBrief.mood.length > 0 && (
+                        <p><span className="font-medium text-foreground">情绪：</span>{promptMetadata.storyBrief.mood.join('、')}</p>
+                      )}
+                      {promptMetadata.storyBrief.facts.length > 0 && (
+                        <p><span className="font-medium text-foreground">依据：</span>{promptMetadata.storyBrief.facts.slice(0, 4).map((fact) => `${FACT_LABELS[fact.kind] || '信息'}：${fact.value}`).join(' · ')}</p>
+                      )}
+                      {promptMetadata.visualSummary && !promptConfigMismatch && (
+                        <p><span className="font-medium text-foreground">画面提议：</span>{promptMetadata.visualSummary}</p>
+                      )}
+                      {promptMetadata.storyBrief.unknowns.length > 0 && (
+                        <p className="text-muted-foreground"><span className="font-medium text-foreground">资料未说明：</span>{promptMetadata.storyBrief.unknowns.join('、')}</p>
+                      )}
+                      {(promptConfigMismatch || promptMetadata.degraded || promptMetadata.storyBrief.degraded) && (
+                        <p className="flex items-start gap-2 text-xs text-[var(--color-warning)]">
+                          <CircleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+                          {promptConfigMismatch ? '风格或构图已变化；当前方向预览仍对应上一组设置，请按新设置重新生成。' : '本次方向使用了降级信息，建议核对画面描述后再生成。'}
+                        </p>
+                      )}
+                    </div>
+                  ) : promptMetadata ? (
+                    <div className="grid gap-2 text-sm leading-relaxed">
+                      <p>{GENRE_LABELS[promptMetadata.genre || ''] || promptMetadata.genre || '已生成视觉方向'}</p>
+                      {romanceDirectionLabel(promptMetadata) && <p>{romanceDirectionLabel(promptMetadata)}</p>}
+                      {promptMetadata.storySetting && <p>故事场景：{promptMetadata.storySetting}</p>}
+                      {promptMetadata.visualAnchor && <p>画面重点：{promptMetadata.visualAnchor}</p>}
+                      <p className="text-xs text-muted-foreground">当前服务返回的是旧版方向摘要；你仍可在高级设置中核对完整描述词。</p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">生成后会显示识别的题材、故事依据、情绪和画面提议。书籍的 R18 分类只作为分级标签，不会自动变成露骨画面要求。</p>
+                      <Button type="button" variant="outline" size="sm" disabled={busy || taskActive || generatingPrompt} onClick={() => void generatePrompt()}>
+                        {generatingPrompt ? <Loader2 className="size-3.5 animate-spin" /> : <Wand2 className="size-3.5" />}
+                        {generatingPrompt ? '正在分析…' : '生成方向预览'}
+                      </Button>
+                    </div>
+                  )}
+                </section>
+
+                {!imageConfigured && (
+                  <div className="flex items-start gap-2.5 rounded-lg border border-[color-mix(in_srgb,var(--color-warning)_45%,transparent)] bg-[color-mix(in_srgb,var(--color-warning)_12%,transparent)] px-3.5 py-3 text-sm leading-relaxed text-[var(--color-warning)]">
+                    <CircleAlert className="mt-0.5 size-4 shrink-0" />
+                    <p>AI 图像服务未配置。请到「AI 配置」设置图像供应商后再生成。</p>
+                  </div>
+                )}
+
+                <details open={advancedOpen || promptConfigMismatch} onToggle={(event) => setAdvancedOpen(event.currentTarget.open)} className="group grid gap-3 rounded-lg border border-[var(--border)] px-3.5 py-3">
+                  <summary className="cursor-pointer text-sm font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">高级设置与完整描述词</summary>
+                  <div className="grid gap-4 border-t border-[var(--admin-line)] pt-3">
+                    <div className="grid gap-1.5">
+                      <Label id="cover-platform-label">目标平台版式</Label>
+                      <CustomSelect options={PLATFORM_OPTIONS} value={platform} onChange={setPlatform} disabled={busy || generatingPrompt || taskActive || usesExactPrompt} placeholder="通用竖版 2:3" dropdownSide="bottom" aria-labelledby="cover-platform-label" />
+                      <p className="text-xs leading-relaxed text-muted-foreground">调整平台版式与文字安全区，不决定主视觉画风。</p>
+                    </div>
+
+                    <div className="grid gap-1.5">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <Label htmlFor="cover-prompt">完整描述词</Label>
+                        <span className={coverPromptCharCount(prompt) >= coverPromptMaxChars ? 'text-xs font-medium text-[var(--color-warning)]' : 'text-xs text-muted-foreground'}>
+                          {coverPromptCharCount(prompt)}/{coverPromptMaxChars}
+                        </span>
+                      </div>
+                      <textarea
+                        id="cover-prompt"
+                        aria-describedby="cover-prompt-hint"
+                        className="min-h-[8rem] w-full resize-y rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-3.5 py-2.5 text-sm leading-relaxed ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                        value={prompt}
+                        maxLength={coverPromptMaxChars}
+                        disabled={busy || taskActive || generatingPrompt}
+                        onChange={(event) => {
+                          const nextPrompt = limitCoverPrompt(event.target.value, coverPromptMaxChars)
+                          setPrompt(nextPrompt)
+                          if (nextPrompt.trim()) {
+                            setPromptMode('exact')
+                            setPromptSourceSignature('')
+                          } else {
+                            setPromptMode('auto')
+                            setPromptSourceSignature('')
+                            setPromptMetadata(undefined)
+                          }
+                        }}
+                        placeholder="先生成方向预览；你也可以在这里直接填写完整描述词。"
+                      />
+                      <p id="cover-prompt-hint" className="text-xs leading-relaxed text-muted-foreground">手动填写后将按完整描述词生成，平台、风格和构图选项不额外注入。</p>
+
+                      {promptConfigMismatch && (
+                        <div className="grid gap-2 rounded-md border border-[color-mix(in_srgb,var(--color-warning)_45%,transparent)] bg-[color-mix(in_srgb,var(--color-warning)_10%,transparent)] p-3 text-xs leading-relaxed text-[var(--color-warning)]">
+                          <p>风格或构图已变化，完整描述词仍来自上一版设置。</p>
+                          <div className="flex flex-wrap gap-2">
+                            <Button type="button" size="sm" variant="outline" onClick={() => { setPromptMode('exact'); setPromptSourceSignature('') }}>保留当前描述词</Button>
+                            <Button type="button" size="sm" variant="ghost" disabled={generatingPrompt || taskActive} onClick={() => void generatePrompt()}>按新设置更新方向</Button>
+                          </div>
+                        </div>
+                      )}
+
+                      {!promptConfigMismatch && usesExactPrompt && (
+                        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-[var(--admin-panel-muted)] px-3 py-2 text-xs text-muted-foreground">
+                          <span>当前由完整描述词控制画面。</span>
+                          <Button type="button" size="sm" variant="ghost" onClick={() => { setPrompt(''); setPromptMode('auto'); setPromptSourceSignature(''); setPromptMetadata(undefined) }}>返回配置生成</Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </details>
+
+                {/* 描述词仍在生成时禁止提交，确保任务使用屏幕上已确认的方向。 */}
+                <Button size="lg" className="w-full gap-2" disabled={!canGenerateCover} onClick={() => void generate()}>
+                  {busy || taskActive ? (
+                    <><Loader2 className="size-4 animate-spin" />封面生成中…</>
+                  ) : (
+                    <><Sparkles className="size-4" />{candidates.length ? '保留方向，重新生成候选' : '按本次方向生成封面'}</>
+                  )}
+                </Button>
+
+                {task && (
+                  <div className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--admin-inset)]">
+                    <div className="flex flex-wrap items-center gap-2.5 px-3.5 py-3 text-sm">
+                      <span className="relative flex size-2.5">
+                        {taskActive && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--accent)] opacity-60" />}
+                        <span className={`relative inline-flex size-2.5 rounded-full ${statusDotColor(task.status)}`} />
+                      </span>
+                      <span className="font-medium text-foreground">{taskStatusLabel(task.status)}</span>
+                      {taskNovel && task.novelId !== novelId && <span className="text-xs text-muted-foreground">任务作品：{taskNovel.title}</span>}
+                      <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{task.step || '等待处理'}</span>
+                      {taskActive && <Button variant="outline" size="sm" onClick={() => void cancelTask()}>取消任务</Button>}
+                    </div>
+                    {taskActive && <div className="ai-task-progress" />}
+                    {task.error && <p className="border-t border-[var(--border)] px-3.5 py-2 text-xs leading-relaxed text-destructive">{task.error}</p>}
+                  </div>
+                )}
+              </div>
+
+              <div className="grid min-w-0 content-start gap-6">
+                <section className="grid gap-3" aria-labelledby="cover-comparison-title">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="grid gap-0.5">
+                      <h3 id="cover-comparison-title" className="text-sm font-semibold text-foreground">当前封面与候选</h3>
+                      <p className="text-xs text-muted-foreground">图片使用相同尺寸，点开可查看大图。</p>
+                    </div>
+                    <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="hidden" onChange={(event) => void handleUploadFile(event)} />
+                    <Button variant="outline" size="sm" disabled={candidateBusy === 'upload' || !novelId} onClick={() => fileInputRef.current?.click()}>
+                      {candidateBusy === 'upload' ? <><Loader2 className="size-3.5 animate-spin" />上传中…</> : <><Upload className="size-3.5" />上传替换</>}
+                    </Button>
+                  </div>
+
+                  <p className="text-xs leading-relaxed text-muted-foreground">AI 图片先保存为候选；采纳后才替换读者端封面。历史记录可恢复之前的版本。</p>
+
+                  <div className="flex flex-wrap items-start gap-4">
+                    <figure className="grid min-w-[min(100%,10rem)] max-w-[13rem] flex-[1_1_10rem] gap-2">
+                      <div className="relative">
+                        <CoverCanvas
+                          src={previewSrc}
+                          title={`${selected.title} 当前封面`}
+                          hasNovel
+                          className="rounded-md"
+                          onPreview={previewSrc ? () => setPreviewImage({ src: previewSrc, title: `${selected.title} · 当前封面` }) : undefined}
+                        />
+                        <Badge className="pointer-events-none absolute left-2 top-2">线上使用中</Badge>
+                      </div>
+                      <figcaption className="grid gap-1">
+                        <span className="truncate text-sm font-medium text-foreground">{selected.title}</span>
+                        <span className="text-xs text-muted-foreground">当前封面</span>
+                      </figcaption>
+                    </figure>
+
+                    {candidatesLoading ? (
+                      <div className="flex min-h-44 flex-1 items-center justify-center gap-2 text-sm text-muted-foreground" aria-live="polite">
+                        <Loader2 className="size-4 animate-spin" />正在读取候选…
+                      </div>
+                    ) : candidateError ? (
+                      <div className="grid flex-1 content-center justify-items-start gap-2 rounded-lg bg-[var(--admin-panel-muted)] p-4 text-sm">
+                        <p className="text-muted-foreground">{candidateError}</p>
+                        <Button variant="outline" size="sm" onClick={() => void loadCandidates(novelId)}>重试</Button>
+                      </div>
+                    ) : candidates.length === 0 ? (
+                      <div className="grid min-h-44 flex-1 content-center gap-2 rounded-lg border border-dashed border-[var(--border)] bg-[var(--admin-inset)] px-4 py-5">
+                        <p className="text-sm font-medium text-foreground">还没有待比较的候选</p>
+                        <p className="text-xs leading-relaxed text-muted-foreground">生成封面后，新版本会出现在这里。确认满意后再采纳，线上封面不会被生成过程直接覆盖。</p>
+                      </div>
+                    ) : (
+                      candidates.map((candidate, index) => (
+                        <figure key={candidate.id} className="grid min-w-[min(100%,10rem)] max-w-[13rem] flex-[1_1_10rem] gap-2">
+                          <div className="relative">
+                            <CoverCanvas
+                              src={candidate.dataUrl}
+                              title={`${selected.title} 候选 ${index + 1}`}
+                              hasNovel
+                              className="rounded-md"
+                              onPreview={() => setPreviewImage({ src: candidate.dataUrl, title: `${selected.title} · 候选 ${index + 1}` })}
+                            />
+                            <Badge variant="secondary" className="pointer-events-none absolute left-2 top-2">候选 {index + 1}</Badge>
+                          </div>
+                          <figcaption className="grid gap-2">
+                            <span className="text-xs text-muted-foreground">{candidateTime(candidate.createdAt)}</span>
+                            {candidate.metadata && (candidate.metadata.stylePreset || candidate.metadata.composition) ? (
+                              <div className="grid gap-0.5 text-xs text-muted-foreground">
+                                <p>{STYLE_OPTIONS.find((option) => option.value === candidate.metadata?.stylePreset)?.label || candidate.metadata.stylePreset} · {COMPOSITION_OPTIONS.find((option) => option.value === candidate.metadata?.composition)?.label || candidate.metadata.composition}</p>
+                                {candidate.metadata.promptMode === 'exact' && <p>本次方向已写入完整描述词</p>}
+                                {romanceDirectionLabel(candidate.metadata) && <p>{romanceDirectionLabel(candidate.metadata)}</p>}
+                              </div>
+                            ) : candidate.metadata?.promptMode === 'exact' ? <p className="text-xs text-muted-foreground">完整描述词</p> : null}
+                            {candidate.metadata?.contentMode === 'non_explicit' && <p className="text-xs text-muted-foreground">封面画面保持非露骨</p>}
+                            {candidate.metadata?.visualSummary && <p className="line-clamp-3 text-xs leading-relaxed text-foreground/90">{candidate.metadata.visualSummary}</p>}
+                            <div className="flex gap-1.5">
+                              <Button size="sm" className="flex-1" disabled={!!candidateBusy} onClick={() => void adopt(candidate)}>
+                                {candidateBusy === candidate.id ? <><Loader2 className="size-3.5 animate-spin" />处理中</> : '采纳'}
+                              </Button>
+                              <Button size="sm" variant="outline" disabled={!!candidateBusy} onClick={() => void discard(candidate)} aria-label={`弃用候选 ${index + 1}`} title="弃用">
+                                <Trash2 className="size-3.5" />
+                              </Button>
+                            </div>
+                            {candidate.prompt && (
+                              <details className="text-xs text-muted-foreground">
+                                <summary className="w-fit cursor-pointer rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">查看完整描述词</summary>
+                                <p className="mt-2 max-h-48 overflow-y-auto whitespace-pre-wrap break-words leading-relaxed">{candidate.prompt}</p>
+                              </details>
+                            )}
+                          </figcaption>
+                        </figure>
+                      ))
+                    )}
+                  </div>
+                </section>
+
+                <CoverHistory
+                  novelId={novelId}
+                  coverVersion={coverVersion}
+                  onRestored={() => setCoverVersion((version) => version + 1)}
+                  onCurrentVersion={setCurrentCoverVersion}
+                />
+              </div>
+            </div>
+          </>
+        )}
       </CardContent>
+
+      <Dialog open={!!previewImage} onOpenChange={(open) => !open && setPreviewImage(null)}>
+        <DialogContent className="max-h-[94vh] max-w-5xl overflow-hidden">
+          <DialogHeader>
+            <DialogTitle>{previewImage?.title || '封面预览'}</DialogTitle>
+          </DialogHeader>
+          {previewImage && <img src={previewImage.src} alt={previewImage.title} className="mx-auto max-h-[78vh] max-w-full object-contain" />}
+        </DialogContent>
+      </Dialog>
     </Card>
   )
 }

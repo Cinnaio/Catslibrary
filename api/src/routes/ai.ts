@@ -895,6 +895,7 @@ aiRoutes.post('/cover/generate', requireAdmin(), async (c) => {
         variationId,
         promptMode,
         prompt,
+        ...(promptMode === 'exact' && body.promptMetadata ? { promptMetadata: body.promptMetadata } : {}),
         promptPipelineVersion: COVER_PROMPT_PIPELINE_VERSION,
         taskId: task.id,
         ...(await auditRequestContext(c, db)),

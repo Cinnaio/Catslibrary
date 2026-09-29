@@ -56,6 +56,7 @@ import {
   prepareCoverMaterial,
   renderCoverVisualConcept,
   type CoverStoryBrief,
+  type CoverFact,
   type CoverVisualConcept,
 } from './cover-brief'
 
@@ -113,6 +114,18 @@ export interface CoverPromptMetadata {
   promptTemplateVersion?: number
   promptPipelineVersion?: number
   contentMode?: CoverStoryBrief['contentMode']
+  /** 面向封面工作台的解释性摘要；只记录已验证的题材事实，不包含原始简介全文。 */
+  storyBrief?: {
+    genre: Genre
+    premise: string
+    facts: Array<{ kind: CoverFact['kind']; value: string; sourceField: CoverFact['sourceField'] }>
+    mood: string[]
+    unknowns: string[]
+    contentMode: CoverStoryBrief['contentMode']
+    degraded?: string
+  }
+  /** 本次视觉方案的简短画面描述，供管理员生成前核对。 */
+  visualSummary?: string
   degraded?: string
 }
 
@@ -150,7 +163,14 @@ function buildCoverPromptMetadata(
   direction: CoverDirection,
   variationId: string,
   romanceDNA: RomanceVisualDNA | null,
-  opts: { promptTemplateVersion?: number; promptPipelineVersion?: number; contentMode?: CoverStoryBrief['contentMode']; degraded?: string } = {},
+  opts: {
+    promptTemplateVersion?: number
+    promptPipelineVersion?: number
+    contentMode?: CoverStoryBrief['contentMode']
+    storyBrief?: CoverStoryBrief
+    visualSummary?: string
+    degraded?: string
+  } = {},
 ): CoverPromptMetadata {
   return {
     genre,
@@ -163,6 +183,20 @@ function buildCoverPromptMetadata(
     promptTemplateVersion: opts.promptTemplateVersion || COVER_PROMPT_TEMPLATE_VERSION,
     ...(opts.promptPipelineVersion ? { promptPipelineVersion: opts.promptPipelineVersion } : {}),
     ...(opts.contentMode ? { contentMode: opts.contentMode } : {}),
+    ...(opts.storyBrief
+      ? {
+          storyBrief: {
+            genre: opts.storyBrief.genre,
+            premise: opts.storyBrief.premise,
+            facts: opts.storyBrief.facts.map(({ kind, value, sourceField }) => ({ kind, value, sourceField })),
+            mood: opts.storyBrief.mood,
+            unknowns: opts.storyBrief.unknowns,
+            contentMode: opts.storyBrief.contentMode,
+            ...(opts.storyBrief.degraded ? { degraded: opts.storyBrief.degraded } : {}),
+          },
+        }
+      : {}),
+    ...(opts.visualSummary ? { visualSummary: opts.visualSummary } : {}),
     ...(opts.degraded ? { degraded: opts.degraded } : {}),
     ...(romanceDNA
       ? {
@@ -354,6 +388,8 @@ async function buildImagePromptV3(meta: NovelMeta, opts: CoverPromptOptions): Pr
         promptTemplateVersion: COVER_PROMPT_PIPELINE_VERSION,
         promptPipelineVersion: COVER_PROMPT_PIPELINE_VERSION,
         contentMode: brief.contentMode,
+        storyBrief: brief,
+        visualSummary: renderCoverVisualConcept(concept, direction.composition),
         degraded,
       }),
       phase: 'template',
@@ -413,6 +449,8 @@ async function buildImagePromptV3(meta: NovelMeta, opts: CoverPromptOptions): Pr
           promptTemplateVersion: COVER_PROMPT_PIPELINE_VERSION,
           promptPipelineVersion: COVER_PROMPT_PIPELINE_VERSION,
           contentMode: brief.contentMode,
+          storyBrief: brief,
+          visualSummary: renderCoverVisualConcept(concept, direction.composition),
           degraded,
         }),
         phase: 'scene',
@@ -427,6 +465,8 @@ async function buildImagePromptV3(meta: NovelMeta, opts: CoverPromptOptions): Pr
       promptTemplateVersion: COVER_PROMPT_PIPELINE_VERSION,
       promptPipelineVersion: COVER_PROMPT_PIPELINE_VERSION,
       contentMode: brief.contentMode,
+      storyBrief: brief,
+      visualSummary: renderCoverVisualConcept(concept, direction.composition),
       degraded,
     }),
     textUsage,
@@ -801,6 +841,87 @@ function metadataForCustomPrompt(meta: NovelMeta, opts: CoverPromptOptions, vari
 }
 
 /**
+ * 自动方向预览会以 exact prompt 原样提交给图像模型。保存候选时只保留经过长度
+ * 限制的展示摘要，帮助后续比较；它不参与 prompt 生成或安全策略判断。
+ */
+function normalizeGeneratedPromptMetadata(value: unknown, variationId: string): Partial<CoverPromptMetadata> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  let serialized = ''
+  try {
+    serialized = JSON.stringify(value)
+  } catch {
+    return {}
+  }
+  if (serialized.length > 6_000) return {}
+
+  const source = value as Record<string, unknown>
+  if (source.promptMode !== 'auto' || String(source.variationId || '') !== variationId) return {}
+
+  const cleanText = (input: unknown, maxLength: number) =>
+    String(input ?? '')
+      .replace(/[\u0000-\u001f\u007f]/gu, ' ')
+      .replace(/\s+/gu, ' ')
+      .trim()
+      .slice(0, maxLength)
+  const cleanList = (input: unknown, maxItems: number, maxLength: number) =>
+    Array.isArray(input) ? [...new Set(input.map((item) => cleanText(item, maxLength)).filter(Boolean))].slice(0, maxItems) : []
+
+  const contentMode = ['non_explicit', 'explicit_requested', 'unknown'].includes(String(source.contentMode))
+    ? (String(source.contentMode) as CoverPromptMetadata['contentMode'])
+    : 'unknown'
+  const normalized: Partial<CoverPromptMetadata> = {
+    variationId,
+    promptMode: 'exact',
+    configurationApplied: false,
+    contentMode,
+  }
+
+  const genre = cleanText(source.genre, 40)
+  if (genre) normalized.genre = genre as Genre
+  if (Array.isArray(source.genres)) normalized.genres = cleanList(source.genres, 4, 40) as Genre[]
+  const stylePreset = cleanText(source.stylePreset, 64)
+  if (stylePreset) normalized.stylePreset = stylePreset as NonNullable<CoverPromptMetadata['stylePreset']>
+  const composition = cleanText(source.composition, 64)
+  if (composition) normalized.composition = composition as NonNullable<CoverPromptMetadata['composition']>
+
+  const rawBrief = source.storyBrief
+  if (rawBrief && typeof rawBrief === 'object' && !Array.isArray(rawBrief)) {
+    const brief = rawBrief as Record<string, unknown>
+    const allowedKinds = new Set(['person', 'setting', 'object', 'event', 'relationship', 'mood', 'premise'])
+    const allowedFields = new Set(['title', 'categories', 'description'])
+    const facts = Array.isArray(brief.facts)
+      ? brief.facts.slice(0, 8).flatMap((item) => {
+          if (!item || typeof item !== 'object' || Array.isArray(item)) return []
+          const fact = item as Record<string, unknown>
+          const kind = String(fact.kind || '')
+          const sourceField = String(fact.sourceField || '')
+          const text = cleanText(fact.value, 120)
+          if (!allowedKinds.has(kind) || !allowedFields.has(sourceField) || !text) return []
+          return [{ kind: kind as CoverFact['kind'], value: text, sourceField: sourceField as CoverFact['sourceField'] }]
+        })
+      : []
+    const briefGenre = cleanText(brief.genre, 40)
+    normalized.storyBrief = {
+      genre: (briefGenre || genre || 'light') as Genre,
+      premise: cleanText(brief.premise, 240),
+      facts,
+      mood: cleanList(brief.mood, 3, 40),
+      unknowns: cleanList(brief.unknowns, 6, 60),
+      contentMode: ['non_explicit', 'explicit_requested', 'unknown'].includes(String(brief.contentMode))
+        ? (String(brief.contentMode) as CoverStoryBrief['contentMode'])
+        : 'unknown',
+      ...(cleanText(brief.degraded, 200) ? { degraded: cleanText(brief.degraded, 200) } : {}),
+    }
+  }
+
+  const visualSummary = cleanText(source.visualSummary, 1_200)
+  if (visualSummary) normalized.visualSummary = visualSummary
+  const degraded = cleanText(source.degraded, 200)
+  if (degraded) normalized.degraded = degraded
+  return normalized
+}
+
+/**
  * 为小说生成封面。
  * - 调用方可传 taskId（路由侧先建任务再异步执行），或不传（自建任务）。
  * - 失败时把任务标记为 failed 并带 error；成功标记 completed。
@@ -823,6 +944,8 @@ export async function generateNovelCover(
     variationId?: string
     promptMode?: CoverPromptMode
     prompt?: string
+    /** 仅当 exact prompt 来自本服务自动方向预览时保留可供比较的展示摘要。 */
+    promptMetadata?: unknown
     /** 新任务使用资料 brief 流水线；旧任务由重试编排器显式传 2。 */
     promptPipelineVersion?: number
     ipAddress?: string
@@ -872,7 +995,10 @@ export async function generateNovelCover(
     const built = customPrompt
       ? {
           prompt: customPrompt,
-          metadata: metadataForCustomPrompt(meta, { ...opts, novelId: opts.novelId, variationId, promptMode }, variationId),
+          metadata: {
+            ...metadataForCustomPrompt(meta, { ...opts, novelId: opts.novelId, variationId, promptMode }, variationId),
+            ...normalizeGeneratedPromptMetadata(opts.promptMetadata, variationId),
+          },
           textUsage: null,
         }
       : await buildImagePrompt(meta, {

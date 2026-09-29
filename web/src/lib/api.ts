@@ -1465,6 +1465,18 @@ export interface AiCoverMetadata {
   visualConcept?: string
   visualAnchor?: string
   storySetting?: string
+  contentMode?: 'non_explicit' | 'explicit_requested' | 'unknown'
+  storyBrief?: {
+    genre: string
+    premise: string
+    facts: Array<{ kind: string; value: string; sourceField: 'title' | 'categories' | 'description' }>
+    mood: string[]
+    unknowns: string[]
+    contentMode: 'non_explicit' | 'explicit_requested' | 'unknown'
+    degraded?: string
+  }
+  visualSummary?: string
+  degraded?: string
 }
 
 export interface AiCoverCandidate {
@@ -1643,6 +1655,7 @@ export const aiApi = {
       stylePreset?: string
       composition?: string
       variationId?: string
+      promptMetadata?: AiCoverMetadata
       operationId?: string
     } = {},
   ): Promise<{ ok: boolean; taskId: string; batchId: string; total: number }> {
@@ -1659,6 +1672,7 @@ export const aiApi = {
         stylePreset: opts.stylePreset,
         composition: opts.composition,
         variationId: opts.variationId,
+        promptMetadata: opts.promptMetadata,
         operationId,
       },
       true,

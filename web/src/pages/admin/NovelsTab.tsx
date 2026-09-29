@@ -20,7 +20,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableCaption, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
-import { ArrowDown, ArrowUp, BookOpen, CirclePlus, ChevronsUpDown, FileUp, Pencil, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, BookOpen, CirclePlus, ChevronsUpDown, FileUp, Palette, Pencil, Trash2 } from 'lucide-react'
 import AdminPage from '@/components/admin/AdminPage'
 import AdminRowActions from '@/components/admin/AdminRowActions'
 import AdminSelectionBar from '@/components/admin/AdminSelectionBar'
@@ -689,6 +689,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
                         // 阅读是只读出口，编辑是日常主操作，两者常驻；
                         // 删除低频且不可逆，收进菜单以免与主操作同权重并列。
                         { label: '查看详情', icon: BookOpen, onSelect: () => navigate(`/novel/${encodeURIComponent(n.id)}`) },
+                        { label: '生成封面', icon: Palette, onSelect: () => navigate(`/admin/ai?sub=cover&novel=${encodeURIComponent(n.id)}`) },
                         { label: '删除小说', icon: Trash2, onSelect: () => void handleDelete(n), danger: true },
                       ]}
                     >
