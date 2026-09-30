@@ -462,6 +462,7 @@ struct ReaderView: View {
                 }
                 .padding(.horizontal, sideInset + 22)
                 .padding(.top, 18)
+                .padding(.bottom, 24)
                 // 固定正文容器宽度，字号变化时只重新排版，不让 SwiftUI 重新猜测横向尺寸。
                 .frame(width: min(geo.size.width, 720))
                 .frame(maxWidth: .infinity)
@@ -473,6 +474,11 @@ struct ReaderView: View {
             .id(scrollIdentity)
             .ignoresSafeArea(edges: .horizontal)
             .background(paper)
+            // 使用系统滚动边缘材质连接正文和固定导航/底部玻璃控制。
+            .scrollEdgeEffectStyle(.soft, for: .top)
+            .scrollEdgeEffectStyle(.soft, for: .bottom)
+            // 收起底栏仍保留安全区高度以稳定正文位置，但移除底部边缘效果。
+            .scrollEdgeEffectHidden(!showChrome, for: .bottom)
             .contentShape(Rectangle())
             .accessibilityHint("轻点中央显示阅读控制；使用顶部和底部按钮切换目录、设置和章节")
             .accessibilityAction(named: showChrome ? "隐藏阅读控制" : "显示阅读控制") {
@@ -495,12 +501,6 @@ struct ReaderView: View {
                         edgeSwipeProgress = 0
                     }
             )
-            .overlay(alignment: .top) {
-                readerEdgeBlur(isTop: true)
-            }
-            .overlay(alignment: .bottom) {
-                readerEdgeBlur(isTop: false)
-            }
             // 控制区放进 ScrollView 的安全区，滚动到末尾时也不会压住正文。
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 readerChrome
@@ -621,12 +621,6 @@ struct ReaderView: View {
         .onChange(of: currentPage) { _, page in
             updatePageProgress(page)
         }
-        .overlay(alignment: .top) {
-            readerEdgeBlur(isTop: true)
-        }
-        .overlay(alignment: .bottom) {
-            readerEdgeBlur(isTop: false)
-        }
         // 与滚动模式一致，控制区占据真实安全区而不是盖在页面上。
         .safeAreaInset(edge: .bottom, spacing: 0) {
             readerChrome
@@ -680,25 +674,6 @@ struct ReaderView: View {
         } else {
             toggleChrome()
         }
-    }
-
-    private func readerEdgeBlur(isTop: Bool) -> some View {
-        Rectangle()
-            .fill(.ultraThinMaterial)
-            .overlay(paper.opacity(0.12))
-            .mask {
-                LinearGradient(
-                    colors: isTop
-                        ? [.black.opacity(0.38), .clear]
-                        : [.clear, .black.opacity(0.38)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            }
-            .frame(height: 26)
-            .frame(maxWidth: .infinity)
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
     }
 
     private func handleScrollTap(x: CGFloat, width: CGFloat) {
@@ -802,7 +777,6 @@ struct ReaderView: View {
         .padding(.bottom, 12)
         .frame(maxWidth: .infinity)
         .frame(height: readerChromeHeight, alignment: .bottom)
-        .background(paper)
         .opacity(showChrome ? 1 : 0)
         .allowsHitTesting(showChrome)
         .accessibilityHidden(!showChrome)
