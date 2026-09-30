@@ -63,7 +63,7 @@ final class AppState {
             isBooting = false
             syncAccountStateInBackground()
             return
-        } catch is APIError {
+        } catch let error as APIError {
             if APIClient.shared.token != restoreToken {
                 if !APIClient.shared.isAuthenticated {
                     await deactivateLocalAccount(clearOfflineFallback: true)
