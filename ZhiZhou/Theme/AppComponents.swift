@@ -25,6 +25,8 @@ enum AppLayout {
     // MARK: 封面规格
     /// 列表行缩略图（小说管理、发现候选等）。
     static let coverListThumbnail = CGSize(width: 56, height: 72)
+    /// 小说详情页封面，所有屏幕尺寸和文字大小使用同一尺寸。
+    static let coverDetail = CGSize(width: 112, height: 160)
     /// 发现页候选缩略图，比例同列表缩略图但更大。
     static let coverDiscoverThumbnail = CGSize(width: 60, height: 80)
     /// 封面生成页的历史记录缩略图。

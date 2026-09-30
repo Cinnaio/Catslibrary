@@ -543,15 +543,13 @@ struct NovelDetailView: View {
         Group {
             if compact && !dynamicTypeSize.isAccessibilitySize {
                 HStack(alignment: .center, spacing: 20) {
-                    bookCover(size: CGSize(width: 88, height: 126))
+                    bookCover
                     bookInformation(centered: false)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
             } else {
                 VStack(spacing: 18) {
-                    bookCover(size: dynamicTypeSize.isAccessibilitySize
-                        ? CGSize(width: 88, height: 126)
-                        : CGSize(width: 128, height: 184))
+                    bookCover
                     bookInformation(centered: true)
                 }
                 .frame(maxWidth: .infinity)
@@ -559,12 +557,12 @@ struct NovelDetailView: View {
         }
     }
 
-    private func bookCover(size: CGSize) -> some View {
+    private var bookCover: some View {
         CachedAsyncImage(
             url: APIClient.shared.coverURL(novelId: currentNovel.id, updatedAt: currentNovel.updatedAt),
-            targetSize: size
+            targetSize: AppLayout.coverDetail
         ) { image in
-            image.resizable().scaledToFit()
+            image.resizable().scaledToFill()
         } placeholder: {
             ZStack {
                 AppTheme.surfaceSecondary
@@ -573,7 +571,7 @@ struct NovelDetailView: View {
                     .foregroundStyle(AppTheme.primary)
             }
         }
-        .frame(width: size.width, height: size.height)
+        .frame(width: AppLayout.coverDetail.width, height: AppLayout.coverDetail.height)
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .shadow(color: AppTheme.cardShadow, radius: 10, y: 5)
         .accessibilityHidden(true)
