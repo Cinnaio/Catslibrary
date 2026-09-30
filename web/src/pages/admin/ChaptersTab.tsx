@@ -7,6 +7,7 @@ import { useToast, useConfirm } from '../../components/feedback'
 import CustomSelect from '../../components/admin/CustomSelect'
 import Pagination from '../../components/admin/Pagination'
 import { ADMIN_DEFAULT_PAGE_SIZE, ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pagination'
+import { getAdminTableRowStaggerDelay } from '@/lib/admin-table-motion'
 import { useDialogFocus, useDialogHotkeys } from '@/hooks/useDialogHotkeys'
 import { adminApi, chaptersApi, newOperationId, scrapeApi, type SourceSyncPreview, type TitleSource, type TitleSourceSearchResponse } from '../../lib/api'
 import { timeAgo } from '../../lib/format'
@@ -496,7 +497,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
               <TableHead scope="col">操作</TableHead>
             </TableRow>
           </TableHeader>
-          <TableBody>
+          <TableBody key={pageSize}>
             {!selectedNovel ? (
               <TableRow>
                 <TableCell colSpan={CHAPTER_COLUMNS.length} className="table-empty">
@@ -510,8 +511,8 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
                 </TableCell>
               </TableRow>
             ) : (
-              pageRows.map((c) => (
-                <TableRow key={c.id}>
+              pageRows.map((c, index) => (
+                <TableRow key={c.id} style={{ animationDelay: `${getAdminTableRowStaggerDelay(index, pageRows.length)}ms` }}>
                   <TableCell data-check="">
                     <Checkbox aria-label={`选择章节：第${c.order}章 ${c.title}`} checked={selectedIds.has(c.id)} onCheckedChange={() => toggleSelect(c.id)} />
                   </TableCell>

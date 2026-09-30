@@ -6921,8 +6921,12 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   animation-delay: calc(var(--admin-table-row-stagger-step) * 8);
 }
 
-/* 小说页按当前渲染的行数统一入场；行数和延迟由页面数据共同计算。 */
+/* 小说与章节页按当前渲染的行数统一入场；行数和延迟由页面数据共同计算。 */
 .admin-redesign-page--novels > .novels-data-panel [data-slot='table-body'] > [data-slot='table-row'] {
+  animation: admin-tab-row-enter var(--admin-table-row-enter) both;
+}
+
+.admin-redesign-page--chapters .chapter-directory-panel [data-slot='table-body'] > [data-slot='table-row'] {
   animation: admin-tab-row-enter var(--admin-table-row-enter) both;
 }
 
@@ -6966,6 +6970,10 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   }
 
   .admin-redesign-page--novels > .novels-data-panel [data-slot='table-body'] > [data-slot='table-row'] {
+    animation: none;
+  }
+
+  .admin-redesign-page--chapters .chapter-directory-panel [data-slot='table-body'] > [data-slot='table-row'] {
     animation: none;
   }
 }

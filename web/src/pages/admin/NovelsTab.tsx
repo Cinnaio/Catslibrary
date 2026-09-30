@@ -10,6 +10,7 @@ import { useConfirm, useToast } from '../../components/feedback'
 import CustomSelect from '../../components/admin/CustomSelect'
 import Pagination from '../../components/admin/Pagination'
 import { ADMIN_DEFAULT_PAGE_SIZE, ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pagination'
+import { getAdminTableRowStaggerDelay } from '@/lib/admin-table-motion'
 import { useDialogFocus, useDialogHotkeys } from '@/hooks/useDialogHotkeys'
 import type { ContentRating, Novel } from '@shared/types'
 import { Badge } from '@/components/ui/badge'
@@ -46,10 +47,6 @@ const NOVEL_COLUMNS: readonly AdminColumn[] = [
   { key: 'updated', label: '更新', width: '8%' },
   { key: 'actions', actions: true, width: '11%' },
 ]
-
-// 延续原先 8 × 30ms 的错峰窗口，并按当前页行数重新分配每行延迟。
-const NOVEL_ROW_STAGGER_WINDOW_MS = 240
-const NOVEL_ROW_STAGGER_BASE_COUNT = 8
 
 /** 分级徽章文案与配色。unknown 用弱化中性色，避免被误读成「一般」。 */
 const RATING_BADGE: Record<ContentRating, { label: string; className: string }> = {
@@ -650,9 +647,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
                   key={n.id}
                   className={n.id === highlightId ? 'novel-row--highlight' : undefined}
                   style={{
-                    animationDelay: `${Math.round(
-                      ((index + 1) * NOVEL_ROW_STAGGER_WINDOW_MS) / Math.max(novels.length, NOVEL_ROW_STAGGER_BASE_COUNT),
-                    )}ms`,
+                    animationDelay: `${getAdminTableRowStaggerDelay(index, novels.length)}ms`,
                   }}
                 >
                   <TableCell data-check="">
