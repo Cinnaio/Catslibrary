@@ -47,6 +47,10 @@ const NOVEL_COLUMNS: readonly AdminColumn[] = [
   { key: 'actions', actions: true, width: '11%' },
 ]
 
+// 延续原先 8 × 30ms 的错峰窗口，并按当前页行数重新分配每行延迟。
+const NOVEL_ROW_STAGGER_WINDOW_MS = 240
+const NOVEL_ROW_STAGGER_BASE_COUNT = 8
+
 /** 分级徽章文案与配色。unknown 用弱化中性色，避免被误读成「一般」。 */
 const RATING_BADGE: Record<ContentRating, { label: string; className: string }> = {
   general: { label: '一般', className: 'bg-info/10 text-info' },
@@ -615,7 +619,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
               <TableHead scope="col">操作</TableHead>
             </TableRow>
           </TableHeader>
-          <TableBody>
+          <TableBody key={pageSize}>
             {loading ? (
               <TableRow>
                 <TableCell colSpan={NOVEL_COLUMNS.length} className="table-empty">
@@ -629,8 +633,16 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
                 </TableCell>
               </TableRow>
             ) : (
-              novels.map((n) => (
-                <TableRow key={n.id} className={n.id === highlightId ? 'novel-row--highlight' : undefined}>
+              novels.map((n, index) => (
+                <TableRow
+                  key={n.id}
+                  className={n.id === highlightId ? 'novel-row--highlight' : undefined}
+                  style={{
+                    animationDelay: `${Math.round(
+                      ((index + 1) * NOVEL_ROW_STAGGER_WINDOW_MS) / Math.max(novels.length, NOVEL_ROW_STAGGER_BASE_COUNT),
+                    )}ms`,
+                  }}
+                >
                   <TableCell data-check="">
                     <Checkbox aria-label={`选择小说：${n.title}`} checked={selected.has(n.id)} onCheckedChange={() => toggleRow(n.id)} />
                   </TableCell>
