@@ -412,9 +412,6 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
       className="admin-redesign-page admin-redesign-page--chapters"
       title="章节管理"
       description="按作品维护目录与正文，搜索和批量操作只作用于当前作品。"
-      meta={
-        selectedNovel ? (search ? `匹配 ${filtered.length} / 共 ${chapters.length} 章` : `共 ${chapters.length} 章`) : `${novelOptions.length || '—'} 部作品`
-      }
       actions={
         <>
           <CustomSelect

@@ -432,8 +432,6 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
   const invites = data?.invites || []
   const schemaHealth = data?.schemaHealth
 
-  const activeCount = users.filter((u) => u.status !== 'disabled').length
-  const adminCount = users.filter((u) => u.role === 'admin').length
   const spent = invites.filter((i) => i.usedAt > 0 || i.disabledAt > 0).length
   const available = invites.length - spent
   const loginAuditPages = Math.max(1, Math.ceil(loginAuditTotal / loginAuditLimit))
@@ -475,35 +473,18 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
     return labels[action] || action
   }
 
-  // 页头计数胶囊：每个子页只放一个定位用的规模数字（见 DESIGN.md · Admin Page Anatomy），
-  // 它替代原先那块会把页头与数据面板隔开的 AdminMetricStrip。
-  //
-  // 数据库结构体检也拼进这一串：它原先被塞进 actions，把一颗只读徽章放进了操作区。
-  // 两者合成**一个**字符串而非两个并列节点——meta 插槽自己就带竖线与小字号，
-  // 传入多个节点会渲染出多余的分隔符（页头出现两条竖线）。
-  const accountHeaderMeta = (() => {
-    const parts: string[] = []
-    if (currentAccountTab === 'users') {
-      if (users.length) parts.push(`${users.length} 人 · 活跃 ${activeCount} · 管理员 ${adminCount}`)
-    } else if (currentAccountTab === 'registration') {
-      if (invites.length) parts.push(`邀请码 ${invites.length} 个 · 可用 ${available}`)
-    } else if (currentAccountTab === 'audit') {
-      if (loginAuditTotal) parts.push(`${loginAuditTotal} 条登录记录`)
-    } else if (operationAuditTotal) {
-      parts.push(`${operationAuditTotal} 条操作记录`)
-    }
-    // 结构体检只在异常时进页头：正常是常态，常态不该占页头的位置。
-    if (schemaHealth && !schemaHealth.ok) parts.push(`数据库缺失 ${(schemaHealth.missing || []).join('、')}`)
-    return parts.length ? parts.join(' · ') : undefined
-  })()
-
   return (
     <AdminPage
       className="admin-redesign-page admin-redesign-page--settings"
       title={currentAccountMeta.title}
-      meta={accountHeaderMeta}
       description={currentAccountMeta.description}
     >
+      {schemaHealth && !schemaHealth.ok && (
+        <div className="account-schema-warning" role="alert">
+          <strong>数据库结构检查未通过</strong>
+          {schemaHealth.missing.length > 0 && <span>缺失字段：{schemaHealth.missing.join('、')}</span>}
+        </div>
+      )}
       {currentAccountTab === 'registration' && (
         <Card className="admin-panel-card">
           <CardHeader>

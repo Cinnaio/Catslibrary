@@ -977,7 +977,6 @@ export default function ContentRatingsTab() {
     <AdminPage
       className="admin-redesign-page--content-ratings"
       title="分级管理"
-      meta={data ? `${formatNumber(data.total)} 本` : undefined}
       description="维护书库的分级结果与判定依据，人工修改必须留下理由，未标注不会被当作一般。"
       actions={
         <>

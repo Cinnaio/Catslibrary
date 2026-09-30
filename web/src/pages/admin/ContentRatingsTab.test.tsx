@@ -187,19 +187,19 @@ describe('ContentRatingsTab', () => {
     expect(screen.getByText('规则预填')).toBeInTheDocument()
     expect(screen.getByText('分类：成人')).toBeInTheDocument()
     expect(screen.getByText('修订 3')).toBeInTheDocument()
-    // 概览不再单独占一块指标条：页头只留「本数」胶囊，判定缺口随分级筛选器同处一行。
-    expect(screen.getByText('1 本')).toBeInTheDocument()
+    // 总数不跟在页名后；判定缺口仍贴着分级筛选器。
+    expect(document.querySelector('.admin-tab-header__meta')).toBeNull()
     expect(screen.getByText(/待标注 2 · 限制级 1/)).toBeInTheDocument()
   })
 
-  it('页头收在一行：标题 + 本数胶囊在左，搜索与页面操作在右', async () => {
+  it('页头收在一行：标题单独显示，搜索与页面操作在右', async () => {
     render(<ContentRatingsTab />)
     await screen.findByText('潮汐之后')
 
     const header = document.querySelector('.admin-tab-header')
     expect(header).not.toBeNull()
     expect(screen.getByRole('heading', { level: 2, name: /分级管理/ })).toBeInTheDocument()
-    expect(header?.querySelector('.admin-tab-header__meta')).toHaveTextContent('本')
+    expect(header?.querySelector('.admin-tab-header__meta')).toBeNull()
     // 搜索框属于页头动作区，不再是面板工具条里的一段
     expect(header?.querySelector('.admin-search')).not.toBeNull()
     expect(screen.getByRole('button', { name: /刷新账本/ })).toBeInTheDocument()

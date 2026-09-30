@@ -1,6 +1,6 @@
 /**
  * AdminTabHeader —— 所有后台 tab 共用的页头。
- * 一套解剖：标题 + 可选元信息胶囊 + 描述在左，操作区在右。
+ * 一套解剖：标题与描述在左，操作区在右。标题行不附加元信息。
  *
  * 曾接受 kicker（眉标）与 variant（'hero' | 'section'）两个 prop：
  * 两个值渲染出的 DOM 完全相同，即「英雄页头」与普通页头视觉上无从区分——
@@ -13,7 +13,6 @@ import { cn } from '@/lib/utils'
 interface AdminTabHeaderProps {
   title: string
   description?: string
-  meta?: ReactNode
   actions?: ReactNode
   className?: string
 }
@@ -21,7 +20,6 @@ interface AdminTabHeaderProps {
 export default function AdminTabHeader({
   title,
   description,
-  meta,
   actions,
   className,
 }: AdminTabHeaderProps) {
@@ -33,14 +31,7 @@ export default function AdminTabHeader({
       )}
     >
       <div className="min-w-0">
-        <h2 className="flex flex-wrap items-center gap-x-2 gap-y-1 text-2xl font-bold tracking-tight text-foreground">
-          {title}
-          {meta != null && meta !== '' && (
-            <span className="admin-tab-header__meta">
-              {meta}
-            </span>
-          )}
-        </h2>
+        <h2 className="text-2xl font-bold tracking-tight text-foreground">{title}</h2>
         {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
       </div>
       {actions && (

@@ -380,16 +380,6 @@ export default function SourcesView({ active }: { active: boolean }) {
       <AdminTabHeader
         title="书源管理"
         description="批量导入 Legado 社区书源池，智能分析小说时自动按 host 匹配书源选择器。仅消费书源规则数据，转换器为项目自研。"
-        actions={
-          <div className="source-header__stats" aria-label="书源统计">
-            <Badge variant="secondary">总数 {total}</Badge>
-            <Badge variant="secondary">已启用 {enabledCount}</Badge>
-            <Badge className="bg-success/10 text-success">可用 {bySupport.full || 0}</Badge>
-            <Badge className="bg-warning/10 text-warning">需核验 {bySupport.partial || 0}</Badge>
-            <Badge className="bg-secondary text-muted-foreground">不支持 {bySupport.unsupported || 0}</Badge>
-            <Badge className="bg-destructive/10 text-destructive">不可访问 {unreachableCount}</Badge>
-          </div>
-        }
       />
 
       {/* Import card */}
@@ -442,7 +432,20 @@ export default function SourcesView({ active }: { active: boolean }) {
         </AdminDataPanel>
 
         <AdminDataPanel className="source-panel" ariaLabel="书源列表">
-          <AdminPanelHeading title="书源目录" description="管理已导入的书源规则、支持度与连接状态。" />
+          <AdminPanelHeading
+            title="书源目录"
+            description="管理已导入的书源规则、支持度与连接状态。"
+            status={
+              <div className="source-directory__stats" aria-label="书源统计">
+                <Badge variant="secondary">总数 {total}</Badge>
+                <Badge variant="secondary">已启用 {enabledCount}</Badge>
+                <Badge className="bg-success/10 text-success">可用 {bySupport.full || 0}</Badge>
+                <Badge className="bg-warning/10 text-warning">需核验 {bySupport.partial || 0}</Badge>
+                <Badge className="bg-secondary text-muted-foreground">不支持 {bySupport.unsupported || 0}</Badge>
+                <Badge className="bg-destructive/10 text-destructive">不可访问 {unreachableCount}</Badge>
+              </div>
+            }
+          />
           <AdminToolbar className="source-panel__bar">
             <div className="source-panel__cluster source-panel__cluster--primary">
               <div className="source-panel__filter-group">

@@ -28,15 +28,6 @@ export { AiWritingPanel, AiGenerationsPanel, AiParamsPanel }
 const VALID_SUBS = ['writing', 'cover', 'tasks', 'content', 'usage', 'audit', 'config', 'params'] as const
 type SubTab = (typeof VALID_SUBS)[number]
 
-/**
- * 需要「服务已连接」这句状态才有意义的子页：不配置供应商就什么都干不了的地方。
- *
- * 其余子页不显示它——「参数调优」调的是本地参数（温度、上限、提示词），
- * 「调用审计」读的是已经发生的记录，「AI 配置」本身就是配置的地方；
- * 在它们头上钉一句连接状态，只是把同一句话复制到 8 个页头，读者两次之后就当它不存在了。
- */
-const SUBTABS_SHOWING_PROVIDER_STATE = new Set<SubTab>(['writing', 'cover', 'tasks', 'content', 'usage'])
-
 const AI_SUBTAB_META: Record<SubTab, { title: string; description: string }> = {
   writing: { title: 'AI 创作', description: '组织大纲、章节与续写任务，保留现有创作上下文。' },
   cover: { title: '封面生成', description: '生成、比较并应用小说封面候选图。' },
@@ -111,7 +102,6 @@ export default function AiTab() {
     <AdminPage
       title={currentMeta.title}
       description={currentMeta.description}
-      meta={SUBTABS_SHOWING_PROVIDER_STATE.has(currentSubTab) ? (provider?.configured ? '服务已连接' : loading ? '读取配置中' : '未配置') : undefined}
       className="admin-redesign-page admin-redesign-page--ai ai-admin-page ai-service"
       actions={
         <Button variant="secondary" size="sm" onClick={() => void load()} disabled={loading}>

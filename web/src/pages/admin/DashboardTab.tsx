@@ -98,7 +98,6 @@ export default function DashboardTab(_props: { highlightNovelId?: string; onHigh
     <AdminPage
       className="admin-redesign-page admin-redesign-page--dashboard"
       title="后台总览"
-      meta={totals ? `${formatNumber(totals.novels)} 本 · ${formatNumber(totals.chapters)} 章 · 待标注 ${formatNumber(contentRating.unknown)} 本` : undefined}
       description="书库、抓取任务和站点数据的即时状态。"
       actions={
         <Button variant="secondary" size="sm" onClick={() => void load(true)} disabled={loading}>

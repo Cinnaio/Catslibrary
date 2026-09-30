@@ -3917,7 +3917,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 }
 
 /* 书源目录工具栏按“筛选 / 搜索与操作”保持一条稳定的工作行；
-   统计信息上移到页面标题右侧，避免把同一组状态重复压在目录工具栏里。 */
+   统计信息与书源目录标题配对展示，不与筛选控件混排。 */
 .admin-redesign-page--sources .source-panel__bar {
   grid-template-columns: minmax(0, 1fr) max-content;
   gap: var(--admin-space-3) var(--admin-space-4);
@@ -3943,7 +3943,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   flex-wrap: nowrap;
 }
 
-.admin-redesign-page--sources .source-header__stats {
+.admin-redesign-page--sources .source-directory__stats {
   display: flex;
   max-width: min(100%, 38rem);
   flex-wrap: wrap;
@@ -3952,7 +3952,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   gap: 0.5rem;
 }
 
-.admin-redesign-page--sources .source-header__stats [data-slot='badge'] {
+.admin-redesign-page--sources .source-directory__stats [data-slot='badge'] {
   white-space: nowrap;
 }
 
@@ -3978,7 +3978,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 }
 
 @media (max-width: 640px) {
-  .admin-redesign-page--sources .source-header__stats {
+  .admin-redesign-page--sources .source-directory__stats {
     justify-content: flex-start;
   }
 
@@ -4239,26 +4239,10 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   line-height: 1.4;
 }
 
-.admin-tab-header__meta {
-  display: inline-flex;
-  align-items: center;
-  align-self: center;
-  gap: 0.35rem;
-  margin-left: 0.35rem;
-  border-left: 1px solid var(--admin-border-strong);
-  padding-left: 0.65rem;
-  color: var(--text-muted);
-  font-size: 0.72rem;
-  font-weight: 500;
-  letter-spacing: 0.01em;
-  line-height: 1.35;
-  white-space: nowrap;
-}
-
 /* .detail-kicker 的定义已移除（2026-09-23）。
    它是前台类名（detail.css:33），本文件无 @layer 且最后导入，这里的声明会静默
    压掉前台的 color/字号/字重/字距——品牌棕变成弱化灰、850 变 750。
-   后台若需要同类小标题，用 .admin-tab-header__meta 或新起 .admin-* 命名。 */
+   后台若需要同类小标题，应放在所属面板中，不在页名后追加元信息。 */
 
 /* 后台面板表面。scrape 步进卡 / 任务卡通过组合 .admin-panel-card 复用，不再另立覆写。
    注意：本文件无 @layer，故这条压过 Tailwind 的 @layer utilities —— 调 import 顺序会静默失效。 */
@@ -4874,24 +4858,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 }
 .scrape-summary__row:nth-child(-n + 2) dd {
   color: var(--accent);
-}
-
-/* 页头 meta 胶囊（AdminTabHeader meta prop） */
-.scrape-center-hero__meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--admin-space-2);
-  justify-content: flex-end;
-}
-.scrape-center-hero__meta span {
-  display: inline-flex;
-  align-items: center;
-  padding: var(--admin-space-1) var(--admin-space-2);
-  border: 1px solid var(--admin-border);
-  border-radius: var(--radius-full);
-  background: var(--admin-panel-muted);
-  color: var(--text-secondary);
-  font-weight: 650;
 }
 
 /* Step 2 · 小说信息确认表单 —— 以步进卡自身宽度为容器查询基准（容器查询按内容宽度重排，不依赖视口） */
@@ -6177,10 +6143,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   }
   /* .form-group 的定义已移除（2026-09-23）：前台由 components.css:790 与
      mobile.css:444 承担（本断点下同为 12px），后台面板用 --admin-space-*。 */
-  .scrape-center-hero__meta {
-    justify-content: flex-start;
-  }
-
   .input-row,
   .admin-action-row {
     align-items: stretch;
@@ -6600,6 +6562,25 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   border-bottom: 0;
 }
 
+.account-schema-warning {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--admin-space-1) var(--admin-space-2);
+  border: 1px solid color-mix(in srgb, var(--color-warning) 38%, var(--admin-border));
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--color-warning) 8%, var(--admin-panel));
+  padding: var(--admin-space-3) var(--admin-space-4);
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.account-schema-warning strong {
+  color: var(--color-warning);
+  font-weight: 650;
+}
+
 .admin-redesign-page--novels .admin-tab-header__actions .admin-search {
   width: min(20rem, 100%);
   max-width: 20rem;
@@ -6607,7 +6588,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 }
 
 /* ——— 单行账本式页头的通用几何（DESIGN.md · Admin Page Anatomy） ———
-   页头是一行：左侧标题 + 计数胶囊 + 描述，右侧该页的看家动作。
+   页头是一行：左侧标题与描述，右侧该页的看家动作。
    下列页面各自只覆盖两处与范本不同的地方（是否留底线、搜索框多宽），
    动作区的排布、换行与不压缩规则统一由下面这组基础选择器提供——
    此前只有小说管理页有这套规则，其余页面各写各的，收口在 2026-09-25。 */
@@ -6668,12 +6649,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   max-width: 18rem;
   flex: 0 1 18rem;
 }
-
-/* 页头元信息位只由 .admin-tab-header__meta 承载（竖线、间距、0.72rem 都在那里）。
-   2026-09-25 撤掉三个重复实现：__meta-inline / __status--ok / __status--bad 各自
-   又写了一遍 border-left + padding-left + 0.72rem，与 __meta 叠加后页头出现两条
-   竖线（`参数调优 || 服务已连接`）。调用方现在只往 meta 插槽里放内容，
-   样式一律由 __meta 提供；状态与计数用文字本身区分，不再靠底色块。 */
 
 /* 用量统计面板标题栏里的合计读数：贴着它汇总的那张图，是次级文字而非大数字。 */
 .ai-usage-totals {
@@ -6793,11 +6768,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   font-size: var(--admin-page-title-size);
   letter-spacing: -0.04em;
   line-height: 1.15;
-}
-
-.admin-redesign-page .admin-tab-header__meta {
-  margin-left: 0.25rem;
-  padding-left: 0.75rem;
 }
 
 .admin-data-panel {

@@ -61,7 +61,6 @@ export default function ContentPolicyTab() {
     <AdminPage
       className="admin-redesign-page admin-redesign-page--content-policy"
       title="内容安全"
-      meta={loading ? undefined : adultContentEnabled ? '成人模式已启用' : '成人模式已关闭'}
       description="控制读者是否可以主动切换并查看限制级内容。"
       actions={
         <Button variant="secondary" size="sm" onClick={() => void load()} disabled={loading || saving}>

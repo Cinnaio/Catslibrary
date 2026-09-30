@@ -571,14 +571,19 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
     : error
       ? error
       : `暂时没有符合当前筛选条件的${cfg.label}，可以切换类型或放宽筛选条件。`
-  const listStatusLabel = loading ? '读取中' : error ? '读取失败' : rows.length > 0 ? `显示 ${rows.length} 条` : '暂无内容'
+  const listStatusLabel = loading
+    ? '读取中'
+    : error
+      ? '读取失败'
+      : rows.length > 0
+        ? total !== null ? `显示 ${rows.length} / 共 ${total} 条` : `显示 ${rows.length} 条`
+        : '暂无内容'
 
   return (
     <AdminPage
       className="admin-redesign-page admin-redesign-page--moderation"
       title="内容审核"
       description="把想法、评论与举报放进同一条审核队列，先判断内容，再执行可见性操作。"
-      meta={total !== null ? `共 ${total} 条` : '读取中'}
       actions={
         <Button variant="secondary" onClick={() => void load()} disabled={loading}>
           {loading ? '刷新中…' : '刷新队列'}

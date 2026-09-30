@@ -167,20 +167,10 @@ export default function SiteOperationsTab() {
   const mobileVisits = traffic?.devices.find((item) => item.key === 'mobile')?.visits || 0
   const maxCountryVisits = Math.max(1, ...countries.map((item) => item.visits))
 
-  /* 页头计数胶囊：每个子页只放一个定位用的规模数字——它回答「这个视图覆盖多大范围」，
-     是筛选器与图表标题都替代不了的信息。原先的 AdminMetricStrip 把同样的数字抬成
-     1.45rem 的独立表面，与卡片标题里的口径重复（见 DESIGN.md 的 The No-Third-Pass Rule）。 */
-  const headerMeta = currentOperationTab === 'overview'
-    ? (metrics ? `${metrics.todayPageViews.toLocaleString()} PV / ${metrics.todayVisitors.toLocaleString()} UV` : undefined)
-    : currentOperationTab === 'traffic'
-      ? `${(metrics?.weekPageViews || 0).toLocaleString()} PV / ${(metrics?.weekVisitors || 0).toLocaleString()} UV（近 7 日）`
-      : `${(data?.contentHealth.novels || 0).toLocaleString()} 本 / ${(data?.contentHealth.categories.length || 0).toLocaleString()} 个分类`
-
   return (
     <AdminPage
       className="admin-redesign-page admin-redesign-page--site-operations site-operations"
       title={currentOperationMeta.title}
-      meta={data ? headerMeta : undefined}
       description={currentOperationMeta.description}
       actions={
         <>
@@ -214,6 +204,8 @@ export default function SiteOperationsTab() {
                 newComments={data?.contentHealth.newComments || 0}
                 openReports={data?.contentHealth.openReports || 0}
                 recognizedCountries={countries.length}
+                todayPageViews={metrics?.todayPageViews}
+                todayVisitors={metrics?.todayVisitors}
               />
             </div>
           </>}
@@ -223,6 +215,7 @@ export default function SiteOperationsTab() {
               <AdminPanelHeading
                 title={<span className="admin-panel-title"><Route className="size-4" aria-hidden="true" />近 7 日访问趋势</span>}
                 description="PV 与去重后的访客数，按站点服务器日期聚合。"
+                status={metrics && <span className="admin-panel-status">{metrics.weekPageViews.toLocaleString()} PV · {metrics.weekVisitors.toLocaleString()} UV</span>}
               />
               <CardContent>
                 {chartData.length ? <TrafficChart data={chartData} /> : <p className="py-20 text-center text-sm text-muted-foreground">{loading ? '正在汇总访问数据…' : '暂无访问数据'}</p>}
@@ -248,7 +241,12 @@ export default function SiteOperationsTab() {
 
           {currentOperationTab === 'content' && <>
             <div className="grid gap-4 lg:grid-cols-2">
-              <CategoryDistribution categories={data?.contentHealth.categories || []} loading={loading} onSelect={(category) => void openNovelList({ category }, `分类：${category}`)} />
+              <CategoryDistribution
+                categories={data?.contentHealth.categories || []}
+                totalNovels={data?.contentHealth.novels || 0}
+                loading={loading}
+                onSelect={(category) => void openNovelList({ category }, `分类：${category}`)}
+              />
               <div className="grid content-start gap-4">
                 <ContentQuality health={data?.contentHealth} onSelect={(quality, title) => void openNovelList({ quality }, title)} />
                 <UpdateActivity health={data?.contentHealth} onSelect={() => void openNovelList({ sort: 'updated_at' }, '最近更新作品')} />
@@ -303,12 +301,13 @@ function PopularNovels({ novels, loading }: { novels: Overview['popularNovels'];
   return <Card><AdminPanelHeading title={<span className="admin-panel-title"><BarChart3 className="size-4" aria-hidden="true" />近 7 日热门作品</span>} /><CardContent>{novels.length ? novels.map((novel, index) => <div key={novel.novelId} className="flex items-center justify-between gap-3 border-b border-border py-3 last:border-0"><span className="min-w-0 truncate text-sm text-foreground">{index + 1}. {novel.title}</span><span className="shrink-0 text-xs tabular-nums text-muted-foreground">{novel.views.toLocaleString()} PV</span></div>) : <p className="py-8 text-center text-sm text-muted-foreground">{loading ? '正在汇总访问数据…' : '暂无访问数据'}</p>}</CardContent></Card>
 }
 
-function CategoryDistribution({ categories, loading, onSelect }: { categories: Overview['contentHealth']['categories']; loading: boolean; onSelect: (category: string) => void }) {
+function CategoryDistribution({ categories, totalNovels, loading, onSelect }: { categories: Overview['contentHealth']['categories']; totalNovels: number; loading: boolean; onSelect: (category: string) => void }) {
   const max = Math.max(1, ...categories.map((item) => item.novels))
   return <Card>
     <AdminPanelHeading
       title={<span className="admin-panel-title"><BarChart3 className="size-4" aria-hidden="true" />分类分布</span>}
       description="按作品标注的分类统计，单部作品可计入多个分类；点击分类查看作品。"
+      status={<span className="admin-panel-status">{totalNovels.toLocaleString()} 本 · {categories.length.toLocaleString()} 个分类</span>}
     />
     <CardContent>
       {categories.length ? <div className="space-y-3">{categories.slice(0, 10).map((item) => <button key={item.category} type="button" className="block w-full text-left" onClick={() => onSelect(item.category)} title={`查看${item.category}分类作品`}>
@@ -391,14 +390,31 @@ function UpdateActivity({ health, onSelect }: { health?: Overview['contentHealth
   </Card>
 }
 
-function OperationPulse({ activeReaders, newComments, openReports, recognizedCountries }: { activeReaders: number; newComments: number; openReports: number; recognizedCountries: number }) {
+function OperationPulse({
+  activeReaders,
+  newComments,
+  openReports,
+  recognizedCountries,
+  todayPageViews,
+  todayVisitors,
+}: {
+  activeReaders: number
+  newComments: number
+  openReports: number
+  recognizedCountries: number
+  todayPageViews?: number
+  todayVisitors?: number
+}) {
+  const todayTraffic = todayPageViews !== undefined && todayVisitors !== undefined
+    ? `今日 ${todayPageViews.toLocaleString()} PV · ${todayVisitors.toLocaleString()} UV`
+    : undefined
   const items = [
     ['活跃读者', `${activeReaders.toLocaleString()} 人`],
     ['新增评论', `${newComments.toLocaleString()} 条`],
     ['待处理举报', `${openReports.toLocaleString()} 项`],
     ['地区覆盖', recognizedCountries ? `${recognizedCountries} 个地区` : '尚未识别'],
   ]
-  return <Card><AdminPanelHeading title={<span className="admin-panel-title"><Route className="size-4" aria-hidden="true" />本周运营关注</span>} description="优先处理需要人工跟进的站点信号。" /><CardContent className="pt-0"><dl className="grid grid-cols-2 gap-x-6 gap-y-4">{items.map(([label, value]) => <div key={label} className="border-t border-border pt-3"><dt className="text-xs text-muted-foreground">{label}</dt><dd className="mt-1 text-sm font-semibold tabular-nums text-foreground">{value}</dd></div>)}</dl></CardContent></Card>
+  return <Card><AdminPanelHeading title={<span className="admin-panel-title"><Route className="size-4" aria-hidden="true" />本周运营关注</span>} description="优先处理需要人工跟进的站点信号。" status={todayTraffic && <span className="admin-panel-status">{todayTraffic}</span>} /><CardContent className="pt-0"><dl className="grid grid-cols-2 gap-x-6 gap-y-4">{items.map(([label, value]) => <div key={label} className="border-t border-border pt-3"><dt className="text-xs text-muted-foreground">{label}</dt><dd className="mt-1 text-sm font-semibold tabular-nums text-foreground">{value}</dd></div>)}</dl></CardContent></Card>
 }
 
 function TrafficChart({ data }: { data: Overview['traffic']['dailyTrend'] }) {
