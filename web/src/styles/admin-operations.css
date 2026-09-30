@@ -9410,7 +9410,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 
 .admin-redesign-page--scrape .scrape-discovery > .scrape-discovery__list {
   overflow: visible;
-  margin-top: 1rem;
+  margin-top: 0;
   margin-bottom: 0;
   border: 0;
   border-radius: 0;
