@@ -29,8 +29,8 @@ enum ImageCache {
         config.urlCache = sharedCache
         config.httpCookieStorage = .shared
         config.httpShouldSetCookies = true
-        // Cache-Control: no-cache lets URLCache persist image bytes while
-        // requiring a server authorization check before each reuse.
+        // Per-request policies below let cover images prefer local URLCache data,
+        // while other images continue to follow their response cache directives.
         config.requestCachePolicy = .useProtocolCachePolicy
         config.timeoutIntervalForRequest = 20
         config.timeoutIntervalForResource = 40
@@ -53,7 +53,9 @@ enum ImageCache {
 
     static func request(for url: URL) -> URLRequest {
         var request = URLRequest(url: url)
-        request.cachePolicy = .useProtocolCachePolicy
+        // Cover images are reused directly from URLCache after their first successful fetch.
+        // Cache keys remain partitioned by the credentials used to fetch each image.
+        request.cachePolicy = isCoverURL(url) ? .returnCacheDataElseLoad : .useProtocolCachePolicy
         if isAPIURL(url), let token = APIClient.shared.token, !token.isEmpty {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
@@ -72,7 +74,7 @@ enum ImageCache {
             && base.port == candidate.port
     }
 
-    static func requiresServerValidation(for url: URL) -> Bool {
+    private static func isCoverURL(_ url: URL) -> Bool {
         isAPIURL(url) && url.path.hasPrefix("/api/cover/")
     }
 }
@@ -214,27 +216,23 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
                 return
             }
             let key = taskKey
-            let requiresServerValidation = ImageCache.requiresServerValidation(for: url)
-            if loadedKey == key, image != nil, !requiresServerValidation { return }
-            if requiresServerValidation || (loadedKey != nil && loadedKey != key) {
-                // URL 变化时清除旧封面；封面再次出现时也先清空旧图，等服务器完成授权校验。
+            if loadedKey == key, image != nil { return }
+            if loadedKey != nil && loadedKey != key {
+                // URL 或访问凭证变化时，不把上一张图短暂显示在新资源位置。
                 image = nil
                 loadedKey = nil
             }
             loadFailed = false
             let maxPixel = max(targetSize.width, targetSize.height) * displayScale
             guard !Task.isCancelled else { return }
-            if !requiresServerValidation,
-               let cached = ImageCache.decodedImageCache.object(forKey: key as NSString) {
+            if let cached = ImageCache.decodedImageCache.object(forKey: key as NSString) {
                 image = cached
                 loadedKey = key
                 return
             }
             if let img = await Self.fetch(url, maxPixel: maxPixel) {
                 guard !Task.isCancelled else { return }
-                if !requiresServerValidation {
-                    ImageCache.decodedImageCache.setObject(img, forKey: key as NSString, cost: Self.imageCost(img))
-                }
+                ImageCache.decodedImageCache.setObject(img, forKey: key as NSString, cost: Self.imageCost(img))
                 image = img
                 loadedKey = key
             } else if !Task.isCancelled {
