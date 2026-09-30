@@ -9422,10 +9422,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   border-color: var(--admin-border);
 }
 
-.admin-redesign-page--scrape .scrape-discovery__row:first-child {
-  border-top: 1px solid var(--admin-border);
-}
-
 .admin-redesign-page--scrape .scrape-discovery__row:last-child {
   border-bottom: 1px solid var(--admin-border);
 }
