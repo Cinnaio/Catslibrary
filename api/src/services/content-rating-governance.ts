@@ -203,7 +203,8 @@ export async function applyContentRatingChange(query: DbClient['query'], input: 
             content_rating_rule_version = $6,
             content_rating_updated_by = $7,
             content_rating_updated_at = $8,
-            content_rating_operation_id = $9
+            content_rating_operation_id = $9,
+            updated_at = GREATEST(COALESCE(updated_at, 0) + 1, $8)
       WHERE id = $10`,
     [nextRating, revision, source, reason, evidence, ruleVersion, updatedBy, now, operationId, novelId],
   )

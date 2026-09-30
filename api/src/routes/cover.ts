@@ -35,9 +35,12 @@ coverRoutes.get('/:id', optionalUser(), async (c) => {
   const contentType = cover?.content_type || 'image/jpeg'
   const etag = `"${createHash('sha256').update(contentType).update('\0').update(body).digest('hex')}"`
   const cacheHeaders = {
-    // Keep the response on private device caches, but re-check authorization
-    // with the origin before every reuse. Denials remain no-store above.
-    'Cache-Control': 'private, no-cache, must-revalidate',
+    // Public covers can be reused immediately for a week. Rating changes bump
+    // novels.updated_at, which is already part of the iOS cover URL.
+    // Restricted covers stay private and must re-check access on every reuse.
+    'Cache-Control': novel.content_rating === 'restricted'
+      ? 'private, no-cache, must-revalidate'
+      : 'private, max-age=604800, must-revalidate',
     Vary: 'Cookie, Authorization, X-Content-Access',
     ETag: etag,
   }
