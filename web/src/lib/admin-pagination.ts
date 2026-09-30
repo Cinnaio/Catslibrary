@@ -13,7 +13,7 @@
  * 消费方式：`useState(ADMIN_DEFAULT_PAGE_SIZE)` 取初值，把
  * `ADMIN_PAGE_SIZE_OPTIONS` 传给 `<Pagination pageSize={{ options }}>`。
  * 不要再在各页面里手写 `useState(50)` 或字面档位数组——历史上小说 20 /
- * 章节 50 / 审计 50 / 生成内容 50 / 书源 50 五处分叉，正是这么来的。
+ * 章节 50 / 审计 50 / 生成内容 50 四处分叉，正是这么来的。
  */
 export const ADMIN_DEFAULT_PAGE_SIZE = 15
 

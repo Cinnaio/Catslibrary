@@ -3831,64 +3831,22 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   padding-top: 0.15rem;
 }
 
-/* 书源/任务管理与小说管理共享同一套数据工作区：页面标题负责入口，
+/* 任务管理与小说管理共享同一套数据工作区：页面标题负责入口，
    数据面板负责内容，避免 Card 套 Card 造成层级噪音。 */
-:is(.admin-redesign-page--sources, .admin-redesign-page--jobs) {
+.admin-redesign-page--jobs {
   gap: var(--admin-page-section-gap);
 }
 
-:is(.admin-redesign-page--sources, .admin-redesign-page--jobs) > .admin-tab-header {
+.admin-redesign-page--jobs > .admin-tab-header {
   margin-bottom: 0;
   border-bottom: 0;
 }
 
-:is(.admin-redesign-page--sources, .admin-redesign-page--jobs) > .admin-data-panel,
-.admin-redesign-page--sources .source-panel,
-.admin-redesign-page--sources .admin-panel-card {
+.admin-redesign-page--jobs > .admin-data-panel {
   border: 0;
   border-radius: var(--admin-table-panel-radius);
   background: var(--admin-panel);
   box-shadow: none;
-}
-
-.admin-redesign-page--sources .admin-panel-card,
-.admin-redesign-page--sources .source-panel {
-  overflow: hidden;
-  padding: 0;
-}
-
-.admin-redesign-page--sources .source-panel__bar {
-  border-bottom: 1px solid var(--admin-table-border);
-  background: transparent;
-}
-
-.admin-redesign-page--sources .admin-panel-card [data-slot='card-header'] {
-  border-bottom: 0;
-  background: transparent;
-}
-
-.admin-redesign-page--sources .admin-panel-card [data-slot='card-header'] {
-  padding: 1.25rem;
-}
-
-.admin-redesign-page--sources .admin-panel-card [data-slot='card-content'] {
-  padding: 1.25rem;
-}
-
-.admin-redesign-page--sources .source-import-panel > .source-import__body {
-  padding: 1.25rem;
-}
-
-.admin-redesign-page--sources .source-panel__bar {
-  padding: 1rem 1.25rem;
-}
-
-.admin-redesign-page--sources .source-panel > .admin-panel-heading {
-  padding: 1.25rem;
-}
-
-.admin-redesign-page--sources .source-panel > .admin-panel-heading + .source-panel__bar {
-  border-top: 0;
 }
 
 .admin-redesign-page--jobs > .admin-queue-summary--jobs {
@@ -3900,105 +3858,21 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   animation: admin-tab-surface-enter var(--admin-table-surface-enter) 40ms both;
 }
 
-/* 书源目录工具栏按“筛选 / 搜索与操作”保持一条稳定的工作行；
-   统计信息与书源目录标题配对展示，不与筛选控件混排。 */
-.admin-redesign-page--sources .source-panel__bar {
-  grid-template-columns: minmax(0, 1fr) max-content;
-  gap: var(--admin-space-3) var(--admin-space-4);
-  padding: 1rem 1.25rem;
-  background: color-mix(in srgb, var(--admin-panel) 94%, var(--accent-subtle));
-}
-
-.admin-redesign-page--sources .source-panel__cluster--primary {
-  display: flex;
-  align-items: center;
-  gap: var(--admin-space-3);
-  padding-right: var(--admin-space-4);
-}
-
-.admin-redesign-page--sources .source-panel__cluster--primary::after {
-  display: block;
-}
-
-.admin-redesign-page--sources .source-panel__cluster--actions {
-  width: max-content;
-  justify-self: end;
-  justify-content: flex-end;
-  flex-wrap: nowrap;
-}
-
-.admin-redesign-page--sources .source-directory__stats {
-  display: flex;
-  max-width: min(100%, 38rem);
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.5rem;
-}
-
-.admin-redesign-page--sources .source-directory__stats [data-slot='badge'] {
-  white-space: nowrap;
-}
-
-@media (max-width: 900px) {
-  .admin-redesign-page--sources .source-panel__bar {
-    grid-template-columns: 1fr;
-  }
-
-  .admin-redesign-page--sources .source-panel__cluster--primary {
-    padding-right: 0;
-  }
-
-  .admin-redesign-page--sources .source-panel__cluster--primary::after {
-    display: none;
-  }
-
-  .admin-redesign-page--sources .source-panel__cluster--actions {
-    width: auto;
-    justify-self: stretch;
-    justify-content: flex-start;
-    flex-wrap: wrap;
-  }
-}
-
-@media (max-width: 640px) {
-  .admin-redesign-page--sources .source-directory__stats {
-    justify-content: flex-start;
-  }
-
-  .admin-redesign-page--sources .source-panel__cluster--primary {
-    grid-template-columns: 1fr;
-    gap: var(--admin-space-3);
-  }
-
-  .admin-redesign-page--sources .source-panel__cluster--actions {
-    align-items: stretch;
-  }
-}
-
-:is(.admin-redesign-page--sources, .admin-redesign-page--jobs) > .admin-data-panel,
-.admin-redesign-page--sources .source-panel {
+.admin-redesign-page--jobs > .admin-data-panel {
   animation: admin-tab-surface-enter var(--admin-table-surface-enter) 40ms both;
 }
 
-:is(.admin-redesign-page--sources, .admin-redesign-page--jobs) [data-slot='table-body'] > [data-slot='table-row']:nth-child(-n + 8) {
+.admin-redesign-page--jobs [data-slot='table-body'] > [data-slot='table-row']:nth-child(-n + 8) {
   animation: admin-tab-row-enter var(--admin-table-row-enter) both;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  :is(.admin-redesign-page--sources, .admin-redesign-page--jobs) > .admin-data-panel,
-  .admin-redesign-page--sources .source-panel {
+  .admin-redesign-page--jobs > .admin-data-panel {
     animation: admin-tab-fade var(--admin-table-reduced-fade) both;
   }
 
-  :is(.admin-redesign-page--sources, .admin-redesign-page--jobs) [data-slot='table-body'] > [data-slot='table-row']:nth-child(-n + 8) {
+  .admin-redesign-page--jobs [data-slot='table-body'] > [data-slot='table-row']:nth-child(-n + 8) {
     animation: none;
-  }
-}
-
-@media (max-width: 640px) {
-  .admin-redesign-page--sources .source-import-panel > .source-import__body {
-    padding: 1rem;
   }
 }
 
@@ -4295,49 +4169,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   text-align: center;
 }
 
-.table-wrapper {
-  overflow-x: auto;
-  border: 1px solid var(--admin-border);
-  border-radius: var(--admin-radius);
-  background: var(--admin-panel);
-  scrollbar-width: thin;
-  scrollbar-color: var(--border) transparent;
-}
-.table-wrapper::-webkit-scrollbar {
-  height: 8px;
-  width: 8px;
-}
-.table-wrapper::-webkit-scrollbar-track {
-  background: transparent;
-}
-.table-wrapper::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 999px;
-}
-.table-wrapper table {
-  border-collapse: separate;
-  border-spacing: 0;
-}
-.table-wrapper th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  padding: 0.75rem 1rem;
-  background: color-mix(in srgb, var(--bg-secondary) 78%, var(--accent-subtle));
-  color: var(--text-muted);
-  font-size: var(--admin-table-head-size);
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-.table-wrapper td {
-  padding: 0.8125rem 1rem;
-  vertical-align: middle;
-  border-bottom: 1px solid var(--border-light);
-}
-.table-wrapper tbody tr:hover td {
-  background: var(--admin-table-row-hover-background);
-}
 .admin-mono-cell {
   font-family: var(--font-mono);
   font-size: 0.75rem;
@@ -4738,7 +4569,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   padding: 0 var(--admin-space-2);
 }
 
-/* 反馈面板：分析结果 / 选择器测试 — consumers: CenterView, SourcesView */
+/* 反馈面板：分析结果 / 选择器测试 — consumers: CenterView */
 .scrape-feedback {
   display: grid;
   gap: var(--admin-space-2);
@@ -5536,325 +5367,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   color: var(--accent);
 }
 
-/* ————————————————————————————————————————————————
-   书源管理 · SourcesView — consumers: scrape/SourcesView.tsx
-   导入、筛选与书源表格共用同一后台工作台，移动端保留完整字段并在表格内部横向浏览。
-   ———————————————————————————————————————————————— */
-.source-workspace {
-  display: grid;
-  gap: var(--admin-space-4);
-  min-width: 0;
-}
-.source-import-panel {
-  min-width: 0;
-}
-.source-import__body {
-  display: grid;
-  gap: var(--admin-space-4);
-}
-.source-import__url-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--admin-space-2);
-}
-.source-import__url-row [data-slot='input'] {
-  min-width: 0;
-}
-.source-import__url-row [data-slot='button'] {
-  flex: 0 0 auto;
-  white-space: nowrap;
-}
-.source-import__json-group,
-.source-import__actions {
-  margin-bottom: 0;
-}
-.source-import__json-group [data-slot='textarea'] {
-  min-height: 7.5rem;
-  height: auto;
-  resize: vertical;
-}
-.source-import__actions {
-  display: flex;
-  min-height: var(--admin-control-height);
-  align-items: center;
-  gap: var(--admin-space-3);
-}
-.source-import__result {
-  display: grid;
-  gap: 0.25rem;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-.source-import__result [data-slot='badge'] {
-  width: fit-content;
-  max-width: 100%;
-  white-space: normal;
-  line-height: 1.45;
-}
-.source-panel {
-  overflow: hidden;
-  min-width: 0;
-  /* 书源面板现由 AdminDataPanel 承载容器语义：其 .admin-data-panel 规则
-     （同特异性、后定义在 :5358）会把 border 归零。转成面板语言，与
-     章节目录、任务队列一致。 */
-  border: 0;
-  border-radius: var(--admin-table-panel-radius);
-  background: var(--admin-panel);
-  box-shadow: none;
-}
-.source-panel__bar {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: var(--admin-space-3) var(--admin-space-4);
-  align-items: center;
-  padding: var(--admin-space-3) var(--admin-space-4);
-  border-bottom: 1px solid var(--admin-border);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--bg-secondary) 55%, transparent), transparent),
-    color-mix(in srgb, var(--admin-panel) 94%, var(--accent-subtle));
-}
-.source-panel__cluster {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--admin-space-2);
-  min-width: 0;
-}
-.source-panel__cluster--primary {
-  position: relative;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: var(--admin-space-3);
-  align-items: center;
-  padding-right: var(--admin-space-4);
-}
-.source-panel__cluster--primary::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  right: 0;
-  width: 1px;
-  height: 1.75rem;
-  transform: translateY(-50%);
-  background: var(--admin-border);
-}
-.source-panel__filter-group {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: var(--admin-space-2);
-}
-.source-panel__section-label {
-  flex: 0 0 auto;
-  color: var(--text-muted);
-  font-size: 0.72rem;
-  font-weight: 750;
-  letter-spacing: 0.04em;
-  white-space: nowrap;
-}
-.source-panel__tabs {
-  min-width: 0;
-}
-.source-panel__tabs [data-slot='tabs-list'] {
-  max-width: 100%;
-}
-.source-panel__stats {
-  display: flex;
-  min-width: 0;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--admin-space-2);
-}
-.source-panel__stats [data-slot='badge'] {
-  white-space: nowrap;
-}
-.source-panel__cluster--actions {
-  justify-content: flex-end;
-  flex-wrap: nowrap;
-}
-.source-panel__search {
-  min-width: 0;
-}
-.source-panel__cluster--actions [data-slot='input'] {
-  width: 13rem;
-  flex: 0 1 13rem;
-}
-.source-panel__cluster--actions [data-slot='button'] {
-  flex: 0 0 auto;
-  white-space: nowrap;
-}
-.source-panel__scroll-hint {
-  display: none;
-}
-/* 书源面板页脚：表面与内边距由 .admin-pagination 统一提供，此处无覆盖。 */
-.source-page-size__content {
-  z-index: 100;
-  min-width: 4.25rem;
-  width: var(--radix-select-trigger-width);
-  border-color: var(--admin-border);
-  background: var(--admin-panel);
-  opacity: 1;
-  box-shadow: var(--admin-shadow-soft);
-}
-.source-page-size__content [data-slot='select-item'] {
-  min-height: 2.25rem;
-}
-/* .source-panel__page-indicator 已随统一分页组件迁移删除：
-   页码改由 .admin-pagination__info 承担，该类消费者归零。 */
-.source-connectivity-dialog__body {
-  display: grid;
-  gap: var(--admin-space-4);
-  min-width: 0;
-  overflow-y: auto;
-  padding: 1.25rem 1.5rem;
-}
-.source-connectivity-dialog {
-  width: min(100% - 2rem, 40rem);
-}
-.source-connectivity-dialog [data-slot='dialog-description'] {
-  max-width: 100%;
-  overflow-wrap: anywhere;
-}
-.source-connectivity-dialog__field {
-  display: grid;
-  gap: var(--admin-space-2);
-  min-width: 0;
-}
-.source-connectivity-dialog__field [data-slot='select-trigger'] {
-  width: 100%;
-}
-.source-connectivity-dialog__feedback,
-.source-connectivity-dialog__result {
-  display: grid;
-  gap: var(--admin-space-2);
-  padding: var(--admin-space-3);
-  border: 1px solid var(--admin-border);
-  border-radius: var(--admin-radius);
-  background: color-mix(in srgb, var(--accent-subtle) 42%, var(--admin-panel));
-}
-.source-connectivity-dialog__progress {
-  background: color-mix(in srgb, var(--accent) 16%, var(--admin-border));
-}
-.source-connectivity-dialog__live-stats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem 1rem;
-  min-width: 0;
-  color: var(--text-muted);
-  font-size: 0.78rem;
-}
-.source-connectivity-dialog__live-stats span:first-child {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.source-connectivity-dialog__result-title {
-  font-weight: 750;
-}
-.source-connectivity-dialog__result-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--admin-space-4);
-  color: var(--text-muted);
-  font-size: 0.85rem;
-}
-.source-connectivity-dialog__result-grid strong {
-  color: var(--text-primary);
-  font-size: 1rem;
-}
-@media (max-width: 640px) {
-  .source-connectivity-dialog__body {
-    padding-inline: 1rem;
-  }
-}
-.source-panel .table-wrapper {
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-}
-.source-panel__table-wrapper [data-slot='table-container'] {
-  min-width: 0;
-}
-.source-panel .source-table {
-  width: 100%;
-  min-width: 1200px;
-  table-layout: fixed;
-}
-.source-table__col--select {
-  width: 4%;
-}
-.source-table__col--site {
-  width: 14%;
-}
-.source-table__col--host {
-  width: 13%;
-}
-.source-table__col--encoding {
-  width: 7%;
-}
-.source-table__col--support {
-  width: 9%;
-}
-.source-table__col--connectivity {
-  width: 9%;
-}
-.source-table__col--confidence {
-  width: 7%;
-}
-.source-table__col--selector {
-  width: 16%;
-}
-.source-table__col--enabled {
-  width: 7%;
-}
-.source-table__col--actions {
-  width: 14%;
-}
-.source-table__cell--select,
-.source-table__head--select,
-.source-table__cell--connectivity {
-  text-align: center;
-}
-.source-table__cell {
-  min-width: 0;
-}
-.source-table__site,
-.source-table__host,
-.source-table__selector {
-  min-width: 0;
-  overflow: hidden;
-}
-.source-table__site-name,
-.source-table__host,
-.source-table__selector {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.source-table__warnings {
-  overflow: hidden;
-  color: var(--text-muted);
-  font-size: 0.72rem;
-  line-height: 1.45;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.source-table__cell--enabled,
-.source-table__cell--actions,
-.source-table__actions {
-  white-space: nowrap;
-}
-.source-table__actions {
-  display: flex;
-  min-width: max-content;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--admin-space-1);
-}
-
 /* ——— admin 控件统一圆角 ——— */
 .admin-layout [data-slot='button'],
 .admin-layout [data-slot='sidebar-menu-button'],
@@ -5977,29 +5489,9 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   border-radius: var(--radius-lg);
 }
 
-/* ——— 响应式：爬虫抓取中心 / 发现小说 / 书源 ———
+/* ——— 响应式：爬虫抓取中心 / 发现小说 ———
    注：Step 2 确认表单（.scrape-preview*）改用容器查询按卡片宽度自适应，
    不再在此按视口宽度断点，避免宽卡片被误收成单列。 */
-
-@media (max-width: 900px) {
-  .source-panel__bar {
-    grid-template-columns: 1fr;
-    align-items: stretch;
-  }
-  .source-panel__cluster--primary {
-    padding-right: 0;
-  }
-  .source-panel__cluster--primary::after {
-    display: none;
-  }
-  .source-panel__cluster--actions {
-    justify-content: stretch;
-  }
-  .source-panel__cluster--actions [data-slot='input'] {
-    width: auto;
-    flex: 1 1 12rem;
-  }
-}
 
 @media (max-width: 640px) {
   .admin-layout__content {
@@ -6234,101 +5726,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
     grid-template-columns: 28px minmax(0, 1fr);
     padding: 8px 10px;
   }
-
-  .source-import__url-row {
-    grid-template-columns: 1fr;
-    align-items: stretch;
-  }
-  .source-import__url-row [data-slot='button'],
-  .source-import__actions [data-slot='button'] {
-    width: 100%;
-    justify-content: center;
-  }
-  .source-import__actions {
-    align-items: stretch;
-    flex-direction: column;
-    gap: var(--admin-space-2);
-  }
-  .source-import__result {
-    overflow-wrap: anywhere;
-  }
-  .source-panel__bar {
-    grid-template-columns: 1fr;
-    gap: var(--admin-space-3);
-  }
-  .source-panel__cluster--primary {
-    grid-template-columns: 1fr;
-    gap: var(--admin-space-3);
-    padding-right: 0;
-  }
-  .source-panel__cluster--primary::after {
-    display: none;
-  }
-  .source-panel__filter-group {
-    display: grid;
-    gap: var(--admin-space-2);
-  }
-  .source-panel__tabs {
-    overflow-x: auto;
-  }
-  .source-panel__tabs [data-slot='tabs-list'] {
-    width: max-content;
-    min-width: 100%;
-  }
-  .source-panel__tabs [data-slot='tabs-trigger'] {
-    flex: 0 0 auto;
-    min-height: 2.5rem;
-    padding-inline: 0.65rem;
-  }
-  .source-panel__stats {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--admin-space-2);
-  }
-  .source-panel__stats [data-slot='badge'] {
-    min-width: 0;
-    justify-content: center;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .source-panel__cluster--actions {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: var(--admin-space-2);
-    align-items: stretch;
-  }
-  .source-panel__search,
-  .source-panel__cluster--actions [data-slot='input'] {
-    width: 100%;
-    min-width: 0;
-    flex: none;
-  }
-  .source-panel__cluster--actions [data-slot='button'] {
-    min-width: 4.25rem;
-    min-height: 2.5rem;
-  }
-  .source-panel__scroll-hint {
-    display: block;
-    padding: 0.5rem var(--admin-space-3);
-    border-bottom: 1px solid var(--admin-border);
-    color: var(--text-muted);
-    font-size: 0.72rem;
-    text-align: right;
-  }
-  .source-panel__table-wrapper [data-slot='table-container'] {
-    -webkit-overflow-scrolling: touch;
-  }
-  .source-panel .source-table {
-    min-width: 1200px;
-  }
-  .source-panel .source-table th,
-  .source-panel .source-table td {
-    padding: 0.7rem 0.75rem;
-  }
-  .source-table__actions [data-slot='button'],
-  .source-table__cell--enabled [data-slot='button'] {
-    min-height: 2.5rem;
-  }
 }
 
 @media (max-width: 400px) {
@@ -6372,26 +5769,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   }
   .moderation-toolbar__query {
     grid-template-columns: minmax(0, 0.68fr) minmax(0, 1.32fr) auto;
-  }
-  .source-panel__bar {
-    padding: var(--admin-space-3);
-  }
-  .source-panel__stats {
-    width: 100%;
-  }
-  .source-panel__stats [data-slot='badge'] {
-    padding-inline: 0.5rem;
-  }
-  .source-panel__tabs [data-slot='tabs-trigger'] {
-    padding-inline: 0.5rem;
-  }
-  .source-panel__cluster--actions {
-    align-items: stretch;
-    flex-wrap: wrap;
-  }
-  .source-panel__cluster--actions [data-slot='input'] {
-    width: 100%;
-    flex-basis: 100%;
   }
 }
 
@@ -6808,7 +6185,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   animation-delay: 70ms;
 }
 
-:is(.admin-redesign-page--novels, .admin-redesign-page--sources) .admin-toolbar__batch {
+.admin-redesign-page--novels .admin-toolbar__batch {
   animation: admin-tab-surface-enter var(--admin-table-row-enter) both;
 }
 
@@ -6880,8 +6257,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   .admin-redesign-page--chapters .admin-tab-header__actions > [data-slot='button'],
   .admin-redesign-page--chapters .chapter-toolbar [data-slot='button'],
   .admin-redesign-page--moderation .admin-tab-header__actions > [data-slot='button'],
-  .admin-redesign-page--novels .admin-toolbar__batch-actions > [data-slot='button'],
-  .admin-redesign-page--sources .admin-toolbar__batch-actions > [data-slot='button'] {
+  .admin-redesign-page--novels .admin-toolbar__batch-actions > [data-slot='button'] {
     transition:
       transform 150ms ease,
       background-color 150ms ease,
@@ -6893,8 +6269,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   .admin-redesign-page--chapters .admin-tab-header__actions > [data-slot='button']:hover:not(:disabled),
   .admin-redesign-page--chapters .chapter-toolbar [data-slot='button']:hover:not(:disabled),
   .admin-redesign-page--moderation .admin-tab-header__actions > [data-slot='button']:hover:not(:disabled),
-  .admin-redesign-page--novels .admin-toolbar__batch-actions > [data-slot='button']:hover:not(:disabled),
-  .admin-redesign-page--sources .admin-toolbar__batch-actions > [data-slot='button']:hover:not(:disabled) {
+  .admin-redesign-page--novels .admin-toolbar__batch-actions > [data-slot='button']:hover:not(:disabled) {
     transform: translateY(-1px);
   }
 }
@@ -6904,7 +6279,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   .admin-redesign-page--chapters .chapter-directory-panel,
   .admin-redesign-page--moderation > .admin-toolbar,
   .admin-redesign-page--moderation > .admin-data-panel,
-  :is(.admin-redesign-page--novels, .admin-redesign-page--sources) .admin-toolbar__batch {
+  .admin-redesign-page--novels .admin-toolbar__batch {
     animation: admin-tab-fade var(--admin-table-reduced-fade) both;
   }
 
@@ -7268,163 +6643,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 
 .admin-redesign-page--moderation .moderation-empty--error strong {
   color: var(--color-danger);
-}
-
-/* 书源管理 */
-.admin-redesign-page--sources {
-  display: grid;
-  gap: 1rem;
-}
-
-.admin-redesign-page--sources > .admin-tab-header {
-  margin-bottom: 0.25rem;
-}
-
-/* 书源面板已由 AdminDataPanel 承载，改用与其他数据面板一致的圆角；
-   原先的 border-color 在 border-width 归零后不再产生可见效果，故移除。 */
-.admin-redesign-page--sources .admin-panel-card,
-.admin-redesign-page--sources .source-panel {
-  border-radius: var(--admin-table-panel-radius);
-  background: var(--admin-panel);
-  box-shadow: none;
-}
-
-.admin-redesign-page--sources .admin-panel-card {
-  overflow: hidden;
-  padding: 0;
-}
-
-.admin-redesign-page--sources .admin-panel-card [data-slot='card-header'] {
-  padding: 1.125rem 1.25rem;
-}
-
-.admin-redesign-page--sources .admin-panel-card [data-slot='card-content'] {
-  padding: 1.25rem;
-}
-
-.admin-redesign-page--sources .source-import__body {
-  gap: 1rem;
-}
-
-.admin-redesign-page--sources .source-panel__bar {
-  background: color-mix(in srgb, var(--admin-panel) 94%, var(--accent-subtle));
-}
-
-.admin-redesign-page--sources .source-panel__tabs {
-  width: min(26rem, 100%);
-  flex: 0 1 26rem;
-}
-
-.admin-redesign-page--sources .source-panel__tabs [data-slot='tabs-list'] {
-  position: relative;
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: var(--tabs-segmented-gap);
-  isolation: isolate;
-  min-height: var(--admin-control-height);
-  padding: var(--tabs-segmented-inset);
-  border: 1px solid var(--tabs-segmented-track-border);
-  border-radius: var(--tabs-segmented-radius);
-  background: var(--tabs-segmented-track-background);
-}
-
-.admin-redesign-page--sources .source-panel__tabs [data-slot='tabs-list']::before {
-  position: absolute;
-  z-index: 0;
-  inset: var(--tabs-segmented-inset) auto var(--tabs-segmented-inset) var(--tabs-segmented-inset);
-  width: calc((100% - (var(--tabs-segmented-gap) * 6)) / 5);
-  border-radius: var(--tabs-segmented-inner-radius);
-  background: var(--tabs-segmented-active-background);
-  box-shadow: var(--tabs-segmented-active-shadow);
-  content: '';
-  pointer-events: none;
-  transform: translateX(0);
-  transition: transform var(--tabs-segmented-transition);
-}
-
-.admin-redesign-page--sources .source-panel__tabs [data-slot='tabs-list'][data-active-index='1']::before {
-  transform: translateX(calc(100% + var(--tabs-segmented-gap)));
-}
-
-.admin-redesign-page--sources .source-panel__tabs [data-slot='tabs-list'][data-active-index='2']::before {
-  transform: translateX(calc((100% + var(--tabs-segmented-gap)) * 2));
-}
-
-.admin-redesign-page--sources .source-panel__tabs [data-slot='tabs-list'][data-active-index='3']::before {
-  transform: translateX(calc((100% + var(--tabs-segmented-gap)) * 3));
-}
-
-.admin-redesign-page--sources .source-panel__tabs [data-slot='tabs-list'][data-active-index='4']::before {
-  transform: translateX(calc((100% + var(--tabs-segmented-gap)) * 4));
-}
-
-.admin-redesign-page--sources .source-panel__tabs [data-slot='tabs-trigger'] {
-  position: relative;
-  z-index: 1;
-  min-width: 0;
-  background: transparent;
-  box-shadow: none;
-  color: var(--tabs-segmented-muted-foreground);
-  transition:
-    color var(--tabs-segmented-transition),
-    border-color var(--tabs-segmented-transition);
-}
-
-.admin-redesign-page--sources .source-panel__tabs [data-slot='tabs-trigger'][data-state='active'] {
-  background: transparent;
-  box-shadow: none;
-  color: var(--tabs-segmented-active-foreground);
-}
-
-.admin-redesign-page--sources .source-panel .source-table > tbody > tr > td {
-  transition: background-color var(--admin-table-row-interaction);
-}
-
-.admin-redesign-page--sources .source-panel [data-slot='table-body'] > [data-slot='table-row']:nth-child(1) {
-  animation-delay: calc(var(--admin-table-row-stagger-step) * 1);
-}
-
-.admin-redesign-page--sources .source-panel [data-slot='table-body'] > [data-slot='table-row']:nth-child(2) {
-  animation-delay: calc(var(--admin-table-row-stagger-step) * 2);
-}
-
-.admin-redesign-page--sources .source-panel [data-slot='table-body'] > [data-slot='table-row']:nth-child(3) {
-  animation-delay: calc(var(--admin-table-row-stagger-step) * 3);
-}
-
-.admin-redesign-page--sources .source-panel [data-slot='table-body'] > [data-slot='table-row']:nth-child(4) {
-  animation-delay: calc(var(--admin-table-row-stagger-step) * 4);
-}
-
-.admin-redesign-page--sources .source-panel [data-slot='table-body'] > [data-slot='table-row']:nth-child(5) {
-  animation-delay: calc(var(--admin-table-row-stagger-step) * 5);
-}
-
-.admin-redesign-page--sources .source-panel [data-slot='table-body'] > [data-slot='table-row']:nth-child(6) {
-  animation-delay: calc(var(--admin-table-row-stagger-step) * 6);
-}
-
-.admin-redesign-page--sources .source-panel [data-slot='table-body'] > [data-slot='table-row']:nth-child(7) {
-  animation-delay: calc(var(--admin-table-row-stagger-step) * 7);
-}
-
-.admin-redesign-page--sources .source-panel [data-slot='table-body'] > [data-slot='table-row']:nth-child(8) {
-  animation-delay: calc(var(--admin-table-row-stagger-step) * 8);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .admin-redesign-page--sources .source-panel__tabs [data-slot='tabs-list'],
-  .admin-redesign-page--sources .source-panel__tabs [data-slot='tabs-trigger'] {
-    --tabs-segmented-duration: 0.001ms;
-  }
-
-  .admin-redesign-page--sources .source-panel .source-table > tbody > tr > td {
-    transition: none;
-  }
-}
-
-.admin-redesign-page--sources .source-connectivity-scope {
-  width: 100%;
 }
 
 /* 弹窗内小标题统一规格：12px / 500 / 弱化色。
@@ -7956,11 +7174,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 
   .admin-redesign-page--moderation .moderation-toolbar__search-field .admin-search {
     max-width: none;
-  }
-
-  .admin-redesign-page--sources .admin-panel-card [data-slot='card-header'],
-  .admin-redesign-page--sources .admin-panel-card [data-slot='card-content'] {
-    padding-inline: 1rem;
   }
 
   [data-slot='dialog-content'].admin-dialog,
@@ -8975,9 +8188,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
    thead 隐藏，tr 变 grid，每个 td 用 ::before 显示列标签。
    覆盖到 900px：8 列数据表在更窄容器里不可读。 */
 @media (max-width: 900px) {
-  /* shadcn Table 使用 data-slot 容器，不走旧版 .table-wrapper；移动卡片不应
-     继承表格默认的 2px 间距或横向滚动留白，并沿数据面板圆角裁切表格底色。
-     行内操作菜单使用 portal，不依赖容器外溢。 */
+  /* 行内操作菜单使用 portal，不依赖容器外溢。 */
   .admin-data-panel--grid [data-slot='table-container'] {
     overflow: hidden;
     border-radius: var(--admin-data-panel-radius);
@@ -8986,19 +8197,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   .admin-data-panel--grid table {
     border-collapse: separate;
     border-spacing: 0;
-  }
-
-  .admin-data-panel--grid .table-wrapper {
-    overflow-x: visible;
-    border: 0;
-    background: transparent;
-  }
-
-  /* mobile.css 给 .table-wrapper table 设了 min-width: 600px，会在窄屏强制
-     表格按桌面宽度排版并把容器撑出横向滚动；卡片模式下必须解除。 */
-  .admin-data-panel--grid .table-wrapper table {
-    min-width: 0;
-    width: 100%;
   }
 
   .admin-data-panel--grid table,

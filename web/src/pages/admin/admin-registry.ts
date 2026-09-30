@@ -58,7 +58,6 @@ export const NAV_GROUPS: Array<{ label: string; items: AdminNavItem[] }> = [
         icon: Bug,
         children: [
           { id: 'scrape-center', label: '抓取中心', to: `${adminTabPath('scrape')}?view=center` },
-          { id: 'scrape-sources', label: '书源管理', to: `${adminTabPath('scrape')}?view=sources` },
           { id: 'jobs', label: '任务管理', to: adminTabPath('jobs') },
           { id: 'scrape-proxy', label: '代理设置', to: `${adminTabPath('scrape')}?view=proxy` },
         ],

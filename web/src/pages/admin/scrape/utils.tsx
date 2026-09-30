@@ -4,13 +4,11 @@
 import React from 'react'
 import { authHeaders, operationHeaders, url } from '../../../lib/api'
 import { formatDateTime } from '../../../lib/format'
-import { Badge } from '@/components/ui/badge'
 import type { SelectOption } from '@/components/admin/CustomSelect'
-import type { SourceRow } from './types'
 
 // ---------- helpers ----------
 
-/** scrapeApi 未覆盖的 /scrape 动作（test/discover/list-sources/import-legado 等）走此 POST。 */
+/** scrapeApi 未覆盖的发现、榜单和辅助动作走此 POST。 */
 export async function scrapePost(body: Record<string, unknown>, signal?: AbortSignal): Promise<any> {
   const operationId = typeof body.operationId === 'string' ? body.operationId : ''
   const res = await fetch(url('/scrape'), {
@@ -130,23 +128,6 @@ export function resolveRankingSource(siteValue: string): { listUrl: string; rank
 export const FALLBACK_COVER = 'https://wap.po18x.vip/17mb/style/noimg.jpg'
 
 // ---------- small components ----------
-
-export function supportBadge(support: string | undefined) {
-  const label = support === 'full' ? '可用' : support === 'partial' ? '需核验' : '不支持'
-  const cls =
-    support === 'full'
-      ? 'bg-success/10 text-success'
-      : support === 'partial'
-        ? 'bg-warning/10 text-warning'
-        : 'bg-secondary text-muted-foreground'
-  return <Badge className={cls}>{label}</Badge>
-}
-
-export function connectivityBadge(connectivity: SourceRow['connectivity']) {
-  if (connectivity === 'reachable') return <Badge className="bg-success/10 text-success">可连接</Badge>
-  if (connectivity === 'unreachable') return <Badge className="bg-destructive/10 text-destructive">不可访问</Badge>
-  return <Badge variant="secondary">未检测</Badge>
-}
 
 export function coverOnError(e: React.SyntheticEvent<HTMLImageElement>) {
   const img = e.currentTarget

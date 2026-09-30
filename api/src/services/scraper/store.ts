@@ -113,16 +113,7 @@ export interface ScrapeStore {
   listScrapeConfigs(): Promise<Array<{ novelId: string; novelTitle: string; sourceUrl: string; selectors: Record<string, string>; encoding: string; updatedAt: number }>>
   importScrapeConfigs(configs: Array<{ novelId: string; sourceUrl: string; selectors?: Record<string, string>; encoding?: string }>): Promise<number>
   // 书源
-  findSourceByHost(host: string, includeDisabled?: boolean): Promise<Record<string, unknown> | null>
-  importSources(rows: Array<Record<string, unknown>>): Promise<{ imported: number; updated: number }>
-  listSources(): Promise<Record<string, unknown>[]>
-  listAllSources(): Promise<Record<string, unknown>[]>
-  sourceCounts(): Promise<{ total: number; enabledCount: number; unreachableCount: number; bySupport: Record<string, number> }>
-  updateSourceConnectivity(host: string, connectivity: 'reachable' | 'unreachable' | 'unknown', error?: string): Promise<void>
-  toggleSource(host: string, enabled: boolean): Promise<void>
-  deleteSource(host: string): Promise<number>
-  batchToggleSources(hosts: string[], enabled: boolean): Promise<number>
-  batchDeleteSources(hosts: string[]): Promise<number>
+  findSourceByHost(host: string): Promise<Record<string, unknown> | null>
   // 章节/小说
   getExistingChapterKeys(novelId: string): Promise<{ urls: Set<string>; titles: Set<string> }>
   getMaxChapterOrder(novelId: string): Promise<number>
@@ -532,84 +523,9 @@ export class PgScrapeStore implements ScrapeStore {
     return imported
   }
 
-  async findSourceByHost(host: string, includeDisabled = false): Promise<Record<string, unknown> | null> {
+  async findSourceByHost(host: string): Promise<Record<string, unknown> | null> {
     if (!host) return null
-    const sql = includeDisabled
-      ? 'SELECT * FROM scrape_sources WHERE host = $1'
-      : 'SELECT * FROM scrape_sources WHERE host = $1 AND enabled = 1'
-    return (await first<Record<string, unknown>>(this.db, sql, [host])) || null
-  }
-
-  async importSources(rows: Array<Record<string, unknown>>): Promise<{ imported: number; updated: number }> {
-    let imported = 0
-    let updated = 0
-    for (const row of rows) {
-      const host = String(row.host || '')
-      if (!host) continue
-      const existing = await first<{ host: string }>(this.db, 'SELECT host FROM scrape_sources WHERE host = $1', [host])
-      if (existing) updated++
-      else imported++
-      await this.db.query(
-        `INSERT INTO scrape_sources (host, name, source_url, selectors, meta_selectors, source_json, encoding, encoding_hint, support, confidence, warnings, enabled, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-         ON CONFLICT (host) DO UPDATE SET
-           name = EXCLUDED.name, source_url = EXCLUDED.source_url, selectors = EXCLUDED.selectors,
-           meta_selectors = EXCLUDED.meta_selectors, source_json = EXCLUDED.source_json,
-           encoding = EXCLUDED.encoding, encoding_hint = EXCLUDED.encoding_hint,
-           support = EXCLUDED.support, confidence = EXCLUDED.confidence, warnings = EXCLUDED.warnings,
-           enabled = EXCLUDED.enabled, updated_at = EXCLUDED.updated_at`,
-        [host, row.name || host, row.sourceUrl || '', JSON.stringify(row.selectors || {}), JSON.stringify(row.metaSelectors || {}), JSON.stringify(row.sourceJson || {}), row.encoding || 'utf-8', Number(row.encodingHint) || 0, row.support || 'partial', Number(row.confidence) || 0, JSON.stringify(row.warnings || []), row.enabled ? 1 : 0, Date.now(), Date.now()],
-      )
-    }
-    return { imported, updated }
-  }
-
-  async listSources(): Promise<Record<string, unknown>[]> {
-    return all<Record<string, unknown>>(
-      this.db,
-      `SELECT * FROM scrape_sources ORDER BY (support = 'unsupported') ASC, confidence DESC, updated_at DESC LIMIT 500`,
-    )
-  }
-
-  async listAllSources(): Promise<Record<string, unknown>[]> {
-    return all<Record<string, unknown>>(this.db, 'SELECT * FROM scrape_sources ORDER BY updated_at DESC')
-  }
-
-  async sourceCounts(): Promise<{ total: number; enabledCount: number; unreachableCount: number; bySupport: Record<string, number> }> {
-    const totalRow = await first<{ c: number }>(this.db, 'SELECT COUNT(*)::int AS c FROM scrape_sources')
-    const enabledRow = await first<{ c: number }>(this.db, 'SELECT COUNT(*)::int AS c FROM scrape_sources WHERE enabled = 1')
-    const unreachableRow = await first<{ c: number }>(this.db, "SELECT COUNT(*)::int AS c FROM scrape_sources WHERE connectivity = 'unreachable'")
-    const bySupport: Record<string, number> = { full: 0, partial: 0, unsupported: 0 }
-    const rows = await all<{ support: string; c: number }>(this.db, 'SELECT support, COUNT(*)::int AS c FROM scrape_sources GROUP BY support')
-    for (const r of rows) bySupport[r.support] = Number(r.c || 0)
-    return { total: totalRow?.c || 0, enabledCount: enabledRow?.c || 0, unreachableCount: unreachableRow?.c || 0, bySupport }
-  }
-
-  async updateSourceConnectivity(host: string, connectivity: 'reachable' | 'unreachable' | 'unknown', error = ''): Promise<void> {
-    await this.db.query('UPDATE scrape_sources SET connectivity = $1, connectivity_checked_at = $2, connectivity_error = $3, updated_at = $2 WHERE host = $4', [connectivity, Date.now(), error.slice(0, 500), host])
-  }
-
-  async toggleSource(host: string, enabled: boolean): Promise<void> {
-    await this.db.query('UPDATE scrape_sources SET enabled = $1, updated_at = $2 WHERE host = $3', [enabled ? 1 : 0, Date.now(), host])
-  }
-
-  async deleteSource(host: string): Promise<number> {
-    const { rowCount } = await this.db.query('DELETE FROM scrape_sources WHERE host = $1', [host])
-    return rowCount ?? 0
-  }
-
-  async batchToggleSources(hosts: string[], enabled: boolean): Promise<number> {
-    const uniqueHosts = Array.from(new Set(hosts.map((host) => String(host || '').trim()).filter(Boolean)))
-    if (!uniqueHosts.length) return 0
-    const { rowCount } = await this.db.query('UPDATE scrape_sources SET enabled = $1, updated_at = $2 WHERE host = ANY($3)', [enabled ? 1 : 0, Date.now(), uniqueHosts])
-    return rowCount ?? 0
-  }
-
-  async batchDeleteSources(hosts: string[]): Promise<number> {
-    const uniqueHosts = Array.from(new Set(hosts.map((host) => String(host || '').trim()).filter(Boolean)))
-    if (!uniqueHosts.length) return 0
-    const { rowCount } = await this.db.query('DELETE FROM scrape_sources WHERE host = ANY($1)', [uniqueHosts])
-    return rowCount ?? 0
+    return (await first<Record<string, unknown>>(this.db, 'SELECT * FROM scrape_sources WHERE host = $1 AND enabled = 1', [host])) || null
   }
 
   async getExistingChapterKeys(novelId: string): Promise<{ urls: Set<string>; titles: Set<string> }> {

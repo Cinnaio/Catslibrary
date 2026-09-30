@@ -112,18 +112,3 @@ export interface DiscoverDetail {
   chapterCount: number
   scraping: boolean
 }
-
-export interface SourceRow {
-  host: string
-  name: string
-  encoding?: string
-  support?: string
-  confidence?: number | string
-  enabled?: boolean
-  connectivity?: 'reachable' | 'unreachable' | 'unknown'
-  connectivityError?: string
-  connectivityCheckedAt?: number
-  chapterList?: string
-  chapterContent?: string
-  warnings?: string[]
-}

@@ -98,14 +98,6 @@
     justify-content: center;
   }
 
-  /* Table horizontal scroll */
-  .table-wrapper {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-  .table-wrapper table {
-    min-width: 600px;
-  }
   th,
   td {
     padding: 8px 10px;
@@ -491,25 +483,6 @@
   .thoughts-toolbar select {
     flex: 1 1 100%;
     width: 100% !important;
-  }
-
-  .table-wrapper {
-    position: relative;
-    margin-inline: -4px;
-    border-radius: var(--radius-sm);
-  }
-
-  .table-wrapper::after {
-    content: '';
-    position: sticky;
-    right: 0;
-    display: block;
-    float: right;
-    width: 22px;
-    height: 1px;
-    margin-top: -1px;
-    pointer-events: none;
-    background: linear-gradient(90deg, transparent, var(--bg-card));
   }
 
   .modal-overlay {
