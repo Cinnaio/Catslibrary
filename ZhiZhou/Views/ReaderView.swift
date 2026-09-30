@@ -685,14 +685,17 @@ struct ReaderView: View {
     private func readerEdgeBlur(isTop: Bool) -> some View {
         Rectangle()
             .fill(.ultraThinMaterial)
+            .overlay(paper.opacity(0.12))
             .mask {
                 LinearGradient(
-                    colors: isTop ? [.black, .clear] : [.clear, .black],
+                    colors: isTop
+                        ? [.black.opacity(0.38), .clear]
+                        : [.clear, .black.opacity(0.38)],
                     startPoint: .top,
                     endPoint: .bottom
                 )
             }
-            .frame(height: 40)
+            .frame(height: 26)
             .frame(maxWidth: .infinity)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
