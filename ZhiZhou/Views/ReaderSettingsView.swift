@@ -29,12 +29,27 @@ struct ReaderSettingsView: View {
                     .accessibilityValue("第 \(settings.fontSizeIndex + 1) 档，\(Int(settings.bodyFontSize)) 磅")
                 }
 
-                choiceSection("字体", values: [("serif", "衬线"), ("sans", "无衬线")], selection: Binding(
-                    get: { settings.useSerif ? "serif" : "sans" },
-                    set: { set("fontFamily", $0) }
-                ))
-                choiceSection("行距", values: [("1.75", "紧凑"), ("1.95", "标准"), ("2.15", "宽松")], selection: preference("readerLineHeight", default: "1.95"))
-                choiceSection("段间距", values: [("1.0", "紧凑"), ("1.4", "标准"), ("1.8", "宽松")], selection: preference("readerParagraphSpacing", default: "1.4"))
+                choiceSection(
+                    "字体",
+                    values: [("serif", "衬线"), ("sans", "无衬线")],
+                    selection: Binding(
+                        get: { settings.useSerif ? "serif" : "sans" },
+                        set: { set("fontFamily", $0) }
+                    ),
+                    clearOuterContainer: true
+                )
+                choiceSection(
+                    "行距",
+                    values: [("1.75", "紧凑"), ("1.95", "标准"), ("2.15", "宽松")],
+                    selection: preference("readerLineHeight", default: "1.95"),
+                    clearOuterContainer: true
+                )
+                choiceSection(
+                    "段间距",
+                    values: [("1.0", "紧凑"), ("1.4", "标准"), ("1.8", "宽松")],
+                    selection: preference("readerParagraphSpacing", default: "1.4"),
+                    clearOuterContainer: true
+                )
 
                 Section("纸面") {
                     LazyVGrid(
@@ -46,6 +61,7 @@ struct ReaderSettingsView: View {
                         }
                     }
                     .padding(.vertical, 8)
+                    .listRowBackground(Color.clear)
                 }
 
                 choiceSection("翻页方式", values: [("scroll", "上下滚动"), ("page", "左右翻页")], selection: Binding(
@@ -97,7 +113,8 @@ struct ReaderSettingsView: View {
     private func choiceSection(
         _ title: String,
         values: [(String, String)],
-        selection: Binding<String>
+        selection: Binding<String>,
+        clearOuterContainer: Bool = false
     ) -> some View {
         Section(title) {
             Picker(title, selection: selection) {
@@ -106,6 +123,7 @@ struct ReaderSettingsView: View {
                 }
             }
             .accessibleSegmentedPicker()
+            .modifier(ReaderSettingsRowBackgroundModifier(isClear: clearOuterContainer))
         }
     }
 
@@ -156,5 +174,18 @@ struct ReaderSettingsView: View {
         .buttonStyle(.plain)
         .accessibilityAddTraits(selected ? [.isSelected] : [])
         .accessibilityLabel(theme.title)
+    }
+}
+
+private struct ReaderSettingsRowBackgroundModifier: ViewModifier {
+    let isClear: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if isClear {
+            content.listRowBackground(Color.clear)
+        } else {
+            content
+        }
     }
 }
