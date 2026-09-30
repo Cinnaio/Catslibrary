@@ -6977,7 +6977,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   background: var(--tabs-segmented-track-background);
 }
 
-.admin-layout [data-slot='tabs-trigger'] {
+:is(.admin-layout, .admin-dialog) [data-slot='tabs-trigger'] {
   min-height: calc(var(--admin-control-height) - 0.5rem);
   border-radius: var(--tabs-segmented-inner-radius);
   padding-inline: 0.75rem;
@@ -6992,15 +6992,32 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
     box-shadow var(--tabs-segmented-transition);
 }
 
-.admin-layout [data-slot='tabs-trigger'][data-state='active'] {
+:is(.admin-layout, .admin-dialog) [data-slot='tabs-trigger'][data-state='active'] {
   background: var(--tabs-segmented-active-background);
   color: var(--tabs-segmented-active-foreground);
   box-shadow: var(--tabs-segmented-active-shadow);
 }
 
-.admin-layout [data-slot='tabs-trigger'][data-state='active'],
-.admin-dialog [data-slot='tabs-trigger'][data-state='active'] {
+:is(.admin-layout, .admin-dialog) [data-slot='tabs-trigger'][data-state='active'] {
   font-weight: var(--tabs-segmented-active-label-weight);
+}
+
+/* Admin button size follows action priority; form controls keep their own type scale.
+   Icon, extra-small and combobox controls retain their component-specific sizing. */
+:is(.admin-layout, .admin-dialog) [data-slot='button']:not([data-size^='icon']):not([role='combobox']) {
+  font-weight: var(--admin-button-label-weight);
+}
+
+:is(.admin-layout, .admin-dialog) [data-slot='button']:is([data-variant='default'], [data-variant='destructive']):not([data-size^='icon']):not([data-size='xs']):not([role='combobox']) {
+  font-size: var(--admin-button-primary-label-size);
+}
+
+:is(.admin-layout, .admin-dialog) [data-slot='button']:is([data-variant='secondary'], [data-variant='outline']):not([data-size^='icon']):not([data-size='xs']):not([role='combobox']) {
+  font-size: var(--admin-button-secondary-label-size);
+}
+
+:is(.admin-layout, .admin-dialog) [data-slot='button']:is([data-variant='ghost'], [data-variant='link']):not([data-size^='icon']):not([data-size='xs']):not([role='combobox']) {
+  font-size: var(--admin-button-tertiary-label-size);
 }
 
 /* 章节管理 */

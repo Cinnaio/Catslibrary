@@ -55,10 +55,16 @@
   --tabs-segmented-active-shadow:      var(--shadow);
   --tabs-segmented-muted-foreground:  var(--text-muted);
   --tabs-segmented-active-foreground: var(--accent-hover);
-  --tabs-segmented-label-size:        0.875rem; /* 14px */
+  --tabs-segmented-label-size:        0.8125rem; /* 13px */
   --tabs-segmented-label-weight:      500;
   --tabs-segmented-active-label-weight: 600;
   --tabs-segmented-label-line-height: 1.6;
+
+  /* Admin button labels — keep the 14px form-control type scale independent. */
+  --admin-button-primary-label-size:  0.875rem; /* 14px */
+  --admin-button-secondary-label-size: 0.8125rem; /* 13px */
+  --admin-button-tertiary-label-size: 0.8125rem; /* 13px */
+  --admin-button-label-weight:       500;
 
   /* Admin form labels stay quiet so the active segmented tab remains the visual lead. */
   --admin-field-label-weight:         400;

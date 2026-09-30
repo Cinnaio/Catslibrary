@@ -308,6 +308,7 @@ components:
 
 ### Buttons
 - **Shape:** 公共页圆角 6px（--radius-sm）；管理后台圆角 12px（--admin-button-radius）。后台按钮最小高度 2.5rem（--admin-control-height），图标按钮不套用该高度。
+- **Typography:** 后台常规按钮统一使用 500 字重（`--admin-button-label-weight`）；主要/危险操作字号为 14px，次要/描边及 Ghost/Link 为 13px。只有选中的分段 Tab 使用 600 字重。规则同时覆盖 `.admin-layout` 与 `.admin-dialog`；图标尺寸按钮和 combobox 不套用按钮字阶，`xs` 按钮保留组件字号。`.admin-layout` 内输入框与 SelectTrigger 为 14px；`.admin-dialog` 保留组件的响应字号（共享 Input 窄屏 16px、`md` 及以上 14px），不受按钮规则影响。
 - **Primary:** 奶茶棕背景（#8B6045）+ 白色文字，用于主要操作（保存、确认）
 - **Secondary:** 暖灰背景（#F6F4F1）+ 深色文字，用于次要操作（刷新、取消）
 - **Ghost:** 透明背景 + 次要文字色，用于图标按钮（表格行操作）
@@ -326,10 +327,10 @@ components:
 
 ### Segmented Tabs
 - **Track:** 外框 12px（`--tabs-segmented-radius`），内缩和分隔间距 3px（`--tabs-segmented-inset` / `--tabs-segmented-gap`），轨道边框和底色使用消费方语义 token。
-- **Label:** 标签统一使用 `--tabs-segmented-label-size`、`--tabs-segmented-label-weight`、`--tabs-segmented-active-label-weight`、`--tabs-segmented-label-line-height`（14px / 未选中 500 / 选中 600 / 1.6）；选中项通过字重差异强化当前选择，其他字阶保持一致。
+- **Label:** 标签统一使用 `--tabs-segmented-label-size`、`--tabs-segmented-label-weight`、`--tabs-segmented-active-label-weight`、`--tabs-segmented-label-line-height`（13px / 未选中 500 / 选中 600 / 1.6）；选中项通过字重差异强化当前选择，其他字阶保持一致。
 - **Active Surface:** 激活表面 9px（`--tabs-segmented-inner-radius`），使用消费方的 surface 与 `--tabs-segmented-active-shadow`；未选中和选中文字分别使用 `--tabs-segmented-muted-foreground` / `--tabs-segmented-active-foreground`，选中文字重读取 `--tabs-segmented-active-label-weight`。
 - **Motion:** 激活表面只用 `transform` 移动，不触发布局重排；时长、曲线和复合写法统一从 `--tabs-segmented-duration`、`--tabs-segmented-ease`、`--tabs-segmented-transition` 读取。默认是 180ms ease-out，必须在 `prefers-reduced-motion: reduce` 下将时长压到近乎 0。
-- **Consumers:** 抓取入口、抓取预设、书源筛选、任务状态、审核类型、导入来源以及其他后台分段 Tab 只覆盖消费方表面色值；几何、激活层、文字状态（含选中字重）和动效统一读取 `--tabs-segmented-*`，不再维护页面级圆角、内缩、间距和位移字面量。
+- **Consumers:** 抓取入口、抓取预设、书源筛选、任务状态、审核类型、导入来源（含弹窗）以及其他后台分段 Tab 只覆盖消费方表面色值；几何、激活层、文字状态（含选中字重）和动效统一读取 `--tabs-segmented-*`，不再维护页面级圆角、内缩、间距和位移字面量。
 
 ### Cards
 - **Corner Style:** shadcn `Card` 为 16px（`rounded-xl`）；说明面板使用 `--admin-context-panel-radius`（16px），后台数据面板使用 `--admin-data-panel-radius`（20px）

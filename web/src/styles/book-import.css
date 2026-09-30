@@ -203,7 +203,7 @@
   background: transparent;
   box-shadow: none;
   color: var(--tabs-segmented-active-foreground);
-  font-weight: 600;
+  font-weight: var(--tabs-segmented-active-label-weight);
 }
 
 .book-import__source-tabs [data-slot='tabs-trigger']:hover {
