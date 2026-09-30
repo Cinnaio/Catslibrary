@@ -4,7 +4,7 @@ import { Hono } from 'hono'
 import { getDb } from '../db/pool'
 import { first } from '../db/query'
 import { cacheCoverForNovel, coverDataToBody, getStoredCover } from '../services/covers'
-import { contentPolicyHeaders, restrictedContentResponse, resolveContentAccess } from '../services/content-access'
+import { restrictedContentResponse, resolveContentAccess } from '../services/content-access'
 import { optionalUser, type AuthEnv } from '../middlewares/auth'
 
 export const coverRoutes = new Hono<AuthEnv>()
