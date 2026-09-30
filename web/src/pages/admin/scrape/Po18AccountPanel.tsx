@@ -227,7 +227,7 @@ export default function Po18AccountPanel({ active }: { active: boolean }) {
           </div>
 
           {/* 验证码挑战：紧贴触发它的按钮，出现时无需滚动到面板底部。
-              结构与「代理连通性测试」的输入行一致：图片 + 输入框 + 紧邻的提交按钮。
+              图片、输入框和提交按钮保持同行，避免验证码出现后需要跳离当前操作。
               标签置于整行上方，既保留常驻字段标签，又不让标签高度把图片挤到错位。 */}
           {challenge && (
             <div className="po18-account-captcha" role="group" aria-label="登录验证码">
@@ -309,6 +309,7 @@ export default function Po18AccountPanel({ active }: { active: boolean }) {
             <Button variant="outline" size="sm" disabled={disabled || !sessionCookie.trim()} onClick={() => void saveAccount(true)}>
               {busy === 'save' ? '保存中…' : '加密保存 Cookie'}
             </Button>
+            <span className="po18-account-actions__hint">粘贴后可保存；服务端会加密存储。</span>
           </div>
         </section>
 

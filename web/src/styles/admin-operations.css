@@ -323,8 +323,15 @@
   line-height: 1.5;
 }
 
-/* 主路径与备路径的字段都铺满整卡、两列等宽，与同页「出站代理」面板的栅格
-   一致。此前主路径限宽 40rem、备路径用 1.15fr / 1fr 不等宽，导致同一张卡片
+.po18-account-panel [data-slot='label'] {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: var(--admin-field-label-weight);
+  line-height: 1.4;
+}
+
+/* 主路径与备路径的字段都铺满整卡、两列等宽。此前主路径限宽 40rem、备路径用
+   1.15fr / 1fr 不等宽，导致同一张卡片
    里输入框出现三种宽度，上面挤在左侧空出 752px、下面顶到边缘。 */
 .po18-account-fields {
   display: grid;
@@ -346,6 +353,14 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--admin-space-2);
+}
+
+.po18-account-actions__hint {
+  flex: 1 1 15rem;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
 }
 
 /* 验证码挑战：虚线框与主表单区分，紧贴“获取验证码”。
@@ -446,6 +461,10 @@
   .po18-account-fallback-fields {
     grid-template-columns: minmax(0, 1fr);
     max-width: none;
+  }
+
+  .po18-account-actions__hint {
+    flex-basis: 100%;
   }
 
   /* 窄屏下按钮铺满，避免动作挤成两行参差不齐。 */

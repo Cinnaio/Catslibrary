@@ -440,7 +440,7 @@ export async function loginPo18Account(db: Db, input: { challengeId: string; cap
 
 export async function getPo18Session(db: Db): Promise<{ accountId: string; cookie: string }> {
   const account = await loadAccount(db)
-  if (!account) throw new Error('尚未配置 PO18.tw 账号，请先在源站账号管理中完成登录')
+  if (!account) throw new Error('尚未配置 PO18.tw 账号，请先在抓取中心完成登录')
   if (cachedSession?.accountId === account.id && cachedSession.cookie) return { accountId: account.id, cookie: cachedSession.cookie }
   try {
     const cookie = decrypt({ ciphertext: account.session_ciphertext, iv: account.session_iv, tag: account.session_tag })

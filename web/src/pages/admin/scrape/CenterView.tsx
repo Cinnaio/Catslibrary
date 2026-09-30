@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { AdminDataPanel, AdminPanelHeading } from '@/components/admin/AdminWorkspace'
 import type { CheckItem, DetectedMeta, DiscoverNovel, BatchEntry, BatchState } from './types'
 import { scrapePost, parseCategories, po18CoverFallback, resolveRankingSource } from './utils'
+import Po18AccountPanel from './Po18AccountPanel'
 import DiscoveryPanel from './center/DiscoveryPanel'
 import ScrapeIntake, { type IntakeMode } from './center/ScrapeIntake'
 import ScrapeSetupPanel, { type SetupPreview } from './center/ScrapeSetupPanel'
@@ -492,6 +493,8 @@ export default function CenterView() {
 
   return (
     <div className="scrape-center">
+      <Po18AccountPanel active />
+
       <div className="scrape-center__layout">
         <main className="scrape-center__main">
           <ScrapeIntake
