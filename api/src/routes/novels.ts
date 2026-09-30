@@ -24,7 +24,16 @@ import { idempotencyKeyFromRequest, withIdempotency } from '../services/idempote
 
 export const novelsRoutes = new Hono<AuthEnv>()
 
-const SORT_FIELDS: Record<string, boolean> = { updated_at: true, created_at: true, title: true, author: true, chapter_count: true }
+const SORT_FIELDS: Record<string, boolean> = {
+  updated_at: true,
+  created_at: true,
+  title: true,
+  author: true,
+  categories: true,
+  status: true,
+  content_rating: true,
+  chapter_count: true,
+}
 const SORT_ORDERS: Record<string, 'ASC' | 'DESC'> = { asc: 'ASC', desc: 'DESC' }
 
 // ---------- 列表（公开） ----------

@@ -292,7 +292,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
       setSortOrder((o) => (o === 'asc' ? 'desc' : 'asc'))
     } else {
       setSortField(field)
-      setSortOrder(field === 'title' || field === 'author' ? 'asc' : 'desc')
+      setSortOrder(['title', 'author', 'categories', 'status', 'content_rating'].includes(field) ? 'asc' : 'desc')
     }
     setPage(1)
   }
@@ -587,7 +587,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
 
       <AdminDataPanel className="novels-data-panel" ariaLabel="作品目录数据" columns={NOVEL_COLUMNS}>
         <Table>
-          <TableCaption className="sr-only">小说目录列表，可按标题、作者、章节数和更新时间排序</TableCaption>
+          <TableCaption className="sr-only">小说目录列表，可按标题、作者、分类、状态、分级、章节数和更新时间排序</TableCaption>
           <TableHeader>
             <TableRow>
               <TableHead scope="col">
@@ -603,9 +603,21 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
                   作者
                 </NovelSortButton>
               </TableHead>
-              <TableHead scope="col">分类</TableHead>
-              <TableHead scope="col">状态</TableHead>
-              <TableHead scope="col">分级</TableHead>
+              <TableHead scope="col" aria-sort={sortAria('categories')}>
+                <NovelSortButton field="categories" active={sortField === 'categories'} order={sortOrder} onSort={toggleSort}>
+                  分类
+                </NovelSortButton>
+              </TableHead>
+              <TableHead scope="col" aria-sort={sortAria('status')}>
+                <NovelSortButton field="status" active={sortField === 'status'} order={sortOrder} onSort={toggleSort}>
+                  状态
+                </NovelSortButton>
+              </TableHead>
+              <TableHead scope="col" aria-sort={sortAria('content_rating')}>
+                <NovelSortButton field="content_rating" active={sortField === 'content_rating'} order={sortOrder} onSort={toggleSort}>
+                  分级
+                </NovelSortButton>
+              </TableHead>
               <TableHead scope="col" aria-sort={sortAria('chapter_count')}>
                 <NovelSortButton field="chapter_count" active={sortField === 'chapter_count'} order={sortOrder} onSort={toggleSort}>
                   章节
