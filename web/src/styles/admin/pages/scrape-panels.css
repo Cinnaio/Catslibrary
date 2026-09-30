@@ -134,8 +134,7 @@
 }
 
 .admin-redesign-page--scrape .scrape-setup > .scrape-setup__book,
-.admin-redesign-page--scrape .scrape-setup > .scrape-setup__fields,
-.admin-redesign-page--scrape .scrape-setup > .scrape-setup__save-row {
+.admin-redesign-page--scrape .scrape-setup > .scrape-setup__metadata {
   margin-inline: 1.25rem;
 }
 
@@ -148,14 +147,8 @@
   background: transparent;
 }
 
-.admin-redesign-page--scrape .scrape-setup > .scrape-setup__fields {
-  margin-top: 1rem;
-}
-
-.admin-redesign-page--scrape .scrape-setup > .scrape-setup__save-row {
-  margin-top: 1rem;
-  padding-top: 1rem;
-  padding-bottom: 0;
+.admin-redesign-page--scrape .scrape-setup > .scrape-setup__metadata {
+  margin-top: 1.25rem;
 }
 
 .admin-redesign-page--scrape .scrape-setup > .scrape-setup__config {
@@ -294,8 +287,7 @@
   .admin-redesign-page--scrape .scrape-discovery > .scrape-discovery__list,
   .admin-redesign-page--scrape .scrape-discovery > .scrape-batch,
   .admin-redesign-page--scrape .scrape-setup > .scrape-setup__book,
-  .admin-redesign-page--scrape .scrape-setup > .scrape-setup__fields,
-  .admin-redesign-page--scrape .scrape-setup > .scrape-setup__save-row {
+  .admin-redesign-page--scrape .scrape-setup > .scrape-setup__metadata {
     margin-inline: 1rem;
   }
 

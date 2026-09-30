@@ -1,6 +1,7 @@
+import AdminContentRatingBadge from '@/components/admin/AdminContentRatingBadge'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import { useId } from 'react'
-import { Check, ChevronDown, FlaskConical, RotateCcw, Settings2 } from 'lucide-react'
+import { ArrowRight, Check, ChevronDown, FlaskConical, RotateCcw } from 'lucide-react'
 import type { ContentRating } from '@shared/types'
 import CustomSelect from '@/components/admin/CustomSelect'
 import { Badge } from '@/components/ui/badge'
@@ -150,12 +151,13 @@ export default function ScrapeSetupPanel({
             {preview.author || item.author || '未知作者'} · {item.url}
           </div>
           <div className="scrape-setup__book-badges">
-            <Badge variant="outline">待导入</Badge>
+            {!novelId && <Badge variant="outline">待导入</Badge>}
             {preview.status && (
               <AdminStatusBadge tone={preview.status === 'completed' ? 'success' : 'warning'}>
                 {preview.status === 'completed' ? '已完结' : '连载中'}
               </AdminStatusBadge>
             )}
+            <AdminContentRatingBadge rating={preview.contentRating} />
             {novelId && (
               <AdminStatusBadge tone="success">
                 <Check aria-hidden="true" />
@@ -166,75 +168,90 @@ export default function ScrapeSetupPanel({
         </div>
       </div>
 
-      <div className="scrape-setup__fields">
-        <ScrapeField label="书名">
-          {({ id }) => <Input id={id} value={preview.title} onChange={(event) => onPreviewChange({ ...preview, title: event.target.value })} />}
-        </ScrapeField>
-        <ScrapeField label="作者">
-          {({ id }) => <Input id={id} value={preview.author} onChange={(event) => onPreviewChange({ ...preview, author: event.target.value })} />}
-        </ScrapeField>
-        <ScrapeField label="分类">
-          {({ id }) => (
-            <Input
-              id={id}
-              value={preview.category}
-              placeholder="玄幻, 修真"
-              onChange={(event) => onPreviewChange({ ...preview, category: event.target.value })}
-            />
-          )}
-        </ScrapeField>
-        <ScrapeField label="状态">
-          {({ labelId }) => (
-            <CustomSelect
-              aria-labelledby={labelId}
-              options={STATUS_OPTIONS}
-              value={preview.status}
-              onChange={(value) => onPreviewChange({ ...preview, status: value })}
-            />
-          )}
-        </ScrapeField>
-        <ScrapeField label="内容分级">
-          {({ labelId }) => (
-            <CustomSelect
-              aria-labelledby={labelId}
-              options={CONTENT_RATING_OPTIONS}
-              value={preview.contentRating}
-              onChange={(value) => onPreviewChange({ ...preview, contentRating: value as ContentRating })}
-            />
-          )}
-        </ScrapeField>
-        <ScrapeField label="简介" className="scrape-setup__field--wide">
-          {({ id }) => (
-            <Textarea
-              id={id}
-              className="scrape-setup__description"
-              value={preview.description}
-              onChange={(event) => onPreviewChange({ ...preview, description: event.target.value })}
-            />
-          )}
-        </ScrapeField>
-      </div>
+      <section className="scrape-setup__metadata" aria-labelledby="scrape-setup-metadata-title">
+        <div className="scrape-setup__metadata-copy">
+          <h4 id="scrape-setup-metadata-title">作品信息</h4>
+          <p>智能分析已填入初始信息。保存前，可以在这里核对并修改。</p>
+        </div>
+        <div className="scrape-setup__metadata-form">
+          <div className="scrape-setup__fields">
+            <ScrapeField label="书名">
+              {({ id }) => <Input id={id} value={preview.title} onChange={(event) => onPreviewChange({ ...preview, title: event.target.value })} />}
+            </ScrapeField>
+            <ScrapeField label="作者">
+              {({ id }) => <Input id={id} value={preview.author} onChange={(event) => onPreviewChange({ ...preview, author: event.target.value })} />}
+            </ScrapeField>
+            <ScrapeField label="分类">
+              {({ id }) => (
+                <Input
+                  id={id}
+                  value={preview.category}
+                  placeholder="玄幻, 修真"
+                  onChange={(event) => onPreviewChange({ ...preview, category: event.target.value })}
+                />
+              )}
+            </ScrapeField>
+            <ScrapeField label="状态">
+              {({ labelId }) => (
+                <CustomSelect
+                  aria-labelledby={labelId}
+                  options={STATUS_OPTIONS}
+                  value={preview.status}
+                  onChange={(value) => onPreviewChange({ ...preview, status: value })}
+                />
+              )}
+            </ScrapeField>
+            <ScrapeField label="内容分级">
+              {({ labelId }) => (
+                <CustomSelect
+                  aria-labelledby={labelId}
+                  options={CONTENT_RATING_OPTIONS}
+                  value={preview.contentRating}
+                  onChange={(value) => onPreviewChange({ ...preview, contentRating: value as ContentRating })}
+                />
+              )}
+            </ScrapeField>
+            <ScrapeField label="简介" className="scrape-setup__field--wide">
+              {({ id }) => (
+                <Textarea
+                  id={id}
+                  className="scrape-setup__description"
+                  value={preview.description}
+                  onChange={(event) => onPreviewChange({ ...preview, description: event.target.value })}
+                />
+              )}
+            </ScrapeField>
+          </div>
 
-      <div className="scrape-setup__save-row">
-        <Button onClick={onConfirm} disabled={confirming || Boolean(novelId)}>
-          {confirming ? '保存中…' : novelId ? '书籍已保存' : '保存书籍并继续'}
-        </Button>
-        {!novelId && <span>保存后才能启动章节抓取任务</span>}
-      </div>
+          <div className="scrape-setup__save-row">
+            <Button onClick={onConfirm} disabled={confirming || Boolean(novelId)}>
+              {confirming ? '保存中…' : novelId ? '书籍已保存' : '保存书籍并继续'}
+              {!novelId && <ArrowRight aria-hidden="true" />}
+            </Button>
+            <span>{novelId ? '可以检查章节配置并启动抓取。' : '保存后才能启动章节抓取任务。'}</span>
+          </div>
+        </div>
+      </section>
 
       <div className="scrape-setup__config">
         <div className="scrape-setup__config-heading">
           <div className="scrape-setup__config-copy">
-            <h4>
-              <Settings2 aria-hidden="true" />
-              章节配置
-            </h4>
+            <h4>章节配置</h4>
             <p>智能分析已经填入初始值；只有源站结构特殊时才需要展开修改。</p>
           </div>
-          <Button variant="secondary" size="sm" onClick={onToggleAdvanced} aria-expanded={advancedOpen} aria-controls={advancedId}>
-            {advancedOpen ? '收起高级配置' : '编辑选择器'} <ChevronDown className={advancedOpen ? 'rotate-180' : ''} aria-hidden="true" />
-          </Button>
+          <span className="scrape-setup__preset-label">{sitePreset === 'po18' ? 'PO18 预设' : '自定义配置'}</span>
         </div>
+        <Button
+          className="scrape-setup__disclosure"
+          variant="ghost"
+          size="sm"
+          onClick={onToggleAdvanced}
+          aria-expanded={advancedOpen}
+          aria-controls={advancedId}
+        >
+          <ChevronDown className={advancedOpen ? 'rotate-180' : ''} aria-hidden="true" />
+          {advancedOpen ? '收起章节选择器' : '编辑章节选择器'}
+        </Button>
 
         {advancedOpen && (
           <div id={advancedId} className="scrape-setup__advanced">
@@ -275,31 +292,11 @@ export default function ScrapeSetupPanel({
           </div>
         )}
 
-        {/* 折叠态：只留两个决定「要不要现在抓」的数字和一个开始按钮。
-            完整配置项（URL / 编码 / 选择器）平时不该占据视线——它们由智能分析
-            填好，只有异常时才需要人介入。 */}
-        <p className="text-xs leading-relaxed text-muted-foreground">先保存书籍信息，再测试章节选择器。所有修改只会在点击启动后写入抓取任务。</p>
-        <div className="scrape-setup__run">
-          <dl className="scrape-setup__run-stats">
-            <div className="scrape-setup__run-stat">
-              <dt>可抓章节</dt>
-              <dd>{chapterText}</dd>
-            </div>
-            <div className="scrape-setup__run-stat">
-              <dt>受保护章节</dt>
-              <dd className={protectedChapterCount > 0 ? 'is-warning' : undefined}>{protectedChapterCount}</dd>
-            </div>
-          </dl>
-          <Button className="scrape-setup__start" onClick={onStart} disabled={!novelId || !selectors.chapterContent.trim()}>
-            开始抓取
-          </Button>
-        </div>
-
         {/* 选择器测试与诊断只在展开高级配置（或已产出结果）时出现。
             折叠态把主操作留给「开始抓取」，避免次要动作争夺注意力。 */}
         {(advancedOpen || testResult.data || testResult.empty || testResult.error) && (
           <div className="scrape-setup__test-row">
-            <Button variant="secondary" onClick={onTest} disabled={!chapterListUrl.trim() || !selectors.chapterList.trim()}>
+            <Button variant="outline" onClick={onTest} disabled={!chapterListUrl.trim() || !selectors.chapterList.trim()}>
               <FlaskConical aria-hidden="true" />
               测试章节选择器
             </Button>
@@ -333,6 +330,27 @@ export default function ScrapeSetupPanel({
             ) : null}
           </div>
         )}
+        <div className="scrape-setup__run">
+          <dl className="scrape-setup__run-stats">
+            <div className="scrape-setup__run-stat">
+              <dt>可抓章节</dt>
+              <dd>{chapterText}</dd>
+            </div>
+            <div className="scrape-setup__run-stat">
+              <dt>受保护章节</dt>
+              <dd className={protectedChapterCount > 0 ? 'is-warning' : undefined}>{protectedChapterCount}</dd>
+            </div>
+          </dl>
+          <div className="scrape-setup__run-action">
+            <span>{!novelId ? '请先保存书籍信息' : !selectors.chapterContent.trim() ? '请填写章节正文选择器' : '配置将在启动时应用'}</span>
+            <Button className="scrape-setup__start" onClick={onStart} disabled={!novelId || !selectors.chapterContent.trim()}>
+              开始抓取
+              <ArrowRight aria-hidden="true" />
+            </Button>
+          </div>
+        </div>
+        <p className="scrape-setup__config-note">先保存书籍信息，再测试章节选择器。所有修改只会在点击启动后写入抓取任务；受保护章节需要账号具备读取权限。</p>
+
         <ScrapeChecks items={testChecks} />
       </div>
     </AdminDataPanel>
