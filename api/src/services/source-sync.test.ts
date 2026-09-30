@@ -21,6 +21,16 @@ const metadata: SourceSyncMetadata = {
   sourceUrl: 'https://www.jjwxc.net/onebook.php?novelid=1',
 }
 
+function po18Directory(rows: Array<{ order: number; title: string }>): string {
+  const chapters = rows
+    .map(
+      ({ order, title }) =>
+        `<div class="c_l"><div class="l_counter">${String(order).padStart(4, '0')}</div><div class="l_chaptname"><a href="/books/902326/articles/${order}">${title}</a></div><div class="l_btn"><a href="/books/902326/articles/${order}">免費閱讀</a></div></div>`,
+    )
+    .join('')
+  return `<html><head><title>本地书</title></head><body><div class="book_name">本地书</div>${chapters}</body></html>`
+}
+
 let testDb: TestDb
 
 beforeAll(async () => {
@@ -152,10 +162,9 @@ describe('source sync chapter mapping', () => {
     )
     const preview = await createSourceSyncPreview(testDb.db, {
       novelId: 'sync-novel',
-      sourceUrl: 'https://example.com/book/12',
-      manualTitles: ['第12章 暴雨'],
+      sourceUrl: 'https://www.po18.tw/books/902326/articles',
       store: new PgScrapeStore(testDb.db),
-      fetchHtml: async () => ({ html: '<html><head><title>本地书</title></head><body><h1>本地书</h1></body></html>', encoding: 'utf-8' }),
+      fetchHtml: async () => ({ html: po18Directory([{ order: 12, title: '第12章 暴雨' }]), encoding: 'utf-8' }),
     })
     const applied = await applySourceSync(testDb.db, { runId: preview.runId })
     const rows = await testDb.db.query<{ id: string; title: string }>('SELECT id, title FROM chapters WHERE novel_id = $1 ORDER BY sort_order', ['sync-novel'])
@@ -185,10 +194,15 @@ describe('source sync chapter mapping', () => {
 
     const preview = await createSourceSyncPreview(testDb.db, {
       novelId: 'manual-sync-novel',
-      sourceUrl: 'https://example.com/book/manual',
-      manualTitles: ['第一章 新标题', '第二章 新标题'],
+      sourceUrl: 'https://www.po18.tw/books/902326/articles',
       store: new PgScrapeStore(testDb.db),
-      fetchHtml: async () => ({ html: '<html><head><title>本地书</title></head><body><h1>本地书</h1></body></html>', encoding: 'utf-8' }),
+      fetchHtml: async () => ({
+        html: po18Directory([
+          { order: 1, title: '第一章 新标题' },
+          { order: 2, title: '第二章 新标题' },
+        ]),
+        encoding: 'utf-8',
+      }),
     })
 
     expect(preview.changes).toHaveLength(2)

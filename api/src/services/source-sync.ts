@@ -360,7 +360,7 @@ async function fetchSourceChapters(
     const result = await extractPo18twTitles(sourceUrl, fetchHtml)
     return { site: 'po18tw', chapters: result.titles.map((item) => ({ key: item.url, order: item.order, title: cleanTitle(item.title), url: item.url })) }
   }
-  throw new Error('目前支持的原作者源站为晋江和 PO18.tw；其他站点请继续使用手动粘贴标题')
+  throw new Error('目前支持的原作者源站为晋江和 PO18.tw')
 }
 
 async function fetchSourceMetadata(
@@ -521,16 +521,13 @@ export async function createSourceSyncPreview(
     onlyWeakTitles?: boolean
     store: ScrapeStore
     fetchHtml: (url: string, opts?: FetchHtmlOptions) => Promise<FetchResult>
-    manualTitles?: string[]
   },
 ): Promise<SourceSyncPreview> {
   const novel = await first<{ id: string }>(db, 'SELECT id FROM novels WHERE id = $1', [opts.novelId])
   if (!novel) throw new Error('Novel not found')
   const url = normalizeUrl(opts.sourceUrl)
   const site = sourceSite(url.href)
-  if (site === 'unsupported' && !opts.manualTitles?.length) {
-    throw new Error('目前支持的原作者源站为晋江和 PO18.tw；其他站点请继续使用手动粘贴标题')
-  }
+  if (site === 'unsupported') throw new Error('目前支持的原作者源站为晋江和 PO18.tw')
   const binding = await ensureBinding(db, opts.novelId, url.href, site)
   const warnings: string[] = []
   let sourceFetchHtml = opts.fetchHtml
@@ -542,12 +539,7 @@ export async function createSourceSyncPreview(
       return opts.fetchHtml(targetUrl, { ...fetchOpts, headers, allowedRedirectHosts: ['po18.tw'] })
     }
   }
-  const source = opts.manualTitles?.length
-    ? {
-        site: site === 'unsupported' ? 'manual' : site,
-        chapters: opts.manualTitles.map((title, index) => ({ key: `manual:${index + 1}`, order: index + 1, title: cleanTitle(title), url: '' })),
-      }
-    : await fetchSourceChapters(url.href, sourceFetchHtml)
+  const source = await fetchSourceChapters(url.href, sourceFetchHtml)
   const metadataResult = await fetchSourceMetadata(url.href, opts.store, sourceFetchHtml)
   if (metadataResult.warning) warnings.push(metadataResult.warning)
   const locals = await all<LocalChapterForSync>(db, 'SELECT id, sort_order AS order, title FROM chapters WHERE novel_id = $1 ORDER BY sort_order ASC', [

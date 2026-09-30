@@ -226,10 +226,6 @@ export const chaptersApi = {
   remove(id: string): Promise<{ ok: boolean }> {
     return request('DELETE', `/chapters/${encodeURIComponent(id)}`, null, true)
   },
-  renameByOrder(data: Record<string, unknown>): Promise<{ ok: boolean }> {
-    const operationId = typeof data.operationId === 'string' && data.operationId ? data.operationId : newOperationId('rename-chapters-by-order')
-    return request('POST', '/chapters', { action: 'rename-by-order', ...data, operationId }, true, operationHeaders(operationId))
-  },
   batchDelete(novelId: string, chapterIds: string[], operationId = newOperationId('batch-delete-chapters')): Promise<{ ok: boolean }> {
     return request('POST', '/chapters', { action: 'batch-delete', novelId, chapterIds, operationId }, true, operationHeaders(operationId))
   },
@@ -1288,7 +1284,7 @@ export const scrapeApi = {
   titleSourceSearch(title: string, author = ''): Promise<TitleSourceSearchResponse> {
     return request('POST', '/scrape', { action: 'title-source-search', title, author }, true, {}, 60000)
   },
-  sourceSyncPreview(data: { novelId: string; sourceUrl: string; onlyWeakTitles?: boolean; titles?: string[] }): Promise<SourceSyncPreview> {
+  sourceSyncPreview(data: { novelId: string; sourceUrl: string; onlyWeakTitles?: boolean }): Promise<SourceSyncPreview> {
     return request('POST', '/scrape', { action: 'source-sync-preview', ...data }, true, {}, 60000)
   },
   sourceSyncApply(data: {

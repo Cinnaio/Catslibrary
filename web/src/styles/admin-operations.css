@@ -58,13 +58,9 @@
   background: color-mix(in srgb, var(--admin-panel) 94%, var(--accent-subtle));
 }
 
-/* AI 服务三个列表面板的筛选条不是浮在画布上的独立卡片，而是面板内部的一条
-   筛选带：它只作用于下方的数据区，属主是同一个面板。此前它与数据面板并列
-   成为两个等权表面，同一件事（看这批任务 / 这批产出）被拆成两个盒子，面板的
-   「标题 → 筛选 → 数据」三段关系因此断开。现与章节范本的 .chapter-toolbar
-   对齐：位于 AdminPanelHeading 之下、数据区之上，无独立圆角外框，只保留一条
-   底线与数据区分隔，水平内边距与面板标题同基线（1.5rem）。
-   配套：TSX 中这三个工具条已移入 AdminDataPanel 内部。 */
+/* AI 服务三个列表面板的筛选条属于各自的数据面板，不作为画布上的独立卡片；
+   它们位于面板标题与表格之间，通过分隔线和内缩建立同一数据表面的关系。
+   配套：TSX 中这三个工具条均已移入 AdminDataPanel 内部。 */
 .ai-service .ai-tasks-toolbar,
 .ai-service .ai-audit-toolbar,
 .ai-service .ai-generations-toolbar {
@@ -3730,38 +3726,8 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   min-width: 6.5rem;
 }
 
-.chapter-layout {
-  display: block;
-}
-
 .chapter-directory-panel {
   min-width: 0;
-}
-
-.chapter-directory-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  flex: 0 0 auto;
-  padding: 0.5rem 0.875rem;
-  border-radius: var(--radius-full);
-  background: var(--admin-panel-muted);
-  color: var(--text-muted);
-  font-size: 0.8125rem;
-  font-weight: 700;
-}
-
-.chapter-directory-status.is-ready {
-  background: color-mix(in srgb, var(--color-success) 12%, var(--admin-panel));
-  color: var(--color-success);
-}
-
-.chapter-directory-status.is-ready span {
-  font-size: 0.62rem;
-}
-
-.chapter-directory-panel .chapter-toolbar {
-  border-top: 0;
 }
 
 /* 章节目录页脚：页脚表面与内边距由 .admin-pagination 统一提供，此处无覆盖。 */
@@ -3812,10 +3778,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 }
 
 @media (max-width: 900px) {
-  .chapter-layout {
-    grid-template-columns: 1fr;
-  }
-
   .chapter-work-note {
     order: 2;
   }
@@ -4579,6 +4541,10 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   min-width: var(--admin-pagination-page-size-width);
 }
 
+.admin-layout .admin-pagination--detached .admin-pagination__page-size [data-slot='select-trigger'] {
+  background: var(--admin-panel);
+}
+
 .admin-pagination__icon-button {
   width: var(--admin-pagination-control-size);
   min-width: var(--admin-pagination-control-size);
@@ -4602,6 +4568,54 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   .admin-pagination__controls {
     width: 100%;
     justify-content: flex-start;
+  }
+
+  .admin-pagination--detached .admin-pagination__controls {
+    display: grid;
+    grid-template-columns:
+      max-content
+      var(--admin-pagination-control-size)
+      var(--admin-pagination-control-size)
+      max-content;
+    grid-template-rows: auto auto;
+    justify-content: start;
+    gap: var(--admin-space-1);
+  }
+
+  .admin-pagination--detached .admin-pagination__page-size {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .admin-pagination--detached .admin-pagination__controls > [aria-label='第一页'] {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .admin-pagination--detached .admin-pagination__controls > [aria-label='上一页'] {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  .admin-pagination--detached .admin-pagination__info {
+    grid-column: 4;
+    grid-row: 1;
+  }
+
+  .admin-pagination--detached .admin-pagination__jump {
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: start;
+  }
+
+  .admin-pagination--detached .admin-pagination__controls > [aria-label='下一页'] {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .admin-pagination--detached .admin-pagination__controls > [aria-label='最后一页'] {
+    grid-column: 3;
+    grid-row: 2;
   }
 }
 
@@ -4660,48 +4674,27 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   width: 100%;
 }
 
-/* 章节管理 · 选择小说：标签与下拉框之间留出呼吸间距 */
-.chapter-novel-row {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 0.75rem;
-  margin-bottom: var(--admin-space-4);
-}
-.chapter-novel-row > label {
-  color: var(--text-secondary);
-  font-size: 0.8rem;
-  font-weight: 650;
-}
-
-/* 章节工具栏保持单层横向节奏：搜索框吃掉剩余空间，操作按钮不另起一行。 */
+/* 章节搜索与融合操作沿用小说页的轻量外置工具栏。 */
 .chapter-toolbar {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
   min-width: 0;
   align-items: center;
   gap: var(--admin-space-2);
-  padding: var(--admin-space-2) var(--admin-space-3);
-  border-bottom: 1px solid var(--admin-border);
 }
 .chapter-toolbar__search {
   min-width: 0;
-  flex: 1 1 auto;
+  width: 100%;
 }
 .chapter-toolbar__actions {
   display: flex;
   min-width: 0;
-  flex: 0 1 auto;
   align-items: center;
   justify-content: flex-end;
   gap: var(--admin-space-2);
 }
 .chapter-toolbar__actions > button {
   min-width: 0;
-  flex: 0 1 auto;
-  white-space: nowrap;
-}
-.chapter-toolbar__count {
-  flex: 0 0 auto;
   white-space: nowrap;
 }
 
@@ -6154,19 +6147,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   .admin-shell__status {
     display: none;
   }
-  .chapter-toolbar {
-    gap: 0.35rem;
-    padding: 0.5rem 0.75rem;
-  }
-  .chapter-toolbar__actions {
-    gap: 0.35rem;
-  }
-  .chapter-toolbar__actions > button {
-    padding-inline: 0.65rem;
-  }
-  .chapter-toolbar__count {
-    font-size: 0.75rem;
-  }
   /* .home-pagination 已从此组合选择器移除（2026-09-23）：前台分页由
      .home-page .home-pagination 独立承担，无条件复用后台断点规则。 */
   .admin-pagination {
@@ -6455,25 +6435,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   }
   .moderation-toolbar__query {
     grid-template-columns: minmax(0, 0.68fr) minmax(0, 1.32fr) auto;
-  }
-  .chapter-toolbar {
-    align-items: stretch;
-    flex-wrap: wrap;
-  }
-  .chapter-toolbar__search {
-    flex-basis: 100%;
-  }
-  .chapter-toolbar__actions {
-    width: 100%;
-    flex: 1 1 100%;
-  }
-  .chapter-toolbar__actions > button {
-    flex: 1 1 0;
-    padding-inline: 0.35rem;
-    font-size: 0.75rem;
-  }
-  .chapter-toolbar__count {
-    margin-right: auto;
   }
   .source-panel__bar {
     padding: var(--admin-space-3);
@@ -6814,6 +6775,20 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   }
 }
 
+@media (max-width: 640px) {
+  .admin-redesign-page--novels .admin-tab-header__actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-redesign-page--novels .admin-tab-header__actions > [data-slot='button'] {
+    width: 100%;
+    min-width: 0;
+    min-height: var(--admin-table-action-size-mobile);
+    justify-content: center;
+  }
+}
+
 .admin-redesign-page .admin-tab-header h2 {
   font-size: var(--admin-page-title-size);
   letter-spacing: -0.04em;
@@ -7071,27 +7046,12 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 }
 
 /* 章节管理 */
-.admin-redesign-page--chapters .chapter-novel-row {
-  display: grid;
-  grid-template-columns: max-content minmax(16rem, 25rem);
-  align-items: center;
-  gap: 0.625rem 0.875rem;
-  margin-bottom: 1.25rem;
-}
-
-.admin-redesign-page--chapters .chapter-novel-row > label {
-  color: var(--text-secondary);
-  font-size: 0.8rem;
-  font-weight: 650;
-}
-
 .admin-redesign-page--chapters .chapter-novel-select {
   width: 280px;
   max-width: none;
   height: var(--admin-control-height);
 }
 
-.admin-redesign-page--chapters .chapter-toolbar,
 .admin-redesign-page--moderation .moderation-toolbar {
   min-height: 3.75rem;
   border: none;
@@ -7102,10 +7062,24 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   border-radius: 0.5rem 0.5rem 0 0;
 }
 
+.admin-redesign-page--chapters .chapter-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: center;
+  gap: var(--admin-space-2);
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
 .admin-redesign-page--chapters .chapter-toolbar__search {
-  min-width: 12rem;
-  flex: 0 1 auto;
-  max-width: 20rem;
+  min-width: 0;
+  max-width: none;
 }
 
 .admin-redesign-page--chapters .chapter-toolbar__search > .admin-search {
@@ -7115,52 +7089,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 
 .admin-redesign-page--chapters .chapter-toolbar__actions {
   gap: 0.5rem;
-}
-
-.admin-redesign-page--chapters .chapter-toolbar__count {
-  color: var(--text-muted);
-}
-
-.admin-redesign-page--chapters .chapter-metric-empty {
-  display: flex;
-  min-width: 0;
-  min-height: 4rem;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.875rem 1.25rem;
-  border: 1px solid var(--admin-border);
-  border-radius: var(--radius-xl);
-  background: var(--admin-panel-muted);
-}
-
-.admin-redesign-page--chapters .chapter-metric-empty p {
-  margin: 0;
-  color: var(--text-muted);
-  font-size: 0.8rem;
-}
-
-.admin-redesign-page--chapters .chapter-directory-empty {
-  display: grid;
-  min-height: 25rem;
-  align-content: center;
-  justify-items: center;
-  gap: 0.75rem;
-  padding: 3rem 1.5rem;
-  color: var(--text-muted);
-  text-align: center;
-}
-
-.admin-redesign-page--chapters .chapter-directory-empty strong {
-  color: var(--text-primary);
-  font-size: 1.125rem;
-  font-weight: 650;
-}
-
-.admin-redesign-page--chapters .chapter-directory-empty p {
-  max-width: 36rem;
-  margin: 0;
-  font-size: 0.875rem;
-  line-height: 1.65;
 }
 
 /* 内容审核 */
@@ -7553,7 +7481,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 .admin-dialog .novel-editor__field > p,
 .admin-dialog .chapter-dialog-section__heading > span,
 .admin-dialog .chapter-dialog-section__heading .text-muted-foreground,
-.admin-dialog .chapter-merge-dialog__hint,
 .admin-dialog .chapter-merge-dialog__footer-note {
   color: var(--admin-dialog-hint-color);
   font-size: var(--admin-dialog-hint-size);
@@ -7622,8 +7549,8 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   /* 右上角关闭按钮需要避让，居中时左右对称留白，否则整行会视觉偏左 */
   padding-inline: 3rem;
   color: var(--text-primary);
-  font-size: 1.5rem;
-  letter-spacing: -0.04em;
+  font-size: var(--admin-dialog-title-size);
+  letter-spacing: 0;
   line-height: 1.2;
 }
 
@@ -7772,7 +7699,12 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 
 .chapter-editor-dialog__body,
 .chapter-merge-dialog__body {
-  gap: 1rem;
+  gap: var(--admin-space-4);
+}
+
+.chapter-merge-dialog__body {
+  display: grid;
+  align-content: start;
 }
 
 .chapter-editor-dialog__fields {
@@ -7802,22 +7734,20 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   line-height: 1.75;
 }
 
-/* 融合弹窗：当前小说信息卡片 */
+/* 融合弹窗：与小说编辑窗口一致，信息作为正文中的轻量上下文行。 */
 .chapter-merge-dialog__info {
   display: grid;
   grid-template-columns: 1fr auto;
   align-items: center;
-  gap: 1rem;
-  border-radius: var(--admin-radius);
-  border: 1px solid var(--admin-border);
-  background: color-mix(in srgb, var(--admin-surface) 20%, transparent);
-  padding: 0.875rem 1rem;
+  gap: var(--admin-space-4);
+  border-bottom: 1px solid var(--admin-border);
+  padding: 0 0 var(--admin-space-3);
 }
 
 .chapter-merge-dialog__info-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1rem;
+  gap: var(--admin-space-4);
 }
 
 .chapter-merge-dialog__info-grid > div {
@@ -7847,15 +7777,11 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   letter-spacing: 0.01em;
 }
 
-/* 融合弹窗：章节来源和手动输入区域 */
-.chapter-merge-dialog__source,
-.chapter-merge-dialog__manual {
+/* 源站搜索、URL 读取与预览使用表单式平面分组，避免重复叠卡片。 */
+.chapter-merge-dialog__source {
   display: grid;
-  gap: 0.75rem;
-  border-radius: var(--admin-radius);
-  border: 1px solid var(--admin-border);
-  background: var(--admin-panel);
-  padding: 1rem;
+  gap: var(--admin-space-3);
+  min-width: 0;
 }
 
 .chapter-merge-dialog__source-grid {
@@ -7870,7 +7796,9 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 
 .chapter-merge-dialog__url-field {
   display: grid;
-  gap: 0.625rem;
+  gap: var(--admin-space-2);
+  border-top: 1px solid var(--admin-border);
+  padding-top: var(--admin-space-3);
 }
 
 .chapter-merge-dialog__url-row {
@@ -7883,8 +7811,8 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 }
 
 .chapter-merge-dialog__search-results {
-  margin-top: 0.75rem;
-  padding-top: 0.875rem;
+  margin-top: 0;
+  padding-top: var(--admin-space-3);
   border-top: 1px solid var(--admin-border);
 }
 
@@ -7901,60 +7829,86 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   background: var(--accent-subtle);
 }
 
-.chapter-merge-dialog__divider {
-  display: flex;
-  align-items: center;
-  gap: 0.875rem;
-  color: var(--text-muted);
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  white-space: nowrap;
-  margin-block: 0.375rem;
-}
-
-.chapter-merge-dialog__divider::before,
-.chapter-merge-dialog__divider::after {
-  height: 1px;
-  flex: 1;
-  background: var(--admin-border);
-  content: '';
-}
-
-.chapter-merge-dialog__textarea {
-  height: 8rem !important;
-  min-height: 8rem !important;
-  resize: vertical;
-  line-height: 1.7;
-  font-family: var(--font-mono);
-  font-size: 0.875rem;
-}
-
-.chapter-merge-dialog__hint,
 .chapter-merge-dialog__footer-note {
+  min-width: 0;
+  margin-right: auto;
   color: var(--text-muted);
   font-size: 0.75rem;
+  font-weight: 500;
   line-height: 1.5;
 }
 
-.chapter-merge-dialog__footer-note {
-  margin-right: auto;
-  font-weight: 500;
-}
-
-/* 预览框通用样式 */
-.chapter-merge-dialog__body > .rounded-lg {
-  border-color: var(--admin-border);
+.chapter-merge-dialog__preview {
+  display: grid;
+  gap: 0;
+  min-width: 0;
+  border: 1px solid var(--admin-border);
   border-radius: var(--admin-radius);
   background: color-mix(in srgb, var(--accent-subtle) 25%, var(--admin-panel));
   padding: 1rem;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+.chapter-merge-dialog__preview-summary {
+  display: grid;
+  gap: var(--admin-space-2);
+}
+
+.chapter-merge-dialog__preview-summary > p,
+.chapter-merge-dialog__preview-section > p {
+  margin: 0;
+}
+
+.chapter-merge-dialog__warning {
+  color: var(--color-warning);
+}
+
+.chapter-merge-dialog__preview-section {
+  min-width: 0;
+}
+
+.chapter-merge-dialog__preview-summary + .chapter-merge-dialog__preview-section,
+.chapter-merge-dialog__preview-section + .chapter-merge-dialog__preview-section {
+  margin-top: var(--admin-space-3);
+  border-top: 1px solid var(--admin-border);
+  padding-top: var(--admin-space-3);
+}
+
+.chapter-merge-dialog__preview-changes > p {
+  margin-bottom: var(--admin-space-2);
+}
+
+.chapter-merge-dialog__preview-changes .import-chapter-preview__list {
+  display: grid;
+}
+
+.chapter-merge-dialog__preview-changes .import-chapter-preview__item {
+  display: grid;
+  grid-template-columns: 2.5rem minmax(0, 1fr) auto minmax(0, 1.25fr) auto;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  border-top: 1px solid var(--admin-border);
+  padding-block: 0.5rem;
+}
+
+.chapter-merge-dialog__preview-changes .import-chapter-preview__item > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 900px) {
-  .admin-redesign-page--chapters .chapter-novel-row {
-    grid-template-columns: 1fr;
-    gap: 0.5rem;
+  .admin-redesign-page--chapters .admin-tab-header__actions {
+    width: 100%;
+    justify-content: stretch;
+    flex-wrap: nowrap;
+  }
+
+  .admin-redesign-page--chapters .chapter-novel-select {
+    width: auto;
+    min-width: 0;
+    flex: 1 1 0;
   }
 
   .admin-redesign-page--moderation .moderation-toolbar {
@@ -7978,33 +7932,22 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
     border-bottom: 0;
   }
 
-  .admin-redesign-page--chapters .chapter-metric-empty {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 0.35rem;
+  .admin-redesign-page--chapters .admin-tab-header__actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .admin-redesign-page--chapters .chapter-directory-empty {
-    min-height: 10rem;
-    padding-inline: 1rem;
-  }
-
-  .admin-redesign-page--chapters .chapter-toolbar {
-    align-items: stretch;
-    flex-wrap: wrap;
-  }
-
-  .admin-redesign-page--chapters .chapter-toolbar__search {
-    flex-basis: 100%;
-  }
-
-  .admin-redesign-page--chapters .chapter-toolbar__actions {
+  .admin-redesign-page--chapters .chapter-novel-select {
     width: 100%;
-    flex: 1 1 100%;
+    min-width: 0;
+    min-height: var(--admin-table-action-size-mobile);
   }
 
-  .admin-redesign-page--chapters .chapter-toolbar__actions > [data-slot='button'] {
-    flex: 1 1 0;
+  .admin-redesign-page--chapters .admin-tab-header__actions > [data-slot='button'] {
+    width: 100%;
+    min-width: 0;
+    min-height: var(--admin-table-action-size-mobile);
+    justify-content: center;
   }
 
   .admin-redesign-page--moderation .moderation-toolbar__filters,
@@ -8072,10 +8015,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
     padding: 1.25rem 1rem 0;
   }
 
-  .admin-dialog [data-slot='dialog-title'] {
-    font-size: 1.3rem;
-  }
-
   .admin-dialog__body {
     padding: 1rem 1rem 1.25rem;
   }
@@ -8087,18 +8026,21 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 
   /* 放在通用移动端 footer 重置之后，确保小说编辑窗口的 token 不被覆盖：
      正文仍可滚动，但窗口不占满视口，保存与取消始终保持同一行。 */
-  [data-slot='dialog-content'].novel-editor-dialog {
+  [data-slot='dialog-content'].novel-editor-dialog,
+  [data-slot='dialog-content'].chapter-merge-dialog {
     max-height: var(--admin-dialog-mobile-max-height);
   }
 
-  .novel-editor-dialog [data-slot='dialog-footer'] {
+  .novel-editor-dialog [data-slot='dialog-footer'],
+  .chapter-merge-dialog [data-slot='dialog-footer'] {
     flex-direction: var(--admin-dialog-mobile-footer-direction);
     flex-wrap: var(--admin-dialog-mobile-footer-wrap);
     gap: var(--admin-dialog-mobile-footer-gap);
     padding-block: var(--admin-dialog-mobile-footer-padding);
   }
 
-  .novel-editor-dialog [data-slot='dialog-footer'] [data-slot='button'] {
+  .novel-editor-dialog [data-slot='dialog-footer'] [data-slot='button'],
+  .chapter-merge-dialog [data-slot='dialog-footer'] [data-slot='button'] {
     min-width: var(--admin-dialog-mobile-action-min-width);
     min-height: var(--admin-dialog-mobile-action-min-height);
   }
@@ -8127,8 +8069,8 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   }
 
   .chapter-merge-dialog__footer-note {
-    width: 100%;
-    margin-right: 0;
+    flex: 1 1 auto;
+    margin-right: auto;
   }
 }
 
@@ -8267,6 +8209,10 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 /* 小说管理的搜索与分级筛选共享一条表格外轻量控制行：搜索占据剩余空间，
    分级胶囊靠右收口；不伪装成第三张等权卡片，数据面板从选择条/表格开始。 */
 .novels-rating-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: center;
+  gap: var(--admin-space-2);
   width: 100%;
   max-width: 100%;
   padding: 0;
@@ -8287,15 +8233,19 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   margin-left: auto;
 }
 
-/* 分页已移到表格外，但仍属于小说列表的连续操作区；在默认区块间距基础上再收紧一档。 */
+/* 分页移到表格外但仍属于列表的连续操作区；在默认区块间距基础上再收紧一档。 */
 .admin-redesign-page--novels > .novels-pagination {
+  margin-top: calc(-1 * var(--admin-space-2));
+}
+
+.admin-redesign-page--chapters > .chapters-pagination {
   margin-top: calc(-1 * var(--admin-space-2));
 }
 
 /* 面板内工具条的通用内间距契约。
    .admin-toolbar--inline 自身只有 flex 布局，没有内间距；各页面按约定在自己的
    class 里补 `padding: <纵向> 1.25rem`，使控件左边缘与下方表格同一条基线
-   （范本见 .ai-service .ai-tasks-toolbar、.chapter-toolbar、.moderation-toolbar）。
+   （范本见 .ai-service .ai-tasks-toolbar、.moderation-toolbar）。
    裸用 AdminToolbar 而不给 class 时，工具条会贴住面板左右边缘、并紧贴表头
    （实测下边距 0px，表头被压在筛选条下沿），内容分级页在此补齐。 */
 .content-ratings-toolbar {
@@ -8347,6 +8297,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 @media (max-width: 900px) {
   .novels-rating-toolbar {
     align-items: stretch;
+    grid-template-columns: minmax(0, 1fr) max-content;
   }
 
   .novels-rating-toolbar > .admin-search {
@@ -8354,7 +8305,8 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   }
 
   .novels-rating-toolbar__filter {
-    align-self: flex-end;
+    align-self: center;
+    justify-self: end;
   }
 
   .admin-toolbar__filters {
@@ -8902,7 +8854,8 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 }
 
 /* 数据表格的表头、分隔线和行反馈使用同一组语义 token；不改变列宽或布局。 */
-.admin-redesign-page--novels .novels-data-panel > [data-slot='table-container'] {
+.admin-redesign-page--novels .novels-data-panel > [data-slot='table-container'],
+.admin-redesign-page--chapters .chapter-directory-panel > [data-slot='table-container'] {
   border-radius: var(--admin-data-panel-radius);
 }
 
@@ -9061,9 +9014,11 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
    覆盖到 900px：8 列数据表在更窄容器里不可读。 */
 @media (max-width: 900px) {
   /* shadcn Table 使用 data-slot 容器，不走旧版 .table-wrapper；移动卡片不应
-     继承表格默认的 2px 间距或横向滚动留白。 */
+     继承表格默认的 2px 间距或横向滚动留白，并沿数据面板圆角裁切表格底色。
+     行内操作菜单使用 portal，不依赖容器外溢。 */
   .admin-data-panel--grid [data-slot='table-container'] {
-    overflow: visible;
+    overflow: hidden;
+    border-radius: var(--admin-data-panel-radius);
   }
 
   .admin-data-panel--grid table {

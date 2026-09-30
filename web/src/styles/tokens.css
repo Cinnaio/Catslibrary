@@ -154,6 +154,7 @@
   --admin-data-panel-toolbar-padding-inline: 1.25rem;
 
   /* Admin dialogs — narrow-screen container and action-bar contract. */
+  --admin-dialog-title-size:             1.15rem;
   --admin-dialog-mobile-max-height:       min(47.5rem, calc(100svh - 4rem));
   --admin-dialog-mobile-footer-direction: row;
   --admin-dialog-mobile-footer-wrap:      nowrap;

@@ -475,9 +475,6 @@ scrapeRoutes.post('/', async (c) => {
     case 'source-sync-preview': {
       const novelId = String(body.novelId || '').trim()
       const sourceUrl = String(body.sourceUrl || '').trim()
-      const manualTitles = Array.isArray(body.titles)
-        ? body.titles.map((title: unknown) => String((title as { title?: unknown })?.title ?? title ?? '').trim()).filter(Boolean)
-        : undefined
       if (!novelId || !sourceUrl) return c.json({ error: 'novelId and sourceUrl are required' }, 400)
       try {
         return c.json(
@@ -485,7 +482,6 @@ scrapeRoutes.post('/', async (c) => {
             novelId,
             sourceUrl,
             onlyWeakTitles: body.onlyWeakTitles !== false,
-            manualTitles,
             store: deps.store,
             fetchHtml: deps.fetchHtml,
           }),
