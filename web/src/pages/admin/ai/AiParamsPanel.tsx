@@ -1,6 +1,5 @@
 /** 参数调优：前情提要 / 回顾总结 / AI 创作参数与审计配置。 */
 import { useEffect, useState } from 'react'
-import { ClipboardList, Image, ShieldCheck, SlidersHorizontal, Sparkles, Wrench } from 'lucide-react'
 import { aiApi, type AiSettings } from '@/lib/api'
 import { useToast } from '@/components/feedback'
 import { LoadingState } from '@/components/admin/AsyncStates'
@@ -45,8 +44,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
       {/* 前情提要参数 */}
       <Card className="admin-panel-card ai-params-card ai-params-card--recap">
         <AdminPanelHeading
-          title={<span className="admin-panel-title"><SlidersHorizontal className="size-4" aria-hidden="true" />前情提要参数</span>}
-          description="调整章节前情提要的生成参数"
+          title="前情提要参数"
         />
         <CardContent className="grid gap-4">
           <div className="ai-form-grid grid gap-3 sm:grid-cols-2">
@@ -100,8 +98,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
       {/* 回顾总结参数 */}
       <Card className="admin-panel-card ai-params-card">
         <AdminPanelHeading
-          title={<span className="admin-panel-title"><ClipboardList className="size-4" aria-hidden="true" />回顾总结参数</span>}
-          description="调整「回来接着读」功能的参数"
+          title="回顾总结参数"
         />
         <CardContent className="grid gap-4">
           <label className="flex items-start justify-between gap-4 rounded-lg border border-border bg-muted/30 p-4">
@@ -176,8 +173,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
 
       <Card className="admin-panel-card ai-params-card ai-params-card--writing">
         <AdminPanelHeading
-          title={<span className="admin-panel-title"><Sparkles className="size-4" aria-hidden="true" />AI 创作参数</span>}
-          description="用于 AI 创作页的大纲、章节生成和续写"
+          title="AI 创作参数"
         />
         <CardContent className="grid gap-4">
           <div className="ai-form-grid grid gap-3 sm:grid-cols-2">
@@ -232,8 +228,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
 
       <Card className="admin-panel-card ai-params-card">
         <AdminPanelHeading
-          title={<span className="admin-panel-title"><Image className="size-4" aria-hidden="true" />AI 生图与封面参数</span>}
-          description="用于小说封面生成的图像参数与描述词编辑上限"
+          title="AI 生图与封面参数"
         />
         <CardContent className="ai-form-grid grid gap-4 sm:grid-cols-3">
           <div className="grid gap-1.5"><Label htmlFor="image-size">图像尺寸</Label><Select value={localSettings.imageSize} disabled={props.loading || saving} onValueChange={(value) => setLocalSettings({ ...localSettings, imageSize: value })}><SelectTrigger id="image-size" className="h-9 bg-background"><SelectValue /></SelectTrigger><SelectContent position="popper" align="start"><SelectItem value="1024x1024">1024 × 1024</SelectItem><SelectItem value="1792x1024">1792 × 1024（横向）</SelectItem><SelectItem value="1024x1792">1024 × 1792（纵向）</SelectItem><SelectItem value="512x512">512 × 512</SelectItem></SelectContent></Select></div>
@@ -258,8 +253,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
       {/* 任务与运维 */}
       <Card className="admin-panel-card ai-params-card">
         <AdminPanelHeading
-          title={<span className="admin-panel-title"><Wrench className="size-4" aria-hidden="true" />任务与运维</span>}
-          description="创作任务的并发控制与历史记录清理"
+          title="任务与运维"
         />
         <CardContent className="ai-form-grid grid gap-3 sm:grid-cols-2">
           <div className="grid gap-1.5">
@@ -294,8 +288,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
       {/* 审计配置 */}
       <Card className="admin-panel-card ai-params-card ai-params-card--audit">
         <AdminPanelHeading
-          title={<span className="admin-panel-title"><ShieldCheck className="size-4" aria-hidden="true" />审计配置</span>}
-          description="控制 AI 调用的审计信息记录"
+          title="审计配置"
         />
         <CardContent className="grid gap-3">
           <label className="flex items-start justify-between gap-4 rounded-lg border border-border bg-muted/30 p-4">

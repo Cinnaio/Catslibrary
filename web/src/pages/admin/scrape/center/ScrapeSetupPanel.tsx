@@ -119,8 +119,8 @@ export default function ScrapeSetupPanel({
     <AdminDataPanel className="scrape-setup" ariaLabel="作品与章节配置">
       <AdminPanelHeading
         className="scrape-setup__heading"
-        title={<span id="scrape-setup-title">确认作品并配置章节</span>}
-        description="先保存书籍信息，再测试章节选择器。所有修改只会在点击启动后写入抓取任务。"
+        title="确认作品并配置章节"
+        titleId="scrape-setup-title"
         actions={
           <Button variant="ghost" size="sm" onClick={onReset}>
             <RotateCcw aria-hidden="true" />
@@ -277,6 +277,9 @@ export default function ScrapeSetupPanel({
         {/* 折叠态：只留两个决定「要不要现在抓」的数字和一个开始按钮。
             完整配置项（URL / 编码 / 选择器）平时不该占据视线——它们由智能分析
             填好，只有异常时才需要人介入。 */}
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          先保存书籍信息，再测试章节选择器。所有修改只会在点击启动后写入抓取任务。
+        </p>
         <div className="scrape-setup__run">
           <dl className="scrape-setup__run-stats">
             <div className="scrape-setup__run-stat">

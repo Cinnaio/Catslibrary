@@ -385,7 +385,7 @@ export default function SourcesView({ active }: { active: boolean }) {
       {/* Import card */}
       <div id="source-import-panel" className="source-workspace">
         <AdminDataPanel className="source-import-panel" ariaLabel="导入书源">
-          <AdminPanelHeading title="导入书源" description="通过书源池 URL 或直接粘贴 JSON，批量添加可用于抓取的书源规则。" />
+          <AdminPanelHeading title="导入书源" />
           <div className="source-import__body">
             <div className="form-group source-import__url-group">
               <Label className="source-import__label mb-1.5">书源池 URL</Label>
@@ -434,7 +434,6 @@ export default function SourcesView({ active }: { active: boolean }) {
         <AdminDataPanel className="source-panel" ariaLabel="书源列表">
           <AdminPanelHeading
             title="书源目录"
-            description="管理已导入的书源规则、支持度与连接状态。"
             status={
               <div className="source-directory__stats" aria-label="书源统计">
                 <Badge variant="secondary">总数 {total}</Badge>

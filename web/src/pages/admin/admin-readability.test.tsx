@@ -59,10 +59,10 @@ describe('AdminEmptyState', () => {
 })
 
 describe('AdminPanelHeading 与指标条的字阶层级', () => {
-  it('小节标题与面板描述各自成段，层级不被压平', () => {
-    render(<AdminPanelHeading title="最近抓取任务" description="按更新时间" />)
+  it('卡片标题区只呈现主标题', () => {
+    const { container } = render(<AdminPanelHeading title="最近抓取任务" />)
     expect(screen.getByRole('heading', { name: '最近抓取任务' })).toBeInTheDocument()
-    expect(screen.getByText('按更新时间')).toBeInTheDocument()
+    expect(container.querySelector('.admin-panel-heading__copy p')).toBeNull()
   })
 
   it('指标条把标签、数值、单位分成三个独立元素（供档位分别取值）', () => {

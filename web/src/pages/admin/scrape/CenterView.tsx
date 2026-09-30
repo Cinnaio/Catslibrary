@@ -592,7 +592,7 @@ export default function CenterView() {
           )}
 
           <AdminDataPanel className="scrape-config-card" ariaLabel="配置迁移">
-            <AdminPanelHeading title="配置迁移" description="导出或导入所有小说的章节选择器，换设备时可以继续使用。" />
+            <AdminPanelHeading title="配置迁移" />
             <div className="scrape-config-card__actions">
               <Button variant="secondary" size="sm" onClick={() => void exportConfigs()}>
                 <Download aria-hidden="true" />

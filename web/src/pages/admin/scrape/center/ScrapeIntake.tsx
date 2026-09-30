@@ -61,9 +61,8 @@ export default function ScrapeIntake({
     <AdminDataPanel className="scrape-intake" ariaLabel="抓取入口">
       <AdminPanelHeading
         className="scrape-intake__heading"
-        title={<span id="scrape-intake-title">从哪里开始？</span>}
-        description="找到作品后，信息确认、章节校验和任务启动会在同一条流程里完成。"
-        actions={<span className="scrape-intake__shortcut">快捷键 / 聚焦搜索</span>}
+        title="从哪里开始？"
+        titleId="scrape-intake-title"
       />
 
       <Tabs value={mode} onValueChange={(value) => onModeChange(value as IntakeMode)} className="scrape-intake__tabs">

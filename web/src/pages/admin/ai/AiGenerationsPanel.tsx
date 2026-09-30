@@ -357,7 +357,6 @@ export default function AiGenerationsPanel(props: {
       <AdminDataPanel className="ai-generations-card overflow-hidden" ariaLabel="已生成内容列表" columns={AI_GENERATION_COLUMNS}>
         <AdminPanelHeading
           title="生成内容"
-          description="AI 生成的内容记录，可删除后重新生成。"
           status={
             <span className={`admin-panel-status${error && items.length === 0 ? ' is-error' : ''}`}>
               {loading && items.length === 0 ? '读取中' : error && items.length === 0 ? '读取失败' : items.length ? `显示 ${items.length} 条` : '暂无内容'}

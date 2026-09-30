@@ -447,7 +447,6 @@ export default function JobsTab(_props: { highlightNovelId?: string; onHighlight
       <AdminDataPanel className="overflow-hidden" ariaLabel="抓取任务列表" columns={JOB_COLUMNS}>
         <AdminPanelHeading
           title="抓取任务"
-          description={filter === 'all' ? jobStatsText : `${FILTER_LABEL[filter]}：${filtered.length} / 共 ${jobs.length} 条`}
           status={<span className={`admin-panel-status${jobsError ? ' is-error' : ''}`}>{listStatusLabel}</span>}
           actions={
             hasCompleted ? (
@@ -470,6 +469,9 @@ export default function JobsTab(_props: { highlightNovelId?: string; onHighlight
               </TabsList>
             </Tabs>
           </div>
+          <span className="ml-auto text-xs tabular-nums text-muted-foreground">
+            {filter === 'all' ? jobStatsText : `${FILTER_LABEL[filter]}：${filtered.length} / 共 ${jobs.length} 条`}
+          </span>
         </AdminToolbar>
         {hasJobs ? (
           <Table>
@@ -539,7 +541,6 @@ export default function JobsTab(_props: { highlightNovelId?: string; onHighlight
       <AdminDataPanel className="overflow-hidden" ariaLabel="下载日志" columns={DOWNLOAD_COLUMNS}>
         <AdminPanelHeading
           title="下载日志"
-          description="记录最近的 TXT 与爬虫配置导出，便于核对分享与备份行为。"
           status={<span className={`admin-panel-status${logsError ? ' is-error' : ''}`}>{logsStatusLabel}</span>}
           actions={
             <Button variant="secondary" size="sm" onClick={() => void loadDownloadLogs()} disabled={logsLoading}>

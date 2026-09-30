@@ -82,7 +82,6 @@ export default function AiAuditPanel() {
       <AdminDataPanel className="ai-audit-panel overflow-hidden" ariaLabel="AI 调用记录列表">
         <AdminPanelHeading
           title="调用记录"
-          description="详细的 AI 调用审计日志，点击行可展开详情。"
           status={
             <span className={`admin-panel-status${error && calls.length === 0 ? ' is-error' : ''}`}>
               {loading && calls.length === 0 ? '读取中' : error && calls.length === 0 ? '读取失败' : calls.length ? `显示 ${calls.length} 条` : '暂无内容'}

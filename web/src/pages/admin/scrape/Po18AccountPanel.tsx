@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { CircleCheck, Cookie, KeyRound, Trash2, UserRound } from 'lucide-react'
+import { CircleCheck, Cookie, Trash2, UserRound } from 'lucide-react'
 import { useConfirm, useToast } from '../../../components/feedback'
 import { scrapeApi, type Po18AccountStatus, type Po18CaptchaResponse } from '../../../lib/api'
 import { AdminPanelHeading } from '@/components/admin/AdminWorkspace'
@@ -167,13 +167,7 @@ export default function Po18AccountPanel({ active }: { active: boolean }) {
   return (
     <Card className="admin-panel-card po18-account-panel">
       <AdminPanelHeading
-        title={
-          <span className="admin-panel-title">
-            <KeyRound className="size-4" aria-hidden="true" />
-            PO18.tw 原作者账号
-          </span>
-        }
-        description="PO18.tw 详情页需要登录。账号信息仅用于服务端访问原作者目录，密码和 Cookie 会加密保存。"
+        title="PO18.tw 原作者账号"
         status={
           <div className="po18-account-status">
             {accountBadge(status)}
@@ -191,7 +185,9 @@ export default function Po18AccountPanel({ active }: { active: boolean }) {
               <UserRound className="size-4" aria-hidden="true" />
               账号登录
             </h4>
-            <p className="po18-account-section__hint">填写 PO18.tw 登录账号；密码留空表示沿用已保存的密码。</p>
+            <p className="po18-account-section__hint">
+              PO18.tw 详情需要登录；账号仅用于服务端访问原作者目录，密码和 Cookie 加密保存。密码留空表示沿用已保存的密码。
+            </p>
           </div>
 
           <div className="po18-account-fields">

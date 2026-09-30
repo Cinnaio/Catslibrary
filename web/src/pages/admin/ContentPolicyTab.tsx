@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ShieldCheck } from 'lucide-react'
 import { adminApi } from '@/lib/api'
 import { useContentPolicy } from '@/context/ContentPolicyContext'
 import { useConfirm, useToast } from '@/components/feedback'
@@ -69,16 +68,8 @@ export default function ContentPolicyTab() {
       }
     >
       <Card className="admin-panel-card content-policy-panel">
-        <CardHeader className="flex-row items-start justify-between gap-4">
-          <div className="min-w-0">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <ShieldCheck className="size-4 text-primary" aria-hidden="true" />
-              成人内容模式
-            </CardTitle>
-            <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-              启用后，年满 18 岁的读者可在前台自行确认并查看限制级作品；关闭后，站点统一使用安全模式。
-            </p>
-          </div>
+        <CardHeader>
+          <CardTitle>成人内容模式</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="content-policy-row">

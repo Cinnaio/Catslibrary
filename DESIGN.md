@@ -51,7 +51,7 @@ typography:
     card-title: "0.95rem"     # 15.2px 发现卡标题
     body: "1rem"              # 16px 正文/品牌标记/队列摘要数值
     modal-title: "1.15rem"    # 18.4px 弹窗标题
-    panel-title: "1.25rem"    # 20px 面板标题（AdminPanelHeading）
+    panel-title: "1rem"       # 16px 后台卡片标题（小于 20px 页标题）
     stat: "1.45rem"           # 23.2px 指标条数值（AdminMetricStrip）——已全站停用，勿用于新页面
     page-title: "1.25rem"        # 20px 后台页标题固定字号
     hero-min: "1.35rem"       # 21.6px 公开页 hero clamp 下限
@@ -182,7 +182,7 @@ components:
 
 ### Hierarchy
 - **Page Title** (700, `var(--admin-page-title-size)` → 20px, 1.15): 后台页标题（AdminTabHeader 的 h2），保持紧凑固定字号，`letter-spacing: -0.04em`。它是页面上最大的文字，也是唯一的页面级标题。
-- **Panel Title** (750, 1.25rem, 1.3): 面板标题（AdminPanelHeading 的 h3），`letter-spacing: -0.03em`。刻意低于页标题一档，避免面板与页面争夺层级。
+- **Panel Title** (750, 1rem / 16px, 1.3): 后台卡片标题（AdminPanelHeading 的 h3），`letter-spacing: -0.03em`。必须小于 20px 页标题，卡片层级不能与页面标题持平或反超。
 - **Stat Value** (750, 1.45rem, 1): 指标条数值（AdminMetricStrip 的 strong），与 11.52px 标签形成尺寸断裂——全后台唯一的"大数字"层级。队列摘要用更小的 1rem，因为它与说明文字同处一个信息块，抬到 1.45rem 会撑破那块版面。
 - **Headline** (700, 2rem, 1.3): h1，用于页面级标题，letter-spacing: -0.02em。
 - **Title** (600, 1.3rem, 1.3): h2，段落标题。
@@ -234,6 +234,13 @@ components:
 ### 身份线三段
 
 面板标题（`h3`，写工作对象名）→ 面板内工具条（搜索 / 筛选 / 批量）→ 数据区（表格 / 列表 / 页脚）。三者同属一份数据，默认同处一个 `AdminDataPanel` 盒子内；当页面需要把工作对象说明与数据操作明确拆开时，使用下面的双表面结构。
+
+### Admin Card Heading
+
+- **Title:** 后台卡片标题统一使用 `AdminPanelHeading` 或同级卡片标题，字号读取 `--admin-section-title-size`（16px），低于 20px 页标题；保留清楚的 700–750 字重。
+- **No divider:** 标题区与卡片正文之间不画横向分界线。工具条、表格或正文内部需要分段时，只保留对应内容区的分隔线。
+- **Title only:** 卡片标题行只写工作对象名，不在标题下放注释性副标题，也不在主标题前放 SVG 图标。右侧只保留实时状态、有归属的数据读数或可执行控件；静态快捷键、提示标签和装饰性徽标移入正文（确有需要时）或删除。必要说明放回字段帮助或正文，不作为卡头副标题。
+- **Coverage:** 该规则适用于所有后台 tab 的数据面板、配置卡和运营卡；新增卡片沿用共享样式，不建立页面专属标题例外。
 
 - **`AdminPage` 是容器契约**：它提供 `.tab-content` + `.admin-redesign-page`（统一区块间距、卡片表面归一化，不可省略），并接收 `title` / `description` / `actions` 三个 prop 转交 `AdminTabHeader`。子视图自带页头时传 `title={undefined}` 关闭父级页头（`scrape` 的书源子页即此用法）。
 
@@ -443,6 +450,8 @@ components:
 - **Do** 在暗色模式使用月光暖调（金色强调 + 深灰地面），不要简单反转
 - **Do** 后台数据表统一走 `AdminDataPanel` + `columns` 契约，并手动标注 `data-primary` / `data-label` / `data-actions`
 - **Do** 让每个页面只保留一个内容区主标题，面板标题写工作对象名
+- **Do** 让后台卡片标题保持 16px、无分界线、无注释性副标题和前置 SVG 图标
+- **Do** 让卡片标题行右侧只出现实时状态、所属数据读数或可执行控件
 - **Do** 让页名独占标题行、描述位于其下方；标题后不接小字或竖线，搜索与整页动作留在右侧
 - **Do** 把规模与状态读数放在所属面板、筛选器或分页区，不放在页名旁
 - **Do** 把筛选读数贴在能筛出它的控件旁边（「待标注 67 · 限制级 340」紧邻分级下拉），而不是另起指标条
@@ -458,6 +467,8 @@ components:
 - **Don't** 忽略 prefers-reduced-motion 媒体查询——尊重用户的动画偏好
 - **Don't** 给数据面板套用 `columns` 之外的列宽方案，或手写 `--col-N-w`。列宽契约只有一个入口
 - **Don't** 在页标题上方再加小字眉题，或用面板标题重复当前页面名
+- **Don't** 在后台卡片标题下添加解释性副标题，或在标题前添加 SVG 图标
+- **Don't** 在卡片标题行放静态快捷键提示、操作说明或装饰性标签
 - **Don't** 在列表型后台页再插 `AdminMetricStrip`：它的数字若已在所属面板、筛选器或页脚计数里出现，就只是重复（见 The No-Third-Pass Rule）
 - **Don't** 把同一个动作同时放进页头和面板工具条（见 The Single-Door Rule）
 - **Don't** 让 `w-full` 的元素在 flex 容器里失去 `max-width`——`max-w-none` + `w-full` 会让筛选器独占整行，把工具条撑成多行

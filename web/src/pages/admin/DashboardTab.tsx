@@ -178,7 +178,7 @@ export default function DashboardTab(_props: { highlightNovelId?: string; onHigh
 
           <div className="grid gap-4 lg:grid-cols-2">
             <AdminDataPanel className="overflow-hidden" ariaLabel="最近抓取任务">
-              <AdminPanelHeading title="最近抓取任务" status={<span className="text-xs text-muted-foreground">按更新时间</span>} />
+              <AdminPanelHeading title="最近抓取任务" />
               <div className="px-6 py-2">
                 {data.recentJobs.length === 0 ? (
                   <AdminEmptyState message="暂无抓取任务" hint="从「爬虫抓取」提交一个链接或搜索书名，任务进度与结果会汇总到这里。" />
@@ -196,7 +196,7 @@ export default function DashboardTab(_props: { highlightNovelId?: string; onHigh
               </div>
             </AdminDataPanel>
             <AdminDataPanel className="overflow-hidden" ariaLabel="最近更新小说">
-              <AdminPanelHeading title="最近更新小说" status={<span className="text-xs text-muted-foreground">书库动态</span>} />
+              <AdminPanelHeading title="最近更新小说" />
               <div className="px-6 py-2">
                 {data.recentNovels.length === 0 ? (
                   <AdminEmptyState message="书库还是空的" hint="抓取或手动添加小说后，最近更新的作品会出现在这里。" />

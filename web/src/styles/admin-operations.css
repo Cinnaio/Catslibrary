@@ -115,27 +115,6 @@
   color: var(--color-danger);
 }
 
-/* 标题内嵌图标：Card 标题与 AdminPanelHeading 标题共有 20 余处同类写法，
-   统一为一个共享类，避免各页各写一遍 flex + gap。
-
-   图标颜色在此集中声明，TSX 只保留 size-4 与 aria-hidden。此前 28 处调用点
-   各写一遍 text-primary，等于把颜色策略散在 28 个文件位置；若产品决定面板
-   图标改用 --text-muted 或按状态着色，需改 28 处，漏改即出现面板间图标色
-   不一致。实测 28 处全部为「单个 size-4 图标 + text-primary」，无一例外，
-   故下沉为单条规则是安全的。
-
-   用直接子选择器（>）而非后代选择器：实测 28 处的图标都是 .admin-panel-title
-   的直接子元素，且后代选择器会误伤将来嵌在标题里的状态徽章图标。 */
-.admin-panel-title {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.admin-panel-title > svg {
-  color: var(--accent);
-}
-
 /* Account tables now use the same grid/card contract as novels and chapters.
    列宽由 <AdminDataPanel columns> 以行内 --col-N-w 注入，不再在此重复声明。 */
 .account-users-panel,
@@ -214,6 +193,15 @@
 
 .admin-redesign-page [data-slot='card-header'] {
   min-width: 0;
+  border-bottom: 0;
+}
+
+.admin-redesign-page [data-slot='card-title'] {
+  color: var(--text-primary);
+  font-size: var(--admin-section-title-size);
+  font-weight: 750;
+  letter-spacing: -0.03em;
+  line-height: 1.3;
 }
 
 .ai-service .ai-tasks-panel,
@@ -571,7 +559,6 @@
   background: color-mix(in srgb, var(--admin-panel) 94%, var(--accent-subtle));
 }
 
-.scrape-intake__shortcut,
 .scrape-discovery__count {
   flex: 0 0 auto;
   padding: 0.35rem 0.55rem;
@@ -3649,12 +3636,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
     padding-bottom: 0.75rem;
   }
 
-  .ai-params-card [data-slot='card-header'] > p,
-  .ai-params-card > .admin-panel-heading .admin-panel-heading__copy > p {
-    max-width: 30rem;
-    line-height: 1.45;
-  }
-
   .ai-params-card:not(.ai-params-card--writing) .ai-form-grid {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -3876,9 +3857,13 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   padding: 0;
 }
 
-.admin-redesign-page--sources .admin-panel-card [data-slot='card-header'],
 .admin-redesign-page--sources .source-panel__bar {
   border-bottom: 1px solid var(--admin-table-border);
+  background: transparent;
+}
+
+.admin-redesign-page--sources .admin-panel-card [data-slot='card-header'] {
+  border-bottom: 0;
   background: transparent;
 }
 
@@ -3900,7 +3885,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 
 .admin-redesign-page--sources .source-panel > .admin-panel-heading {
   padding: 1.25rem;
-  border-bottom: 1px solid var(--admin-table-border);
 }
 
 .admin-redesign-page--sources .source-panel > .admin-panel-heading + .source-panel__bar {
@@ -4257,29 +4241,20 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   padding: var(--admin-space-5);
 }
 
-/* 附件范本的卡片层次：标题区与内容区由一条细线分开，右侧保留状态/动作位。
-   只作用于后台卡片，阅读页和全局 shadcn Card 不受影响。 */
+/* 后台卡片统一采用无分割线的标题行，卡片正文沿用自身留白与内部结构。 */
 .admin-redesign-page :is(.admin-panel-card, [data-slot='card']) > [data-slot='card-header'] {
-  min-height: 5.15rem;
-  padding: 1.25rem 1.5rem 1.1rem;
-  border-bottom: 1px solid var(--admin-border);
-  gap: 0.4rem;
+  min-height: 0;
+  padding: 1.5rem 1.5rem 1.25rem;
+  border-bottom: 0;
+  gap: 0;
 }
 
 .admin-redesign-page :is(.admin-panel-card, [data-slot='card']) > [data-slot='card-header'] [data-slot='card-title'] {
   color: var(--text-primary);
-  font-size: 1.2rem;
+  font-size: var(--admin-section-title-size);
   font-weight: 750;
   letter-spacing: -0.03em;
   line-height: 1.3;
-}
-
-.admin-redesign-page :is(.admin-panel-card, [data-slot='card']) > [data-slot='card-header'] > p,
-.admin-redesign-page :is(.admin-panel-card, [data-slot='card']) > [data-slot='card-header'] [data-slot='card-description'] {
-  margin: 0.3rem 0 0;
-  color: var(--text-muted);
-  font-size: 0.875rem;
-  line-height: 1.45;
 }
 
 .admin-redesign-page :is(.admin-panel-card, [data-slot='card']) > [data-slot='card-content'] {
@@ -7298,7 +7273,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 }
 
 .admin-redesign-page--sources .admin-panel-card [data-slot='card-header'] {
-  border-bottom: 1px solid var(--admin-border);
   padding: 1.125rem 1.25rem;
 }
 
@@ -8456,7 +8430,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   gap: 1rem;
   min-width: 0;
   padding: 1.5rem 1.5rem 1.25rem;
-  border-bottom: 1px solid var(--admin-border);
 }
 
 .admin-panel-heading__copy {
@@ -8470,13 +8443,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   font-weight: 750;
   letter-spacing: -0.03em;
   line-height: 1.3;
-}
-
-.admin-panel-heading__copy p {
-  margin: 0.45rem 0 0;
-  color: var(--text-muted);
-  font-size: 0.875rem;
-  line-height: 1.45;
 }
 
 .admin-panel-heading__actions {
@@ -8675,10 +8641,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 
   .admin-panel-heading {
     padding: 1.125rem 1rem 1rem;
-  }
-
-  .admin-panel-heading__copy h3 {
-    font-size: 1.125rem;
   }
 
   .admin-redesign-page :is(.admin-panel-card, [data-slot='card']) > [data-slot='card-header'] {

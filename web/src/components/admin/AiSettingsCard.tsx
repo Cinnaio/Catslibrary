@@ -80,15 +80,6 @@ export default function AiSettingsCard() {
       <CardHeader className="flex-row items-center justify-between gap-2">
         <div className="min-w-0">
           <CardTitle className="text-base">AI 服务</CardTitle>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            {provider?.configured ? (
-              <>
-                {provider.host} · {provider.model}
-              </>
-            ) : (
-              '未配置 AI_TEXT_BASE_URL / AI_TEXT_API_KEY，读者端不会出现 AI 入口'
-            )}
-          </p>
         </div>
         <Badge className={provider?.configured ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}>
           {provider?.configured ? '已配置' : '未配置'}
@@ -96,6 +87,11 @@ export default function AiSettingsCard() {
       </CardHeader>
 
       <CardContent className="grid gap-4">
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          {provider?.configured
+            ? `${provider.host} · ${provider.model}`
+            : '未配置 AI_TEXT_BASE_URL / AI_TEXT_API_KEY，读者端不会出现 AI 入口'}
+        </p>
         <label className="flex items-start justify-between gap-4 rounded-xl border border-border bg-card p-3.5">
           <span className="min-w-0">
             <span className="block text-sm font-medium text-foreground">阅读器前情提要</span>

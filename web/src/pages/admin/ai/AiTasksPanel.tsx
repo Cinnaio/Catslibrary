@@ -209,7 +209,6 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
       <AdminDataPanel className="ai-tasks-panel overflow-hidden" ariaLabel="AI 任务列表" columns={AI_TASK_COLUMNS}>
         <AdminPanelHeading
           title="任务列表"
-          description="独立于爬取任务，查看生成进度、错误和输入 Prompt。"
           status={
             <span className={`admin-panel-status${error && tasks.length === 0 ? ' is-error' : ''}`}>
               {loading && tasks.length === 0 ? '读取中' : error && tasks.length === 0 ? '读取失败' : total ? `共 ${total} 条` : '暂无内容'}

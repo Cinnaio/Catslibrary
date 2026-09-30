@@ -12,7 +12,7 @@ import { Switch } from '@/components/ui/switch'
 import CustomSelect from '@/components/admin/CustomSelect'
 import CoverHistory from './CoverHistory'
 import { taskStatusLabel } from './labels'
-import { BookOpen, CircleAlert, Loader2, Palette, Sparkles, Trash2, Upload, Wand2 } from 'lucide-react'
+import { BookOpen, CircleAlert, Loader2, Sparkles, Trash2, Upload, Wand2 } from 'lucide-react'
 
 // 后台封面任务的进度轮询间隔（与 AiWritingPanel 对齐）
 const TASK_POLL_INTERVAL = 3000
@@ -589,8 +589,7 @@ export default function AiCoverPanel({
   return (
     <Card className="admin-panel-card ai-cover-card">
       <AdminPanelHeading
-        title={<span className="admin-panel-title"><Palette className="size-4" aria-hidden="true" />封面生成工作台</span>}
-        description="先确认作品与故事方向，再生成、比较并采纳封面候选。"
+        title="封面生成工作台"
       />
 
       <CardContent className="grid gap-6">

@@ -52,11 +52,18 @@ export default function DiscoveryPanel({
     <AdminDataPanel className="scrape-discovery" ariaLabel="发现结果">
       <AdminPanelHeading
         className="scrape-discovery__heading"
-        title={<span id="scrape-discovery-title">发现结果</span>}
-        description={info || '正在从源站读取作品…'}
+        title="发现结果"
+        titleId="scrape-discovery-title"
         status={
-          novels.length > 0 ? (
-            <span className="scrape-discovery__count">{selected.size > 0 ? `已选 ${selected.size} 本` : `当前 ${novels.length} 本`}</span>
+          info || novels.length > 0 ? (
+            <div className="flex max-w-full flex-wrap items-center justify-end gap-2">
+              {info && <span role="status" className="text-xs text-muted-foreground">{info}</span>}
+              {novels.length > 0 && (
+                <span className="scrape-discovery__count">
+                  {selected.size > 0 ? `已选 ${selected.size} 本` : `当前 ${novels.length} 本`}
+                </span>
+              )}
+            </div>
           ) : undefined
         }
       />

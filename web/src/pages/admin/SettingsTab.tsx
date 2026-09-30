@@ -488,8 +488,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
       {currentAccountTab === 'registration' && (
         <Card className="admin-panel-card">
           <CardHeader>
-            <CardTitle className="text-base">注册设置</CardTitle>
-            <p className="text-sm text-muted-foreground">控制新用户如何加入本站。</p>
+            <CardTitle>注册设置</CardTitle>
           </CardHeader>
           <CardContent>
             <RadioGroup
@@ -525,7 +524,6 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
           <AdminDataPanel className="account-users-panel overflow-hidden" ariaLabel="用户列表" columns={USER_COLUMNS}>
             <AdminPanelHeading
               title="用户目录"
-              description="管理站点用户、角色与登录状态。"
               status={<span className="admin-panel-status">{loading && !data ? '读取中' : users.length ? `共 ${users.length} 人` : '暂无用户'}</span>}
               actions={
                 <Button variant="secondary" size="sm" onClick={() => void load()} disabled={loading}>
@@ -655,7 +653,6 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
           <AdminDataPanel className="account-audit-panel overflow-hidden" ariaLabel="登录记录列表" columns={LOGIN_AUDIT_COLUMNS}>
             <AdminPanelHeading
               title="登录记录"
-              description="记录登录成功、失败与限流事件，不保存密码或登录令牌。"
               status={
                 <span className="admin-panel-status">
                   {loginAuditLoading && loginAudits.length === 0 ? '读取中' : loginAudits.length ? `显示 ${loginAudits.length} 条` : '暂无记录'}
@@ -668,7 +665,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
               }
             />
             <Table>
-              <TableCaption className="sr-only">登录记录列表，含用户、结果、原因、IP 地址、User-Agent 与时间</TableCaption>
+              <TableCaption className="sr-only">登录记录列表，含用户、结果、原因、IP 地址、User-Agent 与时间；不记录密码或登录令牌。</TableCaption>
               <TableHeader>
                 <TableRow>
                   <TableHead scope="col">用户</TableHead>
@@ -766,7 +763,6 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
           <AdminDataPanel className="account-operation-audit-panel overflow-hidden" ariaLabel="操作记录列表" columns={OPERATION_AUDIT_COLUMNS}>
             <AdminPanelHeading
               title="操作记录"
-              description="记录危险操作的发起人、目标数量、结果与重放次数，不保存目标正文或原始内容。"
               status={
                 <span className="admin-panel-status">
                   {operationAuditLoading && operationAudits.length === 0 ? '读取中' : operationAudits.length ? `显示 ${operationAudits.length} 条` : '暂无记录'}
@@ -779,7 +775,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
               }
             />
             <Table>
-              <TableCaption className="sr-only">管理员操作记录列表，含操作人、动作、目标数量、结果、重放次数与操作 ID</TableCaption>
+              <TableCaption className="sr-only">管理员操作记录列表，含操作人、动作、目标数量、结果、重放次数与操作 ID；不保存目标正文或原始内容。</TableCaption>
               <TableHeader>
                 <TableRow>
                   <TableHead scope="col">操作人</TableHead>
@@ -867,7 +863,6 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
           <AdminDataPanel className="account-invites-panel overflow-hidden" ariaLabel="邀请码列表" columns={INVITE_COLUMNS}>
             <AdminPanelHeading
               title="邀请码"
-              description="生成、复制与停用注册邀请码。"
               status={<span className="admin-panel-status">{invites.length ? `共 ${invites.length} 个` : '暂无邀请码'}</span>}
               actions={
                 <>

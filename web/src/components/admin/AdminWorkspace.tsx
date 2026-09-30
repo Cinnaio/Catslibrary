@@ -184,19 +184,20 @@ export function AdminDataPanel({ children, ariaLabel, className, columns }: Admi
 }
 
 interface AdminPanelHeadingProps {
-  title: ReactNode
-  description?: ReactNode
+  title: string
+  titleId?: string
+  /** 只呈现实时状态或有归属的数据读数；静态提示移出标题行。 */
   status?: ReactNode
+  /** 只放可执行控件，不放快捷键提示等静态标签。 */
   actions?: ReactNode
   className?: string
 }
 
-export function AdminPanelHeading({ title, description, status, actions, className }: AdminPanelHeadingProps) {
+export function AdminPanelHeading({ title, titleId, status, actions, className }: AdminPanelHeadingProps) {
   return (
     <div className={cn('admin-panel-heading', className)}>
       <div className="admin-panel-heading__copy">
-        <h3>{title}</h3>
-        {description && <p>{description}</p>}
+        <h3 id={titleId}>{title}</h3>
       </div>
       {(status || actions) && (
         <div className="admin-panel-heading__actions">

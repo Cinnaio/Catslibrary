@@ -1,6 +1,6 @@
 /** 配置面板：供应商信息、开关、配额（数字输入防抖自动保存）。 */
 import { useEffect, useState } from 'react'
-import { Activity, BookOpenCheck, Bot, Image, Sparkles } from 'lucide-react'
+import { Image, Sparkles } from 'lucide-react'
 import { aiApi, type AiSettings, type AiUsageSummary, type AiProviderConfig } from '@/lib/api'
 import { useToast } from '@/components/feedback'
 import { useDebouncedCallback } from '@/hooks/useDebounce'
@@ -171,8 +171,7 @@ export default function AiConfigPanel(props: {
       {/* 供应商连接参数：可在后台直接修改，无需重启。 */}
       <Card className="admin-panel-card ai-config-providers-card min-w-0">
         <AdminPanelHeading
-          title={<span className="admin-panel-title"><Bot className="size-4" aria-hidden="true" />模型供应商</span>}
-          description="连接文本与图像模型，保存后立即生效。"
+          title="模型供应商"
         />
         <CardContent className="ai-config-providers">
           <section className="ai-provider-section grid gap-3">
@@ -298,8 +297,7 @@ export default function AiConfigPanel(props: {
       <div className="ai-config-secondary">
       <Card className="admin-panel-card ai-config-card">
           <AdminPanelHeading
-            title={<span className="admin-panel-title"><BookOpenCheck className="size-4" aria-hidden="true" />读者生成策略</span>}
-            description="控制读者可用的前情提要与单次生成范围。"
+            title="读者生成策略"
           />
           <CardContent className="grid gap-4">
           <label className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/30 px-4 py-3">
@@ -351,8 +349,7 @@ export default function AiConfigPanel(props: {
 
       <Card className="admin-panel-card ai-config-card">
           <AdminPanelHeading
-            title={<span className="admin-panel-title"><Activity className="size-4" aria-hidden="true" />服务检查与用量</span>}
-            description="验证文本模型连接，并查看近期调用情况。"
+            title="服务检查与用量"
           />
           <CardContent className="grid gap-4">
           <div className="ai-config-test flex flex-wrap items-center gap-3">

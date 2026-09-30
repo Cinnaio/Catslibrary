@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Bot, CheckCircle2, Eye, History, Pencil, Play, PlusCircle, RefreshCw, ShieldCheck, Sparkles, Square, XCircle } from 'lucide-react'
+import { Bot, CheckCircle2, Eye, History, Pencil, Play, PlusCircle, RefreshCw, Square, XCircle } from 'lucide-react'
 import {
   adminApi,
   aiApi,
@@ -208,7 +208,6 @@ function RuleCandidatePanel({
     <AdminDataPanel ariaLabel="内容分级规则候选">
       <AdminPanelHeading
         title="规则候选"
-        description="先预览会影响哪些未标注作品，再批准应用或拒绝候选；审核动作会保留理由和规则版本。"
         status={
           <span className="text-xs text-muted-foreground">
             待审核 {data ? formatNumber(data.counts.pending) : '—'} 条 · 当前规则 {data?.activeRuleVersion || '—'}
@@ -396,13 +395,7 @@ function AiSuggestionPanel({
   return (
     <AdminDataPanel ariaLabel="LLM 内容分级建议">
       <AdminPanelHeading
-        title={
-          <span className="flex items-center gap-2">
-            <Sparkles className="size-4 text-primary" aria-hidden="true" />
-            LLM 分级建议
-          </span>
-        }
-        description="LLM 只分析未标注作品并生成待审核建议，输出限定为限制级或继续未标注；不会直接修改作品，也不会推断一般。任务可随时中止并断点恢复。"
+        title="LLM 分级建议"
         status={<span className="text-xs text-muted-foreground">待审核 {data ? formatNumber(data.counts.pending) : '—'} 条</span>}
         actions={
           <div className="flex flex-wrap items-center gap-2">
@@ -1004,13 +997,7 @@ export default function ContentRatingsTab() {
       ) : (
         <AdminDataPanel ariaLabel="内容分级账本" columns={RATING_COLUMNS}>
           <AdminPanelHeading
-            title={
-              <span className="flex items-center gap-2">
-                <ShieldCheck className="size-4 text-primary" aria-hidden="true" />
-                作品分级账本
-              </span>
-            }
-            description="自动判定只提供依据，人工修改必须留下理由；未标注不会被当作一般。"
+            title="作品分级账本"
             status={<span className="text-xs text-muted-foreground">{loading ? '正在同步…' : `${formatNumber(data.total)} 本匹配`}</span>}
           />
 

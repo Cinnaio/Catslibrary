@@ -90,7 +90,6 @@ export default function AiUsagePanel() {
       <AdminDataPanel className="ai-usage-card" ariaLabel="成本与调用趋势">
         <AdminPanelHeading
           title="成本与调用趋势"
-          description="每日 AI 调用次数与成本消耗"
           status={
             <span className="ai-usage-totals">
               <span>总调用 <strong>{totalCalls.toLocaleString()}</strong></span>
@@ -198,7 +197,6 @@ export default function AiUsagePanel() {
       <AdminDataPanel className="ai-usage-card" ariaLabel="Token 消耗趋势">
         <AdminPanelHeading
           title="Token 消耗趋势"
-          description="每日输入/输出 Token 用量"
           status={
             <span className="ai-usage-totals">
               <span>总 Token <strong>{totalTokens.toLocaleString()}</strong></span>

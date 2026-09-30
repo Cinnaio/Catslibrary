@@ -661,7 +661,6 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
       <AdminDataPanel className="overflow-hidden" ariaLabel="审核列表" columns={cfg.columns}>
         <AdminPanelHeading
           title="审核列表"
-          description={`当前查看${cfg.label}，先确认内容上下文，再执行可见性操作。`}
           status={<span className={`admin-panel-status${error ? ' is-error' : ''}`}>{listStatusLabel}</span>}
         />
         {hasRows ? (

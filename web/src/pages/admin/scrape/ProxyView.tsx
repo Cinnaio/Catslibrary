@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Globe2, Info, LoaderCircle, Network, RefreshCw, Route, Save, ScrollText, ShieldCheck, Waypoints } from 'lucide-react'
+import { Globe2, Info, LoaderCircle, Network, RefreshCw, Route, Save, ScrollText } from 'lucide-react'
 import { scrapeApi } from '@/lib/api'
 import { useToast } from '@/components/feedback'
 import AdminEmptyState from '@/components/admin/AdminEmptyState'
@@ -177,8 +177,7 @@ export default function ProxyView() {
     <div className="proxy-settings-page grid gap-4">
       <Card className="admin-panel-card proxy-config-panel">
         <AdminPanelHeading
-          title={<span className="admin-panel-title"><Waypoints className="size-4" aria-hidden="true" />HTTP / HTTPS 出站代理</span>}
-          description="统一作用于 AI 文本、图像生成、远程图片、书源导入和网页抓取。Docker 部署优先使用 HTTP_PROXY / HTTPS_PROXY。"
+          title="HTTP / HTTPS 出站代理"
           status={<Badge className={enabled ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}>{enabled ? '已启用' : '未启用'}</Badge>}
         />
         <CardContent className="grid gap-5">
@@ -236,8 +235,7 @@ export default function ProxyView() {
 
       <Card className="admin-panel-card proxy-test-panel">
         <AdminPanelHeading
-          title={<span className="admin-panel-title"><ShieldCheck className="size-4" aria-hidden="true" />代理连通性测试</span>}
-          description="先检查目标是否走代理；再用与正式请求相同的代理链路访问一次公开网址并写入下方日志。"
+          title="代理连通性测试"
         />
         <CardContent className="grid gap-4">
           <div className="grid gap-1.5">
@@ -290,7 +288,6 @@ export default function ProxyView() {
       <AdminDataPanel className="proxy-logs-panel overflow-hidden" ariaLabel="出站请求日志" columns={LOG_COLUMNS}>
         <AdminPanelHeading
           title="最近出站日志"
-          description="仅保留本进程最近 100 条；目标查询参数、请求头、正文及代理凭据不会记录。"
           actions={
             <Button variant="ghost" size="icon" onClick={() => void loadLogs()} disabled={logsLoading} title="刷新日志" aria-label="刷新日志">
               <RefreshCw className={`size-4 ${logsLoading ? 'animate-spin' : ''}`} aria-hidden="true" />
@@ -343,6 +340,9 @@ export default function ProxyView() {
             </TableBody>
           </Table>
         )}
+        <p className="px-5 pb-4 text-xs leading-relaxed text-muted-foreground">
+          仅保留最近 100 条；目标查询参数、请求头、正文及代理凭据不会记录。
+        </p>
       </AdminDataPanel>
     </div>
   )
