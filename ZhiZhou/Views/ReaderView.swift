@@ -472,18 +472,13 @@ struct ReaderView: View {
             // scroll container while the next chapter is loading.
             .id(scrollIdentity)
             .ignoresSafeArea(edges: .horizontal)
-            // 控制区放进 ScrollView 的安全区，滚动到末尾时也不会压住正文。
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                readerChrome
-            }
-            .scrollPosition(id: $scrolledParagraph)
             .background(paper)
             .contentShape(Rectangle())
             .accessibilityHint("轻点中央显示阅读控制；使用顶部和底部按钮切换目录、设置和章节")
             .accessibilityAction(named: showChrome ? "隐藏阅读控制" : "显示阅读控制") {
                 toggleChrome()
             }
-            // 点按热区覆盖整个 ScrollView，包括短章节下面的空白区域。
+            // 正文手势附着在 ScrollView 本身，避免命中其后的底部安全区工具栏。
             .simultaneousGesture(
                 SpatialTapGesture().onEnded { value in
                     handleScrollTap(x: value.location.x, width: geo.size.width)
@@ -500,6 +495,17 @@ struct ReaderView: View {
                         edgeSwipeProgress = 0
                     }
             )
+            .overlay(alignment: .top) {
+                readerEdgeBlur(isTop: true)
+            }
+            .overlay(alignment: .bottom) {
+                readerEdgeBlur(isTop: false)
+            }
+            // 控制区放进 ScrollView 的安全区，滚动到末尾时也不会压住正文。
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                readerChrome
+            }
+            .scrollPosition(id: $scrolledParagraph)
             .overlay(alignment: .trailing) {
                 if edgeSwipeProgress > 0 {
                     Image(systemName: "chevron.left")
@@ -615,6 +621,12 @@ struct ReaderView: View {
         .onChange(of: currentPage) { _, page in
             updatePageProgress(page)
         }
+        .overlay(alignment: .top) {
+            readerEdgeBlur(isTop: true)
+        }
+        .overlay(alignment: .bottom) {
+            readerEdgeBlur(isTop: false)
+        }
         // 与滚动模式一致，控制区占据真实安全区而不是盖在页面上。
         .safeAreaInset(edge: .bottom, spacing: 0) {
             readerChrome
@@ -668,6 +680,22 @@ struct ReaderView: View {
         } else {
             toggleChrome()
         }
+    }
+
+    private func readerEdgeBlur(isTop: Bool) -> some View {
+        Rectangle()
+            .fill(.ultraThinMaterial)
+            .mask {
+                LinearGradient(
+                    colors: isTop ? [.black, .clear] : [.clear, .black],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            }
+            .frame(height: 40)
+            .frame(maxWidth: .infinity)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 
     private func handleScrollTap(x: CGFloat, width: CGFloat) {
