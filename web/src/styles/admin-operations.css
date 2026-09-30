@@ -633,11 +633,11 @@
   box-shadow: none;
 }
 
-.scrape-intake__tab[data-state='active'] strong {
+.scrape-intake__tab[data-state='active'] span {
   color: var(--tabs-segmented-active-foreground);
 }
 
-.scrape-intake__tab strong {
+.scrape-intake__tab span {
   color: var(--tabs-segmented-muted-foreground);
   font-size: var(--tabs-segmented-label-size);
   font-weight: var(--tabs-segmented-label-weight);
@@ -6998,6 +6998,11 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   box-shadow: var(--tabs-segmented-active-shadow);
 }
 
+.admin-layout [data-slot='tabs-trigger'][data-state='active'],
+.admin-dialog [data-slot='tabs-trigger'][data-state='active'] {
+  font-weight: var(--tabs-segmented-active-label-weight);
+}
+
 /* 章节管理 */
 .admin-redesign-page--chapters .chapter-novel-select {
   width: 280px;
@@ -9349,7 +9354,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   box-shadow: none;
 }
 
-.admin-redesign-page--scrape .scrape-intake__tab > strong {
+.admin-redesign-page--scrape .scrape-intake__tab > span {
   min-width: 0;
   overflow: hidden;
   color: var(--tabs-segmented-muted-foreground);
@@ -9360,9 +9365,9 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   white-space: nowrap;
 }
 
-.admin-redesign-page--scrape .scrape-intake__tab[data-state='active'] > strong {
+.admin-redesign-page--scrape .scrape-intake__tab[data-state='active'] > span {
   color: var(--tabs-segmented-active-foreground);
-  font-weight: var(--tabs-segmented-label-weight);
+  font-weight: var(--tabs-segmented-active-label-weight);
 }
 
 .admin-redesign-page--scrape .scrape-intake__form {

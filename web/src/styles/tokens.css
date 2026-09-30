@@ -56,7 +56,8 @@
   --tabs-segmented-muted-foreground:  var(--text-muted);
   --tabs-segmented-active-foreground: var(--accent-hover);
   --tabs-segmented-label-size:        0.875rem; /* 14px */
-  --tabs-segmented-label-weight:      400;
+  --tabs-segmented-label-weight:      500;
+  --tabs-segmented-active-label-weight: 600;
   --tabs-segmented-label-line-height: 1.6;
 
   /* Admin form labels stay quiet so the active segmented tab remains the visual lead. */

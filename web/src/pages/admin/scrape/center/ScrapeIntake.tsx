@@ -69,7 +69,7 @@ export default function ScrapeIntake({
         <TabsList aria-label="选择抓取入口" data-active-index={INTAKE_MODE_INDEX[mode]}>
           {MODES.map(({ value, label }) => (
             <TabsTrigger value={value} key={value} className="scrape-intake__tab">
-              <strong>{label}</strong>
+              <span>{label}</span>
             </TabsTrigger>
           ))}
         </TabsList>
