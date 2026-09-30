@@ -1,6 +1,7 @@
 import SwiftUI
 import UIKit
 import ImageIO
+import CryptoKit
 
 /// 统一图片缓存（内存 + 磁盘），避免封面在滚动/重访时反复下载。
 enum ImageCache {
@@ -26,11 +27,54 @@ enum ImageCache {
         VisualAudit.configure(config)
         #endif
         config.urlCache = sharedCache
-        config.requestCachePolicy = .returnCacheDataElseLoad
+        config.httpCookieStorage = .shared
+        config.httpShouldSetCookies = true
+        // Cache-Control: no-cache lets URLCache persist image bytes while
+        // requiring a server authorization check before each reuse.
+        config.requestCachePolicy = .useProtocolCachePolicy
         config.timeoutIntervalForRequest = 20
         config.timeoutIntervalForResource = 40
         return URLSession(configuration: config)
     }()
+
+    /// Partition decoded and in-flight images by the credentials sent to this origin.
+    /// The fingerprint avoids keeping bearer or adult-access tokens in cache keys.
+    static func cacheKey(for url: URL) -> String {
+        let token = isAPIURL(url) ? (APIClient.shared.token ?? "") : ""
+        let cookies = (HTTPCookieStorage.shared.cookies(for: url) ?? [])
+            .sorted { $0.name == $1.name ? $0.value < $1.value : $0.name < $1.name }
+        let cookieHeader = HTTPCookie.requestHeaderFields(with: cookies)["Cookie"] ?? ""
+        let credentials = "\(token)\n\(cookieHeader)"
+        let fingerprint = SHA256.hash(data: Data(credentials.utf8))
+            .map { String(format: "%02x", $0) }
+            .joined()
+        return "\(url.absoluteString)|\(fingerprint)"
+    }
+
+    static func request(for url: URL) -> URLRequest {
+        var request = URLRequest(url: url)
+        request.cachePolicy = .useProtocolCachePolicy
+        if isAPIURL(url), let token = APIClient.shared.token, !token.isEmpty {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        return request
+    }
+
+    private static func isAPIURL(_ url: URL) -> Bool {
+        guard let baseURL = ServerConfig.shared.baseURL,
+              let base = URLComponents(url: baseURL, resolvingAgainstBaseURL: false),
+              let candidate = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        else {
+            return false
+        }
+        return base.scheme?.lowercased() == candidate.scheme?.lowercased()
+            && base.host?.lowercased() == candidate.host?.lowercased()
+            && base.port == candidate.port
+    }
+
+    static func requiresServerValidation(for url: URL) -> Bool {
+        isAPIURL(url) && url.path.hasPrefix("/api/cover/")
+    }
 }
 
 /// 合并同一封面的并发请求：列表行被回收时，不让它的取消动作中断其他行正在等待的下载。
@@ -40,14 +84,14 @@ private actor ImageRequestCache {
     private var inFlight: [String: Task<Data?, Never>] = [:]
 
     func data(for url: URL) async -> Data? {
-        let key = url.absoluteString
+        let key = ImageCache.cacheKey(for: url)
         if let task = inFlight[key] {
             return await task.value
         }
 
         let task: Task<Data?, Never> = Task {
             do {
-                let (data, response) = try await ImageCache.session.data(from: url)
+                let (data, response) = try await ImageCache.session.data(for: ImageCache.request(for: url))
                 if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
                     return nil
                 }
@@ -78,7 +122,7 @@ actor CoverPrefetcher {
     func prefetch(_ items: [Novel]) {
         for novel in items {
             guard let url = APIClient.shared.coverURL(novelId: novel.id, updatedAt: novel.updatedAt) else { continue }
-            let key = url.absoluteString
+            let key = ImageCache.cacheKey(for: url)
             if seen.count >= seenLimit { seen.removeAll(keepingCapacity: true) }
             guard !seen.contains(key) else { continue }
             seen.insert(key)
@@ -170,22 +214,27 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
                 return
             }
             let key = taskKey
-            if loadedKey == key, image != nil { return }
-            if loadedKey != nil, loadedKey != key {
-                // URL 变化时不能短暂展示上一本书的封面；同一 URL 重试时则保留现有图片。
+            let requiresServerValidation = ImageCache.requiresServerValidation(for: url)
+            if loadedKey == key, image != nil, !requiresServerValidation { return }
+            if requiresServerValidation || (loadedKey != nil && loadedKey != key) {
+                // URL 变化时清除旧封面；封面再次出现时也先清空旧图，等服务器完成授权校验。
                 image = nil
+                loadedKey = nil
             }
             loadFailed = false
             let maxPixel = max(targetSize.width, targetSize.height) * displayScale
             guard !Task.isCancelled else { return }
-            if let cached = ImageCache.decodedImageCache.object(forKey: key as NSString) {
+            if !requiresServerValidation,
+               let cached = ImageCache.decodedImageCache.object(forKey: key as NSString) {
                 image = cached
                 loadedKey = key
                 return
             }
             if let img = await Self.fetch(url, maxPixel: maxPixel) {
                 guard !Task.isCancelled else { return }
-                ImageCache.decodedImageCache.setObject(img, forKey: key as NSString, cost: Self.imageCost(img))
+                if !requiresServerValidation {
+                    ImageCache.decodedImageCache.setObject(img, forKey: key as NSString, cost: Self.imageCost(img))
+                }
                 image = img
                 loadedKey = key
             } else if !Task.isCancelled {
@@ -197,7 +246,8 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
     private var taskKey: String {
         let pixelWidth = Int((targetSize.width * displayScale).rounded(.up))
         let pixelHeight = Int((targetSize.height * displayScale).rounded(.up))
-        return "\(url?.absoluteString ?? "")-\(pixelWidth)x\(pixelHeight)"
+        let imageKey = url.map { ImageCache.cacheKey(for: $0) } ?? ""
+        return "\(imageKey)-\(pixelWidth)x\(pixelHeight)"
     }
 
     nonisolated private static func imageCost(_ image: UIImage) -> Int {
