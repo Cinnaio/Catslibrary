@@ -1,4 +1,6 @@
 /** 已生成内容管理：列出 AI 产物，支持按类型筛选、批量删除、草稿发布。 */
+import { AdminDialogContent } from '@/components/admin/AdminDialog'
+import AdminFormField from '@/components/admin/AdminFormField'
 import { Fragment, useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { aiApi, newOperationId } from '@/lib/api'
@@ -17,7 +19,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { kindLabel } from './labels'
 
@@ -617,7 +619,7 @@ export default function AiGenerationsPanel(props: {
           }
         }}
       >
-        <DialogContent className="ai-generation-dialog flex h-[min(85svh,900px)] max-h-[calc(100svh-2rem)] w-[calc(100%-1.5rem)] flex-col gap-3 overflow-hidden p-4 sm:max-w-4xl sm:gap-4 sm:p-6">
+        <AdminDialogContent variant="reading" size="wide" fixedHeight>
           <DialogHeader>
             <DialogTitle>{viewing ? `${kindLabel(viewing.kind)} · 完整内容` : '完整内容'}</DialogTitle>
             <DialogDescription>仅管理员可查看 AI 生成的完整内容。</DialogDescription>
@@ -687,8 +689,7 @@ export default function AiGenerationsPanel(props: {
               {viewing.status === 'draft' && editingText === null && (viewing.kind === 'write_chapter' || viewing.kind === 'continue') && (
                 <div className="ai-generation-publish shrink-0 border-t pt-4">
                   <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-                    <div className="ai-generation-publish__field grid min-w-0 flex-1 gap-1.5">
-                      <Label htmlFor="generation-publish-title">发布章节标题</Label>
+                    <AdminFormField label="发布章节标题" htmlFor="generation-publish-title" className="ai-generation-publish__field min-w-0 flex-1">
                       <Input
                         id="generation-publish-title"
                         className="h-11 focus-visible:border-ring focus-visible:ring-ring/50"
@@ -714,7 +715,7 @@ export default function AiGenerationsPanel(props: {
                           </Button>
                         ))}
                       </div>
-                    </div>
+                    </AdminFormField>
                     <Button className="h-11 w-full shrink-0 md:w-auto" disabled={publishing || !publishTitle.trim()} onClick={() => void publish(viewing)}>
                       {publishing ? '发布中…' : '发布为章节'}
                     </Button>
@@ -723,7 +724,7 @@ export default function AiGenerationsPanel(props: {
               )}
             </>
           )}
-        </DialogContent>
+        </AdminDialogContent>
       </Dialog>
     </div>
   )

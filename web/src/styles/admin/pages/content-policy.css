@@ -1,0 +1,56 @@
+/* 内容安全：单面板配置页。面板宽度收在可读区间，开关行与状态文字走同一
+   套字段节奏，不铺满整个内容区。 */
+.admin-redesign-page--content-policy .content-policy-panel {
+  max-width: 48rem;
+}
+
+.admin-redesign-page--content-policy .content-policy-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--admin-space-4);
+  border: 1px solid var(--admin-border);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--admin-panel-muted) 40%, transparent);
+  padding: var(--admin-space-3) var(--admin-space-4);
+}
+
+.admin-redesign-page--content-policy .content-policy-row__copy {
+  min-width: 0;
+  cursor: pointer;
+}
+
+.admin-redesign-page--content-policy .content-policy-row__label {
+  display: block;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.admin-redesign-page--content-policy .content-policy-row__hint {
+  display: block;
+  margin-top: 0.125rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 1.6;
+}
+
+.admin-redesign-page--content-policy .content-policy-status {
+  margin: var(--admin-space-3) 0 0;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 1.6;
+}
+
+@media (max-width: 640px) {
+  .admin-redesign-page--content-policy .content-policy-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: var(--admin-space-3);
+  }
+}
+
+.admin-redesign-page--dashboard > :is(.space-y-4, .rounded-xl),
+.admin-redesign-page--content-policy > [data-slot='card'] {
+  min-width: 0;
+}

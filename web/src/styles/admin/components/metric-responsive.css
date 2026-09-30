@@ -1,0 +1,34 @@
+/* AdminMetricStrip 的变体类名（--dashboard / --account / --ai-usage）只作为
+   TSX 侧的语义钩子保留。列数一律由组件内联注入的 --admin-metric-columns
+   决定（跟随 items.length），此前的 CSS 同名覆盖全部被内联声明压过，
+   故已删除；窄屏的列数覆盖见文末 @media (max-width: 640px)。 */
+
+@media (max-width: 900px) {
+  .admin-redesign-page--settings > :is(.account-audit-toolbar, .account-operation-audit-toolbar),
+  .ai-service :is(.ai-tasks-toolbar, .ai-audit-toolbar, .ai-generations-toolbar) {
+    align-items: stretch;
+  }
+
+  .admin-redesign-page--settings > :is(.account-audit-toolbar, .account-operation-audit-toolbar) [data-slot='select-trigger'],
+  .admin-redesign-page--settings > :is(.account-audit-toolbar, .account-operation-audit-toolbar) [data-slot='input'],
+  .ai-service :is(.ai-tasks-toolbar, .ai-audit-toolbar, .ai-generations-toolbar) [data-slot='select-trigger'] {
+    width: 100%;
+    max-width: none;
+    /* 只能是 0 0 auto：.admin-toolbar--inline 在本断点转 column，此时 flex-basis
+       落在块轴（高度）上。此前的 `1 1 12rem` 让 12rem 成为高度基数，把控件撑成
+       192px 高的空框（工具栏随之涨到 246px，登录审计页 422px）。整宽由
+       align-items: stretch + width: 100% 承担，不需要弹性增长。 */
+    flex: 0 0 auto;
+  }
+
+  .proxy-settings-page .proxy-logs-panel [data-slot='table'] {
+    min-width: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-redesign-page--settings > :is(.account-audit-toolbar, .account-operation-audit-toolbar),
+  .ai-service :is(.ai-tasks-toolbar, .ai-audit-toolbar, .ai-generations-toolbar) {
+    transition: none;
+  }
+}

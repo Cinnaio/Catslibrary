@@ -1,3 +1,6 @@
+import AdminContentRatingBadge from '@/components/admin/AdminContentRatingBadge'
+import { AdminDialogContent } from '@/components/admin/AdminDialog'
+import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Bot, CheckCircle2, Eye, History, Pencil, Play, PlusCircle, RefreshCw, Square, XCircle } from 'lucide-react'
 import {
@@ -29,17 +32,11 @@ import { ADMIN_DEFAULT_PAGE_SIZE, ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pa
 import { AdminDataPanel, AdminPanelHeading, AdminSearch, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
-
-const RATING_BADGE: Record<ContentRating, { label: string; className: string }> = {
-  general: { label: '一般', className: 'bg-info/10 text-info' },
-  restricted: { label: '限制级', className: 'bg-destructive/10 text-destructive' },
-  unknown: { label: '未标注', className: 'bg-muted text-muted-foreground' },
-}
 
 const RATING_OPTIONS: SelectOption[] = [
   { value: '', label: '全部分级' },
@@ -105,11 +102,6 @@ function ratingValue(value: string): ContentRating {
   return value === 'general' || value === 'restricted' ? value : 'unknown'
 }
 
-function RatingBadge({ rating }: { rating: ContentRating }) {
-  const badge = RATING_BADGE[rating]
-  return <Badge className={badge.className}>{badge.label}</Badge>
-}
-
 function evidenceLabel(item: AdminContentRatingEvidence): string {
   if (item.type === 'category') return item.value ? `分类：${item.value}` : '分类命中'
   if (item.type === 'text') {
@@ -157,11 +149,11 @@ function RatingHistoryRow({ entry }: { entry: AdminContentRatingHistoryItem }) {
     <article className="border-b border-border py-4 last:border-b-0">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
-          <RatingBadge rating={entry.fromRating} />
+          <AdminContentRatingBadge rating={entry.fromRating} />
           <span className="text-muted-foreground" aria-hidden="true">
             →
           </span>
-          <RatingBadge rating={entry.toRating} />
+          <AdminContentRatingBadge rating={entry.toRating} />
           <span className="text-xs text-muted-foreground">{sourceLabel(entry.source)}</span>
         </div>
         <time
@@ -230,7 +222,7 @@ function RuleCandidatePanel({
                   <code className="max-w-full truncate rounded bg-muted px-2 py-1 text-sm text-foreground" title={candidate.value}>
                     {candidate.value}
                   </code>
-                  <Badge className="bg-warning/10 text-warning">待审核</Badge>
+                  <AdminStatusBadge tone="warning">待审核</AdminStatusBadge>
                 </div>
                 <p className="mt-2 text-sm leading-relaxed text-foreground">{candidate.latestExample?.reason || '未记录候选理由'}</p>
                 <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
@@ -291,15 +283,9 @@ function AiTaskProgressBar({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 flex-1 flex-col gap-2">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge
-              className={
-                ['queued', 'running'].includes(task.status)
-                  ? 'bg-info/10 text-info'
-                  : task.status === 'failed'
-                    ? 'bg-destructive/10 text-destructive'
-                    : task.status === 'cancelled'
-                      ? 'bg-muted text-muted-foreground'
-                      : 'bg-success/10 text-success'
+            <AdminStatusBadge
+              tone={
+                ['queued', 'running'].includes(task.status) ? 'info' : task.status === 'failed' ? 'danger' : task.status === 'cancelled' ? 'muted' : 'success'
               }
             >
               {task.status === 'queued'
@@ -311,7 +297,7 @@ function AiTaskProgressBar({
                     : task.status === 'cancelled'
                       ? '已中止'
                       : '已中断'}
-            </Badge>
+            </AdminStatusBadge>
             <span className="text-xs tabular-nums text-muted-foreground">
               已处理 {formatNumber(done)} / {formatNumber(total)} 本{remaining > 0 ? ` · 剩余 ${formatNumber(remaining)} 本` : ' · 无缺口'}
             </span>
@@ -427,9 +413,9 @@ function AiSuggestionPanel({
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium text-foreground">{suggestion.title || '未命名作品'}</span>
-                  <Badge className={suggestion.suggestedRating === 'restricted' ? 'bg-destructive/10 text-destructive' : 'bg-muted text-muted-foreground'}>
+                  <AdminStatusBadge tone={suggestion.suggestedRating === 'restricted' ? 'danger' : 'muted'}>
                     {suggestion.suggestedRating === 'restricted' ? '建议限制级' : '建议继续未标注'}
-                  </Badge>
+                  </AdminStatusBadge>
                   <Badge variant="outline">置信度 {Math.round(suggestion.confidence * 100)}%</Badge>
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
@@ -1063,7 +1049,7 @@ export default function ContentRatingsTab() {
                       </div>
                     </TableCell>
                     <TableCell data-label="当前分级">
-                      <RatingBadge rating={item.contentRating} />
+                      <AdminContentRatingBadge rating={item.contentRating} />
                     </TableCell>
                     <TableCell data-label="来源">
                       <div className="min-w-0">
@@ -1170,7 +1156,7 @@ export default function ContentRatingsTab() {
       />
 
       <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)}>
-        <DialogContent className="sm:max-w-xl">
+        <AdminDialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>修改分级 · {editing?.title || '作品'}</DialogTitle>
             <DialogDescription>人工修改会记录操作人、理由和当前版本。提交前请确认你看到的是最新记录。</DialogDescription>
@@ -1181,7 +1167,7 @@ export default function ContentRatingsTab() {
               <div className="rounded-md border border-border bg-muted/30 p-3 text-sm">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-muted-foreground">当前结果</span>
-                  <RatingBadge rating={editing.contentRating} />
+                  <AdminContentRatingBadge rating={editing.contentRating} />
                   <span className="text-xs text-muted-foreground">
                     来源：{sourceLabel(editing.source)} · 修订 {editing.revision}
                   </span>
@@ -1234,11 +1220,11 @@ export default function ContentRatingsTab() {
               {saving ? '保存中…' : '保存分级'}
             </Button>
           </DialogFooter>
-        </DialogContent>
+        </AdminDialogContent>
       </Dialog>
 
       <Dialog open={!!candidateNovel} onOpenChange={(open) => !open && setCandidateNovel(null)}>
-        <DialogContent className="sm:max-w-xl">
+        <AdminDialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>沉淀规则候选 · {candidateNovel?.title || '作品'}</DialogTitle>
             <DialogDescription>这里只记录人工经验，等后续预览和批准后才会影响新作品；本次操作不会立即修改其他作品的分级。</DialogDescription>
@@ -1249,7 +1235,7 @@ export default function ContentRatingsTab() {
               <div className="rounded-md border border-border bg-muted/30 p-3 text-sm">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-muted-foreground">人工来源</span>
-                  <RatingBadge rating={candidateNovel.contentRating} />
+                  <AdminContentRatingBadge rating={candidateNovel.contentRating} />
                   <span className="text-xs text-muted-foreground">
                     修订 {candidateNovel.revision} · {candidateNovel.updatedByName || '管理员'}
                   </span>
@@ -1310,11 +1296,11 @@ export default function ContentRatingsTab() {
               {candidateSaving ? '保存中…' : '保存待审核候选'}
             </Button>
           </DialogFooter>
-        </DialogContent>
+        </AdminDialogContent>
       </Dialog>
 
       <Dialog open={!!candidatePreviewCandidate} onOpenChange={(open) => !open && !candidateReviewSaving && closeCandidatePreview()}>
-        <DialogContent className="max-h-[min(86vh,800px)] overflow-y-auto sm:max-w-3xl">
+        <AdminDialogContent className="max-h-[min(86vh,800px)] overflow-y-auto sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>预览规则影响 · {candidatePreviewCandidate?.value || '规则候选'}</DialogTitle>
             <DialogDescription>批准会把命中的未标注作品改为限制级，并把规则版本写入分级审计；一般作品和已人工确认的作品不会被覆盖。</DialogDescription>
@@ -1330,7 +1316,7 @@ export default function ContentRatingsTab() {
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="outline">{candidateKindLabel(candidatePreview.candidate.kind)}</Badge>
                   <code className="rounded bg-background px-2 py-1 text-sm">{candidatePreview.candidate.value}</code>
-                  <Badge className="bg-warning/10 text-warning">待审核</Badge>
+                  <AdminStatusBadge tone="warning">待审核</AdminStatusBadge>
                 </div>
                 <div className="mt-3 grid gap-2 text-sm sm:grid-cols-3">
                   <div>
@@ -1433,11 +1419,11 @@ export default function ContentRatingsTab() {
               </>
             )}
           </DialogFooter>
-        </DialogContent>
+        </AdminDialogContent>
       </Dialog>
 
       <Dialog open={!!aiReviewSuggestion} onOpenChange={(open) => !open && closeAiReview()}>
-        <DialogContent className="max-h-[min(86vh,800px)] overflow-y-auto sm:max-w-2xl">
+        <AdminDialogContent className="max-h-[min(86vh,800px)] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>审核 LLM 分级建议 · {aiReviewSuggestion?.title || '作品'}</DialogTitle>
             <DialogDescription>批准限制级建议前请核对元数据证据。LLM 不能直接发布分级；批准“继续未标注”也不会把作品改为一般。</DialogDescription>
@@ -1448,11 +1434,9 @@ export default function ContentRatingsTab() {
               <div className="rounded-md border border-border bg-muted/30 p-4">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-muted-foreground">AI 建议</span>
-                  <Badge
-                    className={aiReviewSuggestion.suggestedRating === 'restricted' ? 'bg-destructive/10 text-destructive' : 'bg-muted text-muted-foreground'}
-                  >
+                  <AdminStatusBadge tone={aiReviewSuggestion.suggestedRating === 'restricted' ? 'danger' : 'muted'}>
                     {aiReviewSuggestion.suggestedRating === 'restricted' ? '限制级' : '继续未标注'}
-                  </Badge>
+                  </AdminStatusBadge>
                   <Badge variant="outline">置信度 {Math.round(aiReviewSuggestion.confidence * 100)}%</Badge>
                 </div>
                 <p className="mt-3 text-sm leading-relaxed text-foreground">{aiReviewSuggestion.reason || '未记录 AI 理由'}</p>
@@ -1472,7 +1456,7 @@ export default function ContentRatingsTab() {
               <div className="rounded-md border border-border p-4 text-sm">
                 <p className="font-medium text-foreground">审核边界</p>
                 <p className="mt-2 leading-relaxed text-muted-foreground">
-                  当前作品仍是 <RatingBadge rating={aiReviewSuggestion.currentRating} />
+                  当前作品仍是 <AdminContentRatingBadge rating={aiReviewSuggestion.currentRating} />
                   ；提交时会再次锁定作品并校验修订号。只有管理员批准“限制级”建议时，才会写入
                   <code className="mx-1 rounded bg-muted px-1.5 py-0.5 text-xs">ai_task</code>
                   分级审计。
@@ -1544,11 +1528,11 @@ export default function ContentRatingsTab() {
               </>
             )}
           </DialogFooter>
-        </DialogContent>
+        </AdminDialogContent>
       </Dialog>
 
       <Dialog open={!!historyNovel} onOpenChange={(open) => !open && setHistoryNovel(null)}>
-        <DialogContent className="max-h-[min(80vh,720px)] overflow-y-auto sm:max-w-2xl">
+        <AdminDialogContent className="max-h-[min(80vh,720px)] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>分级历史 · {historyNovel?.title || '作品'}</DialogTitle>
             <DialogDescription>这里保留自动判定、预填和人工修改的完整变更轨迹，便于复核结果从哪里来。</DialogDescription>
@@ -1567,7 +1551,7 @@ export default function ContentRatingsTab() {
               ))}
             </div>
           )}
-        </DialogContent>
+        </AdminDialogContent>
       </Dialog>
     </AdminPage>
   )

@@ -6,6 +6,8 @@
  * 而真正要看的任务状态与最近任务被推到折叠线以下。现改为一行紧凑读数
  * （.dashboard-stat-line），同屏看到全部 9 项。
  */
+import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
+import type { AdminStatusTone } from '@/lib/admin-status'
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { RefreshCw } from 'lucide-react'
@@ -16,7 +18,6 @@ import AdminPage from '@/components/admin/AdminPage'
 import AdminEmptyState from '@/components/admin/AdminEmptyState'
 import { ErrorState, LoadingState } from '@/components/admin/AsyncStates'
 import { AdminDataPanel, AdminPanelHeading } from '@/components/admin/AdminWorkspace'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 
 interface AdminStats {
@@ -50,10 +51,10 @@ const STAT_CARDS: Array<{ label: string; key: keyof AdminStats['totals']; unit: 
   { label: '数据库大小', key: 'dbSize', unit: '' },
 ]
 
-const PILL_CLASS: Record<string, string> = {
-  running: 'bg-info/10 text-info',
-  completed: 'bg-success/10 text-success',
-  failed: 'bg-destructive/10 text-destructive',
+const STATUS_TONE: Record<string, AdminStatusTone> = {
+  running: 'info',
+  completed: 'success',
+  failed: 'danger',
 }
 
 function formatNumber(value: number | string): string {
@@ -189,7 +190,7 @@ export default function DashboardTab(_props: { highlightNovelId?: string; onHigh
                         <div className="truncate font-medium text-foreground">{j.novelTitle || j.novelId || j.id}</div>
                         <div className="mt-0.5 text-xs text-muted-foreground">{(j.step || '任务') + ' · ' + timeAgo(j.updatedAt)}</div>
                       </div>
-                      <Badge className={PILL_CLASS[j.status] || ''}>{jobStatusLabel(j.status)}</Badge>
+                      <AdminStatusBadge tone={STATUS_TONE[j.status] || 'brand'}>{jobStatusLabel(j.status)}</AdminStatusBadge>
                     </div>
                   ))
                 )}

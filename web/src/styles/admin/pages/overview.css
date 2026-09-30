@@ -1,0 +1,126 @@
+/* 分级管理：搜索的是标题/作者/理由三项短文本，搜索框刻意窄于小说管理。 */
+.admin-redesign-page--content-ratings .admin-tab-header__actions .admin-search {
+  width: min(18rem, 100%);
+  max-width: 18rem;
+  flex: 0 1 18rem;
+}
+
+/* 用量统计面板标题栏里的合计读数：贴着它汇总的那张图，是次级文字而非大数字。 */
+.ai-usage-totals {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.875rem;
+  color: var(--text-muted);
+  font-size: var(--admin-table-head-size);
+  font-variant-numeric: tabular-nums;
+}
+
+.ai-usage-totals > span {
+  white-space: nowrap;
+}
+
+.ai-usage-totals strong {
+  color: var(--text-primary);
+  font-weight: 750;
+}
+
+/* 总览的库存读数行：一行看完 7+2 项，替代原先吃掉半屏的 AdminMetricStrip。
+   横向可滚而不换行——换行会把任务状态与最近任务推下去，正是这次要解决的问题。 */
+.dashboard-stat-line {
+  padding: 0.75rem 1.25rem;
+}
+
+.dashboard-stat-line__grid {
+  display: flex;
+  overflow-x: auto;
+  align-items: baseline;
+  gap: 1.5rem;
+  margin: 0;
+  scrollbar-width: none;
+}
+
+.dashboard-stat-line__grid::-webkit-scrollbar {
+  display: none;
+}
+
+.dashboard-stat-line__grid > div {
+  display: grid;
+  flex: 0 0 auto;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.dashboard-stat-line__grid dt {
+  color: var(--text-muted);
+  font-size: var(--admin-table-head-size);
+  white-space: nowrap;
+}
+
+.dashboard-stat-line__grid dd {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--admin-table-title-size);
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.dashboard-stat-line__grid dd small {
+  color: var(--text-muted);
+  font-size: var(--admin-table-head-size);
+  font-weight: 500;
+}
+
+.dashboard-stat-line__note {
+  color: var(--text-muted);
+  font-size: var(--admin-table-head-size);
+}
+
+@media (min-width: 901px) {
+  .admin-redesign-page--novels .admin-tab-header__actions {
+    width: fit-content;
+    flex-wrap: nowrap;
+  }
+}
+
+@media (max-width: 900px) {
+  .admin-redesign-page--novels .admin-tab-header__actions {
+    width: 100%;
+    justify-content: stretch;
+    flex-wrap: nowrap;
+  }
+
+  .admin-redesign-page--novels .admin-tab-header__actions .admin-search {
+    width: auto;
+    max-width: none;
+    flex: 1 1 auto;
+  }
+
+  .admin-redesign-page--novels .admin-tab-header__actions > [data-slot='button'] {
+    flex: 0 0 auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .admin-redesign-page--novels .admin-tab-header__actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-redesign-page--novels .admin-tab-header__actions > [data-slot='button'] {
+    width: 100%;
+    min-width: 0;
+    min-height: var(--admin-table-action-size-mobile);
+    justify-content: center;
+  }
+}
+
+.admin-redesign-page .admin-tab-header h2 {
+  font-size: var(--admin-page-title-size);
+  letter-spacing: -0.04em;
+  line-height: 1.15;
+}

@@ -1,10 +1,11 @@
 /** AI 创作工作台：新写 / 续写，生成结果先保存为草稿。 */
+import AdminFormField from '@/components/admin/AdminFormField'
+import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { aiApi, chaptersApi, newOperationId, novelsApi, type AiEffectiveProfile, type AiTaskInfo } from '@/lib/api'
 import { useToast, useConfirm } from '@/components/feedback'
 import { AdminPanelHeading } from '@/components/admin/AdminWorkspace'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -758,9 +759,9 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
             <h3 id="ai-writing-content-scope-title">内容尺度</h3>
             <p>它会同时影响续写和推荐情节；生成前必须在这里确认本次尺度。</p>
           </div>
-          <Badge className={adultContentMode === 'explicit' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}>
+          <AdminStatusBadge tone={adultContentMode === 'explicit' ? 'accent' : 'muted'}>
             {adultContentMode === 'explicit' ? 'R18 已启用' : '常规内容'}
-          </Badge>
+          </AdminStatusBadge>
         </div>
         <label className="ai-writing-content-scope__toggle">
           <span className="min-w-0">
@@ -924,8 +925,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
               {mode === 'continue' && <span className="ai-writing-identity__mode">{isMultiChapter ? `多章规划 · ${chapterCount} 章` : '单章精写'}</span>}
             </div>
             <div className="ai-form-grid ai-writing-basics grid gap-3 sm:grid-cols-2">
-              <div className="grid gap-1.5">
-                <Label id="ai-writing-novel-label">目标小说</Label>
+              <AdminFormField label="目标小说" labelId="ai-writing-novel-label">
                 {/* CustomSelect 渲染的是 button[role=combobox]，不接受 id，故用
                   aria-labelledby 指向标签，保留可见文案作为可访问名称。 */}
                 <CustomSelect
@@ -939,31 +939,28 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                   className="ai-writing-novel-select"
                   aria-labelledby="ai-writing-novel-label"
                 />
-              </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="ai-writing-title">{mode === 'new' ? '作品标题' : '章节标题（可选）'}</Label>
+              </AdminFormField>
+              <AdminFormField label={mode === 'new' ? '作品标题' : '章节标题（可选）'} htmlFor="ai-writing-title">
                 <Input
                   id="ai-writing-title"
                   value={mode === 'new' ? title : chapterTitle}
                   onChange={(event) => (mode === 'new' ? setTitle(event.target.value) : setChapterTitle(event.target.value))}
                   placeholder={mode === 'new' ? '例如：雾城来信' : '例如：第十二章 暴雨前夜'}
                 />
-              </div>
+              </AdminFormField>
             </div>
             {mode === 'new' && (
-              <div className="ai-writing-chapter-title grid gap-1.5">
-                <Label htmlFor="ai-writing-chapter-title">章节标题</Label>
+              <AdminFormField label="章节标题" htmlFor="ai-writing-chapter-title" className="ai-writing-chapter-title">
                 <Input
                   id="ai-writing-chapter-title"
                   value={chapterTitle}
                   onChange={(event) => setChapterTitle(event.target.value)}
                   placeholder="例如：第一章 雾中来客"
                 />
-              </div>
+              </AdminFormField>
             )}
             <div className="ai-form-grid ai-writing-options grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <div className="grid gap-1.5">
-                <Label htmlFor="ai-writing-target-words">{mode === 'continue' ? '每章目标字数' : '目标字数'}</Label>
+              <AdminFormField label={mode === 'continue' ? '每章目标字数' : '目标字数'} htmlFor="ai-writing-target-words">
                 <div className="ai-writing-number-input">
                   <Input
                     id="ai-writing-target-words"
@@ -977,10 +974,16 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                   />
                   <span>字</span>
                 </div>
-              </div>
+              </AdminFormField>
               {isContinuationMode && (
-                <div className="ai-writing-run-scale grid gap-1.5">
-                  <Label id="ai-writing-run-scale-label">续写策略</Label>
+                <AdminFormField
+                  label="续写策略"
+                  labelId="ai-writing-run-scale-label"
+                  className="ai-writing-run-scale"
+                  hint={
+                    isMultiChapter ? '每章按大纲逐段下发；请在下方确认大纲覆盖全部章节。' : '推荐先围绕一条情节方向精写一章；需要连续推进时再切换为多章规划。'
+                  }
+                >
                   <div className="ai-writing-run-scale__choices" role="group" aria-labelledby="ai-writing-run-scale-label">
                     <Button
                       type="button"
@@ -1003,14 +1006,10 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                       多章规划
                     </Button>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    {isMultiChapter ? '每章按大纲逐段下发；请在下方确认大纲覆盖全部章节。' : '推荐先围绕一条情节方向精写一章；需要连续推进时再切换为多章规划。'}
-                  </p>
-                </div>
+                </AdminFormField>
               )}
               {mode === 'continue' && isMultiChapter && (
-                <div className="grid gap-1.5">
-                  <Label htmlFor="ai-writing-chapter-count">续写章节数</Label>
+                <AdminFormField label="续写章节数" htmlFor="ai-writing-chapter-count">
                   <div className="ai-writing-number-input">
                     <Input
                       id="ai-writing-chapter-count"
@@ -1023,7 +1022,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                     />
                     <span>章</span>
                   </div>
-                </div>
+                </AdminFormField>
               )}
             </div>
           </section>
@@ -1037,8 +1036,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                 {selectedNovelTitle && <span className="ai-writing-baseline__novel">{selectedNovelTitle}</span>}
               </div>
               {chapterOptions.length > 1 && (
-                <div className="ai-writing-continuation-start grid gap-1.5">
-                  <Label id="ai-writing-after-chapter-label">续写起点</Label>
+                <AdminFormField label="续写起点" labelId="ai-writing-after-chapter-label" className="ai-writing-continuation-start">
                   <CustomSelect
                     options={chapterOptions}
                     value={afterChapterId}
@@ -1049,7 +1047,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                     dropdownSide="bottom"
                     aria-labelledby="ai-writing-after-chapter-label"
                   />
-                </div>
+                </AdminFormField>
               )}
               {chapterOptions.length <= 1 && (
                 <p className="ai-writing-continuation-start__status">{novelId ? '续写起点：将从最新已发布章节继续。' : '选择小说后，可在这里确认续写起点。'}</p>
@@ -1222,9 +1220,9 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                   </div>
                   {/* 状态徽标与「AI 设置」页的「已配置 / 未配置」同构：
                     开关收起时正文没有「当前是否启用」的落点，徽标把它提到标题行。 */}
-                  <Badge className={adultContentMode === 'explicit' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}>
+                  <AdminStatusBadge tone={adultContentMode === 'explicit' ? 'accent' : 'muted'}>
                     {adultContentMode === 'explicit' ? '已启用' : '未启用'}
-                  </Badge>
+                  </AdminStatusBadge>
                 </div>
                 {/* 用 Switch 替代原生 checkbox：原生框实测 13×13，低于 WCAG 2.2 AA
                   的 24×24；同面板族的「参数调优」也用 Switch 表达同一类布尔开关。

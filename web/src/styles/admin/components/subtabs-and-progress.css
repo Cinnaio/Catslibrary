@@ -1,0 +1,163 @@
+@media (max-width: 640px) {
+  .ai-admin-page [data-slot='input'],
+  .ai-admin-page [data-slot='input'][type='number'],
+  .ai-generation-dialog [data-slot='input'],
+  .ai-generation-dialog [data-slot='input'][type='number'] {
+    width: 100%;
+  }
+
+  .ai-writing-panel .ai-writing-basics {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.75rem;
+  }
+
+  .ai-writing-number-input [data-slot='input'] {
+    width: 100%;
+  }
+}
+
+.ai-generation-dialog {
+  border-radius: 1rem;
+}
+
+.ai-generation-publish {
+  min-width: 0;
+}
+
+.ai-generation-title-candidate {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-generation-title-options {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  padding-block: 0.125rem;
+  scrollbar-width: none;
+}
+
+.ai-generation-title-options::-webkit-scrollbar {
+  display: none;
+}
+
+.ai-generation-title-options [data-slot='button'] {
+  flex: 0 0 auto;
+}
+
+.ai-service-tabs__list {
+  scrollbar-width: none;
+}
+
+.ai-service-tabs__list::-webkit-scrollbar {
+  display: none;
+}
+
+.ai-service-tabs__list [data-slot='tabs-trigger'] {
+  flex: 0 0 auto;
+}
+
+/* 小屏横向滚动提示：溢出时在边缘淡出，提示还有更多入口（scrollbar 已隐藏） */
+.ai-service-tabs__scroll-wrap::before,
+.ai-service-tabs__scroll-wrap::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  width: 28px;
+  pointer-events: none;
+  border-radius: 8px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.ai-service-tabs__scroll-wrap::before {
+  left: 0;
+  background: linear-gradient(to right, var(--bg-card) 20%, transparent);
+}
+.ai-service-tabs__scroll-wrap::after {
+  right: 0;
+  background: linear-gradient(to left, var(--bg-card) 20%, transparent);
+}
+.ai-service-tabs__scroll-wrap.can-scroll-left::before {
+  opacity: 1;
+}
+.ai-service-tabs__scroll-wrap.can-scroll-right::after {
+  opacity: 1;
+}
+
+/* 已生成内容表已改用范本契约（fixed 布局 + 百分比列宽），横向滚动不再发生，
+   sticky 冻结列失去存在理由，规则随之删除。 */
+
+/* AI 封面/创作任务进行中的流动指示条（在任务状态卡片底部） */
+.ai-task-progress {
+  height: 3px;
+  overflow: hidden;
+  background: var(--accent-light);
+}
+.ai-task-progress::after {
+  content: '';
+  display: block;
+  width: 38%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  animation: ai-task-sweep 1.4s var(--ease) infinite;
+}
+@keyframes ai-task-sweep {
+  from {
+    transform: translateX(-105%);
+  }
+  to {
+    transform: translateX(265%);
+  }
+}
+
+/* 流动条是永不结束的装饰动效，必须响应系统的减弱动效偏好。
+   这里移除扫过的光带而不是只停住它：animation: none 会把 ::after 留在
+   translateX(0)，左起 38% 的渐变条看起来像「已加载 38%」，是被动效撤回后
+   才出现的错误读数。去掉后保留 --accent-light 轨道，仍能表达「进行中」，
+   而具体进度由任务状态卡片上已有的文字承担。 */
+@media (prefers-reduced-motion: reduce) {
+  .ai-task-progress::after {
+    display: none;
+  }
+}
+
+/* AI 封面预览：图片铺满 2:3 画框，与 .account-avatar img 同款写法。
+   必须放在无 @layer 的普通规则里：base.css 的 `img { height: auto }` 是非 layer 规则，
+   优先级高于 Tailwind 的 @layer utilities，会让 `h-full` 失效，导致源图比例
+   与 2:3 不符时画框底部空出一截。此处以更高特异度的类选择器覆盖它。 */
+.ai-cover-frame img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.account-settings-tabs__list {
+  scrollbar-width: none;
+}
+
+.account-settings-tabs__list::-webkit-scrollbar {
+  display: none;
+}
+
+.account-settings-tabs__list [data-slot='tabs-trigger'] {
+  flex: 0 0 auto;
+}
+
+.admin-shell__status {
+  width: fit-content;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--radius-full);
+  background: var(--admin-panel-muted);
+  padding: 0.2rem 0.5rem;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.75rem; /* 计数/能力胶囊：显式小字号，脱离标题字号 */
+  font-weight: 500;
+  vertical-align: middle;
+  line-height: 1.4;
+}

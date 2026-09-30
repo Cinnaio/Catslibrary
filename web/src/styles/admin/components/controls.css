@@ -1,0 +1,121 @@
+/* ——— admin 控件统一圆角 ——— */
+.admin-layout [data-slot='button'],
+.admin-layout [data-slot='sidebar-menu-button'],
+.admin-layout [data-slot='sidebar-trigger'],
+.admin-layout [data-slot='theme-menu-trigger'],
+.admin-layout .form-input,
+.admin-layout .admin-input--compact,
+.admin-layout .scrape-check,
+.admin-layout .scrape-summary dd,
+.admin-layout .scrape-ready-note {
+  border-radius: var(--admin-button-radius);
+}
+
+.admin-layout [data-slot='input'],
+.admin-layout [data-slot='textarea'] {
+  border-radius: var(--admin-input-radius);
+}
+
+/* ——— tabs 分段控件：药丸改圆角对齐按钮，激活项浅灰。 ——— */
+.admin-layout [data-slot='tabs-trigger'][data-state='active'] {
+  box-shadow: none;
+}
+
+/* ——— admin 控件统一尺寸：高度 / 字号 / 文字颜色 / 内边距 ——— */
+.admin-layout [data-slot='input'] {
+  height: var(--admin-control-height);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+}
+
+.admin-layout [data-slot='textarea'] {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+}
+
+.admin-layout [data-slot='button'][data-size='sm'] {
+  height: var(--admin-control-height);
+  font-size: 0.875rem;
+}
+
+/* CustomSelect trigger（compact 模式）与其他控件对齐 */
+.admin-layout .admin-input--select-sm {
+  height: var(--admin-control-height) !important;
+  font-size: 0.875rem;
+  padding: 0 0.75rem;
+}
+
+/* ——— secondary 按钮：白底 + 细灰边框 + 深色文字 ——— */
+.admin-layout [data-slot='button'][data-variant='secondary'] {
+  background: var(--admin-panel);
+  color: var(--text-primary);
+  border: 1px solid var(--admin-border-strong);
+}
+.admin-layout [data-slot='button'][data-variant='secondary']:hover {
+  background: var(--bg-hover);
+}
+
+/* ——— primary（default）按钮：白底 + 统一细灰边框 + 暖棕文字 ——— */
+.admin-layout [data-slot='button'][data-variant='default'] {
+  background: var(--admin-panel);
+  color: var(--sh-primary);
+  border: 1px solid var(--admin-border-strong);
+}
+.admin-layout [data-slot='button'][data-variant='default']:hover {
+  background: color-mix(in srgb, var(--sh-primary) 8%, var(--admin-panel));
+}
+.admin-layout [data-slot='button'][data-variant='default']:disabled {
+  background: color-mix(in srgb, var(--admin-panel) 85%, var(--bg-secondary));
+  color: var(--text-muted);
+  border-color: var(--admin-border);
+}
+
+/* ——— destructive 按钮：白底 + 统一细灰边框 + 红色文字 ——— */
+.admin-layout [data-slot='button'][data-variant='destructive'] {
+  background: var(--admin-panel);
+  color: var(--color-danger);
+  border: 1px solid var(--admin-border-strong);
+}
+.admin-layout [data-slot='button'][data-variant='destructive']:hover {
+  background: color-mix(in srgb, var(--color-danger) 6%, var(--admin-panel));
+}
+.admin-layout [data-slot='button'][data-variant='destructive']:disabled {
+  background: color-mix(in srgb, var(--admin-panel) 85%, var(--bg-secondary));
+  color: var(--text-muted);
+  border-color: var(--admin-border);
+}
+
+/* ——— 输入框：白底 + 细灰边框 ——— */
+.admin-layout [data-slot='input'],
+.admin-layout [data-slot='textarea'] {
+  background: var(--admin-panel);
+  border: 1px solid var(--admin-border-strong);
+}
+.admin-layout [data-slot='input']:focus,
+.admin-layout [data-slot='textarea']:focus {
+  border-color: var(--sh-primary);
+  box-shadow: 0 0 0 2px var(--focus-ring);
+}
+
+/* CustomSelect 弹层：统一风格，移除搜索框底部的分割线 */
+.admin-custom-select-popover {
+  border: 1px solid var(--admin-border-strong);
+}
+.admin-custom-select-popover [data-slot='command-input-wrapper'] {
+  border-bottom: none;
+}
+
+/* 搜索框聚焦态：克制的细边，不溢出不突兀 */
+.admin-custom-select-popover [data-slot='command-input']:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+.admin-custom-select-popover [data-slot='command-input-wrapper']:focus-within {
+  box-shadow: none;
+}
+
+[data-slot='dialog-content'].admin-dialog {
+  border-radius: var(--radius-lg);
+}

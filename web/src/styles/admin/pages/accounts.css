@@ -1,0 +1,67 @@
+/* Account tables now use the same grid/card contract as novels and chapters.
+   列宽由 <AdminDataPanel columns> 以行内 --col-N-w 注入，不再在此重复声明。 */
+.account-users-panel,
+.account-audit-panel,
+.account-operation-audit-panel,
+.account-invites-panel {
+  --admin-panel: var(--bg-card);
+  min-width: 0;
+}
+
+.account-users-panel .admin-cell-actions,
+.account-invites-panel .admin-cell-actions {
+  min-width: 0;
+}
+
+/* 账户四视图统一到共享数据面板后，页脚沿用同一套面板语言。
+   分页页脚由 .admin-pagination 承担；本类现在只服务邀请码那一处
+   （有统计文案 + 清理按钮，没有分页）。 */
+.account-settings-panel__footer {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--admin-space-3);
+  border-top: 1px solid var(--admin-border);
+  padding: var(--admin-space-3) 1.25rem;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.account-invites-generated {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--admin-space-3);
+  margin: var(--admin-space-4) 1.25rem 0;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--radius-lg);
+  background: var(--admin-panel-muted);
+  padding: var(--admin-space-3) var(--admin-space-4);
+}
+
+.account-invites-generated__codes {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--admin-space-2);
+}
+
+.account-invites-generated__codes code {
+  border: 1px solid var(--admin-border);
+  border-radius: var(--radius-full);
+  background: var(--admin-panel);
+  padding: 0.125rem 0.625rem;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+
+.admin-redesign-page--settings .admin-input--invite-count {
+  width: 5.75rem;
+  flex: 0 0 auto;
+}

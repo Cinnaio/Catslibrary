@@ -1,0 +1,51 @@
+/* Admin operations desk: a compact, semantic layer shared by every admin tab.
+   --admin-* 变量定义在 :root（而非 .admin-layout），这样 Radix portal 渲染在
+   body 层的弹窗（dialog/popover）也能继承暖纸面板与边框语义。 */
+
+/* 暗色模式保留炭灰地面、略亮导航和纸面数据区的层级，不机械反转亮色主题。 */
+
+/* 2026 子 tab 统一层：新迁移页面共用范本的纸面层次，页面专属规则只负责
+   自己的业务布局。工具栏放在数据面板外时仍保持明确的独立表面。 */
+.admin-redesign-page--settings > :is(.account-audit-toolbar, .account-operation-audit-toolbar) {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--radius-xl);
+  background: color-mix(in srgb, var(--admin-panel) 94%, var(--accent-subtle));
+}
+
+/* AI 服务三个列表面板的筛选条属于各自的数据面板，不作为画布上的独立卡片；
+   它们位于面板标题与表格之间，通过分隔线和内缩建立同一数据表面的关系。
+   配套：TSX 中这三个工具条均已移入 AdminDataPanel 内部。 */
+.ai-service .ai-tasks-toolbar,
+.ai-service .ai-audit-toolbar,
+.ai-service .ai-generations-toolbar {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  min-height: 3.25rem;
+  /* 左右内缩与数据区（.ai-list-body / .ai-tasks-content 的 1.25rem）对齐，
+     使筛选器左边缘与下方表格同一条基线，而不是另起一条。 */
+  padding: 0.75rem 1.25rem;
+  border: 0;
+  border-bottom: 1px solid var(--admin-border);
+  border-radius: 0;
+  background: color-mix(in srgb, var(--admin-surface) 40%, transparent);
+}
+
+.admin-redesign-page--settings > :is(.account-audit-toolbar, .account-operation-audit-toolbar) [data-slot='select-trigger'],
+.ai-service :is(.ai-tasks-toolbar, .ai-audit-toolbar, .ai-generations-toolbar) [data-slot='select-trigger'] {
+  flex: 0 0 auto;
+}
+
+.admin-redesign-page--settings > :is(.account-audit-toolbar, .account-operation-audit-toolbar) [data-slot='input'],
+.ai-service :is(.ai-tasks-toolbar, .ai-audit-toolbar, .ai-generations-toolbar) [data-slot='input'] {
+  width: min(100%, 20rem);
+  flex: 0 1 20rem;
+}

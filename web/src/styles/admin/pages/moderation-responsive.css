@@ -1,0 +1,108 @@
+/* 内容审核的移动卡片：审核内容是主信息，来源、用户和状态作为上下文跟随。 */
+.admin-redesign-page--moderation .admin-data-panel--grid table td.thought-admin-cell {
+  max-width: none;
+}
+
+.admin-redesign-page--moderation .admin-data-panel--grid table td[data-primary] {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.admin-redesign-page--moderation .moderation-source-cell a {
+  color: var(--accent-hover);
+  text-decoration: none;
+}
+
+.admin-redesign-page--moderation .moderation-source-cell a:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+@media (max-width: 900px) {
+  .admin-redesign-page--moderation .moderation-toolbar__filters {
+    grid-template-columns: max-content minmax(11rem, 1fr) max-content 9rem max-content 9rem;
+  }
+
+  .admin-redesign-page--moderation .moderation-toolbar__query {
+    grid-template-columns: max-content minmax(8rem, 1fr) minmax(0, 20rem);
+  }
+
+  .admin-redesign-page--moderation .moderation-toolbar__query--without-user {
+    grid-template-columns: max-content minmax(0, 20rem);
+  }
+
+  .admin-redesign-page--moderation .moderation-toolbar__user,
+  .admin-redesign-page--moderation .moderation-toolbar__search-field {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .admin-redesign-page--moderation .moderation-toolbar__search-field .admin-search {
+    max-width: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .admin-redesign-page--moderation > .admin-tab-header {
+    margin-bottom: 0.25rem;
+    border-bottom: 0;
+  }
+
+  .admin-redesign-page--moderation .moderation-toolbar__filters {
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 0.375rem 0.5rem;
+  }
+
+  .admin-redesign-page--moderation .moderation-toolbar__filters .moderation-toolbar__label,
+  .admin-redesign-page--moderation .moderation-toolbar__filters .moderation-toolbar__modes {
+    grid-column: 1 / -1;
+  }
+
+  .admin-redesign-page--moderation .moderation-toolbar__query {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0.375rem 0.5rem;
+  }
+
+  .admin-redesign-page--moderation .moderation-toolbar__query--without-user {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-redesign-page--moderation .moderation-toolbar__query .moderation-toolbar__label {
+    grid-column: 1 / -1;
+  }
+
+  .admin-redesign-page--moderation .moderation-toolbar__modes {
+    width: 100%;
+  }
+
+  .admin-redesign-page--moderation .moderation-toolbar__reason-placeholder {
+    width: auto;
+    flex: none;
+  }
+
+  .admin-redesign-page--moderation .moderation-toolbar__user,
+  .admin-redesign-page--moderation .moderation-toolbar__search-field {
+    min-width: 0;
+    width: 100%;
+    flex: none;
+  }
+
+  .admin-redesign-page--moderation .moderation-toolbar__search-field .admin-search {
+    max-width: none;
+  }
+
+  .admin-redesign-page--moderation .admin-data-panel--grid tbody td {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .admin-redesign-page--moderation .admin-data-panel--grid tbody td[data-primary] {
+    order: -1;
+    padding-right: 1rem;
+  }
+
+  .admin-redesign-page--moderation .admin-data-panel--grid tbody td[data-actions] > .admin-cell-actions {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+}

@@ -1,0 +1,393 @@
+/* 章节弹窗内容 */
+.chapter-dialog-context {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  border-bottom: 1px solid var(--admin-border);
+  padding-bottom: 0.875rem;
+}
+
+.chapter-dialog-context > span:first-child,
+.chapter-dialog-context > div > span {
+  display: block;
+}
+
+.chapter-dialog-context > strong,
+.chapter-dialog-context > div > strong {
+  display: block;
+  color: var(--text-primary);
+  font-size: 0.8rem;
+}
+
+.chapter-editor-dialog__body,
+.chapter-merge-dialog__body {
+  gap: var(--admin-space-4);
+}
+
+.chapter-merge-dialog__body {
+  display: grid;
+  align-content: start;
+}
+
+.chapter-editor-dialog__fields {
+  display: grid;
+  grid-template-columns: minmax(7rem, 9rem) minmax(0, 1fr);
+  gap: 0.875rem;
+}
+
+.chapter-dialog-field,
+.chapter-dialog-section {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.chapter-dialog-section__heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.chapter-editor-dialog__textarea {
+  height: min(42vh, 20rem) !important;
+  min-height: 16rem !important;
+  resize: vertical;
+  line-height: 1.75;
+}
+
+/* 融合弹窗：与小说编辑窗口一致，信息作为正文中的轻量上下文行。 */
+.chapter-merge-dialog__info {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: var(--admin-space-4);
+  border-bottom: 1px solid var(--admin-border);
+  padding: 0 0 var(--admin-space-3);
+}
+
+.chapter-merge-dialog__info-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--admin-space-4);
+}
+
+.chapter-merge-dialog__info-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.chapter-merge-dialog__info-grid strong {
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chapter-merge-dialog__badge {
+  flex-shrink: 0;
+  border-radius: var(--radius-full);
+  background: var(--accent-subtle);
+  color: var(--accent-hover);
+  padding: 0.375rem 0.75rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+/* 源站搜索、URL 读取与预览使用表单式平面分组，避免重复叠卡片。 */
+.chapter-merge-dialog__source {
+  display: grid;
+  gap: var(--admin-space-3);
+  min-width: 0;
+}
+
+.chapter-merge-dialog__source-grid {
+  min-width: 0;
+}
+
+.chapter-merge-dialog__source-grid [data-slot='button'],
+.chapter-merge-dialog__url-row [data-slot='button'] {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.chapter-merge-dialog__url-field {
+  display: grid;
+  gap: var(--admin-space-2);
+  border-top: 1px solid var(--admin-border);
+  padding-top: var(--admin-space-3);
+}
+
+.chapter-merge-dialog__url-row {
+  min-width: 0;
+}
+
+.chapter-merge-dialog__url-row [data-slot='input'] {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.chapter-merge-dialog__search-results {
+  margin-top: 0;
+  padding-top: var(--admin-space-3);
+  border-top: 1px solid var(--admin-border);
+}
+
+.chapter-merge-dialog__search-results button {
+  width: 100%;
+  border-color: var(--admin-border);
+  border-radius: var(--admin-radius-sm);
+  background: var(--admin-surface);
+  transition: all 0.15s ease;
+}
+
+.chapter-merge-dialog__search-results button:hover {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+}
+
+.chapter-merge-dialog__footer-note {
+  min-width: 0;
+  margin-right: auto;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.chapter-merge-dialog__preview {
+  display: grid;
+  gap: 0;
+  min-width: 0;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius);
+  background: color-mix(in srgb, var(--accent-subtle) 25%, var(--admin-panel));
+  padding: 1rem;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+.chapter-merge-dialog__preview-summary {
+  display: grid;
+  gap: var(--admin-space-2);
+}
+
+.chapter-merge-dialog__preview-summary > p,
+.chapter-merge-dialog__preview-section > p {
+  margin: 0;
+}
+
+.chapter-merge-dialog__warning {
+  color: var(--color-warning);
+}
+
+.chapter-merge-dialog__preview-section {
+  min-width: 0;
+}
+
+.chapter-merge-dialog__preview-summary + .chapter-merge-dialog__preview-section,
+.chapter-merge-dialog__preview-section + .chapter-merge-dialog__preview-section {
+  margin-top: var(--admin-space-3);
+  border-top: 1px solid var(--admin-border);
+  padding-top: var(--admin-space-3);
+}
+
+.chapter-merge-dialog__preview-changes > p {
+  margin-bottom: var(--admin-space-2);
+}
+
+.chapter-merge-dialog__preview-changes .import-chapter-preview__list {
+  display: grid;
+}
+
+.chapter-merge-dialog__preview-changes .import-chapter-preview__item {
+  display: grid;
+  grid-template-columns: 2.5rem minmax(0, 1fr) auto minmax(0, 1.25fr) auto;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  border-top: 1px solid var(--admin-border);
+  padding-block: 0.5rem;
+}
+
+.chapter-merge-dialog__preview-changes .import-chapter-preview__item > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 900px) {
+  .admin-redesign-page--chapters .admin-tab-header__actions {
+    width: 100%;
+    justify-content: stretch;
+    flex-wrap: nowrap;
+  }
+
+  .admin-redesign-page--chapters .chapter-novel-select {
+    width: auto;
+    min-width: 0;
+    flex: 1 1 0;
+  }
+
+  .admin-redesign-page--moderation .moderation-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .admin-redesign-page--moderation .moderation-toolbar__filters,
+  .admin-redesign-page--moderation .moderation-toolbar__query {
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .admin-redesign-page .admin-tab-header {
+    margin-bottom: 1.125rem;
+  }
+
+  .admin-redesign-page--chapters > .admin-tab-header {
+    margin-bottom: 0.25rem;
+    border-bottom: 0;
+  }
+
+  .admin-redesign-page--chapters .admin-tab-header__actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-redesign-page--chapters .chapter-novel-select {
+    width: 100%;
+    min-width: 0;
+    min-height: var(--admin-table-action-size-mobile);
+  }
+
+  .admin-redesign-page--chapters .admin-tab-header__actions > [data-slot='button'] {
+    width: 100%;
+    min-width: 0;
+    min-height: var(--admin-table-action-size-mobile);
+    justify-content: center;
+  }
+
+  .admin-redesign-page--moderation .moderation-toolbar__filters,
+  .admin-redesign-page--moderation .moderation-toolbar__query {
+    flex-wrap: wrap;
+  }
+
+  .admin-redesign-page--moderation .moderation-toolbar__modes {
+    width: 100%;
+  }
+
+  .admin-redesign-page--moderation .moderation-toolbar__modes [data-slot='tabs-list'] {
+    width: 100%;
+  }
+
+  .admin-redesign-page--moderation .moderation-toolbar__modes [data-slot='tabs-trigger'] {
+    min-width: 0;
+    flex: 1 1 0;
+    padding-inline: 0.5rem;
+  }
+
+  .admin-redesign-page--moderation .moderation-toolbar__status,
+  .admin-redesign-page--moderation .moderation-toolbar__reason {
+    flex: 1 1 8rem;
+  }
+
+  .admin-redesign-page--moderation .moderation-toolbar__user,
+  .admin-redesign-page--moderation .moderation-toolbar__search-field {
+    width: auto;
+    flex: 1 1 8rem;
+  }
+
+  .admin-redesign-page--moderation .moderation-toolbar__search-field .admin-search {
+    max-width: none;
+  }
+
+  [data-slot='dialog-content'].admin-dialog,
+  [data-slot='dialog-content'].admin-dialog.chapter-editor-dialog,
+  [data-slot='dialog-content'].admin-dialog.chapter-merge-dialog {
+    width: calc(100% - 1rem);
+    max-height: calc(100svh - 1rem);
+    border-radius: var(--admin-radius-dialog);
+  }
+
+  .chapter-merge-dialog__info {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  .chapter-merge-dialog__info-grid {
+    grid-template-columns: 1fr;
+    gap: 0.625rem;
+  }
+
+  .chapter-merge-dialog__badge {
+    justify-self: start;
+  }
+
+  .admin-dialog [data-slot='dialog-header'] {
+    padding: 1.25rem 1rem 0;
+  }
+
+  .admin-dialog__body {
+    padding: 1rem 1rem 1.25rem;
+  }
+
+  .admin-dialog [data-slot='dialog-footer'] {
+    flex-wrap: wrap;
+    padding: 0 1rem 1.25rem;
+  }
+
+  /* 放在通用移动端 footer 重置之后，确保小说编辑窗口的 token 不被覆盖：
+     正文仍可滚动，但窗口不占满视口，保存与取消始终保持同一行。 */
+  [data-slot='dialog-content'].novel-editor-dialog,
+  [data-slot='dialog-content'].chapter-merge-dialog {
+    max-height: var(--admin-dialog-mobile-max-height);
+  }
+
+  .novel-editor-dialog [data-slot='dialog-footer'],
+  .chapter-merge-dialog [data-slot='dialog-footer'] {
+    flex-direction: var(--admin-dialog-mobile-footer-direction);
+    flex-wrap: var(--admin-dialog-mobile-footer-wrap);
+    gap: var(--admin-dialog-mobile-footer-gap);
+    padding-block: var(--admin-dialog-mobile-footer-padding);
+  }
+
+  .novel-editor-dialog [data-slot='dialog-footer'] [data-slot='button'],
+  .chapter-merge-dialog [data-slot='dialog-footer'] [data-slot='button'] {
+    min-width: var(--admin-dialog-mobile-action-min-width);
+    min-height: var(--admin-dialog-mobile-action-min-height);
+  }
+
+  .chapter-editor-dialog [data-slot='dialog-header'],
+  .chapter-merge-dialog [data-slot='dialog-header'] {
+    padding-block: var(--admin-space-4);
+  }
+
+  .chapter-editor-dialog [data-slot='dialog-footer'],
+  .chapter-merge-dialog [data-slot='dialog-footer'] {
+    padding-block: var(--admin-space-3);
+  }
+
+  .chapter-editor-dialog__fields {
+    grid-template-columns: 1fr;
+  }
+
+  .chapter-merge-dialog__url-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .chapter-merge-dialog__url-row [data-slot='button'] {
+    width: 100%;
+  }
+
+  .chapter-merge-dialog__footer-note {
+    flex: 1 1 auto;
+    margin-right: auto;
+  }
+}

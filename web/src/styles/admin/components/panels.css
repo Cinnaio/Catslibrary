@@ -1,0 +1,147 @@
+/* .detail-kicker 的定义已移除（2026-09-23）。
+   它是前台类名（detail.css:33），本文件无 @layer 且最后导入，这里的声明会静默
+   压掉前台的 color/字号/字重/字距——品牌棕变成弱化灰、850 变 750。
+   后台若需要同类小标题，应放在所属面板中，不在页名后追加元信息。 */
+
+/* 后台面板表面。scrape 步进卡 / 任务卡通过组合 .admin-panel-card 复用，不再另立覆写。
+   注意：本文件无 @layer，故这条压过 Tailwind 的 @layer utilities —— 调 import 顺序会静默失效。 */
+.admin-panel-card {
+  border: 0;
+  border-radius: var(--radius-2xl); /* 20px — 与章节目录范本的大卡片一致 */
+  background: var(--admin-panel);
+  box-shadow: none;
+}
+
+.admin-panel-card {
+  padding: var(--admin-space-5);
+}
+
+/* 后台卡片统一采用无分割线的标题行，卡片正文沿用自身留白与内部结构。 */
+.admin-redesign-page :is(.admin-panel-card, [data-slot='card']) > [data-slot='card-header'] {
+  min-height: 0;
+  padding: 1.5rem 1.5rem 1.25rem;
+  border-bottom: 0;
+  gap: 0;
+}
+
+.admin-redesign-page :is(.admin-panel-card, [data-slot='card']) > [data-slot='card-header'] [data-slot='card-title'] {
+  color: var(--text-primary);
+  font-size: var(--admin-section-title-size);
+  font-weight: 750;
+  letter-spacing: -0.03em;
+  line-height: 1.3;
+}
+
+.admin-redesign-page :is(.admin-panel-card, [data-slot='card']) > [data-slot='card-content'] {
+  padding: 1.5rem;
+}
+
+.admin-redesign-page :is(.admin-panel-card, [data-slot='card']) > [data-slot='card-header'] [data-slot='card-action'] {
+  align-self: center;
+  margin-top: 0;
+}
+
+/* Card 自带的 py-6 只适合无标题的轻量表面；带 header/content 的卡片让内边距
+   由两个槽位各自管理，标题区才能像附件一样从卡片边缘铺到边缘。
+   AdminPanelHeading 已逐步取代 CardHeader 承担标题条职责（代理设置、AI 各面板），
+   故同样纳入归零条件；否则换标题后卡片会重新拿到 padding，与 CardContent 叠加。
+
+   同样必须归零 gap：Card 自身的类名是 `flex flex-col gap-6`（card.tsx），
+   gap 与 padding 相互独立，只清 padding 会在标题条与内容区之间留下 24px
+   死留白——表现为标题条下方一段无来由的空白。两个槽位各自已有内边距，
+   gap 恒应为 0。 */
+.admin-redesign-page :is(.admin-panel-card, [data-slot='card']):has(> [data-slot='card-header'], > .admin-panel-heading) {
+  padding: 0;
+  gap: 0;
+}
+
+.action-row,
+.input-row {
+  display: flex;
+  align-items: center;
+  gap: var(--admin-space-2);
+}
+
+/* 空态/加载态单元格。此前带 !important 是层叠战争产物：需要压过 Tailwind
+   utility 的 padding，而本文件无 @layer，普通声明已足够。 */
+.table-empty {
+  padding: 3.5rem 1rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.admin-mono-cell {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+.job-result-mini {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.job-result-mini--failed {
+  color: var(--color-danger);
+}
+
+.admin-sort-button {
+  display: inline-flex;
+  min-height: 2rem;
+  align-items: center;
+  /* 箭头与文字留足间隙：此前 0.35rem 配合窄字符宽度，视觉上「标题 ↕」
+     会被读成「标题|」 */
+  gap: var(--admin-table-sort-gap);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  transition: color var(--admin-table-row-interaction);
+}
+
+.admin-sort-button:hover,
+.admin-sort-button:focus-visible {
+  color: var(--text-primary);
+}
+
+.admin-sort-button[data-active='true'] {
+  color: var(--sh-primary);
+}
+
+.admin-sort-caret {
+  /* 定宽定高的图标位：切换三种图标时不因字形宽度不同而抖动 */
+  width: var(--admin-table-sort-caret-size);
+  height: var(--admin-table-sort-caret-size);
+  flex: 0 0 auto;
+  /* 未激活态降低对比：非当前排序列不应与激活列争抢注意力 */
+  opacity: 0.45;
+  transition: opacity var(--admin-table-row-interaction);
+}
+
+.admin-sort-button:hover .admin-sort-caret,
+.admin-sort-button:focus-visible .admin-sort-caret {
+  opacity: 0.75;
+}
+
+.admin-sort-button[data-active='true'] .admin-sort-caret {
+  opacity: 1;
+}
+
+.novel-row--highlight td {
+  animation: admin-highlight var(--admin-table-row-highlight);
+}
+@keyframes admin-highlight {
+  0% {
+    background: color-mix(in srgb, var(--sh-primary) 16%, var(--admin-panel));
+  }
+  100% {
+    background: transparent;
+  }
+}
+/* .badge-update 的定义已移除（2026-09-23）。
+   它是前台类名（components.css:199 定义白字红底）。此处曾把 color 改成
+   var(--color-success)，而 background 仍是前台的 var(--color-danger)——
+   形成绿字红底，实测对比度 1.27:1（前台原设计 6.29:1），文本不可读。
+   后台表格内的「有 N 章待更新」请改用 .admin-panel-status 或 badge 原语。 */

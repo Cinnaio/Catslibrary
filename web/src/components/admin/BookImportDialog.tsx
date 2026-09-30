@@ -1,3 +1,4 @@
+import { AdminDialogContent } from '@/components/admin/AdminDialog'
 import { useRef, useState } from 'react'
 import { bookImportApi } from '@/lib/api'
 import type {
@@ -11,7 +12,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
@@ -241,7 +242,7 @@ export default function BookImportDialog({
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !busy && onOpenChange(nextOpen)}>
-      <DialogContent className="admin-dialog book-import-dialog sm:max-w-[980px]" aria-describedby="book-import-description">
+      <AdminDialogContent className="book-import-dialog sm:max-w-[980px]" aria-describedby="book-import-description">
         <DialogHeader className="book-import__header">
           <DialogTitle>导入书籍</DialogTitle>
           <DialogDescription id="book-import-description">先分析来源，再确认同名作品和章节差异；提交后仍可以安全撤回。</DialogDescription>
@@ -567,7 +568,7 @@ export default function BookImportDialog({
             </>
           )}
         </DialogFooter>
-      </DialogContent>
+      </AdminDialogContent>
     </Dialog>
   )
 }

@@ -1,0 +1,49 @@
+/* ============================================================
+   阶段一 · 操作便利性
+   行内操作收敛（主操作常驻 + 次级/危险操作进菜单）、跨页选择计数常驻、
+   批量条吸附。以下规则只服务这三件事，消费者见注释。
+   ============================================================ */
+
+/* --- 行内操作菜单（AdminRowActions）-----------------------------------
+   消费者：NovelsTab / ChaptersTab / ModerationTab 的行操作列。
+   菜单项 44px 触控高度在触屏上偏矮，这里统一到 2.5rem 并让图标列定宽，
+   使「图标 + 文字」在多项之间左对齐成一条竖线，扫读时不必逐项找起点。 */
+.admin-row-actions__menu {
+  min-width: 11rem;
+  padding: 0.25rem;
+}
+
+.admin-row-actions__menu-label {
+  padding: 0.4rem 0.5rem 0.25rem;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+
+.admin-row-actions__item {
+  min-height: 2.25rem;
+  gap: 0.5rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: var(--admin-radius-sm);
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.admin-row-actions__item-icon {
+  flex: 0 0 auto;
+  width: 1rem;
+  height: 1rem;
+  color: var(--text-muted);
+}
+
+.admin-row-actions__item:hover .admin-row-actions__item-icon,
+.admin-row-actions__item:focus .admin-row-actions__item-icon {
+  color: currentColor;
+}
+
+/* 危险项在菜单里仍要显眼但不能喊：图标在默认态就取危险色，
+   与相邻的普通项一眼可分，无需先 hover 才知道后果。 */
+.admin-row-actions__item--danger .admin-row-actions__item-icon {
+  color: var(--color-danger);
+}

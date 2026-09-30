@@ -1,13 +1,13 @@
+import AdminFormField from '@/components/admin/AdminFormField'
+import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import { useCallback, useEffect, useState } from 'react'
 import { Globe2, Info, LoaderCircle, Network, RefreshCw, Route, Save, ScrollText } from 'lucide-react'
 import { scrapeApi } from '@/lib/api'
 import { useToast } from '@/components/feedback'
 import AdminEmptyState from '@/components/admin/AdminEmptyState'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { AdminDataPanel, AdminPanelHeading, type AdminColumn } from '@/components/admin/AdminWorkspace'
 
@@ -177,12 +177,11 @@ export default function ProxyView() {
       <Card className="admin-panel-card proxy-config-panel">
         <AdminPanelHeading
           title="HTTP / HTTPS 出站代理"
-          status={<Badge className={enabled ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}>{enabled ? '已启用' : '未启用'}</Badge>}
+          status={<AdminStatusBadge tone={enabled ? 'success' : 'muted'}>{enabled ? '已启用' : '未启用'}</AdminStatusBadge>}
         />
         <CardContent className="grid gap-5">
           <div className="grid gap-4 md:grid-cols-2">
-            <div className="grid gap-1.5">
-              <Label htmlFor="proxy-base">代理地址</Label>
+            <AdminFormField label="代理地址" htmlFor="proxy-base">
               <Input
                 id="proxy-base"
                 type="url"
@@ -192,9 +191,8 @@ export default function ProxyView() {
                 onChange={(event) => setDraft((current) => ({ ...current, proxyBase: event.target.value }))}
               />
               <p className="text-xs leading-relaxed text-muted-foreground">填写 Clash mixed-port 等标准 HTTP Forward Proxy 地址，保存后无需重启。</p>
-            </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="proxy-bypass">跳过代理</Label>
+            </AdminFormField>
+            <AdminFormField label="跳过代理" htmlFor="proxy-bypass">
               <Input
                 id="proxy-bypass"
                 placeholder="localhost,127.0.0.1,::1,.internal.example.com"
@@ -203,7 +201,7 @@ export default function ProxyView() {
                 onChange={(event) => setDraft((current) => ({ ...current, proxyBypass: event.target.value }))}
               />
               <p className="text-xs leading-relaxed text-muted-foreground">多个主机、域名、IP 或 host:port 用逗号分隔。生产环境同时遵循 NO_PROXY。</p>
-            </div>
+            </AdminFormField>
           </div>
 
           <div className="flex flex-wrap items-center gap-3 border-t border-border pt-4">
@@ -231,12 +229,9 @@ export default function ProxyView() {
       </Card>
 
       <Card className="admin-panel-card proxy-test-panel">
-        <AdminPanelHeading
-          title="代理连通性测试"
-        />
+        <AdminPanelHeading title="代理连通性测试" />
         <CardContent className="grid gap-4">
-          <div className="grid gap-1.5">
-            <Label htmlFor="proxy-test-url">测试目标网址</Label>
+          <AdminFormField label="测试目标网址" htmlFor="proxy-test-url">
             <div className="flex flex-col gap-2 sm:flex-row">
               <Input
                 id="proxy-test-url"
@@ -252,7 +247,7 @@ export default function ProxyView() {
                 {testing ? '测试中' : '开始测试'}
               </Button>
             </div>
-          </div>
+          </AdminFormField>
           <div className="flex items-start gap-2 rounded-md bg-muted/50 px-3 py-2.5 text-sm text-muted-foreground">
             <Network className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
             <span>
@@ -305,13 +300,17 @@ export default function ProxyView() {
                 <TableHead scope="col">目标</TableHead>
                 <TableHead scope="col">链路</TableHead>
                 <TableHead scope="col">结果</TableHead>
-                <TableHead scope="col" className="text-right">耗时</TableHead>
+                <TableHead scope="col" className="text-right">
+                  耗时
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {logs.map((log) => (
                 <TableRow key={log.id}>
-                  <TableCell data-label="时间" className="whitespace-nowrap text-xs text-muted-foreground">{formatTime(log.timestamp)}</TableCell>
+                  <TableCell data-label="时间" className="whitespace-nowrap text-xs text-muted-foreground">
+                    {formatTime(log.timestamp)}
+                  </TableCell>
                   <TableCell data-label="范围">
                     <code className="text-xs">{log.scope}</code>
                   </TableCell>
@@ -325,21 +324,21 @@ export default function ProxyView() {
                     </div>
                   </TableCell>
                   <TableCell data-label="结果">
-                    <Badge className={log.ok ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}>
+                    <AdminStatusBadge tone={log.ok ? 'success' : 'danger'}>
                       <span className="inline-block max-w-[240px] truncate align-bottom" title={log.status !== null ? String(log.status) : log.error || '失败'}>
                         {log.status ?? (log.error || '失败')}
                       </span>
-                    </Badge>
+                    </AdminStatusBadge>
                   </TableCell>
-                  <TableCell data-label="耗时" className="text-right text-xs text-muted-foreground">{log.durationMs} ms</TableCell>
+                  <TableCell data-label="耗时" className="text-right text-xs text-muted-foreground">
+                    {log.durationMs} ms
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         )}
-        <p className="px-5 pb-4 text-xs leading-relaxed text-muted-foreground">
-          仅保留最近 100 条；目标查询参数、请求头、正文及代理凭据不会记录。
-        </p>
+        <p className="px-5 pb-4 text-xs leading-relaxed text-muted-foreground">仅保留最近 100 条；目标查询参数、请求头、正文及代理凭据不会记录。</p>
       </AdminDataPanel>
     </div>
   )

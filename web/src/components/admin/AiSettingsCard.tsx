@@ -3,14 +3,14 @@
  * 供应商密钥走 .env / 安装向导，这里只管运营开关：开不开、每人每天几次、送多少正文。
  * consumers: pages/admin/SettingsTab.tsx
  */
+import AdminFormField from '@/components/admin/AdminFormField'
+import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import { useCallback, useEffect, useState } from 'react'
 import { aiApi, type AiSettings, type AiUsageSummary } from '../../lib/api'
 import { useToast } from '../feedback'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 
 interface Provider {
@@ -81,34 +81,23 @@ export default function AiSettingsCard() {
         <div className="min-w-0">
           <CardTitle className="text-base">AI 服务</CardTitle>
         </div>
-        <Badge className={provider?.configured ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}>
-          {provider?.configured ? '已配置' : '未配置'}
-        </Badge>
+        <AdminStatusBadge tone={provider?.configured ? 'accent' : 'muted'}>{provider?.configured ? '已配置' : '未配置'}</AdminStatusBadge>
       </CardHeader>
 
       <CardContent className="grid gap-4">
         <p className="text-xs leading-relaxed text-muted-foreground">
-          {provider?.configured
-            ? `${provider.host} · ${provider.model}`
-            : '未配置 AI_TEXT_BASE_URL / AI_TEXT_API_KEY，读者端不会出现 AI 入口'}
+          {provider?.configured ? `${provider.host} · ${provider.model}` : '未配置 AI_TEXT_BASE_URL / AI_TEXT_API_KEY，读者端不会出现 AI 入口'}
         </p>
         <label className="flex items-start justify-between gap-4 rounded-xl border border-border bg-card p-3.5">
           <span className="min-w-0">
             <span className="block text-sm font-medium text-foreground">阅读器前情提要</span>
-            <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">
-              读者进入章节时可回顾上一章，结果按章缓存，全站共用一份
-            </span>
+            <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">读者进入章节时可回顾上一章，结果按章缓存，全站共用一份</span>
           </span>
-          <Switch
-            checked={!!settings?.recapEnabled}
-            disabled={!settings || saving}
-            onCheckedChange={(v) => void save({ recapEnabled: v })}
-          />
+          <Switch checked={!!settings?.recapEnabled} disabled={!settings || saving} onCheckedChange={(v) => void save({ recapEnabled: v })} />
         </label>
 
         <div className="ai-form-grid grid gap-3 sm:grid-cols-2">
-          <div className="grid gap-1.5">
-            <Label htmlFor="ai-daily-quota">每人每日生成上限</Label>
+          <AdminFormField label="每人每日生成上限" htmlFor="ai-daily-quota" hint="命中缓存不计数；管理员不受限；0 表示禁止读者触发">
             <Input
               id="ai-daily-quota"
               type="number"
@@ -118,10 +107,8 @@ export default function AiSettingsCard() {
               disabled={!settings}
               onChange={(e) => setSettings((p) => (p ? { ...p, dailyQuota: Number(e.target.value) } : p))}
             />
-            <p className="text-xs text-muted-foreground">命中缓存不计数；管理员不受限；0 表示禁止读者触发</p>
-          </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="ai-max-chars">送入模型的正文字数</Label>
+          </AdminFormField>
+          <AdminFormField label="送入模型的正文字数" htmlFor="ai-max-chars" hint="超出部分截断，直接决定单次调用成本">
             <Input
               id="ai-max-chars"
               type="number"
@@ -131,8 +118,7 @@ export default function AiSettingsCard() {
               disabled={!settings}
               onChange={(e) => setSettings((p) => (p ? { ...p, maxChapterChars: Number(e.target.value) } : p))}
             />
-            <p className="text-xs text-muted-foreground">超出部分截断，直接决定单次调用成本</p>
-          </div>
+          </AdminFormField>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">

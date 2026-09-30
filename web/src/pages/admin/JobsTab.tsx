@@ -9,6 +9,7 @@
  * - 原版的重试在成功后切换到「爬虫」tab 并创建任务卡；本 tab 无 tab 切换能力，
  *   故仅 toast + 重载列表（偏离点）。
  */
+import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Ban, CircleMinus, RotateCcw, RotateCw } from 'lucide-react'
 import { adminApi, authFetch, downloadLogsApi, newOperationId, scrapeApi } from '../../lib/api'
@@ -359,29 +360,29 @@ export default function JobsTab(_props: { highlightNovelId?: string; onHighlight
     const label = jobStatusLabel(j.status)
     if (isJobRunning(j.status)) {
       return (
-        <Badge variant="secondary" className="bg-info/10 text-info">
+        <AdminStatusBadge variant="secondary" tone="info">
           <span className="job-spinner"></span>
           {label}
-        </Badge>
+        </AdminStatusBadge>
       )
     }
     if (j.status === 'completed')
       return (
-        <Badge variant="secondary" className="bg-success/10 text-success">
+        <AdminStatusBadge variant="secondary" tone="success">
           ✓ {label}
-        </Badge>
+        </AdminStatusBadge>
       )
     if (j.status === 'partial')
       return (
-        <Badge variant="secondary" className="bg-warning/10 text-warning">
+        <AdminStatusBadge variant="secondary" tone="warning">
           ⚠ {label}
-        </Badge>
+        </AdminStatusBadge>
       )
     if (j.status === 'failed')
       return (
-        <Badge variant="secondary" className="bg-destructive/10 text-destructive">
+        <AdminStatusBadge variant="secondary" tone="danger">
           ✕ {label}
-        </Badge>
+        </AdminStatusBadge>
       )
     return (
       <Badge variant="secondary" className="text-muted-foreground">

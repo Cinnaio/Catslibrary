@@ -1,0 +1,51 @@
+/* 小说管理的搜索与分级筛选共享一条表格外轻量控制行：搜索占据剩余空间，
+   分级胶囊靠右收口；不伪装成第三张等权卡片，数据面板从选择条/表格开始。 */
+.novels-rating-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: center;
+  gap: var(--admin-space-2);
+  width: 100%;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.novels-rating-toolbar > .admin-search {
+  width: auto;
+  max-width: none;
+  flex: 1 1 auto;
+}
+
+.novels-rating-toolbar__filter {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  margin-left: auto;
+}
+
+/* 分页移到表格外但仍属于列表的连续操作区；在默认区块间距基础上再收紧一档。 */
+.admin-redesign-page--novels > .novels-pagination {
+  margin-top: calc(-1 * var(--admin-space-2));
+}
+
+.admin-redesign-page--chapters > .chapters-pagination {
+  margin-top: calc(-1 * var(--admin-space-2));
+}
+
+/* 面板内工具条的通用内间距契约。
+   .admin-toolbar--inline 自身只有 flex 布局，没有内间距；各页面按约定在自己的
+   class 里补 `padding: <纵向> 1.25rem`，使控件左边缘与下方表格同一条基线
+   （范本见 .ai-service .ai-tasks-toolbar、.moderation-toolbar）。
+   裸用 AdminToolbar 而不给 class 时，工具条会贴住面板左右边缘、并紧贴表头
+   （实测下边距 0px，表头被压在筛选条下沿），内容分级页在此补齐。 */
+.content-ratings-toolbar {
+  padding: var(--admin-data-panel-toolbar-padding-block) var(--admin-data-panel-toolbar-padding-inline);
+  background: var(--admin-data-panel-toolbar-background);
+  border-bottom: 1px solid var(--admin-border);
+  /* padding-bottom 落在盒内，表格仍紧贴 border-bottom（实测
+     工具条 bottom 与 thead top 差 0px，表头被压在筛选条下沿）。
+     下边距因此必须外置为 margin。 */
+  margin-bottom: 1rem;
+}

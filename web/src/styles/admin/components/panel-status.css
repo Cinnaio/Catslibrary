@@ -1,0 +1,24 @@
+/* 面板标题旁的状态胶囊。AdminPanelHeading 的 status 槽位在任务、账户、审核、
+   监控与 AI 各面板都有消费，先前每页各写一份逐字相同的规则；现统一为
+   .admin-panel-status，页面只保留各自需要的变体。 */
+.admin-panel-status {
+  display: inline-flex;
+  min-width: 4.75rem;
+  min-height: 1.75rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--radius-full);
+  background: var(--admin-panel-muted);
+  padding: 0.2rem 0.6rem;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.admin-panel-status.is-error {
+  border-color: color-mix(in srgb, var(--color-danger) 35%, var(--admin-border));
+  background: color-mix(in srgb, var(--color-danger) 8%, var(--admin-panel));
+  color: var(--color-danger);
+}

@@ -1,0 +1,347 @@
+/* 抓取中心完全复用小说管理的页面契约：标题栏无底线，内容以标准面板为单位，
+   面板标题、工具栏和连续列表共享同一条水平基线。抓取流程仍按入口 → 发现 →
+   配置 → 队列排列，但不再使用右侧工作台和嵌套卡片制造另一套视觉。 */
+.admin-redesign-page--scrape > .admin-tab-header {
+  margin-bottom: 0.25rem;
+  border-bottom: 0;
+}
+
+.admin-redesign-page--scrape .scrape-center,
+.admin-redesign-page--scrape .scrape-center__main {
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-redesign-page--scrape .scrape-center__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.admin-redesign-page--scrape :is(.scrape-intake, .scrape-discovery, .scrape-setup, .scrape-workbench__aside, .scrape-config-card) {
+  display: grid;
+  gap: 0;
+  overflow: hidden;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  /* 与同列「配置迁移」面板取同一档外框圆角。此处原为 --radius-xl(16px)，
+     而 .admin-data-panel 走 --admin-table-panel-radius(20px)，同一列相邻两个
+     面板弧线不一致——这就是「确认作品并配置章节」看起来不属于这一页的来源。 */
+  border-radius: var(--admin-table-panel-radius);
+  background: var(--admin-panel);
+  box-shadow: none;
+}
+
+.admin-redesign-page--scrape .scrape-intake__tabs,
+.admin-redesign-page--scrape .scrape-intake__form {
+  width: auto;
+  margin-inline: 1.25rem;
+}
+
+.admin-redesign-page--scrape .scrape-intake > .scrape-intake__heading {
+  padding-bottom: 0;
+}
+
+.admin-redesign-page--scrape .scrape-intake__tabs {
+  margin-top: var(--admin-space-3);
+  margin-bottom: var(--admin-space-3);
+  width: min(18rem, calc(100% - 2.5rem));
+  margin-right: auto;
+}
+
+.admin-redesign-page--scrape .scrape-intake__tabs > [data-slot='tabs-list'] {
+  min-height: 2.5rem;
+  height: auto;
+}
+
+.admin-redesign-page--scrape .scrape-intake__tab {
+  min-height: 1.75rem;
+  height: auto;
+  justify-content: center;
+  text-align: center;
+  padding: 0.15rem 0.35rem;
+}
+
+.admin-redesign-page--scrape .scrape-intake__tab[data-state='active'] {
+  background: transparent;
+  box-shadow: none;
+}
+
+.admin-redesign-page--scrape .scrape-intake__tab > span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--tabs-segmented-muted-foreground);
+  font-size: var(--tabs-segmented-label-size);
+  font-weight: var(--tabs-segmented-label-weight);
+  line-height: var(--tabs-segmented-label-line-height);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-redesign-page--scrape .scrape-intake__tab[data-state='active'] > span {
+  color: var(--tabs-segmented-active-foreground);
+  font-weight: var(--tabs-segmented-active-label-weight);
+}
+
+.admin-redesign-page--scrape .scrape-intake__form {
+  margin-bottom: 1.25rem;
+}
+
+.admin-redesign-page--scrape .scrape-discovery > .scrape-discovery__loading,
+.admin-redesign-page--scrape .scrape-discovery > .scrape-discovery__empty,
+.admin-redesign-page--scrape .scrape-discovery > .scrape-discovery__list,
+.admin-redesign-page--scrape .scrape-discovery > .scrape-batch {
+  margin: 1rem 1.25rem 0;
+}
+
+.admin-redesign-page--scrape .scrape-discovery > .scrape-discovery__empty {
+  margin-bottom: 1.25rem;
+}
+
+.admin-redesign-page--scrape .scrape-discovery > .scrape-discovery__toolbar {
+  margin: 0;
+  border-top: 0;
+  padding-inline: 1.25rem;
+}
+
+.admin-redesign-page--scrape .scrape-discovery > .scrape-discovery__list {
+  overflow: visible;
+  margin-top: 0;
+  margin-bottom: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.admin-redesign-page--scrape .scrape-discovery__row {
+  padding: 1rem 0;
+  border-color: var(--admin-border);
+}
+
+.admin-redesign-page--scrape .scrape-discovery__row:last-child {
+  border-bottom: 1px solid var(--admin-border);
+}
+
+.admin-redesign-page--scrape .scrape-discovery__cover,
+.admin-redesign-page--scrape .scrape-setup__cover {
+  border: 1px solid var(--admin-border);
+  background: var(--admin-inset);
+}
+
+.admin-redesign-page--scrape .scrape-discovery > .scrape-batch {
+  margin-bottom: 1.25rem;
+}
+
+.admin-redesign-page--scrape .scrape-setup > .scrape-setup__book,
+.admin-redesign-page--scrape .scrape-setup > .scrape-setup__fields,
+.admin-redesign-page--scrape .scrape-setup > .scrape-setup__save-row {
+  margin-inline: 1.25rem;
+}
+
+.admin-redesign-page--scrape .scrape-setup > .scrape-setup__book {
+  margin-top: 1rem;
+  padding: 0 0 1rem;
+  border: 0;
+  border-bottom: 1px solid var(--admin-border);
+  border-radius: 0;
+  background: transparent;
+}
+
+.admin-redesign-page--scrape .scrape-setup > .scrape-setup__fields {
+  margin-top: 1rem;
+}
+
+.admin-redesign-page--scrape .scrape-setup > .scrape-setup__save-row {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  padding-bottom: 0;
+}
+
+.admin-redesign-page--scrape .scrape-setup > .scrape-setup__config {
+  margin-top: 1rem;
+  padding: 1rem 1.25rem 1.25rem;
+  border-top: 1px solid var(--admin-border);
+  /* Tonal-Admin Rule：面板内不再开加深底色分区。分区只由 1px 描边 + 间距表达，
+     原先的 var(--admin-panel-muted) 让面板下半部整体变灰，与上半部形成断层。 */
+  background: var(--admin-panel);
+}
+
+.admin-redesign-page--scrape .scrape-workbench__aside {
+  position: static;
+}
+
+/* 选择器来源分段（ScrapeSetupPanel）。此前是两个手搓 Button，选中态靠切换
+   variant，既没有激活层位移也没有 --tabs-segmented-* 契约，与同页「抓取入口」
+   的正规分段控件观感不同源。现统一为 Tabs，几何/激活层/动效全部读契约 token，
+   这里只补页面级排布：宽度跟随内容。 */
+.admin-redesign-page--scrape .scrape-setup__preset-tabs {
+  width: auto;
+  flex: 0 0 auto;
+  align-items: flex-start;
+}
+
+.admin-redesign-page--scrape .scrape-setup__preset-tabs > [data-slot='tabs-list'] {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  /* 保留基类的 width: fit-content；弹性列容器默认 stretch，必须显式退到起点，
+     否则药丸会被拉满 preset-row 的剩余宽度，与「抓取入口」的紧凑分段不一致。 */
+  align-self: flex-start;
+  height: auto;
+  min-height: 0;
+  gap: var(--tabs-segmented-gap);
+  isolation: isolate;
+  padding: var(--tabs-segmented-inset);
+  border: 1px solid var(--tabs-segmented-track-border);
+  border-radius: var(--tabs-segmented-radius);
+  background: var(--tabs-segmented-track-background);
+}
+
+.admin-redesign-page--scrape .scrape-setup__preset-tabs > [data-slot='tabs-list']::before {
+  position: absolute;
+  z-index: 0;
+  inset: var(--tabs-segmented-inset) auto var(--tabs-segmented-inset) var(--tabs-segmented-inset);
+  width: calc((100% - var(--tabs-segmented-gap) * 3) / 2);
+  border-radius: var(--tabs-segmented-inner-radius);
+  background: var(--tabs-segmented-active-background);
+  box-shadow: var(--tabs-segmented-active-shadow);
+  content: '';
+  pointer-events: none;
+  transform: translateX(0);
+  transition: transform var(--tabs-segmented-transition);
+}
+
+.admin-redesign-page--scrape .scrape-setup__preset-tabs > [data-slot='tabs-list'][data-active-index='1']::before {
+  transform: translateX(calc(100% + var(--tabs-segmented-gap)));
+}
+
+.admin-redesign-page--scrape .scrape-setup__preset-tabs [data-slot='tabs-trigger'] {
+  position: relative;
+  z-index: 1;
+  height: auto;
+  min-height: 1.9rem;
+  padding: 0.3rem 0.75rem;
+  border: 0;
+  border-radius: var(--tabs-segmented-inner-radius);
+  background: transparent;
+  box-shadow: none;
+  color: var(--tabs-segmented-muted-foreground);
+  font-size: var(--tabs-segmented-label-size);
+  font-weight: var(--tabs-segmented-label-weight);
+  line-height: var(--tabs-segmented-label-line-height);
+  transition: color var(--tabs-segmented-transition);
+}
+
+.admin-redesign-page--scrape .scrape-setup__preset-tabs [data-slot='tabs-trigger'][data-state='active'] {
+  background: transparent;
+  box-shadow: none;
+  color: var(--tabs-segmented-active-foreground);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-redesign-page--scrape .scrape-setup__preset-tabs > [data-slot='tabs-list'] {
+    --tabs-segmented-duration: 0.001ms;
+  }
+}
+
+.admin-redesign-page--scrape .scrape-workbench__count {
+  display: inline-flex;
+  min-width: 0;
+  height: auto;
+  align-items: center;
+  padding: 0.3rem 0.55rem;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--radius-full);
+  background: var(--admin-panel-muted);
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 650;
+}
+
+.admin-redesign-page--scrape .scrape-job-queue {
+  gap: 0;
+}
+
+.admin-redesign-page--scrape .scrape-job {
+  padding: 1rem 1.25rem;
+  border: 0;
+  border-radius: 0;
+  background: var(--admin-panel);
+}
+
+.admin-redesign-page--scrape .scrape-job + .scrape-job {
+  border-top: 1px solid var(--admin-border);
+}
+
+.admin-redesign-page--scrape .scrape-job-queue__empty {
+  margin: 1rem 1.25rem 1.25rem;
+}
+
+.admin-redesign-page--scrape .scrape-setup-state {
+  min-width: 0;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--radius-xl);
+  background: var(--admin-panel);
+}
+
+@media (max-width: 640px) {
+  .admin-redesign-page--scrape .scrape-intake__tabs,
+  .admin-redesign-page--scrape .scrape-intake__form,
+  .admin-redesign-page--scrape .scrape-discovery > .scrape-discovery__loading,
+  .admin-redesign-page--scrape .scrape-discovery > .scrape-discovery__empty,
+  .admin-redesign-page--scrape .scrape-discovery > .scrape-discovery__list,
+  .admin-redesign-page--scrape .scrape-discovery > .scrape-batch,
+  .admin-redesign-page--scrape .scrape-setup > .scrape-setup__book,
+  .admin-redesign-page--scrape .scrape-setup > .scrape-setup__fields,
+  .admin-redesign-page--scrape .scrape-setup > .scrape-setup__save-row {
+    margin-inline: 1rem;
+  }
+
+  .admin-redesign-page--scrape .scrape-intake > .scrape-intake__heading {
+    padding-inline: 1rem;
+  }
+
+  .admin-redesign-page--scrape .scrape-setup > .scrape-setup__config {
+    padding-inline: 1rem;
+  }
+
+  .admin-redesign-page--scrape .scrape-intake__tabs > [data-slot='tabs-list'] {
+    min-height: 0;
+    height: auto;
+  }
+
+  .admin-redesign-page--scrape .scrape-intake__tabs {
+    width: auto;
+    margin-right: 1rem;
+  }
+
+  .admin-redesign-page--scrape .scrape-intake__tabs > [data-slot='tabs-list']::before {
+    inset: var(--tabs-segmented-inset) var(--tabs-segmented-inset) auto;
+    width: auto;
+    height: calc((100% - (var(--tabs-segmented-gap) * 4)) / 3);
+  }
+
+  .admin-redesign-page--scrape .scrape-intake__tabs > [data-slot='tabs-list'][data-active-index='1']::before {
+    transform: translateY(calc(100% + var(--tabs-segmented-gap)));
+  }
+
+  .admin-redesign-page--scrape .scrape-intake__tabs > [data-slot='tabs-list'][data-active-index='2']::before {
+    transform: translateY(calc((100% + var(--tabs-segmented-gap)) * 2));
+  }
+
+  .admin-redesign-page--scrape .scrape-intake__tab {
+    min-height: 2.65rem;
+    padding: 0.4rem 0.7rem;
+  }
+
+  .admin-redesign-page--scrape .scrape-workbench__aside .admin-panel-heading,
+  .admin-redesign-page--scrape .scrape-job {
+    padding-inline: 1rem;
+  }
+
+  .admin-redesign-page--scrape .scrape-job-queue__empty {
+    margin-inline: 1rem;
+  }
+}

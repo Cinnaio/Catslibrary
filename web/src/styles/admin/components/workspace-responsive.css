@@ -1,0 +1,86 @@
+@media (max-width: 900px) {
+  .admin-context-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-panel-heading {
+    padding: 1.125rem 1rem 1rem;
+  }
+
+  .admin-redesign-page :is(.admin-panel-card, [data-slot='card']) > [data-slot='card-header'] {
+    min-height: 0;
+    padding: 1.125rem 1rem 1rem;
+  }
+
+  .admin-redesign-page :is(.admin-panel-card, [data-slot='card']) > [data-slot='card-content'] {
+    padding: 1rem;
+  }
+
+  .admin-queue-summary {
+    grid-template-columns: repeat(var(--admin-queue-columns, 3), minmax(0, 1fr));
+  }
+
+  .admin-queue-summary__lead {
+    grid-column: 1 / -1;
+    border-bottom: 1px solid var(--admin-border);
+  }
+
+  .admin-queue-summary > * + * {
+    border-left: 0;
+  }
+
+  .admin-queue-summary > *:not(.admin-queue-summary__lead) + * {
+    border-left: 1px solid var(--admin-border);
+  }
+}
+
+@media (max-width: 640px) {
+  /* 指标卡此前在窄屏压成单列纵向堆叠，3-4 项会吃掉近半屏高度，而这些数字
+     在手机上只是概览信息。改为 2×2 网格（4 项时）或单行（≤3 项），
+     纵向占用减半且仍可读。
+     基础类名已覆盖全部页面变体，此前的 --dashboard/--account 列举是冗余。 */
+  .admin-metric-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-queue-summary {
+    grid-template-columns: 1fr;
+  }
+
+  /* 奇数项时最后一项跨满整行，避免留半格空位 */
+  .admin-metric-strip > .admin-metric-strip__item:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+
+  /* 2 列网格下用「左邻项」+「奇偶」组合还原正确的分隔线：
+     第 2n 项右侧无边框，第 3 项起需要上边框。 */
+  .admin-metric-strip__item + .admin-metric-strip__item {
+    border-left: 1px solid var(--admin-border);
+  }
+
+  .admin-metric-strip__item:nth-child(odd) {
+    border-left: 0;
+  }
+
+  .admin-metric-strip__item:nth-child(n + 3) {
+    border-top: 1px solid var(--admin-border);
+  }
+
+  .admin-panel-heading {
+    flex-direction: column;
+  }
+
+  .admin-panel-heading__actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .admin-queue-summary__lead {
+    grid-column: auto;
+  }
+
+  .admin-queue-summary > *:not(.admin-queue-summary__lead) + * {
+    border-top: 1px solid var(--admin-border);
+    border-left: 0;
+  }
+}

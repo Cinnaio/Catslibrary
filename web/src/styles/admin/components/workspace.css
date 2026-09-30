@@ -1,0 +1,311 @@
+/* 工具条内的筛选器组：横向排列。
+   .admin-toolbar__filters 曾是「有类名、无规则」——display 落到 block，
+   标签、下拉、计数说明各自成块（实测三个不同 top），补上 flex 后仍不对：
+   flex-wrap 时容器按 min-content 求宽（内容实需 348px，容器只得到 286px）；
+   改成 nowrap 后 flex 转而压缩子项（计数被压到 70px 宽、折成 3 行）。
+
+   定宽必须走 flex-basis: max-content，而不是 width: max-content：
+   后者受 max-width: 100% 影响，而该百分比在 flex 行里按已分配空间解析，
+   实测仍得 286px、子项溢出容器右界 62px（连 !important 都无法修正）。
+   basis 直接参与 flex 分配，不经过 width 与百分比 max-width 的这一层耦合。
+
+   .admin-toolbar > *:not([class*='min-w-']) 的 min-width: 0 会命中本容器
+   （类名不含 min-w-），故用 flex-basis 而非 min-width 表达下限。 */
+.admin-toolbar__filters {
+  display: flex;
+  flex: 0 0 max-content;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 0.5rem 0.75rem;
+}
+
+/* 子元素不参与收缩，且按内容取宽。
+   父级禁止换行后 flex 会转而压缩子项（实测计数说明被压到 70px 宽、折成 3 行，
+   标签被压到 16px）。而 CustomSelect 的触发器自带 w-full，与父级的
+   max-content 形成循环依赖：浏览器按规范取 286px 定容器，触发器再按 w-full
+   长到 max-w（176px），结果子项共占 348px、溢出容器右界 62px。
+   故在筛选条内让触发器退回内容宽度（max-content 实测 114px），打断循环。 */
+.admin-toolbar__filters > * {
+  flex: 0 0 auto;
+}
+
+.admin-toolbar__filters [data-slot='popover-trigger'] {
+  width: auto;
+}
+
+/* 窄屏才允许换行：此时工具条本身已转纵向，横向空间不足以容纳整条筛选条。 */
+@media (max-width: 900px) {
+  .novels-rating-toolbar {
+    align-items: stretch;
+    grid-template-columns: minmax(0, 1fr) max-content;
+  }
+
+  .novels-rating-toolbar > .admin-search {
+    flex: 1 1 100%;
+  }
+
+  .novels-rating-toolbar__filter {
+    align-self: center;
+    justify-self: end;
+  }
+
+  .admin-toolbar__filters {
+    flex-wrap: wrap;
+  }
+}
+
+/* 选中作品后显示紧凑的状态操作条，贴着表头并与面板内容保持同一条对齐线。 */
+.admin-toolbar__batch {
+  display: flex;
+  min-height: 3.25rem;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.5rem 1.25rem;
+  border-bottom: 1px solid var(--admin-border);
+  background: color-mix(in srgb, var(--accent-subtle) 24%, var(--admin-panel));
+}
+
+.admin-toolbar__batch-count {
+  display: inline-flex;
+  min-height: 1.75rem;
+  align-items: center;
+  flex: 0 0 auto;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--admin-border));
+  border-radius: var(--radius-full);
+  background: var(--admin-panel);
+  padding: 0.2rem 0.6rem;
+  color: var(--accent-hover);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.admin-toolbar__batch-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+.admin-toolbar__batch-actions > button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.admin-section-kicker {
+  color: var(--accent-hover);
+  font-size: 0.72rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+}
+
+.admin-context-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.35fr);
+  align-items: end;
+  gap: var(--admin-context-panel-gap);
+  min-width: 0;
+  padding: var(--admin-context-panel-padding);
+  border: var(--admin-context-panel-border-width) solid var(--admin-context-panel-border);
+  border-radius: var(--admin-context-panel-radius);
+  background: var(--admin-context-panel-background);
+  box-shadow: none;
+}
+
+.admin-context-panel__copy,
+.admin-context-panel__aside {
+  min-width: 0;
+}
+
+.admin-context-panel__copy {
+  display: grid;
+  align-content: center;
+  gap: 0.45rem;
+}
+
+.admin-context-panel__copy h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 1.25rem;
+  font-weight: 750;
+  letter-spacing: -0.025em;
+}
+
+.admin-context-panel__copy p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  line-height: 1.65;
+}
+
+.admin-context-panel__aside {
+  display: grid;
+  align-self: stretch;
+  min-width: 0;
+  align-items: end;
+}
+
+.admin-metric-strip {
+  display: grid;
+  grid-template-columns: repeat(var(--admin-metric-columns, 4), minmax(0, 1fr));
+  overflow: hidden;
+  min-width: 0;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--radius-xl);
+  background: var(--admin-border);
+}
+
+.admin-metric-strip__item {
+  display: grid;
+  align-content: center;
+  min-width: 0;
+  min-height: 5.25rem;
+  gap: 0.35rem;
+  padding: 0.875rem 1.25rem;
+  background: var(--admin-panel);
+}
+
+.admin-metric-strip__item + .admin-metric-strip__item {
+  border-left: 1px solid var(--admin-border);
+}
+
+.admin-metric-strip__item > span {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: var(--admin-table-head-size);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 指标数值：stat 档。全部价值在于「一眼读到数」，与 0.72rem 的标签
+   拉开近乎 2 倍的尺寸断裂，扫视时数值先落地、单位后补。 */
+.admin-metric-strip__item > strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: var(--admin-stat-size);
+  font-weight: 750;
+  letter-spacing: -0.035em;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-metric-strip__item > small {
+  color: var(--text-muted);
+  font-size: var(--admin-table-head-size);
+  line-height: 1;
+}
+
+.admin-metric-strip__detail--success {
+  color: var(--color-success);
+  font-weight: 750;
+}
+
+/* 指标条列数由 AdminMetricStrip 以内联 style 注入
+   （AdminWorkspace.tsx:97，跟随 items.length），内联声明会压过本文件的
+   同名规则，故原先这里的 --admin-metric-columns 覆盖整条失效。
+   列数契约统一交回组件：只在此处保留窄屏的 grid-template-columns 直接覆盖。 */
+
+.admin-panel-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  min-width: 0;
+  padding: 1.5rem 1.5rem 1.25rem;
+}
+
+.admin-panel-heading__copy {
+  min-width: 0;
+}
+
+.admin-panel-heading__copy h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--admin-section-title-size);
+  font-weight: 750;
+  letter-spacing: -0.03em;
+  line-height: 1.3;
+}
+
+.admin-panel-heading__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  min-width: 0;
+  flex: 0 0 auto;
+}
+
+/* 允许操作区的直接子项收缩，避免 flex 项被 min-content 撑破容器。
+   用 :where() 把该守卫的特异性降到 0，使任何自带 min-width 的组件（如
+   .admin-panel-status 的 4.75rem）都能覆盖它。此前是本文件内两条同特异性
+   规则（0,1,0）按源码顺序比拼，守卫在第 7083 行、状态胶囊在第 69 行，后者
+   被覆盖，声明的 4.75rem 下限计算为 0px —— 实测全站 9 个胶囊宽度 57.2~82px，
+   同语义文本（如「显示 20 条」）在不同容器下宽度不一致，下限形同虚设。
+
+   注：与 .admin-toolbar > * 的修法不同，那里必须用 :not([class*='min-w-'])。
+   原因是二者冲突的性质不同：工具条内是工具类（位于 @layer utilities）被未分层
+   的守卫压制，而层序先于特异性比较，:where() 无法解决；此处两条规则同在未分层
+   的同一文件内，纯属特异性相同时的源码顺序问题，降低守卫特异性即可根治。 */
+:where(.admin-panel-heading__actions) > * {
+  min-width: 0;
+}
+
+.admin-queue-summary {
+  display: grid;
+  /* 列数由组件按 stats.length 注入；此前硬编码 3，传 2 或 4 项时会留空白格。 */
+  grid-template-columns: minmax(15rem, 1.5fr) repeat(var(--admin-queue-columns, 3), minmax(7rem, 1fr));
+  overflow: hidden;
+  min-width: 0;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--radius-xl);
+  background: var(--admin-border);
+}
+
+.admin-queue-summary > * {
+  min-width: 0;
+  padding: 1rem 1.125rem;
+  background: var(--admin-panel);
+}
+
+.admin-queue-summary > * + * {
+  border-left: 1px solid var(--admin-border);
+}
+
+.admin-queue-summary__lead,
+.admin-queue-summary__stat {
+  display: grid;
+  align-content: center;
+  gap: 0.3rem;
+}
+
+.admin-queue-summary__lead strong,
+.admin-queue-summary__stat strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-queue-summary__lead > span:last-child,
+.admin-queue-summary__stat > span,
+.admin-queue-summary__stat small {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-queue-summary__stat strong {
+  font-size: 1.35rem;
+  line-height: 1;
+}

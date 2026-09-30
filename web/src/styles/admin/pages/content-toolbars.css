@@ -1,0 +1,118 @@
+/* 内容审核 · 筛选、查询与操作保持一条清晰的控制带。 */
+.moderation-toolbar {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--admin-space-3);
+  padding: var(--admin-space-2) var(--admin-space-3);
+  border-bottom: 1px solid var(--admin-border);
+}
+.moderation-toolbar__filters,
+.moderation-toolbar__query {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--admin-space-2);
+}
+.moderation-toolbar__filters {
+  flex: 0 1 auto;
+}
+.moderation-toolbar__query {
+  flex: 1 1 28rem;
+  justify-content: flex-end;
+}
+.moderation-toolbar__modes {
+  flex: 0 0 auto;
+}
+.moderation-toolbar__modes [data-slot='tabs-list'] {
+  height: var(--admin-control-height);
+}
+.moderation-toolbar__status,
+.moderation-toolbar__reason {
+  flex: 0 0 9rem;
+}
+.moderation-toolbar__user {
+  flex: 0 1 8rem;
+  width: 8rem;
+}
+.moderation-toolbar__search-field {
+  min-width: 0;
+  flex: 1 1 15rem;
+  width: min(100%, 22rem);
+}
+.moderation-toolbar__search-field .admin-search {
+  max-width: none;
+}
+.moderation-toolbar__search-input {
+  width: 100%;
+}
+
+/* 章节搜索与融合操作沿用小说页的轻量外置工具栏。 */
+.chapter-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  min-width: 0;
+  align-items: center;
+  gap: var(--admin-space-2);
+}
+.chapter-toolbar__search {
+  min-width: 0;
+  width: 100%;
+}
+.chapter-toolbar__actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--admin-space-2);
+}
+.chapter-toolbar__actions > button {
+  min-width: 0;
+  white-space: nowrap;
+}
+
+[data-slot='dialog-content'].admin-dialog {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 0;
+  overflow: hidden;
+  max-height: calc(100dvh - 2rem);
+  padding: 0;
+  border-color: var(--admin-border-strong);
+  border-radius: var(--admin-radius-dialog);
+  background: var(--admin-panel);
+  box-shadow: var(--shadow-modal);
+}
+.admin-dialog [data-slot='dialog-header'] {
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--admin-border);
+  padding: 1.25rem 1.5rem 1rem;
+}
+.admin-dialog__body {
+  overflow-y: auto;
+  padding: 1.25rem 1.5rem;
+}
+.admin-dialog [data-slot='dialog-footer'] {
+  border-top: 0;
+  background: transparent;
+  padding: 0.875rem 1.5rem;
+}
+.editor-modal__title {
+  font-size: 1.15rem;
+  letter-spacing: 0;
+}
+.novel-editor__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 1rem;
+}
+.novel-editor__field--wide {
+  grid-column: 1 / -1;
+}
+.novel-editor__field {
+  display: grid;
+  align-content: start;
+  gap: 0.4rem;
+}
+/* 字号/颜色/字重统一由弹窗小标题契约提供（见文件后段 --admin-dialog-label-*）。 */

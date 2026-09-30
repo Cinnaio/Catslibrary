@@ -5,7 +5,8 @@
 import { useId } from 'react'
 import { AlertTriangle, Check, CircleMinus, MinusCircle, RefreshCw, RotateCcw, X, XCircle } from 'lucide-react'
 import { formatEta, formatJobSpeed, isJobRunning, isJobTerminal, jobStatusLabel } from '@/lib/admin'
-import { Badge } from '@/components/ui/badge'
+import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
+import type { AdminStatusTone } from '@/lib/admin-status'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import type { JobCard as JobCardData } from '../types'
@@ -24,18 +25,18 @@ interface JobCardProps {
 const ICON = 'size-3.5'
 
 /** 状态 → 徽章配色与图标。 */
-function statusBadge(status: string) {
+function statusBadge(status: string): { tone: AdminStatusTone; Icon: typeof Check | null } {
   switch (status) {
     case 'completed':
-      return { cls: 'bg-success/10 text-success', Icon: Check }
+      return { tone: 'success', Icon: Check }
     case 'partial':
-      return { cls: 'bg-warning/10 text-warning', Icon: AlertTriangle }
+      return { tone: 'warning', Icon: AlertTriangle }
     case 'failed':
-      return { cls: 'bg-destructive/10 text-destructive', Icon: XCircle }
+      return { tone: 'danger', Icon: XCircle }
     case 'cancelled':
-      return { cls: 'bg-muted text-muted-foreground', Icon: MinusCircle }
+      return { tone: 'muted', Icon: MinusCircle }
     default:
-      return { cls: 'bg-info/10 text-info', Icon: null }
+      return { tone: 'info', Icon: null }
   }
 }
 
@@ -43,7 +44,7 @@ export default function JobCard({ job, onCancel, onRetry, onRetryFailed, onDismi
   const logId = useId()
   const running = isJobRunning(job.status)
   const terminal = isJobTerminal(job.status)
-  const { cls: statusCls, Icon: StatusIcon } = statusBadge(job.status)
+  const { tone: statusTone, Icon: StatusIcon } = statusBadge(job.status)
 
   let pct = job.progress != null ? job.progress * 100 : 5
   if (job.total > 0 && job.current != null) pct = Math.min((job.current / job.total) * 95, 95)
@@ -62,14 +63,14 @@ export default function JobCard({ job, onCancel, onRetry, onRetryFailed, onDismi
         <span className="scrape-job__name text-sm font-medium" title={job.novelTitle}>
           {job.novelTitle}
         </span>
-        <Badge className={statusCls}>
+        <AdminStatusBadge tone={statusTone}>
           {running ? (
             <RefreshCw className="size-3 animate-spin" aria-hidden="true" />
           ) : StatusIcon ? (
             <StatusIcon className="size-3" aria-hidden="true" />
           ) : null}
           {jobStatusLabel(job.status)}
-        </Badge>
+        </AdminStatusBadge>
       </div>
 
       <Progress

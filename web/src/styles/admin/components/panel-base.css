@@ -1,0 +1,63 @@
+.admin-panel-card,
+.admin-redesign-page [data-slot='card'] {
+  border: 0;
+  border-color: transparent;
+  background: var(--admin-panel);
+  box-shadow: none;
+}
+
+.admin-redesign-page [data-slot='card-header'] {
+  min-width: 0;
+  border-bottom: 0;
+}
+
+.admin-redesign-page [data-slot='card-title'] {
+  color: var(--text-primary);
+  font-size: var(--admin-section-title-size);
+  font-weight: 750;
+  letter-spacing: -0.03em;
+  line-height: 1.3;
+}
+
+.ai-service .ai-tasks-panel,
+.ai-service .ai-audit-panel,
+.ai-service .ai-generations-card,
+.ai-service .ai-usage-card,
+.ai-service .ai-writing-card,
+.ai-service .ai-cover-card,
+.ai-service .ai-params-card,
+.ai-service .ai-config-card,
+.ai-service .ai-config-providers-card {
+  min-width: 0;
+}
+
+.ai-service .ai-tasks-toolbar,
+.ai-service .ai-audit-toolbar,
+.ai-service .ai-generations-toolbar {
+  justify-content: flex-start;
+}
+
+.ai-service .ai-tasks-content,
+.ai-service .ai-audit-table {
+  min-width: 0;
+}
+
+.proxy-settings-page {
+  min-width: 0;
+}
+
+.proxy-settings-page .proxy-config-panel,
+.proxy-settings-page .proxy-test-panel,
+.proxy-settings-page .proxy-logs-panel {
+  min-width: 0;
+}
+
+/* 日志表在面板内直接贴边，行内边距由表格自身提供。 */
+.proxy-settings-page .proxy-logs-panel [data-slot='table-container'] {
+  scrollbar-width: thin;
+  scrollbar-color: var(--admin-border-strong) transparent;
+}
+
+.proxy-settings-page .proxy-logs-panel [data-slot='table'] {
+  min-width: 48rem;
+}

@@ -1,3 +1,4 @@
+import { AdminDialogContent } from '@/components/admin/AdminDialog'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
@@ -12,7 +13,7 @@ import { ADMIN_DEFAULT_PAGE_SIZE } from '@/lib/admin-pagination'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 
 type Overview = Awaited<ReturnType<typeof adminApi.site.overview>>
@@ -272,7 +273,7 @@ export default function SiteOperationsTab() {
         <p className="text-xs leading-relaxed text-muted-foreground">访问统计使用浏览器本地随机标识，经服务端哈希后保存；不记录 IP、完整 User-Agent 或完整来源地址。地区、设备与来源仅保存不可识别的分类结果。</p>
       </div>
       <Dialog open={!!selectedListTitle} onOpenChange={(open) => { if (!open) setSelectedListTitle('') }}>
-        <DialogContent className="admin-dialog max-h-[min(78vh,680px)] overflow-hidden sm:max-w-2xl">
+        <AdminDialogContent className="max-h-[min(78vh,680px)] overflow-hidden sm:max-w-2xl">
           <DialogHeader>
           <DialogTitle>{selectedListTitle} <span className="text-sm font-normal text-muted-foreground">· {selectedListTotal.toLocaleString()} 本</span></DialogTitle>
           </DialogHeader>
@@ -289,7 +290,7 @@ export default function SiteOperationsTab() {
             summary={`共 ${selectedListTotal.toLocaleString()} 本`}
             onPage={(next) => void openNovelList(selectedListParams, selectedListTitle, next)}
           />}
-        </DialogContent>
+        </AdminDialogContent>
       </Dialog>
     </AdminPage>
   )

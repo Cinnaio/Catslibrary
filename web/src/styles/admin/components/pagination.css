@@ -1,0 +1,168 @@
+/* ——— 后台统一分页页脚 — consumers: components/admin/Pagination.tsx ———
+   全站后台唯一的分页实现：默认是数据面板页脚；detached 变体作为列表表格
+   与页码控件之间的独立控制带。两者共享计数、页大小和翻页交互契约。
+
+   容器只走 .admin-pagination 命名空间：此前与 .home-pagination 共用选择器，
+   导致 home.css 的卡片表面规则组（未加 .home-page 作用域）把前台 20px 大圆角
+   漏进后台，而边框/底色/投影又被后台规则覆盖，后台分页因此处在半前台半后台
+   的中间态。前台分页仍由 .home-pagination 独立承担，两套刻意不共享。 */
+.admin-pagination {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--admin-pagination-gap);
+  /* 页脚表面：与 AdminDataPanel 页头同一条分区契约，页脚不是独立卡片。 */
+  margin: 0;
+  padding: var(--admin-pagination-padding-block) var(--admin-pagination-padding-inline);
+  border-top: 1px solid var(--admin-border);
+  color: var(--text-muted);
+  font-size: var(--admin-pagination-font-size);
+}
+
+.admin-pagination--detached {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding-inline: var(--admin-pagination-padding-inline);
+}
+
+.admin-pagination__summary {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-pagination__controls {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--admin-pagination-gap);
+}
+
+.admin-pagination__info,
+.admin-pagination__jump {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.admin-pagination__jump {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--admin-pagination-gap);
+}
+
+/* 跳转输入框：定宽，不参与弹性分配（Fit-Content Rule）。
+   必须带 .admin-layout 前缀且写到 [type='number'] 这一层：shadcn Input 自带
+   w-full，而 .ai-admin-page [data-slot='input'][type='number']（width: 9rem）
+   也会命中分页跳转框——单类选择器会被压掉，实测 AI 面板下宽度失控为 144px。 */
+.admin-layout .admin-pagination__jump-input[type='number'] {
+  width: var(--admin-pagination-jump-width);
+  min-width: var(--admin-pagination-jump-width);
+  text-align: center;
+}
+
+.admin-layout .admin-pagination--detached .admin-pagination__jump-input[type='number'] {
+  height: var(--admin-pagination-control-size);
+  min-height: var(--admin-pagination-control-size);
+  padding-inline: 0;
+  text-align: center;
+}
+
+.admin-pagination__page-size {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--admin-pagination-gap);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.admin-pagination__page-size [data-slot='select-trigger'] {
+  min-width: var(--admin-pagination-page-size-width);
+}
+
+.admin-layout .admin-pagination--detached .admin-pagination__page-size [data-slot='select-trigger'] {
+  background: var(--admin-panel);
+}
+
+.admin-pagination__icon-button {
+  width: var(--admin-pagination-control-size);
+  min-width: var(--admin-pagination-control-size);
+  height: var(--admin-pagination-control-size);
+  padding: 0;
+}
+
+.admin-pagination__icon-button > svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+/* 窄屏：计数与控件各占一行、控件左起，避免计数与按钮互压。 */
+@media (max-width: 640px) {
+  .admin-pagination {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: var(--admin-pagination-gap);
+  }
+
+  .admin-pagination__controls {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .admin-pagination--detached .admin-pagination__controls {
+    display: grid;
+    grid-template-columns:
+      max-content
+      var(--admin-pagination-control-size)
+      var(--admin-pagination-control-size)
+      max-content;
+    grid-template-rows: auto auto;
+    justify-content: start;
+    gap: var(--admin-space-1);
+  }
+
+  .admin-pagination--detached .admin-pagination__page-size {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .admin-pagination--detached .admin-pagination__controls > [aria-label='第一页'] {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .admin-pagination--detached .admin-pagination__controls > [aria-label='上一页'] {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  .admin-pagination--detached .admin-pagination__info {
+    grid-column: 4;
+    grid-row: 1;
+  }
+
+  .admin-pagination--detached .admin-pagination__jump {
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: start;
+  }
+
+  .admin-pagination--detached .admin-pagination__controls > [aria-label='下一页'] {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .admin-pagination--detached .admin-pagination__controls > [aria-label='最后一页'] {
+    grid-column: 3;
+    grid-row: 2;
+  }
+}
+
+/* AI 列表页脚：统一分页组件承担布局，这里不保留任何页面级覆盖——
+   原先为 AI 面板另设的紧凑尺寸（info 0.8125rem、跳转框 3.5rem、下拉 2rem）
+   与 ai-list-footer / -total / -pagination-controls / -page-size 四个自持
+   容器类已随收敛全部删除。 */

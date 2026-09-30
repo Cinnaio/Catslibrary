@@ -1,0 +1,249 @@
+/* 章节管理 */
+.admin-redesign-page--chapters .chapter-novel-select {
+  width: 280px;
+  max-width: none;
+  height: var(--admin-control-height);
+}
+
+.admin-redesign-page--moderation .moderation-toolbar {
+  min-height: 3.75rem;
+  border: none;
+  border-bottom: 1px solid var(--admin-border);
+  background: color-mix(in srgb, var(--admin-surface) 40%, transparent);
+  padding: 0.875rem 1.25rem;
+  margin-bottom: 0;
+  border-radius: 0.5rem 0.5rem 0 0;
+}
+
+.admin-redesign-page--chapters .chapter-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: center;
+  gap: var(--admin-space-2);
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.admin-redesign-page--chapters .chapter-toolbar__search {
+  min-width: 0;
+  max-width: none;
+}
+
+.admin-redesign-page--chapters .chapter-toolbar__search > .admin-search {
+  width: 100%;
+  max-width: none;
+}
+
+.admin-redesign-page--chapters .chapter-toolbar__actions {
+  gap: 0.5rem;
+}
+
+/* 内容审核 */
+.admin-redesign-page--moderation .moderation-toolbar {
+  display: flex;
+  min-height: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0 0.25rem;
+}
+
+.admin-redesign-page--moderation .moderation-toolbar__filters,
+.admin-redesign-page--moderation .moderation-toolbar__query {
+  display: grid;
+  width: auto;
+  gap: 0.5rem;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.admin-redesign-page--moderation .moderation-toolbar__filters {
+  grid-template-columns: max-content 11rem max-content 9rem max-content 9rem;
+}
+
+.admin-redesign-page--moderation .moderation-toolbar__label {
+  grid-column: 1;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.admin-redesign-page--moderation .moderation-toolbar__field-label {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.admin-redesign-page--moderation .moderation-toolbar__query {
+  grid-template-columns: max-content 8rem 20rem;
+}
+
+.admin-redesign-page--moderation .moderation-toolbar__query--without-user {
+  grid-template-columns: max-content 20rem;
+}
+
+.admin-redesign-page--moderation .moderation-toolbar__modes [data-slot='tabs-list'] {
+  height: var(--admin-control-height);
+}
+
+.admin-redesign-page--moderation .moderation-toolbar__modes {
+  width: 11rem;
+  flex: 0 0 11rem;
+}
+
+.admin-redesign-page--moderation .moderation-toolbar__modes [data-slot='tabs-trigger'] {
+  min-width: 0;
+  flex: 1 1 0;
+  padding-inline: 0.5rem;
+}
+
+/* 审核类型是高频的分段切换：只移动激活背景，文字和周围筛选控件保持原位。 */
+.admin-redesign-page--moderation .moderation-toolbar__modes [data-slot='tabs-list'] {
+  --tabs-segmented-track-background: var(--admin-panel-muted);
+  --tabs-segmented-track-border: var(--admin-border);
+  --tabs-segmented-active-background: var(--admin-panel);
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  gap: var(--tabs-segmented-gap);
+  border: 1px solid var(--tabs-segmented-track-border);
+  border-radius: var(--tabs-segmented-radius);
+  padding: var(--tabs-segmented-inset);
+  background: var(--tabs-segmented-track-background);
+}
+
+.admin-redesign-page--moderation .moderation-toolbar__modes [data-slot='tabs-trigger'] {
+  border-radius: var(--tabs-segmented-inner-radius);
+  color: var(--tabs-segmented-muted-foreground);
+}
+
+.admin-redesign-page--moderation .moderation-toolbar__modes [data-slot='tabs-list']::before {
+  position: absolute;
+  z-index: 0;
+  inset: var(--tabs-segmented-inset) auto var(--tabs-segmented-inset) var(--tabs-segmented-inset);
+  width: calc((100% - (var(--tabs-segmented-gap) * 4)) / 3);
+  border-radius: var(--tabs-segmented-inner-radius);
+  background: var(--tabs-segmented-active-background);
+  box-shadow: var(--tabs-segmented-active-shadow);
+  content: '';
+  pointer-events: none;
+  transform: translateX(0);
+  transition: transform var(--tabs-segmented-transition);
+}
+
+.admin-redesign-page--moderation .moderation-toolbar__modes [data-slot='tabs-list'][data-active-index='1']::before {
+  transform: translateX(calc(100% + var(--tabs-segmented-gap)));
+}
+
+.admin-redesign-page--moderation .moderation-toolbar__modes [data-slot='tabs-list'][data-active-index='2']::before {
+  transform: translateX(calc(200% + var(--tabs-segmented-gap) + var(--tabs-segmented-gap)));
+}
+
+.admin-redesign-page--moderation .moderation-toolbar__modes [data-slot='tabs-trigger'] {
+  z-index: 1;
+  background: transparent;
+  transition:
+    color var(--tabs-segmented-transition),
+    border-color var(--tabs-segmented-transition);
+}
+
+.admin-redesign-page--moderation .moderation-toolbar__modes [data-slot='tabs-trigger'][data-state='active'] {
+  background: transparent;
+  box-shadow: none;
+  color: var(--tabs-segmented-active-foreground);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-redesign-page--moderation .moderation-toolbar__modes [data-slot='tabs-list']::before,
+  .admin-redesign-page--moderation .moderation-toolbar__modes [data-slot='tabs-trigger'] {
+    --tabs-segmented-duration: 0.001ms;
+  }
+}
+
+.admin-redesign-page--moderation .moderation-toolbar__status,
+.admin-redesign-page--moderation .moderation-toolbar__reason {
+  width: 9rem;
+  flex: 0 0 9rem;
+}
+
+.admin-redesign-page--moderation .moderation-toolbar__reason-placeholder,
+.admin-redesign-page--moderation .moderation-toolbar__user-placeholder,
+.admin-redesign-page--moderation .moderation-toolbar__field-label--placeholder {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.admin-redesign-page--moderation .moderation-toolbar__reason-placeholder {
+  display: block;
+  min-height: var(--admin-control-height);
+}
+
+.admin-redesign-page--moderation .moderation-toolbar__user-placeholder {
+  display: block;
+  min-height: var(--admin-control-height);
+}
+
+.admin-redesign-page--moderation .moderation-toolbar__query--without-user .moderation-toolbar__user-placeholder {
+  display: none;
+}
+
+.admin-redesign-page--moderation .moderation-toolbar__search-field {
+  width: 20rem;
+  flex: 0 0 20rem;
+}
+
+.admin-redesign-page--moderation .moderation-toolbar__search-field .admin-search {
+  max-width: none;
+}
+
+/* 控件带脱离表格面板后仍保持同一行；空间不足时再整组纵向堆叠。 */
+@media (max-width: 1240px) {
+  .admin-redesign-page--moderation .moderation-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .admin-redesign-page--moderation .moderation-toolbar__filters,
+  .admin-redesign-page--moderation .moderation-toolbar__query {
+    width: 100%;
+  }
+}
+
+.admin-redesign-page--moderation .moderation-empty {
+  display: grid;
+  min-height: 14rem;
+  align-content: center;
+  justify-items: center;
+  gap: 0.5rem;
+  padding: 2.5rem 1.25rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.admin-redesign-page--moderation .moderation-empty strong {
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-weight: 750;
+}
+
+.admin-redesign-page--moderation .moderation-empty p {
+  max-width: 36rem;
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.6;
+}
+
+.admin-redesign-page--moderation .moderation-empty--error strong {
+  color: var(--color-danger);
+}

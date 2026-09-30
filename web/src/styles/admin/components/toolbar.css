@@ -1,0 +1,131 @@
+/* 共享运营面板 primitives —— 页面只提供内容，结构尺寸在这里集中维护。 */
+.admin-toolbar {
+  min-width: 0;
+  width: 100%;
+}
+
+/* 允许工具条内的直接子项收缩，避免 flex 项被 min-content 撑破容器。
+   但必须让出显式声明了 min-width 的控件：本文件未套 @layer，而未分层样式优先于
+   任何 @layer 中的规则（Tailwind v4 的工具类都在 @layer utilities 内），因此
+   这条 min-width: 0 会无视优先级地抹掉工具类里的 min-w-*。实测用 CDP 取匹配规则
+   可复现：筛选器同时命中 .min-w-[8.75rem] 与本案，最终计算值仍为 0px，控件塌回
+   78px（内容宽度），长标签被静默截断。改为跳过自带 min-w-* 的元素后，显式下限
+   生效。 */
+.admin-toolbar > *:not([class*='min-w-']) {
+  min-width: 0;
+}
+
+/* 工具条按容器宽度伸缩：此前 .novel-toolbar 写死 min(100%, 34rem)，在宽容器里
+   右侧留出大片空白，且 34rem 与列宽无对应关系。改为跟随容器。 */
+.admin-toolbar--inline {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+/* 筛选胶囊：与普通 CustomSelect 的 outline 触发器区分开。
+   前置图标表达“添加筛选”，虚线边界保留可操作性但不制造新的卡片层。 */
+.admin-layout [data-slot='popover-trigger'].admin-filter-chip {
+  width: auto;
+  min-width: var(--admin-filter-chip-min-width);
+  max-width: none;
+  height: var(--admin-filter-chip-height);
+  gap: var(--admin-filter-chip-gap);
+  border-color: var(--admin-filter-chip-border);
+  border-style: var(--admin-filter-chip-border-style);
+  border-radius: var(--admin-filter-chip-radius);
+  background: var(--admin-filter-chip-background);
+  padding-inline: var(--admin-filter-chip-padding-inline);
+  color: var(--admin-filter-chip-foreground);
+  font-size: var(--admin-filter-chip-font-size);
+  font-weight: var(--admin-filter-chip-font-weight);
+}
+
+.admin-layout [data-slot='popover-trigger'].admin-filter-chip:hover {
+  border-color: var(--accent);
+  background: var(--admin-filter-chip-hover-background);
+}
+
+.admin-layout [data-slot='popover-trigger'].admin-filter-chip:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+/* 搜索占据剩余空间，其余控件按内容宽度靠右 */
+.admin-toolbar--inline > [data-slot='input'],
+.admin-toolbar--inline > * > [data-slot='input'] {
+  flex: 1 1 16rem;
+  min-width: 0;
+  max-width: none;
+}
+
+/* 搜索框：项目已有 .admin-layout [data-slot='input'] 的 --admin-border-strong，
+   此处仅补 hover/focus 态。不要用更弱的 --admin-border 覆盖它。 */
+.admin-toolbar [data-slot='input']:hover {
+  border-color: color-mix(in srgb, var(--admin-border-strong) 80%, var(--text-primary));
+}
+
+.admin-toolbar [data-slot='input']:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.admin-toolbar--stacked {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  /* 与上方 .admin-panel-heading 的 padding-inline 对齐（实测标题文字在
+     x=300、工具栏在 x=280，两者错开 20px 是「不协调」的结构性来源）。
+     表格本身贴面板边缘，因此面板内出现两条对齐基线：标题与工具条走
+     同一条（内缩 1.25rem），表格走自己的单元格内边距。 */
+  padding-inline: 1.25rem;
+  /* 上下留白对称：此前上 0px、下 16px，搜索框贴在标题区分隔线上，看起来
+     被挤在线边。0.875rem 与下方 1rem 近似，视觉上均衡。 */
+  padding-top: 0.875rem;
+  /* 工具栏与下方内容必须留出间距：此前紧贴首张卡片（实测 0px），搜索框
+     看起来像卡片的标题栏而非独立控件。 */
+  margin-bottom: 1rem;
+}
+
+/* 搜索框：相对定位容器承载内嵌图标。
+   光秃的 Input 只有 placeholder 作为「这是搜索」的线索，输入后线索消失。 */
+.admin-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  /* 不铺满整行：面板宽 1400px 时全宽输入框是一个超长条，与紧凑的表格行
+     节奏不搭。限制到 30rem（约 480px）——足够放下常见搜索词，又与表格
+     首屏内容宽度相称。窄容器下自动收缩。 */
+  width: 100%;
+  max-width: 30rem;
+}
+
+.admin-search__icon {
+  position: absolute;
+  left: 0.75rem;
+  width: 1rem;
+  height: 1rem;
+  color: var(--text-muted);
+  pointer-events: none;
+  transition: color 0.15s ease;
+}
+
+/* 图标占位：图标左边界 0.75rem + 图标 1rem + 间隙 0.5rem。
+   选择器需带上 .admin-search 提升特异性——Input 自带的 Tailwind px-3
+   是单类选择器，同特异性下由层叠顺序决定，会被 Tailwind 层胜出。 */
+.admin-search > .admin-search__input,
+.admin-search .admin-search__input {
+  padding-left: 2.25rem;
+}
+
+.admin-search:focus-within .admin-search__icon {
+  color: var(--accent);
+}
+
+/* 清除按钮（type=search 的原生 ×）与右侧内边距对齐 */
+.admin-search__input::-webkit-search-cancel-button {
+  margin-right: 0.25rem;
+}

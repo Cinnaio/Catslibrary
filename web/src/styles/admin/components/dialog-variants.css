@@ -1,0 +1,37 @@
+/* 正文与图片窗口保留各自的阅读空间，尺寸从调用点收回到同一份契约。 */
+[data-slot='dialog-content'].admin-dialog-reading {
+  display: flex;
+  flex-direction: column;
+  width: calc(100% - var(--admin-reading-dialog-inset));
+  max-height: calc(100svh - var(--admin-reading-dialog-viewport-inset));
+  gap: var(--admin-reading-dialog-gap);
+  overflow: hidden;
+  padding: var(--admin-reading-dialog-padding);
+  border-radius: var(--admin-radius-dialog);
+}
+
+[data-slot='dialog-content'].admin-dialog-reading--fixed {
+  height: var(--admin-reading-dialog-height);
+}
+
+[data-slot='dialog-content'].admin-dialog-preview {
+  max-height: var(--admin-preview-dialog-height);
+  max-width: var(--admin-preview-dialog-width);
+  overflow: hidden;
+}
+
+@media (min-width: 640px) {
+  [data-slot='dialog-content'].admin-dialog-reading {
+    max-width: var(--admin-reading-dialog-width);
+    gap: var(--admin-reading-dialog-gap-desktop);
+    padding: var(--admin-reading-dialog-padding-desktop);
+  }
+
+  [data-slot='dialog-content'].admin-dialog-reading--wide {
+    max-width: var(--admin-reading-dialog-wide-width);
+  }
+
+  [data-slot='dialog-content'].admin-dialog-preview {
+    max-width: var(--admin-preview-dialog-width-desktop);
+  }
+}

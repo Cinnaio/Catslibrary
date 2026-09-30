@@ -1,4 +1,7 @@
 /** AI 任务管理：查看生成进度、错误和输入 Prompt；有任务运行时自动轮询刷新。 */
+import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
+import type { AdminStatusTone } from '@/lib/admin-status'
+import { AdminDialogContent } from '@/components/admin/AdminDialog'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { aiApi, newOperationId, type AiTaskInfo } from '@/lib/api'
@@ -14,7 +17,7 @@ import { AdminDataPanel, AdminPanelHeading, AdminToolbar, type AdminColumn } fro
 import { kindLabel as taskKindLabel, promptDigest, retryMode, taskStatusLabel, taskStepText } from './labels'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -45,16 +48,16 @@ const AI_TASK_COLUMNS: readonly AdminColumn[] = [
 ]
 
 /** 状态标签沿用后台其它任务列表的柔和填充胶囊，不再使用描边徽章。 */
-const TASK_STATUS_CLASS: Record<string, string> = {
-  queued: 'bg-info/10 text-info',
-  running: 'bg-info/10 text-info',
-  completed: 'bg-success/10 text-success',
-  failed: 'bg-destructive/10 text-destructive',
-  cancelled: 'bg-muted text-muted-foreground',
+const TASK_STATUS_TONE: Record<string, AdminStatusTone> = {
+  queued: 'info',
+  running: 'info',
+  completed: 'success',
+  failed: 'danger',
+  cancelled: 'muted',
 }
 
-function taskStatusClass(status: string): string {
-  return TASK_STATUS_CLASS[status] || 'bg-muted text-muted-foreground'
+function taskStatusTone(status: string): AdminStatusTone {
+  return TASK_STATUS_TONE[status] || 'muted'
 }
 
 type TaskStatusFilter = 'all' | 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
@@ -303,7 +306,7 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
                         </span>
                       </TableCell>
                       <TableCell data-label="状态">
-                        <Badge className={taskStatusClass(task.status)}>{taskStatusLabel(task.status)}</Badge>
+                        <AdminStatusBadge tone={taskStatusTone(task.status)}>{taskStatusLabel(task.status)}</AdminStatusBadge>
                       </TableCell>
                       <TableCell data-label="进度" className="tabular-nums">
                         {task.current} / {task.total}
@@ -341,8 +344,9 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
                           )}
                           {/* Prompt 入口已移到 Prompt 格，操作列不再放图标按钮：
                               图标与文字按钮同排是两种视觉重量、两种点击预期混在一起。 */}
-                          {(task.status === 'failed' || task.status === 'cancelled') && !!task.params && (
-                            retryMode(task) === 'adjust' ? (
+                          {(task.status === 'failed' || task.status === 'cancelled') &&
+                            !!task.params &&
+                            (retryMode(task) === 'adjust' ? (
                               <Button variant="outline" size="sm" onClick={() => adjustAndRetry(task)}>
                                 调整后重试
                               </Button>
@@ -350,8 +354,7 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
                               <Button variant="outline" size="sm" disabled={retryingId === task.id} onClick={() => void retry(task.id)}>
                                 {retryingId === task.id ? '重试中…' : '重试'}
                               </Button>
-                            )
-                          )}
+                            ))}
                           {(task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled') && (
                             <Button
                               variant="outline"
@@ -394,8 +397,16 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
           )}
         </div>
       </AdminDataPanel>
-      <Dialog open={!!viewingPrompt} onOpenChange={(open) => { if (!open) { setViewingPrompt(null); setShowRawPrompt(false) } }}>
-        <DialogContent className="ai-generation-dialog flex max-h-[calc(100svh-2rem)] w-[calc(100%-1.5rem)] flex-col gap-3 overflow-hidden p-4 sm:max-w-3xl sm:gap-4 sm:p-6">
+      <Dialog
+        open={!!viewingPrompt}
+        onOpenChange={(open) => {
+          if (!open) {
+            setViewingPrompt(null)
+            setShowRawPrompt(false)
+          }
+        }}
+      >
+        <AdminDialogContent variant="reading">
           <DialogHeader>
             <DialogTitle>{viewingPrompt ? `${taskKindLabel(viewingPrompt.kind)} · 输入 Prompt` : '输入 Prompt'}</DialogTitle>
             <DialogDescription>
@@ -461,7 +472,7 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
               </div>
             </div>
           )}
-        </DialogContent>
+        </AdminDialogContent>
       </Dialog>
     </>
   )

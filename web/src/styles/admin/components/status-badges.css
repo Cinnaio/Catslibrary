@@ -1,0 +1,50 @@
+.admin-status-badge--success {
+  --admin-status-color: var(--color-success);
+}
+
+.admin-status-badge--info {
+  --admin-status-color: var(--color-info);
+}
+
+.admin-status-badge--warning {
+  --admin-status-color: var(--color-warning);
+}
+
+.admin-status-badge--danger {
+  --admin-status-color: var(--color-danger);
+}
+
+.admin-status-badge--accent {
+  --admin-status-color: var(--accent);
+}
+
+.admin-status-badge:is(
+  .admin-status-badge--success,
+  .admin-status-badge--info,
+  .admin-status-badge--warning,
+  .admin-status-badge--danger,
+  .admin-status-badge--accent
+) {
+  color: var(--admin-status-color);
+  background: color-mix(in oklab, var(--admin-status-color) var(--admin-status-tint), transparent);
+}
+
+.admin-status-badge--muted {
+  color: var(--text-muted);
+  background: var(--bg-secondary);
+}
+
+.admin-status-badge--subtle {
+  color: var(--text-muted);
+  background: color-mix(in oklab, var(--bg-secondary) 20%, transparent);
+}
+
+.admin-status-badge--neutral {
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+}
+
+.admin-status-badge--brand {
+  color: var(--accent-ink);
+  background: var(--accent);
+}

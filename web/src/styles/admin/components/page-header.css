@@ -1,0 +1,108 @@
+/* ——— 运营台统一视觉：所有后台 tab ———
+   这组规则承接已确认的 HTML 预览，保留现有 React / Radix 行为，只统一
+   页面节奏、控件尺寸、数据面板和弹窗的纸面层次。 */
+.admin-redesign-page {
+  min-width: 0;
+}
+
+.admin-redesign-page .admin-tab-header {
+  margin-bottom: 1.5rem;
+  border-color: var(--admin-border);
+  padding-bottom: 1rem;
+}
+
+/* 小说管理的搜索与新增操作属于同一组，放在页面标题右侧；标题区不再使用底部分隔线。 */
+.admin-redesign-page--novels > .admin-tab-header {
+  border-bottom: 0;
+}
+
+.admin-redesign-page--chapters > .admin-tab-header {
+  margin-bottom: 0.25rem;
+  border-bottom: 0;
+}
+
+.admin-redesign-page--moderation > .admin-tab-header {
+  margin-bottom: 0.25rem;
+  border-bottom: 0;
+}
+
+.account-schema-warning {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--admin-space-1) var(--admin-space-2);
+  border: 1px solid color-mix(in srgb, var(--color-warning) 38%, var(--admin-border));
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--color-warning) 8%, var(--admin-panel));
+  padding: var(--admin-space-3) var(--admin-space-4);
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.account-schema-warning strong {
+  color: var(--color-warning);
+  font-weight: 650;
+}
+
+.admin-redesign-page--novels .admin-tab-header__actions .admin-search {
+  width: min(20rem, 100%);
+  max-width: 20rem;
+  flex: 0 1 20rem;
+}
+
+/* ——— 单行账本式页头的通用几何（DESIGN.md · Admin Page Anatomy） ———
+   页头是一行：左侧标题与描述，右侧该页的看家动作。
+   下列页面各自只覆盖两处与范本不同的地方（是否留底线、搜索框多宽），
+   动作区的排布、换行与不压缩规则统一由下面这组基础选择器提供——
+   此前只有小说管理页有这套规则，其余页面各写各的，收口在 2026-09-25。 */
+.admin-redesign-page--content-ratings > .admin-tab-header,
+.admin-redesign-page--content-policy > .admin-tab-header,
+.admin-redesign-page--site-operations > .admin-tab-header,
+.admin-redesign-page--ai > .admin-tab-header {
+  border-bottom: 0;
+}
+
+/* 动作区：桌面端贴合内容宽度、不换行；窄屏占满并把剩余宽度给搜索框。 */
+.admin-redesign-page--content-ratings .admin-tab-header__actions,
+.admin-redesign-page--content-policy .admin-tab-header__actions,
+.admin-redesign-page--site-operations .admin-tab-header__actions,
+.admin-redesign-page--ai .admin-tab-header__actions {
+  gap: 0.5rem;
+}
+
+@media (min-width: 901px) {
+  .admin-redesign-page--content-ratings .admin-tab-header__actions,
+  .admin-redesign-page--content-policy .admin-tab-header__actions,
+  .admin-redesign-page--site-operations .admin-tab-header__actions,
+  .admin-redesign-page--ai .admin-tab-header__actions {
+    width: fit-content;
+    flex-wrap: nowrap;
+  }
+}
+
+@media (max-width: 900px) {
+  .admin-redesign-page--content-ratings .admin-tab-header__actions,
+  .admin-redesign-page--content-policy .admin-tab-header__actions,
+  .admin-redesign-page--site-operations .admin-tab-header__actions,
+  .admin-redesign-page--ai .admin-tab-header__actions {
+    width: 100%;
+    justify-content: stretch;
+    flex-wrap: nowrap;
+  }
+
+  /* 搜索框是唯一可伸缩的成员：其余按钮保持自身尺寸，不被压扁。 */
+  :is(.admin-redesign-page--content-ratings, .admin-redesign-page--content-policy, .admin-redesign-page--site-operations, .admin-redesign-page--ai)
+    .admin-tab-header__actions
+    .admin-search {
+    width: auto;
+    max-width: none;
+    flex: 1 1 auto;
+  }
+
+  :is(.admin-redesign-page--content-ratings, .admin-redesign-page--content-policy, .admin-redesign-page--site-operations, .admin-redesign-page--ai)
+    .admin-tab-header__actions
+    > [data-slot='button'] {
+    flex: 0 0 auto;
+  }
+}

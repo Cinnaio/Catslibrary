@@ -1,15 +1,15 @@
 /** 配置面板：供应商信息、开关、配额（数字输入防抖自动保存）。 */
+import AdminFormField from '@/components/admin/AdminFormField'
+import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import { useEffect, useState } from 'react'
 import { Image, Sparkles } from 'lucide-react'
 import { aiApi, type AiSettings, type AiUsageSummary, type AiProviderConfig } from '@/lib/api'
 import { useToast } from '@/components/feedback'
 import { useDebouncedCallback } from '@/hooks/useDebounce'
 import { AdminPanelHeading } from '@/components/admin/AdminWorkspace'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { UsageCell, formatCost, type Provider } from './shared'
 
@@ -170,21 +170,23 @@ export default function AiConfigPanel(props: {
     <div className="ai-config-panel">
       {/* 供应商连接参数：可在后台直接修改，无需重启。 */}
       <Card className="admin-panel-card ai-config-providers-card min-w-0">
-        <AdminPanelHeading
-          title="模型供应商"
-        />
+        <AdminPanelHeading title="模型供应商" />
         <CardContent className="ai-config-providers">
           <section className="ai-provider-section grid gap-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="min-w-0">
-                <h3 className="flex items-center gap-2 text-sm font-medium text-foreground"><Sparkles className="size-3.5 text-primary" aria-hidden="true" />文本供应商</h3>
-                <p className="mt-0.5 truncate text-xs text-muted-foreground">{provider?.configured ? `${provider.host} · ${provider.model}` : '未配置，AI 文本功能不可用'}</p>
+                <h3 className="flex items-center gap-2 text-sm font-medium text-foreground">
+                  <Sparkles className="size-3.5 text-primary" aria-hidden="true" />
+                  文本供应商
+                </h3>
+                <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                  {provider?.configured ? `${provider.host} · ${provider.model}` : '未配置，AI 文本功能不可用'}
+                </p>
               </div>
-              <Badge className={provider?.configured ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}>{provider?.configured ? '已配置' : '未配置'}</Badge>
+              <AdminStatusBadge tone={provider?.configured ? 'accent' : 'muted'}>{provider?.configured ? '已配置' : '未配置'}</AdminStatusBadge>
             </div>
             <div className="ai-form-grid grid gap-3 sm:grid-cols-2">
-              <div className="grid gap-1.5">
-                <Label htmlFor="ai-base-url">Base URL</Label>
+              <AdminFormField label="Base URL" htmlFor="ai-base-url" hint="OpenAI 兼容端点，可写到 /v1 或 /chat/completions">
                 <Input
                   id="ai-base-url"
                   placeholder="https://api.deepseek.com/v1"
@@ -192,10 +194,12 @@ export default function AiConfigPanel(props: {
                   disabled={savingProvider}
                   onChange={(e) => setProviderDraft((p) => ({ ...p, baseUrl: e.target.value }))}
                 />
-                <p className="text-xs text-muted-foreground">OpenAI 兼容端点，可写到 /v1 或 /chat/completions</p>
-              </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="ai-model">模型</Label>
+              </AdminFormField>
+              <AdminFormField
+                label="模型"
+                htmlFor="ai-model"
+                hint={provider?.hasKey && !props.providerConfig?.hasApiKey ? '密钥由环境变量设定，后台不显示' : '填入上游支持的模型名'}
+              >
                 <Input
                   id="ai-model"
                   placeholder="deepseek-v4-flash"
@@ -203,13 +207,9 @@ export default function AiConfigPanel(props: {
                   disabled={savingProvider}
                   onChange={(e) => setProviderDraft((p) => ({ ...p, model: e.target.value }))}
                 />
-                <p className="text-xs text-muted-foreground">
-                  {provider?.hasKey && !props.providerConfig?.hasApiKey ? '密钥由环境变量设定，后台不显示' : '填入上游支持的模型名'}
-                </p>
-              </div>
+              </AdminFormField>
             </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="ai-api-key">API Key</Label>
+            <AdminFormField label="API Key" htmlFor="ai-api-key" hint="密钥以明文写入 data/runtime-config.json（已 gitignore）；留空不改动，清空填空格保存">
               <Input
                 id="ai-api-key"
                 type="password"
@@ -224,8 +224,7 @@ export default function AiConfigPanel(props: {
                   e.target.select()
                 }}
               />
-              <p className="text-xs text-muted-foreground">密钥以明文写入 data/runtime-config.json（已 gitignore）；留空不改动，清空填空格保存</p>
-            </div>
+            </AdminFormField>
             <div className="ai-provider-actions flex flex-wrap items-center gap-3">
               <Button disabled={savingProvider} onClick={() => void saveProvider()}>
                 {savingProvider ? '保存中…' : '保存供应商配置'}
@@ -238,14 +237,20 @@ export default function AiConfigPanel(props: {
           <section className="ai-provider-section grid gap-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="min-w-0">
-                <h3 className="flex items-center gap-2 text-sm font-medium text-foreground"><Image className="size-3.5 text-primary" aria-hidden="true" />图像供应商</h3>
-                <p className="mt-0.5 truncate text-xs text-muted-foreground">{imageProviderConfig?.hasApiKey ? `已配置 · ${imageProviderConfig.model || '默认模型'}` : '未配置，AI 封面生成不可用'}</p>
+                <h3 className="flex items-center gap-2 text-sm font-medium text-foreground">
+                  <Image className="size-3.5 text-primary" aria-hidden="true" />
+                  图像供应商
+                </h3>
+                <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                  {imageProviderConfig?.hasApiKey ? `已配置 · ${imageProviderConfig.model || '默认模型'}` : '未配置，AI 封面生成不可用'}
+                </p>
               </div>
-              <Badge className={imageProviderConfig?.hasApiKey ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}>{imageProviderConfig?.hasApiKey ? '已配置' : '未配置'}</Badge>
+              <AdminStatusBadge tone={imageProviderConfig?.hasApiKey ? 'accent' : 'muted'}>
+                {imageProviderConfig?.hasApiKey ? '已配置' : '未配置'}
+              </AdminStatusBadge>
             </div>
             <div className="ai-form-grid grid gap-3 sm:grid-cols-2">
-              <div className="grid gap-1.5">
-                <Label htmlFor="ai-image-base-url">图像 Base URL</Label>
+              <AdminFormField label="图像 Base URL" htmlFor="ai-image-base-url" hint="OpenAI 兼容 /images/generations 端点">
                 <Input
                   id="ai-image-base-url"
                   placeholder="https://api.example.com/v1"
@@ -253,10 +258,8 @@ export default function AiConfigPanel(props: {
                   disabled={savingImageProvider}
                   onChange={(e) => setImageProviderDraft((p) => ({ ...p, baseUrl: e.target.value }))}
                 />
-                <p className="text-xs text-muted-foreground">OpenAI 兼容 /images/generations 端点</p>
-              </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="ai-image-model">图像模型</Label>
+              </AdminFormField>
+              <AdminFormField label="图像模型" htmlFor="ai-image-model" hint="填入上游支持的图像模型名">
                 <Input
                   id="ai-image-model"
                   placeholder="mimo-v2.5"
@@ -264,11 +267,9 @@ export default function AiConfigPanel(props: {
                   disabled={savingImageProvider}
                   onChange={(e) => setImageProviderDraft((p) => ({ ...p, model: e.target.value }))}
                 />
-                <p className="text-xs text-muted-foreground">填入上游支持的图像模型名</p>
-              </div>
+              </AdminFormField>
             </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="ai-image-api-key">图像 API Key</Label>
+            <AdminFormField label="图像 API Key" htmlFor="ai-image-api-key" hint="用于 AI 封面生成；留空不改动，清空填空格保存">
               <Input
                 id="ai-image-api-key"
                 type="password"
@@ -282,8 +283,7 @@ export default function AiConfigPanel(props: {
                   e.target.select()
                 }}
               />
-              <p className="text-xs text-muted-foreground">用于 AI 封面生成；留空不改动，清空填空格保存</p>
-            </div>
+            </AdminFormField>
             <div className="ai-provider-actions flex flex-wrap items-center gap-3">
               <Button disabled={savingImageProvider} onClick={() => void saveImageProvider()}>
                 {savingImageProvider ? '保存中…' : '保存图像供应商配置'}
@@ -295,71 +295,63 @@ export default function AiConfigPanel(props: {
       </Card>
 
       <div className="ai-config-secondary">
-      <Card className="admin-panel-card ai-config-card">
-          <AdminPanelHeading
-            title="读者生成策略"
-          />
+        <Card className="admin-panel-card ai-config-card">
+          <AdminPanelHeading title="读者生成策略" />
           <CardContent className="grid gap-4">
-          <label className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/30 px-4 py-3">
-            <span className="min-w-0">
-              <span className="block text-sm font-medium text-foreground">阅读器前情提要</span>
-              <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">读者进入章节时可回顾上一章，结果按章缓存，全站共用一份</span>
-            </span>
-            <Switch checked={!!settings?.recapEnabled} disabled={!settings || saving} onCheckedChange={(v) => void save({ recapEnabled: v })} />
-          </label>
+            <label className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/30 px-4 py-3">
+              <span className="min-w-0">
+                <span className="block text-sm font-medium text-foreground">阅读器前情提要</span>
+                <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">读者进入章节时可回顾上一章，结果按章缓存，全站共用一份</span>
+              </span>
+              <Switch checked={!!settings?.recapEnabled} disabled={!settings || saving} onCheckedChange={(v) => void save({ recapEnabled: v })} />
+            </label>
 
-          <div className="ai-form-grid ai-config-limits grid gap-3 sm:grid-cols-2">
-            <div className="grid gap-1.5">
-              <Label htmlFor="ai-daily-quota">每人每日生成上限</Label>
-              <Input
-                id="ai-daily-quota"
-                type="number"
-                min={0}
-                max={1000}
-                value={dailyQuotaDraft}
-                disabled={!settings || props.loading}
-                onChange={(e) => {
-                  setDailyQuotaDraft(e.target.value)
-                  const value = Number(e.target.value)
-                  if (settings && e.target.value !== '' && Number.isFinite(value)) saveDebounced({ dailyQuota: value })
-                }}
-              />
-              <p className="text-xs text-muted-foreground">命中缓存不计数；管理员不受限；0 表示禁止读者触发</p>
+            <div className="ai-form-grid ai-config-limits grid gap-3 sm:grid-cols-2">
+              <AdminFormField label="每人每日生成上限" htmlFor="ai-daily-quota" hint="命中缓存不计数；管理员不受限；0 表示禁止读者触发">
+                <Input
+                  id="ai-daily-quota"
+                  type="number"
+                  min={0}
+                  max={1000}
+                  value={dailyQuotaDraft}
+                  disabled={!settings || props.loading}
+                  onChange={(e) => {
+                    setDailyQuotaDraft(e.target.value)
+                    const value = Number(e.target.value)
+                    if (settings && e.target.value !== '' && Number.isFinite(value)) saveDebounced({ dailyQuota: value })
+                  }}
+                />
+              </AdminFormField>
+              <AdminFormField label="送入模型的正文字数" htmlFor="ai-max-chars" hint="超出部分截断，直接决定单次调用成本">
+                <Input
+                  id="ai-max-chars"
+                  type="number"
+                  min={500}
+                  max={20000}
+                  value={maxCharsDraft}
+                  disabled={!settings || props.loading}
+                  onChange={(e) => {
+                    setMaxCharsDraft(e.target.value)
+                    const value = Number(e.target.value)
+                    if (settings && e.target.value !== '' && Number.isFinite(value)) saveDebounced({ maxChapterChars: value })
+                  }}
+                />
+              </AdminFormField>
             </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="ai-max-chars">送入模型的正文字数</Label>
-              <Input
-                id="ai-max-chars"
-                type="number"
-                min={500}
-                max={20000}
-                value={maxCharsDraft}
-                disabled={!settings || props.loading}
-                onChange={(e) => {
-                  setMaxCharsDraft(e.target.value)
-                  const value = Number(e.target.value)
-                  if (settings && e.target.value !== '' && Number.isFinite(value)) saveDebounced({ maxChapterChars: value })
-                }}
-              />
-              <p className="text-xs text-muted-foreground">超出部分截断，直接决定单次调用成本</p>
-            </div>
-          </div>
           </CardContent>
-      </Card>
+        </Card>
 
-      <Card className="admin-panel-card ai-config-card">
-          <AdminPanelHeading
-            title="服务检查与用量"
-          />
+        <Card className="admin-panel-card ai-config-card">
+          <AdminPanelHeading title="服务检查与用量" />
           <CardContent className="grid gap-4">
-          <div className="ai-config-test flex flex-wrap items-center gap-3">
-            <Button variant="secondary" disabled={testing || !provider?.configured} onClick={() => void runTest()}>
-              {testing ? '测试中…' : '连通性测试'}
-            </Button>
-            <span className="text-sm text-muted-foreground" aria-live="polite">
-              {testResult || '用于验证文本模型是否可用'}
-            </span>
-          </div>
+            <div className="ai-config-test flex flex-wrap items-center gap-3">
+              <Button variant="secondary" disabled={testing || !provider?.configured} onClick={() => void runTest()}>
+                {testing ? '测试中…' : '连通性测试'}
+              </Button>
+              <span className="text-sm text-muted-foreground" aria-live="polite">
+                {testResult || '用于验证文本模型是否可用'}
+              </span>
+            </div>
 
             {usage && (
               <div className="ai-config-usage">
@@ -381,7 +373,7 @@ export default function AiConfigPanel(props: {
               </div>
             )}
           </CardContent>
-      </Card>
+        </Card>
       </div>
     </div>
   )

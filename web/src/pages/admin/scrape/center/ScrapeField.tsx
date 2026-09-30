@@ -2,8 +2,9 @@
 // 抓取中心 · 带标签的表单字段 —— useId 保证 label ↔ 控件真正关联
 // consumers: scrape/center/Step*.tsx
 // ============================================================
-import { useId, type ReactNode } from 'react'
-import { Label } from '@/components/ui/label'
+import type { ReactNode } from 'react'
+import AdminFormField from '@/components/admin/AdminFormField'
+import { cn } from '@/lib/utils'
 
 interface ScrapeFieldProps {
   label: string
@@ -13,14 +14,9 @@ interface ScrapeFieldProps {
 }
 
 export default function ScrapeField({ label, className, children }: ScrapeFieldProps) {
-  const id = useId()
-  const labelId = `${id}-label`
   return (
-    <div className={className ? `scrape-field grid gap-1.5 ${className}` : 'scrape-field grid gap-1.5'}>
-      <Label id={labelId} htmlFor={id}>
-        {label}
-      </Label>
-      {children({ id, labelId })}
-    </div>
+    <AdminFormField label={label} className={cn('scrape-field', className)}>
+      {children}
+    </AdminFormField>
   )
 }

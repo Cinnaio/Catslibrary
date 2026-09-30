@@ -1,0 +1,175 @@
+.admin-data-panel {
+  border: 0;
+  border-color: transparent;
+  border-radius: var(--admin-data-panel-radius);
+  background: var(--admin-data-panel-background);
+  box-shadow: none;
+}
+
+/* 管理数据表格的统一动效：只表达进入与状态反馈，不参与布局计算。 */
+@keyframes admin-tab-surface-enter {
+  from {
+    opacity: 0;
+    transform: translateY(var(--admin-table-surface-enter-offset));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes admin-tab-row-enter {
+  from {
+    opacity: 0;
+    transform: translateY(var(--admin-table-row-enter-offset));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes admin-tab-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.admin-redesign-page--novels > .admin-data-panel,
+.admin-redesign-page--chapters .chapter-directory-panel,
+.admin-redesign-page--moderation > .moderation-toolbar,
+.admin-redesign-page--moderation > .admin-data-panel {
+  animation: admin-tab-surface-enter var(--admin-table-surface-enter) both;
+}
+
+.admin-redesign-page--novels > .admin-data-panel {
+  animation-delay: 40ms;
+}
+
+.admin-redesign-page--chapters .chapter-directory-panel {
+  animation-delay: 40ms;
+}
+
+.admin-redesign-page--moderation > .admin-toolbar {
+  animation-delay: 30ms;
+}
+
+.admin-redesign-page--moderation > .admin-data-panel {
+  animation-delay: 70ms;
+}
+
+.admin-redesign-page--novels .admin-toolbar__batch {
+  animation: admin-tab-surface-enter var(--admin-table-row-enter) both;
+}
+
+:is(.admin-redesign-page--novels, .admin-redesign-page--chapters, .admin-redesign-page--moderation)
+  [data-slot='table-body']
+  > [data-slot='table-row']:nth-child(-n + 8) {
+  animation: admin-tab-row-enter var(--admin-table-row-enter) both;
+}
+
+:is(.admin-redesign-page--novels, .admin-redesign-page--chapters, .admin-redesign-page--moderation)
+  [data-slot='table-body']
+  > [data-slot='table-row']:nth-child(1) {
+  animation-delay: calc(var(--admin-table-row-stagger-step) * 1);
+}
+
+:is(.admin-redesign-page--novels, .admin-redesign-page--chapters, .admin-redesign-page--moderation)
+  [data-slot='table-body']
+  > [data-slot='table-row']:nth-child(2) {
+  animation-delay: calc(var(--admin-table-row-stagger-step) * 2);
+}
+
+:is(.admin-redesign-page--novels, .admin-redesign-page--chapters, .admin-redesign-page--moderation)
+  [data-slot='table-body']
+  > [data-slot='table-row']:nth-child(3) {
+  animation-delay: calc(var(--admin-table-row-stagger-step) * 3);
+}
+
+:is(.admin-redesign-page--novels, .admin-redesign-page--chapters, .admin-redesign-page--moderation)
+  [data-slot='table-body']
+  > [data-slot='table-row']:nth-child(4) {
+  animation-delay: calc(var(--admin-table-row-stagger-step) * 4);
+}
+
+:is(.admin-redesign-page--novels, .admin-redesign-page--chapters, .admin-redesign-page--moderation)
+  [data-slot='table-body']
+  > [data-slot='table-row']:nth-child(5) {
+  animation-delay: calc(var(--admin-table-row-stagger-step) * 5);
+}
+
+:is(.admin-redesign-page--novels, .admin-redesign-page--chapters, .admin-redesign-page--moderation)
+  [data-slot='table-body']
+  > [data-slot='table-row']:nth-child(6) {
+  animation-delay: calc(var(--admin-table-row-stagger-step) * 6);
+}
+
+:is(.admin-redesign-page--novels, .admin-redesign-page--chapters, .admin-redesign-page--moderation)
+  [data-slot='table-body']
+  > [data-slot='table-row']:nth-child(7) {
+  animation-delay: calc(var(--admin-table-row-stagger-step) * 7);
+}
+
+:is(.admin-redesign-page--novels, .admin-redesign-page--chapters, .admin-redesign-page--moderation)
+  [data-slot='table-body']
+  > [data-slot='table-row']:nth-child(8) {
+  animation-delay: calc(var(--admin-table-row-stagger-step) * 8);
+}
+
+/* 小说与章节页按当前渲染的行数统一入场；行数和延迟由页面数据共同计算。 */
+.admin-redesign-page--novels > .novels-data-panel [data-slot='table-body'] > [data-slot='table-row'] {
+  animation: admin-tab-row-enter var(--admin-table-row-enter) both;
+}
+
+.admin-redesign-page--chapters .chapter-directory-panel [data-slot='table-body'] > [data-slot='table-row'] {
+  animation: admin-tab-row-enter var(--admin-table-row-enter) both;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .admin-redesign-page--novels .admin-tab-header__actions > [data-slot='button'],
+  .admin-redesign-page--chapters .admin-tab-header__actions > [data-slot='button'],
+  .admin-redesign-page--chapters .chapter-toolbar [data-slot='button'],
+  .admin-redesign-page--moderation .admin-tab-header__actions > [data-slot='button'],
+  .admin-redesign-page--novels .admin-toolbar__batch-actions > [data-slot='button'] {
+    transition:
+      transform 150ms ease,
+      background-color 150ms ease,
+      border-color 150ms ease,
+      box-shadow 150ms ease;
+  }
+
+  .admin-redesign-page--novels .admin-tab-header__actions > [data-slot='button']:hover:not(:disabled),
+  .admin-redesign-page--chapters .admin-tab-header__actions > [data-slot='button']:hover:not(:disabled),
+  .admin-redesign-page--chapters .chapter-toolbar [data-slot='button']:hover:not(:disabled),
+  .admin-redesign-page--moderation .admin-tab-header__actions > [data-slot='button']:hover:not(:disabled),
+  .admin-redesign-page--novels .admin-toolbar__batch-actions > [data-slot='button']:hover:not(:disabled) {
+    transform: translateY(-1px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-redesign-page--novels > .admin-data-panel,
+  .admin-redesign-page--chapters .chapter-directory-panel,
+  .admin-redesign-page--moderation > .admin-toolbar,
+  .admin-redesign-page--moderation > .admin-data-panel,
+  .admin-redesign-page--novels .admin-toolbar__batch {
+    animation: admin-tab-fade var(--admin-table-reduced-fade) both;
+  }
+
+  :is(.admin-redesign-page--novels, .admin-redesign-page--chapters, .admin-redesign-page--moderation)
+    [data-slot='table-body']
+    > [data-slot='table-row']:nth-child(-n + 8) {
+    animation: none;
+  }
+
+  .admin-redesign-page--novels > .novels-data-panel [data-slot='table-body'] > [data-slot='table-row'] {
+    animation: none;
+  }
+
+  .admin-redesign-page--chapters .chapter-directory-panel [data-slot='table-body'] > [data-slot='table-row'] {
+    animation: none;
+  }
+}

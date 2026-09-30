@@ -2,6 +2,9 @@
  * 小说管理 tab —— 小说列表 / 搜索 / 排序 / 分页 / 增删改 / 批量操作。
  * 由 Novel-KV js/admin-novels.js + admin.html #tab-novels 平移。
  */
+import AdminContentRatingBadge from '@/components/admin/AdminContentRatingBadge'
+import { AdminDialogContent, AdminDialogBody } from '@/components/admin/AdminDialog'
+import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { newOperationId, novelsApi, url, authHeaders } from '../../lib/api'
@@ -16,7 +19,7 @@ import type { ContentRating, Novel } from '@shared/types'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableCaption, TableHeader, TableRow } from '@/components/ui/table'
@@ -47,13 +50,6 @@ const NOVEL_COLUMNS: readonly AdminColumn[] = [
   { key: 'updated', label: '更新', width: '8%' },
   { key: 'actions', actions: true, width: '11%' },
 ]
-
-/** 分级徽章文案与配色。unknown 用弱化中性色，避免被误读成「一般」。 */
-const RATING_BADGE: Record<ContentRating, { label: string; className: string }> = {
-  general: { label: '一般', className: 'bg-info/10 text-info' },
-  restricted: { label: '限制级', className: 'bg-destructive/10 text-destructive' },
-  unknown: { label: '未标注', className: 'bg-muted text-muted-foreground' },
-}
 
 const STATUS_OPTIONS = [
   { value: 'ongoing', label: '连载中' },
@@ -564,12 +560,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
       </AdminToolbar>
 
       {selected.size > 0 && (
-        <AdminSelectionBar
-          count={selected.size}
-          label={`已选 ${selected.size} 本`}
-          onClear={() => setSelected(new Set())}
-          clearPlacement="selection"
-        >
+        <AdminSelectionBar count={selected.size} label={`已选 ${selected.size} 本`} onClear={() => setSelected(new Set())} clearPlacement="selection">
           <Button variant="secondary" size="sm" onClick={() => void handleBatchUpdate()}>
             批量更新
           </Button>
@@ -683,12 +674,10 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
                     )}
                   </TableCell>
                   <TableCell data-label="状态">
-                    <Badge className={n.status === 'completed' ? 'bg-success/10 text-success' : 'bg-info/10 text-info'}>
-                      {n.status === 'completed' ? '已完结' : '连载中'}
-                    </Badge>
+                    <AdminStatusBadge tone={n.status === 'completed' ? 'success' : 'info'}>{n.status === 'completed' ? '已完结' : '连载中'}</AdminStatusBadge>
                   </TableCell>
                   <TableCell data-label="分级">
-                    <Badge className={RATING_BADGE[n.contentRating || 'unknown'].className}>{RATING_BADGE[n.contentRating || 'unknown'].label}</Badge>
+                    <AdminContentRatingBadge rating={n.contentRating} />
                   </TableCell>
                   <TableCell data-label="章节">
                     {n.chapterCount || 0}
@@ -765,11 +754,11 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
           if (!open) closeModal()
         }}
       >
-        <DialogContent className="admin-dialog novel-editor-dialog sm:max-w-[540px]">
+        <AdminDialogContent variant="editor" className="novel-editor-dialog sm:max-w-[540px]">
           <DialogHeader>
             <DialogTitle className="editor-modal__title">{editing ? '编辑小说' : '添加小说'}</DialogTitle>
           </DialogHeader>
-          <div className="admin-dialog__body">
+          <AdminDialogBody>
             <div className="novel-editor__grid">
               <div className="form-group novel-editor__field novel-editor__field--wide">
                 <Label htmlFor="novel-title">标题</Label>
@@ -854,7 +843,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
                 <p className="text-xs text-muted-foreground">未标注时保存会自动初判；命中成人标签或文本特征的作品会标为限制级。</p>
               </div>
             </div>
-          </div>
+          </AdminDialogBody>
           <DialogFooter>
             <Button variant="secondary" onClick={closeModal} disabled={saving}>
               取消
@@ -863,7 +852,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
               {saving ? '保存中…' : '保存'}
             </Button>
           </DialogFooter>
-        </DialogContent>
+        </AdminDialogContent>
       </Dialog>
     </AdminPage>
   )

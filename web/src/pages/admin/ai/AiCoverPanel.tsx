@@ -1,4 +1,7 @@
 /** AI 封面生成工作台：选小说 → 生成封面（落候选，不覆盖）→ 预览候选 → 采纳/弃用/上传替换。 */
+import AdminContentRatingBadge from '@/components/admin/AdminContentRatingBadge'
+import { AdminDialogContent } from '@/components/admin/AdminDialog'
+import AdminFormField from '@/components/admin/AdminFormField'
 import { useEffect, useRef, useState } from 'react'
 import { aiApi, newOperationId, novelsApi, url, type AiCoverCandidate, type AiTaskInfo } from '@/lib/api'
 import { useToast, useConfirm } from '@/components/feedback'
@@ -6,7 +9,7 @@ import { AdminPanelHeading } from '@/components/admin/AdminWorkspace'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import CustomSelect from '@/components/admin/CustomSelect'
@@ -71,9 +74,7 @@ function candidateTime(createdAt: number): string {
 
 function normalizeCoverPromptLimit(value: unknown): number {
   const n = Math.trunc(Number(value))
-  return Number.isFinite(n)
-    ? Math.min(HARD_MAX_COVER_PROMPT_CHARS, Math.max(MIN_COVER_PROMPT_MAX_CHARS, n))
-    : DEFAULT_COVER_PROMPT_MAX_CHARS
+  return Number.isFinite(n) ? Math.min(HARD_MAX_COVER_PROMPT_CHARS, Math.max(MIN_COVER_PROMPT_MAX_CHARS, n)) : DEFAULT_COVER_PROMPT_MAX_CHARS
 }
 
 function limitCoverPrompt(value: string, maxChars: number): string {
@@ -210,7 +211,12 @@ function CoverCanvas({
   )
 
   return onPreview ? (
-    <button type="button" className={`${frameClassName} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`} onClick={onPreview} aria-label={`查看大图：${title || '封面预览'}`}>
+    <button
+      type="button"
+      className={`${frameClassName} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`}
+      onClick={onPreview}
+      aria-label={`查看大图：${title || '封面预览'}`}
+    >
       {content}
     </button>
   ) : (
@@ -474,7 +480,9 @@ export default function AiCoverPanel({
       setVariationId(result.metadata?.variationId || requestedVariationId)
       setPromptMetadata(result.metadata)
       setPromptMode('exact')
-      setPromptSourceSignature(`${novelId}|${renderTitle ? '1' : '0'}|${platform}|${stylePreset}|${composition}|${result.metadata?.variationId || requestedVariationId}`)
+      setPromptSourceSignature(
+        `${novelId}|${renderTitle ? '1' : '0'}|${platform}|${stylePreset}|${composition}|${result.metadata?.variationId || requestedVariationId}`,
+      )
       toast('已生成封面描述词，可继续编辑', 'success')
     } catch (err) {
       toast((err as Error).message || '生成描述词失败', 'error')
@@ -576,21 +584,13 @@ export default function AiCoverPanel({
   const previewSrc = novelId ? url(`/cover/${encodeURIComponent(novelId)}?v=${coverVersion}&cover=2`) : ''
   const recentNovels = novels.slice(0, 5)
   const hasCurrentGeneratedPrompt = !!prompt.trim() && !!promptSourceSignature && !promptConfigMismatch
-  const canGenerateCover =
-    !!novelId &&
-    !busy &&
-    !taskActive &&
-    !generatingPrompt &&
-    !promptConfigMismatch &&
-    (usesExactPrompt || hasCurrentGeneratedPrompt)
+  const canGenerateCover = !!novelId && !busy && !taskActive && !generatingPrompt && !promptConfigMismatch && (usesExactPrompt || hasCurrentGeneratedPrompt)
   const taskNovel = task ? novels.find((novel) => novel.id === task.novelId) : undefined
   const showAdultMetadataNote = !!selected && (selected.contentRating === 'restricted' || hasAdultRatingCategory(selected.categories))
 
   return (
     <Card className="admin-panel-card ai-cover-card">
-      <AdminPanelHeading
-        title="封面生成工作台"
-      />
+      <AdminPanelHeading title="封面生成工作台" />
 
       <CardContent className="grid gap-6">
         {!selected ? (
@@ -599,12 +599,15 @@ export default function AiCoverPanel({
               <div className="flex items-start gap-3">
                 <BookOpen className="mt-0.5 size-5 shrink-0 text-[var(--accent)]" aria-hidden="true" />
                 <div className="grid gap-1">
-                  <h3 id="cover-start-title" className="text-base font-semibold text-foreground">{novelsLoading && novelId ? '正在载入这本小说…' : '先选择要设计封面的小说'}</h3>
-                  <p className="text-sm leading-relaxed text-muted-foreground">选中后会把作者、分类、分级、简介和当前封面放在同一处，生成前先核对作品上下文。</p>
+                  <h3 id="cover-start-title" className="text-base font-semibold text-foreground">
+                    {novelsLoading && novelId ? '正在载入这本小说…' : '先选择要设计封面的小说'}
+                  </h3>
+                  <p className="text-sm leading-relaxed text-muted-foreground">
+                    选中后会把作者、分类、分级、简介和当前封面放在同一处，生成前先核对作品上下文。
+                  </p>
                 </div>
               </div>
-              <div className="grid gap-1.5 sm:max-w-md">
-                <Label id="cover-start-novel-label">目标小说</Label>
+              <AdminFormField label="目标小说" labelId="cover-start-novel-label" className="sm:max-w-md">
                 <CustomSelect
                   options={novels.map((novel) => ({ value: novel.id, label: novel.title }))}
                   value={novelId}
@@ -616,7 +619,7 @@ export default function AiCoverPanel({
                   dropdownSide="bottom"
                   aria-labelledby="cover-start-novel-label"
                 />
-              </div>
+              </AdminFormField>
             </div>
 
             {!novelsLoading && recentNovels.length > 0 && (
@@ -640,7 +643,10 @@ export default function AiCoverPanel({
                       </div>
                       <span className="grid min-w-0 flex-1 gap-0.5">
                         <span className="truncate text-sm font-medium text-foreground">{novel.title || '未命名小说'}</span>
-                        <span className="truncate text-xs text-muted-foreground">{novel.author || '作者未填写'}{novel.categories.length ? ` · ${novel.categories.slice(0, 3).join('、')}` : ''}</span>
+                        <span className="truncate text-xs text-muted-foreground">
+                          {novel.author || '作者未填写'}
+                          {novel.categories.length ? ` · ${novel.categories.slice(0, 3).join('、')}` : ''}
+                        </span>
                       </span>
                       <span className="shrink-0 text-xs text-[var(--accent)]">选择</span>
                     </button>
@@ -650,7 +656,9 @@ export default function AiCoverPanel({
             )}
 
             {!novelsLoading && novels.length === 0 && (
-              <p className="text-sm text-muted-foreground">{novelsLoadError ? '书库加载失败，请刷新页面后重试。' : '书库里还没有小说，请先到小说管理添加作品。'}</p>
+              <p className="text-sm text-muted-foreground">
+                {novelsLoadError ? '书库加载失败，请刷新页面后重试。' : '书库里还没有小说，请先到小说管理添加作品。'}
+              </p>
             )}
           </section>
         ) : (
@@ -660,11 +668,14 @@ export default function AiCoverPanel({
               <div className="grid min-w-0 content-start gap-3">
                 <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-start">
                   <div className="grid min-w-0 gap-1">
-                    <h3 id="cover-book-title" className="break-words text-lg font-semibold text-foreground">{selected.title || '未命名小说'}</h3>
-                    <p className="text-sm text-muted-foreground">{selected.author ? `作者：${selected.author}` : '作者未填写'} · {selected.chapterCount || 0} 章</p>
+                    <h3 id="cover-book-title" className="break-words text-lg font-semibold text-foreground">
+                      {selected.title || '未命名小说'}
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                      {selected.author ? `作者：${selected.author}` : '作者未填写'} · {selected.chapterCount || 0} 章
+                    </p>
                   </div>
-                  <div className="grid gap-1.5 sm:w-64">
-                    <Label id="cover-change-novel-label">更换小说</Label>
+                  <AdminFormField label="更换小说" labelId="cover-change-novel-label" className="sm:w-64">
                     <CustomSelect
                       options={novels.map((novel) => ({ value: novel.id, label: novel.title }))}
                       value={novelId}
@@ -676,16 +687,18 @@ export default function AiCoverPanel({
                       dropdownSide="bottom"
                       aria-labelledby="cover-change-novel-label"
                     />
-                  </div>
+                  </AdminFormField>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge className={selected.contentRating === 'restricted' ? 'bg-destructive/10 text-destructive' : selected.contentRating === 'general' ? 'bg-info/10 text-info' : 'bg-muted text-muted-foreground'}>
+                  <AdminContentRatingBadge rating={selected.contentRating}>
                     {CONTENT_RATING_LABELS[selected.contentRating || 'unknown']}
-                  </Badge>
+                  </AdminContentRatingBadge>
                   <Badge variant="outline">{novelStatusLabel(selected.status)}</Badge>
                   {selected.categories.map((category) => (
-                    <Badge key={category} variant="secondary">{category}</Badge>
+                    <Badge key={category} variant="secondary">
+                      {category}
+                    </Badge>
                   ))}
                 </div>
 
@@ -693,7 +706,9 @@ export default function AiCoverPanel({
                   <p className="text-foreground/90">{selected.description?.trim() || '这本小说还没有简介，自动推荐会更多依赖书名和分类。'}</p>
                   {selected.description?.trim() && selected.description.length > 320 && (
                     <details className="text-xs text-muted-foreground">
-                      <summary className="w-fit cursor-pointer rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">展开完整简介</summary>
+                      <summary className="w-fit cursor-pointer rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                        展开完整简介
+                      </summary>
                       <p className="mt-2 whitespace-pre-wrap leading-relaxed">{selected.description}</p>
                     </details>
                   )}
@@ -712,23 +727,42 @@ export default function AiCoverPanel({
               <div className="grid min-w-0 content-start gap-5">
                 <section className="grid gap-3" aria-labelledby="cover-design-title">
                   <div className="grid gap-1">
-                    <h3 id="cover-design-title" className="text-sm font-semibold text-foreground">本次设计方向</h3>
+                    <h3 id="cover-design-title" className="text-sm font-semibold text-foreground">
+                      本次设计方向
+                    </h3>
                     <p className="text-xs leading-relaxed text-muted-foreground">选择风格与构图后先生成方向预览，再决定是否生成图片。</p>
                   </div>
 
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="grid gap-1.5">
-                      <Label id="cover-style-label">主视觉风格</Label>
-                      <CustomSelect options={STYLE_OPTIONS} value={stylePreset} onChange={setStylePreset} disabled={busy || generatingPrompt || taskActive || usesExactPrompt} placeholder="选择主视觉风格" dropdownSide="bottom" aria-labelledby="cover-style-label" />
-                    </div>
-                    <div className="grid gap-1.5">
-                      <Label id="cover-composition-label">构图方向</Label>
-                      <CustomSelect options={COMPOSITION_OPTIONS} value={composition} onChange={setComposition} disabled={busy || generatingPrompt || taskActive || usesExactPrompt} placeholder="选择构图方向" dropdownSide="bottom" aria-labelledby="cover-composition-label" />
-                    </div>
+                    <AdminFormField label="主视觉风格" labelId="cover-style-label">
+                      <CustomSelect
+                        options={STYLE_OPTIONS}
+                        value={stylePreset}
+                        onChange={setStylePreset}
+                        disabled={busy || generatingPrompt || taskActive || usesExactPrompt}
+                        placeholder="选择主视觉风格"
+                        dropdownSide="bottom"
+                        aria-labelledby="cover-style-label"
+                      />
+                    </AdminFormField>
+                    <AdminFormField label="构图方向" labelId="cover-composition-label">
+                      <CustomSelect
+                        options={COMPOSITION_OPTIONS}
+                        value={composition}
+                        onChange={setComposition}
+                        disabled={busy || generatingPrompt || taskActive || usesExactPrompt}
+                        placeholder="选择构图方向"
+                        dropdownSide="bottom"
+                        aria-labelledby="cover-composition-label"
+                      />
+                    </AdminFormField>
                   </div>
 
                   <p className="text-xs leading-relaxed text-muted-foreground">
-                    {STYLE_OPTIONS.find((option) => option.value === stylePreset)?.sub || '自动结合题材推荐画风。'} {composition === 'auto' ? '构图会随变体变化。' : `构图：${COMPOSITION_OPTIONS.find((option) => option.value === composition)?.label || composition}。`}
+                    {STYLE_OPTIONS.find((option) => option.value === stylePreset)?.sub || '自动结合题材推荐画风。'}{' '}
+                    {composition === 'auto'
+                      ? '构图会随变体变化。'
+                      : `构图：${COMPOSITION_OPTIONS.find((option) => option.value === composition)?.label || composition}。`}
                   </p>
 
                   <div className="flex items-center justify-between gap-3 border-y border-[var(--admin-line)] py-3">
@@ -736,18 +770,31 @@ export default function AiCoverPanel({
                       <span className="text-sm font-medium text-foreground">渲染书名与作者</span>
                       <span className="text-xs leading-relaxed text-muted-foreground">需要模型支持中文文字渲染。</span>
                     </div>
-                    <Switch checked={renderTitle} disabled={busy || generatingPrompt || taskActive || usesExactPrompt} onCheckedChange={setRenderTitle} aria-label="生成封面时渲染书名和作者" />
+                    <Switch
+                      checked={renderTitle}
+                      disabled={busy || generatingPrompt || taskActive || usesExactPrompt}
+                      onCheckedChange={setRenderTitle}
+                      aria-label="生成封面时渲染书名和作者"
+                    />
                   </div>
                 </section>
 
                 <section className="grid gap-3 rounded-lg bg-[var(--admin-inset)] p-4" aria-labelledby="cover-understanding-title" aria-live="polite">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="grid gap-0.5">
-                      <h3 id="cover-understanding-title" className="text-sm font-semibold text-foreground">AI 对本书的理解</h3>
+                      <h3 id="cover-understanding-title" className="text-sm font-semibold text-foreground">
+                        AI 对本书的理解
+                      </h3>
                       <p className="text-xs text-muted-foreground">根据当前小说简介与分类提炼，仅用于本次封面。</p>
                     </div>
                     {!usesExactPrompt && promptMetadata && (
-                      <Button type="button" variant="ghost" size="sm" disabled={busy || taskActive || generatingPrompt} onClick={() => void generatePrompt(true)}>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled={busy || taskActive || generatingPrompt}
+                        onClick={() => void generatePrompt(true)}
+                      >
                         <Wand2 className="size-3.5" />
                         换一个画面方向
                       </Button>
@@ -759,26 +806,45 @@ export default function AiCoverPanel({
                   ) : promptMetadata?.storyBrief ? (
                     <div className="grid gap-3 text-sm leading-relaxed">
                       <div className="flex flex-wrap items-center gap-2">
-                        <Badge variant="secondary">{GENRE_LABELS[promptMetadata.genre || promptMetadata.storyBrief.genre] || promptMetadata.genre || promptMetadata.storyBrief.genre}</Badge>
+                        <Badge variant="secondary">
+                          {GENRE_LABELS[promptMetadata.genre || promptMetadata.storyBrief.genre] || promptMetadata.genre || promptMetadata.storyBrief.genre}
+                        </Badge>
                         {promptMetadata.contentMode === 'non_explicit' && <Badge variant="outline">非露骨封面</Badge>}
                       </div>
                       {promptMetadata.storyBrief.premise && <p className="text-foreground">{promptMetadata.storyBrief.premise}</p>}
                       {promptMetadata.storyBrief.mood.length > 0 && (
-                        <p><span className="font-medium text-foreground">情绪：</span>{promptMetadata.storyBrief.mood.join('、')}</p>
+                        <p>
+                          <span className="font-medium text-foreground">情绪：</span>
+                          {promptMetadata.storyBrief.mood.join('、')}
+                        </p>
                       )}
                       {promptMetadata.storyBrief.facts.length > 0 && (
-                        <p><span className="font-medium text-foreground">依据：</span>{promptMetadata.storyBrief.facts.slice(0, 4).map((fact) => `${FACT_LABELS[fact.kind] || '信息'}：${fact.value}`).join(' · ')}</p>
+                        <p>
+                          <span className="font-medium text-foreground">依据：</span>
+                          {promptMetadata.storyBrief.facts
+                            .slice(0, 4)
+                            .map((fact) => `${FACT_LABELS[fact.kind] || '信息'}：${fact.value}`)
+                            .join(' · ')}
+                        </p>
                       )}
                       {promptMetadata.visualSummary && !promptConfigMismatch && (
-                        <p><span className="font-medium text-foreground">画面提议：</span>{promptMetadata.visualSummary}</p>
+                        <p>
+                          <span className="font-medium text-foreground">画面提议：</span>
+                          {promptMetadata.visualSummary}
+                        </p>
                       )}
                       {promptMetadata.storyBrief.unknowns.length > 0 && (
-                        <p className="text-muted-foreground"><span className="font-medium text-foreground">资料未说明：</span>{promptMetadata.storyBrief.unknowns.join('、')}</p>
+                        <p className="text-muted-foreground">
+                          <span className="font-medium text-foreground">资料未说明：</span>
+                          {promptMetadata.storyBrief.unknowns.join('、')}
+                        </p>
                       )}
                       {(promptConfigMismatch || promptMetadata.degraded || promptMetadata.storyBrief.degraded) && (
                         <p className="flex items-start gap-2 text-xs text-[var(--color-warning)]">
                           <CircleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-                          {promptConfigMismatch ? '风格或构图已变化；当前方向预览仍对应上一组设置，请按新设置重新生成。' : '本次方向使用了降级信息，建议核对画面描述后再生成。'}
+                          {promptConfigMismatch
+                            ? '风格或构图已变化；当前方向预览仍对应上一组设置，请按新设置重新生成。'
+                            : '本次方向使用了降级信息，建议核对画面描述后再生成。'}
                         </p>
                       )}
                     </div>
@@ -792,7 +858,9 @@ export default function AiCoverPanel({
                     </div>
                   ) : (
                     <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
-                      <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">生成后会显示识别的题材、故事依据、情绪和画面提议。书籍的 R18 分类只作为分级标签，不会自动变成露骨画面要求。</p>
+                      <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
+                        生成后会显示识别的题材、故事依据、情绪和画面提议。书籍的 R18 分类只作为分级标签，不会自动变成露骨画面要求。
+                      </p>
                       <Button type="button" variant="outline" size="sm" disabled={busy || taskActive || generatingPrompt} onClick={() => void generatePrompt()}>
                         {generatingPrompt ? <Loader2 className="size-3.5 animate-spin" /> : <Wand2 className="size-3.5" />}
                         {generatingPrompt ? '正在分析…' : '生成方向预览'}
@@ -808,19 +876,38 @@ export default function AiCoverPanel({
                   </div>
                 )}
 
-                <details open={advancedOpen || promptConfigMismatch} onToggle={(event) => setAdvancedOpen(event.currentTarget.open)} className="group grid gap-3 rounded-lg border border-[var(--border)] px-3.5 py-3">
-                  <summary className="cursor-pointer text-sm font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">高级设置与完整描述词</summary>
+                <details
+                  open={advancedOpen || promptConfigMismatch}
+                  onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}
+                  className="group grid gap-3 rounded-lg border border-[var(--border)] px-3.5 py-3"
+                >
+                  <summary className="cursor-pointer text-sm font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                    高级设置与完整描述词
+                  </summary>
                   <div className="grid gap-4 border-t border-[var(--admin-line)] pt-3">
-                    <div className="grid gap-1.5">
-                      <Label id="cover-platform-label">目标平台版式</Label>
-                      <CustomSelect options={PLATFORM_OPTIONS} value={platform} onChange={setPlatform} disabled={busy || generatingPrompt || taskActive || usesExactPrompt} placeholder="通用竖版 2:3" dropdownSide="bottom" aria-labelledby="cover-platform-label" />
+                    <AdminFormField label="目标平台版式" labelId="cover-platform-label">
+                      <CustomSelect
+                        options={PLATFORM_OPTIONS}
+                        value={platform}
+                        onChange={setPlatform}
+                        disabled={busy || generatingPrompt || taskActive || usesExactPrompt}
+                        placeholder="通用竖版 2:3"
+                        dropdownSide="bottom"
+                        aria-labelledby="cover-platform-label"
+                      />
                       <p className="text-xs leading-relaxed text-muted-foreground">调整平台版式与文字安全区，不决定主视觉画风。</p>
-                    </div>
+                    </AdminFormField>
 
                     <div className="grid gap-1.5">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <Label htmlFor="cover-prompt">完整描述词</Label>
-                        <span className={coverPromptCharCount(prompt) >= coverPromptMaxChars ? 'text-xs font-medium text-[var(--color-warning)]' : 'text-xs text-muted-foreground'}>
+                        <span
+                          className={
+                            coverPromptCharCount(prompt) >= coverPromptMaxChars
+                              ? 'text-xs font-medium text-[var(--color-warning)]'
+                              : 'text-xs text-muted-foreground'
+                          }
+                        >
                           {coverPromptCharCount(prompt)}/{coverPromptMaxChars}
                         </span>
                       </div>
@@ -845,14 +932,28 @@ export default function AiCoverPanel({
                         }}
                         placeholder="先生成方向预览；你也可以在这里直接填写完整描述词。"
                       />
-                      <p id="cover-prompt-hint" className="text-xs leading-relaxed text-muted-foreground">手动填写后将按完整描述词生成，平台、风格和构图选项不额外注入。</p>
+                      <p id="cover-prompt-hint" className="text-xs leading-relaxed text-muted-foreground">
+                        手动填写后将按完整描述词生成，平台、风格和构图选项不额外注入。
+                      </p>
 
                       {promptConfigMismatch && (
                         <div className="grid gap-2 rounded-md border border-[color-mix(in_srgb,var(--color-warning)_45%,transparent)] bg-[color-mix(in_srgb,var(--color-warning)_10%,transparent)] p-3 text-xs leading-relaxed text-[var(--color-warning)]">
                           <p>风格或构图已变化，完整描述词仍来自上一版设置。</p>
                           <div className="flex flex-wrap gap-2">
-                            <Button type="button" size="sm" variant="outline" onClick={() => { setPromptMode('exact'); setPromptSourceSignature('') }}>保留当前描述词</Button>
-                            <Button type="button" size="sm" variant="ghost" disabled={generatingPrompt || taskActive} onClick={() => void generatePrompt()}>按新设置更新方向</Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setPromptMode('exact')
+                                setPromptSourceSignature('')
+                              }}
+                            >
+                              保留当前描述词
+                            </Button>
+                            <Button type="button" size="sm" variant="ghost" disabled={generatingPrompt || taskActive} onClick={() => void generatePrompt()}>
+                              按新设置更新方向
+                            </Button>
                           </div>
                         </div>
                       )}
@@ -860,7 +961,19 @@ export default function AiCoverPanel({
                       {!promptConfigMismatch && usesExactPrompt && (
                         <div className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-[var(--admin-panel-muted)] px-3 py-2 text-xs text-muted-foreground">
                           <span>当前由完整描述词控制画面。</span>
-                          <Button type="button" size="sm" variant="ghost" onClick={() => { setPrompt(''); setPromptMode('auto'); setPromptSourceSignature(''); setPromptMetadata(undefined) }}>返回配置生成</Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setPrompt('')
+                              setPromptMode('auto')
+                              setPromptSourceSignature('')
+                              setPromptMetadata(undefined)
+                            }}
+                          >
+                            返回配置生成
+                          </Button>
                         </div>
                       )}
                     </div>
@@ -870,9 +983,15 @@ export default function AiCoverPanel({
                 {/* 描述词仍在生成时禁止提交，确保任务使用屏幕上已确认的方向。 */}
                 <Button size="lg" className="w-full gap-2" disabled={!canGenerateCover} onClick={() => void generate()}>
                   {busy || taskActive ? (
-                    <><Loader2 className="size-4 animate-spin" />封面生成中…</>
+                    <>
+                      <Loader2 className="size-4 animate-spin" />
+                      封面生成中…
+                    </>
                   ) : (
-                    <><Sparkles className="size-4" />{candidates.length ? '保留方向，重新生成候选' : '按本次方向生成封面'}</>
+                    <>
+                      <Sparkles className="size-4" />
+                      {candidates.length ? '保留方向，重新生成候选' : '按本次方向生成封面'}
+                    </>
                   )}
                 </Button>
 
@@ -886,7 +1005,11 @@ export default function AiCoverPanel({
                       <span className="font-medium text-foreground">{taskStatusLabel(task.status)}</span>
                       {taskNovel && task.novelId !== novelId && <span className="text-xs text-muted-foreground">任务作品：{taskNovel.title}</span>}
                       <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{task.step || '等待处理'}</span>
-                      {taskActive && <Button variant="outline" size="sm" onClick={() => void cancelTask()}>取消任务</Button>}
+                      {taskActive && (
+                        <Button variant="outline" size="sm" onClick={() => void cancelTask()}>
+                          取消任务
+                        </Button>
+                      )}
                     </div>
                     {taskActive && <div className="ai-task-progress" />}
                     {task.error && <p className="border-t border-[var(--border)] px-3.5 py-2 text-xs leading-relaxed text-destructive">{task.error}</p>}
@@ -898,12 +1021,30 @@ export default function AiCoverPanel({
                 <section className="grid gap-3" aria-labelledby="cover-comparison-title">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="grid gap-0.5">
-                      <h3 id="cover-comparison-title" className="text-sm font-semibold text-foreground">当前封面与候选</h3>
+                      <h3 id="cover-comparison-title" className="text-sm font-semibold text-foreground">
+                        当前封面与候选
+                      </h3>
                       <p className="text-xs text-muted-foreground">图片使用相同尺寸，点开可查看大图。</p>
                     </div>
-                    <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="hidden" onChange={(event) => void handleUploadFile(event)} />
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
+                      className="hidden"
+                      onChange={(event) => void handleUploadFile(event)}
+                    />
                     <Button variant="outline" size="sm" disabled={candidateBusy === 'upload' || !novelId} onClick={() => fileInputRef.current?.click()}>
-                      {candidateBusy === 'upload' ? <><Loader2 className="size-3.5 animate-spin" />上传中…</> : <><Upload className="size-3.5" />上传替换</>}
+                      {candidateBusy === 'upload' ? (
+                        <>
+                          <Loader2 className="size-3.5 animate-spin" />
+                          上传中…
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="size-3.5" />
+                          上传替换
+                        </>
+                      )}
                     </Button>
                   </div>
 
@@ -929,17 +1070,22 @@ export default function AiCoverPanel({
 
                     {candidatesLoading ? (
                       <div className="flex min-h-44 flex-1 items-center justify-center gap-2 text-sm text-muted-foreground" aria-live="polite">
-                        <Loader2 className="size-4 animate-spin" />正在读取候选…
+                        <Loader2 className="size-4 animate-spin" />
+                        正在读取候选…
                       </div>
                     ) : candidateError ? (
                       <div className="grid flex-1 content-center justify-items-start gap-2 rounded-lg bg-[var(--admin-panel-muted)] p-4 text-sm">
                         <p className="text-muted-foreground">{candidateError}</p>
-                        <Button variant="outline" size="sm" onClick={() => void loadCandidates(novelId)}>重试</Button>
+                        <Button variant="outline" size="sm" onClick={() => void loadCandidates(novelId)}>
+                          重试
+                        </Button>
                       </div>
                     ) : candidates.length === 0 ? (
                       <div className="grid min-h-44 flex-1 content-center gap-2 rounded-lg border border-dashed border-[var(--border)] bg-[var(--admin-inset)] px-4 py-5">
                         <p className="text-sm font-medium text-foreground">还没有待比较的候选</p>
-                        <p className="text-xs leading-relaxed text-muted-foreground">生成封面后，新版本会出现在这里。确认满意后再采纳，线上封面不会被生成过程直接覆盖。</p>
+                        <p className="text-xs leading-relaxed text-muted-foreground">
+                          生成封面后，新版本会出现在这里。确认满意后再采纳，线上封面不会被生成过程直接覆盖。
+                        </p>
                       </div>
                     ) : (
                       candidates.map((candidate, index) => (
@@ -952,30 +1098,56 @@ export default function AiCoverPanel({
                               className="rounded-md"
                               onPreview={() => setPreviewImage({ src: candidate.dataUrl, title: `${selected.title} · 候选 ${index + 1}` })}
                             />
-                            <Badge variant="secondary" className="pointer-events-none absolute left-2 top-2">候选 {index + 1}</Badge>
+                            <Badge variant="secondary" className="pointer-events-none absolute left-2 top-2">
+                              候选 {index + 1}
+                            </Badge>
                           </div>
                           <figcaption className="grid gap-2">
                             <span className="text-xs text-muted-foreground">{candidateTime(candidate.createdAt)}</span>
                             {candidate.metadata && (candidate.metadata.stylePreset || candidate.metadata.composition) ? (
                               <div className="grid gap-0.5 text-xs text-muted-foreground">
-                                <p>{STYLE_OPTIONS.find((option) => option.value === candidate.metadata?.stylePreset)?.label || candidate.metadata.stylePreset} · {COMPOSITION_OPTIONS.find((option) => option.value === candidate.metadata?.composition)?.label || candidate.metadata.composition}</p>
+                                <p>
+                                  {STYLE_OPTIONS.find((option) => option.value === candidate.metadata?.stylePreset)?.label || candidate.metadata.stylePreset} ·{' '}
+                                  {COMPOSITION_OPTIONS.find((option) => option.value === candidate.metadata?.composition)?.label ||
+                                    candidate.metadata.composition}
+                                </p>
                                 {candidate.metadata.promptMode === 'exact' && <p>本次方向已写入完整描述词</p>}
                                 {romanceDirectionLabel(candidate.metadata) && <p>{romanceDirectionLabel(candidate.metadata)}</p>}
                               </div>
-                            ) : candidate.metadata?.promptMode === 'exact' ? <p className="text-xs text-muted-foreground">完整描述词</p> : null}
+                            ) : candidate.metadata?.promptMode === 'exact' ? (
+                              <p className="text-xs text-muted-foreground">完整描述词</p>
+                            ) : null}
                             {candidate.metadata?.contentMode === 'non_explicit' && <p className="text-xs text-muted-foreground">封面画面保持非露骨</p>}
-                            {candidate.metadata?.visualSummary && <p className="line-clamp-3 text-xs leading-relaxed text-foreground/90">{candidate.metadata.visualSummary}</p>}
+                            {candidate.metadata?.visualSummary && (
+                              <p className="line-clamp-3 text-xs leading-relaxed text-foreground/90">{candidate.metadata.visualSummary}</p>
+                            )}
                             <div className="flex gap-1.5">
                               <Button size="sm" className="flex-1" disabled={!!candidateBusy} onClick={() => void adopt(candidate)}>
-                                {candidateBusy === candidate.id ? <><Loader2 className="size-3.5 animate-spin" />处理中</> : '采纳'}
+                                {candidateBusy === candidate.id ? (
+                                  <>
+                                    <Loader2 className="size-3.5 animate-spin" />
+                                    处理中
+                                  </>
+                                ) : (
+                                  '采纳'
+                                )}
                               </Button>
-                              <Button size="sm" variant="outline" disabled={!!candidateBusy} onClick={() => void discard(candidate)} aria-label={`弃用候选 ${index + 1}`} title="弃用">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={!!candidateBusy}
+                                onClick={() => void discard(candidate)}
+                                aria-label={`弃用候选 ${index + 1}`}
+                                title="弃用"
+                              >
                                 <Trash2 className="size-3.5" />
                               </Button>
                             </div>
                             {candidate.prompt && (
                               <details className="text-xs text-muted-foreground">
-                                <summary className="w-fit cursor-pointer rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">查看完整描述词</summary>
+                                <summary className="w-fit cursor-pointer rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                                  查看完整描述词
+                                </summary>
                                 <p className="mt-2 max-h-48 overflow-y-auto whitespace-pre-wrap break-words leading-relaxed">{candidate.prompt}</p>
                               </details>
                             )}
@@ -999,12 +1171,12 @@ export default function AiCoverPanel({
       </CardContent>
 
       <Dialog open={!!previewImage} onOpenChange={(open) => !open && setPreviewImage(null)}>
-        <DialogContent className="max-h-[94vh] max-w-5xl overflow-hidden">
+        <AdminDialogContent variant="preview">
           <DialogHeader>
             <DialogTitle>{previewImage?.title || '封面预览'}</DialogTitle>
           </DialogHeader>
           {previewImage && <img src={previewImage.src} alt={previewImage.title} className="mx-auto max-h-[78vh] max-w-full object-contain" />}
-        </DialogContent>
+        </AdminDialogContent>
       </Dialog>
     </Card>
   )

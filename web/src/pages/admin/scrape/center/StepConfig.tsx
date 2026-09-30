@@ -1,3 +1,4 @@
+import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 // ============================================================
 // 抓取中心 · 第三步 —— 抓取配置（折叠摘要 / 高级配置 / 选择器测试）
 // consumers: scrape/CenterView.tsx
@@ -146,7 +147,7 @@ export default function StepConfig({
             </div>
           ) : links.length > 0 ? (
             <>
-              <Badge className="bg-success/10 text-success">测试成功 — 找到 {links.length} 个章节链接</Badge>
+              <AdminStatusBadge tone="success">测试成功 — 找到 {links.length} 个章节链接</AdminStatusBadge>
               <ul className="scrape-feedback__links text-xs">
                 {links.slice(0, 20).map((l, i) => (
                   <li key={i}>

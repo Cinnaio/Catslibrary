@@ -1,0 +1,1125 @@
+/* ============================================================
+   抓取中心新工作流
+   入口、发现结果、作品配置和任务队列组成一条连续的操作路径。
+   ============================================================ */
+.admin-redesign-page--scrape > .admin-tab-header {
+  margin-bottom: 1rem;
+}
+
+.scrape-center {
+  display: grid;
+  gap: var(--admin-space-4);
+  min-width: 0;
+}
+
+.scrape-center__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 22rem);
+  align-items: start;
+  gap: var(--admin-space-4);
+}
+
+.scrape-center__main {
+  display: grid;
+  min-width: 0;
+  gap: var(--admin-space-4);
+}
+
+.scrape-intake,
+.scrape-discovery,
+.scrape-setup {
+  display: grid;
+  gap: var(--admin-space-4);
+  min-width: 0;
+}
+
+.scrape-intake {
+  background: color-mix(in srgb, var(--admin-panel) 94%, var(--accent-subtle));
+}
+
+.scrape-discovery__count {
+  flex: 0 0 auto;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--radius-full);
+  background: var(--admin-panel-muted);
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+
+.scrape-intake__tabs,
+.scrape-intake__tabs > [data-slot='tabs-list'] {
+  width: 100%;
+}
+
+.scrape-intake__tabs > [data-slot='tabs-list'] {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--tabs-segmented-gap);
+  isolation: isolate;
+  padding: var(--tabs-segmented-inset);
+  border: 1px solid var(--tabs-segmented-track-border);
+  border-radius: var(--tabs-segmented-radius);
+  background: var(--tabs-segmented-track-background);
+}
+
+.scrape-intake__tabs > [data-slot='tabs-list']::before {
+  position: absolute;
+  z-index: 0;
+  inset: var(--tabs-segmented-inset) auto var(--tabs-segmented-inset) var(--tabs-segmented-inset);
+  width: calc((100% - (var(--tabs-segmented-gap) * 4)) / 3);
+  border-radius: var(--tabs-segmented-inner-radius);
+  background: var(--tabs-segmented-active-background);
+  box-shadow: var(--tabs-segmented-active-shadow);
+  content: '';
+  pointer-events: none;
+  transform: translateX(0);
+  transition: transform var(--tabs-segmented-transition);
+}
+
+.scrape-intake__tabs > [data-slot='tabs-list'][data-active-index='1']::before {
+  transform: translateX(calc(100% + var(--tabs-segmented-gap)));
+}
+
+.scrape-intake__tabs > [data-slot='tabs-list'][data-active-index='2']::before {
+  transform: translateX(calc((100% + var(--tabs-segmented-gap)) * 2));
+}
+
+.scrape-intake__tab {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  min-height: 3.25rem;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.65rem;
+  padding: 0.55rem 0.7rem;
+  text-align: left;
+  border-radius: var(--tabs-segmented-inner-radius);
+  color: var(--tabs-segmented-muted-foreground);
+  background: transparent;
+  box-shadow: none;
+  transition:
+    color var(--tabs-segmented-transition),
+    border-color var(--tabs-segmented-transition);
+}
+
+.scrape-intake__tab[data-state='active'] {
+  background: transparent;
+  box-shadow: none;
+}
+
+.scrape-intake__tab[data-state='active'] span {
+  color: var(--tabs-segmented-active-foreground);
+}
+
+.scrape-intake__tab span {
+  color: var(--tabs-segmented-muted-foreground);
+  font-size: var(--tabs-segmented-label-size);
+  font-weight: var(--tabs-segmented-label-weight);
+  line-height: var(--tabs-segmented-label-line-height);
+}
+
+.scrape-intake__form,
+.scrape-intake__field {
+  min-width: 0;
+}
+
+.scrape-intake__field {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.scrape-intake__field > label {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: var(--admin-field-label-weight);
+}
+
+.scrape-intake__field > p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.73rem;
+  line-height: 1.55;
+}
+
+.scrape-intake__control-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.scrape-intake__control-row--search {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
+.scrape-intake__control-row--ranking {
+  grid-template-columns: 10rem minmax(0, 1fr) auto;
+}
+
+.scrape-intake__control-row [data-slot='tabs-list'] {
+  height: var(--admin-control-height);
+}
+
+.scrape-intake__control-row--search > [data-slot='tabs'] {
+  align-self: stretch;
+}
+
+.scrape-intake__search-type {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-height: 2.5rem;
+  height: auto;
+  gap: var(--tabs-segmented-gap);
+  isolation: isolate;
+  padding: var(--tabs-segmented-inset);
+  border: 1px solid var(--tabs-segmented-track-border);
+  border-radius: var(--tabs-segmented-radius);
+  background: var(--tabs-segmented-track-background);
+}
+
+.scrape-intake__search-type::before {
+  position: absolute;
+  z-index: 0;
+  inset: var(--tabs-segmented-inset) auto var(--tabs-segmented-inset) var(--tabs-segmented-inset);
+  width: calc((100% - var(--tabs-segmented-gap) * 3) / 2);
+  border-radius: var(--tabs-segmented-inner-radius);
+  background: var(--tabs-segmented-active-background);
+  box-shadow: var(--tabs-segmented-active-shadow);
+  content: '';
+  pointer-events: none;
+  transform: translateX(0);
+  transition: transform var(--tabs-segmented-transition);
+}
+
+.scrape-intake__search-type[data-active-index='1']::before {
+  transform: translateX(calc(100% + var(--tabs-segmented-gap)));
+}
+
+.scrape-intake__search-type > [data-slot='tabs-trigger'] {
+  position: relative;
+  z-index: 1;
+  min-height: 1.75rem;
+  height: auto;
+  justify-content: center;
+  padding: 0.15rem 0.35rem;
+  border-radius: var(--tabs-segmented-inner-radius);
+  background: transparent;
+  box-shadow: none;
+  color: var(--tabs-segmented-muted-foreground);
+  transition:
+    color var(--tabs-segmented-transition),
+    border-color var(--tabs-segmented-transition);
+}
+
+.scrape-intake__search-type > [data-slot='tabs-trigger'][data-state='active'] {
+  background: transparent;
+  box-shadow: none;
+  color: var(--tabs-segmented-active-foreground);
+}
+
+.scrape-intake__control-row [data-slot='tabs-trigger'] {
+  padding-inline: 0.7rem;
+}
+
+.scrape-intake__site {
+  align-self: stretch;
+  height: var(--admin-control-height);
+  min-height: var(--admin-control-height);
+  max-width: none;
+}
+
+.scrape-discovery__loading {
+  display: grid;
+  position: relative;
+  gap: 0.65rem;
+  padding: 0.15rem 0;
+}
+
+.scrape-discovery__loading > span {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.scrape-skeleton-row {
+  height: 3.8rem;
+  border-radius: var(--admin-radius-sm);
+  background: linear-gradient(90deg, var(--admin-inset), color-mix(in srgb, var(--accent-subtle) 72%, var(--admin-inset)), var(--admin-inset));
+  background-size: 200% 100%;
+  animation: scrape-skeleton 1.2s ease-in-out infinite;
+}
+
+@keyframes scrape-skeleton {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
+.scrape-discovery__empty {
+  display: grid;
+  justify-items: center;
+  gap: 0.45rem;
+  padding: 2rem 1rem;
+  border: 1px dashed var(--admin-border-strong);
+  border-radius: var(--admin-radius);
+  background: var(--admin-inset);
+  text-align: center;
+}
+
+.scrape-discovery__empty > svg {
+  width: 1.4rem;
+  height: 1.4rem;
+  color: var(--text-muted);
+}
+
+.scrape-discovery__empty strong {
+  color: var(--text-primary);
+  font-size: 0.86rem;
+}
+
+.scrape-discovery__empty span {
+  color: var(--text-muted);
+  font-size: 0.76rem;
+}
+
+.scrape-discovery__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0.65rem 0.75rem;
+  border-top: 1px solid var(--admin-border);
+  border-bottom: 1px solid var(--admin-border);
+  background: var(--admin-panel-muted);
+}
+
+.scrape-discovery__select-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex: 0 0 auto;
+  color: var(--text-primary);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.scrape-discovery__toolbar-note {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 0.73rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scrape-discovery__toolbar > button {
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
+.scrape-discovery__toolbar svg,
+.scrape-discovery__action svg,
+.scrape-batch svg {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+.scrape-discovery__list {
+  display: grid;
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius);
+  background: var(--admin-panel);
+}
+
+.scrape-discovery__row {
+  display: grid;
+  grid-template-columns: auto 3.35rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0.75rem;
+  transition: background-color 160ms var(--admin-motion-ease-out);
+}
+
+.scrape-discovery__row + .scrape-discovery__row {
+  border-top: 1px solid var(--admin-border);
+}
+
+.scrape-discovery__row:hover {
+  background: color-mix(in srgb, var(--accent-subtle) 54%, transparent);
+}
+
+.scrape-discovery__row.is-existing {
+  background: color-mix(in srgb, var(--admin-inset) 78%, transparent);
+}
+
+.scrape-discovery__checkbox {
+  flex: 0 0 auto;
+}
+
+.scrape-discovery__cover {
+  display: grid;
+  position: relative;
+  width: 3.35rem;
+  height: 4.45rem;
+  place-items: center;
+  overflow: hidden;
+  border-radius: var(--admin-radius-sm);
+  background: linear-gradient(145deg, var(--accent-light), var(--admin-inset));
+  color: var(--accent);
+  font-size: 1.25rem;
+  font-weight: 750;
+}
+
+.scrape-discovery__cover img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.scrape-discovery__cover.is-broken::before,
+.scrape-setup__cover.is-empty::before {
+  content: attr(data-letter);
+  display: block;
+  color: var(--accent);
+  font-size: 1.25rem;
+  font-weight: 750;
+}
+
+.scrape-discovery__copy {
+  display: grid;
+  min-width: 0;
+  gap: 0.24rem;
+}
+
+.scrape-discovery__title-line {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.scrape-discovery__title-line h4 {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scrape-discovery__title-line [data-slot='badge'] {
+  flex: 0 0 auto;
+}
+
+.scrape-discovery__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  color: var(--text-muted);
+  font-size: 0.73rem;
+}
+
+.scrape-discovery__meta span + span::before {
+  content: '·';
+  margin-right: 0.65rem;
+  color: var(--admin-border-strong);
+}
+
+.scrape-discovery__copy p {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 0.74rem;
+  line-height: 1.5;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.scrape-discovery__action {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  justify-content: flex-end;
+}
+
+.scrape-discovery__action a {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border-radius: var(--admin-radius-sm);
+  color: var(--text-muted);
+}
+
+.scrape-discovery__action a:hover {
+  background: var(--admin-inset);
+  color: var(--accent);
+}
+
+/* .scrape-discovery__pagination 已随收敛删除：该类消费者归零，
+   分页由 .admin-pagination 统一承担。 */
+
+.scrape-batch {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.8rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--admin-border));
+  border-radius: var(--admin-radius);
+  background: var(--accent-subtle);
+}
+
+.scrape-batch__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.scrape-batch__heading > div {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+}
+
+.scrape-batch__heading strong {
+  color: var(--text-primary);
+  font-size: 0.8rem;
+}
+
+.scrape-batch__heading span {
+  color: var(--text-muted);
+  font-size: 0.73rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.scrape-batch__last {
+  display: grid;
+  gap: 0.2rem;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.scrape-batch__last span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scrape-batch__last .is-ok {
+  color: var(--color-success);
+}
+.scrape-batch__last .is-err {
+  color: var(--color-danger);
+}
+
+.scrape-setup-state {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.scrape-setup-state > div:not(.scrape-setup-state__icon) {
+  display: grid;
+  min-width: 0;
+  gap: 0.2rem;
+}
+
+.scrape-setup-state strong {
+  color: var(--text-primary);
+  font-size: 0.86rem;
+}
+
+.scrape-setup-state span {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.scrape-setup-state__icon {
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: var(--radius-full);
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+
+.scrape-setup-state__icon svg {
+  width: 1rem;
+  height: 1rem;
+  animation: scrape-pulse 1.4s ease-in-out infinite;
+}
+
+.scrape-setup-state.is-error {
+  justify-content: space-between;
+  border-color: color-mix(in srgb, var(--color-danger) 30%, var(--admin-border));
+}
+
+.scrape-setup-state.is-error strong,
+.scrape-setup-state.is-error span {
+  color: var(--color-danger);
+}
+
+@keyframes scrape-pulse {
+  50% {
+    opacity: 0.45;
+    transform: scale(0.88);
+  }
+}
+
+/* 作品分区。ScrapeSetupPanel 的唯一消费者是抓取中心，该页把每一段拉平成
+   面板内的水平分区（1px 底线 + 间距），不再套内嵌卡片；这里与页面规则对齐，
+   避免两层意图各自声明 border/背景/圆角。 */
+.scrape-setup__book {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.85rem;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.scrape-setup__cover {
+  display: grid;
+  width: 4.5rem;
+  height: 6rem;
+  place-items: center;
+  overflow: hidden;
+  border-radius: var(--admin-radius-sm);
+  background: linear-gradient(145deg, var(--accent-light), var(--admin-panel));
+  color: var(--accent);
+  font-size: 1.6rem;
+  font-weight: 750;
+}
+
+.scrape-setup__cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* 共享的 .scrape-discovery__cover.is-broken::before 把字号定在 1.25rem ——
+   那是发现卡 3.35rem 封面（约 1.4rem 宽）的档位。本面板封面是 4.5rem，
+   沿用会让占位首字明显偏小。此处回填本表面自己的字号，避免上面声明的
+   1.6rem 成为被覆盖的死值。 */
+.scrape-setup__cover.is-empty::before {
+  font-size: 1.6rem;
+}
+
+.scrape-setup__book-copy {
+  display: grid;
+  min-width: 0;
+  gap: 0.35rem;
+}
+
+.scrape-setup__book-title {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scrape-setup__book-source {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scrape-setup__book-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.scrape-setup__fields,
+.scrape-setup__config-fields,
+.scrape-setup__selector-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem 1rem;
+  min-width: 0;
+}
+
+/* ScrapeField 的标签与抓取入口字段取同一规格。此前 ScrapeField 直接用 shadcn
+   Label 默认值（0.875rem / 500 / --text-foreground），而同一页的
+   .scrape-intake__field > label 是 0.78rem / 400 / --text-secondary —— 同一张
+   表单里两种标签语言，面板内的表单因此比入口区更「重」。 */
+.admin-layout .scrape-field > [data-slot='label'] {
+  color: var(--text-secondary);
+  font-size: 0.78rem; /* caption 档 */
+  font-weight: var(--admin-field-label-weight);
+  line-height: 1.4;
+}
+
+.scrape-setup__field--wide {
+  grid-column: 1 / -1;
+}
+
+/* 简介框定高：无论简介长短都占同一尺寸，避免面板高度被简介长度牵着走。
+   shadcn Textarea 基类带 field-sizing-content（高度跟随内容），只写 min-height
+   压不住它——简介长时整块面板会跟着长高，「保存书籍并继续」与章节配置被推走。
+   这里固定高度并让超出部分在框内滚动，既保住版面节奏，也给超长简介留出口。
+   resize: vertical 保留：是否放大由用户决定，不由内容决定。
+   选择器带上 .admin-layout 前缀，特异性高于基类的 field-sizing 工具类与
+   .admin-layout [data-slot='textarea']，避免被层序压掉。
+   注：不改全局 Textarea —— DESIGN.md 要求长提示词/章节正文/JSON 保持可伸缩。 */
+.admin-layout .scrape-setup__description {
+  field-sizing: fixed;
+  height: 7rem;
+  overflow-y: auto;
+  resize: vertical;
+  line-height: 1.65;
+}
+
+.scrape-setup__save-row,
+.scrape-setup__test-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.scrape-setup__save-row {
+  padding-top: 0.25rem;
+  border-top: 1px solid var(--admin-border);
+}
+
+.scrape-setup__save-row span {
+  color: var(--text-muted);
+  font-size: 0.78rem; /* caption 档 */
+}
+
+.scrape-setup__config {
+  display: grid;
+  gap: 0.8rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--admin-border);
+}
+
+/* 章节配置分区头：标题块 + 折叠按钮。此前只声明了 h4 与 button 的样式，
+   容器本身没有 display，标题与按钮按块级流堆叠，媒体查询里的 flex-direction
+   与 align-self 全部作用在非 flex 容器上而不生效。 */
+.scrape-setup__config-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.scrape-setup__config-copy {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.scrape-setup__config-heading h4 {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 0.875rem; /* 后台面板内小节标题，与 --admin-field-label 同档 */
+  font-weight: 700;
+}
+
+.scrape-setup__config-heading p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.78rem; /* caption 档 */
+  line-height: 1.5;
+}
+
+.scrape-setup__config-heading h4 svg {
+  width: 1rem;
+  height: 1rem;
+  color: var(--accent);
+}
+
+.scrape-setup__config-heading button svg {
+  width: 0.85rem;
+  height: 0.85rem;
+  transition: transform 160ms var(--admin-motion-ease-out);
+}
+
+/* 高级配置：面板内的嵌套表面，取 16px（--radius-xl）——DESIGN.md
+   「嵌套表面与对话框 16px」，与面板自身 20px 形成一档递进。 */
+.scrape-setup__advanced {
+  display: grid;
+  gap: 0.8rem;
+  padding: 0.8rem;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--radius-xl);
+  background: var(--admin-inset);
+}
+
+.scrape-setup__preset-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+
+/* 选择器来源分段的页面级排布见文末 .admin-redesign-page--scrape 区块：
+   几何、激活层与动效统一读 --tabs-segmented-*，此处只声明自身占位。 */
+.scrape-setup__preset-tabs {
+  flex: 0 0 auto;
+}
+
+/* 选择器网格分组：advanced 内部再降一档到 12px（--radius-lg），
+   与控件圆角同档，避免 16px 套 16px 的浑浊层次。 */
+.scrape-setup__fieldset {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--radius-lg);
+}
+
+.scrape-setup__fieldset legend {
+  padding: 0 0.35rem;
+  color: var(--text-secondary);
+  font-size: 0.78rem; /* caption 档 */
+  font-weight: 700;
+}
+
+.scrape-setup__test-row {
+  /* 次要动作：只在展开高级配置或已有测试结果时出现，起点对齐即可。 */
+  justify-content: flex-start;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--admin-border);
+}
+
+.scrape-setup__start {
+  min-width: 7.5rem;
+}
+
+/* 折叠态主操作行：两个结论性数字 + 开始按钮。
+   数字是「要不要现在抓」的唯一决策依据（能抓多少、有多少抓不到），
+   所以用 --admin-table-* 的标签档配一个明显更大的数值档，形成读数节奏；
+   它不参与布局计算，也不引入新的字号层级。 */
+.scrape-setup__run {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--admin-border);
+}
+
+.scrape-setup__run-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  margin: 0;
+  min-width: 0;
+}
+
+.scrape-setup__run-stat {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.scrape-setup__run-stat dt {
+  color: var(--text-muted);
+  font-size: 0.72rem; /* table-head 档 */
+  font-weight: 650;
+}
+
+.scrape-setup__run-stat dd {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 1.45rem; /* stat 档：与 0.72rem 标签形成尺寸断裂 */
+  font-weight: 750;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 受保护章节是「抓不到」的信息，用警告色提示，但不做成红色错误——
+   它是源站的正常商业模式，不是故障。 */
+.scrape-setup__run-stat dd.is-warning {
+  color: var(--color-warning);
+}
+
+.scrape-setup__run .scrape-setup__start {
+  margin-left: auto;
+}
+
+.scrape-setup__test-result {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--radius-lg);
+  background: var(--admin-inset);
+  color: var(--text-muted);
+  font-size: 0.78rem; /* caption 档 */
+}
+
+.scrape-setup__test-result ul {
+  display: grid;
+  gap: 0.25rem;
+  max-height: 9rem;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0 0 0 1rem;
+  color: var(--text-secondary);
+}
+
+.scrape-config-card {
+  margin-top: 0;
+}
+
+.scrape-config-card__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.scrape-config-card__actions svg {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+.scrape-config-card__actions span {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.scrape-workbench__aside {
+  display: grid;
+  position: sticky;
+  top: 1rem;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.scrape-workbench__count {
+  display: grid;
+  min-width: 1.65rem;
+  height: 1.65rem;
+  place-items: center;
+  border-radius: var(--radius-full);
+  background: var(--accent-subtle);
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+
+.scrape-job-queue__empty {
+  display: grid;
+  justify-items: center;
+  gap: 0.5rem;
+  padding: 2rem 1.25rem;
+  border: 1px dashed var(--admin-border-strong);
+  border-radius: var(--admin-radius);
+  background: var(--admin-inset);
+  text-align: center;
+}
+
+.scrape-job-queue__empty > svg {
+  width: 1.5rem;
+  height: 1.5rem;
+  color: var(--text-muted);
+}
+
+.scrape-job-queue__empty strong {
+  color: var(--text-primary);
+  font-size: 0.8rem;
+}
+
+.scrape-job-queue__empty span {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  line-height: 1.55;
+}
+
+@media (max-width: 1100px) {
+  .scrape-center__layout {
+    grid-template-columns: minmax(0, 1fr) 18rem;
+  }
+
+  .scrape-intake__control-row--ranking {
+    grid-template-columns: 9rem minmax(0, 1fr) auto;
+  }
+}
+
+@media (max-width: 900px) {
+  .scrape-center__layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .scrape-workbench__aside {
+    position: static;
+  }
+
+  .scrape-job-queue {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .scrape-job-queue__empty {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 640px) {
+  .scrape-intake__tabs > [data-slot='tabs-list'] {
+    grid-template-columns: 1fr;
+  }
+
+  .scrape-intake__tab {
+    min-height: 2.65rem;
+  }
+
+  .scrape-intake__control-row,
+  .scrape-intake__control-row--search,
+  .scrape-intake__control-row--ranking {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .scrape-intake__control-row > button,
+  .scrape-intake__site,
+  .scrape-intake__control-row [data-slot='tabs'] {
+    width: 100%;
+    max-width: none;
+  }
+
+  .scrape-intake__control-row--search > [data-slot='tabs'] {
+    min-width: 0;
+  }
+
+  .scrape-intake__control-row [data-slot='tabs-list'] {
+    width: 100%;
+  }
+
+  .scrape-discovery__toolbar {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .scrape-discovery__toolbar-note {
+    order: 3;
+    width: 100%;
+  }
+
+  .scrape-discovery__toolbar > button {
+    margin-left: auto;
+  }
+
+  .scrape-discovery__row {
+    grid-template-columns: auto 3rem minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .scrape-discovery__cover {
+    width: 3rem;
+    height: 4rem;
+  }
+
+  .scrape-discovery__action {
+    grid-column: 2 / -1;
+    justify-content: flex-start;
+    padding-top: 0.15rem;
+  }
+
+  .scrape-discovery__action a {
+    margin-left: 0.25rem;
+  }
+
+  .scrape-setup__config-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .scrape-setup__config-heading > button {
+    align-self: flex-start;
+  }
+
+  .scrape-setup__fields,
+  .scrape-setup__config-fields,
+  .scrape-setup__selector-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .scrape-setup__field--wide {
+    grid-column: auto;
+  }
+
+  .scrape-setup__preset-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .scrape-setup__test-row > button {
+    flex: 1 1 auto;
+  }
+
+  /* 折叠态主操作行：窄屏下数字与按钮各占一行，按钮全宽——
+     避免 1.45rem 的数值与按钮挤在同一行时互相压扁。 */
+  .scrape-setup__run {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .scrape-setup__run-stats {
+    gap: 1.25rem;
+  }
+
+  .scrape-setup__run .scrape-setup__start {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .scrape-job-queue {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scrape-skeleton-row,
+  .scrape-setup-state__icon svg {
+    animation: none;
+  }
+
+  .scrape-intake__tabs > [data-slot='tabs-list'] {
+    --tabs-segmented-duration: 0.001ms;
+  }
+
+  .scrape-discovery__row,
+  .scrape-setup__config-heading button svg {
+    transition: none;
+  }
+}
+
+/* 深色主题：--admin-* 大多数由 color-mix 从语义色派生，会自动跟随 [data-theme="dark"]；
+   这里只补三处派生结果在暗底上会失真或过曝的值（描边偏亮、白高光刺眼）。 */

@@ -1,0 +1,111 @@
+/* 任务队列：状态筛选属于高频的分段切换，与审核类型共用同一套
+   --tabs-segmented-* 几何与位移契约，只在这里补页面级排布。
+   工具栏沿用章节目录工具栏的内边距与分隔线，面板标题已负责上边界，
+   故不再叠加 border-top。 */
+.admin-redesign-page--jobs .jobs-toolbar {
+  padding: var(--admin-space-2) var(--admin-space-3);
+  border-top: 0;
+  border-bottom: 1px solid var(--admin-border);
+}
+
+.admin-redesign-page--jobs .jobs-toolbar__filters {
+  display: flex;
+  align-items: center;
+  gap: var(--admin-space-3);
+  min-width: 0;
+}
+
+.admin-redesign-page--jobs .jobs-toolbar__label {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.admin-redesign-page--jobs .jobs-toolbar__modes {
+  flex: 0 0 auto;
+}
+
+.admin-redesign-page--jobs .jobs-toolbar__modes [data-slot='tabs-list'] {
+  position: relative;
+  isolation: isolate;
+  height: var(--admin-control-height);
+  width: 21rem;
+}
+
+/* 激活背景只位移、不重排：四段等宽，位移量按段宽 + 间隙递推。 */
+.admin-redesign-page--jobs .jobs-toolbar__modes [data-slot='tabs-list']::before {
+  position: absolute;
+  z-index: 0;
+  inset: var(--tabs-segmented-inset) auto var(--tabs-segmented-inset) var(--tabs-segmented-inset);
+  width: calc((100% - (var(--tabs-segmented-gap) * 6)) / 4);
+  border-radius: var(--tabs-segmented-inner-radius);
+  background: var(--tabs-segmented-active-background);
+  box-shadow: var(--tabs-segmented-active-shadow);
+  content: '';
+  pointer-events: none;
+  transform: translateX(0);
+  transition: transform var(--tabs-segmented-transition);
+}
+
+.admin-redesign-page--jobs .jobs-toolbar__modes [data-slot='tabs-list'][data-active-index='1']::before {
+  transform: translateX(calc(100% + var(--tabs-segmented-gap)));
+}
+
+.admin-redesign-page--jobs .jobs-toolbar__modes [data-slot='tabs-list'][data-active-index='2']::before {
+  transform: translateX(calc(200% + var(--tabs-segmented-gap) + var(--tabs-segmented-gap)));
+}
+
+.admin-redesign-page--jobs .jobs-toolbar__modes [data-slot='tabs-list'][data-active-index='3']::before {
+  transform: translateX(calc(300% + var(--tabs-segmented-gap) + var(--tabs-segmented-gap) + var(--tabs-segmented-gap)));
+}
+
+.admin-redesign-page--jobs .jobs-toolbar__modes [data-slot='tabs-trigger'] {
+  z-index: 1;
+  background: transparent;
+  box-shadow: none;
+}
+
+.admin-redesign-page--jobs .jobs-toolbar__modes [data-slot='tabs-trigger'][data-state='active'] {
+  background: transparent;
+  box-shadow: none;
+}
+
+/* 列表状态胶囊：与审核列表同构，任务与日志两个面板各有一枚。 */
+/* 空态/加载态/失败态共用一块竖直居中的纸面区，取代此前拼在表格里的空行。 */
+.admin-redesign-page--jobs .jobs-empty {
+  min-height: 14rem;
+  padding: 2.5rem 1.25rem;
+}
+
+.admin-redesign-page--jobs .jobs-empty--error {
+  color: var(--color-danger);
+}
+
+.admin-redesign-page--jobs .jobs-empty .job-spinner {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-width: 2px;
+}
+
+@media (max-width: 900px) {
+  .admin-redesign-page--jobs .jobs-toolbar__filters {
+    align-items: stretch;
+    flex-direction: column;
+    gap: var(--admin-space-2);
+  }
+
+  .admin-redesign-page--jobs .jobs-toolbar__modes {
+    width: 100%;
+  }
+
+  .admin-redesign-page--jobs .jobs-toolbar__modes [data-slot='tabs-list'] {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-redesign-page--jobs .jobs-toolbar__modes [data-slot='tabs-list']::before {
+    --tabs-segmented-duration: 0.001ms;
+  }
+}

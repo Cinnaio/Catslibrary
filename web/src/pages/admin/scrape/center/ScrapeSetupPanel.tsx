@@ -1,3 +1,4 @@
+import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import { useId } from 'react'
 import { Check, ChevronDown, FlaskConical, RotateCcw, Settings2 } from 'lucide-react'
 import type { ContentRating } from '@shared/types'
@@ -151,15 +152,15 @@ export default function ScrapeSetupPanel({
           <div className="scrape-setup__book-badges">
             <Badge variant="outline">待导入</Badge>
             {preview.status && (
-              <Badge className={preview.status === 'completed' ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}>
+              <AdminStatusBadge tone={preview.status === 'completed' ? 'success' : 'warning'}>
                 {preview.status === 'completed' ? '已完结' : '连载中'}
-              </Badge>
+              </AdminStatusBadge>
             )}
             {novelId && (
-              <Badge className="bg-success/10 text-success">
+              <AdminStatusBadge tone="success">
                 <Check aria-hidden="true" />
                 已保存
-              </Badge>
+              </AdminStatusBadge>
             )}
           </div>
         </div>
@@ -277,9 +278,7 @@ export default function ScrapeSetupPanel({
         {/* 折叠态：只留两个决定「要不要现在抓」的数字和一个开始按钮。
             完整配置项（URL / 编码 / 选择器）平时不该占据视线——它们由智能分析
             填好，只有异常时才需要人介入。 */}
-        <p className="text-xs leading-relaxed text-muted-foreground">
-          先保存书籍信息，再测试章节选择器。所有修改只会在点击启动后写入抓取任务。
-        </p>
+        <p className="text-xs leading-relaxed text-muted-foreground">先保存书籍信息，再测试章节选择器。所有修改只会在点击启动后写入抓取任务。</p>
         <div className="scrape-setup__run">
           <dl className="scrape-setup__run-stats">
             <div className="scrape-setup__run-stat">
@@ -317,10 +316,10 @@ export default function ScrapeSetupPanel({
           <div className="scrape-setup__test-result" role="status">
             {links.length > 0 ? (
               <>
-                <Badge className="bg-success/10 text-success">
+                <AdminStatusBadge tone="success">
                   <Check aria-hidden="true" />
                   测试通过 · {links.length} 个章节链接
-                </Badge>
+                </AdminStatusBadge>
                 <ul>
                   {links.slice(0, 8).map((link, index) => (
                     <li key={index}>{link.text || link.href}</li>

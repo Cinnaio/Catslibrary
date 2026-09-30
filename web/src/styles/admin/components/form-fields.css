@@ -1,0 +1,11 @@
+/* 字段布局由 AdminFormField 与 ScrapeField 共用，控件状态仍由 ui 原语负责。 */
+.admin-form-field {
+  display: grid;
+  gap: var(--admin-field-gap);
+}
+
+.admin-form-field__hint {
+  color: var(--text-muted);
+  font-size: var(--admin-dialog-hint-size);
+  line-height: 1rem;
+}

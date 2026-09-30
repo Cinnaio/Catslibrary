@@ -445,6 +445,8 @@ components:
 
 ## Do's and Don'ts
 
+后台样式的维护入口为 `web/src/styles/admin-operations.css` 的导入清单：后台语义变量集中在 `web/src/styles/admin/tokens.css`，共用外观在 `admin/components/`，业务布局在 `admin/pages/`，框架在 `admin/shell.css`。字段、状态与弹窗分别使用 `AdminFormField`、`AdminStatusBadge` / `AdminContentRatingBadge`、`AdminDialogContent`，具体归属与用法见 [后台共用样式与组件](docs/admin-style-system.md)。保留现有视觉与响应式契约，不在入口末尾继续堆叠覆盖规则。
+
 ### Do:
 - **Do** 使用暖灰色调作为地面和背景，保持"纸面"质感
 - **Do** 保持强调色的稀缺性——奶茶棕只出现在交互元素和品牌标记上

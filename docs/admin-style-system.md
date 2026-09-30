@@ -1,0 +1,98 @@
+# 后台共用样式与组件
+
+后台沿用现有暖纸面视觉。页面提供数据、业务文案与操作，共用组件提供外观、结构和响应式契约。
+
+## 样式入口与归属
+
+`web/src/styles/global.css` 仍通过 `admin-operations.css` 加载后台样式。`admin-operations.css` 只作为导入清单，不再追加页面样式或补丁。本次拆分保持原规则的相对顺序，既有未分层规则仍优先于 Tailwind utilities；不要给其中一部分单独加 `@layer`。
+
+| 需要调整的内容 | 修改位置 |
+| --- | --- |
+| 后台颜色、字号、间距、圆角、控件尺寸、表格密度、动效和弹窗尺寸 | `web/src/styles/admin/tokens.css` |
+| 侧栏、顶栏和后台框架 | `web/src/styles/admin/shell.css` |
+| 页头、面板、工具栏、搜索、筛选、分页、表格、状态、字段、弹窗与异步反馈 | `web/src/styles/admin/components/` 中对应模块 |
+| AI 工作流、抓取配置、章节融合、账户等业务专属布局 | `web/src/styles/admin/pages/` 中对应模块 |
+| 全站基础色板、字体、公共圆角和公共分段控件 | `web/src/styles/tokens.css` |
+
+例如，改表格密度先改 `--admin-table-row-height`；改所有字段间距先改 `--admin-field-gap`；改弹窗先查 `components/dialogs.css` 和 `components/dialog-variants.css`。页面样式只补业务布局，不再重复声明共用面板的底色、圆角、标题或状态颜色。
+
+`_admin.css`、`_admin-ui.css` 中仍兼容原有编辑器和公共旧控件，加载顺序保留在原位置。这些文件的公共选择器也可能影响前台；新后台代码使用下列共用组件，删除旧规则前需查清消费者。
+
+## 页面、数据和操作
+
+沿用已有 `AdminPage`、`AdminPanelHeading`、`AdminToolbar`、`AdminSearch`、`AdminDataPanel`、`AdminSelectionBar`、`AdminRowActions`、`AdminEmptyState`、`AsyncStates` 与 `Pagination`。
+
+- 页头提供页面名、说明和整页动作。筛选条件属于工具栏。
+- 数据表面使用 `AdminDataPanel`。`columns` 只配置列宽；真实单元格仍需 `data-label`、`data-primary`、`data-actions`。
+- 表格在 900px 及以下按已有契约转为卡片。含跨列展开的审计表可保留横向滚动。
+- `Pagination` 的 `panel` 与 `detached` 变体共用翻页和页大小行为，不另写一套页脚。
+- 批量操作和行内操作沿用共用组件；业务负责危险操作确认与请求处理。
+- `AdminMetricStrip` 保持已有停用约定，不在新页面重新引入。
+
+## 字段
+
+`AdminFormField` 统一标签、控件与辅助说明的间距。简单控件沿用既有 ID 和事件处理器：
+
+```tsx
+<AdminFormField label="模型" htmlFor="provider-model" hint="填入供应商支持的模型名称">
+  <Input id="provider-model" value={model} onChange={onModelChange} />
+</AdminFormField>
+```
+
+复合控件可使用 render prop，自动得到独立的控件 ID 和标签 ID：
+
+```tsx
+<AdminFormField label="来源">
+  {({ labelId }) => (
+    <CustomSelect aria-labelledby={labelId} options={options} value={source} onChange={setSource} />
+  )}
+</AdminFormField>
+```
+
+`labelId` 可保留既有下拉控件的标签关联。抓取中心的 `ScrapeField` 继续保留原调用接口，内部复用 `AdminFormField`。业务专属的复杂分组不需要硬改成普通字段。
+
+## 状态标签
+
+状态使用 `AdminStatusBadge`，由业务明确选择 `tone`：`success`、`info`、`warning`、`danger`、`accent`、`brand`、`muted`、`subtle` 或 `neutral`。颜色和背景统一由 `components/status-badges.css` 与主题变量提供。`accent` 是浅色强调底，`brand` 是原有完整强调色底。
+
+```tsx
+<AdminStatusBadge tone={failed ? 'danger' : 'success'}>
+  {failed ? '失败' : '已完成'}
+</AdminStatusBadge>
+```
+
+内容分级使用 `AdminContentRatingBadge`：`general` 显示“一般”，`restricted` 显示“限制级”，`unknown` 和缺失值显示“未标注”。需要额外说明时可传 `children`，不修改原分级值或审核逻辑。类别、计数、候选序号等非状态信息继续使用基础 `Badge`。
+
+## 弹窗
+
+后台统一使用 `AdminDialogContent`，保留基础 `Dialog`、`DialogHeader`、`DialogTitle`、`DialogDescription`、`DialogFooter` 的组合方式：
+
+| 变体 | 使用场景 |
+| --- | --- |
+| `form`（默认） | 标准三段式配置、审核、导入与抓取弹窗 |
+| `editor` | 小说编辑、章节编辑与章节融合，共用紧凑首尾间距 |
+| `reading` | 长正文、输入 Prompt；`size="wide"` 扩大阅读空间，`fixedHeight` 保持编辑窗口高度 |
+| `preview` | 图片预览 |
+
+标准正文区使用 `AdminDialogBody`。复杂的内容编辑、批次操作和图片预览保留自己的内部滚动区，只将外壳尺寸与外观交给共用层。
+
+```tsx
+<Dialog open={open} onOpenChange={setOpen}>
+  <AdminDialogContent variant="editor">
+    <DialogHeader>
+      <DialogTitle>编辑小说</DialogTitle>
+      <DialogDescription>修改作品信息。</DialogDescription>
+    </DialogHeader>
+    <AdminDialogBody>{fields}</AdminDialogBody>
+    <DialogFooter>{actions}</DialogFooter>
+  </AdminDialogContent>
+</Dialog>
+```
+
+所有后台变量都在 `:root` 定义，深色主题在同一文件覆盖，确保渲染到 `body` 下的 Radix portal 能继承。共用外壳保留 portal、焦点圈定、Escape 关闭和焦点返回行为。前台弹窗继续使用基础 UI 组件，不隐式套后台样式。
+
+## 维护边界与验收
+
+重复三次以上且用途相同的模式优先抽到共用层。AI 创作、抓取步骤、画像校正等业务布局仍留在对应页面模块；不用一套配置表强行生成所有页面。
+
+重构需要分别检查类型、已有业务测试、构建和实际浏览器布局。重点检查 900/901px 表格边界、360/390px 窄屏、明暗主题、表单标签关联、弹窗独立滚动和关闭后的焦点。模拟数据的组件预览只能证明相关结构与样式，不能代替真实管理员操作和 API 验收。

@@ -1,3 +1,5 @@
+import AdminFormField from '@/components/admin/AdminFormField'
+import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import { useCallback, useEffect, useState } from 'react'
 import { CircleCheck, Cookie, Trash2, UserRound } from 'lucide-react'
 import { useConfirm, useToast } from '../../../components/feedback'
@@ -24,11 +26,7 @@ function accountBadge(status: Po18AccountStatus | null) {
   if (!status) return <Badge variant="secondary">读取中…</Badge>
   const good = status.status === 'authenticated' || status.status === 'session_saved'
   const bad = status.status === 'invalid' || status.status === 'error'
-  return (
-    <Badge className={good ? 'bg-success/10 text-success' : bad ? 'bg-destructive/10 text-destructive' : 'bg-warning/10 text-warning'}>
-      {STATUS_LABEL[status.status]}
-    </Badge>
-  )
+  return <AdminStatusBadge tone={good ? 'success' : bad ? 'danger' : 'warning'}>{STATUS_LABEL[status.status]}</AdminStatusBadge>
 }
 
 export default function Po18AccountPanel({ active }: { active: boolean }) {
@@ -191,8 +189,7 @@ export default function Po18AccountPanel({ active }: { active: boolean }) {
           </div>
 
           <div className="po18-account-fields">
-            <div className="grid gap-1.5">
-              <Label htmlFor="po18-account-username">账号</Label>
+            <AdminFormField label="账号" htmlFor="po18-account-username">
               <Input
                 id="po18-account-username"
                 autoComplete="username"
@@ -200,9 +197,8 @@ export default function Po18AccountPanel({ active }: { active: boolean }) {
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="PO18.tw 登录账号"
               />
-            </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="po18-account-password">密码</Label>
+            </AdminFormField>
+            <AdminFormField label="密码" htmlFor="po18-account-password">
               <Input
                 id="po18-account-password"
                 type="password"
@@ -211,7 +207,7 @@ export default function Po18AccountPanel({ active }: { active: boolean }) {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder={status?.hasPassword ? '留空表示保持原密码' : 'PO18.tw 登录密码'}
               />
-            </div>
+            </AdminFormField>
           </div>
 
           <div className="po18-account-actions">
@@ -238,11 +234,7 @@ export default function Po18AccountPanel({ active }: { active: boolean }) {
               )}
               <div className="po18-account-captcha__row">
                 {challenge.imageDataUrl ? (
-                  <img
-                    src={challenge.imageDataUrl}
-                    alt="PO18.tw 登录验证码"
-                    className="po18-account-captcha__image"
-                  />
+                  <img src={challenge.imageDataUrl} alt="PO18.tw 登录验证码" className="po18-account-captcha__image" />
                 ) : (
                   <span className="po18-account-captcha__note">
                     <CircleCheck className="size-3.5 shrink-0" aria-hidden="true" />
@@ -259,11 +251,7 @@ export default function Po18AccountPanel({ active }: { active: boolean }) {
                     className="po18-account-captcha__input"
                   />
                 )}
-                <Button
-                  size="sm"
-                  disabled={disabled || (challenge.captchaRequired && !captcha.trim())}
-                  onClick={() => void login()}
-                >
+                <Button size="sm" disabled={disabled || (challenge.captchaRequired && !captcha.trim())} onClick={() => void login()}>
                   {busy === 'login' ? '登录中…' : '提交登录'}
                 </Button>
               </div>
@@ -282,8 +270,7 @@ export default function Po18AccountPanel({ active }: { active: boolean }) {
           </div>
 
           <div className="po18-account-fallback-fields">
-            <div className="grid gap-1.5">
-              <Label htmlFor="po18-session-cookie">会话 Cookie</Label>
+            <AdminFormField label="会话 Cookie" htmlFor="po18-session-cookie">
               <Textarea
                 id="po18-session-cookie"
                 rows={3}
@@ -291,9 +278,8 @@ export default function Po18AccountPanel({ active }: { active: boolean }) {
                 onChange={(e) => setSessionCookie(e.target.value)}
                 placeholder={'粘贴 Cookie，例如 PHPSESSID=…; other=…'}
               />
-            </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="po18-session-test-url">会话验证链接（可选）</Label>
+            </AdminFormField>
+            <AdminFormField label="会话验证链接（可选）" htmlFor="po18-session-test-url">
               <Input
                 id="po18-session-test-url"
                 value={testSourceUrl}
@@ -301,7 +287,7 @@ export default function Po18AccountPanel({ active }: { active: boolean }) {
                 placeholder="粘贴有权限的 POPO 目录或章节链接"
               />
               <p className="text-xs leading-5 text-muted-foreground">留空只检查站点可访问；填写链接才能验证实际抓取权限。</p>
-            </div>
+            </AdminFormField>
           </div>
 
           {/* 操作行独立于字段之外，避免按钮挂在某一列下方造成两列不等高。 */}

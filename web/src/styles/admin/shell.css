@@ -1,0 +1,325 @@
+/* 后台画布。曾叠加 2rem×2rem 的竖线网格作为纹理，但线密度高、在纯色底上
+   形成强烈的视觉噪点，滚到底部时尤其明显。改为中性偏灰的纸面画布，层次靠
+   画布、表格、表头、侧栏的语义表面阶梯和间距表达。 */
+.admin-layout {
+  background: var(--admin-canvas);
+}
+
+.admin-layout__inset {
+  background: transparent;
+}
+
+/* ——— 侧栏：轻量浮动导航面板 ———
+   参考运营型工作台的 floating 侧栏：保留与画布之间的轻微呼吸距离和独立
+   纸面，但降低卡片装饰感；层级主要由分组留白与整行活动态表达。 */
+.admin-layout [data-slot='sidebar-container'] {
+  inset-block: 0.5rem 0.75rem;
+  height: auto;
+  padding-block: 0.5rem;
+  border-right: none;
+}
+.admin-layout [data-slot='sidebar-inner'] {
+  background: var(--admin-sidebar);
+  border: 0;
+  border-radius: var(--radius-xl);
+  box-shadow: none;
+  overflow: hidden;
+}
+
+/* 隐藏滚动条本身，但保留滚轮、触摸和键盘滚动能力，避免窄侧栏出现第二条视觉轨道。 */
+.admin-layout [data-slot='sidebar-content'] {
+  scrollbar-width: none;
+}
+.admin-layout [data-slot='sidebar-content']::-webkit-scrollbar {
+  display: none;
+}
+.admin-sidebar[data-slot='sheet-content'] {
+  background: var(--admin-sidebar);
+  animation-duration: 220ms;
+  will-change: transform;
+}
+body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] {
+  animation-duration: 180ms;
+  will-change: opacity;
+}
+
+.admin-shell__brand {
+  padding: 1rem 0.75rem 0.75rem;
+  border-bottom: none;
+}
+
+.admin-shell__brand-mark {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border: none;
+  border-radius: var(--admin-radius-sm);
+  color: var(--sh-primary-foreground);
+  font-family: var(--font-serif);
+  font-size: 1rem;
+  font-weight: 700;
+  overflow: hidden;
+}
+.admin-shell__brand-mark img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.admin-shell__brand [data-slot='sidebar-menu-button'] {
+  border: none;
+  box-shadow: none;
+  outline: none;
+}
+.admin-shell__brand [data-slot='sidebar-menu-button']:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.admin-shell__brand-copy {
+  display: grid;
+  min-width: 0;
+  gap: 0.05rem;
+  line-height: 1.1;
+}
+
+.admin-shell__brand-copy strong {
+  font-size: 0.875rem;
+}
+.admin-shell__brand-copy small {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  font-weight: 500;
+}
+
+.admin-shell__navigation [data-sidebar='group'] {
+  padding: var(--admin-sidebar-group-gap) var(--admin-sidebar-nav-padding-inline) 0;
+}
+.admin-shell__navigation [data-sidebar='group-label'] {
+  height: 1.75rem;
+  padding-inline: var(--admin-sidebar-nav-padding-inline);
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.admin-shell__navigation [data-sidebar='menu-button'] {
+  min-height: var(--admin-sidebar-nav-height);
+  gap: var(--admin-sidebar-nav-gap);
+  border-radius: var(--admin-sidebar-nav-radius);
+  padding-inline: var(--admin-sidebar-nav-padding-inline);
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.admin-shell__navigation [data-sidebar='menu-button']:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.admin-shell__navigation [data-sidebar='menu-button'][data-active='true'] {
+  background: var(--admin-sidebar-active-background);
+  color: var(--admin-sidebar-active-foreground);
+  font-weight: 600;
+}
+
+.admin-shell__navigation [data-sidebar='menu-button'][data-active='true']:hover {
+  background: var(--admin-sidebar-active-background);
+  color: var(--admin-sidebar-active-foreground);
+}
+
+.admin-shell__navigation [data-sidebar='menu-sub-button'][data-active='true'] {
+  background: var(--admin-sidebar-sub-active-background);
+  color: var(--accent-hover);
+  font-weight: 600;
+}
+
+/* 侧栏层级留白：父级负责定位，子菜单用更宽松的行高承接层级。
+   只作用于可展开项，普通导航仍保持高效的后台密度。 */
+.admin-shell__navigation .admin-nav-parent > [data-sidebar='menu-button'] {
+  min-height: 2.5rem;
+}
+
+/* icon 折叠态仍保持 shadcn 的 32px 方形点击区，避免展开态留白外溢。 */
+.admin-layout [data-collapsible='icon'] .admin-nav-parent > [data-sidebar='menu-button'] {
+  min-height: 2rem;
+}
+
+.admin-shell__navigation .admin-nav-sub {
+  gap: 0.25rem;
+  margin-block: 0.25rem;
+  padding-block: 0.25rem;
+}
+
+.admin-shell__navigation .admin-nav-sub [data-sidebar='menu-sub-button'] {
+  height: 2rem;
+}
+
+.admin-layout [data-slot='sidebar-footer'] {
+  position: relative;
+  z-index: 2;
+  padding: 0.75rem;
+  border-top: 0;
+  background: var(--admin-sidebar);
+}
+
+/* 账户入口固定在侧栏底部；渐变从上方内容区淡入 footer 纸面，避免出现硬切分隔线。 */
+.admin-layout [data-slot='sidebar-footer']::before {
+  position: absolute;
+  z-index: 0;
+  inset-inline: 0;
+  bottom: 100%;
+  height: var(--admin-sidebar-footer-fade-height);
+  pointer-events: none;
+  background: linear-gradient(to bottom, transparent, var(--admin-sidebar));
+  content: '';
+}
+
+.admin-layout [data-slot='sidebar-footer'] > * {
+  position: relative;
+  z-index: 1;
+}
+
+.admin-shell__sidebar-account {
+  display: block;
+  width: 100%;
+}
+
+.admin-shell__sidebar-account .admin-shell__account {
+  width: 100%;
+  max-width: none;
+  border-color: transparent;
+  border-radius: var(--admin-sidebar-nav-radius);
+  padding: 0.5rem 0.625rem;
+}
+
+.admin-shell__sidebar-account .admin-shell__account-name {
+  flex: 1 1 auto;
+}
+
+.admin-layout [data-collapsible='icon'] .admin-shell__sidebar-account .admin-shell__account {
+  width: 2rem;
+  justify-content: center;
+  padding-inline: 0;
+}
+
+.admin-layout [data-collapsible='icon'] .admin-shell__sidebar-account .admin-shell__account-name,
+.admin-layout [data-collapsible='icon'] .admin-shell__sidebar-account .account-menu__chevron {
+  display: none;
+}
+
+.admin-shell__topbar {
+  display: flex;
+  min-height: 3.5rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--admin-space-3);
+  border-bottom: none;
+  background: transparent;
+  padding: 0.5rem 1.25rem;
+}
+
+.admin-shell__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.admin-shell__account {
+  display: inline-flex;
+  min-width: 0;
+  max-width: min(15rem, 28vw);
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.6rem 0.25rem 0.3rem;
+  border: 1px solid transparent;
+  border-radius: var(--admin-button-radius);
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition:
+    color 0.16s ease,
+    background 0.16s ease,
+    border-color 0.16s ease;
+}
+
+.admin-shell__account:hover {
+  border-color: var(--admin-border);
+  background: var(--admin-panel-muted);
+  color: var(--accent);
+}
+
+.admin-shell__account-avatar {
+  position: relative;
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 auto;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--admin-border);
+  border-radius: 50%;
+  background: var(--accent-subtle);
+  color: var(--accent);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.admin-shell__account-avatar > * {
+  grid-area: 1 / 1;
+}
+
+.admin-shell__account-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.admin-shell__account-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.admin-shell__theme-btn {
+  flex: 0 0 auto;
+}
+
+.admin-shell__context {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.7rem; /* 11.2px — ≥11px 可读下限 */
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  line-height: 1.15;
+  text-transform: uppercase;
+}
+
+.admin-shell__page-title {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.875rem;
+  font-weight: 650;
+}
+.admin-shell__status {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.admin-layout__content {
+  background: transparent;
+}
+
+.tab-content {
+  width: min(100%, 1440px);
+  margin-inline: auto;
+  min-width: 0;
+}

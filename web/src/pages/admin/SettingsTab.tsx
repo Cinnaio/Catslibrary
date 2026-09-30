@@ -3,6 +3,7 @@
  * 由 Novel-KV js/admin-users.js + admin.html #tab-settings 平移。
  * 无轮询：挂载 + 每次变更后重新拉取，无乐观更新。
  */
+import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { adminApi, authApi, newOperationId } from '../../lib/api'
@@ -474,11 +475,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
   }
 
   return (
-    <AdminPage
-      className="admin-redesign-page admin-redesign-page--settings"
-      title={currentAccountMeta.title}
-      description={currentAccountMeta.description}
-    >
+    <AdminPage className="admin-redesign-page admin-redesign-page--settings" title={currentAccountMeta.title} description={currentAccountMeta.description}>
       {schemaHealth && !schemaHealth.ok && (
         <div className="account-schema-warning" role="alert">
           <strong>数据库结构检查未通过</strong>
@@ -575,14 +572,12 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
                           <span className="text-sm text-muted-foreground">{u.username}</span>
                         </TableCell>
                         <TableCell data-label="角色">
-                          <Badge variant="secondary" className={admin ? 'bg-info/10 text-info' : ''}>
+                          <AdminStatusBadge variant="secondary" tone={admin ? 'info' : 'neutral'}>
                             {roleLabel(u.role)}
-                          </Badge>
+                          </AdminStatusBadge>
                         </TableCell>
                         <TableCell data-label="状态">
-                          <Badge className={disabled ? 'bg-destructive/10 text-destructive' : 'bg-success/10 text-success'}>
-                            {disabled ? '已禁用' : '正常'}
-                          </Badge>
+                          <AdminStatusBadge tone={disabled ? 'danger' : 'success'}>{disabled ? '已禁用' : '正常'}</AdminStatusBadge>
                         </TableCell>
                         <TableCell data-label="注册" className="text-sm text-muted-foreground">
                           {timeAgo(u.createdAt)}
@@ -697,9 +692,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
                         <div className="text-xs text-muted-foreground">{audit.username || '未知用户名'}</div>
                       </TableCell>
                       <TableCell data-label="结果">
-                        <Badge className={audit.status === 'success' ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}>
-                          {loginAuditStatusLabel(audit.status)}
-                        </Badge>
+                        <AdminStatusBadge tone={audit.status === 'success' ? 'success' : 'danger'}>{loginAuditStatusLabel(audit.status)}</AdminStatusBadge>
                       </TableCell>
                       <TableCell data-label="原因" className="text-sm text-muted-foreground">
                         {loginAuditReasonLabel(audit.reason)}
@@ -812,17 +805,9 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
                       </TableCell>
                       <TableCell data-label="目标数量">{operation.targetCount}</TableCell>
                       <TableCell data-label="结果">
-                        <Badge
-                          className={
-                            operation.status === 'completed'
-                              ? 'bg-success/10 text-success'
-                              : operation.status === 'failed'
-                                ? 'bg-destructive/10 text-destructive'
-                                : 'bg-warning/10 text-warning'
-                          }
-                        >
+                        <AdminStatusBadge tone={operation.status === 'completed' ? 'success' : operation.status === 'failed' ? 'danger' : 'warning'}>
                           {operationAuditStatusLabel(operation.status)}
-                        </Badge>
+                        </AdminStatusBadge>
                         {operation.status === 'failed' && operation.error && <div className="mt-1 text-xs text-destructive">{operation.error}</div>}
                       </TableCell>
                       <TableCell data-label="重放">{operation.replayCount}</TableCell>
@@ -928,11 +913,11 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
                         </TableCell>
                         <TableCell data-label="状态">
                           {used ? (
-                            <Badge className="bg-success/10 text-success">已使用</Badge>
+                            <AdminStatusBadge tone="success">已使用</AdminStatusBadge>
                           ) : disabled ? (
                             <Badge variant="secondary">已停用</Badge>
                           ) : (
-                            <Badge className="bg-info/10 text-info">可用</Badge>
+                            <AdminStatusBadge tone="info">可用</AdminStatusBadge>
                           )}
                         </TableCell>
                         <TableCell data-label="使用者">{i.usedByName || i.usedBy || '—'}</TableCell>

@@ -1,0 +1,289 @@
+/* ——— 响应式：爬虫抓取中心 / 发现小说 ———
+   注：Step 2 确认表单（.scrape-preview*）改用容器查询按卡片宽度自适应，
+   不再在此按视口宽度断点，避免宽卡片被误收成单列。 */
+
+@media (max-width: 640px) {
+  .admin-layout__content {
+    padding: 1rem;
+  }
+  .ai-generation-dialog {
+    top: 50%;
+    max-height: calc(100svh - 2rem);
+    border-radius: 1rem;
+  }
+  .ai-generation-dialog [data-slot='dialog-header'] {
+    padding-inline: 0.25rem;
+  }
+  .ai-generation-dialog [data-slot='dialog-title'] {
+    /* 与 page 头居中一致：避让右上角关闭按钮要左右对称，只留右侧会让标题视觉偏左 */
+    padding-inline: 1.5rem;
+    line-height: 1.25;
+  }
+  .ai-generation-publish {
+    padding-inline: 0.25rem;
+  }
+  .ai-generation-publish__field [data-slot='input'] {
+    min-width: 0;
+    font-size: 1rem;
+  }
+  .ai-generation-title-options {
+    margin-inline: -0.125rem;
+    padding-inline: 0.125rem;
+  }
+  .ai-service-tabs__list {
+    justify-content: flex-start;
+    overflow-x: auto;
+  }
+  .ai-service-tabs__list [data-slot='tabs-trigger'] {
+    min-width: max-content;
+  }
+  .moderation-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 0.625rem;
+    padding: 0.75rem;
+  }
+  .moderation-toolbar__filters,
+  .moderation-toolbar__query {
+    width: 100%;
+    flex: none;
+  }
+  .moderation-toolbar__filters {
+    justify-content: space-between;
+  }
+  .moderation-toolbar__query {
+    display: grid;
+    grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.28fr) auto;
+    gap: 0.35rem;
+  }
+  .moderation-toolbar__modes {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+  .moderation-toolbar__modes [data-slot='tabs-list'] {
+    width: 100%;
+  }
+  .moderation-toolbar__modes [data-slot='tabs-trigger'] {
+    min-width: 0;
+    padding-inline: 0.55rem;
+  }
+  .moderation-toolbar__status,
+  .moderation-toolbar__reason {
+    flex-basis: 7.25rem;
+  }
+  .moderation-toolbar__user,
+  .moderation-toolbar__search-field {
+    width: auto;
+    min-width: 0;
+    flex: none;
+  }
+  .admin-shell__topbar {
+    padding-inline: 0.75rem;
+  }
+  .admin-shell__account {
+    padding-right: 0.3rem;
+  }
+  .admin-shell__account-name {
+    display: none;
+  }
+  .admin-shell__status {
+    display: none;
+  }
+  /* .home-pagination 已从此组合选择器移除（2026-09-23）：前台分页由
+     .home-page .home-pagination 独立承担，无条件复用后台断点规则。 */
+  .admin-pagination {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  [data-slot='dialog-content'].admin-dialog {
+    max-height: calc(100svh - 1rem);
+    border-radius: var(--admin-radius-dialog);
+  }
+  .admin-dialog [data-slot='dialog-header'],
+  .admin-dialog__body,
+  .admin-dialog [data-slot='dialog-footer'] {
+    padding-inline: 1rem;
+  }
+  .novel-editor__grid {
+    grid-template-columns: 1fr;
+  }
+  .novel-editor__field--wide {
+    grid-column: auto;
+  }
+
+  .admin-panel-card {
+    padding: var(--admin-space-4);
+  }
+  .scrape-step__fieldset {
+    padding: var(--admin-space-3);
+  }
+  /* .form-group 的定义已移除（2026-09-23）：前台由 components.css:790 与
+     mobile.css:444 承担（本断点下同为 12px），后台面板用 --admin-space-*。 */
+  .input-row,
+  .admin-action-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .input-row .btn,
+  .admin-action-row .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .discover-toolbar {
+    grid-template-columns: 1fr;
+    border-radius: 20px;
+  }
+  .discover-toolbar__section {
+    gap: 10px;
+    padding: 14px;
+  }
+  .discover-toolbar__section + .discover-toolbar__section {
+    border-top: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
+    border-left: 0;
+  }
+  .discover-toolbar__section-head {
+    gap: 8px;
+  }
+  .discover-toolbar__section-head span {
+    font-size: 0.95rem;
+  }
+  .discover-toolbar__section-head small {
+    font-size: 0.7rem;
+  }
+  .discover-toolbar__search-row,
+  .discover-toolbar__list-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px;
+  }
+  .discover-toolbar__search-field,
+  .discover-toolbar__url-field {
+    grid-column: 1 / -1;
+  }
+  .discover-toolbar__search-type {
+    grid-column: 1;
+    justify-self: start;
+  }
+  .discover-toolbar__search-submit {
+    grid-column: 2;
+    justify-self: end;
+  }
+  .discover-toolbar__list-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .discover-toolbar__list-row .discover-site-select {
+    grid-column: 1;
+    grid-row: 1;
+    width: 100%;
+  }
+  .discover-toolbar__url-field {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  .discover-toolbar__list-submit {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .discover-toolbar__batch {
+    gap: 0.5rem;
+    padding: 10px 14px;
+  }
+  .discover-toolbar__batch-actions {
+    gap: 0.35rem;
+  }
+
+  .discover-results {
+    margin-top: -2px;
+  }
+  .discover-grid {
+    grid-template-columns: 1fr;
+  }
+  .discover-card {
+    gap: 12px;
+    padding: 12px;
+  }
+  .discover-card__cover {
+    width: 52px;
+    height: 70px;
+    font-size: 1.2rem;
+  }
+  .discover-card__title {
+    font-size: 0.9rem;
+  }
+  .discover-card__author {
+    font-size: 0.75rem;
+  }
+  .discover-detail__hero {
+    grid-template-columns: 76px minmax(0, 1fr);
+    gap: 14px;
+  }
+  .discover-detail__cover {
+    width: 76px;
+  }
+  .discover-detail__name {
+    font-size: 1.12rem;
+  }
+  .discover-detail__desc {
+    grid-column: 1 / -1;
+    max-height: 132px;
+    margin-top: 12px;
+  }
+  .discover-detail__chapter-list {
+    max-height: 210px;
+  }
+  .discover-detail__chapter-item {
+    grid-template-columns: 28px minmax(0, 1fr);
+    padding: 8px 10px;
+  }
+}
+
+@media (max-width: 400px) {
+  .discover-toolbar {
+    border-radius: var(--radius-lg);
+  }
+  .discover-toolbar__section {
+    padding: 12px;
+  }
+  .discover-toolbar__section-head small {
+    display: none;
+  }
+  .discover-toolbar__search-submit,
+  .discover-toolbar__list-submit {
+    padding-inline: 0.55rem;
+  }
+  .discover-toolbar__search-type [data-slot='tabs-trigger'] {
+    padding-inline: 0.55rem;
+  }
+  .discover-toolbar__list-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .discover-toolbar__list-row .discover-site-select {
+    min-width: 0;
+  }
+  .discover-toolbar__batch-actions {
+    gap: 0.25rem;
+  }
+  .moderation-toolbar {
+    padding: 0.625rem;
+  }
+  .moderation-toolbar__filters {
+    gap: 0.35rem;
+  }
+  .moderation-toolbar__modes [data-slot='tabs-trigger'] {
+    padding-inline: 0.4rem;
+  }
+  .moderation-toolbar__status,
+  .moderation-toolbar__reason {
+    flex-basis: 6rem;
+  }
+  .moderation-toolbar__query {
+    grid-template-columns: minmax(0, 0.68fr) minmax(0, 1.32fr) auto;
+  }
+}
+
+.site-operations__panel {
+  display: grid;
+  align-content: start;
+  gap: 1rem;
+  min-height: 34rem;
+}

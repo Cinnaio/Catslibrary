@@ -1,0 +1,103 @@
+/* 章节管理页的页面专属布局；卡片、指标、工具栏和标题都复用共享组件。 */
+.admin-redesign-page--chapters {
+  display: grid;
+  gap: var(--admin-page-section-gap);
+}
+
+.admin-redesign-page--chapters > .admin-tab-header {
+  margin-bottom: 0.25rem;
+}
+
+.chapter-context-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: end;
+  gap: 0.75rem;
+}
+
+.chapter-context-form__field {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.chapter-context-form__field > label {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.chapter-context-form .chapter-novel-select {
+  width: 100%;
+  max-width: none;
+}
+
+.chapter-context-form > [data-slot='button'] {
+  min-width: 6.5rem;
+}
+
+.chapter-directory-panel {
+  min-width: 0;
+}
+
+/* 章节目录页脚：页脚表面与内边距由 .admin-pagination 统一提供，此处无覆盖。 */
+
+.chapter-work-note {
+  display: grid;
+  gap: 0.7rem;
+  align-content: start;
+  min-width: 0;
+  padding: 1.25rem;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--radius-xl);
+  background: var(--admin-panel-muted);
+}
+
+.chapter-work-note h3 {
+  font-size: 1rem;
+}
+
+.chapter-work-note__rows {
+  display: grid;
+  gap: 0;
+  margin: 0.25rem 0 0;
+  border-top: 1px solid var(--admin-border);
+}
+
+.chapter-work-note__rows > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--admin-border);
+}
+
+.chapter-work-note__rows dt {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.chapter-work-note__rows dd {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-align: right;
+}
+
+@media (max-width: 900px) {
+  .chapter-work-note {
+    order: 2;
+  }
+}
+
+@media (max-width: 640px) {
+  .chapter-context-form {
+    grid-template-columns: 1fr;
+  }
+
+  .chapter-context-form > [data-slot='button'] {
+    width: 100%;
+  }
+}

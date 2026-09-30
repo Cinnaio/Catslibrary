@@ -2,6 +2,7 @@
  * 内容审核 tab —— 想法 / 评论 / 举报（单一数据驱动组件）。
  * 由 Novel-KV js/admin-moderation.js + admin.html #tab-moderation 平移。
  */
+import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { adminApi, thoughtsApi, url } from '../../lib/api'
@@ -411,7 +412,7 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
           <ThoughtUser t={t} />
         </TableCell>
         <TableCell data-label="状态">
-          <Badge className={visible ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}>{visible ? '可见' : '已隐藏'}</Badge>
+          <AdminStatusBadge tone={visible ? 'success' : 'danger'}>{visible ? '可见' : '已隐藏'}</AdminStatusBadge>
         </TableCell>
         <TableCell data-actions="">
           <div className="admin-cell-actions">
@@ -471,7 +472,7 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
           举报 {c.reportCount || 0}
         </TableCell>
         <TableCell data-label="状态">
-          <Badge className={visible ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}>{visible ? '可见' : '已隐藏'}</Badge>
+          <AdminStatusBadge tone={visible ? 'success' : 'danger'}>{visible ? '可见' : '已隐藏'}</AdminStatusBadge>
         </TableCell>
         <TableCell data-actions="">
           <div className="admin-cell-actions">
@@ -521,17 +522,7 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
           ) : null}
         </TableCell>
         <TableCell data-label="状态">
-          <Badge
-            className={
-              r.status === 'resolved'
-                ? 'bg-success/10 text-success'
-                : r.status === 'dismissed'
-                  ? 'bg-muted/20 text-muted-foreground'
-                  : 'bg-warning/10 text-warning'
-            }
-          >
-            {r.status}
-          </Badge>
+          <AdminStatusBadge tone={r.status === 'resolved' ? 'success' : r.status === 'dismissed' ? 'subtle' : 'warning'}>{r.status}</AdminStatusBadge>
         </TableCell>
         <TableCell data-actions="">
           {pending ? (
@@ -576,7 +567,9 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
     : error
       ? '读取失败'
       : rows.length > 0
-        ? total !== null ? `显示 ${rows.length} / 共 ${total} 条` : `显示 ${rows.length} 条`
+        ? total !== null
+          ? `显示 ${rows.length} / 共 ${total} 条`
+          : `显示 ${rows.length} 条`
         : '暂无内容'
 
   return (
@@ -659,10 +652,7 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
         </div>
       </AdminToolbar>
       <AdminDataPanel className="overflow-hidden" ariaLabel="审核列表" columns={cfg.columns}>
-        <AdminPanelHeading
-          title="审核列表"
-          status={<span className={`admin-panel-status${error ? ' is-error' : ''}`}>{listStatusLabel}</span>}
-        />
+        <AdminPanelHeading title="审核列表" status={<span className={`admin-panel-status${error ? ' is-error' : ''}`}>{listStatusLabel}</span>} />
         {hasRows ? (
           <Table>
             <TableCaption className="sr-only">{`${cfg.label}审核列表，含时间、来源、内容、用户与处理状态`}</TableCaption>

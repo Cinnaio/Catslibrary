@@ -2,6 +2,7 @@
  * 章节管理 tab —— 选书下拉（全库索引）、章节 CRUD、批量删除、按源站映射融合章节名。
  * 由 Novel-KV js/admin-chapters.js 平移。
  */
+import { AdminDialogContent, AdminDialogBody } from '@/components/admin/AdminDialog'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useToast, useConfirm } from '../../components/feedback'
 import CustomSelect from '../../components/admin/CustomSelect'
@@ -14,7 +15,7 @@ import { timeAgo } from '../../lib/format'
 import type { ChapterMeta } from '@shared/types'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -578,14 +579,14 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
           if (!open) closeChapterModal()
         }}
       >
-        <DialogContent className="admin-dialog chapter-editor-dialog sm:max-w-[620px]">
+        <AdminDialogContent variant="editor" className="chapter-editor-dialog sm:max-w-[620px]">
           <DialogHeader>
             <DialogTitle>{modal.chapter ? '编辑章节' : '添加章节'}</DialogTitle>
             <DialogDescription>
               {modal.chapter ? '修改章节标题或正文，保存后会保留原有顺序与阅读进度。' : '填写新章节内容，保存后会追加到当前小说。'}
             </DialogDescription>
           </DialogHeader>
-          <div className="admin-dialog__body chapter-editor-dialog__body flex flex-col gap-3 overflow-y-auto max-h-[70vh]">
+          <AdminDialogBody className="chapter-editor-dialog__body flex flex-col gap-3 overflow-y-auto max-h-[70vh]">
             <div className="chapter-dialog-context">
               <span>当前小说</span>
               <strong>{selectedNovelInfo?.title || '未选择小说'}</strong>
@@ -619,7 +620,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
                 />
               )}
             </section>
-          </div>
+          </AdminDialogBody>
           <DialogFooter>
             <Button variant="secondary" onClick={closeChapterModal} disabled={chapterSaving}>
               取消
@@ -628,7 +629,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
               {chapterSaving ? '保存中…' : '保存'}
             </Button>
           </DialogFooter>
-        </DialogContent>
+        </AdminDialogContent>
       </Dialog>
 
       <Dialog
@@ -641,12 +642,12 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
           }
         }}
       >
-        <DialogContent className="admin-dialog chapter-merge-dialog">
+        <AdminDialogContent variant="editor" className="chapter-merge-dialog">
           <DialogHeader>
             <DialogTitle className="editor-modal__title">融合章节名</DialogTitle>
             <DialogDescription>补全弱标题的来源与变化会在这里先确认，正文、顺序和阅读进度不会改变。</DialogDescription>
           </DialogHeader>
-          <div className="admin-dialog__body chapter-merge-dialog__body">
+          <AdminDialogBody className="chapter-merge-dialog__body">
             <div className="chapter-merge-dialog__info">
               <div className="chapter-merge-dialog__info-grid">
                 <div>
@@ -744,7 +745,8 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
                     {sourcePreview.splitLocalChapterCount > 0 && <span>拆分节 {sourcePreview.splitLocalChapterCount}</span>}
                   </div>
                   <p>
-                    已匹配 {sourcePreview.matchedSourceCount} 章；未匹配源站 {sourcePreview.unmatchedSource.length} 章，本地 {sourcePreview.unmatchedLocal.length} 节。
+                    已匹配 {sourcePreview.matchedSourceCount} 章；未匹配源站 {sourcePreview.unmatchedSource.length} 章，本地{' '}
+                    {sourcePreview.unmatchedLocal.length} 节。
                   </p>
                   {sourcePreview.warnings.map((warning) => (
                     <p className="chapter-merge-dialog__warning" key={warning}>
@@ -780,7 +782,10 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
                     ))}
                   </div>
                   <label className="mt-3 flex items-center gap-2 text-sm">
-                    <Checkbox checked={sourceMetadataMode === 'replace'} onCheckedChange={(checked) => setSourceMetadataMode(checked ? 'replace' : 'missing')} />
+                    <Checkbox
+                      checked={sourceMetadataMode === 'replace'}
+                      onCheckedChange={(checked) => setSourceMetadataMode(checked ? 'replace' : 'missing')}
+                    />
                     <span>覆盖已有小说信息（默认只补全空字段）</span>
                   </label>
                 </div>
@@ -821,11 +826,9 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
                 </div>
               </section>
             )}
-          </div>
+          </AdminDialogBody>
           <DialogFooter className="chapter-merge-dialog__footer">
-            <span className="chapter-merge-dialog__footer-note">
-              {sourcePreview ? `已读取 ${sourcePreview.changes.length} 个标题变化` : '只会更新弱标题'}
-            </span>
+            <span className="chapter-merge-dialog__footer-note">{sourcePreview ? `已读取 ${sourcePreview.changes.length} 个标题变化` : '只会更新弱标题'}</span>
             <Button variant="secondary" onClick={() => setRenameModal(false)}>
               取消
             </Button>
@@ -835,7 +838,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
               </Button>
             )}
           </DialogFooter>
-        </DialogContent>
+        </AdminDialogContent>
       </Dialog>
     </AdminPage>
   )

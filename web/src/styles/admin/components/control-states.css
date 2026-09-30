@@ -1,0 +1,99 @@
+.admin-layout [data-slot='button'] {
+  min-height: var(--admin-control-height);
+}
+
+.admin-layout [data-slot='button'][data-size^='icon'] {
+  min-height: 0;
+}
+
+.admin-layout [data-slot='button'][role='combobox'] {
+  height: var(--admin-control-height);
+}
+
+.admin-layout [data-slot='input'] {
+  height: var(--admin-control-height);
+  border-color: var(--admin-border-strong);
+  background: var(--admin-panel);
+}
+
+.admin-layout [data-slot='textarea'] {
+  border-color: var(--admin-border-strong);
+  background: var(--admin-panel);
+}
+
+.admin-layout [data-slot='button'][data-variant='default'] {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.admin-layout [data-slot='button'][data-variant='default']:hover {
+  border-color: var(--accent-hover);
+  background: var(--accent-hover);
+}
+
+.admin-layout [data-slot='button'][data-variant='secondary'] {
+  background: var(--admin-panel);
+}
+
+.admin-layout [data-slot='button'][data-variant='secondary']:hover {
+  background: var(--bg-hover);
+}
+
+.admin-layout [data-slot='tabs-list'] {
+  --tabs-segmented-track-background: var(--admin-panel-muted);
+  --tabs-segmented-track-border: var(--admin-border);
+  --tabs-segmented-active-background: var(--admin-panel);
+  --tabs-segmented-active-shadow: var(--admin-shadow-soft);
+  gap: var(--tabs-segmented-gap);
+  border: 1px solid var(--tabs-segmented-track-border);
+  border-radius: var(--tabs-segmented-radius);
+  padding: var(--tabs-segmented-inset);
+  background: var(--tabs-segmented-track-background);
+}
+
+:is(.admin-layout, .admin-dialog) [data-slot='tabs-trigger'] {
+  min-height: calc(var(--admin-control-height) - 0.5rem);
+  border-radius: var(--tabs-segmented-inner-radius);
+  padding-inline: 0.75rem;
+  color: var(--tabs-segmented-muted-foreground);
+  font-size: var(--tabs-segmented-label-size);
+  font-weight: var(--tabs-segmented-label-weight);
+  line-height: var(--tabs-segmented-label-line-height);
+  transition:
+    color var(--tabs-segmented-transition),
+    background-color var(--tabs-segmented-transition),
+    border-color var(--tabs-segmented-transition),
+    box-shadow var(--tabs-segmented-transition);
+}
+
+:is(.admin-layout, .admin-dialog) [data-slot='tabs-trigger'][data-state='active'] {
+  background: var(--tabs-segmented-active-background);
+  color: var(--tabs-segmented-active-foreground);
+  box-shadow: var(--tabs-segmented-active-shadow);
+}
+
+:is(.admin-layout, .admin-dialog) [data-slot='tabs-trigger'][data-state='active'] {
+  font-weight: var(--tabs-segmented-active-label-weight);
+}
+
+/* Admin button size follows action priority; form controls keep their own type scale.
+   Icon, extra-small and combobox controls retain their component-specific sizing. */
+:is(.admin-layout, .admin-dialog) [data-slot='button']:not([data-size^='icon']):not([role='combobox']) {
+  font-weight: var(--admin-button-label-weight);
+}
+
+:is(.admin-layout, .admin-dialog)
+  [data-slot='button']:is([data-variant='default'], [data-variant='destructive']):not([data-size^='icon']):not([data-size='xs']):not([role='combobox']) {
+  font-size: var(--admin-button-primary-label-size);
+}
+
+:is(.admin-layout, .admin-dialog)
+  [data-slot='button']:is([data-variant='secondary'], [data-variant='outline']):not([data-size^='icon']):not([data-size='xs']):not([role='combobox']) {
+  font-size: var(--admin-button-secondary-label-size);
+}
+
+:is(.admin-layout, .admin-dialog)
+  [data-slot='button']:is([data-variant='ghost'], [data-variant='link']):not([data-size^='icon']):not([data-size='xs']):not([role='combobox']) {
+  font-size: var(--admin-button-tertiary-label-size);
+}
