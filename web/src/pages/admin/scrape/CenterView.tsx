@@ -591,9 +591,9 @@ export default function CenterView() {
             </div>
           )}
 
-          <AdminDataPanel className="scrape-config-card" ariaLabel="配置迁移">
+          <AdminDataPanel className="scrape-config-card admin-utility-panel" ariaLabel="配置迁移">
             <AdminPanelHeading title="配置迁移" />
-            <div className="scrape-config-card__actions">
+            <div className="scrape-config-card__actions admin-utility-panel__actions">
               <Button variant="secondary" size="sm" onClick={() => void exportConfigs()}>
                 <Download aria-hidden="true" />
                 导出配置

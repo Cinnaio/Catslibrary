@@ -95,7 +95,7 @@ export default function ScrapeIntake({
                 {loading ? '分析中…' : '分析链接'}
               </Button>
             </div>
-            <p>支持 PO18 预设与通用 HTML 页面。分析会自动识别书名、章节数量和选择器。</p>
+            <p>支持 PO18 预设与通用 HTML；自动识别书名、章节数和选择器。</p>
           </div>
         )}
 
@@ -127,7 +127,7 @@ export default function ScrapeIntake({
                 {loading ? '搜索中…' : '搜索作品'}
               </Button>
             </div>
-            <p>搜索结果可以单本配置，也可以勾选多本后批量加入抓取队列。</p>
+            <p>结果可单本配置，也可勾选多本后批量加入抓取队列。</p>
           </div>
         )}
 
@@ -157,7 +157,7 @@ export default function ScrapeIntake({
                 {loading ? '加载中…' : '加载榜单'}
               </Button>
             </div>
-            <p>POPO 榜单列表可直接读取；进入作品详情与章节校验时需要源站账号或 Cookie。选择后不会立即写入书库，确认后才会创建和启动任务。</p>
+            <p>POPO 榜单可直接读取；详情与章节校验需登录或 Cookie。确认前不会写入书库或创建任务。</p>
           </div>
         )}
       </div>

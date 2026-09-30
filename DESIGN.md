@@ -154,7 +154,7 @@ components:
 - **Admin Table** (`color-mix(in srgb, var(--bg-card) 96%, var(--accent-subtle) 4%)`): 表格内容区使用 `--admin-table-background`，保持接近纸白，让行内容成为后台阅读的主层。
 - **Admin Table Header:** 表头使用 `--admin-table-header-background`。亮色主题以 85% 次级背景混合 15% 品牌强调色，形成奶茶棕暖调（默认约 `#E6DED7`）；暗色主题以 85% 表格内容底色混合 15% 弱化文字色，形成中性炭灰（默认约 `#3D3C3E`），与表格行保持清晰层级并去掉棕金偏色。文字仍使用 `--admin-table-header-foreground`。
 - **Admin Panel Muted** (`color-mix(in srgb, var(--bg-secondary) 78%, var(--accent-subtle))`): 胶囊、弹窗页脚、次级表面 `--admin-panel-muted`。
-- **Admin Sidebar** (`color-mix(in srgb, var(--bg-card) 76%, var(--accent-light) 24%)`): 侧栏与移动抽屉底色 `--admin-sidebar`，使用暖白独立于灰米画布，品牌棕保留给导航选中态；暗色主题使用 58% 面板底色与 42% 主背景混合，形成稳定的炭灰导航层。
+- **Admin Sidebar** (`color-mix(in srgb, var(--bg-card) 70%, var(--admin-canvas) 30%)`): 侧栏与移动抽屉底色 `--admin-sidebar`，使用接近 `#FBFAF8` 的轻暖白，与灰米画布形成柔和分层；颜色仍由公共面板色和后台画布派生，品牌棕保留给导航选中态。暗色主题继续使用 58% 面板底色与 42% 主背景混合，形成稳定的炭灰导航层。
 - **Admin Border** (`color-mix(in srgb, var(--border) 88%, var(--text-primary) 4%)`): 后台通用描边 `--admin-border`。
 - **Admin Border Strong** (`color-mix(in srgb, var(--border) 62%, var(--text-primary) 15%)`): 后台控件与弹窗描边 `--admin-border-strong`，比通用描边更明确，用于输入框这类需要被看见边界的元素。
 
@@ -241,6 +241,11 @@ components:
 - **No divider:** 标题区与卡片正文之间不画横向分界线。工具条、表格或正文内部需要分段时，只保留对应内容区的分隔线。
 - **Title only:** 卡片标题行只写工作对象名，不在标题下放注释性副标题，也不在主标题前放 SVG 图标。右侧只保留实时状态、有归属的数据读数或可执行控件；静态快捷键、提示标签和装饰性徽标移入正文（确有需要时）或删除。必要说明放回字段帮助或正文，不作为卡头副标题。
 - **Coverage:** 该规则适用于所有后台 tab 的数据面板、配置卡和运营卡；新增卡片沿用共享样式，不建立页面专属标题例外。
+- **Workflow spacing:** 当卡片标题后紧接模式选择或表单时，标题到首个控件、模式选择到字段各保持约 12px 的组间距；不要叠加通用卡头底内距与正文上外距制造空档。输入要求、操作前提等必要说明留在对应字段下方，并精简到完成当前动作所需的信息。
+
+### Compact Utility Panel
+
+少量次级操作（例如配置导入/导出）使用共享 `.admin-utility-panel`：桌面端标题靠左、操作组靠右并保持同一行；最小高度为 `4.75rem`，内容换行时可自然增高，不增加注释性副标题或卡头分割线。卡片之间的距离只由页面父级布局控制，避免子卡片再叠加外边距。屏幕宽度不超过 640px 时标题与操作组纵向排列，按钮顺序不变并允许换行。该规则用于轻量工具区，不替代表单流程卡或数据面板布局。
 
 - **`AdminPage` 是容器契约**：它提供 `.tab-content` + `.admin-redesign-page`（统一区块间距、卡片表面归一化，不可省略），并接收 `title` / `description` / `actions` 三个 prop 转交 `AdminTabHeader`。子视图自带页头时传 `title={undefined}` 关闭父级页头（`scrape` 的书源子页即此用法）。
 

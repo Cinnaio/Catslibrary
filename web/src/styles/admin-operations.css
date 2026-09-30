@@ -3,11 +3,11 @@
    body 层的弹窗（dialog/popover）也能继承暖纸面板与边框语义。 */
 :root {
   /* 后台表面统一沿用主题色派生：画布用一档清楚的灰米色区分白色内容，
-     侧栏保持暖白，表格保持纸白；品牌强调集中在操作与选中态。 */
+     侧栏以暖白贴近轻纸面，表格保持纸白；品牌强调集中在操作与选中态。 */
   --admin-canvas: color-mix(in srgb, var(--bg-secondary) 55%, var(--border) 45%);
   --admin-panel: var(--bg-card);
   --admin-panel-muted: color-mix(in srgb, var(--bg-secondary) 78%, var(--accent-subtle));
-  --admin-sidebar: color-mix(in srgb, var(--bg-card) 76%, var(--accent-light) 24%);
+  --admin-sidebar: color-mix(in srgb, var(--bg-card) 70%, var(--admin-canvas) 30%);
   --admin-border: color-mix(in srgb, var(--border) 88%, var(--text-primary) 4%);
   --admin-border-strong: color-mix(in srgb, var(--border) 62%, var(--text-primary) 15%);
   --admin-control-height: 2.5rem;
@@ -9320,9 +9320,13 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   margin-inline: 1.25rem;
 }
 
+.admin-redesign-page--scrape .scrape-intake > .scrape-intake__heading {
+  padding-bottom: 0;
+}
+
 .admin-redesign-page--scrape .scrape-intake__tabs {
-  margin-top: 1rem;
-  margin-bottom: 0.5rem;
+  margin-top: var(--admin-space-3);
+  margin-bottom: var(--admin-space-3);
   width: min(18rem, calc(100% - 2.5rem));
   margin-right: auto;
 }
@@ -9567,11 +9571,6 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   background: var(--admin-panel);
 }
 
-.admin-redesign-page--scrape .scrape-config-card__actions {
-  margin: 0;
-  padding: 1rem 1.25rem 1.25rem;
-}
-
 @media (max-width: 640px) {
   .admin-redesign-page--scrape .scrape-intake__tabs,
   .admin-redesign-page--scrape .scrape-intake__form,
@@ -9581,9 +9580,12 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   .admin-redesign-page--scrape .scrape-discovery > .scrape-batch,
   .admin-redesign-page--scrape .scrape-setup > .scrape-setup__book,
   .admin-redesign-page--scrape .scrape-setup > .scrape-setup__fields,
-  .admin-redesign-page--scrape .scrape-setup > .scrape-setup__save-row,
-  .admin-redesign-page--scrape .scrape-config-card__actions {
+  .admin-redesign-page--scrape .scrape-setup > .scrape-setup__save-row {
     margin-inline: 1rem;
+  }
+
+  .admin-redesign-page--scrape .scrape-intake > .scrape-intake__heading {
+    padding-inline: 1rem;
   }
 
   .admin-redesign-page--scrape .scrape-setup > .scrape-setup__config {
@@ -9896,4 +9898,48 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   font-size: var(--admin-table-cell-size);
   line-height: 1.65;
   color: var(--text-muted);
+}
+
+/* 紧凑工具面板：适用于配置导入/导出等少量次级操作。桌面端让工作对象与
+   操作留在同一行；区块间距由 AdminPage 父级网格负责，面板本身不叠加外边距。 */
+.admin-redesign-page .admin-utility-panel {
+  display: flex;
+  min-height: 4.75rem;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--admin-space-4);
+  margin: 0;
+  padding: var(--admin-space-3) var(--admin-space-5);
+}
+
+.admin-redesign-page .admin-utility-panel > .admin-panel-heading {
+  flex: 0 0 auto;
+  padding: 0;
+}
+
+.admin-redesign-page .admin-utility-panel__actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--admin-space-2);
+  margin: 0;
+  padding: 0;
+}
+
+@media (max-width: 640px) {
+  .admin-redesign-page .admin-utility-panel {
+    min-height: 0;
+    align-items: stretch;
+    flex-direction: column;
+    gap: var(--admin-space-3);
+    padding: var(--admin-space-4);
+  }
+
+  .admin-redesign-page .admin-utility-panel__actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
 }
