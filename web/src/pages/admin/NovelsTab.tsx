@@ -562,20 +562,26 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
         </div>
       </AdminToolbar>
 
+      {selected.size > 0 && (
+        <AdminSelectionBar
+          count={selected.size}
+          label={`已选 ${selected.size} 本`}
+          onClear={() => setSelected(new Set())}
+          clearPlacement="selection"
+        >
+          <Button variant="secondary" size="sm" onClick={() => void handleBatchUpdate()}>
+            批量更新
+          </Button>
+          <Button variant="secondary" size="sm" onClick={invertSelection}>
+            反选
+          </Button>
+          <Button variant="destructive" size="sm" onClick={() => void handleBatchDelete()}>
+            删除所选
+          </Button>
+        </AdminSelectionBar>
+      )}
+
       <AdminDataPanel className="novels-data-panel" ariaLabel="作品目录数据" columns={NOVEL_COLUMNS}>
-        {selected.size > 0 && (
-          <AdminSelectionBar count={selected.size} label={`已选 ${selected.size} 本`} onClear={() => setSelected(new Set())}>
-            <Button variant="secondary" size="sm" onClick={() => void handleBatchUpdate()}>
-              批量更新
-            </Button>
-            <Button variant="secondary" size="sm" onClick={invertSelection}>
-              反选
-            </Button>
-            <Button variant="destructive" size="sm" onClick={() => void handleBatchDelete()}>
-              批量删除 ({selected.size})
-            </Button>
-          </AdminSelectionBar>
-        )}
         <Table>
           <TableCaption className="sr-only">小说目录列表，可按标题、作者、章节数和更新时间排序</TableCaption>
           <TableHeader>

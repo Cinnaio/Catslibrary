@@ -8894,8 +8894,7 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
 
 /* 数据表格的表头、分隔线和行反馈使用同一组语义 token；不改变列宽或布局。 */
 .admin-redesign-page--novels .novels-data-panel > [data-slot='table-container'] {
-  border-top-left-radius: var(--admin-data-panel-radius);
-  border-top-right-radius: var(--admin-data-panel-radius);
+  border-radius: var(--admin-data-panel-radius);
 }
 
 /* 表格内容区使用独立的纸面色，避免依赖父级面板的继承关系；移动端卡片也沿用同一层。 */
@@ -9802,6 +9801,37 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   box-shadow: var(--admin-shadow-soft);
 }
 
+/* 小说批量操作与目录表使用独立区块和滚动边界，沿用后台暖纸面而不再嵌套在表格卡片内。 */
+.admin-redesign-page--novels > .admin-selection-bar {
+  width: fit-content;
+  max-width: 100%;
+  justify-content: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 0;
+  padding: 0.375rem 0.5rem;
+  border-color: var(--admin-border);
+  border-radius: var(--radius-full);
+  background: var(--admin-panel-muted);
+  box-shadow: none;
+}
+
+.admin-selection-bar__selection {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.admin-redesign-page--novels > .admin-selection-bar .admin-selection-bar__count {
+  border-color: transparent;
+  background: transparent;
+  padding-inline: 0.625rem;
+}
+
+.admin-redesign-page--novels > .admin-selection-bar .admin-selection-bar__actions {
+  margin-left: 0;
+}
+
 .admin-selection-bar__count {
   display: inline-flex;
   min-height: 1.75rem;
@@ -9829,6 +9859,14 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   .admin-selection-bar {
     position: static;
     padding: 0.5rem 0.75rem;
+  }
+
+  .admin-redesign-page--novels > .admin-selection-bar {
+    width: 100%;
+    align-items: flex-start;
+    flex-direction: column;
+    padding-inline: 0.75rem;
+    border-radius: var(--radius-lg);
   }
 
   .admin-selection-bar__actions {

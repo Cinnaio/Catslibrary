@@ -22,20 +22,40 @@ interface AdminSelectionBarProps {
   children?: ReactNode
   onClear: () => void
   clearLabel?: string
+  clearPlacement?: 'actions' | 'selection'
 }
 
-export default function AdminSelectionBar({ count, label, children, onClear, clearLabel = '取消选择' }: AdminSelectionBarProps) {
+export default function AdminSelectionBar({
+  count,
+  label,
+  children,
+  onClear,
+  clearLabel = '取消选择',
+  clearPlacement = 'actions',
+}: AdminSelectionBarProps) {
   if (count <= 0) return null
 
   return (
     <div className="admin-selection-bar" role="status" aria-live="polite">
-      <span className="admin-selection-bar__count">{label}</span>
+      {clearPlacement === 'selection' ? (
+        <div className="admin-selection-bar__selection">
+          <span className="admin-selection-bar__count">{label}</span>
+          <Button variant="ghost" size="sm" onClick={onClear}>
+            <X className="size-3.5" />
+            {clearLabel}
+          </Button>
+        </div>
+      ) : (
+        <span className="admin-selection-bar__count">{label}</span>
+      )}
       <div className="admin-selection-bar__actions">
         {children}
-        <Button variant="ghost" size="sm" onClick={onClear}>
-          <X className="size-3.5" />
-          {clearLabel}
-        </Button>
+        {clearPlacement === 'actions' && (
+          <Button variant="ghost" size="sm" onClick={onClear}>
+            <X className="size-3.5" />
+            {clearLabel}
+          </Button>
+        )}
       </div>
     </div>
   )
