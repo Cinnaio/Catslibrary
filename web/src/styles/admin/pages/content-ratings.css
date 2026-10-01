@@ -1,0 +1,253 @@
+/* 分级工作区复用后台色彩与控件契约；账本、规则、模型建议共享安静的纸面。 */
+.content-ratings-tabs {
+  gap: var(--admin-page-section-gap);
+  min-width: 0;
+}
+.content-ratings-workspace-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.content-ratings-tabs [data-slot='tabs-list'] {
+  height: 2.75rem;
+  padding: 4px;
+  border: 0;
+  box-shadow: none;
+  background: var(--bg-secondary);
+}
+.content-ratings-tabs [data-slot='tabs-trigger'] {
+  padding-inline: 1rem;
+  border: 0;
+  box-shadow: none;
+}
+.content-ratings-tabs [data-slot='tabs-trigger'][data-state='active'] {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  box-shadow: none;
+}
+.content-ratings-tab-count {
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+.content-ratings-policy {
+  max-width: 32rem;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+}
+.content-ratings-policy summary {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  cursor: pointer;
+  list-style: none;
+}
+.content-ratings-policy summary::-webkit-details-marker {
+  display: none;
+}
+.content-ratings-policy summary svg {
+  width: 1rem;
+  height: 1rem;
+}
+.content-ratings-policy summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: var(--radius-sm);
+}
+.content-ratings-policy p {
+  margin-top: 0.75rem;
+  line-height: 1.7;
+}
+.content-ratings-panel.admin-data-panel {
+  border: 0;
+  border-radius: var(--admin-data-panel-radius);
+  background: var(--bg-card);
+  box-shadow: none;
+  overflow: hidden;
+}
+.content-ratings-panel-description {
+  margin: -0.5rem 1.5rem 1.25rem;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  line-height: 1.7;
+}
+.content-ratings-toolbar {
+  padding: var(--admin-data-panel-toolbar-padding-block) var(--admin-data-panel-toolbar-padding-inline);
+  background: var(--admin-data-panel-toolbar-background);
+  border-block: 1px solid var(--admin-border);
+  margin-bottom: 0.5rem;
+}
+.content-ratings-filter-counts {
+  white-space: nowrap;
+}
+.content-ratings-clear {
+  margin-left: auto;
+}
+.content-ratings-evidence-note {
+  margin-top: 0.375rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 1.6;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.content-ratings-ledger .content-ratings-edit-button {
+  height: var(--admin-table-action-size);
+  min-width: 3.25rem;
+  padding-inline: 0.75rem;
+}
+.content-ratings-queue {
+  padding-inline: 1.5rem;
+}
+.content-ratings-queue-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.5rem;
+  padding-block: 1.25rem;
+  border-top: 1px solid var(--admin-border);
+}
+.content-ratings-queue-copy {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.content-ratings-queue-reason {
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  line-height: 1.7;
+  margin-top: 0.625rem;
+}
+.content-ratings-queue-actions {
+  flex: 0 0 auto;
+  padding-top: 0.125rem;
+}
+.content-ratings-ai-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.content-ratings-ai-actions label {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+.content-ratings-batch-select {
+  width: 5.5rem;
+}
+.content-ratings-task-progress {
+  margin: 0 1.5rem 1.25rem;
+  padding: 1rem;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+}
+.content-ratings-progress-fill {
+  width: 100%;
+  transform-origin: left;
+  transition: transform 300ms var(--ease);
+}
+.content-ratings-ledger .admin-pagination--detached {
+  margin: 0;
+  padding: var(--admin-pagination-padding-block) var(--admin-pagination-padding-inline);
+  border-top: 1px solid var(--admin-border);
+}
+@media (max-width: 900px) {
+  .content-ratings-panel-description {
+    margin-inline: 1rem;
+  }
+  .content-ratings-queue {
+    padding-inline: 1rem;
+  }
+  .content-ratings-queue-item {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  .content-ratings-queue-actions {
+    align-self: flex-end;
+  }
+  .content-ratings-task-progress {
+    margin-inline: 1rem;
+  }
+  .content-ratings-filter-counts {
+    flex-basis: 100%;
+  }
+  .content-ratings-ledger .content-ratings-edit-button {
+    height: var(--admin-table-action-size-mobile);
+    min-width: 4rem;
+  }
+  .content-ratings-ledger .admin-pagination__controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+    width: 100%;
+  }
+  .content-ratings-ledger .admin-pagination__page-size {
+    flex-basis: 100%;
+    justify-content: flex-start;
+    margin: 0;
+  }
+  .content-ratings-ledger .admin-pagination__info {
+    white-space: nowrap;
+  }
+  .content-ratings-ledger .admin-pagination__jump {
+    order: 1;
+    margin-left: auto;
+    white-space: nowrap;
+  }
+  .content-ratings-ledger .admin-pagination__icon-button {
+    flex: 0 0 var(--admin-pagination-control-size);
+  }
+}
+@media (max-width: 420px) {
+  .content-ratings-tabs [data-slot='tabs-list'] {
+    width: 100%;
+  }
+  .content-ratings-tabs [data-slot='tabs-trigger'] {
+    padding-inline: 0.625rem;
+  }
+  .content-ratings-ledger .admin-pagination__controls > [aria-label='第一页'],
+  .content-ratings-ledger .admin-pagination__controls > [aria-label='最后一页'] {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .content-ratings-progress-fill {
+    transition: none;
+  }
+}
+
+@media (max-width: 639px) {
+  .content-ratings-ai .admin-panel-heading__actions {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+    width: 100%;
+  }
+  .content-ratings-ai .admin-panel-heading__actions > span {
+    white-space: nowrap;
+  }
+  .content-ratings-task-progress > div {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .content-ratings-task-progress > div > .flex-1 {
+    flex: auto;
+    width: 100%;
+  }
+  .content-ratings-task-progress > div > div:last-child {
+    align-self: flex-end;
+  }
+  .content-ratings-dialog [data-slot='dialog-footer'] {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--admin-dialog-mobile-footer-gap);
+  }
+  .content-ratings-dialog [data-slot='dialog-footer'] [data-slot='button'] {
+    min-height: var(--admin-dialog-mobile-action-min-height);
+  }
+}

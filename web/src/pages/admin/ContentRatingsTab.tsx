@@ -1,8 +1,9 @@
 import AdminContentRatingBadge from '@/components/admin/AdminContentRatingBadge'
-import { AdminDialogContent } from '@/components/admin/AdminDialog'
+import { AdminDialogBody, AdminDialogContent } from '@/components/admin/AdminDialog'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Bot, CheckCircle2, Eye, History, Pencil, Play, PlusCircle, RefreshCw, Square, XCircle } from 'lucide-react'
+import { Bot, CheckCircle2, Eye, History, Info, Play, PlusCircle, RefreshCw, Square, XCircle } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
 import {
   adminApi,
   aiApi,
@@ -37,6 +38,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+
+type RatingView = 'ledger' | 'rules' | 'ai'
+
+function ratingView(value: string | null): RatingView {
+  return value === 'rules' || value === 'ai' ? value : 'ledger'
+}
 
 const RATING_OPTIONS: SelectOption[] = [
   { value: '', label: '全部分级' },
@@ -64,12 +72,12 @@ const SOURCE_LABEL: Record<AdminContentRatingSource, string> = {
 const SOURCE_OPTIONS: SelectOption[] = [{ value: '', label: '全部来源' }, ...Object.entries(SOURCE_LABEL).map(([value, label]) => ({ value, label }))]
 
 const RATING_COLUMNS: readonly AdminColumn[] = [
-  { key: 'work', label: '作品', width: '23%', primary: true },
+  { key: 'work', label: '作品', width: '21%', primary: true },
   { key: 'rating', label: '当前分级', width: '11%' },
   { key: 'source', label: '来源', width: '14%' },
-  { key: 'evidence', label: '判定证据', width: '24%' },
-  { key: 'updated', label: '最近操作', width: '16%' },
-  { key: 'actions', label: '操作', width: '12%', actions: true },
+  { key: 'evidence', label: '判定证据', width: '25%' },
+  { key: 'updated', label: '最近操作', width: '13%' },
+  { key: 'actions', label: '操作', width: '16%', actions: true },
 ]
 
 const CANDIDATE_KIND_OPTIONS: SelectOption[] = [
@@ -197,7 +205,7 @@ function RuleCandidatePanel({
   onPreview: (candidate: AdminContentRatingRuleCandidate) => void
 }) {
   return (
-    <AdminDataPanel ariaLabel="内容分级规则候选">
+    <AdminDataPanel ariaLabel="内容分级规则候选" className="content-ratings-panel">
       <AdminPanelHeading
         title="规则候选"
         status={
@@ -206,6 +214,7 @@ function RuleCandidatePanel({
           </span>
         }
       />
+      <p className="content-ratings-panel-description">从人工判定中沉淀规则，先核对命中作品，再决定是否启用。批准仅影响未标注作品，保留已人工确认的分级。</p>
       {error ? (
         <ErrorState message={`规则候选加载失败：${error}`} onRetry={onRetry} />
       ) : loading ? (
@@ -213,10 +222,10 @@ function RuleCandidatePanel({
       ) : !data || data.items.length === 0 ? (
         <AdminEmptyState message="还没有待审核的规则候选" />
       ) : (
-        <div className="divide-y divide-border px-5">
+        <div className="content-ratings-queue">
           {data.items.map((candidate) => (
-            <article className="flex flex-wrap items-start justify-between gap-3 py-4" key={candidate.id}>
-              <div className="min-w-0 flex-1">
+            <article className="content-ratings-queue-item" key={candidate.id}>
+              <div className="content-ratings-queue-copy">
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="outline">{candidateKindLabel(candidate.kind)}</Badge>
                   <code className="max-w-full truncate rounded bg-muted px-2 py-1 text-sm text-foreground" title={candidate.value}>
@@ -224,7 +233,7 @@ function RuleCandidatePanel({
                   </code>
                   <AdminStatusBadge tone="warning">待审核</AdminStatusBadge>
                 </div>
-                <p className="mt-2 text-sm leading-relaxed text-foreground">{candidate.latestExample?.reason || '未记录候选理由'}</p>
+                <p className="content-ratings-queue-reason">{candidate.latestExample?.reason || '未记录候选理由'}</p>
                 <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
                   <span>例证 {candidate.exampleCount} 本</span>
                   {candidate.latestExample?.novelTitle && <span>来源：{candidate.latestExample.novelTitle}</span>}
@@ -232,7 +241,7 @@ function RuleCandidatePanel({
                   <span>{timeAgo(candidate.updatedAt) || '刚刚'}</span>
                 </div>
               </div>
-              <div className="flex shrink-0 flex-wrap items-center gap-2">
+              <div className="content-ratings-queue-actions">
                 <Button type="button" variant="outline" size="sm" onClick={() => onPreview(candidate)}>
                   <Eye className="size-3.5" aria-hidden="true" />
                   预览影响
@@ -279,7 +288,7 @@ function AiTaskProgressBar({
   const cancelled = task.status === 'cancelled'
 
   return (
-    <div className="border-b border-border px-5 py-4" aria-label="LLM 分级任务进度">
+    <div className="content-ratings-task-progress" aria-label="LLM 分级任务进度">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 flex-1 flex-col gap-2">
           <div className="flex flex-wrap items-center gap-2">
@@ -317,7 +326,10 @@ function AiTaskProgressBar({
             aria-valuemax={100}
             aria-label={`LLM 分级任务已完成 ${percent}%`}
           >
-            <div className={`h-full rounded-full transition-[width] ${failed || cancelled ? 'bg-warning' : 'bg-primary'}`} style={{ width: `${percent}%` }} />
+            <div
+              className={`content-ratings-progress-fill h-full rounded-full ${failed || cancelled ? 'bg-warning' : 'bg-primary'}`}
+              style={{ transform: `scaleX(${percent / 100})` }}
+            />
           </div>
 
           {task.error && <p className="text-xs text-destructive">{task.error}</p>}
@@ -379,38 +391,40 @@ function AiSuggestionPanel({
 }) {
   const active = !!task && ['queued', 'running'].includes(task.status)
   return (
-    <AdminDataPanel ariaLabel="LLM 内容分级建议">
+    <AdminDataPanel ariaLabel="LLM 内容分级建议" className="content-ratings-panel content-ratings-ai">
       <AdminPanelHeading
         title="LLM 分级建议"
         status={<span className="text-xs text-muted-foreground">待审核 {data ? formatNumber(data.counts.pending) : '—'} 条</span>}
         actions={
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="content-ratings-ai-actions">
+            <Label id="content-rating-batch-label">单批</Label>
             <CustomSelect
               options={AI_BATCH_LIMIT_OPTIONS}
               value={String(batchLimit)}
               onChange={(value) => onBatchLimit(Math.min(AI_BATCH_LIMIT_MAX, Math.max(1, Number(value) || DEFAULT_AI_BATCH_LIMIT)))}
               aria-label="单批分析数量"
-              className="w-40"
+              className="content-ratings-batch-select"
             />
-            <Button type="button" size="sm" variant="secondary" onClick={onScan} disabled={scanning || active}>
+            <Button type="button" size="sm" onClick={onScan} disabled={scanning || active}>
               <Bot className={scanning ? 'size-3.5 animate-pulse' : 'size-3.5'} aria-hidden="true" />
-              {scanning ? '创建任务…' : '分析 unknown'}
+              {scanning ? '创建任务…' : '分析未标注'}
             </Button>
           </div>
         }
       />
+      <p className="content-ratings-panel-description">只分析未标注作品的元数据。模型建议经人工审核才可修改分级；批准“继续未标注”不会标为一般。</p>
       <AiTaskProgressBar task={task} progress={progress} onCancel={onCancel} onResume={onResume} cancelling={cancelling} resuming={resuming} />
       {error ? (
         <ErrorState message={`LLM 建议加载失败：${error}`} onRetry={onRetry} />
       ) : loading && !data ? (
         <LoadingState label="正在加载 LLM 分级建议" rows={2} />
       ) : !data || data.items.length === 0 ? (
-        <AdminEmptyState message="还没有待审核的 LLM 分级建议；分析任务只会读取 unknown 作品。" />
+        <AdminEmptyState message="还没有待审核的 LLM 分级建议；分析任务只会读取未标注作品。" />
       ) : (
-        <div className="divide-y divide-border px-5">
+        <div className="content-ratings-queue">
           {data.items.map((suggestion) => (
-            <article className="flex flex-wrap items-start justify-between gap-3 py-4" key={suggestion.id}>
-              <div className="min-w-0 flex-1">
+            <article className="content-ratings-queue-item" key={suggestion.id}>
+              <div className="content-ratings-queue-copy">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium text-foreground">{suggestion.title || '未命名作品'}</span>
                   <AdminStatusBadge tone={suggestion.suggestedRating === 'restricted' ? 'danger' : 'muted'}>
@@ -421,14 +435,14 @@ function AiSuggestionPanel({
                 <p className="mt-1 text-xs text-muted-foreground">
                   {suggestion.author || '未知作者'} · 模型 {suggestion.model || '未记录'} · {suggestion.promptVersion}
                 </p>
-                <p className="mt-2 text-sm leading-relaxed text-foreground">{suggestion.reason || '未记录 AI 理由'}</p>
+                <p className="content-ratings-queue-reason">{suggestion.reason || '未记录 AI 理由'}</p>
                 {suggestion.evidence.length > 0 && (
                   <div className="mt-2">
                     <EvidenceList evidence={suggestion.evidence} compact />
                   </div>
                 )}
               </div>
-              <div className="flex shrink-0 flex-wrap items-center gap-2">
+              <div className="content-ratings-queue-actions">
                 <Button type="button" variant="outline" size="sm" onClick={() => onReview(suggestion)}>
                   <Eye className="size-3.5" aria-hidden="true" />
                   审核建议
@@ -444,6 +458,8 @@ function AiSuggestionPanel({
 
 export default function ContentRatingsTab() {
   const { toast } = useToast()
+  const [params, setParams] = useSearchParams()
+  const view = ratingView(params.get('view'))
   const [data, setData] = useState<Awaited<ReturnType<typeof adminApi.contentRatings.list>> | null>(null)
   const [searchInput, setSearchInput] = useState('')
   const [query, setQuery] = useState('')
@@ -951,267 +967,336 @@ export default function ContentRatingsTab() {
   const summary = data?.total
     ? `共 ${formatNumber(data.total)} 本，显示 ${(data.offset || 0) + 1}-${Math.min((data.offset || 0) + data.items.length, data.total)}`
     : '共 0 本'
+  const viewRefreshing = view === 'ledger' ? loading || refreshing : view === 'rules' ? candidateLoading : aiLoading
+  const refreshLabel = view === 'ledger' ? '刷新账本' : view === 'rules' ? '刷新候选' : '刷新建议'
+
+  function refreshCurrentView() {
+    if (view === 'rules') void loadCandidates()
+    else if (view === 'ai') void loadAiSuggestions()
+    else void load(true)
+  }
 
   return (
     <AdminPage
       className="admin-redesign-page--content-ratings"
       title="分级管理"
-      description="维护书库的分级结果与判定依据，人工修改必须留下理由，未标注不会被当作一般。"
+      description="维护作品分级与判定依据，让每一次修改都有据可查。"
       actions={
         <>
-          <AdminSearch
-            id="content-rating-search"
-            type="search"
-            label="搜索作品分级记录"
-            placeholder="搜索标题、作者或修改理由…"
-            value={searchInput}
-            onChange={(event) => setSearchInput(event.target.value)}
-          />
-          <Button variant="secondary" size="sm" onClick={() => void load(true)} disabled={loading || refreshing}>
-            <RefreshCw className={refreshing ? 'size-3.5 animate-spin' : 'size-3.5'} />
-            {refreshing ? '同步中…' : '刷新账本'}
+          {view === 'ledger' && (
+            <AdminSearch
+              id="content-rating-search"
+              type="search"
+              label="搜索作品分级记录"
+              placeholder="搜索标题、作者或修改理由…"
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+            />
+          )}
+          <Button variant="secondary" size="sm" onClick={refreshCurrentView} disabled={viewRefreshing}>
+            <RefreshCw className={viewRefreshing ? 'size-3.5 animate-spin' : 'size-3.5'} />
+            {viewRefreshing ? '同步中…' : refreshLabel}
           </Button>
         </>
       }
     >
-      {!data ? (
-        loading ? (
-          <LoadingState className="admin-panel-card" label="正在加载内容分级账本" />
-        ) : (
-          <ErrorState className="admin-panel-card" message={`分级账本加载失败：${loadError || '未知错误'}`} onRetry={() => void load(true)} />
-        )
-      ) : (
-        <AdminDataPanel ariaLabel="内容分级账本" columns={RATING_COLUMNS}>
-          <AdminPanelHeading
-            title="作品分级账本"
-            status={<span className="text-xs text-muted-foreground">{loading ? '正在同步…' : `${formatNumber(data.total)} 本匹配`}</span>}
-          />
-
-          {loadError && <InlineError message={`分级账本同步失败：${loadError}`} onRetry={() => void load(true)} className="mx-5 my-4" />}
-
-          <AdminToolbar className="content-ratings-toolbar" ariaLive="polite">
-            <div className="admin-toolbar__filters">
-              <Label id="content-rating-filter-label">分级</Label>
-              <CustomSelect
-                compact
-                aria-labelledby="content-rating-filter-label"
-                options={RATING_OPTIONS}
-                value={ratingFilter}
-                onChange={(value) => {
-                  setRatingFilter(value as ContentRating | '')
-                  setPage(1)
-                }}
+      <Tabs
+        value={view}
+        className="content-ratings-tabs"
+        onValueChange={(next) => {
+          const query = new URLSearchParams(params)
+          query.set('view', ratingView(next))
+          setParams(query)
+        }}
+      >
+        <div className="content-ratings-workspace-nav">
+          <TabsList aria-label="分级工作视图">
+            <TabsTrigger value="ledger">分级账本</TabsTrigger>
+            <TabsTrigger value="rules">
+              规则候选 <span className="content-ratings-tab-count">{candidateData ? formatNumber(candidateData.counts.pending) : '—'}</span>
+            </TabsTrigger>
+            <TabsTrigger value="ai">
+              LLM 建议 <span className="content-ratings-tab-count">{aiData ? formatNumber(aiData.counts.pending) : '—'}</span>
+            </TabsTrigger>
+          </TabsList>
+          <details className="content-ratings-policy">
+            <summary>
+              <Info aria-hidden="true" />
+              分级与审核口径
+            </summary>
+            <p>
+              未标注不等于一般。R18 对应限制级；规则与 LLM
+              只提出限制级或继续未标注的判断，不自动标为一般。规则批准前预览影响范围，模型建议经人工审核才可修改分级；人工修改必须填写理由并保留审计记录。
+            </p>
+          </details>
+        </div>
+        <TabsContent value="ledger">
+          {!data ? (
+            loading ? (
+              <LoadingState className="admin-panel-card" label="正在加载内容分级账本" />
+            ) : (
+              <ErrorState className="admin-panel-card" message={`分级账本加载失败：${loadError || '未知错误'}`} onRetry={() => void load(true)} />
+            )
+          ) : (
+            <AdminDataPanel ariaLabel="内容分级账本" columns={RATING_COLUMNS} className="content-ratings-panel content-ratings-ledger">
+              <AdminPanelHeading
+                title="作品分级账本"
+                status={<span className="text-xs text-muted-foreground">{loading ? '正在同步…' : `${formatNumber(data.total)} 本匹配`}</span>}
               />
-              {/* 判定缺口的读数与能筛出它的控件同处一个筛选器组：这是数字唯一的去处，
+
+              {loadError && <InlineError message={`分级账本同步失败：${loadError}`} onRetry={() => void load(true)} className="mx-5 my-4" />}
+
+              <AdminToolbar className="content-ratings-toolbar" ariaLive="polite">
+                <div className="admin-toolbar__filters">
+                  <Label id="content-rating-filter-label">分级</Label>
+                  <CustomSelect
+                    compact
+                    aria-labelledby="content-rating-filter-label"
+                    options={RATING_OPTIONS}
+                    value={ratingFilter}
+                    onChange={(value) => {
+                      setRatingFilter(value as ContentRating | '')
+                      setPage(1)
+                    }}
+                  />
+                  {/* 判定缺口的读数与能筛出它的控件同处一个筛选器组：这是数字唯一的去处，
                   也是它存在的理由。与之并列的「限制级 / 一般」计数不再单独成块——
                   把下拉切到对应档位，计数就在页脚。 */}
-              <span className="text-xs tabular-nums text-muted-foreground" data-testid="rating-progress">
-                待标注 {formatNumber(counts.unknown)} · 限制级 {formatNumber(counts.restricted)}
-              </span>
-            </div>
-            <CustomSelect
-              options={sourceOptions}
-              value={sourceFilter}
-              onChange={(value) => {
-                setSourceFilter(value as AdminContentRatingSource | '')
-                setPage(1)
-              }}
-              compact
-              aria-label="按来源筛选"
-            />
-          </AdminToolbar>
+                  <span className="content-ratings-filter-counts text-xs tabular-nums text-muted-foreground" data-testid="rating-progress">
+                    待标注 {formatNumber(counts.unknown)} · 限制级 {formatNumber(counts.restricted)}
+                  </span>
+                </div>
+                <CustomSelect
+                  options={sourceOptions}
+                  value={sourceFilter}
+                  onChange={(value) => {
+                    setSourceFilter(value as AdminContentRatingSource | '')
+                    setPage(1)
+                  }}
+                  compact
+                  aria-label="按来源筛选"
+                />
+                {(searchInput || ratingFilter || sourceFilter) && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="content-ratings-clear"
+                    onClick={() => {
+                      setSearchInput('')
+                      setRatingFilter('')
+                      setSourceFilter('')
+                      setPage(1)
+                    }}
+                  >
+                    清除筛选
+                  </Button>
+                )}
+              </AdminToolbar>
 
-          {data.items.length === 0 ? (
-            <AdminEmptyState message={query || ratingFilter || sourceFilter ? '当前筛选条件下没有作品' : '暂无内容分级记录'} />
-          ) : (
-            <Table className="admin-data-table">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>作品</TableHead>
-                  <TableHead>当前分级</TableHead>
-                  <TableHead>来源</TableHead>
-                  <TableHead>判定证据</TableHead>
-                  <TableHead>最近操作</TableHead>
-                  <TableHead className="text-right">操作</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.items.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell data-primary="" data-label="作品">
-                      <div className="min-w-0">
-                        <div className="truncate font-medium text-foreground" title={item.title}>
-                          {item.title || '未命名作品'}
-                        </div>
-                        <div className="mt-1 truncate text-xs text-muted-foreground">
-                          {(item.author || '未知作者') + ' · ' + formatNumber(item.chapterCount) + ' 章'}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell data-label="当前分级">
-                      <AdminContentRatingBadge rating={item.contentRating} />
-                    </TableCell>
-                    <TableCell data-label="来源">
-                      <div className="min-w-0">
-                        <div className="truncate text-sm text-foreground">{sourceLabel(item.source)}</div>
-                        <div className="mt-1 truncate text-xs text-muted-foreground">修订 {item.revision}</div>
-                      </div>
-                    </TableCell>
-                    <TableCell data-label="判定证据">
-                      <EvidenceList evidence={item.evidence} compact />
-                      {item.ruleVersion && <div className="mt-1 truncate text-xs text-muted-foreground">规则：{item.ruleVersion}</div>}
-                    </TableCell>
-                    <TableCell data-label="最近操作">
-                      <div className="min-w-0">
-                        <div className="truncate text-sm text-foreground">{item.updatedByName || '系统'}</div>
-                        <time
-                          className="mt-1 block truncate text-xs text-muted-foreground"
-                          dateTime={item.contentRatingUpdatedAt ? new Date(item.contentRatingUpdatedAt).toISOString() : undefined}
-                          title={formatDateTime(item.contentRatingUpdatedAt)}
-                        >
-                          {timeAgo(item.contentRatingUpdatedAt) || '尚无操作时间'}
-                        </time>
-                      </div>
-                    </TableCell>
-                    <TableCell data-actions="">
-                      <div className="admin-cell-actions justify-end">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="admin-icon-button"
-                          aria-label={`查看 ${item.title} 的分级历史`}
-                          title="查看历史"
-                          onClick={() => void openHistory(item)}
-                        >
-                          <History aria-hidden="true" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="admin-icon-button"
-                          aria-label={`修改 ${item.title} 的分级`}
-                          title="修改分级"
-                          onClick={() => openEdit(item)}
-                        >
-                          <Pencil aria-hidden="true" />
-                        </Button>
-                        {item.contentRating === 'restricted' && item.source === 'manual' && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="admin-icon-button"
-                            aria-label={`从 ${item.title} 沉淀规则候选`}
-                            title="沉淀规则候选"
-                            onClick={() => openCandidate(item)}
-                          >
-                            <PlusCircle aria-hidden="true" />
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+              {data.items.length === 0 ? (
+                <AdminEmptyState message={query || ratingFilter || sourceFilter ? '当前筛选条件下没有作品' : '暂无内容分级记录'} />
+              ) : (
+                <Table className="admin-data-table">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>作品</TableHead>
+                      <TableHead>当前分级</TableHead>
+                      <TableHead>来源</TableHead>
+                      <TableHead>判定证据</TableHead>
+                      <TableHead>最近操作</TableHead>
+                      <TableHead className="text-right">操作</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {data.items.map((item) => (
+                      <TableRow key={item.id}>
+                        <TableCell data-primary="" data-label="作品">
+                          <div className="min-w-0">
+                            <div className="truncate font-medium text-foreground" title={item.title}>
+                              {item.title || '未命名作品'}
+                            </div>
+                            <div className="mt-1 truncate text-xs text-muted-foreground">
+                              {(item.author || '未知作者') + ' · ' + formatNumber(item.chapterCount) + ' 章'}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell data-label="当前分级">
+                          <AdminContentRatingBadge rating={item.contentRating} />
+                        </TableCell>
+                        <TableCell data-label="来源">
+                          <div className="min-w-0">
+                            <div className="truncate text-sm text-foreground">{sourceLabel(item.source)}</div>
+                            <div className="mt-1 truncate text-xs text-muted-foreground">修订 {item.revision}</div>
+                          </div>
+                        </TableCell>
+                        <TableCell data-label="判定证据">
+                          <div className="min-w-0">
+                            <EvidenceList evidence={item.evidence} compact />
+                            {item.reason && (
+                              <p className="content-ratings-evidence-note" title={item.reason}>
+                                {item.reason}
+                              </p>
+                            )}
+                            {item.ruleVersion && <div className="mt-1 truncate text-xs text-muted-foreground">规则：{item.ruleVersion}</div>}
+                          </div>
+                        </TableCell>
+                        <TableCell data-label="最近操作">
+                          <div className="min-w-0">
+                            <div className="truncate text-sm text-foreground">{item.updatedByName || '系统'}</div>
+                            <time
+                              className="mt-1 block truncate text-xs text-muted-foreground"
+                              dateTime={item.contentRatingUpdatedAt ? new Date(item.contentRatingUpdatedAt).toISOString() : undefined}
+                              title={formatDateTime(item.contentRatingUpdatedAt)}
+                            >
+                              {timeAgo(item.contentRatingUpdatedAt) || '尚无操作时间'}
+                            </time>
+                          </div>
+                        </TableCell>
+                        <TableCell data-actions="">
+                          <div className="admin-cell-actions justify-end">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="admin-icon-button"
+                              aria-label={`查看 ${item.title} 的分级历史`}
+                              title="查看历史"
+                              onClick={() => void openHistory(item)}
+                            >
+                              <History aria-hidden="true" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              size="sm"
+                              className="content-ratings-edit-button"
+                              aria-label={`修改 ${item.title} 的分级`}
+                              title="修改分级"
+                              onClick={() => openEdit(item)}
+                            >
+                              修改
+                            </Button>
+                            {item.contentRating === 'restricted' && item.source === 'manual' && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="admin-icon-button"
+                                aria-label={`从 ${item.title} 沉淀规则候选`}
+                                title="沉淀规则候选"
+                                onClick={() => openCandidate(item)}
+                              >
+                                <PlusCircle aria-hidden="true" />
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+
+              <Pagination
+                variant="detached"
+                page={page}
+                totalPages={totalPages}
+                onPage={setPage}
+                summary={summary}
+                pageSize={{ value: pageSize, options: ADMIN_PAGE_SIZE_OPTIONS, onChange: setPageSize }}
+                busy={loading || refreshing}
+              />
+            </AdminDataPanel>
           )}
-
-          <Pagination
-            page={page}
-            totalPages={totalPages}
-            onPage={setPage}
-            summary={summary}
-            pageSize={{ value: pageSize, options: ADMIN_PAGE_SIZE_OPTIONS, onChange: setPageSize }}
-            busy={loading || refreshing}
+        </TabsContent>
+        <TabsContent value="rules">
+          <RuleCandidatePanel
+            data={candidateData}
+            loading={candidateLoading}
+            error={candidateError}
+            onRetry={() => void loadCandidates()}
+            onPreview={(candidate) => void openCandidatePreview(candidate)}
           />
-        </AdminDataPanel>
-      )}
-
-      <RuleCandidatePanel
-        data={candidateData}
-        loading={candidateLoading}
-        error={candidateError}
-        onRetry={() => void loadCandidates()}
-        onPreview={(candidate) => void openCandidatePreview(candidate)}
-      />
-
-      <AiSuggestionPanel
-        data={aiData}
-        loading={aiLoading}
-        error={aiError}
-        scanning={aiScanning}
-        task={aiTask}
-        progress={aiProgress}
-        cancelling={aiCancelling}
-        resuming={aiResuming}
-        batchLimit={aiBatchLimit}
-        onBatchLimit={setAiBatchLimit}
-        onRetry={() => void loadAiSuggestions()}
-        onScan={() => void scanAiSuggestions()}
-        onCancel={() => void cancelAiTask()}
-        onResume={() => void resumeAiTask()}
-        onReview={openAiReview}
-      />
+        </TabsContent>
+        <TabsContent value="ai">
+          <AiSuggestionPanel
+            data={aiData}
+            loading={aiLoading}
+            error={aiError}
+            scanning={aiScanning}
+            task={aiTask}
+            progress={aiProgress}
+            cancelling={aiCancelling}
+            resuming={aiResuming}
+            batchLimit={aiBatchLimit}
+            onBatchLimit={setAiBatchLimit}
+            onRetry={() => void loadAiSuggestions()}
+            onScan={() => void scanAiSuggestions()}
+            onCancel={() => void cancelAiTask()}
+            onResume={() => void resumeAiTask()}
+            onReview={openAiReview}
+          />
+        </TabsContent>
+      </Tabs>
 
       <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)}>
-        <AdminDialogContent className="sm:max-w-xl">
+        <AdminDialogContent className="content-ratings-dialog sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>修改分级 · {editing?.title || '作品'}</DialogTitle>
             <DialogDescription>人工修改会记录操作人、理由和当前版本。提交前请确认你看到的是最新记录。</DialogDescription>
           </DialogHeader>
-
-          {editing && (
-            <div className="grid gap-4">
-              <div className="rounded-md border border-border bg-muted/30 p-3 text-sm">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-muted-foreground">当前结果</span>
-                  <AdminContentRatingBadge rating={editing.contentRating} />
-                  <span className="text-xs text-muted-foreground">
-                    来源：{sourceLabel(editing.source)} · 修订 {editing.revision}
-                  </span>
-                </div>
-                {editing.evidence.length > 0 && (
-                  <div className="mt-3">
-                    <EvidenceList evidence={editing.evidence} />
+          <AdminDialogBody className="space-y-4">
+            {editing && (
+              <div className="grid gap-4">
+                <div className="rounded-md border border-border bg-muted/30 p-3 text-sm">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-muted-foreground">当前结果</span>
+                    <AdminContentRatingBadge rating={editing.contentRating} />
+                    <span className="text-xs text-muted-foreground">
+                      来源：{sourceLabel(editing.source)} · 修订 {editing.revision}
+                    </span>
                   </div>
+                  {editing.evidence.length > 0 && (
+                    <div className="mt-3">
+                      <EvidenceList evidence={editing.evidence} />
+                    </div>
+                  )}
+                  {editing.reason && <p className="mt-3 whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">最近理由：{editing.reason}</p>}
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="content-rating-draft">新的分级</Label>
+                  <CustomSelect
+                    options={EDIT_RATING_OPTIONS}
+                    value={draftRating}
+                    onChange={(value) => setDraftRating(ratingValue(value))}
+                    aria-label="新的分级"
+                  />
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="content-rating-reason">修改理由</Label>
+                  <Textarea
+                    id="content-rating-reason"
+                    value={draftReason}
+                    onChange={(event) => setDraftReason(event.target.value)}
+                    placeholder="例如：复核标题、分类和简介后，确认作品属于限制级。"
+                    rows={4}
+                    maxLength={500}
+                    aria-invalid={!!editError}
+                  />
+                  <p className="text-xs text-muted-foreground">必填，最多 500 字；理由会进入分级审计历史。</p>
+                </div>
+
+                {editError && (
+                  <p className="text-sm text-destructive" role="alert">
+                    {editError}
+                  </p>
                 )}
-                {editing.reason && <p className="mt-3 whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">最近理由：{editing.reason}</p>}
               </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="content-rating-draft">新的分级</Label>
-                <CustomSelect
-                  options={EDIT_RATING_OPTIONS}
-                  value={draftRating}
-                  onChange={(value) => setDraftRating(ratingValue(value))}
-                  aria-label="新的分级"
-                />
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="content-rating-reason">修改理由</Label>
-                <Textarea
-                  id="content-rating-reason"
-                  value={draftReason}
-                  onChange={(event) => setDraftReason(event.target.value)}
-                  placeholder="例如：复核标题、分类和简介后，确认作品属于限制级。"
-                  rows={4}
-                  maxLength={500}
-                  aria-invalid={!!editError}
-                />
-                <p className="text-xs text-muted-foreground">必填，最多 500 字；理由会进入分级审计历史。</p>
-              </div>
-
-              {editError && (
-                <p className="text-sm text-destructive" role="alert">
-                  {editError}
-                </p>
-              )}
-            </div>
-          )}
-
+            )}
+          </AdminDialogBody>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setEditing(null)} disabled={saving}>
               取消
@@ -1224,70 +1309,74 @@ export default function ContentRatingsTab() {
       </Dialog>
 
       <Dialog open={!!candidateNovel} onOpenChange={(open) => !open && setCandidateNovel(null)}>
-        <AdminDialogContent className="sm:max-w-xl">
+        <AdminDialogContent className="content-ratings-dialog sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>沉淀规则候选 · {candidateNovel?.title || '作品'}</DialogTitle>
             <DialogDescription>这里只记录人工经验，等后续预览和批准后才会影响新作品；本次操作不会立即修改其他作品的分级。</DialogDescription>
           </DialogHeader>
-
-          {candidateNovel && (
-            <div className="grid gap-4">
-              <div className="rounded-md border border-border bg-muted/30 p-3 text-sm">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-muted-foreground">人工来源</span>
-                  <AdminContentRatingBadge rating={candidateNovel.contentRating} />
-                  <span className="text-xs text-muted-foreground">
-                    修订 {candidateNovel.revision} · {candidateNovel.updatedByName || '管理员'}
-                  </span>
+          <AdminDialogBody className="space-y-4">
+            {candidateNovel && (
+              <div className="grid gap-4">
+                <div className="rounded-md border border-border bg-muted/30 p-3 text-sm">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-muted-foreground">人工来源</span>
+                    <AdminContentRatingBadge rating={candidateNovel.contentRating} />
+                    <span className="text-xs text-muted-foreground">
+                      修订 {candidateNovel.revision} · {candidateNovel.updatedByName || '管理员'}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                    只有人工确认的 restricted 作品可以生成候选；候选会保留这本书作为人工例证。
+                  </p>
                 </div>
-                <p className="mt-2 text-xs leading-relaxed text-muted-foreground">只有人工确认的 restricted 作品可以生成候选；候选会保留这本书作为人工例证。</p>
+
+                <div className="grid gap-2">
+                  <Label>候选类型</Label>
+                  <CustomSelect
+                    options={CANDIDATE_KIND_OPTIONS}
+                    value={candidateKind}
+                    onChange={(value) => setCandidateKind(value as AdminContentRatingRuleCandidateKind)}
+                    aria-label="候选类型"
+                  />
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="content-rating-candidate-value">{candidateKind === 'category' ? '分类标签' : '文本短语'}</Label>
+                  <Input
+                    id="content-rating-candidate-value"
+                    value={candidateValue}
+                    onChange={(event) => setCandidateValue(event.target.value)}
+                    placeholder={candidateKind === 'category' ? '例如：新的成人分类标签' : '例如：能够稳定指向限制级的短语'}
+                    maxLength={160}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {candidateKind === 'category'
+                      ? '分类候选将按完整标签匹配，不会做模糊子串匹配。'
+                      : '文本候选先以字面短语保存，后续预览阶段再评估误命中范围。'}
+                  </p>
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="content-rating-candidate-reason">候选理由</Label>
+                  <Textarea
+                    id="content-rating-candidate-reason"
+                    value={candidateReason}
+                    onChange={(event) => setCandidateReason(event.target.value)}
+                    placeholder="说明为什么这个标签或短语能作为限制级依据，以及你在这本书中观察到的证据。"
+                    rows={4}
+                    maxLength={500}
+                    aria-invalid={!!candidateFormError}
+                  />
+                </div>
+
+                {candidateFormError && (
+                  <p className="text-sm text-destructive" role="alert">
+                    {candidateFormError}
+                  </p>
+                )}
               </div>
-
-              <div className="grid gap-2">
-                <Label>候选类型</Label>
-                <CustomSelect
-                  options={CANDIDATE_KIND_OPTIONS}
-                  value={candidateKind}
-                  onChange={(value) => setCandidateKind(value as AdminContentRatingRuleCandidateKind)}
-                  aria-label="候选类型"
-                />
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="content-rating-candidate-value">{candidateKind === 'category' ? '分类标签' : '文本短语'}</Label>
-                <Input
-                  id="content-rating-candidate-value"
-                  value={candidateValue}
-                  onChange={(event) => setCandidateValue(event.target.value)}
-                  placeholder={candidateKind === 'category' ? '例如：新的成人分类标签' : '例如：能够稳定指向限制级的短语'}
-                  maxLength={160}
-                />
-                <p className="text-xs text-muted-foreground">
-                  {candidateKind === 'category' ? '分类候选将按完整标签匹配，不会做模糊子串匹配。' : '文本候选先以字面短语保存，后续预览阶段再评估误命中范围。'}
-                </p>
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="content-rating-candidate-reason">候选理由</Label>
-                <Textarea
-                  id="content-rating-candidate-reason"
-                  value={candidateReason}
-                  onChange={(event) => setCandidateReason(event.target.value)}
-                  placeholder="说明为什么这个标签或短语能作为限制级依据，以及你在这本书中观察到的证据。"
-                  rows={4}
-                  maxLength={500}
-                  aria-invalid={!!candidateFormError}
-                />
-              </div>
-
-              {candidateFormError && (
-                <p className="text-sm text-destructive" role="alert">
-                  {candidateFormError}
-                </p>
-              )}
-            </div>
-          )}
-
+            )}
+          </AdminDialogBody>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setCandidateNovel(null)} disabled={candidateSaving}>
               取消
@@ -1300,94 +1389,94 @@ export default function ContentRatingsTab() {
       </Dialog>
 
       <Dialog open={!!candidatePreviewCandidate} onOpenChange={(open) => !open && !candidateReviewSaving && closeCandidatePreview()}>
-        <AdminDialogContent className="max-h-[min(86vh,800px)] overflow-y-auto sm:max-w-3xl">
+        <AdminDialogContent className="content-ratings-dialog max-h-[min(86vh,800px)] sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>预览规则影响 · {candidatePreviewCandidate?.value || '规则候选'}</DialogTitle>
             <DialogDescription>批准会把命中的未标注作品改为限制级，并把规则版本写入分级审计；一般作品和已人工确认的作品不会被覆盖。</DialogDescription>
           </DialogHeader>
+          <AdminDialogBody className="space-y-4">
+            {candidatePreviewLoading ? (
+              <LoadingState label="正在计算未标注作品的影响范围" rows={4} />
+            ) : candidatePreviewError ? (
+              <ErrorState message={candidatePreviewError} onRetry={() => candidatePreviewCandidate && void openCandidatePreview(candidatePreviewCandidate)} />
+            ) : candidatePreview ? (
+              <div className="grid gap-4">
+                <div className="rounded-md border border-border bg-muted/30 p-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="outline">{candidateKindLabel(candidatePreview.candidate.kind)}</Badge>
+                    <code className="rounded bg-background px-2 py-1 text-sm">{candidatePreview.candidate.value}</code>
+                    <AdminStatusBadge tone="warning">待审核</AdminStatusBadge>
+                  </div>
+                  <div className="mt-3 grid gap-2 text-sm sm:grid-cols-3">
+                    <div>
+                      <span className="text-muted-foreground">预计影响</span>
+                      <strong className="ml-2 text-foreground">{formatNumber(candidatePreview.affectedCount)} 本</strong>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">当前规则</span>
+                      <code className="ml-2 text-xs text-foreground">{candidatePreview.currentRuleVersion}</code>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">批准后版本</span>
+                      <code className="ml-2 text-xs text-foreground">{candidatePreview.prospectiveRuleVersion}</code>
+                    </div>
+                  </div>
+                </div>
 
-          {candidatePreviewLoading ? (
-            <LoadingState label="正在计算未标注作品的影响范围" rows={4} />
-          ) : candidatePreviewError ? (
-            <ErrorState message={candidatePreviewError} onRetry={() => candidatePreviewCandidate && void openCandidatePreview(candidatePreviewCandidate)} />
-          ) : candidatePreview ? (
-            <div className="grid gap-4">
-              <div className="rounded-md border border-border bg-muted/30 p-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline">{candidateKindLabel(candidatePreview.candidate.kind)}</Badge>
-                  <code className="rounded bg-background px-2 py-1 text-sm">{candidatePreview.candidate.value}</code>
-                  <AdminStatusBadge tone="warning">待审核</AdminStatusBadge>
-                </div>
-                <div className="mt-3 grid gap-2 text-sm sm:grid-cols-3">
-                  <div>
-                    <span className="text-muted-foreground">预计影响</span>
-                    <strong className="ml-2 text-foreground">{formatNumber(candidatePreview.affectedCount)} 本</strong>
+                {candidatePreview.items.length === 0 ? (
+                  <AdminEmptyState message="当前没有命中的未标注作品；批准后仍会对后续新作品生效。" />
+                ) : (
+                  <div className="rounded-md border border-border">
+                    <div className="border-b border-border px-4 py-3 text-sm font-medium text-foreground">将被改为限制级的未标注作品</div>
+                    <div className="divide-y divide-border px-4">
+                      {candidatePreview.items.map((item) => (
+                        <article className="flex flex-wrap items-start justify-between gap-3 py-3" key={item.novelId}>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium text-foreground">{item.title}</p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {item.author || '未知作者'} · 修订 {item.revision} · {item.matchedFields.join('、') || '规则命中'}
+                            </p>
+                          </div>
+                          <EvidenceList evidence={item.evidence} compact />
+                        </article>
+                      ))}
+                    </div>
+                    {candidatePreview.affectedCount > candidatePreview.items.length && (
+                      <p className="border-t border-border px-4 py-3 text-xs text-muted-foreground">
+                        仅展示前 {candidatePreview.items.length} 本，实际影响范围为 {formatNumber(candidatePreview.affectedCount)} 本。
+                      </p>
+                    )}
                   </div>
-                  <div>
-                    <span className="text-muted-foreground">当前规则</span>
-                    <code className="ml-2 text-xs text-foreground">{candidatePreview.currentRuleVersion}</code>
+                )}
+
+                {candidateReviewDecision && (
+                  <div className="grid gap-2 rounded-md border border-border bg-background p-4">
+                    <Label htmlFor="content-rating-candidate-review-reason">{candidateReviewDecision === 'approve' ? '批准理由' : '拒绝理由'}</Label>
+                    <Textarea
+                      id="content-rating-candidate-review-reason"
+                      value={candidateReviewReason}
+                      onChange={(event) => setCandidateReviewReason(event.target.value)}
+                      placeholder={
+                        candidateReviewDecision === 'approve'
+                          ? '说明为什么影响范围可接受，并批准该规则进入自动判定。'
+                          : '说明为什么样本不足、误命中风险过高或暂不纳入规则。'
+                      }
+                      rows={4}
+                      maxLength={500}
+                      aria-invalid={!!candidateReviewError}
+                    />
+                    <p className="text-xs text-muted-foreground">理由会写入候选审核记录；批准后命中的作品会各自产生分级审计记录。</p>
                   </div>
-                  <div>
-                    <span className="text-muted-foreground">批准后版本</span>
-                    <code className="ml-2 text-xs text-foreground">{candidatePreview.prospectiveRuleVersion}</code>
-                  </div>
-                </div>
+                )}
+
+                {candidateReviewError && (
+                  <p className="text-sm text-destructive" role="alert">
+                    {candidateReviewError}
+                  </p>
+                )}
               </div>
-
-              {candidatePreview.items.length === 0 ? (
-                <AdminEmptyState message="当前没有命中的未标注作品；批准后仍会对后续新作品生效。" />
-              ) : (
-                <div className="rounded-md border border-border">
-                  <div className="border-b border-border px-4 py-3 text-sm font-medium text-foreground">将被改为限制级的未标注作品</div>
-                  <div className="divide-y divide-border px-4">
-                    {candidatePreview.items.map((item) => (
-                      <article className="flex flex-wrap items-start justify-between gap-3 py-3" key={item.novelId}>
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-medium text-foreground">{item.title}</p>
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            {item.author || '未知作者'} · 修订 {item.revision} · {item.matchedFields.join('、') || '规则命中'}
-                          </p>
-                        </div>
-                        <EvidenceList evidence={item.evidence} compact />
-                      </article>
-                    ))}
-                  </div>
-                  {candidatePreview.affectedCount > candidatePreview.items.length && (
-                    <p className="border-t border-border px-4 py-3 text-xs text-muted-foreground">
-                      仅展示前 {candidatePreview.items.length} 本，实际影响范围为 {formatNumber(candidatePreview.affectedCount)} 本。
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {candidateReviewDecision && (
-                <div className="grid gap-2 rounded-md border border-border bg-background p-4">
-                  <Label htmlFor="content-rating-candidate-review-reason">{candidateReviewDecision === 'approve' ? '批准理由' : '拒绝理由'}</Label>
-                  <Textarea
-                    id="content-rating-candidate-review-reason"
-                    value={candidateReviewReason}
-                    onChange={(event) => setCandidateReviewReason(event.target.value)}
-                    placeholder={
-                      candidateReviewDecision === 'approve'
-                        ? '说明为什么影响范围可接受，并批准该规则进入自动判定。'
-                        : '说明为什么样本不足、误命中风险过高或暂不纳入规则。'
-                    }
-                    rows={4}
-                    maxLength={500}
-                    aria-invalid={!!candidateReviewError}
-                  />
-                  <p className="text-xs text-muted-foreground">理由会写入候选审核记录；批准后命中的作品会各自产生分级审计记录。</p>
-                </div>
-              )}
-
-              {candidateReviewError && (
-                <p className="text-sm text-destructive" role="alert">
-                  {candidateReviewError}
-                </p>
-              )}
-            </div>
-          ) : null}
-
+            ) : null}
+          </AdminDialogBody>
           <DialogFooter>
             {!candidateReviewDecision ? (
               <>
@@ -1423,85 +1512,85 @@ export default function ContentRatingsTab() {
       </Dialog>
 
       <Dialog open={!!aiReviewSuggestion} onOpenChange={(open) => !open && closeAiReview()}>
-        <AdminDialogContent className="max-h-[min(86vh,800px)] overflow-y-auto sm:max-w-2xl">
+        <AdminDialogContent className="content-ratings-dialog max-h-[min(86vh,800px)] sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>审核 LLM 分级建议 · {aiReviewSuggestion?.title || '作品'}</DialogTitle>
             <DialogDescription>批准限制级建议前请核对元数据证据。LLM 不能直接发布分级；批准“继续未标注”也不会把作品改为一般。</DialogDescription>
           </DialogHeader>
+          <AdminDialogBody className="space-y-4">
+            {aiReviewSuggestion && (
+              <div className="grid gap-4">
+                <div className="rounded-md border border-border bg-muted/30 p-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-muted-foreground">AI 建议</span>
+                    <AdminStatusBadge tone={aiReviewSuggestion.suggestedRating === 'restricted' ? 'danger' : 'muted'}>
+                      {aiReviewSuggestion.suggestedRating === 'restricted' ? '限制级' : '继续未标注'}
+                    </AdminStatusBadge>
+                    <Badge variant="outline">置信度 {Math.round(aiReviewSuggestion.confidence * 100)}%</Badge>
+                  </div>
+                  <p className="mt-3 text-sm leading-relaxed text-foreground">{aiReviewSuggestion.reason || '未记录 AI 理由'}</p>
+                  <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                    <span>模型：{aiReviewSuggestion.model || '未记录'}</span>
+                    <span>提示版本：{aiReviewSuggestion.promptVersion}</span>
+                    <span>作品修订：{aiReviewSuggestion.novelRevision}</span>
+                  </div>
+                  {aiReviewSuggestion.evidence.length > 0 && (
+                    <div className="mt-3">
+                      <p className="mb-2 text-xs font-medium text-muted-foreground">模型提取的证据</p>
+                      <EvidenceList evidence={aiReviewSuggestion.evidence} />
+                    </div>
+                  )}
+                </div>
 
-          {aiReviewSuggestion && (
-            <div className="grid gap-4">
-              <div className="rounded-md border border-border bg-muted/30 p-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-muted-foreground">AI 建议</span>
-                  <AdminStatusBadge tone={aiReviewSuggestion.suggestedRating === 'restricted' ? 'danger' : 'muted'}>
-                    {aiReviewSuggestion.suggestedRating === 'restricted' ? '限制级' : '继续未标注'}
-                  </AdminStatusBadge>
-                  <Badge variant="outline">置信度 {Math.round(aiReviewSuggestion.confidence * 100)}%</Badge>
+                <div className="rounded-md border border-border p-4 text-sm">
+                  <p className="font-medium text-foreground">审核边界</p>
+                  <p className="mt-2 leading-relaxed text-muted-foreground">
+                    当前作品仍是 <AdminContentRatingBadge rating={aiReviewSuggestion.currentRating} />
+                    ；提交时会再次锁定作品并校验修订号。只有管理员批准“限制级”建议时，才会写入
+                    <code className="mx-1 rounded bg-muted px-1.5 py-0.5 text-xs">ai_task</code>
+                    分级审计。
+                  </p>
                 </div>
-                <p className="mt-3 text-sm leading-relaxed text-foreground">{aiReviewSuggestion.reason || '未记录 AI 理由'}</p>
-                <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                  <span>模型：{aiReviewSuggestion.model || '未记录'}</span>
-                  <span>提示版本：{aiReviewSuggestion.promptVersion}</span>
-                  <span>作品修订：{aiReviewSuggestion.novelRevision}</span>
-                </div>
-                {aiReviewSuggestion.evidence.length > 0 && (
-                  <div className="mt-3">
-                    <p className="mb-2 text-xs font-medium text-muted-foreground">模型提取的证据</p>
-                    <EvidenceList evidence={aiReviewSuggestion.evidence} />
+
+                {aiReviewDecision && (
+                  <div className="grid gap-2 rounded-md border border-border bg-background p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <Label htmlFor="content-rating-ai-review-reason">{aiReviewDecision === 'approve' ? '批准理由' : '拒绝理由'}</Label>
+                      {aiReviewDecision === 'approve' && aiReviewSuggestion.reason.trim() && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-auto px-2 py-1 text-xs"
+                          onClick={() => setAiReviewReason(aiReviewSuggestion.reason.trim().slice(0, 500))}
+                          disabled={aiReviewSaving}
+                        >
+                          复用 AI 建议理由
+                        </Button>
+                      )}
+                    </div>
+                    <Textarea
+                      id="content-rating-ai-review-reason"
+                      value={aiReviewReason}
+                      onChange={(event) => setAiReviewReason(event.target.value)}
+                      placeholder={
+                        aiReviewDecision === 'approve' ? '说明为什么元数据证据足以支持这次人工确认。' : '说明为什么证据不足、存在误判风险或暂不采纳该建议。'
+                      }
+                      rows={4}
+                      maxLength={500}
+                      aria-invalid={!!aiReviewError}
+                    />
                   </div>
                 )}
+
+                {aiReviewError && (
+                  <p className="text-sm text-destructive" role="alert">
+                    {aiReviewError}
+                  </p>
+                )}
               </div>
-
-              <div className="rounded-md border border-border p-4 text-sm">
-                <p className="font-medium text-foreground">审核边界</p>
-                <p className="mt-2 leading-relaxed text-muted-foreground">
-                  当前作品仍是 <AdminContentRatingBadge rating={aiReviewSuggestion.currentRating} />
-                  ；提交时会再次锁定作品并校验修订号。只有管理员批准“限制级”建议时，才会写入
-                  <code className="mx-1 rounded bg-muted px-1.5 py-0.5 text-xs">ai_task</code>
-                  分级审计。
-                </p>
-              </div>
-
-              {aiReviewDecision && (
-                <div className="grid gap-2 rounded-md border border-border bg-background p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <Label htmlFor="content-rating-ai-review-reason">{aiReviewDecision === 'approve' ? '批准理由' : '拒绝理由'}</Label>
-                    {aiReviewDecision === 'approve' && aiReviewSuggestion.reason.trim() && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-auto px-2 py-1 text-xs"
-                        onClick={() => setAiReviewReason(aiReviewSuggestion.reason.trim().slice(0, 500))}
-                        disabled={aiReviewSaving}
-                      >
-                        复用 AI 建议理由
-                      </Button>
-                    )}
-                  </div>
-                  <Textarea
-                    id="content-rating-ai-review-reason"
-                    value={aiReviewReason}
-                    onChange={(event) => setAiReviewReason(event.target.value)}
-                    placeholder={
-                      aiReviewDecision === 'approve' ? '说明为什么元数据证据足以支持这次人工确认。' : '说明为什么证据不足、存在误判风险或暂不采纳该建议。'
-                    }
-                    rows={4}
-                    maxLength={500}
-                    aria-invalid={!!aiReviewError}
-                  />
-                </div>
-              )}
-
-              {aiReviewError && (
-                <p className="text-sm text-destructive" role="alert">
-                  {aiReviewError}
-                </p>
-              )}
-            </div>
-          )}
-
+            )}
+          </AdminDialogBody>
           <DialogFooter>
             {!aiReviewDecision ? (
               <>
@@ -1532,25 +1621,26 @@ export default function ContentRatingsTab() {
       </Dialog>
 
       <Dialog open={!!historyNovel} onOpenChange={(open) => !open && setHistoryNovel(null)}>
-        <AdminDialogContent className="max-h-[min(80vh,720px)] overflow-y-auto sm:max-w-2xl">
+        <AdminDialogContent className="content-ratings-dialog max-h-[min(80vh,720px)] sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>分级历史 · {historyNovel?.title || '作品'}</DialogTitle>
             <DialogDescription>这里保留自动判定、预填和人工修改的完整变更轨迹，便于复核结果从哪里来。</DialogDescription>
           </DialogHeader>
-
-          {historyLoading ? (
-            <LoadingState label="正在加载分级历史" rows={3} />
-          ) : historyError ? (
-            <ErrorState message={historyError} onRetry={() => historyNovel && void openHistory(historyNovel)} />
-          ) : history.length === 0 ? (
-            <AdminEmptyState message="暂无分级历史记录" />
-          ) : (
-            <div aria-live="polite">
-              {history.map((entry) => (
-                <RatingHistoryRow key={entry.id} entry={entry} />
-              ))}
-            </div>
-          )}
+          <AdminDialogBody className="space-y-4">
+            {historyLoading ? (
+              <LoadingState label="正在加载分级历史" rows={3} />
+            ) : historyError ? (
+              <ErrorState message={historyError} onRetry={() => historyNovel && void openHistory(historyNovel)} />
+            ) : history.length === 0 ? (
+              <AdminEmptyState message="暂无分级历史记录" />
+            ) : (
+              <div aria-live="polite">
+                {history.map((entry) => (
+                  <RatingHistoryRow key={entry.id} entry={entry} />
+                ))}
+              </div>
+            )}
+          </AdminDialogBody>
         </AdminDialogContent>
       </Dialog>
     </AdminPage>

@@ -1,3 +1,4 @@
+import { MemoryRouter, useLocation } from 'react-router-dom'
 import userEvent from '@testing-library/user-event'
 import { render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -55,6 +56,20 @@ vi.mock('@/components/feedback', () => ({
 }))
 
 import ContentRatingsTab from './ContentRatingsTab'
+
+function RouteState() {
+  const location = useLocation()
+  return <output data-testid="rating-route">{location.search}</output>
+}
+
+function renderView(view = 'ledger') {
+  return render(
+    <MemoryRouter initialEntries={[`/admin/content-ratings?origin=review&view=${view}`]}>
+      <ContentRatingsTab />
+      <RouteState />
+    </MemoryRouter>,
+  )
+}
 
 const item: AdminContentRatingItem = {
   id: 'novel-1',
@@ -181,7 +196,7 @@ describe('ContentRatingsTab', () => {
   })
 
   it('展示分级概览、来源和可解释证据', async () => {
-    render(<ContentRatingsTab />)
+    renderView()
 
     expect(await screen.findByText('潮汐之后')).toBeInTheDocument()
     expect(screen.getByText('规则预填')).toBeInTheDocument()
@@ -193,7 +208,7 @@ describe('ContentRatingsTab', () => {
   })
 
   it('页头收在一行：标题单独显示，搜索与页面操作在右', async () => {
-    render(<ContentRatingsTab />)
+    renderView()
     await screen.findByText('潮汐之后')
 
     const header = document.querySelector('.admin-tab-header')
@@ -205,9 +220,30 @@ describe('ContentRatingsTab', () => {
     expect(screen.getByRole('button', { name: /刷新账本/ })).toBeInTheDocument()
   })
 
+  it('工作视图写入 URL 并保留其他参数、账本搜索和当前视图刷新', async () => {
+    const user = userEvent.setup()
+    renderView()
+    await screen.findByText('潮汐之后')
+    await user.type(screen.getByRole('searchbox'), '潮汐')
+    await user.click(screen.getByRole('tab', { name: /规则候选/ }))
+    expect(screen.getByTestId('rating-route')).toHaveTextContent('origin=review&view=rules')
+    expect(screen.queryByRole('searchbox')).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: '内容分级账本' })).not.toBeInTheDocument()
+    mocks.list.mockClear()
+    mocks.candidateList.mockClear()
+    await user.click(screen.getByRole('button', { name: '刷新候选' }))
+    await waitFor(() => expect(mocks.candidateList).toHaveBeenCalledTimes(1))
+    expect(mocks.list).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('tab', { name: /LLM 建议/ }))
+    expect(screen.getByTestId('rating-route')).toHaveTextContent('view=ai')
+    expect(screen.getByRole('button', { name: '刷新建议' })).toBeInTheDocument()
+    await user.click(screen.getByRole('tab', { name: '分级账本' }))
+    expect(screen.getByRole('searchbox')).toHaveValue('潮汐')
+  })
+
   it('人工修改必须带理由，并携带当前 revision 提交', async () => {
     const user = userEvent.setup()
-    render(<ContentRatingsTab />)
+    renderView()
 
     await user.click(await screen.findByRole('button', { name: '修改 潮汐之后 的分级' }))
     const dialog = await screen.findByRole('dialog')
@@ -231,7 +267,7 @@ describe('ContentRatingsTab', () => {
       ...response,
       items: [{ ...item, source: 'manual', reason: '人工复核确认限制级' }],
     })
-    render(<ContentRatingsTab />)
+    renderView()
 
     await user.click(await screen.findByRole('button', { name: '从 潮汐之后 沉淀规则候选' }))
     await user.type(screen.getByLabelText('分类标签'), '新成人标签')
@@ -281,7 +317,7 @@ describe('ContentRatingsTab', () => {
       kinds: ['category', 'phrase'],
       activeRuleVersion: 'restricted-rules-v1',
     })
-    render(<ContentRatingsTab />)
+    renderView('rules')
 
     await user.click(await screen.findByRole('button', { name: '预览影响' }))
     expect(await screen.findByText('待标注作品')).toBeInTheDocument()
@@ -303,7 +339,7 @@ describe('ContentRatingsTab', () => {
 
   it('可以查看变更历史，并在并发冲突时刷新而不覆盖他人的修改', async () => {
     const user = userEvent.setup()
-    render(<ContentRatingsTab />)
+    renderView()
 
     await user.click(await screen.findByRole('button', { name: '查看 潮汐之后 的分级历史' }))
     expect(await screen.findByText('复核完成')).toBeInTheDocument()
@@ -361,7 +397,7 @@ describe('ContentRatingsTab', () => {
       applied: true,
       operationId: 'rating-ai-1',
     })
-    render(<ContentRatingsTab />)
+    renderView('ai')
 
     expect(await screen.findByText('待审核 AI 作品')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: '审核建议' }))
@@ -429,7 +465,7 @@ describe('ContentRatingsTab', () => {
       promptVersion: 'content-rating-ai-v1',
     })
 
-    render(<ContentRatingsTab />)
+    renderView('ai')
 
     expect(await screen.findByText('实时出现的 AI 建议')).toBeInTheDocument()
     expect(mocks.aiList.mock.calls.length).toBeGreaterThanOrEqual(2)
@@ -455,9 +491,9 @@ describe('ContentRatingsTab', () => {
       promptVersion: 'content-rating-ai-v1',
     })
     mocks.cancelTask.mockResolvedValue({ ok: true })
-    render(<ContentRatingsTab />)
+    renderView('ai')
 
-    await user.click(screen.getByRole('button', { name: '分析 unknown' }))
+    await user.click(screen.getByRole('button', { name: '分析未标注' }))
 
     // 进度用批次口径（已处理/剩余缺口），不是执行器游标
     expect(await screen.findByText(/已处理 12 \/ 40 本/)).toBeInTheDocument()
@@ -506,9 +542,9 @@ describe('ContentRatingsTab', () => {
       skipped: 12,
       task: { id: 'aitask-resumed', status: 'queued', current: 0, total: 28, step: '' },
     })
-    render(<ContentRatingsTab />)
+    renderView('ai')
 
-    await user.click(screen.getByRole('button', { name: '分析 unknown' }))
+    await user.click(screen.getByRole('button', { name: '分析未标注' }))
 
     const resumeButton = await screen.findByRole('button', { name: /断点恢复（28 本）/ })
     await user.click(resumeButton)
@@ -536,9 +572,9 @@ describe('ContentRatingsTab', () => {
       resumable: false,
       promptVersion: 'content-rating-ai-v1',
     })
-    render(<ContentRatingsTab />)
+    renderView('ai')
 
-    await user.click(screen.getByRole('button', { name: '分析 unknown' }))
+    await user.click(screen.getByRole('button', { name: '分析未标注' }))
 
     expect(await screen.findByText(/剩余 0 本|无缺口/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /断点恢复/ })).not.toBeInTheDocument()
@@ -556,7 +592,7 @@ describe('ContentRatingsTab', () => {
       resumable: true,
       promptVersion: 'content-rating-ai-v1',
     })
-    render(<ContentRatingsTab />)
+    renderView('ai')
 
     expect(await screen.findByText(/已处理 30 \/ 100 本/)).toBeInTheDocument()
     // 剩余缺口：与「已处理」同属一行，用整个进度区的文本断言（跨节点匹配）
@@ -578,7 +614,7 @@ describe('ContentRatingsTab', () => {
       resumable: true,
       promptVersion: 'content-rating-ai-v1',
     })
-    render(<ContentRatingsTab />)
+    renderView('ai')
 
     expect(await screen.findByRole('button', { name: /断点恢复（80 本）/ })).toBeInTheDocument()
     expect(screen.getByText(/已处理 20 \/ 100 本/)).toBeInTheDocument()
@@ -587,7 +623,7 @@ describe('ContentRatingsTab', () => {
   it('单批分析数量可调，默认 20，改为 100 后按 100 提交', async () => {
     const user = userEvent.setup()
     mocks.aiList.mockResolvedValue({ items: [], total: 0, counts: { pending: 0, approved: 0, rejected: 0, stale: 0, failed: 0 } })
-    render(<ContentRatingsTab />)
+    renderView('ai')
 
     // 默认不改变既有行为：没选过就是 20
     expect(screen.getByLabelText('单批分析数量')).toHaveTextContent('20 本')
@@ -613,7 +649,7 @@ describe('ContentRatingsTab', () => {
       resumable: true,
       promptVersion: 'content-rating-ai-v1',
     })
-    await user.click(screen.getByRole('button', { name: '分析 unknown' }))
+    await user.click(screen.getByRole('button', { name: '分析未标注' }))
 
     await waitFor(() => expect(mocks.aiScan).toHaveBeenCalledWith({ limit: 100 }))
   })
@@ -621,14 +657,14 @@ describe('ContentRatingsTab', () => {
   it('服务端上限之外的数量会被收敛到 20，不会把非法值发出去', async () => {
     const user = userEvent.setup()
     mocks.aiList.mockResolvedValue({ items: [], total: 0, counts: { pending: 0, approved: 0, rejected: 0, stale: 0, failed: 0 } })
-    render(<ContentRatingsTab />)
+    renderView('ai')
 
-    await user.click(screen.getByRole('button', { name: '分析 unknown' }))
+    await user.click(screen.getByRole('button', { name: '分析未标注' }))
     await waitFor(() => expect(mocks.aiScan).toHaveBeenCalledWith({ limit: 20 }))
   })
 
   it('筛选下拉带宽度上限，不会在工具条里撑满整行', async () => {
-    render(<ContentRatingsTab />)
+    renderView()
     await screen.findByText('潮汐之后')
 
     // 回归：compact 曾解除宽度约束，两个筛选器各占一整行（实测 1440px），
@@ -641,7 +677,7 @@ describe('ContentRatingsTab', () => {
   })
 
   it('工具条带自己的内间距类名，避免贴边与压住表头', async () => {
-    render(<ContentRatingsTab />)
+    renderView()
     await screen.findByText('潮汐之后')
 
     // 回归：.admin-toolbar--inline 自身没有内间距，各页面须由自己的 class 补齐
