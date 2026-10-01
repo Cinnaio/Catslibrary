@@ -39,6 +39,10 @@ export interface PublicUser {
   avatarUrl: string
 }
 
+export function userAvatarUrl(userId: string, updatedAt: number | string = 0): string {
+  return userId ? '/api/avatar/' + encodeURIComponent(userId) + '?v=' + encodeURIComponent(updatedAt || 0) : ''
+}
+
 export function publicUser(user: UserRow | null | undefined): PublicUser | null {
   if (!user) return null
   return {
@@ -51,7 +55,7 @@ export function publicUser(user: UserRow | null | undefined): PublicUser | null 
     updatedAt: user.updated_at,
     lastLoginAt: user.last_login_at || 0,
     bio: user.bio || '',
-    avatarUrl: '/api/avatar/' + encodeURIComponent(user.id) + '?v=' + encodeURIComponent(user.updated_at || 0),
+    avatarUrl: userAvatarUrl(user.id, user.updated_at),
   }
 }
 

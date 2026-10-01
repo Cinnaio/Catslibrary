@@ -4,11 +4,11 @@ import { listAdminOperationAudit } from './admin-operation-audit'
 let t: TestDb
 beforeAll(async () => {
   t = await createTestDb()
-  await t.db.query('CREATE TABLE users (id text PRIMARY KEY, username text, display_name text)')
+  await t.db.query('CREATE TABLE users (id text PRIMARY KEY, username text, display_name text, updated_at bigint)')
   await t.db.query(
     `CREATE TABLE admin_operation_audit (id text PRIMARY KEY, operation_id text, scope text, actor_user_id text, action text, target_count int, request_hash text, status text, response_status int, replay_count int, error text, created_at bigint, updated_at bigint, finished_at bigint)`,
   )
-  await t.db.query(`INSERT INTO users VALUES ('u1','Admin_One','管理甲'),('u2','admin-two','管理乙'),('u3','percent%admin','管理丙')`)
+  await t.db.query(`INSERT INTO users VALUES ('u1','Admin_One','管理甲',123),('u2','admin-two','管理乙',0),('u3','percent%admin','管理丙',0)`)
   for (const [id, user, status] of [
     ['a', 'u1', 'completed'],
     ['b', 'u1', 'failed'],
@@ -27,6 +27,8 @@ describe('操作审计服务端用户名筛选', () => {
     expect(result.total).toBe(2)
     expect(result.rows).toHaveLength(1)
     expect(result.rows[0]?.id).toBe('b')
+    expect(result.rows[0]?.current_actor_id).toBe('u1')
+    expect(Number(result.rows[0]?.actor_updated_at)).toBe(123)
     const next = await listAdminOperationAudit(t.db, { username: 'admin_one', limit: 1, offset: 1 })
     expect(next.total).toBe(2)
     expect(next.rows[0]?.id).toBe('a')

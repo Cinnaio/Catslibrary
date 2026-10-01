@@ -5,7 +5,7 @@
 import { useRef, useState } from 'react'
 import { Dialog as DialogPrimitive } from 'radix-ui'
 import type { Thought } from '@shared/types'
-import { url } from '../../lib/api'
+import { UserAvatar } from '../ui/user-avatar'
 import { timeText } from '../../lib/format'
 
 interface ThoughtPanelProps {
@@ -17,17 +17,6 @@ interface ThoughtPanelProps {
   onClose: () => void
   onSubmit: (text: string, displayName: string) => Promise<void>
   onDelete: (id: string) => Promise<void>
-}
-
-/** 头像失败走 state 兜底（不能 remove() React 管理的节点）；无 img 时 CSS :has 让首字显示。 */
-function ThoughtAvatar({ avatarUrl, name }: { avatarUrl?: string; name: string }) {
-  const [failed, setFailed] = useState(false)
-  return (
-    <span className="thought-avatar">
-      {!!avatarUrl && !failed && <img src={url(avatarUrl)} alt="" onError={() => setFailed(true)} />}
-      <span>{name.slice(0, 1)}</span>
-    </span>
-  )
 }
 
 export default function ThoughtPanel({ open, thoughts, selectedText, paragraphExcerpt, canDelete, onClose, onSubmit, onDelete }: ThoughtPanelProps) {
@@ -96,7 +85,7 @@ export default function ThoughtPanel({ open, thoughts, selectedText, paragraphEx
                 <article className="thought-item" key={thought.id}>
                   <div className="thought-item__meta">
                     <span className="thought-author">
-                      <ThoughtAvatar avatarUrl={thought.avatarUrl} name={name} />
+                      <span className="thought-avatar"><UserAvatar src={thought.avatarUrl} name={name} size="inherit" /></span>
                       <span>{name}</span>
                     </span>
                     <span>{timeText(thought.createdAt)}</span>

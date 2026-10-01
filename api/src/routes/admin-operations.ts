@@ -3,6 +3,7 @@ import { getDb } from '../db/pool'
 import { requireAdmin, type AuthEnv } from '../middlewares/auth'
 import { listAdminOperationAudit } from '../services/admin-operation-audit'
 import { clampInt } from '../services/text'
+import { userAvatarUrl } from '../services/auth'
 
 export const adminOperationRoutes = new Hono<AuthEnv>()
 
@@ -27,6 +28,7 @@ adminOperationRoutes.get('/', async (c) => {
         actorUserId: String(row.actor_user_id || ''),
         actorUsername: String(row.actor_username || ''),
         actorDisplayName: String(row.actor_display_name || ''),
+        actorAvatarUrl: userAvatarUrl(String(row.current_actor_id || ''), Number(row.actor_updated_at) || 0),
         action: String(row.action || ''),
         targetCount: Number(row.target_count) || 0,
         status: String(row.status || 'pending'),

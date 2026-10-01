@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { RefreshCw } from 'lucide-react'
 import { formatDate, formatDateTime } from '@/lib/format'
-import { InitialAvatar } from '@/components/ui/initial-avatar'
+import { UserAvatar } from '@/components/ui/user-avatar'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -13,6 +13,7 @@ import Pagination from '@/components/admin/Pagination'
 import { ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pagination'
 
 export interface LoginAudit {
+  avatarUrl?: string
   id: string
   userId: string
   username: string
@@ -24,6 +25,7 @@ export interface LoginAudit {
   createdAt: number
 }
 export interface AdminOperationAudit {
+  actorAvatarUrl?: string
   id: string
   operationId: string
   actorUserId: string
@@ -248,7 +250,7 @@ export default function AccountAuditPanel({
                   <TableRow key={record.id}>
                     <TableCell data-primary="" data-label={operation ? '操作人' : '用户'}>
                       <div className="account-user-identity">
-                        <InitialAvatar name={name} />
+                        <UserAvatar name={name} src={operation ? record.actorAvatarUrl : record.avatarUrl} />
                         <div>
                           <strong>{name}</strong>
                           <span className="account-record-secondary">{username ? `@${username}` : '未知账号'}</span>

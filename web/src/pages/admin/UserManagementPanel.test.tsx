@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({ directory: vi.fn(), setPassword: vi.fn(), changePassword: vi.fn(), toast: vi.fn() }))
 vi.mock('@/lib/api', () => ({
+  url: (path: string) => path,
   adminApi: { users: { directory: mocks.directory, setPassword: mocks.setPassword } },
   authApi: { changePassword: mocks.changePassword },
 }))
@@ -20,7 +21,7 @@ const users = [
     updatedAt: 1,
     lastLoginAt: 0,
     bio: '',
-    avatarUrl: '',
+    avatarUrl: '/api/avatars/reader.png',
   },
 ]
 function mount(search = '') {
@@ -43,6 +44,7 @@ describe('用户目录与直接修改密码', () => {
   it('校验短密码和确认不一致，保存成功后关闭并清空表单', async () => {
     mount()
     const dialog = await openReader()
+    expect(screen.getByRole('dialog').querySelector('img')).toHaveAttribute('src', '/api/avatars/reader.png')
     await userEvent.click(dialog.getByRole('button', { name: '保存新密码' }))
     expect(dialog.getByRole('alert')).toHaveTextContent('至少需要 8 位')
     fill(dialog.getByLabelText('新密码', { exact: true }), 'Reader-new-123')

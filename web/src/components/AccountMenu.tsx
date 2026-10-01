@@ -3,10 +3,9 @@ import { LogOut } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useSession } from '../context/SessionContext'
 import { useToast } from './feedback'
-import { url } from '../lib/api'
 import { cn } from '../lib/utils'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu'
-import { InitialAvatar } from './ui/initial-avatar'
+import { UserAvatar } from './ui/user-avatar'
 import { ChevronIcon, UserIcon } from './icons'
 import { useExclusiveMenu } from '../hooks/useExclusiveMenu'
 
@@ -25,13 +24,10 @@ export function AccountMenu({ variant = 'site', className, wrapperClassName, onN
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const setExclusiveOpen = useExclusiveMenu('account', setOpen)
-  const [failedAvatarUrl, setFailedAvatarUrl] = useState('')
 
   if (!user) return null
 
   const name = user.displayName || user.username || (variant === 'admin' ? '管理员' : '知舟读者')
-  const avatarUrl = user.avatarUrl ? url(user.avatarUrl) : ''
-  const showAvatar = !!avatarUrl && failedAvatarUrl !== avatarUrl
   const showName = variant === 'admin'
   const triggerLabel = `账户菜单：${name}`
 
@@ -46,7 +42,7 @@ export function AccountMenu({ variant = 'site', className, wrapperClassName, onN
     }
   }
 
-  const avatar = showAvatar ? <img src={avatarUrl} alt="" onError={() => setFailedAvatarUrl(avatarUrl)} /> : <InitialAvatar name={name} size="inherit" />
+  const avatar = <UserAvatar name={name} src={user.avatarUrl} size="inherit" />
   const triggerAvatar =
     variant === 'site' ? (
       avatar

@@ -1080,6 +1080,7 @@ export const adminApi = {
         actorUserId: string
         actorUsername: string
         actorDisplayName: string
+        actorAvatarUrl?: string
         action: string
         targetCount: number
         status: string
@@ -1149,6 +1150,7 @@ export const adminApi = {
         userId: string
         username: string
         displayName: string
+        avatarUrl?: string
         status: string
         reason: string
         ipAddress: string

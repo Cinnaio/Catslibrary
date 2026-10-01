@@ -262,10 +262,6 @@
   grid-area: 1 / 1;
 }
 
-.profile-avatar:has(img:not(.hidden)) > span {
-  opacity: 0;
-}
-
 .profile-avatar img {
   width: 100%;
   height: 100%;

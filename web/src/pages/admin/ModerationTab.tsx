@@ -5,7 +5,8 @@
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { adminApi, thoughtsApi, url } from '../../lib/api'
+import { adminApi, thoughtsApi } from '../../lib/api'
+import { UserAvatar } from '@/components/ui/user-avatar'
 import { timeAgo } from '../../lib/format'
 import { useConfirm, useToast } from '../../components/feedback'
 import AdminPage from '@/components/admin/AdminPage'
@@ -179,14 +180,11 @@ const MODERATION_TYPES: Record<ModerationMode, ModeConfig> = {
 type AnyRow = ThoughtRow | CommentRow | ReportRow
 
 function ThoughtUser({ t }: { t: ThoughtRow }) {
-  // 头像失败走 state 兜底（不能 remove() React 管理的节点）；无 img 时 CSS :has 让首字显示
-  const [avatarFailed, setAvatarFailed] = useState(false)
   const name = t.displayName || '匿名读者'
   return (
     <span className="thought-admin-user">
       <span className="thought-admin-avatar">
-        {t.avatarUrl && !avatarFailed ? <img src={url(t.avatarUrl)} alt="" onError={() => setAvatarFailed(true)} /> : null}
-        <span>{name.slice(0, 1)}</span>
+        <UserAvatar src={t.avatarUrl} name={name} size="inherit" />
       </span>
       <span>{name}</span>
     </span>

@@ -6,7 +6,7 @@ import { useDebouncedValue } from '@/hooks/useDebounce'
 import { useToast } from '@/components/feedback'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { InitialAvatar } from '@/components/ui/initial-avatar'
+import { UserAvatar } from '@/components/ui/user-avatar'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -221,7 +221,7 @@ export default function UserManagementPanel({ search, selfId, onRole, onStatus, 
                   <TableRow key={user.id}>
                     <TableCell data-primary="" data-label="用户">
                       <div className="account-user-identity">
-                        <InitialAvatar className="account-user-avatar" name={user.displayName || user.username} />
+                        <UserAvatar className="account-user-avatar" name={user.displayName || user.username} src={user.avatarUrl} />
                         <div>
                           <div className="account-user-name">
                             <strong>{user.displayName || user.username}</strong>
@@ -335,7 +335,7 @@ export default function UserManagementPanel({ search, selfId, onRole, onStatus, 
             </DialogHeader>
             <AdminDialogBody>
               <div className="account-password-target">
-                <InitialAvatar className="account-user-avatar" name={target?.displayName || target?.username || ''} />
+                <UserAvatar className="account-user-avatar" name={target?.displayName || target?.username || ''} src={target?.avatarUrl} />
                 <div>
                   <strong>{target?.displayName || target?.username}</strong>
                   <span>@{target?.username}</span>

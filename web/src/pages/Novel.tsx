@@ -6,6 +6,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { ChapterMeta, Comment, Novel, ReadingHistoryEntry } from '@shared/types'
 import { chaptersApi, commentsApi, isRestrictedContentError, novelsApi, progressApi, ratingsApi, url } from '../lib/api'
+import { UserAvatar } from '@/components/ui/user-avatar'
 import { getNovelBookmarks, getNovelHistory } from '../lib/storage'
 import { getDemoNovel } from '../lib/demo'
 import { timeAgo } from '../lib/format'
@@ -667,19 +668,14 @@ function CommentCard({ comment, onLike, onReport, onDelete, onReply }: CommentCa
   const [replying, setReplying] = useState(false)
   const [replyText, setReplyText] = useState('')
   const [reporting, setReporting] = useState(false)
-  // 头像加载失败走 state 兜底：不可直接 remove() React 管理的节点，
-  // 且 has-image 必须同步摘掉，否则 CSS 会把兜底首字一起隐藏（空圈）
-  const [avatarFailed, setAvatarFailed] = useState(false)
   const { user } = useSession()
 
   const name = comment.displayName || '读者'
-  const hasAvatar = !!comment.avatarUrl && !avatarFailed
 
   return (
     <article className="comment-card" data-id={comment.id}>
-      <div className={`comment-card__avatar${hasAvatar ? ' has-image' : ''}`}>
-        {hasAvatar && <img src={url(comment.avatarUrl)} alt="" loading="lazy" onError={() => setAvatarFailed(true)} />}
-        <span>{name[0]}</span>
+      <div className="comment-card__avatar">
+        <UserAvatar src={comment.avatarUrl} name={name} size="inherit" />
       </div>
       <div className="comment-card__body">
         <div className="comment-card__meta">

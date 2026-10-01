@@ -20,7 +20,7 @@ beforeAll(async () => {
     body: JSON.stringify({ username: 'admin', password: 'adminpass123' }),
   })
   expect(response.status).toBe(201)
-  adminToken = (await response.json() as { token: string }).token
+  adminToken = ((await response.json()) as { token: string }).token
 })
 
 afterAll(async () => {
@@ -51,13 +51,19 @@ describe('login audit API', () => {
       headers: { Authorization: `Bearer ${adminToken}` },
     })
     expect(audit.status).toBe(200)
-    const data = await audit.json() as { audits: Array<{ username: string; status: string; ipAddress: string; userAgent: string }>; total: number }
+    const data = (await audit.json()) as { audits: Array<{ username: string; status: string; ipAddress: string; userAgent: string }>; total: number }
     expect(data.total).toBe(1)
-    expect(data.audits[0]).toMatchObject({ username: 'admin', status: 'success', ipAddress: '198.51.100.12', userAgent: 'audit-test/2.0' })
+    expect(data.audits[0]).toMatchObject({
+      username: 'admin',
+      status: 'success',
+      ipAddress: '198.51.100.12',
+      userAgent: 'audit-test/2.0',
+      avatarUrl: expect.stringMatching(/^\/api\/avatar\/.+\?v=\d+$/),
+    })
 
     const failures = await app.request('/api/admin-users/login-audit?status=failure&username=admin', {
       headers: { Authorization: `Bearer ${adminToken}` },
     })
-    expect((await failures.json() as { total: number }).total).toBe(1)
+    expect(((await failures.json()) as { total: number }).total).toBe(1)
   })
 })

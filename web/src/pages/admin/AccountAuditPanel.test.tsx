@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { value: () => {}, configurable: true })
 import AccountAuditPanel, { type LoginAudit, type AdminOperationAudit } from './AccountAuditPanel'
 const login: LoginAudit = {
+  avatarUrl: '/api/avatars/reader.png',
   id: 'login-1',
   userId: 'u',
   username: 'reader',
@@ -15,6 +16,7 @@ const login: LoginAudit = {
   createdAt: 1790820000000,
 }
 const operation: AdminOperationAudit = {
+  actorAvatarUrl: '/api/avatars/admin.png',
   id: 'audit-1',
   operationId: 'full-operation-id-123456789',
   actorUserId: 'admin',
@@ -44,7 +46,8 @@ const base = {
 }
 describe('账户审计目录', () => {
   it('登录列表显示摘要，详情保留完整 User-Agent 与原因', async () => {
-    render(<AccountAuditPanel {...base} kind="login" records={[login]} reasonLabel={() => '尝试次数过多'} />)
+    const { container } = render(<AccountAuditPanel {...base} kind="login" records={[login]} reasonLabel={() => '尝试次数过多'} />)
+    expect(container.querySelector('img')).toHaveAttribute('src', '/api/avatars/reader.png')
     expect(screen.getByText('Chrome · Windows')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: '查看读者的登录记录详情' }))
     const dialog = within(screen.getByRole('dialog'))

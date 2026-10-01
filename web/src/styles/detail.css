@@ -828,10 +828,6 @@
   object-fit: cover;
 }
 
-.comment-card__avatar.has-image span {
-  opacity: 0;
-}
-
 .comment-card__body {
   min-width: 0;
 }

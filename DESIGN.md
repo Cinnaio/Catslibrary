@@ -361,18 +361,20 @@ components:
 
 ### Shared Account and List Primitives
 
-用户目录预览中的搜索、计数、刷新、文字头像与身份/状态标签作为共享语言，页面只提供姓名、数量和业务状态，不再复制局部外观。
+用户目录预览中的搜索、计数、刷新、用户头像与身份/状态标签作为共享语言，页面只提供姓名、头像地址、数量和业务状态，不再复制局部外观。
 
 | 元素 | 共享入口 | 尺寸与外观 |
 | --- | --- | --- |
 | 搜索 | `AdminSearch` / `components/toolbar.css` | 默认宽 280px，窄屏随容器收缩；高度沿用后台 40px，白底、细边、12px 圆角、无静态阴影，保留图标、可访问名称和聚焦提示 |
 | 刷新等次要操作 | `Button variant="secondary"` | 暖灰底，无外描边和阴影；后台高度 40px、文字 13px，保留 hover、focus 与 disabled 状态；筛选 combobox 不使用此按钮外观 |
 | 面板数量 | `.admin-panel-status` | 随文字自然宽度，暖灰胶囊，无描边；文字 12px、常规字重、等宽数字，数量需注明单位 |
-| 文字头像 | `InitialAvatar` / `identity.css` | 默认 36px 圆形、13px 常规字重，浅奶茶底与品牌文字；`size="inherit"` 沿用账户入口的既有尺寸；只做装饰，姓名由相邻文字或控件标签提供 |
+| 用户头像 | `UserAvatar` / `identity.css` | 优先展示用户设置的图片，缺失或加载失败时由 `InitialAvatar` 显示姓名首字；默认 36px 圆形、等比裁切，文字回退为 13px 常规字重、浅奶茶底与品牌文字；`size="inherit"` 沿用所在入口的既有尺寸；只做装饰，姓名由相邻文字或控件标签提供 |
 | 当前身份 | `Badge variant="identity"` | 11px 常规字重、6px 圆角、2px × 5px 内边距，浅奶茶底，用于“本人”等身份标记 |
 | 角色与状态 | `AdminStatusBadge` | 11px 常规字重、3px × 8px 内边距、胶囊圆角、无描边；管理员使用 info/浅奶茶，普通角色 neutral/暖灰，正常 success/浅绿，禁用 danger/浅红；状态始终带文字，不能只依赖颜色 |
 
 头像和标签几何使用 `web/src/styles/tokens.css` 中的 `--avatar-*`、`--badge-*`，面板计数使用 `--panel-count-label-size`。颜色均取现有主题 token，暗色模式不写死浅色值。其他业务状态继续使用已有 tone 合约；强调性的 brand 标签保留实色。
+
+全站用户身份入口、用户目录、审计列表、密码目标、评论、段评、审核和个人资料统一使用 `UserAvatar`。图片和文字回退互斥，失败状态按图片地址保存，地址更新时可重新加载；禁止通过移除 DOM 或只隐藏失败图片造成空白头像。相对地址沿用 API 地址解析，本地上传预览保留 blob/data 图片地址。审计接口关联当前用户头像，账号不存在时保留记录并回退文字，不因头像缺失隐藏用户或记录。
 
 
 ### Proxy Settings

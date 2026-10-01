@@ -209,7 +209,6 @@
 }
 
 .thought-avatar > * { grid-area: 1 / 1; }
-.thought-avatar:has(img) > span { opacity: 0; }
 .thought-avatar img { width: 100%; height: 100%; object-fit: cover; }
 
 .thought-item__quote,

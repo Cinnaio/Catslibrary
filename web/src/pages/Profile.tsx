@@ -3,7 +3,8 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { authApi, url } from '../lib/api'
+import { authApi } from '../lib/api'
+import { UserAvatar } from '@/components/ui/user-avatar'
 import { useSession } from '../context/SessionContext'
 import { useConfirm } from '../components/feedback'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
@@ -81,8 +82,7 @@ export default function Profile() {
   }
 
   const name = user.displayName || user.username
-  const avatarUrl = user.avatarUrl ? url(user.avatarUrl) : ''
-  const displayAvatar = avatarPreview || avatarUrl
+  const displayAvatar = avatarPreview || user.avatarUrl
 
   async function saveProfile() {
     try {
@@ -174,11 +174,7 @@ export default function Profile() {
           <div className="profile-hero__paper-mark" aria-hidden="true">籍</div>
           <div className="profile-hero__main">
             <div className="profile-avatar profile-avatar--hero">
-              {displayAvatar ? (
-                <img src={displayAvatar} alt="" onError={(e) => e.currentTarget.style.display = 'none'} />
-              ) : (
-                <span className="profile-avatar__initial">{(name || '我').slice(0, 1)}</span>
-              )}
+              <UserAvatar src={displayAvatar} name={name || '我'} size="inherit" />
             </div>
             <div className="profile-hero__identity">
               <p className="profile-kicker">ACCOUNT</p>
@@ -251,11 +247,7 @@ export default function Profile() {
               </div>
               <div className="profile-avatar-picker">
                 <div className="profile-avatar profile-avatar--preview">
-                  {displayAvatar ? (
-                    <img src={displayAvatar} alt="" onError={(e) => e.currentTarget.style.display = 'none'} />
-                  ) : (
-                    <span>{(name || '我').slice(0, 1)}</span>
-                  )}
+                  <UserAvatar src={displayAvatar} name={name || '我'} size="inherit" />
                 </div>
                 <div className="profile-action-group">
                   <input

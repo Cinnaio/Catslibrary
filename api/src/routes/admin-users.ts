@@ -5,7 +5,7 @@ import { Hono, type Context } from 'hono'
 import { randomInt } from 'node:crypto'
 import { getDb } from '../db/pool'
 import { all, first, run, withTx } from '../db/query'
-import { hashPassword, newSalt, newToken, newId, PASSWORD_ITERATIONS, publicUser, type UserRow } from '../services/auth'
+import { hashPassword, newSalt, newToken, newId, PASSWORD_ITERATIONS, publicUser, userAvatarUrl, type UserRow } from '../services/auth'
 import { escapeLike } from '../services/text'
 import { requireAdmin, type AuthEnv } from '../middlewares/auth'
 import { idempotencyKeyFromRequest, withIdempotency } from '../services/idempotency'
@@ -39,7 +39,7 @@ adminUsersRoutes.get('/login-audit', async (c) => {
   const rows = await all<Record<string, unknown>>(
     db,
     `SELECT a.id, a.user_id, a.username, a.status, a.reason, a.ip_address, a.user_agent, a.created_at,
-            u.display_name
+            u.display_name, u.id AS current_user_id, u.updated_at AS user_updated_at
      FROM login_audit a
      LEFT JOIN users u ON u.id = a.user_id
      ${where}
@@ -55,6 +55,7 @@ adminUsersRoutes.get('/login-audit', async (c) => {
       userId: String(row.user_id || ''),
       username: String(row.username || ''),
       displayName: String(row.display_name || ''),
+      avatarUrl: userAvatarUrl(String(row.current_user_id || ''), Number(row.user_updated_at) || 0),
       status: String(row.status || ''),
       reason: String(row.reason || ''),
       ipAddress: String(row.ip_address || ''),

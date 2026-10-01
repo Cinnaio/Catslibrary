@@ -112,7 +112,7 @@
 
 ## 账户与列表的紧凑视觉
 
-用户目录、密码弹窗和账户入口的文字头像复用 `InitialAvatar`（`web/src/components/ui/initial-avatar.tsx`）：默认 36px，账户入口用 `size="inherit"` 保持原尺寸，头像加载失败后仍显示共享文字回退。“本人”使用 `Badge variant="identity"`，不再用账户页私有标签样式。
+用户目录、登录/操作审计、密码弹窗和账户入口复用 `UserAvatar`（`web/src/components/ui/user-avatar.tsx`）：优先展示用户头像图片，缺失或加载失败时才使用 `InitialAvatar` 文字回退；默认 36px，账户入口用 `size="inherit"` 保持原尺寸。失败状态绑定头像地址，更新地址后重新加载；后台审计接口关联当前用户头像，已删除用户仍保留审计记录并回退文字。此合约同样适用于全站评论、段评、审核和个人资料，上传预览地址保持原样，不用 DOM 隐藏或删除图片处理失败。“本人”使用 `Badge variant="identity"`，不再用账户页私有标签样式。
 
 `AdminSearch` 默认 280px 宽、40px 高，白底细边且无静态阴影；业务布局可覆盖宽度，移动端随容器收缩。后台 `Button variant="secondary"` 用暖灰底、无描边，文字和高度沿用按钮优先级契约。筛选器和 outline 按钮继续遵循各自控件规则。
 

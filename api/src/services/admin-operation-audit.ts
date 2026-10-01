@@ -20,6 +20,8 @@ export interface AdminOperationAuditRow {
   actor_user_id: string
   actor_username?: string
   actor_display_name?: string
+  current_actor_id?: string
+  actor_updated_at?: number
   action: string
   target_count: number
   request_hash: string
@@ -127,7 +129,7 @@ export async function listAdminOperationAudit(db: Db, options: ListAdminOperatio
   const rows = await all<AdminOperationAuditRow>(
     db,
     `SELECT a.id, a.operation_id, a.scope, a.actor_user_id,
-            u.username AS actor_username, u.display_name AS actor_display_name,
+            u.username AS actor_username, u.display_name AS actor_display_name, u.id AS current_actor_id, u.updated_at AS actor_updated_at,
             a.action, a.target_count, a.request_hash, a.status, a.response_status,
             a.replay_count, a.error, a.created_at, a.updated_at, a.finished_at
        FROM admin_operation_audit a
