@@ -13,6 +13,7 @@ import { first, run } from '../../db/query'
 import { AiError, chat, isTextAiConfigured, providerLabel, textProvider } from './client'
 import { getAiSettings } from './settings'
 import { recordUsage } from './usage'
+import { usageAuditFields } from './upstream-usage'
 import { evaluateProfileSource, loadProfileSample, sampleText, type ProfileEligibility, type ProfileSource } from './profile-source'
 
 /** 默认取样章节数：够模型抓特征，又不至于烧太多 token。 */
@@ -95,6 +96,7 @@ export async function extractStyleProfile(db: Db, opts: {
     provider: providerLabel(provider.baseUrl),
     promptTokens: res.promptTokens,
     completionTokens: res.completionTokens,
+    ...usageAuditFields(res),
     costMillicents: Math.round(res.cost * 100000),
     novelId,
     generationType: 'style_profile',

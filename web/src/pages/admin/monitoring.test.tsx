@@ -51,6 +51,61 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('monitoring navigation', () => {
+  it('调用记录区分缓存命中、未命中、未知，展开读取/写入数量与未知成本', async () => {
+    const base = {
+      type: 'continue',
+      displayName: '读者',
+      promptTokens: 1000,
+      completionTokens: 90,
+      imageCount: 0,
+      costMillicents: 0,
+      createdAt: Date.now(),
+      costReported: false,
+    }
+    vi.mocked(aiApi.audit.calls).mockResolvedValue({
+      calls: [
+        { ...base, id: 'hit', novelTitle: '命中作品', cacheReadTokens: 800, cacheWriteTokens: 100, reasoningTokens: 40 },
+        { ...base, id: 'miss', novelTitle: '未命中作品', cacheReadTokens: 0 },
+        { ...base, id: 'unknown', novelTitle: '未知作品', cacheReadTokens: null },
+      ],
+      total: 3,
+    } as never)
+    mount(<CallsTab />, '/admin/calls')
+    await screen.findByText('缓存命中 800')
+    expect(screen.getByText('缓存未命中')).toBeInTheDocument()
+    expect(screen.getByText('缓存未回传')).toBeInTheDocument()
+    const row = screen.getByText('命中作品').closest('tr')!
+    fireEvent.click(row.querySelector('button')!)
+    expect(screen.getByText('800 Token')).toBeInTheDocument()
+    expect(screen.getByText('100 Token')).toBeInTheDocument()
+    expect(screen.getByText('上游未回传')).toBeInTheDocument()
+    expect(screen.getByText('1,090')).toBeInTheDocument()
+  })
+
+  it('趋势显示已回传的缓存合计与覆盖次数，未知成本不当成免费', async () => {
+    vi.mocked(aiApi.audit.trend).mockResolvedValue({
+      trend: [
+        {
+          date: new Date().toISOString().slice(0, 10),
+          calls: 3,
+          promptTokens: 3000,
+          completionTokens: 270,
+          costMillicents: 0,
+          costReportedCalls: 0,
+          cacheReadTokens: 800,
+          cacheWriteTokens: 100,
+          cacheReadReportedCalls: 2,
+          cacheWriteReportedCalls: 1,
+        },
+      ],
+    } as never)
+    mount(<CallsTab />, '/admin/calls')
+    await screen.findByText('已回传成本')
+    expect(screen.getByText('缓存读取').textContent).toContain('800')
+    expect(screen.getByText('缓存写入').textContent).toContain('100')
+    expect(screen.getByText('金额已回传 0 / 3 次')).toBeInTheDocument()
+    expect(screen.getByText('读取已回传 2 / 3 次 · 写入已回传 1 / 3 次')).toBeInTheDocument()
+  })
   it('旧任务、统计、审计链接保留查询上下文，显式 AI 子页优先于历史值', () => {
     expect(monitoringRedirect('jobs', '?novel=n')).toBe('/admin/tasks?novel=n&view=scrape')
     expect(monitoringRedirect('ai', '?sub=tasks&batch=b')).toBe('/admin/tasks?batch=b&view=ai')

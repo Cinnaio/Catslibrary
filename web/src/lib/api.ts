@@ -1379,6 +1379,11 @@ export interface AiUsageSummary {
   promptTokens: number
   completionTokens: number
   costMillicents: number
+  cacheReadTokens?: number
+  cacheWriteTokens?: number
+  cacheReadReportedCalls?: number
+  cacheWriteReportedCalls?: number
+  costReportedCalls?: number
 }
 
 /** 选段改写的四种模式，与 api/src/services/ai/rewrite.ts 的 RewriteMode 一致。 */
@@ -2050,6 +2055,10 @@ export const aiApi = {
         completionTokens: number
         imageCount: number
         costMillicents: number
+        costReported?: boolean
+        cacheReadTokens?: number | null
+        cacheWriteTokens?: number | null
+        reasoningTokens?: number | null
         createdAt: number
         userId: string
         username: string
@@ -2081,6 +2090,12 @@ export const aiApi = {
         promptTokens: number
         completionTokens: number
         costMillicents: number
+        costReportedCalls?: number
+        cacheReadTokens?: number
+        cacheWriteTokens?: number
+        reasoningTokens?: number
+        cacheReadReportedCalls?: number
+        cacheWriteReportedCalls?: number
       }>
       days: number
     }> {

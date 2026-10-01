@@ -454,7 +454,10 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
 
   // ---------- 任务 3 · 采集真实成本 ----------
 
-  it('上游回显 cost 时落库 cost_millicents', async () => {
+  it.each([
+    { name: '顶层 cost', costFields: { cost: '0.00123' }, usageCost: undefined },
+    { name: '优先 usage.cost', costFields: { cost: '9' }, usageCost: '0.00123' },
+  ])('上游回显 $name 时落库并返回调用记录成本', async ({ costFields, usageCost }) => {
     const nid = await firstNovelId(t)
     const created = await req('/api/chapters', json('POST', { novelId: nid, title: '成本章', content: LONG_CONTENT }, adminToken))
     const chId = (await jsonOf<{ chapter: { id: string } }>(created)).chapter.id
@@ -464,9 +467,15 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
         new Response(
           JSON.stringify({
             model: 'test-model',
-            cost: '0.00123',
+            ...costFields,
             choices: [{ message: { content: '成本采集提要。' }, finish_reason: 'stop' }],
-            usage: { prompt_tokens: 90, completion_tokens: 18 },
+            usage: {
+              prompt_tokens: 90,
+              completion_tokens: 18,
+              cost: usageCost,
+              prompt_tokens_details: { cached_tokens: 60, cached_creation_tokens: 10 },
+              completion_tokens_details: { reasoning_tokens: 5 },
+            },
           }),
           { status: 200, headers: { 'Content-Type': 'application/json' } },
         ),
@@ -477,6 +486,22 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
 
     const { rows } = await t.db.query<{ cost_millicents: number }>('SELECT cost_millicents FROM ai_usage ORDER BY created_at DESC LIMIT 1')
     expect(Number(rows[0]?.cost_millicents)).toBe(123)
+    const audit = await req('/api/ai/audit/calls?type=summary', json('GET', undefined, adminToken))
+    expect(audit.status).toBe(200)
+    const { calls } = await jsonOf<{ calls: Array<{ chapterId: string; costMillicents: number }> }>(audit)
+    expect(calls.find((call) => call.chapterId === chId)).toMatchObject({
+      costMillicents: 123,
+      costReported: true,
+      cacheReadTokens: 60,
+      cacheWriteTokens: 10,
+      reasoningTokens: 5,
+    })
+    const trendRes = await req('/api/ai/audit/trend?days=7', json('GET', undefined, adminToken))
+    expect(trendRes.status).toBe(200)
+    const { trend } = await jsonOf<{ trend: Array<{ cacheReadTokens: number; cacheWriteTokens: number; cacheReadReportedCalls: number }> }>(trendRes)
+    expect(trend.reduce((sum, point) => sum + point.cacheReadTokens, 0)).toBeGreaterThanOrEqual(60)
+    expect(trend.reduce((sum, point) => sum + point.cacheWriteTokens, 0)).toBeGreaterThanOrEqual(10)
+    expect(trend.reduce((sum, point) => sum + point.cacheReadReportedCalls, 0)).toBeGreaterThanOrEqual(1)
   })
 
   // ---------- 任务 4 · 回来接着读（进度感知回顾） ----------

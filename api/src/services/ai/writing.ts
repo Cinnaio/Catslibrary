@@ -4,6 +4,7 @@ import { all, first } from '../../db/query'
 import { chat, isTextAiConfigured, providerLabel, textProvider, AiError } from './client'
 import { saveGeneration, type Generation, type BatchDraft } from './generations'
 import { recordUsage } from './usage'
+import { usageAuditFields } from './upstream-usage'
 import { getAiSettings } from './settings'
 import { createAiTask, isAiTaskActive, startAiTaskHeartbeat, updateAiTask } from './tasks'
 import { getStyleProfile } from './style-profile'
@@ -302,6 +303,7 @@ export async function generateWritingTitles(db: Db, opts: {
     provider: providerLabel(provider.baseUrl),
     promptTokens: res.promptTokens,
     completionTokens: res.completionTokens,
+    ...usageAuditFields(res),
     costMillicents: Math.round(res.cost * 100000),
     novelId: opts.novelId,
     generationType: 'writing_title',
@@ -354,7 +356,7 @@ export function splitOutlineByChapter(outline: string, expectedCount: number): s
 
   const sections = new Map<number, string[]>()
   let current: number | null = null
-  let preamble: string[] = []
+  const preamble: string[] = []
   for (const line of lines) {
     const match = marker.exec(line)
     if (match) {
@@ -553,6 +555,7 @@ export async function generatePlotSuggestions(db: Db, opts: {
     provider: providerLabel(provider.baseUrl),
     promptTokens: res.promptTokens,
     completionTokens: res.completionTokens,
+    ...usageAuditFields(res),
     costMillicents: Math.round(res.cost * 100000),
     novelId: opts.novelId,
     generationType: outlineMode ? 'plot_outline' : 'plot_suggestion',
@@ -720,7 +723,7 @@ export async function generateWriting(db: Db, opts: {
       createdBy: opts.userId,
     })
     if (!(await isAiTaskActive(db, taskId))) throw new AiError('invalid', '任务已停止')
-    await recordUsage(db, { userId: opts.userId, model: res.model, provider: providerLabel(provider.baseUrl), promptTokens: res.promptTokens, completionTokens: res.completionTokens, costMillicents: Math.round(res.cost * 100000), novelId: opts.novelId, generationType: opts.kind, ipAddress: opts.ipAddress, userAgent: opts.userAgent })
+    await recordUsage(db, { userId: opts.userId, model: res.model, provider: providerLabel(provider.baseUrl), promptTokens: res.promptTokens, completionTokens: res.completionTokens, ...usageAuditFields(res), costMillicents: Math.round(res.cost * 100000), novelId: opts.novelId, generationType: opts.kind, ipAddress: opts.ipAddress, userAgent: opts.userAgent })
     if (ownsTask) await updateAiTask(db, taskId, { status: 'completed', current: 1, step: '已完成' })
     return { generation, usage: { model: res.model, promptTokens: res.promptTokens, completionTokens: res.completionTokens } }
   } finally {

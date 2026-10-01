@@ -54,6 +54,7 @@ import { extractPlotState } from '../services/ai/plot-state'
 import { extractRelationshipProfile } from '../services/ai/relationship-profile'
 import { deleteProfileOverride, getEffectiveProfileForAnchor, parseProfileKind, saveProfileOverride } from '../services/ai/profile-overrides'
 import { checkQuota, recordUsage, startOfToday, summarizeUsage } from '../services/ai/usage'
+import { usageAuditFields } from '../services/ai/upstream-usage'
 import { optionalUser, requireAdmin, requireUser, type AuthEnv } from '../middlewares/auth'
 import { cancelAiTask, countActiveWritingTasks, createAiTask, deleteAiTask, getAiTask, listAiTasks, updateAiTask } from '../services/ai/tasks'
 import {
@@ -390,6 +391,7 @@ aiRoutes.post('/test', requireAdmin(), async (c) => {
       provider: providerLabel(provider.baseUrl),
       promptTokens: res.promptTokens,
       completionTokens: res.completionTokens,
+      ...usageAuditFields(res),
       costMillicents: Math.round(res.cost * 100_000),
       // 连通性测试单独打 tag，审计里与读者真实调用区分开
       generationType: 'test',
@@ -2211,7 +2213,7 @@ aiRoutes.get('/audit/users', requireAdmin(), async (c) => {
       COUNT(g.id)::int AS call_count,
       SUM(g.prompt_tokens)::int AS total_prompt_tokens,
       SUM(g.completion_tokens)::int AS total_completion_tokens,
-      SUM(g.cost_millicents)::int AS total_cost_millicents,
+      COALESCE(SUM(g.cost_millicents) FILTER (WHERE g.cost_reported), 0)::bigint AS total_cost_millicents,
       MAX(g.created_at) AS last_call_at
     FROM users u
     INNER JOIN ai_usage g ON g.user_id = u.id
@@ -2275,7 +2277,7 @@ aiRoutes.get('/audit/calls', requireAdmin(), async (c) => {
     db,
     `SELECT
       u.id, u.generation_type, u.model, u.prompt_tokens, u.completion_tokens, u.image_count, u.ip_address, u.user_agent,
-      u.cost_millicents, u.created_at, u.user_id, u.novel_id, u.chapter_id,
+      u.cost_millicents, u.cost_reported, u.cache_read_tokens, u.cache_write_tokens, u.reasoning_tokens, u.created_at, u.user_id, u.novel_id, u.chapter_id,
       usr.username, usr.display_name,
       n.title AS novel_title,
       c.title AS chapter_title
@@ -2301,6 +2303,10 @@ aiRoutes.get('/audit/calls', requireAdmin(), async (c) => {
         completionTokens: Number(r.completion_tokens) || 0,
         imageCount: Number(r.image_count) || 0,
         costMillicents: Number(r.cost_millicents) || 0,
+        costReported: Boolean(r.cost_reported),
+        cacheReadTokens: r.cache_read_tokens == null ? null : Number(r.cache_read_tokens),
+        cacheWriteTokens: r.cache_write_tokens == null ? null : Number(r.cache_write_tokens),
+        reasoningTokens: r.reasoning_tokens == null ? null : Number(r.reasoning_tokens),
         createdAt: Number(r.created_at) || 0,
         userId: String(r.user_id || ''),
         username: String(r.username || ''),
@@ -2334,7 +2340,13 @@ aiRoutes.get('/audit/trend', requireAdmin(), async (c) => {
       COUNT(*)::int AS calls,
       SUM(prompt_tokens)::int AS prompt_tokens,
       SUM(completion_tokens)::int AS completion_tokens,
-      SUM(cost_millicents)::int AS cost_millicents
+      COALESCE(SUM(cost_millicents) FILTER (WHERE cost_reported), 0)::bigint AS cost_millicents,
+      COALESCE(SUM(cache_read_tokens), 0)::bigint AS cache_read_tokens,
+      COALESCE(SUM(cache_write_tokens), 0)::bigint AS cache_write_tokens,
+      COALESCE(SUM(reasoning_tokens), 0)::bigint AS reasoning_tokens,
+      COUNT(cache_read_tokens)::int AS cache_read_reported_calls,
+      COUNT(cache_write_tokens)::int AS cache_write_reported_calls,
+      COUNT(*) FILTER (WHERE cost_reported)::int AS cost_reported_calls
     FROM ai_usage
     WHERE created_at >= $1
     GROUP BY date
@@ -2350,6 +2362,12 @@ aiRoutes.get('/audit/trend', requireAdmin(), async (c) => {
         promptTokens: Number(r.prompt_tokens) || 0,
         completionTokens: Number(r.completion_tokens) || 0,
         costMillicents: Number(r.cost_millicents) || 0,
+        costReportedCalls: Number(r.cost_reported_calls) || 0,
+        cacheReadTokens: Number(r.cache_read_tokens) || 0,
+        cacheWriteTokens: Number(r.cache_write_tokens) || 0,
+        reasoningTokens: Number(r.reasoning_tokens) || 0,
+        cacheReadReportedCalls: Number(r.cache_read_reported_calls) || 0,
+        cacheWriteReportedCalls: Number(r.cache_write_reported_calls) || 0,
       })),
       days,
     },

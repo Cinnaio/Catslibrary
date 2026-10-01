@@ -9,6 +9,7 @@ import { chat, isTextAiConfigured, providerLabel, textProvider, AiError } from '
 import { cacheKey, findPublished, saveGeneration, type Generation } from './generations'
 import { DEFAULT_AI_SETTINGS, getAiSettings } from './settings'
 import { recordUsage } from './usage'
+import { usageAuditFields } from './upstream-usage'
 
 /** 提示词版本：改动下方 prompt 时 +1，历史缓存自动失效重算。 */
 export const RECAP_PROMPT_VERSION = 1
@@ -146,6 +147,7 @@ async function runGenerateRecap(db: Db, opts: RecapOptions): Promise<RecapResult
     provider: providerLabel(provider.baseUrl),
     promptTokens: res.promptTokens,
     completionTokens: res.completionTokens,
+    ...usageAuditFields(res),
     costMillicents: Math.round(res.cost * 100_000),
     novelId: opts.chapter.novel_id,
     chapterId: opts.chapter.id,

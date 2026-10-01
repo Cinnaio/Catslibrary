@@ -5,6 +5,8 @@
  */
 import { loadConfig, type AiProviderConfig } from '../../config'
 import { outboundFetch } from '../outbound-fetch'
+import { upstreamCost } from './upstream-cost'
+import { upstreamUsage, type UpstreamUsage } from './upstream-usage'
 import { contentRefusalMessage, detectStructuredContentRefusal, detectStructuredContentRefusalFromDetail } from './prompt-policy'
 
 export type AiErrorCode = 'disabled' | 'timeout' | 'upstream' | 'invalid' | 'conflict'
@@ -34,13 +36,13 @@ export interface AiChatOptions {
   signal?: AbortSignal
 }
 
-export interface AiChatResult {
+export interface AiChatResult extends UpstreamUsage {
   text: string
   model: string
   promptTokens: number
   completionTokens: number
   finishReason: string
-  /** 上游回显的成本（货币单位），缺失或非数字时为 0 */
+  /** 上游 usage.cost / cost（货币单位），缺失或无效时为 0 */
   cost: number
 }
 
@@ -127,6 +129,7 @@ export async function chatStream(opts: AiChatOptions, onDelta: AiChatDeltaHandle
     temperature: opts.temperature ?? 0.3,
     max_tokens: opts.maxTokens ?? 800,
     stream: true,
+    stream_options: { include_usage: true },
   })
 
   let lastError: AiError | null = null
@@ -195,13 +198,17 @@ async function once(endpoint: string, apiKey: string, body: string, model: strin
     throw new AiError('invalid', 'AI 服务返回内容为空')
   }
 
+  const usage = upstreamUsage(data)
+  const cost = upstreamCost(data)
   return {
     text,
     model: String(data?.model || model),
-    promptTokens: Number(data?.usage?.prompt_tokens) || 0,
-    completionTokens: Number(data?.usage?.completion_tokens) || 0,
+    ...usage,
+    promptTokens: usage.promptTokens ?? 0,
+    completionTokens: usage.completionTokens ?? 0,
     finishReason,
-    cost: Number(data?.cost) || 0,
+    cost: cost ?? 0,
+    costReported: cost !== null,
   }
 }
 
@@ -263,6 +270,10 @@ async function onceStream(
   let promptTokens = 0
   let completionTokens = 0
   let cost = 0
+  let cacheReadTokens: number | null = null
+  let cacheWriteTokens: number | null = null
+  let reasoningTokens: number | null = null
+  let costReported = false
   let finishReason = ''
 
   const consumeLine = async (line: string): Promise<void> => {
@@ -282,12 +293,14 @@ async function onceStream(
     if (refusal) throw new AiError('invalid', contentRefusalMessage(refusal), 422)
 
     if (data.model) responseModel = String(data.model)
-    const usage = data.usage
-    if (usage) {
-      promptTokens = Number(usage.prompt_tokens) || promptTokens
-      completionTokens = Number(usage.completion_tokens) || completionTokens
-    }
-    if (data.cost !== undefined) cost = Number(data.cost) || cost
+    const usage = upstreamUsage(data)
+    promptTokens = usage.promptTokens ?? promptTokens
+    completionTokens = usage.completionTokens ?? completionTokens
+    cacheReadTokens = usage.cacheReadTokens ?? cacheReadTokens
+    cacheWriteTokens = usage.cacheWriteTokens ?? cacheWriteTokens
+    reasoningTokens = usage.reasoningTokens ?? reasoningTokens
+    if (upstreamCost(data) !== null) costReported = true
+    cost = upstreamCost(data) ?? cost
 
     const choice = data.choices?.[0]
     if (choice?.finish_reason) finishReason = String(choice.finish_reason)
@@ -314,19 +327,34 @@ async function onceStream(
 
   const trimmed = text.trim()
   if (!trimmed) throw emptyChatResponseError(finishReason, null)
-  return { text: trimmed, model: responseModel, promptTokens, completionTokens, finishReason, cost }
+  return {
+    text: trimmed,
+    model: responseModel,
+    promptTokens,
+    completionTokens,
+    finishReason,
+    cost,
+    costReported,
+    cacheReadTokens,
+    cacheWriteTokens,
+    reasoningTokens,
+  }
 }
 
 function parseChatCompletion(data: ChatCompletionResponse | null, model: string): AiChatResult {
   const choice = data?.choices?.[0]
   const text = extractContent(choice?.message?.content)
+  const usage = upstreamUsage(data)
+  const cost = upstreamCost(data)
   return {
     text,
     model: String(data?.model || model),
-    promptTokens: Number(data?.usage?.prompt_tokens) || 0,
-    completionTokens: Number(data?.usage?.completion_tokens) || 0,
+    ...usage,
+    promptTokens: usage.promptTokens ?? 0,
+    completionTokens: usage.completionTokens ?? 0,
     finishReason: String(choice?.finish_reason || ''),
-    cost: Number(data?.cost) || 0,
+    cost: cost ?? 0,
+    costReported: cost !== null,
   }
 }
 
@@ -342,9 +370,7 @@ function emptyChatResponseError(finishReason: string, data: ChatCompletionRespon
 function extractContent(content: unknown, trim = true): string {
   if (typeof content === 'string') return trim ? content.trim() : content
   if (Array.isArray(content)) {
-    const value = content
-      .map((part) => (typeof part === 'string' ? part : String((part as { text?: unknown })?.text || '')))
-      .join('')
+    const value = content.map((part) => (typeof part === 'string' ? part : String((part as { text?: unknown })?.text || ''))).join('')
     return trim ? value.trim() : value
   }
   return ''
@@ -354,7 +380,8 @@ interface ChatCompletionResponse {
   model?: string
   refusal?: unknown
   choices?: Array<{ message?: { content?: unknown; refusal?: unknown }; finish_reason?: string; finishReason?: string }>
-  usage?: { prompt_tokens?: number; completion_tokens?: number }
+  usage?: Record<string, unknown> | null
+  usageMetadata?: Record<string, unknown>
   cost?: string | number
   error?: unknown
   code?: string
@@ -366,7 +393,8 @@ interface ChatCompletionStreamChunk {
   model?: string
   refusal?: unknown
   choices?: Array<{ delta?: { content?: unknown; refusal?: unknown }; message?: { refusal?: unknown }; finish_reason?: string; finishReason?: string }>
-  usage?: { prompt_tokens?: number; completion_tokens?: number }
+  usage?: Record<string, unknown> | null
+  usageMetadata?: Record<string, unknown>
   cost?: string | number
   error?: unknown
   code?: string

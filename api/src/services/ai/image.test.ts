@@ -22,15 +22,40 @@ afterEach(() => {
 })
 
 describe('closed-network image client and refusal handling', () => {
+  it('uses upstream usage.cost before the legacy top-level cost', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              data: [{ b64_json: pngB64 }],
+              usage: { cost: '0.00321' },
+              cost: 9,
+            }),
+            { headers: { 'Content-Type': 'application/json' } },
+          ),
+      ),
+    )
+    expect((await generateImage({ prompt: 'safe test prompt' })).cost).toBe(0.00321)
+  })
   it('maps structured image refusal without retrying or decoding a candidate', async () => {
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ error: { code: 'policy_violation', message: 'blocked image' } }), { status: 400, headers: { 'Content-Type': 'application/json' } }))
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ error: { code: 'policy_violation', message: 'blocked image' } }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+    )
     vi.stubGlobal('fetch', fetchMock)
     await expect(generateImage({ prompt: 'safe test prompt' })).rejects.toMatchObject({ code: 'invalid', status: 422 })
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
   it('checks refusal fields even when the HTTP status is successful', async () => {
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ refusal: 'content policy' }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+    const fetchMock = vi.fn(
+      async () => new Response(JSON.stringify({ refusal: 'content policy' }), { status: 200, headers: { 'Content-Type': 'application/json' } }),
+    )
     vi.stubGlobal('fetch', fetchMock)
     await expect(generateImage({ prompt: 'safe test prompt' })).rejects.toMatchObject({ code: 'invalid', status: 422 })
     expect(fetchMock).toHaveBeenCalledTimes(1)
@@ -41,12 +66,16 @@ describe('closed-network image client and refusal handling', () => {
       const body = JSON.parse(String(init?.body || '{}')) as Record<string, unknown>
       expect(body.n).toBe(1)
       expect(body.response_format).toBe('b64_json')
-      return new Response(JSON.stringify({ model: 'mock-image', data: [{ b64_json: pngB64 }], cost: '0.01' }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      return new Response(JSON.stringify({ model: 'mock-image', data: [{ b64_json: pngB64 }], cost: '0.01' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
     })
     vi.stubGlobal('fetch', fetchMock)
     const result = await generateImage({ prompt: 'safe test prompt', size: '1024x1536' })
     expect(result.data.byteLength).toBeGreaterThan(0)
     expect(result.model).toBe('mock-image')
+    expect(result.cost).toBe(0.01)
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 })

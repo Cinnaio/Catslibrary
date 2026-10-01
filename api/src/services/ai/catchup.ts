@@ -10,6 +10,7 @@ import { findPublished, saveGeneration, type Generation } from './generations'
 import { getAiSettings } from './settings'
 import { recapParams } from './summary'
 import { recordUsage } from './usage'
+import { usageAuditFields } from './upstream-usage'
 
 /** 提示词版本：改动下方 prompt 时 +1，历史缓存自动失效重算。 */
 export const CATCHUP_PROMPT_VERSION = 1
@@ -190,6 +191,7 @@ async function runGenerateCatchup(db: Db, opts: { userId: string; novelId: strin
     provider: providerLabel(provider.baseUrl),
     promptTokens: res.promptTokens,
     completionTokens: res.completionTokens,
+    ...usageAuditFields(res),
     costMillicents: Math.round(res.cost * 100_000),
     novelId: opts.novelId,
     chapterId: chapters[0]?.id || '', // 使用第一章作为代表

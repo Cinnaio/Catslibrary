@@ -17,6 +17,11 @@ interface TrendPoint {
   promptTokens: number
   completionTokens: number
   costMillicents: number
+  costReportedCalls?: number
+  cacheReadTokens?: number
+  cacheWriteTokens?: number
+  cacheReadReportedCalls?: number
+  cacheWriteReportedCalls?: number
 }
 
 /** 补齐缺失日期，让趋势曲线连续；按 days 范围生成完整日期序列。 */
@@ -35,6 +40,7 @@ function buildChartSeries(trend: TrendPoint[], days: number): TrendPoint[] {
       promptTokens: existing?.promptTokens || 0,
       completionTokens: existing?.completionTokens || 0,
       costMillicents: existing?.costMillicents || 0,
+      costReportedCalls: existing?.costReportedCalls ?? existing?.calls ?? 0,
     })
   }
   return result
@@ -68,10 +74,19 @@ export default function AiUsagePanel({ days: selectedDays }: { days?: number } =
   const totalCalls = trend.reduce((sum, d) => sum + d.calls, 0)
   const totalCost = trend.reduce((sum, d) => sum + d.costMillicents, 0)
   const totalTokens = trend.reduce((sum, d) => sum + d.promptTokens + d.completionTokens, 0)
-  const avgCost = totalCalls > 0 ? totalCost / totalCalls : 0
+  const costReportedCalls = trend.reduce((sum, d) => sum + (d.costReportedCalls ?? d.calls), 0)
+  const totalCacheRead = trend.reduce((sum, d) => sum + (d.cacheReadTokens ?? 0), 0)
+  const totalCacheWrite = trend.reduce((sum, d) => sum + (d.cacheWriteTokens ?? 0), 0)
+  const cacheReadReportedCalls = trend.reduce((sum, d) => sum + (d.cacheReadReportedCalls ?? 0), 0)
+  const cacheWriteReportedCalls = trend.reduce((sum, d) => sum + (d.cacheWriteReportedCalls ?? 0), 0)
+  const avgCost = costReportedCalls > 0 ? totalCost / costReportedCalls : 0
 
   // 图表数据：补齐缺失日期，让曲线连续
-  const chartData = buildChartSeries(trend, days)
+  const chartData = buildChartSeries(trend, days).map((point) => ({
+    ...point,
+    // 有调用但没有金额回传时留空，避免画出代表免费调用的零成本曲线。
+    costMillicents: point.calls > 0 && point.costReportedCalls === 0 ? null : point.costMillicents,
+  }))
 
   return (
     <div className="calls-trend-grid">
@@ -103,11 +118,17 @@ export default function AiUsagePanel({ days: selectedDays }: { days?: number } =
               总调用 <strong>{totalCalls.toLocaleString()}</strong>
             </span>
             <span>
-              总成本 <strong>{formatCost(totalCost)}</strong>
+              {costReportedCalls < totalCalls ? '已回传成本' : '总成本'}{' '}
+              <strong>{totalCalls > 0 && costReportedCalls === 0 ? '未回传' : formatCost(totalCost)}</strong>
             </span>
             <span>
-              平均单次 <strong>{formatCost(avgCost)}</strong>
+              平均单次 <strong>{totalCalls > 0 && costReportedCalls === 0 ? '未回传' : formatCost(avgCost)}</strong>
             </span>
+            {costReportedCalls < totalCalls && (
+              <span>
+                金额已回传 {costReportedCalls} / {totalCalls} 次
+              </span>
+            )}
           </span>
         )}
         <div className="calls-chart-body">
@@ -181,6 +202,17 @@ export default function AiUsagePanel({ days: selectedDays }: { days?: number } =
             <span>
               总 Token <strong>{totalTokens.toLocaleString()}</strong>
             </span>
+            <span>
+              缓存读取 <strong>{cacheReadReportedCalls === 0 && totalCalls > 0 ? '未回传' : totalCacheRead.toLocaleString()}</strong>
+            </span>
+            <span>
+              缓存写入 <strong>{cacheWriteReportedCalls === 0 && totalCalls > 0 ? '未回传' : totalCacheWrite.toLocaleString()}</strong>
+            </span>
+            {totalCalls > 0 && (
+              <span title="仅汇总已回传字段的调用，缓存计数已包含在输入 Token 中">
+                读取已回传 {cacheReadReportedCalls} / {totalCalls} 次 · 写入已回传 {cacheWriteReportedCalls} / {totalCalls} 次
+              </span>
+            )}
           </span>
         )}
         <div className="calls-chart-body">

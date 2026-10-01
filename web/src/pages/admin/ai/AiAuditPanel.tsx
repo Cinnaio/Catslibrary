@@ -46,6 +46,10 @@ export default function AiAuditPanel({ from }: { from?: number } = {}) {
       completionTokens: number
       imageCount: number
       costMillicents: number
+      costReported?: boolean
+      cacheReadTokens?: number | null
+      cacheWriteTokens?: number | null
+      reasoningTokens?: number | null
       createdAt: number
       ipAddress: string
       userAgent: string
@@ -236,8 +240,15 @@ export default function AiAuditPanel({ from }: { from?: number } = {}) {
                                   </div>
                                 </>
                               )}
+                              <div className="ai-audit-cell__sub" title="上游输入缓存读取量，已包含在输入 Token 中">
+                                {call.cacheReadTokens == null
+                                  ? '缓存未回传'
+                                  : call.cacheReadTokens > 0
+                                    ? `缓存命中 ${call.cacheReadTokens.toLocaleString()}`
+                                    : '缓存未命中'}
+                              </div>
                             </td>
-                            <td className="is-numeric ai-audit-cell__strong">{formatCost(call.costMillicents)}</td>
+                            <td className="is-numeric ai-audit-cell__strong">{call.costReported === false ? '未回传' : formatCost(call.costMillicents)}</td>
                             <td className="ai-audit-cell__muted">
                               <div>{new Date(call.createdAt).toLocaleDateString('zh-CN')}</div>
                               <div className="ai-audit-cell__sub">{new Date(call.createdAt).toLocaleTimeString('zh-CN')}</div>
@@ -262,6 +273,15 @@ export default function AiAuditPanel({ from }: { from?: number } = {}) {
                                   />
                                 </div>
                                 <div className="ai-audit-detail__usage">
+                                  <span>
+                                    缓存读取：<strong>{call.cacheReadTokens == null ? '未回传' : `${call.cacheReadTokens.toLocaleString()} Token`}</strong>
+                                  </span>
+                                  <span>
+                                    缓存写入：<strong>{call.cacheWriteTokens == null ? '未回传' : `${call.cacheWriteTokens.toLocaleString()} Token`}</strong>
+                                  </span>
+                                  <span>
+                                    推理 Token：<strong>{call.reasoningTokens == null ? '未回传' : call.reasoningTokens.toLocaleString()}</strong>
+                                  </span>
                                   {call.imageCount > 0 ? (
                                     <span>
                                       图片生成：
@@ -284,9 +304,12 @@ export default function AiAuditPanel({ from }: { from?: number } = {}) {
                                     </>
                                   )}
                                   <span>
-                                    成本：<strong>{formatCost(call.costMillicents)}</strong>
+                                    成本：<strong>{call.costReported === false ? '上游未回传' : formatCost(call.costMillicents)}</strong>
                                   </span>
                                 </div>
+                                <p className="ai-audit-cell__sub mt-2">
+                                  缓存读取与写入属于输入 Token；推理 Token 属于输出 Token，均不重复计入合计。此处统计上游缓存，不包含站内已生成内容的复用。
+                                </p>
                               </td>
                             </tr>
                           )}

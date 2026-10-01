@@ -6,6 +6,7 @@ import { applyContentRatingChange, parseContentRatingEvidence, type ContentRatin
 import { chat, isTextAiConfigured, providerLabel, textProvider } from './ai/client'
 import { createAiTask, getAiTask, isAiTaskCancelled, startAiTaskHeartbeat, updateAiTask } from './ai/tasks'
 import { recordUsage } from './ai/usage'
+import { usageAuditFields } from './ai/upstream-usage'
 
 export const CONTENT_RATING_AI_PROMPT_VERSION = 'content-rating-ai-v1'
 export const CONTENT_RATING_AI_TASK_KIND = 'content_rating_review'
@@ -497,6 +498,7 @@ export async function runContentRatingAiReviewTask(db: Db, input: { taskId: stri
           provider: providerLabel(provider.baseUrl),
           promptTokens: response.promptTokens,
           completionTokens: response.completionTokens,
+          ...usageAuditFields(response),
           costMillicents: Math.round(response.cost * 100_000),
           novelId: novel.id,
           generationType: 'content-rating-llm',

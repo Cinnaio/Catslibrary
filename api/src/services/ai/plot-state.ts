@@ -14,6 +14,7 @@ import { first, run } from '../../db/query'
 import { AiError, chat, isTextAiConfigured, providerLabel, textProvider } from './client'
 import { getAiSettings } from './settings'
 import { recordUsage } from './usage'
+import { usageAuditFields } from './upstream-usage'
 import { evaluateProfileSource, loadProfileSample, sampleText, type ProfileEligibility, type ProfileSource } from './profile-source'
 
 /** 默认取样章节数：剧情线比风格画像需要更长，8 章覆盖一条完整剧情弧。 */
@@ -113,6 +114,7 @@ export async function extractPlotState(db: Db, opts: {
     provider: providerLabel(provider.baseUrl),
     promptTokens: res.promptTokens,
     completionTokens: res.completionTokens,
+    ...usageAuditFields(res),
     costMillicents: Math.round(res.cost * 100000),
     novelId,
     generationType: 'plot_state',

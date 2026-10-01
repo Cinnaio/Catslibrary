@@ -11,6 +11,7 @@ import { first } from '../../db/query'
 import { AiError, chat, chatStream, isTextAiConfigured, providerLabel, textProvider } from './client'
 import { generateImage, isImageAiConfigured, imageProvider, imageProviderLabel } from './image'
 import { recordUsage } from './usage'
+import { usageAuditFields, mergeUsageAuditFields, type UpstreamUsage } from './upstream-usage'
 import { getAiSettings } from './settings'
 import { createAiTask, isAiTaskActive, startAiTaskHeartbeat, updateAiTask, getAiTask } from './tasks'
 import { storeCoverCandidate, MAX_COVER_BYTES } from '../covers'
@@ -288,6 +289,7 @@ export async function generateCoverPromptTask(
         provider: providerLabel(result.textUsage.baseUrl),
         promptTokens: result.textUsage.promptTokens,
         completionTokens: result.textUsage.completionTokens,
+        ...usageAuditFields(result.textUsage),
         costMillicents: Math.round(result.textUsage.cost * 100_000),
         novelId: opts.novelId,
         generationType: 'cover_prompt',
@@ -323,7 +325,7 @@ export interface BuildPromptResult {
   prompt: string
   metadata: CoverPromptMetadata
   /** 文本调用用量；未用文本模型时为 null */
-  textUsage: { model: string; promptTokens: number; completionTokens: number; cost: number; baseUrl: string } | null
+  textUsage: (UpstreamUsage & { model: string; promptTokens: number; completionTokens: number; cost: number; baseUrl: string }) | null
 }
 
 /**
@@ -473,8 +475,8 @@ async function buildImagePromptV3(meta: NovelMeta, opts: CoverPromptOptions): Pr
   }
 }
 
-function toCoverTextUsage(res: { model: string; promptTokens: number; completionTokens: number; cost: number }): NonNullable<BuildPromptResult['textUsage']> {
-  return { model: res.model, promptTokens: res.promptTokens, completionTokens: res.completionTokens, cost: res.cost, baseUrl: textProvider().baseUrl }
+function toCoverTextUsage(res: UpstreamUsage & { model: string; promptTokens: number; completionTokens: number; cost: number }): NonNullable<BuildPromptResult['textUsage']> {
+  return { ...usageAuditFields(res), model: res.model, promptTokens: res.promptTokens, completionTokens: res.completionTokens, cost: res.cost, baseUrl: textProvider().baseUrl }
 }
 
 function aspectRatioForImageSize(value: string | undefined): string {
@@ -662,6 +664,7 @@ function mergeTextUsage(a: BuildPromptResult['textUsage'], b: BuildPromptResult[
     promptTokens: a.promptTokens + b.promptTokens,
     completionTokens: a.completionTokens + b.completionTokens,
     cost: a.cost + b.cost,
+    ...mergeUsageAuditFields(a, b),
     baseUrl: b.baseUrl || a.baseUrl,
   }
 }
@@ -706,6 +709,7 @@ async function judgeGenre(meta: NovelMeta): Promise<{ genre: Genre; textUsage: B
   return {
     genre,
     textUsage: {
+      ...usageAuditFields(res),
       model: res.model,
       promptTokens: res.promptTokens,
       completionTokens: res.completionTokens,
@@ -786,6 +790,7 @@ async function generateSceneDescription(args: {
   return {
     scene,
     textUsage: {
+      ...usageAuditFields(res),
       model: res.model,
       promptTokens: res.promptTokens,
       completionTokens: res.completionTokens,
@@ -1051,6 +1056,7 @@ export async function generateNovelCover(
         provider: providerLabel(textUsage.baseUrl),
         promptTokens: textUsage.promptTokens,
         completionTokens: textUsage.completionTokens,
+        ...usageAuditFields(textUsage),
         costMillicents: Math.round(textUsage.cost * 100_000),
         novelId: opts.novelId,
         generationType: 'cover_prompt',
@@ -1062,9 +1068,10 @@ export async function generateNovelCover(
       userId: opts.userId,
       model: img.model,
       provider: imageProviderLabel(imageProvider_.baseUrl),
-      promptTokens: 0,
-      completionTokens: 0,
+      promptTokens: img.promptTokens ?? 0,
+      completionTokens: img.completionTokens ?? 0,
       imageCount: 1,
+      ...usageAuditFields(img),
       costMillicents: Math.round(img.cost * 100_000),
       novelId: opts.novelId,
       generationType: 'cover',

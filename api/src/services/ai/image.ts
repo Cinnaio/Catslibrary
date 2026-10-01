@@ -7,6 +7,8 @@
 import { loadConfig, type AiProviderConfig } from '../../config'
 import { outboundFetch } from '../outbound-fetch'
 import { AiError } from './client'
+import { upstreamCost } from './upstream-cost'
+import { upstreamUsage, type UpstreamUsage } from './upstream-usage'
 import { contentRefusalMessage, detectStructuredContentRefusal, detectStructuredContentRefusalFromDetail } from './prompt-policy'
 
 export interface AiImageOptions {
@@ -18,11 +20,13 @@ export interface AiImageOptions {
   signal?: AbortSignal
 }
 
-export interface AiImageResult {
+export interface AiImageResult extends UpstreamUsage {
+  promptTokens?: number
+  completionTokens?: number
   data: Uint8Array
   contentType: string
   model: string
-  /** 上游回显的成本（货币单位），缺失或非数字时为 0 */
+  /** 上游 usage.cost / cost（货币单位），缺失或无效时为 0 */
   cost: number
 }
 
@@ -143,11 +147,17 @@ async function once(endpoint: string, apiKey: string, body: string, model: strin
   }
   if (!buf.byteLength) throw new AiError('invalid', 'AI 图像服务返回空图片')
 
+  const usage = upstreamUsage(data)
+  const cost = upstreamCost(data)
   return {
     data: new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength),
     contentType: 'image/png',
     model: String(data?.model || model),
-    cost: Number(data?.cost) || 0,
+    cost: cost ?? 0,
+    costReported: cost !== null,
+    ...usage,
+    promptTokens: usage.promptTokens ?? 0,
+    completionTokens: usage.completionTokens ?? 0,
   }
 }
 
@@ -176,6 +186,7 @@ async function fetchUrlToB64(url: string): Promise<string | null> {
 }
 
 interface ImageGenerationResponse {
+  usage?: { cost?: unknown } | null
   model?: string
   data?: Array<{ b64_json?: string; url?: string }>
   cost?: string | number
