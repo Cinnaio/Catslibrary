@@ -131,6 +131,14 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   color: var(--admin-sidebar-active-foreground);
 }
 
+.admin-shell__navigation [data-sidebar='menu-sub-button'] {
+  color: var(--text-secondary);
+}
+
+.admin-shell__navigation [data-sidebar='menu-sub-button']:hover {
+  color: var(--text-primary);
+}
+
 .admin-shell__navigation [data-sidebar='menu-sub-button'][data-active='true'] {
   background: var(--admin-sidebar-sub-active-background);
   color: var(--accent-hover);
