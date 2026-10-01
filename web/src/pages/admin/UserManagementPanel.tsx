@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { MoreHorizontal, RefreshCw } from 'lucide-react'
 import { adminApi, authApi, type AdminDirectoryUser } from '@/lib/api'
-import { timeAgo } from '@/lib/format'
+import { formatDate, formatDateTime, timeAgo } from '@/lib/format'
 import { useDebouncedValue } from '@/hooks/useDebounce'
 import { useToast } from '@/components/feedback'
 import { Button } from '@/components/ui/button'
@@ -140,7 +140,7 @@ export default function UserManagementPanel({ search, selfId, onRole, onStatus, 
   const total = result?.total || 0
   return (
     <>
-      <AdminDataPanel className="account-users-panel overflow-hidden" ariaLabel="用户列表" columns={COLUMNS}>
+      <AdminDataPanel className="account-users-panel overflow-hidden" ariaLabel="用户列表" columns={COLUMNS} density="comfortable">
         <AdminPanelHeading
           title="用户目录"
           status={<span className="admin-panel-status">{!result && loading ? '读取中' : `${total} 人`}</span>}
@@ -243,7 +243,9 @@ export default function UserManagementPanel({ search, selfId, onRole, onStatus, 
                       <div className="account-user-dates">
                         <span>
                           <em>注册</em>
-                          {timeAgo(user.createdAt)}
+                          <time dateTime={formatDate(user.createdAt) || undefined} title={formatDateTime(user.createdAt)}>
+                            {formatDate(user.createdAt) || '—'}
+                          </time>
                         </span>
                         <span>
                           <em>登录</em>

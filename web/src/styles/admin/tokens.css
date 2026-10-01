@@ -41,6 +41,10 @@
   --admin-table-header-background: color-mix(in srgb, var(--bg-secondary) 85%, var(--accent) 15%);
   --admin-table-header-foreground: var(--text-primary);
   --admin-table-row-height: 3.25rem;
+  --admin-table-comfortable-row-height: 4.75rem; /* 76px */
+  --admin-table-comfortable-padding-block: 1rem;
+  --admin-table-comfortable-padding-inline: 1.25rem;
+  --admin-table-comfortable-mobile-gap: 0.5rem;
   --admin-table-row-hover-background: color-mix(in srgb, var(--accent-subtle) 64%, transparent);
   --admin-table-row-interaction: 150ms var(--ease);
   --admin-table-surface-enter: 220ms var(--ease-out);

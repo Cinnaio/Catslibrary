@@ -431,3 +431,23 @@
     flex: 1 1 calc(50% - 0.25rem);
   }
 }
+
+/* Opt-in shared density for identity directories; default tables retain their compact rhythm. */
+.admin-data-panel--comfortable {
+  --admin-table-row-height: var(--admin-table-comfortable-row-height);
+}
+@media (min-width: 901px) {
+  .admin-data-panel--comfortable table > tbody > tr > td {
+    padding-block: var(--admin-table-comfortable-padding-block);
+    padding-inline: var(--admin-table-comfortable-padding-inline);
+  }
+  .admin-data-panel--comfortable table > thead > tr > th {
+    padding-inline: var(--admin-table-comfortable-padding-inline);
+  }
+}
+@media (max-width: 900px) {
+  .admin-data-panel--comfortable tbody tr {
+    padding-block: var(--admin-table-comfortable-padding-block);
+    gap: var(--admin-table-comfortable-mobile-gap);
+  }
+}

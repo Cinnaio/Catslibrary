@@ -525,3 +525,11 @@ components:
 - **Don't** 把同一个动作同时放进页头和面板工具条（见 The Single-Door Rule）
 - **Don't** 让 `w-full` 的元素在 flex 容器里失去 `max-width`——`max-w-none` + `w-full` 会让筛选器独占整行，把工具条撑成多行
 - **Don't** 依赖 flex 布局替控件决定宽度：`flex: 0 0 auto` 配合 `w-full` 的宽高组合在 `flex-wrap` 下没有稳定结果
+
+### Directory Row Density and Dates
+
+用户目录的注册时间使用本地日期 `YYYY-MM-DD`（共享 `formatDate`），以 `<time>` 标记并通过 title 提供完整本地日期时间；无值显示“—”。登录时间继续使用相对时间，无登录记录显示原有占位文案。
+
+共享 `AdminDataPanel` 提供 `density="compact" | "comfortable"`，默认 compact。用户目录采用 comfortable：桌面单元格上下 16px、左右 20px 内边距，目标行高 76px，内容较多时允许自然撑高；表头左右内边距与内容对齐。移动端保持连续卡片及单条分隔线，上下 16px 内边距、字段间距 8px，不施加桌面固定行高。字体、头像、控件尺寸不随行密度放大。
+
+几何参数统一放在 `web/src/styles/admin/tokens.css` 的 `--admin-table-comfortable-*`，由 `components/tables.css` 消费。其他表格按业务信息密度选择此变体，页面不复制行高或单元格内边距规则。

@@ -164,6 +164,8 @@ export interface AdminColumn {
 }
 
 interface AdminDataPanelProps {
+  /** Comfortable lists provide more room around multi-line identity and metadata. */
+  density?: 'compact' | 'comfortable'
   children: ReactNode
   ariaLabel?: string
   className?: string
@@ -171,13 +173,17 @@ interface AdminDataPanelProps {
   columns?: readonly AdminColumn[]
 }
 
-export function AdminDataPanel({ children, ariaLabel, className, columns }: AdminDataPanelProps) {
+export function AdminDataPanel({ children, ariaLabel, className, columns, density = 'compact' }: AdminDataPanelProps) {
   // 列宽走 CSS 变量：colgroup 必须直接位于 <table> 内，而表格由调用方渲染，
   // 故这里只注入变量，由 .admin-data-table 的 table-layout: fixed 消费。
   const style = columns ? (Object.fromEntries(columns.flatMap((col, i) => (col.width ? [[`--col-${i + 1}-w`, col.width]] : []))) as CSSProperties) : undefined
 
   return (
-    <section className={cn('admin-data-panel', columns && 'admin-data-panel--grid', className)} aria-label={ariaLabel} style={style}>
+    <section
+      className={cn('admin-data-panel', columns && 'admin-data-panel--grid', `admin-data-panel--${density}`, className)}
+      aria-label={ariaLabel}
+      style={style}
+    >
       {children}
     </section>
   )

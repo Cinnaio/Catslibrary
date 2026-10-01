@@ -117,3 +117,9 @@
 `AdminSearch` 默认 280px 宽、40px 高，白底细边且无静态阴影；业务布局可覆盖宽度，移动端随容器收缩。后台 `Button variant="secondary"` 用暖灰底、无描边，文字和高度沿用按钮优先级契约。筛选器和 outline 按钮继续遵循各自控件规则。
 
 `AdminPanelHeading` 的 `.admin-panel-status` 使用自然宽度、无描边的暖灰数量胶囊，12px 常规字重。`AdminStatusBadge` 统一 11px、3px × 8px 内边距和胶囊圆角，角色和状态仅传 tone；info/accent 为浅奶茶，neutral 为暖灰，success/danger 为浅语义色。共享 token 位于全站 `tokens.css`，状态与计数样式分别在 `components/status-badges.css` 和 `components/panel-status.css`。
+
+## 列表行密度与日期
+
+`AdminDataPanel` 支持 `density="comfortable"`，适用于姓名、身份和双行时间信息的目录。默认 `compact` 保持现有列表密度。comfortable 桌面目标行高 76px、单元格上下 16px / 左右 20px；移动端连续卡片上下 16px、字段间距 8px，不固定高度。参数使用 `--admin-table-comfortable-*`，样式归属 `components/tables.css`，不改变字体与控件尺寸。
+
+用户目录注册时间使用共享 `formatDate` 输出 `YYYY-MM-DD`，`time` 元素的 title 提供 `formatDateTime` 完整时间；登录保留相对时间。日期以浏览器本地时区格式化，与既有日期工具一致。
