@@ -27,4 +27,13 @@ describe('admin registry routes', () => {
     expect(scrape?.children?.map((child) => child.label)).not.toContain('发现小说')
     expect(scrape?.children?.map((child) => child.label)).toContain('抓取中心')
   })
+  it('将监控入口收拢为任务中心和调用与用量', () => {
+    const group = NAV_GROUPS.find((item) => item.label === '运行监控')
+    expect(group?.items.map((item) => item.label)).toEqual(['任务中心', '调用与用量'])
+    const children = NAV_GROUPS.flatMap((item) => item.items.flatMap((entry) => entry.children || []))
+    for (const id of ['ai-tasks', 'ai-usage', 'ai-audit', 'jobs']) expect(children.map((item) => item.id)).not.toContain(id)
+    expect(isAdminTab('tasks')).toBe(true)
+    expect(isAdminTab('calls')).toBe(true)
+    expect(isAdminTab('jobs')).toBe(true)
+  })
 })

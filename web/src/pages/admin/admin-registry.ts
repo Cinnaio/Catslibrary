@@ -4,12 +4,14 @@
  * shell only composes, and the registry stays the single source of truth.
  */
 import type { ComponentType } from 'react'
-import { BookOpen, Bug, FileText, LayoutDashboard, MessageSquare, Sparkles, BarChart3, UserCog, type LucideIcon } from 'lucide-react'
+import { BookOpen, Bug, FileText, LayoutDashboard, MessageSquare, Sparkles, BarChart3, UserCog, ListChecks, Activity, type LucideIcon } from 'lucide-react'
 import DashboardTab from './DashboardTab'
 import NovelsTab from './NovelsTab'
 import ChaptersTab from './ChaptersTab'
 import ScrapeTab from './scrape'
 import JobsTab from './JobsTab'
+import TaskCenterTab from './TaskCenterTab'
+import CallsTab from './CallsTab'
 import ModerationTab from './ModerationTab'
 import AiTab from './AiTab'
 import SettingsTab from './SettingsTab'
@@ -38,9 +40,7 @@ export interface AdminNavItem {
 export const NAV_GROUPS: Array<{ label: string; items: AdminNavItem[] }> = [
   {
     label: '监控',
-    items: [
-      { id: 'dashboard', label: '后台总览', icon: LayoutDashboard },
-    ],
+    items: [{ id: 'dashboard', label: '后台总览', icon: LayoutDashboard }],
   },
   {
     label: '内容库',
@@ -58,7 +58,6 @@ export const NAV_GROUPS: Array<{ label: string; items: AdminNavItem[] }> = [
         icon: Bug,
         children: [
           { id: 'scrape-center', label: '抓取中心', to: `${adminTabPath('scrape')}?view=center` },
-          { id: 'jobs', label: '任务管理', to: adminTabPath('jobs') },
           { id: 'scrape-proxy', label: '代理设置', to: `${adminTabPath('scrape')}?view=proxy` },
         ],
       },
@@ -69,14 +68,18 @@ export const NAV_GROUPS: Array<{ label: string; items: AdminNavItem[] }> = [
         children: [
           { id: 'ai-writing', label: 'AI 创作', to: `${adminTabPath('ai')}?sub=writing` },
           { id: 'ai-cover', label: '封面生成', to: `${adminTabPath('ai')}?sub=cover` },
-          { id: 'ai-tasks', label: 'AI 任务', to: `${adminTabPath('ai')}?sub=tasks` },
           { id: 'ai-content', label: '已生成内容', to: `${adminTabPath('ai')}?sub=content` },
-          { id: 'ai-usage', label: '用量统计', to: `${adminTabPath('ai')}?sub=usage` },
-          { id: 'ai-audit', label: '调用审计', to: `${adminTabPath('ai')}?sub=audit` },
           { id: 'ai-config', label: 'AI 配置', to: `${adminTabPath('ai')}?sub=config` },
           { id: 'ai-params', label: '参数调优', to: `${adminTabPath('ai')}?sub=params` },
         ],
       },
+    ],
+  },
+  {
+    label: '运行监控',
+    items: [
+      { id: 'tasks', label: '任务中心', icon: ListChecks },
+      { id: 'calls', label: '调用与用量', icon: Activity },
     ],
   },
   {
@@ -130,6 +133,8 @@ export const TAB_COMPONENTS = {
   chapters: ChaptersTab,
   scrape: ScrapeTab,
   jobs: JobsTab,
+  tasks: TaskCenterTab,
+  calls: CallsTab,
   moderation: ModerationTab,
   ai: AiTab,
   'content-policy': ContentPolicyTab,

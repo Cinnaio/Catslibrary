@@ -13,7 +13,7 @@ type ScrapeView = (typeof SCRAPE_VIEWS)[number]
 
 const SCRAPE_VIEW_META: Record<ScrapeView, { title: string; description: string }> = {
   center: { title: '抓取中心', description: '从链接、搜索或榜单进入，管理 PO18.tw 登录，并完成作品确认、章节校验和任务追踪。' },
-  proxy: { title: '代理设置', description: '配置出站代理，检查请求路由并查看最近的请求记录。' },
+  proxy: { title: '代理设置', description: '配置出站代理，检查请求路由与连通性。' },
 }
 
 export default function ScrapeTab(_props: { highlightNovelId?: string; onHighlightConsumed?: () => void }) {

@@ -1,6 +1,6 @@
 /**
  * AI 服务 tab —— 薄容器：加载配置并把各子面板挂到分组子 tab 上。
- * 子 tab 支持 URL 深链：/admin?sub=tasks&batch=... 可复现「任务 → 产出」上下文，
+ * 子 tab 支持 URL 深链：/admin/ai?sub=content&batch=... 可复现「任务 → 产出」上下文，
  * 刷新、返回、分享都不会丢；无 URL 参数时退回 localStorage 持久化。
  */
 import { useCallback, useEffect, useState } from 'react'
@@ -14,9 +14,6 @@ import type { Provider } from './ai/shared'
 import { usePersistentState } from '@/hooks/usePersistentState'
 import AiConfigPanel from './ai/AiConfigPanel'
 import AiGenerationsPanel from './ai/AiGenerationsPanel'
-import AiTasksPanel from './ai/AiTasksPanel'
-import AiUsagePanel from './ai/AiUsagePanel'
-import AiAuditPanel from './ai/AiAuditPanel'
 import AiParamsPanel from './ai/AiParamsPanel'
 import AiWritingPanel from './ai/AiWritingPanel'
 import AiCoverPanel from './ai/AiCoverPanel'
@@ -24,17 +21,14 @@ import AiCoverPanel from './ai/AiCoverPanel'
 // 兼容旧的导入路径（其它页面若直接引用面板，从 ./ai/* 走新路径）
 export { AiWritingPanel, AiGenerationsPanel, AiParamsPanel }
 
-/** 子 tab 合法值：生成 / 审阅 / 观测 / 设置 四组，避免 URL 或持久化里混入未知值。 */
-const VALID_SUBS = ['writing', 'cover', 'tasks', 'content', 'usage', 'audit', 'config', 'params'] as const
+/** 子 tab 合法值：创作 / 审阅 / 设置，避免 URL 或持久化里混入未知值。 */
+const VALID_SUBS = ['writing', 'cover', 'content', 'config', 'params'] as const
 type SubTab = (typeof VALID_SUBS)[number]
 
 const AI_SUBTAB_META: Record<SubTab, { title: string; description: string }> = {
   writing: { title: 'AI 创作', description: '组织大纲、章节与续写任务，保留现有创作上下文。' },
   cover: { title: '封面生成', description: '生成、比较并应用小说封面候选图。' },
-  tasks: { title: 'AI 任务', description: '跟踪生成任务、批次状态与失败重试。' },
   content: { title: '已生成内容', description: '审阅、编辑和管理 AI 生成的章节与摘要。' },
-  usage: { title: '用量统计', description: '观察调用次数、Token 用量和成本趋势。' },
-  audit: { title: '调用审计', description: '查看 AI 调用记录、关联内容与费用明细。' },
   config: { title: 'AI 配置', description: '管理文本与图像供应商、模型和连接设置。' },
   params: { title: '参数调优', description: '调整摘要、回顾、创作和生图的生成参数。' },
 }
@@ -125,13 +119,7 @@ export default function AiTab() {
           />
         )}
 
-        {currentSubTab === 'tasks' && <AiTasksPanel onViewBatch={openGenerations} />}
-
         {currentSubTab === 'content' && <AiGenerationsPanel scope="all" status="all" focusBatchId={urlBatch} />}
-
-        {currentSubTab === 'usage' && <AiUsagePanel />}
-
-        {currentSubTab === 'audit' && <AiAuditPanel />}
 
         {currentSubTab === 'config' && (
           <AiConfigPanel settings={settings} provider={provider} providerConfig={providerConfig} loading={loading} onReload={load} />

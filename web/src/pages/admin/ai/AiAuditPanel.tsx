@@ -29,7 +29,7 @@ function aiCallTypeLabel(type: string): string {
   return aiCallTypeLabels[type] || '其他'
 }
 
-export default function AiAuditPanel() {
+export default function AiAuditPanel({ from }: { from?: number } = {}) {
   const [calls, setCalls] = useState<
     Array<{
       id: string
@@ -62,7 +62,7 @@ export default function AiAuditPanel() {
   const loadCalls = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await aiApi.audit.calls({ limit, offset, type: filterType === 'all' ? undefined : filterType })
+      const res = await aiApi.audit.calls({ limit, offset, from, type: filterType === 'all' ? undefined : filterType })
       setCalls(res.calls)
       setTotal(res.total)
       setError('')
@@ -71,7 +71,7 @@ export default function AiAuditPanel() {
     } finally {
       setLoading(false)
     }
-  }, [limit, offset, filterType])
+  }, [limit, offset, filterType, from])
 
   useEffect(() => {
     void loadCalls()
@@ -90,7 +90,9 @@ export default function AiAuditPanel() {
         />
         {/* 类型筛选只作用于本面板的调用记录，与标题、表格同属一个面板。 */}
         <AdminToolbar className="ai-audit-toolbar" ariaLive="polite">
-          <Label htmlFor="audit-filter-type" className="text-xs text-muted-foreground">类型</Label>
+          <Label htmlFor="audit-filter-type" className="text-xs text-muted-foreground">
+            类型
+          </Label>
           <Select
             value={filterType}
             onValueChange={(v) => {
@@ -125,9 +127,7 @@ export default function AiAuditPanel() {
               configured={configured}
               unconfiguredMessage="尚未配置文本 AI 供应商，没有可审计的调用"
               unconfiguredHint="配置文本供应商后，每次调用都会留下审计明细。"
-              emptyMessage={
-                filterType === 'all' ? '暂无调用记录' : '当前类型筛选下没有调用记录'
-              }
+              emptyMessage={filterType === 'all' ? '暂无调用记录' : '当前类型筛选下没有调用记录'}
               hint={filterType === 'all' ? '发起任意 AI 生成后，这里会留下调用明细。' : '把类型筛选切回「全部」可以看所有记录。'}
             />
           ) : (
@@ -146,8 +146,12 @@ export default function AiAuditPanel() {
                       <th scope="col">用户</th>
                       <th scope="col">类型</th>
                       <th scope="col">关联内容</th>
-                      <th scope="col" className="is-numeric">消耗</th>
-                      <th scope="col" className="is-numeric">成本</th>
+                      <th scope="col" className="is-numeric">
+                        消耗
+                      </th>
+                      <th scope="col" className="is-numeric">
+                        成本
+                      </th>
                       <th scope="col">时间</th>
                     </tr>
                   </thead>
@@ -161,10 +165,7 @@ export default function AiAuditPanel() {
                       const recordLabel = `${recordName} ${aiCallTypeLabel(call.type)} ${new Date(call.createdAt).toLocaleString('zh-CN')}`
                       return (
                         <Fragment key={call.id}>
-                          <tr
-                            className="ai-audit-row"
-                            onClick={() => setExpandedId(expanded ? null : call.id)}
-                          >
+                          <tr className="ai-audit-row" onClick={() => setExpandedId(expanded ? null : call.id)}>
                             <td>
                               <div className="ai-audit-cell__identity">
                                 {/* 整行 onClick 只服务鼠标；键盘与读屏需要一个真实控件。
@@ -188,22 +189,16 @@ export default function AiAuditPanel() {
                                 </button>
                                 <div className="ai-audit-cell__identity-text">
                                   <div className="ai-audit-cell__name">{call.displayName || call.username || '—'}</div>
-                                  {call.username && call.displayName && (
-                                    <div className="ai-audit-cell__sub">@{call.username}</div>
-                                  )}
+                                  {call.username && call.displayName && <div className="ai-audit-cell__sub">@{call.username}</div>}
                                 </div>
                               </div>
                             </td>
                             <td>
-                              <Badge variant="secondary">
-                                {aiCallTypeLabel(call.type)}
-                              </Badge>
+                              <Badge variant="secondary">{aiCallTypeLabel(call.type)}</Badge>
                             </td>
                             <td>
                               <div className="ai-audit-cell__content">
-                                <div className="ai-audit-cell__name">
-                                  {call.novelTitle || <span className="ai-audit-cell__muted">—</span>}
-                                </div>
+                                <div className="ai-audit-cell__name">{call.novelTitle || <span className="ai-audit-cell__muted">—</span>}</div>
                                 {call.chapterTitle && (
                                   <div className="ai-audit-cell__sub">
                                     <span aria-hidden="true">📖</span> {call.chapterTitle}
@@ -230,9 +225,7 @@ export default function AiAuditPanel() {
                                 </>
                               )}
                             </td>
-                            <td className="is-numeric ai-audit-cell__strong">
-                              {formatCost(call.costMillicents)}
-                            </td>
+                            <td className="is-numeric ai-audit-cell__strong">{formatCost(call.costMillicents)}</td>
                             <td className="ai-audit-cell__muted">
                               <div>{new Date(call.createdAt).toLocaleDateString('zh-CN')}</div>
                               <div className="ai-audit-cell__sub">{new Date(call.createdAt).toLocaleTimeString('zh-CN')}</div>
@@ -244,16 +237,17 @@ export default function AiAuditPanel() {
                                 <div className="ai-audit-detail">
                                   <DetailItem label="调用 ID" value={<code className="text-xs">{call.id}</code>} />
                                   <DetailItem label="模型" value={<code className="text-xs">{call.model || '—'}</code>} />
-                                  <DetailItem
-                                    label="小说 ID"
-                                    value={<code className="text-xs">{call.novelId || '—'}</code>}
-                                  />
-                                  <DetailItem
-                                    label="章节 ID"
-                                    value={<code className="text-xs">{call.chapterId || '—'}</code>}
-                                  />
+                                  <DetailItem label="小说 ID" value={<code className="text-xs">{call.novelId || '—'}</code>} />
+                                  <DetailItem label="章节 ID" value={<code className="text-xs">{call.chapterId || '—'}</code>} />
                                   <DetailItem label="IP 地址" value={<code className="text-xs">{call.ipAddress || '未记录'}</code>} />
-                                  <DetailItem label="User-Agent" value={<code className="block max-w-full truncate text-xs" title={call.userAgent}>{call.userAgent || '未记录'}</code>} />
+                                  <DetailItem
+                                    label="User-Agent"
+                                    value={
+                                      <code className="block max-w-full truncate text-xs" title={call.userAgent}>
+                                        {call.userAgent || '未记录'}
+                                      </code>
+                                    }
+                                  />
                                 </div>
                                 <div className="ai-audit-detail__usage">
                                   {call.imageCount > 0 ? (

@@ -373,7 +373,7 @@ export default function CenterView() {
     try {
       const result = await scrapeApi.start({ novelId: currentScrapeNovelId, sourceUrl: src, encoding: activeEncoding || null, selectors: currentSelectors })
       if (!result.jobId) throw new Error((result as { error?: string }).error || '没有返回任务 ID')
-      toast('抓取任务已启动，可在任务管理中查看', 'success')
+      toast('抓取任务已启动，可在任务中心中查看', 'success')
     } catch (err) {
       toast('启动失败：' + (err as Error).message, 'error')
     }

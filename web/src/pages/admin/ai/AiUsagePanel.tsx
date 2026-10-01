@@ -1,17 +1,6 @@
 /** 用量统计：成本/调用趋势与 Token 消耗趋势图表。 */
 import { useCallback, useEffect, useState } from 'react'
-import {
-  Area,
-  AreaChart,
-  Bar,
-  CartesianGrid,
-  ComposedChart,
-  Legend,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts'
+import { Area, AreaChart, Bar, CartesianGrid, ComposedChart, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { aiApi } from '@/lib/api'
 import { ErrorState, InlineError, LoadingState } from '@/components/admin/AsyncStates'
 import AiPanelEmptyState from './AiPanelEmptyState'
@@ -50,9 +39,10 @@ function buildChartSeries(trend: TrendPoint[], days: number): TrendPoint[] {
   return result
 }
 
-export default function AiUsagePanel() {
+export default function AiUsagePanel({ days: selectedDays }: { days?: number } = {}) {
   const [trend, setTrend] = useState<TrendPoint[]>([])
-  const [days, setDays] = useState(30)
+  const [localDays, setDays] = useState(30)
+  const days = selectedDays ?? localDays
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const configured = useAiConfigured()
@@ -92,19 +82,27 @@ export default function AiUsagePanel() {
           title="成本与调用趋势"
           status={
             <span className="ai-usage-totals">
-              <span>总调用 <strong>{totalCalls.toLocaleString()}</strong></span>
-              <span>总成本 <strong>{formatCost(totalCost)}</strong></span>
-              <span>平均单次 <strong>{formatCost(avgCost)}</strong></span>
+              <span>
+                总调用 <strong>{totalCalls.toLocaleString()}</strong>
+              </span>
+              <span>
+                总成本 <strong>{formatCost(totalCost)}</strong>
+              </span>
+              <span>
+                平均单次 <strong>{formatCost(avgCost)}</strong>
+              </span>
             </span>
           }
           actions={
-            <div className="flex gap-2">
-              {[7, 30, 90].map((d) => (
-                <Button key={d} variant={days === d ? 'default' : 'outline'} size="sm" onClick={() => setDays(d)}>
-                  {d} 天
-                </Button>
-              ))}
-            </div>
+            selectedDays == null ? (
+              <div className="flex gap-2">
+                {[7, 30, 90].map((d) => (
+                  <Button key={d} variant={days === d ? 'default' : 'outline'} size="sm" onClick={() => setDays(d)}>
+                    {d} 天
+                  </Button>
+                ))}
+              </div>
+            ) : undefined
           }
         />
         <div className="min-w-0 p-6">
@@ -124,70 +122,48 @@ export default function AiUsagePanel() {
             <>
               {error && <InlineError message={error} onRetry={() => void loadTrend()} className="mb-3" />}
               <div className="h-80 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="costGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="var(--accent)" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="var(--accent)" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid {...chartGrid} />
-                  <XAxis
-                    dataKey="date"
-                    tick={chartTick}
-                    tickLine={false}
-                    axisLine={chartAxisLine}
-                    minTickGap={24}
-                  />
-                  <YAxis
-                    yAxisId="calls"
-                    tick={chartTick}
-                    tickLine={false}
-                    axisLine={false}
-                    width={40}
-                  />
-                  <YAxis
-                    yAxisId="cost"
-                    orientation="right"
-                    tick={chartTick}
-                    tickLine={false}
-                    axisLine={false}
-                    width={60}
-                    tickFormatter={(v: number) => formatCost(v)}
-                  />
-                  <Tooltip
-                    contentStyle={chartTooltipStyle}
-                    labelStyle={chartTooltipLabelStyle}
-                    formatter={(value, name) => {
-                      if (name === '成本') return [formatCost(Number(value)), name as string]
-                      return [Number(value).toLocaleString(), name as string]
-                    }}
-                  />
-                  <Legend
-                    wrapperStyle={chartLegendStyle}
-                    iconType="circle"
-                  />
-                  <Bar
-                    yAxisId="calls"
-                    dataKey="calls"
-                    name="调用次数"
-                    fill="var(--color-success)"
-                    radius={[3, 3, 0, 0]}
-                    opacity={0.7}
-                  />
-                  <Area
-                    yAxisId="cost"
-                    type="monotone"
-                    dataKey="costMillicents"
-                    name="成本"
-                    stroke="var(--accent)"
-                    strokeWidth={2}
-                    fill="url(#costGradient)"
-                  />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="costGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="var(--accent)" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="var(--accent)" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid {...chartGrid} />
+                    <XAxis dataKey="date" tick={chartTick} tickLine={false} axisLine={chartAxisLine} minTickGap={24} />
+                    <YAxis yAxisId="calls" tick={chartTick} tickLine={false} axisLine={false} width={40} />
+                    <YAxis
+                      yAxisId="cost"
+                      orientation="right"
+                      tick={chartTick}
+                      tickLine={false}
+                      axisLine={false}
+                      width={60}
+                      tickFormatter={(v: number) => formatCost(v)}
+                    />
+                    <Tooltip
+                      contentStyle={chartTooltipStyle}
+                      labelStyle={chartTooltipLabelStyle}
+                      formatter={(value, name) => {
+                        if (name === '成本') return [formatCost(Number(value)), name as string]
+                        return [Number(value).toLocaleString(), name as string]
+                      }}
+                    />
+                    <Legend wrapperStyle={chartLegendStyle} iconType="circle" />
+                    <Bar yAxisId="calls" dataKey="calls" name="调用次数" fill="var(--color-success)" radius={[3, 3, 0, 0]} opacity={0.7} />
+                    <Area
+                      yAxisId="cost"
+                      type="monotone"
+                      dataKey="costMillicents"
+                      name="成本"
+                      stroke="var(--accent)"
+                      strokeWidth={2}
+                      fill="url(#costGradient)"
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
             </>
           )}
         </div>
@@ -199,7 +175,9 @@ export default function AiUsagePanel() {
           title="Token 消耗趋势"
           status={
             <span className="ai-usage-totals">
-              <span>总 Token <strong>{totalTokens.toLocaleString()}</strong></span>
+              <span>
+                总 Token <strong>{totalTokens.toLocaleString()}</strong>
+              </span>
             </span>
           }
         />
@@ -220,60 +198,54 @@ export default function AiUsagePanel() {
             <>
               {error && <InlineError message={error} onRetry={() => void loadTrend()} className="mb-3" />}
               <div className="h-64 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="promptGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="var(--color-success)" stopOpacity={0.4} />
-                      <stop offset="95%" stopColor="var(--color-success)" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="completionGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="var(--color-info)" stopOpacity={0.4} />
-                      <stop offset="95%" stopColor="var(--color-info)" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid {...chartGrid} />
-                  <XAxis
-                    dataKey="date"
-                    tick={chartTick}
-                    tickLine={false}
-                    axisLine={chartAxisLine}
-                    minTickGap={24}
-                  />
-                  <YAxis
-                    tick={chartTick}
-                    tickLine={false}
-                    axisLine={false}
-                    width={50}
-                    tickFormatter={(v: number) => (v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v))}
-                  />
-                  <Tooltip
-                    contentStyle={chartTooltipStyle}
-                    labelStyle={chartTooltipLabelStyle}
-                    formatter={(value, name) => [Number(value).toLocaleString(), name as string]}
-                  />
-                  <Legend wrapperStyle={chartLegendStyle} iconType="circle" />
-                  <Area
-                    type="monotone"
-                    dataKey="promptTokens"
-                    name="输入 Token"
-                    stroke="var(--color-success)"
-                    strokeWidth={2}
-                    fill="url(#promptGradient)"
-                    stackId="tokens"
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="completionTokens"
-                    name="输出 Token"
-                    stroke="var(--color-info)"
-                    strokeWidth={2}
-                    fill="url(#completionGradient)"
-                    stackId="tokens"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="promptGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="var(--color-success)" stopOpacity={0.4} />
+                        <stop offset="95%" stopColor="var(--color-success)" stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="completionGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="var(--color-info)" stopOpacity={0.4} />
+                        <stop offset="95%" stopColor="var(--color-info)" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid {...chartGrid} />
+                    <XAxis dataKey="date" tick={chartTick} tickLine={false} axisLine={chartAxisLine} minTickGap={24} />
+                    <YAxis
+                      tick={chartTick}
+                      tickLine={false}
+                      axisLine={false}
+                      width={50}
+                      tickFormatter={(v: number) => (v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v))}
+                    />
+                    <Tooltip
+                      contentStyle={chartTooltipStyle}
+                      labelStyle={chartTooltipLabelStyle}
+                      formatter={(value, name) => [Number(value).toLocaleString(), name as string]}
+                    />
+                    <Legend wrapperStyle={chartLegendStyle} iconType="circle" />
+                    <Area
+                      type="monotone"
+                      dataKey="promptTokens"
+                      name="输入 Token"
+                      stroke="var(--color-success)"
+                      strokeWidth={2}
+                      fill="url(#promptGradient)"
+                      stackId="tokens"
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="completionTokens"
+                      name="输出 Token"
+                      stroke="var(--color-info)"
+                      strokeWidth={2}
+                      fill="url(#completionGradient)"
+                      stackId="tokens"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
             </>
           )}
         </div>

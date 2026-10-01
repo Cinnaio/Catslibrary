@@ -5,13 +5,15 @@
  * URL tab、上次位置持久化、sessionStorage 高亮、document.title、/ 聚焦搜索框。
  */
 import { useEffect, useState } from 'react'
-import { Navigate, useNavigate, useParams } from 'react-router-dom'
+import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import AdminGate from './AdminGate'
+import { monitoringRedirect } from './monitoring-routes'
 import AdminShell from './AdminShell'
 import { adminTabPath, getTabLabel, isAdminTab, TAB_COMPONENTS, TAB_KEY } from './admin-registry'
 
 export default function Admin() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { tab } = useParams<{ tab?: string }>()
   const storedTab = localStorage.getItem(TAB_KEY) || undefined
   const fallbackTab = isAdminTab(storedTab) ? storedTab : 'dashboard'
@@ -59,6 +61,9 @@ export default function Admin() {
   if (!isAdminTab(tab)) {
     return <Navigate to={adminTabPath(fallbackTab)} replace />
   }
+
+  const redirect = monitoringRedirect(active, location.search, localStorage.getItem('ai_active_subtab'))
+  if (redirect) return <Navigate to={redirect} replace />
 
   const TabComponent = TAB_COMPONENTS[active]
   const activeLabel = getTabLabel(active)
