@@ -349,6 +349,12 @@ components:
 
 **The Data-Panel Contract Rule.** 后台数据表一律走 `AdminDataPanel` + `columns`。`columns` 只做两件事：注入 `--col-N-w` 宽度变量、添加 `.admin-data-panel--grid`。它**不会**渲染单元格，也不会写 data 属性——调用方必须让「列定义顺序 = thead 顺序 = tbody 单元格顺序」三者一致，并手动标注 `data-primary` / `data-label` / `data-actions` / `data-check`。少写一个 `data-label`，那张卡片在 900px 以下就会缺一个字段标签；只传 `columns` 而不标属性，等于什么都没做。
 
+### Proxy Settings
+- **Hierarchy:** 代理设置采用「出站代理配置 → 路由与连通性」双面板。配置面板顶部集中展示当前生效地址或接口提供的代理主机、来源与跳过规则；编辑草稿不替换生效摘要。日志入口归页头，协议与部署说明使用面板外折叠区。
+- **Settings Rows:** 桌面端标签与简短说明在左，输入与字段提示在右；640px 及以下改为纵向。面板、圆角、按钮、控件和字阶沿用共享 token，手机标题与状态保持同一行。
+- **Feedback:** 保存反馈区分未保存修改、管理端配置生效和环境变量仍优先。读取失败不得显示为「未配置 / 直连」，重新读取成功后恢复配置与诊断操作。
+- **Diagnostics:** 路由检查遵循生效配置，命中跳过规则的直连为中性结果；代理连接测试强制走代理。未启用时可检查路由，但不能测试代理连接；目标变更、配置保存或重新读取时清除旧诊断结果。
+
 ### Navigation (Sidebar)
 - **Style:** shadcn 可折叠侧边栏（`collapsible="icon"`, `variant="floating"`），展开态 16rem、图标态 3rem、移动端抽屉 18rem。桌面侧栏使用 `--admin-sidebar` 独立纸面，保留轻微外部留白和 `--radius-xl` 圆角，不使用外描边或阴影；不要把它改成边到边的 `sidebar` 变体。导航溢出时保留滚动能力，但隐藏滚动条视觉轨道。
 - **Brand / Account:** 侧栏顶部品牌容器是返回首页的入口；账户菜单固定在侧栏底部，承载个人中心与退出登录。账户区域与上方导航之间使用 `--admin-sidebar-footer-fade-height` 的渐变过渡，不添加硬分隔线。

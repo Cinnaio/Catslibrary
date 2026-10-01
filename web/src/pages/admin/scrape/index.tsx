@@ -2,7 +2,9 @@
 // ScrapeTab — coordinator for the two scrape sub-views.
 // ============================================================
 import { useEffect } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
+import { ExternalLink } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import AdminPage from '@/components/admin/AdminPage'
 import { usePersistentState } from '@/hooks/usePersistentState'
 import CenterView from './CenterView'
@@ -44,6 +46,16 @@ export default function ScrapeTab(_props: { highlightNovelId?: string; onHighlig
       className={`admin-redesign-page admin-redesign-page--scrape admin-redesign-page--${currentView}`}
       title={currentMeta.title}
       description={currentMeta.description}
+      actions={
+        currentView === 'proxy' ? (
+          <Button variant="ghost" asChild>
+            <Link to="/admin/calls?view=outbound">
+              <ExternalLink aria-hidden="true" />
+              查看出站请求记录
+            </Link>
+          </Button>
+        ) : undefined
+      }
     >
       {currentView === 'center' && <CenterView />}
       {currentView === 'proxy' && <ProxyView />}
