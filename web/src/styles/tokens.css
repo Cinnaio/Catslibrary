@@ -42,6 +42,26 @@
   --radius-xl: 16px; /* nested surfaces / dialogs */
   --radius-2xl: 20px; /* large surfaces / panels */
 
+  /* Compact identity primitives shared by lists and account controls. */
+  --avatar-size: 2.25rem; /* 36px */
+  --avatar-font-size: 0.8125rem;
+  --badge-label-size: 0.6875rem; /* 11px */
+  --badge-padding-block: 0.1875rem;
+  --badge-padding-inline: 0.5rem;
+  --panel-count-label-size: 0.75rem;
+  --admin-search-width: 17.5rem;
+
+  /* Shared dropdown menus — spacious paper surface, portal-safe across themes. */
+  --menu-min-width: 11rem;
+  --menu-padding: 0.25rem;
+  --menu-radius: var(--radius-lg);
+  --menu-item-height: 2.25rem;
+  --menu-item-padding-inline: 0.75rem;
+  --menu-item-radius: var(--radius-sm);
+  --menu-item-font-size: 0.8125rem;
+  --menu-separator-margin: 0.25rem;
+  --menu-shadow: var(--shadow-popover);
+
   /* Segmented Tabs — shared track/active-surface geometry and motion.
      Surface and foreground tokens may be overridden by the consuming surface;
      the geometry and transition stay consistent across themes and pages. */

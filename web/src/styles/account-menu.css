@@ -78,13 +78,6 @@
 
 .account-menu__content {
   z-index: 200;
-  min-width: 13rem;
-  padding: 0.35rem;
-  border-color: var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--bg-card);
-  color: var(--text-primary);
-  box-shadow: var(--shadow-popover);
 }
 
 .account-menu__content[data-state='open'] {
@@ -139,41 +132,6 @@
   font-size: 0.72rem;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.account-menu__item {
-  min-height: 2.45rem;
-  padding: 0.55rem 0.7rem;
-  border-radius: var(--radius-md);
-  color: var(--text-secondary);
-  font-size: 0.84rem;
-  font-weight: 620;
-  transition:
-    color 0.14s ease,
-    background 0.14s ease;
-}
-
-.account-menu__item:hover,
-.account-menu__item:focus-visible {
-  background: var(--accent-subtle);
-  color: var(--accent);
-}
-
-.account-menu__item svg {
-  width: 1rem;
-  height: 1rem;
-  color: var(--accent);
-}
-
-.account-menu__item--danger,
-.account-menu__item--danger svg {
-  color: var(--color-danger);
-}
-
-.account-menu__item--danger:hover,
-.account-menu__item--danger:focus-visible {
-  background: color-mix(in srgb, var(--color-danger) 10%, transparent);
-  color: var(--color-danger);
 }
 
 .account-menu--mobile .account-menu__trigger--mobile {

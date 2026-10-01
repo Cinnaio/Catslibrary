@@ -297,7 +297,7 @@ components:
 - **卡片圆角 (10px)**: 紧凑卡片与旧版表格包裹器使用 `--radius-md`。
 - **嵌套表面与对话框圆角 (16px)**: shadcn `Card`（`rounded-xl`）、对话框、嵌套表面。
 - **后台大面板圆角 (20px)**: 数据面板（`--admin-table-panel-radius`）、`.admin-panel-card`——更明显的圆润感，像精装书的封面弧度。
-- **公开页面结构归并**: 紧凑字段使用 `--radius-md`，控件与菜单使用 `--radius-lg`，内嵌卡片、浮层与对话框使用 `--radius-xl`，Hero 与大卡片使用 `--radius-2xl`；公开页面不再直接新增 11/13/14/15/17/18/22/24/26/28/30px 档位。
+- **公开页面结构归并**: 紧凑字段使用 `--radius-md`，控件使用 `--radius-lg`，操作下拉菜单遵循 `--menu-radius`（12px），内嵌卡片、浮层与对话框使用 `--radius-xl`，Hero 与大卡片使用 `--radius-2xl`；公开页面不再直接新增 11/13/14/15/17/18/22/24/26/28/30px 档位。
 - **全圆角 (9999px)**: 胶囊标签、计数徽章、状态条——仅用于信息密度极高的辅助元素。
 - **阅读页纸张圆角 (30px / 移动端 24px)**: `--reader-radius-paper`，唯一大于 2xl 的圆角。阅读表面要读起来像"一张纸"而不是一个卡片，弧度必须明显大过周围的控件；只用于 `.reader-paper`，其余阅读页元素仍走上面的通用档。
 
@@ -348,6 +348,32 @@ components:
 **The Fit-Content Rule.** 输入框宽度随用途与提示信息而定，不设拉伸：短提示短框，长内容长框。避免 `flex-1` / `w-full` 把输入框撑满整行——工具栏里的过滤/搜索框用 `min-w` 限定下限、内容自然决定宽度，长 URL 输入才放宽。
 
 **The Data-Panel Contract Rule.** 后台数据表一律走 `AdminDataPanel` + `columns`。`columns` 只做两件事：注入 `--col-N-w` 宽度变量、添加 `.admin-data-panel--grid`。它**不会**渲染单元格，也不会写 data 属性——调用方必须让「列定义顺序 = thead 顺序 = tbody 单元格顺序」三者一致，并手动标注 `data-primary` / `data-label` / `data-actions` / `data-check`。少写一个 `data-label`，那张卡片在 900px 以下就会缺一个字段标签；只传 `columns` 而不标属性，等于什么都没做。
+
+### Shared Dropdown Menus
+
+- **Shared Library:** 全站操作下拉菜单使用 `components/ui/dropdown-menu.tsx`，外观统一由 `styles/dropdown-menu.css` 和 `--menu-*` token 提供；后台行操作、用户管理与公开/后台账户菜单共用。不要在业务页重复定义菜单圆角、字号、内边距或行高。
+- **Surface:** 浅色主题使用白色纸面，深色主题跟随 `--bg-card`；12px 圆角（`--menu-radius`）、1px 暖灰轻描边和 `--menu-shadow` 柔和阴影。默认最小宽度 176px，内部留白 4px；主菜单与嵌套子菜单一致，宽度受 Radix 可用空间和视口约束。
+- **Items:** 默认文字 13px / 400（共享紧凑字阶）、行高 1.5，桌面每项至少 36px 高，左右内边距 12px，项目圆角 6px。保留足够留白，不要求普通操作添加图标；有图标时采用 16px，勾选/单选标记占独立左侧区域。标签保持次级层级，快捷键靠右。
+- **States:** 悬停和键盘高亮使用淡暖灰背景，不改变普通文字颜色；禁用项降低透明度并不可选择。危险项显式传 `variant="destructive"`，文字与图标采用共享危险色，高亮只增加淡红底色。
+- **Grouping:** 普通操作与删除等危险操作之间使用一条 1px 轻分割线，线条留在浮层内边距中，不贯穿外边框；分割线上下各 4px。
+- **Interaction:** 保留 Radix 的 portal、方向键导航、Esc 关闭、焦点返回、复选/单选状态及视口碰撞避让。菜单通过 portal 渲染，禁止使用依赖表格祖先的选择器调整浮层。900px 及以下或触屏使用至少 44px 的操作高度，减少动态效果时关闭浮层动画。
+
+
+### Shared Account and List Primitives
+
+用户目录预览中的搜索、计数、刷新、文字头像与身份/状态标签作为共享语言，页面只提供姓名、数量和业务状态，不再复制局部外观。
+
+| 元素 | 共享入口 | 尺寸与外观 |
+| --- | --- | --- |
+| 搜索 | `AdminSearch` / `components/toolbar.css` | 默认宽 280px，窄屏随容器收缩；高度沿用后台 40px，白底、细边、12px 圆角、无静态阴影，保留图标、可访问名称和聚焦提示 |
+| 刷新等次要操作 | `Button variant="secondary"` | 暖灰底，无外描边和阴影；后台高度 40px、文字 13px，保留 hover、focus 与 disabled 状态；筛选 combobox 不使用此按钮外观 |
+| 面板数量 | `.admin-panel-status` | 随文字自然宽度，暖灰胶囊，无描边；文字 12px、常规字重、等宽数字，数量需注明单位 |
+| 文字头像 | `InitialAvatar` / `identity.css` | 默认 36px 圆形、13px 常规字重，浅奶茶底与品牌文字；`size="inherit"` 沿用账户入口的既有尺寸；只做装饰，姓名由相邻文字或控件标签提供 |
+| 当前身份 | `Badge variant="identity"` | 11px 常规字重、6px 圆角、2px × 5px 内边距，浅奶茶底，用于“本人”等身份标记 |
+| 角色与状态 | `AdminStatusBadge` | 11px 常规字重、3px × 8px 内边距、胶囊圆角、无描边；管理员使用 info/浅奶茶，普通角色 neutral/暖灰，正常 success/浅绿，禁用 danger/浅红；状态始终带文字，不能只依赖颜色 |
+
+头像和标签几何使用 `web/src/styles/tokens.css` 中的 `--avatar-*`、`--badge-*`，面板计数使用 `--panel-count-label-size`。颜色均取现有主题 token，暗色模式不写死浅色值。其他业务状态继续使用已有 tone 合约；强调性的 brand 标签保留实色。
+
 
 ### Proxy Settings
 - **Hierarchy:** 代理设置采用「出站代理配置 → 路由与连通性」双面板。配置面板顶部集中展示当前生效地址或接口提供的代理主机、来源与跳过规则；编辑草稿不替换生效摘要。日志入口归页头，协议与部署说明使用面板外折叠区。

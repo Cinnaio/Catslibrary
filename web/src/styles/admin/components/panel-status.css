@@ -3,17 +3,17 @@
    .admin-panel-status，页面只保留各自需要的变体。 */
 .admin-panel-status {
   display: inline-flex;
-  min-width: 4.75rem;
   min-height: 1.75rem;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--admin-border);
+  border: 0;
   border-radius: var(--radius-full);
-  background: var(--admin-panel-muted);
+  background: var(--bg-secondary);
   padding: 0.2rem 0.6rem;
   color: var(--text-muted);
-  font-size: 0.72rem;
-  font-weight: 650;
+  font-size: var(--panel-count-label-size);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 

@@ -1,0 +1,75 @@
+/* DropdownMenu 的唯一外观契约；主菜单、子菜单和所有项目类型共用。 */
+.shared-menu {
+  min-width: min(var(--menu-min-width), var(--radix-dropdown-menu-content-available-width, calc(100vw - 2rem)));
+  max-width: min(var(--radix-dropdown-menu-content-available-width, calc(100vw - 2rem)), calc(100vw - 2rem));
+  padding: var(--menu-padding);
+  border: 1px solid var(--border);
+  border-radius: var(--menu-radius);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  box-shadow: var(--menu-shadow);
+}
+.shared-menu__item {
+  min-height: var(--menu-item-height);
+  gap: 0.5rem;
+  padding: 0.5rem var(--menu-item-padding-inline);
+  border-radius: var(--menu-item-radius);
+  color: var(--text-primary);
+  font-size: var(--menu-item-font-size);
+  font-weight: 400;
+  line-height: 1.5;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.shared-menu__item[data-inset='true'],
+.shared-menu__item[data-slot='dropdown-menu-checkbox-item'],
+.shared-menu__item[data-slot='dropdown-menu-radio-item'] {
+  padding-left: calc(var(--menu-item-padding-inline) + 1.5rem);
+}
+.shared-menu__indicator {
+  left: var(--menu-item-padding-inline);
+}
+.shared-menu__item[data-highlighted],
+.shared-menu__item[data-state='open'] {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.shared-menu__item[data-variant='destructive'],
+.shared-menu__item[data-variant='destructive'] svg {
+  color: var(--color-danger);
+}
+.shared-menu__item[data-variant='destructive'][data-highlighted] {
+  background: color-mix(in srgb, var(--color-danger) 8%, var(--bg-card));
+}
+.shared-menu__item[data-disabled] {
+  opacity: 0.5;
+  cursor: default;
+}
+.shared-menu__item svg {
+  color: var(--text-muted);
+}
+.shared-menu__label {
+  padding: 0.5rem var(--menu-item-padding-inline);
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+.shared-menu__label[data-inset='true'] {
+  padding-left: calc(var(--menu-item-padding-inline) + 1.5rem);
+}
+.shared-menu__separator {
+  height: 1px;
+  margin: var(--menu-separator-margin) 0;
+  background: var(--border);
+}
+@media (prefers-reduced-motion: reduce) {
+  .shared-menu {
+    animation: none;
+  }
+}
+
+@media (max-width: 900px), (pointer: coarse) {
+  .shared-menu__item {
+    min-height: 2.75rem;
+  }
+}

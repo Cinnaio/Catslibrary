@@ -11,7 +11,7 @@
  *   overflow —— 次级操作收进「更多」下拉，菜单项含图标 + 文字 + 危险态；
  *   danger   —— 危险操作单独成段，桌面端靠右对齐形成固定右基线（肌肉记忆）。
  *
- * 移动端（≤900px 卡片布局）下 overflow 段整体保持可见，菜单改为全宽纵向列表，
+ * 移动端（≤900px 卡片布局）下 overflow 段整体保持可见，菜单沿用共享浮层宽度并由 Radix 避让视口边缘，
  * 避免在触屏上引入额外的两跳操作。
  */
 import type { ComponentType, ReactNode } from 'react'
@@ -57,25 +57,14 @@ export default function AdminRowActions({ children, items = [], label, className
       {items.length > 0 && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="admin-icon-button"
-              aria-label={`${label}：更多操作`}
-              title="更多操作"
-            >
+            <Button variant="ghost" size="icon" className="admin-icon-button" aria-label={`${label}：更多操作`} title="更多操作">
               <MoreHorizontal className="size-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="admin-row-actions__menu min-w-[11rem]">
+          <DropdownMenuContent align="end" className="admin-row-actions__menu">
             <DropdownMenuLabel className="admin-row-actions__menu-label">{label}</DropdownMenuLabel>
             {safeItems.map((item) => (
-              <DropdownMenuItem
-                key={item.label}
-                disabled={item.disabled}
-                onSelect={() => item.onSelect()}
-                className="admin-row-actions__item"
-              >
+              <DropdownMenuItem key={item.label} disabled={item.disabled} onSelect={() => item.onSelect()} className="admin-row-actions__item">
                 {item.icon && <item.icon className="admin-row-actions__item-icon" aria-hidden="true" />}
                 <span>{item.label}</span>
               </DropdownMenuItem>

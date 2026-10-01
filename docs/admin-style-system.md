@@ -109,3 +109,11 @@
 
 
 任务中心采用简短执行摘要与面板外状态筛选。抓取和 AI 表格均为五列，作品为主字段，任务 ID / 类型、进度 / 结果和速度 / 耗时按关联性组合。`TaskWorkspace` 复用后台弹窗组件提供摘要与详情外壳；终止和删除收进详情，重试与查看产出保留行内入口。详情操作关闭当前弹窗后进入原有确认流程。AI 继续保留服务端支持的独立状态筛选与 15 / 20 / 50 / 100 分页档位，Prompt 结构化阅读和批次跳转不变。抓取重试增加明确确认，清除已结束继续使用确认时的任务 ID 快照。
+
+## 账户与列表的紧凑视觉
+
+用户目录、密码弹窗和账户入口的文字头像复用 `InitialAvatar`（`web/src/components/ui/initial-avatar.tsx`）：默认 36px，账户入口用 `size="inherit"` 保持原尺寸，头像加载失败后仍显示共享文字回退。“本人”使用 `Badge variant="identity"`，不再用账户页私有标签样式。
+
+`AdminSearch` 默认 280px 宽、40px 高，白底细边且无静态阴影；业务布局可覆盖宽度，移动端随容器收缩。后台 `Button variant="secondary"` 用暖灰底、无描边，文字和高度沿用按钮优先级契约。筛选器和 outline 按钮继续遵循各自控件规则。
+
+`AdminPanelHeading` 的 `.admin-panel-status` 使用自然宽度、无描边的暖灰数量胶囊，12px 常规字重。`AdminStatusBadge` 统一 11px、3px × 8px 内边距和胶囊圆角，角色和状态仅传 tone；info/accent 为浅奶茶，neutral 为暖灰，success/danger 为浅语义色。共享 token 位于全站 `tokens.css`，状态与计数样式分别在 `components/status-badges.css` 和 `components/panel-status.css`。

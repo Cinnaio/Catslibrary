@@ -47,14 +47,18 @@
   padding: 0 0.75rem;
 }
 
-/* ——— secondary 按钮：白底 + 细灰边框 + 深色文字 ——— */
+/* ——— secondary 按钮：暖灰底、无描边，与共享 Button 的次要操作语义一致 ——— */
 .admin-layout [data-slot='button'][data-variant='secondary'] {
-  background: var(--admin-panel);
+  background: var(--bg-secondary);
   color: var(--text-primary);
-  border: 1px solid var(--admin-border-strong);
+  border: 0;
+  box-shadow: none;
 }
 .admin-layout [data-slot='button'][data-variant='secondary']:hover {
   background: var(--bg-hover);
+}
+.admin-layout [data-slot='button'][data-variant='secondary']:focus-visible {
+  box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
 /* ——— primary（default）按钮：白底 + 统一细灰边框 + 暖棕文字 ——— */

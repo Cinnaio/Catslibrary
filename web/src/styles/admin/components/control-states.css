@@ -33,7 +33,7 @@
 }
 
 .admin-layout [data-slot='button'][data-variant='secondary'] {
-  background: var(--admin-panel);
+  background: var(--bg-secondary);
 }
 
 .admin-layout [data-slot='button'][data-variant='secondary']:hover {

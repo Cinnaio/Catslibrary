@@ -6,6 +6,7 @@ import { useToast } from './feedback'
 import { url } from '../lib/api'
 import { cn } from '../lib/utils'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu'
+import { InitialAvatar } from './ui/initial-avatar'
 import { ChevronIcon, UserIcon } from './icons'
 import { useExclusiveMenu } from '../hooks/useExclusiveMenu'
 
@@ -32,7 +33,6 @@ export function AccountMenu({ variant = 'site', className, wrapperClassName, onN
   const avatarUrl = user.avatarUrl ? url(user.avatarUrl) : ''
   const showAvatar = !!avatarUrl && failedAvatarUrl !== avatarUrl
   const showName = variant === 'admin'
-  const initial = name.slice(0, 1)
   const triggerLabel = `账户菜单：${name}`
 
   async function handleLogout() {
@@ -46,7 +46,7 @@ export function AccountMenu({ variant = 'site', className, wrapperClassName, onN
     }
   }
 
-  const avatar = showAvatar ? <img src={avatarUrl} alt="" onError={() => setFailedAvatarUrl(avatarUrl)} /> : <span>{initial}</span>
+  const avatar = showAvatar ? <img src={avatarUrl} alt="" onError={() => setFailedAvatarUrl(avatarUrl)} /> : <InitialAvatar name={name} size="inherit" />
   const triggerAvatar =
     variant === 'site' ? (
       avatar
@@ -93,7 +93,7 @@ export function AccountMenu({ variant = 'site', className, wrapperClassName, onN
               <span>个人中心</span>
             </Link>
           </DropdownMenuItem>
-          <DropdownMenuItem className="account-menu__item account-menu__item--danger" onSelect={() => void handleLogout()}>
+          <DropdownMenuItem variant="destructive" className="account-menu__item account-menu__item--danger" onSelect={() => void handleLogout()}>
             <LogOut aria-hidden="true" />
             <span>退出登录</span>
           </DropdownMenuItem>

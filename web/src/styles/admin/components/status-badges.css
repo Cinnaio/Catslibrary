@@ -1,3 +1,13 @@
+/* Compact semantic pills; business owns the tone, the library owns the geometry. */
+.admin-status-badge {
+  border: 0;
+  border-radius: var(--radius-full);
+  padding: var(--badge-padding-block) var(--badge-padding-inline);
+  font-size: var(--badge-label-size);
+  font-weight: 400;
+  line-height: 1.5;
+}
+
 .admin-status-badge--success {
   --admin-status-color: var(--color-success);
 }
@@ -26,7 +36,7 @@
   .admin-status-badge--accent
 ) {
   color: var(--admin-status-color);
-  background: color-mix(in oklab, var(--admin-status-color) var(--admin-status-tint), transparent);
+  background: color-mix(in oklab, var(--admin-status-color) var(--admin-status-tint), var(--bg-card));
 }
 
 .admin-status-badge--muted {
@@ -40,11 +50,15 @@
 }
 
 .admin-status-badge--neutral {
-  color: var(--text-primary);
+  color: var(--text-muted);
   background: var(--bg-secondary);
 }
 
 .admin-status-badge--brand {
   color: var(--accent-ink);
   background: var(--accent);
+}
+
+.admin-status-badge:is(.admin-status-badge--info, .admin-status-badge--accent) {
+  background: var(--accent-light);
 }

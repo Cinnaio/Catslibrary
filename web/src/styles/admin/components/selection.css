@@ -103,18 +103,5 @@
   }
 }
 
-/* --- 卡片模式下操作菜单全宽纵向展开 ----------------------------------
-   ≤900px 每行折成卡片，操作区已居中横向排布。此时下拉菜单若仍按桌面
-   宽度浮出，在 360px 视口里会贴边裁切；菜单改为跟随触发器右对齐并
-   放开最小宽度约束。 */
-@media (max-width: 900px) {
-  .admin-data-panel--grid tbody td[data-actions] > .admin-cell-actions .admin-row-actions__menu,
-  .admin-data-panel--grid tbody td[data-actions] > .admin-cell-actions + .admin-row-actions__menu {
-    min-width: min(15rem, calc(100vw - 3rem));
-  }
-
-  .admin-row-actions__item {
-    min-height: 2.75rem;
-    font-size: 0.875rem;
-  }
-}
+/* 行菜单通过 Radix portal 渲染，宽度与触摸高度遵循全站共享菜单规则。
+   不使用依赖表格祖先的菜单选择器：portal 不在数据面板 DOM 内。 */

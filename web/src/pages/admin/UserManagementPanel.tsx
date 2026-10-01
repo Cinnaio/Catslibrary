@@ -5,6 +5,8 @@ import { timeAgo } from '@/lib/format'
 import { useDebouncedValue } from '@/hooks/useDebounce'
 import { useToast } from '@/components/feedback'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { InitialAvatar } from '@/components/ui/initial-avatar'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -141,7 +143,7 @@ export default function UserManagementPanel({ search, selfId, onRole, onStatus, 
       <AdminDataPanel className="account-users-panel overflow-hidden" ariaLabel="用户列表" columns={COLUMNS}>
         <AdminPanelHeading
           title="用户目录"
-          status={<span className="admin-panel-status">{!result && loading ? '读取中' : `${total} 位匹配用户`}</span>}
+          status={<span className="admin-panel-status">{!result && loading ? '读取中' : `${total} 人`}</span>}
           actions={
             <Button variant="secondary" size="sm" disabled={loading} onClick={() => setRevision((value) => value + 1)}>
               <RefreshCw aria-hidden="true" />
@@ -219,13 +221,11 @@ export default function UserManagementPanel({ search, selfId, onRole, onStatus, 
                   <TableRow key={user.id}>
                     <TableCell data-primary="" data-label="用户">
                       <div className="account-user-identity">
-                        <span className="account-user-avatar" aria-hidden="true">
-                          {(user.displayName || user.username).slice(0, 1).toUpperCase()}
-                        </span>
+                        <InitialAvatar className="account-user-avatar" name={user.displayName || user.username} />
                         <div>
                           <div className="account-user-name">
                             <strong>{user.displayName || user.username}</strong>
-                            {self && <span className="account-user-self">本人</span>}
+                            {self && <Badge variant="identity">本人</Badge>}
                           </div>
                           <span className="account-user-username">@{user.username}</span>
                         </div>
@@ -281,7 +281,7 @@ export default function UserManagementPanel({ search, selfId, onRole, onStatus, 
                                 {user.status === 'disabled' ? '恢复账号' : '禁用账号'}
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem className="text-destructive" onSelect={() => void runAction(onDelete, user)}>
+                              <DropdownMenuItem variant="destructive" onSelect={() => void runAction(onDelete, user)}>
                                 删除用户
                               </DropdownMenuItem>
                             </DropdownMenuContent>
@@ -333,9 +333,7 @@ export default function UserManagementPanel({ search, selfId, onRole, onStatus, 
             </DialogHeader>
             <AdminDialogBody>
               <div className="account-password-target">
-                <span className="account-user-avatar" aria-hidden="true">
-                  {(target?.displayName || target?.username || '').slice(0, 1).toUpperCase()}
-                </span>
+                <InitialAvatar className="account-user-avatar" name={target?.displayName || target?.username || ''} />
                 <div>
                   <strong>{target?.displayName || target?.username}</strong>
                   <span>@{target?.username}</span>
