@@ -65,3 +65,176 @@
   width: 5.75rem;
   flex: 0 0 auto;
 }
+/* 用户目录采用共享面板、控件和移动端表格，只补充本页信息层级。 */
+.account-users-filters {
+  padding: 0.75rem 1.25rem;
+  margin: 0;
+  gap: 0.75rem;
+}
+.account-users-filters [data-slot='select-trigger'] {
+  width: 9rem;
+}
+.account-users-filters__label,
+.account-users-filters__hint {
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+}
+.account-users-filters__hint {
+  margin-left: auto;
+}
+.account-user-identity {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+.account-user-avatar {
+  display: inline-flex;
+  width: 2.5rem;
+  height: 2.5rem;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--admin-panel-muted);
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+.account-user-name {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  overflow-wrap: anywhere;
+}
+.account-user-username {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  margin-top: 0.25rem;
+  overflow-wrap: anywhere;
+}
+.account-user-self {
+  color: var(--text-muted);
+  font-size: 0.6875rem;
+  background: var(--admin-panel-muted);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+.account-user-badges {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.account-user-dates {
+  display: grid;
+  gap: 0.375rem;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+}
+.account-user-dates span {
+  display: flex;
+  gap: 0.75rem;
+}
+.account-user-dates em {
+  font-style: normal;
+  color: var(--text-muted);
+}
+.account-user-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.25rem;
+}
+.account-user-actions > button:first-child {
+  color: var(--primary);
+  white-space: nowrap;
+}
+.account-users-error {
+  padding: 0.75rem 1.25rem;
+  color: var(--destructive);
+  font-size: 0.875rem;
+}
+.account-password-dialog > form {
+  display: contents;
+}
+.account-password-dialog .admin-dialog__body {
+  display: grid;
+  gap: 1rem;
+}
+.account-password-target {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.875rem;
+  background: var(--admin-panel-muted);
+  border-radius: 12px;
+}
+.account-password-target strong,
+.account-password-target span:not(.account-user-avatar) {
+  display: block;
+}
+.account-password-target div > span {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  margin-top: 0.25rem;
+}
+.account-password-field {
+  display: grid;
+  gap: 0.5rem;
+}
+.account-password-field > span,
+.account-password-impact {
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  line-height: 1.65;
+}
+.account-password-visible {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+}
+.account-password-visible input {
+  accent-color: var(--primary);
+  width: 1rem;
+  height: 1rem;
+}
+.account-password-impact {
+  margin: 0;
+  padding: 0.875rem;
+  border-radius: 10px;
+  background: var(--admin-panel-muted);
+}
+.account-password-error {
+  margin: 0;
+  color: var(--destructive);
+  font-size: 0.875rem;
+}
+@media (max-width: 900px) {
+  .account-users-filters__hint {
+    display: none;
+  }
+  .account-users-filters {
+    padding: 0.75rem 1rem;
+  }
+}
+@media (max-width: 480px) {
+  .account-users-panel .account-users-filters {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .admin-redesign-page--settings .admin-tab-header__actions:has(#account-user-search),
+  .admin-redesign-page--settings .admin-tab-header__actions:has(#account-user-search) .admin-search {
+    width: 100%;
+  }
+  .account-users-filters__label {
+    width: 100%;
+  }
+  .account-users-panel .account-users-filters [data-slot='select-trigger'] {
+    flex: 1;
+    width: auto;
+    min-width: 0;
+  }
+}

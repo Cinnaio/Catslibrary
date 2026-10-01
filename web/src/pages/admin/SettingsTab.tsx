@@ -19,7 +19,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import AdminPage from '@/components/admin/AdminPage'
-import { AdminDataPanel, AdminPanelHeading, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
+import UserManagementPanel from './UserManagementPanel'
+import { AdminDataPanel, AdminPanelHeading, AdminToolbar, AdminSearch, type AdminColumn } from '@/components/admin/AdminWorkspace'
 import Pagination from '@/components/admin/Pagination'
 import { ADMIN_DEFAULT_PAGE_SIZE, ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pagination'
 import { usePersistentState } from '@/hooks/usePersistentState'
@@ -101,24 +102,6 @@ const ACCOUNT_TAB_META: Record<'users' | 'registration' | 'audit' | 'operation-a
   'operation-audit': { title: '操作审计', description: '追踪管理员危险操作、目标数量与执行结果。' },
 }
 
-function roleLabel(role: string): string {
-  return role === 'admin' ? '管理员' : '读者'
-}
-
-/**
- * 四个账户视图的列定义。宽度与 .account-*-panel 原来的 --col-N-w 取值一致，
- * 现由组件注入，避免同一份宽度在 JSX 与 CSS 两处各写一遍。
- */
-const USER_COLUMNS: readonly AdminColumn[] = [
-  { key: 'user', label: '用户', width: '24%', primary: true },
-  { key: 'role', label: '角色', width: '11%' },
-  { key: 'status', label: '状态', width: '11%' },
-  { key: 'created', label: '注册', width: '12%' },
-  { key: 'lastLogin', label: '最近登录', width: '14%' },
-  { key: 'thoughts', label: '想法', width: '8%' },
-  { key: 'actions', label: '操作', width: '20%', actions: true },
-]
-
 const LOGIN_AUDIT_COLUMNS: readonly AdminColumn[] = [
   { key: 'user', label: '用户', width: '19%', primary: true },
   { key: 'status', label: '结果', width: '11%' },
@@ -152,6 +135,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
   const [searchParams] = useSearchParams()
   const urlTab = searchParams.get('view')
 
+  const [userSearch, setUserSearch] = useState('')
   const [data, setData] = useState<SettingsData | null>(null)
   const [loading, setLoading] = useState(true)
   const [meUser, setMeUser] = useState<{ id: string; username: string; displayName: string; role: string } | null>(null)
@@ -429,7 +413,6 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
 
   // ---------- 派生数据 ----------
 
-  const users = data?.users || []
   const invites = data?.invites || []
   const schemaHealth = data?.schemaHealth
 
@@ -454,6 +437,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
 
   function operationAuditActionLabel(action: string): string {
     const labels: Record<string, string> = {
+      'set-password': '修改用户密码',
       'clear-invites': '清理邀请码',
       'clear-completed-scrape-jobs': '清理抓取任务',
       'cancel-scrape-job': '终止抓取任务',
@@ -475,7 +459,22 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
   }
 
   return (
-    <AdminPage className="admin-redesign-page admin-redesign-page--settings" title={currentAccountMeta.title} description={currentAccountMeta.description}>
+    <AdminPage
+      className="admin-redesign-page admin-redesign-page--settings"
+      title={currentAccountMeta.title}
+      description={currentAccountMeta.description}
+      actions={
+        currentAccountTab === 'users' ? (
+          <AdminSearch
+            id="account-user-search"
+            label="搜索用户"
+            placeholder="搜索昵称或用户名"
+            value={userSearch}
+            onChange={(event) => setUserSearch(event.target.value)}
+          />
+        ) : undefined
+      }
+    >
       {schemaHealth && !schemaHealth.ok && (
         <div className="account-schema-warning" role="alert">
           <strong>数据库结构检查未通过</strong>
@@ -517,101 +516,14 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
       )}
 
       {currentAccountTab === 'users' && (
-        <>
-          <AdminDataPanel className="account-users-panel overflow-hidden" ariaLabel="用户列表" columns={USER_COLUMNS}>
-            <AdminPanelHeading
-              title="用户目录"
-              status={<span className="admin-panel-status">{loading && !data ? '读取中' : users.length ? `共 ${users.length} 人` : '暂无用户'}</span>}
-              actions={
-                <Button variant="secondary" size="sm" onClick={() => void load()} disabled={loading}>
-                  刷新
-                </Button>
-              }
-            />
-            <Table>
-              <TableCaption className="sr-only">站点用户列表，含角色、状态、注册时间、最近登录与想法数</TableCaption>
-              <TableHeader>
-                <TableRow>
-                  <TableHead scope="col">用户</TableHead>
-                  <TableHead scope="col">角色</TableHead>
-                  <TableHead scope="col">状态</TableHead>
-                  <TableHead scope="col">注册</TableHead>
-                  <TableHead scope="col">最近登录</TableHead>
-                  <TableHead scope="col">想法</TableHead>
-                  <TableHead scope="col">操作</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loading && !data ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="h-24 text-center text-sm text-muted-foreground">
-                      加载中…
-                    </TableCell>
-                  </TableRow>
-                ) : users.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="h-24 text-center text-sm text-muted-foreground">
-                      暂无用户
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  users.map((u) => {
-                    const disabled = u.status === 'disabled'
-                    const admin = u.role === 'admin'
-                    const self = meUser ? u.id === meUser.id : false
-                    return (
-                      <TableRow key={u.id}>
-                        <TableCell data-primary="" data-label="用户">
-                          <strong>{u.displayName || u.username}</strong>
-                          {self && (
-                            <Badge variant="outline" className="ml-1.5">
-                              本人
-                            </Badge>
-                          )}
-                          <br />
-                          <span className="text-sm text-muted-foreground">{u.username}</span>
-                        </TableCell>
-                        <TableCell data-label="角色">
-                          <AdminStatusBadge variant="secondary" tone={admin ? 'info' : 'neutral'}>
-                            {roleLabel(u.role)}
-                          </AdminStatusBadge>
-                        </TableCell>
-                        <TableCell data-label="状态">
-                          <AdminStatusBadge tone={disabled ? 'danger' : 'success'}>{disabled ? '已禁用' : '正常'}</AdminStatusBadge>
-                        </TableCell>
-                        <TableCell data-label="注册" className="text-sm text-muted-foreground">
-                          {timeAgo(u.createdAt)}
-                        </TableCell>
-                        <TableCell data-label="最近登录" className="text-sm text-muted-foreground">
-                          {timeAgo(u.lastLoginAt)}
-                        </TableCell>
-                        <TableCell data-label="想法">{u.thoughtCount || 0}</TableCell>
-                        <TableCell data-actions="">
-                          {!self && (
-                            <div className="admin-cell-actions flex flex-wrap items-center justify-end gap-2">
-                              <Button variant="outline" size="sm" onClick={() => void updateUserRole(u)}>
-                                {admin ? '设为读者' : '设为管理员'}
-                              </Button>
-                              <Button variant="outline" size="sm" onClick={() => void resetUserPassword(u)}>
-                                重置密码
-                              </Button>
-                              <Button variant="outline" size="sm" onClick={() => void updateUserStatus(u)}>
-                                {disabled ? '恢复' : '禁用'}
-                              </Button>
-                              <Button variant="destructive" size="sm" onClick={() => void deleteUser(u)}>
-                                删除
-                              </Button>
-                            </div>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </AdminDataPanel>
-        </>
+        <UserManagementPanel
+          search={userSearch}
+          selfId={meUser?.id}
+          onRole={updateUserRole}
+          onStatus={updateUserStatus}
+          onReset={resetUserPassword}
+          onDelete={deleteUser}
+        />
       )}
 
       {currentAccountTab === 'audit' && (

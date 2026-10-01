@@ -1106,6 +1106,18 @@ export const adminApi = {
     list(): Promise<Record<string, unknown>> {
       return request('GET', '/admin-users', null, true)
     },
+    directory(
+      filters: { search?: string; role?: string; status?: string; limit?: number; offset?: number } = {},
+    ): Promise<{ users: AdminDirectoryUser[]; total: number; limit: number; offset: number }> {
+      const params = new URLSearchParams()
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== '') params.set(key, String(value))
+      })
+      return request('GET', `/admin-users/users?${params}`, null, true)
+    },
+    setPassword(id: string, newPassword: string): Promise<{ success: boolean }> {
+      return request('POST', '/admin-users', { action: 'set-password', id, newPassword }, true)
+    },
     setRegisterMode(registerMode: string): Promise<{ ok: boolean }> {
       return request('POST', '/admin-users', { action: 'settings', registerMode }, true)
     },
@@ -2108,4 +2120,18 @@ export const aiApi = {
       return request('GET', `/ai/audit/trend?days=${days}`, null, true)
     },
   },
+}
+
+export interface AdminDirectoryUser {
+  id: string
+  username: string
+  displayName: string
+  role: string
+  status: string
+  createdAt: number
+  updatedAt: number
+  lastLoginAt: number
+  bio: string
+  avatarUrl: string
+  thoughtCount?: number
 }

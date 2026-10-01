@@ -4,7 +4,7 @@
 import { Hono, type Context } from 'hono'
 import { getDb } from '../db/pool'
 import { all, first, run, withTx } from '../db/query'
-import { hashPassword, newSalt, newToken, publicUser, type UserRow } from '../services/auth'
+import { hashPassword, newSalt, newToken, newId, PASSWORD_ITERATIONS, publicUser, type UserRow } from '../services/auth'
 import { escapeLike } from '../services/text'
 import { requireAdmin, type AuthEnv } from '../middlewares/auth'
 import { idempotencyKeyFromRequest, withIdempotency } from '../services/idempotency'
@@ -66,6 +66,52 @@ adminUsersRoutes.get('/login-audit', async (c) => {
   })
 })
 
+// 独立目录接口保留原账户设置接口的兼容性，并支持完整用户集合。
+adminUsersRoutes.get('/users', async (c) => {
+  const db = getDb()
+  const role = c.req.query('role')
+  const status = c.req.query('status')
+  if (role && !['admin', 'reader'].includes(role)) return c.json({ error: '角色筛选无效' }, 400)
+  if (status && !['active', 'disabled'].includes(status)) return c.json({ error: '状态筛选无效' }, 400)
+  const requestedLimit = Number(c.req.query('limit') || 15)
+  const requestedOffset = Number(c.req.query('offset') || 0)
+  const limit = Math.min(100, Math.max(1, Number.isFinite(requestedLimit) ? Math.floor(requestedLimit) : 15))
+  const offset = Math.max(0, Number.isFinite(requestedOffset) ? Math.floor(requestedOffset) : 0)
+  const params: unknown[] = []
+  const conditions: string[] = []
+  const search = c.req.query('search')?.trim()
+  if (search) {
+    params.push(`%${escapeLike(search)}%`)
+    conditions.push(`(u.username ILIKE $${params.length} OR u.display_name ILIKE $${params.length})`)
+  }
+  if (role) {
+    params.push(role)
+    conditions.push(`u.role = $${params.length}`)
+  }
+  if (status) {
+    params.push(status)
+    conditions.push(`u.status = $${params.length}`)
+  }
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+  const total = await first<{ total: number }>(db, `SELECT COUNT(*)::int AS total FROM users u ${where}`, params)
+  const users = await all<Record<string, unknown>>(
+    db,
+    `
+    SELECT u.id, u.username, u.display_name, u.role, u.status, u.created_at, u.updated_at, u.last_login_at,
+      (SELECT COUNT(*)::int FROM thoughts t WHERE t.user_id = u.id) AS thought_count
+    FROM users u ${where} ORDER BY u.created_at DESC, u.id DESC
+    LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+    [...params, limit, offset],
+  )
+  c.header('Cache-Control', 'no-store')
+  return c.json({
+    users: users.map((row) => ({ ...publicUser(row as unknown as UserRow)!, thoughtCount: Number(row.thought_count) || 0 })),
+    total: total?.total || 0,
+    limit,
+    offset,
+  })
+})
+
 adminUsersRoutes.get('/', async (c) => {
   const db = getDb()
   const [settings, invites, users, schemaHealth] = await Promise.all([
@@ -120,6 +166,8 @@ adminUsersRoutes.post('/', async (c) => {
       return updateUserStatus(c, db, body, self)
     case 'user-role':
       return updateUserRole(c, db, body, self)
+    case 'set-password':
+      return setPassword(c, db, body, self)
     case 'reset-password':
       return resetPassword(c, db, body, self)
     case 'delete-user':
@@ -190,9 +238,7 @@ async function disableInvite(c: Ctx, db: ReturnType<typeof getDb>, code: unknown
 async function clearInvites(c: Ctx, db: ReturnType<typeof getDb>, body: Record<string, any>) {
   const operationKey = idempotencyKeyFromRequest(c, body, ['operationId'])
   const hasSnapshot = Array.isArray(body.codes)
-  const codes = hasSnapshot
-    ? Array.from(new Set(body.codes.map((code: unknown) => String(code || '').trim()).filter(Boolean)))
-    : []
+  const codes = hasSnapshot ? Array.from(new Set(body.codes.map((code: unknown) => String(code || '').trim()).filter(Boolean))) : []
   if (operationKey && !hasSnapshot) {
     return c.json({ error: '批量清理邀请码必须携带确认时的 codes 快照', code: 'confirmation_snapshot_required' }, 409)
   }
@@ -227,7 +273,12 @@ async function updateSettings(c: Ctx, db: ReturnType<typeof getDb>, modeValue: u
   return c.json({ settings: { registerMode: mode } })
 }
 
-async function loadTargetUser(db: ReturnType<typeof getDb>, id: unknown, selfId: string, forbidSelf: string): Promise<{ target?: UserRow; error?: { message: string; status: number } }> {
+async function loadTargetUser(
+  db: ReturnType<typeof getDb>,
+  id: unknown,
+  selfId: string,
+  forbidSelf: string,
+): Promise<{ target?: UserRow; error?: { message: string; status: number } }> {
   id = String(id || '').trim()
   if (!id) return { error: { message: 'id is required', status: 400 } }
   const target = await first<UserRow>(db, 'SELECT * FROM users WHERE id = $1', [id])
@@ -254,6 +305,38 @@ async function updateUserRole(c: Ctx, db: ReturnType<typeof getDb>, body: any, s
   return c.json({ success: true, role })
 }
 
+async function setPassword(c: Ctx, db: ReturnType<typeof getDb>, body: Record<string, unknown>, self: UserRow) {
+  if (typeof body.newPassword !== 'string' || body.newPassword.length < 8) return c.json({ error: '新密码至少需要 8 位' }, 400)
+  const { target, error } = await loadTargetUser(db, body.id, self.id, '修改本人密码需要验证当前密码')
+  if (error) return c.json({ error: error.message }, error.status as 400)
+  const salt = newSalt()
+  const hash = await hashPassword(body.newPassword, salt)
+  const now = Date.now()
+  // 密码、会话和审计一起提交，失败时旧密码与会话均保留。
+  const updated = await withTx(db, async (q) => {
+    const locked = await q('SELECT id FROM users WHERE id = $1 FOR UPDATE', [target!.id])
+    if (!locked.rows.length) return false
+    await q('UPDATE users SET password_hash = $1, password_salt = $2, password_iterations = $3, updated_at = $4 WHERE id = $5', [
+      hash,
+      salt,
+      PASSWORD_ITERATIONS,
+      now,
+      target!.id,
+    ])
+    await q('DELETE FROM user_sessions WHERE user_id = $1', [target!.id])
+    // 审计仅记录操作元数据；不保存密码、盐、请求正文或其摘要。
+    await q(
+      `INSERT INTO admin_operation_audit
+      (id, operation_id, scope, actor_user_id, action, target_count, request_hash, status, response_status, created_at, updated_at, finished_at)
+      VALUES ($1, $2, $3, $4, 'set-password', 1, '', 'completed', 200, $5, $5, $5)`,
+      [newId('adminop'), newId('passwordop'), `admin-users.set-password.${self.id}.${target!.id}`, self.id, now],
+    )
+    return true
+  })
+  c.header('Cache-Control', 'no-store')
+  return updated ? c.json({ success: true }) : c.json({ error: '用户不存在' }, 404)
+}
+
 async function resetPassword(c: Ctx, db: ReturnType<typeof getDb>, body: any, self: UserRow) {
   const { target, error } = await loadTargetUser(db, body.id, self.id, '')
   if (error) return c.json({ error: error.message }, error.status as 400)
@@ -261,7 +344,12 @@ async function resetPassword(c: Ctx, db: ReturnType<typeof getDb>, body: any, se
   const now = Date.now()
   const salt = newSalt()
   const hash = await hashPassword(tempPassword, salt)
-  await run(db, 'UPDATE users SET password_hash = $1, password_salt = $2, password_iterations = 120000, updated_at = $3 WHERE id = $4', [hash, salt, now, target!.id])
+  await run(db, 'UPDATE users SET password_hash = $1, password_salt = $2, password_iterations = 120000, updated_at = $3 WHERE id = $4', [
+    hash,
+    salt,
+    now,
+    target!.id,
+  ])
   await run(db, 'DELETE FROM user_sessions WHERE user_id = $1', [target!.id])
   return c.json({ success: true, username: target!.username, tempPassword })
 }
@@ -269,13 +357,20 @@ async function resetPassword(c: Ctx, db: ReturnType<typeof getDb>, body: any, se
 async function deleteUser(c: Ctx, db: ReturnType<typeof getDb>, body: any, self: UserRow) {
   const { target, error } = await loadTargetUser(db, body.id, self.id, '不能删除自己的账号')
   if (error) return c.json({ error: error.message }, error.status as 400)
-  if (String(body.confirmUsername || '').trim().toLowerCase() !== target!.username) {
+  if (
+    String(body.confirmUsername || '')
+      .trim()
+      .toLowerCase() !== target!.username
+  ) {
     return c.json({ error: '用户名确认不匹配' }, 400)
   }
   // 无 FK 的表显式清理（thoughts/reading_progress 的 user_id 是裸文本列）；
   // 其余 user 相关的评论/点赞/举报/评分/书签/书架经 FK 级联。
   await withTx(db, async (q) => {
-    await q('DELETE FROM novel_comment_reports WHERE reported_by = $1 OR resolved_by = $1 OR comment_id IN (SELECT id FROM novel_comments WHERE user_id = $1)', [target!.id])
+    await q(
+      'DELETE FROM novel_comment_reports WHERE reported_by = $1 OR resolved_by = $1 OR comment_id IN (SELECT id FROM novel_comments WHERE user_id = $1)',
+      [target!.id],
+    )
     await q('DELETE FROM novel_comment_likes WHERE user_id = $1 OR comment_id IN (SELECT id FROM novel_comments WHERE user_id = $1)', [target!.id])
     await q('DELETE FROM novel_comments WHERE user_id = $1', [target!.id])
     await q('DELETE FROM novel_ratings WHERE user_id = $1', [target!.id])
