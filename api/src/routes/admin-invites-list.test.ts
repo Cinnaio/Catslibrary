@@ -34,4 +34,32 @@ describe('邀请码目录完整集合', () => {
     expect(data.invites[0]?.code).toBe('invite-104')
     expect(data.invites[104]?.code).toBe('invite-000')
   })
+  it('批量生成新的分段邀请码且可用于注册', async () => {
+    const response = await app.request('/api/admin-users', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'invite', count: 50 }),
+    })
+    expect(response.status).toBe(201)
+    const data = (await response.json()) as { code: string; codes: string[] }
+    expect(data.codes).toHaveLength(50)
+    expect(new Set(data.codes).size).toBe(50)
+    expect(data.code).toBe(data.codes[0])
+    const year = new Date().getUTCFullYear()
+    for (const code of data.codes) expect(code).toMatch(new RegExp(`^[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}-${year}$`))
+    const registration = await app.request('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'new_format_user', password: 'testpass123', invite: data.code }),
+    })
+    expect(registration.status).toBe(201)
+  })
+  it('保留已有邀请码的注册兼容性', async () => {
+    const response = await app.request('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'legacy_format_user', password: 'testpass123', invite: 'invite-000' }),
+    })
+    expect(response.status).toBe(201)
+  })
 })

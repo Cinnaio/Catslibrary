@@ -2,6 +2,7 @@
  * /api/admin-users —— 用户管理 + 邀请码 + 注册设置（由 Novel-KV admin-users.js 平移）。
  */
 import { Hono, type Context } from 'hono'
+import { randomInt } from 'node:crypto'
 import { getDb } from '../db/pool'
 import { all, first, run, withTx } from '../db/query'
 import { hashPassword, newSalt, newToken, newId, PASSWORD_ITERATIONS, publicUser, type UserRow } from '../services/auth'
@@ -219,12 +220,29 @@ async function schemaHealthCheck(db: ReturnType<typeof getDb>) {
 async function createInvite(c: Ctx, db: ReturnType<typeof getDb>, count: unknown) {
   const n = Math.min(50, Math.max(1, Number.parseInt(String(count), 10) || 1))
   const now = Date.now()
-  const codes: string[] = []
-  for (let i = 0; i < n; i++) {
-    const code = newToken().slice(0, 12)
-    codes.push(code)
-    await run(db, 'INSERT INTO invites (code, created_at, used_at, used_by, disabled_at) VALUES ($1, $2, 0, $3, 0)', [code, now, ''])
-  }
+  const year = new Date(now).getUTCFullYear()
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  const codes = await withTx(db, async (query) => {
+    const generated: string[] = []
+    for (let i = 0; i < n; i++) {
+      let inserted = false
+      for (let attempt = 0; attempt < 20; attempt++) {
+        const segment = () => Array.from({ length: 4 }, () => alphabet[randomInt(alphabet.length)]).join('')
+        const code = `${segment()}-${segment()}-${year}`
+        const result = await query(
+          'INSERT INTO invites (code, created_at, used_at, used_by, disabled_at) VALUES ($1, $2, 0, $3, 0) ON CONFLICT (code) DO NOTHING',
+          [code, now, ''],
+        )
+        if (result.rowCount) {
+          generated.push(code)
+          inserted = true
+          break
+        }
+      }
+      if (!inserted) throw new Error('邀请码生成失败，请重试')
+    }
+    return generated
+  })
   return c.json({ code: codes[0], codes }, 201)
 }
 

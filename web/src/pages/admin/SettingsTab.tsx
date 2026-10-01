@@ -691,12 +691,15 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
             </AdminToolbar>
             {generatedCodes && generatedCodes.length > 0 && (
               <div id="tokenStatus" className="account-invites-generated" role="status">
-                <div className="account-invites-generated__codes">
-                  {generatedCodes.map((c) => (
-                    <code key={c}>{c}</code>
-                  ))}
+                <div className="account-invites-generated__content">
+                  <p className="account-invites-generated__summary">本次生成 {generatedCodes.length} 个邀请码</p>
+                  <div className="account-invites-generated__codes">
+                    {generatedCodes.map((c) => (
+                      <code key={c}>{c}</code>
+                    ))}
+                  </div>
                 </div>
-                <Button variant="secondary" size="sm" onClick={() => void copyNewInvites()}>
+                <Button className="account-invites-generated__copy" variant="secondary" size="sm" onClick={() => void copyNewInvites()}>
                   复制全部
                 </Button>
               </div>
