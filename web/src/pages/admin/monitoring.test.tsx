@@ -1,17 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
-import { aiApi, scrapeApi, downloadLogsApi, adminApi } from '@/lib/api'
+import { aiApi, scrapeApi, downloadLogsApi, adminApi, authFetch } from '@/lib/api'
 import { monitoringRedirect } from './monitoring-routes'
 import TaskCenterTab from './TaskCenterTab'
 import CallsTab from './CallsTab'
 
-vi.mock('@/components/feedback', () => ({ useToast: () => ({ toast: vi.fn() }), useConfirm: () => ({ confirm: vi.fn() }) }))
+const feedback = vi.hoisted(() => ({ confirm: vi.fn(), toast: vi.fn() }))
+vi.mock('@/components/feedback', () => ({ useToast: () => ({ toast: feedback.toast }), useConfirm: () => ({ confirm: feedback.confirm }) }))
 vi.mock('@/lib/api', () => ({
-  aiApi: { status: vi.fn(), tasks: vi.fn(), audit: { calls: vi.fn(), trend: vi.fn() } },
+  aiApi: { status: vi.fn(), tasks: vi.fn(), cancelTask: vi.fn(), deleteTask: vi.fn(), retryTask: vi.fn(), audit: { calls: vi.fn(), trend: vi.fn() } },
   scrapeApi: { jobs: vi.fn(), proxyLogs: vi.fn() },
   downloadLogsApi: { list: vi.fn() },
   adminApi: { novelIndex: vi.fn() },
+  authFetch: vi.fn(),
+  newOperationId: () => 'test-operation',
 }))
 
 function LocationProbe() {
@@ -34,6 +37,8 @@ function mount(element: React.ReactNode, entry: string) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  feedback.confirm.mockResolvedValue(true)
+  vi.mocked(authFetch).mockResolvedValue({ ok: true, json: async () => ({ jobId: 'new-job' }) } as Response)
   vi.mocked(aiApi.status).mockResolvedValue({ configured: true } as never)
   vi.mocked(aiApi.tasks).mockResolvedValue({ items: [], total: 0 } as never)
   vi.mocked(aiApi.audit.calls).mockResolvedValue({ calls: [], total: 0 } as never)
@@ -95,5 +100,61 @@ describe('monitoring navigation', () => {
     await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
     expect(aiApi.audit.calls).not.toHaveBeenCalled()
     expect(scrapeApi.proxyLogs).toHaveBeenLastCalledWith(100)
+  })
+  it('抓取详情中的终止保留确认与真实请求，数值零不被旧章节数替代', async () => {
+    vi.mocked(scrapeApi.jobs).mockResolvedValue({
+      jobs: [{ id: 'job-running', status: 'scraping_chapters', current: 0, total: 10, successCount: 0, chapterCount: 99 }],
+    } as never)
+    mount(<TaskCenterTab />, '/admin/tasks')
+    await screen.findByText(/成功 0/)
+    fireEvent.click(screen.getByRole('button', { name: '详情' }))
+    fireEvent.click(screen.getByRole('button', { name: '终止任务' }))
+    await waitFor(() => expect(authFetch).toHaveBeenCalled())
+    expect(feedback.confirm).toHaveBeenCalledWith(expect.objectContaining({ danger: true, items: ['job-running'] }))
+    expect(JSON.parse(vi.mocked(authFetch).mock.calls[0]![1]!.body as string)).toMatchObject({
+      action: 'cancel',
+      jobId: 'job-running',
+      operationId: 'test-operation',
+    })
+  })
+
+  it('AI 详情删除仍保留审计与草稿提示，Prompt 入口保持完整文本', async () => {
+    vi.mocked(aiApi.tasks).mockResolvedValue({
+      items: [
+        {
+          id: 'task-failed',
+          kind: 'write_chapter',
+          status: 'failed',
+          novelTitle: '测试作品',
+          current: 0,
+          total: 1,
+          prompt: '完整输入内容',
+          params: '{}',
+          error: '网络超时',
+          step: '',
+          result: '',
+          createdAt: 1,
+        },
+      ],
+      total: 1,
+      counts: { all: 1, failed: 1 },
+    } as never)
+    vi.mocked(aiApi.deleteTask).mockResolvedValue({} as never)
+    mount(<TaskCenterTab />, '/admin/tasks?view=ai')
+    fireEvent.click(await screen.findByRole('button', { name: '查看输入' }))
+    expect(screen.getByText('完整输入内容')).toBeInTheDocument()
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: '详情' }))
+    fireEvent.click(screen.getByRole('button', { name: '删除记录' }))
+    await waitFor(() => expect(aiApi.deleteTask).toHaveBeenCalledWith('task-failed'))
+    expect(feedback.confirm).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining('用量审计') }))
+  })
+
+  it('AI 外置筛选仍传递独立的排队状态并回到首页', async () => {
+    mount(<TaskCenterTab />, '/admin/tasks?view=ai')
+    await waitFor(() => expect(aiApi.tasks).toHaveBeenCalled())
+    fireEvent.click(screen.getByRole('button', { name: '排队中' }))
+    await waitFor(() => expect(aiApi.tasks).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'queued', offset: 0, limit: 15 })))
   })
 })

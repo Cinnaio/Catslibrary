@@ -1,4 +1,5 @@
 /** AI 任务管理：查看生成进度、错误和输入 Prompt；有任务运行时自动轮询刷新。 */
+import { TaskDetails, TaskSummary } from '../TaskWorkspace'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import type { AdminStatusTone } from '@/lib/admin-status'
 import { AdminDialogContent } from '@/components/admin/AdminDialog'
@@ -14,37 +15,22 @@ import AdminEmptyState from '@/components/admin/AdminEmptyState'
 import Pagination from '@/components/admin/Pagination'
 import { ADMIN_DEFAULT_PAGE_SIZE, ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pagination'
 import { AdminDataPanel, AdminPanelHeading, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
-import { kindLabel as taskKindLabel, promptDigest, retryMode, taskStatusLabel, taskStepText } from './labels'
-import { Badge } from '@/components/ui/badge'
+import { kindLabel as taskKindLabel, retryMode, taskStatusLabel, taskStepText } from './labels'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { ListFilter } from 'lucide-react'
+import { ListFilter, RefreshCw } from 'lucide-react'
 import { adminTabPath } from '../admin-registry'
 
 // 有运行中任务时的轮询间隔
 const ACTIVE_POLL_INTERVAL = 4000
 
-/**
- * 表格列定义：与小说管理、章节管理同一套契约 —— 桌面端据此固定列宽，
- * 移动端据此折成卡片并显示字段名。顺序必须与 thead/tbody 单元格顺序一致，
- * 且每格必须标注 data-label / data-primary / data-actions。
- *
- * 宽度全部用百分比：fixed 布局下百分比与 rem 混用时定长列会先吃掉宽度
- * （见 NovelsTab 的同名注释）。合计 100%，任何宽度下等比缩放。
- * 新增小说列后仍保持 100%：Prompt 查看使用图标按钮，操作列保留 22% 以容纳
- * 取消/产出/重试/删除等条件操作；操作单元格允许换行，不裁切命中区域。
- */
 const AI_TASK_COLUMNS: readonly AdminColumn[] = [
-  { key: 'kind', label: '类型', width: '9%' },
-  { key: 'novel', label: '小说', width: '15%' },
-  { key: 'status', label: '状态', width: '9%' },
-  { key: 'progress', label: '进度', width: '7%' },
-  { key: 'step', label: '结果', width: '18%', primary: true },
-  { key: 'prompt', label: '输入 Prompt', width: '20%' },
-  { key: 'actions', actions: true, width: '22%' },
+  { key: 'novel', label: '作品 / 类型', width: '27%', primary: true },
+  { key: 'status', label: '状态', width: '13%' },
+  { key: 'result', label: '进度 / 结果', width: '21%' },
+  { key: 'prompt', label: '输入 Prompt', width: '17%' },
+  { key: 'actions', label: '操作', actions: true, width: '22%' },
 ]
 
 /** 状态标签沿用后台其它任务列表的柔和填充胶囊，不再使用描边徽章。 */
@@ -63,18 +49,13 @@ function taskStatusTone(status: string): AdminStatusTone {
 type TaskStatusFilter = 'all' | 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
 type TaskStatusCounts = Partial<Record<TaskStatusFilter, number>>
 
-function statusOptionLabel(status: TaskStatusFilter, counts: TaskStatusCounts): string {
-  const label = status === 'all' ? '全部' : taskStatusLabel(status)
-  const count = counts[status]
-  return typeof count === 'number' ? `${label} (${count})` : label
-}
-
 type AiTask = AiTaskInfo
 
 export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) => void } = {}) {
   const { toast } = useToast()
   const { confirm } = useConfirm()
   const navigate = useNavigate()
+  const [detailsId, setDetailsId] = useState<string | null>(null)
   const [tasks, setTasks] = useState<AiTask[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -207,46 +188,80 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
     }
   }
 
+  const detailTask = tasks.find((task) => task.id === detailsId)
+  const activeCount = (statusCounts.queued ?? 0) + (statusCounts.running ?? 0)
+  const failedCount = statusCounts.failed ?? 0
+  function renderRetry(task: AiTask) {
+    if (!['failed', 'cancelled'].includes(task.status) || !task.params) return null
+    return retryMode(task) === 'adjust' ? (
+      <Button variant="outline" size="sm" onClick={() => adjustAndRetry(task)}>
+        调整后重试
+      </Button>
+    ) : (
+      <Button variant="outline" size="sm" disabled={retryingId === task.id} onClick={() => void retry(task.id)}>
+        {retryingId === task.id ? '重试中…' : '重试'}
+      </Button>
+    )
+  }
   return (
     <>
-      <AdminDataPanel className="ai-tasks-panel overflow-hidden" ariaLabel="AI 任务列表" columns={AI_TASK_COLUMNS}>
+      <TaskSummary
+        title={
+          loading && !tasks.length
+            ? '正在读取 AI 任务'
+            : error && !tasks.length
+              ? 'AI 任务读取失败'
+              : activeCount
+                ? `${activeCount} 个任务正在处理`
+                : '当前没有进行中的任务'
+        }
+        hint={failedCount ? `${failedCount} 个任务需要处理，可在列表中查看原因。` : '查看生成进度、输入 Prompt 与任务产出。'}
+        counts={`全部 ${statusCounts.all ?? total} · 进行中 ${activeCount} · 已完成 ${statusCounts.completed ?? 0}`}
+        actions={
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={loading}
+            onClick={() => {
+              setLoading(true)
+              void load()
+            }}
+          >
+            <RefreshCw className="size-3.5" aria-hidden="true" />
+            刷新
+          </Button>
+        }
+      />
+      <AdminToolbar className="task-workspace-toolbar" ariaLive="polite">
+        <div className="task-workspace-filters" role="group" aria-label="AI 任务状态筛选">
+          {(['all', 'queued', 'running', 'completed', 'failed', 'cancelled'] as const).map((status) => (
+            <Button
+              key={status}
+              variant="ghost"
+              size="sm"
+              aria-pressed={filterStatus === status}
+              onClick={() => {
+                if (filterStatus === status) return
+                setLoading(true)
+                setOffset(0)
+                setFilterStatus(status)
+              }}
+            >
+              {status === 'all' ? '全部' : taskStatusLabel(status)}
+              {statusCounts[status] != null && <span>{statusCounts[status]}</span>}
+            </Button>
+          ))}
+        </div>
+      </AdminToolbar>
+      <AdminDataPanel className="ai-tasks-panel task-workspace-panel overflow-hidden" ariaLabel="AI 任务列表" columns={AI_TASK_COLUMNS}>
         <AdminPanelHeading
-          title="任务列表"
+          title="AI 任务"
           status={
             <span className={`admin-panel-status${error && tasks.length === 0 ? ' is-error' : ''}`}>
-              {loading && tasks.length === 0 ? '读取中' : error && tasks.length === 0 ? '读取失败' : total ? `共 ${total} 条` : '暂无内容'}
+              {loading && !tasks.length ? '读取中' : error && !tasks.length ? '读取失败' : total ? `共 ${total} 条` : '暂无内容'}
             </span>
           }
         />
-        {/* 筛选条属于面板内部：它只筛「任务列表」这一份数据，与标题、列表构成
-          同一个属主。外置会把它变成与数据面板等权的第二个表面。 */}
-        <AdminToolbar className="ai-tasks-toolbar" ariaLive="polite">
-          <Label htmlFor="task-filter-status" className="text-xs text-muted-foreground">
-            状态
-          </Label>
-          <Select
-            value={filterStatus}
-            onValueChange={(v) => {
-              setLoading(true)
-              // 换筛选条件必须回第 1 页：留在原 offset 会落在越界区间，
-              // 表现为「筛完一片空白」。
-              setOffset(0)
-              setFilterStatus(v as typeof filterStatus)
-            }}
-          >
-            <SelectTrigger size="sm" id="task-filter-status" className="min-w-[7.5rem]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent position="popper" align="end" sideOffset={4}>
-              <SelectItem value="all">{statusOptionLabel('all', statusCounts)}</SelectItem>
-              <SelectItem value="queued">{statusOptionLabel('queued', statusCounts)}</SelectItem>
-              <SelectItem value="running">{statusOptionLabel('running', statusCounts)}</SelectItem>
-              <SelectItem value="completed">{statusOptionLabel('completed', statusCounts)}</SelectItem>
-              <SelectItem value="failed">{statusOptionLabel('failed', statusCounts)}</SelectItem>
-              <SelectItem value="cancelled">{statusOptionLabel('cancelled', statusCounts)}</SelectItem>
-            </SelectContent>
-          </Select>
-        </AdminToolbar>
         <div className="ai-tasks-content">
           {loading && tasks.length === 0 ? (
             <LoadingState label="正在加载 AI 任务" />
@@ -285,87 +300,53 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
                 <TableCaption className="sr-only">AI 任务列表，含类型、小说、状态、进度、结果与输入 Prompt</TableCaption>
                 <TableHeader>
                   <TableRow>
-                    <TableHead scope="col">类型</TableHead>
-                    <TableHead scope="col">小说</TableHead>
-                    <TableHead scope="col">状态</TableHead>
-                    <TableHead scope="col">进度</TableHead>
-                    <TableHead scope="col">结果</TableHead>
-                    <TableHead scope="col">输入 Prompt</TableHead>
-                    <TableHead scope="col">操作</TableHead>
+                    {AI_TASK_COLUMNS.map((column) => (
+                      <TableHead key={column.key} scope="col">
+                        {column.label}
+                      </TableHead>
+                    ))}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {tasks.map((task) => (
                     <TableRow key={task.id}>
-                      <TableCell data-label="类型">
-                        <Badge variant="secondary">{taskKindLabel(task.kind)}</Badge>
-                      </TableCell>
-                      <TableCell data-label="小说" className="text-xs text-muted-foreground">
-                        <span className="block min-w-0 truncate" title={task.novelTitle || undefined}>
-                          {task.novelTitle || '—'}
-                        </span>
+                      <TableCell data-primary="" data-label="作品 / 类型">
+                        <div className="task-workspace-title">{task.novelTitle || '—'}</div>
+                        <div className="task-workspace-meta">
+                          {taskKindLabel(task.kind)} ·{' '}
+                          <span className="task-workspace-id" title={task.id}>
+                            {task.id.slice(0, 12)}
+                          </span>
+                        </div>
                       </TableCell>
                       <TableCell data-label="状态">
                         <AdminStatusBadge tone={taskStatusTone(task.status)}>{taskStatusLabel(task.status)}</AdminStatusBadge>
                       </TableCell>
-                      <TableCell data-label="进度" className="tabular-nums">
-                        {task.current} / {task.total}
+                      <TableCell data-label="进度 / 结果">
+                        <div className="task-workspace-cell">
+                          <span className="tabular-nums">
+                            {task.current} / {task.total} 个步骤
+                          </span>
+                          <span className="task-workspace-meta">{taskStepText(task)}</span>
+                          {task.error && <span className="task-workspace-error">{task.error}</span>}
+                        </div>
                       </TableCell>
-                      <TableCell data-primary="" data-label="结果">
-                        <span className="ai-task-step">{taskStepText(task)}</span>
-                        {task.error && <span className="ai-task-error">{task.error}</span>}
-                      </TableCell>
-                      {/* 「查看 Prompt」的入口就是 Prompt 格本身：它此前是一个 32px 图标按钮，
-                          夹在「查看产出 / 重试 / 删除」之间。左侧按钮数量随状态变化（进行中有取消、
-                          失败有重试、有产出才有查看产出），flex-start 排布下图标逐行横向漂移。
-                          入口回到数据所属的格子后，操作列只剩状态相关的主行动与删除。 */}
-                      <TableCell data-label="输入 Prompt" className="text-xs text-muted-foreground">
-                        <button
-                          type="button"
-                          className="ai-task-prompt-button"
-                          title={task.prompt ? '查看完整 Prompt' : undefined}
-                          onClick={() => setViewingPrompt(task)}
-                        >
-                          <span className="ai-task-prompt">{promptDigest(task.prompt)}</span>
+                      <TableCell data-label="输入 Prompt">
+                        <button type="button" className="task-workspace-link" onClick={() => setViewingPrompt(task)}>
+                          {task.prompt ? '查看输入' : '未记录 Prompt'}
                         </button>
                       </TableCell>
                       <TableCell data-actions="">
                         <div className="admin-cell-actions">
-                          {(task.status === 'queued' || task.status === 'running') && (
-                            <Button variant="outline" size="sm" onClick={() => void cancel(task.id)}>
-                              取消任务
-                            </Button>
-                          )}
-                          {/* 部分完成的批次（失败/取消但已产出若干章）也能从这里找到草稿 */}
                           {task.batchId && task.current > 0 && props.onViewBatch && (
                             <Button variant="outline" size="sm" onClick={() => props.onViewBatch?.(task.batchId)}>
                               查看产出
                             </Button>
                           )}
-                          {/* Prompt 入口已移到 Prompt 格，操作列不再放图标按钮：
-                              图标与文字按钮同排是两种视觉重量、两种点击预期混在一起。 */}
-                          {(task.status === 'failed' || task.status === 'cancelled') &&
-                            !!task.params &&
-                            (retryMode(task) === 'adjust' ? (
-                              <Button variant="outline" size="sm" onClick={() => adjustAndRetry(task)}>
-                                调整后重试
-                              </Button>
-                            ) : (
-                              <Button variant="outline" size="sm" disabled={retryingId === task.id} onClick={() => void retry(task.id)}>
-                                {retryingId === task.id ? '重试中…' : '重试'}
-                              </Button>
-                            ))}
-                          {(task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled') && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="ai-task-delete hover:border-destructive/40 hover:text-destructive focus-visible:border-destructive/40 focus-visible:text-destructive"
-                              disabled={deletingId === task.id}
-                              onClick={() => void remove(task)}
-                            >
-                              {deletingId === task.id ? '删除中…' : '删除'}
-                            </Button>
-                          )}
+                          {renderRetry(task)}
+                          <Button variant="ghost" size="sm" onClick={() => setDetailsId(task.id)}>
+                            详情
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -397,6 +378,63 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
           )}
         </div>
       </AdminDataPanel>
+      <p className="task-workspace-footnote">重试会再次调用 AI；删除任务记录后，已生成内容与用量审计仍保留。</p>
+      <TaskDetails
+        open={detailsId != null}
+        onClose={() => setDetailsId(null)}
+        actions={
+          detailTask && (
+            <>
+              {['queued', 'running'].includes(detailTask.status) && (
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    setDetailsId(null)
+                    void cancel(detailTask.id)
+                  }}
+                >
+                  终止任务
+                </Button>
+              )}
+              {['completed', 'failed', 'cancelled'].includes(detailTask.status) && (
+                <Button
+                  variant="destructive"
+                  disabled={deletingId === detailTask.id}
+                  onClick={() => {
+                    setDetailsId(null)
+                    void remove(detailTask)
+                  }}
+                >
+                  删除记录
+                </Button>
+              )}
+            </>
+          )
+        }
+      >
+        {detailTask ? (
+          <dl className="task-workspace-details">
+            <dt>任务 ID</dt>
+            <dd className="task-workspace-id">{detailTask.id}</dd>
+            <dt>作品</dt>
+            <dd>{detailTask.novelTitle || '—'}</dd>
+            <dt>类型</dt>
+            <dd>{taskKindLabel(detailTask.kind)}</dd>
+            <dt>状态</dt>
+            <dd>{taskStatusLabel(detailTask.status)}</dd>
+            <dt>进度</dt>
+            <dd>
+              {detailTask.current} / {detailTask.total}
+            </dd>
+            <dt>结果</dt>
+            <dd>{taskStepText(detailTask)}</dd>
+            <dt>错误</dt>
+            <dd>{detailTask.error || '未记录错误'}</dd>
+          </dl>
+        ) : (
+          <p>任务记录已不在当前列表，请刷新后查看。</p>
+        )}
+      </TaskDetails>
       <Dialog
         open={!!viewingPrompt}
         onOpenChange={(open) => {

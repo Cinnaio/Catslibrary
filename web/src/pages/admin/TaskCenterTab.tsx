@@ -9,7 +9,7 @@ export default function TaskCenterTab() {
   const navigate = useNavigate()
   const view = ['ai', 'downloads'].includes(params.get('view') || '') ? params.get('view')! : 'scrape'
   return (
-    <AdminPage title="任务中心" description="跟踪抓取与 AI 任务，处理失败重试，并查看下载记录。" className="admin-monitoring-page">
+    <AdminPage title="任务中心" description="跟踪抓取与 AI 任务，处理失败重试，并查看下载记录。" className="admin-monitoring-page task-center-page">
       <Tabs
         value={view}
         onValueChange={(next) => {

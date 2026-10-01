@@ -9,18 +9,17 @@
  * - 原版的重试在成功后切换到「爬虫」tab 并创建任务卡；本 tab 无 tab 切换能力，
  *   故仅 toast + 重载列表（偏离点）。
  */
+import { TaskDetails, TaskSummary } from './TaskWorkspace'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Ban, CircleMinus, RotateCcw, RotateCw } from 'lucide-react'
+import { Ban, CircleMinus, Check, AlertCircle, RefreshCw } from 'lucide-react'
 import { adminApi, authFetch, downloadLogsApi, newOperationId, scrapeApi } from '../../lib/api'
 import { formatDateTime } from '../../lib/format'
 import { formatEta, formatJobSpeed, getJobDuration, isJobRunning, isJobTerminal, jobStatusLabel, truncateId } from '../../lib/admin'
 import { useConfirm, useToast } from '../../components/feedback'
 import AdminEmptyState from '@/components/admin/AdminEmptyState'
 import AdminPage from '@/components/admin/AdminPage'
-import { AdminDataPanel, AdminPanelHeading, AdminQueueSummary, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Badge } from '@/components/ui/badge'
+import { AdminDataPanel, AdminPanelHeading, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
@@ -49,15 +48,11 @@ interface Job {
 }
 
 const JOB_COLUMNS: readonly AdminColumn[] = [
-  { key: 'id', label: '任务 ID', width: '9%' },
-  { key: 'novel', label: '小说', width: '18%', primary: true },
-  { key: 'type', label: '类型', width: '8%' },
-  { key: 'status', label: '状态', width: '12%' },
-  { key: 'progress', label: '进度', width: '11%' },
-  { key: 'result', label: '结果', width: '13%' },
-  { key: 'speed', label: '速度/ETA', width: '13%' },
-  { key: 'duration', label: '耗时', width: '8%' },
-  { key: 'actions', label: '操作', width: '8%', actions: true },
+  { key: 'novel', label: '作品 / 类型', width: '30%', primary: true },
+  { key: 'status', label: '状态', width: '14%' },
+  { key: 'result', label: '进度 / 结果', width: '22%' },
+  { key: 'speed', label: '速度 / 耗时', width: '16%' },
+  { key: 'actions', label: '操作', width: '18%', actions: true },
 ]
 
 const DOWNLOAD_COLUMNS: readonly AdminColumn[] = [
@@ -84,14 +79,6 @@ const FILTERS: Array<{ value: JobFilter; label: string }> = [
   { value: 'completed', label: '已完成' },
   { value: 'failed', label: '失败/终止' },
 ]
-
-/** 分段筛选的激活背景位移索引，供 CSS 的 [data-active-index] 消费。 */
-const FILTER_INDEX: Record<JobFilter, number> = {
-  all: 0,
-  running: 1,
-  completed: 2,
-  failed: 3,
-}
 
 const FILTER_EMPTY_LABEL: Record<JobFilter, string> = {
   all: '暂无任务',
@@ -144,6 +131,7 @@ export default function JobsTab({
   const { toast } = useToast()
   const { confirm } = useConfirm()
 
+  const [detailsId, setDetailsId] = useState<string | null>(null)
   const [jobs, setJobs] = useState<Job[]>([])
   const [jobsLoading, setJobsLoading] = useState(true)
   const [jobsError, setJobsError] = useState<string | null>(null)
@@ -303,6 +291,7 @@ export default function JobsTab({
   }
 
   async function retryJob(job: Job) {
+    if (!(await confirm({ title: '整本重试？', message: '将按原配置重新执行抓取任务。', items: [job.id], okText: '确认重试' }))) return
     toast('正在重试任务…', 'default')
     try {
       const data = await scrapePost({ action: 'retry', jobId: job.id })
@@ -318,6 +307,7 @@ export default function JobsTab({
   }
 
   async function retryFailedJob(job: Job) {
+    if (!(await confirm({ title: '重试失败章节？', message: '仅重新处理失败的章节，已保存内容会保留。', items: [job.id], okText: '重试失败章节' }))) return
     toast('正在重试失败章节…', 'default')
     try {
       const data = await scrapePost({ action: 'retry-failed', jobId: job.id })
@@ -378,57 +368,55 @@ export default function JobsTab({
     if (j.status === 'completed')
       return (
         <AdminStatusBadge variant="secondary" tone="success">
-          ✓ {label}
+          <Check className="size-3" aria-hidden="true" />
+          {label}
         </AdminStatusBadge>
       )
     if (j.status === 'partial')
       return (
         <AdminStatusBadge variant="secondary" tone="warning">
-          ⚠ {label}
+          <AlertCircle className="size-3" aria-hidden="true" />
+          {label}
         </AdminStatusBadge>
       )
     if (j.status === 'failed')
       return (
         <AdminStatusBadge variant="secondary" tone="danger">
-          ✕ {label}
+          <AlertCircle className="size-3" aria-hidden="true" />
+          {label}
         </AdminStatusBadge>
       )
-    return (
-      <Badge variant="secondary" className="text-muted-foreground">
-        — {label}
-      </Badge>
-    )
+    return <AdminStatusBadge tone="muted">{label}</AdminStatusBadge>
   }
 
   function renderActions(j: Job): ReactNode {
-    if (isJobRunning(j.status)) {
-      return (
-        <Button variant="ghost" size="icon" title="终止" onClick={() => void cancelJob(j)}>
-          <CircleMinus />
-        </Button>
-      )
-    }
-    if (j.status === 'failed' || j.status === 'cancelled' || j.status === 'partial') {
-      return (
-        <>
-          {(j.failedCount || 0) > 0 && (
-            <Button variant="ghost" size="icon" title="重试失败章节" onClick={() => void retryFailedJob(j)}>
-              <RotateCcw />
+    const retryable = ['failed', 'cancelled', 'partial'].includes(j.status)
+    return (
+      <>
+        {retryable &&
+          ((j.failedCount ?? j.summary?.failedCount ?? 0) > 0 ? (
+            <Button variant="outline" size="sm" onClick={() => void retryFailedJob(j)}>
+              重试失败章节
             </Button>
-          )}
-          <Button variant="ghost" size="icon" title="整本重试" onClick={() => void retryJob(j)}>
-            <RotateCw />
-          </Button>
-        </>
-      )
-    }
-    return '—'
+          ) : (
+            <Button variant="outline" size="sm" onClick={() => void retryJob(j)}>
+              重试
+            </Button>
+          ))}
+        <Button variant="ghost" size="sm" onClick={() => setDetailsId(j.id)}>
+          详情
+        </Button>
+      </>
+    )
   }
 
   // ---------- 渲染 ----------
 
   const listStatusLabel = jobsLoading ? '读取中' : jobsError ? '读取失败' : '队列正常'
   const logsStatusLabel = logsLoading ? '读取中' : logsError ? '读取失败' : '日志正常'
+  const detailJob = jobs.find((job) => job.id === detailsId)
+  const attentionCount = jobs.filter((job) => job.status === 'failed' || job.status === 'partial').length
+  const filterCounts = { all: jobs.length, running: runningCount, completed: completedCount, failed: failedCount }
   const hasJobs = !jobsLoading && !jobsError && filtered.length > 0
 
   return (
@@ -442,96 +430,97 @@ export default function JobsTab({
         </Button>
       }
     >
-      {embedded && (
-        <div className="flex justify-end">
-          <Button variant="secondary" size="sm" onClick={handleRefresh} disabled={view === 'downloads' ? logsLoading : jobsLoading}>
+      <TaskSummary
+        title={
+          view === 'downloads'
+            ? '最近的下载记录'
+            : jobsLoading
+              ? '正在读取任务队列'
+              : jobsError
+                ? '任务队列读取失败'
+                : runningCount
+                  ? `${runningCount} 个任务正在处理`
+                  : '当前没有运行中的任务'
+        }
+        hint={
+          view === 'downloads'
+            ? '查看内容导出与书源配置下载记录。'
+            : jobsError
+              ? jobsError
+              : attentionCount
+                ? `${attentionCount} 个任务需要处理，可在列表中查看原因。`
+                : '在这里查看进度、执行结果与可用操作。'
+        }
+        counts={view === 'downloads' ? `共 ${downloadLogs.length} 条记录` : `全部 ${jobs.length} · 运行中 ${runningCount} · 已完成 ${completedCount}`}
+        actions={
+          <Button variant="outline" size="sm" aria-label="刷新任务记录" onClick={handleRefresh} disabled={view === 'downloads' ? logsLoading : jobsLoading}>
+            <RefreshCw className="size-3.5" aria-hidden="true" />
             刷新
           </Button>
-        </div>
-      )}
+        }
+      />
       {view !== 'downloads' && (
         <>
-          <AdminQueueSummary
-            className="admin-queue-summary--jobs"
-            eyebrow="执行概览"
-            title={runningCount > 0 ? `当前有 ${runningCount} 个任务运行中` : '当前没有运行中的任务'}
-            description="抓取、更新和失败重试都集中在这里跟踪"
-            stats={[
-              { label: '全部任务', value: jobs.length, detail: filter === 'all' ? '当前显示全部' : '已启用筛选' },
-              { label: '运行中', value: runningCount, detail: '正在执行' },
-              { label: '待关注', value: failedCount, detail: '失败 / 终止 / 部分完成' },
-            ]}
-          />
-
-          <AdminDataPanel className="overflow-hidden" ariaLabel="抓取任务列表" columns={JOB_COLUMNS}>
-            <AdminPanelHeading
-              title="抓取任务"
-              status={<span className={`admin-panel-status${jobsError ? ' is-error' : ''}`}>{listStatusLabel}</span>}
-              actions={
-                hasCompleted ? (
-                  <Button variant="destructive" size="sm" onClick={() => void clearCompleted()}>
-                    清除已结束
-                  </Button>
-                ) : undefined
-              }
-            />
-            <AdminToolbar className="jobs-toolbar" ariaLive="polite">
-              <div className="jobs-toolbar__filters">
-                <span className="jobs-toolbar__label">状态筛选</span>
-                <Tabs className="jobs-toolbar__modes" value={filter} onValueChange={(v) => setFilter(v as JobFilter)} aria-label="任务状态筛选">
-                  <TabsList data-active-index={FILTER_INDEX[filter]}>
-                    {FILTERS.map((f) => (
-                      <TabsTrigger key={f.value} value={f.value}>
-                        {f.label}
-                      </TabsTrigger>
-                    ))}
-                  </TabsList>
-                </Tabs>
-              </div>
-              <span className="ml-auto text-xs tabular-nums text-muted-foreground">
-                {filter === 'all' ? jobStatsText : `${FILTER_LABEL[filter]}：${filtered.length} / 共 ${jobs.length} 条`}
-              </span>
-            </AdminToolbar>
+          <AdminToolbar className="task-workspace-toolbar" ariaLive="polite">
+            <div className="task-workspace-filters" role="group" aria-label="任务状态筛选">
+              {FILTERS.map((item) => (
+                <Button key={item.value} variant="ghost" size="sm" aria-pressed={filter === item.value} onClick={() => setFilter(item.value)}>
+                  {item.label}
+                  <span>{filterCounts[item.value]}</span>
+                </Button>
+              ))}
+            </div>
+            <Button variant="ghost" size="sm" disabled={!hasCompleted || jobsLoading} onClick={() => void clearCompleted()}>
+              清除已结束
+            </Button>
+          </AdminToolbar>
+          <AdminDataPanel className="task-workspace-panel overflow-hidden" ariaLabel="抓取任务列表" columns={JOB_COLUMNS}>
+            <AdminPanelHeading title="抓取任务" status={<span className={`admin-panel-status${jobsError ? ' is-error' : ''}`}>{listStatusLabel}</span>} />
             {hasJobs ? (
               <Table>
                 <TableCaption className="sr-only">抓取任务列表，包含任务 ID、小说、状态、进度与行内操作</TableCaption>
                 <TableHeader>
                   <TableRow>
-                    <TableHead scope="col">任务 ID</TableHead>
-                    <TableHead scope="col">小说</TableHead>
-                    <TableHead scope="col">类型</TableHead>
-                    <TableHead scope="col">状态</TableHead>
-                    <TableHead scope="col">进度</TableHead>
-                    <TableHead scope="col">结果</TableHead>
-                    <TableHead scope="col">速度/ETA</TableHead>
-                    <TableHead scope="col">耗时</TableHead>
-                    <TableHead scope="col">操作</TableHead>
+                    {JOB_COLUMNS.map((column) => (
+                      <TableHead key={column.key} scope="col">
+                        {column.label}
+                      </TableHead>
+                    ))}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filtered.map((j) => (
                     <TableRow key={j.id}>
-                      <TableCell data-label="任务 ID" className="admin-mono-cell text-sm text-muted-foreground">
-                        {truncateId(j.id)}
+                      <TableCell data-primary="" data-label="作品 / 类型">
+                        <div className="task-workspace-title">{renderNovelTitle(j)}</div>
+                        <div className="task-workspace-meta">
+                          {j.updateMode ? '更新' : '抓取'} ·{' '}
+                          <span className="task-workspace-id" title={j.id}>
+                            {truncateId(j.id)}
+                          </span>
+                        </div>
                       </TableCell>
-                      <TableCell data-primary="" data-label="小说" className="text-sm">
-                        {renderNovelTitle(j)}
-                      </TableCell>
-                      <TableCell data-label="类型">{j.updateMode ? '更新' : '抓取'}</TableCell>
                       <TableCell data-label="状态">{renderStatus(j)}</TableCell>
-                      <TableCell data-label="进度">
-                        {j.current || 0}/{j.total || '?'}
+                      <TableCell data-label="进度 / 结果">
+                        <div className="task-workspace-cell">
+                          <span className="tabular-nums">
+                            {j.current ?? 0} / {j.total ?? '?'} 章
+                          </span>
+                          <span className="task-workspace-meta">
+                            成功 {j.successCount ?? j.summary?.successCount ?? j.chapterCount ?? 0} · 失败 {j.failedCount ?? j.summary?.failedCount ?? 0} · 跳过{' '}
+                            {j.skippedCount ?? j.summary?.skippedCount ?? 0}
+                          </span>
+                          {j.error && <span className="task-workspace-error">{j.error}</span>}
+                        </div>
                       </TableCell>
-                      <TableCell data-label="结果">
-                        <span className="job-result-mini">✓{j.successCount || j.chapterCount || 0}</span>{' '}
-                        <span className="job-result-mini job-result-mini--failed">✕{j.failedCount || 0}</span>{' '}
-                        <span className="job-result-mini">↷{j.skippedCount || 0}</span>
-                      </TableCell>
-                      <TableCell data-label="速度/ETA" className="text-sm text-muted-foreground">
-                        {formatJobSpeed(j.speed)} · {formatEta(j.etaSeconds)}
-                      </TableCell>
-                      <TableCell data-label="耗时" className="text-sm text-muted-foreground">
-                        {j.startedAt ? getJobDuration(j.startedAt, isJobTerminal(j.status) ? (j.updatedAt ?? null) : null) : '—'}
+                      <TableCell data-label="速度 / 耗时">
+                        <div className="task-workspace-cell">
+                          <span>{formatJobSpeed(j.speed ?? j.summary?.speed)}</span>
+                          <span className="task-workspace-meta">
+                            耗时 {j.startedAt ? getJobDuration(j.startedAt, isJobTerminal(j.status) ? (j.updatedAt ?? null) : null) : '—'} · 剩余{' '}
+                            {formatEta(j.etaSeconds ?? j.summary?.etaSeconds)}
+                          </span>
+                        </div>
                       </TableCell>
                       <TableCell data-actions="">
                         <div className="admin-cell-actions">{renderActions(j)}</div>
@@ -559,16 +548,8 @@ export default function JobsTab({
         </>
       )}
       {view !== 'scrape' && (
-        <AdminDataPanel className="overflow-hidden" ariaLabel="下载日志" columns={DOWNLOAD_COLUMNS}>
-          <AdminPanelHeading
-            title="下载日志"
-            status={<span className={`admin-panel-status${logsError ? ' is-error' : ''}`}>{logsStatusLabel}</span>}
-            actions={
-              <Button variant="secondary" size="sm" onClick={() => void loadDownloadLogs()} disabled={logsLoading}>
-                {logsLoading ? '刷新中…' : '刷新'}
-              </Button>
-            }
-          />
+        <AdminDataPanel className="task-workspace-panel overflow-hidden" ariaLabel="下载日志" columns={DOWNLOAD_COLUMNS}>
+          <AdminPanelHeading title="下载日志" status={<span className={`admin-panel-status${logsError ? ' is-error' : ''}`}>{logsStatusLabel}</span>} />
           {logsLoading ? (
             <AdminEmptyState className="jobs-empty" icon={<span className="job-spinner" aria-hidden="true" />} message="正在读取下载日志…" />
           ) : logsError ? (
@@ -607,6 +588,67 @@ export default function JobsTab({
             </Table>
           )}
         </AdminDataPanel>
+      )}
+      <TaskDetails
+        open={detailsId != null}
+        onClose={() => setDetailsId(null)}
+        actions={
+          detailJob && (
+            <>
+              {isJobRunning(detailJob.status) && (
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    setDetailsId(null)
+                    void cancelJob(detailJob)
+                  }}
+                >
+                  终止任务
+                </Button>
+              )}
+              {['failed', 'cancelled', 'partial'].includes(detailJob.status) && (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setDetailsId(null)
+                    void retryJob(detailJob)
+                  }}
+                >
+                  整本重试
+                </Button>
+              )}
+            </>
+          )
+        }
+      >
+        {detailJob ? (
+          <dl className="task-workspace-details">
+            <dt>任务 ID</dt>
+            <dd className="task-workspace-id">{detailJob.id}</dd>
+            <dt>作品</dt>
+            <dd>{renderNovelTitle(detailJob)}</dd>
+            <dt>类型</dt>
+            <dd>{detailJob.updateMode ? '更新' : '抓取'}</dd>
+            <dt>状态</dt>
+            <dd>{renderStatus(detailJob)}</dd>
+            <dt>执行阶段</dt>
+            <dd>{detailJob.step || '—'}</dd>
+            <dt>进度</dt>
+            <dd>
+              {detailJob.current ?? 0} / {detailJob.total ?? '?'}
+            </dd>
+            <dt>错误</dt>
+            <dd>{detailJob.error || '未记录错误'}</dd>
+          </dl>
+        ) : (
+          <p>任务记录已不在当前列表，请刷新后查看。</p>
+        )}
+      </TaskDetails>
+      {view !== 'downloads' && (
+        <p className="task-workspace-footnote">
+          {filter === 'all' ? jobStatsText : `${FILTER_LABEL[filter]}：${filtered.length} / 共 ${jobs.length} 条`}
+          。清除已结束仅处理已完成、部分完成和已终止记录。
+        </p>
       )}
     </AdminPage>
   )
