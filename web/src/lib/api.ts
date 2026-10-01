@@ -2056,6 +2056,9 @@ export const aiApi = {
         imageCount: number
         costMillicents: number
         costReported?: boolean
+        upstreamRequestId?: string
+        costSource?: string
+        costCurrency?: string
         cacheReadTokens?: number | null
         cacheWriteTokens?: number | null
         reasoningTokens?: number | null

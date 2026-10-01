@@ -29,7 +29,9 @@ export function DetailItem({ label, value }: { label: string; value: ReactNode }
 }
 
 export function formatCost(millicents: number): string {
-  return (Number(millicents) / 100_000).toFixed(4)
+  const amount = Number(millicents) / 100_000
+  if (amount > 0 && amount < 0.00000001) return '<0.00000001'
+  return amount.toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 8, useGrouping: false })
 }
 
 /* 枚举与文案映射已移到 ./labels.ts（纯 .ts，避免本文件的 fast-refresh 被

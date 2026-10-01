@@ -6,6 +6,7 @@
 import { loadConfig, type AiProviderConfig } from '../../config'
 import { outboundFetch } from '../outbound-fetch'
 import { upstreamCost } from './upstream-cost'
+import { resolveUpstreamBilling } from './upstream-billing'
 import { upstreamUsage, type UpstreamUsage } from './upstream-usage'
 import { contentRefusalMessage, detectStructuredContentRefusal, detectStructuredContentRefusalFromDetail } from './prompt-policy'
 
@@ -207,8 +208,7 @@ async function once(endpoint: string, apiKey: string, body: string, model: strin
     promptTokens: usage.promptTokens ?? 0,
     completionTokens: usage.completionTokens ?? 0,
     finishReason,
-    cost: cost ?? 0,
-    costReported: cost !== null,
+    ...await resolveUpstreamBilling(endpoint, apiKey, res.headers, cost),
   }
 }
 
@@ -257,7 +257,7 @@ async function onceStream(
     const parsed = parseChatCompletion(data, model)
     if (!parsed.text) throw emptyChatResponseError(parsed.finishReason, data)
     await onDelta(parsed.text)
-    return parsed
+    return { ...parsed, ...await resolveUpstreamBilling(endpoint, apiKey, res.headers, parsed.costReported ? parsed.cost : null) }
   }
 
   if (!res.body) throw new AiError('upstream', 'AI 服务未返回流式内容')
@@ -333,8 +333,7 @@ async function onceStream(
     promptTokens,
     completionTokens,
     finishReason,
-    cost,
-    costReported,
+    ...await resolveUpstreamBilling(endpoint, apiKey, res.headers, costReported ? cost : null),
     cacheReadTokens,
     cacheWriteTokens,
     reasoningTokens,

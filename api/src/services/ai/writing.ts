@@ -304,7 +304,7 @@ export async function generateWritingTitles(db: Db, opts: {
     promptTokens: res.promptTokens,
     completionTokens: res.completionTokens,
     ...usageAuditFields(res),
-    costMillicents: Math.round(res.cost * 100000),
+    costMillicents: res.cost * 100000,
     novelId: opts.novelId,
     generationType: 'writing_title',
     ipAddress: opts.ipAddress,
@@ -556,7 +556,7 @@ export async function generatePlotSuggestions(db: Db, opts: {
     promptTokens: res.promptTokens,
     completionTokens: res.completionTokens,
     ...usageAuditFields(res),
-    costMillicents: Math.round(res.cost * 100000),
+    costMillicents: res.cost * 100000,
     novelId: opts.novelId,
     generationType: outlineMode ? 'plot_outline' : 'plot_suggestion',
     ipAddress: opts.ipAddress,
@@ -723,7 +723,7 @@ export async function generateWriting(db: Db, opts: {
       createdBy: opts.userId,
     })
     if (!(await isAiTaskActive(db, taskId))) throw new AiError('invalid', '任务已停止')
-    await recordUsage(db, { userId: opts.userId, model: res.model, provider: providerLabel(provider.baseUrl), promptTokens: res.promptTokens, completionTokens: res.completionTokens, ...usageAuditFields(res), costMillicents: Math.round(res.cost * 100000), novelId: opts.novelId, generationType: opts.kind, ipAddress: opts.ipAddress, userAgent: opts.userAgent })
+    await recordUsage(db, { userId: opts.userId, model: res.model, provider: providerLabel(provider.baseUrl), promptTokens: res.promptTokens, completionTokens: res.completionTokens, ...usageAuditFields(res), costMillicents: res.cost * 100000, novelId: opts.novelId, generationType: opts.kind, ipAddress: opts.ipAddress, userAgent: opts.userAgent })
     if (ownsTask) await updateAiTask(db, taskId, { status: 'completed', current: 1, step: '已完成' })
     return { generation, usage: { model: res.model, promptTokens: res.promptTokens, completionTokens: res.completionTokens } }
   } finally {

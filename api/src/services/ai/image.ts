@@ -8,6 +8,7 @@ import { loadConfig, type AiProviderConfig } from '../../config'
 import { outboundFetch } from '../outbound-fetch'
 import { AiError } from './client'
 import { upstreamCost } from './upstream-cost'
+import { resolveUpstreamBilling } from './upstream-billing'
 import { upstreamUsage, type UpstreamUsage } from './upstream-usage'
 import { contentRefusalMessage, detectStructuredContentRefusal, detectStructuredContentRefusalFromDetail } from './prompt-policy'
 
@@ -153,8 +154,7 @@ async function once(endpoint: string, apiKey: string, body: string, model: strin
     data: new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength),
     contentType: 'image/png',
     model: String(data?.model || model),
-    cost: cost ?? 0,
-    costReported: cost !== null,
+    ...await resolveUpstreamBilling(endpoint, apiKey, res.headers, cost),
     ...usage,
     promptTokens: usage.promptTokens ?? 0,
     completionTokens: usage.completionTokens ?? 0,

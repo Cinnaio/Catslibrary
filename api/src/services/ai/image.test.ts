@@ -22,6 +22,22 @@ afterEach(() => {
 })
 
 describe('closed-network image client and refusal handling', () => {
+  it('reads image billing from the same gateway using its response request ID', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: unknown) => {
+        if (String(input).endsWith('/api/status')) return Response.json({ success: true, data: { quota_per_unit: 500000, quota_display_type: 'USD' } })
+        if (String(input).endsWith('/api/log/token')) return Response.json({ success: true, data: [{ request_id: 'image-bill', type: 2, quota: 4 }] })
+        return Response.json({ data: [{ b64_json: pngB64 }] }, { headers: { 'x-oneapi-request-id': 'image-bill' } })
+      }),
+    )
+    expect(await generateImage({ prompt: 'safe test prompt' })).toMatchObject({
+      cost: 0.000008,
+      costReported: true,
+      costSource: 'newapi-log',
+      upstreamRequestId: 'image-bill',
+    })
+  })
   it('uses upstream usage.cost before the legacy top-level cost', async () => {
     vi.stubGlobal(
       'fetch',

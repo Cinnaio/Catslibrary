@@ -12,6 +12,21 @@ afterAll(async () => {
 })
 
 describe('upstream usage persistence', () => {
+  it('retains fractional legacy units for six-decimal upstream amounts', async () => {
+    await recordUsage(db.db, {
+      userId: '',
+      model: 'precision',
+      provider: 'relay.test',
+      promptTokens: 1,
+      completionTokens: 1,
+      costMillicents: 0.4,
+      costReported: true,
+    })
+    const { rows } = await db.db.query<{ cost_millicents: string | number }>("SELECT cost_millicents FROM ai_usage WHERE model = 'precision'")
+    expect(Number(rows[0]?.cost_millicents)).toBe(0.4)
+    expect((await summarizeUsage(db.db, 0)).costMillicents).toBe(0.4)
+    await db.db.query("DELETE FROM ai_usage WHERE model = 'precision'")
+  })
   it('keeps unknown cache distinct from zero and excludes incomplete cost from aggregates', async () => {
     const base = { userId: '', model: 'test', provider: 'relay.test', promptTokens: 1000, completionTokens: 100 }
     await recordUsage(db.db, { ...base })

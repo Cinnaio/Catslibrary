@@ -24,6 +24,48 @@ afterEach(() => {
 const messages = [{ role: 'user' as const, content: '测试' }]
 
 describe('upstream cost accounting', () => {
+  it('resolves SSE billing after final usage and preserves successful output on billing failure', async () => {
+    const fetchMock = vi.fn(async (input: unknown) => {
+      if (String(input).endsWith('/api/log/token')) return new Response('unavailable', { status: 403 })
+      if (String(input).endsWith('/api/status')) return Response.json({ success: true, data: { quota_per_unit: 500000, quota_display_type: 'USD' } })
+      return new Response(
+        [
+          'data: {"choices":[{"delta":{"content":"OK"}}]}',
+          'data: {"choices":[],"usage":{"prompt_tokens":2446,"completion_tokens":1,"prompt_tokens_details":{"cached_tokens":2304}}}',
+          'data: [DONE]',
+          '',
+        ].join('\n'),
+        { headers: { 'content-type': 'text/event-stream', 'x-oneapi-request-id': 'stream-request' } },
+      )
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const delta = vi.fn()
+    expect(await chatStream({ messages }, delta)).toMatchObject({ text: 'OK', cacheReadTokens: 2304, costReported: false, upstreamRequestId: 'stream-request' })
+    expect(delta).toHaveBeenCalledExactlyOnceWith('OK')
+    expect(fetchMock.mock.calls.filter(([url]) => String(url).includes('/chat/completions'))).toHaveLength(1)
+  })
+  it.each([false, true])('reads exact NewAPI billing by response request ID (stream=%s)', async (stream) => {
+    const fetchMock = vi.fn(async (input: unknown) => {
+      const url = String(input)
+      if (url.endsWith('/api/status')) return Response.json({ success: true, data: { quota_per_unit: 500000, quota_display_type: 'USD' } })
+      if (url.endsWith('/api/log/token'))
+        return Response.json({
+          success: true,
+          data: [
+            { request_id: 'another-request', type: 2, quota: 999 },
+            { request_id: 'exact-request', type: 2, quota: 4 },
+          ],
+        })
+      return Response.json(
+        { choices: [{ message: { content: 'OK' } }], usage: { prompt_tokens: 246, completion_tokens: 67, credit: 0.03 } },
+        { headers: { 'x-oneapi-request-id': 'exact-request' } },
+      )
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const result = stream ? await chatStream({ messages }, () => {}) : await chat({ messages })
+    expect(result).toMatchObject({ cost: 0.000008, costReported: true, upstreamRequestId: 'exact-request', costSource: 'newapi-log', costCurrency: 'USD' })
+    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/api/log/token'))).toBe(true)
+  })
   it('persists cache fields from JSON and from the final stream frame without summing snapshots', async () => {
     const usage = {
       prompt_tokens: 1000,

@@ -198,7 +198,7 @@ export async function runRewriteTask(db: Db, opts: { taskId: string; userId: str
       throw new AiError('invalid', continuation === 'after' ? '改写建议续写了选段之后的内容，未通过校验，请缩小选段或重试' : '改写建议重复了选段之前的内容，未通过校验，请缩小选段或重试')
     }
     const result: RewriteSuggestionResult = { version: 1, draftId: params.draftId, baseRevision: params.baseRevision, startUTF16: params.startUTF16, endUTF16: params.endUTF16, selectedText: params.selectedText, mode: params.mode, suggestion }
-    await recordUsage(db, { userId: opts.userId, model: res.model, provider: providerLabel(provider.baseUrl), promptTokens: res.promptTokens, completionTokens: res.completionTokens, ...usageAuditFields(res), costMillicents: Math.round(res.cost * 100000), generationType: 'rewrite_selection', ipAddress: opts.ipAddress, userAgent: opts.userAgent })
+    await recordUsage(db, { userId: opts.userId, model: res.model, provider: providerLabel(provider.baseUrl), promptTokens: res.promptTokens, completionTokens: res.completionTokens, ...usageAuditFields(res), costMillicents: res.cost * 100000, generationType: 'rewrite_selection', ipAddress: opts.ipAddress, userAgent: opts.userAgent })
     await updateAiTask(db, opts.taskId, { status: 'completed', current: 1, total: 1, step: '改写建议已生成', result: JSON.stringify(result) })
     return result
   } finally {

@@ -499,7 +499,7 @@ export async function runContentRatingAiReviewTask(db: Db, input: { taskId: stri
           promptTokens: response.promptTokens,
           completionTokens: response.completionTokens,
           ...usageAuditFields(response),
-          costMillicents: Math.round(response.cost * 100_000),
+          costMillicents: response.cost * 100_000,
           novelId: novel.id,
           generationType: 'content-rating-llm',
         }).catch((error) => console.warn('[content-rating-ai] usage audit failed', error))

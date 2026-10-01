@@ -103,7 +103,7 @@ export async function extractRelationshipProfile(db: Db, opts: {
     promptTokens: res.promptTokens,
     completionTokens: res.completionTokens,
     ...usageAuditFields(res),
-    costMillicents: Math.round(res.cost * 100000),
+    costMillicents: res.cost * 100000,
     novelId,
     generationType: 'relationship_profile',
     ipAddress: opts.ipAddress,

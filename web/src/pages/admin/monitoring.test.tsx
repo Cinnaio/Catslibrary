@@ -51,6 +51,52 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('monitoring navigation', () => {
+  it('微小账单金额在记录和趋势中保留精度，详情显示可追溯来源', async () => {
+    vi.mocked(aiApi.audit.calls).mockResolvedValue({
+      calls: [
+        {
+          id: 'small-cost',
+          type: 'test',
+          model: 'deepseek-v4.1-flash',
+          displayName: '诊断',
+          novelTitle: '精度核验',
+          promptTokens: 2446,
+          completionTokens: 1,
+          imageCount: 0,
+          costMillicents: 0.2,
+          costReported: true,
+          cacheReadTokens: 2304,
+          upstreamRequestId: 'billing-exact-id',
+          costSource: 'newapi-log',
+          costCurrency: 'USD',
+          createdAt: Date.now(),
+        },
+      ],
+      total: 1,
+    } as never)
+    vi.mocked(aiApi.audit.trend).mockResolvedValue({
+      trend: [
+        {
+          date: new Date().toISOString().slice(0, 10),
+          calls: 1,
+          promptTokens: 2446,
+          completionTokens: 1,
+          costMillicents: 0.2,
+          costReportedCalls: 1,
+          cacheReadTokens: 2304,
+          cacheReadReportedCalls: 1,
+        },
+      ],
+    } as never)
+    mount(<CallsTab />, '/admin/calls')
+    await screen.findByText('精度核验')
+    await waitFor(() => expect(screen.getAllByText('0.000002').length).toBeGreaterThanOrEqual(3))
+    fireEvent.click(screen.getByText('精度核验').closest('tr')!.querySelector('button')!)
+    expect(screen.getByText('billing-exact-id')).toBeInTheDocument()
+    expect(screen.getByText('中转站账单')).toBeInTheDocument()
+    expect(screen.getByText('USD')).toBeInTheDocument()
+    expect(screen.getByText('缓存命中 2,304')).toBeInTheDocument()
+  })
   it('调用记录区分缓存命中、未命中、未知，展开读取/写入数量与未知成本', async () => {
     const base = {
       type: 'continue',

@@ -392,7 +392,7 @@ aiRoutes.post('/test', requireAdmin(), async (c) => {
       promptTokens: res.promptTokens,
       completionTokens: res.completionTokens,
       ...usageAuditFields(res),
-      costMillicents: Math.round(res.cost * 100_000),
+      costMillicents: res.cost * 100_000,
       // 连通性测试单独打 tag，审计里与读者真实调用区分开
       generationType: 'test',
       ...(await auditRequestContext(c, getDb())),
@@ -2213,7 +2213,7 @@ aiRoutes.get('/audit/users', requireAdmin(), async (c) => {
       COUNT(g.id)::int AS call_count,
       SUM(g.prompt_tokens)::int AS total_prompt_tokens,
       SUM(g.completion_tokens)::int AS total_completion_tokens,
-      COALESCE(SUM(g.cost_millicents) FILTER (WHERE g.cost_reported), 0)::bigint AS total_cost_millicents,
+      COALESCE(SUM(g.cost_millicents) FILTER (WHERE g.cost_reported), 0)::numeric AS total_cost_millicents,
       MAX(g.created_at) AS last_call_at
     FROM users u
     INNER JOIN ai_usage g ON g.user_id = u.id
@@ -2277,7 +2277,7 @@ aiRoutes.get('/audit/calls', requireAdmin(), async (c) => {
     db,
     `SELECT
       u.id, u.generation_type, u.model, u.prompt_tokens, u.completion_tokens, u.image_count, u.ip_address, u.user_agent,
-      u.cost_millicents, u.cost_reported, u.cache_read_tokens, u.cache_write_tokens, u.reasoning_tokens, u.created_at, u.user_id, u.novel_id, u.chapter_id,
+      u.cost_millicents, u.cost_reported, u.upstream_request_id, u.cost_source, u.cost_currency, u.cache_read_tokens, u.cache_write_tokens, u.reasoning_tokens, u.created_at, u.user_id, u.novel_id, u.chapter_id,
       usr.username, usr.display_name,
       n.title AS novel_title,
       c.title AS chapter_title
@@ -2304,6 +2304,9 @@ aiRoutes.get('/audit/calls', requireAdmin(), async (c) => {
         imageCount: Number(r.image_count) || 0,
         costMillicents: Number(r.cost_millicents) || 0,
         costReported: Boolean(r.cost_reported),
+        upstreamRequestId: String(r.upstream_request_id || ''),
+        costSource: String(r.cost_source || ''),
+        costCurrency: String(r.cost_currency || ''),
         cacheReadTokens: r.cache_read_tokens == null ? null : Number(r.cache_read_tokens),
         cacheWriteTokens: r.cache_write_tokens == null ? null : Number(r.cache_write_tokens),
         reasoningTokens: r.reasoning_tokens == null ? null : Number(r.reasoning_tokens),
@@ -2340,7 +2343,7 @@ aiRoutes.get('/audit/trend', requireAdmin(), async (c) => {
       COUNT(*)::int AS calls,
       SUM(prompt_tokens)::int AS prompt_tokens,
       SUM(completion_tokens)::int AS completion_tokens,
-      COALESCE(SUM(cost_millicents) FILTER (WHERE cost_reported), 0)::bigint AS cost_millicents,
+      COALESCE(SUM(cost_millicents) FILTER (WHERE cost_reported), 0)::numeric AS cost_millicents,
       COALESCE(SUM(cache_read_tokens), 0)::bigint AS cache_read_tokens,
       COALESCE(SUM(cache_write_tokens), 0)::bigint AS cache_write_tokens,
       COALESCE(SUM(reasoning_tokens), 0)::bigint AS reasoning_tokens,

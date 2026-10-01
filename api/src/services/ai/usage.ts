@@ -1,7 +1,7 @@
 /**
- * AI 用量记账与配额 —— 每次真实调用落 ai_usage，命中缓存不记账也不计配额。
- * cost_millicents 默认来自上游 usage.cost，兼容顶层 cost（货币单位 × 100_000），
- * 缺失或无效时落 0，不按模型标价估算；币种由供应商口径决定，本模块不假设。
+ * AI 用量记账与配额 —— 每次真实调用落 ai_usage，站内内容复用不记账也不计配额。
+ * cost_millicents 来自生成响应或精确关联的中转站账单（货币单位 × 100_000，保留小数），
+ * 缺失或无效时落 0 并保留未回传标记；不按模型标价估算。
  */
 import type { Db } from '../../db/pool'
 import { first, run } from '../../db/query'
@@ -27,8 +27,8 @@ export interface UsageRecord extends UpstreamUsage {
 export async function recordUsage(db: Db, rec: UsageRecord): Promise<void> {
   await run(
     db,
-    `INSERT INTO ai_usage (id, user_id, model, provider, prompt_tokens, completion_tokens, image_count, cost_millicents, novel_id, chapter_id, generation_type, ip_address, user_agent, created_at, cache_read_tokens, cache_write_tokens, reasoning_tokens, cost_reported)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)`,
+    `INSERT INTO ai_usage (id, user_id, model, provider, prompt_tokens, completion_tokens, image_count, cost_millicents, novel_id, chapter_id, generation_type, ip_address, user_agent, created_at, cache_read_tokens, cache_write_tokens, reasoning_tokens, cost_reported, upstream_request_id, cost_source, cost_currency)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)`,
     [
       newId('aiuse'),
       rec.userId || '',
@@ -37,7 +37,7 @@ export async function recordUsage(db: Db, rec: UsageRecord): Promise<void> {
       Math.max(0, Math.trunc(rec.promptTokens) || 0),
       Math.max(0, Math.trunc(rec.completionTokens) || 0),
       Math.max(0, Math.trunc(rec.imageCount || 0)),
-      Math.max(0, Math.trunc(rec.costMillicents || 0)),
+      Number.isFinite(rec.costMillicents) ? Math.max(0, rec.costMillicents ?? 0) : 0,
       rec.novelId || '',
       rec.chapterId || '',
       rec.generationType || '',
@@ -49,6 +49,9 @@ export async function recordUsage(db: Db, rec: UsageRecord): Promise<void> {
       rec.cacheWriteTokens ?? null,
       rec.reasoningTokens ?? null,
       rec.costReported ?? (rec.costMillicents ?? 0) > 0,
+      String(rec.upstreamRequestId ?? '').slice(0, 200),
+      rec.costSource ?? '',
+      rec.costCurrency ?? '',
     ],
   )
 }

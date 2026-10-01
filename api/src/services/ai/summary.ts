@@ -148,7 +148,7 @@ async function runGenerateRecap(db: Db, opts: RecapOptions): Promise<RecapResult
     promptTokens: res.promptTokens,
     completionTokens: res.completionTokens,
     ...usageAuditFields(res),
-    costMillicents: Math.round(res.cost * 100_000),
+    costMillicents: res.cost * 100_000,
     novelId: opts.chapter.novel_id,
     chapterId: opts.chapter.id,
     generationType: 'summary',

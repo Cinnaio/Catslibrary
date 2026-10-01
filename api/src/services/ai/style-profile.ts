@@ -97,7 +97,7 @@ export async function extractStyleProfile(db: Db, opts: {
     promptTokens: res.promptTokens,
     completionTokens: res.completionTokens,
     ...usageAuditFields(res),
-    costMillicents: Math.round(res.cost * 100000),
+    costMillicents: res.cost * 100000,
     novelId,
     generationType: 'style_profile',
     ipAddress: opts.ipAddress,

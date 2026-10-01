@@ -47,6 +47,9 @@ export default function AiAuditPanel({ from }: { from?: number } = {}) {
       imageCount: number
       costMillicents: number
       costReported?: boolean
+      upstreamRequestId?: string
+      costSource?: string
+      costCurrency?: string
       cacheReadTokens?: number | null
       cacheWriteTokens?: number | null
       reasoningTokens?: number | null
@@ -260,6 +263,12 @@ export default function AiAuditPanel({ from }: { from?: number } = {}) {
                                 <div className="ai-audit-detail">
                                   <DetailItem label="调用 ID" value={<code className="text-xs">{call.id}</code>} />
                                   <DetailItem label="模型" value={<code className="text-xs">{call.model || '—'}</code>} />
+                                  <DetailItem label="上游请求 ID" value={<code className="text-xs">{call.upstreamRequestId || '未记录'}</code>} />
+                                  <DetailItem
+                                    label="成本来源"
+                                    value={call.costSource === 'newapi-log' ? '中转站账单' : call.costSource === 'response' ? '生成响应' : '未记录'}
+                                  />
+                                  <DetailItem label="成本币种" value={call.costCurrency || '上游未声明'} />
                                   <DetailItem label="小说 ID" value={<code className="text-xs">{call.novelId || '—'}</code>} />
                                   <DetailItem label="章节 ID" value={<code className="text-xs">{call.chapterId || '—'}</code>} />
                                   <DetailItem label="IP 地址" value={<code className="text-xs">{call.ipAddress || '未记录'}</code>} />

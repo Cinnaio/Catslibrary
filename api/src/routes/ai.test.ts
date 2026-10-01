@@ -504,6 +504,17 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     expect(trend.reduce((sum, point) => sum + point.cacheReadReportedCalls, 0)).toBeGreaterThanOrEqual(1)
   })
 
+  it('审计与趋势保留小数金额及上游账单追溯字段', async () => {
+    const before = await jsonOf<{ trend: Array<{ costMillicents: number }> }>(await req('/api/ai/audit/trend?days=7', json('GET', undefined, adminToken)))
+    const readerId = await userIdByUsername(t, 'reader')
+    await recordUsage(t.db, { userId: readerId, model: 'precision-test', provider: 'ai.test', promptTokens: 246, completionTokens: 67,
+      costMillicents: 0.4, costReported: true, generationType: 'precision-test', upstreamRequestId: 'precise-billing-id', costSource: 'newapi-log', costCurrency: 'USD' })
+    const calls = await jsonOf<{ calls: Array<Record<string, unknown>> }>(await req('/api/ai/audit/calls?type=precision-test', json('GET', undefined, adminToken)))
+    expect(calls.calls[0]).toMatchObject({ costMillicents: 0.4, costReported: true, upstreamRequestId: 'precise-billing-id', costSource: 'newapi-log', costCurrency: 'USD' })
+    const after = await jsonOf<{ trend: Array<{ costMillicents: number }> }>(await req('/api/ai/audit/trend?days=7', json('GET', undefined, adminToken)))
+    expect(after.trend.reduce((sum, d) => sum + d.costMillicents, 0) - before.trend.reduce((sum, d) => sum + d.costMillicents, 0)).toBeCloseTo(0.4, 8)
+  })
+
   // ---------- 任务 4 · 回来接着读（进度感知回顾） ----------
 
   it('catchup：原料足够时合成一段回顾，只调用一次上游', async () => {

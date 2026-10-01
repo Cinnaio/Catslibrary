@@ -1,5 +1,7 @@
 /** 不同官方接口及中转站的上游用量，null 表示未回传，0 表示明确未使用。 */
-export interface UpstreamUsage {
+import type { BillingFields } from './upstream-billing'
+
+export interface UpstreamUsage extends BillingFields {
   cacheReadTokens?: number | null
   cacheWriteTokens?: number | null
   reasoningTokens?: number | null
@@ -82,6 +84,9 @@ export function usageAuditFields(result: UpstreamUsage & { cost: number }): Requ
     cacheWriteTokens: result.cacheWriteTokens ?? null,
     reasoningTokens: result.reasoningTokens ?? null,
     costReported: result.costReported ?? result.cost > 0,
+    upstreamRequestId: result.upstreamRequestId ?? null,
+    costSource: result.costSource ?? null,
+    costCurrency: result.costCurrency ?? null,
   }
 }
 
@@ -95,5 +100,8 @@ export function mergeUsageAuditFields(a: UpstreamUsage & { cost: number }, b: Up
     cacheWriteTokens: sum(left.cacheWriteTokens, right.cacheWriteTokens),
     reasoningTokens: sum(left.reasoningTokens, right.reasoningTokens),
     costReported: left.costReported && right.costReported,
+    upstreamRequestId: null,
+    costSource: left.costSource === right.costSource ? left.costSource : null,
+    costCurrency: left.costCurrency === right.costCurrency ? left.costCurrency : null,
   }
 }

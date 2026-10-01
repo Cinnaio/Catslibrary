@@ -115,7 +115,7 @@ export async function extractPlotState(db: Db, opts: {
     promptTokens: res.promptTokens,
     completionTokens: res.completionTokens,
     ...usageAuditFields(res),
-    costMillicents: Math.round(res.cost * 100000),
+    costMillicents: res.cost * 100000,
     novelId,
     generationType: 'plot_state',
     ipAddress: opts.ipAddress,
