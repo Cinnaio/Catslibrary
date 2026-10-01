@@ -76,8 +76,9 @@
 .content-ratings-toolbar {
   padding: var(--admin-data-panel-toolbar-padding-block) var(--admin-data-panel-toolbar-padding-inline);
   background: var(--admin-data-panel-toolbar-background);
-  border-block: 1px solid var(--admin-border);
-  margin-bottom: 0.5rem;
+  border-top: 0;
+  border-bottom: 1px solid var(--admin-border);
+  margin-bottom: 0;
 }
 .content-ratings-filter-counts {
   white-space: nowrap;
