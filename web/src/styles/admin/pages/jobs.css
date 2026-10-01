@@ -24,21 +24,3 @@
   box-shadow: none;
   animation: admin-tab-surface-enter var(--admin-table-surface-enter) 40ms both;
 }
-
-.admin-redesign-page--jobs > .admin-data-panel {
-  animation: admin-tab-surface-enter var(--admin-table-surface-enter) 40ms both;
-}
-
-.admin-redesign-page--jobs [data-slot='table-body'] > [data-slot='table-row']:nth-child(-n + 8) {
-  animation: admin-tab-row-enter var(--admin-table-row-enter) both;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .admin-redesign-page--jobs > .admin-data-panel {
-    animation: admin-tab-fade var(--admin-table-reduced-fade) both;
-  }
-
-  .admin-redesign-page--jobs [data-slot='table-body'] > [data-slot='table-row']:nth-child(-n + 8) {
-    animation: none;
-  }
-}

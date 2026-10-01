@@ -62,13 +62,9 @@
 .admin-layout .admin-pagination__jump-input[type='number'] {
   width: var(--admin-pagination-jump-width);
   min-width: var(--admin-pagination-jump-width);
-  text-align: center;
-}
-
-.admin-layout .admin-pagination--detached .admin-pagination__jump-input[type='number'] {
   height: var(--admin-pagination-control-size);
   min-height: var(--admin-pagination-control-size);
-  padding-inline: 0;
+  padding: 0;
   text-align: center;
 }
 
@@ -82,6 +78,14 @@
 
 .admin-pagination__page-size [data-slot='select-trigger'] {
   min-width: var(--admin-pagination-page-size-width);
+}
+
+/* panel 与 detached 都使用分页紧凑高度，覆盖后台通用按钮的 40px 高度。 */
+.admin-layout .admin-pagination .admin-pagination__controls > [data-slot='button'],
+.admin-layout .admin-pagination__page-size [data-slot='select-trigger'] {
+  height: var(--admin-pagination-control-size);
+  min-height: var(--admin-pagination-control-size);
+  padding-block: 0;
 }
 
 .admin-layout .admin-pagination--detached .admin-pagination__page-size [data-slot='select-trigger'] {

@@ -14,6 +14,7 @@ import { useAiConfigured } from './useAiConfigured'
 import AdminEmptyState from '@/components/admin/AdminEmptyState'
 import Pagination from '@/components/admin/Pagination'
 import { ADMIN_DEFAULT_PAGE_SIZE, ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pagination'
+import { getAdminTableRowStaggerDelay } from '@/lib/admin-table-motion'
 import { AdminDataPanel, AdminPanelHeading, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
 import { kindLabel as taskKindLabel, retryMode, taskStatusLabel, taskStepText } from './labels'
 import { Button } from '@/components/ui/button'
@@ -307,9 +308,9 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
                     ))}
                   </TableRow>
                 </TableHeader>
-                <TableBody>
-                  {tasks.map((task) => (
-                    <TableRow key={task.id}>
+                <TableBody key={limit}>
+                  {tasks.map((task, index) => (
+                    <TableRow key={task.id} style={{ animationDelay: `${getAdminTableRowStaggerDelay(index, tasks.length)}ms` }}>
                       <TableCell data-primary="" data-label="作品 / 类型">
                         <div className="task-workspace-title">{task.novelTitle || '—'}</div>
                         <div className="task-workspace-meta">

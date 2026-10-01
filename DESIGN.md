@@ -369,7 +369,7 @@ components:
 ### Pagination (Pagination)
 
 - **Single Source:** 全站后台分页只有一个实现（`components/admin/Pagination.tsx`），默认是「数据面板页脚」形态：左计数、右控件（每页条数 → 翻页 → 第 X / Y 页 → 跳转），共享分页 token。需要把表格与页码控件分开时，使用 `variant="detached"`：分页作为 `AdminDataPanel` 的同级元素，形成透明、无边框、无圆角的独立控制行，只靠页面区块间距与内容对齐表达层级。
-- **Detached Geometry:** 分页控制行的关键控件统一使用 `--admin-pagination-control-size: 2rem`：每页条数下拉触发器、翻页图标按钮和外置分页的页码输入框共用同一高度。页码输入框使用 `--admin-pagination-jump-width` 固定宽度，取消水平内边距，并让数字在控件内部水平居中；不要在调用点重新写高度、宽度或对齐魔法值。
+- **Shared Geometry:** `panel` 与 `detached` 分页的关键控件统一使用 `--admin-pagination-control-size: 2rem`（32px）：每页条数下拉触发器、文字或图标翻页按钮、页码输入框共用同一高度与最小高度，不继承后台普通控件的 40px 高度。宽度按用途保留：下拉使用 `--admin-pagination-page-size-width`，图标按钮为正方形，文字按钮随文案，页码输入框使用 `--admin-pagination-jump-width` 固定宽度、取消水平内边距并居中数字。尺寸由共享 `components/pagination.css` 提供；不要在调用点或页面 CSS 重新写高度、宽度或对齐魔法值。验收时同时检查两种变体、明暗主题和窄屏布局。
 - **Novels Footer Rhythm:** 小说管理的 `variant="detached"` 分页与表格相邻但不套卡片；分页控制行通过 `margin-top: calc(-1 * var(--admin-space-2))` 抵消默认区块间距的一档，使表格与分页保持连续的页脚节奏。该收紧只属于小说列表，不外溢到其他后台页面。
 - **Default Page Size:** 默认每页 **15** 条，档位 **15 / 20 / 50 / 100**。两个常量 `ADMIN_DEFAULT_PAGE_SIZE` 与 `ADMIN_PAGE_SIZE_OPTIONS` 定义在 `lib/admin-pagination.ts`（独立模块，不是 `Pagination.tsx`——组件文件必须保持「只导出组件」，否则运行时常量导出会破坏 HMR 边界），是全站唯一来源——页面 `useState(ADMIN_DEFAULT_PAGE_SIZE)` 取初值并把 `ADMIN_PAGE_SIZE_OPTIONS` 传给 `pageSize.options`。**不要在页面里再写 `useState(50)` 或字面档位数组**：历史上小说 20 / 章节 50 / 审计 50 / 生成内容 50 四处分叉，正是这么来的。
 - **Presentation, Not API:** 15 是**展示层**默认值，后端各列表路由未传 limit 时仍回落到 50。这样未显式传参的调用方（含公开页）不会被静默截断。需要「一次拉全」的页面（抓取中心候选列表 `PAGE_SIZE=100`、审核队列 `limit: '80'`、章节索引 `limit: '2000'`）显式传自己的 limit，不消费本默认值。

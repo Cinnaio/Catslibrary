@@ -26,6 +26,7 @@
 - 数据表面使用 `AdminDataPanel`。`columns` 只配置列宽；真实单元格仍需 `data-label`、`data-primary`、`data-actions`。
 - 表格在 900px 及以下按已有契约转为卡片。含跨列展开的审计表可保留横向滚动。
 - `Pagination` 的 `panel` 与 `detached` 变体共用翻页和页大小行为，不另写一套页脚。
+- 两种分页变体的每页条数选择器、翻页按钮和页码输入框统一使用 `--admin-pagination-control-size`（32px）的高度与最小高度，由 `components/pagination.css` 提供，不能继承后台普通控件的 40px 高度。宽度按用途保留：条数选择器使用 `--admin-pagination-page-size-width`，图标按钮为正方形，文字按钮随文案，页码输入框使用 `--admin-pagination-jump-width` 并居中数字。新增列表需复用这些规则，验收时检查普通与外置分页、明暗主题和窄屏。
 - 批量操作和行内操作沿用共用组件；业务负责危险操作确认与请求处理。
 - `AdminMetricStrip` 保持已有停用约定，不在新页面重新引入。
 

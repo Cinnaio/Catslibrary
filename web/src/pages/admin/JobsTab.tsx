@@ -15,6 +15,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { Ban, CircleMinus, Check, AlertCircle, RefreshCw } from 'lucide-react'
 import { adminApi, authFetch, downloadLogsApi, newOperationId, scrapeApi } from '../../lib/api'
 import { formatDateTime } from '../../lib/format'
+import { getAdminTableRowStaggerDelay } from '@/lib/admin-table-motion'
 import { formatEta, formatJobSpeed, getJobDuration, isJobRunning, isJobTerminal, jobStatusLabel, truncateId } from '../../lib/admin'
 import { useConfirm, useToast } from '../../components/feedback'
 import AdminEmptyState from '@/components/admin/AdminEmptyState'
@@ -489,8 +490,8 @@ export default function JobsTab({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.map((j) => (
-                    <TableRow key={j.id}>
+                  {filtered.map((j, index) => (
+                    <TableRow key={j.id} style={{ animationDelay: `${getAdminTableRowStaggerDelay(index, filtered.length)}ms` }}>
                       <TableCell data-primary="" data-label="作品 / 类型">
                         <div className="task-workspace-title">{renderNovelTitle(j)}</div>
                         <div className="task-workspace-meta">
@@ -572,8 +573,8 @@ export default function JobsTab({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {downloadLogs.map((log) => (
-                  <TableRow key={log.id}>
+                {downloadLogs.map((log, index) => (
+                  <TableRow key={log.id} style={{ animationDelay: `${getAdminTableRowStaggerDelay(index, downloadLogs.length)}ms` }}>
                     <TableCell data-label="类型">{DOWNLOAD_TYPE_LABELS[log.type] || log.type}</TableCell>
                     <TableCell data-primary="" data-label="对象" className="text-sm">
                       {log.targetTitle || log.targetId || '—'}

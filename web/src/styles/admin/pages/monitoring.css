@@ -26,6 +26,13 @@
 .task-center-page [data-slot='tabs-list'] {
   margin-bottom: 0.5rem;
 }
+.task-center-page [data-slot='tabs-content'].ai-admin-page {
+  display: grid;
+  gap: var(--admin-page-section-gap);
+}
+.task-center-page .task-workspace-panel .ai-tasks-content {
+  padding: 0;
+}
 .task-workspace-summary {
   display: flex;
   align-items: center;
