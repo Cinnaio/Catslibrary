@@ -123,3 +123,9 @@
 `AdminDataPanel` 支持 `density="comfortable"`，适用于姓名、身份和双行时间信息的目录。默认 `compact` 保持现有列表密度。comfortable 桌面目标行高 76px、单元格上下 16px / 左右 20px；移动端连续卡片上下 16px、字段间距 8px，不固定高度。参数使用 `--admin-table-comfortable-*`，样式归属 `components/tables.css`，不改变字体与控件尺寸。
 
 用户目录注册时间使用共享 `formatDate` 输出 `YYYY-MM-DD`，`time` 元素的 title 提供 `formatDateTime` 完整时间；登录保留相对时间。日期以浏览器本地时区格式化，与既有日期工具一致。
+
+## 注册与审计页面
+
+`SettingsTab` 管理业务请求、草稿和筛选；`AccountAuditPanel` 复用共享目录、comfortable 密度、头像、状态标签、外置分页和只读详情，并集中登录/操作审计的信息组合。`AccountRecordDate` 使用已有本地日期工具，日期与时分分层；`AccountRecordDetails` 复用 `AdminDialogContent`，长字段允许换行。
+
+业务布局仅放在 `pages/accounts.css`。注册模式有生效值、草稿与保存状态；邀请码接口移除最近 100 个的截断，搜索和分页覆盖完整集合，停用确认、失效清理快照及幂等操作 ID 不变。登录搜索继续服务端分页；操作搜索的 username 参数同步到 API 和 SQL，并以同一 JOIN 与筛选条件计算 total。设备摘要是 User-Agent 的辅助展示，完整原始值保留在详情。

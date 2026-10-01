@@ -39,11 +39,21 @@ function boundedCount(value: unknown): number {
 
 /** 创建审计记录；重复操作 ID 返回原记录，便于幂等请求继续收尾。 */
 export async function startAdminOperationAudit(db: Db, input: AdminOperationAuditInput): Promise<string> {
-  const operationId = String(input.operationId || '').trim().slice(0, 160)
-  const scope = String(input.scope || '').trim().slice(0, 240)
-  const actorUserId = String(input.actorUserId || '').trim().slice(0, 160)
-  const action = String(input.action || '').trim().slice(0, 120)
-  const requestHash = String(input.requestHash || '').trim().slice(0, 128)
+  const operationId = String(input.operationId || '')
+    .trim()
+    .slice(0, 160)
+  const scope = String(input.scope || '')
+    .trim()
+    .slice(0, 240)
+  const actorUserId = String(input.actorUserId || '')
+    .trim()
+    .slice(0, 160)
+  const action = String(input.action || '')
+    .trim()
+    .slice(0, 120)
+  const requestHash = String(input.requestHash || '')
+    .trim()
+    .slice(0, 128)
   const now = Date.now()
   const inserted = await first<{ id: string }>(
     db,
@@ -56,11 +66,7 @@ export async function startAdminOperationAudit(db: Db, input: AdminOperationAudi
   )
   if (inserted?.id) return String(inserted.id)
 
-  const existing = await first<{ id: string }>(
-    db,
-    'SELECT id FROM admin_operation_audit WHERE scope = $1 AND operation_id = $2',
-    [scope, operationId],
-  )
+  const existing = await first<{ id: string }>(db, 'SELECT id FROM admin_operation_audit WHERE scope = $1 AND operation_id = $2', [scope, operationId])
   return String(existing?.id || '')
 }
 
@@ -97,14 +103,12 @@ export async function incrementAdminOperationReplay(db: Db, scope: string, opera
 export interface ListAdminOperationAuditOptions {
   status?: string
   action?: string
+  username?: string
   limit: number
   offset: number
 }
 
-export async function listAdminOperationAudit(
-  db: Db,
-  options: ListAdminOperationAuditOptions,
-): Promise<{ rows: AdminOperationAuditRow[]; total: number }> {
+export async function listAdminOperationAudit(db: Db, options: ListAdminOperationAuditOptions): Promise<{ rows: AdminOperationAuditRow[]; total: number }> {
   const conditions: string[] = []
   const params: unknown[] = []
   if (['pending', 'completed', 'failed'].includes(options.status || '')) {
@@ -114,6 +118,10 @@ export async function listAdminOperationAudit(
   if (options.action) {
     params.push(String(options.action).slice(0, 120))
     conditions.push(`a.action = $${params.length}`)
+  }
+  if (options.username?.trim()) {
+    params.push(options.username.trim().slice(0, 100))
+    conditions.push(`strpos(lower(COALESCE(u.username, '')), lower($${params.length})) > 0`)
   }
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
   const rows = await all<AdminOperationAuditRow>(
@@ -125,13 +133,13 @@ export async function listAdminOperationAudit(
        FROM admin_operation_audit a
        LEFT JOIN users u ON u.id = a.actor_user_id
        ${where}
-       ORDER BY a.created_at DESC
+       ORDER BY a.created_at DESC, a.id DESC
        LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
     [...params, options.limit, options.offset],
   )
   const total = await first<{ total: number }>(
     db,
-    `SELECT COUNT(*)::int AS total FROM admin_operation_audit a ${where}`,
+    `SELECT COUNT(*)::int AS total FROM admin_operation_audit a LEFT JOIN users u ON u.id = a.actor_user_id ${where}`,
     params,
   )
   return { rows, total: Number(total?.total) || 0 }

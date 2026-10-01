@@ -1,0 +1,1271 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>账户与注册 · 知舟设计预览</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --canvas: #f1eee9;
+        --paper: #fff;
+        --soft: #f6f4f1;
+        --ink: #211e1a;
+        --muted: #736d65;
+        --secondary: #5b554e;
+        --line: #ece8e2;
+        --head: #e5ded6;
+        --brand: #8b6045;
+        --cream: #f0e6d6;
+        --green: #4f7a52;
+        --red: #be123c;
+        --amber: #9b712d;
+        --ring: rgba(139, 96, 69, 0.24);
+      }
+      [data-theme='dark'] {
+        color-scheme: dark;
+        --canvas: #1b1c20;
+        --paper: #24252a;
+        --soft: #2d2e33;
+        --ink: #eee7db;
+        --muted: #aea597;
+        --secondary: #c7beb0;
+        --line: #393a40;
+        --head: #353332;
+        --brand: #d4b896;
+        --cream: #42372f;
+        --green: #91b594;
+        --red: #f08ba0;
+        --amber: #d6b175;
+        --ring: rgba(212, 184, 150, 0.25);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--canvas);
+        color: var(--ink);
+        font:
+          14px/1.6 -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          'PingFang SC',
+          'Microsoft YaHei',
+          sans-serif;
+      }
+      button,
+      input,
+      select {
+        font: inherit;
+      }
+      button,
+      a,
+      input,
+      select {
+        outline-offset: 3px;
+      }
+      button:focus-visible,
+      a:focus-visible,
+      input:focus-visible,
+      select:focus-visible {
+        outline: 3px solid var(--ring);
+      }
+      button {
+        cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.4;
+        cursor: default;
+      }
+      button svg {
+        width: 16px;
+        height: 16px;
+      }
+      svg {
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.7;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: 264px minmax(0, 1fr);
+        gap: 32px;
+        padding: 16px 24px 24px 12px;
+      }
+      .sidebar {
+        position: sticky;
+        top: 16px;
+        height: calc(100vh - 32px);
+        display: flex;
+        flex-direction: column;
+        border-radius: 20px;
+        background: color-mix(in srgb, var(--paper) 75%, var(--canvas));
+        padding: 24px 12px;
+        overflow: auto;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 4px 16px 24px;
+      }
+      .brand svg {
+        width: 28px;
+        height: 28px;
+        color: var(--brand);
+      }
+      .brand strong {
+        font-size: 18px;
+      }
+      .brand small {
+        display: block;
+        color: var(--secondary);
+        font-size: 11px;
+        line-height: 1.4;
+      }
+      .group {
+        padding: 18px 16px 8px;
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 600;
+      }
+      .nav {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        min-height: 40px;
+        border-radius: 12px;
+        padding: 8px 16px;
+        color: var(--secondary);
+      }
+      .nav svg {
+        width: 18px;
+        height: 18px;
+      }
+      .nav.parent {
+        background: var(--brand);
+        color: var(--paper);
+        font-weight: 600;
+      }
+      .subnav {
+        border-left: 1px solid var(--line);
+        margin: 4px 12px 0 16px;
+        padding: 0 0 0 8px;
+      }
+      .subnav a {
+        display: block;
+        padding: 7px 12px;
+        border-radius: 10px;
+        color: var(--secondary);
+        margin: 3px 0;
+        font-size: 13px;
+      }
+      .subnav a:hover {
+        background: var(--soft);
+        color: var(--ink);
+      }
+      .subnav a[aria-current='page'] {
+        background: var(--cream);
+        color: var(--brand);
+        font-weight: 600;
+      }
+      .account {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        margin-top: auto;
+        padding: 24px 16px 0;
+        color: var(--secondary);
+      }
+      .avatar {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: var(--cream);
+        color: var(--brand);
+        display: inline-grid;
+        place-items: center;
+        flex-shrink: 0;
+        font-size: 13px;
+        font-weight: 400;
+      }
+      .main {
+        min-width: 0;
+      }
+      .topbar {
+        height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .topbar-left {
+        display: flex;
+        gap: 14px;
+        align-items: center;
+      }
+      .topbar-left svg {
+        width: 16px;
+        height: 16px;
+      }
+      .topbar-right {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+        margin: 36px 0 28px;
+      }
+      .header h1 {
+        font-size: 24px;
+        line-height: 1.3;
+        letter-spacing: -0.04em;
+        margin: 0 0 8px;
+      }
+      .header p {
+        margin: 0;
+        color: var(--muted);
+      }
+      .search {
+        position: relative;
+        width: 280px;
+        max-width: 100%;
+        flex-shrink: 0;
+      }
+      .search svg {
+        position: absolute;
+        width: 16px;
+        height: 16px;
+        top: 12px;
+        left: 12px;
+        color: var(--muted);
+        pointer-events: none;
+      }
+      .search input {
+        width: 100%;
+        height: 40px;
+        background: var(--paper);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 0 12px 0 36px;
+        color: var(--ink);
+      }
+      .search:focus-within svg {
+        color: var(--brand);
+      }
+      input::placeholder {
+        color: var(--muted);
+      }
+      .btn {
+        display: inline-flex;
+        justify-content: center;
+        align-items: center;
+        gap: 8px;
+        height: 40px;
+        border: 0;
+        border-radius: 12px;
+        background: var(--soft);
+        color: var(--ink);
+        padding: 0 14px;
+        font-size: 13px;
+        font-weight: 500;
+        white-space: nowrap;
+      }
+      .btn:hover {
+        background: color-mix(in srgb, var(--soft) 70%, var(--line));
+      }
+      .btn.primary {
+        background: var(--brand);
+        color: var(--paper);
+      }
+      .btn.ghost {
+        background: transparent;
+        color: var(--brand);
+        padding: 0 10px;
+      }
+      .btn.danger {
+        color: var(--red);
+      }
+      .btn.icon {
+        width: 36px;
+        height: 36px;
+        padding: 0;
+        background: var(--paper);
+        border: 1px solid var(--line);
+      }
+      .panel {
+        background: var(--paper);
+        border-radius: 20px;
+        overflow: hidden;
+        margin-bottom: 20px;
+      }
+      .panel-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+        padding: 24px;
+      }
+      .panel-head h2 {
+        font-size: 17px;
+        letter-spacing: -0.025em;
+        margin: 0;
+      }
+      .actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .count {
+        font-size: 12px;
+        color: var(--muted);
+        background: var(--soft);
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-variant-numeric: tabular-nums;
+      }
+      .toolbar {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 8px 24px 18px;
+        flex-wrap: wrap;
+      }
+      .toolbar label {
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .toolbar select,
+      .number {
+        height: 40px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 0 12px;
+        background: var(--paper);
+        color: var(--ink);
+        min-width: 140px;
+      }
+      .number {
+        width: 72px;
+        min-width: 0;
+      }
+      .toolbar .hint {
+        margin-left: auto;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .settings {
+        padding: 0 24px 24px;
+      }
+      .modes {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+      }
+      .mode {
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 18px;
+        cursor: pointer;
+      }
+      .mode:has(input:checked) {
+        background: var(--cream);
+        border-color: var(--brand);
+      }
+      .mode input {
+        accent-color: var(--brand);
+        margin-top: 5px;
+      }
+      .mode strong {
+        display: block;
+        font-size: 14px;
+        font-weight: 500;
+      }
+      .mode small {
+        display: block;
+        color: var(--muted);
+        margin-top: 3px;
+        font-size: 12px;
+      }
+      .setting-foot {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-top: 20px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .setting-foot .badge {
+        margin-left: 8px;
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        white-space: nowrap;
+        font-size: 11px;
+        padding: 3px 8px;
+        border-radius: 999px;
+        background: var(--soft);
+        color: var(--muted);
+        font-weight: 400;
+      }
+      .badge.good {
+        color: var(--green);
+        background: color-mix(in srgb, var(--green) 9%, var(--paper));
+      }
+      .badge.bad {
+        color: var(--red);
+        background: color-mix(in srgb, var(--red) 9%, var(--paper));
+      }
+      .badge.warm {
+        color: var(--brand);
+        background: var(--cream);
+      }
+      .badge.warn {
+        color: var(--amber);
+        background: color-mix(in srgb, var(--amber) 9%, var(--paper));
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        table-layout: fixed;
+      }
+      th {
+        text-align: left;
+        background: var(--head);
+        padding: 12px 20px;
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--ink);
+      }
+      td {
+        padding: 16px 20px;
+        height: 76px;
+        border-bottom: 1px solid var(--line);
+        vertical-align: middle;
+        font-size: 13px;
+        overflow-wrap: anywhere;
+      }
+      tr:last-child td {
+        border-bottom: 0;
+      }
+      tbody tr:hover {
+        background: color-mix(in srgb, var(--soft) 45%, var(--paper));
+      }
+      th:last-child,
+      td:last-child {
+        text-align: right;
+      }
+      .cell-value {
+        min-width: 0;
+      }
+      .identity {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        min-width: 0;
+      }
+      .identity strong {
+        font-size: 14px;
+        font-weight: 600;
+        display: block;
+      }
+      .secondary {
+        display: block;
+        color: var(--muted);
+        font-size: 12px;
+        margin-top: 3px;
+      }
+      .mono {
+        font-family: Consolas, 'SFMono-Regular', monospace;
+        font-size: 12px;
+        letter-spacing: 0.015em;
+      }
+      .time {
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+      .cell-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 2px;
+      }
+      .cell-actions button {
+        height: 36px;
+        font-size: 12px;
+      }
+      .table-footer {
+        padding: 16px 24px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        color: var(--muted);
+        font-size: 12px;
+        border-top: 1px solid var(--line);
+      }
+      .pagination {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin: 24px 20px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .pagination .btn {
+        height: 32px;
+        border-radius: 8px;
+        padding: 0 10px;
+      }
+      .pagination select {
+        background: var(--paper);
+        border: 1px solid var(--line);
+        height: 32px;
+        border-radius: 8px;
+        padding: 0 8px;
+        color: var(--ink);
+      }
+      .empty {
+        text-align: center !important;
+        color: var(--muted);
+        height: 140px;
+      }
+      .notice {
+        margin: 0 24px 18px;
+        padding: 12px 16px;
+        border-radius: 12px;
+        background: var(--cream);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        font-size: 12px;
+      }
+      .generated {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 8px;
+      }
+      .generated code {
+        background: var(--paper);
+        border-radius: 6px;
+        padding: 3px 8px;
+        color: var(--brand);
+      }
+      details.note {
+        color: var(--muted);
+        font-size: 12px;
+        margin: 28px 20px;
+      }
+      details.note summary {
+        cursor: pointer;
+      }
+      details.note p {
+        max-width: 760px;
+      }
+      .toast {
+        position: fixed;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: var(--ink);
+        color: var(--paper);
+        border-radius: 12px;
+        padding: 12px 20px;
+        z-index: 10;
+        font-size: 13px;
+        box-shadow: 0 8px 28px #0002;
+      }
+      .toast:empty {
+        display: none;
+      }
+      dialog {
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: var(--paper);
+        color: var(--ink);
+        width: 560px;
+        max-width: calc(100vw - 32px);
+        padding: 0;
+        box-shadow: 0 24px 70px #0003;
+      }
+      dialog::backdrop {
+        background: #211e1a66;
+      }
+      .dialog-head {
+        padding: 24px;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+      }
+      .dialog-head h2 {
+        font-size: 18px;
+        margin: 0;
+      }
+      .dialog-head p {
+        font-size: 12px;
+        color: var(--muted);
+        margin: 6px 0 0;
+      }
+      .dialog-body {
+        padding: 24px;
+        max-height: 60vh;
+        overflow: auto;
+      }
+      .detail-row {
+        display: grid;
+        grid-template-columns: 96px minmax(0, 1fr);
+        gap: 16px;
+        margin-bottom: 16px;
+        font-size: 13px;
+      }
+      .detail-row dt {
+        color: var(--muted);
+      }
+      .detail-row dd {
+        margin: 0;
+        overflow-wrap: anywhere;
+      }
+      .dialog-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        padding: 16px 24px;
+        background: var(--soft);
+      }
+      [hidden] {
+        display: none !important;
+      }
+      @media (max-width: 1100px) {
+        .layout {
+          grid-template-columns: 224px minmax(0, 1fr);
+          gap: 24px;
+        }
+        .modes {
+          grid-template-columns: 1fr;
+        }
+        .mode {
+          padding: 14px;
+        }
+        .header {
+          flex-wrap: wrap;
+        }
+        .header .search {
+          margin-left: auto;
+        }
+        td,
+        th {
+          padding-inline: 14px;
+        }
+      }
+      @media (max-width: 900px) {
+        .layout {
+          display: block;
+          padding: 12px 16px;
+        }
+        .sidebar {
+          display: none;
+        }
+        .topbar {
+          height: 40px;
+        }
+        .header {
+          margin: 28px 0 24px;
+        }
+        .header .search {
+          width: 100%;
+        }
+        .topbar-right span {
+          display: none;
+        }
+        .mobile-tabs {
+          display: flex !important;
+          gap: 4px;
+          overflow: auto;
+          padding: 4px;
+          border-radius: 12px;
+          background: var(--soft);
+          margin-bottom: 20px;
+        }
+        .mobile-tabs a {
+          flex: 1;
+          white-space: nowrap;
+          font-size: 12px;
+          padding: 8px;
+          text-align: center;
+          border-radius: 9px;
+          color: var(--muted);
+        }
+        .mobile-tabs a[aria-current='page'] {
+          background: var(--paper);
+          color: var(--brand);
+        }
+        .panel-head {
+          padding: 20px;
+          flex-wrap: wrap;
+        }
+        .toolbar {
+          padding: 4px 20px 16px;
+        }
+        .toolbar .hint {
+          width: 100%;
+          margin: 0;
+        }
+        .settings {
+          padding: 0 20px 20px;
+        }
+        .setting-foot {
+          align-items: flex-start;
+        }
+        .modes {
+          gap: 8px;
+        }
+        thead {
+          display: none;
+        }
+        table,
+        tbody,
+        tr,
+        td {
+          display: block;
+          width: 100%;
+        }
+        tbody tr {
+          padding: 16px 20px;
+          border-top: 1px solid var(--line);
+        }
+        tbody tr:hover {
+          background: transparent;
+        }
+        td {
+          height: auto;
+          min-height: 0;
+          display: grid;
+          grid-template-columns: 80px minmax(0, 1fr);
+          gap: 12px;
+          padding: 4px 0;
+          border: 0;
+          text-align: left !important;
+        }
+        td:before {
+          content: attr(data-label);
+          color: var(--muted);
+          font-size: 12px;
+        }
+        td.primary {
+          display: block;
+          padding: 0 0 12px;
+        }
+        td.primary:before {
+          display: none;
+        }
+        td:last-child {
+          display: block;
+          text-align: right !important;
+          padding-top: 12px;
+        }
+        td:last-child:before {
+          display: none;
+        }
+        .cell-actions {
+          justify-content: flex-end;
+        }
+        .cell-actions button {
+          height: 44px;
+        }
+        .table-footer {
+          padding: 16px 20px;
+          gap: 12px;
+          flex-wrap: wrap;
+        }
+        .pagination {
+          margin: 20px 4px;
+          flex-wrap: wrap;
+        }
+        .notice {
+          margin-inline: 20px;
+          align-items: flex-start;
+        }
+        .detail-row {
+          grid-template-columns: 76px minmax(0, 1fr);
+        }
+        .topbar-left {
+          font-size: 13px;
+        }
+        h1 {
+          font-size: 22px !important;
+        }
+      }
+      .mobile-tabs {
+        display: none;
+      }
+      @media (prefers-reduced-motion: no-preference) {
+        .btn {
+          transition: background 0.15s ease;
+        }
+        .panel {
+          animation: appear 0.18s ease-out;
+        }
+        @keyframes appear {
+          from {
+            opacity: 0.5;
+            transform: translateY(3px);
+          }
+          to {
+            opacity: 1;
+            transform: none;
+          }
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <svg style="position: absolute; width: 0; height: 0" aria-hidden="true">
+      <symbol id="book" viewBox="0 0 24 24"><path d="M12 5v15M3 4c4-1 6 0 9 1 3-1 5-2 9-1v15c-4-1-6 0-9 1-3-1-5-2-9-1z" /></symbol>
+      <symbol id="grid" viewBox="0 0 24 24">
+        <rect x="3" y="3" width="7" height="7" rx="1" />
+        <rect x="14" y="3" width="7" height="7" rx="1" />
+        <rect x="3" y="14" width="7" height="7" rx="1" />
+        <rect x="14" y="14" width="7" height="7" rx="1" />
+      </symbol>
+      <symbol id="users" viewBox="0 0 24 24">
+        <circle cx="9" cy="7" r="4" />
+        <path d="M2 21v-3a7 7 0 0 1 14 0v3M17 3a4 4 0 0 1 0 8m2 4a6 6 0 0 1 3 6" />
+      </symbol>
+      <symbol id="i-search" viewBox="0 0 24 24">
+        <circle cx="10" cy="10" r="7" />
+        <path d="m15 15 6 6" />
+      </symbol>
+      <symbol id="refresh" viewBox="0 0 24 24"><path d="M20 7a9 9 0 0 0-15-2L2 8m0-5v5h5M4 17a9 9 0 0 0 15 2l3-3m0 5v-5h-5" /></symbol>
+      <symbol id="moon" viewBox="0 0 24 24"><path d="M21 14A9 9 0 0 1 10 3a9 9 0 1 0 11 11z" /></symbol>
+      <symbol id="panel" viewBox="0 0 24 24">
+        <rect x="3" y="4" width="18" height="16" rx="2" />
+        <path d="M9 4v16" />
+      </symbol>
+    </svg>
+    <div class="layout">
+      <aside class="sidebar" aria-label="管理导航预览">
+        <div class="brand">
+          <svg><use href="#book" /></svg>
+          <div><strong>知舟</strong><small>馆藏运营台</small></div>
+        </div>
+        <div id="navigation"></div>
+        <div class="account"><span class="avatar">猫</span><span>管理员</span></div>
+      </aside>
+      <main class="main">
+        <div class="topbar">
+          <div class="topbar-left">
+            <svg><use href="#panel" /></svg><span>账户与注册</span>
+          </div>
+          <div class="topbar-right">
+            <span>示例数据 · HTML 预览</span
+            ><button class="btn icon" id="theme" aria-label="切换明暗主题">
+              <svg><use href="#moon" /></svg>
+            </button>
+          </div>
+        </div>
+        <header class="header">
+          <div>
+            <h1 id="title"></h1>
+            <p id="description"></p>
+          </div>
+          <label class="search" id="search-wrap"
+            ><svg><use href="#i-search" /></svg><input id="search" type="search" aria-label="搜索记录"
+          /></label>
+        </header>
+        <nav class="mobile-tabs" aria-label="账户页面预览"></nav>
+        <div id="view"></div>
+      </main>
+    </div>
+    <dialog id="detail" aria-labelledby="dialog-title">
+      <div class="dialog-head">
+        <div>
+          <h2 id="dialog-title"></h2>
+          <p id="dialog-description"></p>
+        </div>
+        <button class="btn icon" id="close" aria-label="关闭详情">×</button>
+      </div>
+      <div class="dialog-body" id="dialog-body"></div>
+      <div class="dialog-footer" id="dialog-footer"></div>
+    </dialog>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script>
+      const $ = (id) => document.getElementById(id),
+        icon = (id) => `<svg aria-hidden="true"><use href="#${id}"/></svg>`,
+        esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
+      const views = {
+        registration: ['注册与邀请码', '控制新用户如何加入，并维护每一份邀请。'],
+        audit: ['登录审计', '查看登录结果与访问来源，了解每一次身份验证。'],
+        operation: ['操作审计', '追踪管理员操作、影响范围与执行结果。'],
+      }
+      let view = views[location.hash.slice(1)] ? location.hash.slice(1) : 'registration',
+        filter = 'all',
+        query = '',
+        page = 1,
+        size = 15,
+        savedMode = 'invite',
+        generated = [],
+        action = null
+      const modes = { open: ['开放注册', '任何人都可以注册'], invite: ['邀请注册', '注册时必须提供邀请码'], closed: ['关闭注册', '停止接受新用户注册'] }
+      let invites = Array.from({ length: 9 }, (_, i) => ({
+        code: `DEMO-${['P7KM', 'T4NW', 'R8CX', 'M3FP', 'J6HL', 'W2QS', 'B9DV', 'N5AZ', 'K7ET'][i]}-2026`,
+        status: i < 4 ? 'available' : i < 7 ? 'used' : 'disabled',
+        name: i < 4 ? '—' : i < 7 ? ['林间晚风', '纸上星河', '青禾'][i - 4] : '—',
+        created: `2026-09-${String(30 - i).padStart(2, '0')} 10:24`,
+        usedAt: i >= 4 && i < 7 ? '2026-09-30 16:42' : '—',
+      }))
+      const logins = Array.from({ length: 19 }, (_, i) => ({
+        name: ['猫', '林间晚风', '纸上星河', '未知用户', '青禾'][i % 5],
+        username: ['wynne', 'eveningwind', 'starwriter', 'guest_demo', 'qinghe'][i % 5],
+        status: i % 7 === 3 ? 'failure' : i % 7 === 5 ? 'limited' : 'success',
+        reason: i % 7 === 3 ? '用户名或密码不匹配' : i % 7 === 5 ? '短时间内尝试次数过多' : '身份验证通过',
+        ip: `192.0.2.${12 + i}`,
+        agent:
+          i % 2
+            ? 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1'
+            : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36',
+        device: i % 2 ? 'Safari · iOS' : 'Chrome · Windows',
+        time: `2026-10-01 ${String(14 - Math.floor(i / 4)).padStart(2, '0')}:${String(52 - (i % 4) * 9).padStart(2, '0')}`,
+        id: `login-demo-${String(i + 1).padStart(4, '0')}`,
+      }))
+      const operations = Array.from({ length: 17 }, (_, i) => ({
+        name: i % 3 ? '猫' : '知秋',
+        username: i % 3 ? 'wynne' : 'autumn',
+        action: ['修改用户密码', '停用邀请码', '删除 AI 生成内容', '清理抓取任务', '调整用户角色'][i % 5],
+        status: i === 2 ? 'failed' : i === 0 ? 'pending' : 'completed',
+        count: [1, 1, 12, 24, 1][i % 5],
+        replay: i === 4 ? 1 : 0,
+        id: `op-demo-20261001-${String(i + 1).padStart(4, '0')}`,
+        time: `2026-10-01 ${String(14 - Math.floor(i / 3)).padStart(2, '0')}:${String(46 - (i % 3) * 12).padStart(2, '0')}`,
+        http: i === 2 ? 503 : i === 0 ? 202 : 200,
+        error: i === 2 ? '上游服务暂不可用，操作未完成。' : '—',
+      }))
+      const labels = {
+        available: '可用',
+        used: '已使用',
+        disabled: '已停用',
+        success: '成功',
+        failure: '失败',
+        limited: '限流',
+        pending: '处理中',
+        completed: '成功',
+        failed: '失败',
+      }
+      function badge(status) {
+        const tone = ['available', 'success', 'completed'].includes(status)
+          ? 'good'
+          : ['failure', 'failed'].includes(status)
+            ? 'bad'
+            : ['limited', 'pending'].includes(status)
+              ? 'warn'
+              : ''
+        return `<span class="badge ${tone}">${labels[status]}</span>`
+      }
+      function identity(name, username) {
+        return `<div class="identity"><span class="avatar" aria-hidden="true">${esc(Array.from(name)[0])}</span><div><strong>${esc(name)}</strong><span class="secondary">@${esc(username)}</span></div></div>`
+      }
+      function toast(text) {
+        $('toast').textContent = text
+        clearTimeout(toast.timer)
+        toast.timer = setTimeout(() => ($('toast').textContent = ''), 2800)
+      }
+      function nav() {
+        let html = ''
+        ;[
+          ['监控', ['后台总览']],
+          ['内容库', ['小说管理', '章节管理']],
+          ['内容生产', ['爬虫抓取', 'AI 服务']],
+          ['运行监控', ['任务中心', '调用与用量']],
+          ['内容治理', ['内容审核']],
+          ['平台运营', ['站点运营']],
+        ].forEach(([group, items]) => {
+          html += `<div class="group">${group}</div>` + items.map((t) => `<div class="nav">${icon('grid')}${t}</div>`).join('')
+        })
+        html +=
+          `<div class="nav parent">${icon('users')}账户与注册</div><nav class="subnav"><a href="user-management-claude.html">用户管理</a>` +
+          Object.entries(views)
+            .map(([key, v]) => `<a href="#${key}" ${key === view ? 'aria-current="page"' : ''}>${v[0]}</a>`)
+            .join('') +
+          '</nav>'
+        $('navigation').innerHTML = html
+        document.querySelector('.mobile-tabs').innerHTML = Object.entries(views)
+          .map(([key, v]) => `<a href="#${key}" ${key === view ? 'aria-current="page"' : ''}>${v[0]}</a>`)
+          .join('')
+      }
+      function panelHead(title, total, unit, extra = '') {
+        return `<div class="panel-head"><h2>${title}</h2><div class="actions"><span class="count">${total} ${unit}</span><button class="btn" data-action="refresh">${icon('refresh')}刷新</button>${extra}</div></div>`
+      }
+      function selectOptions() {
+        return (
+          view === 'registration'
+            ? ['available', 'used', 'disabled']
+            : view === 'audit'
+              ? ['success', 'failure', 'limited']
+              : ['pending', 'completed', 'failed']
+        )
+          .map((s) => `<option value="${s}" ${filter === s ? 'selected' : ''}>${labels[s]}</option>`)
+          .join('')
+      }
+      function matching() {
+        const rows = view === 'registration' ? invites : view === 'audit' ? logins : operations
+        return rows.filter(
+          (r) =>
+            (filter === 'all' || r.status === filter) &&
+            (!query || (view === 'registration' ? r.code : r.username).toLowerCase().includes(query.toLowerCase())),
+        )
+      }
+      function render() {
+        nav()
+        $('title').textContent = views[view][0]
+        $('description').textContent = views[view][1]
+        $('search').placeholder = view === 'registration' ? '搜索邀请码' : '搜索用户名'
+        $('search').value = query
+        $('search').setAttribute('aria-label', view === 'registration' ? '搜索邀请码' : '搜索用户名')
+        const rows = matching()
+        page = Math.max(1, Math.min(page, Math.ceil(rows.length / size) || 1))
+        const shown = rows.slice((page - 1) * size, page * size)
+        let html = ''
+        if (view === 'registration') {
+          html += `<section class="panel" aria-labelledby="settings-title"><div class="panel-head"><h2 id="settings-title">注册设置</h2><span class="badge warm">当前：${modes[savedMode][0]}</span></div><form id="settings" class="settings"><fieldset style="border:0;padding:0;margin:0"><legend style="position:absolute;clip-path:inset(50%)">注册方式</legend><div class="modes">${Object.entries(
+            modes,
+          )
+            .map(
+              ([key, v]) =>
+                `<label class="mode"><input type="radio" name="mode" value="${key}" ${savedMode === key ? 'checked' : ''}><span><strong>${v[0]}</strong><small>${v[1]}</small></span></label>`,
+            )
+            .join(
+              '',
+            )}</div></fieldset><div class="setting-foot"><span id="mode-hint">修改注册方式后，已有用户仍可正常登录。</span><button class="btn primary" id="save-mode" disabled>保存设置</button></div></form></section>`
+        }
+        const heading = view === 'registration' ? '邀请码目录' : view === 'audit' ? '登录记录' : '操作记录'
+        html += `<section class="panel" aria-label="${heading}">${panelHead(heading, rows.length, view === 'registration' ? '个' : '条', view === 'registration' ? '<label for="invite-count" class="secondary">数量</label><input id="invite-count" class="number" type="number" min="1" max="20" value="3" aria-label="生成邀请码数量"><button class="btn primary" data-action="generate">生成邀请码</button>' : '')}<div class="toolbar"><label for="status-filter">${view === 'registration' ? '状态' : '结果'}</label><select id="status-filter"><option value="all">全部${view === 'registration' ? '状态' : '结果'}</option>${selectOptions()}</select><span class="hint">${view === 'registration' ? `可用 ${invites.filter((r) => r.status === 'available').length} · 已使用 ${invites.filter((r) => r.status === 'used').length} · 已停用 ${invites.filter((r) => r.status === 'disabled').length}` : view === 'audit' ? '按最新登录时间排序' : '按最新操作时间排序'}</span></div>`
+        if (view === 'registration' && generated.length)
+          html += `<div class="notice"><div>本次生成 ${generated.length} 个邀请码<div class="generated">${generated.map((c) => `<code>${c}</code>`).join('')}</div></div><button class="btn" data-action="copy-all">复制全部</button></div>`
+        const headers =
+          view === 'registration'
+            ? ['邀请码', '状态', '使用者', '创建时间', '操作']
+            : view === 'audit'
+              ? ['用户', '结果与原因', '访问来源', '时间', '操作']
+              : ['操作人', '动作与范围', '结果', '操作标识', '时间', '操作']
+        const widths =
+          view === 'registration'
+            ? ['27%', '14%', '18%', '23%', '18%']
+            : view === 'audit'
+              ? ['23%', '24%', '24%', '19%', '10%']
+              : ['20%', '23%', '11%', '20%', '16%', '10%']
+        html += `<table><caption style="position:absolute;clip-path:inset(50%)">${heading}，示例数据</caption><colgroup>${widths.map((w) => `<col style="width:${w}">`).join('')}</colgroup><thead><tr>${headers.map((h) => `<th scope="col">${h}</th>`).join('')}</tr></thead><tbody>`
+        shown.forEach((r) => {
+          const idx = (view === 'registration' ? invites : view === 'audit' ? logins : operations).indexOf(r)
+          const cells =
+            view === 'registration'
+              ? [
+                  `<span class="mono">${r.code}</span>`,
+                  badge(r.status),
+                  esc(r.name),
+                  `<span class="time">${r.created.split(' ')[0]}</span><span class="secondary">${r.created.split(' ')[1]}</span>`,
+                  `<div class="cell-actions">${r.status === 'available' ? `<button class="btn ghost" data-action="copy" data-index="${idx}">复制</button><button class="btn ghost danger" data-action="disable" data-index="${idx}">停用</button>` : `<button class="btn ghost" data-action="detail" data-index="${idx}">详情</button>`}</div>`,
+                ]
+              : view === 'audit'
+                ? [
+                    identity(r.name, r.username),
+                    `${badge(r.status)}<span class="secondary">${esc(r.reason)}</span>`,
+                    `<span class="mono">${r.ip}</span><span class="secondary">${r.device}</span>`,
+                    `<span class="time">${r.time.split(' ')[0]}</span><span class="secondary">${r.time.split(' ')[1]}</span>`,
+                    `<button class="btn ghost" data-action="detail" data-index="${idx}">详情</button>`,
+                  ]
+                : [
+                    identity(r.name, r.username),
+                    `${esc(r.action)}<span class="secondary">目标 ${r.count} 个${r.replay ? ' · 重放 ' + r.replay + ' 次' : ''}</span>`,
+                    badge(r.status),
+                    `<span class="mono">${r.id.slice(0, 17)}…</span><span class="secondary">HTTP ${r.http}</span>`,
+                    `<span class="time">${r.time.split(' ')[0]}</span><span class="secondary">${r.time.split(' ')[1]}</span>`,
+                    `<button class="btn ghost" data-action="detail" data-index="${idx}">详情</button>`,
+                  ]
+          html +=
+            '<tr>' +
+            cells.map((c, i) => `<td class="${i === 0 ? 'primary' : ''}" data-label="${headers[i]}"><div class="cell-value">${c}</div></td>`).join('') +
+            '</tr>'
+        })
+        if (!shown.length)
+          html += `<tr><td colspan="${headers.length}" class="empty">没有匹配的${view === 'registration' ? '邀请码' : '记录'}。试试其他搜索词或筛选条件。</td></tr>`
+        html += '</tbody></table>'
+        if (view === 'registration')
+          html += `<div class="table-footer"><span>已使用和已停用的邀请码不再可用于注册。</span><button class="btn ghost danger" data-action="clear" ${invites.every((r) => r.status === 'available') ? 'disabled' : ''}>清理失效邀请码</button></div>`
+        html += '</section>'
+        html += `<footer class="pagination"><span>共 ${rows.length} ${view === 'registration' ? '个' : '条'}${rows.length ? `，显示 ${(page - 1) * size + 1}–${Math.min(page * size, rows.length)}` : ''}</span><div class="actions"><label for="page-size">每页行数</label><select id="page-size">${[15, 20, 50, 100].map((n) => `<option ${size === n ? 'selected' : ''}>${n}</option>`).join('')}</select><button class="btn" data-action="previous" ${page === 1 ? 'disabled' : ''} aria-label="上一页">‹</button><span>${page} / ${Math.ceil(rows.length / size) || 1}</span><button class="btn" data-action="next" ${page * size >= rows.length ? 'disabled' : ''} aria-label="下一页">›</button></div></footer><details class="note"><summary>${view === 'registration' ? '注册与邀请说明' : '审计记录说明'}</summary><p>${view === 'registration' ? '邀请码一次使用后即失效。停用前需确认，清理仅处理已使用或已停用的条目。页面中的生成、复制及设置保存仅演示交互。' : view === 'audit' ? '记录包含登录结果、原因、来源 IP 与完整 User-Agent；IP 使用文档示例地址。设备摘要仅作辅助，完整信息可在详情查看。' : '操作详情保留目标数量、状态、响应码、重放次数、操作 ID 与错误信息。审计不展示密码或其他凭据，也不提供删除记录入口。'}</p></details>`
+        $('view').innerHTML = html
+        $('status-filter').onchange = (e) => {
+          filter = e.target.value
+          page = 1
+          render()
+        }
+        $('page-size').onchange = (e) => {
+          size = Number(e.target.value)
+          page = 1
+          render()
+        }
+        if (view === 'registration') {
+          $('settings').onchange = () => {
+            $('save-mode').disabled = new FormData($('settings')).get('mode') === savedMode
+            $('mode-hint').textContent = $('save-mode').disabled ? '修改注册方式后，已有用户仍可正常登录。' : '有未保存的修改。已有用户登录不受影响。'
+          }
+          $('settings').onsubmit = (e) => {
+            e.preventDefault()
+            savedMode = new FormData(e.target).get('mode')
+            render()
+            toast('预览：注册设置已保存')
+          }
+        }
+      }
+      function openDialog(title, description, body, confirm = null) {
+        action = confirm
+        $('dialog-title').textContent = title
+        $('dialog-description').textContent = description
+        $('dialog-body').innerHTML = body
+        $('dialog-footer').innerHTML = confirm
+          ? '<button class="btn" id="cancel-dialog">取消</button><button class="btn danger" id="confirm-dialog">确认' +
+            (title.startsWith('清理') ? '清理' : '停用') +
+            '</button>'
+          : '<button class="btn" id="cancel-dialog">关闭</button>'
+        $('cancel-dialog').onclick = () => $('detail').close()
+        if (confirm)
+          $('confirm-dialog').onclick = () => {
+            action()
+            $('detail').close()
+            render()
+          }
+        $('detail').showModal()
+      }
+      async function copy(text) {
+        try {
+          await navigator.clipboard.writeText(text)
+          toast('已复制示例邀请码')
+        } catch {
+          openDialog('复制邀请码', '浏览器未开放剪贴板权限，可选中以下内容手动复制。', `<pre style="white-space:pre-wrap;user-select:all">${esc(text)}</pre>`)
+        }
+      }
+      $('view').onclick = (e) => {
+        const button = e.target.closest('[data-action]')
+        if (!button) return
+        const key = button.dataset.action,
+          idx = Number(button.dataset.index)
+        if (key === 'refresh') return toast('预览：记录已刷新')
+        if (key === 'previous' || key === 'next') {
+          page += key === 'next' ? 1 : -1
+          return render()
+        }
+        if (key === 'copy') return copy(invites[idx].code)
+        if (key === 'copy-all') return copy(generated.join('\n'))
+        if (key === 'generate') {
+          const n = Number($('invite-count').value)
+          if (!Number.isInteger(n) || n < 1 || n > 20) return toast('请输入 1–20 的整数')
+          generated = Array.from({ length: n }, () => `DEMO-${crypto.randomUUID().slice(0, 8).toUpperCase()}`)
+          generated.forEach((code) => invites.unshift({ code, status: 'available', name: '—', created: '2026-10-01 15:00', usedAt: '—' }))
+          filter = 'all'
+          query = ''
+          page = 1
+          render()
+          return toast(`预览：已生成 ${n} 个邀请码`)
+        }
+        if (key === 'disable')
+          return openDialog(
+            '停用邀请码',
+            '此邀请码将无法用于新用户注册。',
+            `<p class="mono">${invites[idx].code}</p><p class="secondary">已注册的用户不会受到影响。</p>`,
+            () => {
+              invites[idx].status = 'disabled'
+              toast('预览：邀请码已停用')
+            },
+          )
+        if (key === 'clear') {
+          const codes = invites.filter((r) => r.status !== 'available').map((r) => r.code)
+          return openDialog(
+            '清理失效邀请码',
+            `本次清理 ${codes.length} 个已使用或已停用的邀请码。`,
+            '<p>可用邀请码会保留。确认后从预览列表移除选定记录。</p>',
+            () => {
+              invites = invites.filter((r) => !codes.includes(r.code))
+              toast('预览：失效邀请码已清理')
+            },
+          )
+        }
+        if (key === 'detail') {
+          const r = (view === 'registration' ? invites : view === 'audit' ? logins : operations)[idx]
+          const details =
+            view === 'registration'
+              ? [
+                  ['邀请码', r.code],
+                  ['状态', labels[r.status]],
+                  ['使用者', r.name],
+                  ['创建时间', r.created],
+                  ['使用时间', r.usedAt],
+                ]
+              : view === 'audit'
+                ? [
+                    ['用户', `${r.name} @${r.username}`],
+                    ['结果', labels[r.status]],
+                    ['原因', r.reason],
+                    ['IP 地址', r.ip],
+                    ['设备摘要', r.device],
+                    ['User-Agent', r.agent],
+                    ['记录 ID', r.id],
+                    ['发生时间', r.time],
+                  ]
+                : [
+                    ['操作人', `${r.name} @${r.username}`],
+                    ['动作', r.action],
+                    ['目标数量', r.count],
+                    ['执行结果', labels[r.status]],
+                    ['响应状态', `HTTP ${r.http}`],
+                    ['重放次数', r.replay],
+                    ['操作 ID', r.id],
+                    ['错误信息', r.error],
+                    ['创建时间', r.time],
+                    ['更新时间', r.time],
+                    ['完成时间', r.status === 'pending' ? '尚未完成' : r.time],
+                  ]
+          openDialog(
+            view === 'audit' ? '登录记录详情' : view === 'operation' ? '操作记录详情' : '邀请码详情',
+            '完整记录 · 示例数据',
+            `<dl>${details.map(([k, v]) => `<div class="detail-row"><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>`,
+          )
+        }
+      }
+      $('search').oninput = (e) => {
+        query = e.target.value
+        page = 1
+        render()
+      }
+      $('theme').onclick = () => (document.documentElement.dataset.theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark')
+      $('close').onclick = () => $('detail').close()
+      window.onhashchange = () => {
+        if (!views[location.hash.slice(1)]) return
+        view = location.hash.slice(1)
+        filter = 'all'
+        query = ''
+        page = 1
+        render()
+      }
+      render()
+    </script>
+  </body>
+</html>

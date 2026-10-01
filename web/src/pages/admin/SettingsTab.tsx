@@ -4,20 +4,26 @@
  * 无轮询：挂载 + 每次变更后重新拉取，无乐观更新。
  */
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { adminApi, authApi, newOperationId } from '../../lib/api'
-import { timeAgo } from '../../lib/format'
+import { formatDateTime } from '../../lib/format'
+import { RefreshCw } from 'lucide-react'
+import AccountAuditPanel, {
+  AccountRecordDate,
+  AccountRecordDetails,
+  type AccountRecordDetail,
+  type LoginAudit,
+  type AdminOperationAudit,
+} from './AccountAuditPanel'
 import { copyText } from '../../lib/admin'
 import { useConfirm, useToast } from '../../components/feedback'
 import { useDebouncedValue } from '@/hooks/useDebounce'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import AdminPage from '@/components/admin/AdminPage'
 import UserManagementPanel from './UserManagementPanel'
 import { AdminDataPanel, AdminPanelHeading, AdminToolbar, AdminSearch, type AdminColumn } from '@/components/admin/AdminWorkspace'
@@ -60,35 +66,6 @@ interface SettingsData {
   users: AdminUser[]
 }
 
-interface LoginAudit {
-  id: string
-  userId: string
-  username: string
-  displayName: string
-  status: string
-  reason: string
-  ipAddress: string
-  userAgent: string
-  createdAt: number
-}
-
-interface AdminOperationAudit {
-  id: string
-  operationId: string
-  actorUserId: string
-  actorUsername: string
-  actorDisplayName: string
-  action: string
-  targetCount: number
-  status: string
-  responseStatus: number
-  replayCount: number
-  error: string
-  createdAt: number
-  updatedAt: number
-  finishedAt: number
-}
-
 const REGISTER_MODES: Array<{ value: 'open' | 'invite' | 'closed'; label: string; hint: string }> = [
   { value: 'open', label: '开放注册', hint: '任何人都可以注册' },
   { value: 'invite', label: '邀请注册', hint: '注册必须使用邀请码' },
@@ -102,31 +79,12 @@ const ACCOUNT_TAB_META: Record<'users' | 'registration' | 'audit' | 'operation-a
   'operation-audit': { title: '操作审计', description: '追踪管理员危险操作、目标数量与执行结果。' },
 }
 
-const LOGIN_AUDIT_COLUMNS: readonly AdminColumn[] = [
-  { key: 'user', label: '用户', width: '19%', primary: true },
-  { key: 'status', label: '结果', width: '11%' },
-  { key: 'reason', label: '原因', width: '17%' },
-  { key: 'ip', label: 'IP 地址', width: '13%' },
-  { key: 'userAgent', label: 'User-Agent', width: '25%' },
-  { key: 'time', label: '时间', width: '15%' },
-]
-
-const OPERATION_AUDIT_COLUMNS: readonly AdminColumn[] = [
-  { key: 'actor', label: '操作人', width: '18%', primary: true },
-  { key: 'action', label: '动作', width: '18%' },
-  { key: 'targetCount', label: '目标数量', width: '11%' },
-  { key: 'status', label: '结果', width: '20%' },
-  { key: 'replays', label: '重放', width: '8%' },
-  { key: 'operationId', label: '操作 ID', width: '15%' },
-  { key: 'time', label: '时间', width: '10%' },
-]
-
 const INVITE_COLUMNS: readonly AdminColumn[] = [
-  { key: 'code', label: '邀请码', width: '22%', primary: true },
-  { key: 'status', label: '状态', width: '16%' },
-  { key: 'usedBy', label: '使用者', width: '24%' },
-  { key: 'created', label: '创建时间', width: '18%' },
-  { key: 'actions', label: '操作', width: '20%', actions: true },
+  { key: 'code', label: '邀请码', width: '27%', primary: true },
+  { key: 'status', label: '状态', width: '14%' },
+  { key: 'usedBy', label: '使用者', width: '18%' },
+  { key: 'created', label: '创建时间', width: '23%' },
+  { key: 'actions', label: '操作', width: '18%', actions: true },
 ]
 
 export default function SettingsTab(_props: { highlightNovelId?: string; onHighlightConsumed?: () => void }) {
@@ -141,7 +99,17 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
   const [meUser, setMeUser] = useState<{ id: string; username: string; displayName: string; role: string } | null>(null)
   const [registerMode, setRegisterMode] = useState<'open' | 'invite' | 'closed'>('invite')
   const [inviteCount, setInviteCount] = useState('1')
+  const [inviteSearch, setInviteSearch] = useState('')
+  const [inviteStatus, setInviteStatus] = useState('all')
+  const [invitePage, setInvitePage] = useState(1)
+  const [inviteLimit, setInviteLimit] = useState(ADMIN_DEFAULT_PAGE_SIZE)
+  const [inviteDetail, setInviteDetail] = useState<AccountRecordDetail | null>(null)
+  const [registerSaving, setRegisterSaving] = useState(false)
+  const [inviteBusy, setInviteBusy] = useState(false)
+
   const [generatedCodes, setGeneratedCodes] = useState<string[] | null>(null)
+  const loginAuditRequest = useRef(0)
+  const operationAuditRequest = useRef(0)
   const [loginAudits, setLoginAudits] = useState<LoginAudit[]>([])
   const [loginAuditTotal, setLoginAuditTotal] = useState(0)
   const [loginAuditStatus, setLoginAuditStatus] = useState('all')
@@ -154,6 +122,8 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
   const [operationAudits, setOperationAudits] = useState<AdminOperationAudit[]>([])
   const [operationAuditTotal, setOperationAuditTotal] = useState(0)
   const [operationAuditStatus, setOperationAuditStatus] = useState('all')
+  const [operationAuditUsername, setOperationAuditUsername] = useState('')
+  const debouncedOperationAuditUsername = useDebouncedValue(operationAuditUsername, 400)
   const [operationAuditOffset, setOperationAuditOffset] = useState(0)
   const [operationAuditLimit, setOperationAuditLimit] = useState(ADMIN_DEFAULT_PAGE_SIZE)
   const [operationAuditLoading, setOperationAuditLoading] = useState(false)
@@ -207,6 +177,7 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
   }, [])
 
   const loadLoginAudit = useCallback(async () => {
+    const request = ++loginAuditRequest.current
     setLoginAuditLoading(true)
     try {
       const result = await adminApi.users.loginAudit({
@@ -215,12 +186,13 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
         limit: loginAuditLimit,
         offset: loginAuditOffset,
       })
+      if (request !== loginAuditRequest.current) return
       setLoginAudits(result.audits)
       setLoginAuditTotal(result.total)
     } catch (err) {
-      toast((err as Error).message || '登录审计加载失败', 'error')
+      if (request === loginAuditRequest.current) toast((err as Error).message || '登录审计加载失败', 'error')
     } finally {
-      setLoginAuditLoading(false)
+      if (request === loginAuditRequest.current) setLoginAuditLoading(false)
     }
   }, [loginAuditOffset, loginAuditLimit, loginAuditStatus, debouncedLoginAuditUsername, toast])
 
@@ -229,47 +201,65 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
   }, [loadLoginAudit])
 
   const loadOperationAudit = useCallback(async () => {
+    const request = ++operationAuditRequest.current
     setOperationAuditLoading(true)
     try {
       const result = await adminApi.operationAudit.list({
         status: operationAuditStatus === 'all' ? undefined : operationAuditStatus,
+        username: debouncedOperationAuditUsername.trim() || undefined,
         limit: operationAuditLimit,
         offset: operationAuditOffset,
       })
+      if (request !== operationAuditRequest.current) return
       setOperationAudits(result.operations)
       setOperationAuditTotal(result.total)
     } catch (err) {
-      toast((err as Error).message || '操作审计加载失败', 'error')
+      if (request === operationAuditRequest.current) toast((err as Error).message || '操作审计加载失败', 'error')
     } finally {
-      setOperationAuditLoading(false)
+      if (request === operationAuditRequest.current) setOperationAuditLoading(false)
     }
-  }, [operationAuditOffset, operationAuditLimit, operationAuditStatus, toast])
+  }, [operationAuditOffset, operationAuditLimit, operationAuditStatus, debouncedOperationAuditUsername, toast])
 
   useEffect(() => {
     if (currentAccountTab === 'operation-audit') void loadOperationAudit()
   }, [currentAccountTab, loadOperationAudit])
 
   async function saveRegisterSettings() {
+    if (registerSaving || !data) return
+    const mode = registerMode
+    setRegisterSaving(true)
     try {
-      await adminApi.users.setRegisterMode(registerMode)
+      await adminApi.users.setRegisterMode(mode)
+      setData((previous) => (previous ? { ...previous, settings: { ...previous.settings, registerMode: mode } } : previous))
       toast('注册设置已保存', 'success')
     } catch (err) {
       toast((err as Error).message || '保存失败', 'error')
+    } finally {
+      setRegisterSaving(false)
     }
   }
 
-  // ---------- 邀请码 ----------
-
   async function createInvite() {
+    if (inviteBusy) return
+    const count = Number(inviteCount)
+    if (!Number.isInteger(count) || count < 1 || count > 50) {
+      toast('请输入 1–50 的整数', 'error')
+      return
+    }
+    setInviteBusy(true)
     try {
-      const count = parseInt(inviteCount, 10) || 1
       const res = (await adminApi.users.createInvites(count)) as { code?: string; codes?: string[] }
       const codes = res.codes || (res.code ? [res.code] : [])
       setGeneratedCodes(codes)
+      setInviteSearch('')
+      setInviteStatus('all')
+      setInvitePage(1)
       toast('已生成 ' + codes.length + ' 个邀请码', 'success')
-      void load()
+      await load()
     } catch (err) {
       toast((err as Error).message || '生成失败', 'error')
+    } finally {
+      setInviteBusy(false)
     }
   }
 
@@ -287,20 +277,35 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
   }
 
   async function disableInvite(code: string) {
+    if (inviteBusy) return
+    setInviteBusy(true)
     try {
+      const ok = await confirm({
+        title: '停用邀请码',
+        message: '此邀请码将无法用于新用户注册。',
+        items: [code, '已注册的用户不受影响'],
+        okText: '停用',
+        danger: true,
+      })
+      if (!ok) return
       await adminApi.users.disableInvite(code)
-      void load()
+      toast('邀请码已停用', 'success')
+      await load()
     } catch (err) {
       toast((err as Error).message || '停用失败', 'error')
+    } finally {
+      setInviteBusy(false)
     }
   }
 
   async function clearInvites() {
+    if (inviteBusy) return
     const codes = invites
       .filter((invite) => invite.usedAt > 0 || invite.disabledAt > 0)
       .map((invite) => invite.code)
       .sort()
     if (!codes.length) return
+    setInviteBusy(true)
     const ok = await confirm({
       title: '清理失效邀请码',
       message: `删除确认时的 ${codes.length} 个已使用或已停用邀请码？`,
@@ -308,13 +313,18 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
       okText: '清理',
       danger: true,
     })
-    if (!ok) return
+    if (!ok) {
+      setInviteBusy(false)
+      return
+    }
     try {
       const res = (await adminApi.users.clearInvites(codes, newOperationId('clear-invites'))) as { removed?: number }
       toast('已清理 ' + (res.removed || 0) + ' 个邀请码', 'success')
-      void load()
+      await load()
     } catch (err) {
       toast((err as Error).message || '清理失败', 'error')
+    } finally {
+      setInviteBusy(false)
     }
   }
 
@@ -418,9 +428,14 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
 
   const spent = invites.filter((i) => i.usedAt > 0 || i.disabledAt > 0).length
   const available = invites.length - spent
-  const loginAuditPages = Math.max(1, Math.ceil(loginAuditTotal / loginAuditLimit))
+  const filteredInvites = invites.filter((invite) => {
+    const status = invite.usedAt > 0 ? 'used' : invite.disabledAt > 0 ? 'disabled' : 'available'
+    return (inviteStatus === 'all' || inviteStatus === status) && invite.code.toLowerCase().includes(inviteSearch.trim().toLowerCase())
+  })
+  const invitePages = Math.max(1, Math.ceil(filteredInvites.length / inviteLimit))
+  const visibleInvitePage = Math.min(invitePage, invitePages)
+  const pageInvites = filteredInvites.slice((visibleInvitePage - 1) * inviteLimit, visibleInvitePage * inviteLimit)
   const loginAuditPage = Math.floor(loginAuditOffset / loginAuditLimit) + 1
-  const operationAuditPages = Math.max(1, Math.ceil(operationAuditTotal / operationAuditLimit))
   const operationAuditPage = Math.floor(operationAuditOffset / operationAuditLimit) + 1
 
   function loginAuditStatusLabel(status: string): string {
@@ -428,7 +443,13 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
   }
 
   function loginAuditReasonLabel(reason: string): string {
-    return reason === 'invalid_credentials' ? '账号或密码错误' : reason === 'rate_limited' ? '尝试次数过多' : '登录成功'
+    return reason === 'invalid_credentials'
+      ? '账号或密码错误'
+      : reason === 'rate_limited'
+        ? '尝试次数过多'
+        : reason === 'login' || reason === 'success' || !reason
+          ? '登录成功'
+          : reason
   }
 
   function operationAuditStatusLabel(status: string): string {
@@ -470,9 +491,42 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
             label="搜索用户"
             placeholder="搜索昵称或用户名"
             value={userSearch}
-            onChange={(event) => setUserSearch(event.target.value)}
+            onChange={(e) => setUserSearch(e.target.value)}
           />
-        ) : undefined
+        ) : currentAccountTab === 'registration' ? (
+          <AdminSearch
+            id="account-invite-search"
+            label="搜索邀请码"
+            placeholder="搜索邀请码"
+            value={inviteSearch}
+            onChange={(e) => {
+              setInviteSearch(e.target.value)
+              setInvitePage(1)
+            }}
+          />
+        ) : currentAccountTab === 'audit' ? (
+          <AdminSearch
+            id="account-login-search"
+            label="搜索登录用户名"
+            placeholder="搜索用户名"
+            value={loginAuditUsername}
+            onChange={(e) => {
+              setLoginAuditUsername(e.target.value)
+              setLoginAuditOffset(0)
+            }}
+          />
+        ) : (
+          <AdminSearch
+            id="account-operation-search"
+            label="搜索操作用户名"
+            placeholder="搜索用户名"
+            value={operationAuditUsername}
+            onChange={(e) => {
+              setOperationAuditUsername(e.target.value)
+              setOperationAuditOffset(0)
+            }}
+          />
+        )
       }
     >
       {schemaHealth && !schemaHealth.ok && (
@@ -482,37 +536,47 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
         </div>
       )}
       {currentAccountTab === 'registration' && (
-        <Card className="admin-panel-card">
-          <CardHeader>
-            <CardTitle>注册设置</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <AdminDataPanel className="account-registration-panel" ariaLabel="注册设置">
+          <AdminPanelHeading
+            title="注册设置"
+            status={
+              <AdminStatusBadge tone="info">
+                当前：{REGISTER_MODES.find((mode) => mode.value === data?.settings.registerMode)?.label || '读取中'}
+              </AdminStatusBadge>
+            }
+          />
+          <div className="account-registration-body">
             <RadioGroup
               value={registerMode}
-              onValueChange={(v) => setRegisterMode(v as typeof registerMode)}
-              className="grid gap-3 sm:grid-cols-3"
-              id="registerModeGroup"
+              onValueChange={(value) => setRegisterMode(value as typeof registerMode)}
+              className="account-register-modes"
+              aria-label="注册方式"
+              disabled={loading || registerSaving}
             >
-              {REGISTER_MODES.map((m) => (
-                <label
-                  className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-border bg-card p-3.5 transition-colors has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-accent/40"
-                  key={m.value}
-                >
-                  <RadioGroupItem value={m.value} className="mt-0.5" />
-                  <span className="min-w-0">
-                    <span className="block text-sm font-medium text-foreground">{m.label}</span>
-                    <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">{m.hint}</span>
+              {REGISTER_MODES.map((mode) => (
+                <label className="account-register-mode" key={mode.value}>
+                  <RadioGroupItem value={mode.value} aria-label={`${mode.label} ${mode.hint}`} />
+                  <span>
+                    <strong>{mode.label}</strong>
+                    <small>{mode.hint}</small>
                   </span>
                 </label>
               ))}
             </RadioGroup>
-            <div className="mt-4 flex justify-end">
-              <Button size="sm" onClick={() => void saveRegisterSettings()}>
-                保存设置
+            <div className="account-register-footer">
+              <span>
+                {data && registerMode !== data.settings.registerMode ? '有未保存的修改。已有用户登录不受影响。' : '修改注册方式后，已有用户仍可正常登录。'}
+              </span>
+              <Button
+                size="sm"
+                disabled={!data || loading || registerSaving || registerMode === data.settings.registerMode}
+                onClick={() => void saveRegisterSettings()}
+              >
+                {registerSaving ? '保存中…' : '保存设置'}
               </Button>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </AdminDataPanel>
       )}
 
       {currentAccountTab === 'users' && (
@@ -527,243 +591,67 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
       )}
 
       {currentAccountTab === 'audit' && (
-        <>
-          <AdminToolbar className="account-audit-toolbar" ariaLive="polite">
-            <Select
-              value={loginAuditStatus}
-              onValueChange={(value) => {
-                setLoginAuditStatus(value)
-                setLoginAuditOffset(0)
-              }}
-            >
-              <SelectTrigger className="h-9 w-[124px] bg-background" aria-label="登录结果">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent position="popper" align="start" sideOffset={4}>
-                <SelectItem value="all">全部结果</SelectItem>
-                <SelectItem value="success">成功</SelectItem>
-                <SelectItem value="failure">失败</SelectItem>
-                <SelectItem value="limited">限流</SelectItem>
-              </SelectContent>
-            </Select>
-            <Input
-              className="h-9 w-48"
-              value={loginAuditUsername}
-              placeholder="搜索用户名"
-              aria-label="搜索登录用户名"
-              onChange={(event) => {
-                setLoginAuditUsername(event.target.value)
-                setLoginAuditOffset(0)
-              }}
-            />
-          </AdminToolbar>
-          <AdminDataPanel className="account-audit-panel overflow-hidden" ariaLabel="登录记录列表" columns={LOGIN_AUDIT_COLUMNS}>
-            <AdminPanelHeading
-              title="登录记录"
-              status={
-                <span className="admin-panel-status">
-                  {loginAuditLoading && loginAudits.length === 0 ? '读取中' : loginAudits.length ? `显示 ${loginAudits.length} 条` : '暂无记录'}
-                </span>
-              }
-              actions={
-                <Button variant="secondary" size="sm" onClick={() => void loadLoginAudit()} disabled={loginAuditLoading}>
-                  刷新
-                </Button>
-              }
-            />
-            <Table>
-              <TableCaption className="sr-only">登录记录列表，含用户、结果、原因、IP 地址、User-Agent 与时间；不记录密码或登录令牌。</TableCaption>
-              <TableHeader>
-                <TableRow>
-                  <TableHead scope="col">用户</TableHead>
-                  <TableHead scope="col">结果</TableHead>
-                  <TableHead scope="col">原因</TableHead>
-                  <TableHead scope="col">IP 地址</TableHead>
-                  <TableHead scope="col">User-Agent</TableHead>
-                  <TableHead scope="col">时间</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loginAuditLoading && loginAudits.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="h-20 text-center text-sm text-muted-foreground">
-                      加载中…
-                    </TableCell>
-                  </TableRow>
-                ) : loginAudits.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="h-20 text-center text-sm text-muted-foreground">
-                      暂无登录记录
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  loginAudits.map((audit) => (
-                    <TableRow key={audit.id}>
-                      <TableCell data-primary="" data-label="用户">
-                        <strong>{audit.displayName || audit.username || '未知用户'}</strong>
-                        <div className="text-xs text-muted-foreground">{audit.username || '未知用户名'}</div>
-                      </TableCell>
-                      <TableCell data-label="结果">
-                        <AdminStatusBadge tone={audit.status === 'success' ? 'success' : 'danger'}>{loginAuditStatusLabel(audit.status)}</AdminStatusBadge>
-                      </TableCell>
-                      <TableCell data-label="原因" className="text-sm text-muted-foreground">
-                        {loginAuditReasonLabel(audit.reason)}
-                      </TableCell>
-                      <TableCell data-label="IP 地址">
-                        <code className="text-xs">{audit.ipAddress || '未记录'}</code>
-                      </TableCell>
-                      <TableCell data-label="User-Agent" className="max-w-[260px]">
-                        <code className="block truncate text-xs text-muted-foreground" title={audit.userAgent}>
-                          {audit.userAgent || '未记录'}
-                        </code>
-                      </TableCell>
-                      <TableCell data-label="时间" className="whitespace-nowrap text-sm text-muted-foreground">
-                        {audit.createdAt ? new Date(audit.createdAt).toLocaleString('zh-CN') : '—'}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-            <Pagination
-              page={loginAuditPage}
-              totalPages={loginAuditPages}
-              onPage={(next) => setLoginAuditOffset((next - 1) * loginAuditLimit)}
-              busy={loginAuditLoading}
-              summary={`共 ${loginAuditTotal} 条记录`}
-              pageSize={{
-                value: loginAuditLimit,
-                onChange: (size) => {
-                  setLoginAuditLimit(size)
-                  setLoginAuditOffset(0)
-                },
-                options: ADMIN_PAGE_SIZE_OPTIONS,
-              }}
-            />
-          </AdminDataPanel>
-        </>
+        <AccountAuditPanel
+          kind="login"
+          records={loginAudits}
+          total={loginAuditTotal}
+          loading={loginAuditLoading}
+          status={loginAuditStatus}
+          onStatus={(value) => {
+            setLoginAuditStatus(value)
+            setLoginAuditOffset(0)
+          }}
+          onRefresh={() => void loadLoginAudit()}
+          page={loginAuditPage}
+          limit={loginAuditLimit}
+          onPage={(value) => setLoginAuditOffset((value - 1) * loginAuditLimit)}
+          onLimit={(value) => {
+            setLoginAuditLimit(value)
+            setLoginAuditOffset(0)
+          }}
+          statusLabel={loginAuditStatusLabel}
+          reasonLabel={loginAuditReasonLabel}
+        />
       )}
-
       {currentAccountTab === 'operation-audit' && (
-        <>
-          <AdminToolbar className="account-operation-audit-toolbar" ariaLive="polite">
-            <Select
-              value={operationAuditStatus}
-              onValueChange={(value) => {
-                setOperationAuditStatus(value)
-                setOperationAuditOffset(0)
-              }}
-            >
-              <SelectTrigger className="h-9 w-[124px] bg-background" aria-label="操作结果">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent position="popper" align="start" sideOffset={4}>
-                <SelectItem value="all">全部结果</SelectItem>
-                <SelectItem value="pending">处理中</SelectItem>
-                <SelectItem value="completed">成功</SelectItem>
-                <SelectItem value="failed">失败</SelectItem>
-              </SelectContent>
-            </Select>
-          </AdminToolbar>
-          <AdminDataPanel className="account-operation-audit-panel overflow-hidden" ariaLabel="操作记录列表" columns={OPERATION_AUDIT_COLUMNS}>
-            <AdminPanelHeading
-              title="操作记录"
-              status={
-                <span className="admin-panel-status">
-                  {operationAuditLoading && operationAudits.length === 0 ? '读取中' : operationAudits.length ? `显示 ${operationAudits.length} 条` : '暂无记录'}
-                </span>
-              }
-              actions={
-                <Button variant="secondary" size="sm" onClick={() => void loadOperationAudit()} disabled={operationAuditLoading}>
-                  刷新
-                </Button>
-              }
-            />
-            <Table>
-              <TableCaption className="sr-only">管理员操作记录列表，含操作人、动作、目标数量、结果、重放次数与操作 ID；不保存目标正文或原始内容。</TableCaption>
-              <TableHeader>
-                <TableRow>
-                  <TableHead scope="col">操作人</TableHead>
-                  <TableHead scope="col">动作</TableHead>
-                  <TableHead scope="col">目标数量</TableHead>
-                  <TableHead scope="col">结果</TableHead>
-                  <TableHead scope="col">重放</TableHead>
-                  <TableHead scope="col">操作 ID</TableHead>
-                  <TableHead scope="col">时间</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {operationAuditLoading && operationAudits.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="h-20 text-center text-sm text-muted-foreground">
-                      加载中…
-                    </TableCell>
-                  </TableRow>
-                ) : operationAudits.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="h-20 text-center text-sm text-muted-foreground">
-                      暂无管理员操作记录
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  operationAudits.map((operation) => (
-                    <TableRow key={operation.id}>
-                      <TableCell data-primary="" data-label="操作人">
-                        <strong>{operation.actorDisplayName || operation.actorUsername || '未知管理员'}</strong>
-                        <div className="text-xs text-muted-foreground">{operation.actorUsername || '未知账号'}</div>
-                      </TableCell>
-                      <TableCell data-label="动作" className="whitespace-nowrap">
-                        {operationAuditActionLabel(operation.action)}
-                      </TableCell>
-                      <TableCell data-label="目标数量">{operation.targetCount}</TableCell>
-                      <TableCell data-label="结果">
-                        <AdminStatusBadge tone={operation.status === 'completed' ? 'success' : operation.status === 'failed' ? 'danger' : 'warning'}>
-                          {operationAuditStatusLabel(operation.status)}
-                        </AdminStatusBadge>
-                        {operation.status === 'failed' && operation.error && <div className="mt-1 text-xs text-destructive">{operation.error}</div>}
-                      </TableCell>
-                      <TableCell data-label="重放">{operation.replayCount}</TableCell>
-                      <TableCell data-label="操作 ID" className="max-w-[260px]">
-                        <code className="block truncate text-xs text-muted-foreground" title={operation.operationId}>
-                          {operation.operationId}
-                        </code>
-                      </TableCell>
-                      <TableCell data-label="时间" className="whitespace-nowrap text-sm text-muted-foreground">
-                        {operation.createdAt ? new Date(operation.createdAt).toLocaleString('zh-CN') : '—'}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-            <Pagination
-              page={operationAuditPage}
-              totalPages={operationAuditPages}
-              onPage={(next) => setOperationAuditOffset((next - 1) * operationAuditLimit)}
-              busy={operationAuditLoading}
-              summary={`共 ${operationAuditTotal} 条记录`}
-              pageSize={{
-                value: operationAuditLimit,
-                onChange: (size) => {
-                  setOperationAuditLimit(size)
-                  setOperationAuditOffset(0)
-                },
-                options: ADMIN_PAGE_SIZE_OPTIONS,
-              }}
-            />
-          </AdminDataPanel>
-        </>
+        <AccountAuditPanel
+          kind="operation"
+          records={operationAudits}
+          total={operationAuditTotal}
+          loading={operationAuditLoading}
+          status={operationAuditStatus}
+          onStatus={(value) => {
+            setOperationAuditStatus(value)
+            setOperationAuditOffset(0)
+          }}
+          onRefresh={() => void loadOperationAudit()}
+          page={operationAuditPage}
+          limit={operationAuditLimit}
+          onPage={(value) => setOperationAuditOffset((value - 1) * operationAuditLimit)}
+          onLimit={(value) => {
+            setOperationAuditLimit(value)
+            setOperationAuditOffset(0)
+          }}
+          statusLabel={operationAuditStatusLabel}
+          actionLabel={operationAuditActionLabel}
+        />
       )}
 
       {currentAccountTab === 'registration' && (
         <>
-          <AdminDataPanel className="account-invites-panel overflow-hidden" ariaLabel="邀请码列表" columns={INVITE_COLUMNS}>
+          <AdminDataPanel className="account-invites-panel overflow-hidden" ariaLabel="邀请码列表" columns={INVITE_COLUMNS} density="comfortable">
             <AdminPanelHeading
-              title="邀请码"
-              status={<span className="admin-panel-status">{invites.length ? `共 ${invites.length} 个` : '暂无邀请码'}</span>}
+              title="邀请码目录"
+              status={<span className="admin-panel-status">{filteredInvites.length} 个</span>}
               actions={
                 <>
+                  <Button variant="secondary" size="sm" disabled={loading || inviteBusy} onClick={() => void load()}>
+                    <RefreshCw aria-hidden="true" />
+                    刷新
+                  </Button>
+                  <span className="account-record-secondary">数量</span>
                   <Input
+                    disabled={inviteBusy}
                     type="number"
                     className="admin-input--invite-count"
                     min={1}
@@ -772,12 +660,35 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
                     aria-label="生成邀请码数量"
                     onChange={(e) => setInviteCount(e.target.value)}
                   />
-                  <Button size="sm" onClick={() => void createInvite()}>
+                  <Button size="sm" disabled={loading || inviteBusy} onClick={() => void createInvite()}>
                     生成邀请码
                   </Button>
                 </>
               }
             />
+            <AdminToolbar className="account-record-filters">
+              <span className="account-record-secondary">状态</span>
+              <Select
+                value={inviteStatus}
+                onValueChange={(value) => {
+                  setInviteStatus(value)
+                  setInvitePage(1)
+                }}
+              >
+                <SelectTrigger aria-label="邀请码状态">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent position="popper" align="start">
+                  <SelectItem value="all">全部状态</SelectItem>
+                  <SelectItem value="available">可用</SelectItem>
+                  <SelectItem value="used">已使用</SelectItem>
+                  <SelectItem value="disabled">已停用</SelectItem>
+                </SelectContent>
+              </Select>
+              <span className="account-record-filters__hint">
+                可用 {available} · 已使用 {invites.filter((i) => i.usedAt > 0).length} · 已停用 {invites.filter((i) => !i.usedAt && i.disabledAt > 0).length}
+              </span>
+            </AdminToolbar>
             {generatedCodes && generatedCodes.length > 0 && (
               <div id="tokenStatus" className="account-invites-generated" role="status">
                 <div className="account-invites-generated__codes">
@@ -808,41 +719,68 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
                       加载中…
                     </TableCell>
                   </TableRow>
-                ) : invites.length === 0 ? (
+                ) : pageInvites.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="h-24 text-center text-sm text-muted-foreground">
-                      暂无邀请码
+                      暂无匹配的邀请码
                     </TableCell>
                   </TableRow>
                 ) : (
-                  invites.map((i) => {
+                  pageInvites.map((i) => {
                     const used = i.usedAt > 0
                     const disabled = i.disabledAt > 0
                     return (
                       <TableRow key={i.code}>
                         <TableCell data-primary="" data-label="邀请码">
-                          <code>{i.code}</code>
+                          <code className="account-record-code">{i.code}</code>
                         </TableCell>
                         <TableCell data-label="状态">
                           {used ? (
-                            <AdminStatusBadge tone="success">已使用</AdminStatusBadge>
+                            <AdminStatusBadge tone="neutral">已使用</AdminStatusBadge>
                           ) : disabled ? (
-                            <Badge variant="secondary">已停用</Badge>
+                            <AdminStatusBadge tone="neutral">已停用</AdminStatusBadge>
                           ) : (
-                            <AdminStatusBadge tone="info">可用</AdminStatusBadge>
+                            <AdminStatusBadge tone="success">可用</AdminStatusBadge>
                           )}
                         </TableCell>
                         <TableCell data-label="使用者">{i.usedByName || i.usedBy || '—'}</TableCell>
                         <TableCell data-label="创建时间" className="text-sm text-muted-foreground">
-                          {timeAgo(i.createdAt)}
+                          <AccountRecordDate value={i.createdAt} />
                         </TableCell>
                         <TableCell data-actions="">
                           <div className="admin-cell-actions flex items-center justify-end gap-2">
-                            <Button variant="outline" size="sm" onClick={() => void copyInvite(i.code)}>
+                            <Button variant="ghost" size="sm" onClick={() => void copyInvite(i.code)}>
                               复制
                             </Button>
+                            {(used || disabled) && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() =>
+                                  setInviteDetail({
+                                    title: '邀请码详情',
+                                    fields: [
+                                      ['邀请码', i.code],
+                                      ['状态', used ? '已使用' : '已停用'],
+                                      ['使用者', i.usedByName || i.usedBy || '—'],
+                                      ['创建时间', formatDateTime(i.createdAt)],
+                                      ['使用时间', formatDateTime(i.usedAt)],
+                                      ['停用时间', formatDateTime(i.disabledAt)],
+                                    ],
+                                  })
+                                }
+                              >
+                                详情
+                              </Button>
+                            )}
                             {!used && !disabled && (
-                              <Button variant="outline" size="sm" onClick={() => void disableInvite(i.code)}>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="account-record-danger"
+                                disabled={inviteBusy}
+                                onClick={() => void disableInvite(i.code)}
+                              >
                                 停用
                               </Button>
                             )}
@@ -857,12 +795,33 @@ export default function SettingsTab(_props: { highlightNovelId?: string; onHighl
             <div className="account-settings-panel__footer">
               <span id="inviteStats">{invites.length ? `共 ${invites.length} 个 · 可用 ${available} · 失效 ${spent}` : '暂无邀请码'}</span>
               {spent > 0 && (
-                <Button variant="destructive" size="sm" onClick={() => void clearInvites()}>
+                <Button variant="ghost" size="sm" className="account-record-danger" disabled={inviteBusy} onClick={() => void clearInvites()}>
                   清理失效邀请码
                 </Button>
               )}
             </div>
           </AdminDataPanel>
+          <Pagination
+            variant="detached"
+            page={visibleInvitePage}
+            totalPages={invitePages}
+            onPage={setInvitePage}
+            busy={loading || inviteBusy}
+            summary={`共 ${filteredInvites.length} 个邀请码`}
+            pageSize={{
+              value: inviteLimit,
+              onChange: (value) => {
+                setInviteLimit(value)
+                setInvitePage(1)
+              },
+              options: ADMIN_PAGE_SIZE_OPTIONS,
+            }}
+          />
+          <details className="account-record-note">
+            <summary>注册与邀请说明</summary>
+            <p>邀请码一次使用后即失效。停用不影响已有用户，清理仅处理确认时已使用或已停用的邀请码。</p>
+          </details>
+          <AccountRecordDetails detail={inviteDetail} onClose={() => setInviteDetail(null)} />
         </>
       )}
     </AdminPage>

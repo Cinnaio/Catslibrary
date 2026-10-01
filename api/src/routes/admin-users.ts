@@ -121,7 +121,7 @@ adminUsersRoutes.get('/', async (c) => {
       `SELECT i.*, u.username AS used_username, u.display_name AS used_display_name
        FROM invites i
        LEFT JOIN users u ON u.id = i.used_by
-       ORDER BY i.created_at DESC LIMIT 100`,
+       ORDER BY i.created_at DESC, i.code DESC`,
     ),
     all<Record<string, unknown>>(
       db,

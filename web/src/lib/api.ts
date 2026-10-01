@@ -1073,7 +1073,7 @@ export const adminApi = {
     },
   },
   operationAudit: {
-    list(params: { status?: string; action?: string; limit?: number; offset?: number } = {}): Promise<{
+    list(params: { status?: string; action?: string; username?: string; limit?: number; offset?: number } = {}): Promise<{
       operations: Array<{
         id: string
         operationId: string
@@ -1097,6 +1097,7 @@ export const adminApi = {
       const qs = new URLSearchParams()
       if (params.status) qs.set('status', params.status)
       if (params.action) qs.set('action', params.action)
+      if (params.username) qs.set('username', params.username)
       if (params.limit) qs.set('limit', String(params.limit))
       if (params.offset) qs.set('offset', String(params.offset))
       return request('GET', `/admin/operations${qs.toString() ? '?' + qs : ''}`, null, true)
