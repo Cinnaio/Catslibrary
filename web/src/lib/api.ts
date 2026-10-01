@@ -861,6 +861,9 @@ export interface AdminContentRatingAiLatestBatch {
 
 export const adminApi = {
   site: {
+    traffic(days: import('./site-traffic').TrafficDays = 7): Promise<import('./site-traffic').SiteTraffic> {
+      return request('GET', `/admin/site/traffic?days=${days}`, null, true)
+    },
     overview(): Promise<{
       announcement: string
       metrics: { todayPageViews: number; todayVisitors: number; weekPageViews: number; weekVisitors: number; activeReaders: number }

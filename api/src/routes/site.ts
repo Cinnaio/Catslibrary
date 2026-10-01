@@ -5,6 +5,7 @@ import { first, run } from '../db/query'
 import { requireAdmin, type AuthEnv } from '../middlewares/auth'
 import { hashToken, newId } from '../services/auth'
 import { cleanText } from '../services/text'
+import { siteTraffic } from '../services/site-traffic'
 
 const ANNOUNCEMENT_KEY = 'site_announcement'
 const DAY_MS = 86400000
@@ -55,6 +56,12 @@ siteRoutes.post('/visits', async (c) => {
 
 export const adminSiteRoutes = new Hono<AuthEnv>()
 adminSiteRoutes.use('*', requireAdmin())
+
+adminSiteRoutes.get('/traffic', async (c) => {
+  const value = c.req.query('days') || '7'
+  if (!['7', '30', '90'].includes(value)) return c.json({ error: '时间范围仅支持 7、30 或 90 日' }, 400)
+  return c.json(await siteTraffic(getDb(), Number(value) as 7 | 30 | 90), 200, { 'Cache-Control': 'no-store' })
+})
 
 adminSiteRoutes.get('/', async (c) => {
   const db = getDb()

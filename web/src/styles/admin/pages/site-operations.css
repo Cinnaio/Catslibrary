@@ -1,103 +1,334 @@
-/* 保留运营面板的发丝线表面；指标列数由共用组件按项数提供。 */
-.site-operations__metrics {
+.traffic-workspace {
   display: grid;
-  overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: 0.75rem;
-  background: var(--border);
-  gap: 1px;
+  gap: 20px;
+  min-width: 0;
 }
-
-/* 指标项现在由 AdminMetricStrip 渲染为 .admin-metric-strip__item；
-   此前的 .site-operations__metric（单数）及其子选择器已无 TSX 消费者，
-   随迁移一并删除。 */
-
-.site-operations__country small {
+.site-operations .traffic-panel {
+  border: 0;
+  border-radius: 20px;
+  box-shadow: none;
+  min-width: 0;
+  background: var(--bg-card);
+}
+.traffic-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.traffic-segment {
+  display: inline-flex;
+  padding: 4px;
+  gap: 4px;
+  border-radius: 12px;
+  background: var(--admin-inset);
+  max-width: 100%;
+}
+.traffic-segment button {
+  border-radius: 9px;
+  padding: 8px 14px;
   color: var(--text-muted);
-  font-size: 0.75rem;
-  font-weight: 500;
+  font-size: 13px;
+  white-space: nowrap;
+  transition:
+    background 150ms,
+    color 150ms;
 }
-
-.site-operations__country {
+.traffic-segment button[aria-pressed='true'] {
+  background: var(--bg-card);
+  color: var(--accent);
+  font-weight: 600;
+}
+.traffic-segment button:focus-visible,
+.traffic-share:focus-visible,
+.traffic-details summary:focus-visible,
+.traffic-privacy summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.traffic-window,
+.traffic-compare {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.traffic-compare {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.traffic-compare input {
+  accent-color: var(--accent);
+  width: 15px;
+  height: 15px;
+}
+.traffic-trend-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 20px;
+  padding: 0 0 24px;
+}
+.traffic-chart {
+  width: 100%;
+  height: 260px;
+}
+.traffic-changes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.traffic-changes small {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.traffic-legend {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.traffic-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.traffic-legend i {
+  width: 16px;
+  border-top: 2px solid var(--accent);
+}
+.traffic-legend .traffic-legend__uv {
+  border-color: var(--color-success);
+}
+.traffic-legend .traffic-legend__previous {
+  border-top-style: dashed;
+  opacity: 0.6;
+}
+.traffic-tooltip {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  padding: 12px;
+  font-size: 12px;
+}
+.traffic-tooltip p {
+  margin: 5px 0;
+}
+.traffic-trend-note {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 18px 0;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.traffic-details {
+  border-top: 1px solid var(--border);
+}
+.traffic-details summary,
+.traffic-privacy summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  list-style: none;
+  font-size: 12px;
+  padding: 14px 0;
+}
+.traffic-details summary::-webkit-details-marker,
+.traffic-privacy summary::-webkit-details-marker {
+  display: none;
+}
+.traffic-details[open] summary svg,
+.traffic-privacy[open] summary svg {
+  transform: rotate(180deg);
+}
+.traffic-table-scroll {
+  overflow-x: auto;
+}
+.traffic-details table {
+  width: 100%;
+  font-size: 12px;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.traffic-details td,
+.traffic-details th {
+  padding: 12px 8px;
+  border-top: 1px solid var(--border);
+  text-align: right;
+  white-space: nowrap;
+}
+.traffic-details td:first-child,
+.traffic-details th:first-child {
+  text-align: left;
+}
+.traffic-details td small {
+  display: block;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+.traffic-dimensions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+}
+.traffic-coverage {
+  color: var(--text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.traffic-shares {
+  display: grid;
+  gap: 8px;
+}
+.traffic-share {
+  width: 100%;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.4rem 0.75rem;
-  align-items: center;
-  font-size: 0.875rem;
+  gap: 10px 12px;
+  text-align: left;
+  padding: 8px 0;
+  border-radius: 4px;
+  font-size: 12px;
 }
-
-.site-operations__country > span {
+.traffic-share > span:first-child {
   overflow: hidden;
-  color: var(--text-primary);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
-.site-operations__country > strong {
-  color: var(--text-muted);
-  font-size: 0.75rem;
+.traffic-share > span:nth-child(2) {
   font-variant-numeric: tabular-nums;
-  font-weight: 500;
 }
-
-.site-operations__country > div {
-  grid-column: 1 / -1;
-  height: 0.25rem;
-  overflow: hidden;
-  border-radius: 999px;
-  /* --admin-inset 是后台专用的凹槽底色；原 --bg-muted 未定义，进度条底槽
-     一直不可见，填充量因此无从判断。 */
+.traffic-share small {
+  color: var(--text-muted);
+  margin-left: 8px;
+  font-size: 11px;
+}
+.traffic-share__track {
+  height: 4px;
   background: var(--admin-inset);
+  grid-column: 1 / -1;
+  border-radius: 4px;
+  overflow: hidden;
 }
-
-.site-operations__country i {
+.traffic-share__track i {
   display: block;
   height: 100%;
-  min-width: 0.5rem;
-  border-radius: inherit;
   background: var(--accent);
+  border-radius: inherit;
 }
-
-.site-operations__geo-empty {
-  display: flex;
-  min-height: 8rem;
-  align-items: center;
-  gap: 0.75rem;
-  border: 1px dashed var(--border);
-  border-radius: 0.5rem;
-  padding: 1rem;
+.traffic-share:hover > span:first-child {
+  color: var(--accent);
+}
+.traffic-empty {
+  color: var(--text-muted);
+  padding: 24px 0;
+  text-align: center;
+  font-size: 13px;
+}
+.traffic-empty--chart {
+  min-height: 260px;
+  display: grid;
+  place-content: center;
+}
+.traffic-region-empty {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  color: var(--text-muted);
+  padding-bottom: 12px;
+}
+.traffic-region-empty strong {
+  color: var(--text-primary);
+  font-size: 13px;
+}
+.traffic-region-empty p {
+  font-size: 12px;
+  line-height: 1.6;
+}
+.traffic-privacy {
   color: var(--text-muted);
 }
-
-.site-operations__geo-empty strong {
-  display: block;
-  color: var(--text-primary);
-  font-size: 0.875rem;
+.traffic-privacy summary {
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 0 0 8px;
 }
-
-.site-operations__geo-empty p {
-  margin: 0.25rem 0 0;
-  font-size: 0.75rem;
-  line-height: 1.55;
+.traffic-privacy p {
+  font-size: 12px;
+  line-height: 1.8;
+  margin: 8px 0;
 }
-
-@media (max-width: 640px) {
-  .site-operations__panel {
-    min-height: 0;
-  }
-
-  .site-operations__metrics {
+.traffic-error {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--color-danger, var(--text-primary));
+}
+.traffic-dialog-total {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+.traffic-dialog-total strong {
+  font-size: 32px;
+  font-variant-numeric: tabular-nums;
+}
+.traffic-dialog-total small,
+.traffic-dialog-total span {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+@media (max-width: 1100px) {
+  .traffic-dimensions {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  .traffic-dimensions > :first-child {
+    grid-column: 1 / -1;
+  }
 }
-
-@media (min-width: 641px) and (max-width: 1100px) {
-  /* 5 项指标在中窄屏由 .admin-metric-strip 的列数变量 + 640px 覆盖处理；
-     此前的 .site-operations__metrics--five 类名在 TSX 中不存在，规则永不命中。 */
+@media (max-width: 640px) {
+  .traffic-workspace,
+  .traffic-dimensions {
+    gap: 16px;
+  }
+  .traffic-dimensions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .traffic-toolbar {
+    gap: 12px;
+  }
+  .traffic-window {
+    width: 100%;
+    order: 3;
+  }
+  .traffic-compare {
+    margin-left: 0;
+  }
+  .traffic-segment button {
+    padding: 8px 10px;
+  }
+  .traffic-trend-tools {
+    gap: 16px;
+  }
+  .traffic-chart {
+    height: 220px;
+  }
 }
-
 @media (prefers-reduced-motion: reduce) {
-  .novel-row--highlight td {
-    animation: none;
+  .traffic-segment button {
+    transition: none;
   }
 }

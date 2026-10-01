@@ -2,6 +2,12 @@ import { describe, expect, it } from 'vitest'
 import { adminTabPath, getTabLabel, isAdminTab, NAV_GROUPS } from './admin-registry'
 
 describe('admin registry routes', () => {
+  it('站点运营导航只保留流量分析', () => {
+    const operations = NAV_GROUPS.flatMap((group) => group.items).find((item) => item.id === 'site-operations')
+    expect(operations?.children?.map((child) => ({ label: child.label, to: child.to }))).toEqual([
+      { label: '流量分析', to: '/admin/site-operations?view=traffic' },
+    ])
+  })
   it('识别有效后台模块并生成稳定地址', () => {
     expect(isAdminTab('dashboard')).toBe(true)
     expect(isAdminTab('content-policy')).toBe(true)

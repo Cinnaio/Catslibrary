@@ -104,11 +104,7 @@ export const NAV_GROUPS: Array<{ label: string; items: AdminNavItem[] }> = [
         id: 'site-operations',
         label: '站点运营',
         icon: BarChart3,
-        children: [
-          { id: 'site-overview', label: '运营概览', to: `${adminTabPath('site-operations')}?view=overview` },
-          { id: 'site-traffic', label: '流量分析', to: `${adminTabPath('site-operations')}?view=traffic` },
-          { id: 'site-content', label: '内容分析', to: `${adminTabPath('site-operations')}?view=content` },
-        ],
+        children: [{ id: 'site-traffic', label: '流量分析', to: `${adminTabPath('site-operations')}?view=traffic` }],
       },
       {
         id: 'settings',
