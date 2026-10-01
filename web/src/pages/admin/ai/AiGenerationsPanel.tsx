@@ -409,7 +409,7 @@ export default function AiGenerationsPanel(props: {
           {loading && items.length === 0 ? (
             <LoadingState label="正在加载已生成内容" />
           ) : error && items.length === 0 ? (
-            <ErrorState message={error} onRetry={() => void load()} />
+            <ErrorState message={`生成内容加载失败：${error}`} onRetry={() => void load()} />
           ) : items.length === 0 ? (
             <AiPanelEmptyState
               configured={configured}

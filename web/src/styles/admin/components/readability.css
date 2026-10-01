@@ -88,6 +88,18 @@
   color: var(--text-secondary);
 }
 
+/* 首屏读取失败与抓取任务使用同一居中空态；原因文字保持次级色，仅图标表达错误。 */
+.admin-read-error {
+  min-height: 14rem;
+  padding: 2.5rem 1.25rem;
+  color: var(--color-danger);
+}
+
+.admin-read-error .admin-empty-state__message {
+  max-width: 48rem;
+  overflow-wrap: anywhere;
+}
+
 .admin-empty-state__hint {
   max-width: 32rem;
   margin-top: -0.375rem;

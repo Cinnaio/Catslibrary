@@ -22,22 +22,12 @@ interface AdminEmptyStateProps {
   icon?: ReactNode
   action?: ReactNode
   className?: string
+  role?: 'alert' | 'status'
 }
 
-export default function AdminEmptyState({
-  message,
-  hint,
-  icon,
-  action,
-  className,
-}: AdminEmptyStateProps) {
+export default function AdminEmptyState({ message, hint, icon, action, className, role }: AdminEmptyStateProps) {
   return (
-    <div
-      className={cn(
-        'admin-empty-state flex flex-col items-center justify-center gap-3 py-12 text-center text-muted-foreground',
-        className,
-      )}
-    >
+    <div role={role} className={cn('admin-empty-state flex flex-col items-center justify-center gap-3 py-12 text-center text-muted-foreground', className)}>
       {icon ?? <BookOpen className="size-8 opacity-40" aria-hidden="true" />}
       <p className="admin-empty-state__message">{message}</p>
       {hint && <p className="admin-empty-state__hint">{hint}</p>}

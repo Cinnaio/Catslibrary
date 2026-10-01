@@ -243,7 +243,3 @@
   font-size: 0.8rem;
   line-height: 1.6;
 }
-
-.admin-redesign-page--moderation .moderation-empty--error strong {
-  color: var(--color-danger);
-}

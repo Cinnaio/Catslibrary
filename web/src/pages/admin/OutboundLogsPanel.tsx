@@ -3,6 +3,7 @@ import { LoaderCircle, RefreshCw, ScrollText } from 'lucide-react'
 import { scrapeApi } from '@/lib/api'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import AdminEmptyState from '@/components/admin/AdminEmptyState'
+import { ErrorState, InlineError } from '@/components/admin/AsyncStates'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { AdminDataPanel, AdminPanelHeading, type AdminColumn } from '@/components/admin/AdminWorkspace'
@@ -52,19 +53,23 @@ export default function OutboundLogsPanel() {
     <AdminDataPanel className="proxy-logs-panel overflow-hidden" ariaLabel="出站请求日志" columns={LOG_COLUMNS}>
       <AdminPanelHeading
         title="出站请求"
+        status={
+          <AdminStatusBadge tone={error && !logs.length ? 'danger' : 'muted'}>
+            {logsLoading ? '读取中' : error && !logs.length ? '读取失败' : logs.length ? `显示 ${logs.length} 条` : '暂无内容'}
+          </AdminStatusBadge>
+        }
         actions={
-          <Button variant="ghost" size="icon" onClick={() => void loadLogs()} disabled={logsLoading} title="刷新日志" aria-label="刷新日志">
+          <Button variant="outline" size="sm" onClick={() => void loadLogs()} disabled={logsLoading} title="刷新日志" aria-label="刷新日志">
             <RefreshCw className={`size-4 ${logsLoading ? 'animate-spin' : ''}`} aria-hidden="true" />
+            刷新
           </Button>
         }
       />
-      {error && (
-        <p role="alert" className="px-5 py-3 text-sm text-destructive">
-          {error}；可点击刷新重试。
-        </p>
-      )}
+      {error && logs.length > 0 && <InlineError message={`出站请求记录加载失败：${error}`} onRetry={() => void loadLogs()} className="mx-5 my-3" />}
       {logsLoading && !logs.length ? (
         <AdminEmptyState icon={<LoaderCircle className="size-8 animate-spin opacity-40" aria-hidden="true" />} message="正在读取出站请求记录…" />
+      ) : error && !logs.length ? (
+        <ErrorState message={`出站请求记录加载失败：${error}`} />
       ) : !logs.length ? (
         <AdminEmptyState icon={<ScrollText className="size-8 opacity-40" aria-hidden="true" />} message="暂无出站请求记录" />
       ) : (

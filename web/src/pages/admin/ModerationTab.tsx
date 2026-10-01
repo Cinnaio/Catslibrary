@@ -9,6 +9,7 @@ import { adminApi, thoughtsApi, url } from '../../lib/api'
 import { timeAgo } from '../../lib/format'
 import { useConfirm, useToast } from '../../components/feedback'
 import AdminPage from '@/components/admin/AdminPage'
+import { ErrorState } from '@/components/admin/AsyncStates'
 import AdminRowActions from '@/components/admin/AdminRowActions'
 import CustomSelect from '../../components/admin/CustomSelect'
 import { AdminDataPanel, AdminPanelHeading, AdminSearch, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
@@ -667,8 +668,10 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
             </TableHeader>
             <TableBody>{renderRows()}</TableBody>
           </Table>
+        ) : error && !loading ? (
+          <ErrorState message={`审核队列加载失败：${error}`} />
         ) : (
-          <div className={`moderation-empty${error ? ' moderation-empty--error' : ''}`} role={error ? 'alert' : 'status'}>
+          <div className="moderation-empty" role="status">
             <strong>{listStateTitle}</strong>
             <p>{listStateDescription}</p>
           </div>

@@ -78,6 +78,32 @@ describe('monitoring navigation', () => {
     expect(screen.getByRole('tab', { name: 'AI 任务' })).toHaveAttribute('aria-selected', 'true')
   })
 
+  it('AI 与抓取任务首次读取失败复用同一空态，摘要显示原因且不重复重试入口', async () => {
+    vi.mocked(aiApi.tasks).mockRejectedValue(new Error('需要管理员登录'))
+    vi.mocked(scrapeApi.jobs).mockRejectedValue(new Error('需要管理员登录'))
+    mount(<TaskCenterTab />, '/admin/tasks?view=ai')
+    const aiError = await screen.findByRole('alert')
+    expect(aiError).toHaveClass('admin-read-error', 'admin-empty-state')
+    expect(aiError).toHaveTextContent('AI 任务加载失败：需要管理员登录')
+    expect(screen.getByText('需要管理员登录', { selector: '.task-workspace-summary p' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^重试$/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^刷新$/ })).toBeEnabled()
+
+    fireEvent.mouseDown(screen.getByRole('tab', { name: '抓取任务' }))
+    fireEvent.click(screen.getByRole('tab', { name: '抓取任务' }))
+    const scrapeError = await screen.findByRole('alert')
+    expect(scrapeError).toHaveClass('admin-read-error', 'admin-empty-state')
+    expect(scrapeError).toHaveTextContent('任务队列加载失败：需要管理员登录')
+  })
+
+  it('下载记录读取失败展示原因，不显示正常摘要', async () => {
+    vi.mocked(downloadLogsApi.list).mockRejectedValueOnce(new Error('需要管理员登录'))
+    mount(<TaskCenterTab />, '/admin/tasks?view=downloads')
+    expect(await screen.findByRole('alert')).toHaveTextContent('下载日志加载失败：需要管理员登录')
+    expect(screen.getByRole('heading', { name: '下载日志读取失败' })).toBeInTheDocument()
+    expect(screen.getByText('需要管理员登录', { selector: '.task-workspace-summary p' })).toBeInTheDocument()
+  })
+
   it('用量趋势与调用明细共享时间范围，切换后重置分页', async () => {
     mount(<CallsTab />, '/admin/calls?days=7')
     await waitFor(() => expect(aiApi.audit.calls).toHaveBeenCalled())
@@ -95,11 +121,53 @@ describe('monitoring navigation', () => {
   it('出站请求失败可刷新恢复，并且不加载 AI 用量', async () => {
     vi.mocked(scrapeApi.proxyLogs).mockRejectedValueOnce(new Error('请求失败'))
     mount(<CallsTab />, '/admin/calls?view=outbound')
-    await screen.findByRole('alert')
+    expect(await screen.findByRole('alert')).toHaveClass('admin-read-error')
+    expect(screen.queryByText('暂无出站请求记录')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '刷新日志' }))
     await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
     expect(aiApi.audit.calls).not.toHaveBeenCalled()
     expect(scrapeApi.proxyLogs).toHaveBeenLastCalledWith(100)
+  })
+
+  it('用量首次读取失败不显示零读数，面板刷新恢复两张趋势', async () => {
+    vi.mocked(aiApi.audit.trend).mockRejectedValueOnce(new Error('需要管理员登录'))
+    mount(<CallsTab />, '/admin/calls?days=30')
+    await screen.findByText('用量趋势加载失败：需要管理员登录')
+    expect(screen.queryByText('总调用')).not.toBeInTheDocument()
+    expect(screen.queryByText('总 Token')).not.toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /^重试$/ })).toHaveLength(1)
+    fireEvent.click(screen.getByRole('button', { name: '刷新用量趋势' }))
+    await waitFor(() => expect(screen.queryByText('用量趋势加载失败：需要管理员登录')).not.toBeInTheDocument())
+    expect(screen.queryByText('用量统计加载失败：需要管理员登录')).not.toBeInTheDocument()
+    expect(aiApi.audit.trend).toHaveBeenCalledTimes(2)
+  })
+
+  it('调用记录刷新失败保留已有记录，刷新只读取明细', async () => {
+    vi.mocked(aiApi.audit.calls).mockResolvedValue({
+      calls: [
+        {
+          id: 'call-1',
+          type: 'continue',
+          displayName: '林舟',
+          novelTitle: '长风渡月',
+          promptTokens: 1200,
+          completionTokens: 300,
+          imageCount: 0,
+          costMillicents: 200,
+          createdAt: Date.now(),
+        },
+      ],
+      total: 81,
+    } as never)
+    mount(<CallsTab />, '/admin/calls')
+    await screen.findByText('长风渡月')
+    expect(screen.getByText('共 81 条')).toBeInTheDocument()
+    vi.mocked(aiApi.audit.calls).mockRejectedValueOnce(new Error('网络超时'))
+    fireEvent.click(screen.getByRole('button', { name: '刷新调用记录' }))
+    await screen.findByText('网络超时')
+    expect(screen.getByText('长风渡月')).toBeInTheDocument()
+    expect(aiApi.audit.calls).toHaveBeenCalledTimes(2)
+    expect(aiApi.audit.trend).toHaveBeenCalledTimes(1)
   })
   it('抓取详情中的终止保留确认与真实请求，数值零不被旧章节数替代', async () => {
     vi.mocked(scrapeApi.jobs).mockResolvedValue({

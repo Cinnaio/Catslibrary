@@ -207,7 +207,7 @@ function RuleCandidatePanel({
         }
       />
       {error ? (
-        <InlineError message={`规则候选加载失败：${error}`} onRetry={onRetry} className="mx-5 my-4" />
+        <ErrorState message={`规则候选加载失败：${error}`} onRetry={onRetry} />
       ) : loading ? (
         <LoadingState label="正在加载规则候选" rows={2} />
       ) : !data || data.items.length === 0 ? (
@@ -401,7 +401,7 @@ function AiSuggestionPanel({
       />
       <AiTaskProgressBar task={task} progress={progress} onCancel={onCancel} onResume={onResume} cancelling={cancelling} resuming={resuming} />
       {error ? (
-        <InlineError message={`LLM 建议加载失败：${error}`} onRetry={onRetry} className="mx-5 my-4" />
+        <ErrorState message={`LLM 建议加载失败：${error}`} onRetry={onRetry} />
       ) : loading && !data ? (
         <LoadingState label="正在加载 LLM 分级建议" rows={2} />
       ) : !data || data.items.length === 0 ? (

@@ -1,5 +1,6 @@
 /** 用量统计：成本/调用趋势与 Token 消耗趋势图表。 */
 import { useCallback, useEffect, useState } from 'react'
+import { RefreshCw } from 'lucide-react'
 import { Area, AreaChart, Bar, CartesianGrid, ComposedChart, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { aiApi } from '@/lib/api'
 import { ErrorState, InlineError, LoadingState } from '@/components/admin/AsyncStates'
@@ -73,26 +74,13 @@ export default function AiUsagePanel({ days: selectedDays }: { days?: number } =
   const chartData = buildChartSeries(trend, days)
 
   return (
-    <div className="space-y-4">
+    <div className="calls-trend-grid">
       {/* 合计读数贴在它汇总的那张图上：这是数字唯一的去处，切到别的天数区间它就会
           跟着变。原先它被抬成独立的 AdminMetricStrip，与这张图的标题各说一遍同一
           件事（见 DESIGN.md 的 The No-Third-Pass Rule）。 */}
       <AdminDataPanel className="ai-usage-card" ariaLabel="成本与调用趋势">
         <AdminPanelHeading
           title="成本与调用趋势"
-          status={
-            <span className="ai-usage-totals">
-              <span>
-                总调用 <strong>{totalCalls.toLocaleString()}</strong>
-              </span>
-              <span>
-                总成本 <strong>{formatCost(totalCost)}</strong>
-              </span>
-              <span>
-                平均单次 <strong>{formatCost(avgCost)}</strong>
-              </span>
-            </span>
-          }
           actions={
             selectedDays == null ? (
               <div className="flex gap-2">
@@ -102,14 +90,31 @@ export default function AiUsagePanel({ days: selectedDays }: { days?: number } =
                   </Button>
                 ))}
               </div>
-            ) : undefined
+            ) : (
+              <Button variant="ghost" size="icon" onClick={() => void loadTrend()} disabled={loading} aria-label="刷新用量趋势" title="刷新用量趋势">
+                <RefreshCw className={`size-4 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
+              </Button>
+            )
           }
         />
-        <div className="min-w-0 p-6">
+        {!(trend.length === 0 && (loading || error)) && (
+          <span className="ai-usage-totals">
+            <span>
+              总调用 <strong>{totalCalls.toLocaleString()}</strong>
+            </span>
+            <span>
+              总成本 <strong>{formatCost(totalCost)}</strong>
+            </span>
+            <span>
+              平均单次 <strong>{formatCost(avgCost)}</strong>
+            </span>
+          </span>
+        )}
+        <div className="calls-chart-body">
           {loading && trend.length === 0 ? (
-            <LoadingState label="正在加载用量趋势" className="h-80" />
+            <LoadingState label="正在加载用量趋势" className="calls-chart-state" />
           ) : error && trend.length === 0 ? (
-            <ErrorState message={error} onRetry={() => void loadTrend()} className="h-80" />
+            <ErrorState message={`用量趋势加载失败：${error}`} className="calls-chart-state" />
           ) : trend.length === 0 ? (
             <AiPanelEmptyState
               configured={configured}
@@ -121,27 +126,26 @@ export default function AiUsagePanel({ days: selectedDays }: { days?: number } =
           ) : (
             <>
               {error && <InlineError message={error} onRetry={() => void loadTrend()} className="mb-3" />}
-              <div className="h-80 w-full">
+              <div className="calls-chart">
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                     <defs>
                       <linearGradient id="costGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="var(--accent)" stopOpacity={0.3} />
+                        <stop offset="5%" stopColor="var(--accent)" stopOpacity={0.2} />
                         <stop offset="95%" stopColor="var(--accent)" stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid {...chartGrid} />
-                    <XAxis dataKey="date" tick={chartTick} tickLine={false} axisLine={chartAxisLine} minTickGap={24} />
-                    <YAxis yAxisId="calls" tick={chartTick} tickLine={false} axisLine={false} width={40} />
-                    <YAxis
-                      yAxisId="cost"
-                      orientation="right"
+                    <XAxis
+                      dataKey="date"
+                      tickFormatter={(date: string) => date.slice(5).replace('-', '/')}
                       tick={chartTick}
                       tickLine={false}
-                      axisLine={false}
-                      width={60}
-                      tickFormatter={(v: number) => formatCost(v)}
+                      axisLine={chartAxisLine}
+                      minTickGap={24}
                     />
+                    <YAxis yAxisId="calls" orientation="right" tick={chartTick} tickLine={false} axisLine={false} width={40} allowDecimals={false} />
+                    <YAxis yAxisId="cost" tick={chartTick} tickLine={false} axisLine={false} width={60} tickFormatter={(v: number) => formatCost(v)} />
                     <Tooltip
                       contentStyle={chartTooltipStyle}
                       labelStyle={chartTooltipLabelStyle}
@@ -151,7 +155,7 @@ export default function AiUsagePanel({ days: selectedDays }: { days?: number } =
                       }}
                     />
                     <Legend wrapperStyle={chartLegendStyle} iconType="circle" />
-                    <Bar yAxisId="calls" dataKey="calls" name="调用次数" fill="var(--color-success)" radius={[3, 3, 0, 0]} opacity={0.7} />
+                    <Bar yAxisId="calls" dataKey="calls" name="调用次数" fill="var(--accent)" radius={[3, 3, 0, 0]} opacity={0.2} />
                     <Area
                       yAxisId="cost"
                       type="monotone"
@@ -171,21 +175,19 @@ export default function AiUsagePanel({ days: selectedDays }: { days?: number } =
 
       {/* Token 消耗趋势 */}
       <AdminDataPanel className="ai-usage-card" ariaLabel="Token 消耗趋势">
-        <AdminPanelHeading
-          title="Token 消耗趋势"
-          status={
-            <span className="ai-usage-totals">
-              <span>
-                总 Token <strong>{totalTokens.toLocaleString()}</strong>
-              </span>
+        <AdminPanelHeading title="Token 消耗趋势" />
+        {!(trend.length === 0 && (loading || error)) && (
+          <span className="ai-usage-totals">
+            <span>
+              总 Token <strong>{totalTokens.toLocaleString()}</strong>
             </span>
-          }
-        />
-        <div className="p-6">
+          </span>
+        )}
+        <div className="calls-chart-body">
           {loading && trend.length === 0 ? (
-            <LoadingState label="正在加载 Token 趋势" className="h-64" />
+            <LoadingState label="正在加载 Token 趋势" className="calls-chart-state" />
           ) : error && trend.length === 0 ? (
-            <ErrorState message={error} onRetry={() => void loadTrend()} className="h-64" />
+            <ErrorState message={`用量统计加载失败：${error}`} onRetry={() => void loadTrend()} className="calls-chart-state" />
           ) : trend.length === 0 ? (
             <AiPanelEmptyState
               configured={configured}
@@ -197,21 +199,28 @@ export default function AiUsagePanel({ days: selectedDays }: { days?: number } =
           ) : (
             <>
               {error && <InlineError message={error} onRetry={() => void loadTrend()} className="mb-3" />}
-              <div className="h-64 w-full">
+              <div className="calls-chart">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                     <defs>
                       <linearGradient id="promptGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="var(--color-success)" stopOpacity={0.4} />
+                        <stop offset="5%" stopColor="var(--color-success)" stopOpacity={0.2} />
                         <stop offset="95%" stopColor="var(--color-success)" stopOpacity={0} />
                       </linearGradient>
                       <linearGradient id="completionGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="var(--color-info)" stopOpacity={0.4} />
+                        <stop offset="5%" stopColor="var(--color-info)" stopOpacity={0.2} />
                         <stop offset="95%" stopColor="var(--color-info)" stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid {...chartGrid} />
-                    <XAxis dataKey="date" tick={chartTick} tickLine={false} axisLine={chartAxisLine} minTickGap={24} />
+                    <XAxis
+                      dataKey="date"
+                      tickFormatter={(date: string) => date.slice(5).replace('-', '/')}
+                      tick={chartTick}
+                      tickLine={false}
+                      axisLine={chartAxisLine}
+                      minTickGap={24}
+                    />
                     <YAxis
                       tick={chartTick}
                       tickLine={false}

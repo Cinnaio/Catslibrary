@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { ChevronRight } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import AdminPage from '@/components/admin/AdminPage'
 import { Button } from '@/components/ui/button'
@@ -26,24 +27,21 @@ export default function CallsTab() {
           <TabsTrigger value="outbound">出站请求</TabsTrigger>
         </TabsList>
         <TabsContent value="ai" className="ai-service ai-admin-page grid gap-4 min-w-0">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm text-muted-foreground">趋势与明细均显示最近 {days} 天；类型筛选仅作用于明细。</p>
-            <div className="flex gap-2" role="group" aria-label="调用时间范围">
+          <div className="calls-range-row">
+            <p>最近 {days} 天 · 时间范围同时作用于趋势与明细</p>
+            <div className="calls-range-control" role="group" aria-label="调用时间范围">
               {[7, 30, 90].map((value) => (
-                <Button
-                  key={value}
-                  size="sm"
-                  variant={days === value ? 'default' : 'outline'}
-                  aria-pressed={days === value}
-                  onClick={() => update('days', String(value))}
-                >
+                <Button key={value} size="sm" variant="ghost" aria-pressed={days === value} onClick={() => update('days', String(value))}>
                   {value} 天
                 </Button>
               ))}
             </div>
           </div>
           <details open className="admin-monitoring-trends">
-            <summary>用量趋势</summary>
+            <summary>
+              <ChevronRight aria-hidden="true" />
+              用量趋势
+            </summary>
             <AiUsagePanel key={days} days={days} />
           </details>
           <AiAuditPanel key={days} from={from} />

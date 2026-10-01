@@ -1,6 +1,7 @@
 /** 调用审计：分页调用记录，行可展开详情。 */
 import { Fragment, useCallback, useEffect, useState } from 'react'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, RefreshCw } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { aiApi } from '@/lib/api'
 import { ErrorState, InlineError, LoadingState } from '@/components/admin/AsyncStates'
 import Pagination from '@/components/admin/Pagination'
@@ -84,8 +85,13 @@ export default function AiAuditPanel({ from }: { from?: number } = {}) {
           title="调用记录"
           status={
             <span className={`admin-panel-status${error && calls.length === 0 ? ' is-error' : ''}`}>
-              {loading && calls.length === 0 ? '读取中' : error && calls.length === 0 ? '读取失败' : calls.length ? `显示 ${calls.length} 条` : '暂无内容'}
+              {loading && calls.length === 0 ? '读取中' : error && calls.length === 0 ? '读取失败' : calls.length ? `共 ${total} 条` : '暂无内容'}
             </span>
+          }
+          actions={
+            <Button variant="ghost" size="icon" onClick={() => void loadCalls()} disabled={loading} aria-label="刷新调用记录" title="刷新调用记录">
+              <RefreshCw className={`size-4 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
+            </Button>
           }
         />
         {/* 类型筛选只作用于本面板的调用记录，与标题、表格同属一个面板。 */}
@@ -104,7 +110,7 @@ export default function AiAuditPanel({ from }: { from?: number } = {}) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent position="popper" align="end" sideOffset={4}>
-              <SelectItem value="all">全部</SelectItem>
+              <SelectItem value="all">全部类型</SelectItem>
               <SelectItem value="summary">前情提要</SelectItem>
               <SelectItem value="catchup">回顾总结</SelectItem>
               <SelectItem value="continue">续写</SelectItem>
@@ -116,12 +122,14 @@ export default function AiAuditPanel({ from }: { from?: number } = {}) {
               <SelectItem value="test">连通性测试</SelectItem>
             </SelectContent>
           </Select>
+          <span className="calls-audit-scope">类型筛选仅作用于调用记录</span>
         </AdminToolbar>
+        {calls.length > 0 && <p className="calls-audit-scroll-hint">左右滑动查看全部字段，点击记录展开详情。</p>}
         <div className="ai-list-body">
           {loading && calls.length === 0 ? (
             <LoadingState label="正在加载调用记录" />
           ) : error && calls.length === 0 ? (
-            <ErrorState message={error} onRetry={() => void loadCalls()} />
+            <ErrorState message={`调用记录加载失败：${error}`} />
           ) : calls.length === 0 ? (
             <AiPanelEmptyState
               configured={configured}
@@ -138,6 +146,14 @@ export default function AiAuditPanel({ from }: { from?: number } = {}) {
                   并给容器横向滚动边界。 */}
               <div className="ai-audit-table">
                 <table className="ai-audit-table__table">
+                  <colgroup>
+                    <col style={{ width: '17%' }} />
+                    <col style={{ width: '13%' }} />
+                    <col style={{ width: '26%' }} />
+                    <col style={{ width: '16%' }} />
+                    <col style={{ width: '12%' }} />
+                    <col style={{ width: '16%' }} />
+                  </colgroup>
                   {/* caption 只给表格名称与交互提示。列名由 <th scope="col"> 完整提供，
                       在此复述会让读屏用户先听一遍列名、再听一遍表头。 */}
                   <caption className="sr-only">AI 调用记录，行可展开查看详情</caption>
@@ -199,11 +215,7 @@ export default function AiAuditPanel({ from }: { from?: number } = {}) {
                             <td>
                               <div className="ai-audit-cell__content">
                                 <div className="ai-audit-cell__name">{call.novelTitle || <span className="ai-audit-cell__muted">—</span>}</div>
-                                {call.chapterTitle && (
-                                  <div className="ai-audit-cell__sub">
-                                    <span aria-hidden="true">📖</span> {call.chapterTitle}
-                                  </div>
-                                )}
+                                {call.chapterTitle && <div className="ai-audit-cell__sub">{call.chapterTitle}</div>}
                               </div>
                             </td>
                             <td className="is-numeric">

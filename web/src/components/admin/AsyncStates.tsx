@@ -7,8 +7,9 @@
  */
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
-import { AlertCircle, RefreshCw } from 'lucide-react'
+import { AlertCircle, Ban, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import AdminEmptyState from './AdminEmptyState'
 
 interface LoadingStateProps {
   /** 辅助技术可读的加载文案，默认「加载中」 */
@@ -19,18 +20,10 @@ interface LoadingStateProps {
 
 export function LoadingState({ label = '加载中', rows = 3, className }: LoadingStateProps) {
   return (
-    <div
-      role="status"
-      aria-live="polite"
-      className={cn('flex h-32 flex-col justify-center gap-3 px-4', className)}
-    >
+    <div role="status" aria-live="polite" className={cn('flex h-32 flex-col justify-center gap-3 px-4', className)}>
       <span className="sr-only">{label}</span>
       {Array.from({ length: rows }).map((_, index) => (
-        <div
-          key={index}
-          className="h-4 animate-pulse rounded-sm bg-muted/60"
-          style={{ width: `${Math.max(40, 100 - index * 18)}%` }}
-        />
+        <div key={index} className="h-4 animate-pulse rounded-sm bg-muted/60" style={{ width: `${Math.max(40, 100 - index * 18)}%` }} />
       ))}
     </div>
   )
@@ -45,19 +38,20 @@ interface ErrorStateProps {
 /** 首屏加载失败：无数据可展示时使用，明确失败原因并给就地重试。 */
 export function ErrorState({ message, onRetry, className }: ErrorStateProps) {
   return (
-    <div
+    <AdminEmptyState
       role="alert"
-      className={cn('flex h-32 flex-col items-center justify-center gap-3 px-4 text-center', className)}
-    >
-      <AlertCircle className="size-5 text-destructive" />
-      <p className="text-sm text-destructive">{message}</p>
-      {onRetry && (
-        <Button variant="outline" size="sm" onClick={onRetry}>
-          <RefreshCw className="size-3.5" />
-          重试
-        </Button>
-      )}
-    </div>
+      className={cn('admin-read-error', className)}
+      icon={<Ban className="size-8 opacity-40" aria-hidden="true" />}
+      message={message}
+      action={
+        onRetry ? (
+          <Button variant="outline" size="sm" onClick={onRetry}>
+            <RefreshCw className="size-3.5" aria-hidden="true" />
+            重试
+          </Button>
+        ) : undefined
+      }
+    />
   )
 }
 

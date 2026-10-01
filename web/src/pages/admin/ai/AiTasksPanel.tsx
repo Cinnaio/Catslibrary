@@ -216,7 +216,7 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
                 ? `${activeCount} 个任务正在处理`
                 : '当前没有进行中的任务'
         }
-        hint={failedCount ? `${failedCount} 个任务需要处理，可在列表中查看原因。` : '查看生成进度、输入 Prompt 与任务产出。'}
+        hint={error && !tasks.length ? error : failedCount ? `${failedCount} 个任务需要处理，可在列表中查看原因。` : '查看生成进度、输入 Prompt 与任务产出。'}
         counts={`全部 ${statusCounts.all ?? total} · 进行中 ${activeCount} · 已完成 ${statusCounts.completed ?? 0}`}
         actions={
           <Button
@@ -267,7 +267,7 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
           {loading && tasks.length === 0 ? (
             <LoadingState label="正在加载 AI 任务" />
           ) : error && tasks.length === 0 ? (
-            <ErrorState message={error} onRetry={() => void load()} />
+            <ErrorState message={`AI 任务加载失败：${error}`} />
           ) : tasks.length === 0 && filterStatus !== 'all' ? (
             <AdminEmptyState
               message={`当前筛选条件下暂无${taskStatusLabel(filterStatus)}任务`}

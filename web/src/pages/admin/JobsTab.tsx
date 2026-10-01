@@ -12,13 +12,14 @@
 import { TaskDetails, TaskSummary } from './TaskWorkspace'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Ban, CircleMinus, Check, AlertCircle, RefreshCw } from 'lucide-react'
+import { CircleMinus, Check, AlertCircle, RefreshCw } from 'lucide-react'
 import { adminApi, authFetch, downloadLogsApi, newOperationId, scrapeApi } from '../../lib/api'
 import { formatDateTime } from '../../lib/format'
 import { getAdminTableRowStaggerDelay } from '@/lib/admin-table-motion'
 import { formatEta, formatJobSpeed, getJobDuration, isJobRunning, isJobTerminal, jobStatusLabel, truncateId } from '../../lib/admin'
 import { useConfirm, useToast } from '../../components/feedback'
 import AdminEmptyState from '@/components/admin/AdminEmptyState'
+import { ErrorState } from '@/components/admin/AsyncStates'
 import AdminPage from '@/components/admin/AdminPage'
 import { AdminDataPanel, AdminPanelHeading, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
 import { Button } from '@/components/ui/button'
@@ -434,7 +435,11 @@ export default function JobsTab({
       <TaskSummary
         title={
           view === 'downloads'
-            ? '最近的下载记录'
+            ? logsLoading
+              ? '正在读取下载日志'
+              : logsError
+                ? '下载日志读取失败'
+                : '最近的下载记录'
             : jobsLoading
               ? '正在读取任务队列'
               : jobsError
@@ -445,7 +450,7 @@ export default function JobsTab({
         }
         hint={
           view === 'downloads'
-            ? '查看内容导出与书源配置下载记录。'
+            ? logsError || '查看内容导出与书源配置下载记录。'
             : jobsError
               ? jobsError
               : attentionCount
@@ -533,11 +538,7 @@ export default function JobsTab({
             ) : jobsLoading ? (
               <AdminEmptyState className="jobs-empty" icon={<span className="job-spinner" aria-hidden="true" />} message="正在读取任务队列…" />
             ) : jobsError ? (
-              <AdminEmptyState
-                className="jobs-empty jobs-empty--error"
-                icon={<Ban className="size-8 opacity-40" aria-hidden="true" />}
-                message={`任务队列加载失败：${jobsError}`}
-              />
+              <ErrorState message={`任务队列加载失败：${jobsError}`} />
             ) : (
               <AdminEmptyState
                 className="jobs-empty"
@@ -554,11 +555,7 @@ export default function JobsTab({
           {logsLoading ? (
             <AdminEmptyState className="jobs-empty" icon={<span className="job-spinner" aria-hidden="true" />} message="正在读取下载日志…" />
           ) : logsError ? (
-            <AdminEmptyState
-              className="jobs-empty jobs-empty--error"
-              icon={<Ban className="size-8 opacity-40" aria-hidden="true" />}
-              message={`下载日志加载失败：${logsError}`}
-            />
+            <ErrorState message={`下载日志加载失败：${logsError}`} />
           ) : downloadLogs.length === 0 ? (
             <AdminEmptyState className="jobs-empty" icon={<CircleMinus className="size-8 opacity-40" aria-hidden="true" />} message="暂无下载日志" />
           ) : (

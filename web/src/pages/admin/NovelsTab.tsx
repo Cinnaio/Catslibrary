@@ -5,6 +5,7 @@
 import AdminContentRatingBadge from '@/components/admin/AdminContentRatingBadge'
 import { AdminDialogContent, AdminDialogBody } from '@/components/admin/AdminDialog'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
+import { ErrorState } from '@/components/admin/AsyncStates'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { newOperationId, novelsApi, url, authHeaders } from '../../lib/api'
@@ -629,7 +630,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
             ) : novels.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={NOVEL_COLUMNS.length} className="table-empty">
-                  {loadError ? `加载失败：${loadError}` : emptyMessage}
+                  {loadError ? <ErrorState message={`小说列表加载失败：${loadError}`} /> : emptyMessage}
                 </TableCell>
               </TableRow>
             ) : (

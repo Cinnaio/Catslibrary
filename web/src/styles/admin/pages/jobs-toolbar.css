@@ -78,10 +78,6 @@
   padding: 2.5rem 1.25rem;
 }
 
-.admin-redesign-page--jobs .jobs-empty--error {
-  color: var(--color-danger);
-}
-
 .admin-redesign-page--jobs .jobs-empty .job-spinner {
   width: 1.75rem;
   height: 1.75rem;
