@@ -5,7 +5,16 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import type { ReadingHistoryEntry, Thought } from '@shared/types'
 import { bookmarksApi, bookshelfApi, getToken, progressApi } from '../lib/api'
-import { clearHistory, getAllBookmarks, getBookshelf, getRecentHistory, removeFromBookshelf, replaceAllBookmarks, replaceBookshelf, saveHistory } from '../lib/storage'
+import {
+  clearHistory,
+  getAllBookmarks,
+  getBookshelf,
+  getRecentHistory,
+  removeFromBookshelf,
+  replaceAllBookmarks,
+  replaceBookshelf,
+  saveHistory,
+} from '../lib/storage'
 import { useSession } from '../context/SessionContext'
 import { useToast } from '../components/feedback'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
@@ -83,6 +92,7 @@ export default function Bookshelf() {
   const [thoughts, setThoughts] = useState<ShelfThought[]>([])
   const [syncStatus, setSyncStatus] = useState('')
   const [syncing, setSyncing] = useState(false)
+  const [activeShelf, setActiveShelf] = useState('favorites')
 
   useEffect(() => {
     if (!loading && !user) {
@@ -132,7 +142,7 @@ export default function Bookshelf() {
       data.tombstones.forEach((t) => {
         if (!t.novelId) return
         const h = getRecentHistory(100).find((x) => x.novelId === t.novelId)
-        if (h && (Number(t.updatedAt || 0) >= Number(h.timestamp || 0))) clearHistory(t.novelId)
+        if (h && Number(t.updatedAt || 0) >= Number(h.timestamp || 0)) clearHistory(t.novelId)
       })
       const merged = mergeRecent(getRecentHistory(limit), data.progress, limit)
       merged.forEach((h) => saveHistory(h.novelId, h))
@@ -226,24 +236,40 @@ export default function Bookshelf() {
     <main className="bookshelf-page">
       <div className="container bookshelf-shell">
         <section className="bookshelf-hero">
-          <div className="bookshelf-hero__mark" aria-hidden="true">架</div>
           <div>
-            <p className="detail-kicker">LIBRARY</p>
             <h1>我的书架</h1>
             <p className="text-muted">收藏、继续阅读、书签与想法都收在这里。</p>
           </div>
           <div className="profile-sync-card">
-            <span className="text-sm text-muted" id="syncStatusText">{syncStatus}</span>
+            <span className="text-sm text-muted" id="syncStatusText" role="status" aria-live="polite">
+              {syncStatus}
+            </span>
             <button className="btn btn--secondary btn--sm" id="btnSyncNow" disabled={syncing} onClick={() => void manualSync()}>
               {syncing ? '同步中…' : '立即同步'}
             </button>
           </div>
         </section>
 
+        <nav className="bookshelf-tabs" aria-label="书架内容">
+          {[
+            { id: 'favorites', label: '收藏', count: favorites.length },
+            { id: 'recent', label: '最近阅读', count: recentItems.length },
+            { id: 'bookmarks', label: '书签', count: bookmarks.length },
+            { id: 'thoughts', label: '想法', count: thoughts.length },
+          ].map((item) => (
+            <button type="button" key={item.id} className="bookshelf-tab" aria-pressed={activeShelf === item.id} onClick={() => setActiveShelf(item.id)}>
+              {item.label}
+              <span>{item.count}</span>
+            </button>
+          ))}
+        </nav>
+
         {/* 收藏 */}
-        <section className="bookshelf-section">
+        <section className="bookshelf-section" hidden={activeShelf !== 'favorites'}>
           <div className="bookshelf-sections">
-            <h2 className="bookshelf-subtitle">收藏 <span className="text-muted">· {favorites.length}</span></h2>
+            <h2 className="bookshelf-subtitle sr-only">
+              收藏 <span className="text-muted">· {favorites.length}</span>
+            </h2>
             <div className="bookshelf-novel-grid" id="bookshelfFavorites">
               {favorites.length === 0 ? (
                 <p className="profile-empty-note">还没有收藏小说</p>
@@ -251,7 +277,7 @@ export default function Bookshelf() {
                 favorites.slice(0, 12).map((f) => (
                   <div className="bookshelf-novel-card" key={f.novelId}>
                     <Link to={`/novel/${encodeURIComponent(f.novelId)}`} className="novel-card">
-                      <CoverOrPlaceholder novelId={f.novelId} title={f.title || f.novelId} updatedAt={f.updatedAt} />
+                      <CoverOrPlaceholder novelId={f.novelId} title={f.title || f.novelTitle || f.novelId} updatedAt={f.updatedAt} />
                       <div className="novel-card__body">
                         <div className="novel-card__title">{f.title || f.novelTitle || f.novelId}</div>
                         <div className="novel-card__meta">{f.chapterTitle ? `继续：${f.chapterTitle}` : f.author || '未开始阅读'}</div>
@@ -269,16 +295,21 @@ export default function Bookshelf() {
         </section>
 
         {/* 最近阅读 */}
-        <section className="bookshelf-section">
+        <section className="bookshelf-section" hidden={activeShelf !== 'recent'}>
           <div className="bookshelf-sections">
-            <h2 className="bookshelf-subtitle">最近阅读 <span className="text-muted">· {recentItems.length}</span></h2>
+            <h2 className="bookshelf-subtitle sr-only">
+              最近阅读 <span className="text-muted">· {recentItems.length}</span>
+            </h2>
             <div className="bookshelf-novel-grid" id="bookshelfRecent">
               {recentItems.length === 0 ? (
                 <p className="profile-empty-note">还没有阅读记录</p>
               ) : (
                 recentItems.map((h) => (
                   <div className="bookshelf-novel-card" key={h.novelId}>
-                    <Link to={h.chapterId ? `/read/${encodeURIComponent(h.novelId)}/${encodeURIComponent(h.chapterId)}` : `/novel/${encodeURIComponent(h.novelId)}`} className="novel-card">
+                    <Link
+                      to={h.chapterId ? `/read/${encodeURIComponent(h.novelId)}/${encodeURIComponent(h.chapterId)}` : `/novel/${encodeURIComponent(h.novelId)}`}
+                      className="novel-card"
+                    >
                       <CoverOrPlaceholder novelId={h.novelId} title={h.novelTitle || h.novelId} updatedAt={h.timestamp} />
                       <div className="novel-card__body">
                         <div className="novel-card__title">{h.novelTitle || h.novelId}</div>
@@ -297,8 +328,10 @@ export default function Bookshelf() {
         </section>
 
         {/* 书签 */}
-        <section className="bookshelf-section">
-          <h2 className="bookshelf-subtitle">书签 <span className="text-muted">· {bookmarks.length}</span></h2>
+        <section className="bookshelf-section" hidden={activeShelf !== 'bookmarks'}>
+          <h2 className="bookshelf-subtitle sr-only">
+            书签 <span className="text-muted">· {bookmarks.length}</span>
+          </h2>
           <div className="bookshelf-record-panel" id="bookshelfBookmarks">
             {bookmarks.length === 0 ? (
               <p className="profile-empty-note">还没有添加书签</p>
@@ -316,15 +349,20 @@ export default function Bookshelf() {
         </section>
 
         {/* 想法 */}
-        <section className="bookshelf-section">
-          <h2 className="bookshelf-subtitle">想法 <span className="text-muted">· {thoughts.length}</span></h2>
+        <section className="bookshelf-section" hidden={activeShelf !== 'thoughts'}>
+          <h2 className="bookshelf-subtitle sr-only">
+            想法 <span className="text-muted">· {thoughts.length}</span>
+          </h2>
           <div className="bookshelf-record-panel" id="bookshelfThoughts">
             {thoughts.length === 0 ? (
               <p className="profile-empty-note">还没有写下想法</p>
             ) : (
               thoughts.slice(0, 4).map((t) => (
                 <div className="bookshelf-item-wrap" key={t.id}>
-                  <Link className="bookshelf-item" to={`/read/${encodeURIComponent(t.novelId)}/${encodeURIComponent(t.chapterId)}?thoughtParagraph=${encodeURIComponent(t.paragraphIndex)}`}>
+                  <Link
+                    className="bookshelf-item"
+                    to={`/read/${encodeURIComponent(t.novelId)}/${encodeURIComponent(t.chapterId)}?thoughtParagraph=${encodeURIComponent(t.paragraphIndex)}`}
+                  >
                     <strong className="bookshelf-item__title">{t.thoughtText}</strong>
                     <span className="bookshelf-item__meta">{t.novelTitle || t.chapterTitle || timeAgo(t.createdAt)}</span>
                   </Link>

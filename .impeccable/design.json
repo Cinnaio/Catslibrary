@@ -5,6 +5,18 @@
   "extensions": {
     "novelCoverDepth": {"token":"--novel-cover-shadow","light":"0 2px 4px rgba(40,32,24,.08), 0 8px 18px rgba(40,32,24,.12)","dark":"0 2px 5px rgba(0,0,0,.24), 0 8px 20px rgba(0,0,0,.32)","scope":"Public NovelCard covers only; containers stay flat."},
     "novelCardTypography": {"title":"0.875rem","meta":"0.75rem","description":"0.75rem","footer":"0.7rem","source":"web/src/styles/tokens.css","scope":"Shared public NovelCard in Home and Bookshelf; desktop and mobile use the same sizes."},
+    "publicAccountPaper": {
+      "scope": ["web/src/pages/Bookshelf.tsx", "web/src/pages/Profile.tsx"],
+      "source": "web/src/styles/profile.css",
+      "surfaces": "Existing --bg-secondary canvas and --bg-card cards; --radius-xl (16px), no outer border, gradient, shadow or hover lift. Bookshelf covers alone retain shared --novel-cover-shadow.",
+      "titleRole": "Existing home-title/home-title-mobile frontmatter dimensions also apply to Bookshelf and Profile: --font-serif, 32px/500/1.5, -0.02em; 1.55rem at <=600px. Exception remains limited to Home, Bookshelf and Profile.",
+      "layout": "Profile retains max-width 1200px and 32px section gap; Bookshelf revision uses max-width 1080px and 24px gap. Both use page padding 48px 0 64px; <=600px padding 28px 0 40px, horizontal 16px and gap 24px. Profile settings grid 1.1fr/1fr with 20px gap, single column at <=800px. Bookshelf hero stacks at <=800px; book grid uses three columns above 1000px, two at <=1000px, one at <=600px, with 16px gap.",
+      "bookshelf": "User rejected the prior stacked four-section layout. Count-bearing category buttons use aria-pressed, with exactly one section visible and others hidden; this is not an ARIA tabs contract. Buttons have 44px minimum height, an active underline and hover color using --tabs-segmented-transition, disabled under reduced motion; keyboard focus uses a 2px accent outline with 4px offset. Cards use 152px minimum height, 18px padding on desktop/mobile, 16px content gap, and 72x108px covers with shared radius and --novel-cover-shadow. Shared 14/12/11.2px title/meta/footer typography stays constant. Reading links and lower-right remove actions are separate; body reserves 28px. Bookmarks/thoughts use continuous paper rows with dividers; all category empty states are transparent. Existing display limits remain 12 favorites, 8 recent, 4 bookmarks, 4 thoughts; preserve APIs, sync, tombstones, deletion and reading destinations.",
+      "bookshelfVerification": "Revision typecheck and build passed; fixture checks covered category switching, sync, deletion, link destinations and no horizontal overflow. Screenshots use mock data and do not verify the real backend. Final review of all 14 revision screenshots concluded ship after documentation synchronization; no further fixes or captures required.",
+      "profile": "Identity before settings, 28px card padding (20px mobile), 72px hero avatar (56px mobile), 64px preview. Name 20px/600, username and record labels 12px, bio 14px/1.8 max 65ch. Fields 14px, 16px at <=600px; mobile buttons minimum 40px. Sessions max-height 300px with internal scrolling and wrapping names.",
+      "feedback": "Profile status remains inside page heading below description in normal flow: empty display:none, 13px/1.8, 12px top margin, overflow-wrap:anywhere, role=status and aria-live=polite. Long errors cannot cover title or identity card.",
+      "boundaries": "header--paper applies only to /bookshelf and /profile; Home retains header--home. Preserve auth return paths, existing account/theme/safety/navigation, bookshelf syncing and deletion, profile/password/avatar/sessions/logout. Reduced motion disables page card/button transitions; standalone Home preview stays unchanged."
+    },
     "colorMeta": {
       "primary": {
         "role": "primary",
@@ -290,7 +302,7 @@
       { "name": "Sidebar Scroll Edge", "body": "Fixed account footer uses a 24px paper fade from --admin-sidebar-footer-fade-height only while navigation has content below the viewport. Hide at scroll end or without overflow; reserve equal bottom padding so the final item remains fully visible. Update on scroll and navigation/container resize, never intercept pointer events. Desktop and mobile share --admin-sidebar; no blur filter.", "section": "components" },
       { "name": "The 10% Accent Rule", "body": "奶茶棕色强调色在任何页面上不超过 10% 的面积。它的稀有性就是力量——读者的眼睛自然被引导到最重要的交互点。", "section": "colors" },
       { "name": "The Derived-Surface Rule", "body": "后台表面永远是 color-mix 派生自公开色板的结果，不新开一套颜色。新表面要先问\"它是哪两个既有 token 的混合\"，答不上来就不要加。", "section": "colors" },
-      {"name":"The Content-First Rule","body":"字体永远是配角。系统字体不创造风格，内容本身创造风格。阅读器使用衬线体营造沉浸；2026-10-02 用户批准的 Home 主标题也允许使用既有衬线字体，桌面 32px、手机 1.55rem，例外限于首页。","section":"typography"},
+      {"name":"The Content-First Rule","body":"字体永远是配角。系统字体不创造风格，内容本身创造风格。阅读器使用衬线体营造沉浸；2026-10-02 用户批准的 Home、Bookshelf、Profile 主标题也允许使用既有衬线字体，桌面 32px/500/1.5、手机 1.55rem，例外限于这三个公共页，不扩展至后台或其他页面。","section":"typography"},
       { "name": "The One Title Rule", "body": "每个可导航页面只有一个内容区主标题，由页头承担。面板标题写工作对象名（\"作品目录\"、\"章节目录\"、\"审核列表\"），不重复页面名。页头上方不再出现小字眉题——AdminTabHeader 的 kicker 与 hero 变体已退役，两个 prop 仍被接受但被忽略。标题字号膨胀和\"每页一个更大的标题\"都是被明确否定的方向。", "section": "typography" },
       { "name": "The Flat-By-Default Rule", "body": "所有表面在静止状态是平的。阴影仅作为状态响应出现（hover、elevation、focus），或为弹出层提供层次暗示。", "section": "elevation" },
       { "name": "The Tonal-Admin Rule", "body": "后台一个像素的阴影都不要加。面板靠表面色 + 1px 描边区分层次；一旦给数据面板加投影，它就会在密集列表里看起来像浮起的卡片，破坏扫描。", "section": "elevation" },

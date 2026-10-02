@@ -9,6 +9,7 @@ import { useSession } from '../context/SessionContext'
 import { useConfirm } from '../components/feedback'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { formatDate, timeAgo } from '../lib/format'
+import { Monitor } from 'lucide-react'
 
 interface SessionItem {
   id: string
@@ -139,7 +140,12 @@ export default function Profile() {
   }
 
   async function deleteSession(id: string) {
-    const ok = await confirm({ title: '移除登录设备', message: '确定移除这台设备的登录状态？该设备需要重新登录后才能继续访问账户。', okText: '移除', danger: true })
+    const ok = await confirm({
+      title: '移除登录设备',
+      message: '确定移除这台设备的登录状态？该设备需要重新登录后才能继续访问账户。',
+      okText: '移除',
+      danger: true,
+    })
     if (!ok) return
     try {
       await authApi.deleteSession(id)
@@ -157,7 +163,12 @@ export default function Profile() {
   }
 
   async function logoutAll() {
-    const ok = await confirm({ title: '退出所有设备', message: '确定退出所有设备？当前账户在其他设备上的登录状态也会被清除。', okText: '全部退出', danger: true })
+    const ok = await confirm({
+      title: '退出所有设备',
+      message: '确定退出所有设备？当前账户在其他设备上的登录状态也会被清除。',
+      okText: '全部退出',
+      danger: true,
+    })
     if (!ok) return
     await authApi.logoutAll()
     await refresh()
@@ -167,26 +178,38 @@ export default function Profile() {
   return (
     <main className="profile-page">
       <div className="container profile-shell">
-        <p className="profile-message" id="profileMessage" role="status" aria-live="polite" style={{ minHeight: 20 }}>{msg}</p>
+        <div className="account-page-heading">
+          <h1>个人中心</h1>
+          <p>管理你的资料与账户安全。</p>
+          <p className="profile-message" id="profileMessage" role="status" aria-live="polite">
+            {msg}
+          </p>
+        </div>
 
-        {/* Hero */}
+        {/* Account identity */}
         <section className="profile-hero card">
-          <div className="profile-hero__paper-mark" aria-hidden="true">籍</div>
           <div className="profile-hero__main">
             <div className="profile-avatar profile-avatar--hero">
               <UserAvatar src={displayAvatar} name={name || '我'} size="inherit" />
             </div>
             <div className="profile-hero__identity">
-              <p className="profile-kicker">ACCOUNT</p>
-              <h1 className="profile-hero__name" id="profileName">{name}</h1>
-              <p className="profile-meta" id="profileMeta">@{user.username}</p>
+              <h2 className="profile-hero__name" id="profileName">
+                {name}
+              </h2>
+              <p className="profile-meta" id="profileMeta">
+                @{user.username}
+              </p>
               <div className="profile-badges">
                 <span className="profile-pill profile-pill--role">{roleText(user.role)}</span>
                 <span className={`profile-pill profile-pill--status profile-pill--${user.status === 'disabled' ? 'disabled' : 'active'}`}>
                   {user.status === 'disabled' ? '已停用' : '已启用'}
                 </span>
               </div>
-              {user.bio && <p className="profile-bio" id="profileBio">{user.bio}</p>}
+              {user.bio && (
+                <p className="profile-bio" id="profileBio">
+                  {user.bio}
+                </p>
+              )}
               <div className="account-stats--cards">
                 <article className="account-stat-card account-stat-card--joined">
                   <span className="account-stat-card__label">注册时间</span>
@@ -203,7 +226,9 @@ export default function Profile() {
               </div>
               {user.role === 'admin' && (
                 <div className="profile-hero__actions">
-                  <Link to="/admin" className="btn btn--secondary">进入管理面板</Link>
+                  <Link to="/admin" className="btn btn--secondary">
+                    进入管理面板
+                  </Link>
                 </div>
               )}
             </div>
@@ -216,14 +241,20 @@ export default function Profile() {
             <div className="profile-edit-panel card">
               <div className="profile-edit-panel__head">
                 <div>
-                  <p className="profile-edit-panel__eyebrow">PROFILE</p>
                   <h2 className="profile-section-heading">个人资料</h2>
                 </div>
               </div>
               <div className="profile-settings">
                 <label className="profile-field">
                   <span>显示名称</span>
-                  <input type="text" className="form-input" id="displayNameInput" maxLength={20} value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+                  <input
+                    type="text"
+                    className="form-input"
+                    id="displayNameInput"
+                    maxLength={20}
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                  />
                 </label>
                 <label className="profile-field">
                   <span>个人简介</span>
@@ -231,7 +262,9 @@ export default function Profile() {
                 </label>
               </div>
               <div className="profile-edit-panel__actions">
-                <button className="btn btn--primary" onClick={() => void saveProfile()}>保存资料</button>
+                <button className="btn btn--primary" onClick={() => void saveProfile()}>
+                  保存资料
+                </button>
               </div>
             </div>
           </section>
@@ -241,7 +274,6 @@ export default function Profile() {
             <div className="profile-edit-panel card">
               <div className="profile-edit-panel__head">
                 <div>
-                  <p className="profile-edit-panel__eyebrow">AVATAR</p>
                   <h2 className="profile-section-heading">头像</h2>
                 </div>
               </div>
@@ -274,7 +306,9 @@ export default function Profile() {
                   <button type="button" className="btn btn--primary" onClick={() => void uploadAvatar()} disabled={!avatarFile || avatarUploading}>
                     {avatarUploading ? '上传中…' : '上传头像'}
                   </button>
-                  <button type="button" className="btn btn--secondary" onClick={() => void deleteAvatar()} disabled={avatarUploading}>删除头像</button>
+                  <button type="button" className="btn btn--secondary" onClick={() => void deleteAvatar()} disabled={avatarUploading}>
+                    删除头像
+                  </button>
                 </div>
               </div>
             </div>
@@ -285,22 +319,37 @@ export default function Profile() {
             <div className="profile-edit-panel card">
               <div className="profile-edit-panel__head">
                 <div>
-                  <p className="profile-edit-panel__eyebrow">SECURITY</p>
                   <h2 className="profile-section-heading">修改密码</h2>
                 </div>
               </div>
               <div className="profile-settings">
                 <label className="profile-field">
                   <span>当前密码</span>
-                  <input type="password" className="form-input" id="currentPasswordInput" autoComplete="current-password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} />
+                  <input
+                    type="password"
+                    className="form-input"
+                    id="currentPasswordInput"
+                    autoComplete="current-password"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                  />
                 </label>
                 <label className="profile-field">
                   <span>新密码</span>
-                  <input type="password" className="form-input" id="newPasswordInput" autoComplete="new-password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+                  <input
+                    type="password"
+                    className="form-input"
+                    id="newPasswordInput"
+                    autoComplete="new-password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                  />
                 </label>
               </div>
               <div className="profile-edit-panel__actions">
-                <button className="btn btn--primary" onClick={() => void changePassword()}>修改密码</button>
+                <button className="btn btn--primary" onClick={() => void changePassword()}>
+                  修改密码
+                </button>
               </div>
             </div>
           </section>
@@ -310,7 +359,6 @@ export default function Profile() {
             <div className="profile-edit-panel card">
               <div className="profile-edit-panel__head">
                 <div>
-                  <p className="profile-edit-panel__eyebrow">SESSIONS</p>
                   <h2 className="profile-section-heading">登录设备</h2>
                 </div>
               </div>
@@ -320,7 +368,9 @@ export default function Profile() {
                 ) : (
                   sessions.map((s) => (
                     <div className={`profile-session-item profile-session-card${s.current ? ' profile-session-card--current' : ''}`} key={s.id}>
-                      <div className="profile-session-icon" aria-hidden="true">{s.current ? '此' : '设'}</div>
+                      <div className="profile-session-icon" aria-hidden="true">
+                        <Monitor size={18} />
+                      </div>
                       <div className="profile-session-meta">
                         <div className="profile-session-title-row">
                           <strong className="profile-session-title">{s.deviceName || (s.current ? '当前设备' : '其他设备')}</strong>
@@ -338,8 +388,12 @@ export default function Profile() {
                 )}
               </div>
               <div className="profile-session-actions">
-                <button className="btn btn--secondary" onClick={() => void logout()}>退出登录</button>
-                <button className="btn btn--secondary" onClick={() => void logoutAll()}>退出所有设备</button>
+                <button className="btn btn--secondary" onClick={() => void logout()}>
+                  退出登录
+                </button>
+                <button className="btn btn--secondary" onClick={() => void logoutAll()}>
+                  退出所有设备
+                </button>
               </div>
             </div>
           </section>

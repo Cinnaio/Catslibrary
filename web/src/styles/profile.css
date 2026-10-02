@@ -1,701 +1,200 @@
-/* ============================================================
-   _profile — Personal center / reading folio
-   ============================================================ */
-
+/* Public account surfaces share the Home paper palette and compact book type. */
 .profile-page,
 .bookshelf-page {
-  --profile-paper: color-mix(in srgb, var(--bg-card) 88%, var(--accent-subtle));
-  --profile-paper-strong: color-mix(in srgb, var(--bg-card) 78%, var(--accent-subtle));
-  --profile-inset: color-mix(in srgb, var(--bg-primary) 72%, var(--accent-subtle));
-  --profile-line: color-mix(in srgb, var(--border) 84%, transparent);
-  --profile-shadow: 0 22px 58px rgba(40, 32, 24, 0.11);
-  --profile-shadow-soft: 0 12px 30px rgba(40, 32, 24, 0.075);
-  --profile-danger-soft: color-mix(in srgb, var(--color-danger) 8%, var(--bg-card));
-  position: relative;
   min-height: calc(100vh - var(--header-height));
-  padding: 38px 0 60px;
-  background:
-    radial-gradient(circle at 12% 6%, color-mix(in srgb, var(--accent-subtle) 92%, transparent), transparent 28rem),
-    radial-gradient(circle at 88% 16%, rgba(255, 255, 255, 0.42), transparent 22rem),
-    linear-gradient(135deg, var(--bg-secondary), var(--bg-primary) 44%, var(--bg-secondary));
+  padding: 48px 0 64px;
+  background: var(--bg-secondary);
 }
-
-[data-theme="dark"] .profile-page,
-[data-theme="dark"] .bookshelf-page {
-  --profile-shadow: 0 22px 58px rgba(0, 0, 0, 0.38);
-  --profile-shadow-soft: 0 12px 30px rgba(0, 0, 0, 0.26);
-  --profile-danger-soft: color-mix(in srgb, var(--color-danger) 12%, var(--bg-card));
-  background:
-    radial-gradient(circle at 12% 6%, color-mix(in srgb, var(--accent-subtle) 38%, transparent), transparent 28rem),
-    linear-gradient(135deg, var(--bg-secondary), var(--bg-primary) 44%, var(--bg-secondary));
-}
-
 .profile-shell,
 .bookshelf-shell {
   display: grid;
-  gap: 30px;
+  gap: 32px;
+  max-width: 1200px;
 }
-
-.profile-page .card,
-.bookshelf-page .card {
-  border: 1px solid var(--profile-line);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.54), rgba(255, 255, 255, 0) 48%),
-    var(--profile-paper);
-  box-shadow: var(--profile-shadow-soft);
-}
-
-[data-theme="dark"] .profile-page .card,
-[data-theme="dark"] .bookshelf-page .card {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0) 48%),
-    var(--profile-paper);
-}
-
-.profile-page .card:hover,
-.bookshelf-page .card:hover {
-  border-color: color-mix(in srgb, var(--accent) 18%, var(--profile-line));
-  box-shadow: var(--profile-shadow-soft);
-}
-
-.profile-page .form-input {
-  border-color: var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--profile-inset);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
-}
-
-.profile-page .form-input:focus {
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
-  background: var(--bg-card);
-  box-shadow: 0 0 0 4px var(--focus-ring);
-}
-
-.profile-page textarea.form-input {
-  resize: vertical;
-  min-height: 92px;
-  line-height: 1.65;
-}
-
-.profile-page .btn,
-.bookshelf-page .btn {
-  border-radius: var(--radius-lg);
-  font-weight: 680;
-  letter-spacing: 0.01em;
-}
-
-.profile-page .btn--secondary,
-.bookshelf-page .btn--secondary {
-  border-color: var(--profile-line);
-  background: color-mix(in srgb, var(--bg-card) 82%, var(--accent-subtle));
-}
-
-.profile-page .btn--secondary:hover,
-.bookshelf-page .btn--secondary:hover {
-  border-color: color-mix(in srgb, var(--accent) 24%, var(--profile-line));
-  background: var(--profile-paper-strong);
-}
-
-.profile-hero {
+.profile-shell {
   position: relative;
-  overflow: hidden;
-  padding: clamp(24px, 4vw, 42px);
-  border-radius: var(--radius-2xl);
-  transition: none;
 }
-
-.profile-hero:hover {
-  box-shadow: var(--profile-shadow-soft);
-}
-
-.profile-hero::before,
-.profile-hero::after {
-  content: '';
-  position: absolute;
-  pointer-events: none;
-  border-radius: 999px;
-}
-
-.profile-hero::before {
-  width: 360px;
-  height: 360px;
-  right: -155px;
-  top: -170px;
-  background: color-mix(in srgb, var(--accent-subtle) 78%, transparent);
-}
-
-.profile-hero::after {
-  width: 210px;
-  height: 210px;
-  left: 38%;
-  bottom: -130px;
-  border: 1px solid color-mix(in srgb, var(--accent) 12%, transparent);
-  background: color-mix(in srgb, var(--bg-card) 42%, transparent);
-}
-
-.profile-hero__paper-mark {
-  position: absolute;
-  right: clamp(18px, 4vw, 44px);
-  top: clamp(18px, 4vw, 36px);
-  color: color-mix(in srgb, var(--accent) 15%, transparent);
+.account-page-heading h1,
+.bookshelf-hero h1 {
+  margin: 0;
   font-family: var(--font-serif);
-  font-size: clamp(3.2rem, 8vw, 6.5rem);
-  font-weight: 800;
-  line-height: 1;
-  transform: rotate(8deg);
-  pointer-events: none;
-  user-select: none;
+  font-size: 2rem;
+  line-height: 1.5;
+  font-weight: 500;
+  letter-spacing: -0.02em;
 }
-
+.account-page-heading p,
+.bookshelf-hero p {
+  margin: 8px 0 0;
+  font-size: 0.875rem;
+  line-height: 1.8;
+  color: var(--text-secondary);
+}
+.profile-page .card {
+  border: 0;
+  border-radius: var(--radius-xl);
+  background: var(--bg-card);
+  box-shadow: none;
+}
+.profile-page .card:hover {
+  transform: none;
+  box-shadow: none;
+}
+.profile-hero {
+  padding: 28px;
+}
 .profile-hero__main {
-  position: relative;
-  z-index: 1;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: clamp(18px, 3vw, 28px);
-  max-width: 820px;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
 }
-
 .profile-hero__identity {
   min-width: 0;
 }
-
-.profile-kicker {
-  margin: 0 0 7px;
-  color: var(--accent);
-  font-size: 0.72rem;
-  font-weight: 850;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-
-.profile-hero__identity h1 {
-  margin: 0 0 8px;
-  font-family: var(--font-serif);
-  font-size: clamp(2rem, 4.4vw, 3.4rem);
-  line-height: 1.05;
-  letter-spacing: -0.045em;
-  overflow-wrap: anywhere;
-}
-
-.profile-meta {
+.profile-hero__name {
   margin: 0;
-  color: var(--text-secondary);
-  font-size: 0.98rem;
+  font-size: 1.25rem;
+  font-weight: 600;
   overflow-wrap: anywhere;
 }
-
-.profile-bio {
-  max-width: 48rem;
-  margin: 10px 0 0;
-  color: var(--text-secondary);
-  font-size: 0.94rem;
-  line-height: 1.75;
+.profile-meta {
+  margin: 4px 0 0;
+  font-size: 0.75rem;
+  color: var(--text-muted);
   overflow-wrap: anywhere;
 }
-
 .profile-badges {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 15px;
+  margin-top: 12px;
 }
-
 .profile-pill {
-  display: inline-flex;
-  align-items: center;
-  min-height: 28px;
-  padding: 4px 11px;
-  border: 1px solid var(--profile-line);
-  border-radius: var(--radius-full);
-  background: color-mix(in srgb, var(--bg-card) 76%, var(--accent-subtle));
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
   color: var(--text-secondary);
-  font-size: 0.76rem;
-  font-weight: 800;
+  font-size: 0.7rem;
 }
-
 .profile-pill--role {
+  background: var(--accent-light);
   color: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 22%, var(--profile-line));
 }
-
-.profile-pill--active {
-  color: var(--color-success);
-  background: color-mix(in srgb, var(--color-success) 10%, var(--bg-card));
-}
-
 .profile-pill--disabled {
   color: var(--color-danger);
-  background: color-mix(in srgb, var(--color-danger) 10%, var(--bg-card));
 }
-
+.profile-bio {
+  max-width: 65ch;
+  margin: 14px 0 0;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
 .profile-avatar {
-  position: relative;
   flex: 0 0 auto;
-  display: grid;
-  place-items: center;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--profile-line));
-  border-radius: var(--radius-2xl);
-  color: var(--accent);
-  font-family: var(--font-serif);
-  font-weight: 850;
-  background:
-    linear-gradient(145deg, color-mix(in srgb, var(--bg-card) 72%, var(--accent-subtle)), var(--accent-light));
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.36), var(--profile-shadow-soft);
+  border-radius: 50%;
+  background: var(--accent-light);
 }
-
 .profile-avatar--hero {
-  width: clamp(92px, 11vw, 124px);
-  height: clamp(92px, 11vw, 124px);
-  font-size: 2.2rem;
+  width: 72px;
+  height: 72px;
 }
-
 .profile-avatar--preview {
-  width: 88px;
-  height: 88px;
-  font-size: 1.45rem;
+  width: 64px;
+  height: 64px;
 }
-
 .profile-avatar > * {
-  grid-area: 1 / 1;
+  width: 100%;
+  height: 100%;
 }
-
 .profile-avatar img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
-
 .account-stats--cards {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: clamp(24px, 3vw, 32px);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px 32px;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
 }
-
 .account-stat-card {
-  min-width: 0;
-  padding: 15px 16px;
-  border: 1px solid var(--profile-line);
-  border-radius: var(--radius-xl);
-  background: color-mix(in srgb, var(--bg-card) 62%, var(--accent-subtle));
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+  display: grid;
+  gap: 6px;
 }
-
 .account-stat-card__label {
-  display: block;
-  margin-bottom: 9px;
   color: var(--text-muted);
-  font-size: 0.74rem;
-  font-weight: 820;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: 0.75rem;
 }
-
 .account-stat-card__value {
-  display: block;
-  overflow: hidden;
-  color: var(--text-primary);
-  font-family: var(--font-serif);
-  font-size: 1.06rem;
-  font-weight: 850;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-size: 0.8125rem;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
 }
-
-.profile-section {
-  display: grid;
-  gap: 18px;
-}
-
-.profile-editor-section,
-.profile-security-section {
-  margin-bottom: 0;
-}
-
-.profile-section-heading {
-  max-width: 720px;
-}
-
-.profile-section-heading h2 {
-  margin: 0 0 6px;
-  font-family: var(--font-serif);
-  font-size: clamp(1.35rem, 2.4vw, 1.9rem);
-  letter-spacing: -0.025em;
-}
-
-.profile-section-heading p:last-child {
-  margin: 0;
-  color: var(--text-secondary);
-}
-
-.profile-sync-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  padding: 16px 18px;
-  border-radius: var(--radius-2xl);
-}
-
-.profile-sync-card h3 {
-  margin: 0 0 4px;
-  font-size: 1rem;
-}
-
-.bookshelf-grid--profile {
-  grid-template-columns: minmax(0, 1.35fr) repeat(2, minmax(0, 1fr));
-  gap: 16px;
-}
-
-.bookshelf-sections {
-  display: grid;
-  gap: 20px;
-}
-
-.bookshelf-card-section {
-  min-width: 0;
-  padding: 22px;
-  border: 1px solid var(--profile-line);
-  border-radius: var(--radius-2xl);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.54), rgba(255, 255, 255, 0) 48%),
-    var(--profile-paper);
-  box-shadow: var(--profile-shadow-soft);
-}
-
-[data-theme="dark"] .bookshelf-card-section {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0) 48%),
-    var(--profile-paper);
-}
-
-.bookshelf-card-section h3,
-.bookshelf-card--compact h3 {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin: 0 0 18px;
-  font-family: var(--font-serif);
-}
-
-.bookshelf-card-section h3 span,
-.bookshelf-card--compact h3 span {
-  font-family: var(--font-body);
-  color: var(--text-muted);
-  font-size: 0.8rem;
-  font-weight: 700;
-}
-
-.bookshelf-novel-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
-  gap: 16px;
-}
-
-.bookshelf-novel-card {
-  position: relative;
-  min-width: 0;
-}
-
-.bookshelf-page .novel-card {
-  height: 100%;
-  padding: 16px 16px 42px;
-  border: 1px solid var(--profile-line);
-  border-radius: var(--radius-2xl);
-  background: color-mix(in srgb, var(--bg-card) 82%, var(--accent-subtle));
-  box-shadow: var(--profile-shadow-soft);
-}
-
-.bookshelf-page .novel-card:hover {
-  border-color: color-mix(in srgb, var(--accent) 24%, var(--profile-line));
-}
-
-.bookshelf-page .novel-card__meta {
-  display: -webkit-box;
-  overflow: hidden;
-  white-space: normal;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-}
-
-.bookshelf-card-action {
-  position: absolute;
-  right: 10px;
-  bottom: 10px;
-  z-index: 2;
-  padding: 4px 9px;
-  border: 1px solid color-mix(in srgb, var(--color-danger) 18%, var(--profile-line));
-  border-radius: var(--radius-full);
-  color: var(--color-danger);
-  background: var(--profile-danger-soft);
-  font-size: 0.72rem;
-  font-weight: 760;
-  cursor: pointer;
-}
-
-.bookshelf-card-action:hover {
-  border-color: color-mix(in srgb, var(--color-danger) 34%, var(--profile-line));
-  background: color-mix(in srgb, var(--color-danger) 14%, var(--bg-card));
-}
-
-.bookshelf-card-continue {
-  display: none;
-}
-
-.bookshelf-record-panel {
-  min-width: 0;
-  padding: 16px;
-  border: 1px solid var(--profile-line);
-  border-radius: var(--radius-xl);
-  background: var(--profile-inset);
-}
-
-.profile-page .bookshelf-card,
-.bookshelf-page .bookshelf-card {
-  border-radius: var(--radius-2xl);
-}
-
-.profile-page .bookshelf-card h3,
-.bookshelf-page .bookshelf-card h3 {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 12px;
-  font-family: var(--font-serif);
-}
-
-.profile-page .bookshelf-card h3 span,
-.bookshelf-page .bookshelf-card h3 span {
-  font-family: var(--font-body);
-  color: var(--text-muted);
-  font-size: 0.8rem;
-  font-weight: 700;
-}
-
 .profile-hero__actions {
-  position: relative;
-  z-index: 1;
-  margin-top: 18px;
+  margin-top: 20px;
 }
-
-.bookshelf-hero {
-  position: relative;
-  overflow: hidden;
-  padding: clamp(24px, 4vw, 42px);
-  border-radius: var(--radius-2xl);
-}
-
-.bookshelf-hero h1 {
-  margin: 0 0 10px;
-  font-family: var(--font-serif);
-  font-size: clamp(2rem, 4.4vw, 3.4rem);
-  line-height: 1.05;
-  letter-spacing: -0.045em;
-}
-
-.bookshelf-hero p:last-child {
-  max-width: 42rem;
-  margin: 0;
-  color: var(--text-secondary);
-  line-height: 1.75;
-}
-
-.bookshelf-hero__mark {
-  position: absolute;
-  right: clamp(18px, 4vw, 44px);
-  top: clamp(18px, 4vw, 36px);
-  color: color-mix(in srgb, var(--accent) 15%, transparent);
-  font-family: var(--font-serif);
-  font-size: clamp(3.2rem, 8vw, 6.5rem);
-  font-weight: 800;
-  line-height: 1;
-  transform: rotate(8deg);
-  pointer-events: none;
-  user-select: none;
-}
-
-#bookshelfMessage {
-  min-height: 22px;
-  margin: 0;
-  color: var(--text-secondary);
-}
-
-#bookshelfMessage:not(:empty) {
-  justify-self: start;
-  padding: 8px 12px;
-  border: 1px solid var(--profile-line);
-  border-radius: var(--radius-full);
-  background: var(--profile-inset);
-  box-shadow: var(--profile-shadow-soft);
-}
-
-.bookshelf-subtitle {
-  margin: 14px 0 6px;
-  color: var(--accent);
-  font-size: 0.72rem;
-  font-weight: 840;
-  letter-spacing: 0.12em;
-}
-
-.bookshelf-subtitle:first-child {
-  margin-top: 0;
-}
-
-.profile-page .bookshelf-item-wrap,
-.bookshelf-page .bookshelf-item-wrap {
-  gap: 8px;
-  border-top-color: var(--profile-line);
-}
-
-.profile-page .bookshelf-item,
-.bookshelf-page .bookshelf-item {
-  padding: 11px 0;
-}
-
-.profile-page .bookshelf-item strong,
-.profile-page .bookshelf-item span,
-.bookshelf-page .bookshelf-item strong,
-.bookshelf-page .bookshelf-item span {
-  min-width: 0;
-}
-
-.bookshelf-item__title,
-.bookshelf-item__meta {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.profile-page .bookshelf-item__continue,
-.profile-page .bookshelf-item__delete,
-.bookshelf-page .bookshelf-item__continue,
-.bookshelf-page .bookshelf-item__delete {
-  border: 1px solid transparent;
-  background: transparent;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-}
-
-.profile-page .bookshelf-item__continue:hover,
-.bookshelf-page .bookshelf-item__continue:hover {
-  color: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 20%, var(--profile-line));
-  background: var(--accent-subtle);
-}
-
-.profile-page .bookshelf-item__delete:hover,
-.bookshelf-page .bookshelf-item__delete:hover {
-  color: var(--color-danger);
-  border-color: color-mix(in srgb, var(--color-danger) 22%, var(--profile-line));
-  background: var(--profile-danger-soft);
-}
-
-.profile-empty-note {
-  margin: 0;
-  padding: 16px;
-  border: 1px dashed var(--profile-line);
-  border-radius: var(--radius-xl);
-  background: var(--profile-inset);
-  color: var(--text-muted);
-  font-size: 0.86rem;
-  text-align: center;
-}
-
 .profile-edit-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-items: stretch;
-  gap: 18px;
-}
-
-.profile-editor-section .profile-edit-panel {
-  display: grid;
-  align-content: start;
-}
-
-.profile-editor-section .profile-edit-panel__actions {
-  align-self: end;
-}
-
-.profile-security-section .profile-edit-grid {
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: 20px;
   align-items: start;
 }
-
-.profile-security-section .profile-edit-panel {
-  align-self: start;
-}
-
-.profile-edit-panel {
+.profile-section {
   min-width: 0;
-  padding: 22px;
-  border-radius: var(--radius-2xl);
 }
-
+.profile-edit-panel {
+  padding: 28px;
+}
 .profile-edit-panel__head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
+  margin-bottom: 24px;
+}
+.profile-section-heading {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.profile-field {
+  display: grid;
+  gap: 8px;
   margin-bottom: 18px;
 }
-
-.profile-edit-panel__eyebrow {
-  display: inline-block;
-  margin-bottom: 5px;
-  color: var(--accent);
-  font-size: 0.72rem;
-  font-weight: 840;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+.profile-field > span {
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  font-weight: 400;
 }
-
-.profile-edit-panel h3 {
-  margin: 0;
-  font-family: var(--font-serif);
-  letter-spacing: -0.018em;
+.profile-page .form-input {
+  font-size: 0.875rem;
+  border-radius: var(--radius-md);
 }
-
+.profile-page textarea.form-input {
+  resize: vertical;
+  min-height: 100px;
+  line-height: 1.7;
+}
 .profile-edit-panel__actions {
   display: flex;
   justify-content: flex-end;
-  margin-top: 26px;
+  margin-top: 24px;
 }
-
-.profile-field {
-  display: grid;
-  gap: 7px;
-  margin-bottom: 14px;
-}
-
-.profile-field > span {
-  color: var(--text-secondary);
-  font-size: 0.82rem;
-  font-weight: 740;
-}
-
-.profile-avatar-preview {
-  margin-bottom: 14px;
-}
-
 .profile-avatar-picker {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin: 14px 0;
-  padding: 10px;
-  border: 1px solid var(--profile-line);
-  border-radius: var(--radius-xl);
-  background: var(--profile-inset);
+  align-items: flex-start;
+  gap: 20px;
 }
-
+.profile-action-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
 .profile-file-input {
   position: absolute;
   width: 1px;
@@ -703,240 +202,385 @@
   opacity: 0;
   pointer-events: none;
 }
-
-.profile-panel-copy {
-  margin: 0 0 16px;
+.profile-page .btn,
+.bookshelf-page .btn {
+  border-radius: var(--radius-md);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  box-shadow: none;
 }
-
+.profile-page .btn--secondary,
+.bookshelf-page .btn--secondary {
+  border-color: transparent;
+  background: var(--bg-secondary);
+}
+.profile-page .btn--secondary:hover,
+.bookshelf-page .btn--secondary:hover {
+  background: var(--bg-hover);
+}
 .profile-session-list {
   display: grid;
-  gap: 10px;
-  max-height: 286px;
-  overflow: auto;
+  max-height: 300px;
+  overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 2px 4px 2px 0;
-  margin-bottom: 14px;
   scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--accent) 28%, transparent) transparent;
 }
-
-.profile-session-list::-webkit-scrollbar {
-  width: 6px;
-}
-
-.profile-session-list::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--accent) 24%, transparent);
-}
-
 .profile-session-card {
   display: grid;
-  grid-template-columns: 38px minmax(0, 1fr) auto;
-  align-items: center;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
   gap: 12px;
+  align-items: center;
+  padding: 14px 0;
   min-width: 0;
-  padding: 12px;
-  border: 1px solid var(--profile-line);
-  border-radius: var(--radius-xl);
-  background: var(--profile-inset);
 }
-
-.profile-session-card--current {
-  border-color: color-mix(in srgb, var(--accent) 28%, var(--profile-line));
-  background: color-mix(in srgb, var(--bg-card) 68%, var(--accent-subtle));
-  box-shadow: inset 3px 0 0 var(--accent);
+.profile-session-card + .profile-session-card {
+  border-top: 1px solid var(--border);
 }
-
 .profile-session-icon {
   display: grid;
   place-items: center;
-  width: 38px;
-  height: 38px;
-  border: 1px solid var(--profile-line);
-  border-radius: var(--radius-lg);
-  background: var(--bg-card);
-  color: var(--accent);
-  font-weight: 850;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
+  color: var(--text-muted);
 }
-
 .profile-session-meta {
   min-width: 0;
 }
-
 .profile-session-title-row {
   display: flex;
-  align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
-  min-width: 0;
+  align-items: center;
 }
-
 .profile-session-title {
-  display: block;
-  overflow: hidden;
-  color: var(--text-primary);
-  font-weight: 780;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  overflow-wrap: anywhere;
 }
-
 .profile-session-status {
-  flex: 0 0 auto;
-  padding: 2px 8px;
-  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--profile-line));
-  border-radius: var(--radius-full);
-  background: var(--accent-subtle);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-light);
   color: var(--accent);
   font-size: 0.7rem;
-  font-weight: 850;
 }
-
 .profile-session-detail {
   display: block;
-  overflow: hidden;
-  margin-top: 3px;
+  margin-top: 4px;
+  font-size: 0.7rem;
   color: var(--text-muted);
-  font-size: 0.8rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.7;
 }
-
-.profile-session-card .btn-session-delete {
-  flex: 0 0 auto;
-  padding-inline: 12px;
-}
-
-.profile-session-card .btn-session-delete:disabled {
-  opacity: 0.48;
-  cursor: not-allowed;
-  box-shadow: none;
-  transform: none;
-}
-
 .profile-session-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 26px;
-  padding-top: 16px;
-  border-top: 1px solid var(--profile-line);
+  gap: 8px;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
 }
-
-.profile-session-actions .btn:first-child {
+.profile-session-actions .btn {
   color: var(--color-danger);
-  border-color: color-mix(in srgb, var(--color-danger) 20%, var(--profile-line));
-  background: var(--profile-danger-soft);
 }
-
-#profileMessage {
-  min-height: 22px;
-  margin: 0;
+.account-page-heading .profile-message {
+  margin: 12px 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+  color: var(--accent);
+}
+.profile-message:empty {
+  display: none;
+}
+.bookshelf-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+.bookshelf-shell {
+  max-width: 1080px;
+  gap: 24px;
+}
+.bookshelf-tabs {
+  display: flex;
+  gap: 28px;
+  border-bottom: 1px solid var(--border);
+}
+.bookshelf-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 0 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  background: transparent;
+  font: inherit;
+  font-size: 0.875rem;
   color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    color var(--tabs-segmented-transition),
+    border-color var(--tabs-segmented-transition);
 }
-
-#profileMessage:not(:empty) {
-  justify-self: start;
-  padding: 8px 12px;
-  border: 1px solid var(--profile-line);
-  border-radius: var(--radius-full);
-  background: var(--profile-inset);
-  box-shadow: var(--profile-shadow-soft);
+.bookshelf-tab span {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
 }
-
-.profile-settings,
-.profile-actions,
-.profile-action-group {
+.bookshelf-tab[aria-pressed='true'] {
+  border-color: var(--accent);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.bookshelf-tab:hover {
+  color: var(--accent);
+}
+.bookshelf-tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: var(--radius-sm);
+}
+.bookshelf-section[hidden] {
+  display: none;
+}
+.profile-sync-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.profile-sync-card .text-sm {
+  font-size: 0.75rem;
+}
+.bookshelf-section {
   min-width: 0;
 }
-
-@media (max-width: 900px) {
-  .profile-page,
-  .bookshelf-page {
-    padding-top: 26px;
-  }
-
-  .account-stats--cards,
-  .profile-edit-grid,
-  .bookshelf-grid--profile,
-  .profile-actions {
-    grid-template-columns: 1fr;
+.bookshelf-subtitle {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  margin: 0 0 16px;
+  font-size: 1rem;
+  font-weight: 600;
+}
+.bookshelf-subtitle .text-muted {
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+.bookshelf-novel-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+.bookshelf-novel-card {
+  position: relative;
+  min-width: 0;
+  border-radius: var(--radius-xl);
+  background: var(--bg-card);
+}
+.bookshelf-page .novel-card {
+  gap: 16px;
+  min-height: 152px;
+  padding: 18px;
+  border: 0;
+  border-radius: var(--radius-xl);
+  background: transparent;
+  box-shadow: none;
+}
+.bookshelf-page .novel-card:hover {
+  background: color-mix(in srgb, var(--bg-card) 95%, var(--accent-light));
+  transform: none;
+  box-shadow: none;
+}
+.bookshelf-page .novel-card__cover {
+  width: 72px;
+  height: 108px;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--novel-cover-shadow);
+}
+.bookshelf-page .novel-card__title {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-height: 1.5;
+}
+.bookshelf-page .novel-card__body {
+  min-width: 0;
+  padding-bottom: 28px;
+}
+.bookshelf-page .novel-card__meta {
+  margin-top: 6px;
+  font-size: var(--novel-card-meta-size);
+}
+.bookshelf-page .novel-card__time {
+  margin-top: 12px;
+}
+.bookshelf-card-action {
+  position: absolute;
+  right: 16px;
+  bottom: 12px;
+  min-height: 32px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+.bookshelf-card-action:hover {
+  background: var(--bg-hover);
+  color: var(--color-danger);
+}
+.bookshelf-record-panel {
+  padding: 4px 24px;
+  border-radius: var(--radius-xl);
+  background: var(--bg-card);
+}
+.bookshelf-item-wrap + .bookshelf-item-wrap {
+  border-top: 1px solid var(--border);
+}
+.bookshelf-page .bookshelf-item {
+  display: grid;
+  gap: 6px;
+  padding: 18px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-primary);
+  text-decoration: none;
+}
+.bookshelf-page .bookshelf-item:hover {
+  background: transparent;
+  color: var(--accent);
+}
+.bookshelf-item__title {
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.bookshelf-item__meta {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.profile-empty-note {
+  margin: 0;
+  padding: 24px 0;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  line-height: 1.8;
+}
+.bookshelf-novel-grid > .profile-empty-note {
+  grid-column: 1 / -1;
+  padding: 40px 0;
+  background: transparent;
+  text-align: center;
+}
+.bookshelf-record-panel:has(> .profile-empty-note) {
+  background: transparent;
+  text-align: center;
+}
+@media (max-width: 1000px) {
+  .bookshelf-novel-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
-
-@media (max-width: 640px) {
+@media (max-width: 800px) {
+  .profile-edit-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .bookshelf-hero {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 16px;
+  }
+}
+@media (max-width: 600px) {
   .profile-page,
   .bookshelf-page {
-    padding: 20px 0 42px;
+    padding: 28px 0 40px;
   }
-
   .profile-shell,
   .bookshelf-shell {
     gap: 24px;
+    padding-inline: 16px;
   }
-
+  .account-page-heading h1,
+  .bookshelf-hero h1 {
+    font-size: 1.55rem;
+  }
   .profile-hero,
-  .bookshelf-hero {
-    padding: 22px;
-    border-radius: var(--radius-2xl);
+  .profile-edit-panel {
+    padding: 20px;
   }
-
-  .profile-hero__paper-mark,
-  .bookshelf-hero__mark {
-    right: 14px;
-    top: 14px;
-    font-size: 3.2rem;
-  }
-
   .profile-hero__main {
-    grid-template-columns: 1fr;
-    align-items: flex-start;
+    grid-template-columns: 56px minmax(0, 1fr);
     gap: 16px;
   }
-
   .profile-avatar--hero {
-    width: 88px;
-    height: 88px;
-    border-radius: var(--radius-2xl);
+    width: 56px;
+    height: 56px;
   }
-
   .account-stats--cards {
-    gap: 10px;
-    margin-top: 20px;
+    gap: 16px 24px;
   }
-
-  .account-stat-card {
-    padding: 14px;
-    border-radius: var(--radius-xl);
-  }
-
-  .profile-sync-card,
-  .profile-edit-panel,
-  .profile-page .bookshelf-card,
-  .bookshelf-page .bookshelf-card {
-    padding: 18px;
-    border-radius: var(--radius-2xl);
-  }
-
-  .profile-sync-card {
-    align-items: stretch;
+  .profile-avatar-picker {
     flex-direction: column;
+    gap: 16px;
   }
-
-  .profile-sync-card .btn,
-  .profile-edit-panel__actions .btn,
-  .profile-session-actions .btn {
-    width: 100%;
-  }
-
-  .profile-edit-panel__actions {
-    justify-content: stretch;
-  }
-
   .profile-session-card {
-    grid-template-columns: 34px minmax(0, 1fr);
+    grid-template-columns: 28px minmax(0, 1fr);
   }
-
   .profile-session-card .btn-session-delete {
-    grid-column: 1 / -1;
-    width: 100%;
+    grid-column: 2;
+    justify-self: start;
+  }
+  .profile-sync-card {
+    flex-wrap: wrap;
+  }
+  .bookshelf-novel-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .bookshelf-tabs {
+    gap: 20px;
+  }
+  .bookshelf-tab {
+    gap: 5px;
+    font-size: 0.8125rem;
+  }
+  .bookshelf-page .novel-card {
+    padding: 18px;
+    gap: 16px;
+  }
+  .bookshelf-record-panel {
+    padding-inline: 20px;
+  }
+  .profile-page .btn,
+  .bookshelf-page .btn,
+  .bookshelf-card-action {
+    min-height: 40px;
+  }
+  .profile-page .form-input {
+    font-size: 1rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .profile-page .card,
+  .bookshelf-page .novel-card,
+  .profile-page .btn,
+  .bookshelf-page .btn {
+    transition: none;
+  }
+  .bookshelf-tab {
+    transition: none;
   }
 }
