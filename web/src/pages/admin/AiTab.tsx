@@ -30,7 +30,7 @@ const AI_SUBTAB_META: Record<SubTab, { title: string; description: string }> = {
   writing: { title: 'AI 创作', description: '组织大纲、章节与续写任务，保留现有创作上下文。' },
   cover: { title: '封面生成', description: '生成、比较并应用小说封面候选图。' },
   content: { title: '已生成内容', description: '审阅、编辑和管理 AI 生成的章节与摘要。' },
-  config: { title: 'AI 配置', description: '管理文本与图像供应商、模型和连接设置。' },
+  config: { title: 'AI 配置', description: '连接文本与图像服务，管理模型和读者生成策略。' },
   params: { title: '参数调优', description: '调整摘要、回顾、创作和生图的生成参数。' },
 }
 

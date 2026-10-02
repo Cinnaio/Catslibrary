@@ -161,7 +161,6 @@
 .ai-service .ai-config-secondary {
   gap: var(--ai-workspace-gap);
 }
-.ai-service .ai-config-panel label:has([data-slot='switch']),
 .ai-service .ai-params-panel label:has([data-slot='switch']) {
   border: 0;
   background: var(--admin-panel-muted);
@@ -773,10 +772,6 @@
   gap: 1.5rem;
   align-items: start;
 }
-.ai-service .ai-config-policy-grid > label {
-  background: transparent;
-  padding: 0;
-}
 .ai-service .ai-config-usage {
   display: flex;
   flex-wrap: wrap;
@@ -796,14 +791,15 @@
 }
 .ai-service .ai-config-save {
   position: sticky;
-  bottom: 0.75rem;
+  bottom: 1rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 1rem 1.25rem;
+  padding: 0.75rem 1.25rem;
   background: var(--admin-panel);
-  border-radius: 0.75rem;
+  border: 1px solid var(--admin-line);
+  border-radius: 1rem;
   z-index: 5;
 }
 .ai-service .ai-config-save > span {
@@ -886,9 +882,6 @@
 }
 .ai-service .ai-provider-test > span {
   flex: 1 1 auto;
-}
-.ai-service .ai-config-panel .ai-config-policy-grid > label {
-  background: transparent;
 }
 @media (max-width: 767px) {
   .ai-service.ai-admin-page .admin-panel-card > .ai-writing-workspace {
@@ -1175,5 +1168,112 @@
   .ai-service .ai-generation-sort-hint {
     margin-left: 0;
     width: 100%;
+  }
+}
+
+/* AI 配置：对齐批准的 config 样稿，业务字段继续使用共享输入框。 */
+.ai-service .ai-config-provider-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.875rem;
+  flex-wrap: wrap;
+  padding-bottom: 0.25rem;
+}
+.ai-service .ai-config-provider-heading p,
+.ai-service .ai-config-section-heading p {
+  margin-top: 0.1875rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  white-space: normal;
+}
+.ai-service .ai-config-status-dot {
+  width: 0.3125rem;
+  height: 0.3125rem;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+.ai-service .ai-config-panel .admin-form-field {
+  gap: 0.375rem;
+}
+.ai-service .ai-config-panel .admin-form-field label {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+.ai-service.ai-admin-page .ai-config-panel input {
+  width: 100%;
+  max-width: none;
+  min-height: 2.5rem;
+  height: 2.5rem;
+  padding: 0.5625rem 0.75rem;
+  font-size: 0.875rem;
+}
+.ai-service.ai-admin-page .ai-config-panel .ai-provider-section {
+  gap: 1.25rem;
+  align-content: start;
+}
+.ai-service.ai-admin-page .ai-config-providers .ai-form-grid {
+  gap: 1.25rem;
+}
+.ai-service .ai-config-panel .ai-provider-actions [data-slot='button'] {
+  min-width: 0;
+  flex-shrink: 0;
+}
+.ai-service .ai-config-checkrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.625rem 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+.ai-service .ai-config-help {
+  margin-top: 0.375rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+.ai-service.ai-admin-page .ai-config-panel .ai-config-limits {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+.ai-service .ai-config-service-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.ai-service .ai-config-usage-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.75rem;
+  padding-top: 1rem;
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+.ai-service .ai-config-usage-line b {
+  margin-right: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+.ai-service .ai-config-panel .ai-config-secondary [data-slot='card-content'] {
+  gap: 0;
+}
+@media (max-width: 767px) {
+  .ai-service .ai-config-panel .ai-provider-section {
+    padding: 1.25rem;
+  }
+  .ai-service.ai-admin-page .ai-config-panel .ai-config-limits {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ai-service .ai-config-usage-line {
+    gap: 0.75rem 1.25rem;
+  }
+  .ai-service .ai-config-panel {
+    padding-bottom: 1rem;
   }
 }
