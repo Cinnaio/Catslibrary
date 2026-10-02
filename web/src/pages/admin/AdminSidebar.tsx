@@ -3,7 +3,7 @@
  * nav groups (from the registry), footer with home, and rail.
  * Moved verbatim from the former Admin.tsx shell.
  */
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
 import { ChevronRight } from 'lucide-react'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
@@ -126,6 +126,21 @@ function AdminNavigation({ active }: AdminSidebarProps) {
 
 export default function AdminSidebar({ active }: AdminSidebarProps) {
   const { setOpenMobile } = useSidebar()
+  const observeNavigation = useCallback((node: HTMLDivElement | null) => {
+    if (!node) return
+    const updateEdge = () => {
+      node.dataset.scrollRemaining = String(node.scrollHeight - node.clientHeight - node.scrollTop > 1)
+    }
+    updateEdge()
+    const observer = new ResizeObserver(updateEdge)
+    observer.observe(node)
+    if (node.firstElementChild) observer.observe(node.firstElementChild)
+    node.addEventListener('scroll', updateEdge, { passive: true })
+    return () => {
+      observer.disconnect()
+      node.removeEventListener('scroll', updateEdge)
+    }
+  }, [])
 
   return (
     <Sidebar className="admin-sidebar" variant="floating" collapsible="icon">
@@ -146,7 +161,7 @@ export default function AdminSidebar({ active }: AdminSidebarProps) {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
-      <SidebarContent className="admin-shell__navigation">
+      <SidebarContent ref={observeNavigation} className="admin-shell__navigation">
         <AdminNavigation active={active} />
       </SidebarContent>
       <SidebarFooter className="admin-shell__footer">

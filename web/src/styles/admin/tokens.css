@@ -26,7 +26,7 @@
   --admin-sidebar-active-background: var(--accent);
   --admin-sidebar-active-foreground: var(--accent-ink);
   --admin-sidebar-sub-active-background: var(--accent-light);
-  --admin-sidebar-footer-fade-height: 3rem;
+  --admin-sidebar-footer-fade-height: 1.5rem;
   --admin-pagination-gap: 0.5rem;
   --admin-pagination-padding-block: 0.75rem;
   --admin-pagination-padding-inline: 1.25rem;

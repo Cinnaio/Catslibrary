@@ -33,12 +33,12 @@
 .admin-layout [data-slot='sidebar-content']::-webkit-scrollbar {
   display: none;
 }
-.admin-sidebar[data-slot='sheet-content'] {
+.admin-sidebar[data-mobile='true'] {
   background: var(--admin-sidebar);
   animation-duration: 220ms;
   will-change: transform;
 }
-body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] {
+body:has(.admin-sidebar[data-mobile='true']) [data-slot='sheet-overlay'] {
   animation-duration: 180ms;
   will-change: opacity;
 }
@@ -166,7 +166,12 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   height: 2rem;
 }
 
-.admin-layout [data-slot='sidebar-footer'] {
+.admin-shell__navigation {
+  /* 留出滚动末端余量，让最后一个导航项可以完整离开淡出区。 */
+  padding-bottom: var(--admin-sidebar-footer-fade-height);
+}
+
+.admin-shell__footer {
   position: relative;
   z-index: 2;
   padding: 0.75rem;
@@ -174,19 +179,24 @@ body:has(.admin-sidebar[data-slot='sheet-content']) [data-slot='sheet-overlay'] 
   background: var(--admin-sidebar);
 }
 
-/* 账户入口固定在侧栏底部；渐变从上方内容区淡入 footer 纸面，避免出现硬切分隔线。 */
-.admin-layout [data-slot='sidebar-footer']::before {
+/* 只在下方仍有内容时提示可滚动；无溢出或滚到底时不遮盖菜单。 */
+.admin-shell__footer::before {
   position: absolute;
   z-index: 0;
   inset-inline: 0;
   bottom: 100%;
   height: var(--admin-sidebar-footer-fade-height);
   pointer-events: none;
-  background: linear-gradient(to bottom, transparent, var(--admin-sidebar));
+  background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--admin-sidebar) 35%, transparent) 50%, var(--admin-sidebar));
   content: '';
+  opacity: 0;
 }
 
-.admin-layout [data-slot='sidebar-footer'] > * {
+.admin-shell__navigation[data-scroll-remaining='true'] + .admin-shell__footer::before {
+  opacity: 1;
+}
+
+.admin-shell__footer > * {
   position: relative;
   z-index: 1;
 }

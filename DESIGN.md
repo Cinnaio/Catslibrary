@@ -414,7 +414,7 @@ components:
 
 ### Navigation (Sidebar)
 - **Style:** shadcn 可折叠侧边栏（`collapsible="icon"`, `variant="floating"`），展开态 16rem、图标态 3rem、移动端抽屉 18rem。桌面侧栏使用 `--admin-sidebar` 独立纸面，保留轻微外部留白和 `--radius-xl` 圆角，不使用外描边或阴影；不要把它改成边到边的 `sidebar` 变体。导航溢出时保留滚动能力，但隐藏滚动条视觉轨道。
-- **Brand / Account:** 侧栏顶部品牌容器是返回首页的入口；账户菜单固定在侧栏底部，承载个人中心与退出登录。账户区域与上方导航之间使用 `--admin-sidebar-footer-fade-height` 的渐变过渡，不添加硬分隔线。
+- **Brand / Account:** 侧栏顶部品牌容器是返回首页的入口；账户菜单固定在侧栏底部，承载个人中心与退出登录。账户区域与上方导航之间使用 `--admin-sidebar-footer-fade-height`（24px）的轻量纸面淡出，不添加硬分隔线或模糊滤镜。仅在下方仍有可滚动导航时显示；无溢出或滚到底时撤掉遮罩。导航末端保留等高余量，确保最后一个菜单完整可见。滚动、窗口尺寸与子菜单展开变化均更新边缘状态；遮罩不接收指针事件。桌面侧栏与手机抽屉沿用同一规则。
 - **Active State:** 当前项使用整行 `--admin-sidebar-active-background` 品牌色背景与 `--admin-sidebar-active-foreground` 前景色，取消旧的局部浅色/竖线指示器；悬停态不得覆盖当前项的品牌色。
 - **Typography:** 菜单项 0.875rem / 500；分组标签 0.75rem / 600，正常字距、不使用 uppercase，颜色 `--text-muted`。
 - **Geometry Tokens:** 菜单项高度、圆角、内边距、图标与文字间距分别读取 `--admin-sidebar-nav-height`、`--admin-sidebar-nav-radius`、`--admin-sidebar-nav-padding-inline`、`--admin-sidebar-nav-gap`；分组顶部留白使用 `--admin-sidebar-group-gap`。
