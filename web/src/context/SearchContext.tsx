@@ -1,6 +1,5 @@
 /**
- * 搜索上下文 —— Home 页与 SiteHeader 搜索框共享查询词。
- * 仅 / 路由消费；其他页面 setQuery 会触发导航到首页查询。
+ * 搜索上下文 —— Home 中央搜索框使用查询词，地址栏 ?q= 由 Home 同步。
  */
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react'
 

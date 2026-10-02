@@ -37,6 +37,17 @@ typography:
     lineHeight: 1.6
   serif:
     fontFamily: "'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', ui-serif, serif"
+  home-title:
+    fontFamily: "'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', ui-serif, serif"
+    fontSize: "2rem"
+    fontWeight: 500
+    lineHeight: 1.5
+    letterSpacing: "-0.02em"
+  home-title-mobile:
+    fontFamily: "'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', ui-serif, serif"
+    fontSize: "1.55rem"
+    fontWeight: 500
+    lineHeight: 1.5
   mono:
     fontFamily: "'SF Mono', 'Fira Code', 'Consolas', monospace"
   # 枚举字号阶（机器可读字阶）。命名语义见正文 Typography 一节。
@@ -49,6 +60,9 @@ typography:
     body-sm: "0.875rem"       # 14px 辅助文字/面板标题/页头描述
     select-trigger: "0.9rem"  # 14.4px 下拉触发
     card-title: "0.95rem"     # 15.2px 发现卡标题
+    novel-card-title: "0.875rem" # 14px 公共小说卡片书名
+    novel-card-meta: "0.75rem" # 12px 公共小说卡片作者/状态/简介
+    novel-card-footer: "0.7rem" # 11.2px 公共小说卡片分类/时间
     body: "1rem"              # 16px 正文/品牌标记/队列摘要数值
     modal-title: "1.15rem"    # 18.4px 弹窗标题
     panel-title: "1rem"       # 16px 后台卡片标题（小于 20px 页标题）
@@ -82,6 +96,22 @@ spacing:
   xl: "32px"
   2xl: "48px"
 components:
+  novel-card-typography:
+    titleSize: "0.875rem"
+    metaSize: "0.75rem"
+    descriptionSize: "0.75rem"
+    footerSize: "0.7rem"
+  home-library-card:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.text-primary}"
+    rounded: "{rounded.xl}"
+    padding: "24px"
+  home-search:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.text-primary}"
+    rounded: "{rounded.lg}"
+    width: "620px"
+    height: "60px"
   toast-feedback:
     backgroundColor: "{colors.toast-paper}"
     textColor: "{colors.text-primary}"
@@ -199,7 +229,7 @@ components:
 后台表单标签另有 `--admin-field-label-weight: 400`——标签刻意保持常规字重，让当前选中的分段 tab 保持视觉主导；不要用加粗标签去和 tab 抢注意力。
 
 ### Named Rules
-**The Content-First Rule.** 字体永远是配角。系统字体不创造风格，内容本身创造风格。唯一例外是阅读器中的衬线体——那是为沉浸而存在的。
+**The Content-First Rule.** 字体永远是配角。系统字体不创造风格，内容本身创造风格。阅读器使用衬线体营造沉浸；2026-10-02 用户批准的首页也允许主标题使用现有 `--font-serif`，桌面 32px、手机 1.55rem，限于 `Home`，不扩展到后台或其他公共页。
 
 **The One Title Rule.** 每个可导航页面只有一个内容区主标题，由页头承担。面板标题写工作对象名（"作品目录"、"章节目录"、"审核列表"），不重复页面名。页头上方不再出现小字眉题——`AdminTabHeader` 的 `kicker` 与 `hero` 变体已退役，两个 prop 仍被接受但被忽略。标题字号膨胀和"每页一个更大的标题"都是被明确否定的方向。
 
@@ -271,6 +301,7 @@ components:
 内容驱动的流式布局，最大宽度 1200px（--max-width-content），阅读器收窄到 680px（--max-width-reader）。
 
 - **公共页面**: 居中容器，20px 内边距，纵向流动。小说网格使用 auto-fill + minmax(330px, 1fr)，间距 36px × 44px。
+- **首页例外（2026-10-02 用户追加调整）**: `Home` 使用最大 1200px 的暖灰纸面书库，桌面标题左、搜索右，hero 为 1:1.1 双列、间距 64px，1050px 以下间距 32px，700px 以下改为纵向居中。书目网格700px以上两列、700px以下单列；间距桌面16px、手机12px。手机容器内边距16px。最近阅读桌面三列自然换行，中间档两列，手机单列；完整表面策略见 `.impeccable/surfaces/web-src-pages-home-tsx.md`。
 - **管理后台**: 左侧可折叠侧边栏 + 右侧内容区。侧栏是 shadcn Sidebar（`collapsible="icon"`, `variant="floating"`），展开态 16rem、图标态 3rem、移动抽屉 18rem。桌面侧栏保留轻微外部留白、圆角与独立纸面，但不使用外描边或阴影；内容区宽度 `min(100%, 1440px)` 居中，内边距 1.5rem（桌面）/ 1rem（640px 以下）。滚动所有权在 `AdminShell` 的内容区，不在各 tab 内部。
 - **响应式断点**: 901px↑ 启用桌面固定列宽；900px 是主转折（表格折成卡片、工具栏转纵向、侧边栏折叠、网格单列）；640px 紧凑间距与页头收缩；400px 按钮全宽。审核工具条另有 1240px 的转纵向断点。
 - **间距节奏**: 全局 4/8/16/24/32/48px（xs → 2xl）；管理后台使用 `--admin-space-1` 到 `--admin-space-6` = 4/8/12/16/24/32px。后台的第三档是 12px 而不是 16px——这是紧凑档与全局节奏的刻意差异，不要用全局档去覆盖后台面板的内部间距。双表面工作区的兄弟表面间距固定读取 `--admin-page-section-gap`，当前为 16px。
@@ -308,6 +339,22 @@ components:
 - **阅读页纸张圆角 (30px / 移动端 24px)**: `--reader-radius-paper`，唯一大于 2xl 的圆角。阅读表面要读起来像"一张纸"而不是一个卡片，弧度必须明显大过周围的控件；只用于 `.reader-paper`，其余阅读页元素仍走上面的通用档。
 
 ## Components
+
+### Home Library（首页限定）
+- **方向:** 基于用户批准的 Claude 风格 HTML，并按 2026-10-02 用户追加反馈直接调整正式项目：暖灰 `--bg-secondary` 画布、奶茶棕强调色、白色 `--bg-card` 内容纸面；深色继续读取既有主题 token。品牌 Logo 与账户、主题、成人确认菜单沿用现有组件。独立预览 HTML 保持原样，当前布局以项目实现为准。
+- **搜索:** 首页唯一搜索入口位于桌面 hero 右侧，手机标题下居中；桌面最大 620px、最小高度 60px，手机最小高度 56px。圆角与聚焦边框/光晕读取共享输入 token，标题与搜索尺寸使用 `--home-*` 命名变量。删除首页顶栏的重复搜索与手机搜索浮层，其他页面维持既有导航。
+- **卡片:** 仅首页使用 `NovelCard` 的 `library` 变体，16px 圆角、无外描边、无静态或 hover 阴影；桌面两列、内边距24px、最小高度212px，手机单列、内边距18px、最小高度196px。封面保留真实图片，桌面 96×144px、手机 88×132px；仅无图片时使用占位纸面。书名允许两行，作者单独一行，状态标签与章节数并排；字号使用下述共享卡片字阶，简介最多三行、行高1.8；hover 只使用浅色调反馈。
+- **安全提示:** 桌面为说明文字左、确认按钮右的轻量说明条；手机纵向排列，紧凑留白。调整仅涉及展示，安全模式与成人确认逻辑保持既有实现。
+- **筛选与排序:** 状态/分类使用浅选中态，手机通过带展开状态的按钮收起/展开筛选；四种排序为轻量文字与细下划线。保留现有筛选、拼音搜索、安全模式、阅读历史同步及每页 20 条分页语义。
+- **实现边界:** 页面规则限定 `.home-page` 与首页顶栏修饰类，避免污染后台与其他卡片消费者。批准预览的演示登录、书架和数据交互不作为生产业务实现；正式页接现有 API 与路由。
+
+### Novel Cover Depth（公共小说封面共享）
+
+用户明确要求给书籍封面增加阴影，封面作为纸面上的书籍实体允许轻柔静态落影；容器仍遵守扁平卡片规范。共享 `.novel-card__cover` 读取 `--novel-cover-shadow`，浅色为 `0 2px 4px rgba(40, 32, 24, 0.08), 0 8px 18px rgba(40, 32, 24, 0.12)`，深色为 `0 2px 5px rgba(0, 0, 0, 0.24), 0 8px 20px rgba(0, 0, 0, 0.32)`。仅封面有阴影，卡片容器不增加投影或 hover 抬升；真实图片、占位封面、已读与更新角标沿用原实现。
+
+### Novel Card Typography（公共小说卡片共享）
+
+按用户提供的书目卡片样稿整体收紧字号，首页与书架的 `NovelCard` 共用 `tokens.css` 的字阶：书名 `--novel-card-title-size` 14px / 600，作者与状态 `--novel-card-meta-size` 12px，简介 `--novel-card-description-size` 12px，分类和更新时间 `--novel-card-footer-size` 11.2px。桌面与手机保持同一组字号，不在页面或断点另写字面量；页面只保留排版、行高和截断差异。此次只调整卡片内容字体，封面、圆角、内边距与布局不随字号缩放。
 
 组件以 shadcn/ui 为基础，通过 CSS custom properties 桥接到知舟的暖色调系统。后台组件另有一套 workspace 原语（`components/admin/AdminWorkspace.tsx`）：`AdminToolbar`、`AdminSearch`、`AdminContextPanel`、`AdminMetricStrip`、`AdminQueueSummary`、`AdminDataPanel`、`AdminPanelHeading`。
 

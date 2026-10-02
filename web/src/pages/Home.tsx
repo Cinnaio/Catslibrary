@@ -16,6 +16,8 @@ import { useContentPolicy } from '../context/ContentPolicyContext'
 import { filterVisibleCategories } from '@shared/restricted-categories'
 import NovelCard from '../components/NovelCard'
 import ContentRestrictionNotice from '../components/ContentRestrictionNotice'
+import { SearchIcon } from '../components/icons'
+import { ArrowRight, BookOpen } from 'lucide-react'
 
 const PAGE_LIMIT = 20
 
@@ -26,11 +28,7 @@ function isPinyinQueryText(value: string): boolean {
 function novelMatches(n: Novel, q: string, usePinyin: boolean): Promise<boolean> | boolean {
   if (usePinyin) return pinyinMatch(n.title, q) || pinyinMatch(n.author, q) || pinyinMatch(n.description || '', q)
   const query = String(q || '').toLowerCase()
-  return (
-    (n.title || '').toLowerCase().includes(query) ||
-    (n.author || '').toLowerCase().includes(query) ||
-    (n.description || '').toLowerCase().includes(query)
-  )
+  return (n.title || '').toLowerCase().includes(query) || (n.author || '').toLowerCase().includes(query) || (n.description || '').toLowerCase().includes(query)
 }
 
 interface ServerRecent {
@@ -82,9 +80,7 @@ function mergeRecent(local: ReadingHistoryEntry[], server: ServerRecent[], limit
   }
   local.forEach((h) => add(h))
   server.forEach((h) => add(h))
-  return [...byNovel.values()]
-    .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
-    .slice(0, limit)
+  return [...byNovel.values()].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)).slice(0, limit)
 }
 
 function applyTombstones(tombstones: Array<{ novelId: string; updatedAt?: number }> | undefined): void {
@@ -101,7 +97,7 @@ function applyTombstones(tombstones: Array<{ novelId: string; updatedAt?: number
 export default function Home() {
   const { query, setQuery } = useSearch()
   const { user } = useSession()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { mode, safeMode, setMode, isAllowed, adultContentEnabled } = useContentPolicy()
 
   const [novels, setNovels] = useState<Novel[]>([])
@@ -122,6 +118,7 @@ export default function Home() {
   const [debouncedQuery, setDebouncedQuery] = useState(query)
   // 响应序号守卫：丢弃乱序返回的过期响应（与 NovelsTab 相同模式）
   const loadSeq = useRef(0)
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const urlQuery = searchParams.get('q') || ''
 
   // 地址栏 ?q= 是可分享搜索状态；浏览器前进/后退时同步回输入框。
@@ -252,16 +249,14 @@ export default function Home() {
     function onKey(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault()
-        const headerSearch = document.querySelector<HTMLInputElement>('.search-bar__input')
-        if (headerSearch?.offsetParent) headerSearch.focus()
+        if (!document.querySelector('[role="dialog"]')) searchInputRef.current?.focus()
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  const sectionTitle =
-    activeCategory ? `分类: ${activeCategory}` : activeStatus === 'ongoing' ? '连载中' : activeStatus === 'completed' ? '已完结' : '全部小说'
+  const sectionTitle = activeCategory ? `分类: ${activeCategory}` : activeStatus === 'ongoing' ? '连载中' : activeStatus === 'completed' ? '已完结' : '全部小说'
 
   const hasFilter = !!(query || activeCategory || activeStatus)
   const activeFilterCount = Number(!!activeCategory) + Number(!!activeStatus)
@@ -272,17 +267,63 @@ export default function Home() {
     setRecent(getRecentHistory(5))
   }
 
+  function submitSearch() {
+    const q = query.trim()
+    setQuery(q)
+    setSearchParams(
+      (params) => {
+        if (q) params.set('q', q)
+        else params.delete('q')
+        return params
+      },
+      { replace: true },
+    )
+    document.getElementById('homeLibrary')?.scrollIntoView({ block: 'start' })
+  }
 
   return (
     <main className="home-page">
       <section className="home-hero">
         <div className="container home-shell">
-          <div className="home-hero__paper-mark" aria-hidden="true">舟</div>
           <div className="home-hero__content">
-            <p className="home-kicker">ZHIZHOU LIBRARY</p>
-            <h1>在纸页之间，继续你的故事。</h1>
-            <p>收藏、搜索、筛选与继续阅读，都收进一个安静的中文小说书库。</p>
-
+            <div className="home-hero__intro">
+              <h1>在纸页之间，继续你的故事。</h1>
+              <p>收藏、搜索、筛选与继续阅读，都收进一个安静的中文小说书库。</p>
+            </div>
+            <div className="home-hero__search-area">
+              <form
+                className="home-search"
+                role="search"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  submitSearch()
+                }}
+              >
+                <span className="home-search__icon" aria-hidden="true">
+                  <SearchIcon />
+                </span>
+                <label className="sr-only" htmlFor="homeSearch">
+                  搜索书名、作者或拼音
+                </label>
+                <input
+                  ref={searchInputRef}
+                  id="homeSearch"
+                  className="home-search__input"
+                  type="search"
+                  placeholder="寻找一本书，或一位作者…"
+                  autoComplete="off"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                />
+                <kbd className="home-search__shortcut" aria-hidden="true">
+                  Ctrl / ⌘ K
+                </kbd>
+                <button type="submit" className="home-search__submit" aria-label="搜索小说">
+                  <ArrowRight size={20} aria-hidden="true" />
+                </button>
+              </form>
+              <p className="home-search__hint">从一本好书开始。</p>
+            </div>
           </div>
         </div>
       </section>
@@ -292,23 +333,30 @@ export default function Home() {
           {recent.length > 0 && (
             <section className="recent-reading" aria-label="最近阅读">
               <div className="recent-reading__head">
-                <p className="home-kicker">CONTINUE</p>
-                <div className="recent-reading__title">最近阅读</div>
+                <h2 className="recent-reading__title">最近阅读</h2>
+                <span className="recent-reading__hint">接着上次的故事</span>
               </div>
               <div className="recent-reading__list">
                 {recent.map((h) => {
                   const chapterLabel = h.chapterTitle || (h.chapterOrder ? `第${h.chapterOrder}章` : '')
                   return (
                     <div className="recent-reading__item" key={h.novelId}>
-                      <Link
-                        to={`/read/${encodeURIComponent(h.novelId)}/${encodeURIComponent(h.chapterId)}`}
-                        className="recent-reading__link"
-                      >
-                        <span className="recent-reading__novel">{h.novelTitle || h.novelId}</span>
-                        {chapterLabel && <span className="recent-reading__chapter">{chapterLabel}</span>}
-                        <span className="recent-reading__time">{timeAgo(h.timestamp)}</span>
+                      <Link to={`/read/${encodeURIComponent(h.novelId)}/${encodeURIComponent(h.chapterId)}`} className="recent-reading__link">
+                        <span className="recent-reading__cover" aria-hidden="true">
+                          {(h.novelTitle || '书').slice(0, 1)}
+                        </span>
+                        <span className="recent-reading__text">
+                          <span className="recent-reading__novel">{h.novelTitle || h.novelId}</span>
+                          {chapterLabel && <span className="recent-reading__chapter">{chapterLabel}</span>}
+                          <span className="recent-reading__time">{timeAgo(h.timestamp)}</span>
+                        </span>
                       </Link>
-                      <button className="recent-reading__del" title="删除记录" onClick={() => removeRecent(h.novelId)}>
+                      <button
+                        className="recent-reading__del"
+                        title="删除记录"
+                        aria-label={`删除 ${h.novelTitle || h.novelId} 的阅读记录`}
+                        onClick={() => removeRecent(h.novelId)}
+                      >
                         <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
                           <line x1="2" y1="2" x2="10" y2="10" />
                           <line x1="10" y1="2" x2="2" y2="10" />
@@ -329,17 +377,24 @@ export default function Home() {
             onClick={() => setMobileFiltersOpen((open) => !open)}
           >
             <span>筛选条件{activeFilterCount > 0 ? ` · 已选 ${activeFilterCount} 项` : ''}</span>
-            <span className="home-filter-toggle__icon" aria-hidden="true">{mobileFiltersOpen ? '收起' : '展开'}</span>
+            <span className="home-filter-toggle__icon" aria-hidden="true">
+              {mobileFiltersOpen ? '收起' : '展开'}
+            </span>
           </button>
 
           <div id="homeFilterPanel" className={`filter-panel home-filter-card${mobileFiltersOpen ? ' home-filter-card--open' : ''}`}>
             <div className="filter-row">
               <span className="filter-row__label">状态</span>
-              <div className="flex flex-wrap gap-sm category-filter">
-                {[{ v: '', label: '全部' }, { v: 'ongoing', label: '连载中' }, { v: 'completed', label: '已完结' }].map((s) => (
+              <div className="category-filter" role="group" aria-label="小说状态">
+                {[
+                  { v: '', label: '全部' },
+                  { v: 'ongoing', label: '连载中' },
+                  { v: 'completed', label: '已完结' },
+                ].map((s) => (
                   <button
                     key={s.v}
                     className={`filter-btn${activeStatus === s.v ? ' filter-btn--active' : ''}`}
+                    aria-pressed={activeStatus === s.v}
                     onClick={() => {
                       setActiveStatus(s.v)
                       setCurrentPage(1)
@@ -352,15 +407,26 @@ export default function Home() {
             </div>
             <div className="filter-row">
               <span className="filter-row__label">分类</span>
-              <div className="flex flex-wrap gap-sm category-filter">
-                <button className={`filter-btn${activeCategory === '' ? ' filter-btn--active' : ''}`} onClick={() => { setActiveCategory(''); setCurrentPage(1) }}>
+              <div className="category-filter" role="group" aria-label="小说分类">
+                <button
+                  className={`filter-btn${activeCategory === '' ? ' filter-btn--active' : ''}`}
+                  aria-pressed={activeCategory === ''}
+                  onClick={() => {
+                    setActiveCategory('')
+                    setCurrentPage(1)
+                  }}
+                >
                   全部
                 </button>
                 {categories.map((cat) => (
                   <button
                     key={cat}
                     className={`filter-btn${activeCategory === cat ? ' filter-btn--active' : ''}`}
-                    onClick={() => { setActiveCategory(cat); setCurrentPage(1) }}
+                    aria-pressed={activeCategory === cat}
+                    onClick={() => {
+                      setActiveCategory(cat)
+                      setCurrentPage(1)
+                    }}
                   >
                     {cat}
                   </button>
@@ -381,7 +447,7 @@ export default function Home() {
           )}
 
           <div className="sort-tabs-row">
-            <div className="sort-tabs">
+            <div className="sort-tabs" role="group" aria-label="小说排序">
               {[
                 { v: 'updated_at', label: '最近更新' },
                 { v: 'created_at', label: '最近添加' },
@@ -391,6 +457,7 @@ export default function Home() {
                 <button
                   key={tab.v}
                   className={`sort-tab${sort === tab.v ? ' sort-tab--active' : ''}`}
+                  aria-pressed={sort === tab.v}
                   onClick={() => {
                     if (sort === tab.v) return
                     setSort(tab.v)
@@ -404,7 +471,7 @@ export default function Home() {
             </div>
             <div className="sort-tabs-row__meta">
               <h2 id="sectionTitle">{sectionTitle}</h2>
-              <span className="text-muted text-sm">
+              <span className="text-muted text-sm" role="status" aria-live="polite">
                 {totalPages > 1 ? `共 ${totalPages} 页` : `${novels.length} 本`}
               </span>
             </div>
@@ -427,15 +494,17 @@ export default function Home() {
           )}
 
           {novels.length > 0 ? (
-            <div className="grid--novels">
+            <div className="grid--novels" aria-busy={loading}>
               {novels.map((n) => (
-                <NovelCard key={n.id} novel={n} />
+                <NovelCard key={n.id} novel={n} variant="library" category={n.categories.find((cat) => categories.includes(cat))} />
               ))}
             </div>
           ) : (
             !loading && (
               <div className="empty-state">
-                <div className="empty-state__icon">📖</div>
+                <div className="empty-state__icon" aria-hidden="true">
+                  <BookOpen size={28} />
+                </div>
                 <div className="empty-state__title">{hasFilter ? '没有找到相关小说' : '暂无小说'}</div>
                 <div className="empty-state__desc">
                   {hasFilter
@@ -445,7 +514,29 @@ export default function Home() {
                     : '前往管理页面添加你的第一本小说吧'}
                 </div>
                 {!hasFilter && (
-                  <Link to="/admin" className="btn btn--primary empty-state-btn">前往管理</Link>
+                  <Link to="/admin" className="btn btn--primary empty-state-btn">
+                    前往管理
+                  </Link>
+                )}
+                {hasFilter && (
+                  <button
+                    className="btn btn--secondary empty-state-btn"
+                    onClick={() => {
+                      setQuery('')
+                      setActiveCategory('')
+                      setActiveStatus('')
+                      setCurrentPage(1)
+                      setSearchParams(
+                        (params) => {
+                          params.delete('q')
+                          return params
+                        },
+                        { replace: true },
+                      )
+                    }}
+                  >
+                    清除筛选
+                  </button>
                 )}
               </div>
             )
@@ -456,16 +547,29 @@ export default function Home() {
               <button className="btn btn--secondary btn--sm" disabled={currentPage <= 1} onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}>
                 上一页
               </button>
-              <span className="home-pagination__info">第 {currentPage} / {totalPages} 页</span>
+              <span className="home-pagination__info">
+                第 {currentPage} / {totalPages} 页
+              </span>
               <span className="home-pagination__jump">
-                跳转 <input type="number" className="form-input" min={1} value={currentPage}
+                跳转{' '}
+                <input
+                  type="number"
+                  className="form-input"
+                  min={1}
+                  value={currentPage}
                   aria-label="跳转到指定页"
                   onChange={(e) => {
                     const p = Math.min(Math.max(parseInt(e.target.value) || 1, 1), totalPages)
                     setCurrentPage(p)
-                  }} /> 页
+                  }}
+                />{' '}
+                页
               </span>
-              <button className="btn btn--secondary btn--sm" disabled={currentPage >= totalPages} onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}>
+              <button
+                className="btn btn--secondary btn--sm"
+                disabled={currentPage >= totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              >
                 下一页
               </button>
             </div>
@@ -473,11 +577,12 @@ export default function Home() {
 
           {loading && (
             <div className="loading-center">
-              <div className="spinner spinner--lg"></div>
+              <div className="spinner spinner--lg" role="status" aria-label="正在加载小说"></div>
             </div>
           )}
         </div>
       </section>
+      <footer className="container home-shell home-footer">知舟 · 一个安静的中文小说书库</footer>
     </main>
   )
 }

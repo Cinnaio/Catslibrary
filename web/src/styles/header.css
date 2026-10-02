@@ -220,6 +220,58 @@
 }
 
 /* --- Floating side buttons -------------------------------------- */
+.header--home {
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.header--home .header__inner {
+  max-width: 1200px;
+  padding-inline: 20px;
+}
+.header--home .header__logo {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-family: var(--font-body);
+  font-weight: 650;
+  letter-spacing: 0.04em;
+}
+.header--home .nav-link {
+  border: 0;
+  border-radius: var(--radius-lg);
+  font-size: 0.875rem;
+  font-weight: 400;
+}
+.header--home .nav-link[aria-current='page'] {
+  color: var(--accent);
+}
+.header--home .nav-link[aria-label='登录'] {
+  order: 1;
+  background: var(--text-primary);
+  color: var(--bg-card);
+}
+.header--home .nav-link[aria-label='登录']:hover {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.header--home .theme-btn {
+  margin-left: 0;
+  border-color: transparent;
+  background: transparent;
+}
+.header--home .theme-btn::before {
+  display: none;
+}
+@media (max-width: 700px) {
+  .header--home .header__inner {
+    padding-inline: 16px;
+  }
+}
+
 .float-top {
   position: fixed;
   right: 28px;

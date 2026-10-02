@@ -68,4 +68,17 @@ describe('SiteHeader account menu', () => {
     expect(screen.getByRole('menuitem', { name: '个人中心' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: '退出登录' })).toBeInTheDocument()
   })
+
+  it('首页导航保留书架与账户入口，搜索由页面中央承担', () => {
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <SiteHeader />
+      </MemoryRouter>,
+    )
+    expect(screen.getByRole('link', { name: '书库' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('link', { name: '我的书架' })).toHaveAttribute('href', '/bookshelf')
+    expect(screen.queryByRole('textbox')).toBeNull()
+    expect(screen.queryByRole('button', { name: '搜索' })).toBeNull()
+    expect(screen.getByRole('button', { name: '账户菜单：猫' })).toBeInTheDocument()
+  })
 })

@@ -64,6 +64,13 @@
   --badge-padding-block: 0.1875rem;
   --badge-padding-inline: 0.5rem;
   --panel-count-label-size: 0.75rem;
+  /* Public novel cards: shared compact typography for Home and Bookshelf. */
+  --novel-card-title-size: 0.875rem; /* 14px */
+  --novel-card-meta-size: 0.75rem; /* 12px */
+  --novel-card-description-size: 0.75rem; /* 12px */
+  --novel-card-footer-size: 0.7rem; /* 11.2px */
+  /* Covers are objects resting on paper; card containers stay flat. */
+  --novel-cover-shadow: 0 2px 4px rgba(40, 32, 24, 0.08), 0 8px 18px rgba(40, 32, 24, 0.12);
   --admin-search-width: 17.5rem;
 
   /* Shared dropdown menus — spacious paper surface, portal-safe across themes. */
@@ -153,6 +160,7 @@
   --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.46);
   --shadow-popover: 0 8px 28px rgba(0, 0, 0, 0.46);
   --shadow-modal: 0 30px 86px rgba(0, 0, 0, 0.52);
+  --novel-cover-shadow: 0 2px 5px rgba(0, 0, 0, 0.24), 0 8px 20px rgba(0, 0, 0, 0.32);
 }
 
 /* ============================================================

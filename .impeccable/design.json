@@ -1,8 +1,10 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-16T00:00:00.000Z",
+  "generatedAt": "2026-10-02T00:00:00.000Z",
   "title": "Design System: 知舟 (Zhi Zhou)",
   "extensions": {
+    "novelCoverDepth": {"token":"--novel-cover-shadow","light":"0 2px 4px rgba(40,32,24,.08), 0 8px 18px rgba(40,32,24,.12)","dark":"0 2px 5px rgba(0,0,0,.24), 0 8px 20px rgba(0,0,0,.32)","scope":"Public NovelCard covers only; containers stay flat."},
+    "novelCardTypography": {"title":"0.875rem","meta":"0.75rem","description":"0.75rem","footer":"0.7rem","source":"web/src/styles/tokens.css","scope":"Shared public NovelCard in Home and Bookshelf; desktop and mobile use the same sizes."},
     "colorMeta": {
       "primary": {
         "role": "primary",
@@ -173,6 +175,7 @@
     ]
   },
   "components": [
+    {"name":"Home Library Card","kind":"card","refersTo":"home-library-card","description":"Claude-style Home library card: 16px flat paper container, 24px desktop padding (18px mobile), two desktop columns and one mobile column. 96x144px covers (88x132px mobile) use shared light/dark --novel-cover-shadow. Keep 14/12/11.2px typography, real covers and existing routes.","html":"<a class=\"ds-home-card\" href=\"#\"><span class=\"ds-home-cover\">知舟</span><span><strong>长夜将明</strong><small>作者 · 连载</small><p>在纸页间找到下一段故事。</p></span></a>","css":".ds-home-card { display:flex; gap:24px; padding:24px; min-height:212px; border:0; border-radius:16px; background:var(--bg-card,#FFFFFF); color:var(--text-primary,#211E1A); box-shadow:none; text-decoration:none; transition:background 150ms ease-out; } .ds-home-card:hover { background:color-mix(in srgb,var(--bg-card,#FFFFFF) 95%,var(--accent-light,#F0E6D6)); } .ds-home-card:focus-visible { outline:2px solid var(--accent,#8B6045); outline-offset:3px; } .ds-home-cover { display:grid; place-items:center; flex:0 0 96px; height:144px; border-radius:6px; box-shadow:var(--novel-cover-shadow,0 8px 18px rgba(40,32,24,.12)); background:var(--accent-light,#F0E6D6); color:var(--accent,#8B6045); } .ds-home-card strong { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; white-space:normal; font-size:var(--novel-card-title-size,0.875rem); line-height:1.5; } .ds-home-card small { display:block; margin-top:8px; font-size:var(--novel-card-meta-size,0.75rem); color:var(--text-muted,#736D65); } .ds-home-card p { color:var(--text-secondary,#5B554E); font-size:var(--novel-card-description-size,0.75rem); line-height:1.8; } @media(max-width:700px) { .ds-home-card { padding:18px; min-height:196px; gap:18px; } .ds-home-cover { flex-basis:88px; height:132px; } } @media(prefers-reduced-motion:reduce) { .ds-home-card { transition:none; } }"},
     {
       "name": "Primary Button",
       "kind": "button",
@@ -282,11 +285,12 @@
       "后台是同一世界的紧凑档：同一套 token，更高的信息密度"
     ],
     "rules": [
+      {"name":"Home Library Surface","body":"Claude-style Home keeps split desktop hero, warm canvas, existing search and safety behavior. Library cards use two columns above 700px, one below, 16px radius, 24px/18px padding and 212px/196px minimum height. Real covers retain 96x144px/88x132px dimensions and gain shared light/dark --novel-cover-shadow; card containers have no shadow or outer border. Author has its own row, neutral status label sits beside chapter count, description allows three lines and footer carries category/time. Preserve shared 14/12/11.2px typography, APIs, pinyin, content policy, recent reading, account/theme menus and pagination; standalone preview HTML stays unchanged.","section":"components"},
       { "name": "Shared Toast Feedback", "body": "All Sonner feedback uses toast-feedback.css and --toast-* tokens: 92% card / 8% accent-subtle paper, 12px radius, no border, shadow-md depth, 14px regular text, 14px by 16px padding and 10px gap. Accent success icons, semantic error/warning icons; warm actions with 32px desktop / 44px touch minimum height. Preserve native stacking, dismissal, announcements and durations; reduce transitions and stop loading icon spin under reduced motion.", "section": "components" },
       { "name": "Sidebar Scroll Edge", "body": "Fixed account footer uses a 24px paper fade from --admin-sidebar-footer-fade-height only while navigation has content below the viewport. Hide at scroll end or without overflow; reserve equal bottom padding so the final item remains fully visible. Update on scroll and navigation/container resize, never intercept pointer events. Desktop and mobile share --admin-sidebar; no blur filter.", "section": "components" },
       { "name": "The 10% Accent Rule", "body": "奶茶棕色强调色在任何页面上不超过 10% 的面积。它的稀有性就是力量——读者的眼睛自然被引导到最重要的交互点。", "section": "colors" },
       { "name": "The Derived-Surface Rule", "body": "后台表面永远是 color-mix 派生自公开色板的结果，不新开一套颜色。新表面要先问\"它是哪两个既有 token 的混合\"，答不上来就不要加。", "section": "colors" },
-      { "name": "The Content-First Rule", "body": "字体永远是配角。系统字体不创造风格，内容本身创造风格。唯一例外是阅读器中的衬线体——那是为沉浸而存在的。", "section": "typography" },
+      {"name":"The Content-First Rule","body":"字体永远是配角。系统字体不创造风格，内容本身创造风格。阅读器使用衬线体营造沉浸；2026-10-02 用户批准的 Home 主标题也允许使用既有衬线字体，桌面 32px、手机 1.55rem，例外限于首页。","section":"typography"},
       { "name": "The One Title Rule", "body": "每个可导航页面只有一个内容区主标题，由页头承担。面板标题写工作对象名（\"作品目录\"、\"章节目录\"、\"审核列表\"），不重复页面名。页头上方不再出现小字眉题——AdminTabHeader 的 kicker 与 hero 变体已退役，两个 prop 仍被接受但被忽略。标题字号膨胀和\"每页一个更大的标题\"都是被明确否定的方向。", "section": "typography" },
       { "name": "The Flat-By-Default Rule", "body": "所有表面在静止状态是平的。阴影仅作为状态响应出现（hover、elevation、focus），或为弹出层提供层次暗示。", "section": "elevation" },
       { "name": "The Tonal-Admin Rule", "body": "后台一个像素的阴影都不要加。面板靠表面色 + 1px 描边区分层次；一旦给数据面板加投影，它就会在密集列表里看起来像浮起的卡片，破坏扫描。", "section": "elevation" },

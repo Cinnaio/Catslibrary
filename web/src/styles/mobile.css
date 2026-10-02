@@ -276,16 +276,16 @@
     font-size: 1.5rem;
   }
   .novel-card__title {
-    font-size: 0.95rem;
+    font-size: var(--novel-card-title-size);
   }
   .novel-card__meta {
-    font-size: 0.78rem;
+    font-size: var(--novel-card-meta-size);
   }
   .novel-card__desc {
-    font-size: 0.78rem;
+    font-size: var(--novel-card-description-size);
   }
   .novel-card__time {
-    font-size: 0.7rem;
+    font-size: var(--novel-card-footer-size);
   }
 
   /* Novel hero → stack */
@@ -569,7 +569,7 @@
     height: 102px;
   }
   .novel-card__title {
-    font-size: 0.88rem;
+    font-size: var(--novel-card-title-size);
   }
   .filter-btn {
     padding: 3px 8px;
