@@ -4,7 +4,7 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, BookOpen } from 'lucide-react'
+import { ArrowLeft, BookOpen, Star, X } from 'lucide-react'
 import type { ChapterMeta, Comment, Novel, ReadingHistoryEntry } from '@shared/types'
 import { chaptersApi, commentsApi, isRestrictedContentError, novelsApi, progressApi, ratingsApi, url } from '../lib/api'
 import { UserAvatar } from '@/components/ui/user-avatar'
@@ -461,7 +461,7 @@ export default function Novel() {
                   aria-describedby="chapter-directory-count"
                 />
                 {chapterQuery && (
-                  <button type="button" className="chapter-directory__clear" aria-label="清除章节搜索" title="清除章节搜索" onClick={() => setChapterQuery('')}>×</button>
+                  <button type="button" className="chapter-directory__clear" aria-label="清除章节搜索" title="清除章节搜索" onClick={() => setChapterQuery('')}><X size={16} aria-hidden="true" /></button>
                 )}
                 <span id="chapter-directory-count" className="chapter-directory__result" aria-live="polite">
                   {chapterQuery ? `${filteredChapters.length} / ${chapters.length} 章` : `${chapters.length} 章`}
@@ -575,11 +575,13 @@ export default function Novel() {
                         type="button"
                         className={`rating-star${star <= (rating.myRating || 0) ? ' is-active' : ''}`}
                         data-rating={star}
+                        aria-label={`${star} 星`}
+                        aria-pressed={rating.myRating === star}
                         disabled={!user}
                         key={star}
                         onClick={() => void setRatingValue(star)}
                       >
-                        ★
+                        <Star size={20} aria-hidden="true" />
                       </button>
                     ))}
                   </div>
@@ -603,15 +605,18 @@ export default function Novel() {
                   rows={4}
                   maxLength={1000}
                   placeholder="写下你的评论…"
+                  aria-label="评论内容"
                   value={commentBox}
                   onChange={(e) => setCommentBox(e.target.value)}
                 ></textarea>
+                <div className="comment-form__footer">
                 <label className="comment-spoiler-check">
                   <input type="checkbox" checked={spoiler} onChange={(e) => setSpoiler(e.target.checked)} /> 含剧透
                 </label>
                 <button className="btn btn--primary btn--sm" onClick={() => void submitComment(commentBox, spoiler)}>
                   发布评论
                 </button>
+                </div>
               </div>
             </div>
           ) : (

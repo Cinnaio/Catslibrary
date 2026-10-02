@@ -434,7 +434,7 @@
 }
 
 .chapter-list__item--last-read {
-  background: var(--accent-light);
+  background: transparent;
 }
 
 .chapter-list__item--read {
@@ -898,4 +898,64 @@
 .detail-page .comment-form .btn--secondary { background: var(--bg-secondary); }
 @media (prefers-reduced-motion: reduce) {
   .detail-page *, .detail-page *::before, .detail-page *::after { transition: none; }
+}
+
+/* Public reading controls: one input surface and quiet selection. */
+.detail-page .chapter-directory__search {
+  max-width: 440px; min-height: 44px; padding: 0 12px; gap: 10px;
+  background: var(--bg-secondary); border: 1px solid transparent; border-radius: 10px;
+  margin-bottom: 20px;
+}
+.detail-page .chapter-directory__search:focus-within { border-color: var(--accent); box-shadow: none; }
+.detail-page .detail-section .chapter-directory__search input[type='search'],
+.detail-page .detail-section .chapter-directory__search input[type='search']:focus-visible {
+  height: 42px; padding: 0; border: 0; border-radius: 0; background: transparent;
+  box-shadow: none; outline: none; font-family: var(--font-body); font-size: 13px;
+}
+.detail-page .chapter-directory__search input[type='search']::-webkit-search-cancel-button { -webkit-appearance: none; }
+.detail-page .chapter-list__item { border-radius: 8px; padding: 14px 10px; gap: 6px; }
+.detail-page .chapter-list__item--last-read { background: transparent; }
+.detail-page .chapter-list__item--last-read .chapter-list__title { color: var(--accent); }
+.detail-page .chapter-list__badge { display: inline-flex; align-items: center; gap: 5px; }
+.detail-page .chapter-list__badge::before { content: ''; width: 4px; height: 4px; border-radius: 50%; background: currentColor; }
+.detail-page .rating-summary { grid-template-columns: 130px minmax(160px, 280px) auto; justify-content: start; gap: 32px; padding: 12px 0 24px; }
+.detail-page .rating-summary__score span, .detail-page .rating-picker small { font-size: 12px; }
+.detail-page .rating-picker > span { font-size: 13px; color: var(--text-secondary); }
+.detail-page .rating-stars { padding: 0; gap: 3px; border: 0; border-radius: 0; background: transparent; }
+.detail-page .rating-star { width: 32px; height: 32px; border-radius: 8px; color: var(--text-muted); transition: color 150ms ease, background 150ms ease; }
+.detail-page .rating-star svg { fill: transparent; stroke-width: 1.5; }
+.detail-page .rating-star.is-active { color: var(--accent); }
+.detail-page .rating-star.is-active svg { fill: var(--accent); }
+.detail-page .rating-star:hover { transform: none; }
+.detail-page .rating-bar-row { font-size: 12px; grid-template-columns: 28px 1fr 24px; }
+.detail-page .rating-bar-row em { font-style: normal; }
+.detail-page .rating-bar-row i { height: 4px; background: var(--bg-secondary); }
+.detail-page .comment-composer { margin-top: 20px; }
+.detail-page .comment-composer > .comment-form {
+  padding: 0; border: 1px solid var(--border); border-radius: 12px;
+  background: var(--bg-card); gap: 0; overflow: hidden;
+}
+.detail-page .comment-composer > .comment-form:focus-within { border-color: var(--accent); }
+.detail-page .comment-composer .comment-form textarea.form-input,
+.detail-page .comment-composer .comment-form textarea.form-input:focus-visible {
+  min-height: 108px; padding: 16px; border: 0; border-radius: 0; background: transparent;
+  outline: none; box-shadow: none; font-size: 14px; line-height: 1.7;
+}
+.detail-page .comment-form__footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 12px; background: var(--bg-secondary); }
+.detail-page .comment-spoiler-check { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.detail-page .comment-spoiler-check input { accent-color: var(--accent); }
+.detail-page .comment-form .btn { justify-self: end; width: auto; min-height: 36px; box-shadow: none; border-radius: 8px; font-size: 12px; font-weight: 500; }
+.detail-page .comment-card { padding: 20px 0; gap: 12px; }
+.detail-page .comment-card__actions { gap: 16px; }
+.detail-page .bookmark-novel-item { background: transparent; border-bottom: 1px solid var(--border); border-radius: 0; }
+@media (max-width: 600px) {
+  .detail-page .chapter-directory__search { max-width: none; width: 100%; }
+  .detail-page .detail-section .chapter-directory__search input[type='search'],
+  .detail-page .detail-section .chapter-directory__search input[type='search']:focus-visible { font-size: 16px; }
+  .detail-page .rating-summary { grid-template-columns: 84px minmax(0, 1fr); gap: 20px; }
+  .detail-page .rating-picker { grid-column: 1 / -1; }
+  .detail-page .rating-star { width: 44px; height: 44px; }
+  .detail-page .comment-form .btn { min-height: 44px; }
+  .detail-page .comment-composer .comment-form textarea.form-input,
+  .detail-page .comment-composer .comment-form textarea.form-input:focus-visible { font-size: 16px; }
 }

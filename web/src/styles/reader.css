@@ -1287,3 +1287,37 @@ body:has(.reader-app:not(.hidden)) {
   padding: 12px 0;
 }
 }
+
+/* Shared reading popovers and grouped preference controls. */
+.reader-popover__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 14px; }
+.reader-popover__head h2 { margin: 0; font-family: var(--font-body); font-size: 14px; font-weight: 600; }
+.reader-popover__head button { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--text-muted); cursor: pointer; }
+.reader-popover__head button:hover { background: var(--reader-inset); color: var(--text-primary); }
+.reader-app .chapter-dropdown { width: min(360px, calc(100vw - 24px)); padding: 16px; border: 0; box-shadow: var(--shadow-popover); }
+.reader-app .chapter-dropdown__tools { border: 1px solid transparent; border-radius: 8px; background: var(--reader-inset); padding: 0 10px; margin-bottom: 12px; gap: 8px; }
+.reader-app .chapter-dropdown__tools:focus-within { border-color: var(--accent); }
+.reader-app .chapter-dropdown__tools svg { flex-shrink: 0; color: var(--text-muted); }
+.reader-app .chapter-dropdown input.chapter-dropdown__filter[type='search'],
+.reader-app .chapter-dropdown input.chapter-dropdown__filter[type='search']:focus-visible { height: 40px; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; outline: 0; font-size: 13px; }
+.reader-app .chapter-dropdown__item { font-family: var(--font-body); font-size: 13px; border-radius: 8px; }
+.reader-app .chapter-dropdown__item--current { background: var(--reader-inset); color: var(--accent); font-weight: 500; }
+.reader-app .chapter-dropdown__item--current::after { content: ''; flex: 0 0 5px; height: 5px; margin-left: 8px; border-radius: 50%; background: var(--accent); }
+.reader-app .reader-settings-panel { width: 360px; padding: 20px; }
+.reader-settings-group { min-width: 0; margin: 0; padding: 16px 0; border: 0; border-top: 1px solid var(--reader-line); display: grid; gap: 12px; }
+.reader-settings-group legend { padding: 0 8px 0 0; color: var(--text-secondary); font-size: 12px; font-weight: 500; }
+.reader-settings-group .mobile-settings-row { grid-template-columns: 48px minmax(0, 1fr); gap: 12px; }
+.reader-settings-group .mobile-settings-row__label { font-family: var(--font-body); font-size: 12px; }
+.reader-settings-group .mobile-settings-segmented { border: 0; background: var(--reader-inset); padding: 3px; border-radius: 8px; gap: 2px; }
+.reader-settings-group .mobile-settings-segmented button { min-width: 0; min-height: 32px; padding: 0 4px; border: 0; border-radius: 6px; font-family: var(--font-body); font-size: 12px; box-shadow: none; }
+.reader-settings-group .mobile-settings-segmented button.active { color: var(--text-primary); background: var(--reader-paper); box-shadow: var(--shadow); }
+.reader-settings-group .mobile-settings-segmented button:disabled { opacity: .45; cursor: not-allowed; }
+.reader-app .mobile-library-tabs { background: var(--reader-inset); padding: 3px; border: 0; border-radius: 8px; }
+.reader-app .mobile-library-tab { border: 0; border-radius: 6px; font-size: 13px; }
+.reader-app .mobile-library-item--current { background: var(--reader-inset); color: var(--accent); }
+.reader-app .mobile-library-bookmark { border: 0; border-bottom: 1px solid var(--reader-line); border-radius: 0; background: transparent; }
+@media (max-width: 640px) {
+  .reader-settings-group .mobile-settings-segmented button { min-height: 44px; }
+  .reader-settings-group .mobile-settings-row { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .reader-app .mobile-settings-sheet__body { gap: 4px; }
+  .reader-app .mobile-settings-sheet__header h2 { font-size: 16px; font-weight: 600; }
+}

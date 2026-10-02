@@ -47,6 +47,7 @@ type Opt = [string, string]
 export function SettingsControls({ settings, set, wakeLockSupported }: SettingsControlsProps) {
   return (
     <>
+      <fieldset className="reader-settings-group"><legend>文字排版</legend>
       <Row label="字号">
         {['0', '1', '2', '3', '4', '5'].map((v) => (
           <Seg key={v} active={settings.fontSize === v} onClick={() => set('fontSize', v)}>
@@ -82,6 +83,8 @@ export function SettingsControls({ settings, set, wakeLockSupported }: SettingsC
           </Seg>
         ))}
       </Row>
+      </fieldset>
+      <fieldset className="reader-settings-group"><legend>阅读方式</legend>
       <Row label="模式">
         {([['scroll', '滚动'], ['page', '分页']] as Opt[]).map(([v, label]) => (
           <Seg key={v} active={settings.readerPageMode === v} onClick={() => set('readerPageMode', v)}>
@@ -96,6 +99,8 @@ export function SettingsControls({ settings, set, wakeLockSupported }: SettingsC
           </Seg>
         ))}
       </Row>
+      </fieldset>
+      <fieldset className="reader-settings-group"><legend>辅助功能</legend>
       <Row label="滚动">
         {([['off', '关闭'], ['slow', '慢'], ['medium', '中'], ['fast', '快']] as Opt[]).map(([v, label]) => (
           <Seg key={v} active={settings.readerAutoScrollSpeed === v} onClick={() => set('readerAutoScrollSpeed', v)}>
@@ -123,6 +128,7 @@ export function SettingsControls({ settings, set, wakeLockSupported }: SettingsC
           </Seg>
         ))}
       </Row>
+      </fieldset>
     </>
   )
 }

@@ -2,7 +2,7 @@
 version: 1
 slug: "web-src-pages-reader-tsx"
 primary_target: "web/src/pages/Reader.tsx"
-related_targets: ["web/src/styles/reader.css", "web/src/styles/mobile.css", "web/src/components/reader/MobileSheets.tsx", "web/src/hooks/useReaderSettings.ts"]
+related_targets: ["web/src/styles/reader.css", "web/src/styles/mobile.css", "web/src/styles/bookmarks.css", "web/src/components/reader/MobileSheets.tsx", "web/src/components/reader/SettingsControls.tsx", "web/src/components/reader/BookmarkPanel.tsx", "web/src/hooks/useReaderSettings.ts"]
 ---
 
 # Reader 章节阅读器 · 表面契约
@@ -30,6 +30,9 @@ related_targets: ["web/src/styles/reader.css", "web/src/styles/mobile.css", "web
 - eye 保留浅绿纸面与墨绿正文，paper 保留浅黄纸面与暖褐正文；暗色继续使用既有派生色。主题改变的是阅读色板，纸面形态保持一致。
 - 移动设置/目录 Dialog portal 接受可选 `container`，页面提供 `readerAppRef.current`，使浮层继承阅读主题与遮罩 token；保留 CSS 回退、modal、关闭和焦点恢复语义。
 - 桌面和手机阅读进度即时更新宽度，取消宽度过渡。不新增动效；已有弹层及加载反馈继续遵守减少动态效果处理。
+- 桌面目录浮层最大360px宽、16px内边距，标题14px / 600配32px关闭按钮；搜索由单一暖灰框承载图标、40px高输入与计数。当前章节使用暖灰填色、暖棕文字和5px圆点，13px条目保持原虚拟列表行高及标题截断。
+- 桌面设置浮层360px宽、20px内边距，与目录共用标题/关闭入口。十行原设置以 fieldset/legend 分成文字排版、阅读方式、辅助功能三组，组上下内边距16px、组内间距12px；桌面标签列48px、段选按钮最小32px高。640px及以下标签与选项上下排列、间距8px、按钮最小44px高；选择值、禁用状态与 aria-pressed 保留。
+- 桌面书签为正文流中的平面阅读纸面，16px圆角、20px内边距、最大360px高，无外描边或投影。标题14px / 600并列12px计数和关闭按钮；空态使用24px SVG 书签图标、13px状态与12px说明。书签行以细分隔线连续排列，跳转、删除和当前章节强调保留，删除按钮提供可访问名称。手机目录/书签分类沿用暖灰段选形态，书签行透明、仅保留底线。
 
 ## BEHAVIOR
 
@@ -38,3 +41,5 @@ related_targets: ["web/src/styles/reader.css", "web/src/styles/mobile.css", "web
 ## VERIFICATION
 
 主代理已报告类型检查、构建与22项相关测试通过，移动 portal 焦点/ref 回归另有2项通过。演示 API 回退验证页面行为，不证明真实后端进度、书签或想法写入。桌面1280/1440、手机320/390与深色主题截图记录在 `.impeccable/review/reading-redesign`；最终 `final-confirmation.md` 对手机阅读控制区和详情内边距两项修正给出 ship。最终代码类型检查与生产构建通过，仅保留既有构建体积提示。
+
+阅读控件修订（2026-10-02）类型检查与20项相关测试已由主代理报告通过；最终生产构建已通过，仅保留既有大于500KB分块提示。最终复审对重复清除控件/字形图标与手机聚焦字号级联两项修正给出 ship，两项已解决且该修正范围未发现新增回归；此结论限于两项修正范围。新目录、设置及书签截图记录在 `.impeccable/review/reading-controls`；桌面阅读器三张截图使用演示回退数据，手机阅读器使用实际公开作品，桌面与手机详情目录均已重采为实际公开作品，搜索值为1；非空书签仍仅核对源码，真实后端进度、书签与想法写入仍未验证。先前 reading-redesign 的 ship 不覆盖本次控件修订。

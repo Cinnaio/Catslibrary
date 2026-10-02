@@ -5,6 +5,7 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Search, X } from 'lucide-react'
 import type { ChapterFull, ChapterMeta, Thought } from '@shared/types'
 import { bookmarksApi, chaptersApi, getToken, isRestrictedContentError, novelsApi, thoughtsApi } from '../lib/api'
 import { addBookmark, getAllBookmarks, isBookmarked, removeBookmark, saveHistory, toggleBookmark } from '../lib/storage'
@@ -1117,6 +1118,7 @@ export default function Reader() {
           {/* Desktop settings panel */}
           {settingsPanelOpen && (
             <section className="reader-settings-panel" role="dialog" aria-modal="false" aria-label="阅读设置" onClick={(e) => e.stopPropagation()}>
+              <div className="reader-popover__head"><h2>阅读设置</h2><button type="button" aria-label="关闭阅读设置" onClick={() => setSettingsPanelOpen(false)}><X size={16} aria-hidden="true" /></button></div>
               <SettingsControls settings={settings} set={set} wakeLockSupported={wakeLockSupported} />
             </section>
           )}
@@ -1129,7 +1131,9 @@ export default function Reader() {
             style={dropdownPos ? { top: dropdownPos.top, left: dropdownPos.left } : undefined}
             onClick={(e) => e.stopPropagation()}
           >
+            <div className="reader-popover__head"><h2>章节目录</h2><button type="button" aria-label="关闭章节目录" onClick={() => setDropdownOpen(false)}><X size={16} aria-hidden="true" /></button></div>
             <div className="chapter-dropdown__tools">
+              <Search size={16} aria-hidden="true" />
               <input type="search" className="chapter-dropdown__filter" placeholder="搜索章节号或标题…" autoComplete="off" aria-label="搜索章节" autoFocus value={dropdownQuery} onChange={(e) => setDropdownQuery(e.target.value)} onKeyDown={(e) => {
                 if (e.key === 'Escape') { e.stopPropagation(); setDropdownOpen(false) }
                 else if (e.key === 'Enter') {
@@ -1169,7 +1173,7 @@ export default function Reader() {
 
         {/* Bookmark panel */}
         {bookmarkPanelOpen && (
-          <BookmarkPanel novelId={nid} currentChapterId={chapter.id} onJump={gotoChapter} onDelete={deleteBookmark} />
+          <BookmarkPanel novelId={nid} currentChapterId={chapter.id} onJump={gotoChapter} onDelete={deleteBookmark} onClose={() => setBookmarkPanelOpen(false)} />
         )}
 
         {/* Content */}
