@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from 'react'
 import { aiApi, type AiSettings } from '@/lib/api'
 import { useToast } from '@/components/feedback'
 import { LoadingState } from '@/components/admin/AsyncStates'
-import { AdminPanelHeading } from '@/components/admin/AdminWorkspace'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -12,10 +11,34 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
+const PARAM_GROUPS = [
+  { id: 'recap', label: '前情提要', keys: ['recapTemperature', 'recapMaxTokens', 'recapSystemPrompt'] },
+  { id: 'catchup', label: '回顾总结', keys: ['catchupStaleDays', 'catchupMaxChapters', 'catchupTemperature', 'catchupMaxTokens', 'catchupEnabled'] },
+  {
+    id: 'writing',
+    label: 'AI 创作',
+    keys: [
+      'writingTemperature',
+      'writingMaxTokens',
+      'styleProfileMaxTokens',
+      'plotStateMaxTokens',
+      'relationshipProfileMaxTokens',
+      'titleMaxTokens',
+      'writingSystemPrompt',
+    ],
+  },
+  { id: 'image', label: '生图与封面', keys: ['imageSize', 'imageQuality', 'imageResponseFormat', 'coverPromptMaxChars'] },
+  { id: 'tasks', label: '任务与运维', keys: ['maxConcurrentWritingTasks', 'taskRetentionDays'] },
+  { id: 'audit', label: '审计配置', keys: ['logIpAddress', 'logUserAgent'] },
+] as const satisfies readonly { id: string; label: string; keys: readonly (keyof AiSettings)[] }[]
+type ParamGroupId = (typeof PARAM_GROUPS)[number]['id']
+
 export default function AiParamsPanel(props: { settings: AiSettings | null; loading: boolean; onReload: () => void }) {
   const { toast } = useToast()
   const [localSettings, setLocalSettings] = useState<AiSettings | null>(null)
   const [saving, setSaving] = useState(false)
+  const [activeGroup, setActiveGroup] = useState<ParamGroupId>('recap')
+  const pendingInvalid = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
     setLocalSettings(props.settings)
@@ -24,8 +47,32 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
   const formRef = useRef<HTMLFormElement>(null)
   const dirty = JSON.stringify(localSettings) !== JSON.stringify(props.settings)
 
+  useEffect(() => {
+    const invalid = pendingInvalid.current
+    if (!invalid) return
+    pendingInvalid.current = null
+    invalid.closest('details')?.setAttribute('open', '')
+    invalid.reportValidity()
+    invalid.focus()
+  }, [activeGroup])
+
+  const groupChanges = PARAM_GROUPS.map((group) => group.keys.filter((key) => localSettings?.[key] !== props.settings?.[key]).length)
+  const changeCount = groupChanges.reduce((total, count) => total + count, 0)
+
   async function save() {
-    if (!localSettings || saving || props.loading || !dirty || !formRef.current?.reportValidity()) return
+    if (!localSettings || saving || props.loading || !dirty || !formRef.current) return
+    const invalid = Array.from(formRef.current.querySelectorAll<HTMLInputElement>('input[type="number"]')).find((input) => !input.checkValidity())
+    if (invalid) {
+      const group = invalid.closest('[role="tabpanel"]')?.id.replace('ai-params-', '') as ParamGroupId
+      if (group !== activeGroup) {
+        pendingInvalid.current = invalid
+        setActiveGroup(group)
+      } else {
+        invalid.reportValidity()
+        invalid.focus()
+      }
+      return
+    }
     setSaving(true)
     try {
       await aiApi.saveSettings(localSettings)
@@ -49,33 +96,65 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
   return (
     <form
       ref={formRef}
+      noValidate
       className="ai-params-panel"
       onSubmit={(event) => {
         event.preventDefault()
         void save()
       }}
     >
-      <nav className="ai-params-nav" aria-label="参数分组">
-        <span className="text-xs text-muted-foreground">参数分组</span>
-        {[
-          ['recap', '前情提要'],
-          ['catchup', '回顾总结'],
-          ['writing', 'AI 创作'],
-          ['image', '生图与封面'],
-          ['tasks', '任务与运维'],
-          ['audit', '审计配置'],
-        ].map(([id, label]) => (
-          <a key={id} href={`#ai-params-${id}`}>
-            {label}
-          </a>
+      <div className="ai-parameter-tabs" role="tablist" aria-label="参数分类">
+        {PARAM_GROUPS.map((group, index) => (
+          <button
+            key={group.id}
+            id={`ai-param-tab-${group.id}`}
+            type="button"
+            role="tab"
+            aria-selected={activeGroup === group.id}
+            aria-controls={`ai-params-${group.id}`}
+            tabIndex={activeGroup === group.id ? 0 : -1}
+            onClick={() => setActiveGroup(group.id)}
+            onKeyDown={(event) => {
+              const next =
+                event.key === 'ArrowRight'
+                  ? (index + 1) % PARAM_GROUPS.length
+                  : event.key === 'ArrowLeft'
+                    ? (index + PARAM_GROUPS.length - 1) % PARAM_GROUPS.length
+                    : event.key === 'Home'
+                      ? 0
+                      : event.key === 'End'
+                        ? PARAM_GROUPS.length - 1
+                        : null
+              if (next === null) return
+              event.preventDefault()
+              const targetGroup = PARAM_GROUPS[next]
+              if (!targetGroup) return
+              setActiveGroup(targetGroup.id)
+              document.getElementById(`ai-param-tab-${targetGroup.id}`)?.focus()
+            }}
+          >
+            {group.label}
+            {(groupChanges[index] ?? 0) > 0 && <span className="ai-parameter-tab-dot" role="img" aria-label={`${groupChanges[index]} 项待保存`} />}
+          </button>
         ))}
-      </nav>
+      </div>
       <div className="ai-params-sections">
         {/* 前情提要参数 */}
-        <Card id="ai-params-recap" className="admin-panel-card ai-params-card ai-params-card--recap">
-          <AdminPanelHeading title="前情提要参数" />
+        <Card
+          role="tabpanel"
+          aria-labelledby="ai-param-tab-recap"
+          hidden={activeGroup !== 'recap'}
+          id="ai-params-recap"
+          className="admin-panel-card ai-params-card ai-params-card--recap"
+        >
+          <div className="admin-panel-heading ai-parameter-heading">
+            <div className="admin-panel-heading__copy">
+              <h3>前情提要参数</h3>
+              <p>简短回顾当前章节之前的主要信息。</p>
+            </div>
+            <span className="ai-parameter-count">2 项参数</span>
+          </div>
           <CardContent className="grid gap-4">
-            <p className="ai-params-description">简短回顾当前章节之前的主要信息。</p>
             <div className="ai-form-grid grid gap-3 sm:grid-cols-2">
               <AdminFormField label="创意度（Temperature）" className="ai-temperature-field" htmlFor="recap-temp">
                 <Input
@@ -89,10 +168,15 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                   onChange={(e) => setLocalSettings({ ...localSettings, recapTemperature: Number(e.target.value) })}
                 />
                 <output htmlFor="recap-temp">{localSettings.recapTemperature}</output>
+                <div className="ai-parameter-range-guide" aria-hidden="true">
+                  <span>更稳定 · 0</span>
+                  <span>更灵活 · 1</span>
+                </div>
               </AdminFormField>
               <AdminFormField label="最大输出 Token" htmlFor="recap-tokens" hint="限制生成长度，防止过长。推荐 500">
                 <Input
                   id="recap-tokens"
+                  required
                   type="number"
                   min={100}
                   max={2000}
@@ -104,17 +188,12 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
             </div>
             <details className="ai-prompt-details">
               <summary>
-                系统提示词 <span>展开编辑</span>
+                系统提示词 <span>按需展开编辑</span>
               </summary>
               <AdminFormField label="系统提示词" htmlFor="recap-prompt" hint="定义 AI 的角色和输出风格">
-                {/* 迁移到共享 Textarea 组件：此前手写一长串工具类，与组件内已有一份
-                逐字重复。组件自带 field-sizing-content、min-h-16、shadow-xs 与
-                text-base(移动端)，与迁移前的计算值不同，故显式中和为
-                field-sizing-fixed / min-h-[100px] / shadow-none / text-sm，
-                使视觉与行为逐项保持原状。 */}
                 <Textarea
                   id="recap-prompt"
-                  className="field-sizing-fixed min-h-[100px] shadow-none text-sm"
+                  className="field-sizing-fixed min-h-[160px] shadow-none text-sm"
                   value={localSettings.recapSystemPrompt}
                   disabled={props.loading || saving}
                   onChange={(e) => setLocalSettings({ ...localSettings, recapSystemPrompt: e.target.value })}
@@ -125,14 +204,26 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
         </Card>
 
         {/* 回顾总结参数 */}
-        <Card id="ai-params-catchup" className="admin-panel-card ai-params-card">
-          <AdminPanelHeading title="回顾总结参数" />
+        <Card
+          role="tabpanel"
+          aria-labelledby="ai-param-tab-catchup"
+          hidden={activeGroup !== 'catchup'}
+          id="ai-params-catchup"
+          className="admin-panel-card ai-params-card"
+        >
+          <div className="admin-panel-heading ai-parameter-heading">
+            <div className="admin-panel-heading__copy">
+              <h3>回顾总结参数</h3>
+              <p>为一段时间未阅读的读者恢复故事上下文。</p>
+            </div>
+            <span className="ai-parameter-count">4 项参数</span>
+          </div>
           <CardContent className="grid gap-4">
-            <p className="ai-params-description">为一段时间未阅读的读者恢复故事上下文。</p>
             <div className="ai-form-grid grid gap-3 sm:grid-cols-3">
               <AdminFormField label="隔多少天算「很久没读」" htmlFor="catchup-stale-days" hint="距上次阅读超过该天数才显示回顾入口，1-90 天">
                 <Input
                   id="catchup-stale-days"
+                  required
                   type="number"
                   min={1}
                   max={90}
@@ -144,6 +235,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
               <AdminFormField label="最多回顾章节数" htmlFor="catchup-chapters" hint="1-10 章">
                 <Input
                   id="catchup-chapters"
+                  required
                   type="number"
                   min={1}
                   max={10}
@@ -164,10 +256,15 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                   onChange={(e) => setLocalSettings({ ...localSettings, catchupTemperature: Number(e.target.value) })}
                 />
                 <output htmlFor="catchup-temp">{localSettings.catchupTemperature}</output>
+                <div className="ai-parameter-range-guide" aria-hidden="true">
+                  <span>更稳定 · 0</span>
+                  <span>更灵活 · 1</span>
+                </div>
               </AdminFormField>
               <AdminFormField label="最大输出 Token" htmlFor="catchup-tokens" hint="推荐 800">
                 <Input
                   id="catchup-tokens"
+                  required
                   type="number"
                   min={100}
                   max={3000}
@@ -191,10 +288,21 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
           </CardContent>
         </Card>
 
-        <Card id="ai-params-writing" className="admin-panel-card ai-params-card ai-params-card--writing">
-          <AdminPanelHeading title="AI 创作参数" />
+        <Card
+          role="tabpanel"
+          aria-labelledby="ai-param-tab-writing"
+          hidden={activeGroup !== 'writing'}
+          id="ai-params-writing"
+          className="admin-panel-card ai-params-card ai-params-card--writing"
+        >
+          <div className="admin-panel-heading ai-parameter-heading">
+            <div className="admin-panel-heading__copy">
+              <h3>AI 创作参数</h3>
+              <p>控制大纲、章节与续写的生成长度和变化程度。</p>
+            </div>
+            <span className="ai-parameter-count">6 项参数</span>
+          </div>
           <CardContent className="grid gap-4">
-            <p className="ai-params-description">控制大纲、章节与续写的生成长度和变化程度。</p>
             <div className="ai-form-grid grid gap-3 sm:grid-cols-2">
               <AdminFormField label="创意度（Temperature）" className="ai-temperature-field" htmlFor="writing-temp">
                 <Input
@@ -208,10 +316,15 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                   onChange={(e) => setLocalSettings({ ...localSettings, writingTemperature: Number(e.target.value) })}
                 />
                 <output htmlFor="writing-temp">{localSettings.writingTemperature}</output>
+                <div className="ai-parameter-range-guide" aria-hidden="true">
+                  <span>更稳定 · 0</span>
+                  <span>更灵活 · 1</span>
+                </div>
               </AdminFormField>
               <AdminFormField label="最大输出 Token" htmlFor="writing-tokens" hint="控制大纲、章节和续写的最大长度，最高 1,000,000 Token">
                 <Input
                   id="writing-tokens"
+                  required
                   type="number"
                   min={300}
                   max={1000000}
@@ -221,10 +334,12 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                 />
               </AdminFormField>
             </div>
-            <div className="ai-form-grid grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <h4 className="ai-parameter-subtitle">分析与辅助生成</h4>
+            <div className="ai-form-grid ai-parameter-analysis grid gap-3 sm:grid-cols-2">
               <AdminFormField label="风格画像 Token" htmlFor="style-tokens" hint="风格画像提取的最大输出，推理模型需留足思考余量，推荐 1500">
                 <Input
                   id="style-tokens"
+                  required
                   type="number"
                   min={200}
                   max={1000000}
@@ -236,6 +351,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
               <AdminFormField label="情节状态 Token" htmlFor="plot-tokens" hint="情节状态提取的最大输出，结构化四块天然较长，推荐 3000">
                 <Input
                   id="plot-tokens"
+                  required
                   type="number"
                   min={300}
                   max={1000000}
@@ -247,6 +363,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
               <AdminFormField label="关系画像 Token" htmlFor="relationship-tokens" hint="关系画像提取的最大输出，角色关系动态/心理边界，推荐 1200">
                 <Input
                   id="relationship-tokens"
+                  required
                   type="number"
                   min={200}
                   max={1000000}
@@ -258,6 +375,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
               <AdminFormField label="章节标题 Token" htmlFor="title-tokens" hint="章节标题生成的最大输出，推荐 200">
                 <Input
                   id="title-tokens"
+                  required
                   type="number"
                   min={50}
                   max={2000}
@@ -269,14 +387,12 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
             </div>
             <details className="ai-prompt-details">
               <summary>
-                创作系统提示词 <span>展开编辑</span>
+                创作系统提示词 <span>按需展开编辑</span>
               </summary>
               <AdminFormField label="创作系统提示词" htmlFor="writing-prompt" hint="定义 AI 创作的角色、文风和输出约束">
-                {/* 同上：中和组件自带的 field-sizing-content / min-h-16 / shadow-xs，
-                保持迁移前的 120px 固定高度与无阴影。 */}
                 <Textarea
                   id="writing-prompt"
-                  className="field-sizing-fixed min-h-[120px] shadow-none text-sm"
+                  className="field-sizing-fixed min-h-[160px] shadow-none text-sm"
                   value={localSettings.writingSystemPrompt}
                   disabled={props.loading || saving}
                   onChange={(e) => setLocalSettings({ ...localSettings, writingSystemPrompt: e.target.value })}
@@ -286,8 +402,20 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
           </CardContent>
         </Card>
 
-        <Card id="ai-params-image" className="admin-panel-card ai-params-card">
-          <AdminPanelHeading title="AI 生图与封面参数" />
+        <Card
+          role="tabpanel"
+          aria-labelledby="ai-param-tab-image"
+          hidden={activeGroup !== 'image'}
+          id="ai-params-image"
+          className="admin-panel-card ai-params-card"
+        >
+          <div className="admin-panel-heading ai-parameter-heading">
+            <div className="admin-panel-heading__copy">
+              <h3>AI 生图与封面参数</h3>
+              <p>为封面工作台提供默认图像设置。</p>
+            </div>
+            <span className="ai-parameter-count">4 项参数</span>
+          </div>
           <CardContent className="ai-form-grid grid gap-4 sm:grid-cols-3">
             <AdminFormField label="图像尺寸" htmlFor="image-size">
               <Select
@@ -344,6 +472,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
             >
               <Input
                 id="cover-prompt-max-chars"
+                required
                 type="number"
                 min={100}
                 max={10000}
@@ -356,12 +485,25 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
         </Card>
 
         {/* 任务与运维 */}
-        <Card id="ai-params-tasks" className="admin-panel-card ai-params-card">
-          <AdminPanelHeading title="任务与运维" />
+        <Card
+          role="tabpanel"
+          aria-labelledby="ai-param-tab-tasks"
+          hidden={activeGroup !== 'tasks'}
+          id="ai-params-tasks"
+          className="admin-panel-card ai-params-card"
+        >
+          <div className="admin-panel-heading ai-parameter-heading">
+            <div className="admin-panel-heading__copy">
+              <h3>任务与运维</h3>
+              <p>管理任务运行数量与操作性记录保留时间。</p>
+            </div>
+            <span className="ai-parameter-count">2 项参数</span>
+          </div>
           <CardContent className="ai-form-grid grid gap-3 sm:grid-cols-2">
             <AdminFormField label="创作任务并发上限" htmlFor="max-concurrent-tasks" hint="同时运行的大纲/章节/续写任务数上限，超出时新任务被拒绝，1-10 个">
               <Input
                 id="max-concurrent-tasks"
+                required
                 type="number"
                 min={1}
                 max={10}
@@ -377,6 +519,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
             >
               <Input
                 id="task-retention-days"
+                required
                 type="number"
                 min={7}
                 max={365}
@@ -389,8 +532,20 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
         </Card>
 
         {/* 审计配置 */}
-        <Card id="ai-params-audit" className="admin-panel-card ai-params-card ai-params-card--audit">
-          <AdminPanelHeading title="审计配置" />
+        <Card
+          role="tabpanel"
+          aria-labelledby="ai-param-tab-audit"
+          hidden={activeGroup !== 'audit'}
+          id="ai-params-audit"
+          className="admin-panel-card ai-params-card ai-params-card--audit"
+        >
+          <div className="admin-panel-heading ai-parameter-heading">
+            <div className="admin-panel-heading__copy">
+              <h3>审计配置</h3>
+              <p>决定调用审计记录的内容范围。</p>
+            </div>
+            <span className="ai-parameter-count">2 项开关</span>
+          </div>
           <CardContent className="grid gap-3">
             <label className="flex items-start justify-between gap-4 rounded-lg border border-border bg-muted/30 p-4">
               <span className="min-w-0">
@@ -419,7 +574,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
       </div>
       <div className="ai-params-save">
         <span className="text-sm text-muted-foreground" role="status">
-          {dirty ? '有未保存的参数修改' : '参数与生效值一致'}
+          {changeCount ? `${changeCount} 项参数待保存 · 切换分类保留修改` : '参数与当前生效值一致'}
         </span>
         <div className="flex flex-wrap gap-2">
           <Button type="button" variant="secondary" disabled={props.loading || saving || !dirty} onClick={() => setLocalSettings(props.settings)}>

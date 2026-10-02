@@ -1277,3 +1277,192 @@
     padding-bottom: 1rem;
   }
 }
+
+/* 参数调优：顶部分类切换，通栏参数面板。 */
+.ai-service .ai-params-panel {
+  grid-template-columns: minmax(0, 1fr);
+}
+.ai-service .ai-params-sections {
+  grid-column: 1;
+  grid-row: auto;
+  padding-bottom: 0;
+}
+.ai-service .ai-params-card[hidden] {
+  display: none;
+}
+.ai-service .ai-parameter-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 5px;
+  background: var(--admin-panel-muted);
+  border-radius: 14px;
+  width: fit-content;
+  max-width: 100%;
+}
+.ai-service .ai-parameter-tabs button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 18px;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.ai-service .ai-parameter-tabs button[aria-selected='true'] {
+  background: var(--admin-panel);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.ai-service .ai-parameter-tabs button:hover {
+  color: var(--accent);
+}
+.ai-service .ai-parameter-tabs button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.ai-service .ai-parameter-tab-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+.ai-service .ai-params-card > .admin-panel-heading {
+  padding: 28px 28px 12px;
+}
+.ai-service .ai-params-card > .admin-panel-heading h3 {
+  font-size: 18px;
+}
+.ai-service.ai-admin-page .ai-params-card > [data-slot='card-content'] {
+  padding: 0 28px 28px;
+  gap: 24px;
+}
+.ai-service .ai-params-description {
+  margin: -6px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.ai-service.ai-admin-page .ai-params-panel .ai-form-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+.ai-service .ai-params-panel .admin-form-field {
+  gap: 8px;
+}
+.ai-service .ai-params-panel .admin-form-field label {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.ai-service.ai-admin-page .ai-params-panel input:not([type='range']) {
+  width: 100%;
+  max-width: none;
+  height: 40px;
+  min-height: 40px;
+  padding: 9px 12px;
+  font-size: 14px;
+}
+.ai-service.ai-admin-page .ai-params-panel [data-slot='select-trigger'] {
+  width: 100%;
+  min-height: 40px;
+}
+.ai-service .ai-params-panel .ai-temperature-field output {
+  color: var(--accent);
+  background: var(--accent-light);
+  padding: 3px 8px;
+  border-radius: 6px;
+  top: -3px;
+}
+.ai-service .ai-parameter-range-guide {
+  display: flex;
+  justify-content: space-between;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.ai-service .ai-parameter-subtitle {
+  border-top: 1px solid var(--admin-line);
+  padding-top: 24px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.ai-service .ai-params-panel .ai-prompt-details {
+  padding: 16px 18px;
+  border-radius: 14px;
+  background: var(--admin-panel-muted);
+}
+.ai-service .ai-params-panel textarea {
+  font-size: 14px;
+  line-height: 1.8;
+}
+.ai-service .ai-params-save {
+  grid-column: 1;
+  grid-row: auto;
+  align-self: auto;
+  bottom: 16px;
+  padding: 12px 20px;
+  border-radius: 16px;
+}
+.ai-service .ai-params-save > span {
+  font-size: 12px;
+}
+@media (max-width: 767px) {
+  .ai-service .ai-parameter-tabs {
+    width: 100%;
+  }
+  .ai-service .ai-parameter-tabs button {
+    flex: 1 0 28%;
+    padding: 10px 8px;
+  }
+  .ai-service .ai-params-card > .admin-panel-heading {
+    padding: 22px 20px 12px;
+  }
+  .ai-service .ai-params-card > .admin-panel-heading h3 {
+    font-size: 16px;
+  }
+  .ai-service.ai-admin-page .ai-params-card > [data-slot='card-content'] {
+    padding: 0 20px 22px;
+  }
+  .ai-service.ai-admin-page .ai-params-panel .ai-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
+  .ai-service .ai-params-save {
+    bottom: 16px;
+    grid-row: auto;
+  }
+  .ai-service .ai-params-panel {
+    padding-bottom: 16px;
+  }
+}
+
+.ai-service .ai-params-card {
+  min-height: 340px;
+}
+.ai-service .ai-params-card > .ai-parameter-heading {
+  padding-bottom: 20px;
+}
+.ai-service .ai-parameter-heading p {
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.ai-service .ai-parameter-count {
+  border-radius: 999px;
+  background: var(--admin-panel-muted);
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 3px 9px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 767px) {
+  .ai-service .ai-params-card > .ai-parameter-heading {
+    align-items: flex-start;
+  }
+}
