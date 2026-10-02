@@ -30,4 +30,4 @@
 - 桌面、390px 手机布局检查；手机展开三十日明细、切换 UV 后无页面横向溢出。
 - CSV 内容生成及 Blob/下载点击路径通过自动测试；实际浏览器下载事件监听超时，因此未确认文件落盘。
 
-页面截图保存在 `.impeccable/review/traffic-analysis-project/desktop.png`、`mobile.png`。
+页面截图保存在 `.impeccable/review/traffic-analysis-project/desktop.jpg`、`mobile.jpg`。

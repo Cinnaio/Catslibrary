@@ -1,0 +1,1562 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>用户管理 · 知舟设计预览</title>
+    <style>
+      :root {
+        --accent: #8b6045;
+        --accent-soft: #f0e6d6;
+        --paper: #fff;
+        --base: #f6f4f1;
+        --ink: #211e1a;
+        --muted: #736d65;
+        --line: #ece8e2;
+        --soft: #f8f6f3;
+        --green: #4c7053;
+        --red: #a33f49;
+        --canvas: color-mix(in srgb, var(--base) 55%, var(--line) 45%);
+        --side: color-mix(in srgb, var(--paper) 70%, var(--canvas) 30%);
+        --head: color-mix(in srgb, var(--base) 85%, var(--accent) 15%);
+      }
+      [data-theme='dark'] {
+        --accent: #c49a74;
+        --accent-soft: #43382e;
+        --paper: #292a30;
+        --base: #24252a;
+        --ink: #eee8e0;
+        --muted: #b7b0a7;
+        --line: #414047;
+        --soft: #303138;
+        --green: #a1bda3;
+        --red: #e7a0a5;
+        --head: #3d3c3e;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--canvas);
+        color: var(--ink);
+        font:
+          14px/1.6 -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          'PingFang SC',
+          'Microsoft YaHei',
+          system-ui,
+          sans-serif;
+      }
+      button,
+      input,
+      select {
+        font: inherit;
+      }
+      button {
+        cursor: pointer;
+        color: inherit;
+      }
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+      button:disabled {
+        opacity: 0.45;
+        cursor: default;
+      }
+      button:focus-visible,
+      input:focus-visible,
+      select:focus-visible,
+      a:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 3px;
+      }
+      button,
+      input,
+      select {
+        border-radius: 12px;
+      }
+      button {
+        border: 0;
+        background: none;
+      }
+      input,
+      select {
+        color: var(--ink);
+        border: 1px solid color-mix(in srgb, var(--line) 75%, var(--muted));
+        background: var(--paper);
+        height: 40px;
+        padding: 0 12px;
+        min-width: 0;
+      }
+      input[type='checkbox'] {
+        accent-color: var(--accent);
+        width: 16px;
+        height: 16px;
+        padding: 0;
+      }
+      svg {
+        width: 18px;
+        height: 18px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.7;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        flex-shrink: 0;
+      }
+      .icon-btn {
+        width: 36px;
+        height: 36px;
+        display: grid;
+        place-items: center;
+        border: 1px solid var(--line);
+        background: var(--paper);
+      }
+      .shell {
+        display: grid;
+        grid-template-columns: 248px minmax(0, 1fr);
+        gap: 24px;
+        padding: 16px 24px 16px 8px;
+        min-height: 100vh;
+      }
+      .sidebar {
+        height: calc(100vh - 32px);
+        position: sticky;
+        top: 16px;
+        display: flex;
+        flex-direction: column;
+        background: var(--side);
+        border-radius: 20px;
+        padding: 24px 12px 16px;
+        overflow-y: auto;
+        scrollbar-width: none;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 0 16px 26px;
+      }
+      .brand > svg {
+        width: 30px;
+        height: 30px;
+        color: var(--accent);
+      }
+      .brand strong {
+        font-size: 16px;
+      }
+      .brand small {
+        display: block;
+        line-height: 1.2;
+        font-size: 11px;
+      }
+      .nav-group {
+        color: var(--muted);
+        font-size: 11px;
+        padding: 14px 16px 6px;
+      }
+      .nav-item {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        padding: 10px 16px;
+        font-size: 14px;
+        border-radius: 12px;
+        color: var(--muted);
+      }
+      .nav-item.active {
+        background: var(--accent);
+        color: white;
+        font-weight: 600;
+      }
+      .nav-child {
+        margin: 4px 16px 0 30px;
+        padding: 7px 12px;
+        color: var(--muted);
+        font-size: 13px;
+        border-radius: 10px;
+      }
+      .nav-child.selected {
+        background: var(--accent-soft);
+        color: var(--accent);
+        font-weight: 600;
+      }
+      .side-bottom {
+        margin-top: auto;
+        padding: 22px 16px 0;
+        display: flex;
+        gap: 14px;
+        align-items: center;
+        color: var(--muted);
+      }
+      .avatar {
+        width: 34px;
+        height: 34px;
+        display: grid;
+        place-items: center;
+        flex-shrink: 0;
+        border-radius: 50%;
+        background: var(--accent-soft);
+        color: var(--accent);
+        font-size: 13px;
+      }
+      .main {
+        min-width: 0;
+      }
+      .topbar {
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 28px;
+      }
+      .breadcrumb {
+        display: flex;
+        gap: 16px;
+        align-items: center;
+        font-size: 13px;
+      }
+      .top-actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .preview-label {
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .page-heading {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+        margin-bottom: 24px;
+      }
+      .page-heading h1 {
+        font-size: 20px;
+        letter-spacing: -0.04em;
+        line-height: 1.15;
+        margin: 0 0 8px;
+        font-weight: 700;
+      }
+      .page-heading p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 14px;
+      }
+      .search {
+        width: 280px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        border: 1px solid var(--line);
+        background: var(--paper);
+        border-radius: 12px;
+        padding: 0 12px;
+      }
+      .search input {
+        border: 0;
+        background: transparent;
+        width: 100%;
+        padding: 0;
+        height: 40px;
+        font-size: 14px;
+      }
+      .search:focus-within {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+      .search input:focus-visible {
+        outline: none;
+      }
+      .search svg {
+        color: var(--muted);
+      }
+      .panel {
+        background: var(--paper);
+        border-radius: 20px;
+        overflow: hidden;
+      }
+      .panel-heading {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 22px 24px 18px;
+        gap: 16px;
+      }
+      .panel-heading h2 {
+        font-size: 16px;
+        letter-spacing: -0.03em;
+        margin: 0;
+        font-weight: 750;
+      }
+      .panel-heading-right {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+      }
+      .count {
+        padding: 4px 10px;
+        background: var(--soft);
+        border-radius: 100px;
+        color: var(--muted);
+        font-size: 12px;
+        font-variant-numeric: tabular-nums;
+      }
+      .btn {
+        height: 40px;
+        padding: 0 14px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        font-size: 13px;
+        font-weight: 500;
+        white-space: nowrap;
+        background: var(--base);
+      }
+      .btn:hover {
+        background: var(--line);
+      }
+      .btn-primary {
+        background: var(--accent);
+        color: white;
+        font-size: 14px;
+      }
+      .btn-primary:hover {
+        background: color-mix(in srgb, var(--accent) 85%, black);
+      }
+      .btn-danger {
+        background: #a33f49;
+        color: white;
+        font-size: 14px;
+      }
+      .btn-plain {
+        background: transparent;
+        color: var(--accent);
+        padding: 0 10px;
+      }
+      .btn-plain:hover {
+        background: var(--soft);
+      }
+      .filters {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 12px;
+        padding: 8px 24px 18px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .filters label {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .filters select {
+        font-size: 13px;
+        min-width: 130px;
+      }
+      .filter-summary {
+        margin-left: auto;
+        font-variant-numeric: tabular-nums;
+      }
+      .clear {
+        color: var(--accent);
+        font-size: 12px;
+        padding: 4px 8px;
+      }
+      .table-wrap {
+        overflow: auto;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+      }
+      col:nth-child(1) {
+        width: 28%;
+      }
+      col:nth-child(2) {
+        width: 19%;
+      }
+      col:nth-child(3) {
+        width: 23%;
+      }
+      col:nth-child(4) {
+        width: 8%;
+      }
+      col:nth-child(5) {
+        width: 22%;
+      }
+      th {
+        background: var(--head);
+        padding: 12px 20px;
+        text-align: left;
+        font-size: 11px;
+        letter-spacing: 0.04em;
+        font-weight: 650;
+      }
+      td {
+        border-bottom: 1px solid var(--line);
+        padding: 16px 20px;
+        vertical-align: middle;
+        font-size: 13px;
+      }
+      th:last-child,
+      td:last-child {
+        text-align: right;
+        padding-right: 24px;
+      }
+      tr:last-child td {
+        border-bottom: 0;
+      }
+      tbody tr:hover {
+        background: var(--soft);
+      }
+      .identity {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        min-width: 0;
+      }
+      .identity-copy {
+        min-width: 0;
+      }
+      .identity strong {
+        font-size: 14px;
+        font-weight: 600;
+        display: block;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .sub {
+        color: var(--muted);
+        font-size: 12px;
+        display: block;
+      }
+      .identity .sub {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .self {
+        font-size: 10px;
+        color: var(--accent);
+        background: var(--accent-soft);
+        border-radius: 6px;
+        vertical-align: middle;
+        font-weight: 400;
+        padding: 2px 5px;
+        margin-left: 6px;
+      }
+      .badges {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .badge {
+        font-size: 11px;
+        padding: 3px 8px;
+        border-radius: 100px;
+        background: var(--base);
+        color: var(--muted);
+        white-space: nowrap;
+      }
+      .badge-admin {
+        background: var(--accent-soft);
+        color: var(--accent);
+      }
+      .badge-normal {
+        color: var(--green);
+        background: color-mix(in srgb, var(--green) 9%, var(--paper));
+      }
+      .badge-disabled {
+        color: var(--red);
+        background: color-mix(in srgb, var(--red) 9%, var(--paper));
+      }
+      .time-row {
+        display: grid;
+        grid-template-columns: 48px minmax(0, 1fr);
+        gap: 2px 8px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .time-row span:nth-child(2n) {
+        color: var(--ink);
+        font-variant-numeric: tabular-nums;
+      }
+      .thought {
+        font-variant-numeric: tabular-nums;
+      }
+      .row-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 6px;
+      }
+      .more {
+        width: 34px;
+        height: 36px;
+        font-size: 22px;
+        border-radius: 10px;
+        color: var(--muted);
+      }
+      .more:hover {
+        background: var(--line);
+      }
+      .pagination {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 16px 24px;
+        font-size: 12px;
+        color: var(--muted);
+        border-top: 1px solid var(--line);
+      }
+      .pagination-controls {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .pagination button,
+      .pagination select,
+      .pagination input {
+        height: 32px;
+        border-radius: 10px;
+        font-size: 12px;
+      }
+      .pagination button {
+        padding: 0 10px;
+        background: var(--base);
+      }
+      .pagination input {
+        width: 44px;
+        text-align: center;
+        padding: 0;
+      }
+      .pagination select {
+        padding: 0 8px;
+      }
+      .empty {
+        padding: 72px 24px;
+        text-align: center;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .empty strong {
+        display: block;
+        color: var(--ink);
+        font-size: 14px;
+        margin-bottom: 6px;
+      }
+      .page-foot {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        font-size: 11px;
+        color: var(--muted);
+        margin-top: 18px;
+      }
+      .page-foot label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .foot-info {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+      }
+      .menu {
+        position: fixed;
+        z-index: 20;
+        background: var(--paper);
+        border: 1px solid var(--line);
+        box-shadow: 0 8px 30px #00000018;
+        border-radius: 14px;
+        padding: 6px;
+        min-width: 176px;
+      }
+      .menu button {
+        display: block;
+        width: 100%;
+        text-align: left;
+        border-radius: 8px;
+        padding: 9px 12px;
+        font-size: 13px;
+      }
+      .menu button:hover {
+        background: var(--soft);
+      }
+      .menu .danger {
+        color: var(--red);
+      }
+      .menu .separate {
+        border-top: 1px solid var(--line);
+        border-radius: 0;
+        margin-top: 4px;
+        padding-top: 12px;
+      }
+      .menu[hidden] {
+        display: none;
+      }
+      dialog {
+        border: 0;
+        background: var(--paper);
+        color: var(--ink);
+        border-radius: 20px;
+        padding: 0;
+        width: min(480px, calc(100vw - 32px));
+        max-height: calc(100dvh - 32px);
+        overflow: auto;
+        box-shadow: 0 18px 80px #00000022;
+      }
+      dialog::backdrop {
+        background: #211e1a66;
+        backdrop-filter: blur(3px);
+      }
+      .dialog-head {
+        padding: 24px 24px 16px;
+        position: relative;
+      }
+      .dialog-head h2 {
+        margin: 0 40px 5px 0;
+        font-size: 18px;
+        letter-spacing: -0.03em;
+      }
+      .dialog-head p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .dialog-close {
+        position: absolute;
+        right: 20px;
+        top: 20px;
+        width: 32px;
+        height: 32px;
+        display: grid;
+        place-items: center;
+        color: var(--muted);
+      }
+      .dialog-body {
+        padding: 0 24px 8px;
+        display: grid;
+        gap: 18px;
+      }
+      .target {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 14px;
+        border-radius: 12px;
+        background: var(--soft);
+      }
+      .target strong {
+        font-size: 13px;
+      }
+      .target small {
+        display: block;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .field {
+        display: grid;
+        gap: 7px;
+      }
+      .field label {
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 500;
+      }
+      .field input {
+        width: 100%;
+        font-size: 14px;
+      }
+      .field small {
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .show-password {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .notice {
+        display: flex;
+        gap: 9px;
+        align-items: flex-start;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.7;
+      }
+      .notice svg {
+        margin-top: 2px;
+        width: 16px;
+        height: 16px;
+      }
+      .notice strong {
+        color: var(--ink);
+        font-weight: 500;
+      }
+      .error {
+        color: var(--red);
+        font-size: 12px;
+        margin: 0;
+      }
+      .error:empty {
+        display: none;
+      }
+      .dialog-foot {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        padding: 18px 24px 24px;
+        background: var(--paper);
+      }
+      .toast {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        max-width: calc(100vw - 48px);
+        padding: 12px 18px;
+        background: var(--ink);
+        color: var(--paper);
+        font-size: 13px;
+        border-radius: 12px;
+        z-index: 50;
+        box-shadow: 0 4px 24px #00000012;
+      }
+      .toast:empty {
+        display: none;
+      }
+      .temporary {
+        font-family: ui-monospace, monospace;
+        background: var(--soft);
+        padding: 16px;
+        border-radius: 12px;
+        text-align: center;
+        font-size: 20px;
+        letter-spacing: 2px;
+      }
+      .muted {
+        color: var(--muted);
+      }
+      .hidden,
+      [hidden] {
+        display: none !important;
+      }
+      @media (min-width: 901px) {
+        tbody tr {
+          animation: enter 200ms ease-out both;
+        }
+        tbody tr:nth-child(2) {
+          animation-delay: 20ms;
+        }
+        tbody tr:nth-child(3) {
+          animation-delay: 40ms;
+        }
+        tbody tr:nth-child(4) {
+          animation-delay: 60ms;
+        }
+        @keyframes enter {
+          from {
+            opacity: 0;
+            transform: translateY(3px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      }
+      @media (max-width: 1150px) {
+        .shell {
+          grid-template-columns: 208px minmax(0, 1fr);
+          gap: 20px;
+          padding-right: 20px;
+        }
+        td,
+        th {
+          padding-left: 16px;
+          padding-right: 16px;
+        }
+        .avatar {
+          width: 30px;
+          height: 30px;
+        }
+        .identity {
+          gap: 8px;
+        }
+        .badges {
+          gap: 4px;
+        }
+      }
+      @media (max-width: 900px) {
+        .shell {
+          display: block;
+          padding: 16px;
+        }
+        .sidebar {
+          display: none;
+        }
+        .topbar {
+          margin-bottom: 24px;
+        }
+        .page-heading {
+          align-items: flex-start;
+          flex-direction: column;
+          gap: 16px;
+        }
+        .search {
+          width: 100%;
+        }
+        .panel-heading {
+          padding: 20px 20px 14px;
+        }
+        .filters {
+          padding: 0 20px 16px;
+          gap: 10px;
+        }
+        .filter-summary {
+          width: 100%;
+          margin-left: 0;
+        }
+        table,
+        tbody {
+          display: block;
+        }
+        thead,
+        colgroup {
+          display: none;
+        }
+        tr {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
+          padding: 18px 20px;
+          gap: 14px 16px;
+          border-bottom: 1px solid var(--line);
+        }
+        td {
+          display: block;
+          padding: 0;
+          border: 0;
+          min-width: 0;
+        }
+        td:nth-child(1) {
+          grid-column: 1 / -1;
+        }
+        td:nth-child(2) {
+          grid-column: 1 / -1;
+        }
+        td:nth-child(3) {
+          grid-column: 1;
+        }
+        .time-row {
+          font-size: 12px;
+          gap: 4px 6px;
+        }
+        td:nth-child(4) {
+          text-align: right;
+          font-size: 13px;
+          align-self: end;
+        }
+        td:nth-child(4)::before {
+          content: '想法';
+          display: block;
+          color: var(--muted);
+          font-size: 11px;
+        }
+        td:last-child {
+          grid-column: 1 / -1;
+          text-align: right;
+          padding-right: 0;
+        }
+        .row-actions {
+          border-top: 1px solid var(--line);
+          padding-top: 8px;
+        }
+        .identity .avatar {
+          width: 36px;
+          height: 36px;
+        }
+        .identity strong {
+          font-size: 14px;
+        }
+        .pagination {
+          padding: 16px 20px;
+          align-items: flex-start;
+          flex-direction: column;
+          gap: 12px;
+        }
+        .pagination-controls {
+          width: 100%;
+        }
+        .page-size {
+          width: 100%;
+        }
+        .page-foot {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+        .preview-label {
+          display: none;
+        }
+        .empty {
+          padding: 52px 20px;
+        }
+      }
+      @media (max-width: 420px) {
+        .shell {
+          padding: 12px;
+        }
+        .panel-heading,
+        .filters {
+          padding-left: 16px;
+          padding-right: 16px;
+        }
+        tr {
+          padding: 18px 16px;
+        }
+        .filters label {
+          flex: 1;
+        }
+        .filters select {
+          min-width: 0;
+          width: 100%;
+        }
+        .pagination {
+          padding: 16px;
+        }
+        .pagination-controls {
+          gap: 7px;
+        }
+        .page-first,
+        .page-last {
+          display: none;
+        }
+        .jump-label {
+          margin-left: auto;
+        }
+        .dialog-head {
+          padding: 22px 20px 16px;
+        }
+        .dialog-body {
+          padding: 0 20px 8px;
+        }
+        .dialog-foot {
+          padding: 16px 20px 20px;
+        }
+        .field input {
+          font-size: 16px;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        * {
+          animation: none !important;
+          transition: none !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <svg aria-hidden="true" style="position: absolute; width: 0; height: 0; overflow: hidden">
+      <defs>
+        <symbol id="i-book" viewBox="0 0 24 24"><path d="M12 5c-3-2-6-2-9-1v15c3-1 6-1 9 1 3-2 6-2 9-1V4c-3-1-6-1-9 1Zm0 0v15" /></symbol>
+        <symbol id="i-users" viewBox="0 0 24 24">
+          <circle cx="9" cy="7" r="4" />
+          <path d="M2 21v-2a7 7 0 0 1 14 0v2M17 4a4 4 0 0 1 0 8m3 9v-2a6 6 0 0 0-3-5" />
+        </symbol>
+        <symbol id="i-grid" viewBox="0 0 24 24">
+          <rect x="3" y="3" width="7" height="7" rx="1" />
+          <rect x="14" y="3" width="7" height="7" rx="1" />
+          <rect x="3" y="14" width="7" height="7" rx="1" />
+          <rect x="14" y="14" width="7" height="7" rx="1" />
+        </symbol>
+        <symbol id="i-search" viewBox="0 0 24 24">
+          <circle cx="10" cy="10" r="7" />
+          <path d="m15 15 6 6" />
+        </symbol>
+        <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5M5 8a8 8 0 0 1 13-3l2 2M4 17l2 2a8 8 0 0 0 13-3" /></symbol>
+        <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6" /></symbol>
+        <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 15A9 9 0 0 1 9 4a9 9 0 1 0 11 11Z" /></symbol>
+        <symbol id="i-info" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 11v6m0-10v.1" />
+        </symbol>
+        <symbol id="i-menu" viewBox="0 0 24 24">
+          <rect x="4" y="4" width="16" height="16" rx="2" />
+          <path d="M9 4v16" />
+        </symbol>
+      </defs>
+    </svg>
+    <div class="shell">
+      <aside class="sidebar" aria-label="管理导航预览">
+        <div class="brand">
+          <svg><use href="#i-book" /></svg>
+          <div><strong>知舟</strong><small>馆藏运营台</small></div>
+        </div>
+        <div class="nav-group">监控</div>
+        <div class="nav-item">
+          <svg><use href="#i-grid" /></svg>后台总览
+        </div>
+        <div class="nav-group">内容库</div>
+        <div class="nav-item">
+          <svg><use href="#i-book" /></svg>小说管理
+        </div>
+        <div class="nav-item">
+          <svg><use href="#i-book" /></svg>章节管理
+        </div>
+        <div class="nav-group">内容生产</div>
+        <div class="nav-item">
+          <svg><use href="#i-grid" /></svg>爬虫抓取
+        </div>
+        <div class="nav-item">
+          <svg><use href="#i-grid" /></svg>AI 服务
+        </div>
+        <div class="nav-group">运行监控</div>
+        <div class="nav-item">
+          <svg><use href="#i-grid" /></svg>任务中心
+        </div>
+        <div class="nav-item">
+          <svg><use href="#i-grid" /></svg>调用与用量
+        </div>
+        <div class="nav-group">内容治理</div>
+        <div class="nav-item">
+          <svg><use href="#i-book" /></svg>内容审核
+        </div>
+        <div class="nav-group">平台运营</div>
+        <div class="nav-item">
+          <svg><use href="#i-grid" /></svg>站点运营
+        </div>
+        <div class="nav-item active">
+          <svg><use href="#i-users" /></svg>账户与注册
+        </div>
+        <div class="nav-child selected" aria-current="page">用户管理</div>
+        <div class="nav-child">注册与邀请码</div>
+        <div class="nav-child">登录审计</div>
+        <div class="nav-child">操作审计</div>
+        <div class="side-bottom"><span class="avatar">猫</span><span>管理员</span></div>
+      </aside>
+      <main class="main">
+        <div class="topbar">
+          <div class="breadcrumb">
+            <svg><use href="#i-menu" /></svg><strong>账户与注册</strong>
+          </div>
+          <div class="top-actions">
+            <span class="preview-label">示例数据 · HTML 预览</span
+            ><button class="icon-btn" id="theme" aria-label="切换深色主题">
+              <svg><use href="#i-moon" /></svg>
+            </button>
+          </div>
+        </div>
+        <header class="page-heading">
+          <div>
+            <h1>用户管理</h1>
+            <p>管理用户身份、访问状态与账户密码。</p>
+          </div>
+          <label class="search"
+            ><svg><use href="#i-search" /></svg><input id="search" type="search" placeholder="搜索昵称或用户名" aria-label="搜索昵称或用户名"
+          /></label>
+        </header>
+        <section class="panel" aria-labelledby="directory-title">
+          <div class="panel-heading">
+            <h2 id="directory-title">用户目录</h2>
+            <div class="panel-heading-right">
+              <span class="count" id="count"></span
+              ><button class="btn" id="refresh">
+                <svg><use href="#i-refresh" /></svg>刷新
+              </button>
+            </div>
+          </div>
+          <div class="filters">
+            <label
+              >角色<select id="role">
+                <option value="all">全部角色</option>
+                <option value="admin">管理员</option>
+                <option value="reader">读者</option>
+              </select></label
+            ><label
+              >状态<select id="status">
+                <option value="all">全部状态</option>
+                <option value="active">正常</option>
+                <option value="disabled">已禁用</option>
+              </select></label
+            ><span class="filter-summary" id="filter-summary"></span><button class="clear" id="clear" hidden>清除筛选</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <caption class="hidden">
+                站点用户目录：用户、权限与状态、注册与登录、想法及操作
+              </caption>
+              <colgroup>
+                <col />
+                <col />
+                <col />
+                <col />
+                <col />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th scope="col">用户</th>
+                  <th scope="col">权限与状态</th>
+                  <th scope="col">注册与登录</th>
+                  <th scope="col">想法</th>
+                  <th scope="col">操作</th>
+                </tr>
+              </thead>
+              <tbody id="rows"></tbody>
+            </table>
+            <div class="empty" id="empty" hidden><strong>没有找到匹配的用户</strong><span>试试其他关键词，或清除角色与状态筛选。</span></div>
+          </div>
+          <footer class="pagination">
+            <span id="page-count"></span>
+            <div class="pagination-controls">
+              <label class="page-size"
+                >每页
+                <select id="page-size" aria-label="每页行数">
+                  <option>15</option>
+                  <option>20</option>
+                  <option>50</option>
+                  <option>100</option>
+                </select>
+                人</label
+              ><button id="first" class="page-first" aria-label="第一页">«</button><button id="prev" aria-label="上一页">‹</button><span id="page-label"></span
+              ><button id="next" aria-label="下一页">›</button><button id="last" class="page-last" aria-label="最后一页">»</button
+              ><label class="jump-label">跳至 <input id="jump" type="number" min="1" value="1" aria-label="跳转页码" /></label><button id="go">跳转</button>
+            </div>
+          </footer>
+        </section>
+        <div class="page-foot">
+          <span class="foot-info"
+            ><svg><use href="#i-info" /></svg>密码修改后，目标用户需重新登录。</span
+          ><label><input type="checkbox" id="simulate-failure" />演示保存失败</label><span>设计预览 · 操作不会影响真实账户</span>
+        </div>
+      </main>
+    </div>
+    <div id="more-menu" class="menu" role="menu" hidden></div>
+    <dialog id="password-dialog" aria-labelledby="password-title" aria-describedby="password-desc">
+      <form id="password-form" novalidate>
+        <header class="dialog-head">
+          <h2 id="password-title">修改密码</h2>
+          <p id="password-desc">直接为此用户设置新密码。</p>
+          <button type="button" class="dialog-close" aria-label="关闭修改密码" data-close>
+            <svg><use href="#i-close" /></svg>
+          </button>
+        </header>
+        <div class="dialog-body">
+          <div class="target" id="password-target"></div>
+          <div class="field" id="current-field" hidden>
+            <label for="current-password">当前密码</label><input id="current-password" type="password" autocomplete="current-password" /><small
+              >修改自己的密码需要验证当前密码。</small
+            >
+          </div>
+          <div class="field">
+            <label for="new-password">新密码</label
+            ><input
+              id="new-password"
+              type="password"
+              autocomplete="new-password"
+              minlength="8"
+              required
+              aria-describedby="password-hint password-error"
+            /><small id="password-hint">至少 8 位；可以使用密码管理器生成的密码。</small>
+          </div>
+          <div class="field">
+            <label for="confirm-password">确认新密码</label
+            ><input id="confirm-password" type="password" autocomplete="new-password" required aria-describedby="password-error" />
+          </div>
+          <label class="show-password"><input type="checkbox" id="show-password" />显示密码</label>
+          <div class="notice">
+            <svg><use href="#i-info" /></svg
+            ><span><strong>保存后，旧密码立即失效。</strong><br /><span id="password-impact">目标用户的登录会话将被清除，需要使用新密码重新登录。</span></span>
+          </div>
+          <p class="error" id="password-error" role="alert"></p>
+        </div>
+        <footer class="dialog-foot">
+          <button type="button" class="btn" data-close>取消</button><button type="submit" class="btn btn-primary" id="save-password">保存密码</button>
+        </footer>
+      </form>
+    </dialog>
+    <dialog id="action-dialog" aria-labelledby="action-title">
+      <form id="action-form">
+        <header class="dialog-head">
+          <h2 id="action-title"></h2>
+          <p id="action-desc"></p>
+          <button type="button" class="dialog-close" aria-label="关闭操作确认" data-close>
+            <svg><use href="#i-close" /></svg>
+          </button>
+        </header>
+        <div class="dialog-body">
+          <div id="action-target" class="target"></div>
+          <p id="action-notice" class="muted"></p>
+          <div class="field" id="delete-field" hidden>
+            <label for="confirm-username">输入用户名确认</label><input id="confirm-username" autocomplete="off" />
+          </div>
+          <div class="temporary" id="temp-password" hidden></div>
+          <p id="action-error" class="error" role="alert"></p>
+        </div>
+        <footer class="dialog-foot">
+          <button type="button" class="btn" data-close>取消</button><button type="submit" class="btn btn-primary" id="confirm-action">确认</button>
+        </footer>
+      </form>
+    </dialog>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script>
+      const $ = (id) => document.getElementById(id)
+      const names = [
+        ['猫', 'wynne'],
+        ['林间晚风', 'eveningwind'],
+        ['纸上星河', 'starwriter'],
+        ['知秋', 'autumn'],
+        ['向晚', 'sunset'],
+        ['青禾', 'qinghe'],
+        ['旧书与茶', 'bookandtea'],
+        ['苏木', 'sumu'],
+        ['夜读者', 'nightreader'],
+        ['鹿鸣', 'luming'],
+        ['南枝', 'nanzhi'],
+        ['春山', 'springhill'],
+        ['云笺', 'cloudnote'],
+        ['松月', 'songyue'],
+        ['书灯', 'booklight'],
+        ['潮生', 'chaosheng'],
+        ['暮雨', 'muyu'],
+        ['一叶', 'leaf'],
+        ['行舟', 'xingzhou'],
+        ['槐序', 'huaixu'],
+        ['北窗', 'northwindow'],
+        ['月白', 'moonwhite'],
+        ['青岚', 'qinglan'],
+        ['时雨', 'shiyu'],
+      ]
+      let users = names.map(([name, username], i) => ({
+        id: i,
+        name,
+        username,
+        role: i === 0 || i === 3 ? 'admin' : 'reader',
+        status: [5, 11, 18].includes(i) ? 'disabled' : 'active',
+        registered: `2026-09-${String(30 - i).padStart(2, '0')}`,
+        login: i % 6 === 5 ? '从未登录' : i < 3 ? '今天' : i < 9 ? '昨天' : `${i - 5} 天前`,
+        thoughts: i === 0 ? 16 : i % 5 === 0 ? 0 : Math.floor((24 - i) * 1.4),
+      }))
+      let page = 1,
+        size = 15,
+        target = null,
+        action = '',
+        opener = null,
+        saving = false,
+        saveTimer = null,
+        toastTimer = null,
+        menuUser = null
+      const esc = (s) => String(s).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;')
+      function toast(message) {
+        $('toast').textContent = message
+        clearTimeout(toastTimer)
+        toastTimer = setTimeout(() => ($('toast').textContent = ''), 4000)
+      }
+      function filtered() {
+        const query = $('search').value.trim().toLowerCase()
+        return users.filter(
+          (u) =>
+            (!query || (u.name + ' ' + u.username).toLowerCase().includes(query)) &&
+            ($('role').value === 'all' || u.role === $('role').value) &&
+            ($('status').value === 'all' || u.status === $('status').value),
+        )
+      }
+      function render() {
+        const list = filtered()
+        const pages = Math.max(1, Math.ceil(list.length / size))
+        page = Math.min(page, pages)
+        const visible = list.slice((page - 1) * size, page * size)
+        $('count').textContent = `${list.length} 人${list.length !== users.length ? '匹配' : ''}`
+        $('filter-summary').textContent =
+          `管理员 ${users.filter((u) => u.role === 'admin').length} · 已禁用 ${users.filter((u) => u.status === 'disabled').length}`
+        $('clear').hidden = !($('search').value || $('role').value !== 'all' || $('status').value !== 'all')
+        $('empty').hidden = !!list.length
+        $('rows').innerHTML = visible
+          .map(
+            (u) =>
+              `<tr><td><div class="identity"><span class="avatar" aria-hidden="true">${esc(u.name[0])}</span><div class="identity-copy"><strong title="${esc(u.name)}">${esc(u.name)}${u.id === 0 ? '<span class="self">本人</span>' : ''}</strong><span class="sub">@${esc(u.username)}</span></div></div></td><td><div class="badges"><span class="badge ${u.role === 'admin' ? 'badge-admin' : ''}">${u.role === 'admin' ? '管理员' : '读者'}</span><span class="badge ${u.status === 'disabled' ? 'badge-disabled' : 'badge-normal'}">${u.status === 'disabled' ? '已禁用' : '正常'}</span></div></td><td><div class="time-row"><span>注册</span><span>${u.registered}</span><span>登录</span><span>${u.login}</span></div></td><td class="thought">${u.thoughts}</td><td><div class="row-actions"><button class="btn btn-plain" data-password="${u.id}" aria-label="${u.id === 0 ? '修改我的密码' : '修改 ' + esc(u.name) + ' 的密码'}">${u.id === 0 ? '修改我的密码' : '修改密码'}</button>${u.id !== 0 ? `<button class="more" data-more="${u.id}" aria-label="${esc(u.name)}的更多操作" aria-haspopup="menu" aria-expanded="false">···</button>` : ''}</div></td></tr>`,
+          )
+          .join('')
+        $('page-count').textContent = list.length ? `显示 ${(page - 1) * size + 1}–${Math.min(page * size, list.length)}，共 ${list.length} 人` : '显示 0 人'
+        $('page-label').textContent = `第 ${page} / ${pages} 页`
+        $('jump').value = page
+        $('jump').max = pages
+        $('first').disabled = $('prev').disabled = page === 1
+        $('last').disabled = $('next').disabled = page === pages
+        closeMenu()
+      }
+      function targetMarkup(u) {
+        return `<span class="avatar" aria-hidden="true">${esc(u.name[0])}</span><div><strong>${esc(u.name)}</strong><small>@${esc(u.username)} · ${u.role === 'admin' ? '管理员' : '读者'}${u.id === 0 ? ' · 本人' : ''}</small></div>`
+      }
+      function openPassword(u, button) {
+        target = u
+        opener = button
+        $('password-form').reset()
+        $('password-error').textContent = ''
+        $('save-password').textContent = '保存密码'
+        $('save-password').disabled = false
+        $('password-title').textContent = u.id === 0 ? '修改我的密码' : '修改密码'
+        $('password-desc').textContent = u.id === 0 ? '验证当前密码后，为自己设置新密码。' : '直接为此用户设置新密码。'
+        $('current-field').hidden = u.id !== 0
+        $('password-impact').textContent =
+          u.id === 0 ? '其他登录会话将被清除，当前会话会更新并保持登录。' : '目标用户的登录会话将被清除，需要使用新密码重新登录。'
+        $('password-target').innerHTML = targetMarkup(u)
+        for (const id of ['current-password', 'new-password', 'confirm-password']) $(id).type = 'password'
+        $('password-dialog').showModal()
+        ;(u.id === 0 ? $('current-password') : $('new-password')).focus()
+      }
+      function closeMenu() {
+        if (menuUser !== null) {
+          const button = document.querySelector(`[data-more="${menuUser}"]`)
+          button?.setAttribute('aria-expanded', 'false')
+        }
+        $('more-menu').hidden = true
+        menuUser = null
+      }
+      function openMenu(u, button) {
+        closeMenu()
+        menuUser = u.id
+        opener = button
+        button.setAttribute('aria-expanded', 'true')
+        $('more-menu').innerHTML =
+          `<button role="menuitem" data-action="role">${u.role === 'admin' ? '设为读者' : '设为管理员'}</button><button role="menuitem" data-action="reset">生成临时密码</button><button role="menuitem" data-action="status">${u.status === 'disabled' ? '恢复用户' : '禁用用户'}</button><button role="menuitem" class="danger separate" data-action="delete">删除用户</button>`
+        $('more-menu').hidden = false
+        const rect = button.getBoundingClientRect()
+        const height = $('more-menu').offsetHeight
+        $('more-menu').style.left = Math.max(8, Math.min(rect.right - 176, innerWidth - 184)) + 'px'
+        $('more-menu').style.top = (rect.bottom + height + 8 > innerHeight ? Math.max(8, rect.top - height - 4) : rect.bottom + 4) + 'px'
+        $('more-menu').querySelector('button').focus()
+      }
+      function openAction(u, kind) {
+        target = u
+        action = kind
+        $('action-form').reset()
+        $('action-error').textContent = ''
+        $('temp-password').textContent = ''
+        $('temp-password').hidden = true
+        $('delete-field').hidden = kind !== 'delete'
+        $('action-target').innerHTML = targetMarkup(u)
+        const meta = {
+          role: [
+            u.role === 'admin' ? '设为读者' : '设为管理员',
+            u.role === 'admin' ? '该用户将失去后台管理权限。' : '管理员拥有后台全部权限，包括管理其他用户。',
+            '确认调整',
+          ],
+          status: [
+            u.status === 'disabled' ? '恢复用户' : '禁用用户',
+            u.status === 'disabled' ? '恢复后，该用户可以重新登录。' : '该用户的登录会话将被清除，禁用期间无法登录。',
+            '确认' + (u.status === 'disabled' ? '恢复' : '禁用'),
+          ],
+          reset: ['生成临时密码', '旧密码将立即失效，所有登录会话将被清除。临时密码仅显示一次。', '生成临时密码'],
+          delete: ['删除用户', '该用户的书架、书签、想法和阅读进度将一并删除，此操作无法撤销。', '永久删除'],
+        }[kind]
+        $('action-title').textContent = meta[0]
+        $('action-desc').textContent = `为 ${u.name}（@${u.username}）执行此操作。`
+        $('action-notice').textContent = meta[1]
+        $('confirm-action').textContent = meta[2]
+        $('confirm-action').className = 'btn ' + (kind === 'delete' ? 'btn-danger' : 'btn-primary')
+        $('action-dialog').showModal()
+        if (kind === 'delete') $('confirm-username').focus()
+      }
+      for (const id of ['search', 'role', 'status'])
+        $(id).addEventListener(id === 'search' ? 'input' : 'change', () => {
+          page = 1
+          render()
+        })
+      $('clear').onclick = () => {
+        $('search').value = ''
+        $('role').value = $('status').value = 'all'
+        page = 1
+        render()
+      }
+      $('page-size').onchange = () => {
+        size = Number($('page-size').value)
+        page = 1
+        render()
+      }
+      $('first').onclick = () => {
+        page = 1
+        render()
+      }
+      $('prev').onclick = () => {
+        page--
+        render()
+      }
+      $('next').onclick = () => {
+        page++
+        render()
+      }
+      $('last').onclick = () => {
+        page = Math.max(1, Math.ceil(filtered().length / size))
+        render()
+      }
+      function jump() {
+        page = Math.min(Math.max(1, Math.trunc(Number($('jump').value) || 1)), Math.max(1, Math.ceil(filtered().length / size)))
+        render()
+      }
+      $('go').onclick = jump
+      $('jump').onkeydown = (e) => {
+        if (e.key === 'Enter') jump()
+      }
+      $('refresh').onclick = () => {
+        render()
+        toast('示例用户目录已刷新')
+      }
+      $('theme').onclick = () => {
+        const dark = document.documentElement.dataset.theme !== 'dark'
+        document.documentElement.dataset.theme = dark ? 'dark' : 'light'
+        $('theme').setAttribute('aria-label', dark ? '切换浅色主题' : '切换深色主题')
+      }
+      $('rows').onclick = (e) => {
+        const password = e.target.closest('[data-password]')
+        const more = e.target.closest('[data-more]')
+        if (password)
+          openPassword(
+            users.find((u) => u.id === Number(password.dataset.password)),
+            password,
+          )
+        if (more)
+          openMenu(
+            users.find((u) => u.id === Number(more.dataset.more)),
+            more,
+          )
+      }
+      $('more-menu').onclick = (e) => {
+        const button = e.target.closest('[data-action]')
+        if (!button) return
+        const u = users.find((u) => u.id === menuUser)
+        const kind = button.dataset.action
+        closeMenu()
+        openAction(u, kind)
+      }
+      document.addEventListener('click', (e) => {
+        if (!e.target.closest('#more-menu,[data-more]')) closeMenu()
+      })
+      document.addEventListener('keydown', (e) => {
+        if (!$('more-menu').hidden) {
+          const items = [...$('more-menu').querySelectorAll('button')]
+          const index = items.indexOf(document.activeElement)
+          if (e.key === 'Escape') {
+            e.preventDefault()
+            const back = opener
+            closeMenu()
+            back?.focus()
+          }
+          if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault()
+            items[(index + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length].focus()
+          }
+        }
+      })
+      window.addEventListener('resize', closeMenu)
+      document.addEventListener('scroll', closeMenu, true)
+      document.querySelectorAll('[data-close]').forEach((button) => (button.onclick = () => button.closest('dialog').close()))
+      document.querySelectorAll('dialog').forEach((dialog) => {
+        dialog.addEventListener('close', () => {
+          clearTimeout(saveTimer)
+          saving = false
+          $('password-form').reset()
+          for (const id of ['current-password', 'new-password', 'confirm-password']) $(id).type = 'password'
+          $('password-error').textContent = ''
+          $('temp-password').textContent = ''
+          $('confirm-username').value = ''
+          target = null
+          opener?.focus()
+        })
+        dialog.addEventListener('click', (e) => {
+          if (e.target === dialog) {
+            const r = dialog.getBoundingClientRect()
+            if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) dialog.close()
+          }
+        })
+      })
+      $('show-password').onchange = () => {
+        for (const id of ['current-password', 'new-password', 'confirm-password']) $(id).type = $('show-password').checked ? 'text' : 'password'
+      }
+      $('password-form').onsubmit = (e) => {
+        e.preventDefault()
+        if (saving || !target) return
+        const password = $('new-password').value
+        const confirmation = $('confirm-password').value
+        let message = ''
+        let focus = 'new-password'
+        if (target.id === 0 && !$('current-password').value) {
+          message = '请输入当前密码。'
+          focus = 'current-password'
+        } else if (password.length < 8) message = '新密码至少需要 8 位。'
+        else if (password !== confirmation) {
+          message = '两次输入的密码不一致。'
+          focus = 'confirm-password'
+        }
+        $('password-error').textContent = message
+        if (message) {
+          $(focus).focus()
+          return
+        }
+        saving = true
+        $('save-password').disabled = true
+        $('save-password').textContent = '保存中…'
+        const name = target.name
+        saveTimer = setTimeout(() => {
+          saving = false
+          $('save-password').disabled = false
+          $('save-password').textContent = '保存密码'
+          if ($('simulate-failure').checked) {
+            $('password-error').textContent = '示例：保存失败，未修改密码。请稍后重试。'
+            return
+          }
+          $('password-dialog').close()
+          toast(`演示：已为 ${name} 修改密码，登录会话已清除。`)
+        }, 600)
+      }
+      $('action-form').onsubmit = (e) => {
+        e.preventDefault()
+        if (!target) return
+        if (action === 'done') {
+          $('action-dialog').close()
+          return
+        }
+        if (action === 'delete' && $('confirm-username').value !== target.username) {
+          $('action-error').textContent = '用户名不匹配，请输入 ' + target.username + '。'
+          $('confirm-username').focus()
+          return
+        }
+        if ($('simulate-failure').checked) {
+          $('action-error').textContent = '示例：操作失败，用户信息保持原样。'
+          return
+        }
+        const name = target.name
+        if (action === 'reset') {
+          $('temp-password').hidden = false
+          $('temp-password').textContent = 'Demo-' + Math.random().toString(36).slice(2, 9)
+          $('action-title').textContent = '临时密码已生成'
+          $('action-desc').textContent = '示例密码，仅用于预览，不对应任何真实账户。'
+          $('action-notice').textContent = '请转交给用户，并提醒登录后尽快修改；关闭后无法再次查看。'
+          $('confirm-action').textContent = '关闭'
+          action = 'done'
+          return
+        }
+        if (action === 'role') target.role = target.role === 'admin' ? 'reader' : 'admin'
+        if (action === 'status') target.status = target.status === 'disabled' ? 'active' : 'disabled'
+        if (action === 'delete') users = users.filter((u) => u.id !== target.id)
+        $('action-dialog').close()
+        render()
+        toast(`演示：${name} 的操作已完成`)
+      }
+      render()
+    </script>
+  </body>
+</html>

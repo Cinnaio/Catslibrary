@@ -23,4 +23,4 @@ API 与 Web 类型检查通过；Web 生产构建通过，仍有原有大型 chu
 - 1280px 桌面、390×844 手机目录和密码弹窗视觉检查通过；320×568 本人弹窗正文可滚动且操作区保持可见，无横向溢出。临时视口已恢复。
 - 浏览器只查看真实目录和打开/关闭弹窗；密码提交、旧密码失效、会话撤销与回滚在独立 PGlite 测试数据库中验证，未更改现有账号密码。
 
-实际页面截图：`docs/previews/user-management-project-desktop.png`；密码弹窗：`user-management-project-password.png`；手机目录：`user-management-project-mobile.png`。HTML 预览阶段的记录保留在 `docs/user-management-claude-preview-2026-10-01.md`。
+实际页面截图：`docs/previews/user-management-project-desktop.jpg`；密码弹窗：`user-management-project-password.jpg`；手机目录：`user-management-project-mobile.jpg`。HTML 预览阶段的记录保留在 `docs/user-management-claude-preview-2026-10-01.md`。

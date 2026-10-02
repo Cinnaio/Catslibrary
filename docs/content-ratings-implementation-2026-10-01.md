@@ -42,13 +42,13 @@
 
 | 截图 | 用途 |
 | --- | --- |
-| [桌面账本](../.impeccable/review/content-ratings-project/desktop.png) | 1440×1000整体布局。 |
-| [920px账本](../.impeccable/review/content-ratings-project/user-920.png) | 920×668桌面列宽与页头。 |
-| [移动账本](../.impeccable/review/content-ratings-project/mobile.png) | 390×844首屏卡片字段与证据分组；分页排列另经浏览器 DOM 检查。 |
-| [移动规则](../.impeccable/review/content-ratings-project/rules-mobile.png) | 规则空队列与视图结构。 |
-| [桌面LLM](../.impeccable/review/content-ratings-project/ai-desktop.png) | 建议队列和任务恢复状态。 |
-| [移动LLM](../.impeccable/review/content-ratings-project/ai-mobile.png) | 修复后的标题控制组与进度排列。 |
-| [移动修改弹窗](../.impeccable/review/content-ratings-project/edit-mobile.png) | 分级与理由字段、操作区。 |
-| [桌面审核弹窗](../.impeccable/review/content-ratings-project/review-desktop.png) | 建议证据与人工审核结构。 |
+| [桌面账本](../.impeccable/review/content-ratings-project/desktop.jpg) | 1440×1000整体布局。 |
+| [920px账本](../.impeccable/review/content-ratings-project/user-920.jpg) | 920×668桌面列宽与页头。 |
+| [移动账本](../.impeccable/review/content-ratings-project/mobile.jpg) | 390×844首屏卡片字段与证据分组；分页排列另经浏览器 DOM 检查。 |
+| [移动规则](../.impeccable/review/content-ratings-project/rules-mobile.jpg) | 规则空队列与视图结构。 |
+| [桌面LLM](../.impeccable/review/content-ratings-project/ai-desktop.jpg) | 建议队列和任务恢复状态。 |
+| [移动LLM](../.impeccable/review/content-ratings-project/ai-mobile.jpg) | 修复后的标题控制组与进度排列。 |
+| [移动修改弹窗](../.impeccable/review/content-ratings-project/edit-mobile.jpg) | 分级与理由字段、操作区。 |
+| [桌面审核弹窗](../.impeccable/review/content-ratings-project/review-desktop.jpg) | 建议证据与人工审核结构。 |
 
 截图来自本地项目浏览器，没有生成或交付新的位图资产。本次未实际提交 API 保存、规则/LLM审核、批量扫描或恢复任务，因而不把浏览器布局证据视为写入、服务端任务执行和审计落库验收。此次证据覆盖页面读取、导航、筛选、分页和弹窗呈现；真实写入及任务动作仍需单独验证。

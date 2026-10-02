@@ -1,0 +1,1389 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>流量分析 · 知舟设计预览</title>
+    <style>
+      :root {
+        --accent: #8b6045;
+        --accent-soft: #f0e6d6;
+        --paper: #fff;
+        --base: #f6f4f1;
+        --ink: #211e1a;
+        --muted: #736d65;
+        --line: #ece8e2;
+        --soft: #f8f6f3;
+        --green: #4f7a52;
+        --canvas: color-mix(in srgb, var(--base) 55%, var(--line) 45%);
+        --side: color-mix(in srgb, var(--paper) 70%, var(--canvas) 30%);
+        --focus: rgba(139, 96, 69, 0.25);
+      }
+      [data-theme='dark'] {
+        --accent: #bf8f52;
+        --accent-soft: #403426;
+        --paper: #2a2b31;
+        --base: #24252a;
+        --ink: #e7e0d6;
+        --muted: #b5aea5;
+        --line: #3b3c43;
+        --soft: #303138;
+        --green: #92b48d;
+        --focus: rgba(191, 143, 82, 0.35);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--canvas);
+        color: var(--ink);
+        font:
+          14px/1.6 -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          'PingFang SC',
+          'Microsoft YaHei',
+          system-ui,
+          sans-serif;
+      }
+      button,
+      input,
+      select {
+        font: inherit;
+      }
+      button,
+      select {
+        cursor: pointer;
+      }
+      button {
+        color: inherit;
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+      button:focus-visible,
+      a:focus-visible,
+      summary:focus-visible,
+      select:focus-visible,
+      input:focus-visible {
+        outline: 3px solid var(--focus);
+        outline-offset: 3px;
+      }
+      ::selection {
+        background: var(--accent-soft);
+      }
+      [hidden] {
+        display: none !important;
+      }
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+      h1 {
+        font-size: 20px;
+        line-height: 1.4;
+      }
+      h2 {
+        font-size: 16px;
+      }
+      h3 {
+        font-size: 14px;
+      }
+      svg {
+        display: block;
+      }
+      .icon {
+        width: 17px;
+        height: 17px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.65;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        flex-shrink: 0;
+      }
+      .muted {
+        color: var(--muted);
+      }
+      .numeric {
+        font-variant-numeric: tabular-nums;
+      }
+      .small {
+        font-size: 12px;
+      }
+      .shell {
+        display: grid;
+        grid-template-columns: 232px minmax(0, 1fr);
+        min-height: 100vh;
+        gap: 24px;
+        padding: 16px 24px 24px 8px;
+      }
+      .sidebar {
+        position: sticky;
+        top: 16px;
+        height: calc(100vh - 32px);
+        border-radius: 20px;
+        background: var(--side);
+        padding: 20px 12px;
+        display: flex;
+        flex-direction: column;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 0 12px 24px;
+      }
+      .brand svg {
+        width: 28px;
+        height: 28px;
+        color: var(--accent);
+      }
+      .brand strong {
+        font-size: 16px;
+      }
+      .brand span {
+        display: block;
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .nav-group {
+        margin: 14px 12px 8px;
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .nav-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 9px 12px;
+        border-radius: 12px;
+        margin-bottom: 3px;
+      }
+      .nav-item.active {
+        background: var(--accent);
+        color: var(--paper);
+      }
+      .nav-child {
+        margin: 3px 16px 0 24px;
+        border-radius: 10px;
+        padding: 7px 12px;
+        background: var(--accent-soft);
+        color: var(--ink);
+        font-size: 13px;
+        font-weight: 600;
+      }
+      .side-bottom {
+        margin-top: auto;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 12px 0;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .avatar {
+        width: 30px;
+        height: 30px;
+        background: var(--accent-soft);
+        color: var(--accent);
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+      }
+      .main {
+        min-width: 0;
+      }
+      .topbar {
+        height: 44px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 30px;
+      }
+      .breadcrumb {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 12px;
+      }
+      .top-actions {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .preview-label {
+        font-size: 11px;
+        color: var(--muted);
+        background: var(--side);
+        padding: 4px 9px;
+        border-radius: 99px;
+      }
+      .icon-btn {
+        display: grid;
+        place-items: center;
+        background: var(--side);
+        border: 0;
+        border-radius: 10px;
+        width: 36px;
+        height: 36px;
+      }
+      .page-heading {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+        margin-bottom: 24px;
+      }
+      .page-heading p {
+        color: var(--muted);
+        margin-top: 4px;
+        font-size: 13px;
+      }
+      .actions {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .btn {
+        border: 1px solid var(--line);
+        background: var(--paper);
+        border-radius: 10px;
+        min-height: 40px;
+        padding: 0 14px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        font-size: 13px;
+      }
+      .btn:hover {
+        background: var(--soft);
+      }
+      .btn.primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+      .btn.ghost {
+        background: transparent;
+        border-color: transparent;
+        color: var(--muted);
+      }
+      .btn.small-btn {
+        min-height: 32px;
+        padding: 0 10px;
+        font-size: 12px;
+      }
+      .workspace-controls {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
+        margin-bottom: 16px;
+      }
+      .range-controls {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .segments {
+        display: flex;
+        gap: 3px;
+        background: var(--base);
+        border-radius: 12px;
+        padding: 4px;
+      }
+      .segments button {
+        min-height: 32px;
+        border: 0;
+        background: transparent;
+        border-radius: 9px;
+        padding: 0 14px;
+        font-size: 13px;
+        color: var(--muted);
+        white-space: nowrap;
+      }
+      .segments button[aria-pressed='true'] {
+        background: var(--paper);
+        color: var(--ink);
+        font-weight: 600;
+      }
+      .date-label {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .compare-control {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      input[type='checkbox'] {
+        accent-color: var(--accent);
+        width: 15px;
+        height: 15px;
+      }
+      .panel {
+        background: var(--paper);
+        border-radius: 20px;
+        overflow: hidden;
+        margin-bottom: 16px;
+      }
+      .panel-heading {
+        padding: 22px 24px 16px;
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 20px;
+      }
+      .panel-heading p {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 3px;
+      }
+      .chart-meta {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+      }
+      .readout {
+        font-size: 12px;
+        color: var(--muted);
+        white-space: nowrap;
+      }
+      .readout strong {
+        font-size: 16px;
+        color: var(--ink);
+        margin-right: 5px;
+        font-weight: 600;
+      }
+      .change {
+        color: var(--green);
+        font-size: 11px;
+        display: block;
+        text-align: right;
+        margin-top: 2px;
+      }
+      .chart-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 0 24px 12px;
+      }
+      .chart-toolbar .segments {
+        background: var(--soft);
+      }
+      .chart-toolbar .segments button {
+        min-height: 28px;
+        font-size: 12px;
+        padding: 0 11px;
+      }
+      .legend {
+        display: flex;
+        gap: 12px;
+        font-size: 11px;
+        color: var(--muted);
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .legend span {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+      .legend i {
+        width: 14px;
+        height: 2px;
+        background: var(--accent);
+      }
+      .legend .uv i {
+        background: var(--green);
+      }
+      .legend .previous i {
+        background: transparent;
+        border-top: 2px dashed var(--muted);
+      }
+      .chart-wrap {
+        margin: 0 18px;
+        position: relative;
+      }
+      .chart {
+        width: 100%;
+        height: 270px;
+        overflow: visible;
+      }
+      .chart text {
+        fill: var(--muted);
+        font-size: 11px;
+      }
+      .chart .gridline {
+        stroke: var(--line);
+        stroke-dasharray: 3 5;
+        stroke-width: 1;
+      }
+      .chart .pv {
+        fill: none;
+        stroke: var(--accent);
+        stroke-width: 2.5;
+      }
+      .chart .uv {
+        fill: none;
+        stroke: var(--green);
+        stroke-width: 2;
+      }
+      .chart .previous-line {
+        fill: none;
+        stroke: var(--muted);
+        stroke-width: 1.5;
+        stroke-dasharray: 5 5;
+        opacity: 0.6;
+      }
+      .chart-hit {
+        fill: transparent;
+        cursor: crosshair;
+      }
+      .chart-hit:hover,
+      .chart-hit:focus {
+        fill: var(--accent-soft);
+        opacity: 0.45;
+        outline: none;
+      }
+      .chart-tip {
+        position: absolute;
+        pointer-events: none;
+        top: 10px;
+        right: 22px;
+        padding: 8px 12px;
+        border: 1px solid var(--line);
+        background: var(--paper);
+        border-radius: 10px;
+        font-size: 12px;
+        box-shadow: 0 4px 16px #211e1a0d;
+      }
+      .chart-note {
+        display: flex;
+        gap: 8px;
+        align-items: baseline;
+        padding: 12px 24px 18px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .chart-note strong {
+        color: var(--ink);
+        font-weight: 500;
+      }
+      .daily {
+        border-top: 1px solid var(--line);
+      }
+      .daily summary {
+        cursor: pointer;
+        padding: 14px 24px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 12px;
+        color: var(--muted);
+        list-style: none;
+      }
+      .daily summary::-webkit-details-marker {
+        display: none;
+      }
+      .daily summary .icon {
+        width: 14px;
+        height: 14px;
+        transition: transform 0.15s;
+      }
+      .daily[open] summary .icon {
+        transform: rotate(180deg);
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+        font-variant-numeric: tabular-nums;
+      }
+      th,
+      td {
+        text-align: right;
+        padding: 10px 24px;
+        border-top: 1px solid var(--line);
+      }
+      th {
+        font-weight: 500;
+        color: var(--muted);
+        background: var(--soft);
+      }
+      th:first-child,
+      td:first-child {
+        text-align: left;
+      }
+      .dimensions {
+        display: grid;
+        grid-template-columns: 1.1fr 1fr 1fr;
+        gap: 16px;
+      }
+      .dimensions .panel {
+        margin-bottom: 0;
+      }
+      .dimension-body {
+        padding: 0 24px 20px;
+      }
+      .dimension-row {
+        width: 100%;
+        border: 0;
+        background: transparent;
+        text-align: left;
+        padding: 10px 0;
+        color: var(--ink);
+        display: block;
+      }
+      .dimension-row:hover .row-label {
+        color: var(--accent);
+      }
+      .row-meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        font-size: 13px;
+        margin-bottom: 7px;
+      }
+      .row-meta .value {
+        font-size: 12px;
+        color: var(--muted);
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+      }
+      .row-meta .value strong {
+        font-weight: 500;
+        color: var(--ink);
+        margin-right: 6px;
+      }
+      .bar {
+        height: 4px;
+        background: var(--soft);
+        border-radius: 99px;
+        overflow: hidden;
+      }
+      .bar span {
+        display: block;
+        height: 100%;
+        background: var(--accent);
+        border-radius: inherit;
+      }
+      .dimension-row.unknown {
+        border-top: 1px solid var(--line);
+        margin-top: 8px;
+        padding-top: 15px;
+      }
+      .dimension-row.unknown .bar span {
+        background: var(--muted);
+        opacity: 0.4;
+      }
+      .dimension-foot {
+        font-size: 11px;
+        color: var(--muted);
+        line-height: 1.6;
+        margin-top: 12px;
+      }
+      .empty {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 220px;
+        padding: 24px;
+        text-align: center;
+        color: var(--muted);
+        font-size: 13px;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .empty strong {
+        color: var(--ink);
+        font-size: 14px;
+        font-weight: 500;
+      }
+      .empty .icon {
+        width: 24px;
+        height: 24px;
+        opacity: 0.6;
+      }
+      .region-empty {
+        min-height: 175px;
+      }
+      .page-foot {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 24px;
+        margin-top: 20px;
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .page-foot details {
+        max-width: 760px;
+      }
+      .page-foot summary {
+        cursor: pointer;
+        list-style: none;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .page-foot p {
+        margin-top: 8px;
+        line-height: 1.8;
+      }
+      .preview-settings {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        white-space: nowrap;
+      }
+      .preview-settings select {
+        background: transparent;
+        border: 0;
+        color: var(--muted);
+        font-size: 11px;
+        padding: 4px;
+      }
+      .refresh-note {
+        font-size: 11px;
+        color: var(--muted);
+      }
+      dialog {
+        width: min(620px, calc(100% - 32px));
+        max-height: calc(100svh - 48px);
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        background: var(--paper);
+        color: var(--ink);
+        padding: 24px;
+        box-shadow: 0 24px 80px #211e1a24;
+      }
+      dialog::backdrop {
+        background: #211e1a66;
+      }
+      .dialog-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 16px;
+      }
+      dialog p {
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.8;
+      }
+      dialog ul {
+        padding-left: 18px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      dialog li {
+        margin-bottom: 12px;
+      }
+      dialog li strong {
+        color: var(--ink);
+        font-weight: 500;
+      }
+      .tag {
+        font-size: 10px;
+        padding: 2px 6px;
+        background: var(--soft);
+        border-radius: 6px;
+        color: var(--muted);
+        margin-left: 4px;
+      }
+      .dialog-footer {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: 20px;
+      }
+      .notice {
+        padding: 12px 24px;
+        background: var(--soft);
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .toast {
+        position: fixed;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: var(--ink);
+        color: var(--paper);
+        padding: 10px 18px;
+        border-radius: 10px;
+        z-index: 5;
+        font-size: 12px;
+        max-width: calc(100% - 32px);
+      }
+      @media (min-width: 1600px) {
+        .main {
+          max-width: 1500px;
+        }
+      }
+      @media (max-width: 1100px) {
+        .shell {
+          grid-template-columns: 208px minmax(0, 1fr);
+          gap: 20px;
+          padding-right: 20px;
+        }
+        .dimensions {
+          grid-template-columns: 1fr 1fr;
+        }
+        .dimensions > .panel:first-child {
+          grid-column: 1/-1;
+        }
+        .panel-heading {
+          flex-wrap: wrap;
+        }
+        .chart-meta {
+          justify-content: flex-start;
+        }
+        .topbar {
+          margin-bottom: 24px;
+        }
+      }
+      @media (max-width: 760px) {
+        .shell {
+          display: block;
+          padding: 12px 16px 24px;
+        }
+        .sidebar {
+          display: none;
+        }
+        .topbar {
+          height: 36px;
+          margin-bottom: 24px;
+        }
+        .preview-label {
+          font-size: 10px;
+        }
+        .page-heading {
+          align-items: flex-start;
+          gap: 14px;
+          flex-wrap: wrap;
+          margin-bottom: 20px;
+        }
+        .page-heading .actions {
+          width: 100%;
+        }
+        .workspace-controls {
+          align-items: flex-start;
+          gap: 12px;
+        }
+        .range-controls {
+          width: 100%;
+          gap: 8px;
+        }
+        .date-label {
+          display: block;
+          width: 100%;
+          padding-left: 4px;
+        }
+        .panel-heading {
+          padding: 20px 16px 14px;
+          gap: 12px;
+        }
+        .chart-meta {
+          gap: 18px;
+        }
+        .chart-toolbar {
+          padding: 0 16px 12px;
+          align-items: flex-start;
+          flex-wrap: wrap;
+        }
+        .chart {
+          height: 230px;
+        }
+        .chart-wrap {
+          margin-inline: 8px;
+        }
+        .chart-note {
+          padding: 12px 16px 16px;
+          flex-wrap: wrap;
+          gap: 4px;
+        }
+        .dimensions {
+          grid-template-columns: 1fr;
+        }
+        .dimensions > .panel:first-child {
+          grid-column: auto;
+        }
+        .dimension-body {
+          padding: 0 16px 20px;
+        }
+        .daily summary {
+          padding: 14px 16px;
+        }
+        th,
+        td {
+          padding: 10px 16px;
+        }
+        .page-foot {
+          flex-direction: column;
+          gap: 16px;
+        }
+        .region-empty {
+          min-height: 160px;
+        }
+        .refresh-note {
+          margin-left: auto;
+        }
+        .change {
+          text-align: left;
+        }
+        .chart-tip {
+          right: 10px;
+          top: 8px;
+        }
+        dialog {
+          padding: 20px;
+        }
+        .btn {
+          padding-inline: 12px;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          transition: none !important;
+          animation: none !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <svg aria-hidden="true" style="position: absolute; width: 0; height: 0; overflow: hidden">
+      <defs>
+        <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 4v16h16M8 15V9m5 6V5m5 10v-4" /></symbol>
+        <symbol id="i-book" viewBox="0 0 24 24"><path d="M12 5c-3-2-6-2-9-1v15c3-1 6-1 9 1 3-2 6-2 9-1V4c-3-1-6-1-9 1Zm0 0v15" /></symbol>
+        <symbol id="i-grid" viewBox="0 0 24 24">
+          <rect x="3" y="3" width="7" height="7" rx="1" />
+          <rect x="14" y="3" width="7" height="7" rx="1" />
+          <rect x="3" y="14" width="7" height="7" rx="1" />
+          <rect x="14" y="14" width="7" height="7" rx="1" />
+        </symbol>
+        <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5M5 8a8 8 0 0 1 13-3l2 2M4 17l2 2a8 8 0 0 0 13-3" /></symbol>
+        <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5" /></symbol>
+        <symbol id="i-info" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 11v6m0-10v.1" />
+        </symbol>
+        <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" /></symbol>
+        <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 15A9 9 0 0 1 9 4a9 9 0 1 0 11 11Z" /></symbol>
+        <symbol id="i-menu" viewBox="0 0 24 24">
+          <rect x="4" y="4" width="16" height="16" rx="2" />
+          <path d="M9 4v16" />
+        </symbol>
+        <symbol id="i-task" viewBox="0 0 24 24"><path d="m3 6 2 2 3-4m3 2h10M3 14l2 2 3-4m3 2h10M11 21h10" /></symbol>
+        <symbol id="i-users" viewBox="0 0 24 24">
+          <circle cx="9" cy="7" r="4" />
+          <path d="M2 21v-2a7 7 0 0 1 14 0v2M17 4a4 4 0 0 1 0 8m3 9v-2a6 6 0 0 0-3-5" />
+        </symbol>
+        <symbol id="i-message" viewBox="0 0 24 24"><path d="M21 15a3 3 0 0 1-3 3H8l-5 3V6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3Z" /></symbol>
+        <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6" /></symbol>
+      </defs>
+    </svg>
+    <div class="shell">
+      <aside class="sidebar" aria-label="管理导航预览">
+        <div class="brand">
+          <svg class="icon"><use href="#i-book" /></svg>
+          <div><strong>知舟</strong><span>馆藏运营台</span></div>
+        </div>
+        <div class="nav-group">监控</div>
+        <div class="nav-item">
+          <svg class="icon"><use href="#i-grid" /></svg>后台总览
+        </div>
+        <div class="nav-group">内容库</div>
+        <div class="nav-item">
+          <svg class="icon"><use href="#i-book" /></svg>小说管理
+        </div>
+        <div class="nav-item">
+          <svg class="icon"><use href="#i-book" /></svg>章节管理
+        </div>
+        <div class="nav-group">内容生产</div>
+        <div class="nav-item">
+          <svg class="icon"><use href="#i-task" /></svg>爬虫抓取
+        </div>
+        <div class="nav-item">
+          <svg class="icon"><use href="#i-message" /></svg>AI 服务
+        </div>
+        <div class="nav-group">运行监控</div>
+        <div class="nav-item">
+          <svg class="icon"><use href="#i-task" /></svg>任务中心
+        </div>
+        <div class="nav-item">
+          <svg class="icon"><use href="#i-chart" /></svg>调用与用量
+        </div>
+        <div class="nav-group">内容治理</div>
+        <div class="nav-item">
+          <svg class="icon"><use href="#i-message" /></svg>内容审核
+        </div>
+        <div class="nav-group">平台运营</div>
+        <div class="nav-item active">
+          <svg class="icon"><use href="#i-chart" /></svg>站点运营
+        </div>
+        <div class="nav-child" aria-current="page">流量分析</div>
+        <div class="nav-item" style="margin-top: 12px">
+          <svg class="icon"><use href="#i-users" /></svg>账户与注册
+        </div>
+        <div class="side-bottom">
+          <span class="avatar">猫</span><span>管理员</span><svg class="icon"><use href="#i-chevron" /></svg>
+        </div>
+      </aside>
+      <main class="main">
+        <div class="topbar">
+          <div class="breadcrumb">
+            <svg class="icon"><use href="#i-menu" /></svg><span>站点运营</span><span class="muted">/</span><strong>流量分析</strong>
+          </div>
+          <div class="top-actions">
+            <span class="preview-label">示例数据 · HTML 预览</span
+            ><button class="icon-btn" id="theme" aria-label="切换深色主题">
+              <svg class="icon"><use href="#i-moon" /></svg>
+            </button>
+          </div>
+        </div>
+        <header class="page-heading">
+          <div>
+            <h1>流量分析</h1>
+            <p>观察访问变化，了解读者从哪里来、使用什么设备。</p>
+          </div>
+          <div class="actions">
+            <button class="btn" id="export">
+              <svg class="icon"><use href="#i-download" /></svg>导出数据</button
+            ><button class="btn" id="refresh">
+              <svg class="icon"><use href="#i-refresh" /></svg>刷新
+            </button>
+          </div>
+        </header>
+        <div class="workspace-controls">
+          <div class="range-controls">
+            <div class="segments" role="group" aria-label="统计时间范围">
+              <button data-range="7" aria-pressed="true">近 7 日</button><button data-range="30" aria-pressed="false">近 30 日</button
+              ><button data-range="90" aria-pressed="false">近 90 日</button>
+            </div>
+            <span class="date-label" id="dates"></span>
+          </div>
+          <label class="compare-control"><input id="compare" type="checkbox" />对比上一周期</label>
+        </div>
+        <section class="panel" aria-labelledby="trend-title">
+          <div class="panel-heading">
+            <div>
+              <h2 id="trend-title">访问趋势</h2>
+              <p id="trend-desc">按日统计浏览量与去重访客。</p>
+            </div>
+            <div class="chart-meta">
+              <div class="readout"><strong id="total-pv"></strong>PV<span class="change" id="pv-change" hidden></span></div>
+              <div class="readout"><strong id="total-uv"></strong>UV<span class="change" id="uv-change" hidden></span></div>
+            </div>
+          </div>
+          <div class="chart-toolbar">
+            <div class="segments" role="group" aria-label="图表指标">
+              <button data-metric="both" aria-pressed="true">全部</button><button data-metric="pv" aria-pressed="false">浏览量 PV</button
+              ><button data-metric="uv" aria-pressed="false">访客 UV</button>
+            </div>
+            <div class="legend" id="legend"></div>
+          </div>
+          <div class="notice" id="error-note" hidden>示例：刷新失败，保留上次成功的数据。可以再次点击刷新。</div>
+          <div class="chart-wrap" id="chart-wrap">
+            <svg id="chart" class="chart" role="img" aria-label="每日访问趋势，具体数值可在每日明细中查看"></svg>
+            <div id="chart-tip" class="chart-tip" hidden></div>
+          </div>
+          <div class="empty" id="chart-empty" hidden>
+            <svg class="icon"><use href="#i-chart" /></svg><strong>这段时间还没有访问记录</strong><span>切换时间范围，或等待新的访问数据。</span>
+          </div>
+          <div class="chart-note" id="chart-note"></div>
+          <details class="daily">
+            <summary>
+              每日明细 <svg class="icon"><use href="#i-chevron" /></svg>
+            </summary>
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">日期</th>
+                  <th scope="col">浏览量 PV</th>
+                  <th scope="col">访客 UV</th>
+                </tr>
+              </thead>
+              <tbody id="daily-body"></tbody>
+            </table>
+          </details>
+        </section>
+        <div class="dimensions">
+          <section class="panel" aria-labelledby="region-title">
+            <div class="panel-heading">
+              <div>
+                <h2 id="region-title">访问地区</h2>
+                <p>按浏览量排序，保留未识别访问。</p>
+              </div>
+              <span class="small muted" id="region-coverage"></span>
+            </div>
+            <div class="dimension-body" id="regions"></div>
+          </section>
+          <section class="panel" aria-labelledby="device-title">
+            <div class="panel-heading">
+              <div>
+                <h2 id="device-title">设备构成</h2>
+                <p>来自访问请求的设备分类。</p>
+              </div>
+            </div>
+            <div class="dimension-body" id="devices"></div>
+          </section>
+          <section class="panel" aria-labelledby="source-title">
+            <div class="panel-heading">
+              <div>
+                <h2 id="source-title">访问来源</h2>
+                <p>来源类别，不代表推广归因。</p>
+              </div>
+            </div>
+            <div class="dimension-body" id="sources"></div>
+          </section>
+        </div>
+        <footer class="page-foot">
+          <details>
+            <summary>
+              <svg class="icon"><use href="#i-info" /></svg>统计口径与隐私说明
+            </summary>
+            <p>
+              PV 为访问记录数；UV 按浏览器随机标识的哈希在选定周期内去重，不能将每日 UV 相加作为周期
+              UV。当前来源为直接、搜索、外部、站内四类。访问量不等于阅读完成量，也不用于推断付费转化。仅显示聚合结果，不展示个人访客标识、IP 或完整来源地址。
+            </p>
+            <p>本页为独立交互方案，全部数据为示例，没有连接项目 API。30/90 日、上一周期对比与完整地区覆盖率需要补充后端支持。</p>
+          </details>
+          <div class="preview-settings">
+            <select id="scenario" aria-label="预览数据状态">
+              <option value="normal">正常数据</option>
+              <option value="no-region">地区未识别</option>
+              <option value="empty">无访问数据</option>
+              <option value="error">刷新失败</option></select
+            ><button class="btn ghost small-btn" id="roadmap">方案说明</button>
+          </div>
+        </footer>
+      </main>
+    </div>
+    <dialog id="detail-dialog" aria-labelledby="detail-title">
+      <div class="dialog-title">
+        <h2 id="detail-title"></h2>
+        <button class="icon-btn" data-close aria-label="关闭详情">
+          <svg class="icon"><use href="#i-close" /></svg>
+        </button>
+      </div>
+      <div id="detail-content"></div>
+      <div class="dialog-footer"><button class="btn" data-close>关闭</button></div>
+    </dialog>
+    <dialog id="roadmap-dialog" aria-labelledby="roadmap-title">
+      <div class="dialog-title">
+        <h2 id="roadmap-title">这版增加了什么</h2>
+        <button class="icon-btn" data-close aria-label="关闭方案说明">
+          <svg class="icon"><use href="#i-close" /></svg>
+        </button>
+      </div>
+      <p>以看清变化为主，把读数、筛选和明细放在同一工作区域。保持共享的 20px 页标题、白色无描边面板与奶茶棕，不引入独立大指标卡。</p>
+      <ul>
+        <li>
+          <strong>PV / UV 切换、每日明细、CSV 导出</strong><span class="tag">优先落地</span><br />可使用现有近 7 日聚合数据实现；导出仅包含聚合统计。UV
+          周期总数读取服务端去重结果。
+        </li>
+        <li>
+          <strong>7 / 30 / 90 日与上一周期对比</strong><span class="tag">需接口扩展</span
+          ><br />为趋势、地区、设备、来源采用统一时间窗口，分别计算本期与上期的去重访客；明确统计时区。
+        </li>
+        <li>
+          <strong>地区识别覆盖率</strong><span class="tag">需完整口径</span><br />当前接口地区查询只取前 8
+          类，可能漏掉未识别记录。应独立返回全量未识别数，不能用前 8 类之和计算覆盖率。
+        </li>
+        <li><strong>访问时段分布</strong><span class="tag">后续考虑</span><br />已有访问时间可按小时聚合；用于观察高峰。先补统计时区，再考虑异常波动提示。</li>
+      </ul>
+      <p>
+        暂不加入留存、跳出率、阅读完成率或转化漏斗：现有访问记录缺少会话、阅读完成和目标事件，直接展示会制造错误结论。这里也不恢复已删除的运营概览和内容分析。
+      </p>
+      <div class="dialog-footer"><button class="btn" data-close>返回预览</button></div>
+    </dialog>
+    <div class="toast" id="toast" role="status" hidden></div>
+    <script>
+      const $ = (id) => document.getElementById(id),
+        format = (n) => n.toLocaleString('zh-CN')
+      const state = { range: 7, metric: 'both', compare: false, scenario: 'normal' }
+      const basePV = [192, 268, 481, 310, 244, 203, 148],
+        baseUV = [52, 74, 116, 83, 68, 59, 42]
+      const totals = {
+        7: { pv: 1846, uv: 312, previousPV: 1608, previousUV: 291 },
+        30: { pv: 7562, uv: 983, previousPV: 6910, previousUV: 1044 },
+        90: { pv: 22843, uv: 2618, previousPV: 19412, previousUV: 2381 },
+      }
+      function records() {
+        return Array.from({ length: state.range }, (_, i) => {
+          const d = new Date(Date.UTC(2026, 9, 1 - state.range + 1 + i))
+          return {
+            date: d.toISOString().slice(0, 10),
+            pv: state.scenario === 'empty' ? 0 : Math.round(basePV[i % 7] * (state.range === 7 ? 1 : 0.72 + (i % 5) * 0.085)),
+            uv: state.scenario === 'empty' ? 0 : Math.round(baseUV[i % 7] * (state.range === 7 ? 1 : 0.82 + (i % 4) * 0.055)),
+          }
+        })
+      }
+      function rows() {
+        let data = records()
+        if (state.range !== 7 && state.scenario !== 'empty') {
+          const sum = data.reduce((n, d) => n + d.pv, 0)
+          let used = 0
+          data = data.map((d, i) => {
+            const pv = i === data.length - 1 ? totals[state.range].pv - used : Math.round((d.pv / sum) * totals[state.range].pv)
+            used += pv
+            return { ...d, pv }
+          })
+        }
+        return data
+      }
+      function count() {
+        return state.scenario === 'empty' ? { pv: 0, uv: 0, previousPV: 0, previousUV: 0 } : totals[state.range]
+      }
+      function showToast(text) {
+        $('toast').textContent = text
+        $('toast').hidden = false
+        clearTimeout(showToast.timer)
+        showToast.timer = setTimeout(() => ($('toast').hidden = true), 2600)
+      }
+      function chart(data) {
+        const mobile = window.innerWidth < 760,
+          W = mobile ? 360 : 1000,
+          H = mobile ? 230 : 270,
+          left = 44,
+          right = 16,
+          top = 18,
+          bottom = 36
+        const value = (d) => (state.metric === 'uv' ? d.uv : d.pv)
+        const max = Math.max(1, ...data.map(value))
+        const ceiling = Math.ceil(max / (max > 200 ? 100 : 20)) * (max > 200 ? 100 : 20)
+        const x = (i) => left + (i * (W - left - right)) / Math.max(1, data.length - 1),
+          y = (n) => H - bottom - (n / ceiling) * (H - top - bottom)
+        let html = ''
+        for (let i = 0; i <= 4; i++) {
+          let n = (ceiling * i) / 4
+          html += `<line class="gridline" x1="${left}" y1="${y(n)}" x2="${W - right}" y2="${y(n)}"/><text x="${left - 10}" y="${y(n) + 4}" text-anchor="end">${Math.round(n)}</text>`
+        }
+        const path = (key) => data.map((d, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(d[key]).toFixed(1)}`).join(' ')
+        if (state.compare)
+          html += `<path class="previous-line" d="${data.map((d, i) => `${i ? 'L' : 'M'}${x(i)},${y(value(d) * (state.metric === 'uv' ? count().previousUV / Math.max(1, count().uv) : count().previousPV / Math.max(1, count().pv)))}`).join(' ')}"/>`
+        if (state.metric !== 'uv') {
+          const p = path('pv')
+          html += `<path d="${p} L${x(data.length - 1)},${H - bottom} L${left},${H - bottom} Z" fill="var(--accent)" opacity=".06"/><path class="pv" d="${p}"/>`
+        }
+        if (state.metric !== 'pv') html += `<path class="uv" d="${path('uv')}"/>`
+        const step = Math.max(1, Math.ceil((data.length - 1) / (mobile ? 4 : 6)))
+        data.forEach((d, i) => {
+          if (i % step === 0 || i === data.length - 1)
+            html += `<text x="${x(i)}" y="${H - 10}" text-anchor="middle">${d.date.slice(5).replace('-', '/')}</text>`
+          const bw = (W - left - right) / data.length
+          html += `<rect class="chart-hit" data-index="${i}" tabindex="0" role="button" aria-label="${d.date}，${d.pv} PV，${d.uv} UV" x="${Math.max(left, x(i) - bw / 2)}" y="${top}" width="${bw}" height="${H - top - bottom}"/>`
+        })
+        $('chart').setAttribute('viewBox', `0 0 ${W} ${H}`)
+        $('chart').innerHTML = html
+        $('chart')
+          .querySelectorAll('[data-index]')
+          .forEach((el) => {
+            const show = () => {
+              const d = data[+el.dataset.index]
+              $('chart-tip').textContent = `${d.date} · ${format(d.pv)} PV · ${format(d.uv)} UV`
+              $('chart-tip').hidden = false
+            }
+            el.addEventListener('pointerenter', show)
+            el.addEventListener('focus', show)
+            el.addEventListener('click', show)
+            el.addEventListener('pointerleave', () => ($('chart-tip').hidden = true))
+            el.addEventListener('blur', () => ($('chart-tip').hidden = true))
+            el.addEventListener('keydown', (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                show()
+              }
+            })
+          })
+        $('legend').innerHTML =
+          (state.metric !== 'uv' ? '<span><i></i>浏览量 PV</span>' : '') +
+          (state.metric !== 'pv' ? '<span class="uv"><i></i>访客 UV</span>' : '') +
+          (state.compare ? `<span class="previous"><i></i>上期${state.metric === 'uv' ? ' UV' : ' PV'}</span>` : '')
+      }
+      function dimensionData(kind) {
+        const total = count().pv
+        if (kind === 'regions') {
+          if (state.scenario === 'no-region') return [['未识别', total]]
+          return [
+            ['中国大陆', Math.round(total * 0.61)],
+            ['中国香港', Math.round(total * 0.13)],
+            ['美国', Math.round(total * 0.08)],
+            ['其他地区', Math.round(total * 0.06)],
+            ['未识别', 0],
+          ].map((r, i, a) => (i === a.length - 1 ? [r[0], total - a.slice(0, -1).reduce((s, x) => s + x[1], 0)] : r))
+        }
+        const items =
+          kind === 'devices'
+            ? [
+                ['移动端', 0.68],
+                ['桌面端', 0.27],
+                ['平板', 0.04],
+                ['其他', 0.01],
+              ]
+            : [
+                ['直接访问', 0.38],
+                ['搜索引擎', 0.29],
+                ['站内跳转', 0.24],
+                ['外部链接', 0.09],
+              ]
+        let used = 0
+        return items.map((r, i) => {
+          const n = i === items.length - 1 ? total - used : Math.round(total * r[1])
+          used += n
+          return [r[0], n]
+        })
+      }
+      function dimension(kind) {
+        const total = count().pv,
+          data = dimensionData(kind)
+        if (!total) {
+          $(kind).innerHTML = '<div class="empty region-empty"><span>暂无访问数据</span></div>'
+          return
+        }
+        if (kind === 'regions' && state.scenario === 'no-region') {
+          $(kind).innerHTML =
+            '<div class="empty region-empty"><svg class="icon"><use href="#i-info"/></svg><strong>暂未取得地区信息</strong><span class="small">访问请求未携带可识别的地区代码。</span></div>' +
+            `<p class="dimension-foot">全部 ${format(total)} PV 为未识别地区，不视为零访问。</p>`
+          return
+        }
+        $(kind).innerHTML =
+          data
+            .map(
+              ([label, n]) =>
+                `<button class="dimension-row ${label === '未识别' ? 'unknown' : ''}" data-label="${label}" data-count="${n}"><span class="row-meta"><span class="row-label">${label}</span><span class="value"><strong>${format(n)}</strong>${Math.round((n / total) * 100)}%</span></span><span class="bar"><span style="width:${(n / total) * 100}%"></span></span></button>`,
+            )
+            .join('') +
+          (kind === 'regions'
+            ? '<p class="dimension-foot">占比以全部浏览量为分母；未识别访问独立保留。</p>'
+            : kind === 'sources'
+              ? '<p class="dimension-foot">站内跳转也会产生访问记录，不等于新增访客。</p>'
+              : '')
+        $(kind)
+          .querySelectorAll('button')
+          .forEach((b) =>
+            b.addEventListener('click', () => {
+              $('detail-title').textContent = b.dataset.label
+              const percentage = Math.round((Number(b.dataset.count) / total) * 100)
+              $('detail-content').innerHTML =
+                `<p class="numeric">当前周期 ${format(Number(b.dataset.count))} PV · 占全部浏览量 ${percentage}%</p><p style="margin-top:14px">${kind === 'regions' ? '地区来自请求携带的地区分类；未识别值不能据此推断读者所在地。' : kind === 'devices' ? '设备来自请求分类。同一访客可能使用多个设备，不能据设备占比计算人数。' : '来源是访问请求的粗粒度分类，不包含搜索关键词、渠道归因或个人来源地址。'}</p>`
+              $('detail-dialog').showModal()
+            }),
+          )
+      }
+      function render() {
+        const data = rows(),
+          n = count()
+        $('dates').textContent = `${data[0].date.replaceAll('-', '/')} — ${data.at(-1).date.replaceAll('-', '/')}`
+        $('total-pv').textContent = format(n.pv)
+        $('total-uv').textContent = format(n.uv)
+        ;['pv', 'uv'].forEach((key) => {
+          const el = $(key + '-change')
+          el.hidden = !state.compare
+          const prev = n[key === 'pv' ? 'previousPV' : 'previousUV']
+          const diff = prev ? Math.round((n[key] / prev - 1) * 100) : null
+          el.textContent = diff === null ? '上期无数据' : `${diff >= 0 ? '+' : ''}${diff}% 较上期`
+          el.style.color = diff < 0 ? 'var(--muted)' : 'var(--green)'
+        })
+        $('chart-wrap').hidden = !n.pv
+        $('chart-empty').hidden = !!n.pv
+        $('error-note').hidden = state.scenario !== 'error'
+        $('chart-tip').hidden = true
+        chart(data)
+        const peak = data.reduce((a, b) => (b.pv > a.pv ? b : a))
+        $('chart-note').innerHTML = n.pv
+          ? `<strong>浏览高点 ${peak.date.slice(5).replace('-', '/')} · ${format(peak.pv)} PV</strong><span>周期 UV 已去重；曲线上的每日 UV 不可直接相加。</span>`
+          : '<span>无记录日期按零显示，不补造访问。</span>'
+        $('daily-body').innerHTML = data
+          .map((d) => `<tr><td>${d.date.slice(5).replace('-', '/')}</td><td>${format(d.pv)}</td><td>${format(d.uv)}</td></tr>`)
+          .join('')
+        ;['regions', 'devices', 'sources'].forEach(dimension)
+        const unknown = dimensionData('regions').find((r) => r[0] === '未识别')[1]
+        $('region-coverage').textContent = n.pv ? `识别率 ${Math.round((1 - unknown / n.pv) * 100)}%` : '—'
+        $('export').disabled = !n.pv
+        document.querySelectorAll('[data-range]').forEach((b) => b.setAttribute('aria-pressed', String(+b.dataset.range === state.range)))
+        document.querySelectorAll('[data-metric]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.metric === state.metric)))
+      }
+      document.querySelectorAll('[data-range]').forEach((b) =>
+        b.addEventListener('click', () => {
+          state.range = +b.dataset.range
+          render()
+        }),
+      )
+      document.querySelectorAll('[data-metric]').forEach((b) =>
+        b.addEventListener('click', () => {
+          state.metric = b.dataset.metric
+          render()
+        }),
+      )
+      $('compare').addEventListener('change', (e) => {
+        state.compare = e.target.checked
+        render()
+      })
+      $('scenario').addEventListener('change', (e) => {
+        state.scenario = e.target.value
+        render()
+      })
+      $('theme').addEventListener('click', () => {
+        const dark = document.documentElement.dataset.theme !== 'dark'
+        document.documentElement.dataset.theme = dark ? 'dark' : 'light'
+        $('theme').setAttribute('aria-label', dark ? '切换浅色主题' : '切换深色主题')
+      })
+      $('refresh').addEventListener('click', () => {
+        state.scenario = 'normal'
+        $('scenario').value = 'normal'
+        render()
+        showToast('示例数据已恢复；未请求项目接口。')
+      })
+      $('roadmap').addEventListener('click', () => $('roadmap-dialog').showModal())
+      document.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => b.closest('dialog').close()))
+      $('export').addEventListener('click', () => {
+        const output = [
+          ['知舟流量分析示例', 'HTML 预览数据'],
+          ['周期', String(state.range) + ' 日'],
+          ['日期', 'PV', 'UV'],
+          ...rows().map((d) => [d.date, d.pv, d.uv]),
+          [],
+          ['周期总计', count().pv, count().uv],
+          ['说明', '周期 UV 为去重数，不是每日 UV 之和'],
+          [],
+          ['维度', '类别', 'PV'],
+          ...['regions', 'devices', 'sources'].flatMap((k) => dimensionData(k).map((d) => [k, ...d])),
+        ]
+        const csv = '\uFEFF' + output.map((r) => r.map((v) => '"' + String(v).replaceAll('"', '""') + '"').join(',')).join('\r\n')
+        const u = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
+        const a = document.createElement('a')
+        a.href = u
+        a.download = 'zhizhou-traffic-preview-' + state.range + 'd.csv'
+        a.click()
+        setTimeout(() => URL.revokeObjectURL(u), 1000)
+        showToast('已导出当前范围的示例聚合数据。')
+      })
+      window.addEventListener('resize', () => chart(rows()))
+      render()
+    </script>
+  </body>
+</html>

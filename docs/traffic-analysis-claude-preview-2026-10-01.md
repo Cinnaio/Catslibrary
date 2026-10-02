@@ -37,4 +37,4 @@
 
 CSV生成与浏览器下载入口已实现。内置浏览器下载事件等待超时，未确认文件落盘，不把按钮触发当作下载验收。
 
-截图：[桌面预览](previews/traffic-analysis-claude-desktop.png)、[手机预览](previews/traffic-analysis-claude-mobile.png)。本次没有新增生产功能、后端接口或数据库迁移，也没有修改全站设计规范。
+截图：[桌面预览](previews/traffic-analysis-claude-desktop.jpg)、[手机预览](previews/traffic-analysis-claude-mobile.jpg)。本次没有新增生产功能、后端接口或数据库迁移，也没有修改全站设计规范。

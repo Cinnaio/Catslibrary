@@ -1,0 +1,2250 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>分级管理 · Claude 风格预览 · 知舟</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --paper: #fff;
+        --base: #f6f4f1;
+        --ink: #211e1a;
+        --muted: #6c665e;
+        --line: #ece8e2;
+        --accent: #8b6045;
+        --accent-text: #74503a;
+        --tint: #f0e6d6;
+        --subtle: #f8f3ec;
+        --canvas: color-mix(in srgb, var(--base) 55%, var(--line) 45%);
+        --sidebar: color-mix(in srgb, var(--paper) 70%, var(--canvas) 30%);
+        --table: color-mix(in srgb, var(--paper) 96%, var(--subtle) 4%);
+        --thead: color-mix(in srgb, var(--base) 85%, var(--accent) 15%);
+        --soft: color-mix(in srgb, var(--base) 78%, var(--subtle));
+        --danger: #a34440;
+        --danger-bg: #faeeeb;
+        --warning: #826125;
+        --warning-bg: #f7f0e0;
+        --success: #40664d;
+        --success-bg: #edf2ec;
+        --info: #486478;
+        --info-bg: #edf1f3;
+        --radius: 20px;
+        --control: 40px;
+        --ease: cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      [data-theme='dark'] {
+        color-scheme: dark;
+        --paper: #2a2b31;
+        --base: #24252a;
+        --ink: #e7e0d6;
+        --muted: #b8b0a7;
+        --line: #3b3c43;
+        --accent: #d0a572;
+        --accent-text: #d0a572;
+        --tint: #42392e;
+        --subtle: #302d2b;
+        --canvas: #1b1c20;
+        --sidebar: color-mix(in srgb, var(--paper) 58%, var(--canvas) 42%);
+        --thead: color-mix(in srgb, var(--table) 85%, var(--muted) 15%);
+        --danger: #ecaca4;
+        --danger-bg: #463235;
+        --warning: #e0c18a;
+        --warning-bg: #453d2f;
+        --success: #b2ceae;
+        --success-bg: #344137;
+        --info: #b2cad4;
+        --info-bg: #303e45;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--canvas);
+        color: var(--ink);
+        font:
+          14px/1.6 -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          'PingFang SC',
+          'Microsoft YaHei',
+          sans-serif;
+      }
+      button,
+      input,
+      select,
+      textarea {
+        font: inherit;
+        color: inherit;
+      }
+      button,
+      a,
+      select,
+      summary {
+        cursor: pointer;
+      }
+      button {
+        border: 0;
+        background: none;
+      }
+      input,
+      select,
+      textarea {
+        accent-color: var(--accent);
+        caret-color: var(--accent);
+      }
+      input,
+      textarea {
+        min-width: 0;
+      }
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+      a {
+        color: var(--accent);
+        text-underline-offset: 4px;
+      }
+      button:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+      :focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 3px;
+      }
+      ::selection {
+        background: var(--tint);
+        color: var(--ink);
+      }
+      [hidden] {
+        display: none !important;
+      }
+      svg {
+        width: 16px;
+        height: 16px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.7;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        flex-shrink: 0;
+      }
+      .sprite {
+        display: none;
+      }
+      * {
+        scrollbar-width: thin;
+        scrollbar-color: var(--line) transparent;
+      }
+      .muted {
+        color: var(--muted);
+      }
+      .tiny {
+        font-size: 12px;
+      }
+      .mono {
+        font-family: Consolas, monospace;
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .spacer {
+        margin-left: auto;
+      }
+      .preview-bar {
+        padding: 10px 24px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+        background: var(--paper);
+        border-bottom: 1px solid var(--line);
+        font-size: 12px;
+      }
+      .preview-bar strong {
+        font-weight: 600;
+      }
+      .preview-bar select,
+      .preview-bar .btn {
+        height: 32px;
+        min-height: 32px;
+        font-size: 12px;
+      }
+      .preview-bar select {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--paper);
+        padding: 0 10px;
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: 224px minmax(0, 1fr);
+        min-height: calc(100vh - 54px);
+        max-width: 1680px;
+        margin: auto;
+        padding: 12px;
+        gap: 0;
+      }
+      .sidebar {
+        background: var(--sidebar);
+        border-radius: 16px;
+        padding: 24px 14px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        padding: 0 12px;
+        font-size: 20px;
+        font-weight: 700;
+      }
+      .brand svg {
+        width: 25px;
+        height: 25px;
+        color: var(--accent);
+      }
+      .nav-group {
+        display: grid;
+        gap: 4px;
+      }
+      .nav-label {
+        font-size: 12px;
+        color: var(--muted);
+        padding: 2px 12px 6px;
+      }
+      .nav-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 12px;
+        border-radius: 12px;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 20px;
+      }
+      .nav-sub {
+        margin-left: 28px;
+        font-size: 13px;
+        padding: 7px 12px;
+        border-radius: 10px;
+      }
+      .nav-item.active {
+        color: var(--ink);
+      }
+      .nav-sub.active {
+        color: var(--paper);
+        background: var(--accent);
+      }
+      [data-theme='dark'] .nav-sub.active {
+        color: #211e1a;
+      }
+      .profile {
+        margin-top: auto;
+        padding: 22px 12px 0;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+      }
+      .avatar {
+        display: grid;
+        place-items: center;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: var(--tint);
+        color: var(--accent-text);
+        font-size: 12px;
+      }
+      .main {
+        min-width: 0;
+        padding: 16px 32px 26px;
+      }
+      .crumb {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        color: var(--muted);
+        font-size: 12px;
+        margin-bottom: 27px;
+      }
+      .crumb svg {
+        width: 12px;
+        height: 12px;
+      }
+      .crumb .spacer {
+        font-size: 11px;
+      }
+      .page-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        gap: 20px;
+        margin-bottom: 24px;
+      }
+      .page-head h1 {
+        font-size: 20px;
+        letter-spacing: -0.03em;
+        font-weight: 700;
+        line-height: 1.5;
+      }
+      .page-head p {
+        margin-top: 6px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .head-actions {
+        display: flex;
+        gap: 8px;
+        flex-shrink: 0;
+      }
+      .search {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--paper);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 0 12px;
+        width: 288px;
+        height: 40px;
+        color: var(--muted);
+      }
+      .search input {
+        border: 0;
+        outline: none;
+        background: none;
+        width: 100%;
+        font-size: 13px;
+        color: var(--ink);
+      }
+      input::placeholder,
+      textarea::placeholder {
+        color: var(--muted);
+        opacity: 1;
+      }
+      .search:focus-within {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        min-height: 40px;
+        padding: 0 14px;
+        border-radius: 12px;
+        font-size: 13px;
+        white-space: nowrap;
+        background: var(--soft);
+        transition:
+          background 150ms,
+          color 150ms;
+      }
+      .btn:hover:not(:disabled) {
+        background: var(--tint);
+      }
+      .btn.primary {
+        background: var(--accent);
+        color: var(--paper);
+      }
+      [data-theme='dark'] .btn.primary {
+        color: #211e1a;
+      }
+      .btn.primary:hover:not(:disabled) {
+        background: color-mix(in srgb, var(--accent) 88%, var(--ink));
+      }
+      .btn.outline {
+        background: var(--paper);
+        border: 1px solid var(--line);
+      }
+      .btn.danger {
+        background: var(--danger-bg);
+        color: var(--danger);
+      }
+      .btn.small {
+        min-height: 32px;
+        padding: 0 11px;
+        border-radius: 8px;
+        font-size: 12px;
+      }
+      .icon-btn {
+        width: 32px;
+        height: 32px;
+        display: inline-grid;
+        place-items: center;
+        border-radius: 8px;
+        color: var(--muted);
+      }
+      .icon-btn:hover {
+        background: var(--soft);
+        color: var(--accent);
+      }
+      .workspace-nav {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
+        margin-bottom: 20px;
+      }
+      .tabs {
+        display: flex;
+        padding: 4px;
+        gap: 3px;
+        border-radius: 12px;
+        background: var(--soft);
+        max-width: 100%;
+      }
+      .tab {
+        min-height: 36px;
+        padding: 0 15px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        border-radius: 10px;
+        font-size: 13px;
+        color: var(--muted);
+        white-space: nowrap;
+      }
+      .tab[aria-selected='true'] {
+        background: var(--paper);
+        color: var(--accent-text);
+        font-weight: 600;
+      }
+      .tab:hover {
+        color: var(--accent);
+      }
+      .count {
+        font-size: 11px;
+        min-width: 20px;
+        text-align: center;
+        background: color-mix(in srgb, var(--line) 65%, transparent);
+        border-radius: 6px;
+        line-height: 19px;
+        padding: 0 5px;
+        font-weight: 500;
+        color: var(--muted);
+      }
+      .tab[aria-selected='true'] .count {
+        background: var(--tint);
+        color: var(--accent-text);
+      }
+      .policy {
+        margin-left: auto;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .policy summary {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        list-style: none;
+      }
+      .policy summary::-webkit-details-marker {
+        display: none;
+      }
+      .policy[open] {
+        flex-basis: 100%;
+        margin-left: 0;
+      }
+      .policy-text {
+        max-width: 850px;
+        margin-top: 10px;
+        line-height: 1.8;
+      }
+      .policy strong {
+        color: var(--ink);
+        font-weight: 500;
+      }
+      .panel {
+        background: var(--table);
+        border-radius: var(--radius);
+        overflow: hidden;
+        border: 0;
+        box-shadow: none;
+        animation: surface-enter 220ms var(--ease);
+      }
+      .panel-head {
+        padding: 20px 24px 12px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .panel-head h2 {
+        font-size: 16px;
+        font-weight: 600;
+      }
+      .panel-head p {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 4px;
+      }
+      .toolbar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        padding: 10px 24px 20px;
+      }
+      .filter {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .filter select,
+      .control {
+        height: 36px;
+        max-width: 176px;
+        background: var(--paper);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 0 10px;
+        color: var(--ink);
+        font-size: 13px;
+      }
+      .progress-copy {
+        font-size: 12px;
+        color: var(--muted);
+        font-variant-numeric: tabular-nums;
+      }
+      .filter-clear {
+        font-size: 12px;
+        color: var(--accent);
+        padding: 4px 0;
+      }
+      .table {
+        border-collapse: collapse;
+        width: 100%;
+        table-layout: fixed;
+        text-align: left;
+      }
+      .table th {
+        font-size: 11.5px;
+        font-weight: 500;
+        color: var(--ink);
+        background: var(--thead);
+        padding: 11px 14px;
+      }
+      .table td {
+        padding: 16px 14px;
+        border-bottom: 1px solid var(--line);
+        font-size: 13px;
+        vertical-align: middle;
+        overflow-wrap: anywhere;
+      }
+      .table tr:hover td {
+        background: color-mix(in srgb, var(--subtle) 64%, transparent);
+      }
+      .table th:first-child,
+      .table td:first-child {
+        padding-left: 24px;
+      }
+      .table th:last-child,
+      .table td:last-child {
+        padding-right: 24px;
+      }
+      .work-title {
+        font-size: 14px;
+        font-weight: 500;
+        line-height: 1.5;
+      }
+      .work-author {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 4px;
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 11.5px;
+        line-height: 21px;
+        padding: 1px 8px;
+        border-radius: 6px;
+        white-space: nowrap;
+        background: var(--soft);
+        color: var(--muted);
+      }
+      .badge:before {
+        content: '';
+        width: 4px;
+        height: 4px;
+        border-radius: 50%;
+        background: currentColor;
+      }
+      .badge.restricted {
+        color: var(--danger);
+        background: var(--danger-bg);
+      }
+      .badge.general {
+        color: var(--success);
+        background: var(--success-bg);
+      }
+      .badge.pending {
+        color: var(--warning);
+        background: var(--warning-bg);
+      }
+      .badge.info {
+        color: var(--info);
+        background: var(--info-bg);
+      }
+      .tag {
+        display: inline-block;
+        background: var(--soft);
+        color: var(--muted);
+        font-size: 11.5px;
+        border-radius: 6px;
+        padding: 1px 7px;
+        line-height: 22px;
+      }
+      .evidence {
+        display: flex;
+        gap: 5px;
+        flex-wrap: wrap;
+      }
+      .cell-note {
+        font-size: 11.5px;
+        color: var(--muted);
+        margin-top: 4px;
+      }
+      .actions {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        justify-content: flex-end;
+      }
+      .edit-btn {
+        white-space: nowrap;
+        flex-shrink: 0;
+        min-height: 32px;
+        font-size: 12px;
+        padding: 0 9px;
+        border-radius: 8px;
+        background: var(--soft);
+        color: var(--ink);
+      }
+      .edit-btn:hover {
+        background: var(--tint);
+        color: var(--accent-text);
+      }
+      .pagination {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 16px 24px;
+        font-size: 12px;
+        color: var(--muted);
+        flex-wrap: wrap;
+      }
+      .page-controls {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+      .page-size,
+      .page-navigation,
+      .page-jump {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        white-space: nowrap;
+      }
+      .pagination button,
+      .pagination input,
+      .pagination select {
+        height: 32px;
+        min-height: 32px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--paper);
+        font-size: 12px;
+      }
+      .pagination select {
+        width: 67px;
+        padding: 0 7px;
+      }
+      .pagination .icon-btn {
+        width: 32px;
+      }
+      .pagination input {
+        width: 48px;
+        text-align: center;
+      }
+      .pagination .go {
+        padding: 0 9px;
+      }
+      .page-summary {
+        font-variant-numeric: tabular-nums;
+      }
+      .page-navigation .current {
+        min-width: 47px;
+        text-align: center;
+        color: var(--ink);
+      }
+      .preview-foot {
+        padding: 18px 4px 0;
+        color: var(--muted);
+        font-size: 11.5px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .preview-foot button {
+        font-size: 11.5px;
+        color: var(--accent);
+        padding: 0;
+      }
+      .intro-line {
+        padding: 0 24px 18px;
+        font-size: 12px;
+        color: var(--muted);
+        line-height: 1.8;
+      }
+      .queue-item {
+        padding: 22px 24px;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 24px;
+        border-top: 1px solid var(--line);
+      }
+      .queue-item h3 {
+        font-size: 14px;
+        font-weight: 500;
+      }
+      .queue-content {
+        min-width: 0;
+        flex: 1;
+      }
+      .queue-title {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        flex-wrap: wrap;
+      }
+      .queue-content p {
+        font-size: 13px;
+        line-height: 1.8;
+        margin-top: 9px;
+        max-width: 75ch;
+      }
+      .queue-content .meta {
+        margin-top: 6px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .queue-content .evidence {
+        margin-top: 10px;
+      }
+      .queue-item .btn {
+        margin-top: 3px;
+      }
+      .candidate-value {
+        font-size: 14px;
+        font-family: Consolas, 'Microsoft YaHei', monospace;
+        color: var(--ink);
+        background: var(--soft);
+        border-radius: 6px;
+        padding: 2px 8px;
+      }
+      .task-progress {
+        border-top: 1px solid var(--line);
+        padding: 18px 24px;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 16px;
+        background: color-mix(in srgb, var(--soft) 40%, transparent);
+      }
+      .task-progress p {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 8px;
+      }
+      .track {
+        height: 5px;
+        background: var(--line);
+        border-radius: 6px;
+        overflow: hidden;
+        margin-top: 12px;
+      }
+      .track div {
+        height: 100%;
+        width: 100%;
+        transform-origin: left;
+        transform: scaleX(0);
+        background: var(--accent);
+        transition: transform 0.4s var(--ease);
+        border-radius: 6px;
+      }
+      .empty-state {
+        min-height: 290px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        gap: 10px;
+        padding: 35px 24px;
+        color: var(--muted);
+      }
+      .empty-state svg {
+        width: 28px;
+        height: 28px;
+      }
+      .empty-state h3 {
+        font-size: 15px;
+        font-weight: 500;
+        color: var(--ink);
+      }
+      .empty-state p {
+        font-size: 13px;
+        max-width: 50ch;
+      }
+      .skeleton {
+        width: 100%;
+        max-width: 640px;
+        height: 14px;
+        background: var(--soft);
+        border-radius: 6px;
+        margin: 9px 0;
+      }
+      .skeleton:nth-child(2n) {
+        max-width: 480px;
+      }
+      .loading-mark {
+        animation: rotate 1.2s linear infinite;
+      }
+      .empty-state.error svg {
+        color: var(--danger);
+      }
+      dialog {
+        padding: 0;
+        border: 0;
+        border-radius: 16px;
+        background: var(--paper);
+        color: var(--ink);
+        width: min(650px, calc(100% - 32px));
+        max-height: calc(100svh - 48px);
+        box-shadow: 0 20px 70px #211e1a26;
+        overflow: hidden;
+      }
+      dialog::backdrop {
+        background: #211e1a66;
+      }
+      .dialog-wrap {
+        display: flex;
+        flex-direction: column;
+        max-height: calc(100svh - 48px);
+      }
+      .dialog-head {
+        padding: 22px 24px 18px;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        gap: 15px;
+        align-items: flex-start;
+      }
+      .dialog-head h2 {
+        font-size: 18px;
+        line-height: 1.5;
+        font-weight: 600;
+      }
+      .dialog-head p {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 6px;
+      }
+      .dialog-head .icon-btn {
+        margin-left: auto;
+        flex-shrink: 0;
+      }
+      .dialog-body {
+        overflow: auto;
+        padding: 22px 24px;
+      }
+      .dialog-footer {
+        padding: 16px 24px;
+        border-top: 1px solid var(--line);
+        background: var(--soft);
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .field {
+        margin-top: 20px;
+      }
+      .field:first-child {
+        margin-top: 0;
+      }
+      .field > label,
+      .field > legend {
+        display: block;
+        font-size: 12px;
+        color: var(--muted);
+        margin-bottom: 8px;
+        font-weight: 500;
+      }
+      .field select,
+      .field input[type='text'],
+      .field textarea {
+        width: 100%;
+        max-width: none;
+        border: 1px solid var(--line);
+        background: var(--paper);
+        border-radius: 10px;
+        padding: 10px 12px;
+        font-size: 13px;
+      }
+      .field select {
+        height: 40px;
+        padding: 0 12px;
+      }
+      .field textarea {
+        min-height: 96px;
+        resize: vertical;
+      }
+      .field-hint {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 7px;
+      }
+      .rating-options {
+        display: flex;
+        gap: 8px;
+        border: 0;
+        margin: 0;
+        padding: 0;
+        min-width: 0;
+      }
+      .rating-option {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 10px 7px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        font-size: 13px;
+      }
+      .rating-option:has(input:checked) {
+        border-color: var(--accent);
+        background: var(--subtle);
+      }
+      .rating-option input {
+        margin: 0;
+      }
+      .detail-list {
+        margin: 0;
+        display: grid;
+        grid-template-columns: 85px minmax(0, 1fr);
+        gap: 10px 15px;
+        font-size: 13px;
+      }
+      .detail-list dt {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .detail-list dd {
+        margin: 0;
+        overflow-wrap: anywhere;
+      }
+      .detail-divider {
+        border: 0;
+        border-top: 1px solid var(--line);
+        margin: 22px 0;
+      }
+      .callout {
+        background: var(--soft);
+        border-radius: 10px;
+        padding: 13px 15px;
+        font-size: 12px;
+        color: var(--muted);
+        line-height: 1.8;
+        margin-top: 18px;
+      }
+      .callout strong {
+        color: var(--ink);
+        font-weight: 500;
+      }
+      .affected-list {
+        list-style: none;
+        margin: 10px 0 0;
+        padding: 0;
+      }
+      .affected-list li {
+        padding: 10px 0;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        justify-content: space-between;
+        font-size: 13px;
+      }
+      .affected-list small {
+        display: block;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .timeline-entry {
+        padding: 0 0 22px 20px;
+        border-left: 1px solid var(--line);
+        position: relative;
+        margin-left: 3px;
+      }
+      .timeline-entry:before {
+        content: '';
+        position: absolute;
+        left: -4px;
+        top: 7px;
+        width: 7px;
+        height: 7px;
+        background: var(--accent);
+        border-radius: 50%;
+      }
+      .timeline-entry:last-child {
+        padding-bottom: 0;
+        border-left-color: transparent;
+      }
+      .timeline-entry p {
+        font-size: 13px;
+        margin-top: 8px;
+      }
+      .timeline-entry .meta {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 5px;
+      }
+      .dialog-error {
+        color: var(--danger);
+        font-size: 12px;
+        margin-top: 12px;
+      }
+      .toast {
+        position: fixed;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: var(--ink);
+        color: var(--paper);
+        padding: 12px 20px;
+        border-radius: 12px;
+        max-width: calc(100% - 32px);
+        font-size: 13px;
+        z-index: 5;
+        box-shadow: 0 8px 25px #211e1a20;
+        pointer-events: none;
+      }
+      @keyframes surface-enter {
+        from {
+          transform: translateY(5px);
+        }
+        to {
+          transform: translateY(0);
+        }
+      }
+      @keyframes rotate {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      @media (min-width: 1600px) {
+        .main {
+          padding-left: 40px;
+          padding-right: 40px;
+        }
+        .table td {
+          padding-top: 18px;
+          padding-bottom: 18px;
+        }
+      }
+      @media (max-width: 1180px) {
+        .main {
+          padding: 16px 24px 24px;
+        }
+        .layout {
+          grid-template-columns: 204px minmax(0, 1fr);
+        }
+        .page-head {
+          flex-wrap: wrap;
+        }
+        .head-actions {
+          width: 100%;
+        }
+        .search {
+          width: 288px;
+        }
+        .policy {
+          margin-left: 0;
+        }
+      }
+      @media (max-width: 1100px) {
+        .layout {
+          grid-template-columns: 1fr;
+          padding: 0;
+        }
+        .sidebar {
+          display: none;
+        }
+        .main {
+          padding: 20px 24px 28px;
+        }
+      }
+      @media (max-width: 900px) {
+        .layout {
+          grid-template-columns: 1fr;
+          padding: 0;
+        }
+        .sidebar {
+          display: none;
+        }
+        .main {
+          padding: 20px 24px 28px;
+        }
+        .crumb {
+          margin-bottom: 22px;
+        }
+        .head-actions .search {
+          flex: 1;
+          width: auto;
+        }
+        .table thead {
+          display: none;
+        }
+        .table,
+        .table tbody,
+        .table tr,
+        .table td {
+          display: block;
+          width: 100%;
+        }
+        .table tr {
+          padding: 18px 24px;
+          border-bottom: 1px solid var(--line);
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 12px 20px;
+        }
+        .table td,
+        .table td:first-child,
+        .table td:last-child {
+          padding: 0;
+          border: 0;
+          font-size: 13px;
+        }
+        .table td:before {
+          content: attr(data-label);
+          display: block;
+          color: var(--muted);
+          font-size: 11px;
+          margin-bottom: 4px;
+        }
+        .table td[data-primary] {
+          grid-column: 1/-1;
+        }
+        .table td[data-primary]:before,
+        .table td[data-actions]:before {
+          display: none;
+        }
+        .table td[data-actions] {
+          grid-column: 1/-1;
+        }
+        .table tr:hover td {
+          background: none;
+        }
+        .table tr:hover {
+          background: var(--subtle);
+        }
+        .actions {
+          justify-content: flex-start;
+        }
+        .actions .edit-btn {
+          min-height: 36px;
+        }
+        .actions .icon-btn {
+          height: 36px;
+          width: 36px;
+        }
+        .work-title {
+          font-size: 15px;
+        }
+        .queue-item {
+          gap: 16px;
+        }
+        .crumb .spacer {
+          display: none;
+        }
+      }
+      @media (max-width: 640px) {
+        .preview-bar {
+          padding: 10px 16px;
+          gap: 8px;
+        }
+        .preview-bar .preview-sub {
+          display: none;
+        }
+        .preview-bar > .row {
+          width: 100%;
+          justify-content: space-between;
+        }
+        .main {
+          padding: 19px 16px 24px;
+        }
+        .page-head {
+          gap: 16px;
+          margin-bottom: 20px;
+        }
+        .page-head p {
+          font-size: 12px;
+          line-height: 1.8;
+        }
+        .search {
+          padding: 0 10px;
+        }
+        .head-actions .btn {
+          padding: 0 10px;
+        }
+        .workspace-nav {
+          gap: 12px;
+          margin-bottom: 18px;
+        }
+        .tabs {
+          width: 100%;
+        }
+        .tab {
+          flex: 1;
+          padding: 0 7px;
+          font-size: 12px;
+          gap: 5px;
+        }
+        .policy {
+          font-size: 11.5px;
+        }
+        .panel-head {
+          padding: 20px 18px 12px;
+          align-items: flex-start;
+        }
+        .toolbar {
+          padding: 8px 18px 17px;
+          gap: 10px;
+        }
+        .progress-copy {
+          flex-basis: 100%;
+          order: 3;
+        }
+        .toolbar .filter {
+          gap: 6px;
+        }
+        .toolbar select {
+          max-width: 135px;
+        }
+        .toolbar .spacer {
+          margin-left: 0;
+        }
+        .table tr {
+          padding: 18px;
+          gap: 12px;
+        }
+        .panel-head .row {
+          width: 100%;
+        }
+        .intro-line {
+          padding: 0 18px 17px;
+        }
+        .queue-item {
+          padding: 20px 18px;
+          flex-direction: column;
+          gap: 12px;
+        }
+        .queue-item .btn {
+          align-self: flex-end;
+        }
+        .queue-content p {
+          font-size: 13px;
+        }
+        .pagination {
+          padding: 15px 18px;
+          gap: 14px;
+        }
+        .page-summary {
+          width: 100%;
+          font-size: 11.5px;
+        }
+        .page-controls {
+          width: 100%;
+          display: grid;
+          grid-template-columns: 1fr auto;
+          gap: 12px 8px;
+        }
+        .page-size {
+          grid-column: 1/-1;
+        }
+        .page-navigation {
+          grid-column: 1;
+          gap: 5px;
+        }
+        .page-jump {
+          grid-column: 2;
+          gap: 5px;
+        }
+        .task-progress {
+          padding: 18px;
+          grid-template-columns: 1fr;
+        }
+        .task-progress > .row {
+          justify-content: flex-end;
+        }
+        .dialog-head {
+          padding: 18px;
+        }
+        .dialog-head h2 {
+          font-size: 18px;
+        }
+        .dialog-body {
+          padding: 20px 18px;
+        }
+        .dialog-footer {
+          padding: 14px 18px;
+        }
+        .dialog-footer .btn {
+          flex: 1;
+          padding: 0 8px;
+        }
+        .detail-list {
+          grid-template-columns: 72px minmax(0, 1fr);
+          gap: 10px;
+        }
+        .rating-options {
+          gap: 6px;
+        }
+        .rating-option {
+          font-size: 12px;
+        }
+        .preview-foot {
+          font-size: 11px;
+        }
+        .crumb {
+          font-size: 11px;
+        }
+      }
+      @media (max-width: 420px) {
+        .page-navigation .edge {
+          display: none;
+        }
+        .pagination input {
+          width: 38px;
+        }
+        .page-navigation .current {
+          min-width: 40px;
+        }
+        .page-jump {
+          gap: 4px;
+        }
+        .tab {
+          padding: 0 5px;
+        }
+        .tab .count {
+          min-width: 16px;
+          padding: 0 4px;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *:before,
+        *:after {
+          animation: none !important;
+          transition: none !important;
+          scroll-behavior: auto !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <svg class="sprite" aria-hidden="true">
+      <defs>
+        <symbol id="i-boat" viewBox="0 0 24 24"><path d="M12 2v14M12 3 5 13h7M14 6l5 7h-5M3 16h18l-4 5H7z" /></symbol>
+        <symbol id="i-grid" viewBox="0 0 24 24">
+          <rect x="3" y="3" width="7" height="7" rx="1" />
+          <rect x="14" y="3" width="7" height="7" rx="1" />
+          <rect x="3" y="14" width="7" height="7" rx="1" />
+          <rect x="14" y="14" width="7" height="7" rx="1" />
+        </symbol>
+        <symbol id="i-book" viewBox="0 0 24 24"><path d="M12 5v16M3 4c3-1 6-1 9 1 3-2 6-2 9-1v15c-3-1-6-1-9 1-3-2-6-2-9-1z" /></symbol>
+        <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 2H5v20h14V7zM14 2v5h5M8 12h8M8 16h6" /></symbol>
+        <symbol id="i-bot" viewBox="0 0 24 24">
+          <rect x="4" y="7" width="16" height="13" rx="3" />
+          <path d="M12 3v4M2 12v5M22 12v5M8 12v2M16 12v2M9 17h6" />
+        </symbol>
+        <symbol id="i-list" viewBox="0 0 24 24"><path d="m3 6 2 2 3-4M11 6h10M3 13l2 2 3-4M11 13h10M3 20h5M11 20h10" /></symbol>
+        <symbol id="i-activity" viewBox="0 0 24 24"><path d="M2 12h5l3-8 4 16 3-8h5" /></symbol>
+        <symbol id="i-shield" viewBox="0 0 24 24"><path d="m12 2 9 4v6c0 5-6 9-9 10-3-1-9-5-9-10V6zM8 12l3 3 5-6" /></symbol>
+        <symbol id="i-user" viewBox="0 0 24 24">
+          <circle cx="12" cy="7" r="4" />
+          <path d="M4 22v-3a8 8 0 0 1 16 0v3" />
+        </symbol>
+        <symbol id="i-search" viewBox="0 0 24 24">
+          <circle cx="10.5" cy="10.5" r="6.5" />
+          <path d="m16 16 5 5" />
+        </symbol>
+        <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 7a9 9 0 0 0-15-2L2 8M2 3v5h5M4 17a9 9 0 0 0 15 2l3-3M22 21v-5h-5" /></symbol>
+        <symbol id="i-right" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7" /></symbol>
+        <symbol id="i-left" viewBox="0 0 24 24"><path d="m15 5-7 7 7 7" /></symbol>
+        <symbol id="i-first" viewBox="0 0 24 24"><path d="M5 5v14m13-14-7 7 7 7" /></symbol>
+        <symbol id="i-last" viewBox="0 0 24 24"><path d="M19 5v14M6 5l7 7-7 7" /></symbol>
+        <symbol id="i-history" viewBox="0 0 24 24"><path d="M3 11a9 9 0 1 1 2 7M3 4v7h7M12 7v5l3 2" /></symbol>
+        <symbol id="i-plus" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 8v8M8 12h8" />
+        </symbol>
+        <symbol id="i-info" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 11v6M12 7h.01" />
+        </symbol>
+        <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18" /></symbol>
+        <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14A9 9 0 0 1 10 3a9 9 0 1 0 10 11z" /></symbol>
+        <symbol id="i-eye" viewBox="0 0 24 24">
+          <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z" />
+          <circle cx="12" cy="12" r="3" />
+        </symbol>
+        <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14" /></symbol>
+        <symbol id="i-play" viewBox="0 0 24 24"><path d="m7 4 14 8-14 8z" /></symbol>
+        <symbol id="i-alert" viewBox="0 0 24 24"><path d="m12 3 10 18H2zM12 9v5M12 17h.01" /></symbol>
+      </defs>
+    </svg>
+    <div class="preview-bar">
+      <div class="row"><strong>分级管理 · 设计预览</strong><span class="muted preview-sub">知舟共享规范 / Claude 风格</span></div>
+      <div class="row">
+        <label for="preview-state" class="muted">预览状态</label
+        ><select id="preview-state">
+          <option value="ready">有记录</option>
+          <option value="empty">空状态</option>
+          <option value="error">加载失败</option>
+          <option value="loading">加载中</option></select
+        ><button class="btn outline" id="theme-toggle" aria-pressed="false">
+          <svg><use href="#i-moon" /></svg><span>深色主题</span>
+        </button>
+      </div>
+    </div>
+    <div class="layout">
+      <aside class="sidebar" aria-label="后台导航示意">
+        <div class="brand">
+          <svg><use href="#i-boat" /></svg>知舟
+        </div>
+        <div class="nav-group">
+          <div class="nav-label">监控</div>
+          <span class="nav-item"
+            ><svg><use href="#i-grid" /></svg>后台总览</span
+          >
+        </div>
+        <div class="nav-group">
+          <div class="nav-label">内容库</div>
+          <span class="nav-item"
+            ><svg><use href="#i-book" /></svg>小说管理</span
+          ><span class="nav-item"
+            ><svg><use href="#i-file" /></svg>章节管理</span
+          >
+        </div>
+        <div class="nav-group">
+          <div class="nav-label">内容生产</div>
+          <span class="nav-item"
+            ><svg><use href="#i-book" /></svg>爬虫抓取</span
+          ><span class="nav-item"
+            ><svg><use href="#i-bot" /></svg>AI 服务</span
+          >
+        </div>
+        <div class="nav-group">
+          <div class="nav-label">运行监控</div>
+          <span class="nav-item"
+            ><svg><use href="#i-list" /></svg>任务中心</span
+          ><span class="nav-item"
+            ><svg><use href="#i-activity" /></svg>调用与用量</span
+          >
+        </div>
+        <div class="nav-group">
+          <div class="nav-label">内容治理</div>
+          <span class="nav-item active"
+            ><svg><use href="#i-shield" /></svg>内容审核</span
+          ><span class="nav-sub muted">审核队列</span><span class="nav-sub muted">内容安全</span
+          ><span class="nav-sub active" aria-current="page">分级管理</span>
+        </div>
+        <div class="nav-group">
+          <div class="nav-label">平台运营</div>
+          <span class="nav-item"
+            ><svg><use href="#i-grid" /></svg>站点运营</span
+          ><span class="nav-item"
+            ><svg><use href="#i-user" /></svg>账户与注册</span
+          >
+        </div>
+        <div class="profile">
+          <div class="avatar">管</div>
+          <div>
+            <div class="tiny">管理员</div>
+            <div class="tiny muted">后台导航示意</div>
+          </div>
+        </div>
+      </aside>
+      <main class="main">
+        <div class="crumb">
+          <span>管理后台</span><svg><use href="#i-right" /></svg><span>内容治理</span><svg><use href="#i-right" /></svg><span>分级管理</span
+          ><span class="spacer">知舟管理台</span>
+        </div>
+        <header class="page-head">
+          <div>
+            <h1>分级管理</h1>
+            <p>维护作品分级与判定依据，让每一次修改都有据可查。</p>
+          </div>
+          <div class="head-actions">
+            <label class="search"
+              ><svg><use href="#i-search" /></svg
+              ><input id="search" type="search" placeholder="搜索标题、作者或修改理由…" aria-label="搜索作品分级记录" /></label
+            ><button id="refresh" class="btn">
+              <svg><use href="#i-refresh" /></svg><span>刷新账本</span>
+            </button>
+          </div>
+        </header>
+        <div class="workspace-nav">
+          <div class="tabs" role="tablist" aria-label="分级工作视图">
+            <button id="tab-ledger" class="tab" data-view="ledger" role="tab" aria-selected="true" aria-controls="view-ledger">分级账本</button
+            ><button id="tab-rules" class="tab" data-view="rules" role="tab" aria-selected="false" aria-controls="view-rules" tabindex="-1">
+              规则候选 <span id="rule-count" class="count">3</span></button
+            ><button id="tab-ai" class="tab" data-view="ai" role="tab" aria-selected="false" aria-controls="view-ai" tabindex="-1">
+              LLM 建议 <span id="ai-count" class="count">3</span>
+            </button>
+          </div>
+          <details class="policy">
+            <summary>
+              <svg><use href="#i-info" /></svg>分级与审核口径
+            </summary>
+            <p class="policy-text">
+              <strong>未标注不等于一般。</strong> R18 对应限制级；规则与 LLM
+              只提出限制级或继续未标注的判断，不自动标为一般。规则批准前预览影响范围，模型建议经人工审核才可修改分级；人工修改必须填写理由并保留审计记录。
+            </p>
+          </details>
+        </div>
+        <section id="view-ledger" role="tabpanel" aria-labelledby="tab-ledger">
+          <div class="panel">
+            <div class="panel-head">
+              <h2>作品分级账本</h2>
+              <span id="match-count" class="tiny muted"></span>
+            </div>
+            <div class="toolbar">
+              <label class="filter"
+                >分级<select id="rating-filter">
+                  <option value="">全部分级</option>
+                  <option value="unknown">仅看未标注</option>
+                  <option value="restricted">限制级</option>
+                  <option value="general">一般</option>
+                </select></label
+              ><span id="rating-counts" class="progress-copy"></span
+              ><label class="filter spacer"
+                >来源<select id="source-filter">
+                  <option value="">全部来源</option>
+                  <option value="manual">人工修改</option>
+                  <option value="ai_task">AI 建议（人工确认）</option>
+                  <option value="prefill">规则预填</option>
+                  <option value="source_import">书源导入</option>
+                  <option value="migration">数据迁移</option>
+                  <option value="system">系统处理</option>
+                  <option value="legacy">历史存量</option>
+                </select></label
+              ><button id="clear-filters" class="filter-clear" hidden>清除筛选</button>
+            </div>
+            <div id="ledger-content"></div>
+            <div id="pagination" class="pagination">
+              <span id="page-summary" class="page-summary"></span>
+              <div class="page-controls">
+                <label class="page-size"
+                  >每页<select id="page-size">
+                    <option>15</option>
+                    <option>20</option>
+                    <option>50</option>
+                    <option>100</option></select
+                  >条</label
+                >
+                <div class="page-navigation" role="group" aria-label="分页导航">
+                  <button class="icon-btn edge" id="first-page" aria-label="第一页">
+                    <svg><use href="#i-first" /></svg></button
+                  ><button class="icon-btn" id="prev-page" aria-label="上一页">
+                    <svg><use href="#i-left" /></svg></button
+                  ><span id="page-current" class="current"></span
+                  ><button class="icon-btn" id="next-page" aria-label="下一页">
+                    <svg><use href="#i-right" /></svg></button
+                  ><button class="icon-btn edge" id="last-page" aria-label="最后一页">
+                    <svg><use href="#i-last" /></svg>
+                  </button>
+                </div>
+                <form id="jump-form" class="page-jump">
+                  <label for="jump-page">跳至</label><input id="jump-page" type="number" value="1" min="1" aria-label="目标页码" /><button
+                    class="go"
+                    type="submit"
+                  >
+                    前往
+                  </button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </section>
+        <section id="view-rules" role="tabpanel" aria-labelledby="tab-rules" hidden>
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>规则候选</h2>
+                <p>从人工判定中沉淀规则，先核对命中作品，再决定是否启用。</p>
+              </div>
+              <span id="rule-summary" class="tiny muted"></span>
+            </div>
+            <p class="intro-line">批准仅影响命中的未标注作品，保留一般作品及已人工确认的分级。</p>
+            <div id="rules-content"></div>
+          </div>
+        </section>
+        <section id="view-ai" role="tabpanel" aria-labelledby="tab-ai" hidden>
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>LLM 分级建议</h2>
+                <p>只分析未标注作品的元数据，逐条保留证据与人工决定。</p>
+              </div>
+              <div class="row">
+                <label class="tiny muted" for="batch-size">单批</label
+                ><select id="batch-size" class="control">
+                  <option value="20">20 本</option>
+                  <option value="50">50 本</option>
+                  <option value="100">100 本（上限）</option></select
+                ><button id="start-scan" class="btn primary">
+                  <svg><use href="#i-bot" /></svg>分析未标注
+                </button>
+              </div>
+            </div>
+            <p class="intro-line">模型建议不会自动写入分级。批准“继续未标注”也不会将作品标为一般。</p>
+            <div id="task" class="task-progress" hidden>
+              <div>
+                <div class="row"><span id="task-status" class="badge info">分析中</span><span id="task-count" class="tiny muted"></span></div>
+                <div id="task-track" class="track" role="progressbar" aria-label="示例分析任务进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                  <div></div>
+                </div>
+                <p id="task-note"></p>
+              </div>
+              <div class="row">
+                <button id="task-toggle" class="btn small outline">
+                  <svg><use href="#i-pause" /></svg>中止任务
+                </button>
+              </div>
+            </div>
+            <div id="ai-content"></div>
+          </div>
+        </section>
+        <footer class="preview-foot">
+          <span>独立 HTML 预览 · 所有作品、计数、证据与任务均为示例，仅在本页演示。</span><button id="reset-demo">重置示例</button>
+        </footer>
+      </main>
+    </div>
+    <dialog id="dialog" aria-labelledby="dialog-title" aria-describedby="dialog-description">
+      <form id="dialog-form" class="dialog-wrap">
+        <header class="dialog-head">
+          <div>
+            <h2 id="dialog-title"></h2>
+            <p id="dialog-description"></p>
+          </div>
+          <button type="button" class="icon-btn" id="close-dialog" aria-label="关闭弹窗">
+            <svg><use href="#i-close" /></svg>
+          </button>
+        </header>
+        <div class="dialog-body">
+          <div id="dialog-content"></div>
+          <p id="dialog-error" class="dialog-error" role="alert" hidden></p>
+        </div>
+        <footer id="dialog-footer" class="dialog-footer"></footer>
+      </form>
+    </dialog>
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+    <script>
+      'use strict'
+      const $ = (id) => document.getElementById(id)
+      const icon = (name, cls = '') => `<svg aria-hidden="true" class="${cls}"><use href="#i-${name}"/></svg>`
+      const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
+      const ratingNames = { unknown: '未标注', restricted: '限制级', general: '一般' }
+      const sourceNames = {
+        manual: '人工修改',
+        ai_task: 'AI 建议（人工确认）',
+        prefill: '规则预填',
+        source_import: '书源导入',
+        migration: '数据迁移',
+        system: '系统处理',
+        legacy: '历史存量',
+      }
+      const badge = (rating, label) => `<span class="badge ${escapeHtml(rating)}">${escapeHtml(label || ratingNames[rating] || rating)}</span>`
+      const initialWorks = [
+        ['长风渡月', '林舟', 'unknown', 'legacy', '暂无证据', '待人工核对作品简介', '现代言情'],
+        ['山海之间', '南山', 'restricted', 'manual', '人工复核', '原书源明确标注 R18，已核对元数据', 'R18'],
+        ['星河来信', '小满', 'general', 'manual', '人工复核', '人工核对作品简介与分类，记录一般分级', '科幻'],
+        ['迟来的春天', '远山', 'restricted', 'ai_task', '简介命中', '模型提出限制级建议，经管理员复核确认', '现代言情'],
+        ['雨落旧城', '晚晴', 'unknown', 'source_import', '书源未提供分级', '导入时缺少明确分级信息', '都市'],
+        ['夜色有声', '闻溪', 'restricted', 'prefill', '分类：R18', '精确分类规则命中 R18', 'R18'],
+        ['月光书简', '白榆', 'unknown', 'legacy', '暂无证据', '含成人向标签，等待人工核对', '成人向'],
+        ['归途', '听澜', 'unknown', 'migration', '暂无证据', '历史迁移后尚未标注', '冒险'],
+        ['春日手记', '禾木', 'general', 'manual', '人工复核', '已核对分类与简介', '日常'],
+        ['旧梦拾遗', '云栖', 'unknown', 'legacy', '暂无证据', '简介含成人向标记，仍待复核', '成人向'],
+        ['雾岛来客', '北川', 'unknown', 'source_import', '书源未提供分级', '书源元数据缺少明确分级证据', '悬疑'],
+        ['第七封信', '青时', 'restricted', 'manual', '人工复核', '源站 R18 标签与简介标记一致', 'R18'],
+        ['南风入弦', '予安', 'unknown', 'legacy', '暂无证据', '旧书库记录未填写判定理由', '现代言情'],
+        ['风止于海', '未央', 'unknown', 'migration', '暂无证据', '导入标记仅供参考，等待核对', '都市'],
+        ['云端旅人', '鹿鸣', 'general', 'manual', '人工复核', '人工核对后确认一般分级', '幻想'],
+        ['深巷灯火', '舟白', 'unknown', 'legacy', '暂无证据', '分类与简介标记待确认', '成人向'],
+        ['四季来风', '清和', 'general', 'manual', '人工复核', '人工核对作品元数据', '日常'],
+        ['浮生一页', '南枝', 'unknown', 'source_import', '书源未提供分级', '标签出现 R18，等待治理复核', 'R18'],
+      ]
+      let works,
+        rules,
+        suggestions,
+        view = 'ledger',
+        page = 1,
+        pageSize = 15,
+        displayState = 'ready',
+        dialogAction = null,
+        task = null,
+        taskTimer = null,
+        toastTimer = null,
+        ruleVersion = 1
+      function resetData() {
+        works = initialWorks.map((w, i) => ({
+          id: i + 1,
+          title: w[0],
+          author: w[1],
+          rating: w[2],
+          source: w[3],
+          evidence: w[4],
+          reason: w[5],
+          category: w[6],
+          time: i < 3 ? '今天 10:24' : i < 6 ? '昨天 18:06' : '09-29 14:32',
+          actor: ['manual', 'ai_task'].includes(w[3]) ? '管理员' : '系统',
+          revision: 1,
+          history: [],
+        }))
+        rules = [
+          {
+            id: 1,
+            kind: '分类标签',
+            value: '成人向',
+            count: 3,
+            example: '月光书简',
+            reason: '多次人工复核发现该标签与限制级内容相关，建议纳入精确分类规则。',
+            status: 'pending',
+          },
+          {
+            id: 2,
+            kind: '文本短语',
+            value: 'R18',
+            count: 2,
+            example: '第七封信',
+            reason: '简介中的明确分级标记可作为证据；批准前需要核对本次命中范围。',
+            status: 'pending',
+          },
+          {
+            id: 3,
+            kind: '分类标签',
+            value: '成人小说',
+            count: 1,
+            example: '山海之间',
+            reason: '记录人工经验，等待核对标签含义与影响范围。',
+            status: 'pending',
+          },
+        ]
+        suggestions = [
+          {
+            id: 1,
+            workId: 1,
+            rating: 'unknown',
+            confidence: 58,
+            reason: '现有标题、简介与分类缺少明确限制级证据，建议继续未标注，等待人工复核。',
+            evidence: '缺少明确分级证据',
+            status: 'pending',
+          },
+          {
+            id: 2,
+            workId: 7,
+            rating: 'restricted',
+            confidence: 94,
+            reason: '分类包含明确成人向标签，建议核对源站分级标记后确认为限制级。',
+            evidence: '分类：成人向',
+            status: 'pending',
+          },
+          {
+            id: 3,
+            workId: 18,
+            rating: 'restricted',
+            confidence: 98,
+            reason: '源站分类中存在独立 R18 标记，是本次限制级建议的主要依据。',
+            evidence: '分类：R18',
+            status: 'pending',
+          },
+        ].map((s) => ({ ...s, revision: 1 }))
+      }
+      function toast(message) {
+        clearTimeout(toastTimer)
+        $('toast').textContent = message
+        $('toast').hidden = false
+        toastTimer = setTimeout(() => ($('toast').hidden = true), 3500)
+      }
+      function emptyState(type, message, action = '') {
+        const title = type === 'error' ? '分级记录暂时无法加载' : type === 'loading' ? '正在读取分级记录' : '没有符合条件的记录'
+        return `<div class="empty-state ${type}">${icon(type === 'error' ? 'alert' : type === 'loading' ? 'refresh' : 'book', type === 'loading' ? 'loading-mark' : '')}<h3>${title}</h3><p>${escapeHtml(message)}</p>${type === 'loading' ? '<div class="skeleton"></div><div class="skeleton"></div>' : action}</div>`
+      }
+      function stateMarkup(normal, emptyMessage) {
+        if (displayState === 'error')
+          return emptyState('error', '示例请求失败，当前筛选条件已保留。请重试。', '<button class="btn outline" data-action="retry">重新加载</button>')
+        if (displayState === 'loading') return emptyState('loading', '正在同步账本、规则候选与 LLM 建议…')
+        if (displayState === 'empty') return emptyState('empty', emptyMessage)
+        return normal
+      }
+      function filteredWorks() {
+        const query = $('search').value.trim().toLowerCase()
+        return works.filter(
+          (w) =>
+            (!query || [w.title, w.author, w.reason].some((v) => v.toLowerCase().includes(query))) &&
+            (!$('rating-filter').value || w.rating === $('rating-filter').value) &&
+            (!$('source-filter').value || w.source === $('source-filter').value),
+        )
+      }
+      function renderLedger() {
+        const items = filteredWorks(),
+          total = displayState === 'empty' ? 0 : items.length,
+          totalPages = Math.max(1, Math.ceil(total / pageSize))
+        page = Math.min(page, totalPages)
+        const start = (page - 1) * pageSize,
+          rows = items.slice(start, start + pageSize)
+        $('match-count').textContent = ['ready', 'empty'].includes(displayState) ? `${total} 本匹配` : '—'
+        $('rating-counts').textContent =
+          `待标注 ${works.filter((w) => w.rating === 'unknown').length} · 限制级 ${works.filter((w) => w.rating === 'restricted').length}`
+        $('clear-filters').hidden = !($('rating-filter').value || $('source-filter').value || $('search').value)
+        const body = rows
+          .map(
+            (w) =>
+              `<tr><td data-label="作品" data-primary><div class="work-title">${escapeHtml(w.title)}</div><div class="work-author">${escapeHtml(w.author)} · ${escapeHtml(w.category)}</div></td><td data-label="当前分级">${badge(w.rating)}</td><td data-label="来源">${escapeHtml(sourceNames[w.source])}</td><td data-label="判定证据"><div class="evidence"><span class="tag">${escapeHtml(w.evidence)}</span></div><div class="cell-note">${escapeHtml(w.reason)}</div></td><td data-label="最近操作"><div>${escapeHtml(w.time)}</div><div class="cell-note">${escapeHtml(w.actor)}</div></td><td data-label="操作" data-actions><div class="actions"><button class="icon-btn" title="查看历史" aria-label="查看${escapeHtml(w.title)}的分级历史" data-action="history" data-id="${w.id}">${icon('history')}</button><button class="edit-btn" data-action="edit" data-id="${w.id}" aria-label="修改${escapeHtml(w.title)}的分级">修改</button>${w.rating === 'restricted' ? `<button class="icon-btn" title="沉淀规则候选" aria-label="从${escapeHtml(w.title)}沉淀规则候选" data-action="candidate" data-id="${w.id}">${icon('plus')}</button>` : ''}</div></td></tr>`,
+          )
+          .join('')
+        const table = `<table class="table" aria-label="作品分级账本"><colgroup><col style="width:21%"><col style="width:10%"><col style="width:13%"><col style="width:27%"><col style="width:13%"><col style="width:16%"></colgroup><thead><tr><th scope="col">作品</th><th scope="col">当前分级</th><th scope="col">来源</th><th scope="col">判定证据</th><th scope="col">最近操作</th><th scope="col" style="text-align:right">操作</th></tr></thead><tbody>${body}</tbody></table>`
+        $('ledger-content').innerHTML = stateMarkup(
+          rows.length ? table : emptyState('empty', '尝试调整搜索关键词、分级或来源。', '<button class="btn outline" data-action="clear">清除筛选</button>'),
+          '暂无作品分级记录，导入作品后可在这里查看与维护。',
+        )
+        $('pagination').hidden = !['ready', 'empty'].includes(displayState)
+        $('page-summary').textContent = total ? `共 ${total} 本，显示 ${start + 1}–${Math.min(start + pageSize, total)}` : '共 0 本'
+        $('page-current').textContent = `${page} / ${totalPages}`
+        $('jump-page').max = totalPages
+        $('jump-page').value = page
+        ;['first-page', 'prev-page'].forEach((id) => ($(id).disabled = page === 1))
+        ;['next-page', 'last-page'].forEach((id) => ($(id).disabled = page === totalPages))
+        $('page-size').disabled = displayState === 'empty'
+      }
+      function renderRules() {
+        const pending = rules.filter((r) => r.status === 'pending')
+        $('rule-count').textContent = pending.length
+        $('rule-summary').textContent = `待审核 ${pending.length} 条 · 当前规则 demo-v${ruleVersion}`
+        const markup = pending
+          .map(
+            (r) =>
+              `<article class="queue-item"><div class="queue-content"><div class="queue-title"><span class="tag">${escapeHtml(r.kind)}</span><code class="candidate-value">${escapeHtml(r.value)}</code>${badge('pending', '待审核')}</div><p>${escapeHtml(r.reason)}</p><div class="meta">人工例证 ${r.count} 本 · 最近来源：${escapeHtml(r.example)}</div></div><button class="btn outline" data-action="rule" data-id="${r.id}">${icon('eye')}预览影响</button></article>`,
+          )
+          .join('')
+        $('rules-content').innerHTML = stateMarkup(
+          markup || emptyState('empty', '还没有待审核的规则候选。可从已确认的限制级作品中沉淀人工经验。'),
+          '还没有待审核的规则候选。',
+        )
+      }
+      function renderAi() {
+        const pending = suggestions.filter((s) => s.status === 'pending')
+        $('ai-count').textContent = pending.length
+        const markup = pending
+          .map((s) => {
+            const w = works.find((w) => w.id === s.workId)
+            return `<article class="queue-item"><div class="queue-content"><div class="queue-title"><h3>${escapeHtml(w.title)}</h3>${badge(s.rating, s.rating === 'restricted' ? '建议限制级' : '建议继续未标注')}<span class="tag">置信度 ${s.confidence}%</span></div><div class="meta">${escapeHtml(w.author)} · 模型：示例文本模型 · 提示词 demo-v1</div><p>${escapeHtml(s.reason)}</p><div class="evidence"><span class="tag">${escapeHtml(s.evidence)}</span><span class="tiny muted">待人工确认</span></div></div><button class="btn outline" data-action="ai-review" data-id="${s.id}">${icon('eye')}审核建议</button></article>`
+          })
+          .join('')
+        $('ai-content').innerHTML = stateMarkup(
+          markup || emptyState('empty', '还没有待审核的 LLM 分级建议。可开始分析未标注作品。'),
+          '还没有待审核的 LLM 建议；模型只读取未标注作品。',
+        )
+        renderTask()
+      }
+      function renderAll() {
+        renderLedger()
+        renderRules()
+        renderAi()
+      }
+      function switchView(next) {
+        view = next
+        document.querySelectorAll('[data-view]').forEach((tab) => {
+          const active = tab.dataset.view === view
+          tab.setAttribute('aria-selected', active)
+          tab.tabIndex = active ? 0 : -1
+          $('view-' + tab.dataset.view).hidden = !active
+        })
+        $('search').closest('label').hidden = view !== 'ledger'
+        $('search').disabled = view !== 'ledger'
+        $('search').placeholder = view === 'ledger' ? '搜索标题、作者或修改理由…' : '切换至分级账本可搜索作品'
+        $('refresh').querySelector('span').textContent = view === 'ledger' ? '刷新账本' : view === 'rules' ? '刷新候选' : '刷新建议'
+      }
+      function showDialog(title, description, content, footer, onSubmit = null) {
+        dialogAction = onSubmit
+        $('dialog-title').textContent = title
+        $('dialog-description').textContent = description
+        $('dialog-content').innerHTML = content
+        $('dialog-footer').innerHTML = footer
+        $('dialog-error').hidden = true
+        $('dialog').showModal()
+      }
+      const cancelButton = '<button type="button" class="btn outline" data-action="close-modal">取消</button>'
+      const reasonField = (label = '修改理由') =>
+        `<div class="field"><label for="review-reason">${label} <span aria-hidden="true">*</span></label><textarea id="review-reason" required placeholder="说明你核对的证据与本次决定的依据…"></textarea><p class="field-hint">必填，随本次操作写入审计记录。</p></div>`
+      function currentDetails(w) {
+        return `<dl class="detail-list"><dt>作品</dt><dd>${escapeHtml(w.title)} <span class="muted">/ ${escapeHtml(w.author)}</span></dd><dt>当前分级</dt><dd>${badge(w.rating)}</dd><dt>判定来源</dt><dd>${escapeHtml(sourceNames[w.source])}</dd><dt>判定证据</dt><dd>${escapeHtml(w.evidence)}</dd><dt>分级版本</dt><dd class="mono">revision ${w.revision}</dd></dl>`
+      }
+      function openEdit(id) {
+        const w = works.find((w) => w.id === id)
+        showDialog(
+          `修改分级 · ${w.title}`,
+          '人工修改会记录操作人、理由与版本。提交前请核对当前判定依据。',
+          currentDetails(w) +
+            `<hr class="detail-divider"><div class="field"><fieldset class="rating-options"><legend class="tiny muted" style="margin-bottom:8px">新的分级</legend>${Object.entries(
+              ratingNames,
+            )
+              .map(
+                ([value, label]) =>
+                  `<label class="rating-option"><input type="radio" name="new-rating" value="${value}" ${w.rating === value ? 'checked' : ''}>${label}</label>`,
+              )
+              .join('')}</fieldset><p class="field-hint">未标注表示尚未确认；一般分级需经人工核对。</p></div>` +
+            reasonField(),
+          cancelButton + '<button class="btn primary" type="submit">保存分级</button>',
+          () => {
+            const next = document.querySelector('input[name="new-rating"]:checked').value
+            applyRating(w, next, $('review-reason').value.trim(), 'manual', '人工复核')
+            return '示例分级已更新，修改理由已记录'
+          },
+        )
+      }
+      function applyRating(w, next, reason, source, evidence) {
+        w.history.unshift({ from: w.rating, to: next, reason, source, evidence, time: '刚刚', revision: w.revision + 1 })
+        Object.assign(w, { rating: next, reason, source, evidence, time: '刚刚', actor: '管理员', revision: w.revision + 1 })
+      }
+      function openHistory(id) {
+        const w = works.find((w) => w.id === id)
+        const history = [
+          ...w.history,
+          {
+            from: 'unknown',
+            to: initialWorks[id - 1][2],
+            reason: initialWorks[id - 1][5],
+            source: initialWorks[id - 1][3],
+            evidence: initialWorks[id - 1][4],
+            time: '09-29 14:32',
+            revision: 1,
+          },
+        ]
+        showDialog(
+          `分级历史 · ${w.title}`,
+          '按时间追溯分级结果、理由与操作人。以下为本页示例审计记录。',
+          history
+            .map(
+              (h) =>
+                `<article class="timeline-entry"><div class="row">${badge(h.from)}<span class="muted">→</span>${badge(h.to)}<span class="tiny muted">${escapeHtml(h.time)}</span></div><p>${escapeHtml(h.reason)}</p><div class="meta">${escapeHtml(sourceNames[h.source])} · ${['manual', 'ai_task'].includes(h.source) ? '管理员' : '系统'} · revision ${h.revision}</div><div class="evidence" style="margin-top:8px"><span class="tag">${escapeHtml(h.evidence)}</span></div></article>`,
+            )
+            .join(''),
+          '<button class="btn outline" type="button" data-action="close-modal">关闭</button>',
+        )
+      }
+      function openCandidate(id) {
+        const w = works.find((w) => w.id === id)
+        showDialog(
+          `沉淀规则候选 · ${w.title}`,
+          '记录人工经验，候选需预览并批准后才会影响其他作品。',
+          currentDetails(w) +
+            `<div class="field"><label for="candidate-kind">候选类型</label><select id="candidate-kind"><option>分类标签</option><option>文本短语</option></select></div><div class="field"><label for="candidate-value">候选内容 *</label><input id="candidate-value" type="text" required value="${escapeHtml(w.category)}" /></div>` +
+            reasonField('候选理由'),
+          cancelButton + '<button class="btn primary" type="submit">记录候选</button>',
+          () => {
+            const value = $('candidate-value').value.trim()
+            if (!value) throw Error('请填写候选内容。')
+            rules.push({
+              id: Math.max(0, ...rules.map((r) => r.id)) + 1,
+              kind: $('candidate-kind').value,
+              value,
+              count: 1,
+              example: w.title,
+              reason: $('review-reason').value.trim(),
+              status: 'pending',
+            })
+            return '已记录示例规则候选，可在“规则候选”中预览'
+          },
+        )
+      }
+      function openRule(id) {
+        const r = rules.find((r) => r.id === id)
+        const affected = works.filter(
+          (w) =>
+            w.rating === 'unknown' && (r.kind === '分类标签' ? w.category === r.value : [w.title, w.reason, w.category].some((text) => text.includes(r.value))),
+        )
+        showDialog(
+          `预览规则影响 · ${r.value}`,
+          '批准后仅将命中的未标注作品改为限制级；一般作品和已人工确认的作品保持原分级。',
+          `<dl class="detail-list"><dt>候选规则</dt><dd><span class="tag">${escapeHtml(r.kind)}</span> <code>${escapeHtml(r.value)}</code></dd><dt>影响范围</dt><dd><strong>${affected.length} 本</strong>未标注作品</dd><dt>规则版本</dt><dd class="mono">demo-v${ruleVersion} → demo-v${ruleVersion + 1}</dd></dl><hr class="detail-divider"><h3 style="font-size:14px;font-weight:500">命中作品</h3>${affected.length ? `<ul class="affected-list">${affected.map((w) => `<li><div>${escapeHtml(w.title)}<small>${escapeHtml(w.author)} · ${escapeHtml(w.category)}</small></div><span class="row">${badge('unknown')}<span class="muted">→</span>${badge('restricted')}</span></li>`).join('')}</ul>` : '<p class="tiny muted" style="margin-top:10px">当前没有符合条件的未标注作品，批准会保留规则供后续判定。</p>'}<div class="callout">本次示例仅按展示的元数据计算命中；正式影响范围由现行服务端规则预览确定。</div>` +
+            reasonField('审核理由'),
+          cancelButton +
+            '<button type="submit" class="btn danger" name="decision" value="reject">拒绝候选</button><button type="submit" class="btn primary" name="decision" value="approve">批准规则</button>',
+          (event) => {
+            const approve = event.submitter.value === 'approve'
+            r.status = approve ? 'approved' : 'rejected'
+            if (approve) {
+              ruleVersion++
+              affected.forEach((w) => applyRating(w, 'restricted', $('review-reason').value.trim(), 'system', `规则：${r.value}`))
+            }
+            return approve ? `示例规则已批准，更新 ${affected.length} 本作品` : '已拒绝示例规则候选'
+          },
+        )
+      }
+      function openAiReview(id) {
+        const s = suggestions.find((s) => s.id === id),
+          w = works.find((w) => w.id === s.workId)
+        const stale = w.revision !== s.revision
+        showDialog(
+          `审核 LLM 建议 · ${w.title}`,
+          '模型只提供建议；最终决定、理由与证据由管理员确认。',
+          `<dl class="detail-list"><dt>当前分级</dt><dd>${badge(w.rating)}</dd><dt>模型建议</dt><dd>${badge(s.rating, s.rating === 'restricted' ? '限制级' : '继续未标注')}</dd><dt>置信度</dt><dd>${s.confidence}%</dd><dt>模型 / 版本</dt><dd>示例文本模型 / <span class="mono">demo-v1</span></dd></dl><hr class="detail-divider"><h3 style="font-size:14px;font-weight:500">判定依据</h3><p style="font-size:13px;margin-top:9px">${escapeHtml(s.reason)}</p><div class="evidence" style="margin-top:10px"><span class="tag">${escapeHtml(s.evidence)}</span></div><details style="margin-top:18px"><summary class="tiny muted">查看分析时的元数据快照</summary><dl class="detail-list" style="margin-top:12px"><dt>标题 / 作者</dt><dd>${escapeHtml(w.title)} / ${escapeHtml(w.author)}</dd><dt>分类</dt><dd>${escapeHtml(w.category)}</dd><dt>简介摘要</dt><dd>${escapeHtml(initialWorks[w.id - 1][5])}</dd><dt>分级版本</dt><dd class="mono">revision ${s.revision}</dd></dl></details><div class="callout">${stale ? '<strong>作品已被修改。</strong> 当前版本与分析时版本不一致，请重新分析；本建议可拒绝。' : s.rating === 'unknown' ? '<strong>批准继续未标注不会写入一般分级。</strong> 缺少证据不代表作品已确认安全。' : '批准后分级改为限制级，来源记录为 AI 建议（人工确认）。'}</div>` +
+            reasonField('审核理由'),
+          cancelButton +
+            `<button type="submit" class="btn danger" name="decision" value="reject">拒绝建议</button><button type="submit" class="btn primary" name="decision" value="approve" ${stale ? 'disabled' : ''}>${s.rating === 'restricted' ? '批准限制级' : '确认继续未标注'}</button>`,
+          (event) => {
+            const approve = event.submitter.value === 'approve'
+            if (approve && w.revision !== s.revision) throw Error('作品版本已变化，请关闭后重新分析。')
+            s.status = approve ? 'approved' : 'rejected'
+            if (approve && s.rating === 'restricted') applyRating(w, 'restricted', $('review-reason').value.trim(), 'ai_task', s.evidence)
+            s.reviewReason = $('review-reason').value.trim()
+            return approve ? '示例建议已人工确认，审核理由已记录' : '已拒绝示例建议，作品分级保持原值'
+          },
+        )
+      }
+      function renderTask() {
+        $('task').hidden = !task
+        $('start-scan').disabled = task?.status === 'running' || displayState !== 'ready'
+        if (!task) return
+        const percent = Math.round((task.done / task.total) * 100),
+          status = task.status
+        $('task-status').textContent = status === 'running' ? '分析中' : status === 'paused' ? '已中止' : '已完成'
+        $('task-count').textContent = `已处理 ${task.done} / ${task.total} 本 · 剩余 ${task.total - task.done} 本`
+        $('task-track').setAttribute('aria-valuenow', percent)
+        $('task-track').firstElementChild.style.transform = 'scaleX(' + percent / 100 + ')'
+        $('task-note').textContent =
+          status === 'running'
+            ? '本页模拟任务正在运行，已完成的建议陆续加入下方队列。'
+            : status === 'paused'
+              ? '已完成建议保留；恢复后只补充本批剩余作品。'
+              : '本批示例分析已完成。建议仍需管理员逐条审核。'
+        $('task-toggle').hidden = status === 'completed'
+        $('task-toggle').innerHTML = icon(status === 'paused' ? 'play' : 'pause') + (status === 'paused' ? '断点恢复' : '中止任务')
+      }
+      function runTask() {
+        clearInterval(taskTimer)
+        task.status = 'running'
+        renderTask()
+        taskTimer = setInterval(() => {
+          if (task.status !== 'running') return
+          const w = task.targets[task.done]
+          if (w && w.rating === 'unknown') {
+            suggestions.push({
+              id: Math.max(0, ...suggestions.map((s) => s.id)) + 1,
+              workId: w.id,
+              rating: ['R18', '成人向'].includes(w.category) ? 'restricted' : 'unknown',
+              confidence: ['R18', '成人向'].includes(w.category) ? 93 : 55,
+              reason: ['R18', '成人向'].includes(w.category) ? '示例分析发现元数据分级标记，建议人工复核。' : '示例元数据缺少明确限制级证据，建议继续未标注。',
+              evidence: ['R18', '成人向'].includes(w.category) ? `分类：${w.category}` : '缺少明确分级证据',
+              revision: w.revision,
+              status: 'pending',
+            })
+          }
+          task.done++
+          if (task.done >= task.total) {
+            task.status = 'completed'
+            clearInterval(taskTimer)
+            toast('示例分析完成，建议已加入待审核队列')
+          }
+          renderAi()
+        }, 1600)
+      }
+      $('start-scan').addEventListener('click', () => {
+        const targets = works
+          .filter((w) => w.rating === 'unknown' && !suggestions.some((s) => s.workId === w.id && s.revision === w.revision && s.status === 'pending'))
+          .slice(0, Number($('batch-size').value))
+        if (!targets.length) return toast('没有可分析的示例作品，已有建议请先审核')
+        task = { status: 'running', done: 0, total: targets.length, targets }
+        runTask()
+      })
+      $('task-toggle').addEventListener('click', () => {
+        if (task.status === 'running') {
+          clearInterval(taskTimer)
+          task.status = 'paused'
+          renderTask()
+          toast('示例任务已中止，已完成建议保留')
+        } else runTask()
+      })
+      document.addEventListener('click', (event) => {
+        const control = event.target.closest('[data-action]')
+        if (!control) return
+        const id = Number(control.dataset.id)
+        switch (control.dataset.action) {
+          case 'edit':
+            openEdit(id)
+            break
+          case 'history':
+            openHistory(id)
+            break
+          case 'candidate':
+            openCandidate(id)
+            break
+          case 'rule':
+            openRule(id)
+            break
+          case 'ai-review':
+            openAiReview(id)
+            break
+          case 'close-modal':
+            $('dialog').close()
+            break
+          case 'clear':
+            clearFilters()
+            break
+          case 'retry':
+            displayState = 'ready'
+            $('preview-state').value = 'ready'
+            renderAll()
+            break
+        }
+      })
+      $('dialog-form').addEventListener('submit', (event) => {
+        event.preventDefault()
+        const reason = $('review-reason')
+        if (reason && !reason.value.trim()) {
+          $('dialog-error').textContent = '请填写本次决定的理由。'
+          $('dialog-error').hidden = false
+          reason.focus()
+          return
+        }
+        if (!dialogAction) return
+        try {
+          const message = dialogAction(event)
+          $('dialog').close()
+          renderAll()
+          toast(message)
+        } catch (error) {
+          $('dialog-error').textContent = error.message
+          $('dialog-error').hidden = false
+        }
+      })
+      $('close-dialog').addEventListener('click', () => $('dialog').close())
+      document.querySelectorAll('[data-view]').forEach((tab) => tab.addEventListener('click', () => switchView(tab.dataset.view)))
+      document.querySelector('[role="tablist"]').addEventListener('keydown', (event) => {
+        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+        event.preventDefault()
+        const tabs = [...document.querySelectorAll('[data-view]')],
+          current = tabs.indexOf(document.activeElement),
+          index = event.key === 'Home' ? 0 : event.key === 'End' ? 2 : (current + (event.key === 'ArrowRight' ? 1 : -1) + 3) % 3
+        tabs[index].focus()
+        switchView(tabs[index].dataset.view)
+      })
+      function clearFilters() {
+        $('search').value = ''
+        $('rating-filter').value = ''
+        $('source-filter').value = ''
+        page = 1
+        renderLedger()
+      }
+      ;['rating-filter', 'source-filter'].forEach((id) =>
+        $(id).addEventListener('change', () => {
+          page = 1
+          renderLedger()
+        }),
+      )
+      $('search').addEventListener('input', () => {
+        page = 1
+        renderLedger()
+      })
+      $('clear-filters').addEventListener('click', clearFilters)
+      function goPage(next) {
+        page = next
+        renderLedger()
+      }
+      $('first-page').onclick = () => goPage(1)
+      $('prev-page').onclick = () => goPage(Math.max(1, page - 1))
+      $('next-page').onclick = () => goPage(page + 1)
+      $('last-page').onclick = () => goPage(Math.max(1, Math.ceil(filteredWorks().length / pageSize)))
+      $('page-size').onchange = () => {
+        pageSize = Number($('page-size').value)
+        page = 1
+        renderLedger()
+      }
+      $('jump-form').onsubmit = (event) => {
+        event.preventDefault()
+        goPage(Math.max(1, Number($('jump-page').value) || 1))
+      }
+      $('preview-state').onchange = () => {
+        displayState = $('preview-state').value
+        renderAll()
+      }
+      $('refresh').onclick = () => {
+        const button = $('refresh')
+        button.disabled = true
+        button.querySelector('svg').classList.add('loading-mark')
+        button.querySelector('span').textContent = '同步中…'
+        setTimeout(() => {
+          displayState = 'ready'
+          $('preview-state').value = 'ready'
+          renderAll()
+          button.disabled = false
+          button.querySelector('svg').classList.remove('loading-mark')
+          switchView(view)
+          toast('示例记录已刷新')
+        }, 650)
+      }
+      $('theme-toggle').onclick = () => {
+        const dark = document.documentElement.dataset.theme !== 'dark'
+        document.documentElement.dataset.theme = dark ? 'dark' : 'light'
+        $('theme-toggle').setAttribute('aria-pressed', String(dark))
+        $('theme-toggle').querySelector('span').textContent = dark ? '浅色主题' : '深色主题'
+      }
+      $('reset-demo').onclick = () => {
+        clearInterval(taskTimer)
+        task = null
+        ruleVersion = 1
+        resetData()
+        clearFilters()
+        displayState = 'ready'
+        $('preview-state').value = 'ready'
+        pageSize = 15
+        $('page-size').value = '15'
+        renderAll()
+        toast('示例已重置')
+      }
+      resetData()
+      renderAll()
+    </script>
+  </body>
+</html>
