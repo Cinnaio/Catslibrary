@@ -31,6 +31,8 @@ Thumbs.db
 # ── Impeccable 运行时产物（设计系统文档 DESIGN.md / design.json / critique 保留）──
 .impeccable/hook.cache.json
 .impeccable/live/
+# 本地视觉验证截图、检查脚本与复审记录；已跟踪的历史证据继续保留。
+.impeccable/review/
 web/.impeccable/
 
 # ── 临时截图 ──
