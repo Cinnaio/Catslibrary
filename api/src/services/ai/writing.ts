@@ -598,6 +598,8 @@ export async function generateWriting(db: Db, opts: {
   /** 服务端冻结的续写画像；存在时包括空串也不能回退到全局画像。 */
   profileOverrides?: { style?: string; relationship?: string; plot?: string }
   continuationSnapshot?: ContinuationSnapshotV1
+  /** 原始选定情节，不含逐章注入的大纲与系统要求。 */
+  plotDirection?: string
   /** 服务端校验并冻结的用户创作要求。 */
   writingBrief?: WritingBriefV1
   /** 新任务使用五层提示词编译器；旧任务缺字段时保留 legacy 消息协议。 */
@@ -716,7 +718,7 @@ export async function generateWriting(db: Db, opts: {
       chapterId: '',
       kind: opts.kind,
       model: res.model,
-      paramsJson: JSON.stringify({ version: 6, ...(usePipeline ? { promptPipelineVersion: WRITING_PROMPT_PIPELINE_VERSION } : {}), temperature, maxTokens, targetWords: opts.targetWords || 0, chapterCount: opts.chapterCount || 1, contentPreferences, ...(opts.taskId ? { taskId: opts.taskId } : {}), ...(parsedTitle?.title ? { draftTitle: parsedTitle.title } : {}), ...(opts.batchId ? { batchId: opts.batchId, batchIndex: opts.batchIndex || 1, batchCount: opts.batchCount || 1 } : {}), ...(opts.continuationSnapshot ? { continuationSnapshot: opts.continuationSnapshot } : {}) }),
+      paramsJson: JSON.stringify({ version: 6, ...(opts.kind === 'continue' ? { plotDirection: (opts.plotDirection ?? opts.instruction).trim() } : {}), ...(usePipeline ? { promptPipelineVersion: WRITING_PROMPT_PIPELINE_VERSION } : {}), temperature, maxTokens, targetWords: opts.targetWords || 0, chapterCount: opts.chapterCount || 1, contentPreferences, ...(opts.taskId ? { taskId: opts.taskId } : {}), ...(parsedTitle?.title ? { draftTitle: parsedTitle.title } : {}), ...(opts.batchId ? { batchId: opts.batchId, batchIndex: opts.batchIndex || 1, batchCount: opts.batchCount || 1 } : {}), ...(opts.continuationSnapshot ? { continuationSnapshot: opts.continuationSnapshot } : {}) }),
       prompt: user,
       result: resultText,
       status: 'draft',
@@ -808,6 +810,7 @@ export async function generateContinuationChapters(db: Db, opts: {
       batchIndex: index + 1,
       batchCount: count,
       taskId,
+      plotDirection: opts.instruction.trim(),
       profileOverrides: opts.profileOverrides,
       continuationSnapshot: opts.continuationSnapshot,
       writingBrief: opts.writingBrief,

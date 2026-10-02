@@ -129,6 +129,8 @@ export async function listGenerations(db: Db, opts: { status?: string; limit?: n
 }
 
 export interface GenerationDetail extends Generation {
+  /** 续写时选定的情节，与生成正文及完整提示词分开。 */
+  plotDirection?: string
   novelTitle: string
   chapterTitle: string
   batchId: string
@@ -145,7 +147,7 @@ export function generationContentRevision(result: string): string {
   return createHash('sha256').update(String(result || ''), 'utf8').digest('hex')
 }
 
-function batchFields(paramsJson: string): { batchId: string; batchIndex: number; batchCount: number; draftTitle: string } {
+function batchFields(paramsJson: string): { batchId: string; batchIndex: number; batchCount: number; draftTitle: string; plotDirection: string } {
   try {
     const params = JSON.parse(paramsJson) as Record<string, unknown>
     return {
@@ -153,9 +155,10 @@ function batchFields(paramsJson: string): { batchId: string; batchIndex: number;
       batchIndex: Number(params.batchIndex) || 0,
       batchCount: Number(params.batchCount) || 0,
       draftTitle: typeof params.draftTitle === 'string' ? params.draftTitle : '',
+      plotDirection: typeof params.plotDirection === 'string' ? params.plotDirection.trim() : '',
     }
   } catch {
-    return { batchId: '', batchIndex: 0, batchCount: 0, draftTitle: '' }
+    return { batchId: '', batchIndex: 0, batchCount: 0, draftTitle: '', plotDirection: '' }
   }
 }
 
@@ -242,7 +245,7 @@ export async function listTaskGenerations(db: Db, taskId: string): Promise<Gener
 /** 「已生成内容」管理列表：带小说/章节标题、行数与分页。 */
 export async function listGenerationDetails(
   db: Db,
-  opts: { q?: string; kind?: string; kinds?: string[]; status?: string; limit?: number; offset?: number } = {},
+  opts: { q?: string; kind?: string; kinds?: string[]; status?: string; limit?: number; offset?: number; groupBatches?: boolean } = {},
 ): Promise<{ items: GenerationDetail[]; total: number }> {
   const limit = Math.min(Math.max(Math.trunc(opts.limit || 50), 1), 100)
   const offset = Math.max(Math.trunc(opts.offset || 0), 0)
@@ -269,10 +272,57 @@ export async function listGenerationDetails(
     params.push(query)
     const parameter = `$${params.length}`
     // POSITION performs a literal search, so user-entered % and _ are not wildcards.
-    conditions.push(`(POSITION(LOWER(${parameter}) IN LOWER(COALESCE(n.title, ''))) > 0 OR POSITION(LOWER(${parameter}) IN LOWER(COALESCE(c.title, ''))) > 0 OR POSITION(LOWER(${parameter}) IN LOWER(g.result)) > 0)`)
+    conditions.push(
+      `(POSITION(LOWER(${parameter}) IN LOWER(COALESCE(n.title, ''))) > 0 OR POSITION(LOWER(${parameter}) IN LOWER(COALESCE(c.title, ''))) > 0 OR POSITION(LOWER(${parameter}) IN LOWER(g.result)) > 0)`,
+    )
   }
   conditions.push('g.deleted_at = 0')
   const where = `WHERE ${conditions.join(' AND ')}`
+
+  // batchId 由 newId 生成，只含字母、数字、下划线与连字符。从 TEXT 中提取，
+  // 避免旧记录的无效 params_json 在 JSON 强制转换时使整个目录无法读取。
+  // 仅续写参与合并，独立产物使用不同前缀，防止 batchId 与记录 id 碰撞。
+  const groupKey = `CASE WHEN g.kind = 'continue'
+    AND NULLIF(SUBSTRING(g.params_json FROM '"batchId"[[:space:]]*:[[:space:]]*"([[:alnum:]_-]+)"'), '') IS NOT NULL
+    THEN 'batch:' || SUBSTRING(g.params_json FROM '"batchId"[[:space:]]*:[[:space:]]*"([[:alnum:]_-]+)"')
+    ELSE 'item:' || g.id END`
+  if (opts.groupBatches) {
+    // 先筛选，再按合集分页；一页可以返回超过 limit 条章节，但只有 limit 个目录项。
+    const matched = `WITH matched AS (
+      SELECT g.*, COALESCE(n.title, '') AS novel_title, COALESCE(c.title, '') AS chapter_title,
+        ${groupKey} AS directory_key
+      FROM ai_generations g
+      LEFT JOIN novels n ON n.id = g.novel_id
+      LEFT JOIN chapters c ON c.id = g.chapter_id
+      ${where}
+    )`
+    const rows = await all<GenerationRow & { novel_title: string; chapter_title: string }>(
+      db,
+      `${matched}, page_groups AS (
+        SELECT directory_key, MAX(created_at) AS latest_at, MAX(id) AS latest_id
+        FROM matched GROUP BY directory_key
+        ORDER BY latest_at DESC, latest_id DESC, directory_key DESC
+        LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+      )
+      SELECT m.* FROM matched m JOIN page_groups p USING (directory_key)
+      ORDER BY p.latest_at DESC, p.latest_id DESC, p.directory_key DESC, m.created_at DESC, m.id DESC`,
+      [...params, limit, offset],
+    )
+    const count = await first<{ total: number }>(db, `${matched} SELECT COUNT(DISTINCT directory_key)::int AS total FROM matched`, params)
+    const directions = await continuationDirections(db, rows)
+    return {
+      items: rows.map((row) => ({
+        ...rowToGeneration(row),
+        novelTitle: String(row.novel_title || ''),
+        chapterTitle: String(row.chapter_title || ''),
+        ...batchFields(row.params_json),
+        plotDirection: directions.get(row.id) || '',
+        prompt: String(row.prompt || ''),
+        contentRevision: generationContentRevision(row.result),
+      })),
+      total: count?.total || 0,
+    }
+  }
 
   const rows = await all<GenerationRow & { novel_title: string; chapter_title: string }>(
     db,
@@ -285,7 +335,11 @@ export async function listGenerationDetails(
      LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
     [...params, limit, offset],
   )
-  const totalRow = await first<{ total: number }>(db, `SELECT COUNT(*)::int AS total FROM ai_generations g LEFT JOIN novels n ON n.id = g.novel_id LEFT JOIN chapters c ON c.id = g.chapter_id ${where}`, params)
+  const totalRow = await first<{ total: number }>(
+    db,
+    `SELECT COUNT(*)::int AS total FROM ai_generations g LEFT JOIN novels n ON n.id = g.novel_id LEFT JOIN chapters c ON c.id = g.chapter_id ${where}`,
+    params,
+  )
 
   return {
     items: rows.map((r) => ({
@@ -298,6 +352,43 @@ export async function listGenerationDetails(
     })),
     total: totalRow?.total || 0,
   }
+}
+
+/** 旧产物从精确关联的任务恢复情节；缺 taskId 的老批次使用最早的同书续写任务。 */
+async function continuationDirections(db: Db, rows: GenerationRow[]): Promise<Map<string, string>> {
+  const directions = new Map<string, string>()
+  const pending: Array<{ row: GenerationRow; taskId: string; batchId: string }> = []
+  for (const row of rows) {
+    if (row.kind !== 'continue') continue
+    const fields = batchFields(row.params_json)
+    if (fields.plotDirection) {
+      directions.set(row.id, fields.plotDirection)
+      continue
+    }
+    let taskId = ''
+    try {
+      const params = JSON.parse(row.params_json) as Record<string, unknown>
+      taskId = typeof params.taskId === 'string' ? params.taskId : ''
+    } catch { /* 无效旧元数据不猜测任务关联。 */ }
+    if (taskId || fields.batchId) pending.push({ row, taskId, batchId: fields.batchId })
+  }
+  if (!pending.length) return directions
+  const tasks = await all<{ id: string; batch_id: string; novel_id: string; params: string }>(
+    db,
+    `SELECT id, batch_id, novel_id, params FROM ai_tasks
+     WHERE kind = 'continue' AND (id = ANY($1::text[]) OR batch_id = ANY($2::text[]))
+     ORDER BY created_at ASC, id ASC`,
+    [[...new Set(pending.map((item) => item.taskId).filter(Boolean))], [...new Set(pending.map((item) => item.batchId).filter(Boolean))]],
+  )
+  for (const item of pending) {
+    const task = tasks.find((task) => task.novel_id === item.row.novel_id && (item.taskId ? task.id === item.taskId : task.batch_id === item.batchId))
+    if (!task) continue
+    try {
+      const request = JSON.parse(task.params) as Record<string, unknown>
+      if (typeof request.instruction === 'string' && request.instruction.trim()) directions.set(item.row.id, request.instruction.trim())
+    } catch { /* 不从任务 prompt 猜情节：该字段可能已被完整模型提示词覆盖。 */ }
+  }
+  return directions
 }
 
 /** 软删除某条生成记录并顺带清理过期软删；返回是否真的标记成功。 */

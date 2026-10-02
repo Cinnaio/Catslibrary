@@ -834,7 +834,8 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
         ),
     )
 
-    const response = await req('/api/ai/writing/continue', json('POST', { novelId, chapterCount: 20, targetWords: 1200 }, adminToken))
+    const instruction = '林晚整理旧档案时找到第二封信，在回忆与现实中逐步发现寄信人的身份。'
+    const response = await req('/api/ai/writing/continue', json('POST', { novelId, chapterCount: 20, targetWords: 1200, instruction }, adminToken))
     expect(response.status).toBe(202)
     const data = await jsonOf<{ ok: boolean; taskId: string; batchId: string; total: number }>(response)
     expect(data.ok).toBe(true)
@@ -850,6 +851,7 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     expect(rows.rows.every((row) => JSON.parse(row.params_json).targetWords === 1200)).toBe(true)
     // 草稿的批次号与接口返回的一致，前端可按 batchId 归组
     expect(rows.rows.every((row) => JSON.parse(row.params_json).batchId === data.batchId)).toBe(true)
+    expect(rows.rows.every((row) => JSON.parse(row.params_json).plotDirection === instruction)).toBe(true)
 
     const taskResults = await jsonOf<{ items: Array<{ batchIndex?: number }>; linkage: string }>(
       await req(`/api/ai/tasks/${data.taskId}/generations`, json('GET', undefined, adminToken)),

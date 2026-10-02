@@ -1970,6 +1970,7 @@ export const aiApi = {
   /** 已生成内容列表（管理端）：默认已发布，可筛类型。 */
   generations(
     filters: {
+      groupBatches?: boolean
       q?: string
       kind?: 'summary' | 'catchup' | 'continue' | 'write_outline' | 'write_chapter'
       scope?: 'all' | 'reader' | 'writing'
@@ -1979,6 +1980,7 @@ export const aiApi = {
     } = {},
   ): Promise<{
     items: Array<{
+      plotDirection?: string
       id: string
       novelId: string
       novelTitle: string
@@ -2003,6 +2005,7 @@ export const aiApi = {
     offset: number
   }> {
     const params = new URLSearchParams()
+    if (filters.groupBatches) params.set('groupBatches', 'true')
     if (filters.q) params.set('q', filters.q.trim().slice(0, 100))
     if (filters.kind) params.set('kind', filters.kind)
     if (filters.scope) params.set('scope', filters.scope)

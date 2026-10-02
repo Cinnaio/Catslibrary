@@ -544,7 +544,9 @@
   line-height: 1.75;
   font-variant-numeric: tabular-nums;
 }
-.ai-service .ai-writing-suggest__body { gap: 0.75rem; }
+.ai-service .ai-writing-suggest__body {
+  gap: 0.75rem;
+}
 .ai-service .ai-writing-suggest__direction {
   font-size: 0.8125rem;
   line-height: 1.75;
@@ -555,9 +557,13 @@
   padding-top: 0;
   line-height: 1.65;
 }
-.ai-service .ai-writing-suggest-block { gap: 0.75rem; }
+.ai-service .ai-writing-suggest-block {
+  gap: 0.75rem;
+}
 @media (max-width: 640px) {
-  .ai-service .ai-writing-suggest { grid-template-columns: minmax(0, 1fr); }
+  .ai-service .ai-writing-suggest {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 .ai-service .ai-writing-outline-details {
   border: 0;
@@ -1032,9 +1038,6 @@
   align-items: flex-start;
   gap: 8px;
 }
-.ai-service .ai-generation-time {
-  margin-top: 6px;
-}
 .ai-service .ai-generations-toolbar .ai-directory-filter:last-child {
   order: -1;
 }
@@ -1047,4 +1050,130 @@
 }
 .ai-service .ai-generation-row .admin-cell-actions {
   flex-wrap: wrap;
+}
+
+/* 已生成内容遵循确认样稿：标题旁计数、文字行操作、暖灰批次展开区。 */
+.ai-service .ai-generation-heading__title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.ai-service .ai-generation-heading__title h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+.ai-service .ai-generation-sort-hint {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.ai-service .ai-generations-toolbar .ai-directory-filter:last-of-type {
+  order: -1;
+}
+.ai-service .ai-generation-row td {
+  padding: 18px 20px;
+  font-size: 13px;
+}
+.ai-service .ai-generation-row .ai-generation-preview {
+  font-size: 13px;
+  color: var(--text-primary);
+  line-height: 1.6;
+}
+.ai-service .ai-generation-row .ai-generation-related__title {
+  font-weight: 600;
+}
+.ai-service .ai-generation-expand {
+  padding: 0 6px;
+  height: 24px;
+  min-height: 24px;
+  color: var(--text-muted);
+}
+.ai-service .ai-generation-title-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ai-service .ai-generation-delete {
+  color: var(--color-danger);
+}
+.ai-service .ai-generation-row .admin-cell-actions {
+  justify-content: flex-end;
+  gap: 4px;
+}
+.ai-service .ai-generation-row .admin-cell-actions [data-slot='button'] {
+  padding-inline: 8px;
+}
+.ai-service .ai-generation-batch-detail > td {
+  width: auto;
+  padding: 14px 28px;
+  background: var(--bg-secondary);
+  text-align: left;
+  height: auto;
+}
+.ai-service .ai-generation-chapter {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 14px;
+  padding-block: 8px;
+  font-size: 13px;
+}
+.ai-service .ai-generation-chapter__title {
+  overflow-wrap: anywhere;
+}
+.ai-service .ai-generation-help {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+@media (max-width: 900px) {
+  .ai-service .ai-generation-heading {
+    align-items: flex-start;
+  }
+  .ai-service .ai-generation-heading__title {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .ai-service .ai-generation-row > td {
+    padding: 4px 0;
+  }
+  .ai-service .ai-generation-row .ai-generation-identity {
+    justify-content: flex-start;
+  }
+  .ai-service .ai-generation-row .ai-generation-title-line {
+    flex-direction: row;
+    align-items: center;
+  }
+  .ai-service .ai-generation-row .ai-generation-related__title {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .ai-service .ai-generation-batch-detail {
+    display: block;
+    padding: 0;
+  }
+  .ai-service .ai-generation-batch-detail > td {
+    display: block;
+    grid-column: 1 / -1;
+    width: 100%;
+    padding: 14px 20px;
+  }
+  .ai-service .ai-generation-batch-detail > td::before {
+    content: none;
+  }
+  .ai-service .ai-generation-chapter {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 8px 12px;
+  }
+  .ai-service .ai-generation-chapter > .admin-cell-actions {
+    grid-column: 1 / -1;
+    flex-wrap: wrap;
+  }
+  .ai-service .ai-generation-sort-hint {
+    margin-left: 0;
+    width: 100%;
+  }
 }

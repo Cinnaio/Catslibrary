@@ -285,6 +285,36 @@
   gap: 0.3rem;
 }
 
+.admin-model-time {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  width: 100%;
+  font-size: 13px;
+  line-height: 1.6;
+  text-align: left;
+}
+
+.admin-model-time__model,
+.admin-model-time__time {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-model-time__model {
+  color: var(--text-primary);
+  font-family: Consolas, 'SF Mono', monospace;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.admin-model-time__time {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
 .admin-queue-summary__lead strong,
 .admin-queue-summary__stat strong {
   overflow: hidden;
