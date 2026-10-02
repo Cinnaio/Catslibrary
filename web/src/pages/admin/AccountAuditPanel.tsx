@@ -89,6 +89,10 @@ export function AccountRecordDate({ value }: { value: number }) {
 }
 export function accountDeviceSummary(agent: string): string {
   if (!agent) return '未记录设备'
+  // 原生 iOS 客户端使用 URLSession UA，不含浏览器或 iPhone 标识。
+  if (/^ZhiZhou\/\S+(?:\s|$)/i.test(agent) && /\bCFNetwork\//i.test(agent) && /\bDarwin\//i.test(agent)) {
+    return '知舟 iOS App'
+  }
   const browser = /Edg\//.test(agent)
     ? 'Edge'
     : /Firefox\//.test(agent)
