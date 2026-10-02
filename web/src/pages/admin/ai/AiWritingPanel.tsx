@@ -1144,7 +1144,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
                   <div className="ai-writing-suggest-block">
                     <div className="ai-writing-suggest-block__head">
                       <p className="text-xs text-muted-foreground">
-                        {suggestCollapsed ? `已取回 ${suggestions.length} 条方向，展开后点击即填入左侧创作要求` : '点一条填入左侧创作要求，填入后可继续修改'}
+                        {suggestCollapsed ? `已取回 ${suggestions.length} 条方向，展开后可填入本次情节` : '点选方向填入本次情节，填入后可继续编辑'}
                       </p>
                       {/* 只切换显示，不丢弃数据：收起后仍可展开回来，不必重新请求 */}
                       <Button
