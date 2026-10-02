@@ -1,0 +1,116 @@
+/* Input and textarea appearance is shared by native fields and the UI primitives.
+   Keep width, height, icon spacing and compact pagination geometry at their call sites.
+   Range, checkbox/radio, color, file, hidden and button inputs have separate contracts. Textareas keep their own height and resizing.
+   Command search uses its containing surface so the search icon stays inside the frame. */
+:root
+  :is(
+    textarea,
+    input:not([type]),
+    input[type='text'],
+    input[type='search'],
+    input[type='password'],
+    input[type='email'],
+    input[type='url'],
+    input[type='tel'],
+    input[type='number'],
+    input[type='date'],
+    input[type='datetime-local'],
+    input[type='time'],
+    input[type='month'],
+    input[type='week']
+  ):not([data-slot='command-input']) {
+  border: 1px solid var(--input-border);
+  border-radius: var(--input-radius);
+  background: var(--input-background);
+  color: var(--text-primary);
+  box-shadow: none;
+}
+:root
+  :is(
+    textarea,
+    input:not([type]),
+    input[type='text'],
+    input[type='search'],
+    input[type='password'],
+    input[type='email'],
+    input[type='url'],
+    input[type='tel'],
+    input[type='number'],
+    input[type='date'],
+    input[type='datetime-local'],
+    input[type='time'],
+    input[type='month'],
+    input[type='week']
+  ):not([data-slot='command-input'])::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
+}
+:root
+  :is(
+    textarea,
+    input:not([type]),
+    input[type='text'],
+    input[type='search'],
+    input[type='password'],
+    input[type='email'],
+    input[type='url'],
+    input[type='tel'],
+    input[type='number'],
+    input[type='date'],
+    input[type='datetime-local'],
+    input[type='time'],
+    input[type='month'],
+    input[type='week']
+  ):not([data-slot='command-input']):focus-visible {
+  outline: none;
+  border-color: var(--input-focus-border);
+  box-shadow: var(--input-focus-shadow);
+}
+:root
+  :is(
+    textarea,
+    input:not([type]),
+    input[type='text'],
+    input[type='search'],
+    input[type='password'],
+    input[type='email'],
+    input[type='url'],
+    input[type='tel'],
+    input[type='number'],
+    input[type='date'],
+    input[type='datetime-local'],
+    input[type='time'],
+    input[type='month'],
+    input[type='week']
+  ):not([data-slot='command-input'])[aria-invalid='true'] {
+  border-color: var(--color-danger);
+}
+:root
+  :is(
+    textarea,
+    input:not([type]),
+    input[type='text'],
+    input[type='search'],
+    input[type='password'],
+    input[type='email'],
+    input[type='url'],
+    input[type='tel'],
+    input[type='number'],
+    input[type='date'],
+    input[type='datetime-local'],
+    input[type='time'],
+    input[type='month'],
+    input[type='week']
+  ):not([data-slot='command-input'])[aria-invalid='true']:focus-visible {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-danger) 20%, transparent);
+}
+:root [data-slot='command-input-wrapper'] {
+  border: 1px solid var(--input-border);
+  border-radius: var(--input-radius);
+  background: var(--input-background);
+  box-shadow: none;
+}
+:root [data-slot='command-input-wrapper']:focus-within {
+  border-color: var(--input-focus-border);
+  box-shadow: var(--input-focus-shadow);
+}

@@ -92,15 +92,15 @@
 }
 
 /* ——— 输入框：白底 + 细灰边框 ——— */
-.admin-layout [data-slot='input'],
-.admin-layout [data-slot='textarea'] {
-  background: var(--admin-panel);
-  border: 1px solid var(--admin-border-strong);
+.admin-layout [data-slot='input'] {
+  background: var(--input-background);
+  border: 1px solid var(--input-border);
+  box-shadow: none;
 }
-.admin-layout [data-slot='input']:focus,
-.admin-layout [data-slot='textarea']:focus {
-  border-color: var(--sh-primary);
-  box-shadow: 0 0 0 2px var(--focus-ring);
+.admin-layout [data-slot='textarea'] {
+  background: var(--input-background);
+  border: 1px solid var(--input-border);
+  box-shadow: none;
 }
 
 /* CustomSelect 弹层：统一风格，移除搜索框底部的分割线 */

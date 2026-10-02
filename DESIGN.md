@@ -289,11 +289,11 @@ components:
 
 ## Shapes
 
-圆角策略温和而一致：公共控件 6px（--radius-sm），全局基础圆角 8px（--radius），紧凑控件与卡片 10px（--radius-md），管理后台控件与分段 tabs 药丸 12px（--admin-button-radius / --admin-input-radius / --radius-lg），嵌套表面与对话框 16px（--radius-xl / --admin-radius-dialog），后台大面板与 `.admin-panel-card` 20px（--radius-2xl）。分段 Tabs 另有明确的内外弧线契约：外框 12px、3px 内缩、激活表面 9px，统一由 `--tabs-segmented-*` token 提供。
+圆角策略温和而一致：公共按钮 6px（--radius-sm），单行输入框统一 12px（--input-radius），全局基础圆角 8px（--radius），紧凑控件与卡片 10px（--radius-md），管理后台控件与分段 tabs 药丸 12px（--admin-button-radius / --admin-input-radius / --radius-lg），嵌套表面与对话框 16px（--radius-xl / --admin-radius-dialog），后台大面板与 `.admin-panel-card` 20px（--radius-2xl）。分段 Tabs 另有明确的内外弧线契约：外框 12px、3px 内缩、激活表面 9px，统一由 `--tabs-segmented-*` token 提供。
 
 - **公共控件圆角 (6px)**: 公共页按钮、输入框、标签、复选框——足够圆润但不接近圆形，像文具的倒角。
-- **shadcn 控件圆角 (10px)**: shadcn/ui 基类（button/input/dialog）用 `rounded-md`，经 `shadcn.css` 的 `@theme inline` 桥接到 `--sh-radius`（即 `--radius-md` = 10px）。这是 Tailwind 与站点 token 的接缝，也是唯一一处"工具类默认值不等于同名 CSS 变量"的地方——调整前台圆角时先看这里，不要改 Tailwind 工具类。
-- **管理后台控件圆角 (12px)**: 后台的按钮、输入框、表单控件与 tabs 药丸统一 12px。作用范围是 `.admin-layout` 下的 `[data-slot='button']`、`[data-slot='input']`、`[data-slot='textarea']` 等，公开页面不受影响。
+- **shadcn 控件圆角 (10px)**: shadcn/ui 基类（button/dialog）用 `rounded-md`，经 `shadcn.css` 的 `@theme inline` 桥接到 `--sh-radius`（即 `--radius-md` = 10px）。单行 Input 的最终圆角由全站 `--input-radius`（12px）覆盖。这里是 Tailwind 与站点 token 的接缝，也是唯一一处"工具类默认值不等于同名 CSS 变量"的地方——调整前台圆角时先看这里，不要改 Tailwind 工具类。
+- **管理后台控件圆角 (12px)**: 后台的按钮、输入框、表单控件与 tabs 药丸统一 12px。作用范围是 `.admin-layout` 下的 `[data-slot='button']`、`[data-slot='input']`、`[data-slot='textarea']` 等，公开按钮不受影响；单行输入框外观由全站共享 input 规范统一。
 - **卡片圆角 (10px)**: 紧凑卡片与旧版表格包裹器使用 `--radius-md`。
 - **嵌套表面与对话框圆角 (16px)**: shadcn `Card`（`rounded-xl`）、对话框、嵌套表面。
 - **后台大面板圆角 (20px)**: 数据面板（`--admin-table-panel-radius`）、`.admin-panel-card`——更明显的圆润感，像精装书的封面弧度。
@@ -339,10 +339,10 @@ components:
 - **Internal Padding:** 说明面板使用 `--admin-context-panel-padding`；数据面板工具条使用 `--admin-data-panel-toolbar-padding-block` × `--admin-data-panel-toolbar-padding-inline`，存在面板标题时仍使用 `1.5rem 1.5rem 1.25rem`
 
 ### Inputs / Fields
-- **Style:** 管理后台输入框用 `--admin-border-strong` 描边、`--admin-panel` 底色、12px 圆角（--admin-input-radius），高度 2.5rem（--admin-control-height）。公共页保持 1px `var(--border)` + 6px 圆角。
-- **Focus:** 边框切换到强调色或 `--ring`，外加 3px 半透明光晕——焦点是可见的颜色变化，不只是光晕。
-- **Compact Variant:** `.admin-input--compact` 最小高度 34px（2.125rem），用于工具栏紧凑场景，与按钮一起取 12px 圆角。
-- **Multiline:** 输入框的固定高度规则不得作用于 textarea。长提示词、章节正文、JSON 使用可伸缩的多行区域。
+- **Style:** 全站单行 input 与多行 textarea 使用白色纸面、1px 细暖灰描边、12px 圆角和无静态阴影，参照「留空，由 AI 拟定」输入框样式。共享外观由 `styles/input-fields.css` 提供，读取 `--input-background`、`--input-border`、`--input-radius`；默认分别映射 `--bg-card`、`--border`、`--radius-lg`，深色随语义变量适配。覆盖共享 Input/Textarea、原生文本/数字/密码/搜索/日期输入、多行文本与弹窗表单，页面不再自行加深边框或添加静态阴影。
+- **Focus:** 键盘聚焦使用 `--input-focus-border` 强调色边框及 `--input-focus-shadow` 2px 半透明光晕；`aria-invalid="true"` 使用危险色边框和聚焦光晕。不得用静态阴影替代焦点状态。
+- **Geometry:** 后台常规控件继续使用 40px 高度，公共页保留原有布局尺寸和字体；搜索图标内缩、密码显示按钮及输入宽度由调用点保留。`.admin-input--compact` 为 34px，分页跳转框保留 32px 高度和居中零内边距；视觉外观统一，不统一扩大尺寸。复合 Command 搜索框将描边放在含图标的外层容器，内部 input 保持透明。
+- **Multiline:** textarea 与单行输入共用白色纸面、细暖灰边框、12px 圆角和无静态阴影，聚焦与非法状态沿用共享输入 token；文本与占位字色沿用共享语义色。单行输入的固定高度规则不得作用于 textarea；保留各场景的最小高度、换行、行高、内边距与拖动调整大小。长提示词、章节正文、JSON 使用可伸缩的多行区域。
 
 ### Named Rules
 **The Fit-Content Rule.** 输入框宽度随用途与提示信息而定，不设拉伸：短提示短框，长内容长框。避免 `flex-1` / `w-full` 把输入框撑满整行——工具栏里的过滤/搜索框用 `min-w` 限定下限、内容自然决定宽度，长 URL 输入才放宽。

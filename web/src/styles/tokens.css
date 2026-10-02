@@ -21,6 +21,12 @@
   --accent-ink: var(--accent-ink-light, #ffffff);
   --border: #ece8e2;
   --border-light: #f3f0eb;
+  /* 全站单行输入框：白色纸面、细暖灰边框、无静态阴影。随主题继承。 */
+  --input-background: var(--bg-card);
+  --input-border: var(--border);
+  --input-radius: var(--radius-lg);
+  --input-focus-border: var(--accent);
+  --input-focus-shadow: 0 0 0 2px var(--focus-ring);
   --focus-ring: rgba(139, 96, 69, 0.24);
   --selection-bg: rgba(212, 184, 150, 0.5);
   --overlay-bg: rgba(33, 30, 26, 0.45);

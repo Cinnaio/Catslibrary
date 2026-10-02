@@ -12,13 +12,13 @@
 
 .admin-layout [data-slot='input'] {
   height: var(--admin-control-height);
-  border-color: var(--admin-border-strong);
-  background: var(--admin-panel);
+  border-color: var(--input-border);
+  background: var(--input-background);
 }
 
 .admin-layout [data-slot='textarea'] {
-  border-color: var(--admin-border-strong);
-  background: var(--admin-panel);
+  border-color: var(--input-border);
+  background: var(--input-background);
 }
 
 .admin-layout [data-slot='button'][data-variant='default'] {
