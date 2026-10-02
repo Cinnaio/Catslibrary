@@ -5,7 +5,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SearchProvider } from '../context/SearchContext'
 
 vi.mock('../context/SessionContext', () => ({
-  useSession: () => ({ user: null }),
+  useSession: () => ({ user: { id: 'reader' } }),
 }))
 
 vi.mock('../context/ContentPolicyContext', () => {
@@ -32,13 +32,13 @@ vi.mock('../lib/api', () => ({
 }))
 
 vi.mock('../lib/storage', () => ({
-  getRecentHistory: () => [],
+  getRecentHistory: () => [{ novelId: 'recent-book', chapterId: 'chapter-1', novelTitle: '历史作品', timestamp: 1 }],
   saveHistory: vi.fn(),
   clearHistory: vi.fn(),
 }))
 
 import Home from './Home'
-import { novelsApi } from '../lib/api'
+import { novelsApi, progressApi } from '../lib/api'
 
 function SearchLocation() {
   const location = useLocation()
@@ -69,6 +69,14 @@ beforeAll(() => {
 })
 
 describe('Home hero search', () => {
+  it('已有阅读历史时首页也不显示最近阅读或请求近期进度', async () => {
+    renderHome()
+    await waitFor(() => expect(novelsApi.list).toHaveBeenCalled())
+    expect(screen.queryByRole('region', { name: '最近阅读' })).not.toBeInTheDocument()
+    expect(screen.queryByText('历史作品')).not.toBeInTheDocument()
+    expect(progressApi.recent).not.toHaveBeenCalled()
+  })
+
   it('中央搜索继承分享地址的查询词，提交时修剪查询并保留其他参数', async () => {
     const user = userEvent.setup()
     renderHome('/?q=原查询&v=123')

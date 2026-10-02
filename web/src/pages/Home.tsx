@@ -1,16 +1,13 @@
 /**
- * Home 页 —— 小说网格、搜索（含拼音）、分类/状态筛选、排序、分页、最近阅读。
+ * Home 页 —— 小说网格、搜索（含拼音）、分类/状态筛选、排序、分页。
  * 由 Novel-KV js/home.js 平移为 React。
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import type { Novel, ReadingHistoryEntry } from '@shared/types'
-import { novelsApi, progressApi } from '../lib/api'
-import { getRecentHistory, saveHistory, clearHistory } from '../lib/storage'
+import type { Novel } from '@shared/types'
+import { novelsApi } from '../lib/api'
 import { pinyinMatch } from '../lib/pinyin'
-import { timeAgo } from '../lib/format'
 import { getDemoNovels } from '../lib/demo'
-import { useSession } from '../context/SessionContext'
 import { useSearch } from '../context/SearchContext'
 import { useContentPolicy } from '../context/ContentPolicyContext'
 import { filterVisibleCategories } from '@shared/restricted-categories'
@@ -31,72 +28,8 @@ function novelMatches(n: Novel, q: string, usePinyin: boolean): Promise<boolean>
   return (n.title || '').toLowerCase().includes(query) || (n.author || '').toLowerCase().includes(query) || (n.description || '').toLowerCase().includes(query)
 }
 
-interface ServerRecent {
-  novelId: string
-  novelTitle?: string
-  chapterId: string
-  chapterTitle?: string
-  chapterOrder?: number
-  scrollPercent?: number
-  pageMode?: string
-  pageIndex?: number
-  pagePercent?: number
-  updatedAt?: number
-  timestamp?: number
-}
-
-function normalizeRecent(item: ServerRecent | ReadingHistoryEntry | undefined | null): ReadingHistoryEntry | null {
-  if (!item || !item.novelId || !item.chapterId) return null
-  const s = item as ServerRecent
-  return {
-    novelId: item.novelId,
-    novelTitle: item.novelTitle || '',
-    chapterId: item.chapterId,
-    chapterTitle: item.chapterTitle || '',
-    chapterOrder: item.chapterOrder || 0,
-    scrollPercent: s.scrollPercent || 0,
-    pageMode: s.pageMode || '',
-    pageIndex: s.pageIndex || 0,
-    pagePercent: s.pagePercent || 0,
-    timestamp: Number(s.updatedAt || s.timestamp || 0) || 0,
-  }
-}
-
-function mergeRecent(local: ReadingHistoryEntry[], server: ServerRecent[], limit: number): ReadingHistoryEntry[] {
-  const byNovel = new Map<string, ReadingHistoryEntry>()
-  function add(item: ServerRecent | ReadingHistoryEntry | null) {
-    const norm = normalizeRecent(item)
-    if (!norm) return
-    const existing = byNovel.get(norm.novelId)
-    if (!existing || norm.timestamp >= existing.timestamp) {
-      const merged = { ...(existing || {}), ...norm } as ReadingHistoryEntry
-      if (existing && !norm.pageMode) {
-        merged.pageMode = existing.pageMode || ''
-        merged.pageIndex = existing.pageIndex || 0
-        merged.pagePercent = existing.pagePercent || 0
-      }
-      byNovel.set(norm.novelId, merged)
-    }
-  }
-  local.forEach((h) => add(h))
-  server.forEach((h) => add(h))
-  return [...byNovel.values()].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)).slice(0, limit)
-}
-
-function applyTombstones(tombstones: Array<{ novelId: string; updatedAt?: number }> | undefined): void {
-  ;(tombstones || []).forEach((t) => {
-    if (!t || !t.novelId) return
-    const history = getRecentHistory(100).find((h) => h.novelId === t.novelId)
-    if (!history) return
-    const deletedAt = Number(t.updatedAt || 0) || 0
-    const localAt = Number(history.timestamp || 0) || 0
-    if (deletedAt >= localAt) clearHistory(t.novelId)
-  })
-}
-
 export default function Home() {
   const { query, setQuery } = useSearch()
-  const { user } = useSession()
   const [searchParams, setSearchParams] = useSearchParams()
   const { mode, safeMode, setMode, isAllowed, adultContentEnabled } = useContentPolicy()
 
@@ -112,36 +45,41 @@ export default function Home() {
   const [retryCount, setRetryCount] = useState(0)
   const [hiddenRestricted, setHiddenRestricted] = useState(false)
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
-  const [recent, setRecent] = useState<ReadingHistoryEntry[]>([])
 
   // 防抖后的搜索词：loadNovels 只依赖它，避免"每次击键立即请求 + 300ms 后再请求"的双发
   const [debouncedQuery, setDebouncedQuery] = useState(query)
   // 响应序号守卫：丢弃乱序返回的过期响应（与 NovelsTab 相同模式）
   const loadSeq = useRef(0)
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const sortTabsRef = useRef<HTMLDivElement>(null)
+  const sortIndicatorRef = useRef<HTMLSpanElement>(null)
+  const animateSortRef = useRef(false)
   const urlQuery = searchParams.get('q') || ''
+
+  useLayoutEffect(() => {
+    const tabs = sortTabsRef.current
+    const indicator = sortIndicatorRef.current
+    if (!tabs || !indicator) return
+    function positionIndicator(animate = false) {
+      const active = tabs!.querySelector<HTMLButtonElement>('[aria-pressed="true"]')
+      if (!active) return
+      const transform = `translate(${active.offsetLeft}px, ${active.offsetTop + active.offsetHeight - 2}px) scaleX(${active.offsetWidth})`
+      if (indicator!.style.transform === transform) return
+      indicator!.style.transition = animate ? '' : 'none'
+      indicator!.style.transform = transform
+      indicator!.style.opacity = '1'
+    }
+    positionIndicator(animateSortRef.current)
+    animateSortRef.current = false
+    const observer = new ResizeObserver(() => positionIndicator())
+    observer.observe(tabs)
+    return () => observer.disconnect()
+  }, [sort])
 
   // 地址栏 ?q= 是可分享搜索状态；浏览器前进/后退时同步回输入框。
   useEffect(() => {
     setQuery(urlQuery)
   }, [setQuery, urlQuery])
-
-  const loadRecent = useCallback(async () => {
-    const local = getRecentHistory(5)
-    if (!user) {
-      setRecent(local)
-      return
-    }
-    try {
-      const data = await progressApi.recent(5)
-      applyTombstones(data.tombstones)
-      const merged = mergeRecent(getRecentHistory(5), data.progress, 5)
-      merged.forEach((h) => saveHistory(h.novelId, h))
-      setRecent(merged)
-    } catch {
-      setRecent(local)
-    }
-  }, [user])
 
   // 拼音查询加载数据映射
   const loadDemo = useCallback(
@@ -175,9 +113,8 @@ export default function Home() {
       const visibleCategories = safeMode ? filterVisibleCategories([...cats]) : [...cats]
       setCategories(visibleCategories.sort((a, b) => a.length - b.length || a.localeCompare(b)))
       setHiddenRestricted(restrictedCount > 0 || visibleCategories.length !== cats.size)
-      void loadRecent()
     },
-    [activeCategory, activeStatus, currentPage, debouncedQuery, sort, loadRecent, safeMode, isAllowed],
+    [activeCategory, activeStatus, currentPage, debouncedQuery, sort, safeMode, isAllowed],
   )
 
   const loadNovels = useCallback(async () => {
@@ -219,7 +156,6 @@ export default function Home() {
       setHiddenRestricted(Boolean(data.hiddenRestricted) || restrictedInPage || visibleCategories.length !== availableCategories.length)
       setApiFailed(false)
       setLoading(false)
-      void loadRecent()
     } catch {
       if (seq !== loadSeq.current) return
       // API 不可用 → 演示数据 + 重试横幅
@@ -229,7 +165,7 @@ export default function Home() {
       if (seq !== loadSeq.current) return
       setLoading(false)
     }
-  }, [currentPage, debouncedQuery, activeCategory, activeStatus, sort, loadDemo, loadRecent, safeMode, isAllowed, retryCount])
+  }, [currentPage, debouncedQuery, activeCategory, activeStatus, sort, loadDemo, safeMode, isAllowed, retryCount])
 
   useEffect(() => {
     void loadNovels()
@@ -260,12 +196,6 @@ export default function Home() {
 
   const hasFilter = !!(query || activeCategory || activeStatus)
   const activeFilterCount = Number(!!activeCategory) + Number(!!activeStatus)
-
-  function removeRecent(novelId: string) {
-    clearHistory(novelId)
-    if (user) void progressApi.remove(novelId).catch(() => {})
-    setRecent(getRecentHistory(5))
-  }
 
   function submitSearch() {
     const q = query.trim()
@@ -330,45 +260,6 @@ export default function Home() {
 
       <section id="homeLibrary" className="section section--hero home-library">
         <div className="container home-shell">
-          {recent.length > 0 && (
-            <section className="recent-reading" aria-label="最近阅读">
-              <div className="recent-reading__head">
-                <h2 className="recent-reading__title">最近阅读</h2>
-                <span className="recent-reading__hint">接着上次的故事</span>
-              </div>
-              <div className="recent-reading__list">
-                {recent.map((h) => {
-                  const chapterLabel = h.chapterTitle || (h.chapterOrder ? `第${h.chapterOrder}章` : '')
-                  return (
-                    <div className="recent-reading__item" key={h.novelId}>
-                      <Link to={`/read/${encodeURIComponent(h.novelId)}/${encodeURIComponent(h.chapterId)}`} className="recent-reading__link">
-                        <span className="recent-reading__cover" aria-hidden="true">
-                          {(h.novelTitle || '书').slice(0, 1)}
-                        </span>
-                        <span className="recent-reading__text">
-                          <span className="recent-reading__novel">{h.novelTitle || h.novelId}</span>
-                          {chapterLabel && <span className="recent-reading__chapter">{chapterLabel}</span>}
-                          <span className="recent-reading__time">{timeAgo(h.timestamp)}</span>
-                        </span>
-                      </Link>
-                      <button
-                        className="recent-reading__del"
-                        title="删除记录"
-                        aria-label={`删除 ${h.novelTitle || h.novelId} 的阅读记录`}
-                        onClick={() => removeRecent(h.novelId)}
-                      >
-                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-                          <line x1="2" y1="2" x2="10" y2="10" />
-                          <line x1="10" y1="2" x2="2" y2="10" />
-                        </svg>
-                      </button>
-                    </div>
-                  )
-                })}
-              </div>
-            </section>
-          )}
-
           <button
             type="button"
             className="home-filter-toggle"
@@ -447,7 +338,8 @@ export default function Home() {
           )}
 
           <div className="sort-tabs-row">
-            <div className="sort-tabs" role="group" aria-label="小说排序">
+            <div ref={sortTabsRef} className="sort-tabs" role="group" aria-label="小说排序">
+              <span ref={sortIndicatorRef} className="home-sort-indicator" aria-hidden="true" />
               {[
                 { v: 'updated_at', label: '最近更新' },
                 { v: 'created_at', label: '最近添加' },
@@ -458,8 +350,9 @@ export default function Home() {
                   key={tab.v}
                   className={`sort-tab${sort === tab.v ? ' sort-tab--active' : ''}`}
                   aria-pressed={sort === tab.v}
-                  onClick={() => {
+                  onClick={(event) => {
                     if (sort === tab.v) return
+                    animateSortRef.current = event.detail > 0
                     setSort(tab.v)
                     localStorage.setItem('homeSort', tab.v)
                     setCurrentPage(1)

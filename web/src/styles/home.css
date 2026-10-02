@@ -125,103 +125,6 @@
   flex-direction: column;
   gap: 0;
 }
-.home-page .recent-reading {
-  display: flex;
-  align-items: center;
-  gap: 28px;
-  padding: 22px 0 26px;
-  margin-bottom: 32px;
-  border-block: 1px solid var(--border);
-}
-.home-page .recent-reading__head {
-  flex: 0 0 95px;
-}
-.home-page .recent-reading__title {
-  margin: 0;
-  font-size: 0.875rem;
-  font-weight: 600;
-  line-height: 1.6;
-}
-.home-page .recent-reading__hint {
-  display: block;
-  margin-top: 4px;
-  font-size: 0.75rem;
-  color: var(--text-muted);
-}
-.home-page .recent-reading__list {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 20px 28px;
-}
-.home-page .recent-reading__item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-.home-page .recent-reading__link {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1 1 auto;
-  min-width: 0;
-  color: inherit;
-  text-decoration: none;
-}
-.home-page .recent-reading__cover {
-  display: grid;
-  place-items: center;
-  flex: 0 0 34px;
-  height: 46px;
-  border-radius: var(--radius-sm);
-  background: var(--accent-light);
-  color: var(--accent);
-  font-family: var(--font-serif);
-  font-size: 1rem;
-}
-.home-page .recent-reading__text {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  gap: 2px;
-}
-.home-page .recent-reading__novel {
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-.home-page .recent-reading__link:hover .recent-reading__novel {
-  color: var(--accent);
-}
-.home-page .recent-reading__chapter,
-.home-page .recent-reading__time {
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  color: var(--text-muted);
-  font-size: 0.75rem;
-}
-.home-page .recent-reading__del {
-  display: grid;
-  place-items: center;
-  flex: 0 0 32px;
-  height: 32px;
-  padding: 0;
-  border: 0;
-  border-radius: var(--radius-md);
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-}
-.home-page .recent-reading__del:hover {
-  background: var(--bg-hover);
-  color: var(--color-danger);
-}
 .home-page .home-filter-toggle {
   display: none;
 }
@@ -292,6 +195,7 @@
   box-shadow: none;
 }
 .home-page .sort-tabs {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   gap: 24px;
@@ -323,11 +227,19 @@
   font-weight: 600;
 }
 .home-page .sort-tab--active::after {
-  content: '';
+  content: none;
+}
+.home-page .home-sort-indicator {
   position: absolute;
-  inset: auto 0 0;
+  top: 0;
+  left: 0;
+  width: 1px;
   height: 2px;
   background: var(--accent);
+  opacity: 0;
+  pointer-events: none;
+  transform-origin: left center;
+  transition: transform var(--tabs-segmented-transition);
 }
 .home-page .sort-tabs-row__meta {
   display: flex;
@@ -575,15 +487,7 @@
   margin-bottom: 24px;
   background: var(--border);
 }
-@media (hover: hover) and (pointer: fine) {
-  .home-page .recent-reading__del {
-    opacity: 0;
-  }
-  .home-page .recent-reading__item:hover .recent-reading__del,
-  .home-page .recent-reading__item:focus-within .recent-reading__del {
-    opacity: 1;
-  }
-}
+
 @media (min-width: 701px) {
   .home-page .home-hero__content {
     animation: home-hero-enter 300ms var(--ease-out);
@@ -603,13 +507,6 @@
   }
   .home-page .grid--novels {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .home-page .recent-reading {
-    gap: 20px;
-  }
-  .home-page .recent-reading__list {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 16px;
   }
 }
 @media (max-width: 700px) {
@@ -652,32 +549,6 @@
   }
   .home-page .home-search__shortcut {
     display: none;
-  }
-  .home-page .recent-reading {
-    display: block;
-    padding: 20px 0;
-    margin-bottom: 24px;
-  }
-  .home-page .recent-reading__head {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 16px;
-  }
-  .home-page .recent-reading__hint {
-    margin: 0;
-  }
-  .home-page .recent-reading__list {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 14px;
-  }
-  .home-page .recent-reading__del {
-    opacity: 1;
-    width: 36px;
-    height: 36px;
-    flex-basis: 36px;
   }
   .home-page .home-filter-toggle {
     display: flex;
@@ -770,6 +641,7 @@
   .home-page .home-search__submit,
   .home-page .filter-btn,
   .home-page .sort-tab,
+  .home-page .home-sort-indicator,
   .home-page .novel-card {
     transition: none;
   }
