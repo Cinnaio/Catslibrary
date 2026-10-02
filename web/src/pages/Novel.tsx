@@ -114,7 +114,9 @@ export default function Novel() {
   // 只在折叠态判定（展开态按钮文案切换为"收起"，状态沿用）。
   // 不能只在挂载时量一次：自定义字体异步加载会改变行高/字宽、视口缩放会改变 68ch 实际宽度，
   // 这两者都会改变行数，导致"展开全部"按钮时有时无。字体就绪和容器尺寸变化时复测。
+  // 小说数据可能先于章节/进度返回；loading 结束后简介才挂载，届时必须重新绑定检测。
   useEffect(() => {
+    if (loading) return
     const el = descRef.current
     if (!el) return
     let disposed = false
@@ -130,7 +132,7 @@ export default function Novel() {
       disposed = true
       ro.disconnect()
     }
-  }, [novel, descExpanded])
+  }, [novel, loading, descExpanded])
 
   const load = useCallback(async () => {
     const stale = () => activeIdRef.current !== id
