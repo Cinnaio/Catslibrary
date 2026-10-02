@@ -42,7 +42,9 @@ const SORT_ORDERS: Record<string, 'ASC' | 'DESC'> = { asc: 'ASC', desc: 'DESC' }
 novelsRoutes.get('/', optionalUser(), async (c) => {
   const db = getDb()
   const access = await resolveContentAccess(c)
-  const canViewRestricted = access.canViewRestricted
+  // 书库的安全模式是列表筛选；管理员权限仍保留给后台与详情访问。
+  // adult 仅表示希望查看，能否读取仍由服务端访问凭证决定。
+  const canViewRestricted = access.canViewRestricted && c.req.query('contentMode') !== 'safe'
   const search = (c.req.query('search') || '').trim()
   const category = c.req.query('category') || ''
   // Keep the single-category contract; multiple labels are combined with AND.
@@ -114,7 +116,7 @@ novelsRoutes.get('/', optionalUser(), async (c) => {
   const total = count?.total || 0
 
   const { rows } = await db.query<NovelRow>(
-    `SELECT * FROM novels ${where} ORDER BY ${sort} ${order} LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+    `SELECT * FROM novels ${where} ORDER BY ${sort} ${order}, id ASC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
     [...params, limit, offset],
   )
   const novels = rows.map(rowToNovel).filter((n) => n !== null)

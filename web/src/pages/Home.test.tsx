@@ -1,20 +1,22 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SearchProvider } from '../context/SearchContext'
 import { ConfirmProvider } from '../components/feedback'
 
+const policy = vi.hoisted(() => ({ safeMode: true }))
+
 vi.mock('../context/SessionContext', () => ({
   useSession: () => ({ user: { id: 'reader' } }),
 }))
 
 vi.mock('../context/ContentPolicyContext', () => {
-  const isAllowed = () => true
+  const isAllowed = (novel: { contentRating?: string }) => !policy.safeMode || novel.contentRating !== 'restricted'
   return {
     useContentPolicy: () => ({
-      mode: 'safe',
-      safeMode: true,
+      mode: policy.safeMode ? 'safe' : 'adult',
+      safeMode: policy.safeMode,
       setMode: vi.fn(),
       isAllowed,
       adultContentEnabled: false,
@@ -23,6 +25,7 @@ vi.mock('../context/ContentPolicyContext', () => {
 })
 
 vi.mock('../lib/api', () => ({
+  url: (path: string) => `/api${path}`,
   novelsApi: {
     list: vi.fn().mockResolvedValue({ novels: [], totalPages: 1, availableCategories: [] }),
   },
@@ -33,6 +36,7 @@ vi.mock('../lib/api', () => ({
 }))
 
 vi.mock('../lib/storage', () => ({
+  getNovelHistory: () => null,
   getRecentHistory: () => [{ novelId: 'recent-book', chapterId: 'chapter-1', novelTitle: '历史作品', timestamp: 1 }],
   saveHistory: vi.fn(),
   clearHistory: vi.fn(),
@@ -40,6 +44,12 @@ vi.mock('../lib/storage', () => ({
 
 import Home from './Home'
 import { novelsApi, progressApi } from '../lib/api'
+import type { Novel } from '@shared/types'
+
+function book(id: string, title: string, contentRating: Novel['contentRating'] = 'general'): Novel {
+  return { id, title, author: '作者', description: '', coverUrl: '', categories: [], status: 'completed',
+    contentRating, sourceUrl: '', chapterCount: 1, remoteChapterCount: 1, updateCheckedAt: 1, createdAt: 1, updatedAt: 1 }
+}
 
 function SearchLocation() {
   const location = useLocation()
@@ -60,7 +70,9 @@ function renderHome(entry = '/') {
 }
 
 beforeEach(() => {
+  policy.safeMode = true
   vi.clearAllMocks()
+  vi.mocked(novelsApi.list).mockReset()
   vi.mocked(novelsApi.list).mockResolvedValue({ novels: [], totalPages: 1, availableCategories: [], total: 0, page: 1, limit: 20, hasMore: false })
   localStorage.clear()
 })
@@ -73,6 +85,72 @@ beforeAll(() => {
 })
 
 describe('Home hero search', () => {
+  it('安全模式在分页前过滤，当前页补满可见作品并显示过滤后的页数', async () => {
+    policy.safeMode = true
+    const all = Array.from({ length: 90 }, (_, i) => book(`book-${i}`, `作品${i}`, i % 2 ? 'restricted' : 'general'))
+    vi.mocked(novelsApi.list).mockImplementation(async (params = {}) => {
+      const visible = params.contentMode === 'safe' ? all.filter(novel => novel.contentRating !== 'restricted') : all
+      const page = Number(params.page || 1), limit = Number(params.limit || 20)
+      return { novels: visible.slice((page - 1) * limit, page * limit), total: visible.length,
+        page, limit, totalPages: Math.ceil(visible.length / limit), hasMore: page * limit < visible.length, availableCategories: [] }
+    })
+    renderHome()
+    await screen.findByText('作品0')
+    expect(document.querySelectorAll('.novel-card')).toHaveLength(20)
+    expect(screen.getByText('共 3 页')).toBeInTheDocument()
+    expect(screen.getByText('作品38')).toBeInTheDocument()
+    await userEvent.setup().click(screen.getByRole('button', { name: '下一页' }))
+    await screen.findByText('作品40')
+    expect(document.querySelectorAll('.novel-card')).toHaveLength(20)
+    expect(screen.queryByText('作品0')).not.toBeInTheDocument()
+  })
+
+  it('拼音搜索包括第100本以后的作品，命中集合先排序再分页', async () => {
+    const all = Array.from({ length: 130 }, (_, i) => book(`book-${i}`, i < 100 ? `云海${i}` : `山间${i}`))
+    vi.mocked(novelsApi.list).mockImplementation(async (params = {}) => {
+      const page = Number(params.page || 1), limit = Number(params.limit || 20)
+      return { novels: all.slice((page - 1) * limit, page * limit), total: all.length,
+        page, limit, totalPages: Math.ceil(all.length / limit), hasMore: page * limit < all.length, availableCategories: [] }
+    })
+    renderHome('/?q=shanjian')
+    await screen.findByText('山间100', {}, { timeout: 5000 })
+    expect(document.querySelectorAll('.novel-card')).toHaveLength(20)
+    expect(screen.getByText('共 2 页')).toBeInTheDocument()
+    await userEvent.setup().click(screen.getByRole('button', { name: '下一页' }))
+    await screen.findByText('山间120')
+    expect(document.querySelectorAll('.novel-card')).toHaveLength(10)
+    expect(screen.queryByText('山间100')).not.toBeInTheDocument()
+  })
+
+  it('拼音搜索匹配作者与简介，不会被书名匹配的 Promise 短路', async () => {
+    const books = [
+      { ...book('author-match', '云海'), author: '山间' },
+      { ...book('desc-match', '星辰'), description: '山间故事' },
+    ]
+    vi.mocked(novelsApi.list).mockResolvedValue({ novels: books, total: 2, page: 1, limit: 100,
+      totalPages: 1, hasMore: false, availableCategories: [] })
+    renderHome('/?q=shanjian')
+    await screen.findByText('云海')
+    expect(screen.getByText('星辰')).toBeInTheDocument()
+    expect(document.querySelectorAll('.novel-card')).toHaveLength(2)
+  })
+
+  it('从成人模式后续页切换安全模式时回到第一页', async () => {
+    policy.safeMode = false
+    vi.mocked(novelsApi.list).mockResolvedValue({ novels: [book('book-1', '云海')], total: 45,
+      page: 1, limit: 20, totalPages: 3, hasMore: true, availableCategories: [] })
+    const view = renderHome()
+    await screen.findByText('云海')
+    await userEvent.setup().click(screen.getByRole('button', { name: '下一页' }))
+    await waitFor(() => expect(novelsApi.list).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2, contentMode: 'adult' })))
+    await act(async () => {
+      policy.safeMode = true
+      view.rerender(<MemoryRouter><SearchProvider><ConfirmProvider><Home /></ConfirmProvider></SearchProvider><SearchLocation /></MemoryRouter>)
+    })
+    await waitFor(() => expect(novelsApi.list).toHaveBeenLastCalledWith(expect.objectContaining({ page: 1, contentMode: 'safe' })))
+    expect(screen.getByLabelText('跳转到指定页')).toHaveValue(1)
+  })
+
   it('分类默认收敛、更多标签分组，收起后保留已选条件并可清除', async () => {
     const availableCategories = ['现代', '古言', '校园', '校園', '言情', '玄幻', '仙侠', '重生', '快穿', '甜文', '百合', '简体版', '其他题材', 'h', 'np']
     vi.mocked(novelsApi.list).mockResolvedValue({ novels: [], totalPages: 1, availableCategories, total: 0, page: 1, limit: 20, hasMore: false })

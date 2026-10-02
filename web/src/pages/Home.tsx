@@ -24,8 +24,8 @@ function isPinyinQueryText(value: string): boolean {
   return !!value && /^[a-z\s]+$/i.test(value)
 }
 
-function novelMatches(n: Novel, q: string, usePinyin: boolean): Promise<boolean> | boolean {
-  if (usePinyin) return pinyinMatch(n.title, q) || pinyinMatch(n.author, q) || pinyinMatch(n.description || '', q)
+async function novelMatches(n: Novel, q: string, usePinyin: boolean): Promise<boolean> {
+  if (usePinyin) return await pinyinMatch(n.title, q) || await pinyinMatch(n.author, q) || await pinyinMatch(n.description || '', q)
   const query = String(q || '').toLowerCase()
   return (n.title || '').toLowerCase().includes(query) || (n.author || '').toLowerCase().includes(query) || (n.description || '').toLowerCase().includes(query)
 }
@@ -53,6 +53,7 @@ export default function Home() {
   const [debouncedQuery, setDebouncedQuery] = useState(query)
   // 响应序号守卫：丢弃乱序返回的过期响应（与 NovelsTab 相同模式）
   const loadSeq = useRef(0)
+  const previousSafeMode = useRef(safeMode)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const sortTabsRef = useRef<HTMLDivElement>(null)
   const sortIndicatorRef = useRef<HTMLSpanElement>(null)
@@ -90,6 +91,14 @@ export default function Home() {
       setCurrentPage(1)
     }
   }, [safeMode, activeCategories])
+
+  useLayoutEffect(() => {
+    if (previousSafeMode.current === safeMode) return
+    previousSafeMode.current = safeMode
+    // 模式变化后旧页码不再对应当前可见集合，旧请求也不得写回。
+    loadSeq.current++
+    setCurrentPage(1)
+  }, [safeMode])
 
   // 拼音查询加载数据映射
   const loadDemo = useCallback(
@@ -137,6 +146,7 @@ export default function Home() {
       limit: isPinyin ? 100 : PAGE_LIMIT,
       sort,
       order: sort === 'title' ? 'asc' : 'desc',
+      contentMode: safeMode ? 'safe' : 'adult',
     }
     if (debouncedQuery && !isPinyin) params.search = debouncedQuery
     if (activeCategories.length === 1) params.category = activeCategories[0]!
@@ -145,10 +155,20 @@ export default function Home() {
 
     try {
       const data = await novelsApi.list(params)
+      if (seq !== loadSeq.current) return
       let items = data.novels
       let pages = data.totalPages || 1
       const availableCategories = data.availableCategories || []
-      const restrictedInPage = safeMode && items.some((n) => !isAllowed(n))
+      let restrictedInPage = safeMode && items.some((n) => !isAllowed(n))
+      // 拼音在客户端匹配，需要读取完整候选集合，不能仅搜索前100本。
+      if (isPinyin) {
+        for (let page = 2; page <= data.totalPages; page++) {
+          const next = await novelsApi.list({ ...params, page, includeCategories: 0 })
+          if (seq !== loadSeq.current) return
+          restrictedInPage ||= safeMode && next.novels.some((n) => !isAllowed(n))
+          items = items.concat(next.novels)
+        }
+      }
       if (safeMode) items = items.filter(isAllowed)
       if (isPinyin) {
         const q = debouncedQuery.toLowerCase()
@@ -185,12 +205,13 @@ export default function Home() {
 
   // 搜索防抖：query 落定 300ms 后写入 debouncedQuery（由其触发 loadNovels），并回到第一页
   useEffect(() => {
+    if (query === debouncedQuery) return
     const timer = setTimeout(() => {
       setCurrentPage(1)
       setDebouncedQuery(query)
     }, 300)
     return () => clearTimeout(timer)
-  }, [query])
+  }, [query, debouncedQuery])
 
   // ⌘K / Ctrl+K 聚焦搜索
   useEffect(() => {
