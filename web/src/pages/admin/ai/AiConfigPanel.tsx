@@ -1,11 +1,10 @@
-/** 配置面板：供应商信息、开关、配额（数字输入防抖自动保存）。 */
+/** 配置面板：供应商信息、开关、配额（分组确认后保存）。 */
 import AdminFormField from '@/components/admin/AdminFormField'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import { useEffect, useState } from 'react'
 import { Image, Sparkles } from 'lucide-react'
 import { aiApi, type AiSettings, type AiUsageSummary, type AiProviderConfig } from '@/lib/api'
 import { useToast } from '@/components/feedback'
-import { useDebouncedCallback } from '@/hooks/useDebounce'
 import { AdminPanelHeading } from '@/components/admin/AdminWorkspace'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -17,6 +16,8 @@ export default function AiConfigPanel(props: {
   settings: AiSettings | null
   provider: Provider | null
   providerConfig: AiProviderConfig | null
+  imageProviderConfig: AiProviderConfig | null
+  imageProvider?: Provider | null
   loading: boolean
   onReload: () => void
 }) {
@@ -25,21 +26,23 @@ export default function AiConfigPanel(props: {
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState('')
-  // 数字输入本地草稿：击键即时回显，保存走防抖
+  // 编辑只更新本地草稿，各组确认后保存。
   const [dailyQuotaDraft, setDailyQuotaDraft] = useState('')
   const [maxCharsDraft, setMaxCharsDraft] = useState('')
+  const [recapEnabledDraft, setRecapEnabledDraft] = useState(false)
 
   // 供应商配置编辑草稿：与 props.providerConfig 同步，单独保存
   const [providerDraft, setProviderDraft] = useState({ baseUrl: '', apiKey: '', model: '' })
-  const [savingProvider, setSavingProvider] = useState(false)
+  const savingProvider = saving
   // 图像供应商编辑草稿（封面生成用）
   const [imageProviderDraft, setImageProviderDraft] = useState({ baseUrl: '', apiKey: '', model: '' })
-  const [savingImageProvider, setSavingImageProvider] = useState(false)
+  const savingImageProvider = saving
 
   useEffect(() => {
+    setRecapEnabledDraft(!!props.settings?.recapEnabled)
     setDailyQuotaDraft(props.settings?.dailyQuota !== undefined ? String(props.settings.dailyQuota) : '')
     setMaxCharsDraft(props.settings?.maxChapterChars !== undefined ? String(props.settings.maxChapterChars) : '')
-  }, [props.settings])
+  }, [props.settings?.dailyQuota, props.settings?.maxChapterChars, props.settings?.recapEnabled])
 
   useEffect(() => {
     setProviderDraft({
@@ -48,32 +51,16 @@ export default function AiConfigPanel(props: {
       apiKey: props.providerConfig?.hasApiKey ? '••••••••' : '',
       model: props.providerConfig?.model || '',
     })
-  }, [props.providerConfig])
+  }, [props.providerConfig?.baseUrl, props.providerConfig?.model, props.providerConfig?.hasApiKey])
 
-  // 图像供应商草稿：从 settings 接口回显（AiTab 需把 imageProvider/imageProviderConfig 透传下来，
-  // 当前 AiConfigPanel 只接收文本三件套，这里改用一次 aiApi.settings 兜底取图像三件套，避免改父组件签名过多）
-  const [imageProviderConfig, setImageProviderConfig] = useState<AiProviderConfig | null>(null)
-  useEffect(() => {
-    let cancelled = false
-    void aiApi
-      .settings()
-      .then((res) => {
-        if (cancelled) return
-        setImageProviderConfig(res.imageProviderConfig)
-      })
-      .catch(() => {})
-    return () => {
-      cancelled = true
-    }
-  }, [props.providerConfig])
-
+  const imageProviderConfig = props.imageProviderConfig
   useEffect(() => {
     setImageProviderDraft({
       baseUrl: imageProviderConfig?.baseUrl || '',
       apiKey: imageProviderConfig?.hasApiKey ? '••••••••' : '',
       model: imageProviderConfig?.model || '',
     })
-  }, [imageProviderConfig])
+  }, [imageProviderConfig?.baseUrl, imageProviderConfig?.model, imageProviderConfig?.hasApiKey])
 
   useEffect(() => {
     async function loadUsage() {
@@ -87,62 +74,74 @@ export default function AiConfigPanel(props: {
     void loadUsage()
   }, [toast])
 
-  async function save(patch: Partial<AiSettings>) {
-    if (!props.settings) return
+  function resetReaderPolicy() {
+    setRecapEnabledDraft(!!props.settings?.recapEnabled)
+    setDailyQuotaDraft(String(props.settings?.dailyQuota ?? ''))
+    setMaxCharsDraft(String(props.settings?.maxChapterChars ?? ''))
+  }
+
+  function providerValues(config: AiProviderConfig | null) {
+    return { baseUrl: config?.baseUrl || '', model: config?.model || '', apiKey: config?.hasApiKey ? '••••••••' : '' }
+  }
+  function providerChanged(draft: typeof providerDraft, config: AiProviderConfig | null) {
+    return draft.baseUrl !== (config?.baseUrl || '') || draft.model !== (config?.model || '') || (draft.apiKey !== '' && draft.apiKey !== '••••••••')
+  }
+  const providerDirty = providerChanged(providerDraft, props.providerConfig)
+  const imageProviderDirty = providerChanged(imageProviderDraft, imageProviderConfig)
+  const readerDirty =
+    !!props.settings &&
+    (recapEnabledDraft !== props.settings.recapEnabled ||
+      dailyQuotaDraft !== String(props.settings.dailyQuota) ||
+      maxCharsDraft !== String(props.settings.maxChapterChars))
+
+  async function saveAll() {
+    if (saving || props.loading || !(providerDirty || imageProviderDirty || readerDirty)) return
+    const dailyQuota = Number(dailyQuotaDraft)
+    const maxChapterChars = Number(maxCharsDraft)
+    if (
+      readerDirty &&
+      (!dailyQuotaDraft.trim() ||
+        !maxCharsDraft.trim() ||
+        !Number.isInteger(dailyQuota) ||
+        dailyQuota < 0 ||
+        dailyQuota > 1000 ||
+        !Number.isInteger(maxChapterChars) ||
+        maxChapterChars < 500 ||
+        maxChapterChars > 20000)
+    ) {
+      toast('每日生成上限需为 0–1000 的整数，正文字数需为 500–20000 的整数', 'error')
+      return
+    }
     setSaving(true)
+    const completed: string[] = []
+    function providerPatch(draft: typeof providerDraft) {
+      return {
+        baseUrl: draft.baseUrl.trim(),
+        model: draft.model.trim(),
+        ...(draft.apiKey !== '' && draft.apiKey !== '••••••••' ? { apiKey: draft.apiKey.trim() } : {}),
+      }
+    }
     try {
-      await aiApi.saveSettings(patch)
-      toast('已保存 AI 设置', 'success')
-      props.onReload()
+      if (providerDirty) {
+        await aiApi.saveProviderConfig(providerPatch(providerDraft))
+        completed.push('文本供应商')
+        setProviderDraft((draft) => ({ ...draft, apiKey: draft.apiKey.trim() ? '••••••••' : '' }))
+      }
+      if (imageProviderDirty && imageProviderConfig) {
+        await aiApi.saveProviderConfig({ ...providerPatch(imageProviderDraft), scope: 'image' })
+        completed.push('图像供应商')
+        setImageProviderDraft((draft) => ({ ...draft, apiKey: draft.apiKey.trim() ? '••••••••' : '' }))
+      }
+      if (readerDirty) {
+        await aiApi.saveSettings({ recapEnabled: recapEnabledDraft, dailyQuota, maxChapterChars })
+        completed.push('读者策略')
+      }
+      toast('已保存 AI 配置', 'success')
     } catch (err) {
-      toast((err as Error).message || '保存失败', 'error')
+      toast(`${(err as Error).message || '保存失败'}${completed.length ? `；已保存${completed.join('、')}，其余修改保留，可重试` : ''}`, 'error')
     } finally {
+      if (completed.length) props.onReload()
       setSaving(false)
-    }
-  }
-
-  // 防抖保存：原实现每次击键都发一次 PUT
-  const saveDebounced = useDebouncedCallback((patch: Partial<AiSettings>) => void save(patch), 800)
-
-  /** 保存供应商配置：密钥占位符视为「不改动」，传 undefined 给后端。 */
-  async function saveProvider() {
-    setSavingProvider(true)
-    try {
-      const apiKeyTouched = providerDraft.apiKey !== '••••••••'
-      await aiApi.saveProviderConfig({
-        baseUrl: providerDraft.baseUrl.trim(),
-        model: providerDraft.model.trim(),
-        // 用户没动密钥框就不传该字段，避免用占位符覆盖已存密钥
-        ...(apiKeyTouched ? { apiKey: providerDraft.apiKey.trim() } : {}),
-      })
-      toast('已保存供应商配置', 'success')
-      props.onReload()
-    } catch (err) {
-      toast((err as Error).message || '保存供应商配置失败', 'error')
-    } finally {
-      setSavingProvider(false)
-    }
-  }
-
-  /** 保存图像供应商配置：密钥占位符视为「不改动」，传 undefined 给后端；scope=image 走图像三件套。 */
-  async function saveImageProvider() {
-    setSavingImageProvider(true)
-    try {
-      const apiKeyTouched = imageProviderDraft.apiKey !== '••••••••'
-      await aiApi.saveProviderConfig({
-        baseUrl: imageProviderDraft.baseUrl.trim(),
-        model: imageProviderDraft.model.trim(),
-        scope: 'image',
-        ...(apiKeyTouched ? { apiKey: imageProviderDraft.apiKey.trim() } : {}),
-      })
-      toast('已保存图像供应商配置', 'success')
-      // 重新拉取图像三件套回显
-      const res = await aiApi.settings()
-      setImageProviderConfig(res.imageProviderConfig)
-    } catch (err) {
-      toast((err as Error).message || '保存图像供应商配置失败', 'error')
-    } finally {
-      setSavingImageProvider(false)
     }
   }
 
@@ -165,6 +164,7 @@ export default function AiConfigPanel(props: {
 
   const settings = props.settings
   const provider = props.provider
+  const imageConfigured = props.imageProvider?.configured ?? !!imageProviderConfig?.hasApiKey
 
   return (
     <div className="ai-config-panel">
@@ -191,7 +191,7 @@ export default function AiConfigPanel(props: {
                   id="ai-base-url"
                   placeholder="https://api.deepseek.com/v1"
                   value={providerDraft.baseUrl}
-                  disabled={savingProvider}
+                  disabled={savingProvider || props.loading}
                   onChange={(e) => setProviderDraft((p) => ({ ...p, baseUrl: e.target.value }))}
                 />
               </AdminFormField>
@@ -204,19 +204,19 @@ export default function AiConfigPanel(props: {
                   id="ai-model"
                   placeholder="deepseek-v4-flash"
                   value={providerDraft.model}
-                  disabled={savingProvider}
+                  disabled={savingProvider || props.loading}
                   onChange={(e) => setProviderDraft((p) => ({ ...p, model: e.target.value }))}
                 />
               </AdminFormField>
             </div>
-            <AdminFormField label="API Key" htmlFor="ai-api-key" hint="密钥以明文写入 data/runtime-config.json（已 gitignore）；留空不改动，清空填空格保存">
+            <AdminFormField label="API Key" htmlFor="ai-api-key" hint="留空保留当前密钥；如需清空，填入一个空格后保存">
               <Input
                 id="ai-api-key"
                 type="password"
                 autoComplete="off"
                 placeholder={props.providerConfig?.hasApiKey ? '已设定，留空表示不改动' : '输入密钥后保存'}
                 value={providerDraft.apiKey}
-                disabled={savingProvider}
+                disabled={savingProvider || props.loading}
                 onChange={(e) => setProviderDraft((p) => ({ ...p, apiKey: e.target.value }))}
                 onFocus={(e) => {
                   // 密钥占位符在聚焦时清空，方便覆盖输入
@@ -225,11 +225,13 @@ export default function AiConfigPanel(props: {
                 }}
               />
             </AdminFormField>
-            <div className="ai-provider-actions flex flex-wrap items-center gap-3">
-              <Button disabled={savingProvider} onClick={() => void saveProvider()}>
-                {savingProvider ? '保存中…' : '保存供应商配置'}
+            <div className="ai-provider-actions ai-provider-test">
+              <span className="text-xs text-muted-foreground" aria-live="polite">
+                {testResult || '测试使用当前已保存的文本配置'}
+              </span>
+              <Button variant="secondary" disabled={testing || !provider?.configured || saving} onClick={() => void runTest()}>
+                {testing ? '测试中…' : '测试连接'}
               </Button>
-              <span className="text-xs text-muted-foreground">真实环境变量 / .env 设定的值优先，后台修改不覆盖显式设定</span>
             </div>
           </section>
 
@@ -242,12 +244,12 @@ export default function AiConfigPanel(props: {
                   图像供应商
                 </h3>
                 <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                  {imageProviderConfig?.hasApiKey ? `已配置 · ${imageProviderConfig.model || '默认模型'}` : '未配置，AI 封面生成不可用'}
+                  {imageConfigured
+                    ? `${props.imageProvider?.host || '已配置'} · ${props.imageProvider?.model || imageProviderConfig?.model || '默认模型'}`
+                    : '未配置，AI 封面生成不可用'}
                 </p>
               </div>
-              <AdminStatusBadge tone={imageProviderConfig?.hasApiKey ? 'accent' : 'muted'}>
-                {imageProviderConfig?.hasApiKey ? '已配置' : '未配置'}
-              </AdminStatusBadge>
+              <AdminStatusBadge tone={imageConfigured ? 'accent' : 'muted'}>{imageConfigured ? '已配置' : '未配置'}</AdminStatusBadge>
             </div>
             <div className="ai-form-grid grid gap-3 sm:grid-cols-2">
               <AdminFormField label="图像 Base URL" htmlFor="ai-image-base-url" hint="OpenAI 兼容 /images/generations 端点">
@@ -255,7 +257,7 @@ export default function AiConfigPanel(props: {
                   id="ai-image-base-url"
                   placeholder="https://api.example.com/v1"
                   value={imageProviderDraft.baseUrl}
-                  disabled={savingImageProvider}
+                  disabled={savingImageProvider || props.loading || !imageProviderConfig}
                   onChange={(e) => setImageProviderDraft((p) => ({ ...p, baseUrl: e.target.value }))}
                 />
               </AdminFormField>
@@ -264,7 +266,7 @@ export default function AiConfigPanel(props: {
                   id="ai-image-model"
                   placeholder="mimo-v2.5"
                   value={imageProviderDraft.model}
-                  disabled={savingImageProvider}
+                  disabled={savingImageProvider || props.loading || !imageProviderConfig}
                   onChange={(e) => setImageProviderDraft((p) => ({ ...p, model: e.target.value }))}
                 />
               </AdminFormField>
@@ -276,7 +278,7 @@ export default function AiConfigPanel(props: {
                 autoComplete="off"
                 placeholder={imageProviderConfig?.hasApiKey ? '已设定，留空表示不改动' : '输入密钥后保存'}
                 value={imageProviderDraft.apiKey}
-                disabled={savingImageProvider}
+                disabled={savingImageProvider || props.loading || !imageProviderConfig}
                 onChange={(e) => setImageProviderDraft((p) => ({ ...p, apiKey: e.target.value }))}
                 onFocus={(e) => {
                   if (imageProviderDraft.apiKey === '••••••••') setImageProviderDraft((p) => ({ ...p, apiKey: '' }))
@@ -284,11 +286,8 @@ export default function AiConfigPanel(props: {
                 }}
               />
             </AdminFormField>
-            <div className="ai-provider-actions flex flex-wrap items-center gap-3">
-              <Button disabled={savingImageProvider} onClick={() => void saveImageProvider()}>
-                {savingImageProvider ? '保存中…' : '保存图像供应商配置'}
-              </Button>
-              <span className="text-xs text-muted-foreground">与文本供应商优先级一致：环境变量显式设定值不被覆盖</span>
+            <div className="ai-provider-actions ai-provider-test">
+              <span className="text-xs text-muted-foreground">用于封面候选生成，环境变量显式设定值优先。</span>
             </div>
           </section>
         </CardContent>
@@ -298,45 +297,43 @@ export default function AiConfigPanel(props: {
         <Card className="admin-panel-card ai-config-card">
           <AdminPanelHeading title="读者生成策略" />
           <CardContent className="grid gap-4">
-            <label className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/30 px-4 py-3">
-              <span className="min-w-0">
-                <span className="block text-sm font-medium text-foreground">阅读器前情提要</span>
-                <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">读者进入章节时可回顾上一章，结果按章缓存，全站共用一份</span>
-              </span>
-              <Switch checked={!!settings?.recapEnabled} disabled={!settings || saving} onCheckedChange={(v) => void save({ recapEnabled: v })} />
-            </label>
+            <div className="ai-config-policy-grid">
+              <label className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/30 px-4 py-3">
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium text-foreground">阅读器前情提要</span>
+                  <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">读者进入章节时可回顾上一章，结果按章缓存，全站共用一份</span>
+                </span>
+                <Switch checked={recapEnabledDraft} disabled={!settings || saving || props.loading} onCheckedChange={setRecapEnabledDraft} />
+              </label>
 
-            <div className="ai-form-grid ai-config-limits grid gap-3 sm:grid-cols-2">
-              <AdminFormField label="每人每日生成上限" htmlFor="ai-daily-quota" hint="命中缓存不计数；管理员不受限；0 表示禁止读者触发">
-                <Input
-                  id="ai-daily-quota"
-                  type="number"
-                  min={0}
-                  max={1000}
-                  value={dailyQuotaDraft}
-                  disabled={!settings || props.loading}
-                  onChange={(e) => {
-                    setDailyQuotaDraft(e.target.value)
-                    const value = Number(e.target.value)
-                    if (settings && e.target.value !== '' && Number.isFinite(value)) saveDebounced({ dailyQuota: value })
-                  }}
-                />
-              </AdminFormField>
-              <AdminFormField label="送入模型的正文字数" htmlFor="ai-max-chars" hint="超出部分截断，直接决定单次调用成本">
-                <Input
-                  id="ai-max-chars"
-                  type="number"
-                  min={500}
-                  max={20000}
-                  value={maxCharsDraft}
-                  disabled={!settings || props.loading}
-                  onChange={(e) => {
-                    setMaxCharsDraft(e.target.value)
-                    const value = Number(e.target.value)
-                    if (settings && e.target.value !== '' && Number.isFinite(value)) saveDebounced({ maxChapterChars: value })
-                  }}
-                />
-              </AdminFormField>
+              <div className="ai-form-grid ai-config-limits grid gap-3 sm:grid-cols-2">
+                <AdminFormField label="每人每日生成上限" htmlFor="ai-daily-quota" hint="命中缓存不计数；管理员不受限；0 表示禁止读者触发">
+                  <Input
+                    id="ai-daily-quota"
+                    type="number"
+                    min={0}
+                    max={1000}
+                    value={dailyQuotaDraft}
+                    disabled={!settings || props.loading || saving}
+                    onChange={(e) => {
+                      setDailyQuotaDraft(e.target.value)
+                    }}
+                  />
+                </AdminFormField>
+                <AdminFormField label="送入模型的正文字数" htmlFor="ai-max-chars" hint="超出部分截断，直接决定单次调用成本">
+                  <Input
+                    id="ai-max-chars"
+                    type="number"
+                    min={500}
+                    max={20000}
+                    value={maxCharsDraft}
+                    disabled={!settings || props.loading || saving}
+                    onChange={(e) => {
+                      setMaxCharsDraft(e.target.value)
+                    }}
+                  />
+                </AdminFormField>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -344,14 +341,13 @@ export default function AiConfigPanel(props: {
         <Card className="admin-panel-card ai-config-card">
           <AdminPanelHeading title="服务检查与用量" />
           <CardContent className="grid gap-4">
-            <div className="ai-config-test flex flex-wrap items-center gap-3">
-              <Button variant="secondary" disabled={testing || !provider?.configured} onClick={() => void runTest()}>
-                {testing ? '测试中…' : '连通性测试'}
-              </Button>
-              <span className="text-sm text-muted-foreground" aria-live="polite">
-                {testResult || '用于验证文本模型是否可用'}
-              </span>
-            </div>
+            <p className="text-xs text-muted-foreground">
+              连接检查使用已保存配置；详细任务记录与消耗可在{' '}
+              <a className="text-primary" href="/admin/calls">
+                调用与用量
+              </a>{' '}
+              查看。
+            </p>
 
             {usage && (
               <div className="ai-config-usage">
@@ -374,6 +370,25 @@ export default function AiConfigPanel(props: {
             )}
           </CardContent>
         </Card>
+      </div>
+      <div className="ai-config-save">
+        <span role="status">{providerDirty || imageProviderDirty || readerDirty ? '有未保存的修改' : '当前配置已保存'}</span>
+        <div className="flex gap-2">
+          <Button
+            variant="secondary"
+            disabled={saving || props.loading || !(providerDirty || imageProviderDirty || readerDirty)}
+            onClick={() => {
+              setProviderDraft(providerValues(props.providerConfig))
+              setImageProviderDraft(providerValues(imageProviderConfig))
+              resetReaderPolicy()
+            }}
+          >
+            撤销修改
+          </Button>
+          <Button disabled={saving || props.loading || !(providerDirty || imageProviderDirty || readerDirty)} onClick={() => void saveAll()}>
+            {saving ? '保存中…' : '保存配置'}
+          </Button>
+        </div>
       </div>
     </div>
   )

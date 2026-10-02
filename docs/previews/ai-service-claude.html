@@ -1,0 +1,2589 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>AI 服务 · 知舟设计预览</title>
+    <style>
+      :root {
+        --canvas: #f0ede8;
+        --card: #fff;
+        --warm: #f6f4f1;
+        --ink: #211e1a;
+        --muted: #736d65;
+        --brand: #8b6045;
+        --brand-light: #f0e6d6;
+        --line: #ece8e2;
+        --green: #4f7a52;
+        --danger: #be123c;
+        --header: #e5dfd8;
+        --radius: 20px;
+        color-scheme: light;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--canvas);
+        color: var(--ink);
+        font:
+          14px/1.6 -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          'PingFang SC',
+          'Microsoft YaHei',
+          sans-serif;
+      }
+      button,
+      input,
+      select,
+      textarea {
+        font: inherit;
+        color: inherit;
+      }
+      button,
+      a,
+      input,
+      select,
+      textarea {
+        outline-offset: 4px;
+      }
+      button:focus-visible,
+      a:focus-visible,
+      input:focus-visible,
+      select:focus-visible,
+      textarea:focus-visible {
+        outline: 2px solid var(--brand);
+      }
+      button {
+        cursor: pointer;
+      }
+      button:disabled {
+        cursor: default;
+        opacity: 0.5;
+      }
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+      button {
+        border: 0;
+      }
+      svg {
+        width: 18px;
+        height: 18px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.6;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        flex-shrink: 0;
+      }
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+      h1 {
+        font-size: 20px;
+        line-height: 1.4;
+      }
+      h2 {
+        font-size: 16px;
+      }
+      h3 {
+        font-size: 14px;
+      }
+      small,
+      .muted {
+        color: var(--muted);
+      }
+      small {
+        font-size: 12px;
+      }
+      .mono,
+      code {
+        font-family: Consolas, 'SF Mono', monospace;
+        font-size: 12px;
+      }
+      .shell {
+        display: grid;
+        grid-template-columns: 240px minmax(0, 1fr);
+        gap: 32px;
+        padding: 16px 28px 28px 10px;
+        max-width: 1800px;
+        margin: auto;
+      }
+      .sidebar {
+        position: sticky;
+        top: 16px;
+        height: calc(100dvh - 32px);
+        display: flex;
+        flex-direction: column;
+        background: color-mix(in srgb, var(--card) 75%, var(--canvas));
+        border-radius: 20px;
+        padding: 24px 12px;
+        overflow: auto;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 0 16px 24px;
+      }
+      .brand-mark {
+        color: var(--brand);
+        font-size: 25px;
+        font-family: serif;
+      }
+      .brand strong {
+        display: block;
+        font-size: 17px;
+        line-height: 1.2;
+      }
+      .brand small {
+        display: block;
+        font-size: 11px;
+      }
+      .nav-group {
+        margin: 14px 16px 6px;
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--muted);
+      }
+      .nav-link {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 11px 14px;
+        border-radius: 12px;
+        font-size: 14px;
+        color: var(--muted);
+      }
+      .nav-link.active {
+        background: var(--brand);
+        color: #fff;
+        font-weight: 600;
+      }
+      .subnav {
+        margin: 4px 10px 14px 28px;
+        border-left: 1px solid var(--line);
+        padding-left: 8px;
+        display: grid;
+        gap: 3px;
+      }
+      .subnav a {
+        padding: 8px 12px;
+        border-radius: 10px;
+        color: var(--muted);
+      }
+      .subnav a[aria-current='page'] {
+        background: var(--brand-light);
+        color: var(--brand);
+        font-weight: 600;
+      }
+      .nav-static {
+        cursor: default;
+      }
+      .account {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        margin-top: auto;
+        padding: 16px 14px 0;
+      }
+      .avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: var(--brand-light);
+        color: var(--brand);
+        display: grid;
+        place-items: center;
+        font-family: serif;
+      }
+      .main {
+        min-width: 0;
+      }
+      .topbar {
+        height: 48px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+      }
+      .crumb {
+        display: flex;
+        gap: 16px;
+        align-items: center;
+        font-weight: 600;
+      }
+      .topmeta {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .icon-button {
+        width: 36px;
+        height: 36px;
+        border-radius: 12px;
+        background: var(--card);
+        display: grid;
+        place-items: center;
+      }
+      .mobile-menu {
+        display: none;
+      }
+      .pagehead {
+        display: flex;
+        justify-content: space-between;
+        align-items: end;
+        gap: 20px;
+        margin: 36px 0 24px;
+      }
+      .pagehead p {
+        color: var(--muted);
+        margin-top: 6px;
+        font-size: 14px;
+      }
+      .actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        min-height: 36px;
+        padding: 7px 14px;
+        border-radius: 12px;
+        background: var(--warm);
+        white-space: nowrap;
+        font-size: 13px;
+        transition: background 0.15s;
+      }
+      .btn:hover {
+        background: var(--brand-light);
+      }
+      .btn.primary {
+        background: var(--brand);
+        color: #fff;
+      }
+      .btn.primary:hover {
+        background: #74503a;
+      }
+      .btn.outline {
+        border: 1px solid var(--line);
+        background: var(--card);
+      }
+      .btn.ghost {
+        background: transparent;
+        color: var(--brand);
+        padding: 6px 8px;
+      }
+      .btn.danger {
+        color: var(--danger);
+      }
+      .pill {
+        display: inline-flex;
+        gap: 5px;
+        align-items: center;
+        background: var(--warm);
+        color: var(--muted);
+        padding: 3px 9px;
+        border-radius: 99px;
+        font-size: 11px;
+        white-space: nowrap;
+      }
+      .pill.good {
+        background: color-mix(in srgb, var(--green) 10%, var(--card));
+        color: var(--green);
+      }
+      .pill.brand {
+        background: var(--brand-light);
+        color: var(--brand);
+      }
+      .pill.danger {
+        background: color-mix(in srgb, var(--danger) 8%, var(--card));
+        color: var(--danger);
+      }
+      .dot {
+        height: 5px;
+        width: 5px;
+        background: currentColor;
+        border-radius: 50%;
+      }
+      .panel {
+        background: var(--card);
+        border-radius: var(--radius);
+        min-width: 0;
+        overflow: hidden;
+      }
+      .panelhead {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        padding: 24px 24px 16px;
+        flex-wrap: wrap;
+      }
+      .panelhead p {
+        margin-top: 3px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .pad {
+        padding: 0 24px 24px;
+      }
+      .stack {
+        display: grid;
+        gap: 20px;
+      }
+      .workspace {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 300px;
+        gap: 20px;
+        align-items: start;
+      }
+      .inset {
+        background: var(--warm);
+        border-radius: 12px;
+        padding: 16px;
+      }
+      .field {
+        display: grid;
+        gap: 6px;
+        min-width: 0;
+      }
+      .field > span,
+      .field label {
+        font-size: 13px;
+        color: var(--muted);
+      }
+      input:not([type='checkbox']):not([type='range']),
+      select,
+      textarea {
+        width: 100%;
+        border: 1px solid var(--line);
+        background: var(--card);
+        border-radius: 12px;
+        padding: 9px 12px;
+        min-height: 40px;
+      }
+      textarea {
+        resize: vertical;
+        line-height: 1.7;
+        min-height: 112px;
+      }
+      input[type='checkbox'] {
+        accent-color: var(--brand);
+        width: 16px;
+        height: 16px;
+        flex-shrink: 0;
+      }
+      input[type='range'] {
+        accent-color: var(--brand);
+        width: 100%;
+      }
+      .fields {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+      }
+      .fields.three {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .field.full {
+        grid-column: 1/-1;
+      }
+      .formsection {
+        padding-top: 20px;
+      }
+      .section-title {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: center;
+        margin-bottom: 14px;
+      }
+      .section-title h3 {
+        font-size: 14px;
+      }
+      .segmented {
+        display: inline-flex;
+        padding: 4px;
+        gap: 3px;
+        background: var(--warm);
+        border-radius: 12px;
+      }
+      .segmented button {
+        background: transparent;
+        color: var(--muted);
+        border-radius: 9px;
+        padding: 7px 14px;
+        font-size: 13px;
+      }
+      .segmented button[aria-pressed='true'] {
+        background: var(--card);
+        color: var(--ink);
+        font-weight: 600;
+      }
+      .checkrow {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+      .checkrow label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .switch {
+        appearance: none;
+        width: 32px !important;
+        height: 19px !important;
+        border-radius: 99px;
+        background: #ccc5bb;
+        position: relative;
+        border: 0;
+        cursor: pointer;
+      }
+      .switch:before {
+        content: '';
+        position: absolute;
+        width: 15px;
+        height: 15px;
+        top: 2px;
+        left: 2px;
+        background: #fff;
+        border-radius: 50%;
+        transition: transform 0.15s;
+      }
+      .switch:checked {
+        background: var(--brand);
+      }
+      .switch:checked:before {
+        transform: translateX(13px);
+      }
+      .analysis-list {
+        display: grid;
+        gap: 10px;
+        margin-top: 16px;
+      }
+      details {
+        min-width: 0;
+      }
+      summary {
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        list-style: none;
+        font-size: 13px;
+      }
+      summary:after {
+        content: '⌄';
+        margin-left: auto;
+        color: var(--muted);
+      }
+      details[open] > summary:after {
+        transform: rotate(180deg);
+      }
+      details > p,
+      details > .detail-body {
+        margin-top: 12px;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.8;
+      }
+      .analysis-list details {
+        padding: 12px 14px;
+        background: var(--warm);
+        border-radius: 10px;
+      }
+      .analysis-list summary small {
+        margin-left: auto;
+        margin-right: 8px;
+      }
+      .suggestions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin: 10px 0;
+      }
+      .suggestion {
+        background: var(--warm);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 8px 10px;
+        font-size: 12px;
+        text-align: left;
+      }
+      .suggestion:hover {
+        border-color: var(--brand);
+        color: var(--brand);
+      }
+      .footerbar {
+        margin-top: 20px;
+        padding-top: 16px;
+        border-top: 1px solid var(--line);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+      .context-book {
+        display: flex;
+        gap: 14px;
+        align-items: center;
+        margin-bottom: 16px;
+      }
+      .mini-book {
+        width: 54px;
+        height: 74px;
+        border-radius: 5px;
+        flex-shrink: 0;
+        background: #536563;
+        color: #f4e9d5;
+        display: grid;
+        place-items: center;
+        text-align: center;
+        font: 14px/1.6 serif;
+      }
+      .definition {
+        margin: 0;
+        display: grid;
+        gap: 10px;
+      }
+      .definition div {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        font-size: 12px;
+      }
+      .definition dt {
+        color: var(--muted);
+      }
+      .definition dd {
+        margin: 0;
+      }
+      .statusbox {
+        padding: 16px;
+        background: var(--warm);
+        border-radius: 12px;
+        margin-top: 16px;
+      }
+      .statusbox p {
+        margin-top: 5px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .progress {
+        height: 5px;
+        border-radius: 99px;
+        background: var(--line);
+        overflow: hidden;
+        margin: 12px 0;
+      }
+      .progress div {
+        width: 100%;
+        height: 100%;
+        background: var(--brand);
+        transform-origin: left;
+        transition: transform 0.3s;
+      }
+      .task-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        gap: 14px;
+      }
+      .task-list li {
+        padding-top: 14px;
+        border-top: 1px solid var(--line);
+      }
+      .task-list strong {
+        font-size: 13px;
+        font-weight: 500;
+      }
+      .task-list small {
+        display: block;
+        margin-top: 2px;
+      }
+      .task-list .taskline {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+      .aside-note {
+        padding: 0 8px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .cover-workspace {
+        display: grid;
+        grid-template-columns: minmax(300px, 0.9fr) minmax(0, 1.25fr);
+        gap: 20px;
+        align-items: start;
+      }
+      .cover-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+      }
+      .cover-tile {
+        padding: 0;
+        background: transparent;
+        text-align: left;
+        border-radius: 12px;
+      }
+      .cover-tile[aria-pressed='true'] .cover-art {
+        outline: 2px solid var(--brand);
+        outline-offset: 3px;
+      }
+      .cover-art {
+        aspect-ratio: 2/3;
+        border-radius: 8px;
+        overflow: hidden;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        color: #e9e6da;
+        background: #536563;
+        font-family: serif;
+      }
+      .cover-art:before {
+        content: '';
+        position: absolute;
+        inset: 20% -40% -5%;
+        border: 1px solid #c0c3a24a;
+        border-radius: 50%;
+        transform: rotate(-28deg);
+      }
+      .cover-art:after {
+        content: '';
+        position: absolute;
+        inset: 40% -20% -25%;
+        border: 1px solid #c0c3a233;
+        border-radius: 50%;
+        transform: rotate(24deg);
+      }
+      .cover-art.ochre {
+        background: #9e7d5b;
+        color: #f9f0df;
+      }
+      .cover-art.blue {
+        background: #3c5261;
+        color: #dce2df;
+      }
+      .cover-art b {
+        font-size: clamp(18px, 1.9vw, 30px);
+        font-weight: 500;
+        letter-spacing: 6px;
+        writing-mode: vertical-rl;
+        z-index: 1;
+      }
+      .cover-art small {
+        position: absolute;
+        bottom: 12%;
+        font-size: 9px;
+        letter-spacing: 4px;
+        color: inherit;
+      }
+      .cover-meta {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 12px;
+        padding-top: 12px;
+      }
+      .cover-preview {
+        display: grid;
+        grid-template-columns: 140px minmax(0, 1fr);
+        gap: 20px;
+        margin-top: 20px;
+        background: var(--warm);
+        border-radius: 12px;
+        padding: 20px;
+      }
+      .cover-preview h3 {
+        margin-bottom: 8px;
+      }
+      .cover-preview p {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .toolbar {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+        padding: 12px 24px 18px;
+      }
+      .toolbar select {
+        width: 145px;
+      }
+      .toolbar .muted {
+        margin-left: auto;
+        font-size: 12px;
+      }
+      .search {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--card);
+        padding: 0 12px;
+        max-width: 300px;
+        width: 100%;
+      }
+      .search input {
+        border: 0 !important;
+        padding-left: 0 !important;
+        min-width: 0;
+      }
+      .search svg {
+        color: var(--muted);
+      }
+      .tablewrap {
+        min-width: 0;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+      }
+      th {
+        background: var(--header);
+        font-size: 11px;
+        font-weight: 600;
+        text-align: left;
+        padding: 13px 20px;
+      }
+      td {
+        padding: 18px 20px;
+        border-bottom: 1px solid var(--line);
+        font-size: 13px;
+        overflow-wrap: anywhere;
+      }
+      tr:last-child td {
+        border-bottom: 0;
+      }
+      td small {
+        display: block;
+        margin-top: 3px;
+      }
+      td:last-child,
+      th:last-child {
+        text-align: right;
+      }
+      .row-actions {
+        display: flex;
+        gap: 4px;
+        justify-content: end;
+      }
+      .batch-detail td {
+        text-align: left;
+        background: var(--warm);
+        padding: 14px 28px;
+      }
+      .batch-detail .chapterline {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 8px 0;
+      }
+      .chapterline .btn {
+        margin-left: auto;
+      }
+      .pagination {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        align-items: center;
+        margin: 16px 20px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .pagination select {
+        width: 95px;
+        min-height: 32px;
+        padding: 4px 8px;
+      }
+      .settings-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 20px;
+        align-items: start;
+      }
+      .wide {
+        grid-column: 1/-1;
+      }
+      .divider {
+        height: 1px;
+        background: var(--line);
+        margin: 20px 0;
+      }
+      .policy-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 24px;
+      }
+      .usage-line {
+        display: flex;
+        gap: 28px;
+        flex-wrap: wrap;
+        padding-top: 16px;
+        font-size: 12px;
+      }
+      .usage-line b {
+        font-size: 14px;
+        margin-right: 6px;
+        font-weight: 500;
+      }
+      .param-layout {
+        display: grid;
+        grid-template-columns: 165px minmax(0, 1fr);
+        gap: 20px;
+        align-items: start;
+      }
+      .paramnav {
+        display: grid;
+        gap: 4px;
+        position: sticky;
+        top: 24px;
+      }
+      .paramnav a {
+        padding: 9px 12px;
+        border-radius: 10px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .paramnav a:hover {
+        background: var(--brand-light);
+        color: var(--brand);
+      }
+      .paramsection {
+        scroll-margin-top: 24px;
+      }
+      .paramtitle {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+      .labelrow {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+      .value {
+        color: var(--brand);
+        font-size: 12px;
+      }
+      .settings-save {
+        position: sticky;
+        bottom: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 12px 20px;
+        margin-top: 20px;
+        z-index: 3;
+      }
+      .settings-save p {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .empty {
+        padding: 36px;
+        text-align: center;
+        color: var(--muted);
+      }
+      .view[hidden],
+      [hidden] {
+        display: none !important;
+      }
+      .dialog {
+        border: 0;
+        max-width: 720px;
+        width: calc(100% - 32px);
+        max-height: calc(100dvh - 48px);
+        border-radius: 16px;
+        padding: 0;
+        background: var(--card);
+        color: var(--ink);
+        overflow: hidden;
+      }
+      .dialog::backdrop {
+        background: #211e1a66;
+        backdrop-filter: blur(3px);
+      }
+      .dialoghead,
+      .dialogfoot {
+        padding: 20px 24px;
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        align-items: center;
+      }
+      .dialoghead {
+        border-bottom: 1px solid var(--line);
+      }
+      .dialoghead p {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 4px;
+      }
+      .dialogbody {
+        padding: 24px;
+        overflow: auto;
+        max-height: 60dvh;
+        scrollbar-width: none;
+      }
+      .dialogfoot {
+        border-top: 1px solid var(--line);
+        justify-content: end;
+      }
+      .prose {
+        font-family: 'Songti SC', serif;
+        line-height: 2;
+        color: var(--ink);
+        font-size: 16px;
+      }
+      .prose p {
+        margin-bottom: 18px;
+      }
+      .dialog .cover-art {
+        max-width: 260px;
+        margin: auto;
+      }
+      .toast {
+        position: fixed;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: var(--ink);
+        color: var(--card);
+        border-radius: 12px;
+        padding: 12px 20px;
+        font-size: 13px;
+        z-index: 30;
+        max-width: calc(100% - 32px);
+      }
+      .previewnote {
+        margin-top: 24px;
+        color: var(--muted);
+        font-size: 11px;
+        text-align: right;
+      }
+      .writing-title {
+        margin-bottom: 20px;
+      }
+      .hidden-tabs {
+        display: none;
+      }
+      .help-line {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 10px;
+      }
+      .small-counter {
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .menu-scrim {
+        display: none;
+      }
+      body.dark {
+        --canvas: #1b1c20;
+        --card: #2a2b31;
+        --warm: #24252a;
+        --ink: #e7e0d6;
+        --muted: #aca59c;
+        --brand: #bf8f52;
+        --brand-light: #42372b;
+        --line: #3b3c43;
+        --header: #353237;
+        --green: #9cad94;
+        color-scheme: dark;
+      }
+      @media (min-width: 1500px) {
+        .workspace {
+          grid-template-columns: minmax(0, 1fr) 340px;
+        }
+        .shell {
+          gap: 40px;
+        }
+        .pad {
+          padding-left: 28px;
+          padding-right: 28px;
+        }
+        .panelhead {
+          padding-left: 28px;
+          padding-right: 28px;
+        }
+      }
+      @media (max-width: 1150px) {
+        .shell {
+          grid-template-columns: 215px minmax(0, 1fr);
+          gap: 22px;
+          padding-right: 20px;
+        }
+        .workspace {
+          grid-template-columns: minmax(0, 1fr) 260px;
+        }
+        .cover-workspace {
+          grid-template-columns: 1fr;
+        }
+        .cover-preview {
+          grid-template-columns: 130px 1fr;
+        }
+      }
+      @media (max-width: 900px) {
+        .shell {
+          display: block;
+          padding: 8px 16px 24px;
+        }
+        .sidebar {
+          position: fixed;
+          left: 10px;
+          top: 10px;
+          width: 240px;
+          z-index: 20;
+          transform: translateX(-280px);
+          transition: transform 0.2s;
+        }
+        .sidebar.open {
+          transform: translateX(0);
+        }
+        .menu-scrim.open {
+          display: block;
+          position: fixed;
+          inset: 0;
+          background: #211e1a55;
+          z-index: 19;
+        }
+        .mobile-menu {
+          display: grid;
+        }
+        .topbar {
+          height: 48px;
+        }
+        .pagehead {
+          margin-top: 22px;
+        }
+        .workspace {
+          grid-template-columns: 1fr;
+        }
+        .workspace > aside {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 16px;
+        }
+        .workspace > aside > .aside-note {
+          grid-column: 1/-1;
+        }
+        .settings-grid {
+          grid-template-columns: 1fr;
+        }
+        .policy-grid {
+          gap: 16px;
+        }
+        .param-layout {
+          grid-template-columns: 1fr;
+        }
+        .paramnav {
+          position: static;
+          display: flex;
+          overflow: auto;
+          gap: 2px;
+        }
+        .paramnav a {
+          white-space: nowrap;
+        }
+        .tablewrap table,
+        .tablewrap tbody {
+          display: block;
+        }
+        .tablewrap thead {
+          position: absolute;
+          width: 1px;
+          height: 1px;
+          overflow: hidden;
+          clip-path: inset(50%);
+        }
+        .tablewrap tr {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 12px;
+          border-bottom: 1px solid var(--line);
+          padding: 18px 20px;
+        }
+        .tablewrap td {
+          border: 0;
+          padding: 0;
+          text-align: left;
+        }
+        .tablewrap td:before {
+          content: attr(data-label);
+          display: block;
+          font-size: 11px;
+          color: var(--muted);
+          margin-bottom: 3px;
+        }
+        .tablewrap td:first-child {
+          grid-column: 1/-1;
+        }
+        .tablewrap td:last-child {
+          text-align: right;
+          grid-column: 1/-1;
+        }
+        .tablewrap td:last-child:before {
+          display: none;
+        }
+        .row-actions {
+          justify-content: end;
+        }
+        .tablewrap .batch-detail {
+          display: block;
+          padding: 16px 20px;
+          background: var(--warm);
+        }
+        .tablewrap .batch-detail td {
+          display: block;
+        }
+        .hidden-tabs {
+          display: flex;
+          overflow: auto;
+          gap: 4px;
+          margin-bottom: 20px;
+          padding: 4px;
+          background: color-mix(in srgb, var(--card) 65%, transparent);
+          border-radius: 12px;
+        }
+        .hidden-tabs a {
+          padding: 7px 12px;
+          white-space: nowrap;
+          font-size: 12px;
+          border-radius: 9px;
+          color: var(--muted);
+        }
+        .hidden-tabs a[aria-current='page'] {
+          background: var(--card);
+          color: var(--brand);
+          font-weight: 600;
+        }
+      }
+      @media (max-width: 600px) {
+        .topmeta > span {
+          display: none;
+        }
+        .pagehead {
+          align-items: start;
+          gap: 14px;
+          flex-wrap: wrap;
+        }
+        .pagehead > .actions {
+          width: 100%;
+          justify-content: end;
+        }
+        .pagehead p {
+          font-size: 13px;
+        }
+        .pagehead .search {
+          max-width: none;
+        }
+        .panelhead {
+          padding: 20px 20px 14px;
+        }
+        .pad {
+          padding: 0 20px 20px;
+        }
+        .fields,
+        .fields.three,
+        .policy-grid {
+          grid-template-columns: 1fr;
+        }
+        .workspace > aside {
+          grid-template-columns: 1fr;
+        }
+        .toolbar {
+          padding: 10px 20px 16px;
+          gap: 8px;
+        }
+        .toolbar select {
+          width: 130px;
+        }
+        .toolbar .muted {
+          width: 100%;
+          margin-left: 0;
+        }
+        .cover-preview {
+          grid-template-columns: 100px 1fr;
+          padding: 16px;
+          gap: 16px;
+        }
+        .cover-art {
+          padding: 12px;
+        }
+        .cover-art b {
+          font-size: 20px;
+          letter-spacing: 4px;
+        }
+        .cover-art small {
+          font-size: 8px;
+          letter-spacing: 1px;
+        }
+        .cover-grid {
+          gap: 10px;
+        }
+        .cover-meta {
+          font-size: 11px;
+          display: grid;
+          gap: 5px;
+        }
+        .settings-save {
+          padding: 12px 14px;
+          bottom: 8px;
+        }
+        .settings-save > .actions {
+          flex-wrap: nowrap;
+        }
+        .settings-save .btn {
+          padding: 7px 11px;
+        }
+        .settings-save p {
+          max-width: 130px;
+        }
+        .pagination {
+          margin: 16px 4px;
+        }
+        .chapterline {
+          flex-wrap: wrap;
+        }
+        .chapterline .btn {
+          margin-left: 0;
+        }
+        .dialogbody {
+          padding: 20px;
+        }
+        .previewnote {
+          text-align: left;
+        }
+        .section-title {
+          align-items: start;
+        }
+        .section-title small {
+          font-size: 11px;
+        }
+        .suggestion {
+          flex: 1 1 150px;
+        }
+        .footerbar .actions {
+          width: 100%;
+          justify-content: end;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        * {
+          transition: none !important;
+          scroll-behavior: auto !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <svg aria-hidden="true" style="position: absolute; width: 0; height: 0; overflow: hidden">
+      <defs>
+        <symbol id="i-grid" viewBox="0 0 24 24">
+          <rect x="3" y="3" width="7" height="7" rx="1" />
+          <rect x="14" y="3" width="7" height="7" rx="1" />
+          <rect x="3" y="14" width="7" height="7" rx="1" />
+          <rect x="14" y="14" width="7" height="7" rx="1" />
+        </symbol>
+        <symbol id="i-book" viewBox="0 0 24 24">
+          <path d="M12 5c-3-2-6-2-9-1v15c3-1 6-1 9 1 3-2 6-2 9-1V4c-3-1-6-1-9 1Z" />
+          <path d="M12 5v15" />
+        </symbol>
+        <symbol id="i-spark" viewBox="0 0 24 24"><path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5L12 3Z" /></symbol>
+        <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 10a8 8 0 0 0-14-5L3 8m0-5v5h5M4 14a8 8 0 0 0 14 5l3-3m0 5v-5h-5" /></symbol>
+        <symbol id="i-search" viewBox="0 0 24 24">
+          <circle cx="10.5" cy="10.5" r="6.5" />
+          <path d="m16 16 5 5" />
+        </symbol>
+        <symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 13a9 9 0 0 1-10-10A9 9 0 1 0 21 13Z" /></symbol>
+        <symbol id="i-sidebar" viewBox="0 0 24 24">
+          <rect x="3" y="4" width="18" height="16" rx="2" />
+          <path d="M9 4v16" />
+        </symbol>
+        <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-5-5 5 5-5 5" /></symbol>
+        <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4 10-10" /></symbol>
+      </defs>
+    </svg>
+    <div class="menu-scrim" id="scrim"></div>
+    <div class="shell">
+      <aside class="sidebar" id="sidebar">
+        <div class="brand">
+          <span class="brand-mark">舟</span>
+          <div><strong>知舟</strong><small>馆藏运营台</small></div>
+        </div>
+        <div class="nav-link nav-static">
+          <svg><use href="#i-grid" /></svg>后台总览
+        </div>
+        <div class="nav-group">内容库</div>
+        <div class="nav-link nav-static">
+          <svg><use href="#i-book" /></svg>小说管理
+        </div>
+        <div class="nav-link nav-static">
+          <svg><use href="#i-book" /></svg>章节管理
+        </div>
+        <div class="nav-group">内容生产</div>
+        <div class="nav-link nav-static">
+          <svg><use href="#i-grid" /></svg>爬虫抓取
+        </div>
+        <div class="nav-link active">
+          <svg><use href="#i-spark" /></svg>AI 服务
+        </div>
+        <nav class="subnav" aria-label="AI 服务子页面">
+          <a href="#writing">AI 创作</a><a href="#cover">封面生成</a><a href="#content">已生成内容</a><a href="#config">AI 配置</a
+          ><a href="#params">参数调优</a>
+        </nav>
+        <div class="nav-group">运行监控</div>
+        <div class="nav-link nav-static">
+          <svg><use href="#i-grid" /></svg>任务中心
+        </div>
+        <div class="nav-link nav-static">
+          <svg><use href="#i-grid" /></svg>调用与用量
+        </div>
+        <div class="nav-group">内容治理</div>
+        <div class="nav-link nav-static">
+          <svg><use href="#i-book" /></svg>内容审核
+        </div>
+        <div class="account">
+          <span class="avatar" aria-hidden="true">猫</span>
+          <div><strong>猫</strong><small style="display: block">管理员 · 示例账户</small></div>
+        </div>
+      </aside>
+      <main class="main">
+        <div class="topbar">
+          <div class="crumb">
+            <button class="icon-button mobile-menu" id="menu" aria-label="打开导航" aria-expanded="false">
+              <svg><use href="#i-sidebar" /></svg></button
+            ><svg><use href="#i-sidebar" /></svg><span>AI 服务</span>
+          </div>
+          <div class="topmeta">
+            <span>示例数据 · HTML 预览</span
+            ><button id="theme" class="icon-button" aria-label="切换深色主题">
+              <svg><use href="#i-moon" /></svg>
+            </button>
+          </div>
+        </div>
+        <header class="pagehead">
+          <div>
+            <h1 id="page-title">AI 创作</h1>
+            <p id="page-description">让故事接着发生，保留作品原有的声音。</p>
+          </div>
+          <div class="actions" id="page-actions"></div>
+        </header>
+        <nav class="hidden-tabs" aria-label="移动端 AI 页面">
+          <a href="#writing">创作</a><a href="#cover">封面</a><a href="#content">已生成内容</a><a href="#config">配置</a><a href="#params">参数</a>
+        </nav>
+
+        <section class="view" id="writing" aria-labelledby="page-title">
+          <div class="workspace">
+            <div class="panel">
+              <div class="panelhead">
+                <h2>创作工作台</h2>
+                <div class="segmented" aria-label="创作模式">
+                  <button type="button" data-mode="continue" aria-pressed="true">续写</button
+                  ><button type="button" data-mode="new" aria-pressed="false">新写</button>
+                </div>
+              </div>
+              <div class="pad">
+                <div class="fields">
+                  <label class="field"
+                    ><span>目标小说</span
+                    ><select id="writing-novel">
+                      <option>雾城来信 · 24 章</option>
+                      <option>长风入夜 · 16 章</option>
+                      <option>山海之间 · 38 章</option>
+                    </select></label
+                  ><label class="field"
+                    ><span id="writing-title-label">章节标题（可选）</span><input id="writing-title" placeholder="留空，由 AI 拟定"
+                  /></label>
+                </div>
+                <div class="formsection">
+                  <div class="section-title">
+                    <h3>续写基线</h3>
+                    <span class="pill">已读至第 24 章</span>
+                  </div>
+                  <div class="fields">
+                    <label class="field"
+                      ><span>续写起点</span
+                      ><select id="writing-start">
+                        <option>第 24 章 · 未寄出的信（最新）</option>
+                        <option>第 23 章 · 雨夜重逢</option>
+                        <option>第 22 章 · 旧街灯下</option>
+                      </select></label
+                    ><label class="field"
+                      ><span>每章目标字数</span><input type="number" id="target-words" min="500" max="20000" step="500" value="3000"
+                    /></label>
+                  </div>
+                  <div class="actions" style="margin-top: 14px">
+                    <div class="segmented" aria-label="续写策略">
+                      <button data-strategy="single" aria-pressed="true">单章精写</button><button data-strategy="multi" aria-pressed="false">多章规划</button>
+                    </div>
+                    <label class="field" id="chapter-count-field" hidden
+                      ><span>续写章节数</span><input id="chapter-count" type="number" value="3" min="2" max="20" style="width: 85px" /></label
+                    ><small>单章围绕一个明确的情节方向展开</small>
+                  </div>
+                </div>
+                <div class="formsection">
+                  <div class="inset">
+                    <div class="checkrow">
+                      <div>
+                        <h3>内容尺度</h3>
+                        <p class="muted" style="font-size: 12px; margin-top: 3px">沿用作品分级，为本次创作选择内容偏好。</p>
+                      </div>
+                      <span class="pill brand">普通模式</span>
+                    </div>
+                    <div class="checkrow" style="margin-top: 14px">
+                      <label for="adult">开启 R18 模式</label><input id="adult" class="switch" type="checkbox" />
+                    </div>
+                    <div id="adult-options" hidden style="margin-top: 12px">
+                      <label class="checkrow"><span style="font-size: 12px">我确认相关角色均为成年人</span><input type="checkbox" id="adult-confirm" /></label
+                      ><label class="field" style="margin-top: 12px"><span>本次内容偏好</span><input placeholder="填写需要保持或避免的内容偏好" /></label>
+                    </div>
+                  </div>
+                </div>
+                <div class="formsection">
+                  <div class="section-title">
+                    <h3>小说分析</h3>
+                    <div class="actions"><small>3 项已提取</small><button class="btn ghost" data-act="analysis">重新提取</button></div>
+                  </div>
+                  <div class="analysis-list">
+                    <details>
+                      <summary>风格画像 <small>来自最近 5 章</small></summary>
+                      <p>叙述克制，场景描写简洁。用动作和对话推进关系，保留适度留白；避免突兀的情绪总结。</p>
+                    </details>
+                    <details>
+                      <summary>关系画像 <small>2 位主要角色</small></summary>
+                      <p>林晚与陈序：旧识重逢，尚未谈及离开雾城的原因。两人都在等待对方先开口。</p>
+                    </details>
+                    <details>
+                      <summary>情节状态 <small>截至第 24 章</small></summary>
+                      <p>旧邮局即将拆除。一封未寄出的信在整理档案时被发现，落款来自十年前。未解线索：信件为何留在这里。</p>
+                    </details>
+                  </div>
+                </div>
+                <div class="formsection">
+                  <div class="section-title">
+                    <h3>本次情节</h3>
+                    <button class="btn ghost" data-act="suggest">
+                      推荐情节 <svg><use href="#i-spark" /></svg>
+                    </button>
+                  </div>
+                  <textarea id="instruction" aria-label="本次情节要求" placeholder="说清这一章发生什么、谁参与、推进哪条线。">
+林晚整理旧邮局档案时找到第二封信。让她和陈序在回忆与现实的对照中，一点点发现寄信人的身份；先保持悬念，不急于揭晓。</textarea>
+                  <div class="suggestions" id="suggestions">
+                    <button class="suggestion" data-suggestion="从第二封信里发现一个熟悉的地址，引出旧街上的一次探访。">一封信，引向旧街上的故人</button
+                    ><button class="suggestion" data-suggestion="两人一起整理档案，在一次平静的日常对话中靠近彼此。">用一次日常对话推进关系</button
+                    ><button class="suggestion" data-suggestion="雨夜停电，陈序终于提起当年离开雾城的原因，但保留一条新的悬念。">让雨夜带出过去的线索</button>
+                  </div>
+                  <details>
+                    <summary>大纲与补充要求 <small>可选</small></summary>
+                    <div class="detail-body">
+                      <label class="field"><span>章节大纲</span><textarea id="outline" placeholder="可粘贴已有大纲，或先生成一版再修改。"></textarea></label>
+                      <div class="actions" style="margin-top: 10px"><button class="btn" data-act="outline">生成大纲</button></div>
+                      <label class="field" style="margin-top: 14px"
+                        ><span>补充要求</span><textarea style="min-height: 75px" placeholder="例如：保持第三人称，不新增主要角色。"></textarea>
+                      </label>
+                    </div>
+                  </details>
+                </div>
+                <div class="footerbar">
+                  <small>完成后保存为草稿，审阅后再发布。</small>
+                  <div class="actions">
+                    <button class="btn" data-act="prompt">查看提交内容</button
+                    ><button class="btn primary" id="generate-writing" data-act="write">
+                      生成续写 <svg><use href="#i-arrow" /></svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <aside class="stack">
+              <section class="panel">
+                <div class="panelhead">
+                  <h2>当前作品</h2>
+                  <span class="pill good"><span class="dot"></span>上下文就绪</span>
+                </div>
+                <div class="pad">
+                  <div class="context-book">
+                    <div class="mini-book" aria-hidden="true">雾城<br />来信</div>
+                    <div>
+                      <strong class="book-title">雾城来信</strong><small style="display: block">林间 · 都市 / 悬疑</small><small>24 章 · 7.2 万字</small>
+                    </div>
+                  </div>
+                  <dl class="definition">
+                    <div>
+                      <dt>最新章节</dt>
+                      <dd>未寄出的信</dd>
+                    </div>
+                    <div>
+                      <dt>创作模型</dt>
+                      <dd class="mono">deepseek-v4-flash</dd>
+                    </div>
+                    <div>
+                      <dt>本次输出</dt>
+                      <dd>1 章 · 约 3000 字</dd>
+                    </div>
+                  </dl>
+                  <div class="statusbox">
+                    <strong style="font-size: 12px">有 1 章草稿尚未发布</strong>
+                    <p>建议先审阅，避免情节重复或续写基线断开。</p>
+                    <a href="#content" class="btn ghost" style="padding-left: 0; margin-top: 4px"
+                      >前往审阅 <svg><use href="#i-arrow" /></svg
+                    ></a>
+                  </div>
+                </div>
+              </section>
+              <section class="panel">
+                <div class="panelhead">
+                  <h2>本次任务</h2>
+                  <span class="pill" id="task-status">待生成</span>
+                </div>
+                <div class="pad">
+                  <div id="task-receipt"><p class="muted" style="font-size: 12px">生成开始后，这里显示任务进度和产出位置。</p></div>
+                  <div class="divider"></div>
+                  <h3 style="margin-bottom: 12px">最近任务</h3>
+                  <ul class="task-list">
+                    <li>
+                      <div class="taskline"><strong>雾城来信 · 第 25 章</strong><span class="pill good">已完成</span></div>
+                      <small>今天 09:42 · 1 章草稿</small><a href="#content" class="btn ghost" style="padding-left: 0">查看产出</a>
+                    </li>
+                    <li>
+                      <div class="taskline"><strong>长风入夜 · 续写大纲</strong><span class="pill good">已完成</span></div>
+                      <small>昨天 18:16 · 3 章规划</small>
+                    </li>
+                  </ul>
+                </div>
+              </section>
+              <p class="aside-note">任务历史在「任务中心」，请求与消耗在「调用与用量」。</p>
+            </aside>
+          </div>
+        </section>
+
+        <section class="view" id="cover" hidden aria-labelledby="page-title">
+          <div class="cover-workspace">
+            <div class="stack">
+              <section class="panel">
+                <div class="panelhead">
+                  <h2>封面工作台</h2>
+                  <span class="pill good">图像服务已配置</span>
+                </div>
+                <div class="pad">
+                  <label class="field"
+                    ><span>目标小说</span
+                    ><select id="cover-novel">
+                      <option>雾城来信 · 林间</option>
+                      <option>长风入夜 · 江舟</option>
+                    </select></label
+                  >
+                  <div class="formsection">
+                    <div class="section-title">
+                      <h3>视觉方向</h3>
+                      <button class="btn ghost" data-act="cover-brief">从作品提取</button>
+                    </div>
+                    <div class="fields">
+                      <label class="field"
+                        ><span>主视觉风格</span
+                        ><select>
+                          <option>文学插画</option>
+                          <option>水墨写意</option>
+                          <option>电影质感</option>
+                          <option>极简设计</option>
+                        </select></label
+                      ><label class="field"
+                        ><span>构图方向</span
+                        ><select>
+                          <option>场景与氛围</option>
+                          <option>人物与场景</option>
+                          <option>物件意象</option>
+                        </select></label
+                      >
+                    </div>
+                    <label class="field" style="margin-top: 16px"
+                      ><span>封面描述词</span
+                      ><textarea id="cover-prompt">
+雾气中的旧邮局，墨绿色的木窗，窗边放着一封未寄出的信。安静、克制、带有旧时光的质感。以留白和少量暖色灯光表现故事氛围。</textarea
+                      ><small>作品分析提取故事与视觉信息，书名和作者单独处理。</small></label
+                    >
+                  </div>
+                  <div class="fields formsection">
+                    <label class="field"
+                      ><span>目标平台版式</span
+                      ><select>
+                        <option>标准竖版 · 2:3</option>
+                        <option>竖版 · 3:4</option>
+                        <option>方形 · 1:1</option>
+                      </select></label
+                    ><label class="field"
+                      ><span>生成候选数量</span
+                      ><select id="cover-count">
+                        <option value="3">3 张</option>
+                        <option value="1">1 张</option>
+                        <option value="2">2 张</option>
+                      </select></label
+                    >
+                  </div>
+                  <div class="inset" style="margin-top: 16px">
+                    <label class="checkrow"><span>在封面渲染书名和作者</span><input class="switch" type="checkbox" checked /></label
+                    ><small>书名与作者以当前作品信息为准。</small>
+                  </div>
+                  <div class="footerbar">
+                    <small>生成候选图，采纳后才替换当前封面。</small
+                    ><button class="btn primary" id="generate-cover" data-act="cover-generate">
+                      生成封面 <svg><use href="#i-spark" /></svg>
+                    </button>
+                  </div>
+                  <div id="cover-task" hidden class="statusbox" role="status"></div>
+                </div>
+              </section>
+              <details class="panel">
+                <summary style="padding: 20px 24px">上传封面替换 <small>使用已有图片</small></summary>
+                <div class="pad">
+                  <label class="field"><span>选择图片</span><input id="cover-upload" type="file" accept="image/*" /></label
+                  ><small>预览只读取本地图片，不上传到服务器。</small>
+                </div>
+              </details>
+            </div>
+            <div class="stack">
+              <section class="panel">
+                <div class="panelhead">
+                  <div>
+                    <h2>封面候选</h2>
+                    <p>选择候选，比较后再决定是否采纳。</p>
+                  </div>
+                  <span class="pill" id="cover-total">3 张</span>
+                </div>
+                <div class="pad">
+                  <div class="cover-grid" id="cover-candidates"></div>
+                  <div class="cover-preview">
+                    <div id="selected-cover-art"></div>
+                    <div>
+                      <div class="actions" style="justify-content: space-between; margin-bottom: 10px">
+                        <h3 id="selected-cover-title">候选 01</h3>
+                        <span class="pill">未采纳</span>
+                      </div>
+                      <p>文学插画 · 场景与氛围</p>
+                      <p>1024 × 1536 · 今天 10:18</p>
+                      <details style="margin-top: 14px">
+                        <summary>生成描述词</summary>
+                        <p id="candidate-prompt">雾气中的旧邮局，以留白和灯光表现故事氛围。</p>
+                      </details>
+                      <div class="actions" style="margin-top: 18px">
+                        <button class="btn primary" data-act="adopt">采纳此封面</button><button class="btn" data-act="cover-large">查看大图</button
+                        ><button class="btn ghost danger" data-act="discard">弃用</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+              <section class="panel">
+                <div class="panelhead">
+                  <h2>当前封面与历史</h2>
+                  <button class="btn ghost" data-act="cover-history">查看历史</button>
+                </div>
+                <div class="pad">
+                  <div class="context-book" style="margin: 0">
+                    <div class="mini-book" id="current-cover" aria-hidden="true">雾城<br />来信</div>
+                    <div>
+                      <strong id="current-cover-label">当前使用 · 原始封面</strong><small style="display: block">2026-09-28 16:32 更新</small
+                      ><small>采纳前保留原封面，可从历史记录恢复。</small>
+                    </div>
+                  </div>
+                </div>
+              </section>
+              <p class="aside-note">封面图为版式示意，不代表图像模型的实际生成质量。</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="view" id="content" hidden aria-labelledby="page-title">
+          <section class="panel">
+            <div class="panelhead">
+              <div class="actions">
+                <h2>生成内容目录</h2>
+                <span class="pill" id="content-total">6 条</span>
+              </div>
+              <div class="actions">
+                <span id="selection-count" class="muted" style="font-size: 12px"></span
+                ><button class="btn ghost danger" id="bulk-delete" data-act="bulk-delete" disabled>删除所选</button
+                ><button class="btn" data-act="refresh">
+                  <svg><use href="#i-refresh" /></svg>刷新
+                </button>
+              </div>
+            </div>
+            <div class="toolbar">
+              <span class="muted" style="margin: 0">类型</span
+              ><select id="content-type" aria-label="生成内容类型">
+                <option value="all">全部类型</option>
+                <option value="续写">续写</option>
+                <option value="创作大纲">创作大纲</option>
+                <option value="创作章节">创作章节</option>
+                <option value="前情提要">前情提要</option>
+                <option value="回顾总结">回顾总结</option></select
+              ><select id="content-status" aria-label="生成内容状态">
+                <option value="all">全部状态</option>
+                <option value="草稿">草稿</option>
+                <option value="已发布">已发布</option>
+                <option value="已完成">已完成</option></select
+              ><span class="muted">按最新生成时间排序 · 批次可展开章节</span>
+            </div>
+            <div class="tablewrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width: 29%">
+                      <label><input type="checkbox" id="select-all" aria-label="选择当前筛选全部内容" /> 关联内容</label>
+                    </th>
+                    <th style="width: 14%">类型与状态</th>
+                    <th style="width: 24%">内容预览</th>
+                    <th style="width: 17%">模型与时间</th>
+                    <th style="width: 16%">操作</th>
+                  </tr>
+                </thead>
+                <tbody id="content-rows"></tbody>
+              </table>
+            </div>
+          </section>
+          <div class="pagination">
+            <span id="content-summary">共 6 条，显示 1–6</span>
+            <div class="actions">
+              <span>每页行数</span
+              ><select aria-label="每页行数">
+                <option>15 条</option>
+                <option>20 条</option>
+                <option>50 条</option>
+              </select>
+            </div>
+          </div>
+          <p class="help-line">草稿经审阅后发布；删除生成记录前，会提示对应内容及影响。</p>
+        </section>
+
+        <section class="view" id="config" hidden aria-labelledby="page-title">
+          <form id="config-form">
+            <div class="settings-grid">
+              <section class="panel">
+                <div class="panelhead">
+                  <div>
+                    <h2>文本供应商</h2>
+                    <p>用于创作、小说分析、摘要与回顾。</p>
+                  </div>
+                  <span class="pill good"><span class="dot"></span>已配置</span>
+                </div>
+                <div class="pad stack">
+                  <label class="field"
+                    ><span>Base URL</span><input type="url" value="https://api.deepseek.com/v1" required /><small>OpenAI 兼容端点。</small></label
+                  ><label class="field"><span>模型</span><input value="deepseek-v4-flash" required /></label
+                  ><label class="field"
+                    ><span>API Key</span><input type="password" placeholder="已配置，留空保持原密钥" autocomplete="new-password" /><small
+                      >预览中请勿填写真实密钥。</small
+                    ></label
+                  >
+                  <div class="footerbar" style="margin: 0">
+                    <span id="text-test-status" class="muted" style="font-size: 12px">尚未进行本次检查</span
+                    ><button class="btn" type="button" data-act="test-text">测试连接</button>
+                  </div>
+                </div>
+              </section>
+              <section class="panel">
+                <div class="panelhead">
+                  <div>
+                    <h2>图像供应商</h2>
+                    <p>用于封面候选图生成。</p>
+                  </div>
+                  <span class="pill good"><span class="dot"></span>已配置</span>
+                </div>
+                <div class="pad stack">
+                  <label class="field"
+                    ><span>图像 Base URL</span><input type="url" value="https://image.example.com/v1" required /><small>OpenAI 兼容图像接口。</small></label
+                  ><label class="field"><span>图像模型</span><input value="mimo-v2.5" required /></label
+                  ><label class="field"
+                    ><span>图像 API Key</span><input type="password" placeholder="已配置，留空保持原密钥" autocomplete="new-password" /><small
+                      >预览中请勿填写真实密钥。</small
+                    ></label
+                  >
+                  <div class="footerbar" style="margin: 0">
+                    <span id="image-test-status" class="muted" style="font-size: 12px">尚未进行本次检查</span
+                    ><button class="btn" type="button" data-act="test-image">测试连接</button>
+                  </div>
+                </div>
+              </section>
+              <section class="panel wide">
+                <div class="panelhead">
+                  <div>
+                    <h2>读者生成策略</h2>
+                    <p>管理读者端前情提要与回顾的使用范围。</p>
+                  </div>
+                </div>
+                <div class="pad">
+                  <div class="policy-grid">
+                    <div>
+                      <label class="checkrow"><span>允许读者生成前情提要</span><input class="switch" type="checkbox" checked /></label>
+                      <p class="help-line">已有缓存优先复用，管理员不受读者配额限制。</p>
+                    </div>
+                    <div class="fields">
+                      <label class="field"
+                        ><span>每人每日生成上限</span><input type="number" value="10" min="0" required /><small
+                          >命中缓存不计数；0 表示禁止读者触发。</small
+                        ></label
+                      ><label class="field"
+                        ><span>送入模型的正文字数</span><input type="number" value="30000" min="1000" required /><small
+                          >超出部分截断，影响单次调用成本。</small
+                        ></label
+                      >
+                    </div>
+                  </div>
+                </div>
+              </section>
+              <section class="panel wide">
+                <div class="panelhead">
+                  <h2>服务检查与用量</h2>
+                  <span class="muted" style="font-size: 12px">示例数据</span>
+                </div>
+                <div class="pad">
+                  <div class="actions">
+                    <span class="pill good"><span class="dot"></span>文本与图像服务可用</span
+                    ><button type="button" class="btn ghost" data-act="usage">查看调用明细</button>
+                  </div>
+                  <div class="usage-line">
+                    <span>今日 <b>18</b> 次调用</span><span><b>42,680</b> Token</span><span>成本 <b>¥ 0.38</b></span
+                    ><span class="muted">近 30 天 · 462 次调用 · ¥ 8.62</span>
+                  </div>
+                </div>
+              </section>
+            </div>
+            <div class="settings-save">
+              <p id="config-save-status">配置与当前生效值一致</p>
+              <div class="actions">
+                <button type="reset" class="btn">撤销修改</button><button type="submit" class="btn primary" id="save-config" disabled>保存配置</button>
+              </div>
+            </div>
+          </form>
+        </section>
+
+        <section class="view" id="params" hidden aria-labelledby="page-title">
+          <form id="params-form">
+            <div class="param-layout">
+              <nav class="paramnav" aria-label="参数分组">
+                <a href="#param-recap" data-scroll="param-recap">前情提要</a><a href="#param-catchup" data-scroll="param-catchup">回顾总结</a
+                ><a href="#param-writing" data-scroll="param-writing">AI 创作</a><a href="#param-image" data-scroll="param-image">生图与封面</a
+                ><a href="#param-tasks" data-scroll="param-tasks">任务与运维</a><a href="#param-audit" data-scroll="param-audit">审计配置</a>
+              </nav>
+              <div class="stack" id="param-panels"></div>
+            </div>
+            <div class="settings-save">
+              <p id="params-save-status">参数与当前生效值一致</p>
+              <div class="actions">
+                <button type="reset" class="btn">撤销修改</button><button type="submit" class="btn primary" id="save-params" disabled>保存参数</button>
+              </div>
+            </div>
+          </form>
+        </section>
+        <p class="previewnote">设计预览 · 所有任务、连接测试、发布与保存均为本页演示，不调用项目 API。</p>
+      </main>
+    </div>
+    <dialog class="dialog" id="dialog">
+      <div class="dialoghead">
+        <div>
+          <h2 id="dialog-title"></h2>
+          <p id="dialog-description"></p>
+        </div>
+        <button class="icon-button" data-act="close" aria-label="关闭弹窗">×</button>
+      </div>
+      <div class="dialogbody" id="dialog-body"></div>
+      <div class="dialogfoot" id="dialog-footer"></div>
+    </dialog>
+    <div id="toast" class="toast" role="status" hidden></div>
+    <script>
+      const $ = (s) => document.querySelector(s),
+        $$ = (s) => Array.from(document.querySelectorAll(s))
+      const esc = (v) => String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
+      const icon = (id) => `<svg aria-hidden="true"><use href="#i-${id}"/></svg>`
+      const meta = {
+        writing: ['AI 创作', '让故事接着发生，保留作品原有的声音。'],
+        cover: ['封面生成', '从故事提取视觉方向，比较候选，再决定作品的第一眼。'],
+        content: ['已生成内容', '审阅章节、整理批次，让每一次生成都有明确的去处。'],
+        config: ['AI 配置', '连接文本与图像服务，管理模型和读者生成策略。'],
+        params: ['参数调优', '按用途调整生成参数，保持输出风格与任务行为一致。'],
+      }
+      let view = 'writing',
+        mode = 'continue',
+        strategy = 'single',
+        taskTimer = null,
+        coverTimer = null,
+        selectedCover = 0,
+        toastTimer
+      function toast(text) {
+        $('#toast').textContent = text
+        $('#toast').hidden = false
+        clearTimeout(toastTimer)
+        toastTimer = setTimeout(() => ($('#toast').hidden = true), 3200)
+      }
+      function navigate() {
+        const next = location.hash.slice(1)
+        if (!meta[next]) {
+          location.replace('#writing')
+          return
+        }
+        view = next
+        $$('.view').forEach((e) => (e.hidden = e.id !== next))
+        $('#page-title').textContent = meta[next][0]
+        $('#page-description').textContent = meta[next][1]
+        $$('.subnav a,.hidden-tabs a').forEach((a) => {
+          a.removeAttribute('aria-current')
+          if (a.hash === '#' + next) a.setAttribute('aria-current', 'page')
+        })
+        $('#page-actions').innerHTML =
+          next === 'content'
+            ? `<label class="search">${icon('search')}<input id="content-search" aria-label="搜索生成内容" placeholder="搜索作品、章节或生成内容"></label>`
+            : `<button class="btn" data-act="refresh">${icon('refresh')}刷新</button>`
+        $('#sidebar').classList.remove('open')
+        $('#scrim').classList.remove('open')
+        $('#menu').setAttribute('aria-expanded', 'false')
+        if (next === 'content') renderContent()
+        window.scrollTo({ top: 0, behavior: 'instant' })
+      }
+      window.addEventListener('hashchange', navigate)
+      $('#theme').onclick = () => {
+        document.body.classList.toggle('dark')
+        $('#theme').setAttribute('aria-label', document.body.classList.contains('dark') ? '切换浅色主题' : '切换深色主题')
+      }
+      $('#menu').onclick = () => {
+        const open = $('#sidebar').classList.toggle('open')
+        $('#scrim').classList.toggle('open', open)
+        $('#menu').setAttribute('aria-expanded', String(open))
+      }
+      $('#scrim').onclick = () => {
+        $('#sidebar').classList.remove('open')
+        $('#scrim').classList.remove('open')
+        $('#menu').setAttribute('aria-expanded', 'false')
+      }
+      function dialog(title, description, body, footer = '<button class="btn" data-act="close">关闭</button>') {
+        $('#dialog-title').textContent = title
+        $('#dialog-description').textContent = description
+        $('#dialog-body').innerHTML = body
+        $('#dialog-footer').innerHTML = footer
+        $('#dialog').showModal()
+      }
+      $('#dialog').addEventListener('click', (e) => {
+        if (e.target === $('#dialog')) $('#dialog').close()
+      })
+      $$('[data-mode]').forEach(
+        (b) =>
+          (b.onclick = () => {
+            mode = b.dataset.mode
+            $$('[data-mode]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)))
+            $('#writing-title-label').textContent = mode === 'continue' ? '章节标题（可选）' : '作品标题'
+            $('#writing-title').placeholder = mode === 'continue' ? '留空，由 AI 拟定' : '例如：雾城来信'
+            $('#generate-writing').innerHTML = (mode === 'continue' ? '生成续写' : '生成章节') + ' ' + icon('arrow')
+            $('#writing-start').disabled = mode === 'new'
+            $('#new-chapter-field').hidden = mode !== 'new'
+            toast(mode === 'new' ? '已切换为新写；目标作品和输入草稿保留' : '已切换为续写')
+          }),
+      )
+      $$('[data-strategy]').forEach(
+        (b) =>
+          (b.onclick = () => {
+            strategy = b.dataset.strategy
+            $$('[data-strategy]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)))
+            $('#chapter-count-field').hidden = strategy !== 'multi'
+          }),
+      )
+      $('#adult').onchange = () => {
+        $('#adult-options').hidden = !$('#adult').checked
+        $('#adult').closest('.inset').querySelector('.pill').textContent = $('#adult').checked ? 'R18 模式' : '普通模式'
+      }
+      $('#writing-novel').onchange = () => {
+        $$('.book-title').forEach((e) => (e.textContent = $('#writing-novel').value.split(' · ')[0]))
+        toast('已切换作品；预览分析使用示例材料')
+      }
+      const newChapterField = document.createElement('label')
+      newChapterField.className = 'field full'
+      newChapterField.id = 'new-chapter-field'
+      newChapterField.hidden = true
+      newChapterField.innerHTML = '<span>章节标题</span><input id="new-chapter-title" placeholder="例如：第一章 雾中来客">'
+      $('#writing-title').closest('.fields').appendChild(newChapterField)
+      const prose =
+        '旧邮局的窗被风轻轻推开。林晚把最后一叠信件移到桌角，纸页间露出一个褪色的地址。\n\n她停了停，把信封翻过来。陈序站在门边，没有问她为什么忽然不说话。街上的灯刚亮，两个人的影子被拉得很长。\n\n“这个地址，”她说，“我好像去过。”\n\n陈序抬起头。外面又开始下雨。'
+      let records = [
+        {
+          id: 1,
+          book: '雾城来信',
+          title: '第 25 章 · 第二封信',
+          type: '续写',
+          status: '草稿',
+          excerpt: '旧邮局的窗被风轻轻推开。林晚把最后一叠信件移到桌角……',
+          time: '2026-10-02 09:42',
+          batch: 1,
+        },
+        {
+          id: 2,
+          book: '长风入夜',
+          title: '续写规划 · 3 章',
+          type: '创作大纲',
+          status: '已完成',
+          excerpt: '从旧城的重逢开始，以一次意外的发现推进人物关系。',
+          time: '2026-10-01 18:16',
+          batch: 3,
+        },
+        {
+          id: 3,
+          book: '山海之间',
+          title: '第 39 章 · 入山',
+          type: '创作章节',
+          status: '草稿',
+          excerpt: '山谷里有风经过，溪流带着秋日的凉意。',
+          time: '2026-10-01 15:28',
+        },
+        {
+          id: 4,
+          book: '雾城来信',
+          title: '第 24 章 · 前情提要',
+          type: '前情提要',
+          status: '已完成',
+          excerpt: '林晚回到雾城，在旧邮局发现一封未寄出的信。',
+          time: '2026-10-01 11:06',
+        },
+        {
+          id: 5,
+          book: '长风入夜',
+          title: '第 13–16 章 · 阅读回顾',
+          type: '回顾总结',
+          status: '已完成',
+          excerpt: '江晚和沈辞重回旧街，调查十年前的一起失踪事件。',
+          time: '2026-09-30 20:35',
+        },
+        {
+          id: 6,
+          book: '雾城来信',
+          title: '第 24 章 · 未寄出的信',
+          type: '续写',
+          status: '已发布',
+          excerpt: '雨停的时候，街上只剩几盏灯还亮着。',
+          time: '2026-09-30 17:22',
+        },
+      ]
+      let selected = new Set(),
+        expanded = new Set()
+      function filtered() {
+        const term = ($('#content-search')?.value || '').toLowerCase()
+        return records.filter(
+          (r) =>
+            ($('#content-type').value === 'all' || r.type === $('#content-type').value) &&
+            ($('#content-status').value === 'all' || r.status === $('#content-status').value) &&
+            `${r.book} ${r.title} ${r.excerpt}`.toLowerCase().includes(term),
+        )
+      }
+      function selection() {
+        const n = selected.size
+        $('#selection-count').textContent = n ? `已选 ${n} 条` : ''
+        $('#bulk-delete').disabled = !n
+        const rows = filtered()
+        $('#select-all').checked = !!rows.length && rows.every((r) => selected.has(r.id))
+        $('#select-all').indeterminate = rows.some((r) => selected.has(r.id)) && !$('#select-all').checked
+      }
+      function renderContent() {
+        const rows = filtered()
+        $('#content-total').textContent = rows.length + ' 条'
+        $('#content-summary').textContent = rows.length ? `共 ${rows.length} 条，显示 1–${rows.length}` : '共 0 条'
+        $('#content-rows').innerHTML = rows.length
+          ? rows
+              .map(
+                (r) =>
+                  `<tr><td data-label="关联内容"><div class="actions"><input type="checkbox" aria-label="选择${esc(r.title)}" data-select="${r.id}" ${selected.has(r.id) ? 'checked' : ''}><strong>${esc(r.book)}</strong>${r.batch ? `<button class="btn ghost" data-expand="${r.id}" aria-expanded="${expanded.has(r.id)}">${r.batch} 章 ${expanded.has(r.id) ? '⌃' : '⌄'}</button>` : ''}</div><small>${esc(r.title)}</small></td><td data-label="类型与状态">${r.type}<small><span class="pill ${r.status === '草稿' ? 'brand' : 'good'}">${r.status}</span></small></td><td data-label="内容预览">${esc(r.excerpt)}</td><td data-label="模型与时间"><span class="mono">deepseek-v4-flash</span><small>${r.time}</small></td><td data-label="操作"><div class="row-actions"><button class="btn ghost" data-read="${r.id}">${r.status === '草稿' ? '审阅' : '查看'}</button><button class="btn ghost danger" data-delete="${r.id}" aria-label="删除${esc(r.title)}">删除</button></div></td></tr>${expanded.has(r.id) ? `<tr class="batch-detail"><td colspan="5">${Array.from({ length: r.batch }, (_, i) => `<div class="chapterline"><span class="pill">第 ${25 + i} 章</span><span>${i ? '下一段旅程' : '第二封信'}</span><span class="muted">约 3000 字</span><button class="btn ghost" data-read="${r.id}">查看章节</button></div>`).join('')}</td></tr>` : ''}`,
+              )
+              .join('')
+          : '<tr><td colspan="5" class="empty">暂无匹配内容，试试调整搜索或筛选。</td></tr>'
+        selection()
+      }
+      $('#content-type').onchange = $('#content-status').onchange = () => {
+        selected.clear()
+        renderContent()
+      }
+      $('#select-all').onchange = () => {
+        filtered().forEach((r) => ($('#select-all').checked ? selected.add(r.id) : selected.delete(r.id)))
+        renderContent()
+      }
+      let covers = [
+        { color: '', name: '雾中邮局' },
+        { color: 'ochre', name: '灯下的信' },
+        { color: 'blue', name: '雨夜旧街' },
+      ]
+      function art(c) {
+        return `<div class="cover-art ${c.color}" role="img" aria-label="${esc(c.name)}封面版式示意"><b>${esc($('#cover-novel').value.split(' · ')[0])}</b><small>知舟 · 封面示意</small></div>`
+      }
+      function renderCovers() {
+        if (selectedCover >= covers.length) selectedCover = 0
+        $('#cover-total').textContent = covers.length + ' 张'
+        $('#cover-candidates').innerHTML = covers
+          .map(
+            (c, i) =>
+              `<button class="cover-tile" data-cover="${i}" aria-pressed="${selectedCover === i}" aria-label="选择候选 ${i + 1} ${c.name}">${art(c)}<span class="cover-meta"><span>候选 ${String(i + 1).padStart(2, '0')}</span><span class="muted">${c.name}</span></span></button>`,
+          )
+          .join('')
+        $('.cover-preview').hidden = !covers.length
+        if (covers.length) {
+          $('#selected-cover-art').innerHTML = art(covers[selectedCover])
+          $('#selected-cover-title').textContent = '候选 ' + String(selectedCover + 1).padStart(2, '0')
+        }
+      }
+      const paramGroups = [
+        {
+          id: 'recap',
+          title: '前情提要参数',
+          desc: '简短回顾当前章节之前的主要信息。',
+          fields: [
+            ['创意度', 0.7, 'range'],
+            ['最大输出 Token', 500, 'number'],
+          ],
+          prompt: '用简洁的中文概括前文，保留人物、关系与关键事件，避免剧透当前章节。',
+        },
+        {
+          id: 'catchup',
+          title: '回顾总结参数',
+          desc: '为一段时间未阅读的读者恢复故事上下文。',
+          fields: [
+            ['隔多少天算很久没读', 7, 'number'],
+            ['最多回顾章节数', 5, 'number'],
+            ['创意度', 0.7, 'range'],
+            ['最大输出 Token', 800, 'number'],
+          ],
+        },
+        {
+          id: 'writing',
+          title: 'AI 创作参数',
+          desc: '控制大纲、章节与续写的生成长度和变化程度。',
+          fields: [
+            ['创意度', 0.8, 'range'],
+            ['最大输出 Token', 16000, 'number'],
+            ['风格画像 Token', 1500, 'number'],
+            ['情节状态 Token', 3000, 'number'],
+            ['关系画像 Token', 1200, 'number'],
+            ['章节标题 Token', 200, 'number'],
+          ],
+          prompt: '延续已有作品的文风、人物语言与叙事节奏，依据当前上下文和创作要求生成内容。',
+        },
+        {
+          id: 'image',
+          title: 'AI 生图与封面参数',
+          desc: '为封面工作台提供默认图像设置。',
+          fields: [
+            ['图像尺寸', '1024 × 1536', 'select'],
+            ['图像质量', '标准', 'select'],
+            ['返回格式', 'Base64', 'select'],
+            ['封面描述词上限', 2000, 'number'],
+          ],
+        },
+        {
+          id: 'tasks',
+          title: '任务与运维',
+          desc: '管理任务运行数量与操作性记录保留时间。',
+          fields: [
+            ['创作任务并发上限', 3, 'number'],
+            ['已结束任务保留天数', 30, 'number'],
+          ],
+        },
+        { id: 'audit', title: '审计配置', desc: '决定调用审计记录的内容范围。', fields: [] },
+      ]
+      $('#param-panels').innerHTML = paramGroups
+        .map(
+          (g) =>
+            `<section class="panel paramsection" id="param-${g.id}"><div class="panelhead"><div><h2>${g.title}</h2><p>${g.desc}</p></div></div><div class="pad"><div class="fields">${g.fields.map(([label, value, type], i) => `<label class="field"><span class="labelrow">${label}${type === 'range' ? `<output class="value">${value}</output>` : ''}</span>${type === 'range' ? `<input type="range" min="0" max="1" step="0.1" value="${value}">` : type === 'select' ? `<select>${(label === '图像尺寸' ? ['1024 × 1536', '1024 × 1024', '1536 × 1024'] : label === '图像质量' ? ['标准', '高清', '自动'] : ['Base64', 'URL']).map((v) => `<option ${v === value ? 'selected' : ''}>${v}</option>`).join('')}</select>` : `<input type="number" value="${value}" min="1" max="1000000" required>`}</label>`).join('')}</div>${g.prompt ? `<details style="margin-top:20px"><summary>${g.id === 'writing' ? '创作系统提示词' : '系统提示词'}</summary><div class="detail-body"><textarea aria-label="${g.title}系统提示词">${g.prompt}</textarea></div></details>` : ''}${g.id === 'catchup' ? '<label class="checkrow" style="margin-top:20px"><span>启用阅读回顾</span><input type="checkbox" class="switch" checked></label>' : ''}${g.id === 'audit' ? '<div class="stack"><label class="checkrow"><span>记录 IP 地址</span><input class="switch" type="checkbox" checked></label><label class="checkrow"><span>记录 User-Agent</span><input class="switch" type="checkbox"></label><p class="help-line">按审计配置保存访问来源与浏览器信息。</p></div>' : ''}</div></section>`,
+        )
+        .join('')
+      ;['config', 'params'].forEach((id) => {
+        const form = $('#' + id + '-form')
+        form.addEventListener('input', () => {
+          $('#save-' + id).disabled = false
+          $('#' + id + '-save-status').textContent = '有未保存的修改'
+        })
+        form.addEventListener('reset', () => {
+          $('#save-' + id).disabled = true
+          $('#' + id + '-save-status').textContent = '已撤销本次修改'
+          setTimeout(
+            () => form.querySelectorAll('input[type=range]').forEach((e) => (e.previousElementSibling.querySelector('output').textContent = e.value)),
+            0,
+          )
+        })
+        form.addEventListener('submit', (e) => {
+          e.preventDefault()
+          $('#save-' + id).disabled = true
+          $('#' + id + '-save-status').textContent = '已保存到本次预览'
+          form.querySelectorAll('input').forEach((x) => {
+            x.defaultValue = x.value
+            x.defaultChecked = x.checked
+          })
+          form.querySelectorAll('textarea').forEach((x) => (x.defaultValue = x.value))
+          form.querySelectorAll('option').forEach((x) => (x.defaultSelected = x.selected))
+          toast('演示：设置已保存，未写入项目')
+        })
+      })
+      document.addEventListener('input', (e) => {
+        if (e.target.id === 'content-search') {
+          selected.clear()
+          renderContent()
+        }
+        if (e.target.type === 'range') e.target.previousElementSibling.querySelector('output').textContent = e.target.value
+      })
+      document.addEventListener('change', (e) => {
+        if (e.target.dataset.select) {
+          const id = Number(e.target.dataset.select)
+          e.target.checked ? selected.add(id) : selected.delete(id)
+          selection()
+        }
+      })
+      function readRecord(id) {
+        const r = records.find((x) => x.id === id)
+        if (!r) return
+        dialog(
+          r.title,
+          r.book + ' · ' + r.type + ' · ' + r.status,
+          r.status === '草稿'
+            ? `<label class="field"><span>章节内容</span><textarea id="review-text" style="min-height:260px">${esc(r.text || prose)}</textarea></label><p class="help-line">约 3000 字 · 可在发布前编辑。</p>`
+            : `<div class="prose">${(r.text || prose)
+                .split('\n\n')
+                .map((x) => `<p>${esc(x)}</p>`)
+                .join('')}</div>`,
+          `<button class="btn" data-act="close">关闭</button>${r.status === '草稿' ? `<button class="btn" data-save-record="${id}">保存草稿</button><button class="btn primary" data-publish="${id}">发布章节</button>` : ''}`,
+        )
+      }
+      document.addEventListener('click', (e) => {
+        const b = e.target.closest('button,a[data-scroll]')
+        if (!b) return
+        if (b.dataset.scroll) {
+          e.preventDefault()
+          $('#' + b.dataset.scroll).scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion:reduce)').matches ? 'instant' : 'smooth' })
+          return
+        }
+        if (b.dataset.suggestion) {
+          $('#instruction').value = b.dataset.suggestion
+          toast('已填入本次情节，可继续修改')
+          return
+        }
+        if (b.dataset.cover) {
+          selectedCover = Number(b.dataset.cover)
+          renderCovers()
+          return
+        }
+        if (b.dataset.expand) {
+          const id = Number(b.dataset.expand)
+          expanded.has(id) ? expanded.delete(id) : expanded.add(id)
+          renderContent()
+          return
+        }
+        if (b.dataset.read) {
+          readRecord(Number(b.dataset.read))
+          return
+        }
+        if (b.dataset.delete) {
+          const id = Number(b.dataset.delete)
+          dialog(
+            '删除生成记录？',
+            '只演示本页操作，不修改项目数据。',
+            `<p>${esc(records.find((r) => r.id === id)?.title)}</p>`,
+            '<button class="btn" data-act="close">取消</button><button class="btn primary" data-confirm-delete="' + id + '">确认删除</button>',
+          )
+          return
+        }
+        if (b.dataset.confirmDelete) {
+          const ids = b.dataset.confirmDelete === 'bulk' ? Array.from(selected) : [Number(b.dataset.confirmDelete)]
+          records = records.filter((r) => !ids.includes(r.id))
+          selected.clear()
+          $('#dialog').close()
+          renderContent()
+          toast('演示：已删除所选生成记录')
+          return
+        }
+        if (b.dataset.saveRecord) {
+          records.find((r) => r.id === Number(b.dataset.saveRecord)).text = $('#review-text').value
+          toast('演示：草稿已保存')
+          return
+        }
+        if (b.dataset.publish) {
+          const r = records.find((r) => r.id === Number(b.dataset.publish))
+          r.text = $('#review-text').value
+          r.status = '已发布'
+          $('#dialog').close()
+          renderContent()
+          toast('演示：章节已发布')
+          return
+        }
+        switch (b.dataset.act) {
+          case 'close':
+            $('#dialog').close()
+            break
+          case 'refresh':
+            toast('演示数据已刷新，输入草稿保留')
+            break
+          case 'analysis':
+            toast('演示：三项小说分析已更新')
+            break
+          case 'suggest':
+            $('#suggestions').hidden = false
+            toast('已展示 3 个情节方向，选择后可继续编辑')
+            break
+          case 'outline':
+            $('#outline').value = '1. 林晚在档案中发现第二封信。\n2. 与陈序核对地址，发现故人留下的线索。\n3. 雨夜探访旧街，保留寄信人身份的悬念。'
+            toast('演示：大纲已生成，可直接修改')
+            break
+          case 'prompt':
+            dialog(
+              '本次提交内容',
+              '预览将目标、基线与创作要求集中展示。',
+              `<dl class="definition"><div><dt>小说</dt><dd>${esc($('#writing-novel').value)}</dd></div><div><dt>模式</dt><dd>${mode === 'continue' ? '续写' : '新写'} · ${strategy === 'single' ? '单章精写' : '多章规划'}</dd></div><div><dt>起点</dt><dd>${esc($('#writing-start').value)}</dd></div><div><dt>内容尺度</dt><dd>${$('#adult').checked ? 'R18' : '普通'}</dd></div></dl><div class="divider"></div><h3>本次情节</h3><p style="margin-top:12px;white-space:pre-wrap">${esc($('#instruction').value)}</p><h3 style="margin-top:20px">大纲</h3><p style="margin-top:12px;white-space:pre-wrap">${esc($('#outline').value || '未填写')}</p>`,
+            )
+            break
+          case 'write': {
+            if (!$('#instruction').value.trim()) {
+              toast('请先填写本次情节')
+              $('#instruction').focus()
+              break
+            }
+            if ($('#adult').checked && !$('#adult-confirm').checked) {
+              toast('请先确认相关角色均为成年人')
+              $('#adult-confirm').focus()
+              break
+            }
+            if (mode === 'new' && !$('#writing-title').value.trim()) {
+              toast('请填写作品标题')
+              $('#writing-title').focus()
+              break
+            }
+            if (!$('#target-words').checkValidity() || (strategy === 'multi' && !$('#chapter-count').checkValidity())) {
+              toast('请检查字数或章节数')
+              break
+            }
+            if (mode === 'new' && !$('#new-chapter-title').value.trim()) {
+              toast('请填写章节标题')
+              $('#new-chapter-title').focus()
+              break
+            }
+            if (taskTimer) break
+            let progress = 0
+            const n = strategy === 'single' ? 1 : Number($('#chapter-count').value)
+            $('#generate-writing').disabled = true
+            $('#task-status').textContent = '生成中'
+            $('#task-status').className = 'pill brand'
+            $('#task-receipt').innerHTML =
+              `<strong style="font-size:13px">正在组织故事上下文</strong><div class="progress"><div style="transform:scaleX(0)"></div></div><small id="task-percent">0% · 共 ${n} 章</small><div class="actions" style="margin-top:12px"><button class="btn ghost danger" data-act="cancel-writing">中止任务</button></div>`
+            taskTimer = setInterval(() => {
+              progress += 25
+              $('#task-receipt .progress div').style.transform = `scaleX(${progress / 100})`
+              $('#task-percent').textContent = `${progress}% · 共 ${n} 章`
+              if (progress >= 100) {
+                clearInterval(taskTimer)
+                taskTimer = null
+                $('#generate-writing').disabled = false
+                $('#task-status').textContent = '已完成'
+                $('#task-status').className = 'pill good'
+                $('#task-receipt').innerHTML =
+                  `<strong style="font-size:13px">${n} 章草稿已保存</strong><p class="help-line">请到已生成内容审阅后发布。</p><a href="#content" class="btn ghost" style="padding-left:0">查看本次产出 ${icon('arrow')}</a>`
+                records.unshift({
+                  id: Date.now(),
+                  book: mode === 'new' ? $('#writing-title').value : $('#writing-novel').value.split(' · ')[0],
+                  title: mode === 'new' ? $('#new-chapter-title').value : $('#writing-title').value || '第 25 章 · 第二封信',
+                  type: mode === 'new' ? '创作章节' : '续写',
+                  status: '草稿',
+                  excerpt: '旧邮局的窗被风轻轻推开。林晚把最后一叠信件移到桌角……',
+                  time: '2026-10-02 10:30',
+                  batch: n,
+                })
+                toast('演示：任务已完成，草稿已保存')
+              }
+            }, 650)
+            break
+          }
+          case 'cancel-writing':
+            clearInterval(taskTimer)
+            taskTimer = null
+            $('#generate-writing').disabled = false
+            $('#task-status').textContent = '已中止'
+            $('#task-receipt').innerHTML = '<p class="muted">本次演示任务已中止，创作输入仍保留。</p>'
+            toast('演示：任务已中止')
+            break
+          case 'cover-brief':
+            $('#cover-prompt').value = '旧邮局、未寄出的信、雨夜与旧街。以墨绿色和暖灯光呈现克制的悬疑氛围，保留上方书名区域。'
+            toast('演示：视觉方向已提取，可继续修改')
+            break
+          case 'cover-generate':
+            if (!$('#cover-prompt').value.trim()) {
+              toast('请填写封面描述词')
+              break
+            }
+            if (coverTimer) break
+            $('#generate-cover').disabled = true
+            $('#cover-task').hidden = false
+            $('#cover-task').innerHTML =
+              '<strong>正在生成封面候选</strong><p>原封面继续保留，完成后可比较采纳。</p><button class="btn ghost danger" data-act="cancel-cover">中止任务</button>'
+            coverTimer = setTimeout(() => {
+              coverTimer = null
+              covers = [
+                { color: '', name: '雾中邮局' },
+                { color: 'ochre', name: '灯下的信' },
+                { color: 'blue', name: '雨夜旧街' },
+              ].slice(0, Number($('#cover-count').value))
+              selectedCover = 0
+              renderCovers()
+              $('#generate-cover').disabled = false
+              $('#cover-task').innerHTML = '<strong>候选已生成</strong><p>选择右侧候选查看细节，采纳前不会替换封面。</p>'
+              toast('演示：封面候选已生成')
+            }, 1800)
+            break
+          case 'cancel-cover':
+            clearTimeout(coverTimer)
+            coverTimer = null
+            $('#generate-cover').disabled = false
+            $('#cover-task').innerHTML = '<strong>任务已中止</strong><p>已有候选保留。</p>'
+            break
+          case 'cover-large':
+            dialog('候选封面大图', '完整比例预览 · 版式示意', art(covers[selectedCover]))
+            break
+          case 'adopt':
+            dialog(
+              '采纳这张封面？',
+              '新封面替换后，原封面可在历史记录恢复。',
+              art(covers[selectedCover]),
+              '<button class="btn" data-act="close">取消</button><button class="btn primary" data-act="confirm-adopt">确认采纳</button>',
+            )
+            break
+          case 'confirm-adopt':
+            $('#current-cover').style.background = ['#536563', '#9e7d5b', '#3c5261'][selectedCover]
+            $('#current-cover-label').textContent = '当前使用 · ' + covers[selectedCover].name
+            $('#dialog').close()
+            toast('演示：当前封面已更新')
+            break
+          case 'discard':
+            dialog(
+              '弃用当前候选？',
+              '只移除本页候选，不影响当前封面。',
+              '<p>' + esc(covers[selectedCover].name) + '</p>',
+              '<button class="btn" data-act="close">取消</button><button class="btn primary" data-act="confirm-discard">确认弃用</button>',
+            )
+            break
+          case 'confirm-discard':
+            covers.splice(selectedCover, 1)
+            renderCovers()
+            $('#dialog').close()
+            toast('演示：候选已弃用')
+            break
+          case 'cover-history':
+            dialog(
+              '封面历史',
+              '保留每次替换前的封面，便于比较和恢复。',
+              '<div class="context-book"><div class="mini-book">雾城<br>来信</div><div><strong>原始封面</strong><small style="display:block">2026-09-28 16:32 · 上传替换</small></div></div>',
+              '<button class="btn" data-act="close">关闭</button><button class="btn primary" data-act="restore-cover">恢复此封面</button>',
+            )
+            break
+          case 'restore-cover':
+            $('#current-cover-label').textContent = '当前使用 · 原始封面'
+            $('#current-cover').style.background = '#536563'
+            $('#dialog').close()
+            toast('演示：原始封面已恢复')
+            break
+          case 'bulk-delete':
+            dialog(
+              '删除所选生成记录？',
+              '请确认范围；发布章节不会通过本页演示被删除。',
+              `<p>已选择 ${selected.size} 条生成记录。</p>`,
+              '<button class="btn" data-act="close">取消</button><button class="btn primary" data-confirm-delete="bulk">确认删除</button>',
+            )
+            break
+          case 'test-text':
+          case 'test-image': {
+            const id = b.dataset.act === 'test-text' ? 'text-test-status' : 'image-test-status'
+            b.disabled = true
+            $('#' + id).textContent = '连接检查中…'
+            setTimeout(() => {
+              b.disabled = false
+              $('#' + id).textContent = '演示：连接正常 · 286 ms'
+              toast('演示：连接正常，未向供应商发送请求')
+            }, 900)
+            break
+          }
+          case 'usage':
+            dialog(
+              '调用与用量',
+              '独立入口保留在运行监控中。',
+              '<p>此处可前往查看文本与图像调用、Token、成本、失败原因和完整请求记录。</p><p class="help-line">本次预览聚焦 AI 服务五个子页面。</p>',
+            )
+            break
+        }
+      })
+      $('#cover-upload').onchange = (e) => {
+        const file = e.target.files[0]
+        if (!file) return
+        if (!file.type.startsWith('image/')) {
+          toast('请选择图片文件')
+          return
+        }
+        const reader = new FileReader()
+        reader.onload = () =>
+          dialog(
+            '本地封面预览',
+            '只读取本地文件，未上传或修改项目。',
+            `<img src="${esc(reader.result)}" alt="本地封面预览" style="display:block;max-width:100%;max-height:440px;margin:auto;object-fit:contain">`,
+          )
+        reader.readAsDataURL(file)
+      }
+      $('#cover-novel').onchange = () => {
+        covers = []
+        selectedCover = 0
+        renderCovers()
+        $('#cover-candidates').innerHTML = '<p class="muted" style="grid-column:1/-1;padding:24px 0">该作品尚无候选，可从左侧生成。</p>'
+        toast('已切换目标作品，候选已随作品切换')
+      }
+      const parameterBounds = {
+        隔多少天算很久没读: [1, 90],
+        最多回顾章节数: [1, 10],
+        封面描述词上限: [100, 10000],
+        创作任务并发上限: [1, 10],
+        已结束任务保留天数: [7, 365],
+      }
+      $$('#params-form label.field').forEach((field) => {
+        const label = field.querySelector('.labelrow')?.textContent.trim()
+        const input = field.querySelector('input[type=number]')
+        if (input && parameterBounds[label]) {
+          input.min = parameterBounds[label][0]
+          input.max = parameterBounds[label][1]
+        }
+      })
+      renderCovers()
+      navigate()
+      requestAnimationFrame(() => window.scrollTo(0, 0))
+    </script>
+  </body>
+</html>

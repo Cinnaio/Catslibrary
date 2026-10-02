@@ -1,8 +1,9 @@
 /** 已生成内容管理：列出 AI 产物，支持按类型筛选、批量删除、草稿发布。 */
 import { AdminDialogContent } from '@/components/admin/AdminDialog'
 import AdminFormField from '@/components/admin/AdminFormField'
-import { Fragment, useCallback, useEffect, useState } from 'react'
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { RefreshCw } from 'lucide-react'
 import { aiApi, newOperationId } from '@/lib/api'
 import { useToast, useConfirm } from '@/components/feedback'
 import { ErrorState, InlineError, LoadingState } from '@/components/admin/AsyncStates'
@@ -11,7 +12,7 @@ import { ADMIN_DEFAULT_PAGE_SIZE, ADMIN_PAGE_SIZE_OPTIONS } from '@/lib/admin-pa
 import AiPanelEmptyState from './AiPanelEmptyState'
 import DraftRewrite from './DraftRewrite'
 import { useAiConfigured } from './useAiConfigured'
-import { AdminDataPanel, AdminPanelHeading, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
+import { AdminDataPanel, AdminPanelHeading, AdminSearch, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -22,6 +23,7 @@ import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, Tabl
 import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { kindLabel } from './labels'
+import { useDebouncedValue } from '@/hooks/useDebounce'
 
 interface AiGenerationListItem {
   id: string
@@ -52,39 +54,21 @@ const EDITABLE_KINDS = new Set(['write_chapter', 'continue', 'write_outline'])
  *  大纲不作为散文改写，故不在其列。 */
 const REWRITABLE_KINDS = new Set(['write_chapter', 'continue'])
 
-/**
- * 表格列定义：与小说管理、章节管理同一套契约 —— 桌面端据此固定列宽
- * （fixed 布局下百分比合计 100%，任何宽度等比缩放），移动端据此折成卡片。
- * 顺序必须与 thead/tbody 单元格顺序一致，每格标注 data-label / data-primary /
- * data-actions / data-check。
- *
- * 宽度按实测需求反推，不是估的：
- *  - 操作列：单行放下「查看章节 + 删除」两个文字按钮需 144px（82+54+8 间距），
- *    加单元格左右 8px 内边距即 160px。1280px 视口下表宽 936px，故下限 17.1%，
- *    取 21% 留余量。
- *  - 模型列：最长模型名 deepseek-v4.1-flash 需 122px 才不截断，同样加内边距
- *    138px，1280px 下占 14.7%，取 15%。低于此值时按单行省略 + title 降级。
- *  - 关联内容 / 内容预览各 20%，是剩余宽度的主要承载者，保持可读。
- *  - 「模型」列不传 label：按 AdminColumn 契约，该列在移动端卡片里隐藏。
- *
- * 原先本表脱离 AdminDataPanel 并自带 `min-w-[760px]`，导致 901–1100px 视口下
- * 表格溢出、sticky 冻结的操作列整列压住「内容预览」（数据丢失），只能靠
- * @container 查询打补丁。改用范本契约后 fixed 布局不再需要最小宽度，
- * 溢出从根上消失，那条容器查询例外随之删除。
- */
+/** 与样稿一致的五列目录；选择框并入关联内容，模型和时间共用一列。 */
 const AI_GENERATION_COLUMNS: readonly AdminColumn[] = [
-  { key: 'check', width: '4%' },
-  { key: 'kind', label: '类型', width: '9%' },
-  { key: 'related', label: '关联内容', width: '20%', primary: true },
-  { key: 'preview', label: '内容预览', width: '20%' },
-  { key: 'model', width: '15%' },
-  { key: 'createdAt', label: '生成时间', width: '11%' },
-  { key: 'actions', actions: true, width: '21%' },
+  { key: 'related', label: '关联内容', width: '29%', primary: true },
+  { key: 'kind', label: '类型与状态', width: '14%' },
+  { key: 'preview', label: '内容预览', width: '24%' },
+  { key: 'modelTime', label: '模型与时间', width: '17%' },
+  { key: 'actions', actions: true, width: '16%' },
 ]
+
+const generationStatusLabel = (status: string) => ({ draft: '待审草稿', published: '已发布', rejected: '已拒绝' })[status] || status
 
 export default function AiGenerationsPanel(props: {
   scope: 'all' | 'reader' | 'writing'
   status?: 'all' | 'published' | 'draft' | 'rejected'
+  search?: string
   focusBatchId?: string
 }) {
   const { toast } = useToast()
@@ -97,6 +81,11 @@ export default function AiGenerationsPanel(props: {
   const [limit, setLimit] = useState(ADMIN_DEFAULT_PAGE_SIZE)
   const [offset, setOffset] = useState(0)
   const [filterKind, setFilterKind] = useState<'all' | 'summary' | 'catchup' | 'write_outline' | 'write_chapter' | 'continue'>('all')
+  const [localSearch, setSearch] = useState('')
+  const search = props.search ?? localSearch
+  const query = useDebouncedValue(search.trim(), 350)
+  const [filterStatus, setFilterStatus] = useState(props.status || 'published')
+  const requestVersion = useRef(0)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [viewing, setViewing] = useState<AiGenerationListItem | null>(null)
   const [publishTitle, setPublishTitle] = useState('')
@@ -122,9 +111,18 @@ export default function AiGenerationsPanel(props: {
   }, [props.focusBatchId])
 
   const load = useCallback(async () => {
+    const version = ++requestVersion.current
     setLoading(true)
     try {
-      const res = await aiApi.generations({ kind: filterKind === 'all' ? undefined : filterKind, scope: props.scope, status: props.status, limit, offset })
+      const res = await aiApi.generations({
+        kind: filterKind === 'all' ? undefined : filterKind,
+        scope: props.scope,
+        status: props.status === 'all' ? filterStatus : props.status,
+        q: query || undefined,
+        limit,
+        offset,
+      })
+      if (version !== requestVersion.current) return
       const allowedKinds =
         props.scope === 'writing'
           ? new Set(['continue', 'write_outline', 'write_chapter'])
@@ -157,14 +155,17 @@ export default function AiGenerationsPanel(props: {
       setTotal(res.total)
       setError('')
     } catch (err) {
-      setError((err as Error).message || '加载已生成内容失败')
+      if (version === requestVersion.current) setError((err as Error).message || '加载已生成内容失败')
     } finally {
-      setLoading(false)
+      if (version === requestVersion.current) setLoading(false)
     }
-  }, [filterKind, limit, offset, props.scope, props.status])
+  }, [filterKind, filterStatus, query, limit, offset, props.scope, props.status])
 
   useEffect(() => {
     void load()
+    return () => {
+      requestVersion.current += 1
+    }
   }, [load])
 
   /** 撤销删除：10 秒窗口内恢复软删的生成记录。 */
@@ -356,12 +357,24 @@ export default function AiGenerationsPanel(props: {
 
   return (
     <div className="ai-service-stack">
-      <AdminDataPanel className="ai-generations-card overflow-hidden" ariaLabel="已生成内容列表" columns={AI_GENERATION_COLUMNS}>
+      <AdminDataPanel className="ai-generations-card overflow-hidden" ariaLabel="已生成内容列表" columns={AI_GENERATION_COLUMNS} density="comfortable">
         <AdminPanelHeading
-          title="生成内容"
+          title="生成内容目录"
+          actions={
+            <Button variant="secondary" size="sm" onClick={() => void load()} disabled={loading}>
+              <RefreshCw className={loading ? 'size-3.5 animate-spin' : 'size-3.5'} aria-hidden="true" />
+              {loading ? '刷新中…' : '刷新目录'}
+            </Button>
+          }
           status={
             <span className={`admin-panel-status${error && items.length === 0 ? ' is-error' : ''}`}>
-              {loading && items.length === 0 ? '读取中' : error && items.length === 0 ? '读取失败' : items.length ? `显示 ${items.length} 条` : '暂无内容'}
+              {loading && items.length === 0
+                ? '读取中'
+                : error && items.length === 0
+                  ? '读取失败'
+                  : items.length
+                    ? `${total} 条 · 本页 ${items.length} 项`
+                    : '暂无内容'}
             </span>
           }
         />
@@ -369,58 +382,101 @@ export default function AiGenerationsPanel(props: {
             之下、数据之上，与章节范本的目录面板同构。外置会让同一件事出现两个
             等权表面（筛选卡 + 数据卡）。 */}
         <AdminToolbar className="ai-generations-toolbar" ariaLive="polite">
+          {props.search === undefined && (
+            <AdminSearch
+              id="ai-generation-search"
+              label="搜索生成内容"
+              placeholder="搜索作品、章节或正文"
+              maxLength={100}
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value)
+                setOffset(0)
+              }}
+            />
+          )}
+          {props.status === 'all' && (
+            <div className="ai-directory-filter">
+              <Label htmlFor="gen-filter-status" className="text-xs text-muted-foreground">
+                状态
+              </Label>
+              <Select
+                value={filterStatus}
+                onValueChange={(value) => {
+                  setFilterStatus(value as typeof filterStatus)
+                  setOffset(0)
+                }}
+              >
+                <SelectTrigger id="gen-filter-status">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部状态</SelectItem>
+                  <SelectItem value="draft">待审草稿</SelectItem>
+                  <SelectItem value="published">已发布</SelectItem>
+                  <SelectItem value="rejected">已拒绝</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           {selectedCount > 0 && (
             <Button variant="destructive" size="sm" disabled={batchDeleting} onClick={() => void removeSelected()}>
               {batchDeleting ? '正在删除 ' + selectedCount + ' 条…' : '批量删除 (' + selectedCount + ')'}
             </Button>
           )}
-          <Label htmlFor="gen-filter-kind" className="text-xs text-muted-foreground">
-            类型
-          </Label>
-          <Select
-            value={filterKind}
-            onValueChange={(v) => {
-              setFilterKind(v as 'all' | 'summary' | 'catchup' | 'write_outline' | 'write_chapter' | 'continue')
-              setOffset(0)
-            }}
-          >
-            <SelectTrigger size="sm" id="gen-filter-kind" className="w-full sm:w-auto sm:min-w-[8.75rem]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent position="popper" align="end" sideOffset={4}>
-              <SelectItem value="all">全部</SelectItem>
-              {props.scope !== 'writing' && (
-                <>
-                  <SelectItem value="summary">前情提要</SelectItem>
-                  <SelectItem value="catchup">回顾总结</SelectItem>
-                </>
-              )}
-              {props.scope !== 'reader' && (
-                <>
-                  <SelectItem value="write_outline">创作大纲</SelectItem>
-                  <SelectItem value="write_chapter">创作章节</SelectItem>
-                  <SelectItem value="continue">续写</SelectItem>
-                </>
-              )}
-            </SelectContent>
-          </Select>
+          <div className="ai-directory-filter">
+            <Label htmlFor="gen-filter-kind" className="text-xs text-muted-foreground">
+              类型
+            </Label>
+            <Select
+              value={filterKind}
+              onValueChange={(v) => {
+                setFilterKind(v as 'all' | 'summary' | 'catchup' | 'write_outline' | 'write_chapter' | 'continue')
+                setOffset(0)
+              }}
+            >
+              <SelectTrigger size="sm" id="gen-filter-kind" className="w-full sm:w-auto sm:min-w-[8.75rem]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent position="popper" align="end" sideOffset={4}>
+                <SelectItem value="all">全部</SelectItem>
+                {props.scope !== 'writing' && (
+                  <>
+                    <SelectItem value="summary">前情提要</SelectItem>
+                    <SelectItem value="catchup">回顾总结</SelectItem>
+                  </>
+                )}
+                {props.scope !== 'reader' && (
+                  <>
+                    <SelectItem value="write_outline">创作大纲</SelectItem>
+                    <SelectItem value="write_chapter">创作章节</SelectItem>
+                    <SelectItem value="continue">续写</SelectItem>
+                  </>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
         </AdminToolbar>
         <div className="ai-list-body">
           {loading && items.length === 0 ? (
             <LoadingState label="正在加载已生成内容" />
           ) : error && items.length === 0 ? (
-            <ErrorState message={`生成内容加载失败：${error}`} onRetry={() => void load()} />
+            <ErrorState message={`生成内容加载失败：${error}`} />
           ) : items.length === 0 ? (
             <AiPanelEmptyState
-              configured={configured}
+              configured={query || filterKind !== 'all' || (props.status === 'all' && filterStatus !== 'all') ? true : configured}
               unconfiguredMessage="尚未配置文本 AI 供应商，还没有可审阅的产物"
               unconfiguredHint="配置文本供应商后，生成的草稿会出现在这里。"
-              emptyMessage="暂无已生成内容"
-              hint="生成完成后草稿会出现在这里，可编辑后再发布为正式章节。"
+              emptyMessage={query || filterKind !== 'all' || (props.status === 'all' && filterStatus !== 'all') ? '没有匹配的生成内容' : '暂无已生成内容'}
+              hint={
+                query || filterKind !== 'all' || (props.status === 'all' && filterStatus !== 'all')
+                  ? '尝试更换关键词或调整类型、状态筛选。'
+                  : '生成完成后草稿会出现在这里，可编辑后再发布为正式章节。'
+              }
             />
           ) : (
             <>
-              {error && <InlineError message={error} onRetry={() => void load()} className="mb-3" />}
+              {error && <InlineError message={error} className="mb-3" />}
               <Table>
                 {/* caption 只给表格名称与交互提示。列名由 <th scope="col"> 完整提供，
                     在此复述会让读屏用户先听一遍列名、再听一遍表头。 */}
@@ -428,19 +484,20 @@ export default function AiGenerationsPanel(props: {
                 <TableHeader>
                   <TableRow>
                     <TableHead scope="col">
-                      <Checkbox
-                        aria-label="全选当前列表"
-                        checked={allSelected}
-                        onCheckedChange={(checked) => {
-                          for (const item of items) toggleItem(item, checked === true)
-                        }}
-                      />
+                      <div className="ai-generation-identity">
+                        <Checkbox
+                          aria-label="全选当前列表"
+                          checked={allSelected}
+                          onCheckedChange={(checked) => {
+                            for (const item of items) toggleItem(item, checked === true)
+                          }}
+                        />
+                        关联内容
+                      </div>
                     </TableHead>
-                    <TableHead scope="col">类型</TableHead>
-                    <TableHead scope="col">关联内容</TableHead>
+                    <TableHead scope="col">类型与状态</TableHead>
                     <TableHead scope="col">内容预览</TableHead>
-                    <TableHead scope="col">模型</TableHead>
-                    <TableHead scope="col">生成时间</TableHead>
+                    <TableHead scope="col">模型与时间</TableHead>
                     <TableHead scope="col">操作</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -448,53 +505,62 @@ export default function AiGenerationsPanel(props: {
                   {items.map((item) => (
                     <Fragment key={item.id}>
                       <TableRow className="ai-generation-row" data-focus-batch={item.groupItems ? item.batchId : undefined}>
-                        <TableCell data-check="">
-                          <Checkbox
-                            aria-label={`选择${item.chapterTitle || item.kind}`}
-                            checked={idsForItem(item).every((id) => selectedIds.has(id))}
-                            onCheckedChange={(checked) => toggleItem(item, checked === true)}
-                          />
-                        </TableCell>
-                        <TableCell data-label="类型">
-                          <Badge variant="secondary">{kindLabel(item.kind)}</Badge>
-                        </TableCell>
                         <TableCell data-primary="" data-label="关联内容">
-                          {item.novelId ? (
-                            <Link
-                              to={`/novel/${encodeURIComponent(item.novelId)}`}
-                              className="ai-generation-related__title"
-                              title={`打开《${item.novelTitle || '未知小说'}》详情`}
-                            >
-                              {item.novelTitle || <span className="text-muted-foreground">—</span>}
-                            </Link>
-                          ) : (
-                            <div className="ai-generation-related__title">{item.novelTitle || <span className="text-muted-foreground">—</span>}</div>
-                          )}
-                          {item.chapterTitle ? (
-                            item.novelId && item.chapterId ? (
-                              <Link
-                                to={`/read/${encodeURIComponent(item.novelId)}/${encodeURIComponent(item.chapterId)}`}
-                                className="ai-generation-related__sub"
-                                title="阅读该章节"
-                              >
-                                📖 {item.chapterTitle}
-                              </Link>
-                            ) : (
-                              <div className="ai-generation-related__sub">📖 {item.chapterTitle}</div>
-                            )
-                          ) : null}
+                          <div className="ai-generation-identity">
+                            <Checkbox
+                              aria-label={`选择${item.chapterTitle || item.kind}`}
+                              checked={idsForItem(item).every((id) => selectedIds.has(id))}
+                              onCheckedChange={(checked) => toggleItem(item, checked === true)}
+                            />
+                            <div className="min-w-0">
+                              {item.novelId ? (
+                                <Link
+                                  to={`/novel/${encodeURIComponent(item.novelId)}`}
+                                  className="ai-generation-related__title"
+                                  title={`打开《${item.novelTitle || '未知小说'}》详情`}
+                                >
+                                  {item.novelTitle || <span className="text-muted-foreground">—</span>}
+                                </Link>
+                              ) : (
+                                <div className="ai-generation-related__title">{item.novelTitle || <span className="text-muted-foreground">—</span>}</div>
+                              )}
+                              {item.chapterTitle ? (
+                                item.novelId && item.chapterId ? (
+                                  <Link
+                                    to={`/read/${encodeURIComponent(item.novelId)}/${encodeURIComponent(item.chapterId)}`}
+                                    className="ai-generation-related__sub"
+                                    title="阅读该章节"
+                                  >
+                                    📖 {item.chapterTitle}
+                                  </Link>
+                                ) : (
+                                  <div className="ai-generation-related__sub">📖 {item.chapterTitle}</div>
+                                )
+                              ) : null}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell data-label="类型与状态">
+                          <div className="ai-generation-classification">
+                            <Badge variant="secondary">{kindLabel(item.kind)}</Badge>
+                            <span className="text-xs text-muted-foreground">
+                              {item.groupItems
+                                ? item.groupItems.every((chapter) => chapter.status === item.groupItems?.[0]?.status)
+                                  ? generationStatusLabel(item.groupItems[0]?.status || 'draft')
+                                  : `${item.groupItems.filter((chapter) => chapter.status === 'draft').length} 章待审`
+                                : generationStatusLabel(item.status)}
+                            </span>
+                          </div>
                         </TableCell>
                         <TableCell data-label="内容预览">
                           <p className="ai-generation-preview" data-preview-label={item.groupItems ? '内容摘要' : '正文预览'}>
                             {item.result || '—'}
                           </p>
                         </TableCell>
-                        <TableCell data-label="模型" className="text-xs text-muted-foreground">
+                        <TableCell data-label="模型与时间" className="text-xs text-muted-foreground">
                           <span className="ai-generation-model" title={item.model || ''}>
                             {item.model || '—'}
                           </span>
-                        </TableCell>
-                        <TableCell data-label="生成时间" className="text-muted-foreground">
                           <div className="ai-generation-time">
                             <span>{new Date(item.createdAt).toLocaleDateString('zh-CN')}</span>
                             <span className="text-xs">{new Date(item.createdAt).toLocaleTimeString('zh-CN')}</span>
@@ -545,21 +611,26 @@ export default function AiGenerationsPanel(props: {
                         expandedBatchId === item.id &&
                         item.groupItems.map((chapter) => (
                           <TableRow key={chapter.id} className="ai-generation-row ai-generation-row--child">
-                            <TableCell />
-                            <TableCell data-label="类型">
-                              <span className="text-xs text-muted-foreground">第 {chapter.batchIndex} 章</span>
-                            </TableCell>
-                            <TableCell data-label="章节">
+                            <TableCell data-primary="" data-label="关联内容">
+                              <span className="text-xs text-muted-foreground">第 {chapter.batchIndex} 章 · </span>
                               <span className="text-xs text-muted-foreground">{chapter.draftTitle || chapter.chapterTitle || '待命名章节'}</span>
+                            </TableCell>
+                            <TableCell data-label="类型与状态">
+                              <div className="ai-generation-classification">
+                                <Badge variant="secondary">{kindLabel(chapter.kind)}</Badge>
+                                <span className="text-xs text-muted-foreground">{generationStatusLabel(chapter.status)}</span>
+                              </div>
                             </TableCell>
                             <TableCell data-label="内容预览">
                               <p className="ai-generation-preview" data-preview-label="正文预览">
                                 {chapter.result || '暂无内容'}
                               </p>
                             </TableCell>
-                            <TableCell className="text-xs text-muted-foreground">{chapter.status}</TableCell>
-                            <TableCell data-label="生成时间" className="text-xs text-muted-foreground">
-                              {new Date(chapter.createdAt).toLocaleTimeString('zh-CN')}
+                            <TableCell data-label="模型与时间" className="text-xs text-muted-foreground">
+                              <span className="ai-generation-model" title={chapter.model}>
+                                {chapter.model || '—'}
+                              </span>
+                              <div className="ai-generation-time">{new Date(chapter.createdAt).toLocaleString('zh-CN')}</div>
                             </TableCell>
                             <TableCell data-actions="">
                               <div className="admin-cell-actions">
@@ -591,22 +662,32 @@ export default function AiGenerationsPanel(props: {
                   ))}
                 </TableBody>
               </Table>
-              <Pagination
-                page={Math.floor(offset / limit) + 1}
-                totalPages={Math.max(1, Math.ceil(total / limit))}
-                onPage={(page) => setOffset((page - 1) * limit)}
-                busy={loading}
-                summary={
-                  <>
-                    共 {total} 条，显示 {offset + 1}-{Math.min(offset + limit, total)}
-                  </>
-                }
-                pageSize={{ value: limit, onChange: setLimit, options: ADMIN_PAGE_SIZE_OPTIONS }}
-              />
             </>
           )}
         </div>
       </AdminDataPanel>
+      {total > 0 && items.length > 0 && (
+        <Pagination
+          variant="detached"
+          page={Math.floor(offset / limit) + 1}
+          totalPages={Math.max(1, Math.ceil(total / limit))}
+          onPage={(page) => setOffset((page - 1) * limit)}
+          busy={loading}
+          summary={
+            <>
+              共 {total} 条，显示 {offset + 1}-{Math.min(offset + limit, total)}
+            </>
+          }
+          pageSize={{
+            value: limit,
+            onChange: (value) => {
+              setLimit(value)
+              setOffset(0)
+            },
+            options: ADMIN_PAGE_SIZE_OPTIONS,
+          }}
+        />
+      )}
       <Dialog
         open={!!viewing}
         onOpenChange={(open) => {

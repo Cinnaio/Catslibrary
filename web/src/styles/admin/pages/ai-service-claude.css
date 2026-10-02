@@ -1,0 +1,1005 @@
+/* AI 服务使用共享纸面、字阶与控件；布局只在该页面作用域生效。 */
+.ai-service {
+  --ai-workspace-gap: 1.25rem;
+  --ai-context-width: 18rem;
+}
+.ai-service.ai-admin-page {
+  overflow: clip;
+}
+.admin-layout__content:has(.ai-service) {
+  overflow: visible;
+}
+
+.ai-service .admin-panel-card {
+  min-width: 0;
+  border: 0;
+  border-radius: var(--radius-2xl);
+  background: var(--admin-panel);
+  box-shadow: none;
+}
+
+.ai-service :is(.ai-writing-panel, .ai-writing-context, .ai-config-panel, .ai-params-sections) {
+  display: grid;
+  min-width: 0;
+  align-items: start;
+  gap: var(--ai-workspace-gap);
+}
+
+.ai-service .ai-writing-panel {
+  grid-template-columns: minmax(0, 1fr) var(--ai-context-width);
+}
+
+.ai-service .ai-writing-context__facts {
+  display: grid;
+  gap: 0.75rem;
+  font-size: 0.8125rem;
+}
+
+.ai-service .ai-writing-context__facts > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.ai-service .ai-writing-context__facts dt {
+  color: var(--text-muted);
+}
+.ai-service .ai-writing-context__facts dd {
+  margin: 0;
+  text-align: right;
+}
+.ai-service .ai-writing-receipt [data-slot='card-content'] > div {
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: var(--admin-panel-muted);
+  padding: 1rem;
+  line-height: 1.65;
+}
+
+.ai-service.ai-admin-page .ai-form-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.25rem;
+}
+
+.ai-service :is(.ai-writing-workspace, .ai-config-panel, .ai-params-panel) .ai-form-grid > .admin-form-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: 0.5rem;
+}
+
+.ai-service .ai-params-panel .ai-form-grid > .admin-form-field > :is([data-slot], p) {
+  grid-column: auto;
+  grid-row: auto;
+}
+
+.ai-service :is([data-slot='input'], [data-slot='select-trigger']) {
+  max-width: 100%;
+}
+
+.ai-service :is(.ai-writing-workspace, .ai-config-panel, .ai-params-panel) [data-slot='input'] {
+  width: 100%;
+}
+
+.ai-service .ai-writing-section-heading h3 {
+  font-size: 0.875rem;
+}
+.ai-service .ai-writing-brief-layout {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+}
+.ai-service .ai-writing-brief-layout__main {
+  grid-column: auto;
+}
+.ai-service .ai-writing-brief-layout__aside {
+  grid-column: auto;
+}
+.ai-service .ai-writing-brief-layout__main .ai-writing-brief textarea {
+  min-height: 10rem;
+  height: auto;
+}
+.ai-service .ai-writing-content-scope__toggle {
+  border: 0;
+}
+.ai-service .ai-writing-launch-summary {
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: var(--admin-panel-muted);
+  padding: 1rem;
+}
+
+.ai-service .ai-cover-card:has(.ai-cover-workspace) {
+  background: transparent;
+  padding: 0;
+}
+.ai-service .ai-cover-card:has(.ai-cover-workspace) > [data-slot='card-content'] {
+  padding: 0;
+}
+.ai-service .ai-cover-card:has(.ai-cover-workspace) > .admin-panel-heading {
+  padding: 0;
+}
+.ai-service .ai-cover-card:has(.ai-cover-workspace) > [data-slot='card-content'] > section,
+.ai-service .ai-cover-controls,
+.ai-service .ai-cover-results > section {
+  border: 0;
+  border-radius: var(--radius-2xl);
+  background: var(--admin-panel);
+  padding: 1.5rem;
+}
+.ai-service .ai-cover-workspace {
+  grid-template-columns: minmax(18rem, 0.8fr) minmax(0, 1.2fr);
+  gap: var(--ai-workspace-gap);
+}
+
+.ai-service .ai-config-providers-card {
+  background: transparent;
+  padding: 0;
+}
+.ai-service .ai-config-providers-card > .admin-panel-heading {
+  padding: 0;
+}
+.ai-service.ai-admin-page .ai-config-providers-card > [data-slot='card-content'] {
+  padding: 0;
+  gap: var(--ai-workspace-gap);
+}
+.ai-service .ai-config-providers::after {
+  display: none;
+}
+.ai-service .ai-provider-section {
+  border-radius: var(--radius-2xl);
+  background: var(--admin-panel);
+  padding: 1.5rem;
+  gap: 1.25rem;
+}
+.ai-service .ai-provider-actions {
+  align-items: center;
+}
+.ai-service .ai-provider-actions > span {
+  flex-basis: 100%;
+  line-height: 1.6;
+}
+.ai-service .ai-config-secondary {
+  gap: var(--ai-workspace-gap);
+}
+.ai-service .ai-config-panel label:has([data-slot='switch']),
+.ai-service .ai-params-panel label:has([data-slot='switch']) {
+  border: 0;
+  background: var(--admin-panel-muted);
+}
+
+.ai-service .ai-params-panel {
+  display: grid;
+  grid-template-columns: 10rem minmax(0, 1fr);
+  align-items: start;
+  gap: var(--ai-workspace-gap);
+}
+.ai-service .ai-params-nav {
+  position: sticky;
+  top: 1rem;
+  display: grid;
+  gap: 0.375rem;
+  min-width: 0;
+  grid-column: 1;
+  grid-row: 1;
+}
+.ai-service .ai-params-sections {
+  grid-column: 2;
+  grid-row: 1;
+  padding-bottom: 6rem;
+}
+.ai-service .ai-params-nav > span {
+  padding: 0.75rem;
+}
+.ai-service .ai-params-nav a {
+  padding: 0.75rem;
+  border-radius: var(--radius-lg);
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  text-decoration: none;
+}
+.ai-service .ai-params-nav a:hover {
+  background: var(--accent-light);
+  color: var(--accent);
+}
+.ai-service .ai-params-nav a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.ai-service .ai-params-card {
+  scroll-margin-top: 1.5rem;
+}
+.ai-service .ai-params-card [data-slot='card-content'] {
+  grid-template-rows: none;
+}
+.ai-service .ai-prompt-details {
+  border-radius: var(--radius-lg);
+  background: var(--admin-panel-muted);
+  padding: 1rem;
+}
+.ai-service .ai-prompt-details summary {
+  cursor: pointer;
+  font-size: 0.8125rem;
+}
+.ai-service .ai-prompt-details summary span {
+  color: var(--text-muted);
+  margin-left: 0.75rem;
+  font-size: 0.75rem;
+}
+.ai-service .ai-prompt-details[open] summary {
+  margin-bottom: 1rem;
+}
+.ai-service .ai-params-save {
+  position: sticky;
+  bottom: 0.75rem;
+  z-index: 5;
+  grid-column: 2;
+  grid-row: 1;
+  align-self: end;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--radius-lg);
+  background: var(--admin-panel);
+  padding: 1rem 1.25rem;
+}
+.ai-service .ai-generations-toolbar .admin-search {
+  flex: 1 1 17.5rem;
+  max-width: 22rem;
+}
+.ai-service .ai-generations-toolbar [data-slot='select-trigger'] {
+  width: 9rem;
+}
+.ai-service .ai-directory-filter {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.ai-service .ai-generations-card .ai-list-body {
+  padding: 0;
+}
+.ai-service .ai-generations-card .ai-list-body > :is(.admin-empty-state, .admin-async-state) {
+  padding: 2rem 1.25rem;
+}
+
+@media (max-width: 1199px) {
+  .ai-service .ai-writing-panel,
+  .ai-service .ai-cover-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ai-service .ai-writing-context {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 767px) {
+  .ai-service .ai-writing-context,
+  .ai-service.ai-admin-page .ai-form-grid,
+  .ai-service .ai-config-providers .ai-provider-section .ai-form-grid,
+  .ai-service .ai-params-panel {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ai-service .ai-params-nav {
+    position: static;
+    display: flex;
+    overflow-x: auto;
+    padding-bottom: 0.5rem;
+  }
+  .ai-service .ai-params-sections {
+    grid-column: 1;
+    grid-row: 2;
+    padding-bottom: 8rem;
+  }
+  .ai-service .ai-params-nav > span {
+    display: none;
+  }
+  .ai-service .ai-params-nav a {
+    flex: 0 0 auto;
+    background: var(--admin-panel);
+  }
+  .ai-service .ai-params-save {
+    grid-column: 1;
+    grid-row: 2;
+    bottom: 0.5rem;
+    padding: 0.875rem;
+  }
+  .ai-service .ai-provider-section,
+  .ai-service .ai-cover-controls,
+  .ai-service .ai-cover-results > section {
+    padding: 1rem;
+  }
+  .ai-service .ai-generations-toolbar .admin-search {
+    max-width: none;
+    flex-basis: 100%;
+  }
+  .ai-service .ai-generations-toolbar {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .ai-service .ai-generations-toolbar .admin-search,
+  .ai-service .ai-generations-toolbar > [data-slot='button'] {
+    grid-column: 1 / -1;
+  }
+  .ai-service .ai-directory-filter {
+    display: grid;
+    gap: 0.375rem;
+  }
+  .ai-service .ai-directory-filter [data-slot='select-trigger'] {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+/* 样稿的任务布局：24px 纸面内边距、20px 分组、16px 字段间距。 */
+.ai-service {
+  --ai-context-width: 18.75rem;
+}
+.ai-service .ai-writing-workspace {
+  padding: 0 1.5rem 1.5rem;
+  gap: 1.25rem;
+}
+.ai-service .ai-writing-identity {
+  gap: 1rem;
+}
+.ai-service.ai-admin-page .ai-form-grid {
+  gap: 1rem;
+}
+.ai-service .ai-writing-workspace > :is(.ai-writing-baseline, .ai-writing-notes, .ai-writing-actions) {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+.ai-service .ai-writing-baseline {
+  gap: 1.25rem;
+}
+.ai-service .ai-writing-baseline-fields {
+  align-items: start;
+}
+.ai-service .ai-writing-continuation-start {
+  max-width: none;
+}
+.ai-service .ai-writing-strategy {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+}
+.ai-service .ai-writing-run-scale {
+  flex: 1 1 20rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.ai-service .ai-writing-run-scale > label {
+  display: none;
+}
+.ai-service .ai-writing-run-scale > p {
+  margin: 0;
+  max-width: 30rem;
+  font-size: 0.75rem;
+}
+.ai-service .ai-writing-run-scale__choices {
+  flex: 0 0 auto;
+  background: var(--admin-panel-muted);
+  border-radius: 0.75rem;
+  padding: 0.25rem;
+  gap: 0.125rem;
+}
+.ai-service .ai-writing-run-scale__choices [data-slot='button'] {
+  min-width: 0;
+  border: 0;
+  box-shadow: none;
+  padding: 0.375rem 0.75rem;
+}
+.ai-service .ai-writing-run-scale__choices [aria-pressed='true'] {
+  background: var(--admin-panel);
+}
+.ai-service .ai-writing-run-scale__choices [aria-pressed='false'] {
+  background: transparent;
+  color: var(--text-muted);
+}
+.ai-service .ai-writing-content-scope {
+  background: var(--admin-panel-muted);
+  padding: 1rem;
+  border-radius: 0.75rem;
+  gap: 1rem;
+}
+.ai-service .ai-writing-baseline > :is(.ai-writing-content-scope, .ai-writing-analysis) {
+  border: 0;
+  padding-top: 1rem;
+}
+.ai-service .ai-writing-baseline > .ai-writing-analysis {
+  padding-top: 0;
+}
+.ai-service .ai-writing-content-scope__toggle {
+  padding: 0;
+  background: transparent;
+  align-items: center;
+}
+.ai-service .ai-writing-content-scope__toggle .text-xs {
+  display: none;
+}
+.ai-service .ai-writing-profile-list {
+  border: 0;
+  gap: 0.625rem;
+}
+.ai-service .ai-writing-profile-list > .ai-analysis-row {
+  border: 0;
+  border-radius: 0.625rem;
+  background: var(--admin-panel-muted);
+  padding: 0.75rem 1rem;
+  gap: 0.5rem;
+}
+.ai-service .ai-analysis-row > .flex {
+  align-items: center;
+}
+.ai-service .ai-analysis-row [data-slot='input'] {
+  width: 4rem;
+  min-height: 1.75rem;
+  height: 1.75rem;
+}
+.ai-service .ai-analysis-row [data-slot='button'] {
+  border: 0;
+  background: transparent;
+  min-height: 1.75rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+}
+.ai-service .ai-analysis-row > .flex > .flex:last-child {
+  gap: 0.5rem;
+}
+.ai-service .ai-analysis-help {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+.ai-service .ai-analysis-help p {
+  padding-top: 0.5rem;
+  line-height: 1.6;
+}
+.ai-service .ai-writing-brief {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.ai-service .ai-writing-brief__head {
+  margin-bottom: 0.75rem;
+  align-items: center;
+}
+.ai-service .ai-writing-brief__head label {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.ai-service .ai-writing-brief__head [data-slot='button'] {
+  margin-left: auto;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+}
+.ai-service .ai-writing-brief__count {
+  display: none;
+}
+.ai-service .ai-writing-brief-layout__main .ai-writing-brief textarea {
+  min-height: 7rem;
+  padding: 0.75rem;
+}
+.ai-service .ai-writing-brief__hint {
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1.6;
+}
+.ai-service .ai-writing-assist {
+  margin-top: 0.5rem;
+}
+.ai-service .ai-writing-assist [data-slot='input'] {
+  min-height: 2rem;
+  font-size: 0.75rem;
+}
+.ai-service .ai-writing-suggest-placeholder {
+  display: none;
+}
+.ai-service .ai-writing-suggest {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.ai-service .ai-writing-suggest__item {
+  flex: 1 1 12rem;
+  padding: 0.625rem;
+  border-radius: 0.625rem;
+  font-size: 0.75rem;
+}
+.ai-service .ai-writing-suggest__index {
+  display: none;
+}
+.ai-service .ai-writing-outline-details {
+  border: 0;
+  padding: 0;
+  font-size: 0.8125rem;
+}
+.ai-service .ai-writing-outline-details > summary {
+  cursor: pointer;
+  padding: 0.25rem 0;
+}
+.ai-service .ai-writing-outline-details > summary span {
+  margin-left: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+.ai-service .ai-writing-outline-details[open] > summary {
+  margin-bottom: 1rem;
+}
+.ai-service .ai-writing-workspace > .ai-writing-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  border-top: 1px solid var(--admin-line);
+  padding-top: 1rem;
+}
+.ai-service .ai-writing-draft-note {
+  margin: 0 auto 0 0;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+.ai-service .ai-writing-submit-preview {
+  position: relative;
+  font-size: 0.8125rem;
+}
+.ai-service .ai-writing-submit-preview > summary {
+  cursor: pointer;
+  padding: 0.5rem;
+}
+.ai-service .ai-writing-submit-preview .ai-writing-launch-summary {
+  position: absolute;
+  z-index: 4;
+  bottom: 100%;
+  right: 0;
+  width: 18rem;
+  border: 1px solid var(--admin-line);
+  font-size: 0.75rem;
+}
+.ai-service .ai-context-book {
+  display: flex;
+  gap: 0.875rem;
+  align-items: start;
+}
+.ai-service .ai-context-book img {
+  width: 3.5rem;
+  height: 4.75rem;
+  border-radius: 0.5rem;
+  object-fit: cover;
+}
+.ai-service .ai-context-book strong {
+  font-size: 0.875rem;
+}
+.ai-service .ai-context-book p {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 0.25rem;
+}
+.ai-service .ai-writing-context__facts {
+  font-size: 0.75rem;
+}
+.ai-service .ai-writing-context__facts dd {
+  overflow-wrap: anywhere;
+}
+.ai-service .ai-cover-card:has(.ai-cover-workspace) > [data-slot='card-content'] {
+  display: block;
+}
+.ai-service .ai-cover-workspace {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.12fr);
+}
+.ai-service .ai-cover-controls > .admin-panel-heading {
+  padding: 0 0 0.25rem;
+}
+.ai-service .ai-cover-book-disclosure,
+.ai-service .ai-cover-understanding {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+.ai-service .ai-cover-book-disclosure summary,
+.ai-service .ai-cover-understanding summary {
+  cursor: pointer;
+}
+.ai-service .ai-cover-book-details,
+.ai-service .ai-cover-understanding > section {
+  padding-top: 1rem;
+}
+.ai-service .ai-cover-controls section[aria-labelledby='cover-design-title'] {
+  position: relative;
+}
+.ai-service .ai-cover-extract {
+  position: absolute;
+  top: -0.25rem;
+  right: 0;
+  color: var(--accent);
+}
+.ai-service .ai-cover-render-toggle {
+  background: var(--admin-panel-muted);
+  border-radius: 0.75rem;
+  padding: 1rem;
+}
+.ai-service .ai-cover-controls > [data-slot='button'] {
+  width: auto;
+  justify-self: end;
+  min-height: 2.5rem;
+  height: auto;
+  font-size: 0.8125rem;
+}
+.ai-service .ai-cover-gallery {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+.ai-service .ai-cover-tile {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  text-align: left;
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
+.ai-service .ai-cover-tile[aria-pressed='true'] > :first-child {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.ai-service .ai-cover-tile:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+.ai-service .ai-cover-tile > span {
+  display: block;
+  font-size: 0.75rem;
+  padding-top: 0.75rem;
+  color: var(--text-muted);
+}
+.ai-service .ai-cover-selected {
+  display: grid;
+  grid-template-columns: 8.75rem minmax(0, 1fr);
+  gap: 1.25rem;
+  padding: 1.25rem;
+  background: var(--admin-panel-muted);
+  border-radius: 0.75rem;
+  margin: 0.5rem 0 0;
+}
+.ai-service .ai-cover-selected figcaption {
+  min-width: 0;
+  align-content: start;
+}
+.ai-service .ai-cover-empty {
+  min-height: 14rem;
+  padding: 2rem;
+  display: grid;
+  align-content: center;
+  gap: 0.5rem;
+  background: var(--admin-panel-muted);
+  border-radius: 0.75rem;
+  text-align: center;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+.ai-service .ai-cover-current h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+.ai-service .ai-cover-current-book {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr);
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.ai-service .ai-cover-current-book strong {
+  font-size: 0.875rem;
+}
+.ai-service .ai-cover-current-book p {
+  margin-top: 0.375rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+.ai-service .ai-config-providers-card > .admin-panel-heading {
+  display: none;
+}
+.ai-service.ai-admin-page .ai-config-providers .ai-form-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+.ai-service .ai-provider-section h3 {
+  font-size: 1rem;
+  font-weight: 600;
+}
+.ai-service .ai-provider-section h3 > svg {
+  display: none;
+}
+.ai-service .ai-config-secondary {
+  grid-template-columns: minmax(0, 1fr);
+}
+.ai-service .ai-config-policy-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+.ai-service .ai-config-policy-grid > label {
+  background: transparent;
+  padding: 0;
+}
+.ai-service .ai-config-usage {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  border: 0;
+}
+.ai-service .ai-config-usage-group {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0;
+  border: 0;
+}
+.ai-service .ai-config-usage-grid {
+  display: flex;
+  gap: 1rem;
+}
+.ai-service .ai-config-save {
+  position: sticky;
+  bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  background: var(--admin-panel);
+  border-radius: 0.75rem;
+  z-index: 5;
+}
+.ai-service .ai-config-save > span {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+@media (max-width: 1100px) {
+  .ai-service .ai-writing-panel,
+  .ai-service .ai-cover-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 767px) {
+  .ai-service .ai-writing-workspace {
+    padding: 0 1rem 1rem;
+  }
+  .ai-service .ai-writing-run-scale {
+    flex-wrap: wrap;
+  }
+  .ai-service .ai-config-policy-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ai-service .ai-cover-selected {
+    grid-template-columns: 6rem minmax(0, 1fr);
+    padding: 0.75rem;
+    gap: 0.75rem;
+  }
+  .ai-service .ai-analysis-row > .flex > .flex:last-child {
+    border: 0;
+    padding-top: 0;
+  }
+  .ai-service .ai-cover-extract {
+    position: static;
+    justify-self: end;
+  }
+  .ai-service .ai-config-save {
+    flex-wrap: wrap;
+  }
+  .ai-service .ai-writing-submit-preview .ai-writing-launch-summary {
+    right: auto;
+    left: 0;
+    max-width: calc(100vw - 4rem);
+  }
+}
+
+.ai-service.ai-admin-page .admin-panel-card > .ai-writing-workspace {
+  padding: 0 1.5rem 1.5rem;
+}
+.ai-service .ai-form-grid {
+  display: grid;
+}
+.ai-service .admin-panel-heading {
+  align-items: center;
+  padding-bottom: 1rem;
+}
+.ai-service .ai-writing-context .admin-panel-card > [data-slot='card-content'],
+.ai-service .ai-config-secondary .admin-panel-card > [data-slot='card-content'],
+.ai-service .ai-params-card > [data-slot='card-content'] {
+  padding-top: 0;
+}
+.ai-service.ai-admin-page .ai-analysis-row [data-slot='button'] {
+  min-height: 1.75rem;
+  height: auto;
+  padding: 0.25rem 0.5rem;
+}
+.ai-service.ai-admin-page .ai-analysis-row [data-slot='input'] {
+  width: 3.5rem;
+  min-height: 1.75rem;
+  height: 1.75rem;
+}
+.ai-service .ai-analysis-row .ai-analysis-help {
+  display: none;
+}
+.ai-service .ai-provider-test {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: nowrap;
+  border-top: 1px solid var(--admin-line);
+  padding-top: 1rem;
+}
+.ai-service .ai-provider-test > span {
+  flex: 1 1 auto;
+}
+.ai-service .ai-config-panel .ai-config-policy-grid > label {
+  background: transparent;
+}
+@media (max-width: 767px) {
+  .ai-service.ai-admin-page .admin-panel-card > .ai-writing-workspace {
+    padding: 0 1rem 1rem;
+  }
+  .ai-service .ai-analysis-row > .flex {
+    gap: 0.5rem;
+  }
+}
+
+.ai-service .ai-config-providers {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.ai-service .ai-config-panel .ai-provider-section {
+  gap: 1.25rem;
+}
+.ai-service .admin-form-field > [data-slot='label'] {
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+.ai-service .ai-writing-panel [role='combobox'],
+.ai-service .ai-cover-controls [role='combobox'] {
+  width: 100%;
+  min-height: 2.5rem;
+}
+.ai-service .ai-writing-recent {
+  border-top: 1px solid var(--admin-line);
+  padding-top: 1.25rem;
+}
+.ai-service .ai-writing-recent h3 {
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+}
+.ai-service .ai-writing-recent li {
+  padding: 0.75rem 0;
+  border-top: 1px solid var(--admin-line);
+}
+.ai-service .ai-writing-recent li > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+}
+.ai-service .ai-writing-recent li p {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 0.375rem;
+}
+.ai-service .ai-writing-recent [data-slot='button'] {
+  padding: 0.25rem 0;
+  height: auto;
+  min-height: 1.75rem;
+  font-size: 0.75rem;
+  color: var(--accent);
+}
+@media (max-width: 767px) {
+  .ai-service .ai-config-providers {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.ai-service .ai-cover-controls [role='combobox'],
+.ai-service .ai-writing-workspace [role='combobox'] {
+  max-width: none;
+}
+.ai-service .ai-cover-results .admin-panel-heading {
+  padding: 0 0 1rem;
+}
+.ai-service .ai-cover-controls [data-slot='input'],
+.ai-service .ai-cover-controls textarea {
+  width: 100%;
+  max-width: none;
+}
+
+.ai-service .ai-config-usage-grid > div {
+  display: flex;
+  align-items: baseline;
+  gap: 0.375rem;
+  padding: 0;
+  background: transparent;
+}
+.ai-service .ai-config-usage-grid > div > div:last-child {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.ai-service .ai-config-usage-grid > div > div:first-child {
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+.ai-service .ai-params-nav > span {
+  display: none;
+}
+.ai-service .ai-params-description {
+  margin: -0.5rem 0 0.25rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+.ai-service .ai-params-panel label:has([data-slot='switch']) {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  align-items: center;
+}
+.ai-service .ai-prompt-details {
+  background: transparent;
+  padding: 0;
+}
+.ai-service .ai-temperature-field {
+  position: relative;
+}
+.ai-service .ai-temperature-field output {
+  position: absolute;
+  top: 0;
+  right: 0;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+.ai-service.ai-admin-page .ai-temperature-field input[type='range'] {
+  accent-color: var(--accent);
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  min-height: 2.5rem;
+}
+.ai-service .ai-params-save {
+  grid-column: 1 / -1;
+}
+
+.ai-service .ai-generation-identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.ai-service .ai-generation-identity > button {
+  flex-shrink: 0;
+}
+.ai-service .ai-generation-classification {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.ai-service .ai-generation-time {
+  margin-top: 6px;
+}
+.ai-service .ai-generations-toolbar .ai-directory-filter:last-child {
+  order: -1;
+}
+.ai-service .ai-generation-row td {
+  padding-block: 20px;
+}
+.ai-service .ai-generation-row [data-actions] {
+  height: auto;
+  overflow: visible;
+}
+.ai-service .ai-generation-row .admin-cell-actions {
+  flex-wrap: wrap;
+}

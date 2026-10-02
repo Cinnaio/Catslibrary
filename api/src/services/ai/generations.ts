@@ -242,7 +242,7 @@ export async function listTaskGenerations(db: Db, taskId: string): Promise<Gener
 /** 「已生成内容」管理列表：带小说/章节标题、行数与分页。 */
 export async function listGenerationDetails(
   db: Db,
-  opts: { kind?: string; kinds?: string[]; status?: string; limit?: number; offset?: number } = {},
+  opts: { q?: string; kind?: string; kinds?: string[]; status?: string; limit?: number; offset?: number } = {},
 ): Promise<{ items: GenerationDetail[]; total: number }> {
   const limit = Math.min(Math.max(Math.trunc(opts.limit || 50), 1), 100)
   const offset = Math.max(Math.trunc(opts.offset || 0), 0)
@@ -264,6 +264,13 @@ export async function listGenerationDetails(
     params.push(opts.status)
     conditions.push(`g.status = $${params.length}`)
   }
+  const query = opts.q?.trim().slice(0, 100)
+  if (query) {
+    params.push(query)
+    const parameter = `$${params.length}`
+    // POSITION performs a literal search, so user-entered % and _ are not wildcards.
+    conditions.push(`(POSITION(LOWER(${parameter}) IN LOWER(COALESCE(n.title, ''))) > 0 OR POSITION(LOWER(${parameter}) IN LOWER(COALESCE(c.title, ''))) > 0 OR POSITION(LOWER(${parameter}) IN LOWER(g.result)) > 0)`)
+  }
   conditions.push('g.deleted_at = 0')
   const where = `WHERE ${conditions.join(' AND ')}`
 
@@ -274,11 +281,11 @@ export async function listGenerationDetails(
      LEFT JOIN novels n ON n.id = g.novel_id
      LEFT JOIN chapters c ON c.id = g.chapter_id
      ${where}
-     ORDER BY g.created_at DESC
+     ORDER BY g.created_at DESC, g.id DESC
      LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
     [...params, limit, offset],
   )
-  const totalRow = await first<{ total: number }>(db, `SELECT COUNT(*)::int AS total FROM ai_generations g ${where}`, params)
+  const totalRow = await first<{ total: number }>(db, `SELECT COUNT(*)::int AS total FROM ai_generations g LEFT JOIN novels n ON n.id = g.novel_id LEFT JOIN chapters c ON c.id = g.chapter_id ${where}`, params)
 
   return {
     items: rows.map((r) => ({

@@ -1970,6 +1970,7 @@ export const aiApi = {
   /** 已生成内容列表（管理端）：默认已发布，可筛类型。 */
   generations(
     filters: {
+      q?: string
       kind?: 'summary' | 'catchup' | 'continue' | 'write_outline' | 'write_chapter'
       scope?: 'all' | 'reader' | 'writing'
       status?: 'all' | 'published' | 'draft' | 'rejected'
@@ -2002,6 +2003,7 @@ export const aiApi = {
     offset: number
   }> {
     const params = new URLSearchParams()
+    if (filters.q) params.set('q', filters.q.trim().slice(0, 100))
     if (filters.kind) params.set('kind', filters.kind)
     if (filters.scope) params.set('scope', filters.scope)
     if (filters.status) params.set('status', filters.status)

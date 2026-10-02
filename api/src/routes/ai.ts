@@ -2400,7 +2400,7 @@ aiRoutes.get('/generations', requireAdmin(), async (c) => {
   const limit = Math.min(Math.max(Number.isFinite(requestedLimit) ? requestedLimit : 50, 10), 100)
   const offset = Number.parseInt(c.req.query('offset') || '0', 10) || 0
 
-  const { items, total } = await listGenerationDetails(db, { kind, kinds: scopedKinds, status, limit, offset })
+  const { items, total } = await listGenerationDetails(db, { q: c.req.query('q'), kind, kinds: scopedKinds, status, limit, offset })
   return c.json({ items, total, limit, offset }, 200, { 'Cache-Control': 'no-store' })
 })
 

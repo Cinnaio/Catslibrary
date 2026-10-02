@@ -45,3 +45,6 @@
 @import './admin/pages/monitoring.css';
 @import './admin/pages/proxy-settings.css';
 @import './admin/pages/content-ratings.css';
+
+/* AI 服务布局在共享组件之后声明，尺寸仍取共享 token。 */
+@import './admin/pages/ai-service-claude.css';

@@ -12,6 +12,7 @@ const api = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/api', () => ({
+  url: (path: string) => `/api${path}`,
   aiApi: {
     tasks: vi.fn().mockResolvedValue({ items: [] }),
     task: vi.fn().mockResolvedValue({ task: { id: 't1', status: 'running', current: 0, total: 1, step: '' } }),
@@ -170,7 +171,7 @@ describe('AiWritingPanel', () => {
 
     fireEvent.click(await screen.findByText('夭夜在寝宫与他独处，借双修稳固修为。'))
 
-    const textarea = screen.getByLabelText('创作要求') as HTMLTextAreaElement
+    const textarea = screen.getByLabelText('本次情节') as HTMLTextAreaElement
     expect(textarea.value).toBe('夭夜在寝宫与他独处，借双修稳固修为。')
   })
 
@@ -178,7 +179,7 @@ describe('AiWritingPanel', () => {
     await selectNovel()
 
     // 先手写一段内容
-    const textarea = screen.getByLabelText('创作要求') as HTMLTextAreaElement
+    const textarea = screen.getByLabelText('本次情节') as HTMLTextAreaElement
     fireEvent.change(textarea, { target: { value: '我自己写的创作要求' } })
 
     fireEvent.click(screen.getByRole('button', { name: '推荐情节' }))
@@ -215,7 +216,7 @@ describe('AiWritingPanel', () => {
     switchToContinue()
     fireEvent.click(screen.getByRole('button', { name: '多章规划' }))
 
-    const textarea = screen.getByLabelText('创作要求') as HTMLTextAreaElement
+    const textarea = screen.getByLabelText('本次情节') as HTMLTextAreaElement
     fireEvent.change(textarea, { target: { value: '夭夜在寝宫与他独处，借双修稳固修为。' } })
     fireEvent.click(screen.getByRole('button', { name: /按情节推荐生成大纲/ }))
 

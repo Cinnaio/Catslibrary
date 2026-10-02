@@ -8,6 +8,7 @@ import { useSearchParams } from 'react-router-dom'
 import { RefreshCw } from 'lucide-react'
 import { aiApi, type AiSettings, type AiProviderConfig } from '../../lib/api'
 import { useToast } from '../../components/feedback'
+import { AdminSearch } from '@/components/admin/AdminWorkspace'
 import AdminPage from '@/components/admin/AdminPage'
 import { Button } from '@/components/ui/button'
 import type { Provider } from './ai/shared'
@@ -42,7 +43,10 @@ export default function AiTab() {
   const [settings, setSettings] = useState<AiSettings | null>(null)
   const [provider, setProvider] = useState<Provider | null>(null)
   const [providerConfig, setProviderConfig] = useState<AiProviderConfig | null>(null)
+  const [imageProvider, setImageProvider] = useState<Provider | null>(null)
+  const [imageProviderConfig, setImageProviderConfig] = useState<AiProviderConfig | null>(null)
   const [loading, setLoading] = useState(true)
+  const [generationSearch, setGenerationSearch] = useState('')
   // URL 深链优先于 localStorage：进入/刷新/返回时按 sub 参数定位子页
   const [searchParams, setSearchParams] = useSearchParams()
   const urlSub = searchParams.get('sub')
@@ -81,6 +85,8 @@ export default function AiTab() {
       setSettings(res.settings)
       setProvider(res.provider)
       setProviderConfig(res.providerConfig)
+      setImageProviderConfig(res.imageProviderConfig)
+      setImageProvider(res.imageProvider)
     } catch (err) {
       toast((err as Error).message || '加载 AI 设置失败', 'error')
     } finally {
@@ -98,14 +104,25 @@ export default function AiTab() {
       description={currentMeta.description}
       className="admin-redesign-page admin-redesign-page--ai ai-admin-page ai-service"
       actions={
-        <Button variant="secondary" size="sm" onClick={() => void load()} disabled={loading}>
-          <RefreshCw className={loading ? 'size-3.5 animate-spin' : 'size-3.5'} aria-hidden="true" />
-          {loading ? '刷新中…' : '刷新'}
-        </Button>
+        currentSubTab === 'content' ? (
+          <AdminSearch
+            id="ai-generation-search"
+            label="搜索生成内容"
+            placeholder="搜索作品、章节或正文"
+            maxLength={100}
+            value={generationSearch}
+            onChange={(event) => setGenerationSearch(event.target.value)}
+          />
+        ) : (
+          <Button variant="secondary" size="sm" onClick={() => void load()} disabled={loading}>
+            <RefreshCw className={loading ? 'size-3.5 animate-spin' : 'size-3.5'} aria-hidden="true" />
+            {loading ? '刷新中…' : '刷新'}
+          </Button>
+        )
       }
     >
       <div className="ai-service-tabs__content min-w-0">
-        {currentSubTab === 'writing' && <AiWritingPanel onViewBatch={openGenerations} initialNovelId={urlNovel || undefined} />}
+        {currentSubTab === 'writing' && <AiWritingPanel model={provider?.model} onViewBatch={openGenerations} initialNovelId={urlNovel || undefined} />}
 
         {currentSubTab === 'cover' && (
           <AiCoverPanel
@@ -119,10 +136,18 @@ export default function AiTab() {
           />
         )}
 
-        {currentSubTab === 'content' && <AiGenerationsPanel scope="all" status="all" focusBatchId={urlBatch} />}
+        {currentSubTab === 'content' && <AiGenerationsPanel scope="all" status="all" search={generationSearch} focusBatchId={urlBatch} />}
 
         {currentSubTab === 'config' && (
-          <AiConfigPanel settings={settings} provider={provider} providerConfig={providerConfig} loading={loading} onReload={load} />
+          <AiConfigPanel
+            settings={settings}
+            provider={provider}
+            providerConfig={providerConfig}
+            imageProviderConfig={imageProviderConfig}
+            imageProvider={imageProvider}
+            loading={loading}
+            onReload={load}
+          />
         )}
 
         {currentSubTab === 'params' && <AiParamsPanel settings={settings} loading={loading} onReload={load} />}
