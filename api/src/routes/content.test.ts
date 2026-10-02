@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { app } from '../app'
 import { setDbForTests } from '../db/pool'
 import { createTestDb, type TestDb } from '../test/db'
+import { run } from '../db/query'
 
 let t: TestDb
 
@@ -52,7 +53,11 @@ describe('内容 API 端到端（pglite）', () => {
 
     const created = await req(
       '/api/novels',
-      json('POST', { title: '我的天师女友', author: '不记得了', categories: ['古言1v1兄妹', '穿越'], description: '测试', contentRating: 'general' }, adminToken),
+      json(
+        'POST',
+        { title: '我的天师女友', author: '不记得了', categories: ['古言1v1兄妹', '穿越'], description: '测试', contentRating: 'general' },
+        adminToken,
+      ),
     )
     expect(created.status).toBe(201)
     const { novel } = await jsonOf<{ novel: Novel }>(created)
@@ -96,7 +101,17 @@ describe('内容 API 端到端（pglite）', () => {
 
     const batch = await req(
       '/api/chapters',
-      json('POST', { novelId, chapters: [{ title: '第二章 相知', content: '内容二' }, { title: '第三章 相守', content: '内容三' }] }, adminToken),
+      json(
+        'POST',
+        {
+          novelId,
+          chapters: [
+            { title: '第二章 相知', content: '内容二' },
+            { title: '第三章 相守', content: '内容三' },
+          ],
+        },
+        adminToken,
+      ),
     )
     expect(batch.status).toBe(201)
     const batchData = await jsonOf<{ created: number; totalChapters: number }>(batch)
@@ -200,6 +215,59 @@ describe('内容 API 端到端（pglite）', () => {
     const { novels } = await jsonOf<{ novels: Novel[] }>(list)
     const res = await req(`/api/cover/${novels[0]!.id}`)
     expect(res.status).toBe(502)
+  })
+
+  it('校园筛选匹配简繁别名，其他标签仍精确匹配并保留分页与状态', async () => {
+    for (const category of ['校园', '校園', '校园生活']) {
+      const created = await req(
+        '/api/novels',
+        json('POST', { title: `别名测试${category}`, author: '测试作者', categories: [category], contentRating: 'general', status: 'ongoing' }, adminToken),
+      )
+      expect(created.status).toBe(201)
+      const { novel } = await jsonOf<{ novel: Novel }>(created)
+      // Store raw historical labels: creation normalization can tokenize unknown compound tags.
+      await run(t.db, 'UPDATE novels SET categories = $1 WHERE id = $2', [JSON.stringify([category]), novel.id])
+    }
+    for (const category of ['校园', '校園']) {
+      const result = await req(`/api/novels?category=${encodeURIComponent(category)}&status=ongoing&limit=1&search=${encodeURIComponent('别名测试')}`)
+      const data = await jsonOf<{ novels: Novel[]; total: number; totalPages: number }>(result)
+      expect(data.total).toBe(2)
+      expect(data.totalPages).toBe(2)
+      expect(data.novels).toHaveLength(1)
+      expect(['校园', '校園']).toContain(data.novels[0]!.categories[0])
+    }
+    const exact = await req(`/api/novels?category=${encodeURIComponent('校园生活')}`)
+    expect((await jsonOf<{ total: number }>(exact)).total).toBe(1)
+  })
+
+  it('多标签取交集，别名取并集，分页计数与内容访问规则一致', async () => {
+    const fixtures = [
+      { tags: ['校园', '甜文'], rating: 'general' },
+      { tags: ['校園', '甜文'], rating: 'general' },
+      { tags: ['校园'], rating: 'general' },
+      { tags: ['校园', '甜文'], rating: 'restricted' },
+    ]
+    for (const [index, fixture] of fixtures.entries()) {
+      const response = await req(
+        '/api/novels',
+        json('POST', { title: `多选交集${index}`, author: '测试', categories: fixture.tags, contentRating: fixture.rating, status: 'ongoing' }, adminToken),
+      )
+      expect(response.status).toBe(201)
+      const { novel } = await jsonOf<{ novel: Novel }>(response)
+      await run(t.db, 'UPDATE novels SET categories = $1 WHERE id = $2', [JSON.stringify(fixture.tags), novel.id])
+    }
+    const query = new URLSearchParams({ categories: JSON.stringify(['校园', '校園', '甜文']), search: '多选交集', status: 'ongoing', limit: '1' })
+    const data = await jsonOf<{ novels: Novel[]; total: number; totalPages: number }>(await req(`/api/novels?${query}`))
+    expect(data.total).toBe(2)
+    expect(data.totalPages).toBe(2)
+    expect(data.novels).toHaveLength(1)
+    expect(data.novels[0]!.categories).toContain('甜文')
+    const second = await jsonOf<{ novels: Novel[]; total: number }>(await req(`/api/novels?${query}&page=2`))
+    expect(second.total).toBe(2)
+    expect(second.novels[0]!.id).not.toBe(data.novels[0]!.id)
+    for (const invalid of ['校园', '{}', '[1]', '[""]', JSON.stringify(Array(65).fill('校园'))]) {
+      expect((await req(`/api/novels?categories=${encodeURIComponent(invalid)}`)).status).toBe(400)
+    }
   })
 
   it('batch-delete 小说级联删除章节', async () => {

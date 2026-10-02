@@ -10,11 +10,13 @@ import { pinyinMatch } from '../lib/pinyin'
 import { getDemoNovels } from '../lib/demo'
 import { useSearch } from '../context/SearchContext'
 import { useContentPolicy } from '../context/ContentPolicyContext'
-import { filterVisibleCategories } from '@shared/restricted-categories'
+import { filterVisibleCategories, isRestrictedCategoryTag } from '@shared/restricted-categories'
+import { canonicalCategory } from '@shared/category-aliases'
+import { homeCategoryOptions } from '../lib/home-categories'
 import NovelCard from '../components/NovelCard'
 import ContentRestrictionNotice from '../components/ContentRestrictionNotice'
 import { SearchIcon } from '../components/icons'
-import { ArrowRight, BookOpen } from 'lucide-react'
+import { ArrowRight, BookOpen, ChevronDown } from 'lucide-react'
 
 const PAGE_LIMIT = 20
 
@@ -36,7 +38,7 @@ export default function Home() {
   const [novels, setNovels] = useState<Novel[]>([])
   const [totalPages, setTotalPages] = useState(1)
   const [currentPage, setCurrentPage] = useState(1)
-  const [activeCategory, setActiveCategory] = useState('')
+  const [activeCategories, setActiveCategories] = useState<string[]>([])
   const [activeStatus, setActiveStatus] = useState('')
   const [sort, setSort] = useState<string>(() => localStorage.getItem('homeSort') || 'updated_at')
   const [categories, setCategories] = useState<string[]>([])
@@ -45,6 +47,7 @@ export default function Home() {
   const [retryCount, setRetryCount] = useState(0)
   const [hiddenRestricted, setHiddenRestricted] = useState(false)
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
+  const [moreCategoriesOpen, setMoreCategoriesOpen] = useState(false)
 
   // 防抖后的搜索词：loadNovels 只依赖它，避免"每次击键立即请求 + 300ms 后再请求"的双发
   const [debouncedQuery, setDebouncedQuery] = useState(query)
@@ -81,13 +84,21 @@ export default function Home() {
     setQuery(urlQuery)
   }, [setQuery, urlQuery])
 
+  useEffect(() => {
+    if (safeMode && activeCategories.some(isRestrictedCategoryTag)) {
+      setActiveCategories((selected) => selected.filter((category) => !isRestrictedCategoryTag(category)))
+      setCurrentPage(1)
+    }
+  }, [safeMode, activeCategories])
+
   // 拼音查询加载数据映射
   const loadDemo = useCallback(
     async (usePinyin: boolean, seq: number) => {
       let filtered = getDemoNovels()
       const restrictedCount = safeMode ? filtered.filter((n) => !isAllowed(n)).length : 0
       if (safeMode) filtered = filtered.filter(isAllowed)
-      if (activeCategory) filtered = filtered.filter((n) => n.categories.includes(activeCategory))
+      if (activeCategories.length)
+        filtered = filtered.filter((n) => activeCategories.every((selected) => n.categories.some((category) => canonicalCategory(category) === selected)))
       if (activeStatus) filtered = filtered.filter((n) => n.status === activeStatus)
       if (debouncedQuery) {
         const q = debouncedQuery.toLowerCase()
@@ -114,7 +125,7 @@ export default function Home() {
       setCategories(visibleCategories.sort((a, b) => a.length - b.length || a.localeCompare(b)))
       setHiddenRestricted(restrictedCount > 0 || visibleCategories.length !== cats.size)
     },
-    [activeCategory, activeStatus, currentPage, debouncedQuery, sort, safeMode, isAllowed],
+    [activeCategories, activeStatus, currentPage, debouncedQuery, sort, safeMode, isAllowed],
   )
 
   const loadNovels = useCallback(async () => {
@@ -128,7 +139,8 @@ export default function Home() {
       order: sort === 'title' ? 'asc' : 'desc',
     }
     if (debouncedQuery && !isPinyin) params.search = debouncedQuery
-    if (activeCategory) params.category = activeCategory
+    if (activeCategories.length === 1) params.category = activeCategories[0]!
+    else if (activeCategories.length > 1) params.categories = JSON.stringify(activeCategories)
     if (activeStatus) params.status = activeStatus
 
     try {
@@ -165,7 +177,7 @@ export default function Home() {
       if (seq !== loadSeq.current) return
       setLoading(false)
     }
-  }, [currentPage, debouncedQuery, activeCategory, activeStatus, sort, loadDemo, safeMode, isAllowed, retryCount])
+  }, [currentPage, debouncedQuery, activeCategories, activeStatus, sort, loadDemo, safeMode, isAllowed, retryCount])
 
   useEffect(() => {
     void loadNovels()
@@ -192,10 +204,42 @@ export default function Home() {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  const sectionTitle = activeCategory ? `分类: ${activeCategory}` : activeStatus === 'ongoing' ? '连载中' : activeStatus === 'completed' ? '已完结' : '全部小说'
+  const sectionTitle =
+    activeCategories.length > 1
+      ? '筛选结果'
+      : activeCategories.length === 1
+        ? `分类: ${activeCategories[0]}`
+        : activeStatus === 'ongoing'
+          ? '连载中'
+          : activeStatus === 'completed'
+            ? '已完结'
+            : '全部小说'
 
-  const hasFilter = !!(query || activeCategory || activeStatus)
-  const activeFilterCount = Number(!!activeCategory) + Number(!!activeStatus)
+  const hasFilter = !!(query || activeCategories.length || activeStatus)
+  const activeFilterCount = activeCategories.length + Number(!!activeStatus)
+  const categoryOptions = homeCategoryOptions(safeMode ? filterVisibleCategories(categories) : categories)
+  const visibleCommon = [...categoryOptions.common]
+  activeCategories.forEach((category) => {
+    if (!visibleCommon.includes(category)) visibleCommon.push(category)
+  })
+
+  function selectCategory(category: string) {
+    setActiveCategories((selected) => (!category ? [] : selected.includes(category) ? selected.filter((tag) => tag !== category) : [...selected, category]))
+    setCurrentPage(1)
+  }
+
+  function categoryButton(category: string) {
+    return (
+      <button
+        key={category}
+        className={`filter-btn${activeCategories.includes(category) ? ' filter-btn--active' : ''}`}
+        aria-pressed={activeCategories.includes(category)}
+        onClick={() => selectCategory(category)}
+      >
+        {category}
+      </button>
+    )
+  }
 
   function submitSearch() {
     const q = query.trim()
@@ -300,31 +344,74 @@ export default function Home() {
               <span className="filter-row__label">分类</span>
               <div className="category-filter" role="group" aria-label="小说分类">
                 <button
-                  className={`filter-btn${activeCategory === '' ? ' filter-btn--active' : ''}`}
-                  aria-pressed={activeCategory === ''}
+                  className={`filter-btn${activeCategories.length === 0 ? ' filter-btn--active' : ''}`}
+                  aria-pressed={activeCategories.length === 0}
                   onClick={() => {
-                    setActiveCategory('')
+                    setActiveCategories([])
                     setCurrentPage(1)
                   }}
                 >
                   全部
                 </button>
-                {categories.map((cat) => (
+                {visibleCommon.map(categoryButton)}
+                {categoryOptions.hasMore && (
                   <button
-                    key={cat}
-                    className={`filter-btn${activeCategory === cat ? ' filter-btn--active' : ''}`}
-                    aria-pressed={activeCategory === cat}
-                    onClick={() => {
-                      setActiveCategory(cat)
-                      setCurrentPage(1)
-                    }}
+                    type="button"
+                    className="filter-btn home-category-more"
+                    aria-expanded={moreCategoriesOpen}
+                    aria-controls="homeMoreCategories"
+                    onClick={() => setMoreCategoriesOpen((open) => !open)}
                   >
-                    {cat}
+                    {moreCategoriesOpen ? '收起标签' : '更多标签'} <ChevronDown size={14} aria-hidden="true" />
                   </button>
-                ))}
+                )}
               </div>
             </div>
+            {moreCategoriesOpen && categoryOptions.hasMore && (
+              <div id="homeMoreCategories" className="home-category-groups" role="region" aria-label="全部分类标签">
+                {categoryOptions.groups.map((group) => (
+                  <div className="home-category-group" key={group.label}>
+                    <h3>{group.label}</h3>
+                    <div className="category-filter" role="group" aria-label={group.label}>
+                      {group.tags.map(categoryButton)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
+
+          {activeFilterCount > 0 && (
+            <div className="home-active-filters" aria-label="当前筛选">
+              <span>已选 · 同时满足</span>
+              {activeCategories.map((category) => (
+                <button key={category} className="filter-btn filter-btn--active" aria-label={`取消分类 ${category}`} onClick={() => selectCategory(category)}>
+                  {category} ×
+                </button>
+              ))}
+              {activeStatus && (
+                <button
+                  className="filter-btn filter-btn--active"
+                  aria-label="取消状态筛选"
+                  onClick={() => {
+                    setActiveStatus('')
+                    setCurrentPage(1)
+                  }}
+                >
+                  {activeStatus === 'ongoing' ? '连载中' : '已完结'} ×
+                </button>
+              )}
+              <button
+                className="filter-btn"
+                onClick={() => {
+                  selectCategory('')
+                  setActiveStatus('')
+                }}
+              >
+                清除筛选条件
+              </button>
+            </div>
+          )}
 
           {safeMode && hiddenRestricted && (
             <ContentRestrictionNotice
@@ -416,7 +503,7 @@ export default function Home() {
                     className="btn btn--secondary empty-state-btn"
                     onClick={() => {
                       setQuery('')
-                      setActiveCategory('')
+                      setActiveCategories([])
                       setActiveStatus('')
                       setCurrentPage(1)
                       setSearchParams(

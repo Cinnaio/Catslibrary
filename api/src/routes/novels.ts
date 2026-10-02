@@ -21,6 +21,7 @@ import { escapeLike } from '../services/text'
 import { optionalUser, requireAdmin, type AuthEnv } from '../middlewares/auth'
 import { contentPolicyHeaders, restrictedContentResponse, resolveContentAccess } from '../services/content-access'
 import { idempotencyKeyFromRequest, withIdempotency } from '../services/idempotency'
+import { categoryAliases, canonicalCategory } from '@shared/category-aliases'
 
 export const novelsRoutes = new Hono<AuthEnv>()
 
@@ -44,6 +45,22 @@ novelsRoutes.get('/', optionalUser(), async (c) => {
   const canViewRestricted = access.canViewRestricted
   const search = (c.req.query('search') || '').trim()
   const category = c.req.query('category') || ''
+  // Keep the single-category contract; multiple labels are combined with AND.
+  let selectedCategories: string[] = category ? [category] : []
+  const rawCategories = c.req.query('categories')
+  if (rawCategories !== undefined) {
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(rawCategories)
+    } catch {
+      return c.json({ error: 'categories 必须为标签字符串数组' }, 400)
+    }
+    if (!Array.isArray(parsed) || parsed.length > 64 || parsed.some((tag) => typeof tag !== 'string' || !tag.trim() || tag.length > 100)) {
+      return c.json({ error: 'categories 必须为最多64项的非空标签字符串数组' }, 400)
+    }
+    selectedCategories.push(...parsed)
+  }
+  selectedCategories = [...new Set(selectedCategories.map(canonicalCategory))]
   const status = c.req.query('status') || ''
   // 必须区分「未传参」与「显式传 unknown」：前者不筛选，后者是「仅看未标注」。
   // 若这里直接用 toContentRating()，缺省会被归一成 'unknown' 从而变成强制筛选。
@@ -64,9 +81,12 @@ novelsRoutes.get('/', optionalUser(), async (c) => {
     conditions.push('(title LIKE $1 OR author LIKE $2 OR description LIKE $3)')
     params.push(like, like, like)
   }
-  if (category) {
-    params.push(`%"${escapeLike(category)}"%`)
-    conditions.push(`categories LIKE $${params.length}`)
+  for (const selectedCategory of selectedCategories) {
+    const matches = categoryAliases(selectedCategory).map((alias) => {
+      params.push(`%"${escapeLike(alias)}"%`)
+      return `categories LIKE $${params.length}`
+    })
+    conditions.push(`(${matches.join(' OR ')})`)
   }
   if (status) {
     params.push(status)
