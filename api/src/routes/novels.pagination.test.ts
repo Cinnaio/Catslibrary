@@ -40,6 +40,7 @@ afterAll(async () => {
 interface List {
   novels: Array<{ id: string; contentRating: string }>
   total: number
+  page: number
   totalPages: number
   hasMore: boolean
   availableCategories: string[]
@@ -82,5 +83,23 @@ describe('书库先筛选再分页', () => {
     const guest = await list('contentMode=adult', false)
     expect(guest.total).toBe(45)
     expect(guest.novels.some(book => book.contentRating === 'restricted')).toBe(false)
+  })
+
+  it('按目标 ID 定位所在页，并保持完整列表与相同排序', async () => {
+    const full = await list('locateNovelId=visible-40&page=1')
+    expect(full.page).toBe(5)
+    expect(full.novels.some(book => book.id === 'visible-40')).toBe(true)
+    expect(full.total).toBe(90)
+    const safe = await list('contentMode=safe&locateNovelId=visible-40&page=1')
+    expect(safe.page).toBe(3)
+    expect(safe.novels.some(book => book.id === 'visible-40')).toBe(true)
+    expect(safe.total).toBe(45)
+  })
+
+  it('定位不会绕过访问限制，目标不存在时仍返回正常列表', async () => {
+    const guest = await list('locateNovelId=restricted-40', false)
+    expect(guest.page).toBe(1)
+    expect(guest.novels.some(book => book.id === 'restricted-40')).toBe(false)
+    expect((await list('locateNovelId=missing-id')).total).toBe(90)
   })
 })

@@ -44,19 +44,21 @@ export default function Admin() {
   }, [])
 
   // 从小说详情页「管理」跳转：聚焦 novels tab 并高亮目标行
-  const [highlightNovelId, setHighlightNovelId] = useState<string>(() => {
+  const requestedNovelId = new URLSearchParams(location.search).get('novelId') || ''
+  const [legacyHighlightNovelId, setLegacyHighlightNovelId] = useState<string>(() => {
     try {
       return sessionStorage.getItem('adminEditNovel') ? (JSON.parse(sessionStorage.getItem('adminEditNovel')!) as { id?: string }).id || '' : ''
     } catch {
       return ''
     }
   })
+  const highlightNovelId = requestedNovelId || legacyHighlightNovelId
   useEffect(() => {
     if (highlightNovelId) {
       sessionStorage.removeItem('adminEditNovel')
-      if (active !== 'novels') navigate(adminTabPath('novels'), { replace: true })
+      if (active !== 'novels') navigate({ pathname: adminTabPath('novels'), search: location.search }, { replace: true })
     }
-  }, [active, highlightNovelId, navigate])
+  }, [active, highlightNovelId, navigate, location.search])
 
   if (!isAdminTab(tab)) {
     return <Navigate to={adminTabPath(fallbackTab)} replace />
@@ -71,7 +73,14 @@ export default function Admin() {
   return (
     <AdminGate>
       <AdminShell active={active} activeLabel={activeLabel}>
-        <TabComponent highlightNovelId={highlightNovelId} onHighlightConsumed={() => setHighlightNovelId('')} />
+        <TabComponent highlightNovelId={highlightNovelId} onHighlightConsumed={() => {
+          setLegacyHighlightNovelId('')
+          const params = new URLSearchParams(location.search)
+          if (params.has('novelId')) {
+            params.delete('novelId')
+            navigate({ pathname: location.pathname, search: params.toString() }, { replace: true })
+          }
+        }} />
       </AdminShell>
     </AdminGate>
   )

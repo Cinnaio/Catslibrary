@@ -184,6 +184,8 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
 
   // --- Highlight (jump from detail page "管理") ---
   const [highlightId, setHighlightId] = useState<string | null>(null)
+  const [locateId, setLocateId] = useState<string | null>(null)
+  const highlightRowRef = useRef<HTMLTableRowElement>(null)
   const consumeRef = useRef(onHighlightConsumed)
   useEffect(() => {
     consumeRef.current = onHighlightConsumed
@@ -194,12 +196,13 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
 
   // 搜索防抖 250ms → 重置到第 1 页
   useEffect(() => {
+    if (searchInput.trim() === query) return
     const t = setTimeout(() => {
       setQuery(searchInput.trim())
       setPage(1)
     }, 250)
     return () => clearTimeout(t)
-  }, [searchInput])
+  }, [searchInput, query])
 
   const load = useCallback(async () => {
     const seq = ++seqRef.current
@@ -209,6 +212,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
       const params: Record<string, string | number> = { page, limit: pageSize, sort: sortField, order: sortOrder }
       if (query) params.search = query
       if (ratingFilter) params.contentRating = ratingFilter
+      if (locateId) params.locateNovelId = locateId
       const data = await novelsApi.list(params)
       if (seq !== seqRef.current) return
       const rows = Array.isArray(data.novels) ? data.novels : []
@@ -216,6 +220,17 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
       setNovels(rows)
       setTotalPages(tp)
       setTotal(data.total || 0)
+      if (locateId) {
+        setLocateId(null)
+        if (rows.some((novel) => novel.id === locateId)) {
+          setPage(data.page || 1)
+          setHighlightId(locateId)
+        } else {
+          consumeRef.current?.()
+          toast('未找到目标小说，可能已被删除或不可访问', 'error')
+        }
+        return
+      }
       // 结果收缩导致越界 → 钳回末页重试
       if (page > tp && tp >= 1 && rows.length === 0) {
         setPage(tp)
@@ -229,56 +244,39 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
     } finally {
       if (seq === seqRef.current) setLoading(false)
     }
-  }, [page, pageSize, sortField, sortOrder, query, ratingFilter, toast])
+  }, [page, pageSize, sortField, sortOrder, query, ratingFilter, toast, locateId])
 
   useEffect(() => {
     void load()
   }, [load])
 
-  // 详情页「管理」跳转：按标题搜索使其落在第 1 页
+  // 详情页「管理」跳转：清除旧筛选，按目标 ID 定位到它实际所在页。
   useEffect(() => {
-    if (!highlightNovelId || highlightId === highlightNovelId) return
-    setHighlightId(highlightNovelId)
-    novelsApi
-      .get(highlightNovelId)
-      .then((res) => {
-        const novel = res && res.novel
-        if (novel && novel.title) {
-          setSearchInput(novel.title)
-          setQuery(novel.title)
-          setPage(1)
-        }
-      })
-      .catch(() => {
-        /* 目标不存在 → 走下方 fallback 消耗 */
-      })
-  }, [highlightNovelId, highlightId])
+    if (!highlightNovelId) return
+    seqRef.current++
+    setHighlightId(null)
+    setSearchInput('')
+    setQuery('')
+    setRatingFilter('')
+    setLocateId(highlightNovelId)
+  }, [highlightNovelId])
 
-  // 高亮行出现后短暂停留再消耗；目标不在当前页时兜底消耗，避免状态卡死
+  // 等目标行加载完成后滚动、高亮，再消耗入口参数，刷新不会重复触发。
   useEffect(() => {
-    if (!highlightId) return
-    if (novels.some((n) => n.id === highlightId)) {
-      const t = setTimeout(() => {
-        consumeRef.current?.()
-        setHighlightId(null)
-      }, 1500)
-      return () => clearTimeout(t)
+    if (!highlightId || loading) return
+    const targetVisible = novels.some((n) => n.id === highlightId)
+    if (targetVisible) {
+      highlightRowRef.current?.scrollIntoView({
+        behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+        block: 'center',
+      })
     }
-    if (!loading && query) {
-      const t = setTimeout(() => {
-        consumeRef.current?.()
-        setHighlightId(null)
-      }, 300)
-      return () => clearTimeout(t)
-    }
-  }, [novels, loading, query, highlightId])
-
-  // 高亮行滚动到可视区
-  useEffect(() => {
-    if (highlightId) {
-      document.querySelector('.novel-row--highlight')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    }
-  }, [highlightId, novels])
+    const t = setTimeout(() => {
+      consumeRef.current?.()
+      setHighlightId(null)
+    }, targetVisible ? 1800 : 0)
+    return () => clearTimeout(t)
+  }, [novels, loading, highlightId])
 
   // --- Sort ---
   function toggleSort(field: string) {
@@ -638,6 +636,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
                 <TableRow
                   key={n.id}
                   className={n.id === highlightId ? 'novel-row--highlight' : undefined}
+                  ref={n.id === highlightId ? highlightRowRef : undefined}
                   style={{
                     animationDelay: `${getAdminTableRowStaggerDelay(index, novels.length)}ms`,
                   }}

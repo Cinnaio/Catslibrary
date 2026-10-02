@@ -69,7 +69,7 @@ novelsRoutes.get('/', optionalUser(), async (c) => {
   const rawContentRating = (c.req.query('contentRating') || '').trim()
   const contentRating = rawContentRating === 'general' || rawContentRating === 'restricted' || rawContentRating === 'unknown' ? rawContentRating : ''
   const quality = c.req.query('quality') || ''
-  const page = Number.parseInt(c.req.query('page') || '1', 10) || 1
+  let page = Number.parseInt(c.req.query('page') || '1', 10) || 1
   const limit = Math.min(Number.parseInt(c.req.query('limit') || '50', 10) || 50, 100)
 
   const sort = SORT_FIELDS[c.req.query('sort') || ''] ? c.req.query('sort')! : 'updated_at'
@@ -110,10 +110,21 @@ novelsRoutes.get('/', optionalUser(), async (c) => {
     conditions.push(`status = 'ongoing' AND updated_at < $${params.length}`)
   }
   const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
-  const offset = (page - 1) * limit
-
   const count = await first<{ total: number }>(db, `SELECT COUNT(*)::int AS total FROM novels ${where}`, params)
   const total = count?.total || 0
+
+  // 详情页管理入口按 ID 定位，使用与列表相同的筛选和稳定排序，避免同名书或后续页误定位。
+  const locateNovelId = (c.req.query('locateNovelId') || '').trim()
+  if (locateNovelId) {
+    const target = await first<{ position: string }>(db,
+      `SELECT position FROM (
+         SELECT id, ROW_NUMBER() OVER (ORDER BY ${sort} ${order}, id ASC) AS position FROM novels ${where}
+       ) ranked WHERE id = $${params.length + 1}`,
+      [...params, locateNovelId],
+    )
+    if (target) page = Math.floor((Number(target.position) - 1) / limit) + 1
+  }
+  const offset = (page - 1) * limit
 
   const { rows } = await db.query<NovelRow>(
     `SELECT * FROM novels ${where} ORDER BY ${sort} ${order}, id ASC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,

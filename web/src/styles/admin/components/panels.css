@@ -129,7 +129,7 @@
   opacity: 1;
 }
 
-.novel-row--highlight td {
+tr.novel-row--highlight td {
   animation: admin-highlight var(--admin-table-row-highlight);
 }
 @keyframes admin-highlight {
@@ -138,6 +138,12 @@
   }
   100% {
     background: transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  tr.novel-row--highlight td {
+    animation: none;
+    background: color-mix(in srgb, var(--sh-primary) 16%, var(--admin-panel));
   }
 }
 /* .badge-update 的定义已移除（2026-09-23）。

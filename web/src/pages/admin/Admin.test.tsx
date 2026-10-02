@@ -28,7 +28,9 @@ vi.mock('./admin-registry', () => {
     TAB_KEY: 'admin_active_tab',
     TAB_COMPONENTS: {
       dashboard: component('dashboard-content'),
-      novels: component('novels-content'),
+      novels: ({ highlightNovelId, onHighlightConsumed }: { highlightNovelId?: string; onHighlightConsumed?: () => void }) => (
+        <div>novels-content<output data-testid="highlight">{highlightNovelId}</output><button onClick={onHighlightConsumed}>消耗高亮</button></div>
+      ),
       scrape: component('scrape-content'),
     },
     isAdminTab: (id: string | undefined) => !!id && ids.includes(id as (typeof ids)[number]),
@@ -41,7 +43,7 @@ import Admin from './Admin'
 
 function LocationProbe() {
   const location = useLocation()
-  return <output data-testid="location">{location.pathname}</output>
+  return <output data-testid="location">{location.pathname}{location.search}</output>
 }
 
 function renderAdmin(entry: string) {
@@ -83,5 +85,23 @@ describe('Admin URL navigation', () => {
 
     await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/admin/dashboard'))
     expect(screen.getByTestId('admin-shell')).toHaveAttribute('data-active', 'dashboard')
+  })
+
+  it('管理深链接传递目标书籍，消耗后只移除目标参数', async () => {
+    const user = (await import('@testing-library/user-event')).default.setup()
+    localStorage.setItem('admin_active_tab', 'scrape')
+    renderAdmin('/admin/novels?novelId=target-book&keep=1')
+    expect(screen.getByTestId('highlight')).toHaveTextContent('target-book')
+    await user.click(screen.getByRole('button', { name: '消耗高亮' }))
+    expect(screen.getByTestId('highlight')).toBeEmptyDOMElement()
+    expect(screen.getByTestId('location')).toHaveTextContent('/admin/novels?keep=1')
+  })
+
+  it('兼容旧 sessionStorage 管理入口', async () => {
+    sessionStorage.setItem('adminEditNovel', JSON.stringify({ id: 'legacy-book' }))
+    renderAdmin('/admin/scrape')
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/admin/novels'))
+    expect(screen.getByTestId('highlight')).toHaveTextContent('legacy-book')
+    expect(sessionStorage.getItem('adminEditNovel')).toBeNull()
   })
 })

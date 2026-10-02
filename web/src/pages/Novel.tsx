@@ -417,7 +417,7 @@ export default function Novel() {
                 {inShelf ? '已在书架' : '加入书架'}
               </button>
               {(user || isLocalDev()) && (
-                <Link to="/admin" className="btn btn--secondary admin-jump-btn">管理</Link>
+                <Link to={`/admin/novels?novelId=${encodeURIComponent(novel.id)}`} className="btn btn--secondary admin-jump-btn">管理</Link>
               )}
             </div>
           </div>
