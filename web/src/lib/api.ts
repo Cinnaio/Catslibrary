@@ -3,6 +3,8 @@
  * 零依赖：AbortSignal.timeout 超时、token 存储（localStorage/sessionStorage）、
  * 通用 request(method, path, body, useAuth)。
  */
+import { getStorageUser, setStorageUser } from './storage'
+import type { LocalBookmark } from '@shared/types'
 import type {
   BookImportCommitResult,
   BookImportHistoryItem,
@@ -51,6 +53,7 @@ const TOKEN_KEY = 'user_session_token'
 
 // 当前登录用户的去重缓存（见 authApi.meCached），token 变化时由 clearToken 失效
 let mePromise: Promise<{ user: User | null }> | null = null
+let mePromiseToken = ''
 
 export function getToken(): string {
   try {
@@ -74,9 +77,11 @@ export function clearToken(): void {
   // token 变化 ⇒ 身份缓存必须失效（setToken 内部先调本函数，登录/登出/换 token 全覆盖），
   // 否则同一会话内换账号会从 meCached 拿到上一个用户的身份
   mePromise = null
+  mePromiseToken = ''
   try {
     localStorage.removeItem(TOKEN_KEY)
     sessionStorage.removeItem(TOKEN_KEY)
+    setStorageUser(null)
   } catch {
     /* ignore */
   }
@@ -435,11 +440,17 @@ export const bookshelfApi = {
 // ---------- Bookmarks（本地 + 后端同步） ----------
 
 export const bookmarksApi = {
-  list(): Promise<{ bookmarks: unknown[] }> {
+  list(): Promise<{ bookmarks: LocalBookmark[] }> {
     return request('GET', '/bookmarks', null, true)
   },
   replace(bookmarks: unknown[]): Promise<{ ok: boolean }> {
     return request('PUT', '/bookmarks', { bookmarks }, true)
+  },
+  save(bookmark: LocalBookmark): Promise<{ bookmark: LocalBookmark }> {
+    return request('POST', '/bookmarks', bookmark, true)
+  },
+  remove(novelId: string, chapterId: string): Promise<{ success: boolean }> {
+    return request('DELETE', '/bookmarks', { novelId, chapterId }, true)
   },
 }
 
@@ -567,13 +578,19 @@ export const setupApi = {
 
 export const authApi = {
   me(): Promise<{ user: User | null }> {
-    return request('GET', '/auth/me', null, true)
+    const token = getToken()
+    return request<{ user: User | null }>('GET', '/auth/me', null, true).then(result => {
+      if (getToken() === token) setStorageUser(result.user?.id || null)
+      return result
+    })
   },
   meCached(): Promise<{ user: User | null }> {
     if (!getToken()) return Promise.resolve({ user: null })
-    if (!mePromise) {
-      mePromise = request<{ user: User | null }>('GET', '/auth/me', null, true).catch((err) => {
-        mePromise = null
+    if (!mePromise || mePromiseToken !== getToken()) {
+      const token = getToken()
+      mePromiseToken = token
+      mePromise = authApi.me().catch((err) => {
+        if (getToken() === token) mePromise = null
         throw err
       })
     }
@@ -585,12 +602,14 @@ export const authApi = {
   register(username: string, password: string, invite = ''): Promise<{ token: string; user: User }> {
     return request('POST', '/auth/register', { username, password, ...(invite ? { invite } : {}) }).then((r) => {
       if ((r as { token?: string }).token) setToken((r as { token: string }).token)
+      setStorageUser((r as { user: User }).user.id)
       return r as { token: string; user: User }
     })
   },
   login(username: string, password: string, persist = false): Promise<{ token: string; user: User }> {
     return request('POST', '/auth/login', { username, password }).then((r) => {
       if ((r as { token?: string }).token) setToken((r as { token: string }).token, persist)
+      setStorageUser((r as { user: User }).user.id)
       return r as { token: string; user: User }
     })
   },
@@ -603,6 +622,7 @@ export const authApi = {
   bootstrapAdmin(username: string, password: string): Promise<{ token: string; user: User }> {
     return request('POST', '/auth/bootstrap-admin', { username, password }).then((r) => {
       if ((r as { token?: string }).token) setToken((r as { token: string }).token)
+      setStorageUser((r as { user: User }).user.id)
       return r as { token: string; user: User }
     })
   },
@@ -610,8 +630,10 @@ export const authApi = {
     return request('PUT', '/auth/me', data, true)
   },
   changePassword(currentPassword: string, newPassword: string): Promise<{ token: string }> {
+    const owner = getStorageUser()
     return request('POST', '/auth/change-password', { currentPassword, newPassword }, true).then((r) => {
       if ((r as { token?: string }).token) setToken((r as { token: string }).token)
+      setStorageUser(owner)
       return r as { token: string }
     })
   },

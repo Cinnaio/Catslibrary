@@ -22,25 +22,32 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState<boolean>(true)
 
   const refresh = useCallback(async () => {
-    if (!getToken()) {
+    const token = getToken()
+    if (!token) {
       setUser(null)
       setLoading(false)
       return null
     }
     try {
       const { user: me } = await authApi.meCached()
+      if (token !== getToken()) return null
       setUser(me)
       return me
     } catch {
-      setUser(null)
+      if (token === getToken()) setUser(null)
       return null
     } finally {
-      setLoading(false)
+      if (token === getToken()) setLoading(false)
     }
   }, [])
 
   useEffect(() => {
     void refresh()
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === 'user_session_token' || event.key === null) void refresh()
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
   }, [refresh])
 
   const login = useCallback(async (username: string, password: string, persist = false) => {

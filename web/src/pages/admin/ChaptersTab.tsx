@@ -62,6 +62,9 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
   const [modal, setModal] = useState<{ open: boolean; chapter: ChapterMeta | null; loading: boolean }>({ open: false, chapter: null, loading: false })
   // 提交中标志：与 Ctrl+Enter 快捷键共用，防止正文较长时重复提交。
   const [chapterSaving, setChapterSaving] = useState(false)
+  const [chapterLoadError, setChapterLoadError] = useState('')
+  const chapterRequest = useRef(0)
+  const chapterSaveLock = useRef(false)
   const [draft, setDraft] = useState<ChapterDraft>({ order: 1, title: '', content: '' })
   const [renameModal, setRenameModal] = useState(false)
   const [sourceUrl, setSourceUrl] = useState('')
@@ -192,11 +195,16 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
    * 复位只可能漏一次。
    */
   function closeChapterModal() {
+    if (chapterSaveLock.current) return
+    chapterRequest.current++
+    setChapterLoadError('')
     setModal({ open: false, chapter: null, loading: false })
     setChapterSaving(false)
   }
 
   async function openChapterModal(chapter: ChapterMeta | null) {
+    const requestId = ++chapterRequest.current
+    setChapterLoadError('')
     setModal({ open: true, chapter, loading: false })
     if (chapter) {
       setDraft({ order: chapter.order, title: chapter.title, content: '' })
@@ -204,11 +212,13 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
       try {
         const data = await chaptersApi.get(chapter.id)
         const full = (data as { chapter?: { content?: string } }).chapter || (data as { content?: string })
-        setDraft({ order: chapter.order, title: chapter.title, content: full.content || '' })
+        if (requestId !== chapterRequest.current) return
+        if (typeof full.content !== 'string') throw new Error('章节正文返回异常')
+        setDraft({ order: chapter.order, title: chapter.title, content: full.content })
       } catch {
-        /* 保持标题/序号编辑 */
+        if (requestId === chapterRequest.current) setChapterLoadError('正文加载失败，请重试后再保存。')
       } finally {
-        setModal((m) => (m.open ? { ...m, loading: false } : m))
+        if (requestId === chapterRequest.current) setModal((m) => (m.open ? { ...m, loading: false } : m))
       }
     } else {
       setDraft({ order: chapters.length + 1, title: '', content: '' })
@@ -216,7 +226,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
   }
 
   async function saveChapter() {
-    if (chapterSaving) return
+    if (!modal.open || modal.loading || chapterLoadError || chapterSaveLock.current) return
     if (!selectedNovel) {
       toast('请先选择小说', 'error')
       return
@@ -225,27 +235,30 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
       toast('请选择小说并填写标题', 'error')
       return
     }
+    chapterSaveLock.current = true
     setChapterSaving(true)
     try {
       if (modal.chapter) {
-        await chaptersApi.update(modal.chapter.id, { novelId: selectedNovel, title: draft.title.trim(), content: draft.content, order: draft.order })
+        await chaptersApi.update(modal.chapter.id, { novelId: modal.chapter.novelId, title: draft.title.trim(), content: draft.content, order: draft.order })
         toast('章节已更新', 'success')
       } else {
         await chaptersApi.create({ novelId: selectedNovel, title: draft.title.trim(), content: draft.content, order: draft.order })
         toast('章节已创建', 'success')
       }
+      chapterSaveLock.current = false
       closeChapterModal()
       void loadChapters(selectedNovel)
     } catch (err) {
       toast((err as Error).message || '保存失败', 'error')
     } finally {
+      chapterSaveLock.current = false
       setChapterSaving(false)
     }
   }
 
   // 章节弹窗键盘路径：Ctrl/Cmd + Enter 提交（正文换行仍走裸 Enter，不冲突）；
   // 正文加载中时关闭，避免把未取回的内容写回覆盖源文。
-  useDialogHotkeys({ open: modal.open, onSubmit: saveChapter, submitting: chapterSaving, enabled: !modal.loading })
+  useDialogHotkeys({ open: modal.open, onSubmit: saveChapter, submitting: chapterSaving, enabled: !modal.loading && !chapterLoadError })
   useDialogFocus(modal.open, '.chapter-editor-dialog__fields [data-slot="input"]')
 
   async function deleteChapter(chapter: ChapterMeta) {
@@ -606,7 +619,12 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
                 <Label>正文</Label>
                 <span>支持直接粘贴排版后的内容</span>
               </div>
-              {modal.loading ? (
+              {chapterLoadError ? (
+                <div role="alert">
+                  <p>{chapterLoadError}</p>
+                  <Button variant="secondary" onClick={() => void openChapterModal(modal.chapter)}>重新加载正文</Button>
+                </div>
+              ) : modal.loading ? (
                 <div className="loading-center">
                   <div className="spinner"></div>
                 </div>
@@ -625,7 +643,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
             <Button variant="secondary" onClick={closeChapterModal} disabled={chapterSaving}>
               取消
             </Button>
-            <Button disabled={modal.loading || chapterSaving} onClick={() => void saveChapter()}>
+            <Button disabled={modal.loading || !!chapterLoadError || chapterSaving} onClick={() => void saveChapter()}>
               {chapterSaving ? '保存中…' : '保存'}
             </Button>
           </DialogFooter>

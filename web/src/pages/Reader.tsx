@@ -7,8 +7,9 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Search, X } from 'lucide-react'
 import type { ChapterFull, ChapterMeta, Thought } from '@shared/types'
-import { bookmarksApi, chaptersApi, getToken, isRestrictedContentError, novelsApi, thoughtsApi } from '../lib/api'
-import { addBookmark, getAllBookmarks, isBookmarked, removeBookmark, saveHistory, toggleBookmark } from '../lib/storage'
+import { chaptersApi, isRestrictedContentError, novelsApi, thoughtsApi } from '../lib/api'
+import { getNovelHistory, getStorageScope, saveHistory } from '../lib/storage'
+import { useBookmarks } from '../hooks/useBookmarks'
 import {
   chapterLabel,
   clamp,
@@ -45,7 +46,7 @@ const CHAPTER_CACHE_MAX = 6
 export default function Reader() {
   const { novelId = '', chapterId = '' } = useParams()
   const navigate = useNavigate()
-  const { user } = useSession()
+  const { user, loading: sessionLoading } = useSession()
   const { mode, setMode, isAllowed, adultContentEnabled } = useContentPolicy()
   const { toast } = useToast()
   const { settings, set, fontSize, pageMode } = useReaderSettings()
@@ -73,7 +74,7 @@ export default function Reader() {
   const [bookmarkNoteOpen, setBookmarkNoteOpen] = useState(false)
   const [bookmarkNote, setBookmarkNote] = useState('')
   // 书签数据从 storage 直读；setState 仅用于变更后强制重渲染面板
-  const [, setBookmarks] = useState(() => getAllBookmarks())
+  const { bookmarks, busy: bookmarkBusy, error: bookmarkError, change: changeBookmark, reload: reloadBookmarks } = useBookmarks()
   const [settingsPanelOpen, setSettingsPanelOpen] = useState(false)
   const [mobileSettingsOpen, setMobileSettingsOpen] = useState(false)
   const [mobileLibraryOpen, setMobileLibraryOpen] = useState(false)
@@ -352,10 +353,10 @@ export default function Reader() {
 
   // ---------- 进度恢复 ----------
   const saveScrollPosition = useCallback(() => {
-    if (!chapter || !hasRestoredRef.current) return
+    if (!chapter || !hasRestoredRef.current || sessionLoading || getStorageScope() !== (user ? `user:${user.id}` : 'guest')) return
     const nid = chapter.novelId || novelId
     if (!nid) return
-    const saved = getNovelHistoryHelper(nid, chapter.id)
+    const saved = getNovelHistory(nid)
     if (pageMode) {
       const total = totalPagesRef.current > 0 ? totalPagesRef.current : calcTotalPages()
       const pageIndex = clamp(currentPageRef.current || 0, 0, Math.max(total - 1, 0))
@@ -379,26 +380,29 @@ export default function Reader() {
       scrollPercent: pct, pageMode: pageModeFromSaved || 'scroll', pageIndex: saved?.pageIndex || 0, pagePercent: saved?.pagePercent || 0, timestamp: Date.now(),
     })
     queueProgress(nid, chapter.id, pct)
-  }, [chapter, novelId, novel, pageMode, queueProgress])
+  }, [chapter, novelId, novel, pageMode, queueProgress, user, sessionLoading])
 
   const restoreScrollPosition = useCallback(() => {
     if (!chapter) return
+    const scope = getStorageScope()
     const nid = chapter.novelId || novelId
     if (!nid) return Promise.resolve()
-    const history = getNovelHistoryHelper(nid, chapter.id)
+    const history = getNovelHistory(nid)
+    const savedMode: unknown = history?.pageMode
     let scrollPct = 0
     let savedPageMode = false
     let savedPage = 0
     if (history && history.chapterId === chapter.id) {
       if (Number(history.scrollPercent) > 0) scrollPct = clamp(Number(history.scrollPercent), 0, 1)
-      if (history.pageMode === 'page' || history.pageMode === true || (history.pageMode !== 'scroll' && Number.isFinite(Number(history.pageMode)))) {
+      if (savedMode === 'page' || savedMode === true || (savedMode !== 'scroll' && Number.isFinite(Number(savedMode)))) {
         savedPageMode = true
-        savedPage = Number.isFinite(Number(history.pageIndex)) ? parseInt(String(history.pageIndex), 10) : parseInt(String(history.pageMode), 10)
+        savedPage = Number.isFinite(Number(history.pageIndex)) ? parseInt(String(history.pageIndex), 10) : parseInt(String(savedMode), 10)
         if (!Number.isFinite(savedPage)) savedPage = 0
       }
     }
     return new Promise<void>((resolve) => {
       requestAnimationFrame(() => {
+        if (scope !== getStorageScope()) { resolve(); return }
         if (pageMode && (savedPageMode || scrollPct > 0)) {
           const total = calcTotalPages()
           totalPagesRef.current = total
@@ -417,17 +421,6 @@ export default function Reader() {
       })
     })
   }, [chapter, novelId, pageMode])
-
-  function getNovelHistoryHelper(nid: string, _cid: string) {
-    // 从 storage 读取指定章节记录
-    try {
-      const raw = localStorage.getItem('novel_reading_history')
-      const all = raw ? JSON.parse(raw) : {}
-      return all[nid] || null
-    } catch {
-      return null
-    }
-  }
 
   // ---------- 页面模式 ----------
   function calcTotalPages(): number {
@@ -590,11 +583,11 @@ export default function Reader() {
 
   // 章节变化后恢复进度
   useEffect(() => {
-    if (!chapter) return
     hasRestoredRef.current = false
+    if (!chapter || sessionLoading) return
     void restoreScrollPosition()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chapter?.id])
+  }, [chapter?.id, user?.id, sessionLoading])
 
   // 书架「想法」入口带 ?thoughtParagraph=N：正文渲染后滚到该段并打开想法面板。
   // 挂载时读一次（章内导航是无参数的 replace，不会重复触发），消费后清空。
@@ -900,42 +893,42 @@ export default function Reader() {
   }, [settings.readerWakeLock, wakeLockSupported])
 
   // ---------- 书签 ----------
-  const currentBookmarked = chapter ? isBookmarked(chapter.novelId || novelId, chapter.id) : false
+  const currentBookmarked = !!chapter && bookmarks.some(b => b.novelId === (chapter.novelId || novelId) && b.chapterId === chapter.id)
 
-  function syncBookmarksToServer() {
-    if (getToken()) void bookmarksApi.replace(getAllBookmarks()).catch(() => {})
-  }
-
-  function handleBookmarkToggle() {
-    if (!chapter) return
-    const nid = chapter.novelId || novelId
-    if (currentBookmarked) {
-      toggleBookmark(nid, novel?.title || '', chapter.id, chapter.title, chapter.order)
-      syncBookmarksToServer()
-    } else if (bookmarkNoteOpen) {
-      addBookmark(nid, novel?.title || '', chapter.id, chapter.title, chapter.order, bookmarkNote.trim() || undefined)
-      syncBookmarksToServer()
-      setBookmarkNoteOpen(false)
-      setBookmarkNote('')
-    } else {
+  async function handleBookmarkToggle() {
+    if (!chapter || bookmarkBusy) return
+    if (!currentBookmarked && !bookmarkNoteOpen) {
       setBookmarkNote('')
       setBookmarkNoteOpen(true)
+      return
     }
-    setBookmarks(getAllBookmarks())
+    try {
+      const changed = await changeBookmark({
+        id: 'bm_' + crypto.randomUUID(), novelId: chapter.novelId || novelId,
+        novelTitle: novel?.title || '', chapterId: chapter.id, chapterTitle: chapter.title,
+        chapterOrder: chapter.order, note: bookmarkNote.trim(), timestamp: Date.now(),
+      }, currentBookmarked)
+      if (!changed) return
+      setBookmarkNoteOpen(false)
+      setBookmarkNote('')
+    } catch (err) {
+      toast((err as Error).message || '书签保存失败，请重试', 'error')
+    }
   }
 
   function handleBookmarkNoteKey(e: React.KeyboardEvent) {
-    if (e.key === 'Enter') handleBookmarkToggle()
+    if (e.key === 'Enter') void handleBookmarkToggle()
     else if (e.key === 'Escape') {
       setBookmarkNoteOpen(false)
       setBookmarkNote('')
     }
   }
 
-  function deleteBookmark(id: string) {
-    removeBookmark(id)
-    syncBookmarksToServer()
-    setBookmarks(getAllBookmarks())
+  async function deleteBookmark(id: string) {
+    const bookmark = bookmarks.find(b => b.id === id)
+    if (!bookmark || bookmarkBusy) return
+    try { await changeBookmark(bookmark, true) }
+    catch (err) { toast((err as Error).message || '书签删除失败，请重试', 'error') }
   }
 
   // ---------- 段评交互 ----------
@@ -1172,6 +1165,7 @@ export default function Reader() {
         )}
 
         {/* Bookmark panel */}
+        {bookmarkError && bookmarkPanelOpen && <div role="alert">书签加载失败：{bookmarkError} <button onClick={() => void reloadBookmarks()}>重试</button></div>}
         {bookmarkPanelOpen && (
           <BookmarkPanel novelId={nid} currentChapterId={chapter.id} onJump={gotoChapter} onDelete={deleteBookmark} onClose={() => setBookmarkPanelOpen(false)} />
         )}

@@ -3,16 +3,49 @@
  */
 import type { LocalBookmark, ReadingHistoryEntry } from '@shared/types'
 
+let storageUserId: string | null = null
+let storageToken = ''
+
+function currentToken(): string {
+  try { return localStorage.getItem('user_session_token') || sessionStorage.getItem('user_session_token') || '' }
+  catch { return '' }
+}
+
+/** 只能在服务端确认身份后切换；无归属的旧缓存保留原样，不自动上传到任何账号。 */
+export function setStorageUser(userId: string | null): void {
+  storageUserId = userId
+  storageToken = currentToken()
+}
+
+export function getStorageUser(): string | null {
+  return storageToken === currentToken() ? storageUserId : null
+}
+
+export function getStorageScope(): string {
+  if (!currentToken()) return 'guest'
+  return getStorageUser() ? `user:${getStorageUser()}` : 'pending'
+}
+
+function storageKey(key: string): string {
+  return `${key}:${getStorageScope()}`
+}
+
 const HISTORY_KEY = 'novel_reading_history'
 const BOOKMARK_KEY = 'novel_bookmarks'
 const BOOKSHELF_KEY = 'novel_bookshelf'
 
 function readJSON<T>(key: string, fallback: T): T {
   try {
-    return JSON.parse(localStorage.getItem(key) || '') as T
+    return JSON.parse(localStorage.getItem(storageKey(key)) || '') as T
   } catch {
     return fallback
   }
+}
+
+function writeJSON(key: string, value: unknown): void {
+  // 身份尚未确认时禁止写入公共的 pending 缓存。
+  if (getStorageScope() === 'pending') return
+  localStorage.setItem(storageKey(key), JSON.stringify(value))
 }
 
 // ------------------------------------------------------------------
@@ -38,7 +71,7 @@ export function saveHistory(novelId: string, data: Partial<ReadingHistoryEntry>)
     pagePercent: data.pagePercent || 0,
     timestamp: data.timestamp || Date.now(),
   }
-  localStorage.setItem(HISTORY_KEY, JSON.stringify(history))
+  writeJSON(HISTORY_KEY, history)
 }
 
 export function getNovelHistory(novelId: string): ReadingHistoryEntry | null {
@@ -63,13 +96,13 @@ export function getRecentHistory(limit = 5): ReadingHistoryEntry[] {
 
 export function clearHistory(novelId?: string): void {
   if (!novelId) {
-    localStorage.setItem(HISTORY_KEY, '{}')
+    writeJSON(HISTORY_KEY, {})
     return
   }
   const history = getHistory()
   if (history[novelId]) {
     delete history[novelId]
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(history))
+    writeJSON(HISTORY_KEY, history)
   }
 }
 
@@ -99,7 +132,7 @@ export function addBookmark(
   if (existing) {
     existing.timestamp = Date.now()
     if (note) existing.note = note
-    localStorage.setItem(BOOKMARK_KEY, JSON.stringify(bookmarks))
+    writeJSON(BOOKMARK_KEY, bookmarks)
     return existing
   }
   const bm: LocalBookmark = {
@@ -113,7 +146,7 @@ export function addBookmark(
     timestamp: Date.now(),
   }
   bookmarks.push(bm)
-  localStorage.setItem(BOOKMARK_KEY, JSON.stringify(bookmarks))
+  writeJSON(BOOKMARK_KEY, bookmarks)
   return bm
 }
 
@@ -130,7 +163,7 @@ export function toggleBookmark(
   const idx = bookmarks.findIndex((b) => b.novelId === novelId && b.chapterId === chapterId)
   if (idx !== -1) {
     bookmarks.splice(idx, 1)
-    localStorage.setItem(BOOKMARK_KEY, JSON.stringify(bookmarks))
+    writeJSON(BOOKMARK_KEY, bookmarks)
     return null // null = 已移除
   }
   const bm: LocalBookmark = {
@@ -144,7 +177,7 @@ export function toggleBookmark(
     timestamp: Date.now(),
   }
   bookmarks.push(bm)
-  localStorage.setItem(BOOKMARK_KEY, JSON.stringify(bookmarks))
+  writeJSON(BOOKMARK_KEY, bookmarks)
   return bm
 }
 
@@ -153,7 +186,7 @@ export function removeBookmark(bookmarkId: string): boolean {
   const bookmarks = getBookmarks()
   const filtered = bookmarks.filter((b) => b.id !== bookmarkId)
   if (filtered.length === bookmarks.length) return false
-  localStorage.setItem(BOOKMARK_KEY, JSON.stringify(filtered))
+  writeJSON(BOOKMARK_KEY, filtered)
   return true
 }
 
@@ -174,7 +207,7 @@ export function getAllBookmarks(): LocalBookmark[] {
 }
 
 export function replaceAllBookmarks(bookmarks: LocalBookmark[]): void {
-  localStorage.setItem(BOOKMARK_KEY, JSON.stringify(Array.isArray(bookmarks) ? bookmarks : []))
+  writeJSON(BOOKMARK_KEY, Array.isArray(bookmarks) ? bookmarks : [])
 }
 
 // ------------------------------------------------------------------
@@ -204,15 +237,12 @@ export function addToBookshelf(novel: { id: string; title: string; author: strin
     updatedAt: Date.now(),
   }
   items.unshift(item)
-  localStorage.setItem(BOOKSHELF_KEY, JSON.stringify(items))
+  writeJSON(BOOKSHELF_KEY, items)
   return item
 }
 
 export function removeFromBookshelf(novelId: string): void {
-  localStorage.setItem(
-    BOOKSHELF_KEY,
-    JSON.stringify(getBookshelf().filter((item) => item.novelId !== novelId)),
-  )
+  writeJSON(BOOKSHELF_KEY, getBookshelf().filter((item) => item.novelId !== novelId))
 }
 
 export function isInBookshelf(novelId: string): boolean {
@@ -229,5 +259,5 @@ export function replaceBookshelf(items: Array<Partial<LocalShelfItem> & { novelT
       updatedAt: item.updatedAt || Date.now(),
     }))
     .filter((item) => item.novelId)
-  localStorage.setItem(BOOKSHELF_KEY, JSON.stringify(mapped))
+  writeJSON(BOOKSHELF_KEY, mapped)
 }

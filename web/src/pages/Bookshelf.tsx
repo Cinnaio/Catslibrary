@@ -1,13 +1,14 @@
 /**
  * 书架页 —— 收藏、最近阅读、书签、想法、手动同步（由 Novel-KV js/bookshelf.js 平移）。
  */
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import type { ReadingHistoryEntry, Thought } from '@shared/types'
 import { bookmarksApi, bookshelfApi, getToken, progressApi } from '../lib/api'
 import {
   clearHistory,
   getAllBookmarks,
+  getStorageScope,
   getBookshelf,
   getRecentHistory,
   removeFromBookshelf,
@@ -93,92 +94,54 @@ export default function Bookshelf() {
   const [syncStatus, setSyncStatus] = useState('')
   const [syncing, setSyncing] = useState(false)
   const [activeShelf, setActiveShelf] = useState('favorites')
+  const loadRevision = useRef(0)
 
   useEffect(() => {
     if (!loading && !user) {
       navigate('/auth', { replace: true, state: { from: '/bookshelf' } })
       return
     }
-    if (user) {
-      void loadAll()
-    }
+    setFavorites(getBookshelf())
+    setBookmarks(getAllBookmarks())
+    setRecent(getRecentHistory(8))
+    setThoughts([])
+    setSyncStatus('')
+    setSyncing(false)
+    if (user) void loadAll()
+    return () => { loadRevision.current++ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, loading])
 
-  async function syncBookmarksFromServer() {
-    const data = await bookmarksApi.list()
-    const byKey = new Map<string, Record<string, unknown>>()
-    const local = getAllBookmarks() as unknown as Array<Record<string, unknown>>
-    const server = (data.bookmarks || []) as unknown as Array<Record<string, unknown>>
-    local.concat(server).forEach((bm) => {
-      const key = String(bm.novelId) + '|' + String(bm.chapterId)
-      const existing = byKey.get(key)
-      if (!existing || Number(bm.timestamp || 0) > Number(existing.timestamp || 0)) byKey.set(key, bm)
-    })
-    const merged = [...byKey.values()]
-    replaceAllBookmarks(merged as never[])
-    await bookmarksApi.replace(merged as never[])
-  }
-
-  async function syncBookshelfFromServer() {
-    const local = getBookshelf()
-    for (const item of local) {
-      try {
-        await bookshelfApi.add(item.novelId)
-      } catch {
-        /* ignore */
-      }
-    }
-    const data = await bookshelfApi.get()
-    replaceBookshelf((data.favorites || []) as Array<{ novelId: string }>)
-  }
-
-  async function loadRecent(limit = 8): Promise<ReadingHistoryEntry[]> {
-    const local = getRecentHistory(limit)
-    if (!getToken()) return local
-    try {
-      const data = await progressApi.recent(limit)
-      // 墓碑：服务端已删除则清本地
-      data.tombstones.forEach((t) => {
-        if (!t.novelId) return
-        const h = getRecentHistory(100).find((x) => x.novelId === t.novelId)
-        if (h && Number(t.updatedAt || 0) >= Number(h.timestamp || 0)) clearHistory(t.novelId)
-      })
-      const merged = mergeRecent(getRecentHistory(limit), data.progress, limit)
-      merged.forEach((h) => saveHistory(h.novelId, h))
-      return merged
-    } catch {
-      return local
-    }
-  }
-
   const loadAll = useCallback(async () => {
+    const seq = ++loadRevision.current
+    const token = getToken()
+    const scope = getStorageScope()
+    const current = () => seq === loadRevision.current && token === getToken() && scope === getStorageScope()
+    if (!token || scope === 'pending') return
     setSyncing(true)
     try {
-      if (getToken()) {
-        await syncBookmarksFromServer()
-        await syncBookshelfFromServer()
-      }
-      const recentList = await loadRecent(8)
+      const [bookmarkData, shelfData, progressData] = await Promise.all([
+        bookmarksApi.list(), bookshelfApi.get(), progressApi.recent(8),
+      ])
+      if (!current()) return
+      // 云端为权威；读取操作不向服务端写回旧缓存。
+      replaceAllBookmarks(bookmarkData.bookmarks)
+      replaceBookshelf((shelfData.favorites || []) as Favorite[])
+      progressData.tombstones.forEach(t => {
+        const h = getRecentHistory(100).find(x => x.novelId === t.novelId)
+        if (h && Number(t.updatedAt || 0) >= h.timestamp) clearHistory(t.novelId)
+      })
+      const recentList = mergeRecent(getRecentHistory(8), progressData.progress, 8)
+      recentList.forEach(h => saveHistory(h.novelId, h))
       setRecent(recentList)
-      setBookmarks(getAllBookmarks().slice(0, 4))
+      setBookmarks(getAllBookmarks())
       setFavorites(getBookshelf())
-      let serverThoughts: Thought[] = []
-      if (getToken()) {
-        const data = (await bookshelfApi.get()) as { favorites?: Favorite[]; recent?: ServerRecent[]; thoughts?: Thought[] }
-        if (data.favorites) {
-          setFavorites(data.favorites)
-          replaceBookshelf(data.favorites)
-        }
-        if (data.recent?.length) setRecent(mergeRecent(recentList, data.recent, 8))
-        serverThoughts = data.thoughts || []
-        setThoughts(serverThoughts)
-      }
+      setThoughts((shelfData.thoughts || []) as ShelfThought[])
       setSyncStatus(`上次同步 · ${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`)
     } catch (err) {
-      setSyncStatus(`同步失败：${(err as Error).message || '请稍后重试'}`)
+      if (current()) setSyncStatus(`同步失败：${(err as Error).message || '请稍后重试'}`)
     } finally {
-      setSyncing(false)
+      if (current()) setSyncing(false)
     }
   }, [])
 
@@ -196,16 +159,17 @@ export default function Bookshelf() {
 
   async function deleteFavorite(novelId: string) {
     if (!novelId) return
-    removeFromBookshelf(novelId)
-    if (getToken()) {
-      try {
-        await bookshelfApi.remove(novelId)
-      } catch {
-        /* ignore */
-      }
-    }
-    setFavorites(getBookshelf())
-    toast('已移出书架', 'success')
+    loadRevision.current++
+    setSyncing(false)
+    const token = getToken()
+    const scope = getStorageScope()
+    try {
+      if (token) await bookshelfApi.remove(novelId)
+      if (token !== getToken() || scope !== getStorageScope()) return
+      removeFromBookshelf(novelId)
+      setFavorites(getBookshelf())
+      toast('已移出书架', 'success')
+    } catch (err) { toast((err as Error).message || '移出书架失败，请重试', 'error') }
   }
 
   async function deleteRecent(novelId: string) {
