@@ -40,6 +40,15 @@
   --shadow-md: 0 6px 16px rgba(40, 32, 24, 0.08);
   --shadow-lg: 0 16px 40px rgba(40, 32, 24, 0.12);
   --shadow-popover: 0 8px 28px rgba(40, 32, 24, 0.12);
+  /* Shared transient feedback — neutral paper, restrained floating depth. */
+  --toast-background: color-mix(in srgb, var(--bg-card) 92%, var(--accent-subtle) 8%);
+  --toast-foreground: var(--text-primary);
+  --toast-radius: var(--radius-lg);
+  --toast-shadow: var(--shadow-md);
+  --toast-font-size: 0.875rem;
+  --toast-padding-block: 0.875rem;
+  --toast-padding-inline: 1rem;
+  --toast-gap: 0.625rem;
   --radius: 8px;
   --radius-sm: 6px;
   --radius-lg: 12px;

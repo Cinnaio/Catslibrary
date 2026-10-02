@@ -7,6 +7,7 @@ colors:
   primary-light: "#F0E6D6"
   primary-subtle: "#F8F3EC"
   surface: "#FFFFFF"
+  toast-paper: "color-mix(in srgb, #FFFFFF 92%, #F8F3EC 8%)"
   surface-warm: "#F6F4F1"
   surface-hover: "#F5F2EE"
   text-primary: "#211E1A"
@@ -81,6 +82,11 @@ spacing:
   xl: "32px"
   2xl: "48px"
 components:
+  toast-feedback:
+    backgroundColor: "{colors.toast-paper}"
+    textColor: "{colors.text-primary}"
+    rounded: "{rounded.lg}"
+    padding: "14px 16px"
   button-primary:
     backgroundColor: "{colors.primary}"
     textColor: "{colors.surface}"
@@ -358,6 +364,14 @@ components:
 - **Grouping:** 普通操作与删除等危险操作之间使用一条 1px 轻分割线，线条留在浮层内边距中，不贯穿外边框；分割线上下各 4px。
 - **Interaction:** 保留 Radix 的 portal、方向键导航、Esc 关闭、焦点返回、复选/单选状态及视口碰撞避让。菜单通过 portal 渲染，禁止使用依赖表格祖先的选择器调整浮层。900px 及以下或触屏使用至少 44px 的操作高度，减少动态效果时关闭浮层动画。
 
+
+### Shared Toast Feedback
+
+- **Entry:** 全站反馈栏由 `components/ui/sonner.tsx` 和 `styles/toast-feedback.css` 统一呈现，业务页继续使用 `useToast().toast(message, type, options)`；不在页面复制局部外观。
+- **Surface:** `--toast-background` 使用 92% 面板纸面与 8% 浅强调色派生暖白，文字使用 `--toast-foreground`；12px 圆角、无描边、`--toast-shadow` 轻量悬浮阴影。圆角、阴影、字号、内边距与间距集中使用 `--toast-*` token，随深色和自定义强调色映射。
+- **Content:** 14px 常规字重、1.6 行高、14px × 16px 内边距、10px 图文间距；保留 16px 细线状态图标，成功/普通图标为品牌色，错误/警告图标分别为危险色/警告色，不能只依赖颜色区分状态。长文字自然换行，不截断。
+- **Actions:** 撤销等动作采用浅强调色底与深强调色文字、6px 圆角、13px 字号，桌面最小 32px 高，手机及触屏最小 44px；保留清晰键盘焦点。禁止使用黑底操作按钮或整块高饱和状态背景。
+- **Interaction:** 保留 Sonner 的底部居中、视口边距、堆叠、滑动关闭与可访问播报；普通提示自动消失，带操作默认保留 10 秒。减少动态效果时缩短过渡并停止加载图标旋转，业务行为与展示时长不变。
 
 ### Shared Account and List Primitives
 
