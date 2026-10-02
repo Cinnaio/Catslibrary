@@ -15,21 +15,14 @@ import Bookshelf from './pages/Bookshelf'
 import Profile from './pages/Profile'
 import Auth from './pages/Auth'
 import VisitTracker from './components/VisitTracker'
+import RouteLoading from './components/RouteLoading'
 
 const Install = lazy(() => import('./pages/Install'))
 const Admin = lazy(() => import('./pages/admin/Admin'))
 
-function RouteFallback() {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', color: 'var(--color-text-secondary, #888)' }}>
-      加载中…
-    </div>
-  )
-}
-
 export default function App() {
   return (
-    <Suspense fallback={<RouteFallback />}>
+    <Suspense fallback={<RouteLoading />}>
       <VisitTracker />
       <Routes>
         <Route element={<Layout />}>

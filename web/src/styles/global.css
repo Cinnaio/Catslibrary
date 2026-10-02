@@ -10,6 +10,7 @@
 
 @import './tokens.css';
 @import './base.css';
+@import './route-loading.css';
 @import './components.css';
 @import './content-policy.css';
 @import './header.css';
