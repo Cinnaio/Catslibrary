@@ -3,120 +3,60 @@
    ============================================================ */
 
 .detail-page {
-  --detail-paper: color-mix(in srgb, var(--bg-card) 88%, var(--accent-subtle));
-  --detail-paper-strong: color-mix(in srgb, var(--bg-card) 76%, var(--accent-subtle));
-  --detail-inset: color-mix(in srgb, var(--bg-primary) 72%, var(--accent-subtle));
-  --detail-line: color-mix(in srgb, var(--border) 84%, transparent);
-  --detail-shadow: 0 22px 58px rgba(40, 32, 24, 0.1);
-  --detail-shadow-soft: 0 12px 30px rgba(40, 32, 24, 0.07);
+  --detail-paper: var(--bg-card);
+  --detail-paper-strong: var(--bg-secondary);
+  --detail-inset: var(--bg-secondary);
+  --detail-line: var(--border);
   min-height: calc(100vh - var(--header-height));
-  padding: 38px 0 64px;
-  background:
-    radial-gradient(circle at 12% 6%, color-mix(in srgb, var(--accent-subtle) 92%, transparent), transparent 30rem),
-    radial-gradient(circle at 86% 18%, rgba(255, 255, 255, 0.42), transparent 22rem),
-    linear-gradient(135deg, var(--bg-secondary), var(--bg-primary) 44%, var(--bg-secondary));
+  padding: 36px 0 64px;
+  background: var(--bg-secondary);
 }
 
 [data-theme="dark"] .detail-page {
-  --detail-shadow: 0 22px 58px rgba(0, 0, 0, 0.36);
-  --detail-shadow-soft: 0 12px 30px rgba(0, 0, 0, 0.24);
-  background:
-    radial-gradient(circle at 12% 6%, color-mix(in srgb, var(--accent-subtle) 38%, transparent), transparent 30rem),
-    linear-gradient(135deg, var(--bg-secondary), var(--bg-primary) 44%, var(--bg-secondary));
+  background: var(--bg-secondary);
 }
 
 .detail-shell {
   display: grid;
-  gap: 28px;
+  max-width: 1080px;
+  gap: 32px;
 }
 
-.detail-kicker {
-  margin: 0 0 7px;
-  color: var(--accent);
-  font-size: 0.72rem;
-  font-weight: 850;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
 
 .novel-hero {
-  position: relative;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: 164px minmax(0, 1fr);
   align-items: start;
-  gap: clamp(24px, 4vw, 42px);
-  overflow: hidden;
-  padding: clamp(24px, 4vw, 42px);
-  border: 1px solid var(--detail-line);
-  border-radius: var(--radius-2xl);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.56), rgba(255, 255, 255, 0) 46%),
-    var(--detail-paper);
-  box-shadow: var(--detail-shadow);
+  gap: 36px;
+  padding: 0 0 8px;
+  min-width: 0;
 }
 
 [data-theme="dark"] .novel-hero {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0) 46%),
-    var(--detail-paper);
+  background: transparent;
 }
 
-.novel-hero::before,
-.novel-hero::after {
-  content: '';
-  position: absolute;
-  pointer-events: none;
-  border-radius: 999px;
-}
 
-.novel-hero::before {
-  width: 340px;
-  height: 340px;
-  right: -150px;
-  top: -170px;
-  background: color-mix(in srgb, var(--accent-subtle) 78%, transparent);
-}
 
-.novel-hero::after {
-  width: 210px;
-  height: 210px;
-  left: 46%;
-  bottom: -140px;
-  border: 1px solid color-mix(in srgb, var(--accent) 12%, transparent);
-  background: color-mix(in srgb, var(--bg-card) 42%, transparent);
-}
 
-.novel-hero__paper-mark {
-  position: absolute;
-  right: clamp(20px, 4vw, 46px);
-  top: clamp(18px, 3vw, 34px);
-  color: color-mix(in srgb, var(--accent) 13%, transparent);
-  font-family: var(--font-serif);
-  font-size: clamp(3.4rem, 8vw, 6.6rem);
-  font-weight: 850;
-  line-height: 1;
-  transform: rotate(8deg);
-  user-select: none;
-}
 
 .novel-hero__cover,
 .novel-hero__info {
-  position: relative;
-  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
 }
 
 .novel-hero__cover {
   display: grid;
   place-items: center;
-  width: clamp(150px, 18vw, 220px);
-  aspect-ratio: 5 / 7;
-  flex-shrink: 0;
+  width: 164px;
+  aspect-ratio: 2 / 3;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--detail-line));
-  border-radius: var(--radius-2xl);
-  background:
-    linear-gradient(145deg, color-mix(in srgb, var(--bg-card) 72%, var(--accent-subtle)), var(--accent-light));
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.34), 0 18px 34px rgba(40, 32, 24, 0.14);
+  border-radius: var(--radius-md);
+  background: var(--accent-light);
+  box-shadow: var(--novel-cover-shadow);
 }
 
 .novel-hero__cover img {
@@ -132,8 +72,8 @@
   height: 100%;
   color: var(--accent);
   font-family: var(--font-serif);
-  font-size: 3.2rem;
-  font-weight: 850;
+  font-size: 2rem;
+  font-weight: 500;
 }
 
 .novel-hero__info {
@@ -146,12 +86,11 @@
 
 .novel-hero__title {
   margin: 0;
-  max-width: 13em;
   font-family: var(--font-serif);
-  font-size: clamp(2rem, 4.6vw, 4rem);
-  font-weight: 850;
-  line-height: 1.08;
-  letter-spacing: -0.055em;
+  font-size: 2rem;
+  font-weight: 500;
+  line-height: 1.5;
+  letter-spacing: -0.02em;
   overflow-wrap: anywhere;
 }
 
@@ -161,7 +100,7 @@
   align-items: center;
   gap: 10px;
   color: var(--text-secondary);
-  font-size: 0.9rem;
+  font-size: 0.75rem;
 }
 
 .novel-hero__meta-sep {
@@ -172,9 +111,9 @@
 }
 
 .author-link {
-  color: var(--accent);
+  color: var(--text-secondary);
   text-decoration: none;
-  font-weight: 780;
+  font-weight: 400;
 }
 
 .author-link:hover {
@@ -185,19 +124,14 @@
 .novel-hero .badge,
 .novel-hero .tag,
 .novel-hero .badge-update {
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-sm);
 }
 
 .novel-hero .badge {
-  display: inline-flex;
-  align-items: center;
-  min-height: 24px;
-  padding: 2px 10px;
-  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--detail-line));
-  background: var(--accent-subtle);
-  color: var(--accent);
-  font-size: 0.78rem;
-  font-weight: 820;
+  padding: 3px 8px;
+  background: var(--bg-card);
+  font-size: 0.75rem;
+  font-weight: 400;
 }
 
 .novel-hero__categories {
@@ -207,8 +141,12 @@
 }
 
 .novel-hero .tag {
-  border-color: var(--detail-line);
-  background: color-mix(in srgb, var(--bg-card) 74%, var(--accent-subtle));
+  padding: 3px 8px;
+  border: 0;
+  background: var(--accent-light);
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  font-weight: 400;
 }
 
 .novel-hero__desc {
@@ -218,8 +156,8 @@
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   color: var(--text-secondary);
-  font-size: 0.96rem;
-  line-height: 1.9;
+  font-size: 0.875rem;
+  line-height: 1.85;
 }
 
 .novel-hero__desc--expanded {
@@ -229,11 +167,10 @@
 .novel-hero__desc-toggle {
   align-self: flex-start;
   padding: 2px 0;
-  border: none;
-  background: none;
+  border: 0;
+  background: transparent;
   color: var(--accent);
-  font-size: 0.85rem;
-  font-weight: 760;
+  font-size: 0.75rem;
   cursor: pointer;
 }
 
@@ -245,28 +182,26 @@
 }
 
 .novel-hero__actions .btn {
-  border-radius: var(--radius-lg);
-  font-weight: 760;
+  border-radius: var(--radius-md);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  box-shadow: none;
 }
 
 .novel-hero__actions .btn--primary {
-  padding: 11px 30px;
+  padding: 10px 24px;
 }
 
 .detail-section {
-  padding: 22px;
-  border: 1px solid var(--detail-line);
-  border-radius: var(--radius-2xl);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.52), rgba(255, 255, 255, 0) 48%),
-    var(--detail-paper);
-  box-shadow: var(--detail-shadow-soft);
+  min-width: 0;
+  margin: 0;
+  padding: 28px;
+  border-radius: var(--radius-xl);
+  background: var(--detail-paper);
 }
 
 [data-theme="dark"] .detail-section {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0) 48%),
-    var(--detail-paper);
+  background: var(--detail-paper);
 }
 
 .detail-section__head {
@@ -279,14 +214,14 @@
 
 .detail-section__head h2 {
   margin: 0;
-  font-family: var(--font-serif);
-  font-size: clamp(1.3rem, 2.4vw, 1.8rem);
-  letter-spacing: -0.026em;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.5;
 }
 
 .detail-section__count {
   color: var(--text-muted);
-  font-size: 0.86rem;
+  font-size: 0.75rem;
 }
 
 .chapter-directory__summary {
@@ -300,12 +235,11 @@
 .chapter-directory__resume {
   min-height: 32px;
   padding: 5px 10px;
-  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--detail-line));
-  border-radius: var(--radius-full);
-  background: var(--accent-subtle);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--accent-light);
   color: var(--accent);
-  font-size: 0.78rem;
-  font-weight: 720;
+  font-size: 0.75rem;
   cursor: pointer;
 }
 
@@ -342,7 +276,7 @@
   color: var(--text-muted);
 }
 
-.chapter-directory__search input {
+.detail-page .chapter-directory__search input {
   min-width: 0;
   flex: 1;
   border: 0;
@@ -350,6 +284,9 @@
   background: transparent;
   color: var(--text-primary);
   font: inherit;
+  padding: 6px 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .chapter-directory__search input::placeholder {
@@ -394,13 +331,9 @@
 
 /* 回来接着读 —— 详情页 hero 下方的一小块回顾卡，纸面质感，与 hero 同源 */
 .catchup-card {
-  padding: 20px 22px;
-  border: 1px solid var(--detail-line);
-  border-radius: var(--radius-2xl);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.52), rgba(255, 255, 255, 0) 48%),
-    var(--detail-paper);
-  box-shadow: var(--detail-shadow-soft);
+  padding: 24px 28px;
+  border-radius: var(--radius-xl);
+  background: var(--bg-card);
 }
 
 .catchup-card__body {
@@ -448,8 +381,8 @@
 .chapter-list {
   list-style: none;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0 24px;
   min-width: 0;
   margin: 0;
   padding: 0;
@@ -461,23 +394,22 @@
 
 .chapter-list__item {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  flex-direction: column;
+  align-items: start;
+  justify-content: center;
+  gap: 5px;
   min-width: 0;
-  padding: 12px 13px;
-  border: 1px solid var(--detail-line);
-  border-radius: var(--radius-xl);
-  background: var(--detail-inset);
+  min-height: 70px;
+  padding: 12px 8px;
+  border-bottom: 1px solid var(--detail-line);
   color: inherit;
   text-decoration: none;
   cursor: pointer;
-  transition: background 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+  transition: background var(--tabs-segmented-transition);
 }
 
 .chapter-list__item:hover {
-  border-color: color-mix(in srgb, var(--accent) 22%, var(--detail-line));
-  background: color-mix(in srgb, var(--bg-card) 72%, var(--accent-subtle));
+  background: var(--bg-secondary);
 }
 
 .chapter-list__item:hover .chapter-list__title {
@@ -485,40 +417,28 @@
 }
 
 .chapter-list__title {
-  display: block;
   min-width: 0;
-  max-width: 100%;
-  overflow: hidden;
   color: var(--text-primary);
-  font-size: 0.92rem;
-  font-weight: 650;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  transition: color 0.15s ease;
+  font-size: 0.8125rem;
+  font-weight: 400;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
 }
 
 .chapter-list__read-badge {
   display: inline-block;
-  margin-left: 5px;
-  padding: 1px 7px;
-  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--detail-line));
-  border-radius: var(--radius-full);
-  background: var(--accent-subtle);
+  margin-left: 6px;
   color: var(--accent);
-  font-size: 0.65rem;
-  font-weight: 820;
-  vertical-align: middle;
+  font-size: 0.7rem;
+  font-weight: 500;
 }
 
 .chapter-list__item--last-read {
-  border-color: color-mix(in srgb, var(--accent) 32%, var(--detail-line));
-  background: color-mix(in srgb, var(--bg-card) 68%, var(--accent-subtle));
-  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--accent) 42%, transparent);
+  background: var(--accent-light);
 }
 
 .chapter-list__item--read {
-  border-color: color-mix(in srgb, var(--text-muted) 18%, var(--detail-line));
-  background: color-mix(in srgb, var(--detail-inset) 86%, var(--bg-card));
+  background: transparent;
 }
 
 .chapter-list__item--read .chapter-list__title,
@@ -527,10 +447,7 @@
 }
 
 .chapter-list__item--read .chapter-list__title::before {
-  content: '✓';
-  margin-right: 6px;
-  color: color-mix(in srgb, var(--accent) 70%, var(--text-muted));
-  font-weight: 850;
+  content: none;
 }
 
 .chapter-list__item--read:hover .chapter-list__title {
@@ -596,7 +513,7 @@
   border: 1px solid var(--detail-line);
   border-radius: var(--radius-lg);
   background: var(--bg-card);
-  box-shadow: var(--detail-shadow-soft);
+  box-shadow: var(--shadow-popover);
 }
 
 .community-sort-menu.is-open {
@@ -627,21 +544,20 @@
 
 .rating-summary {
   display: grid;
-  grid-template-columns: minmax(120px, 0.8fr) minmax(180px, 1.4fr) minmax(180px, 1fr);
-  gap: 18px;
+  grid-template-columns: minmax(100px, 0.7fr) minmax(180px, 1.4fr) minmax(180px, 1fr);
+  gap: 24px;
   align-items: center;
-  padding: 16px;
-  border: 1px solid var(--detail-line);
-  border-radius: var(--radius-xl);
-  background: var(--detail-inset);
+  padding: 20px 0;
+  border-bottom: 1px solid var(--detail-line);
 }
 
 .rating-summary__score strong {
   display: block;
-  color: var(--accent);
+  color: var(--text-primary);
   font-family: var(--font-serif);
-  font-size: 2.8rem;
-  line-height: 1;
+  font-size: 2rem;
+  font-weight: 500;
+  line-height: 1.5;
 }
 
 .rating-summary__score span,
@@ -733,7 +649,7 @@
 
 @media (hover: hover) and (pointer: fine) {
   .chapter-list__item:hover {
-    transform: translateY(-1px);
+    background: var(--bg-secondary);
   }
 
   .rating-star:hover {
@@ -769,10 +685,8 @@
 .comment-login-tip,
 .comment-form,
 .comment-card {
-  padding: 14px;
-  border: 1px solid var(--detail-line);
-  border-radius: var(--radius-xl);
-  background: var(--detail-inset);
+  padding: 16px 0;
+  background: transparent;
 }
 
 .comment-form {
@@ -796,26 +710,28 @@
 
 .comment-card {
   display: grid;
-  grid-template-columns: 38px 1fr;
+  grid-template-columns: 32px minmax(0, 1fr);
   gap: 12px;
+  border-bottom: 1px solid var(--detail-line);
 }
 
 .comment-card .comment-card {
-  margin-top: 10px;
-  background: color-mix(in srgb, var(--bg-card) 68%, var(--accent-subtle));
+  margin-top: 12px;
+  padding-bottom: 0;
+  border-bottom: 0;
+  background: transparent;
 }
 
 .comment-card__avatar {
   display: grid;
   place-items: center;
-  width: 38px;
-  height: 38px;
+  width: 32px;
+  height: 32px;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--accent) 12%, var(--detail-line));
   border-radius: 50%;
-  background: var(--accent-subtle);
+  background: var(--accent-light);
   color: var(--accent);
-  font-weight: 850;
+  font-weight: 500;
 }
 
 .comment-card__avatar > * {
@@ -906,10 +822,8 @@
 .bookmark-novel-item {
   display: grid;
   gap: 5px;
-  padding: 13px 14px;
-  border: 1px solid var(--detail-line);
-  border-radius: var(--radius-xl);
-  background: var(--detail-inset);
+  padding: 14px 0;
+  border-bottom: 1px solid var(--detail-line);
   color: inherit;
   text-decoration: none;
 }
@@ -931,182 +845,57 @@
 }
 
 .detail-page .empty-state {
-  border: 1px solid var(--detail-line);
-  border-radius: var(--radius-2xl);
-  background: var(--detail-paper);
-  box-shadow: var(--detail-shadow-soft);
+  background: transparent;
 }
 
-@media (max-width: 760px) {
-  .detail-page {
-    overflow-x: hidden;
-    padding: 14px 0 32px;
-  }
-
-  .detail-page > .container {
-    width: 100%;
-    max-width: 100%;
-    padding-inline: 14px;
-    box-sizing: border-box;
-  }
-
-  .detail-shell {
-    gap: 16px;
-  }
-
-  .novel-hero {
-    grid-template-columns: 1fr;
-    justify-items: center;
-    gap: 16px;
-    padding: 16px;
-    text-align: center;
-    border-radius: var(--radius-2xl);
-  }
-
-  .novel-hero__paper-mark {
-    right: 14px;
-    top: 14px;
-    font-size: 3.4rem;
-  }
-
-  .novel-hero__info {
-    align-items: center;
-    width: 100%;
-  }
-
-  .novel-hero__meta,
-  .novel-hero__categories,
-  .novel-hero__actions {
-    justify-content: center;
-  }
-
-  .novel-hero__actions {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    width: 100%;
-  }
-
-  .novel-hero__actions .btn {
-    min-width: 0;
-    padding-inline: 10px;
-    justify-content: center;
-    white-space: nowrap;
-  }
-
-  .novel-hero__actions .btn--primary {
-    padding-inline: 10px;
-  }
-
-  .novel-hero__desc {
-    text-align: left;
-    /* 移动端紧凑化：降低字号与行高，避免简介块在小屏上占屏过高 */
-    font-size: 0.875rem;
-    line-height: 1.7;
-  }
-
-  .novel-hero__desc-toggle {
-    align-self: center;
-  }
-
-    .rating-summary {
-      grid-template-columns: 1fr;
-      text-align: left;
-    }
-
-    .comment-card {
-      grid-template-columns: 32px 1fr;
-      padding: 12px;
-    }
-
-    .comment-card__avatar {
-      width: 32px;
-      height: 32px;
-    }
-
-    .community-section__head {
-      align-items: flex-start;
-    }
-
-    .community-sort-wrap {
-      width: 100%;
-    }
-
-    .community-sort {
-      width: 100%;
-    }
-
-    .community-sort-menu {
-      left: 0;
-      right: 0;
-    }
-
-  .detail-page .detail-section {
-    width: 100%;
-    min-width: 0;
-    box-sizing: border-box;
-    padding: 14px 12px;
-    border-radius: var(--radius-2xl);
-  }
-
-  .detail-section__head {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 8px;
-    margin-bottom: 14px;
-  }
-
-  .chapter-directory__summary {
-    width: 100%;
-    justify-content: space-between;
-  }
-
-  .chapter-directory__search {
-    flex-wrap: wrap;
-  }
-
-  .chapter-directory__search input {
-    min-width: 180px;
-  }
-
-  .chapter-directory__result {
-    width: 100%;
-    padding-left: 27px;
-  }
-
-  .detail-kicker {
-    margin-bottom: 5px;
-    font-size: 0.68rem;
-  }
-
-  .chapter-list {
-    grid-template-columns: 1fr;
-    gap: 12px;
-  }
-
-  .chapter-list__item {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 6px;
-    padding: 14px;
-    border-radius: var(--radius-xl);
-  }
-
-  .chapter-list__title {
-    width: 100%;
-    white-space: normal;
-    overflow-wrap: anywhere;
-    font-size: 0.98rem;
-    line-height: 1.48;
-  }
-
-  .chapter-list__meta {
-    font-size: 0.78rem;
-    white-space: normal;
-  }
-
-  .float-top {
-    right: 16px;
-    width: 40px;
-    height: 40px;
-  }
+@media (max-width: 900px) {
+  .chapter-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rating-summary { grid-template-columns: 1fr 1fr; }
+  .rating-picker { grid-column: 1 / -1; }
+}
+@media (max-width: 600px) {
+  .detail-page { padding: 24px 0 40px; }
+  .detail-shell { gap: 24px; padding-inline: 16px; }
+  .novel-hero { grid-template-columns: 88px minmax(0, 1fr); gap: 18px; }
+  .novel-hero__cover { width: 88px; }
+  .novel-hero__title { font-size: 1.25rem; line-height: 1.5; }
+  .novel-hero__info { display: contents; }
+  .novel-hero__title, .novel-hero__meta, .novel-hero__categories { grid-column: 2; }
+  .novel-hero__cover { grid-row: 1 / span 3; }
+  .novel-hero__desc, .novel-hero__desc-toggle, .novel-hero__actions { grid-column: 1 / -1; }
+  .novel-hero__meta { gap: 6px 8px; }
+  .novel-hero__categories { gap: 6px; align-content: start; }
+  .novel-hero__actions { margin-top: 0; gap: 8px; }
+  .novel-hero__actions .btn { min-height: 40px; padding-inline: 14px; }
+  .detail-page .detail-section { padding: 20px; }
+  .detail-section__head { align-items: start; flex-wrap: wrap; gap: 12px; }
+  .chapter-directory__summary { justify-content: start; }
+  .chapter-directory__search { gap: 6px; padding-inline: 8px; }
+  .detail-page .chapter-directory__search input { font-size: 1rem; }
+  .chapter-directory__result { font-size: 0.7rem; }
+  .chapter-list { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .chapter-list__item { padding: 12px 4px; }
+  .rating-summary { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .rating-picker { grid-column: auto; }
+  .comment-card { grid-template-columns: 28px minmax(0, 1fr); gap: 10px; }
+  .comment-card__avatar { width: 28px; height: 28px; }
+  .catchup-card { padding: 20px; }
+}
+.detail-back {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  text-decoration: none;
+}
+.detail-back:hover { color: var(--accent); }
+.detail-back:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.detail-page .form-input { font-size: 0.875rem; }
+.detail-page .comment-card__text { font-size: 0.875rem; }
+.detail-page .btn--secondary { border-color: transparent; background: var(--bg-card); }
+.detail-page .comment-form .btn--secondary { background: var(--bg-secondary); }
+@media (prefers-reduced-motion: reduce) {
+  .detail-page *, .detail-page *::before, .detail-page *::after { transition: none; }
 }

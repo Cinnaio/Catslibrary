@@ -288,16 +288,6 @@
     font-size: var(--novel-card-footer-size);
   }
 
-  /* Novel hero → stack */
-  .novel-hero__cover {
-    width: 150px;
-  }
-  .novel-hero__cover-fallback {
-    font-size: 2.4rem;
-  }
-  .novel-hero__title {
-    font-size: 1.5rem;
-  }
 
   /* Chapter ledger → single column */
   .chapter-list {

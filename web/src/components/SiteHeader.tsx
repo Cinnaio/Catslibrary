@@ -63,7 +63,7 @@ export default function SiteHeader() {
 
   return (
     <>
-      <header className={`header${isHome ? ' header--home' : ['/bookshelf', '/profile'].includes(location.pathname) ? ' header--paper' : ''}`}>
+      <header className={`header${isHome ? ' header--home' : (['/bookshelf', '/profile'].includes(location.pathname) || location.pathname.startsWith('/novel/')) ? ' header--paper' : ''}`}>
         <div className="header__inner">
           <Link to="/" className="header__logo">
             <img className="header__logo-img" src="/images/logo.png" alt="知舟" />

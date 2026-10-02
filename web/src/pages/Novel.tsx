@@ -4,6 +4,7 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { ArrowLeft, BookOpen } from 'lucide-react'
 import type { ChapterMeta, Comment, Novel, ReadingHistoryEntry } from '@shared/types'
 import { chaptersApi, commentsApi, isRestrictedContentError, novelsApi, progressApi, ratingsApi, url } from '../lib/api'
 import { UserAvatar } from '@/components/ui/user-avatar'
@@ -330,7 +331,7 @@ export default function Novel() {
       <main className="detail-page">
         <div className="container detail-shell">
           <div className="empty-state">
-            <div className="empty-state__icon">📖</div>
+            <div className="empty-state__icon"><BookOpen size={32} aria-hidden="true" /></div>
             <div className="empty-state__title">小说未找到</div>
             <div className="empty-state__desc">请检查链接是否正确，或返回首页浏览其他小说</div>
             <Link to="/" className="btn btn--primary" style={{ marginTop: 20 }}>返回首页</Link>
@@ -359,9 +360,9 @@ export default function Novel() {
   return (
     <main className="detail-page">
       <div className="container detail-shell">
+        <Link to="/" className="detail-back"><ArrowLeft size={14} aria-hidden="true" />返回书库</Link>
         {/* Hero */}
         <div className="novel-hero">
-          <div className="novel-hero__paper-mark" aria-hidden="true">档</div>
           <div className="novel-hero__cover">
             {coverFailed ? (
               <span className="novel-hero__cover-fallback">{(novel.title || '书')[0]}</span>
@@ -370,7 +371,7 @@ export default function Novel() {
             )}
           </div>
           <div className="novel-hero__info">
-            <p className="detail-kicker">BOOK DOSSIER</p>
+
             <h1 className="novel-hero__title">{novel.title}</h1>
             <div className="novel-hero__meta">
               {/* 首页搜索本身匹配作者字段，用 ?q= 而非无人处理的 ?author= */}
@@ -427,7 +428,7 @@ export default function Novel() {
         <section className="section detail-section">
           <div className="detail-section__head">
             <div>
-              <p className="detail-kicker">CONTENTS</p>
+
               <h2>章节目录</h2>
             </div>
             <div className="chapter-directory__summary">
@@ -504,7 +505,7 @@ export default function Novel() {
           <section className="section detail-section">
             <div className="detail-section__head">
               <div>
-                <p className="detail-kicker">BOOKMARKS</p>
+
                 <h2>书签</h2>
               </div>
             </div>
@@ -528,7 +529,7 @@ export default function Novel() {
         <section className="section detail-section community-section">
           <div className="detail-section__head community-section__head">
             <div>
-              <p className="detail-kicker">COMMUNITY</p>
+
               <h2>评分与评论</h2>
             </div>
             <div className="community-sort-wrap">

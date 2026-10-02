@@ -11,6 +11,7 @@ import type { ReaderSettingKey } from '../../hooks/useReaderSettings'
 const MOBILE_ROW_H = 46
 
 interface MobileSettingsSheetProps {
+  container?: HTMLElement | null
   open: boolean
   settings: Record<string, string>
   set: (key: ReaderSettingKey, value: string) => void
@@ -18,11 +19,11 @@ interface MobileSettingsSheetProps {
   onClose: () => void
 }
 
-export function MobileSettingsSheet({ open, settings, set, wakeLockSupported, onClose }: MobileSettingsSheetProps) {
+export function MobileSettingsSheet({ container, open, settings, set, wakeLockSupported, onClose }: MobileSettingsSheetProps) {
   const restoreFocusRef = useRef<HTMLElement | null>(null)
   return (
     <DialogPrimitive.Root open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onClose() }}>
-      <DialogPrimitive.Portal>
+      <DialogPrimitive.Portal container={container}>
         <DialogPrimitive.Overlay className="mobile-settings-overlay" />
         <DialogPrimitive.Content
           className="mobile-settings-sheet"
@@ -54,6 +55,7 @@ export function MobileSettingsSheet({ open, settings, set, wakeLockSupported, on
 }
 
 interface MobileLibrarySheetProps {
+  container?: HTMLElement | null
   open: boolean
   novelId: string
   currentChapterId: string
@@ -68,6 +70,7 @@ interface MobileLibrarySheetProps {
 }
 
 export function MobileLibrarySheet({
+  container,
   open,
   novelId,
   currentChapterId,
@@ -85,7 +88,7 @@ export function MobileLibrarySheet({
   const restoreFocusRef = useRef<HTMLElement | null>(null)
   return (
     <DialogPrimitive.Root open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onClose() }}>
-      <DialogPrimitive.Portal>
+      <DialogPrimitive.Portal container={container}>
         <DialogPrimitive.Overlay className="mobile-library-overlay" />
         <DialogPrimitive.Content
           className="mobile-library-sheet"

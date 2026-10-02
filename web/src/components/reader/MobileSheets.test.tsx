@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
@@ -50,10 +50,12 @@ describe('MobileLibrarySheet', () => {
 
     function Harness() {
       const [open, setOpen] = useState(false)
+      const containerRef = useRef<HTMLDivElement>(null)
       return (
-        <>
+        <div className="reader-app" ref={containerRef}>
           <button type="button" onClick={() => setOpen(true)}>打开阅读设置</button>
           <MobileSettingsSheet
+            container={containerRef.current}
             open={open}
             settings={{
               fontSize: '1',
@@ -71,7 +73,7 @@ describe('MobileLibrarySheet', () => {
             wakeLockSupported={false}
             onClose={() => setOpen(false)}
           />
-        </>
+        </div>
       )
     }
 
@@ -80,6 +82,7 @@ describe('MobileLibrarySheet', () => {
     await user.click(trigger)
 
     const dialog = screen.getByRole('dialog', { name: '阅读设置' })
+    expect(dialog.closest('.reader-app')).not.toBeNull()
     await waitFor(() => expect(screen.getByRole('button', { name: '关闭阅读设置' })).toHaveFocus())
     expect(screen.getByRole('button', { name: '18' })).toHaveAttribute('aria-pressed', 'true')
     await user.tab({ shift: true })

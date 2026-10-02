@@ -74,11 +74,7 @@ typography:
     # 阅读表面专属档（reader.css）。刻意高于后台紧凑字阶——长时间阅读优先舒适度。
     reader-body: "1.1rem"          # 17.6px 阅读器正文（移动端降到 body 1rem）
     reader-glyph: "1.35rem"        # 21.6px 阅读器图标按钮字符 / 移动端章节标题
-    reader-title-min: "1.55rem"    # 24.8px 章节标题 clamp 下限
-    reader-title-max: "2.15rem"    # 34.4px 章节标题 clamp 上限
-    reader-watermark-min: "3rem"   # 48px 纸张「读」字水印 clamp 下限
-    reader-watermark-sm: "3.2rem"  # 51.2px 移动端水印定值
-    reader-watermark-max: "6rem"   # 96px 纸张「读」字水印 clamp 上限
+    reader-title: "1.75rem"       # 28px / 500 章节标题；移动端 reader-glyph 1.35rem
 rounded:
   sm: "6px"              # --radius-sm — 公共页控件
   base: "8px"            # --radius — 全局基础圆角
@@ -87,7 +83,7 @@ rounded:
   xl: "16px"             # --radius-xl — 嵌套表面/对话框/shadcn Card
   2xl: "20px"            # --radius-2xl — 后台大面板/数据面板/后台卡片
   full: "9999px"
-  reader-paper: "30px"   # 阅读页纸张表面，移动端 24px；见 --reader-radius-paper
+  reader-paper: "16px"   # 阅读纸面与通用 xl 同档；见 --reader-radius-paper
 spacing:
   xs: "4px"
   sm: "8px"
@@ -142,6 +138,11 @@ components:
     textColor: "{colors.text-primary}"
     rounded: "{rounded.sm}"
     padding: "8px 12px"
+  reader-paper:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.text-primary}"
+    rounded: "{rounded.reader-paper}"
+    padding: "44px 40px"
 ---
 
 # Design System: 知舟 (Zhi Zhou)
@@ -210,7 +211,7 @@ components:
 ## Typography
 
 **Display/Body Font:** System sans-serif stack (-apple-system, PingFang SC, Microsoft YaHei)
-**Serif Font:** Noto Serif SC / Source Han Serif SC (阅读器场景)
+**Serif Font:** Noto Serif SC / Source Han Serif SC (阅读器及已批准的公共页主标题)
 **Mono Font:** SF Mono / Fira Code / Consolas
 
 **Character:** 系统字体带来原生、安静的感觉——不抢注意力，让内容本身成为视觉主角。衬线字体在阅读器中营造纸质书的氛围。
@@ -224,12 +225,12 @@ components:
 - **Body** (400, 16px, 1.6): 正文。行高 1.6 提供舒适的阅读节奏。
 - **Label** (750, 0.7–0.72rem, 0.08–0.1em uppercase): 分类标签。后台 kicker 用 0.72rem / 750 / 0.08em，侧栏分组标签用 0.7rem / 0.1em + uppercase。两者都压在 11px 可读下限之上，不再往下调。
 - **Compact Label Scale (Admin)** (400-750, 0.7-0.8rem): 管理后台专属的紧凑密度字号阶梯，用于 OPERATE 模式的高信息密度扫描。包括：导航分组标签 (0.7rem)、kicker (0.72rem)、表头 (0.72rem + 0.07em)、计数胶囊 (0.75rem)、元信息 (0.75rem)、分页 (0.8rem)。这一档刻意低于公开阅读界面的字号——管理控制台优先扫描效率，阅读界面优先舒适度。**对比度不可妥协**：弱化文字须满足 AA ≥4.5:1，数据读取面（表头/内容）字号 ≥11px。
-- **Reading Surface Scale (Reader)** (`reader.css`，与上一档相反的方向): 阅读页有自己的一档字号，全部高于通用档。正文 1.1rem/行高 2.05（移动端降到 1rem/1.85），章节标题 clamp(1.55rem, 3vw, 2.15rem)、移动端定值 1.35rem，纸张右上角的「读」字水印 clamp(3rem, 8vw, 6rem)、移动端 3.2rem。**这一档只在 `.reader-app` 内生效**，不得外溢到公共页或后台；反过来，阅读器内也不使用后台的紧凑档。
+- **Reading Surface Scale (Reader)** (`reader.css`): 章节标题使用 `reader-title`（500 / 1.5），移动端使用 `reader-glyph`；取消标题 clamp 与装饰水印。正文 CSS 基线为 `reader-body` / 2.05，移动端为 body / 1.85；实际字号、行距、段距和字体由既有持久化阅读设置覆盖，不能用视觉改版重置用户选择。**这一档只在 `.reader-app` 内生效**，不得外溢到公共页或后台。
 
 后台表单标签另有 `--admin-field-label-weight: 400`——标签刻意保持常规字重，让当前选中的分段 tab 保持视觉主导；不要用加粗标签去和 tab 抢注意力。
 
 ### Named Rules
-**The Content-First Rule.** 字体永远是配角。系统字体不创造风格，内容本身创造风格。阅读器使用衬线体营造沉浸；2026-10-02 用户批准的首页、书架与个人中心也允许主标题使用现有 `--font-serif`，桌面 32px / 500 / 1.5、手机 1.55rem。例外限于 `Home`、`Bookshelf`、`Profile`，不扩展到后台或其他公共页；前言中的 `home-title` / `home-title-mobile` 记录这组共用尺寸，名称保持兼容。
+**The Content-First Rule.** 字体永远是配角。系统字体不创造风格，内容本身创造风格。阅读器使用衬线体营造沉浸；2026-10-02 用户批准的首页、书架、个人中心与小说详情也允许主标题使用现有 `--font-serif`，桌面 32px / 500 / 1.5、手机 1.55rem。小说详情手机主标题使用20px；例外限于 `Home`、`Bookshelf`、`Profile`、`Novel`，不扩展到后台或其他公共页；前言中的 `home-title` / `home-title-mobile` 记录这组共用尺寸，名称保持兼容。
 
 **The One Title Rule.** 每个可导航页面只有一个内容区主标题，由页头承担。面板标题写工作对象名（"作品目录"、"章节目录"、"审核列表"），不重复页面名。页头上方不再出现小字眉题——`AdminTabHeader` 的 `kicker` 与 `hero` 变体已退役，两个 prop 仍被接受但被忽略。标题字号膨胀和"每页一个更大的标题"都是被明确否定的方向。
 
@@ -336,9 +337,14 @@ components:
 - **后台大面板圆角 (20px)**: 数据面板（`--admin-table-panel-radius`）、`.admin-panel-card`——更明显的圆润感，像精装书的封面弧度。
 - **公开页面结构归并**: 紧凑字段使用 `--radius-md`，控件使用 `--radius-lg`，操作下拉菜单遵循 `--menu-radius`（12px），内嵌卡片、浮层与对话框使用 `--radius-xl`，Hero 与大卡片使用 `--radius-2xl`；公开页面不再直接新增 11/13/14/15/17/18/22/24/26/28/30px 档位。
 - **全圆角 (9999px)**: 胶囊标签、计数徽章、状态条——仅用于信息密度极高的辅助元素。
-- **阅读页纸张圆角 (30px / 移动端 24px)**: `--reader-radius-paper`，唯一大于 2xl 的圆角。阅读表面要读起来像"一张纸"而不是一个卡片，弧度必须明显大过周围的控件；只用于 `.reader-paper`，其余阅读页元素仍走上面的通用档。
+- **阅读纸面圆角**: `--reader-radius-paper` 复用通用 xl，桌面与手机同档。阅读器不再保留超大圆角例外；正文纸面为平面，不带外描边、投影、渐变或水印。浮层仍使用既有阴影表达交互层次。
 
 ## Components
+
+### Novel Detail and Reader（2026-10-02）
+
+- **小说详情:** 最大1080px暖灰画布，封面与信息构成透明 hero；封面单独使用共享落影。主标题使用已批准的衬线字阶，桌面32px / 500、手机20px；简介14px / 1.85、默认三行并保留展开。目录与社区为通用 xl 圆角平面纸面，桌面28px、手机20px内边距；目录以细底线形成3 / 2 / 1列连续条目，13px常规书名。保留搜索、已读标记、上次阅读定位及原有内容策略。小说路由复用 `header--paper`。完整响应式与行为边界见 `.impeccable/surfaces/web-src-pages-novel-tsx.md`。
+- **阅读器:** 保留用户选择的620 / 680 / 780px宽度与全部阅读设置，正文纸面使用前言 `reader-paper`，640px及以下内边距28px / 20px；标题使用前言 `reader-title`，手机1.35rem。顶部为原生纸色 sticky 工具栏与单条细底线，书名链接返回小说详情；上下章、目录、手机控制继续沿用现有行为。default / eye / paper 保留既有主题色板，表面统一平面。移动设置和目录弹层通过阅读根容器 portal 继承主题及遮罩；进度宽度即时更新，取消宽度过渡。完整契约见 `.impeccable/surfaces/web-src-pages-reader-tsx.md`。
 
 ### Public Account Paper（书架与个人中心限定）
 
@@ -359,7 +365,7 @@ components:
 
 ### Novel Cover Depth（公共小说封面共享）
 
-用户明确要求给书籍封面增加阴影，封面作为纸面上的书籍实体允许轻柔静态落影；容器仍遵守扁平卡片规范。共享 `.novel-card__cover` 读取 `--novel-cover-shadow`，浅色为 `0 2px 4px rgba(40, 32, 24, 0.08), 0 8px 18px rgba(40, 32, 24, 0.12)`，深色为 `0 2px 5px rgba(0, 0, 0, 0.24), 0 8px 20px rgba(0, 0, 0, 0.32)`。仅封面有阴影，卡片容器不增加投影或 hover 抬升；真实图片、占位封面、已读与更新角标沿用原实现。
+用户明确要求给书籍封面增加阴影，封面作为纸面上的书籍实体允许轻柔静态落影；容器仍遵守扁平卡片规范。共享 `.novel-card__cover`、小说详情封面读取 `--novel-cover-shadow`，浅色为 `0 2px 4px rgba(40, 32, 24, 0.08), 0 8px 18px rgba(40, 32, 24, 0.12)`，深色为 `0 2px 5px rgba(0, 0, 0, 0.24), 0 8px 20px rgba(0, 0, 0, 0.32)`。仅封面有阴影，卡片容器不增加投影或 hover 抬升；真实图片、占位封面、已读与更新角标沿用原实现。
 
 ### Novel Card Typography（公共小说卡片共享）
 
@@ -629,3 +635,5 @@ components:
 - 登录目录使用用户、结果与原因、访问来源、时间、操作五列；IP 与设备摘要组合，完整 User-Agent、原因、记录 ID 保留在只读详情。未知设备不推断具体平台，未知原因保留原值。限流采用 warning 状态。
 - 操作目录使用操作人、动作与范围、结果、操作标识、时间、操作六列；动作与目标数量组合，操作 ID 与 HTTP 状态组合。详情保留完整 ID、重放次数、错误以及创建/更新/完成时间，不展示请求哈希、密码或目标正文。用户名搜索必须由服务端完成，并保证总数与分页使用同一筛选条件。
 - 审计筛选与行数变化回到第一页，搜索保留 400ms 防抖；旧请求不得覆盖新筛选结果。外置分页沿用共享控件，不调整通用控件高度。移动端继续使用连续记录卡片，长字段在详情中完整换行显示。
+
+手机阅读控制区使用全宽、不透明的底部 dock，收起入口至少52px并预留 safe area。首页与回到顶部位于普通文档流页尾，保留44px触控区域；不能将独立悬浮按钮叠在正文文字上。小说详情手机纸面20px内边距通过页面作用域覆盖旧 `.section` 规则。

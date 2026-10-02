@@ -1065,7 +1065,7 @@ export default function Reader() {
       <div className="reader-shell">
         {/* Top bar */}
         <div className="reader-top">
-          <span className="reader-novel-title">{novel?.title || ''}</span>
+          <Link to={`/novel/${encodeURIComponent(nid)}`} className="reader-novel-title" title="返回小说详情">{novel?.title || ''}</Link>
           <div className="reader-nav-group">
             <button className="reader-nav-btn" disabled={currentIdx <= 0} onClick={() => navigateToChapter('prev')}>上一章</button>
             <button
@@ -1252,6 +1252,7 @@ export default function Reader() {
 
       {/* Mobile settings sheet */}
       <MobileSettingsSheet
+        container={readerAppRef.current}
         open={mobileSettingsOpen}
         settings={settings}
         set={(key: ReaderSettingKey, value: string) => {
@@ -1265,6 +1266,7 @@ export default function Reader() {
 
       {/* Mobile library sheet */}
       <MobileLibrarySheet
+        container={readerAppRef.current}
         open={mobileLibraryOpen}
         novelId={nid}
         currentChapterId={chapter.id}
@@ -1308,12 +1310,14 @@ export default function Reader() {
         />
       )}
 
-      <Link to="/" className="float-top float-top--home visible" aria-label="回到首页" title="回到首页">
-        <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 7.5l7-5.5 7 5.5" /><path d="M4.5 8.5v6h3v-4h3v4h3v-6" /></svg>
-      </Link>
-      <button className="float-top visible" aria-label="回到顶部" title="回到顶部" onClick={() => window.scrollTo({ top: 0, behavior: scrollBehavior() })}>
-        <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="12 11 9 7 6 11" /><line x1="4" y1="14" x2="14" y2="14" /></svg>
-      </button>
+      <div className="reader-footer-actions">
+        <Link to="/" className="float-top float-top--home visible" aria-label="回到首页" title="回到首页">
+          <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 7.5l7-5.5 7 5.5" /><path d="M4.5 8.5v6h3v-4h3v4h3v-6" /></svg>
+        </Link>
+        <button className="float-top visible" aria-label="回到顶部" title="回到顶部" onClick={() => window.scrollTo({ top: 0, behavior: scrollBehavior() })}>
+          <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="12 11 9 7 6 11" /><line x1="4" y1="14" x2="14" y2="14" /></svg>
+        </button>
+      </div>
     </div>
   )
 }
