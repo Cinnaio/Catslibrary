@@ -40,6 +40,7 @@ export default function Profile() {
   const avatarInputRef = useRef<HTMLInputElement>(null)
   const messageTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [msg, setMsg] = useState('')
+  const [activeSettings, setActiveSettings] = useState('details')
 
   function message(text: string) {
     if (messageTimer.current) clearTimeout(messageTimer.current)
@@ -186,217 +187,209 @@ export default function Profile() {
           </p>
         </div>
 
-        {/* Account identity */}
-        <section className="profile-hero card">
-          <div className="profile-hero__main">
-            <div className="profile-avatar profile-avatar--hero">
-              <UserAvatar src={displayAvatar} name={name || '我'} size="inherit" />
-            </div>
-            <div className="profile-hero__identity">
-              <h2 className="profile-hero__name" id="profileName">
-                {name}
-              </h2>
-              <p className="profile-meta" id="profileMeta">
-                @{user.username}
-              </p>
-              <div className="profile-badges">
-                <span className="profile-pill profile-pill--role">{roleText(user.role)}</span>
-                <span className={`profile-pill profile-pill--status profile-pill--${user.status === 'disabled' ? 'disabled' : 'active'}`}>
-                  {user.status === 'disabled' ? '已停用' : '已启用'}
-                </span>
+          <nav className="profile-tabs" aria-label="个人中心设置">
+            {[
+              { id: 'details', label: '个人资料' },
+              { id: 'security', label: '账户安全' },
+              { id: 'sessions', label: '登录设备' },
+            ].map((item) => (
+              <button type="button" className="profile-tab" key={item.id} aria-pressed={activeSettings === item.id} onClick={() => setActiveSettings(item.id)}>
+                {item.label}
+              </button>
+            ))}
+          </nav>
+        <div className="profile-settings-sheet">
+          {/* Account identity */}
+          <section className="profile-hero" aria-label="账户摘要">
+            <div className="profile-hero__main">
+              <div className="profile-avatar profile-avatar--hero">
+                <UserAvatar src={displayAvatar} name={name || '我'} size="inherit" />
               </div>
-              {user.bio && (
-                <p className="profile-bio" id="profileBio">
-                  {user.bio}
+              <div className="profile-hero__identity">
+                <h2 className="profile-hero__name" id="profileName">
+                  {name}
+                </h2>
+                <p className="profile-meta" id="profileMeta">
+                  @{user.username}
                 </p>
-              )}
-              <div className="account-stats--cards">
-                <article className="account-stat-card account-stat-card--joined">
-                  <span className="account-stat-card__label">注册时间</span>
-                  <strong className="account-stat-card__value">{formatDate(user.createdAt) || '—'}</strong>
-                </article>
-                <article className="account-stat-card account-stat-card--login">
-                  <span className="account-stat-card__label">最近登录</span>
-                  <strong className="account-stat-card__value">{formatDate(user.lastLoginAt) || '—'}</strong>
-                </article>
-                <article className="account-stat-card account-stat-card--role">
-                  <span className="account-stat-card__label">账户角色</span>
-                  <strong className="account-stat-card__value">{roleText(user.role)}</strong>
-                </article>
-              </div>
-              {user.role === 'admin' && (
-                <div className="profile-hero__actions">
-                  <Link to="/admin" className="btn btn--secondary">
-                    进入管理面板
-                  </Link>
-                </div>
-              )}
-            </div>
-          </div>
-        </section>
-
-        <div className="profile-edit-grid">
-          {/* 资料编辑 */}
-          <section className="profile-section">
-            <div className="profile-edit-panel card">
-              <div className="profile-edit-panel__head">
-                <div>
-                  <h2 className="profile-section-heading">个人资料</h2>
-                </div>
-              </div>
-              <div className="profile-settings">
-                <label className="profile-field">
-                  <span>显示名称</span>
-                  <input
-                    type="text"
-                    className="form-input"
-                    id="displayNameInput"
-                    maxLength={20}
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                  />
-                </label>
-                <label className="profile-field">
-                  <span>个人简介</span>
-                  <textarea className="form-input" id="bioInput" maxLength={80} rows={3} value={bio} onChange={(e) => setBio(e.target.value)}></textarea>
-                </label>
-              </div>
-              <div className="profile-edit-panel__actions">
-                <button className="btn btn--primary" onClick={() => void saveProfile()}>
-                  保存资料
-                </button>
-              </div>
-            </div>
-          </section>
-
-          {/* 头像 */}
-          <section className="profile-section">
-            <div className="profile-edit-panel card">
-              <div className="profile-edit-panel__head">
-                <div>
-                  <h2 className="profile-section-heading">头像</h2>
-                </div>
-              </div>
-              <div className="profile-avatar-picker">
-                <div className="profile-avatar profile-avatar--preview">
-                  <UserAvatar src={displayAvatar} name={name || '我'} size="inherit" />
-                </div>
-                <div className="profile-action-group">
-                  <input
-                    ref={avatarInputRef}
-                    type="file"
-                    id="avatarInput"
-                    className="profile-file-input"
-                    accept="image/*"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0] || null
-                      setAvatarFile(file)
-                      if (file) {
-                        const reader = new FileReader()
-                        reader.onload = () => setAvatarPreview(String(reader.result))
-                        reader.readAsDataURL(file)
-                      } else {
-                        setAvatarPreview('')
-                      }
-                    }}
-                  />
-                  <button type="button" className="btn btn--secondary" onClick={() => avatarInputRef.current?.click()} disabled={avatarUploading}>
-                    选择头像
-                  </button>
-                  <button type="button" className="btn btn--primary" onClick={() => void uploadAvatar()} disabled={!avatarFile || avatarUploading}>
-                    {avatarUploading ? '上传中…' : '上传头像'}
-                  </button>
-                  <button type="button" className="btn btn--secondary" onClick={() => void deleteAvatar()} disabled={avatarUploading}>
-                    删除头像
-                  </button>
+                <div className="profile-badges">
+                  <span className="profile-pill profile-pill--role">{roleText(user.role)}</span>
+                  <span className={`profile-pill profile-pill--status profile-pill--${user.status === 'disabled' ? 'disabled' : 'active'}`}>
+                    {user.status === 'disabled' ? '已停用' : '已启用'}
+                  </span>
                 </div>
               </div>
             </div>
           </section>
 
-          {/* 密码 */}
-          <section className="profile-section profile-security-section">
-            <div className="profile-edit-panel card">
-              <div className="profile-edit-panel__head">
-                <div>
-                  <h2 className="profile-section-heading">修改密码</h2>
+          <div className="profile-edit-grid">
+            {/* 头像 */}
+            <section className="profile-section profile-avatar-section" hidden={activeSettings !== 'details'}>
+              <div className="profile-edit-panel">
+                <div className="profile-edit-panel__head">
+                  <div>
+                    <h2 className="profile-section-heading">头像</h2>
+                  </div>
                 </div>
-              </div>
-              <div className="profile-settings">
-                <label className="profile-field">
-                  <span>当前密码</span>
-                  <input
-                    type="password"
-                    className="form-input"
-                    id="currentPasswordInput"
-                    autoComplete="current-password"
-                    value={currentPassword}
-                    onChange={(e) => setCurrentPassword(e.target.value)}
-                  />
-                </label>
-                <label className="profile-field">
-                  <span>新密码</span>
-                  <input
-                    type="password"
-                    className="form-input"
-                    id="newPasswordInput"
-                    autoComplete="new-password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                  />
-                </label>
-              </div>
-              <div className="profile-edit-panel__actions">
-                <button className="btn btn--primary" onClick={() => void changePassword()}>
-                  修改密码
-                </button>
-              </div>
-            </div>
-          </section>
-
-          {/* 会话 */}
-          <section className="profile-section profile-security-section">
-            <div className="profile-edit-panel card">
-              <div className="profile-edit-panel__head">
-                <div>
-                  <h2 className="profile-section-heading">登录设备</h2>
-                </div>
-              </div>
-              <div className="profile-session-list" id="sessionList">
-                {sessions.length === 0 ? (
-                  <p className="profile-empty-note">暂无登录设备</p>
-                ) : (
-                  sessions.map((s) => (
-                    <div className={`profile-session-item profile-session-card${s.current ? ' profile-session-card--current' : ''}`} key={s.id}>
-                      <div className="profile-session-icon" aria-hidden="true">
-                        <Monitor size={18} />
-                      </div>
-                      <div className="profile-session-meta">
-                        <div className="profile-session-title-row">
-                          <strong className="profile-session-title">{s.deviceName || (s.current ? '当前设备' : '其他设备')}</strong>
-                          {s.current && <span className="profile-session-status">当前</span>}
-                        </div>
-                        <span className="profile-session-detail">
-                          登录 {timeAgo(s.createdAt)} · 到期 {formatDate(s.expiresAt)}
-                        </span>
-                      </div>
-                      <button className="btn btn--secondary btn--sm btn-session-delete" disabled={s.current} onClick={() => void deleteSession(s.id)}>
-                        移除
+                <div className="profile-avatar-picker">
+                  <div className="profile-action-group">
+                    <input
+                      ref={avatarInputRef}
+                      type="file"
+                      id="avatarInput"
+                      tabIndex={-1}
+                      className="profile-file-input"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null
+                        setAvatarFile(file)
+                        if (file) {
+                          const reader = new FileReader()
+                          reader.onload = () => setAvatarPreview(String(reader.result))
+                          reader.readAsDataURL(file)
+                        } else {
+                          setAvatarPreview('')
+                        }
+                      }}
+                    />
+                    <button type="button" className="btn btn--secondary" onClick={() => avatarInputRef.current?.click()} disabled={avatarUploading}>
+                      选择头像
+                    </button>
+                    {(avatarFile || avatarUploading) && (
+                      <button type="button" className="btn btn--primary" onClick={() => void uploadAvatar()} disabled={!avatarFile || avatarUploading}>
+                        {avatarUploading ? '上传中…' : '上传头像'}
                       </button>
-                    </div>
-                  ))
-                )}
+                    )}
+                    <button type="button" className="btn btn--secondary" onClick={() => void deleteAvatar()} disabled={avatarUploading}>
+                      删除头像
+                    </button>
+                  </div>
+                </div>
               </div>
-              <div className="profile-session-actions">
-                <button className="btn btn--secondary" onClick={() => void logout()}>
-                  退出登录
-                </button>
-                <button className="btn btn--secondary" onClick={() => void logoutAll()}>
-                  退出所有设备
-                </button>
+            </section>
+
+            {/* 资料编辑 */}
+            <section className="profile-section" hidden={activeSettings !== 'details'}>
+              <div className="profile-edit-panel">
+                <div className="profile-edit-panel__head">
+                  <div>
+                    <h2 className="profile-section-heading sr-only">个人资料</h2>
+                  </div>
+                </div>
+                <div className="profile-settings">
+                  <label className="profile-field">
+                    <span>显示名称</span>
+                    <input
+                      type="text"
+                      className="form-input"
+                      id="displayNameInput"
+                      maxLength={20}
+                      value={displayName}
+                      onChange={(e) => setDisplayName(e.target.value)}
+                    />
+                  </label>
+                  <label className="profile-field">
+                    <span>个人简介</span>
+                    <textarea className="form-input" id="bioInput" maxLength={80} rows={3} value={bio} onChange={(e) => setBio(e.target.value)}></textarea>
+                  </label>
+                </div>
+                <div className="profile-edit-panel__actions">
+                  <button className="btn btn--primary" onClick={() => void saveProfile()}>
+                    保存资料
+                  </button>
+                </div>
               </div>
-            </div>
-          </section>
+            </section>
+
+            {/* 密码 */}
+            <section className="profile-section profile-security-section" hidden={activeSettings !== 'security'}>
+              <div className="profile-edit-panel">
+                <div className="profile-edit-panel__head">
+                  <div>
+                    <h2 className="profile-section-heading">修改密码</h2>
+                  </div>
+                </div>
+                <div className="profile-settings">
+                  <label className="profile-field">
+                    <span>当前密码</span>
+                    <input
+                      type="password"
+                      className="form-input"
+                      id="currentPasswordInput"
+                      autoComplete="current-password"
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                    />
+                  </label>
+                  <label className="profile-field">
+                    <span>新密码</span>
+                    <input
+                      type="password"
+                      className="form-input"
+                      id="newPasswordInput"
+                      autoComplete="new-password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                    />
+                  </label>
+                </div>
+                <div className="profile-edit-panel__actions">
+                  <button className="btn btn--primary" onClick={() => void changePassword()}>
+                    修改密码
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            {/* 会话 */}
+            <section className="profile-section profile-security-section" hidden={activeSettings !== 'sessions'}>
+              <div className="profile-edit-panel">
+                <div className="profile-edit-panel__head">
+                  <div>
+                    <h2 className="profile-section-heading">登录设备</h2>
+                  </div>
+                </div>
+                <div className="profile-session-list" id="sessionList">
+                  {sessions.length === 0 ? (
+                    <p className="profile-empty-note">暂无登录设备</p>
+                  ) : (
+                    sessions.map((s) => (
+                      <div className={`profile-session-item profile-session-card${s.current ? ' profile-session-card--current' : ''}`} key={s.id}>
+                        <div className="profile-session-icon" aria-hidden="true">
+                          <Monitor size={18} />
+                        </div>
+                        <div className="profile-session-meta">
+                          <div className="profile-session-title-row">
+                            <strong className="profile-session-title">{s.deviceName || (s.current ? '当前设备' : '其他设备')}</strong>
+                            {s.current && <span className="profile-session-status">当前</span>}
+                          </div>
+                          <span className="profile-session-detail">
+                            登录 {timeAgo(s.createdAt)} · 到期 {formatDate(s.expiresAt)}
+                          </span>
+                        </div>
+                        <button className="btn btn--secondary btn--sm btn-session-delete" disabled={s.current} onClick={() => void deleteSession(s.id)}>
+                          移除
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+                <div className="profile-session-actions">
+                  <button className="btn btn--secondary" onClick={() => void logout()}>
+                    退出登录
+                  </button>
+                  <button className="btn btn--secondary" onClick={() => void logoutAll()}>
+                    退出所有设备
+                  </button>
+                </div>
+              </div>
+            </section>
+          </div>
+          <div className="profile-account-footnote">
+            <span>注册 {formatDate(user.createdAt) || '—'}</span>
+            <span>最近登录 {formatDate(user.lastLoginAt) || '—'}</span>
+            {user.role === 'admin' && <Link to="/admin">进入管理面板</Link>}
+          </div>
         </div>
       </div>
     </main>
