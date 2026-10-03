@@ -246,7 +246,7 @@ describe('限制级内容服务端访问闭环', () => {
     expect((await req('/api/content-policy/refresh', json('POST', undefined, readerToken))).status).toBe(200)
   })
 
-  it('账号内容模式跨设备共享，但恢复状态只认可当前会话授权', async () => {
+  it('账号已开启时新设备无需验证，关闭会同步撤销所有设备', async () => {
     expect((await req('/api/content-policy/status')).status).toBe(401)
     const { rows } = await t.db.query<{ id: string }>("SELECT id FROM users WHERE username='access-reader'")
     const otherToken = await createSession(t.db, rows[0]!.id, 'status-other-device', loadConfig().sessionHashSalt)
@@ -257,11 +257,10 @@ describe('限制级内容服务端访问闭环', () => {
     const currentBody = await jsonOf<Status>(current)
     expect(currentBody).toMatchObject({ contentMode: 'adult', sessionAuthorized: true })
     expect(currentBody.expiresIn).toBeGreaterThan(0)
-    expect(currentBody.expiresIn).toBeLessThanOrEqual(86400)
+    expect(currentBody.expiresIn).toBeLessThanOrEqual(90 * 86400)
     expect(await jsonOf<Status>(await req('/api/content-policy/status', json('GET', undefined, otherToken)))).toMatchObject({
       contentMode: 'adult',
-      sessionAuthorized: false,
-      expiresIn: 0,
+      sessionAuthorized: true,
     })
     // 管理员的后台权限不等于阅读模式已经开启。
     expect(await jsonOf<Status>(await req('/api/content-policy/status', json('GET', undefined, adminToken)))).toMatchObject({
@@ -272,15 +271,13 @@ describe('限制级内容服务端访问闭环', () => {
     vi.stubEnv('TURNSTILE_SECRET_KEY', '')
     expect(await jsonOf<Status>(await req('/api/content-policy/status', json('GET', undefined, readerToken)))).toMatchObject({
       contentMode: 'adult',
-      sessionAuthorized: false,
-      expiresIn: 0,
+      sessionAuthorized: true,
     })
     vi.stubEnv('TURNSTILE_SECRET_KEY', 'fixture-secret')
     await t.db.query('UPDATE user_sessions SET adult_access_until=1 WHERE user_id=$1', [rows[0]!.id])
     expect(await jsonOf<Status>(await req('/api/content-policy/status', json('GET', undefined, readerToken)))).toMatchObject({
       contentMode: 'adult',
-      sessionAuthorized: false,
-      expiresIn: 0,
+      sessionAuthorized: true,
     })
     expect((await req('/api/content-policy/lock', json('POST', undefined, otherToken))).status).toBe(200)
     for (const token of [readerToken, otherToken]) {
@@ -323,7 +320,7 @@ describe('限制级内容服务端访问闭环', () => {
     expect((await req(`/api/novels/${restrictedId}`, json('GET', undefined, undefined, cookie))).status).toBe(403)
   })
 
-  it('旧匿名签名、成人查询参数和账号偏好不能授予权限', async () => {
+  it('旧匿名签名与查询参数不能授权，服务端账号开关可跨会话使用', async () => {
     const payload = `v1.${Math.floor(Date.now() / 1000) + 86400}`
     const signature = createHmac('sha256', `${process.env.SESSION_HASH_SALT || 'zhi-zhou'}\u0000content-access-v1`)
       .update(payload)
@@ -335,8 +332,9 @@ describe('限制级内容服务端访问闭环', () => {
     )
     expect(list.novels).toHaveLength(0)
     await t.db.query('UPDATE users SET reader_settings = \'{"contentMode":"adult"}\' WHERE username = \'access-reader\'')
-    expect((await req(`/api/chapters/${restrictedChapterId}`, json('GET', undefined, readerToken))).status).toBe(403)
-    expect((await req('/api/content-policy/refresh', json('POST', {}, readerToken))).status).toBe(403)
+    expect((await req(`/api/chapters/${restrictedChapterId}`, json('GET', undefined, readerToken))).status).toBe(200)
+    expect((await req('/api/content-policy/refresh', json('POST', {}, readerToken))).status).toBe(200)
+    await req('/api/content-policy/lock', json('POST', {}, readerToken))
   })
 
   it('安全模式不能获取单本进度或通过批量书签写入 R18 记录', async () => {
@@ -372,7 +370,7 @@ describe('限制级内容服务端访问闭环', () => {
     expect((await req(`/api/chapters/${restrictedChapterId}`, json('GET', undefined, undefined, logoutCookie))).status).toBe(403)
   })
 
-  it('新会话、禁用账号、过期会话/授权都不能借用已有 Cookie；受限封面也受保护', async () => {
+  it('同账号新会话沿用账号模式；不同账号、禁用账号和过期登录不能借用 Cookie', async () => {
     await t.db.query('DELETE FROM content_request_limits')
     const { rows } = await t.db.query<{ id: string }>("SELECT id FROM users WHERE username = 'access-reader'")
     const userId = rows[0]!.id
@@ -380,23 +378,30 @@ describe('限制级内容服务端访问闭环', () => {
     const unlock = await req('/api/content-policy/unlock', json('POST', { confirmed: true, turnstileToken: 'valid-session-check' }, readerToken))
     expect(unlock.status).toBe(200)
     const cookie = cookiePair(unlock)
+    await t.db.query('INSERT INTO invites (code, created_at) VALUES ($1, $2)', ['ACCESS-OTHER-INVITE', Date.now()])
+    const otherAccount = await req('/api/auth/register', json('POST', { username: 'access-other', password: 'readerpass123', invite: 'ACCESS-OTHER-INVITE' }))
+    expect(otherAccount.status).toBe(201)
+    const otherAccountToken = (await jsonOf<{ token: string }>(otherAccount)).token
+    expect((await req(`/api/chapters/${restrictedChapterId}?contentMode=adult`, json('GET', undefined, otherAccountToken, cookie))).status).toBe(403)
+    expect((await req(`/api/cover/${restrictedId}`, json('GET', undefined, otherAccountToken, cookie))).status).toBe(403)
     const otherToken = await createSession(t.db, userId, 'second-device', loadConfig().sessionHashSalt)
-    expect((await req(`/api/chapters/${restrictedChapterId}`, json('GET', undefined, otherToken, cookie))).status).toBe(403)
+    expect((await req(`/api/chapters/${restrictedChapterId}`, json('GET', undefined, otherToken, cookie))).status).toBe(200)
     await t.db.query("INSERT INTO novel_covers(novel_id,data,content_type,source,updated_at) VALUES ($1,$2,'image/png','fixture',1)", [
       restrictedId,
       Buffer.from([1, 2, 3]),
     ])
     const cover = await req(`/api/cover/${restrictedId}`, json('GET', undefined, undefined, cookie))
     expect(cover.status).toBe(200)
-    expect(cover.headers.get('cache-control')).toContain('no-store')
+    expect(cover.headers.get('cache-control')).toContain('private')
+    expect(cover.headers.get('cache-control')).toContain('max-age=')
     const conditional = json('GET', undefined, otherToken, cookie)
     conditional.headers = { ...conditional.headers, 'If-None-Match': cover.headers.get('etag')! }
-    expect((await req(`/api/cover/${restrictedId}`, conditional)).status).toBe(403)
+    expect((await req(`/api/cover/${restrictedId}`, conditional)).status).toBe(304)
     await t.db.query("UPDATE users SET status='disabled' WHERE id=$1", [userId])
     expect((await req(`/api/chapters/${restrictedChapterId}`, json('GET', undefined, undefined, cookie))).status).toBe(403)
     await t.db.query("UPDATE users SET status='active' WHERE id=$1", [userId])
     await t.db.query('UPDATE user_sessions SET adult_access_until=1 WHERE user_id=$1', [userId])
-    expect((await req(`/api/chapters/${restrictedChapterId}`, json('GET', undefined, undefined, cookie))).status).toBe(403)
+    expect((await req(`/api/chapters/${restrictedChapterId}`, json('GET', undefined, undefined, cookie))).status).toBe(200)
     await t.db.query('UPDATE user_sessions SET adult_access_until=$1, expires_at=1 WHERE user_id=$2', [Date.now() + 60000, userId])
     expect((await req(`/api/chapters/${restrictedChapterId}`, json('GET', undefined, undefined, cookie))).status).toBe(403)
   })

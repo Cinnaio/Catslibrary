@@ -35,20 +35,20 @@ coverRoutes.get('/:id', optionalUser(), async (c) => {
   const contentType = cover?.content_type || 'image/jpeg'
   const etag = `"${createHash('sha256').update(contentType).update('\0').update(body).digest('hex')}"`
   const cacheHeaders = {
-    // Public covers can be reused immediately for a week. Rating changes bump
-    // novels.updated_at, which is already part of the iOS cover URL.
-    // Restricted covers stay private and must re-check access on every reuse.
-    'Cache-Control': novel.content_rating === 'restricted'
-      ? 'private, no-store'
-      : 'private, max-age=604800, must-revalidate',
+    // Covers use private client caches. Access is checked on every network request,
+    // including conditional requests; clients hide restricted covers when mode closes.
+    // Rating/cover changes bump novels.updated_at, part of the iOS cover URL.
+    'Cache-Control': 'private, max-age=604800, must-revalidate',
     Vary: 'Cookie, Authorization, X-Content-Access',
     ETag: etag,
   }
   const ifNoneMatch = c.req.header('If-None-Match')
-  if (ifNoneMatch?.split(',').some((candidate) => {
-    const tag = candidate.trim()
-    return tag === '*' || tag === etag || tag === `W/${etag}`
-  })) {
+  if (
+    ifNoneMatch?.split(',').some((candidate) => {
+      const tag = candidate.trim()
+      return tag === '*' || tag === etag || tag === `W/${etag}`
+    })
+  ) {
     return c.body(null, 304, cacheHeaders)
   }
 

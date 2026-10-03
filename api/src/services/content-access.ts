@@ -9,7 +9,7 @@ import { bearerToken, hashToken, type UserRow } from './auth'
 
 /**
  * 这是“年满 18 岁后自行确认”的服务端凭证，不是年龄验证。
- * 绑定数据库登录会话与短期授权，不允许匿名解锁。它不是实际年龄验证。
+ * 绑定有效登录会话与账号共享模式，不允许匿名解锁。Cookie 期限不限制账号模式。
  */
 export const ADULT_ACCESS_COOKIE = 'zhizhou_adult_access'
 export const ADULT_ACCESS_HEADER = 'X-Content-Access'
@@ -18,7 +18,7 @@ export const ADULT_ACCESS_TTL_SECONDS = 24 * 60 * 60
 export interface ContentAccessDecision {
   canViewRestricted: boolean
   accountId?: string
-  reason: 'admin' | 'session_grant' | 'login_required' | 'site_disabled' | 'not_unlocked'
+  reason: 'admin' | 'account_grant' | 'login_required' | 'site_disabled' | 'not_unlocked'
 }
 
 function signingSecret(): string {
@@ -61,8 +61,7 @@ function requestAccessToken(c: Context<AuthEnv>): string {
 }
 
 function setCookie(c: Context<AuthEnv>, value: string, maxAge: number): void {
-  const secure = new URL(c.req.url).protocol === 'https:'
-    || (loadConfig().trustProxy && c.req.header('X-Forwarded-Proto')?.split(',')[0]?.trim() === 'https')
+  const secure = new URL(c.req.url).protocol === 'https:' || (loadConfig().trustProxy && c.req.header('X-Forwarded-Proto')?.split(',')[0]?.trim() === 'https')
   const requestOrigin = c.req.header('Origin') || ''
   const sameOrigin = !requestOrigin || requestOrigin === new URL(c.req.url).origin
   const attributes = [
@@ -119,9 +118,10 @@ export async function resolveContentAccess(c: Context<AuthEnv>): Promise<Content
     sessionHash = Buffer.from(existingToken.split('.')[2]!, 'base64url').toString('utf8')
   }
   if (!sessionHash) return { canViewRestricted: false, reason: 'login_required' }
-  const { rows } = await getDb().query<UserRow & { adult_access_until: string; expires_at: string }>(
-    `SELECT u.*, s.adult_access_until, s.expires_at FROM user_sessions s JOIN users u ON u.id = s.user_id
-     WHERE s.token_hash = $1 AND s.expires_at > $2 AND u.status = 'active'`, [sessionHash, Date.now()],
+  const { rows } = await getDb().query<UserRow & { expires_at: string }>(
+    `SELECT u.*, s.expires_at FROM user_sessions s JOIN users u ON u.id = s.user_id
+     WHERE s.token_hash = $1 AND s.expires_at > $2 AND u.status = 'active'`,
+    [sessionHash, Date.now()],
   )
   const user = rows[0]
   if (!user || (c.get('user') && c.get('user').id !== user.id)) return { canViewRestricted: false, reason: 'login_required' }
@@ -132,9 +132,9 @@ export async function resolveContentAccess(c: Context<AuthEnv>): Promise<Content
   const adultContentEnabled = await getAdultContentEnabled()
   if (!adultContentEnabled) return { canViewRestricted: false, reason: 'site_disabled' }
   const settings = flattenReaderSettings(parseSettingsDocument(user.reader_settings || ''), 'desktop')
-  if (settings.values.contentMode === 'adult' && Number(user.adult_access_until) > Date.now()) {
-    if (bearer) setAdultAccessCookie(c, createAdultAccessToken(sessionHash, Math.min(Number(user.expires_at), Number(user.adult_access_until))))
-    return { canViewRestricted: true, reason: 'session_grant', accountId: user.id }
+  if (settings.values.contentMode === 'adult') {
+    if (bearer) setAdultAccessCookie(c, createAdultAccessToken(sessionHash, Math.min(Number(user.expires_at), Date.now() + ADULT_ACCESS_TTL_SECONDS * 1000)))
+    return { canViewRestricted: true, reason: 'account_grant', accountId: user.id }
   }
   return { canViewRestricted: false, reason: 'not_unlocked' }
 }

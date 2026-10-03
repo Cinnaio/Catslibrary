@@ -36,14 +36,14 @@ contentPolicyRoutes.get('/', async (c) => {
   )
 })
 
-// Account preference is shared; access remains bound to the current login session.
-// Reading this status never creates/extends a grant, including for administrators.
+// A valid login inherits the shared account mode without a per-device grant.
+// Status does not change account mode; legacy response fields remain compatible.
 contentPolicyRoutes.get('/status', requireUser(), async (c) => {
   const adultContentEnabled = await getAdultContentEnabled()
   const challenge = await effectiveTurnstile()
   const sessionHash = await hashToken(bearerToken(c.req.header('Authorization') || ''), loadConfig().sessionHashSalt)
-  const { rows } = await getDb().query<{ reader_settings: string; adult_access_until: string; expires_at: string }>(
-    `SELECT u.reader_settings, s.adult_access_until, s.expires_at FROM user_sessions s JOIN users u ON u.id=s.user_id
+  const { rows } = await getDb().query<{ reader_settings: string; expires_at: string }>(
+    `SELECT u.reader_settings, s.expires_at FROM user_sessions s JOIN users u ON u.id=s.user_id
      WHERE s.token_hash=$1 AND s.user_id=$2 AND s.expires_at>$3 AND u.status='active'`,
     [sessionHash, c.get('user').id, Date.now()],
   )
@@ -51,8 +51,8 @@ contentPolicyRoutes.get('/status', requireUser(), async (c) => {
   if (!session) return c.json({ error: '登录已失效，请重新登录' }, 401, contentPolicyHeaders())
   const settings = flattenReaderSettings(parseSettingsDocument(session.reader_settings || ''), 'mobile')
   const contentMode = settings.values.contentMode === 'adult' ? 'adult' : 'safe'
-  const remaining = Math.max(0, Math.floor((Math.min(Number(session.adult_access_until), Number(session.expires_at)) - Date.now()) / 1000))
-  const sessionAuthorized = adultContentEnabled && challenge.configured && contentMode === 'adult' && remaining > 0
+  const remaining = Math.max(0, Math.floor((Number(session.expires_at) - Date.now()) / 1000))
+  const sessionAuthorized = adultContentEnabled && contentMode === 'adult' && remaining > 0
   return c.json(
     {
       adultContentEnabled,
