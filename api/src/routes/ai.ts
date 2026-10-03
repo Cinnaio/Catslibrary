@@ -157,10 +157,10 @@ aiRoutes.get('/recap', requireUser(), async (c) => {
   const chapterId = String(c.req.query('chapterId') || '').trim()
   if (!chapterId) return c.json({ error: 'chapterId is required' }, 400)
 
-  const settings = await getAiSettings(db)
-  if (!settings.recapEnabled || !isTextAiConfigured()) return c.json({ recap: '', cached: false }, 200, { 'Cache-Control': 'no-store' })
   const accessError = await chapterContentAccessError(c, db, chapterId)
   if (accessError) return accessError
+  const settings = await getAiSettings(db)
+  if (!settings.recapEnabled || !isTextAiConfigured()) return c.json({ recap: '', cached: false }, 200, { 'Cache-Control': 'no-store' })
 
   const cached = await getCachedRecap(db, chapterId, textProvider().model)
   return c.json(cached ? { recap: cached.result, cached: true, model: cached.model, id: cached.id } : { recap: '', cached: false }, 200, {
