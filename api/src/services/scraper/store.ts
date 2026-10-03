@@ -91,7 +91,8 @@ export interface ScrapeJobLog {
 
 export interface ScrapeStore {
   // job 生命周期
-  saveJob(job: JobData): Promise<void>
+  /** existingOnly 用于运行中的阶段更新，不复活已删除任务；终态不接受旧快照覆盖。 */
+  saveJob(job: JobData, existingOnly?: boolean): Promise<boolean>
   loadJob(jobId: string): Promise<JobData | null>
   appendJobLog(jobId: string, level: string, message: string, detail?: string): Promise<void>
   replaceJobItems(jobId: string, links: ScrapeLink[]): Promise<void>
@@ -117,9 +118,25 @@ export interface ScrapeStore {
   // 章节/小说
   getExistingChapterKeys(novelId: string): Promise<{ urls: Set<string>; titles: Set<string> }>
   getMaxChapterOrder(novelId: string): Promise<number>
-  batchInsertChapters(novelId: string, chapters: Array<{ id: string; title: string; content: string; order: number; wordCount: number; sourceUrl: string; createdAt: number }>): Promise<void>
+  batchInsertChapters(novelId: string, chapters: ScrapeChapter[], jobId?: string): Promise<ScrapeBatchResult>
   getNovelSourceUrl(novelId: string): Promise<string>
   saveCheckResult(novelId: string, remoteCount: number): Promise<{ localCount: number; newCount: number } | null>
+}
+
+export interface ScrapeChapter {
+  id: string
+  title: string
+  content: string
+  order: number
+  wordCount: number
+  sourceUrl: string
+  createdAt: number
+}
+
+export interface ScrapeBatchResult {
+  insertedUrls: string[]
+  existingUrls: string[]
+  stopped: boolean
 }
 
 // ---------- 行映射 ----------
@@ -241,19 +258,29 @@ export const JOB_MAX_AGE = 7 * 86400000
 export class PgScrapeStore implements ScrapeStore {
   constructor(private db: Db) {}
 
-  async saveJob(job: JobData): Promise<void> {
+  async saveJob(job: JobData, existingOnly = false): Promise<boolean> {
     const row = jobToRow(job)
-    await this.db.query(
+    if (existingOnly) {
+      const fields = Object.keys(row).filter(key => key !== 'id')
+      const result = await this.db.query(
+        `UPDATE scrape_jobs SET ${fields.map((key, i) => key === 'chapter_count' ? `${key}=GREATEST(${key},$${i + 1})` : `${key}=$${i + 1}`).join(', ')}
+         WHERE id=$${fields.length + 1} AND status NOT IN ('cancelled','completed','partial','failed')`,
+        [...fields.map(key => row[key]), job.id],
+      )
+      return (result.rowCount ?? 0) > 0
+    }
+    const result = await this.db.query(
       `INSERT INTO scrape_jobs (id, novel_id, status, step, current, total, chapter_count, public_chapter_count, protected_chapter_count, progress, error, debug, started_at, updated_at, local_mode, update_mode, retry_source_job_id, retry_links)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
        ON CONFLICT (id) DO UPDATE SET
          novel_id = EXCLUDED.novel_id, status = EXCLUDED.status, step = EXCLUDED.step,
-         current = EXCLUDED.current, total = EXCLUDED.total, chapter_count = EXCLUDED.chapter_count,
+         current = EXCLUDED.current, total = EXCLUDED.total, chapter_count = GREATEST(scrape_jobs.chapter_count, EXCLUDED.chapter_count),
          public_chapter_count = EXCLUDED.public_chapter_count, protected_chapter_count = EXCLUDED.protected_chapter_count,
          progress = EXCLUDED.progress, error = EXCLUDED.error, debug = EXCLUDED.debug,
          started_at = EXCLUDED.started_at, updated_at = EXCLUDED.updated_at,
          local_mode = EXCLUDED.local_mode, update_mode = EXCLUDED.update_mode,
-         retry_source_job_id = EXCLUDED.retry_source_job_id, retry_links = EXCLUDED.retry_links`,
+         retry_source_job_id = EXCLUDED.retry_source_job_id, retry_links = EXCLUDED.retry_links
+       WHERE scrape_jobs.status NOT IN ('cancelled','completed','partial','failed')`,
       [
         row.id,
         row.novel_id,
@@ -275,6 +302,7 @@ export class PgScrapeStore implements ScrapeStore {
         row.retry_links,
       ],
     )
+    return (result.rowCount ?? 0) > 0
   }
 
   async loadJob(jobId: string): Promise<JobData | null> {
@@ -432,8 +460,8 @@ export class PgScrapeStore implements ScrapeStore {
     // 会把外部 cancelJob 写入的取消标记冲掉，导致取消丢失、任务继续跑完
     const res = await this.db.query(
       `UPDATE scrape_jobs
-       SET status='scraping_chapters', step=$1, current=$2, chapter_count=$3, progress=$4, updated_at=$5
-       WHERE id=$6 AND status <> 'cancelled'`,
+       SET status='scraping_chapters', step=$1, current=$2, chapter_count=GREATEST(chapter_count,$3), progress=$4, updated_at=$5
+       WHERE id=$6 AND status NOT IN ('cancelled','completed','partial','failed')`,
       [patch.step, patch.current, patch.chapterCount, patch.progress, Date.now(), jobId],
     )
     return (res.rowCount ?? 0) > 0
@@ -470,7 +498,7 @@ export class PgScrapeStore implements ScrapeStore {
     if (!parts.length) return false
     parts.push('updated_at=$' + (parts.length + 1))
     vals.push(Date.now(), jobId)
-    const { rowCount } = await this.db.query(`UPDATE scrape_jobs SET ${parts.join(', ')} WHERE id=$${vals.length}`, vals)
+    const { rowCount } = await this.db.query(`UPDATE scrape_jobs SET ${parts.join(', ')} WHERE id=$${vals.length} AND status NOT IN ('cancelled','completed','partial','failed')`, vals)
     return (rowCount ?? 0) > 0
   }
 
@@ -545,20 +573,56 @@ export class PgScrapeStore implements ScrapeStore {
     return Number(row?.max_order) || 0
   }
 
-  async batchInsertChapters(novelId: string, chapters: Array<{ id: string; title: string; content: string; order: number; wordCount: number; sourceUrl: string; createdAt: number }>): Promise<void> {
-    if (!chapters.length) return
-    await withTx(this.db, async (q) => {
-      for (const ch of chapters) {
-        await q(
-          `INSERT INTO chapters (id, novel_id, title, content, sort_order, word_count, source_url, created_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-          [ch.id, novelId, ch.title, ch.content, ch.order, ch.wordCount, ch.sourceUrl || '', ch.createdAt],
-        )
+  async batchInsertChapters(novelId: string, chapters: ScrapeChapter[], jobId?: string): Promise<ScrapeBatchResult> {
+    const result: ScrapeBatchResult = { insertedUrls: [], existingUrls: [], stopped: false }
+    if (!chapters.length) return result
+    return withTx(this.db, async (q) => {
+      // 与小说删除/导入等业务保持先锁作品、再锁关联任务的顺序。
+      const novel = await q('SELECT id FROM novels WHERE id=$1 FOR UPDATE', [novelId])
+      if (!novel.rows.length) throw new Error('抓取目标小说不存在')
+      if (jobId) {
+        const job = await q<{ status: string; novel_id: string }>('SELECT status, novel_id FROM scrape_jobs WHERE id=$1 FOR UPDATE', [jobId])
+        if (!job.rows[0] || job.rows[0].novel_id !== novelId || ['cancelled', 'completed', 'partial', 'failed'].includes(job.rows[0].status)) {
+          return { ...result, stopped: true }
+        }
       }
-      await q(
+      // 与同一作品的其它抓取任务串行提交；去重必须在取得锁之后再次查询。
+      const maximum = await q<{ max_order: number }>('SELECT COALESCE(MAX(sort_order),0) AS max_order FROM chapters WHERE novel_id=$1', [novelId])
+      let maxOrder = Number(maximum.rows[0]?.max_order) || 0
+      for (const ch of chapters) {
+        const existing = ch.sourceUrl ? await q('SELECT id FROM chapters WHERE novel_id=$1 AND source_url=$2 LIMIT 1', [novelId, ch.sourceUrl]) : { rows: [] }
+        if (existing.rows.length) {
+          result.existingUrls.push(ch.sourceUrl)
+        } else {
+          let order = Number.isInteger(ch.order) && ch.order > 0 ? ch.order : maxOrder + 1
+          const occupied = await q('SELECT id FROM chapters WHERE novel_id=$1 AND sort_order=$2 LIMIT 1', [novelId, order])
+          if (occupied.rows.length) order = maxOrder + 1
+          maxOrder = Math.max(maxOrder, order)
+          await q(
+            `INSERT INTO chapters (id, novel_id, title, content, sort_order, word_count, source_url, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+            [ch.id, novelId, ch.title, ch.content, order, ch.wordCount, ch.sourceUrl || '', ch.createdAt],
+          )
+          result.insertedUrls.push(ch.sourceUrl)
+        }
+        if (jobId) {
+          const saved = await q(
+            `UPDATE scrape_job_items SET status=$1, chapter_title=$2, word_count=$3, error=$4, finished_at=$5, updated_at=$5
+             WHERE job_id=$6 AND chapter_url=$7`,
+            [existing.rows.length ? 'skipped' : 'saved', ch.title, ch.wordCount, existing.rows.length ? '章节已存在，未重复保存' : '', Date.now(), jobId, ch.sourceUrl],
+          )
+          if (!saved.rowCount) throw new Error('抓取任务章节项不存在，提交已回滚')
+        }
+      }
+      if (result.insertedUrls.length) await q(
         'UPDATE novels SET chapter_count = (SELECT COUNT(*) FROM chapters WHERE novel_id = $1), updated_at = $2 WHERE id = $1',
         [novelId, Date.now()],
       )
+      if (jobId) await q(
+        "UPDATE scrape_jobs SET chapter_count=(SELECT COUNT(*) FROM scrape_job_items WHERE job_id=$1 AND status='saved'), updated_at=$2 WHERE id=$1",
+        [jobId, Date.now()],
+      )
+      return result
     })
   }
 

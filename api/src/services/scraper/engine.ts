@@ -9,6 +9,7 @@ import { cleanHtml, cleanText, cleanTitle, extractContent, extractLinkHref, extr
 import type { JobData, ScrapeLink, ScrapeStore } from './store'
 import { simplifyChapterForSource } from '../zh-convert'
 import { PO18TW_SELECTORS } from './presets'
+import { randomUUID } from 'node:crypto'
 import { isPo18twLoginPage, parsePo18twChapterRows, parsePo18twChapterContent, po18ResponseProblem, po18ChapterContentUrl, po18ChapterListUrl } from './enrich'
 
 export interface ScrapeDeps {
@@ -28,8 +29,10 @@ export const SCRAPE_MAX_LIST_PAGES = Number(process.env.SCRAPE_MAX_LIST_PAGES ||
 export const BATCH_SIZE = 10
 
 function newChapterId(index: number): string {
-  return 'ch_' + Date.now().toString(36) + '_' + index
+  return 'ch_' + randomUUID() + '_' + index
 }
+
+class ScrapeStopped extends Error {}
 
 function isPo18twSelectors(selectors: Record<string, string> | undefined): boolean {
   return selectors?.chapterList === PO18TW_SELECTORS.chapterList
@@ -206,12 +209,13 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
         status: 'failed',
         step: '无法加载任务数据',
         updatedAt: Date.now(),
-      })
+      }, true)
     } catch {
       /* ignore */
     }
     return
   }
+  if (['cancelled', 'completed', 'partial', 'failed'].includes(job.status)) return
 
   if (!job.updateMode && job.id.startsWith('upd_')) {
     job.updateMode = true
@@ -229,13 +233,13 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
 
   if (!job.sourceUrl) {
     log(job, '失败: 未找到源站 URL', 'warn')
-    await updateStatus('failed', { step: '未找到源站 URL，请重新配置爬虫' })
+    await store.saveJob({ ...job, status: 'failed', step: '未找到源站 URL，请重新配置爬虫' }, true)
     return
   }
 
   async function updateStatus(status: string, extra: Record<string, unknown> = {}): Promise<void> {
     Object.assign(job!, extra, { status, updatedAt: Date.now() })
-    await store.saveJob(job!)
+    if (!await store.saveJob(job!, true)) throw new ScrapeStopped('任务已取消、结束或删除')
   }
 
   try {
@@ -313,6 +317,8 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
         let nextUrl = extractLinkHref(html, job.selectors.nextPage, job.sourceUrl)
         const seenPages = new Set([job.sourceUrl])
         while (nextUrl && nextUrl !== job.sourceUrl && !seenPages.has(nextUrl)) {
+          const current = await store.loadJob(jobId)
+          if (!current || ['cancelled', 'completed', 'partial', 'failed'].includes(current.status)) throw new ScrapeStopped('任务已停止')
           seenPages.add(nextUrl)
           pageCount++
           try {
@@ -354,6 +360,8 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
       return true
     })
     const duplicateCount = originalLinkCount - links.length
+    // 完整目录先保留原位置，再过滤已有章节；重试中间缺章时不会被追加到末尾。
+    if (!job.updateMode && !job.retryLinks?.length) links = links.map((link, i) => ({ ...link, order: link.order || i + 1 }))
     if (!isPo18tw && !(job.retryLinks && Array.isArray(job.retryLinks) && job.retryLinks.length)) {
       publicChapterCount = links.length
     }
@@ -366,7 +374,7 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
     }
 
     let newLinks = links
-    if (!(job.retryLinks && Array.isArray(job.retryLinks) && job.retryLinks.length) && job.updateMode && job.novelId) {
+    if (job.novelId) {
       const existing = await store.getExistingChapterKeys(job.novelId)
       newLinks = links.filter((l) => {
         if (existing.urls.has(l.href)) return false
@@ -377,15 +385,15 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
     }
 
     let baseOrder = 0
-    if (job.updateMode && job.novelId) {
+    if (job.novelId) {
       baseOrder = await store.getMaxChapterOrder(job.novelId)
     }
 
     let lastOrder = baseOrder
     const orderedLinks = newLinks.map((link) => {
       const sourceOrder = Number.isInteger(link.order) && link.order! > 0 ? link.order! : 0
-      const order = sourceOrder > lastOrder ? sourceOrder : lastOrder + 1
-      lastOrder = order
+      const order = (!job.updateMode || job.retryLinks?.length) && sourceOrder ? sourceOrder : sourceOrder > lastOrder ? sourceOrder : lastOrder + 1
+      lastOrder = Math.max(lastOrder, order)
       return { ...link, order }
     })
     newLinks = orderedLinks
@@ -414,6 +422,9 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
     })
 
     let count = 0
+    let cancelled = false
+    let abortReason: Error | null = null
+    let firstFailureReason = ''
     const MAX_DEBUG = 50
 
     function addDebug(msg: string): void {
@@ -425,17 +436,27 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
 
     const chapterBatch: Array<{ id: string; title: string; content: string; order: number; wordCount: number; sourceUrl: string; createdAt: number }> = []
 
-    async function flushBatch(): Promise<void> {
-      if (chapterBatch.length === 0) return
+    let flushQueue = Promise.resolve()
+    function flushBatch(): Promise<void> {
       const batch = chapterBatch.splice(0)
-      try {
-        await store.batchInsertChapters(job!.novelId!, batch)
-        addDebug(`批量保存 ${batch.length} 章`)
-        log(job!, `批量保存 ${batch.length} 章，累计成功 ${count} 章`)
-      } catch (err) {
-        addDebug(`批量保存失败: ${(err as Error).message}`)
-        log(job!, `批量保存失败: ${(err as Error).message}`, 'warn')
-      }
+      if (!batch.length) return flushQueue
+      flushQueue = flushQueue.then(async () => {
+        try {
+          const saved = await store.batchInsertChapters(job!.novelId!, batch, jobId)
+          if (saved.stopped) { cancelled = true; return }
+          count += saved.insertedUrls.length
+          addDebug(`批量保存 ${saved.insertedUrls.length} 章，去重 ${saved.existingUrls.length} 章`)
+          log(job!, `批量保存 ${saved.insertedUrls.length} 章，累计成功 ${count} 章`)
+        } catch (err) {
+          const message = `落库失败: ${(err as Error).message}`
+          if (!firstFailureReason) firstFailureReason = message
+          for (const chapter of batch) await store.updateJobItem(jobId, chapter.sourceUrl, { status: 'failed', error: message, finishedAt: Date.now() })
+          await store.appendJobLog(jobId, 'error', `批量保存失败（${batch.length} 章）`, message)
+          addDebug(message)
+          log(job!, message, 'error')
+        }
+      })
+      return flushQueue
     }
 
     const scrapeLinks = newLinks
@@ -443,27 +464,23 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
     const isCF = !job.localMode
     const queue = scrapeLinks.map((link, i) => ({ link, i, order: link.order || baseOrder + i + 1 }))
     let completedCount = 0
-    let cancelled = false
     let consecutiveFailures = 0
-    let firstFailureReason = ''
 
     async function chapterWorker(): Promise<void> {
       while (queue.length > 0 && !cancelled) {
-        if (!isCF || (completedCount > 0 && completedCount % 10 === 0)) {
-          try {
-            const current = await store.loadJob(jobId)
-            if (current && current.status === 'cancelled') {
-              cancelled = true
-              break
-            }
-          } catch {
-            /* ignore */
+        {
+          const current = await store.loadJob(jobId)
+          if (!current || ['cancelled', 'completed', 'partial', 'failed'].includes(current.status)) {
+            cancelled = true
+            break
           }
         }
 
         if (cancelled) break
 
-        const { link, i, order } = queue.shift()!
+        const next = queue.shift()
+        if (!next) break // 等待状态检查时，其它 worker 可能已取走最后一个任务。
+        const { link, i, order } = next
 
         await store.updateJobItem(jobId, link.href, { status: 'running', startedAt: Date.now(), retryCount: 0 })
         addDebug(`Ch${i + 1}: 请求 ${link.href}`)
@@ -511,12 +528,16 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
             addDebug(`连续 ${SCRAPE_MAX_CONSECUTIVE_FAILURES} 章失败，终止抓取（源站可能已限流或离线）`)
             log(job!, `连续 ${SCRAPE_MAX_CONSECUTIVE_FAILURES} 章失败，终止抓取`, 'error')
             cancelled = true
+            abortReason = new Error(`连续 ${SCRAPE_MAX_CONSECUTIVE_FAILURES} 章获取失败: ${firstFailureReason}`)
             break
           }
           completedCount++
           continue
         }
         consecutiveFailures = 0
+
+        const currentJob = await store.loadJob(jobId)
+        if (!currentJob || ['cancelled', 'completed', 'partial', 'failed'].includes(currentJob.status)) { cancelled = true; break }
 
         try {
           if (isPo18tw) {
@@ -568,8 +589,6 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
               sourceUrl: chapter.sourceUrl,
               createdAt: chapter.createdAt,
             })
-            count++
-            await store.updateJobItem(jobId, link.href, { status: 'saved', chapterTitle: chapter.title, wordCount, finishedAt: Date.now(), error: '' })
           } else {
             await store.updateJobItem(jobId, link.href, { status: 'failed', error: `内容太短 (${contentLen}字)`, finishedAt: Date.now() })
             addDebug(`Ch${i + 1}: 内容太短 (${contentLen}字)，跳过`)
@@ -614,10 +633,14 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
       }
     }
 
-    const workers = Array.from({ length: SCRAPE_CONCURRENCY }, () => chapterWorker())
+    const workers = Array.from({ length: SCRAPE_CONCURRENCY }, () => chapterWorker().catch((err: unknown) => {
+      cancelled = true
+      abortReason = err instanceof Error ? err : new Error(String(err))
+    }))
     await Promise.all(workers)
 
     await flushBatch()
+    if (abortReason) throw abortReason
 
     if (cancelled) {
       log(job, `任务已终止，成功 ${count} 章`, 'warn')
@@ -641,7 +664,8 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
     await store.appendJobLog(jobId, finalStatus === 'completed' ? 'success' : finalStatus === 'partial' ? 'warn' : 'error', finalStep)
     await updateStatus(finalStatus, { progress: 1, chapterCount: count, step: finalStep })
   } catch (err) {
+    if (err instanceof ScrapeStopped) return
     log(job, `发生错误: ${(err as Error).message}`, 'error')
-    await updateStatus('failed', { error: (err as Error).message, step: `发生错误: ${(err as Error).message}` })
+    await store.saveJob({ ...job, status: 'failed', error: (err as Error).message, step: `发生错误: ${(err as Error).message}` }, true)
   }
 }

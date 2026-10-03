@@ -6,6 +6,7 @@ import { Hono, type Context } from 'hono'
 import { loadConfig } from '../config'
 import { getDb } from '../db/pool'
 import { first } from '../db/query'
+import { newId } from '../services/auth'
 import { requireAdmin, type AuthEnv } from '../middlewares/auth'
 import { fetchHtml as fetchHtmlImpl, resolveProxyUrl, type FetchHtmlOptions } from '../services/scraper/fetch'
 import { runScrapeJob, testSelectors, type ScrapeDeps } from '../services/scraper/engine'
@@ -207,7 +208,7 @@ function fireJob(jobId: string, deps: ScrapeDeps, db: ReturnType<typeof getDb>):
     if (j) {
       j.status = 'failed'
       j.error = (err as Error).message
-      await store.saveJob(j)
+      await store.saveJob(j, true)
     }
   })
 }
@@ -317,7 +318,7 @@ scrapeRoutes.post('/', async (c) => {
         return c.json({ error: 'novelId, sourceUrl, selectors.chapterList, and selectors.chapterContent are required' }, 400)
       }
       await deps.store.upsertScrapeConfig({ novelId, sourceUrl, selectors, encoding })
-      const jobId = 'job_' + Date.now().toString(36)
+      const jobId = newId('job')
       const job: JobData = {
         id: jobId,
         novelId,
@@ -341,7 +342,7 @@ scrapeRoutes.post('/', async (c) => {
       if (!novelId) return c.json({ error: 'novelId required' }, 400)
       const cfg = await deps.store.getScrapeConfig(novelId)
       if (!cfg) return c.json({ error: '未找到该小说的爬虫配置。请先通过智能分析配置爬虫。' }, 404)
-      const jobId = 'upd_' + Date.now().toString(36)
+      const jobId = newId('upd')
       const job: JobData = {
         id: jobId,
         novelId,
@@ -369,10 +370,12 @@ scrapeRoutes.post('/', async (c) => {
       if (!oldJob.novelId) return c.json({ error: '该任务没有关联小说，无法重试' }, 400)
       const cfg = await deps.store.getScrapeConfig(oldJob.novelId)
       if (!cfg) return c.json({ error: '未找到该小说的爬虫配置，请重新配置' }, 404)
-      const newJobId = 'job_' + Date.now().toString(36)
+      const newJobId = newId('job')
       const job: JobData = {
         id: newJobId,
         novelId: oldJob.novelId,
+        updateMode: oldJob.updateMode,
+        retrySourceJobId: oldJob.id,
         status: 'starting',
         progress: 0,
         current: 0,
@@ -397,7 +400,7 @@ scrapeRoutes.post('/', async (c) => {
       if (!failedItems.length) return c.json({ error: '没有可重试的失败章节' }, 400)
       const cfg = await deps.store.getScrapeConfig(oldJob.novelId)
       if (!cfg) return c.json({ error: '未找到该小说的爬虫配置，请重新配置' }, 404)
-      const retryJobId = 'retry_' + Date.now().toString(36)
+      const retryJobId = newId('retry')
       const job: JobData = {
         id: retryJobId,
         novelId: oldJob.novelId,
@@ -682,7 +685,7 @@ scrapeRoutes.post('/', async (c) => {
         progress,
         error,
       })
-      if (!ok) return c.json({ error: 'Job not found' }, 404)
+      if (!ok) return c.json({ error: '任务不存在或已结束，不能更新旧状态' }, 409)
       return c.json({ success: true })
     }
     case 'log': {

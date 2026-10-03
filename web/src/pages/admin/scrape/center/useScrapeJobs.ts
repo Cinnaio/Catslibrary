@@ -17,6 +17,9 @@ export function useScrapeJobs() {
 
   const [jobs, setJobs] = useState<JobCard[]>([])
   const activePolls = useRef(new Set<string>())
+  const pollVersions = useRef(new Map<string, number>())
+  const appliedPollVersions = useRef(new Map<string, number>())
+  const retryPending = useRef(new Set<string>())
   // 重试时要读取被重试任务的标题；用 ref 避免把 jobs 挂进每个 handler 的闭包。
   const jobsRef = useRef<JobCard[]>([])
   jobsRef.current = jobs
@@ -54,6 +57,7 @@ export function useScrapeJobs() {
     setJobs((prev) =>
       prev.map((c) => {
         if (c.jobId !== jobId) return c
+        if (isJobTerminal(c.status) && data.status && c.status !== data.status) return c
         const summary = data.summary || {}
         return {
           ...c,
@@ -79,6 +83,9 @@ export function useScrapeJobs() {
   }, [])
 
   const dismiss = useCallback((jobId: string) => {
+    const version = (pollVersions.current.get(jobId) || 0) + 1
+    pollVersions.current.set(jobId, version)
+    appliedPollVersions.current.set(jobId, version)
     activePolls.current.delete(jobId)
     setJobs((prev) => prev.filter((c) => c.jobId !== jobId))
   }, [])
@@ -113,12 +120,17 @@ export function useScrapeJobs() {
   // 轮询运行中的任务，进入终端状态即摘除；
   // 页面隐藏时暂停（不浪费请求），恢复可见立即刷新一次（与 JobsTab 的策略一致）
   useEffect(() => {
+    let alive = true
     const poll = () => {
       if (document.hidden) return
       Array.from(activePolls.current).forEach((jobId) => {
+        const version = (pollVersions.current.get(jobId) || 0) + 1
+        pollVersions.current.set(jobId, version)
         scrapeApi
           .status(jobId)
           .then((data) => {
+            if (!alive || version <= (appliedPollVersions.current.get(jobId) || 0) || !activePolls.current.has(jobId)) return
+            appliedPollVersions.current.set(jobId, version)
             applyStatus(jobId, data as JobStatusData)
             if (isJobTerminal(String((data as JobStatusData).status || ''))) activePolls.current.delete(jobId)
           })
@@ -133,6 +145,7 @@ export function useScrapeJobs() {
     }
     document.addEventListener('visibilitychange', onVisibilityChange)
     return () => {
+      alive = false
       clearInterval(timer)
       document.removeEventListener('visibilitychange', onVisibilityChange)
     }
@@ -150,7 +163,7 @@ export function useScrapeJobs() {
       if (!ok) return
       try {
         await scrapeApi.cancel(jobId)
-        toast('任务已终止', 'default')
+        toast('已提交终止请求', 'default')
       } catch (err) {
         toast('终止失败: ' + (err as Error).message, 'error')
       }
@@ -160,6 +173,8 @@ export function useScrapeJobs() {
 
   const retry = useCallback(
     async (jobId: string) => {
+      if (retryPending.current.has(jobId)) return
+      retryPending.current.add(jobId)
       toast('正在重试任务…', 'default')
       try {
         const data = await scrapePost({ action: 'retry', jobId })
@@ -169,6 +184,8 @@ export function useScrapeJobs() {
         track(data.jobId, (old?.novelTitle || jobId.slice(0, 12)) + ' (重试)')
       } catch (err) {
         toast('重试失败: ' + (err as Error).message, 'error')
+      } finally {
+        retryPending.current.delete(jobId)
       }
     },
     [toast, track],
@@ -176,6 +193,8 @@ export function useScrapeJobs() {
 
   const retryFailed = useCallback(
     async (jobId: string) => {
+      if (retryPending.current.has(jobId)) return
+      retryPending.current.add(jobId)
       toast('正在重试失败章节…', 'default')
       try {
         const data = (await scrapeApi.retryFailed(jobId)) as { jobId?: string; error?: string }
@@ -185,6 +204,8 @@ export function useScrapeJobs() {
         track(data.jobId, (old?.novelTitle || jobId.slice(0, 12)) + ' (失败章节重试)')
       } catch (err) {
         toast('重试失败章节失败: ' + (err as Error).message, 'error')
+      } finally {
+        retryPending.current.delete(jobId)
       }
     },
     [toast, track],
