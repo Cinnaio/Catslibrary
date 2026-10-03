@@ -341,6 +341,14 @@ components:
 
 ## Components
 
+### Reader Auth（登录／注册，2026-10-03）
+
+- **Surface:** `/auth` 使用 `.auth-page--reader` 与独立 `styles/auth.css`，暖灰 `--bg-secondary` 全视口画布、最大368px单列居中表单。移除外层 Card、描边、阴影与背景渐变；不改安装向导的 `.auth-page` 或全站共享 Card。品牌保留现有 logo，28px标识与16px / 600 产品名横排。
+- **Hierarchy:** 原阅读提示成为唯一 h1，使用既有 `--font-serif`、28px / 500、手机24px；品牌到标题24px、页头到表单32px。字段标签13px / 500 次级色，字段组20px间距；输入48px高，读取共享 input 的纸面、12px圆角和细描边，窄屏16px字号避免聚焦放大。
+- **Actions and States:** 主按钮48px高、14px / 500，不附加登录／注册装饰图标，仅处理中显示加载指示。密码显隐、模式切换及返回入口最小44px可触控并有键盘焦点。保持登录、错误、注册关闭提示与注册切换使用轻量字阶；长错误自然换行，无嵌套错误卡。处理中禁止模式切换，失败后恢复操作；关闭注册仍可返回登录。
+- **Behavior Boundary:** 保留账号、密码、邀请码、open／invite／closed 注册策略、原 API、保持登录、显隐、自动填充、Enter 提交、首次安装跳转及成功后来源页回跳。不新增第三方登录或忘记密码能力。尊重 reduced motion；短视口与长提示可自然滚动。
+- **Botanical Accent:** 登录／注册页使用透明底 `images/auth-flower.png` 细线淡粉花枝，桌面最多两处、放在表单外侧留白，900px及以下缩成页头外侧一处，620px及以下短视口隐藏。只通过伪元素呈现、`pointer-events: none`，不进入可访问树、不盖住表单、不添加动画；深色以轻量亮度／饱和度滤镜适配。资源来源与生成提示保存在 `docs/assets/auth-flower.provenance.json`，不扩散为全站背景纹理。
+
 ### Full-page State（整页拦截与内容缺失，2026-10-03）
 
 - **Single Source:** `components/PageState.tsx` + `styles/page-state.css` 提供整页状态原语；`--page-state-width`（32rem）与 `--page-state-title-size`（1.25rem）集中在 `tokens.css`。小说详情／阅读器内容拦截、小说／章节未找到、管理员权限门禁统一消费，不再各自维护大卡片、emoji 空态或门禁卡样式。

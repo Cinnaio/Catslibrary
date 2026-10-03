@@ -2,18 +2,15 @@
  * Auth 页 —— 登录 / 注册（shadcn 版）。
  * 首个管理员引导已拆到独立 /install 页：本页探测到 needsBootstrap 时跳转过去。
  *
- * 布局说明：与 AdminGate、Install 同属公开站点居中页家族，共用 auth-page /
- * auth-shell 画布。卡片内用一套 .auth-* 类建立节奏，避免依赖成串的 Tailwind
- * 工具类拼出结构（此前每个字段都是 flex flex-col gap-1.5 的重复字面量）。
+ * 独立暖纸单列表单：auth-page--reader 限定页面外观，不改变安装向导。
  */
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { AlertCircle, ArrowLeft, Eye, EyeOff, LoaderCircle, LogIn, UserPlus } from 'lucide-react'
+import { AlertCircle, ArrowLeft, Eye, EyeOff, LoaderCircle } from 'lucide-react'
 import { authApi, getToken } from '../lib/api'
 import { useSession } from '../context/SessionContext'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
@@ -127,14 +124,15 @@ export default function Auth() {
   }
 
   return (
-    <main className="auth-page">
+    <main className="auth-page auth-page--reader">
       <div className="auth-shell">
-        <Card className="w-full max-w-sm">
-          <CardContent className="auth-panel">
+          <section className="auth-panel" aria-labelledby="auth-title">
             <div className="auth-panel__head">
-              <img src="/images/logo.png" alt="" className="auth-panel__mark" aria-hidden="true" />
-              <h1 className="auth-panel__title">知舟</h1>
-              <p className="auth-panel__lede">{isLogin ? '请登录后继续阅读' : '创建账号后继续阅读'}</p>
+              <div className="auth-panel__brand">
+                <img src="/images/logo.png" alt="" className="auth-panel__mark" aria-hidden="true" />
+                <span>知舟</span>
+              </div>
+              <h1 id="auth-title" className="auth-panel__title">{isLogin ? '请登录后继续阅读' : '创建账号后继续阅读'}</h1>
             </div>
 
             <form className="auth-form" onSubmit={onSubmit} noValidate>
@@ -226,27 +224,20 @@ export default function Auth() {
 
               <div className="auth-actions">
                 <Button type="submit" disabled={fieldsDisabled}>
-                  {busy ? (
-                    <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
-                  ) : isLogin ? (
-                    <LogIn className="size-4" aria-hidden="true" />
-                  ) : (
-                    <UserPlus className="size-4" aria-hidden="true" />
-                  )}
+                  {busy && <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />}
                   {busy ? '处理中…' : isLogin ? '登录' : '创建账号'}
                 </Button>
 
                 <p className="auth-switch">
                   <span>{isLogin ? '没有账号？' : '已有账号？'}</span>
-                  <button type="button" className="auth-switch__link" onClick={switchMode}>
+                  <button type="button" className="auth-switch__link" onClick={switchMode} disabled={busy}>
                     {isLogin ? '去注册' : '去登录'}
                   </button>
                 </p>
               </div>
             </form>
 
-            {/* 去掉站点页头后，这里是页面上唯一的出口，因此用真实按钮而非
-                12px 的灰色小链接承载——与门禁页的「返回首页」一致。 */}
+            {/* 独立路由保留明确且可触控的返回入口。 */}
             <div className="auth-panel__foot">
               <Button asChild variant="ghost">
                 <Link to="/">
@@ -255,8 +246,7 @@ export default function Auth() {
                 </Link>
               </Button>
             </div>
-          </CardContent>
-        </Card>
+          </section>
       </div>
     </main>
   )

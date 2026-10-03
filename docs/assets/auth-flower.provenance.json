@@ -1,0 +1,8 @@
+{
+  "asset": "web/public/images/auth-flower.png",
+  "generatedWith": "Built-in image_gen",
+  "createdAt": "2026-10-03",
+  "reference": "User-supplied floral line-art style reference; not copied screenshot pixels",
+  "transparentBackground": true,
+  "prompt": "Use case: illustration-story. Asset type: transparent PNG decorative botanical illustration for a warm minimalist Chinese reading website login page. Primary request: a small elegant hand-drawn flower sprig inspired by the attached style reference, not a copy of the screenshot. Subject: one gently curving twig, a single airy five-petal blush pink blossom near the left/top, one little closed pink bud, and three fine outlined leaves on a warm charcoal-brown stem extending diagonally to the right/bottom. Style: refined sparse botanical pen line art, delicately irregular real drawn contours, slender clean strokes, pale translucent blush-pink petal wash, tiny muted ochre center. Palette: muted rose #C77889, warm graphite #71665C, subtle olive #A29670. Composition: isolated one coherent sprig centered in a landscape canvas with just enough transparent margin, approximately 2:1 composition, no cropped tips. Intended to be displayed around 200-240px wide in outer blank space around a form; contours must remain legible at that size, no heavy black strokes. Constraints: genuinely transparent alpha background including all blank interiors outside the tiny petal washes. No paper rectangle, no UI, no letters, no logo, no watermark, no shadows, no photographic texture, no busy bouquet, no doodle border, no additional unrelated objects. The attached image is a STYLE REFERENCE ONLY; generate a new isolated botanical asset, not an edited screenshot."
+}
