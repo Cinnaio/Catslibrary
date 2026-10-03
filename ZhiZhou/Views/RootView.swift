@@ -12,6 +12,7 @@ struct RootView: View {
                 LoginView()
             } else {
                 MainTabView()
+                    .id(ContentAccessStore.shared.revision)
             }
         }
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: appState.isBooting)

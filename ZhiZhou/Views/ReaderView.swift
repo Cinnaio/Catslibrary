@@ -782,6 +782,11 @@ struct ReaderView: View {
         .accessibilityHidden(!showChrome)
     }
 
+    private var chapterAvailabilityLabel: String {
+        if !offlineOnly && ContentAccessStore.shared.mode == "adult" { return "仅在线" }
+        return chapterIsSaved ? "离线可读" : "未缓存"
+    }
+
     private var readerStatusPill: some View {
         VStack(spacing: 2) {
             Text("第 \(chapterOrder)/\(totalOrderCount) 章")
@@ -793,7 +798,7 @@ struct ReaderView: View {
                     .monospacedDigit()
                 Image(systemName: chapterIsSaved ? "arrow.down.circle.fill" : "icloud.slash")
                     .accessibilityHidden(true)
-                Text(chapterIsSaved ? "离线可读" : "未缓存")
+                Text(chapterAvailabilityLabel)
             }
             .font(.caption2)
             .foregroundStyle(AppTheme.primary.opacity(0.7))
@@ -802,7 +807,7 @@ struct ReaderView: View {
         .frame(minHeight: 44)
         .appGlassEffect(AppTheme.glassClear, in: Capsule())
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("第 \(chapterOrder) / \(totalOrderCount) 章，\(percentText)，\(chapterIsSaved ? "离线可读" : "未缓存")")
+        .accessibilityLabel("第 \(chapterOrder) / \(totalOrderCount) 章，\(percentText)，\(chapterAvailabilityLabel)")
     }
 
     private var nextChapterButton: some View {
@@ -1040,6 +1045,11 @@ struct ReaderView: View {
     }
 
     private func load() async {
+        guard !offlineOnly || !novel.isRestricted else {
+            isLoading = false
+            errorMessage = "限制级作品仅支持在线阅读。"
+            return
+        }
         isLoading = true
         let order = chapterOrder // 快照：防止慢响应覆盖新章状态
         defer {
@@ -1052,14 +1062,14 @@ struct ReaderView: View {
                     chapterMetas = preloadedChapters
                 } else {
                     do {
-                        let list: ChaptersResponse = try await APIClient.shared.get(
-                            ContentPolicy.safePath("/api/chapters?novelId=\(novel.id)")
+                        let list: ChaptersResponse = try await APIClient.shared.getReader(
+                            "/api/chapters?novelId=\(novel.id)", offline: offlineOnly
                         )
                         chapterMetas = list.chapters
                     } catch is CancellationError {
                         throw CancellationError()
                     } catch {
-                        let saved = offlineStore.chapters(for: novel.id)
+                        let saved = ContentAccessStore.shared.mode == "adult" || novel.isRestricted ? [] : offlineStore.chapters(for: novel.id)
                         guard !saved.isEmpty else {
                             guard chapterOrder == order else { return }
                             errorMessage = AppCopy.friendlyError(error)
@@ -1078,8 +1088,8 @@ struct ReaderView: View {
                     errorMessage = "这一章尚未下载，请联网后在详情页下载。"
                     return
                 }
-                let list: ChaptersResponse = try await APIClient.shared.get(
-                    ContentPolicy.safePath("/api/chapters?novelId=\(novel.id)")
+                let list: ChaptersResponse = try await APIClient.shared.getReader(
+                    "/api/chapters?novelId=\(novel.id)", offline: offlineOnly
                 )
                 chapterMetas = list.chapters
                 chapterCount = list.chapters.count
@@ -1104,8 +1114,8 @@ struct ReaderView: View {
 
     private func loadContent(id: String) async throws {
         let order = chapterOrder
-        let r: ChapterResponse = try await APIClient.shared.get(
-            ContentPolicy.safePath("/api/chapters/\(id)")
+        let r: ChapterResponse = try await APIClient.shared.getReader(
+            "/api/chapters/\(id)", offline: offlineOnly
         )
         guard chapterOrder == order else { return }
         let content = r.chapter.content
@@ -1334,6 +1344,7 @@ struct ReaderView: View {
     }
 
     private func prefetchNextChapter() {
+        guard ContentAccessStore.shared.mode == "safe", !novel.isRestricted else { return }
         guard let next = chapterMetas.first(where: { $0.order == chapterOrder + 1 }) else { return }
         let nextID = next.id
         Task {

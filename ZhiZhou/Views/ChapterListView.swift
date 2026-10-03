@@ -111,14 +111,14 @@ struct ChapterListView: View {
         isLoading = true
         defer { isLoading = false }
         do {
-            let r: ChaptersResponse = try await APIClient.shared.get(
-                ContentPolicy.safePath("/api/chapters?novelId=\(novel.id)")
+            let r: ChaptersResponse = try await APIClient.shared.getReader(
+                "/api/chapters?novelId=\(novel.id)"
             )
             chapters = r.chapters
             isShowingOffline = false
             errorMessage = nil
         } catch {
-            let saved = offlineStore.chapters(for: novel.id)
+            let saved = ContentAccessStore.shared.mode == "adult" || novel.isRestricted ? [] : offlineStore.chapters(for: novel.id)
             if !saved.isEmpty {
                 chapters = saved
                 isShowingOffline = true

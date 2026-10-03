@@ -139,6 +139,10 @@ final class OfflineReadingStore {
     }
 
     func downloadAll(novel: Novel, chapters: [ChapterMeta]) async {
+        guard !novel.isRestricted else {
+            lastError = "限制级作品仅支持在线阅读，暂不支持离线下载。"
+            return
+        }
         guard let session = currentSession, batchNovelID == nil else { return }
 
         batchNovelID = novel.id
@@ -274,6 +278,10 @@ final class OfflineReadingStore {
     }
 
     private func performDownload(novel: Novel, chapter: ChapterMeta, session: Session) async -> Bool {
+        guard !novel.isRestricted else {
+            lastError = "限制级作品仅支持在线阅读，暂不支持离线下载。"
+            return false
+        }
         guard isCurrent(session), !chapter.id.isEmpty, !isDownloading(chapter.id) else { return false }
         downloadingChapterIDs.insert(chapter.id)
         defer {

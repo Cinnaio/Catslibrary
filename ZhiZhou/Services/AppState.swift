@@ -200,6 +200,7 @@ final class AppState {
         guard !response.token.isEmpty else { throw APIError.invalidResponse }
         APIClient.shared.token = response.token
         user = response.user
+        ContentAccessStore.shared.activate(token: response.token)
         OfflineReadingStore.shared.activate(userID: userID, token: response.token)
     }
 
@@ -218,6 +219,7 @@ final class AppState {
     }
 
     private func activateAccount(_ user: User) async {
+        ContentAccessStore.shared.activate(token: APIClient.shared.token)
         await APIClient.shared.setChapterCacheScope(userID: user.id)
         OfflineReadingStore.shared.activate(userID: user.id, token: APIClient.shared.token)
         ReaderSettingsStore.shared.activate(userID: user.id)
@@ -235,6 +237,7 @@ final class AppState {
     }
 
     private func deactivateLocalAccount(clearOfflineFallback: Bool) async {
+        ContentAccessStore.shared.activate(token: nil)
         await APIClient.shared.setChapterCacheScope(userID: nil)
         OfflineReadingStore.shared.deactivate(clearOfflineFallback: clearOfflineFallback)
         ReaderSettingsStore.shared.deactivate()

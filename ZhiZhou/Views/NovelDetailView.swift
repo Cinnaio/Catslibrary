@@ -71,8 +71,8 @@ struct NovelDetailView: View {
                     showOfflineOptions = true
                 }
                 .labelStyle(.iconOnly)
-                .disabled(chapters.isEmpty || isSelectingOffline)
-                .help("离线下载")
+                .disabled(chapters.isEmpty || isSelectingOffline || currentNovel.isRestricted)
+                .help(currentNovel.isRestricted ? "限制级作品仅支持在线阅读" : "离线下载")
             }
         }
         .sheet(isPresented: $showOfflineOptions) {
@@ -122,6 +122,12 @@ struct NovelDetailView: View {
             }
 
             Section {
+                if currentNovel.isRestricted {
+                    Label("限制级作品 · 仅支持在线阅读", systemImage: "network")
+                        .font(.footnote)
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .listRowSeparator(.hidden)
+                }
                 if offlineStore.batchNovelID == currentNovel.id {
                     downloadStatusRow
                         .listRowSeparator(.hidden)
@@ -191,7 +197,8 @@ struct NovelDetailView: View {
     }
 
     private var downloadableChapters: [ChapterMeta] {
-        chapters.filter { !offlineStore.isDownloaded($0.id) }
+        guard !currentNovel.isRestricted else { return [] }
+        return chapters.filter { !offlineStore.isDownloaded($0.id) }
     }
 
     private var selectedDownloadChapters: [ChapterMeta] {
@@ -919,8 +926,8 @@ struct NovelDetailView: View {
     }
 
     private func loadDetail() async {
-        if let d: NovelDetailResponse = try? await APIClient.shared.get(
-            ContentPolicy.safePath("/api/novels/\(novel.id)")
+        if let d: NovelDetailResponse = try? await APIClient.shared.getReader(
+            "/api/novels/\(novel.id)"
         ) {
             displayNovel = d.novel
         }
@@ -928,8 +935,8 @@ struct NovelDetailView: View {
 
     private func loadChapters() async {
         do {
-            let r: ChaptersResponse = try await APIClient.shared.get(
-                ContentPolicy.safePath("/api/chapters?novelId=\(novel.id)")
+            let r: ChaptersResponse = try await APIClient.shared.getReader(
+                "/api/chapters?novelId=\(novel.id)"
             )
             chapters = r.chapters
             isSelectingOffline = false
@@ -937,7 +944,7 @@ struct NovelDetailView: View {
             isShowingOffline = false
             errorMessage = nil
         } catch {
-            let saved = offlineStore.chapters(for: novel.id)
+            let saved = ContentAccessStore.shared.mode == "adult" || novel.isRestricted ? [] : offlineStore.chapters(for: novel.id)
             if !saved.isEmpty {
                 chapters = saved
                 isSelectingOffline = false
@@ -959,8 +966,8 @@ struct NovelDetailView: View {
     }
 
     private func loadBookshelf() async {
-        if let b: BookshelfResponse = try? await APIClient.shared.get(
-            ContentPolicy.safePath("/api/bookshelf"), auth: true
+        if let b: BookshelfResponse = try? await APIClient.shared.getReader(
+                "/api/bookshelf", auth: true
         ) {
             inBookshelf = b.favorites.contains { $0.novelId == novel.id }
         }

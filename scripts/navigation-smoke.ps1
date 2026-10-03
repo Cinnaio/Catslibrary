@@ -92,7 +92,7 @@ Require-NavigationPattern 'novel detail keeps synopsis expansion available when 
 )
 Require-NavigationPattern 'novel detail reserves space and a scroll edge for its fixed reading or selection actions' (
     $detailView -match '(?s)\.safeAreaBar\(edge: \.bottom, spacing: 0\)\s*\{\s*bottomBar' -and
-    $detailView -match '(?s)private var bottomBar.*?if isSelectingOffline \{\s*offlineSelectionBar\s*\} else \{\s*readingBar' -and
+    $detailView -match '(?s)private var bottomBar.*?if isSelectingOffline \{\s*offlineSelectionBar\s*(?:\.transition\(selectionModeTransition\)\s*)?\} else \{\s*readingBar' -and
     $detailView -match '(?s)private var readButton.*?NavigationLink\s*\{\s*ReaderView'
 )
 Require-NavigationPattern 'novel detail retains download actions in its sheet' (

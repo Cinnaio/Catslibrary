@@ -49,6 +49,9 @@ struct Novel: Codable, Identifiable, Hashable {
     var hasUpdate: Bool {
         remoteChapterCount > chapterCount && remoteChapterCount > 0
     }
+
+    var contentRating: String? = nil
+    var isRestricted: Bool { contentRating == "restricted" }
 }
 
 /// 从书架 / 详情一拍进入阅读器。
@@ -142,13 +145,14 @@ struct FavoriteItem: Codable, Hashable, Identifiable {
     let chapterOrder: Int?
     let scrollPercent: Double?
     let progressUpdatedAt: Int64?
+    var contentRating: String? = nil
 
     var asNovel: Novel {
         Novel(
             id: novelId, title: title, author: author, description: description,
             coverUrl: "", categories: [], status: status, sourceUrl: "",
             chapterCount: chapterCount, remoteChapterCount: remoteChapterCount,
-            updateCheckedAt: 0, createdAt: 0, updatedAt: novelUpdatedAt
+            updateCheckedAt: 0, createdAt: 0, updatedAt: novelUpdatedAt, contentRating: contentRating
         )
     }
 
@@ -167,13 +171,14 @@ struct RecentItem: Codable, Hashable, Identifiable {
     let chapterOrder: Int
     let scrollPercent: Double
     let updatedAt: Int64
+    var contentRating: String? = nil
 
     var asNovel: Novel {
         Novel(
             id: novelId, title: novelTitle, author: "", description: "",
             coverUrl: "", categories: [], status: "", sourceUrl: "",
             chapterCount: 0, remoteChapterCount: 0,
-            updateCheckedAt: 0, createdAt: 0, updatedAt: updatedAt
+            updateCheckedAt: 0, createdAt: 0, updatedAt: updatedAt, contentRating: contentRating
         )
     }
 

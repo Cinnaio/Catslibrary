@@ -123,6 +123,10 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
         VisualAudit.configure(config)
         #endif
         config.timeoutIntervalForRequest = 30
+        // 原生读取用 Bearer；不要让 unlock 的 Cookie 泄入安全模式或离线下载。
+        config.httpCookieStorage = nil
+        config.httpShouldSetCookies = false
+        config.urlCache = nil
         // AI 画像提取是同步的服务端模型调用，服务端自身可能进行多轮
         // 上游重试；不能让 URLSession 的资源预算在回到前台前先把它判成失败。
         config.timeoutIntervalForResource = 420
@@ -274,7 +278,8 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
     ) async throws -> T {
         let url = try makeURL(path)
 
-        let usesReaderChapterCache = method == "GET" && !auth && isReaderChapterPath(path)
+        let usesReaderChapterCache = method == "GET" && isReaderChapterPath(path)
+            && ContentPolicy.canCacheChapter(path: path, authenticated: auth)
         let cacheScope: ChapterCacheScope.Snapshot?
         if usesReaderChapterCache {
             let currentScope = await chapterCacheScope.snapshot()
@@ -495,6 +500,27 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
 
     func get<T: Decodable>(_ path: String, auth: Bool = false) async throws -> T {
         try await request("GET", path, auth: auth)
+    }
+
+    @MainActor
+    func getReader<T: Decodable>(_ path: String, auth: Bool = false, offline: Bool = false) async throws -> T {
+        let access = ContentAccessStore.shared
+        let revision = access.revision
+        let mode = offline ? "safe" : access.mode
+        let authenticated = auth || mode == "adult"
+        let tokenAtStart = token
+        let readerPath = ContentPolicy.readerPath(path, mode: mode)
+        do {
+            let result: T = try await request("GET", readerPath, auth: authenticated,
+                                              expectedToken: authenticated ? tokenAtStart : nil)
+            guard !Task.isCancelled, revision == access.revision, token == tokenAtStart else { throw CancellationError() }
+            return result
+        } catch let error as APIError {
+            if revision == access.revision, mode == "adult", case .http(let status, _) = error, status == 403 {
+                access.revoke(message: "成人模式授权已失效，请重新验证。")
+            }
+            throw error
+        }
     }
 
     /// 读取需要鉴权的二进制资源（例如封面历史图片）。Token 只放在请求头，

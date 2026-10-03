@@ -3,7 +3,7 @@ import Foundation
 /// 阅读页段评 API：公开读取，发布和删除需要登录。
 enum ThoughtsAPI {
     static func list(chapterID: String) async throws -> PublicThoughtsResponse {
-        try await APIClient.shared.get(
+        try await APIClient.shared.getReader(
             "/api/thoughts?chapterId=\(encodeQueryValue(chapterID))"
         )
     }

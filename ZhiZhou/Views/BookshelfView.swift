@@ -392,8 +392,8 @@ struct BookshelfView: View {
             }
         }
         do {
-            let r: BookshelfResponse = try await APIClient.shared.get(
-                ContentPolicy.safePath("/api/bookshelf"), auth: true
+            let r: BookshelfResponse = try await APIClient.shared.getReader(
+                "/api/bookshelf", auth: true
             )
             guard !Task.isCancelled, requests.accepts(ticket, query: true) else { return }
             if animate {

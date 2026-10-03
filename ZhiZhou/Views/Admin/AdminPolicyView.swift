@@ -38,7 +38,7 @@ struct AdminPolicyView: View {
                             }
                         }
                     } footer: {
-                        Text("开启后站点可展示 PO18 预设内容。本 App 客户端固定 contentMode = safe，仅提供管理开关；App Store 上架前请保持关闭。")
+                        Text("开启后，读者仍需确认成年并完成人机验证，才能在当前登录会话中在线阅读限制级作品。关闭后读者授权将失效。")
                     }
                 }
                 .scrollContentBackground(.hidden)

@@ -20,6 +20,12 @@ struct ProfileView: View {
             }
 
             Section("阅读") {
+                NavigationLink {
+                    ContentModeView()
+                } label: {
+                    LabeledContent("内容模式", value: ContentAccessStore.shared.mode == "adult" ? "R18 · 在线" : "安全模式")
+                }
+                .accessibilityIdentifier("profile.content-mode")
                 Button {
                     showReaderSettings = true
                 } label: {

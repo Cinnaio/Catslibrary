@@ -417,8 +417,8 @@ struct HomeView: View {
     private func loadReadingContext() async {
         guard APIClient.shared.isAuthenticated else { return }
         do {
-            let response: BookshelfResponse = try await APIClient.shared.get(
-                ContentPolicy.safePath("/api/bookshelf"),
+            let response: BookshelfResponse = try await APIClient.shared.getReader(
+                "/api/bookshelf",
                 auth: true
             )
             guard !Task.isCancelled else { return }
@@ -458,13 +458,13 @@ struct HomeView: View {
                 "limit": "20",
                 "sort": "updated_at",
                 "order": "desc",
-                "contentMode": ContentPolicy.clientMode,
+                "contentMode": ContentAccessStore.shared.mode,
             ]
             let trimmed = ticket.query[0]
             if !trimmed.isEmpty { params["search"] = trimmed }
             if !ticket.query[1].isEmpty { params["category"] = ticket.query[1] }
 
-            let r: NovelListResponse = try await APIClient.shared.get("/api/novels?" + Self.query(params))
+            let r: NovelListResponse = try await APIClient.shared.getReader("/api/novels?" + Self.query(params))
             guard !Task.isCancelled, requests.accepts(ticket, query: catalogQuery) else { return }
             if append {
                 let existing = Set(novels.map(\.id))

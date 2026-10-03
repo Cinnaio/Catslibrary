@@ -188,8 +188,8 @@ final class ReaderSettingsStore {
     var lineHeight: CGFloat { CGFloat(Double(values["readerLineHeight"] ?? "1.95") ?? 1.95) }
     var themeName: String { values["readerTheme"] ?? "default" }
     var useSerif: Bool { (values["fontFamily"] ?? "serif") == "serif" }
-    /// App Store 客户端始终使用安全内容模式，不接受本地或服务端返回的成人模式。
-    var contentMode: String { ContentPolicy.clientMode }
+    /// 内容访问权来自会话授权，而非本地阅读偏好。
+    var contentMode: String { ContentAccessStore.shared.mode }
     var clickPagingEnabled: Bool {
         let raw = values["readerClickPaging"] ?? "on"
         return raw == "on" || raw == "true" || raw == "1"
@@ -371,8 +371,8 @@ final class ReaderSettingsStore {
         let snapshot = currentSnapshot
         do {
             let payload = ReaderSettingsPayload(
-                settings: snapshot.values,
-                updatedAt: snapshot.updatedAt,
+                settings: snapshot.values.filter { $0.key != "contentMode" },
+                updatedAt: snapshot.updatedAt.filter { $0.key != "contentMode" },
                 device: Self.syncDevice
             )
             let body = try APIClient.shared.jsonBody(payload)

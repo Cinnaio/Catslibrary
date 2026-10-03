@@ -27,10 +27,16 @@ struct ZhiZhouApp: App {
                 .environment(fontStore)
                 .environment(offlineReadingStore)
                 .background(GlobalKeyboardDismissal())
+                .task(id: appState.user?.id) { await ContentAccessStore.shared.revalidate() }
                 #if DEBUG && targetEnvironment(simulator)
                 .preferredColorScheme(VisualAudit.appearance)
                 #endif
                 .onChange(of: scenePhase) { _, phase in
+                    if phase == .inactive || phase == .background {
+                        ContentAccessStore.shared.suspend()
+                    } else if phase == .active {
+                        Task { await ContentAccessStore.shared.revalidate() }
+                    }
                     guard phase == .active || phase == .background else { return }
                     Task { @MainActor in
                         await ReaderSettingsStore.shared.flush()
