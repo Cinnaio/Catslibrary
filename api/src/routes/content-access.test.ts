@@ -19,12 +19,15 @@ beforeAll(async () => {
   vi.stubEnv('TURNSTILE_SECRET_KEY', 'fixture-secret')
   vi.stubEnv('TURNSTILE_HOSTNAMES', 'read.example.com')
   const consumed = new Set<string>()
-  vi.stubGlobal('fetch', vi.fn(async (_url: unknown, init: RequestInit) => {
-    const token = (JSON.parse(String(init.body)) as { response: string }).response
-    const success = typeof token === 'string' && token.startsWith('valid-') && !consumed.has(token)
-    consumed.add(token)
-    return new Response(JSON.stringify({ success, hostname: 'read.example.com', action: 'r18_unlock' }))
-  }))
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (_url: unknown, init: RequestInit) => {
+      const token = (JSON.parse(String(init.body)) as { response: string }).response
+      const success = typeof token === 'string' && token.startsWith('valid-') && !consumed.has(token)
+      consumed.add(token)
+      return new Response(JSON.stringify({ success, hostname: 'read.example.com', action: 'r18_unlock' }))
+    }),
+  )
 })
 
 afterAll(async () => {
@@ -197,6 +200,52 @@ describe('限制级内容服务端访问闭环', () => {
     expect(accountDetail.status).toBe(200)
   })
 
+  it('原生验证页仅公开站点公钥，配置关闭时不提供验证页面', async () => {
+    const page = await req('/api/content-policy/native-challenge')
+    expect(page.status).toBe(200)
+    expect(page.headers.get('content-type')).toContain('text/html')
+    expect(page.headers.get('cache-control')).toContain('no-store')
+    expect(page.headers.get('x-robots-tag')).toContain('noindex')
+    expect(page.headers.get('content-security-policy')).toContain("frame-ancestors 'none'")
+    const html = await page.text()
+    expect(html).toContain('fixture-site')
+    expect(html).toContain("action:'r18_unlock'")
+    expect(html).toContain('messageHandlers?.adultChallenge')
+    expect(html).not.toContain('fixture-secret')
+    expect(page.headers.get('set-cookie')).toBeNull()
+    await setAdultContentEnabled(false)
+    expect((await req('/api/content-policy/native-challenge')).status).toBe(403)
+    await setAdultContentEnabled(true)
+    vi.stubEnv('TURNSTILE_SECRET_KEY', '')
+    expect((await req('/api/content-policy/native-challenge')).status).toBe(503)
+    vi.stubEnv('TURNSTILE_SECRET_KEY', 'fixture-secret')
+  })
+
+  it('原生 Bearer 会话无需 Cookie 即可在线阅读，安全下载仍拒绝限制级正文', async () => {
+    const unlock = await req('/api/content-policy/unlock', json('POST', { confirmed: true, turnstileToken: 'valid-native-online' }, readerToken))
+    expect(unlock.status).toBe(200)
+    const online = await req(`/api/chapters/${restrictedChapterId}?contentMode=adult`, json('GET', undefined, readerToken))
+    expect(online.status).toBe(200)
+    expect(online.headers.get('cache-control')).toContain('no-store')
+    const favorites = await req('/api/bookshelf', json('POST', { novelId: restrictedId }, readerToken))
+    expect(favorites.status).toBe(200)
+    const shelf = await jsonOf<{ favorites: Array<{ novelId: string; contentRating: string }> }>(
+      await req('/api/bookshelf?contentMode=adult', json('GET', undefined, readerToken)),
+    )
+    expect(shelf.favorites.find((item) => item.novelId === restrictedId)?.contentRating).toBe('restricted')
+    for (const token of [readerToken, adminToken]) {
+      expect((await req(`/api/chapters/${restrictedChapterId}?contentMode=safe`, json('GET', undefined, token))).status).toBe(403)
+      expect((await req(`/api/chapters?novelId=${restrictedId}&contentMode=safe`, json('GET', undefined, token))).status).toBe(403)
+      expect((await req('/api/chapters/chapter_general_access_test?contentMode=safe', json('GET', undefined, token))).status).toBe(200)
+    }
+    // 字号等移动端阅读设置同步，不应撤销独立的会话授权。
+    expect(
+      (await req('/api/auth/reader-settings', json('PUT', { device: 'mobile', settings: { fontSize: '3' }, updatedAt: { fontSize: Date.now() } }, readerToken)))
+        .status,
+    ).toBe(200)
+    expect((await req('/api/content-policy/refresh', json('POST', undefined, readerToken))).status).toBe(200)
+  })
+
   it('全站关闭时即使持有旧凭证也不能读取限制级内容，管理员仍可在后台查看', async () => {
     const unlock = await req('/api/content-policy/unlock', json('POST', { confirmed: true, turnstileToken: 'valid-disabled' }, readerToken))
     const cookie = cookiePair(unlock)
@@ -230,12 +279,16 @@ describe('限制级内容服务端访问闭环', () => {
 
   it('旧匿名签名、成人查询参数和账号偏好不能授予权限', async () => {
     const payload = `v1.${Math.floor(Date.now() / 1000) + 86400}`
-    const signature = createHmac('sha256', `${process.env.SESSION_HASH_SALT || 'zhi-zhou'}\u0000content-access-v1`).update(payload).digest('base64url')
+    const signature = createHmac('sha256', `${process.env.SESSION_HASH_SALT || 'zhi-zhou'}\u0000content-access-v1`)
+      .update(payload)
+      .digest('base64url')
     const cookie = `zhizhou_adult_access=${payload}.${signature}`
     expect((await req(`/api/chapters/${restrictedChapterId}`, json('GET', undefined, undefined, cookie))).status).toBe(403)
-    const list = await jsonOf<{ novels: Novel[] }>(await req('/api/novels?contentMode=adult&contentRating=restricted', json('GET', undefined, undefined, cookie)))
+    const list = await jsonOf<{ novels: Novel[] }>(
+      await req('/api/novels?contentMode=adult&contentRating=restricted', json('GET', undefined, undefined, cookie)),
+    )
     expect(list.novels).toHaveLength(0)
-    await t.db.query("UPDATE users SET reader_settings = '{\"contentMode\":\"adult\"}' WHERE username = 'access-reader'")
+    await t.db.query('UPDATE users SET reader_settings = \'{"contentMode":"adult"}\' WHERE username = \'access-reader\'')
     expect((await req(`/api/chapters/${restrictedChapterId}`, json('GET', undefined, readerToken))).status).toBe(403)
     expect((await req('/api/content-policy/refresh', json('POST', {}, readerToken))).status).toBe(403)
   })
@@ -283,7 +336,10 @@ describe('限制级内容服务端访问闭环', () => {
     const cookie = cookiePair(unlock)
     const otherToken = await createSession(t.db, userId, 'second-device', loadConfig().sessionHashSalt)
     expect((await req(`/api/chapters/${restrictedChapterId}`, json('GET', undefined, otherToken, cookie))).status).toBe(403)
-    await t.db.query("INSERT INTO novel_covers(novel_id,data,content_type,source,updated_at) VALUES ($1,$2,'image/png','fixture',1)", [restrictedId, Buffer.from([1, 2, 3])])
+    await t.db.query("INSERT INTO novel_covers(novel_id,data,content_type,source,updated_at) VALUES ($1,$2,'image/png','fixture',1)", [
+      restrictedId,
+      Buffer.from([1, 2, 3]),
+    ])
     const cover = await req(`/api/cover/${restrictedId}`, json('GET', undefined, undefined, cookie))
     expect(cover.status).toBe(200)
     expect(cover.headers.get('cache-control')).toContain('no-store')
@@ -304,7 +360,14 @@ describe('限制级内容服务端访问闭环', () => {
     const { rows } = await t.db.query<{ id: string }>("SELECT id FROM users WHERE username='access-reader'")
     readerToken = await createSession(t.db, rows[0]!.id, 'bookmark-device', loadConfig().sessionHashSalt)
     expect((await req('/api/content-policy/unlock', json('POST', { confirmed: true, turnstileToken: 'valid-bookmarks' }, readerToken))).status).toBe(200)
-    expect((await req('/api/bookmarks', json('PUT', { bookmarks: [{ novelId: restrictedId, chapterId: restrictedChapterId, novelTitle: '伪造标题' }] }, readerToken))).status).toBe(200)
+    expect(
+      (
+        await req(
+          '/api/bookmarks',
+          json('PUT', { bookmarks: [{ novelId: restrictedId, chapterId: restrictedChapterId, novelTitle: '伪造标题' }] }, readerToken),
+        )
+      ).status,
+    ).toBe(200)
     const { rows: saved } = await t.db.query<{ novel_title: string }>('SELECT novel_title FROM user_bookmarks WHERE user_id=$1', [rows[0]!.id])
     expect(saved[0]!.novel_title).toBe('受限作品')
     await req('/api/content-policy/lock', json('POST', {}, readerToken))

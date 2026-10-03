@@ -23,7 +23,7 @@ bookshelfRoutes.get('/', requireUser(), async (c) => {
     all<Record<string, unknown>>(
       db,
       `SELECT b.novel_id, b.created_at, b.updated_at,
-              n.title, n.author, n.description, n.status, n.chapter_count, n.remote_chapter_count,
+              n.title, n.author, n.description, n.status, n.chapter_count, n.remote_chapter_count, n.content_rating,
               n.updated_at AS novel_updated_at,
               rp.chapter_id, rp.scroll_percent, rp.updated_at AS progress_updated_at,
               c.title AS chapter_title, c.sort_order AS chapter_order
@@ -39,7 +39,7 @@ bookshelfRoutes.get('/', requireUser(), async (c) => {
     all<Record<string, unknown>>(
       db,
       `SELECT rp.novel_id, rp.chapter_id, rp.scroll_percent, rp.updated_at,
-              n.title AS novel_title, c.title AS chapter_title, c.sort_order AS chapter_order
+              n.title AS novel_title, n.content_rating, c.title AS chapter_title, c.sort_order AS chapter_order
        FROM reading_progress rp
        LEFT JOIN novels n ON n.id = rp.novel_id
        LEFT JOIN chapters c ON c.id = rp.chapter_id
@@ -64,15 +64,29 @@ bookshelfRoutes.get('/', requireUser(), async (c) => {
   ])
 
   const [favoritesCount, thoughtsCount] = await Promise.all([
-    first<{ total: number }>(db, `SELECT COUNT(*) AS total FROM user_bookshelf b JOIN novels n ON n.id=b.novel_id WHERE b.user_id=$1${ratingFilter} AND ($2 = '' OR n.id = $2)`, [userId, novelId]),
-    first<{ total: number }>(db, `SELECT COUNT(*) AS total FROM thoughts t JOIN novels n ON n.id=t.novel_id WHERE t.user_id=$1 AND t.status='visible'${ratingFilter}`, [userId]),
+    first<{ total: number }>(
+      db,
+      `SELECT COUNT(*) AS total FROM user_bookshelf b JOIN novels n ON n.id=b.novel_id WHERE b.user_id=$1${ratingFilter} AND ($2 = '' OR n.id = $2)`,
+      [userId, novelId],
+    ),
+    first<{ total: number }>(
+      db,
+      `SELECT COUNT(*) AS total FROM thoughts t JOIN novels n ON n.id=t.novel_id WHERE t.user_id=$1 AND t.status='visible'${ratingFilter}`,
+      [userId],
+    ),
   ])
-  return c.json({
-    totals: { favorites: Number(favoritesCount?.total) || 0, thoughts: Number(thoughtsCount?.total) || 0 }, limit, offset,
-    favorites: favRows.map(rowToFavorite).filter(Boolean),
-    recent: recentRows.map(rowToRecent).filter(Boolean),
-    thoughts: thoughtRows.map(rowToThoughtAdmin).filter(Boolean),
-  }, 200, contentPolicyHeaders())
+  return c.json(
+    {
+      totals: { favorites: Number(favoritesCount?.total) || 0, thoughts: Number(thoughtsCount?.total) || 0 },
+      limit,
+      offset,
+      favorites: favRows.map(rowToFavorite).filter(Boolean),
+      recent: recentRows.map(rowToRecent).filter(Boolean),
+      thoughts: thoughtRows.map(rowToThoughtAdmin).filter(Boolean),
+    },
+    200,
+    contentPolicyHeaders(),
+  )
 })
 
 bookshelfRoutes.post('/', requireUser(), async (c) => {
@@ -113,6 +127,7 @@ function rowToFavorite(row: Record<string, unknown>) {
     author: String(row.author || ''),
     description: String(row.description || ''),
     status: String(row.status || 'ongoing'),
+    contentRating: String(row.content_rating || 'unknown'),
     chapterCount: Number(row.chapter_count) || 0,
     remoteChapterCount: Number(row.remote_chapter_count) || 0,
     updatedAt: Number(row.updated_at) || 0,
@@ -129,6 +144,7 @@ function rowToRecent(row: Record<string, unknown>) {
   return {
     novelId: String(row.novel_id),
     novelTitle: String(row.novel_title || ''),
+    contentRating: String(row.content_rating || 'unknown'),
     chapterId: String(row.chapter_id),
     chapterTitle: String(row.chapter_title || ''),
     chapterOrder: Number(row.chapter_order) || 0,
@@ -139,5 +155,7 @@ function rowToRecent(row: Record<string, unknown>) {
 }
 
 function cleanId(value: unknown): string {
-  return String(value || '').trim().slice(0, 80)
+  return String(value || '')
+    .trim()
+    .slice(0, 80)
 }

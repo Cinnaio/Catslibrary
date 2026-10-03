@@ -23,6 +23,7 @@ chaptersRoutes.get('/', optionalUser(), async (c) => {
   const novel = await first<{ id: string; content_rating: string }>(db, 'SELECT id, content_rating FROM novels WHERE id = $1', [novelId])
   if (!novel) return c.json({ error: 'Novel not found' }, 404)
   if (novel.content_rating === 'restricted') {
+    if (c.req.query('contentMode') === 'safe') return restrictedContentResponse(c, 'safe_mode')
     const access = await resolveContentAccess(c)
     if (!access.canViewRestricted) return restrictedContentResponse(c, access.reason)
   }
@@ -74,6 +75,7 @@ chaptersRoutes.get('/:id', optionalUser(), async (c) => {
   )
   if (!row) return c.json({ error: 'Chapter not found' }, 404)
   if (row.content_rating === 'restricted') {
+    if (c.req.query('contentMode') === 'safe') return restrictedContentResponse(c, 'safe_mode')
     const access = await resolveContentAccess(c)
     if (!access.canViewRestricted) return restrictedContentResponse(c, access.reason)
   }
@@ -99,7 +101,14 @@ chaptersRoutes.put('/:id', requireAdmin(), async (c) => {
   if (novelId !== existing.novelId) return c.json({ error: 'Chapter does not belong to this novel' }, 400)
 
   await withTx(db, async (q) => {
-    await q('UPDATE chapters SET title=$1, content=$2, sort_order=$3, word_count=$4, source_url=$5 WHERE id=$6', [title, content, order, wordCount, sourceUrl, id])
+    await q('UPDATE chapters SET title=$1, content=$2, sort_order=$3, word_count=$4, source_url=$5 WHERE id=$6', [
+      title,
+      content,
+      order,
+      wordCount,
+      sourceUrl,
+      id,
+    ])
     await q('UPDATE novels SET updated_at = $1 WHERE id = $2', [now, novelId])
   })
 
@@ -195,9 +204,7 @@ async function createChaptersBatch(c: Context, db: ReturnType<typeof getDb>, nov
 
 async function deleteChaptersBatch(c: Context, db: ReturnType<typeof getDb>, body: any) {
   const novelId = String(body.novelId || '').trim()
-  const ids: string[] = Array.isArray(body.chapterIds)
-    ? Array.from(new Set(body.chapterIds.map((id: unknown) => String(id || '').trim()).filter(Boolean)))
-    : []
+  const ids: string[] = Array.isArray(body.chapterIds) ? Array.from(new Set(body.chapterIds.map((id: unknown) => String(id || '').trim()).filter(Boolean))) : []
   if (!novelId || !ids.length) return c.json({ error: 'novelId and chapterIds are required' }, 400)
   const operationKey = idempotencyKeyFromRequest(c, body, ['operationId'])
   return withIdempotency(
