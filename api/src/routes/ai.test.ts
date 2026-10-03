@@ -1509,13 +1509,16 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
   })
 
   it('catchupEnabled 独立于 recapEnabled：关闭后 catchup 403，recap 不受影响', async () => {
+    const novel = await req('/api/novels', json('POST', { title: '回顾开关测试作品', author: '作者', contentRating: 'general' }, adminToken))
+    expect(novel.status).toBe(201)
+    const novelId = (await jsonOf<{ novel: { id: string } }>(novel)).novel.id
     await req('/api/ai/settings', json('PUT', { catchupEnabled: false }, adminToken))
     try {
       const status = await jsonOf<{ features: { recap: boolean; catchup: boolean } }>(await req('/api/ai/status', json('GET', undefined, readerToken)))
       expect(status.features.recap).toBe(true)
       expect(status.features.catchup).toBe(false)
 
-      const res = await req('/api/ai/catchup', json('POST', { novelId: 'whatever' }, readerToken))
+      const res = await req('/api/ai/catchup', json('POST', { novelId }, readerToken))
       expect(res.status).toBe(403)
       expect((await jsonOf<{ code: string }>(res)).code).toBe('disabled')
     } finally {
