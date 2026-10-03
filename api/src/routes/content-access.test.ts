@@ -246,6 +246,52 @@ describe('限制级内容服务端访问闭环', () => {
     expect((await req('/api/content-policy/refresh', json('POST', undefined, readerToken))).status).toBe(200)
   })
 
+  it('账号内容模式跨设备共享，但恢复状态只认可当前会话授权', async () => {
+    expect((await req('/api/content-policy/status')).status).toBe(401)
+    const { rows } = await t.db.query<{ id: string }>("SELECT id FROM users WHERE username='access-reader'")
+    const otherToken = await createSession(t.db, rows[0]!.id, 'status-other-device', loadConfig().sessionHashSalt)
+    type Status = { contentMode: string; sessionAuthorized: boolean; expiresIn: number }
+    const current = await req('/api/content-policy/status', json('GET', undefined, readerToken))
+    expect(current.status).toBe(200)
+    expect(current.headers.get('cache-control')).toContain('no-store')
+    const currentBody = await jsonOf<Status>(current)
+    expect(currentBody).toMatchObject({ contentMode: 'adult', sessionAuthorized: true })
+    expect(currentBody.expiresIn).toBeGreaterThan(0)
+    expect(currentBody.expiresIn).toBeLessThanOrEqual(86400)
+    expect(await jsonOf<Status>(await req('/api/content-policy/status', json('GET', undefined, otherToken)))).toMatchObject({
+      contentMode: 'adult',
+      sessionAuthorized: false,
+      expiresIn: 0,
+    })
+    // 管理员的后台权限不等于阅读模式已经开启。
+    expect(await jsonOf<Status>(await req('/api/content-policy/status', json('GET', undefined, adminToken)))).toMatchObject({
+      contentMode: 'safe',
+      sessionAuthorized: false,
+      expiresIn: 0,
+    })
+    vi.stubEnv('TURNSTILE_SECRET_KEY', '')
+    expect(await jsonOf<Status>(await req('/api/content-policy/status', json('GET', undefined, readerToken)))).toMatchObject({
+      contentMode: 'adult',
+      sessionAuthorized: false,
+      expiresIn: 0,
+    })
+    vi.stubEnv('TURNSTILE_SECRET_KEY', 'fixture-secret')
+    await t.db.query('UPDATE user_sessions SET adult_access_until=1 WHERE user_id=$1', [rows[0]!.id])
+    expect(await jsonOf<Status>(await req('/api/content-policy/status', json('GET', undefined, readerToken)))).toMatchObject({
+      contentMode: 'adult',
+      sessionAuthorized: false,
+      expiresIn: 0,
+    })
+    expect((await req('/api/content-policy/lock', json('POST', undefined, otherToken))).status).toBe(200)
+    for (const token of [readerToken, otherToken]) {
+      expect(await jsonOf<Status>(await req('/api/content-policy/status', json('GET', undefined, token)))).toMatchObject({
+        contentMode: 'safe',
+        sessionAuthorized: false,
+        expiresIn: 0,
+      })
+    }
+  })
+
   it('全站关闭时即使持有旧凭证也不能读取限制级内容，管理员仍可在后台查看', async () => {
     const unlock = await req('/api/content-policy/unlock', json('POST', { confirmed: true, turnstileToken: 'valid-disabled' }, readerToken))
     const cookie = cookiePair(unlock)
