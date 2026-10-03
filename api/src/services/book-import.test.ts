@@ -160,6 +160,50 @@ describe('book import normalization and diffing', () => {
     expect(book.chapters[0]?.content).toContain('第一回体验性爱')
   })
 
+  it('splits bare-number headings written without a space', () => {
+    // 真实导出：前 31 章是「第0031章 标题」，之后切换成紧贴写法「32标题」「0080标题」。
+    // 早期裸数字规则要求数字后必须有空格，导致整份文件只切出 45 章（真实 90 章）。
+    const text = [
+      '第0031章\t「哥哥是我的。」',
+      '正文甲。',
+      '32她才不想要呢……【400珠加更】',
+      '正文乙。',
+      '0080一个小调查',
+      '正文丙。',
+    ].join('\n')
+    const book = helpers.parseTextImport(text, '紧贴裸数字.txt')
+
+    expect(book.chapters.map((chapter) => chapter.title)).toEqual([
+      '第0031章\t「哥哥是我的。」',
+      '32 她才不想要呢……【400珠加更】',
+      '0080 一个小调查',
+    ])
+    expect(book.chapters.every((chapter) => chapter.content.trim().length > 0)).toBe(true)
+  })
+
+  it('does not split tight prose that starts with a number', () => {
+    // 「69是什么，她之前其实没有听过。」以数字紧贴中文开头，长度与句读都不满足标题约束。
+    const book = helpers.parseTextImport(
+      ['第0001章 起', '正文甲。', '69是什么，她之前其实没有听过。', '正文乙。'].join('\n'),
+      '紧贴正文.txt',
+    )
+
+    expect(book.chapters).toHaveLength(1)
+    expect(book.chapters[0]?.content).toContain('69是什么，她之前其实没有听过。')
+  })
+
+  it('does not split a year or large number at line start', () => {
+    // 四位以上数字（年份/珠数）不参与裸数字切分。
+    const book = helpers.parseTextImport(
+      ['第0001章 起', '正文甲。', '2016年发布的番外，与正文无关。', '1200珠加更已补齐。'].join('\n'),
+      '年份.txt',
+    )
+
+    expect(book.chapters).toHaveLength(1)
+    expect(book.chapters[0]?.content).toContain('2016年发布')
+    expect(book.chapters[0]?.content).toContain('1200珠加更')
+  })
+
   it('keeps a chapter whose in-body heading is misnumbered', () => {
     // 原文编号错位：`第0003章` 的正文首行写的是「第四章」，而真正的 `第0004章` 在其后。
     // 权威标题必须自成一章，否则第 3 章会被整章吞掉。

@@ -40,38 +40,78 @@ const CHAPTER_HEADING_TEXT = '(?:第\\s*[0-9０-９零〇一二三四五六七�
 const CHAPTER_HEADING = new RegExp(`^\\s*(${CHAPTER_HEADING_TEXT}(?:\\s*.*)?)\\s*$`, 'i')
 
 /**
- * 裸数字标题：`0073 我们做夫妻也是可以的`、`32 她才不想要呢……`。
- * 同一份站点导出里常与「第0073章 标题」混用（本站几十章后切换了写法），
- * 只认「第NNN章」会让中间几十章整段丢失。要求数字后必须有空白与标题文字，
- * 且数字≤4位，避免把「2016年」这类正文年份切成分章。
+ * 行首不可见字符：站点导出常把零宽空格 U+2061（函数应用符）、U+FEFF 等
+ * 混进标题行开头，如 `⁡ 0083 和哥哥同居啦！`。不剥离会让整行识别失败。
  */
-const BARE_NUMBER_HEADING = /^\s*([0-9０-９]{1,4})\s+(\S[^\n]*?)\s*$/
+const LEADING_INVISIBLE = /^[\u200B-\u200F\u2060-\u206F\uFEFF]+/
+
+/**
+ * 裸数字标题（编号后有空白）：`0073 我们做夫妻也是可以的`、`32 她才不想要呢……`。
+ * 同一份站点导出里常与「第0073章 标题」混用（本站几十章后切换了写法），
+ * 只认「第NNN章」会让中间几十章整段丢失（实测一份 90 章的文件因此只剩 45 章）。
+ * 无空白的紧贴写法由 BARE_NUMBER_TIGHT 兜底。
+ */
+const BARE_NUMBER_HEADING = /^\s*([0-9０-９]{1,4})(?:[ \t\u3000]+)(\S[^\n]*?)\s*$/
 
 const MAX_CHAPTER_TITLE_LENGTH = 40
 const SENTENCE_ENDING = /[。！？；…]$/
-const MAX_BARE_TITLE_LENGTH = 36
+/**
+ * 裸数字标题的长度上限。真实章名可达 35 字左右
+ * （「0079在哥哥注视下骑乘吃他肉棒，最后被他从下面撞击，被肏哭肏喷（高h）【2900珠加更】」），
+ * 而正文长句普遍更长，故取 48 作分界。
+ */
+const MAX_BARE_TITLE_LENGTH = 48
+/**
+ * 裸数字标题的编号上限（含）。中文网文单本极少超过 999 章；
+ * 而正文里的年份（2016）≥ 1000，会被这条挡掉。
+ */
+const MAX_BARE_NUMBER = 999
+/**
+ * 紧贴写法（`32标题`、`0083和哥哥同居啦`）的编号上限。三位数字紧贴中文的正文串
+ * （「1200珠加更」「365天」）风险较高，故仅认 1-4 位、首字非数字、且后续非空白。
+ * 四位年份（2016年……）由编号上限与句读否决共同挡掉。
+ */
+const BARE_NUMBER_TIGHT = /^\s*([0-9０-９]{1,4})([^\s0-9０-９][^\n]*?)\s*$/u
 
 /**
  * 判断一行是否为可用的章节标题行。
  * 返回标题原文（已去首尾空白），非标题返回 null。
  */
 export function isChapterHeadingLine(line: string): string | null {
-  const raw = String(line || '')
+  // 先剥掉行首零宽字符，否则 `⁡ 0083 和哥哥同居啦！` 这类行会整行漏判。
+  const raw = String(line || '').replace(LEADING_INVISIBLE, '')
   const match = raw.match(CHAPTER_HEADING)
   if (match) {
     const title = match[1]!.trim()
     if (title.length <= MAX_CHAPTER_TITLE_LENGTH && !SENTENCE_ENDING.test(title)) return title
     return null
   }
-  // 裸数字标题：`0073 我们做夫妻也是可以的【2500珠加更】`
+  // 裸数字标题：`0073 我们做夫妻也是可以的【2500珠加更】`（编号后有空白）
   const bare = raw.match(BARE_NUMBER_HEADING)
   if (bare) {
+    // 保留原始编号字符串（含前导零）：`003 我们走吧` 归一成 `3` 会丢掉站点导出的位宽，
+    // 也让「按编号对齐」在跨版本比对时认不出同一章。
+    const digits = bare[1]!.normalize('NFKC')
+    const number = Number(digits)
     const body = bare[2]!
-    // 只靠长度收窄：真实章节名常含逗号（「手交，被哥哥射在手里（微h）」），
-    // 用标点过滤会误杀大量合法标题，而正文长句几乎都超过 36 字。
+    if (Number.isFinite(number) && number > MAX_BARE_NUMBER) return null
     if (body.length > MAX_BARE_TITLE_LENGTH) return null
+    // 编号后有显式空白时，句读不参与否决：作者会把公告类章名写成
+    // 「81 晚点更新。顺便安利篇很香的兄妹骨。」，带句号仍是标题。
+    // 真正需要挡掉的是超长正文，已由长度上限覆盖。
+    return `${digits} ${body}`.trim()
+  }
+  // 紧贴写法：`32她才不想要呢……【400珠加更】`、`0083和哥哥同居啦！`——编号与正文之间无空白。
+  const tight = raw.match(BARE_NUMBER_TIGHT)
+  if (tight) {
+    const digits = tight[1]!.normalize('NFKC')
+    const number = Number(digits)
+    const body = tight[2]!
+    if (number > MAX_BARE_NUMBER) return null
+    if (body.length > MAX_BARE_TITLE_LENGTH) return null
+    // 无分隔符时风险更高，句读仍作否决：「69是什么，她之前其实没有听过。」是正文。
     if (SENTENCE_ENDING.test(body)) return null
-    return `${bare[1]!.normalize('NFKC')} ${body}`.trim()
+    return `${digits} ${body}`.trim()
   }
   return null
 }
@@ -349,10 +389,13 @@ export function parseTextImport(input: string, fileName = '未命名.txt'): Book
       // 卷标题里的章节号优先，用它判断「第三卷 第四十九章 反击」是否等于已有的第 49 章。
       const embedded = title.match(EMBEDDED_VOLUME_CHAPTER)
       const embeddedKey = embedded ? importChapterKey(title.slice(embedded.index!)) : ''
-      // 完整章级标题（第0003章 / 0032）是权威章节边界，永远自己开一章：
+      // 完整章级标题（第0003章 / 0032 / 32标题）是权威章节边界，永远自己开一章：
       // 这份导出里「第0003章」标题后面正文开头写的是「第四章」（原文编号本身错位），
       // 若让它归并进已有的第 4 章，就会整章丢失。
-      const authoritative = /^第\s*[0-9０-９]+\s*[章节回]/u.test(title) || /^[0-9０-９]{1,4}\s/u.test(title)
+      const authoritative =
+        /^第\s*[0-9０-９]+\s*[章节回]/u.test(title) ||
+        /^[0-9０-９]{1,4}\s/u.test(title) ||
+        /^[0-9０-９]{1,3}[^\s0-9０-９]/u.test(title)
       // 非权威标题（「第一章」「第九章」）只在「当前章节是权威标题开出来、且尚未见到正文」
       // 时才算重抄的标题副本——这是「第0001章 标题 / 第一章 / 正文」这种两层写法。
       // 若当前章节已经有正文，或本文件根本不用「第NNN章」（纯「第一章 标题」的常见格式），
@@ -379,7 +422,101 @@ export function parseTextImport(input: string, fileName = '未命名.txt'): Book
   const kept = chapters.filter((chapter) => chapter.content.trim() || !importChapterKey(chapter.title))
   const payloadChapters = kept.length ? kept : chapters
   if (!payloadChapters.length) payloadChapters.push({ title: '正文', order: 1, content: String(input || '').trim() })
-  return normalizeImportPayload({ title: fileStem(fileName) || '未命名作品', author: '未知作者', chapters: payloadChapters })
+
+  // 头部元信息块（`书名：X` / `作者：X` / `简介：X`）。站点导出的 TXT 把书名、作者、
+  // 分类、简介写在首个章节标题之前，若不管它，这段会被切成一个名为「正文」的伪章，
+  // 并让「书名」退回文件名。这里提取元数据，并把该块从正文中剔除。
+  const meta = parseTextImportMeta(lines, payloadChapters)
+  // 元信息被摘掉后可能留下空壳的「正文」兜底章——它由「首个章节标题之前出现正文行」开出，
+  // 本身既非编号章节也无内容，必须丢弃，否则预览里会多出一条幽灵章节。
+  const cleaned = payloadChapters.filter((chapter) => chapter.content.trim() || (chapter.title !== '正文' && importChapterKey(chapter.title)))
+  const finalChapters = cleaned.length ? cleaned : payloadChapters
+  finalChapters.forEach((chapter, index) => { chapter.order = index + 1 })
+
+  return normalizeImportPayload({
+    title: meta.title || fileStem(fileName) || '未命名作品',
+    author: meta.author || '未知作者',
+    description: meta.description,
+    chapters: finalChapters,
+  })
+}
+
+/** 头部元信息块允许出现的字段前缀；命中即是元信息而非正文。 */
+const TEXT_META_LINE = /^\s*(书名|作品名|标题|作者|作\s*者|简介|内容简介|文案|分类|标签|状态|字数|来源|出处|更新)\s*[:：]\s*(.*)$/
+
+/**
+ * 解析 TXT 头部的元信息块。
+ *
+ * 该块位于第一个章节标题之前，形如：
+ *   书名：和哥哥在乱交世界里假装do爱
+ *   作者：归雾
+ *   分类：簡體版 骨科 高H 1V1
+ *   简介：谢溪16岁才回到谢家……
+ *   哥哥不喜欢她，甚至有些讨厌她。   ← 简介的续行
+ * 简介可跨多行，直到遇到空行、字段行或首个章节标题为止。
+ *
+ * 副作用：把已消费的元信息行从章节正文中移除，避免生成「正文」伪章。
+ */
+function parseTextImportMeta(lines: string[], chapters: BookImportChapterInput[]): { title?: string; author?: string; description?: string } {
+  const meta: { title?: string; author?: string; description?: string } = {}
+  const consume = new Set<number>()
+  let sawMeta = false
+  let descriptionOpen = false
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!
+    // 章节标题之前的行才可能是元信息；一旦出现标题就停止。
+    if (isChapterHeadingLine(line)) break
+    const trimmed = line.trim()
+    if (!trimmed) {
+      // 空行结束简介续行；但整块尚未开始时只是普通前导空行。
+      descriptionOpen = false
+      continue
+    }
+    const field = trimmed.match(TEXT_META_LINE)
+    if (field) {
+      sawMeta = true
+      consume.add(i)
+      const key = field[1]!.replace(/\s/g, '')
+      const value = field[2]!.trim()
+      if (key === '书名' || key === '作品名' || key === '标题') {
+        if (value && !meta.title) meta.title = value
+      } else if (key === '作者') {
+        if (value && !meta.author) meta.author = value
+      } else if (key === '简介' || key === '内容简介' || key === '文案') {
+        descriptionOpen = true
+        if (value) meta.description = value
+      }
+      continue
+    }
+    // 简介续行：紧跟「简介：」之后、且未遇空行的普通文本行。
+    if (descriptionOpen) {
+      consume.add(i)
+      meta.description = meta.description ? `${meta.description}\n${trimmed}` : trimmed
+      continue
+    }
+    // 元信息块开始后、遇到无法识别的行：说明块已结束，交回正文处理。
+    if (sawMeta) break
+  }
+
+  if (!consume.size) return meta
+
+  // 把已消费的行从章节正文里去掉。元信息只会出现在首章正文开头。
+  const consumedLines = new Set<string>()
+  for (const index of consume) consumedLines.add(lines[index]!.trim())
+  for (const chapter of chapters) {
+    const keptLines = chapter.content
+      .split('\n')
+      .filter((line) => {
+        const t = line.trim()
+        if (!t) return true
+        if (consumedLines.has(t)) return false
+        return !TEXT_META_LINE.test(t)
+      })
+    chapter.content = keptLines.join('\n').replace(/^\n+/, '')
+  }
+
+  return meta
 }
 
 function xmlText(xml: string, tag: string): string {
