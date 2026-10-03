@@ -1771,7 +1771,8 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     const afterBlockedChapters = await t.db.query<{ count: number }>('SELECT COUNT(*)::int AS count FROM chapters WHERE novel_id = $1', [novelId])
     expect(Number(afterBlockedChapters.rows[0]?.count)).toBe(Number(before.rows[0]?.count))
 
-    const converted = await req(`/api/novels/${novelId}`, json('PUT', { contentRating: 'restricted' }, adminToken))
+    const currentRevision = (await jsonOf<{ novel: { contentRatingRevision: number } }>(await req(`/api/novels/${novelId}`, json('GET', undefined, adminToken)))).novel.contentRatingRevision
+    const converted = await req(`/api/novels/${novelId}`, json('PUT', { contentRating: 'restricted', contentRatingRevision: currentRevision }, adminToken))
     expect(converted.status).toBe(200)
     expect((await jsonOf<{ novel: { contentRating: string } }>(converted)).novel.contentRating).toBe('restricted')
 

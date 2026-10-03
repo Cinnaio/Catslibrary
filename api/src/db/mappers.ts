@@ -37,6 +37,7 @@ export interface Novel {
   categories: string[]
   status: string
   contentRating: ContentRating
+  contentRatingRevision?: number
   sourceUrl: string
   chapterCount: number
   remoteChapterCount: number
@@ -123,6 +124,7 @@ export function rowToNovel(row: NovelRow | undefined | null): Novel | null {
     categories: safeJsonParse(row.categories, []),
     status: row.status,
     contentRating: toContentRating(row.content_rating),
+    contentRatingRevision: Number(row.content_rating_revision) || 0,
     sourceUrl: row.source_url,
     chapterCount: row.chapter_count,
     remoteChapterCount: row.remote_chapter_count || 0,

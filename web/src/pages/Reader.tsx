@@ -7,7 +7,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Search, X } from 'lucide-react'
 import type { ChapterFull, ChapterMeta, Thought } from '@shared/types'
-import { chaptersApi, isRestrictedContentError, novelsApi, thoughtsApi } from '../lib/api'
+import { chaptersApi, isRestrictedContentError, novelsApi, thoughtsApi, progressApi } from '../lib/api'
+import { applyProgressState } from '../lib/progress-state'
 import { getNovelHistory, getStorageScope, saveHistory } from '../lib/storage'
 import { useBookmarks } from '../hooks/useBookmarks'
 import {
@@ -382,7 +383,7 @@ export default function Reader() {
     queueProgress(nid, chapter.id, pct)
   }, [chapter, novelId, novel, pageMode, queueProgress, user, sessionLoading])
 
-  const restoreScrollPosition = useCallback(() => {
+  const restoreScrollPosition = useCallback((isCurrent: () => boolean = () => true) => {
     if (!chapter) return
     const scope = getStorageScope()
     const nid = chapter.novelId || novelId
@@ -402,7 +403,7 @@ export default function Reader() {
     }
     return new Promise<void>((resolve) => {
       requestAnimationFrame(() => {
-        if (scope !== getStorageScope()) { resolve(); return }
+        if (!isCurrent() || scope !== getStorageScope()) { resolve(); return }
         if (pageMode && (savedPageMode || scrollPct > 0)) {
           const total = calcTotalPages()
           totalPagesRef.current = total
@@ -585,7 +586,20 @@ export default function Reader() {
   useEffect(() => {
     hasRestoredRef.current = false
     if (!chapter || sessionLoading) return
-    void restoreScrollPosition()
+    let cancelled = false
+    const scope = getStorageScope()
+    async function restore() {
+      if (user) {
+        try {
+          const state = await progressApi.get(chapter!.novelId || novelId)
+          if (cancelled || scope !== getStorageScope()) return
+          applyProgressState(chapter!.novelId || novelId, state, { novelTitle: novel?.title || '', chapterTitle: state.progress?.chapterId === chapter!.id ? chapter!.title : '' })
+        } catch { /* 云端不可用时保留本机位置。 */ }
+      }
+      if (!cancelled && scope === getStorageScope()) void restoreScrollPosition(() => !cancelled)
+    }
+    void restore()
+    return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chapter?.id, user?.id, sessionLoading])
 

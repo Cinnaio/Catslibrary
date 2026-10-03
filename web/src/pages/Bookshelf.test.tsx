@@ -1,18 +1,38 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, expect, it, vi } from 'vitest'
-const mocks = vi.hoisted(() => ({ list: vi.fn(), replace: vi.fn(), shelf: vi.fn(), add: vi.fn(), remove: vi.fn(), recent: vi.fn(), toast: vi.fn(), user: { id: 'a' } }))
-vi.mock('../lib/api', () => ({ url: (p: string) => p, getToken: () => sessionStorage.getItem('user_session_token') || '', bookmarksApi: { list: mocks.list, replace: mocks.replace }, bookshelfApi: { get: mocks.shelf, add: mocks.add, remove: mocks.remove }, progressApi: { recent: mocks.recent } }))
+const mocks = vi.hoisted(() => ({ list: vi.fn(), replace: vi.fn(), shelf: vi.fn(), add: vi.fn(), remove: vi.fn(), recent: vi.fn(), removeProgress: vi.fn(), toast: vi.fn(), user: { id: 'a' } }))
+vi.mock('../lib/api', () => ({ url: (p: string) => p, getToken: () => sessionStorage.getItem('user_session_token') || '', bookmarksApi: { list: mocks.list, replace: mocks.replace }, bookshelfApi: { get: mocks.shelf, add: mocks.add, remove: mocks.remove }, progressApi: { recent: mocks.recent, remove: mocks.removeProgress } }))
 vi.mock('../context/SessionContext', () => ({ useSession: () => ({ user: mocks.user, loading: false }) }))
 vi.mock('../components/feedback', () => ({ useToast: () => ({ toast: mocks.toast }) }))
 import Bookshelf from './Bookshelf'
-import { addBookmark, addToBookshelf, getAllBookmarks, getBookshelf, setStorageUser } from '../lib/storage'
+import { addBookmark, addToBookshelf, getAllBookmarks, getBookshelf, getNovelHistory, saveHistory, setStorageUser } from '../lib/storage'
 beforeEach(() => {
   vi.clearAllMocks(); localStorage.clear(); sessionStorage.clear()
   sessionStorage.setItem('user_session_token', 'a'); setStorageUser('a')
   mocks.list.mockResolvedValue({ bookmarks: [] })
   mocks.shelf.mockResolvedValue({ favorites: [], thoughts: [] })
   mocks.recent.mockResolvedValue({ progress: [], tombstones: [] })
+})
+it('进度删除失败保留本机记录，不能提示删除成功', async () => {
+  saveHistory('n', { novelTitle: '阅读中的书', chapterId: 'c', timestamp: 100 })
+  mocks.removeProgress.mockRejectedValueOnce(new Error('offline'))
+  render(<MemoryRouter><Bookshelf /></MemoryRouter>)
+  await screen.findByText(/上次同步/)
+  fireEvent.click(screen.getByRole('button', { name: /最近阅读/ }))
+  fireEvent.click(screen.getByRole('button', { name: '清除记录' }))
+  await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith('删除阅读记录失败：offline', 'error'))
+  expect(getNovelHistory('n')?.chapterId).toBe('c')
+})
+it('旧删除请求被服务端跳过时接纳较新位置，保留阅读记录', async () => {
+  saveHistory('n', { novelTitle: '阅读中的书', chapterId: 'old', timestamp: 100 })
+  mocks.removeProgress.mockResolvedValueOnce({ success: true, skipped: true, progress: { novelId: 'n', chapterId: 'new', scrollPercent: .8, updatedAt: 200 }, tombstone: null })
+  render(<MemoryRouter><Bookshelf /></MemoryRouter>)
+  await screen.findByText(/上次同步/)
+  fireEvent.click(screen.getByRole('button', { name: /最近阅读/ }))
+  fireEvent.click(screen.getByRole('button', { name: '清除记录' }))
+  await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith('阅读位置已更新，保留较新的记录', 'default'))
+  expect(getNovelHistory('n')).toMatchObject({ chapterId: 'new', scrollPercent: .8 })
 })
 it('打开或手动同步书架只读云端，不回传旧设备收藏或复活书签', async () => {
   addBookmark('old', '旧书签', 'c', '', 1)

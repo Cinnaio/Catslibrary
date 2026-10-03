@@ -7,6 +7,7 @@ import type { Db } from '../../db/pool'
 import { first } from '../../db/query'
 import { chat, isTextAiConfigured, providerLabel, textProvider, AiError } from './client'
 import { cacheKey, findPublished, saveGeneration, type Generation } from './generations'
+import { createHash } from 'node:crypto'
 import { DEFAULT_AI_SETTINGS, getAiSettings } from './settings'
 import { recordUsage } from './usage'
 import { usageAuditFields } from './upstream-usage'
@@ -78,7 +79,9 @@ export interface RecapOptions {
  * 因此调用方应当先查缓存再决定是否校验配额（见 routes/ai.ts）。
  */
 export async function getCachedRecap(db: Db, chapterId: string, model: string): Promise<Generation | undefined> {
-  return findPublished(db, 'summary', chapterId, await recapParams(db, model))
+  const chapter = await loadChapterForRecap(db, chapterId)
+  if (!chapter) return undefined
+  return findPublished(db, 'summary', chapterId, await recapParams(db, model, chapter.content))
 }
 
 /** 进程内 in-flight 去重：同一章同时只有一个真实上游调用，其余请求复用其 promise。 */
@@ -87,7 +90,7 @@ const inflight = new Map<string, Promise<RecapResult>>()
 export async function generateRecap(db: Db, opts: RecapOptions): Promise<RecapResult> {
   if (!isTextAiConfigured()) throw new AiError('disabled', 'AI 文本服务未配置', 503)
 
-  const key = opts.chapter.id
+  const key = opts.chapter.id + ':' + createHash('sha256').update(opts.chapter.content).digest('hex')
   const pending = inflight.get(key)
   if (pending) return pending
 
@@ -133,7 +136,7 @@ async function runGenerateRecap(db: Db, opts: RecapOptions): Promise<RecapResult
     kind: 'summary',
     model: res.model,
     // 缓存键用配置模型名而非上游回显模型名，避免同一配置因回显差异反复未命中
-    paramsJson: await recapParams(db, provider.model),
+    paramsJson: await recapParams(db, provider.model, opts.chapter.content),
     prompt: userPrompt,
     result: res.text,
     // 提要面向读者即时可见，落 published；管理端可事后驳回使其失效
@@ -167,13 +170,18 @@ async function runGenerateRecap(db: Db, opts: RecapOptions): Promise<RecapResult
  * 前情提要缓存键。管理员自定义过系统提示词时把提示词指纹纳入键——
  * 改提示词后旧缓存自然失效重算；未自定义时沿用旧键结构，兼容历史缓存。
  */
-export async function recapParams(db: Db, model: string): Promise<string> {
+export async function recapParams(db: Db, model: string, content?: string): Promise<string> {
   const settings = await getAiSettings(db)
   const custom = (settings.recapSystemPrompt || '').trim()
   if (!custom || custom === DEFAULT_AI_SETTINGS.recapSystemPrompt) {
-    return cacheKey({ version: RECAP_PROMPT_VERSION, model: model || '' })
+    return recapContentKey(cacheKey({ version: RECAP_PROMPT_VERSION, model: model || '' }), content)
   }
-  return cacheKey({ version: RECAP_PROMPT_VERSION, model: model || '', prompt: custom })
+  return recapContentKey(cacheKey({ version: RECAP_PROMPT_VERSION, model: model || '', prompt: custom }), content)
+}
+
+export function recapContentKey(params: string, content: string | undefined): string {
+  if (content === undefined) return params
+  return JSON.stringify({ ...JSON.parse(params), contentHash: createHash('sha256').update(content).digest('hex') })
 }
 
 function buildUserPrompt(novelTitle: string, chapter: ChapterRow, text: string): string {

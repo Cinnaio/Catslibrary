@@ -33,6 +33,7 @@ interface Novel {
   title: string
   author: string
   contentRating: string
+  contentRatingRevision: number
   updatedAt: number
 }
 
@@ -97,7 +98,7 @@ describe('小说内容分级字段（方案 B）', () => {
     const before = await jsonOf<{ novel: Novel }>(await req(`/api/novels/${plainId}`, json('GET', undefined, adminToken)))
     const prevUpdatedAt = before.novel.updatedAt
 
-    const put = await req(`/api/novels/${plainId}`, json('PUT', { contentRating: 'restricted' }, adminToken))
+    const put = await req(`/api/novels/${plainId}`, json('PUT', { contentRating: 'restricted', contentRatingRevision: before.novel.contentRatingRevision }, adminToken))
     expect(put.status).toBe(200)
     // 关键断言：响应体必须是新值。漏加该字段时这里是 'unknown'，而界面表现为「点了没反应」。
     expect((await jsonOf<{ novel: Novel }>(put)).novel.contentRating).toBe('restricted')
@@ -246,10 +247,12 @@ describe('小说内容分级字段（方案 B）', () => {
     it('更新未判定书的元数据会补判，人工 general 仍优先', async () => {
       const pending = await req('/api/novels', json('POST', { title: '待判作品', author: 'x', contentRating: 'unknown' }, adminToken))
       const id = (await jsonOf<{ novel: Novel }>(pending)).novel.id
-      const updated = await req(`/api/novels/${id}`, json('PUT', { categories: ['h'], contentRating: 'unknown' }, adminToken))
+      const revision = (await jsonOf<{ novel: Novel }>(await req(`/api/novels/${id}`, json('GET', undefined, adminToken)))).novel.contentRatingRevision
+      const updated = await req(`/api/novels/${id}`, json('PUT', { categories: ['h'], contentRating: 'unknown', contentRatingRevision: revision }, adminToken))
       expect((await jsonOf<{ novel: Novel }>(updated)).novel.contentRating).toBe('restricted')
 
-      const reviewed = await req(`/api/novels/${id}`, json('PUT', { contentRating: 'general' }, adminToken))
+      const newRevision = (await jsonOf<{ novel: Novel }>(await req(`/api/novels/${id}`, json('GET', undefined, adminToken)))).novel.contentRatingRevision
+      const reviewed = await req(`/api/novels/${id}`, json('PUT', { contentRating: 'general', contentRatingRevision: newRevision }, adminToken))
       expect((await jsonOf<{ novel: Novel }>(reviewed)).novel.contentRating).toBe('general')
       const afterMetadataUpdate = await req(`/api/novels/${id}`, json('PUT', { description: '18禁，高H' }, adminToken))
       expect((await jsonOf<{ novel: Novel }>(afterMetadataUpdate)).novel.contentRating).toBe('general')

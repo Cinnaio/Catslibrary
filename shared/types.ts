@@ -18,6 +18,7 @@ export interface Novel {
   categories: string[]
   status: string
   contentRating: ContentRating
+  contentRatingRevision?: number
   sourceUrl: string
   chapterCount: number
   remoteChapterCount: number

@@ -1,6 +1,7 @@
 import { removeAdPatterns } from '@shared/ad-cleaner'
 import type { Db } from '../../db/pool'
-import { all, first } from '../../db/query'
+import { all, first, withTx } from '../../db/query'
+import { newId } from '../auth'
 import { chat, isTextAiConfigured, providerLabel, textProvider, AiError } from './client'
 import { saveGeneration, type Generation, type BatchDraft } from './generations'
 import { recordUsage } from './usage'
@@ -705,15 +706,20 @@ export async function generateWriting(db: Db, opts: {
   const started = await updateAiTask(db, taskId, { status: 'running', step: 'AI 正在生成', prompt: user })
   if (!started) throw new AiError('invalid', '任务已停止')
   const stopHeartbeat = startAiTaskHeartbeat(db, taskId)
+  const usageId = newId('aiuse')
   try {
     const res = await chat({ messages: [{ role: 'system', content: system }, { role: 'user', content: user }], temperature, maxTokens: Math.min(1000000, Math.max(300, maxTokens)), timeoutMs: 600000 })
-    // 旧执行器可能在上游调用期间被回收；不要让它把结果和用量写回已结束任务。
+    // 调用事实独立于任务是否接收产物；取消不能抹掉已经发生的上游用量。
+    await recordUsage(db, { usageId, userId: opts.userId, model: res.model, provider: providerLabel(provider.baseUrl), promptTokens: res.promptTokens, completionTokens: res.completionTokens, ...usageAuditFields(res), costMillicents: res.cost * 100000, novelId: opts.novelId, generationType: opts.kind, ipAddress: opts.ipAddress, userAgent: opts.userAgent })
     if (!(await isAiTaskActive(db, taskId))) throw new AiError('invalid', '任务已停止')
     // 续写/新写章节：解析 AI 输出的首行标题（提示词要求输出标题），标题存入 params_json.draftTitle
     // 供发布时自动填充；正文剥掉标题行后落库，避免标题混入章节正文。
     const parsedTitle = opts.kind === 'continue' || opts.kind === 'write_chapter' ? parseContinuationTitle(res.text) : null
     const resultText = parsedTitle?.title ? parsedTitle.body : res.text
-    const generation = await saveGeneration(db, {
+    const generation = await withTx(db, async q => {
+      const active = await q<{ status: string }>('SELECT status FROM ai_tasks WHERE id=$1 FOR UPDATE', [taskId])
+      if (!['queued', 'running'].includes(active.rows[0]?.status || '')) throw new AiError('invalid', '任务已停止')
+      return saveGeneration({ query: q }, {
       novelId: opts.novelId,
       chapterId: '',
       kind: opts.kind,
@@ -723,9 +729,9 @@ export async function generateWriting(db: Db, opts: {
       result: resultText,
       status: 'draft',
       createdBy: opts.userId,
+      })
     })
     if (!(await isAiTaskActive(db, taskId))) throw new AiError('invalid', '任务已停止')
-    await recordUsage(db, { userId: opts.userId, model: res.model, provider: providerLabel(provider.baseUrl), promptTokens: res.promptTokens, completionTokens: res.completionTokens, ...usageAuditFields(res), costMillicents: res.cost * 100000, novelId: opts.novelId, generationType: opts.kind, ipAddress: opts.ipAddress, userAgent: opts.userAgent })
     if (ownsTask) await updateAiTask(db, taskId, { status: 'completed', current: 1, step: '已完成' })
     return { generation, usage: { model: res.model, promptTokens: res.promptTokens, completionTokens: res.completionTokens } }
   } finally {

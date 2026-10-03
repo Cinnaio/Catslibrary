@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import type { ReadingHistoryEntry, Thought } from '@shared/types'
 import { bookmarksApi, bookshelfApi, getToken, progressApi } from '../lib/api'
+import { applyProgressState } from '../lib/progress-state'
 import {
   clearHistory,
   getAllBookmarks,
@@ -174,16 +175,23 @@ export default function Bookshelf() {
 
   async function deleteRecent(novelId: string) {
     if (!novelId) return
-    clearHistory(novelId)
-    if (getToken()) {
-      try {
-        await progressApi.remove(novelId)
-      } catch {
-        /* ignore */
+    const token = getToken()
+    const scope = getStorageScope()
+    try {
+      if (token) {
+        const state = await progressApi.remove(novelId)
+        if (token !== getToken() || scope !== getStorageScope()) return
+        applyProgressState(novelId, state)
+        setRecent(getRecentHistory(8))
+        toast(state.skipped ? '阅读位置已更新，保留较新的记录' : '阅读记录已删除', state.skipped ? 'default' : 'success')
+      } else {
+        clearHistory(novelId)
+        setRecent(getRecentHistory(8))
+        toast('阅读记录已删除', 'success')
       }
+    } catch (err) {
+      if (token === getToken() && scope === getStorageScope()) toast('删除阅读记录失败：' + (err as Error).message, 'error')
     }
-    setRecent(getRecentHistory(8))
-    toast('阅读记录已删除', 'success')
   }
 
   if (loading) {

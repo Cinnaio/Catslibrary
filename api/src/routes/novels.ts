@@ -202,6 +202,9 @@ novelsRoutes.put('/:id', requireAdmin(), async (c) => {
   const db = getDb()
   const id = c.req.param('id')
   const body = await c.req.json().catch(() => ({}))
+  if (body.contentRating !== undefined && (!Number.isInteger(body.contentRatingRevision) || body.contentRatingRevision < 0)) {
+    return c.json({ error: '修改分级必须携带有效的 contentRatingRevision，请刷新后重试' }, 400)
+  }
   let result: { novel: NonNullable<ReturnType<typeof rowToNovel>>; coverChanged: boolean } | null
   try {
     result = await withTx(db, async (q) => {
@@ -226,8 +229,8 @@ novelsRoutes.put('/:id', requireAdmin(), async (c) => {
       const ruleRating = ruleDecision.rating
       const explicitManualRating = body.contentRating === 'general' || body.contentRating === 'restricted'
       const requestedUnknown = body.contentRating === 'unknown'
-      const nextRating = explicitManualRating ? body.contentRating : existing.contentRating === 'unknown' ? ruleRating : existing.contentRating
-      const ratingSource = explicitManualRating || (requestedUnknown && nextRating === 'unknown') ? 'manual' : 'system'
+      const nextRating = requestedUnknown && existing.contentRating !== 'unknown' ? 'unknown' : explicitManualRating ? body.contentRating : existing.contentRating === 'unknown' ? ruleRating : existing.contentRating
+      const ratingSource = explicitManualRating || requestedUnknown ? 'manual' : 'system'
       const ratingReason = explicitManualRating
         ? String(body.contentRatingReason || '管理员通过小说编辑手动修改内容分级')
         : requestedUnknown && nextRating === 'unknown'

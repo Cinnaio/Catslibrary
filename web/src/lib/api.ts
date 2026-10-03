@@ -394,13 +394,13 @@ export interface ProgressTombstone {
 }
 
 export const progressApi = {
-  get(novelId: string): Promise<{ progress: unknown }> {
+  get(novelId: string): Promise<import('./progress-state').ProgressState> {
     return request('GET', `/progress?novelId=${encodeURIComponent(novelId)}`, null, isAuthenticated())
   },
   recent(limit = 5): Promise<{ progress: RecentProgressItem[]; tombstones: ProgressTombstone[] }> {
     return request('GET', `/progress?recent=1&limit=${encodeURIComponent(limit)}`, null, true)
   },
-  save(data: Record<string, unknown>): Promise<{ ok: boolean }> {
+  save(data: Record<string, unknown>): Promise<import('./progress-state').ProgressState & { success: boolean; skipped?: boolean }> {
     return request('POST', '/progress', data, isAuthenticated())
   },
   // Last-chance write：pagehide/visibilitychange 用 keepalive 让请求越过页面销毁。
@@ -418,7 +418,7 @@ export const progressApi = {
       /* 忽略卸载期异常 */
     }
   },
-  remove(novelId: string): Promise<{ ok: boolean }> {
+  remove(novelId: string): Promise<import('./progress-state').ProgressState & { success: boolean; skipped?: boolean }> {
     return request('DELETE', `/progress?novelId=${encodeURIComponent(novelId)}&clientUpdatedAt=${encodeURIComponent(Date.now())}`, null, true)
   },
 }

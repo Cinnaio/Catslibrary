@@ -391,7 +391,9 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
       coverUrl: draft.coverUrl.trim(),
       categories: parseCategories(draft.categories),
       status: draft.status,
-      contentRating: draft.contentRating,
+      ...(!editing || draft.contentRating !== (editing.contentRating || 'unknown')
+        ? { contentRating: draft.contentRating, ...(editing ? { contentRatingRevision: editing.contentRatingRevision || 0 } : {}) }
+        : {}),
       sourceUrl,
     }
     setSaving(true)

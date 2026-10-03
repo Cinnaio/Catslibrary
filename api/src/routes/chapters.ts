@@ -7,7 +7,6 @@ import { all, first, run, withTx } from '../db/query'
 import { rowToChapterFull, rowToChapterMeta } from '../db/mappers'
 import { newId } from '../services/auth'
 import { simplifyChapterForSource } from '../services/zh-convert'
-import { invalidateChapter } from '../services/ai/generations'
 import { optionalUser, requireAdmin, type AuthEnv } from '../middlewares/auth'
 import { contentPolicyHeaders, restrictedContentResponse, resolveContentAccess } from '../services/content-access'
 import { idempotencyKeyFromRequest, withIdempotency } from '../services/idempotency'
@@ -94,16 +93,14 @@ chaptersRoutes.put('/:id', requireAdmin(), async (c) => {
   const sourceUrl = body.sourceUrl ?? existing.sourceUrl
   const wordCount = content.replace(/<[^>]*>/g, '').length
   const novelId = body.novelId || existing.novelId
+  if (novelId !== existing.novelId) return c.json({ error: 'Chapter does not belong to this novel' }, 400)
 
   await withTx(db, async (q) => {
     await q('UPDATE chapters SET title=$1, content=$2, sort_order=$3, word_count=$4, source_url=$5 WHERE id=$6', [title, content, order, wordCount, sourceUrl, id])
     await q('UPDATE novels SET updated_at = $1 WHERE id = $2', [now, novelId])
   })
 
-  // 正文真的变了才作废提要缓存：只改标题时读者拿到的回顾依然有效
-  if (body.content !== undefined && content !== existing.content) {
-    await invalidateChapter(db, 'summary', id)
-  }
+  // 正文变化时由数据库触发器在同一事务内作废提要；标题更新不作废。
 
   return c.json({ chapter: { id, novelId, title, content, order, wordCount, sourceUrl, createdAt: existing.createdAt } })
 })

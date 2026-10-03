@@ -4,7 +4,7 @@
  * params_json 参与命中判断，因此换模型或改提示词版本会自然失效重算。
  */
 import { createHash } from 'node:crypto'
-import type { Db } from '../../db/pool'
+import type { Db, DbClient } from '../../db/pool'
 import { all, first, run } from '../../db/query'
 import { newId } from '../auth'
 
@@ -86,7 +86,7 @@ export interface SaveGenerationInput {
   createdBy: string
 }
 
-export async function saveGeneration(db: Db, input: SaveGenerationInput): Promise<Generation> {
+export async function saveGeneration(db: DbClient, input: SaveGenerationInput): Promise<Generation> {
   const id = newId('aigen')
   const createdAt = Date.now()
   await run(

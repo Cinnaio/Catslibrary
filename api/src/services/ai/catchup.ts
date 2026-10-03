@@ -8,7 +8,7 @@ import { all, first } from '../../db/query'
 import { chat, isTextAiConfigured, providerLabel, textProvider, AiError } from './client'
 import { findPublished, saveGeneration, type Generation } from './generations'
 import { getAiSettings } from './settings'
-import { recapParams } from './summary'
+import { recapParams, recapContentKey } from './summary'
 import { recordUsage } from './usage'
 import { usageAuditFields } from './upstream-usage'
 
@@ -74,9 +74,9 @@ async function loadProgress(db: Db, userId: string, novelId: string): Promise<Pr
 async function loadCatchupChapters(db: Db, novelId: string, chapterId: string, model: string, candidateCount: number): Promise<CatchupChapter[]> {
   const progressChapter = await first<{ sort_order: number }>(db, 'SELECT sort_order FROM chapters WHERE id = $1', [chapterId])
   if (!progressChapter) return []
-  const candidates = await all<{ id: string; title: string; sort_order: number }>(
+  const candidates = await all<{ id: string; title: string; sort_order: number; content: string }>(
     db,
-    `SELECT id, title, sort_order FROM chapters
+    `SELECT id, title, sort_order, content FROM chapters
      WHERE novel_id = $1 AND sort_order <= $2
      ORDER BY sort_order DESC LIMIT $3`,
     [novelId, progressChapter.sort_order, candidateCount],
@@ -85,7 +85,7 @@ async function loadCatchupChapters(db: Db, novelId: string, chapterId: string, m
   // 缓存键带提示词指纹：管理员自定义过系统提示词时，旧的 summary 缓存不再命中
   const summaryKey = await recapParams(db, model)
   for (const ch of candidates.reverse()) {
-    const g = await findPublished(db, 'summary', ch.id, summaryKey)
+    const g = await findPublished(db, 'summary', ch.id, recapContentKey(summaryKey, ch.content))
     if (g) withSummary.push({ id: ch.id, title: ch.title, sort_order: ch.sort_order, summary: g.result, generationId: g.id })
   }
   return withSummary

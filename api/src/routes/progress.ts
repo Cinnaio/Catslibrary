@@ -34,7 +34,7 @@ function stateResponse(row: ProgressRow | undefined): ProgressState {
   }
 }
 
-function normalizeTimestamp(value: string | undefined): number {
+function normalizeTimestamp(value: unknown): number {
   const now = Date.now()
   let ts = Number(value)
   if (!Number.isFinite(ts) || ts <= 0) ts = now
@@ -64,24 +64,33 @@ progressRoutes.post('/', optionalUser(), async (c) => {
   const userId = c.get('user')?.id
   if (!userId) return c.json({ success: true })
 
-  const updatedAt = Date.now()
+  const chapter = await first(db, 'SELECT id FROM chapters WHERE id=$1 AND novel_id=$2', [chapterId, novelId])
+  if (!chapter) return c.json({ error: 'Chapter not found in this novel' }, 404)
+  const updatedAt = normalizeTimestamp(body.clientUpdatedAt)
+  let saved: ProgressRow | undefined
+  let applied = false
   try {
-    await db.query(
+    const result = await db.query<ProgressRow>(
       `INSERT INTO reading_progress (id, user_id, novel_id, chapter_id, scroll_percent, updated_at, deleted_at)
        VALUES ($1, $2, $3, $4, $5, $6, 0)
        ON CONFLICT (user_id, novel_id) DO UPDATE SET
          chapter_id = EXCLUDED.chapter_id,
          scroll_percent = EXCLUDED.scroll_percent,
          updated_at = EXCLUDED.updated_at,
-         deleted_at = 0`,
+         deleted_at = 0
+       WHERE reading_progress.updated_at < EXCLUDED.updated_at
+       RETURNING ${PROGRESS_COLUMNS}`,
       ['prog_' + userId + '_' + novelId, userId, novelId, chapterId, scrollPercent, updatedAt],
     )
+    saved = result.rows[0]
+    applied = !!saved
   } catch (err) {
     if (isForeignKeyViolation(err)) return c.json({ error: 'Novel not found' }, 404)
     throw err
   }
 
-  return c.json({ success: true, progress: { novelId, chapterId, scrollPercent, updatedAt }, tombstone: null })
+  if (!saved) saved = await first<ProgressRow>(db, `SELECT ${PROGRESS_COLUMNS} FROM reading_progress WHERE user_id=$1 AND novel_id=$2`, [userId, novelId])
+  return c.json({ success: true, skipped: !applied, ...stateResponse(saved) })
 })
 
 progressRoutes.get('/', optionalUser(), async (c) => {
@@ -156,29 +165,27 @@ progressRoutes.delete('/', optionalUser(), async (c) => {
   if (!userId) return c.json({ success: true })
 
   const deletedAt = normalizeTimestamp(c.req.query('clientUpdatedAt'))
-  const existing = await first<ProgressRow>(
-    db,
-    `SELECT ${PROGRESS_COLUMNS} FROM reading_progress WHERE user_id = $1 AND novel_id = $2`,
-    [userId, novelId],
-  )
-  if (existing && Number(existing.updated_at) > deletedAt) {
-    return c.json({ success: true, skipped: true, ...stateResponse(existing) })
-  }
-
+  let saved: ProgressRow | undefined
+  let applied = false
   try {
-    await db.query(
+    const result = await db.query<ProgressRow>(
       `INSERT INTO reading_progress (id, user_id, novel_id, chapter_id, scroll_percent, updated_at, deleted_at)
        VALUES ($1, $2, $3, '', 0, $4, $4)
        ON CONFLICT (user_id, novel_id) DO UPDATE SET
          chapter_id = '', scroll_percent = 0,
-         updated_at = EXCLUDED.updated_at, deleted_at = EXCLUDED.deleted_at`,
+         updated_at = EXCLUDED.updated_at, deleted_at = EXCLUDED.deleted_at
+       WHERE reading_progress.updated_at <= EXCLUDED.updated_at
+       RETURNING ${PROGRESS_COLUMNS}`,
       ['prog_' + userId + '_' + novelId, userId, novelId, deletedAt],
     )
+    saved = result.rows[0]
+    applied = !!saved
   } catch (err) {
     // 目标书不存在时无进度可删，按幂等成功返回（客户端只关心墓碑生效）
     if (isForeignKeyViolation(err)) return c.json({ success: true, progress: null, tombstone: null })
     throw err
   }
 
-  return c.json({ success: true, progress: null, tombstone: { novelId, deletedAt, updatedAt: deletedAt } })
+  if (!saved) saved = await first<ProgressRow>(db, `SELECT ${PROGRESS_COLUMNS} FROM reading_progress WHERE user_id=$1 AND novel_id=$2`, [userId, novelId])
+  return c.json({ success: true, skipped: !applied, ...stateResponse(saved) })
 })

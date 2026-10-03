@@ -839,7 +839,6 @@ export function buildChapterDiff(book: BookImportPayload, local: ChapterRow[]): 
 
 async function findCandidates(db: Db, book: BookImportPayload): Promise<BookImportNovelCandidate[]> {
   const rows = await all<NovelRow>(db, 'SELECT * FROM novels ORDER BY updated_at DESC')
-  const incomingTitle = normalizeImportTitle(book.title)
   const incomingAuthor = matchKey(book.author)
   const incomingSource = safeSourceUrl(book.sourceUrl)
   return rows
@@ -922,6 +921,8 @@ function snapshotNovel(novel: Novel): Record<string, unknown> {
     status: novel.status,
     sourceUrl: novel.sourceUrl,
     updatedAt: novel.updatedAt,
+    contentRating: novel.contentRating,
+    contentRatingRevision: novel.contentRatingRevision || 0,
   }
 }
 
@@ -950,7 +951,9 @@ function sameSnapshotNovel(row: Record<string, unknown> | undefined, after: Reco
     String(row.cover_url || '') === String(after.coverUrl || '') &&
     JSON.stringify(rowCategories) === JSON.stringify(afterCategories) &&
     String(row.status || '') === String(after.status || '') &&
-    String(row.source_url || '') === String(after.sourceUrl || '')
+    String(row.source_url || '') === String(after.sourceUrl || '') &&
+    (after.contentRatingRevision === undefined || Number(row.content_rating_revision || 0) === Number(after.contentRatingRevision)) &&
+    (after.contentRating === undefined || String(row.content_rating) === String(after.contentRating))
   )
 }
 
@@ -1028,7 +1031,7 @@ export async function applyImport(
         ruleVersion: ruleDecision.ruleVersion || '',
         operationId: opts.run.id,
       })
-      currentNovel = { ...createdNovel }
+      currentNovel = rowToNovel((await q<NovelRow>('SELECT * FROM novels WHERE id=$1', [novelId])).rows[0])!
       applied.push({ id: `novel:${novelId}`, kind: 'create-novel', title: createdNovel.title, novelId, before: null, after: snapshotNovel(currentNovel) })
     }
 
@@ -1081,7 +1084,7 @@ export async function applyImport(
       if (fields.has('status')) patch.status = payload.status || 'ongoing'
       if (fields.has('sourceUrl')) patch.sourceUrl = payload.sourceUrl || ''
     }
-    if (currentNovel && Object.keys(patch).length) {
+    if (currentNovel && !novelCreated && Object.keys(patch).length) {
       const before = snapshotNovel(currentNovel)
       const next = { ...currentNovel, ...patch, categories: Array.isArray(patch.categories) ? patch.categories : currentNovel.categories, updatedAt: Date.now() } as Novel
       await q(
@@ -1089,7 +1092,15 @@ export async function applyImport(
         [next.title, next.author, next.description, next.coverUrl, JSON.stringify(next.categories), next.status, next.sourceUrl, novelId, next.updatedAt],
       )
       for (const field of Object.keys(patch)) metadataUpdated.push(field)
-      applied.push({ id: 'metadata', kind: 'metadata', title: currentNovel.title, novelId, before, after: snapshotNovel(next) })
+      if (currentNovel.contentRating === 'unknown') {
+        const ruleSet = await loadContentRatingRuleSet(q)
+        const decision = evaluateContentRatingRules({ title: next.title, description: next.description, categories: next.categories }, ruleSet)
+        await applyContentRatingChange(q, { novelId, rating: decision.rating, source: 'source_import', actorUserId: opts.actorUserId,
+          reason: '导入更新元数据后重新执行分级规则', evidence: decision.evidence, ruleVersion: decision.ruleVersion,
+          operationId: opts.run.id, expectedRevision: currentNovel.contentRatingRevision || 0 })
+      }
+      const after = rowToNovel((await q<NovelRow>('SELECT * FROM novels WHERE id=$1', [novelId])).rows[0])!
+      applied.push({ id: 'metadata', kind: 'metadata', title: currentNovel.title, novelId, before, after: snapshotNovel(after) })
     }
     await q('UPDATE novels SET chapter_count=(SELECT COUNT(*) FROM chapters WHERE novel_id=$1), updated_at=$2 WHERE id=$1', [novelId, Date.now()])
     const status = conflicts.length ? 'partial' : 'applied'
@@ -1107,9 +1118,19 @@ export async function rollbackImport(db: Db, run: StoredImportRun): Promise<Book
     const lockedRun = await q<{ status: string }>('SELECT status FROM book_import_runs WHERE id = $1 FOR UPDATE', [run.id])
     if (!lockedRun.rows.length) throw new Error('导入记录不存在')
     if (!['applied', 'partial'].includes(lockedRun.rows[0]!.status)) throw new Error('这次导入当前不可撤回')
+    // 先保护整本新作品，再处理子项；不能删完章节才发现作品已经被人工审核。
+    const protectedNovels = new Set<string>()
+    for (const change of changes.filter(item => item.kind === 'create-novel')) {
+      const row = await q<Record<string, unknown>>('SELECT * FROM novels WHERE id=$1 FOR UPDATE', [change.novelId])
+      if (row.rows[0] && !sameSnapshotNovel(row.rows[0], change.after)) {
+        protectedNovels.add(change.novelId)
+        conflicts.push({ id: change.id, title: change.title, reason: '新作品已被再次编辑或审核，整本保留' })
+      }
+    }
     for (const change of [...changes].reverse()) {
+      if (protectedNovels.has(change.novelId)) continue
       if (change.kind === 'create-novel') {
-        const novel = await q<Record<string, unknown>>('SELECT id, title, author, description, cover_url, categories, status, source_url FROM novels WHERE id = $1 FOR UPDATE', [change.novelId])
+        const novel = await q<Record<string, unknown>>('SELECT * FROM novels WHERE id = $1 FOR UPDATE', [change.novelId])
         const chapters = await q<Record<string, unknown>>('SELECT id, title, sort_order, content, source_url FROM chapters WHERE novel_id = $1', [change.novelId])
         const untouched = novel.rows.length > 0 && sameSnapshotNovel(novel.rows[0], change.after) && chapters.rows.every((row) => {
           const created = changes.filter((item) => item.kind === 'create-chapter' && item.novelId === change.novelId).find((item) => item.chapterId === row.id)
@@ -1152,6 +1173,10 @@ export async function rollbackImport(db: Db, run: StoredImportRun): Promise<Book
         }
         const before = change.before
         await q('UPDATE novels SET title=$1, author=$2, description=$3, cover_url=$4, categories=$5, status=$6, source_url=$7, updated_at=$8 WHERE id=$9', [before.title, before.author, before.description, before.coverUrl, JSON.stringify(before.categories || []), before.status, before.sourceUrl || '', Date.now(), change.novelId])
+        if (before.contentRating !== undefined && before.contentRating !== row.rows[0]?.content_rating) {
+          await applyContentRatingChange(q, { novelId: change.novelId, rating: before.contentRating as Novel['contentRating'], source: 'source_import', actorUserId: 'system',
+            reason: '撤回导入，恢复原分级', operationId: run.id, expectedRevision: Number(row.rows[0]?.content_rating_revision) || 0 })
+        }
         rolledBack++
       }
     }

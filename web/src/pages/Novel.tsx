@@ -8,7 +8,8 @@ import { ArrowLeft, BookOpen, Star, X } from 'lucide-react'
 import type { ChapterMeta, Comment, Novel, ReadingHistoryEntry } from '@shared/types'
 import { chaptersApi, commentsApi, isRestrictedContentError, novelsApi, progressApi, ratingsApi, url } from '../lib/api'
 import { UserAvatar } from '@/components/ui/user-avatar'
-import { getNovelBookmarks, getNovelHistory } from '../lib/storage'
+import { getNovelBookmarks, getNovelHistory, getStorageScope } from '../lib/storage'
+import { applyProgressState } from '../lib/progress-state'
 import { getDemoNovel } from '../lib/demo'
 import { timeAgo } from '../lib/format'
 import { useSession } from '../context/SessionContext'
@@ -135,7 +136,8 @@ export default function Novel() {
   }, [novel, loading, descExpanded])
 
   const load = useCallback(async () => {
-    const stale = () => activeIdRef.current !== id
+    const scope = getStorageScope()
+    const stale = () => activeIdRef.current !== id || getStorageScope() !== scope
     setLoading(true)
     setNotFound(false)
     setBlocked(false)
@@ -155,9 +157,10 @@ export default function Novel() {
       // 阅读进度
       if (user) {
         try {
-          const p = (await progressApi.get(id)) as { progress?: ServerProgress | null }
+          const p = await progressApi.get(id)
           if (stale()) return
-          setServerProgress(p.progress || null)
+          applyProgressState(id, p, { novelTitle: n.title })
+          setServerProgress(p.progress ? { ...p.progress, chapterTitle: '', chapterOrder: 0 } : null)
         } catch {
           /* 本地历史兜底 */
         }

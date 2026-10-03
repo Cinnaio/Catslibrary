@@ -9,6 +9,8 @@ import { newId } from '../auth'
 import type { UpstreamUsage } from './upstream-usage'
 
 export interface UsageRecord extends UpstreamUsage {
+  /** 单次真实调用的稳定记账 ID，用于同一事实的幂等写入。 */
+  usageId?: string
   userId: string
   model: string
   provider: string
@@ -28,9 +30,9 @@ export async function recordUsage(db: Db, rec: UsageRecord): Promise<void> {
   await run(
     db,
     `INSERT INTO ai_usage (id, user_id, model, provider, prompt_tokens, completion_tokens, image_count, cost_millicents, novel_id, chapter_id, generation_type, ip_address, user_agent, created_at, cache_read_tokens, cache_write_tokens, reasoning_tokens, cost_reported, upstream_request_id, cost_source, cost_currency)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)`,
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)${rec.usageId ? ' ON CONFLICT (id) DO NOTHING' : ''}`,
     [
-      newId('aiuse'),
+      rec.usageId || newId('aiuse'),
       rec.userId || '',
       rec.model || '',
       rec.provider || '',
