@@ -39,6 +39,17 @@ struct BookshelfView: View {
         }
     }
 
+    // Keep data filtering outside the large SwiftUI result builder.
+    private var visibleResponse: BookshelfResponse? {
+        guard let response else { return nil }
+        guard ContentAccessStore.shared.mode != "adult" else { return response }
+        return BookshelfResponse(
+            favorites: response.favorites.filter { !$0.asNovel.isRestricted },
+            recent: response.recent.filter { !$0.asNovel.isRestricted },
+            thoughts: response.thoughts
+        )
+    }
+
     private var bookshelfList: some View {
             List(selection: $selection) {
                 if isLoading && response == nil {
@@ -55,12 +66,7 @@ struct BookshelfView: View {
                     }
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
-                } else if let storedResponse = response {
-                    let response = BookshelfResponse(
-                        favorites: storedResponse.favorites.filter { ContentAccessStore.shared.mode == "adult" || !$0.asNovel.isRestricted },
-                        recent: storedResponse.recent.filter { ContentAccessStore.shared.mode == "adult" || !$0.asNovel.isRestricted },
-                        thoughts: storedResponse.thoughts
-                    )
+                } else if let response = visibleResponse {
                     if let errorMessage {
                         LoadErrorNotice(message: errorMessage, isLoading: isLoading) {
                             Task { await load() }
