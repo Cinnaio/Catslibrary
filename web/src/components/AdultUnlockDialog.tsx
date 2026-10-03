@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog'
+import '../styles/adult-unlock-dialog.css'
 
 interface TurnstileApi {
   render: (element: HTMLElement, options: Record<string, unknown>) => string
@@ -64,14 +65,14 @@ export default function AdultUnlockDialog({ siteKey, onUnlock, onCancel }: {
     } finally { setBusy(false) }
   }
   return <AlertDialog open onOpenChange={open => { if (!open) onCancel() }}>
-    <AlertDialogContent>
+    <AlertDialogContent className="adult-unlock-dialog">
       <AlertDialogHeader>
         <AlertDialogTitle>开启 R18 成人内容模式</AlertDialogTitle>
         <AlertDialogDescription>仅限已登录且年满 18 岁的读者。授权绑定当前登录会话，退出登录或切回安全模式后失效。</AlertDialogDescription>
       </AlertDialogHeader>
-      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={confirmed} onChange={e => setConfirmed(e.target.checked)} />我确认已年满 18 岁</label>
-      {siteKey ? <div ref={container} data-action="r18_unlock" /> : <p role="alert">成人模式验证尚未配置，请联系管理员。</p>}
-      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+      <label className="adult-unlock-dialog__consent"><input type="checkbox" checked={confirmed} onChange={e => setConfirmed(e.target.checked)} />我确认已年满 18 岁</label>
+      {siteKey ? <div ref={container} data-action="r18_unlock" /> : <p role="alert" className="adult-unlock-dialog__notice">成人模式验证尚未配置，请联系管理员。</p>}
+      {error && <p role="alert" className="adult-unlock-dialog__error">{error}</p>}
       <AlertDialogFooter>
         <button type="button" className="btn btn--secondary" onClick={onCancel}>取消</button>
         <button type="button" className="btn btn--primary" disabled={!token || !confirmed || busy} onClick={() => void submit()}>{busy ? '正在验证…' : '确认开启'}</button>
