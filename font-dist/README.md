@@ -2,8 +2,8 @@
 
 将两个 `.otf` 文件上传到：
 
-- `https://story.mscraft.uk/fonts/NotoSerifSC-Regular.otf`
-- `https://story.mscraft.uk/fonts/NotoSerifSC-Bold.otf`
+- `https://catrr.uk/fonts/NotoSerifSC-Regular.otf`
+- `https://catrr.uk/fonts/NotoSerifSC-Bold.otf`
 
 当前子集包含 GB2312 常用汉字、应用文案中的汉字、常用标点、全角字符和拉丁字符。
 
