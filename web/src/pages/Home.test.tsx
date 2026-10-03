@@ -86,6 +86,17 @@ beforeAll(() => {
 })
 
 describe('Home hero search', () => {
+  it('页脚保留品牌介绍，可爱装饰不增加重复读屏或交互入口', () => {
+    renderHome()
+    const footer = screen.getByRole('contentinfo')
+    expect(within(footer).getByText('知舟')).toBeInTheDocument()
+    expect(within(footer).getByText('一个安静的中文小说书库')).toBeInTheDocument()
+    expect(within(footer).queryByText('把喜欢的故事，慢慢读完')).not.toBeInTheDocument()
+    expect(footer.querySelector('img')).toHaveAttribute('src', '/images/auth-flower.png')
+    expect(within(footer).queryByRole('img')).not.toBeInTheDocument()
+    expect(within(footer).queryByRole('button')).not.toBeInTheDocument()
+    expect(within(footer).queryByRole('link')).not.toBeInTheDocument()
+  })
   it('安全模式在分页前过滤，当前页补满可见作品并显示过滤后的页数', async () => {
     policy.safeMode = true
     const all = Array.from({ length: 90 }, (_, i) => book(`book-${i}`, `作品${i}`, i % 2 ? 'restricted' : 'general'))
