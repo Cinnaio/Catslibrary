@@ -54,7 +54,15 @@ const LEADING_INVISIBLE = /^[\u200B-\u200F\u2060-\u206F\uFEFF]+/
 const BARE_NUMBER_HEADING = /^\s*([0-9０-９]{1,4})(?:[ \t\u3000]+)(\S[^\n]*?)\s*$/
 
 const MAX_CHAPTER_TITLE_LENGTH = 40
-const SENTENCE_ENDING = /[。！？；…]$/
+/**
+ * 正文句子的收尾标点。标题几乎不会以句号或省略号结尾；出现即说明这行是正文首句，
+ * 而非章节名（「第一回体验性爱就被内射，谢溪大脑空白了一瞬，身体也仿佛……被置于一整片虚空之中。」）。
+ */
+const PROSE_ENDING = /[。…]$/
+/** 叹号/问号：章节名常用（「休得如此荒唐！」「李云儿，没啦！」），不能一律否决。 */
+const EXCLAIM_ENDING = /[！？；]$/
+/** 「！」「？」收尾的短标题（≤26 字）视为正常章节名，超过则按正文可疑处理。 */
+const MAX_SHORT_TITLE_LENGTH = 26
 /**
  * 裸数字标题的长度上限。真实章名可达 35 字左右
  * （「0079在哥哥注视下骑乘吃他肉棒，最后被他从下面撞击，被肏哭肏喷（高h）【2900珠加更】」），
@@ -83,8 +91,17 @@ export function isChapterHeadingLine(line: string): string | null {
   const match = raw.match(CHAPTER_HEADING)
   if (match) {
     const title = match[1]!.trim()
-    if (title.length <= MAX_CHAPTER_TITLE_LENGTH && !SENTENCE_ENDING.test(title)) return title
-    return null
+    if (title.length > MAX_CHAPTER_TITLE_LENGTH) return null
+    // 结尾标点要分开看：
+    // - 「。」「…」是正文句子的特征（「第一回体验性爱就被内射，谢溪大脑空白了一瞬……」），
+    //   标题里几乎不出现，出现即否决。
+    // - 「！」「？」在章节名里极常见（「第0022章 （纯剧情章）休得如此荒唐！」
+    //   「第0034章 李云儿，没啦！」「0060 图穷匕见/魔修闯进来了！（550珠加更）」），
+    //   一律否决会让这些章整章丢失。
+    // 「！」「？」只在标题超过短标题阈值时才可疑，故按长度二次约束。
+    if (PROSE_ENDING.test(title)) return null
+    if (EXCLAIM_ENDING.test(title) && title.length > MAX_SHORT_TITLE_LENGTH) return null
+    return title
   }
   // 裸数字标题：`0073 我们做夫妻也是可以的【2500珠加更】`（编号后有空白）
   const bare = raw.match(BARE_NUMBER_HEADING)
@@ -109,8 +126,9 @@ export function isChapterHeadingLine(line: string): string | null {
     const body = tight[2]!
     if (number > MAX_BARE_NUMBER) return null
     if (body.length > MAX_BARE_TITLE_LENGTH) return null
-    // 无分隔符时风险更高，句读仍作否决：「69是什么，她之前其实没有听过。」是正文。
-    if (SENTENCE_ENDING.test(body)) return null
+    // 无分隔符时风险更高，句号收尾一律否决：
+    // 「69是什么，她之前其实没有听过。」是正文，不是「69」章的标题。
+    if (PROSE_ENDING.test(body)) return null
     return `${digits} ${body}`.trim()
   }
   return null
