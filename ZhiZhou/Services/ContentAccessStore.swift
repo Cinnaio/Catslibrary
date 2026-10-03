@@ -15,7 +15,7 @@ private struct ReaderContentStatusResponse: Decodable {
     let expiresIn: Double
 }
 
-/// 同步账号共享偏好；只有服务端确认当前会话已授权，才恢复实际阅读模式。
+/// 同步账号共享偏好；服务端确认账号已开启后直接恢复，无需逐设备验证。
 @Observable
 @MainActor
 final class ContentAccessStore {
@@ -23,6 +23,7 @@ final class ContentAccessStore {
     private(set) var mode = "safe"
     private(set) var accountMode = "safe"
     private(set) var revision = UUID()
+    private(set) var accountRevision = UUID()
     private(set) var configured = false
     private(set) var hasSyncedStatus = false
     private(set) var adultContentEnabled = false
@@ -33,9 +34,12 @@ final class ContentAccessStore {
     private var generation = UUID()
     private var expiresAt: Date?
     private var monitor: Task<Void, Never>?
+    private var syncTask: Task<Void, Never>?
 
     func activate(token: String?) {
         monitor?.cancel()
+        syncTask?.cancel()
+        syncTask = nil
         generation = UUID()
         sessionToken = token
         accountMode = "safe"
@@ -49,6 +53,7 @@ final class ContentAccessStore {
         setMode("safe")
         // Even a safe → safe account boundary invalidates all loaded reader views.
         revision = UUID()
+        accountRevision = UUID()
     }
 
     func unlock(challengeToken: String, confirmed: Bool) async throws {
@@ -95,15 +100,29 @@ final class ContentAccessStore {
         }
     }
 
-    /// 后台立即移除受限正文；回到前台后先复核，再恢复展示。
+    /// 暂停同步；后台隐私遮挡由视图处理，不改动已确认的账号模式。
     func suspend() {
         monitor?.cancel()
+        syncTask?.cancel()
+        syncTask = nil
         generation = UUID()
         isBusy = false
-        setMode("safe")
     }
 
+    // 由状态层持有任务，页面 .task 的取消不会中断账号同步。
     func revalidate() async {
+        if let syncTask { await syncTask.value; return }
+        let context = generation
+        let task = Task<Void, Never> { [weak self] in
+            guard let self else { return }
+            await self.performRevalidation()
+            if self.generation == context { self.syncTask = nil }
+        }
+        syncTask = task
+        await task.value
+    }
+
+    private func performRevalidation() async {
         guard !isBusy, let token = sessionToken, token == APIClient.shared.token else { return }
         // 撤销失败时不能从尚未撤销的远程状态重新开启本机阅读。
         guard !needsLockRetry else { return }
@@ -129,20 +148,25 @@ final class ContentAccessStore {
             )
             expiresAt = authorized ? Date().addingTimeInterval(status.expiresIn) : nil
             notice = accountMode == "adult" && !authorized
-                ? "账号已开启 R18 偏好，但此设备尚未授权或授权已过期，请验证后在线阅读。"
+                ? "账号 R18 模式暂不可用，请检查站点开放状态及当前登录。"
                 : nil
             setMode(authorized ? "adult" : "safe")
             startMonitor()
+        } catch is CancellationError {
+            // 页面退出或主动暂停不等于账号授权被撤销。
+            return
         } catch {
             guard context == generation else { return }
-            configured = false
-            hasSyncedStatus = false
-            expiresAt = nil
-            setMode("safe")
-            if case APIError.http(let status, _) = error, status == 404 {
+            if case APIError.http(let status, _) = error, status == 401 || status == 403 {
+                expiresAt = nil
+                setMode("safe")
+                notice = "当前登录或账号 R18 授权已失效，请重新登录或同步账号状态。"
+            } else if case APIError.http(let status, _) = error, status == 404 {
                 notice = "站点尚未部署原生 R18 配套接口，请更新服务端后重试。"
             } else {
-                notice = "内容模式同步失败，已保持安全模式。\(AppCopy.friendlyError(error))"
+                notice = hasSyncedStatus
+                    ? "暂时无法同步，继续使用上次确认的模式；其他设备的关闭操作需联网同步后生效。\(AppCopy.friendlyError(error))"
+                    : "暂时无法同步账号状态，保持安全模式。\(AppCopy.friendlyError(error))"
             }
             startMonitor()
         }
@@ -150,6 +174,8 @@ final class ContentAccessStore {
 
     func revoke(message: String? = nil) {
         monitor?.cancel()
+        syncTask?.cancel()
+        syncTask = nil
         generation = UUID()
         isBusy = false
         expiresAt = nil
@@ -158,13 +184,13 @@ final class ContentAccessStore {
             AppFeedback.warning(message)
         }
         setMode("safe")
+        if message != nil { startMonitor() }
     }
 
     private func setMode(_ value: String) {
         guard mode != value else { return }
         mode = value
         revision = UUID()
-        APIClient.shared.clearMemoryCaches()
     }
 
     private func startMonitor() {

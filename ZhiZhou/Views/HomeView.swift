@@ -31,7 +31,7 @@ struct HomeView: View {
     }
 
     private var recentReading: RecentItem? {
-        bookshelf?.recent.first
+        bookshelf?.recent.first { ContentAccessStore.shared.mode == "adult" || !$0.asNovel.isRestricted }
     }
 
     private var catalogQuery: [String] {
@@ -135,7 +135,11 @@ struct HomeView: View {
             await reload()
             await loadReadingContext()
         }
-        .task {
+        .task(id: ContentAccessStore.shared.mode) {
+            if ContentAccessStore.shared.mode == "safe" {
+                novels.removeAll { $0.isRestricted }
+                bookshelf = nil
+            }
             async let readingContext: Void = loadReadingContext()
             await reload()
             await readingContext
@@ -186,7 +190,7 @@ struct HomeView: View {
                         Task { await reload() }
                     }
                 }
-                ForEach(novels) { novel in
+                ForEach(novels.filter { ContentAccessStore.shared.mode == "adult" || !$0.isRestricted }) { novel in
                     novelRow(novel)
                         .onAppear {
                             if novel.id == novels.last?.id { loadMoreIfNeeded() }

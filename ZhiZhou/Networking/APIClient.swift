@@ -112,6 +112,7 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
     /// Persistent data for other accounts remains on disk but is unreachable
     /// until that account is explicitly activated again.
     func setChapterCacheScope(userID: String?) async {
+        setImageCacheAccount(userID)
         await chapterCacheScope.set(userID: userID)
         chapterDataCache.removeAllObjects()
     }
@@ -137,6 +138,20 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
 
     private let tokenLock = NSLock()
     private var sessionRotation = SessionRotationGuard()
+    private var imageCacheAccount: String?
+
+    // Stable across access-cookie refreshes and Bearer rotation within one account.
+    var imageCacheIdentity: String {
+        tokenLock.lock()
+        defer { tokenLock.unlock() }
+        return imageCacheAccount.map { "account:\($0)" } ?? "session:\(Keychain.load(Self.tokenKey) ?? "")"
+    }
+
+    private func setImageCacheAccount(_ userID: String?) {
+        tokenLock.lock()
+        defer { tokenLock.unlock() }
+        imageCacheAccount = userID
+    }
 
     var token: String? {
         get {
@@ -277,6 +292,9 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
         timeout: TimeInterval = 30
     ) async throws -> T {
         let url = try makeURL(path)
+        // Check the captured identity before returning any authenticated cached data.
+        if let expectedToken, token != expectedToken { throw CancellationError() }
+        if auth && !isAuthenticated { throw APIError.http(status: 401, message: "请先登录") }
 
         let usesReaderChapterCache = method == "GET" && isReaderChapterPath(path)
             && ContentPolicy.canCacheChapter(path: path, authenticated: auth)
@@ -517,7 +535,7 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
             return result
         } catch let error as APIError {
             if revision == access.revision, mode == "adult", case .http(let status, _) = error, status == 403 {
-                access.revoke(message: "成人模式授权已失效，请重新验证。")
+                access.revoke(message: "账号 R18 阅读已关闭或当前登录已失效，请同步账号状态。")
             }
             throw error
         }
@@ -576,8 +594,8 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
         }
     }
 
-    func hasCachedChapter(id: String, userID: String? = nil) async -> Bool {
-        let path = ContentPolicy.safePath("/api/chapters/\(id)")
+    func hasCachedChapter(id: String, userID: String? = nil, mode: String = "safe") async -> Bool {
+        let path = ContentPolicy.readerPath("/api/chapters/\(id)", mode: mode)
         guard let url = try? makeURL(path) else { return false }
         guard let cacheScope = await chapterCacheScope.snapshot(),
               userID == nil || userID == cacheScope.userID else { return false }

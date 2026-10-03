@@ -37,11 +37,11 @@ enum ImageCache {
         return URLSession(configuration: config)
     }()
 
-    /// Partition decoded and in-flight images by the credentials sent to this origin.
-    /// The fingerprint avoids keeping bearer or adult-access tokens in cache keys.
+    /// 按账号隔离站点封面，授权 Cookie 刷新不会让封面缓存失效。
+    /// 其他来源仍按 Cookie 隔离；所有身份信息以摘要写入缓存键。
     static func cacheKey(for url: URL) -> String {
-        let token = isAPIURL(url) ? (APIClient.shared.token ?? "") : ""
-        let cookies = (HTTPCookieStorage.shared.cookies(for: url) ?? [])
+        let token = isAPIURL(url) ? APIClient.shared.imageCacheIdentity : ""
+        let cookies = (isAPIURL(url) ? [] : (HTTPCookieStorage.shared.cookies(for: url) ?? []))
             .sorted { $0.name == $1.name ? $0.value < $1.value : $0.name < $1.name }
         let cookieHeader = HTTPCookie.requestHeaderFields(with: cookies)["Cookie"] ?? ""
         let credentials = "\(token)\n\(cookieHeader)"
@@ -56,6 +56,7 @@ enum ImageCache {
         // Cover images are reused directly from URLCache after their first successful fetch.
         // Cache keys remain partitioned by the credentials used to fetch each image.
         request.cachePolicy = isCoverURL(url) ? .returnCacheDataElseLoad : .useProtocolCachePolicy
+        if isAPIURL(url) { request.httpShouldHandleCookies = false }
         if isAPIURL(url), let token = APIClient.shared.token, !token.isEmpty {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
@@ -186,8 +187,9 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
 
     var body: some View {
         Group {
-            if let image {
-                content(Image(uiImage: image))
+            if let displayedImage = (loadedKey == taskKey ? image : nil)
+                ?? ImageCache.decodedImageCache.object(forKey: taskKey as NSString) {
+                content(Image(uiImage: displayedImage))
             } else {
                 ZStack {
                     placeholder()

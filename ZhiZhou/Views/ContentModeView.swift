@@ -10,7 +10,7 @@ struct ContentModeView: View {
     var body: some View {
         List {
             Section {
-                LabeledContent("当前模式", value: access.mode == "adult" ? "R18 · 在线阅读" : "安全模式")
+                LabeledContent("当前模式", value: access.mode == "adult" ? "R18 阅读" : "安全模式")
                 Toggle("账号 R18 阅读开关", isOn: Binding(
                     get: { access.accountMode == "adult" },
                     set: { enabled in
@@ -33,19 +33,15 @@ struct ContentModeView: View {
                             }
                         }
                     }
-                    if access.accountMode == "adult" {
-                        Button("验证并在此设备开启", systemImage: "lock.open") { showUnlock = true }
-                            .disabled(!access.adultContentEnabled || !access.configured || access.needsLockRetry)
-                    }
                 }
             } footer: {
-                Text("账号开关与 Web 同步，关闭会撤销所有设备的授权。此设备首次开启仍需确认已年满 18 岁并完成人机验证，已有有效授权会自动恢复。限制级作品仅支持在线阅读。")
+                Text("账号开关与 Web 同步，账号已开启时无需在此设备重复验证。首次开启账号模式需确认成年并完成人机验证。已读章节支持缓存，暂不开放限制级作品的离线下载。断网时沿用上次确认的状态，跨端关闭需联网同步后生效。")
             }
             if let notice = access.notice {
                 Section { Text(notice).foregroundStyle(AppTheme.textSecondary) }
             }
             Section { Button("同步账号状态") { Task { await refresh() } } }
-            if access.hasSyncedStatus && (!access.adultContentEnabled || !access.configured) {
+            if access.hasSyncedStatus && (!access.adultContentEnabled || (!access.configured && access.accountMode != "adult")) {
                 Section {
                     Text(!access.adultContentEnabled ? "站点暂未开放成人内容。" : "站点尚未配置成人模式验证，请联系管理员。")
                         .foregroundStyle(AppTheme.textSecondary)
@@ -120,7 +116,7 @@ private struct AdultReaderUnlockView: View {
                     }
                     .disabled(!confirmed || challengeToken.isEmpty || access.isBusy)
                 } footer: {
-                    Text("人机验证不等于年龄验证。限制级章节不会保存为离线内容。")
+                    Text("人机验证不等于年龄验证。已读章节支持阅读缓存，暂不开放限制级作品的离线下载。")
                 }
             }
             .appListStyle(.settings)
@@ -218,5 +214,25 @@ private struct AdultTurnstileView: UIViewRepresentable {
             guard active, !reportedPageError, (error as NSError).code != NSURLErrorCancelled else { return }
             onResult(.failure(error))
         }
+    }
+}
+
+/// 关闭账号模式后立即隐藏已加载的受限页面，不重建整个主界面。
+private struct ReaderContentAccessModifier: ViewModifier {
+    let isRestricted: Bool
+
+    func body(content: Content) -> some View {
+        if isRestricted && ContentAccessStore.shared.mode != "adult" {
+            ContentUnavailableView("已隐藏限制级内容", systemImage: "lock",
+                                   description: Text("请在内容模式中同步账号 R18 阅读状态。"))
+        } else {
+            content
+        }
+    }
+}
+
+extension View {
+    func readerContentAccess(isRestricted: Bool) -> some View {
+        modifier(ReaderContentAccessModifier(isRestricted: isRestricted))
     }
 }

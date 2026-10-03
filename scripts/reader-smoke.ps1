@@ -44,7 +44,7 @@ Require-ReaderPattern "scroll progress is not driven by continuous geometry upda
     $readerView -notmatch "(?s)\.onScrollGeometryChange\(for: CGFloat\.self\).*?updatePercent\(fromScrollOffset:"
 )
 Require-ReaderPattern "chapter loading is keyed and cancellable" (
-    $readerView -match "\.task\(id: chapterOrder\)" -and
+    $readerView.Contains('.task(id: "\(chapterOrder)-\(ContentAccessStore.shared.mode)")') -and
     $readerView -match "(?s)private func load\(\).*?catch is CancellationError"
 )
 Require-ReaderPattern "scroll body avoids rebuilding an enumerated array" (

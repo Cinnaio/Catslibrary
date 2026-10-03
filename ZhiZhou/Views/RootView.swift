@@ -2,6 +2,7 @@ import SwiftUI
 
 struct RootView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -12,7 +13,13 @@ struct RootView: View {
                 LoginView()
             } else {
                 MainTabView()
-                    .id(ContentAccessStore.shared.revision)
+                    .id(ContentAccessStore.shared.accountRevision)
+            }
+        }
+        .accessibilityHidden(scenePhase != .active && ContentAccessStore.shared.mode == "adult")
+        .overlay {
+            if scenePhase != .active && ContentAccessStore.shared.mode == "adult" {
+                AppTheme.canvas.ignoresSafeArea()
             }
         }
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: appState.isBooting)

@@ -72,13 +72,13 @@ struct NovelDetailView: View {
                 }
                 .labelStyle(.iconOnly)
                 .disabled(chapters.isEmpty || isSelectingOffline || currentNovel.isRestricted)
-                .help(currentNovel.isRestricted ? "限制级作品仅支持在线阅读" : "离线下载")
+                .help(currentNovel.isRestricted ? "限制级作品暂不提供离线下载" : "离线下载")
             }
         }
         .sheet(isPresented: $showOfflineOptions) {
             offlineDownloadSheet
         }
-        .task {
+        .task(id: ContentAccessStore.shared.mode) {
             await offlineStore.refresh()
             await load()
         }
@@ -105,6 +105,7 @@ struct NovelDetailView: View {
             Text(offlineStore.lastError ?? "")
         }
         .sensoryFeedback(.selection, trigger: interactionFeedback)
+        .readerContentAccess(isRestricted: currentNovel.isRestricted)
     }
 
     private func detailList(sideInset: CGFloat, compactHeader: Bool) -> some View {
@@ -123,7 +124,7 @@ struct NovelDetailView: View {
 
             Section {
                 if currentNovel.isRestricted {
-                    Label("限制级作品 · 仅支持在线阅读", systemImage: "network")
+                    Label("限制级作品 · 支持阅读缓存", systemImage: "network")
                         .font(.footnote)
                         .foregroundStyle(AppTheme.textSecondary)
                         .listRowSeparator(.hidden)
@@ -943,6 +944,8 @@ struct NovelDetailView: View {
             selectedChapterIDs.removeAll()
             isShowingOffline = false
             errorMessage = nil
+        } catch is CancellationError {
+            return
         } catch {
             let saved = ContentAccessStore.shared.mode == "adult" || novel.isRestricted ? [] : offlineStore.chapters(for: novel.id)
             if !saved.isEmpty {

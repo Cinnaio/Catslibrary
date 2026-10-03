@@ -1,11 +1,11 @@
 import Foundation
 
-/// 阅读偏好不能授予成人访问权；在线模式由独立的会话授权状态决定。
+/// 账号模式须由服务端确认，登录有效且站点开放时可恢复阅读。
 public enum ContentPolicy {
     public static let clientMode = "safe"
 
     public static func canRestoreAdultMode(accountMode: String, sessionAuthorized: Bool, adultContentEnabled: Bool, configured: Bool, expiresIn: Double) -> Bool {
-        accountMode == "adult" && sessionAuthorized && adultContentEnabled && configured && expiresIn.isFinite && expiresIn > 0
+        accountMode == "adult" && sessionAuthorized && adultContentEnabled && expiresIn.isFinite && expiresIn > 0
     }
 
     /// 给用户侧内容请求统一附加安全模式；管理后台请求不使用此 helper。
@@ -27,10 +27,11 @@ public enum ContentPolicy {
         return components.string ?? path
     }
 
-    /// 成人模式始终在线；不写入磁盘、不从普通章节缓存离线回退。
+    /// 阅读缓存与主动离线下载分开；成人缓存仍须登录且按账号/模式隔离。
     public static func canCacheChapter(path: String, authenticated: Bool) -> Bool {
         let modes = URLComponents(string: path)?.queryItems?.filter { $0.name == "contentMode" } ?? []
-        return !authenticated && modes.count == 1 && modes[0].value == "safe"
+        guard modes.count == 1 else { return false }
+        return modes[0].value == "safe" || (modes[0].value == "adult" && authenticated)
     }
 }
 

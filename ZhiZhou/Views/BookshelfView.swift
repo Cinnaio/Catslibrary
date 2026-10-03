@@ -55,7 +55,12 @@ struct BookshelfView: View {
                     }
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
-                } else if let response {
+                } else if let storedResponse = response {
+                    let response = BookshelfResponse(
+                        favorites: storedResponse.favorites.filter { ContentAccessStore.shared.mode == "adult" || !$0.asNovel.isRestricted },
+                        recent: storedResponse.recent.filter { ContentAccessStore.shared.mode == "adult" || !$0.asNovel.isRestricted },
+                        thoughts: storedResponse.thoughts
+                    )
                     if let errorMessage {
                         LoadErrorNotice(message: errorMessage, isLoading: isLoading) {
                             Task { await load() }
@@ -129,7 +134,10 @@ struct BookshelfView: View {
                 }
             }
             .refreshable { await load() }
-            .task { await load() }
+            .task(id: ContentAccessStore.shared.mode) {
+                if ContentAccessStore.shared.mode == "safe" { response = nil }
+                await load()
+            }
             .onChange(of: selection) { oldSelection, newSelection in
                 // 应用内从阅读器返回时 selection 才会归零；scenePhase 不会变化。
                 if oldSelection != nil, newSelection == nil {

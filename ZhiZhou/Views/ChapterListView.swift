@@ -95,10 +95,11 @@ struct ChapterListView: View {
                     Button("完成") { dismiss() }
                 }
             }
-            .task { await load() }
+            .task(id: ContentAccessStore.shared.mode) { await load() }
         }
         .presentationBackground(AppTheme.canvas)
         .presentationDragIndicator(.visible)
+        .readerContentAccess(isRestricted: novel.isRestricted)
     }
 
     private func load() async {
@@ -117,6 +118,8 @@ struct ChapterListView: View {
             chapters = r.chapters
             isShowingOffline = false
             errorMessage = nil
+        } catch is CancellationError {
+            return
         } catch {
             let saved = ContentAccessStore.shared.mode == "adult" || novel.isRestricted ? [] : offlineStore.chapters(for: novel.id)
             if !saved.isEmpty {

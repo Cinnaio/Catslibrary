@@ -9,21 +9,21 @@ final class ContentPolicyTests: XCTestCase {
         XCTAssertEqual(ContentPolicy.readerPath("/api/novels?search=a%26b%2Bc%3Dd%3F&contentMode=safe", mode: "adult"), "/api/novels?search=a%26b%2Bc%3Dd%3F&contentMode=adult")
     }
 
-    func testAdultAndAuthenticatedChapterRequestsNeverUseOfflineCache() {
+    func testReaderCachesRequireExplicitModeAndAdultAuthentication() {
         XCTAssertFalse(ContentPolicy.canCacheChapter(path: "/api/chapters/one?contentMode=adult", authenticated: false))
-        XCTAssertFalse(ContentPolicy.canCacheChapter(path: "/api/chapters/one?contentMode=adult", authenticated: true))
-        XCTAssertFalse(ContentPolicy.canCacheChapter(path: "/api/chapters/one?contentMode=safe", authenticated: true))
+        XCTAssertTrue(ContentPolicy.canCacheChapter(path: "/api/chapters/one?contentMode=adult", authenticated: true))
+        XCTAssertTrue(ContentPolicy.canCacheChapter(path: "/api/chapters/one?contentMode=safe", authenticated: true))
         XCTAssertFalse(ContentPolicy.canCacheChapter(path: "/api/chapters/one", authenticated: false))
         XCTAssertFalse(ContentPolicy.canCacheChapter(path: "/api/chapters/one?contentMode=safe&contentMode=adult", authenticated: false))
         XCTAssertTrue(ContentPolicy.canCacheChapter(path: "/api/chapters/one?contentMode=safe", authenticated: false))
     }
 
-    func testRestoringAdultRequiresSharedPreferenceAndCurrentSessionGrant() {
+    func testRestoringAdultRequiresConfirmedAccountModeAndValidLogin() {
         XCTAssertTrue(ContentPolicy.canRestoreAdultMode(accountMode: "adult", sessionAuthorized: true, adultContentEnabled: true, configured: true, expiresIn: 60))
         XCTAssertFalse(ContentPolicy.canRestoreAdultMode(accountMode: "adult", sessionAuthorized: false, adultContentEnabled: true, configured: true, expiresIn: 60))
         XCTAssertFalse(ContentPolicy.canRestoreAdultMode(accountMode: "safe", sessionAuthorized: true, adultContentEnabled: true, configured: true, expiresIn: 60))
         XCTAssertFalse(ContentPolicy.canRestoreAdultMode(accountMode: "adult", sessionAuthorized: true, adultContentEnabled: false, configured: true, expiresIn: 60))
-        XCTAssertFalse(ContentPolicy.canRestoreAdultMode(accountMode: "adult", sessionAuthorized: true, adultContentEnabled: true, configured: false, expiresIn: 60))
+        XCTAssertTrue(ContentPolicy.canRestoreAdultMode(accountMode: "adult", sessionAuthorized: true, adultContentEnabled: true, configured: false, expiresIn: 60))
         for expired in [0.0, -1.0, Double.nan, Double.infinity] {
             XCTAssertFalse(ContentPolicy.canRestoreAdultMode(accountMode: "adult", sessionAuthorized: true, adultContentEnabled: true, configured: true, expiresIn: expired))
         }

@@ -263,7 +263,7 @@ struct ReaderView: View {
             }
         }
         .preferredColorScheme(scheme)
-        .task(id: chapterOrder) { await load() }
+        .task(id: "\(chapterOrder)-\(ContentAccessStore.shared.mode)") { await load() }
         .onReceive(NotificationCenter.default.publisher(for: .zhiZhouFontStoreDidChange)) { _ in
             fontRevision &+= 1
         }
@@ -288,6 +288,7 @@ struct ReaderView: View {
             thoughtsLoadTask?.cancel()
             saveProgressNow()
         }
+        .readerContentAccess(isRestricted: novel.isRestricted)
     }
 
     /// 阅读区内容：加载中 / 加载失败 / 章节正文（居中标题 + 带首行缩进的段落）。
@@ -783,7 +784,7 @@ struct ReaderView: View {
     }
 
     private var chapterAvailabilityLabel: String {
-        if !offlineOnly && ContentAccessStore.shared.mode == "adult" { return "仅在线" }
+        if !offlineOnly && ContentAccessStore.shared.mode == "adult" { return chapterIsSaved ? "已缓存" : "阅读缓存" }
         return chapterIsSaved ? "离线可读" : "未缓存"
     }
 
@@ -1047,7 +1048,7 @@ struct ReaderView: View {
     private func load() async {
         guard !offlineOnly || !novel.isRestricted else {
             isLoading = false
-            errorMessage = "限制级作品仅支持在线阅读。"
+            errorMessage = "限制级作品暂不提供离线下载，可正常使用已读章节缓存。"
             return
         }
         isLoading = true
@@ -1167,7 +1168,9 @@ struct ReaderView: View {
         // pendingScrollRestore 的 change 回调会走同一条显式 proxy 路径。
         pendingScrollRestore = target
         prefetchNextChapter()
-        let isSaved = await APIClient.shared.hasCachedChapter(id: r.chapter.id)
+        let isSaved = await APIClient.shared.hasCachedChapter(
+            id: r.chapter.id, mode: offlineOnly ? "safe" : ContentAccessStore.shared.mode
+        )
         guard chapterOrder == order else { return }
         chapterIsSaved = isSaved
     }
