@@ -11,6 +11,7 @@ import { resolveStoredPipelineVersion } from './services/ai/prompt-version'
 import { ensureRuntimeSalts } from './runtime-config'
 import { pruneAdminOperationAudit } from './services/admin-operation-audit'
 import { prefillUnknownContentRatings } from './services/content-rating'
+import { createWebRoutes } from './routes/web'
 
 async function resumeInterruptedCoverPromptTasks() {
   const db = getDb()
@@ -80,6 +81,7 @@ async function start() {
     if (prunedAdminOperations) console.log(`[zhi-zhou api] pruned ${prunedAdminOperations} admin operation audit record(s) older than 180d`)
   }
 
+  app.route('/', createWebRoutes())
   const server = serve({ fetch: app.fetch, port: config.port })
   const aiTaskReclaimTimer = config.configured
     ? setInterval(() => {

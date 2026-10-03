@@ -28,7 +28,7 @@ export interface AppConfig {
   aiImage: AiProviderConfig
 }
 
-const PROJECT_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
+export const PROJECT_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
 const ENV_FILE = process.env.ENV_FILE || path.join(PROJECT_ROOT, '.env')
 
 if (existsSync(ENV_FILE) && typeof process.loadEnvFile === 'function') {

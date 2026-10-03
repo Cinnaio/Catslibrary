@@ -3,7 +3,7 @@
  * 由 Novel-KV js/novel.js 平移为 React。
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, BookOpen, Star, X } from 'lucide-react'
 import type { ChapterMeta, Comment, Novel, ReadingHistoryEntry } from '@shared/types'
 import { chaptersApi, commentsApi, isRestrictedContentError, novelsApi, progressApi, ratingsApi, url } from '../lib/api'
@@ -20,6 +20,7 @@ import { useToast, useConfirm } from '../components/feedback'
 import { BackToTopIcon, HomeIcon, SearchIcon } from '../components/icons'
 import CatchupRecap from '../components/CatchupRecap'
 import ContentRestrictionNotice from '../components/ContentRestrictionNotice'
+import { setPageSeo } from '../lib/seo'
 
 interface RatingSummary {
   average: number
@@ -55,6 +56,7 @@ function lastReadAt(progress: ReadingHistoryEntry | ServerProgress | null): numb
 
 export default function Novel() {
   const { id = '' } = useParams()
+  const { search: routeSearch } = useLocation()
   const navigate = useNavigate()
   const { user } = useSession()
   const { mode, setMode, isAllowed, adultContentEnabled } = useContentPolicy()
@@ -110,6 +112,12 @@ export default function Novel() {
   const [spoiler, setSpoiler] = useState(false)
 
   useDocumentTitle(novel?.title)
+  useEffect(() => {
+    if (loading) return
+    const indexable = !blocked && !notFound && novel?.id === id && novel.contentRating === 'general' && !routeSearch
+    setPageSeo(Boolean(indexable), novel?.contentRating === 'general'
+      ? `${novel.author}著。${novel.description || ''}`.slice(0, 180) : undefined, `/novel/${encodeURIComponent(id)}`)
+  }, [novel, loading, blocked, notFound, id, routeSearch])
 
   // 描述溢出检测（>3 行显示"展开全部"）
   // 只在折叠态判定（展开态按钮文案切换为"收起"，状态沿用）。

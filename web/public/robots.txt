@@ -1,12 +1,20 @@
 # 知舟 —— 爬虫协议声明
-# 内容接口（/api/）不开放给爬虫批量抓取；前端页面允许搜索引擎正常索引。
+# 公开页面及其渲染所需接口允许抓取，是否收录由页面 meta / HTTP 头控制。
 # 守规矩的爬虫请遵守，不守规矩的由速率限制与 WAF 兜底。
 
 User-agent: *
-Disallow: /api/
+Disallow: /api/admin
+Disallow: /api/auth
+Disallow: /api/setup
+Disallow: /api/ai
+Disallow: /api/scrape
+Disallow: /api/progress
+Disallow: /api/bookshelf
+Disallow: /api/bookmarks
+Disallow: /api/download-logs
 Allow: /
 
-# 常见 AI 训练爬虫 —— 明确拒绝抓取内容用于训练
+# 指定 AI 训练、搜索及用户访问爬虫 —— 保留现有整站拒绝策略
 User-agent: GPTBot
 Disallow: /
 
@@ -34,4 +42,4 @@ Disallow: /
 User-agent: CCBot
 Disallow: /
 
-# 站点地图（如有可补 sitemap 路径）
+# 正式部署时由页面响应服务按 SITE_URL 追加 Sitemap 地址。

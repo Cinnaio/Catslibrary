@@ -67,13 +67,29 @@ npm run build
 DATABASE_URL=postgres://... node api/dist/index.js
 ```
 
-- 前端产物在 `web/dist`，由任意静态服务器/反代托管，并将 `/api` 反代到 API 端口（默认 8787）。
+- 前端产物在 `web/dist`。推荐让 Node 服务同时提供页面、静态资源与 API，并将站点请求反代到 API 端口（默认 8787）。前端产物必须随 API 一起部署；分离容器时通过 `WEB_DIST_DIR` 指向挂载目录。
+- **搜索收录**：设置 `SITE_URL=https://你的正式域名`（只填 origin），通过 Node 页面入口访问时，首页和 `general` 小说详情提供可收录的初始 HTML、独立描述及 canonical。章节、后台、个人页面、查询参数页、`restricted` 和 `unknown` 详情输出 `noindex, follow`；缺省 `SITE_URL` 时全部 HTML 保持 `noindex`。`/sitemap.xml` 为分页 sitemap 索引，只列首页与 `general` 详情；`/robots.txt` 自动声明其地址。所有 API 响应附带 `X-Robots-Tag: noindex, follow`，公开渲染接口允许抓取，私有接口仍由权限校验保护。
+
+  Nginx / OpenResty 推荐配置（在现有 HTTPS server 中替换页面的 SPA fallback；保留已有 TLS、限流等配置）：
+
+  ```nginx
+  location / {
+      proxy_pass http://127.0.0.1:8787;
+      proxy_set_header Host $host;
+      proxy_set_header X-Forwarded-Proto $scheme;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+  }
+  ```
+
+  若由 Nginx 单独托管 `/assets/` 和 `/images/` 以节省 Node 流量，可以保留对应静态 location；`/`、`/novel/*`、`/read/*`、后台和个人页面，以及 `/robots.txt`、`/sitemap.xml`、`/sitemaps/*` 必须交给 Node 页面入口。反代不得追加全站 `X-Robots-Tag: noindex`，HTML 与 sitemap 不应缓存，以便分级变更及时生效。Caddy 可使用 `reverse_proxy 127.0.0.1:8787`。
+
+  部署后检查首页、general/restricted/unknown 详情、个人页面的实际 HTML 和 `X-Robots-Tag`，以及 sitemap 中的作品范围，再通过搜索引擎站长工具检查抓取和提交 sitemap。移除禁止规则不代表即时收录。
 - **SPA fallback**：前端是单页应用，`/novel/:id`、`/read/:novelId/:chapterId`、`/bookshelf` 等均为前端路由，服务器上只有一份 `index.html`。直接刷新或从外站深链进入非首页路由时，静态服务器找不到对应文件会返回 404。需在静态站点配置中把找不到的路径回退到 `index.html`，交由 React Router 解析：
   - **Nginx / OpenResty**：`location / { try_files $uri $uri/ /index.html; }`
   - **Caddy**：`try_files {path} /index.html`
   - **Cloudflare Pages / Vercel / Netlify**：在平台配置里启用 SPA fallback（将所有非静态资源路由指向 `index.html`）
 
-  此规则只作用于前端静态资源；`/api` 反代不受影响。
+  以上是继续采用纯静态托管时的兼容配置，此模式保持 `noindex`，不启用服务端详情 HTML 与 sitemap。采用推荐 Node 页面入口时无需再配置静态 SPA fallback。
 - 部署在 Nginx/Caddy/Cloudflare 等反代之后时设置 `TRUST_PROXY=1`，使 IP 限流与登录审计读取转发头。
 - 服务端的 AI、图像、下载和抓取请求共用出站代理。Docker 中把以下变量传给 API 容器即可，环境变量优先于管理端保存的开发配置：
 

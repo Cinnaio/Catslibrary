@@ -16,6 +16,7 @@ import Profile from './pages/Profile'
 import Auth from './pages/Auth'
 import VisitTracker from './components/VisitTracker'
 import RouteLoading from './components/RouteLoading'
+import PageSeo from './components/PageSeo'
 
 const Install = lazy(() => import('./pages/Install'))
 const Admin = lazy(() => import('./pages/admin/Admin'))
@@ -24,6 +25,7 @@ export default function App() {
   return (
     <Suspense fallback={<RouteLoading />}>
       <VisitTracker />
+      <PageSeo />
       <Routes>
         <Route element={<Layout />}>
           <Route path="/" element={<Home />} />

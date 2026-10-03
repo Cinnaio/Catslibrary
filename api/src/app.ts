@@ -32,6 +32,10 @@ import { bookImportRoutes } from './routes/book-import'
 export const app = new Hono()
 
 app.use('/api/*', cors())
+app.use('/api/*', async (c, next) => {
+  c.header('X-Robots-Tag', 'noindex, follow')
+  await next()
+})
 
 // 安装引导守卫：数据库未配置时仅放行健康检查与安装向导（/api/setup/*）
 app.use('/api/*', async (c, next) => {
