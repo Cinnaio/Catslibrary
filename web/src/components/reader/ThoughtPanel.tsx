@@ -10,6 +10,7 @@ import { timeText } from '../../lib/format'
 
 interface ThoughtPanelProps {
   open: boolean
+  readOnly?: boolean
   thoughts: Thought[]
   selectedText: string
   paragraphExcerpt: string
@@ -19,7 +20,7 @@ interface ThoughtPanelProps {
   onDelete: (id: string) => Promise<void>
 }
 
-export default function ThoughtPanel({ open, thoughts, selectedText, paragraphExcerpt, canDelete, onClose, onSubmit, onDelete }: ThoughtPanelProps) {
+export default function ThoughtPanel({ open, readOnly = false, thoughts, selectedText, paragraphExcerpt, canDelete, onClose, onSubmit, onDelete }: ThoughtPanelProps) {
   const restoreFocusRef = useRef<HTMLElement | null>(null)
   const [text, setText] = useState('')
   const [name, setName] = useState('')
@@ -67,9 +68,9 @@ export default function ThoughtPanel({ open, thoughts, selectedText, paragraphEx
         <div className="thought-panel__header">
           <div>
             <DialogPrimitive.Title asChild>
-              <h2>本段想法</h2>
+              <h2>{readOnly ? '原段落已变更的想法' : '本段想法'}</h2>
             </DialogPrimitive.Title>
-            <p className="thought-panel__excerpt">{paragraphExcerpt}</p>
+            <p className="thought-panel__excerpt">{readOnly ? '原段落已修改、删除或无法唯一定位，保留想法与原引用。' : paragraphExcerpt}</p>
           </div>
           <DialogPrimitive.Close asChild>
             <button type="button" className="thought-panel__close" aria-label="关闭想法面板">×</button>
@@ -102,7 +103,7 @@ export default function ThoughtPanel({ open, thoughts, selectedText, paragraphEx
             })
           )}
         </div>
-        <form className="thought-compose" onSubmit={(event) => { event.preventDefault(); void submit() }}>
+        {!readOnly && <form className="thought-compose" onSubmit={(event) => { event.preventDefault(); void submit() }}>
           <div className={`thought-selected-text${selectedText ? '' : ' hidden'}`}>
             {selectedText ? `划选：${selectedText}` : ''}
           </div>
@@ -130,7 +131,7 @@ export default function ThoughtPanel({ open, thoughts, selectedText, paragraphEx
               发布想法
             </button>
           </div>
-        </form>
+        </form>}
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>

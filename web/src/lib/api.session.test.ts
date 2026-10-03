@@ -32,3 +32,24 @@ it('旧身份请求迟到不能覆盖新身份的存储归属', async () => {
   resolve(new Response('{"user":{"id":"a"}}')); await old
   expect(getStorageScope()).toBe('user:b')
 })
+it('记住登录传给服务端，改密码仍保留持久会话偏好', async () => {
+  const fetch = vi.fn().mockResolvedValueOnce(new Response('{"token":"a","user":{"id":"a"}}')).mockResolvedValueOnce(new Response('{"token":"b"}'))
+  vi.stubGlobal('fetch', fetch)
+  await authApi.login('a', 'password', true)
+  expect(JSON.parse(fetch.mock.calls[0]![1].body)).toMatchObject({ remember: true })
+  await authApi.changePassword('password', 'newpassword')
+  expect(localStorage.getItem('user_session_token')).toBe('b')
+})
+it('资料更新失效身份缓存，后续刷新返回实际新资料', async () => {
+  setToken('a')
+  const fetch = vi.fn().mockResolvedValueOnce(new Response('{"user":{"id":"a","displayName":"旧"}}')).mockResolvedValueOnce(new Response('{"user":{"id":"a","displayName":"新"}}')).mockResolvedValueOnce(new Response('{"user":{"id":"a","displayName":"新"}}'))
+  vi.stubGlobal('fetch', fetch)
+  await authApi.meCached(); await authApi.update({ displayName: '新' })
+  expect((await authApi.meCached()).user?.displayName).toBe('新')
+})
+it('退出所有设备失败不能当成功，也不能清除当前 token', async () => {
+  setToken('a')
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{"error":"offline"}', { status: 503 })))
+  await expect(authApi.logoutAll()).rejects.toThrow('offline')
+  expect(sessionStorage.getItem('user_session_token')).toBe('a')
+})

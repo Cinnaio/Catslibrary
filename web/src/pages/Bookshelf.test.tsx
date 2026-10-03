@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, expect, it, vi } from 'vitest'
-const mocks = vi.hoisted(() => ({ list: vi.fn(), replace: vi.fn(), shelf: vi.fn(), add: vi.fn(), remove: vi.fn(), recent: vi.fn(), removeProgress: vi.fn(), toast: vi.fn(), user: { id: 'a' } }))
+const mocks = vi.hoisted(() => ({ list: vi.fn(), replace: vi.fn(), shelf: vi.fn(), add: vi.fn(), remove: vi.fn(), recent: vi.fn(), removeProgress: vi.fn(), toast: vi.fn(), safeMode: false, user: { id: 'a' } }))
+vi.mock('../context/ContentPolicyContext', () => ({ useContentPolicy: () => ({ safeMode: mocks.safeMode }) }))
 vi.mock('../lib/api', () => ({ url: (p: string) => p, getToken: () => sessionStorage.getItem('user_session_token') || '', bookmarksApi: { list: mocks.list, replace: mocks.replace }, bookshelfApi: { get: mocks.shelf, add: mocks.add, remove: mocks.remove }, progressApi: { recent: mocks.recent, remove: mocks.removeProgress } }))
 vi.mock('../context/SessionContext', () => ({ useSession: () => ({ user: mocks.user, loading: false }) }))
 vi.mock('../components/feedback', () => ({ useToast: () => ({ toast: mocks.toast }) }))
@@ -9,10 +10,36 @@ import Bookshelf from './Bookshelf'
 import { addBookmark, addToBookshelf, getAllBookmarks, getBookshelf, getNovelHistory, saveHistory, setStorageUser } from '../lib/storage'
 beforeEach(() => {
   vi.clearAllMocks(); localStorage.clear(); sessionStorage.clear()
+  mocks.safeMode = false
   sessionStorage.setItem('user_session_token', 'a'); setStorageUser('a')
   mocks.list.mockResolvedValue({ bookmarks: [] })
   mocks.shelf.mockResolvedValue({ favorites: [], thoughts: [] })
   mocks.recent.mockResolvedValue({ progress: [], tombstones: [] })
+})
+it('收藏读取第二个云端批次，翻页可以访问第 51 本及第 13 条书签/想法', async () => {
+  const favorites = Array.from({ length: 51 }, (_, i) => ({ novelId: `n${i}`, title: `书${i}`, author: '', chapterCount: 1 }))
+  const thoughts = Array.from({ length: 13 }, (_, i) => ({ id: `t${i}`, novelId: `n${i}`, chapterId: `c${i}`, thoughtText: `想法${i}`, paragraphIndex: i, createdAt: 1 }))
+  mocks.shelf.mockImplementation(({ offset = 0 }) => Promise.resolve({ favorites: favorites.slice(offset, offset + 50), thoughts: thoughts.slice(offset, offset + 50), totals: { favorites: 51, thoughts: 13 } }))
+  mocks.list.mockResolvedValue({ bookmarks: Array.from({ length: 13 }, (_, i) => ({ id: `b${i}`, novelId: `n${i}`, novelTitle: `签${i}`, chapterId: `c${i}` })) })
+  render(<MemoryRouter><Bookshelf /></MemoryRouter>)
+  await screen.findByText(/上次同步/)
+  expect(mocks.shelf).toHaveBeenCalledWith({ limit: 50, offset: 50, contentMode: 'adult' })
+  for (let i = 0; i < 4; i++) fireEvent.click(screen.getByRole('button', { name: '下一页' }))
+  expect(screen.getByText('书50')).toBeVisible()
+  fireEvent.click(screen.getByRole('button', { name: /书签/ })); fireEvent.click(screen.getByRole('button', { name: '下一页' }))
+  expect(screen.getByText('签12')).toBeVisible()
+  fireEvent.click(screen.getByRole('button', { name: /想法/ })); fireEvent.click(screen.getByRole('button', { name: '下一页' }))
+  expect(screen.getByText('想法12').closest('a')).toHaveAttribute('href', '/read/n12/c12?thoughtParagraph=12&thoughtId=t12')
+})
+it('安全模式请求带筛选，并不展示设备残留的受限阅读记录', async () => {
+  mocks.safeMode = true
+  saveHistory('restricted', { novelTitle: '受限旧缓存', chapterId: 'c', timestamp: 100 })
+  render(<MemoryRouter><Bookshelf /></MemoryRouter>)
+  await screen.findByText(/上次同步/)
+  expect(mocks.shelf).toHaveBeenCalledWith({ limit: 50, contentMode: 'safe' })
+  expect(mocks.list).toHaveBeenCalledWith('safe')
+  fireEvent.click(screen.getByRole('button', { name: /最近阅读/ }))
+  expect(screen.queryByText('受限旧缓存')).not.toBeInTheDocument()
 })
 it('进度删除失败保留本机记录，不能提示删除成功', async () => {
   saveHistory('n', { novelTitle: '阅读中的书', chapterId: 'c', timestamp: 100 })

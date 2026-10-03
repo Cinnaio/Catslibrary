@@ -21,6 +21,7 @@ import {
   getPageHeight,
   getReaderClientId,
   hashParagraphText,
+  groupChapterThoughts,
   jumpScrollTo,
   resolveSelectionParagraph,
   scrollBehavior,
@@ -89,6 +90,7 @@ export default function Reader() {
 
   // 段评
   const [chapterThoughts, setChapterThoughts] = useState<Thought[]>([])
+  const [loadedThoughtChapter, setLoadedThoughtChapter] = useState('')
   const [activeThoughtParagraph, setActiveThoughtParagraph] = useState<number | null>(null)
   const [pendingSelection, setPendingSelection] = useState<{ paragraphIndex: number; paragraphHash: string; selectedText: string } | null>(null)
   const [popoverPos, setPopoverPos] = useState<{ left: number; top: number } | null>(null)
@@ -297,16 +299,17 @@ export default function Reader() {
     if (!chapter) return
     if (chapter.id.startsWith('dc')) {
       setChapterThoughts([])
+      setLoadedThoughtChapter(chapter.id)
       return
     }
     let cancelled = false
     thoughtsApi
       .list(chapter.id)
       .then((data) => {
-        if (!cancelled) setChapterThoughts(data.thoughts || [])
+        if (!cancelled) { setChapterThoughts(data.thoughts || []); setLoadedThoughtChapter(chapter.id) }
       })
       .catch(() => {
-        if (!cancelled) setChapterThoughts([])
+        if (!cancelled) { setChapterThoughts([]); setLoadedThoughtChapter(chapter.id) }
       })
     return () => {
       cancelled = true
@@ -314,18 +317,10 @@ export default function Reader() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chapter?.id])
 
-  const thoughtsByParagraph = useMemo(() => {
-    const map: Record<string, Thought[]> = {}
-    chapterThoughts.forEach((t) => {
-      const key = String(t.paragraphIndex)
-      ;(map[key] ||= []).push(t)
-    })
-    return map
-  }, [chapterThoughts])
-
   // 章节正文消毒开销大（DOM 解析 + 重建 + 序列化），必须 memo：
   // 否则每次重渲染（如滚动进度更新）都会对整章重新消毒
   const html = useMemo(() => (chapter ? formatContent(chapter.content) : ''), [chapter])
+  const thoughtsByParagraph = useMemo(() => groupChapterThoughts(chapterThoughts, html), [chapterThoughts, html])
 
   // ---------- 想法划线 ----------
   const applyThoughtHighlights = useCallback(() => {
@@ -606,18 +601,26 @@ export default function Reader() {
   // 书架「想法」入口带 ?thoughtParagraph=N：正文渲染后滚到该段并打开想法面板。
   // 挂载时读一次（章内导航是无参数的 replace，不会重复触发），消费后清空。
   const pendingThoughtRef = useRef<number | null>(null)
+  const pendingThoughtId = useRef('')
   useEffect(() => {
     const raw = new URLSearchParams(window.location.search).get('thoughtParagraph')
+    pendingThoughtId.current = new URLSearchParams(window.location.search).get('thoughtId') || ''
     const idx = raw === null ? NaN : Number.parseInt(raw, 10)
     if (Number.isInteger(idx) && idx >= 0) pendingThoughtRef.current = idx
   }, [])
 
   useEffect(() => {
     if (loading || !chapter || pendingThoughtRef.current === null) return
-    const idx = pendingThoughtRef.current
+    if (pendingThoughtId.current && loadedThoughtChapter !== chapter.id) return
+    const targetId = pendingThoughtId.current
+    const entry = targetId ? Object.entries(thoughtsByParagraph).find(([, thoughts]) => thoughts.some(t => t.id === targetId)) : null
+    const idx = targetId ? (entry ? Number(entry[0]) : null) : pendingThoughtRef.current
+    if (idx === null) { pendingThoughtRef.current = null; toast('这条想法已不可见或暂时无法读取，请稍后重试', 'error'); return }
     // 稍等进度恢复（restoreScrollPosition 的 rAF）先落位，再覆盖滚动到目标段落
     const timer = setTimeout(() => {
       pendingThoughtRef.current = null
+      pendingThoughtId.current = ''
+      if (idx === -1) { openThoughtPanel(-1); return }
       const p = bodyRef.current?.querySelector<HTMLElement>(`p[data-paragraph-index="${idx}"]`)
       if (!p) return
       const top = p.getBoundingClientRect().top + window.scrollY - 96
@@ -634,7 +637,7 @@ export default function Reader() {
     }, 150)
     return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, chapter?.id])
+  }, [loading, chapter?.id, loadedThoughtChapter, thoughtsByParagraph])
 
   // 窗口 resize 重算分页
   useEffect(() => {
@@ -999,7 +1002,7 @@ export default function Reader() {
   }
 
   async function submitThought(text: string, displayName: string) {
-    if (!chapter || activeThoughtParagraph === null) return
+    if (!chapter || activeThoughtParagraph === null || activeThoughtParagraph < 0) return
     const paragraph = bodyRef.current?.querySelector<HTMLElement>(`p[data-paragraph-index="${activeThoughtParagraph}"]`)
     const selectedText = pendingSelection && pendingSelection.paragraphIndex === activeThoughtParagraph ? pendingSelection.selectedText : ''
     try {
@@ -1210,6 +1213,7 @@ export default function Reader() {
           <h1 className="reader-chapter-title">{chapter.title}</h1>
           <ChapterRecap prevChapterId={prevChapter?.id || ''} prevChapterTitle={prevChapter ? chapterLabel(prevChapter, currentIdx - 1) : ''} />
           <div ref={bodyRef} className="reader-body" dangerouslySetInnerHTML={{ __html: html }} />
+          {!!thoughtsByParagraph['-1']?.length && <button className="btn btn--secondary btn--sm" onClick={() => openThoughtPanel(-1)}>查看原段落已变更的想法（{thoughtsByParagraph['-1'].length}）</button>}
         </article>
 
         {/* Bottom nav */}
@@ -1312,6 +1316,7 @@ export default function Reader() {
       {activeThoughtParagraph !== null && (
         <ThoughtPanel
           open={thoughtPanelOpen}
+          readOnly={activeThoughtParagraph < 0}
           thoughts={thoughtsByParagraph[String(activeThoughtParagraph)] || []}
           selectedText={pendingSelection && pendingSelection.paragraphIndex === activeThoughtParagraph ? pendingSelection.selectedText : ''}
           paragraphExcerpt={excerptText(bodyRef.current?.querySelector<HTMLElement>(`p[data-paragraph-index="${activeThoughtParagraph}"]`)?.textContent || '')}

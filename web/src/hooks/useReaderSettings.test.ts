@@ -1,7 +1,14 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { detectReaderDevice, readLocalSettings } from './useReaderSettings'
+import { detectReaderDevice, readLocalSettings, useReaderSettings } from './useReaderSettings'
+import { renderHook, waitFor } from '@testing-library/react'
 
 describe('useReaderSettings device-scoped storage', () => {
+  it('最小字号 0 初始化与切换后均生效', async () => {
+    localStorage.setItem('readerSettings:desktop:fontSize', '0')
+    const { result } = renderHook(() => useReaderSettings())
+    await waitFor(() => expect(result.current.ready).toBe(true))
+    expect(result.current.fontSize).toBe(0)
+  })
   beforeEach(() => {
     localStorage.clear()
     window.innerWidth = 1024

@@ -233,7 +233,8 @@ export function useReaderSettings(): ReaderSettingsController {
     }
   }, [])
 
-  const fontSize = Math.min(Math.max(Number.parseInt(settings.fontSize ?? '2', 10) || 2, 0), FONT_SIZES.length - 1)
+  const parsedFontSize = Number.parseInt(settings.fontSize ?? '2', 10)
+  const fontSize = Math.min(Math.max(Number.isFinite(parsedFontSize) ? parsedFontSize : 2, 0), FONT_SIZES.length - 1)
   const pageMode = settings.readerPageMode === 'page'
 
   return { settings, ready, device, set, fontSize, pageMode }

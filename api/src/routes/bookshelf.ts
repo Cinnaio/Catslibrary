@@ -3,7 +3,7 @@
  */
 import { Hono } from 'hono'
 import { getDb } from '../db/pool'
-import { all, run } from '../db/query'
+import { all, first, run } from '../db/query'
 import { rowToThoughtAdmin } from '../db/mappers'
 import { requireUser, type AuthEnv } from '../middlewares/auth'
 import { contentPolicyHeaders, restrictedContentResponse, resolveContentAccess } from '../services/content-access'
@@ -14,7 +14,10 @@ bookshelfRoutes.get('/', requireUser(), async (c) => {
   const db = getDb()
   const userId = c.get('user').id
   const access = await resolveContentAccess(c)
-  const ratingFilter = access.canViewRestricted ? '' : " AND COALESCE(n.content_rating, 'unknown') <> 'restricted'"
+  const ratingFilter = access.canViewRestricted && c.req.query('contentMode') !== 'safe' ? '' : " AND COALESCE(n.content_rating, 'unknown') <> 'restricted'"
+  const limit = Math.min(50, Math.max(1, Math.floor(Number(c.req.query('limit')) || 50)))
+  const offset = Math.max(0, Math.min(100000, Math.floor(Number(c.req.query('offset')) || 0)))
+  const novelId = cleanId(c.req.query('novelId'))
 
   const [favRows, recentRows, thoughtRows] = await Promise.all([
     all<Record<string, unknown>>(
@@ -28,10 +31,10 @@ bookshelfRoutes.get('/', requireUser(), async (c) => {
        JOIN novels n ON n.id = b.novel_id
        LEFT JOIN reading_progress rp ON rp.user_id = b.user_id AND rp.novel_id = b.novel_id AND COALESCE(rp.deleted_at, 0) = 0
        LEFT JOIN chapters c ON c.id = rp.chapter_id
-       WHERE b.user_id = $1${ratingFilter}
-       ORDER BY b.updated_at DESC
-       LIMIT 50`,
-      [userId],
+       WHERE b.user_id = $1${ratingFilter} AND ($4 = '' OR n.id = $4)
+       ORDER BY b.updated_at DESC, b.novel_id
+       LIMIT $2 OFFSET $3`,
+      [userId, limit, offset, novelId],
     ),
     all<Record<string, unknown>>(
       db,
@@ -54,13 +57,18 @@ bookshelfRoutes.get('/', requireUser(), async (c) => {
        LEFT JOIN chapters c ON c.id = t.chapter_id
        LEFT JOIN users u ON u.id = t.user_id
        WHERE t.user_id = $1 AND t.status = 'visible'${ratingFilter}
-       ORDER BY t.created_at DESC
-       LIMIT 20`,
-      [userId],
+       ORDER BY t.created_at DESC, t.id
+       LIMIT $2 OFFSET $3`,
+      [userId, limit, offset],
     ),
   ])
 
+  const [favoritesCount, thoughtsCount] = await Promise.all([
+    first<{ total: number }>(db, `SELECT COUNT(*) AS total FROM user_bookshelf b JOIN novels n ON n.id=b.novel_id WHERE b.user_id=$1${ratingFilter} AND ($2 = '' OR n.id = $2)`, [userId, novelId]),
+    first<{ total: number }>(db, `SELECT COUNT(*) AS total FROM thoughts t JOIN novels n ON n.id=t.novel_id WHERE t.user_id=$1 AND t.status='visible'${ratingFilter}`, [userId]),
+  ])
   return c.json({
+    totals: { favorites: Number(favoritesCount?.total) || 0, thoughts: Number(thoughtsCount?.total) || 0 }, limit, offset,
     favorites: favRows.map(rowToFavorite).filter(Boolean),
     recent: recentRows.map(rowToRecent).filter(Boolean),
     thoughts: thoughtRows.map(rowToThoughtAdmin).filter(Boolean),

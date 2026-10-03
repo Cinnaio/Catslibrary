@@ -11,7 +11,7 @@ bookmarksRoutes.get('/', requireUser(), async (c) => {
   const db = getDb()
   const userId = c.get('user').id
   const access = await resolveContentAccess(c)
-  const ratingFilter = access.canViewRestricted ? '' : " AND COALESCE(n.content_rating, 'general') <> 'restricted'"
+  const ratingFilter = access.canViewRestricted && c.req.query('contentMode') !== 'safe' ? '' : " AND COALESCE(n.content_rating, 'general') <> 'restricted'"
   const rows = await all<Record<string, unknown>>(
     db,
     `SELECT b.*

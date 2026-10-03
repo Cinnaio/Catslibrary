@@ -214,7 +214,7 @@ authRoutes.post('/change-password', requireUser(), async (c) => {
   const hash = await hashPassword(newPassword, salt)
   await run(db, 'UPDATE users SET password_hash = $1, password_salt = $2, password_iterations = 120000, updated_at = $3 WHERE id = $4', [hash, salt, now, user.id])
   await run(db, 'DELETE FROM user_sessions WHERE user_id = $1', [user.id])
-  const token = await createSession(db, user.id, c.req.header('User-Agent') || '', loadConfig().sessionHashSalt)
+  const token = await createSession(db, user.id, c.req.header('User-Agent') || '', loadConfig().sessionHashSalt, body.remember === true ? REMEMBER_TTL : SESSION_TTL)
   const fresh = await publicUserById(db, user.id)
   return c.json({ user: fresh, token })
 })

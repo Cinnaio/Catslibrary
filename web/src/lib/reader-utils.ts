@@ -2,7 +2,7 @@
  * 阅读器纯函数工具：滚动/分页计算、章节正文格式化与消毒、
  * 章节过滤、段评哈希与划选解析。从 Reader.tsx 提取，便于复用与单测。
  */
-import type { ChapterMeta } from '@shared/types'
+import type { ChapterMeta, Thought } from '@shared/types'
 import { removeAdPatterns } from '@shared/ad-cleaner'
 import { escHtml } from '@shared/utils'
 
@@ -49,6 +49,27 @@ export function formatContent(raw: string): string {
     .filter((p) => p.trim())
     .map((p) => `<p>${escHtml(p.trim())}</p>`)
     .join('\n')
+}
+
+/** 优先沿用仍匹配的原位置；移动段落按唯一哈希找回，无法消歧时不挂到其它正文。 */
+export function resolveThoughtParagraph(thought: Pick<Thought, 'paragraphIndex' | 'paragraphHash'>, hashes: string[]): number | null {
+  const index = thought.paragraphIndex
+  if (!thought.paragraphHash) return Number.isInteger(index) && index >= 0 && index < hashes.length ? index : null
+  if (hashes[index] === thought.paragraphHash) return index
+  const matches = hashes.map((hash, i) => hash === thought.paragraphHash ? i : -1).filter(i => i >= 0)
+  return matches.length === 1 ? matches[0]! : null
+}
+
+export function groupChapterThoughts(thoughts: Thought[], html: string): Record<string, Thought[]> {
+  const body = document.createElement('div')
+  body.innerHTML = html
+  const hashes = Array.from(body.querySelectorAll('p'), p => hashParagraphText(p.textContent || ''))
+  const map: Record<string, Thought[]> = {}
+  for (const thought of thoughts) {
+    const index = resolveThoughtParagraph(thought, hashes)
+    ;(map[String(index ?? -1)] ||= []).push(thought)
+  }
+  return map
 }
 
 /** 允许的最小安全 HTML 子集（P/BR/EM/STRONG/BLOCKQUOTE）。 */

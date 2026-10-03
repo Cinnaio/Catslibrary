@@ -230,7 +230,6 @@ bookImportRoutes.post('/:runId/rollback', async (c) => {
   const runId = String(c.req.param('runId') || '').trim()
   const run = await loadRun(db, runId, c.get('user').id)
   if (!run) return c.json({ error: '导入记录不存在' }, 404)
-  if (!['applied', 'partial'].includes(run.status)) return c.json({ error: '这次导入当前不可撤回' }, 409)
   const body: Record<string, unknown> = await c.req.json<Record<string, unknown>>().catch(() => ({} as Record<string, unknown>))
   const operationKey = idempotencyKeyFromRequest(c, body, ['operationId'])
   return withIdempotency(
@@ -243,6 +242,7 @@ bookImportRoutes.post('/:runId/rollback', async (c) => {
     },
     async () => {
       try {
+        if (!['applied', 'partial'].includes(run.status)) return c.json({ error: '这次导入当前不可撤回' }, 409)
         return c.json(await rollbackImport(db, run), 200, { 'Cache-Control': 'no-store' })
       } catch (err) {
         const message = (err as Error).message || '书籍导入撤回失败'
@@ -254,7 +254,8 @@ bookImportRoutes.post('/:runId/rollback', async (c) => {
 
 bookImportRoutes.get('/history', async (c) => {
   const db = getDb()
-  const limit = Math.min(50, Math.max(1, Number(c.req.query('limit') || 20)))
+  const limit = Math.min(50, Math.max(1, Math.floor(Number(c.req.query('limit')) || 20)))
+  const offset = Math.min(100000, Math.max(0, Math.floor(Number(c.req.query('offset')) || 0)))
   const rows = await all<
     StoredImportRun & { novel_title: string; changes_json: string }
   >(
@@ -263,9 +264,9 @@ bookImportRoutes.get('/history', async (c) => {
        FROM book_import_runs r
        LEFT JOIN novels n ON n.id = NULLIF(r.target_novel_id, '')
       WHERE r.actor_user_id = $1
-      ORDER BY r.created_at DESC
-      LIMIT $2`,
-    [c.get('user').id, limit],
+      ORDER BY r.created_at DESC, r.id
+      LIMIT $2 OFFSET $3`,
+    [c.get('user').id, limit, offset],
   )
   const items: BookImportHistoryItem[] = rows.map((row) => {
     const changes = safeJsonParse<Array<{ kind?: string }>>(row.changes_json, [])
@@ -288,5 +289,6 @@ bookImportRoutes.get('/history', async (c) => {
       canRollback: row.status === 'applied' || row.status === 'partial',
     }
   })
-  return c.json({ items }, 200, { 'Cache-Control': 'no-store' })
+  const count = await first<{ total: number }>(db, 'SELECT COUNT(*) AS total FROM book_import_runs WHERE actor_user_id=$1', [c.get('user').id])
+  return c.json({ items, total: Number(count?.total) || 0, limit, offset }, 200, { 'Cache-Control': 'no-store' })
 })

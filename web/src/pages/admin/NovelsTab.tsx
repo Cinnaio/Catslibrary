@@ -30,6 +30,7 @@ import AdminPage from '@/components/admin/AdminPage'
 import AdminRowActions from '@/components/admin/AdminRowActions'
 import AdminSelectionBar from '@/components/admin/AdminSelectionBar'
 import BookImportDialog from '@/components/admin/BookImportDialog'
+import BookImportHistoryDialog from '@/components/admin/BookImportHistoryDialog'
 import { AdminDataPanel, AdminCellText, AdminSearch, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
 
 /**
@@ -179,6 +180,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
   const [editing, setEditing] = useState<Novel | null>(null)
   const [draft, setDraft] = useState<NovelDraft>(EMPTY_DRAFT)
   const [bookImportOpen, setBookImportOpen] = useState(false)
+  const [importHistoryOpen, setImportHistoryOpen] = useState(false)
   // 提交中标志：键盘快捷键（Ctrl+Enter）与保存按钮共用，防止重复提交。
   const [saving, setSaving] = useState(false)
 
@@ -526,6 +528,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
             <FileUp aria-hidden="true" />
             导入书籍
           </Button>
+          <Button variant="secondary" onClick={() => setImportHistoryOpen(true)}>导入历史</Button>
           <Button variant="secondary" onClick={() => openModal(null)}>
             <span aria-hidden="true">＋</span>
             添加小说
@@ -749,6 +752,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
       />
 
       <BookImportDialog key={bookImportOpen ? 'open' : 'closed'} open={bookImportOpen} onOpenChange={setBookImportOpen} onCompleted={() => void load()} />
+      <BookImportHistoryDialog open={importHistoryOpen} onOpenChange={setImportHistoryOpen} onCompleted={() => void load()} />
 
       <Dialog
         open={modalOpen}

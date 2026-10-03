@@ -18,6 +18,7 @@ import {
   saveHistory,
 } from '../lib/storage'
 import { useSession } from '../context/SessionContext'
+import { useContentPolicy } from '../context/ContentPolicyContext'
 import { useToast } from '../components/feedback'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { timeAgo } from '../lib/format'
@@ -85,33 +86,39 @@ function mergeRecent(local: ReadingHistoryEntry[], server: ServerRecent[], limit
 export default function Bookshelf() {
   const navigate = useNavigate()
   const { user, loading } = useSession()
+  const { safeMode } = useContentPolicy()
   const { toast } = useToast()
   useDocumentTitle('我的书架')
 
-  const [favorites, setFavorites] = useState<Favorite[]>(() => getBookshelf())
+  const [favorites, setFavorites] = useState<Favorite[]>([])
   const [recent, setRecent] = useState<ReadingHistoryEntry[]>([])
-  const [bookmarks, setBookmarks] = useState(() => getAllBookmarks())
+  const [bookmarks, setBookmarks] = useState<ReturnType<typeof getAllBookmarks>>([])
   const [thoughts, setThoughts] = useState<ShelfThought[]>([])
   const [syncStatus, setSyncStatus] = useState('')
   const [syncing, setSyncing] = useState(false)
+  const [loadedMode, setLoadedMode] = useState<boolean | null>(null)
   const [activeShelf, setActiveShelf] = useState('favorites')
   const loadRevision = useRef(0)
+  const [pages, setPages] = useState<Record<string, number>>({})
+  const page = pages[activeShelf] || 1
+  const pageSize = 12
 
   useEffect(() => {
     if (!loading && !user) {
       navigate('/auth', { replace: true, state: { from: '/bookshelf' } })
       return
     }
-    setFavorites(getBookshelf())
-    setBookmarks(getAllBookmarks())
-    setRecent(getRecentHistory(8))
+    setFavorites([])
+    setBookmarks([])
+    setRecent([])
+    setPages({})
     setThoughts([])
     setSyncStatus('')
     setSyncing(false)
     if (user) void loadAll()
     return () => { loadRevision.current++ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, loading])
+  }, [user, loading, safeMode])
 
   const loadAll = useCallback(async () => {
     const seq = ++loadRevision.current
@@ -122,29 +129,40 @@ export default function Bookshelf() {
     setSyncing(true)
     try {
       const [bookmarkData, shelfData, progressData] = await Promise.all([
-        bookmarksApi.list(), bookshelfApi.get(), progressApi.recent(8),
+        bookmarksApi.list(safeMode ? 'safe' : 'adult'), bookshelfApi.get({ limit: 50, contentMode: safeMode ? 'safe' : 'adult' }), progressApi.recent(8, safeMode ? 'safe' : 'adult'),
       ])
       if (!current()) return
+      const allFavorites = [...shelfData.favorites]
+      const allThoughts = [...shelfData.thoughts]
+      const maximum = Math.max(shelfData.totals?.favorites || 0, shelfData.totals?.thoughts || 0)
+      for (let offset = 50; offset < maximum; offset += 50) {
+        const next = await bookshelfApi.get({ limit: 50, offset, contentMode: safeMode ? 'safe' : 'adult' })
+        if (!current()) return
+        allFavorites.push(...next.favorites); allThoughts.push(...next.thoughts)
+      }
       // 云端为权威；读取操作不向服务端写回旧缓存。
       replaceAllBookmarks(bookmarkData.bookmarks)
-      replaceBookshelf((shelfData.favorites || []) as Favorite[])
+      replaceBookshelf(allFavorites as Favorite[])
       progressData.tombstones.forEach(t => {
         const h = getRecentHistory(100).find(x => x.novelId === t.novelId)
         if (h && Number(t.updatedAt || 0) >= h.timestamp) clearHistory(t.novelId)
       })
-      const recentList = mergeRecent(getRecentHistory(8), progressData.progress, 8)
+      const visibleIds = new Set(progressData.progress.map(p => p.novelId))
+      const localRecent = getRecentHistory(8).filter(h => !safeMode || visibleIds.has(h.novelId))
+      const recentList = mergeRecent(localRecent, progressData.progress, 8)
       recentList.forEach(h => saveHistory(h.novelId, h))
       setRecent(recentList)
       setBookmarks(getAllBookmarks())
       setFavorites(getBookshelf())
-      setThoughts((shelfData.thoughts || []) as ShelfThought[])
+      setThoughts(allThoughts as ShelfThought[])
+      setLoadedMode(safeMode)
       setSyncStatus(`上次同步 · ${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`)
     } catch (err) {
       if (current()) setSyncStatus(`同步失败：${(err as Error).message || '请稍后重试'}`)
     } finally {
       if (current()) setSyncing(false)
     }
-  }, [])
+  }, [safeMode])
 
   async function manualSync() {
     setSyncing(true)
@@ -182,7 +200,7 @@ export default function Bookshelf() {
         const state = await progressApi.remove(novelId)
         if (token !== getToken() || scope !== getStorageScope()) return
         applyProgressState(novelId, state)
-        setRecent(getRecentHistory(8))
+        setRecent(previous => getRecentHistory(8).filter(h => !safeMode || previous.some(p => p.novelId === h.novelId)))
         toast(state.skipped ? '阅读位置已更新，保留较新的记录' : '阅读记录已删除', state.skipped ? 'default' : 'success')
       } else {
         clearHistory(novelId)
@@ -203,6 +221,10 @@ export default function Bookshelf() {
   }
 
   const recentItems = recent.slice(0, 8)
+  const total = activeShelf === 'favorites' ? favorites.length : activeShelf === 'bookmarks' ? bookmarks.length : activeShelf === 'thoughts' ? thoughts.length : recentItems.length
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  const visiblePage = Math.min(page, totalPages)
+  const start = (visiblePage - 1) * pageSize
 
   return (
     <main className="bookshelf-page">
@@ -237,7 +259,7 @@ export default function Bookshelf() {
         </nav>
 
         {/* 收藏 */}
-        <section className="bookshelf-section" hidden={activeShelf !== 'favorites'}>
+        <section className="bookshelf-section" hidden={activeShelf !== 'favorites' || loadedMode !== safeMode}>
           <div className="bookshelf-sections">
             <h2 className="bookshelf-subtitle sr-only">
               收藏 <span className="text-muted">· {favorites.length}</span>
@@ -246,7 +268,7 @@ export default function Bookshelf() {
               {favorites.length === 0 ? (
                 <p className="profile-empty-note">还没有收藏小说</p>
               ) : (
-                favorites.slice(0, 12).map((f) => (
+                favorites.slice(start, start + pageSize).map((f) => (
                   <div className="bookshelf-novel-card" key={f.novelId}>
                     <Link to={`/novel/${encodeURIComponent(f.novelId)}`} className="novel-card">
                       <CoverOrPlaceholder novelId={f.novelId} title={f.title || f.novelTitle || f.novelId} updatedAt={f.updatedAt} />
@@ -267,7 +289,7 @@ export default function Bookshelf() {
         </section>
 
         {/* 最近阅读 */}
-        <section className="bookshelf-section" hidden={activeShelf !== 'recent'}>
+        <section className="bookshelf-section" hidden={activeShelf !== 'recent' || loadedMode !== safeMode}>
           <div className="bookshelf-sections">
             <h2 className="bookshelf-subtitle sr-only">
               最近阅读 <span className="text-muted">· {recentItems.length}</span>
@@ -300,7 +322,7 @@ export default function Bookshelf() {
         </section>
 
         {/* 书签 */}
-        <section className="bookshelf-section" hidden={activeShelf !== 'bookmarks'}>
+        <section className="bookshelf-section" hidden={activeShelf !== 'bookmarks' || loadedMode !== safeMode}>
           <h2 className="bookshelf-subtitle sr-only">
             书签 <span className="text-muted">· {bookmarks.length}</span>
           </h2>
@@ -308,7 +330,7 @@ export default function Bookshelf() {
             {bookmarks.length === 0 ? (
               <p className="profile-empty-note">还没有添加书签</p>
             ) : (
-              bookmarks.map((b) => (
+              bookmarks.slice(start, start + pageSize).map((b) => (
                 <div className="bookshelf-item-wrap" key={b.id}>
                   <Link className="bookshelf-item" to={`/read/${encodeURIComponent(b.novelId)}/${encodeURIComponent(b.chapterId)}`}>
                     <strong className="bookshelf-item__title">{b.novelTitle || b.novelId}</strong>
@@ -321,7 +343,7 @@ export default function Bookshelf() {
         </section>
 
         {/* 想法 */}
-        <section className="bookshelf-section" hidden={activeShelf !== 'thoughts'}>
+        <section className="bookshelf-section" hidden={activeShelf !== 'thoughts' || loadedMode !== safeMode}>
           <h2 className="bookshelf-subtitle sr-only">
             想法 <span className="text-muted">· {thoughts.length}</span>
           </h2>
@@ -329,11 +351,11 @@ export default function Bookshelf() {
             {thoughts.length === 0 ? (
               <p className="profile-empty-note">还没有写下想法</p>
             ) : (
-              thoughts.slice(0, 4).map((t) => (
+              thoughts.slice(start, start + pageSize).map((t) => (
                 <div className="bookshelf-item-wrap" key={t.id}>
                   <Link
                     className="bookshelf-item"
-                    to={`/read/${encodeURIComponent(t.novelId)}/${encodeURIComponent(t.chapterId)}?thoughtParagraph=${encodeURIComponent(t.paragraphIndex)}`}
+                    to={`/read/${encodeURIComponent(t.novelId)}/${encodeURIComponent(t.chapterId)}?thoughtParagraph=${encodeURIComponent(t.paragraphIndex)}&thoughtId=${encodeURIComponent(t.id)}`}
                   >
                     <strong className="bookshelf-item__title">{t.thoughtText}</strong>
                     <span className="bookshelf-item__meta">{t.novelTitle || t.chapterTitle || timeAgo(t.createdAt)}</span>
@@ -343,6 +365,11 @@ export default function Bookshelf() {
             )}
           </div>
         </section>
+        {totalPages > 1 && <nav className="home-pagination" aria-label="书架分页">
+          <button className="btn btn--secondary" disabled={visiblePage <= 1 || syncing} onClick={() => setPages(p => ({ ...p, [activeShelf]: visiblePage - 1 }))}>上一页</button>
+          <span>第 {visiblePage} / {totalPages} 页 · 共 {total} 条</span>
+          <button className="btn btn--secondary" disabled={visiblePage >= totalPages || syncing} onClick={() => setPages(p => ({ ...p, [activeShelf]: visiblePage + 1 }))}>下一页</button>
+        </nav>}
       </div>
     </main>
   )

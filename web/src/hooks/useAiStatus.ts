@@ -14,12 +14,20 @@ const FALLBACK_STATUS: AiStatus = {
   catchupStaleDays: 7,
 }
 
-let cached: { token: string; promise: Promise<AiStatus> } | null = null
+let cached: { token: string; expiresAt: number; promise: Promise<AiStatus> } | null = null
 
 export function loadAiStatus(): Promise<AiStatus> {
   const token = getToken()
-  if (!cached || cached.token !== token) {
-    cached = { token, promise: aiApi.status().catch(() => FALLBACK_STATUS) }
+  if (!cached || cached.token !== token || Date.now() >= cached.expiresAt) {
+    const entry = { token, expiresAt: Infinity, promise: Promise.resolve(FALLBACK_STATUS) }
+    entry.promise = aiApi.status().then(status => {
+      entry.expiresAt = Date.now() + 60000
+      return status
+    }).catch(() => {
+      if (cached === entry) cached = null
+      return FALLBACK_STATUS
+    })
+    cached = entry
   }
   return cached.promise
 }

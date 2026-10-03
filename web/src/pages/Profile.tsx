@@ -100,6 +100,8 @@ export default function Profile() {
   async function changePassword() {
     try {
       await authApi.changePassword(currentPassword, newPassword)
+      await refresh()
+      await loadSessions()
       setCurrentPassword('')
       setNewPassword('')
       message('密码已修改')
@@ -171,9 +173,13 @@ export default function Profile() {
       danger: true,
     })
     if (!ok) return
-    await authApi.logoutAll()
-    await refresh()
-    navigate('/')
+    try {
+      await authApi.logoutAll()
+      await refresh()
+      navigate('/')
+    } catch (err) {
+      message((err as Error).message || '退出所有设备失败，请重试')
+    }
   }
 
   return (

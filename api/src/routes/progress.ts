@@ -115,7 +115,7 @@ async function listRecent(c: Context<AuthEnv>) {
   const userId = c.get('user')?.id
   if (!userId) return c.json({ progress: [], tombstones: [] })
   const access = await resolveContentAccess(c)
-  const ratingFilter = access.canViewRestricted ? '' : " AND COALESCE(n.content_rating, 'unknown') <> 'restricted'"
+  const ratingFilter = access.canViewRestricted && c.req.query('contentMode') !== 'safe' ? '' : " AND COALESCE(n.content_rating, 'unknown') <> 'restricted'"
 
   let limit = Number.parseInt(c.req.query('limit') || '5', 10)
   if (!Number.isFinite(limit) || limit < 1) limit = 5

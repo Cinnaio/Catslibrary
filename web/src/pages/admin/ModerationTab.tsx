@@ -13,6 +13,7 @@ import AdminPage from '@/components/admin/AdminPage'
 import { ErrorState } from '@/components/admin/AsyncStates'
 import AdminRowActions from '@/components/admin/AdminRowActions'
 import CustomSelect from '../../components/admin/CustomSelect'
+import Pagination from '../../components/admin/Pagination'
 import { AdminDataPanel, AdminPanelHeading, AdminSearch, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -210,7 +211,9 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  const loadingRef = useRef(false)
+  const requestRevision = useRef(0)
+  const [page, setPage] = useState(1)
+  const pageSize = 80
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const userTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -223,6 +226,7 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
     if (searchTimer.current) clearTimeout(searchTimer.current)
     if (userTimer.current) clearTimeout(userTimer.current)
     setMode(nextMode)
+    setPage(1)
     setStatus(MODERATION_TYPES[nextMode].defaultStatus)
     setReason('all')
     setUserInput('')
@@ -232,39 +236,47 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
   }, [mode, urlMode])
 
   const load = useCallback(async () => {
-    if (loadingRef.current) return
-    loadingRef.current = true
+    const revision = ++requestRevision.current
+    const current = () => revision === requestRevision.current
     setLoading(true)
     setError('')
     setRows([])
     setTotal(null)
     try {
       if (mode === 'thoughts') {
-        const d = await thoughtsApi.adminList({ status, userId: userQuery, search: searchQuery, limit: '80' })
+        const d = await thoughtsApi.adminList({ status, userId: userQuery, search: searchQuery, limit: String(pageSize), offset: String((page - 1) * pageSize) })
+        if (!current()) return
         setRows((d.thoughts || []) as ThoughtRow[])
         setTotal(d.total || 0)
       } else if (mode === 'comments') {
-        const d = await adminApi.comments.list({ status, userId: userQuery, search: searchQuery, limit: '80' })
+        const d = await adminApi.comments.list({ status, userId: userQuery, search: searchQuery, limit: String(pageSize), offset: String((page - 1) * pageSize) })
+        if (!current()) return
         setRows((d.comments || []) as CommentRow[])
         setTotal(d.total || 0)
       } else {
-        const d = await adminApi.commentReports.list({ status, reason, limit: '80' })
+        const d = await adminApi.commentReports.list({ status, reason, limit: String(pageSize), offset: String((page - 1) * pageSize) })
+        if (!current()) return
         setRows((d.reports || []) as ReportRow[])
         setTotal(d.total || 0)
       }
     } catch (err) {
+      if (!current()) return
       setError((err as Error).message || '未知错误')
       toast(`${MODERATION_TYPES[mode].label}列表加载失败`, 'error')
     } finally {
-      loadingRef.current = false
-      setLoading(false)
+      if (current()) setLoading(false)
     }
-  }, [mode, status, reason, userQuery, searchQuery, toast])
+  }, [mode, status, reason, userQuery, searchQuery, toast, page])
 
   useEffect(() => {
     void load()
+    return () => { requestRevision.current++ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, status, reason, userQuery, searchQuery])
+  }, [mode, status, reason, userQuery, searchQuery, page])
+
+  useEffect(() => {
+    if (total !== null && page > Math.max(1, Math.ceil(total / pageSize))) setPage(Math.max(1, Math.ceil(total / pageSize)))
+  }, [total, page])
 
   useEffect(() => {
     return () => {
@@ -274,10 +286,12 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
   }, [])
 
   function handleStatusChange(value: string) {
+    setPage(1)
     setStatus(value || 'all')
   }
 
   function handleReasonChange(value: string) {
+    setPage(1)
     setReason(value || 'all')
   }
 
@@ -292,14 +306,14 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
     const v = e.target.value
     setUserInput(v)
     if (userTimer.current) clearTimeout(userTimer.current)
-    userTimer.current = setTimeout(() => setUserQuery(v.trim()), 250)
+    userTimer.current = setTimeout(() => { setPage(1); setUserQuery(v.trim()) }, 250)
   }
 
   function handleSearchChange(e: React.ChangeEvent<HTMLInputElement>) {
     const v = e.target.value
     setSearchInput(v)
     if (searchTimer.current) clearTimeout(searchTimer.current)
-    searchTimer.current = setTimeout(() => setSearchQuery(v.trim()), 250)
+    searchTimer.current = setTimeout(() => { setPage(1); setSearchQuery(v.trim()) }, 250)
   }
 
   // --- Thoughts actions -------------------------------------------------
@@ -674,6 +688,7 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
             <p>{listStateDescription}</p>
           </div>
         )}
+        <Pagination page={page} totalPages={Math.max(1, Math.ceil((total || 0) / pageSize))} onPage={setPage} busy={loading} summary={total === null ? '读取中' : `共 ${total} 条`} />
       </AdminDataPanel>
     </AdminPage>
   )

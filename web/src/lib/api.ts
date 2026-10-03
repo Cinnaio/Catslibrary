@@ -272,8 +272,8 @@ export const bookImportApi = {
   rollback(runId: string, operationId = newOperationId('book-import-rollback')): Promise<BookImportRollbackResult> {
     return request('POST', `/book-import/${encodeURIComponent(runId)}/rollback`, { operationId }, true, operationHeaders(operationId))
   },
-  history(limit = 20): Promise<{ items: BookImportHistoryItem[] }> {
-    return request('GET', `/book-import/history?limit=${encodeURIComponent(limit)}`, null, true)
+  history(limit = 20, offset = 0): Promise<{ items: BookImportHistoryItem[]; total?: number }> {
+    return request('GET', `/book-import/history?limit=${encodeURIComponent(limit)}&offset=${encodeURIComponent(offset)}`, null, true)
   },
 }
 
@@ -397,8 +397,8 @@ export const progressApi = {
   get(novelId: string): Promise<import('./progress-state').ProgressState> {
     return request('GET', `/progress?novelId=${encodeURIComponent(novelId)}`, null, isAuthenticated())
   },
-  recent(limit = 5): Promise<{ progress: RecentProgressItem[]; tombstones: ProgressTombstone[] }> {
-    return request('GET', `/progress?recent=1&limit=${encodeURIComponent(limit)}`, null, true)
+  recent(limit = 5, contentMode?: string): Promise<{ progress: RecentProgressItem[]; tombstones: ProgressTombstone[] }> {
+    return request('GET', `/progress?recent=1&limit=${encodeURIComponent(limit)}${contentMode ? '&contentMode=' + encodeURIComponent(contentMode) : ''}`, null, true)
   },
   save(data: Record<string, unknown>): Promise<import('./progress-state').ProgressState & { success: boolean; skipped?: boolean }> {
     return request('POST', '/progress', data, isAuthenticated())
@@ -426,8 +426,9 @@ export const progressApi = {
 // ---------- Bookshelf ----------
 
 export const bookshelfApi = {
-  get(): Promise<{ favorites: unknown[]; recent: unknown[]; thoughts: unknown[] }> {
-    return request('GET', '/bookshelf', null, true)
+  get(params: { offset?: number; limit?: number; contentMode?: string; novelId?: string } = {}): Promise<{ favorites: unknown[]; recent: unknown[]; thoughts: unknown[]; totals?: { favorites: number; thoughts: number } }> {
+    const query = new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)]))
+    return request('GET', `/bookshelf?${query}`, null, true)
   },
   add(novelId: string): Promise<{ ok: boolean }> {
     return request('POST', '/bookshelf', { novelId }, true)
@@ -440,8 +441,8 @@ export const bookshelfApi = {
 // ---------- Bookmarks（本地 + 后端同步） ----------
 
 export const bookmarksApi = {
-  list(): Promise<{ bookmarks: LocalBookmark[] }> {
-    return request('GET', '/bookmarks', null, true)
+  list(contentMode?: string): Promise<{ bookmarks: LocalBookmark[] }> {
+    return request('GET', `/bookmarks${contentMode ? '?contentMode=' + encodeURIComponent(contentMode) : ''}`, null, true)
   },
   replace(bookmarks: unknown[]): Promise<{ ok: boolean }> {
     return request('PUT', '/bookmarks', { bookmarks }, true)
@@ -607,7 +608,7 @@ export const authApi = {
     })
   },
   login(username: string, password: string, persist = false): Promise<{ token: string; user: User }> {
-    return request('POST', '/auth/login', { username, password }).then((r) => {
+    return request('POST', '/auth/login', { username, password, remember: persist }).then((r) => {
       if ((r as { token?: string }).token) setToken((r as { token: string }).token, persist)
       setStorageUser((r as { user: User }).user.id)
       return r as { token: string; user: User }
@@ -627,13 +628,21 @@ export const authApi = {
     })
   },
   update(data: Record<string, unknown>): Promise<{ user: User }> {
-    return request('PUT', '/auth/me', data, true)
+    const token = getToken()
+    return request<{ user: User }>('PUT', '/auth/me', data, true).then(result => {
+      if (token === getToken()) authApi.invalidate()
+      return result
+    })
   },
   changePassword(currentPassword: string, newPassword: string): Promise<{ token: string }> {
     const owner = getStorageUser()
-    return request('POST', '/auth/change-password', { currentPassword, newPassword }, true).then((r) => {
-      if ((r as { token?: string }).token) setToken((r as { token: string }).token)
-      setStorageUser(owner)
+    const token = getToken()
+    const persist = localStorage.getItem(TOKEN_KEY) === token
+    return request('POST', '/auth/change-password', { currentPassword, newPassword, remember: persist }, true).then((r) => {
+      if (token === getToken()) {
+        if ((r as { token?: string }).token) setToken((r as { token: string }).token, persist)
+        setStorageUser(owner)
+      }
       return r as { token: string }
     })
   },
@@ -643,9 +652,9 @@ export const authApi = {
       .then(() => clearToken())
   },
   logoutAll(): Promise<void> {
+    const token = getToken()
     return request('POST', '/auth/logout-all', null, true)
-      .catch(() => {})
-      .then(() => clearToken())
+      .then(() => { if (token === getToken()) clearToken() })
   },
   readerSettings(device?: ReaderDevice): Promise<{ settings: Record<string, string>; updatedAt: Record<string, number>; device?: ReaderDevice }> {
     const query = device ? `?device=${device}` : ''
@@ -658,16 +667,22 @@ export const authApi = {
     return request('PUT', '/auth/reader-settings', { settings: settings.values, updatedAt: settings.updatedAt, ...(device ? { device } : {}) }, true)
   },
   uploadAvatar(file: File): Promise<{ ok: boolean }> {
+    const token = getToken()
     const form = new FormData()
     form.append('avatar', file)
     return authFetch('/auth/avatar', { method: 'PUT', body: form }).then(async (res) => {
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error((data as { error?: string }).error || `HTTP ${res.status}`)
+      if (token === getToken()) authApi.invalidate()
       return data
     })
   },
   deleteAvatar(): Promise<{ ok: boolean }> {
-    return request('DELETE', '/auth/avatar', null, true)
+    const token = getToken()
+    return request<{ ok: boolean }>('DELETE', '/auth/avatar', null, true).then(result => {
+      if (token === getToken()) authApi.invalidate()
+      return result
+    })
   },
   sessions(): Promise<{ sessions: unknown[] }> {
     return request('GET', '/auth/sessions', null, true)

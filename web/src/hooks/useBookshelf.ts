@@ -28,7 +28,7 @@ export function useBookshelf(novelId: string | undefined) {
     const token = getToken()
     const scope = getStorageScope()
     void bookshelfApi
-      .get()
+      .get({ novelId })
       .then((data) => {
         if (cancelled || seq !== revision.current || token !== getToken() || scope !== getStorageScope()) return
         const favs = (data as { favorites?: Array<{ novelId: string }> }).favorites || []
