@@ -129,7 +129,7 @@ describe('auth 端到端（pglite）', () => {
 
     const put = await req(
       '/api/auth/reader-settings',
-      json('PUT', { settings: { fontSize: '2', readerPageMode: 'page', contentMode: 'adult' }, updatedAt: { fontSize: 100, readerPageMode: 100, contentMode: 100 } }, token),
+      json('PUT', { settings: { fontSize: '2', readerPageMode: 'page', contentMode: 'safe' }, updatedAt: { fontSize: 100, readerPageMode: 100, contentMode: 100 } }, token),
     )
     expect(put.status).toBe(200)
     const putData = await jsonOf<{ settings: Record<string, string> }>(put)
@@ -137,7 +137,7 @@ describe('auth 端到端（pglite）', () => {
 
     const get = await req('/api/auth/reader-settings', json('GET', undefined, token))
     const getData = await jsonOf<{ settings: Record<string, string> }>(get)
-    expect(getData.settings).toEqual({ fontSize: '2', readerPageMode: 'page', contentMode: 'adult' })
+    expect(getData.settings).toEqual({ fontSize: '2', readerPageMode: 'page', contentMode: 'safe' })
 
     const mobilePut = await req(
       '/api/auth/reader-settings',
@@ -147,11 +147,11 @@ describe('auth 端到端（pglite）', () => {
 
     const desktopAfterMobile = await req('/api/auth/reader-settings?device=desktop', json('GET', undefined, token))
     const desktopAfterMobileData = await jsonOf<{ settings: Record<string, string> }>(desktopAfterMobile)
-    expect(desktopAfterMobileData.settings).toEqual({ fontSize: '2', readerPageMode: 'page', contentMode: 'adult' })
+    expect(desktopAfterMobileData.settings).toEqual({ fontSize: '2', readerPageMode: 'page', contentMode: 'safe' })
 
     const mobileAfterMobile = await req('/api/auth/reader-settings?device=mobile', json('GET', undefined, token))
     const mobileAfterMobileData = await jsonOf<{ settings: Record<string, string> }>(mobileAfterMobile)
-    expect(mobileAfterMobileData.settings).toEqual({ fontSize: '5', readerTheme: 'eye', contentMode: 'adult' })
+    expect(mobileAfterMobileData.settings).toEqual({ fontSize: '5', readerTheme: 'eye', contentMode: 'safe' })
   })
 
   it('登录失败 10 次后触发限流 429', async () => {

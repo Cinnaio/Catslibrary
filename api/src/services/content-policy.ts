@@ -1,5 +1,5 @@
 import { getDb } from '../db/pool'
-import { first } from '../db/query'
+import { first, withTx } from '../db/query'
 
 export const ADULT_CONTENT_SETTING_KEY = 'adult_content_enabled'
 
@@ -16,10 +16,14 @@ export async function getAdultContentEnabled(): Promise<boolean> {
 }
 
 export async function setAdultContentEnabled(enabled: boolean): Promise<void> {
-  await getDb().query(
-    `INSERT INTO app_settings (key, value, updated_at)
-     VALUES ($1, $2, $3)
-     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at`,
-    [ADULT_CONTENT_SETTING_KEY, String(enabled), Date.now()],
-  )
+  await withTx(getDb(), async query => {
+    await query(
+      `INSERT INTO app_settings (key, value, updated_at)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at`,
+      [ADULT_CONTENT_SETTING_KEY, String(enabled), Date.now()],
+    )
+    // 重新开放不能恢复关闭前的读者授权。
+    if (!enabled) await query('UPDATE user_sessions SET adult_access_until = 0 WHERE adult_access_until > 0')
+  })
 }

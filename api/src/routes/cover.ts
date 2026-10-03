@@ -39,7 +39,7 @@ coverRoutes.get('/:id', optionalUser(), async (c) => {
     // novels.updated_at, which is already part of the iOS cover URL.
     // Restricted covers stay private and must re-check access on every reuse.
     'Cache-Control': novel.content_rating === 'restricted'
-      ? 'private, no-cache, must-revalidate'
+      ? 'private, no-store'
       : 'private, max-age=604800, must-revalidate',
     Vary: 'Cookie, Authorization, X-Content-Access',
     ETag: etag,

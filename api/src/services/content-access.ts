@@ -4,11 +4,12 @@ import { loadConfig } from '../config'
 import { getAdultContentEnabled } from './content-policy'
 import { flattenReaderSettings, parseSettingsDocument } from './reader-settings'
 import type { AuthEnv } from '../middlewares/auth'
+import { getDb } from '../db/pool'
+import { bearerToken, hashToken, type UserRow } from './auth'
 
 /**
  * 这是“年满 18 岁后自行确认”的服务端凭证，不是年龄验证。
- * 它的作用是让内容 API 不再把前端 mode 当成唯一拦截点，同时兼容未登录读者
- * 现有的本设备成人模式。真正的年龄/身份合规验证仍属于独立的产品与合规能力。
+ * 绑定数据库登录会话与短期授权，不允许匿名解锁。它不是实际年龄验证。
  */
 export const ADULT_ACCESS_COOKIE = 'zhizhou_adult_access'
 export const ADULT_ACCESS_HEADER = 'X-Content-Access'
@@ -16,31 +17,32 @@ export const ADULT_ACCESS_TTL_SECONDS = 24 * 60 * 60
 
 export interface ContentAccessDecision {
   canViewRestricted: boolean
-  reason: 'admin' | 'reader_setting' | 'guest_token' | 'site_disabled' | 'not_unlocked'
+  accountId?: string
+  reason: 'admin' | 'session_grant' | 'login_required' | 'site_disabled' | 'not_unlocked'
 }
 
 function signingSecret(): string {
-  return `${loadConfig().sessionHashSalt}\u0000content-access-v1`
+  return `${loadConfig().sessionHashSalt}\u0000content-access-v2`
 }
 
 function signature(payload: string): string {
   return createHmac('sha256', signingSecret()).update(payload, 'utf8').digest('base64url')
 }
 
-export function createAdultAccessToken(now = Date.now()): string {
-  const expiresAt = Math.floor(now / 1000) + ADULT_ACCESS_TTL_SECONDS
-  const payload = `v1.${expiresAt}`
+export function createAdultAccessToken(sessionHash: string, until: number): string {
+  const expiresAt = Math.floor(until / 1000)
+  const payload = `v2.${expiresAt}.${Buffer.from(sessionHash).toString('base64url')}`
   return `${payload}.${signature(payload)}`
 }
 
 export function verifyAdultAccessToken(token: string, now = Date.now()): boolean {
   const parts = String(token || '').split('.')
-  if (parts.length !== 3 || parts[0] !== 'v1') return false
+  if (parts.length !== 4 || parts[0] !== 'v2') return false
   const expiresAt = Number(parts[1])
   if (!Number.isSafeInteger(expiresAt) || expiresAt <= Math.floor(now / 1000)) return false
 
-  const actual = Buffer.from(parts[2] || '', 'utf8')
-  const expected = Buffer.from(signature(`v1.${parts[1]}`), 'utf8')
+  const actual = Buffer.from(parts[3] || '', 'utf8')
+  const expected = Buffer.from(signature(parts.slice(0, 3).join('.')), 'utf8')
   return actual.length === expected.length && timingSafeEqual(actual, expected)
 }
 
@@ -60,6 +62,7 @@ function requestAccessToken(c: Context<AuthEnv>): string {
 
 function setCookie(c: Context<AuthEnv>, value: string, maxAge: number): void {
   const secure = new URL(c.req.url).protocol === 'https:'
+    || (loadConfig().trustProxy && c.req.header('X-Forwarded-Proto')?.split(',')[0]?.trim() === 'https')
   const requestOrigin = c.req.header('Origin') || ''
   const sameOrigin = !requestOrigin || requestOrigin === new URL(c.req.url).origin
   const attributes = [
@@ -75,7 +78,7 @@ function setCookie(c: Context<AuthEnv>, value: string, maxAge: number): void {
   c.header('Set-Cookie', attributes.join('; '))
 }
 
-export function setAdultAccessCookie(c: Context<AuthEnv>, token = createAdultAccessToken()): void {
+export function setAdultAccessCookie(c: Context<AuthEnv>, token: string): void {
   setCookie(c, token, ADULT_ACCESS_TTL_SECONDS)
 }
 
@@ -86,14 +89,14 @@ export function clearAdultAccessCookie(c: Context<AuthEnv>): void {
 export function contentPolicyHeaders(): Record<string, string> {
   return {
     'Cache-Control': 'private, no-store',
-    Vary: 'Cookie, Authorization',
+    Vary: 'Cookie, Authorization, X-Content-Access',
   }
 }
 
 export function restrictedContentResponse(c: Context<AuthEnv>, reason = 'adult_mode_required') {
   return c.json(
     {
-      error: '限制级内容需要开启成人内容模式',
+      error: reason === 'login_required' ? '请先登录后开启成人内容模式' : '限制级内容需要开启成人内容模式',
       code: 'restricted_content',
       reason,
     },
@@ -108,25 +111,38 @@ export function restrictedContentResponse(c: Context<AuthEnv>, reason = 'adult_m
  * 这只对带有有效管理员会话的请求成立，不会放宽普通读者的访问。
  */
 export async function resolveContentAccess(c: Context<AuthEnv>): Promise<ContentAccessDecision> {
-  const user = c.get('user')
   const existingToken = requestAccessToken(c)
-
-  if (user?.role === 'admin') {
-    if (!verifyAdultAccessToken(existingToken)) setAdultAccessCookie(c)
-    return { canViewRestricted: true, reason: 'admin' }
+  const bearer = bearerToken(c.req.header('Authorization') || '')
+  // Bearer 存在时只接受该会话；无效 Bearer 不回退到另一个账号的 Cookie。
+  let sessionHash = bearer ? await hashToken(bearer, loadConfig().sessionHashSalt) : ''
+  if (!bearer && !c.req.header('Authorization') && verifyAdultAccessToken(existingToken)) {
+    sessionHash = Buffer.from(existingToken.split('.')[2]!, 'base64url').toString('utf8')
   }
-
+  if (!sessionHash) return { canViewRestricted: false, reason: 'login_required' }
+  const { rows } = await getDb().query<UserRow & { adult_access_until: string; expires_at: string }>(
+    `SELECT u.*, s.adult_access_until, s.expires_at FROM user_sessions s JOIN users u ON u.id = s.user_id
+     WHERE s.token_hash = $1 AND s.expires_at > $2 AND u.status = 'active'`, [sessionHash, Date.now()],
+  )
+  const user = rows[0]
+  if (!user || (c.get('user') && c.get('user').id !== user.id)) return { canViewRestricted: false, reason: 'login_required' }
+  if (user.role === 'admin') {
+    if (bearer) setAdultAccessCookie(c, createAdultAccessToken(sessionHash, Math.min(Number(user.expires_at), Date.now() + ADULT_ACCESS_TTL_SECONDS * 1000)))
+    return { canViewRestricted: true, reason: 'admin', accountId: user.id }
+  }
   const adultContentEnabled = await getAdultContentEnabled()
   if (!adultContentEnabled) return { canViewRestricted: false, reason: 'site_disabled' }
-
-  if (user) {
-    const settings = flattenReaderSettings(parseSettingsDocument(user.reader_settings || ''), 'desktop')
-    if (settings.values.contentMode === 'adult') {
-      if (!verifyAdultAccessToken(existingToken)) setAdultAccessCookie(c)
-      return { canViewRestricted: true, reason: 'reader_setting' }
-    }
+  const settings = flattenReaderSettings(parseSettingsDocument(user.reader_settings || ''), 'desktop')
+  if (settings.values.contentMode === 'adult' && Number(user.adult_access_until) > Date.now()) {
+    if (bearer) setAdultAccessCookie(c, createAdultAccessToken(sessionHash, Math.min(Number(user.expires_at), Number(user.adult_access_until))))
+    return { canViewRestricted: true, reason: 'session_grant', accountId: user.id }
   }
-
-  if (verifyAdultAccessToken(existingToken)) return { canViewRestricted: true, reason: 'guest_token' }
   return { canViewRestricted: false, reason: 'not_unlocked' }
+}
+
+/** 受控操作忽略客户端时间戳，确保 safe 撤销和重新确认不会被旧/未来时间戳覆盖。 */
+export function setAccountContentMode(settings: string, mode: 'safe' | 'adult') {
+  const document = parseSettingsDocument(settings)
+  document.shared.values.contentMode = mode
+  document.shared.updatedAt.contentMode = Date.now()
+  return JSON.stringify(document)
 }

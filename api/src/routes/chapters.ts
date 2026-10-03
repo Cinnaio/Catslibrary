@@ -10,6 +10,7 @@ import { simplifyChapterForSource } from '../services/zh-convert'
 import { optionalUser, requireAdmin, type AuthEnv } from '../middlewares/auth'
 import { contentPolicyHeaders, restrictedContentResponse, resolveContentAccess } from '../services/content-access'
 import { idempotencyKeyFromRequest, withIdempotency } from '../services/idempotency'
+import { checkContentRate } from '../services/content-rate-limit'
 
 export const chaptersRoutes = new Hono<AuthEnv>()
 
@@ -58,6 +59,8 @@ chaptersRoutes.delete('/', requireAdmin(), async (c) => {
 // ---------- 详情 / 更新 / 删除 ----------
 
 chaptersRoutes.get('/:id', optionalUser(), async (c) => {
+  const limited = await checkContentRate(c, 'chapter')
+  if (limited) return limited
   const db = getDb()
   const id = c.req.param('id')
   if (!id || id.includes('/')) return c.json({ error: 'Invalid chapter ID' }, 400)

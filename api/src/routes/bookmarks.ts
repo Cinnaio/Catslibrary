@@ -3,7 +3,7 @@ import { Hono } from 'hono'
 import { getDb } from '../db/pool'
 import { all, withTx } from '../db/query'
 import { requireUser, type AuthEnv } from '../middlewares/auth'
-import { contentPolicyHeaders, resolveContentAccess } from '../services/content-access'
+import { contentPolicyHeaders, restrictedContentResponse, resolveContentAccess } from '../services/content-access'
 
 export const bookmarksRoutes = new Hono<AuthEnv>()
 
@@ -59,6 +59,19 @@ bookmarksRoutes.put('/', requireUser(), async (c) => {
     })
   })
   const deduped = [...byChapter.values()]
+  const access = await resolveContentAccess(c)
+  for (const b of deduped) {
+    const { rows } = await db.query<{ title: string; chapter_title: string; sort_order: number; content_rating: string }>(
+      'SELECT n.title, ch.title AS chapter_title, ch.sort_order, n.content_rating FROM chapters ch JOIN novels n ON n.id = ch.novel_id WHERE n.id = $1 AND ch.id = $2',
+      [b.novelId, b.chapterId],
+    )
+    const row = rows[0]
+    if (!row) return c.json({ error: '书签章节不存在或不属于该小说' }, 400)
+    if (row.content_rating === 'restricted' && !access.canViewRestricted) return restrictedContentResponse(c, access.reason)
+    b.novelTitle = row.title
+    b.chapterTitle = row.chapter_title
+    b.chapterOrder = row.sort_order
+  }
   const usedIds = new Set<string>()
   const inserts: Array<[string, unknown[]]> = deduped.map((b, i) => {
     let id = b.id
@@ -72,7 +85,8 @@ bookmarksRoutes.put('/', requireUser(), async (c) => {
   })
 
   await withTx(db, async (q) => {
-    await q('DELETE FROM user_bookmarks WHERE user_id = $1', [userId])
+    // 安全模式的完整列表不包含隐藏作品，不能误删原有 R18 书签。
+    await q(`DELETE FROM user_bookmarks b WHERE b.user_id = $1 AND ($2 OR NOT EXISTS (SELECT 1 FROM novels n WHERE n.id = b.novel_id AND n.content_rating = 'restricted'))`, [userId, access.canViewRestricted])
     for (const [sql, p] of inserts) await q(sql, p)
   })
   return c.json({ success: true, count: inserts.length })

@@ -140,6 +140,7 @@ async function request<T = unknown>(
   extraHeaders: Record<string, string> = {},
   timeoutMs = API_TIMEOUT_MS,
 ): Promise<T> {
+  const requestToken = useAuth ? getToken() : ''
   const hasBody = !!body && method !== 'GET'
   // 有 body 才声明 Content-Type：GET 带它会让跨域读取多一次 preflight
   const headers = { ...(hasBody ? { 'Content-Type': 'application/json' } : {}), ...extraHeaders }
@@ -168,6 +169,11 @@ async function request<T = unknown>(
   const data = (await res.json().catch(() => ({}))) as T & { error?: string }
 
   if (!res.ok) {
+    const denied = data as { code?: string; reason?: string }
+    if (requestToken && requestToken === getToken() && (res.status === 401 || (res.status === 403 && denied.code === 'restricted_content' && denied.reason === 'login_required'))) {
+      clearToken()
+      window.dispatchEvent(new Event('zhizhou-session-expired'))
+    }
     const err = new Error((data as { error?: string }).error || `HTTP ${res.status}`) as ApiError
     err.status = res.status
     err.data = data
@@ -1209,14 +1215,17 @@ export const adminApi = {
 }
 
 export const contentPolicyApi = {
-  settings(): Promise<{ adultContentEnabled: boolean }> {
+  settings(): Promise<{ adultContentEnabled: boolean; turnstileSiteKey: string; turnstileConfigured: boolean }> {
     return request('GET', '/content-policy')
   },
-  unlock(): Promise<{ adultContentEnabled: boolean; expiresIn: number }> {
-    return request('POST', '/content-policy/unlock', { confirmed: true })
+  unlock(turnstileToken: string): Promise<{ adultContentEnabled: boolean; expiresIn: number }> {
+    return request('POST', '/content-policy/unlock', { confirmed: true, turnstileToken }, true)
+  },
+  refresh(): Promise<{ ok: boolean }> {
+    return request('POST', '/content-policy/refresh', {}, true)
   },
   lock(): Promise<{ ok: boolean }> {
-    return request('POST', '/content-policy/lock', {})
+    return request('POST', '/content-policy/lock', {}, true)
   },
 }
 

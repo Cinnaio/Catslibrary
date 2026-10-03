@@ -1,6 +1,7 @@
 import { ShieldIcon } from './icons'
 import type { ContentMode } from '../context/ContentPolicyContext'
-import { useConfirm } from './feedback'
+import { Link } from 'react-router-dom'
+import { useOptionalSession } from '../context/SessionContext'
 
 interface ContentRestrictionNoticeProps {
   mode: ContentMode
@@ -15,21 +16,15 @@ export default function ContentRestrictionNotice({
   mode,
   onModeChange,
   title = '内容安全模式已拦截',
-  description = '这部作品包含可能不适合所有读者的内容。确认已年满 18 岁后，可在本设备上显示限制级作品。',
+  description = '限制级作品仅供已登录且年满 18 岁的读者，开启前需完成成年确认与人机验证。',
   canUnlock = true,
   compact = false,
 }: ContentRestrictionNoticeProps) {
-  const { confirm } = useConfirm()
+  const session = useOptionalSession()
 
   async function unlock() {
     if (mode === 'adult') return
-    const confirmed = await confirm({
-      title: '显示限制级内容？',
-      message: '仅限年满 18 岁的用户查看限制级内容。此设置会同步到你的账号。',
-      okText: '确认查看',
-      cancelText: '暂不查看',
-    })
-    if (confirmed) await onModeChange('adult')
+    if (session?.user) await onModeChange('adult')
   }
 
   return (
@@ -38,7 +33,8 @@ export default function ContentRestrictionNotice({
       <div className="content-restriction__body">
         <h2>{title}</h2>
         <p>{description}</p>
-        {mode === 'safe' && canUnlock && (
+        {mode === 'safe' && canUnlock && !session?.user && <Link to="/auth" className="btn btn--primary btn--sm">登录后开启</Link>}
+        {mode === 'safe' && canUnlock && session?.user && (
           <button type="button" className="btn btn--primary btn--sm" onClick={unlock}>
             查看限制级内容
           </button>

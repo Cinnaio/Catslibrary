@@ -9,6 +9,7 @@ const policy = vi.hoisted(() => ({ safeMode: true }))
 
 vi.mock('../context/SessionContext', () => ({
   useSession: () => ({ user: { id: 'reader' } }),
+  useOptionalSession: () => ({ user: { id: 'reader' }, loading: false }),
 }))
 
 vi.mock('../context/ContentPolicyContext', () => {

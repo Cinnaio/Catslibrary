@@ -81,4 +81,13 @@ describe('SiteHeader account menu', () => {
     expect(screen.queryByRole('button', { name: '搜索' })).toBeNull()
     expect(screen.getByRole('button', { name: '账户菜单：猫' })).toBeInTheDocument()
   })
+
+  it('站点开放 R18 时游客的桌面和移动导航都没有模式开关', async () => {
+    mocks.useSession.mockReturnValue({ user: null })
+    mocks.useContentPolicy.mockReturnValue({ mode: 'safe', setMode: vi.fn(), adultContentEnabled: true })
+    render(<MemoryRouter><SiteHeader /></MemoryRouter>)
+    expect(screen.queryByRole('button', { name: /内容安全模式/ })).toBeNull()
+    await userEvent.setup().click(screen.getByRole('button', { name: /导航菜单|打开菜单|菜单/ }))
+    expect(screen.queryByRole('button', { name: /内容安全模式/ })).toBeNull()
+  })
 })

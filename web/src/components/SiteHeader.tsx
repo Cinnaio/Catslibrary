@@ -13,14 +13,14 @@ import { useSession } from '../context/SessionContext'
 import { useContentPolicy } from '../context/ContentPolicyContext'
 import { BookIcon, ChevronIcon, CloseIcon, MenuIcon, MoonIcon, RefreshIcon, ShieldIcon, SunIcon } from './icons'
 import { ThemeMenu } from './ThemeMenu'
-import { useConfirm } from './feedback'
+import { useToast } from './feedback'
 import { AccountMenu } from './AccountMenu'
 
 export default function SiteHeader() {
   const location = useLocation()
   const { user } = useSession()
   const { mode, setMode, adultContentEnabled } = useContentPolicy()
-  const { confirm } = useConfirm()
+  const { toast } = useToast()
   const mobileMenuTriggerRef = useRef<HTMLButtonElement>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const isHome = location.pathname === '/'
@@ -49,16 +49,10 @@ export default function SiteHeader() {
     // 侧边栏层级高于确认弹窗；先收束，避免遮挡确认按钮。
     setMenuOpen(false)
     if (mode === 'adult') {
-      setMode('safe')
+      await setMode('safe').catch(() => toast('本地已切回安全模式，但服务端撤销失败，请检查网络后重试', 'error'))
       return
     }
-    const confirmed = await confirm({
-      title: '显示限制级内容？',
-      message: '仅限年满 18 岁的用户查看限制级内容。此设置会同步到你的账号。',
-      okText: '确认查看',
-      cancelText: '暂不查看',
-    })
-    if (confirmed) await setMode('adult')
+    if (user) await setMode('adult')
   }
 
   return (
@@ -95,7 +89,7 @@ export default function SiteHeader() {
               </Link>
             )}
 
-            {adultContentEnabled && (
+            {user && adultContentEnabled && (
               <button
                 type="button"
                 className={`content-mode-btn content-mode-btn--desktop${mode === 'adult' ? ' content-mode-btn--adult' : ''}`}
@@ -198,7 +192,7 @@ export default function SiteHeader() {
                     管理面板
                   </Link>
                 )}
-                {adultContentEnabled && (
+                {user && adultContentEnabled && (
                   <button type="button" className="mobile-drawer__item" onClick={toggleContentMode} aria-pressed={mode === 'adult'}>
                     <ShieldIcon />
                     {mode === 'safe' ? '安全模式（已隐藏限制级内容）' : '成人内容模式（点击关闭）'}

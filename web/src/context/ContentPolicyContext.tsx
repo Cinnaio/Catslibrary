@@ -1,7 +1,8 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { ContentRating } from '@shared/types'
-import { authApi, contentPolicyApi, getToken } from '../lib/api'
+import { contentPolicyApi, getToken } from '../lib/api'
 import { useOptionalSession } from './SessionContext'
+import AdultUnlockDialog from '../components/AdultUnlockDialog'
 
 export type ContentMode = 'safe' | 'adult'
 
@@ -41,14 +42,6 @@ export function isRestrictedContent(metadata: ContentMetadata | null | undefined
   return metadata.contentRating === 'restricted'
 }
 
-function readInitialMode(): ContentMode {
-  try {
-    return localStorage.getItem(STORAGE_KEY) === 'adult' ? 'adult' : 'safe'
-  } catch {
-    return 'safe'
-  }
-}
-
 interface ContentPolicyContextValue {
   mode: ContentMode
   safeMode: boolean
@@ -63,11 +56,17 @@ const ContentPolicyContext = createContext<ContentPolicyContextValue | null>(nul
 export function ContentPolicyProvider({ children }: { children: ReactNode }) {
   const session = useOptionalSession()
   const user = session?.user ?? null
-  const [mode, setModeState] = useState<ContentMode>(readInitialMode)
+  const identity = user && !session?.loading && getToken() ? `${user.id}:${getToken()}` : ''
+  const identityRef = useRef(identity)
+  useLayoutEffect(() => { identityRef.current = identity }, [identity])
+  const [authorizedIdentity, setAuthorizedIdentity] = useState('')
+  const [modeState, setModeState] = useState<ContentMode>('safe')
   const [adultContentEnabled, setAdultContentEnabled] = useState(false)
-  const [adultAccessReady, setAdultAccessReady] = useState(false)
-  const adultAccessReadyRef = useRef(false)
-  const adultUnlockPromiseRef = useRef<Promise<void> | null>(null)
+  const [siteKey, setSiteKey] = useState('')
+  const [unlockIdentity, setUnlockIdentity] = useState('')
+  const pending = useRef<(() => void) | null>(null)
+  const revision = useRef(0)
+  const mode: ContentMode = identity && authorizedIdentity === identity && adultContentEnabled ? modeState : 'safe'
 
   const persistMode = useCallback((next: ContentMode) => {
     try {
@@ -77,25 +76,11 @@ export function ContentPolicyProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const ensureAdultAccess = useCallback(async () => {
-    if (adultAccessReadyRef.current) return
-    if (!adultUnlockPromiseRef.current) {
-      adultUnlockPromiseRef.current = contentPolicyApi.unlock()
-        .then(() => {
-          adultAccessReadyRef.current = true
-          setAdultAccessReady(true)
-        })
-        .finally(() => {
-          adultUnlockPromiseRef.current = null
-        })
-    }
-    await adultUnlockPromiseRef.current
-  }, [])
-
   const refreshPolicy = useCallback(async () => {
     try {
-      const { adultContentEnabled: enabled } = await contentPolicyApi.settings()
-      setAdultContentEnabled(enabled)
+      const settings = await contentPolicyApi.settings()
+      setAdultContentEnabled(settings.adultContentEnabled)
+      setSiteKey(settings.turnstileConfigured ? settings.turnstileSiteKey : '')
     } catch {
       // 配置不可达时保持安全模式，避免意外展示限制级内容。
       setAdultContentEnabled(false)
@@ -107,95 +92,100 @@ export function ContentPolicyProvider({ children }: { children: ReactNode }) {
   }, [refreshPolicy])
 
   useEffect(() => {
-    if (!user || !getToken()) return
+    revision.current++
+    pending.current?.()
+    pending.current = null
+    setUnlockIdentity('')
+    setAuthorizedIdentity('')
+    setModeState('safe')
+    persistMode('safe')
+    if (!identity || !getToken() || !adultContentEnabled) return
     let cancelled = false
-    void authApi.readerSettings().then((data) => {
-      if (cancelled) return
-      const remoteMode = data.settings?.contentMode
-      if (remoteMode === 'safe' || remoteMode === 'adult') {
-        setModeState(remoteMode)
-        adultAccessReadyRef.current = remoteMode === 'safe'
-        setAdultAccessReady(remoteMode === 'safe')
-        persistMode(remoteMode)
-        return
+    const currentRevision = revision.current
+    // 只恢复该会话既有授权，绝不通过账号 adult 偏好自动申请新权限。
+    void contentPolicyApi.refresh().then(() => {
+      if (!cancelled && identityRef.current === identity && revision.current === currentRevision) {
+        setAuthorizedIdentity(identity)
+        setModeState('adult')
+        persistMode('adult')
       }
-      void authApi.updateReaderSettings({
-        values: { contentMode: readInitialMode() },
-        updatedAt: { contentMode: Date.now() },
-      }).catch(() => {})
     }).catch(() => {})
-    return () => {
-      cancelled = true
-    }
-  }, [user, adultContentEnabled, persistMode])
+    return () => { cancelled = true }
+  }, [identity, adultContentEnabled, persistMode])
 
-  // 初次加载时本地/账号可能记着 adult，但服务端还没有本设备访问凭证。
-  // 先完成服务端解锁，再让 isAllowed 放行，避免页面先拿到 403 后不重新加载。
   useEffect(() => {
-    if (!adultContentEnabled || mode !== 'adult' || adultAccessReadyRef.current) return
+    if (mode !== 'adult') return
     let cancelled = false
-    void ensureAdultAccess().catch(() => {
-      if (cancelled) return
-      adultAccessReadyRef.current = false
-      setAdultAccessReady(false)
-      setModeState('safe')
-      persistMode('safe')
-    })
-    return () => {
-      cancelled = true
+    async function revalidate() {
+      const currentRevision = revision.current
+      try { await contentPolicyApi.refresh() } catch {
+        if (!cancelled && identityRef.current === identity && currentRevision === revision.current) {
+          setAuthorizedIdentity('')
+          setModeState('safe')
+          persistMode('safe')
+        }
+      }
+      void refreshPolicy()
     }
-  }, [adultContentEnabled, mode, ensureAdultAccess, persistMode])
-
-  useEffect(() => {
-    if (!adultContentEnabled && mode === 'adult') {
-      adultAccessReadyRef.current = false
-      setAdultAccessReady(false)
-      setModeState('safe')
-      persistMode('safe')
-      void contentPolicyApi.lock().catch(() => {})
-    }
-  }, [adultContentEnabled, mode, persistMode])
+    const timer = window.setInterval(() => void revalidate(), 60000)
+    const onFocus = () => void revalidate()
+    window.addEventListener('focus', onFocus)
+    return () => { cancelled = true; clearInterval(timer); window.removeEventListener('focus', onFocus) }
+  }, [mode, identity, persistMode, refreshPolicy])
 
   const setMode = useCallback(async (next: ContentMode) => {
-    const resolvedMode = adultContentEnabled ? next : 'safe'
-    if (resolvedMode === 'adult') {
-      setModeState('adult')
-      adultAccessReadyRef.current = false
-      setAdultAccessReady(false)
-      try {
-        await ensureAdultAccess()
-      } catch {
-        adultAccessReadyRef.current = false
-        setAdultAccessReady(false)
-        setModeState('safe')
-        persistMode('safe')
-        return
-      }
-      persistMode('adult')
-    } else {
-      adultAccessReadyRef.current = false
-      setAdultAccessReady(false)
+    revision.current++
+    if (next === 'safe') {
+      pending.current?.()
+      pending.current = null
+      setUnlockIdentity('')
+      setAuthorizedIdentity('')
       setModeState('safe')
       persistMode('safe')
-      await contentPolicyApi.lock().catch(() => {})
+      await contentPolicyApi.lock()
+      return
     }
-    if (user && getToken()) {
-      void authApi.updateReaderSettings({
-        values: { contentMode: resolvedMode },
-        updatedAt: { contentMode: Date.now() },
-      }).catch(() => {})
+    if (!identity || !getToken() || !adultContentEnabled) return
+    if (pending.current) return
+    await new Promise<void>(resolve => { pending.current = resolve; setUnlockIdentity(identity) })
+  }, [adultContentEnabled, identity, persistMode])
+
+  function cancelUnlock() {
+    revision.current++
+    setUnlockIdentity('')
+    pending.current?.()
+    pending.current = null
+  }
+
+  async function unlock(token: string) {
+    const currentIdentity = unlockIdentity
+    const currentRevision = revision.current
+    if (!currentIdentity || identityRef.current !== currentIdentity) return
+    await contentPolicyApi.unlock(token)
+    if (identityRef.current !== currentIdentity) return
+    if (revision.current !== currentRevision) {
+      await contentPolicyApi.lock()
+      return
     }
-  }, [adultContentEnabled, ensureAdultAccess, persistMode, user])
+    setAuthorizedIdentity(currentIdentity)
+    setModeState('adult')
+    persistMode('adult')
+    setUnlockIdentity('')
+    pending.current?.()
+    pending.current = null
+  }
 
   const isAllowed = useCallback((metadata: ContentMetadata | null | undefined) => {
-    return (adultContentEnabled && adultAccessReady && mode === 'adult') || !isRestrictedContent(metadata)
-  }, [adultAccessReady, adultContentEnabled, mode])
+    return mode === 'adult' || !isRestrictedContent(metadata)
+  }, [mode])
 
   const value = useMemo(
     () => ({ mode, safeMode: mode === 'safe', adultContentEnabled, setMode, refreshPolicy, isAllowed }),
     [mode, adultContentEnabled, setMode, refreshPolicy, isAllowed],
   )
-  return <ContentPolicyContext.Provider value={value}>{children}</ContentPolicyContext.Provider>
+  return <ContentPolicyContext.Provider value={value}>{children}
+    {unlockIdentity && unlockIdentity === identity && <AdultUnlockDialog key={unlockIdentity} siteKey={siteKey} onUnlock={unlock} onCancel={cancelUnlock} />}
+  </ContentPolicyContext.Provider>
 }
 
 export function useContentPolicy(): ContentPolicyContextValue {

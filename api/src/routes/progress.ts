@@ -6,7 +6,7 @@ import { Hono, type Context } from 'hono'
 import { getDb } from '../db/pool'
 import { first } from '../db/query'
 import { optionalUser, type AuthEnv } from '../middlewares/auth'
-import { contentPolicyHeaders, resolveContentAccess } from '../services/content-access'
+import { contentPolicyHeaders, restrictedContentResponse, resolveContentAccess } from '../services/content-access'
 
 export const progressRoutes = new Hono<AuthEnv>()
 
@@ -64,8 +64,12 @@ progressRoutes.post('/', optionalUser(), async (c) => {
   const userId = c.get('user')?.id
   if (!userId) return c.json({ success: true })
 
-  const chapter = await first(db, 'SELECT id FROM chapters WHERE id=$1 AND novel_id=$2', [chapterId, novelId])
+  const chapter = await first<{ content_rating: string }>(db, 'SELECT n.content_rating FROM chapters ch JOIN novels n ON n.id = ch.novel_id WHERE ch.id=$1 AND ch.novel_id=$2', [chapterId, novelId])
   if (!chapter) return c.json({ error: 'Chapter not found in this novel' }, 404)
+  if (chapter.content_rating === 'restricted') {
+    const access = await resolveContentAccess(c)
+    if (!access.canViewRestricted) return restrictedContentResponse(c, access.reason)
+  }
   const updatedAt = normalizeTimestamp(body.clientUpdatedAt)
   let saved: ProgressRow | undefined
   let applied = false
@@ -102,12 +106,18 @@ progressRoutes.get('/', optionalUser(), async (c) => {
   const userId = c.get('user')?.id
   if (!userId) return c.json({ progress: null, tombstone: null })
 
+  const novel = await first<{ content_rating: string }>(db, 'SELECT content_rating FROM novels WHERE id = $1', [novelId])
+  if (novel?.content_rating === 'restricted') {
+    const access = await resolveContentAccess(c)
+    if (!access.canViewRestricted) return restrictedContentResponse(c, access.reason)
+  }
+
   const row = await first<ProgressRow>(
     db,
     `SELECT ${PROGRESS_COLUMNS} FROM reading_progress WHERE user_id = $1 AND novel_id = $2`,
     [userId, novelId],
   )
-  return c.json(stateResponse(row))
+  return c.json(stateResponse(row), 200, contentPolicyHeaders())
 })
 
 async function listRecent(c: Context<AuthEnv>) {

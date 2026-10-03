@@ -17,6 +17,6 @@ describe('书签全量同步保护', () => {
   it('明确传入空数组可以清空', async () => {
     const response = await bookmarksRoutes.request('/', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: '{"bookmarks":[]}' })
     expect(response.status).toBe(200)
-    expect(mocks.query).toHaveBeenCalledWith('DELETE FROM user_bookmarks WHERE user_id = $1', ['u1'])
+    expect(mocks.query).toHaveBeenCalledWith(expect.stringContaining('DELETE FROM user_bookmarks'), ['u1', true])
   })
 })

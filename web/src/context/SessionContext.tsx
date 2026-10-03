@@ -47,7 +47,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       if (event.key === 'user_session_token' || event.key === null) void refresh()
     }
     window.addEventListener('storage', onStorage)
-    return () => window.removeEventListener('storage', onStorage)
+    const onExpired = () => { setUser(null); setLoading(false) }
+    window.addEventListener('zhizhou-session-expired', onExpired)
+    return () => { window.removeEventListener('storage', onStorage); window.removeEventListener('zhizhou-session-expired', onExpired) }
   }, [refresh])
 
   const login = useCallback(async (username: string, password: string, persist = false) => {

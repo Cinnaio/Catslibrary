@@ -31,6 +31,7 @@ import {
   parseSettingsDocument,
 } from '../services/reader-settings'
 import { clientIpFromContext } from '../services/ai/audit-context'
+import { clearAdultAccessCookie, contentPolicyHeaders, setAccountContentMode } from '../services/content-access'
 
 const PUBLIC_USER_COLUMNS = 'id, username, display_name, bio, role, status, created_at, updated_at, last_login_at'
 const LOGIN_USER_COLUMNS = PUBLIC_USER_COLUMNS + ', password_hash, password_salt, password_iterations'
@@ -175,12 +176,20 @@ authRoutes.put('/reader-settings', requireUser(), async (c) => {
     values: cleanReaderSettings(body.settings || {}),
     updatedAt: cleanUpdatedAt(body.updatedAt || {}),
   }
+  if (incoming.values.contentMode === 'adult') {
+    return c.json({ error: '请通过成年确认与人机验证开启成人模式', code: 'adult_unlock_required' }, 403, contentPolicyHeaders())
+  }
   // 设备端可能同时保存设置，必须在数据库行锁内重新读取最新文档，
   // 否则 desktop/mobile 的整列 JSON 更新会互相覆盖。
   const merged = await withTx(db, async (query) => {
     const result = await query<{ reader_settings: string }>('SELECT reader_settings FROM users WHERE id = $1 FOR UPDATE', [user.id])
     const current = parseSettingsDocument(result.rows[0]?.reader_settings ?? '')
-    const next = mergeReaderSettingsDocument(current, device, incoming)
+    let next = mergeReaderSettingsDocument(current, device, incoming)
+    if (incoming.values.contentMode === 'safe') {
+      next = parseSettingsDocument(setAccountContentMode(JSON.stringify(next), 'safe'))
+      await query('UPDATE user_sessions SET adult_access_until = 0 WHERE user_id = $1', [user.id])
+      clearAdultAccessCookie(c)
+    }
     const now = Date.now()
     await query('UPDATE users SET reader_settings = $1, updated_at = $2 WHERE id = $3', [JSON.stringify(next), now, user.id])
     return next
@@ -192,11 +201,13 @@ authRoutes.put('/reader-settings', requireUser(), async (c) => {
 authRoutes.post('/logout', requireUser(), async (c) => {
   const token = bearerToken(c.req.header('Authorization') || '')
   await deleteSessionByToken(getDb(), token, loadConfig().sessionHashSalt)
+  clearAdultAccessCookie(c)
   return c.json({ success: true })
 })
 
 authRoutes.post('/logout-all', requireUser(), async (c) => {
   await run(getDb(), 'DELETE FROM user_sessions WHERE user_id = $1', [c.get('user').id])
+  clearAdultAccessCookie(c)
   return c.json({ success: true })
 })
 

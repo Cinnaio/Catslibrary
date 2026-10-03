@@ -1,18 +1,28 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, renderHook, waitFor } from '@testing-library/react'
+import { act, fireEvent, renderHook, screen, waitFor } from '@testing-library/react'
 import { ContentPolicyProvider, isRestrictedContent, useContentPolicy } from './ContentPolicyContext'
+
+const mocks = vi.hoisted(() => ({ session: { user: null as { id: string } | null, loading: false }, dialog: null as null | { onUnlock: (token: string) => Promise<void>; onCancel: () => void } }))
+vi.mock('./SessionContext', () => ({ useOptionalSession: () => mocks.session }))
+vi.mock('../components/AdultUnlockDialog', () => ({ default: (props: { onUnlock: (token: string) => Promise<void>; onCancel: () => void }) => {
+  mocks.dialog = props
+  return <button onClick={() => void props.onUnlock('test-token')}>完成验证</button>
+} }))
 
 afterEach(() => {
   localStorage.removeItem('zhizhou-content-mode')
+  sessionStorage.removeItem('user_session_token')
   vi.unstubAllGlobals()
 })
 
 beforeEach(() => {
+  mocks.session = { user: null, loading: false }
+  mocks.dialog = null
   vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ adultContentEnabled: true }), { status: 200 })))
 })
 
 describe('ContentPolicyContext', () => {
-  it('默认安全模式，读取站点开关后可切换成人内容模式', async () => {
+  it('游客默认安全模式，即使站点开放也不能切换成人模式', async () => {
     const { result } = renderHook(() => useContentPolicy(), { wrapper: ContentPolicyProvider })
     expect(result.current.safeMode).toBe(true)
     expect(result.current.isAllowed({ contentRating: 'restricted' })).toBe(false)
@@ -20,9 +30,63 @@ describe('ContentPolicyContext', () => {
     await waitFor(() => expect(result.current.adultContentEnabled).toBe(true))
 
     await act(async () => { await result.current.setMode('adult') })
+    expect(result.current.mode).toBe('safe')
+    expect(result.current.isAllowed({ contentRating: 'restricted' })).toBe(false)
+    expect(localStorage.getItem('zhizhou-content-mode')).toBe('safe')
+  })
+
+  it('游客本地 adult 状态不会触发解锁或恢复授权', async () => {
+    localStorage.setItem('zhizhou-content-mode', 'adult')
+    const { result } = renderHook(() => useContentPolicy(), { wrapper: ContentPolicyProvider })
+    await waitFor(() => expect(result.current.adultContentEnabled).toBe(true))
+    expect(result.current.mode).toBe('safe')
+    expect(vi.mocked(fetch).mock.calls.every(call => !String(call[0]).includes('/unlock') && !String(call[0]).includes('/refresh'))).toBe(true)
+  })
+
+  it('登录用户通过验证才能开启，注销后立即恢复安全模式', async () => {
+    mocks.session = { user: { id: 'reader' }, loading: false }
+    sessionStorage.setItem('user_session_token', 'reader-token')
+    vi.stubGlobal('fetch', vi.fn(async (input: string) => input.includes('/refresh')
+      ? new Response(JSON.stringify({ code: 'restricted_content', reason: 'not_unlocked' }), { status: 403 })
+      : new Response(JSON.stringify({ adultContentEnabled: true, turnstileConfigured: true, turnstileSiteKey: 'test-site' }))))
+    const { result, rerender } = renderHook(() => useContentPolicy(), { wrapper: ContentPolicyProvider })
+    await waitFor(() => expect(result.current.adultContentEnabled).toBe(true))
+    await act(async () => {})
+    let opening: Promise<void>
+    act(() => { opening = result.current.setMode('adult') })
+    expect(result.current.mode).toBe('safe')
+    await act(async () => { fireEvent.click(screen.getByText('完成验证')); await opening! })
     expect(result.current.mode).toBe('adult')
-    expect(result.current.isAllowed({ contentRating: 'restricted' })).toBe(true)
-    expect(localStorage.getItem('zhizhou-content-mode')).toBe('adult')
+    const request = vi.mocked(fetch).mock.calls.find(call => String(call[0]).endsWith('/unlock'))
+    expect(JSON.parse(String(request?.[1]?.body))).toEqual({ confirmed: true, turnstileToken: 'test-token' })
+    mocks.session = { user: null, loading: false }
+    sessionStorage.removeItem('user_session_token')
+    rerender()
+    expect(result.current.mode).toBe('safe')
+    expect(result.current.isAllowed({ contentRating: 'restricted' })).toBe(false)
+  })
+
+  it('账号切换后，迟到的解锁结果不能给新账号放行', async () => {
+    mocks.session = { user: { id: 'reader' }, loading: false }
+    sessionStorage.setItem('user_session_token', 'reader-token')
+    let finish!: (response: Response) => void
+    vi.stubGlobal('fetch', vi.fn(async (input: string) => {
+      if (input.endsWith('/unlock')) return new Promise<Response>(resolve => { finish = resolve })
+      if (input.endsWith('/refresh')) return new Response('{}', { status: 403 })
+      return new Response(JSON.stringify({ adultContentEnabled: true, turnstileConfigured: true, turnstileSiteKey: 'test-site' }))
+    }))
+    const { result, rerender } = renderHook(() => useContentPolicy(), { wrapper: ContentPolicyProvider })
+    await waitFor(() => expect(result.current.adultContentEnabled).toBe(true))
+    await act(async () => {})
+    act(() => { void result.current.setMode('adult') })
+    let unlocking!: Promise<void>
+    act(() => { unlocking = mocks.dialog!.onUnlock('test-token') })
+    mocks.session = { user: { id: 'other' }, loading: false }
+    sessionStorage.setItem('user_session_token', 'other-token')
+    rerender()
+    await act(async () => { finish(new Response('{}')); await unlocking })
+    expect(result.current.mode).toBe('safe')
+    expect(result.current.isAllowed({ contentRating: 'restricted' })).toBe(false)
   })
 
   it('站点关闭成人内容模式时始终保持安全模式', async () => {
@@ -79,9 +143,9 @@ describe('ContentPolicyContext', () => {
       expect(result.current.isAllowed({ contentRating: 'unknown' })).toBe(true)
       expect(result.current.isAllowed({})).toBe(true)
 
-      // 成人模式：一律放行，开关语义未变
+      // 游客即使尝试开启也不能放行 restricted。
       await act(async () => { await result.current.setMode('adult') })
-      expect(result.current.isAllowed({ contentRating: 'restricted' })).toBe(true)
+      expect(result.current.isAllowed({ contentRating: 'restricted' })).toBe(false)
       expect(result.current.isAllowed({ contentRating: 'general' })).toBe(true)
       expect(result.current.isAllowed({ contentRating: 'unknown' })).toBe(true)
     })

@@ -64,6 +64,16 @@ export default function Reader() {
   // demo 模式只需触发标记写入，无 UI 读取
   const [, setDemoMode] = useState(false)
   const cacheRef = useRef<Map<string, ChapterFull>>(new Map())
+  const contentGenerationRef = useRef(0)
+  useLayoutEffect(() => {
+    contentGenerationRef.current++
+    cacheRef.current.clear()
+    setChapter(null)
+    setNovel(null)
+    setAllChapters([])
+    setChapterThoughts([])
+    setLoading(true)
+  }, [mode, user?.id, sessionLoading])
 
   // 标签页标题跟随当前章节（读者停留最久的页面）
   useDocumentTitle(chapter ? [chapter.title, novel?.title].filter(Boolean).join(' · ') : novel?.title)
@@ -138,6 +148,7 @@ export default function Reader() {
 
   const loadChapterData = useCallback(
     async (cid: string, useDemo: boolean): Promise<ChapterFull> => {
+      const generation = contentGenerationRef.current
       const cached = cacheRef.current.get(cid)
       if (cached) return cached
       if (useDemo) {
@@ -147,6 +158,7 @@ export default function Reader() {
         throw new Error('demo chapter not found')
       }
       const data = await chaptersApi.get(cid)
+      if (generation !== contentGenerationRef.current) throw new Error('阅读身份或内容权限已变更')
       return cacheChapter(data.chapter)
     },
     [cacheChapter],
@@ -241,7 +253,7 @@ export default function Reader() {
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [novelId, chapterId, isAllowed])
+  }, [novelId, chapterId, isAllowed, user?.id, sessionLoading])
 
   // ---------- 应用设置到 DOM ----------
   useEffect(() => {
@@ -525,13 +537,16 @@ export default function Reader() {
   useEffect(() => {
     if (prefetchTimer.current) clearTimeout(prefetchTimer.current)
     if (!chapter || allChapters.length === 0) return
+    const generation = contentGenerationRef.current
     prefetchTimer.current = setTimeout(() => {
       const idx = allChapters.findIndex((c) => c.id === chapter.id)
       if (idx === -1) return
       ;[idx + 1, idx - 1].forEach((i) => {
         const ch = allChapters[i]
         if (!ch || !ch.id || cacheRef.current.has(ch.id)) return
-        chaptersApi.get(ch.id).then((data) => cacheChapter(data.chapter)).catch(() => {})
+        chaptersApi.get(ch.id).then((data) => {
+          if (generation === contentGenerationRef.current) cacheChapter(data.chapter)
+        }).catch(() => {})
       })
     }, 500)
     return () => {
