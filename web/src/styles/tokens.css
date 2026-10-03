@@ -128,6 +128,11 @@
   /* Transition */
   --ease: cubic-bezier(0.4, 0, 0.2, 1);
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  /* Low-frequency disclosure / form-mode changes; never page or list refreshes. */
+  --motion-state-enter: 180ms;
+  --motion-state-exit: 140ms;
+  --motion-state-reduced: 100ms;
+  --motion-state-offset: 4px;
 }
 
 /* Dark theme — moonlit paper */

@@ -19,6 +19,8 @@ import { SearchIcon } from '../components/icons'
 import { ArrowRight, BookOpen, ChevronDown } from 'lucide-react'
 import { useSiteBranding } from '../lib/site-branding'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
+import { useMediaQuery } from '../hooks/useMediaQuery'
+import { inputMotion, preserveDisclosureFocus } from '../hooks/useStateChangeMotion'
 
 const PAGE_LIMIT = 20
 
@@ -52,6 +54,16 @@ export default function Home() {
   const [hiddenRestricted, setHiddenRestricted] = useState(false)
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
   const [moreCategoriesOpen, setMoreCategoriesOpen] = useState(false)
+  const [filterMotion, setFilterMotion] = useState<'animated' | 'instant'>('instant')
+  const [categoryMotion, setCategoryMotion] = useState<'animated' | 'instant'>('instant')
+  const mobileFilters = useMediaQuery('(max-width: 700px)')
+  const filterVisible = !mobileFilters || mobileFiltersOpen
+
+  useLayoutEffect(() => {
+    if (!filterVisible && document.getElementById('homeFilterPanel')?.contains(document.activeElement)) {
+      document.querySelector<HTMLButtonElement>('[aria-controls="homeFilterPanel"]')?.focus({ preventScroll: true })
+    }
+  }, [filterVisible])
 
   // 防抖后的搜索词：loadNovels 只依赖它，避免"每次击键立即请求 + 300ms 后再请求"的双发
   const [debouncedQuery, setDebouncedQuery] = useState(query)
@@ -334,7 +346,11 @@ export default function Home() {
             className="home-filter-toggle"
             aria-controls="homeFilterPanel"
             aria-expanded={mobileFiltersOpen}
-            onClick={() => setMobileFiltersOpen((open) => !open)}
+            onClick={event => {
+              preserveDisclosureFocus(event, 'homeFilterPanel', mobileFiltersOpen)
+              setFilterMotion(inputMotion(event))
+              setMobileFiltersOpen(open => !open)
+            }}
           >
             <span>筛选条件{activeFilterCount > 0 ? ` · 已选 ${activeFilterCount} 项` : ''}</span>
             <span className="home-filter-toggle__icon" aria-hidden="true">
@@ -342,7 +358,7 @@ export default function Home() {
             </span>
           </button>
 
-          <div id="homeFilterPanel" className={`filter-panel home-filter-card${mobileFiltersOpen ? ' home-filter-card--open' : ''}`}>
+          <div id="homeFilterPanel" className={`filter-panel home-filter-card${mobileFiltersOpen ? ' home-filter-card--open' : ''}`} data-motion={mobileFilters ? filterMotion : 'instant'} data-motion-open={filterVisible} aria-hidden={!filterVisible} inert={!filterVisible}>
             <div className="filter-row">
               <span className="filter-row__label">状态</span>
               <div className="category-filter" role="group" aria-label="小说状态">
@@ -385,15 +401,19 @@ export default function Home() {
                     className="filter-btn home-category-more"
                     aria-expanded={moreCategoriesOpen}
                     aria-controls="homeMoreCategories"
-                    onClick={() => setMoreCategoriesOpen((open) => !open)}
+                    onClick={event => {
+                      preserveDisclosureFocus(event, 'homeMoreCategories', moreCategoriesOpen)
+                      setCategoryMotion(inputMotion(event))
+                      setMoreCategoriesOpen(open => !open)
+                    }}
                   >
                     {moreCategoriesOpen ? '收起标签' : '更多标签'} <ChevronDown size={14} aria-hidden="true" />
                   </button>
                 )}
               </div>
             </div>
-            {moreCategoriesOpen && categoryOptions.hasMore && (
-              <div id="homeMoreCategories" className="home-category-groups" role="region" aria-label="全部分类标签">
+            {categoryOptions.hasMore && (
+              <div id="homeMoreCategories" className="home-category-groups" role="region" aria-label="全部分类标签" data-motion={categoryMotion} data-motion-open={moreCategoriesOpen} aria-hidden={!moreCategoriesOpen} inert={!moreCategoriesOpen}>
                 {categoryOptions.groups.map((group) => (
                   <div className="home-category-group" key={group.label}>
                     <h3>{group.label}</h3>

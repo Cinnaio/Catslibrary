@@ -4,7 +4,7 @@
  *
  * 独立暖纸单列表单：auth-page--reader 限定页面外观，不改变安装向导。
  */
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent, type MouseEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { AlertCircle, ArrowLeft, Eye, EyeOff, LoaderCircle } from 'lucide-react'
 import { authApi, getToken } from '../lib/api'
@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useSiteBranding } from '../lib/site-branding'
+import { useStateChangeMotion } from '../hooks/useStateChangeMotion'
 
 type Mode = 'login' | 'register'
 
@@ -38,6 +39,7 @@ export default function Auth() {
   useDocumentTitle(mode === 'login' ? '登录' : '注册')
 
   const isLogin = mode === 'login'
+  const { root: modeMotionRef, prepare: prepareModeMotion } = useStateChangeMotion(mode, '.auth-panel__title, .auth-fields, .auth-actions')
   /** 注册关闭时整表单不可用：此前仍可填写并提交，用户填完只等到服务端报错。 */
   const registerClosed = !isLogin && registerMode === 'closed'
   const fieldsDisabled = busy || registerClosed
@@ -114,7 +116,8 @@ export default function Auth() {
     }
   }
 
-  function switchMode() {
+  function switchMode(event: MouseEvent<HTMLButtonElement>) {
+    prepareModeMotion(event)
     setMsg('')
     setShowPassword(false)
     setMode((m) => (m === 'login' ? 'register' : 'login'))
@@ -128,7 +131,7 @@ export default function Auth() {
   return (
     <main className="auth-page auth-page--reader">
       <div className="auth-shell">
-          <section className="auth-panel" aria-labelledby="auth-title">
+          <section ref={modeMotionRef} className="auth-panel" aria-labelledby="auth-title">
             <div className="auth-panel__head">
               <div className="auth-panel__brand">
                 <img src={branding.logoUrl} alt="" className="auth-panel__mark" aria-hidden="true" />
