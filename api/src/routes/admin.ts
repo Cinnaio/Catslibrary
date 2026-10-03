@@ -9,6 +9,7 @@ import { rowToCommentAdmin, rowToCommentReport, toContentRating } from '../db/ma
 import { cleanText, clampInt, escapeLike } from '../services/text'
 import { requireAdmin, type AuthEnv } from '../middlewares/auth'
 import { getAdultContentEnabled, setAdultContentEnabled } from '../services/content-policy'
+import { effectiveTurnstile } from '../services/turnstile'
 
 export const adminRoutes = new Hono<AuthEnv>()
 
@@ -17,7 +18,7 @@ adminRoutes.use('*', requireAdmin())
 // ---------- 内容安全配置 ----------
 
 adminRoutes.get('/content-policy', async (c) => {
-  return c.json({ adultContentEnabled: await getAdultContentEnabled() }, 200, { 'Cache-Control': 'no-store' })
+  return c.json({ adultContentEnabled: await getAdultContentEnabled(), turnstileConfigured: (await effectiveTurnstile()).configured }, 200, { 'Cache-Control': 'no-store' })
 })
 
 adminRoutes.put('/content-policy', async (c) => {

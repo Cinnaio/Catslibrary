@@ -17,6 +17,7 @@ import Auth from './pages/Auth'
 import VisitTracker from './components/VisitTracker'
 import RouteLoading from './components/RouteLoading'
 import PageSeo from './components/PageSeo'
+import SiteBrandingSync from './components/SiteBrandingSync'
 
 const Install = lazy(() => import('./pages/Install'))
 const Admin = lazy(() => import('./pages/admin/Admin'))
@@ -24,6 +25,7 @@ const Admin = lazy(() => import('./pages/admin/Admin'))
 export default function App() {
   return (
     <Suspense fallback={<RouteLoading />}>
+      <SiteBrandingSync />
       <VisitTracker />
       <PageSeo />
       <Routes>

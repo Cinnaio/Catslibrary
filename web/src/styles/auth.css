@@ -75,9 +75,10 @@
   margin-bottom: 1.5rem;
   font-size: 1rem;
   font-weight: 600;
+  overflow-wrap: anywhere;
 }
 
-.auth-panel__mark { width: 1.75rem; height: 1.75rem; object-fit: contain; }
+.auth-panel__mark { width: 1.75rem; height: 1.75rem; object-fit: contain; flex-shrink: 0; }
 .auth-panel__title {
   margin: 0;
   font-family: var(--font-serif);

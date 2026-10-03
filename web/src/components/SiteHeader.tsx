@@ -15,8 +15,10 @@ import { BookIcon, ChevronIcon, CloseIcon, MenuIcon, MoonIcon, RefreshIcon, Shie
 import { ThemeMenu } from './ThemeMenu'
 import { useToast } from './feedback'
 import { AccountMenu } from './AccountMenu'
+import { useSiteBranding } from '../lib/site-branding'
 
 export default function SiteHeader() {
+  const branding = useSiteBranding()
   const location = useLocation()
   const { user } = useSession()
   const { mode, setMode, adultContentEnabled } = useContentPolicy()
@@ -60,8 +62,8 @@ export default function SiteHeader() {
       <header className={`header${isHome ? ' header--home' : (['/bookshelf', '/profile'].includes(location.pathname) || location.pathname.startsWith('/novel/')) ? ' header--paper' : ''}`}>
         <div className="header__inner">
           <Link to="/" className="header__logo">
-            <img className="header__logo-img" src="/images/logo.png" alt="知舟" />
-            知舟
+            <img className="header__logo-img" src={branding.logoUrl} alt="" />
+            <span>{branding.name}</span>
           </Link>
 
           <div className="header__actions">
@@ -148,8 +150,8 @@ export default function SiteHeader() {
             <DialogPrimitive.Title className="sr-only">导航菜单</DialogPrimitive.Title>
             <div className="mobile-drawer__head">
               <Link to="/" className="header__logo mobile-drawer__brand" onClick={closeMenu}>
-                <img className="header__logo-img" src="/images/logo.png" alt="知舟" />
-                知舟
+                <img className="header__logo-img" src={branding.logoUrl} alt="" />
+                <span>{branding.name}</span>
               </Link>
               <DialogPrimitive.Close asChild>
                 <button type="button" className="mobile-drawer__close" aria-label="关闭菜单">
@@ -164,7 +166,7 @@ export default function SiteHeader() {
                   <AccountMenu variant="mobile" wrapperClassName="mobile-drawer__account-menu" onNavigate={closeMenu} />
                   <Link to="/profile" className="mobile-drawer__user-main" onClick={closeMenu}>
                     <span className="mobile-drawer__user-text">
-                      <span className="mobile-drawer__user-name">{name || '知舟读者'}</span>
+                      <span className="mobile-drawer__user-name">{name || `${branding.name}读者`}</span>
                       <span className="mobile-drawer__user-sub">
                         {isAdmin ? '管理员 · ' : ''}@{user.username || 'reader'}
                       </span>
@@ -205,7 +207,7 @@ export default function SiteHeader() {
               </nav>
             </div>
 
-            <footer className="mobile-drawer__foot">知舟 · 安静的中文小说书库</footer>
+            <footer className="mobile-drawer__foot">{branding.name} · {branding.tagline}</footer>
           </DialogPrimitive.Content>
         </DialogPrimitive.Portal>
       </DialogPrimitive.Root>

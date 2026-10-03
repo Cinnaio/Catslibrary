@@ -5,7 +5,7 @@ import { getDb } from '../db/pool'
 import { withTx } from '../db/query'
 import { bearerToken, hashToken } from '../services/auth'
 import { loadConfig } from '../config'
-import { turnstileConfig, verifyAdultChallenge } from '../services/turnstile'
+import { effectiveTurnstile, verifyAdultChallenge } from '../services/turnstile'
 import { clientIpFromContext } from '../services/ai/audit-context'
 import { checkContentRate } from '../services/content-rate-limit'
 import { getAdultContentEnabled } from '../services/content-policy'
@@ -17,7 +17,7 @@ export const contentPolicyRoutes = new Hono<AuthEnv>()
 
 contentPolicyRoutes.get('/', async (c) => {
   const adultContentEnabled = await getAdultContentEnabled()
-  const challenge = turnstileConfig()
+  const challenge = await effectiveTurnstile()
   return c.json({ adultContentEnabled, turnstileSiteKey: challenge.configured ? challenge.siteKey : '', turnstileConfigured: challenge.configured }, 200, contentPolicyHeaders())
 })
 
@@ -34,7 +34,7 @@ contentPolicyRoutes.post('/unlock', requireUser(), async (c) => {
 
   const limited = await checkContentRate(c, 'unlock')
   if (limited) return limited
-  if (!turnstileConfig().configured) return c.json({ error: '成人模式验证尚未配置，请联系管理员', code: 'turnstile_not_configured' }, 503, contentPolicyHeaders())
+  if (!(await effectiveTurnstile()).configured) return c.json({ error: '成人模式验证尚未配置，请联系管理员', code: 'turnstile_not_configured' }, 503, contentPolicyHeaders())
   if (!await verifyAdultChallenge(body.turnstileToken, clientIpFromContext(c))) {
     return c.json({ error: '人机验证失败或已过期，请重新验证', code: 'turnstile_failed' }, 403, contentPolicyHeaders())
   }

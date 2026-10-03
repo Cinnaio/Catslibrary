@@ -8,7 +8,7 @@ interface TurnstileApi {
   reset: (id: string) => void
 }
 let scriptPromise: Promise<TurnstileApi> | null = null
-function loadTurnstile(): Promise<TurnstileApi> {
+export function loadTurnstile(): Promise<TurnstileApi> {
   const getApi = () => (window as unknown as { turnstile?: TurnstileApi }).turnstile
   if (getApi()) return Promise.resolve(getApi()!)
   if (!scriptPromise) scriptPromise = new Promise<TurnstileApi>((resolve, reject) => {

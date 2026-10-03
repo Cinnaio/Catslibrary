@@ -509,6 +509,8 @@
 }
 .home-page .home-footer__signature {
   position: relative;
+  max-width: calc(100% - 180px);
+  overflow-wrap: anywhere;
   margin: 0;
   padding-block: 8px;
   line-height: 1.8;
@@ -569,6 +571,7 @@
   }
   .home-page .home-footer__signature {
     padding-left: 32px;
+    max-width: calc(100% - 16px);
   }
   .home-page .home-footer__name {
     font-size: 0.9375rem;

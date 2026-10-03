@@ -5,6 +5,8 @@ import { resolve } from 'node:path'
 import { escHtml } from '@shared/utils'
 import { getDb, type DbClient } from '../db/pool'
 import { PROJECT_ROOT } from '../config'
+import { DEFAULT_SITE_BRANDING } from '@shared/site-settings'
+import { getSiteBranding } from '../services/site-settings'
 
 const PAGE_SIZE = 1000
 type PublicNovel = { id: string; title: string; author: string; description: string; updated_at: number }
@@ -86,8 +88,12 @@ export function createWebRoutes(
     } catch {
       return c.text('Build the web workspace before serving pages', 503)
     }
-    let title = '知舟 — 小说阅读'
-    let description = '知舟 — 发现精彩小说，享受阅读之美'
+    let branding = DEFAULT_SITE_BRANDING
+    if (configured()) {
+      try { branding = await getSiteBranding(db()) } catch { /* keep safe default during database recovery */ }
+    }
+    let title = branding.homeTitle
+    let description = branding.description
     let content = ''
     let indexable = false
     let status: 200 | 404 | 503 = 200
@@ -110,7 +116,7 @@ export function createWebRoutes(
           )
           const novel = rows[0]
           if (novel) {
-            title = `${novel.title} — 知舟`
+            title = `${novel.title} — ${branding.name}`
             description = `${novel.author}著。${novel.description || ''}`.slice(0, 180)
             content = `<main><h1>${escHtml(novel.title)}</h1><p>作者：${escHtml(novel.author)}</p><p>${escHtml(novel.description)}</p><a href="/">返回书库</a></main>`
             indexable = true
@@ -123,7 +129,7 @@ export function createWebRoutes(
           const { rows } = await db().query<PublicNovel>(
             "SELECT id, title, author, description FROM novels WHERE content_rating = 'general' ORDER BY updated_at DESC, id LIMIT 24",
           )
-          content = `<main><h1>知舟 — 小说阅读</h1><p>${escHtml(description)}</p><ul>${rows.map((row) => `<li><a href="/novel/${encodeURIComponent(row.id)}">${escHtml(row.title)}</a> — ${escHtml(row.author)}</li>`).join('')}</ul></main>`
+          content = `<main><h1>${escHtml(branding.homeTitle)}</h1><p>${escHtml(description)}</p><ul>${rows.map((row) => `<li><a href="/novel/${encodeURIComponent(row.id)}">${escHtml(row.title)}</a> — ${escHtml(row.author)}</li>`).join('')}</ul></main>`
           indexable = true
         }
       } catch (error) {
@@ -136,10 +142,12 @@ export function createWebRoutes(
     const robots = indexable && status === 200 ? 'index, follow' : 'noindex, follow'
     const canonical = origin() && (c.req.path === '/' || novelMatch) ? `${origin()}${novelMatch ? `/novel/${encodeURIComponent(novelId)}` : '/'}` : ''
     template = template.replace(/<meta\s+name="(?:robots|description)"[^>]*>/g, '').replace(/<title>[^<]*<\/title>/, '')
+    template = template.replace(/<link\s+rel="icon"[^>]*>/g, '')
+    const brandingHead = `<link rel="icon" type="image/png" href="${escHtml(branding.faviconUrl)}"><script id="site-branding" type="application/json">${JSON.stringify(branding).replace(/</g, '\\u003c')}</script>`
     const head = `<title>${escHtml(title)}</title><meta name="robots" content="${robots}"><meta name="description" content="${escHtml(description)}">${canonical ? `<link rel="canonical" href="${escHtml(canonical)}">` : ''}${origin() && configured() && status === 200 ? `<meta name="zhizhou-seo-origin" content="${escHtml(origin())}">` : ''}`
     c.header('X-Robots-Tag', robots)
     c.header('Cache-Control', 'no-store')
-    return c.html(template.replace('</head>', `${head}</head>`).replace('<div id="root"></div>', `<div id="root">${content}</div>`), status)
+    return c.html(template.replace('</head>', () => `${head}${brandingHead}</head>`).replace('<div id="root"></div>', () => `<div id="root">${content}</div>`), status)
   })
   return routes
 }

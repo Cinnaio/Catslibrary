@@ -8,6 +8,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { UserAvatar } from './ui/user-avatar'
 import { ChevronIcon, UserIcon } from './icons'
 import { useExclusiveMenu } from '../hooks/useExclusiveMenu'
+import { useSiteBranding } from '../lib/site-branding'
 
 export type AccountMenuVariant = 'site' | 'admin' | 'mobile'
 
@@ -20,6 +21,7 @@ interface AccountMenuProps {
 
 export function AccountMenu({ variant = 'site', className, wrapperClassName, onNavigate }: AccountMenuProps) {
   const { user, logout } = useSession()
+  const branding = useSiteBranding()
   const { toast } = useToast()
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
@@ -27,7 +29,7 @@ export function AccountMenu({ variant = 'site', className, wrapperClassName, onN
 
   if (!user) return null
 
-  const name = user.displayName || user.username || (variant === 'admin' ? '管理员' : '知舟读者')
+  const name = user.displayName || user.username || (variant === 'admin' ? '管理员' : `${branding.name}读者`)
   const showName = variant === 'admin'
   const triggerLabel = `账户菜单：${name}`
 

@@ -17,6 +17,8 @@ import NovelCard from '../components/NovelCard'
 import ContentRestrictionNotice from '../components/ContentRestrictionNotice'
 import { SearchIcon } from '../components/icons'
 import { ArrowRight, BookOpen, ChevronDown } from 'lucide-react'
+import { useSiteBranding } from '../lib/site-branding'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 
 const PAGE_LIMIT = 20
 
@@ -31,6 +33,8 @@ async function novelMatches(n: Novel, q: string, usePinyin: boolean): Promise<bo
 }
 
 export default function Home() {
+  const branding = useSiteBranding()
+  useDocumentTitle(null)
   const { query, setQuery } = useSearch()
   const [searchParams, setSearchParams] = useSearchParams()
   const { mode, safeMode, setMode, isAllowed, adultContentEnabled } = useContentPolicy()
@@ -586,9 +590,9 @@ export default function Home() {
       <footer className="container home-shell home-footer">
         <p className="home-footer__signature">
           <img className="home-footer__flower" src="/images/auth-flower.png" width={76} height={38} alt="" aria-hidden="true" loading="lazy" />
-          <span className="home-footer__name">知舟</span>
+          <span className="home-footer__name">{branding.name}</span>
           <span className="home-footer__dot">·</span>
-          <span>一个安静的中文小说书库</span>
+          <span>{branding.tagline}</span>
         </p>
       </footer>
     </main>

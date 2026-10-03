@@ -8,6 +8,7 @@ import { Separator } from '@/components/ui/separator'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import { ThemeMenu } from '../../components/ThemeMenu'
 import AdminSidebar from './AdminSidebar'
+import { useSiteBranding } from '../../lib/site-branding'
 
 interface AdminShellProps {
   active: string
@@ -16,6 +17,7 @@ interface AdminShellProps {
 }
 
 export default function AdminShell({ active, activeLabel, children }: AdminShellProps) {
+  const branding = useSiteBranding()
   /**
    * 页签标题归「实际可见的视图」所有：AdminShell 只在鉴权通过后渲染，
    * 因此把标题放在这里，被门禁拦下时就不会错误地显示后台页签名。
@@ -23,11 +25,11 @@ export default function AdminShell({ active, activeLabel, children }: AdminShell
    * 浏览器标签仍显示「爬虫抓取 · 知舟」。
    */
   useEffect(() => {
-    document.title = `${activeLabel || '管理台'} · 知舟`
+    document.title = `${activeLabel || '管理台'} · ${branding.name}`
     return () => {
-      document.title = '知舟 — 小说阅读'
+      document.title = branding.homeTitle
     }
-  }, [activeLabel])
+  }, [activeLabel, branding.name, branding.homeTitle])
 
   return (
     <SidebarProvider className="admin-layout">

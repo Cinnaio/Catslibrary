@@ -27,6 +27,7 @@ import { contentRatingRoutes } from './routes/content-ratings'
 import { contentRatingRuleCandidateRoutes } from './routes/content-rating-rule-candidates'
 import { contentRatingAiRoutes } from './routes/content-rating-ai'
 import { bookImportRoutes } from './routes/book-import'
+import { adminSiteSettingsRoutes, publicSiteSettingsRoutes } from './routes/site-settings'
 
 /** 全局应用：中间件装配 + 路由注册（阶段化增量挂载）。 */
 export const app = new Hono()
@@ -82,3 +83,5 @@ app.route('/api/admin/content-ratings', contentRatingRoutes)
 app.route('/api/admin/content-rating-rule-candidates', contentRatingRuleCandidateRoutes)
 app.route('/api/admin/content-rating-ai', contentRatingAiRoutes)
 app.route('/api/book-import', bookImportRoutes)
+app.route('/api/site-settings', publicSiteSettingsRoutes)
+app.route('/api/admin/site-settings', adminSiteSettingsRoutes)

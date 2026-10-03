@@ -112,6 +112,25 @@ DATABASE_URL=postgres://... node api/dist/index.js
   代理配置页可测试连通性、检查任意目标是否走代理（含命中的跳过规则）、并查看脱敏的最近出站日志；失败时会给出具体原因（如 `connect ECONNREFUSED/ETIMEDOUT host:port`），便于区分「代理不可达」与「目标经代理不可达」。
 - 全部环境变量说明见 [.env.example](.env.example)。
 
+## 站点信息与安全验证
+
+管理员可在「平台运营 → 站点设置」中管理：
+
+- **站点信息**：站点名称、简介、首页浏览器标题、SEO 描述、Logo 和 Favicon。文字保存后更新顶栏、登录页、页脚、后台品牌及页面标题；服务端 HTML 同步读取配置，不改变内容分级与收录策略。图片上传/恢复默认后立即生效，不会丢失未保存的文字草稿。
+- **安全验证**：Turnstile Site Key、Secret Key、允许验证的域名，以及独立验证测试。当前用于 R18 模式解锁，不是全站防爬开关；内容安全总开关仍在「内容审核 → 内容安全」。测试校验真实组件返回的 token，但不会给管理员会话授予 R18 访问权。
+
+图片仅接受不超过 1MB 的静态 PNG / WebP，服务端校验并重新编码为 PNG，Logo 最大 512px、Favicon 最大 128px；不接受 SVG、HTML 或任意外部图片地址。配置和图片存储在现有 `app_settings` 表，无需新增迁移。
+
+如需从后台保存 Turnstile 私钥，先在 API 部署环境中配置 `SITE_SETTINGS_ENCRYPTION_KEY`（32 字节随机数据的 Base64）。可用以下命令生成，再放入部署密钥管理器，**不要提交生成结果**：
+
+```bash
+node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
+```
+
+私钥使用 AES-256-GCM 加密保存，后台读取只显示设置状态，不返回原值；留空保留原密钥，清除需显式勾选。主密钥应与数据库一起妥善备份，丢失/更换后旧密钥无法解密，验证将拒绝放行。环境变量 `TURNSTILE_SITE_KEY`、`TURNSTILE_SECRET_KEY`、`TURNSTILE_HOSTNAMES` 逐字段优先于数据库，相应后台字段不可编辑；要改为后台管理，请先移除对应覆盖变量。未显式配置域名时沿用 `SITE_URL` / `CORS_ORIGINS` 推导。
+
+Cloudflare 控制台仍需创建 Managed 组件、绑定实际前端域名；后台测试会检查服务端返回的 hostname 和 `r18_unlock` action，失败不放行，测试接口与解锁共用限流。上线后使用正式密钥在实际域名完成一次验证测试，再检查 R18 解锁流程。
+
 ## 测试
 
 ```bash

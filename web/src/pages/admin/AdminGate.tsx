@@ -10,8 +10,10 @@ import { LoaderCircle, ShieldAlert } from 'lucide-react'
 import { useSession } from '../../context/SessionContext'
 import { setupApi } from '../../lib/api'
 import PageState from '../../components/PageState'
+import { useSiteBranding } from '../../lib/site-branding'
 
 export default function AdminGate({ children }: { children: ReactNode }) {
+  const branding = useSiteBranding()
   const { user, loading, logout } = useSession()
   const location = useLocation()
   const navigate = useNavigate()
@@ -28,8 +30,8 @@ export default function AdminGate({ children }: { children: ReactNode }) {
    * 条件写入与顺序无关：谁真正可见，谁就拥有标题。
    */
   useEffect(() => {
-    if (!loading && !isAdmin) document.title = '需要管理员身份 · 知舟'
-  }, [loading, isAdmin])
+    if (!loading && !isAdmin) document.title = `需要管理员身份 · ${branding.name}`
+  }, [loading, isAdmin, branding.name])
 
   // 仅探测引导状态，失败时静默（门禁页不应因探测失败而报错）。
   useEffect(() => {

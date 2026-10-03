@@ -27,6 +27,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar'
 import { adminTabPath, NAV_GROUPS } from './admin-registry'
+import { useSiteBranding } from '../../lib/site-branding'
 
 interface AdminSidebarProps {
   active: string
@@ -125,6 +126,7 @@ function AdminNavigation({ active }: AdminSidebarProps) {
 }
 
 export default function AdminSidebar({ active }: AdminSidebarProps) {
+  const branding = useSiteBranding()
   const { setOpenMobile } = useSidebar()
   const observeNavigation = useCallback((node: HTMLDivElement | null) => {
     if (!node) return
@@ -148,12 +150,12 @@ export default function AdminSidebar({ active }: AdminSidebarProps) {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton asChild size="lg" className="gap-3">
-              <Link to="/" aria-label="返回知舟首页" onClick={() => setOpenMobile(false)}>
+              <Link to="/" aria-label={`返回${branding.name}首页`} onClick={() => setOpenMobile(false)}>
                 <span className="admin-shell__brand-mark" aria-hidden="true">
-                  <img src="/images/logo.png" alt="" />
+                  <img src={branding.logoUrl} alt="" />
                 </span>
                 <span className="admin-shell__brand-copy">
-                  <strong>知舟</strong>
+                  <strong>{branding.name}</strong>
                   <small>馆藏运营台</small>
                 </span>
               </Link>

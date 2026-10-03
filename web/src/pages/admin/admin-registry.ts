@@ -4,7 +4,7 @@
  * shell only composes, and the registry stays the single source of truth.
  */
 import type { ComponentType } from 'react'
-import { BookOpen, Bug, FileText, LayoutDashboard, MessageSquare, Sparkles, BarChart3, UserCog, ListChecks, Activity, type LucideIcon } from 'lucide-react'
+import { BookOpen, Bug, FileText, LayoutDashboard, MessageSquare, Sparkles, BarChart3, Settings, UserCog, ListChecks, Activity, type LucideIcon } from 'lucide-react'
 import DashboardTab from './DashboardTab'
 import NovelsTab from './NovelsTab'
 import ChaptersTab from './ChaptersTab'
@@ -18,6 +18,7 @@ import SettingsTab from './SettingsTab'
 import ContentPolicyTab from './ContentPolicyTab'
 import ContentRatingsTab from './ContentRatingsTab'
 import SiteOperationsTab from './SiteOperationsTab'
+import SiteSettingsTab from './SiteSettingsTab'
 
 export interface AdminTabProps {
   highlightNovelId?: string
@@ -117,6 +118,15 @@ export const NAV_GROUPS: Array<{ label: string; items: AdminNavItem[] }> = [
           { id: 'settings-operation-audit', label: '操作审计', to: `${adminTabPath('settings')}?view=operation-audit` },
         ],
       },
+      {
+        id: 'site-settings',
+        label: '站点设置',
+        icon: Settings,
+        children: [
+          { id: 'site-settings-branding', label: '站点信息', to: `${adminTabPath('site-settings')}?view=branding` },
+          { id: 'site-settings-security', label: '安全验证', to: `${adminTabPath('site-settings')}?view=security` },
+        ],
+      },
     ],
   },
 ]
@@ -136,6 +146,7 @@ export const TAB_COMPONENTS = {
   'content-policy': ContentPolicyTab,
   'content-ratings': ContentRatingsTab,
   'site-operations': SiteOperationsTab,
+  'site-settings': SiteSettingsTab,
   settings: SettingsTab,
 } satisfies Record<string, ComponentType<AdminTabProps>>
 

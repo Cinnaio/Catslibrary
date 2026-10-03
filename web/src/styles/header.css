@@ -32,6 +32,8 @@
 /* Wordmark */
 .header__logo {
   display: flex;
+  min-width: 0;
+  max-width: 40%;
   align-items: center;
   gap: 10px;
   padding: 5px 9px 5px 6px;
@@ -57,8 +59,11 @@
 .header__logo-img {
   width: 32px;
   height: 32px;
-  object-fit: cover;
+  object-fit: contain;
+  flex-shrink: 0;
 }
+
+.header__logo > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Header search (home page) */
 .header .search-bar {
@@ -453,6 +458,7 @@
 .mobile-drawer__brand {
   font-size: 1.15rem;
   padding: 4px 8px 4px 4px;
+  max-width: calc(100% - 56px);
 }
 .mobile-drawer__close {
   display: inline-flex;

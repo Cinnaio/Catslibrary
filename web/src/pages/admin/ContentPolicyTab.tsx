@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { adminApi } from '@/lib/api'
 import { useContentPolicy } from '@/context/ContentPolicyContext'
 import { useConfirm, useToast } from '@/components/feedback'
@@ -12,6 +13,7 @@ export default function ContentPolicyTab() {
   const { confirm } = useConfirm()
   const { refreshPolicy } = useContentPolicy()
   const [adultContentEnabled, setAdultContentEnabled] = useState(false)
+  const [turnstileConfigured, setTurnstileConfigured] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
@@ -20,6 +22,7 @@ export default function ContentPolicyTab() {
     try {
       const settings = await adminApi.contentPolicy.settings()
       setAdultContentEnabled(settings.adultContentEnabled)
+      setTurnstileConfigured(Boolean(settings.turnstileConfigured))
     } catch (err) {
       toast((err as Error).message || '内容安全设置加载失败', 'error')
     } finally {
@@ -93,6 +96,7 @@ export default function ContentPolicyTab() {
                   ? '读者仍默认处于安全模式，需自行确认后才能查看限制级内容。'
                   : '成人内容模式已全站关闭，读者无法解除限制。'}
           </p>
+          <p className="content-policy-status">Turnstile：{turnstileConfigured ? '已配置' : '尚未配置，成人验证不会放行'}。<Link to="/admin/site-settings?view=security">前往安全验证配置</Link></p>
         </CardContent>
       </Card>
     </AdminPage>

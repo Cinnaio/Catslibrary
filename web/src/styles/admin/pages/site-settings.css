@@ -1,0 +1,25 @@
+.site-settings__layout { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+.site-settings__fields { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.site-settings__hint, .site-settings__status { margin: 0; color: var(--text-secondary); font-size: 0.8125rem; line-height: 1.8; overflow-wrap: anywhere; }
+.site-settings__check { display: flex; gap: 8px; align-items: center; min-height: 44px; font-size: 0.8125rem; color: var(--text-secondary); }
+.site-settings__check input { accent-color: var(--accent); }
+.site-settings__save { display: flex; align-items: center; justify-content: space-between; gap: 16px; font-size: 0.8125rem; color: var(--text-muted); }
+.site-settings__assets { display: flex; flex-direction: column; gap: 24px; }
+.site-settings__asset { display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 12px; align-items: center; }
+.site-settings__asset > button { grid-column: 2; justify-self: start; }
+.site-settings__asset img, .site-settings__brand-preview img, .site-settings__login-preview img { object-fit: contain; }
+.site-settings__asset input { max-width: 100%; }
+.site-settings__brand-preview { display: flex; align-items: center; gap: 12px; overflow-wrap: anywhere; }
+.site-settings__login-preview { padding-block: 24px; text-align: center; overflow-wrap: anywhere; }
+.site-settings__login-preview img { display: inline-block; vertical-align: middle; margin-right: 8px; }
+.site-settings__login-preview p { font-family: var(--font-serif); margin-bottom: 0; font-size: 1.25rem; }
+.site-settings__footer-preview { color: var(--text-muted); text-align: center; font-size: 0.75rem; overflow-wrap: anywhere; }
+.site-settings__error { color: var(--color-danger); font-size: 0.875rem; overflow-wrap: anywhere; }
+.site-settings__widget { min-width: 0; width: 100%; }
+@media (max-width: 1000px) { .site-settings__layout { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 700px) {
+  .site-settings__save { flex-wrap: wrap; }
+  .site-settings__save button { min-height: 44px; }
+  .site-settings__check { align-items: flex-start; padding-block: 8px; }
+  .site-settings__check input { margin-top: 4px; }
+}

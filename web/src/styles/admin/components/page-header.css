@@ -59,6 +59,7 @@
 .admin-redesign-page--content-ratings > .admin-tab-header,
 .admin-redesign-page--content-policy > .admin-tab-header,
 .admin-redesign-page--site-operations > .admin-tab-header,
+.admin-redesign-page--site-settings > .admin-tab-header,
 .admin-redesign-page--ai > .admin-tab-header {
   border-bottom: 0;
 }

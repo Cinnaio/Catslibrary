@@ -182,6 +182,24 @@ async function request<T = unknown>(
   return data
 }
 
+/** Branding is public; configuration writes and verification credentials are admin-only. */
+export const siteSettingsApi = {
+  publicBranding: () => request<import('@shared/site-settings').SiteBranding>('GET', '/site-settings'),
+  branding: () => request<import('@shared/site-settings').SiteBranding>('GET', '/admin/site-settings/branding', null, true),
+  saveBranding: (value: import('@shared/site-settings').SiteBranding) => request<import('@shared/site-settings').SiteBranding>('PUT', '/admin/site-settings/branding', value, true),
+  async upload(kind: 'logo' | 'favicon', file: File) {
+    const form = new FormData(); form.set('image', file)
+    const res = await authFetch(`/admin/site-settings/assets/${kind}`, { method: 'PUT', body: form })
+    const value = await res.json()
+    if (!res.ok) throw new Error(value.error || '图片上传失败')
+    return value as import('@shared/site-settings').SiteBranding
+  },
+  resetAsset: (kind: 'logo' | 'favicon') => request<import('@shared/site-settings').SiteBranding>('DELETE', `/admin/site-settings/assets/${kind}`, null, true),
+  turnstile: () => request<import('@shared/site-settings').TurnstileSettings>('GET', '/admin/site-settings/turnstile', null, true),
+  saveTurnstile: (value: { siteKey: string; hostnames: string[]; secretKey?: string; clearSecret?: boolean }) => request<import('@shared/site-settings').TurnstileSettings>('PUT', '/admin/site-settings/turnstile', value, true),
+  testTurnstile: (token: string) => request<{ ok: boolean; message: string }>('POST', '/admin/site-settings/turnstile/test', { token }, true),
+}
+
 /** 非 JSON 直接 fetch（上传表单/keepalive 等），自动带 token 与 base。 */
 export function authFetch(path: string, init: RequestInit = {}): Promise<Response> {
   const headers = { ...(init.headers as Record<string, string> | undefined) }
@@ -942,7 +960,7 @@ export const adminApi = {
     },
   },
   contentPolicy: {
-    settings(): Promise<{ adultContentEnabled: boolean }> {
+    settings(): Promise<{ adultContentEnabled: boolean; turnstileConfigured?: boolean }> {
       return request('GET', '/admin/content-policy', null, true)
     },
     update(adultContentEnabled: boolean): Promise<{ adultContentEnabled: boolean }> {

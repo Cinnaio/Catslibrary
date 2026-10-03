@@ -22,6 +22,7 @@ import CatchupRecap from '../components/CatchupRecap'
 import ContentRestrictionNotice from '../components/ContentRestrictionNotice'
 import PageState from '../components/PageState'
 import { setPageSeo } from '../lib/seo'
+import { useSiteBranding } from '../lib/site-branding'
 
 interface RatingSummary {
   average: number
@@ -56,6 +57,7 @@ function lastReadAt(progress: ReadingHistoryEntry | ServerProgress | null): numb
 }
 
 export default function Novel() {
+  const branding = useSiteBranding()
   const { id = '' } = useParams()
   const { search: routeSearch } = useLocation()
   const navigate = useNavigate()
@@ -117,8 +119,8 @@ export default function Novel() {
     if (loading) return
     const indexable = !blocked && !notFound && novel?.id === id && novel.contentRating === 'general' && !routeSearch
     setPageSeo(Boolean(indexable), novel?.contentRating === 'general'
-      ? `${novel.author}著。${novel.description || ''}`.slice(0, 180) : undefined, `/novel/${encodeURIComponent(id)}`)
-  }, [novel, loading, blocked, notFound, id, routeSearch])
+      ? `${novel.author}著。${novel.description || ''}`.slice(0, 180) : branding.description, `/novel/${encodeURIComponent(id)}`)
+  }, [novel, loading, blocked, notFound, id, routeSearch, branding.description])
 
   // 描述溢出检测（>3 行显示"展开全部"）
   // 只在折叠态判定（展开态按钮文案切换为"收起"，状态沿用）。

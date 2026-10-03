@@ -13,10 +13,12 @@ import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useSiteBranding } from '../lib/site-branding'
 
 type Mode = 'login' | 'register'
 
 export default function Auth() {
+  const branding = useSiteBranding()
   const navigate = useNavigate()
   const location = useLocation()
   const { user, login, refresh } = useSession()
@@ -129,8 +131,8 @@ export default function Auth() {
           <section className="auth-panel" aria-labelledby="auth-title">
             <div className="auth-panel__head">
               <div className="auth-panel__brand">
-                <img src="/images/logo.png" alt="" className="auth-panel__mark" aria-hidden="true" />
-                <span>知舟</span>
+                <img src={branding.logoUrl} alt="" className="auth-panel__mark" aria-hidden="true" />
+                <span>{branding.name}</span>
               </div>
               <h1 id="auth-title" className="auth-panel__title">{isLogin ? '请登录后继续阅读' : '创建账号后继续阅读'}</h1>
             </div>
