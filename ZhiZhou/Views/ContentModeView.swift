@@ -1,5 +1,6 @@
 import SwiftUI
 import WebKit
+import ZhiZhouCore
 
 struct ContentModeView: View {
     @State private var access = ContentAccessStore.shared
@@ -10,14 +11,20 @@ struct ContentModeView: View {
         List {
             Section {
                 LabeledContent("当前模式", value: access.mode == "adult" ? "R18 · 在线阅读" : "安全模式")
-                if access.mode == "adult" {
-                    Button("关闭 R18 阅读模式", role: .destructive) {
-                        Task {
-                            do { try await access.lock() }
-                            catch { errorMessage = "本机已切回安全模式，但服务端撤销失败，请联网后重试：\(AppCopy.friendlyError(error))" }
+                Toggle("账号 R18 阅读开关", isOn: Binding(
+                    get: { access.accountMode == "adult" },
+                    set: { enabled in
+                        if enabled { showUnlock = true }
+                        else {
+                            Task {
+                                do { try await access.lock(); errorMessage = nil }
+                                catch { errorMessage = "本机已切回安全模式，但服务端撤销失败，请联网后重试：\(AppCopy.friendlyError(error))" }
+                            }
                         }
                     }
-                } else {
+                ))
+                .disabled(access.needsLockRetry || (access.accountMode != "adult" && (!access.adultContentEnabled || !access.configured)))
+                if access.mode != "adult" {
                     if access.needsLockRetry {
                         Button("重试撤销服务端授权") {
                             Task {
@@ -26,20 +33,22 @@ struct ContentModeView: View {
                             }
                         }
                     }
-                    Button("开启 R18 阅读模式", systemImage: "lock.open") { showUnlock = true }
-                        .disabled(!access.adultContentEnabled || !access.configured || access.needsLockRetry)
+                    if access.accountMode == "adult" {
+                        Button("验证并在此设备开启", systemImage: "lock.open") { showUnlock = true }
+                            .disabled(!access.adultContentEnabled || !access.configured || access.needsLockRetry)
+                    }
                 }
             } footer: {
-                Text("开启前需要确认已年满 18 岁并完成人机验证。授权仅对当前登录会话有效。限制级作品仅支持在线阅读，暂不支持离线下载。")
+                Text("账号开关与 Web 同步，关闭会撤销所有设备的授权。此设备首次开启仍需确认已年满 18 岁并完成人机验证，已有有效授权会自动恢复。限制级作品仅支持在线阅读。")
             }
             if let notice = access.notice {
                 Section { Text(notice).foregroundStyle(AppTheme.textSecondary) }
             }
-            if !access.adultContentEnabled || !access.configured {
+            Section { Button("同步账号状态") { Task { await refresh() } } }
+            if access.hasSyncedStatus && (!access.adultContentEnabled || !access.configured) {
                 Section {
                     Text(!access.adultContentEnabled ? "站点暂未开放成人内容。" : "站点尚未配置成人模式验证，请联系管理员。")
                         .foregroundStyle(AppTheme.textSecondary)
-                    Button("刷新状态") { Task { await refresh() } }
                 }
             }
             if let errorMessage {
@@ -57,8 +66,8 @@ struct ContentModeView: View {
     }
 
     private func refresh() async {
-        do { try await access.refreshPolicy(); errorMessage = nil }
-        catch { errorMessage = AppCopy.friendlyError(error) }
+        await access.revalidate()
+        errorMessage = nil
     }
 }
 
@@ -136,7 +145,8 @@ private struct AdultTurnstileView: UIViewRepresentable {
 
     func makeUIView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
-        configuration.websiteDataStore = .nonPersistent()
+        configuration.websiteDataStore = .default()
+        configuration.defaultWebpagePreferences.allowsContentJavaScript = true
         configuration.userContentController.add(context.coordinator, name: "adultChallenge")
         let view = WKWebView(frame: .zero, configuration: configuration)
         view.navigationDelegate = context.coordinator
@@ -160,11 +170,11 @@ private struct AdultTurnstileView: UIViewRepresentable {
         let challengeURL = ServerConfig.shared.baseURL?.appendingPathComponent("api/content-policy/native-challenge")
         let onResult: (Result<String, Error>) -> Void
         var active = true
+        private var reportedPageError = false
         init(onResult: @escaping (Result<String, Error>) -> Void) { self.onResult = onResult }
 
         private func isChallenge(_ url: URL?) -> Bool {
-            guard let url, let expected = challengeURL else { return false }
-            return url.scheme == expected.scheme && url.host == expected.host && url.port == expected.port && url.path == expected.path
+            AdultChallengeNavigationPolicy.isChallenge(url, expected: challengeURL)
         }
 
         func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
@@ -178,25 +188,35 @@ private struct AdultTurnstileView: UIViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
-            guard let url = action.request.url else { decisionHandler(.cancel); return }
-            let allowed = action.targetFrame?.isMainFrame == true
-                ? isChallenge(url)
-                : (isChallenge(url) || (url.scheme == "https" && url.host == "challenges.cloudflare.com"))
+            let allowed = AdultChallengeNavigationPolicy.allows(
+                action.request.url, expected: challengeURL,
+                isMainFrame: action.targetFrame?.isMainFrame == true, hasTargetFrame: action.targetFrame != nil
+            )
             decisionHandler(allowed ? .allow : .cancel)
         }
 
         func webView(_ webView: WKWebView, decidePolicyFor response: WKNavigationResponse, decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
             if response.isForMainFrame, let http = response.response as? HTTPURLResponse, http.statusCode >= 400 {
-                if active { onResult(.failure(APIError.network("验证页面不可用，请刷新站点状态后重试。"))) }
+                reportedPageError = true
+                if active {
+                    let message = http.statusCode == 404
+                        ? "站点尚未部署原生验证页面，请更新服务端后重试。"
+                        : "验证页面不可用（HTTP \(http.statusCode)），请刷新站点状态后重试。"
+                    onResult(.failure(APIError.network(message)))
+                }
                 decisionHandler(.cancel)
             } else { decisionHandler(.allow) }
         }
 
         func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
-            if active { onResult(.failure(error)) }
+            reportNavigationError(error)
         }
         func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-            if active { onResult(.failure(error)) }
+            reportNavigationError(error)
+        }
+        private func reportNavigationError(_ error: Error) {
+            guard active, !reportedPageError, (error as NSError).code != NSURLErrorCancelled else { return }
+            onResult(.failure(error))
         }
     }
 }

@@ -4,6 +4,10 @@ import Foundation
 public enum ContentPolicy {
     public static let clientMode = "safe"
 
+    public static func canRestoreAdultMode(accountMode: String, sessionAuthorized: Bool, adultContentEnabled: Bool, configured: Bool, expiresIn: Double) -> Bool {
+        accountMode == "adult" && sessionAuthorized && adultContentEnabled && configured && expiresIn.isFinite && expiresIn > 0
+    }
+
     /// 给用户侧内容请求统一附加安全模式；管理后台请求不使用此 helper。
     public static func safePath(_ path: String) -> String {
         readerPath(path, mode: "safe")
@@ -27,5 +31,23 @@ public enum ContentPolicy {
     public static func canCacheChapter(path: String, authenticated: Bool) -> Bool {
         let modes = URLComponents(string: path)?.queryItems?.filter { $0.name == "contentMode" } ?? []
         return !authenticated && modes.count == 1 && modes[0].value == "safe"
+    }
+}
+
+/// Only challenge subframes can use Cloudflare's bootstrap documents.
+/// Top-level pages and message bridges remain restricted to the exact native page.
+public enum AdultChallengeNavigationPolicy {
+    public static func isChallenge(_ url: URL?, expected: URL?) -> Bool {
+        guard let url, let expected else { return false }
+        return url.scheme == expected.scheme && url.host == expected.host && url.port == expected.port && url.path == expected.path
+    }
+
+    public static func allows(_ url: URL?, expected: URL?, isMainFrame: Bool, hasTargetFrame: Bool) -> Bool {
+        guard hasTargetFrame, let url else { return false }
+        if isMainFrame { return isChallenge(url, expected: expected) }
+        return isChallenge(url, expected: expected)
+            || (url.scheme == "https" && url.host == "challenges.cloudflare.com")
+            || url.absoluteString == "about:blank"
+            || url.absoluteString == "about:srcdoc"
     }
 }

@@ -144,9 +144,9 @@ ZhiZhouCore/
 
 ## App Store 上架注意事项（重要）
 
-当前自行安装的 IPA 支持受授权的在线 R18 阅读：默认安全模式，在「我的 → 内容模式」确认成年并通过 Turnstile 后，使用当前登录会话的服务端权限。限制级作品暂不支持离线下载，成人模式的章节请求不使用本地章节缓存。
+当前自行安装的 IPA 支持受授权的在线 R18 阅读：在「我的 → 内容模式」同步账号共享开关，已有有效的当前会话授权会在服务端复核后恢复；此设备未授权时仍需确认成年并通过 Turnstile。限制级作品暂不支持离线下载，成人模式的章节请求不使用本地章节缓存。
 
-服务端须同步部署 `/api/content-policy/native-challenge` 验证页面与章节安全模式拦截；站点须开启成人内容并配置 Turnstile，允许当前服务器域名。实现和验收范围见 [在线 R18 阅读第一版](docs/r18-online-reading-phase1.md)。
+服务端须同步部署 `/api/content-policy/native-challenge` 验证页面、`/api/content-policy/status` 状态接口与章节安全模式拦截；站点须开启成人内容并配置 Turnstile，允许当前服务器域名。实现和验收范围见 [在线 R18 阅读第一版](docs/r18-online-reading-phase1.md)。
 
 此实现不代表可直接提交 App Store。正式上架前须按实际内容核对 [Apple 审核指南 1.1.4 与 1.2](https://developer.apple.com/cn/app-store/review/guidelines/)，确认成人内容及开启方式符合适用要求；成年确认与人机验证不能替代审核要求。Release 构建仍须使用受信任的 HTTPS 证书，并核对公开隐私政策与 App Store Connect 隐私问卷。
 
