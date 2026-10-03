@@ -176,11 +176,11 @@ aiRoutes.post('/recap', requireUser(), async (c) => {
   const chapterId = String(body.chapterId || '').trim()
   if (!chapterId) return c.json({ error: 'chapterId is required' }, 400)
 
+  const accessError = await chapterContentAccessError(c, db, chapterId)
+  if (accessError) return accessError
   const settings = await getAiSettings(db)
   if (!settings.recapEnabled) return c.json({ error: 'AI 前情提要已关闭', code: 'disabled' }, 403)
   if (!isTextAiConfigured()) return c.json({ error: 'AI 文本服务未配置', code: 'disabled' }, 503)
-  const accessError = await chapterContentAccessError(c, db, chapterId)
-  if (accessError) return accessError
 
   const force = !!body.force && isAdmin
   const model = textProvider().model
@@ -228,11 +228,11 @@ aiRoutes.post('/catchup', requireUser(), async (c) => {
   const novelId = String(body.novelId || '').trim()
   if (!novelId) return c.json({ error: 'novelId is required' }, 400)
 
+  const accessError = await novelContentAccessError(c, db, novelId)
+  if (accessError) return accessError
   const settings = await getAiSettings(db)
   if (!settings.catchupEnabled) return c.json({ error: 'AI 回顾总结已关闭', code: 'disabled' }, 403)
   if (!isTextAiConfigured()) return c.json({ error: 'AI 文本服务未配置', code: 'disabled' }, 503)
-  const accessError = await novelContentAccessError(c, db, novelId)
-  if (accessError) return accessError
 
   const model = textProvider().model
   const inspection = await inspectCatchup(db, user.id, novelId, model)
