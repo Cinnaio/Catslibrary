@@ -5,7 +5,7 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { Search, X } from 'lucide-react'
+import { BookOpen, Search, X } from 'lucide-react'
 import type { ChapterFull, ChapterMeta, Thought } from '@shared/types'
 import { chaptersApi, isRestrictedContentError, novelsApi, thoughtsApi, progressApi } from '../lib/api'
 import { applyProgressState } from '../lib/progress-state'
@@ -41,6 +41,7 @@ import ThoughtPanel from '../components/reader/ThoughtPanel'
 import ChapterRecap from '../components/reader/ChapterRecap'
 import { ThemeMenu } from '../components/ThemeMenu'
 import ContentRestrictionNotice from '../components/ContentRestrictionNotice'
+import PageState from '../components/PageState'
 
 const CHAPTER_ROW_H = 34
 const CHAPTER_CACHE_MAX = 6
@@ -1059,21 +1060,12 @@ export default function Reader() {
 
   if (notFound) {
     return (
-      <div className="empty-state" style={{ minHeight: '60vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
-        <div className="empty-state__icon">📖</div>
-        <div className="empty-state__title">章节未找到</div>
-        <div className="empty-state__desc">该章节不存在或已被移除</div>
-        <Link to="/" className="btn btn--primary" style={{ marginTop: 20 }}>返回首页</Link>
-      </div>
+      <PageState title="章节未找到" description="该章节不存在或已被移除" icon={<BookOpen strokeWidth={1.5} />} actions={<Link to="/" className="btn btn--primary">返回首页</Link>} />
     )
   }
 
   if (blocked) {
-    return (
-      <div className="reader-blocked-state">
-        <ContentRestrictionNotice mode={mode} onModeChange={setMode} canUnlock={adultContentEnabled} />
-      </div>
-    )
+    return <ContentRestrictionNotice mode={mode} onModeChange={setMode} canUnlock={adultContentEnabled} />
   }
 
   if (loading || !chapter) {

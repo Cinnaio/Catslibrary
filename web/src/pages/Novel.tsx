@@ -20,6 +20,7 @@ import { useToast, useConfirm } from '../components/feedback'
 import { BackToTopIcon, HomeIcon, SearchIcon } from '../components/icons'
 import CatchupRecap from '../components/CatchupRecap'
 import ContentRestrictionNotice from '../components/ContentRestrictionNotice'
+import PageState from '../components/PageState'
 import { setPageSeo } from '../lib/seo'
 
 interface RatingSummary {
@@ -330,27 +331,12 @@ export default function Novel() {
   }
 
   if (blocked) {
-    return (
-      <main className="detail-page">
-        <div className="container detail-shell">
-          <ContentRestrictionNotice mode={mode} onModeChange={setMode} canUnlock={adultContentEnabled} />
-        </div>
-      </main>
-    )
+    return <ContentRestrictionNotice mode={mode} onModeChange={setMode} canUnlock={adultContentEnabled} />
   }
 
   if (notFound || !novel) {
     return (
-      <main className="detail-page">
-        <div className="container detail-shell">
-          <div className="empty-state">
-            <div className="empty-state__icon"><BookOpen size={32} aria-hidden="true" /></div>
-            <div className="empty-state__title">小说未找到</div>
-            <div className="empty-state__desc">请检查链接是否正确，或返回首页浏览其他小说</div>
-            <Link to="/" className="btn btn--primary" style={{ marginTop: 20 }}>返回首页</Link>
-          </div>
-        </div>
-      </main>
+      <PageState title="小说未找到" description="请检查链接是否正确，或返回首页浏览其他小说" icon={<BookOpen size={32} />} actions={<Link to="/" className="btn btn--primary">返回首页</Link>} />
     )
   }
 

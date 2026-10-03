@@ -1,7 +1,8 @@
 import { ShieldIcon } from './icons'
 import type { ContentMode } from '../context/ContentPolicyContext'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { useOptionalSession } from '../context/SessionContext'
+import PageState from './PageState'
 
 interface ContentRestrictionNoticeProps {
   mode: ContentMode
@@ -21,25 +22,24 @@ export default function ContentRestrictionNotice({
   compact = false,
 }: ContentRestrictionNoticeProps) {
   const session = useOptionalSession()
+  const location = useLocation()
 
   async function unlock() {
-    if (mode === 'adult') return
     if (session?.user) await onModeChange('adult')
   }
 
   return (
-    <section className={`content-restriction${compact ? ' content-restriction--compact' : ''}`} role="status">
-      <div className="content-restriction__icon" aria-hidden="true"><ShieldIcon /></div>
-      <div className="content-restriction__body">
-        <h2>{title}</h2>
-        <p>{description}</p>
-        {mode === 'safe' && canUnlock && !session?.user && <Link to="/auth" className="btn btn--primary btn--sm">登录后开启</Link>}
-        {mode === 'safe' && canUnlock && session?.user && (
-          <button type="button" className="btn btn--primary btn--sm" onClick={unlock}>
-            查看限制级内容
-          </button>
-        )}
-      </div>
-    </section>
+    <PageState
+      inline={compact}
+      icon={<ShieldIcon />}
+      title={title}
+      description={!compact && !canUnlock ? '站点当前未开放成人内容模式，限制级作品暂不可阅读。你仍可返回首页浏览其他小说。' : description}
+      actions={(!compact || canUnlock && mode === 'safe') ? <>
+        {canUnlock && (!compact || mode === 'safe') && (!session?.user
+          ? <Link to="/auth" state={{ from: `${location.pathname}${location.search}` }} className="btn btn--primary">登录后开启</Link>
+          : <button type="button" className="btn btn--primary" onClick={unlock}>{mode === 'adult' ? '重新验证' : '查看限制级内容'}</button>)}
+        {!compact && <Link to="/" className={`btn ${canUnlock ? 'btn--secondary' : 'btn--primary'}`}>返回首页</Link>}
+      </> : undefined}
+    />
   )
 }

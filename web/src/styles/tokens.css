@@ -55,6 +55,8 @@
   --radius-full: 9999px;
   --radius-md: 10px; /* compact controls / cards */
   --radius-xl: 16px; /* nested surfaces / dialogs */
+  --page-state-width: 32rem;
+  --page-state-title-size: 1.25rem;
   --radius-2xl: 20px; /* large surfaces / panels */
 
   /* Compact identity primitives shared by lists and account controls. */
