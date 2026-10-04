@@ -293,7 +293,7 @@ struct ReaderView: View {
 
     /// 阅读区内容：加载中 / 加载失败 / 章节正文（居中标题 + 带首行缩进的段落）。
     @ViewBuilder
-    private var readingContent: some View {
+    private func readingContent(width: CGFloat) -> some View {
         if isLoading && chapter == nil {
             ProgressView("加载中…")
                 .tint(ink)
@@ -321,12 +321,17 @@ struct ReaderView: View {
                 .foregroundStyle(ink)
                 .frame(maxWidth: .infinity)
                 .padding(.bottom, 14)
+                .contentShape(Rectangle())
+                .simultaneousGesture(SpatialTapGesture().onEnded { value in
+                    handleScrollTap(x: value.location.x, width: width)
+                })
             ForEach(paragraphs.indices, id: \.self) { index in
                 readerParagraph(
                     index: index,
                     text: paragraphs[index],
                     thoughts: paragraphThoughts[index] ?? [],
-                    renderKey: renderKey
+                    renderKey: renderKey,
+                    width: width
                 )
                     .id(index)
             }
@@ -341,7 +346,8 @@ struct ReaderView: View {
         index: Int,
         text: String,
         thoughts: [Thought],
-        renderKey: String
+        renderKey: String,
+        width: CGFloat
     ) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             SelectableTextView(
@@ -358,6 +364,10 @@ struct ReaderView: View {
                 openThoughtPanel(for: index, selectedText: selectedText)
             }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                // 点击正文才处理阅读热区，段评和文末按钮保留自己的点击路径。
+                .simultaneousGesture(SpatialTapGesture().onEnded { value in
+                    handleScrollTap(x: value.location.x, width: width)
+                })
 
             if !thoughts.isEmpty {
                 HStack {
@@ -459,7 +469,7 @@ struct ReaderView: View {
         return ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: readerParagraphSpacing) {
-                    readingContent
+                    readingContent(width: max(40, min(geo.size.width, 720) - (sideInset + 22) * 2))
                 }
                 .padding(.horizontal, sideInset + 22)
                 .padding(.top, 18)
@@ -473,6 +483,7 @@ struct ReaderView: View {
             // binding alone leaves the old content offset attached to the reused
             // scroll container while the next chapter is loading.
             .id(scrollIdentity)
+            .scrollIndicators(.hidden)
             .ignoresSafeArea(edges: .horizontal)
             .background(paper)
             // 使用系统滚动边缘材质连接正文和固定导航/底部玻璃控制。
@@ -485,12 +496,6 @@ struct ReaderView: View {
             .accessibilityAction(named: showChrome ? "隐藏阅读控制" : "显示阅读控制") {
                 toggleChrome()
             }
-            // 正文手势附着在 ScrollView 本身，避免命中其后的底部安全区工具栏。
-            .simultaneousGesture(
-                SpatialTapGesture().onEnded { value in
-                    handleScrollTap(x: value.location.x, width: geo.size.width)
-                }
-            )
             // 仅识别从屏幕最外侧开始的横向滑动，避免普通上下滚动被误判为翻页。
             .simultaneousGesture(
                 DragGesture(minimumDistance: 18)
@@ -599,8 +604,7 @@ struct ReaderView: View {
                             pages[index],
                             pageIndex: index,
                             width: contentWidth,
-                            height: contentHeight,
-                            showsNextChapter: atChapterEnd && index == pages.count - 1
+                            height: contentHeight
                         )
                             .tag(index)
                     }
@@ -611,11 +615,6 @@ struct ReaderView: View {
                 .accessibilityAction(named: showChrome ? "隐藏阅读控制" : "显示阅读控制") {
                     toggleChrome()
                 }
-                .gesture(
-                    SpatialTapGesture().onEnded { value in
-                        handlePageTap(x: value.location.x, width: geo.size.width)
-                    }
-                )
             }
         }
         .task(id: key) { await rebuildPages(size: pageSize) }
@@ -633,8 +632,7 @@ struct ReaderView: View {
         _ text: NSAttributedString,
         pageIndex: Int,
         width: CGFloat,
-        height: CGFloat,
-        showsNextChapter: Bool
+        height: CGFloat
     ) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
@@ -650,15 +648,16 @@ struct ReaderView: View {
                     openThoughtPanel(for: paragraphIndex, selectedText: selectedText)
                 }
                     .frame(width: width, alignment: .topLeading)
-                if showsNextChapter {
-                    nextChapterButton
-                        .frame(width: width)
-                        .padding(.top, 20)
-                }
             }
         }
         .scrollBounceBehavior(.basedOnSize)
+        .scrollIndicators(.hidden)
         .frame(width: width, height: height, alignment: .top)
+        .contentShape(Rectangle())
+        // 单页内仅有正文；轻点手势不再包住文末按钮或覆盖原生横向滑动。
+        .simultaneousGesture(SpatialTapGesture().onEnded { value in
+            handlePageTap(x: value.location.x, width: width)
+        })
     }
 
     private func handlePageTap(x: CGFloat, width: CGFloat) {
@@ -733,7 +732,13 @@ struct ReaderView: View {
         guard !pages.isEmpty else { return }
         let target = max(0, min(page, pages.count - 1))
         guard target != currentPage else { return }
-        currentPage = target
+        if reduceMotion {
+            currentPage = target
+        } else {
+            withAnimation(.easeOut(duration: 0.25)) {
+                currentPage = target
+            }
+        }
     }
 
     /// 底部阅读控制：上一章/页码/下一章。翻页到章末时变为居中的“下一章”按钮。
@@ -741,22 +746,7 @@ struct ReaderView: View {
         GlassEffectContainer(spacing: 12) {
             Group {
                 if atChapterEnd {
-                    Button {
-                        interactionFeedback += 1
-                        go(to: chapterOrder + 1)
-                    } label: {
-                        Label("下一章", systemImage: "arrow.forward")
-                            .font(.subheadline.weight(.semibold))
-                            .padding(.horizontal, 22)
-                            .frame(maxWidth: .infinity)
-                            .frame(minHeight: 44)
-                    }
-                    .buttonStyle(AppGlassButtonStyle(
-                        glass: AppTheme.glassProminent,
-                        fallback: AppTheme.primaryLight
-                    ))
-                    .tint(AppTheme.primary)
-                    .accessibilityLabel("下一章")
+                    nextChapterButton
                 } else {
                     GlassEffectContainer(spacing: 8) {
                         HStack(spacing: 8) {
@@ -820,6 +810,7 @@ struct ReaderView: View {
                 .font(.subheadline.weight(.semibold))
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: 44)
+                .contentShape(Rectangle())
         }
         .foregroundStyle(AppTheme.primary)
         .buttonStyle(AppGlassButtonStyle(
@@ -827,6 +818,7 @@ struct ReaderView: View {
             fallback: AppTheme.primaryLight
         ))
         .accessibilityLabel("下一章")
+        .accessibilityIdentifier("reader.next-chapter")
     }
 
     private var readerChromeRevealButton: some View {

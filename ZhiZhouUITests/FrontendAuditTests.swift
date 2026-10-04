@@ -63,6 +63,49 @@ final class FrontendAuditTests: XCTestCase {
     }
 
     @MainActor
+    func testScrollChapterEndButton() {
+        chapterEndButtonJourney(pageMode: false)
+    }
+
+    @MainActor
+    func testPagedChapterEndHasOneButton() {
+        chapterEndButtonJourney(pageMode: true)
+    }
+
+    @MainActor
+    private func chapterEndButtonJourney(pageMode: Bool) {
+        let app = launch()
+        XCTAssertTrue(app.buttons["catalog.audit-book-1"].waitForExistence(timeout: 15))
+        selectTab("我的", app: app)
+        reveal(app.buttons["阅读设置"], app: app)
+        tap(app.buttons["阅读设置"])
+        let mode = app.buttons[pageMode ? "左右翻页" : "上下滚动"]
+        reveal(mode, app: app)
+        tap(mode)
+        tap(app.buttons["完成"])
+        selectTab("发现", app: app)
+        tap(app.buttons["catalog.audit-book-1"])
+        tap(app.buttons["detail.read"])
+        XCTAssertTrue(app.navigationBars["第 1 章 一封没有寄出的信"].waitForExistence(timeout: 15))
+
+        let next = app.buttons["reader.next-chapter"]
+        for _ in 0..<30 {
+            if next.isHittable { break }
+            if pageMode { app.swipeLeft() } else { app.swipeUp() }
+        }
+        XCTAssertTrue(next.isHittable)
+        XCTAssertEqual(app.buttons.matching(identifier: "reader.next-chapter").count, 1)
+        if pageMode {
+            XCTAssertEqual(app.buttons.matching(NSPredicate(format: "label == %@", "下一章")).count, 1)
+        }
+        capture(pageMode ? "reader-page-end" : "reader-scroll-end", app: app)
+        // 点击胶囊左侧的空白区域，验证整个按钮表面都能切章。
+        next.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.5)).tap()
+        XCTAssertTrue(app.navigationBars["第 2 章 山路上的回声"].waitForExistence(timeout: 15))
+        capture(pageMode ? "reader-page-next-chapter" : "reader-scroll-next-chapter", app: app)
+    }
+
+    @MainActor
     private func readingJourney(appearance: String) {
         let app = launch(appearance: appearance)
         XCTAssertTrue(app.buttons["catalog.audit-book-1"].waitForExistence(timeout: 15))

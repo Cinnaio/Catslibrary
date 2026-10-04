@@ -64,10 +64,22 @@ struct ReaderSettingsView: View {
                     .listRowBackground(Color.clear)
                 }
 
-                choiceSection("翻页方式", values: [("scroll", "上下滚动"), ("page", "左右翻页")], selection: Binding(
-                    get: { settings.pageMode },
-                    set: { set("readerPageMode", $0) }
-                ))
+                Section {
+                    Picker("翻页方式", selection: Binding(
+                        get: { settings.pageMode },
+                        set: { set("readerPageMode", $0) }
+                    )) {
+                        Text("上下滚动").tag("scroll")
+                        Text("左右翻页").tag("page")
+                    }
+                    .accessibleSegmentedPicker()
+                } header: {
+                    Text("翻页方式")
+                } footer: {
+                    if settings.pageMode == "page" {
+                        Text("向左滑动阅读下一页，向右滑动返回上一页。点击中间区域显示或隐藏阅读控制。")
+                    }
+                }
 
                 Section {
                     Toggle("左右区域点击翻页", isOn: Binding(
