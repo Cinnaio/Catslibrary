@@ -8,7 +8,7 @@ struct ReaderSettingsView: View {
     @State private var interactionFeedback = 0
 
     private let themes: [(id: String, title: String, swatch: Color)] = [
-        ("default", "系统", Color(.systemBackground)),
+        ("default", "系统", AppTheme.canvas),
         ("eye", "护眼", Color(hex: "E7EBD9")),
         ("paper", "羊皮", Color(hex: "F2E3C6")),
     ]

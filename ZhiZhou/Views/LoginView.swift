@@ -6,6 +6,7 @@ struct LoginView: View {
     @Environment(AppState.self) private var appState
     @Environment(OfflineReadingStore.self) private var offlineStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @State private var mode: Mode = .login
     @State private var username = ""
@@ -33,18 +34,17 @@ struct LoginView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
                         brandHeader
-
-                        accountSwitch
-                            .disabled(busy || isRestoringSession)
-                            .padding(.top, 28)
-                            .padding(.bottom, 18)
+                            .padding(.bottom, 28)
 
                         fieldsGroup
                             .disabled(busy || isRestoringSession)
 
+                        statusLine
+                            .padding(.top, 16)
+
                         if mode != .register || registerMode == .open || registerMode == .invite {
                             submitButton
-                                .padding(.top, 16)
+                                .padding(.top, 20)
                         }
 
                         if mode == .register && registerMode == .closed {
@@ -58,12 +58,14 @@ struct LoginView: View {
                                 .padding(.top, 16)
                         }
 
-                        statusLine
+                        accountSwitch
+                            .disabled(busy || isRestoringSession)
                             .padding(.top, 16)
 
                     }
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 20)
+                    .padding(.horizontal, 28)
+                    .padding(.top, max(20, min(64, proxy.size.height * 0.08)))
+                    .padding(.bottom, 28)
                     .frame(maxWidth: 460)
                     .frame(maxWidth: .infinity, minHeight: proxy.size.height, alignment: .top)
                     .animation(reduceMotion ? AppMotion.micro : AppMotion.state, value: registerMode)
@@ -74,6 +76,7 @@ struct LoginView: View {
                 }
                 .scrollDismissesKeyboard(.interactively)
                 .scrollBounceBehavior(.basedOnSize)
+                .scrollIndicators(.hidden)
             }
         }
         .task { await fetchRegisterStatus() }
@@ -105,25 +108,35 @@ struct LoginView: View {
     // MARK: - 品牌头部
 
     private var brandHeader: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 12) {
-                BrandMark(size: 48)
+        VStack(alignment: .leading, spacing: 24) {
+            HStack(spacing: 8) {
+                BrandMark(size: 28)
 
                 Text("知舟")
-                    .font(serifFont(.title2, .bold))
+                    .font(serifFont(.title3, .regular))
                     .foregroundStyle(AppTheme.textPrimary)
                     .accessibilityAddTraits(.isHeader)
+                Spacer(minLength: 12)
+                if !dynamicTypeSize.isAccessibilitySize {
+                    BrandFlower(width: 104)
+                }
             }
+            welcomeCopy
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
 
+    private var welcomeCopy: some View {
+        VStack(alignment: .leading, spacing: 12) {
             Text(mode == .login ? "登录知舟" : "创建知舟账号")
-                .font(.largeTitle.weight(.bold))
+                .font(serifFont(.largeTitle, .regular))
                 .foregroundStyle(AppTheme.textPrimary)
-                .padding(.top, 14)
-
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
             Text(mode == .login
-                 ? "登录后即可同步你的书架与阅读进度。"
-                 : "创建账号，开始同步你的书架与阅读进度。")
-                .font(.title3)
+                 ? "登录后，接着读你的故事。\n书架与阅读进度会随账号同步。"
+                 : "带上一本喜欢的书，开始新的旅程。\n创建账号即可同步书架与阅读进度。")
+                .font(.subheadline)
                 .foregroundStyle(AppTheme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -165,10 +178,11 @@ struct LoginView: View {
     // MARK: - 输入
 
     private var fieldsGroup: some View {
-        VStack(spacing: 12) {
-            fieldSurface(isFocused: focusedField == .username) {
+        VStack(spacing: 18) {
+            fieldSurface("用户名", isFocused: focusedField == .username) {
                 TextField("用户名", text: $username)
                     .textContentType(.username)
+                    .accessibilityLabel("用户名")
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .submitLabel(.next)
@@ -181,9 +195,10 @@ struct LoginView: View {
             }
 
             if mode == .register, registerMode == .invite {
-                fieldSurface(isFocused: focusedField == .invite) {
+                fieldSurface("邀请码", isFocused: focusedField == .invite) {
                     TextField("邀请码", text: $invite)
                         .textInputAutocapitalization(.never)
+                        .accessibilityLabel("邀请码")
                         .autocorrectionDisabled()
                         .submitLabel(.next)
                         .focused($focusedField, equals: .invite)
@@ -193,7 +208,7 @@ struct LoginView: View {
                 }
             }
 
-            fieldSurface(isFocused: focusedField == .password) {
+            fieldSurface("密码", isFocused: focusedField == .password) {
                 HStack(spacing: 10) {
                     Group {
                         if showPassword {
@@ -207,6 +222,7 @@ struct LoginView: View {
                         }
                     }
                     .textContentType(mode == .register ? .newPassword : .password)
+                    .accessibilityLabel("密码")
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .submitLabel(.go)
@@ -233,15 +249,26 @@ struct LoginView: View {
     }
 
     private func fieldSurface<Content: View>(
+        _ title: String,
         isFocused: Bool,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        content()
-            .padding(.horizontal, AppLayout.fieldHorizontalInset)
-            .padding(.vertical, AppLayout.fieldVerticalInset)
-            .frame(minHeight: AppLayout.fieldMinHeight)
-            .appFieldSurface(isFocused: isFocused)
-            .animation(AppMotion.micro, value: isFocused)
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(AppTheme.textPrimary)
+                .accessibilityHidden(true)
+            content()
+                .padding(.horizontal, AppLayout.fieldHorizontalInset)
+                .padding(.vertical, AppLayout.fieldVerticalInset)
+                .frame(minHeight: AppLayout.fieldMinHeight)
+                .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppTheme.fieldCornerRadius))
+                .overlay {
+                    RoundedRectangle(cornerRadius: AppTheme.fieldCornerRadius)
+                        .strokeBorder(isFocused ? AppTheme.primary : AppTheme.border, lineWidth: isFocused ? 1.5 : 1)
+                }
+                .animation(reduceMotion ? nil : AppMotion.micro, value: isFocused)
+        }
     }
 
     // MARK: - 主操作

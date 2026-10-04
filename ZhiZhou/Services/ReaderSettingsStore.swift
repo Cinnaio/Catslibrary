@@ -236,14 +236,14 @@ final class ReaderSettingsStore {
         switch normalizedTheme {
         case "eye": return Color(hex: "E7EBD9")
         case "paper": return Color(hex: "F2E3C6")
-        default: return Color(.systemBackground)
+        default: return AppTheme.canvas
         }
     }
 
     func textColor(systemDark: Bool) -> Color {
         isDarkPaper(systemDark: systemDark)
             ? Color(hex: "EDE4D8")
-            : Color(.label)
+            : AppTheme.textPrimary
     }
 
     var bodyFont: Font {

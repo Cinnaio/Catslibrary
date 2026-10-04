@@ -27,27 +27,55 @@ struct RootView: View {
     }
 }
 
-/// 启动连接页：系统背景 + 品牌标识
+/// 连接页：暖纸画布、Web 共用花枝与真实连接状态。
 struct BootView: View {
     var body: some View {
         ZStack {
             AppTheme.canvas.ignoresSafeArea()
-            VStack(spacing: 18) {
-                BrandMark()
-
-                Text("知舟")
-                    .font(serifFont(.title, .bold))
-                    .foregroundStyle(AppTheme.textPrimary)
-
-                ProgressView()
-                    .controlSize(.regular)
-                    .tint(AppTheme.primary)
-
-                Text("正在连接…")
-                    .font(.footnote)
-                    .foregroundStyle(AppTheme.textSecondary)
+            VStack(spacing: 32) {
+                VStack(spacing: 16) {
+                    BrandFlower(width: 192)
+                    Text("知舟")
+                        .font(serifFont(.largeTitle, .regular))
+                        .foregroundStyle(AppTheme.textPrimary)
+                        .accessibilityAddTraits(.isHeader)
+                    Text("让故事，慢慢展开。")
+                        .font(.subheadline)
+                        .foregroundStyle(AppTheme.textSecondary)
+                }
+                HStack(spacing: 10) {
+                    ProgressView()
+                        .controlSize(.small)
+                        .tint(AppTheme.primary)
+                        .accessibilityHidden(true)
+                    Text("正在连接…")
+                        .font(.footnote)
+                        .foregroundStyle(AppTheme.textSecondary)
+                }
+                .accessibilityElement(children: .combine)
             }
+            .multilineTextAlignment(.center)
+            .padding(32)
+            .frame(maxWidth: 440)
+            .accessibilityIdentifier("session.connecting")
         }
+    }
+}
+
+/// 复用 Web 登录页的原始花枝资源，仅用于安静的品牌装饰。
+struct BrandFlower: View {
+    var width: CGFloat = 112
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        Image("AuthFlower")
+            .resizable()
+            .scaledToFit()
+            .frame(width: width, height: width / 2)
+            .brightness(colorScheme == .dark ? 0.12 : 0)
+            .opacity(colorScheme == .dark ? 0.85 : 0.7)
+            .accessibilityHidden(true)
+            .allowsHitTesting(false)
     }
 }
 

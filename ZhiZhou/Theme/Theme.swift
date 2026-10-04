@@ -35,15 +35,16 @@ extension UIColor {
 /// 知舟设计系统：浏览、编辑与阅读纸面分别管理，语义色跟随系统外观。
 /// 阅读器纸面由 ReaderSettingsStore 独立管理（可选中夜间/护眼等）。
 enum AppTheme {
-    // MARK: 品牌强调色（黛青：浅色深、深色亮，双向可用）
-    static let primary = Color(light: "3A6B5E", dark: "7FBFB0")
-    static let primaryDeep = Color(light: "2C5348", dark: "9AD4C6")
-    static let primaryLight = Color(light: "E3EFEB", dark: "243330")
+    // MARK: 品牌强调色（陶土橙：暖纸上的深色操作，暗底上的柔和强调）
+    static let primary = Color(light: "B45535", dark: "E09B80")
+    static let primaryDeep = Color(light: "934329", dark: "E9B199")
+    static let primaryLight = Color(light: "F3E4DC", dark: "3C2C26")
+    static let brandAccent = Color(hex: "D97757")
     /// 实心品牌色上的前景色。深色外观的 primary 较亮，不能继续固定使用白色。
-    static let onPrimary = Color(light: "FFFFFF", dark: "10231D")
+    static let onPrimary = Color(light: "FFFFFF", dark: "2B1B14")
 
     // MARK: Liquid Glass
-    /// 浮动阅读控制使用系统 Liquid Glass，并以黛青做轻微染色。
+    /// 浮动阅读控制使用系统 Liquid Glass，并以陶土橙做轻微染色。
     /// interactive() 让玻璃表面在按下、悬停和聚焦时产生原生反馈。
     static var glass: Glass {
         .regular
@@ -64,21 +65,21 @@ enum AppTheme {
     }
 
     // MARK: 语义背景 / 分隔（跟随系统）
-    static let canvas = Color(.systemBackground)
+    static let canvas = Color(light: "FAF9F5", dark: "242321")
     /// 仅用于编辑表单；浏览列表使用 canvas，阅读正文使用用户纸面。
-    static let background = Color(.systemGroupedBackground)
-    static let surface = Color(.secondarySystemGroupedBackground)
-    static let surfaceSecondary = Color(.secondarySystemBackground)
-    static let controlFill = Color(.tertiarySystemFill)
-    static let border = Color(.separator)
+    static let background = Color(light: "F2F0E9", dark: "242321")
+    static let surface = Color(light: "FFFFFF", dark: "30302E")
+    static let surfaceSecondary = Color(light: "F0EEE6", dark: "35332F")
+    static let controlFill = Color(light: "F0EEE6", dark: "35332F")
+    static let border = Color(light: "D8D4C9", dark: "54514B")
 
-    // MARK: 语义文字（层级：label > secondary > tertiary）
-    static let textPrimary = Color(.label)
-    static let textSecondary = Color(.secondaryLabel)
-    static let textMuted = Color(.tertiaryLabel)
+    // MARK: 语义文字（暖墨色层级，辅助文字仍保持可读对比）
+    static let textPrimary = Color(light: "262520", dark: "ECEAE2")
+    static let textSecondary = Color(light: "6F6B63", dark: "B8B4AA")
+    static let textMuted = Color(light: "6F6B63", dark: "ABA69B")
 
     // MARK: 封面与独立预览
-    static let cardShadow = Color(light: "29483E", dark: "000000").opacity(0.12)
+    static let cardShadow = Color(light: "544033", dark: "000000").opacity(0.10)
     static let cardCornerRadius: CGFloat = 8
     static let controlCornerRadius: CGFloat = 8
 
