@@ -65,9 +65,9 @@ enum AppTheme {
     }
 
     // MARK: 语义背景 / 分隔（跟随系统）
-    static let canvas = Color(light: "FAF9F5", dark: "242321")
+    static let canvas = Color(.systemBackground)
     /// 仅用于编辑表单；浏览列表使用 canvas，阅读正文使用用户纸面。
-    static let background = Color(light: "F2F0E9", dark: "242321")
+    static let background = Color(.systemGroupedBackground)
     static let surface = Color(light: "FFFFFF", dark: "30302E")
     static let surfaceSecondary = Color(light: "F0EEE6", dark: "35332F")
     static let controlFill = Color(light: "F0EEE6", dark: "35332F")
