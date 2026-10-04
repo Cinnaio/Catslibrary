@@ -51,7 +51,7 @@ private final class ReaderParagraphTextCache {
 /// 中文段首缩进：两个全角空格（U+3000 宽恰为一个汉字，随字号自动缩放）。
 let paragraphIndent = "\u{3000}\u{3000}"
 
-/// 阅读器：滚动/翻页双模式、纸面主题、点击翻页开关、边缘滑动翻页、按段/页恢复进度。
+/// 阅读器：滚动/翻页双模式、纸面主题、点击翻页开关、正文双向滑动、按段/页恢复进度。
 ///
 /// 布局：正文占满阅读区（点击中部可收起/展开阅读控制），顶部为系统导航条
 /// （纸面底色），底部安全区保留上一章/下一章/页码控制，避免正文被遮挡。
@@ -109,7 +109,8 @@ struct ReaderView: View {
     @State private var activeThoughtParagraph: Int?
     @State private var activeThoughtSelection = ""
     @State private var showThoughtPanel = false
-    @State private var edgeSwipeProgress: CGFloat = 0
+    @State private var chapterSwipeProgress: CGFloat = 0
+    @State private var isSelectingBodyText = false
 
     init(
         novel: Novel,
@@ -359,7 +360,8 @@ struct ReaderView: View {
                 ),
                 textColor: inkUIColor,
                 menuTitle: thoughts.isEmpty ? "写段评" : "查看段评",
-                isThoughtActionEnabled: !offlineOnly
+                isThoughtActionEnabled: !offlineOnly,
+                onSelectionChange: { isSelectingBodyText = $0 }
             ) { selectedText, _ in
                 openThoughtPanel(for: index, selectedText: selectedText)
             }
@@ -492,19 +494,19 @@ struct ReaderView: View {
             // 收起底栏仍保留安全区高度以稳定正文位置，但移除底部边缘效果。
             .scrollEdgeEffectHidden(!showChrome, for: .bottom)
             .contentShape(Rectangle())
-            .accessibilityHint("轻点中央显示阅读控制；使用顶部和底部按钮切换目录、设置和章节")
+            .accessibilityHint("正文左滑下一章，右滑上一章；轻点中央显示阅读控制")
             .accessibilityAction(named: showChrome ? "隐藏阅读控制" : "显示阅读控制") {
                 toggleChrome()
             }
-            // 仅识别从屏幕最外侧开始的横向滑动，避免普通上下滚动被误判为翻页。
+            // 整个正文都接收横向滑动；与纵向滚动、原生选字同时监听，按方向过滤。
             .simultaneousGesture(
                 DragGesture(minimumDistance: 18)
                     .onChanged { value in
-                        updateEdgeSwipeProgress(value, width: geo.size.width)
+                        updateChapterSwipeProgress(value)
                     }
                     .onEnded { value in
-                        handleEdgeSwipe(value, width: geo.size.width)
-                        edgeSwipeProgress = 0
+                        handleChapterSwipe(value)
+                        chapterSwipeProgress = 0
                     }
             )
             // 控制区放进 ScrollView 的安全区，滚动到末尾时也不会压住正文。
@@ -512,15 +514,15 @@ struct ReaderView: View {
                 readerChrome
             }
             .scrollPosition(id: $scrolledParagraph)
-            .overlay(alignment: .trailing) {
-                if edgeSwipeProgress > 0 {
-                    Image(systemName: "chevron.left")
+            .overlay(alignment: chapterSwipeProgress < 0 ? .trailing : .leading) {
+                if chapterSwipeProgress != 0 {
+                    Image(systemName: chapterSwipeProgress < 0 ? "chevron.left" : "chevron.right")
                         .font(.headline.weight(.semibold))
-                        .foregroundStyle(ink.opacity(0.36 + edgeSwipeProgress * 0.38))
+                        .foregroundStyle(ink.opacity(0.36 + abs(chapterSwipeProgress) * 0.38))
                         .frame(width: 44, height: 52)
                         .background(AppTheme.surface.opacity(0.82), in: Capsule())
-                        .offset(x: 12 - edgeSwipeProgress * 12)
-                        .padding(.trailing, 8)
+                        .offset(x: (chapterSwipeProgress < 0 ? 1 : -1) * (12 - abs(chapterSwipeProgress) * 12))
+                        .padding(.horizontal, 8)
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
                 }
@@ -693,38 +695,37 @@ struct ReaderView: View {
         }
     }
 
-    private func updateEdgeSwipeProgress(_ value: DragGesture.Value, width: CGFloat) {
-        let edgeWidth = min(72, max(44, width * 0.08))
-        let startsAtRight = value.startLocation.x >= width - edgeWidth
-        let horizontal = -value.translation.width
+    private func updateChapterSwipeProgress(_ value: DragGesture.Value) {
+        let horizontal = value.translation.width
         let vertical = abs(value.translation.height)
 
-        guard startsAtRight,
-              horizontal > 0,
-              horizontal >= vertical * 1.15
+        guard !isLoading, !isSelectingBodyText,
+              abs(horizontal) > 0,
+              abs(horizontal) >= vertical / 0.6,
+              (horizontal < 0 ? hasNextChapter : hasPreviousChapter)
         else {
-            edgeSwipeProgress = 0
+            chapterSwipeProgress = 0
             return
         }
 
         // 直接把手势位移映射到提示位置，给用户一个可逆的跟手反馈。
-        edgeSwipeProgress = min(1, horizontal / 96)
+        chapterSwipeProgress = (horizontal < 0 ? -1 : 1) * min(1, abs(horizontal) / 60)
     }
 
-    private func handleEdgeSwipe(_ value: DragGesture.Value, width: CGFloat) {
+    private func handleChapterSwipe(_ value: DragGesture.Value) {
         let horizontal = value.translation.width
         let vertical = value.translation.height
-        let edgeWidth = min(72, max(44, width * 0.08))
-        let startsAtRight = value.startLocation.x >= width - edgeWidth
 
-        // 左缘保留给 NavigationStack 的系统返回手势；阅读器只响应右缘的下一章手势。
-        guard startsAtRight,
-              min(horizontal, value.predictedEndTranslation.width) <= -88,
-              abs(horizontal) >= abs(vertical) * 1.35
+        // 与 Web 相同，以实际位移和横纵比例判定；短拖动、纵向滚动不切章。
+        guard !isLoading, !isSelectingBodyText,
+              abs(horizontal) >= 60,
+              abs(vertical) <= abs(horizontal) * 0.6
         else { return }
 
         if horizontal < 0 {
             go(to: chapterOrder + 1)
+        } else {
+            go(to: chapterOrder - 1)
         }
     }
 
@@ -799,6 +800,7 @@ struct ReaderView: View {
         .appGlassEffect(AppTheme.glassClear, in: Capsule())
         .accessibilityElement(children: .combine)
         .accessibilityLabel("第 \(chapterOrder) / \(totalOrderCount) 章，\(percentText)，\(chapterAvailabilityLabel)")
+        .accessibilityIdentifier("reader.progress")
     }
 
     private var nextChapterButton: some View {
@@ -989,6 +991,8 @@ struct ReaderView: View {
     }
 
     private func prepareForModeChange(to mode: String) {
+        isSelectingBodyText = false
+        chapterSwipeProgress = 0
         if mode == "page" {
             pages = []
             pageRanges = []
@@ -1011,6 +1015,8 @@ struct ReaderView: View {
 
     /// 切章前清空旧正文，避免失败时静默显示上一章内容。
     private func resetForNewChapter() {
+        isSelectingBodyText = false
+        chapterSwipeProgress = 0
         saveTask?.cancel()
         thoughtsLoadTask?.cancel()
         paragraphTextCache.removeAll()

@@ -73,6 +73,58 @@ final class FrontendAuditTests: XCTestCase {
     }
 
     @MainActor
+    func testScrollChapterSwipesStartInsideBody() {
+        let app = openReaderForBodySwipe(pageMode: false)
+        swipeInsideBody(app, left: true)
+        XCTAssertTrue(app.navigationBars["第 2 章 山路上的回声"].waitForExistence(timeout: 15))
+        swipeInsideBody(app, left: false)
+        XCTAssertTrue(app.navigationBars["第 1 章 一封没有寄出的信"].waitForExistence(timeout: 15))
+        // 纵向拖动仍然滚动正文，不切换章节。
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.65))
+            .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35)))
+        XCTAssertTrue(app.navigationBars["第 1 章 一封没有寄出的信"].exists)
+    }
+
+    @MainActor
+    func testPagedSwipesStartInsideBody() {
+        let app = openReaderForBodySwipe(pageMode: true)
+        let status = app.descendants(matching: .any).matching(identifier: "reader.progress").firstMatch
+        XCTAssertTrue(status.waitForExistence(timeout: 15))
+        let initial = status.label
+        swipeInsideBody(app, left: true)
+        let changed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label != %@", initial), object: status)
+        XCTAssertEqual(XCTWaiter.wait(for: [changed], timeout: 5), .completed)
+        swipeInsideBody(app, left: false)
+        let restored = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", initial), object: status)
+        XCTAssertEqual(XCTWaiter.wait(for: [restored], timeout: 5), .completed)
+    }
+
+    @MainActor
+    private func openReaderForBodySwipe(pageMode: Bool) -> XCUIApplication {
+        let app = launch()
+        XCTAssertTrue(app.buttons["catalog.audit-book-1"].waitForExistence(timeout: 15))
+        selectTab("我的", app: app)
+        reveal(app.buttons["阅读设置"], app: app)
+        tap(app.buttons["阅读设置"])
+        let mode = app.buttons[pageMode ? "左右翻页" : "上下滚动"]
+        reveal(mode, app: app)
+        tap(mode)
+        tap(app.buttons["完成"])
+        selectTab("发现", app: app)
+        tap(app.buttons["catalog.audit-book-1"])
+        tap(app.buttons["detail.read"])
+        XCTAssertTrue(app.navigationBars["第 1 章 一封没有寄出的信"].waitForExistence(timeout: 15))
+        return app
+    }
+
+    @MainActor
+    private func swipeInsideBody(_ app: XCUIApplication, left: Bool) {
+        // 起点、终点均远离屏幕边缘；手势穿过正文中央的 UITextView。
+        app.coordinate(withNormalizedOffset: CGVector(dx: left ? 0.7 : 0.3, dy: 0.45))
+            .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: left ? 0.3 : 0.7, dy: 0.45)))
+    }
+
+    @MainActor
     private func chapterEndButtonJourney(pageMode: Bool) {
         let app = launch()
         XCTAssertTrue(app.buttons["catalog.audit-book-1"].waitForExistence(timeout: 15))

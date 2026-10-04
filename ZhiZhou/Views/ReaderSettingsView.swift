@@ -77,7 +77,9 @@ struct ReaderSettingsView: View {
                     Text("翻页方式")
                 } footer: {
                     if settings.pageMode == "page" {
-                        Text("向左滑动阅读下一页，向右滑动返回上一页。点击中间区域显示或隐藏阅读控制。")
+                        Text("在整个正文区域向左滑动阅读下一页，向右滑动返回上一页。点击中间区域显示或隐藏阅读控制。")
+                    } else {
+                        Text("上下滑动滚动正文；在整个正文区域向左滑动进入下一章，向右滑动返回上一章。")
                     }
                 }
 

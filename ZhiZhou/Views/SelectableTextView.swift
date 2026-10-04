@@ -8,6 +8,7 @@ struct SelectableTextView: UIViewRepresentable {
     let textColor: UIColor
     let menuTitle: String
     let isThoughtActionEnabled: Bool
+    var onSelectionChange: ((Bool) -> Void)? = nil
     let onThought: (String, NSRange) -> Void
 
     func makeUIView(context: Context) -> ThoughtSelectableTextView {
@@ -40,11 +41,14 @@ struct SelectableTextView: UIViewRepresentable {
             view.textColor = textColor
         }
         view.onThought = onThought
+        view.onSelectionChange = onSelectionChange
         let sameAttributedText = view.configuredAttributedText === attributedText
             || view.configuredAttributedText?.isEqual(to: attributedText) == true
         let needsTextUpdate = !sameAttributedText
             || view.configuredTextColor?.isEqual(textColor) != true
         if needsTextUpdate {
+            view.isApplyingTextUpdate = true
+            defer { view.isApplyingTextUpdate = false }
             let renderedText = NSMutableAttributedString(attributedString: attributedText)
             if renderedText.length > 0 {
                 renderedText.addAttribute(
@@ -64,10 +68,12 @@ struct SelectableTextView: UIViewRepresentable {
     }
 }
 
-final class ThoughtSelectableTextView: UITextView {
+final class ThoughtSelectableTextView: UITextView, UITextViewDelegate {
     var menuTitle = "写段评"
     var isThoughtActionEnabled = true
     var onThought: ((String, NSRange) -> Void)?
+    var onSelectionChange: ((Bool) -> Void)?
+    var isApplyingTextUpdate = false
     /// The incoming attributed text is intentionally tracked separately from
     /// `attributedText`: the rendered UIKit value also contains the bridge's
     /// foreground-color attribute, so comparing the two directly would make
@@ -86,6 +92,7 @@ final class ThoughtSelectableTextView: UITextView {
     }
 
     private func configureInteraction() {
+        delegate = self
         isEditable = false
         isSelectable = true
         isScrollEnabled = false
@@ -100,6 +107,11 @@ final class ThoughtSelectableTextView: UITextView {
 
     private var hasSelection: Bool {
         selectedRange.location != NSNotFound && selectedRange.length > 0
+    }
+
+    func textViewDidChangeSelection(_ textView: UITextView) {
+        guard !isApplyingTextUpdate else { return }
+        onSelectionChange?(hasSelection)
     }
 
     private var selectedTextValue: String? {
