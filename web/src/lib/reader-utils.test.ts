@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { clamp, excerptText, filterChapters, formatContent, hashParagraphText, sanitizeChapterHtml } from './reader-utils'
+import { clamp, excerptText, filterChapters, formatContent, hashParagraphText, sanitizeChapterHtml, thoughtQuoteRanges } from './reader-utils'
 import type { ChapterMeta } from '@shared/types'
 
 describe('formatContent', () => {
@@ -84,5 +84,25 @@ describe('excerptText / clamp', () => {
     expect(clamp(5, 0, 3)).toBe(3)
     expect(clamp(-1, 0, 3)).toBe(0)
     expect(clamp(2, 0, 3)).toBe(2)
+  })
+})
+
+describe('thoughtQuoteRanges', () => {
+  it('只标记局部引用，支持跨强调节点与空白归一化，保留原始节点', () => {
+    const p = document.createElement('p')
+    p.innerHTML = '段首<em>所选</em>  \n文字，段尾'
+    const first = p.firstChild
+    const ranges = thoughtQuoteRanges(p, ['所选 文字', '所选 文字'])
+    expect(ranges).toHaveLength(1)
+    expect(ranges[0]!.toString()).toBe('所选  \n文字')
+    expect(p.firstChild).toBe(first)
+    expect(p.textContent).toBe('段首所选  \n文字，段尾')
+  })
+
+  it('找不到引用时不扩大为整段；重复引用只标记对应文字', () => {
+    const p = document.createElement('p')
+    p.textContent = '开头引用，中间引用，结尾'
+    expect(thoughtQuoteRanges(p, ['不存在', ''])).toHaveLength(0)
+    expect(thoughtQuoteRanges(p, ['引用']).map((range) => range.toString())).toEqual(['引用', '引用'])
   })
 })

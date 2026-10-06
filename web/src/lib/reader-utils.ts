@@ -204,6 +204,39 @@ export function resolveSelectionParagraph(range: Range, contentEl: HTMLElement):
   return best ? { el: best.el, text: best.text } : null
 }
 
+/** 以原始文本节点构建引用范围，不拆分节点，避免异步加载想法时破坏正在调整的选区。 */
+export function thoughtQuoteRanges(paragraph: HTMLElement, quotes: string[]): Range[] {
+  const index = buildTextIndex(paragraph)
+  const raw = index.map((entry) => entry.node.textContent).join('')
+  const starts: number[] = []
+  const ends: number[] = []
+  let normalized = ''
+  for (const match of raw.matchAll(/\s+|\S/g)) {
+    normalized += /^\s/.test(match[0]) ? ' ' : match[0]
+    starts.push(match.index)
+    ends.push(match.index + match[0].length)
+  }
+  const ranges: Range[] = []
+  for (const quote of new Set(quotes.map((text) => text.replace(/\s+/g, ' ').trim()).filter(Boolean))) {
+    let from = 0
+    let start: number
+    while ((start = normalized.indexOf(quote, from)) >= 0) {
+      const lo = starts[start]!
+      const hi = ends[start + quote.length - 1]!
+      const first = index.find((entry) => entry.start <= lo && entry.start + entry.node.length > lo)
+      const last = index.find((entry) => entry.start < hi && entry.start + entry.node.length >= hi)
+      if (first && last) {
+        const range = document.createRange()
+        range.setStart(first.node, lo - first.start)
+        range.setEnd(last.node, hi - last.start)
+        ranges.push(range)
+      }
+      from = start + quote.length
+    }
+  }
+  return ranges
+}
+
 // ---------- 客户端标识 ----------
 
 export function getReaderClientId(): string {

@@ -70,7 +70,7 @@ export default function ThoughtPanel({ open, readOnly = false, thoughts, selecte
             <DialogPrimitive.Title asChild>
               <h2>{readOnly ? '原段落已变更的想法' : '本段想法'}</h2>
             </DialogPrimitive.Title>
-            <p className="thought-panel__excerpt">{readOnly ? '原段落已修改、删除或无法唯一定位，保留想法与原引用。' : paragraphExcerpt}</p>
+            {(readOnly || !selectedText) && <p className="thought-panel__excerpt">{readOnly ? '原段落已修改、删除或无法唯一定位，保留想法与原引用。' : paragraphExcerpt}</p>}
           </div>
           <DialogPrimitive.Close asChild>
             <button type="button" className="thought-panel__close" aria-label="关闭想法面板">×</button>

@@ -24,6 +24,7 @@ import {
   groupChapterThoughts,
   jumpScrollTo,
   resolveSelectionParagraph,
+  thoughtQuoteRanges,
   scrollBehavior,
 } from '../lib/reader-utils'
 import { useSession } from '../context/SessionContext'
@@ -281,7 +282,7 @@ export default function Reader() {
     })
   }, [])
 
-  // 正文 html 已 useMemo（字符串稳定），React 只在换章时重建 innerHTML 子节点。
+  // 正文 HTML 及其属性对象均保持稳定，避免气泡、进度等更新重建选区所在的节点。
   // 这里保留"每次提交后检查"以兜底 DOM 意外重建，但同章、同想法集且
   // 段落属性仍在时直接跳过，避免每次重渲染都全量遍历 <p> 做 setAttribute。
   const indexStampRef = useRef('')
@@ -333,18 +334,65 @@ export default function Reader() {
   // 章节正文消毒开销大（DOM 解析 + 重建 + 序列化），必须 memo：
   // 否则每次重渲染（如滚动进度更新）都会对整章重新消毒
   const html = useMemo(() => (chapter ? formatContent(chapter.content) : ''), [chapter])
+  // React 按属性对象引用判断是否更新 innerHTML；只稳定字符串仍会在每次渲染重写正文。
+  const bodyHtml = useMemo(() => ({ __html: html }), [html])
   const thoughtsByParagraph = useMemo(() => groupChapterThoughts(chapterThoughts, html), [chapterThoughts, html])
 
   // ---------- 想法划线 ----------
   const applyThoughtHighlights = useCallback(() => {
     const body = bodyRef.current
     if (!body) return
+    const quotedRanges: Range[] = []
     body.querySelectorAll('p').forEach((p) => {
       const idx = p.getAttribute('data-paragraph-index')
-      const hasThoughts = idx !== null && (thoughtsByParagraph[idx]?.length ?? 0) > 0
-      p.classList.toggle('thought-highlight', hasThoughts)
+      const thoughts = idx !== null ? thoughtsByParagraph[idx] || [] : []
+      p.classList.toggle('thought-highlight', thoughts.length > 0)
+      p.classList.toggle('thought-highlight--paragraph', thoughts.some((thought) => !thought.selectedText?.trim()))
+      quotedRanges.push(...thoughtQuoteRanges(p, thoughts.map((thought) => thought.selectedText || '')))
     })
+    if (typeof CSS !== 'undefined' && CSS.highlights && typeof Highlight !== 'undefined') {
+      CSS.highlights.set('reader-thought-quotes', new Highlight(...quotedRanges))
+      CSS.highlights.delete('reader-thought-hover')
+    }
   }, [thoughtsByParagraph])
+
+  useEffect(() => {
+    if (typeof CSS === 'undefined' || !CSS.highlights || typeof Highlight === 'undefined') return
+    let activeRange: Range | null = null
+    function clearHover() {
+      activeRange = null
+      CSS.highlights.delete('reader-thought-hover')
+    }
+    function onPointerMove(event: PointerEvent) {
+      if (event.pointerType === 'touch') return
+      const quotes = CSS.highlights.get('reader-thought-quotes')
+      let hit: Range | null = null
+      if (quotes && contentRef.current?.contains(event.target as Node)) {
+        for (const range of quotes) {
+          if (range instanceof Range && Array.from(range.getClientRects()).some((rect) =>
+            event.clientX >= rect.left && event.clientX < rect.right && event.clientY >= rect.top && event.clientY < rect.bottom,
+          )) {
+            hit = range
+            break
+          }
+        }
+      }
+      if (hit === activeRange) return
+      activeRange = hit
+      if (hit) CSS.highlights.set('reader-thought-hover', new Highlight(hit))
+      else CSS.highlights.delete('reader-thought-hover')
+    }
+    document.addEventListener('pointermove', onPointerMove, { passive: true })
+    document.addEventListener('pointerleave', clearHover)
+    window.addEventListener('scroll', clearHover, { passive: true, capture: true })
+    return () => {
+      document.removeEventListener('pointermove', onPointerMove)
+      document.removeEventListener('pointerleave', clearHover)
+      window.removeEventListener('scroll', clearHover, true)
+      clearHover()
+      CSS.highlights.delete('reader-thought-quotes')
+    }
+  }, [])
 
   // 点击有想法的段落打开想法面板
   useEffect(() => {
@@ -1219,7 +1267,7 @@ export default function Reader() {
           <div className="reader-chapter-num">{chapter.order ? `第 ${chapter.order} 章` : ''}</div>
           <h1 className="reader-chapter-title">{chapter.title}</h1>
           <ChapterRecap prevChapterId={prevChapter?.id || ''} prevChapterTitle={prevChapter ? chapterLabel(prevChapter, currentIdx - 1) : ''} />
-          <div ref={bodyRef} className="reader-body" dangerouslySetInnerHTML={{ __html: html }} />
+          <div ref={bodyRef} className="reader-body" dangerouslySetInnerHTML={bodyHtml} />
           {!!thoughtsByParagraph['-1']?.length && <button className="btn btn--secondary btn--sm" onClick={() => openThoughtPanel(-1)}>查看原段落已变更的想法（{thoughtsByParagraph['-1'].length}）</button>}
         </article>
 

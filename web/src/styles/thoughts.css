@@ -3,7 +3,8 @@
    ============================================================ */
 
 
-.thought-highlight {
+.thought-highlight--paragraph,
+::highlight(reader-thought-quotes) {
   text-decoration-line: underline;
   text-decoration-style: wavy;
   text-decoration-color: color-mix(in srgb, var(--accent) 55%, transparent);
@@ -12,9 +13,16 @@
   border-radius: 0.12em;
 }
 
-.thought-highlight:hover {
+.thought-highlight--paragraph:hover {
   text-decoration-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+::highlight(reader-thought-hover) {
+  text-decoration-line: underline;
+  text-decoration-style: wavy;
+  text-decoration-color: var(--accent);
+  background-color: color-mix(in srgb, var(--accent) 8%, transparent);
 }
 
 .thought-marker {
