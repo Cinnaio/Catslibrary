@@ -9,7 +9,7 @@ import { useSession } from '../context/SessionContext'
 import { useConfirm } from '../components/feedback'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { formatDate, timeAgo } from '../lib/format'
-import { Monitor } from 'lucide-react'
+import { Monitor, Smartphone } from 'lucide-react'
 
 interface SessionItem {
   id: string
@@ -362,7 +362,7 @@ export default function Profile() {
                     sessions.map((s) => (
                       <div className={`profile-session-item profile-session-card${s.current ? ' profile-session-card--current' : ''}`} key={s.id}>
                         <div className="profile-session-icon" aria-hidden="true">
-                          <Monitor size={18} />
+                          {s.deviceName === '知舟 iOS App' ? <Smartphone size={18} /> : <Monitor size={18} />}
                         </div>
                         <div className="profile-session-meta">
                           <div className="profile-session-title-row">

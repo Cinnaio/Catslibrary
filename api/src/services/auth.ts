@@ -4,6 +4,7 @@
  */
 import { webcrypto } from 'node:crypto'
 import { sha256Hex } from './hash'
+import { isZhiZhouIosApp } from '@shared/device'
 
 export const PASSWORD_ITERATIONS = 120000
 export const SESSION_TTL = 30 * 86400000
@@ -117,6 +118,7 @@ export async function hashToken(token: string, salt: string): Promise<string> {
 
 export function deviceName(ua: string): string {
   if (!ua) return '未知设备'
+  if (isZhiZhouIosApp(ua)) return '知舟 iOS App'
   const browser = /Edg\//i.test(ua)
     ? 'Edge'
     : /Chrome\//i.test(ua)

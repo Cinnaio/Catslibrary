@@ -11,6 +11,7 @@ import {
   cleanBio,
   cleanDisplayName,
   cleanUsername,
+  deviceName,
   hashPassword,
   hashToken,
   newId,
@@ -235,14 +236,14 @@ authRoutes.get('/sessions', requireUser(), async (c) => {
   const user = c.get('user')
   const salt = loadConfig().sessionHashSalt
   const currentHash = await hashToken(bearerToken(c.req.header('Authorization') || ''), salt)
-  const { rows } = await db.query<{ token_hash: string; created_at: number; expires_at: number; device_name: string }>(
-    'SELECT token_hash, created_at, expires_at, device_name FROM user_sessions WHERE user_id = $1 AND expires_at > $2 ORDER BY created_at DESC',
+  const { rows } = await db.query<{ token_hash: string; created_at: number; expires_at: number; device_name: string; user_agent: string }>(
+    'SELECT token_hash, created_at, expires_at, device_name, user_agent FROM user_sessions WHERE user_id = $1 AND expires_at > $2 ORDER BY created_at DESC',
     [user.id, Date.now()],
   )
   return c.json({
     sessions: rows.map((row) => ({
       id: row.token_hash,
-      deviceName: row.device_name || '未知设备',
+      deviceName: row.user_agent ? deviceName(row.user_agent) : row.device_name || '未知设备',
       createdAt: row.created_at,
       expiresAt: row.expires_at,
       current: row.token_hash === currentHash,

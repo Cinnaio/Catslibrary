@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { isZhiZhouIosApp } from '@shared/device'
 import { RefreshCw } from 'lucide-react'
 import { formatDate, formatDateTime } from '@/lib/format'
 import { UserAvatar } from '@/components/ui/user-avatar'
@@ -90,7 +91,7 @@ export function AccountRecordDate({ value }: { value: number }) {
 export function accountDeviceSummary(agent: string): string {
   if (!agent) return '未记录设备'
   // 原生 iOS 客户端使用 URLSession UA，不含浏览器或 iPhone 标识。
-  if (/^ZhiZhou\/\S+(?:\s|$)/i.test(agent) && /\bCFNetwork\//i.test(agent) && /\bDarwin\//i.test(agent)) {
+  if (isZhiZhouIosApp(agent)) {
     return '知舟 iOS App'
   }
   const browser = /Edg\//.test(agent)
