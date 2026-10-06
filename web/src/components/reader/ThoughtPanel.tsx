@@ -4,6 +4,7 @@
  */
 import { useRef, useState } from 'react'
 import { Dialog as DialogPrimitive } from 'radix-ui'
+import { ArrowUp, X } from 'lucide-react'
 import type { Thought } from '@shared/types'
 import { UserAvatar } from '../ui/user-avatar'
 import { timeText } from '../../lib/format'
@@ -73,7 +74,7 @@ export default function ThoughtPanel({ open, readOnly = false, thoughts, selecte
             {(readOnly || !selectedText) && <p className="thought-panel__excerpt">{readOnly ? '原段落已修改、删除或无法唯一定位，保留想法与原引用。' : paragraphExcerpt}</p>}
           </div>
           <DialogPrimitive.Close asChild>
-            <button type="button" className="thought-panel__close" aria-label="关闭想法面板">×</button>
+            <button type="button" className="thought-panel__close" aria-label="关闭想法面板"><X size={18} aria-hidden="true" /></button>
           </DialogPrimitive.Close>
         </div>
         <div className="thought-list">
@@ -89,12 +90,12 @@ export default function ThoughtPanel({ open, readOnly = false, thoughts, selecte
                       <span className="thought-avatar"><UserAvatar src={thought.avatarUrl} name={name} size="inherit" /></span>
                       <span>{name}</span>
                     </span>
-                    <span>{timeText(thought.createdAt)}</span>
+                    <time className="thought-item__time">{timeText(thought.createdAt)}</time>
                   </div>
                   {thought.selectedText && <blockquote className="thought-item__quote">{thought.selectedText}</blockquote>}
                   <p className="thought-item__text">{thought.thoughtText}</p>
                   {canDelete(thought) && (
-                    <button className="btn btn--secondary btn--sm btn-delete-own-thought" onClick={() => void onDelete(thought.id)}>
+                    <button type="button" className="thought-item__delete btn-delete-own-thought" onClick={() => void onDelete(thought.id)}>
                       删除
                     </button>
                   )}
@@ -107,6 +108,17 @@ export default function ThoughtPanel({ open, readOnly = false, thoughts, selecte
           <div className={`thought-selected-text${selectedText ? '' : ' hidden'}`}>
             {selectedText ? `划选：${selectedText}` : ''}
           </div>
+          <div className="thought-editor">
+          <textarea
+            className="thought-textarea"
+            maxLength={300}
+            rows={3}
+            aria-label="想法内容"
+            placeholder="写下你的想法…"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+          />
+          <div className="thought-editor__toolbar">
           <input
             type="text"
             className="thought-input"
@@ -116,20 +128,15 @@ export default function ThoughtPanel({ open, readOnly = false, thoughts, selecte
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
-          <textarea
-            className="thought-textarea"
-            maxLength={300}
-            rows={3}
-            aria-label="想法内容"
-            placeholder="写下你的想法，会公开显示给其他读者…"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-          ></textarea>
-          <div className="thought-compose__footer">
-            <span className="thought-status" role="status" aria-live="polite">{status}</span>
-            <button type="submit" className="btn btn--primary btn--sm" disabled={submitting}>
+            <span className="thought-editor__count" aria-label={`已输入 ${text.length} 字，最多 300 字`}>{text.length}<span> / 300</span></span>
+            <button type="submit" className="thought-publish" disabled={submitting}>
               发布想法
+              <ArrowUp size={16} aria-hidden="true" />
             </button>
+          </div>
+          </div>
+          <div className="thought-compose__footer">
+            <span className="thought-status" role="status" aria-live="polite">{status || '想法会公开显示给其他读者'}</span>
           </div>
         </form>}
         </DialogPrimitive.Content>
