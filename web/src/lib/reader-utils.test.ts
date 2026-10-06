@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { clamp, excerptText, filterChapters, formatContent, hashParagraphText, sanitizeChapterHtml, thoughtQuoteRanges } from './reader-utils'
+import { clamp, excerptText, filterChapters, formatContent, groupChapterThoughts, hashParagraphText, sanitizeChapterHtml, thoughtQuoteRanges } from './reader-utils'
 import type { ChapterMeta } from '@shared/types'
+import type { Thought } from '@shared/types'
 
 describe('formatContent', () => {
   it('纯文本按段落包裹 <p>', () => {
@@ -17,6 +18,55 @@ describe('formatContent', () => {
 
   it('空内容回退占位文案', () => {
     expect(formatContent('')).toContain('暂无章节内容')
+  })
+
+  it('兼容 CR-only 原始段落，CRLF 与 LF 的正常分段保持一致', () => {
+    const body = document.createElement('div')
+    body.innerHTML = formatContent('第一段。\r\r第二段。\r第三段。')
+    expect(Array.from(body.querySelectorAll('p'), (p) => p.textContent)).toEqual(['第一段。', '第二段。', '第三段。'])
+    expect(body.querySelector('p')!.dataset.sourceParagraphHash).toBe(hashParagraphText('第一段。\r\r第二段。\r第三段。'))
+    expect(formatContent('第一段。\r\n第二段。')).toBe(formatContent('第一段。\n第二段。'))
+  })
+
+  it('整章无分段的长正文按完整句子分段，保留原文及源段落锚点', () => {
+    const raw = '山间的风吹过树林，远处的灯火渐渐亮起。'.repeat(50)
+    const body = document.createElement('div')
+    body.innerHTML = formatContent(raw)
+    expect(body.querySelectorAll('p').length).toBeGreaterThan(1)
+    expect(body.textContent).toBe(raw)
+    for (const p of body.querySelectorAll('p')) {
+      expect(p.dataset.sourceParagraphIndex).toBe('0')
+      expect(p.dataset.sourceParagraphHash).toBe(hashParagraphText(raw))
+    }
+  })
+
+  it('正常多段正文与短段不触发强制分段', () => {
+    const long = '正常段落中的完整句子。'.repeat(80)
+    expect(formatContent(`${long}\n第二段。`)).toBe(`<p>${long}</p>\n<p>第二段。</p>`)
+    expect(formatContent(`<p>${long}</p><p>第二段。</p>`)).toBe(`<p>${long}</p><p>第二段。</p>`)
+    expect(formatContent('单个短段。')).toBe('<p>单个短段。</p>')
+  })
+
+  it('保留 HTML 强调与换行，并避免在长对话引号内部断段', () => {
+    const spoken = '“' + '这是一段连续的对白。'.repeat(80) + '”'
+    const body = document.createElement('div')
+    body.innerHTML = formatContent(`<p>开场。<em>${spoken}</em>尾声。</p>`)
+    expect(body.textContent).toBe(`开场。${spoken}尾声。`)
+    expect(body.querySelectorAll('em').length).toBeGreaterThan(0)
+    expect(Array.from(body.querySelectorAll('p')).some((p) => p.textContent!.includes(spoken))).toBe(true)
+    expect(formatContent(`<p>${spoken}<br>原有换行。</p>`)).toBe(`<p>${spoken}<br>原有换行。</p>`)
+  })
+
+  it('兜底分段后，旧想法仍按原段落哈希与引用定位到展示段落', () => {
+    const raw = Array.from({ length: 60 }, (_, i) => `这是第${i}处独有的景色，山间的风吹过树林。`).join('')
+    const html = formatContent(raw)
+    const body = document.createElement('div')
+    body.innerHTML = html
+    const index = Array.from(body.querySelectorAll('p')).findIndex((p) => p.textContent!.includes('第40处独有的景色'))
+    expect(index).toBeGreaterThan(0)
+    const thought = { id: 'old', paragraphIndex: 0, paragraphHash: hashParagraphText(raw), selectedText: '第40处独有的景色' } as Thought
+    expect(groupChapterThoughts([thought], html)[String(index)]).toEqual([thought])
+    expect(groupChapterThoughts([{ ...thought, paragraphHash: '' }], html)[String(index)]?.[0]?.id).toBe('old')
   })
 })
 

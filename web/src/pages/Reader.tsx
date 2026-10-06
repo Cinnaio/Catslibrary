@@ -278,7 +278,7 @@ export default function Reader() {
     if (!body) return
     body.querySelectorAll('p').forEach((p, index) => {
       p.setAttribute('data-paragraph-index', String(index))
-      p.setAttribute('data-paragraph-hash', hashParagraphText(p.textContent || ''))
+      p.setAttribute('data-paragraph-hash', p.dataset.sourceParagraphHash || hashParagraphText(p.textContent || ''))
     })
   }, [])
 
@@ -1074,7 +1074,7 @@ export default function Reader() {
         {
           novelId: chapter.novelId || novelId,
           chapterId: chapter.id,
-          paragraphIndex: activeThoughtParagraph,
+          paragraphIndex: paragraph?.dataset.sourceParagraphIndex !== undefined ? Number(paragraph.dataset.sourceParagraphIndex) : activeThoughtParagraph,
           paragraphHash: paragraph?.dataset.paragraphHash || '',
           selectedText,
           thoughtText: text,

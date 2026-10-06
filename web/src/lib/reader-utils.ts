@@ -42,13 +42,79 @@ export function currentScrollPercent(): number {
 
 /** 章节内容格式化：广告清洗 + 纯文本按段落，或允许的安全 HTML 子集。 */
 export function formatContent(raw: string): string {
-  const content = removeAdPatterns(raw || '') || '暂无章节内容'
-  if (/<[a-z][\s\S]*>/i.test(content)) return sanitizeChapterHtml(content)
-  return content
+  const sourceContent = removeAdPatterns(raw || '') || '暂无章节内容'
+  const content = sourceContent.replace(/\r\n?/g, '\n')
+  if (/<[a-z][\s\S]*>/i.test(content)) return paragraphFallback(sanitizeChapterHtml(content))
+  let html = content
     .split(/\n+/)
     .filter((p) => p.trim())
     .map((p) => `<p>${escHtml(p.trim())}</p>`)
     .join('\n')
+  // 旧阅读器把纯 CR 正文当成一个段落；恢复换行时保留旧想法所用的源锚点。
+  if (sourceContent.includes('\r') && !sourceContent.includes('\n')) {
+    const body = document.createElement('div')
+    body.innerHTML = html
+    if (body.querySelectorAll('p').length > 1) {
+      for (const p of body.querySelectorAll('p')) {
+        p.dataset.sourceParagraphIndex = '0'
+        p.dataset.sourceParagraphHash = hashParagraphText(sourceContent)
+      }
+      html = body.innerHTML
+    }
+  }
+  return paragraphFallback(html)
+}
+
+/** 仅为整章唯一、无换行的长文本块分段；正常多段、短段及显式 BR 保持原样。 */
+function paragraphFallback(html: string): string {
+  const body = document.createElement('div')
+  body.innerHTML = html
+  const paragraphs = body.querySelectorAll('p')
+  if (paragraphs.length > 1 || body.querySelector('br, blockquote')) return html
+  const root = paragraphs[0] || body
+  if (root !== body && Array.from(body.childNodes).some((node) => node !== root && node.textContent?.trim())) return html
+  const text = root.textContent || ''
+  if (text.length < 600 || text.split(/\r?\n/).filter((line) => line.trim()).length > 1 || !/[\u3400-\u9fff]/.test(text)) return html
+  if ((text.match(/[。！？!?]/g) || []).length < 4) return html
+  const ends: number[] = []
+  const closing: Record<string, string> = { '“': '”', '‘': '’', '「': '」', '『': '』' }
+  const quotes: string[] = []
+  let start = 0
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i]!
+    if (closing[char]) quotes.push(closing[char]!)
+    else if (char === quotes[quotes.length - 1]) quotes.pop()
+    else if (char === '"' && text[i - 1] !== '\\') {
+      if (quotes[quotes.length - 1] === '"') quotes.pop()
+      else quotes.push('"')
+    }
+    if (quotes.length || i + 1 - start < 180) continue
+    if (/[。！？!?][”’」』"]*$/.test(text.slice(Math.max(start, i - 8), i + 1)) && !/[。！？!?”’」』"]/.test(text[i + 1] || '')) {
+      ends.push(i + 1)
+      start = i + 1
+    }
+  }
+  if (text.length - start < 40 && ends.length) ends.pop()
+  if (ends[ends.length - 1] !== text.length) ends.push(text.length)
+  if (ends.length < 2) return html
+  const index = buildTextIndex(root)
+  const output = document.createElement('div')
+  start = 0
+  for (const end of ends) {
+    const first = index.find((entry) => entry.start <= start && entry.start + entry.node.length > start)
+    const last = index.find((entry) => entry.start < end && entry.start + entry.node.length >= end)
+    if (!first || !last) return html
+    const range = document.createRange()
+    range.setStart(first.node, start - first.start)
+    range.setEnd(last.node, end - last.start)
+    const p = document.createElement('p')
+    p.dataset.sourceParagraphIndex = '0'
+    p.dataset.sourceParagraphHash = hashParagraphText(text)
+    p.append(range.cloneContents())
+    output.append(p)
+    start = end
+  }
+  return output.innerHTML
 }
 
 /** 优先沿用仍匹配的原位置；移动段落按唯一哈希找回，无法消歧时不挂到其它正文。 */
@@ -63,10 +129,19 @@ export function resolveThoughtParagraph(thought: Pick<Thought, 'paragraphIndex' 
 export function groupChapterThoughts(thoughts: Thought[], html: string): Record<string, Thought[]> {
   const body = document.createElement('div')
   body.innerHTML = html
-  const hashes = Array.from(body.querySelectorAll('p'), p => hashParagraphText(p.textContent || ''))
+  const paragraphs = Array.from(body.querySelectorAll('p'))
+  const hashes = paragraphs.map(p => hashParagraphText(p.textContent || ''))
   const map: Record<string, Thought[]> = {}
   for (const thought of thoughts) {
-    const index = resolveThoughtParagraph(thought, hashes)
+    const sourceMatches = paragraphs.map((p, i) => ({ p, i })).filter(({ p }) =>
+      p.dataset.sourceParagraphHash && (thought.paragraphHash
+        ? p.dataset.sourceParagraphHash === thought.paragraphHash
+        : Number(p.dataset.sourceParagraphIndex) === thought.paragraphIndex),
+    )
+    const quote = (thought.selectedText || '').replace(/\s+/g, ' ').trim()
+    const index = sourceMatches.length
+      ? (quote ? sourceMatches.find(({ p }) => (p.textContent || '').replace(/\s+/g, ' ').includes(quote))?.i ?? null : sourceMatches[0]!.i)
+      : resolveThoughtParagraph(thought, hashes)
     ;(map[String(index ?? -1)] ||= []).push(thought)
   }
   return map
