@@ -1292,15 +1292,18 @@ export default function Reader() {
           type="button"
           className="mobile-reader-bar-peek"
           aria-label="显示阅读工具栏"
+          aria-expanded={false}
+          aria-controls="mobile-reader-toolbar"
           title="显示阅读工具栏"
           onClick={() => setMobileBarHidden(false)}
         >
           <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <polyline points="4 11 9 6 14 11" />
           </svg>
+          <span>阅读工具</span>
         </button>
       )}
-      <div role="toolbar" className={`mobile-reader-bar${mobileBarHidden ? ' is-hidden' : ''}`} aria-label="移动端阅读工具栏" onClick={() => setMobileBarHidden(true)}>
+      <div id="mobile-reader-toolbar" role="toolbar" className={`mobile-reader-bar${mobileBarHidden ? ' is-hidden' : ''}`} aria-label="移动端阅读工具栏" aria-hidden={mobileBarHidden} inert={mobileBarHidden} onClick={() => setMobileBarHidden(true)}>
         <div className="mobile-reader-progress" aria-hidden="true"><div className="mobile-reader-progress__fill" style={{ width: `${chapterProgressPercent}%` }}></div></div>
         <span className="mobile-reader-progress__text">本章 {chapterProgressPercent}%</span>
         <button type="button" className="mobile-reader-bar__btn" aria-label="章节目录" onClick={(e) => { e.stopPropagation(); setMobileLibraryOpen(true); setMobileLibraryTab('chapters') }}>

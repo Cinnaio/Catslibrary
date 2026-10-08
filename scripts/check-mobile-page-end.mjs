@@ -91,7 +91,10 @@ try {
             assert.ok(actions.y + actions.height <= toolbar.y, '页尾按钮不应被工具栏遮住')
             assert.ok(toolbar.y - actions.y - actions.height <= 17, '工具栏前只保留16px呼吸空间')
           }
-          await checkToolbar('.mobile-reader-bar-peek', 60)
+          await checkToolbar('.mobile-reader-bar-peek', 72)
+          const peek = await page.locator('.mobile-reader-bar-peek').boundingBox()
+          assert.ok(peek.width <= 144 && Math.abs(peek.x + peek.width / 2 - width / 2) <= 1, '收起入口是居中的紧凑胶囊，不铺满屏幕')
+          assert.equal(await page.locator('#mobile-reader-toolbar').getAttribute('inert'), '', '收起工具栏不接收键盘焦点')
           await page.getByRole('button', { name: '显示阅读工具栏' }).click()
           await checkToolbar('.mobile-reader-bar', 84)
           await page.screenshot({ path: `${output}/${theme}-${width}-reader-expanded.png` })
