@@ -1,3 +1,4 @@
+import type { SourceChapterCandidate } from '../novel-update-summary'
 /**
  * 爬虫引擎 —— 由 Novel-KV _scrape-engine.js 平移。
  * 签名改为 runScrapeJob(jobId, deps)，通过 deps.store/fetchHtml/log 解耦
@@ -42,11 +43,12 @@ function isPo18twSelectors(selectors: Record<string, string> | undefined): boole
 function collectPo18twLinks(
   firstHtml: string,
   chapterListUrl: string,
-): { links: ScrapeLink[]; pages: number; publicChapterCount: number; protectedChapterCount: number } {
+): { links: ScrapeLink[]; pages: number; publicChapterCount: number; protectedChapterCount: number; candidates: SourceChapterCandidate[] } {
   if (isPo18twLoginPage(firstHtml)) throw new Error('POPO 目录需要登录，请先配置 POPO 账号或 Cookie')
 
   const links: ScrapeLink[] = []
   const seen = new Set<string>()
+  const candidates: SourceChapterCandidate[] = []
   let publicChapterCount = 0
   let protectedChapterCount = 0
 
@@ -56,6 +58,7 @@ function collectPo18twLinks(
     for (const row of rows) {
       if (seen.has(row.url)) continue
       seen.add(row.url)
+      candidates.push({ url: row.url, title: row.title.trim(), order: row.order, access: row.protected ? 'protected' : row.downloadable ? 'public' : 'unknown' })
       newRowCount++
       if (row.downloadable && !row.url.includes('#')) {
         links.push({ href: row.url, text: row.title, order: row.order })
@@ -68,7 +71,7 @@ function collectPo18twLinks(
   }
 
   appendPage(firstHtml, chapterListUrl)
-  return { links, pages: 0, publicChapterCount, protectedChapterCount }
+  return { links, pages: 0, publicChapterCount, protectedChapterCount, candidates }
 }
 
 function po18ChapterFetchRequest(link: ScrapeLink, encoding: string, timeoutMs: number): { url: string; options: FetchHtmlOptions } {
@@ -289,6 +292,7 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
     })
 
     let links: ScrapeLink[]
+    let candidates: SourceChapterCandidate[] | undefined
     let publicChapterCount = job.publicChapterCount || 0
     let protectedChapterCount = job.protectedChapterCount || 0
     let extractMs = 0
@@ -304,6 +308,7 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
     } else if (isPo18tw) {
       const collected = collectPo18twLinks(html, chapterListUrl)
       links = collected.links
+      candidates = collected.candidates
       publicChapterCount = collected.publicChapterCount
       protectedChapterCount = collected.protectedChapterCount
       extractMs = Date.now() - extractStart
@@ -326,7 +331,7 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
             await sleep(800)
             const next = await deps.fetchHtml(nextUrl, { forceEncoding: encoding })
             const moreLinks = extractLinks(next.html, job.selectors.chapterList || '', nextUrl)
-            if (moreLinks.length === 0) break
+            if (moreLinks.length === 0) throw new Error('目录分页没有识别到章节，请检查源站响应或选择器')
             links = links.concat(moreLinks)
             nextUrl = extractLinkHref(next.html, job.selectors.nextPage, nextUrl)
           } catch (e) {
@@ -340,7 +345,9 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
     job.publicChapterCount = publicChapterCount
     job.protectedChapterCount = protectedChapterCount
 
-    if (links.length === 0) {
+    // 即使目录全为受保护章节，也保存完整检查结果，不误报目录解析失败。
+    if (job.novelId && candidates && !job.retryLinks?.length) await store.saveCheckResult(job.novelId, candidates.length, candidates)
+    if (links.length === 0 && !candidates?.length) {
       const message = isPo18tw ? '未找到可抓取的 POPO 章节，可能需要先购买章节或重新配置账号' : '未找到任何章节链接，请检查章节列表选择器是否正确'
       log(job, `${message}: selector="${job.selectors?.chapterList}" (${extractMs}ms)`, 'warn')
       await updateStatus('failed', {
@@ -365,7 +372,10 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
       publicChapterCount = links.length
     }
     job.publicChapterCount = publicChapterCount
-    if (job.novelId && !job.retryLinks?.length) await store.saveCheckResult(job.novelId, publicChapterCount + protectedChapterCount)
+    if (job.novelId && !job.retryLinks?.length && !candidates) {
+      const snapshot = links.map((link, i): SourceChapterCandidate => ({ url: link.href, title: simplifyChapterForSource({ title: link.text.trim() }, job.sourceUrl).title, order: link.order || i + 1, access: 'unknown' }))
+      await store.saveCheckResult(job.novelId, links.length, snapshot)
+    }
 
     if (job.retryLinks && Array.isArray(job.retryLinks) && job.retryLinks.length) {
       await store.appendJobLog(jobId, 'info', '重试章节去重完成：' + links.length + ' 章')

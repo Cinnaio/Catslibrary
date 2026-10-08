@@ -1,3 +1,4 @@
+import type { SourceChapterCandidate } from '../novel-update-summary'
 /**
  * ScrapeStore —— 爬虫数据访问层。
  * 把 engine/jobs 里散落的 DB 操作收敛到单一接口，解耦模块直写 SQL；
@@ -120,7 +121,7 @@ export interface ScrapeStore {
   getMaxChapterOrder(novelId: string): Promise<number>
   batchInsertChapters(novelId: string, chapters: ScrapeChapter[], jobId?: string): Promise<ScrapeBatchResult>
   getNovelSourceUrl(novelId: string): Promise<string>
-  saveCheckResult(novelId: string, remoteCount: number): Promise<{ localCount: number; newCount: number } | null>
+  saveCheckResult(novelId: string, remoteCount: number, snapshot?: SourceChapterCandidate[]): Promise<{ localCount: number; newCount: number } | null>
 }
 
 export interface ScrapeChapter {
@@ -631,8 +632,8 @@ export class PgScrapeStore implements ScrapeStore {
     return row?.source_url || ''
   }
 
-  async saveCheckResult(novelId: string, remoteCount: number): Promise<{ localCount: number; newCount: number } | null> {
-    const { rowCount } = await this.db.query('UPDATE novels SET remote_chapter_count = $1, update_checked_at = $2 WHERE id = $3', [remoteCount, Date.now(), novelId])
+  async saveCheckResult(novelId: string, remoteCount: number, snapshot?: SourceChapterCandidate[]): Promise<{ localCount: number; newCount: number } | null> {
+    const { rowCount } = await this.db.query('UPDATE novels SET remote_chapter_count = $1, update_checked_at = $2, source_chapter_snapshot=$4::jsonb WHERE id = $3', [remoteCount, Date.now(), novelId, snapshot ? JSON.stringify(snapshot) : null])
     if (!rowCount) return null
     const row = await first<{ chapter_count: number }>(this.db, 'SELECT chapter_count FROM novels WHERE id = $1', [novelId])
     const localCount = row?.chapter_count || 0

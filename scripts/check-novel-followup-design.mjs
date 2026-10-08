@@ -16,6 +16,10 @@ const book = {
   contentRating: 'general',
   chapterCount: 91,
   remoteChapterCount: 95,
+  pendingChapterCount: 4,
+  pendingProtectedChapterCount: 2,
+  pendingPublicChapterCount: 2,
+  pendingUnknownChapterCount: 0,
   updatedAt: Date.now(),
 }
 const browser = await chromium.launch({ headless: true })
@@ -35,12 +39,16 @@ try {
         else if (path === '/api/novels') data = { novels: [book], total: 1, totalPages: 1, page: 1, availableCategories: [] }
         else if (path === '/api/scrape')
           data = {
+            pendingChapterCount: 4,
+            pendingProtectedChapterCount: 2,
+            pendingPublicChapterCount: 2,
+            pendingUnknownChapterCount: 0,
             enabled: true,
             intervalHours: 1,
             nextCheckAt: Date.now() + 3600000,
             checkedAt: Date.now(),
-            result: 'no_change',
-            message: '暂无新章',
+            result: 'pending',
+            message: '仍有 4 章待入库',
             hasConfig: true,
             ongoing: true,
           }
@@ -50,9 +58,10 @@ try {
       await page.goto(`${base}/admin/novels`)
       const tag = page.getByText('待更新 4 章', { exact: true })
       await tag.waitFor()
+      await page.getByText('含受保护 2 章', { exact: true }).waitFor()
       if (width < 900) {
         const geometry = await tag.evaluate((el) => {
-          const summary = el.parentElement
+          const summary = el.closest('.novel-chapter-summary')
           const number = summary.firstElementChild.getBoundingClientRect()
           const badge = el.getBoundingClientRect()
           return { sameRow: Math.abs(number.y - badge.y) < 8, color: getComputedStyle(el).color }
@@ -63,12 +72,13 @@ try {
       await page.getByRole('button', { name: `${title}：更多操作` }).click()
       await page.getByRole('menuitem', { name: '追更设置', exact: true }).click()
       const dialog = page.getByRole('dialog')
-      await dialog.getByText('暂无新章', { exact: true }).waitFor()
+      await dialog.getByText('仍有 4 章待入库', { exact: true }).waitFor()
       assert.equal(
         await dialog.getByRole('heading', { name: '追更设置', exact: true }).evaluate((el) => getComputedStyle(el).boxShadow),
         'none',
         '标题的程序焦点不显示控件焦点框',
       )
+      await dialog.getByText('受保护 2 章', { exact: true }).waitFor()
       const box = await dialog.boundingBox()
       assert.ok(box.x >= 0 && box.x + box.width <= width + 1, '弹窗不能超出视口')
       const check = await dialog.getByRole('button', { name: '检查更新', exact: true }).boundingBox()

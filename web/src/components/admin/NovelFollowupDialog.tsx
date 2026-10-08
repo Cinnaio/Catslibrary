@@ -1,3 +1,6 @@
+import type { PendingChapterCounts } from '@shared/novel-updates'
+import { pendingUpdateDisplay } from '@shared/novel-updates'
+import { LockKeyhole } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { url, authHeaders } from '@/lib/api'
 import { Button } from '@/components/ui/button'
@@ -8,7 +11,9 @@ import { AdminDialogBody, AdminDialogContent } from './AdminDialog'
 import CustomSelect from './CustomSelect'
 import '@/styles/admin/pages/novel-followup.css'
 
-interface Followup {
+interface Followup extends PendingChapterCounts {
+  chapterCount?: number
+  remoteChapterCount?: number
   enabled: boolean
   intervalHours: number
   nextCheckAt: number
@@ -90,6 +95,7 @@ export default function NovelFollowupDialog({ novel, onClose }: { novel: { id: s
       setBusy(false)
     }
   }
+  const pending = state ? pendingUpdateDisplay({ ...state, chapterCount: state.chapterCount || 0, remoteChapterCount: state.remoteChapterCount || 0 }) : null
   return (
     <Dialog
       open
@@ -149,6 +155,22 @@ export default function NovelFollowupDialog({ novel, onClose }: { novel: { id: s
                 <p role="status" data-result={state.result}>
                   {state.message || '尚未检查'}
                 </p>
+                {pending && (
+                  <div className="novel-followup-dialog__chapters">
+                    {pending.total > 0 && <span>待入库 {pending.total} 章</span>}
+                    {state.pendingPublicChapterCount != null && <span>目录可抓取 {state.pendingPublicChapterCount} 章</span>}
+                    {pending.protectedCount > 0 && (
+                      <span className="novel-update-protection">
+                        <LockKeyhole aria-hidden="true" />
+                        受保护 {pending.protectedCount} 章
+                      </span>
+                    )}
+                    {pending.unknown && <span>保护状态待检查{state.pendingUnknownChapterCount ? `（${state.pendingUnknownChapterCount} 章）` : ''}</span>}
+                  </div>
+                )}
+                {pending && pending.protectedCount > 0 && (
+                  <p className="admin-dialog-hint">受保护不代表无法抓取；请确认源站账号与购买权限，权限变化后重新检查。</p>
+                )}
                 <dl className="novel-followup-dialog__times">
                   <div>
                     <dt>上次完成</dt>

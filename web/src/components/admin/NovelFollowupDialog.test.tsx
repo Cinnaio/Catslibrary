@@ -43,3 +43,20 @@ it('手动更新出错时显示服务端原因并允许重试', async () => {
   expect(await screen.findByRole('alert')).toHaveTextContent('源站不可达')
   await waitFor(() => expect(screen.getByRole('button', { name: '检查更新' })).toBeEnabled())
 })
+
+it('追更窗口显示待入库中的受保护数量，并说明访问权限', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi
+      .fn()
+      .mockResolvedValue({
+        ok: true,
+        json: async () => ({ ...state, pendingChapterCount: 4, pendingProtectedChapterCount: 2, pendingPublicChapterCount: 2, pendingUnknownChapterCount: 0 }),
+      }),
+  )
+  render(<NovelFollowupDialog novel={{ id: 'n', title: '测试书' }} onClose={() => {}} />)
+  expect(await screen.findByText('待入库 4 章')).toBeInTheDocument()
+  expect(screen.getByText('目录可抓取 2 章')).toBeInTheDocument()
+  expect(screen.getByText('受保护 2 章')).toBeInTheDocument()
+  expect(screen.getByText(/受保护不代表无法抓取/)).toBeInTheDocument()
+})

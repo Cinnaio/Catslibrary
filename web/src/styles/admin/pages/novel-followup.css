@@ -136,3 +136,36 @@
     padding: 0 1.25rem 1.25rem;
   }
 }
+.novel-update-indicator {
+  display: contents;
+}
+.novel-update-protection,
+.novel-update-unknown {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 1.6;
+}
+.novel-update-protection svg {
+  width: 0.75rem;
+  height: 0.75rem;
+  flex-shrink: 0;
+}
+.novel-update-protection {
+  white-space: nowrap;
+}
+.novel-followup-dialog__chapters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem 1rem;
+  margin-top: 0.75rem;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  line-height: 1.6;
+}
+.novel-followup-dialog__result > .admin-dialog-hint {
+  font-size: var(--admin-dialog-hint-size);
+  color: var(--admin-dialog-hint-color);
+}

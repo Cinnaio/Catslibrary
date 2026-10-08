@@ -1,3 +1,5 @@
+import type { PendingChapterCounts } from './novel-updates'
+
 /**
  * 领域类型 —— web 与 api 共享的单一事实来源。
  * 与 api/src/db/mappers.ts 的行映射字段一一对应（API 层负责 snake_case→camelCase）。
@@ -9,7 +11,7 @@
  */
 export type ContentRating = 'general' | 'restricted' | 'unknown'
 
-export interface Novel {
+export interface Novel extends PendingChapterCounts {
   id: string
   title: string
   author: string

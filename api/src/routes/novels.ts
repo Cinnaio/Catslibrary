@@ -1,3 +1,4 @@
+import { getPendingChapterCounts } from '../services/novel-update-summary'
 /**
  * /api/novels —— 小说列表/创建/详情/更新/删除 + 管理维护动作（由 Novel-KV 平移）。
  */
@@ -130,7 +131,8 @@ novelsRoutes.get('/', optionalUser(), async (c) => {
     `SELECT * FROM novels ${where} ORDER BY ${sort} ${order}, id ASC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
     [...params, limit, offset],
   )
-  const novels = rows.map(rowToNovel).filter((n) => n !== null)
+  const pendingCounts = await getPendingChapterCounts(db, rows.map(row => row.id))
+  const novels = rows.map(row => ({ ...rowToNovel(row)!, ...pendingCounts.get(row.id) }))
 
   // 分类筛选 UI 用的全量分类集合（管理列表用 includeCategories=0 走 /api/categories）
   let availableCategories: string[] = []
@@ -195,7 +197,7 @@ novelsRoutes.get('/:id', optionalUser(), async (c) => {
     const access = await resolveContentAccess(c)
     if (!access.canViewRestricted) return restrictedContentResponse(c, access.reason)
   }
-  return c.json({ novel: rowToNovel(row) }, 200, contentPolicyHeaders())
+  return c.json({ novel: { ...rowToNovel(row)!, ...(await getPendingChapterCounts(db, [id])).get(id) } }, 200, contentPolicyHeaders())
 })
 
 novelsRoutes.put('/:id', requireAdmin(), async (c) => {

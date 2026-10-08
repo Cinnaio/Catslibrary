@@ -1,3 +1,4 @@
+import NovelUpdateTag from '@/components/admin/NovelUpdateTag'
 /**
  * 小说管理 tab —— 小说列表 / 搜索 / 排序 / 分页 / 增删改 / 批量操作。
  * 由 Novel-KV js/admin-novels.js + admin.html #tab-novels 平移。
@@ -115,10 +116,6 @@ function parseCategories(input: string): string[] {
       }
     })
   return out
-}
-
-function getNewCount(n: Novel): number {
-  return Math.max(0, (n.remoteChapterCount || 0) - (n.chapterCount || 0))
 }
 
 /** 增量更新：scrapeApi 未暴露原始 update action，用本地 fetch 包装。 */
@@ -689,14 +686,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
                   <TableCell data-label="章节">
                     <div className="novel-chapter-summary">
                       <span>{n.chapterCount || 0}</span>
-                      {getNewCount(n) > 0 && (
-                        <span
-                          className="novel-update-tag"
-                          title={`源站 ${n.remoteChapterCount || 0} 章 / 本地 ${n.chapterCount || 0} 章${n.updateCheckedAt ? `，检查于 ${timeAgo(n.updateCheckedAt)}` : ''}`}
-                        >
-                          待更新 {getNewCount(n)} 章
-                        </span>
-                      )}
+                      <NovelUpdateTag novel={n} />
                     </div>
                   </TableCell>
                   <TableCell data-label="更新" className="text-sm text-muted">

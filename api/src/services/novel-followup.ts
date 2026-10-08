@@ -1,3 +1,4 @@
+import { getPendingChapterCounts } from './novel-update-summary'
 import type { Db } from '../db/pool'
 import { all, first, withTx } from '../db/query'
 import { newId } from './auth'
@@ -18,7 +19,11 @@ interface FollowupRow {
 const terminal = ['completed', 'partial', 'failed', 'cancelled']
 
 export async function getFollowup(db: Db, novelId: string) {
-  const novel = await first<{ status: string }>(db, 'SELECT status FROM novels WHERE id=$1', [novelId])
+  const novel = await first<{ status: string; chapter_count: number; remote_chapter_count: number }>(
+    db,
+    'SELECT status,chapter_count,remote_chapter_count FROM novels WHERE id=$1',
+    [novelId],
+  )
   if (!novel) return null
   const row = await first<FollowupRow>(db, 'SELECT * FROM novel_followups WHERE novel_id=$1', [novelId])
   const config = await first(db, 'SELECT novel_id FROM scrape_configs WHERE novel_id=$1', [novelId])
@@ -29,6 +34,8 @@ export async function getFollowup(db: Db, novelId: string) {
     [novelId],
   )
   return {
+    chapterCount: novel.chapter_count,
+    remoteChapterCount: novel.remote_chapter_count,
     enabled: row?.enabled || false,
     intervalHours: row?.interval_hours || 6,
     nextCheckAt: novel.status === 'ongoing' && row?.enabled ? Number(row.next_check_at) : 0,
@@ -38,6 +45,7 @@ export async function getFollowup(db: Db, novelId: string) {
     addedCount: row?.added_count || 0,
     jobId: active?.id || row?.last_job_id || '',
     hasConfig: Boolean(config),
+    ...(await getPendingChapterCounts(db, [novelId])).get(novelId),
     ongoing: novel.status === 'ongoing',
   }
 }
@@ -107,8 +115,34 @@ export async function finishFollowup(db: Db, jobId: string) {
     const cancelled = job.status === 'cancelled'
     const failures = failed ? row.failures + 1 : 0
     const empty = failed || cancelled ? row.empty_checks : added ? 0 : row.empty_checks + 1
-    const result = failed ? job.status : cancelled ? 'cancelled' : added ? 'updated' : 'no_change'
-    const message = failed ? job.error || job.step || '更新失败' : cancelled ? '更新已取消' : added ? `已新增 ${added} 章` : '暂无新章'
+    const pending = (await getPendingChapterCounts({ query: q }, [row.novel_id])).get(row.novel_id)
+    const protectedCount = pending?.pendingProtectedChapterCount || 0
+    const protectionOnly = protectedCount > 0 && protectedCount === pending?.pendingChapterCount
+    const unresolved = !failed && !cancelled && !added && (pending?.pendingChapterCount || 0) > 0
+    const result =
+      unresolved && !protectionOnly
+        ? 'pending'
+        : !failed && !cancelled && !added && protectionOnly
+          ? 'protected'
+          : failed
+            ? job.status
+            : cancelled
+              ? 'cancelled'
+              : added
+                ? 'updated'
+                : 'no_change'
+    const message =
+      unresolved && !protectionOnly
+        ? `仍有 ${pending?.pendingChapterCount} 章待更新，保护状态待检查`
+        : !failed && !cancelled && !added && protectionOnly
+          ? `仍有 ${protectedCount} 章受保护，请确认账号或购买权限`
+          : failed
+            ? job.error || job.step || '更新失败'
+            : cancelled
+              ? '更新已取消'
+              : added
+                ? `已新增 ${added} 章`
+                : '暂无新章'
     const now = Date.now()
     await q(
       `UPDATE novel_followups SET result=$2,message=$3,added_count=$4,checked_at=$5,empty_checks=$6,failures=$7,
