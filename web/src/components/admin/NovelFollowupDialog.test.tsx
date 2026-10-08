@@ -29,7 +29,7 @@ it('未配置爬虫时不能开启或手动更新', async () => {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ...state, hasConfig: false }) }))
   render(<NovelFollowupDialog novel={{ id: 'n', title: '测试书' }} onClose={() => {}} />)
   expect(await screen.findByRole('checkbox', { name: '自动追更' })).toBeDisabled()
-  expect(screen.getByRole('button', { name: '立即检查并更新' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: '检查更新' })).toBeDisabled()
 })
 it('手动更新出错时显示服务端原因并允许重试', async () => {
   const fetch = vi
@@ -39,7 +39,7 @@ it('手动更新出错时显示服务端原因并允许重试', async () => {
   vi.stubGlobal('fetch', fetch)
   render(<NovelFollowupDialog novel={{ id: 'n', title: '测试书' }} onClose={() => {}} />)
   await screen.findByRole('checkbox', { name: '自动追更' })
-  fireEvent.click(screen.getByRole('button', { name: '立即检查并更新' }))
+  fireEvent.click(screen.getByRole('button', { name: '检查更新' }))
   expect(await screen.findByRole('alert')).toHaveTextContent('源站不可达')
-  await waitFor(() => expect(screen.getByRole('button', { name: '立即检查并更新' })).toBeEnabled())
+  await waitFor(() => expect(screen.getByRole('button', { name: '检查更新' })).toBeEnabled())
 })

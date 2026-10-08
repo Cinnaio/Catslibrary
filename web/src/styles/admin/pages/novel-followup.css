@@ -1,0 +1,138 @@
+/* 追更沿用后台三段式纸面；只为这一小型任务收紧宽度与信息层级。 */
+[data-slot='dialog-content'].admin-dialog.novel-followup-dialog {
+  width: min(calc(100% - 2rem), 30rem);
+  max-height: min(42rem, calc(100svh - 2rem));
+}
+.novel-followup-dialog [data-slot='dialog-header'] {
+  gap: 0.5rem;
+  padding: 1.5rem 1.5rem 0;
+}
+.novel-followup-dialog [data-slot='dialog-title'] {
+  line-height: 1.4;
+  outline: none;
+  box-shadow: none;
+}
+.novel-followup-dialog [data-slot='dialog-description'].novel-followup-dialog__book {
+  padding-inline: 1.75rem;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.novel-followup-dialog [data-slot='dialog-close'] {
+  top: 1rem;
+  right: 1rem;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.novel-followup-dialog .novel-followup-dialog__body {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 1.5rem;
+}
+.novel-followup-dialog__setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.novel-followup-dialog__setting > div {
+  display: grid;
+  gap: 0.375rem;
+}
+.novel-followup-dialog__setting [data-slot='label'] {
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+.novel-followup-dialog__setting [data-slot='checkbox'] {
+  flex-shrink: 0;
+  width: 1.25rem;
+  height: 1.25rem;
+}
+.novel-followup-dialog__frequency {
+  display: grid;
+  gap: 0.5rem;
+}
+.novel-followup-dialog__result {
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--admin-border);
+}
+.novel-followup-dialog__result > p {
+  margin-top: 0.375rem;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.novel-followup-dialog__result > p:is([data-result='failed'], [data-result='partial']) {
+  color: var(--color-danger);
+}
+.novel-followup-dialog__times {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+.novel-followup-dialog__times dt {
+  color: var(--admin-dialog-label-color);
+  font-size: var(--admin-dialog-label-size);
+  line-height: 1.5;
+}
+.novel-followup-dialog__times dd {
+  margin: 0.375rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+.novel-followup-dialog__times time {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.5rem;
+  font-variant-numeric: tabular-nums;
+}
+.novel-followup-dialog [data-slot='dialog-footer'] {
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 0.75rem;
+  padding: 0 1.5rem 1.5rem;
+}
+.novel-followup-dialog [data-slot='dialog-footer'] [data-slot='button'] {
+  min-height: var(--admin-dialog-mobile-action-min-height);
+  flex: 1;
+  min-width: 0;
+}
+.novel-chapter-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem 0.5rem;
+  min-width: 0;
+}
+.novel-update-tag {
+  display: inline-flex;
+  width: fit-content;
+  flex: 0 0 auto;
+  align-items: center;
+  padding: 0.125rem 0.5rem;
+  border-radius: var(--radius-full, 9999px);
+  background: var(--accent-subtle);
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.6;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 480px) {
+  .novel-followup-dialog [data-slot='dialog-header'] {
+    padding: 1.25rem 1.25rem 0;
+  }
+  .novel-followup-dialog .novel-followup-dialog__body {
+    padding: 1.25rem;
+  }
+  .novel-followup-dialog [data-slot='dialog-footer'] {
+    padding: 0 1.25rem 1.25rem;
+  }
+}

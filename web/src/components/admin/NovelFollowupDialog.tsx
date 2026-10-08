@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { url, authHeaders } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
-import { Dialog, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { AdminDialogBody, AdminDialogContent } from './AdminDialog'
 import CustomSelect from './CustomSelect'
+import '@/styles/admin/pages/novel-followup.css'
 
 interface Followup {
   enabled: boolean
@@ -28,9 +29,19 @@ async function request(novelId: string, body?: Record<string, unknown>): Promise
   if (!response.ok) throw new Error(data.error || '追更请求失败')
   return data
 }
-const date = (value: number) => (value ? new Date(value).toLocaleString('zh-CN') : '—')
+function CheckTime({ value }: { value: number }) {
+  if (!value) return <span>尚未安排</span>
+  const time = new Date(value)
+  return (
+    <time dateTime={time.toISOString()}>
+      <span>{time.toLocaleDateString('zh-CN')}</span>
+      <span>{time.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })}</span>
+    </time>
+  )
+}
 
 export default function NovelFollowupDialog({ novel, onClose }: { novel: { id: string; title: string }; onClose: () => void }) {
+  const titleRef = useRef<HTMLHeadingElement>(null)
   const [state, setState] = useState<Followup | null>(null)
   const [enabled, setEnabled] = useState(false)
   const [hours, setHours] = useState('6')
@@ -86,11 +97,20 @@ export default function NovelFollowupDialog({ novel, onClose }: { novel: { id: s
         if (!open) onClose()
       }}
     >
-      <AdminDialogContent>
+      <AdminDialogContent
+        className="novel-followup-dialog"
+        onOpenAutoFocus={(event) => {
+          event.preventDefault()
+          titleRef.current?.focus()
+        }}
+      >
         <DialogHeader>
-          <DialogTitle>追更设置 · {novel.title}</DialogTitle>
+          <DialogTitle ref={titleRef} tabIndex={-1}>
+            追更设置
+          </DialogTitle>
+          <DialogDescription className="novel-followup-dialog__book">{novel.title}</DialogDescription>
         </DialogHeader>
-        <AdminDialogBody className="space-y-5">
+        <AdminDialogBody className="novel-followup-dialog__body">
           {error && (
             <p role="alert" className="text-sm text-destructive">
               {error}
@@ -99,41 +119,50 @@ export default function NovelFollowupDialog({ novel, onClose }: { novel: { id: s
           {!state && !error && <p role="status">正在读取追更设置…</p>}
           {state && (
             <>
-              <div className="flex items-center gap-2">
+              <div className="novel-followup-dialog__setting">
+                <div>
+                  <Label htmlFor="followup-enabled">自动追更</Label>
+                  <p className="admin-dialog-hint">定期检查目录，有新章节时自动入库。</p>
+                </div>
                 <Checkbox
                   id="followup-enabled"
                   checked={enabled}
                   disabled={!state.hasConfig || !state.ongoing || busy}
                   onCheckedChange={(value) => setEnabled(value === true)}
                 />
-                <Label htmlFor="followup-enabled">自动追更</Label>
               </div>
-              {!state.hasConfig && <p className="text-sm text-muted-foreground">请先在抓取中心为这本书配置目录和正文选择器。</p>}
-              {!state.ongoing && <p className="text-sm text-muted-foreground">已完结作品暂停自动检查，仍可手动更新。</p>}
-              <div className="space-y-2">
+              {!state.hasConfig && <p className="admin-dialog-hint">请先在抓取中心为这本书配置目录和正文选择器。</p>}
+              {!state.ongoing && <p className="admin-dialog-hint">已完结作品暂停自动检查，仍可手动更新。</p>}
+              <div className="novel-followup-dialog__frequency">
                 <Label id="followup-frequency">检查频率</Label>
                 <CustomSelect
                   aria-labelledby="followup-frequency"
                   value={hours}
                   onChange={setHours}
+                  disabled={busy}
                   options={[1, 3, 6, 12, 24].map((h) => ({ value: String(h), label: `每 ${h} 小时` }))}
                 />
-                <p className="text-xs text-muted-foreground">连续无新章会逐步降低检查频率；更新失败会自动重试。暂停后，正在执行的任务仍会完成。</p>
+                <p className="admin-dialog-hint">无新章时逐步降低频率，失败后自动重试。</p>
               </div>
-              <dl className="space-y-2 text-sm">
-                <div>
-                  <dt className="text-muted-foreground">最近结果</dt>
-                  <dd role="status">{state.message || '尚未检查'}</dd>
-                </div>
-                <div>
-                  <dt className="text-muted-foreground">上次检查完成</dt>
-                  <dd>{date(state.checkedAt)}</dd>
-                </div>
-                <div>
-                  <dt className="text-muted-foreground">下次检查</dt>
-                  <dd>{state.enabled && state.ongoing ? (state.result === 'running' ? '本次更新完成后安排' : date(state.nextCheckAt)) : '自动追更已暂停'}</dd>
-                </div>
-              </dl>
+              <section className="novel-followup-dialog__result" aria-label="最近检查">
+                <span className="admin-dialog-section-label">最近检查</span>
+                <p role="status" data-result={state.result}>
+                  {state.message || '尚未检查'}
+                </p>
+                <dl className="novel-followup-dialog__times">
+                  <div>
+                    <dt>上次完成</dt>
+                    <dd>{state.checkedAt ? <CheckTime value={state.checkedAt} /> : '尚未检查'}</dd>
+                  </div>
+                  <div>
+                    <dt>下次检查</dt>
+                    <dd>
+                      {state.enabled && state.ongoing ? state.result === 'running' ? '更新完成后安排' : <CheckTime value={state.nextCheckAt} /> : '已暂停'}
+                    </dd>
+                  </div>
+                </dl>
+              </section>
+              <p className="admin-dialog-hint">暂停追更后，正在执行的任务仍会完成。</p>
               {notice && (
                 <p role="status" className="text-sm">
                   {notice}
@@ -144,7 +173,7 @@ export default function NovelFollowupDialog({ novel, onClose }: { novel: { id: s
         </AdminDialogBody>
         <DialogFooter>
           <Button variant="outline" onClick={() => void act(false)} disabled={busy || !state?.hasConfig || state.result === 'running'}>
-            {state?.result === 'running' ? '更新中…' : '立即检查并更新'}
+            {state?.result === 'running' ? '更新中…' : '检查更新'}
           </Button>
           <Button onClick={() => void act(true)} disabled={busy || !state}>
             保存设置

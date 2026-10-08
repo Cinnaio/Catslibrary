@@ -413,6 +413,12 @@ components:
 - **Helper Copy:** 控件下方的辅助说明与标签同尺寸同色，只降一档字重至 400（`--admin-dialog-hint-*`，或裸元素用 `.admin-dialog-hint`）。辅助说明不得比它说明的标签更粗或更大，否则主次颠倒。
 - **Mobile Editor:** 窄屏小说编辑窗口使用 `--admin-dialog-mobile-max-height` 收紧高度；底部操作区通过 `--admin-dialog-mobile-footer-*` 保持保存/取消同一行、不换行，并用 `--admin-dialog-mobile-action-min-*` 保留触控尺寸。
 
+### Novel Follow-up
+
+追更设置使用 480px 的三段式后台弹窗，同一纸面贯穿页头、正文和页脚。短标题「追更设置」与书名分开，书名作为 14px 次级描述自然换行，关闭按钮保持轻量。自动追更开关与说明组成一行；检查频率、最近结果、上次完成和下次检查按顺序展开，时间信息采用两列并允许日期与时间换行。手机底部「检查更新 / 保存设置」保持同一行，触控高度至少 44px；正文独立滚动，页脚始终可用。
+
+小说管理的待更新标签使用浅强调色底与强调色文字，12px / 500，无阴影，以「待更新 N 章」说明源站尚未入库的章节。章节数与标签放在同一个弹性布局里，手机避免标签落入字段名列；桌面空间不足时允许在内容区自然换行。标签表示待入库状态，不使用危险操作的红色。
+
 ### Segmented Tabs
 - **Track:** 外框 12px（`--tabs-segmented-radius`），内缩和分隔间距 3px（`--tabs-segmented-inset` / `--tabs-segmented-gap`），轨道边框和底色使用消费方语义 token。
 - **Label:** 标签统一使用 `--tabs-segmented-label-size`、`--tabs-segmented-label-weight`、`--tabs-segmented-active-label-weight`、`--tabs-segmented-label-line-height`（13px / 未选中 500 / 选中 600 / 1.6）；选中项通过字重差异强化当前选择，其他字阶保持一致。

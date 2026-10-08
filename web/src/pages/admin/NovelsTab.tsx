@@ -687,15 +687,17 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
                     <AdminContentRatingBadge rating={n.contentRating} />
                   </TableCell>
                   <TableCell data-label="章节">
-                    {n.chapterCount || 0}
-                    {getNewCount(n) > 0 && (
-                      <span
-                        className="badge-update"
-                        title={`源站 ${n.remoteChapterCount || 0} 章 / 本地 ${n.chapterCount || 0} 章${n.updateCheckedAt ? `，检查于 ${timeAgo(n.updateCheckedAt)}` : ''}`}
-                      >
-                        +{getNewCount(n)}
-                      </span>
-                    )}
+                    <div className="novel-chapter-summary">
+                      <span>{n.chapterCount || 0}</span>
+                      {getNewCount(n) > 0 && (
+                        <span
+                          className="novel-update-tag"
+                          title={`源站 ${n.remoteChapterCount || 0} 章 / 本地 ${n.chapterCount || 0} 章${n.updateCheckedAt ? `，检查于 ${timeAgo(n.updateCheckedAt)}` : ''}`}
+                        >
+                          待更新 {getNewCount(n)} 章
+                        </span>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell data-label="更新" className="text-sm text-muted">
                     {timeAgo(n.updatedAt)}
