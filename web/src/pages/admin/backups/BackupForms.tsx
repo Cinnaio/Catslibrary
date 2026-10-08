@@ -63,7 +63,7 @@ export function TargetForm({ target, onSaved, onCancel }: { target: BackupTarget
         </AdminFormField>
       </div>
       <div className="backup-field-pair">
-        <AdminFormField label="服务器主机" hint="填写域名或 IP，需在部署允许列表中。">
+        <AdminFormField label="服务器主机" hint="填写域名或 IP，需在「备份设置」的服务器允许列表中。">
           {({ id }) => (
             <Input id={id} required value={draft.host} disabled={busy} onChange={(e) => change('host', e.target.value)} placeholder="backup.example.com" />
           )}

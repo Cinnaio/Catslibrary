@@ -1,3 +1,4 @@
+import { backupSettings } from './settings'
 import { randomUUID } from 'node:crypto'
 import { rm } from 'node:fs/promises'
 import path from 'node:path'
@@ -71,7 +72,7 @@ async function uploadCopies(db: Db, task: TaskRow, manifest: Manifest) {
         manifest.id,
         copy.target_id,
       ])
-      await uploadRemote(target, manifest)
+      await uploadRemote(target, manifest, db)
       await db.query("UPDATE backup_control.copies SET state='available',verified_at=$3 WHERE version_id=$1 AND target_id=$2", [
         manifest.id,
         copy.target_id,
@@ -82,7 +83,8 @@ async function uploadCopies(db: Db, task: TaskRow, manifest: Manifest) {
       partial = true
       const message = safeError(error)
       const retryable = error instanceof BackupError && ['COMMAND_FAILED', 'WRITE_FAILED'].includes(error.code)
-      const delay = [60000, 300000, 900000][copy.attempts]
+      const settings = await backupSettings(db)
+      const delay = copy.attempts < settings.retryLimit ? [60000, 300000, 900000][copy.attempts] : 0
       await db.query("UPDATE backup_control.copies SET state='failed',error=$3,retry_at=$4 WHERE version_id=$1 AND target_id=$2", [
         manifest.id,
         copy.target_id,
@@ -199,7 +201,7 @@ async function removeCopy(db: Db, id: string, targetId: string, manifest: Manife
   await db.query("UPDATE backup_control.copies SET state='delete_pending' WHERE version_id=$1 AND target_id=$2", [id, targetId])
   try {
     if (targetId === 'local') await rm(versionDirectory(id), { recursive: true, force: true })
-    else if (manifest) await deleteRemote(JSON.parse(config), manifest)
+    else if (manifest) await deleteRemote(JSON.parse(config), manifest, db)
     await db.query("UPDATE backup_control.copies SET state='deleted',error='' WHERE version_id=$1 AND target_id=$2", [id, targetId])
   } catch (error) {
     await db.query('UPDATE backup_control.copies SET error=$3 WHERE version_id=$1 AND target_id=$2', [id, targetId, safeError(error)])
@@ -319,8 +321,8 @@ export async function runBackupTick(db: Db) {
     await schedule(db)
     const retry = await first<{ version_id: string; target_id: string; attempts: number }>(
       db,
-      "SELECT c.version_id,c.target_id,c.attempts FROM backup_control.copies c JOIN backup_control.versions v ON v.id=c.version_id WHERE c.state='failed' AND c.retry_at>0 AND c.retry_at<=$1 AND v.deleted=FALSE ORDER BY c.retry_at LIMIT 1",
-      [Date.now()],
+      "SELECT c.version_id,c.target_id,c.attempts FROM backup_control.copies c JOIN backup_control.versions v ON v.id=c.version_id WHERE c.state='failed' AND c.retry_at>0 AND c.retry_at<=$1 AND v.deleted=FALSE AND c.attempts<=$2 ORDER BY c.retry_at LIMIT 1",
+      [Date.now(), (await backupSettings(db)).retryLimit],
     )
     if (retry) {
       await enqueue(
@@ -339,7 +341,7 @@ export async function runBackupTick(db: Db) {
         await makeBackup(db, task)
         await retention(db, task.id)
       } else if (task.kind === 'test') {
-        await testRemote(JSON.parse(task.payload).target)
+        await testRemote(JSON.parse(task.payload).target, db)
         await logEvent(db, task.id, '连接测试通过：上传、读取校验、删除均完成')
       } else if (task.kind === 'retry') {
         const manifest = await manifestFor(db, task.version_id)
@@ -368,7 +370,7 @@ export async function runBackupTick(db: Db) {
       ])
       await db.query(
         "DELETE FROM backup_control.events WHERE created_at<$1 AND task_id IN (SELECT id FROM backup_control.tasks WHERE kind IN ('backup','test','retry','delete'))",
-        [Date.now() - 180 * 86400000],
+        [Date.now() - (await backupSettings(db)).logRetentionDays * 86400000],
       )
     } catch (error) {
       const message = safeError(error)

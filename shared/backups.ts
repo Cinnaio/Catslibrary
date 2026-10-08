@@ -87,3 +87,34 @@ export interface BackupPage<T> {
   items: T[]
   total: number
 }
+export interface BackupSettings {
+  revision: number
+  hostSource: 'environment' | 'custom'
+  allowedHosts: string[]
+  rehearsalSource: 'environment' | 'custom' | 'disabled'
+  rehearsalConfigured: boolean
+  rehearsalLabel: string
+  retryLimit: number
+  logRetentionDays: number
+}
+export interface BackupSettingsInput {
+  revision: number
+  hostSource: BackupSettings['hostSource']
+  allowedHosts: string[]
+  rehearsalSource: BackupSettings['rehearsalSource']
+  rehearsalUrl?: string
+  retryLimit: number
+  logRetentionDays: number
+}
+export interface BackupSettingsPage {
+  settings: BackupSettings
+  deployment: {
+    localDirectory: string
+    environmentAllowedHosts: string[]
+    keyId: string
+    encryption: boolean
+    dump: boolean
+    restore: boolean
+    transfer: boolean
+  }
+}

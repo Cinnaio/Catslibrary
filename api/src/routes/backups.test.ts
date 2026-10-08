@@ -66,7 +66,8 @@ afterAll(async () => {
 describe('备份管理权限、幂等及敏感边界', () => {
   it('游客和普通用户不能读取版本、日志或下载归档', async () => {
     for (const token of ['', reader])
-      for (const path of ['/versions', '/logs', '/versions/example/download']) expect([401, 403]).toContain((await call(path, 'GET', undefined, token)).status)
+      for (const path of ['/versions', '/logs', '/settings', '/versions/example/download'])
+        expect([401, 403]).toContain((await call(path, 'GET', undefined, token)).status)
   })
   it('SFTP 密码不回显、不以明文存储，目标更新检查 revision', async () => {
     const body = {
@@ -140,5 +141,72 @@ describe('备份管理权限、幂等及敏感边界', () => {
     expect(body).not.toContain('private-token')
     expect(body).not.toContain('secret')
     expect(body).not.toContain('payload')
+  })
+})
+
+describe('前端备份设置接口', () => {
+  it('配置默认继承部署端，后台允许列表保存后立即生效且校验版本', async () => {
+    const initial = (await (await call('/settings')).json()) as any
+    expect(initial.settings).toMatchObject({
+      revision: 0,
+      hostSource: 'environment',
+      allowedHosts: ['backup.example.com'],
+      retryLimit: 3,
+      logRetentionDays: 180,
+    })
+    const input = {
+      ...initial.settings,
+      hostSource: 'custom',
+      allowedHosts: [' OTHER.EXAMPLE.COM ', 'other.example.com'],
+      rehearsalSource: 'disabled',
+      retryLimit: 0,
+      logRetentionDays: 90,
+    }
+    const saved = await call('/settings', 'PUT', input)
+    expect(saved.status).toBe(200)
+    expect(await saved.json()).toMatchObject({
+      revision: 1,
+      allowedHosts: ['other.example.com'],
+      rehearsalConfigured: false,
+      retryLimit: 0,
+      logRetentionDays: 90,
+    })
+    expect((await call('/settings', 'PUT', input)).status).toBe(409)
+    const overview = (await (await call('/overview')).json()) as any
+    expect(overview.capabilities).toMatchObject({ allowedHosts: ['other.example.com'], rehearsal: false })
+    const target = {
+      name: '新目标',
+      type: 'sftp',
+      enabled: false,
+      required: true,
+      host: 'other.example.com',
+      port: 22,
+      path: '/backups',
+      username: 'backup',
+      hostKey: 'ssh-ed25519 AAAA',
+      bucket: '',
+      region: '',
+      retention: 30,
+    }
+    expect((await call('/targets', 'POST', target)).status).toBe(200)
+    expect((await call('/targets', 'POST', { ...target, host: 'backup.example.com' })).status).toBe(400)
+  })
+  it('非法连接、维护模式与无效期限不改变已保存值，连接地址不泄露', async () => {
+    const initial = ((await (await call('/settings')).json()) as any).settings
+    for (const patch of [
+      { retryLimit: 4 },
+      { logRetentionDays: 0 },
+      { allowedHosts: ['*.example.com'] },
+      { rehearsalSource: 'custom', rehearsalUrl: 'https://user:private@example.com/db' },
+    ]) {
+      const response = await call('/settings', 'PUT', { ...initial, ...patch })
+      expect(response.status).toBe(400)
+      expect(await response.text()).not.toContain('private')
+    }
+    await setSetting(db, 'maintenance', true)
+    expect((await call('/settings', 'PUT', initial)).status).toBe(409)
+    await setSetting(db, 'maintenance', false)
+    expect(((await (await call('/settings')).json()) as any).settings).toEqual(initial)
+    await db.query("DELETE FROM backup_control.settings WHERE key='runtime'")
   })
 })

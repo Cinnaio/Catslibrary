@@ -124,6 +124,7 @@ export const NAV_GROUPS: Array<{ label: string; items: AdminNavItem[] }> = [
           { id: 'backups-targets', label: '存储目标', to: `${adminTabPath('backups')}?view=targets` },
           { id: 'backups-schedule', label: '自动备份', to: `${adminTabPath('backups')}?view=schedule` },
           { id: 'backups-logs', label: '操作日志', to: `${adminTabPath('backups')}?view=logs` },
+          { id: 'backups-settings', label: '备份设置', to: `${adminTabPath('backups')}?view=settings` },
         ],
       },
       {

@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { once } from 'node:events'
 import type { Db } from '../../db/pool'
 import { first, all } from '../../db/query'
+import { rehearsalConnection } from './settings'
 import { loadConfig } from '../../config'
 import { BackupError, backupRoot } from './config'
 import { command, pgEnvironment, psqlTool, restoreTool, dumpTool } from './process'
@@ -116,8 +117,8 @@ export async function prepareRestore(db: Db, manifest: Manifest, commitId?: stri
   }
 }
 export async function rehearse(db: Db, manifest: Manifest) {
-  const connectionString = process.env.BACKUP_REHEARSAL_DATABASE_URL || ''
-  if (!connectionString) throw new BackupError('REHEARSAL_UNAVAILABLE', '请配置独立的 BACKUP_REHEARSAL_DATABASE_URL 演练数据库后启用回滚')
+  const connectionString = await rehearsalConnection(db)
+  if (!connectionString) throw new BackupError('REHEARSAL_UNAVAILABLE', '请在备份设置中配置独立演练数据库后启用回滚')
   const current = new URL(loadConfig().databaseUrl),
     target = new URL(connectionString)
   if (current.hostname === target.hostname && current.port === target.port && current.pathname === target.pathname)

@@ -2,13 +2,14 @@ import { Hono, type Context } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { Readable } from 'node:stream'
 import { createReadStream } from 'node:fs'
-import type { BackupPolicy, BackupTargetInput } from '@shared/backups'
+import type { BackupPolicy, BackupSettingsInput, BackupTargetInput } from '@shared/backups'
 import { requireAdmin, type AuthEnv } from '../middlewares/auth'
 import { getDb } from '../db/pool'
 import { all, first, withTx } from '../db/query'
 import { verifyPassword } from '../services/auth'
-import { BackupError, BACKUP_LOCK, encryptionReady, allowedHosts } from '../services/backups/config'
+import { BackupError, BACKUP_LOCK, encryptionReady, backupRoot, keyId, allowedHosts } from '../services/backups/config'
 import { enqueue, maintenance, policy, savePolicy, saveTarget, targetRows, targetView, taskView, versions, type TaskRow } from '../services/backups/store'
+import { backupSettings, saveBackupSettings } from '../services/backups/settings'
 import { archivePath, type Manifest } from '../services/backups/archive'
 import { ensureLocalArchive } from '../services/backups/storage'
 import { toolAvailable, dumpTool, restoreTool, psqlTool, transferTool } from '../services/backups/process'
@@ -34,8 +35,7 @@ async function bodyJSON<T = Record<string, unknown>>(c: Context<AuthEnv>): Promi
   return value as T
 }
 let capabilitiesCache: { expires: number; value: { dump: boolean; restore: boolean; transfer: boolean } } | null = null
-backupRoutes.get('/overview', async (c) => {
-  const db = getDb()
+async function toolsReady() {
   if (!capabilitiesCache || capabilitiesCache.expires < Date.now()) {
     const [dump, restore, psql, transfer] = await Promise.all([
       toolAvailable(dumpTool()),
@@ -45,15 +45,38 @@ backupRoutes.get('/overview', async (c) => {
     ])
     capabilitiesCache = { expires: Date.now() + 30000, value: { dump, restore: restore && psql, transfer } }
   }
+  return capabilitiesCache.value
+}
+backupRoutes.get('/settings', async (c) =>
+  c.json({
+    settings: await backupSettings(getDb()),
+    deployment: {
+      localDirectory: backupRoot(),
+      environmentAllowedHosts: allowedHosts(),
+      keyId: keyId(),
+      encryption: encryptionReady(),
+      ...(await toolsReady()),
+    },
+  }),
+)
+backupRoutes.put('/settings', async (c) => {
+  const settings = await saveBackupSettings(getDb(), await bodyJSON<BackupSettingsInput>(c))
+  await audit(c.get('user').id, 'settings-save')
+  return c.json(settings)
+})
+backupRoutes.get('/overview', async (c) => {
+  const db = getDb(),
+    runtime = await backupSettings(db),
+    tools = await toolsReady()
   const tasks = await all<TaskRow>(db, 'SELECT * FROM backup_control.tasks ORDER BY created_at DESC,id DESC LIMIT 15')
   return c.json({
     policy: await policy(db),
     targets: (await targetRows(db)).map(targetView),
     capabilities: {
-      ...capabilitiesCache.value,
+      ...tools,
       encryption: encryptionReady(),
-      rehearsal: Boolean(process.env.BACKUP_REHEARSAL_DATABASE_URL),
-      allowedHosts: allowedHosts(),
+      rehearsal: runtime.rehearsalConfigured,
+      allowedHosts: runtime.allowedHosts,
     },
     maintenance: await maintenance(db),
     tasks: tasks.map((row) => {

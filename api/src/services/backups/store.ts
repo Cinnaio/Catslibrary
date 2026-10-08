@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { BackupKind, BackupPolicy, BackupTarget, BackupTargetInput, BackupTask, BackupVersion } from '@shared/backups'
 import type { Db, DbClient } from '../../db/pool'
 import { all, first, withTx } from '../../db/query'
+import { backupSettings } from './settings'
 import { requestHash } from '../idempotency'
 import { BackupError, defaultPolicy, seal, validatePolicy, validateTarget, nextRun } from './config'
 
@@ -67,14 +68,14 @@ export async function targetRows(db: DbClient) {
   return all<TargetRow>(db, 'SELECT * FROM backup_control.targets WHERE archived=FALSE ORDER BY id')
 }
 export async function saveTarget(db: Db, input: BackupTargetInput) {
-  const config = validateTarget(input)
   for (const secret of [input.password, input.privateKey])
     if (secret !== undefined && (typeof secret !== 'string' || secret.length > 32768)) throw new BackupError('INVALID_CONFIG', '认证材料无效或过长')
   if (input.password && input.privateKey) throw new BackupError('INVALID_CONFIG', '密码和私钥请选择一种认证方式')
   if (input.password && /[\r\n\0]/.test(input.password)) throw new BackupError('INVALID_CONFIG', '密码不能包含换行或空字符')
-  if (input.privateKey && config.type !== 'sftp') throw new BackupError('INVALID_CONFIG', '只有 SFTP 支持私钥认证')
+  if (input.privateKey && input.type !== 'sftp') throw new BackupError('INVALID_CONFIG', '只有 SFTP 支持私钥认证')
   return withTx(db, async (query) => {
     await query('SELECT pg_advisory_xact_lock(730049)')
+    const config = validateTarget(input, (await backupSettings({ query })).allowedHosts)
     const previous = input.id ? await first<TargetRow>({ query }, 'SELECT * FROM backup_control.targets WHERE id=$1 AND archived=FALSE', [input.id]) : null
     if (input.id && !previous) throw new BackupError('NOT_FOUND', '存储目标不存在', 404)
     if (previous && previous.revision !== input.revision) throw new BackupError('REVISION_CONFLICT', '目标已被更新，请重新加载', 409)

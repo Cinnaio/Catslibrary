@@ -131,7 +131,7 @@ export const allowedHosts = () =>
     .split(',')
     .map((v) => v.trim().toLowerCase())
     .filter(Boolean)
-export function validateTarget(body: BackupTargetInput) {
+export function validateTarget(body: BackupTargetInput, hosts = allowedHosts()) {
   if (!body || !['sftp', 'webdav', 's3'].includes(body.type) || typeof body.name !== 'string' || !body.name.trim() || body.name.length > 80)
     throw new BackupError('INVALID_CONFIG', '存储类型或名称无效')
   if (typeof body.host !== 'string' || /[\r\n\0]/.test(body.host)) throw new BackupError('INVALID_CONFIG', '服务器地址无效')
@@ -147,7 +147,7 @@ export function validateTarget(body: BackupTargetInput) {
       throw new BackupError('INVALID_CONFIG', '服务地址必须使用 HTTPS，不能内嵌凭据或查询参数')
     hostname = url.hostname.toLowerCase()
   } else if (!/^[a-zA-Z0-9.:-]+$/.test(hostname)) throw new BackupError('INVALID_CONFIG', 'SFTP 主机名无效')
-  if (!allowedHosts().includes(hostname)) throw new BackupError('HOST_NOT_ALLOWED', '请先在部署端 BACKUP_ALLOWED_HOSTS 中允许该服务器主机')
+  if (!hosts.includes(hostname)) throw new BackupError('HOST_NOT_ALLOWED', '请先在备份设置的服务器允许列表中添加该主机')
   for (const field of ['path', 'username', 'bucket', 'region'] as const)
     if (typeof body[field] !== 'string' || /[\r\n\0]/.test(body[field]) || body[field].length > 1024) throw new BackupError('INVALID_CONFIG', '存储字段无效')
   if (body.path.split('/').includes('..') || body.path.includes('\\') || (body.type === 'sftp' && !body.path.startsWith('/')))

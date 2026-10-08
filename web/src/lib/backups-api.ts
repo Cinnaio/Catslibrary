@@ -1,9 +1,23 @@
-import type { BackupEvent, BackupOverview, BackupPage, BackupPolicy, BackupTarget, BackupTargetInput, BackupTask, BackupVersion } from '@shared/backups'
+import type {
+  BackupEvent,
+  BackupOverview,
+  BackupPage,
+  BackupPolicy,
+  BackupSettings,
+  BackupSettingsInput,
+  BackupSettingsPage,
+  BackupTarget,
+  BackupTargetInput,
+  BackupTask,
+  BackupVersion,
+} from '@shared/backups'
 import { request, authHeaders, url } from './api'
 
 const root = '/admin/backups'
 const operation = () => ({ operationId: crypto.randomUUID() })
 export const backupsApi = {
+  settings: () => request<BackupSettingsPage>('GET', `${root}/settings`, null, true),
+  saveSettings: (body: BackupSettingsInput) => request<BackupSettings>('PUT', `${root}/settings`, body, true),
   overview: () => request<BackupOverview>('GET', `${root}/overview`, null, true),
   versions: (page: number) => request<BackupPage<BackupVersion>>('GET', `${root}/versions?limit=20&offset=${(page - 1) * 20}`, null, true),
   logs: (page: number, taskId = '', level = '') =>

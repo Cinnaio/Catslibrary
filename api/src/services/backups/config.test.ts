@@ -55,3 +55,12 @@ describe('备份配置与凭据', () => {
     for (const host of ['169.254.169.254', '127.0.0.1', '::1']) await expect(permittedAddress(host)).rejects.toThrow()
   })
 })
+
+describe('后台允许列表配置', () => {
+  it('去重与规范化，拒绝 URL、端口、通配符和配置注入', async () => {
+    const { normalizeHosts } = await import('./settings')
+    expect(normalizeHosts([' Backup.Example.com ', 'backup.example.com', '10.1.1.4', '::1'])).toEqual(['backup.example.com', '10.1.1.4', '::1'])
+    for (const hosts of [['https://example.com'], ['example.com:22'], ['*.example.com'], ['host\npassword=x'], 'all'])
+      expect(() => normalizeHosts(hosts)).toThrow()
+  })
+})

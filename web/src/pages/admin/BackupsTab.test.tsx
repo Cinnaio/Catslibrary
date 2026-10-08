@@ -5,6 +5,8 @@ import type { BackupOverview } from '@shared/backups'
 
 const mock = vi.hoisted(() => ({
   overview: vi.fn(),
+  settings: vi.fn(),
+  saveSettings: vi.fn(),
   versions: vi.fn(),
   logs: vi.fn(),
   backup: vi.fn(),
@@ -120,5 +122,52 @@ describe('备份后台', () => {
     fireEvent.click(screen.getByRole('button', { name: '详情' }))
     expect(screen.getByRole('button', { name: '预检恢复此版本' })).toBeDisabled()
     expect(screen.queryByRole('button', { name: '创建保护备份并回滚' })).not.toBeInTheDocument()
+  })
+})
+
+describe('前端备份设置', () => {
+  const settings = {
+    revision: 0,
+    hostSource: 'environment',
+    allowedHosts: ['backup.example.com'],
+    rehearsalSource: 'environment',
+    rehearsalConfigured: false,
+    rehearsalLabel: '',
+    retryLimit: 3,
+    logRetentionDays: 180,
+  }
+  const deployment = {
+    environmentAllowedHosts: ['backup.example.com'],
+    localDirectory: '/data/backups',
+    keyId: 'default',
+    encryption: true,
+    dump: true,
+    restore: true,
+    transfer: true,
+  }
+  beforeEach(() => mock.settings.mockResolvedValue({ settings, deployment }))
+  it('编辑重试和保留期限，失败保持草稿并可撤销', async () => {
+    mock.saveSettings.mockRejectedValue(new Error('设置已更新，请重新加载'))
+    show('settings')
+    await screen.findByLabelText('远程失败自动重试次数')
+    expect(screen.getByRole('button', { name: '保存设置' })).toBeDisabled()
+    expect(screen.getByLabelText('允许连接的服务器')).toBeDisabled()
+    expect(screen.getByText('/data/backups')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('远程失败自动重试次数'), { target: { value: '0' } })
+    fireEvent.change(screen.getByLabelText('常规日志保留天数'), { target: { value: '90' } })
+    fireEvent.click(screen.getByRole('button', { name: '保存设置' }))
+    await screen.findByText('设置已更新，请重新加载')
+    expect(mock.saveSettings).toHaveBeenCalledWith(expect.objectContaining({ retryLimit: 0, logRetentionDays: 90, hostSource: 'environment' }))
+    expect(screen.getByLabelText('常规日志保留天数')).toHaveValue(90)
+    fireEvent.click(screen.getByRole('button', { name: '撤销修改' }))
+    expect(screen.getByLabelText('常规日志保留天数')).toHaveValue(180)
+    expect(screen.getByRole('button', { name: '保存设置' })).toBeDisabled()
+  })
+  it('维护期间禁用设置保存', async () => {
+    mock.overview.mockResolvedValue({ ...overview, maintenance: true })
+    show('settings')
+    await screen.findByText('本地与运行环境')
+    expect(screen.getByLabelText('常规日志保留天数')).toBeDisabled()
+    expect(screen.getByRole('button', { name: '保存设置' })).toBeDisabled()
   })
 })

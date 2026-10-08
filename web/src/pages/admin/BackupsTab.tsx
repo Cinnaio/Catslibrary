@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { Download, RotateCcw, Pin, Trash2, RefreshCw, Plus } from 'lucide-react'
-import type { BackupEvent, BackupOverview, BackupPage, BackupTarget, BackupTask, BackupVersion } from '@shared/backups'
+import type { BackupEvent, BackupOverview, BackupPage, BackupSettingsPage, BackupTarget, BackupTask, BackupVersion } from '@shared/backups'
 import { backupsApi, saveBlob } from '@/lib/backups-api'
 import { useConfirm, useToast } from '@/components/feedback'
 import AdminPage from '@/components/admin/AdminPage'
@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/input'
 import { Dialog, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import BackupSettingsForm from './backups/BackupSettingsForm'
 import { TargetForm, PolicyForm } from './backups/BackupForms'
 import '@/styles/admin/pages/backups.css'
 
@@ -39,7 +40,7 @@ const kinds: Record<string, string> = { backup: '备份', test: '连接测试', 
 const date = (value: number) => (value ? new Date(value).toLocaleString('zh-CN') : '—')
 const size = (value: number) =>
   value >= 1073741824 ? `${(value / 1073741824).toFixed(2)} GB` : value >= 1048576 ? `${(value / 1048576).toFixed(1)} MB` : `${(value / 1024).toFixed(1)} KB`
-const titles: Record<string, string> = { versions: '备份版本', targets: '存储目标', schedule: '自动备份', logs: '操作日志' }
+const titles: Record<string, string> = { versions: '备份版本', targets: '存储目标', schedule: '自动备份', logs: '操作日志', settings: '备份设置' }
 function Status({ state }: { state: string }) {
   return (
     <AdminStatusBadge
@@ -66,6 +67,7 @@ export default function BackupsTab() {
   const [overview, setOverview] = useState<BackupOverview | null>(null),
     [list, setList] = useState<BackupPage<BackupVersion>>({ items: [], total: 0 }),
     [logs, setLogs] = useState<BackupPage<BackupEvent>>({ items: [], total: 0 })
+  const [settings, setSettings] = useState<BackupSettingsPage | null>(null)
   const [page, setPage] = useState(1),
     [level, setLevel] = useState(''),
     [reload, setReload] = useState(0),
@@ -95,12 +97,14 @@ export default function BackupsTab() {
       backupsApi.overview(),
       view === 'versions' ? backupsApi.versions(page) : Promise.resolve(null),
       view === 'logs' ? backupsApi.logs(page, '', level) : Promise.resolve(null),
+      view === 'settings' ? backupsApi.settings() : Promise.resolve(null),
     ])
-      .then(([data, versions, events]) => {
+      .then(([data, versions, events, settingsPage]) => {
         if (sequence !== requestSequence.current) return
         setOverview(data)
         if (versions) setList(versions)
         if (events) setLogs(events)
+        if (settingsPage) setSettings(settingsPage)
         setError('')
       })
       .catch((e) => {
@@ -192,7 +196,9 @@ export default function BackupsTab() {
             ? '同时保留本地版本，并将加密副本发送到 SSH 服务器。'
             : view === 'schedule'
               ? '设置执行时间、备份位置与版本保留数量。'
-              : '查看备份、传输、预检与回滚的执行记录。'
+              : view === 'settings'
+                ? '管理服务器访问、恢复演练与任务保留设置。'
+                : '查看备份、传输、预检与回滚的执行记录。'
       }
       className="backup-page"
       actions={
@@ -243,6 +249,7 @@ export default function BackupsTab() {
             <div className="backup-notice">
               <strong>部署准备</strong>
               <p>尚未就绪：{dependencies.join('、')}。配置完成后，相应操作会自动开放。</p>
+              {view !== 'settings' && <Link to="/admin/backups?view=settings">前往备份设置</Link>}
             </div>
           )}
           {view === 'versions' && (
@@ -408,6 +415,18 @@ export default function BackupsTab() {
               targets={overview.targets}
               onSaved={() => {
                 toast('自动备份计划已保存', 'success')
+                refresh()
+              }}
+            />
+          )}
+          {view === 'settings' && settings && (
+            <BackupSettingsForm
+              key={settings.settings.revision}
+              page={settings}
+              disabled={overview.maintenance}
+              onSaved={(value) => {
+                setSettings((previous) => (previous ? { ...previous, settings: value } : previous))
+                toast('备份设置已保存', 'success')
                 refresh()
               }}
             />

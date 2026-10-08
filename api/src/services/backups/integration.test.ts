@@ -1,3 +1,4 @@
+import { backupSettings, rehearsalConnection, saveBackupSettings } from './settings'
 import { Pool } from 'pg'
 import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -38,6 +39,20 @@ describe.skipIf(!connection)('真实 PostgreSQL 全链路（仅专用测试库�
     if (pool) await pool.end()
     if (root) await rm(root, { recursive: true, force: true })
     vi.unstubAllEnvs()
+  })
+  it('后台演练库配置真实验证，加密保存且不回显，错误配置不生效', async () => {
+    const initial = await backupSettings(db)
+    const url = process.env.BACKUP_INTEGRATION_REHEARSAL_URL!
+    const saved = await saveBackupSettings(db, { ...initial, rehearsalSource: 'custom', rehearsalUrl: url })
+    expect(saved.rehearsalConfigured).toBe(true)
+    expect(JSON.stringify(saved)).not.toContain(url)
+    const row = (await db.query<{ value: string }>("SELECT value FROM backup_control.settings WHERE key='runtime'")).rows[0]!.value
+    expect(row).not.toContain(url)
+    vi.stubEnv('BACKUP_REHEARSAL_DATABASE_URL', '')
+    expect(await rehearsalConnection(db)).toBe(url)
+    await expect(saveBackupSettings(db, { ...saved, rehearsalSource: 'custom', rehearsalUrl: connection! })).rejects.toThrow()
+    await expect(saveBackupSettings(db, { ...saved, rehearsalUrl: url.replace('backup_rehearsal', 'backup_disaster') })).rejects.toThrow()
+    expect((await backupSettings(db)).revision).toBe(saved.revision)
   })
   it('创建加密版本，真实隔离演练并恢复指定版本，控制日志不回滚', async () => {
     const backup = await enqueue(db, 'backup', { operationId: 'integration-backup-1', targetIds: [] }, { id: 'backup-admin', name: '管理员' })
@@ -89,6 +104,7 @@ describe.skipIf(!connection)('真实 PostgreSQL 全链路（仅专用测试库�
     await writeFile(archivePath(manifest.id), Buffer.from('corrupt'))
     await expect(rehearse(db, manifest)).rejects.toThrow()
     await writeFile(archivePath(manifest.id), original)
+    await saveBackupSettings(db, { ...(await backupSettings(db)), rehearsalSource: 'environment' })
     vi.stubEnv('BACKUP_REHEARSAL_DATABASE_URL', connection!)
     await expect(rehearse(db, manifest)).rejects.toThrow('不能与业务数据库相同')
     vi.stubEnv('BACKUP_REHEARSAL_DATABASE_URL', process.env.BACKUP_INTEGRATION_REHEARSAL_URL || '')
@@ -124,7 +140,8 @@ describe.skipIf(!connection)('真实 PostgreSQL 全链路（仅专用测试库�
     '真实 SFTP 上传、回读校验、远程取回及主机身份拒绝',
     async () => {
       const host = process.env.BACKUP_INTEGRATION_SFTP_HOST!
-      vi.stubEnv('BACKUP_ALLOWED_HOSTS', host)
+      vi.stubEnv('BACKUP_ALLOWED_HOSTS', '')
+      await saveBackupSettings(db, { ...(await backupSettings(db)), hostSource: 'custom', allowedHosts: [host] })
       vi.stubEnv('BACKUP_RCLONE_PATH', process.env.BACKUP_INTEGRATION_RCLONE_PATH!)
       const key = (await readFile(process.env.BACKUP_INTEGRATION_SFTP_HOST_KEY!, 'utf8')).trim().split(' ').slice(0, 2).join(' ')
       const target = await saveTarget(db, {
@@ -163,10 +180,33 @@ describe.skipIf(!connection)('真实 PostgreSQL 全链路（仅专用测试库�
         ...row,
         config: JSON.stringify({ ...JSON.parse(row.config), hostKey: 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZm' }),
       }
-      await expect(testRemote(altered)).rejects.toThrow()
+      await expect(testRemote(altered, db)).rejects.toThrow()
     },
     60000,
   )
+  it('后台日志期限被 Worker 读取，恢复日志保留，任务锁拒绝配置变更', async () => {
+    const current = await backupSettings(db)
+    const client = await db.connect()
+    try {
+      await client.query('SELECT pg_advisory_lock(730047)')
+      await expect(saveBackupSettings(db, { ...current, logRetentionDays: 7 })).rejects.toThrow('备份任务正在执行')
+    } finally {
+      await client.query('SELECT pg_advisory_unlock(730047)')
+      client.release()
+    }
+    await saveBackupSettings(db, { ...current, logRetentionDays: 7 })
+    await db.query(
+      "INSERT INTO backup_control.events(task_id,level,message,created_at) VALUES('integration-old-backup','info','过期普通日志',$1),('integration-old-restore','info','恢复记录',$1)",
+      [Date.now() - 8 * 86400000],
+    )
+    const task = await enqueue(db, 'backup', { operationId: 'integration-logs-settings', targetIds: [] }, { id: 'backup-admin', name: '管理员' })
+    await db.query("UPDATE backup_control.events SET task_id=$1 WHERE task_id='integration-old-backup'", [task.id])
+    const restore = (await db.query<{ id: string }>("SELECT id FROM backup_control.tasks WHERE kind='restore' LIMIT 1")).rows[0]!.id
+    await db.query("UPDATE backup_control.events SET task_id=$1 WHERE task_id='integration-old-restore'", [restore])
+    await runBackupTick(db)
+    expect((await db.query("SELECT * FROM backup_control.events WHERE message='过期普通日志'")).rows).toHaveLength(0)
+    expect((await db.query("SELECT * FROM backup_control.events WHERE message='恢复记录'")).rows).toHaveLength(1)
+  })
   it('重启识别中断任务；恢复保持维护，不自动重放', async () => {
     const backup = await enqueue(db, 'backup', { operationId: 'integration-interrupted' }, { id: 'backup-admin', name: '管理员' })
     await db.query("UPDATE backup_control.tasks SET state='running',kind='restore' WHERE id=$1", [backup.id])

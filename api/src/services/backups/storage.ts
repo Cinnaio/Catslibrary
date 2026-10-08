@@ -3,6 +3,7 @@ import { isIP, BlockList } from 'node:net'
 import { mkdtemp, mkdir, writeFile, rm, rename, lstat } from 'node:fs/promises'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
+import { backupSettings } from './settings'
 import type { Db } from '../../db/pool'
 import { all } from '../../db/query'
 import { first } from '../../db/query'
@@ -11,8 +12,8 @@ import { archivePath, digestFile, versionDirectory, verifyManifest, type Manifes
 import { command, transferTool } from './process'
 import { type TargetRow, targetView } from './store'
 
-export async function permittedAddress(host: string) {
-  if (!allowedHosts().includes(host.toLowerCase())) throw new BackupError('HOST_NOT_ALLOWED', '服务器未在部署允许列表中')
+export async function permittedAddress(host: string, hosts = allowedHosts()) {
+  if (!hosts.includes(host.toLowerCase())) throw new BackupError('HOST_NOT_ALLOWED', '服务器未在备份设置允许列表中')
   const blocked = new BlockList()
   blocked.addSubnet('127.0.0.0', 8)
   blocked.addSubnet('169.254.0.0', 16)
@@ -25,10 +26,10 @@ export async function permittedAddress(host: string) {
     throw new BackupError('HOST_NOT_ALLOWED', '拒绝连接回环、链路本地或元数据地址')
   return results[0]!.address
 }
-async function withRemote<T>(row: TargetRow, work: (run: (args: string[]) => Promise<string>, remote: string) => Promise<T>) {
+async function withRemote<T>(row: TargetRow, work: (run: (args: string[]) => Promise<string>, remote: string) => Promise<T>, db?: Db) {
   const target = targetView(row)
   if (target.type !== 'sftp') throw new BackupError('UNSUPPORTED_TARGET', '当前版本支持 SFTP，云盘适配器将在后续接入')
-  const host = await permittedAddress(target.host),
+  const host = await permittedAddress(target.host, db ? (await backupSettings(db)).allowedHosts : allowedHosts()),
     credential = unseal<{ password: string; privateKey: string }>(row.secret)
   await mkdir(path.join(backupRoot(), 'work'), { recursive: true, mode: 0o700 })
   const dir = await mkdtemp(path.join(backupRoot(), 'work', 'remote-'))
@@ -59,55 +60,63 @@ async function withRemote<T>(row: TargetRow, work: (run: (args: string[]) => Pro
     await rm(dir, { recursive: true, force: true })
   }
 }
-export async function testRemote(row: TargetRow) {
-  return withRemote(row, async (run, remote) => {
-    const dir = await mkdtemp(path.join(backupRoot(), 'work', 'test-')),
-      file = path.join(dir, 'probe'),
-      retrieved = path.join(dir, 'retrieved')
-    const object = `${remote}/.zhi-zhou-test-${randomUUID()}`
-    try {
-      await writeFile(file, randomUUID(), { mode: 0o600 })
-      await run(['copyto', file, object])
-      await run(['copyto', object, retrieved])
-      if ((await digestFile(file)) !== (await digestFile(retrieved))) throw new BackupError('TARGET_VERIFY_FAILED', '远程读取校验失败')
-    } finally {
+export async function testRemote(row: TargetRow, db?: Db) {
+  return withRemote(
+    row,
+    async (run, remote) => {
+      const dir = await mkdtemp(path.join(backupRoot(), 'work', 'test-')),
+        file = path.join(dir, 'probe'),
+        retrieved = path.join(dir, 'retrieved')
+      const object = `${remote}/.zhi-zhou-test-${randomUUID()}`
       try {
-        await run(['deletefile', object])
+        await writeFile(file, randomUUID(), { mode: 0o600 })
+        await run(['copyto', file, object])
+        await run(['copyto', object, retrieved])
+        if ((await digestFile(file)) !== (await digestFile(retrieved))) throw new BackupError('TARGET_VERIFY_FAILED', '远程读取校验失败')
       } finally {
-        await rm(dir, { recursive: true, force: true })
+        try {
+          await run(['deletefile', object])
+        } finally {
+          await rm(dir, { recursive: true, force: true })
+        }
       }
-    }
-  })
+    },
+    db,
+  )
 }
-export async function uploadRemote(row: TargetRow, manifest: Manifest) {
-  return withRemote(row, async (run, remote) => {
-    const prefix = `${remote}/${manifest.siteId}/${manifest.id}`,
-      check = path.join(versionDirectory(manifest.id), `verify-${randomUUID()}.tmp`)
-    try {
-      // 不覆盖完整副本；存在完成标记时仍读取密文做完整摘要核验。
-      let exists = false,
-        saved: { digest: string; signature: string } | null = null
+export async function uploadRemote(row: TargetRow, manifest: Manifest, db?: Db) {
+  return withRemote(
+    row,
+    async (run, remote) => {
+      const prefix = `${remote}/${manifest.siteId}/${manifest.id}`,
+        check = path.join(versionDirectory(manifest.id), `verify-${randomUUID()}.tmp`)
       try {
-        saved = JSON.parse(await run(['cat', `${prefix}/complete.json`]))
-      } catch {
-        /* 尚无完成标记 */
+        // 不覆盖完整副本；存在完成标记时仍读取密文做完整摘要核验。
+        let exists = false,
+          saved: { digest: string; signature: string } | null = null
+        try {
+          saved = JSON.parse(await run(['cat', `${prefix}/complete.json`]))
+        } catch {
+          /* 尚无完成标记 */
+        }
+        if (saved) {
+          if (saved.digest !== manifest.digest || saved.signature !== manifest.signature)
+            throw new BackupError('TARGET_CONFLICT', '远程已存在内容不同的完整版本，拒绝覆盖')
+          exists = true
+        }
+        if (!exists) {
+          await run(['copyto', archivePath(manifest.id), `${prefix}/archive.zzbackup`])
+          await run(['copyto', path.join(versionDirectory(manifest.id), 'manifest.json'), `${prefix}/manifest.json`])
+        }
+        await run(['copyto', `${prefix}/archive.zzbackup`, check])
+        if ((await digestFile(check)) !== manifest.digest) throw new BackupError('TARGET_VERIFY_FAILED', '远程副本摘要不一致')
+        await run(['copyto', path.join(versionDirectory(manifest.id), 'complete.json'), `${prefix}/complete.json`])
+      } finally {
+        await rm(check, { force: true })
       }
-      if (saved) {
-        if (saved.digest !== manifest.digest || saved.signature !== manifest.signature)
-          throw new BackupError('TARGET_CONFLICT', '远程已存在内容不同的完整版本，拒绝覆盖')
-        exists = true
-      }
-      if (!exists) {
-        await run(['copyto', archivePath(manifest.id), `${prefix}/archive.zzbackup`])
-        await run(['copyto', path.join(versionDirectory(manifest.id), 'manifest.json'), `${prefix}/manifest.json`])
-      }
-      await run(['copyto', `${prefix}/archive.zzbackup`, check])
-      if ((await digestFile(check)) !== manifest.digest) throw new BackupError('TARGET_VERIFY_FAILED', '远程副本摘要不一致')
-      await run(['copyto', path.join(versionDirectory(manifest.id), 'complete.json'), `${prefix}/complete.json`])
-    } finally {
-      await rm(check, { force: true })
-    }
-  })
+    },
+    db,
+  )
 }
 export async function ensureLocalArchive(db: Db, id: string, manifest: Manifest) {
   verifyManifest(manifest)
@@ -132,19 +141,23 @@ export async function ensureLocalArchive(db: Db, id: string, manifest: Manifest)
           next = targetView(current)
         if (['type', 'host', 'port', 'path', 'username'].every((key) => old[key as keyof typeof old] === next[key as keyof typeof next])) target = current
       }
-      await withRemote(target, async (run, remote) => {
-        const prefix = `${remote}/${manifest.siteId}/${id}`,
-          file = path.join(versionDirectory(id), 'download.tmp')
-        try {
-          const marker = JSON.parse(await run(['cat', `${prefix}/complete.json`]))
-          if (marker.digest !== manifest.digest || marker.signature !== manifest.signature) throw new BackupError('ARCHIVE_CORRUPT', '远程完成标记不匹配')
-          await run(['copyto', `${prefix}/archive.zzbackup`, file])
-          if ((await digestFile(file)) !== manifest.digest) throw new BackupError('ARCHIVE_CORRUPT', '远程文件损坏')
-          await rename(file, archivePath(id))
-        } finally {
-          await rm(file, { force: true })
-        }
-      })
+      await withRemote(
+        target,
+        async (run, remote) => {
+          const prefix = `${remote}/${manifest.siteId}/${id}`,
+            file = path.join(versionDirectory(id), 'download.tmp')
+          try {
+            const marker = JSON.parse(await run(['cat', `${prefix}/complete.json`]))
+            if (marker.digest !== manifest.digest || marker.signature !== manifest.signature) throw new BackupError('ARCHIVE_CORRUPT', '远程完成标记不匹配')
+            await run(['copyto', `${prefix}/archive.zzbackup`, file])
+            if ((await digestFile(file)) !== manifest.digest) throw new BackupError('ARCHIVE_CORRUPT', '远程文件损坏')
+            await rename(file, archivePath(id))
+          } finally {
+            await rm(file, { force: true })
+          }
+        },
+        db,
+      )
       await writeFile(path.join(versionDirectory(id), 'manifest.json'), JSON.stringify(manifest), { mode: 0o600 })
       await writeFile(path.join(versionDirectory(id), 'complete.json'), JSON.stringify({ digest: manifest.digest, signature: manifest.signature }), {
         mode: 0o600,
@@ -157,10 +170,14 @@ export async function ensureLocalArchive(db: Db, id: string, manifest: Manifest)
   }
   throw new BackupError('ARCHIVE_UNAVAILABLE', '没有可读取且通过校验的本地或远程副本')
 }
-export async function deleteRemote(row: TargetRow, manifest: Manifest) {
-  return withRemote(row, async (run, remote) => {
-    // rclone delete 按明确文件删除；不递归 purge 用户目录。
-    for (const file of ['complete.json', 'manifest.json', 'archive.zzbackup'])
-      await run(['delete', `${remote}/${manifest.siteId}/${manifest.id}`, '--include', file])
-  })
+export async function deleteRemote(row: TargetRow, manifest: Manifest, db?: Db) {
+  return withRemote(
+    row,
+    async (run, remote) => {
+      // rclone delete 按明确文件删除；不递归 purge 用户目录。
+      for (const file of ['complete.json', 'manifest.json', 'archive.zzbackup'])
+        await run(['delete', `${remote}/${manifest.siteId}/${manifest.id}`, '--include', file])
+    },
+    db,
+  )
 }
