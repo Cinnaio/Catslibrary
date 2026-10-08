@@ -8,6 +8,7 @@
   --detail-inset: var(--bg-secondary);
   --detail-line: var(--border);
   min-height: calc(100vh - var(--header-height));
+  min-height: calc(100dvh - var(--header-height));
   padding: 36px 0 64px;
   background: var(--bg-secondary);
 }
@@ -854,7 +855,7 @@
   .rating-picker { grid-column: 1 / -1; }
 }
 @media (max-width: 600px) {
-  .detail-page { padding: 24px 0 40px; }
+  .detail-page { padding: 24px 0 var(--page-end-space); }
   .detail-shell { gap: 24px; padding-inline: 16px; }
   .novel-hero { grid-template-columns: 88px minmax(0, 1fr); gap: 18px; }
   .novel-hero__cover { width: 88px; }

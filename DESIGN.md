@@ -91,6 +91,7 @@ spacing:
   lg: "24px"
   xl: "32px"
   2xl: "48px"
+  page-end-mobile: "24px + safe-area-inset-bottom"
 components:
   novel-card-typography:
     titleSize: "0.875rem"
@@ -300,6 +301,8 @@ components:
 ## Layout
 
 内容驱动的流式布局，最大宽度 1200px（--max-width-content），阅读器收窄到 680px（--max-width-reader）。
+
+移动端页尾沿内容自然收束：公共页面使用 `--page-end-space`（24px 加设备底部安全区），后台共用内容区为 16px 加安全区；首页签名区取消固定最小高度。页面画布采用 `100dvh` 跟随浏览器可见高度，不用超过一屏的最小高度撑出空白，也不为浏览器地址栏另加占位。阅读页仅预留当前工具栏高度（收起 44px、展开 68px）、16px 间距及安全区，页尾返回按钮至少 44px，正文末尾和章节导航保持正常阅读节奏。
 
 - **公共页面**: 居中容器，20px 内边距，纵向流动。小说网格使用 auto-fill + minmax(330px, 1fr)，间距 36px × 44px。
 - **首页例外（2026-10-02 用户追加调整）**: `Home` 使用最大 1200px 的暖灰纸面书库，桌面标题左、搜索右，hero 为 1:1.1 双列、间距 64px，1050px 以下间距 32px，700px 以下改为纵向居中。书目网格700px以上两列、700px以下单列；间距桌面16px、手机12px。手机容器内边距16px。首页不再展示最近阅读；完整表面策略见 `.impeccable/surfaces/web-src-pages-home-tsx.md`。

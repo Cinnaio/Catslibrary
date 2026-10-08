@@ -81,7 +81,7 @@
   }
   .admin__main {
     padding: 16px;
-    min-height: 120vh;
+    min-height: 0;
   }
 
   .dashboard-panels {
@@ -304,9 +304,6 @@
   }
 
   /* Reader */
-  .reader-app {
-    padding-bottom: calc(140px + env(safe-area-inset-bottom));
-  }
   .reader-top {
     display: flex;
     grid-template-columns: none;

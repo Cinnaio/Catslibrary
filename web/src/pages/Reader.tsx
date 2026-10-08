@@ -1127,7 +1127,7 @@ export default function Reader() {
   const nid = chapter.novelId || novelId
 
   return (
-    <div ref={readerAppRef} className={`reader-app${pageMode ? ' reader-page-mode' : ''}${readerClickPaging ? '' : ' reader-click-paging-off'}`} data-reader-theme={readerTheme}>
+    <div ref={readerAppRef} className={`reader-app${pageMode ? ' reader-page-mode' : ''}${readerClickPaging ? '' : ' reader-click-paging-off'}`} data-reader-theme={readerTheme} data-mobile-toolbar={mobileBarHidden ? 'collapsed' : 'expanded'}>
       <div className="reader-shell">
         {/* Top bar */}
         <div className="reader-top">

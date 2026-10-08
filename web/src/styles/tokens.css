@@ -4,6 +4,8 @@
    ============================================================ */
 
 :root {
+  /* 页尾保留纸面呼吸空间与设备安全区，不预留浏览器工具栏。 */
+  --page-end-space: calc(24px + env(safe-area-inset-bottom, 0px));
   color-scheme: light;
 
   /* Light theme — clean white, warm neutrals, milk-tea brown */

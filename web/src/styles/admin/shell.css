@@ -3,6 +3,7 @@
    画布、表格、表头、侧栏的语义表面阶梯和间距表达。 */
 .admin-layout {
   background: var(--admin-canvas);
+  min-height: 100dvh;
 }
 
 .admin-layout__inset {
@@ -337,6 +338,12 @@ body:has(.admin-sidebar[data-mobile='true']) [data-slot='sheet-overlay'] {
 
 .admin-layout__content {
   background: transparent;
+}
+
+@media (max-width: 767px) {
+  .admin-layout__content {
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  }
 }
 
 .tab-content {
