@@ -24,6 +24,7 @@
 
 - 页头提供页面名、说明和整页动作。筛选条件属于工具栏。
 - 数据表面使用 `AdminDataPanel`。`columns` 只配置列宽；真实单元格仍需 `data-label`、`data-primary`、`data-actions`。
+- 桌面端（901px 及以上）表格是数据面板首段时，直属的 `[data-slot='table-container']:first-child` 统一读取 `--admin-data-panel-radius`（20px），利用共享 `Table` 的横向滚动与纵向裁切只设置左右上角，底部两角为 0，保持表头下沿平直；空态为表格后的同级元素时，不能让仅含表头的容器出现底部圆角。空态、加载态和有数据时一致。此规则由 `components/tables.css` 提供，不按页面复制；有前置标题或工具条时不额外给内部表格顶部添加外轮廓圆角。小说、章节沿用已有独立表格圆角，移动端沿用连续卡片契约。
 - 表格在 900px 及以下按已有契约转为卡片。含跨列展开的审计表可保留横向滚动。
 - `Pagination` 的 `panel` 与 `detached` 变体共用翻页和页大小行为，不另写一套页脚。
 - 两种分页变体的每页条数选择器、翻页按钮和页码输入框统一使用 `--admin-pagination-control-size`（32px）的高度与最小高度，由 `components/pagination.css` 提供，不能继承后台普通控件的 40px 高度。宽度按用途保留：条数选择器使用 `--admin-pagination-page-size-width`，图标按钮为正方形，文字按钮随文案，页码输入框使用 `--admin-pagination-jump-width` 并居中数字。新增列表需复用这些规则，验收时检查普通与外置分页、明暗主题和窄屏。

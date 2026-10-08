@@ -70,7 +70,14 @@
   }
 }
 
-/* 数据表格的表头、分隔线和行反馈使用同一组语义 token；不改变列宽或布局。 */
+/* 表格作为面板首段时，由滚动容器裁切表头底色，保持面板顶部圆弧。
+   有前置工具条的面板不套用首段规则；小说/章节保留已有独立表格圆角。 */
+@media (min-width: 901px) {
+  .admin-data-panel--grid > [data-slot='table-container']:first-child {
+    border-radius: var(--admin-data-panel-radius) var(--admin-data-panel-radius) 0 0;
+  }
+}
+
 .admin-redesign-page--novels .novels-data-panel > [data-slot='table-container'],
 .admin-redesign-page--chapters .chapter-directory-panel > [data-slot='table-container'] {
   border-radius: var(--admin-data-panel-radius);
