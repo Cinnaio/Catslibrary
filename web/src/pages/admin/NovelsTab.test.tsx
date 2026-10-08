@@ -33,3 +33,11 @@ it('修改分级携带打开弹窗时的真实修订号，冲突时保留弹窗�
   await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith(expect.stringContaining('分级已被其他管理员修改'), 'error'))
   expect(screen.getByLabelText('内容分级')).toHaveValue('restricted')
 })
+
+it('勾选作品后可以打开批量追更设置，范围是已选作品', async () => {
+  render(<MemoryRouter><NovelsTab /></MemoryRouter>)
+  fireEvent.click(await screen.findByRole('checkbox', { name: '选择小说：测试书' }))
+  fireEvent.click(screen.getByRole('button', { name: '批量追更设置' }))
+  expect(await screen.findByRole('heading', { name: '批量追更设置' })).toBeInTheDocument()
+  expect(screen.getByText('将设置应用到选中的 1 本作品。')).toBeInTheDocument()
+})

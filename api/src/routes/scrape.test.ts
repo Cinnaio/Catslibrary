@@ -66,6 +66,17 @@ describe('scrape 路由（免网络动作）', () => {
     await expect(saved.json()).resolves.toMatchObject({ enabled: true, intervalHours: 3, hasConfig: true })
   })
 
+  it('批量追更设置要求管理员权限并验证输入，不会直接启动抓取', async () => {
+    const body = { action: 'followup-batch-save', novelIds: ['follow-route'], mode: 'enable', intervalHours: 6 }
+    expect((await req('/api/scrape', json('POST', body))).status).toBe(401)
+    const saved = await req('/api/scrape', json('POST', body, adminToken))
+    expect(saved.status).toBe(200)
+    await expect(saved.json()).resolves.toMatchObject({ saved: 1, skipped: 0 })
+    expect((await t.db.query("SELECT COUNT(*)::integer AS count FROM scrape_jobs WHERE novel_id='follow-route'")).rows[0]).toMatchObject({ count: 0 })
+    expect((await req('/api/scrape', json('POST', { ...body, novelIds: [] }, adminToken))).status).toBe(400)
+    expect((await req('/api/scrape', json('POST', { ...body, mode: 'invalid' }, adminToken))).status).toBe(400)
+  })
+
   it('detect：静态预设命中 czbooks，未命中返回 false', async () => {
     const hit = await req('/api/scrape', json('POST', { action: 'detect', sourceUrl: 'https://www.czbooks.net/n/123/' }, adminToken))
     expect(hit.status).toBe(200)

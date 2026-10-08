@@ -1,3 +1,4 @@
+import BatchNovelFollowupDialog from '@/components/admin/BatchNovelFollowupDialog'
 import NovelUpdateTag from '@/components/admin/NovelUpdateTag'
 /**
  * 小说管理 tab —— 小说列表 / 搜索 / 排序 / 分页 / 增删改 / 批量操作。
@@ -154,6 +155,8 @@ function NovelSortButton({
 }
 
 export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { highlightNovelId?: string; onHighlightConsumed?: () => void }) {
+  const [batchFollowupNovels, setBatchFollowupNovels] = useState<Array<{ id: string; title: string }> | null>(null)
+  const novelTitleCache = useRef(new Map<string, string>())
   const [followupNovel, setFollowupNovel] = useState<Novel | null>(null)
   const navigate = useNavigate()
   const { toast } = useToast()
@@ -218,6 +221,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
       if (seq !== seqRef.current) return
       const rows = Array.isArray(data.novels) ? data.novels : []
       const tp = data.totalPages || 1
+      rows.forEach(novel => novelTitleCache.current.set(novel.id, novel.title))
       setNovels(rows)
       setTotalPages(tp)
       setTotal(data.total || 0)
@@ -331,7 +335,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
 
   function titleFor(id: string): string {
     const n = novels.find((x) => x.id === id)
-    return n ? n.title : id.slice(0, 8)
+    return n ? n.title : novelTitleCache.current.get(id) || id.slice(0, 8)
   }
 
   // --- Modal ---
@@ -520,7 +524,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
     <AdminPage
       className="admin-redesign-page--novels"
       title="小说管理"
-      description="维护书库作品、分类与连载状态，批量更新只作用于当前列表。"
+      description="维护书库作品、分类与连载状态，勾选作品后可批量更新或设置追更。"
       actions={
         <>
           <Button onClick={() => setBookImportOpen(true)}>
@@ -566,6 +570,9 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
         <AdminSelectionBar count={selected.size} label={`已选 ${selected.size} 本`} onClear={() => setSelected(new Set())} clearPlacement="selection">
           <Button variant="secondary" size="sm" onClick={() => void handleBatchUpdate()}>
             批量更新
+          </Button>
+          <Button variant="secondary" size="sm" onClick={() => setBatchFollowupNovels(Array.from(selected, id => ({ id, title: titleFor(id) })))}>
+            批量追更设置
           </Button>
           <Button variant="secondary" size="sm" onClick={invertSelection}>
             反选
@@ -723,6 +730,7 @@ export default function NovelsTab({ highlightNovelId, onHighlightConsumed }: { h
         </Table>
       </AdminDataPanel>
 
+      {batchFollowupNovels && <BatchNovelFollowupDialog novels={batchFollowupNovels} onClose={() => setBatchFollowupNovels(null)} />}
       {followupNovel && <NovelFollowupDialog key={followupNovel.id} novel={followupNovel} onClose={() => setFollowupNovel(null)} />}
 
       <Pagination

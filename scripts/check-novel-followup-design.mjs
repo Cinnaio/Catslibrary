@@ -52,6 +52,8 @@ try {
             hasConfig: true,
             ongoing: true,
           }
+        if (path === '/api/scrape' && route.request().method() === 'POST' && route.request().postDataJSON()?.action === 'followup-batch-save')
+          data = { saved: 1, skipped: 0, results: [{ novelId: book.id, title, status: 'saved', reason: '' }] }
         await route.fulfill({ json: data })
       })
       const page = await context.newPage()
@@ -86,6 +88,23 @@ try {
       assert.ok(Math.abs(check.y - save.y) < 1, '底部操作必须同一行')
       assert.ok(check.height >= 44 && save.height >= 44, '保留触控高度')
       await page.screenshot({ path: `${output}/${theme}-${width}-dialog.png` })
+      await page.keyboard.press('Escape')
+      await page.getByRole('checkbox', { name: `选择小说：${title}`, exact: true }).click()
+      const batchButton = page.getByRole('button', { name: '批量追更设置', exact: true })
+      const batchButtonBox = await batchButton.boundingBox()
+      assert.ok(batchButtonBox.x >= 0 && batchButtonBox.x + batchButtonBox.width <= width + 1, '批量入口不能超出视口')
+      await page.screenshot({ path: `${output}/${theme}-${width}-batch-selection.png` })
+      await batchButton.click()
+      const batchDialog = page.getByRole('dialog')
+      await batchDialog.getByRole('heading', { name: '批量追更设置', exact: true }).waitFor()
+      const batchBox = await batchDialog.boundingBox()
+      assert.ok(batchBox.x >= 0 && batchBox.x + batchBox.width <= width + 1, '批量弹窗不能超出视口')
+      const cancel = await batchDialog.getByRole('button', { name: '取消', exact: true }).boundingBox()
+      const apply = await batchDialog.getByRole('button', { name: '应用设置', exact: true }).boundingBox()
+      assert.ok(Math.abs(cancel.y - apply.y) < 1 && cancel.height >= 44 && apply.height >= 44, '批量弹窗底部保持同一行和触控高度')
+      await page.screenshot({ path: `${output}/${theme}-${width}-batch-dialog.png` })
+      await batchDialog.getByRole('button', { name: '应用设置', exact: true }).click()
+      await batchDialog.getByRole('status').getByText('已设置 1 本，跳过 0 本。', { exact: true }).waitFor()
       await context.close()
     }
   }

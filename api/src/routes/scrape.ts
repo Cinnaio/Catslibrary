@@ -1,3 +1,4 @@
+import { saveBatchFollowups } from '../services/novel-followup-batch'
 /**
  * /api/scrape —— 爬虫动作分发（由 Novel-KV api/scrape.js 平移为 Hono 路由）。
  * 核心动作完整，并提供 discover / po18-search / popo-search 等发现与富化动作。
@@ -289,6 +290,13 @@ scrapeRoutes.post('/', async (c) => {
       await deps.store.saveJob(job)
       fireJob(jobId, deps, db)
       return c.json({ jobId, message: 'Scrape job started' }, 202)
+    }
+    case 'followup-batch-save': {
+      try {
+        return c.json(await saveBatchFollowups(db, body.novelIds, body.mode, body.intervalHours))
+      } catch (err) {
+        return c.json({ error: (err as Error).message }, 400)
+      }
     }
     case 'followup-save': {
       if (typeof body.novelId !== 'string' || typeof body.enabled !== 'boolean' || ![1, 3, 6, 12, 24].includes(body.intervalHours)) {
