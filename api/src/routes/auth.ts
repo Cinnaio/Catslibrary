@@ -181,7 +181,7 @@ authRoutes.put('/reader-settings', requireUser(), async (c) => {
     return c.json({ error: '请通过成年确认与人机验证开启成人模式', code: 'adult_unlock_required' }, 403, contentPolicyHeaders())
   }
   // 设备端可能同时保存设置，必须在数据库行锁内重新读取最新文档，
-  // 否则 desktop/mobile 的整列 JSON 更新会互相覆盖。
+  // 否则 desktop/mobile/ios 的整列 JSON 更新会互相覆盖。
   const merged = await withTx(db, async (query) => {
     const result = await query<{ reader_settings: string }>('SELECT reader_settings FROM users WHERE id = $1 FOR UPDATE', [user.id])
     const current = parseSettingsDocument(result.rows[0]?.reader_settings ?? '')

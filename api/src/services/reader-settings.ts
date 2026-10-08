@@ -51,7 +51,7 @@ const ALLOWED_VALUES: Record<(typeof SETTING_KEYS)[number], string[]> = {
 export function parseSettingsDocument(value: string): ReaderSettingsDocument {
   const emptyDocument = (): ReaderSettingsDocument => ({
     version: 2,
-    devices: { desktop: { ...EMPTY_READER_SETTINGS }, mobile: { ...EMPTY_READER_SETTINGS } },
+    devices: { desktop: { ...EMPTY_READER_SETTINGS }, mobile: { ...EMPTY_READER_SETTINGS }, ios: { ...EMPTY_READER_SETTINGS } },
     shared: { ...EMPTY_READER_SETTINGS },
   })
 
@@ -63,6 +63,8 @@ export function parseSettingsDocument(value: string): ReaderSettingsDocument {
         devices: {
           desktop: cleanSettingsState(raw.devices.desktop, DEVICE_SETTING_KEYS),
           mobile: cleanSettingsState(raw.devices.mobile, DEVICE_SETTING_KEYS),
+          // 旧文档首次拆分时继承原 mobile 设置；保存后各分区独立合并。
+          ios: cleanSettingsState(raw.devices.ios ?? raw.devices.mobile, DEVICE_SETTING_KEYS),
         },
         shared: cleanSettingsState(raw.shared, SHARED_SETTING_KEYS),
       }
@@ -103,7 +105,7 @@ export function mergeReaderSettings(current: ReaderSettings, incoming: ReaderSet
 }
 
 export function normalizeReaderDevice(value: unknown): ReaderDevice {
-  return value === 'mobile' ? 'mobile' : 'desktop'
+  return value === 'mobile' || value === 'ios' ? value : 'desktop'
 }
 
 export function mergeReaderSettingsDocument(current: ReaderSettingsDocument, device: ReaderDevice, incoming: ReaderSettings): ReaderSettingsDocument {
@@ -112,6 +114,7 @@ export function mergeReaderSettingsDocument(current: ReaderSettingsDocument, dev
     devices: {
       desktop: device === 'desktop' ? mergeReaderSettings(current.devices.desktop, pickSettings(incoming, DEVICE_SETTING_KEYS)) : current.devices.desktop,
       mobile: device === 'mobile' ? mergeReaderSettings(current.devices.mobile, pickSettings(incoming, DEVICE_SETTING_KEYS)) : current.devices.mobile,
+      ios: device === 'ios' ? mergeReaderSettings(current.devices.ios, pickSettings(incoming, DEVICE_SETTING_KEYS)) : current.devices.ios,
     },
     shared: mergeReaderSettings(current.shared, pickSettings(incoming, SHARED_SETTING_KEYS)),
   }

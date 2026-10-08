@@ -152,6 +152,22 @@ describe('auth 端到端（pglite）', () => {
     const mobileAfterMobile = await req('/api/auth/reader-settings?device=mobile', json('GET', undefined, token))
     const mobileAfterMobileData = await jsonOf<{ settings: Record<string, string> }>(mobileAfterMobile)
     expect(mobileAfterMobileData.settings).toEqual({ fontSize: '5', readerTheme: 'eye', contentMode: 'safe' })
+
+    const iosPut = await req(
+      '/api/auth/reader-settings',
+      json('PUT', { device: 'ios', settings: { fontSize: '1', readerTheme: 'paper' }, updatedAt: { fontSize: 300, readerTheme: 300 } }, token),
+    )
+    expect(iosPut.status).toBe(200)
+    for (const [device, expected] of [
+      ['desktop', { fontSize: '2', readerPageMode: 'page', contentMode: 'safe' }],
+      ['mobile', { fontSize: '5', readerTheme: 'eye', contentMode: 'safe' }],
+      ['ios', { fontSize: '1', readerTheme: 'paper', contentMode: 'safe' }],
+    ] as const) {
+      const response = await req(`/api/auth/reader-settings?device=${device}`, json('GET', undefined, token))
+      expect(response.status).toBe(200)
+      const data = await jsonOf<{ settings: Record<string, string> }>(response)
+      expect(data.settings).toEqual(expected)
+    }
   })
 
   it('登录失败 10 次后触发限流 429', async () => {

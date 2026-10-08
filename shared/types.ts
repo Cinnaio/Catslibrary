@@ -235,7 +235,7 @@ export interface Thought {
   avatarUrl: string
 }
 
-export type ReaderDevice = 'desktop' | 'mobile'
+export type ReaderDevice = 'desktop' | 'mobile' | 'ios'
 
 /** 阅读设置（LWW 合并结构）：values 存设置值，updatedAt 存每项时间戳。 */
 export interface ReaderSettings {
