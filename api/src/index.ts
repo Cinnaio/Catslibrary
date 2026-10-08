@@ -1,3 +1,5 @@
+import { runFollowupTick } from './services/novel-followup'
+import { makeDeps, fireJob } from './services/scraper/runtime'
 import { serve } from '@hono/node-server'
 import { app } from './app'
 import { loadConfig } from './config'
@@ -91,11 +93,26 @@ async function start() {
       }, AI_TASK_RECLAIM_INTERVAL_MS)
     : undefined
   aiTaskReclaimTimer?.unref?.()
+  let followupTickRunning = false
+  const checkFollowups = async () => {
+    if (followupTickRunning || !loadConfig().configured) return
+    followupTickRunning = true
+    try {
+      const db = getDb()
+      await runFollowupTick(db, (jobId) => fireJob(jobId, makeDeps(db), db))
+    } catch (err) {
+      console.error('[followup] scheduling failed:', err)
+    } finally { followupTickRunning = false }
+  }
+  const followupTimer = setInterval(() => { void checkFollowups() }, 60000)
+  followupTimer.unref()
+  void checkFollowups()
   console.log(
     `[zhi-zhou api] listening on http://127.0.0.1:${config.port}  (db: ${config.configured ? 'configured' : 'needsSetup'})`,
   )
 
   function shutdown() {
+    clearInterval(followupTimer)
     if (aiTaskReclaimTimer) clearInterval(aiTaskReclaimTimer)
     server.close(() => process.exit(0))
   }

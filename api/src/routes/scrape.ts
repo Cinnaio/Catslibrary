@@ -8,8 +8,8 @@ import { getDb } from '../db/pool'
 import { first } from '../db/query'
 import { newId } from '../services/auth'
 import { requireAdmin, type AuthEnv } from '../middlewares/auth'
-import { fetchHtml as fetchHtmlImpl, resolveProxyUrl, type FetchHtmlOptions } from '../services/scraper/fetch'
-import { runScrapeJob, testSelectors, type ScrapeDeps } from '../services/scraper/engine'
+import { fetchHtml as fetchHtmlImpl, resolveProxyUrl } from '../services/scraper/fetch'
+import { testSelectors } from '../services/scraper/engine'
 import { detectMeta } from '../services/scraper/meta'
 import { getPresetForUrl, PgScrapeStore, type JobData } from '../services/scraper/store'
 import { SITE_PRESETS, buildCoverUrl } from '../services/scraper/presets'
@@ -46,22 +46,10 @@ import {
 import { readRuntimeConfig, syncRuntimeConfigToEnv, writeRuntimeConfig } from '../runtime-config'
 import { idempotencyKeyFromRequest, withIdempotency } from '../services/idempotency'
 
-export const scrapeRoutes = new Hono<AuthEnv>()
+import { makeDeps, withPo18Session, fireJob } from '../services/scraper/runtime'
+import { getFollowup, saveFollowup, enqueueFollowup } from '../services/novel-followup'
 
-function makeDeps(db: ReturnType<typeof getDb>): ScrapeDeps {
-  const store = new PgScrapeStore(db)
-  return {
-    store,
-    fetchHtml: (url: string, opts?: FetchHtmlOptions) => fetchHtmlImpl(url, opts),
-    log: (job, message, level) => {
-      const id = job?.id || 'unknown'
-      const novel = job?.novelId ? ` ${job.novelId}` : ''
-      if (level === 'error') console.error(`[scrape] ${id}${novel} ${message}`)
-      else if (level === 'warn') console.warn(`[scrape] ${id}${novel} ${message}`)
-      else console.log(`[scrape] ${id}${novel} ${message}`)
-    },
-  }
-}
+export const scrapeRoutes = new Hono<AuthEnv>()
 
 function proxyConfigPayload() {
   const stored = readRuntimeConfig()
@@ -174,45 +162,6 @@ function validateProxyConfig(body: Record<string, unknown>): { proxyBase: string
   return { proxyBase, proxyBypass: rules.join(',') }
 }
 
-function isPo18twUrl(rawUrl: string): boolean {
-  try {
-    const hostname = new URL(rawUrl).hostname.toLowerCase()
-    return hostname === 'po18.tw' || hostname.endsWith('.po18.tw')
-  } catch {
-    return false
-  }
-}
-
-function withPo18Session(db: ReturnType<typeof getDb>, baseFetchHtml: ScrapeDeps['fetchHtml']): ScrapeDeps['fetchHtml'] {
-  return async (url, opts = {}) => {
-    if (!isPo18twUrl(url)) return baseFetchHtml(url, opts)
-    const session = await getPo18Session(db)
-    const headers = new Headers(opts.headers)
-    const cookie = [headers.get('Cookie'), 'po18Limit=1', session.cookie].filter(Boolean).join('; ')
-    if (cookie) headers.set('Cookie', cookie)
-    return baseFetchHtml(url, {
-      ...opts,
-      headers,
-      scope: opts.scope || 'source-auth',
-      allowedRedirectHosts: ['po18.tw'],
-    })
-  }
-}
-
-function fireJob(jobId: string, deps: ScrapeDeps, db: ReturnType<typeof getDb>): void {
-  // fire-and-forget：与 waitUntil 语义一致；进程重启后 running 任务由启动重置逻辑接管
-  const jobDeps = { ...deps, fetchHtml: withPo18Session(db, deps.fetchHtml) }
-  void runScrapeJob(jobId, jobDeps).catch(async (err) => {
-    const store = deps.store
-    const j = await store.loadJob(jobId)
-    if (j) {
-      j.status = 'failed'
-      j.error = (err as Error).message
-      await store.saveJob(j, true)
-    }
-  })
-}
-
 scrapeRoutes.use('*', requireAdmin())
 
 // ---------- GET：任务/日志/配置 ----------
@@ -224,6 +173,10 @@ scrapeRoutes.get('/', async (c) => {
   const jobId = c.req.query('jobId') || ''
   const novelId = c.req.query('novelId') || ''
 
+  if (action === 'followup' && novelId) {
+    const result = await getFollowup(db, novelId)
+    return result ? c.json(result) : c.json({ error: '小说不存在' }, 404)
+  }
   if (action === 'jobs') {
     const jobs = await store.listActiveJobs()
     const summaries = await Promise.all(
@@ -337,30 +290,26 @@ scrapeRoutes.post('/', async (c) => {
       fireJob(jobId, deps, db)
       return c.json({ jobId, message: 'Scrape job started' }, 202)
     }
-    case 'update': {
-      const { novelId } = body
-      if (!novelId) return c.json({ error: 'novelId required' }, 400)
-      const cfg = await deps.store.getScrapeConfig(novelId)
-      if (!cfg) return c.json({ error: '未找到该小说的爬虫配置。请先通过智能分析配置爬虫。' }, 404)
-      const jobId = newId('upd')
-      const job: JobData = {
-        id: jobId,
-        novelId,
-        updateMode: true,
-        status: 'starting',
-        progress: 0,
-        current: 0,
-        total: 0,
-        chapterCount: 0,
-        publicChapterCount: 0,
-        protectedChapterCount: 0,
-        error: null,
-        startedAt: Date.now(),
-        updatedAt: Date.now(),
+    case 'followup-save': {
+      if (typeof body.novelId !== 'string' || typeof body.enabled !== 'boolean' || ![1, 3, 6, 12, 24].includes(body.intervalHours)) {
+        return c.json({ error: '请提供小说、追更开关和有效检查频率' }, 400)
       }
-      await deps.store.saveJob(job)
-      fireJob(jobId, deps, db)
-      return c.json({ jobId, message: 'Update scrape started', updateMode: true }, 202)
+      try {
+        await saveFollowup(db, body.novelId, body.enabled, body.intervalHours)
+        return c.json(await getFollowup(db, body.novelId))
+      } catch (err) {
+        return c.json({ error: (err as Error).message }, 400)
+      }
+    }
+    case 'update': {
+      if (typeof body.novelId !== 'string' || !body.novelId) return c.json({ error: 'novelId required' }, 400)
+      try {
+        const result = await enqueueFollowup(db, body.novelId)
+        if (result.started) fireJob(result.jobId, deps, db)
+        return c.json({ ...result, message: result.started ? '更新任务已启动' : '该小说已有抓取任务正在执行', updateMode: true }, 202)
+      } catch (err) {
+        return c.json({ error: (err as Error).message }, 400)
+      }
     }
     case 'retry': {
       const { jobId } = body

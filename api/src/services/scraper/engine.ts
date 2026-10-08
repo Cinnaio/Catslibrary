@@ -330,8 +330,7 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
             links = links.concat(moreLinks)
             nextUrl = extractLinkHref(next.html, job.selectors.nextPage, nextUrl)
           } catch (e) {
-            log(job, `目录分页 ${pageCount} 读取失败: ${(e as Error).message}`, 'warn')
-            break
+            throw new Error(`目录分页 ${pageCount} 读取失败: ${(e as Error).message}`)
           }
         }
         if (pageCount) log(job, `目录分页完成: 额外读取 ${pageCount} 页`)
@@ -366,6 +365,7 @@ export async function runScrapeJob(jobId: string, deps: ScrapeDeps): Promise<voi
       publicChapterCount = links.length
     }
     job.publicChapterCount = publicChapterCount
+    if (job.novelId && !job.retryLinks?.length) await store.saveCheckResult(job.novelId, publicChapterCount + protectedChapterCount)
 
     if (job.retryLinks && Array.isArray(job.retryLinks) && job.retryLinks.length) {
       await store.appendJobLog(jobId, 'info', '重试章节去重完成：' + links.length + ' 章')

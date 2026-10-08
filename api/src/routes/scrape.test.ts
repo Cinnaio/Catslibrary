@@ -6,6 +6,9 @@ import { app } from '../app'
 import { setDbForTests } from '../db/pool'
 import { createTestDb, type TestDb } from '../test/db'
 
+// 本文件模拟所有 HTTP 响应，也固定 DNS，避免依赖真实源站及本机代理的 fake-ip 模式。
+vi.mock('node:dns/promises', () => ({ lookup: vi.fn().mockResolvedValue([{ address: '93.184.216.34', family: 4 }]) }))
+
 let t: TestDb
 
 beforeAll(async () => {
@@ -43,6 +46,24 @@ describe('scrape 路由（免网络动作）', () => {
   it('bootstrap 管理员（爬虫动作均为 admin-only）', async () => {
     const boot = await req('/api/auth/bootstrap-admin', json('POST', { username: 'admin', password: 'adminpass123' }))
     adminToken = (await jsonOf<{ token: string }>(boot)).token
+  })
+
+  it('追更设置要求管理员权限，并校验频率', async () => {
+    expect((await req('/api/scrape?action=followup&novelId=follow-route')).status).toBe(401)
+    const invalid = await req('/api/scrape', json('POST', { action: 'followup-save', novelId: 'follow-route', enabled: true, intervalHours: 2 }, adminToken))
+    expect(invalid.status).toBe(400)
+  })
+
+  it('追更设置保存并读回，默认关闭，缺少配置时拒绝开启', async () => {
+    await t.db.query("INSERT INTO novels (id,title,status,created_at,updated_at) VALUES ('follow-route','追更路由','ongoing',1,1)")
+    const initial = await req('/api/scrape?action=followup&novelId=follow-route', json('GET', undefined, adminToken))
+    await expect(initial.json()).resolves.toMatchObject({ enabled: false, intervalHours: 6, hasConfig: false })
+    const blocked = await req('/api/scrape', json('POST', { action: 'followup-save', novelId: 'follow-route', enabled: true, intervalHours: 3 }, adminToken))
+    expect(blocked.status).toBe(400)
+    await t.db.query("INSERT INTO scrape_configs (novel_id,source_url,selectors,updated_at) VALUES ('follow-route','https://example.com/book',$1,1)", [JSON.stringify({ chapterList: 'a', chapterContent: '.content' })])
+    const saved = await req('/api/scrape', json('POST', { action: 'followup-save', novelId: 'follow-route', enabled: true, intervalHours: 3 }, adminToken))
+    expect(saved.status).toBe(200)
+    await expect(saved.json()).resolves.toMatchObject({ enabled: true, intervalHours: 3, hasConfig: true })
   })
 
   it('detect：静态预设命中 czbooks，未命中返回 false', async () => {
@@ -188,7 +209,7 @@ describe('scrape 路由（免网络动作）', () => {
         '/api/scrape',
         json('POST', { action: 'detect-meta', sourceUrl: 'https://www.po18.tw/books/123456' }, adminToken),
       )
-      expect(detected.status).toBe(200)
+      expect(detected.status, await detected.clone().text()).toBe(200)
       await expect(detected.json()).resolves.toMatchObject({
         novel: { title: '测试书名', author: '作者甲', coverUrl: 'https://cdn0.po18.tw/bc/1/123456/M.jpg' },
       })
@@ -239,7 +260,7 @@ describe('scrape 路由（免网络动作）', () => {
           adminToken,
         ),
       )
-      expect(discovered.status).toBe(200)
+      expect(discovered.status, await discovered.clone().text()).toBe(200)
       const result = await jsonOf<{ novels: Array<{ bookId: string; coverUrl: string }> }>(discovered)
       expect(result.novels.find((novel) => novel.bookId === '891916')).toMatchObject({
         coverUrl: 'https://cdn0.po18.tw/bc/13/891916/M20260101000000.jpg',
