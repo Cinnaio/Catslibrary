@@ -13,9 +13,7 @@ type MigrationDb = Pick<Db, 'query' | 'connect'>
  * 这里在执行任何 SQL 之前直接报错，避免半途失败。
  */
 async function listMigrationFiles(dir: string): Promise<string[]> {
-  const files = (await readdir(dir))
-    .filter((f) => f.endsWith('.sql'))
-    .sort((a, b) => Number.parseInt(a, 10) - Number.parseInt(b, 10))
+  const files = (await readdir(dir)).filter((f) => f.endsWith('.sql')).sort((a, b) => Number.parseInt(a, 10) - Number.parseInt(b, 10))
 
   const byVersion = new Map<number, string>()
   for (const file of files) {
@@ -79,7 +77,16 @@ export async function runMigrations(db: MigrationDb, dir: string = MIGRATIONS_DI
 export async function migrate(options: { keepPoolOpen?: boolean } = {}): Promise<string[]> {
   const pool = getPool()
   if (!pool) throw new Error('DATABASE_URL 未配置，无法执行迁移')
-  const done = await runMigrations(pool)
+  // 与备份 Worker 使用相同的站点锁，避免导出时发生结构迁移。
+  const guard = await pool.connect()
+  let done: string[]
+  try {
+    await guard.query('SELECT pg_advisory_lock($1)', [730047])
+    done = await runMigrations(pool)
+  } finally {
+    await guard.query('SELECT pg_advisory_unlock($1)', [730047]).catch(() => {})
+    guard.release()
+  }
   if (!options.keepPoolOpen) await pool.end()
   return done
 }
@@ -87,9 +94,8 @@ export async function migrate(options: { keepPoolOpen?: boolean } = {}): Promise
 // 直接执行：npm run db:migrate
 // 注意：生产构建会把本模块打包进 dist/index.js。若只判断 import.meta.url === argv[1]，
 // 打包后的 API 启动会误触发这里的独立迁移入口，随后关闭连接池，导致启动阶段复用池时报错。
-const isDirectMigrationCli = process.argv[1]
-  && path.basename(fileURLToPath(import.meta.url)).startsWith('migrate')
-  && import.meta.url === pathToFileURL(process.argv[1]).href
+const isDirectMigrationCli =
+  process.argv[1] && path.basename(fileURLToPath(import.meta.url)).startsWith('migrate') && import.meta.url === pathToFileURL(process.argv[1]).href
 
 if (isDirectMigrationCli) {
   migrate()

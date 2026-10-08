@@ -132,7 +132,7 @@ function timedFetch(input: RequestInfo | URL, opts: RequestInit = {}, timeoutMs 
   return fetch(input, opts)
 }
 
-async function request<T = unknown>(
+export async function request<T = unknown>(
   method: string,
   path: string,
   body: unknown = null,

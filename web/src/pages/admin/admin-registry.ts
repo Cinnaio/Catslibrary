@@ -4,7 +4,20 @@
  * shell only composes, and the registry stays the single source of truth.
  */
 import type { ComponentType } from 'react'
-import { BookOpen, Bug, FileText, LayoutDashboard, MessageSquare, Sparkles, BarChart3, Settings, UserCog, ListChecks, Activity, type LucideIcon } from 'lucide-react'
+import {
+  BookOpen,
+  Bug,
+  FileText,
+  LayoutDashboard,
+  MessageSquare,
+  Sparkles,
+  BarChart3,
+  Settings,
+  UserCog,
+  ListChecks,
+  Activity,
+  type LucideIcon,
+} from 'lucide-react'
 import DashboardTab from './DashboardTab'
 import NovelsTab from './NovelsTab'
 import ChaptersTab from './ChaptersTab'
@@ -19,6 +32,7 @@ import ContentPolicyTab from './ContentPolicyTab'
 import ContentRatingsTab from './ContentRatingsTab'
 import SiteOperationsTab from './SiteOperationsTab'
 import SiteSettingsTab from './SiteSettingsTab'
+import BackupsTab from './BackupsTab'
 
 export interface AdminTabProps {
   highlightNovelId?: string
@@ -102,6 +116,17 @@ export const NAV_GROUPS: Array<{ label: string; items: AdminNavItem[] }> = [
     label: '平台运营',
     items: [
       {
+        id: 'backups',
+        label: '备份与恢复',
+        icon: Settings,
+        children: [
+          { id: 'backups-versions', label: '备份版本', to: `${adminTabPath('backups')}?view=versions` },
+          { id: 'backups-targets', label: '存储目标', to: `${adminTabPath('backups')}?view=targets` },
+          { id: 'backups-schedule', label: '自动备份', to: `${adminTabPath('backups')}?view=schedule` },
+          { id: 'backups-logs', label: '操作日志', to: `${adminTabPath('backups')}?view=logs` },
+        ],
+      },
+      {
         id: 'site-operations',
         label: '站点运营',
         icon: BarChart3,
@@ -148,6 +173,7 @@ export const TAB_COMPONENTS = {
   'site-operations': SiteOperationsTab,
   'site-settings': SiteSettingsTab,
   settings: SettingsTab,
+  backups: BackupsTab,
 } satisfies Record<string, ComponentType<AdminTabProps>>
 
 export const TAB_KEY = 'admin_active_tab'

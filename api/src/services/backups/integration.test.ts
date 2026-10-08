@@ -1,0 +1,180 @@
+import { Pool } from 'pg'
+import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+import { beforeAll, afterAll, describe, it, expect, vi } from 'vitest'
+import type { Db } from '../../db/pool'
+import { runMigrations } from '../../db/migrate'
+import { enqueue, getSetting, logEvent, setSetting } from './store'
+import { runBackupTick } from './worker'
+import { archivePath, type Manifest } from './archive'
+import { rehearse, prepareRestore } from './restore'
+import { command, pgEnvironment, psqlTool } from './process'
+import { defaultPolicy } from './config'
+import { saveTarget } from './store'
+import { testRemote, ensureLocalArchive } from './storage'
+
+const connection = process.env.BACKUP_INTEGRATION_DATABASE_URL
+describe.skipIf(!connection)('真实 PostgreSQL 全链路（仅专用测试库）', () => {
+  let pool: Pool, db: Db, root: string
+  beforeAll(async () => {
+    if (!connection!.includes('backup_integration')) throw new Error('Integration requires a dedicated backup_integration database')
+    pool = new Pool({ connectionString: connection })
+    db = pool as unknown as Db
+    vi.stubEnv('DATABASE_URL', connection!)
+    vi.stubEnv('BACKUP_ENCRYPTION_KEY', Buffer.alloc(32, 9).toString('base64'))
+    vi.stubEnv('BACKUP_REHEARSAL_DATABASE_URL', process.env.BACKUP_INTEGRATION_REHEARSAL_URL || '')
+    root = await mkdtemp(path.join(tmpdir(), 'zhi-zhou-backup-integration-'))
+    vi.stubEnv('BACKUP_ROOT', root)
+    await runMigrations(db)
+    await db.query(
+      "INSERT INTO users(id,username,role,password_hash,password_salt,created_at,updated_at) VALUES('backup-admin','backup-admin','admin','test','test',1,1)",
+    )
+    await db.query("INSERT INTO novels(id,title,author,created_at,updated_at) VALUES('backup-novel','备份前的小说','测试',1,1)")
+    await db.query("INSERT INTO chapters(id,novel_id,title,content,sort_order,created_at) VALUES('backup-chapter','backup-novel','第一章','原始正文',1,1)")
+    await db.query("INSERT INTO novel_covers(novel_id,data,content_type,updated_at) VALUES('backup-novel',$1,'image/png',1)", [Buffer.from([1, 2, 3, 4])])
+  })
+  afterAll(async () => {
+    if (pool) await pool.end()
+    if (root) await rm(root, { recursive: true, force: true })
+    vi.unstubAllEnvs()
+  })
+  it('创建加密版本，真实隔离演练并恢复指定版本，控制日志不回滚', async () => {
+    const backup = await enqueue(db, 'backup', { operationId: 'integration-backup-1', targetIds: [] }, { id: 'backup-admin', name: '管理员' })
+    await runBackupTick(db)
+    const version = await db.query<{ manifest: string; state: string }>('SELECT manifest,state FROM backup_control.versions WHERE id=$1', [backup.versionId])
+    expect(version.rows[0]!.state).toBe('completed')
+    const manifest: Manifest = JSON.parse(version.rows[0]!.manifest)
+    expect((await readFile(archivePath(backup.versionId))).includes(Buffer.from('原始正文'))).toBe(false)
+    await db.query("UPDATE novels SET title='备份后的修改' WHERE id='backup-novel'")
+    await db.query('CREATE TABLE public.after_backup_table(id int)')
+    const preview = await enqueue(db, 'preview', { operationId: 'integration-preview-1', versionId: backup.versionId }, { id: 'backup-admin', name: '管理员' })
+    await runBackupTick(db)
+    const task = await db.query<{ state: string; result: string; error: string }>('SELECT state,result,error FROM backup_control.tasks WHERE id=$1', [
+      preview.id,
+    ])
+    expect(task.rows[0]!.error).toBe('')
+    expect(task.rows[0]!.state).toBe('completed')
+    const result = JSON.parse(task.rows[0]!.result)
+    expect(result.administrators).toContain('backup-admin')
+    await logEvent(db, preview.id, '备份之后新增的日志，恢复后必须保留')
+    await db.query("INSERT INTO user_sessions(token_hash,user_id,expires_at,created_at) VALUES('fixture-token','backup-admin',$1,1)", [Date.now() + 3600000])
+    const restore = await enqueue(
+      db,
+      'restore',
+      { operationId: 'integration-restore-1', versionId: backup.versionId, previewTaskId: preview.id, previewToken: result.previewToken },
+      { id: 'backup-admin', name: '管理员' },
+    )
+    await runBackupTick(db)
+    const finished = await db.query<{ state: string; error: string; result: string }>('SELECT state,error,result FROM backup_control.tasks WHERE id=$1', [
+      restore.id,
+    ])
+    expect(finished.rows[0]!.error).toBe('')
+    expect(finished.rows[0]!.state).toBe('completed')
+    expect((await db.query<{ title: string }>("SELECT title FROM novels WHERE id='backup-novel'")).rows[0]!.title).toBe('备份前的小说')
+    expect((await db.query<{ data: Buffer }>("SELECT data FROM novel_covers WHERE novel_id='backup-novel'")).rows[0]!.data).toEqual(Buffer.from([1, 2, 3, 4]))
+    expect((await db.query<{ table: string | null }>("SELECT to_regclass('public.after_backup_table') AS table")).rows[0]!.table).toBeNull()
+    expect((await db.query('SELECT * FROM user_sessions')).rows).toHaveLength(0)
+    expect((await db.query("SELECT * FROM backup_control.events WHERE message='备份之后新增的日志，恢复后必须保留'")).rows).toHaveLength(1)
+    expect(JSON.parse(finished.rows[0]!.result).protectionId).toMatch(/^protection_/)
+    expect(await getSetting(db, 'maintenance', true)).toBe(false)
+    const journal = JSON.parse(await readFile(path.join(root, 'restore-journal.json'), 'utf8'))
+    expect(journal.stage).toBe('completed')
+    expect(manifest.migrationVersion).toBe(47)
+  }, 60000)
+  it('损坏归档无法恢复；演练库指向业务库时拒绝操作', async () => {
+    const row = await db.query<{ manifest: string }>('SELECT manifest FROM backup_control.versions WHERE protection=TRUE LIMIT 1'),
+      manifest: Manifest = JSON.parse(row.rows[0]!.manifest)
+    const original = await readFile(archivePath(manifest.id))
+    await writeFile(archivePath(manifest.id), Buffer.from('corrupt'))
+    await expect(rehearse(db, manifest)).rejects.toThrow()
+    await writeFile(archivePath(manifest.id), original)
+    vi.stubEnv('BACKUP_REHEARSAL_DATABASE_URL', connection!)
+    await expect(rehearse(db, manifest)).rejects.toThrow('不能与业务数据库相同')
+    vi.stubEnv('BACKUP_REHEARSAL_DATABASE_URL', process.env.BACKUP_INTEGRATION_REHEARSAL_URL || '')
+  })
+  it('事务恢复途中 SQL 失败，原业务数据与结构保持完整', async () => {
+    const row = await db.query<{ manifest: string }>('SELECT manifest FROM backup_control.versions WHERE protection=TRUE LIMIT 1'),
+      manifest: Manifest = JSON.parse(row.rows[0]!.manifest)
+    await db.query("UPDATE novels SET title='事务失败必须保留的修改' WHERE id='backup-novel'")
+    await db.query('CREATE TABLE public.rollback_sentinel(id int)')
+    const prepared = await prepareRestore(db, manifest)
+    try {
+      const sql = await readFile(prepared.script, 'utf8')
+      await writeFile(prepared.script, sql.replace(/COMMIT;\s*$/, 'SELECT * FROM public.missing_restore_test_table; COMMIT;'))
+      await expect(command(psqlTool(), ['--no-psqlrc', '--set', 'ON_ERROR_STOP=1', '--file', prepared.script], { env: pgEnvironment() })).rejects.toThrow()
+      expect((await db.query<{ title: string }>("SELECT title FROM novels WHERE id='backup-novel'")).rows[0]!.title).toBe('事务失败必须保留的修改')
+      expect((await db.query<{ table: string }>("SELECT to_regclass('public.rollback_sentinel') AS table")).rows[0]!.table).toBe('rollback_sentinel')
+    } finally {
+      await rm(prepared.dir, { recursive: true, force: true })
+    }
+  })
+  it('多个 Worker 互斥，自动调度补一次并按保留数量清理旧版本', async () => {
+    await setSetting(db, 'policy', { ...defaultPolicy, enabled: true, localRetention: 1, nextRunAt: Date.now() - 86400000, revision: 8 })
+    await Promise.all([runBackupTick(db), runBackupTick(db)])
+    expect((await db.query('SELECT * FROM backup_control.schedule_runs WHERE revision=8')).rows).toHaveLength(1)
+    await runBackupTick(db)
+    expect(
+      (await db.query("SELECT * FROM backup_control.versions WHERE deleted=FALSE AND protection=FALSE AND manifest!='' AND trigger='manual'")).rows,
+    ).toHaveLength(0)
+    expect((await db.query('SELECT * FROM backup_control.versions WHERE protection=TRUE AND deleted=FALSE')).rows).toHaveLength(1)
+    await setSetting(db, 'policy', defaultPolicy)
+  })
+  it.skipIf(!process.env.BACKUP_INTEGRATION_SFTP_HOST)(
+    '真实 SFTP 上传、回读校验、远程取回及主机身份拒绝',
+    async () => {
+      const host = process.env.BACKUP_INTEGRATION_SFTP_HOST!
+      vi.stubEnv('BACKUP_ALLOWED_HOSTS', host)
+      vi.stubEnv('BACKUP_RCLONE_PATH', process.env.BACKUP_INTEGRATION_RCLONE_PATH!)
+      const key = (await readFile(process.env.BACKUP_INTEGRATION_SFTP_HOST_KEY!, 'utf8')).trim().split(' ').slice(0, 2).join(' ')
+      const target = await saveTarget(db, {
+        name: '隔离 SFTP',
+        type: 'sftp',
+        enabled: true,
+        required: true,
+        host,
+        port: 55222,
+        path: '/backups',
+        username: 'backup',
+        hostKey: key,
+        password: 'fixture-password',
+        retention: 30,
+        bucket: '',
+        region: '',
+      })
+      const test = await enqueue(db, 'test', { operationId: 'integration-sftp-test', targetId: target.id }, { id: 'backup-admin', name: '管理员' })
+      await runBackupTick(db)
+      const tested = await db.query<{ state: string; error: string }>('SELECT state,error FROM backup_control.tasks WHERE id=$1', [test.id])
+      expect(tested.rows[0]!.error).toBe('')
+      expect(tested.rows[0]!.state).toBe('completed')
+      const task = await enqueue(db, 'backup', { operationId: 'integration-sftp-backup', targetIds: [target.id] }, { id: 'backup-admin', name: '管理员' })
+      await runBackupTick(db)
+      const copies = await db.query<{ state: string }>('SELECT state FROM backup_control.copies WHERE version_id=$1', [task.versionId])
+      expect(copies.rows.map((row) => row.state)).toEqual(['available', 'available'])
+      const stored = await db.query<{ manifest: string }>('SELECT manifest FROM backup_control.versions WHERE id=$1', [task.versionId]),
+        manifest: Manifest = JSON.parse(stored.rows[0]!.manifest)
+      await rm(archivePath(task.versionId))
+      await ensureLocalArchive(db, task.versionId, manifest)
+      expect((await readFile(archivePath(task.versionId))).length).toBe(manifest.size)
+      const row = (
+        await db.query<{ id: string; config: string; secret: string; revision: number }>('SELECT * FROM backup_control.targets WHERE id=$1', [target.id])
+      ).rows[0]!
+      const altered = {
+        ...row,
+        config: JSON.stringify({ ...JSON.parse(row.config), hostKey: 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZm' }),
+      }
+      await expect(testRemote(altered)).rejects.toThrow()
+    },
+    60000,
+  )
+  it('重启识别中断任务；恢复保持维护，不自动重放', async () => {
+    const backup = await enqueue(db, 'backup', { operationId: 'integration-interrupted' }, { id: 'backup-admin', name: '管理员' })
+    await db.query("UPDATE backup_control.tasks SET state='running',kind='restore' WHERE id=$1", [backup.id])
+    await setSetting(db, 'maintenance', true)
+    await runBackupTick(db)
+    expect((await db.query<{ state: string }>('SELECT state FROM backup_control.tasks WHERE id=$1', [backup.id])).rows[0]!.state).toBe('interrupted')
+    expect(await getSetting(db, 'maintenance', false)).toBe(true)
+    await setSetting(db, 'maintenance', false)
+    await setSetting(db, 'policy', defaultPolicy)
+  })
+})

@@ -28,6 +28,8 @@ import { contentRatingRuleCandidateRoutes } from './routes/content-rating-rule-c
 import { contentRatingAiRoutes } from './routes/content-rating-ai'
 import { bookImportRoutes } from './routes/book-import'
 import { adminSiteSettingsRoutes, publicSiteSettingsRoutes } from './routes/site-settings'
+import { backupRoutes } from './routes/backups'
+import { backupMaintenance } from './middlewares/backup-maintenance'
 
 /** 全局应用：中间件装配 + 路由注册（阶段化增量挂载）。 */
 export const app = new Hono()
@@ -48,6 +50,10 @@ app.use('/api/*', async (c, next) => {
 })
 
 // 统一错误出口：细节只进服务端日志，客户端只拿通用信息
+app.use('/api/*', async (c, next) => {
+  if (!loadConfig().configured || c.req.path.startsWith('/api/setup/')) return next()
+  return backupMaintenance()(c, next)
+})
 app.onError((err, c) => {
   console.error('[api]', err)
   return c.json({ error: '服务器内部错误' }, 500)
@@ -85,3 +91,4 @@ app.route('/api/admin/content-rating-ai', contentRatingAiRoutes)
 app.route('/api/book-import', bookImportRoutes)
 app.route('/api/site-settings', publicSiteSettingsRoutes)
 app.route('/api/admin/site-settings', adminSiteSettingsRoutes)
+app.route('/api/admin/backups', backupRoutes)

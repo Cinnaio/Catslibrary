@@ -20,6 +20,7 @@
     "format": "prettier --check .",
     "format:write": "prettier --write .",
     "db:migrate": "npm run db:migrate --workspace=@zhi-zhou/api",
+    "backup:recover": "tsx --tsconfig api/tsconfig.json api/scripts/backup-recovery.ts",
     "start": "npm run start --workspace=@zhi-zhou/api"
   },
   "devDependencies": {

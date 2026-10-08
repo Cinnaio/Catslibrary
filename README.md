@@ -149,6 +149,14 @@ Cloudflare 控制台仍需创建 Managed 组件、绑定实际前端域名；后
 
 暂停追更不会取消正在执行的任务；已完结作品不参与定时检查。调度需要 API 服务持续运行。新增数据库迁移随 API 正常启动自动执行。
 
+## 备份与恢复
+
+后台「平台运营 → 备份与恢复」提供本地与 SFTP 多目标备份、自动计划、版本列表、校验、固定保留、日志与指定版本回滚。自动备份默认关闭。配置 `BACKUP_ENCRYPTION_KEY` 后可进行本地备份；远程传输另需安装 rclone、配置允许主机与服务器公钥。回滚须配置独立演练数据库，通过真实恢复演练、管理员重新认证，并先生成保护备份。
+
+备份保存数据库结构、业务数据及数据库内图片；普通回滚保留当前服务器部署配置，并使历史登录会话失效。部署主密钥需单独保管。WebDAV/S3 接口类型已预留，当前可用远程协议为 SFTP。
+
+部署准备、演练库初始化及 `npm run backup:recover` 灾备工具用法见[备份功能落地说明](docs/backup-and-restore-implementation-2026-10-08.md)。
+
 ## 测试
 
 ```bash
@@ -163,4 +171,6 @@ npm test --workspace=@zhi-zhou/web  # 仅前端
 
 - [PRODUCT.md](PRODUCT.md)：产品定位与能力边界
 - [DESIGN.md](DESIGN.md)：设计系统说明
+- [备份与版本回滚设计](docs/backup-and-restore-design-2026-10-08.md)：本地与 SFTP 优先的备份方案、云盘扩展、自动调度、回滚及日志设计
+- [备份功能落地说明](docs/backup-and-restore-implementation-2026-10-08.md)：首版功能、部署配置、灾备工具及验证记录
 - [KNOWN-ISSUES.md](KNOWN-ISSUES.md)：已定位但暂不修复的问题与不可行修法

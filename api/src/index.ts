@@ -14,6 +14,10 @@ import { ensureRuntimeSalts } from './runtime-config'
 import { pruneAdminOperationAudit } from './services/admin-operation-audit'
 import { prefillUnknownContentRatings } from './services/content-rating'
 import { createWebRoutes } from './routes/web'
+import { runBackupTick } from './services/backups/worker'
+import { maintenance } from './services/backups/store'
+import { withBusinessActivity, requireBackupGate } from './middlewares/backup-maintenance'
+import { stopBackupCommands } from './services/backups/process'
 
 async function resumeInterruptedCoverPromptTasks() {
   const db = getDb()
@@ -64,30 +68,35 @@ async function start() {
   if (config.configured) {
     const applied = await migrate({ keepPoolOpen: true })
     if (applied.length) console.log(`[zhi-zhou api] applied migrations: ${applied.join(', ')}`)
-    // New installs and old databases must be rated before this process accepts
-    // requests: the reader now uses content_rating as its sole R18 signal.
-    const ratingPrefill = await prefillUnknownContentRatings(getDb())
-    console.log(`[zhi-zhou api] content rating prefill: scanned=${ratingPrefill.scanned}, applied=${ratingPrefill.applied}, unknown=${ratingPrefill.unknown}`)
-    const reclaimed = await reclaimStaleAiTasks(getDb())
-    if (reclaimed) console.log(`[zhi-zhou api] reclaimed ${reclaimed} stale AI task(s)`)
-    // 提示词任务参数和结果可持久化，服务重启后自动接管；有副作用的图片/写作任务仍标记失败，交给管理员确认后重试。
-    const interrupted = await failInterruptedAiTasks(getDb(), { excludeKinds: ['cover_prompt'] })
-    if (interrupted) console.log('[zhi-zhou api] marked ' + interrupted + ' interrupted AI task(s) as failed')
-    const resumed = await resumeInterruptedCoverPromptTasks()
-    if (resumed) console.log('[zhi-zhou api] resumed ' + resumed + ' interrupted cover prompt task(s)')
-    // 已结束任务按保留期清理（天数在管理端「参数调优」可配）
-    const settings = await getAiSettings(getDb())
-    const pruned = await pruneFinishedAiTasks(getDb(), settings.taskRetentionDays)
-    if (pruned) console.log(`[zhi-zhou api] pruned ${pruned} finished AI task(s) older than ${settings.taskRetentionDays}d`)
-    const prunedAdminOperations = await pruneAdminOperationAudit(getDb())
-    if (prunedAdminOperations) console.log(`[zhi-zhou api] pruned ${prunedAdminOperations} admin operation audit record(s) older than 180d`)
+    const recovering = await maintenance(getDb())
+    if (recovering) requireBackupGate()
+    if (!recovering) {
+      // New installs and old databases must be rated before this process accepts
+      // requests: the reader now uses content_rating as its sole R18 signal.
+      const ratingPrefill = await prefillUnknownContentRatings(getDb())
+      console.log(`[zhi-zhou api] content rating prefill: scanned=${ratingPrefill.scanned}, applied=${ratingPrefill.applied}, unknown=${ratingPrefill.unknown}`)
+      const reclaimed = await reclaimStaleAiTasks(getDb())
+      if (reclaimed) console.log(`[zhi-zhou api] reclaimed ${reclaimed} stale AI task(s)`)
+      // 提示词任务参数和结果可持久化，服务重启后自动接管；有副作用的图片/写作任务仍标记失败，交给管理员确认后重试。
+      const interrupted = await failInterruptedAiTasks(getDb(), { excludeKinds: ['cover_prompt'] })
+      if (interrupted) console.log('[zhi-zhou api] marked ' + interrupted + ' interrupted AI task(s) as failed')
+      const resumed = await resumeInterruptedCoverPromptTasks()
+      if (resumed) console.log('[zhi-zhou api] resumed ' + resumed + ' interrupted cover prompt task(s)')
+      // 已结束任务按保留期清理（天数在管理端「参数调优」可配）
+      const settings = await getAiSettings(getDb())
+      const pruned = await pruneFinishedAiTasks(getDb(), settings.taskRetentionDays)
+      if (pruned) console.log(`[zhi-zhou api] pruned ${pruned} finished AI task(s) older than ${settings.taskRetentionDays}d`)
+      const prunedAdminOperations = await pruneAdminOperationAudit(getDb())
+      if (prunedAdminOperations) console.log(`[zhi-zhou api] pruned ${prunedAdminOperations} admin operation audit record(s) older than 180d`)
+    }
   }
 
   app.route('/', createWebRoutes())
   const server = serve({ fetch: app.fetch, port: config.port })
   const aiTaskReclaimTimer = config.configured
     ? setInterval(() => {
-        void reclaimStaleAiTasks(getDb()).then((reclaimed) => {
+        void withBusinessActivity(getDb(), async () => {
+          const reclaimed = await reclaimStaleAiTasks(getDb())
           if (reclaimed) console.log(`[zhi-zhou api] reclaimed ${reclaimed} stale AI task(s)`)
         }).catch((err) => console.error('[zhi-zhou api] AI task reclaim failed:', err))
       }, AI_TASK_RECLAIM_INTERVAL_MS)
@@ -99,20 +108,43 @@ async function start() {
     followupTickRunning = true
     try {
       const db = getDb()
-      await runFollowupTick(db, (jobId) => fireJob(jobId, makeDeps(db), db))
+      await withBusinessActivity(db, async () => {
+        await runFollowupTick(db, (jobId) => fireJob(jobId, makeDeps(db), db))
+      })
     } catch (err) {
       console.error('[followup] scheduling failed:', err)
-    } finally { followupTickRunning = false }
+    } finally {
+      followupTickRunning = false
+    }
   }
-  const followupTimer = setInterval(() => { void checkFollowups() }, 60000)
+  const followupTimer = setInterval(() => {
+    void checkFollowups()
+  }, 60000)
   followupTimer.unref()
   void checkFollowups()
-  console.log(
-    `[zhi-zhou api] listening on http://127.0.0.1:${config.port}  (db: ${config.configured ? 'configured' : 'needsSetup'})`,
-  )
+  let backupTickRunning = false
+  const checkBackups = async () => {
+    if (backupTickRunning || !loadConfig().configured) return
+    backupTickRunning = true
+    try {
+      await runBackupTick(getDb())
+    } catch (error) {
+      console.error('[backups] worker failed:', error instanceof Error ? error.name : 'unknown')
+    } finally {
+      backupTickRunning = false
+    }
+  }
+  const backupTimer = setInterval(() => {
+    void checkBackups()
+  }, 10000)
+  backupTimer.unref()
+  void checkBackups()
+  console.log(`[zhi-zhou api] listening on http://127.0.0.1:${config.port}  (db: ${config.configured ? 'configured' : 'needsSetup'})`)
 
   function shutdown() {
+    stopBackupCommands()
     clearInterval(followupTimer)
+    clearInterval(backupTimer)
     if (aiTaskReclaimTimer) clearInterval(aiTaskReclaimTimer)
     server.close(() => process.exit(0))
   }
