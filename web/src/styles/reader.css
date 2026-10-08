@@ -263,10 +263,14 @@ body:has(.reader-app:not(.hidden)) {
 
 @media (max-width: 640px) {
   .reader-footer-actions {
+    position: fixed;
+    right: 16px;
+    bottom: calc(176px + env(safe-area-inset-bottom));
+    z-index: 210;
     display: flex;
-    justify-content: center;
+    flex-direction: column;
     gap: 12px;
-    padding: 12px 0 0;
+    padding: 0;
   }
   .reader-footer-actions .float-top {
     position: static;
