@@ -61,6 +61,7 @@ export interface ChapterFull extends ChapterMeta {
 }
 
 export interface Thought {
+  imageUrl?: string
   id: string
   novelId: string
   chapterId: string
@@ -174,6 +175,7 @@ export function rowToChapterFull(row: Record<string, unknown> | undefined | null
 export function rowToThought(row: Record<string, unknown> | undefined | null): Thought | null {
   if (!row) return null
   return {
+    ...(row.has_image ? { imageUrl: '/api/thoughts/image/' + encodeURIComponent(String(row.id)) } : {}),
     id: String(row.id),
     novelId: String(row.novel_id),
     chapterId: String(row.chapter_id),

@@ -80,7 +80,8 @@ export function startOfTomorrow(now = Date.now()): number {
 }
 
 export async function countUsageSince(db: Db, userId: string, since: number): Promise<number> {
-  const row = await first<{ total: number }>(db, 'SELECT COUNT(*)::int AS total FROM ai_usage WHERE user_id = $1 AND created_at >= $2', [userId, since])
+  // 划选图片有独立任务配额，真实调用仍保留在总用量账本，但不占文本配额。
+  const row = await first<{ total: number }>(db, "SELECT COUNT(*)::int AS total FROM ai_usage WHERE user_id = $1 AND created_at >= $2 AND generation_type <> 'selection_image'", [userId, since])
   return Number(row?.total) || 0
 }
 

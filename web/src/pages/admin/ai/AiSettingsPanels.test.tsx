@@ -9,6 +9,8 @@ vi.mock('@/lib/api', () => ({ aiApi: { saveSettings: api.saveSettings, saveProvi
 vi.mock('@/components/feedback', () => ({ useToast: () => ({ toast: api.toast }) }))
 
 const settings: AiSettings = {
+  selectionImageRoles: ['admin'],
+  selectionImageDailyQuota: 10,
   recapEnabled: true,
   dailyQuota: 30,
   maxChapterChars: 6000,
@@ -59,13 +61,28 @@ beforeEach(() => {
 })
 
 describe('AI settings confirmation', () => {
+  it('角色和图片配额先编辑后保存，取消全部角色可关闭功能', async () => {
+    config()
+    expect(screen.getByRole('checkbox', { name: '管理员' })).toBeChecked()
+    expect(screen.getByRole('checkbox', { name: '读者' })).not.toBeChecked()
+    fireEvent.click(screen.getByRole('checkbox', { name: '管理员' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: '读者' }))
+    fireEvent.change(screen.getByLabelText('每人每日图片生成上限'), { target: { value: '3' } })
+    expect(api.saveSettings).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: '保存配置' }))
+    await waitFor(() => expect(api.saveSettings).toHaveBeenCalledWith(expect.objectContaining({ selectionImageRoles: ['reader'], selectionImageDailyQuota: 3 })))
+    api.saveSettings.mockClear()
+    fireEvent.click(screen.getByRole('checkbox', { name: '读者' }))
+    fireEvent.click(screen.getByRole('button', { name: '保存配置' }))
+    await waitFor(() => expect(api.saveSettings).toHaveBeenCalledWith(expect.objectContaining({ selectionImageRoles: [] })))
+  })
   it('does not write quota or switch changes until confirmed, supports revert and preserves zero', async () => {
     config()
     fireEvent.change(screen.getByLabelText('每人每日生成上限'), { target: { value: '0' } })
     fireEvent.click(screen.getByRole('switch'))
     expect(api.saveSettings).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: '保存配置' }))
-    await waitFor(() => expect(api.saveSettings).toHaveBeenCalledWith({ dailyQuota: 0, maxChapterChars: 6000, recapEnabled: false }))
+    await waitFor(() => expect(api.saveSettings).toHaveBeenCalledWith({ dailyQuota: 0, maxChapterChars: 6000, recapEnabled: false, selectionImageRoles: ['admin'], selectionImageDailyQuota: 10 }))
   })
   it('rejects empty and out-of-range policy fields and keeps drafts on failed save', async () => {
     config()
@@ -130,7 +147,7 @@ describe('AI settings confirmation', () => {
     expect(screen.getByLabelText('每人每日生成上限')).toHaveValue(42)
     api.saveProviderConfig.mockClear().mockResolvedValue({})
     fireEvent.click(screen.getByRole('button', { name: '保存配置' }))
-    await waitFor(() => expect(api.saveSettings).toHaveBeenCalledWith({ dailyQuota: 42, maxChapterChars: 6000, recapEnabled: true }))
+    await waitFor(() => expect(api.saveSettings).toHaveBeenCalledWith({ dailyQuota: 42, maxChapterChars: 6000, recapEnabled: true, selectionImageRoles: ['admin'], selectionImageDailyQuota: 10 }))
     expect(api.saveProviderConfig).toHaveBeenCalledTimes(1)
     expect(api.saveProviderConfig).toHaveBeenCalledWith({ baseUrl: providerConfig.baseUrl, model: 'pending-image', scope: 'image' })
   })

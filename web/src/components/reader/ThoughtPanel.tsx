@@ -4,10 +4,11 @@
  */
 import { useRef, useState } from 'react'
 import { Dialog as DialogPrimitive } from 'radix-ui'
-import { ArrowUp, X } from 'lucide-react'
+import { ArrowUp, ImagePlus, X } from 'lucide-react'
 import type { Thought } from '@shared/types'
 import { UserAvatar } from '../ui/user-avatar'
 import { timeText } from '../../lib/format'
+import ThoughtImage from './ThoughtImage'
 
 interface ThoughtPanelProps {
   open: boolean
@@ -19,9 +20,13 @@ interface ThoughtPanelProps {
   onClose: () => void
   onSubmit: (text: string, displayName: string) => Promise<void>
   onDelete: (id: string) => Promise<void>
+  canGenerateImage?: boolean
+  imageGenerating?: boolean
+  imageStatus?: string
+  onGenerateImage?: (text: string, displayName: string) => Promise<void>
 }
 
-export default function ThoughtPanel({ open, readOnly = false, thoughts, selectedText, paragraphExcerpt, canDelete, onClose, onSubmit, onDelete }: ThoughtPanelProps) {
+export default function ThoughtPanel({ open, readOnly = false, thoughts, selectedText, paragraphExcerpt, canDelete, onClose, onSubmit, onDelete, canGenerateImage = false, imageGenerating = false, imageStatus = '', onGenerateImage }: ThoughtPanelProps) {
   const restoreFocusRef = useRef<HTMLElement | null>(null)
   const [text, setText] = useState('')
   const [name, setName] = useState('')
@@ -46,6 +51,21 @@ export default function ThoughtPanel({ open, readOnly = false, thoughts, selecte
       setStatus('已发布')
     } catch (err) {
       setStatus((err as Error).message || '发布失败')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  async function generate() {
+    if (!selectedText || !onGenerateImage || submitting || imageGenerating) return
+    setSubmitting(true)
+    setStatus('正在提交图片任务…')
+    try {
+      await onGenerateImage(text.trim(), name.trim())
+      setText('')
+      setStatus('')
+    } catch (err) {
+      setStatus((err as Error).message || '图片生成失败')
     } finally {
       setSubmitting(false)
     }
@@ -94,6 +114,7 @@ export default function ThoughtPanel({ open, readOnly = false, thoughts, selecte
                   </div>
                   {thought.selectedText && <blockquote className="thought-item__quote">{thought.selectedText}</blockquote>}
                   <p className="thought-item__text">{thought.thoughtText}</p>
+                  {thought.imageUrl && <ThoughtImage id={thought.id} />}
                   {canDelete(thought) && (
                     <button type="button" className="thought-item__delete btn-delete-own-thought" onClick={() => void onDelete(thought.id)}>
                       删除
@@ -108,6 +129,12 @@ export default function ThoughtPanel({ open, readOnly = false, thoughts, selecte
           <div className={`thought-selected-text${selectedText ? '' : ' hidden'}`}>
             {selectedText ? `划选：${selectedText}` : ''}
           </div>
+          {canGenerateImage && selectedText && <div className="thought-image-action">
+            <button type="button" className="btn btn--secondary btn--sm" disabled={submitting || imageGenerating} onClick={() => void generate()}>
+              <ImagePlus size={16} aria-hidden="true" />{imageGenerating ? '插画生成中…' : '生成图片并发布想法'}
+            </button>
+            <p>根据划选文字生成插画，填写的想法会作为配文；留空也可生成。</p>
+          </div>}
           <div className="thought-editor">
           <textarea
             className="thought-textarea"
@@ -136,7 +163,7 @@ export default function ThoughtPanel({ open, readOnly = false, thoughts, selecte
           </div>
           </div>
           <div className="thought-compose__footer">
-            <span className="thought-status" role="status" aria-live="polite">{status || '想法会公开显示给其他读者'}</span>
+            <span className="thought-status" role="status" aria-live="polite">{status || imageStatus || '想法会公开显示给其他读者'}</span>
           </div>
         </form>}
         </DialogPrimitive.Content>

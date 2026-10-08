@@ -6,6 +6,7 @@ import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { adminApi, thoughtsApi } from '../../lib/api'
+import ThoughtImage from '../../components/reader/ThoughtImage'
 import { UserAvatar } from '@/components/ui/user-avatar'
 import { timeAgo } from '../../lib/format'
 import { useConfirm, useToast } from '../../components/feedback'
@@ -35,6 +36,7 @@ function isModerationMode(value: string | null): value is ModerationMode {
 }
 
 interface ThoughtRow {
+  imageUrl?: string
   id: string
   status?: string
   createdAt: number
@@ -420,6 +422,7 @@ export default function ModerationTab(_props: { highlightNovelId?: string; onHig
         </TableCell>
         <TableCell data-primary="" data-label="想法" className="thought-admin-cell">
           <strong>{t.thoughtText || '—'}</strong>
+          {t.imageUrl && <ThoughtImage id={t.id} />}
         </TableCell>
         <TableCell data-label="昵称">
           <ThoughtUser t={t} />

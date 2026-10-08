@@ -5,6 +5,8 @@
 import type { ChapterMeta, Thought } from '@shared/types'
 import { removeAdPatterns } from '@shared/ad-cleaner'
 import { escHtml } from '@shared/utils'
+import { hashParagraphText } from '@shared/thought-anchor'
+export { hashParagraphText } from '@shared/thought-anchor'
 
 // ---------- 滚动 / 分页 ----------
 
@@ -189,16 +191,6 @@ export function filterChapters(chapters: ChapterMeta[], query: string): ChapterM
 }
 
 // ---------- 段评 / 划选 ----------
-
-export function hashParagraphText(text: string): string {
-  let h = 2166136261
-  const t = String(text || '').replace(/\s+/g, ' ').trim()
-  for (let i = 0; i < t.length; i++) {
-    h ^= t.charCodeAt(i)
-    h = Math.imul(h, 16777619)
-  }
-  return (h >>> 0).toString(36)
-}
 
 export function excerptText(text: string): string {
   const t = String(text || '').replace(/\s+/g, ' ').trim()

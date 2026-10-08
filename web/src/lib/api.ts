@@ -490,7 +490,31 @@ export interface ThoughtAdmin extends Thought {
 
 // ---------- Thoughts（段评） ----------
 
+export interface ThoughtImageTask {
+  id: string
+  status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
+  error: string
+  paragraphIndex: number
+  selectedText: string
+  thought?: Thought
+}
+
 export const thoughtsApi = {
+  imageCapabilities(): Promise<{ allowed: boolean; dailyQuota: number }> {
+    return request('GET', '/thoughts/image-capabilities', null, isAuthenticated())
+  },
+  generateImage(data: Record<string, unknown>, operationId: string): Promise<{ taskId: string }> {
+    return request('POST', '/thoughts/image', data, true, operationHeaders(operationId))
+  },
+  imageTask(chapterId: string, taskId?: string): Promise<{ task: ThoughtImageTask | null }> {
+    const qs = new URLSearchParams({ chapterId, ...(taskId ? { taskId } : {}) })
+    return request('GET', `/thoughts/image-task?${qs}`, null, true)
+  },
+  async imageBlob(id: string, signal: AbortSignal): Promise<Blob> {
+    const res = await timedFetch(url(`/thoughts/image/${encodeURIComponent(id)}`), { headers: authHeaders(), credentials: 'include', signal })
+    if (!res.ok) throw new Error('图片加载失败')
+    return res.blob()
+  },
   list(chapterId: string): Promise<{ thoughts: Thought[] }> {
     return request('GET', `/thoughts?chapterId=${encodeURIComponent(chapterId)}`)
   },
@@ -1419,6 +1443,8 @@ export interface AiStatus {
 }
 
 export interface AiSettings {
+  selectionImageRoles: string[]
+  selectionImageDailyQuota: number
   recapEnabled: boolean
   dailyQuota: number
   maxChapterChars: number

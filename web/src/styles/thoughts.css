@@ -2,6 +2,20 @@
    Shared reader thoughts — public paragraph annotations
    ============================================================ */
 
+.thought-image { margin: 12px 0; }
+.thought-image img { display: block; width: 100%; height: auto; border-radius: var(--radius-md); }
+.thought-image figcaption { margin-top: 6px; color: var(--text-muted); font-size: 0.75rem; }
+.thought-image__trigger { display: block; width: 100%; padding: 0; border: 0; border-radius: var(--radius-md); background: transparent; cursor: zoom-in; }
+.thought-image__trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.thought-image-preview-overlay { position: fixed; inset: 0; z-index: 500; background: rgba(0, 0, 0, 0.85); }
+.thought-image-preview { position: fixed; top: 50%; left: 50%; z-index: 510; transform: translate(-50%, -50%); width: min(1200px, calc(100vw - 32px)); outline: none; }
+.thought-image-preview > img { display: block; width: 100%; height: auto; max-height: calc(100dvh - 112px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); object-fit: contain; border-radius: var(--radius-md); }
+.thought-image-preview__close { position: absolute; top: -52px; right: 0; display: grid; place-items: center; width: 44px; height: 44px; border: 0; border-radius: 50%; background: var(--bg-card); color: var(--text-primary); cursor: pointer; }
+.thought-image-preview__close:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.thought-image-action { display: grid; gap: 6px; margin-bottom: 12px; }
+.thought-image-action button { display: inline-flex; gap: 6px; align-items: center; justify-self: start; white-space: normal; }
+.thought-image-action p { margin: 0; color: var(--text-muted); font-size: 0.78rem; line-height: 1.5; }
+
 
 .thought-highlight--paragraph,
 ::highlight(reader-thought-quotes) {

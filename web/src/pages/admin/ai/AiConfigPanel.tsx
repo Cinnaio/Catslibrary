@@ -29,6 +29,8 @@ export default function AiConfigPanel(props: {
   const [dailyQuotaDraft, setDailyQuotaDraft] = useState('')
   const [maxCharsDraft, setMaxCharsDraft] = useState('')
   const [recapEnabledDraft, setRecapEnabledDraft] = useState(false)
+  const [imageRolesDraft, setImageRolesDraft] = useState<string[]>([])
+  const [imageQuotaDraft, setImageQuotaDraft] = useState('10')
 
   // 供应商配置编辑草稿：与 props.providerConfig 同步，单独保存
   const [providerDraft, setProviderDraft] = useState({ baseUrl: '', apiKey: '', model: '' })
@@ -39,9 +41,11 @@ export default function AiConfigPanel(props: {
 
   useEffect(() => {
     setRecapEnabledDraft(!!props.settings?.recapEnabled)
+    setImageRolesDraft(props.settings?.selectionImageRoles ?? ['admin'])
+    setImageQuotaDraft(String(props.settings?.selectionImageDailyQuota ?? 10))
     setDailyQuotaDraft(props.settings?.dailyQuota !== undefined ? String(props.settings.dailyQuota) : '')
     setMaxCharsDraft(props.settings?.maxChapterChars !== undefined ? String(props.settings.maxChapterChars) : '')
-  }, [props.settings?.dailyQuota, props.settings?.maxChapterChars, props.settings?.recapEnabled])
+  }, [props.settings?.dailyQuota, props.settings?.maxChapterChars, props.settings?.recapEnabled, props.settings?.selectionImageRoles, props.settings?.selectionImageDailyQuota])
 
   useEffect(() => {
     setProviderDraft({
@@ -74,6 +78,8 @@ export default function AiConfigPanel(props: {
   }, [toast])
 
   function resetReaderPolicy() {
+    setImageRolesDraft(props.settings?.selectionImageRoles ?? ['admin'])
+    setImageQuotaDraft(String(props.settings?.selectionImageDailyQuota ?? 10))
     setRecapEnabledDraft(!!props.settings?.recapEnabled)
     setDailyQuotaDraft(String(props.settings?.dailyQuota ?? ''))
     setMaxCharsDraft(String(props.settings?.maxChapterChars ?? ''))
@@ -90,6 +96,8 @@ export default function AiConfigPanel(props: {
   const readerDirty =
     !!props.settings &&
     (recapEnabledDraft !== props.settings.recapEnabled ||
+      ['admin', 'reader'].some((role) => imageRolesDraft.includes(role) !== (props.settings?.selectionImageRoles ?? ['admin']).includes(role)) ||
+      imageQuotaDraft !== String(props.settings.selectionImageDailyQuota ?? 10) ||
       dailyQuotaDraft !== String(props.settings.dailyQuota) ||
       maxCharsDraft !== String(props.settings.maxChapterChars))
 
@@ -97,6 +105,11 @@ export default function AiConfigPanel(props: {
     if (saving || props.loading || !(providerDirty || imageProviderDirty || readerDirty)) return
     const dailyQuota = Number(dailyQuotaDraft)
     const maxChapterChars = Number(maxCharsDraft)
+    const selectionImageDailyQuota = Number(imageQuotaDraft)
+    if (readerDirty && (!imageQuotaDraft.trim() || !Number.isInteger(selectionImageDailyQuota) || selectionImageDailyQuota < 0 || selectionImageDailyQuota > 100)) {
+      toast('每日图片生成上限需为 0–100 的整数', 'error')
+      return
+    }
     if (
       readerDirty &&
       (!dailyQuotaDraft.trim() ||
@@ -132,7 +145,7 @@ export default function AiConfigPanel(props: {
         setImageProviderDraft((draft) => ({ ...draft, apiKey: draft.apiKey.trim() ? '••••••••' : '' }))
       }
       if (readerDirty) {
-        await aiApi.saveSettings({ recapEnabled: recapEnabledDraft, dailyQuota, maxChapterChars })
+        await aiApi.saveSettings({ recapEnabled: recapEnabledDraft, dailyQuota, maxChapterChars, selectionImageRoles: imageRolesDraft, selectionImageDailyQuota })
         completed.push('读者策略')
       }
       toast('已保存 AI 配置', 'success')
@@ -233,7 +246,7 @@ export default function AiConfigPanel(props: {
             <div className="ai-config-provider-heading">
               <div className="min-w-0">
                 <h3 className="flex items-center gap-2 text-sm font-medium text-foreground">图像供应商</h3>
-                <p className="mt-0.5 truncate text-xs text-muted-foreground">用于封面候选图生成。</p>
+                <p className="mt-0.5 truncate text-xs text-muted-foreground">用于封面候选图与阅读器划选插画生成。</p>
               </div>
               <AdminStatusBadge tone={imageConfigured ? 'success' : 'muted'}>
                 <span className="ai-config-status-dot" aria-hidden="true" />
@@ -290,10 +303,23 @@ export default function AiConfigPanel(props: {
           <div className="admin-panel-heading ai-config-section-heading">
             <div className="admin-panel-heading__copy">
               <h3>读者生成策略</h3>
-              <p>管理读者端前情提要与回顾的使用范围。</p>
+              <p>管理前情提要、回顾与划选插画的使用范围。</p>
             </div>
           </div>
           <CardContent className="grid gap-4">
+            <fieldset className="grid gap-3" disabled={!settings || saving || props.loading}>
+              <legend className="text-sm font-medium">划选生成图片：允许使用的角色</legend>
+              <p className="ai-config-help">在阅读器划选文字后生成插画，并自动发布为该段落的想法。取消所有角色可关闭功能。</p>
+              <div className="flex flex-wrap gap-4">
+                {([['admin', '管理员'], ['reader', '读者']] as const).map(([role, label]) => <label className="flex items-center gap-2 text-sm" key={role}>
+                  <input type="checkbox" checked={imageRolesDraft.includes(role)} onChange={(event) => setImageRolesDraft((roles) => event.target.checked ? [...roles, role] : roles.filter((item) => item !== role))} />
+                  {label}
+                </label>)}
+              </div>
+              <AdminFormField label="每人每日图片生成上限" htmlFor="ai-selection-image-quota" hint="独立于文本配额；管理员和读者均受此限制，失败任务也计入。0 表示关闭。">
+                <Input id="ai-selection-image-quota" type="number" min={0} max={100} value={imageQuotaDraft} onChange={(event) => setImageQuotaDraft(event.target.value)} />
+              </AdminFormField>
+            </fieldset>
             <div className="ai-config-policy-grid">
               <div className="ai-config-recap">
                 <label className="ai-config-checkrow">

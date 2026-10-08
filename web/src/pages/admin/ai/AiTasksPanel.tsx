@@ -194,6 +194,11 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
   const failedCount = statusCounts.failed ?? 0
   function renderRetry(task: AiTask) {
     if (!['failed', 'cancelled'].includes(task.status) || !task.params) return null
+    if (task.kind === 'selection_image') {
+      let chapterId = ''
+      try { chapterId = JSON.parse(task.params || '{}').chapterId || '' } catch { /* 历史任务参数可能损坏。 */ }
+      return <Button variant="outline" size="sm" onClick={() => navigate(`/read/${encodeURIComponent(task.novelId)}/${encodeURIComponent(chapterId)}`)}>返回阅读器重试</Button>
+    }
     return retryMode(task) === 'adjust' ? (
       <Button variant="outline" size="sm" onClick={() => adjustAndRetry(task)}>
         调整后重试

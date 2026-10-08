@@ -219,6 +219,7 @@ export interface Rating {
 }
 
 export interface Thought {
+  imageUrl?: string
   id: string
   novelId: string
   chapterId: string

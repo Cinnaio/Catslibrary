@@ -39,6 +39,7 @@ import { SettingsControls } from '../components/reader/SettingsControls'
 import { BookmarkPanel } from '../components/reader/BookmarkPanel'
 import { MobileLibrarySheet, MobileSettingsSheet } from '../components/reader/MobileSheets'
 import ThoughtPanel from '../components/reader/ThoughtPanel'
+import { useThoughtImages } from '../hooks/useThoughtImages'
 import ChapterRecap from '../components/reader/ChapterRecap'
 import { ThemeMenu } from '../components/ThemeMenu'
 import ContentRestrictionNotice from '../components/ContentRestrictionNotice'
@@ -107,6 +108,10 @@ export default function Reader() {
   const [pendingSelection, setPendingSelection] = useState<{ paragraphIndex: number; paragraphHash: string; selectedText: string } | null>(null)
   const [popoverPos, setPopoverPos] = useState<{ left: number; top: number } | null>(null)
   const [thoughtPanelOpen, setThoughtPanelOpen] = useState(false)
+  const onImageThoughtPublished = useCallback((thought: Thought) => {
+    setChapterThoughts((prev) => prev.some((item) => item.id === thought.id) ? prev : [...prev, thought])
+  }, [])
+  const thoughtImages = useThoughtImages(chapter?.id || '', user?.id || '', onImageThoughtPublished)
 
   // 自动滚动
   const autoScrollRef = useRef({ running: false, frame: 0, lastTs: 0, remainder: 0 })
@@ -320,7 +325,13 @@ export default function Reader() {
     thoughtsApi
       .list(chapter.id)
       .then((data) => {
-        if (!cancelled) { setChapterThoughts(data.thoughts || []); setLoadedThoughtChapter(chapter.id) }
+        if (!cancelled) {
+          const thoughts = data.thoughts || []
+          const ids = new Set(thoughts.map((thought) => thought.id))
+          // 列表请求在图片发布前发出时，保留任务回调刚追加的图片想法。
+          setChapterThoughts((prev) => [...thoughts, ...prev.filter((thought) => thought.chapterId === chapter.id && thought.imageUrl && !ids.has(thought.id))])
+          setLoadedThoughtChapter(chapter.id)
+        }
       })
       .catch(() => {
         if (!cancelled) { setChapterThoughts([]); setLoadedThoughtChapter(chapter.id) }
@@ -1090,6 +1101,18 @@ export default function Reader() {
     }
   }
 
+  async function generateThoughtImage(text: string, displayName: string) {
+    if (!chapter || activeThoughtParagraph === null || activeThoughtParagraph < 0 || !pendingSelection || pendingSelection.paragraphIndex !== activeThoughtParagraph) throw new Error('请先划选要生成插画的文字')
+    const paragraph = bodyRef.current?.querySelector<HTMLElement>(`p[data-paragraph-index="${activeThoughtParagraph}"]`)
+    await thoughtImages.generate({
+      novelId: chapter.novelId || novelId, chapterId: chapter.id,
+      paragraphIndex: paragraph?.dataset.sourceParagraphIndex !== undefined ? Number(paragraph.dataset.sourceParagraphIndex) : activeThoughtParagraph,
+      paragraphHash: paragraph?.dataset.paragraphHash || pendingSelection.paragraphHash,
+      selectedText: pendingSelection.selectedText, thoughtText: text,
+      displayName: displayName || user?.displayName || user?.username || '',
+    })
+  }
+
   async function deleteThought(id: string) {
     try {
       await thoughtsApi.remove(id)
@@ -1373,6 +1396,7 @@ export default function Reader() {
       {/* Thought panel */}
       {activeThoughtParagraph !== null && (
         <ThoughtPanel
+          key={`${chapter?.id}:${activeThoughtParagraph}`}
           open={thoughtPanelOpen}
           readOnly={activeThoughtParagraph < 0}
           thoughts={thoughtsByParagraph[String(activeThoughtParagraph)] || []}
@@ -1381,6 +1405,10 @@ export default function Reader() {
           canDelete={(t) => !!user && t.userId === user.id}
           onClose={() => setThoughtPanelOpen(false)}
           onSubmit={(text, name) => submitThought(text, name).then(() => {})}
+          canGenerateImage={thoughtImages.allowed}
+          imageGenerating={thoughtImages.generating}
+          imageStatus={thoughtImages.error || (thoughtImages.task?.status === 'failed' ? thoughtImages.task.error : thoughtImages.task?.status === 'cancelled' ? '图片任务已取消' : thoughtImages.task?.status === 'completed' ? '图片想法已发布' : thoughtImages.generating ? '正在生成插画，完成后自动发布；可关闭面板继续阅读' : '')}
+          onGenerateImage={generateThoughtImage}
           onDelete={(id) => deleteThought(id)}
         />
       )}
