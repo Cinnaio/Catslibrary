@@ -54,6 +54,26 @@ jobs:
       - name: Show Xcode version
         run: xcodebuild -version
 
+      - name: Identify build cache
+        id: build-cache
+        run: |
+          TOOLCHAIN=$(xcodebuild -version | shasum -a 256 | cut -d ' ' -f 1)
+          echo "toolchain=$TOOLCHAIN" >> "$GITHUB_OUTPUT"
+
+      - name: Restore Release DerivedData
+        id: derived-data
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            DerivedData
+            .ci-cache/source-mtimes.json
+          key: ios-release-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.build-cache.outputs.toolchain }}-${{ hashFiles('project.yml', 'ZhiZhouCore/Package.swift', '**/Package.resolved', '.github/workflows/build-ios.yml', 'scripts/ci-source-mtimes.py') }}-${{ github.sha }}
+          restore-keys: |
+            ios-release-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.build-cache.outputs.toolchain }}-${{ hashFiles('project.yml', 'ZhiZhouCore/Package.swift', '**/Package.resolved', '.github/workflows/build-ios.yml', 'scripts/ci-source-mtimes.py') }}-
+
+      - name: Restore timestamps of unchanged build inputs
+        run: python3 scripts/ci-source-mtimes.py restore
+
       - name: Validate property lists
         run: |
           plutil -lint ZhiZhou/Support/Info.plist
@@ -61,16 +81,22 @@ jobs:
 
       - name: Build (unsigned)
         run: |
+          set -o pipefail
+          STARTED=$(date +%s)
           xcodebuild \
             -project ZhiZhou.xcodeproj \
             -scheme ZhiZhou \
             -configuration Release \
             -derivedDataPath DerivedData \
             -destination 'generic/platform=iOS' \
+            -showBuildTimingSummary \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            build
+            build 2>&1 | tee "$RUNNER_TEMP/ios-release-build.log"
+          echo "### Release build" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Build seconds: $(($(date +%s) - STARTED))" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Restored cache: ${{ steps.derived-data.outputs.cache-matched-key }}" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Verify Release bundle
         run: |
@@ -105,3 +131,16 @@ jobs:
           name: ZhiZhou-unsigned-ipa
           path: ZhiZhou-unsigned.ipa
           if-no-files-found: error
+
+      - name: Record build input timestamps
+        if: success() && steps.derived-data.outputs.cache-hit != 'true'
+        run: python3 scripts/ci-source-mtimes.py save
+
+      - name: Save Release DerivedData
+        if: success() && steps.derived-data.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            DerivedData
+            .ci-cache/source-mtimes.json
+          key: ${{ steps.derived-data.outputs.cache-primary-key }}
