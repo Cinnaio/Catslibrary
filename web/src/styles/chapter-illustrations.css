@@ -1,0 +1,308 @@
+.chapter-illustration-slot {
+  clear: both;
+}
+.illustration-list {
+  margin-top: 12px;
+}
+.illustration-list summary {
+  cursor: pointer;
+}
+.illustration-list ol {
+  padding-left: 20px;
+}
+.illustration-list li {
+  margin: 12px 0;
+}
+.illustration-list li > span {
+  display: block;
+  font-size: 12px;
+  opacity: 0.75;
+}
+.illustration-list button {
+  margin-right: 14px;
+}
+.illustration-undo {
+  position: fixed;
+  z-index: 490;
+  left: 50%;
+  bottom: 100px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 18px;
+  border-radius: 12px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-lg);
+  font-size: 14px;
+}
+.illustration-undo button {
+  background: transparent;
+  border: 0;
+  color: var(--accent);
+  cursor: pointer;
+}
+.thought-selection-popover {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.thought-selection-popover > button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.chapter-illustration {
+  margin: 1.5em 0;
+  text-indent: 0;
+}
+.chapter-illustration-picture {
+  margin: 0 auto;
+  width: 100%;
+  text-indent: 0;
+}
+.chapter-illustration-picture--medium {
+  max-width: 440px;
+}
+.chapter-illustration-frame {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  max-height: 70vh;
+  overflow: hidden;
+  background: color-mix(in srgb, currentColor 4%, transparent);
+  border-radius: 8px;
+}
+.chapter-illustration-frame > span {
+  font-size: 14px;
+}
+.chapter-illustration-trigger {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+  overflow: hidden;
+}
+.chapter-illustration-trigger img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.chapter-illustration-picture figcaption,
+.illustration-caption-preview {
+  margin-top: 10px;
+  text-align: center;
+  font-size: 14px;
+  line-height: 1.6;
+  opacity: 0.75;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.illustration-insert {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px;
+  margin: 12px 0;
+  border: 1px dashed currentColor;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font-size: 13px;
+  opacity: 0.65;
+  cursor: pointer;
+}
+.illustration-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 10px;
+  font-size: 13px;
+}
+.illustration-actions button,
+.illustration-manager button:not(.btn),
+.illustration-notice button {
+  color: inherit;
+  background: transparent;
+  border: 0;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.illustration-manager,
+.illustration-notice {
+  margin: 16px 0;
+  padding: 16px;
+  border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.7;
+}
+.illustration-manager-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.illustration-manager > span,
+.illustration-context span,
+.illustration-pending > div > span {
+  display: block;
+}
+.illustration-pending {
+  margin-top: 12px;
+}
+.illustration-pending > div {
+  padding: 12px 0;
+  border-top: 1px solid color-mix(in srgb, currentColor 15%, transparent);
+}
+.illustration-pending .chapter-illustration-picture {
+  max-width: 180px;
+  margin: 0;
+}
+.illustration-pending button {
+  margin-right: 16px;
+}
+.illustration-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  background: rgb(0 0 0 / 0.65);
+}
+.illustration-editor {
+  position: fixed;
+  z-index: 510;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(560px, calc(100vw - 24px));
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  padding: 24px;
+  border-radius: 16px;
+  background: var(--bg-card, #fff);
+  color: var(--text-primary, #222);
+  box-shadow: 0 24px 70px rgb(0 0 0 / 0.25);
+}
+.illustration-editor h2 {
+  margin: 0 0 8px;
+  font-size: 20px;
+}
+.illustration-editor > p {
+  margin: 0 0 16px;
+  font-size: 13px;
+  opacity: 0.7;
+}
+.illustration-editor label {
+  display: block;
+  margin-top: 16px;
+  font-size: 14px;
+}
+.illustration-editor select,
+.illustration-editor textarea {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+}
+.illustration-editor input {
+  display: block;
+  margin-top: 8px;
+  max-width: 100%;
+}
+.illustration-context {
+  padding: 10px;
+  margin-top: 8px;
+  background: color-mix(in srgb, currentColor 4%, transparent);
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.illustration-help {
+  display: block;
+  font-size: 12px;
+  opacity: 0.65;
+  margin: 6px 0 12px;
+}
+.illustration-file-preview {
+  width: 100%;
+  max-height: 40vh;
+  object-fit: contain;
+}
+.illustration-editor-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 20px;
+}
+.illustration-lightbox {
+  position: fixed;
+  inset: 24px;
+  z-index: 510;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+  pointer-events: none;
+}
+.illustration-lightbox img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  pointer-events: auto;
+}
+.illustration-close {
+  position: absolute;
+  right: 0;
+  top: 0;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 50%;
+  background: #fff;
+  color: #222;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.chapter-illustration button:disabled,
+.illustration-manager button:disabled,
+.illustration-insert:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+.chapter-illustration-preview {
+  padding: 16px;
+  max-height: 55vh;
+  overflow: auto;
+  border: 1px solid color-mix(in srgb, currentColor 15%, transparent);
+  border-radius: 8px;
+  line-height: 1.9;
+}
+.chapter-illustration-preview p {
+  margin: 1em 0;
+}
+@media (max-width: 640px) {
+  .illustration-editor {
+    padding: 18px;
+  }
+  .illustration-lightbox {
+    inset: 12px;
+  }
+}

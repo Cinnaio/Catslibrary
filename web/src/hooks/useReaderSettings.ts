@@ -27,6 +27,7 @@ export const READER_SETTING_KEYS = [
   'readerPageWidth',
   'readerAutoScrollSpeed',
   'readerClickPaging',
+  'readerIllustrations',
 ] as const
 
 export type ReaderSettingKey = (typeof READER_SETTING_KEYS)[number]
@@ -45,6 +46,7 @@ const DEFAULT_SETTINGS: ReaderSettingsMap = {
   readerPageWidth: 'standard',
   readerAutoScrollSpeed: 'off',
   readerClickPaging: 'on',
+  readerIllustrations: 'on',
 }
 
 /** 根据实际设备与阅读器断点判定同步分区。平板/触屏 Mac 也归入 mobile。 */

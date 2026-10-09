@@ -5,7 +5,7 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { BookOpen, Search, X } from 'lucide-react'
+import { BookOpen, ImagePlus, Search, X } from 'lucide-react'
 import type { ChapterFull, ChapterMeta, Thought } from '@shared/types'
 import { chaptersApi, isRestrictedContentError, type ApiError, novelsApi, thoughtsApi, progressApi } from '../lib/api'
 import { applyProgressState } from '../lib/progress-state'
@@ -41,6 +41,7 @@ import { MobileLibrarySheet, MobileSettingsSheet } from '../components/reader/Mo
 import ThoughtPanel from '../components/reader/ThoughtPanel'
 import { useThoughtImages } from '../hooks/useThoughtImages'
 import ChapterRecap from '../components/reader/ChapterRecap'
+import ChapterIllustrations from '../components/reader/ChapterIllustrations'
 import { ThemeMenu } from '../components/ThemeMenu'
 import ContentRestrictionNotice from '../components/ContentRestrictionNotice'
 import PageState from '../components/PageState'
@@ -130,6 +131,10 @@ export default function Reader() {
   const readerAppRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
+  const [illustrationMode, setIllustrationMode] = useState(false)
+  const [illustrationShortcut, setIllustrationShortcut] = useState<{ paragraphIndex: number; nonce: number } | null>(null)
+  const canManageIllustrations = user?.role === 'admin'
+  useEffect(() => { setIllustrationMode(false); setIllustrationShortcut(null) }, [chapterId, user?.id])
   const chapterTriggerRef = useRef<HTMLButtonElement>(null)
   const scrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prefetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -142,8 +147,8 @@ export default function Reader() {
   const readerPageWidth = settings.readerPageWidth || 'standard'
   const readerLineHeight = settings.readerLineHeight || '1.95'
   const readerParagraphSpacing = settings.readerParagraphSpacing || '1.4'
-  const readerClickPaging = settings.readerClickPaging !== 'off'
-  const readerAutoScrollSpeed = settings.readerAutoScrollSpeed || 'off'
+  const readerClickPaging = settings.readerClickPaging !== 'off' && !illustrationMode
+  const readerAutoScrollSpeed = illustrationMode ? 'off' : settings.readerAutoScrollSpeed || 'off'
 
   // ---------- 章节加载 ----------
   const cacheChapter = useCallback((ch: ChapterFull): ChapterFull => {
@@ -740,7 +745,27 @@ export default function Reader() {
 
   // ---------- 键盘快捷键 ----------
   useEffect(() => {
+    const body = bodyRef.current
+    if (!body || typeof ResizeObserver === 'undefined') return
+    let frame = 0
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => {
+        if (!pageMode) { updatePageIndicator(); return }
+        // Recount pages after illustrations change without moving the current text.
+        totalPagesRef.current = calcTotalPages()
+        currentPageRef.current = clamp(Math.floor(window.scrollY / getPageHeight()), 0, Math.max(totalPagesRef.current - 1, 0))
+        updatePageIndicator()
+      })
+    })
+    observer.observe(body)
+    return () => { observer.disconnect(); cancelAnimationFrame(frame) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chapter?.id, loading, pageMode])
+
+  useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      if ((e.target as HTMLElement).closest('[role="dialog"]') || illustrationMode) return
       const tag = (e.target as HTMLElement).tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
       if (pageMode) {
@@ -766,7 +791,7 @@ export default function Reader() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pageMode, chapter?.id, allChapters.length])
+  }, [pageMode, chapter?.id, allChapters.length, illustrationMode])
 
   // ---------- 章节下拉：定位 + 点击空白关闭 ----------
   // 下拉用 position:fixed，需按触发按钮的视口坐标计算 top/left；
@@ -835,6 +860,7 @@ export default function Reader() {
     if (!el) return
     let startX = 0, startY = 0, startTime = 0
     const onStart = (e: TouchEvent) => {
+      if (illustrationMode || (e.target as HTMLElement).closest('button, .chapter-illustration, [role="dialog"]')) { startX = 0; return }
       if (e.touches.length !== 1) return
       startX = e.touches[0]!.clientX
       startY = e.touches[0]!.clientY
@@ -861,7 +887,7 @@ export default function Reader() {
       el.removeEventListener('touchend', onEnd)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pageMode, chapter?.id])
+  }, [pageMode, chapter?.id, illustrationMode])
 
   // ---------- 分页点击热区 ----------
   useEffect(() => {
@@ -1054,8 +1080,9 @@ export default function Reader() {
         selectedText: parsed.text.length > 200 ? parsed.text.slice(0, 200) : parsed.text,
       })
       const rect = range.getBoundingClientRect()
+      const popoverWidth = canManageIllustrations ? 210 : 88
       setPopoverPos({
-        left: Math.min(window.innerWidth - 104, Math.max(12, rect.left + rect.width / 2 - 44)),
+        left: Math.min(window.innerWidth - popoverWidth - 12, Math.max(12, rect.left + rect.width / 2 - popoverWidth / 2)),
         top: Math.max(12, rect.top - 44),
       })
     }
@@ -1075,7 +1102,7 @@ export default function Reader() {
       contentEl?.removeEventListener('mouseup', handleSelection)
       if (selectionTimer) clearTimeout(selectionTimer)
     }
-  }, [chapter?.id])
+  }, [chapter?.id, canManageIllustrations])
 
   function openThoughtPanel(index: number) {
     setActiveThoughtParagraph(index)
@@ -1184,6 +1211,7 @@ export default function Reader() {
             <Link to={`/novel/${encodeURIComponent(nid)}`} className="reader-nav-btn reader-nav-toc" title="返回详情">详情</Link>
           </div>
           <div className="reader-controls">
+            {canManageIllustrations && <button type="button" aria-label="管理章节插图" aria-pressed={illustrationMode} title="章节插图" onClick={() => setIllustrationMode(value => !value)}><ImagePlus size={18} /></button>}
             <button className={`reader-controls__bookmark${currentBookmarked ? ' bookmarked' : ''}`} aria-label={currentBookmarked ? '移除书签' : '添加书签'} aria-pressed={currentBookmarked} title={currentBookmarked ? '移除书签' : '添加书签'} onClick={handleBookmarkToggle}>
               <svg className="bookmark-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 2h12v12l-6-4-6 4V2z" /></svg>
             </button>
@@ -1302,6 +1330,7 @@ export default function Reader() {
           <div className="reader-chapter-num">{chapter.order ? `第 ${chapter.order} 章` : ''}</div>
           <h1 className="reader-chapter-title">{chapter.title}</h1>
           <ChapterRecap prevChapterId={prevChapter?.id || ''} prevChapterTitle={prevChapter ? chapterLabel(prevChapter, currentIdx - 1) : ''} />
+          <ChapterIllustrations key={`${chapter.id}:${user?.id || 'guest'}:${mode}`} chapterId={chapter.id} content={chapter.content} bodyRef={bodyRef} canManage={canManageIllustrations} managing={illustrationMode} onExit={() => setIllustrationMode(false)} visible={settings.readerIllustrations !== 'off'} shortcut={illustrationShortcut} />
           <div ref={bodyRef} className="reader-body" dangerouslySetInnerHTML={bodyHtml} />
           {!!thoughtsByParagraph['-1']?.length && <button className="btn btn--secondary btn--sm" onClick={() => openThoughtPanel(-1)}>查看原段落已变更的想法（{thoughtsByParagraph['-1'].length}）</button>}
         </article>
@@ -1341,6 +1370,7 @@ export default function Reader() {
       <div id="mobile-reader-toolbar" role="toolbar" className={`mobile-reader-bar${mobileBarHidden ? ' is-hidden' : ''}`} aria-label="移动端阅读工具栏" aria-hidden={mobileBarHidden} inert={mobileBarHidden} onClick={() => setMobileBarHidden(true)}>
         <div className="mobile-reader-progress" aria-hidden="true"><div className="mobile-reader-progress__fill" style={{ width: `${chapterProgressPercent}%` }}></div></div>
         <span className="mobile-reader-progress__text">本章 {chapterProgressPercent}%</span>
+        {canManageIllustrations && <button type="button" className="mobile-reader-bar__btn" aria-label="管理章节插图" aria-pressed={illustrationMode} onClick={event => { event.stopPropagation(); setIllustrationMode(value => !value) }}><ImagePlus size={18} /></button>}
         <button type="button" className="mobile-reader-bar__btn" aria-label="章节目录" onClick={(e) => { e.stopPropagation(); setMobileLibraryOpen(true); setMobileLibraryTab('chapters') }}>
           <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="4" x2="15" y2="4" /><line x1="5" y1="9" x2="15" y2="9" /><line x1="5" y1="14" x2="15" y2="14" /><circle cx="2.5" cy="4" r="0.5" /><circle cx="2.5" cy="9" r="0.5" /><circle cx="2.5" cy="14" r="0.5" /></svg>
         </button>
@@ -1366,6 +1396,8 @@ export default function Reader() {
         settings={settings}
         set={(key: ReaderSettingKey, value: string) => {
           set(key, value)
+          // Keep the illustration switch open so readers can compare both layouts.
+          if (key === 'readerIllustrations') return
           setMobileSettingsOpen(false)
           setMobileBarHidden(true)
         }}
@@ -1391,10 +1423,9 @@ export default function Reader() {
 
       {/* Thought selection popover */}
       {popoverPos && (
+        <div className="thought-selection-popover" style={{ left: popoverPos.left, top: popoverPos.top }}>
         <button
           type="button"
-          className="thought-selection-popover"
-          style={{ left: popoverPos.left, top: popoverPos.top }}
           onClick={(e) => {
             e.preventDefault()
             e.stopPropagation()
@@ -1403,6 +1434,15 @@ export default function Reader() {
         >
           写想法
         </button>
+        {canManageIllustrations && <button type="button" onClick={event => {
+          event.preventDefault(); event.stopPropagation()
+          if (!pendingSelection) return
+          setIllustrationMode(true)
+          setIllustrationShortcut({ paragraphIndex: pendingSelection.paragraphIndex, nonce: Date.now() })
+          setPopoverPos(null)
+          window.getSelection()?.removeAllRanges()
+        }}>在本段后插图</button>}
+        </div>
       )}
 
       {/* Thought panel */}

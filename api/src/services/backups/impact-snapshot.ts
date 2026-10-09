@@ -17,7 +17,7 @@ export const volatileTables = new Set([
   'login_failures',
   'content_request_limits',
 ])
-const assets = new Set(['novel_covers', 'user_avatars', 'novel_cover_history', 'thought_images'])
+const assets = new Set(['novel_covers', 'user_avatars', 'novel_cover_history', 'thought_images', 'chapter_illustration_assets'])
 const safeFields: Record<string, Record<string, string>> = {
   novels: { title: '书名', author: '作者', status: '连载状态', chapter_count: '章节数量', categories: '分类' },
   chapters: { title: '章节标题', novel_id: '所属小说', sort_order: '章节顺序', word_count: '字数' },
@@ -94,7 +94,7 @@ export const impactCounts = (): BackupImpactCounts => ({ current: 0, restored: 0
 export function impactGroup(table: string): BackupImpactGroup {
   return table === 'novels'
     ? 'novels'
-    : table === 'chapters'
+    : table === 'chapters' || table === 'chapter_illustrations'
       ? 'chapters'
       : table === 'users'
         ? 'users'

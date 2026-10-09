@@ -22,6 +22,8 @@ import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, Tabl
 import { Textarea } from '@/components/ui/textarea'
 import { Pencil, Trash2 } from 'lucide-react'
 import AdminPage from '@/components/admin/AdminPage'
+import ChapterIllustrations from '@/components/reader/ChapterIllustrations'
+import { formatContent } from '@/lib/reader-utils'
 import AdminRowActions from '@/components/admin/AdminRowActions'
 import AdminSelectionBar from '@/components/admin/AdminSelectionBar'
 import { AdminDataPanel, AdminCellText, AdminSearch, AdminToolbar, type AdminColumn } from '@/components/admin/AdminWorkspace'
@@ -63,6 +65,8 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
   // 提交中标志：与 Ctrl+Enter 快捷键共用，防止正文较长时重复提交。
   const [chapterSaving, setChapterSaving] = useState(false)
   const [chapterLoadError, setChapterLoadError] = useState('')
+  const [showIllustrations, setShowIllustrations] = useState(false)
+  const illustrationBodyRef = useRef<HTMLDivElement>(null)
   const chapterRequest = useRef(0)
   const chapterSaveLock = useRef(false)
   const [draft, setDraft] = useState<ChapterDraft>({ order: 1, title: '', content: '' })
@@ -200,9 +204,11 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
     setChapterLoadError('')
     setModal({ open: false, chapter: null, loading: false })
     setChapterSaving(false)
+    setShowIllustrations(false)
   }
 
   async function openChapterModal(chapter: ChapterMeta | null) {
+    setShowIllustrations(false)
     const requestId = ++chapterRequest.current
     setChapterLoadError('')
     setModal({ open: true, chapter, loading: false })
@@ -638,6 +644,13 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
                 />
               )}
             </section>
+            {!modal.loading && !chapterLoadError && <section className="chapter-dialog-section">
+              <div className="chapter-dialog-section__heading"><Label>章节插图</Label>
+                {modal.chapter && <Button type="button" variant="secondary" onClick={() => setShowIllustrations(value => !value)}>{showIllustrations ? '收起预览' : '预览与管理插图'}</Button>}
+              </div>
+              {!modal.chapter && <span className="admin-dialog-hint">创建章节并保存正文后，即可添加共享插图。</span>}
+              {modal.chapter && showIllustrations && <IllustrationAdminPreview chapterId={modal.chapter.id} content={draft.content} bodyRef={illustrationBodyRef} />}
+            </section>}
           </AdminDialogBody>
           <DialogFooter>
             <Button variant="secondary" onClick={closeChapterModal} disabled={chapterSaving}>
@@ -860,4 +873,15 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
       </Dialog>
     </AdminPage>
   )
+}
+
+function IllustrationAdminPreview({ chapterId, content, bodyRef }: { chapterId: string; content: string; bodyRef: React.RefObject<HTMLDivElement | null> }) {
+  const html = useMemo(() => ({ __html: formatContent(content) }), [content])
+  const [managing, setManaging] = useState(true)
+  return <>
+    {!managing && <Button type="button" variant="secondary" onClick={() => setManaging(true)}>管理插图</Button>}
+    <ChapterIllustrations key={chapterId} chapterId={chapterId} content={content} bodyRef={bodyRef} canManage managing={managing} onExit={() => setManaging(false)} />
+    <div ref={bodyRef} className="chapter-illustration-preview" dangerouslySetInnerHTML={html} />
+    <span className="admin-dialog-hint">插图单独保存，保存后所有读者可见。</span>
+  </>
 }

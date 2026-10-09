@@ -4,6 +4,7 @@
  * 通用 request(method, path, body, useAuth)。
  */
 import { getStorageUser, setStorageUser } from './storage'
+import type { ChapterIllustration } from '@shared/chapter-illustrations'
 import type { LocalBookmark } from '@shared/types'
 import type {
   BookImportCommitResult,
@@ -205,6 +206,46 @@ export function authFetch(path: string, init: RequestInit = {}): Promise<Respons
   const headers = { ...(init.headers as Record<string, string> | undefined) }
   const opts: RequestInit = { ...init, headers: authHeaders(headers) }
   return timedFetch(url(path), opts)
+}
+
+export const illustrationsApi = {
+  list(chapterId: string, signal?: AbortSignal): Promise<{ illustrations: ChapterIllustration[]; chapterRevision: string; contentHash: string }> {
+    // Explicit signal keeps chapter switches and access changes from applying stale responses.
+    return timedFetch(url(`/chapters/${encodeURIComponent(chapterId)}/illustrations`), {
+      headers: authHeaders(),
+      credentials: 'include',
+      cache: 'no-store',
+      signal,
+    }).then(async (res) => {
+      const value = await res.json()
+      if (!res.ok) throw new Error(value.error || '插图加载失败')
+      return value
+    })
+  },
+  async save(chapterId: string, id: string | null, metadata: Record<string, unknown>, file?: File): Promise<ChapterIllustration> {
+    const form = new FormData()
+    form.set('metadata', JSON.stringify(metadata))
+    if (file) form.set('image', file)
+    const res = await timedFetch(url(`/chapters/${encodeURIComponent(chapterId)}/illustrations${id ? `/${encodeURIComponent(id)}` : ''}`), {
+      method: id ? 'PUT' : 'POST',
+      headers: authHeaders(),
+      credentials: 'include',
+      body: form,
+    })
+    const value = await res.json()
+    if (!res.ok) throw new Error(value.error || '插图保存失败')
+    return value.illustration
+  },
+  async imageBlob(chapterId: string, id: string, signal: AbortSignal): Promise<Blob> {
+    const res = await timedFetch(url(`/chapters/${encodeURIComponent(chapterId)}/illustrations/${encodeURIComponent(id)}/image`), {
+      headers: authHeaders(),
+      credentials: 'include',
+      cache: 'no-store',
+      signal,
+    })
+    if (!res.ok) throw new Error('图片加载失败')
+    return res.blob()
+  },
 }
 
 // ---------- Novels ----------

@@ -99,6 +99,11 @@ export function SettingsControls({ settings, set, wakeLockSupported }: SettingsC
           </Seg>
         ))}
       </Row>
+      <Row label="插图">
+        {([['on', '显示'], ['off', '隐藏']] as Opt[]).map(([v, label]) => (
+          <Seg key={v} active={(settings.readerIllustrations || 'on') === v} onClick={() => set('readerIllustrations', v)}>{label}</Seg>
+        ))}
+      </Row>
       </fieldset>
       <fieldset className="reader-settings-group"><legend>辅助功能</legend>
       <Row label="滚动">

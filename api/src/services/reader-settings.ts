@@ -28,6 +28,7 @@ const SETTING_KEYS = [
   'readerPageWidth',
   'readerAutoScrollSpeed',
   'readerClickPaging',
+  'readerIllustrations',
   'contentMode',
 ] as const
 
@@ -45,6 +46,7 @@ const ALLOWED_VALUES: Record<(typeof SETTING_KEYS)[number], string[]> = {
   readerPageWidth: ['narrow', 'standard', 'wide'],
   readerAutoScrollSpeed: ['off', 'slow', 'medium', 'fast'],
   readerClickPaging: ['on', 'off'],
+  readerIllustrations: ['on', 'off'],
   contentMode: ['safe', 'adult'],
 }
 

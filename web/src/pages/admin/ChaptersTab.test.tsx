@@ -1,15 +1,17 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, expect, it, vi } from 'vitest'
-const mocks = vi.hoisted(() => ({ index: vi.fn(), list: vi.fn(), get: vi.fn(), update: vi.fn(), toast: vi.fn() }))
-vi.mock('../../lib/api', () => ({ adminApi: { novelIndex: mocks.index }, chaptersApi: { list: mocks.list, get: mocks.get, update: mocks.update }, scrapeApi: {}, newOperationId: () => 'test' }))
+const mocks = vi.hoisted(() => ({ index: vi.fn(), list: vi.fn(), get: vi.fn(), update: vi.fn(), toast: vi.fn(), illustrations: vi.fn(), saveIllustration: vi.fn() }))
+vi.mock('../../lib/api', () => ({ adminApi: { novelIndex: mocks.index }, chaptersApi: { list: mocks.list, get: mocks.get, update: mocks.update }, illustrationsApi: { list: mocks.illustrations, save: mocks.saveIllustration, imageBlob: async () => new Blob() }, scrapeApi: {}, newOperationId: () => 'test' }))
 vi.mock('../../components/feedback', () => ({ useToast: () => ({ toast: mocks.toast }), useConfirm: () => ({ confirm: vi.fn() }) }))
 vi.mock('../../components/admin/CustomSelect', () => ({ default: ({ options, onChange }: any) => <select aria-label="选择小说" onChange={e => onChange(e.target.value)}><option value="" />{options.map((o: any) => <option key={o.value} value={o.value}>{o.label}</option>)}</select> }))
 import ChaptersTab from './ChaptersTab'
+import { hashParagraphText } from '@shared/thought-anchor'
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.index.mockResolvedValue({ novels: [{ id: 'n', title: '测试书', author: '', chapterCount: 1 }] })
   mocks.list.mockResolvedValue({ chapters: [{ id: 'c', novelId: 'n', title: '原章', order: 1, wordCount: 3, createdAt: 1 }] })
   mocks.update.mockResolvedValue({})
+  mocks.illustrations.mockResolvedValue({ illustrations: [], chapterRevision: 'revision', contentHash: hashParagraphText('原正文') })
 })
 async function open() {
   render(<ChaptersTab />)
@@ -34,4 +36,31 @@ it('成功加载后允许有意清空正文并保存', async () => {
   fireEvent.change(content, { target: { value: '' } })
   fireEvent.click(screen.getByRole('button', { name: /^保存$/ }))
   await waitFor(() => expect(mocks.update).toHaveBeenCalledWith('c', { novelId: 'n', title: '原章', content: '', order: 1 }))
+})
+it('章节管理可以预览和添加插图，草稿正文未保存时禁止定位', async () => {
+  mocks.get.mockResolvedValue({ chapter: { content: '原正文' } })
+  await open()
+  const content = await screen.findByPlaceholderText('章节正文…')
+  await waitFor(() => expect(content).toHaveValue('原正文'))
+  fireEvent.click(screen.getByRole('button', { name: '预览与管理插图' }))
+  await screen.findByRole('button', { name: '在第 1 段后插图' })
+  fireEvent.change(content, { target: { value: '未保存的新正文' } })
+  await screen.findByText('正文与已保存章节不同，请先保存正文并重新打开，或重新加载阅读页面。')
+  expect(screen.queryByRole('button', { name: '在第 1 段后插图' })).not.toBeInTheDocument()
+  expect(mocks.saveIllustration).not.toHaveBeenCalled()
+})
+it('插图弹窗的保存快捷键只保存插图，不提交或关闭父章节弹窗', async () => {
+  mocks.get.mockResolvedValue({ chapter: { content: '原正文' } })
+  URL.createObjectURL = vi.fn(() => 'blob:preview')
+  URL.revokeObjectURL = vi.fn()
+  mocks.saveIllustration.mockImplementation(async (_chapter, _id, metadata) => ({ ...metadata, id: 'image', chapterId: 'c', assetId: 'asset', width: 20, height: 10, version: 1, order: 1 }))
+  await open()
+  await waitFor(() => expect(screen.getByPlaceholderText('章节正文…')).toHaveValue('原正文'))
+  fireEvent.click(screen.getByRole('button', { name: '预览与管理插图' }))
+  fireEvent.click(await screen.findByRole('button', { name: '在第 1 段后插图' }))
+  fireEvent.change(screen.getByLabelText('选择图片（也可以在此粘贴）'), { target: { files: [new File(['png'], 'image.png', { type: 'image/png' })] } })
+  fireEvent.keyDown(screen.getByLabelText('图注（可选）'), { key: 'Enter', ctrlKey: true })
+  await waitFor(() => expect(mocks.saveIllustration).toHaveBeenCalledTimes(1))
+  expect(mocks.update).not.toHaveBeenCalled()
+  expect(screen.getByPlaceholderText('章节正文…')).toBeInTheDocument()
 })

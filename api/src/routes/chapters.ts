@@ -11,8 +11,10 @@ import { optionalUser, requireAdmin, type AuthEnv } from '../middlewares/auth'
 import { contentPolicyHeaders, restrictedContentResponse, resolveContentAccess } from '../services/content-access'
 import { idempotencyKeyFromRequest, withIdempotency } from '../services/idempotency'
 import { checkContentRate } from '../services/content-rate-limit'
+import { chapterIllustrationsRoutes } from './chapter-illustrations'
 
 export const chaptersRoutes = new Hono<AuthEnv>()
+chaptersRoutes.route('/', chapterIllustrationsRoutes)
 
 // ---------- 列表 ----------
 
