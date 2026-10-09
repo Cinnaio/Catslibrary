@@ -41,6 +41,19 @@ jobs:
           xcrun simctl boot "$UDID"
           xcrun simctl bootstatus "$UDID" -b
           xcrun simctl status_bar "$UDID" override --time "9:41" --dataNetwork wifi --wifiMode active --wifiBars 3 --batteryState charged --batteryLevel 100
+      - name: Test reader TextKit lifetime with ARC optimization
+        run: |
+          mkdir -p audit-results
+          set -o pipefail
+          xcodebuild test \
+            -project ZhiZhou.xcodeproj \
+            -scheme ZhiZhouReaderTests \
+            -destination "platform=iOS Simulator,id=$AUDIT_UDID" \
+            -parallel-testing-enabled NO \
+            -resultBundlePath audit-results/ReaderTextSystem.xcresult \
+            SWIFT_OPTIMIZATION_LEVEL=-O \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee audit-results/reader-text-system.log
       - name: Run native interaction and screenshot checks
         run: |
           mkdir -p audit-results

@@ -41,3 +41,13 @@ APIRequestURL 现在用 URLComponents 的 percentEncodedPath / percentEncodedQue
 引用匹配采用与 Web 一致的空白规范化，并映射回原文 UTF-16 范围，覆盖连续空格、全角空格、换行和 emoji；没有具体引用的段评标记整个段落。滚动与分页都使用 ThoughtWaveLayoutManager 的逐行波浪下划线绘制，保留原生 UITextView 选字、复制与编辑菜单。
 
 新增 7 个 Core 用例和一个移动段评的 UI/截图用例。既有静态检查及 Swift 语法树检查通过；Web 对照的 thought-anchors / reader-utils 共 23 项测试通过。这些不代替新增 iOS XCTest、原生编译及波浪线的设备视觉验收。复杂 HTML 或 Web 广告清洗使正文文本不同的记录仍可能进入无法定位分组，避免错误挂载。
+
+## 阅读页闪退：TextKit 根对象持有修复
+
+13cfeac 引入的文本视图初始化把 NSTextStorage 和自定义 NSLayoutManager 放在 if 块内，离开该作用域后才将 NSTextContainer 交给 UITextView。Apple 的 UIKit 声明中，NSTextContainer.layoutManager 和 NSLayoutManager.textStorage 都是 unowned(unsafe) 反向引用；只保留 container 无法保活整个对象链。优化编译允许局部根对象提前释放，UITextView 初始化可能接收到悬空的布局管理器。这一缺陷可影响没有段评的普通正文，与插图网络请求是否成功无关。
+
+ThoughtSelectableTextView 现在在调用 super.init 之前把根 NSTextStorage 保存为强引用属性，并保持到文本视图销毁；外部传入的文本系统及 coder 初始化保持原有路径。保留插图 URL、段评锚点和波浪线功能。
+
+新增 ZhiZhouTests 原生测试目标及 4 项测试：默认初始化后的正文布局、多尺寸测量、初始化局部变量退出后的波浪线绘制、外部文本系统保持、视图销毁后对象链释放（前两项合并在同一测试方法）。Native frontend audit 在交互测试前以 -O 运行这些测试，覆盖仅在优化编译中出现的对象生命周期问题。
+
+当前 Windows 无 UIKit / Xcode，尚未原生执行修复前的崩溃复现及修复后的测试；这是基于源码与官方对象持有契约确认的生命周期缺陷，不替代具体设备崩溃堆栈及修复包验收。

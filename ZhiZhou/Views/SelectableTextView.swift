@@ -82,6 +82,9 @@ final class ThoughtSelectableTextView: UITextView, UITextViewDelegate {
     /// every SwiftUI update look like a text change.
     var configuredAttributedText: NSAttributedString?
     var configuredTextColor: UIColor?
+    // NSTextContainer.layoutManager and NSLayoutManager.textStorage are unowned(unsafe).
+    // Keep the root alive before UIKit receives the container, including optimized builds.
+    private let retainedTextStorage: NSTextStorage?
 
     override init(frame: CGRect, textContainer: NSTextContainer?) {
         // Use the same TextKit 1 geometry as pagination, with a custom quote underline renderer.
@@ -92,12 +95,16 @@ final class ThoughtSelectableTextView: UITextView, UITextViewDelegate {
             let manager = ThoughtWaveLayoutManager()
             storage.addLayoutManager(manager)
             manager.addTextContainer(container)
+            retainedTextStorage = storage
+        } else {
+            retainedTextStorage = nil
         }
         super.init(frame: frame, textContainer: container)
         configureInteraction()
     }
 
     required init?(coder: NSCoder) {
+        retainedTextStorage = nil
         super.init(coder: coder)
         configureInteraction()
     }
