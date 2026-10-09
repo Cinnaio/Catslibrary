@@ -419,6 +419,11 @@
         "name": "Backup Deployment Configuration",
         "section": "components",
         "body": "Keep a compact local/runtime status list with full-row keyboard-accessible buttons and status badges. Open shared three-section admin dialogs for the master key, dump, restore (pg_restore plus psql) and transfer tools. Detect without saving; save each dialog independently and update status immediately without discarding business-setting drafts. Cancel, Escape and backdrop dismiss discard dialog edits and clear unsaved keys; restore trigger focus. Retain failed inputs and prevent dismissal while busy. Generate 32 random bytes as Base64 on the server and export before saving. Never echo or overwrite a stored key; permit unchanged environment-key migration. Use the authenticated administrator session without a second password prompt; disable edits during maintenance. Keep business settings under the page save/revert controls."
+      },
+      {
+        "name": "Backup Task Visibility",
+        "section": "components",
+        "body": "Do not repeat recent task history on backup versions, targets, schedule or settings pages. Submitted operations open the task progress dialog directly. Historical task details are reached from operation logs; preserve stages, errors, logs and the post-preview restore action."
       }
     ],
     "dos": [

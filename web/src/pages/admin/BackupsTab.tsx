@@ -5,7 +5,7 @@ import type { BackupEvent, BackupOverview, BackupPage, BackupSettingsPage, Backu
 import { backupsApi, saveBlob } from '@/lib/backups-api'
 import { useConfirm, useToast } from '@/components/feedback'
 import AdminPage from '@/components/admin/AdminPage'
-import { AdminDataPanel, AdminPanelHeading, AdminToolbar } from '@/components/admin/AdminWorkspace'
+import { AdminDataPanel, AdminToolbar } from '@/components/admin/AdminWorkspace'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
 import AdminRowActions from '@/components/admin/AdminRowActions'
 import AdminEmptyState from '@/components/admin/AdminEmptyState'
@@ -508,35 +508,6 @@ export default function BackupsTab() {
                 busy={loading}
               />
             </>
-          )}
-          {!!overview.tasks.length && view !== 'logs' && (
-            <Card className="admin-panel-card">
-              <AdminPanelHeading title="最近任务" />
-              <CardContent>
-                <div className="backup-task-list">
-                  {overview.tasks.slice(0, 5).map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      className="backup-task"
-                      onClick={() => {
-                        setTask(null)
-                        setTaskId(item.id)
-                      }}
-                    >
-                      <span>
-                        {kinds[item.kind]}
-                        <small>{item.stage}</small>
-                      </span>
-                      <span>
-                        <Status state={item.state} />
-                        <small>{date(item.createdAt)}</small>
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
           )}
         </>
       )}

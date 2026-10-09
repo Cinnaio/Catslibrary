@@ -100,46 +100,10 @@
   line-height: 1.8;
   overflow-wrap: anywhere;
 }
-.backup-task-list {
-  display: flex;
-  flex-direction: column;
-}
-.backup-task {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 16px 0;
-  text-align: left;
-  background: none;
-  border: none;
-  border-bottom: 1px solid var(--admin-border);
-  color: var(--text-primary);
-  font-size: 0.875rem;
-  cursor: pointer;
-}
-.backup-task:last-child {
-  border-bottom: none;
-}
-.backup-task > span {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-}
-.backup-task > span:last-child {
-  align-items: flex-end;
-  flex-shrink: 0;
-}
-.backup-task small,
 .backup-log-list time {
   color: var(--text-muted);
   font-size: 0.75rem;
   overflow-wrap: anywhere;
-}
-.backup-task:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
 }
 .backup-log-list {
   display: flex;
@@ -165,12 +129,6 @@
   }
   .backup-check {
     min-height: 44px;
-  }
-  .backup-task {
-    gap: 12px;
-  }
-  .backup-task > span:last-child {
-    max-width: 44%;
   }
 }
 .backup-settings-footer {

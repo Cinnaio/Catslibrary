@@ -53,6 +53,38 @@ beforeEach(() => {
   mock.logs.mockResolvedValue({ items: [], total: 0 })
 })
 describe('备份后台', () => {
+  it.each(['versions', 'targets', 'schedule', 'settings'])('%s 不重复展示任务历史', async (view) => {
+    mock.overview.mockResolvedValue({
+      ...overview,
+      tasks: [{ id: 'old-task', kind: 'test', state: 'completed', stage: '历史连接测试', createdAt: 1 }],
+    })
+    mock.settings.mockResolvedValue({
+      settings: { revision: 0, hostSource: 'environment', allowedHosts: [], rehearsalSource: 'disabled', retryLimit: 3, logRetentionDays: 180 },
+      deployment: {
+        localDirectory: '/data/backups',
+        environmentAllowedHosts: [],
+        keyId: 'default',
+        encryption: true,
+        dump: true,
+        restore: true,
+        transfer: true,
+      },
+    })
+    show(view)
+    await waitFor(() => expect(screen.getByRole('button', { name: '刷新' })).toBeEnabled())
+    expect(screen.queryByText('最近任务')).not.toBeInTheDocument()
+    expect(screen.queryByText('历史连接测试')).not.toBeInTheDocument()
+  })
+  it('历史日志仍能打开对应任务详情', async () => {
+    const event = { id: 1, taskId: 'old-task', level: 'info', message: '连接测试已完成', createdAt: 1 }
+    mock.logs.mockResolvedValue({ items: [event], total: 1 })
+    mock.task.mockResolvedValue({ id: 'old-task', kind: 'test', state: 'completed', actor: '管理员', stage: '历史连接测试', createdAt: 1, result: null })
+    show('logs')
+    fireEvent.click(await screen.findByRole('button', { name: '查看任务' }))
+    await screen.findByRole('dialog', { name: '连接测试' })
+    expect(mock.task).toHaveBeenCalledWith('old-task')
+    expect(screen.getByRole('dialog', { name: '连接测试' })).toHaveTextContent('历史连接测试')
+  })
   it('缺少实际依赖时禁止创建备份，并显示具体缺项', async () => {
     mock.overview.mockResolvedValue({ ...overview, capabilities: { ...overview.capabilities, encryption: false } })
     show()
