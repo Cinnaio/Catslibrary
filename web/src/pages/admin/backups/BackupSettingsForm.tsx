@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import type { BackupSettings, BackupSettingsInput, BackupSettingsPage } from '@shared/backups'
 import { backupsApi } from '@/lib/backups-api'
 import AdminFormField from '@/components/admin/AdminFormField'
-import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
+import BackupDeploymentPanel from './BackupDeploymentPanel'
 import CustomSelect from '@/components/admin/CustomSelect'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -31,13 +31,14 @@ export default function BackupSettingsForm({
   const [connection, setConnection] = useState('')
   const [busy, setBusy] = useState(false),
     [error, setError] = useState('')
-  const dirty =
+  const policyDirty =
     draft.hostSource !== settings.hostSource ||
     draft.rehearsalSource !== settings.rehearsalSource ||
     draft.retryLimit !== settings.retryLimit ||
     draft.logRetentionDays !== settings.logRetentionDays ||
     (draft.hostSource === 'custom' && hosts !== settings.allowedHosts.join('\n')) ||
     (draft.rehearsalSource === 'custom' && Boolean(connection))
+  const dirty = policyDirty
   const locked = busy || disabled
   function reset() {
     setDraft({
@@ -200,39 +201,13 @@ export default function BackupSettingsForm({
           </AdminFormField>
         </CardContent>
       </Card>
-      <Card className="admin-panel-card">
-        <CardHeader>
-          <CardTitle>本地与运行环境</CardTitle>
-        </CardHeader>
-        <CardContent className="backup-fields">
-          <dl className="backup-environment-list">
-            <div>
-              <dt>本地备份目录</dt>
-              <dd>{deployment.localDirectory}</dd>
-            </div>
-            <div>
-              <dt>加密密钥标识</dt>
-              <dd>{deployment.keyId}</dd>
-            </div>
-            {(
-              [
-                ['主密钥', deployment.encryption],
-                ['数据库导出工具', deployment.dump],
-                ['数据库恢复工具', deployment.restore],
-                ['SFTP 传输工具', deployment.transfer],
-              ] as const
-            ).map(([label, ready]) => (
-              <div key={label}>
-                <dt>{label}</dt>
-                <dd>
-                  <AdminStatusBadge tone={ready ? 'success' : 'warning'}>{ready ? '已就绪' : '未配置'}</AdminStatusBadge>
-                </dd>
-              </div>
-            ))}
-          </dl>
-          <p className="backup-hint">目录、主密钥及工具路径由部署环境管理。更换主密钥会影响已有归档解密；本页不会显示密钥，也不会移动已有备份文件。</p>
-        </CardContent>
-      </Card>
+      <BackupDeploymentPanel
+        deployment={deployment}
+        disabled={locked}
+        onSaved={() => {
+          if (!policyDirty) onSaved(settings)
+        }}
+      />
       <div className="backup-settings-footer">
         {error && (
           <p role="alert" className="backup-error">

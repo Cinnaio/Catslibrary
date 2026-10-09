@@ -2,7 +2,8 @@ import { Hono, type Context } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { Readable } from 'node:stream'
 import { createReadStream } from 'node:fs'
-import type { BackupPolicy, BackupSettingsInput, BackupTargetInput } from '@shared/backups'
+import type { BackupPolicy, BackupSettingsInput, BackupTargetInput, BackupDeploymentInput } from '@shared/backups'
+import { configureDeployment, deploymentView } from '../services/backups/deployment'
 import { requireAdmin, type AuthEnv } from '../middlewares/auth'
 import { getDb } from '../db/pool'
 import { all, first, withTx } from '../db/query'
@@ -12,10 +13,9 @@ import { enqueue, maintenance, policy, savePolicy, saveTarget, targetRows, targe
 import { backupSettings, saveBackupSettings } from '../services/backups/settings'
 import { archivePath, type Manifest } from '../services/backups/archive'
 import { ensureLocalArchive } from '../services/backups/storage'
-import { toolAvailable, dumpTool, restoreTool, psqlTool, transferTool } from '../services/backups/process'
 import { startAdminOperationAudit, finishAdminOperationAudit } from '../services/admin-operation-audit'
 import { requestHash } from '../services/idempotency'
-import { randomUUID } from 'node:crypto'
+import { randomUUID, randomBytes } from 'node:crypto'
 
 export const backupRoutes = new Hono<AuthEnv>()
 backupRoutes.use('*', requireAdmin())
@@ -37,28 +37,47 @@ async function bodyJSON<T = Record<string, unknown>>(c: Context<AuthEnv>): Promi
 let capabilitiesCache: { expires: number; value: { dump: boolean; restore: boolean; transfer: boolean } } | null = null
 async function toolsReady() {
   if (!capabilitiesCache || capabilitiesCache.expires < Date.now()) {
-    const [dump, restore, psql, transfer] = await Promise.all([
-      toolAvailable(dumpTool()),
-      toolAvailable(restoreTool()),
-      toolAvailable(psqlTool()),
-      toolAvailable(transferTool()),
-    ])
-    capabilitiesCache = { expires: Date.now() + 30000, value: { dump, restore: restore && psql, transfer } }
+    const { tools } = await deploymentView()
+    capabilitiesCache = {
+      expires: Date.now() + 30000,
+      value: { dump: tools.dump.ready, restore: tools.restore.ready && tools.psql.ready, transfer: tools.transfer.ready },
+    }
   }
   return capabilitiesCache.value
 }
-backupRoutes.get('/settings', async (c) =>
-  c.json({
+backupRoutes.get('/settings', async (c) => {
+  const runtime = await deploymentView()
+  return c.json({
     settings: await backupSettings(getDb()),
     deployment: {
       localDirectory: backupRoot(),
       environmentAllowedHosts: allowedHosts(),
-      keyId: keyId(),
-      encryption: encryptionReady(),
-      ...(await toolsReady()),
+      keyId: runtime.keyId,
+      encryption: runtime.keyConfigured,
+      dump: runtime.tools.dump.ready,
+      restore: runtime.tools.restore.ready && runtime.tools.psql.ready,
+      transfer: runtime.tools.transfer.ready,
+      runtime,
     },
-  }),
-)
+  })
+})
+backupRoutes.post('/deployment/key', async (c) => {
+  if (await maintenance(getDb())) throw new BackupError('MAINTENANCE', '恢复中不能生成主密钥', 409)
+  if (encryptionReady()) throw new BackupError('KEY_ROTATION_REQUIRED', '已有主密钥，请保留当前密钥', 409)
+  return c.json({ masterKey: randomBytes(32).toString('base64'), keyId: keyId() })
+})
+backupRoutes.post('/deployment/detect', async (c) => {
+  const body = await bodyJSON<BackupDeploymentInput>(c)
+  return c.json(await configureDeployment(getDb(), body, true))
+})
+backupRoutes.put('/deployment', async (c) => {
+  const body = await bodyJSON<BackupDeploymentInput>(c)
+  const result = await configureDeployment(getDb(), body)
+  capabilitiesCache = null
+  // The local file is already durable; an audit outage must not report it as unsaved.
+  await audit(c.get('user').id, 'deployment-save').catch(() => console.error('[backups] 本地配置已保存，操作审计写入失败'))
+  return c.json(result)
+})
 backupRoutes.put('/settings', async (c) => {
   const settings = await saveBackupSettings(getDb(), await bodyJSON<BackupSettingsInput>(c))
   await audit(c.get('user').id, 'settings-save')
@@ -161,7 +180,7 @@ backupRoutes.patch('/versions/:id', async (c) => {
   return c.json({ ok: true })
 })
 async function queue(c: Context<AuthEnv>, kind: Parameters<typeof enqueue>[1], body: Record<string, unknown>) {
-  if (!encryptionReady()) throw new BackupError('KEY_UNAVAILABLE', '请先在部署端配置备份主密钥')
+  if (!encryptionReady()) throw new BackupError('KEY_UNAVAILABLE', '请先在备份设置中配置主密钥')
   const user = c.get('user'),
     task = await enqueue(getDb(), kind, body, { id: user.id, name: user.username })
   await audit(user.id, kind)

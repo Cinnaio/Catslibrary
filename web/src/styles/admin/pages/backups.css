@@ -199,6 +199,45 @@
   overflow-wrap: anywhere;
   min-width: 0;
 }
+.backup-environment-controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--admin-space-2);
+}
+.backup-environment-control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--admin-space-4);
+  min-height: 44px;
+  padding: var(--admin-space-2) 0;
+  border: 0;
+  border-radius: var(--admin-radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  text-align: left;
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+.backup-environment-control:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: var(--admin-table-row-hover-background);
+}
+.backup-environment-control:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+.backup-environment-control:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.backup-environment-control-status {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--admin-space-2);
+}
 .backup-setup-code {
   margin: var(--admin-space-3) 0 0;
   font-size: inherit;

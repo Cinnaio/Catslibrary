@@ -2,16 +2,10 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:
 import path from 'node:path'
 import { PROJECT_ROOT } from '../../config'
 import type { BackupPolicy, BackupTargetInput } from '@shared/backups'
+import { readDeploymentFile } from './deployment-file'
+import { BackupError } from './errors'
+export { BackupError } from './errors'
 
-export class BackupError extends Error {
-  constructor(
-    public code: string,
-    message: string,
-    public status = 400,
-  ) {
-    super(message)
-  }
-}
 export const BACKUP_LOCK = 730047
 export const BUSINESS_LOCK = 730048
 export function backupRoot() {
@@ -24,9 +18,9 @@ export function backupRoot() {
   return root
 }
 export function backupKey() {
-  const raw = process.env.BACKUP_ENCRYPTION_KEY || ''
+  const raw = readDeploymentFile().masterKey || process.env.BACKUP_ENCRYPTION_KEY || ''
   if (!/^[A-Za-z0-9+/]{43}=$/.test(raw) || Buffer.from(raw, 'base64').length !== 32)
-    throw new BackupError('KEY_UNAVAILABLE', '请在部署端配置 BACKUP_ENCRYPTION_KEY（32 字节随机密钥的 Base64）')
+    throw new BackupError('KEY_UNAVAILABLE', '请在备份设置中配置主密钥（32 字节随机密钥的 Base64）')
   return Buffer.from(raw, 'base64')
 }
 export function encryptionReady() {
@@ -37,7 +31,7 @@ export function encryptionReady() {
     return false
   }
 }
-export const keyId = () => process.env.BACKUP_KEY_ID || 'default'
+export const keyId = () => readDeploymentFile().keyId || process.env.BACKUP_KEY_ID || 'default'
 export function purposeKey(purpose: string) {
   return createHash('sha256').update(backupKey()).update(`zhi-zhou-backups:${purpose}`).digest()
 }

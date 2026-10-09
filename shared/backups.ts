@@ -116,5 +116,30 @@ export interface BackupSettingsPage {
     dump: boolean
     restore: boolean
     transfer: boolean
+    runtime?: BackupDeployment
   }
+}
+
+export type BackupToolName = 'dump' | 'restore' | 'psql' | 'transfer'
+export interface BackupToolStatus {
+  configuredPath: string
+  effectivePath: string
+  source: 'local' | 'environment' | 'automatic'
+  ready: boolean
+  version: string
+  error: string
+}
+export interface BackupDeployment {
+  revision: number
+  keyConfigured: boolean
+  keySource: 'local' | 'environment' | 'missing'
+  keyId: string
+  configFile: string
+  tools: Record<BackupToolName, BackupToolStatus>
+}
+export interface BackupDeploymentInput {
+  revision: number
+  tools: Record<BackupToolName, string>
+  masterKey?: string
+  persistCurrentKey?: boolean
 }

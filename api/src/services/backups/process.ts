@@ -4,6 +4,7 @@ import { pipeline } from 'node:stream/promises'
 import { loadConfig } from '../../config'
 import { BackupError } from './config'
 import type { ChildProcess } from 'node:child_process'
+import { readDeploymentFile, type ToolName } from './deployment-file'
 
 const activeCommands = new Set<ChildProcess>()
 export function stopBackupCommands() {
@@ -103,7 +104,11 @@ export async function toolAvailable(executable: string) {
     return false
   }
 }
-export const dumpTool = () => process.env.BACKUP_PG_DUMP_PATH || 'pg_dump'
-export const restoreTool = () => process.env.BACKUP_PG_RESTORE_PATH || 'pg_restore'
-export const psqlTool = () => process.env.BACKUP_PSQL_PATH || 'psql'
-export const transferTool = () => process.env.BACKUP_RCLONE_PATH || 'rclone'
+export const toolDefaults = { dump: ['BACKUP_PG_DUMP_PATH', 'pg_dump'], restore: ['BACKUP_PG_RESTORE_PATH', 'pg_restore'], psql: ['BACKUP_PSQL_PATH', 'psql'], transfer: ['BACKUP_RCLONE_PATH', 'rclone'] } as const
+export function resolvedTool(name: ToolName) {
+  return readDeploymentFile().tools[name] || process.env[toolDefaults[name][0]] || toolDefaults[name][1]
+}
+export const dumpTool = () => resolvedTool('dump')
+export const restoreTool = () => resolvedTool('restore')
+export const psqlTool = () => resolvedTool('psql')
+export const transferTool = () => resolvedTool('transfer')

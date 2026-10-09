@@ -10,12 +10,17 @@ import type {
   BackupTargetInput,
   BackupTask,
   BackupVersion,
+  BackupDeployment,
+  BackupDeploymentInput,
 } from '@shared/backups'
 import { request, authHeaders, url } from './api'
 
 const root = '/admin/backups'
 const operation = () => ({ operationId: crypto.randomUUID() })
 export const backupsApi = {
+  generateDeploymentKey: () => request<{ masterKey: string; keyId: string }>('POST', `${root}/deployment/key`, {}, true),
+  saveDeployment: (body: BackupDeploymentInput) => request<{ deployment: BackupDeployment }>('PUT', `${root}/deployment`, body, true),
+  detectDeployment: (body: BackupDeploymentInput) => request<{ deployment: BackupDeployment }>('POST', `${root}/deployment/detect`, body, true),
   settings: () => request<BackupSettingsPage>('GET', `${root}/settings`, null, true),
   saveSettings: (body: BackupSettingsInput) => request<BackupSettings>('PUT', `${root}/settings`, body, true),
   overview: () => request<BackupOverview>('GET', `${root}/overview`, null, true),

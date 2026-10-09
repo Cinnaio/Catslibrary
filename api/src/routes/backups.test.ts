@@ -7,12 +7,16 @@ import { createSession } from '../services/sessions'
 import { hashPassword } from '../services/auth'
 import { enqueue, setSetting } from '../services/backups/store'
 import { defaultPolicy } from '../services/backups/config'
+import { mkdtempSync, rmSync, existsSync, readFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 
 const app = new Hono().route('/api/admin/backups', backupRoutes)
 let fixture: TestDb,
   db: Db,
   admin = '',
   reader = ''
+let configDir: string
 function call(path: string, method = 'GET', body?: unknown, token = admin) {
   return app.request(`/api/admin/backups${path}`, {
     method,
@@ -21,6 +25,8 @@ function call(path: string, method = 'GET', body?: unknown, token = admin) {
   })
 }
 beforeAll(async () => {
+  configDir = mkdtempSync(path.join(tmpdir(), 'zz-backup-routes-'))
+  vi.stubEnv('BACKUP_CONFIG_FILE', path.join(configDir, 'backup-config.json'))
   fixture = await createTestDb()
   await fixture.applyMigrations()
   const base = fixture.db
@@ -33,7 +39,7 @@ beforeAll(async () => {
       const client = await base.connect()
       return {
         query: async (text, params) =>
-          /pg_try_advisory_xact_lock/.test(text)
+          /pg_try_advisory_(?:xact_)?lock/.test(text)
             ? { rows: [{ locked: true }] as any, rowCount: 1 }
             : /pg_advisory_xact_lock/.test(text)
               ? { rows: [], rowCount: 0 }
@@ -62,6 +68,7 @@ afterAll(async () => {
   setDbForTests(null)
   await fixture.close()
   vi.unstubAllEnvs()
+  rmSync(configDir, { recursive: true, force: true })
 })
 describe('备份管理权限、幂等及敏感边界', () => {
   it('游客和普通用户不能读取版本、日志或下载归档', async () => {
@@ -145,6 +152,39 @@ describe('备份管理权限、幂等及敏感边界', () => {
 })
 
 describe('前端备份设置接口', () => {
+  it('首次生成密钥只返回草稿，不写配置文件', async () => {
+    vi.stubEnv('BACKUP_ENCRYPTION_KEY', '')
+    try {
+      for (const token of ['', reader]) expect([401, 403]).toContain((await call('/deployment/key', 'POST', {}, token)).status)
+      const generated = await call('/deployment/key', 'POST', {})
+      expect(generated.status).toBe(200)
+      const body = (await generated.json()) as { masterKey: string }
+      expect(Buffer.from(body.masterKey, 'base64')).toHaveLength(32)
+      expect(generated.headers.get('cache-control')).toBe('no-store')
+      expect(existsSync(path.join(configDir, 'backup-config.json'))).toBe(false)
+    } finally {
+      vi.stubEnv('BACKUP_ENCRYPTION_KEY', Buffer.alloc(32, 3).toString('base64'))
+    }
+  })
+  it('本地配置仅限已登录管理员，无需二次密码且迁移密钥不回显', async () => {
+    const input = { revision: 0, tools: { dump: '', restore: '', psql: '', transfer: '' }, persistCurrentKey: true }
+    expect((await call('/deployment', 'PUT', input, reader)).status).toBe(403)
+    expect((await call('/deployment', 'PUT', input, '')).status).toBe(401)
+    for (const token of ['', reader]) expect([401, 403]).toContain((await call('/deployment/detect', 'POST', input, token)).status)
+    expect((await call('/deployment/detect', 'POST', input)).status).toBe(200)
+    expect(existsSync(path.join(configDir, 'backup-config.json'))).toBe(false)
+    const saved = await call('/deployment', 'PUT', input)
+    expect(saved.status).toBe(200)
+    const response = await saved.text()
+    expect(response).not.toContain(Buffer.alloc(32, 3).toString('base64'))
+    expect(response).not.toContain('fixture-password')
+    expect(JSON.parse(readFileSync(path.join(configDir, 'backup-config.json'), 'utf8')).masterKey).toBe(Buffer.alloc(32, 3).toString('base64'))
+    expect((await call('/deployment', 'PUT', input)).status).toBe(409)
+    expect((await call('/deployment/key', 'POST', {})).status).toBe(409)
+    await setSetting(db, 'maintenance', true)
+    expect((await call('/deployment', 'PUT', { ...input, revision: 1 })).status).toBe(409)
+    await setSetting(db, 'maintenance', false)
+  })
   it('配置默认继承部署端，后台允许列表保存后立即生效且校验版本', async () => {
     const initial = (await (await call('/settings')).json()) as any
     expect(initial.settings).toMatchObject({

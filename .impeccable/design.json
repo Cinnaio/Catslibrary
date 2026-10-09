@@ -414,6 +414,11 @@
         "name": "Reading Paper Contract",
         "section": "components",
         "body": "Novel detail and Reader extend the existing warm paper world. Transparent detail hero with shared shadow on the cover alone; directory, community and reading paper stay flat at 16px radius. Reader retains persisted typography/width and existing theme palettes, while optional root-contained mobile portals inherit reader colors. Mobile controls occupy an opaque full-width bottom dock; Home and back-to-top remain in the document-flow footer. Detail mobile sections preserve their 20px inset against legacy section rules. No decorative watermarks or new motion; progress widths update instantly."
+      },
+      {
+        "name": "Backup Deployment Configuration",
+        "section": "components",
+        "body": "Keep a compact local/runtime status list with full-row keyboard-accessible buttons and status badges. Open shared three-section admin dialogs for the master key, dump, restore (pg_restore plus psql) and transfer tools. Detect without saving; save each dialog independently and update status immediately without discarding business-setting drafts. Cancel, Escape and backdrop dismiss discard dialog edits and clear unsaved keys; restore trigger focus. Retain failed inputs and prevent dismissal while busy. Generate 32 random bytes as Base64 on the server and export before saving. Never echo or overwrite a stored key; permit unchanged environment-key migration. Use the authenticated administrator session without a second password prompt; disable edits during maintenance. Keep business settings under the page save/revert controls."
       }
     ],
     "dos": [

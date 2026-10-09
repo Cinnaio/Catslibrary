@@ -421,7 +421,7 @@ export default function BackupsTab() {
           )}
           {view === 'settings' && settings && (
             <BackupSettingsForm
-              key={settings.settings.revision}
+              key={`${settings.settings.revision}:${settings.deployment.runtime?.revision || 0}`}
               page={settings}
               disabled={overview.maintenance}
               onSaved={(value) => {
