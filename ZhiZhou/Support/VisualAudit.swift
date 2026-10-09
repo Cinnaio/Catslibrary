@@ -81,6 +81,31 @@ private final class VisualAuditProtocol: URLProtocol {
     private static var mediaRequests = 0
     private static var bookmark: [String: Any]?
     private static var otherSessionRemoved = false
+    private static var followupEnabled = false
+    private static var followupHours = 6
+    private static var importApplied = false
+    private static var importTargetID: String?
+    private static var backupRequests = 0
+
+    private static var followupFixture: [String: Any] {
+        ["enabled": followupEnabled, "intervalHours": followupHours, "nextCheckAt": 0, "checkedAt": VisualAudit.timestamp,
+         "result": "idle", "message": "目录已检查", "addedCount": 0, "hasConfig": true, "ongoing": true, "jobId": ""]
+    }
+    private static var importFixture: [String: Any] {
+        var result: [String: Any] = ["runId": "audit-import", "book": ["title": "山中来信", "author": "林溪"], "candidates": [], "targetNovelId": NSNull(),
+         "metadataDiff": [], "chapters": [
+            ["id": "chapter-new", "status": "new", "incomingTitle": "导入的新章节", "incomingContent": "新章节正文", "reason": "新章节", "selected": true],
+            ["id": "chapter-conflict", "status": "conflict", "incomingTitle": "重复章节", "incomingContent": "冲突正文", "reason": "发现多个同名章节", "selected": false],
+         ], "summary": ["newCount": 1, "changedCount": 0, "unchangedCount": 0, "conflictCount": 1], "warnings": ["冲突章节不会导入"]]
+        if VisualAudit.scenario == "admin-import-ambiguous" {
+            result["candidates"] = [
+                ["novel": ["id": "audit-book-1", "title": "山中来信", "author": "林溪"], "matchReason": "title-author"],
+                ["novel": ["id": "audit-book-2", "title": "山中来信", "author": "陈雨"], "matchReason": "title"],
+            ]
+            result["targetNovelId"] = importTargetID.map { $0 as Any } ?? NSNull()
+        }
+        return result
+    }
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
@@ -246,6 +271,80 @@ private final class VisualAuditProtocol: URLProtocol {
                 "thoughts": thoughts,
                 "totals": ["favorites": 0, "thoughts": thoughtCount],
             ] as [String: Any]
+        case ("GET", "/api/scrape") where queryValue("action") == "followup":
+            body = Self.followupFixture
+        case ("POST", "/api/scrape") where payload["action"] as? String == "followup-save":
+            if let hours = payload["intervalHours"] as? Int, [1, 3, 6, 12, 24].contains(hours),
+               let enabled = payload["enabled"] as? Bool, payload["novelId"] as? String == "audit-book-1" {
+                Self.followupEnabled = enabled; Self.followupHours = hours; body = Self.followupFixture
+            } else { status = 400; body = ["error": "无效追更参数"] }
+        case ("GET", "/api/scrape") where queryValue("action") == "proxy-logs":
+            body = ["logs": [["id": 1, "timestamp": VisualAudit.timestamp, "scope": "scrape", "method": "GET",
+                              "target": "https://example.com/catalog", "proxySource": "none", "durationMs": 120, "status": 200, "ok": true]]]
+        case ("GET", "/api/scrape") where queryValue("action") == "jobs":
+            body = ["jobs": []]
+        case ("GET", "/api/ai/tasks"):
+            body = ["items": [], "total": 0]
+        case ("GET", "/api/download-logs"):
+            body = ["logs": [["id": "audit-download", "type": "novel", "targetId": "audit-book-1",
+                              "targetTitle": "山中来信下载记录", "itemCount": 12, "createdAt": VisualAudit.timestamp]]]
+        case ("GET", "/api/ai/audit/users"):
+            body = ["users": [], "total": 0]
+        case ("GET", "/api/ai/audit/trend"):
+            body = ["trend": [], "days": Int(queryValue("days") ?? "30") ?? 30]
+        case ("GET", "/api/ai/audit/calls"):
+            let from = Double(queryValue("from") ?? "0") ?? 0
+            let days = Int(((Date().timeIntervalSince1970 * 1000 - from) / 86_400_000).rounded())
+            if [7, 30, 90].contains(days) {
+                body = ["calls": [["id": "range-call", "username": "近\(days)天调用", "createdAt": VisualAudit.timestamp]], "total": 1]
+            } else { status = 400; body = ["error": "调用明细缺少时间范围"] }
+        case ("GET", "/api/admin/operations"):
+            let start = Int(queryValue("offset") ?? "0") ?? 0
+            let end = min(start + 50, 51)
+            let records: [[String: Any]] = start < end ? (start..<end).map { index in
+                ["id": "operation-\(index)", "operationId": "audit-operation-\(index)", "actorUsername": "reader",
+                 "actorDisplayName": "林间读者", "action": "测试操作 \(index + 1)", "targetCount": 1,
+                 "status": "completed", "responseStatus": 200, "replayCount": 0, "error": "", "createdAt": VisualAudit.timestamp]
+            } : []
+            body = ["operations": records, "total": 51]
+        case ("GET", "/api/admin/site-settings/branding"):
+            body = ["name": "知舟", "tagline": "安静阅读", "homeTitle": "知舟书库", "description": "站点信息审查数据",
+                    "logoUrl": "/images/logo.png", "faviconUrl": "/images/logo.png"]
+        case ("GET", "/api/admin/site-settings/turnstile"):
+            body = ["siteKey": "audit-site-key", "hostnames": ["catrr.uk"], "secretSet": true, "configured": true,
+                    "encryptionReady": true, "secretReadable": true, "sources": ["siteKey": "environment", "secret": "environment", "hostnames": "database"]]
+        case ("GET", "/api/admin/backups/overview"):
+            Self.backupRequests += 1
+            if VisualAudit.scenario == "admin-backup-retry", Self.backupRequests == 1 {
+                status = 503; body = ["error": "备份状态暂时无法读取"]
+            } else {
+                body = ["policy": ["enabled": true, "schedule": "daily", "time": "03:00", "timezone": "Asia/Shanghai", "nextRunAt": VisualAudit.timestamp],
+                        "capabilities": ["encryption": true, "dump": true, "restore": true, "transfer": false, "rehearsal": false],
+                        "targets": [], "maintenance": false,
+                        "tasks": [["id": "backup-task", "kind": "backup", "state": "failed", "stage": "上传副本",
+                                   "error": "远端存储连接超时", "createdAt": VisualAudit.timestamp]]] as [String: Any]
+            }
+        case ("GET", "/api/admin/backups/versions"):
+            body = ["items": [["id": "backup-version", "createdAt": VisualAudit.timestamp, "state": "partial", "size": 1024,
+                               "note": "审查备份", "copies": [["targetId": "remote", "name": "远端", "state": "failed", "error": "远端存储连接超时"]]]], "total": 1]
+        case ("GET", "/api/admin/backups/logs"):
+            body = ["items": [["id": 1, "taskId": "backup-task", "level": "error", "message": "远端存储连接超时", "createdAt": VisualAudit.timestamp]], "total": 1]
+        case ("POST", "/api/book-import/preview"):
+            body = Self.importFixture
+        case ("POST", "/api/book-import/audit-import/target"):
+            Self.importTargetID = payload["targetNovelId"] as? String
+            body = Self.importFixture
+        case ("POST", "/api/book-import/audit-import/commit"):
+            if payload["selectedChapterIds"] as? [String] == ["chapter-new"],
+               payload["metadataMode"] as? String == "replace",
+               request.value(forHTTPHeaderField: "Idempotency-Key")?.isEmpty == false {
+                Self.importApplied = true
+                body = ["novelId": "audit-book-1", "created": 1, "updated": 0, "skipped": 1, "conflicts": []] as [String: Any]
+            } else { status = 400; body = ["error": "导入选择或幂等键无效"] }
+        case ("GET", "/api/book-import/history"):
+            body = ["items": [["runId": "audit-import", "novelId": "audit-book-1", "novelTitle": "山中来信",
+                               "sourceLabel": "example.com", "sourceUrl": "https://example.com/book", "status": Self.importApplied ? "applied" : "preview",
+                               "createdAt": VisualAudit.timestamp, "created": Self.importApplied ? 1 : 0, "updated": 0, "conflicts": 1]], "total": 1]
         case ("GET", "/api/progress"):
             if VisualAudit.scenario == "parity" {
                 body = ["progress": ["novelId": "audit-book-1", "chapterId": "audit-book-1-chapter-2", "scrollPercent": 0.42,

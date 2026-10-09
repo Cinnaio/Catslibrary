@@ -13,6 +13,11 @@ struct AdminRootView: View {
         case novels
         case chapters
         case jobs
+        case calls
+        case bookImport
+        case operationsAudit
+        case siteSettings
+        case backups
         case scrapeCenter
         case discover
         case scrapeConfigs
@@ -42,31 +47,38 @@ struct AdminRootView: View {
 
     private let moduleGroups: [AdminModuleGroup] = [
         AdminModuleGroup(id: "monitoring", title: "监控", modules: [
-            AdminModule(id: "dashboard", title: "总览", systemImage: "gauge", destination: .dashboard),
+            AdminModule(id: "dashboard", title: "后台总览", systemImage: "gauge", destination: .dashboard),
         ]),
-        AdminModuleGroup(id: "content", title: "内容", modules: [
-            AdminModule(id: "moderation", title: "内容审核", systemImage: "bubble.left.and.bubble.right", destination: .moderation),
-            AdminModule(id: "content-ratings", title: "分级管理", systemImage: "checkmark.shield", destination: .contentRatings),
+        AdminModuleGroup(id: "library", title: "内容库", modules: [
             AdminModule(id: "novels", title: "小说管理", systemImage: "books.vertical", destination: .novels),
             AdminModule(id: "chapters", title: "章节管理", systemImage: "doc.text", destination: .chapters),
+            AdminModule(id: "book-import", title: "书籍导入", systemImage: "square.and.arrow.down", destination: .bookImport),
         ]),
-        AdminModuleGroup(id: "operations", title: "运维", modules: [
-            AdminModule(id: "jobs", title: "任务管理", systemImage: "shippingbox", destination: .jobs),
-            AdminModule(id: "scrape-center", title: "爬虫抓取中心", systemImage: "scope", destination: .scrapeCenter),
+        AdminModuleGroup(id: "production", title: "内容生产", modules: [
+            AdminModule(id: "scrape-center", title: "爬虫抓取", systemImage: "scope", destination: .scrapeCenter),
+            AdminModule(id: "ai-service", title: "AI 服务", systemImage: "sparkles", destination: .aiService),
             AdminModule(id: "discover", title: "发现小说", systemImage: "magnifyingglass", destination: .discover),
             AdminModule(id: "scrape-configs", title: "配置导入导出", systemImage: "arrow.left.arrow.right.square", destination: .scrapeConfigs),
             AdminModule(id: "scrape-sources", title: "源管理", systemImage: "antenna.radiowaves.left.and.right", destination: .scrapeSources),
             AdminModule(id: "popo-account", title: "POPO 账号", systemImage: "person.badge.key", destination: .popoAccount),
             AdminModule(id: "proxy", title: "代理设置", systemImage: "network", destination: .proxy),
         ]),
-        AdminModuleGroup(id: "ai", title: "AI 服务", modules: [
-            AdminModule(id: "ai-service", title: "AI 服务", systemImage: "sparkles", destination: .aiService),
+        AdminModuleGroup(id: "runtime", title: "运行监控", modules: [
+            AdminModule(id: "tasks", title: "任务中心", systemImage: "shippingbox", destination: .jobs),
+            AdminModule(id: "calls", title: "调用与用量", systemImage: "chart.bar.xaxis", destination: .calls),
         ]),
-        AdminModuleGroup(id: "system", title: "系统", modules: [
-            AdminModule(id: "site-operations", title: "站点运营", systemImage: "chart.bar.xaxis", destination: .siteOperations),
-            AdminModule(id: "users", title: "用户与邀请码", systemImage: "person.2", destination: .users),
-            AdminModule(id: "login-audit", title: "登录审计", systemImage: "lock.shield", destination: .loginAudit),
+        AdminModuleGroup(id: "governance", title: "内容治理", modules: [
+            AdminModule(id: "moderation", title: "内容审核", systemImage: "bubble.left.and.bubble.right", destination: .moderation),
+            AdminModule(id: "content-ratings", title: "分级管理", systemImage: "checkmark.shield", destination: .contentRatings),
             AdminModule(id: "policy", title: "内容安全", systemImage: "shield.lefthalf.filled", destination: .policy),
+        ]),
+        AdminModuleGroup(id: "platform", title: "平台运营", modules: [
+            AdminModule(id: "site-operations", title: "站点运营", systemImage: "chart.bar.xaxis", destination: .siteOperations),
+            AdminModule(id: "users", title: "账户与注册", systemImage: "person.2", destination: .users),
+            AdminModule(id: "login-audit", title: "登录审计", systemImage: "lock.shield", destination: .loginAudit),
+            AdminModule(id: "operations-audit", title: "操作审计", systemImage: "list.bullet.clipboard", destination: .operationsAudit),
+            AdminModule(id: "site-settings", title: "站点设置", systemImage: "gearshape", destination: .siteSettings),
+            AdminModule(id: "backups", title: "备份与恢复", systemImage: "externaldrive", destination: .backups),
             AdminModule(id: "announcement", title: "站点公告", systemImage: "megaphone", destination: .announcement),
         ]),
     ]
@@ -158,6 +170,7 @@ struct AdminRootView: View {
         } label: {
             AppIconLabel(module.title, systemImage: module.systemImage)
         }
+        .accessibilityIdentifier("admin.module.\(module.id)")
     }
 
     @ViewBuilder
@@ -168,7 +181,12 @@ struct AdminRootView: View {
         case .contentRatings: AdminContentRatingsView()
         case .novels: AdminNovelsView()
         case .chapters: AdminChaptersView()
-        case .jobs: AdminJobsView()
+        case .jobs: AdminTaskCenterView()
+        case .calls: AdminCallsView()
+        case .bookImport: AdminBookImportView()
+        case .operationsAudit: AdminOperationsView()
+        case .siteSettings: AdminSiteSettingsView()
+        case .backups: AdminBackupsView()
         case .scrapeCenter: AdminScrapeCenterView()
         case .discover: AdminDiscoverView()
         case .scrapeConfigs: AdminScrapeConfigsView()

@@ -62,7 +62,7 @@ struct AdminAIServiceView: View {
                 NavigationLink {
                     AdminAIUsageView()
                 } label: {
-                    AppIconLabel("用量与审计", systemImage: "chart.bar.xaxis")
+                    AppIconLabel("AI 调用与用量", systemImage: "chart.bar.xaxis")
                 }
                 NavigationLink {
                     AdminAIProviderView()

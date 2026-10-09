@@ -528,4 +528,153 @@ final class FrontendAuditTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["没有匹配的小说"].waitForExistence(timeout: 15))
         capture("admin-search-empty", app: app)
     }
+
+    @MainActor
+    private func openAdminModule(_ id: String, app: XCUIApplication) {
+        selectTab("我的", app: app)
+        reveal(app.buttons["管理后台"], app: app)
+        tap(app.buttons["管理后台"])
+        let module = app.buttons["admin.module.\(id)"]
+        reveal(module, app: app)
+        tap(module)
+    }
+
+    @MainActor
+    func testAdminTaskCenterDownloadRecords() {
+        let app = launch("admin-parity")
+        openAdminModule("tasks", app: app)
+        XCTAssertTrue(app.buttons["抓取任务"].exists)
+        XCTAssertTrue(app.buttons["AI 任务"].exists)
+        tap(app.buttons["下载记录"])
+        XCTAssertTrue(app.staticTexts["山中来信下载记录"].waitForExistence(timeout: 10))
+        capture("admin-task-center-downloads", app: app)
+    }
+
+    @MainActor
+    func testAdminFollowupSaveAndReload() {
+        let app = launch("admin-parity")
+        openAdminModule("novels", app: app)
+        tap(app.buttons["小说操作"].firstMatch)
+        tap(app.buttons["追更设置"])
+        let enabled = app.switches["admin.followup.enabled"]
+        tap(enabled)
+        reveal(app.buttons["admin.followup.save"], app: app)
+        tap(app.buttons["admin.followup.save"])
+        XCTAssertTrue(app.staticTexts["追更设置已保存"].waitForExistence(timeout: 10))
+        tap(app.buttons["完成"])
+        tap(app.buttons["小说操作"].firstMatch)
+        tap(app.buttons["追更设置"])
+        XCTAssertTrue(enabled.waitForExistence(timeout: 10))
+        XCTAssertEqual(enabled.value as? String, "1")
+        capture("admin-followup-saved", app: app)
+    }
+
+    @MainActor
+    func testAdminImportPreviewCommitAndHistory() {
+        let app = launch("admin-parity")
+        openAdminModule("book-import", app: app)
+        let address = app.textFields["admin.import.url"]
+        tap(address)
+        address.typeText("https://example.com/book")
+        tap(app.buttons["admin.import.preview"])
+        let conflict = app.switches["重复章节 · 冲突"]
+        reveal(conflict, app: app)
+        XCTAssertTrue(conflict.exists)
+        XCTAssertFalse(conflict.isEnabled)
+        let commit = app.buttons["admin.import.commit"]
+        reveal(commit, app: app)
+        tap(commit)
+        tap(app.buttons["提交导入"])
+        XCTAssertTrue(app.staticTexts["admin.import.result"].waitForExistence(timeout: 10))
+        let history = app.buttons["我的导入历史"]
+        reveal(history, app: app)
+        tap(history)
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "已导入")).firstMatch.waitForExistence(timeout: 10))
+        capture("admin-import-history", app: app)
+    }
+
+    @MainActor
+    func testAdminOperationsLoadsSecondPage() {
+        let app = launch("admin-parity")
+        openAdminModule("operations-audit", app: app)
+        XCTAssertTrue(app.staticTexts["测试操作 1"].waitForExistence(timeout: 10))
+        let more = app.buttons["admin.records.more"]
+        for _ in 0..<60 {
+            if more.isHittable { break }
+            app.swipeUp()
+        }
+        tap(more)
+        let last = app.staticTexts["测试操作 51"]
+        reveal(last, app: app)
+        XCTAssertTrue(last.waitForExistence(timeout: 10))
+        capture("admin-operation-audit-second-page", app: app)
+    }
+
+    @MainActor
+    func testAdminImportRequiresExplicitAmbiguousTarget() {
+        let app = launch("admin-import-ambiguous")
+        openAdminModule("book-import", app: app)
+        tap(app.textFields["admin.import.url"])
+        app.textFields["admin.import.url"].typeText("https://example.com/book")
+        tap(app.buttons["admin.import.preview"])
+        let commit = app.buttons["admin.import.commit"]
+        reveal(commit, app: app)
+        XCTAssertTrue(commit.exists)
+        XCTAssertFalse(commit.isEnabled)
+        let candidate = app.buttons["山中来信 · 林溪"]
+        for _ in 0..<12 {
+            if candidate.isHittable { break }
+            app.swipeDown()
+        }
+        tap(candidate)
+        reveal(commit, app: app)
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: commit)
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 10), .completed)
+        capture("admin-import-target-confirmed", app: app)
+    }
+
+    @MainActor
+    func testAdminCallsRangeChangesDetails() {
+        let app = launch("admin-parity")
+        openAdminModule("calls", app: app)
+        tap(app.buttons["AI 调用与用量"])
+        XCTAssertTrue(app.staticTexts["近30天调用"].waitForExistence(timeout: 10))
+        tap(app.buttons["admin.calls.days"])
+        tap(app.buttons["近 7 天"])
+        XCTAssertTrue(app.staticTexts["近7天调用"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["近30天调用"].exists)
+        capture("admin-calls-seven-days", app: app)
+    }
+
+    @MainActor
+    func testAdminBackupFailureRetryAndReadOnlyHistory() {
+        let app = launch("admin-backup-retry", largeText: true)
+        openAdminModule("backups", app: app)
+        XCTAssertTrue(app.staticTexts["备份状态暂时无法读取"].waitForExistence(timeout: 10))
+        tap(app.buttons["重试"])
+        let failure = app.staticTexts["远端存储连接超时"]
+        reveal(failure, app: app)
+        XCTAssertTrue(failure.waitForExistence(timeout: 10))
+        let versions = app.buttons["备份版本"]
+        reveal(versions, app: app)
+        tap(versions)
+        XCTAssertTrue(app.staticTexts["审查备份"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["恢复备份"].exists)
+        capture("admin-backup-readonly-large-text", app: app)
+    }
+
+    @MainActor
+    func testAdminSiteSettingsShowsStatusAndWebEntry() {
+        let app = launch("admin-parity")
+        openAdminModule("site-settings", app: app)
+        XCTAssertTrue(app.staticTexts["站点信息审查数据"].waitForExistence(timeout: 10))
+        let configured = app.staticTexts["已配置"]
+        reveal(configured, app: app)
+        XCTAssertTrue(configured.exists)
+        let web = app.descendants(matching: .any)["admin.web./admin/site-settings?view=security"].firstMatch
+        reveal(web, app: app)
+        XCTAssertTrue(web.exists)
+        XCTAssertFalse(app.secureTextFields.firstMatch.exists)
+        capture("admin-site-settings-readonly", app: app)
+    }
 }

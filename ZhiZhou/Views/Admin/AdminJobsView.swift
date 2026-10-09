@@ -93,7 +93,7 @@ struct AdminJobsView: View {
         }
         .scrollContentBackground(.hidden)
         .appListStyle(.settings)
-        .navigationTitle("任务管理")
+        .navigationTitle("抓取任务")
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await loadAll() }
         .task(id: scenePhase) {

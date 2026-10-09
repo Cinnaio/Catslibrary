@@ -32,7 +32,8 @@ $actions = @(
     "uploadCover",
     "replaceSourceMetadata",
     "importScrapeConfigs",
-    "importLegadoSources"
+    "importLegadoSources",
+    "commitBookImport"
 )
 
 foreach ($action in $actions) {

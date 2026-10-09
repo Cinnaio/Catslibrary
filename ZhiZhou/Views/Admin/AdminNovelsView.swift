@@ -13,6 +13,7 @@ struct AdminNovelsView: View {
     @State private var hasMore = false
     @State private var loadedTotal = 0
     @State private var showEditor = false
+    @State private var followupNovel: Novel?
     @State private var editingNovel: Novel?
     @State private var deleteTarget: Novel?
     @State private var actionError: String?
@@ -111,6 +112,14 @@ struct AdminNovelsView: View {
                 } label: {
                     Label("新建小说", systemImage: "plus")
                 }
+            }
+        }
+        .sheet(item: $followupNovel) { novel in
+            NavigationStack {
+                AdminFollowupView(novel: novel)
+                    .toolbar { ToolbarItem(placement: .confirmationAction) {
+                        Button("完成") { followupNovel = nil }
+                    } }
             }
         }
         .sheet(isPresented: $showEditor) {
@@ -214,6 +223,7 @@ struct AdminNovelsView: View {
                         editingNovel = novel
                         showEditor = true
                     }
+                    Button("追更设置", systemImage: "clock.arrow.circlepath") { followupNovel = novel }
                     Button("增量更新", systemImage: "arrow.triangle.2.circlepath") {
                         Task { await scrapeUpdate(novel) }
                     }
@@ -234,6 +244,7 @@ struct AdminNovelsView: View {
                 editingNovel = novel
                 showEditor = true
             }
+            Button("追更设置", systemImage: "clock.arrow.circlepath") { followupNovel = novel }
             Button("增量更新", systemImage: "arrow.triangle.2.circlepath") {
                 Task { await scrapeUpdate(novel) }
             }

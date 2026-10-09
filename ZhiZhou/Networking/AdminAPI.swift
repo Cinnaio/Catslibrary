@@ -654,8 +654,10 @@ enum AdminAPI {
         try await APIClient.shared.get("/api/ai/audit/users?limit=\(limit)&offset=\(offset)", auth: true)
     }
 
-    static func aiAuditCalls(type: String = "all", limit: Int = 50, offset: Int = 0) async throws -> AiAuditCallsResponse {
+    static func aiAuditCalls(type: String = "all", limit: Int = 50, offset: Int = 0, from: Int64? = nil, to: Int64? = nil) async throws -> AiAuditCallsResponse {
         var path = "/api/ai/audit/calls?limit=\(limit)&offset=\(offset)"
+        if let from { path += "&from=\(from)" }
+        if let to { path += "&to=\(to)" }
         if type != "all" {
             path += "&type=\(encodeQueryValue(type))"
         }

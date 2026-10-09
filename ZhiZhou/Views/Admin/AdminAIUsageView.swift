@@ -2,15 +2,21 @@ import SwiftUI
 import ZhiZhouCore
 import Charts
 
-/// 用量与审计：用户用量汇总 + 最近调用明细（类型筛选）+ 近 30 天调用趋势。
+/// 用量与审计：用户用量汇总 + 最近调用明细（类型筛选）+ 可选时间范围的调用趋势。
 struct AdminAIUsageView: View {
-    @State private var requests = ListRequestGuard<String>()
+    @State private var requests = ListRequestGuard<[String]>()
     @State private var users: [AiAuditUser] = []
     @State private var calls: [AiAuditCall] = []
     @State private var trend: [AiAuditTrendPoint] = []
     @State private var isLoading = true
     @State private var errorMessage: String?
     @State private var typeFilter = "all"
+    @State private var days = 30
+    @State private var callOffset = 0
+    @State private var callTotal = 0
+    @State private var rangeStart: Int64 = 0
+    @State private var rangeEnd: Int64 = 0
+    private var query: [String] { [typeFilter, String(days)] }
 
     private let typeOptions: [(value: String, label: String)] = [
         ("all", "全部"), ("summary", "前情提要"), ("catchup", "回顾总结"), ("continue", "续写"),
@@ -20,12 +26,24 @@ struct AdminAIUsageView: View {
 
     var body: some View {
         List {
+            Section {
+                Picker("时间范围", selection: $days) {
+                    ForEach([7, 30, 90], id: \.self) { Text("近 \($0) 天").tag($0) }
+                }
+                .accessibilityIdentifier("admin.calls.days")
+                Picker("调用类型", selection: $typeFilter) {
+                    ForEach(typeOptions, id: \.value) { option in
+                        Text(option.label).tag(option.value)
+                    }
+                }
+                .listRowBackground(Color.clear)
+            }
             if let errorMessage, !users.isEmpty || !calls.isEmpty || !trend.isEmpty {
                 LoadErrorNotice(message: errorMessage, isLoading: isLoading) {
                     Task { await load() }
                 }
             }
-            if isLoading && users.isEmpty && trend.isEmpty {
+            if isLoading && users.isEmpty && calls.isEmpty && trend.isEmpty {
                 Section {
                     ProgressView("加载中…")
                         .frame(maxWidth: .infinity, minHeight: 160)
@@ -44,17 +62,8 @@ struct AdminAIUsageView: View {
                     .listRowSeparator(.hidden)
                 }
             } else {
-                Section {
-                    Picker("调用类型", selection: $typeFilter) {
-                        ForEach(typeOptions, id: \.value) { option in
-                            Text(option.label).tag(option.value)
-                        }
-                    }
-                    .listRowBackground(Color.clear)
-                }
-
                 if !trend.isEmpty {
-                    Section("近 30 天趋势") {
+                    Section("近 \(days) 天趋势（全部类型）") {
                         Chart(recentTrend) { point in
                             BarMark(
                                 x: .value("日期", point.date),
@@ -71,7 +80,7 @@ struct AdminAIUsageView: View {
                             }
                         }
                         .accessibilityElement(children: .ignore)
-                        .accessibilityLabel("近 14 天 AI 调用次数趋势")
+                        .accessibilityLabel("近 \(days) 天 AI 调用次数趋势")
                         .accessibilityValue(
                             recentTrend
                                 .map { "\($0.date) \($0.calls ?? 0) 次" }
@@ -103,7 +112,7 @@ struct AdminAIUsageView: View {
                                     .foregroundStyle(AppTheme.textSecondary)
                             }
                         }
-                        Text("图表显示最近 14 天，明细列出最近 5 天。")
+                        Text("图表显示所选时间范围的全部类型趋势，明细列出最近 5 个有记录的日期。")
                             .font(.caption2)
                             .foregroundStyle(AppTheme.textSecondary)
                     }
@@ -112,15 +121,15 @@ struct AdminAIUsageView: View {
                 if users.isEmpty {
                     Section {
                         ContentUnavailableView {
-                            Label("暂无用量", systemImage: "chart.bar")
+                            Label("暂无用户累计用量", systemImage: "chart.bar")
                         } description: {
-                            Text("还没有 AI 调用记录。")
+                            Text("服务端尚未返回用户用量汇总。")
                         }
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
                     }
                 } else {
-                    Section("用户用量（\(users.count)）") {
+                    Section("用户累计用量（前 \(users.count) 位，不随时间筛选）") {
                         ForEach(users) { user in
                             userRow(user)
                         }
@@ -128,9 +137,13 @@ struct AdminAIUsageView: View {
                 }
 
                 if !calls.isEmpty {
-                    Section("最近调用（\(calls.count)）") {
+                    Section("所选范围调用（\(calls.count)/\(callTotal)）") {
                         ForEach(calls) { call in
                             callRow(call)
+                        }
+                        if callOffset < callTotal {
+                            Button("加载更多调用") { Task { await loadMoreCalls() } }
+                                .disabled(isLoading)
                         }
                     }
                 }
@@ -138,10 +151,10 @@ struct AdminAIUsageView: View {
         }
         .scrollContentBackground(.hidden)
         .appListStyle(.settings)
-        .navigationTitle("用量与审计")
+        .navigationTitle("AI 调用与用量")
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await load() }
-        .task(id: typeFilter) {
+        .task(id: query + [ContentAccessStore.shared.accountRevision.uuidString]) {
             try? await Task.sleep(nanoseconds: 150_000_000)
             guard !Task.isCancelled else { return }
             await load()
@@ -238,14 +251,19 @@ struct AdminAIUsageView: View {
     }
 
     private var recentTrend: [AiAuditTrendPoint] {
-        Array(trend.suffix(14))
+        trend
     }
 
     // MARK: - 数据
 
     private func load() async {
-        let ticket = requests.begin(typeFilter)
+        let ticket = requests.begin(query)
         isLoading = true
+        let token = APIClient.shared.token
+        let selectedDays = Int(ticket.query[1]) ?? 30
+        let to = Int64(Date().timeIntervalSince1970 * 1000)
+        let from = to - Int64(selectedDays) * 86_400_000
+        users = []; calls = []; trend = []; errorMessage = nil
         defer {
             if requests.accepts(ticket, query: ticket.query) {
                 requests.finish(ticket)
@@ -254,17 +272,42 @@ struct AdminAIUsageView: View {
         }
         do {
             async let usersTask = AdminAPI.aiAuditUsers(limit: 50, offset: 0)
-            async let callsTask = AdminAPI.aiAuditCalls(type: ticket.query, limit: 50, offset: 0)
-            async let trendTask = AdminAPI.aiAuditTrend(days: 30)
+            async let callsTask = AdminAPI.aiAuditCalls(type: ticket.query[0], limit: 50, offset: 0, from: from, to: to)
+            async let trendTask = AdminAPI.aiAuditTrend(days: selectedDays)
             let (u, c, t) = try await (usersTask, callsTask, trendTask)
-            guard !Task.isCancelled, requests.accepts(ticket, query: typeFilter) else { return }
+            guard !Task.isCancelled, requests.accepts(ticket, query: query), APIClient.shared.token == token else { return }
             users = u.users
             calls = c.calls
             trend = t.trend
+            callOffset = c.calls.count
+            callTotal = c.total ?? c.calls.count
+            rangeStart = from
+            rangeEnd = to
             errorMessage = nil
+            requests.finish(ticket, succeeded: true)
+            isLoading = false
         } catch {
-            guard !Task.isCancelled, requests.accepts(ticket, query: typeFilter) else { return }
+            guard !Task.isCancelled, requests.accepts(ticket, query: query), APIClient.shared.token == token else { return }
             errorMessage = AppCopy.friendlyError(error)
         }
     }
+    private func loadMoreCalls() async {
+        guard !isLoading, callOffset < callTotal, let ticket = requests.beginNext(query) else { return }
+        let token = APIClient.shared.token
+        isLoading = true
+        defer { if requests.accepts(ticket, query: ticket.query) { requests.finish(ticket); isLoading = false } }
+        do {
+            let response = try await AdminAPI.aiAuditCalls(type: ticket.query[0], limit: 50, offset: callOffset, from: rangeStart, to: rangeEnd)
+            guard !Task.isCancelled, requests.accepts(ticket, query: query), APIClient.shared.token == token else { return }
+            let existing = Set(calls.map(\.id))
+            calls += response.calls.filter { !existing.contains($0.id) }
+            callOffset += response.calls.count
+            callTotal = response.calls.isEmpty ? callOffset : (response.total ?? callOffset)
+            errorMessage = nil
+        } catch {
+            guard !Task.isCancelled, requests.accepts(ticket, query: query), APIClient.shared.token == token else { return }
+            errorMessage = AppCopy.friendlyError(error)
+        }
+    }
+
 }

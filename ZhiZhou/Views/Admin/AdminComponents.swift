@@ -17,6 +17,7 @@ enum AdminDangerousAction: String {
     case replaceSourceMetadata = "source-sync.replace-metadata"
     case importScrapeConfigs = "scrape-configs.import"
     case importLegadoSources = "scrape-sources.import-legado"
+    case commitBookImport = "book-import.commit"
 }
 
 enum AdminDangerousOperationKind: String {
