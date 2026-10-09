@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { Dialog } from 'radix-ui'
-import { ImagePlus, X } from 'lucide-react'
+import { ImagePlus, Upload, X } from 'lucide-react'
 import { type ChapterIllustration, resolveIllustrationAnchor } from '@shared/chapter-illustrations'
 import { hashParagraphText } from '@shared/thought-anchor'
 import { illustrationsApi } from '../../lib/api'
@@ -22,6 +22,8 @@ interface Props {
 
 export function IllustrationPicture({ item }: { item: ChapterIllustration }) {
   const [attempt, setAttempt] = useState(0)
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const previewRef = useRef<HTMLDivElement>(null)
   const [state, setState] = useState({ key: '', src: '', error: false })
   const key = `${item.chapterId}:${item.id}:${item.assetId}:${attempt}`
   const { src, error } = state.key === key ? state : { src: '', error: false }
@@ -65,7 +67,7 @@ export function IllustrationPicture({ item }: { item: ChapterIllustration }) {
     <div ref={container} className={`chapter-illustration-picture chapter-illustration-picture--${item.size}`}>
       <div className="chapter-illustration-frame" style={{ aspectRatio: `${item.width} / ${item.height}` }}>
         {src ? (
-          <Dialog.Root>
+          <Dialog.Root open={previewOpen} onOpenChange={setPreviewOpen}>
             <Dialog.Trigger asChild>
               <button type="button" aria-label="放大查看章节插图" className="chapter-illustration-trigger">
                 <img
@@ -78,15 +80,36 @@ export function IllustrationPicture({ item }: { item: ChapterIllustration }) {
               </button>
             </Dialog.Trigger>
             <Dialog.Portal>
-              <Dialog.Overlay className="illustration-overlay" />
-              <Dialog.Content className="illustration-lightbox" aria-describedby={undefined}>
+              <Dialog.Overlay className="illustration-overlay illustration-overlay--viewer" />
+              <Dialog.Content
+                ref={previewRef}
+                className="illustration-lightbox"
+                onOpenAutoFocus={(event) => {
+                  event.preventDefault()
+                  previewRef.current?.focus()
+                }}
+              >
                 <Dialog.Title className="sr-only">章节插图大图</Dialog.Title>
-                <Dialog.Close asChild>
-                  <button className="illustration-close" type="button" aria-label="关闭图片预览">
-                    <X size={22} />
-                  </button>
-                </Dialog.Close>
-                <img src={src} alt={item.caption || '章节插图'} />
+                <div className="illustration-lightbox-header">
+                  <Dialog.Close asChild>
+                    <button className="illustration-close" type="button" aria-label="关闭图片预览">
+                      <X size={18} aria-hidden="true" />
+                    </button>
+                  </Dialog.Close>
+                </div>
+                <div
+                  className="illustration-lightbox-stage"
+                  onClick={(event) => {
+                    if (event.target === event.currentTarget) setPreviewOpen(false)
+                  }}
+                >
+                  <div className="illustration-lightbox-image">
+                    <img src={src} alt={item.caption || '章节插图'} />
+                    <Dialog.Description className={item.caption ? 'illustration-lightbox-caption' : 'sr-only'}>
+                      {item.caption || '按 Esc 或点击背景，返回阅读。'}
+                    </Dialog.Description>
+                  </div>
+                </div>
               </Dialog.Content>
             </Dialog.Portal>
           </Dialog.Root>
@@ -322,7 +345,10 @@ export default function ChapterIllustrations({ chapterId, content, bodyRef, canM
       {editable && (
         <div className="illustration-manager" onClick={(event) => event.stopPropagation()}>
           <div className="illustration-manager-heading">
-            <strong>章节插图</strong>
+            <div className="illustration-manager-title">
+              <ImagePlus size={18} aria-hidden="true" />
+              <strong>章节插图</strong>
+            </div>
             <button type="button" className="btn btn--secondary btn--sm" disabled={busy} onClick={onExit}>
               完成
             </button>
@@ -514,70 +540,95 @@ export default function ChapterIllustrations({ chapterId, content, bodyRef, canM
               }
             }}
           >
-            <Dialog.Title>{editor?.item ? '编辑章节插图' : '添加章节插图'}</Dialog.Title>
-            <Dialog.Description>预览仅自己可见，保存后成为所有读者共享的章节插图。</Dialog.Description>
-            <label>
-              插入位置
-              <select
-                disabled={busy}
-                value={editor?.index ?? -1}
-                onChange={(event) => setEditor((current) => (current ? { ...current, index: Number(event.target.value) } : current))}
-              >
-                <option value={-1}>章节开头</option>
-                {paragraphs.map((paragraph, index) => (
-                  <option key={index} value={index}>
-                    第 {index + 1} 段后：{excerptText(paragraph.textContent || '').slice(0, 36)}
-                  </option>
-                ))}
-                <option value={paragraphs.length}>章节结尾</option>
-              </select>
-            </label>
-            <div className="illustration-context">
-              <span>
-                上文：
-                {editor && editor.index >= 0 && editor.index < paragraphs.length
-                  ? excerptText(paragraphs[editor.index]?.textContent || '')
-                  : editor?.index === paragraphs.length
-                    ? excerptText(paragraphs.at(-1)?.textContent || '')
-                    : '章节开头'}
-              </span>
-              <span>下文：{editor && editor.index + 1 < paragraphs.length ? excerptText(paragraphs[editor.index + 1]?.textContent || '') : '章节结尾'}</span>
+            <div className="illustration-editor-header">
+              <div>
+                <Dialog.Title>{editor?.item ? '编辑章节插图' : '添加章节插图'}</Dialog.Title>
+                <Dialog.Description>为故事添一张图，先预览，再保存。</Dialog.Description>
+              </div>
+              <Dialog.Close asChild>
+                <button type="button" className="illustration-editor-close" aria-label="关闭插图编辑" disabled={busy}>
+                  <X size={18} aria-hidden="true" />
+                </button>
+              </Dialog.Close>
             </div>
-            <label className="illustration-upload">
-              选择图片（也可以在此粘贴）
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp,image/avif"
-                disabled={busy}
-                onChange={(event) => {
-                  selectFile(event.target.files?.[0])
-                  event.target.value = ''
-                }}
-              />
-            </label>
-            <span className="illustration-help">JPG、PNG、WebP、AVIF，最大 10MB</span>
-            {file && <span className="illustration-help">已选择：{file.name}</span>}
-            {preview ? (
-              <figure className={`chapter-illustration-picture chapter-illustration-picture--${size}`}>
-                <img className="illustration-file-preview" src={preview} alt="待保存插图预览" />
-              </figure>
-            ) : (
-              editor?.item && <IllustrationPicture item={{ ...editor.item, size }} />
-            )}
-            <label>
-              图注（可选）
-              <textarea value={caption} maxLength={500} rows={2} disabled={busy} onChange={(event) => setCaption(event.target.value)} />
-            </label>
-            <label>
-              展示宽度
-              <select value={size} disabled={busy} onChange={(event) => setSize(event.target.value as 'medium' | 'full')}>
-                <option value="medium">适中</option>
-                <option value="full">正文宽度</option>
-              </select>
-            </label>
-            {caption && <div className="illustration-caption-preview">{caption}</div>}
-            {error && <div role="alert">{error}</div>}
+            <div className="illustration-editor-body">
+              <label>
+                插入位置
+                <select
+                  disabled={busy}
+                  value={editor?.index ?? -1}
+                  onChange={(event) => setEditor((current) => (current ? { ...current, index: Number(event.target.value) } : current))}
+                >
+                  <option value={-1}>章节开头</option>
+                  {paragraphs.map((paragraph, index) => (
+                    <option key={index} value={index}>
+                      第 {index + 1} 段后：{excerptText(paragraph.textContent || '').slice(0, 36)}
+                    </option>
+                  ))}
+                  <option value={paragraphs.length}>章节结尾</option>
+                </select>
+              </label>
+              <div className="illustration-context">
+                <span>
+                  上文：
+                  {editor && editor.index >= 0 && editor.index < paragraphs.length
+                    ? excerptText(paragraphs[editor.index]?.textContent || '')
+                    : editor?.index === paragraphs.length
+                      ? excerptText(paragraphs.at(-1)?.textContent || '')
+                      : '章节开头'}
+                </span>
+                <span>下文：{editor && editor.index + 1 < paragraphs.length ? excerptText(paragraphs[editor.index + 1]?.textContent || '') : '章节结尾'}</span>
+              </div>
+              <label className="illustration-upload">
+                <span className="illustration-upload-icon" aria-hidden="true">
+                  <Upload size={20} />
+                </span>
+                <span>选择图片（也可以在此粘贴）</span>
+                <input
+                  className="sr-only"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/avif"
+                  disabled={busy}
+                  onChange={(event) => {
+                    selectFile(event.target.files?.[0])
+                    event.target.value = ''
+                  }}
+                />
+              </label>
+              <span className="illustration-help">JPG、PNG、WebP、AVIF，最大 10MB</span>
+              {file && <span className="illustration-help">已选择：{file.name}</span>}
+              {preview ? (
+                <figure className={`chapter-illustration-picture chapter-illustration-picture--${size}`}>
+                  <img className="illustration-file-preview" src={preview} alt="待保存插图预览" />
+                </figure>
+              ) : (
+                editor?.item && <IllustrationPicture item={{ ...editor.item, size }} />
+              )}
+              <div className="illustration-editor-fields">
+                <label>
+                  图注（可选）
+                  <textarea
+                    value={caption}
+                    placeholder="写一句简短的图片说明…"
+                    maxLength={500}
+                    rows={2}
+                    disabled={busy}
+                    onChange={(event) => setCaption(event.target.value)}
+                  />
+                </label>
+                <label>
+                  展示宽度
+                  <select value={size} disabled={busy} onChange={(event) => setSize(event.target.value as 'medium' | 'full')}>
+                    <option value="medium">适中</option>
+                    <option value="full">正文宽度</option>
+                  </select>
+                </label>
+              </div>
+              {caption && <div className="illustration-caption-preview">{caption}</div>}
+              {error && <div role="alert">{error}</div>}
+            </div>
             <div className="illustration-editor-footer">
+              <span className="illustration-save-note">保存后所有读者可见</span>
               <button className="btn btn--secondary" type="button" disabled={busy} onClick={() => setEditor(null)}>
                 取消
               </button>

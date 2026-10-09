@@ -1,25 +1,49 @@
+/* Warm paper surfaces, quiet borders and compact controls for the illustration workspace. */
+.illustration-manager,
+.illustration-editor,
+.illustration-lightbox,
+.illustration-undo {
+  --illustration-paper: color-mix(in srgb, var(--bg-card) 30%, var(--bg-secondary));
+  --illustration-inset: color-mix(in srgb, var(--bg-secondary) 80%, var(--bg-card));
+  --illustration-line: color-mix(in srgb, var(--text-primary) 12%, transparent);
+  --illustration-muted: var(--text-muted);
+  font-family: var(--font-body);
+  color: var(--text-primary);
+}
 .chapter-illustration-slot {
   clear: both;
 }
 .illustration-list {
-  margin-top: 12px;
+  margin-top: 16px;
+  border-top: 1px solid var(--illustration-line);
 }
 .illustration-list summary {
+  padding: 12px 0 0;
+  color: var(--text-secondary);
+  font-size: 12px;
   cursor: pointer;
 }
 .illustration-list ol {
-  padding-left: 20px;
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
 }
 .illustration-list li {
-  margin: 12px 0;
+  margin: 8px 0 0;
+  padding: 14px;
+  border: 1px solid var(--illustration-line);
+  border-radius: 10px;
+  background: var(--bg-card);
 }
 .illustration-list li > span {
   display: block;
+  margin: 4px 0 8px;
   font-size: 12px;
-  opacity: 0.75;
+  color: var(--illustration-muted);
+  overflow-wrap: anywhere;
 }
 .illustration-list button {
-  margin-right: 14px;
+  margin-right: 4px;
 }
 .illustration-undo {
   position: fixed;
@@ -111,16 +135,22 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  width: 100%;
-  padding: 10px;
-  margin: 12px 0;
-  border: 1px dashed currentColor;
+  width: fit-content;
+  min-height: 36px;
+  padding: 7px 13px;
+  margin: 16px auto;
+  border: 1px solid color-mix(in srgb, var(--text-primary) 12%, transparent);
   border-radius: 8px;
-  background: transparent;
-  color: inherit;
-  font-size: 13px;
-  opacity: 0.65;
+  background: var(--bg-card);
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: 12px;
+  line-height: 1.5;
   cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background 0.15s,
+    color 0.15s;
 }
 .illustration-actions {
   display: flex;
@@ -133,19 +163,26 @@
 .illustration-actions button,
 .illustration-manager button:not(.btn),
 .illustration-notice button {
-  color: inherit;
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: var(--text-secondary);
   background: transparent;
-  border: 0;
-  text-decoration: underline;
+  font: inherit;
   cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
 }
 .illustration-manager,
 .illustration-notice {
-  margin: 16px 0;
-  padding: 16px;
-  border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
-  border-radius: 12px;
-  font-size: 14px;
+  margin: 20px 0;
+  padding: 20px;
+  border: 1px solid var(--illustration-line, var(--border));
+  border-radius: 14px;
+  background: var(--illustration-paper, var(--bg-secondary));
+  font-family: var(--font-body);
+  font-size: 13px;
   line-height: 1.7;
 }
 .illustration-manager-heading {
@@ -153,7 +190,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 .illustration-manager > span,
 .illustration-context span,
@@ -178,7 +215,8 @@
   position: fixed;
   inset: 0;
   z-index: 500;
-  background: rgb(0 0 0 / 0.65);
+  background: rgb(25 23 20 / 0.46);
+  backdrop-filter: blur(3px);
 }
 .illustration-editor {
   position: fixed;
@@ -186,100 +224,243 @@
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  width: min(560px, calc(100vw - 24px));
-  max-height: calc(100dvh - 32px);
-  overflow: auto;
-  padding: 24px;
-  border-radius: 16px;
-  background: var(--bg-card, #fff);
-  color: var(--text-primary, #222);
-  box-shadow: 0 24px 70px rgb(0 0 0 / 0.25);
+  display: flex;
+  flex-direction: column;
+  width: min(600px, calc(100vw - 32px));
+  max-height: min(860px, calc(100dvh - 40px));
+  overflow: hidden;
+  padding: 0;
+  border: 1px solid var(--illustration-line);
+  border-radius: 18px;
+  background: var(--illustration-paper);
+  box-shadow:
+    0 24px 80px rgb(20 18 15 / 0.18),
+    0 2px 8px rgb(20 18 15 / 0.05);
+  outline: none;
 }
 .illustration-editor h2 {
-  margin: 0 0 8px;
-  font-size: 20px;
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 23px;
+  font-weight: 500;
+  line-height: 1.5;
+  letter-spacing: -0.025em;
 }
-.illustration-editor > p {
-  margin: 0 0 16px;
+.illustration-editor-header p {
+  margin: 0;
+  color: var(--illustration-muted);
   font-size: 13px;
-  opacity: 0.7;
+  line-height: 1.7;
 }
 .illustration-editor label {
   display: block;
-  margin-top: 16px;
-  font-size: 14px;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.6;
 }
 .illustration-editor select,
 .illustration-editor textarea {
   display: block;
   width: 100%;
-  margin-top: 6px;
-  padding: 8px 10px;
-  border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
-  border-radius: 6px;
-  background: transparent;
-  color: inherit;
-}
-.illustration-editor input {
-  display: block;
+  min-height: 42px;
   margin-top: 8px;
-  max-width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--illustration-line);
+  border-radius: 9px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.6;
+  outline: none;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
 }
 .illustration-context {
-  padding: 10px;
-  margin-top: 8px;
-  background: color-mix(in srgb, currentColor 4%, transparent);
-  border-radius: 6px;
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  margin: -6px 0 0;
+  border-left: 2px solid color-mix(in srgb, var(--accent) 32%, transparent);
+  border-radius: 0 7px 7px 0;
+  background: var(--illustration-inset);
+  color: var(--illustration-muted);
   font-size: 12px;
-  line-height: 1.7;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
 }
 .illustration-help {
   display: block;
-  font-size: 12px;
-  opacity: 0.65;
-  margin: 6px 0 12px;
+  margin: -8px 0 0;
+  color: var(--illustration-muted);
+  font-size: 11px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
 }
 .illustration-file-preview {
+  display: block;
   width: 100%;
-  max-height: 40vh;
+  max-height: 34vh;
+  border-radius: 9px;
   object-fit: contain;
+  background: var(--illustration-inset);
 }
 .illustration-editor-footer {
   display: flex;
+  flex: none;
+  align-items: center;
   justify-content: flex-end;
-  gap: 12px;
-  margin-top: 20px;
+  gap: 10px;
+  margin: 0;
+  padding: 16px 24px;
+  border-top: 1px solid var(--illustration-line);
+  background: var(--illustration-paper);
+}
+.illustration-overlay--viewer {
+  background: color-mix(in srgb, var(--bg-secondary) 96%, transparent);
+  backdrop-filter: blur(12px);
 }
 .illustration-lightbox {
   position: fixed;
-  inset: 24px;
+  inset: 0;
   z-index: 510;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
+  padding: 0 32px 24px;
   outline: none;
   pointer-events: none;
 }
-.illustration-lightbox img {
+.illustration-overlay--viewer[data-state='open'],
+.illustration-lightbox[data-state='open'] {
+  animation: illustration-viewer-in 420ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+.illustration-overlay--viewer[data-state='closed'],
+.illustration-lightbox[data-state='closed'] {
+  animation: illustration-viewer-out 320ms ease-in both;
+}
+.illustration-lightbox[data-state='open'] .illustration-lightbox-image {
+  animation: illustration-image-in 480ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.illustration-lightbox[data-state='closed'] .illustration-lightbox-image {
+  animation: illustration-image-out 320ms ease-in both;
+}
+.illustration-lightbox[data-state='open'] .illustration-lightbox-caption {
+  animation: illustration-viewer-in 280ms ease-out 160ms both;
+}
+.illustration-lightbox[data-state='closed'] :is(.illustration-lightbox-stage, .illustration-lightbox-caption, .illustration-close) {
+  pointer-events: none;
+}
+@keyframes illustration-viewer-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes illustration-viewer-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+@keyframes illustration-image-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.975);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes illustration-image-out {
+  from {
+    transform: translateY(0) scale(1);
+  }
+  to {
+    transform: translateY(4px) scale(0.985);
+  }
+}
+.illustration-lightbox-header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: flex-end;
+  height: 64px;
+}
+.illustration-lightbox-stage {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 24px 20px;
+  pointer-events: auto;
+}
+.illustration-lightbox-image {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
   max-width: 100%;
-  max-height: 100%;
+}
+.illustration-lightbox-stage img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: calc(100dvh - 180px);
   object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 12px 48px rgb(20 18 15 / 0.1);
+}
+.illustration-lightbox-caption {
+  flex: none;
+  align-self: center;
+  width: min(640px, 100%);
+  max-height: 48px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0 16px;
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 1.8;
+  text-align: center;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   pointer-events: auto;
 }
 .illustration-close {
-  position: absolute;
-  right: 0;
-  top: 0;
   display: grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
-  border: 0;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--text-primary) 8%, transparent);
   border-radius: 50%;
-  background: #fff;
-  color: #222;
+  background: color-mix(in srgb, var(--bg-card) 65%, transparent);
+  color: var(--text-secondary);
   cursor: pointer;
   pointer-events: auto;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+.illustration-close:hover {
+  background: var(--bg-card);
+  color: var(--text-primary);
+}
+.illustration-close:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
 }
 .chapter-illustration button:disabled,
 .illustration-manager button:disabled,
@@ -300,9 +481,246 @@
 }
 @media (max-width: 640px) {
   .illustration-editor {
-    padding: 18px;
+    width: calc(100vw - 24px);
+    max-height: calc(100dvh - 24px);
+    border-radius: 14px;
   }
   .illustration-lightbox {
-    inset: 12px;
+    padding: 0 14px calc(20px + env(safe-area-inset-bottom));
+  }
+  .illustration-lightbox-header {
+    height: 60px;
+  }
+  .illustration-lightbox-stage {
+    padding: 0 0 18px;
+  }
+  .illustration-lightbox-stage img {
+    max-height: calc(100dvh - 172px - env(safe-area-inset-bottom));
+    border-radius: 6px;
+  }
+  .illustration-lightbox-caption {
+    font-size: 12px;
+  }
+  .illustration-close {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+.illustration-manager-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.illustration-manager-title svg {
+  color: var(--text-muted);
+}
+.illustration-manager-title strong {
+  font-size: 14px;
+  font-weight: 500;
+}
+.illustration-manager-heading .btn {
+  min-height: 32px;
+  padding: 5px 12px;
+  border: 1px solid var(--illustration-line);
+  border-radius: 7px;
+  background: var(--bg-card);
+  box-shadow: none;
+  font-size: 12px;
+}
+.illustration-manager > span {
+  color: var(--illustration-muted);
+}
+.illustration-manager > span:last-child:not(:first-child) {
+  margin-top: 8px;
+}
+.illustration-manager button:not(.btn):hover,
+.illustration-actions button:hover {
+  background: color-mix(in srgb, var(--text-primary) 5%, transparent);
+  color: var(--text-primary);
+}
+.illustration-insert:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  background: var(--bg-secondary);
+  color: var(--accent);
+}
+.illustration-pending {
+  padding-top: 12px;
+  border-top: 1px solid var(--illustration-line);
+}
+.illustration-pending > strong {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+.illustration-editor-header {
+  display: flex;
+  flex: none;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 24px 24px 18px;
+  border-bottom: 1px solid var(--illustration-line);
+}
+.illustration-editor-header p {
+  margin-top: 6px;
+}
+.illustration-editor-close {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  margin-top: 2px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.illustration-editor-close:hover {
+  background: var(--illustration-inset);
+  color: var(--text-primary);
+}
+.illustration-editor-body {
+  display: grid;
+  gap: 16px;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 22px 24px;
+}
+.illustration-editor .illustration-upload {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 106px;
+  padding: 18px;
+  border: 1px dashed color-mix(in srgb, var(--text-primary) 22%, transparent);
+  border-radius: 12px;
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  text-align: center;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+.illustration-upload:hover,
+.illustration-upload:focus-within {
+  background: var(--illustration-inset);
+  border-color: var(--accent);
+}
+.illustration-upload-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--illustration-inset);
+  color: var(--text-muted);
+}
+.illustration-editor-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 140px;
+  align-items: start;
+  gap: 16px;
+}
+.illustration-editor textarea {
+  min-height: 88px;
+  resize: vertical;
+}
+.illustration-editor select {
+  padding-right: 24px;
+  text-overflow: ellipsis;
+}
+.illustration-editor select:focus-visible,
+.illustration-editor textarea:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.illustration-editor button:focus-visible,
+.illustration-manager button:focus-visible,
+.illustration-insert:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.illustration-save-note {
+  flex: 1;
+  color: var(--illustration-muted);
+  font-size: 11px;
+}
+.illustration-editor-footer .btn {
+  min-height: 38px;
+  padding: 8px 15px;
+  border-radius: 8px;
+  box-shadow: none;
+  font-size: 13px;
+}
+.illustration-editor-footer .btn--secondary {
+  border: 1px solid var(--illustration-line);
+  background: var(--bg-card);
+}
+.illustration-editor-footer .btn--primary {
+  border: 1px solid transparent;
+  background: var(--accent);
+  color: var(--accent-ink, #fff);
+}
+.illustration-editor-body > [role='alert'] {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--danger) 8%, var(--bg-card));
+  color: var(--danger);
+  font-size: 12px;
+}
+.illustration-caption-preview {
+  margin-top: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+@media (max-width: 640px) {
+  .illustration-manager {
+    padding: 16px;
+  }
+  .illustration-editor-header {
+    padding: 20px 18px 16px;
+  }
+  .illustration-editor h2 {
+    font-size: 21px;
+  }
+  .illustration-editor-body {
+    padding: 18px;
+    gap: 14px;
+  }
+  .illustration-editor-fields {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+  .illustration-editor-footer {
+    flex-wrap: wrap;
+    padding: 14px 18px;
+  }
+  .illustration-save-note {
+    flex-basis: 100%;
+  }
+  .illustration-insert {
+    min-height: 40px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .illustration-insert,
+  .illustration-editor select,
+  .illustration-editor textarea,
+  .illustration-upload {
+    transition: none;
+  }
+  .illustration-overlay--viewer[data-state],
+  .illustration-lightbox[data-state],
+  .illustration-lightbox[data-state] .illustration-lightbox-image,
+  .illustration-lightbox[data-state] .illustration-lightbox-caption {
+    animation: none;
   }
 }
