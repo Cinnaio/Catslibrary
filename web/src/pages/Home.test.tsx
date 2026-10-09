@@ -37,6 +37,7 @@ vi.mock('../lib/api', () => ({
 }))
 
 vi.mock('../lib/storage', () => ({
+  isInBookshelf: vi.fn().mockReturnValue(false),
   getNovelHistory: () => null,
   getRecentHistory: () => [{ novelId: 'recent-book', chapterId: 'chapter-1', novelTitle: '历史作品', timestamp: 1 }],
   saveHistory: vi.fn(),

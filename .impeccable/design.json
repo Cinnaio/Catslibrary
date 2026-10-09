@@ -439,6 +439,11 @@
         "name": "Backup Restore Impact",
         "section": "components",
         "body": "After restore preflight, reuse the shared compact three-section editor dialog variant with fixed gaps outside the scrolling body, then show current-to-backup add/modify/remove counts, safe paginated details, image byte totals and preserved scope. Hide bodies, credentials and internal hashes. Recheck freshness before confirmation; require acknowledgement alongside version and password verification. Expired, changed or incomplete reports require a new preflight. Block dismissal while checking and use shared toast feedback. Recheck under the server write gate before restoring."
+      },
+      {
+        "name": "Novel Cover Status",
+        "section": "components",
+        "body": "Home and Bookshelf reuse NovelCoverStatus: upper-right update count and lower-right reading/saved text share opaque theme paper, 20px height, 6px radius, 5px inset and 11px text. Merge reading and saved labels into one paper strip with a thin internal separator; no icon squares, outer border or shadow. Use accent text for update count and secondary text for other states. Counts over 99 show 99+; accessible names and titles retain exact totals. Reading history does not imply completion. Preserve book links, separate remove actions and theme palettes."
       }
     ],
     "dos": [

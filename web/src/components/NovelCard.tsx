@@ -5,7 +5,8 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { Novel } from '@shared/types'
 import { url } from '../lib/api'
-import { getNovelHistory } from '../lib/storage'
+import NovelCoverStatus from './NovelCoverStatus'
+import { getNovelHistory, isInBookshelf } from '../lib/storage'
 import { timeAgo } from '../lib/format'
 
 /** 封面 URL：优先本地 cover 端点；demo 数据无封面。 */
@@ -34,16 +35,7 @@ export default function NovelCard({ novel, variant, category }: { novel: Novel; 
         ) : (
           <span className="novel-card__cover-char">{(novel.title || '书').slice(0, 1)}</span>
         )}
-        {newCount > 0 && (
-          <span className="novel-card__update-badge" title={`有 ${newCount} 章待更新`}>
-            +{newCount}
-          </span>
-        )}
-        {read && (
-          <span className="novel-card__read-badge" title="已读">
-            阅
-          </span>
-        )}
+        <NovelCoverStatus updates={newCount} read={read} favorite={isInBookshelf(novel.id)} />
       </div>
       <div className="novel-card__body">
         <div className="novel-card__title">{novel.title}</div>

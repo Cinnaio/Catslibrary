@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import type { Novel } from '@shared/types'
+import { addToBookshelf, saveHistory } from '../lib/storage'
 import NovelCard, { coverUrl } from './NovelCard'
 
 const novel: Novel = {
@@ -30,11 +31,23 @@ function renderCard(n: Novel) {
 }
 
 describe('NovelCard', () => {
+  beforeEach(() => localStorage.clear())
   it('渲染标题、作者与待更新角标', () => {
     renderCard(novel)
     expect(screen.getByText('雾城来信')).toBeInTheDocument()
     expect(screen.getByText('作者：某作者')).toBeInTheDocument()
     expect(screen.getByText('+2')).toBeInTheDocument() // remote 12 - local 10
+  })
+
+  it('更新、阅读和收藏共存且提供明确语义，大数量保持紧凑', () => {
+    addToBookshelf(novel)
+    saveHistory(novel.id, { chapterId: 'chapter-1' })
+    renderCard({ ...novel, remoteChapterCount: 120 })
+    expect(screen.getByLabelText('有 110 章待更新')).toHaveTextContent('99+')
+    expect(screen.getByLabelText('有阅读记录')).toBeInTheDocument()
+    expect(screen.getByLabelText('已收藏')).toBeInTheDocument()
+    expect(screen.getAllByRole('link')).toHaveLength(1)
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
 
   it('封面加载失败时回退为首字占位（不用 innerHTML）', () => {

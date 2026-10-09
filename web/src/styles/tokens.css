@@ -74,6 +74,13 @@
   --novel-card-description-size: 0.75rem; /* 12px */
   --novel-card-footer-size: 0.7rem; /* 11.2px */
   /* Covers are objects resting on paper; card containers stay flat. */
+  --novel-cover-status-size: 20px;
+  --novel-cover-status-radius: var(--radius-sm);
+  --novel-cover-status-font-size: 0.6875rem;
+  --novel-cover-status-inset: 5px;
+  --novel-cover-status-gap: 3px;
+  --novel-cover-status-background: var(--bg-card);
+  --novel-cover-status-foreground: var(--text-secondary);
   --novel-cover-shadow: 0 2px 4px rgba(40, 32, 24, 0.08), 0 8px 18px rgba(40, 32, 24, 0.12);
   --admin-search-width: 17.5rem;
 

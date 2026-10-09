@@ -11,6 +11,7 @@ import {
   getAllBookmarks,
   getStorageScope,
   getBookshelf,
+  getNovelHistory,
   getRecentHistory,
   removeFromBookshelf,
   replaceAllBookmarks,
@@ -22,6 +23,7 @@ import { useContentPolicy } from '../context/ContentPolicyContext'
 import { useToast } from '../components/feedback'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { timeAgo } from '../lib/format'
+import NovelCoverStatus from '../components/NovelCoverStatus'
 import { coverUrl } from '../components/NovelCard'
 
 interface Favorite {
@@ -271,7 +273,7 @@ export default function Bookshelf() {
                 favorites.slice(start, start + pageSize).map((f) => (
                   <div className="bookshelf-novel-card" key={f.novelId}>
                     <Link to={`/novel/${encodeURIComponent(f.novelId)}`} className="novel-card">
-                      <CoverOrPlaceholder novelId={f.novelId} title={f.title || f.novelTitle || f.novelId} updatedAt={f.updatedAt} />
+                      <CoverOrPlaceholder novelId={f.novelId} title={f.title || f.novelTitle || f.novelId} updatedAt={f.updatedAt} favorite />
                       <div className="novel-card__body">
                         <div className="novel-card__title">{f.title || f.novelTitle || f.novelId}</div>
                         <div className="novel-card__meta">{f.chapterTitle ? `继续：${f.chapterTitle}` : f.author || '未开始阅读'}</div>
@@ -304,7 +306,7 @@ export default function Bookshelf() {
                       to={h.chapterId ? `/read/${encodeURIComponent(h.novelId)}/${encodeURIComponent(h.chapterId)}` : `/novel/${encodeURIComponent(h.novelId)}`}
                       className="novel-card"
                     >
-                      <CoverOrPlaceholder novelId={h.novelId} title={h.novelTitle || h.novelId} updatedAt={h.timestamp} />
+                      <CoverOrPlaceholder novelId={h.novelId} title={h.novelTitle || h.novelId} updatedAt={h.timestamp} read favorite={favorites.some((item) => item.novelId === h.novelId)} />
                       <div className="novel-card__body">
                         <div className="novel-card__title">{h.novelTitle || h.novelId}</div>
                         <div className="novel-card__meta">{h.chapterTitle || '继续阅读'}</div>
@@ -375,7 +377,7 @@ export default function Bookshelf() {
   )
 }
 
-function CoverOrPlaceholder({ novelId, title, updatedAt }: { novelId: string; title: string; updatedAt?: number }) {
+function CoverOrPlaceholder({ novelId, title, updatedAt, read, favorite }: { novelId: string; title: string; updatedAt?: number; read?: boolean; favorite?: boolean }) {
   const src = coverUrl({ id: novelId, updatedAt })
   const [failed, setFailed] = useState(false)
   const hasCover = !!src && !failed
@@ -386,6 +388,7 @@ function CoverOrPlaceholder({ novelId, title, updatedAt }: { novelId: string; ti
       ) : (
         <span className="novel-card__cover-char">{(title || '书').slice(0, 1)}</span>
       )}
+      <NovelCoverStatus read={read ?? !!getNovelHistory(novelId)} favorite={favorite} />
     </div>
   )
 }

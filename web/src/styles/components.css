@@ -196,46 +196,40 @@
   color: var(--text-secondary);
 }
 
-/* Update-available badge (admin table, novel detail hero) */
-.badge-update {
-  display: inline-block;
-  padding: 0 6px;
-  font-size: 0.72rem;
-  font-weight: 600;
-  line-height: 1.5;
-  color: #fff;
-  background: var(--color-danger);
-  border-radius: 999px;
-  vertical-align: middle;
-}
-
-/* Update-available badge on home novel-card cover */
-.novel-card__update-badge {
+/* 封面状态使用一套暖纸签，阅读与收藏合并为轻量文字行。 */
+.novel-cover-status {
   position: absolute;
-  top: 8px;
-  right: 8px;
-  padding: 1px 7px;
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: #fff;
-  background: var(--color-danger);
-  border-radius: 999px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+  inset-inline-end: var(--novel-cover-status-inset);
   z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--novel-cover-status-size);
+  padding-inline: 6px;
+  border: 0;
+  border-radius: var(--novel-cover-status-radius);
+  background: var(--novel-cover-status-background);
+  color: var(--novel-cover-status-foreground);
+  font-family: var(--font-sans);
+  font-size: var(--novel-cover-status-font-size);
+  font-weight: 500;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
-
-.novel-card__read-badge {
-  position: absolute;
-  right: 8px;
-  bottom: 8px;
-  padding: 1px 7px;
-  font-size: 0.72rem;
+.novel-cover-status--update {
+  inset-block-start: var(--novel-cover-status-inset);
+  color: var(--accent);
   font-weight: 600;
-  color: #fff;
-  background: var(--color-danger);
-  border-radius: 999px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
-  z-index: 1;
+}
+.novel-cover-status--reading {
+  inset-block-end: var(--novel-cover-status-inset);
+  padding-inline: 4px;
+  gap: var(--novel-cover-status-gap);
+}
+.novel-cover-status-label + .novel-cover-status-label {
+  border-inline-start: 1px solid var(--border);
+  padding-inline-start: var(--novel-cover-status-gap);
 }
 
 /* Category filter buttons — pill when active */
