@@ -85,7 +85,7 @@ final class ThoughtSelectableTextView: UITextView, UITextViewDelegate {
 
     override init(frame: CGRect, textContainer: NSTextContainer?) {
         // Use the same TextKit 1 geometry as pagination, with a custom quote underline renderer.
-        let container = textContainer ?? NSTextContainer(size: CGSize(width: 0, height: .greatestFiniteMagnitude))
+        let container = textContainer ?? NSTextContainer(size: CGSize(width: 0, height: CGFloat.greatestFiniteMagnitude))
         container.widthTracksTextView = true
         if textContainer == nil {
             let storage = NSTextStorage()
