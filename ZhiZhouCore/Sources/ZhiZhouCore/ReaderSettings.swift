@@ -79,6 +79,7 @@ public struct ReaderSettingsState: Equatable, Sendable {
         "readerParagraphSpacing": "1.4",
         "readerWakeLock": "off",
         "readerIllustrations": "on",
+        "readerAutoScrollSpeed": "off",
         "contentMode": "safe",
     ]
 

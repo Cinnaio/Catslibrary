@@ -218,6 +218,21 @@ final class AppState {
         sessionRestoreFailed = false
     }
 
+    func logoutAll() async throws {
+        let token = APIClient.shared.token
+        guard let token else { throw APIError.unauthorized }
+        await ReaderSettingsStore.shared.flush()
+        await ReaderProgressStore.shared.flush()
+        let _: EmptyResponse = try await APIClient.shared.request(
+            "POST", "/api/auth/logout-all", auth: true, expectedToken: token
+        )
+        guard APIClient.shared.token == token else { return }
+        APIClient.shared.token = nil
+        await deactivateLocalAccount(clearOfflineFallback: true)
+        user = nil
+        sessionRestoreFailed = false
+    }
+
     private func activateAccount(_ user: User) async {
         ContentAccessStore.shared.activate(token: APIClient.shared.token)
         await APIClient.shared.setChapterCacheScope(userID: user.id)

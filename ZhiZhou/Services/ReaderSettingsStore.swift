@@ -67,6 +67,10 @@ final class ReaderSettingsStore {
 
     var hasPendingSync: Bool { !dirtyKeys.isEmpty }
 
+    var autoScrollSpeed: ReaderAutoScrollSpeed {
+        ReaderAutoScrollSpeed(rawValue: values["readerAutoScrollSpeed"] ?? "off") ?? .off
+    }
+
     // MARK: - 读取（带默认值）
 
     /// 字号档位（pt），与 Web 端 FONT_LABELS 对齐；下标 2 为默认 20pt。

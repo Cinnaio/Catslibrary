@@ -117,6 +117,20 @@ struct ReaderView: View {
     @State private var showThoughtPanel = false
     @State private var chapterSwipeProgress: CGFloat = 0
     @State private var isSelectingBodyText = false
+    @State private var showBookmark = false
+    @State private var showRecap = false
+    @State private var recapEnabled = false
+    @State private var autoScrollPaused = true
+
+    private var previousChapter: ChapterMeta? {
+        chapterMetas.filter { $0.order < chapterOrder }.max { $0.order < $1.order }
+    }
+
+    private var autoScrollActive: Bool {
+        !autoScrollPaused && settings.pageMode == "scroll" && !isLoading && chapter != nil
+            && pendingScrollRestore == nil && !showTOC && !showSettings && !showThoughtPanel
+            && !showBookmark && !showRecap && !showIllustrationsNotice && !isSelectingBodyText && scenePhase == .active
+    }
 
     init(
         novel: Novel,
@@ -217,6 +231,16 @@ struct ReaderView: View {
         .sensoryFeedback(.selection, trigger: chapterOrder)
         .sensoryFeedback(.selection, trigger: currentPage)
         .sensoryFeedback(.selection, trigger: interactionFeedback)
+        .sheet(isPresented: $showBookmark) {
+            if let chapter {
+                BookmarkEditorView(novelID: novel.id, chapterID: chapter.id, chapterTitle: chapter.title)
+            }
+        }
+        .sheet(isPresented: $showRecap) {
+            if let previousChapter {
+                ReaderRecapView(source: .chapter(id: previousChapter.id, title: previousChapter.title))
+            }
+        }
         .sheet(isPresented: $showTOC) {
             ChapterListView(
                 novel: novel,
@@ -279,6 +303,14 @@ struct ReaderView: View {
             Text(illustrationsError ?? "部分插图与当前正文位置不匹配，暂未显示。")
         }
         .task(id: "\(chapterOrder)-\(ContentAccessStore.shared.mode)") { await load() }
+        .task(id: ContentAccessStore.shared.revision) {
+            recapEnabled = false
+            guard !offlineOnly, appState.user != nil else { return }
+            let revision = ContentAccessStore.shared.revision
+            let status: ReaderAIStatus? = try? await APIClient.shared.get("/api/ai/status", auth: true)
+            guard !Task.isCancelled, revision == ContentAccessStore.shared.revision else { return }
+            recapEnabled = status?.features.recap == true
+        }
         .task(id: "\(chapter?.id ?? "-"):\(ContentAccessStore.shared.revision):\(illustrationsAttempt)") {
             await loadIllustrations()
         }
@@ -292,10 +324,15 @@ struct ReaderView: View {
             resetForNewChapter()
         }
         .onChange(of: settings.pageMode) { _, mode in
+            autoScrollPaused = true
             prepareForModeChange(to: mode)
+        }
+        .onChange(of: isSelectingBodyText) { _, selecting in
+            if selecting { autoScrollPaused = true }
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .background || phase == .inactive {
+                autoScrollPaused = true
                 saveProgressNow()
             } else if phase == .active {
                 flushProgress()
@@ -304,6 +341,7 @@ struct ReaderView: View {
         .onAppear { applyWakeLock() }
         .onChange(of: settings.wakeLockEnabled) { _, _ in applyWakeLock() }
         .onDisappear {
+            autoScrollPaused = true
             UIApplication.shared.isIdleTimerDisabled = false
             saveTask?.cancel()
             thoughtsLoadTask?.cancel()
@@ -581,6 +619,12 @@ struct ReaderView: View {
                 .frame(width: min(geo.size.width, 720))
                 .frame(maxWidth: .infinity)
                 .scrollTargetLayout()
+                .background {
+                    ReaderAutoScrollDriver(active: autoScrollActive, speed: settings.autoScrollSpeed) {
+                        autoScrollPaused = true
+                    }
+                    .allowsHitTesting(false)
+                }
             }
             // A chapter change must create a fresh UIScrollView. Clearing the
             // binding alone leaves the old content offset attached to the reused
@@ -654,7 +698,7 @@ struct ReaderView: View {
                     phase,
                     at: ProcessInfo.processInfo.systemUptime
                 )
-                if newPhase == .interacting { hideChrome() }
+                if newPhase == .interacting { autoScrollPaused = true; hideChrome() }
             }
             .onDisappear {
                 scrollTapGuard = ReaderTapGuard()
@@ -960,18 +1004,7 @@ struct ReaderView: View {
                 }
                 .accessibilityLabel("查看插图加载状态")
             }
-            if !offlineOnly {
-                Button {
-                    openCurrentThoughtPanel()
-                } label: {
-                    Image(systemName: "text.bubble")
-                        .font(.system(size: 17, weight: .medium))
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
-                }
-                .disabled(currentReadingParagraphIndex == nil)
-                .accessibilityLabel("当前段评")
-            }
+            if !offlineOnly || settings.pageMode == "scroll" { readerMoreMenu }
 
             Button {
                 showTOC = true
@@ -998,6 +1031,38 @@ struct ReaderView: View {
         .buttonStyle(ScaleButtonStyle(pressedScale: 0.92))
         .foregroundStyle(ink.opacity(0.82))
         .fixedSize()
+    }
+
+    private var readerMoreMenu: some View {
+        Menu {
+            if !offlineOnly {
+                Button("当前段评", systemImage: "text.bubble") { openCurrentThoughtPanel() }
+                    .disabled(currentReadingParagraphIndex == nil)
+                Button("保存章节书签", systemImage: "bookmark") { showBookmark = true }
+                    .disabled(chapter == nil || appState.user == nil)
+                if recapEnabled && previousChapter != nil {
+                    Button("前情提要", systemImage: "sparkles") { showRecap = true }
+                }
+            }
+            if settings.pageMode == "scroll" {
+                Menu("自动滚动", systemImage: "arrow.down") {
+                    Button("关闭") { settings.set("readerAutoScrollSpeed", "off"); autoScrollPaused = true }
+                    Button("慢速") { settings.set("readerAutoScrollSpeed", "slow"); autoScrollPaused = false }
+                    Button("中速") { settings.set("readerAutoScrollSpeed", "medium"); autoScrollPaused = false }
+                    Button("快速") { settings.set("readerAutoScrollSpeed", "fast"); autoScrollPaused = false }
+                    if settings.autoScrollSpeed != .off {
+                        Divider()
+                        Button(autoScrollPaused ? "继续自动滚动" : "暂停自动滚动") { autoScrollPaused.toggle() }
+                    }
+                }
+                .disabled(chapter == nil || isLoading)
+            }
+        } label: {
+            Image(systemName: "ellipsis.circle")
+                .font(.system(size: 17, weight: .medium))
+                .frame(width: 44, height: 44)
+        }
+        .accessibilityLabel("更多阅读操作")
     }
 
     /// 底部阅读控制组：上一章、章节进度、下一章共享一块轻量分段表面。
@@ -1154,6 +1219,9 @@ struct ReaderView: View {
 
     /// 切章前清空旧正文，避免失败时静默显示上一章内容。
     private func resetForNewChapter() {
+        autoScrollPaused = true
+        showBookmark = false
+        showRecap = false
         isSelectingBodyText = false
         chapterSwipeProgress = 0
         saveTask?.cancel()

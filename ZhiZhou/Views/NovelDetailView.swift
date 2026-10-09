@@ -123,6 +123,7 @@ struct NovelDetailView: View {
             }
 
             Section {
+                ReaderCatchupEntry(novelID: currentNovel.id, progress: progress)
                 if currentNovel.isRestricted {
                     Label("限制级作品 · 支持阅读缓存", systemImage: "network")
                         .font(.footnote)

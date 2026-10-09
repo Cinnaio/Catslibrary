@@ -101,6 +101,7 @@ final class FrontendAuditTests: XCTestCase {
         let app = launch("media")
         tap(app.buttons["catalog.audit-book-1"])
         tap(app.buttons["detail.read"])
+        tap(app.buttons["更多阅读操作"])
         tap(app.buttons["当前段评"])
         XCTAssertTrue(app.staticTexts["来自 Web 的图片想法"].waitForExistence(timeout: 10))
         let picture = app.buttons["放大查看插图：AI 生成插画"]
@@ -108,6 +109,93 @@ final class FrontendAuditTests: XCTestCase {
         tap(picture)
         XCTAssertTrue(app.navigationBars["图片预览"].waitForExistence(timeout: 10))
         capture("thought-image-preview", app: app)
+    }
+
+    @MainActor
+    func testOtherDeviceCanBeRemovedWithoutLoggingOutCurrentDevice() {
+        let app = launch("parity")
+        selectTab("我的", app: app)
+        tap(app.buttons["profile.account"])
+        tap(app.buttons["登录设备"])
+        XCTAssertTrue(app.staticTexts["当前设备"].waitForExistence(timeout: 10))
+        tap(app.buttons["sessions.remove.audit-web"])
+        tap(app.buttons.matching(NSPredicate(format: "label == %@ AND identifier != %@", "退出此设备", "sessions.remove.audit-web")).firstMatch)
+        XCTAssertTrue(app.staticTexts["Web 浏览器"].waitForNonExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["当前设备"].exists)
+    }
+
+    @MainActor
+    func testBookmarkSaveReloadAndDelete() {
+        let app = launch("parity")
+        tap(app.buttons["catalog.audit-book-1"])
+        tap(app.buttons["detail.read"])
+        tap(app.buttons["更多阅读操作"])
+        tap(app.buttons["保存章节书签"])
+        let note = app.descendants(matching: .any).matching(identifier: "bookmark.note").firstMatch
+        tap(note)
+        note.typeText("从这里接着读")
+        tap(app.buttons["保存"])
+        XCTAssertTrue(app.navigationBars["添加书签"].waitForNonExistence(timeout: 10))
+        tap(app.buttons["更多阅读操作"])
+        tap(app.buttons["保存章节书签"])
+        XCTAssertTrue(app.navigationBars["编辑书签"].waitForExistence(timeout: 10))
+        XCTAssertEqual(note.value as? String, "从这里接着读")
+        tap(app.buttons["bookmark.delete"])
+        tap(app.buttons.matching(NSPredicate(format: "label == %@ AND identifier != %@", "删除书签", "bookmark.delete")).firstMatch)
+        XCTAssertTrue(app.navigationBars["编辑书签"].waitForNonExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testPreviousChapterRecapRequiresExplicitGeneration() {
+        let app = launch("parity")
+        tap(app.buttons["catalog.audit-book-1"])
+        tap(app.buttons["detail.read"])
+        tap(app.buttons["更多阅读操作"])
+        tap(app.buttons["前情提要"])
+        let generate = app.buttons["生成前情提要"]
+        XCTAssertTrue(generate.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["她沿着旧信上的地址回到山里，找到了那间多年未开的邮局。"].exists)
+        tap(generate)
+        XCTAssertTrue(app.staticTexts["她沿着旧信上的地址回到山里，找到了那间多年未开的邮局。"].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testMyThoughtsCanLoadBeyondFirstFifty() {
+        let app = launch("parity")
+        selectTab("书架", app: app)
+        tap(app.buttons["我的想法"])
+        let more = app.buttons["加载更多"]
+        for _ in 0..<35 {
+            if more.isHittable { break }
+            app.swipeUp()
+        }
+        tap(more)
+        let last = app.staticTexts["我的阅读想法 51"]
+        reveal(last, app: app)
+        XCTAssertTrue(last.waitForExistence(timeout: 10))
+        XCTAssertFalse(more.exists)
+    }
+
+    @MainActor
+    func testCatchupForStaleProgressRequiresExplicitGeneration() {
+        let app = launch("parity")
+        tap(app.buttons["catalog.audit-book-1"])
+        let entry = app.buttons["回来接着读 · 回顾已读内容"]
+        reveal(entry, app: app)
+        tap(entry)
+        tap(app.buttons["生成回来接着读"])
+        XCTAssertTrue(app.staticTexts["她沿着旧信上的地址回到山里，找到了那间多年未开的邮局。"].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testLogoutAllClearsCurrentAccount() {
+        let app = launch("parity")
+        selectTab("我的", app: app)
+        tap(app.buttons["profile.account"])
+        tap(app.buttons["登录设备"])
+        tap(app.buttons["sessions.logoutAll"])
+        tap(app.buttons.matching(NSPredicate(format: "label == %@ AND identifier != %@", "退出所有设备", "sessions.logoutAll")).firstMatch)
+        XCTAssertTrue(app.textFields["用户名"].waitForExistence(timeout: 15))
     }
 
     @MainActor

@@ -52,6 +52,14 @@ struct BookshelfView: View {
 
     private var bookshelfList: some View {
             List(selection: $selection) {
+                Section("阅读记录") {
+                    NavigationLink { ReaderBookmarksView() } label: {
+                        Label("我的书签", systemImage: "bookmark")
+                    }
+                    NavigationLink { MyThoughtsView() } label: {
+                        Label("我的想法", systemImage: "text.bubble")
+                    }
+                }
                 if isLoading && response == nil {
                     ProgressView()
                         .frame(maxWidth: .infinity, minHeight: 160)
@@ -67,6 +75,10 @@ struct BookshelfView: View {
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
                 } else if let response = visibleResponse {
+                    if response.favorites.isEmpty && response.recent.isEmpty && errorMessage == nil {
+                        ContentUnavailableView("书架空空", systemImage: "books.vertical", description: Text("去发现页找一本喜欢的书吧"))
+                            .listRowBackground(Color.clear)
+                    }
                     if let errorMessage {
                         LoadErrorNotice(message: errorMessage, isLoading: isLoading) {
                             Task { await load() }
@@ -127,16 +139,6 @@ struct BookshelfView: View {
                             EditButton()
                         }
                     }
-                }
-            }
-            .overlay {
-                if let response, response.favorites.isEmpty && response.recent.isEmpty && errorMessage == nil {
-                    ContentUnavailableView(
-                        "书架空空",
-                        systemImage: "books.vertical",
-                        description: Text("去发现页找一本喜欢的书吧")
-                    )
-                    .padding(.bottom, 72)
                 }
             }
             .refreshable { await load() }

@@ -28,6 +28,11 @@ struct ProfileAccountView: View {
 
             Section {
                 NavigationLink {
+                    AccountSessionsView()
+                } label: {
+                    AppIconLabel("登录设备", systemImage: "laptopcomputer.and.iphone")
+                }
+                NavigationLink {
                     ChangePasswordView()
                 } label: {
                     AppIconLabel("修改密码", systemImage: "lock")

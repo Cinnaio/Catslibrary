@@ -9,6 +9,8 @@ struct HomeView: View {
     @State private var novels: [Novel] = []
     @State private var categories: [String] = []
     @State private var selectedCategory: String?
+    @State private var selectedStatus = ""
+    @State private var selectedSort = "updated_at"
     @State private var selectedNovel: Novel?
     @State private var selectedReaderLaunch: ReaderLaunch?
     @State private var navigationPath: [HomeRoute] = []
@@ -35,7 +37,7 @@ struct HomeView: View {
     }
 
     private var catalogQuery: [String] {
-        [search.trimmingCharacters(in: .whitespacesAndNewlines), selectedCategory ?? ""]
+        [search.trimmingCharacters(in: .whitespacesAndNewlines), selectedCategory ?? "", selectedStatus, selectedSort]
     }
 
     var body: some View {
@@ -104,7 +106,7 @@ struct HomeView: View {
                 }
 
                 sectionHeader(
-                    "最近更新",
+                    selectedSort == "title" ? "按书名浏览" : (selectedSort == "chapter_count" ? "章节最多" : "最近更新"),
                     trailing: totalNovelCount > 0 ? "\(totalNovelCount) 本" : nil
                 )
                 .padding(.bottom, 12)
@@ -150,6 +152,8 @@ struct HomeView: View {
         .onChange(of: selectedCategory) { _, _ in
             scheduleReload()
         }
+        .onChange(of: selectedStatus) { _, _ in scheduleReload() }
+        .onChange(of: selectedSort) { _, _ in scheduleReload() }
         .onChange(of: navigationPath) { _, newPath in
             guard newPath.isEmpty else { return }
             Task { await loadReadingContext() }
@@ -352,6 +356,17 @@ struct HomeView: View {
 
     private var categoryMenu: some View {
         Menu {
+            Picker("状态", selection: $selectedStatus) {
+                Text("全部状态").tag("")
+                Text("连载中").tag("ongoing")
+                Text("已完结").tag("completed")
+            }
+            Picker("排序", selection: $selectedSort) {
+                Text("最近更新").tag("updated_at")
+                Text("书名 A–Z").tag("title")
+                Text("章节最多").tag("chapter_count")
+            }
+            Divider()
             Button {
                 setCategory(nil)
             } label: {
@@ -377,11 +392,11 @@ struct HomeView: View {
                 }
             }
         } label: {
-            Image(systemName: selectedCategory == nil
+            Image(systemName: selectedCategory == nil && selectedStatus.isEmpty && selectedSort == "updated_at"
                 ? "line.3.horizontal.decrease.circle"
                 : "line.3.horizontal.decrease.circle.fill")
         }
-        .accessibilityLabel(selectedCategory.map { "筛选：\($0)" } ?? "筛选分类")
+        .accessibilityLabel("筛选与排序")
     }
 
     private func setCategory(_ category: String?) {
@@ -460,13 +475,14 @@ struct HomeView: View {
             var params: [String: String] = [
                 "page": String(target),
                 "limit": "20",
-                "sort": "updated_at",
-                "order": "desc",
+                "sort": ticket.query[3],
+                "order": ticket.query[3] == "title" ? "asc" : "desc",
                 "contentMode": ContentAccessStore.shared.mode,
             ]
             let trimmed = ticket.query[0]
             if !trimmed.isEmpty { params["search"] = trimmed }
             if !ticket.query[1].isEmpty { params["category"] = ticket.query[1] }
+            if !ticket.query[2].isEmpty { params["status"] = ticket.query[2] }
 
             let r: NovelListResponse = try await APIClient.shared.getReader("/api/novels?" + Self.query(params))
             guard !Task.isCancelled, requests.accepts(ticket, query: catalogQuery) else { return }

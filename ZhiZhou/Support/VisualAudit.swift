@@ -76,6 +76,8 @@ private final class VisualAuditProtocol: URLProtocol {
     private static var refreshFailureServed = false
     private static var restoreRequests = 0
     private static var mediaRequests = 0
+    private static var bookmark: [String: Any]?
+    private static var otherSessionRemoved = false
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
@@ -128,6 +130,42 @@ private final class VisualAuditProtocol: URLProtocol {
             body = ["user": Self.json(Self.currentUser)]
         case ("GET", "/api/auth/reader-settings"):
             body = ["settings": [:], "updatedAt": [:], "device": queryValue("device") ?? "ios"]
+        case ("GET", "/api/auth/sessions"):
+            var sessions: [[String: Any]] = [["id": "audit-current", "deviceName": "iOS", "createdAt": VisualAudit.timestamp, "expiresAt": VisualAudit.timestamp + 86_400_000, "current": true]]
+            if !Self.otherSessionRemoved {
+                sessions.append(["id": "audit-web", "deviceName": "Web 浏览器", "createdAt": VisualAudit.timestamp, "expiresAt": VisualAudit.timestamp + 86_400_000, "current": false])
+            }
+            body = ["sessions": sessions]
+        case ("DELETE", "/api/auth/sessions"):
+            Self.otherSessionRemoved = true
+        case ("POST", "/api/auth/logout-all"):
+            break
+        case ("GET", "/api/bookmarks"):
+            body = ["bookmarks": Self.bookmark.map { [$0] } ?? []]
+        case ("POST", "/api/bookmarks"):
+            let novelID = payload["novelId"] as? String ?? "audit-book-1"
+            let chapterID = payload["chapterId"] as? String ?? "audit-book-1-chapter-1"
+            let chapter = VisualAudit.chapters(for: novelID).first { $0.id == chapterID }!
+            Self.bookmark = ["id": "audit-bookmark", "novelId": novelID, "novelTitle": "山中来信", "chapterId": chapterID,
+                             "chapterTitle": chapter.title, "chapterOrder": chapter.order, "note": payload["note"] as? String ?? "", "timestamp": VisualAudit.timestamp]
+            body = ["bookmark": Self.bookmark!]
+        case ("DELETE", "/api/bookmarks"):
+            Self.bookmark = nil
+        case ("GET", "/api/ai/status"):
+            let enabled = VisualAudit.scenario == "parity"
+            body = ["configured": enabled, "features": ["recap": enabled, "catchup": enabled],
+                    "quota": ["used": 0, "limit": 10, "resetAt": VisualAudit.timestamp], "catchupStaleDays": 7]
+        case ("GET", "/api/ai/recap"):
+            body = ["recap": "", "cached": false]
+        case ("POST", "/api/ai/recap"):
+            if payload["chapterId"] as? String == "audit-book-1-chapter-1" {
+                body = ["recap": "她沿着旧信上的地址回到山里，找到了那间多年未开的邮局。", "cached": false]
+            } else {
+                status = 400
+                body = ["error": "前情提要必须读取上一章"]
+            }
+        case ("POST", "/api/ai/catchup"):
+            body = ["recap": "她沿着旧信上的地址回到山里，找到了那间多年未开的邮局。", "cached": false]
         case ("GET", "/api/ai/settings"):
             body = ["settings": ["recapEnabled": true, "dailyQuota": 10]]
         case ("GET", "/api/ai/tasks"):
@@ -140,7 +178,9 @@ private final class VisualAuditProtocol: URLProtocol {
                 status = 503
                 body = ["error": "暂时无法刷新书单"]
             } else {
-                let books = search.isEmpty ? VisualAudit.books : VisualAudit.books.filter { $0.title.contains(search) }
+                var books = search.isEmpty ? VisualAudit.books : VisualAudit.books.filter { $0.title.contains(search) }
+                if let filter = queryValue("status"), !filter.isEmpty { books = books.filter { $0.status == filter } }
+                if queryValue("sort") == "title" { books.sort { $0.title < $1.title } }
                 body = ["novels": books.map(Self.json), "total": books.count, "page": 1,
                         "limit": 20, "totalPages": 1, "hasMore": false, "availableCategories": ["文学", "故事"]]
             }
@@ -177,6 +217,13 @@ private final class VisualAuditProtocol: URLProtocol {
             ))]
         case ("GET", "/api/bookshelf"):
             let book = VisualAudit.books[0]
+            let offset = Int(queryValue("offset") ?? "0") ?? 0
+            let thoughtCount = VisualAudit.scenario == "parity" ? 51 : 0
+            let thoughts: [[String: Any]] = (offset..<min(offset + 50, max(offset, thoughtCount))).map { index in
+                ["id": "library-thought-\(index)", "novelId": book.id, "chapterId": "\(book.id)-chapter-1",
+                 "novelTitle": book.title, "chapterTitle": "第一章", "selectedText": "山路从窗前蜿蜒而过",
+                 "thoughtText": "我的阅读想法 \(index + 1)", "createdAt": VisualAudit.timestamp]
+            }
             body = [
                 "favorites": [],
                 "recent": VisualAudit.scenario == "empty" || Self.removedRecent ? [] : [[
@@ -184,10 +231,14 @@ private final class VisualAuditProtocol: URLProtocol {
                     "chapterTitle": "第 1 章 一封没有寄出的信", "chapterOrder": 1,
                     "scrollPercent": 0.42, "updatedAt": VisualAudit.timestamp,
                 ]],
-                "thoughts": [],
+                "thoughts": thoughts,
+                "totals": ["favorites": 0, "thoughts": thoughtCount],
             ] as [String: Any]
         case ("GET", "/api/progress"):
-            body = ["progress": NSNull()]
+            if VisualAudit.scenario == "parity" {
+                body = ["progress": ["novelId": "audit-book-1", "chapterId": "audit-book-1-chapter-2", "scrollPercent": 0.42,
+                                     "updatedAt": Int64(Date().addingTimeInterval(-30 * 86_400).timeIntervalSince1970 * 1000)]]
+            } else { body = ["progress": NSNull()] }
         case ("DELETE", "/api/progress"):
             Self.removedRecent = true
         case ("GET", "/api/thoughts"):

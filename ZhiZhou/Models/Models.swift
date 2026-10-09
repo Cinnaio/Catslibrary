@@ -128,6 +128,12 @@ struct BookshelfResponse: Codable {
     let favorites: [FavoriteItem]
     let recent: [RecentItem]
     let thoughts: [ThoughtItem]
+    var totals: BookshelfTotals? = nil
+}
+
+struct BookshelfTotals: Codable {
+    let favorites: Int
+    let thoughts: Int
 }
 
 struct FavoriteItem: Codable, Hashable, Identifiable {
@@ -196,6 +202,7 @@ struct ThoughtItem: Codable, Identifiable {
     let selectedText: String
     let thoughtText: String
     let createdAt: Int64
+    var imageUrl: String? = nil
 }
 
 /// 公开阅读页段评（GET/POST/DELETE /api/thoughts）。
