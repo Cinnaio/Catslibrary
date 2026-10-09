@@ -1,5 +1,6 @@
 import { AiError } from './client'
 import type { RomanceVisualDNA } from './cover-romance'
+import { isTitleComposition, resolveCoverTypography } from './cover-styles'
 import type { CoverDirection, GenreStyle, ResolvedCoverComposition, ResolvedCoverStylePreset } from './cover-styles'
 
 /** 自动封面提示词的 UTF-16 上限与描述上下文上限。 */
@@ -76,6 +77,8 @@ export function normalizeCoverPromptLabel(value: unknown): string {
 /** 文本模型不可用时的中性骨架，不替小说补写固定人物、时代道具或地点。 */
 export function fallbackCoverScene(composition: ResolvedCoverComposition, storyContext = ''): string {
   const scenes: Record<ResolvedCoverComposition, string> = {
+    title_center: 'an airy abstract wash with small peripheral accents and a calm open central field; no people or literal narrative scene',
+    title_vertical: 'one faint abstract watercolor wash beside a tall open field; no people or literal narrative scene',
     portrait: 'a premise-led central subject shown through a readable expression, gesture, and one grounded prop, with a restrained setting behind',
     duo: 'two distinct subjects held in a clear relationship gesture and distance, with the premise-grounded setting supporting their tension',
     environment: 'a premise-grounded location carries the narrative while a small readable subject gives the frame scale and direction',
@@ -84,6 +87,7 @@ export function fallbackCoverScene(composition: ResolvedCoverComposition, storyC
     off_center: 'a premise-led subject sits off center beside an open field of atmosphere, with visual movement crossing the frame',
   }
   const context = normalizeCoverStoryContext(storyContext, 220)
+  if (isTitleComposition(composition)) return scenes[composition]
   return context ? `${scenes[composition]}; story material anchor: ${context}` : scenes[composition]
 }
 
@@ -94,6 +98,8 @@ export function coverPromptSceneBudget(maxPromptChars = 2_000): number {
 
 export function compositionSceneInstruction(composition: ResolvedCoverComposition): string {
   const instructions: Record<ResolvedCoverComposition, string> = {
+    title_center: 'use abstract mood and peripheral texture only; keep the center open; do not depict people or a literal narrative scene',
+    title_vertical: 'use a faint abstract wash and a tall open field only; do not depict people or a literal narrative scene',
     portrait: 'show one main subject only; keep the background restrained and use a supported gesture or detail',
     duo: 'show two clearly distinct subjects and one readable relationship action; do not turn this into a static object scene',
     environment: 'make the location carry the story; a subject may be absent or occupy only a small readable area',
@@ -115,6 +121,7 @@ export function assembleCoverPrompt(args: CoverPromptAssemblyArgs): string {
   const scene = cleanGeneratedScene(args.scene, renderTitle)
   const sceneBudget = coverPromptSceneBudget(limit)
   const compactedScene = compactScene(scene, sceneBudget, args.direction.composition, storyHint)
+  const typography = resolveCoverTypography(args.direction.stylePreset, args.direction.composition, args.style)
   const titleHint = normalizeInlineLabel(args.titleHint)
   const authorHint = normalizeInlineLabel(args.authorHint)
   const blocks: CoverPromptBlock[] = [
@@ -130,7 +137,7 @@ export function assembleCoverPrompt(args: CoverPromptAssemblyArgs): string {
     blocks.push({ id: 'platform', priority: 5, text: `${platformPrompt}.` })
   }
 
-  if (args.romanceDNA) {
+  if (args.romanceDNA && !isTitleComposition(args.direction.composition)) {
     blocks.push({
       id: 'romance',
       required: true,
@@ -164,8 +171,9 @@ export function assembleCoverPrompt(args: CoverPromptAssemblyArgs): string {
       required: true,
       priority: 95,
       text: [
-        `Title text '${titleHint}' at top center in ${args.style.titleFont}; use only this exact title and no additional wording.`,
-        authorHint ? `Author name '${authorHint}' at bottom center in ${args.style.authorFont}; use only this exact author name.` : '',
+        `Title text '${titleHint}' ${typography.titlePlacement} in ${typography.titleFont}; use only this exact title and no additional wording.`,
+        'Fit every title character: wrap at phrase boundaries, scale longer titles down, never omit characters or crowd decorations.',
+        authorHint ? `Author name '${authorHint}' ${typography.authorPlacement} in ${typography.authorFont}; use only this exact author name.` : '',
       ]
         .filter(Boolean)
         .join(' '),
@@ -176,7 +184,7 @@ export function assembleCoverPrompt(args: CoverPromptAssemblyArgs): string {
   if (renderTitle) tail.push('keep title and author name inside the central safe area away from edges (inner ~85%)')
   else tail.push('no text')
   tail.push('avoid generic stock cover layouts, avoid repeated composition, no watermark, no logo, no extra text')
-  if (args.romanceDNA) {
+  if (args.romanceDNA && !isTitleComposition(args.direction.composition)) {
     tail.push('keep the relationship legible through the story-specific gesture, setting, or object; avoid a generic posed couple')
   }
   blocks.push({ id: 'constraints', required: true, priority: 70, text: `${tail.join(', ')}.` })
@@ -187,17 +195,13 @@ export function assembleCoverPrompt(args: CoverPromptAssemblyArgs): string {
 /** 按块删除/压缩可选内容；不在句中硬截断整个 prompt。 */
 export function renderCoverPromptBlocks(blocks: readonly CoverPromptBlock[], maxPromptChars = 2_000): string {
   const limit = normalizePromptLimit(maxPromptChars)
-  const normalized = blocks
-    .map((block) => ({ ...block, text: normalizeBlockText(block.text) }))
-    .filter((block) => block.text.length > 0)
+  const normalized = blocks.map((block) => ({ ...block, text: normalizeBlockText(block.text) })).filter((block) => block.text.length > 0)
   const compose = (items: readonly CoverPromptBlock[]) => items.map((item) => item.text).join('\n')
   let selected = [...normalized]
   if (compose(selected).length <= limit) return compose(selected)
 
   // 先去掉不会改变主体语义的外围块，保留视觉方向、场景、约束和 exact 文字层。
-  const optional = selected
-    .filter((block) => !block.required)
-    .sort((a, b) => (a.priority || 0) - (b.priority || 0))
+  const optional = selected.filter((block) => !block.required).sort((a, b) => (a.priority || 0) - (b.priority || 0))
   for (const block of optional) {
     if (compose(selected).length <= limit) break
     selected = selected.filter((candidate) => candidate !== block)
@@ -205,9 +209,7 @@ export function renderCoverPromptBlocks(blocks: readonly CoverPromptBlock[], max
   if (compose(selected).length <= limit) return compose(selected)
 
   // 只压缩声明了边界策略的块；标题、作者、构图方向和限制语句不会被切半。
-  const compactable = selected
-    .filter((block) => block.compact)
-    .sort((a, b) => b.text.length - a.text.length)
+  const compactable = selected.filter((block) => block.compact).sort((a, b) => b.text.length - a.text.length)
   for (const block of compactable) {
     if (compose(selected).length <= limit) break
     const otherLength = compose(selected.filter((candidate) => candidate !== block)).length
@@ -227,20 +229,36 @@ export function renderCoverPromptBlocks(blocks: readonly CoverPromptBlock[], max
 export function compactStylePrompt(stylePreset: ResolvedCoverStylePreset, stylePrompt: string, renderTitle: boolean): string {
   if (renderTitle) return stylePrompt
   const replacements: Record<ResolvedCoverStylePreset, string> = {
-    cinematic: 'cinematic concept art with a strong focal point, atmospheric depth, controlled lens perspective, layered foreground and background, premium film-poster finish',
-    illustration: 'editorial digital illustration with expressive shapes, intentional brushwork, elegant visual storytelling, refined silhouette design, contemporary book-jacket finish',
+    cinematic:
+      'cinematic concept art with a strong focal point, atmospheric depth, controlled lens perspective, layered foreground and background, premium film-poster finish',
+    illustration:
+      'editorial digital illustration with expressive shapes, intentional brushwork, elegant visual storytelling, refined silhouette design, contemporary book-jacket finish',
     ink: 'East Asian ink and color-wash illustration with expressive brush texture, restrained detail, organic negative space, paper grain, and poetic visual rhythm',
-    minimal: 'minimalist graphic poster with one memorable visual metaphor, disciplined geometry, generous negative space, restrained palette, and strong thumbnail readability',
+    minimal:
+      'minimalist graphic poster with one memorable visual metaphor, disciplined geometry, generous negative space, restrained palette, and strong thumbnail readability',
     noir: 'noir photographic artwork with hard directional light, deep shadow, atmospheric grain, partial concealment, and a tense independent-film-poster mood',
     graphic: 'modern graphic design with bold color blocking, crisp editorial composition, tactile print texture, and a distinctive visual identity',
-    soft_watercolor: 'airy Chinese book-jacket watercolor with translucent peach, ivory, powder-blue, mint, or apricot washes, soft bleeding edges, paper grain, botanical or cloud-like textures, gentle atmosphere, and generous breathing room',
-    moonlit_dream: 'poetic moonlit watercolor with layered cobalt, powder blue, icy white, and muted lavender, misty clouds or distant silhouettes, soft luminous bloom, quiet night atmosphere, and open breathing room',
-    ancient_guochao: 'refined Chinese guochao ancient-romance illustration with controlled vermilion, jade, ink, and muted gold accents, layered ornamental detail, and a clear readable silhouette',
-    romance_illustration: 'polished commercial Chinese web-novel romance illustration with expressive story-specific gestures, clean linework blended with painterly rendering, carefully designed hair and costume details, and a balanced contemporary palette',
-    dark_cinematic: 'dark cinematic romance or fantasy artwork with deep plum, navy, charcoal, and black, one controlled crimson or violet accent, dramatic rim light, partial silhouette, atmospheric grain, and premium film-poster restraint',
-    pastel_romance: 'soft pastel romance cover with blush, warm ivory, peach, pale lilac, and champagne tones, delicate fabric or architectural details, gentle diffused light, elegant emotional intimacy, and a polished light web-novel finish',
-    botanical_literary: 'quiet botanical literary cover with sage, olive, moss, faded blue, and warm paper tones, layered leaves or translucent plant textures, organic brushwork, low visual noise, natural light, and a calm understated mood',
-    minimal_typographic: 'quiet minimalist literary cover with an ivory, white, or single pale-tint field, one subtle watercolor wash or symbolic texture, extremely generous negative space, and one restrained visual mark',
+    doodle_journal:
+      'playful hand-drawn journal cover, butter-yellow gingham border, ivory paper, lavender and pink accents, small sticker-like doodles and hearts around a clear open center; no interface badges or mockup shadows',
+    dreamy_cloud: 'airy pastel cloud-wash cover, powder blue, pale pink and lavender translucent clouds, low contrast paper texture and ample open space',
+    warm_apricot:
+      'warm peach and apricot watercolor cover, translucent coral and cream washes with soft bleeding edges, subtle petal-like texture and ample open space',
+    soft_watercolor:
+      'airy Chinese book-jacket watercolor with translucent peach, ivory, powder-blue, mint, or apricot washes, soft bleeding edges, paper grain, botanical or cloud-like textures, gentle atmosphere, and generous breathing room',
+    moonlit_dream:
+      'poetic moonlit watercolor with layered cobalt, powder blue, icy white, and muted lavender, misty clouds or distant silhouettes, soft luminous bloom, quiet night atmosphere, and open breathing room',
+    ancient_guochao:
+      'refined Chinese guochao ancient-romance illustration with controlled vermilion, jade, ink, and muted gold accents, layered ornamental detail, and a clear readable silhouette',
+    romance_illustration:
+      'polished commercial Chinese web-novel romance illustration with expressive story-specific gestures, clean linework blended with painterly rendering, carefully designed hair and costume details, and a balanced contemporary palette',
+    dark_cinematic:
+      'dark cinematic romance or fantasy artwork with deep plum, navy, charcoal, and black, one controlled crimson or violet accent, dramatic rim light, partial silhouette, atmospheric grain, and premium film-poster restraint',
+    pastel_romance:
+      'soft pastel romance cover with blush, warm ivory, peach, pale lilac, and champagne tones, delicate fabric or architectural details, gentle diffused light, elegant emotional intimacy, and a polished light web-novel finish',
+    botanical_literary:
+      'quiet botanical literary cover with sage, olive, moss, faded blue, and warm paper tones, layered leaves or translucent plant textures, organic brushwork, low visual noise, natural light, and a calm understated mood',
+    minimal_typographic:
+      'quiet minimalist literary cover with an ivory, white, or single pale-tint field, one subtle watercolor wash or symbolic texture, extremely generous negative space, and one restrained visual mark',
   }
   return replacements[stylePreset] || stylePrompt.replace(/title|author|lettering|font|typography/giu, 'visual mark')
 }
@@ -248,6 +266,8 @@ export function compactStylePrompt(stylePreset: ResolvedCoverStylePreset, styleP
 export function compactCompositionPrompt(composition: ResolvedCoverComposition, renderTitle: boolean): string {
   if (renderTitle) {
     const prompts: Record<ResolvedCoverComposition, string> = {
+      title_center: 'an open central field for a large title, small peripheral decorations only, no people or literal narrative scene',
+      title_vertical: 'a tall open field for vertical title columns, one faint watercolor wash, no people or literal narrative scene',
       portrait: 'close portrait or half-body framing, expressive face and costume details as the primary focal point',
       duo: 'two characters arranged to show their relationship and tension, with clear separation and a readable emotional gesture',
       environment: 'wide environmental storytelling, a small but readable character placed inside a memorable world or location',
@@ -258,6 +278,8 @@ export function compactCompositionPrompt(composition: ResolvedCoverComposition, 
     return prompts[composition]
   }
   const prompts: Record<ResolvedCoverComposition, string> = {
+    title_center: 'an open central field, small peripheral decorations only, no people or literal narrative scene',
+    title_vertical: 'a tall open field with one faint watercolor wash, no people or literal narrative scene',
     portrait: 'close portrait or half-body framing, expressive face and costume details as the primary focal point',
     duo: 'two characters arranged to show their relationship and tension, with clear separation and a readable emotional gesture',
     environment: 'wide environmental storytelling, a small but readable character placed inside a memorable world or location',
@@ -350,9 +372,7 @@ function cleanGeneratedScene(value: string, renderTitle = true): string {
     .replace(/\s+/gu, ' ')
     .trim()
   if (renderTitle) return clean
-  return clean
-    .replace(/\b(?:title|author|font|lettering|typography)\b/giu, 'visual mark')
-    .replace(/\b(?:watermark|logo)\b/giu, 'extra mark')
+  return clean.replace(/\b(?:title|author|font|lettering|typography)\b/giu, 'visual mark').replace(/\b(?:watermark|logo)\b/giu, 'extra mark')
 }
 
 function ensureSentenceEnding(value: string): string {
@@ -362,16 +382,19 @@ function ensureSentenceEnding(value: string): string {
 }
 
 function normalizeInlineLabel(value: unknown): string {
-  return String(value || '').replace(/[\u0000-\u001f\u007f]/gu, ' ').replace(/\s+/gu, ' ').trim()
+  return String(value || '')
+    .replace(/[\u0000-\u001f\u007f]/gu, ' ')
+    .replace(/\s+/gu, ' ')
+    .trim()
 }
 
 function normalizeBlockText(value: string): string {
-  return String(value || '').replace(/\s+\n/gu, '\n').trim()
+  return String(value || '')
+    .replace(/\s+\n/gu, '\n')
+    .trim()
 }
 
 function normalizePromptLimit(value: unknown): number {
   const n = Math.trunc(Number(value))
-  return Number.isFinite(n)
-    ? Math.min(HARD_MAX_COVER_PROMPT_CHARS, Math.max(MIN_COVER_PROMPT_MAX_CHARS, n))
-    : 2_000
+  return Number.isFinite(n) ? Math.min(HARD_MAX_COVER_PROMPT_CHARS, Math.max(MIN_COVER_PROMPT_MAX_CHARS, n)) : 2_000
 }

@@ -3,6 +3,7 @@ import { resolveCoverDirection } from './cover-styles'
 import {
   assertNonExplicitCoverBrief,
   buildCoverStoryPrompt,
+  buildLocalVisualConcept,
   buildCoverVisualPrompt,
   parseCoverStoryBrief,
   parseCoverVisualConcept,
@@ -32,6 +33,16 @@ const brief: CoverStoryBrief = {
 }
 
 describe('cover brief and visual concept contracts', () => {
+  it('文字布局的本地兜底只用抽象肌理表达情绪，不补画故事人物或地点', () => {
+    const direction = resolveCoverDirection({ novelId: 'abstract', genre: 'romance', stylePreset: 'dreamy_cloud' })
+    const concept = buildLocalVisualConcept(brief, direction)
+    const scene = renderCoverVisualConcept(concept, direction.composition)
+    expect(scene).toContain('克制')
+    expect(scene).toContain('no people or literal narrative scene')
+    expect(scene).not.toContain('机场')
+    expect(concept.factIds).toEqual([])
+  })
+
   it('prepares current metadata without mutating title or stored category values', () => {
     expect(material.categories).toEqual(['R18', '现代言情', '悬疑'])
     expect(material.analysisCategories).toEqual(['现代言情', '悬疑'])
@@ -44,14 +55,35 @@ describe('cover brief and visual concept contracts', () => {
   it('accepts only evidenced facts and drops invented references', () => {
     const parsed = parseCoverStoryBrief(JSON.stringify(brief), material.analysisText)
     expect(parsed.brief?.facts.map((fact) => fact.id)).toEqual(['f1', 'f2'])
-    const withInvented = parseCoverStoryBrief(JSON.stringify({ ...brief, facts: [...brief.facts, { id: 'f3', kind: 'object', value: '婚戒', sourceField: 'description', evidence: '戒指' }] }), material.analysisText)
+    const withInvented = parseCoverStoryBrief(
+      JSON.stringify({ ...brief, facts: [...brief.facts, { id: 'f3', kind: 'object', value: '婚戒', sourceField: 'description', evidence: '戒指' }] }),
+      material.analysisText,
+    )
     expect(withInvented.brief?.facts.map((fact) => fact.id)).toEqual(['f1', 'f2'])
     const wrongField = parseCoverStoryBrief(JSON.stringify({ ...brief, facts: [{ ...brief.facts[1], sourceField: 'title' }] }), material.analysisText)
     expect(wrongField.brief?.facts).toEqual([])
     const direction = resolveCoverDirection({ novelId: 'cover-brief', genre: 'romance', stylePreset: 'minimal', composition: 'symbolic', variationId: 'v1' })
-    const prompt = buildCoverVisualPrompt({ brief: parsed.brief!, direction, stylePrompt: direction.stylePrompt, compositionPrompt: 'one motif', sceneBudget: 240 })
+    const prompt = buildCoverVisualPrompt({
+      brief: parsed.brief!,
+      direction,
+      stylePrompt: direction.stylePrompt,
+      compositionPrompt: 'one motif',
+      sceneBudget: 240,
+    })
     expect(prompt).toContain('VERIFIED_BRIEF=')
-    const concept = parseCoverVisualConcept(JSON.stringify({ version: 1, subject: 'an airport', action: 'two silhouettes pause', setting: 'airport', spatial: 'open frame', supportingDetail: '', factIds: ['f1', 'unknown'], inventedPresentation: ['soft light'] }), parsed.brief!)
+    const concept = parseCoverVisualConcept(
+      JSON.stringify({
+        version: 1,
+        subject: 'an airport',
+        action: 'two silhouettes pause',
+        setting: 'airport',
+        spatial: 'open frame',
+        supportingDetail: '',
+        factIds: ['f1', 'unknown'],
+        inventedPresentation: ['soft light'],
+      }),
+      parsed.brief!,
+    )
     expect(concept.concept?.factIds).toEqual(['f1'])
     expect(renderCoverVisualConcept(concept.concept!, direction.composition)).toContain('airport')
   })
@@ -63,8 +95,25 @@ describe('cover brief and visual concept contracts', () => {
 
   it('degrades malformed or unsafe local source without a repair call', () => {
     expect(parseCoverStoryBrief('{bad json}', material.analysisText)).toMatchObject({ brief: null, reason: 'story_brief_malformed_json' })
-    expect(parseCoverStoryBrief(JSON.stringify({ ...brief, unknown: 'x'.repeat(4000) }), material.analysisText)).toMatchObject({ brief: null, reason: 'story_brief_oversize' })
-    expect(parseCoverVisualConcept(JSON.stringify({ version: 1, subject: 'a'.repeat(800), action: 'b'.repeat(800), setting: 'c'.repeat(800), spatial: 'd'.repeat(200), supportingDetail: '', factIds: [], inventedPresentation: [] }), brief)).toMatchObject({ concept: null, reason: 'visual_concept_oversize' })
+    expect(parseCoverStoryBrief(JSON.stringify({ ...brief, unknown: 'x'.repeat(4000) }), material.analysisText)).toMatchObject({
+      brief: null,
+      reason: 'story_brief_oversize',
+    })
+    expect(
+      parseCoverVisualConcept(
+        JSON.stringify({
+          version: 1,
+          subject: 'a'.repeat(800),
+          action: 'b'.repeat(800),
+          setting: 'c'.repeat(800),
+          spatial: 'd'.repeat(200),
+          supportingDetail: '',
+          factIds: [],
+          inventedPresentation: [],
+        }),
+        brief,
+      ),
+    ).toMatchObject({ concept: null, reason: 'visual_concept_oversize' })
     const unsafe = prepareCoverMaterial({ ...material, description: 'explicit nude sex scene' })
     expect(unsafe.analysisDescription).toContain('explicit nude sex scene')
   })

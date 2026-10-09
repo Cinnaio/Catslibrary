@@ -1,0 +1,135 @@
+.cover-style-gallery {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.cover-style-choice {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--admin-inset);
+  text-align: left;
+  cursor: pointer;
+}
+
+.cover-style-choice[aria-pressed='true'] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.cover-style-choice:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.cover-style-choice:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.cover-style-sample {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  overflow: hidden;
+  border-radius: 0.25rem;
+  color: #6960ad;
+  background: #fffdf8;
+}
+
+.cover-style-sample-title {
+  position: relative;
+  max-width: 80%;
+  font-family: 'KaiTi', 'STKaiti', serif;
+  font-size: clamp(1.2rem, 2.4vw, 1.8rem);
+  line-height: 1.5;
+  text-align: center;
+}
+
+.cover-style-sample-author {
+  position: absolute;
+  right: 12%;
+  bottom: 10%;
+  font-size: 0.55rem;
+  letter-spacing: 0.15em;
+}
+
+.cover-style-sample--doodle_journal {
+  background: repeating-linear-gradient(0deg, #f9df85aa 0 8px, transparent 8px 16px), repeating-linear-gradient(90deg, #f9df85aa 0 8px, #fffdf8 8px 16px);
+}
+
+.cover-style-sample--doodle_journal::before {
+  content: '♡ ✧ ♡';
+  position: absolute;
+  inset: 7%;
+  border: 2px dashed #b7a1c3;
+  border-radius: 0.7rem;
+  background: #fffdf6;
+  color: #d795ad;
+  font-size: 1.1rem;
+  text-align: center;
+}
+
+.cover-style-sample--doodle_journal .cover-style-sample-title {
+  font-family: sans-serif;
+  font-weight: 800;
+  color: #c5aadf;
+  -webkit-text-stroke: 0.6px #77668d;
+}
+
+.cover-style-sample--dreamy_cloud {
+  background:
+    radial-gradient(ellipse at 10% 20%, #fbe6ff 0 20%, transparent 50%), radial-gradient(ellipse at 90% 75%, #f5dfff 0 15%, transparent 45%),
+    radial-gradient(ellipse at 80% 10%, #d4eaff 0 20%, transparent 50%), #eef5ff;
+  color: #617bcc;
+}
+
+.cover-style-sample--dreamy_cloud .cover-style-sample-title {
+  transform: rotate(-8deg);
+}
+
+.cover-style-sample--warm_apricot {
+  background:
+    radial-gradient(ellipse at 5% 15%, #f4aa9abb 0 15%, transparent 45%), radial-gradient(ellipse at 85% 90%, #ffd18acc 0 25%, transparent 55%),
+    radial-gradient(ellipse at 90% 40%, #f7c5b6 0 15%, transparent 50%), #fff5e5;
+  color: #c87035;
+}
+
+.cover-style-sample--minimal_typographic {
+  background: radial-gradient(ellipse at 45% 50%, #f9d7ca99 0 10%, transparent 40%), #fffefd;
+  color: #be8c64;
+}
+
+.cover-style-sample--minimal_typographic .cover-style-sample-title {
+  writing-mode: vertical-rl;
+  font-weight: 400;
+  letter-spacing: 0.25em;
+}
+
+.cover-style-sample--minimal_typographic .cover-style-sample-author {
+  color: #444;
+}
+
+.cover-style-name {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.cover-style-hint {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+}
+
+@media (min-width: 640px) {
+  .cover-style-gallery {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}

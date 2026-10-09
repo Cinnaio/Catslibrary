@@ -1,6 +1,7 @@
 import { AiError } from './client'
 import { normalizeCoverStoryContext, normalizeCoverPromptLabel } from './cover-prompt'
 import { filterMetadataCategories, stripStandaloneAdultLabels } from './prompt-policy'
+import { isTitleComposition } from './cover-styles'
 import type { CoverDirection, Genre, ResolvedCoverComposition } from './cover-styles'
 
 export const COVER_PROMPT_PIPELINE_VERSION = 3
@@ -118,7 +119,9 @@ export function parseCoverStoryBrief(raw: unknown, sourceText: string): { brief:
   if (!value) return { brief: null, reason: 'story_brief_malformed_json' }
   if (serializedLength(value) > STORY_BRIEF_TEXT_LIMIT) return { brief: null, reason: 'story_brief_oversize' }
   if (value.version !== COVER_BRIEF_VERSION) return { brief: null, reason: 'story_brief_version' }
-  const genre = String(value.genre || '').trim().toLowerCase() as Genre
+  const genre = String(value.genre || '')
+    .trim()
+    .toLowerCase() as Genre
   if (!GENRES.includes(genre)) return { brief: null, reason: 'story_brief_genre' }
   const premise = cleanField(value.premise, 240)
   const facts: CoverFact[] = []
@@ -159,7 +162,13 @@ export function buildLocalCoverStoryBrief(material: PreparedCoverMaterial, genre
   const safeDescription = EXPLICIT_SIGNAL.test(material.analysisDescription) ? '' : material.analysisDescription
   const facts: CoverFact[] = []
   if (safeDescription) {
-    facts.push({ id: 'description-premise', kind: 'premise', value: safeDescription.slice(0, 120), sourceField: 'description', evidence: safeDescription.slice(0, 120) })
+    facts.push({
+      id: 'description-premise',
+      kind: 'premise',
+      value: safeDescription.slice(0, 120),
+      sourceField: 'description',
+      evidence: safeDescription.slice(0, 120),
+    })
   }
   return {
     version: COVER_BRIEF_VERSION,
@@ -193,6 +202,19 @@ export function parseCoverVisualConcept(raw: unknown, brief: CoverStoryBrief): {
 }
 
 export function buildLocalVisualConcept(brief: CoverStoryBrief, direction: CoverDirection): CoverVisualConcept {
+  if (isTitleComposition(direction.composition)) {
+    return {
+      version: COVER_BRIEF_VERSION,
+      subject: 'abstract paper texture and translucent color washes only',
+      action: `soft color transitions suggest ${brief.mood.join(', ') || 'the story mood'}`,
+      setting: 'an open paper field without people or a literal narrative scene',
+      spatial: compositionSpatialRule(direction.composition),
+      supportingDetail: 'small peripheral accents and generous breathing room',
+      factIds: [],
+      inventedPresentation: ['abstract texture', 'open negative space'],
+      degraded: 'local_fallback',
+    }
+  }
   const fact = brief.facts[0]
   const value = fact?.value || 'a premise-grounded visual motif'
   const isEnvironment = direction.composition === 'environment'
@@ -212,7 +234,11 @@ export function buildLocalVisualConcept(brief: CoverStoryBrief, direction: Cover
 
 export function renderCoverVisualConcept(concept: CoverVisualConcept, composition: ResolvedCoverComposition): string {
   const parts = [concept.subject, concept.action, concept.setting, concept.spatial, concept.supportingDetail]
-    .map((part) => stripStandaloneAdultLabels(part).replace(/[.!?]+$/gu, '').trim())
+    .map((part) =>
+      stripStandaloneAdultLabels(part)
+        .replace(/[.!?]+$/gu, '')
+        .trim(),
+    )
     .filter(Boolean)
   const scene = parts.join('; ')
   if (scene) return `${scene}.`
@@ -221,6 +247,8 @@ export function renderCoverVisualConcept(concept: CoverVisualConcept, compositio
 
 function compositionSpatialRule(composition: ResolvedCoverComposition): string {
   const rules: Record<ResolvedCoverComposition, string> = {
+    title_center: 'small peripheral accents frame a calm open center; no people or literal narrative scene',
+    title_vertical: 'a faint wash sits beside a tall open field; no people or literal narrative scene',
     portrait: 'one clear subject near the visual center with a restrained background',
     duo: 'two distinct silhouettes with readable distance and one supported relationship gesture',
     environment: 'the location carries the frame while any subject remains small and readable',
@@ -232,11 +260,15 @@ function compositionSpatialRule(composition: ResolvedCoverComposition): string {
 }
 
 function parseJsonObject(raw: unknown): Record<string, unknown> | null {
-  if (typeof raw !== 'string') return raw && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : null
-  const text = raw.trim().replace(/^```(?:json)?\s*/iu, '').replace(/\s*```$/u, '').trim()
+  if (typeof raw !== 'string') return raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null
+  const text = raw
+    .trim()
+    .replace(/^```(?:json)?\s*/iu, '')
+    .replace(/\s*```$/u, '')
+    .trim()
   try {
     const value = JSON.parse(text) as unknown
-    return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null
+    return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null
   } catch {
     return null
   }
@@ -259,7 +291,12 @@ function sourceEvidenceContains(sourceText: string, sourceField: CoverFact['sour
 }
 
 function cleanField(value: unknown, maxChars: number): string {
-  return stripStandaloneAdultLabels(String(value ?? '').replace(/[\u0000-\u001f\u007f]/gu, ' ').replace(/\s+/gu, ' ').trim()).slice(0, maxChars)
+  return stripStandaloneAdultLabels(
+    String(value ?? '')
+      .replace(/[\u0000-\u001f\u007f]/gu, ' ')
+      .replace(/\s+/gu, ' ')
+      .trim(),
+  ).slice(0, maxChars)
 }
 
 function cleanList(value: unknown, maxItems: number, maxChars: number): string[] {
@@ -268,7 +305,10 @@ function cleanList(value: unknown, maxItems: number, maxChars: number): string[]
 }
 
 function cleanId(value: unknown): string {
-  return String(value ?? '').trim().replace(/[^a-zA-Z0-9_-]/gu, '').slice(0, 48)
+  return String(value ?? '')
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]/gu, '')
+    .slice(0, 48)
 }
 
 function uniqueFacts(facts: CoverFact[]): CoverFact[] {

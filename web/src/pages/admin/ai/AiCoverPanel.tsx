@@ -15,6 +15,7 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import CustomSelect from '@/components/admin/CustomSelect'
 import CoverHistory from './CoverHistory'
+import CoverStyleGallery from './CoverStyleGallery'
 import { taskStatusLabel } from './labels'
 import { BookOpen, CircleAlert, Loader2, Sparkles, Trash2, Upload, Wand2 } from 'lucide-react'
 
@@ -99,6 +100,9 @@ const PLATFORM_OPTIONS = [
 
 const STYLE_OPTIONS = [
   { value: 'auto', label: '自动推荐', sub: '结合题材和变体，自动挑选匹配的视觉方向' },
+  { value: 'doodle_journal', label: '萌系涂鸦手账', sub: '奶黄格纹、贴纸涂鸦与圆润描边字，书名居中' },
+  { value: 'dreamy_cloud', label: '梦幻云染', sub: '蓝粉紫云团与透明晕染，蓝色手写书名和轻盈留白' },
+  { value: 'warm_apricot', label: '暖橘花染', sub: '桃橙水彩与花瓣肌理，橙金书法标题' },
   { value: 'soft_watercolor', label: '清透水彩', sub: '浅桃、奶油、薄荷或雾蓝的透明水彩与轻盈留白' },
   { value: 'moonlit_dream', label: '月色梦境', sub: '蓝紫月色、云雾和远景剪影，柔光低对比' },
   { value: 'ancient_guochao', label: '古风国色', sub: '朱砂、青玉、墨色与克制金色的国风画册质感' },
@@ -106,7 +110,7 @@ const STYLE_OPTIONS = [
   { value: 'dark_cinematic', label: '暗夜电影感', sub: '深紫、藏蓝与黑色高反差，局部轮廓光与情绪拉扯' },
   { value: 'pastel_romance', label: '粉彩轻甜', sub: '暖白、浅杏与淡紫的柔和粉彩，轻甜但不喧闹' },
   { value: 'botanical_literary', label: '草木文学', sub: '鼠尾草、橄榄绿和旧纸色的安静草木纹理' },
-  { value: 'minimal_typographic', label: '留白字章', sub: '浅色留白与一处淡淡质感，让书名成为主视觉' },
+  { value: 'minimal_typographic', label: '极简水彩题字', sub: '白底与局部淡彩，细长题字和克制作者署名' },
   { value: 'cinematic', label: '电影概念设计', sub: '明确焦点、景深层次和电影海报完成度' },
   { value: 'illustration', label: '编辑插画', sub: '强调叙事、笔触和轮廓的编辑插画' },
   { value: 'ink', label: '东方水墨', sub: '水墨纸张肌理、克制细节和自然留白' },
@@ -116,7 +120,9 @@ const STYLE_OPTIONS = [
 ]
 
 const COMPOSITION_OPTIONS = [
-  { value: 'auto', label: '自动变化' },
+  { value: 'auto', label: '跟随风格推荐' },
+  { value: 'title_center', label: '中央字章' },
+  { value: 'title_vertical', label: '竖排题字' },
   { value: 'portrait', label: '人物特写' },
   { value: 'duo', label: '双人物关系' },
   { value: 'environment', label: '环境叙事' },
@@ -745,6 +751,11 @@ export default function AiCoverPanel({
                     <p className="text-xs leading-relaxed text-muted-foreground">结合作品内容设定画面，再生成封面候选。</p>
                   </div>
 
+                  <CoverStyleGallery value={stylePreset} onChange={setStylePreset} disabled={busy || generatingPrompt || taskActive || usesExactPrompt} />
+                  {!renderTitle && ['doodle_journal', 'dreamy_cloud', 'warm_apricot', 'minimal_typographic'].includes(stylePreset) && (
+                    <p className="text-xs leading-relaxed text-muted-foreground">当前仅生成背景；开启「渲染书名与作者」后可生成示意中的题字效果。</p>
+                  )}
+
                   <div className="grid gap-3 sm:grid-cols-2">
                     <AdminFormField label="主视觉风格" labelId="cover-style-label">
                       <CustomSelect
@@ -773,7 +784,7 @@ export default function AiCoverPanel({
                   <p className="text-xs leading-relaxed text-muted-foreground">
                     {STYLE_OPTIONS.find((option) => option.value === stylePreset)?.sub || '自动结合题材推荐画风。'}{' '}
                     {composition === 'auto'
-                      ? '构图会随变体变化。'
+                      ? '构图按所选风格推荐，换变体可调整适配的布局。'
                       : `构图：${COMPOSITION_OPTIONS.find((option) => option.value === composition)?.label || composition}。`}
                   </p>
                 </section>

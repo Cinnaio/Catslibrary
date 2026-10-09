@@ -86,6 +86,9 @@ describe('inferGenre', () => {
 
   it('包含参考封面的风格预设，并能把每个预设解析成可用视觉方向', () => {
     const referenceStyles = [
+      'doodle_journal',
+      'dreamy_cloud',
+      'warm_apricot',
       'soft_watercolor',
       'moonlit_dream',
       'ancient_guochao',
@@ -109,6 +112,16 @@ describe('inferGenre', () => {
       expect(direction.stylePreset).toBe(stylePreset)
       expect(direction.stylePrompt.length).toBeGreaterThan(30)
       expect(direction.composition).toBe('off_center')
+    }
+  })
+
+  it('文字主导风格的自动构图不会轮换到人物或环境画面，手动构图仍优先', () => {
+    for (const stylePreset of ['doodle_journal', 'dreamy_cloud', 'warm_apricot', 'minimal_typographic'] as const) {
+      for (let i = 0; i < 12; i++) {
+        const args = { novelId: 'reference', genre: 'romance' as const, stylePreset, variationId: String(i) }
+        expect(['title_center', 'title_vertical']).toContain(resolveCoverDirection(args).composition)
+        expect(resolveCoverDirection({ ...args, composition: 'portrait' }).composition).toBe('portrait')
+      }
     }
   })
 

@@ -1,13 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { resolveRomanceVisualDNA } from './cover-romance'
 import { COVER_COMPOSITION_OPTIONS, COVER_STYLE_OPTIONS, GENRE_STYLES, resolveCoverDirection } from './cover-styles'
-import {
-  assembleCoverPrompt,
-  fallbackCoverScene,
-  normalizeCoverPromptLabel,
-  normalizeCoverStoryContext,
-  renderCoverPromptBlocks,
-} from './cover-prompt'
+import { assembleCoverPrompt, fallbackCoverScene, normalizeCoverPromptLabel, normalizeCoverStoryContext, renderCoverPromptBlocks } from './cover-prompt'
 
 const baseDirection = resolveCoverDirection({
   novelId: 'cover-prompt-contracts',
@@ -75,7 +69,9 @@ describe('cover prompt contracts CP01-CP15', () => {
 
   it('CP07：构图方向明确进入同一最终提示词', () => {
     expect(promptFor()).toContain('wide environmental storytelling')
-    expect(promptFor({ direction: resolveCoverDirection({ novelId: 'c', genre: 'romance', composition: 'symbolic', stylePreset: 'minimal', variationId: 'v' }) })).toContain('one story-defining object or motif')
+    expect(
+      promptFor({ direction: resolveCoverDirection({ novelId: 'c', genre: 'romance', composition: 'symbolic', stylePreset: 'minimal', variationId: 'v' }) }),
+    ).toContain('one story-defining object or motif')
   })
 
   it('CP08：渲染文字时保留输入书名和作者的 exact 语义', () => {
@@ -110,7 +106,12 @@ describe('cover prompt contracts CP01-CP15', () => {
   it('CP08：血缘和古代婚约不凭空生成凶案或现代豪门场景', () => {
     const blood = resolveRomanceVisualDNA({ title: '血缘之外', description: '两个人讨论家族血缘与彼此的信任。', variationId: 'cp12-blood', composition: 'duo' })
     expect(blood.emotion).not.toBe('dangerous')
-    const ancient = resolveRomanceVisualDNA({ title: '古代婚约', description: '古代王府中的婚约让两人重新选择自己的道路。', variationId: 'cp12-ancient', composition: 'environment' })
+    const ancient = resolveRomanceVisualDNA({
+      title: '古代婚约',
+      description: '古代王府中的婚约让两人重新选择自己的道路。',
+      variationId: 'cp12-ancient',
+      composition: 'environment',
+    })
     expect(ancient.subtype).toBe('historical')
     expect(ancient.setting).not.toContain('modern')
   })
@@ -149,6 +150,40 @@ describe('cover prompt contracts CP01-CP15', () => {
       maxPromptChars: 2000,
     } as const
     expect(assembleCoverPrompt(args)).toBe(assembleCoverPrompt({ ...args }))
+  })
+
+  it('参考风格按风格渲染字体和布局，长书名完整保留且不超过默认预算', () => {
+    const cases = [
+      ['doodle_journal', 'rounded lavender bubble', 'central open area'],
+      ['dreamy_cloud', 'expressive blue handwritten', 'central open area'],
+      ['warm_apricot', 'orange-gold brush', 'central open area'],
+      ['minimal_typographic', 'slender elegant', 'vertical columns'],
+    ] as const
+    for (const [stylePreset, font, placement] of cases) {
+      const direction = resolveCoverDirection({
+        novelId: 'reference',
+        genre: 'scifi',
+        stylePreset,
+        composition: stylePreset === 'minimal_typographic' ? 'title_vertical' : 'title_center',
+      })
+      const titleHint = '重逢后我们终于说出了那些年一直藏在心里的秘密'
+      const prompt = promptFor({ direction, style: GENRE_STYLES.scifi, renderTitle: true, titleHint })
+      expect(prompt).toContain(font)
+      expect(prompt).toContain(placement)
+      expect(prompt).toContain(titleHint)
+      expect(prompt).toContain('wrap at phrase boundaries')
+      expect(prompt).not.toContain('neon glowing futuristic font')
+      expect(prompt.length).toBeLessThanOrEqual(2000)
+    }
+  })
+
+  it('字章布局不叠加旧言情人物关系指令，无作者时不补造署名', () => {
+    const direction = resolveCoverDirection({ novelId: 'reference', genre: 'romance', stylePreset: 'doodle_journal' })
+    const romanceDNA = resolveRomanceVisualDNA({ title: '旧日重逢', composition: 'duo' })
+    const prompt = promptFor({ direction, renderTitle: true, authorHint: '', romanceDNA })
+    expect(prompt).not.toContain('Story-specific romance direction')
+    expect(prompt).not.toContain('Author name')
+    expect(fallbackCoverScene(direction.composition, '两人在机场重逢')).not.toContain('机场')
   })
 
   it('方向矩阵：所有已公开 preset × composition 的 no-text 组合不注入正向文字指令', () => {

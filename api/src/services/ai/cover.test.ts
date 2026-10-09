@@ -43,6 +43,41 @@ describe('normalizeCoverPromptMode', () => {
 })
 
 describe('buildImagePrompt', () => {
+  it('首批参考风格在新旧流水线均使用字章构图，并支持有字与无字生成', async () => {
+    const originalBaseUrl = process.env.AI_TEXT_BASE_URL
+    const originalApiKey = process.env.AI_TEXT_API_KEY
+    delete process.env.AI_TEXT_BASE_URL
+    delete process.env.AI_TEXT_API_KEY
+    try {
+      for (const promptPipelineVersion of [2, 3]) {
+        for (const stylePreset of ['doodle_journal', 'dreamy_cloud', 'warm_apricot', 'minimal_typographic']) {
+          for (const renderTitle of [true, false]) {
+            const result = await buildImagePrompt(
+              { title: '云间来信', author: '某作者', categories: ['现代言情'], description: '两位旧识在机场重逢。' },
+              { stylePreset, renderTitle, promptPipelineVersion },
+            )
+            expect(result.metadata.stylePreset).toBe(stylePreset)
+            expect(['title_center', 'title_vertical']).toContain(result.metadata.composition)
+            expect(result.prompt).toContain('no people or literal narrative scene')
+            expect(result.prompt).not.toContain('机场')
+            expect(result.prompt).not.toContain('Story-specific romance direction')
+            expect(result.prompt.length).toBeLessThanOrEqual(2000)
+            if (renderTitle) expect(result.prompt).toContain("Title text '云间来信'")
+            else {
+              expect(result.prompt).toContain('no text')
+              expect(result.prompt).not.toMatch(/\b(?:title|author|font|lettering|typography)\b/iu)
+            }
+          }
+        }
+      }
+    } finally {
+      if (originalBaseUrl === undefined) delete process.env.AI_TEXT_BASE_URL
+      else process.env.AI_TEXT_BASE_URL = originalBaseUrl
+      if (originalApiKey === undefined) delete process.env.AI_TEXT_API_KEY
+      else process.env.AI_TEXT_API_KEY = originalApiKey
+    }
+  })
+
   it('文本模型不可用时仍带入小说题材与简介，并输出可追溯视觉方向', async () => {
     const originalBaseUrl = process.env.AI_TEXT_BASE_URL
     const originalApiKey = process.env.AI_TEXT_API_KEY

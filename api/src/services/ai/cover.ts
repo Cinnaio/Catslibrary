@@ -22,6 +22,7 @@ import {
   inferGenre,
   inferGenres,
   isCoverPlatform,
+  isTitleComposition,
   resolveCoverDirection,
   type CoverComposition,
   type CoverDirection,
@@ -519,7 +520,7 @@ async function buildLegacyImagePrompt(meta: NovelMeta, opts: CoverPromptOptions)
         composition: opts.composition,
         variationId,
       })
-      const initialRomanceDNA = initialGenre === 'romance' || inferredGenres.includes('romance')
+      const initialRomanceDNA = !isTitleComposition(initialDirection.composition) && (initialGenre === 'romance' || inferredGenres.includes('romance'))
         ? resolveRomanceVisualDNA({ title: preparedMeta.title, categories, description: descHint, variationId, composition: initialDirection.composition })
         : null
       const initialStyle = GENRE_STYLES[initialGenre]
@@ -553,7 +554,7 @@ async function buildLegacyImagePrompt(meta: NovelMeta, opts: CoverPromptOptions)
       composition: opts.composition,
       variationId,
     })
-    if (genre === 'romance' || inferredGenres.includes('romance')) {
+    if (!isTitleComposition(direction.composition) && (genre === 'romance' || inferredGenres.includes('romance'))) {
       romanceDNA = resolveRomanceVisualDNA({ title: preparedMeta.title, categories, description: descHint, variationId, composition: direction.composition })
     }
     const generated = await generateSceneDescription({
@@ -599,7 +600,7 @@ async function buildLegacyImagePrompt(meta: NovelMeta, opts: CoverPromptOptions)
       composition: opts.composition,
       variationId,
     })
-    if (genre === 'romance' || inferredGenres.includes('romance')) {
+    if (!isTitleComposition(direction.composition) && (genre === 'romance' || inferredGenres.includes('romance'))) {
       romanceDNA = resolveRomanceVisualDNA({ title: preparedMeta.title, categories, description: descHint, variationId, composition: direction.composition })
     }
     scene = romanceDNA ? romanceDNA.scenePrompt : fallbackCoverScene(direction.composition, descHint)

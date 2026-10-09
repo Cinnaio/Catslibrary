@@ -22,6 +22,9 @@ export type CoverStylePreset =
   | 'minimal'
   | 'noir'
   | 'graphic'
+  | 'doodle_journal'
+  | 'dreamy_cloud'
+  | 'warm_apricot'
   | 'soft_watercolor'
   | 'moonlit_dream'
   | 'ancient_guochao'
@@ -32,7 +35,7 @@ export type CoverStylePreset =
   | 'minimal_typographic'
 
 /** 封面构图预设。auto 会按小说和变体稳定轮换。 */
-export type CoverComposition = 'auto' | 'portrait' | 'duo' | 'environment' | 'symbolic' | 'silhouette' | 'off_center'
+export type CoverComposition = 'auto' | 'portrait' | 'duo' | 'environment' | 'symbolic' | 'silhouette' | 'off_center' | 'title_center' | 'title_vertical'
 
 export type ResolvedCoverStylePreset = Exclude<CoverStylePreset, 'auto'>
 export type ResolvedCoverComposition = Exclude<CoverComposition, 'auto'>
@@ -46,6 +49,9 @@ export interface CoverDirection {
 
 export const COVER_STYLE_OPTIONS: Array<{ value: CoverStylePreset; label: string }> = [
   { value: 'auto', label: '自动推荐' },
+  { value: 'doodle_journal', label: '萌系涂鸦手账' },
+  { value: 'dreamy_cloud', label: '梦幻云染' },
+  { value: 'warm_apricot', label: '暖橘花染' },
   { value: 'soft_watercolor', label: '清透水彩' },
   { value: 'moonlit_dream', label: '月色梦境' },
   { value: 'ancient_guochao', label: '古风国色' },
@@ -53,7 +59,7 @@ export const COVER_STYLE_OPTIONS: Array<{ value: CoverStylePreset; label: string
   { value: 'dark_cinematic', label: '暗夜电影感' },
   { value: 'pastel_romance', label: '粉彩轻甜' },
   { value: 'botanical_literary', label: '草木文学' },
-  { value: 'minimal_typographic', label: '留白字章' },
+  { value: 'minimal_typographic', label: '极简水彩题字' },
   { value: 'cinematic', label: '电影概念设计' },
   { value: 'illustration', label: '编辑插画' },
   { value: 'ink', label: '东方水墨' },
@@ -63,7 +69,9 @@ export const COVER_STYLE_OPTIONS: Array<{ value: CoverStylePreset; label: string
 ]
 
 export const COVER_COMPOSITION_OPTIONS: Array<{ value: CoverComposition; label: string }> = [
-  { value: 'auto', label: '自动变化' },
+  { value: 'auto', label: '跟随风格推荐' },
+  { value: 'title_center', label: '中央字章' },
+  { value: 'title_vertical', label: '竖排题字' },
   { value: 'portrait', label: '人物特写' },
   { value: 'duo', label: '双人物关系' },
   { value: 'environment', label: '环境叙事' },
@@ -234,6 +242,12 @@ const STYLE_PROMPTS: Record<ResolvedCoverStylePreset, string> = {
   noir: 'noir photographic artwork with hard directional light, deep shadow, atmospheric grain, partial concealment, and a tense independent-film-poster mood',
   graphic:
     'modern graphic design with bold color blocking, layered typography-safe shapes, crisp editorial composition, tactile print texture, and a distinctive visual identity',
+  doodle_journal:
+    'playful hand-drawn journal cover, butter-yellow gingham border, ivory paper, lavender and pink accents, small sticker-like doodles and hearts around a clear center, rounded outlined Chinese title as the focal point; no interface badges or mockup shadows',
+  dreamy_cloud:
+    'airy pastel cloud-wash cover, powder blue, pale pink and lavender translucent clouds, low contrast paper texture, ample open space, expressive blue handwritten Chinese title as the focal point',
+  warm_apricot:
+    'warm peach and apricot watercolor cover, translucent coral and cream washes with soft bleeding edges, subtle petal-like texture, open space, orange-gold Chinese brush title as the focal point',
   soft_watercolor:
     'airy Chinese book-jacket watercolor with translucent peach, ivory, powder-blue, mint, or apricot washes, soft bleeding edges, paper grain, botanical or cloud-like textures, gentle atmosphere, and generous breathing room',
   moonlit_dream:
@@ -253,6 +267,8 @@ const STYLE_PROMPTS: Record<ResolvedCoverStylePreset, string> = {
 }
 
 const COMPOSITION_PROMPTS: Record<ResolvedCoverComposition, string> = {
+  title_center: 'an open central field for a large title, small peripheral decorations only, no people or literal narrative scene',
+  title_vertical: 'a tall open field for vertical title columns, one faint watercolor wash, no people or literal narrative scene',
   portrait: 'close portrait or half-body framing, expressive face and costume details as the primary focal point',
   duo: 'two characters arranged to show their relationship and tension, with clear separation and a readable emotional gesture',
   environment: 'wide environmental storytelling, a small but readable character placed inside a memorable world or location',
@@ -272,6 +288,49 @@ const GENRE_STYLE_POOLS: Record<Genre, ResolvedCoverStylePreset[]> = {
   historical: ['ancient_guochao', 'ink', 'cinematic', 'dark_cinematic', 'minimal_typographic', 'soft_watercolor'],
   horror: ['dark_cinematic', 'noir', 'ink', 'moonlit_dream', 'minimal_typographic', 'ancient_guochao'],
   light: ['pastel_romance', 'soft_watercolor', 'romance_illustration', 'graphic', 'moonlit_dream', 'minimal_typographic'],
+}
+
+const STYLE_COMPOSITION_POOLS: Partial<Record<ResolvedCoverStylePreset, ResolvedCoverComposition[]>> = {
+  doodle_journal: ['title_center'],
+  dreamy_cloud: ['title_center', 'title_vertical'],
+  warm_apricot: ['title_center', 'title_vertical'],
+  minimal_typographic: ['title_vertical', 'title_center'],
+}
+
+export function isTitleComposition(composition: ResolvedCoverComposition): boolean {
+  return composition === 'title_center' || composition === 'title_vertical'
+}
+
+/** 风格控制文字处理；其他预设继续使用原题材字体。 */
+export function resolveCoverTypography(stylePreset: ResolvedCoverStylePreset, composition: ResolvedCoverComposition, fallback: GenreStyle) {
+  const treatments: Partial<Record<ResolvedCoverStylePreset, { titleFont: string; authorFont: string }>> = {
+    doodle_journal: {
+      titleFont: 'rounded lavender bubble handwriting with a thin dark outline and cream fill',
+      authorFont: 'small simple muted lavender handwriting without ornaments',
+    },
+    dreamy_cloud: {
+      titleFont: 'expressive blue handwritten strokes with clean readable spacing',
+      authorFont: 'small understated blue lettering without ornaments',
+    },
+    warm_apricot: {
+      titleFont: 'flowing orange-gold brush calligraphy with clear readable strokes',
+      authorFont: 'small muted terracotta lettering without ornaments',
+    },
+    minimal_typographic: {
+      titleFont: 'slender elegant Chinese brush lettering in pale apricot with sufficient contrast against white',
+      authorFont: 'small clean charcoal lettering without ornaments',
+    },
+  }
+  return {
+    ...(treatments[stylePreset] || { titleFont: fallback.titleFont, authorFont: fallback.authorFont }),
+    titlePlacement:
+      composition === 'title_vertical'
+        ? 'in vertical columns near the center; read top to bottom, columns right to left'
+        : composition === 'title_center'
+          ? 'in the central open area as the main focal point'
+          : 'at top center',
+    authorPlacement: isTitleComposition(composition) ? 'near the lower right inside the safe area' : 'at bottom center',
+  }
 }
 
 const COMPOSITION_POOL: ResolvedCoverComposition[] = ['portrait', 'duo', 'environment', 'symbolic', 'silhouette', 'off_center']
@@ -300,7 +359,8 @@ export function resolveCoverDirection(args: {
   const compositionValue = isCoverComposition(args.composition) ? args.composition : 'auto'
   const stylePool = GENRE_STYLE_POOLS[args.genre] || GENRE_STYLE_POOLS.urban
   const stylePreset = styleValue === 'auto' ? pick(stylePool, stableHash(`${seed}|style`)) : styleValue
-  const composition = compositionValue === 'auto' ? pick(COMPOSITION_POOL, stableHash(`${seed}|composition`)) : compositionValue
+  const compositionPool = STYLE_COMPOSITION_POOLS[stylePreset] || COMPOSITION_POOL
+  const composition = compositionValue === 'auto' ? pick(compositionPool, stableHash(`${seed}|composition`)) : compositionValue
   return {
     stylePreset,
     composition,
