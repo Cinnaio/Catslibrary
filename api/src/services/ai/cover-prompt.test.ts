@@ -177,6 +177,22 @@ describe('cover prompt contracts CP01-CP15', () => {
     }
   })
 
+  it('第二批风格覆盖题材字体，并使用花间题字或错落字章布局', () => {
+    const cases = [
+      ['ancient_blossom', 'charcoal-black Chinese brush', 'open lower-left field'],
+      ['pink_collage', 'dusty-rose handwritten', 'staggered vertical phrase blocks'],
+      ['floral_handwriting', 'raspberry-pink handwriting', 'central open area'],
+    ] as const
+    for (const [stylePreset, font, placement] of cases) {
+      const direction = resolveCoverDirection({ novelId: 'batch-two', genre: 'scifi', stylePreset })
+      const prompt = promptFor({ direction, style: GENRE_STYLES.scifi, renderTitle: true })
+      expect(prompt).toContain(font)
+      expect(prompt).toContain(placement)
+      expect(prompt).not.toContain('neon glowing futuristic font')
+      expect(prompt.length).toBeLessThanOrEqual(2000)
+    }
+  })
+
   it('字章布局不叠加旧言情人物关系指令，无作者时不补造署名', () => {
     const direction = resolveCoverDirection({ novelId: 'reference', genre: 'romance', stylePreset: 'doodle_journal' })
     const romanceDNA = resolveRomanceVisualDNA({ title: '旧日重逢', composition: 'duo' })

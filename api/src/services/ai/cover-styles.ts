@@ -25,6 +25,9 @@ export type CoverStylePreset =
   | 'doodle_journal'
   | 'dreamy_cloud'
   | 'warm_apricot'
+  | 'ancient_blossom'
+  | 'pink_collage'
+  | 'floral_handwriting'
   | 'soft_watercolor'
   | 'moonlit_dream'
   | 'ancient_guochao'
@@ -35,7 +38,8 @@ export type CoverStylePreset =
   | 'minimal_typographic'
 
 /** 封面构图预设。auto 会按小说和变体稳定轮换。 */
-export type CoverComposition = 'auto' | 'portrait' | 'duo' | 'environment' | 'symbolic' | 'silhouette' | 'off_center' | 'title_center' | 'title_vertical'
+export type CoverComposition =
+  'auto' | 'portrait' | 'duo' | 'environment' | 'symbolic' | 'silhouette' | 'off_center' | 'title_center' | 'title_vertical' | 'title_collage'
 
 export type ResolvedCoverStylePreset = Exclude<CoverStylePreset, 'auto'>
 export type ResolvedCoverComposition = Exclude<CoverComposition, 'auto'>
@@ -52,6 +56,9 @@ export const COVER_STYLE_OPTIONS: Array<{ value: CoverStylePreset; label: string
   { value: 'doodle_journal', label: '萌系涂鸦手账' },
   { value: 'dreamy_cloud', label: '梦幻云染' },
   { value: 'warm_apricot', label: '暖橘花染' },
+  { value: 'ancient_blossom', label: '古言花间插画' },
+  { value: 'pink_collage', label: '粉色情绪拼贴' },
+  { value: 'floral_handwriting', label: '花笺甜系手写' },
   { value: 'soft_watercolor', label: '清透水彩' },
   { value: 'moonlit_dream', label: '月色梦境' },
   { value: 'ancient_guochao', label: '古风国色' },
@@ -72,6 +79,7 @@ export const COVER_COMPOSITION_OPTIONS: Array<{ value: CoverComposition; label: 
   { value: 'auto', label: '跟随风格推荐' },
   { value: 'title_center', label: '中央字章' },
   { value: 'title_vertical', label: '竖排题字' },
+  { value: 'title_collage', label: '错落字章' },
   { value: 'portrait', label: '人物特写' },
   { value: 'duo', label: '双人物关系' },
   { value: 'environment', label: '环境叙事' },
@@ -248,6 +256,12 @@ const STYLE_PROMPTS: Record<ResolvedCoverStylePreset, string> = {
     'airy pastel cloud-wash cover, powder blue, pale pink and lavender translucent clouds, low contrast paper texture, ample open space, expressive blue handwritten Chinese title as the focal point',
   warm_apricot:
     'warm peach and apricot watercolor cover, translucent coral and cream washes with soft bleeding edges, subtle petal-like texture, open space, orange-gold Chinese brush title as the focal point',
+  ancient_blossom:
+    'delicate Chinese romance character illustration, fine ink contours, painterly hair and fabric, ivory paper with pale pink blossom branches and muted jade accents; preserve premise-supported identity and period, no invented costume or props',
+  pink_collage:
+    'full-bleed rose-pink emotional collage, translucent paper fragments, layered petal textures, angular light streaks, deep dusty-rose title as staggered readable blocks, high contrast behind the title, no extra decorative words',
+  floral_handwriting:
+    'light floral stationery cover, ivory and blush paper with scattered translucent petals and mottled watercolor grain, a clear central area, playful raspberry-pink handwritten title with small restrained decorative accents',
   soft_watercolor:
     'airy Chinese book-jacket watercolor with translucent peach, ivory, powder-blue, mint, or apricot washes, soft bleeding edges, paper grain, botanical or cloud-like textures, gentle atmosphere, and generous breathing room',
   moonlit_dream:
@@ -267,6 +281,7 @@ const STYLE_PROMPTS: Record<ResolvedCoverStylePreset, string> = {
 }
 
 const COMPOSITION_PROMPTS: Record<ResolvedCoverComposition, string> = {
+  title_collage: 'staggered title blocks over full-frame abstract collage textures, clear hierarchy, no people or literal narrative scene',
   title_center: 'an open central field for a large title, small peripheral decorations only, no people or literal narrative scene',
   title_vertical: 'a tall open field for vertical title columns, one faint watercolor wash, no people or literal narrative scene',
   portrait: 'close portrait or half-body framing, expressive face and costume details as the primary focal point',
@@ -295,10 +310,13 @@ const STYLE_COMPOSITION_POOLS: Partial<Record<ResolvedCoverStylePreset, Resolved
   dreamy_cloud: ['title_center', 'title_vertical'],
   warm_apricot: ['title_center', 'title_vertical'],
   minimal_typographic: ['title_vertical', 'title_center'],
+  ancient_blossom: ['portrait', 'off_center'],
+  pink_collage: ['title_collage'],
+  floral_handwriting: ['title_center'],
 }
 
 export function isTitleComposition(composition: ResolvedCoverComposition): boolean {
-  return composition === 'title_center' || composition === 'title_vertical'
+  return composition === 'title_center' || composition === 'title_vertical' || composition === 'title_collage'
 }
 
 /** 风格控制文字处理；其他预设继续使用原题材字体。 */
@@ -316,6 +334,18 @@ export function resolveCoverTypography(stylePreset: ResolvedCoverStylePreset, co
       titleFont: 'flowing orange-gold brush calligraphy with clear readable strokes',
       authorFont: 'small muted terracotta lettering without ornaments',
     },
+    ancient_blossom: {
+      titleFont: 'expressive charcoal-black Chinese brush calligraphy without metallic glow',
+      authorFont: 'small restrained dark grey lettering without ornaments',
+    },
+    pink_collage: {
+      titleFont: 'bold dusty-rose handwritten lettering with clear contrast and staggered phrase blocks',
+      authorFont: 'small clean dark rose lettering without ornaments',
+    },
+    floral_handwriting: {
+      titleFont: 'playful raspberry-pink handwriting with lively brush strokes and readable spacing',
+      authorFont: 'small restrained muted rose handwriting without ornaments',
+    },
     minimal_typographic: {
       titleFont: 'slender elegant Chinese brush lettering in pale apricot with sufficient contrast against white',
       authorFont: 'small clean charcoal lettering without ornaments',
@@ -324,11 +354,15 @@ export function resolveCoverTypography(stylePreset: ResolvedCoverStylePreset, co
   return {
     ...(treatments[stylePreset] || { titleFont: fallback.titleFont, authorFont: fallback.authorFont }),
     titlePlacement:
-      composition === 'title_vertical'
-        ? 'in vertical columns near the center; read top to bottom, columns right to left'
-        : composition === 'title_center'
-          ? 'in the central open area as the main focal point'
-          : 'at top center',
+      composition === 'title_collage'
+        ? 'in staggered vertical phrase blocks across the central area; keep reading order clear'
+        : composition === 'title_vertical'
+          ? 'in vertical columns near the center; read top to bottom, columns right to left'
+          : composition === 'title_center'
+            ? 'in the central open area as the main focal point'
+            : stylePreset === 'ancient_blossom'
+              ? 'in an open lower-left field, arranged vertically without covering the face'
+              : 'at top center',
     authorPlacement: isTitleComposition(composition) ? 'near the lower right inside the safe area' : 'at bottom center',
   }
 }

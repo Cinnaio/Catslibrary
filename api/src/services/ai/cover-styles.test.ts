@@ -89,6 +89,9 @@ describe('inferGenre', () => {
       'doodle_journal',
       'dreamy_cloud',
       'warm_apricot',
+      'ancient_blossom',
+      'pink_collage',
+      'floral_handwriting',
       'soft_watercolor',
       'moonlit_dream',
       'ancient_guochao',
@@ -121,6 +124,21 @@ describe('inferGenre', () => {
         const args = { novelId: 'reference', genre: 'romance' as const, stylePreset, variationId: String(i) }
         expect(['title_center', 'title_vertical']).toContain(resolveCoverDirection(args).composition)
         expect(resolveCoverDirection({ ...args, composition: 'portrait' }).composition).toBe('portrait')
+      }
+    }
+  })
+
+  it('第二批风格选择各自适配的构图，显式布局仍然优先', () => {
+    const cases = [
+      ['ancient_blossom', ['portrait', 'off_center']],
+      ['pink_collage', ['title_collage']],
+      ['floral_handwriting', ['title_center']],
+    ] as const
+    for (const [stylePreset, compositions] of cases) {
+      for (let i = 0; i < 12; i++) {
+        const args = { novelId: 'reference-batch-two', genre: 'ancient' as const, stylePreset, variationId: String(i) }
+        expect(compositions).toContain(resolveCoverDirection(args).composition)
+        expect(resolveCoverDirection({ ...args, composition: 'symbolic' }).composition).toBe('symbolic')
       }
     }
   })

@@ -108,9 +108,12 @@
 }
 
 .cover-style-sample--minimal_typographic .cover-style-sample-title {
-  writing-mode: vertical-rl;
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  white-space: nowrap;
   font-weight: 400;
-  letter-spacing: 0.25em;
+  line-height: 1.2;
 }
 
 .cover-style-sample--minimal_typographic .cover-style-sample-author {
@@ -132,4 +135,81 @@
   .cover-style-gallery {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
+}
+
+.cover-style-sample--ancient_blossom {
+  background: radial-gradient(ellipse at 90% 10%, #f8dce6 0 10%, transparent 40%), #f9f3e9;
+  color: #3e3431;
+}
+
+.cover-style-character {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.cover-style-sample--ancient_blossom .cover-style-sample-title {
+  position: absolute;
+  left: 9%;
+  bottom: 15%;
+  z-index: 1;
+  white-space: nowrap;
+  line-height: 1.2;
+  display: flex;
+  flex-direction: column;
+  font-weight: 700;
+}
+
+.cover-style-sample--ancient_blossom .cover-style-sample-author {
+  color: #4e4542;
+}
+
+.cover-style-sample--pink_collage {
+  background:
+    linear-gradient(125deg, transparent 0 35%, #ffffff88 35% 36%, transparent 36% 70%, #ffffff77 70% 71%, transparent 71%),
+    linear-gradient(32deg, #eeb0c6bb 0 25%, transparent 25% 53%, #ffdae5bb 53% 70%, transparent 70%),
+    radial-gradient(ellipse at 75% 15%, #e5a0b8 0 10%, transparent 50%), #f5bfd0;
+  color: #934360;
+}
+
+.cover-style-sample--pink_collage::before {
+  content: '';
+  position: absolute;
+  inset: 12% -10%;
+  border: 1px solid #fff9;
+  transform: rotate(-18deg);
+}
+
+.cover-style-sample--pink_collage .cover-style-sample-title {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  white-space: nowrap;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  line-height: 1.1;
+  transform: rotate(7deg);
+}
+
+.cover-style-sample--floral_handwriting {
+  background:
+    radial-gradient(ellipse at 10% 10%, #f8ccd8bb 0 8%, transparent 22%), radial-gradient(ellipse at 85% 30%, #f4bfd1aa 0 6%, transparent 22%),
+    radial-gradient(ellipse at 30% 75%, #f5c4cf99 0 10%, transparent 28%), radial-gradient(ellipse at 85% 95%, #f2d9a688 0 10%, transparent 24%), #fff8f1;
+  color: #b84b7a;
+}
+
+.cover-style-sample--floral_handwriting::before {
+  content: '✿';
+  position: absolute;
+  right: 10%;
+  top: 13%;
+  font-size: 1.6rem;
+  color: #e8a0b699;
+}
+
+.cover-style-sample--floral_handwriting .cover-style-sample-title {
+  font-style: italic;
+  font-weight: 600;
+  transform: rotate(-6deg);
 }

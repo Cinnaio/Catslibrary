@@ -103,6 +103,9 @@ const STYLE_OPTIONS = [
   { value: 'doodle_journal', label: '萌系涂鸦手账', sub: '奶黄格纹、贴纸涂鸦与圆润描边字，书名居中' },
   { value: 'dreamy_cloud', label: '梦幻云染', sub: '蓝粉紫云团与透明晕染，蓝色手写书名和轻盈留白' },
   { value: 'warm_apricot', label: '暖橘花染', sub: '桃橙水彩与花瓣肌理，橙金书法标题' },
+  { value: 'ancient_blossom', label: '古言花间插画', sub: '精致人物、浅粉花枝与青玉点缀，墨色竖排题字' },
+  { value: 'pink_collage', label: '粉色情绪拼贴', sub: '满版粉色纸片与透明叠层，深玫瑰色错落大字' },
+  { value: 'floral_handwriting', label: '花笺甜系手写', sub: '浅粉花笺、花瓣肌理与俏皮莓粉手写字' },
   { value: 'soft_watercolor', label: '清透水彩', sub: '浅桃、奶油、薄荷或雾蓝的透明水彩与轻盈留白' },
   { value: 'moonlit_dream', label: '月色梦境', sub: '蓝紫月色、云雾和远景剪影，柔光低对比' },
   { value: 'ancient_guochao', label: '古风国色', sub: '朱砂、青玉、墨色与克制金色的国风画册质感' },
@@ -123,6 +126,7 @@ const COMPOSITION_OPTIONS = [
   { value: 'auto', label: '跟随风格推荐' },
   { value: 'title_center', label: '中央字章' },
   { value: 'title_vertical', label: '竖排题字' },
+  { value: 'title_collage', label: '错落字章' },
   { value: 'portrait', label: '人物特写' },
   { value: 'duo', label: '双人物关系' },
   { value: 'environment', label: '环境叙事' },
@@ -752,9 +756,10 @@ export default function AiCoverPanel({
                   </div>
 
                   <CoverStyleGallery value={stylePreset} onChange={setStylePreset} disabled={busy || generatingPrompt || taskActive || usesExactPrompt} />
-                  {!renderTitle && ['doodle_journal', 'dreamy_cloud', 'warm_apricot', 'minimal_typographic'].includes(stylePreset) && (
-                    <p className="text-xs leading-relaxed text-muted-foreground">当前仅生成背景；开启「渲染书名与作者」后可生成示意中的题字效果。</p>
-                  )}
+                  {!renderTitle &&
+                    ['doodle_journal', 'dreamy_cloud', 'warm_apricot', 'minimal_typographic', 'pink_collage', 'floral_handwriting'].includes(stylePreset) && (
+                      <p className="text-xs leading-relaxed text-muted-foreground">当前仅生成背景；开启「渲染书名与作者」后可生成示意中的题字效果。</p>
+                    )}
 
                   <div className="grid gap-3 sm:grid-cols-2">
                     <AdminFormField label="主视觉风格" labelId="cover-style-label">

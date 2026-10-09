@@ -77,6 +77,8 @@ export function normalizeCoverPromptLabel(value: unknown): string {
 /** 文本模型不可用时的中性骨架，不替小说补写固定人物、时代道具或地点。 */
 export function fallbackCoverScene(composition: ResolvedCoverComposition, storyContext = ''): string {
   const scenes: Record<ResolvedCoverComposition, string> = {
+    title_collage:
+      'layered abstract paper fragments and translucent textures fill the frame, with calm contrasting areas between them; no people or literal narrative scene',
     title_center: 'an airy abstract wash with small peripheral accents and a calm open central field; no people or literal narrative scene',
     title_vertical: 'one faint abstract watercolor wash beside a tall open field; no people or literal narrative scene',
     portrait: 'a premise-led central subject shown through a readable expression, gesture, and one grounded prop, with a restrained setting behind',
@@ -98,6 +100,7 @@ export function coverPromptSceneBudget(maxPromptChars = 2_000): number {
 
 export function compositionSceneInstruction(composition: ResolvedCoverComposition): string {
   const instructions: Record<ResolvedCoverComposition, string> = {
+    title_collage: 'use full-frame abstract paper fragments and translucent textures with clear contrasting areas; no people or literal narrative scene',
     title_center: 'use abstract mood and peripheral texture only; keep the center open; do not depict people or a literal narrative scene',
     title_vertical: 'use a faint abstract wash and a tall open field only; do not depict people or a literal narrative scene',
     portrait: 'show one main subject only; keep the background restrained and use a supported gesture or detail',
@@ -243,6 +246,12 @@ export function compactStylePrompt(stylePreset: ResolvedCoverStylePreset, styleP
     dreamy_cloud: 'airy pastel cloud-wash cover, powder blue, pale pink and lavender translucent clouds, low contrast paper texture and ample open space',
     warm_apricot:
       'warm peach and apricot watercolor cover, translucent coral and cream washes with soft bleeding edges, subtle petal-like texture and ample open space',
+    ancient_blossom:
+      'delicate Chinese romance character illustration, fine ink contours, painterly hair and fabric, ivory paper with pale pink blossom branches and muted jade accents; preserve premise-supported identity and period, no invented costume or props',
+    pink_collage:
+      'full-bleed rose-pink emotional collage, translucent paper fragments, layered petal textures, angular light streaks, contrasting open areas, no extra decorative words',
+    floral_handwriting:
+      'light floral stationery cover, ivory and blush paper with scattered translucent petals and mottled watercolor grain, a clear central area and small restrained decorative accents',
     soft_watercolor:
       'airy Chinese book-jacket watercolor with translucent peach, ivory, powder-blue, mint, or apricot washes, soft bleeding edges, paper grain, botanical or cloud-like textures, gentle atmosphere, and generous breathing room',
     moonlit_dream:
@@ -266,6 +275,7 @@ export function compactStylePrompt(stylePreset: ResolvedCoverStylePreset, styleP
 export function compactCompositionPrompt(composition: ResolvedCoverComposition, renderTitle: boolean): string {
   if (renderTitle) {
     const prompts: Record<ResolvedCoverComposition, string> = {
+      title_collage: 'staggered title blocks over full-frame abstract collage textures, clear hierarchy, no people or literal narrative scene',
       title_center: 'an open central field for a large title, small peripheral decorations only, no people or literal narrative scene',
       title_vertical: 'a tall open field for vertical title columns, one faint watercolor wash, no people or literal narrative scene',
       portrait: 'close portrait or half-body framing, expressive face and costume details as the primary focal point',
@@ -278,6 +288,7 @@ export function compactCompositionPrompt(composition: ResolvedCoverComposition, 
     return prompts[composition]
   }
   const prompts: Record<ResolvedCoverComposition, string> = {
+    title_collage: 'full-frame abstract collage textures with contrasting open areas and clear hierarchy, no people or literal narrative scene',
     title_center: 'an open central field, small peripheral decorations only, no people or literal narrative scene',
     title_vertical: 'a tall open field with one faint watercolor wash, no people or literal narrative scene',
     portrait: 'close portrait or half-body framing, expressive face and costume details as the primary focal point',

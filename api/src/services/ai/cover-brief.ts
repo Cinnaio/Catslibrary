@@ -209,7 +209,10 @@ export function buildLocalVisualConcept(brief: CoverStoryBrief, direction: Cover
       action: `soft color transitions suggest ${brief.mood.join(', ') || 'the story mood'}`,
       setting: 'an open paper field without people or a literal narrative scene',
       spatial: compositionSpatialRule(direction.composition),
-      supportingDetail: 'small peripheral accents and generous breathing room',
+      supportingDetail:
+        direction.composition === 'title_collage'
+          ? 'full-frame translucent paper fragments with clear contrasting areas'
+          : 'small peripheral accents and generous breathing room',
       factIds: [],
       inventedPresentation: ['abstract texture', 'open negative space'],
       degraded: 'local_fallback',
@@ -247,6 +250,7 @@ export function renderCoverVisualConcept(concept: CoverVisualConcept, compositio
 
 function compositionSpatialRule(composition: ResolvedCoverComposition): string {
   const rules: Record<ResolvedCoverComposition, string> = {
+    title_collage: 'layered abstract textures fill the frame with clear contrasting areas; no people or literal narrative scene',
     title_center: 'small peripheral accents frame a calm open center; no people or literal narrative scene',
     title_vertical: 'a faint wash sits beside a tall open field; no people or literal narrative scene',
     portrait: 'one clear subject near the visual center with a restrained background',

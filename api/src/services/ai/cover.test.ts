@@ -78,6 +78,42 @@ describe('buildImagePrompt', () => {
     }
   })
 
+  it('第二批在新旧流水线保留古言故事锚点，拼贴和花笺使用抽象字章', async () => {
+    const originalBaseUrl = process.env.AI_TEXT_BASE_URL
+    const originalApiKey = process.env.AI_TEXT_API_KEY
+    delete process.env.AI_TEXT_BASE_URL
+    delete process.env.AI_TEXT_API_KEY
+    try {
+      for (const promptPipelineVersion of [2, 3]) {
+        for (const stylePreset of ['ancient_blossom', 'pink_collage', 'floral_handwriting']) {
+          for (const renderTitle of [true, false]) {
+            const result = await buildImagePrompt(
+              { title: '花间旧约', author: '某作者', categories: ['古言'], description: '两位旧识在花园重逢，共同寻找失散的家人。' },
+              { stylePreset, renderTitle, promptPipelineVersion },
+            )
+            expect(result.metadata.stylePreset).toBe(stylePreset)
+            expect(result.prompt.length).toBeLessThanOrEqual(2000)
+            if (stylePreset === 'ancient_blossom') {
+              expect(['portrait', 'off_center']).toContain(result.metadata.composition)
+              expect(result.prompt).toContain('花园重逢')
+              expect(result.prompt).toContain('no invented costume or props')
+            } else {
+              expect(result.metadata.composition).toBe(stylePreset === 'pink_collage' ? 'title_collage' : 'title_center')
+              expect(result.prompt).toContain('no people or literal narrative scene')
+            }
+            if (renderTitle) expect(result.prompt).toContain("Title text '花间旧约'")
+            else expect(result.prompt).not.toMatch(/\b(?:title|author|font|lettering|typography)\b/iu)
+          }
+        }
+      }
+    } finally {
+      if (originalBaseUrl === undefined) delete process.env.AI_TEXT_BASE_URL
+      else process.env.AI_TEXT_BASE_URL = originalBaseUrl
+      if (originalApiKey === undefined) delete process.env.AI_TEXT_API_KEY
+      else process.env.AI_TEXT_API_KEY = originalApiKey
+    }
+  })
+
   it('文本模型不可用时仍带入小说题材与简介，并输出可追溯视觉方向', async () => {
     const originalBaseUrl = process.env.AI_TEXT_BASE_URL
     const originalApiKey = process.env.AI_TEXT_API_KEY
