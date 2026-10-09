@@ -73,7 +73,7 @@ afterAll(async () => {
 describe('备份管理权限、幂等及敏感边界', () => {
   it('游客和普通用户不能读取版本、日志或下载归档', async () => {
     for (const token of ['', reader])
-      for (const path of ['/versions', '/logs', '/settings', '/versions/example/download'])
+      for (const path of ['/versions', '/logs', '/settings', '/settings/rehearsal', '/versions/example/download'])
         expect([401, 403]).toContain((await call(path, 'GET', undefined, token)).status)
   })
   it('SFTP 密码不回显、不以明文存储，目标更新检查 revision', async () => {
@@ -252,6 +252,26 @@ describe('前端备份设置接口', () => {
     expect((await call('/settings', 'PUT', initial)).status).toBe(409)
     await setSetting(db, 'maintenance', false)
     expect(((await (await call('/settings')).json()) as any).settings).toEqual(initial)
+    await db.query("DELETE FROM backup_control.settings WHERE key='runtime'")
+  })
+  it('演练连接检查和移除仅允许管理员，移除关闭回滚但保留部署地址', async () => {
+    for (const token of ['', reader]) {
+      expect([401, 403]).toContain((await call('/settings/rehearsal/check', 'POST', { revision: 0 }, token)).status)
+      expect([401, 403]).toContain((await call('/settings/rehearsal', 'DELETE', { revision: 0 }, token)).status)
+    }
+    vi.stubEnv('BACKUP_REHEARSAL_DATABASE_URL', 'postgresql://user:private-fixture@database:5432/shadow')
+    const info = await call('/settings/rehearsal')
+    expect(info.status).toBe(200)
+    const view = await info.json()
+    expect(view).toMatchObject({ configured: true, source: 'environment', host: 'database', port: '5432', database: 'shadow', connectionStatus: 'unchecked' })
+    expect(JSON.stringify(view)).not.toContain('private-fixture')
+    expect((await call('/settings/rehearsal', 'DELETE', { revision: 9 })).status).toBe(409)
+    const removed = await call('/settings/rehearsal', 'DELETE', { revision: 0 })
+    expect(removed.status).toBe(200)
+    expect(await removed.json()).toMatchObject({ settings: { rehearsalSource: 'disabled', rehearsalConfigured: false, revision: 1 } })
+    expect(process.env.BACKUP_REHEARSAL_DATABASE_URL).toContain('private-fixture')
+    expect((await call('/settings/rehearsal/check', 'POST', { revision: 1 })).status).toBe(400)
+    vi.stubEnv('BACKUP_REHEARSAL_DATABASE_URL', '')
     await db.query("DELETE FROM backup_control.settings WHERE key='runtime'")
   })
 })

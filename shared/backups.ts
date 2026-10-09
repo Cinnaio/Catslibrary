@@ -97,6 +97,19 @@ export interface BackupSettings {
   retryLimit: number
   logRetentionDays: number
 }
+export interface BackupRehearsalInfo {
+  revision: number
+  source: BackupSettings['rehearsalSource']
+  configured: boolean
+  host: string
+  port: string
+  database: string
+  connectionStatus: 'unchecked' | 'connected' | 'unavailable'
+  guardStatus: 'unchecked' | 'valid' | 'invalid'
+  checkedAt: number
+  error: string
+  lastPreview: { taskId: string; state: BackupState; createdAt: number; finishedAt: number } | null
+}
 export interface BackupSettingsInput {
   revision: number
   hostSource: BackupSettings['hostSource']

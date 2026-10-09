@@ -7,6 +7,9 @@ const mock = vi.hoisted(() => ({
   overview: vi.fn(),
   settings: vi.fn(),
   saveSettings: vi.fn(),
+  rehearsalInfo: vi.fn().mockResolvedValue(null),
+  checkRehearsal: vi.fn(),
+  removeRehearsal: vi.fn(),
   versions: vi.fn(),
   logs: vi.fn(),
   backup: vi.fn(),
@@ -48,6 +51,7 @@ function show(view = 'versions') {
 }
 beforeEach(() => {
   vi.resetAllMocks()
+  mock.rehearsalInfo.mockResolvedValue(null)
   mock.overview.mockResolvedValue(structuredClone(overview))
   mock.versions.mockResolvedValue({ items: [], total: 0 })
   mock.logs.mockResolvedValue({ items: [], total: 0 })
@@ -96,7 +100,8 @@ describe('备份后台', () => {
     mock.backup.mockResolvedValue({ id: 'task-feedback', kind: 'backup', state: 'queued' })
     mock.task.mockResolvedValue({ id: 'task-feedback', kind: 'backup', state, error, actor: '管理员', createdAt: 1, stage: '任务结束', result: null })
     show()
-    fireEvent.click(await screen.findByRole('button', { name: '立即备份' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: '立即备份' })).toBeEnabled())
+    fireEvent.click(screen.getByRole('button', { name: '立即备份' }))
     vi.useFakeTimers()
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: '开始备份' }))
@@ -113,7 +118,8 @@ describe('备份后台', () => {
     mock.backup.mockResolvedValue({ id: 'task-feedback', kind: 'backup', state: 'queued' })
     mock.task.mockRejectedValue(new Error('任务读取失败'))
     show()
-    fireEvent.click(await screen.findByRole('button', { name: '立即备份' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: '立即备份' })).toBeEnabled())
+    fireEvent.click(screen.getByRole('button', { name: '立即备份' }))
     vi.useFakeTimers()
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: '开始备份' }))
@@ -129,7 +135,8 @@ describe('备份后台', () => {
   it('提交备份失败立即提示，保留弹窗输入', async () => {
     mock.backup.mockRejectedValue(new Error('备份任务正在执行'))
     show()
-    fireEvent.click(await screen.findByRole('button', { name: '立即备份' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: '立即备份' })).toBeEnabled())
+    fireEvent.click(screen.getByRole('button', { name: '立即备份' }))
     fireEvent.change(screen.getByLabelText('版本备注'), { target: { value: '升级前' } })
     fireEvent.click(screen.getByRole('button', { name: '开始备份' }))
     await waitFor(() => expect(mock.toast).toHaveBeenCalledWith('备份任务正在执行', 'error'))

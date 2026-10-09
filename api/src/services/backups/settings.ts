@@ -1,7 +1,7 @@
 import { Pool } from 'pg'
 import { isIP } from 'node:net'
 import { randomBytes } from 'node:crypto'
-import type { BackupSettings, BackupSettingsInput } from '@shared/backups'
+import type { BackupSettings, BackupSettingsInput, BackupRehearsalInfo } from '@shared/backups'
 import type { Db, DbClient } from '../../db/pool'
 import { first, withTx } from '../../db/query'
 import { loadConfig } from '../../config'
@@ -249,4 +249,118 @@ COMMIT;`)
     if (locked) await client.query('SELECT pg_advisory_unlock($1)', [BACKUP_LOCK]).catch(() => {})
     client.release()
   }
+}
+
+/** 信息读取不连接演练库，也不向客户端暴露用户名、密码或连接参数。 */
+export async function rehearsalInfo(db: DbClient): Promise<BackupRehearsalInfo> {
+  const settings = await backupSettings(db)
+  let host = '',
+    port = '',
+    database = ''
+  if (settings.rehearsalConfigured) {
+    try {
+      const url = new URL(`postgresql://${settings.rehearsalLabel}`)
+      host = url.hostname
+      port = url.port || '5432'
+      database = decodeURIComponent(url.pathname.slice(1))
+    } catch {
+      /* 地址无效时保留未检查状态，由连接检查给出提示。 */
+    }
+  }
+  const check = await first<{ value: string }>(db, "SELECT value FROM backup_control.settings WHERE key='rehearsal-check'")
+  const candidate = check ? (JSON.parse(check.value) as BackupRehearsalInfo) : null
+  const cached =
+    candidate?.revision === settings.revision &&
+    candidate.source === settings.rehearsalSource &&
+    candidate.host === host &&
+    candidate.port === port &&
+    candidate.database === database
+      ? candidate
+      : null
+  // 仅展示当前连接的预检记录；旧任务没有目标标签，不能假定属于此库。
+  const preview = settings.rehearsalConfigured
+    ? await first<{ id: string; state: NonNullable<BackupRehearsalInfo['lastPreview']>['state']; created_at: number; finished_at: number }>(
+        db,
+        "SELECT id,state,created_at,finished_at FROM backup_control.tasks WHERE kind='preview' AND result<>'' AND (result::jsonb->>'rehearsalLabel')=$1 ORDER BY created_at DESC,id DESC LIMIT 1",
+        [settings.rehearsalLabel],
+      )
+    : undefined
+  return {
+    revision: settings.revision,
+    source: settings.rehearsalSource,
+    configured: settings.rehearsalConfigured,
+    host,
+    port,
+    database,
+    connectionStatus: cached?.revision === settings.revision ? cached.connectionStatus : 'unchecked',
+    guardStatus: cached?.revision === settings.revision ? cached.guardStatus : 'unchecked',
+    checkedAt: cached?.revision === settings.revision ? cached.checkedAt : 0,
+    error: cached?.revision === settings.revision ? cached.error : '',
+    lastPreview: preview ? { taskId: preview.id, state: preview.state, createdAt: Number(preview.created_at), finishedAt: Number(preview.finished_at) } : null,
+  }
+}
+async function withRehearsalSettings<T>(db: Db, revision: number, work: (client: DbClient, current: Stored) => Promise<T>) {
+  if (!Number.isSafeInteger(revision) || revision < 0) throw new BackupError('INVALID_CONFIG', '备份设置版本无效')
+  return withTx(db, async (query) => {
+    const lock = await query<{ locked: boolean }>('SELECT pg_try_advisory_xact_lock($1) AS locked', [BACKUP_LOCK])
+    if (!lock.rows[0]?.locked) throw new BackupError('BACKUP_BUSY', '备份任务正在执行，请稍后操作演练库配置', 409)
+    await query('SELECT pg_advisory_xact_lock(730049)')
+    const client = { query }
+    if ((await first<{ value: string }>(client, "SELECT value FROM backup_control.settings WHERE key='maintenance'"))?.value === 'true')
+      throw new BackupError('MAINTENANCE', '恢复期间不能操作演练库配置', 409)
+    const current = await stored(client)
+    if (current.revision !== revision) throw new BackupError('REVISION_CONFLICT', '备份设置已更新，请重新加载', 409)
+    return work(client, current)
+  })
+}
+export async function checkRehearsalConnection(db: Db, revision: number): Promise<BackupRehearsalInfo> {
+  return withRehearsalSettings(db, revision, async (client) => {
+    const info = await rehearsalInfo(client)
+    const connection = await rehearsalConnection(client)
+    if (!connection) throw new BackupError('REHEARSAL_UNAVAILABLE', '尚未配置演练数据库')
+    let pool: Pool | undefined
+    try {
+      validateUrl(connection)
+      pool = new Pool({ connectionString: connection, max: 1, connectionTimeoutMillis: 5000, statement_timeout: 5000, query_timeout: 6000 })
+      const live = await client.query<{ name: string }>('SELECT current_database() AS name')
+      const shadow = await pool.query('SELECT current_database() AS name')
+      info.connectionStatus = 'connected'
+      if (live.rows[0]?.name === shadow.rows[0]?.name) throw new BackupError('REHEARSAL_UNSAFE', '演练库名称必须与业务库不同')
+      if (shadow.rows[0]?.name !== info.database) throw new BackupError('REHEARSAL_UNSAFE', '实际连接的数据库与配置库名不一致，请检查连接地址')
+      info.guardStatus = 'invalid'
+      const marker = await pool.query("SELECT value FROM backup_rehearsal.guard WHERE key='purpose'")
+      if (marker.rows[0]?.value !== 'zhi-zhou-backup-rehearsal') throw new BackupError('REHEARSAL_UNSAFE', '演练数据库缺少有效的专属保护标记')
+      info.guardStatus = 'valid'
+    } catch (error) {
+      if (info.connectionStatus !== 'connected') info.connectionStatus = 'unavailable'
+      info.error =
+        error instanceof BackupError
+          ? error.message
+          : info.connectionStatus === 'connected'
+            ? '演练数据库已连接，但保护标记读取失败，请检查初始化与权限'
+            : '演练数据库连接失败，请检查地址、账号权限及网络'
+    } finally {
+      await pool?.end()
+    }
+    info.checkedAt = Date.now()
+    await client.query(
+      "INSERT INTO backup_control.settings(key,value,updated_at) VALUES('rehearsal-check',$1,$2) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value,updated_at=EXCLUDED.updated_at",
+      [JSON.stringify(info), info.checkedAt],
+    )
+    return info
+  })
+}
+/** 只解绑连接配置；不执行演练库 SQL，也不修改部署端环境变量。 */
+export async function removeRehearsalConnection(db: Db, revision: number): Promise<BackupSettings> {
+  return withRehearsalSettings(db, revision, async (client, current) => {
+    const queued = await first(client, "SELECT id FROM backup_control.tasks WHERE kind IN ('preview','restore') AND state IN ('queued','running') LIMIT 1")
+    if (queued) throw new BackupError('BACKUP_BUSY', '恢复预检或回滚任务尚未结束，请稍后移除连接配置', 409)
+    const next: Stored = { ...current, revision: current.revision + 1, rehearsalSource: 'disabled', rehearsalSecret: '', rehearsalLabel: '' }
+    await client.query(
+      "INSERT INTO backup_control.settings(key,value,updated_at) VALUES('runtime',$1,$2) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value,updated_at=EXCLUDED.updated_at",
+      [JSON.stringify(next), Date.now()],
+    )
+    await client.query("DELETE FROM backup_control.settings WHERE key='rehearsal-check'")
+    return backupSettings(client)
+  })
 }

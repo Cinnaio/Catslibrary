@@ -429,6 +429,11 @@
         "name": "Backup Rehearsal Creation",
         "section": "components",
         "body": "Offer one-click creation in the restore-rehearsal panel only when unconfigured. Use the current PostgreSQL instance and deployment account to create a dedicated empty database, initialize the guard and immediately save encrypted credentials. Require a ready master key and CREATEDB permission without a second administrator password prompt. Lock controls during creation, show useful failures, retain other drafts, and update the settings revision on success. Show only a redacted connection label; retain manual setup and never elevate privileges or reinitialize an existing database."
+      },
+      {
+        "name": "Backup Rehearsal Management",
+        "section": "components",
+        "body": "Keep only a compact full-row rehearsal information trigger with a source badge and chevron on the page. Open the shared admin dialog to fetch details and contain connection checks and disconnect actions. Return focus to the trigger on close and prevent closing during pending actions. Show redacted host, port, database, source and timestamped connection/guard checks using existing lists and badges. Metadata reads never connect to the rehearsal database; explicit checks only read identity and guard. Match preview history to the current redacted target label. Confirm disconnect through the shared dialog; persist disabled mode, remove stored credentials, retain the database and environment URL, and preserve unrelated drafts with the new revision. Reject changes during maintenance, task use or revision conflicts. Use shared toast feedback; never provide a database drop action."
       }
     ],
     "dos": [

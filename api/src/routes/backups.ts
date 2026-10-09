@@ -10,7 +10,14 @@ import { all, first, withTx } from '../db/query'
 import { verifyPassword } from '../services/auth'
 import { BackupError, BACKUP_LOCK, encryptionReady, backupRoot, keyId, allowedHosts } from '../services/backups/config'
 import { enqueue, maintenance, policy, savePolicy, saveTarget, targetRows, targetView, taskView, versions, type TaskRow } from '../services/backups/store'
-import { backupSettings, saveBackupSettings, createRehearsalDatabase } from '../services/backups/settings'
+import {
+  backupSettings,
+  saveBackupSettings,
+  createRehearsalDatabase,
+  rehearsalInfo,
+  checkRehearsalConnection,
+  removeRehearsalConnection,
+} from '../services/backups/settings'
 import { archivePath, type Manifest } from '../services/backups/archive'
 import { ensureLocalArchive } from '../services/backups/storage'
 import { startAdminOperationAudit, finishAdminOperationAudit } from '../services/admin-operation-audit'
@@ -87,6 +94,17 @@ backupRoutes.post('/settings/rehearsal', async (c) => {
   const body = await bodyJSON<{ revision: number }>(c)
   const settings = await createRehearsalDatabase(getDb(), body.revision)
   await audit(c.get('user').id, 'rehearsal-create').catch(() => console.error('[backups] 演练库已创建，操作审计写入失败'))
+  return c.json({ settings })
+})
+backupRoutes.get('/settings/rehearsal', async (c) => c.json(await rehearsalInfo(getDb())))
+backupRoutes.post('/settings/rehearsal/check', async (c) => {
+  const body = await bodyJSON<{ revision: number }>(c)
+  return c.json(await checkRehearsalConnection(getDb(), body.revision))
+})
+backupRoutes.delete('/settings/rehearsal', async (c) => {
+  const body = await bodyJSON<{ revision: number }>(c)
+  const settings = await removeRehearsalConnection(getDb(), body.revision)
+  await audit(c.get('user').id, 'rehearsal-disconnect').catch(() => console.error('[backups] 演练连接已移除，操作审计写入失败'))
   return c.json({ settings })
 })
 backupRoutes.get('/overview', async (c) => {

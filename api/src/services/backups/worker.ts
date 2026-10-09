@@ -350,8 +350,11 @@ export async function runBackupTick(db: Db) {
       } else if (task.kind === 'preview') {
         const manifest = await manifestFor(db, task.version_id)
         await logEvent(db, task.id, '正在验证归档并在隔离数据库演练恢复')
+        const rehearsalLabel = (await backupSettings(db)).rehearsalLabel
+        await db.query('UPDATE backup_control.tasks SET result=$2 WHERE id=$1', [task.id, JSON.stringify({ rehearsalLabel })])
         const administrators = await rehearse(db, manifest)
         const result = {
+          rehearsalLabel,
           previewToken: randomUUID(),
           expiresAt: Date.now() + 600000,
           administrators,

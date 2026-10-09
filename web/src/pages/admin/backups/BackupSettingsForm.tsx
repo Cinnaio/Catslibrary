@@ -3,6 +3,7 @@ import type { BackupSettings, BackupSettingsInput, BackupSettingsPage } from '@s
 import { useToast } from '@/components/feedback'
 import { backupsApi } from '@/lib/backups-api'
 import AdminFormField from '@/components/admin/AdminFormField'
+import BackupRehearsalPanel from './BackupRehearsalPanel'
 import BackupDeploymentPanel from './BackupDeploymentPanel'
 import CustomSelect from '@/components/admin/CustomSelect'
 import { Button } from '@/components/ui/button'
@@ -150,6 +151,18 @@ export default function BackupSettingsForm({
           <CardTitle>恢复演练</CardTitle>
         </CardHeader>
         <CardContent className="backup-fields">
+          <BackupRehearsalPanel
+            settings={settings}
+            disabled={locked}
+            onBusyChange={setBusy}
+            onRemoved={(value) => {
+              setSettings(value)
+              setDraft((previous) => ({ ...previous, revision: value.revision, rehearsalSource: 'disabled' }))
+              setConnection('')
+              setNotice('演练库连接配置已移除，数据库已保留')
+              if (!policyDirty) onSaved(value)
+            }}
+          />
           {!settings.rehearsalConfigured && (
             <>
               <div className="backup-actions">

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BackupDeployment, BackupSettingsPage } from '@shared/backups'
 import BackupSettingsForm from './BackupSettingsForm'
@@ -7,11 +7,15 @@ const mock = vi.hoisted(() => ({
   detectDeployment: vi.fn(),
   generateDeploymentKey: vi.fn(),
   saveSettings: vi.fn(),
+  rehearsalInfo: vi.fn().mockResolvedValue(null),
+  checkRehearsal: vi.fn(),
+  removeRehearsal: vi.fn(),
   createRehearsal: vi.fn(),
   saveBlob: vi.fn(),
   toast: vi.fn(),
+  confirm: vi.fn(),
 }))
-vi.mock('@/components/feedback', () => ({ useToast: () => ({ toast: mock.toast }) }))
+vi.mock('@/components/feedback', () => ({ useToast: () => ({ toast: mock.toast }), useConfirm: () => ({ confirm: mock.confirm }) }))
 vi.mock('@/lib/backups-api', () => ({ backupsApi: mock, saveBlob: mock.saveBlob }))
 const runtime: BackupDeployment = {
   revision: 0,
@@ -48,7 +52,149 @@ const page: BackupSettingsPage = {
     runtime,
   },
 }
-beforeEach(() => vi.resetAllMocks())
+beforeEach(() => {
+  vi.resetAllMocks()
+  mock.rehearsalInfo.mockResolvedValue(null)
+})
+const configuredPage: BackupSettingsPage = {
+  ...page,
+  settings: { ...page.settings, rehearsalSource: 'custom', rehearsalConfigured: true, rehearsalLabel: 'database:5432/shadow' },
+  deployment: { ...page.deployment, encryption: true },
+}
+const rehearsal = {
+  revision: 0,
+  source: 'custom',
+  configured: true,
+  host: 'database',
+  port: '5432',
+  database: 'shadow',
+  connectionStatus: 'unchecked',
+  guardStatus: 'unchecked',
+  checkedAt: 0,
+  error: '',
+  lastPreview: null,
+}
+describe('演练库管理', () => {
+  it('查看脱敏信息并检查连接，复用统一结果反馈', async () => {
+    mock.rehearsalInfo.mockResolvedValue(rehearsal)
+    mock.checkRehearsal.mockResolvedValue({ ...rehearsal, connectionStatus: 'connected', guardStatus: 'valid', checkedAt: 1 })
+    render(<BackupSettingsForm page={configuredPage} disabled={false} onSaved={vi.fn()} />)
+    expect(screen.queryByText('shadow')).not.toBeInTheDocument()
+    expect(mock.rehearsalInfo).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: /演练库信息/ }))
+    await screen.findByRole('dialog', { name: '演练库信息' })
+    await screen.findByText('shadow')
+    expect(screen.getByText('5432')).toBeInTheDocument()
+    expect(screen.getByText('暂无当前演练库的预检记录')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '检查连接' }))
+    await screen.findByText('可连接')
+    expect(screen.getByText('有效')).toBeInTheDocument()
+    expect(mock.checkRehearsal).toHaveBeenCalledWith(0)
+    expect(mock.toast).toHaveBeenCalledWith('演练库连接与保护标记检查通过', 'success')
+    expect(mock.saveSettings).not.toHaveBeenCalled()
+  })
+  it('检查期间禁止关闭，完成后关闭返回入口焦点，重开重新读取信息', async () => {
+    mock.rehearsalInfo.mockResolvedValue(rehearsal)
+    let finishCheck!: (value: typeof rehearsal) => void
+    mock.checkRehearsal.mockReturnValue(
+      new Promise((resolve) => {
+        finishCheck = resolve
+      }),
+    )
+    render(<BackupSettingsForm page={configuredPage} disabled={false} onSaved={vi.fn()} />)
+    const trigger = screen.getByRole('button', { name: /演练库信息/ })
+    fireEvent.click(trigger)
+    await screen.findByText('shadow')
+    fireEvent.click(screen.getByRole('button', { name: '检查连接' }))
+    expect(screen.getByRole('button', { name: '关闭' })).toBeDisabled()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.getByRole('dialog', { name: '演练库信息' })).toBeInTheDocument()
+    await act(async () => {
+      finishCheck(rehearsal)
+    })
+    await waitFor(() => expect(screen.getByRole('button', { name: '关闭' })).toBeEnabled())
+    fireEvent.click(screen.getByRole('button', { name: '关闭' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    await waitFor(() => expect(trigger).toHaveFocus())
+    fireEvent.click(trigger)
+    await waitFor(() => expect(mock.rehearsalInfo).toHaveBeenCalledTimes(2))
+  })
+  it('信息读取晚于连接检查返回时，不覆盖新检查结果', async () => {
+    let finishRead!: (value: typeof rehearsal) => void
+    mock.rehearsalInfo.mockReturnValue(
+      new Promise((resolve) => {
+        finishRead = resolve
+      }),
+    )
+    mock.checkRehearsal.mockResolvedValue({ ...rehearsal, connectionStatus: 'connected', guardStatus: 'valid', checkedAt: 1 })
+    render(<BackupSettingsForm page={configuredPage} disabled={false} onSaved={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: /演练库信息/ }))
+    fireEvent.click(screen.getByRole('button', { name: '检查连接' }))
+    await screen.findByText('可连接')
+    finishRead(rehearsal)
+    await waitFor(() => expect(screen.getByRole('button', { name: '检查连接' })).toBeEnabled())
+    expect(screen.getByText('可连接')).toBeInTheDocument()
+    expect(screen.getByText('有效')).toBeInTheDocument()
+  })
+  it('检查失败显示原因，保留设置草稿', async () => {
+    mock.rehearsalInfo.mockResolvedValue(rehearsal)
+    mock.checkRehearsal.mockResolvedValue({ ...rehearsal, connectionStatus: 'unavailable', checkedAt: 1, error: '演练数据库连接失败' })
+    render(<BackupSettingsForm page={configuredPage} disabled={false} onSaved={vi.fn()} />)
+    fireEvent.change(screen.getByLabelText('远程失败自动重试次数'), { target: { value: '0' } })
+    fireEvent.click(screen.getByRole('button', { name: /演练库信息/ }))
+    fireEvent.click(screen.getByRole('button', { name: '检查连接' }))
+    await screen.findByText('演练数据库连接失败')
+    expect(mock.toast).toHaveBeenCalledWith('演练数据库连接失败', 'error')
+    expect(screen.getByLabelText('远程失败自动重试次数')).toHaveValue(0)
+  })
+  it('取消移除不改变连接，维护期间禁用两个操作', async () => {
+    mock.rehearsalInfo.mockResolvedValue(rehearsal)
+    mock.confirm.mockResolvedValue(false)
+    const { rerender } = render(<BackupSettingsForm page={configuredPage} disabled={false} onSaved={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: /演练库信息/ }))
+    fireEvent.click(screen.getByRole('button', { name: '移除连接配置' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: '移除连接配置' })).toBeEnabled())
+    expect(mock.removeRehearsal).not.toHaveBeenCalled()
+    expect(mock.confirm).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining('数据库及其中的数据会保留') }))
+    rerender(<BackupSettingsForm page={configuredPage} disabled={true} onSaved={vi.fn()} />)
+    expect(screen.getByRole('button', { name: '检查连接' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '移除连接配置' })).toBeDisabled()
+  })
+  it('移除立即生效，保留其他草稿并更新保存版本', async () => {
+    mock.rehearsalInfo.mockResolvedValue(rehearsal)
+    mock.confirm.mockResolvedValue(true)
+    const value = { ...page.settings, revision: 1, rehearsalSource: 'disabled' as const }
+    mock.removeRehearsal.mockResolvedValue({ settings: value })
+    mock.saveSettings.mockResolvedValue({ ...value, revision: 2, retryLimit: 0 })
+    const onSaved = vi.fn()
+    render(<BackupSettingsForm page={configuredPage} disabled={false} onSaved={onSaved} />)
+    fireEvent.change(screen.getByLabelText('远程失败自动重试次数'), { target: { value: '0' } })
+    fireEvent.click(screen.getByRole('button', { name: /演练库信息/ }))
+    fireEvent.click(screen.getByRole('button', { name: '移除连接配置' }))
+    await screen.findByText('演练库连接配置已移除，数据库已保留')
+    expect(mock.removeRehearsal).toHaveBeenCalledWith(0)
+    expect(onSaved).not.toHaveBeenCalled()
+    expect(screen.getByLabelText('远程失败自动重试次数')).toHaveValue(0)
+    expect(screen.queryByRole('button', { name: '检查连接' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '保存设置' }))
+    await waitFor(() => expect(mock.saveSettings).toHaveBeenCalledWith(expect.objectContaining({ revision: 1, rehearsalSource: 'disabled', retryLimit: 0 })))
+    expect(mock.toast).toHaveBeenCalledWith('演练库连接配置已移除，数据库已保留', 'success')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+  it('移除失败保留连接与草稿，可再次操作', async () => {
+    mock.rehearsalInfo.mockResolvedValue(rehearsal)
+    mock.confirm.mockResolvedValue(true)
+    mock.removeRehearsal.mockRejectedValue(new Error('恢复预检任务尚未结束'))
+    render(<BackupSettingsForm page={configuredPage} disabled={false} onSaved={vi.fn()} />)
+    fireEvent.change(screen.getByLabelText('远程失败自动重试次数'), { target: { value: '0' } })
+    fireEvent.click(screen.getByRole('button', { name: /演练库信息/ }))
+    fireEvent.click(screen.getByRole('button', { name: '移除连接配置' }))
+    await screen.findByText('恢复预检任务尚未结束')
+    expect(mock.toast).toHaveBeenCalledWith('恢复预检任务尚未结束', 'error')
+    expect(screen.getByRole('button', { name: '检查连接' })).toBeEnabled()
+    expect(screen.getByLabelText('远程失败自动重试次数')).toHaveValue(0)
+  })
+})
 describe('备份本地配置编辑', () => {
   it('一键创建成功立即保存演练配置，保留其他草稿并使用新 revision', async () => {
     const value = {
