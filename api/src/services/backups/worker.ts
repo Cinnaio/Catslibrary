@@ -1,3 +1,5 @@
+import { generateRestoreImpact, requireFreshRestoreImpact } from './impact'
+import type { BackupImpactSummary } from '@shared/backups'
 import { backupSettings } from './settings'
 import { randomUUID } from 'node:crypto'
 import { rm } from 'node:fs/promises'
@@ -138,6 +140,8 @@ async function executeRestore(db: Db, task: TaskRow) {
     if (!lock.rows[0]?.locked) throw new BackupError('BUSINESS_BUSY', '存在在途业务请求，请稍后重新预检恢复')
     locked = true
     await assertIdle(db)
+    await logEvent(db, task.id, '正在停写状态下核对回滚影响报告')
+    await requireFreshRestoreImpact(db, preview!.id, task.actor_id, task.version_id)
     // 再次演练与归档认证后生成停写状态下的保护版本。
     await rehearse(db, manifest)
     protection = await makeBackup(db, task, true)
@@ -352,17 +356,26 @@ export async function runBackupTick(db: Db) {
         await logEvent(db, task.id, '正在验证归档并在隔离数据库演练恢复')
         const rehearsalLabel = (await backupSettings(db)).rehearsalLabel
         await db.query('UPDATE backup_control.tasks SET result=$2 WHERE id=$1', [task.id, JSON.stringify({ rehearsalLabel })])
-        const administrators = await rehearse(db, manifest)
+        await logEvent(db, task.id, '正在分析回滚将新增、修改和移除的业务数据')
+        let impact: BackupImpactSummary | undefined
+        const administrators = await rehearse(db, manifest, async (shadow) => {
+          impact = await generateRestoreImpact(db, shadow, task, manifest)
+        })
+        const report = await first<{ expires_at: number }>(db, "SELECT expires_at FROM backup_control.restore_impacts WHERE task_id=$1 AND state='ready'", [
+          task.id,
+        ])
+        if (!impact || !report) throw new BackupError('IMPACT_REQUIRED', '回滚影响报告未完成，请重新预检')
         const result = {
           rehearsalLabel,
           previewToken: randomUUID(),
-          expiresAt: Date.now() + 600000,
+          expiresAt: Number(report.expires_at),
+          impact,
           administrators,
           digest: manifest.digest,
           migration: await currentMigration(db),
         }
         await db.query('UPDATE backup_control.tasks SET result=$2 WHERE id=$1', [task.id, JSON.stringify(result)])
-        await logEvent(db, task.id, '恢复演练通过，确认令牌在 10 分钟内有效')
+        await logEvent(db, task.id, '恢复演练与回滚影响分析通过，报告在 10 分钟内有效')
       } else if (task.kind === 'restore') {
         await executeRestore(db, task)
         restored = true

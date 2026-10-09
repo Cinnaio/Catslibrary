@@ -116,7 +116,7 @@ export async function prepareRestore(db: Db, manifest: Manifest, commitId?: stri
     throw error
   }
 }
-export async function rehearse(db: Db, manifest: Manifest) {
+export async function rehearse(db: Db, manifest: Manifest, afterRestore?: (shadow: Db) => Promise<void>) {
   const connectionString = await rehearsalConnection(db)
   if (!connectionString) throw new BackupError('REHEARSAL_UNAVAILABLE', '请在备份设置中配置独立演练数据库后启用回滚')
   const current = new URL(loadConfig().databaseUrl),
@@ -136,6 +136,7 @@ export async function rehearse(db: Db, manifest: Manifest) {
     prepared = await prepareRestore(db, manifest)
     await command(psqlTool(), ['--no-psqlrc', '--set', 'ON_ERROR_STOP=1', '--file', prepared.script], { env: pgEnvironment(connectionString) })
     const administrators = await pool.query("SELECT username FROM public.users WHERE role='admin' AND status='active' ORDER BY username")
+    if (afterRestore) await afterRestore(pool as unknown as Db)
     return administrators.rows.map((row) => String(row.username))
   } finally {
     await pool.end()

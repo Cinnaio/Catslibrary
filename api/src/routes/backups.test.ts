@@ -73,8 +73,27 @@ afterAll(async () => {
 describe('备份管理权限、幂等及敏感边界', () => {
   it('游客和普通用户不能读取版本、日志或下载归档', async () => {
     for (const token of ['', reader])
-      for (const path of ['/versions', '/logs', '/settings', '/settings/rehearsal', '/versions/example/download'])
+      for (const path of ['/versions', '/logs', '/settings', '/settings/rehearsal', '/versions/example/download', '/tasks/example/impact'])
         expect([401, 403]).toContain((await call(path, 'GET', undefined, token)).status)
+  })
+  it('影响校验需要管理员；确认回滚必须勾选影响并拥有完整报告', async () => {
+    for (const token of ['', reader]) expect([401, 403]).toContain((await call('/tasks/missing/impact/check', 'POST', { versionId: 'missing' }, token)).status)
+    const body = {
+      confirmVersion: 'missing',
+      password: 'fixture-password',
+      previewTaskId: 'missing',
+      previewToken: 'private-token',
+      operationId: 'missing-impact',
+    }
+    const unacknowledged = await call('/versions/missing/restore', 'POST', body)
+    expect(unacknowledged.status).toBe(400)
+    expect(await unacknowledged.text()).toContain('IMPACT_ACK_REQUIRED')
+    const incomplete = await call('/versions/missing/restore', 'POST', { ...body, impactAcknowledged: true })
+    expect(incomplete.status).toBe(409)
+    expect(await incomplete.text()).toContain('IMPACT_REQUIRED')
+    expect((await call('/tasks/missing/impact')).status).toBe(409)
+    expect((await call('/tasks/missing/impact/check', 'POST', { versionId: 'missing' })).status).toBe(409)
+    expect((await db.query("SELECT * FROM backup_control.tasks WHERE operation_id='missing-impact'")).rows).toHaveLength(0)
   })
   it('SFTP 密码不回显、不以明文存储，目标更新检查 revision', async () => {
     const body = {

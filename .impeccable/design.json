@@ -434,6 +434,11 @@
         "name": "Backup Rehearsal Management",
         "section": "components",
         "body": "Keep only a compact full-row rehearsal information trigger with a source badge and chevron on the page. Open the shared admin dialog to fetch details and contain connection checks and disconnect actions. Return focus to the trigger on close and prevent closing during pending actions. Show redacted host, port, database, source and timestamped connection/guard checks using existing lists and badges. Metadata reads never connect to the rehearsal database; explicit checks only read identity and guard. Match preview history to the current redacted target label. Confirm disconnect through the shared dialog; persist disabled mode, remove stored credentials, retain the database and environment URL, and preserve unrelated drafts with the new revision. Reject changes during maintenance, task use or revision conflicts. Use shared toast feedback; never provide a database drop action."
+      },
+      {
+        "name": "Backup Restore Impact",
+        "section": "components",
+        "body": "After restore preflight, reuse the shared compact three-section editor dialog variant with fixed gaps outside the scrolling body, then show current-to-backup add/modify/remove counts, safe paginated details, image byte totals and preserved scope. Hide bodies, credentials and internal hashes. Recheck freshness before confirmation; require acknowledgement alongside version and password verification. Expired, changed or incomplete reports require a new preflight. Block dismissal while checking and use shared toast feedback. Recheck under the server write gate before restoring."
       }
     ],
     "dos": [

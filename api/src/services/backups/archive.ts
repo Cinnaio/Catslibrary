@@ -3,7 +3,7 @@ import { createReadStream, createWriteStream } from 'node:fs'
 import { mkdir, readFile, rename, rm, stat, statfs, open } from 'node:fs/promises'
 import path from 'node:path'
 import { pipeline } from 'node:stream/promises'
-import type { Db } from '../../db/pool'
+import type { Db, DbClient } from '../../db/pool'
 import { all, first } from '../../db/query'
 import { readRuntimeConfig } from '../../runtime-config'
 import { PROJECT_ROOT } from '../../config'
@@ -150,7 +150,7 @@ export async function decryptArchive(id: string, destination: string, manifest: 
     throw new BackupError('ARCHIVE_CORRUPT', '归档无法通过认证解密')
   }
 }
-export async function currentMigration(db: Db) {
+export async function currentMigration(db: DbClient) {
   return Number((await first<{ version: number }>(db, 'SELECT COALESCE(MAX(version),0)::int AS version FROM schema_migrations'))?.version || 0)
 }
 export async function databaseSummary(db: Db) {

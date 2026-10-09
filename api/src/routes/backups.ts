@@ -1,3 +1,4 @@
+import { assertRestoreImpactBinding, restoreImpactReport, checkRestoreImpactFreshness } from '../services/backups/impact'
 import { Hono, type Context } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { Readable } from 'node:stream'
@@ -224,6 +225,8 @@ backupRoutes.post('/versions/:id/restore', async (c) => {
     !(await verifyPassword(body.password, c.get('user')))
   )
     throw new BackupError('REAUTH_FAILED', '版本确认或管理员密码不正确', 403)
+  if (body.impactAcknowledged !== true) throw new BackupError('IMPACT_ACK_REQUIRED', '请先查看并确认回滚影响', 400)
+  await assertRestoreImpactBinding(getDb(), String(body.previewTaskId || ''), c.get('user').id, c.req.param('id'))
   const { password: _password, ...safe } = body
   return queue(c, 'restore', { ...safe, versionId: c.req.param('id') })
 })
@@ -233,6 +236,14 @@ backupRoutes.get('/tasks/:id', async (c) => {
   const result = taskView(task)
   if (task.actor_id !== c.get('user').id && result.result) delete result.result.previewToken
   return c.json(result)
+})
+backupRoutes.get('/tasks/:id/impact', async (c) => {
+  const { limit, offset } = pagination(c)
+  return c.json(await restoreImpactReport(getDb(), c.req.param('id'), c.req.query('group') || '', c.req.query('change') || '', limit, offset))
+})
+backupRoutes.post('/tasks/:id/impact/check', async (c) => {
+  const body = await bodyJSON<{ versionId: string }>(c)
+  return c.json(await checkRestoreImpactFreshness(getDb(), c.req.param('id'), c.get('user').id, String(body.versionId || '')))
 })
 backupRoutes.get('/logs', async (c) => {
   const { limit, offset } = pagination(c),

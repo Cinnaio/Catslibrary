@@ -5,6 +5,8 @@ import type {
   BackupPolicy,
   BackupSettings,
   BackupRehearsalInfo,
+  BackupImpactReport,
+  BackupImpactFreshness,
   BackupSettingsInput,
   BackupSettingsPage,
   BackupTarget,
@@ -37,6 +39,15 @@ export const backupsApi = {
       null,
       true,
     ),
+  impact: (id: string, page = 1, group = '', change = '') =>
+    request<BackupImpactReport>(
+      'GET',
+      `${root}/tasks/${encodeURIComponent(id)}/impact?limit=20&offset=${(page - 1) * 20}&group=${encodeURIComponent(group)}&change=${encodeURIComponent(change)}`,
+      null,
+      true,
+    ),
+  checkImpact: (id: string, versionId: string) =>
+    request<BackupImpactFreshness>('POST', `${root}/tasks/${encodeURIComponent(id)}/impact/check`, { versionId }, true),
   task: (id: string) => request<BackupTask>('GET', `${root}/tasks/${encodeURIComponent(id)}`, null, true),
   backup: (targetIds: string[], note: string) => request<BackupTask>('POST', `${root}/versions`, { ...operation(), targetIds, note }, true),
   saveTarget: (body: BackupTargetInput) => request<BackupTarget>('POST', `${root}/targets`, body, true),
@@ -47,7 +58,7 @@ export const backupsApi = {
   retry: (id: string) => request<BackupTask>('POST', `${root}/versions/${id}/retry`, operation(), true),
   remove: (id: string) => request<BackupTask>('DELETE', `${root}/versions/${id}`, operation(), true),
   preview: (id: string) => request<BackupTask>('POST', `${root}/versions/${id}/restore-preview`, operation(), true),
-  restore: (id: string, body: { previewTaskId: string; previewToken: string; password: string; confirmVersion: string }) =>
+  restore: (id: string, body: { previewTaskId: string; previewToken: string; password: string; confirmVersion: string; impactAcknowledged: boolean }) =>
     request<BackupTask>('POST', `${root}/versions/${id}/restore`, { ...operation(), ...body }, true),
   manifest: (id: string) => request<Record<string, unknown>>('GET', `${root}/versions/${id}/manifest`, null, true),
   async download(id: string) {

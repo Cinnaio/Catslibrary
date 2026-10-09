@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Download, RotateCcw, Pin, Trash2, RefreshCw, Plus } from 'lucide-react'
-import type { BackupEvent, BackupOverview, BackupPage, BackupSettingsPage, BackupTarget, BackupTask, BackupVersion } from '@shared/backups'
+import type { BackupEvent, BackupOverview, BackupPage, BackupSettingsPage, BackupTarget, BackupTask, BackupVersion, BackupImpactReport } from '@shared/backups'
 import { backupsApi, saveBlob } from '@/lib/backups-api'
 import { useConfirm, useToast } from '@/components/feedback'
 import AdminPage from '@/components/admin/AdminPage'
@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/input'
 import { Dialog, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import BackupImpactDialog, { BackupImpactSummaryView } from './backups/BackupImpactDialog'
 import BackupSettingsForm from './backups/BackupSettingsForm'
 import { TargetForm, PolicyForm } from './backups/BackupForms'
 import '@/styles/admin/pages/backups.css'
@@ -85,6 +86,15 @@ export default function BackupsTab() {
   const [restoreTask, setRestoreTask] = useState<BackupTask | null>(null),
     [password, setPassword] = useState(''),
     [confirmVersion, setConfirmVersion] = useState('')
+  const [impactTask, setImpactTask] = useState<BackupTask | null>(null)
+  const [restoreImpact, setRestoreImpact] = useState<BackupImpactReport | null>(null)
+  const [impactAcknowledged, setImpactAcknowledged] = useState(false)
+  const [restoreNow, setRestoreNow] = useState(Date.now)
+  useEffect(() => {
+    if (!restoreTask) return
+    const timer = setInterval(() => setRestoreNow(Date.now()), 1000)
+    return () => clearInterval(timer)
+  }, [restoreTask])
   const requestSequence = useRef(0)
   const loadError = useRef('')
   const taskError = useRef('')
@@ -727,17 +737,18 @@ export default function BackupsTab() {
                       演练通过。恢复后可登录管理员：{task.result.administrators?.join('、')}。有效至 {date(task.result.expiresAt || 0)}。
                     </p>
                     <Button
-                      disabled={busy || (task.result.expiresAt || 0) < Date.now()}
+                      disabled={busy || !task.result.impact}
                       onClick={() => {
-                        setRestoreTask(task)
-                        setPassword('')
-                        setConfirmVersion('')
+                        setImpactTask(task)
                         setTaskId('')
                       }}
                     >
-                      确认回滚…
+                      查看回滚影响
                     </Button>
                   </>
+                )}
+                {task.kind === 'preview' && task.state === 'completed' && !task.result?.impact && (
+                  <p className="backup-hint">此预检没有回滚影响报告，请从版本详情重新预检后再恢复。</p>
                 )}
                 {task.result?.protectionId && <p className="backup-id">保护版本：{task.result.protectionId}</p>}
               </div>
@@ -747,11 +758,39 @@ export default function BackupsTab() {
           </AdminDialogBody>
         </AdminDialogContent>
       </Dialog>
+      {impactTask && (
+        <BackupImpactDialog
+          key={impactTask.id}
+          task={impactTask}
+          onClose={() => {
+            setTaskId(impactTask.id)
+            setImpactTask(null)
+          }}
+          onContinue={(report) => {
+            setRestoreTask(impactTask)
+            setRestoreImpact(report)
+            setRestoreNow(Date.now())
+            setImpactAcknowledged(false)
+            setPassword('')
+            setConfirmVersion('')
+            setImpactTask(null)
+          }}
+          onRepreview={() =>
+            queued(async () => {
+              const value = await backupsApi.preview(impactTask.versionId)
+              setImpactTask(null)
+              return value
+            })
+          }
+        />
+      )}
       <Dialog
         open={Boolean(restoreTask)}
         onOpenChange={(open) => {
           if (!open && !busy) {
             setRestoreTask(null)
+            setRestoreImpact(null)
+            setImpactAcknowledged(false)
             setPassword('')
           }
         }}
@@ -773,6 +812,7 @@ export default function BackupsTab() {
                       previewToken: restoreTask.result?.previewToken || '',
                       password,
                       confirmVersion,
+                      impactAcknowledged,
                     })
                     setRestoreTask(null)
                     setPassword('')
@@ -781,6 +821,18 @@ export default function BackupsTab() {
                 }}
               >
                 <p className="backup-id">{restoreTask.versionId}</p>
+                {restoreImpact && (
+                  <>
+                    <BackupImpactSummaryView summary={restoreImpact.summary} />
+                    <p className="backup-hint">
+                      比较时间：{date(restoreImpact.snapshotAt)}。所有用户需要重新登录；部署配置和备份控制记录保留。提交后会在停写状态下再次核对报告。
+                    </p>
+                    <label className="backup-check">
+                      <input type="checkbox" checked={impactAcknowledged} disabled={busy} onChange={(event) => setImpactAcknowledged(event.target.checked)} />
+                      我已查看并确认上述回滚影响
+                    </label>
+                  </>
+                )}
                 <AdminFormField label="输入完整目标版本标识">
                   {({ id }) => (
                     <Input id={id} required value={confirmVersion} disabled={busy} onChange={(e) => setConfirmVersion(e.target.value)} autoComplete="off" />
@@ -804,7 +856,18 @@ export default function BackupsTab() {
                     {error}
                   </p>
                 )}
-                <Button type="submit" variant="destructive" disabled={busy || confirmVersion !== restoreTask.versionId || !password}>
+                <Button
+                  type="submit"
+                  variant="destructive"
+                  disabled={
+                    busy ||
+                    !restoreImpact ||
+                    !impactAcknowledged ||
+                    restoreImpact.expiresAt <= restoreNow ||
+                    confirmVersion !== restoreTask.versionId ||
+                    !password
+                  }
+                >
                   {busy ? '提交中…' : '创建保护备份并回滚'}
                 </Button>
               </form>

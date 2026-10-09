@@ -202,3 +202,37 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+.backup-impact-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--admin-space-4);
+}
+.backup-impact-counts,
+.backup-impact-item {
+  min-width: 0;
+  padding: var(--admin-space-4);
+  border-radius: var(--admin-radius-sm);
+  background: var(--bg-secondary);
+}
+.backup-impact-counts strong,
+.backup-impact-preserved strong,
+.backup-impact-item strong {
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}
+.backup-impact-items,
+.backup-impact-values {
+  display: flex;
+  flex-direction: column;
+  gap: var(--admin-space-3);
+  min-width: 0;
+}
+@media (max-width: 600px) {
+  .backup-impact-summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .backup-impact-item .backup-copy {
+    flex-wrap: wrap;
+  }
+}

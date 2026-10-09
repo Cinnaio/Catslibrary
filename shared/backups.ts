@@ -67,7 +67,7 @@ export interface BackupTask {
   createdAt: number
   finishedAt: number
   error: string
-  result: { previewToken?: string; expiresAt?: number; administrators?: string[]; protectionId?: string } | null
+  result: { previewToken?: string; expiresAt?: number; administrators?: string[]; protectionId?: string; impact?: BackupImpactSummary } | null
 }
 export interface BackupEvent {
   id: number
@@ -155,4 +155,50 @@ export interface BackupDeploymentInput {
   tools: Record<BackupToolName, string>
   masterKey?: string
   persistCurrentKey?: boolean
+}
+
+export const BACKUP_IMPACT_GROUPS = ['novels', 'chapters', 'users', 'settings', 'assets', 'other'] as const
+export type BackupImpactGroup = (typeof BACKUP_IMPACT_GROUPS)[number]
+export type BackupImpactChange = 'add' | 'modify' | 'remove'
+export interface BackupImpactCounts {
+  current: number
+  restored: number
+  added: number
+  modified: number
+  removed: number
+  currentBytes: number
+  restoredBytes: number
+}
+export interface BackupImpactSummary {
+  groups: Record<BackupImpactGroup, BackupImpactCounts>
+  tables: Array<BackupImpactCounts & { name: string; group: BackupImpactGroup; stableIds: boolean }>
+  schemaChanges: Array<{ table: string; change: BackupImpactChange }>
+}
+export interface BackupImpactItem {
+  sequence: number
+  group: BackupImpactGroup
+  table: string
+  change: BackupImpactChange
+  name: string
+  relatedName?: string
+  quantity: number
+  changedFields: string[]
+  currentValue?: string
+  restoredValue?: string
+}
+export interface BackupImpactReport {
+  taskId: string
+  versionId: string
+  snapshotAt: number
+  completedAt: number
+  expiresAt: number
+  summary: BackupImpactSummary
+  preserved: string[]
+  notes: string[]
+  items: BackupPage<BackupImpactItem>
+}
+export interface BackupImpactFreshness {
+  fresh: boolean
+  checkedAt: number
+  message: string
 }

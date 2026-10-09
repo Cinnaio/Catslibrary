@@ -16,6 +16,9 @@ const mock = vi.hoisted(() => ({
   savePolicy: vi.fn(),
   saveTarget: vi.fn(),
   preview: vi.fn(),
+  impact: vi.fn(),
+  checkImpact: vi.fn(),
+  restore: vi.fn(),
   task: vi.fn(),
   toast: vi.fn(),
   confirm: vi.fn(),
@@ -141,6 +144,56 @@ describe('备份后台', () => {
     fireEvent.click(screen.getByRole('button', { name: '开始备份' }))
     await waitFor(() => expect(mock.toast).toHaveBeenCalledWith('备份任务正在执行', 'error'))
     expect(screen.getByLabelText('版本备注')).toHaveValue('升级前')
+  })
+  it('回滚必须先查看影响、核对有效性并明确确认摘要', async () => {
+    const counts = { current: 2, restored: 1, added: 0, modified: 0, removed: 1, currentBytes: 0, restoredBytes: 0 }
+    const summary = {
+      groups: Object.fromEntries(['novels', 'chapters', 'users', 'settings', 'assets', 'other'].map((key) => [key, counts])),
+      tables: [],
+      schemaChanges: [],
+    }
+    const preview = {
+      id: 'preview-impact',
+      kind: 'preview',
+      versionId: 'version-impact',
+      state: 'completed',
+      actor: '管理员',
+      createdAt: 1,
+      finishedAt: 2,
+      stage: '预检通过',
+      error: '',
+      result: { previewToken: 'fixture-token', expiresAt: Date.now() + 600000, impact: summary, administrators: ['管理员'] },
+    }
+    mock.logs.mockResolvedValue({ items: [{ id: 1, taskId: preview.id, level: 'info', message: '预检记录', createdAt: 1 }], total: 1 })
+    mock.task.mockResolvedValue(preview)
+    mock.impact.mockResolvedValue({
+      taskId: preview.id,
+      versionId: preview.versionId,
+      snapshotAt: 1,
+      completedAt: 2,
+      expiresAt: preview.result.expiresAt,
+      summary,
+      preserved: ['部署配置'],
+      notes: [],
+      items: { total: 0, items: [] },
+    })
+    mock.checkImpact.mockResolvedValue({ fresh: true, checkedAt: Date.now(), message: '有效' })
+    mock.restore.mockResolvedValue({ id: 'restore-impact', kind: 'restore', state: 'queued' })
+    show('logs')
+    fireEvent.click(await screen.findByRole('button', { name: '查看任务' }))
+    fireEvent.click(await screen.findByRole('button', { name: '查看回滚影响' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: '继续确认回滚' })).toBeEnabled())
+    fireEvent.click(screen.getByRole('button', { name: '继续确认回滚' }))
+    await screen.findByRole('dialog', { name: '回滚到指定版本' })
+    expect(mock.checkImpact).toHaveBeenCalledWith(preview.id, preview.versionId)
+    fireEvent.change(screen.getByLabelText('输入完整目标版本标识'), { target: { value: preview.versionId } })
+    fireEvent.change(screen.getByLabelText('当前管理员密码'), { target: { value: 'fixture-password' } })
+    expect(screen.getByRole('button', { name: '创建保护备份并回滚' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('checkbox', { name: '我已查看并确认上述回滚影响' }))
+    fireEvent.click(screen.getByRole('button', { name: '创建保护备份并回滚' }))
+    await waitFor(() =>
+      expect(mock.restore).toHaveBeenCalledWith(preview.versionId, expect.objectContaining({ previewTaskId: preview.id, impactAcknowledged: true })),
+    )
   })
   it('缺少实际依赖时禁止创建备份，并显示具体缺项', async () => {
     mock.overview.mockResolvedValue({ ...overview, capabilities: { ...overview.capabilities, encryption: false } })
