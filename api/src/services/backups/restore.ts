@@ -130,7 +130,7 @@ export async function rehearse(db: Db, manifest: Manifest) {
     const shadow = await pool.query('SELECT current_database() AS name')
     // 数据库名相同即保守拒绝，覆盖域名别名/代理指向同一数据库的情况；不需超级用户权限。
     if (live.rows[0]?.name === shadow.rows[0]?.name) throw new BackupError('REHEARSAL_UNSAFE', '演练数据库必须使用与业务数据库不同的名称')
-    // 专属 marker 必须由部署管理员建立，防止误填另一生产库后清空它。
+    // 专属 marker 由部署管理员或受控建库接口建立，防止误填另一生产库后清空它。
     const marker = await pool.query("SELECT value FROM backup_rehearsal.guard WHERE key='purpose'")
     if (marker.rows[0]?.value !== 'zhi-zhou-backup-rehearsal') throw new BackupError('REHEARSAL_UNSAFE', '演练数据库缺少专属保护标记')
     prepared = await prepareRestore(db, manifest)

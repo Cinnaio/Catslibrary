@@ -7,6 +7,7 @@ const mock = vi.hoisted(() => ({
   detectDeployment: vi.fn(),
   generateDeploymentKey: vi.fn(),
   saveSettings: vi.fn(),
+  createRehearsal: vi.fn(),
   saveBlob: vi.fn(),
 }))
 vi.mock('@/lib/backups-api', () => ({ backupsApi: mock, saveBlob: mock.saveBlob }))
@@ -47,6 +48,55 @@ const page: BackupSettingsPage = {
 }
 beforeEach(() => vi.resetAllMocks())
 describe('备份本地配置编辑', () => {
+  it('一键创建成功立即保存演练配置，保留其他草稿并使用新 revision', async () => {
+    const value = {
+      ...page.settings,
+      revision: 1,
+      rehearsalSource: 'custom' as const,
+      rehearsalConfigured: true,
+      rehearsalLabel: 'database/zhi_zhou_rehearsal_fixture',
+    }
+    mock.createRehearsal.mockResolvedValue({ settings: value })
+    mock.saveSettings.mockResolvedValue({ ...value, revision: 2, retryLimit: 0 })
+    const onSaved = vi.fn()
+    render(<BackupSettingsForm page={{ ...page, deployment: { ...page.deployment, encryption: true } }} disabled={false} onSaved={onSaved} />)
+    fireEvent.change(screen.getByLabelText('远程失败自动重试次数'), { target: { value: '0' } })
+    fireEvent.click(screen.getByRole('button', { name: '一键创建演练库' }))
+    await screen.findByText('演练库已创建并保存，可用于恢复预检。')
+    expect(mock.createRehearsal).toHaveBeenCalledWith(0)
+    expect(onSaved).not.toHaveBeenCalled()
+    expect(screen.getByLabelText('远程失败自动重试次数')).toHaveValue(0)
+    expect(screen.getByLabelText('演练数据库连接地址')).toHaveValue('')
+    expect(screen.queryByRole('button', { name: '一键创建演练库' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '保存设置' }))
+    await waitFor(() => expect(mock.saveSettings).toHaveBeenCalledWith(expect.objectContaining({ revision: 1, rehearsalSource: 'custom', retryLimit: 0 })))
+  })
+  it('创建失败显示原因并保留其他输入，可再次尝试', async () => {
+    mock.createRehearsal.mockRejectedValue(new Error('当前数据库账号没有 CREATEDB 权限'))
+    render(<BackupSettingsForm page={{ ...page, deployment: { ...page.deployment, encryption: true } }} disabled={false} onSaved={vi.fn()} />)
+    fireEvent.change(screen.getByLabelText('常规日志保留天数'), { target: { value: '365' } })
+    fireEvent.click(screen.getByRole('button', { name: '一键创建演练库' }))
+    await screen.findByText('当前数据库账号没有 CREATEDB 权限')
+    expect(screen.getByLabelText('常规日志保留天数')).toHaveValue(365)
+    expect(screen.getByRole('button', { name: '一键创建演练库' })).toBeEnabled()
+  })
+  it('缺少主密钥或处于维护状态时不能创建', () => {
+    const { rerender } = render(<BackupSettingsForm page={page} disabled={false} onSaved={vi.fn()} />)
+    expect(screen.getByRole('button', { name: '一键创建演练库' })).toBeDisabled()
+    rerender(<BackupSettingsForm page={{ ...page, deployment: { ...page.deployment, encryption: true } }} disabled={true} onSaved={vi.fn()} />)
+    expect(screen.getByRole('button', { name: '一键创建演练库' })).toBeDisabled()
+  })
+  it('保留其他草稿时配置主密钥后，立即允许一键创建演练库', async () => {
+    mock.saveDeployment.mockResolvedValue({ deployment: { ...runtime, revision: 1, keyConfigured: true, keySource: 'local' } })
+    render(<BackupSettingsForm page={page} disabled={false} onSaved={vi.fn()} />)
+    fireEvent.change(screen.getByLabelText('远程失败自动重试次数'), { target: { value: '0' } })
+    fireEvent.click(screen.getByRole('button', { name: /主密钥/ }))
+    fireEvent.change(screen.getByLabelText('备份主密钥'), { target: { value: 'fixture-key' } })
+    fireEvent.click(screen.getByRole('button', { name: '保存配置' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(screen.getByRole('button', { name: '一键创建演练库' })).toBeEnabled()
+    expect(screen.getByLabelText('远程失败自动重试次数')).toHaveValue(0)
+  })
   it('检测草稿不保存，失败保留路径，撤销恢复原值', async () => {
     mock.detectDeployment.mockResolvedValue({ deployment: runtime })
     mock.saveDeployment.mockRejectedValue(new Error('路径检测失败'))

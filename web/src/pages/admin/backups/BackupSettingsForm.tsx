@@ -18,7 +18,9 @@ export default function BackupSettingsForm({
   disabled: boolean
   onSaved: (value: BackupSettings) => void
 }) {
-  const { settings, deployment } = page
+  const { settings: initialSettings, deployment } = page
+  const [settings, setSettings] = useState(initialSettings)
+  const [encryptionReady, setEncryptionReady] = useState(deployment.encryption)
   const [draft, setDraft] = useState<BackupSettingsInput>({
     revision: settings.revision,
     hostSource: settings.hostSource,
@@ -29,6 +31,8 @@ export default function BackupSettingsForm({
   })
   const [hosts, setHosts] = useState(settings.allowedHosts.join('\n'))
   const [connection, setConnection] = useState('')
+  const [notice, setNotice] = useState('')
+  const [creating, setCreating] = useState(false)
   const [busy, setBusy] = useState(false),
     [error, setError] = useState('')
   const policyDirty =
@@ -52,6 +56,27 @@ export default function BackupSettingsForm({
     setHosts(settings.allowedHosts.join('\n'))
     setConnection('')
     setError('')
+    setNotice('')
+  }
+  async function createRehearsal() {
+    setBusy(true)
+    setCreating(true)
+    setError('')
+    setNotice('')
+    try {
+      const { settings: value } = await backupsApi.createRehearsal(settings.revision)
+      setSettings(value)
+      setDraft((previous) => ({ ...previous, revision: value.revision, rehearsalSource: 'custom' }))
+      setConnection('')
+      setNotice('演练库已创建并保存，可用于恢复预检。')
+      // 存在其他草稿时不触发父级刷新，避免表单按 revision 重建并丢失输入。
+      if (!policyDirty) onSaved(value)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '演练库创建失败')
+    } finally {
+      setBusy(false)
+      setCreating(false)
+    }
   }
   async function save(event: FormEvent) {
     event.preventDefault()
@@ -117,6 +142,20 @@ export default function BackupSettingsForm({
           <CardTitle>恢复演练</CardTitle>
         </CardHeader>
         <CardContent className="backup-fields">
+          {!settings.rehearsalConfigured && (
+            <>
+              <div className="backup-actions">
+                <Button type="button" variant="secondary" disabled={locked || !encryptionReady || Boolean(connection)} onClick={() => void createRehearsal()}>
+                  {creating ? '正在创建演练库…' : '一键创建演练库'}
+                </Button>
+              </div>
+              <p className="backup-hint">
+                在当前 PostgreSQL 实例新建专用空库，自动初始化并保存连接。需要当前数据库账号具有 CREATEDB 权限；已有连接可在下方手动配置。
+                {!encryptionReady && '请先配置备份主密钥。'}
+                {connection && '若要自动创建，请先清空手动填写的连接地址。'}
+              </p>
+            </>
+          )}
           <AdminFormField label="演练数据库来源" hint="切回部署配置或关闭在线回滚并保存后，会清除已保存的后台连接凭据。">
             {({ labelId }) => (
               <CustomSelect
@@ -204,11 +243,17 @@ export default function BackupSettingsForm({
       <BackupDeploymentPanel
         deployment={deployment}
         disabled={locked}
-        onSaved={() => {
+        onSaved={(value) => {
+          setEncryptionReady(value.keyConfigured)
           if (!policyDirty) onSaved(settings)
         }}
       />
       <div className="backup-settings-footer">
+        {notice && (
+          <p role="status" className="backup-hint">
+            {notice}
+          </p>
+        )}
         {error && (
           <p role="alert" className="backup-error">
             {error}

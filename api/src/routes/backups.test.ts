@@ -152,6 +152,11 @@ describe('备份管理权限、幂等及敏感边界', () => {
 })
 
 describe('前端备份设置接口', () => {
+  it('演练库创建接口要求管理员登录并验证配置版本', async () => {
+    for (const token of ['', reader]) expect([401, 403]).toContain((await call('/settings/rehearsal', 'POST', { revision: 0 }, token)).status)
+    expect((await call('/settings/rehearsal', 'POST', { revision: -1 })).status).toBe(400)
+    expect((await call('/settings/rehearsal', 'POST', { revision: 9999 })).status).toBe(409)
+  })
   it('首次生成密钥只返回草稿，不写配置文件', async () => {
     vi.stubEnv('BACKUP_ENCRYPTION_KEY', '')
     try {

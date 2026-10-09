@@ -27,7 +27,7 @@ export default function BackupDeploymentPanel({
 }: {
   deployment: BackupSettingsPage['deployment']
   disabled: boolean
-  onSaved: () => void
+  onSaved: (value: BackupDeployment) => void
 }) {
   const [runtime, setRuntime] = useState(deployment.runtime)
   const [editor, setEditor] = useState<Editor | null>(null)
@@ -89,7 +89,7 @@ export default function BackupDeploymentPanel({
         setPersistCurrentKey(false)
         setDetected(null)
         setNotice('本地运行配置已保存，新任务立即使用。')
-        onSaved()
+        onSaved(result.deployment)
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '操作失败')

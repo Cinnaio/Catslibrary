@@ -23,6 +23,7 @@ export const backupsApi = {
   detectDeployment: (body: BackupDeploymentInput) => request<{ deployment: BackupDeployment }>('POST', `${root}/deployment/detect`, body, true),
   settings: () => request<BackupSettingsPage>('GET', `${root}/settings`, null, true),
   saveSettings: (body: BackupSettingsInput) => request<BackupSettings>('PUT', `${root}/settings`, body, true),
+  createRehearsal: (revision: number) => request<{ settings: BackupSettings }>('POST', `${root}/settings/rehearsal`, { revision }, true),
   overview: () => request<BackupOverview>('GET', `${root}/overview`, null, true),
   versions: (page: number) => request<BackupPage<BackupVersion>>('GET', `${root}/versions?limit=20&offset=${(page - 1) * 20}`, null, true),
   logs: (page: number, taskId = '', level = '') =>
