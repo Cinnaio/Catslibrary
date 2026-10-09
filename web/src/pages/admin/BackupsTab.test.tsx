@@ -1,6 +1,6 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BackupOverview } from '@shared/backups'
 
 const mock = vi.hoisted(() => ({
@@ -52,6 +52,7 @@ beforeEach(() => {
   mock.versions.mockResolvedValue({ items: [], total: 0 })
   mock.logs.mockResolvedValue({ items: [], total: 0 })
 })
+afterEach(() => vi.useRealTimers())
 describe('备份后台', () => {
   it.each(['versions', 'targets', 'schedule', 'settings'])('%s 不重复展示任务历史', async (view) => {
     mock.overview.mockResolvedValue({
@@ -84,6 +85,55 @@ describe('备份后台', () => {
     await screen.findByRole('dialog', { name: '连接测试' })
     expect(mock.task).toHaveBeenCalledWith('old-task')
     expect(screen.getByRole('dialog', { name: '连接测试' })).toHaveTextContent('历史连接测试')
+    expect(mock.toast).not.toHaveBeenCalled()
+  })
+  it.each([
+    ['completed', '', '备份已完成', 'success'],
+    ['failed', '归档校验失败', '备份失败：归档校验失败', 'error'],
+    ['partial', '', '备份部分完成，请查看任务详情', 'default'],
+    ['interrupted', '', '备份已中断，请查看任务详情', 'error'],
+  ])('新任务 %s 的结束反馈只弹出一次', async (state, error, message, tone) => {
+    mock.backup.mockResolvedValue({ id: 'task-feedback', kind: 'backup', state: 'queued' })
+    mock.task.mockResolvedValue({ id: 'task-feedback', kind: 'backup', state, error, actor: '管理员', createdAt: 1, stage: '任务结束', result: null })
+    show()
+    fireEvent.click(await screen.findByRole('button', { name: '立即备份' }))
+    vi.useFakeTimers()
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '开始备份' }))
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    expect(mock.toast).toHaveBeenCalledWith(message, tone)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(6000)
+    })
+    expect(mock.task.mock.calls.length).toBeGreaterThanOrEqual(3)
+    expect(mock.toast.mock.calls.filter(([text]) => text === message)).toHaveLength(1)
+  })
+  it('任务轮询连续读取失败时不重复提示', async () => {
+    mock.backup.mockResolvedValue({ id: 'task-feedback', kind: 'backup', state: 'queued' })
+    mock.task.mockRejectedValue(new Error('任务读取失败'))
+    show()
+    fireEvent.click(await screen.findByRole('button', { name: '立即备份' }))
+    vi.useFakeTimers()
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '开始备份' }))
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    expect(mock.toast).toHaveBeenCalledWith('任务读取失败', 'error')
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(6000)
+    })
+    expect(mock.task.mock.calls.length).toBeGreaterThanOrEqual(3)
+    expect(mock.toast.mock.calls.filter(([text]) => text === '任务读取失败')).toHaveLength(1)
+  })
+  it('提交备份失败立即提示，保留弹窗输入', async () => {
+    mock.backup.mockRejectedValue(new Error('备份任务正在执行'))
+    show()
+    fireEvent.click(await screen.findByRole('button', { name: '立即备份' }))
+    fireEvent.change(screen.getByLabelText('版本备注'), { target: { value: '升级前' } })
+    fireEvent.click(screen.getByRole('button', { name: '开始备份' }))
+    await waitFor(() => expect(mock.toast).toHaveBeenCalledWith('备份任务正在执行', 'error'))
+    expect(screen.getByLabelText('版本备注')).toHaveValue('升级前')
   })
   it('缺少实际依赖时禁止创建备份，并显示具体缺项', async () => {
     mock.overview.mockResolvedValue({ ...overview, capabilities: { ...overview.capabilities, encryption: false } })
@@ -111,6 +161,7 @@ describe('备份后台', () => {
     fireEvent.change(screen.getByLabelText('本地保留版本数量'), { target: { value: '12' } })
     fireEvent.click(screen.getByRole('button', { name: '保存计划' }))
     await screen.findByText('保存失败')
+    expect(mock.toast).toHaveBeenCalledWith('保存失败', 'error')
     expect(screen.getByLabelText('本地保留版本数量')).toHaveValue(12)
     expect(mock.savePolicy).toHaveBeenCalledWith(expect.objectContaining({ enabled: false, localRetention: 12 }))
   })

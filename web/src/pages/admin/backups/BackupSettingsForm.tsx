@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import type { BackupSettings, BackupSettingsInput, BackupSettingsPage } from '@shared/backups'
+import { useToast } from '@/components/feedback'
 import { backupsApi } from '@/lib/backups-api'
 import AdminFormField from '@/components/admin/AdminFormField'
 import BackupDeploymentPanel from './BackupDeploymentPanel'
@@ -18,6 +19,7 @@ export default function BackupSettingsForm({
   disabled: boolean
   onSaved: (value: BackupSettings) => void
 }) {
+  const { toast } = useToast()
   const { settings: initialSettings, deployment } = page
   const [settings, setSettings] = useState(initialSettings)
   const [encryptionReady, setEncryptionReady] = useState(deployment.encryption)
@@ -69,10 +71,13 @@ export default function BackupSettingsForm({
       setDraft((previous) => ({ ...previous, revision: value.revision, rehearsalSource: 'custom' }))
       setConnection('')
       setNotice('演练库已创建并保存，可用于恢复预检。')
+      toast('演练库已创建并保存，可用于恢复预检。', 'success')
       // 存在其他草稿时不触发父级刷新，避免表单按 revision 重建并丢失输入。
       if (!policyDirty) onSaved(value)
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '演练库创建失败')
+      const message = cause instanceof Error ? cause.message : '演练库创建失败'
+      setError(message)
+      toast(message, 'error')
     } finally {
       setBusy(false)
       setCreating(false)
@@ -92,9 +97,12 @@ export default function BackupSettingsForm({
         ...(draft.rehearsalSource === 'custom' && connection ? { rehearsalUrl: connection } : {}),
       })
       setConnection('')
+      toast('备份设置已保存', 'success')
       onSaved(value)
     } catch (error) {
-      setError(error instanceof Error ? error.message : '保存失败')
+      const message = error instanceof Error ? error.message : '保存失败'
+      setError(message)
+      toast(message, 'error')
     } finally {
       setBusy(false)
     }

@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { ChevronRight } from 'lucide-react'
 import type { BackupDeployment, BackupSettingsPage, BackupToolName } from '@shared/backups'
+import { useToast } from '@/components/feedback'
 import { backupsApi, saveBlob } from '@/lib/backups-api'
 import AdminFormField from '@/components/admin/AdminFormField'
 import AdminStatusBadge from '@/components/admin/AdminStatusBadge'
@@ -29,6 +30,7 @@ export default function BackupDeploymentPanel({
   disabled: boolean
   onSaved: (value: BackupDeployment) => void
 }) {
+  const { toast } = useToast()
   const [runtime, setRuntime] = useState(deployment.runtime)
   const [editor, setEditor] = useState<Editor | null>(null)
   const [paths, setPaths] = useState(pathsOf(runtime))
@@ -77,9 +79,17 @@ export default function BackupDeploymentPanel({
         const result = await backupsApi.generateDeploymentKey()
         setMasterKey(result.masterKey)
         saveBlob(new Blob([JSON.stringify(result, null, 2) + '\n'], { type: 'application/json' }), 'zhi-zhou-backup-master-key.json')
-        setNotice('已生成并发起密钥文件下载，尚未保存。请单独保管下载文件，再点击保存配置。')
+        const message = '已生成并发起密钥文件下载，尚未保存。请单独保管下载文件，再点击保存配置。'
+        setNotice(message)
+        toast(message, 'success')
       } else if (action === 'detect') {
-        setDetected((await backupsApi.detectDeployment(input())).deployment)
+        const value = (await backupsApi.detectDeployment(input())).deployment
+        setDetected(value)
+        const missing = activeTools.filter((name) => !value.tools[name].ready)
+        toast(
+          missing.length ? '工具检测完成，未就绪：' + missing.map((name) => tools[name][1]).join('、') : '工具检测通过',
+          missing.length ? 'error' : 'success',
+        )
       } else {
         const result = await backupsApi.saveDeployment(input())
         setRuntime(result.deployment)
@@ -89,10 +99,13 @@ export default function BackupDeploymentPanel({
         setPersistCurrentKey(false)
         setDetected(null)
         setNotice('本地运行配置已保存，新任务立即使用。')
+        toast('本地运行配置已保存，新任务立即使用。', 'success')
         onSaved(result.deployment)
       }
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '操作失败')
+      const message = cause instanceof Error ? cause.message : '操作失败'
+      setError(message)
+      toast(message, 'error')
     } finally {
       setBusy(false)
     }

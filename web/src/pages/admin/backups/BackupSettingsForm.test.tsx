@@ -9,7 +9,9 @@ const mock = vi.hoisted(() => ({
   saveSettings: vi.fn(),
   createRehearsal: vi.fn(),
   saveBlob: vi.fn(),
+  toast: vi.fn(),
 }))
+vi.mock('@/components/feedback', () => ({ useToast: () => ({ toast: mock.toast }) }))
 vi.mock('@/lib/backups-api', () => ({ backupsApi: mock, saveBlob: mock.saveBlob }))
 const runtime: BackupDeployment = {
   revision: 0,
@@ -64,6 +66,7 @@ describe('备份本地配置编辑', () => {
     fireEvent.click(screen.getByRole('button', { name: '一键创建演练库' }))
     await screen.findByText('演练库已创建并保存，可用于恢复预检。')
     expect(mock.createRehearsal).toHaveBeenCalledWith(0)
+    expect(mock.toast).toHaveBeenCalledWith('演练库已创建并保存，可用于恢复预检。', 'success')
     expect(onSaved).not.toHaveBeenCalled()
     expect(screen.getByLabelText('远程失败自动重试次数')).toHaveValue(0)
     expect(screen.getByLabelText('演练数据库连接地址')).toHaveValue('')
@@ -77,6 +80,7 @@ describe('备份本地配置编辑', () => {
     fireEvent.change(screen.getByLabelText('常规日志保留天数'), { target: { value: '365' } })
     fireEvent.click(screen.getByRole('button', { name: '一键创建演练库' }))
     await screen.findByText('当前数据库账号没有 CREATEDB 权限')
+    expect(mock.toast).toHaveBeenCalledWith('当前数据库账号没有 CREATEDB 权限', 'error')
     expect(screen.getByLabelText('常规日志保留天数')).toHaveValue(365)
     expect(screen.getByRole('button', { name: '一键创建演练库' })).toBeEnabled()
   })
@@ -107,9 +111,11 @@ describe('备份本地配置编辑', () => {
     fireEvent.click(screen.getByRole('button', { name: '检测工具' }))
     await waitFor(() => expect(mock.detectDeployment).toHaveBeenCalled())
     expect(mock.saveDeployment).not.toHaveBeenCalled()
+    expect(mock.toast).toHaveBeenCalledWith('工具检测完成，未就绪：pg_dump', 'error')
     await waitFor(() => expect(screen.getByRole('button', { name: '保存配置' })).toBeEnabled())
     fireEvent.click(screen.getByRole('button', { name: '保存配置' }))
     await screen.findByText('路径检测失败')
+    expect(mock.toast).toHaveBeenCalledWith('路径检测失败', 'error')
     expect(screen.getByLabelText('数据库导出工具')).toHaveValue('/tools/pg_dump')
     fireEvent.click(screen.getByRole('button', { name: '取消' }))
     fireEvent.click(screen.getByRole('button', { name: /数据库导出工具/ }))
@@ -125,11 +131,14 @@ describe('备份本地配置编辑', () => {
     fireEvent.click(screen.getByRole('button', { name: '生成并导出密钥' }))
     await waitFor(() => expect(mock.saveBlob).toHaveBeenCalledWith(expect.any(Blob), 'zhi-zhou-backup-master-key.json'))
     expect(mock.saveDeployment).not.toHaveBeenCalled()
+    expect(mock.toast).toHaveBeenCalledWith(expect.stringContaining('尚未保存'), 'success')
     expect(screen.getByLabelText('备份主密钥')).toHaveValue(masterKey)
     fireEvent.click(screen.getByRole('button', { name: '保存配置' }))
     await waitFor(() => expect(onSaved).toHaveBeenCalled())
     expect(mock.saveDeployment).toHaveBeenCalledWith(expect.objectContaining({ masterKey }))
     expect(mock.saveSettings).not.toHaveBeenCalled()
+    expect(mock.toast).toHaveBeenCalledWith('本地运行配置已保存，新任务立即使用。', 'success')
+    expect(mock.toast).not.toHaveBeenCalledWith('备份设置已保存', 'success')
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /主密钥/ }))
     expect(screen.getByLabelText('备份主密钥')).toHaveValue('')
@@ -151,6 +160,7 @@ describe('备份本地配置编辑', () => {
     expect(screen.getByLabelText('远程失败自动重试次数')).toHaveValue(0)
     fireEvent.click(screen.getByRole('button', { name: '保存设置' }))
     await screen.findByText('业务设置冲突')
+    expect(mock.toast).toHaveBeenCalledWith('业务设置冲突', 'error')
     fireEvent.click(screen.getByRole('button', { name: '保存设置' }))
     await waitFor(() => expect(mock.saveSettings).toHaveBeenCalledTimes(2))
     expect(mock.saveDeployment).toHaveBeenCalledTimes(1)

@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import type { BackupPolicy, BackupTarget, BackupTargetInput } from '@shared/backups'
+import { useToast } from '@/components/feedback'
 import { backupsApi } from '@/lib/backups-api'
 import AdminFormField from '@/components/admin/AdminFormField'
 import CustomSelect from '@/components/admin/CustomSelect'
@@ -23,6 +24,7 @@ const blank: BackupTargetInput = {
   retention: 30,
 }
 export function TargetForm({ target, onSaved, onCancel }: { target: BackupTarget | null; onSaved: () => void; onCancel: () => void }) {
+  const { toast } = useToast()
   const [draft, setDraft] = useState<BackupTargetInput>(target ? { ...target } : blank)
   const [auth, setAuth] = useState<'password' | 'key'>('password'),
     [busy, setBusy] = useState(false),
@@ -33,9 +35,12 @@ export function TargetForm({ target, onSaved, onCancel }: { target: BackupTarget
     setError('')
     try {
       await backupsApi.saveTarget(draft)
+      toast('存储目标已保存', 'success')
       onSaved()
     } catch (e) {
-      setError(e instanceof Error ? e.message : '保存失败')
+      const message = e instanceof Error ? e.message : '保存失败'
+      setError(message)
+      toast(message, 'error')
     } finally {
       setBusy(false)
     }
@@ -172,6 +177,7 @@ export function TargetForm({ target, onSaved, onCancel }: { target: BackupTarget
   )
 }
 export function PolicyForm({ policy, targets, onSaved }: { policy: BackupPolicy; targets: BackupTarget[]; onSaved: () => void }) {
+  const { toast } = useToast()
   const [draft, setDraft] = useState(policy),
     [busy, setBusy] = useState(false),
     [error, setError] = useState('')
@@ -183,9 +189,12 @@ export function PolicyForm({ policy, targets, onSaved }: { policy: BackupPolicy;
     setError('')
     try {
       await backupsApi.savePolicy(draft)
+      toast('自动备份计划已保存', 'success')
       onSaved()
     } catch (e) {
-      setError(e instanceof Error ? e.message : '保存失败')
+      const message = e instanceof Error ? e.message : '保存失败'
+      setError(message)
+      toast(message, 'error')
     } finally {
       setBusy(false)
     }

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Download, RotateCcw, Pin, Trash2, RefreshCw, Plus } from 'lucide-react'
 import type { BackupEvent, BackupOverview, BackupPage, BackupSettingsPage, BackupTarget, BackupTask, BackupVersion } from '@shared/backups'
@@ -86,6 +86,29 @@ export default function BackupsTab() {
     [password, setPassword] = useState(''),
     [confirmVersion, setConfirmVersion] = useState('')
   const requestSequence = useRef(0)
+  const loadError = useRef('')
+  const taskError = useRef('')
+  const taskStates = useRef(new Map<string, BackupTask['state']>())
+  const reportTask = useCallback(
+    (value: BackupTask) => {
+      const previous = taskStates.current.get(value.id)
+      const active = value.state === 'queued' || value.state === 'running'
+      if (previous === value.state || (previous && previous !== 'queued' && previous !== 'running')) return
+      // 历史已结束任务只展示详情；本次观察到的任务结束后仅提示一次。
+      if (previous === 'queued' || previous === 'running') {
+        if (!active) {
+          const label = kinds[value.kind] || '任务'
+          const message =
+            value.state === 'completed'
+              ? `${label}已完成`
+              : `${label}${states[value.state] || value.state}${value.error ? '：' + value.error : '，请查看任务详情'}`
+          toast(message, value.state === 'completed' ? 'success' : value.state === 'partial' ? 'default' : 'error')
+        }
+      }
+      if (previous || active) taskStates.current.set(value.id, value.state)
+    },
+    [toast],
+  )
   const refresh = () => setReload((value) => value + 1)
   useEffect(() => {
     setPage(1)
@@ -102,13 +125,19 @@ export default function BackupsTab() {
       .then(([data, versions, events, settingsPage]) => {
         if (sequence !== requestSequence.current) return
         setOverview(data)
+        data.tasks.forEach(reportTask)
+        loadError.current = ''
         if (versions) setList(versions)
         if (events) setLogs(events)
         if (settingsPage) setSettings(settingsPage)
         setError('')
       })
       .catch((e) => {
-        if (sequence === requestSequence.current) setError(e instanceof Error ? e.message : '加载失败')
+        if (sequence !== requestSequence.current) return
+        const message = e instanceof Error ? e.message : '加载失败'
+        setError(message)
+        if (loadError.current !== message) toast(message, 'error')
+        loadError.current = message
       })
       .finally(() => {
         if (sequence === requestSequence.current) setLoading(false)
@@ -116,7 +145,7 @@ export default function BackupsTab() {
     return () => {
       requestSequence.current++
     }
-  }, [view, page, level, reload])
+  }, [view, page, level, reload, toast, reportTask])
   useEffect(() => {
     if (!overview?.tasks.some((item) => item.state === 'queued' || item.state === 'running')) return
     const timer = setInterval(refresh, 4000)
@@ -128,16 +157,23 @@ export default function BackupsTab() {
       setTaskLogs([])
       return
     }
+    taskError.current = ''
     let active = true
     const load = async () => {
       try {
         const [data, events] = await Promise.all([backupsApi.task(taskId), backupsApi.logs(1, taskId)])
         if (active) {
           setTask(data)
+          reportTask(data)
+          taskError.current = ''
           setTaskLogs(events.items.reverse())
         }
       } catch (e) {
-        if (active) setError(e instanceof Error ? e.message : '任务读取失败')
+        if (!active) return
+        const message = e instanceof Error ? e.message : '任务读取失败'
+        setError(message)
+        if (taskError.current !== message) toast(message, 'error')
+        taskError.current = message
       }
     }
     void load()
@@ -146,7 +182,7 @@ export default function BackupsTab() {
       active = false
       clearInterval(timer)
     }
-  }, [taskId])
+  }, [taskId, toast, reportTask])
   async function action(work: () => Promise<unknown>, success = '操作已完成') {
     setBusy(true)
     setError('')
@@ -155,7 +191,9 @@ export default function BackupsTab() {
       toast(success, 'success')
       refresh()
     } catch (e) {
-      setError(e instanceof Error ? e.message : '操作失败')
+      const message = e instanceof Error ? e.message : '操作失败'
+      setError(message)
+      toast(message, 'error')
     } finally {
       setBusy(false)
     }
@@ -163,6 +201,7 @@ export default function BackupsTab() {
   async function queued(work: () => Promise<BackupTask>) {
     await action(async () => {
       const value = await work()
+      taskStates.current.set(value.id, value.state)
       setTask(null)
       setTaskId(value.id)
       setSelectedVersion(null)
@@ -174,7 +213,7 @@ export default function BackupsTab() {
   }
   async function archive(target: BackupTarget) {
     if (await confirm({ title: '移除存储目标', message: '停止使用此目标；已有版本的远程副本会保留。请先从自动备份计划中移除它。', okText: '移除目标' }))
-      await action(() => backupsApi.archiveTarget(target.id))
+      await action(() => backupsApi.archiveTarget(target.id), '存储目标已移除')
   }
   const ready = Boolean(overview?.capabilities.encryption && overview.capabilities.dump && !overview.maintenance)
   const dependencies = overview
@@ -317,7 +356,8 @@ export default function BackupsTab() {
                                 label: version.pinned ? '取消固定保留' : '固定保留',
                                 icon: Pin,
                                 disabled: busy || version.protection,
-                                onSelect: () => void action(() => backupsApi.pin(version.id, !version.pinned)),
+                                onSelect: () =>
+                                  void action(() => backupsApi.pin(version.id, !version.pinned), version.pinned ? '已取消固定保留' : '版本已固定保留'),
                               },
                               {
                                 label: '重试远程副本',
@@ -414,7 +454,6 @@ export default function BackupsTab() {
               policy={overview.policy}
               targets={overview.targets}
               onSaved={() => {
-                toast('自动备份计划已保存', 'success')
                 refresh()
               }}
             />
@@ -426,7 +465,6 @@ export default function BackupsTab() {
               disabled={overview.maintenance}
               onSaved={(value) => {
                 setSettings((previous) => (previous ? { ...previous, settings: value } : previous))
-                toast('备份设置已保存', 'success')
                 refresh()
               }}
             />
@@ -449,7 +487,11 @@ export default function BackupsTab() {
                 <span className="backup-hint">共 {logs.total} 条记录</span>
                 <Button
                   variant="ghost"
-                  onClick={() => saveBlob(new Blob([JSON.stringify(logs.items, null, 2)], { type: 'application/json' }), 'backup-logs-page.json')}
+                  onClick={() =>
+                    void action(async () => {
+                      saveBlob(new Blob([JSON.stringify(logs.items, null, 2)], { type: 'application/json' }), 'backup-logs-page.json')
+                    }, '已发起本页日志下载')
+                  }
                 >
                   导出本页
                 </Button>
@@ -530,7 +572,6 @@ export default function BackupsTab() {
                 onCancel={() => setTargetEditor(undefined)}
                 onSaved={() => {
                   setTargetEditor(undefined)
-                  toast('存储目标已保存', 'success')
                   refresh()
                 }}
               />
