@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { ContentRating } from '@shared/types'
-import { contentPolicyApi, getToken } from '../lib/api'
+import { contentPolicyApi, getToken, isRestrictedContentError, type ApiError } from '../lib/api'
 import { useOptionalSession } from './SessionContext'
 import AdultUnlockDialog from '../components/AdultUnlockDialog'
 
@@ -46,6 +46,8 @@ interface ContentPolicyContextValue {
   mode: ContentMode
   safeMode: boolean
   adultContentEnabled: boolean
+  checking: boolean
+  policyError: string
   setMode: (mode: ContentMode) => Promise<void>
   refreshPolicy: () => Promise<void>
   isAllowed: (metadata: ContentMetadata | null | undefined) => boolean
@@ -64,6 +66,13 @@ export function ContentPolicyProvider({ children }: { children: ReactNode }) {
   const [adultContentEnabled, setAdultContentEnabled] = useState(false)
   const [siteKey, setSiteKey] = useState('')
   const [unlockIdentity, setUnlockIdentity] = useState('')
+  const [settingsKnown, setSettingsKnown] = useState(false)
+  const [settingsError, setSettingsError] = useState('')
+  const [accessError, setAccessError] = useState('')
+  const [checkedIdentity, setCheckedIdentity] = useState('')
+  const settingsRef = useRef<boolean | null>(null)
+  const wantsAccess = useRef(false)
+  const checkRef = useRef<() => Promise<void>>(async () => {})
   const pending = useRef<(() => void) | null>(null)
   const revision = useRef(0)
   const mode: ContentMode = identity && authorizedIdentity === identity && adultContentEnabled ? modeState : 'safe'
@@ -76,20 +85,7 @@ export function ContentPolicyProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const refreshPolicy = useCallback(async () => {
-    try {
-      const settings = await contentPolicyApi.settings()
-      setAdultContentEnabled(settings.adultContentEnabled)
-      setSiteKey(settings.turnstileConfigured ? settings.turnstileSiteKey : '')
-    } catch {
-      // 配置不可达时保持安全模式，避免意外展示限制级内容。
-      setAdultContentEnabled(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    void refreshPolicy()
-  }, [refreshPolicy])
+  const refreshPolicy = useCallback(async () => { await checkRef.current() }, [])
 
   useEffect(() => {
     revision.current++
@@ -98,44 +94,96 @@ export function ContentPolicyProvider({ children }: { children: ReactNode }) {
     setUnlockIdentity('')
     setAuthorizedIdentity('')
     setModeState('safe')
+    setCheckedIdentity('')
+    setAccessError('')
     persistMode('safe')
-    if (!identity || !getToken() || !adultContentEnabled) return
+    wantsAccess.current = !!identity
     let cancelled = false
-    const currentRevision = revision.current
-    // 只恢复该会话既有授权，绝不通过账号 adult 偏好自动申请新权限。
-    void contentPolicyApi.refresh().then(() => {
-      if (!cancelled && identityRef.current === identity && revision.current === currentRevision) {
-        setAuthorizedIdentity(identity)
-        setModeState('adult')
-        persistMode('adult')
-      }
-    }).catch(() => {})
-    return () => { cancelled = true }
-  }, [identity, adultContentEnabled, persistMode])
-
-  useEffect(() => {
-    if (mode !== 'adult') return
-    let cancelled = false
-    async function revalidate() {
+    let running = false
+    let timer: number | undefined
+    async function check() {
+      if (running || cancelled) return
+      running = true
+      window.clearTimeout(timer)
       const currentRevision = revision.current
-      try { await contentPolicyApi.refresh() } catch {
-        if (!cancelled && identityRef.current === identity && currentRevision === revision.current) {
-          setAuthorizedIdentity('')
-          setModeState('safe')
-          persistMode('safe')
+      const stale = () => cancelled || identityRef.current !== identity || revision.current !== currentRevision
+      let failed = false
+      try {
+        try {
+          const settings = await contentPolicyApi.settings()
+          if (stale()) return
+          settingsRef.current = settings.adultContentEnabled
+          setSettingsKnown(true)
+          setSettingsError('')
+          setAdultContentEnabled(settings.adultContentEnabled)
+          setSiteKey(settings.turnstileConfigured ? settings.turnstileSiteKey : '')
+          if (!settings.adultContentEnabled) {
+            setCheckedIdentity(identity)
+            wantsAccess.current = false
+            setAuthorizedIdentity('')
+            setModeState('safe')
+            setAccessError('')
+            persistMode('safe')
+          }
+        } catch {
+          if (stale()) return
+          failed = true
+          // 临时失败保留上次确认的配置；首次失败仍不放行。
+          setSettingsError('内容模式配置暂时无法加载，请重试。')
         }
+        if (!identity || settingsRef.current !== true || !wantsAccess.current) return
+        try {
+          // 仅恢复服务端既有授权，不使用本地 adult 偏好授予权限。
+          await contentPolicyApi.refresh()
+          if (stale()) return
+          setAuthorizedIdentity(identity)
+          setModeState('adult')
+          setCheckedIdentity(identity)
+          setAccessError('')
+          persistMode('adult')
+        } catch (error) {
+          if (stale()) return
+          setCheckedIdentity(identity)
+          if ((error as ApiError)?.status === 401 || isRestrictedContentError(error)) {
+            wantsAccess.current = false
+            setAuthorizedIdentity('')
+            setModeState('safe')
+            setAccessError('')
+            persistMode('safe')
+          } else {
+            failed = true
+            setAccessError('访问权限验证暂时失败，正在重试。')
+          }
+        }
+      } finally {
+        running = false
+        if (!cancelled) timer = window.setTimeout(() => void check(), failed ? 15000 : 60000)
       }
-      void refreshPolicy()
     }
-    const timer = window.setInterval(() => void revalidate(), 60000)
-    const onFocus = () => void revalidate()
-    window.addEventListener('focus', onFocus)
-    return () => { cancelled = true; clearInterval(timer); window.removeEventListener('focus', onFocus) }
-  }, [mode, identity, persistMode, refreshPolicy])
+    checkRef.current = check
+    void check()
+    const onRetry = () => void check()
+    window.addEventListener('focus', onRetry)
+    window.addEventListener('online', onRetry)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+      window.removeEventListener('focus', onRetry)
+      window.removeEventListener('online', onRetry)
+    }
+  }, [identity, persistMode])
+
+  const checking = !!session?.loading || (!settingsKnown && !settingsError)
+    || !!(identity && adultContentEnabled && checkedIdentity !== identity && !accessError)
+  const policyError = accessError || settingsError
 
   const setMode = useCallback(async (next: ContentMode) => {
+    if (next === 'adult' && (!identity || !getToken() || !adultContentEnabled || pending.current)) return
     revision.current++
     if (next === 'safe') {
+      wantsAccess.current = false
+      setCheckedIdentity(identity)
+      setAccessError('')
       pending.current?.()
       pending.current = null
       setUnlockIdentity('')
@@ -145,8 +193,7 @@ export function ContentPolicyProvider({ children }: { children: ReactNode }) {
       await contentPolicyApi.lock()
       return
     }
-    if (!identity || !getToken() || !adultContentEnabled) return
-    if (pending.current) return
+    setCheckedIdentity(identity)
     await new Promise<void>(resolve => { pending.current = resolve; setUnlockIdentity(identity) })
   }, [adultContentEnabled, identity, persistMode])
 
@@ -167,6 +214,9 @@ export function ContentPolicyProvider({ children }: { children: ReactNode }) {
       await contentPolicyApi.lock()
       return
     }
+    wantsAccess.current = true
+    setCheckedIdentity(currentIdentity)
+    setAccessError('')
     setAuthorizedIdentity(currentIdentity)
     setModeState('adult')
     persistMode('adult')
@@ -180,8 +230,8 @@ export function ContentPolicyProvider({ children }: { children: ReactNode }) {
   }, [mode])
 
   const value = useMemo(
-    () => ({ mode, safeMode: mode === 'safe', adultContentEnabled, setMode, refreshPolicy, isAllowed }),
-    [mode, adultContentEnabled, setMode, refreshPolicy, isAllowed],
+    () => ({ mode, safeMode: mode === 'safe', adultContentEnabled, checking, policyError, setMode, refreshPolicy, isAllowed }),
+    [mode, adultContentEnabled, checking, policyError, setMode, refreshPolicy, isAllowed],
   )
   return <ContentPolicyContext.Provider value={value}>{children}
     {unlockIdentity && unlockIdentity === identity && <AdultUnlockDialog key={unlockIdentity} siteKey={siteKey} onUnlock={unlock} onCancel={cancelUnlock} />}

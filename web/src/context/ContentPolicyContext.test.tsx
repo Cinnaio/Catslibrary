@@ -13,6 +13,7 @@ afterEach(() => {
   localStorage.removeItem('zhizhou-content-mode')
   sessionStorage.removeItem('user_session_token')
   vi.unstubAllGlobals()
+  vi.useRealTimers()
 })
 
 beforeEach(() => {
@@ -149,5 +150,176 @@ describe('ContentPolicyContext', () => {
       expect(result.current.isAllowed({ contentRating: 'general' })).toBe(true)
       expect(result.current.isAllowed({ contentRating: 'unknown' })).toBe(true)
     })
+  })
+})
+
+
+describe('授权重试与网络异常', () => {
+  beforeEach(() => {
+    mocks.session = { user: { id: 'reader' }, loading: false }
+    sessionStorage.setItem('user_session_token', 'reader-token')
+  })
+
+  it.each(['network', 'http500'])('成人模式遇到 %s 保留权限并能恢复检查', async (failure) => {
+    let failing = false
+    vi.stubGlobal('fetch', vi.fn(async (input: string) => {
+      if (input.endsWith('/refresh')) {
+        if (failing && failure === 'network') throw new TypeError('Failed to fetch')
+        return new Response('{}', { status: failing ? 500 : 200 })
+      }
+      return new Response(JSON.stringify({ adultContentEnabled: true }))
+    }))
+    const { result } = renderHook(() => useContentPolicy(), { wrapper: ContentPolicyProvider })
+    await waitFor(() => expect(result.current.mode).toBe('adult'))
+    failing = true
+    await act(async () => { window.dispatchEvent(new Event('focus')) })
+    expect(result.current.mode).toBe('adult')
+    expect(result.current.policyError).toContain('验证暂时失败')
+    expect(result.current.isAllowed({ contentRating: 'restricted' })).toBe(true)
+    failing = false
+    await act(async () => { window.dispatchEvent(new Event('online')) })
+    expect(result.current.policyError).toBe('')
+    expect(result.current.mode).toBe('adult')
+  })
+
+  it('配置请求失败保留已确认开关，首次失败不放行并支持重试', async () => {
+    let failing = true
+    vi.stubGlobal('fetch', vi.fn(async (input: string) => {
+      if (input.endsWith('/refresh')) return new Response('{}')
+      if (failing) throw new TypeError('Failed to fetch')
+      return new Response(JSON.stringify({ adultContentEnabled: true }))
+    }))
+    const { result } = renderHook(() => useContentPolicy(), { wrapper: ContentPolicyProvider })
+    await waitFor(() => expect(result.current.policyError).toContain('配置暂时'))
+    expect(result.current.mode).toBe('safe')
+    expect(result.current.checking).toBe(false)
+    failing = false
+    await act(async () => { await result.current.refreshPolicy() })
+    expect(result.current.mode).toBe('adult')
+    failing = true
+    await act(async () => { await result.current.refreshPolicy() })
+    expect(result.current.adultContentEnabled).toBe(true)
+    expect(result.current.mode).toBe('adult')
+  })
+
+  it('首次恢复失败保持安全模式，网络恢复后沿用服务端授权', async () => {
+    let failing = true
+    vi.stubGlobal('fetch', vi.fn(async (input: string) => {
+      if (input.endsWith('/refresh') && failing) return new Response('{}', { status: 503 })
+      return new Response(JSON.stringify({ adultContentEnabled: true }))
+    }))
+    const { result } = renderHook(() => useContentPolicy(), { wrapper: ContentPolicyProvider })
+    expect(result.current.checking).toBe(true)
+    await waitFor(() => expect(result.current.policyError).toContain('验证暂时失败'))
+    expect(result.current.mode).toBe('safe')
+    expect(result.current.isAllowed({ contentRating: 'restricted' })).toBe(false)
+    failing = false
+    await act(async () => { await result.current.refreshPolicy() })
+    expect(result.current.mode).toBe('adult')
+    expect(result.current.checking).toBe(false)
+  })
+
+  it.each(['not_unlocked', 'site_disabled', 'login_required'])('服务端明确拒绝 %s 时立即撤销展示权限', async (reason) => {
+    let denied = false
+    vi.stubGlobal('fetch', vi.fn(async (input: string) => {
+      if (input.endsWith('/refresh') && denied) return new Response(JSON.stringify({ code: 'restricted_content', reason }), { status: 403 })
+      return new Response(JSON.stringify({ adultContentEnabled: true }))
+    }))
+    const { result } = renderHook(() => useContentPolicy(), { wrapper: ContentPolicyProvider })
+    await waitFor(() => expect(result.current.mode).toBe('adult'))
+    denied = true
+    await act(async () => { await result.current.refreshPolicy() })
+    expect(result.current.mode).toBe('safe')
+    expect(result.current.isAllowed({ contentRating: 'restricted' })).toBe(false)
+    expect(result.current.policyError).toBe('')
+  })
+
+  it('主动关闭后迟到的检查成功不能恢复成人模式', async () => {
+    let finish: ((response: Response) => void) | undefined
+    let delay = false
+    vi.stubGlobal('fetch', vi.fn(async (input: string) => {
+      if (input.endsWith('/refresh') && delay) return new Promise<Response>(resolve => { finish = resolve })
+      return new Response(JSON.stringify({ adultContentEnabled: true }))
+    }))
+    const { result } = renderHook(() => useContentPolicy(), { wrapper: ContentPolicyProvider })
+    await waitFor(() => expect(result.current.mode).toBe('adult'))
+    delay = true
+    let checking!: Promise<void>
+    await act(async () => { checking = result.current.refreshPolicy(); await Promise.resolve() })
+    await waitFor(() => expect(finish).toBeDefined())
+    await act(async () => { await result.current.setMode('safe') })
+    await act(async () => { finish!(new Response('{}')); await checking })
+    expect(result.current.mode).toBe('safe')
+    delay = false
+    await act(async () => { await result.current.refreshPolicy() })
+    expect(result.current.mode).toBe('safe')
+  })
+})
+
+
+describe('检查周期及迟到响应', () => {
+  beforeEach(() => {
+    mocks.session = { user: { id: 'reader' }, loading: false }
+    sessionStorage.setItem('user_session_token', 'reader-token')
+  })
+
+  it('初次恢复失败后 15 秒自动重试，成功后恢复一分钟检查周期', async () => {
+    vi.useFakeTimers()
+    let failing = true
+    const fetcher = vi.fn(async (input: string) => {
+      if (input.endsWith('/refresh') && failing) return new Response('{}', { status: 500 })
+      return new Response(JSON.stringify({ adultContentEnabled: true }))
+    })
+    vi.stubGlobal('fetch', fetcher)
+    const { result } = renderHook(() => useContentPolicy(), { wrapper: ContentPolicyProvider })
+    await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+    expect(result.current.policyError).toContain('验证暂时失败')
+    failing = false
+    await act(async () => { await vi.advanceTimersByTimeAsync(15000) })
+    expect(result.current.mode).toBe('adult')
+    const count = fetcher.mock.calls.length
+    await act(async () => { await vi.advanceTimersByTimeAsync(15000) })
+    expect(fetcher.mock.calls.length).toBe(count)
+    await act(async () => { await vi.advanceTimersByTimeAsync(45000) })
+    expect(fetcher.mock.calls.length).toBe(count + 2)
+  })
+
+  it('账号切换后旧账号迟到的 refresh 成功不会授权新账号', async () => {
+    let finish!: (response: Response) => void
+    vi.stubGlobal('fetch', vi.fn(async (input: string, init?: RequestInit) => {
+      if (input.endsWith('/refresh')) {
+        const token = (init?.headers as Record<string, string>)?.Authorization
+        if (token === 'Bearer reader-token') return new Promise<Response>(resolve => { finish = resolve })
+        return new Response(JSON.stringify({ code: 'restricted_content', reason: 'not_unlocked' }), { status: 403 })
+      }
+      return new Response(JSON.stringify({ adultContentEnabled: true }))
+    }))
+    const { result, rerender } = renderHook(() => useContentPolicy(), { wrapper: ContentPolicyProvider })
+    await waitFor(() => expect(finish).toBeDefined())
+    mocks.session = { user: { id: 'other' }, loading: false }
+    sessionStorage.setItem('user_session_token', 'other-token')
+    rerender()
+    await waitFor(() => expect(result.current.checking).toBe(false))
+    await act(async () => { finish(new Response('{}')) })
+    expect(result.current.mode).toBe('safe')
+    expect(result.current.policyError).toBe('')
+  })
+
+  it.each(['site', 'session'])('明确的 %s 拒绝会撤销成人模式，不会被当作临时失败', async (reason) => {
+    let siteEnabled = true
+    let expired = false
+    vi.stubGlobal('fetch', vi.fn(async (input: string) => {
+      if (input.endsWith('/refresh') && expired) return new Response('{}', { status: 401 })
+      return new Response(JSON.stringify({ adultContentEnabled: siteEnabled }))
+    }))
+    const { result } = renderHook(() => useContentPolicy(), { wrapper: ContentPolicyProvider })
+    await waitFor(() => expect(result.current.mode).toBe('adult'))
+    expired = reason === 'session'
+    siteEnabled = reason !== 'site'
+    await act(async () => { await result.current.refreshPolicy() })
+    expect(result.current.mode).toBe('safe')
+    expect(result.current.policyError).toBe('')
+    expect(result.current.adultContentEnabled).toBe(siteEnabled)
+    expect(result.current.checking).toBe(false)
   })
 })

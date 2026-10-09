@@ -7,7 +7,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { BookOpen, Search, X } from 'lucide-react'
 import type { ChapterFull, ChapterMeta, Thought } from '@shared/types'
-import { chaptersApi, isRestrictedContentError, novelsApi, thoughtsApi, progressApi } from '../lib/api'
+import { chaptersApi, isRestrictedContentError, type ApiError, novelsApi, thoughtsApi, progressApi } from '../lib/api'
 import { applyProgressState } from '../lib/progress-state'
 import { getNovelHistory, getStorageScope, saveHistory } from '../lib/storage'
 import { useBookmarks } from '../hooks/useBookmarks'
@@ -44,6 +44,7 @@ import ChapterRecap from '../components/reader/ChapterRecap'
 import { ThemeMenu } from '../components/ThemeMenu'
 import ContentRestrictionNotice from '../components/ContentRestrictionNotice'
 import PageState from '../components/PageState'
+import ContentPolicyStatus from '../components/ContentPolicyStatus'
 
 const CHAPTER_ROW_H = 34
 const CHAPTER_CACHE_MAX = 6
@@ -52,7 +53,8 @@ export default function Reader() {
   const { novelId = '', chapterId = '' } = useParams()
   const navigate = useNavigate()
   const { user, loading: sessionLoading } = useSession()
-  const { mode, setMode, isAllowed, adultContentEnabled } = useContentPolicy()
+  const { mode, setMode, isAllowed, adultContentEnabled, checking, policyError } = useContentPolicy()
+  const policyBlocked = mode !== 'adult' && !!policyError
   const { toast } = useToast()
   const { settings, set, fontSize, pageMode } = useReaderSettings()
   const { queue: queueProgress, flush: flushProgress } = useProgressSync()
@@ -63,6 +65,8 @@ export default function Reader() {
   const [novel, setNovel] = useState<{ id: string; title: string } | null>(null)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
+  const [loadError, setLoadError] = useState('')
+  const [retry, setRetry] = useState(0)
   const [blocked, setBlocked] = useState(false)
   // demo 模式只需触发标记写入，无 UI 读取
   const [, setDemoMode] = useState(false)
@@ -175,8 +179,10 @@ export default function Reader() {
   useEffect(() => {
     let cancelled = false
     async function load() {
+      if (checking || policyBlocked) return
       setLoading(true)
       setNotFound(false)
+      setLoadError('')
       setBlocked(false)
       setChapter(null)
       setNovel(null)
@@ -200,8 +206,9 @@ export default function Reader() {
             setLoading(false)
             return
           }
+          if ((error as ApiError)?.status !== 404 && !chapterId.startsWith('dc')) throw error
           useDemo = true
-          ch = await loadChapterData(chapterId, true)
+          try { ch = await loadChapterData(chapterId, true) } catch { throw error }
           setDemoMode(true)
         }
         if (cancelled) return
@@ -211,7 +218,8 @@ export default function Reader() {
         try {
           const novelData = await novelsApi.get(nid)
           contextNovel = novelData.novel || null
-        } catch {
+        } catch (error) {
+          if (!useDemo) throw error
           contextNovel = null
         }
         if (cancelled) return
@@ -240,17 +248,16 @@ export default function Reader() {
           setAllChapters(getDemoChapters(nid))
           setNovel({ id: nid, title: demoTitle })
         } else {
-          // 无法确认小说元数据时默认拦截，避免绕过安全模式直达正文。
-          setBlocked(true)
-          setLoading(false)
-          return
+          throw new Error('小说信息暂时无法加载，请重试。')
         }
         if (cancelled) return
         setChapter(ch)
         setLoading(false)
-      } catch {
+      } catch (error) {
         if (!cancelled) {
-          setNotFound(true)
+          if (isRestrictedContentError(error)) setBlocked(true)
+          else if ((error as ApiError)?.status === 404) setNotFound(true)
+          else setLoadError('章节或小说信息加载失败，请检查网络后重试。')
           setLoading(false)
         }
       }
@@ -260,7 +267,7 @@ export default function Reader() {
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [novelId, chapterId, isAllowed, user?.id, sessionLoading])
+  }, [novelId, chapterId, isAllowed, user?.id, sessionLoading, checking, policyBlocked, retry])
 
   // ---------- 应用设置到 DOM ----------
   useEffect(() => {
@@ -1129,6 +1136,10 @@ export default function Reader() {
   const prevCandidate = currentIdx > 0 ? allChapters[currentIdx - 1] : undefined
   const prevChapter = prevCandidate && !prevCandidate.id.startsWith('dc') ? prevCandidate : undefined
 
+  if (checking || policyBlocked) return <ContentPolicyStatus />
+
+  if (loadError) return <PageState title="加载失败" description={loadError} actions={<button type="button" className="btn btn--primary" onClick={() => setRetry(value => value + 1)}>重试</button>} />
+
   if (notFound) {
     return (
       <PageState title="章节未找到" description="该章节不存在或已被移除" icon={<BookOpen strokeWidth={1.5} />} actions={<Link to="/" className="btn btn--primary">返回首页</Link>} />
@@ -1151,6 +1162,7 @@ export default function Reader() {
 
   return (
     <div ref={readerAppRef} className={`reader-app${pageMode ? ' reader-page-mode' : ''}${readerClickPaging ? '' : ' reader-click-paging-off'}`} data-reader-theme={readerTheme} data-mobile-toolbar={mobileBarHidden ? 'collapsed' : 'expanded'}>
+      <ContentPolicyStatus />
       <div className="reader-shell">
         {/* Top bar */}
         <div className="reader-top">

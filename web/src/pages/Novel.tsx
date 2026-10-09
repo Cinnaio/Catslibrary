@@ -21,6 +21,7 @@ import { BackToTopIcon, HomeIcon, SearchIcon } from '../components/icons'
 import CatchupRecap from '../components/CatchupRecap'
 import ContentRestrictionNotice from '../components/ContentRestrictionNotice'
 import PageState from '../components/PageState'
+import ContentPolicyStatus from '../components/ContentPolicyStatus'
 import { setPageSeo } from '../lib/seo'
 import { useSiteBranding } from '../lib/site-branding'
 
@@ -62,7 +63,8 @@ export default function Novel() {
   const { search: routeSearch } = useLocation()
   const navigate = useNavigate()
   const { user } = useSession()
-  const { mode, setMode, isAllowed, adultContentEnabled } = useContentPolicy()
+  const { mode, setMode, isAllowed, adultContentEnabled, checking, policyError } = useContentPolicy()
+  const policyBlocked = mode !== 'adult' && !!policyError
   const { toast } = useToast()
   const { confirm } = useConfirm()
 
@@ -70,6 +72,7 @@ export default function Novel() {
   const [chapters, setChapters] = useState<ChapterMeta[]>([])
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
+  const [loadError, setLoadError] = useState('')
   const [blocked, setBlocked] = useState(false)
   const [serverProgress, setServerProgress] = useState<ServerProgress | null>(null)
   const [descExpanded, setDescExpanded] = useState(false)
@@ -79,6 +82,15 @@ export default function Novel() {
   const lastReadChapterRef = useRef<HTMLAnchorElement>(null)
 
   // 竞态保护：快速切书时，旧书未完成的请求不得写入新书的状态
+  const loadGeneration = useRef(0)
+  useLayoutEffect(() => {
+    loadGeneration.current++
+    setNovel(null)
+    setChapters([])
+    setBlocked(false)
+    setLoadError('')
+    setLoading(true)
+  }, [mode, user?.id, checking, policyBlocked])
   const activeIdRef = useRef(id)
   useLayoutEffect(() => {
     activeIdRef.current = id
@@ -147,10 +159,13 @@ export default function Novel() {
   }, [novel, loading, descExpanded])
 
   const load = useCallback(async () => {
+    if (checking || policyBlocked) return
+    const generation = ++loadGeneration.current
     const scope = getStorageScope()
-    const stale = () => activeIdRef.current !== id || getStorageScope() !== scope
+    const stale = () => generation !== loadGeneration.current || activeIdRef.current !== id || getStorageScope() !== scope
     setLoading(true)
     setNotFound(false)
+    setLoadError('')
     setBlocked(false)
     try {
       const data = await novelsApi.get(id)
@@ -195,8 +210,13 @@ export default function Novel() {
         setLoading(false)
         return
       }
-      // 演示数据回退
       const demo = getDemoNovel(id)
+      if (!demo && (err as { status?: number })?.status !== 404) {
+        setLoadError('小说信息加载失败，请检查网络后重试。')
+        setLoading(false)
+        return
+      }
+      // 演示数据回退
       if (demo) {
         const { _chapters, ...rest } = demo
         if (!isAllowed(rest)) {
@@ -215,7 +235,7 @@ export default function Novel() {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, user, isAllowed])
+  }, [id, user, isAllowed, checking, policyBlocked])
 
   useEffect(() => {
     void load()
@@ -320,6 +340,8 @@ export default function Novel() {
   }, [chapterQuery, chapters])
 
   // ---------- 渲染 ----------
+  if (checking || policyBlocked) return <ContentPolicyStatus />
+  if (loadError) return <PageState title="加载失败" description={loadError} actions={<button type="button" className="btn btn--primary" onClick={() => void load()}>重试</button>} />
   if (loading) {
     return (
       <main className="detail-page">
@@ -360,6 +382,7 @@ export default function Novel() {
 
   return (
     <main className="detail-page">
+      <ContentPolicyStatus />
       <div className="container detail-shell">
         <Link to="/" className="detail-back"><ArrowLeft size={14} aria-hidden="true" />返回书库</Link>
         {/* Hero */}
