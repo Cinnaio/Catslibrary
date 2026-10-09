@@ -17,8 +17,7 @@
 .thought-image-action p { margin: 0; color: var(--text-muted); font-size: 0.78rem; line-height: 1.5; }
 
 
-.thought-highlight--paragraph,
-::highlight(reader-thought-quotes) {
+.thought-highlight--paragraph {
   text-decoration-line: underline;
   text-decoration-style: wavy;
   text-decoration-color: color-mix(in srgb, var(--accent) 55%, transparent);
@@ -30,13 +29,6 @@
 .thought-highlight--paragraph:hover {
   text-decoration-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 8%, transparent);
-}
-
-::highlight(reader-thought-hover) {
-  text-decoration-line: underline;
-  text-decoration-style: wavy;
-  text-decoration-color: var(--accent);
-  background-color: color-mix(in srgb, var(--accent) 8%, transparent);
 }
 
 .thought-marker {

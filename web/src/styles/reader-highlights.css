@@ -1,0 +1,20 @@
+/*
+ * 原生 Custom Highlight 规则从 main.tsx 独立引入，保留 Vite 的 CSS 压缩，
+ * 避免进入 Tailwind 的 Lightning CSS 优化链（1.32.0 误报 ::highlight）。
+ * 上游：https://github.com/parcel-bundler/lightningcss/issues/1300
+ * 与段落回退样式分开，避免不支持 ::highlight 的浏览器丢弃整个选择器组。
+ */
+::highlight(reader-thought-quotes) {
+  text-decoration-line: underline;
+  text-decoration-style: wavy;
+  text-decoration-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  text-decoration-thickness: 1.4px;
+  text-underline-offset: 0.18em;
+}
+
+::highlight(reader-thought-hover) {
+  text-decoration-line: underline;
+  text-decoration-style: wavy;
+  text-decoration-color: var(--accent);
+  background-color: color-mix(in srgb, var(--accent) 8%, transparent);
+}

@@ -9,6 +9,7 @@ import { SearchProvider } from './context/SearchContext'
 import { ContentPolicyProvider } from './context/ContentPolicyContext'
 import { ToastProvider, ConfirmProvider } from './components/feedback'
 import './styles/global.css'
+import './styles/reader-highlights.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
