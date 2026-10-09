@@ -23,3 +23,21 @@
 Windows 本地静态检查和 Swift 语法树检查不代表 Swift 类型检查、TextKit 运行或真机验证。新增 Core 用例需在 macOS 上运行 `swift test --package-path ZhiZhouCore`；UI 用例由现有 Native frontend audit 在 iPhone/iPad 模拟器执行。
 
 仍需原生构建及设备验收：中途阅读时隐藏/恢复插图、迟到元数据、不同尺寸图片加载、屏幕旋转、Dynamic Type、切章/退出/关闭 R18 时的图片消失、403 拒绝后禁止继续展示。后端必须已部署 ios 分区与插图/图片段评接口。
+
+## 插图列表 404 编码回归修复
+
+ReaderMediaAPI 会先编码章节及插图 ID，旧 APIClient.makeURL 再用 appendingPathComponent 组合路径，导致 `%5F` / `%2D` 再次变为 `%255F` / `%252D`。服务端解码一次后得到错误 ID，插图列表返回 404，阅读器显示“插图暂时无法加载，正文可继续阅读”。图片二进制请求使用同一构造入口，也受影响。
+
+APIRequestURL 现在用 URLComponents 的 percentEncodedPath / percentEncodedQuery 分别组合基址、路径与查询，保留编码一次的 ID，同时保留服务端基址子路径和现有内容模式参数。未调整章节权限、授权检查、缓存策略或插图开关。
+
+线上普通章节只读探测：原始 ID 和编码一次的 ID 返回 200，重复编码的 ID 返回 404。新增 Core 用例覆盖插图列表经 ContentPolicy 后的完整 URL、二进制图片、保留字符、中文、查询编码和服务器子路径。VisualAudit 的插图列表必须匹配真实章节 ID，避免通配响应再次掩盖错误 URL。Windows 无 Swift/Xcode，这些 XCTest 和原生 UI 用例仍需在 macOS 执行。
+
+## 段评定位和波浪线回归修复
+
+旧 iOS 仅按 paragraphIndex 分组，未检查已保存的 paragraphHash；正文插入段落或两端段落序号不同时，段评会被挂到错误段落，selectedText 在错误段落内匹配失败，引用高亮也随之消失。
+
+现在先验证原索引的指纹，再按唯一指纹重定位；没有指纹的历史数据只接受有效索引。旧 CR-only 整章源锚点在全文指纹仍匹配时按唯一引用定位。指纹失效或重复且无法消歧的数据进入“原段落已变更的想法”查看入口，不猜测位置。加载/发布时计算定位缓存，不在滚动过程中重复计算全文哈希。
+
+引用匹配采用与 Web 一致的空白规范化，并映射回原文 UTF-16 范围，覆盖连续空格、全角空格、换行和 emoji；没有具体引用的段评标记整个段落。滚动与分页都使用 ThoughtWaveLayoutManager 的逐行波浪下划线绘制，保留原生 UITextView 选字、复制与编辑菜单。
+
+新增 7 个 Core 用例和一个移动段评的 UI/截图用例。既有静态检查及 Swift 语法树检查通过；Web 对照的 thought-anchors / reader-utils 共 23 项测试通过。这些不代替新增 iOS XCTest、原生编译及波浪线的设备视觉验收。复杂 HTML 或 Web 广告清洗使正文文本不同的记录仍可能进入无法定位分组，避免错误挂载。

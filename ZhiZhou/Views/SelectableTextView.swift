@@ -8,6 +8,7 @@ struct SelectableTextView: UIViewRepresentable {
     let textColor: UIColor
     let menuTitle: String
     let isThoughtActionEnabled: Bool
+    var accessibilityID: String? = nil
     var onSelectionChange: ((Bool) -> Void)? = nil
     let onThought: (String, NSRange) -> Void
 
@@ -37,6 +38,7 @@ struct SelectableTextView: UIViewRepresentable {
     private func configure(_ view: ThoughtSelectableTextView) {
         view.menuTitle = menuTitle
         view.isThoughtActionEnabled = isThoughtActionEnabled
+        view.accessibilityIdentifier = accessibilityID
         if view.textColor?.isEqual(textColor) != true {
             view.textColor = textColor
         }
@@ -82,7 +84,16 @@ final class ThoughtSelectableTextView: UITextView, UITextViewDelegate {
     var configuredTextColor: UIColor?
 
     override init(frame: CGRect, textContainer: NSTextContainer?) {
-        super.init(frame: frame, textContainer: textContainer)
+        // Use the same TextKit 1 geometry as pagination, with a custom quote underline renderer.
+        let container = textContainer ?? NSTextContainer(size: CGSize(width: 0, height: .greatestFiniteMagnitude))
+        container.widthTracksTextView = true
+        if textContainer == nil {
+            let storage = NSTextStorage()
+            let manager = ThoughtWaveLayoutManager()
+            storage.addLayoutManager(manager)
+            manager.addTextContainer(container)
+        }
+        super.init(frame: frame, textContainer: container)
         configureInteraction()
     }
 

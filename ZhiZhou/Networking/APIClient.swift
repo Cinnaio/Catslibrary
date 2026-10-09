@@ -239,23 +239,10 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
             return url
         }
         guard let base = ServerConfig.shared.baseURL else { throw APIError.notConfigured }
-        var trimmed = path.hasPrefix("/") ? String(path.dropFirst()) : path
-        if trimmed.hasSuffix("/") { trimmed = String(trimmed.dropLast()) }
-
-        // 拆分 path 与 query：appendingPathComponent 会把 ?、&、= 百分号编码导致 404，
-        // 因此 query 部分必须单独用 URLComponents 拼接。
-        guard let queryIndex = trimmed.firstIndex(of: "?") else {
-            return base.appendingPathComponent(trimmed)
-        }
-        let pathPart = String(trimmed[..<queryIndex])
-        let queryPart = String(trimmed[trimmed.index(after: queryIndex)...])
-        let pathURL = base.appendingPathComponent(pathPart)
-        guard var comps = URLComponents(url: pathURL, resolvingAgainstBaseURL: false) else {
-            return pathURL
-        }
-        // 调用方已经分别编码了 query value；使用 percentEncodedQuery 避免把 `%26` 等再次编码。
-        comps.percentEncodedQuery = queryPart
-        return comps.url ?? pathURL
+        // IDs in media paths and query values are already escaped by the caller.
+        // appendingPathComponent escapes '%' again (%5F → %255F), producing a different chapter ID.
+        guard let url = APIRequestURL.resolve(path, relativeTo: base) else { throw APIError.invalidResponse }
+        return url
     }
 
     func request<T: Decodable>(

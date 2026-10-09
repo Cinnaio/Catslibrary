@@ -64,13 +64,15 @@ enum ChapterPaginator {
             let indentLength = paragraphIndent.utf16.count
             for range in ReaderTextHighlight.ranges(
                 in: paragraph,
-                matching: spec.thoughtSelectionsByParagraph[index] ?? []
+                matching: spec.thoughtSelectionsByParagraph[index] ?? [],
+                includeParagraph: (spec.thoughtSelectionsByParagraph[index] ?? []).contains { IllustrationAnchor.normalize($0).isEmpty }
             ) {
                 renderedParagraph.addAttributes(
                     [
                         .backgroundColor: spec.thoughtHighlightColor,
                         .underlineColor: spec.thoughtUnderlineColor,
                         .underlineStyle: NSUnderlineStyle.single.rawValue,
+                        .readerThoughtWave: true,
                     ],
                     range: NSRange(
                         location: indentLength + range.location,

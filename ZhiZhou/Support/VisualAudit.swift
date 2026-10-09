@@ -14,7 +14,10 @@ enum VisualAudit {
     }
     static let timestamp: Int64 = 1_788_739_200_000
     static var chapterContent: String {
-        Array(repeating: "山路从窗前蜿蜒而过，清晨的风翻动了桌上的书页。她把信纸展开，字迹仍然清晰，仿佛写信的人刚刚离开。远处响起钟声，新的一天开始了。", count: 18).joined(separator: "\n\n")
+        if scenario == "thought-anchor" {
+            return "新插入的开场。\n她把信纸  展开，字迹仍然清晰。\n后面的故事继续。"
+        }
+        return Array(repeating: "山路从窗前蜿蜒而过，清晨的风翻动了桌上的书页。她把信纸展开，字迹仍然清晰，仿佛写信的人刚刚离开。远处响起钟声，新的一天开始了。", count: 18).joined(separator: "\n\n")
     }
 
     static var user: User {
@@ -190,6 +193,15 @@ private final class VisualAuditProtocol: URLProtocol {
             body = ["chapters": VisualAudit.chapters(for: queryValue("novelId") ?? VisualAudit.books[0].id).map(Self.json)]
         case ("GET", let path) where path.hasSuffix("/illustrations"):
             let chapterID = path.components(separatedBy: "/")[3]
+            // Match real decoded chapter IDs; a %255F/%252D URL must fail instead of being hidden by the fixture.
+            guard VisualAudit.books.flatMap({ VisualAudit.chapters(for: $0.id) }).contains(where: { $0.id == chapterID }) else {
+                let response = HTTPURLResponse(url: request.url!, statusCode: 404, httpVersion: nil,
+                                               headerFields: ["Content-Type": "application/json"])!
+                client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+                client?.urlProtocol(self, didLoad: Data("{\"error\":\"章节不存在\"}".utf8))
+                client?.urlProtocolDidFinishLoading(self)
+                return
+            }
             let items: [[String: Any]] = VisualAudit.scenario.hasPrefix("media") ? [[
                 "id": "audit-illustration", "chapterId": chapterID, "assetId": "audit-asset",
                 "width": 600, "height": 400, "caption": "山路与清晨", "size": "full",
@@ -243,13 +255,20 @@ private final class VisualAuditProtocol: URLProtocol {
             Self.removedRecent = true
         case ("GET", "/api/thoughts"):
             let chapterID = queryValue("chapterId") ?? ""
-            let thoughts: [[String: Any]] = VisualAudit.scenario.hasPrefix("media") ? [[
+            var thoughts: [[String: Any]] = VisualAudit.scenario.hasPrefix("media") ? [[
                 "id": "audit-thought", "novelId": "audit-book-1", "chapterId": chapterID,
                 "paragraphIndex": 0, "paragraphHash": "", "selectedText": "山路从窗前蜿蜒而过",
                 "thoughtText": "来自 Web 的图片想法", "displayName": "林间读者", "status": "visible",
                 "reportCount": 0, "createdAt": VisualAudit.timestamp, "updatedAt": VisualAudit.timestamp,
                 "userId": VisualAudit.userID, "avatarUrl": "", "imageUrl": "/api/thoughts/image/audit-thought",
             ]] : []
+            if VisualAudit.scenario == "thought-anchor" {
+                thoughts = [["id": "moved-thought", "novelId": "audit-book-1", "chapterId": chapterID,
+                             "paragraphIndex": 0, "paragraphHash": IllustrationAnchor.contentHash("她把信纸  展开，字迹仍然清晰。"),
+                             "selectedText": "信纸 展开", "thoughtText": "挂在原引用上的想法", "displayName": "林间读者", "status": "visible",
+                             "reportCount": 0, "createdAt": VisualAudit.timestamp, "updatedAt": VisualAudit.timestamp,
+                             "userId": VisualAudit.userID, "avatarUrl": ""]]
+            }
             body = ["thoughts": thoughts, "counts": [:], "chapterId": chapterID, "total": thoughts.count] as [String: Any]
         case ("POST", "/api/progress"), ("PUT", "/api/auth/reader-settings"), ("POST", "/api/auth/logout"):
             break

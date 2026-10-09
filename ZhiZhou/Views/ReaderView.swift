@@ -109,6 +109,7 @@ struct ReaderView: View {
     /// Scroll target before the chapter title. Paragraph IDs start at zero.
     private let readerTopScrollID = -1
     @State private var chapterThoughts: [Thought] = []
+    @State private var thoughtParagraphPositions: [String: Int] = [:]
     @State private var thoughtsLoadTask: Task<Void, Never>?
     @State private var isLoadingThoughts = false
     @State private var thoughtsError: String?
@@ -164,7 +165,9 @@ struct ReaderView: View {
     private var readerParagraphSpacing: CGFloat { settings.paragraphSpacing(for: dynamicTypeSize) }
 
     private var thoughtsByParagraph: [Int: [Thought]] {
-        Dictionary(grouping: chapterThoughts) { $0.paragraphIndex }
+        Dictionary(grouping: chapterThoughts) {
+            thoughtParagraphPositions[$0.id] ?? -1
+        }
     }
 
     private var currentDisplayName: String {
@@ -289,6 +292,17 @@ struct ReaderView: View {
                 .presentationBackground(AppTheme.canvas)
                 .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large])
                 .presentationDragIndicator(.visible)
+            } else if let chapter, let unmatched = thoughtsByParagraph[-1], !unmatched.isEmpty {
+                ThoughtPanelView(
+                    chapterTitle: chapter.title, paragraphExcerpt: "原段落已变更或暂时无法定位，以下想法保留供查看。",
+                    selectedText: "", thoughts: unmatched, currentUserID: appState.user?.id,
+                    defaultDisplayName: currentDisplayName, isLoading: isLoadingThoughts,
+                    loadError: thoughtsError, canCompose: false,
+                    onRetry: { loadThoughts(for: chapter.id) },
+                    onSubmit: { _, _ in throw APIError.invalidResponse },
+                    onDelete: { try await deleteThought(id: $0) },
+                    panelTitle: "原段落已变更的想法"
+                )
             } else {
                 Color.clear
             }
@@ -500,6 +514,7 @@ struct ReaderView: View {
                 textColor: inkUIColor,
                 menuTitle: thoughts.isEmpty ? "写段评" : "查看段评",
                 isThoughtActionEnabled: !offlineOnly,
+                accessibilityID: "reader.paragraph.\(index)",
                 onSelectionChange: { isSelectingBodyText = $0 }
             ) { selectedText, _ in
                 openThoughtPanel(for: index, selectedText: selectedText)
@@ -563,7 +578,8 @@ struct ReaderView: View {
             let indentLength = paragraphIndent.utf16.count
             for range in ReaderTextHighlight.ranges(
                 in: text,
-                matching: thoughts.map(\.selectedText)
+                matching: thoughts.map(\.selectedText),
+                includeParagraph: thoughts.contains { IllustrationAnchor.normalize($0.selectedText).isEmpty }
             ) {
                 renderedText.addAttributes(
                     thoughtHighlightAttributes,
@@ -597,6 +613,7 @@ struct ReaderView: View {
             .backgroundColor: UIColor(AppTheme.primary).withAlphaComponent(0.13),
             .underlineColor: UIColor(AppTheme.primary).withAlphaComponent(0.78),
             .underlineStyle: NSUnderlineStyle.single.rawValue,
+            .readerThoughtWave: true,
         ]
     }
 
@@ -1040,6 +1057,13 @@ struct ReaderView: View {
                     .disabled(currentReadingParagraphIndex == nil)
                 Button("保存章节书签", systemImage: "bookmark") { showBookmark = true }
                     .disabled(chapter == nil || appState.user == nil)
+                if let unmatched = thoughtsByParagraph[-1], !unmatched.isEmpty {
+                    Button("原段落已变更的想法（\(unmatched.count)）", systemImage: "text.bubble") {
+                        activeThoughtParagraph = nil
+                        activeThoughtSelection = ""
+                        showThoughtPanel = true
+                    }
+                }
                 if recapEnabled && previousChapter != nil {
                     Button("前情提要", systemImage: "sparkles") { showRecap = true }
                 }
@@ -1434,6 +1458,7 @@ struct ReaderView: View {
     private func loadThoughts(for chapterID: String) {
         thoughtsLoadTask?.cancel()
         chapterThoughts = []
+        thoughtParagraphPositions = [:]
         thoughtsError = nil
 
         guard !offlineOnly else {
@@ -1454,6 +1479,7 @@ struct ReaderView: View {
                     }
                     return $0.createdAt < $1.createdAt
                 }
+                self.relocateThoughts()
                 self.thoughtsError = nil
             } catch is CancellationError {
                 return
@@ -1465,6 +1491,18 @@ struct ReaderView: View {
             guard self.chapter?.id == chapterID else { return }
             self.isLoadingThoughts = false
         }
+    }
+
+    private func relocateThoughts() {
+        let hashes = paragraphs.map(IllustrationAnchor.contentHash)
+        let source = chapter?.content ?? ""
+        let sourceHash = IllustrationAnchor.contentHash(source)
+        thoughtParagraphPositions = Dictionary(uniqueKeysWithValues: chapterThoughts.map { thought in
+            let position = ThoughtAnchor.resolve(index: thought.paragraphIndex, hash: thought.paragraphHash,
+                                                  selection: thought.selectedText, paragraphs: paragraphs,
+                                                  sourceText: source, paragraphHashes: hashes, sourceHash: sourceHash)
+            return (thought.id, position ?? -1)
+        })
     }
 
     private func submitThought(text: String, displayName: String) async throws {
@@ -1491,6 +1529,7 @@ struct ReaderView: View {
         guard self.chapter?.id == currentChapter.id else { return }
         chapterThoughts.removeAll { $0.id == thought.id }
         chapterThoughts.append(thought)
+        relocateThoughts()
         AppFeedback.success("段评已发布")
     }
 
@@ -1499,6 +1538,7 @@ struct ReaderView: View {
         isLoadingThoughts = false
         try await ThoughtsAPI.remove(id: id)
         chapterThoughts.removeAll { $0.id == id }
+        thoughtParagraphPositions.removeValue(forKey: id)
         AppFeedback.success("段评已删除")
     }
 
@@ -1606,11 +1646,6 @@ struct ReaderView: View {
 
     /// 与 Web 段评使用相同的 FNV-1a + base36 段落指纹，方便正文变更时定位段落。
     nonisolated private static func paragraphHash(_ text: String) -> String {
-        var hash: UInt32 = 2_166_136_261
-        for unit in normalizedParagraphText(text).utf16 {
-            hash ^= UInt32(unit)
-            hash = hash &* 16_777_619
-        }
-        return String(hash, radix: 36)
+        IllustrationAnchor.contentHash(text)
     }
 }

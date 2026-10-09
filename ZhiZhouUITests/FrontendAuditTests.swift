@@ -112,6 +112,21 @@ final class FrontendAuditTests: XCTestCase {
     }
 
     @MainActor
+    func testMovedThoughtMarkerFollowsItsQuoteAndShowsWave() {
+        let app = launch("thought-anchor")
+        tap(app.buttons["catalog.audit-book-1"])
+        tap(app.buttons["detail.read"])
+        let quote = app.textViews["reader.paragraph.1"]
+        XCTAssertTrue(quote.waitForExistence(timeout: 10))
+        let marker = app.buttons["1 条段评"]
+        XCTAssertTrue(marker.waitForExistence(timeout: 10))
+        XCTAssertGreaterThanOrEqual(marker.frame.minY, quote.frame.maxY)
+        capture("thought-moved-quote-wave", app: app)
+        tap(marker)
+        XCTAssertTrue(app.staticTexts["挂在原引用上的想法"].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
     func testOtherDeviceCanBeRemovedWithoutLoggingOutCurrentDevice() {
         let app = launch("parity")
         selectTab("我的", app: app)

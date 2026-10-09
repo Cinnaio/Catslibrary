@@ -15,6 +15,7 @@ struct ThoughtPanelView: View {
     let onRetry: () -> Void
     let onSubmit: (String, String) async throws -> Void
     let onDelete: (String) async throws -> Void
+    let panelTitle: String
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -44,7 +45,8 @@ struct ThoughtPanelView: View {
         canCompose: Bool,
         onRetry: @escaping () -> Void,
         onSubmit: @escaping (String, String) async throws -> Void,
-        onDelete: @escaping (String) async throws -> Void
+        onDelete: @escaping (String) async throws -> Void,
+        panelTitle: String = "本段段评"
     ) {
         self.chapterTitle = chapterTitle
         self.paragraphExcerpt = paragraphExcerpt
@@ -58,6 +60,7 @@ struct ThoughtPanelView: View {
         self.onRetry = onRetry
         self.onSubmit = onSubmit
         self.onDelete = onDelete
+        self.panelTitle = panelTitle
         _displayName = State(initialValue: String(defaultDisplayName.prefix(20)))
     }
 
@@ -80,7 +83,7 @@ struct ThoughtPanelView: View {
                 if !dynamicTypeSize.isAccessibilitySize { composer }
             }
             .pageBackground(.browsing)
-            .navigationTitle("本段段评")
+            .navigationTitle(panelTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -384,7 +387,7 @@ struct ThoughtPanelView: View {
                     .accessibilityLabel(isSubmitting ? "正在发布段评" : "发布段评")
                 }
             } else {
-                Label("登录后才能发布段评", systemImage: "person.crop.circle")
+                Label(currentUserID == nil ? "登录后才能发布段评" : "此处仅供查看已有段评", systemImage: "person.crop.circle")
                     .font(.subheadline)
                     .foregroundStyle(AppTheme.textSecondary)
                     .frame(maxWidth: .infinity, alignment: .center)
