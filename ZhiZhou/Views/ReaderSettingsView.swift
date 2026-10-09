@@ -84,6 +84,11 @@ struct ReaderSettingsView: View {
                 }
 
                 Section {
+                    Toggle("显示章节插图", isOn: Binding(
+                        get: { settings.illustrationsEnabled },
+                        set: { set("readerIllustrations", $0 ? "on" : "off") }
+                    ))
+                    .accessibilityIdentifier("reader.settings.illustrations")
                     Toggle("左右区域点击翻页", isOn: Binding(
                         get: { settings.clickPagingEnabled },
                         set: { set("readerClickPaging", $0 ? "on" : "off") }

@@ -272,6 +272,14 @@ struct ThoughtPanelView: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
 
+            if thought.imageUrl?.isEmpty == false {
+                ReaderMediaView(
+                    path: "/api/thoughts/image/\(ReaderMediaAPI.pathSegment(thought.id))",
+                    caption: "AI 生成插画",
+                    aspectRatio: 1
+                )
+            }
+
             if currentUserID == thought.userId {
                 HStack {
                     Spacer()

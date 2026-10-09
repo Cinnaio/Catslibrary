@@ -201,6 +201,7 @@ struct ThoughtItem: Codable, Identifiable {
 /// 公开阅读页段评（GET/POST/DELETE /api/thoughts）。
 /// 与 AdminThought 分开命名，避免把管理后台的扩展字段带进阅读器。
 struct Thought: Codable, Identifiable, Hashable {
+    var imageUrl: String? = nil
     let id: String
     let novelId: String
     let chapterId: String
@@ -242,6 +243,7 @@ struct ThoughtCreatePayload: Encodable {
 enum ReaderDevice: String, Codable, Sendable {
     case desktop
     case mobile
+    case ios
 }
 
 struct ReaderSettingsPayload: Codable {

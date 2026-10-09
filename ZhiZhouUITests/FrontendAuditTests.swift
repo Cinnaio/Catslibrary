@@ -63,6 +63,75 @@ final class FrontendAuditTests: XCTestCase {
     }
 
     @MainActor
+    func testChapterIllustrationPreviewAndVisibilitySetting() {
+        let app = launch("media")
+        tap(app.buttons["catalog.audit-book-1"])
+        tap(app.buttons["detail.read"])
+        let picture = app.buttons["放大查看插图：山路与清晨"]
+        tap(picture)
+        XCTAssertTrue(app.navigationBars["图片预览"].waitForExistence(timeout: 10))
+        capture("reader-illustration-preview", app: app)
+        tap(app.buttons["完成"])
+        tap(app.buttons["阅读设置"])
+        let visibility = app.switches["reader.settings.illustrations"]
+        reveal(visibility, app: app)
+        tap(visibility)
+        tap(app.buttons["完成"])
+        XCTAssertFalse(picture.exists)
+        capture("reader-illustrations-hidden", app: app)
+        tap(app.buttons["阅读设置"])
+        reveal(visibility, app: app)
+        tap(visibility)
+        tap(app.buttons["完成"])
+        app.swipeDown()
+        XCTAssertTrue(picture.waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testChapterIllustrationFailureCanRetry() {
+        let app = launch("media-retry")
+        tap(app.buttons["catalog.audit-book-1"])
+        tap(app.buttons["detail.read"])
+        tap(app.buttons["重新加载图片"])
+        XCTAssertTrue(app.buttons["放大查看插图：山路与清晨"].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testWebThoughtImageIsVisibleAndOpensPreview() {
+        let app = launch("media")
+        tap(app.buttons["catalog.audit-book-1"])
+        tap(app.buttons["detail.read"])
+        tap(app.buttons["当前段评"])
+        XCTAssertTrue(app.staticTexts["来自 Web 的图片想法"].waitForExistence(timeout: 10))
+        let picture = app.buttons["放大查看插图：AI 生成插画"]
+        reveal(picture, app: app)
+        tap(picture)
+        XCTAssertTrue(app.navigationBars["图片预览"].waitForExistence(timeout: 10))
+        capture("thought-image-preview", app: app)
+    }
+
+    @MainActor
+    func testPagedIllustrationDoesNotReplaceTextPages() {
+        let app = launch("media")
+        selectTab("我的", app: app)
+        tap(app.buttons["阅读设置"])
+        let mode = app.buttons["左右翻页"]
+        reveal(mode, app: app)
+        tap(mode)
+        tap(app.buttons["完成"])
+        selectTab("发现", app: app)
+        tap(app.buttons["catalog.audit-book-1"])
+        tap(app.buttons["detail.read"])
+        let picture = app.buttons["放大查看插图：山路与清晨"]
+        XCTAssertTrue(picture.waitForExistence(timeout: 15))
+        swipeInsideBody(app, left: true)
+        XCTAssertTrue(app.navigationBars["第 1 章 一封没有寄出的信"].exists)
+        swipeInsideBody(app, left: false)
+        tap(picture)
+        XCTAssertTrue(app.navigationBars["图片预览"].waitForExistence(timeout: 10))
+    }
+
+    @MainActor
     func testScrollChapterEndButton() {
         chapterEndButtonJourney(pageMode: false)
     }

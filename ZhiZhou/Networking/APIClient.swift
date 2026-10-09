@@ -546,6 +546,7 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
     func data(_ path: String, auth: Bool = false) async throws -> Data {
         let url = try makeURL(path)
         var req = URLRequest(url: url)
+        req.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
         req.httpMethod = "GET"
         req.timeoutInterval = 30
         let requestToken = auth ? token : nil

@@ -78,13 +78,14 @@ public struct ReaderSettingsState: Equatable, Sendable {
         "readerLineHeight": "1.95",
         "readerParagraphSpacing": "1.4",
         "readerWakeLock": "off",
+        "readerIllustrations": "on",
         "contentMode": "safe",
     ]
 
     public static let knownKeys: Set<String> = [
         "fontSize", "fontFamily", "readerPageMode", "readerTheme", "readerLineHeight",
         "readerParagraphSpacing", "readerWakeLock", "readerPageWidth",
-        "readerAutoScrollSpeed", "readerClickPaging", "contentMode",
+        "readerAutoScrollSpeed", "readerClickPaging", "readerIllustrations", "contentMode",
     ]
 
     public private(set) var values: [String: String]

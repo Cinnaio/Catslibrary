@@ -11,8 +11,8 @@ import ZhiZhouCore
 final class ReaderSettingsStore {
     static let shared = ReaderSettingsStore()
     private static let defaultValues = ReaderSettingsState.defaultValues
-    /// 原生 iPhone/iPad 客户端统一归入服务端的 mobile 分区。
-    private static let syncDevice: ReaderDevice = .mobile
+    /// 原生客户端使用独立分区；后端首次迁移时继承旧 mobile 快照。
+    private static let syncDevice: ReaderDevice = .ios
 
     private struct Session: Equatable {
         let userID: String
@@ -198,6 +198,8 @@ final class ReaderSettingsStore {
         let raw = values["readerWakeLock"] ?? "off"
         return raw == "on" || raw == "true" || raw == "1"
     }
+
+    var illustrationsEnabled: Bool { values["readerIllustrations"] != "off" }
 
     /// 将历史值归一为 Web 端协议值；默认纸面仍跟随系统昼夜。
     var normalizedTheme: String {

@@ -93,6 +93,12 @@ struct ReaderView: View {
     /// 翻页模式：分页结果、当前页、每页对应的整章字符区间、待恢复的进度百分比。
     @State private var pages: [NSAttributedString] = []
     @State private var pageRanges: [NSRange] = []
+    @State private var pageIllustrations: [Int: ChapterIllustration] = [:]
+    @State private var chapterIllustrations: ChapterIllustrationsResponse?
+    @State private var illustrationPositions: [String: Int] = [:]
+    @State private var illustrationsError: String?
+    @State private var showIllustrationsNotice = false
+    @State private var illustrationsAttempt = 0
     @State private var currentPage = 0
     @State private var pendingRestorePercent: Double?
     @State private var interactionFeedback = 0
@@ -264,7 +270,21 @@ struct ReaderView: View {
             }
         }
         .preferredColorScheme(scheme)
+        .alert("章节插图", isPresented: $showIllustrationsNotice) {
+            if illustrationsError != nil && !offlineOnly {
+                Button("重新加载插图") { illustrationsAttempt += 1 }
+            }
+            Button("关闭", role: .cancel) {}
+        } message: {
+            Text(illustrationsError ?? "部分插图与当前正文位置不匹配，暂未显示。")
+        }
         .task(id: "\(chapterOrder)-\(ContentAccessStore.shared.mode)") { await load() }
+        .task(id: "\(chapter?.id ?? "-"):\(ContentAccessStore.shared.revision):\(illustrationsAttempt)") {
+            await loadIllustrations()
+        }
+        .onChange(of: settings.illustrationsEnabled) { _, _ in
+            preserveScrollPosition()
+        }
         .onReceive(NotificationCenter.default.publisher(for: .zhiZhouFontStoreDidChange)) { _ in
             fontRevision &+= 1
         }
@@ -312,10 +332,13 @@ struct ReaderView: View {
             .frame(maxWidth: .infinity, minHeight: 300)
         } else if let chapter {
             let paragraphThoughts = thoughtsByParagraph
+            let mediaByPosition = Dictionary(grouping: resolvedIllustrations, by: \.position).mapValues { $0.map(\.item) }
             let renderKey = paragraphRenderKey
             Color.clear
                 .frame(height: 1)
                 .id(readerTopScrollID)
+            illustrationsNotice
+            illustrationViews(items: mediaByPosition[-1] ?? [])
             Text(chapter.title)
                 .font(readerTitleFont)
                 .multilineTextAlignment(.center)
@@ -335,10 +358,88 @@ struct ReaderView: View {
                     width: width
                 )
                     .id(index)
+                illustrationViews(items: mediaByPosition[index] ?? [])
             }
+            illustrationViews(items: mediaByPosition[paragraphs.count] ?? [])
             if hasNextChapter {
                 nextChapterButton
             }
+        }
+    }
+
+    private var resolvedIllustrations: [(item: ChapterIllustration, position: Int)] {
+        guard settings.illustrationsEnabled, let data = chapterIllustrations, let chapter else { return [] }
+        return data.illustrations.filter { !$0.deleted && $0.chapterId == chapter.id }.compactMap { item -> (item: ChapterIllustration, position: Int)? in
+            guard let position = illustrationPositions[item.id] else { return nil }
+            return (item, position)
+        }.sorted {
+            $0.item.order == $1.item.order ? $0.item.id < $1.item.id : $0.item.order < $1.item.order
+        }
+    }
+
+    @ViewBuilder
+    private func illustrationViews(items: [ChapterIllustration]) -> some View {
+        ForEach(items) { item in
+            ReaderMediaView(path: item.imagePath, caption: item.caption,
+                            aspectRatio: CGFloat(item.width) / CGFloat(max(1, item.height)))
+                .frame(maxWidth: item.size == "medium" ? 440 : .infinity)
+                .frame(maxWidth: .infinity)
+                .id("illustration:\(item.id)")
+        }
+    }
+
+    @ViewBuilder
+    private var illustrationsNotice: some View {
+        if settings.illustrationsEnabled {
+            if let illustrationsError {
+                VStack(spacing: 8) {
+                    Text(illustrationsError).font(.footnote).foregroundStyle(ink)
+                    if !offlineOnly {
+                        Button("重新加载插图") { illustrationsAttempt += 1 }
+                            .frame(minHeight: AppLayout.minimumTouchTarget)
+                    }
+                }
+            } else if let data = chapterIllustrations,
+                      data.illustrations.filter({ !$0.deleted }).count > resolvedIllustrations.count {
+                Text("部分插图与当前正文位置不匹配，暂未显示。")
+                    .font(.footnote).foregroundStyle(ink)
+            }
+        }
+    }
+
+    private func preserveScrollPosition() {
+        guard settings.pageMode != "page", chapter != nil else { return }
+        let target = currentReadingParagraphIndex ?? 0
+        suppressPercent = true
+        pendingScrollRestore = target
+    }
+
+    private func loadIllustrations() async {
+        guard let chapter else { return }
+        guard !offlineOnly else {
+            illustrationsError = "离线章节仅包含正文；插图需联网查看。"
+            return
+        }
+        let revision = ContentAccessStore.shared.revision
+        do {
+            let response = try await ReaderMediaAPI.illustrations(chapterID: chapter.id)
+            guard !Task.isCancelled, self.chapter?.id == chapter.id,
+                  revision == ContentAccessStore.shared.revision else { return }
+            guard response.contentHash == IllustrationAnchor.contentHash(chapter.content) else {
+                illustrationsError = "正文版本已更新，重新打开章节后可查看插图。"
+                return
+            }
+            preserveScrollPosition()
+            illustrationPositions = Dictionary(uniqueKeysWithValues: response.illustrations.compactMap { item in
+                item.anchor.resolve(in: paragraphs, sameRevision: item.chapterRevision == response.chapterRevision).map { (item.id, $0) }
+            })
+            chapterIllustrations = response
+            illustrationsError = nil
+        } catch is CancellationError {
+        } catch {
+            guard !Task.isCancelled, self.chapter?.id == chapter.id,
+                  revision == ContentAccessStore.shared.revision else { return }
+            illustrationsError = "插图暂时无法加载，正文可继续阅读。"
         }
     }
 
@@ -577,7 +678,8 @@ struct ReaderView: View {
         let contentHeight = max(120, geo.size.height - 8 - readerChromeHeight)
         let pageSize = CGSize(width: contentWidth, height: contentHeight)
         let thoughtIDs = chapterThoughts.map(\.id).joined(separator: ",")
-        let key = "\(chapter?.id ?? "-"):\(Int(contentWidth)):\(Int(contentHeight)):\(settings.fontSizeIndex):\(settings.lineHeight):\(readerParagraphSpacing):\(settings.useSerif):\(dynamicTypeSize):\(fontRevision):\(thoughtIDs)"
+        let mediaKey = resolvedIllustrations.map { "\($0.item.id):\($0.item.version):\($0.position)" }.joined(separator: ",")
+        let key = "\(chapter?.id ?? "-"):\(Int(contentWidth)):\(Int(contentHeight)):\(settings.fontSizeIndex):\(settings.lineHeight):\(readerParagraphSpacing):\(settings.useSerif):\(dynamicTypeSize):\(fontRevision):\(thoughtIDs):\(mediaKey):\(isLoading)"
 
         return Group {
             if isLoading && chapter == nil {
@@ -602,13 +704,20 @@ struct ReaderView: View {
             } else {
                 TabView(selection: $currentPage) {
                     ForEach(pages.indices, id: \.self) { index in
-                        pagedPage(
-                            pages[index],
-                            pageIndex: index,
-                            width: contentWidth,
-                            height: contentHeight
-                        )
-                            .tag(index)
+                        Group {
+                            if let item = pageIllustrations[index] {
+                                ScrollView {
+                                    ReaderMediaView(path: item.imagePath, caption: item.caption,
+                                                    aspectRatio: CGFloat(item.width) / CGFloat(max(1, item.height)),
+                                                    maximumHeight: max(60, contentHeight - 90))
+                                }
+                                .scrollIndicators(.hidden)
+                                .frame(width: contentWidth, height: contentHeight)
+                            } else {
+                                pagedPage(pages[index], pageIndex: index, width: contentWidth, height: contentHeight)
+                            }
+                        }
+                        .tag(index)
                     }
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
@@ -844,6 +953,13 @@ struct ReaderView: View {
     /// 顶部操作组：只保留图标与 44pt 点按区，不再叠加玻璃容器和按钮底板。
     private var readerToolbarGroup: some View {
         HStack(spacing: 10) {
+            if settings.illustrationsEnabled && (illustrationsError != nil || (chapterIllustrations?.illustrations.count ?? 0) > illustrationPositions.count) {
+                Button { showIllustrationsNotice = true } label: {
+                    Image(systemName: "photo.badge.exclamationmark")
+                        .frame(width: 44, height: 44)
+                }
+                .accessibilityLabel("查看插图加载状态")
+            }
             if !offlineOnly {
                 Button {
                     openCurrentThoughtPanel()
@@ -906,10 +1022,21 @@ struct ReaderView: View {
     /// 若此前已有分页（用户改了字号/行距），则按“上一页起始字符”在新分页里重新定位，
     /// 而不是按百分比——百分比在文本重排后无法对齐同一段落，会产生正文偏移。
     private func rebuildPages(size: CGSize) async {
-        guard let chapter, size.width > 40, size.height > 60 else { return }
+        guard !isLoading, let chapter, size.width > 40, size.height > 60 else { return }
         guard paragraphs.count > 0 || !chapter.title.isEmpty else { return }
         // 锚点 = 重排前当前页的起始字符。只有 pageRanges 与当前页有效时才使用。
         let anchorChar: Int? = currentPage < pageRanges.count ? pageRanges[currentPage].location : nil
+        let anchorImageID = pageIllustrations[currentPage]?.id
+        let wasAtStart = currentPage == 0 && percentBox.value <= 0 && (anchorChar ?? 0) == 0
+        let offsets = ChapterPaginator.paragraphOffsets(title: chapter.title, paragraphs: paragraphs)
+        let textLength = (offsets.last ?? chapter.title.utf16.count + 1) + (paragraphs.last.map { (paragraphIndent + $0).utf16.count } ?? 0)
+        let placements = resolvedIllustrations.map { entry in
+            let offset: Int
+            if entry.position == -1 { offset = 0 }
+            else if entry.position + 1 < offsets.count { offset = offsets[entry.position + 1] }
+            else { offset = textLength }
+            return ChapterPaginator.IllustrationPlacement(characterOffset: offset, illustration: entry.item)
+        }
         let spec = ChapterPaginator.Spec(
             bodyFont: readerBodyUIFont,
             titleFont: readerTitleUIFont,
@@ -921,46 +1048,57 @@ struct ReaderView: View {
                 $0.map(\.selectedText)
             },
             thoughtHighlightColor: UIColor(AppTheme.primary).withAlphaComponent(0.13),
-            thoughtUnderlineColor: UIColor(AppTheme.primary).withAlphaComponent(0.78)
+            thoughtUnderlineColor: UIColor(AppTheme.primary).withAlphaComponent(0.78),
+            illustrations: placements
         )
         let result = await Task.detached(priority: .userInitiated) {
             guard !Task.isCancelled else { return [ChapterPaginator.Page]() }
             let attr = ChapterPaginator.attributedString(for: spec)
-            return ChapterPaginator.pages(
+            return ChapterPaginator.illustratedPages(
                 of: attr,
+                placements: spec.illustrations,
                 pageSize: size,
                 isCancelled: { Task.isCancelled }
             )
         }.value
         guard !Task.isCancelled else { return }
         guard chapter.id == self.chapter?.id else { return }
-        guard !result.isEmpty else { pages = []; pageRanges = []; return }
+        guard !result.isEmpty else { pages = []; pageRanges = []; pageIllustrations = [:]; return }
         pages = result.map(\.attributed)
         pageRanges = result.map { $0.range }
+        pageIllustrations = Dictionary(uniqueKeysWithValues: result.enumerated().compactMap { index, page in
+            page.illustration.map { (index, $0) }
+        })
         let lastPage = max(result.count - 1, 0)
-        if let anchorChar {
+        if wasAtStart && anchorImageID == nil {
+            currentPage = 0
+        } else if let anchorImageID, let index = result.firstIndex(where: { $0.illustration?.id == anchorImageID }) {
+            currentPage = index
+        } else if let anchorChar {
             // 起点 ≤ 锚点的最后一页：该页起点最贴近锚点且不越过它，
             // 锚点字符落在页首而非页身中部——避免露出过多旧文本导致“正文偏移”的观感。
-            if let idx = result.lastIndex(where: { $0.range.location <= anchorChar }) {
+            if let idx = result.lastIndex(where: { $0.illustration == nil && $0.range.location <= anchorChar }) {
                 currentPage = idx
             } else {
                 currentPage = 0
             }
-        } else if let restore = pendingRestorePercent, restore > 0, lastPage > 0 {
-            // 首次排版（进章或首次进入翻页模式）：用章内保存的进度百分比定位。
-            currentPage = min(lastPage, Int((restore * Double(lastPage)).rounded()))
-            pendingRestorePercent = nil
         } else if lastPage > 0 {
-            let target = Int((percentBox.value * Double(lastPage)).rounded())
-            currentPage = max(0, min(lastPage, target))
+            // 进度只计算正文页，新增图片不会稀释原有阅读进度。
+            let restore = pendingRestorePercent ?? percentBox.value
+            let textPages = result.indices.filter { result[$0].illustration == nil }
+            let target = min(max(0, textPages.count - 1), max(0, Int((restore * Double(max(0, textPages.count - 1))).rounded())))
+            currentPage = restore <= 0 ? 0 : (textPages.indices.contains(target) ? textPages[target] : 0)
         } else {
             currentPage = 0
         }
+        pendingRestorePercent = nil
     }
 
     private func updatePageProgress(_ page: Int) {
-        guard pages.count > 1 else { return }
-        let value = min(1, max(0, Double(page) / Double(pages.count - 1)))
+        guard pageRanges.indices.contains(page) else { return }
+        let textPages = pages.indices.filter { pageIllustrations[$0] == nil }
+        let index = textPages.lastIndex(where: { $0 <= page }) ?? 0
+        let value = textPages.count > 1 ? Double(index) / Double(textPages.count - 1) : 0
         setProgress(value)
         pendingRestorePercent = value
         debounceSaveProgress()
@@ -996,6 +1134,7 @@ struct ReaderView: View {
         if mode == "page" {
             pages = []
             pageRanges = []
+            pageIllustrations = [:]
             currentPage = 0
             pendingRestorePercent = progressPercent
         } else {
@@ -1036,6 +1175,10 @@ struct ReaderView: View {
         pendingScrollRestore = nil
         chapterIsSaved = false
         chapterThoughts = []
+        chapterIllustrations = nil
+        illustrationPositions = [:]
+        illustrationsError = nil
+        pageIllustrations = [:]
         isLoadingThoughts = false
         thoughtsError = nil
         activeThoughtParagraph = nil
@@ -1380,12 +1523,10 @@ struct ReaderView: View {
 
     /// 章节段落切分：静态纯函数，仅在加载时执行一次。
     nonisolated private static func paragraphs(from content: String) -> [String] {
-        let byBlankLine = content
-            .components(separatedBy: "\n\n")
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        if byBlankLine.count > 1 { return byBlankLine }
+        // Web 的纯文本阅读器将每个非空行视作一个段落；避免单换行与空行混用时锚点错位。
         return content
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
             .components(separatedBy: "\n")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }

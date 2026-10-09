@@ -15,6 +15,23 @@ enum ChapterPaginator {
         let thoughtSelectionsByParagraph: [Int: [String]]
         let thoughtHighlightColor: UIColor
         let thoughtUnderlineColor: UIColor
+        var illustrations: [IllustrationPlacement] = []
+    }
+
+    struct IllustrationPlacement: Sendable {
+        let characterOffset: Int
+        let illustration: ChapterIllustration
+    }
+
+    /// 正文坐标不插入占位字符，隐藏插图后仍能用同一字符锚点恢复。
+    static func paragraphOffsets(title: String, paragraphs: [String]) -> [Int] {
+        var cursor = title.utf16.count + 1
+        return paragraphs.enumerated().map { index, text in
+            if index > 0 { cursor += 1 }
+            let start = cursor
+            cursor += (paragraphIndent + text).utf16.count
+            return start
+        }
     }
 
     /// 组装整章排版用的富文本（标题 + 首行缩进 + 段间距）。
@@ -71,6 +88,28 @@ enum ChapterPaginator {
     struct Page: @unchecked Sendable {
         let attributed: NSAttributedString
         let range: NSRange
+        var illustration: ChapterIllustration? = nil
+    }
+
+    static func illustratedPages(of attributed: NSAttributedString, placements: [IllustrationPlacement],
+                                 pageSize: CGSize, isCancelled: @escaping @Sendable () -> Bool) -> [Page] {
+        var result: [Page] = []
+        let segments = ReaderMediaLayout.segments(textLength: attributed.length, insertions: placements.map {
+            ReaderMediaLayout.Insertion(id: $0.illustration.id, offset: $0.characterOffset, order: $0.illustration.order)
+        })
+        for segment in segments {
+            guard !isCancelled() else { return [] }
+            if let id = segment.illustrationID,
+               let item = placements.first(where: { $0.illustration.id == id })?.illustration {
+                result.append(Page(attributed: NSAttributedString(string: ""), range: segment.range, illustration: item))
+            } else {
+                let chunk = attributed.attributedSubstring(from: segment.range)
+                result += pages(of: chunk, pageSize: pageSize, isCancelled: isCancelled).map {
+                    Page(attributed: $0.attributed, range: NSRange(location: segment.range.location + $0.range.location, length: $0.range.length))
+                }
+            }
+        }
+        return result
     }
 
     /// 按视口尺寸切页，返回每页对应的富文本与字符区间。

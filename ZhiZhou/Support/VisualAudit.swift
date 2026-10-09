@@ -2,6 +2,7 @@
 import Foundation
 import SwiftUI
 import UIKit
+import ZhiZhouCore
 
 enum VisualAudit {
     static var enabled: Bool { ProcessInfo.processInfo.environment["ZHIZHOU_UI_AUDIT"] == "1" }
@@ -12,6 +13,9 @@ enum VisualAudit {
         return ProcessInfo.processInfo.environment["ZHIZHOU_UI_APPEARANCE"] == "dark" ? .dark : .light
     }
     static let timestamp: Int64 = 1_788_739_200_000
+    static var chapterContent: String {
+        Array(repeating: "山路从窗前蜿蜒而过，清晨的风翻动了桌上的书页。她把信纸展开，字迹仍然清晰，仿佛写信的人刚刚离开。远处响起钟声，新的一天开始了。", count: 18).joined(separator: "\n\n")
+    }
 
     static var user: User {
         User(id: userID, username: "reader", displayName: "林间读者", role: "admin", status: "active",
@@ -71,6 +75,7 @@ private final class VisualAuditProtocol: URLProtocol {
     private static var catalogRequests = 0
     private static var refreshFailureServed = false
     private static var restoreRequests = 0
+    private static var mediaRequests = 0
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
@@ -122,7 +127,7 @@ private final class VisualAuditProtocol: URLProtocol {
         case ("PUT", "/api/auth/avatar"), ("DELETE", "/api/auth/avatar"):
             body = ["user": Self.json(Self.currentUser)]
         case ("GET", "/api/auth/reader-settings"):
-            body = ["settings": [:], "updatedAt": [:], "device": "mobile"]
+            body = ["settings": [:], "updatedAt": [:], "device": queryValue("device") ?? "ios"]
         case ("GET", "/api/ai/settings"):
             body = ["settings": ["recapEnabled": true, "dailyQuota": 10]]
         case ("GET", "/api/ai/tasks"):
@@ -143,12 +148,32 @@ private final class VisualAuditProtocol: URLProtocol {
             body = ["novel": Self.json(VisualAudit.books.first { path.hasSuffix($0.id) } ?? VisualAudit.books[0])]
         case ("GET", "/api/chapters"):
             body = ["chapters": VisualAudit.chapters(for: queryValue("novelId") ?? VisualAudit.books[0].id).map(Self.json)]
+        case ("GET", let path) where path.hasSuffix("/illustrations"):
+            let chapterID = path.components(separatedBy: "/")[3]
+            let items: [[String: Any]] = VisualAudit.scenario.hasPrefix("media") ? [[
+                "id": "audit-illustration", "chapterId": chapterID, "assetId": "audit-asset",
+                "width": 600, "height": 400, "caption": "山路与清晨", "size": "full",
+                "chapterRevision": "audit-revision", "version": 1, "order": 1, "deleted": false,
+                "anchor": ["position": "start", "paragraphIndex": 0, "paragraphText": "", "paragraphHash": "",
+                           "previousText": "", "nextText": "", "sourceIndex": 0, "sourceHash": ""],
+            ]] : []
+            body = ["illustrations": items, "chapterRevision": "audit-revision", "contentHash": IllustrationAnchor.contentHash(VisualAudit.chapterContent)]
+        case ("GET", let path) where path.contains("/illustrations/") && path.hasSuffix("/image"):
+            Self.mediaRequests += 1
+            if VisualAudit.scenario == "media-retry", Self.mediaRequests == 1 {
+                status = 503
+                body = ["error": "图片暂时无法加载"]
+            } else {
+                image = VisualAudit.imageData(avatar: false)
+            }
+        case ("GET", let path) where path.hasPrefix("/api/thoughts/image/"):
+            image = VisualAudit.imageData(avatar: false)
         case ("GET", let path) where path.hasPrefix("/api/chapters/"):
             let chapter = VisualAudit.books.flatMap { VisualAudit.chapters(for: $0.id) }.first { path.hasSuffix($0.id) }!
             body = ["chapter": Self.json(ChapterFull(
                 id: chapter.id, novelId: chapter.novelId, title: chapter.title, order: chapter.order,
                 wordCount: chapter.wordCount, sourceUrl: "", createdAt: VisualAudit.timestamp,
-                content: Array(repeating: "山路从窗前蜿蜒而过，清晨的风翻动了桌上的书页。她把信纸展开，字迹仍然清晰，仿佛写信的人刚刚离开。远处响起钟声，新的一天开始了。", count: 18).joined(separator: "\n\n")
+                content: VisualAudit.chapterContent
             ))]
         case ("GET", "/api/bookshelf"):
             let book = VisualAudit.books[0]
@@ -166,7 +191,15 @@ private final class VisualAuditProtocol: URLProtocol {
         case ("DELETE", "/api/progress"):
             Self.removedRecent = true
         case ("GET", "/api/thoughts"):
-            body = ["thoughts": [], "counts": [:], "chapterId": "", "total": 0] as [String: Any]
+            let chapterID = queryValue("chapterId") ?? ""
+            let thoughts: [[String: Any]] = VisualAudit.scenario.hasPrefix("media") ? [[
+                "id": "audit-thought", "novelId": "audit-book-1", "chapterId": chapterID,
+                "paragraphIndex": 0, "paragraphHash": "", "selectedText": "山路从窗前蜿蜒而过",
+                "thoughtText": "来自 Web 的图片想法", "displayName": "林间读者", "status": "visible",
+                "reportCount": 0, "createdAt": VisualAudit.timestamp, "updatedAt": VisualAudit.timestamp,
+                "userId": VisualAudit.userID, "avatarUrl": "", "imageUrl": "/api/thoughts/image/audit-thought",
+            ]] : []
+            body = ["thoughts": thoughts, "counts": [:], "chapterId": chapterID, "total": thoughts.count] as [String: Any]
         case ("POST", "/api/progress"), ("PUT", "/api/auth/reader-settings"), ("POST", "/api/auth/logout"):
             break
         default:

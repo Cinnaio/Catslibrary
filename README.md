@@ -8,7 +8,8 @@
 - **固定服务器地址**：应用内置硬编码 `https://catrr.uk`，无需用户配置
 - **API 对接**：复用知舟 REST API（`/api/novels`、`/api/chapters`、`/api/auth`、`/api/progress`、`/api/bookshelf`、`/api/auth/reader-settings` 等），字段与仓库 `shared/types.ts` 一一对应
 - **鉴权**：Bearer Token 存 Keychain（`ZhiZhou/Networking/Keychain.swift`），登录用 `remember` 长会话
-- **阅读设置同步**：与 Web 端互通（LWW 合并，`/api/auth/reader-settings`），键值表与后端 `reader-settings.ts` 完全一致
+- **阅读设置同步**：使用 `/api/auth/reader-settings` 的独立 `ios` 分区（LWW 合并），首次迁移由后端继承旧 `mobile` 快照；账号内容模式保持共享
+- **阅读图片**：章节插图按段落锚点展示，支持显示开关、大图缩放、失败重试；图片段评与 Web 互通。分页模式在锚点处使用独立插图页，图片不写入离线下载或封面缓存。实现与验收见 [第一批跨端对齐](docs/web-ios-parity-phase1.md)
 - **进度同步**：滚动百分比 → `/api/progress`，进入章节自动恢复上次位置
 - **设计系统**：`ZhiZhou/Theme/Theme.swift` —— 语义色跟随系统浅/深外观（无强制浅色），阅读器纸面独立主题（跟随系统/护眼/羊皮/夜间）
 
