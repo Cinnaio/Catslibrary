@@ -75,7 +75,8 @@ describe('SiteHeader account menu', () => {
         <SiteHeader />
       </MemoryRouter>,
     )
-    expect(screen.getByRole('link', { name: '书库' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.queryByRole('link', { name: '书库' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '刷新页面' })).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: '我的书架' })).toHaveAttribute('href', '/bookshelf')
     expect(screen.queryByRole('textbox')).toBeNull()
     expect(screen.queryByRole('button', { name: '搜索' })).toBeNull()
@@ -89,5 +90,6 @@ describe('SiteHeader account menu', () => {
     expect(screen.queryByRole('button', { name: /内容安全模式/ })).toBeNull()
     await userEvent.setup().click(screen.getByRole('button', { name: /导航菜单|打开菜单|菜单/ }))
     expect(screen.queryByRole('button', { name: /内容安全模式/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: '刷新页面' })).not.toBeInTheDocument()
   })
 })

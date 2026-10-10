@@ -1,7 +1,7 @@
 /**
  * 站点页头 —— 由 Novel-KV index.html/novel.html 的 header 结构平移。
  * 首页搜索由 Home 的中央搜索框承担；账户、主题和导航使用共享组件。
- * 移动端导航收进右侧抽屉（我的书架/管理面板/登录/刷新），页头只留紧凑图标按钮，
+ * 移动端导航收进右侧抽屉（我的书架/管理面板/登录），页头只留紧凑图标按钮，
  * 避免窄屏上一行挤满文字链接。
  * 注意：导航抽屉必须渲染在 <header> 外 —— 非首页的 .header 有
  * backdrop-filter，会把 position: fixed 后代的包含块收进页头，导致遮罩只盖住页头一条。
@@ -11,7 +11,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { Dialog as DialogPrimitive } from 'radix-ui'
 import { useSession } from '../context/SessionContext'
 import { useContentPolicy } from '../context/ContentPolicyContext'
-import { BookIcon, ChevronIcon, CloseIcon, MenuIcon, MoonIcon, RefreshIcon, ShieldIcon, SunIcon } from './icons'
+import { BookIcon, ChevronIcon, CloseIcon, MenuIcon, MoonIcon, ShieldIcon, SunIcon } from './icons'
 import { ThemeMenu } from './ThemeMenu'
 import { useToast } from './feedback'
 import { AccountMenu } from './AccountMenu'
@@ -29,19 +29,6 @@ export default function SiteHeader() {
 
   const name = user?.displayName || user?.username || ''
   const isAdmin = user?.role === 'admin'
-
-  function refresh() {
-    // 清 service worker 缓存后硬刷新（保留 query）
-    if ('caches' in window) {
-      caches
-        .keys()
-        .then((names) => names.forEach((name) => caches.delete(name)))
-        .catch(() => {})
-    }
-    const url = new URL(window.location.href)
-    url.searchParams.set('v', Date.now().toString())
-    window.location.href = url.toString()
-  }
 
   function closeMenu() {
     setMenuOpen(false)
@@ -67,12 +54,6 @@ export default function SiteHeader() {
           </Link>
 
           <div className="header__actions">
-            {isHome && (
-              <Link to="/" className="nav-link nav-link--desktop" aria-current="page">
-                书库
-              </Link>
-            )}
-
             {user ? (
               <AccountMenu variant="site" />
             ) : (
@@ -104,10 +85,6 @@ export default function SiteHeader() {
                 <span>{mode === 'safe' ? '安全模式' : '成人内容'}</span>
               </button>
             )}
-
-            <button className="refresh-btn" aria-label="刷新页面" title="刷新页面" onClick={refresh}>
-              <RefreshIcon />
-            </button>
 
             <ThemeMenu
               className="theme-btn"
@@ -200,10 +177,6 @@ export default function SiteHeader() {
                     {mode === 'safe' ? '安全模式（已隐藏限制级内容）' : '成人内容模式（点击关闭）'}
                   </button>
                 )}
-                <button className="mobile-drawer__item" onClick={refresh}>
-                  <RefreshIcon />
-                  刷新页面
-                </button>
               </nav>
             </div>
 
