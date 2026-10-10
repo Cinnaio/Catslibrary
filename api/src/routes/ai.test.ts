@@ -2297,7 +2297,8 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     })
     try {
       const novelId = await firstNovelId(t)
-      const promptResponse = await req('/api/ai/cover/prompt', json('POST', { novelId }, adminToken))
+      // 固定版式：auto 根据随机小说 ID 选风格，可能选中纯文字构图，无法断言顶部标题与具象主体。
+      const promptResponse = await req('/api/ai/cover/prompt', json('POST', { novelId, stylePreset: 'minimal', composition: 'symbolic' }, adminToken))
       expect(promptResponse.status).toBe(200)
       const generatedPrompt = (await jsonOf<{ prompt: string }>(promptResponse)).prompt
       // story-cover 结构：平台层 + 默认渲染的书名/作者名文字层 + 画面层
