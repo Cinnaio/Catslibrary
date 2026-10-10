@@ -11,3 +11,8 @@ await mkdir(target, { recursive: true })
 await cp(source, target, { recursive: true })
 
 console.log(`[build] copied migrations to ${target}`)
+
+const assets = resolve(root, 'dist/assets')
+await mkdir(assets, { recursive: true })
+await cp(resolve(root, '../web/public/images/default-cover-flower.webp'), resolve(assets, 'default-cover-flower.webp'))
+console.log('[build] copied default cover artwork')

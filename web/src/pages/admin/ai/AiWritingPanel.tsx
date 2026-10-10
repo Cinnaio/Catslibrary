@@ -1425,7 +1425,7 @@ export default function AiWritingPanel(props: { onViewBatch?: (batchId?: string)
               {selectedNovel && (
                 <img
                   key={selectedNovel.id}
-                  src={url(`/cover/${encodeURIComponent(selectedNovel.id)}?cover=2`)}
+                  src={url(`/cover/${encodeURIComponent(selectedNovel.id)}?cover=3`)}
                   alt={`${selectedNovel.title} 封面`}
                   onError={(event) => {
                     event.currentTarget.style.display = 'none'

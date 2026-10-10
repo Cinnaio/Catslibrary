@@ -8,8 +8,10 @@ import { first, run, withTx } from '../db/query'
 import { AiError } from './ai/client'
 import { newId } from './auth'
 import { outboundFetch } from './outbound-fetch'
+import { DEFAULT_COVER_PATH, isDefaultCoverSource } from '@shared/covers'
+import { getDefaultCoverImage } from '../default-cover'
 
-export const DEFAULT_COVER_URL = 'https://wap.po18x.vip/17mb/style/noimg.jpg'
+export const DEFAULT_COVER_URL = DEFAULT_COVER_PATH
 export const MAX_COVER_BYTES = 5 * 1024 * 1024
 
 const FETCH_HEADERS = {
@@ -186,7 +188,7 @@ export function coverDataToBody(data: unknown): Uint8Array | null {
   return null
 }
 
-/** 先试源图，失败/无封面则存缺省图。 */
+/** 先缓存源图；缺省图由本地资产提供，不为每本书重复入库。 */
 export async function cacheCoverForNovel(
   db: Db,
   novelId: string,
@@ -196,16 +198,16 @@ export async function cacheCoverForNovel(
   if (!row) return { ok: false, error: 'novel not found', status: 404 }
 
   const coverUrl = (row.cover_url || '').trim()
-  let img = await fetchImage(coverUrl)
+  let img = isDefaultCoverSource(coverUrl) ? null : await fetchImage(coverUrl)
   let source = coverUrl
 
   if (!img) {
-    img = opts.defaultImage || (await fetchImage(DEFAULT_COVER_URL))
+    img = opts.defaultImage || (await getDefaultCoverImage())
     source = 'default'
   }
   if (!img) return { ok: false, error: '源图与缺省图均下载失败', status: 502 }
 
-  await storeCover(db, novelId, img.data, img.contentType, source)
+  if (source !== 'default') await storeCover(db, novelId, img.data, img.contentType, source)
   return { ok: true, source, contentType: img.contentType, bytes: img.data.byteLength, isDefault: source === 'default' }
 }
 
@@ -334,15 +336,14 @@ interface CoverReplacementResult {
 
 function shouldMaterializeExternalCover(url: string): boolean {
   const normalized = String(url || '').trim()
-  return !!normalized && normalized !== DEFAULT_COVER_URL && /^https?:\/\//i.test(normalized)
+  return !!normalized && !isDefaultCoverSource(normalized) && /^https?:\/\//i.test(normalized)
 }
 
 function coverIsPlaceholder(source: string): boolean {
   const normalizedSource = String(source || '').trim()
   // 本地 AI/上传封面可能没有对应的 novels.cover_url；只要已有本地
   // 来源就必须进入历史，不能因为外部 URL 为空而丢掉可恢复版本。
-  return normalizedSource === 'default'
-    || normalizedSource === DEFAULT_COVER_URL
+  return isDefaultCoverSource(normalizedSource)
 }
 
 /** 清理每书最多 10 条、总字节不超过 50 MiB 的历史；调用方必须在替换事务内执行。 */

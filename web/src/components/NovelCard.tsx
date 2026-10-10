@@ -12,7 +12,7 @@ import { timeAgo } from '../lib/format'
 /** 封面 URL：优先本地 cover 端点；demo 数据无封面。 */
 export function coverUrl(novel: { id: string; updatedAt?: number }): string {
   if (!novel.id || novel.id.startsWith('demo_')) return ''
-  return url(`/cover/${encodeURIComponent(novel.id)}?v=${encodeURIComponent(novel.updatedAt || 0)}&cover=2`)
+  return url(`/cover/${encodeURIComponent(novel.id)}?v=${encodeURIComponent(novel.updatedAt || 0)}&cover=3`)
 }
 
 export default function NovelCard({ novel, variant, category }: { novel: Novel; variant?: 'library'; category?: string }) {

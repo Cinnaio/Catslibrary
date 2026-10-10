@@ -6,6 +6,8 @@ import { first } from '../db/query'
 import { cacheCoverForNovel, coverDataToBody, getStoredCover } from '../services/covers'
 import { restrictedContentResponse, resolveContentAccess } from '../services/content-access'
 import { optionalUser, type AuthEnv } from '../middlewares/auth'
+import { getDefaultCoverImage } from '../default-cover'
+import { isDefaultCoverSource } from '@shared/covers'
 
 export const coverRoutes = new Hono<AuthEnv>()
 
@@ -22,17 +24,21 @@ coverRoutes.get('/:id', optionalUser(), async (c) => {
   }
 
   let cover = await getStoredCover(db, id)
-  // 懒迁移：首次读取时下载源封面（或缺省图）入库
+  // 首次读取时缓存源封面；缺省图直接读取打包资产，不重复入库。
   if (!cover) {
     const cached = await cacheCoverForNovel(db, id)
     if (!cached.ok) return c.json({ error: cached.error || 'Cover not found' }, (cached.status || 404) as 404)
     cover = await getStoredCover(db, id)
   }
 
-  const body = coverDataToBody(cover?.data)
+  // 旧库中的缺省图片也展示新版；保留原始存储版本供后台替换并发校验。
+  const image = cover && !isDefaultCoverSource(cover.source)
+    ? { data: cover.data, contentType: cover.content_type }
+    : await getDefaultCoverImage()
+  const body = coverDataToBody(image.data)
   if (!body) return c.json({ error: 'Cover not found' }, 404)
 
-  const contentType = cover?.content_type || 'image/jpeg'
+  const contentType = image.contentType || 'image/jpeg'
   const etag = `"${createHash('sha256').update(contentType).update('\0').update(body).digest('hex')}"`
   const cacheHeaders = {
     // Covers use private client caches. Access is checked on every network request,

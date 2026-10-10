@@ -5,6 +5,7 @@ import React from 'react'
 import { authHeaders, operationHeaders, url } from '../../../lib/api'
 import { formatDateTime } from '../../../lib/format'
 import type { SelectOption } from '@/components/admin/CustomSelect'
+import { DEFAULT_COVER_PATH } from '@shared/covers'
 
 // ---------- helpers ----------
 
@@ -126,17 +127,17 @@ export function resolveRankingSource(siteValue: string): { listUrl: string; rank
   }
 }
 
-export const FALLBACK_COVER = 'https://wap.po18x.vip/17mb/style/noimg.jpg'
+export { DEFAULT_COVER_PATH as FALLBACK_COVER } from '@shared/covers'
 
 // ---------- small components ----------
 
 export function coverOnError(e: React.SyntheticEvent<HTMLImageElement>) {
   const img = e.currentTarget
-  if (img.src !== FALLBACK_COVER) {
-    img.src = FALLBACK_COVER
+  if (img.src !== new URL(DEFAULT_COVER_PATH, img.ownerDocument.baseURI).href) {
+    img.src = DEFAULT_COVER_PATH
     return
   }
   img.style.display = 'none'
   const p = img.parentElement
-  if (p) p.classList.add('discover-card__cover--broken')
+  if (p) p.classList.add('discover-card__cover--broken', 'is-broken')
 }

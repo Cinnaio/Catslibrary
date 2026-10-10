@@ -370,7 +370,7 @@ export default function Novel() {
   }
 
   const newCount = Math.max(0, (novel.remoteChapterCount || 0) - (novel.chapterCount || 0))
-  const coverSrc = url(`/cover/${encodeURIComponent(novel.id)}?v=${encodeURIComponent(novel.updatedAt || 0)}&cover=2`)
+  const coverSrc = url(`/cover/${encodeURIComponent(novel.id)}?v=${encodeURIComponent(novel.updatedAt || 0)}&cover=3`)
   const progress = getBestProgress(serverProgress, getNovelHistory(id))
   const lastReadChapter = progress?.chapterId ? chapters.find((c) => c.id === progress!.chapterId) : null
   const startTargetId = lastReadChapter?.id || chapters[0]?.id

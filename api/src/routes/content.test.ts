@@ -3,6 +3,8 @@ import { app } from '../app'
 import { setDbForTests } from '../db/pool'
 import { createTestDb, type TestDb } from '../test/db'
 import { run } from '../db/query'
+import { getDefaultCoverImage } from '../default-cover'
+import { LEGACY_DEFAULT_COVER_URL } from '@shared/covers'
 
 let t: TestDb
 
@@ -210,11 +212,47 @@ describe('内容 API 端到端（pglite）', () => {
     expect(afterData.tombstone).not.toBeNull()
   })
 
-  it('cover 懒缓存：无源图且测试禁用外网时返回 502 而非崩溃', async () => {
+  it('cover 无源图且禁用外网时仍返回本地花枝封面，并支持条件缓存', async () => {
     const list = await req('/api/novels')
     const { novels } = await jsonOf<{ novels: Novel[] }>(list)
     const res = await req(`/api/cover/${novels[0]!.id}`)
-    expect(res.status).toBe(502)
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-type')).toBe('image/webp')
+    expect(Buffer.from(await res.arrayBuffer())).toEqual(Buffer.from((await getDefaultCoverImage()).data))
+    const cached = await req(`/api/cover/${novels[0]!.id}`, { headers: { 'If-None-Match': res.headers.get('etag')! } })
+    expect(cached.status).toBe(304)
+  })
+
+  it('旧数据库中的 default 和第三方缺省封面均显示新版，真实封面保持原图', async () => {
+    const { novels } = await jsonOf<{ novels: Novel[] }>(await req('/api/novels'))
+    const id = novels[0]!.id
+    const placeholder = Buffer.from((await getDefaultCoverImage()).data)
+    for (const source of ['default', LEGACY_DEFAULT_COVER_URL]) {
+      await run(t.db, `INSERT INTO novel_covers (data, content_type, source, novel_id, updated_at) VALUES ($1,$2,$3,$4,1)
+        ON CONFLICT (novel_id) DO UPDATE SET data=EXCLUDED.data, content_type=EXCLUDED.content_type, source=EXCLUDED.source`, [Buffer.from('old placeholder'), 'image/jpeg', source, id])
+      const res = await req(`/api/cover/${id}`)
+      expect(res.status).toBe(200)
+      expect(res.headers.get('content-type')).toBe('image/webp')
+      expect(Buffer.from(await res.arrayBuffer())).toEqual(placeholder)
+    }
+    const original = Buffer.from('original uploaded cover')
+    await run(t.db, 'UPDATE novel_covers SET data=$1, content_type=$2, source=$3 WHERE novel_id=$4', [original, 'image/png', 'upload', id])
+    const res = await req(`/api/cover/${id}`)
+    expect(res.headers.get('content-type')).toBe('image/png')
+    expect(Buffer.from(await res.arrayBuffer())).toEqual(original)
+  })
+
+  it('源封面 URL 为旧缺省图时使用本地资源，并继续校验小说是否存在', async () => {
+    const { novels } = await jsonOf<{ novels: Novel[] }>(await req('/api/novels'))
+    const id = novels[0]!.id
+    await run(t.db, 'DELETE FROM novel_covers WHERE novel_id=$1', [id])
+    await run(t.db, 'UPDATE novels SET cover_url=$1 WHERE id=$2', [LEGACY_DEFAULT_COVER_URL, id])
+    const res = await req(`/api/cover/${id}`)
+    expect(res.status).toBe(200)
+    expect(Buffer.from(await res.arrayBuffer())).toEqual(Buffer.from((await getDefaultCoverImage()).data))
+    const stored = await t.db.query<{ source: string }>('SELECT source FROM novel_covers WHERE novel_id=$1', [id])
+    expect(stored.rows).toHaveLength(0)
+    expect((await req('/api/cover/does-not-exist')).status).toBe(404)
   })
 
   it('校园筛选匹配简繁别名，其他标签仍精确匹配并保留分页与状态', async () => {

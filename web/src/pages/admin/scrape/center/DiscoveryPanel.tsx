@@ -7,6 +7,7 @@ import { AdminDataPanel, AdminPanelHeading } from '@/components/admin/AdminWorks
 import Pagination from '@/components/admin/Pagination'
 import type { BatchState, DiscoverNovel } from '../types'
 import { FALLBACK_COVER, coverOnError } from '../utils'
+import { isDefaultCoverSource } from '@shared/covers'
 
 interface DiscoveryPanelProps {
   novels: DiscoverNovel[]
@@ -113,14 +114,11 @@ export default function DiscoveryPanel({
                 />
                 <div className="scrape-discovery__cover" data-letter={(novel.title || '书').slice(0, 1)}>
                   <img
-                    src={novel.coverUrl || FALLBACK_COVER}
+                    src={novel.coverUrl && !isDefaultCoverSource(novel.coverUrl) ? novel.coverUrl : FALLBACK_COVER}
                     alt=""
                     loading="lazy"
                     referrerPolicy="no-referrer"
-                    onError={(event) => {
-                      coverOnError(event)
-                      event.currentTarget.parentElement?.classList.add('is-broken')
-                    }}
+                    onError={coverOnError}
                   />
                 </div>
                 <div className="scrape-discovery__copy">
