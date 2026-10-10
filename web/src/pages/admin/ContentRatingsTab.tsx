@@ -522,12 +522,13 @@ export default function ContentRatingsTab() {
   const aiProgressRef = useRef<{ taskId: string; done: number } | null>(null)
 
   useEffect(() => {
+    if (view !== 'ledger') return
     const timer = setTimeout(() => {
       setQuery(searchInput.trim())
       setPage(1)
     }, 250)
     return () => clearTimeout(timer)
-  }, [searchInput])
+  }, [searchInput, view])
 
   const load = useCallback(
     async (refresh = false) => {
@@ -562,10 +563,15 @@ export default function ContentRatingsTab() {
   )
 
   useEffect(() => {
+    if (view !== 'ledger') return
     // This effect owns the remote list synchronization; load() updates the async status around the request.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load()
-  }, [load])
+    // 切换视图或查询后，旧请求不能再更新账本或加载状态。
+    return () => {
+      listSeqRef.current++
+    }
+  }, [load, view])
 
   const loadCandidates = useCallback(async () => {
     setCandidateLoading(true)

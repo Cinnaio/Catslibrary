@@ -1,6 +1,6 @@
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import userEvent from '@testing-library/user-event'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AdminContentRatingAiSuggestion, AdminContentRatingItem } from '@/lib/api'
 
@@ -239,6 +239,22 @@ describe('ContentRatingsTab', () => {
     expect(screen.getByRole('button', { name: '刷新建议' })).toBeInTheDocument()
     await user.click(screen.getByRole('tab', { name: '分级账本' }))
     expect(screen.getByRole('searchbox')).toHaveValue('潮汐')
+  })
+
+  it('离开账本后取消待触发的搜索，返回时按保留的搜索词重新读取', async () => {
+    const user = userEvent.setup()
+    renderView()
+    await screen.findByText('潮汐之后')
+    await user.type(screen.getByRole('searchbox'), '潮汐')
+    await user.click(screen.getByRole('tab', { name: /规则候选/ }))
+    mocks.list.mockClear()
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 350))
+    })
+    expect(mocks.list).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('tab', { name: '分级账本' }))
+    expect(screen.getByRole('searchbox')).toHaveValue('潮汐')
+    await waitFor(() => expect(mocks.list).toHaveBeenLastCalledWith(expect.objectContaining({ search: '潮汐', offset: 0 })))
   })
 
   it('人工修改必须带理由，并携带当前 revision 提交', async () => {
