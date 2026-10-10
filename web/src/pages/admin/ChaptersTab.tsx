@@ -22,6 +22,7 @@ import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, Tabl
 import { Textarea } from '@/components/ui/textarea'
 import { Pencil, Trash2 } from 'lucide-react'
 import AdminPage from '@/components/admin/AdminPage'
+import ChapterMergePreview from './ChapterMergePreview'
 import ChapterIllustrations from '@/components/reader/ChapterIllustrations'
 import { formatContent } from '@/lib/reader-utils'
 import AdminRowActions from '@/components/admin/AdminRowActions'
@@ -80,6 +81,26 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
   const [sourceMetadataFields, setSourceMetadataFields] = useState<string[]>(['title', 'author', 'description', 'coverUrl', 'categories', 'status'])
   const [sourceMetadataMode, setSourceMetadataMode] = useState<'missing' | 'replace'>('missing')
   const [renaming, setRenaming] = useState(false)
+  const [sourceError, setSourceError] = useState('')
+  const [sourceExpanded, setSourceExpanded] = useState(true)
+  const mergeRequest = useRef(0)
+  const mergeBusy = useRef(false)
+  const mergeSearchRequest = useRef(0)
+  const eligibleCount = sourcePreview?.changes.filter((change) => change.eligible).length || 0
+  const availableMetadataFields = sourcePreview ? sourceMetadataFields.filter((field) => {
+    const value = sourcePreview.metadata[field as keyof SourceSyncPreview['metadata']]
+    return Array.isArray(value) ? value.length > 0 : Boolean(value)
+  }) : []
+
+  function closeRenameModal() {
+    if (mergeBusy.current) return
+    mergeRequest.current++
+    mergeSearchRequest.current++
+    setRenameModal(false)
+    setSourcePreview(null)
+    setSourceSearch(null)
+    setSourceSearching(false)
+  }
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // 小说下拉：全库紧凑索引 + 服务端补搜
@@ -318,6 +339,11 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
   }
 
   async function openRenameModal() {
+    const requestId = ++mergeRequest.current
+    setSourceError('')
+    setSourceExpanded(true)
+    setSourceMetadataMode('missing')
+    setSourceMetadataFields(['title', 'author', 'description', 'coverUrl', 'categories', 'status'])
     setRenameModal(true)
     setSourcePreview(null)
     setSourceSearch(null)
@@ -328,6 +354,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
     try {
       const result = await scrapeApi.sourceBindings(selectedNovel)
       const primary = result.bindings.find((binding) => binding.isPrimary === true) || result.bindings[0]
+      if (requestId !== mergeRequest.current) return
       if (primary?.sourceUrl) setSourceUrl(String(primary.sourceUrl))
     } catch {
       /* 没有绑定源站时保持空输入，允许手动粘贴 */
@@ -335,6 +362,8 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
   }
 
   async function searchSourceSites() {
+    if (sourceSearching || mergeBusy.current) return
+    const requestId = ++mergeSearchRequest.current
     const title = sourceSearchTitle.trim()
     const author = sourceSearchAuthor.trim()
     if (!title && !author) {
@@ -344,15 +373,17 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
     setSourceSearching(true)
     setSourceSearch(null)
     try {
-      setSourceSearch(await scrapeApi.titleSourceSearch(title, author))
+      const result = await scrapeApi.titleSourceSearch(title, author)
+      if (requestId === mergeSearchRequest.current) setSourceSearch(result)
     } catch (err) {
-      toast((err as Error).message || '源站搜索失败', 'error')
+      if (requestId === mergeSearchRequest.current) toast((err as Error).message || '源站搜索失败', 'error')
     } finally {
-      setSourceSearching(false)
+      if (requestId === mergeSearchRequest.current) setSourceSearching(false)
     }
   }
 
   async function previewSourceSync(selectedSourceUrl = sourceUrl) {
+    if (mergeBusy.current) return
     if (!selectedNovel) {
       toast('请先选择小说', 'error')
       return
@@ -362,14 +393,20 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
       toast('请填写原作者源站 URL', 'error')
       return
     }
+    ++mergeRequest.current
+    mergeBusy.current = true
+    setSourceError('')
+    setSourcePreview(null)
     setSourceUrl(url)
     setRenaming(true)
     try {
       const result = await scrapeApi.sourceSyncPreview({ novelId: selectedNovel, sourceUrl: url, onlyWeakTitles: true })
       setSourcePreview(result)
+      setSourceExpanded(false)
     } catch (err) {
-      toast((err as Error).message || '源站读取失败', 'error')
+      setSourceError((err as Error).message || '源站读取失败，请检查链接后重试。')
     } finally {
+      mergeBusy.current = false
       setRenaming(false)
     }
   }
@@ -379,6 +416,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
   }
 
   async function applyRename() {
+    if (mergeBusy.current) return
     if (!sourcePreview) {
       toast('请先读取源站', 'error')
       return
@@ -388,25 +426,29 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
       .map((change) => change.localChapterId)
       .filter(Boolean)
       .sort()
+    mergeBusy.current = true
     const ok = await confirm({
       title: '确认应用源站同步？',
-      message: `将更新确认快照中的 ${confirmedChangeIds.length} 个章节标题${sourceMetadataMode === 'replace' ? '，并覆盖已选小说信息' : ''}。`,
+      message: `将更新确认快照中的 ${confirmedChangeIds.length} 个章节标题${availableMetadataFields.length ? `，并${sourceMetadataMode === 'replace' ? '覆盖' : '补全'} ${availableMetadataFields.length} 项已选小说信息` : ''}。`,
       items: [
         `目标快照：${confirmedChangeIds.length} 个章节`,
-        sourceMetadataMode === 'replace' ? '小说信息将按已勾选字段覆盖' : '小说信息只补全空字段',
+        availableMetadataFields.length ? (sourceMetadataMode === 'replace' ? '小说信息将按已勾选字段覆盖' : '小说信息只补全空字段') : '不修改小说信息',
         '未标记为可自动更新的标题不会被改动',
       ],
       okText: '确认更新',
       cancelText: '取消',
       danger: sourceMetadataMode === 'replace',
     })
-    if (!ok) return
+    if (!ok) {
+      mergeBusy.current = false
+      return
+    }
     setRenaming(true)
     try {
       const result = await scrapeApi.sourceSyncApply({
         runId: sourcePreview.runId,
-        applyMetadata: sourceMetadataFields.length > 0,
-        metadataFields: sourceMetadataFields,
+        applyMetadata: availableMetadataFields.length > 0,
+        metadataFields: availableMetadataFields,
         metadataMode: sourceMetadataMode,
         confirmedChangeIds,
         operationId: newOperationId('source-sync-apply'),
@@ -420,6 +462,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
     } catch (err) {
       toast((err as Error).message || '同步应用失败', 'error')
     } finally {
+      mergeBusy.current = false
       setRenaming(false)
     }
   }
@@ -665,45 +708,25 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
 
       <Dialog
         open={renameModal}
-        onOpenChange={(open) => {
-          if (!open) {
-            setRenameModal(false)
-            setSourcePreview(null)
-            setSourceSearch(null)
-          }
-        }}
+        onOpenChange={(open) => { if (!open) closeRenameModal() }}
       >
-        <AdminDialogContent variant="editor" className="chapter-merge-dialog">
+        <AdminDialogContent variant="editor" className="chapter-merge-dialog" onInteractOutside={(event) => { if (mergeBusy.current) event.preventDefault() }} onEscapeKeyDown={(event) => { if (mergeBusy.current) event.preventDefault() }}>
           <DialogHeader>
             <DialogTitle className="editor-modal__title">融合章节名</DialogTitle>
-            <DialogDescription>补全弱标题的来源与变化会在这里先确认，正文、顺序和阅读进度不会改变。</DialogDescription>
+            <DialogDescription>从原作者源站补全章节名，先核对变化，再应用更新。</DialogDescription>
           </DialogHeader>
           <AdminDialogBody className="chapter-merge-dialog__body">
-            <div className="chapter-merge-dialog__info">
-              <div className="chapter-merge-dialog__info-grid">
-                <div>
-                  <span>当前小说</span>
-                  <strong>{selectedNovelInfo?.title || '未选择小说'}</strong>
-                </div>
-                <div>
-                  <span>作者</span>
-                  <strong>{selectedNovelInfo?.author || '未知作者'}</strong>
-                </div>
-                <div>
-                  <span>章节</span>
-                  <strong>{selectedNovelInfo?.chapterCount || chapters.length} 章</strong>
-                </div>
-              </div>
-              <div className="chapter-merge-dialog__badge">仅更新弱标题</div>
+            <div className="chapter-merge-dialog__context">
+              <strong>{selectedNovelInfo?.title || '未选择小说'}</strong>
+              <span>{selectedNovelInfo?.author || '未知作者'} · {selectedNovelInfo?.chapterCount || chapters.length} 章</span>
+              <p>仅补全弱标题，正文、章节顺序和阅读进度保持不变。</p>
             </div>
-            <section className="chapter-merge-dialog__source">
-              <div className="chapter-dialog-section__heading">
-                <Label>从原作者源站读取</Label>
-                <span className="text-muted-foreground">建议优先使用</span>
-              </div>
+            <details className="chapter-merge-dialog__source" open={sourceExpanded} onToggle={(event) => setSourceExpanded(event.currentTarget.open)}>
+              <summary>原作者源站<span>{sourcePreview ? '已读取 · 更换来源' : '搜索作品或粘贴链接'}</span></summary>
+              <p className="admin-dialog-hint">支持晋江与 PO18.tw。选择搜索结果后会直接读取并生成预览。</p>
               <div className="chapter-merge-dialog__source-grid grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,0.72fr)_auto]">
-                <Input aria-label="搜索书名" placeholder="书名" value={sourceSearchTitle} onChange={(e) => setSourceSearchTitle(e.target.value)} />
-                <Input aria-label="搜索作者" placeholder="作者（可选）" value={sourceSearchAuthor} onChange={(e) => setSourceSearchAuthor(e.target.value)} />
+                <Input aria-label="搜索书名" placeholder="书名" disabled={renaming || sourceSearching} onKeyDown={(event) => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) void searchSourceSites() }} value={sourceSearchTitle} onChange={(e) => setSourceSearchTitle(e.target.value)} />
+                <Input aria-label="搜索作者" placeholder="作者（可选）" disabled={renaming || sourceSearching} onKeyDown={(event) => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) void searchSourceSites() }} value={sourceSearchAuthor} onChange={(e) => setSourceSearchAuthor(e.target.value)} />
                 <Button variant="secondary" disabled={renaming || sourceSearching} onClick={() => void searchSourceSites()}>
                   {sourceSearching ? '搜索中…' : '搜索两处源站'}
                 </Button>
@@ -750,12 +773,17 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
                 </div>
               )}
               <div className="chapter-merge-dialog__url-field chapter-dialog-field">
-                <Label>原作者源站 URL</Label>
+                <Label htmlFor="chapter-source-url">已有作品链接</Label>
                 <div className="chapter-merge-dialog__url-row flex gap-2">
                   <Input
+                    id="chapter-source-url"
+                    disabled={renaming}
+                    onKeyDown={(event) => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) void previewSourceSync() }}
                     value={sourceUrl}
                     placeholder="https://www.jjwxc.net/onebook.php?novelid=… 或 https://www.po18.tw/…"
                     onChange={(e) => {
+                      ++mergeRequest.current
+                      setSourceError('')
                       setSourceUrl(e.target.value)
                       setSourcePreview(null)
                     }}
@@ -765,107 +793,19 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
                   </Button>
                 </div>
               </div>
-            </section>
-            {sourcePreview && (
-              <section className="chapter-merge-dialog__preview">
-                <div className="chapter-merge-dialog__preview-summary">
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 font-medium">
-                    <span>{sourcePreview.site === 'jjwxc' ? '晋江' : sourcePreview.site === 'po18tw' ? 'PO18.tw' : sourcePreview.site}</span>
-                    <span>源站 {sourcePreview.sourceChapterCount} 章</span>
-                    <span>本地 {sourcePreview.localChapterCount} 节</span>
-                    {sourcePreview.splitLocalChapterCount > 0 && <span>拆分节 {sourcePreview.splitLocalChapterCount}</span>}
-                  </div>
-                  <p>
-                    已匹配 {sourcePreview.matchedSourceCount} 章；未匹配源站 {sourcePreview.unmatchedSource.length} 章，本地{' '}
-                    {sourcePreview.unmatchedLocal.length} 节。
-                  </p>
-                  {sourcePreview.warnings.map((warning) => (
-                    <p className="chapter-merge-dialog__warning" key={warning}>
-                      {warning}
-                    </p>
-                  ))}
-                </div>
-                <div className="chapter-merge-dialog__preview-section">
-                  <Label className="mb-2 block">同步小说信息</Label>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    {(
-                      [
-                        ['title', '标题', sourcePreview.metadata.title],
-                        ['author', '作者', sourcePreview.metadata.author],
-                        ['description', '简介', sourcePreview.metadata.description],
-                        ['coverUrl', '封面', sourcePreview.metadata.coverUrl],
-                        ['categories', '分类', sourcePreview.metadata.categories.join('、')],
-                        ['status', '状态', sourcePreview.metadata.status],
-                      ] as Array<[string, string, string]>
-                    ).map(([field, label, value]) => (
-                      <label className="flex min-w-0 items-center gap-2" key={field}>
-                        <Checkbox
-                          checked={sourceMetadataFields.includes(field)}
-                          disabled={!value}
-                          onCheckedChange={(checked) =>
-                            setSourceMetadataFields((prev) => (checked ? [...new Set([...prev, field])] : prev.filter((item) => item !== field)))
-                          }
-                        />
-                        <span className="min-w-0 break-words">
-                          {label}：{value || '未识别'}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                  <label className="mt-3 flex items-center gap-2 text-sm">
-                    <Checkbox
-                      checked={sourceMetadataMode === 'replace'}
-                      onCheckedChange={(checked) => setSourceMetadataMode(checked ? 'replace' : 'missing')}
-                    />
-                    <span>覆盖已有小说信息（默认只补全空字段）</span>
-                  </label>
-                </div>
-                {sourcePreview.mappings.some((mapping) => mapping.relation === 'split') && (
-                  <div className="chapter-merge-dialog__preview-section">
-                    <p className="mb-2 font-medium">拆分章节映射</p>
-                    {sourcePreview.mappings
-                      .filter((mapping) => mapping.relation === 'split')
-                      .slice(0, 30)
-                      .map((mapping) => (
-                        <div className="mb-1" key={mapping.sourceChapterKey}>
-                          源站第 {mapping.sourceOrder} 章「{mapping.sourceTitle}」→ 本地 {mapping.localChapterIds.length} 节
-                        </div>
-                      ))}
-                  </div>
-                )}
-                <div className="chapter-merge-dialog__preview-section chapter-merge-dialog__preview-changes">
-                  <p className="text-sm text-muted-foreground">
-                    将更新 {sourcePreview.changes.filter((change) => change.eligible).length} 个章节名；另有{' '}
-                    {sourcePreview.changes.filter((change) => !change.eligible).length} 个需要人工确认：
-                  </p>
-                  <div className="import-chapter-preview__list">
-                    {sourcePreview.changes.slice(0, 80).map((change) => (
-                      <div className="import-chapter-preview__item" key={change.localChapterId}>
-                        <span className="text-muted-foreground">{change.localOrder}.</span>
-                        <span className="old-title">{change.oldTitle}</span>
-                        <span className="arrow">→</span>
-                        <span className="new-title">{change.newTitle}</span>
-                        {change.partCount > 1 && (
-                          <span className="text-xs text-muted-foreground">
-                            拆分 {change.partIndex}/{change.partCount}
-                          </span>
-                        )}
-                        {!change.eligible && <span className="text-xs text-amber-600">需确认</span>}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </section>
-            )}
+            </details>
+            {sourceError && <p role="alert" className="chapter-merge-dialog__error">{sourceError}</p>}
+            {renaming && !sourcePreview && <p role="status" className="admin-dialog-hint">正在读取源站并匹配本地章节，请稍候…</p>}
+            {sourcePreview && <ChapterMergePreview key={sourcePreview.runId} preview={sourcePreview} fields={sourceMetadataFields} onFieldsChange={setSourceMetadataFields} mode={sourceMetadataMode} onModeChange={setSourceMetadataMode} disabled={renaming} />}
           </AdminDialogBody>
           <DialogFooter className="chapter-merge-dialog__footer">
-            <span className="chapter-merge-dialog__footer-note">{sourcePreview ? `已读取 ${sourcePreview.changes.length} 个标题变化` : '只会更新弱标题'}</span>
-            <Button variant="secondary" onClick={() => setRenameModal(false)}>
+            <span className="chapter-merge-dialog__footer-note">{sourcePreview ? `${eligibleCount} 个标题可更新 · ${availableMetadataFields.length} 项信息${sourceMetadataMode === 'replace' ? '覆盖' : '补全'}` : '读取后可预览全部变化'}</span>
+            <Button variant="secondary" disabled={renaming} onClick={closeRenameModal}>
               取消
             </Button>
             {sourcePreview && (
-              <Button disabled={renaming} onClick={() => void applyRename()}>
-                {renaming ? '更新中…' : '确认更新'}
+              <Button disabled={renaming || (!eligibleCount && !availableMetadataFields.length)} onClick={() => void applyRename()}>
+                {renaming ? '更新中…' : eligibleCount ? `更新 ${eligibleCount} 个标题` : '同步小说信息'}
               </Button>
             )}
           </DialogFooter>
