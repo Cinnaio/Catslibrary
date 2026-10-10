@@ -32,6 +32,7 @@ import { backupRoutes } from './routes/backups'
 import { backupMaintenance } from './middlewares/backup-maintenance'
 import { csrfProtection, browserSecurityHeaders } from './middlewares/browser-security'
 import { readingDataRoutes } from './routes/reading-data'
+import { readingStatsRoutes } from './routes/reading-stats'
 
 /** 全局应用：中间件装配 + 路由注册（阶段化增量挂载）。 */
 export const app = new Hono()
@@ -97,3 +98,4 @@ app.route('/api/site-settings', publicSiteSettingsRoutes)
 app.route('/api/admin/site-settings', adminSiteSettingsRoutes)
 app.route('/api/admin/backups', backupRoutes)
 app.route('/api/reading-data', readingDataRoutes)
+app.route('/api/reading-stats', readingStatsRoutes)

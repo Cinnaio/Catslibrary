@@ -2,7 +2,7 @@
  * Profile 页 —— 头像、资料编辑、密码、会话管理、退出（由 Novel-KV js/profile.js 平移）。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { authApi } from '../lib/api'
 import { UserAvatar } from '@/components/ui/user-avatar'
 import { useSession } from '../context/SessionContext'
@@ -11,6 +11,7 @@ import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { formatDate, timeAgo } from '../lib/format'
 import { Monitor, Smartphone } from 'lucide-react'
 import { ReadingDataPanel } from '../components/ReadingDataPanel'
+import { ReadingStatsPanel } from '../components/ReadingStatsPanel'
 import { useContentPolicy } from '../context/ContentPolicyContext'
 
 interface SessionItem {
@@ -43,7 +44,11 @@ export default function Profile() {
   const avatarInputRef = useRef<HTMLInputElement>(null)
   const messageTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [msg, setMsg] = useState('')
-  const [activeSettings, setActiveSettings] = useState('details')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const activeSettings = ['details', 'security', 'sessions', 'reading', 'stats'].includes(searchParams.get('tab') || '') ? searchParams.get('tab')! : 'details'
+  function setActiveSettings(tab: string) {
+    setSearchParams(previous => { const next = new URLSearchParams(previous); next.set('tab', tab); return next })
+  }
 
   function message(text: string) {
     if (messageTimer.current) clearTimeout(messageTimer.current)
@@ -201,6 +206,7 @@ export default function Profile() {
               { id: 'details', label: '个人资料' },
               { id: 'security', label: '账户安全' },
               { id: 'sessions', label: '登录设备' },
+              { id: 'stats', label: '阅读统计' },
               { id: 'reading', label: '阅读数据' },
             ].map((item) => (
               <button type="button" className="profile-tab" key={item.id} aria-pressed={activeSettings === item.id} onClick={() => setActiveSettings(item.id)}>
@@ -233,6 +239,7 @@ export default function Profile() {
           </section>
 
           <div className="profile-edit-grid">
+            {activeSettings === 'stats' && <ReadingStatsPanel key={`${user.id}:${safeMode}`} />}
             {activeSettings === 'reading' && <ReadingDataPanel key={`${user.id}:${safeMode}`} userId={user.id} username={user.username} />}
             {/* 头像 */}
             <section className="profile-section profile-avatar-section" hidden={activeSettings !== 'details'}>

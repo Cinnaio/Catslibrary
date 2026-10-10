@@ -1,3 +1,4 @@
+import type { ReadingEvent, ReadingStats } from '@shared/reading-stats'
 import { requestReauthentication } from './reauthentication'
 /**
  * API 客户端 —— 类型化 fetch 封装（由 Novel-KV js/api.js 平移）。
@@ -2407,4 +2408,13 @@ export interface AdminDirectoryUser {
   bio: string
   avatarUrl: string
   thoughtCount?: number
+}
+
+export const readingStatsApi = {
+  get(start: number, end: number, contentMode: string): Promise<ReadingStats> {
+    return request('GET', `/reading-stats?start=${start}&end=${end}&contentMode=${contentMode}`, null, true)
+  },
+  events(userId: string, events: ReadingEvent[], contentMode: string): Promise<{ success: boolean }> {
+    return request('POST', `/reading-stats/events?contentMode=${contentMode}`, { userId, events }, true)
+  },
 }

@@ -824,3 +824,71 @@
     gap: 12px;
   }
 }
+
+/* Reading statistics: one quiet surface, compact controls and readable trends. */
+.reading-stats { min-width: 0; font-size: 0.875rem; line-height: 1.7; }
+.reading-stats__heading { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+.reading-stats__heading p { margin: 4px 0 0; color: var(--text-muted); font-size: 0.8125rem; }
+.reading-stats__ranges, .reading-stats__chart-head > div { display: flex; gap: var(--tabs-segmented-gap); padding: var(--tabs-segmented-inset); border-radius: var(--tabs-segmented-radius); background: var(--tabs-segmented-track-background); }
+.reading-stats__ranges button, .reading-stats__ranges select, .reading-stats__chart-head button { border: 0; border-radius: var(--tabs-segmented-inner-radius); background: transparent; min-height: 36px; padding: 6px 12px; font: inherit; font-size: var(--tabs-segmented-label-size); font-weight: var(--tabs-segmented-label-weight); color: var(--tabs-segmented-muted-foreground); cursor: pointer; }
+.reading-stats button[aria-pressed='true'], .reading-stats__ranges select:has(option:checked:not([value=''])) { background: var(--tabs-segmented-active-background); color: var(--tabs-segmented-active-foreground); font-weight: var(--tabs-segmented-active-label-weight); }
+.reading-stats button:focus-visible, .reading-stats select:focus-visible, .reading-stats summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.reading-stats__period { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 16px; color: var(--text-muted); font-size: 0.75rem; font-variant-numeric: tabular-nums; }
+.reading-stats__period button { display: inline-flex; align-items: center; justify-content: center; min-width: 36px; min-height: 36px; background: transparent; color: var(--text-secondary); border: 0; border-radius: var(--radius-sm); cursor: pointer; }
+.reading-stats__period button:hover { background: var(--bg-secondary); }
+.reading-stats__period button:disabled { opacity: 0.35; cursor: default; }
+.reading-stats__dates { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 16px; }
+.reading-stats__dates label { display: grid; gap: 6px; color: var(--text-muted); font-size: 0.75rem; min-width: 0; }
+.reading-stats__dates input { max-width: 100%; }
+.reading-stats__metrics { display: grid; grid-template-columns: 1.4fr repeat(3, minmax(0, 1fr)); gap: 24px; margin: 16px 0 32px; padding: 24px; border-radius: var(--radius-lg); background: color-mix(in srgb, var(--bg-secondary) 65%, var(--bg-card)); }
+.reading-stats__metrics > div { min-width: 0; }
+.reading-stats__metrics dt { color: var(--text-muted); font-size: 0.8125rem; }
+.reading-stats__metrics dd { margin: 8px 0 0; font-size: 1.25rem; font-weight: 500; line-height: 1.5; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.reading-stats__metrics > div:first-child dd { color: var(--accent); }
+.reading-stats__duration { display: flex; flex-wrap: wrap; gap: 0 6px; }
+.reading-stats__duration span { white-space: nowrap; }
+.reading-stats__chart-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.reading-stats h3 { margin: 0; font-size: 0.875rem; font-weight: 600; }
+.reading-stats__chart { width: 100%; min-width: 0; height: 220px; margin-top: 16px; }
+.reading-stats__table { margin-top: 16px; font-size: 0.75rem; color: var(--text-muted); }
+.reading-stats summary { width: fit-content; padding-block: 4px; cursor: pointer; }
+.reading-stats summary:hover { color: var(--text-primary); }
+.reading-stats__table table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+.reading-stats__table th, .reading-stats__table td { text-align: left; padding: 8px 4px; border-bottom: 1px solid var(--border); }
+.reading-stats .reading-stats__books-title { margin-top: 28px; }
+.reading-stats__books { padding: 0; margin: 12px 0 16px; list-style: none; }
+.reading-stats__books li { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding-block: 16px; border-bottom: 1px solid var(--border-light); }
+.reading-stats__books li > div { min-width: 0; }
+.reading-stats__books a { color: var(--text-primary); overflow-wrap: anywhere; }
+.reading-stats__books a:hover { color: var(--accent); }
+.reading-stats__books p { margin: 4px 0 0; color: var(--text-muted); font-size: 0.75rem; }
+.reading-stats__books li > span { flex-shrink: 0; font-size: 0.8125rem; color: var(--text-secondary); }
+.reading-stats__help { margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--border); color: var(--text-muted); font-size: 0.75rem; }
+.reading-stats__help p { margin: 10px 0 0; }
+.reading-stats__empty, .reading-stats__notice { padding-block: 24px; color: var(--text-secondary); }
+.reading-stats__empty p, .reading-stats__notice p { margin: 0 0 12px; }
+@media (max-width: 600px) {
+  .profile-tabs { overflow-x: auto; }
+  .profile-tab { flex-shrink: 0; }
+  .reading-stats__metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px 16px; padding: 20px; }
+  .reading-stats__books li { align-items: flex-start; gap: 12px; }
+  .reading-stats__books li > span { flex-shrink: 1; text-align: right; }
+  .reading-stats__ranges button, .reading-stats__ranges select { min-height: 44px; padding-inline: 10px; }
+  .reading-stats__period button, .reading-stats__chart-head button { min-height: 44px; min-width: 44px; }
+}
+
+/* Preserve the viewport during asynchronous range changes; animate within it. */
+.reading-stats { overflow-anchor: none; }
+.reading-stats__status { min-height: 1.7em; margin: 8px 0 0; color: var(--text-muted); font-size: 0.75rem; }
+.reading-stats__content { animation: reading-stats-enter var(--motion-state-enter) var(--ease-out); transition: opacity var(--motion-state-exit) var(--ease-out); }
+.reading-stats[data-updating='true'] .reading-stats__content { opacity: 0.55; }
+.reading-stats :is(button, select, a) { transition: background-color var(--motion-state-enter) var(--ease-out), color var(--motion-state-enter) var(--ease-out), opacity var(--motion-state-enter) var(--ease-out); }
+.reading-stats__ranges button:hover:not([aria-pressed='true']), .reading-stats__chart-head button:hover:not([aria-pressed='true']) { background: var(--bg-hover); }
+@keyframes reading-stats-enter {
+  from { opacity: 0.6; transform: translateY(var(--motion-state-offset)); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reading-stats__content { animation: none; transition: none; }
+  .reading-stats :is(button, select, a) { transition: none; }
+}

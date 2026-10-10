@@ -7,7 +7,7 @@ import { clientIpFromContext } from './ai/audit-context'
 import { resolveContentAccess } from './content-access'
 
 /** PG 原子计数，多个 API 实例共享。未知 IP 不以可伪造头部代替。 */
-export async function checkContentRate(c: Context<AuthEnv>, action: 'chapter' | 'unlock') {
+export async function checkContentRate(c: Context<AuthEnv>, action: 'chapter' | 'unlock' | 'reading-stats') {
   if (action === 'chapter' && c.get('user')?.role === 'admin') return null
   const now = Date.now()
   const config = loadConfig()
@@ -16,9 +16,9 @@ export async function checkContentRate(c: Context<AuthEnv>, action: 'chapter' | 
   const limits: Array<[string, number]> = []
   const user = c.get('user')
   const accountId = user?.id || (action === 'chapter' ? (await resolveContentAccess(c)).accountId : undefined)
-  if (accountId) limits.push([`${action}:user:${accountId}`, action === 'unlock' ? 5 : chapterLimit])
+  if (accountId) limits.push([`${action}:user:${accountId}`, action === 'unlock' ? 5 : action === 'reading-stats' ? 60 : chapterLimit])
   const ip = clientIpFromContext(c)
-  if (ip) limits.push([`${action}:ip:${ip}`, action === 'unlock' ? 20 : chapterLimit * 2])
+  if (ip) limits.push([`${action}:ip:${ip}`, action === 'unlock' ? 20 : action === 'reading-stats' ? 120 : chapterLimit * 2])
   const db = getDb()
   await db.query('DELETE FROM content_request_limits WHERE key_hash IN (SELECT key_hash FROM content_request_limits WHERE expires_at <= $1 LIMIT 100)', [now])
   for (const [key, max] of limits) {

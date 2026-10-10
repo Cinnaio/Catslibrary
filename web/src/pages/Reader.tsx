@@ -34,6 +34,7 @@ import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useReaderSettings, FONT_SIZES, PAGE_WIDTHS, AUTO_SCROLL_SPEEDS } from '../hooks/useReaderSettings'
 import type { ReaderSettingKey } from '../hooks/useReaderSettings'
 import { useProgressSync } from '../hooks/useProgressSync'
+import { useReadingStats } from '../hooks/useReadingStats'
 import { VirtualList } from '../components/reader/VirtualList'
 import { SettingsControls } from '../components/reader/SettingsControls'
 import { BookmarkPanel } from '../components/reader/BookmarkPanel'
@@ -117,6 +118,15 @@ export default function Reader() {
     setChapterThoughts((prev) => prev.some((item) => item.id === thought.id) ? prev : [...prev, thought])
   }, [])
   const thoughtImages = useThoughtImages(chapter?.id || '', user?.id || '', onImageThoughtPublished)
+
+  const statsReady = useCallback(() => hasRestoredRef.current, [])
+  useReadingStats({
+    userId: user?.id || '', novelId: chapter?.novelId || novelId, chapterId: chapter?.id || '',
+    enabled: !loading && !notFound && !loadError && !blocked && !sessionLoading && !checking && !policyBlocked
+      && chapter?.id === chapterId && !dropdownOpen && !bookmarkPanelOpen && !bookmarkNoteOpen
+      && !settingsPanelOpen && !mobileSettingsOpen && !mobileLibraryOpen && !thoughtPanelOpen,
+    contentMode: mode, ready: statsReady,
+  })
 
   // 自动滚动
   const autoScrollRef = useRef({ running: false, frame: 0, lastTs: 0, remainder: 0 })
