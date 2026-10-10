@@ -311,10 +311,6 @@
 }
 .profile-session-list {
   display: grid;
-  max-height: 300px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-width: thin;
 }
 .profile-session-card {
   display: grid;
@@ -712,40 +708,119 @@
     transition: none;
   }
 }
+/* Reading data follows the account settings' quiet, divided rows. */
 .reading-data-section {
   grid-column: 1 / -1;
 }
+.reading-data-section .profile-edit-panel {
+  font-size: 0.875rem;
+  line-height: 1.7;
+}
+.reading-data-heading {
+  margin-bottom: 24px;
+}
+.reading-data-heading p {
+  margin: 6px 0 0;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}
+.reading-data-message {
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  background: var(--accent-subtle);
+  overflow-wrap: anywhere;
+}
 .reading-data-block {
-  padding-block: 1.25rem;
+  min-width: 0;
+  padding-block: 20px;
   border-top: 1px solid var(--border);
   display: grid;
-  gap: 0.75rem;
+  gap: 12px;
 }
-.reading-data-block h3,
+.reading-data-block__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.reading-data-block__head > div {
+  min-width: 0;
+}
+.reading-data-block h3 {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.5;
+}
 .reading-data-block p {
   margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
 }
-.reading-data-block > .btn {
+.reading-data-block__head p {
+  margin-top: 4px;
+  color: var(--text-muted);
+}
+.reading-data-block .reading-data-hint {
+  color: var(--text-muted);
+}
+.reading-data-block .btn {
+  flex-shrink: 0;
   justify-self: start;
+  min-height: 36px;
+  padding: 8px 14px;
+  font-size: 0.8125rem;
+  border-radius: var(--radius-md);
+}
+.reading-data-result {
+  display: grid;
+  gap: 12px;
 }
 .reading-data-list {
   margin: 0;
   padding: 0;
   list-style: none;
   display: grid;
-  gap: 0.75rem;
+}
+.reading-data-list:empty {
+  display: none;
 }
 .reading-data-list li {
   display: grid;
-  gap: 0.25rem;
+  gap: 4px;
+  padding-block: 10px;
   overflow-wrap: anywhere;
+}
+.reading-data-list li + li {
+  border-top: 1px solid var(--border);
+}
+.reading-data-list li strong {
+  font-size: 0.8125rem;
+  font-weight: 500;
 }
 .reading-data-list li span {
   color: var(--text-muted);
-  font-size: 0.875rem;
+  font-size: 0.75rem;
 }
 .reading-data-confirm {
   display: flex;
   align-items: flex-start;
-  gap: 0.5rem;
+  gap: 8px;
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}
+.reading-data-confirm input {
+  flex-shrink: 0;
+  margin-top: 5px;
+  accent-color: var(--accent);
+}
+@media (max-width: 600px) {
+  .reading-data-block__head {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
 }

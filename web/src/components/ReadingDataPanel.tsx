@@ -139,21 +139,27 @@ export function ReadingDataPanel({ userId, username }: { userId: string; usernam
   return (
     <section className="profile-section profile-security-section reading-data-section" aria-label="阅读数据">
       <div className="profile-edit-panel">
-        <h2 className="profile-section-heading">阅读数据</h2>
-        <p>
-          当前账号：<strong>@{username}</strong>。检查与修复仅处理此账号在当前阅读模式下的数据。
-        </p>
-        <p role="status" aria-live="polite">
+        <div className="reading-data-heading">
+          <div>
+            <h2 className="profile-section-heading">阅读数据</h2>
+            <p>@{username} · {safeMode ? '安全模式' : '成人内容模式'}</p>
+          </div>
+        </div>
+        <p className="reading-data-message" role="status" aria-live="polite" hidden={!message}>
           {message}
         </p>
         <div className="reading-data-block">
-          <h3>检查历史数据</h3>
-          <p>检查书签章节关联、作品与章节名称，以及阅读进度。修复前会列出具体处理内容。</p>
-          <button className="btn btn--secondary" disabled={busy} onClick={() => void preview('repair')}>
-            {busy ? '处理中…' : '检查当前账号'}
-          </button>
+          <div className="reading-data-block__head">
+            <div>
+              <h3>检查历史数据</h3>
+              <p>检查当前账号的书签与阅读进度，修复前可查看变更。</p>
+            </div>
+            <button className="btn btn--secondary" disabled={busy} onClick={() => void preview('repair')}>
+              {busy ? '处理中…' : '检查当前账号'}
+            </button>
+          </div>
           {repair && (
-            <>
+            <div className="reading-data-result">
               <p>{repair.items.length ? `发现 ${repair.items.length} 项待修复记录。` : '本次检查没有发现异常。'}</p>
               <Preview key={repair.previewToken} preview={repair} />
               {repair.items.length > 0 && (
@@ -161,28 +167,30 @@ export function ReadingDataPanel({ userId, username }: { userId: string; usernam
                   确认修复 {repair.items.length} 项
                 </button>
               )}
-            </>
+            </div>
           )}
         </div>
         <div className="reading-data-block">
-          <h3>恢复旧浏览器数据</h3>
-          <p>旧版浏览器数据没有账号归属。请确认这些记录属于你，再恢复到 @{username}。账号已有的书签、书架与阅读进度（包括已清除的进度）会保留。</p>
-          <p>
-            {legacyCount
-              ? `发现 ${legacy.data.bookmarks.length} 个旧书签、${legacy.data.progress.length} 条阅读历史、${legacy.data.bookshelf.length} 本书架记录。`
-              : '当前浏览器没有可识别的旧版阅读数据。'}
-          </p>
+          <div className="reading-data-block__head">
+            <div>
+              <h3>恢复旧浏览器数据</h3>
+              <p>{legacyCount
+                ? `${legacy.data.bookmarks.length} 个书签 · ${legacy.data.progress.length} 条阅读历史 · ${legacy.data.bookshelf.length} 本书架记录`
+                : '当前浏览器没有可识别的旧版阅读数据。'}</p>
+            </div>
+            <button className="btn btn--secondary" disabled={busy} onClick={() => void preview('restore')}>
+              预览可恢复数据
+            </button>
+          </div>
           {legacy.invalid > 0 && <p>另有 {legacy.invalid} 条格式无效的记录将跳过。</p>}
           {legacy.errors.map((error, i) => (
             <p key={i} className="profile-empty-note">
               {error}
             </p>
           ))}
-          <button className="btn btn--secondary" disabled={busy} onClick={() => void preview('restore')}>
-            预览可恢复数据
-          </button>
           {restore && (
-            <>
+            <div className="reading-data-result">
+              <p className="reading-data-hint">旧数据没有账号归属，恢复前需确认属于你。账号已有记录与已清除的进度会保留。</p>
               <p>
                 可添加 {restoreCount} 项，跳过 {restore.items.length - restoreCount} 项。原始浏览器数据会保留。
               </p>
@@ -198,11 +206,11 @@ export function ReadingDataPanel({ userId, username }: { userId: string; usernam
                   </button>
                 </>
               )}
-            </>
+            </div>
           )}
         </div>
         {history.length > 0 && (
-          <div className="reading-data-block">
+          <div className="reading-data-block reading-data-block--history">
             <h3>最近操作</h3>
             <ul className="reading-data-list">
               {history.map((result) => (
