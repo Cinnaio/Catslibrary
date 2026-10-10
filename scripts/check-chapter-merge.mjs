@@ -7,7 +7,7 @@ const out = '.impeccable/review/chapter-merge'
 await mkdir(out, { recursive: true })
 const novel = { id: 'merge-book', title: '山雨来时：一段很长的书名用于检查弹窗换行', author: '测试作者', chapterCount: 272 }
 const changes = Array.from({ length: 97 }, (_, i) => ({ localChapterId: `c-${i}`, localOrder: i + 1, oldTitle: `第${i + 1}章`, newTitle: `山雨来时 · ${i + 1}`, eligible: i < 92, partIndex: 1, partCount: i % 4 === 0 ? 2 : 1 }))
-const fixture = { runId: 'fixture-run', site: 'po18tw', metadata: { title: novel.title, author: novel.author, description: '示例简介。'.repeat(140), coverUrl: '', categories: ['现代'], status: 'completed' }, sourceChapterCount: 100, localChapterCount: 272, matchedSourceCount: 97, unmatchedSource: [{ key: 's', order: 99, title: '未匹配源章' }], unmatchedLocal: [{ id: 'u', order: 272, title: '未匹配本地章节' }], warnings: [], mappings: [], changes }
+const fixture = { runId: 'fixture-run', site: 'po18tw', metadata: { title: novel.title, author: novel.author, description: '示例简介。'.repeat(140), coverUrl: '', categories: ['现代'], status: 'completed' }, sourceChapterCount: 100, localChapterCount: 272, matchedSourceCount: 97, unmatchedSource: Array.from({ length: 3 }, (_, i) => ({ key: `s-${i}`, order: 60 + i, title: `源站未匹配章节 · ${i + 1}` })), unmatchedLocal: Array.from({ length: 175 }, (_, i) => ({ id: `u-${i}`, order: 93 + i, title: `第${101 + i}章 山雨来时，沿着旧时的目录寻找线索；长标题保持完整，逐条核对而不截断。` })), warnings: [], mappings: [], changes }
 const browser = await chromium.launch({ channel: 'msedge', headless: true })
 try {
   for (const [width, height, theme] of [[1440, 1000, 'light'], [676, 886, 'light'], [390, 844, 'light'], [1440, 1000, 'dark']]) {
@@ -50,6 +50,18 @@ try {
     assert.equal(await dialog.locator('.chapter-merge-dialog__source').getAttribute('open'), null)
     assert.equal(await dialog.locator('.chapter-merge-dialog__changes > li').count(), 20)
     await page.screenshot({ path: `${out}/${width}-${theme}-preview.png` })
+    await dialog.locator('.chapter-merge-dialog__unmatched > summary').click()
+    const localList = dialog.getByRole('list', { name: '本地章节未匹配列表' })
+    assert.equal(await localList.locator('li').count(), 10)
+    await dialog.getByRole('region', { name: '本地章节', exact: true }).scrollIntoViewIfNeeded()
+    await page.screenshot({ path: `${out}/${width}-${theme}-unmatched.png` })
+    assert.equal(await localList.evaluate(el => el.scrollWidth <= el.clientWidth), true)
+    await dialog.getByRole('button', { name: '本地章节下一页', exact: true }).click()
+    assert.equal((await localList.locator('li').first().innerText()).includes('103'), true)
+    for (let i = 0; i < 16; i++) await dialog.getByRole('button', { name: '本地章节下一页', exact: true }).click()
+    assert.equal(await localList.locator('li').count(), 5)
+    assert.equal(await dialog.getByRole('button', { name: '本地章节下一页', exact: true }).isDisabled(), true)
+    await dialog.locator('.chapter-merge-dialog__unmatched > summary').click()
     assert.equal(await dialog.evaluate(el => el.scrollWidth <= el.clientWidth), true)
     if (width === 1440) assert.equal(Math.round((await dialog.boundingBox()).width), 760)
     const footer = await dialog.locator('[data-slot="dialog-footer"]').boundingBox()
@@ -58,7 +70,7 @@ try {
     assert.equal(await dialog.locator('.chapter-merge-dialog__changes > li').count(), 5)
     await dialog.getByRole('button', { name: '全部 97', exact: true }).click()
     await dialog.getByRole('button', { name: '下一页' }).click()
-    assert.equal((await dialog.locator('.chapter-merge-dialog__order').first().innerText()).trim(), '21')
+    assert.equal((await dialog.locator('.chapter-merge-dialog__changes .chapter-merge-dialog__order').first().innerText()).trim(), '21')
     await dialog.getByRole('searchbox').fill('山雨来时 · 97')
     assert.equal(await dialog.locator('.chapter-merge-dialog__changes > li').count(), 1)
     await dialog.locator('.chapter-merge-dialog__metadata > summary').click()

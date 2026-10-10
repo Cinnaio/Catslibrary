@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, ChevronDown } from 'lucide-react'
 
 interface Props {
   preview: SourceSyncPreview
@@ -47,10 +47,12 @@ export default function ChapterMergePreview({ preview, fields, onFieldsChange, m
       <p>{preview.site === 'jjwxc' ? '晋江' : preview.site === 'po18tw' ? 'PO18.tw' : preview.site} · 源站 {preview.sourceChapterCount} 章 / 本地 {preview.localChapterCount} 节 · 已匹配 {preview.matchedSourceCount} 章</p>
       {manual > 0 && <p className="chapter-merge-dialog__warning">{manual} 个标题需要人工核对，本次不会自动更新。</p>}
       {(preview.unmatchedSource.length > 0 || preview.unmatchedLocal.length > 0) && <details className="chapter-merge-dialog__unmatched">
-        <summary>未匹配：源站 {preview.unmatchedSource.length} 章，本地 {preview.unmatchedLocal.length} 节</summary>
-        <p className="admin-dialog-hint">未匹配章节保持原样，可对照目录后单独处理。</p>
-        {preview.unmatchedSource.length > 0 && <p>源站：{preview.unmatchedSource.map((chapter) => `第 ${chapter.order} 章 ${chapter.title}`).join('；')}</p>}
-        {preview.unmatchedLocal.length > 0 && <p>本地：{preview.unmatchedLocal.map((chapter) => `第 ${chapter.order} 节 ${chapter.title}`).join('；')}</p>}
+        <summary><ChevronDown size={16} aria-hidden="true" /><span className="chapter-merge-dialog__unmatched-title">未匹配章节</span><span>源站 {preview.unmatchedSource.length} 章 · 本地 {preview.unmatchedLocal.length} 节</span></summary>
+        <div className="chapter-merge-dialog__unmatched-content">
+          <p className="admin-dialog-hint">以下章节保持原样，不参与本次更新。</p>
+          {preview.unmatchedSource.length > 0 && <UnmatchedChapterList label="源站章节" chapters={preview.unmatchedSource.map((chapter) => ({ ...chapter, id: chapter.key }))} />}
+          {preview.unmatchedLocal.length > 0 && <UnmatchedChapterList label="本地章节" chapters={preview.unmatchedLocal} />}
+        </div>
       </details>}
       {preview.warnings.map((warning) => <p className="chapter-merge-dialog__warning" key={warning}>{warning}</p>)}
     </div>
@@ -105,5 +107,28 @@ export default function ChapterMergePreview({ preview, fields, onFieldsChange, m
       <summary>查看拆分章节映射</summary>
       {preview.mappings.filter((mapping) => mapping.relation === 'split').map((mapping) => <p key={mapping.sourceChapterKey}>源站第 {mapping.sourceOrder} 章「{mapping.sourceTitle}」 → 本地 {mapping.localChapterIds.length} 节</p>)}
     </details>}
+  </section>
+}
+
+function UnmatchedChapterList({ label, chapters }: { label: string; chapters: Array<{ id: string; order: number; title: string }> }) {
+  const [page, setPage] = useState(1)
+  const pageSize = 10
+  const pages = Math.max(1, Math.ceil(chapters.length / pageSize))
+  const currentPage = Math.min(page, pages)
+  return <section className="chapter-merge-dialog__unmatched-group" aria-label={label}>
+    <h4>{label}<span>{chapters.length} {label === '源站章节' ? '章' : '节'}</span></h4>
+    <div className="chapter-merge-dialog__unmatched-columns" aria-hidden="true"><span>目录序号</span><span>章节标题</span></div>
+    <ol aria-label={`${label}未匹配列表`}>
+      {chapters.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((chapter) => <li key={chapter.id}>
+        <span className="chapter-merge-dialog__order"><span className="sr-only">目录序号 </span>{chapter.order}</span>
+        <span>{chapter.title || '未命名章节'}</span>
+      </li>)}
+    </ol>
+    {pages > 1 && <nav className="chapter-merge-dialog__pagination" aria-label={`${label}未匹配分页`}>
+      <span>{(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, chapters.length)} / {chapters.length}</span>
+      <Button variant="ghost" aria-label={`${label}上一页`} disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>上一页</Button>
+      <span>{currentPage} / {pages}</span>
+      <Button variant="ghost" aria-label={`${label}下一页`} disabled={currentPage === pages} onClick={() => setPage(currentPage + 1)}>下一页</Button>
+    </nav>}
   </section>
 }

@@ -99,6 +99,31 @@
 .chapter-merge-dialog__preview-summary h3 strong { color: var(--accent-hover); font-weight: 600; }
 .chapter-merge-dialog__preview p { margin: 0; overflow-wrap: anywhere; }
 .chapter-merge-dialog__preview-summary > p { font-size: 0.8125rem; }
+.chapter-merge-dialog__unmatched > summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--admin-space-2);
+  min-height: 2.75rem;
+  list-style: none;
+  border-radius: var(--radius-sm);
+}
+.chapter-merge-dialog__unmatched > summary::-webkit-details-marker { display: none; }
+.chapter-merge-dialog__unmatched > summary > svg { flex: 0 0 auto; transform: rotate(-90deg); }
+.chapter-merge-dialog__unmatched[open] > summary > svg { transform: rotate(0); }
+.chapter-merge-dialog .chapter-merge-dialog__unmatched > summary > span { margin: 0; }
+.chapter-merge-dialog .chapter-merge-dialog__unmatched > summary > .chapter-merge-dialog__unmatched-title { color: var(--text-primary); font-size: 0.875rem; font-weight: 500; }
+.chapter-merge-dialog__unmatched-content { display: grid; gap: var(--admin-space-4); padding-top: var(--admin-space-2); }
+.chapter-merge-dialog__unmatched-group { min-width: 0; }
+.chapter-merge-dialog__unmatched-group h4 { display: flex; align-items: baseline; gap: var(--admin-space-2); margin: 0 0 var(--admin-space-2); color: var(--text-primary); font-size: 0.875rem; font-weight: 500; }
+.chapter-merge-dialog__unmatched-group h4 > span { font-size: 0.75rem; font-weight: 400; color: var(--text-muted); }
+.chapter-merge-dialog__unmatched-group ol { list-style: none; padding: 0; margin: 0; }
+.chapter-merge-dialog__unmatched-columns,
+.chapter-merge-dialog__unmatched-group li { display: grid; grid-template-columns: 4rem minmax(0, 1fr); gap: var(--admin-space-3); padding-block: var(--admin-space-2); }
+.chapter-merge-dialog__unmatched-columns { color: var(--text-muted); font-size: 0.75rem; }
+.chapter-merge-dialog__unmatched-group li { border-top: 1px solid var(--admin-border); font-size: 0.8125rem; line-height: 1.65; }
+.chapter-merge-dialog__unmatched-group li > span { min-width: 0; overflow-wrap: anywhere; }
+.chapter-merge-dialog__unmatched-group .chapter-merge-dialog__pagination { margin-top: var(--admin-space-2); }
 .chapter-merge-dialog__warning { color: color-mix(in srgb, var(--color-warning) 70%, var(--text-primary)); }
 .chapter-merge-dialog__error { color: var(--color-danger); font-size: 0.875rem; margin: 0; }
 .chapter-merge-dialog__preview-section { min-width: 0; margin-top: var(--admin-space-4); }
