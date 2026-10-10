@@ -21,7 +21,8 @@ export default defineConfig({
     proxy: {
       '/api': {
         target: process.env.VITE_API_PROXY || 'http://127.0.0.1:8787',
-        changeOrigin: true,
+        // 保留浏览器访问的 Host，使后端同源 CSRF 校验与 Origin 一致。
+        changeOrigin: false,
       },
     },
   },
