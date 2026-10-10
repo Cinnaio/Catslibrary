@@ -152,6 +152,7 @@ try {
     BACKUP_REHEARSAL_MANAGEMENT_INTEGRATION_DATABASE_URL: 'backup_integration_rehearsal_management_1234abcd',
     BACKUP_OFFLINE_INTEGRATION_DATABASE_URL: 'backup_integration_offline',
     BACKUP_OFFLINE_INTEGRATION_TARGET_URL: 'backup_integration_offline_target',
+    BACKUP_READING_DATA_INTEGRATION_DATABASE_URL: 'backup_integration_reading_data',
   }
   const admin = new pg.Pool({ connectionString: url('postgres') })
   try {
@@ -204,6 +205,7 @@ INSERT INTO backup_rehearsal.guard VALUES ('purpose', 'zhi-zhou-backup-rehearsal
       path.join(repo, 'node_modules/vitest/vitest.mjs'),
       'run',
       'src/services/backups',
+      'src/services/reading-data.integration.test.ts',
       '--no-file-parallelism',
       '--reporter=default',
       '--reporter=json',
@@ -221,6 +223,7 @@ INSERT INTO backup_rehearsal.guard VALUES ('purpose', 'zhi-zhou-backup-rehearsal
     'rehearsal-create.integration.test.ts',
     'rehearsal-management.integration.test.ts',
     'offline.integration.test.ts',
+    'reading-data.integration.test.ts',
   ]
   for (const file of expected) {
     const suite = results.testResults.find((item) => path.basename(item.name) === file)

@@ -30,6 +30,7 @@ import { bookImportRoutes } from './routes/book-import'
 import { adminSiteSettingsRoutes, publicSiteSettingsRoutes } from './routes/site-settings'
 import { backupRoutes } from './routes/backups'
 import { backupMaintenance } from './middlewares/backup-maintenance'
+import { readingDataRoutes } from './routes/reading-data'
 
 /** 全局应用：中间件装配 + 路由注册（阶段化增量挂载）。 */
 export const app = new Hono()
@@ -92,3 +93,4 @@ app.route('/api/book-import', bookImportRoutes)
 app.route('/api/site-settings', publicSiteSettingsRoutes)
 app.route('/api/admin/site-settings', adminSiteSettingsRoutes)
 app.route('/api/admin/backups', backupRoutes)
+app.route('/api/reading-data', readingDataRoutes)

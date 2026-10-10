@@ -114,7 +114,8 @@ progressRoutes.get('/', optionalUser(), async (c) => {
 
   const row = await first<ProgressRow>(
     db,
-    `SELECT ${PROGRESS_COLUMNS} FROM reading_progress WHERE user_id = $1 AND novel_id = $2`,
+    `SELECT ${PROGRESS_COLUMNS} FROM reading_progress p WHERE user_id = $1 AND novel_id = $2
+     AND (deleted_at>0 OR EXISTS(SELECT 1 FROM chapters ch WHERE ch.id=p.chapter_id AND ch.novel_id=p.novel_id))`,
     [userId, novelId],
   )
   return c.json(stateResponse(row), 200, contentPolicyHeaders())
@@ -135,8 +136,8 @@ async function listRecent(c: Context<AuthEnv>) {
     `SELECT rp.novel_id, rp.chapter_id, rp.scroll_percent, rp.updated_at,
             n.title AS novel_title, c.title AS chapter_title, c.sort_order AS chapter_order
      FROM reading_progress rp
-     LEFT JOIN novels n ON n.id = rp.novel_id
-     LEFT JOIN chapters c ON c.id = rp.chapter_id
+     JOIN novels n ON n.id = rp.novel_id
+     JOIN chapters c ON c.id = rp.chapter_id AND c.novel_id = rp.novel_id
      WHERE rp.user_id = $1 AND COALESCE(rp.deleted_at, 0) = 0${ratingFilter}
      ORDER BY rp.updated_at DESC
      LIMIT $2`,

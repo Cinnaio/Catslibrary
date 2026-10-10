@@ -30,7 +30,8 @@ bookshelfRoutes.get('/', requireUser(), async (c) => {
        FROM user_bookshelf b
        JOIN novels n ON n.id = b.novel_id
        LEFT JOIN reading_progress rp ON rp.user_id = b.user_id AND rp.novel_id = b.novel_id AND COALESCE(rp.deleted_at, 0) = 0
-       LEFT JOIN chapters c ON c.id = rp.chapter_id
+         AND EXISTS(SELECT 1 FROM chapters valid WHERE valid.id=rp.chapter_id AND valid.novel_id=rp.novel_id)
+       LEFT JOIN chapters c ON c.id = rp.chapter_id AND c.novel_id = rp.novel_id
        WHERE b.user_id = $1${ratingFilter} AND ($4 = '' OR n.id = $4)
        ORDER BY b.updated_at DESC, b.novel_id
        LIMIT $2 OFFSET $3`,
@@ -41,8 +42,8 @@ bookshelfRoutes.get('/', requireUser(), async (c) => {
       `SELECT rp.novel_id, rp.chapter_id, rp.scroll_percent, rp.updated_at,
               n.title AS novel_title, n.content_rating, c.title AS chapter_title, c.sort_order AS chapter_order
        FROM reading_progress rp
-       LEFT JOIN novels n ON n.id = rp.novel_id
-       LEFT JOIN chapters c ON c.id = rp.chapter_id
+       JOIN novels n ON n.id = rp.novel_id
+       JOIN chapters c ON c.id = rp.chapter_id AND c.novel_id = rp.novel_id
        WHERE rp.user_id = $1 AND COALESCE(rp.deleted_at, 0) = 0${ratingFilter}
        ORDER BY rp.updated_at DESC
        LIMIT 10`,

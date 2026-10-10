@@ -14,9 +14,10 @@ bookmarksRoutes.get('/', requireUser(), async (c) => {
   const ratingFilter = access.canViewRestricted && c.req.query('contentMode') !== 'safe' ? '' : " AND COALESCE(n.content_rating, 'general') <> 'restricted'"
   const rows = await all<Record<string, unknown>>(
     db,
-    `SELECT b.*
+    `SELECT b.*, n.title AS novel_title, ch.title AS chapter_title, ch.sort_order AS chapter_order
      FROM user_bookmarks b
-     LEFT JOIN novels n ON n.id = b.novel_id
+     JOIN novels n ON n.id = b.novel_id
+     JOIN chapters ch ON ch.id = b.chapter_id AND ch.novel_id = b.novel_id
      WHERE b.user_id = $1${ratingFilter}
      ORDER BY b.updated_at DESC`,
     [userId],
