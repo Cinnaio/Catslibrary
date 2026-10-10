@@ -10,6 +10,7 @@ import type { ChapterIllustration } from '@shared/chapter-illustrations'
 import type { LegacyReadingData, ReadingDataPreview, ReadingDataResult } from '@shared/reading-data'
 import type { LocalBookmark } from '@shared/types'
 import type {
+  BookImportAiReview,
   BookImportCommitResult,
   BookImportHistoryItem,
   BookImportPreview,
@@ -407,6 +408,17 @@ export const bookImportApi = {
   },
   rollback(runId: string, operationId = newOperationId('book-import-rollback')): Promise<BookImportRollbackResult> {
     return request('POST', `/book-import/${encodeURIComponent(runId)}/rollback`, { operationId }, true, operationHeaders(operationId))
+  },
+  /**
+   * AI 边界复核：只裁决证据不足的候选行，产出建议写进快照，不改动已落库的 payload。
+   * 服务端开关未开启时返回 403，前端据此提示去 AI 设置启用。
+   */
+  aiReview(runId: string): Promise<BookImportAiReview> {
+    return request('POST', `/book-import/${encodeURIComponent(runId)}/ai-review`, {}, true, {}, 180000)
+  },
+  /** 采纳复核建议：按行号覆盖重切并刷新快照，切分仍由确定性代码完成。 */
+  applyAiReview(runId: string): Promise<BookImportPreview> {
+    return request('POST', `/book-import/${encodeURIComponent(runId)}/ai-review/apply`, {}, true, {}, 120000)
   },
   history(limit = 20, offset = 0): Promise<{ items: BookImportHistoryItem[]; total?: number }> {
     return request('GET', `/book-import/history?limit=${encodeURIComponent(limit)}&offset=${encodeURIComponent(offset)}`, null, true)
@@ -1651,6 +1663,11 @@ export interface AiSettings {
   coverRenderTitle: boolean
   coverPlatform: string
   coverPromptMaxChars: number
+  // 书籍导入复核参数
+  importAiReviewEnabled: boolean
+  importAiMaxCandidates: number
+  importAiMaxTokens: number
+  importAiSystemPrompt: string
   // 运维配置
   taskRetentionDays: number
   // 审计配置

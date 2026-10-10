@@ -1,7 +1,9 @@
 import { AdminDialogContent } from '@/components/admin/AdminDialog'
+import ImportDiagnosticsPanel from '@/components/admin/ImportDiagnosticsPanel'
 import { useRef, useState } from 'react'
 import { bookImportApi } from '@/lib/api'
 import type {
+  BookImportAiReview,
   BookImportChapterDiff,
   BookImportCommitResult,
   BookImportMetadataDiff,
@@ -96,6 +98,9 @@ export default function BookImportDialog({
   const [metadataMode, setMetadataMode] = useState<'missing' | 'replace'>('missing')
   const [expandedChapterId, setExpandedChapterId] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  /** 复核独立于 busy：它只动快照不写书库，不应锁住整个弹窗的操作。 */
+  const [reviewBusy, setReviewBusy] = useState(false)
+  const [aiReview, setAiReview] = useState<BookImportAiReview | null>(null)
   const [dragActive, setDragActive] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState<BookImportCommitResult | null>(null)
@@ -108,6 +113,7 @@ export default function BookImportDialog({
     setMetadataFields(new Set(next.metadataDiff.filter((field) => field.selected).map((field) => field.field)))
     setMetadataMode('missing')
     setExpandedChapterId(null)
+    setAiReview(next.aiReview || null)
   }
 
   function chooseFile(next: File | null) {
@@ -212,6 +218,34 @@ export default function BookImportDialog({
       setError((err as Error).message || '导入提交失败，请重新打开预览检查。')
     } finally {
       setBusy(false)
+    }
+  }
+
+  /** AI 复核：只裁决诊断里证据不足的行，不改动已落库的 payload。 */
+  async function handleAiReview() {
+    if (!preview || reviewBusy) return
+    setError('')
+    setReviewBusy(true)
+    try {
+      setAiReview(await bookImportApi.aiReview(preview.runId))
+    } catch (err) {
+      setError((err as Error).message || 'AI 复核失败，请稍后重试。')
+    } finally {
+      setReviewBusy(false)
+    }
+  }
+
+  /** 采纳建议：服务端按行号覆盖重切并返回新快照，选择状态随之重置。 */
+  async function handleApplyAiReview() {
+    if (!preview || reviewBusy) return
+    setError('')
+    setReviewBusy(true)
+    try {
+      applyPreview(await bookImportApi.applyAiReview(preview.runId))
+    } catch (err) {
+      setError((err as Error).message || '采纳建议失败，请稍后重试。')
+    } finally {
+      setReviewBusy(false)
     }
   }
 
@@ -432,6 +466,18 @@ export default function BookImportDialog({
                 <SummaryStat label="无变化" value={preview.summary.unchangedCount} tone="unchanged" />
                 <SummaryStat label="需确认" value={preview.summary.conflictCount} tone="conflict" />
               </div>
+
+              {/* 解析诊断放在差异列表之前：切分有问题时，先看到原因再看差异，
+                  而不是等导入完才发现章节少了一半。 */}
+              {preview.diagnostics && (
+                <ImportDiagnosticsPanel
+                  diagnostics={preview.diagnostics}
+                  aiReview={aiReview}
+                  onReview={() => void handleAiReview()}
+                  onApply={() => void handleApplyAiReview()}
+                  busy={reviewBusy}
+                />
+              )}
 
               {changedMetadata.length > 0 && (
                 <section className="book-import__section" aria-labelledby="book-import-metadata-title">

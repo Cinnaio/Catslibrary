@@ -65,6 +65,19 @@ export interface AiSettings {
   /** 封面描述词最大字符数，封面生成页可编辑的提示词上限 */
   coverPromptMaxChars: number
 
+  // === 书籍导入复核参数 ===
+  /**
+   * 导入解析的 AI 边界复核开关。默认关闭：确定性启发式是主链路，
+   * AI 只裁决证据不足的少数行，属于可选增强而非必需环节。
+   */
+  importAiReviewEnabled: boolean
+  /** 单次复核最多送多少候选行，控制成本与超时。 */
+  importAiMaxCandidates: number
+  /** 复核输出的 token 上限（只需回行号数组，留思考余量即可）。 */
+  importAiMaxTokens: number
+  /** 复核系统提示词模板 */
+  importAiSystemPrompt: string
+
   // === 运维配置 ===
   /** 已结束 AI 任务的保留天数，启动时清理更早的记录 */
   taskRetentionDays: number
@@ -77,6 +90,29 @@ export interface AiSettings {
 }
 
 export const AI_SETTINGS_KEY = 'ai_settings'
+
+/**
+ * 导入复核的默认提示词。
+ *
+ * 输出刻意压到最小熵：只要行号数组。让模型回结构化长文会让解析本身变成新的
+ * 失败点，而「哪些行是章节标题」用行号集合表达已经完备——切分、编号归一化
+ * 与幂等键生成仍由确定性代码完成，模型不碰。
+ */
+export const DEFAULT_IMPORT_REVIEW_SYSTEM_PROMPT = `你是中文小说 TXT 导入的章节边界审核员。给定若干候选行及其上下文，判断每一行是否是章节标题。
+
+判定为章节标题：
+- 位于行首、独立成行，标记新章节开始。常见写法：「第0009章 标题」「第九章」「32 标题」「0073标题」「序章」「楔子」「番外」。
+
+判定为非章节标题：
+- 正文句子（尤其以句号、省略号收尾的长句）
+- 论坛楼层（「1楼」「2楼楼主」）
+- 编号列表项（「1：男强女弱…」）、数量（「1万点积分」「99%了」）、年份（「2016年」）
+- 章内重抄的标题副本（同一章里第二次出现的标题行）
+
+只输出 JSON，不要解释，不要 Markdown 代码块：
+{"headings":[12,47,88]}
+
+数组元素是判定为章节标题的候选行号。判定为非标题的行不要出现在数组里。只能使用给定的候选行号，不要臆造。`
 
 export const DEFAULT_AI_SETTINGS: AiSettings = {
   selectionImageRoles: ['admin'],
@@ -117,6 +153,12 @@ export const DEFAULT_AI_SETTINGS: AiSettings = {
   coverPlatform: 'default',
   coverPromptMaxChars: 2_000,
 
+  // 导入复核默认值：关闭，候选上限 80（约 7k 输入 token），输出只要行号数组
+  importAiReviewEnabled: false,
+  importAiMaxCandidates: 80,
+  importAiMaxTokens: 2000,
+  importAiSystemPrompt: DEFAULT_IMPORT_REVIEW_SYSTEM_PROMPT,
+
   // 运维配置默认值
   taskRetentionDays: 90,
 
@@ -149,6 +191,9 @@ const LIMITS = {
   coverImageSize: { maxLength: 20 },
   coverPlatform: { maxLength: 20 },
   coverPromptMaxChars: { min: 100, max: 10000 },
+  importAiMaxCandidates: { min: 10, max: 300 },
+  importAiMaxTokens: { min: 200, max: 8000 },
+  importAiSystemPrompt: { maxLength: 2000 },
   taskRetentionDays: { min: 7, max: 365 },
 }
 
@@ -238,6 +283,12 @@ export function normalizeAiSettings(raw: unknown): AiSettings {
     coverRenderTitle: obj.coverRenderTitle === undefined ? DEFAULT_AI_SETTINGS.coverRenderTitle : !!obj.coverRenderTitle,
     coverPlatform: clampEnum(obj.coverPlatform, DEFAULT_AI_SETTINGS.coverPlatform, ['default', 'fanqie', 'qidian', 'jinjiang', 'zhihu', 'qimao', 'ciweimao']),
     coverPromptMaxChars: clampInt(obj.coverPromptMaxChars, DEFAULT_AI_SETTINGS.coverPromptMaxChars, LIMITS.coverPromptMaxChars),
+
+    // 导入复核参数：默认关闭，只有管理员显式打开才会触发模型调用
+    importAiReviewEnabled: obj.importAiReviewEnabled === undefined ? DEFAULT_AI_SETTINGS.importAiReviewEnabled : !!obj.importAiReviewEnabled,
+    importAiMaxCandidates: clampInt(obj.importAiMaxCandidates, DEFAULT_AI_SETTINGS.importAiMaxCandidates, LIMITS.importAiMaxCandidates),
+    importAiMaxTokens: clampInt(obj.importAiMaxTokens, DEFAULT_AI_SETTINGS.importAiMaxTokens, LIMITS.importAiMaxTokens),
+    importAiSystemPrompt: clampString(obj.importAiSystemPrompt, DEFAULT_AI_SETTINGS.importAiSystemPrompt, LIMITS.importAiSystemPrompt.maxLength),
 
     // 运维配置
     taskRetentionDays: clampInt(obj.taskRetentionDays, DEFAULT_AI_SETTINGS.taskRetentionDays, LIMITS.taskRetentionDays),

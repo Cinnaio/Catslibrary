@@ -483,6 +483,7 @@ describe('book import normalization and diffing', () => {
       payload_json: JSON.stringify(payload),
       preview_json: JSON.stringify(preview),
       changes_json: '[]',
+      source_text: '',
       created_at: Date.now(),
       applied_at: 0,
       rolled_back_at: 0,

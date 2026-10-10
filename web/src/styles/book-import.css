@@ -1030,6 +1030,182 @@
   }
 }
 
+/* ---------- 解析诊断 ---------- */
+
+.book-import__diagnostics-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.book-import__anomalies {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.book-import__anomalies li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-sm);
+  background: var(--admin-panel-muted);
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.book-import__anomalies li svg {
+  flex-shrink: 0;
+  width: 1rem;
+  height: 1rem;
+  margin-top: 0.1rem;
+}
+
+/* 警告级异常（可能丢内容）与提示级分开：颜色只用来区分风险方向。 */
+.book-import__anomalies li[data-severity='warning'] {
+  border-color: color-mix(in srgb, var(--color-warning) 40%, var(--admin-border));
+  color: var(--text-primary);
+}
+
+.book-import__anomalies li[data-severity='warning'] svg {
+  color: var(--color-warning);
+}
+
+.book-import__anomalies li[data-severity='info'] svg {
+  color: var(--text-muted);
+}
+
+.book-import__diagnostics-detail {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 0.85rem;
+}
+
+.book-import__diagnostics-stats {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.4rem;
+  margin: 0;
+}
+
+.book-import__diagnostics-stats > div {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-sm);
+  background: var(--admin-panel-muted);
+}
+
+.book-import__diagnostics-stats dt {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.book-import__diagnostics-stats dd {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.book-import__diagnostics-review,
+.book-import__diagnostics-review-result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-sm);
+  background: var(--admin-panel-muted);
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.book-import__diagnostics-review-result {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--admin-border));
+}
+
+.book-import__diagnostics-clean {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.book-import__evidence-list {
+  max-height: 16rem;
+}
+
+.book-import__evidence-row {
+  display: grid;
+  grid-template-columns: 5rem minmax(0, 1fr);
+  gap: 0.2rem 0.7rem;
+  padding: 0.6rem 0.7rem;
+  border-bottom: 1px solid var(--admin-border);
+}
+
+.book-import__evidence-row:last-child {
+  border-bottom: 0;
+}
+
+.book-import__evidence-line {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.book-import__evidence-raw {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.book-import__evidence-risk {
+  grid-column: 2;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.book-import__evidence-row[data-verdict='prose'] .book-import__evidence-risk {
+  color: var(--color-warning);
+}
+
+@media (max-width: 720px) {
+  .book-import__diagnostics-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .book-import__diagnostics-actions,
+  .book-import__diagnostics-review,
+  .book-import__diagnostics-review-result {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .book-import__evidence-row {
+    grid-template-columns: 1fr;
+  }
+
+  .book-import__evidence-risk {
+    grid-column: 1;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .book-import__dropzone,
   .book-import__candidate {

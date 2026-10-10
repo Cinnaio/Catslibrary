@@ -2,14 +2,19 @@ import { createHash } from 'node:crypto'
 import { posix } from 'node:path'
 import { strFromU8, unzipSync } from 'fflate'
 import type {
+  BookImportAnomaly,
   BookImportChapterDiff,
   BookImportChapterInput,
   BookImportCommitResult,
+  BookImportDiagnostics,
+  BookImportLineEvidence,
   BookImportMetadataDiff,
   BookImportNovelCandidate,
   BookImportPayload,
   BookImportPreview,
   BookImportRollbackResult,
+  BookImportSplitStats,
+  BookImportVerdictConfidence,
   Novel,
 } from '@shared/types'
 import { all, withTx } from '../db/query'
@@ -143,22 +148,63 @@ function isPlausibleChapterNumber(value: number): boolean {
 }
 
 /**
+ * 行判定探针：命中返回标题，未命中带出否决理由。
+ *
+ * 判定不再只返回 string | null —— 诊断面板要回答「这一行为什么被当成 / 没当成
+ * 章节标题」，AI 复核要据此挑出证据不足的行。把理由丢弃在正则里，出问题时
+ * 只能靠人肉猜，也无法区分「规则判错」与「模型判错」。
+ */
+export interface HeadingProbe {
+  /** 命中的标题原文；未命中为 null。 */
+  title: string | null
+  /** 命中的规则标识；未命中时为 prose。 */
+  rule: string
+  confidence: BookImportVerdictConfidence
+  /** 形似章节却被否决时，触发否决的规则标识。 */
+  rejectedBy?: string
+  /** 证据不足，值得送模型复核。 */
+  uncertain: boolean
+}
+
+/** 未命中任何标题形状时的统一标识。 */
+const PROSE_RULE = 'prose'
+
+/**
+ * 无编号但形态像章名的短行：序章/楔子/尾声/番外这类真实存在的章名，
+ * 现有正则只认数字编号，整类会被判成正文——这是复核最该救回的漏判。
+ */
+const UNNUMBERED_HEADING_SHAPE = /^(?:序章|序言|序|楔子|引子|前言|尾声|终章|尾章|后记|番外|外传|大结局)(?:[\s:：].*)?$/u
+
+/**
  * 判断一行是否为可用的章节标题行。
  * 返回标题原文（已去首尾空白），非标题返回 null。
+ * 行为与引入证据前完全一致：probeChapterHeadingLine(line).title 即原返回值。
  */
 export function isChapterHeadingLine(line: string): string | null {
-  // 先剥掉行首零宽字符，否则 `⁡ 0083 和哥哥同居啦！` 这类行会整行漏判。
+  return probeChapterHeadingLine(line).title
+}
+
+/**
+ * 逐行判定并带出证据。判定顺序与阈值与历史实现一致，只是不再丢弃否决理由。
+ */
+export function probeChapterHeadingLine(line: string): HeadingProbe {
+  // 行首零宽字符（U+200B-U+200F、U+2060-U+206F、U+FEFF）是站点导出的常见污染，
+  // 不剥离会让整行识别失败。
   const raw = String(line || '').replace(LEADING_INVISIBLE, '')
   const match = raw.match(CHAPTER_HEADING)
   if (match) {
     const title = match[1]!.trim()
-    if (title.length > MAX_CHAPTER_TITLE_LENGTH) return null
+    if (title.length > MAX_CHAPTER_TITLE_LENGTH) {
+      return { title: null, rule: PROSE_RULE, confidence: 'medium', rejectedBy: 'overlong-title', uncertain: true }
+    }
     // 结尾标点按「是否短标题」二次约束，两类标点都不能一律否决：
     // - 「。」「…」倾向正文，但短标题合法（`第0006章 傅哥哥，疼……`）；
     // - 「！」「？」章节名常用（`第0022章 （纯剧情章）休得如此荒唐！`）。
     // 正文长句同时满足「句读收尾」与「超长」，短标题不会，故用长度区分。
-    if (title.length > MAX_SHORT_TITLE_LENGTH && (PROSE_ENDING.test(title) || EXCLAIM_ENDING.test(title))) return null
-    return title
+    if (title.length > MAX_SHORT_TITLE_LENGTH && (PROSE_ENDING.test(title) || EXCLAIM_ENDING.test(title))) {
+      return { title: null, rule: PROSE_RULE, confidence: 'medium', rejectedBy: 'prose-ending-long-title', uncertain: true }
+    }
+    return { title, rule: 'numbered-heading', confidence: 'high', uncertain: false }
   }
   // 裸数字标题：`0073 我们做夫妻也是可以的【2500珠加更】`（编号后有空白）
   const bare = raw.match(BARE_NUMBER_HEADING)
@@ -168,17 +214,27 @@ export function isChapterHeadingLine(line: string): string | null {
     const digits = bare[1]!.normalize('NFKC')
     const number = Number(digits)
     const body = bare[2]!
-    if (!isPlausibleChapterNumber(number)) return null
-    if (body.length > MAX_BARE_TITLE_LENGTH) return null
+    if (!isPlausibleChapterNumber(number)) {
+      return { title: null, rule: PROSE_RULE, confidence: 'high', rejectedBy: 'implausible-number', uncertain: false }
+    }
+    if (body.length > MAX_BARE_TITLE_LENGTH) {
+      return { title: null, rule: PROSE_RULE, confidence: 'medium', rejectedBy: 'overlong-title', uncertain: true }
+    }
     // 论坛楼层（`1 楼`、`2 楼楼主`）不是章节，见 FORUM_FLOOR_BODY。
-    if (FORUM_FLOOR_BODY.test(body)) return null
+    if (FORUM_FLOOR_BODY.test(body)) {
+      return { title: null, rule: PROSE_RULE, confidence: 'high', rejectedBy: 'forum-floor', uncertain: false }
+    }
     // 编号列表项（`1：男强女弱…`）与数量（`1万点积分…`）不是章节。
-    if (LIST_MARKER_BODY.test(body)) return null
-    if (QUANTITY_BODY.test(body)) return null
+    if (LIST_MARKER_BODY.test(body)) {
+      return { title: null, rule: PROSE_RULE, confidence: 'high', rejectedBy: 'list-marker', uncertain: false }
+    }
+    if (QUANTITY_BODY.test(body)) {
+      return { title: null, rule: PROSE_RULE, confidence: 'high', rejectedBy: 'quantity-unit', uncertain: false }
+    }
     // 编号后有显式空白时，句读不参与否决：作者会把公告类章名写成
     // 「81 晚点更新。顺便安利篇很香的兄妹骨。」，带句号仍是标题。
     // 真正需要挡掉的是超长正文，已由长度上限覆盖。
-    return `${digits} ${body}`.trim()
+    return { title: `${digits} ${body}`.trim(), rule: 'bare-number-spaced', confidence: 'medium', uncertain: false }
   }
   // 紧贴写法：`32她才不想要呢……【400珠加更】`、`0083和哥哥同居啦！`——编号与正文之间无空白。
   const tight = raw.match(BARE_NUMBER_TIGHT)
@@ -186,21 +242,41 @@ export function isChapterHeadingLine(line: string): string | null {
     const digits = tight[1]!.normalize('NFKC')
     const number = Number(digits)
     const body = tight[2]!
-    if (!isPlausibleChapterNumber(number)) return null
-    if (body.length > MAX_BARE_TITLE_LENGTH) return null
+    if (!isPlausibleChapterNumber(number)) {
+      return { title: null, rule: PROSE_RULE, confidence: 'high', rejectedBy: 'implausible-number', uncertain: false }
+    }
+    if (body.length > MAX_BARE_TITLE_LENGTH) {
+      return { title: null, rule: PROSE_RULE, confidence: 'medium', rejectedBy: 'overlong-title', uncertain: true }
+    }
     // 论坛楼层几乎都写成紧贴的 `1楼`/`2楼楼主`，是这条规则最容易吃进来的噪声。
-    if (FORUM_FLOOR_BODY.test(body)) return null
+    if (FORUM_FLOOR_BODY.test(body)) {
+      return { title: null, rule: PROSE_RULE, confidence: 'high', rejectedBy: 'forum-floor', uncertain: false }
+    }
     // 编号列表项与数量：`4:默认男主已结扎！！！`、`1万点积分？…`、`99%了，…`。
-    if (LIST_MARKER_BODY.test(body)) return null
-    if (QUANTITY_BODY.test(body)) return null
+    if (LIST_MARKER_BODY.test(body)) {
+      return { title: null, rule: PROSE_RULE, confidence: 'high', rejectedBy: 'list-marker', uncertain: false }
+    }
+    if (QUANTITY_BODY.test(body)) {
+      return { title: null, rule: PROSE_RULE, confidence: 'high', rejectedBy: 'quantity-unit', uncertain: false }
+    }
     // 无分隔符时风险最高，额外要求行首未缩进：标题在行首，正文段落带缩进。
     // 「117骗了她！」「117有点慌，……」都以缩进开头，是正文而非章节。
-    if (LEADING_INDENT.test(raw)) return null
+    // 但这条同样会挡住「缩进排版的正文章节标题」，故标记待复核而非确定否决。
+    if (LEADING_INDENT.test(raw)) {
+      return { title: null, rule: PROSE_RULE, confidence: 'low', rejectedBy: 'leading-indent', uncertain: true }
+    }
     // 句号收尾一律否决：「69是什么，她之前其实没有听过。」是正文，不是「69」章的标题。
-    if (PROSE_ENDING.test(body)) return null
-    return `${digits} ${body}`.trim()
+    if (PROSE_ENDING.test(body)) {
+      return { title: null, rule: PROSE_RULE, confidence: 'low', rejectedBy: 'prose-ending', uncertain: true }
+    }
+    return { title: `${digits} ${body}`.trim(), rule: 'bare-number-tight', confidence: 'low', uncertain: true }
   }
-  return null
+  // 无编号章名（序章/楔子/尾声/番外）：形态像标题却不带编号，现有规则整类漏判。
+  const shaped = raw.trim()
+  if (shaped && shaped.length <= MAX_CHAPTER_TITLE_LENGTH && !LEADING_INDENT.test(raw) && UNNUMBERED_HEADING_SHAPE.test(shaped)) {
+    return { title: null, rule: PROSE_RULE, confidence: 'low', rejectedBy: 'unnumbered-heading-shape', uncertain: true }
+  }
+  return { title: null, rule: PROSE_RULE, confidence: 'high', uncertain: false }
 }
 
 /**
@@ -225,6 +301,11 @@ export interface StoredImportRun {
   payload_json: string
   preview_json: string
   changes_json: string
+  /**
+   * 原始文本快照（仅 TXT 导入有内容）。AI 边界复核后的重切与诊断复盘
+   * 都依赖原始行序。历史列表刻意不选这一列，避免整份文件进列表响应。
+   */
+  source_text: string
   created_at: number
   applied_at: number
   rolled_back_at: number
@@ -237,6 +318,8 @@ export interface ImportPreviewOptions {
   payload: BookImportPayload
   targetNovelId?: string | null
   runId?: string
+  /** 解析诊断；URL 复核与旧快照可能没有。 */
+  diagnostics?: BookImportDiagnostics
 }
 
 interface ChapterRow {
@@ -442,6 +525,195 @@ export function normalizeImportChapterNumber(value: unknown): string {
   return result > 0 ? String(result) : raw
 }
 
+/** 诊断里保留的证据行上限：够覆盖真实问题文件，又不至于让快照膨胀。 */
+const MAX_DIAGNOSTIC_LINES = 300
+/** 收集阶段的宽松上限：先全收再按风险排序截断，避免先到先得挤掉关键行。 */
+const UNCERTAIN_COLLECT_LIMIT = MAX_DIAGNOSTIC_LINES * 4
+/** 证据行原文与上下文的截断长度。 */
+const MAX_DIAGNOSTIC_RAW = 200
+const MAX_DIAGNOSTIC_CONTEXT = 120
+
+/**
+ * 当前启发式版本。AI 复核结果与标注样本据此判断基线是否已变——
+ * 拿旧模型结论对照新规则，会把规则修复误读成模型失误。
+ */
+export const IMPORT_HEURISTIC_VERSION = 2
+
+/**
+ * 行号覆盖。AI 边界复核只回答「哪几行是章节边界」，切分与幂等键生成仍由
+ * 确定性代码完成：模型不参与编号归一化，那是增量导入的命脉（键一变，
+ * 整库已存在章节会被误判成新增）。
+ */
+export interface TextImportOverrides {
+  /** 强制视为章节标题的行号（1-based）。 */
+  forceHeadings?: Iterable<number>
+  /** 强制否决的行号（1-based），即使启发式命中了标题。 */
+  denyHeadings?: Iterable<number>
+}
+
+export interface TextImportResult {
+  payload: BookImportPayload
+  diagnostics: BookImportDiagnostics
+}
+
+interface DiagnosticsInput {
+  parser: BookImportSplitStats['parser']
+  totalLines: number
+  headingLines: number
+  volumeHeadingLines: number
+  mergedHeadingLines: number
+  frontMatterLines: number
+  frontMatterChars: number
+  droppedEmptyChapters: number
+  chapters: BookImportChapterInput[]
+  uncertain: BookImportLineEvidence[]
+  uncertainTotal: number
+}
+
+/** 正文字符数分位（忽略空白），用于识别切碎与漏切。 */
+function chapterCharStats(chapters: BookImportChapterInput[]): { min: number; median: number; max: number } {
+  const sizes = chapters
+    .map((chapter) => String(chapter.content || '').replace(/\s/g, '').length)
+    .sort((a, b) => a - b)
+  if (!sizes.length) return { min: 0, median: 0, max: 0 }
+  const mid = Math.floor(sizes.length / 2)
+  const median = sizes.length % 2 ? sizes[mid]! : Math.round((sizes[mid - 1]! + sizes[mid]!) / 2)
+  return { min: sizes[0]!, median, max: sizes[sizes.length - 1]! }
+}
+
+/**
+ * 章节编号序列统计。跳号指向漏切（90 章的文件只认出 45 章），
+ * 重号指向伪章节（论坛楼层被切成独立章节）——比字数分布更早暴露问题。
+ */
+function chapterNumberingStats(chapters: BookImportChapterInput[]): BookImportSplitStats['numbering'] {
+  const numbers: number[] = []
+  for (const chapter of chapters) {
+    const key = importChapterKey(chapter.title)
+    if (!key.startsWith('#')) continue
+    const value = Number(key.slice(1))
+    if (Number.isFinite(value) && value >= 1) numbers.push(value)
+  }
+  if (!numbers.length) return { detected: 0, min: 0, max: 0, missing: 0, duplicated: 0 }
+  const distinct = new Set(numbers)
+  const min = Math.min(...numbers)
+  const max = Math.max(...numbers)
+  return {
+    detected: numbers.length,
+    min,
+    max,
+    missing: Math.max(0, max - min + 1 - distinct.size),
+    duplicated: numbers.length - distinct.size,
+  }
+}
+
+/**
+ * 异常信号检测。这是「导入完了才发现 90 章只剩 45 章」的防线：
+ * 把静默的切分错误变成预览页上的可见告警，而不是等管理员事后翻章节列表。
+ * 阈值取保守值——宁可少报，也不要让正常文件淹没在噪声里。
+ */
+export function detectImportAnomalies(stats: BookImportSplitStats, uncertainCount: number): BookImportAnomaly[] {
+  const anomalies: BookImportAnomaly[] = []
+  const { numbering, chapterChars, chapterCount } = stats
+
+  if (chapterCount > 0 && stats.headingLines === 0) {
+    anomalies.push({ code: 'no-heading-detected', severity: 'warning', message: '整份文件没有识别到章节标题，已按单章导入' })
+  }
+  if (stats.droppedEmptyChapters > 0) {
+    anomalies.push({
+      code: 'empty-chapters-dropped',
+      severity: 'warning',
+      message: `有 ${stats.droppedEmptyChapters} 个编号章节正文为空已丢弃，通常是标题误判导致的切分异常`,
+    })
+  }
+  // 切碎：章节数不少但中位字数极低——论坛楼层、编号列表被当成了章节。
+  if (chapterCount >= 10 && chapterChars.median > 0 && chapterChars.median < 300) {
+    anomalies.push({
+      code: 'chapters-fragmented',
+      severity: 'warning',
+      message: `章节中位字数仅 ${chapterChars.median} 字，疑似把正文段落切成了章节`,
+    })
+  }
+  // 漏切：识别到的最大编号远大于实际切出的章节数——中段标题写法变了，整段被并进上一章。
+  const numberingRatioOutlier = numbering.detected >= 5 && numbering.max > numbering.detected * 1.5
+  if (numberingRatioOutlier) {
+    anomalies.push({
+      code: 'chapters-missing',
+      severity: 'warning',
+      message: `识别到的最大章节编号为 ${numbering.max}，但只切出 ${numbering.detected} 章，疑似有章节未识别`,
+    })
+  }
+  if (!numberingRatioOutlier && numbering.missing > Math.max(3, numbering.detected * 0.15)) {
+    anomalies.push({
+      code: 'numbering-gaps',
+      severity: 'info',
+      message: `章节编号在 ${numbering.min}-${numbering.max} 之间缺 ${numbering.missing} 个编号，可能有章节未识别`,
+    })
+  }
+  if (numbering.duplicated > Math.max(2, numbering.detected * 0.1)) {
+    anomalies.push({
+      code: 'numbering-duplicated',
+      severity: 'warning',
+      message: `有 ${numbering.duplicated} 个章节编号重复，可能存在伪章节或编号错位`,
+    })
+  }
+  if (chapterCount >= 5 && chapterChars.median > 0 && chapterChars.max > chapterChars.median * 20) {
+    anomalies.push({
+      code: 'chapter-length-outlier',
+      severity: 'info',
+      message: `最长章节 ${chapterChars.max} 字，是中位数的 ${Math.round(chapterChars.max / chapterChars.median)} 倍，可能有章节未切开`,
+    })
+  }
+  if (stats.frontMatterChars >= MAX_FRONT_MATTER_LENGTH) {
+    anomalies.push({
+      code: 'front-matter-oversized',
+      severity: 'info',
+      message: `首个章节标题前有 ${stats.frontMatterChars} 字未归入任何章节，已保留为首页`,
+    })
+  }
+  if (uncertainCount > 0) {
+    anomalies.push({
+      code: 'uncertain-lines',
+      severity: 'info',
+      message: `有 ${uncertainCount} 行证据不足，建议运行 AI 复核`,
+    })
+  }
+  return anomalies
+}
+
+/**
+ * 证据行排序权重：漏判（丢内容）比误判（多切章）更该先被看到，
+ * 同权重按行号，便于对照原文复现。
+ */
+function uncertainPriority(item: BookImportLineEvidence): number {
+  if (item.verdict === 'prose' && item.rejectedBy) return 0
+  if (item.verdict === 'heading' && item.confidence === 'low') return 1
+  return 2
+}
+
+function buildImportDiagnostics(input: DiagnosticsInput): BookImportDiagnostics {
+  const ordered = [...input.uncertain].sort((a, b) => uncertainPriority(a) - uncertainPriority(b) || a.line - b.line)
+  const stats: BookImportSplitStats = {
+    parser: input.parser,
+    totalLines: input.totalLines,
+    headingLines: input.headingLines,
+    volumeHeadingLines: input.volumeHeadingLines,
+    mergedHeadingLines: input.mergedHeadingLines,
+    frontMatterLines: input.frontMatterLines,
+    droppedEmptyChapters: input.droppedEmptyChapters,
+    chapterCount: input.chapters.length,
+    chapterChars: chapterCharStats(input.chapters),
+    frontMatterChars: input.frontMatterChars,
+    numbering: chapterNumberingStats(input.chapters),
+  }
+  return {
+    stats,
+    uncertain: ordered.slice(0, MAX_DIAGNOSTIC_LINES),
+    uncertainTotal: input.uncertainTotal,
+    anomalies: detectImportAnomalies(stats, input.uncertainTotal),
+    heuristicVersion: IMPORT_HEURISTIC_VERSION,
+  }
+}
+
 /**
  * TXT 章节切分。
  *
@@ -449,8 +721,15 @@ export function normalizeImportChapterNumber(value: unknown): string {
  * 两者都命中章节规则，若一行一章直接切，前半段会被上一行截走——抽出「第0009章」
  * 得到空正文，真正的正文挂在下一行的「第九章」上。所以这里先按标题编号去重，
  * 重复编号只作为正文首行保留，同时兼容 0001/第一章 混排与 第一章/1. 混排。
+ *
+ * 返回切分结果与诊断。诊断是 AI 复核的对照基准：没有它，AI 介入后无法区分
+ * 「规则判错」与「模型判错」，只是把黑盒从一层叠成两层。
  */
-export function parseTextImport(input: string, fileName = '未命名.txt'): BookImportPayload {
+export function parseTextImportDetailed(
+  input: string,
+  fileName = '未命名.txt',
+  overrides: TextImportOverrides = {},
+): TextImportResult {
   const lines = String(input || '').replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n').split('\n')
   /** 切分期的内部章节：额外记住它是否由权威标题（第NNN章 / NNN）开出，用于识别重抄标题。 */
   type WorkingChapter = BookImportChapterInput & { fromAuthoritative?: boolean }
@@ -459,6 +738,30 @@ export function parseTextImport(input: string, fileName = '未命名.txt'): Book
   const byKey = new Map<string, WorkingChapter>()
   /** 首个章节标题之前的所有行：站点前置信息（元数据、宣传位、避雷说明）。 */
   const frontMatter: string[] = []
+
+  const forceSet = new Set(overrides.forceHeadings || [])
+  const denySet = new Set(overrides.denyHeadings || [])
+
+  // ---- 诊断累积 ----
+  let headingLines = 0
+  let volumeHeadingLines = 0
+  let mergedHeadingLines = 0
+  let uncertainTotal = 0
+  const uncertain: BookImportLineEvidence[] = []
+  const recordUncertain = (lineNumber: number, raw: string, probe: HeadingProbe): void => {
+    uncertainTotal++
+    if (uncertain.length >= UNCERTAIN_COLLECT_LIMIT) return
+    uncertain.push({
+      line: lineNumber,
+      raw: raw.slice(0, MAX_DIAGNOSTIC_RAW),
+      verdict: probe.title ? 'heading' : 'prose',
+      rule: probe.rule,
+      confidence: probe.confidence,
+      ...(probe.rejectedBy ? { rejectedBy: probe.rejectedBy } : {}),
+      contextBefore: String(lines[lineNumber - 2] ?? '').slice(0, MAX_DIAGNOSTIC_CONTEXT),
+      contextAfter: String(lines[lineNumber] ?? '').slice(0, MAX_DIAGNOSTIC_CONTEXT),
+    })
+  }
 
   const stripHeading = (title: string) => title.replace(/\s+/g, ' ').trim()
 
@@ -469,14 +772,26 @@ export function parseTextImport(input: string, fileName = '未命名.txt'): Book
     return chapter
   }
 
-  for (const line of lines) {
-    const headingTitle = isChapterHeadingLine(line)
+  for (const [index, line] of lines.entries()) {
+    const lineNumber = index + 1
+    const forced = forceSet.has(lineNumber)
+    const denied = denySet.has(lineNumber)
+    const forcedTitle = forced ? text(String(line || '').replace(LEADING_INVISIBLE, '')) : ''
+    const probe: HeadingProbe = forcedTitle
+      ? { title: forcedTitle, rule: 'forced-heading', confidence: 'high', uncertain: false }
+      : probeChapterHeadingLine(line)
+    const headingTitle = denied ? null : probe.title
+    // 强制覆盖过的行已是确定结论，不再作为待复核证据留档。
+    if (!forcedTitle && !denied && probe.uncertain) recordUncertain(lineNumber, line, probe)
+
     if (headingTitle && VOLUME_HEADING.test(headingTitle)) {
       // 卷标题并进正文：既保住卷名，也防止它把上一章的正文截走。
+      volumeHeadingLines++
       if (current) current.content += `${text(headingTitle)}\n`
       continue
     }
     if (headingTitle) {
+      headingLines++
       const title = text(headingTitle)
       const key = importChapterKey(title)
       // 卷标题里的章节号优先，用它判断「第三卷 第四十九章 反击」是否等于已有的第 49 章。
@@ -497,6 +812,7 @@ export function parseTextImport(input: string, fileName = '未命名.txt'): Book
       if (!authoritative && openChapter && openChapter.fromAuthoritative && !openChapter.content.trim()) {
         const stripped = stripHeading(title)
         if (stripped && !openChapter.content.includes(`${stripped}\n`)) openChapter.content += `${stripped}\n`
+        mergedHeadingLines++
         continue
       }
       current = beginChapter(title, [embeddedKey, key], authoritative)
@@ -533,12 +849,33 @@ export function parseTextImport(input: string, fileName = '未命名.txt'): Book
   const finalChapters = payloadChapters.length ? payloadChapters : chapters
   finalChapters.forEach((chapter, index) => { chapter.order = index + 1 })
 
-  return normalizeImportPayload({
+  const payload = normalizeImportPayload({
     title: meta.title || fileStem(fileName) || '未命名作品',
     author: meta.author || '未知作者',
     description: meta.description,
     chapters: finalChapters,
   })
+
+  const diagnostics = buildImportDiagnostics({
+    parser: 'text',
+    totalLines: lines.length,
+    headingLines,
+    volumeHeadingLines,
+    mergedHeadingLines,
+    frontMatterLines: frontMatter.length,
+    frontMatterChars: leftover.join('').replace(/\s/g, '').length,
+    droppedEmptyChapters: chapters.length - kept.length,
+    chapters: payload.chapters,
+    uncertain,
+    uncertainTotal,
+  })
+
+  return { payload, diagnostics }
+}
+
+/** TXT 章节切分。诊断走 parseTextImportDetailed，这里只取切分结果。 */
+export function parseTextImport(input: string, fileName = '未命名.txt', overrides: TextImportOverrides = {}): BookImportPayload {
+  return parseTextImportDetailed(input, fileName, overrides).payload
 }
 
 /** 头部元信息块允许出现的字段前缀；命中即是元信息而非正文。 */
@@ -677,21 +1014,65 @@ export function parseEpubImport(data: Uint8Array, fileName = '未命名.epub'): 
   })
 }
 
-export async function parseUploadedBook(fileName: string, data: Uint8Array): Promise<BookImportPayload> {
+export interface UploadedBookResult {
+  payload: BookImportPayload
+  diagnostics: BookImportDiagnostics
+}
+
+/**
+ * 非 TXT 来源的诊断：没有行级证据（无行号可指），只给切分统计与异常信号。
+ * 结构化来源的章节边界是显式的，本来就不需要逐行裁决。
+ */
+function structuredDiagnostics(parser: 'epub' | 'json' | 'url', chapters: BookImportChapterInput[]): BookImportDiagnostics {
+  const stats: BookImportSplitStats = {
+    parser,
+    totalLines: 0,
+    headingLines: chapters.length,
+    volumeHeadingLines: 0,
+    mergedHeadingLines: 0,
+    frontMatterLines: 0,
+    droppedEmptyChapters: 0,
+    chapterCount: chapters.length,
+    chapterChars: chapterCharStats(chapters),
+    frontMatterChars: 0,
+    numbering: chapterNumberingStats(chapters),
+  }
+  return {
+    stats,
+    uncertain: [],
+    uncertainTotal: 0,
+    anomalies: detectImportAnomalies(stats, 0),
+    heuristicVersion: IMPORT_HEURISTIC_VERSION,
+  }
+}
+
+/** 上传文件解析（带诊断）。TXT 走逐行判定，EPUB / JSON 只有结构化统计。 */
+export async function parseUploadedBookDetailed(fileName: string, data: Uint8Array): Promise<UploadedBookResult> {
   if (data.byteLength > MAX_IMPORT_BYTES) throw new Error('导入文件不能超过 25 MB')
   const lower = fileName.toLocaleLowerCase()
-  if (lower.endsWith('.epub')) return parseEpubImport(data, fileName)
+  if (lower.endsWith('.epub')) {
+    const payload = parseEpubImport(data, fileName)
+    return { payload, diagnostics: structuredDiagnostics('epub', payload.chapters) }
+  }
   const content = new TextDecoder('utf-8').decode(data)
   if (lower.endsWith('.json')) {
     try {
-      return normalizeImportPayload(JSON.parse(content) as Partial<BookImportPayload>)
+      const payload = normalizeImportPayload(JSON.parse(content) as Partial<BookImportPayload>)
+      return { payload, diagnostics: structuredDiagnostics('json', payload.chapters) }
     } catch (err) {
       if (err instanceof SyntaxError) throw new Error('JSON 文件格式不正确')
       throw err
     }
   }
-  if (lower.endsWith('.txt') || lower.endsWith('.text') || !fileName.includes('.')) return parseTextImport(content, fileName)
+  if (lower.endsWith('.txt') || lower.endsWith('.text') || !fileName.includes('.')) {
+    const result = parseTextImportDetailed(content, fileName)
+    return { payload: result.payload, diagnostics: result.diagnostics }
+  }
   throw new Error('暂时支持 TXT、JSON 和 EPUB 文件')
+}
+
+export async function parseUploadedBook(fileName: string, data: Uint8Array): Promise<BookImportPayload> {
+  return (await parseUploadedBookDetailed(fileName, data)).payload
 }
 
 export interface UrlImportDeps {
@@ -702,6 +1083,7 @@ export interface UrlImportDeps {
 export interface UrlImportResult {
   payload: BookImportPayload
   warnings: string[]
+  diagnostics: BookImportDiagnostics
 }
 
 function isPo18ImportUrl(sourceUrl: string): boolean {
@@ -810,7 +1192,7 @@ export async function parseBookUrl(sourceUrl: string, deps: UrlImportDeps): Prom
     chapters: chapters.filter((chapter): chapter is BookImportChapterInput => Boolean(chapter)),
   })
   if (payload.chapters.length < uniqueLinks.length) warnings.push(`成功读取 ${payload.chapters.length}/${uniqueLinks.length} 章。`)
-  return { payload, warnings: Array.from(new Set(warnings)) }
+  return { payload, warnings: Array.from(new Set(warnings)), diagnostics: structuredDiagnostics('url', payload.chapters) }
 }
 
 function metadataValue(novel: Novel | null, field: BookImportMetadataDiff['field']): string {
@@ -969,6 +1351,8 @@ export async function createPreview(db: Db, opts: ImportPreviewOptions): Promise
     chapters,
     summary,
     warnings,
+    diagnostics: opts.diagnostics,
+    aiReview: null,
   }
 }
 
@@ -1262,5 +1646,21 @@ export async function rollbackImport(db: Db, run: StoredImportRun): Promise<Book
 }
 
 export function bookImportTestHelpers() {
-  return { normalizeImportTitle, normalizeImportChapterTitle, normalizeImportContent, importContentHash, importChapterKey, isChapterHeadingLine, fileStem, titlesMatch, buildChapterDiff, buildMetadataDiff, parseTextImport }
+  return {
+    normalizeImportTitle,
+    normalizeImportChapterTitle,
+    normalizeImportContent,
+    importContentHash,
+    importChapterKey,
+    isChapterHeadingLine,
+    probeChapterHeadingLine,
+    fileStem,
+    titlesMatch,
+    buildChapterDiff,
+    buildMetadataDiff,
+    parseTextImport,
+    parseTextImportDetailed,
+    parseUploadedBookDetailed,
+    detectImportAnomalies,
+  }
 }

@@ -28,6 +28,11 @@ const PARAM_GROUPS = [
     ],
   },
   { id: 'image', label: '生图与封面', keys: ['imageSize', 'imageQuality', 'imageResponseFormat', 'coverPromptMaxChars'] },
+  {
+    id: 'import',
+    label: '导入复核',
+    keys: ['importAiReviewEnabled', 'importAiMaxCandidates', 'importAiMaxTokens', 'importAiSystemPrompt'],
+  },
   { id: 'tasks', label: '任务与运维', keys: ['maxConcurrentWritingTasks', 'taskRetentionDays'] },
   { id: 'audit', label: '审计配置', keys: ['logIpAddress', 'logUserAgent'] },
 ] as const satisfies readonly { id: string; label: string; keys: readonly (keyof AiSettings)[] }[]
@@ -481,6 +486,82 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                 onChange={(e) => setLocalSettings({ ...localSettings, coverPromptMaxChars: Number(e.target.value) })}
               />
             </AdminFormField>
+          </CardContent>
+        </Card>
+
+        {/* 导入复核 */}
+        <Card
+          role="tabpanel"
+          aria-labelledby="ai-param-tab-import"
+          hidden={activeGroup !== 'import'}
+          id="ai-params-import"
+          className="admin-panel-card ai-params-card"
+        >
+          <div className="admin-panel-heading ai-parameter-heading">
+            <div className="admin-panel-heading__copy">
+              <h3>导入复核</h3>
+              <p>用模型裁决章节边界的少数疑难行，减少手工修规则。</p>
+            </div>
+            <span className="ai-parameter-count">4 项参数</span>
+          </div>
+          <CardContent className="grid gap-4">
+            <label className="flex items-start justify-between gap-4 rounded-lg border border-border bg-muted/30 p-4">
+              <span className="min-w-0">
+                <span className="block text-sm font-medium text-foreground">启用导入 AI 复核</span>
+                <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">
+                  确定性解析仍是主链路；开启后可在导入预览页对证据不足的行运行复核
+                </span>
+              </span>
+              <Switch
+                checked={localSettings.importAiReviewEnabled}
+                disabled={props.loading || saving}
+                onCheckedChange={(v) => setLocalSettings({ ...localSettings, importAiReviewEnabled: v })}
+              />
+            </label>
+            <div className="ai-form-grid grid gap-3 sm:grid-cols-2">
+              <AdminFormField label="单次复核候选行上限" htmlFor="import-ai-candidates" hint="只送证据不足的行，超出部分不送模型，10-300 行">
+                <Input
+                  id="import-ai-candidates"
+                  required
+                  type="number"
+                  min={10}
+                  max={300}
+                  value={localSettings.importAiMaxCandidates}
+                  disabled={props.loading || saving}
+                  onChange={(e) => setLocalSettings({ ...localSettings, importAiMaxCandidates: Number(e.target.value) })}
+                />
+              </AdminFormField>
+              <AdminFormField label="复核输出 Token 上限" htmlFor="import-ai-tokens" hint="只需返回行号数组，200-8000">
+                <Input
+                  id="import-ai-tokens"
+                  required
+                  type="number"
+                  min={200}
+                  max={8000}
+                  value={localSettings.importAiMaxTokens}
+                  disabled={props.loading || saving}
+                  onChange={(e) => setLocalSettings({ ...localSettings, importAiMaxTokens: Number(e.target.value) })}
+                />
+              </AdminFormField>
+            </div>
+            <details className="ai-prompt-details">
+              <summary>
+                复核提示词 <span>按需展开编辑</span>
+              </summary>
+              <AdminFormField
+                label="系统提示词"
+                htmlFor="import-ai-prompt"
+                hint="必须保留「只输出 JSON 行号数组」的约定，模型回结构化长文会让解析变成新的失败点"
+              >
+                <Textarea
+                  id="import-ai-prompt"
+                  className="field-sizing-fixed min-h-[200px] shadow-none text-sm"
+                  value={localSettings.importAiSystemPrompt}
+                  disabled={props.loading || saving}
+                  onChange={(e) => setLocalSettings({ ...localSettings, importAiSystemPrompt: e.target.value })}
+                />
+              </AdminFormField>
+            </details>
           </CardContent>
         </Card>
 
