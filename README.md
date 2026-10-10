@@ -157,6 +157,10 @@ Cloudflare 控制台仍需创建 Managed 组件、绑定实际前端域名；后
 
 部署准备、演练库初始化及 `npm run backup:recover` 灾备工具用法见[备份功能落地说明](docs/backup-and-restore-implementation-2026-10-08.md)。
 
+## 页面加载与阅读字体
+
+公开页面与后台业务模块按需加载，后台模块下载期间保留导航。阅读字体改为本站提供的 Noto Serif SC 400 / 700 / 900 WOFF2 分片，不再请求 Google Fonts；字体跟随前端构建发布到带内容哈希的 `/assets/` 地址。源文件与授权说明见 [web/fonts](web/fonts/README.md)，构建结果及浏览器验证见[加载优化记录](docs/web-loading-and-local-fonts-2026-10-10.md)。
+
 ## 测试
 
 ```bash

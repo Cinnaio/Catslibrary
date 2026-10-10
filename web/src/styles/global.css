@@ -9,6 +9,7 @@
 @import 'tw-animate-css';
 
 @import './tokens.css';
+@import './fonts.css';
 @import './base.css';
 @import './route-loading.css';
 @import './components.css';
