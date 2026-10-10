@@ -17,6 +17,11 @@
   text-align: center;
 }
 
+.route-loading--embedded {
+  min-height: min(50svh, 24rem);
+  background: transparent;
+}
+
 .route-loading__indicator {
   width: 28px;
   height: 28px;

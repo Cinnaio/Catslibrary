@@ -9,11 +9,6 @@ import { lazy, Suspense } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import Layout from './components/Layout'
 import Home from './pages/Home'
-import Novel from './pages/Novel'
-import Reader from './pages/Reader'
-import Bookshelf from './pages/Bookshelf'
-import Profile from './pages/Profile'
-import Auth from './pages/Auth'
 import VisitTracker from './components/VisitTracker'
 import RouteLoading from './components/RouteLoading'
 import PageSeo from './components/PageSeo'
@@ -21,6 +16,11 @@ import SiteBrandingSync from './components/SiteBrandingSync'
 
 const Install = lazy(() => import('./pages/Install'))
 const Admin = lazy(() => import('./pages/admin/Admin'))
+const Novel = lazy(() => import('./pages/Novel'))
+const Reader = lazy(() => import('./pages/Reader'))
+const Bookshelf = lazy(() => import('./pages/Bookshelf'))
+const Profile = lazy(() => import('./pages/Profile'))
+const Auth = lazy(() => import('./pages/Auth'))
 
 export default function App() {
   return (

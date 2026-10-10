@@ -1,6 +1,7 @@
 /** 标准页面布局：页头 + 内容区。 */
 import { Outlet } from 'react-router-dom'
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
+import RouteLoading from './RouteLoading'
 import { PageLayoutContext } from '../context/PageLayoutContext'
 import SiteNotice from './SiteNotice'
 import SiteHeader from './SiteHeader'
@@ -10,7 +11,9 @@ export default function Layout() {
   return (
     <PageLayoutContext.Provider value={setStandalone}>
       {!standalone && <><SiteHeader /><SiteNotice /></>}
-      <Outlet />
+      <Suspense fallback={<RouteLoading embedded />}>
+        <Outlet />
+      </Suspense>
     </PageLayoutContext.Provider>
   )
 }

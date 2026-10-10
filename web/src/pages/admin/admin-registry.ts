@@ -3,7 +3,7 @@
  * active-tab storage key. Extracted from the former Admin.tsx shell so the
  * shell only composes, and the registry stays the single source of truth.
  */
-import type { ComponentType } from 'react'
+import { lazy, type ComponentType } from 'react'
 import {
   BookOpen,
   Bug,
@@ -18,21 +18,23 @@ import {
   Activity,
   type LucideIcon,
 } from 'lucide-react'
-import DashboardTab from './DashboardTab'
-import NovelsTab from './NovelsTab'
-import ChaptersTab from './ChaptersTab'
-import ScrapeTab from './scrape'
-import JobsTab from './JobsTab'
-import TaskCenterTab from './TaskCenterTab'
-import CallsTab from './CallsTab'
-import ModerationTab from './ModerationTab'
-import AiTab from './AiTab'
-import SettingsTab from './SettingsTab'
-import ContentPolicyTab from './ContentPolicyTab'
-import ContentRatingsTab from './ContentRatingsTab'
-import SiteOperationsTab from './SiteOperationsTab'
-import SiteSettingsTab from './SiteSettingsTab'
-import BackupsTab from './BackupsTab'
+
+// 导航只读取注册表元数据；真正打开模块后才下载其组件和重依赖。
+const DashboardTab = lazy(() => import('./DashboardTab'))
+const NovelsTab = lazy(() => import('./NovelsTab'))
+const ChaptersTab = lazy(() => import('./ChaptersTab'))
+const ScrapeTab = lazy(() => import('./scrape'))
+const JobsTab = lazy(() => import('./JobsTab'))
+const TaskCenterTab = lazy(() => import('./TaskCenterTab'))
+const CallsTab = lazy(() => import('./CallsTab'))
+const ModerationTab = lazy(() => import('./ModerationTab'))
+const AiTab = lazy(() => import('./AiTab'))
+const SettingsTab = lazy(() => import('./SettingsTab'))
+const ContentPolicyTab = lazy(() => import('./ContentPolicyTab'))
+const ContentRatingsTab = lazy(() => import('./ContentRatingsTab'))
+const SiteOperationsTab = lazy(() => import('./SiteOperationsTab'))
+const SiteSettingsTab = lazy(() => import('./SiteSettingsTab'))
+const BackupsTab = lazy(() => import('./BackupsTab'))
 
 export interface AdminTabProps {
   highlightNovelId?: string

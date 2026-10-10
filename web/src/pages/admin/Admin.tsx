@@ -4,7 +4,8 @@
  * 导航与 tab 注册表 admin-registry。本文件仅保留路由编排与副作用：
  * URL tab、上次位置持久化、sessionStorage 高亮、document.title、/ 聚焦搜索框。
  */
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
+import RouteLoading from '../../components/RouteLoading'
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import AdminGate from './AdminGate'
 import { monitoringRedirect } from './monitoring-routes'
@@ -73,14 +74,16 @@ export default function Admin() {
   return (
     <AdminGate>
       <AdminShell active={active} activeLabel={activeLabel}>
-        <TabComponent highlightNovelId={highlightNovelId} onHighlightConsumed={() => {
-          setLegacyHighlightNovelId('')
-          const params = new URLSearchParams(location.search)
-          if (params.has('novelId')) {
-            params.delete('novelId')
-            navigate({ pathname: location.pathname, search: params.toString() }, { replace: true })
-          }
-        }} />
+        <Suspense key={active} fallback={<RouteLoading embedded />}>
+          <TabComponent highlightNovelId={highlightNovelId} onHighlightConsumed={() => {
+            setLegacyHighlightNovelId('')
+            const params = new URLSearchParams(location.search)
+            if (params.has('novelId')) {
+              params.delete('novelId')
+              navigate({ pathname: location.pathname, search: params.toString() }, { replace: true })
+            }
+          }} />
+        </Suspense>
       </AdminShell>
     </AdminGate>
   )
