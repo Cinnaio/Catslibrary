@@ -49,7 +49,8 @@ npm run test:backup-integration
 ## 验证结果
 
 - 本机 PostgreSQL 18 同版本工具与 rclone 1.75.1：备份目录 9 个测试文件、64 项全部通过，零跳过，其中五个真实集成文件共 26 项。
+- 普通后端全量回归：80 个文件、719 项通过，另有 5 个真实集成文件的 26 项按设计跳过；这 26 项已在独立真实集群验证中全部执行。
 - 工具不存在时脚本返回非零退出码，临时目录被清理；完整测试完成后，临时 PostgreSQL/SFTP 服务停止并删除集群目录。
 - API 类型检查、构建、本次修改文件 ESLint、Prettier 和 Git diff 检查通过。
 
-本地结果不能替代 GitHub 首次运行结果；CI 使用 PostgreSQL 16 的执行结果需在新工作流推送后查看。
+GitHub 首次运行也已完成：[Backup recovery #1](https://github.com/Cinnaio/zhi-zhou/actions/runs/38010559639)，对应代码提交 `98a1cb0`。Ubuntu 24.04 / PostgreSQL 16 环境成功完成依赖安装和真实恢复验证，9 个文件、64 项全部通过，零跳过，Vitest 执行时间 17.22 秒。
