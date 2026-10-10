@@ -158,6 +158,44 @@ describe('source sync chapter mapping', () => {
     expect(changesByLocalId.get('local-6')).toMatchObject({ sourceTitle: sourceTitles[4], newTitle: sourceTitles[4] })
   })
 
+  it('融合预览应读取 288 章完整目录，再对齐本地 272 节，不能把末尾章节配到第一页', async () => {
+    const novelId = 'paginated-sync-novel'
+    await testDb.db.query('INSERT INTO novels (id, title, author, created_at, updated_at) VALUES ($1, $2, $3, 1, 1)', [novelId, '分页书', '作者'])
+    const source = Array.from({ length: 288 }, (_, index) => ({ order: index + 1, title: `旅途记录 ${index + 1}` }))
+    const local = source.filter(row => row.order <= 282 && (row.order < 93 || row.order > 102))
+    const values = local.flatMap((row, index) => [`paged-${index + 1}`, novelId, `第${row.order}章 ${row.title}`, index + 1])
+    const placeholders = local.map((_, index) => {
+      const offset = index * 4
+      return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, 0, 1)`
+    })
+    await testDb.db.query(`INSERT INTO chapters (id, novel_id, title, sort_order, word_count, created_at) VALUES ${placeholders.join(',')}`, values)
+    const base = 'https://www.po18.tw/books/902326/articles'
+    const directoryRequests: string[] = []
+    const preview = await createSourceSyncPreview(testDb.db, {
+      novelId, sourceUrl: base, store: new PgScrapeStore(testDb.db),
+      fetchHtml: async (url) => {
+        if (!new URL(url).pathname.endsWith('/articles')) return { html: '<h1>分页书</h1>', encoding: 'utf-8' }
+        directoryRequests.push(url)
+        const page = Number(new URL(url).searchParams.get('page') || 1)
+        return {
+          html: po18Directory(source.slice((page - 1) * 100, page * 100)) + `<a href="${base}?page=3">末页</a>`,
+          encoding: 'utf-8',
+        }
+      },
+    })
+    // 元数据探测会额外读取首页；目录提取必须先完成连续三页。
+    expect(directoryRequests.slice(0, 3)).toEqual([base, `${base}?page=2`, `${base}?page=3`])
+    expect(preview.sourceChapterCount).toBe(288)
+    expect(preview.localChapterCount).toBe(272)
+    expect(preview.matchedSourceCount).toBe(272)
+    expect(preview.unmatchedSource).toHaveLength(16)
+    expect(preview.unmatchedLocal).toEqual([])
+    expect(preview.mappings.find(row => row.localChapterIds.includes('paged-268'))).toMatchObject({ sourceOrder: 278, confidence: 'high' })
+    expect(preview.changes.every(row => row.sourceOrder === local[row.localOrder - 1]!.order)).toBe(true)
+    const saved = await testDb.db.query<{ source_chapters_json: string }>('SELECT source_chapters_json FROM source_sync_runs WHERE id = $1', [preview.runId])
+    expect(JSON.parse(saved.rows[0]!.source_chapters_json)).toHaveLength(288)
+  })
+
   it('应用预览时只更新标题，并保存一对多映射', async () => {
     await testDb.db.query('INSERT INTO novels (id, title, author, created_at, updated_at) VALUES ($1, $2, $3, $4, $4)', ['sync-novel', '本地书', '作者', 1])
     await testDb.db.query(

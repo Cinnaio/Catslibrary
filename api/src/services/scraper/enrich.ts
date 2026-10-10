@@ -850,17 +850,46 @@ export async function extractPo18twTitles(
     throw new Error((err as Error).message || 'sourceUrl invalid')
   }
   const chapterListUrl = po18ChapterListUrl(url.href)
-  const { html } = await requestHtml(chapterListUrl, { timeoutMs: 12000 })
-  if (isPo18twLoginPage(html)) throw new Error('PO18.tw 该页面需要登录，请先配置账号或 Cookie')
-  const rows = parsePo18twChapterRows(html, chapterListUrl)
+  const directory = new URL(chapterListUrl)
   const seen = new Set<string>()
-  const titles = rows
-    .filter((row) => {
-      if (seen.has(row.url)) return false
-      seen.add(row.url)
-      return true
-    })
-    .map(({ order, title, url }) => ({ order, title, url }))
+  const titles: Array<{ order: number; title: string; url: string }> = []
+  let lastPage = 1
+  for (let page = 1; page <= lastPage; page++) {
+    const pageUrl = new URL(chapterListUrl)
+    if (page > 1) pageUrl.searchParams.set('page', String(page))
+    try {
+      const { html, finalUrl } = await requestHtml(pageUrl.href, { timeoutMs: 12000 })
+      const problem = po18ResponseProblem(finalUrl, html)
+      if (problem) throw new Error(problem)
+      const rows = parsePo18twChapterRows(html, chapterListUrl)
+      const fresh = rows.filter((row) => {
+        if (seen.has(row.url)) return false
+        seen.add(row.url)
+        return true
+      })
+      if (!fresh.length) throw new Error('未读到新的章节，目录可能为空或源站返回了重复分页')
+      titles.push(...fresh.map(({ order, title, url }) => ({ order, title, url })))
+
+      // 只沿同一作品、同一源站的目录分页读取，不能把认证会话带到页面里的其他链接。
+      for (const match of html.matchAll(/<a\b[^>]*href\s*=\s*["']([^"']+)["']/gi)) {
+        let link: URL
+        try {
+          link = new URL(cleanText(match[1]!), pageUrl)
+        } catch {
+          continue
+        }
+        if (link.origin !== directory.origin || link.pathname.replace(/\/$/, '') !== directory.pathname.replace(/\/$/, '')) continue
+        const value = link.searchParams.get('page') || ''
+        if (!/^\d+$/.test(value)) continue
+        const nextPage = Number(value)
+        if (nextPage > 200) throw new Error('目录超过 200 页读取上限，请检查源站分页')
+        lastPage = Math.max(lastPage, nextPage)
+      }
+    } catch (err) {
+      throw new Error(`PO18.tw 目录第 ${page} 页读取失败：${(err as Error).message}`)
+    }
+  }
+  titles.sort((a, b) => a.order - b.order)
   return { site: 'PO18.tw', sourceUrl: chapterListUrl, total: titles.length, titles }
 }
 

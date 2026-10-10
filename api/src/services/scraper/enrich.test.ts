@@ -114,6 +114,42 @@ describe('标题源搜索', () => {
     ])
   })
 
+  it('PO18 目录应读取全部分页，保留全局序号和付费标题，并忽略其他书籍或站点的分页', async () => {
+    const base = 'https://www.po18.tw/books/123456/articles'
+    const requests: string[] = []
+    const pageHtml = (page: number) => {
+      const end = page === 3 ? 288 : page * 100
+      const rows = Array.from({ length: end - (page - 1) * 100 }, (_, index) => {
+        const order = (page - 1) * 100 + index + 1
+        const title = `目录标题 ${order}`
+        return `<div class="c_l"><div class="l_counter">${order}</div><div class="l_chaptname">${order === 201 ? title : `<a href="${base}/${order}">${title}</a>`}</div></div>`
+      }).join('')
+      // 第 3 页只在第 2 页出现，模拟只提供下一页链接的目录。
+      return rows + `<a href="?page=1">1</a><a href="?page=${Math.min(page + 1, 3)}">下一页</a>
+        <a href="https://other.test/books/123456/articles?page=9">外站</a>
+        <a href="/books/654321/articles?page=9">其他作品</a>`
+    }
+    const result = await extractPo18twTitles(base, async (url) => {
+      requests.push(url)
+      return { html: pageHtml(Number(new URL(url).searchParams.get('page') || 1)), encoding: 'utf-8' }
+    })
+    expect(requests).toEqual([base, `${base}?page=2`, `${base}?page=3`])
+    expect(result.total).toBe(288)
+    expect(result.titles.map((row) => row.order)).toEqual(Array.from({ length: 288 }, (_, index) => index + 1))
+    expect(result.titles[200]).toEqual({ order: 201, title: '目录标题 201', url: `${base}#chapter-201` })
+  })
+
+  it.each(['登录页', '空目录', '重复第一页', '请求失败'])('后续分页返回%s时应报错，不能静默返回部分目录', async (failure) => {
+    const base = 'https://www.po18.tw/books/123456/articles'
+    const first = `<div class="c_l"><div class="l_counter">1</div><div class="l_chaptname"><a href="${base}/1">第一章</a></div></div><a href="?page=2">下一页</a>`
+    await expect(extractPo18twTitles(base, async (url) => {
+      if (url === base) return { html: first, encoding: 'utf-8' }
+      if (failure === '请求失败') throw new Error('timeout')
+      const html = failure === '登录页' ? '<form>登入<input type="password"></form>' : failure === '空目录' ? '<html></html>' : first
+      return { html, encoding: 'utf-8' }
+    })).rejects.toThrow(/第 2 页/)
+  })
+
   it('POPO 目录应只把可访问的章节加入抓取链接', () => {
     const html = `<div class="c_l">
       <div class="l_counter">0001</div>
