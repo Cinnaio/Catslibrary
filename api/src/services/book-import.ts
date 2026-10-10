@@ -306,6 +306,9 @@ export interface StoredImportRun {
    * 都依赖原始行序。历史列表刻意不选这一列，避免整份文件进列表响应。
    */
   source_text: string
+  revision?: number
+  source_hash?: string
+  source_expires_at?: number
   created_at: number
   applied_at: number
   rolled_back_at: number
@@ -527,8 +530,6 @@ export function normalizeImportChapterNumber(value: unknown): string {
 
 /** 诊断里保留的证据行上限：够覆盖真实问题文件，又不至于让快照膨胀。 */
 const MAX_DIAGNOSTIC_LINES = 300
-/** 收集阶段的宽松上限：先全收再按风险排序截断，避免先到先得挤掉关键行。 */
-const UNCERTAIN_COLLECT_LIMIT = MAX_DIAGNOSTIC_LINES * 4
 /** 证据行原文与上下文的截断长度。 */
 const MAX_DIAGNOSTIC_RAW = 200
 const MAX_DIAGNOSTIC_CONTEXT = 120
@@ -549,9 +550,12 @@ export interface TextImportOverrides {
   forceHeadings?: Iterable<number>
   /** 强制否决的行号（1-based），即使启发式命中了标题。 */
   denyHeadings?: Iterable<number>
+  reviewedLines?: Iterable<number>
 }
 
 export interface TextImportResult {
+  frontMatterContent?: string
+  chapterRanges?: Array<{ startLine: number; endLine: number }>
   payload: BookImportPayload
   diagnostics: BookImportDiagnostics
 }
@@ -732,7 +736,7 @@ export function parseTextImportDetailed(
 ): TextImportResult {
   const lines = String(input || '').replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n').split('\n')
   /** 切分期的内部章节：额外记住它是否由权威标题（第NNN章 / NNN）开出，用于识别重抄标题。 */
-  type WorkingChapter = BookImportChapterInput & { fromAuthoritative?: boolean }
+  type WorkingChapter = BookImportChapterInput & { fromAuthoritative?: boolean; startLine?: number }
   const chapters: WorkingChapter[] = []
   let current: WorkingChapter | null = null
   const byKey = new Map<string, WorkingChapter>()
@@ -741,26 +745,39 @@ export function parseTextImportDetailed(
 
   const forceSet = new Set(overrides.forceHeadings || [])
   const denySet = new Set(overrides.denyHeadings || [])
+  const reviewedSet = new Set(overrides.reviewedLines || [])
+  let reviewedCount = 0
 
   // ---- 诊断累积 ----
   let headingLines = 0
   let volumeHeadingLines = 0
   let mergedHeadingLines = 0
   let uncertainTotal = 0
-  const uncertain: BookImportLineEvidence[] = []
+  const uncertainBuckets: BookImportLineEvidence[][] = [[], [], []]
+  const nearbyContent = (start: number, direction: number): string => {
+    for (let index = start, distance = 0; index >= 0 && index < lines.length && distance < 12; index += direction, distance++) {
+      if (lines[index]!.trim()) return lines[index]!.trim().slice(0, MAX_DIAGNOSTIC_CONTEXT)
+    }
+    return ''
+  }
   const recordUncertain = (lineNumber: number, raw: string, probe: HeadingProbe): void => {
     uncertainTotal++
-    if (uncertain.length >= UNCERTAIN_COLLECT_LIMIT) return
-    uncertain.push({
+    if (reviewedSet.has(lineNumber)) { reviewedCount++; return }
+    const priority = !probe.title && probe.rejectedBy ? 0 : probe.title && probe.confidence === 'low' ? 1 : 2
+    const bucket = uncertainBuckets[priority]!
+    if (bucket.length >= MAX_DIAGNOSTIC_LINES) return
+    const evidence: BookImportLineEvidence = {
       line: lineNumber,
       raw: raw.slice(0, MAX_DIAGNOSTIC_RAW),
       verdict: probe.title ? 'heading' : 'prose',
       rule: probe.rule,
       confidence: probe.confidence,
       ...(probe.rejectedBy ? { rejectedBy: probe.rejectedBy } : {}),
-      contextBefore: String(lines[lineNumber - 2] ?? '').slice(0, MAX_DIAGNOSTIC_CONTEXT),
-      contextAfter: String(lines[lineNumber] ?? '').slice(0, MAX_DIAGNOSTIC_CONTEXT),
-    })
+      contextBefore: nearbyContent(lineNumber - 2, -1),
+      contextAfter: nearbyContent(lineNumber, 1),
+    }
+    // 每个风险等级各留最早 300 行，扫描全文后统一排序；内存有界且每行 O(1)。
+    bucket.push(evidence)
   }
 
   const stripHeading = (title: string) => title.replace(/\s+/g, ' ').trim()
@@ -776,7 +793,8 @@ export function parseTextImportDetailed(
     const lineNumber = index + 1
     const forced = forceSet.has(lineNumber)
     const denied = denySet.has(lineNumber)
-    const forcedTitle = forced ? text(String(line || '').replace(LEADING_INVISIBLE, '')) : ''
+    const forcedRaw = forced ? text(String(line || '').replace(LEADING_INVISIBLE, '')) : ''
+    const forcedTitle = forcedRaw ? probeChapterHeadingLine(forcedRaw).title || forcedRaw : ''
     const probe: HeadingProbe = forcedTitle
       ? { title: forcedTitle, rule: 'forced-heading', confidence: 'high', uncertain: false }
       : probeChapterHeadingLine(line)
@@ -784,7 +802,7 @@ export function parseTextImportDetailed(
     // 强制覆盖过的行已是确定结论，不再作为待复核证据留档。
     if (!forcedTitle && !denied && probe.uncertain) recordUncertain(lineNumber, line, probe)
 
-    if (headingTitle && VOLUME_HEADING.test(headingTitle)) {
+    if (headingTitle && !forced && VOLUME_HEADING.test(headingTitle)) {
       // 卷标题并进正文：既保住卷名，也防止它把上一章的正文截走。
       volumeHeadingLines++
       if (current) current.content += `${text(headingTitle)}\n`
@@ -801,7 +819,7 @@ export function parseTextImportDetailed(
       // 这份导出里「第0003章」标题后面正文开头写的是「第四章」（原文编号本身错位），
       // 若让它归并进已有的第 4 章，就会整章丢失。
       const authoritative =
-        /^第\s*[0-9０-９]+\s*[章节回]/u.test(title) ||
+        forced || /^第\s*[0-9０-９]+\s*[章节回]/u.test(title) ||
         /^[0-9０-９]{1,4}\s/u.test(title) ||
         /^[0-9０-９]{1,3}[^\s0-9０-９]/u.test(title)
       // 非权威标题（「第一章」「第九章」）只在「当前章节是权威标题开出来、且尚未见到正文」
@@ -816,6 +834,7 @@ export function parseTextImportDetailed(
         continue
       }
       current = beginChapter(title, [embeddedKey, key], authoritative)
+      current.startLine = lineNumber
       continue
     }
     if (current) {
@@ -866,11 +885,22 @@ export function parseTextImportDetailed(
     frontMatterChars: leftover.join('').replace(/\s/g, '').length,
     droppedEmptyChapters: chapters.length - kept.length,
     chapters: payload.chapters,
-    uncertain,
+    uncertain: uncertainBuckets.flat(),
     uncertainTotal,
   })
 
-  return { payload, diagnostics }
+  diagnostics.reviewedCount = reviewedCount
+  diagnostics.pendingCount = uncertainTotal - reviewedCount
+  if (reviewedCount > 0) {
+    diagnostics.anomalies = diagnostics.anomalies.filter((item) => item.code !== 'uncertain-lines')
+    if (diagnostics.pendingCount > 0) diagnostics.anomalies.push({ code: 'uncertain-lines', severity: 'info', message: `还有 ${diagnostics.pendingCount} 行证据不足且尚未复核` })
+  }
+  diagnostics.truncatedCount = Math.max(0, uncertainTotal - reviewedCount - diagnostics.uncertain.length)
+  const chapterRanges = payload.chapters.map((_, index) => ({
+    startLine: (finalChapters[index] as WorkingChapter)?.startLine || 1,
+    endLine: index + 1 < payload.chapters.length ? ((finalChapters[index + 1] as WorkingChapter)?.startLine || lines.length + 1) - 1 : lines.length,
+  }))
+  return { payload, diagnostics, chapterRanges, frontMatterContent: leftover.join('\n').trim() }
 }
 
 /** TXT 章节切分。诊断走 parseTextImportDetailed，这里只取切分结果。 */
@@ -1427,8 +1457,8 @@ export async function applyImport(
     actorUserId: string
   },
 ): Promise<BookImportCommitResult> {
-  const preview = safeJsonParse<BookImportPreview>(opts.run.preview_json, {} as BookImportPreview)
-  const payload = normalizeImportPayload(safeJsonParse<BookImportPayload>(opts.run.payload_json, {} as BookImportPayload))
+  let preview = safeJsonParse<BookImportPreview>(opts.run.preview_json, {} as BookImportPreview)
+  let payload = normalizeImportPayload(safeJsonParse<BookImportPayload>(opts.run.payload_json, {} as BookImportPayload))
   const targetNovelId = opts.targetNovelId || preview.targetNovelId || null
   const selectedChapters = new Set(opts.selectedChapterIds)
   const applied: AppliedChange[] = []
@@ -1441,9 +1471,13 @@ export async function applyImport(
   const metadataUpdated: string[] = []
 
   await withTx(db, async (q) => {
-    const lockedRun = await q<{ status: string }>('SELECT status FROM book_import_runs WHERE id = $1 FOR UPDATE', [opts.run.id])
+    const lockedRun = await q<StoredImportRun>('SELECT * FROM book_import_runs WHERE id = $1 FOR UPDATE', [opts.run.id])
     if (!lockedRun.rows.length) throw new Error('导入预览不存在')
     if (lockedRun.rows[0]!.status !== 'preview') throw new Error('这次导入已经提交，不能重复提交')
+    if (Number(lockedRun.rows[0]!.source_expires_at) > 0 && Number(lockedRun.rows[0]!.source_expires_at) <= Date.now()) throw new Error('预览已过期，请重新生成预览')
+    if (Number(lockedRun.rows[0]!.revision || 0) !== Number(opts.run.revision || 0)) throw new Error('预览版本已变化，请重新预览后提交')
+    preview = safeJsonParse<BookImportPreview>(lockedRun.rows[0]!.preview_json, preview)
+    payload = normalizeImportPayload(safeJsonParse<BookImportPayload>(lockedRun.rows[0]!.payload_json, payload))
     let currentNovel: Novel | null = null
     if (novelId) {
       const row = await q<NovelRow>('SELECT * FROM novels WHERE id = $1 FOR UPDATE', [novelId])
@@ -1563,7 +1597,7 @@ export async function applyImport(
     }
     await q('UPDATE novels SET chapter_count=(SELECT COUNT(*) FROM chapters WHERE novel_id=$1), updated_at=$2 WHERE id=$1', [novelId, Date.now()])
     const status = conflicts.length ? 'partial' : 'applied'
-    await q('UPDATE book_import_runs SET target_novel_id=$1, status=$2, changes_json=$3, applied_at=$4 WHERE id=$5', [novelId, status, JSON.stringify(applied), Date.now(), opts.run.id])
+    await q('UPDATE book_import_runs SET target_novel_id=$1, status=$2, changes_json=$3, applied_at=$4, history_summary=$6, source_expires_at=$7 WHERE id=$5', [novelId, status, JSON.stringify(applied), Date.now(), opts.run.id, JSON.stringify({ title: preview.book.title, conflicts: conflicts.length, created, updated }), Date.now() + 30 * 86400000])
   })
 
   return { runId: opts.run.id, batchId: opts.run.id, novelId, novelCreated, created, updated, skipped, metadataUpdated, conflicts }

@@ -1,0 +1,100 @@
+import { act, fireEvent, render, screen } from '@testing-library/react'
+import { beforeEach, expect, it, vi } from 'vitest'
+import type { BookImportAiReview, BookImportPreview } from '@shared/types'
+const api = vi.hoisted(() => ({ previewFile: vi.fn(), aiReview: vi.fn(), applyAiReview: vi.fn(), commit: vi.fn(), getPreview: vi.fn() }))
+vi.mock('@/lib/api', () => ({ bookImportApi: api }))
+import BookImportDialog from './BookImportDialog'
+const original: BookImportPreview = {
+  runId: 'run',
+  revision: 0,
+  sourceType: 'file',
+  sourceLabel: '样本.txt',
+  sourceUrl: '',
+  canResplit: true,
+  book: { title: '样本', author: '作者', chapters: [{ title: '第一章', order: 1, content: '正文' }] },
+  candidates: [],
+  targetNovelId: null,
+  targetNovel: null,
+  metadataDiff: [],
+  warnings: [],
+  chapters: [
+    { id: 'chapter', status: 'new', incomingOrder: 1, incomingTitle: '第一章', incomingContent: '正文', confidence: 'high', reason: '新增', selected: true },
+  ],
+  summary: { newCount: 1, changedCount: 0, unchangedCount: 0, conflictCount: 0 },
+  diagnostics: {
+    stats: {
+      parser: 'text',
+      totalLines: 4,
+      headingLines: 1,
+      volumeHeadingLines: 0,
+      mergedHeadingLines: 0,
+      frontMatterLines: 2,
+      droppedEmptyChapters: 0,
+      chapterCount: 1,
+      chapterChars: { min: 2, median: 2, max: 2 },
+      frontMatterChars: 4,
+      numbering: { detected: 1, min: 1, max: 1, missing: 0, duplicated: 0 },
+    },
+    uncertain: [{ line: 1, raw: '序章', verdict: 'prose', rule: 'prose', confidence: 'low', rejectedBy: 'unnumbered-heading-shape' }],
+    uncertainTotal: 1,
+    anomalies: [],
+    heuristicVersion: 2,
+  },
+}
+beforeEach(() => {
+  vi.clearAllMocks()
+  Element.prototype.scrollTo = vi.fn()
+  api.previewFile.mockResolvedValue(structuredClone(original))
+})
+async function openDiff() {
+  render(<BookImportDialog open onOpenChange={vi.fn()} />)
+  fireEvent.change(screen.getByLabelText('选择书籍文件'), { target: { files: [new File(['序章'], '样本.txt', { type: 'text/plain' })] } })
+  fireEvent.click(screen.getByRole('button', { name: '生成预览' }))
+  fireEvent.click(await screen.findByRole('button', { name: '查看差异' }))
+  fireEvent.click(await screen.findByRole('button', { name: /展开明细/ }))
+}
+it('复核期间禁止提交和返回，完成后使用新版本逐条采纳并提示重新核对', async () => {
+  let resolve!: (review: BookImportAiReview) => void
+  api.aiReview.mockImplementation(
+    () =>
+      new Promise<BookImportAiReview>((done) => {
+        resolve = done
+      }),
+  )
+  api.applyAiReview.mockResolvedValue({
+    ...original,
+    revision: 2,
+    aiReview: null,
+    boundaryOverrides: [{ line: 1, verdict: 'heading', source: 'ai', updatedAt: 1 }],
+  })
+  await openDiff()
+  fireEvent.click(screen.getByRole('button', { name: '运行 AI 复核' }))
+  expect(screen.getByRole('button', { name: /确认导入/ })).toBeDisabled()
+  expect(screen.getByRole('button', { name: '返回' })).toBeDisabled()
+  await act(async () =>
+    resolve({
+      revision: 1,
+      reviewedAt: 1,
+      model: 'm',
+      heuristicVersion: 2,
+      candidateCount: 1,
+      projectedChapterCount: 2,
+      reviewedLines: [1],
+      suggestions: [{ line: 1, raw: '序章', heuristic: 'prose', verdict: 'heading', confidence: 'low', reason: '待复核' }],
+      usage: { promptTokens: 1, completionTokens: 1, costMillicents: 0 },
+    }),
+  )
+  expect(api.aiReview).toHaveBeenCalledWith('run', 0)
+  fireEvent.click(screen.getByRole('button', { name: /采纳建议并重新切分/ }))
+  await screen.findByText(/章节和作品信息的勾选已重置/)
+  expect(api.applyAiReview).toHaveBeenCalledWith('run', 1, [1])
+})
+it('预览版本冲突提供刷新入口，刷新后重新核对', async () => {
+  api.aiReview.mockRejectedValue(new Error('预览版本已变化，请重新预览'))
+  api.getPreview.mockResolvedValue({ ...original, revision: 3 })
+  await openDiff()
+  fireEvent.click(screen.getByRole('button', { name: '运行 AI 复核' }))
+  fireEvent.click(await screen.findByRole('button', { name: '加载最新预览' }))
+  await screen.findByText('已加载最新预览，请重新核对勾选。')
+  expect(api.getPreview).toHaveBeenCalledWith('run')
+})

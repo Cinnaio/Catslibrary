@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { timeAgo } from '@/lib/format'
 
-const labels: Record<BookImportHistoryItem['status'], string> = { preview: '预览未提交', applied: '已导入', partial: '部分完成', rolled_back: '已撤回' }
+const labels: Record<BookImportHistoryItem['status'], string> = { preview: '预览未提交', expired: '预览已过期', applied: '已导入', partial: '部分完成', rolled_back: '已撤回' }
 
 export default function BookImportHistoryDialog({ open, onOpenChange, onCompleted }: { open: boolean; onOpenChange: (open: boolean) => void; onCompleted: () => void }) {
   const { confirm } = useConfirm()

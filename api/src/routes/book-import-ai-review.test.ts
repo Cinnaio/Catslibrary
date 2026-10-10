@@ -2,6 +2,9 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { app } from '../app'
 import { setDbForTests } from '../db/pool'
 import { createTestDb, type TestDb } from '../test/db'
+import type { BookImportPreview } from '@shared/types'
+import { pruneImportSnapshots } from '../services/book-import-state'
+import { applyImport, type StoredImportRun } from '../services/book-import'
 
 /**
  * 导入 AI 复核端到端：multipart 预览 → 诊断 → 复核 → 采纳重切。
@@ -46,12 +49,19 @@ afterAll(async () => {
   await t.close()
 })
 
-const call = (path: string, method = 'GET', body?: unknown) =>
-  app.request(path, {
+const call = async (path: string, method = 'GET', body?: unknown) => {
+  const match = path.match(/^\/api\/book-import\/([^/]+)\/(?:ai-review(?:\/apply)?|target|commit|boundaries)$/)
+  let data = body
+  if (method === 'POST' && match && body && typeof body === 'object' && !('revision' in body)) {
+    const row = await t.db.query<{ revision: number }>('SELECT revision FROM book_import_runs WHERE id=$1', [match[1]])
+    data = { ...body, revision: row.rows[0]?.revision || 0 }
+  }
+  return app.request(path, {
     method,
     headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-    body: body === undefined ? undefined : JSON.stringify(body),
+    body: data === undefined ? undefined : JSON.stringify(data),
   })
+}
 
 async function previewTxt(content: string, fileName: string) {
   const form = new FormData()
@@ -184,7 +194,9 @@ describe('导入 AI 复核端到端', () => {
       aiReview: { suggestions: unknown[] } | null
     }
 
-    expect(after.diagnostics?.uncertain.some((row) => row.line === 1)).toBe(true)
+    expect(after.diagnostics).toBeTruthy()
+    // 已复核行不再占下一批候选，但建议继续保留。
+    expect(after.diagnostics?.uncertain.some((row) => row.line === 1)).toBe(false)
     expect(after.aiReview?.suggestions).toHaveLength(1)
   })
 
@@ -210,4 +222,169 @@ describe('导入 AI 复核端到端', () => {
     expect(body.items.length).toBeGreaterThan(0)
     expect(body.items.every((item) => !('source_text' in item) && !('sourceText' in item))).toBe(true)
   })
+})
+
+function upstream(content: string, finishReason = 'stop', refusal?: string) {
+  return new Response(
+    JSON.stringify({
+      model: 'test-model',
+      choices: [{ message: { content, ...(refusal ? { refusal } : {}) }, finish_reason: finishReason }],
+      usage: { prompt_tokens: 20, completion_tokens: 5 },
+    }),
+    { status: 200, headers: { 'Content-Type': 'application/json' } },
+  )
+}
+
+it('人工修正累计保留，预览不写库，单条撤销与恢复原始解析可用', async () => {
+  const content = ['序章', '序章正文。', '第1章 起', '正文甲。', '尾声', '尾声正文。'].join('\n')
+  const original = (await (await previewTxt(content, '累计.txt')).json()) as BookImportPreview
+  const first = (await (
+    await call(`/api/book-import/${original.runId}/boundaries`, 'POST', { changes: [{ line: 1, verdict: 'heading' }] })
+  ).json()) as BookImportPreview
+  expect(first.book.chapters.map((c) => c.title)).toEqual(['序章', '第1章 起'])
+  const dry = (await (
+    await call(`/api/book-import/${original.runId}/boundaries`, 'POST', { changes: [{ line: 5, verdict: 'heading' }], dryRun: true })
+  ).json()) as { chapterCount: number; impacts: Array<{ before: { title: string }; after: { title: string } }> }
+  expect(dry.chapterCount).toBe(3)
+  expect(dry.impacts[0]).toMatchObject({ before: { title: '第1章 起' }, after: { title: '尾声' } })
+  const unchanged = (await (await call(`/api/book-import/${original.runId}`)).json()) as BookImportPreview
+  expect(unchanged.revision).toBe(first.revision)
+  const second = (await (
+    await call(`/api/book-import/${original.runId}/boundaries`, 'POST', { changes: [{ line: 5, verdict: 'heading' }] })
+  ).json()) as BookImportPreview
+  expect(second.book.chapters.map((c) => c.title)).toEqual(['序章', '第1章 起', '尾声'])
+  expect(second.boundaryOverrides).toHaveLength(2)
+  const undone = (await (await call(`/api/book-import/${original.runId}/boundaries`, 'POST', { removeLines: [5] })).json()) as BookImportPreview
+  expect(undone.book.chapters.map((c) => c.title)).toEqual(['序章', '第1章 起'])
+  const reset = (await (await call(`/api/book-import/${original.runId}/boundaries`, 'POST', { reset: true })).json()) as BookImportPreview
+  expect(reset.book.chapters).toEqual(original.book.chapters)
+  expect(reset.boundaryOverrides).toEqual([])
+})
+
+it('AI 建议支持逐条采纳，多轮采纳保留此前修正', async () => {
+  const original = (await (
+    await previewTxt(['序章', '序章正文。', '第1章 起', '正文甲。', '尾声', '尾声正文。'].join('\n'), '逐条.txt')
+  ).json()) as BookImportPreview
+  fetchMock.mockResolvedValueOnce(upstream('{"headings":[1,5]}'))
+  const review = (await (await call(`/api/book-import/${original.runId}/ai-review`, 'POST', {})).json()) as { suggestions: unknown[] }
+  expect(review.suggestions).toHaveLength(2)
+  const first = (await (await call(`/api/book-import/${original.runId}/ai-review/apply`, 'POST', { lines: [1] })).json()) as BookImportPreview
+  expect(first.book.chapters.map((c) => c.title)).toEqual(['序章', '第1章 起'])
+  expect(first.aiReview?.suggestions.map((s) => s.line)).toEqual([5])
+  const second = (await (await call(`/api/book-import/${original.runId}/ai-review/apply`, 'POST', { lines: [5] })).json()) as BookImportPreview
+  expect(second.book.chapters.map((c) => c.title)).toEqual(['序章', '第1章 起', '尾声'])
+  expect(second.aiReview).toBeNull()
+  expect(second.boundaryOverrides?.every((item) => item.source === 'ai')).toBe(true)
+})
+
+it('分批复核越过候选截断，已复核且一致的行不会再次调用', async () => {
+  const content = Array.from({ length: 350 }, (_, i) => `序章 ${i + 1}\n正文。`).join('\n')
+  const original = (await (await previewTxt(content, '批次.txt')).json()) as BookImportPreview
+  expect(original.diagnostics?.truncatedCount).toBe(50)
+  const seen: number[] = []
+  for (let i = 0; i < 5; i++) {
+    fetchMock.mockResolvedValueOnce(upstream('{"headings":[]}'))
+    const response = await call(`/api/book-import/${original.runId}/ai-review`, 'POST', {})
+    expect(response.status).toBe(200)
+    const review = (await response.json()) as { reviewedLines: number[]; candidateCount: number; remainingCount: number }
+    expect(review.candidateCount).toBe(i === 4 ? 30 : 80)
+    seen.push(...review.reviewedLines.filter((line) => !seen.includes(line)))
+    expect(review.remainingCount).toBe(Math.max(0, 350 - (i + 1) * 80))
+  }
+  expect(seen).toHaveLength(350)
+  const callsBefore = fetchMock.mock.calls.length
+  expect((await call(`/api/book-import/${original.runId}/ai-review`, 'POST', {})).status).toBe(200)
+  expect(fetchMock.mock.calls.length).toBe(callsBefore)
+})
+
+it('格式错误、空回复、截断和拒答均不生成建议，已发生用量仍入账', async () => {
+  for (const response of [upstream('第 1 行不是标题'), upstream(''), upstream('{"headings":[1]}', 'length'), upstream('', 'stop', '无法完成此请求')]) {
+    const original = (await (await previewTxt(SAMPLE_TXT, '失败.txt')).json()) as BookImportPreview
+    const before = await t.db.query<{ total: number }>('SELECT COUNT(*)::int AS total FROM ai_usage')
+    fetchMock.mockResolvedValueOnce(response)
+    const result = await call(`/api/book-import/${original.runId}/ai-review`, 'POST', {})
+    expect([422, 502]).toContain(result.status)
+    const after = await t.db.query<{ total: number }>('SELECT COUNT(*)::int AS total FROM ai_usage')
+    expect(after.rows[0]!.total).toBe(before.rows[0]!.total + 1)
+    const stored = (await (await call(`/api/book-import/${original.runId}`)).json()) as BookImportPreview
+    expect(stored.revision).toBe(0)
+    expect(stored.aiReview).toBeNull()
+    expect(stored.reviewedLines).toEqual([])
+    const audit = await t.db.query<{ status: string; error: string }>('SELECT status,error FROM book_import_review_attempts WHERE run_id=$1', [original.runId])
+    expect(audit.rows[0]!.status).toBe('failed')
+    expect(audit.rows[0]!.error).toBeTruthy()
+  }
+})
+
+it('复核租约阻止重复上游调用，晚到的结果不能覆盖新版本', async () => {
+  const original = (await (await previewTxt(SAMPLE_TXT, '并发.txt')).json()) as BookImportPreview
+  let release!: (response: Response) => void
+  let started!: () => void
+  const entered = new Promise<void>((resolve) => {
+    started = resolve
+  })
+  fetchMock.mockImplementationOnce(async () => {
+    started()
+    return new Promise<Response>((resolve) => {
+      release = resolve
+    })
+  })
+  const waiting = call(`/api/book-import/${original.runId}/ai-review`, 'POST', { revision: 0 })
+  await entered
+  const duplicate = await call(`/api/book-import/${original.runId}/ai-review`, 'POST', { revision: 0 })
+  expect(duplicate.status).toBe(409)
+  const target = await call(`/api/book-import/${original.runId}/target`, 'POST', { targetNovelId: null, revision: 0 })
+  expect(target.status).toBe(200)
+  release(upstream('{"headings":[1]}'))
+  expect((await waiting).status).toBe(409)
+  const stored = (await (await call(`/api/book-import/${original.runId}`)).json()) as BookImportPreview
+  expect(stored.revision).toBe(1)
+  expect(stored.aiReview).toBeNull()
+})
+
+it('过期版本不能修改或提交，锁内会再次检查快照版本', async () => {
+  const original = (await (await previewTxt(SAMPLE_TXT, '版本.txt')).json()) as BookImportPreview
+  const stale = (await t.db.query<StoredImportRun>('SELECT * FROM book_import_runs WHERE id=$1', [original.runId])).rows[0]!
+  await call(`/api/book-import/${original.runId}/boundaries`, 'POST', { changes: [{ line: 1, verdict: 'heading' }] })
+  for (const operation of ['target', 'boundaries', 'ai-review', 'commit']) {
+    expect((await call(`/api/book-import/${original.runId}/${operation}`, 'POST', { revision: 0 })).status).toBe(409)
+  }
+  await expect(
+    applyImport(t.db, { run: stale, selectedChapterIds: original.chapters.map((c) => c.id), metadataFields: [], metadataMode: 'missing', actorUserId: 'test' }),
+  ).rejects.toThrow('预览版本')
+})
+
+it('过期快照清理保留历史和回滚记录，已完成导入仍可撤回', async () => {
+  const original = (await (await previewTxt(SAMPLE_TXT, '保留.txt')).json()) as BookImportPreview
+  const committed = await call(`/api/book-import/${original.runId}/commit`, 'POST', {
+    selectedChapterIds: original.chapters.map((c) => c.id),
+    metadataFields: [],
+  })
+  expect(committed.status).toBe(200)
+  const stored = (await t.db.query<StoredImportRun>('SELECT * FROM book_import_runs WHERE id=$1', [original.runId])).rows[0]!
+  expect(Number(stored.source_expires_at) - Number(stored.applied_at)).toBeGreaterThan(29 * 86400000)
+  const expired = (await (await previewTxt(SAMPLE_TXT, '过期.txt')).json()) as BookImportPreview
+  await t.db.query('UPDATE book_import_runs SET source_expires_at=$1 WHERE id=ANY($2::text[])', [Date.now() - 1, [original.runId, expired.runId]])
+  expect((await call(`/api/book-import/${expired.runId}/commit`, 'POST', {})).status).toBe(409)
+  await pruneImportSnapshots(t.db)
+  const cleared = (await t.db.query<StoredImportRun>('SELECT * FROM book_import_runs WHERE id=$1', [original.runId])).rows[0]!
+  expect(cleared.source_text).toBe('')
+  expect(cleared.payload_json).toBe('{}')
+  expect(cleared.changes_json).toBe(stored.changes_json)
+  const history = (await (await call('/api/book-import/history?limit=50')).json()) as {
+    items: Array<{ runId: string; status: string; novelTitle: string; created: number }>
+  }
+  expect(history.items.find((item) => item.runId === expired.runId)).toMatchObject({ status: 'expired', novelTitle: '过期' })
+  expect(history.items.find((item) => item.runId === original.runId)?.created).toBe(1)
+  expect((await call(`/api/book-import/${original.runId}/rollback`, 'POST', {})).status).toBe(200)
+})
+
+it('行级原文只返回附近范围，人工修正拒绝越界或空行', async () => {
+  const original = (await (await previewTxt('序章\n\n正文。\n第1章 起\n正文甲。', '行号.txt')).json()) as BookImportPreview
+  const context = (await (await call(`/api/book-import/${original.runId}/lines?line=1`)).json()) as { lines: Array<{ line: number }> }
+  expect(context.lines[0]?.line).toBe(1)
+  expect(context.lines.length).toBeLessThanOrEqual(7)
+  for (const line of [0, 2, 100, 1.5]) {
+    expect((await call(`/api/book-import/${original.runId}/boundaries`, 'POST', { changes: [{ line, verdict: 'heading' }] })).status).toBe(400)
+  }
 })

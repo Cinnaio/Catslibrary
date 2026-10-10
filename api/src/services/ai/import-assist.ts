@@ -31,44 +31,24 @@ export interface ImportReviewOutcome {
 /**
  * 从模型回复里抽出「判定为标题」的行号集合。
  *
- * 按「JSON 优先、数字兜底」两级解析：模型可能带 Markdown 代码块或解释文字。
+ * 只接受有效 JSON 结论，可容忍外层 Markdown 代码块或解释文字。
  * 只保留候选集合内的行号——模型臆造的行号若放行，会切出原文里并不存在的边界。
  */
 export function parseImportReviewReply(text: string, candidates: BookImportLineEvidence[]): Set<number> {
   const allowed = new Set(candidates.map((item) => item.line))
-  const raw = String(text || '')
-  const collected: number[] = []
-  /**
-   * 是否拿到了可信的 JSON 结论。这一步不能省：
-   * 模型回 `{"headings":[]}` 是在明确表示「没有一行是标题」，
-   * 若把它当「解析失败」落入数字兜底，回复里的解释文字（「第 12 行不是标题」）
-   * 会被当成标题行号，把模型明确的否决反向执行成强制命中。
-   */
-  let trusted = false
-
+  const raw = String(text || '').trim()
   const start = raw.indexOf('{')
   const end = raw.lastIndexOf('}')
-  if (start >= 0 && end > start) {
-    try {
-      const parsed = JSON.parse(raw.slice(start, end + 1)) as { headings?: unknown }
-      if (Array.isArray(parsed.headings)) {
-        trusted = true
-        for (const value of parsed.headings) {
-          const line = Math.trunc(Number(value))
-          if (Number.isFinite(line)) collected.push(line)
-        }
-      }
-    } catch {
-      // 落到数字兜底：模型只回了「12, 47, 88」这类列表
-    }
+  try {
+    if (start < 0 || end <= start) throw new Error('missing JSON')
+    const parsed: unknown = JSON.parse(raw.slice(start, end + 1))
+    if (!parsed || typeof parsed !== 'object' || !('headings' in parsed) || !Array.isArray(parsed.headings)) throw new Error('invalid schema')
+    if (parsed.headings.some((line: unknown) => typeof line !== 'number' || !Number.isSafeInteger(line) || line < 1)) throw new Error('invalid line')
+    if ((parsed.headings as number[]).some((line) => !allowed.has(line))) throw new Error('unknown candidate')
+    return new Set(parsed.headings as number[])
+  } catch {
+    throw new AiError('invalid', 'AI 复核回复格式无效，本次未完成；请重新复核', 502)
   }
-  if (!trusted) {
-    for (const match of raw.matchAll(/\d+/g)) {
-      const line = Number(match[0])
-      if (Number.isFinite(line)) collected.push(line)
-    }
-  }
-  return new Set(collected.filter((line) => allowed.has(line)))
 }
 
 /** 候选行渲染成模型可读的紧凑表格。 */
@@ -89,6 +69,7 @@ export async function reviewImportHeadings(
   db: Db,
   opts: {
     userId: string
+    usageId?: string
     diagnostics: BookImportDiagnostics
     ipAddress?: string
     userAgent?: string
@@ -124,8 +105,25 @@ export async function reviewImportHeadings(
     temperature: 0,
     maxTokens: settings.importAiMaxTokens,
     timeoutMs: 120_000,
+    returnIncompleteResult: true,
   })
 
+  // 先记录真实用量：格式错误、截断也已经发生了上游调用。
+  await recordUsage(db, {
+    usageId: opts.usageId,
+    userId: opts.userId,
+    model: res.model,
+    provider: providerLabel(provider.baseUrl),
+    promptTokens: res.promptTokens,
+    completionTokens: res.completionTokens,
+    ...usageAuditFields(res),
+    costMillicents: res.cost * 100000,
+    generationType: 'import_review',
+    ipAddress: opts.ipAddress,
+    userAgent: opts.userAgent,
+  })
+  if (res.refusal) throw new AiError('invalid', res.refusal, 422)
+  if (res.finishReason !== 'stop') throw new AiError('invalid', 'AI 复核输出未完整结束，本次未完成；请重新复核或提高输出上限', 502)
   const headings = parseImportReviewReply(res.text, candidates)
   // 只保留与启发式不一致的判定：一致的结论没有行动价值，列出来只会淹没真正的改判。
   const suggestions: BookImportAiSuggestion[] = candidates
@@ -145,18 +143,6 @@ export async function reviewImportHeadings(
   const forceHeadings = suggestions.filter((item) => item.verdict === 'heading').map((item) => item.line)
   const denyHeadings = suggestions.filter((item) => item.verdict === 'prose').map((item) => item.line)
 
-  await recordUsage(db, {
-    userId: opts.userId,
-    model: res.model,
-    provider: providerLabel(provider.baseUrl),
-    promptTokens: res.promptTokens,
-    completionTokens: res.completionTokens,
-    ...usageAuditFields(res),
-    costMillicents: res.cost * 100000,
-    generationType: 'import_review',
-    ipAddress: opts.ipAddress,
-    userAgent: opts.userAgent,
-  })
 
   return {
     review: {
@@ -164,6 +150,7 @@ export async function reviewImportHeadings(
       model: res.model,
       heuristicVersion: opts.diagnostics.heuristicVersion,
       candidateCount: candidates.length,
+      reviewedLines: candidates.map((item) => item.line),
       suggestions,
       // 预计章节数由调用方按建议重跑确定性切分得出，这里不猜。
       projectedChapterCount: 0,

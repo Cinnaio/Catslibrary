@@ -135,3 +135,23 @@ describe('import heading overrides', () => {
     )
   })
 })
+
+it('全文扫描时，后半本高风险行不会被前 1200 条候选挤掉', () => {
+  const content = [...Array.from({ length: 1250 }, () => '1短标题\n正文。'), '序章', '序章正文。'].join('\n')
+  const { diagnostics } = helpers.parseTextImportDetailed(content, '后半本.txt')
+  expect(diagnostics.uncertain[0]?.raw).toBe('序章')
+  expect(diagnostics.uncertain[0]?.line).toBe(2501)
+  expect(diagnostics.uncertainTotal).toBe(1251)
+  expect(diagnostics.truncatedCount).toBe(951)
+})
+
+it('复核上下文跳过附近的空行', () => {
+  const { diagnostics } = helpers.parseTextImportDetailed('上一段正文。\n\n序章\n\n序章正文。', '空行.txt')
+  expect(diagnostics.uncertain[0]).toMatchObject({ contextBefore: '上一段正文。', contextAfter: '序章正文。' })
+})
+
+it('人工强制边界保持裸编号的归一化与导入键', () => {
+  const content = '  0012短标题\n正文。'
+  const result = helpers.parseTextImportDetailed(content, '强制.txt', { forceHeadings: [1] })
+  expect(result.payload.chapters[0]?.title).toBe('0012 短标题')
+})

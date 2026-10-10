@@ -199,6 +199,11 @@ export interface BookImportDiagnostics {
   uncertain: BookImportLineEvidence[]
   /** 截断前的总数。 */
   uncertainTotal: number
+  /** 已完成复核且未被边界覆盖的存疑行。 */
+  reviewedCount?: number
+  pendingCount?: number
+  /** 本轮可展示候选之外仍有多少行；下一批会重新扫描原文。 */
+  truncatedCount?: number
   anomalies: BookImportAnomaly[]
   /**
    * 启发式版本号。AI 复核与标注样本据此判断基线是否已变，
@@ -221,7 +226,27 @@ export interface BookImportAiSuggestion {
  * AI 复核结果。只覆盖 uncertain 行——确定性基线照旧跑，
  * 模型仅裁决证据不足的区间，因此不引入全量不确定性。
  */
+export interface BookImportBoundaryOverride {
+  line: number
+  verdict: BookImportLineVerdict
+  source: 'ai' | 'manual'
+  updatedAt: number
+}
+
+export interface BookImportBoundaryImpact {
+  line: number
+  raw: string
+  before: { title: string; chars: number; excerpt: string }
+  after: { title: string; chars: number; excerpt: string }
+}
+
 export interface BookImportAiReview {
+  sourceHash?: string
+  revision?: number
+  reviewedLines?: number[]
+  remainingCount?: number
+  impacts?: BookImportBoundaryImpact[]
+  diagnostics?: BookImportDiagnostics
   reviewedAt: number
   model: string
   heuristicVersion: number
@@ -233,6 +258,13 @@ export interface BookImportAiReview {
 }
 
 export interface BookImportPreview {
+  /** 每次快照变更递增，所有写操作验证这个版本。 */
+  revision?: number
+  boundaryOverrides?: BookImportBoundaryOverride[]
+  reviewedLines?: number[]
+  sourceHash?: string
+  sourceExpiresAt?: number
+  canResplit?: boolean
   runId: string
   sourceType: BookImportSourceType
   sourceLabel: string
@@ -282,7 +314,7 @@ export interface BookImportHistoryItem {
   sourceUrl: string
   novelId: string
   novelTitle: string
-  status: 'preview' | 'applied' | 'rolled_back' | 'partial'
+  status: 'preview' | 'applied' | 'rolled_back' | 'partial' | 'expired'
   createdAt: number
   appliedAt: number
   rolledBackAt: number

@@ -35,9 +35,12 @@ export interface AiChatOptions {
   maxTokens?: number
   timeoutMs?: number
   signal?: AbortSignal
+  /** 审计调用方先记账，再自行拒绝空回复、拒答与截断。仅非流式使用。 */
+  returnIncompleteResult?: boolean
 }
 
 export interface AiChatResult extends UpstreamUsage {
+  refusal?: string
   text: string
   model: string
   promptTokens: number
@@ -184,12 +187,12 @@ async function once(endpoint: string, apiKey: string, body: string, model: strin
 
   const data = (await res.json().catch(() => null)) as ChatCompletionResponse | null
   const refusal = detectStructuredContentRefusal(data)
-  if (refusal) throw new AiError('invalid', contentRefusalMessage(refusal), 422)
+  if (refusal && !opts.returnIncompleteResult) throw new AiError('invalid', contentRefusalMessage(refusal), 422)
   const choice = data?.choices?.[0]
   const text = extractContent(choice?.message?.content)
   const finishReason = String(choice?.finish_reason || '')
 
-  if (!text) {
+  if (!text && !opts.returnIncompleteResult) {
     // 推理模型（deepseek-v4 等）会先把 max_tokens 花在 reasoning_content 上，
     // 预算不够时 content 为空且 finish_reason=length —— 这与「上游异常」是两回事，分开报。
     console.error('[ai] 空回复 finish_reason=%s usage=%o', finishReason, data?.usage || null)
@@ -203,6 +206,7 @@ async function once(endpoint: string, apiKey: string, body: string, model: strin
   const cost = upstreamCost(data)
   return {
     text,
+    ...(refusal ? { refusal: contentRefusalMessage(refusal) } : {}),
     model: String(data?.model || model),
     ...usage,
     promptTokens: usage.promptTokens ?? 0,
