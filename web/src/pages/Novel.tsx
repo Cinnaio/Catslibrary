@@ -345,7 +345,7 @@ export default function Novel() {
   }, [chapterQuery, chapters])
 
   // ---------- 渲染 ----------
-  if (checking || policyBlocked) return <ContentPolicyStatus />
+  if (checking || policyError) return <ContentPolicyStatus />
   if (loadError) return <PageState title="加载失败" description={loadError} actions={<button type="button" className="btn btn--primary" onClick={() => void load()}>重试</button>} />
   if (loading) {
     return (
@@ -387,7 +387,6 @@ export default function Novel() {
 
   return (
     <main className="detail-page">
-      <ContentPolicyStatus />
       <div className="container detail-shell">
         <Link to="/" className="detail-back"><ArrowLeft size={14} aria-hidden="true" />返回书库</Link>
         {/* Hero */}

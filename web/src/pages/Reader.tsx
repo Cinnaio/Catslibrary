@@ -1173,7 +1173,7 @@ export default function Reader() {
   const prevCandidate = currentIdx > 0 ? allChapters[currentIdx - 1] : undefined
   const prevChapter = prevCandidate && !prevCandidate.id.startsWith('dc') ? prevCandidate : undefined
 
-  if (checking || policyBlocked) return <ContentPolicyStatus />
+  if (checking || policyError) return <ContentPolicyStatus />
 
   if (loadError) return <PageState title="加载失败" description={loadError} actions={<button type="button" className="btn btn--primary" onClick={() => setRetry(value => value + 1)}>重试</button>} />
 
@@ -1199,7 +1199,6 @@ export default function Reader() {
 
   return (
     <div ref={readerAppRef} className={`reader-app${pageMode ? ' reader-page-mode' : ''}${readerClickPaging ? '' : ' reader-click-paging-off'}`} data-reader-theme={readerTheme} data-mobile-toolbar={mobileBarHidden ? 'collapsed' : 'expanded'}>
-      <ContentPolicyStatus />
       <div className="reader-shell">
         {/* Top bar */}
         <div className="reader-top">

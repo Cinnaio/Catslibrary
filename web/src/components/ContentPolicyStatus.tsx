@@ -6,5 +6,5 @@ export default function ContentPolicyStatus() {
   const { checking, policyError, mode, refreshPolicy } = useContentPolicy()
   if (checking) return <PageState title="正在确认访问权限" description="请稍候…" />
   if (!policyError) return null
-  return <PageState inline={mode === 'adult'} title={mode === 'adult' ? '内容模式检查暂时失败' : '访问权限暂时无法确认'} description={policyError} actions={<button type="button" className="btn btn--primary" onClick={() => void refreshPolicy()}>重试</button>} />
+  return <PageState title={mode === 'adult' ? '内容模式检查暂时失败' : '访问权限暂时无法确认'} description={policyError} actions={<button type="button" className="btn btn--primary" onClick={() => void refreshPolicy()}>重试</button>} />
 }

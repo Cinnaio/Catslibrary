@@ -54,15 +54,21 @@ describe('阅读器访问状态', () => {
     expect(screen.queryByRole('heading', { name: '加载失败' })).not.toBeInTheDocument()
   })
 
-  it('后台检查临时失败提示重试，已显示正文保留且不重新加载章节', async () => {
+  it('后台检查临时失败显示独立状态页，恢复后显示原正文且不重新加载章节', async () => {
     mocks.novel.mockResolvedValue({ novel: { id: 'book', title: '测试小说', contentRating: 'restricted' } })
     const view = mount()
     await screen.findByText('正文')
     const requests = mocks.chapter.mock.calls.length
     mocks.policy.policyError = '访问权限验证暂时失败'
     view.rerender(readerTree())
+    expect(screen.queryByText('正文')).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: '内容模式检查暂时失败' })).toBeInTheDocument()
+    expect(screen.getByRole('main')).toHaveClass('page-state')
+    fireEvent.click(screen.getByRole('button', { name: '重试' }))
+    expect(mocks.policy.refreshPolicy).toHaveBeenCalledOnce()
+    mocks.policy.policyError = ''
+    view.rerender(readerTree())
     expect(screen.getByText('正文')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: '内容模式检查暂时失败' })).toBeInTheDocument()
     await act(async () => {})
     expect(mocks.chapter.mock.calls.length).toBe(requests)
   })
