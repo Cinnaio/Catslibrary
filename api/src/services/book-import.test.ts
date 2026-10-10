@@ -151,6 +151,30 @@ describe('book import normalization and diffing', () => {
     expect(diff[0]?.status).not.toBe('new')
   })
 
+  it('strips a dotted inner number from double-numbered headings', () => {
+    // 站点导出把「外层编号 + 内层编号」都写进标题：「第0001章\t1.霸凌高冷学霸蹭逼喝尿（h）」。
+    // 早期只剥「编号 + 空白」，内层「1.」的数字残留成「1霸凌…」，与库里的「霸凌…」
+    // 永不相等，整份文件的章节都会被误判成新增。实测 58 章全部受影响。
+    expect(helpers.normalizeImportChapterTitle('第0001章\t1.霸凌高冷学霸蹭逼喝尿（h）')).toBe(
+      helpers.normalizeImportChapterTitle('霸凌高冷学霸蹭逼喝尿（h）'),
+    )
+    expect(helpers.normalizeImportChapterTitle('1.霸凌高冷学霸蹭逼喝尿（h）')).toBe(
+      helpers.normalizeImportChapterTitle('霸凌高冷学霸蹭逼喝尿（h）'),
+    )
+    // 外层与内层编号叠加（`19 18.标题`）。
+    expect(helpers.normalizeImportChapterTitle('19 18.想吃鸡巴就吃成这样（h）（加更）')).toBe(
+      helpers.normalizeImportChapterTitle('想吃鸡巴就吃成这样（h）（加更）'),
+    )
+    // 纯编号无标题文本时也要能对上。
+    expect(helpers.normalizeImportChapterTitle('30.有情人终成兄妹')).toBe(
+      helpers.normalizeImportChapterTitle('有情人终成兄妹'),
+    )
+    // 正文里的年份与小数不能被削掉半截。
+    expect(helpers.normalizeImportChapterTitle('1999年的夏天')).toContain('1999')
+    expect(helpers.normalizeImportChapterTitle('12.5公里的路')).toContain('12')
+    expect(helpers.normalizeImportChapterTitle('12.5公里的路')).not.toBe(helpers.normalizeImportChapterTitle('5公里的路'))
+  })
+
   it('does not split prose that merely starts with a number', () => {
     // 「第一回体验性爱……」是一句正文，不是标题；它曾把整章正文挂到自己名下。
     const prose = '第一回体验性爱就被内射，谢溪大脑空白了一瞬，身体也仿佛被置于一整片虚空之中，那东西粘稠湿润，热量惊人，浇在她最敏感的嫩肉上。'
