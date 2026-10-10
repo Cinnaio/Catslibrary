@@ -1,14 +1,15 @@
 import { backupSettings, rehearsalConnection, saveBackupSettings } from './settings'
 import { Pool } from 'pg'
-import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, writeFile, rm, readdir, copyFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { beforeAll, afterAll, describe, it, expect, vi } from 'vitest'
 import type { Db } from '../../db/pool'
 import { runMigrations } from '../../db/migrate'
-import { enqueue, getSetting, logEvent, setSetting } from './store'
+import { enqueue, getSetting, logEvent, setSetting, siteId } from './store'
 import { runBackupTick } from './worker'
-import { archivePath, currentMigration, type Manifest } from './archive'
+import { archivePath, currentMigration, generateArchive, type Manifest } from './archive'
 import { rehearse, prepareRestore } from './restore'
 import { command, pgEnvironment, psqlTool } from './process'
 import { defaultPolicy } from './config'
@@ -129,21 +130,35 @@ describe.skipIf(!connection)('真实 PostgreSQL 全链路（仅专用测试库�
     }
   }, 60000)
   it('旧版备份在空演练控制区补齐新迁移并生成完整影响报告', async () => {
-    await db.query('DELETE FROM schema_migrations WHERE version=48')
     const backup = await enqueue(db, 'backup', { operationId: 'migration47-backup', targetIds: [] }, { id: 'backup-admin', name: '管理员' })
-    try {
-      await runBackupTick(db)
-    } finally {
-      await db.query("INSERT INTO schema_migrations(version,name) VALUES(48,'048_restore_impacts.sql') ON CONFLICT DO NOTHING")
+    // Build an actual v47 schema, rather than removing only a migration marker
+    // from today's schema. This stays valid when later migrations add tables.
+    const migrations = fileURLToPath(new URL('../../db/migrations/', import.meta.url))
+    const legacy = await mkdtemp(path.join(root, 'migration47-'))
+    for (const file of await readdir(migrations)) {
+      if (/^\d+_.*\.sql$/.test(file) && Number.parseInt(file) <= 47) await copyFile(path.join(migrations, file), path.join(legacy, file))
     }
-    const manifest: Manifest = JSON.parse(
-      (await db.query<{ manifest: string }>('SELECT manifest FROM backup_control.versions WHERE id=$1', [backup.versionId])).rows[0]!.manifest,
-    )
-    expect(manifest.migrationVersion).toBe(47)
     const shadow = new Pool({ connectionString: process.env.BACKUP_INTEGRATION_REHEARSAL_URL })
     try {
+      await shadow.query('DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public; DROP SCHEMA IF EXISTS backup_control CASCADE')
+      await runMigrations(shadow as unknown as Db, legacy)
+      await shadow.query(
+        "INSERT INTO users(id,username,role,password_hash,password_salt,created_at,updated_at) VALUES('backup-admin','backup-admin','admin','test','test',1,1)",
+      )
+      await shadow.query("INSERT INTO novels(id,title,created_at,updated_at) VALUES('backup-novel','旧版书名',1,1)")
+      vi.stubEnv('DATABASE_URL', process.env.BACKUP_INTEGRATION_REHEARSAL_URL!)
+      const manifest = await generateArchive(shadow as unknown as Db, backup.versionId, await siteId(db))
+      expect(manifest.migrationVersion).toBe(47)
+      await db.query("UPDATE backup_control.versions SET state='completed',manifest=$2,digest=$3 WHERE id=$1", [
+        backup.versionId,
+        JSON.stringify(manifest),
+        manifest.digest,
+      ])
+      await db.query("UPDATE backup_control.copies SET state='available' WHERE version_id=$1", [backup.versionId])
+      await db.query("UPDATE backup_control.tasks SET state='completed' WHERE id=$1", [backup.id])
       await shadow.query('DROP SCHEMA IF EXISTS backup_control CASCADE')
     } finally {
+      vi.stubEnv('DATABASE_URL', connection!)
       await shadow.end()
     }
     const preview = await enqueue(db, 'preview', { operationId: 'migration47-preview', versionId: backup.versionId }, { id: 'backup-admin', name: '管理员' })
@@ -154,6 +169,13 @@ describe.skipIf(!connection)('真实 PostgreSQL 全链路（仅专用测试库�
     expect(task.error).toBe('')
     expect(task.state).toBe('completed')
     expect(JSON.parse(task.result).impact).toBeTruthy()
+    const restored = new Pool({ connectionString: process.env.BACKUP_INTEGRATION_REHEARSAL_URL })
+    try {
+      expect(await currentMigration(restored as unknown as Db)).toBe(await currentMigration(db))
+      expect((await restored.query("SELECT to_regclass('public.chapter_illustrations') AS table")).rows[0].table).toBe('chapter_illustrations')
+    } finally {
+      await restored.end()
+    }
   }, 60000)
   it('损坏归档无法恢复；演练库指向业务库时拒绝操作', async () => {
     const row = await db.query<{ manifest: string }>('SELECT manifest FROM backup_control.versions WHERE protection=TRUE LIMIT 1'),
@@ -183,7 +205,116 @@ describe.skipIf(!connection)('真实 PostgreSQL 全链路（仅专用测试库�
       await rm(prepared.dir, { recursive: true, force: true })
     }
   })
+  it('提交后业务检查失败时使用保护版本补偿，保留控制日志并退出维护', async () => {
+    const versionId = (await db.query<{ id: string }>('SELECT id FROM backup_control.versions WHERE protection=FALSE AND deleted=FALSE LIMIT 1')).rows[0]!.id
+    await db.query("UPDATE novels SET title='补偿必须恢复的当前书名' WHERE id='backup-novel'")
+    const preview = await enqueue(db, 'preview', { operationId: 'compensation-preview', versionId }, { id: 'backup-admin', name: '管理员' })
+    await runBackupTick(db)
+    const result = JSON.parse((await db.query<{ result: string }>('SELECT result FROM backup_control.tasks WHERE id=$1', [preview.id])).rows[0]!.result)
+    const restore = await enqueue(
+      db,
+      'restore',
+      {
+        operationId: 'compensation-restore',
+        versionId,
+        previewTaskId: preview.id,
+        previewToken: result.previewToken,
+      },
+      { id: 'backup-admin', name: '管理员' },
+    )
+    let checked = false
+    const failing: Db = {
+      query: async (sql, params) => {
+        if (sql === "SELECT count(*)::int AS count FROM public.users WHERE role='admin' AND status='active'") {
+          // Inject only the post-commit health failure; both restores execute real SQL.
+          expect(await getSetting(db, 'restoreCommit', '')).toBe(restore.id)
+          expect((await db.query<{ title: string }>("SELECT title FROM novels WHERE id='backup-novel'")).rows[0]!.title).not.toBe('补偿必须恢复的当前书名')
+          checked = true
+          throw new Error('fixture post-commit health failure')
+        }
+        return db.query(sql, params)
+      },
+      connect: () => db.connect(),
+      end: () => db.end(),
+    }
+    await runBackupTick(failing)
+    expect(checked).toBe(true)
+    const task = (await db.query<{ state: string; result: string }>('SELECT state,result FROM backup_control.tasks WHERE id=$1', [restore.id])).rows[0]!
+    expect(task.state).toBe('failed')
+    const protectionId = JSON.parse(task.result).protectionId
+    expect((await db.query<{ title: string }>("SELECT title FROM novels WHERE id='backup-novel'")).rows[0]!.title).toBe('补偿必须恢复的当前书名')
+    expect(await getSetting(db, 'restoreCommit', '')).toBe(`${restore.id}:compensation`)
+    expect(await getSetting(db, 'maintenance', true)).toBe(false)
+    expect(JSON.parse(await readFile(path.join(root, 'restore-journal.json'), 'utf8'))).toMatchObject({
+      taskId: restore.id,
+      stage: 'compensated',
+      protectionId,
+    })
+    expect((await db.query('SELECT id FROM backup_control.events WHERE task_id=$1', [restore.id])).rows.length).toBeGreaterThan(0)
+    expect((await readFile(archivePath(protectionId))).length).toBeGreaterThan(0)
+  }, 60000)
+  it('补偿也失败时保持维护、保留保护归档，并阻止下一次 Worker 写入', async () => {
+    const versionId = (await db.query<{ id: string }>('SELECT id FROM backup_control.versions WHERE protection=FALSE AND deleted=FALSE LIMIT 1')).rows[0]!.id
+    const preview = await enqueue(db, 'preview', { operationId: 'manual-recovery-preview', versionId }, { id: 'backup-admin', name: '管理员' })
+    await runBackupTick(db)
+    const result = JSON.parse((await db.query<{ result: string }>('SELECT result FROM backup_control.tasks WHERE id=$1', [preview.id])).rows[0]!.result)
+    const restore = await enqueue(
+      db,
+      'restore',
+      {
+        operationId: 'manual-recovery-restore',
+        versionId,
+        previewTaskId: preview.id,
+        previewToken: result.previewToken,
+      },
+      { id: 'backup-admin', name: '管理员' },
+    )
+    const queued = await enqueue(db, 'backup', { operationId: 'blocked-after-compensation-failure', targetIds: [] }, { id: 'backup-admin', name: '管理员' })
+    await db.query('UPDATE backup_control.tasks SET created_at=(SELECT created_at+1 FROM backup_control.tasks WHERE id=$2) WHERE id=$1', [
+      queued.id,
+      restore.id,
+    ])
+    let committed = false,
+      compensationAttempted = false
+    const failing: Db = {
+      query: async (sql, params) => {
+        if (sql === "SELECT count(*)::int AS count FROM public.users WHERE role='admin' AND status='active'") {
+          expect(await getSetting(db, 'restoreCommit', '')).toBe(restore.id)
+          committed = true
+          throw new Error('fixture health failure')
+        }
+        if (committed && sql === "SELECT current_setting('server_version_num') AS version") {
+          compensationAttempted = true
+          throw new Error('fixture compensation connection failure')
+        }
+        return db.query(sql, params)
+      },
+      connect: () => db.connect(),
+      end: () => db.end(),
+    }
+    try {
+      await runBackupTick(failing)
+      expect(compensationAttempted).toBe(true)
+      const task = (
+        await db.query<{ state: string; error: string; result: string }>('SELECT state,error,result FROM backup_control.tasks WHERE id=$1', [restore.id])
+      ).rows[0]!
+      expect(task.state).toBe('failed')
+      expect(task.error).toContain('站点保持维护模式')
+      expect(await getSetting(db, 'maintenance', false)).toBe(true)
+      const protectionId = JSON.parse(task.result).protectionId
+      expect((await readFile(archivePath(protectionId))).length).toBeGreaterThan(0)
+      expect(JSON.parse(await readFile(path.join(root, 'restore-journal.json'), 'utf8'))).toMatchObject({ taskId: restore.id, stage: 'applying', protectionId })
+      await expect(enqueue(db, 'backup', { operationId: 'rejected-during-maintenance' }, { id: 'backup-admin', name: '管理员' })).rejects.toThrow('正在恢复')
+      await runBackupTick(db)
+      expect((await db.query<{ state: string }>('SELECT state FROM backup_control.tasks WHERE id=$1', [queued.id])).rows[0]!.state).toBe('queued')
+    } finally {
+      await db.query("UPDATE backup_control.tasks SET state='cancelled' WHERE id=$1", [queued.id])
+      // Only this disposable test cluster is released; production stays in maintenance.
+      await setSetting(db, 'maintenance', false)
+    }
+  }, 60000)
   it('多个 Worker 互斥，自动调度补一次并按保留数量清理旧版本', async () => {
+    const protectionBefore = (await db.query('SELECT id FROM backup_control.versions WHERE protection=TRUE AND deleted=FALSE')).rows
     await setSetting(db, 'policy', { ...defaultPolicy, enabled: true, localRetention: 1, nextRunAt: Date.now() - 86400000, revision: 8 })
     await Promise.all([runBackupTick(db), runBackupTick(db)])
     expect((await db.query('SELECT * FROM backup_control.schedule_runs WHERE revision=8')).rows).toHaveLength(1)
@@ -191,7 +322,10 @@ describe.skipIf(!connection)('真实 PostgreSQL 全链路（仅专用测试库�
     expect(
       (await db.query("SELECT * FROM backup_control.versions WHERE deleted=FALSE AND protection=FALSE AND manifest!='' AND trigger='manual'")).rows,
     ).toHaveLength(0)
-    expect((await db.query('SELECT * FROM backup_control.versions WHERE protection=TRUE AND deleted=FALSE')).rows).toHaveLength(1)
+    expect((await db.query('SELECT id FROM backup_control.versions WHERE protection=TRUE AND deleted=FALSE')).rows).toEqual(
+      expect.arrayContaining(protectionBefore),
+    )
+    expect((await db.query('SELECT id FROM backup_control.versions WHERE protection=TRUE AND deleted=FALSE')).rows).toHaveLength(protectionBefore.length)
     await setSetting(db, 'policy', defaultPolicy)
   })
   it.skipIf(!process.env.BACKUP_INTEGRATION_SFTP_HOST)(
@@ -208,7 +342,7 @@ describe.skipIf(!connection)('真实 PostgreSQL 全链路（仅专用测试库�
         enabled: true,
         required: true,
         host,
-        port: 55222,
+        port: Number(process.env.BACKUP_INTEGRATION_SFTP_PORT || 55222),
         path: '/backups',
         username: 'backup',
         hostKey: key,

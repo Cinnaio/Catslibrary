@@ -60,6 +60,9 @@ async function generateRestoreScript(dump: string, dir: string, manifest: Manife
       `BEGIN;\nDROP SCHEMA IF EXISTS public CASCADE;\nCREATE SCHEMA public;\n${extensions.map((name) => `CREATE EXTENSION IF NOT EXISTS "${name}" WITH SCHEMA public;`).join('\n')}\n`,
     )
     for await (const chunk of createReadStream(sql)) await write(chunk as Buffer)
+    // pg_restore leaves search_path empty. New migrations use unqualified
+    // business table names, so restore their schema before applying upgrades.
+    await write('\nSET LOCAL search_path = public;\n')
     const files = (await readdir(migrationDir())).filter((name) => /^\d+_.*\.sql$/.test(name)).sort((a, b) => Number.parseInt(a) - Number.parseInt(b))
     for (const file of files) {
       const version = Number.parseInt(file)
