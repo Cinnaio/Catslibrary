@@ -52,3 +52,14 @@ BROWSER_SECURITY_CHECK=1 npm test --workspace=@zhi-zhou/api -- src/routes/browse
 夹具只监听回环随机端口，验证实际登录、HttpOnly 不可读、刷新恢复及退出，完成后关闭浏览器和服务。普通 API 回归默认跳过这一项需要浏览器与构建产物的测试；它已单独执行。`npm run test:backup-integration` 继续以真实 PostgreSQL/SFTP 验证新增迁移的旧版恢复路径。
 
 本阶段修改项目源码、测试、部署配置生成器和说明；未迁移线上数据库、修改系统代理配置或重启线上服务。
+
+### 实际验证结果
+
+- 前后端类型检查、生产构建与改动文件格式检查通过；改动文件 ESLint 为 0 错误，SessionContext 保留 3 项已有警告。
+- 前端完整回归：82 个文件、489 项通过。
+- API 完整回归：733 项通过、29 项按环境跳过，1 项已有 AI 封面测试失败。该测试把依据随机小说 ID 选择的 auto 版式固定断言为顶部标题，已固定测试输入为 minimal/symbolic；对应 AI 文件完整重跑 82 项全部通过，其他 81 个 API 文件在完整回归中全部通过。
+- Chromium 网页安全验证：7 项全部通过，覆盖迁移后保留原登录时间与管理员截止时间、HttpOnly 隔离、刷新恢复和退出。
+- 真实 PostgreSQL/SFTP 集成：66 项通过、零跳过，补齐普通 API 回归中需要外部环境的备份恢复用例。
+- GitHub [Backup recovery 验证](https://github.com/Cinnaio/zhi-zhou/actions/runs/38014443992)成功，执行代码提交 `b264c67`（含防护提交 `89aa910`），真实集成 66 项通过、零跳过。
+
+API 完整回归记录的是修正随机测试前的一次完整执行，加上修正后对应文件的重跑结果；没有将原完整执行的失败状态改写为成功。CSP 仍为报告模式，生产是否生效须在前后端与 Nginx 配置实际发布后检查。
