@@ -2525,6 +2525,10 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     const novelId = await firstNovelId(t)
     const previous = fetchMock.getMockImplementation()
     const encoder = new TextEncoder()
+    let releaseScene!: () => void
+    const sceneObserved = new Promise<void>((resolve) => {
+      releaseScene = resolve
+    })
     fetchMock.mockImplementationOnce(
       async () =>
         new Response(
@@ -2560,7 +2564,9 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
           controller.enqueue(
             encoder.encode(`data: ${JSON.stringify({ model: 'test-model', choices: [{ delta: { content: concept.slice(0, splitAt) } }] })}\n\n`),
           )
-          setTimeout(() => {
+          // 等 SSE 客户端实际读到中间状态后才发送尾片，避免 40ms 窗口
+          // 被 100ms 轮询或负载吞掉，误把正常的快任务判定为没有流式更新。
+          void sceneObserved.then(() => {
             controller.enqueue(
               encoder.encode(
                 `data: ${JSON.stringify({ choices: [{ delta: { content: concept.slice(splitAt) }, finish_reason: 'stop' }], usage: { prompt_tokens: 12, completion_tokens: 5 } })}\n\n`,
@@ -2568,7 +2574,7 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
             )
             controller.enqueue(encoder.encode('data: [DONE]\n\n'))
             controller.close()
-          }, 40)
+          })
         },
       })
       return new Response(body, { status: 200, headers: { 'Content-Type': 'text/event-stream' } })
@@ -2581,7 +2587,16 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
       const stream = await req(`/api/ai/tasks/${taskId}/stream`, json('GET', undefined, adminToken))
       expect(stream.status).toBe(200)
       expect(stream.headers.get('content-type')).toContain('text/event-stream')
-      const raw = await stream.text()
+      const reader = stream.body!.getReader()
+      const decoder = new TextDecoder()
+      let raw = ''
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        raw += decoder.decode(value, { stream: true })
+        if (raw.includes('premise-grounded focal subject') || raw.includes('premise-grounded visual motif')) releaseScene()
+      }
+      raw += decoder.decode()
       const events = raw
         .split('\n\n')
         .filter((block) => block.startsWith('data: '))
@@ -2600,6 +2615,7 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
       const sceneRequest = fetchMock.mock.calls.at(-1)?.[1] as { body?: string } | undefined
       expect(JSON.parse(sceneRequest?.body || '{}').stream).toBe(true)
     } finally {
+      releaseScene()
       if (previous) fetchMock.mockImplementation(previous)
       else fetchMock.mockReset()
     }

@@ -9,6 +9,7 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
+    setupFiles: ['./src/test/setup.ts'],
     testTimeout: 30000,
     hookTimeout: 30000,
     // shared/ 下的纯逻辑测试也在此执行。该目录不属于任何 workspace，默认不会被

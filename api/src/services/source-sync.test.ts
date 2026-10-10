@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { createTestDb, type TestDb } from '../test/db'
 import { PgScrapeStore } from './scraper/store'
 import {
@@ -9,6 +9,11 @@ import {
   type SourceChapter,
   type SourceSyncMetadata,
 } from './source-sync'
+
+// 目录 HTML 使用夹具，账号会话也显式提供夹具，避免依赖部署账号。
+vi.mock('./source-account', () => ({
+  getPo18Session: vi.fn().mockResolvedValue({ accountId: 'fixture-account', cookie: 'fixture-session=1' }),
+}))
 
 const metadata: SourceSyncMetadata = {
   title: '',
