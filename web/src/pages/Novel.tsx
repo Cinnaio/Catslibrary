@@ -25,6 +25,9 @@ import ContentPolicyStatus from '../components/ContentPolicyStatus'
 import { setPageSeo } from '../lib/seo'
 import { useSiteBranding } from '../lib/site-branding'
 
+// 暂时隐藏详情页评分与评论；恢复时开启此开关即可。
+const SHOW_NOVEL_COMMUNITY = false
+
 interface RatingSummary {
   average: number
   count: number
@@ -202,7 +205,9 @@ export default function Novel() {
       }
       setLoading(false)
       // 社区
-      void Promise.all([loadRating(id), loadComments(id, true, 'latest')])
+      if (SHOW_NOVEL_COMMUNITY) {
+        void Promise.all([loadRating(id), loadComments(id, true, 'latest')])
+      }
     } catch (err) {
       if (stale()) return
       if (isRestrictedContentError(err)) {
@@ -550,121 +555,123 @@ export default function Novel() {
         )}
 
         {/* 社区 */}
-        <section className="section detail-section community-section">
-          <div className="detail-section__head community-section__head">
-            <div>
+        {SHOW_NOVEL_COMMUNITY && (
+          <section className="section detail-section community-section">
+            <div className="detail-section__head community-section__head">
+              <div>
 
-              <h2>评分与评论</h2>
+                <h2>评分与评论</h2>
+              </div>
+              <div className="community-sort-wrap">
+                <select
+                  className="community-sort-native"
+                  aria-label="评论排序"
+                  value={sort}
+                  onChange={(e) => changeSort(e.target.value)}
+                >
+                  <option value="latest">最新评论</option>
+                  <option value="hot">热门评论</option>
+                </select>
+              </div>
             </div>
-            <div className="community-sort-wrap">
-              <select
-                className="community-sort-native"
-                aria-label="评论排序"
-                value={sort}
-                onChange={(e) => changeSort(e.target.value)}
-              >
-                <option value="latest">最新评论</option>
-                <option value="hot">热门评论</option>
-              </select>
-            </div>
-          </div>
 
-          {/* 评分面板 */}
-          <div className="rating-panel">
-            {rating === null ? (
-              <div className="text-muted text-sm">评分加载中…</div>
-            ) : (
-              <div className="rating-summary">
-                <div className="rating-summary__score">
-                  <strong>{rating.average || '—'}</strong>
-                  <span>共 {rating.count} 人评分</span>
-                </div>
-                <div className="rating-summary__bars">
-                  {[5, 4, 3, 2, 1].map((star) => {
-                    const n = rating.distribution[star] || 0
-                    return (
-                      <div className="rating-bar-row" key={star}>
-                        <span>{star}星</span>
-                        <i><b style={{ width: `${Math.round((n / max) * 100)}%` }}></b></i>
-                        <em>{n}</em>
-                      </div>
-                    )
-                  })}
-                </div>
-                <div className="rating-picker">
-                  <span>我的评分</span>
-                  <div className="rating-stars">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <button
-                        type="button"
-                        className={`rating-star${star <= (rating.myRating || 0) ? ' is-active' : ''}`}
-                        data-rating={star}
-                        aria-label={`${star} 星`}
-                        aria-pressed={rating.myRating === star}
-                        disabled={!user}
-                        key={star}
-                        onClick={() => void setRatingValue(star)}
-                      >
-                        <Star size={20} aria-hidden="true" />
-                      </button>
-                    ))}
+            {/* 评分面板 */}
+            <div className="rating-panel">
+              {rating === null ? (
+                <div className="text-muted text-sm">评分加载中…</div>
+              ) : (
+                <div className="rating-summary">
+                  <div className="rating-summary__score">
+                    <strong>{rating.average || '—'}</strong>
+                    <span>共 {rating.count} 人评分</span>
                   </div>
-                  {rating.myRating ? (
-                    <button type="button" className="rating-clear" title="撤销我的评分" aria-label="撤销我的评分" onClick={() => void clearRating()}>
-                      清除评分
-                    </button>
-                  ) : null}
-                  {!user && <small>登录后可评分</small>}
+                  <div className="rating-summary__bars">
+                    {[5, 4, 3, 2, 1].map((star) => {
+                      const n = rating.distribution[star] || 0
+                      return (
+                        <div className="rating-bar-row" key={star}>
+                          <span>{star}星</span>
+                          <i><b style={{ width: `${Math.round((n / max) * 100)}%` }}></b></i>
+                          <em>{n}</em>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <div className="rating-picker">
+                    <span>我的评分</span>
+                    <div className="rating-stars">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                          type="button"
+                          className={`rating-star${star <= (rating.myRating || 0) ? ' is-active' : ''}`}
+                          data-rating={star}
+                          aria-label={`${star} 星`}
+                          aria-pressed={rating.myRating === star}
+                          disabled={!user}
+                          key={star}
+                          onClick={() => void setRatingValue(star)}
+                        >
+                          <Star size={20} aria-hidden="true" />
+                        </button>
+                      ))}
+                    </div>
+                    {rating.myRating ? (
+                      <button type="button" className="rating-clear" title="撤销我的评分" aria-label="撤销我的评分" onClick={() => void clearRating()}>
+                        清除评分
+                      </button>
+                    ) : null}
+                    {!user && <small>登录后可评分</small>}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 评论输入 */}
+            {user ? (
+              <div className="comment-composer">
+                <div className="comment-form">
+                  <textarea
+                    className="form-input"
+                    rows={4}
+                    maxLength={1000}
+                    placeholder="写下你的评论…"
+                    aria-label="评论内容"
+                    value={commentBox}
+                    onChange={(e) => setCommentBox(e.target.value)}
+                  ></textarea>
+                  <div className="comment-form__footer">
+                  <label className="comment-spoiler-check">
+                    <input type="checkbox" checked={spoiler} onChange={(e) => setSpoiler(e.target.checked)} /> 含剧透
+                  </label>
+                  <button className="btn btn--primary btn--sm" onClick={() => void submitComment(commentBox, spoiler)}>
+                    发布评论
+                  </button>
+                  </div>
                 </div>
               </div>
-            )}
-          </div>
-
-          {/* 评论输入 */}
-          {user ? (
-            <div className="comment-composer">
-              <div className="comment-form">
-                <textarea
-                  className="form-input"
-                  rows={4}
-                  maxLength={1000}
-                  placeholder="写下你的评论…"
-                  aria-label="评论内容"
-                  value={commentBox}
-                  onChange={(e) => setCommentBox(e.target.value)}
-                ></textarea>
-                <div className="comment-form__footer">
-                <label className="comment-spoiler-check">
-                  <input type="checkbox" checked={spoiler} onChange={(e) => setSpoiler(e.target.checked)} /> 含剧透
-                </label>
-                <button className="btn btn--primary btn--sm" onClick={() => void submitComment(commentBox, spoiler)}>
-                  发布评论
-                </button>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="comment-composer">
-              <div className="comment-login-tip">登录后可以发表评论、评分和点赞。</div>
-            </div>
-          )}
-
-          {/* 评论列表 */}
-          <div className="comments-list">
-            {comments.length === 0 ? (
-              <div className="empty-state compact">暂无评论，来写第一条吧。</div>
             ) : (
-              comments.map((c) => <CommentCard key={c.id} comment={c} onLike={likeComment} onReport={reportComment} onDelete={deleteComment} onReply={(text, parentId) => void submitComment(text, false, parentId)} />)
+              <div className="comment-composer">
+                <div className="comment-login-tip">登录后可以发表评论、评分和点赞。</div>
+              </div>
             )}
-          </div>
-          {commentsOffset < commentsTotal && (
-            <div className="comments-more">
-              <button className="btn btn--secondary btn--sm" onClick={() => void loadComments(id, false, sort)}>
-                加载更多
-              </button>
+
+            {/* 评论列表 */}
+            <div className="comments-list">
+              {comments.length === 0 ? (
+                <div className="empty-state compact">暂无评论，来写第一条吧。</div>
+              ) : (
+                comments.map((c) => <CommentCard key={c.id} comment={c} onLike={likeComment} onReport={reportComment} onDelete={deleteComment} onReply={(text, parentId) => void submitComment(text, false, parentId)} />)
+              )}
             </div>
-          )}
-        </section>
+            {commentsOffset < commentsTotal && (
+              <div className="comments-more">
+                <button className="btn btn--secondary btn--sm" onClick={() => void loadComments(id, false, sort)}>
+                  加载更多
+                </button>
+              </div>
+            )}
+          </section>
+        )}
       </div>
 
       {/* 浮动按钮 */}
