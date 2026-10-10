@@ -10,6 +10,8 @@ import { useConfirm } from '../components/feedback'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { formatDate, timeAgo } from '../lib/format'
 import { Monitor, Smartphone } from 'lucide-react'
+import { ReadingDataPanel } from '../components/ReadingDataPanel'
+import { useContentPolicy } from '../context/ContentPolicyContext'
 
 interface SessionItem {
   id: string
@@ -26,6 +28,7 @@ function roleText(role: string): string {
 export default function Profile() {
   const navigate = useNavigate()
   const { user, refresh, loading } = useSession()
+  const { safeMode } = useContentPolicy()
   const { confirm } = useConfirm()
   useDocumentTitle('个人中心')
 
@@ -198,6 +201,7 @@ export default function Profile() {
               { id: 'details', label: '个人资料' },
               { id: 'security', label: '账户安全' },
               { id: 'sessions', label: '登录设备' },
+              { id: 'reading', label: '阅读数据' },
             ].map((item) => (
               <button type="button" className="profile-tab" key={item.id} aria-pressed={activeSettings === item.id} onClick={() => setActiveSettings(item.id)}>
                 {item.label}
@@ -229,6 +233,7 @@ export default function Profile() {
           </section>
 
           <div className="profile-edit-grid">
+            {activeSettings === 'reading' && <ReadingDataPanel key={`${user.id}:${safeMode}`} userId={user.id} username={user.username} />}
             {/* 头像 */}
             <section className="profile-section profile-avatar-section" hidden={activeSettings !== 'details'}>
               <div className="profile-edit-panel">

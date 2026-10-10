@@ -5,6 +5,7 @@
  */
 import { getStorageUser, setStorageUser } from './storage'
 import type { ChapterIllustration } from '@shared/chapter-illustrations'
+import type { LegacyReadingData, ReadingDataPreview, ReadingDataResult } from '@shared/reading-data'
 import type { LocalBookmark } from '@shared/types'
 import type {
   BookImportCommitResult,
@@ -518,6 +519,15 @@ export const bookmarksApi = {
   remove(novelId: string, chapterId: string): Promise<{ success: boolean }> {
     return request('DELETE', '/bookmarks', { novelId, chapterId }, true)
   },
+}
+
+export const readingDataApi = {
+  check(contentMode: string): Promise<ReadingDataPreview> { return request('GET', `/reading-data/check?contentMode=${contentMode}`, null, true) },
+  preview(data: LegacyReadingData, contentMode: string): Promise<ReadingDataPreview> { return request('POST', `/reading-data/restore/preview?contentMode=${contentMode}`, { data }, true) },
+  apply(kind: 'repair' | 'restore', body: { confirmedUserId: string; operationId: string; previewToken: string; expiresAt: number; data?: LegacyReadingData }, contentMode: string): Promise<ReadingDataResult> {
+    return request('POST', `/reading-data/${kind}?contentMode=${contentMode}`, body, true)
+  },
+  operations(): Promise<{ operations: ReadingDataResult[] }> { return request('GET', '/reading-data/operations', null, true) },
 }
 
 export interface ThoughtAdmin extends Thought {

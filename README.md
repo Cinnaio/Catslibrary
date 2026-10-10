@@ -162,6 +162,14 @@ Cloudflare 控制台仍需创建 Managed 组件、绑定实际前端域名；后
 
 公开页面与后台业务模块按需加载，后台模块下载期间保留导航。阅读字体改为本站提供的 Noto Serif SC 400 / 700 / 900 WOFF2 分片，不再请求 Google Fonts；字体跟随前端构建发布到带内容哈希的 `/assets/` 地址。源文件与授权说明见 [web/fonts](web/fonts/README.md)，构建结果及浏览器验证见[加载优化记录](docs/web-loading-and-local-fonts-2026-10-10.md)。
 
+## 历史阅读数据
+
+登录后进入「个人中心 → 阅读数据」，可检查当前账号的失效书签、章节关联、旧名称及异常阅读百分比。先查看逐项预览，再确认修复；有效书签更新名称时保留备注，无效进度写入清除标记。预览有效十分钟，数据或阅读权限变化后需重新预览。每批最多修复 100 项，可继续检查剩余记录。
+
+同一入口可预览旧版浏览器中没有账号归属的书签、阅读历史和书架。确认数据属于自己并确认目标账号后才恢复；已有云端记录与已清除的进度保持原样，原始浏览器数据保留。每类最多 500 条，无法解析或超过上限的类别会提示；游客缓存及其他账号缓存不会迁入当前账号。受限内容遵循当前阅读模式与账号权限。
+
+修复与恢复整批在事务中执行，并显示最近十次操作回执。迁移 050 随 API 正常启动自动执行；实现与验证见[历史阅读数据检查与恢复](docs/reading-data-recovery-2026-10-10.md)。
+
 ## 测试
 
 ```bash
@@ -174,7 +182,7 @@ npm test --workspace=@zhi-zhou/web  # 仅前端
 
 普通后端测试为每个测试文件建立临时配置目录，不读取项目 `.env`、运行时配置或本地备份主密钥，并清除继承的部署代理配置。需要密钥、账号或代理的用例显式提供测试夹具；真实 PostgreSQL/SFTP 备份集成测试仍需专用测试连接和服务，未配置时跳过。
 
-`npm run test:backup-integration` 自动新建临时 PostgreSQL 集群、测试库和 SFTP 服务，执行完整备份、旧版本升级恢复、补偿恢复、维护保护与部署侧空库灾备恢复。缺少依赖或有任何测试跳过均报错，结束后停止服务并删除临时目录；不使用已有数据库连接或远程存储账号。以普通用户运行，需安装 PostgreSQL 服务端与同大版本客户端（含 pg_trgm）、rclone、ssh-keygen，并具有私有 IPv4 网卡。可用 `BACKUP_TEST_PG_BIN` 指定 PostgreSQL 工具目录，`BACKUP_TEST_RCLONE_PATH` 指定 rclone。独立 `Backup recovery` 工作流配置为每次 main 推送及 PR 执行，也支持手动运行。细节见[备份恢复与 CI 验证记录](docs/backup-recovery-ci-2026-10-10.md)。
+`npm run test:backup-integration` 自动新建临时 PostgreSQL 集群、测试库和 SFTP 服务，执行完整备份、旧版本升级恢复、补偿恢复、维护保护、部署侧空库灾备恢复及阅读数据修复/恢复的真实并发保护。缺少依赖或有任何测试跳过均报错，结束后停止服务并删除临时目录；不使用已有数据库连接或远程存储账号。以普通用户运行，需安装 PostgreSQL 服务端与同大版本客户端（含 pg_trgm）、rclone、ssh-keygen，并具有私有 IPv4 网卡。可用 `BACKUP_TEST_PG_BIN` 指定 PostgreSQL 工具目录，`BACKUP_TEST_RCLONE_PATH` 指定 rclone。独立 `Backup recovery` 工作流配置为每次 main 推送及 PR 执行，也支持手动运行。细节见[备份恢复与 CI 验证记录](docs/backup-recovery-ci-2026-10-10.md)。
 
 ## 相关文档
 
