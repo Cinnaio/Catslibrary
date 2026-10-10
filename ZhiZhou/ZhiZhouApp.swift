@@ -41,6 +41,7 @@ struct ZhiZhouApp: App {
                     Task { @MainActor in
                         await ReaderSettingsStore.shared.flush()
                         await ReaderProgressStore.shared.flush()
+                        await ReadingStatsStore.shared.flush()
                     }
                 }
                 .overlay(alignment: .top) {

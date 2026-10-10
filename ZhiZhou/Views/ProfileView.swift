@@ -21,6 +21,12 @@ struct ProfileView: View {
 
             Section("阅读") {
                 NavigationLink {
+                    ReadingStatsView()
+                } label: {
+                    AppIconLabel("阅读统计", systemImage: "chart.bar.xaxis")
+                }
+                .accessibilityIdentifier("profile.reading-stats")
+                NavigationLink {
                     ContentModeView()
                 } label: {
                     LabeledContent("内容模式", value: ContentAccessStore.shared.mode == "adult" ? "R18 · 在线" : "安全模式")

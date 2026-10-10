@@ -188,6 +188,7 @@ final class AppState {
         defer { isUpdatingAccount = false }
         await ReaderSettingsStore.shared.flush()
         await ReaderProgressStore.shared.flush()
+        await ReadingStatsStore.shared.flush()
         guard APIClient.shared.beginTokenRotation(expectedToken: token) else { throw CancellationError() }
         defer { APIClient.shared.finishTokenRotation(expectedToken: token) }
         let body = try APIClient.shared.jsonBody(["currentPassword": current, "newPassword": new])
@@ -209,6 +210,7 @@ final class AppState {
         let tokenAtStart = APIClient.shared.token
         await ReaderSettingsStore.shared.flush()
         await ReaderProgressStore.shared.flush()
+        await ReadingStatsStore.shared.flush()
         try? await APIClient.shared.requestVoid("POST", "/api/auth/logout", auth: true)
         // 登录操作若在登出请求期间完成，不能让旧登出流程清掉新账号。
         guard APIClient.shared.token == tokenAtStart else { return }
@@ -223,6 +225,7 @@ final class AppState {
         guard let token else { throw APIError.unauthorized }
         await ReaderSettingsStore.shared.flush()
         await ReaderProgressStore.shared.flush()
+        await ReadingStatsStore.shared.flush()
         let _: EmptyResponse = try await APIClient.shared.request(
             "POST", "/api/auth/logout-all", auth: true, expectedToken: token
         )
@@ -239,6 +242,7 @@ final class AppState {
         OfflineReadingStore.shared.activate(userID: user.id, token: APIClient.shared.token)
         ReaderSettingsStore.shared.activate(userID: user.id)
         ReaderProgressStore.shared.activate(userID: user.id)
+        ReadingStatsStore.shared.activate(userID: user.id)
         AdminAITaskCoordinator.shared.activate(userID: user.id)
         self.user = user
     }
@@ -248,6 +252,7 @@ final class AppState {
         Task { @MainActor in
             await ReaderSettingsStore.shared.syncFromServer()
             await ReaderProgressStore.shared.flush()
+            await ReadingStatsStore.shared.flush()
         }
     }
 
@@ -257,6 +262,7 @@ final class AppState {
         OfflineReadingStore.shared.deactivate(clearOfflineFallback: clearOfflineFallback)
         ReaderSettingsStore.shared.deactivate()
         ReaderProgressStore.shared.deactivate()
+        ReadingStatsStore.shared.deactivate()
         AdminAITaskCoordinator.shared.deactivate()
     }
 
@@ -270,6 +276,7 @@ final class AppState {
         await APIClient.shared.setChapterCacheScope(userID: userID)
         ReaderSettingsStore.shared.activate(userID: userID)
         ReaderProgressStore.shared.activate(userID: userID)
+        ReadingStatsStore.shared.activate(userID: userID)
         AdminAITaskCoordinator.shared.activate(userID: userID)
     }
 }

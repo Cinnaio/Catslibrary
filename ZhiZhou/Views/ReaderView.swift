@@ -75,6 +75,7 @@ struct ReaderView: View {
     @State private var chapterCount = 0
     @State private var isLoading = false
     @State private var errorMessage: String?
+    @State private var statsOwner = UUID()
     @State private var showTOC = false
     @State private var showSettings = false
     @State private var showChrome = true
@@ -125,6 +126,13 @@ struct ReaderView: View {
 
     private var previousChapter: ChapterMeta? {
         chapterMetas.filter { $0.order < chapterOrder }.max { $0.order < $1.order }
+    }
+
+    private var statisticsVisible: Bool {
+        !isLoading && chapter != nil && pendingScrollRestore == nil
+            && (!novel.isRestricted || (!offlineOnly && ContentAccessStore.shared.mode == "adult"))
+            && !showTOC && !showSettings && !showThoughtPanel && !showBookmark
+            && !showRecap && !showIllustrationsNotice && scenePhase == .active
     }
 
     private var autoScrollActive: Bool {
@@ -316,6 +324,9 @@ struct ReaderView: View {
         } message: {
             Text(illustrationsError ?? "部分插图与当前正文位置不匹配，暂未显示。")
         }
+        .modifier(ReaderStatisticsModifier(owner: statsOwner, novelID: novel.id,
+            chapterID: chapter?.id, mode: offlineOnly ? "safe" : ContentAccessStore.shared.mode,
+            visible: statisticsVisible))
         .task(id: "\(chapterOrder)-\(ContentAccessStore.shared.mode)") { await load() }
         .task(id: ContentAccessStore.shared.revision) {
             recapEnabled = false
@@ -701,10 +712,12 @@ struct ReaderView: View {
             }
             // 按段落更新阅读进度，避免滚动过程中每个 offset 变化都让整个阅读器重算。
             .onChange(of: scrolledParagraph) { _, index in
+                ReadingStatsStore.shared.activity(owner: statsOwner)
                 updatePercent(from: index)
             }
             // 拖动正文时自动收起浮层，轻点恢复。
             .onScrollPhaseChange { _, newPhase in
+                ReadingStatsStore.shared.activity(owner: statsOwner)
                 let phase: ReaderTapGuard.Phase
                 switch newPhase {
                 case .idle: phase = .idle
@@ -791,6 +804,7 @@ struct ReaderView: View {
         }
         .task(id: key) { await rebuildPages(size: pageSize) }
         .onChange(of: currentPage) { _, page in
+            ReadingStatsStore.shared.activity(owner: statsOwner)
             updatePageProgress(page)
         }
         // 与滚动模式一致，控制区占据真实安全区而不是盖在页面上。
@@ -1194,6 +1208,7 @@ struct ReaderView: View {
     }
 
     private func toggleChrome() {
+        ReadingStatsStore.shared.activity(owner: statsOwner)
         interactionFeedback += 1
         if reduceMotion {
             showChrome.toggle()

@@ -38,7 +38,7 @@ Require-ReaderPattern "late scroll restoration has a ScrollViewReader fallback" 
     $readerView -match "readerTopScrollID"
 )
 Require-ReaderPattern "scroll progress follows paragraph identity changes" (
-    $readerView -match "(?s)\.onChange\(of: scrolledParagraph\) \{ _, index in\s*updatePercent\(from: index\)\s*\}"
+    $readerView -match "(?s)\.onChange\(of: scrolledParagraph\) \{ _, index in[^}]*updatePercent\(from: index\)\s*\}"
 )
 Require-ReaderPattern "scroll progress is not driven by continuous geometry updates" (
     $readerView -notmatch "(?s)\.onScrollGeometryChange\(for: CGFloat\.self\).*?updatePercent\(fromScrollOffset:"
