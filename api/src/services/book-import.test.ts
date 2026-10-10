@@ -251,6 +251,112 @@ describe('book import normalization and diffing', () => {
     expect(book.chapters[0]?.content).toContain('0个人问你脸和身材')
   })
 
+  it('keeps a short chapter title ending with an ellipsis', () => {
+    // `第0006章 傅哥哥，疼……` 是真实章名，以省略号收尾。早期把「句号/省略号收尾」
+    // 一律判为正文，导致该章整章丢失。正文长句同时满足「句读收尾」与「超长」，
+    // 短标题不会，故按长度区分。
+    const book = helpers.parseTextImport(
+      ['第0005章 起', '正文甲。', '第0006章 傅哥哥，疼……', '正文乙。', '第0007章 续', '正文丙。'].join('\n'),
+      '省略号标题.txt',
+    )
+
+    expect(book.chapters.map((chapter) => chapter.title)).toEqual(['第0005章 起', '第0006章 傅哥哥，疼……', '第0007章 续'])
+  })
+
+  it('does not split an indented prose line that starts with a number', () => {
+    // 紧贴写法没有分隔符，歧义最大：标题在行首，正文段落才带缩进。
+    // 「117」是本书系统名，正文里「117骗了她！」这类句子都带缩进。
+    const text = [
+      '第0117章 世界三',
+      '正文甲。',
+      '     117骗了她！',
+      '     117有点慌，这么不靠谱，不能出什么岔子吧？',
+      '　　117简直目瞪口呆，它怎么没发现它家宿主这么会乱想？',
+      '正文乙。',
+    ].join('\n')
+    const book = helpers.parseTextImport(text, '缩进正文.txt')
+
+    expect(book.chapters.map((chapter) => chapter.title)).toEqual(['第0117章 世界三'])
+    expect(book.chapters[0]?.content).toContain('117骗了她！')
+    expect(book.chapters[0]?.content).toContain('117简直目瞪口呆')
+  })
+
+  it('does not split a numbered list item or a quantity into chapters', () => {
+    // 站点导出的排雷清单用「编号 + 冒号」，正文里的数量写作「数字 + 万/%」。
+    // 二者都天然符合裸数字标题的形状。
+    const text = [
+      '书名：测试书',
+      '作者：某人',
+      '【排雷必看】',
+      '1：男强女弱，女主性格真的很软很容易被欺负。',
+      '2：男女双C，快穿世界无逻辑，一切剧情为H服务，（全文h无套，默认不会怀孕）',
+      '第0001章 起',
+      '正文甲。',
+      '     1万点积分？她任务完成了？积分也够了？',
+      '     99%了，只差临门一脚，她就完成这个世界的攻略了！',
+      '　　4:默认男主已结扎！！！',
+      '正文乙。',
+    ].join('\n')
+    const book = helpers.parseTextImport(text, '排雷清单.txt')
+
+    expect(book.chapters.map((chapter) => chapter.title)).toEqual(['第0001章 起'])
+    expect(book.chapters[0]?.content).toContain('1万点积分')
+    expect(book.chapters[0]?.content).toContain('99%了')
+    expect(book.chapters[0]?.content).toContain('4:默认男主已结扎')
+  })
+
+  it('drops site front matter that precedes the first chapter heading', () => {
+    // 首个章节标题之前的宣传位（「点击直达……」「连载文:」）不是章节，
+    // 不应变成名为「正文」的伪章。前提是文件确实存在章节标题。
+    const text = [
+      '书名：测试书',
+      '作者：某人',
+      '点击直达……',
+      '连载文:',
+      '《你要不要和我做爱》校园1v1',
+      '第0001章 起',
+      '正文甲。',
+    ].join('\n')
+    const book = helpers.parseTextImport(text, '前置宣传.txt')
+
+    expect(book.chapters.map((chapter) => chapter.title)).toEqual(['第0001章 起'])
+    expect(book.title).toBe('测试书')
+  })
+
+  it('keeps the whole text as one chapter when no heading exists at all', () => {
+    // 无任何章节标题的纯文本文件：首块就是正文本身，不能当站点前置信息丢掉。
+    const text = ['书名：测试书', '作者：某人', '', '她推开门，看见了他。', '风从窗外吹进来。'].join('\n')
+    const book = helpers.parseTextImport(text, '纯文本.txt')
+
+    expect(book.chapters).toHaveLength(1)
+    expect(book.chapters[0]?.content).toContain('她推开门，看见了他。')
+  })
+
+  it('does not delete a body line that also appears in the synopsis', () => {
+    // 简介里的句子常与正文原句重合（实测「镇子上闹妖魔，两个仙君远道而来。」既在简介
+    // 又在第 1 章正文）。早期实现把已消费的元信息行按文本从各章正文里摘除，
+    // 结果正文那处被连带删掉，静默少了一句。元信息提取必须只读不改。
+    const text = [
+      '书名：测试书',
+      '作者：某人',
+      '简介：她第一次看见仙君。',
+      '镇子上闹妖魔，两个仙君远道而来。',
+      '',
+      '第0001章 起',
+      '她第一次看见仙君。',
+      '镇子上闹妖魔，两个仙君远道而来。',
+      '一人着红衣，一人着白衣。',
+    ].join('\n')
+    const book = helpers.parseTextImport(text, '简介重合.txt')
+
+    expect(book.description).toContain('镇子上闹妖魔')
+    expect(book.chapters).toHaveLength(1)
+    // 正文两句都必须还在，且顺序不变。
+    expect(book.chapters[0]?.content).toContain('她第一次看见仙君。')
+    expect(book.chapters[0]?.content).toContain('镇子上闹妖魔，两个仙君远道而来。')
+    expect(book.chapters[0]?.content).toContain('一人着红衣，一人着白衣。')
+  })
+
   it('keeps a chapter whose in-body heading is misnumbered', () => {
     // 原文编号错位：`第0003章` 的正文首行写的是「第四章」，而真正的 `第0004章` 在其后。
     // 权威标题必须自成一章，否则第 3 章会被整章吞掉。

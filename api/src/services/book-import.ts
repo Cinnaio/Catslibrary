@@ -55,13 +55,20 @@ const BARE_NUMBER_HEADING = /^\s*([0-9０-９]{1,4})(?:[ \t\u3000]+)(\S[^\n]*?)\
 
 const MAX_CHAPTER_TITLE_LENGTH = 40
 /**
- * 正文句子的收尾标点。标题几乎不会以句号或省略号结尾；出现即说明这行是正文首句，
- * 而非章节名（「第一回体验性爱就被内射，谢溪大脑空白了一瞬，身体也仿佛……被置于一整片虚空之中。」）。
+ * 正文句子的收尾标点。标题以句号或省略号结尾很罕见，出现即倾向正文
+ * （「第一回体验性爱就被内射，谢溪大脑空白了一瞬……」）。
+ *
+ * 但不能一律否决：`第0006章 傅哥哥，疼……` 是真实章名，只是以省略号收尾。
+ * 故与叹号规则一样按长度二次约束——正文长句同时满足「句读收尾」与「超长」，
+ * 短标题不会。实测该文件因此丢过第 6 章。
  */
 const PROSE_ENDING = /[。…]$/
 /** 叹号/问号：章节名常用（「休得如此荒唐！」「李云儿，没啦！」），不能一律否决。 */
 const EXCLAIM_ENDING = /[！？；]$/
-/** 「！」「？」收尾的短标题（≤26 字）视为正常章节名，超过则按正文可疑处理。 */
+/**
+ * 短标题阈值（≤26 字）：这一长度内的标题无论以何种标点收尾都视为正常章名。
+ * 「傅哥哥，疼……」「李云儿，没啦！」「休得如此荒唐！」都落在此区间。
+ */
 const MAX_SHORT_TITLE_LENGTH = 26
 /**
  * 裸数字标题的长度上限。真实章名可达 35 字左右
@@ -94,6 +101,37 @@ const BARE_NUMBER_TIGHT = /^\s*([0-9０-９]{1,4})([^\s0-9０-９][^\n]*?)\s*$/u
 const FORUM_FLOOR_BODY = /^楼(?:楼主)?(?:[:：]|$)/u
 
 /**
+ * 行首缩进（半角空格或全角空格）。
+ *
+ * 导出格式里章节标题位于行首，正文段落才带缩进。紧贴写法没有分隔符、歧义最大，
+ * 因此额外要求该行未缩进——实测「117骗了她！」「117有点慌，……」这类以系统名 117
+ * 开头的正文段落都带缩进，而真章节「0117世界三:…」在行首。
+ */
+const LEADING_INDENT = /^[ \t\u3000]/
+
+/**
+ * 剥掉编号后紧跟冒号：`1：男强女弱…`、`4:默认男主已结扎！！！`。
+ * 这是编号列表项（排雷/说明清单）的写法，不是章节——真章节的冒号出现在标题内部
+ * （`0117世界三:性瘾症亲侄女…`），不会紧贴编号。
+ */
+const LIST_MARKER_BODY = /^[:：]/
+
+/**
+ * 剥掉编号后紧跟数量单位：`1万点积分？…`、`99%了，只差临门一脚…`。
+ * 这些是正文里的数量（万/亿/%/‰），不是章节号。
+ */
+const QUANTITY_BODY = /^(?:万|亿|%|‰)/u
+
+/**
+ * 首个章节标题之前、短于此长度的残留块视为站点前置信息（宣传位、避雷说明），不是章节。
+ *
+ * 取 600：这几份导出里真实章节均在 1000 字以上（病弱本 217-2760、炉鼎本 1756-3541），
+ * 而前置块只有 31-455 字。留出余量后既能清掉前置块，又不会把「首章未标标题」
+ * 的文件里那一章正文误删。
+ */
+const MAX_FRONT_MATTER_LENGTH = 600
+
+/**
  * 裸数字编号是否可能是章节号。
  *
  * 下界排除 0：章节号从 1 开始，正文里却常出现「0个人问你脸和身材」（网络语「没有人」）
@@ -115,15 +153,11 @@ export function isChapterHeadingLine(line: string): string | null {
   if (match) {
     const title = match[1]!.trim()
     if (title.length > MAX_CHAPTER_TITLE_LENGTH) return null
-    // 结尾标点要分开看：
-    // - 「。」「…」是正文句子的特征（「第一回体验性爱就被内射，谢溪大脑空白了一瞬……」），
-    //   标题里几乎不出现，出现即否决。
-    // - 「！」「？」在章节名里极常见（「第0022章 （纯剧情章）休得如此荒唐！」
-    //   「第0034章 李云儿，没啦！」「0060 图穷匕见/魔修闯进来了！（550珠加更）」），
-    //   一律否决会让这些章整章丢失。
-    // 「！」「？」只在标题超过短标题阈值时才可疑，故按长度二次约束。
-    if (PROSE_ENDING.test(title)) return null
-    if (EXCLAIM_ENDING.test(title) && title.length > MAX_SHORT_TITLE_LENGTH) return null
+    // 结尾标点按「是否短标题」二次约束，两类标点都不能一律否决：
+    // - 「。」「…」倾向正文，但短标题合法（`第0006章 傅哥哥，疼……`）；
+    // - 「！」「？」章节名常用（`第0022章 （纯剧情章）休得如此荒唐！`）。
+    // 正文长句同时满足「句读收尾」与「超长」，短标题不会，故用长度区分。
+    if (title.length > MAX_SHORT_TITLE_LENGTH && (PROSE_ENDING.test(title) || EXCLAIM_ENDING.test(title))) return null
     return title
   }
   // 裸数字标题：`0073 我们做夫妻也是可以的【2500珠加更】`（编号后有空白）
@@ -138,6 +172,9 @@ export function isChapterHeadingLine(line: string): string | null {
     if (body.length > MAX_BARE_TITLE_LENGTH) return null
     // 论坛楼层（`1 楼`、`2 楼楼主`）不是章节，见 FORUM_FLOOR_BODY。
     if (FORUM_FLOOR_BODY.test(body)) return null
+    // 编号列表项（`1：男强女弱…`）与数量（`1万点积分…`）不是章节。
+    if (LIST_MARKER_BODY.test(body)) return null
+    if (QUANTITY_BODY.test(body)) return null
     // 编号后有显式空白时，句读不参与否决：作者会把公告类章名写成
     // 「81 晚点更新。顺便安利篇很香的兄妹骨。」，带句号仍是标题。
     // 真正需要挡掉的是超长正文，已由长度上限覆盖。
@@ -153,8 +190,13 @@ export function isChapterHeadingLine(line: string): string | null {
     if (body.length > MAX_BARE_TITLE_LENGTH) return null
     // 论坛楼层几乎都写成紧贴的 `1楼`/`2楼楼主`，是这条规则最容易吃进来的噪声。
     if (FORUM_FLOOR_BODY.test(body)) return null
-    // 无分隔符时风险更高，句号收尾一律否决：
-    // 「69是什么，她之前其实没有听过。」是正文，不是「69」章的标题。
+    // 编号列表项与数量：`4:默认男主已结扎！！！`、`1万点积分？…`、`99%了，…`。
+    if (LIST_MARKER_BODY.test(body)) return null
+    if (QUANTITY_BODY.test(body)) return null
+    // 无分隔符时风险最高，额外要求行首未缩进：标题在行首，正文段落带缩进。
+    // 「117骗了她！」「117有点慌，……」都以缩进开头，是正文而非章节。
+    if (LEADING_INDENT.test(raw)) return null
+    // 句号收尾一律否决：「69是什么，她之前其实没有听过。」是正文，不是「69」章的标题。
     if (PROSE_ENDING.test(body)) return null
     return `${digits} ${body}`.trim()
   }
@@ -411,14 +453,16 @@ export function parseTextImport(input: string, fileName = '未命名.txt'): Book
   const chapters: WorkingChapter[] = []
   let current: WorkingChapter | null = null
   const byKey = new Map<string, WorkingChapter>()
+  /** 首个章节标题之前的所有行：站点前置信息（元数据、宣传位、避雷说明）。 */
+  const frontMatter: string[] = []
 
   const stripHeading = (title: string) => title.replace(/\s+/g, ' ').trim()
 
-  const beginChapter = (title: string, keys: string[], fromAuthoritative = false) => {
+  const beginChapter = (title: string, keys: string[], fromAuthoritative = false): WorkingChapter => {
     const chapter: WorkingChapter = { title, order: chapters.length + 1, content: '', fromAuthoritative }
     chapters.push(chapter)
     for (const key of keys) if (key && !byKey.has(key)) byKey.set(key, chapter)
-    current = chapter
+    return chapter
   }
 
   for (const line of lines) {
@@ -451,31 +495,38 @@ export function parseTextImport(input: string, fileName = '未命名.txt'): Book
         if (stripped && !openChapter.content.includes(`${stripped}\n`)) openChapter.content += `${stripped}\n`
         continue
       }
-      beginChapter(title, [embeddedKey, key], authoritative)
+      current = beginChapter(title, [embeddedKey, key], authoritative)
       continue
     }
     if (current) {
       current.content += `${line}\n`
-    } else if (text(line)) {
-      const chapter: BookImportChapterInput = { title: '正文', order: 1, content: `${line}\n` }
-      chapters.push(chapter)
-      current = chapter
+    } else {
+      // 首个章节标题之前的行一律进前置缓冲，不再就地开「正文」伪章。
+      // 就地开章会带来两个麻烦：前置信息变成幽灵章节，以及后续要靠「按文本匹配」
+      // 把它摘掉——而正文里可能出现与简介完全相同的句子（实测「镇子上闹妖魔，
+      // 两个仙君远道而来。」既在简介又在第 1 章正文），按文本摘会误删正文。
+      frontMatter.push(line)
     }
   }
 
   // 空正文的编号章节是章节切分炸掉的信号，宁可丢弃也不要写入空章。
   const kept = chapters.filter((chapter) => chapter.content.trim() || !importChapterKey(chapter.title))
   const payloadChapters = kept.length ? kept : chapters
-  if (!payloadChapters.length) payloadChapters.push({ title: '正文', order: 1, content: String(input || '').trim() })
 
-  // 头部元信息块（`书名：X` / `作者：X` / `简介：X`）。站点导出的 TXT 把书名、作者、
-  // 分类、简介写在首个章节标题之前，若不管它，这段会被切成一个名为「正文」的伪章，
-  // 并让「书名」退回文件名。这里提取元数据，并把该块从正文中剔除。
-  const meta = parseTextImportMeta(lines, payloadChapters)
-  // 元信息被摘掉后可能留下空壳的「正文」兜底章——它由「首个章节标题之前出现正文行」开出，
-  // 本身既非编号章节也无内容，必须丢弃，否则预览里会多出一条幽灵章节。
-  const cleaned = payloadChapters.filter((chapter) => chapter.content.trim() || (chapter.title !== '正文' && importChapterKey(chapter.title)))
-  const finalChapters = cleaned.length ? cleaned : payloadChapters
+  // 首个章节标题之前的区域是站点前置信息：书名/作者/分类/简介等元数据，以及宣传位
+  // （「点击直达……」「连载文:」）与避雷说明（「男洁！男洁！男洁！！！」）。
+  const meta = parseTextImportMeta(frontMatter)
+  const leftover = meta.leftover
+  const hasRealHeading = payloadChapters.length > 0
+  if (!hasRealHeading) {
+    // 全文没有任何章节标题：整个文件就是正文，前置块即正文本身，必须保留。
+    payloadChapters.push({ title: '正文', order: 1, content: (leftover.length ? leftover : frontMatter).join('\n').trim() })
+  } else if (leftover.join('').replace(/\s/g, '').length >= MAX_FRONT_MATTER_LENGTH) {
+    // 残留块达到一章的体量，可能是「首章未标标题」的正文，保留为首页；否则丢弃。
+    payloadChapters.unshift({ title: '正文', order: 1, content: leftover.join('\n') })
+  }
+
+  const finalChapters = payloadChapters.length ? payloadChapters : chapters
   finalChapters.forEach((chapter, index) => { chapter.order = index + 1 })
 
   return normalizeImportPayload({
@@ -489,8 +540,16 @@ export function parseTextImport(input: string, fileName = '未命名.txt'): Book
 /** 头部元信息块允许出现的字段前缀；命中即是元信息而非正文。 */
 const TEXT_META_LINE = /^\s*(书名|作品名|标题|作者|作\s*者|简介|内容简介|文案|分类|标签|状态|字数|来源|出处|更新)\s*[:：]\s*(.*)$/
 
+interface TextImportMeta {
+  title?: string
+  author?: string
+  description?: string
+  /** 未被识别为元数据的残留行（宣传位、避雷说明等），由调用方决定是否保留。 */
+  leftover: string[]
+}
+
 /**
- * 解析 TXT 头部的元信息块。
+ * 解析 TXT 头部的前置信息块，提取书名/作者/简介。
  *
  * 该块位于第一个章节标题之前，形如：
  *   书名：和哥哥在乱交世界里假装do爱
@@ -500,19 +559,18 @@ const TEXT_META_LINE = /^\s*(书名|作品名|标题|作者|作\s*者|简介|内
  *   哥哥不喜欢她，甚至有些讨厌她。   ← 简介的续行
  * 简介可跨多行，直到遇到空行、字段行或首个章节标题为止。
  *
- * 副作用：把已消费的元信息行从章节正文中移除，避免生成「正文」伪章。
+ * 只做「读」不做「改」：识别到的行记入 meta，其余原样放进 leftover 交给调用方。
+ * 早期版本在这里按文本把已消费行从各章正文中摘除，结果正文里与简介相同的句子
+ * 会被连带删掉（实测第 1 章正文少了一句 16 字的叙述）。
  */
-function parseTextImportMeta(lines: string[], chapters: BookImportChapterInput[]): { title?: string; author?: string; description?: string } {
-  const meta: { title?: string; author?: string; description?: string } = {}
-  const consume = new Set<number>()
+function parseTextImportMeta(frontMatter: string[]): TextImportMeta {
+  const meta: TextImportMeta = { leftover: [] }
+  const consumed = new Set<number>()
   let sawMeta = false
   let descriptionOpen = false
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]!
-    // 章节标题之前的行才可能是元信息；一旦出现标题就停止。
-    if (isChapterHeadingLine(line)) break
-    const trimmed = line.trim()
+  for (let i = 0; i < frontMatter.length; i++) {
+    const trimmed = frontMatter[i]!.trim()
     if (!trimmed) {
       // 空行结束简介续行；但整块尚未开始时只是普通前导空行。
       descriptionOpen = false
@@ -521,7 +579,7 @@ function parseTextImportMeta(lines: string[], chapters: BookImportChapterInput[]
     const field = trimmed.match(TEXT_META_LINE)
     if (field) {
       sawMeta = true
-      consume.add(i)
+      consumed.add(i)
       const key = field[1]!.replace(/\s/g, '')
       const value = field[2]!.trim()
       if (key === '书名' || key === '作品名' || key === '标题') {
@@ -536,31 +594,17 @@ function parseTextImportMeta(lines: string[], chapters: BookImportChapterInput[]
     }
     // 简介续行：紧跟「简介：」之后、且未遇空行的普通文本行。
     if (descriptionOpen) {
-      consume.add(i)
+      consumed.add(i)
       meta.description = meta.description ? `${meta.description}\n${trimmed}` : trimmed
       continue
     }
-    // 元信息块开始后、遇到无法识别的行：说明块已结束，交回正文处理。
+    // 元信息块开始后、遇到无法识别的行：说明元数据部分已结束，其余归入 leftover。
     if (sawMeta) break
   }
 
-  if (!consume.size) return meta
-
-  // 把已消费的行从章节正文里去掉。元信息只会出现在首章正文开头。
-  const consumedLines = new Set<string>()
-  for (const index of consume) consumedLines.add(lines[index]!.trim())
-  for (const chapter of chapters) {
-    const keptLines = chapter.content
-      .split('\n')
-      .filter((line) => {
-        const t = line.trim()
-        if (!t) return true
-        if (consumedLines.has(t)) return false
-        return !TEXT_META_LINE.test(t)
-      })
-    chapter.content = keptLines.join('\n').replace(/^\n+/, '')
+  for (let i = 0; i < frontMatter.length; i++) {
+    if (!consumed.has(i)) meta.leftover.push(frontMatter[i]!)
   }
-
   return meta
 }
 
