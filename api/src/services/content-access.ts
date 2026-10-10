@@ -1,3 +1,4 @@
+import { requestSession } from './browser-session'
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import type { Context } from 'hono'
 import { loadConfig } from '../config'
@@ -5,7 +6,7 @@ import { getAdultContentEnabled } from './content-policy'
 import { flattenReaderSettings, parseSettingsDocument } from './reader-settings'
 import type { AuthEnv } from '../middlewares/auth'
 import { getDb } from '../db/pool'
-import { bearerToken, hashToken, type UserRow } from './auth'
+import { hashToken, ADMIN_SESSION_TTL, ADMIN_IDLE_TTL, type UserRow } from './auth'
 
 /**
  * 这是“年满 18 岁后自行确认”的服务端凭证，不是年龄验证。
@@ -111,19 +112,22 @@ export function restrictedContentResponse(c: Context<AuthEnv>, reason = 'adult_m
  */
 export async function resolveContentAccess(c: Context<AuthEnv>): Promise<ContentAccessDecision> {
   const existingToken = requestAccessToken(c)
-  const bearer = bearerToken(c.req.header('Authorization') || '')
+  const bearer = requestSession(c)
   // Bearer 存在时只接受该会话；无效 Bearer 不回退到另一个账号的 Cookie。
   let sessionHash = bearer ? await hashToken(bearer, loadConfig().sessionHashSalt) : ''
   if (!bearer && !c.req.header('Authorization') && verifyAdultAccessToken(existingToken)) {
     sessionHash = Buffer.from(existingToken.split('.')[2]!, 'base64url').toString('utf8')
   }
   if (!sessionHash) return { canViewRestricted: false, reason: 'login_required' }
-  const { rows } = await getDb().query<UserRow & { expires_at: string }>(
-    `SELECT u.*, s.expires_at FROM user_sessions s JOIN users u ON u.id = s.user_id
+  const { rows } = await getDb().query<UserRow & { expires_at: string; session_created: number; session_seen: number }>(
+    `SELECT u.*, s.expires_at, s.created_at AS session_created, s.last_seen_at AS session_seen FROM user_sessions s JOIN users u ON u.id = s.user_id
      WHERE s.token_hash = $1 AND s.expires_at > $2 AND u.status = 'active'`,
     [sessionHash, Date.now()],
   )
   const user = rows[0]
+  // Apply administrator idle/absolute limits to content access as well as API authorization.
+  if (user?.role === 'admin' && (Number(user.session_created) <= Date.now() - ADMIN_SESSION_TTL || Number(user.session_seen) <= Date.now() - ADMIN_IDLE_TTL))
+    return { canViewRestricted: false, reason: 'login_required' }
   if (!user || (c.get('user') && c.get('user').id !== user.id)) return { canViewRestricted: false, reason: 'login_required' }
   if (user.role === 'admin') {
     if (bearer) setAdultAccessCookie(c, createAdultAccessToken(sessionHash, Math.min(Number(user.expires_at), Date.now() + ADULT_ACCESS_TTL_SECONDS * 1000)))

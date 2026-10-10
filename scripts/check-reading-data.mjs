@@ -15,7 +15,7 @@ try {
       await context.addInitScript(
         ({ theme }) => {
           localStorage.setItem('theme', theme)
-          localStorage.setItem('user_session_token', 'fixture-a')
+          localStorage.setItem('user_session_marker', 'fixture-a')
           localStorage.setItem('novel_reading_history', JSON.stringify({ n: { novelId: 'n', chapterId: 'c', scrollPercent: 0.4, timestamp: 1 } }))
           localStorage.setItem('novel_bookmarks', JSON.stringify([{ novelId: 'n', chapterId: 'c', note: '旧备注', timestamp: 1 }]))
         },
@@ -119,8 +119,8 @@ try {
       assert(heldCheck)
       user = 'b'
       await page.evaluate(() => {
-        localStorage.setItem('user_session_token', 'fixture-b')
-        dispatchEvent(new StorageEvent('storage', { key: 'user_session_token', newValue: 'fixture-b' }))
+        localStorage.setItem('user_session_marker', 'fixture-b')
+        dispatchEvent(new StorageEvent('storage', { key: 'user_session_marker', newValue: 'fixture-b' }))
       })
       await page.locator('#profileMeta').getByText('@reader-b', { exact: true }).waitFor()
       await page.getByRole('button', { name: '检查当前账号' }).waitFor()

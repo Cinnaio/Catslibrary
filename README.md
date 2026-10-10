@@ -170,6 +170,12 @@ Cloudflare 控制台仍需创建 Managed 组件、绑定实际前端域名；后
 
 修复与恢复整批在事务中执行，并显示最近十次操作回执。迁移 050 随 API 正常启动自动执行；实现与验证见[历史阅读数据检查与恢复](docs/reading-data-recovery-2026-10-10.md)。
 
+## 浏览器会话防护
+
+网页登录使用 HttpOnly Cookie，旧浏览器凭据自动轮换迁移；浏览器写入校验来源、CSRF 请求头与账号归属。管理员会话最多八小时，敏感配置写入需要近期密码验证。原生客户端继续使用 Bearer。
+
+全站 CSP 先使用报告模式。由 Nginx 提供静态前端时，构建后运行 `npm run security:headers` 生成响应头配置，再随前后端一起发布。详见[会话防护与部署说明](docs/browser-session-security-2026-10-10.md)。
+
 ## 测试
 
 ```bash

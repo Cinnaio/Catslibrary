@@ -1,3 +1,5 @@
+import type { Db } from '../db/pool'
+import { requestSession, sessionResponse, clearSessionCookie, setSessionCookie } from '../services/browser-session'
 /**
  * /api/auth/* —— 用户账户（由 Novel-KV server/functions/api/auth.js 平移）。
  */
@@ -5,9 +7,8 @@ import { Hono, type Context } from 'hono'
 import { loadConfig } from '../config'
 import { getDb } from '../db/pool'
 import { first, run, withTx } from '../db/query'
-import { requireUser, type AuthEnv } from '../middlewares/auth'
+import { requireUser, requireAdmin, type AuthEnv } from '../middlewares/auth'
 import {
-  bearerToken,
   cleanBio,
   cleanDisplayName,
   cleanUsername,
@@ -22,7 +23,7 @@ import {
   type UserRow,
 } from '../services/auth'
 import { createSession, deleteSessionByToken } from '../services/sessions'
-import { SESSION_TTL, REMEMBER_TTL } from '../services/auth'
+import { SESSION_TTL, REMEMBER_TTL, REAUTH_TTL, ADMIN_SESSION_TTL } from '../services/auth'
 import {
   cleanReaderSettings,
   cleanUpdatedAt,
@@ -38,6 +39,10 @@ const PUBLIC_USER_COLUMNS = 'id, username, display_name, bio, role, status, crea
 const LOGIN_USER_COLUMNS = PUBLIC_USER_COLUMNS + ', password_hash, password_salt, password_iterations'
 
 export const authRoutes = new Hono<AuthEnv>()
+authRoutes.use('*', async (c, next) => {
+  c.header('Cache-Control', 'private, no-store')
+  await next()
+})
 
 // ---------- 公开 ----------
 
@@ -70,11 +75,7 @@ authRoutes.post('/register', async (c) => {
   if (mode === '1') {
     if (!invite) return c.json({ error: '邀请码必填' }, 400)
     // 先原子认领再建号，避免并发注册都通过"检查后消费"的竞态
-    const claimed = await run(
-      db,
-      'UPDATE invites SET used_at = $1, used_by = $2 WHERE code = $3 AND used_at = 0 AND disabled_at = 0',
-      [now, id, invite],
-    )
+    const claimed = await run(db, 'UPDATE invites SET used_at = $1, used_by = $2 WHERE code = $3 AND used_at = 0 AND disabled_at = 0', [now, id, invite])
     if (!claimed) return c.json({ error: '邀请码无效或已使用' }, 400)
   }
 
@@ -89,7 +90,7 @@ authRoutes.post('/register', async (c) => {
     )
     const user = await publicUserById(db, id)
     const token = await createSession(db, id, c.req.header('User-Agent') || '', loadConfig().sessionHashSalt)
-    return c.json({ user, token }, 201)
+    return c.json({ user, ...sessionResponse(c, token, user?.role === 'admin' ? ADMIN_SESSION_TTL : SESSION_TTL) }, 201)
   } catch (err) {
     if (mode === '1') {
       await run(db, "UPDATE invites SET used_at = 0, used_by = '' WHERE code = $1 AND used_by = $2", [invite, id])
@@ -110,9 +111,7 @@ authRoutes.post('/login', async (c) => {
   const clientIp = clientIpFromContext(c)
   const ipKey = clientIp ? await hashToken('login-ip:' + clientIp, salt) : ''
 
-  const limited =
-    (await checkLoginLimit(db, failKey, LOGIN_LIMIT_PER_USERNAME)) ||
-    (ipKey ? await checkLoginLimit(db, ipKey, LOGIN_LIMIT_PER_IP) : null)
+  const limited = (await checkLoginLimit(db, failKey, LOGIN_LIMIT_PER_USERNAME)) || (ipKey ? await checkLoginLimit(db, ipKey, LOGIN_LIMIT_PER_IP) : null)
   if (limited) {
     await recordLoginAudit(db, c, { username, status: 'limited', reason: 'rate_limited' })
     return c.json({ error: limited }, 429)
@@ -136,11 +135,64 @@ authRoutes.post('/login', async (c) => {
   const remember = body.remember === true
   const token = await createSession(db, user.id, c.req.header('User-Agent') || '', salt, remember ? REMEMBER_TTL : SESSION_TTL)
   await recordLoginAudit(db, c, { userId: user.id, username: user.username, status: 'success', reason: 'login' })
-  return c.json({ user: publicUser(user), token, remember })
+  return c.json({
+    user: publicUser(user),
+    ...sessionResponse(c, token, user.role === 'admin' ? ADMIN_SESSION_TTL : remember ? REMEMBER_TTL : SESSION_TTL, remember),
+  })
 })
 
 authRoutes.post('/bootstrap-admin', async (c) => {
   return createBootstrapAdmin(c)
+})
+
+// Rotate a legacy browser Bearer credential once; never return the replacement secret to JavaScript.
+authRoutes.post('/web-session', requireUser(), async (c) => {
+  const old = requestSession(c)
+  const salt = loadConfig().sessionHashSalt
+  const body = await c.req.json().catch(() => ({}))
+  const rotated = await withTx(getDb(), async (query) => {
+    const row = (
+      await query<{ expires_at: number; reauthenticated_at: number; created_at: number; last_seen_at: number }>(
+        'SELECT expires_at,reauthenticated_at,created_at,last_seen_at FROM user_sessions WHERE token_hash=$1 FOR UPDATE',
+        [await hashToken(old, salt)],
+      )
+    ).rows[0]
+    if (!row) return null
+    const expiresAt = Math.min(c.get('user').role === 'admin' ? Number(row.created_at) + ADMIN_SESSION_TTL : Number(row.expires_at), Number(row.expires_at))
+    const ttl = expiresAt - Date.now()
+    if (ttl <= 0) return null
+    const tx = { query } as Db
+    const token = await createSession(tx, c.get('user').id, c.req.header('User-Agent') || '', salt, ttl)
+    await query('UPDATE user_sessions SET reauthenticated_at=$2,created_at=$3,last_seen_at=$4,expires_at=$5 WHERE token_hash=$1', [
+      await hashToken(token, salt),
+      row.reauthenticated_at,
+      row.created_at,
+      row.last_seen_at,
+      expiresAt,
+    ])
+    await deleteSessionByToken(tx, old, salt)
+    return { token, ttl }
+  })
+  if (!rotated) return c.json({ error: '会话已失效' }, 401)
+  setSessionCookie(c, rotated.token, body.remember === true ? rotated.ttl : undefined)
+  return c.json({ user: publicUser(c.get('user')) })
+})
+authRoutes.post('/reauthenticate', requireAdmin(), async (c) => {
+  const body = await c.req.json().catch(() => ({}))
+  const user = c.get('user')
+  const key = await hashToken('reauth:' + user.id, loadConfig().sessionHashSalt)
+  const limited = await checkLoginLimit(getDb(), key, LOGIN_LIMIT_PER_USERNAME)
+  if (limited) return c.json({ error: limited }, 429)
+  if (typeof body.password !== 'string' || body.password.length > 512 || !(await verifyPassword(body.password, user))) {
+    await recordLoginFailure(getDb(), key)
+    return c.json({ error: '密码不正确' }, 401)
+  }
+  await clearLoginFailures(getDb(), key)
+  await getDb().query('UPDATE user_sessions SET reauthenticated_at=$2 WHERE token_hash=$1', [
+    await hashToken(requestSession(c), loadConfig().sessionHashSalt),
+    Date.now(),
+  ])
+  return c.json({ success: true, expiresIn: REAUTH_TTL / 1000 })
 })
 
 // ---------- 登录用户 ----------
@@ -200,15 +252,17 @@ authRoutes.put('/reader-settings', requireUser(), async (c) => {
 })
 
 authRoutes.post('/logout', requireUser(), async (c) => {
-  const token = bearerToken(c.req.header('Authorization') || '')
+  const token = requestSession(c)
   await deleteSessionByToken(getDb(), token, loadConfig().sessionHashSalt)
   clearAdultAccessCookie(c)
+  clearSessionCookie(c)
   return c.json({ success: true })
 })
 
 authRoutes.post('/logout-all', requireUser(), async (c) => {
   await run(getDb(), 'DELETE FROM user_sessions WHERE user_id = $1', [c.get('user').id])
   clearAdultAccessCookie(c)
+  clearSessionCookie(c)
   return c.json({ success: true })
 })
 
@@ -224,18 +278,30 @@ authRoutes.post('/change-password', requireUser(), async (c) => {
   const now = Date.now()
   const salt = newSalt()
   const hash = await hashPassword(newPassword, salt)
-  await run(db, 'UPDATE users SET password_hash = $1, password_salt = $2, password_iterations = 120000, updated_at = $3 WHERE id = $4', [hash, salt, now, user.id])
-  await run(db, 'DELETE FROM user_sessions WHERE user_id = $1', [user.id])
-  const token = await createSession(db, user.id, c.req.header('User-Agent') || '', loadConfig().sessionHashSalt, body.remember === true ? REMEMBER_TTL : SESSION_TTL)
-  const fresh = await publicUserById(db, user.id)
-  return c.json({ user: fresh, token })
+  const { token, fresh } = await withTx(db, async (query) => {
+    const tx = { query } as Db
+    await run(tx, 'UPDATE users SET password_hash=$1,password_salt=$2,password_iterations=120000,updated_at=$3 WHERE id=$4', [hash, salt, now, user.id])
+    await run(tx, 'DELETE FROM user_sessions WHERE user_id=$1', [user.id])
+    const token = await createSession(
+      tx,
+      user.id,
+      c.req.header('User-Agent') || '',
+      loadConfig().sessionHashSalt,
+      body.remember === true ? REMEMBER_TTL : SESSION_TTL,
+    )
+    return { token, fresh: await publicUserById(tx, user.id) }
+  })
+  return c.json({
+    user: fresh,
+    ...sessionResponse(c, token, user.role === 'admin' ? ADMIN_SESSION_TTL : body.remember === true ? REMEMBER_TTL : SESSION_TTL, body.remember === true),
+  })
 })
 
 authRoutes.get('/sessions', requireUser(), async (c) => {
   const db = getDb()
   const user = c.get('user')
   const salt = loadConfig().sessionHashSalt
-  const currentHash = await hashToken(bearerToken(c.req.header('Authorization') || ''), salt)
+  const currentHash = await hashToken(requestSession(c), salt)
   const { rows } = await db.query<{ token_hash: string; created_at: number; expires_at: number; device_name: string; user_agent: string }>(
     'SELECT token_hash, created_at, expires_at, device_name, user_agent FROM user_sessions WHERE user_id = $1 AND expires_at > $2 ORDER BY created_at DESC',
     [user.id, Date.now()],
@@ -258,7 +324,7 @@ authRoutes.delete('/sessions', requireUser(), async (c) => {
   if (!target) return c.json({ error: 'id is required' }, 400)
   await run(db, 'DELETE FROM user_sessions WHERE user_id = $1 AND token_hash = $2', [user.id, target])
   const salt = loadConfig().sessionHashSalt
-  const currentHash = await hashToken(bearerToken(c.req.header('Authorization') || ''), salt)
+  const currentHash = await hashToken(requestSession(c), salt)
   return c.json({ success: true, current: target === currentHash })
 })
 
@@ -332,7 +398,7 @@ async function createBootstrapAdmin(c: Context<AuthEnv>) {
     if (!created) return c.json({ error: '管理员已存在' }, 409)
     const user = await publicUserById(db, id)
     const token = await createSession(db, id, c.req.header('User-Agent') || '', loadConfig().sessionHashSalt)
-    return c.json({ user, token }, 201)
+    return c.json({ user, ...sessionResponse(c, token, user?.role === 'admin' ? ADMIN_SESSION_TTL : SESSION_TTL) }, 201)
   } catch (err) {
     if (err instanceof Error && /unique/i.test(err.message)) return c.json({ error: '用户名已存在' }, 409)
     throw err
@@ -365,11 +431,7 @@ const LOGIN_LIMIT_PER_IP = 30
 
 async function checkLoginLimit(db: ReturnType<typeof getDb>, keyHash: string, max: number): Promise<string | null> {
   const since = Date.now() - 15 * 60000
-  const row = await first<{ total: number }>(
-    db,
-    'SELECT COUNT(*)::int AS total FROM login_failures WHERE key_hash = $1 AND created_at > $2',
-    [keyHash, since],
-  )
+  const row = await first<{ total: number }>(db, 'SELECT COUNT(*)::int AS total FROM login_failures WHERE key_hash = $1 AND created_at > $2', [keyHash, since])
   if ((row?.total || 0) >= max) return '登录失败次数过多，请稍后再试'
   return null
 }

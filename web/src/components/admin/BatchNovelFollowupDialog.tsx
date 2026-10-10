@@ -23,7 +23,8 @@ export default function BatchNovelFollowupDialog({ novels, onClose }: { novels: 
     try {
       const response = await fetch(url('/scrape'), {
         method: 'POST',
-        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        credentials: 'include',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           action: 'followup-batch-save',
           novelIds: novels.map((novel) => novel.id),

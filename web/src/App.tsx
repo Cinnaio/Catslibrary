@@ -1,3 +1,4 @@
+import { ReauthenticationDialog } from './components/ReauthenticationDialog'
 /**
  * 应用路由 —— 干净路径（/ /novel/:id /read/:novelId/:chapterId /bookshelf /profile /auth）。
  * Reader 用无页头布局（沉浸式）；/auth、/install、/admin 同为独立顶级路由，也不带站点页头：
@@ -25,6 +26,7 @@ const Auth = lazy(() => import('./pages/Auth'))
 export default function App() {
   return (
     <Suspense fallback={<RouteLoading />}>
+      <ReauthenticationDialog />
       <SiteBrandingSync />
       <VisitTracker />
       <PageSeo />

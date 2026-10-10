@@ -1,6 +1,7 @@
+import { requestReauthentication } from './reauthentication'
 /**
  * API 客户端 —— 类型化 fetch 封装（由 Novel-KV js/api.js 平移）。
- * 零依赖：AbortSignal.timeout 超时、token 存储（localStorage/sessionStorage）、
+ * Cookie 会话、公开账号缓存标记、AbortSignal.timeout 超时、
  * 通用 request(method, path, body, useAuth)。
  */
 import { getStorageUser, setStorageUser } from './storage'
@@ -49,9 +50,10 @@ export function url(path: string): string {
   return API_BASE + p
 }
 
-// ---------- Token（与后端 user_sessions.token_hash 对应，只存服务端摘要） ----------
+// ---------- 会话缓存标记（兼容启动时迁移旧 token，不用于请求认证） ----------
 
-const TOKEN_KEY = 'user_session_token'
+const TOKEN_KEY = 'user_session_marker'
+const LEGACY_TOKEN_KEY = 'user_session_token'
 
 // 当前登录用户的去重缓存（见 authApi.meCached），token 变化时由 clearToken 失效
 let mePromise: Promise<{ user: User | null }> | null = null
@@ -59,17 +61,24 @@ let mePromiseToken = ''
 
 export function getToken(): string {
   try {
-    return localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY) || ''
+    return (
+      localStorage.getItem(TOKEN_KEY) ||
+      sessionStorage.getItem(TOKEN_KEY) ||
+      localStorage.getItem(LEGACY_TOKEN_KEY) ||
+      sessionStorage.getItem(LEGACY_TOKEN_KEY) ||
+      ''
+    )
   } catch {
     return ''
   }
 }
 
-export function setToken(token: string, persist = false): void {
+export function setToken(_token: string, persist = false): void {
   clearToken()
   try {
-    if (persist) localStorage.setItem(TOKEN_KEY, token)
-    else sessionStorage.setItem(TOKEN_KEY, token)
+    // This public marker only invalidates caches across tabs; it cannot authenticate.
+    localStorage.setItem(TOKEN_KEY, crypto.randomUUID())
+    localStorage.setItem('user_session_persist', persist ? '1' : '0')
   } catch {
     /* ignore unavailable storage */
   }
@@ -81,6 +90,8 @@ export function clearToken(): void {
   mePromise = null
   mePromiseToken = ''
   try {
+    localStorage.removeItem(LEGACY_TOKEN_KEY)
+    sessionStorage.removeItem(LEGACY_TOKEN_KEY)
     localStorage.removeItem(TOKEN_KEY)
     sessionStorage.removeItem(TOKEN_KEY)
     setStorageUser(null)
@@ -95,8 +106,10 @@ export function isAuthenticated(): boolean {
 
 export function authHeaders(headers: Record<string, string> = {}): Record<string, string> {
   const result = { ...headers }
-  const token = getToken()
-  if (token) result.Authorization = `Bearer ${token}`
+  result['X-Session-Transport'] = 'cookie'
+  result['X-ZZ-CSRF'] = '1'
+  const owner = getStorageUser()
+  if (owner) result['X-ZZ-Account'] = owner
   return result
 }
 
@@ -109,6 +122,41 @@ export function newOperationId(prefix = 'operation'): string {
 
 export function operationHeaders(operationId: string): Record<string, string> {
   return operationId ? { 'Idempotency-Key': operationId } : {}
+}
+
+let accountQueue: Promise<unknown> = Promise.resolve()
+function accountMutation<T>(operation: () => Promise<T>, expected?: string): Promise<T> {
+  const run = () => {
+    if (expected !== undefined && expected !== getToken()) throw new Error('登录状态已变化，请重新操作')
+    return operation()
+  }
+  const execute = async (): Promise<T> => {
+    if (navigator.locks) return await navigator.locks.request('zz-browser-session', run)
+    return await run()
+  }
+  const result = accountQueue.catch(() => {}).then(execute)
+  accountQueue = result.then(
+    () => {},
+    () => {},
+  )
+  return result
+}
+
+let migration: Promise<void> | null = null
+function migrateBrowserSession(): Promise<void> {
+  const legacy = localStorage.getItem(LEGACY_TOKEN_KEY) || sessionStorage.getItem(LEGACY_TOKEN_KEY)
+  if (!legacy) return Promise.resolve()
+  if (!migration) {
+    const remember = !!localStorage.getItem(LEGACY_TOKEN_KEY)
+    migration = accountMutation(() => request('POST', '/auth/web-session', { remember }, false, { Authorization: `Bearer ${legacy}` }), legacy)
+      .then(() => {
+        if ((localStorage.getItem(LEGACY_TOKEN_KEY) || sessionStorage.getItem(LEGACY_TOKEN_KEY)) === legacy) setToken('', remember)
+      })
+      .finally(() => {
+        migration = null
+      })
+  }
+  return migration
 }
 
 // ---------- 请求 ----------
@@ -131,6 +179,15 @@ function timedFetch(input: RequestInfo | URL, opts: RequestInit = {}, timeoutMs 
   if (!opts.signal && typeof AbortSignal !== 'undefined' && 'timeout' in AbortSignal) {
     opts.signal = (AbortSignal as { timeout(ms: number): AbortSignal }).timeout(timeoutMs)
   }
+  const headers = new Headers(opts.headers)
+  headers.set('X-Session-Transport', 'cookie')
+  if (!['GET', 'HEAD', 'OPTIONS'].includes((opts.method || 'GET').toUpperCase())) {
+    headers.set('X-ZZ-CSRF', '1')
+    const owner = getStorageUser()
+    if (owner && !headers.has('X-ZZ-Account')) headers.set('X-ZZ-Account', owner)
+  }
+  opts.headers = headers
+  opts.credentials = 'include'
   return fetch(input, opts)
 }
 
@@ -141,6 +198,7 @@ export async function request<T = unknown>(
   useAuth = false,
   extraHeaders: Record<string, string> = {},
   timeoutMs = API_TIMEOUT_MS,
+  reauthenticated = false,
 ): Promise<T> {
   const requestToken = useAuth ? getToken() : ''
   const hasBody = !!body && method !== 'GET'
@@ -170,9 +228,17 @@ export async function request<T = unknown>(
   }
   const data = (await res.json().catch(() => ({}))) as T & { error?: string }
 
+  if (res.status === 403 && (data as { code?: string }).code === 'reauth_required' && !reauthenticated) {
+    if ((await requestReauthentication()) && requestToken === getToken()) return request<T>(method, path, body, useAuth, extraHeaders, timeoutMs, true)
+    throw new Error('已取消身份验证，操作未执行')
+  }
   if (!res.ok) {
     const denied = data as { code?: string; reason?: string }
-    if (requestToken && requestToken === getToken() && (res.status === 401 || (res.status === 403 && denied.code === 'restricted_content' && denied.reason === 'login_required'))) {
+    if (
+      path !== '/auth/reauthenticate' &&
+      requestToken === getToken() &&
+      (res.status === 401 || (res.status === 403 && denied.code === 'restricted_content' && denied.reason === 'login_required'))
+    ) {
       clearToken()
       window.dispatchEvent(new Event('zhizhou-session-expired'))
     }
@@ -188,9 +254,11 @@ export async function request<T = unknown>(
 export const siteSettingsApi = {
   publicBranding: () => request<import('@shared/site-settings').SiteBranding>('GET', '/site-settings'),
   branding: () => request<import('@shared/site-settings').SiteBranding>('GET', '/admin/site-settings/branding', null, true),
-  saveBranding: (value: import('@shared/site-settings').SiteBranding) => request<import('@shared/site-settings').SiteBranding>('PUT', '/admin/site-settings/branding', value, true),
+  saveBranding: (value: import('@shared/site-settings').SiteBranding) =>
+    request<import('@shared/site-settings').SiteBranding>('PUT', '/admin/site-settings/branding', value, true),
   async upload(kind: 'logo' | 'favicon', file: File) {
-    const form = new FormData(); form.set('image', file)
+    const form = new FormData()
+    form.set('image', file)
     const res = await authFetch(`/admin/site-settings/assets/${kind}`, { method: 'PUT', body: form })
     const value = await res.json()
     if (!res.ok) throw new Error(value.error || '图片上传失败')
@@ -198,11 +266,12 @@ export const siteSettingsApi = {
   },
   resetAsset: (kind: 'logo' | 'favicon') => request<import('@shared/site-settings').SiteBranding>('DELETE', `/admin/site-settings/assets/${kind}`, null, true),
   turnstile: () => request<import('@shared/site-settings').TurnstileSettings>('GET', '/admin/site-settings/turnstile', null, true),
-  saveTurnstile: (value: { siteKey: string; hostnames: string[]; secretKey?: string; clearSecret?: boolean }) => request<import('@shared/site-settings').TurnstileSettings>('PUT', '/admin/site-settings/turnstile', value, true),
+  saveTurnstile: (value: { siteKey: string; hostnames: string[]; secretKey?: string; clearSecret?: boolean }) =>
+    request<import('@shared/site-settings').TurnstileSettings>('PUT', '/admin/site-settings/turnstile', value, true),
   testTurnstile: (token: string) => request<{ ok: boolean; message: string }>('POST', '/admin/site-settings/turnstile/test', { token }, true),
 }
 
-/** 非 JSON 直接 fetch（上传表单/keepalive 等），自动带 token 与 base。 */
+/** 非 JSON 直接 fetch（上传表单/keepalive 等），自动携带 Cookie 与写入保护头。 */
 export function authFetch(path: string, init: RequestInit = {}): Promise<Response> {
   const headers = { ...(init.headers as Record<string, string> | undefined) }
   const opts: RequestInit = { ...init, headers: authHeaders(headers) }
@@ -464,16 +533,24 @@ export const progressApi = {
     return request('GET', `/progress?novelId=${encodeURIComponent(novelId)}`, null, isAuthenticated())
   },
   recent(limit = 5, contentMode?: string): Promise<{ progress: RecentProgressItem[]; tombstones: ProgressTombstone[] }> {
-    return request('GET', `/progress?recent=1&limit=${encodeURIComponent(limit)}${contentMode ? '&contentMode=' + encodeURIComponent(contentMode) : ''}`, null, true)
+    return request(
+      'GET',
+      `/progress?recent=1&limit=${encodeURIComponent(limit)}${contentMode ? '&contentMode=' + encodeURIComponent(contentMode) : ''}`,
+      null,
+      true,
+    )
   },
   save(data: Record<string, unknown>): Promise<import('./progress-state').ProgressState & { success: boolean; skipped?: boolean }> {
-    return request('POST', '/progress', data, isAuthenticated())
+    if (!getStorageUser()) return Promise.resolve({ success: true, skipped: true, progress: null, tombstone: null })
+    return request('POST', '/progress', data, true)
   },
   // Last-chance write：pagehide/visibilitychange 用 keepalive 让请求越过页面销毁。
-  // sendBeacon 不能带 Authorization 头，故用 fetch keepalive。
+  // sendBeacon 不能携带 CSRF 自定义头，故用 fetch keepalive。
   saveOnExit(data: Record<string, unknown>): void {
+    if (!getStorageUser()) return
     const opts: RequestInit = {
       method: 'POST',
+      credentials: 'include',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(data),
       keepalive: true,
@@ -492,7 +569,9 @@ export const progressApi = {
 // ---------- Bookshelf ----------
 
 export const bookshelfApi = {
-  get(params: { offset?: number; limit?: number; contentMode?: string; novelId?: string } = {}): Promise<{ favorites: unknown[]; recent: unknown[]; thoughts: unknown[]; totals?: { favorites: number; thoughts: number } }> {
+  get(
+    params: { offset?: number; limit?: number; contentMode?: string; novelId?: string } = {},
+  ): Promise<{ favorites: unknown[]; recent: unknown[]; thoughts: unknown[]; totals?: { favorites: number; thoughts: number } }> {
     const query = new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)]))
     return request('GET', `/bookshelf?${query}`, null, true)
   },
@@ -522,12 +601,22 @@ export const bookmarksApi = {
 }
 
 export const readingDataApi = {
-  check(contentMode: string): Promise<ReadingDataPreview> { return request('GET', `/reading-data/check?contentMode=${contentMode}`, null, true) },
-  preview(data: LegacyReadingData, contentMode: string): Promise<ReadingDataPreview> { return request('POST', `/reading-data/restore/preview?contentMode=${contentMode}`, { data }, true) },
-  apply(kind: 'repair' | 'restore', body: { confirmedUserId: string; operationId: string; previewToken: string; expiresAt: number; data?: LegacyReadingData }, contentMode: string): Promise<ReadingDataResult> {
+  check(contentMode: string): Promise<ReadingDataPreview> {
+    return request('GET', `/reading-data/check?contentMode=${contentMode}`, null, true)
+  },
+  preview(data: LegacyReadingData, contentMode: string): Promise<ReadingDataPreview> {
+    return request('POST', `/reading-data/restore/preview?contentMode=${contentMode}`, { data }, true)
+  },
+  apply(
+    kind: 'repair' | 'restore',
+    body: { confirmedUserId: string; operationId: string; previewToken: string; expiresAt: number; data?: LegacyReadingData },
+    contentMode: string,
+  ): Promise<ReadingDataResult> {
     return request('POST', `/reading-data/${kind}?contentMode=${contentMode}`, body, true)
   },
-  operations(): Promise<{ operations: ReadingDataResult[] }> { return request('GET', '/reading-data/operations', null, true) },
+  operations(): Promise<{ operations: ReadingDataResult[] }> {
+    return request('GET', '/reading-data/operations', null, true)
+  },
 }
 
 export interface ThoughtAdmin extends Thought {
@@ -678,40 +767,55 @@ export const setupApi = {
 
 export const authApi = {
   me(): Promise<{ user: User | null }> {
-    const token = getToken()
-    return request<{ user: User | null }>('GET', '/auth/me', null, true).then(result => {
-      if (getToken() === token) setStorageUser(result.user?.id || null)
+    const load = async () => {
+      const current = getToken()
+      const result = await request<{ user: User | null }>('GET', '/auth/me', null, true)
+      if (getToken() !== current) return { user: null }
+      if (result.user && !getToken()) setToken('')
+      setStorageUser(result.user?.id || null)
       return result
-    })
+    }
+    const legacy = localStorage.getItem(LEGACY_TOKEN_KEY) || sessionStorage.getItem(LEGACY_TOKEN_KEY)
+    return legacy ? migrateBrowserSession().then(load) : load()
   },
   meCached(): Promise<{ user: User | null }> {
-    if (!getToken()) return Promise.resolve({ user: null })
     if (!mePromise || mePromiseToken !== getToken()) {
       const token = getToken()
       mePromiseToken = token
-      mePromise = authApi.me().catch((err) => {
-        if (getToken() === token) mePromise = null
-        throw err
-      })
+      mePromise = authApi
+        .me()
+        .then((result) => {
+          if (!token || token === getToken() || result.user?.id === getStorageUser()) mePromiseToken = getToken()
+          return result
+        })
+        .catch((err) => {
+          if (getToken() === token) mePromise = null
+          if ((err as ApiError).status === 401) return { user: null }
+          throw err
+        })
     }
     return mePromise!
   },
   invalidate(): void {
     mePromise = null
   },
-  register(username: string, password: string, invite = ''): Promise<{ token: string; user: User }> {
-    return request('POST', '/auth/register', { username, password, ...(invite ? { invite } : {}) }).then((r) => {
-      if ((r as { token?: string }).token) setToken((r as { token: string }).token)
-      setStorageUser((r as { user: User }).user.id)
-      return r as { token: string; user: User }
-    })
+  register(username: string, password: string, invite = ''): Promise<{ user: User }> {
+    return accountMutation(() =>
+      request('POST', '/auth/register', { username, password, ...(invite ? { invite } : {}) }).then((r) => {
+        setToken('', false)
+        setStorageUser((r as { user: User }).user.id)
+        return r as { user: User }
+      }),
+    )
   },
-  login(username: string, password: string, persist = false): Promise<{ token: string; user: User }> {
-    return request('POST', '/auth/login', { username, password, remember: persist }).then((r) => {
-      if ((r as { token?: string }).token) setToken((r as { token: string }).token, persist)
-      setStorageUser((r as { user: User }).user.id)
-      return r as { token: string; user: User }
-    })
+  login(username: string, password: string, persist = false): Promise<{ user: User }> {
+    return accountMutation(() =>
+      request('POST', '/auth/login', { username, password, remember: persist }).then((r) => {
+        setToken('', persist)
+        setStorageUser((r as { user: User }).user.id)
+        return r as { user: User }
+      }),
+    )
   },
   registerStatus(): Promise<{ mode: 'invite' | 'open' | 'closed' }> {
     return request('GET', '/auth/register-status')
@@ -719,41 +823,61 @@ export const authApi = {
   bootstrapStatus(): Promise<{ needsBootstrap: boolean }> {
     return request('GET', '/auth/bootstrap-admin')
   },
-  bootstrapAdmin(username: string, password: string): Promise<{ token: string; user: User }> {
-    return request('POST', '/auth/bootstrap-admin', { username, password }).then((r) => {
-      if ((r as { token?: string }).token) setToken((r as { token: string }).token)
-      setStorageUser((r as { user: User }).user.id)
-      return r as { token: string; user: User }
-    })
+  bootstrapAdmin(username: string, password: string): Promise<{ user: User }> {
+    return accountMutation(() =>
+      request('POST', '/auth/bootstrap-admin', { username, password }).then((r) => {
+        setToken('', false)
+        setStorageUser((r as { user: User }).user.id)
+        return r as { user: User }
+      }),
+    )
   },
   update(data: Record<string, unknown>): Promise<{ user: User }> {
     const token = getToken()
-    return request<{ user: User }>('PUT', '/auth/me', data, true).then(result => {
+    return request<{ user: User }>('PUT', '/auth/me', data, true).then((result) => {
       if (token === getToken()) authApi.invalidate()
       return result
     })
   },
-  changePassword(currentPassword: string, newPassword: string): Promise<{ token: string }> {
+  changePassword(currentPassword: string, newPassword: string): Promise<{ user?: User }> {
     const owner = getStorageUser()
     const token = getToken()
-    const persist = localStorage.getItem(TOKEN_KEY) === token
-    return request('POST', '/auth/change-password', { currentPassword, newPassword, remember: persist }, true).then((r) => {
-      if (token === getToken()) {
-        if ((r as { token?: string }).token) setToken((r as { token: string }).token, persist)
-        setStorageUser(owner)
-      }
-      return r as { token: string }
-    })
+    const persist = localStorage.getItem('user_session_persist') === '1'
+    return accountMutation(
+      () =>
+        request('POST', '/auth/change-password', { currentPassword, newPassword, remember: persist }, true).then((r) => {
+          if (token === getToken()) {
+            setToken('', persist)
+            setStorageUser(owner)
+          }
+          return r as { user?: User }
+        }),
+      token,
+    )
   },
   logout(): Promise<void> {
-    return request('POST', '/auth/logout', null, true)
-      .catch(() => {})
-      .then(() => clearToken())
+    const token = getToken()
+    return accountMutation(
+      () =>
+        request('POST', '/auth/logout', null, true)
+          .catch((error) => {
+            if ((error as ApiError).status !== 401) throw error
+          })
+          .then(() => {
+            if (token === getToken()) clearToken()
+          }),
+      token,
+    )
   },
   logoutAll(): Promise<void> {
     const token = getToken()
-    return request('POST', '/auth/logout-all', null, true)
-      .then(() => { if (token === getToken()) clearToken() })
+    return accountMutation(
+      () =>
+        request('POST', '/auth/logout-all', null, true).then(() => {
+          if (token === getToken()) clearToken()
+        }),
+      token,
+    )
   },
   readerSettings(device?: ReaderDevice): Promise<{ settings: Record<string, string>; updatedAt: Record<string, number>; device?: ReaderDevice }> {
     const query = device ? `?device=${device}` : ''
@@ -778,7 +902,7 @@ export const authApi = {
   },
   deleteAvatar(): Promise<{ ok: boolean }> {
     const token = getToken()
-    return request<{ ok: boolean }>('DELETE', '/auth/avatar', null, true).then(result => {
+    return request<{ ok: boolean }>('DELETE', '/auth/avatar', null, true).then((result) => {
       if (token === getToken()) authApi.invalidate()
       return result
     })

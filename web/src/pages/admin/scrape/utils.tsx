@@ -13,6 +13,7 @@ export async function scrapePost(body: Record<string, unknown>, signal?: AbortSi
   const operationId = typeof body.operationId === 'string' ? body.operationId : ''
   const res = await fetch(url('/scrape'), {
     method: 'POST',
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json', ...operationHeaders(operationId), ...authHeaders() },
     body: JSON.stringify(body),
     signal,

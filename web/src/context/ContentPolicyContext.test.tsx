@@ -288,8 +288,8 @@ describe('检查周期及迟到响应', () => {
     let finish!: (response: Response) => void
     vi.stubGlobal('fetch', vi.fn(async (input: string, init?: RequestInit) => {
       if (input.endsWith('/refresh')) {
-        const token = (init?.headers as Record<string, string>)?.Authorization
-        if (token === 'Bearer reader-token') return new Promise<Response>(resolve => { finish = resolve })
+        const token = localStorage.getItem('user_session_marker') || sessionStorage.getItem('user_session_token')
+        if (token === 'reader-token') return new Promise<Response>(resolve => { finish = resolve })
         return new Response(JSON.stringify({ code: 'restricted_content', reason: 'not_unlocked' }), { status: 403 })
       }
       return new Response(JSON.stringify({ adultContentEnabled: true }))

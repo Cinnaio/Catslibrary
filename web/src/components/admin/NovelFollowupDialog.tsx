@@ -27,6 +27,7 @@ interface Followup extends PendingChapterCounts {
 async function request(novelId: string, body?: Record<string, unknown>): Promise<Followup> {
   const response = await fetch(url(body ? '/scrape' : `/scrape?action=followup&novelId=${encodeURIComponent(novelId)}`), {
     method: body ? 'POST' : 'GET',
+    credentials: 'include',
     headers: authHeaders({ 'Content-Type': 'application/json' }),
     ...(body ? { body: JSON.stringify({ novelId, ...body }) } : {}),
   })

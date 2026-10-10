@@ -30,12 +30,15 @@ import { bookImportRoutes } from './routes/book-import'
 import { adminSiteSettingsRoutes, publicSiteSettingsRoutes } from './routes/site-settings'
 import { backupRoutes } from './routes/backups'
 import { backupMaintenance } from './middlewares/backup-maintenance'
+import { csrfProtection, browserSecurityHeaders } from './middlewares/browser-security'
 import { readingDataRoutes } from './routes/reading-data'
 
 /** 全局应用：中间件装配 + 路由注册（阶段化增量挂载）。 */
 export const app = new Hono()
 
+app.use('*', browserSecurityHeaders())
 app.use('/api/*', cors())
+app.use('/api/*', csrfProtection())
 app.use('/api/*', async (c, next) => {
   c.header('X-Robots-Tag', 'noindex, follow')
   await next()

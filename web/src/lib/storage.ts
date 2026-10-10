@@ -7,7 +7,7 @@ let storageUserId: string | null = null
 let storageToken = ''
 
 function currentToken(): string {
-  try { return localStorage.getItem('user_session_token') || sessionStorage.getItem('user_session_token') || '' }
+  try { return localStorage.getItem('user_session_marker') || sessionStorage.getItem('user_session_marker') || localStorage.getItem('user_session_token') || sessionStorage.getItem('user_session_token') || '' }
   catch { return '' }
 }
 

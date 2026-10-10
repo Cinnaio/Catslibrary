@@ -123,6 +123,7 @@ function parseCategories(input: string): string[] {
 async function scrapeUpdate(novelId: string): Promise<Record<string, unknown>> {
   const res = await fetch(url('/scrape'), {
     method: 'POST',
+    credentials: 'include',
     headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ action: 'update', novelId }),
   })

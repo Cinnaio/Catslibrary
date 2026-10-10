@@ -2,7 +2,7 @@
  * 会话上下文 —— 登录态管理（由 theme.js hydrateAccountAvatar + 各页登录逻辑收敛）。
  * 暴露 user / loading / login / register / logout / refresh。
  */
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { User } from '@shared/types'
 import { authApi, getToken } from '../lib/api'
 
@@ -18,33 +18,31 @@ interface SessionContextValue {
 const SessionContext = createContext<SessionContextValue | null>(null)
 
 export function SessionProvider({ children }: { children: ReactNode }) {
+  const revision = useRef(0)
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState<boolean>(true)
 
   const refresh = useCallback(async () => {
+    const seq = ++revision.current
     const token = getToken()
-    if (!token) {
-      setUser(null)
-      setLoading(false)
-      return null
-    }
     try {
       const { user: me } = await authApi.meCached()
-      if (token !== getToken()) return null
+      if (token && token !== getToken() && !me) return null
+      if (seq !== revision.current) return null
       setUser(me)
       return me
     } catch {
-      if (token === getToken()) setUser(null)
+      if (seq === revision.current && token === getToken()) setUser(null)
       return null
     } finally {
-      if (token === getToken()) setLoading(false)
+      if (seq === revision.current) setLoading(false)
     }
   }, [])
 
   useEffect(() => {
     void refresh()
     const onStorage = (event: StorageEvent) => {
-      if (event.key === 'user_session_token' || event.key === null) void refresh()
+      if (event.key === 'user_session_marker' || event.key === 'user_session_token' || event.key === null) { authApi.invalidate(); void refresh() }
     }
     window.addEventListener('storage', onStorage)
     const onExpired = () => { setUser(null); setLoading(false) }
@@ -53,20 +51,23 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [refresh])
 
   const login = useCallback(async (username: string, password: string, persist = false) => {
+    const seq = ++revision.current
     const r = await authApi.login(username, password, persist)
-    setUser(r.user)
+    if (seq === revision.current) { setUser(r.user); setLoading(false) }
     return r.user
   }, [])
 
   const register = useCallback(async (username: string, password: string) => {
+    const seq = ++revision.current
     const r = await authApi.register(username, password)
-    setUser(r.user)
+    if (seq === revision.current) { setUser(r.user); setLoading(false) }
     return r.user
   }, [])
 
   const logout = useCallback(async () => {
+    const seq = ++revision.current
     await authApi.logout()
-    setUser(null)
+    if (seq === revision.current) setUser(null)
   }, [])
 
   const value = useMemo(

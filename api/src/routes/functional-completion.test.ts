@@ -2,7 +2,7 @@ import { afterAll, beforeAll, expect, it } from 'vitest'
 import { app } from '../app'
 import { setDbForTests } from '../db/pool'
 import { createTestDb, type TestDb } from '../test/db'
-import { REMEMBER_TTL } from '../services/auth'
+import { REMEMBER_TTL, ADMIN_SESSION_TTL } from '../services/auth'
 let t: TestDb
 let token = ''
 let userId = ''
@@ -48,15 +48,26 @@ it('导入历史计数与翻页完整，其他账号记录不会出现在列表'
   expect(first.total).toBe(21); expect(first.items).toHaveLength(20)
   expect(last.items).toHaveLength(1); expect(last.items[0].runId).toBe('run-1')
 })
-it('记住登录及改密码的服务端会话有效期保持 180 天', async () => {
+it('管理员记住登录及改密码的服务端会话有效期最多八小时', async () => {
   const login = await (await call('/api/auth/login', 'POST', { username: 'completion', password: 'password123', remember: true })).json() as any
   token = login.token
   const sessions = await (await call('/api/auth/sessions')).json() as any
   const current = sessions.sessions.find((x: { current: boolean }) => x.current)
-  expect(Number(current.expiresAt) - Number(current.createdAt)).toBe(REMEMBER_TTL)
+  expect(Number(current.expiresAt) - Number(current.createdAt)).toBe(ADMIN_SESSION_TTL)
   const changed = await (await call('/api/auth/change-password', 'POST', { currentPassword: 'password123', newPassword: 'password456', remember: true })).json() as any
   token = changed.token
   const after = await (await call('/api/auth/sessions')).json() as any
+  expect(after.sessions).toHaveLength(1)
+  expect(Number(after.sessions[0].expiresAt) - Number(after.sessions[0].createdAt)).toBe(ADMIN_SESSION_TTL)
+})
+it('普通读者记住登录及改密码仍保持 180 天', async () => {
+  await t.db.query("INSERT INTO users(id,username,password_hash,password_salt,password_iterations,role,created_at,updated_at) SELECT 'completion-reader','completion-reader',password_hash,password_salt,password_iterations,'reader',1,1 FROM users WHERE id=$1", [userId])
+  const login = await (await call('/api/auth/login', 'POST', { username: 'completion-reader', password: 'password456', remember: true })).json() as any
+  const readerCall = (path: string, method = 'GET', body?: unknown) => app.request(path, { method, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${login.token}` }, body: body === undefined ? undefined : JSON.stringify(body) })
+  const before = await (await readerCall('/api/auth/sessions')).json() as any
+  expect(Number(before.sessions[0].expiresAt) - Number(before.sessions[0].createdAt)).toBe(REMEMBER_TTL)
+  const changed = await (await readerCall('/api/auth/change-password', 'POST', { currentPassword: 'password456', newPassword: 'password789', remember: true })).json() as any
+  const after = await (await app.request('/api/auth/sessions', { headers: { Authorization: `Bearer ${changed.token}` } })).json() as any
   expect(after.sessions).toHaveLength(1)
   expect(Number(after.sessions[0].expiresAt) - Number(after.sessions[0].createdAt)).toBe(REMEMBER_TTL)
 })

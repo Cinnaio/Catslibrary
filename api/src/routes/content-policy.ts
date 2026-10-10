@@ -1,3 +1,4 @@
+import { requestSession } from '../services/browser-session'
 import { Hono } from 'hono'
 import { randomBytes } from 'node:crypto'
 import { optionalUser, requireUser, type AuthEnv } from '../middlewares/auth'
@@ -13,7 +14,7 @@ import {
 } from '../services/content-access'
 import { getDb } from '../db/pool'
 import { withTx } from '../db/query'
-import { bearerToken, hashToken } from '../services/auth'
+import { hashToken } from '../services/auth'
 import { loadConfig } from '../config'
 import { effectiveTurnstile, verifyAdultChallenge } from '../services/turnstile'
 import { clientIpFromContext } from '../services/ai/audit-context'
@@ -41,7 +42,7 @@ contentPolicyRoutes.get('/', async (c) => {
 contentPolicyRoutes.get('/status', requireUser(), async (c) => {
   const adultContentEnabled = await getAdultContentEnabled()
   const challenge = await effectiveTurnstile()
-  const sessionHash = await hashToken(bearerToken(c.req.header('Authorization') || ''), loadConfig().sessionHashSalt)
+  const sessionHash = await hashToken(requestSession(c), loadConfig().sessionHashSalt)
   const { rows } = await getDb().query<{ reader_settings: string; expires_at: string }>(
     `SELECT u.reader_settings, s.expires_at FROM user_sessions s JOIN users u ON u.id=s.user_id
      WHERE s.token_hash=$1 AND s.user_id=$2 AND s.expires_at>$3 AND u.status='active'`,
@@ -108,7 +109,7 @@ contentPolicyRoutes.post('/unlock', requireUser(), async (c) => {
   if (!(await verifyAdultChallenge(body.turnstileToken, clientIpFromContext(c)))) {
     return c.json({ error: '人机验证失败或已过期，请重新验证', code: 'turnstile_failed' }, 403, contentPolicyHeaders())
   }
-  const sessionHash = await hashToken(bearerToken(c.req.header('Authorization') || ''), loadConfig().sessionHashSalt)
+  const sessionHash = await hashToken(requestSession(c), loadConfig().sessionHashSalt)
   const until = Date.now() + ADULT_ACCESS_TTL_SECONDS * 1000
   const granted = await withTx(getDb(), async (query) => {
     // 与全站开关的事务共用行锁，关闭期间正在验证的请求不能留下新授权。

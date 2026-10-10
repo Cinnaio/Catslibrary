@@ -7,6 +7,9 @@ import { sha256Hex } from './hash'
 import { isZhiZhouIosApp } from '@shared/device'
 
 export const PASSWORD_ITERATIONS = 120000
+export const ADMIN_SESSION_TTL = 8 * 3600000
+export const ADMIN_IDLE_TTL = 30 * 60000
+export const REAUTH_TTL = 10 * 60000
 export const SESSION_TTL = 30 * 86400000
 /** 「保持登录」会话有效期：默认临时会话 30 天，勾选保持登录后延长到 180 天。 */
 export const REMEMBER_TTL = 180 * 86400000

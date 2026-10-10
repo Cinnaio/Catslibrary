@@ -2,9 +2,11 @@
  * 会话 —— DB 操作层（由 Novel-KV createSession/getUser/deleteSession 平移）。
  */
 import type { Db } from '../db/pool'
-import { deviceName, hashToken, newToken, SESSION_TTL, type UserRow } from './auth'
+import { deviceName, hashToken, newToken, SESSION_TTL, ADMIN_SESSION_TTL, ADMIN_IDLE_TTL, type UserRow } from './auth'
 
 export async function createSession(db: Db, userId: string, userAgent: string, salt: string, ttl = SESSION_TTL): Promise<string> {
+  const role = (await db.query<{ role: string }>('SELECT role FROM users WHERE id=$1', [userId])).rows[0]?.role
+  if (role === 'admin') ttl = Math.min(ttl, ADMIN_SESSION_TTL)
   const token = newToken()
   const tokenHash = await hashToken(token, salt)
   const now = Date.now()
@@ -12,8 +14,8 @@ export async function createSession(db: Db, userId: string, userAgent: string, s
   await db.query('DELETE FROM user_sessions WHERE expires_at <= $1', [now])
   await db.query('DELETE FROM user_sessions WHERE user_id = $1 AND user_agent = $2', [userId, userAgent])
   await db.query(
-    `INSERT INTO user_sessions (token_hash, user_id, expires_at, created_at, device_name, user_agent)
-     VALUES ($1, $2, $3, $4, $5, $6)`,
+    `INSERT INTO user_sessions (token_hash, user_id, expires_at, created_at, device_name, user_agent, last_seen_at, reauthenticated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $4, $4)`,
     [tokenHash, userId, now + ttl, now, deviceName(userAgent), userAgent],
   )
   return token
@@ -25,9 +27,16 @@ export async function getUserByToken(db: Db, token: string, salt: string): Promi
   const { rows } = await db.query<UserRow>(
     `SELECT u.* FROM user_sessions s
      JOIN users u ON u.id = s.user_id
-     WHERE s.token_hash = $1 AND s.expires_at > $2 AND u.status = 'active'`,
-    [tokenHash, Date.now()],
+     WHERE s.token_hash = $1 AND s.expires_at > $2 AND u.status = 'active'
+       AND (u.role<>'admin' OR (s.created_at>$3 AND s.last_seen_at>$4))`,
+    [tokenHash, Date.now(), Date.now() - ADMIN_SESSION_TTL, Date.now() - ADMIN_IDLE_TTL],
   )
+  if (rows[0]?.role === 'admin')
+    await db.query('UPDATE user_sessions SET last_seen_at=GREATEST(last_seen_at,$2) WHERE token_hash=$1 AND last_seen_at<$3', [
+      tokenHash,
+      Date.now(),
+      Date.now() - 60000,
+    ])
   return rows[0]
 }
 
