@@ -1,0 +1,37 @@
+name: Backup recovery
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup-integration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install isolated backup test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-16 postgresql-client-16 postgresql-contrib-16 rclone openssh-client
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify real backup and recovery without skipped tests
+        env:
+          BACKUP_TEST_PG_BIN: /usr/lib/postgresql/16/bin
+        run: npm run test:backup-integration

@@ -37,6 +37,7 @@ npm run dev   # 同时启动 api（8787）与 web（5173），web 将 /api 代�
 | `npm start` | 运行已构建的 API 服务 |
 | `npm run typecheck` | 全部 workspace 类型检查 |
 | `npm test` | 全部 workspace 测试（后端 pglite 端到端 + 前端组件/单元测试） |
+| `npm run test:backup-integration` | 新建临时 PostgreSQL/SFTP 环境，验证真实备份与灾备恢复（要求本机工具） |
 | `npm run lint` | ESLint 检查（`--fix` 可自动修复） |
 | `npm run format` | Prettier 格式化检查（`format:write` 写入） |
 | `npm run db:migrate` | 手动执行数据库迁移 |
@@ -172,6 +173,8 @@ npm test --workspace=@zhi-zhou/web  # 仅前端
 后端测试用 pglite 提供真实 PostgreSQL 语义（含 pg_trgm 扩展），覆盖认证、内容、社交、抓取、AI 与迁移等端到端场景。
 
 普通后端测试为每个测试文件建立临时配置目录，不读取项目 `.env`、运行时配置或本地备份主密钥，并清除继承的部署代理配置。需要密钥、账号或代理的用例显式提供测试夹具；真实 PostgreSQL/SFTP 备份集成测试仍需专用测试连接和服务，未配置时跳过。
+
+`npm run test:backup-integration` 自动新建临时 PostgreSQL 集群、测试库和 SFTP 服务，执行完整备份、旧版本升级恢复、补偿恢复、维护保护与部署侧空库灾备恢复。缺少依赖或有任何测试跳过均报错，结束后停止服务并删除临时目录；不使用已有数据库连接或远程存储账号。以普通用户运行，需安装 PostgreSQL 服务端与同大版本客户端（含 pg_trgm）、rclone、ssh-keygen，并具有私有 IPv4 网卡。可用 `BACKUP_TEST_PG_BIN` 指定 PostgreSQL 工具目录，`BACKUP_TEST_RCLONE_PATH` 指定 rclone。独立 `Backup recovery` 工作流配置为每次 main 推送及 PR 执行，也支持手动运行。细节见[备份恢复与 CI 验证记录](docs/backup-recovery-ci-2026-10-10.md)。
 
 ## 相关文档
 

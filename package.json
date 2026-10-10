@@ -15,6 +15,7 @@
     "build": "npm run build --workspace=@zhi-zhou/web && npm run build --workspace=@zhi-zhou/api",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
+    "test:backup-integration": "node scripts/test-backup-integration.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --check .",
