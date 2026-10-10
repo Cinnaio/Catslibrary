@@ -3,7 +3,7 @@ import ImportDiagnosticsPanel from '@/components/admin/ImportDiagnosticsPanel'
 import { useEffect, useRef, useState } from 'react'
 import { bookImportApi } from '@/lib/api'
 import type {
-  BookImportAiReview,
+  BookImportBoundaryOverride,
   BookImportChapterDiff,
   BookImportCommitResult,
   BookImportMetadataDiff,
@@ -114,9 +114,13 @@ export default function BookImportDialog({
   const [metadataMode, setMetadataMode] = useState<'missing' | 'replace'>('missing')
   const [expandedChapterId, setExpandedChapterId] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  /** 复核独立于 busy：它只动快照不写书库，不应锁住整个弹窗的操作。 */
+  /** 复核与提交/目标变更互斥，避免确认中的预览被旧响应覆盖。 */
   const [reviewBusy, setReviewBusy] = useState(false)
-  const [aiReview, setAiReview] = useState<BookImportAiReview | null>(null)
+  const operationBusy = busy || reviewBusy
+  const operationLock = useRef(false)
+  const requestGeneration = useRef(0)
+  useEffect(() => () => { requestGeneration.current++ }, [open])
+  const [notice, setNotice] = useState('')
   const [dragActive, setDragActive] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState<BookImportCommitResult | null>(null)
@@ -129,7 +133,6 @@ export default function BookImportDialog({
     setMetadataFields(new Set(next.metadataDiff.filter((field) => field.selected).map((field) => field.field)))
     setMetadataMode('missing')
     setExpandedChapterId(null)
-    setAiReview(next.aiReview || null)
   }
 
   function chooseFile(next: File | null) {
@@ -150,7 +153,7 @@ export default function BookImportDialog({
   }
 
   async function handlePreview() {
-    if (busy) return
+    if (operationBusy || operationLock.current) return
     setError('')
     if (sourceMode === 'file' && !file) {
       setError('请先选择一本书籍文件。')
@@ -173,7 +176,7 @@ export default function BookImportDialog({
   }
 
   async function handleMatchContinue() {
-    if (!preview || busy) return
+    if (!preview || operationBusy || operationLock.current) return
     if (preview.candidates.length > 1 && !targetNovelId) {
       setError('请先选择一个导入目标；如果都不是目标，也可以返回来源重新检查书名。')
       return
@@ -182,7 +185,7 @@ export default function BookImportDialog({
     setBusy(true)
     try {
       if (targetNovelId !== preview.targetNovelId) {
-        const next = await bookImportApi.selectTarget(preview.runId, targetNovelId)
+        const next = await bookImportApi.selectTarget(preview.runId, targetNovelId, preview.revision || 0)
         applyPreview(next)
       }
       setStep('diff')
@@ -217,8 +220,9 @@ export default function BookImportDialog({
   }
 
   async function handleCommit() {
-    if (!preview || busy) return
+    if (!preview || operationBusy || operationLock.current) return
     setError('')
+    operationLock.current = true
     setBusy(true)
     try {
       const next = await bookImportApi.commit(preview.runId, {
@@ -226,6 +230,7 @@ export default function BookImportDialog({
         selectedChapterIds: Array.from(selectedChapterIds),
         metadataFields: Array.from(metadataFields),
         metadataMode,
+        revision: preview.revision || 0,
       })
       setResult(next)
       setStep('result')
@@ -233,36 +238,57 @@ export default function BookImportDialog({
     } catch (err) {
       setError((err as Error).message || '导入提交失败，请重新打开预览检查。')
     } finally {
+      operationLock.current = false
       setBusy(false)
     }
   }
 
-  /** AI 复核：只裁决诊断里证据不足的行，不改动已落库的 payload。 */
   async function handleAiReview() {
-    if (!preview || reviewBusy) return
+    if (!preview || operationBusy || operationLock.current) return
+    operationLock.current = true
+    const generation = requestGeneration.current
     setError('')
     setReviewBusy(true)
     try {
-      setAiReview(await bookImportApi.aiReview(preview.runId))
+      const review = await bookImportApi.aiReview(preview.runId, preview.revision || 0)
+      if (generation !== requestGeneration.current) return
+      setPreview({ ...preview, revision: review.revision, reviewedLines: review.reviewedLines,
+        diagnostics: review.diagnostics || preview.diagnostics, aiReview: review })
     } catch (err) {
-      setError((err as Error).message || 'AI 复核失败，请稍后重试。')
+      if (generation === requestGeneration.current) setError((err as Error).message || 'AI 复核失败，请稍后重试。')
     } finally {
-      setReviewBusy(false)
+      operationLock.current = false
+      if (generation === requestGeneration.current) setReviewBusy(false)
     }
   }
 
-  /** 采纳建议：服务端按行号覆盖重切并返回新快照，选择状态随之重置。 */
-  async function handleApplyAiReview() {
-    if (!preview || reviewBusy) return
+  async function changeBoundaries(action: { lines?: number[]; changes?: Pick<BookImportBoundaryOverride, 'line' | 'verdict'>[]; removeLines?: number[]; reset?: boolean }) {
+    if (!preview || operationBusy || operationLock.current) return
+    operationLock.current = true
+    const generation = requestGeneration.current
     setError('')
     setReviewBusy(true)
     try {
-      applyPreview(await bookImportApi.applyAiReview(preview.runId))
+      const next = action.lines
+        ? await bookImportApi.applyAiReview(preview.runId, preview.revision || 0, action.lines)
+        : await bookImportApi.editBoundaries(preview.runId, { ...action, revision: preview.revision || 0 })
+      if (generation !== requestGeneration.current) return
+      applyPreview(next)
+      setNotice('已重新切分。章节和作品信息的勾选已重置，请重新核对后导入。')
     } catch (err) {
-      setError((err as Error).message || '采纳建议失败，请稍后重试。')
+      if (generation === requestGeneration.current) setError((err as Error).message || '边界修正失败，请稍后重试。')
     } finally {
-      setReviewBusy(false)
+      operationLock.current = false
+      if (generation === requestGeneration.current) setReviewBusy(false)
     }
+  }
+
+  async function refreshPreview() {
+    if (!preview || operationBusy || operationLock.current) return
+    setBusy(true)
+    try { applyPreview(await bookImportApi.getPreview(preview.runId)); setError(''); setNotice('已加载最新预览，请重新核对勾选。') }
+    catch (err) { setError((err as Error).message) }
+    finally { setBusy(false) }
   }
 
   async function handleRollback() {
@@ -291,7 +317,7 @@ export default function BookImportDialog({
   const hasImportableChanges = selectedChapterCount > 0 || selectedMetadataCount > 0
 
   return (
-    <Dialog open={open} onOpenChange={(nextOpen) => !busy && onOpenChange(nextOpen)}>
+    <Dialog open={open} onOpenChange={(nextOpen) => !operationBusy && onOpenChange(nextOpen)}>
       <AdminDialogContent className="book-import-dialog" aria-describedby="book-import-description" data-step={step}>
         <DialogHeader className="book-import__header">
           <DialogTitle>{STEP_TITLES[step]}</DialogTitle>
@@ -309,7 +335,7 @@ export default function BookImportDialog({
           </ol>
         </DialogHeader>
 
-        <div ref={bodyRef} className="admin-dialog__body book-import__body" aria-busy={busy}>
+        <div ref={bodyRef} className="admin-dialog__body book-import__body" aria-busy={operationBusy}>
 
           {error && (
             <Alert variant="destructive" className="book-import__alert" role="alert">
@@ -323,10 +349,10 @@ export default function BookImportDialog({
             <div className="book-import__source">
               <Tabs value={sourceMode} onValueChange={(value) => { setSourceMode(value as SourceMode); setError('') }}>
                 <TabsList className="book-import__source-tabs" aria-label="选择导入来源" data-active-index={SOURCE_MODE_INDEX[sourceMode]}>
-                  <TabsTrigger value="file" disabled={busy}>
+                  <TabsTrigger value="file" disabled={operationBusy}>
                     <FileText aria-hidden="true" /> 本地文件
                   </TabsTrigger>
-                  <TabsTrigger value="url" disabled={busy}>
+                  <TabsTrigger value="url" disabled={operationBusy}>
                     <Globe2 aria-hidden="true" /> 网页链接
                   </TabsTrigger>
                 </TabsList>
@@ -337,7 +363,7 @@ export default function BookImportDialog({
                     type="file"
                     tabIndex={-1}
                     aria-label="选择书籍文件"
-                    disabled={busy}
+                    disabled={operationBusy}
                     accept=".txt,.text,.json,.epub,text/plain,application/json,application/epub+zip"
                     onChange={(event) => { chooseFile(event.target.files?.[0] || null); event.target.value = '' }}
                   />
@@ -349,15 +375,15 @@ export default function BookImportDialog({
                         <span>{file.name.split('.').at(-1)?.toUpperCase()} · {formatNumber(Math.ceil(file.size / 1024))} KB · 已准备好预览</span>
                       </div>
                       <div className="book-import__file-actions">
-                        <Button variant="ghost" size="sm" disabled={busy} onClick={() => fileInputRef.current?.click()}>更换</Button>
-                        <Button variant="ghost" size="icon" disabled={busy} aria-label="移除已选文件" onClick={() => { setFile(null); setError('') }}><X aria-hidden="true" /></Button>
+                        <Button variant="ghost" size="sm" disabled={operationBusy} onClick={() => fileInputRef.current?.click()}>更换</Button>
+                        <Button variant="ghost" size="icon" disabled={operationBusy} aria-label="移除已选文件" onClick={() => { setFile(null); setError('') }}><X aria-hidden="true" /></Button>
                       </div>
                     </div>
                   ) : (
                     <div
                       className="book-import__dropzone"
                       data-drag-active={dragActive}
-                      aria-disabled={busy}
+                      aria-disabled={operationBusy}
                       onDragEnter={(event) => {
                         event.preventDefault()
                         if (!busy) setDragActive(true)
@@ -375,7 +401,7 @@ export default function BookImportDialog({
                       </span>
                       <strong>把书籍文件拖到这里</strong>
                       <span className="book-import__formats">支持 TXT、JSON、EPUB · 最大 25 MB</span>
-                      <Button variant="outline" className="book-import__choose-file" aria-label="选择或拖入书籍文件" disabled={busy} onClick={() => fileInputRef.current?.click()}>
+                      <Button variant="outline" className="book-import__choose-file" aria-label="选择或拖入书籍文件" disabled={operationBusy} onClick={() => fileInputRef.current?.click()}>
                         <Upload aria-hidden="true" />选择文件
                       </Button>
                     </div>
@@ -388,7 +414,7 @@ export default function BookImportDialog({
                         id="book-import-source-url"
                         type="url"
                         placeholder="https://example.com/book/123"
-                        disabled={busy}
+                        disabled={operationBusy}
                         aria-describedby="book-import-source-hint"
                         value={sourceUrl}
                         onChange={(event) => setSourceUrl(event.target.value)}
@@ -406,7 +432,7 @@ export default function BookImportDialog({
                       type="url"
                       inputMode="url"
                       placeholder="https://example.com/book/123"
-                      disabled={busy}
+                      disabled={operationBusy}
                       aria-describedby="book-import-url-hint"
                       value={sourceUrl}
                       onChange={(event) => setSourceUrl(event.target.value)}
@@ -497,13 +523,24 @@ export default function BookImportDialog({
 
               {/* 解析诊断放在差异列表之前：切分有问题时，先看到原因再看差异，
                   而不是等导入完才发现章节少了一半。 */}
+              {notice && <p className="book-import__diagnostics-clean" role="status">{notice}</p>}
+              {error.includes('预览版本') && <Button variant="outline" disabled={operationBusy} onClick={() => void refreshPreview()}>加载最新预览</Button>}
               {preview.diagnostics && (
                 <ImportDiagnosticsPanel
                   diagnostics={preview.diagnostics}
-                  aiReview={aiReview}
+                  aiReview={preview.aiReview || null}
                   onReview={() => void handleAiReview()}
-                  onApply={() => void handleApplyAiReview()}
-                  busy={reviewBusy}
+                  onApply={(lines) => void changeBoundaries({ lines })}
+                  busy={operationBusy}
+                  runId={preview.runId}
+                  revision={preview.revision || 0}
+                  overrides={preview.boundaryOverrides || []}
+                  reviewedLines={preview.reviewedLines || []}
+                  canResplit={preview.canResplit ?? false}
+                  expiresAt={preview.sourceExpiresAt}
+                  onEdit={(changes) => void changeBoundaries({ changes })}
+                  onUndo={(line) => void changeBoundaries({ removeLines: [line] })}
+                  onReset={() => void changeBoundaries({ reset: true })}
                 />
               )}
 
@@ -599,10 +636,10 @@ export default function BookImportDialog({
 
         <DialogFooter className="book-import__footer">
           <div className="book-import__footer-status" role="status">
-            {busy ? (
+            {operationBusy ? (
               <div className="book-import__progress" aria-live="polite">
                 <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
-                <span>{step === 'source' ? '正在分析来源并生成预览…' : step === 'result' ? '正在撤回导入…' : '正在处理，请稍候…'}</span>
+                <span>{reviewBusy ? '正在复核或更新章节边界，请稍候…' : step === 'source' ? '正在分析来源并生成预览…' : step === 'result' ? '正在撤回导入…' : '正在处理，请稍候…'}</span>
               </div>
             ) : step === 'diff' ? <span>已选 {selectedChapterCount} 章 · {selectedMetadataCount} 项作品信息</span>
               : step === 'source' ? <span>生成预览后，再确认导入</span>
@@ -612,8 +649,8 @@ export default function BookImportDialog({
           <div className="book-import__footer-actions">
             {step === 'source' && (
               <>
-                <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={busy}>取消</Button>
-                <Button onClick={() => void handlePreview()} disabled={busy || (sourceMode === 'file' ? !file : !sourceUrl.trim())}>
+                <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={operationBusy}>取消</Button>
+                <Button onClick={() => void handlePreview()} disabled={operationBusy || (sourceMode === 'file' ? !file : !sourceUrl.trim())}>
                   {busy ? <LoaderCircle className="size-4 animate-spin" aria-hidden="true" /> : <ArrowRight aria-hidden="true" />}
                   {busy ? '分析中…' : '生成预览'}
                 </Button>
@@ -621,14 +658,14 @@ export default function BookImportDialog({
             )}
             {step === 'match' && (
               <>
-                <Button variant="ghost" onClick={() => setStep('source')} disabled={busy}><ArrowLeft aria-hidden="true" />返回</Button>
-                <Button onClick={() => void handleMatchContinue()} disabled={busy}><ArrowRight aria-hidden="true" />查看差异</Button>
+                <Button variant="ghost" onClick={() => setStep('source')} disabled={operationBusy}><ArrowLeft aria-hidden="true" />返回</Button>
+                <Button onClick={() => void handleMatchContinue()} disabled={operationBusy}><ArrowRight aria-hidden="true" />查看差异</Button>
               </>
             )}
             {step === 'diff' && (
               <>
-                <Button variant="ghost" onClick={() => setStep('match')} disabled={busy}><ArrowLeft aria-hidden="true" />返回</Button>
-                <Button onClick={() => void handleCommit()} disabled={busy || !hasImportableChanges}>
+                <Button variant="ghost" onClick={() => setStep('match')} disabled={operationBusy}><ArrowLeft aria-hidden="true" />返回</Button>
+                <Button onClick={() => void handleCommit()} disabled={operationBusy || !hasImportableChanges}>
                   {busy ? <LoaderCircle className="size-4 animate-spin" aria-hidden="true" /> : <Check aria-hidden="true" />}
                   {busy ? '导入中…' : `确认导入${hasImportableChanges ? ` · ${selectedChapterCount} 章` : ''}`}
                 </Button>
@@ -636,8 +673,8 @@ export default function BookImportDialog({
             )}
             {step === 'result' && (
               <>
-                <Button variant="ghost" onClick={startOver} disabled={busy}><RotateCcw aria-hidden="true" />再导入一本</Button>
-                <Button onClick={() => onOpenChange(false)} disabled={busy}>完成</Button>
+                <Button variant="ghost" onClick={startOver} disabled={operationBusy}><RotateCcw aria-hidden="true" />再导入一本</Button>
+                <Button onClick={() => onOpenChange(false)} disabled={operationBusy}>完成</Button>
               </>
             )}
           </div>

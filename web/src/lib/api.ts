@@ -11,6 +11,8 @@ import type { LegacyReadingData, ReadingDataPreview, ReadingDataResult } from '@
 import type { LocalBookmark } from '@shared/types'
 import type {
   BookImportAiReview,
+  BookImportBoundaryImpact,
+  BookImportBoundaryOverride,
   BookImportCommitResult,
   BookImportHistoryItem,
   BookImportPreview,
@@ -391,8 +393,8 @@ export const bookImportApi = {
   previewUrl(sourceUrl: string): Promise<BookImportPreview> {
     return request('POST', '/book-import/preview', { sourceType: 'url', sourceUrl }, true, {}, 120000)
   },
-  selectTarget(runId: string, targetNovelId: string | null): Promise<BookImportPreview> {
-    return request('POST', `/book-import/${encodeURIComponent(runId)}/target`, { targetNovelId }, true)
+  selectTarget(runId: string, targetNovelId: string | null, revision: number): Promise<BookImportPreview> {
+    return request('POST', `/book-import/${encodeURIComponent(runId)}/target`, { targetNovelId, revision }, true)
   },
   commit(
     runId: string,
@@ -401,6 +403,7 @@ export const bookImportApi = {
       selectedChapterIds: string[]
       metadataFields: string[]
       metadataMode: 'missing' | 'replace'
+      revision: number
     },
     operationId = newOperationId('book-import-commit'),
   ): Promise<BookImportCommitResult> {
@@ -413,12 +416,24 @@ export const bookImportApi = {
    * AI 边界复核：只裁决证据不足的候选行，产出建议写进快照，不改动已落库的 payload。
    * 服务端开关未开启时返回 403，前端据此提示去 AI 设置启用。
    */
-  aiReview(runId: string): Promise<BookImportAiReview> {
-    return request('POST', `/book-import/${encodeURIComponent(runId)}/ai-review`, {}, true, {}, 180000)
+  aiReview(runId: string, revision: number): Promise<BookImportAiReview> {
+    return request('POST', `/book-import/${encodeURIComponent(runId)}/ai-review`, { revision }, true, {}, 180000)
   },
   /** 采纳复核建议：按行号覆盖重切并刷新快照，切分仍由确定性代码完成。 */
-  applyAiReview(runId: string): Promise<BookImportPreview> {
-    return request('POST', `/book-import/${encodeURIComponent(runId)}/ai-review/apply`, {}, true, {}, 120000)
+  applyAiReview(runId: string, revision: number, lines: number[]): Promise<BookImportPreview> {
+    return request('POST', `/book-import/${encodeURIComponent(runId)}/ai-review/apply`, { revision, lines }, true, {}, 120000)
+  },
+  editBoundaries(runId: string, data: { revision: number; changes?: Pick<BookImportBoundaryOverride, 'line' | 'verdict'>[]; removeLines?: number[]; reset?: boolean }): Promise<BookImportPreview> {
+    return request('POST', `/book-import/${encodeURIComponent(runId)}/boundaries`, data, true)
+  },
+  previewBoundaries(runId: string, revision: number, changes: Pick<BookImportBoundaryOverride, 'line' | 'verdict'>[]): Promise<{ chapterCount: number; impacts: BookImportBoundaryImpact[]; revision: number }> {
+    return request('POST', `/book-import/${encodeURIComponent(runId)}/boundaries`, { revision, changes, dryRun: true }, true)
+  },
+  lines(runId: string, line: number): Promise<{ revision: number; lines: Array<{ line: number; raw: string }> }> {
+    return request('GET', `/book-import/${encodeURIComponent(runId)}/lines?line=${line}`, null, true)
+  },
+  getPreview(runId: string): Promise<BookImportPreview> {
+    return request('GET', `/book-import/${encodeURIComponent(runId)}`, null, true)
   },
   history(limit = 20, offset = 0): Promise<{ items: BookImportHistoryItem[]; total?: number }> {
     return request('GET', `/book-import/history?limit=${encodeURIComponent(limit)}&offset=${encodeURIComponent(offset)}`, null, true)

@@ -1,5 +1,10 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { expect, it, vi } from 'vitest'
+import { beforeEach, expect, it, vi } from 'vitest'
+const api = vi.hoisted(() => ({ lines: vi.fn(), previewBoundaries: vi.fn() }))
+vi.mock('@/lib/api', () => ({ bookImportApi: api }))
+beforeEach(() => {
+  vi.clearAllMocks()
+})
 import type { BookImportDiagnostics } from '@shared/types'
 import ImportDiagnosticsPanel from './ImportDiagnosticsPanel'
 
@@ -132,4 +137,84 @@ it('复核进行中时按钮禁用，避免重复触发', () => {
   fireEvent.click(screen.getByRole('button', { name: /展开明细/ }))
 
   expect(screen.getByRole('button', { name: /运行 AI 复核/ })).toHaveProperty('disabled', true)
+})
+
+it('取消单条建议后只采纳所选行', () => {
+  const apply = vi.fn()
+  render(
+    <ImportDiagnosticsPanel
+      diagnostics={diagnostics()}
+      busy={false}
+      onReview={noop}
+      onApply={apply}
+      aiReview={{
+        reviewedAt: 1,
+        model: 'm',
+        heuristicVersion: 2,
+        candidateCount: 2,
+        projectedChapterCount: 46,
+        usage: { promptTokens: 0, completionTokens: 0, costMillicents: 0 },
+        suggestions: [12, 47].map((line) => ({ line, raw: `原文 ${line}`, heuristic: 'prose', verdict: 'heading', confidence: 'low', reason: '待复核' })),
+      }}
+    />,
+  )
+  fireEvent.click(screen.getByRole('button', { name: /展开明细/ }))
+  fireEvent.click(screen.getByRole('checkbox', { name: '采纳第 47 行建议' }))
+  fireEvent.click(screen.getByRole('button', { name: /采纳建议并重新切分/ }))
+  expect(apply).toHaveBeenCalledWith([12])
+})
+
+it('人工修正先查看原文和切分影响，再应用指定行', async () => {
+  const edit = vi.fn()
+  api.lines.mockResolvedValue({ revision: 4, lines: [{ line: 12, raw: '序章' }] })
+  api.previewBoundaries.mockResolvedValue({
+    revision: 4,
+    chapterCount: 46,
+    impacts: [
+      { line: 12, raw: '序章', before: { title: '前置信息', chars: 100, excerpt: '旧段落' }, after: { title: '序章', chars: 80, excerpt: '序章正文' } },
+    ],
+  })
+  render(
+    <ImportDiagnosticsPanel diagnostics={diagnostics()} busy={false} onReview={noop} onApply={noop} aiReview={null} runId="run" revision={4} onEdit={edit} />,
+  )
+  fireEvent.click(screen.getByRole('button', { name: /展开明细/ }))
+  fireEvent.click(screen.getByText('人工修正边界'))
+  expect(screen.getByRole('button', { name: '应用人工修正' })).toBeDisabled()
+  fireEvent.change(screen.getByLabelText('原文行号'), { target: { value: '12' } })
+  fireEvent.click(screen.getByRole('button', { name: '查看附近原文' }))
+  await screen.findByText('序章')
+  expect(api.lines).toHaveBeenCalledWith('run', 12)
+  fireEvent.click(screen.getByRole('button', { name: '预览修正影响' }))
+  await screen.findByText('修正后为 46 章。')
+  expect(screen.getByText('旧段落')).toBeTruthy()
+  expect(screen.getByText('序章正文')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: '应用人工修正' }))
+  expect(edit).toHaveBeenCalledWith([{ line: 12, verdict: 'heading' }])
+  fireEvent.change(screen.getByLabelText('原文行号'), { target: { value: '47' } })
+  expect(screen.getByRole('button', { name: '应用人工修正' })).toBeDisabled()
+})
+
+it('已复核进度、候选截断和撤销入口可见，原文过期后禁用操作', () => {
+  const undo = vi.fn()
+  const reset = vi.fn()
+  render(
+    <ImportDiagnosticsPanel
+      diagnostics={diagnostics({ pendingCount: 350, truncatedCount: 50 })}
+      aiReview={null}
+      onReview={noop}
+      onApply={noop}
+      busy={false}
+      reviewedLines={[1, 3]}
+      canResplit={false}
+      overrides={[{ line: 1, verdict: 'heading', source: 'manual', updatedAt: 1 }]}
+      onUndo={undo}
+      onReset={reset}
+    />,
+  )
+  fireEvent.click(screen.getByRole('button', { name: /展开明细/ }))
+  expect(screen.getByText(/已复核 2 行 · 尚未复核 350 行/)).toBeTruthy()
+  expect(screen.getByText(/另有 50 行将在后续批次处理/)).toBeTruthy()
+  expect(screen.getByRole('button', { name: '继续复核下一批' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: '撤销第 1 行修正' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: '恢复原始解析' })).toBeDisabled()
 })

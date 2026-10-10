@@ -10,7 +10,8 @@ function candidate(line: number, raw = `候选行 ${line}`, verdict: 'heading' |
 describe('import review reply parsing', () => {
   it('只保留候选集合内的行号', () => {
     const candidates = [candidate(12), candidate(47), candidate(88)]
-    const result = parseImportReviewReply('{"headings":[12,47,999]}', candidates)
+    const result = parseImportReviewReply('{"headings":[12,47]}', candidates)
+    expect(() => parseImportReviewReply('{"headings":[12,999]}', candidates)).toThrow()
 
     // 999 不在候选里：模型臆造的行号若放行，会切出原文里并不存在的边界。
     expect([...result].sort((a, b) => a - b)).toEqual([12, 47])
@@ -23,14 +24,14 @@ describe('import review reply parsing', () => {
     expect([...parseImportReviewReply(reply, candidates)]).toEqual([5])
   })
 
-  it('JSON 不可解析时退化为数字提取', () => {
+  it('拒绝从解释文字中猜测行号', () => {
     const candidates = [candidate(3), candidate(7)]
 
-    expect([...parseImportReviewReply('应为 3 与 7', candidates)].sort((a, b) => a - b)).toEqual([3, 7])
+    expect(() => parseImportReviewReply('第 3 行不是标题，第 7 行也不是', candidates)).toThrow()
   })
 
-  it('空回复得到空集合而不是全部候选', () => {
-    expect(parseImportReviewReply('', [candidate(1)]).size).toBe(0)
+  it('空回复不能被当作全部否决', () => {
+    expect(() => parseImportReviewReply('', [candidate(1)])).toThrow()
   })
 
   /**
@@ -48,7 +49,7 @@ describe('import review reply parsing', () => {
     const candidates = [candidate(12)]
     const reply = '{"headings":[999]}\n参考第 12 行。'
 
-    expect(parseImportReviewReply(reply, candidates).size).toBe(0)
+    expect(() => parseImportReviewReply(reply, candidates)).toThrow()
   })
 
   it('重复行号去重', () => {
@@ -74,4 +75,10 @@ describe('import review prompt', () => {
 
     expect(row.length).toBeLessThan(300)
   })
+})
+
+it('拒绝非整数和隐式转换的行号', () => {
+  for (const value of ['12.5', '"12"', 'true', 'null']) {
+    expect(() => parseImportReviewReply('{"headings":[' + value + ']}', [candidate(12)])).toThrow()
+  }
 })

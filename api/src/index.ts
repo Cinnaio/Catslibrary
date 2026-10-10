@@ -1,3 +1,4 @@
+import { pruneImportSnapshots } from './services/book-import-state'
 import { runFollowupTick } from './services/novel-followup'
 import { makeDeps, fireJob } from './services/scraper/runtime'
 import { serve } from '@hono/node-server'
@@ -86,6 +87,7 @@ async function start() {
       const settings = await getAiSettings(getDb())
       const pruned = await pruneFinishedAiTasks(getDb(), settings.taskRetentionDays)
       if (pruned) console.log(`[zhi-zhou api] pruned ${pruned} finished AI task(s) older than ${settings.taskRetentionDays}d`)
+      await pruneImportSnapshots(getDb())
       const prunedAdminOperations = await pruneAdminOperationAudit(getDb())
       if (prunedAdminOperations) console.log(`[zhi-zhou api] pruned ${prunedAdminOperations} admin operation audit record(s) older than 180d`)
     }
@@ -122,6 +124,15 @@ async function start() {
   }, 60000)
   followupTimer.unref()
   void checkFollowups()
+  let importPruneRunning = false
+  const importPruneTimer = setInterval(() => {
+    if (importPruneRunning || !loadConfig().configured) return
+    importPruneRunning = true
+    void withBusinessActivity(getDb(), async () => { await pruneImportSnapshots(getDb()) })
+      .catch((err) => console.error('[book-import] snapshot cleanup failed:', err))
+      .finally(() => { importPruneRunning = false })
+  }, 3600000)
+  importPruneTimer.unref()
   let backupTickRunning = false
   const checkBackups = async () => {
     if (backupTickRunning || !loadConfig().configured) return
@@ -143,6 +154,7 @@ async function start() {
 
   function shutdown() {
     stopBackupCommands()
+    clearInterval(importPruneTimer)
     clearInterval(followupTimer)
     clearInterval(backupTimer)
     if (aiTaskReclaimTimer) clearInterval(aiTaskReclaimTimer)
