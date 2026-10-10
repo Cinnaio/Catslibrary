@@ -79,7 +79,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
   const [sourceSearchAuthor, setSourceSearchAuthor] = useState('')
   const [sourceSearching, setSourceSearching] = useState(false)
   const [sourceMetadataFields, setSourceMetadataFields] = useState<string[]>(['title', 'author', 'description', 'coverUrl', 'categories', 'status'])
-  const [sourceMetadataMode, setSourceMetadataMode] = useState<'missing' | 'replace'>('missing')
+  const [confirmedManualIds, setConfirmedManualIds] = useState<Set<string>>(new Set())
   const [renaming, setRenaming] = useState(false)
   const [sourceError, setSourceError] = useState('')
   const [sourceExpanded, setSourceExpanded] = useState(true)
@@ -87,6 +87,8 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
   const mergeBusy = useRef(false)
   const mergeSearchRequest = useRef(0)
   const eligibleCount = sourcePreview?.changes.filter((change) => change.eligible).length || 0
+  const manualConfirmedCount = sourcePreview?.changes.filter((change) => !change.eligible && confirmedManualIds.has(change.localChapterId)).length || 0
+  const updateCount = eligibleCount + manualConfirmedCount
   const availableMetadataFields = sourcePreview ? sourceMetadataFields.filter((field) => {
     const value = sourcePreview.metadata[field as keyof SourceSyncPreview['metadata']]
     return Array.isArray(value) ? value.length > 0 : Boolean(value)
@@ -98,6 +100,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
     mergeSearchRequest.current++
     setRenameModal(false)
     setSourcePreview(null)
+    setConfirmedManualIds(new Set())
     setSourceSearch(null)
     setSourceSearching(false)
   }
@@ -342,10 +345,10 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
     const requestId = ++mergeRequest.current
     setSourceError('')
     setSourceExpanded(true)
-    setSourceMetadataMode('missing')
     setSourceMetadataFields(['title', 'author', 'description', 'coverUrl', 'categories', 'status'])
     setRenameModal(true)
     setSourcePreview(null)
+    setConfirmedManualIds(new Set())
     setSourceSearch(null)
     setSourceUrl('')
     setSourceSearchTitle(selectedNovelInfo?.title || '')
@@ -397,6 +400,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
     mergeBusy.current = true
     setSourceError('')
     setSourcePreview(null)
+    setConfirmedManualIds(new Set())
     setSourceUrl(url)
     setRenaming(true)
     try {
@@ -422,22 +426,22 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
       return
     }
     const confirmedChangeIds = sourcePreview.changes
-      .filter((change) => change.eligible)
+      .filter((change) => change.eligible || confirmedManualIds.has(change.localChapterId))
       .map((change) => change.localChapterId)
       .filter(Boolean)
       .sort()
     mergeBusy.current = true
     const ok = await confirm({
       title: '确认应用源站同步？',
-      message: `将更新确认快照中的 ${confirmedChangeIds.length} 个章节标题${availableMetadataFields.length ? `，并${sourceMetadataMode === 'replace' ? '覆盖' : '补全'} ${availableMetadataFields.length} 项已选小说信息` : ''}。`,
+      message: `将更新确认快照中的 ${confirmedChangeIds.length} 个章节标题${availableMetadataFields.length ? `，并覆盖 ${availableMetadataFields.length} 项已选小说信息` : ''}。`,
       items: [
         `目标快照：${confirmedChangeIds.length} 个章节`,
-        availableMetadataFields.length ? (sourceMetadataMode === 'replace' ? '小说信息将按已勾选字段覆盖' : '小说信息只补全空字段') : '不修改小说信息',
-        '未标记为可自动更新的标题不会被改动',
+        availableMetadataFields.length ? '已勾选的小说信息将用源站值更新，未勾选字段保留' : '不修改小说信息',
+        `包含 ${eligibleCount} 个自动更新、${manualConfirmedCount} 个人工确认；其余待确认标题保持不变`,
       ],
       okText: '确认更新',
       cancelText: '取消',
-      danger: sourceMetadataMode === 'replace',
+      danger: availableMetadataFields.length > 0,
     })
     if (!ok) {
       mergeBusy.current = false
@@ -449,15 +453,16 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
         runId: sourcePreview.runId,
         applyMetadata: availableMetadataFields.length > 0,
         metadataFields: availableMetadataFields,
-        metadataMode: sourceMetadataMode,
+        metadataMode: 'replace',
         confirmedChangeIds,
         operationId: newOperationId('source-sync-apply'),
       })
       const parts = [`已更新 ${result.updated} 个章节名`]
-      if (result.metadataUpdated.length) parts.push(`补充 ${result.metadataUpdated.length} 项小说信息`)
+      if (result.metadataUpdated.length) parts.push(`更新 ${result.metadataUpdated.length} 项小说信息`)
       toast(parts.join('，'), 'success')
       setRenameModal(false)
       setSourcePreview(null)
+      setConfirmedManualIds(new Set())
       void loadChapters(selectedNovel)
     } catch (err) {
       toast((err as Error).message || '同步应用失败', 'error')
@@ -719,7 +724,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
             <div className="chapter-merge-dialog__context">
               <strong>{selectedNovelInfo?.title || '未选择小说'}</strong>
               <span>{selectedNovelInfo?.author || '未知作者'} · {selectedNovelInfo?.chapterCount || chapters.length} 章</span>
-              <p>仅补全弱标题，正文、章节顺序和阅读进度保持不变。</p>
+              <p>弱标题可自动补全，其他标题需确认。正文、顺序和阅读进度保持不变。</p>
             </div>
             <details className="chapter-merge-dialog__source" open={sourceExpanded} onToggle={(event) => setSourceExpanded(event.currentTarget.open)}>
               <summary>原作者源站<span>{sourcePreview ? '已读取 · 更换来源' : '搜索作品或粘贴链接'}</span></summary>
@@ -786,6 +791,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
                       setSourceError('')
                       setSourceUrl(e.target.value)
                       setSourcePreview(null)
+                      setConfirmedManualIds(new Set())
                     }}
                   />
                   <Button variant="secondary" disabled={renaming || !sourceUrl.trim()} onClick={() => void previewSourceSync()}>
@@ -796,16 +802,16 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
             </details>
             {sourceError && <p role="alert" className="chapter-merge-dialog__error">{sourceError}</p>}
             {renaming && !sourcePreview && <p role="status" className="admin-dialog-hint">正在读取源站并匹配本地章节，请稍候…</p>}
-            {sourcePreview && <ChapterMergePreview key={sourcePreview.runId} preview={sourcePreview} fields={sourceMetadataFields} onFieldsChange={setSourceMetadataFields} mode={sourceMetadataMode} onModeChange={setSourceMetadataMode} disabled={renaming} />}
+            {sourcePreview && <ChapterMergePreview key={sourcePreview.runId} preview={sourcePreview} fields={sourceMetadataFields} onFieldsChange={setSourceMetadataFields} confirmedManualIds={confirmedManualIds} onConfirmedManualIdsChange={setConfirmedManualIds} disabled={renaming} />}
           </AdminDialogBody>
           <DialogFooter className="chapter-merge-dialog__footer">
-            <span className="chapter-merge-dialog__footer-note">{sourcePreview ? `${eligibleCount} 个标题可更新 · ${availableMetadataFields.length} 项信息${sourceMetadataMode === 'replace' ? '覆盖' : '补全'}` : '读取后可预览全部变化'}</span>
+            <span className="chapter-merge-dialog__footer-note">{sourcePreview ? `${updateCount} 个标题待更新 · ${availableMetadataFields.length} 项信息同步` : '读取后可预览全部变化'}</span>
             <Button variant="secondary" disabled={renaming} onClick={closeRenameModal}>
               取消
             </Button>
             {sourcePreview && (
-              <Button disabled={renaming || (!eligibleCount && !availableMetadataFields.length)} onClick={() => void applyRename()}>
-                {renaming ? '更新中…' : eligibleCount ? `更新 ${eligibleCount} 个标题` : '同步小说信息'}
+              <Button disabled={renaming || (!updateCount && !availableMetadataFields.length)} onClick={() => void applyRename()}>
+                {renaming ? '更新中…' : updateCount ? `更新 ${updateCount} 个标题` : '同步小说信息'}
               </Button>
             )}
           </DialogFooter>

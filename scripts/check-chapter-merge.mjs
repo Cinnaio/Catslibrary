@@ -13,7 +13,7 @@ try {
   for (const [width, height, theme] of [[1440, 1000, 'light'], [676, 886, 'light'], [390, 844, 'light'], [1440, 1000, 'dark']]) {
     const context = await browser.newContext({ viewport: { width, height }, reducedMotion: 'reduce' })
     await context.addInitScript(theme => { localStorage.setItem('user_session_token', 'isolated-merge-fixture'); localStorage.setItem('theme', theme) }, theme)
-    let applied, reads = 0, failRead = false, delayed = false
+    let applied, reads = 0, failRead = false, delayed = false, allManual = false
     const errors = []
     await context.route('**/api/**', async route => {
       const url = new URL(route.request().url()), path = url.pathname
@@ -29,9 +29,9 @@ try {
           reads++
           if (delayed) await new Promise(resolve => setTimeout(resolve, 700))
           if (failRead) return route.fulfill({ status: 500, json: { error: '模拟读取失败，请重试' } })
-          data = fixture
+          data = allManual ? { ...fixture, changes: changes.map(change => ({ ...change, eligible: false })) } : fixture
         }
-        if (body.action === 'source-sync-apply') { applied = body; data = { updated: 92, metadataUpdated: [], mappings: 97 } }
+        if (body.action === 'source-sync-apply') { applied = body; data = { updated: body.confirmedChangeIds.length, metadataUpdated: body.metadataFields, mappings: 97 } }
       }
       return route.fulfill({ json: data })
     })
@@ -66,23 +66,71 @@ try {
     if (width === 1440) assert.equal(Math.round((await dialog.boundingBox()).width), 760)
     const footer = await dialog.locator('[data-slot="dialog-footer"]').boundingBox()
     assert.ok(footer.y + footer.height <= height && footer.y >= 0)
-    await dialog.getByRole('button', { name: '需确认 5', exact: true }).click()
+    await dialog.getByRole('button', { name: '人工核对 5', exact: true }).click()
     assert.equal(await dialog.locator('.chapter-merge-dialog__changes > li').count(), 5)
     await dialog.getByRole('button', { name: '全部 97', exact: true }).click()
     await dialog.getByRole('button', { name: '下一页' }).click()
     assert.equal((await dialog.locator('.chapter-merge-dialog__changes .chapter-merge-dialog__order').first().innerText()).trim(), '21')
     await dialog.getByRole('searchbox').fill('山雨来时 · 97')
     assert.equal(await dialog.locator('.chapter-merge-dialog__changes > li').count(), 1)
+    const single = dialog.getByRole('checkbox', { name: '确认更新第 97 章', exact: true })
+    await single.check()
+    assert.equal(await dialog.getByRole('button', { name: '更新 93 个标题', exact: true }).count(), 1)
+    await single.uncheck()
+    await dialog.getByRole('button', { name: '确认全部筛选结果 1 项', exact: true }).click()
+    assert.equal(await single.isChecked(), true)
+    await dialog.getByRole('button', { name: '清空人工确认', exact: true }).click()
+    assert.equal(await single.isChecked(), false)
+    await dialog.getByRole('searchbox').fill('')
+    await dialog.getByRole('button', { name: '人工核对 5', exact: true }).click()
+    await dialog.getByRole('button', { name: '确认本页 5 项', exact: true }).click()
+    assert.equal(await dialog.getByRole('button', { name: '更新 97 个标题', exact: true }).count(), 1)
+    await single.uncheck()
+    await page.screenshot({ path: `${out}/${width}-${theme}-manual-confirm.png` })
+    await dialog.getByRole('button', { name: '全部 97', exact: true }).click()
+    await dialog.getByRole('button', { name: '下一页', exact: true }).click()
+    assert.equal(await dialog.getByRole('button', { name: '更新 96 个标题', exact: true }).count(), 1)
     await dialog.locator('.chapter-merge-dialog__metadata > summary').click()
-    await dialog.getByRole('button', { name: '清空选择' }).scrollIntoViewIfNeeded()
-    await page.screenshot({ path: `${out}/${width}-${theme}-metadata.png` })
+    assert.equal(await dialog.getByRole('checkbox', { name: '覆盖已有小说信息' }).count(), 0)
     await dialog.getByRole('button', { name: '清空选择' }).click()
-    await dialog.getByRole('button', { name: '更新 92 个标题', exact: true }).click()
+    await dialog.getByRole('checkbox', { name: '书名', exact: true }).check()
+    await dialog.getByRole('button', { name: '全选可用字段' }).scrollIntoViewIfNeeded()
+    await page.screenshot({ path: `${out}/${width}-${theme}-metadata.png` })
+    await dialog.getByRole('button', { name: '更新 96 个标题', exact: true }).click()
     await page.getByRole('button', { name: '确认更新', exact: true }).click()
     await page.waitForFunction(() => !document.querySelector('.chapter-merge-dialog'))
-    assert.equal(applied.confirmedChangeIds.length, 92)
+    assert.equal(applied.confirmedChangeIds.length, 96)
+    assert.equal(applied.confirmedChangeIds.includes('c-96'), false)
+    assert.equal(applied.applyMetadata, true)
+    assert.deepEqual(applied.metadataFields, ['title'])
+    assert.equal(applied.metadataMode, 'replace')
+    // All-manual preview: page batch, cross-page preservation, filtered batch and full batch.
+    allManual = true
+    await page.getByRole('button', { name: '融合章节名', exact: true }).click()
+    await page.waitForFunction(() => document.querySelector('#chapter-source-url')?.value.includes('/books/'))
+    await dialog.getByLabel('已有作品链接').press('Enter')
+    await dialog.getByRole('heading', { name: '可更新 0 个章节名' }).waitFor()
+    await dialog.getByRole('button', { name: '确认本页 20 项', exact: true }).click()
+    await dialog.getByRole('button', { name: '下一页', exact: true }).click()
+    await dialog.getByRole('button', { name: '确认本页 20 项', exact: true }).click()
+    assert.equal(await dialog.getByRole('button', { name: '更新 40 个标题', exact: true }).count(), 1)
+    await dialog.getByRole('searchbox').fill('山雨来时 · 97')
+    await dialog.getByRole('button', { name: '确认全部筛选结果 1 项', exact: true }).click()
+    assert.equal(await dialog.getByRole('button', { name: '更新 41 个标题', exact: true }).count(), 1)
+    await dialog.getByRole('button', { name: '清空人工确认', exact: true }).click()
+    await dialog.getByRole('searchbox').fill('')
+    await dialog.getByRole('button', { name: '确认全部筛选结果 97 项', exact: true }).click()
+    assert.equal(await dialog.getByRole('button', { name: '更新 97 个标题', exact: true }).count(), 1)
+    await page.locator('[data-sonner-toast]').waitFor({ state: 'hidden', timeout: 8000 })
+    await page.screenshot({ path: `${out}/${width}-${theme}-all-manual.png` })
+    await dialog.locator('.chapter-merge-dialog__metadata > summary').click()
+    await dialog.getByRole('button', { name: '清空选择' }).click()
+    await dialog.getByRole('button', { name: '更新 97 个标题', exact: true }).click()
+    await page.getByRole('button', { name: '确认更新', exact: true }).click()
+    await page.waitForFunction(() => !document.querySelector('.chapter-merge-dialog'))
+    assert.equal(applied.confirmedChangeIds.length, 97)
     assert.equal(applied.applyMetadata, false)
-    assert.deepEqual(applied.metadataFields, [])
+    allManual = false
     // A failed refresh must remove the previous preview; pending reads cannot close.
     await page.getByRole('button', { name: '融合章节名', exact: true }).click()
     await page.waitForFunction(() => document.querySelector('#chapter-source-url')?.value.includes('/books/'))
@@ -99,7 +147,7 @@ try {
     await dialog.getByLabel('已有作品链接').fill('https://www.po18.tw/books/54321')
     assert.equal(await dialog.getByRole('button', { name: '更新 92 个标题' }).count(), 0)
     assert.deepEqual(errors, [])
-    console.log(`PASS ${width}px ${theme}: Enter search/read, 97-row paging/filter/search, 92 eligible-only apply, metadata deselect, failure/retry, busy Escape, stale preview invalidation, footer/overflow; reads=${reads}`)
+    console.log(`PASS ${width}px ${theme}: Enter search/read, 97-row paging/filter/search, individual/page/filtered/all manual confirmation and undo, 96 mixed/97 manual apply, selected metadata replacement, failure/retry, busy Escape, stale preview invalidation, footer/overflow; reads=${reads}`)
     await context.close()
   }
 } finally { await browser.close() }

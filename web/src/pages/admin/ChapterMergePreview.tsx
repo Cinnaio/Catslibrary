@@ -10,14 +10,14 @@ interface Props {
   preview: SourceSyncPreview
   fields: string[]
   onFieldsChange: (fields: string[]) => void
-  mode: 'missing' | 'replace'
-  onModeChange: (mode: 'missing' | 'replace') => void
+  confirmedManualIds: Set<string>
+  onConfirmedManualIdsChange: (ids: Set<string>) => void
   disabled: boolean
 }
 
 const PAGE_SIZE = 20
 
-export default function ChapterMergePreview({ preview, fields, onFieldsChange, mode, onModeChange, disabled }: Props) {
+export default function ChapterMergePreview({ preview, fields, onFieldsChange, confirmedManualIds, onConfirmedManualIdsChange, disabled }: Props) {
   const [filter, setFilter] = useState('all')
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(1)
@@ -29,8 +29,17 @@ export default function ChapterMergePreview({ preview, fields, onFieldsChange, m
     const text = query.trim().toLowerCase()
     return !text || `${change.localOrder} ${change.oldTitle} ${change.newTitle}`.toLowerCase().includes(text)
   }), [preview, filter, query])
+  const confirmedCount = preview.changes.filter((change) => !change.eligible && confirmedManualIds.has(change.localChapterId)).length
+  const filteredManual = filtered.filter((change) => !change.eligible)
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const currentPage = Math.min(page, pages)
+  const pageChanges = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+  const pageManual = pageChanges.filter((change) => !change.eligible)
+  const unconfirmedPage = pageManual.filter((change) => !confirmedManualIds.has(change.localChapterId))
+  const unconfirmedFiltered = filteredManual.filter((change) => !confirmedManualIds.has(change.localChapterId))
+  function confirmChanges(ids: string[]) {
+    onConfirmedManualIdsChange(new Set([...confirmedManualIds, ...ids]))
+  }
   const metadata: Array<[string, string, string]> = [
     ['title', '书名', preview.metadata.title],
     ['author', '作者', preview.metadata.author],
@@ -43,9 +52,9 @@ export default function ChapterMergePreview({ preview, fields, onFieldsChange, m
 
   return <section className="chapter-merge-dialog__preview" aria-label="源站匹配预览">
     <div className="chapter-merge-dialog__preview-summary" role="status">
-      <h3>可更新 <strong>{eligible}</strong> 个章节名</h3>
+      <h3>可更新 <strong>{eligible + confirmedCount}</strong> 个章节名</h3>
       <p>{preview.site === 'jjwxc' ? '晋江' : preview.site === 'po18tw' ? 'PO18.tw' : preview.site} · 源站 {preview.sourceChapterCount} 章 / 本地 {preview.localChapterCount} 节 · 已匹配 {preview.matchedSourceCount} 章</p>
-      {manual > 0 && <p className="chapter-merge-dialog__warning">{manual} 个标题需要人工核对，本次不会自动更新。</p>}
+      {manual > 0 && <p className="chapter-merge-dialog__warning">{eligible} 个可自动更新；{manual} 个需人工核对，已确认 {confirmedCount} 个。未确认的标题保持原样。</p>}
       {(preview.unmatchedSource.length > 0 || preview.unmatchedLocal.length > 0) && <details className="chapter-merge-dialog__unmatched">
         <summary><ChevronDown size={16} aria-hidden="true" /><span className="chapter-merge-dialog__unmatched-title">未匹配章节</span><span>源站 {preview.unmatchedSource.length} 章 · 本地 {preview.unmatchedLocal.length} 节</span></summary>
         <div className="chapter-merge-dialog__unmatched-content">
@@ -60,21 +69,37 @@ export default function ChapterMergePreview({ preview, fields, onFieldsChange, m
     <div className="chapter-merge-dialog__preview-section">
       <div className="chapter-merge-dialog__review-toolbar">
         <div className="chapter-merge-dialog__filters" role="group" aria-label="标题变化筛选">
-          {([['all', `全部 ${preview.changes.length}`], ['eligible', `可更新 ${eligible}`], ['manual', `需确认 ${manual}`]] as const).map(([value, label]) =>
+          {([['all', `全部 ${preview.changes.length}`], ['eligible', `自动更新 ${eligible}`], ['manual', `人工核对 ${manual}`]] as const).map(([value, label]) =>
             <Button key={value} variant="ghost" aria-pressed={filter === value} onClick={() => { setFilter(value); setPage(1) }}>{label}</Button>,
           )}
         </div>
         <Input type="search" aria-label="搜索标题变化" placeholder="搜索标题或序号" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1) }} />
       </div>
+      {(filteredManual.length > 0 || confirmedCount > 0) && <div className="chapter-merge-dialog__confirmation-bar">
+        <p role="status">已人工确认 {confirmedCount} / {manual} 个标题</p>
+        <div>
+          <Button variant="secondary" disabled={disabled || !unconfirmedPage.length} onClick={() => confirmChanges(unconfirmedPage.map((change) => change.localChapterId))}>确认本页 {unconfirmedPage.length} 项</Button>
+          <Button variant="ghost" disabled={disabled || !unconfirmedFiltered.length} onClick={() => confirmChanges(unconfirmedFiltered.map((change) => change.localChapterId))}>确认全部筛选结果 {unconfirmedFiltered.length} 项</Button>
+          <Button variant="ghost" disabled={disabled || !confirmedCount} onClick={() => onConfirmedManualIdsChange(new Set())}>清空人工确认</Button>
+        </div>
+      </div>}
       <div className="chapter-merge-dialog__comparison-head" aria-hidden="true"><span>序号</span><span>原章节名</span><span /><span>更新后</span></div>
       <ol className="chapter-merge-dialog__changes" aria-label="章节名变化">
-        {filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE).map((change) => <li key={change.localChapterId}>
+        {pageChanges.map((change) => <li key={change.localChapterId}>
           <span className="chapter-merge-dialog__order">{change.localOrder}</span>
           <span className="chapter-merge-dialog__old"><span className="sr-only">原章节名：</span>{change.oldTitle}</span>
           <ArrowRight size={14} aria-hidden="true" />
           <span className="chapter-merge-dialog__new"><span className="sr-only">更新后：</span>{change.newTitle}
             {change.partCount > 1 && <small>拆分 {change.partIndex}/{change.partCount}</small>}
-            {!change.eligible && <small className="chapter-merge-dialog__warning">需人工确认 · 本次跳过</small>}
+            {!change.eligible && <label className="chapter-merge-dialog__manual-choice">
+              <Checkbox aria-label={`确认更新第 ${change.localOrder} 章`} checked={confirmedManualIds.has(change.localChapterId)} disabled={disabled} onCheckedChange={(checked) => {
+                const next = new Set(confirmedManualIds)
+                if (checked) next.add(change.localChapterId)
+                else next.delete(change.localChapterId)
+                onConfirmedManualIdsChange(next)
+              }} />
+              <span>{confirmedManualIds.has(change.localChapterId) ? '已确认，将更新' : '确认更新此标题'}</span>
+            </label>}
           </span>
         </li>)}
       </ol>
@@ -88,8 +113,8 @@ export default function ChapterMergePreview({ preview, fields, onFieldsChange, m
     </div>
 
     <details className="chapter-merge-dialog__metadata chapter-merge-dialog__preview-section">
-      <summary>同步小说信息<span>{selected} 项已选 · {mode === 'replace' ? '覆盖已有信息' : '仅补全空字段'}</span></summary>
-      <p className="admin-dialog-hint">可选操作。取消勾选全部字段即可只更新章节名。</p>
+      <summary>同步小说信息<span>{selected} 项已选 · 按勾选字段更新</span></summary>
+      <p className="admin-dialog-hint">勾选即用源站值更新该字段，已有内容也会替换；未勾选字段保持原样。</p>
       <div className="chapter-merge-dialog__metadata-actions">
         <Button variant="ghost" disabled={disabled} onClick={() => onFieldsChange(metadata.filter(([, , value]) => value).map(([field]) => field))}>全选可用字段</Button>
         <Button variant="ghost" disabled={disabled || !selected} onClick={() => onFieldsChange([])}>清空选择</Button>
@@ -100,8 +125,6 @@ export default function ChapterMergePreview({ preview, fields, onFieldsChange, m
           <div>{field === 'description' && value ? <details><summary>{value.slice(0, 72)}{value.length > 72 ? '… 展开全文' : ''}</summary><p>{value}</p></details> : <span>{value || '源站未提供'}</span>}</div>
         </div>)}
       </div>
-      <Label className="chapter-merge-dialog__replace"><Checkbox checked={mode === 'replace'} disabled={disabled || !selected} onCheckedChange={(checked) => onModeChange(checked ? 'replace' : 'missing')} />覆盖已有小说信息</Label>
-      {mode === 'replace' && selected > 0 && <p className="chapter-merge-dialog__warning">已选字段将替换现有内容，请在更新前核对源站信息。</p>}
     </details>
     {preview.mappings.some((mapping) => mapping.relation === 'split') && <details className="chapter-merge-dialog__preview-section">
       <summary>查看拆分章节映射</summary>

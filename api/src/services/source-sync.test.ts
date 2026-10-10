@@ -225,4 +225,32 @@ describe('source sync chapter mapping', () => {
     expect(applied.updated).toBe(1)
     expect(rows.rows.map((row) => row.title)).toEqual(['第一章 新标题', '第二章 原标题'])
   })
+  it('批量确认只更新选中标题，并直接替换勾选的小说信息', async () => {
+    await testDb.db.query('INSERT INTO novels (id, title, author, created_at, updated_at) VALUES ($1, $2, $3, $4, $4)', [
+      'batch-manual-novel', '旧书名', '保留的作者', 3,
+    ])
+    for (let order = 1; order <= 3; order++) {
+      await testDb.db.query('INSERT INTO chapters (id, novel_id, title, sort_order, word_count, created_at) VALUES ($1, $2, $3, $4, 0, 3)', [
+        `batch-manual-${order}`, 'batch-manual-novel', `第${order}章 原标题`, order,
+      ])
+    }
+    const preview = await createSourceSyncPreview(testDb.db, {
+      novelId: 'batch-manual-novel', sourceUrl: 'https://www.po18.tw/books/902326/articles',
+      store: new PgScrapeStore(testDb.db),
+      fetchHtml: async () => ({ html: po18Directory([1, 2, 3].map(order => ({ order, title: `第${order}章 新标题` }))), encoding: 'utf-8' }),
+    })
+    expect(preview.changes).toHaveLength(3)
+    expect(preview.changes.every(change => !change.eligible)).toBe(true)
+    const result = await applySourceSync(testDb.db, {
+      runId: preview.runId, confirmedChangeIds: ['batch-manual-1', 'batch-manual-3'],
+      applyMetadata: true, metadataFields: ['title'], metadataMode: 'replace',
+    })
+    expect(result.updated).toBe(2)
+    expect(result.metadataUpdated).toEqual(['title'])
+    const titles = await testDb.db.query<{ title: string }>('SELECT title FROM chapters WHERE novel_id = $1 ORDER BY sort_order', ['batch-manual-novel'])
+    expect(titles.rows.map(row => row.title)).toEqual(['第1章 新标题', '第2章 原标题', '第3章 新标题'])
+    const novel = await testDb.db.query<{ title: string; author: string }>('SELECT title, author FROM novels WHERE id = $1', ['batch-manual-novel'])
+    expect(novel.rows[0]).toEqual({ title: '本地书', author: '保留的作者' })
+  })
+
 })
