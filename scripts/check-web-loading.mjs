@@ -4,6 +4,7 @@ import { chromium } from 'playwright'
 // Run a production Vite preview first. API fixtures prevent real data access.
 const base = process.env.WEB_LOADING_CHECK_BASE || 'http://127.0.0.1:5188'
 const origin = new URL(base).origin
+const fontOrigins = new Set(['https://fonts.googleapis.com', 'https://fonts.gstatic.com'])
 const branding = {
   name: '知舟',
   tagline: '一个安静的中文小说书库',
@@ -19,7 +20,7 @@ const stats = {
   recentJobs: [],
   recentNovels: [],
 }
-const browser = await chromium.launch({ headless: true })
+const browser = await chromium.launch({ headless: true, channel: process.env.WEB_LOADING_CHECK_CHANNEL || undefined })
 try {
   for (const width of [1440, 390])
     for (const theme of ['light', 'dark']) {
@@ -48,6 +49,7 @@ try {
       await page.route('**/*', async (route) => {
         const url = new URL(route.request().url())
         if (url.origin !== origin) {
+          if (fontOrigins.has(url.origin)) return route.continue()
           external.push(url.href)
           return route.abort()
         }
@@ -87,12 +89,12 @@ try {
       await page.evaluate(async () => {
         for (const weight of [400, 700, 900]) {
           const loaded = await document.fonts.load(`${weight} 16px "Noto Serif SC"`, '知舟中文阅读')
-          if (!loaded.length || loaded.some((font) => font.status !== 'loaded')) throw new Error('本地字体未成功加载')
+          if (!loaded.length || loaded.some((font) => font.status !== 'loaded')) throw new Error('Google Fonts 阅读字体未成功加载')
         }
       })
       assert(
         requested.some((path) => path.endsWith('.woff2')),
-        '应使用本地 WOFF2',
+        '应成功下载 Google Fonts WOFF2',
       )
       await page.goto(`${base}/admin/dashboard`)
       await page.getByText('小说总数', { exact: true }).waitFor()
@@ -118,8 +120,8 @@ try {
       await page.waitForLoadState('networkidle')
       assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), '页面不应横向溢出')
       assert.deepEqual(errors, [])
-      assert.deepEqual(external, [], '页面不应请求外部字体或其他外部资源')
-      console.log(`${width}px ${theme}: lazy routes, persistent shell and local fonts passed; homepage font bytes=${homeFontBytes}`)
+      assert.deepEqual(external, [], '页面不应请求 Google Fonts 之外的外部资源')
+      console.log(`${width}px ${theme}: lazy routes, persistent shell and Google Fonts passed; homepage font bytes=${homeFontBytes}`)
       await context.close()
     }
 } finally {

@@ -48,7 +48,7 @@ export function browserSecurityHeaders(options: { inlineScripts?: string[] } = {
       const hashes = (await trustedScripts()).map((script) => `'sha256-${createHash('sha256').update(script).digest('base64')}'`)
       c.header(
         'Content-Security-Policy-Report-Only',
-        `default-src 'self'; script-src 'self' https://challenges.cloudflare.com https://static.cloudflareinsights.com ${hashes.join(' ')}; style-src 'self' 'unsafe-inline'; img-src 'self' https: data: blob:; font-src 'self'; connect-src 'self' https:; frame-src https://challenges.cloudflare.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'`,
+        `default-src 'self'; script-src 'self' https://challenges.cloudflare.com https://static.cloudflareinsights.com ${hashes.join(' ')}; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' https: data: blob:; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https:; frame-src https://challenges.cloudflare.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'`,
       )
     }
   }

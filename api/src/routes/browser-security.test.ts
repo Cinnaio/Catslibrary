@@ -151,6 +151,8 @@ it('安全响应头覆盖 API 与 HTML，CSP 报告模式识别实际内联脚�
   site.get('/', (c) => c.html('<script>console.log("bootstrap")</script>'))
   const html = await site.request(origin)
   expect(html.headers.get('content-security-policy-report-only')).toContain("'sha256-")
+  expect(html.headers.get('content-security-policy-report-only')).toContain("style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;")
+  expect(html.headers.get('content-security-policy-report-only')).toContain("font-src 'self' https://fonts.gstatic.com;")
   expect(html.headers.get('content-security-policy')).toBeNull()
 })
 it.skipIf(process.env.BROWSER_SECURITY_CHECK !== '1')(
