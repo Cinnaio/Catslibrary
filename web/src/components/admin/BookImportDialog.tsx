@@ -1,6 +1,6 @@
 import { AdminDialogContent } from '@/components/admin/AdminDialog'
 import ImportDiagnosticsPanel from '@/components/admin/ImportDiagnosticsPanel'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { bookImportApi } from '@/lib/api'
 import type {
   BookImportAiReview,
@@ -17,12 +17,12 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Progress } from '@/components/ui/progress'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   ArrowLeft,
   ArrowRight,
+  BookOpen,
   Check,
   ChevronDown,
   ChevronUp,
@@ -32,12 +32,12 @@ import {
   LoaderCircle,
   RotateCcw,
   Upload,
+  X,
 } from 'lucide-react'
 
 type ImportStep = 'source' | 'match' | 'diff' | 'result'
 type SourceMode = 'file' | 'url'
 
-/** 来源分段控件的激活滑块位移索引，供 CSS 的 [data-active-index] 消费。 */
 const SOURCE_MODE_INDEX: Record<SourceMode, number> = { file: 0, url: 1 }
 
 const STEP_LABELS: Array<{ id: ImportStep; label: string }> = [
@@ -46,6 +46,20 @@ const STEP_LABELS: Array<{ id: ImportStep; label: string }> = [
   { id: 'diff', label: '查看差异' },
   { id: 'result', label: '导入结果' },
 ]
+
+const STEP_DESCRIPTIONS: Record<ImportStep, string> = {
+  source: '选择书籍文件或网页链接，先预览，再导入。',
+  match: '确认导入到哪本作品，避免同名书籍混在一起。',
+  diff: '核对作品信息与章节差异，只导入你选中的内容。',
+  result: '查看本次导入结果，或撤回可安全恢复的变更。',
+}
+
+const STEP_TITLES: Record<ImportStep, string> = {
+  source: '导入书籍',
+  match: '确认作品',
+  diff: '核对导入内容',
+  result: '导入结果',
+}
 
 const CHAPTER_STATUS: Record<BookImportChapterDiff['status'], { label: string; className: string }> = {
   new: { label: '新增', className: 'book-import__badge--new' },
@@ -87,7 +101,9 @@ export default function BookImportDialog({
   onCompleted?: () => void
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const bodyRef = useRef<HTMLDivElement>(null)
   const [step, setStep] = useState<ImportStep>('source')
+  useEffect(() => { bodyRef.current?.scrollTo({ top: 0, behavior: 'instant' }) }, [step])
   const [sourceMode, setSourceMode] = useState<SourceMode>('file')
   const [file, setFile] = useState<File | null>(null)
   const [sourceUrl, setSourceUrl] = useState('')
@@ -276,33 +292,27 @@ export default function BookImportDialog({
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !busy && onOpenChange(nextOpen)}>
-      <AdminDialogContent className="book-import-dialog sm:max-w-[980px]" aria-describedby="book-import-description">
+      <AdminDialogContent className="book-import-dialog" aria-describedby="book-import-description" data-step={step}>
         <DialogHeader className="book-import__header">
-          <DialogTitle>导入书籍</DialogTitle>
-          <DialogDescription id="book-import-description">先分析来源，再确认同名作品和章节差异；提交后仍可以安全撤回。</DialogDescription>
-          {/* 管理员提示并进页头：独立成行时会与步骤条抢同一段垂直空间（实测重叠）。
-              放在页头内既与标题同组居中，也不再影响弹窗栅格行数。 */}
-          <p className="book-import__header-note">管理员操作 · 保留导入快照</p>
-        </DialogHeader>
-
-        <div className="book-import__body">
+          <DialogTitle>{STEP_TITLES[step]}</DialogTitle>
+          <DialogDescription id="book-import-description">{STEP_DESCRIPTIONS[step]}</DialogDescription>
           <ol className="book-import__steps" aria-label="导入进度">
             {STEP_LABELS.map((item, index) => {
               const active = item.id === step
               const complete = index < stepIndex(step)
               return (
-                <li key={item.id} className="book-import__step" data-active={active} data-complete={complete}>
-                  <span className="book-import__step-marker" aria-hidden="true">
-                    {complete ? <Check className="size-3.5" /> : index + 1}
-                  </span>
+                <li key={item.id} className="book-import__step" data-active={active} data-complete={complete} aria-current={active ? 'step' : undefined}>
                   <span>{item.label}</span>
                 </li>
               )
             })}
           </ol>
+        </DialogHeader>
+
+        <div ref={bodyRef} className="admin-dialog__body book-import__body" aria-busy={busy}>
 
           {error && (
-            <Alert variant="destructive" className="book-import__alert">
+            <Alert variant="destructive" className="book-import__alert" role="alert">
               <CircleAlert aria-hidden="true" />
               <AlertTitle>操作未完成</AlertTitle>
               <AlertDescription>{error}</AlertDescription>
@@ -311,63 +321,82 @@ export default function BookImportDialog({
 
           {step === 'source' && (
             <div className="book-import__source">
-              <Tabs value={sourceMode} onValueChange={(value) => setSourceMode(value as SourceMode)}>
-                {/* data-active-index 供 CSS 移动分段控件的激活滑块，
-                    与审核类型等处同一约定。 */}
+              <Tabs value={sourceMode} onValueChange={(value) => { setSourceMode(value as SourceMode); setError('') }}>
                 <TabsList className="book-import__source-tabs" aria-label="选择导入来源" data-active-index={SOURCE_MODE_INDEX[sourceMode]}>
-                  <TabsTrigger value="file">
-                    <FileText aria-hidden="true" /> 文件
+                  <TabsTrigger value="file" disabled={busy}>
+                    <FileText aria-hidden="true" /> 本地文件
                   </TabsTrigger>
-                  <TabsTrigger value="url">
-                    <Globe2 aria-hidden="true" /> URL
+                  <TabsTrigger value="url" disabled={busy}>
+                    <Globe2 aria-hidden="true" /> 网页链接
                   </TabsTrigger>
                 </TabsList>
                 <TabsContent value="file" className="book-import__source-content">
-                  <div
-                    className="book-import__dropzone"
-                    data-drag-active={dragActive}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => fileInputRef.current?.click()}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') fileInputRef.current?.click()
-                    }}
-                    onDragEnter={(event) => {
-                      event.preventDefault()
-                      setDragActive(true)
-                    }}
-                    onDragOver={(event) => event.preventDefault()}
-                    onDragLeave={() => setDragActive(false)}
-                    onDrop={(event) => {
-                      event.preventDefault()
-                      setDragActive(false)
-                      chooseFile(event.dataTransfer.files[0] || null)
-                    }}
-                  >
-                    <input
-                      ref={fileInputRef}
-                      className="book-import__file-input"
-                      type="file"
-                      accept=".txt,.text,.json,.epub,text/plain,application/json,application/epub+zip"
-                      onChange={(event) => chooseFile(event.target.files?.[0] || null)}
-                    />
-                    <span className="book-import__dropzone-icon">
-                      <Upload aria-hidden="true" />
-                    </span>
-                    <strong>{file ? file.name : '拖入书籍文件，或点击选择'}</strong>
-                    <span>支持 TXT、JSON、EPUB，单个文件不超过 25 MB</span>
-                    {file && <Badge variant="outline">{formatNumber(Math.ceil(file.size / 1024))} KB</Badge>}
-                  </div>
-                  <div className="book-import__field">
-                    <Label htmlFor="book-import-source-url">可选：文件对应的来源 URL</Label>
-                    <Input
-                      id="book-import-source-url"
-                      type="url"
-                      placeholder="用于更准确匹配章节来源，可留空"
-                      value={sourceUrl}
-                      onChange={(event) => setSourceUrl(event.target.value)}
-                    />
-                  </div>
+                  <input
+                    ref={fileInputRef}
+                    className="book-import__file-input"
+                    type="file"
+                    tabIndex={-1}
+                    aria-label="选择书籍文件"
+                    disabled={busy}
+                    accept=".txt,.text,.json,.epub,text/plain,application/json,application/epub+zip"
+                    onChange={(event) => { chooseFile(event.target.files?.[0] || null); event.target.value = '' }}
+                  />
+                  {file ? (
+                    <div className="book-import__selected-file">
+                      <FileText aria-hidden="true" />
+                      <div className="book-import__file-copy" role="status">
+                        <strong>{file.name}</strong>
+                        <span>{file.name.split('.').at(-1)?.toUpperCase()} · {formatNumber(Math.ceil(file.size / 1024))} KB · 已准备好预览</span>
+                      </div>
+                      <div className="book-import__file-actions">
+                        <Button variant="ghost" size="sm" disabled={busy} onClick={() => fileInputRef.current?.click()}>更换</Button>
+                        <Button variant="ghost" size="icon" disabled={busy} aria-label="移除已选文件" onClick={() => { setFile(null); setError('') }}><X aria-hidden="true" /></Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      className="book-import__dropzone"
+                      data-drag-active={dragActive}
+                      aria-disabled={busy}
+                      onDragEnter={(event) => {
+                        event.preventDefault()
+                        if (!busy) setDragActive(true)
+                      }}
+                      onDragOver={(event) => event.preventDefault()}
+                      onDragLeave={() => setDragActive(false)}
+                      onDrop={(event) => {
+                        event.preventDefault()
+                        setDragActive(false)
+                        if (!busy) chooseFile(event.dataTransfer.files[0] || null)
+                      }}
+                    >
+                      <span className="book-import__dropzone-icon">
+                        <BookOpen aria-hidden="true" />
+                      </span>
+                      <strong>把书籍文件拖到这里</strong>
+                      <span className="book-import__formats">支持 TXT、JSON、EPUB · 最大 25 MB</span>
+                      <Button variant="outline" className="book-import__choose-file" aria-label="选择或拖入书籍文件" disabled={busy} onClick={() => fileInputRef.current?.click()}>
+                        <Upload aria-hidden="true" />选择文件
+                      </Button>
+                    </div>
+                  )}
+                  <details className="book-import__optional-source">
+                    <summary>补充来源链接 <span>可选</span><ChevronDown aria-hidden="true" /></summary>
+                    <div className="book-import__field">
+                      <Label htmlFor="book-import-source-url">原书来源 URL</Label>
+                      <Input
+                        id="book-import-source-url"
+                        type="url"
+                        placeholder="https://example.com/book/123"
+                        disabled={busy}
+                        aria-describedby="book-import-source-hint"
+                        value={sourceUrl}
+                        onChange={(event) => setSourceUrl(event.target.value)}
+                        onKeyDown={(event) => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); void handlePreview() } }}
+                      />
+                      <p id="book-import-source-hint" className="book-import__hint">用于更准确地匹配已有作品和章节；留空也可以导入。</p>
+                    </div>
+                  </details>
                 </TabsContent>
                 <TabsContent value="url" className="book-import__source-content">
                   <div className="book-import__field">
@@ -377,10 +406,13 @@ export default function BookImportDialog({
                       type="url"
                       inputMode="url"
                       placeholder="https://example.com/book/123"
+                      disabled={busy}
+                      aria-describedby="book-import-url-hint"
                       value={sourceUrl}
                       onChange={(event) => setSourceUrl(event.target.value)}
+                      onKeyDown={(event) => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); void handlePreview() } }}
                     />
-                    <p className="book-import__hint">服务端会读取作品元数据和章节正文，预计需要一点时间；需要登录的站点请先配置对应会话。</p>
+                    <p id="book-import-url-hint" className="book-import__hint">读取作品信息与章节正文。需要登录的站点，请先配置对应会话。</p>
                   </div>
                   <div className="book-import__source-callout">
                     <Globe2 aria-hidden="true" />
@@ -395,18 +427,16 @@ export default function BookImportDialog({
             <div className="book-import__workspace">
               <div className="book-import__book-summary">
                 <div>
-                  <span className="book-import__eyebrow">{sourceTypeLabel(preview)}</span>
                   <h3>{preview.book.title}</h3>
-                  <p>{preview.book.author || '未知作者'} · {formatNumber(preview.book.chapters.length)} 章 · {preview.sourceLabel}</p>
+                  <p>{sourceTypeLabel(preview)} · {preview.book.author || '未知作者'} · {formatNumber(preview.book.chapters.length)} 章 · {preview.sourceLabel}</p>
                 </div>
-                <Badge variant="outline">待确认目标</Badge>
               </div>
 
               <section className="book-import__section" aria-labelledby="book-import-match-title">
                 <div className="book-import__section-heading">
                   <div>
                     <h3 id="book-import-match-title">书库匹配</h3>
-                    <p>同名作品不会自动合并多个目标，请明确选择一次。</p>
+                    <p>选择已有作品，继续补充章节；没有同名作品时会创建新书。</p>
                   </div>
                   <Badge variant="secondary">{preview.candidates.length ? `找到 ${preview.candidates.length} 个候选` : '没有同名作品'}</Badge>
                 </div>
@@ -453,11 +483,9 @@ export default function BookImportDialog({
             <div className="book-import__workspace book-import__workspace--diff">
               <div className="book-import__book-summary">
                 <div>
-                  <span className="book-import__eyebrow">差异预览 · {preview.targetNovel ? '增量导入' : '新建作品'}</span>
                   <h3>{preview.book.title}</h3>
                   <p>{preview.targetNovel ? `目标：${preview.targetNovel.title}` : '提交后会创建新的书库作品'} · {preview.sourceLabel}</p>
                 </div>
-                <Badge variant="outline">不会删除本地章节</Badge>
               </div>
 
               <div className="book-import__summary-grid" aria-label="章节差异统计">
@@ -480,14 +508,9 @@ export default function BookImportDialog({
               )}
 
               {changedMetadata.length > 0 && (
-                <section className="book-import__section" aria-labelledby="book-import-metadata-title">
-                  <div className="book-import__section-heading">
-                    <div>
-                      <h3 id="book-import-metadata-title">作品信息变化</h3>
-                      <p>新作品默认带入；已有内容只补空白，覆盖已有值需要显式选择。</p>
-                    </div>
-                    <Badge variant="secondary">已选 {selectedMetadataCount} 项</Badge>
-                  </div>
+                <details className="book-import__section book-import__metadata-disclosure">
+                  <summary><h3 id="book-import-metadata-title">作品信息变化</h3><span>已选 {selectedMetadataCount} 项</span><ChevronDown aria-hidden="true" /></summary>
+                  <p className="book-import__hint">新作品默认带入；已有内容只补空白，覆盖已有值需要显式选择。</p>
                   <div className="book-import__metadata-list">
                     {changedMetadata.map((field) => (
                       <label key={field.field} className="book-import__metadata-row">
@@ -513,7 +536,7 @@ export default function BookImportDialog({
                       <span>覆盖已选字段</span>
                     </label>
                   </div>
-                </section>
+                </details>
               )}
 
               <section className="book-import__section" aria-labelledby="book-import-chapters-title">
@@ -571,48 +594,53 @@ export default function BookImportDialog({
             </div>
           )}
 
-          {step === 'result' && result && <ImportResult result={result} rollbackResult={rollbackResult} onRollback={() => void handleRollback()} busy={busy} />}
+          {step === 'result' && result && <ImportResult result={result} novelTitle={preview?.book.title || '作品'} rollbackResult={rollbackResult} onRollback={() => void handleRollback()} busy={busy} />}
         </div>
 
-        {busy && (
-          <div className="book-import__progress" aria-live="polite">
-            <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
-            <span>{step === 'source' ? '正在分析来源并生成预览…' : step === 'result' ? '正在撤回导入…' : '正在处理，请稍候…'}</span>
-            <Progress value={undefined} aria-label="处理中" />
-          </div>
-        )}
-
         <DialogFooter className="book-import__footer">
-          {step === 'source' && (
-            <>
-              <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={busy}>取消</Button>
-              <Button onClick={() => void handlePreview()} disabled={busy}>
-                {busy ? <LoaderCircle className="size-4 animate-spin" aria-hidden="true" /> : <ArrowRight aria-hidden="true" />}
-                {busy ? '分析中…' : '生成预览'}
-              </Button>
-            </>
-          )}
-          {step === 'match' && (
-            <>
-              <Button variant="secondary" onClick={() => setStep('source')} disabled={busy}><ArrowLeft aria-hidden="true" />返回</Button>
-              <Button onClick={() => void handleMatchContinue()} disabled={busy}><ArrowRight aria-hidden="true" />查看差异</Button>
-            </>
-          )}
-          {step === 'diff' && (
-            <>
-              <Button variant="secondary" onClick={() => setStep('match')} disabled={busy}><ArrowLeft aria-hidden="true" />返回</Button>
-              <Button onClick={() => void handleCommit()} disabled={busy || !hasImportableChanges}>
-                {busy ? <LoaderCircle className="size-4 animate-spin" aria-hidden="true" /> : <Check aria-hidden="true" />}
-                {busy ? '导入中…' : `确认导入${hasImportableChanges ? ` · ${selectedChapterCount} 章` : ''}`}
-              </Button>
-            </>
-          )}
-          {step === 'result' && (
-            <>
-              <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={busy}>关闭</Button>
-              <Button variant="outline" onClick={startOver} disabled={busy}><RotateCcw aria-hidden="true" />再导入一本</Button>
-            </>
-          )}
+          <div className="book-import__footer-status" role="status">
+            {busy ? (
+              <div className="book-import__progress" aria-live="polite">
+                <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
+                <span>{step === 'source' ? '正在分析来源并生成预览…' : step === 'result' ? '正在撤回导入…' : '正在处理，请稍候…'}</span>
+              </div>
+            ) : step === 'diff' ? <span>已选 {selectedChapterCount} 章 · {selectedMetadataCount} 项作品信息</span>
+              : step === 'source' ? <span>生成预览后，再确认导入</span>
+                : step === 'match' ? <span>{targetNovelId ? '导入到已有作品' : '确认目标后，继续查看差异'}</span>
+                  : <span>{rollbackResult ? '撤回结果已保存' : '已保留本次导入快照'}</span>}
+          </div>
+          <div className="book-import__footer-actions">
+            {step === 'source' && (
+              <>
+                <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={busy}>取消</Button>
+                <Button onClick={() => void handlePreview()} disabled={busy || (sourceMode === 'file' ? !file : !sourceUrl.trim())}>
+                  {busy ? <LoaderCircle className="size-4 animate-spin" aria-hidden="true" /> : <ArrowRight aria-hidden="true" />}
+                  {busy ? '分析中…' : '生成预览'}
+                </Button>
+              </>
+            )}
+            {step === 'match' && (
+              <>
+                <Button variant="ghost" onClick={() => setStep('source')} disabled={busy}><ArrowLeft aria-hidden="true" />返回</Button>
+                <Button onClick={() => void handleMatchContinue()} disabled={busy}><ArrowRight aria-hidden="true" />查看差异</Button>
+              </>
+            )}
+            {step === 'diff' && (
+              <>
+                <Button variant="ghost" onClick={() => setStep('match')} disabled={busy}><ArrowLeft aria-hidden="true" />返回</Button>
+                <Button onClick={() => void handleCommit()} disabled={busy || !hasImportableChanges}>
+                  {busy ? <LoaderCircle className="size-4 animate-spin" aria-hidden="true" /> : <Check aria-hidden="true" />}
+                  {busy ? '导入中…' : `确认导入${hasImportableChanges ? ` · ${selectedChapterCount} 章` : ''}`}
+                </Button>
+              </>
+            )}
+            {step === 'result' && (
+              <>
+                <Button variant="ghost" onClick={startOver} disabled={busy}><RotateCcw aria-hidden="true" />再导入一本</Button>
+                <Button onClick={() => onOpenChange(false)} disabled={busy}>完成</Button>
+              </>
+            )}
+          </div>
         </DialogFooter>
       </AdminDialogContent>
     </Dialog>
@@ -653,11 +681,13 @@ function ContentPreview({ label, content, muted = false }: { label: string; cont
 
 function ImportResult({
   result,
+  novelTitle,
   rollbackResult,
   onRollback,
   busy,
 }: {
   result: BookImportCommitResult
+  novelTitle: string
   rollbackResult: BookImportRollbackResult | null
   onRollback: () => void
   busy: boolean
@@ -668,22 +698,21 @@ function ImportResult({
       <div className="book-import__result-icon" data-rolled-back={rolledBack}>
         {rolledBack ? <RotateCcw aria-hidden="true" /> : <Check aria-hidden="true" />}
       </div>
-      <span className="book-import__eyebrow">{rolledBack ? '导入已撤回' : result.conflicts.length ? '导入已部分完成' : '导入完成'}</span>
       <h3>{rolledBack ? '已恢复可安全恢复的内容' : result.novelCreated ? '已创建新作品' : '已增量更新作品'}</h3>
-      <p>{rolledBack ? `已撤回 ${formatNumber(rollbackResult?.rolledBack || 0)} 项变更。` : `作品「${result.novelId}」已记录本次导入快照。`}</p>
-      <div className="book-import__result-grid">
-        <SummaryStat label="新增章节" value={rolledBack ? 0 : result.created} tone="new" />
-        <SummaryStat label="更新章节" value={rolledBack ? 0 : result.updated} tone="changed" />
+      <p>{rolledBack ? `已撤回 ${formatNumber(rollbackResult?.rolledBack || 0)} 项变更。` : `「${novelTitle}」已记录本次导入快照。`}</p>
+      {!rolledBack && <div className="book-import__result-grid">
+        <SummaryStat label="新增章节" value={result.created} tone="new" />
+        <SummaryStat label="更新章节" value={result.updated} tone="changed" />
         <SummaryStat label="跳过章节" value={result.skipped} tone="unchanged" />
-        <SummaryStat label="冲突" value={(rollbackResult?.conflicts.length || result.conflicts.length) ?? 0} tone="conflict" />
-      </div>
-      {(result.conflicts.length > 0 || rollbackResult?.conflicts.length) && (
+        <SummaryStat label="冲突" value={result.conflicts.length} tone="conflict" />
+      </div>}
+      {(result.conflicts.length > 0 || (rollbackResult?.conflicts.length || 0) > 0) && (
         <div className="book-import__result-warning">
           <CircleAlert aria-hidden="true" />
           <span>{rollbackResult?.conflicts.length ? '有内容在操作后再次变化，系统已保留这些内容，没有强制覆盖。' : '有章节在提交时发生变化，系统已跳过这些章节，可重新预览后处理。'}</span>
         </div>
       )}
-      {!rolledBack && <Button variant="outline" onClick={onRollback} disabled={busy}><RotateCcw aria-hidden="true" />撤回这次导入</Button>}
+      {!rolledBack && <Button variant="ghost" onClick={onRollback} disabled={busy}><RotateCcw aria-hidden="true" />撤回这次导入</Button>}
     </div>
   )
 }
