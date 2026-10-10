@@ -204,6 +204,53 @@ describe('book import normalization and diffing', () => {
     expect(book.chapters[0]?.content).toContain('1200珠加更')
   })
 
+  it('does not split forum floor markers into chapters', () => {
+    // 站点把「论坛番外」导出成 TXT 时，楼层退化成紧贴的「编号 + 楼」，
+    // 天然符合裸数字章节的形状。实测一份 59 章的文件因此多出 46 个幽灵章节。
+    const text = [
+      '38  36.5 论坛番外（非男主意淫预警）',
+      '匿名',
+      '1楼',
+      '怎么校内论坛也能刷到短剧剧情，楼主拿的是不是炮灰',
+      '2楼楼主',
+      '何意味。本少爷怎么着也得是个男二吧?',
+      '6楼:所以楼主被扇了吗?那位的巴掌香不香软不软?',
+      '39 37.蓄意讨赏',
+      '正文甲。',
+    ].join('\n')
+    const book = helpers.parseTextImport(text, '论坛番外.txt')
+
+    expect(book.chapters.map((chapter) => chapter.title)).toEqual([
+      '38 36.5 论坛番外（非男主意淫预警）',
+      '39 37.蓄意讨赏',
+    ])
+    // 楼层内容必须完整留在论坛番外章内。
+    expect(book.chapters[0]?.content).toContain('2楼楼主')
+    expect(book.chapters[0]?.content).toContain('6楼:所以楼主被扇了吗')
+  })
+
+  it('keeps a chapter title that merely starts with 楼', () => {
+    // 楼层识别只认「楼」「楼楼主」「楼:」三种形态，不能误伤以「楼」开头的真实章名。
+    const book = helpers.parseTextImport(
+      ['12楼上的秘密', '正文甲。', '第0013章 收尾', '正文乙。'].join('\n'),
+      '楼开头.txt',
+    )
+
+    expect(book.chapters.map((chapter) => chapter.title)).toEqual(['12 楼上的秘密', '第0013章 收尾'])
+  })
+
+  it('does not treat a zero-prefixed prose line as a chapter', () => {
+    // 章节号从 1 开始；「0个人问你脸和身材」是网络语正文（0 个人 = 没有人），
+    // 不是第 0 章。它曾把一个楼层回复切成独立章节。
+    const book = helpers.parseTextImport(
+      ['第0023章 起', '正文甲。', '0个人问你脸和身材', '正文乙。'].join('\n'),
+      '零开头.txt',
+    )
+
+    expect(book.chapters).toHaveLength(1)
+    expect(book.chapters[0]?.content).toContain('0个人问你脸和身材')
+  })
+
   it('keeps a chapter whose in-body heading is misnumbered', () => {
     // 原文编号错位：`第0003章` 的正文首行写的是「第四章」，而真正的 `第0004章` 在其后。
     // 权威标题必须自成一章，否则第 3 章会被整章吞掉。

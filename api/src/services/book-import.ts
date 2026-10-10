@@ -82,6 +82,29 @@ const MAX_BARE_NUMBER = 999
 const BARE_NUMBER_TIGHT = /^\s*([0-9０-９]{1,4})([^\s0-9０-９][^\n]*?)\s*$/u
 
 /**
+ * 论坛/评论区楼层标记，出现在裸数字标题的标题文本位置：`1楼`、`2楼楼主`、`6楼:回复内容`。
+ *
+ * 站点把「论坛番外」这类章内论坛体导出成 TXT 时，楼层会退化成紧贴的「编号 + 楼」，
+ * 而它天然符合裸数字章节的形状，于是每个楼层都被切成独立章节——实测一份 59 章的文件
+ * 因此多出 46 个幽灵章节（「1 楼」「2 楼楼主」…「46 楼」）。
+ *
+ * 剥掉编号后，标题文本的形态只有三种：`楼`（纯楼层）、`楼楼主`（楼主自述）、`楼:内容`（引用）。
+ * 显式列举这三种，避免误伤真正以「楼」开头的章名——「12楼上的秘密」不会被否决。
+ */
+const FORUM_FLOOR_BODY = /^楼(?:楼主)?(?:[:：]|$)/u
+
+/**
+ * 裸数字编号是否可能是章节号。
+ *
+ * 下界排除 0：章节号从 1 开始，正文里却常出现「0个人问你脸和身材」（网络语「没有人」）
+ * 这类以 0 开头紧贴中文的句子，它们天然满足裸数字标题的形状。
+ * 上界排除年份与珠数：`2016年`、`1200珠` 不是章节号。
+ */
+function isPlausibleChapterNumber(value: number): boolean {
+  return Number.isFinite(value) && value >= 1 && value <= MAX_BARE_NUMBER
+}
+
+/**
  * 判断一行是否为可用的章节标题行。
  * 返回标题原文（已去首尾空白），非标题返回 null。
  */
@@ -111,8 +134,10 @@ export function isChapterHeadingLine(line: string): string | null {
     const digits = bare[1]!.normalize('NFKC')
     const number = Number(digits)
     const body = bare[2]!
-    if (Number.isFinite(number) && number > MAX_BARE_NUMBER) return null
+    if (!isPlausibleChapterNumber(number)) return null
     if (body.length > MAX_BARE_TITLE_LENGTH) return null
+    // 论坛楼层（`1 楼`、`2 楼楼主`）不是章节，见 FORUM_FLOOR_BODY。
+    if (FORUM_FLOOR_BODY.test(body)) return null
     // 编号后有显式空白时，句读不参与否决：作者会把公告类章名写成
     // 「81 晚点更新。顺便安利篇很香的兄妹骨。」，带句号仍是标题。
     // 真正需要挡掉的是超长正文，已由长度上限覆盖。
@@ -124,8 +149,10 @@ export function isChapterHeadingLine(line: string): string | null {
     const digits = tight[1]!.normalize('NFKC')
     const number = Number(digits)
     const body = tight[2]!
-    if (number > MAX_BARE_NUMBER) return null
+    if (!isPlausibleChapterNumber(number)) return null
     if (body.length > MAX_BARE_TITLE_LENGTH) return null
+    // 论坛楼层几乎都写成紧贴的 `1楼`/`2楼楼主`，是这条规则最容易吃进来的噪声。
+    if (FORUM_FLOOR_BODY.test(body)) return null
     // 无分隔符时风险更高，句号收尾一律否决：
     // 「69是什么，她之前其实没有听过。」是正文，不是「69」章的标题。
     if (PROSE_ENDING.test(body)) return null
