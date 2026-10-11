@@ -416,6 +416,8 @@ components:
 - **Field Labels:** 弹窗内的小标题（`标题`/`作者`/`正文`…）统一为 12px / 500 / `--text-muted`，读 `--admin-dialog-label-size`·`-weight`·`-color`·`-line-height`·`-letter-spacing`。不再出现 0.8rem/650/次级色、0.6875rem/600/大写等分叉写法，也不用 `text-transform: uppercase`（大写只对拉丁字母可见，会让中英标签风格分叉）。覆盖范围含 `.admin-dialog` 与自建三段式的 `.ai-generation-dialog`；无 `Label` 元素可挂的裸 `div` 用 `.admin-dialog-section-label` 表达同一语义。
 - **Helper Copy:** 控件下方的辅助说明与标签同尺寸同色，只降一档字重至 400（`--admin-dialog-hint-*`，或裸元素用 `.admin-dialog-hint`）。辅助说明不得比它说明的标签更粗或更大，否则主次颠倒。
 - **Mobile Editor:** 窄屏小说编辑窗口使用 `--admin-dialog-mobile-max-height` 收紧高度；底部操作区通过 `--admin-dialog-mobile-footer-*` 保持保存/取消同一行、不换行，并用 `--admin-dialog-mobile-action-min-*` 保留触控尺寸。
+- **History Records:** 导入历史使用共享弹窗三段式；记录标题读 `--admin-table-title-size`（14px），辅助说明读完整的 `--admin-dialog-hint-*`，状态复用 `AdminStatusBadge`，不另设状态混色。记录之间单条细线、纵向内边距16px。弹窗分页使用共享 `Pagination variant="dialog"`，复用分页字号、32px控件与跳转框尺寸，容器无描边、底色和额外内边距；手机端计数与控件分行，翻页与跳转分成两行。刷新为带可访问名称的轻量图标按钮。
+- **History Scroll Spacing:** 导入历史页头至正文沿用共享20px（手机16px），由固定页头底部承接；正文至页脚的24px（手机20px）由固定页脚顶部承接。正文纵向内边距归零，总间距不叠加。长列表滚动至任意位置仍保留首尾留白；此规则仅限导入历史，不改变其他弹窗。
 
 ### Chapter Merge Preview
 

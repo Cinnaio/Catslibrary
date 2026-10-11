@@ -5,6 +5,145 @@
    （见 admin-operations.css 中 `.admin-dialog [data-slot='dialog-header']`
    的 border-bottom:0 与 footer 的 border-top:0）。三段桌面留白继承共享规则，
    本文件只补充工作流布局与窄屏适配，不重新引入分隔线或另一套字阶。 */
+
+/* 导入历史：独立记录布局，避免书架横向条目压缩长标题。 */
+[data-slot='dialog-content'].admin-dialog.book-import-history-dialog {
+  /* 采用共享 admin-dialog 宽度，解除基础 Dialog 的 sm:max-w-lg 限制。 */
+  max-width: none;
+}
+[data-slot='dialog-content'].book-import-history-dialog [data-slot='dialog-description'] {
+  max-width: min(60ch, calc(100% - 6rem));
+}
+.book-import-history__record {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--admin-space-5);
+  padding-block: var(--admin-space-4);
+  min-width: 0;
+}
+.book-import-history__record + .book-import-history__record {
+  border-top: 1px solid var(--admin-border);
+}
+.book-import-history__record:first-child {
+  padding-top: 0;
+}
+.book-import-history__record:last-child {
+  padding-bottom: 0;
+}
+.book-import-history__copy {
+  display: grid;
+  gap: var(--admin-space-2);
+  min-width: 0;
+}
+.book-import-history__copy h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--admin-table-title-size);
+  font-weight: 500;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.book-import-history__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--admin-space-3);
+}
+.book-import-history__meta time,
+.book-import-history__source,
+.book-import-history__note,
+.book-import-history__action > span {
+  color: var(--text-muted);
+  font-size: var(--admin-dialog-hint-size);
+  font-weight: var(--admin-dialog-hint-weight);
+  line-height: var(--admin-dialog-hint-line-height);
+}
+.book-import-history__source,
+.book-import-history__note {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.book-import-history__changes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--admin-space-5);
+  margin-top: var(--admin-space-2);
+  color: var(--text-secondary);
+  font-size: var(--admin-table-cell-size);
+  line-height: 1.8;
+}
+.book-import-history__changes strong {
+  color: var(--text-primary);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.book-import-history__action {
+  padding-top: var(--admin-space-1);
+}
+.book-import-history__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--admin-space-3);
+  min-height: 10rem;
+  color: var(--text-muted);
+  font-size: var(--admin-table-cell-size);
+}
+.book-import-history__error {
+  color: var(--color-danger);
+  font-size: var(--admin-table-cell-size);
+  overflow-wrap: anywhere;
+}
+.book-import-history__result {
+  margin-bottom: var(--admin-space-5);
+
+  color: var(--text-secondary);
+  font-size: var(--admin-table-cell-size);
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+.book-import-history__result p {
+  margin: 0;
+}
+.book-import-history__result p + p {
+  margin-top: var(--admin-space-2);
+}
+/* 页脚与分页外观交由共享 dialog 变体；这里只安排业务操作。 */
+.book-import-history-dialog [data-slot='dialog-header'] {
+  /* 顶部20px同样由固定页头承接，正文滚动时不贴住描述。 */
+  padding-bottom: calc(var(--admin-space-4) + var(--admin-space-1));
+}
+.book-import-history-dialog .book-import-history__body {
+  /* 将共享正文的纵向留白交给固定首尾，滚动中也保留这段间隔。 */
+  padding-block: 0;
+}
+.book-import-history-dialog [data-slot='dialog-footer'] {
+  flex-direction: row;
+  flex-wrap: nowrap;
+  padding-top: var(--admin-space-5);
+}
+.book-import-history__footer > button[data-size='icon'] {
+  min-width: var(--admin-control-height);
+  flex-shrink: 0;
+}
+@media (max-width: 640px) {
+  .book-import-history-dialog [data-slot='dialog-header'] {
+    padding-bottom: var(--admin-space-4);
+  }
+  .book-import-history-dialog [data-slot='dialog-footer'] {
+    /* 与共享手机正文底部的1.25rem保持同一档。 */
+    padding-top: calc(var(--admin-space-4) + var(--admin-space-1));
+  }
+  .book-import-history__record {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--admin-space-3);
+  }
+  .book-import-history__action {
+    padding-top: 0;
+  }
+}
+
 [data-slot='dialog-content'].book-import-dialog {
   width: min(calc(100% - 2rem), 56rem);
   max-width: 56rem;
@@ -1391,9 +1530,7 @@
 }
 .book-import__impact-text {
   margin-block: var(--admin-space-4);
-  padding: var(--admin-space-4);
-  border-radius: var(--radius-lg);
-  background: var(--admin-panel-muted);
+
 }
 .book-import__impact-text > span {
   color: var(--text-muted);

@@ -32,3 +32,14 @@ it('回滚失败保留入口和错误，下次重试保持操作 ID', async () =
   await screen.findByText('已撤回 2 项变更，保留 0 项冲突。')
   expect(mocks.rollback.mock.calls.map(c => c[1])).toEqual(['stable-operation', 'stable-operation'])
 })
+
+it('未提交预览明确说明未写入书库，不展示实际章节变更或撤回按钮', async () => {
+  mocks.history.mockResolvedValue({ items: [{ runId: 'preview', novelTitle: '很长的作品名称仍应完整展示', sourceLabel: '[更99]长文件名.txt', status: 'preview', createdAt: 1, created: 0, updated: 0, canRollback: false }], total: 1 })
+  render(<BookImportHistoryDialog open onOpenChange={vi.fn()} onCompleted={vi.fn()} />)
+  await screen.findByRole('heading', { name: '很长的作品名称仍应完整展示' })
+  expect(screen.getByText('预览未提交')).toBeInTheDocument()
+  expect(screen.getByText('尚未写入书库')).toBeInTheDocument()
+  expect(screen.getByText('来源：[更99]长文件名.txt')).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: '撤回此次导入' })).not.toBeInTheDocument()
+  expect(screen.queryByLabelText('此次导入的章节变更')).not.toBeInTheDocument()
+})

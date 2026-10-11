@@ -41,7 +41,7 @@ interface PaginationProps {
   /** 翻页请求进行中：只禁用按钮，不隐藏控件，避免布局跳动。 */
   busy?: boolean
   /** detached 将分页从数据表面中分离，适合小说管理这类表格下方独立控制带。 */
-  variant?: 'panel' | 'detached'
+  variant?: 'panel' | 'detached' | 'dialog'
   className?: string
 }
 
@@ -60,7 +60,7 @@ export default function Pagination({ page, totalPages, onPage, summary, pageSize
   }
 
   return (
-    <div className={`admin-pagination${variant === 'detached' ? ' admin-pagination--detached' : ''}${className ? ` ${className}` : ''}`}>
+    <div className={`admin-pagination${variant !== 'panel' ? ` admin-pagination--${variant}` : ''}${className ? ` ${className}` : ''}`}>
       {summary ? <span className="admin-pagination__summary">{summary}</span> : null}
 
       <div className="admin-pagination__controls">
@@ -92,7 +92,15 @@ export default function Pagination({ page, totalPages, onPage, summary, pageSize
         {showPager ? (
           <>
             {variant === 'detached' && (
-              <Button variant="ghost" size="icon" className="admin-pagination__icon-button" aria-label="第一页" title="第一页" disabled={busy || page <= 1} onClick={() => goTo(1)}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="admin-pagination__icon-button"
+                aria-label="第一页"
+                title="第一页"
+                disabled={busy || page <= 1}
+                onClick={() => goTo(1)}
+              >
                 <ChevronsLeft aria-hidden="true" />
               </Button>
             )}
@@ -153,7 +161,15 @@ export default function Pagination({ page, totalPages, onPage, summary, pageSize
               {variant === 'detached' ? <ChevronRight aria-hidden="true" /> : '下一页'}
             </Button>
             {variant === 'detached' && (
-              <Button variant="ghost" size="icon" className="admin-pagination__icon-button" aria-label="最后一页" title="最后一页" disabled={busy || page >= totalPages} onClick={() => goTo(totalPages)}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="admin-pagination__icon-button"
+                aria-label="最后一页"
+                title="最后一页"
+                disabled={busy || page >= totalPages}
+                onClick={() => goTo(totalPages)}
+              >
                 <ChevronsRight aria-hidden="true" />
               </Button>
             )}
