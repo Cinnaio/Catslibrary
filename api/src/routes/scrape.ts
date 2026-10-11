@@ -464,7 +464,7 @@ scrapeRoutes.post('/', async (c) => {
         {
           scope: `scrape.source-sync-apply.${c.get('user').id}.${runId}`,
           operationKey,
-          payload: { runId, applyMetadata: body.applyMetadata === true, metadataFields, metadataMode: body.metadataMode === 'replace' ? 'replace' : 'missing', confirmedChangeIds },
+          payload: { runId, applyMetadata: body.applyMetadata === true, metadataFields, metadataMode: body.metadataMode === 'replace' ? 'replace' : 'missing', confirmedChangeIds, repairOrder: body.repairOrder === true },
           audit: { actorUserId: c.get('user').id, action: 'source-sync-apply', targetCount: confirmedChangeIds.length },
         },
         async () => {
@@ -476,12 +476,13 @@ scrapeRoutes.post('/', async (c) => {
                 metadataFields,
                 metadataMode: body.metadataMode === 'replace' ? 'replace' : 'missing',
                 confirmedChangeIds,
+                repairOrder: body.repairOrder === true,
                 actorUserId: c.get('user').id,
               }),
             )
           } catch (err) {
             const message = (err as Error).message || '源站同步应用失败'
-            const status = /不存在|已应用|发生变化|Novel not found|章节不存在/i.test(message) ? 409 : 500
+            const status = /不存在|已应用|发生变化|无法修复序号|Novel not found|章节不存在/i.test(message) ? 409 : 500
             return c.json({ error: message }, status as 409 | 500)
           }
         },

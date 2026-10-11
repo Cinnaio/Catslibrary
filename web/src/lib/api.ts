@@ -490,6 +490,8 @@ export interface SourceSyncPreview {
   changes: SourceSyncChange[]
   onlyWeakTitles: boolean
   warnings: string[]
+  orderChanges?: Array<{ localChapterId: string; title: string; oldOrder: number; newOrder: number }>
+  orderRepairBlockedReason?: string
 }
 
 export interface TitleSource {
@@ -1602,8 +1604,9 @@ export const scrapeApi = {
     metadataFields?: string[]
     metadataMode?: 'missing' | 'replace'
     confirmedChangeIds?: string[]
+    repairOrder?: boolean
     operationId?: string
-  }): Promise<{ updated: number; metadataUpdated: string[]; mappings: number }> {
+  }): Promise<{ updated: number; orderUpdated?: number; metadataUpdated: string[]; mappings: number }> {
     const operationId = data.operationId || newOperationId('source-sync-apply')
     return request('POST', '/scrape', { action: 'source-sync-apply', ...data, operationId }, true, operationHeaders(operationId))
   },
