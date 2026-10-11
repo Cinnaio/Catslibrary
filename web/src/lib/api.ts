@@ -506,6 +506,7 @@ export interface SourceSyncPreview {
   warnings: string[]
   orderChanges?: Array<{ localChapterId: string; title: string; oldOrder: number; newOrder: number }>
   orderRepairBlockedReason?: string
+  orderRepairSkipped?: Array<{ localChapterId: string; reason: string }>
   revision?: number
   sourceChapters?: Array<{ key: string; order: number; title: string; url: string }>
   localChapters?: Array<{ id: string; order: number; title: string }>
@@ -1623,6 +1624,7 @@ export const scrapeApi = {
     metadataMode?: 'missing' | 'replace'
     confirmedChangeIds?: string[]
     repairOrder?: boolean
+    confirmedOrderIds?: string[]
     revision?: number
     operationId?: string
   }): Promise<{ updated: number; orderUpdated?: number; metadataUpdated: string[]; mappings: number }> {

@@ -76,7 +76,9 @@ describe('scrape 路由（免网络动作）', () => {
     await t.db.query('INSERT INTO novel_source_bindings (id,novel_id,source_url,created_at,updated_at) VALUES ($1,$2,$3,1,1)', [bindingId, novelId, sourceUrl])
     await t.db.query('INSERT INTO source_sync_runs (id,binding_id,novel_id,metadata_json,source_chapters_json,changes_json,mapping_json,local_snapshot_json,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,1)',
       [runId, bindingId, novelId, JSON.stringify(preview.metadata), JSON.stringify(source), JSON.stringify(preview.changes), JSON.stringify(preview.mappings), JSON.stringify(locals)])
-    const body = { action: 'source-sync-apply', runId, repairOrder: true, operationId: 'repair-order-once' }
+    const body = { action: 'source-sync-apply', runId, repairOrder: true, confirmedOrderIds: ['route-notice'], operationId: 'repair-order-once' }
+    const invalidSelection = await req('/api/scrape', json('POST', { ...body, confirmedOrderIds: 'route-notice' }, adminToken))
+    expect(invalidSelection.status).toBe(400)
     const result = await req('/api/scrape', json('POST', body, adminToken))
     expect(result.status).toBe(200)
     expect(await result.json()).toMatchObject({ updated: 0, orderUpdated: 1 })
@@ -85,6 +87,8 @@ describe('scrape 路由（免网络动作）', () => {
     expect(await retry.json()).toMatchObject({ orderUpdated: 1 })
     const conflict = await req('/api/scrape', json('POST', { ...body, repairOrder: false }, adminToken))
     expect(conflict.status).toBe(409)
+    const selectionConflict = await req('/api/scrape', json('POST', { ...body, confirmedOrderIds: [] }, adminToken))
+    expect(selectionConflict.status).toBe(409)
     const stored = await t.db.query<{ sort_order: number }>('SELECT sort_order FROM chapters WHERE id=\'route-notice\'')
     expect(stored.rows[0]?.sort_order).toBe(45)
     const history = await req(`/api/scrape?action=source-sync-history&novelId=${novelId}`, json('GET', undefined, adminToken))

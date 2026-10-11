@@ -15,14 +15,13 @@ interface Props {
   confirmedManualIds: Set<string>
   onConfirmedManualIdsChange: (ids: Set<string>) => void
   disabled: boolean
-  repairOrder: boolean
-  onRepairOrderChange: (value: boolean) => void
+  onSelectedMappingsChange: (ids: Set<string>) => void
   onRemap: (mappings: SourceSyncManualMapping[]) => void
 }
 
 const PAGE_SIZE = 20
 
-export default function ChapterMergePreview({ preview, fields, onFieldsChange, confirmedManualIds, onConfirmedManualIdsChange, disabled, repairOrder, onRepairOrderChange, onRemap }: Props) {
+export default function ChapterMergePreview({ preview, fields, onFieldsChange, confirmedManualIds, onConfirmedManualIdsChange, disabled, onRemap, onSelectedMappingsChange }: Props) {
   const [filter, setFilter] = useState('all')
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(1)
@@ -71,8 +70,7 @@ export default function ChapterMergePreview({ preview, fields, onFieldsChange, c
       {preview.warnings.map((warning) => <p className="chapter-merge-dialog__warning" key={warning}>{warning}</p>)}
     </div>
 
-    <OrderRepairPreview preview={preview} checked={repairOrder} onChange={onRepairOrderChange} disabled={disabled} />
-    <ChapterMappingReview preview={preview} disabled={disabled} onRemap={onRemap} confirmedManualIds={confirmedManualIds} onConfirmTitles={confirmChanges} />
+    <ChapterMappingReview preview={preview} disabled={disabled} onRemap={onRemap} onSelectedMappingsChange={onSelectedMappingsChange} />
 
     <div className="chapter-merge-dialog__preview-section">
       <div className="chapter-merge-dialog__review-toolbar">
@@ -139,31 +137,6 @@ export default function ChapterMergePreview({ preview, fields, onFieldsChange, c
       <summary>查看拆分章节映射</summary>
       {preview.mappings.filter((mapping) => mapping.relation === 'split').map((mapping) => <p key={mapping.sourceChapterKey}>源站第 {mapping.sourceOrder} 章「{mapping.sourceTitle}」 → 本地 {mapping.localChapterIds.length} 节</p>)}
     </details>}
-  </section>
-}
-
-function OrderRepairPreview({ preview, checked, onChange, disabled }: { preview: SourceSyncPreview; checked: boolean; onChange: (value: boolean) => void; disabled: boolean }) {
-  const [page, setPage] = useState(1)
-  const changes = preview.orderChanges || []
-  const pages = Math.max(1, Math.ceil(changes.length / PAGE_SIZE))
-  if (preview.orderRepairBlockedReason) return <p className="chapter-merge-dialog__warning">序号检查：{preview.orderRepairBlockedReason}</p>
-  if (!changes.length) return null
-  return <section className="chapter-merge-dialog__preview-section" aria-label="章节序号修复">
-    <Label><Checkbox checked={checked} disabled={disabled} onCheckedChange={value => onChange(value === true)} />按源站修复 {changes.length} 个章节序号</Label>
-    <p className="admin-dialog-hint">已按唯一完整标题核对。勾选后修复下列序号；章节 ID、正文、书签及阅读进度记录保留。默认不改序号。</p>
-    <ol className="chapter-merge-dialog__changes" aria-label="章节序号变化">
-      {changes.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map(change => <li key={change.localChapterId}>
-        <span className="chapter-merge-dialog__order">{change.oldOrder}</span>
-        <span>{change.title}</span>
-        <ArrowRight size={14} aria-hidden="true" />
-        <span>序号 {change.newOrder}</span>
-      </li>)}
-    </ol>
-    {pages > 1 && <nav className="chapter-merge-dialog__pagination" aria-label="序号修复分页">
-      <Button variant="ghost" disabled={page === 1} onClick={() => setPage(page - 1)}>上一页</Button>
-      <span>{page} / {pages}</span>
-      <Button variant="ghost" disabled={page === pages} onClick={() => setPage(page + 1)}>下一页</Button>
-    </nav>}
   </section>
 }
 

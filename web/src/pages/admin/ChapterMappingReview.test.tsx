@@ -88,22 +88,19 @@ it('全选覆盖筛选结果所有页，跨筛选保留选择，逐项取消和�
   expect(screen.getByRole('checkbox', { name: '选择映射：本地 21' })).not.toBeChecked()
 })
 
-it('仅确认选中且未确认的人工标题，禁用时不能选择或确认', () => {
-  const onConfirmTitles = vi.fn()
-  const data = { ...preview, changes: [
-    { localChapterId: 'a', eligible: false },
-    { localChapterId: 'b', eligible: true },
-  ] } as SourceSyncPreview
-  const props = { preview: data, onRemap: vi.fn(), onConfirmTitles }
+it('选择和清空立即通知同步流程，禁用时不能操作', () => {
+  const onSelectedMappingsChange = vi.fn()
+  const props = { preview, onRemap: vi.fn(), onSelectedMappingsChange }
   const { rerender } = render(<ChapterMappingReview {...props} disabled={false} />)
   fireEvent.click(screen.getByText('核对与调整映射'))
   fireEvent.click(screen.getByRole('button', { name: '全选当前筛选结果 2 项' }))
-  fireEvent.click(screen.getByRole('button', { name: '确认所选标题 1 项' }))
-  expect(onConfirmTitles).toHaveBeenCalledWith(['a'])
-  rerender(<ChapterMappingReview {...props} disabled={false} confirmedManualIds={new Set(['a'])} />)
-  expect(screen.getByRole('button', { name: '确认所选标题 0 项' })).toBeDisabled()
+  expect(onSelectedMappingsChange).toHaveBeenLastCalledWith(new Set(['a', 'b']))
+  fireEvent.click(screen.getByRole('checkbox', { name: '选择映射：本地 1' }))
+  expect(onSelectedMappingsChange).toHaveBeenLastCalledWith(new Set(['b']))
   rerender(<ChapterMappingReview {...props} disabled={true} />)
   expect(screen.getByRole('checkbox', { name: '选择映射：本地 1' })).toBeDisabled()
   expect(screen.getByRole('button', { name: '清空映射选择' })).toBeDisabled()
-  expect(screen.getByRole('button', { name: '确认所选标题 1 项' })).toBeDisabled()
+  rerender(<ChapterMappingReview {...props} disabled={false} />)
+  fireEvent.click(screen.getByRole('button', { name: '清空映射选择' }))
+  expect(onSelectedMappingsChange).toHaveBeenLastCalledWith(new Set())
 })

@@ -81,9 +81,10 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
   const [sourceSearchTitle, setSourceSearchTitle] = useState('')
   const [sourceSearchAuthor, setSourceSearchAuthor] = useState('')
   const [sourceSearching, setSourceSearching] = useState(false)
-  const [sourceMetadataFields, setSourceMetadataFields] = useState<string[]>(['title', 'author', 'description', 'coverUrl', 'categories', 'status'])
+  const [sourceMetadataFields, setSourceMetadataFields] = useState<string[]>([])
   const [confirmedManualIds, setConfirmedManualIds] = useState<Set<string>>(new Set())
-  const [repairOrder, setRepairOrder] = useState(false)
+  const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set())
+  const [selectedMappingIds, setSelectedMappingIds] = useState<Set<string>>(new Set())
   const [renaming, setRenaming] = useState(false)
   const [sourceError, setSourceError] = useState('')
   const [sourceExpanded, setSourceExpanded] = useState(true)
@@ -93,7 +94,23 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
   const eligibleCount = sourcePreview?.changes.filter((change) => change.eligible).length || 0
   const manualConfirmedCount = sourcePreview?.changes.filter((change) => !change.eligible && confirmedManualIds.has(change.localChapterId)).length || 0
   const updateCount = eligibleCount + manualConfirmedCount
-  const orderUpdateCount = repairOrder ? sourcePreview?.orderChanges?.length || 0 : 0
+  const orderUpdateCount = sourcePreview?.orderChanges?.filter(change => selectedOrderIds.has(change.localChapterId)).length || 0
+  function selectMappings(ids: Set<string>) {
+    const removed = [...selectedMappingIds].filter(id => !ids.has(id))
+    setConfirmedManualIds(previous => {
+      const next = new Set(previous)
+      removed.forEach(id => next.delete(id))
+      sourcePreview?.changes.filter(change => !change.eligible && ids.has(change.localChapterId)).forEach(change => next.add(change.localChapterId))
+      return next
+    })
+    setSelectedOrderIds(previous => {
+      const next = new Set(previous)
+      removed.forEach(id => next.delete(id))
+      sourcePreview?.orderChanges?.filter(change => ids.has(change.localChapterId)).forEach(change => next.add(change.localChapterId))
+      return next
+    })
+    setSelectedMappingIds(ids)
+  }
   const availableMetadataFields = sourcePreview ? sourceMetadataFields.filter((field) => {
     const value = sourcePreview.metadata[field as keyof SourceSyncPreview['metadata']]
     return Array.isArray(value) ? value.length > 0 : Boolean(value)
@@ -105,7 +122,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
     mergeSearchRequest.current++
     setRenameModal(false)
     setSourcePreview(null)
-    setRepairOrder(false)
+    setSelectedOrderIds(new Set()); setSelectedMappingIds(new Set())
     setConfirmedManualIds(new Set())
     setSourceSearch(null)
     setSourceSearching(false)
@@ -351,10 +368,10 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
     const requestId = ++mergeRequest.current
     setSourceError('')
     setSourceExpanded(true)
-    setSourceMetadataFields(['title', 'author', 'description', 'coverUrl', 'categories', 'status'])
+    setSourceMetadataFields([])
     setRenameModal(true)
     setSourcePreview(null)
-    setRepairOrder(false)
+    setSelectedOrderIds(new Set()); setSelectedMappingIds(new Set())
     setConfirmedManualIds(new Set())
     setSourceSearch(null)
     setSourceUrl('')
@@ -407,7 +424,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
     mergeBusy.current = true
     setSourceError('')
     setSourcePreview(null)
-    setRepairOrder(false)
+    setSelectedOrderIds(new Set()); setSelectedMappingIds(new Set())
     setConfirmedManualIds(new Set())
     setSourceUrl(url)
     setRenaming(true)
@@ -432,7 +449,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
     mergeBusy.current = true; setRenaming(true); setSourceError('')
     try {
       const next = await scrapeApi.sourceSyncRemap({ runId: sourcePreview.runId, revision: sourcePreview.revision || 0, manualMappings })
-      setSourcePreview(next); setConfirmedManualIds(new Set()); setRepairOrder(false)
+      setSourcePreview(next); setConfirmedManualIds(new Set()); setSelectedOrderIds(new Set()); setSelectedMappingIds(new Set())
       toast('映射已更新，请重新核对标题变化；人工确认与序号修复选择已清空。', 'success')
     } catch (err) { setSourceError((err as Error).message || '映射更新失败，请重新读取源站') }
     finally { mergeBusy.current = false; setRenaming(false) }
@@ -477,6 +494,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
         metadataMode: 'replace',
         confirmedChangeIds,
         repairOrder: orderUpdateCount > 0,
+        confirmedOrderIds: [...selectedOrderIds].sort(),
         operationId: newOperationId('source-sync-apply'),
       })
       const parts = [`已更新 ${result.updated} 个章节名`]
@@ -826,7 +844,7 @@ export default function ChaptersTab(_props: { highlightNovelId?: string; onHighl
             </details>
             {sourceError && <p role="alert" className="chapter-merge-dialog__error">{sourceError}</p>}
             {renaming && !sourcePreview && <p role="status" className="admin-dialog-hint">正在读取源站并匹配本地章节，请稍候…</p>}
-            {sourcePreview && <ChapterMergePreview key={`${sourcePreview.runId}:${sourcePreview.revision || 0}`} preview={sourcePreview} fields={sourceMetadataFields} onFieldsChange={setSourceMetadataFields} confirmedManualIds={confirmedManualIds} onConfirmedManualIdsChange={setConfirmedManualIds} repairOrder={repairOrder} onRepairOrderChange={setRepairOrder} onRemap={mappings => void remapSource(mappings)} disabled={renaming} />}
+            {sourcePreview && <ChapterMergePreview key={`${sourcePreview.runId}:${sourcePreview.revision || 0}`} preview={sourcePreview} fields={sourceMetadataFields} onFieldsChange={setSourceMetadataFields} confirmedManualIds={confirmedManualIds} onConfirmedManualIdsChange={setConfirmedManualIds} onRemap={mappings => void remapSource(mappings)} onSelectedMappingsChange={selectMappings} disabled={renaming} />}
           </AdminDialogBody>
           <DialogFooter className="chapter-merge-dialog__footer">
             <span className="chapter-merge-dialog__footer-note">{sourcePreview ? `${updateCount} 个标题待更新 · ${orderUpdateCount} 个序号修复 · ${availableMetadataFields.length} 项信息同步` : '读取后可预览全部变化'}</span>

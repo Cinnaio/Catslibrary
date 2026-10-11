@@ -10,11 +10,15 @@ import { MATCH_REASON_LABELS } from './source-sync-labels'
 const CONFIDENCE_LABELS = { high: '高', medium: '中', low: '低' }
 const PAGE_SIZE = 20
 
-export default function ChapterMappingReview({ preview, disabled, onRemap, confirmedManualIds = new Set<string>(), onConfirmTitles }: {
+export default function ChapterMappingReview({ preview, disabled, onRemap, onSelectedMappingsChange }: {
   preview: SourceSyncPreview; disabled: boolean; onRemap: (mappings: SourceSyncManualMapping[]) => void
-  confirmedManualIds?: Set<string>; onConfirmTitles?: (ids: string[]) => void
+  onSelectedMappingsChange?: (ids: Set<string>) => void
 }) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  function selectMappings(ids: Set<string>) {
+    setSelectedIds(ids)
+    onSelectedMappingsChange?.(ids)
+  }
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<'all' | 'different'>('all')
   const editorHeading = useRef<HTMLHeadingElement>(null)
@@ -43,9 +47,10 @@ export default function ChapterMappingReview({ preview, disabled, onRemap, confi
   }))
   const differenceCount = locals.filter(local => differences.get(local.id)!.length > 0).length
   const filtered = locals.filter(row => (filter === 'all' || differences.get(row.id)!.length > 0) && `${row.order} ${row.title}`.toLowerCase().includes(query.trim().toLowerCase()))
+  const orderChanges = new Map(preview.orderChanges?.map(row => [row.localChapterId, row]) || [])
+  const skipped = new Map(preview.orderRepairSkipped?.map(row => [row.localChapterId, row.reason]) || [])
+  const selectedSkipped = [...selectedIds].filter(id => skipped.has(id)).length
   const selectedLocals = locals.filter(local => selectedIds.has(local.id))
-  const pendingTitles = (preview.changes || []).filter(change => selectedIds.has(change.localChapterId) && !change.eligible && !confirmedManualIds.has(change.localChapterId))
-  const allFilteredSelected = filtered.length > 0 && filtered.every(local => selectedIds.has(local.id))
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const currentPage = Math.min(page, pages)
   const editingIndex = locals.findIndex(row => row.id === editingId)
@@ -63,6 +68,7 @@ export default function ChapterMappingReview({ preview, disabled, onRemap, confi
 
   return <details className="chapter-merge-dialog__preview-section chapter-merge-dialog__mapping-review">
     <summary>核对与调整映射<span>查看匹配依据，处理未匹配章节</span></summary>
+    {preview.orderRepairBlockedReason && <p className="chapter-merge-dialog__warning">序号检查：{preview.orderRepairBlockedReason}</p>}
     <div className="chapter-merge-dialog__mapping-tools">
       <div className="chapter-merge-dialog__filters" role="group" aria-label="映射差异筛选">
         <Button variant="ghost" aria-pressed={filter === 'all'} onClick={() => { setFilter('all'); setPage(1); setEditingId('') }}>全部 {locals.length}</Button>
@@ -77,11 +83,11 @@ export default function ChapterMappingReview({ preview, disabled, onRemap, confi
     <div className="chapter-merge-dialog__mapping-selection">
       <p role="status">已选 {selectedLocals.length} 项映射</p>
       <div>
-        <Button variant="secondary" disabled={disabled || !filtered.length || allFilteredSelected} onClick={() => setSelectedIds(new Set([...selectedIds, ...filtered.map(local => local.id)]))}>全选当前筛选结果 {filtered.length} 项</Button>
-        <Button variant="ghost" disabled={disabled || !selectedLocals.length} onClick={() => setSelectedIds(new Set())}>清空映射选择</Button>
-        {onConfirmTitles && <Button variant="ghost" disabled={disabled || !pendingTitles.length} onClick={() => onConfirmTitles(pendingTitles.map(change => change.localChapterId))}>确认所选标题 {pendingTitles.length} 项</Button>}
+        <Button variant="secondary" disabled={disabled || !filtered.length} onClick={() => selectMappings(new Set([...selectedIds, ...filtered.map(local => local.id)]))}>全选当前筛选结果 {filtered.length} 项</Button>
+        <Button variant="ghost" disabled={disabled || !selectedLocals.length} onClick={() => selectMappings(new Set())}>清空映射选择</Button>
       </div>
-      <p className="admin-dialog-hint">全选包含当前筛选结果的所有页。确认所选标题后，待人工核对的标题会加入本次同步；序号修复请单独勾选。</p>
+      <p className="admin-dialog-hint">全选包含当前筛选结果的所有页。勾选会将待人工核对的标题及可修复序号加入本次同步；点击底部按钮确认应用。没有变化或未匹配的章节保持原样。</p>
+      {selectedSkipped > 0 && <p className="admin-dialog-hint" role="status">所选映射中 {selectedSkipped} 项暂不修复序号，原因见对应章节；其余可修复序号按底部数量同步。</p>}
     </div>
     <ol className="chapter-merge-dialog__mapping-list" aria-label="全部章节映射">
       {filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE).map(local => {
@@ -91,7 +97,7 @@ export default function ChapterMappingReview({ preview, disabled, onRemap, confi
             const next = new Set(selectedIds)
             if (checked === true) next.add(local.id)
             else next.delete(local.id)
-            setSelectedIds(next)
+            selectMappings(next)
           }} />
           <div className="chapter-merge-dialog__mapping-content">
             <div className="chapter-merge-dialog__mapping-comparison">
@@ -99,6 +105,8 @@ export default function ChapterMappingReview({ preview, disabled, onRemap, confi
               <div><span className="chapter-merge-dialog__mapping-label">源站目录</span><p>{mapping ? `源站 ${mapping.sourceOrder} · ${mapping.sourceTitle}` : '尚未匹配，保持本地章节原样'}</p></div>
             </div>
             <div className="chapter-merge-dialog__mapping-meta">
+              {orderChanges.has(local.id) && <span>序号 {local.order} → {orderChanges.get(local.id)!.newOrder} · {selectedIds.has(local.id) ? '已选，将修复' : '勾选后修复'}</span>}
+              {skipped.has(local.id) && <span className="chapter-merge-dialog__warning">暂不修复序号：{skipped.get(local.id)}</span>}
               {!!differences.get(local.id)!.length && <span className="chapter-merge-dialog__warning">{differences.get(local.id)!.join(' · ')}</span>}
               {mapping && <span>{mapping.matchReason ? MATCH_REASON_LABELS[mapping.matchReason] : '旧预览未记录依据'} · 置信度{CONFIDENCE_LABELS[mapping.confidence]}{mapping.relation === 'split' ? ' · 拆分组' : ''}</span>}
               {mapping?.matchEvidence && <details><summary>匹配说明</summary><p>{mapping.matchEvidence}</p></details>}

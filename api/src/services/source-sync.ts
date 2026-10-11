@@ -96,6 +96,7 @@ export interface SourceSyncPreview {
   warnings: string[]
   orderChanges: SourceSyncOrderChange[]
   orderRepairBlockedReason?: string
+  orderRepairSkipped?: Array<{ localChapterId: string; reason: string }>
   revision?: number
   sourceChapters?: SourceChapter[]
   localChapters?: LocalChapterForSync[]
@@ -445,38 +446,57 @@ function alignSourceAndLocal(source: SourceChapter[], groups: LocalGroup[]): Ali
 
 function buildOrderRepair(mappings: SourceSyncMapping[], locals: LocalChapterForSync[], source: SourceChapter[]): {
   orderChanges: SourceSyncOrderChange[]; orderRepairBlockedReason?: string
+  orderRepairSkipped: Array<{ localChapterId: string; reason: string }>
 } {
-  const blocked = (reason: string) => ({ orderChanges: [], orderRepairBlockedReason: reason })
-  if (!locals.length) return { orderChanges: [] }
-  if (mappings.some(row => row.relation !== 'one_to_one' || row.localChapterIds.length !== 1)) {
-    return blocked('存在拆分章节，源站章号不能直接作为本地序号。')
+  const orderRepairSkipped: Array<{ localChapterId: string; reason: string }> = []
+  const count = (values: string[]) => {
+    const counts = new Map<string, number>()
+    values.forEach(value => counts.set(value, (counts.get(value) || 0) + 1))
+    return counts
   }
-  if (mappings.length !== locals.length || mappings.some(row => row.confidence !== 'high')) {
-    return blocked('存在未匹配或证据不足的本地章节，请先核对映射，暂不修复序号。')
-  }
-  const localById = new Map(locals.map(row => [row.id, row]))
-  const sourceTitleCounts = new Map<string, number>()
-  source.forEach(row => {
-    const key = normalizedTitle(row.title)
-    sourceTitleCounts.set(key, (sourceTitleCounts.get(key) || 0) + 1)
-  })
-  if (new Set(locals.map(row => normalizedTitle(row.title))).size !== locals.length || mappings.some(row => {
-    const local = localById.get(row.localChapterIds[0]!)
-    const key = normalizedTitle(row.sourceTitle)
-    return !local || !key || sourceTitleCounts.get(key) !== 1 || key !== normalizedTitle(local.title) || isWeakTitle(local.title, local.order)
-  })) return blocked('序号修复需要每章都有唯一且完整一致的标题，请先核对标题。')
-  const byId = new Map(mappings.map(row => [row.localChapterIds[0]!, row]))
-  const orders = new Set(mappings.map(row => row.sourceOrder))
-  if (byId.size !== locals.length || orders.size !== locals.length || mappings.some(row => !Number.isSafeInteger(row.sourceOrder) || row.sourceOrder < 1)) {
-    return blocked('源站序号重复或无效，暂不修复序号。')
-  }
-  const orderChanges: SourceSyncOrderChange[] = []
+  const localTitles = count(locals.map(row => normalizedTitle(row.title)))
+  const sourceTitles = count(source.map(row => normalizedTitle(row.title)))
+  const sourceOrders = count(source.map(row => String(row.order)))
+  const mappedSources = count(mappings.map(row => row.sourceChapterKey))
+  const byLocal = new Map<string, SourceSyncMapping[]>()
+  mappings.forEach(mapping => mapping.localChapterIds.forEach(id => byLocal.set(id, [...(byLocal.get(id) || []), mapping])))
+  const candidates = new Map<string, SourceSyncOrderChange>()
   for (const local of locals) {
-    const mapping = byId.get(local.id)
-    if (!mapping) return blocked('本地章节映射不完整，暂不修复序号。')
-    if (mapping.sourceOrder !== local.order) orderChanges.push({ localChapterId: local.id, title: local.title, oldOrder: local.order, newOrder: mapping.sourceOrder })
+    const matches = byLocal.get(local.id) || []
+    const mapping = matches[0]
+    let reason = ''
+    if (!mapping) reason = '尚未匹配，不能确定源站序号'
+    else if (mapping.relation !== 'one_to_one' || mapping.localChapterIds.length !== 1) reason = '拆分章节不能直接使用源站序号'
+    else if (matches.length !== 1 || mappedSources.get(mapping.sourceChapterKey) !== 1) reason = '章节对应关系不唯一'
+    else if (mapping.confidence !== 'high') reason = '匹配证据不足，请先核对映射'
+    else {
+      const title = normalizedTitle(local.title)
+      if (!title || localTitles.get(title) !== 1 || sourceTitles.get(normalizedTitle(mapping.sourceTitle)) !== 1 || title !== normalizedTitle(mapping.sourceTitle) || isWeakTitle(local.title, local.order)) {
+        reason = '序号修复需要唯一且完整一致的标题'
+      } else if (!Number.isSafeInteger(mapping.sourceOrder) || mapping.sourceOrder < 1 || sourceOrders.get(String(mapping.sourceOrder)) !== 1) {
+        reason = '源站序号重复或无效'
+      }
+    }
+    if (reason) orderRepairSkipped.push({ localChapterId: local.id, reason })
+    else if (mapping && mapping.sourceOrder !== local.order) candidates.set(local.id, { localChapterId: local.id, title: local.title, oldOrder: local.order, newOrder: mapping.sourceOrder })
   }
-  return { orderChanges: orderChanges.sort((a, b) => a.newOrder - b.newOrder) }
+  // 只允许目标位置为空或其占用章节也能在本次修复中移走；保留交换和连续偏移。
+  let removed = true
+  while (removed) {
+    removed = false
+    for (const [id, change] of candidates) {
+      if (locals.some(local => local.id !== id && local.order === change.newOrder && !candidates.has(local.id))) {
+        candidates.delete(id)
+        orderRepairSkipped.push({ localChapterId: id, reason: '目标序号被无法修复的章节占用，请先调整该章节的映射或序号' })
+        removed = true
+      }
+    }
+  }
+  const orderChanges = [...candidates.values()].sort((a, b) => a.newOrder - b.newOrder)
+  return {
+    orderChanges, orderRepairSkipped,
+    ...(!orderChanges.length && orderRepairSkipped.length ? { orderRepairBlockedReason: '当前没有可独立修复的序号，请查看映射列表中的未修复原因。' } : {}),
+  }
 }
 
 async function fetchSourceChapters(
@@ -844,6 +864,7 @@ export async function applySourceSync(
     metadataMode?: 'missing' | 'replace'
     confirmedChangeIds?: string[]
     repairOrder?: boolean
+    confirmedOrderIds?: string[]
     actorUserId?: string
     revision?: number
   },
@@ -897,11 +918,26 @@ export async function applySourceSync(
         const latest = currentById.get(row.id)
         return !latest || latest.title !== row.title || latest.order !== row.order
       })) throw new Error('章节目录在预览后已发生变化，请重新预览')
-      for (const change of repair.orderChanges) {
+      const confirmedOrderIds = opts.confirmedOrderIds === undefined ? null : new Set(opts.confirmedOrderIds)
+      if (confirmedOrderIds && [...confirmedOrderIds].some(id => !repair.orderChanges.some(change => change.localChapterId === id))) {
+        throw new Error('无法修复序号：所选章节不在序号修复预览中，请重新预览')
+      }
+      const orderChanges = repair.orderChanges.filter(change => !confirmedOrderIds || confirmedOrderIds.has(change.localChapterId))
+      const newOrders = new Map(orderChanges.map(change => [change.localChapterId, change.newOrder]))
+      const occupiedOrders = new Map<number, string>()
+      for (const local of snapshot) {
+        const order = newOrders.get(local.id) ?? local.order
+        const occupied = occupiedOrders.get(order)
+        if (occupied && (newOrders.has(local.id) || newOrders.has(occupied))) {
+          throw new Error('无法修复序号：所选章节的目标序号被未选章节占用，请一并勾选相关映射')
+        }
+        occupiedOrders.set(order, local.id)
+      }
+      for (const change of orderChanges) {
         chapterBefore.set(change.localChapterId, { title: change.title, order: change.oldOrder })
         await q('UPDATE chapters SET sort_order = $1 WHERE id = $2 AND novel_id = $3', [change.newOrder, change.localChapterId, run.novel_id])
       }
-      orderUpdated = repair.orderChanges.length
+      orderUpdated = orderChanges.length
     }
     const ruleSet = await loadContentRatingRuleSet(q)
     for (const change of changesToApply) {
