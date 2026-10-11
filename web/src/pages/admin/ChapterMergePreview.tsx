@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react'
-import type { SourceSyncPreview } from '@/lib/api'
+import type { SourceSyncManualMapping, SourceSyncPreview } from '@/lib/api'
+import ChapterMappingReview from './ChapterMappingReview'
+import { MATCH_REASON_LABELS } from './source-sync-labels'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
@@ -15,11 +17,12 @@ interface Props {
   disabled: boolean
   repairOrder: boolean
   onRepairOrderChange: (value: boolean) => void
+  onRemap: (mappings: SourceSyncManualMapping[]) => void
 }
 
 const PAGE_SIZE = 20
 
-export default function ChapterMergePreview({ preview, fields, onFieldsChange, confirmedManualIds, onConfirmedManualIdsChange, disabled, repairOrder, onRepairOrderChange }: Props) {
+export default function ChapterMergePreview({ preview, fields, onFieldsChange, confirmedManualIds, onConfirmedManualIdsChange, disabled, repairOrder, onRepairOrderChange, onRemap }: Props) {
   const [filter, setFilter] = useState('all')
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(1)
@@ -69,6 +72,7 @@ export default function ChapterMergePreview({ preview, fields, onFieldsChange, c
     </div>
 
     <OrderRepairPreview preview={preview} checked={repairOrder} onChange={onRepairOrderChange} disabled={disabled} />
+    <ChapterMappingReview preview={preview} disabled={disabled} onRemap={onRemap} />
 
     <div className="chapter-merge-dialog__preview-section">
       <div className="chapter-merge-dialog__review-toolbar">
@@ -94,6 +98,7 @@ export default function ChapterMergePreview({ preview, fields, onFieldsChange, c
           <span className="chapter-merge-dialog__old"><span className="sr-only">原章节名：</span>{change.oldTitle}</span>
           <ArrowRight size={14} aria-hidden="true" />
           <span className="chapter-merge-dialog__new"><span className="sr-only">更新后：</span>{change.newTitle}
+            {change.matchReason && <small>{MATCH_REASON_LABELS[change.matchReason]} · 置信度{{ high: '高', medium: '中', low: '低' }[change.confidence]}。{change.matchEvidence}</small>}
             {change.partCount > 1 && <small>拆分 {change.partIndex}/{change.partCount}</small>}
             {!change.eligible && <label className="chapter-merge-dialog__manual-choice">
               <Checkbox aria-label={`确认更新第 ${change.localOrder} 章`} checked={confirmedManualIds.has(change.localChapterId)} disabled={disabled} onCheckedChange={(checked) => {

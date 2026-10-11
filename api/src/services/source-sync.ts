@@ -15,6 +15,8 @@ import { evaluateContentRatingRules, loadContentRatingRuleSet } from './content-
 import { toContentRating } from '../db/mappers'
 
 export type SourceSyncConfidence = 'high' | 'medium' | 'low'
+export type SourceSyncMatchReason = 'exact-title' | 'chapter-number' | 'title-overlap' | 'sequence' | 'manual'
+export interface SourceSyncManualMapping { localChapterId: string; sourceChapterKey: string | null }
 
 export interface SourceChapter {
   key: string
@@ -41,6 +43,8 @@ export interface SourceSyncChange {
   partCount: number
   confidence: SourceSyncConfidence
   eligible: boolean
+  matchReason?: SourceSyncMatchReason
+  matchEvidence?: string
 }
 
 export interface SourceSyncMapping {
@@ -51,6 +55,8 @@ export interface SourceSyncMapping {
   localChapterIds: string[]
   relation: 'one_to_one' | 'split' | 'merged'
   confidence: SourceSyncConfidence
+  matchReason?: SourceSyncMatchReason
+  matchEvidence?: string
 }
 
 export interface SourceSyncOrderChange {
@@ -90,6 +96,10 @@ export interface SourceSyncPreview {
   warnings: string[]
   orderChanges: SourceSyncOrderChange[]
   orderRepairBlockedReason?: string
+  revision?: number
+  sourceChapters?: SourceChapter[]
+  localChapters?: LocalChapterForSync[]
+  manualMappings?: SourceSyncManualMapping[]
 }
 
 interface SourceBindingRow {
@@ -120,7 +130,23 @@ interface SourceSyncRunRow {
   local_snapshot_json: string
   created_at: number
   applied_at: number
+  revision?: number
+  manual_mappings_json?: string
+  applied_changes_json?: string
+  history_summary?: string
+  rollback_result_json?: string
 }
+
+interface AppliedChapterChange {
+  kind: 'chapter'
+  id: string
+  before: { title: string; order: number }
+  after: { title: string; order: number }
+}
+const NOVEL_SNAPSHOT_FIELDS = ['title', 'author', 'description', 'cover_url', 'categories', 'status', 'content_rating', 'content_rating_revision'] as const
+interface AppliedMetadataChange { kind: 'metadata'; before: Record<string, unknown>; after: Record<string, unknown> }
+type AppliedSyncChange = AppliedChapterChange | AppliedMetadataChange
+export interface SourceSyncRollbackResult { runId: string; restored: number; conflicts: Array<{ id: string; title: string; reason: string }> }
 
 const GENERIC_WEAK_TITLES = /^(?:正文|无标题|未命名|空标题)$/i
 const INTRO_TITLES = /^(?:内容简介|作品简介|小说简介|文案|简介|楔子|序章|序言)$/i
@@ -542,6 +568,18 @@ function sourceConfidence(score: number, group: LocalGroup): SourceSyncConfidenc
   return 'low'
 }
 
+function matchExplanation(source: SourceChapter, group: LocalGroup, manual: boolean): { matchReason: SourceSyncMatchReason; matchEvidence: string } {
+  if (manual) return { matchReason: 'manual', matchEvidence: '管理员指定的对应关系，应用标题前仍需勾选确认。' }
+  const local = group.chapters[0]!
+  const s = normalizedTitle(source.title)
+  const l = normalizedTitle(local.title)
+  if (s && l && s === l) return { matchReason: 'exact-title', matchEvidence: '清理导入编号、空白和常见标点后，完整标题一致。' }
+  const number = chapterNumber(source.title)
+  if (number !== null && number === chapterNumber(local.title)) return { matchReason: 'chapter-number', matchEvidence: `两侧章节编号均为 ${number}；请核对标题差异。` }
+  if (s && l && (s.includes(l) || l.includes(s))) return { matchReason: 'title-overlap', matchEvidence: '标题仅部分重合，结合相邻章节核对。' }
+  return { matchReason: 'sequence', matchEvidence: '依据相邻已匹配章节和目录顺序推断，缺少完整标题或编号证据。' }
+}
+
 function buildPreview(
   sourceChapters: SourceChapter[],
   localChapters: LocalChapterForSync[],
@@ -549,6 +587,7 @@ function buildPreview(
   onlyWeakTitles: boolean,
   base: { runId: string; bindingId: string; novelId: string; site: string; sourceUrl: string },
   warnings: string[],
+  manualMappings: SourceSyncManualMapping[] = [],
 ): SourceSyncPreview {
   const groups = groupLocalChapters(localChapters)
   const seenOrders = new Set<number>()
@@ -565,7 +604,19 @@ function buildPreview(
       )
     }
   }
-  const alignments = alignSourceAndLocal(sourceChapters, groups)
+  const overridden = new Set(manualMappings.map(row => row.localChapterId))
+  const manualSourceKeys = new Set(manualMappings.map(row => row.sourceChapterKey).filter((key): key is string => key !== null))
+  const alignments = alignSourceAndLocal(sourceChapters, groups).filter(row =>
+    !groups[row.groupIndex]!.chapters.some(chapter => overridden.has(chapter.id)) && !manualSourceKeys.has(sourceChapters[row.sourceIndex]!.key),
+  )
+  for (const manual of manualMappings) {
+    if (manual.sourceChapterKey === null) continue
+    const sourceIndex = sourceChapters.findIndex(row => row.key === manual.sourceChapterKey)
+    const groupIndex = groups.findIndex(group => group.chapters.some(row => row.id === manual.localChapterId))
+    if (sourceIndex < 0 || groupIndex < 0 || groups[groupIndex]!.chapters.length !== 1 || groups[groupIndex]!.explicitSplit) throw new Error('人工映射目标无效或属于拆分章节')
+    alignments.push({ sourceIndex, groupIndex, score: 24 })
+  }
+  alignments.sort((a, b) => a.sourceIndex - b.sourceIndex)
   const matchedSourceIndexes = new Set(alignments.map((item) => item.sourceIndex))
   const matchedGroupIndexes = new Set(alignments.map((item) => item.groupIndex))
   const changes: SourceSyncChange[] = []
@@ -577,6 +628,8 @@ function buildPreview(
     const group = groups[alignment.groupIndex]!
     const relation = group.chapters.length > 1 ? 'split' : 'one_to_one'
     const confidence = sourceConfidence(alignment.score, group)
+    const manual = overridden.has(group.chapters[0]!.id)
+    const explanation = matchExplanation(source, group, manual)
     const partCount = group.chapters.length > 1 ? group.declaredPartCount || group.chapters.length : 1
     if (partCount > 1) splitLocalChapterCount += partCount
     mappings.push({
@@ -587,11 +640,12 @@ function buildPreview(
       localChapterIds: group.chapters.map((chapter) => chapter.id),
       relation,
       confidence,
+      ...explanation,
     })
     group.chapters.forEach((local, index) => {
       const part = partCount > 1 ? { index: index + 1, count: partCount } : splitPart(local.title)
       const newTitle = appendSourceTitle(source.title, part)
-      const eligible = confidence !== 'low' && (!onlyWeakTitles || isWeakTitle(local.title, local.order) || relation === 'split')
+      const eligible = !manual && confidence !== 'low' && (!onlyWeakTitles || isWeakTitle(local.title, local.order) || relation === 'split')
       if (newTitle !== local.title) {
         changes.push({
           localChapterId: local.id,
@@ -605,6 +659,7 @@ function buildPreview(
           partCount: part?.count || 1,
           confidence,
           eligible,
+          ...explanation,
         })
       }
     })
@@ -612,6 +667,10 @@ function buildPreview(
 
   return {
     ...base,
+    revision: 0,
+    sourceChapters,
+    localChapters,
+    manualMappings,
     ...buildOrderRepair(mappings, localChapters, sourceChapters),
     metadata,
     sourceChapterCount: sourceChapters.length,
@@ -719,6 +778,63 @@ export async function listSourceBindings(db: Db, novelId: string): Promise<Array
   }))
 }
 
+function assertSyncRevision(run: SourceSyncRunRow, revision: unknown) {
+  if (!Number.isSafeInteger(revision) || Number(revision) < 0) throw new Error('预览版本无效，请重新读取源站')
+  if (Number(run.revision || 0) !== revision) throw new Error('预览版本已发生变化，请重新读取源站')
+}
+
+function sameCatalog(snapshot: LocalChapterForSync[], current: LocalChapterForSync[]): boolean {
+  const byId = new Map(current.map(row => [row.id, row]))
+  return snapshot.length === current.length && snapshot.every(row => {
+    const latest = byId.get(row.id)
+    return latest && latest.title === row.title && latest.order === row.order
+  })
+}
+
+export async function remapSourceSync(db: Db, opts: { runId: string; revision: number; manualMappings: SourceSyncManualMapping[] }): Promise<SourceSyncPreview> {
+  return withTx(db, async q => {
+    const result = await q<SourceSyncRunRow>('SELECT * FROM source_sync_runs WHERE id=$1 FOR UPDATE', [opts.runId])
+    const run = result.rows[0]
+    if (!run || run.status !== 'preview') throw new Error('同步预览不存在或已应用，请重新读取源站')
+    assertSyncRevision(run, opts.revision)
+    const locals = safeJsonParse<LocalChapterForSync[]>(run.local_snapshot_json, [])
+    const sources = safeJsonParse<SourceChapter[]>(run.source_chapters_json, [])
+    await q('SELECT id FROM novels WHERE id=$1 FOR UPDATE', [run.novel_id])
+    const current = (await q<LocalChapterForSync>('SELECT id,title,sort_order AS order FROM chapters WHERE novel_id=$1 FOR UPDATE', [run.novel_id])).rows
+    if (!sameCatalog(locals, current)) throw new Error('章节目录在预览后已发生变化，请重新读取源站')
+    if (!Array.isArray(opts.manualMappings) || opts.manualMappings.length > locals.length) throw new Error('人工映射参数无效')
+    const seen = new Set<string>()
+    const sourceKeys = new Set(sources.map(row => row.key))
+    const groups = groupLocalChapters(locals)
+    for (const row of opts.manualMappings) {
+      if (!row || typeof row.localChapterId !== 'string' || seen.has(row.localChapterId) || (row.sourceChapterKey !== null && (typeof row.sourceChapterKey !== 'string' || !sourceKeys.has(row.sourceChapterKey)))) throw new Error('人工映射目标无效或重复')
+      const group = groups.find(item => item.chapters.some(chapter => chapter.id === row.localChapterId))
+      if (!group || group.explicitSplit) throw new Error('人工映射目标无效或属于拆分章节')
+      seen.add(row.localChapterId)
+    }
+    const metadata = safeJsonParse<SourceSyncMetadata>(run.metadata_json, {} as SourceSyncMetadata)
+    const base = { runId: run.id, bindingId: run.binding_id, novelId: run.novel_id, site: sourceSite(metadata.sourceUrl), sourceUrl: metadata.sourceUrl }
+    const automatic = buildPreview(sources, locals, metadata, Boolean(run.only_weak_titles), base, [])
+    const occupied = new Map<string, string>()
+    for (const mapping of automatic.mappings) {
+      for (const id of mapping.localChapterIds) {
+        if (!seen.has(id)) occupied.set(mapping.sourceChapterKey, id)
+      }
+    }
+    for (const manual of opts.manualMappings) {
+      if (manual.sourceChapterKey === null) continue
+      const previous = occupied.get(manual.sourceChapterKey)
+      if (previous && previous !== manual.localChapterId) throw new Error('源站章节已被其他本地章节占用，请先解除对应关系')
+      occupied.set(manual.sourceChapterKey, manual.localChapterId)
+    }
+    const preview = buildPreview(sources, locals, metadata, Boolean(run.only_weak_titles), base, [], opts.manualMappings)
+    preview.revision = Number(run.revision || 0) + 1
+    await q('UPDATE source_sync_runs SET manual_mappings_json=$1,changes_json=$2,mapping_json=$3,revision=$4 WHERE id=$5',
+      [JSON.stringify(opts.manualMappings), JSON.stringify(preview.changes), JSON.stringify(preview.mappings), preview.revision, run.id])
+    return preview
+  })
+}
+
 export async function applySourceSync(
   db: Db,
   opts: {
@@ -729,11 +845,13 @@ export async function applySourceSync(
     confirmedChangeIds?: string[]
     repairOrder?: boolean
     actorUserId?: string
+    revision?: number
   },
 ): Promise<{ updated: number; orderUpdated: number; metadataUpdated: string[]; mappings: number }> {
   const run = await first<SourceSyncRunRow>(db, 'SELECT * FROM source_sync_runs WHERE id = $1', [opts.runId])
   if (!run) throw new Error('同步预览不存在或已过期')
   if (run.status === 'applied') throw new Error('该同步预览已经应用过')
+  assertSyncRevision(run, opts.revision ?? 0)
   const changes = safeJsonParse<SourceSyncChange[]>(run.changes_json, [])
   const mappings = safeJsonParse<SourceSyncMapping[]>(run.mapping_json, [])
   const metadata = safeJsonParse<SourceSyncMetadata>(run.metadata_json, {
@@ -756,11 +874,18 @@ export async function applySourceSync(
   await withTx(db, async (q) => {
     const lockedRun = await q<SourceSyncRunRow>('SELECT * FROM source_sync_runs WHERE id = $1 FOR UPDATE', [run.id])
     if (!lockedRun.rows[0] || lockedRun.rows[0].status !== 'preview') throw new Error('该同步预览已应用或已过期，请重新预览')
-    const novel = await q('SELECT title, author, description, cover_url, categories, status, content_rating FROM novels WHERE id = $1 FOR UPDATE', [
+    assertSyncRevision(lockedRun.rows[0], opts.revision ?? 0)
+    const novel = await q('SELECT title, author, description, cover_url, categories, status, content_rating, content_rating_revision FROM novels WHERE id = $1 FOR UPDATE', [
       run.novel_id,
     ])
     const novelRow = novel.rows[0] as Record<string, unknown> | undefined
     if (!novelRow) throw new Error('Novel not found')
+    const audit: AppliedSyncChange[] = []
+    const chapterBefore = new Map<string, { title: string; order: number }>()
+    if (safeJsonParse<SourceSyncManualMapping[]>(run.manual_mappings_json || '[]', []).length) {
+      const current = (await q<LocalChapterForSync>('SELECT id,title,sort_order AS order FROM chapters WHERE novel_id=$1 FOR UPDATE', [run.novel_id])).rows
+      if (!sameCatalog(safeJsonParse<LocalChapterForSync[]>(run.local_snapshot_json, []), current)) throw new Error('章节目录在预览后已发生变化，请重新读取源站')
+    }
     if (opts.repairOrder) {
       const snapshot = safeJsonParse<LocalChapterForSync[]>(run.local_snapshot_json, [])
       const sources = safeJsonParse<SourceChapter[]>(run.source_chapters_json, [])
@@ -773,6 +898,7 @@ export async function applySourceSync(
         return !latest || latest.title !== row.title || latest.order !== row.order
       })) throw new Error('章节目录在预览后已发生变化，请重新预览')
       for (const change of repair.orderChanges) {
+        chapterBefore.set(change.localChapterId, { title: change.title, order: change.oldOrder })
         await q('UPDATE chapters SET sort_order = $1 WHERE id = $2 AND novel_id = $3', [change.newOrder, change.localChapterId, run.novel_id])
       }
       orderUpdated = repair.orderChanges.length
@@ -784,6 +910,7 @@ export async function applySourceSync(
       if (!currentRow) throw new Error(`章节不存在：${change.localChapterId}`)
       if (String(currentRow.title || '') !== change.oldTitle) throw new Error(`章节「${change.oldTitle}」在预览后已发生变化，请重新预览`)
       if (!opts.repairOrder && Number(currentRow.sort_order) !== change.localOrder) throw new Error(`章节「${change.oldTitle}」的序号在预览后已发生变化，请重新预览`)
+      if (!chapterBefore.has(change.localChapterId)) chapterBefore.set(change.localChapterId, { title: String(currentRow.title), order: Number(currentRow.sort_order) })
       await q('UPDATE chapters SET title = $1 WHERE id = $2 AND novel_id = $3', [change.newTitle, change.localChapterId, run.novel_id])
     }
 
@@ -835,6 +962,14 @@ export async function applySourceSync(
         operationId: run.id,
       })
     }
+    for (const [id, before] of chapterBefore) {
+      const row = (await q<{ title: string; order: number }>('SELECT title,sort_order AS order FROM chapters WHERE id=$1 AND novel_id=$2', [id, run.novel_id])).rows[0]!
+      audit.push({ kind: 'chapter', id, before, after: row })
+    }
+    if (metadataUpdated.length || nextRating !== currentNovel.content_rating) {
+      const after = (await q<Record<string, unknown>>('SELECT title,author,description,cover_url,categories,status,content_rating,content_rating_revision FROM novels WHERE id=$1', [run.novel_id])).rows[0]!
+      audit.push({ kind: 'metadata', before: Object.fromEntries(NOVEL_SNAPSHOT_FIELDS.map(field => [field, currentNovel[field]])), after })
+    }
     for (const mapping of mappings) {
       const localIds = mapping.localChapterIds
       const partCount = localIds.length
@@ -867,7 +1002,8 @@ export async function applySourceSync(
         )
       }
     }
-    await q('UPDATE source_sync_runs SET status = $1, applied_at = $2 WHERE id = $3', ['applied', now, run.id])
+    await q('UPDATE source_sync_runs SET status=$1,applied_at=$2,applied_changes_json=$4,history_summary=$5 WHERE id=$3',
+      ['applied', now, run.id, JSON.stringify(audit), JSON.stringify({ novelTitle: String(nextTitle), titleUpdated: changesToApply.length, orderUpdated, metadataUpdated: metadataUpdated.length, sourceUrl: metadata.sourceUrl })])
     await q("UPDATE novel_source_bindings SET last_synced_at = $1, last_error = '', updated_at = $1 WHERE id = $2", [now, run.binding_id])
   })
   return { updated: changesToApply.length, orderUpdated, metadataUpdated, mappings: mappings.reduce((sum, mapping) => sum + mapping.localChapterIds.length, 0) }
@@ -875,4 +1011,87 @@ export async function applySourceSync(
 
 export function sourceSyncTestHelpers() {
   return { splitPart, chapterNumber, normalizedTitle, groupLocalChapters, alignSourceAndLocal, buildPreview }
+}
+
+export async function listSourceSyncHistory(db: Db, novelId: string, limit = 20, offset = 0) {
+  const pageSize = Math.min(100, Math.max(1, Number.isSafeInteger(limit) ? limit : 20))
+  const start = Math.max(0, Number.isSafeInteger(offset) ? offset : 0)
+  const total = await first<{ total: number }>(db, 'SELECT COUNT(*)::int AS total FROM source_sync_runs WHERE novel_id=$1 AND applied_at>0', [novelId])
+  const rows = await all<{ id: string; status: string; applied_at: number; history_summary: string; can_rollback: boolean; rollback_result_json: string }>(db,
+    `SELECT id,status,applied_at,history_summary,rollback_result_json,(status='applied' AND applied_changes_json<>'[]') AS can_rollback
+     FROM source_sync_runs WHERE novel_id=$1 AND applied_at>0 ORDER BY applied_at DESC,id DESC LIMIT $2 OFFSET $3`, [novelId, pageSize, start])
+  return { total: total?.total || 0, items: rows.map(row => ({
+    runId: row.id, status: row.status, appliedAt: Number(row.applied_at), canRollback: row.can_rollback,
+    summary: safeJsonParse<Record<string, unknown>>(row.history_summary, {}),
+    rollback: row.rollback_result_json ? safeJsonParse<SourceSyncRollbackResult | null>(row.rollback_result_json, null) : null,
+  })) }
+}
+
+export async function getSourceSyncHistoryDetail(db: Db, runId: string) {
+  const row = await first<{ applied_changes_json: string; applied_at: number }>(db, 'SELECT applied_changes_json,applied_at FROM source_sync_runs WHERE id=$1', [runId])
+  if (!row || !Number(row.applied_at)) throw new Error('融合历史不存在')
+  return { runId, changes: safeJsonParse<AppliedSyncChange[]>(row.applied_changes_json, []) }
+}
+
+export async function rollbackSourceSync(db: Db, runId: string, actorUserId: string): Promise<SourceSyncRollbackResult> {
+  return withTx(db, async q => {
+    const run = (await q<SourceSyncRunRow>('SELECT * FROM source_sync_runs WHERE id=$1 FOR UPDATE', [runId])).rows[0]
+    if (!run) throw new Error('融合历史不存在')
+    if (run.rollback_result_json) return safeJsonParse<SourceSyncRollbackResult>(run.rollback_result_json, { runId, restored: 0, conflicts: [] })
+    if (run.status !== 'applied') throw new Error('这次融合当前不可撤回')
+    const changes = safeJsonParse<AppliedSyncChange[]>(run.applied_changes_json || '[]', [])
+    if (!changes.length) throw new Error('旧记录没有应用快照，无法安全撤回')
+    const novel = (await q<Record<string, unknown>>('SELECT * FROM novels WHERE id=$1 FOR UPDATE', [run.novel_id])).rows[0]
+    if (!novel) throw new Error('Novel not found')
+    const current = (await q<LocalChapterForSync>('SELECT id,title,sort_order AS order FROM chapters WHERE novel_id=$1 FOR UPDATE', [run.novel_id])).rows
+    const byId = new Map(current.map(row => [row.id, row]))
+    const original = safeJsonParse<LocalChapterForSync[]>(run.local_snapshot_json, [])
+    const result: SourceSyncRollbackResult = { runId, restored: 0, conflicts: [] }
+    const candidates = new Map<string, AppliedChapterChange>()
+    for (const change of changes) {
+      if (change.kind !== 'chapter') continue
+      const latest = byId.get(change.id)
+      if (!latest || latest.title !== change.after.title || latest.order !== change.after.order) {
+        result.conflicts.push({ id: change.id, title: change.after.title, reason: '章节已删除或标题、序号已再次修改，保留当前值。' })
+      } else candidates.set(change.id, change)
+    }
+    // 撤回序号时保留预览后新增/编辑的章节，不能制造新的序号占用冲突。
+    let removed = true
+    while (removed) {
+      removed = false
+      for (const [id, change] of candidates) {
+        if (change.before.order === change.after.order) continue
+        const originalIds = new Set(original.filter(row => row.order === change.before.order).map(row => row.id))
+        const collision = current.some(row => row.id !== id && (candidates.get(row.id)?.before.order ?? row.order) === change.before.order && !originalIds.has(row.id))
+        if (!collision) continue
+        candidates.delete(id); removed = true
+        result.conflicts.push({ id, title: change.after.title, reason: '原序号已被其他章节占用，保留当前标题与序号。' })
+      }
+    }
+    for (const [id, change] of candidates) {
+      await q('UPDATE chapters SET title=$1,sort_order=$2 WHERE id=$3 AND novel_id=$4', [change.before.title, change.before.order, id, run.novel_id])
+      await q('DELETE FROM source_chapter_mappings WHERE sync_run_id=$1 AND local_chapter_id=$2', [runId, id])
+      result.restored++
+    }
+    for (const change of changes) {
+      if (change.kind !== 'metadata') continue
+      if (!NOVEL_SNAPSHOT_FIELDS.every(field => JSON.stringify(novel[field]) === JSON.stringify(change.after[field]))) {
+        result.conflicts.push({ id: run.novel_id, title: '小说信息', reason: '小说信息或分级已再次编辑、审核，保留当前值。' })
+        continue
+      }
+      const before = change.before
+      await q('UPDATE novels SET title=$1,author=$2,description=$3,cover_url=$4,categories=$5,status=$6 WHERE id=$7',
+        [before.title, before.author, before.description, before.cover_url, before.categories, before.status, run.novel_id])
+      if (before.content_rating !== novel.content_rating) await applyContentRatingChange(q, {
+        novelId: run.novel_id, rating: toContentRating(before.content_rating), source: 'source_import', actorUserId,
+        reason: '撤回源站融合，恢复原分级', operationId: runId, expectedRevision: Number(novel.content_rating_revision),
+      })
+      result.restored++
+    }
+    if (!result.conflicts.length) await q('DELETE FROM source_chapter_mappings WHERE sync_run_id=$1', [runId])
+    await q('UPDATE novels SET updated_at=$1 WHERE id=$2', [Date.now(), run.novel_id])
+    await q('UPDATE source_sync_runs SET status=$1,rolled_back_at=$2,rollback_result_json=$3 WHERE id=$4',
+      [result.conflicts.length ? 'rollback_partial' : 'rolled_back', Date.now(), JSON.stringify(result), runId])
+    return result
+  })
 }

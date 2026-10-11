@@ -454,6 +454,18 @@ export interface SourceSyncChange {
   partCount: number
   confidence: 'high' | 'medium' | 'low'
   eligible: boolean
+  matchReason?: SourceSyncMatchReason
+  matchEvidence?: string
+}
+
+export type SourceSyncMatchReason = 'exact-title' | 'chapter-number' | 'title-overlap' | 'sequence' | 'manual'
+export interface SourceSyncManualMapping { localChapterId: string; sourceChapterKey: string | null }
+export interface SourceSyncRollbackResult { runId: string; restored: number; conflicts: Array<{ id: string; title: string; reason: string }> }
+export type SourceSyncAppliedChange = { kind: 'chapter'; id: string; before: { title: string; order: number }; after: { title: string; order: number } } | { kind: 'metadata'; before: Record<string, unknown>; after: Record<string, unknown> }
+export interface SourceSyncHistoryItem {
+  runId: string; status: string; appliedAt: number; canRollback: boolean
+  summary: { novelTitle?: string; titleUpdated?: number; orderUpdated?: number; metadataUpdated?: number; sourceUrl?: string }
+  rollback: SourceSyncRollbackResult | null
 }
 
 export interface SourceSyncPreview {
@@ -486,12 +498,18 @@ export interface SourceSyncPreview {
     localChapterIds: string[]
     relation: 'one_to_one' | 'split' | 'merged'
     confidence: 'high' | 'medium' | 'low'
+    matchReason?: SourceSyncMatchReason
+    matchEvidence?: string
   }>
   changes: SourceSyncChange[]
   onlyWeakTitles: boolean
   warnings: string[]
   orderChanges?: Array<{ localChapterId: string; title: string; oldOrder: number; newOrder: number }>
   orderRepairBlockedReason?: string
+  revision?: number
+  sourceChapters?: Array<{ key: string; order: number; title: string; url: string }>
+  localChapters?: Array<{ id: string; order: number; title: string }>
+  manualMappings?: SourceSyncManualMapping[]
 }
 
 export interface TitleSource {
@@ -1605,10 +1623,23 @@ export const scrapeApi = {
     metadataMode?: 'missing' | 'replace'
     confirmedChangeIds?: string[]
     repairOrder?: boolean
+    revision?: number
     operationId?: string
   }): Promise<{ updated: number; orderUpdated?: number; metadataUpdated: string[]; mappings: number }> {
     const operationId = data.operationId || newOperationId('source-sync-apply')
     return request('POST', '/scrape', { action: 'source-sync-apply', ...data, operationId }, true, operationHeaders(operationId))
+  },
+  sourceSyncRemap(data: { runId: string; revision: number; manualMappings: SourceSyncManualMapping[] }): Promise<SourceSyncPreview> {
+    return request('POST', '/scrape', { action: 'source-sync-remap', ...data }, true)
+  },
+  sourceSyncHistory(novelId: string, limit = 20, offset = 0): Promise<{ items: SourceSyncHistoryItem[]; total: number }> {
+    return request('GET', `/scrape?action=source-sync-history&novelId=${encodeURIComponent(novelId)}&limit=${limit}&offset=${offset}`, null, true)
+  },
+  sourceSyncHistoryDetail(runId: string): Promise<{ runId: string; changes: SourceSyncAppliedChange[] }> {
+    return request('GET', `/scrape?action=source-sync-history-detail&runId=${encodeURIComponent(runId)}`, null, true)
+  },
+  sourceSyncRollback(runId: string, operationId: string): Promise<SourceSyncRollbackResult> {
+    return request('POST', '/scrape', { action: 'source-sync-rollback', runId, operationId }, true, operationHeaders(operationId))
   },
   po18Account(): Promise<Po18AccountStatus> {
     return request('GET', '/scrape?action=po18-account', null, true)

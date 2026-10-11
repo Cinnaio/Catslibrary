@@ -87,6 +87,29 @@ describe('scrape 路由（免网络动作）', () => {
     expect(conflict.status).toBe(409)
     const stored = await t.db.query<{ sort_order: number }>('SELECT sort_order FROM chapters WHERE id=\'route-notice\'')
     expect(stored.rows[0]?.sort_order).toBe(45)
+    const history = await req(`/api/scrape?action=source-sync-history&novelId=${novelId}`, json('GET', undefined, adminToken))
+    expect(history.status).toBe(200)
+    expect(await history.json()).toMatchObject({ total: 1, items: [{ runId, canRollback: true }] })
+    const detail = await req(`/api/scrape?action=source-sync-history-detail&runId=${runId}`, json('GET', undefined, adminToken))
+    expect(await detail.json()).toMatchObject({ changes: [{ kind: 'chapter', id: 'route-notice', before: { order: 46 }, after: { order: 45 } }] })
+    const rollbackBody = { action: 'source-sync-rollback', runId, operationId: 'rollback-route-once' }
+    const rolledBack = await req('/api/scrape', json('POST', rollbackBody, adminToken))
+    expect(rolledBack.status).toBe(200)
+    expect(await rolledBack.json()).toMatchObject({ restored: 1, conflicts: [] })
+    expect((await req('/api/scrape', json('POST', rollbackBody, adminToken))).status).toBe(200)
+    expect((await req('/api/scrape?action=source-sync-history&novelId=' + novelId)).status).toBe(401)
+
+    const manualRunId = runId + '-manual'
+    await t.db.query('INSERT INTO source_sync_runs (id,binding_id,novel_id,metadata_json,source_chapters_json,changes_json,mapping_json,local_snapshot_json,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,1)',
+      [manualRunId, bindingId, novelId, JSON.stringify(preview.metadata), JSON.stringify(source), JSON.stringify(preview.changes), JSON.stringify(preview.mappings), JSON.stringify(locals)])
+    const remap = { action: 'source-sync-remap', runId: manualRunId, revision: 0, manualMappings: [{ localChapterId: 'route-notice', sourceChapterKey: null }] }
+    const remapped = await req('/api/scrape', json('POST', remap, adminToken))
+    expect(remapped.status).toBe(200)
+    expect(await remapped.json()).toMatchObject({ revision: 1, unmatchedLocal: [{ id: 'route-notice' }] })
+    const stale = await req('/api/scrape', json('POST', { action: 'source-sync-apply', runId: manualRunId, revision: 0 }, adminToken))
+    expect(stale.status).toBe(409)
+    expect((await req('/api/scrape', json('POST', { ...remap, revision: 1, manualMappings: [] }, adminToken))).status).toBe(200)
+    expect((await req('/api/scrape', json('POST', { action: 'source-sync-apply', runId: manualRunId, revision: 2, repairOrder: true }, adminToken))).status).toBe(200)
   })
 
   it('追更设置保存并读回，默认关闭，缺少配置时拒绝开启', async () => {
