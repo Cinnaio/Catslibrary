@@ -45,6 +45,45 @@
   flex-shrink: 0;
 }
 
+/* 历史记录：记录间一条线，页脚负责唯一的底部分隔。 */
+.source-sync-history__body { color: var(--text-secondary); font-size: 0.875rem; line-height: 1.7; }
+.source-sync-history__list,
+.source-sync-history__changes { list-style: none; margin: 0; padding: 0; }
+.source-sync-history__list > li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--admin-space-5);
+  padding-block: var(--admin-space-5);
+}
+.source-sync-history__list > li:first-child { padding-top: var(--admin-space-2); }
+.source-sync-history__list > li + li { border-top: 1px solid var(--admin-border); }
+.source-sync-history__record { min-width: 0; overflow-wrap: anywhere; }
+.source-sync-history__record-heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--admin-space-3); }
+.source-sync-history__record-heading strong { color: var(--text-primary); font-size: 0.9375rem; font-weight: 500; }
+.source-sync-history__status,
+.source-sync-history__time { color: var(--text-muted); font-size: var(--admin-dialog-hint-size); }
+.source-sync-history__record p { margin: var(--admin-space-2) 0 0; }
+.source-sync-history__counts { display: flex; flex-wrap: wrap; gap: var(--admin-space-4) var(--admin-space-6); margin: var(--admin-space-4) 0; }
+.source-sync-history__counts dt { color: var(--text-muted); font-size: var(--admin-dialog-label-size); }
+.source-sync-history__counts dd { margin: var(--admin-space-1) 0 0; color: var(--text-primary); font-size: 1.125rem; font-variant-numeric: tabular-nums; }
+.source-sync-history__counts dd > span { color: var(--text-muted); font-size: var(--admin-dialog-hint-size); }
+.source-sync-history__source { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--admin-space-2); color: var(--text-muted); font-size: var(--admin-dialog-hint-size); }
+.source-sync-history__result { padding: var(--admin-space-4); background: var(--admin-panel-muted); border-radius: var(--admin-radius); overflow-wrap: anywhere; }
+.source-sync-history__detail { grid-column: 1 / -1; min-width: 0; padding: var(--admin-space-5); border-radius: var(--admin-radius); background: var(--admin-panel-muted); }
+.source-sync-history__detail h3 { margin: 0 0 var(--admin-space-4); color: var(--text-primary); font-size: 0.875rem; font-weight: 500; scroll-margin-block-start: var(--admin-space-4); }
+.source-sync-history__changes > li { padding-block: var(--admin-space-3); overflow-wrap: anywhere; }
+.source-sync-history__changes > li + li { border-top: 1px solid var(--admin-border); }
+.source-sync-history__comparison { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--admin-space-5); }
+.source-sync-history__comparison p { margin: 0; }
+.source-sync-history__comparison p:first-child { color: var(--text-muted); }
+.source-sync-history__comparison p:last-child { color: var(--text-primary); }
+.chapter-merge-dialog.source-sync-history-dialog [data-slot='dialog-footer'] { display: flex; flex-wrap: wrap; align-items: center; gap: var(--admin-space-3); border-top: 1px solid var(--admin-border); padding-top: var(--admin-space-4); }
+.source-sync-history-dialog .source-sync-history__pagination,
+.source-sync-history-dialog .source-sync-history__detail-pagination { border: 0; background: transparent; padding: 0; }
+.source-sync-history__pagination { flex: 1 1 18rem; min-width: 0; }
+.source-sync-history-dialog .source-sync-history__detail-pagination { margin-top: var(--admin-space-4); }
+
 /* 映射核对：沿用纸面、字号与间距契约，以列对照和留白组织信息。 */
 .chapter-merge-dialog__mapping-review {
   border-top: 1px solid var(--admin-border);
@@ -142,6 +181,12 @@
 .chapter-merge-dialog__mapping-editor .chapter-merge-dialog__metadata-actions { margin: 0; flex-wrap: wrap; padding-top: var(--admin-space-2); }
 
 @media (max-width: 640px) {
+  .source-sync-history__list > li { grid-template-columns: minmax(0, 1fr); gap: var(--admin-space-4); }
+  .source-sync-history__comparison { grid-template-columns: minmax(0, 1fr); gap: var(--admin-space-2); }
+  .source-sync-history__detail { padding: var(--admin-space-4); }
+  .source-sync-history__counts { gap: var(--admin-space-5); }
+  .source-sync-history__pagination { flex-basis: 10rem; }
+  .source-sync-history-dialog .chapter-merge-dialog__history-actions > button { min-height: var(--admin-dialog-mobile-action-min-height); }
   .chapter-merge-dialog__mapping-list > li {
     flex-direction: column;
   }

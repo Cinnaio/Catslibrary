@@ -4,7 +4,7 @@ import { useConfirm } from '@/components/feedback'
 import { AdminDialogBody, AdminDialogContent } from '@/components/admin/AdminDialog'
 import Pagination from '@/components/admin/Pagination'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { timeAgo } from '@/lib/format'
 
 const STATUS: Record<string, string> = { applied: '已应用', rolled_back: '已撤回', rollback_partial: '部分撤回，保留冲突' }
@@ -64,24 +64,33 @@ export default function SourceSyncHistoryDialog({ open, novelId, onOpenChange, o
     finally { lock.current = false; setBusyId('') }
   }
   return <Dialog open={open} onOpenChange={value => { if (!lock.current) onOpenChange(value) }}>
-    <AdminDialogContent variant="editor" className="chapter-merge-dialog" onInteractOutside={event => { if (lock.current) event.preventDefault() }} onEscapeKeyDown={event => { if (lock.current) event.preventDefault() }}>
+    <AdminDialogContent variant="editor" className="chapter-merge-dialog source-sync-history-dialog" onInteractOutside={event => { if (lock.current) event.preventDefault() }} onEscapeKeyDown={event => { if (lock.current) event.preventDefault() }}>
       <DialogHeader><DialogTitle>融合历史</DialogTitle><DialogDescription>查看当前作品的实际变化，撤回仍可安全恢复的内容。</DialogDescription></DialogHeader>
-      <AdminDialogBody>
+      <AdminDialogBody className="source-sync-history__body">
         {error && <p role="alert" className="chapter-merge-dialog__error">{error}</p>}
-        {result && <div role="status"><p>已恢复 {result.restored} 项，保留 {result.conflicts.length} 项冲突。</p>{result.conflicts.map(conflict => <p key={conflict.id}>{conflict.title}：{conflict.reason}</p>)}</div>}
-        {loading ? <p role="status">正在读取融合历史…</p> : !items.length ? <p>当前作品暂无已应用的融合记录。</p> : <ol className="chapter-merge-dialog__mapping-list" aria-label="融合历史记录">{items.map(item => <li key={item.runId}>
-          <div><strong>{item.summary.novelTitle || '历史融合'}</strong><p>{STATUS[item.status] || item.status} · {timeAgo(item.appliedAt)}</p><p>标题 {item.summary.titleUpdated || 0} 项 · 序号 {item.summary.orderUpdated || 0} 项 · 小说信息 {item.summary.metadataUpdated || 0} 项</p>
-            {item.summary.sourceUrl && <p className="admin-dialog-hint">{item.summary.sourceUrl}</p>}
+        {result && <div className="source-sync-history__result" role="status"><p>已恢复 {result.restored} 项，保留 {result.conflicts.length} 项冲突。</p>{result.conflicts.map(conflict => <p key={conflict.id}>{conflict.title}：{conflict.reason}</p>)}</div>}
+        {loading ? <p role="status">正在读取融合历史…</p> : !items.length ? <p>当前作品暂无已应用的融合记录。</p> : <ol className="source-sync-history__list" aria-label="融合历史记录">{items.map(item => <li key={item.runId}>
+          <div className="source-sync-history__record">
+            <div className="source-sync-history__record-heading"><strong>{item.summary.novelTitle || '历史融合'}</strong><span className="source-sync-history__status">{STATUS[item.status] || item.status}</span></div>
+            <p className="source-sync-history__time">{timeAgo(item.appliedAt)}</p>
+            <dl className="source-sync-history__counts">
+              <div><dt>章节标题</dt><dd>{item.summary.titleUpdated || 0}<span> 项</span></dd></div>
+              <div><dt>章节序号</dt><dd>{item.summary.orderUpdated || 0}<span> 项</span></dd></div>
+              <div><dt>小说信息</dt><dd>{item.summary.metadataUpdated || 0}<span> 项</span></dd></div>
+            </dl>
+            {item.summary.sourceUrl && <p className="source-sync-history__source"><span>来源</span>{item.summary.sourceUrl}</p>}
             {item.rollback && <p>已恢复 {item.rollback.restored} 项，保留 {item.rollback.conflicts.length} 项冲突。</p>}
             {!!item.rollback?.conflicts.length && <details><summary>查看保留的冲突</summary>{item.rollback.conflicts.map(conflict => <p key={conflict.id}>{conflict.title}：{conflict.reason}</p>)}</details>}
             {!item.canRollback && item.status === 'applied' && <p className="admin-dialog-hint">没有可撤回的实际变化快照；旧记录不推断恢复值。</p>}
           </div>
-          <div className="chapter-merge-dialog__history-actions"><Button variant="ghost" disabled={!!busyId || loading} onClick={() => void readDetail(item.runId)}>查看变化</Button><Button variant="secondary" disabled={!item.canRollback || !!busyId || loading} onClick={() => void rollback(item)}>撤回此次融合</Button></div>
+          <div className="chapter-merge-dialog__history-actions"><Button variant="ghost" aria-expanded={detail?.runId === item.runId} aria-controls={detail?.runId === item.runId ? 'source-sync-history-detail' : undefined} disabled={!!busyId || loading} onClick={() => void readDetail(item.runId)}>查看变化</Button><Button variant="secondary" disabled={!item.canRollback || !!busyId || loading} onClick={() => void rollback(item)}>撤回此次融合</Button></div>
+          {detail?.runId === item.runId && <HistoryChanges key={detail.runId} changes={detail.changes} />}
         </li>)}</ol>}
-        {detail && <HistoryChanges key={detail.runId} changes={detail.changes} />}
-        <Pagination page={page} totalPages={Math.max(1, Math.ceil(total / 20))} onPage={value => { setDetail(null); setPage(value) }} busy={loading || !!busyId} summary={`共 ${total} 次融合`} />
-        <Button variant="secondary" disabled={loading || !!busyId} onClick={() => void load()}>刷新历史</Button>
       </AdminDialogBody>
+      <DialogFooter>
+        <Pagination className="source-sync-history__pagination" page={page} totalPages={Math.max(1, Math.ceil(total / 20))} onPage={value => { setDetail(null); setPage(value) }} busy={loading || !!busyId} summary={`共 ${total} 次融合`} />
+        <Button variant="secondary" disabled={loading || !!busyId} onClick={() => void load()}>刷新历史</Button>
+      </DialogFooter>
     </AdminDialogContent>
   </Dialog>
 }
@@ -89,12 +98,17 @@ export default function SourceSyncHistoryDialog({ open, novelId, onOpenChange, o
 function HistoryChanges({ changes }: { changes: SourceSyncAppliedChange[] }) {
   const [page, setPage] = useState(1)
   const pages = Math.max(1, Math.ceil(changes.length / 20))
-  return <section className="chapter-merge-dialog__preview-section" aria-label="融合变化详情"><h3>本次实际变化</h3>
+  const heading = useRef<HTMLHeadingElement>(null)
+  useEffect(() => {
+    heading.current?.focus({ preventScroll: true })
+    heading.current?.scrollIntoView({ block: 'start', behavior: 'instant' })
+  }, [])
+  return <section id="source-sync-history-detail" className="source-sync-history__detail" aria-label="融合变化详情"><h3 ref={heading} tabIndex={-1}>本次实际变化</h3>
     {!changes.length && <p>没有记录到可展示的实际变化。</p>}
-    <ol className="chapter-merge-dialog__mapping-list">{changes.slice((page - 1) * 20, page * 20).map((change, index) => <li key={change.kind === 'chapter' ? change.id : `metadata-${index}`}>
-      {change.kind === 'chapter' ? <div><p>原：{change.before.order} · {change.before.title}</p><p>更新后：{change.after.order} · {change.after.title}</p></div> : <MetadataChanges change={change} />}
+    <ol className="source-sync-history__changes">{changes.slice((page - 1) * 20, page * 20).map((change, index) => <li key={change.kind === 'chapter' ? change.id : `metadata-${index}`}>
+      {change.kind === 'chapter' ? <div className="source-sync-history__comparison"><p>原：{change.before.order} · {change.before.title}</p><p>更新后：{change.after.order} · {change.after.title}</p></div> : <MetadataChanges change={change} />}
     </li>)}</ol>
-    <Pagination page={page} totalPages={pages} onPage={setPage} summary={`共 ${changes.length} 项变化`} />
+    <Pagination className="source-sync-history__detail-pagination" page={page} totalPages={pages} onPage={setPage} summary={`共 ${changes.length} 项变化`} />
   </section>
 }
 
