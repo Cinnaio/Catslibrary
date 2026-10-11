@@ -22,6 +22,8 @@ it('展示匹配依据与相邻章节，保存未匹配章的人工对应关系'
   fireEvent.click(screen.getByText('核对与调整映射'))
   expect(screen.getByText(/完整标题一致 · 置信度高/)).toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: '调整映射：本地 2' }))
+  expect(screen.getByRole('heading', { name: '调整本地 2 · 本地第二章' })).toHaveFocus()
+  expect(screen.getByRole('button', { name: '调整映射：本地 2' })).toHaveAttribute('aria-expanded', 'true')
   expect(screen.getByText(/本地前章：本地第一章/)).toBeInTheDocument()
   await user.click(screen.getByRole('combobox'))
   expect(screen.getByRole('option', { name: /源站第一章（已占用）/ })).toHaveAttribute('aria-disabled', 'true')
@@ -29,6 +31,33 @@ it('展示匹配依据与相邻章节，保存未匹配章的人工对应关系'
   expect(screen.getByText(/源站前章：源站第一章/)).toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: '保存映射并重新预览' }))
   expect(onRemap).toHaveBeenCalledWith([{ localChapterId: 'b', sourceChapterKey: 's2' }])
+})
+
+it('有差异筛选保留序号偏移、标题不同及未匹配，忽略完整标题的标点差别', () => {
+  const locals = [
+    { id: 'same', order: 1, title: '第一章，标题' },
+    { id: 'order', order: 53, title: '相同标题' },
+    { id: 'title', order: 3, title: '原标题' },
+    { id: 'missing', order: 4, title: '未匹配章' },
+  ]
+  const mappings = [
+    { ...preview.mappings[0]!, localChapterIds: ['same'], sourceTitle: '第一章, 标题', sourceOrder: 1 },
+    { ...preview.mappings[0]!, localChapterIds: ['order'], sourceTitle: '相同标题', sourceOrder: 52 },
+    { ...preview.mappings[0]!, localChapterIds: ['title'], sourceTitle: '新标题', sourceOrder: 3, matchReason: 'sequence' as const },
+  ]
+  render(<ChapterMappingReview preview={{ ...preview, localChapters: locals, mappings }} disabled={false} onRemap={vi.fn()} />)
+  fireEvent.click(screen.getByText('核对与调整映射'))
+  fireEvent.click(screen.getByRole('button', { name: '有差异 3' }))
+  expect(screen.queryByText('本地 1 · 第一章，标题')).not.toBeInTheDocument()
+  expect(screen.getByText('本地 53 · 相同标题')).toBeInTheDocument()
+  expect(screen.getByText('序号不同')).toBeInTheDocument()
+  expect(screen.getByText('标题不同')).toBeInTheDocument()
+  expect(screen.getByText('未匹配')).toBeInTheDocument()
+  fireEvent.change(screen.getByLabelText('搜索本地章节映射'), { target: { value: '53' } })
+  expect(screen.getAllByRole('button', { name: /调整映射：本地/ })).toHaveLength(1)
+  fireEvent.change(screen.getByLabelText('搜索本地章节映射'), { target: { value: '' } })
+  fireEvent.click(screen.getByRole('button', { name: '全部 4' }))
+  expect(screen.getAllByRole('button', { name: /调整映射：本地/ })).toHaveLength(4)
 })
 
 it('恢复自动匹配清除覆盖，拆分组不能被单章重映射', () => {
