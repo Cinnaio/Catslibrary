@@ -121,10 +121,22 @@
 
 .chapter-merge-dialog__mapping-review .chapter-merge-dialog__mapping-list > li {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   gap: var(--admin-space-4);
   padding-block: var(--admin-space-5);
 }
+
+.chapter-merge-dialog__mapping-selection {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--admin-space-2) var(--admin-space-4);
+  margin-top: var(--admin-space-4);
+}
+.chapter-merge-dialog__mapping-selection > div { display: flex; flex-wrap: wrap; gap: var(--admin-space-2); }
+.chapter-merge-dialog__mapping-selection > p { margin: 0; }
+.chapter-merge-dialog__mapping-selection > .admin-dialog-hint { flex-basis: 100%; }
+.chapter-merge-dialog__mapping-checkbox { margin-top: var(--admin-space-1); }
 
 .chapter-merge-dialog__mapping-comparison {
   display: grid;
@@ -197,7 +209,7 @@
   .chapter-merge-dialog__mapping-fields { grid-template-columns: minmax(0, 1fr); gap: var(--admin-space-4); }
   .chapter-merge-dialog__mapping-review .chapter-merge-dialog__mapping-list > li { gap: var(--admin-space-2); }
   .chapter-merge-dialog__mapping-review .chapter-merge-dialog__mapping-editor { padding: var(--admin-space-4); }
-  .chapter-merge-dialog__mapping-adjust { padding-inline: var(--admin-space-2); min-height: var(--admin-dialog-mobile-action-min-height); }
+  .chapter-merge-dialog__mapping-adjust { grid-column: 2 / -1; margin-top: 0; justify-self: start; padding-inline: var(--admin-space-2); min-height: var(--admin-dialog-mobile-action-min-height); }
   .chapter-merge-dialog__mapping-meta { row-gap: var(--admin-space-2); }
   .chapter-merge-dialog__mapping-review .chapter-merge-dialog__mapping-meta summary { min-height: 2.75rem; padding-block: var(--admin-space-2); }
 }

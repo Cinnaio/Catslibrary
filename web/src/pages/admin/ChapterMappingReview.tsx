@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { SourceSyncManualMapping, SourceSyncPreview } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { MATCH_REASON_LABELS } from './source-sync-labels'
@@ -9,9 +10,11 @@ import { MATCH_REASON_LABELS } from './source-sync-labels'
 const CONFIDENCE_LABELS = { high: '高', medium: '中', low: '低' }
 const PAGE_SIZE = 20
 
-export default function ChapterMappingReview({ preview, disabled, onRemap }: {
+export default function ChapterMappingReview({ preview, disabled, onRemap, confirmedManualIds = new Set<string>(), onConfirmTitles }: {
   preview: SourceSyncPreview; disabled: boolean; onRemap: (mappings: SourceSyncManualMapping[]) => void
+  confirmedManualIds?: Set<string>; onConfirmTitles?: (ids: string[]) => void
 }) {
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<'all' | 'different'>('all')
   const editorHeading = useRef<HTMLHeadingElement>(null)
@@ -40,6 +43,9 @@ export default function ChapterMappingReview({ preview, disabled, onRemap }: {
   }))
   const differenceCount = locals.filter(local => differences.get(local.id)!.length > 0).length
   const filtered = locals.filter(row => (filter === 'all' || differences.get(row.id)!.length > 0) && `${row.order} ${row.title}`.toLowerCase().includes(query.trim().toLowerCase()))
+  const selectedLocals = locals.filter(local => selectedIds.has(local.id))
+  const pendingTitles = (preview.changes || []).filter(change => selectedIds.has(change.localChapterId) && !change.eligible && !confirmedManualIds.has(change.localChapterId))
+  const allFilteredSelected = filtered.length > 0 && filtered.every(local => selectedIds.has(local.id))
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const currentPage = Math.min(page, pages)
   const editingIndex = locals.findIndex(row => row.id === editingId)
@@ -68,10 +74,25 @@ export default function ChapterMappingReview({ preview, disabled, onRemap }: {
       <details><summary>核对说明</summary><p className="admin-dialog-hint">有差异包括序号不同、标题不同和未匹配章节；完整标题一致仍可能存在序号差异。调整后会重新生成差异并清空人工确认。拆分组保留现有映射；源站章节已被占用时，请先解除原对应关系。</p></details>
       <Button variant="ghost" size="sm" disabled={disabled || !preview.manualMappings?.length} onClick={() => onRemap([])}>恢复自动匹配</Button>
     </div>
+    <div className="chapter-merge-dialog__mapping-selection">
+      <p role="status">已选 {selectedLocals.length} 项映射</p>
+      <div>
+        <Button variant="secondary" disabled={disabled || !filtered.length || allFilteredSelected} onClick={() => setSelectedIds(new Set([...selectedIds, ...filtered.map(local => local.id)]))}>全选当前筛选结果 {filtered.length} 项</Button>
+        <Button variant="ghost" disabled={disabled || !selectedLocals.length} onClick={() => setSelectedIds(new Set())}>清空映射选择</Button>
+        {onConfirmTitles && <Button variant="ghost" disabled={disabled || !pendingTitles.length} onClick={() => onConfirmTitles(pendingTitles.map(change => change.localChapterId))}>确认所选标题 {pendingTitles.length} 项</Button>}
+      </div>
+      <p className="admin-dialog-hint">全选包含当前筛选结果的所有页。确认所选标题后，待人工核对的标题会加入本次同步；序号修复请单独勾选。</p>
+    </div>
     <ol className="chapter-merge-dialog__mapping-list" aria-label="全部章节映射">
       {filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE).map(local => {
         const mapping = byLocal.get(local.id)
         return <li key={local.id}>
+          <Checkbox className="chapter-merge-dialog__mapping-checkbox" aria-label={`选择映射：本地 ${local.order}`} checked={selectedIds.has(local.id)} disabled={disabled} onCheckedChange={checked => {
+            const next = new Set(selectedIds)
+            if (checked === true) next.add(local.id)
+            else next.delete(local.id)
+            setSelectedIds(next)
+          }} />
           <div className="chapter-merge-dialog__mapping-content">
             <div className="chapter-merge-dialog__mapping-comparison">
               <div><span className="chapter-merge-dialog__mapping-label">本地目录</span><strong>本地 {local.order} · {local.title}</strong></div>

@@ -68,3 +68,42 @@ it('恢复自动匹配清除覆盖，拆分组不能被单章重映射', () => {
   fireEvent.click(screen.getByRole('button', { name: '恢复自动匹配' }))
   expect(onRemap).toHaveBeenCalledWith([])
 })
+
+it('全选覆盖筛选结果所有页，跨筛选保留选择，逐项取消和清空可用', () => {
+  const localChapters = Array.from({ length: 25 }, (_, i) => ({ id: `local-${i}`, order: i + 1, title: `章节 ${i + 1}` }))
+  render(<ChapterMappingReview preview={{ ...preview, localChapters, mappings: [] }} disabled={false} onRemap={vi.fn()} />)
+  fireEvent.click(screen.getByText('核对与调整映射'))
+  fireEvent.change(screen.getByLabelText('搜索本地章节映射'), { target: { value: '章节 25' } })
+  fireEvent.click(screen.getByRole('button', { name: '全选当前筛选结果 1 项' }))
+  expect(screen.getByText('已选 1 项映射')).toBeInTheDocument()
+  fireEvent.change(screen.getByLabelText('搜索本地章节映射'), { target: { value: '' } })
+  fireEvent.click(screen.getByRole('button', { name: '全选当前筛选结果 25 项' }))
+  expect(screen.getByText('已选 25 项映射')).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: '下一页' }))
+  expect(screen.getByRole('checkbox', { name: '选择映射：本地 25' })).toBeChecked()
+  fireEvent.click(screen.getByRole('checkbox', { name: '选择映射：本地 25' }))
+  expect(screen.getByText('已选 24 项映射')).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: '清空映射选择' }))
+  expect(screen.getByText('已选 0 项映射')).toBeInTheDocument()
+  expect(screen.getByRole('checkbox', { name: '选择映射：本地 21' })).not.toBeChecked()
+})
+
+it('仅确认选中且未确认的人工标题，禁用时不能选择或确认', () => {
+  const onConfirmTitles = vi.fn()
+  const data = { ...preview, changes: [
+    { localChapterId: 'a', eligible: false },
+    { localChapterId: 'b', eligible: true },
+  ] } as SourceSyncPreview
+  const props = { preview: data, onRemap: vi.fn(), onConfirmTitles }
+  const { rerender } = render(<ChapterMappingReview {...props} disabled={false} />)
+  fireEvent.click(screen.getByText('核对与调整映射'))
+  fireEvent.click(screen.getByRole('button', { name: '全选当前筛选结果 2 项' }))
+  fireEvent.click(screen.getByRole('button', { name: '确认所选标题 1 项' }))
+  expect(onConfirmTitles).toHaveBeenCalledWith(['a'])
+  rerender(<ChapterMappingReview {...props} disabled={false} confirmedManualIds={new Set(['a'])} />)
+  expect(screen.getByRole('button', { name: '确认所选标题 0 项' })).toBeDisabled()
+  rerender(<ChapterMappingReview {...props} disabled={true} />)
+  expect(screen.getByRole('checkbox', { name: '选择映射：本地 1' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: '清空映射选择' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: '确认所选标题 1 项' })).toBeDisabled()
+})
