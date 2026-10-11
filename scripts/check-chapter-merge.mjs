@@ -63,7 +63,7 @@ try {
     assert.equal(await dialog.getByRole('button', { name: '本地章节下一页', exact: true }).isDisabled(), true)
     await dialog.locator('.chapter-merge-dialog__unmatched > summary').click()
     assert.equal(await dialog.evaluate(el => el.scrollWidth <= el.clientWidth), true)
-    if (width === 1440) assert.equal(Math.round((await dialog.boundingBox()).width), 760)
+    if (width === 1440) assert.equal(Math.round((await dialog.boundingBox()).width), 896)
     const footer = await dialog.locator('[data-slot="dialog-footer"]').boundingBox()
     assert.ok(footer.y + footer.height <= height && footer.y >= 0)
     await dialog.getByRole('button', { name: '人工核对 5', exact: true }).click()
