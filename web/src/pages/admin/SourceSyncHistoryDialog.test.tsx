@@ -16,6 +16,8 @@ it('按需读取实际变化，撤回后展示保留的冲突并刷新列表', a
   render(<SourceSyncHistoryDialog open novelId="n" onOpenChange={vi.fn()} onCompleted={completed} />)
   fireEvent.click(await screen.findByRole('button', { name: '查看变化' }))
   await screen.findByText('原：46 · 原题')
+  expect(screen.getByRole('heading', { name: '本次实际变化' })).toHaveFocus()
+  expect(screen.getByRole('button', { name: '查看变化' })).toHaveAttribute('aria-expanded', 'true')
   fireEvent.click(screen.getByRole('button', { name: '撤回此次融合' }))
   await screen.findByText(/已恢复 1 项，保留 1 项冲突/)
   expect(screen.getByText(/人工改名章：已再次编辑/)).toBeInTheDocument()

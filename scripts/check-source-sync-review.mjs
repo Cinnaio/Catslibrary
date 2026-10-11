@@ -6,7 +6,7 @@ import { mkdir } from 'node:fs/promises'
 const base = process.env.WEB_URL || 'http://127.0.0.1:5182'
 const out = '.impeccable/review/source-sync-review'
 await mkdir(out, { recursive: true })
-const novel = { id: 'review-book', title: '山雨来时', author: '测试作者', chapterCount: 3 }
+const novel = { id: 'review-book', title: '山雨来时：一段较长的作品标题用于检查历史换行', author: '测试作者', chapterCount: 3 }
 const localChapters = [44, 46, 46].map((order, i) => ({ id: `c${i}`, order, title: ['他注视着她【900珠加更】', '不行了，累累', '没有喊哥哥'][i] }))
 localChapters.push(...Array.from({ length: 20 }, (_, i) => ({ id: `c${i + 3}`, order: i + 47, title: `后续章节 ${i + 1}` })))
 const sourceChapters = localChapters.map((row, i) => ({ key: `s${i}`, order: 44 + i, title: row.title }))
@@ -33,7 +33,7 @@ try {
         assert.deepEqual(body.manualMappings, [{ localChapterId: 'c1', sourceChapterKey: 's1' }])
         remapped = true
         data = { ...original, revision: 1, manualMappings: body.manualMappings, unmatchedLocal: [], unmatchedSource: [], mappings: [...original.mappings, { sourceChapterKey: 's1', sourceOrder: 45, sourceTitle: '不行了，累累', localChapterIds: ['c1'], relation: 'one_to_one', confidence: 'high', matchReason: 'manual', matchEvidence: '由管理员指定。' }] }
-      } else if (action === 'source-sync-history') data = { total: 1, items: [{ runId: 'old-run', status: rolledBack ? 'rolled_back' : 'applied', appliedAt: Date.now(), summary: { novelTitle: novel.title, sourceUrl: 'https://www.po18.tw/books/12345', titleUpdated: 1, orderUpdated: 1, metadataUpdated: 0 }, canRollback: !rolledBack }] }
+      } else if (action === 'source-sync-history') data = { total: 2, items: [{ runId: 'old-run', status: rolledBack ? 'rolled_back' : 'applied', appliedAt: Date.now(), summary: { novelTitle: novel.title, sourceUrl: 'https://www.po18.tw/books/12345', titleUpdated: 0, orderUpdated: 25, metadataUpdated: 0 }, canRollback: !rolledBack }, { runId: 'earlier-run', status: 'applied', appliedAt: Date.now() - 3600000, summary: { novelTitle: novel.title, sourceUrl: 'https://www.po18.tw/books/12345', titleUpdated: 49, orderUpdated: 0, metadataUpdated: 0 }, canRollback: true }] }
       else if (action === 'source-sync-history-detail') data = { runId: 'old-run', changes: [{ kind: 'chapter', id: 'c1', before: { order: 46, title: '不行了，累累' }, after: { order: 45, title: '不行了，累累' } }] }
       else if (action === 'source-sync-rollback') { rolledBack = true; data = { runId: 'old-run', restored: 1, conflicts: [] } }
       await route.fulfill({ json: data })
@@ -72,12 +72,19 @@ try {
     await dialog.locator('summary').filter({ hasText: '核对与调整映射' }).scrollIntoViewIfNeeded()
     await page.screenshot({ path: `${out}/${width}-${theme}-differences.png` })
     await page.keyboard.press('Escape')
+    await page.locator('[data-sonner-toast]').waitFor({ state: 'hidden', timeout: 8000 })
     await page.getByRole('button', { name: '融合历史', exact: true }).click()
-    await dialog.getByRole('button', { name: '查看变化', exact: true }).click()
+    const records = dialog.getByRole('list', { name: '融合历史记录' })
+    await records.locator(':scope > li').last().waitFor()
+    assert.equal(await records.locator(':scope > li').last().evaluate(el => getComputedStyle(el).borderBottomWidth), '0px')
+    assert.equal(await dialog.locator('.source-sync-history__pagination').evaluate(el => getComputedStyle(el).borderTopWidth), '0px')
+    assert.equal(await dialog.locator('[data-slot=dialog-footer]').evaluate(el => getComputedStyle(el).borderTopWidth), '1px')
+    await page.screenshot({ path: `${out}/${width}-${theme}-history-list.png` })
+    await dialog.getByRole('button', { name: '查看变化', exact: true }).first().click()
     await dialog.getByRole('heading', { name: '本次实际变化' }).waitFor()
     await page.screenshot({ path: `${out}/${width}-${theme}-history.png` })
     assert.equal(await dialog.evaluate(el => el.scrollWidth <= el.clientWidth), true)
-    await dialog.getByRole('button', { name: '撤回此次融合', exact: true }).click()
+    await dialog.getByRole('button', { name: '撤回此次融合', exact: true }).first().click()
     await page.getByRole('button', { name: '确认撤回', exact: true }).click()
     await dialog.getByText('已恢复 1 项，保留 0 项冲突。', { exact: true }).waitFor()
     assert.equal(rolledBack, true)
