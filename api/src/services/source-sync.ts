@@ -53,6 +53,13 @@ export interface SourceSyncMapping {
   confidence: SourceSyncConfidence
 }
 
+export interface SourceSyncOrderChange {
+  localChapterId: string
+  title: string
+  oldOrder: number
+  newOrder: number
+}
+
 export interface SourceSyncMetadata {
   title: string
   author: string
@@ -81,6 +88,8 @@ export interface SourceSyncPreview {
   changes: SourceSyncChange[]
   onlyWeakTitles: boolean
   warnings: string[]
+  orderChanges: SourceSyncOrderChange[]
+  orderRepairBlockedReason?: string
 }
 
 interface SourceBindingRow {
@@ -117,9 +126,9 @@ const GENERIC_WEAK_TITLES = /^(?:正文|无标题|未命名|空标题)$/i
 const INTRO_TITLES = /^(?:内容简介|作品简介|小说简介|文案|简介|楔子|序章|序言)$/i
 const SPLIT_MARKER = /(?:[（(]\s*(\d+)\s*[/／]\s*(\d+)\s*[)）]|(?:[-_ ]+)?(?:part|pt)\s*(\d+)(?:\s*[/／]\s*(\d+))?)$/i
 const EXTRA_NUMBER = /(?:番外|外传)\s*(?:第\s*)?([0-9０-９零〇一二三四五六七八九十百千万两壹贰叁肆伍陆柒捌玖拾佰仟]+)/i
-const ARABIC_NUMBER = /(?:第\s*)?(\d+)\s*(?:章|节|回|卷|集|部|篇)?/i
+const ARABIC_NUMBER = /^第\s*(\d+)(?=\s|[章节回卷集部篇]|$)/i
 const EXTRA_TITLE = /番外|外传/i
-const CHINESE_NUMBER = /第\s*([零〇一二三四五六七八九十百千万两壹贰叁肆伍陆柒捌玖拾佰仟]+)\s*(?:章|节|回|卷|集|部|篇)?/i
+const CHINESE_NUMBER = /^第\s*([零〇一二三四五六七八九十百千万两壹贰叁肆伍陆柒捌玖拾佰仟]+)\s*(?:章|节|回|卷|集|部|篇)?/i
 
 function safeJsonParse<T>(value: string, fallback: T): T {
   try {
@@ -218,6 +227,8 @@ function chapterNumber(title: string): number | null {
   const withoutImportPrefix = text.replace(/^第\s*\d+\s*[章节回卷集部篇]\s*/, '')
   const innerNumber = withoutImportPrefix.match(/^(\d+(?:\.\d+)?)(?:[.、:：]|\s)/)
   if (innerNumber) return Number(innerNumber[1])
+  const english = text.match(/^chapter\s*(\d+)\b/i)
+  if (english) return Number(english[1]) || null
   const extra = text.match(EXTRA_NUMBER)
   if (extra) return parseNumberToken(extra[1]!)
   const arabic = text.match(ARABIC_NUMBER)
@@ -270,6 +281,11 @@ function groupLocalChapters(rows: LocalChapterForSync[]): LocalGroup[] {
     const sameChapterNumber = Boolean(
       part && previousChapter && chapterNumber(row.title) !== null && chapterNumber(row.title) === chapterNumber(previousChapter.title),
     )
+    const currentTitle = normalizedTitle(row.title)
+    const previousTitle = previousChapter ? normalizedTitle(previousChapter.title) : ''
+    const compatibleTitle = previousChapter && (
+      currentTitle && previousTitle ? currentTitle === previousTitle : sameChapterNumber
+    )
     const canContinueSplit = Boolean(
       part &&
       part.index > 1 &&
@@ -277,6 +293,7 @@ function groupLocalChapters(rows: LocalChapterForSync[]): LocalGroup[] {
       previous.chapters.length < part.count &&
       part.index === previous.chapters.length + 1 &&
       (previous.declaredPartCount === undefined || previous.declaredPartCount === part.count) &&
+      compatibleTitle &&
       (previous.explicitSplit || sameChapterNumber),
     )
     if (canContinueSplit && previous) {
@@ -321,7 +338,7 @@ interface Alignment {
 }
 
 /** 以顺序为主、标题/编号为辅的序列对齐；拆分组已经先折叠为一个本地组。 */
-function alignSourceAndLocal(source: SourceChapter[], groups: LocalGroup[]): Alignment[] {
+function alignInOrder(source: SourceChapter[], groups: LocalGroup[], allowed: (sourceIndex: number, groupIndex: number) => boolean): Alignment[] {
   const n = source.length
   const m = groups.length
   const dp: number[][] = Array.from({ length: n + 1 }, () => Array<number>(m + 1).fill(0))
@@ -330,7 +347,7 @@ function alignSourceAndLocal(source: SourceChapter[], groups: LocalGroup[]): Ali
   for (let j = 1; j <= m; j++) dp[0]![j] = dp[0]![j - 1]! - 2
   for (let i = 1; i <= n; i++) {
     for (let j = 1; j <= m; j++) {
-      const diag = dp[i - 1]![j - 1]! + groupScore(source[i - 1]!, groups[j - 1]!)
+      const diag = allowed(i - 1, j - 1) ? dp[i - 1]![j - 1]! + groupScore(source[i - 1]!, groups[j - 1]!) : -Infinity
       const skipSource = dp[i - 1]![j]! - 3
       const skipLocal = dp[i]![j - 1]! - 2
       if (diag >= skipSource && diag >= skipLocal) {
@@ -358,6 +375,82 @@ function alignSourceAndLocal(source: SourceChapter[], groups: LocalGroup[]): Ali
     else i--
   }
   return result.reverse()
+}
+
+/** 唯一完整标题先独立定位，允许纠正已有乱序；其余章节仍受已知标题边界约束。 */
+function alignSourceAndLocal(source: SourceChapter[], groups: LocalGroup[]): Alignment[] {
+  const titleIndexes = (titles: string[]) => {
+    const indexes = new Map<string, number[]>()
+    titles.forEach((title, index) => {
+      const key = normalizedTitle(title)
+      if (!key || isWeakTitle(title, chapterNumber(title) || 0)) return
+      indexes.set(key, [...(indexes.get(key) || []), index])
+    })
+    return indexes
+  }
+  const sourceTitles = titleIndexes(source.map(row => row.title))
+  const localTitles = titleIndexes(groups.map(group => group.chapters[0]!.title))
+  const anchors: Alignment[] = []
+  for (const [key, sourceIndexes] of sourceTitles) {
+    const localIndexes = localTitles.get(key)
+    if (sourceIndexes.length !== 1 || localIndexes?.length !== 1) continue
+    const sourceIndex = sourceIndexes[0]!
+    const groupIndex = localIndexes[0]!
+    anchors.push({ sourceIndex, groupIndex, score: groupScore(source[sourceIndex]!, groups[groupIndex]!) })
+  }
+  const anchoredSource = new Set(anchors.map(row => row.sourceIndex))
+  const anchoredLocal = new Set(anchors.map(row => row.groupIndex))
+  const sourceIndexes = source.map((_, index) => index).filter(index => !anchoredSource.has(index))
+  const localIndexes = groups.map((_, index) => index).filter(index => !anchoredLocal.has(index))
+  const bounds = localIndexes.map(groupIndex => {
+    let lower = -1
+    let upper = source.length
+    for (const anchor of anchors) {
+      if (anchor.groupIndex < groupIndex) lower = Math.max(lower, anchor.sourceIndex)
+      else upper = Math.min(upper, anchor.sourceIndex)
+    }
+    return { lower, upper }
+  })
+  const rest = alignInOrder(sourceIndexes.map(index => source[index]!), localIndexes.map(index => groups[index]!), (s, l) =>
+    sourceIndexes[s]! > bounds[l]!.lower && sourceIndexes[s]! < bounds[l]!.upper,
+  ).map(row => ({ ...row, sourceIndex: sourceIndexes[row.sourceIndex]!, groupIndex: localIndexes[row.groupIndex]! }))
+  return [...anchors, ...rest].sort((a, b) => a.sourceIndex - b.sourceIndex)
+}
+
+function buildOrderRepair(mappings: SourceSyncMapping[], locals: LocalChapterForSync[], source: SourceChapter[]): {
+  orderChanges: SourceSyncOrderChange[]; orderRepairBlockedReason?: string
+} {
+  const blocked = (reason: string) => ({ orderChanges: [], orderRepairBlockedReason: reason })
+  if (!locals.length) return { orderChanges: [] }
+  if (mappings.some(row => row.relation !== 'one_to_one' || row.localChapterIds.length !== 1)) {
+    return blocked('存在拆分章节，源站章号不能直接作为本地序号。')
+  }
+  if (mappings.length !== locals.length || mappings.some(row => row.confidence !== 'high')) {
+    return blocked('存在未匹配或证据不足的本地章节，请先核对映射，暂不修复序号。')
+  }
+  const localById = new Map(locals.map(row => [row.id, row]))
+  const sourceTitleCounts = new Map<string, number>()
+  source.forEach(row => {
+    const key = normalizedTitle(row.title)
+    sourceTitleCounts.set(key, (sourceTitleCounts.get(key) || 0) + 1)
+  })
+  if (new Set(locals.map(row => normalizedTitle(row.title))).size !== locals.length || mappings.some(row => {
+    const local = localById.get(row.localChapterIds[0]!)
+    const key = normalizedTitle(row.sourceTitle)
+    return !local || !key || sourceTitleCounts.get(key) !== 1 || key !== normalizedTitle(local.title) || isWeakTitle(local.title, local.order)
+  })) return blocked('序号修复需要每章都有唯一且完整一致的标题，请先核对标题。')
+  const byId = new Map(mappings.map(row => [row.localChapterIds[0]!, row]))
+  const orders = new Set(mappings.map(row => row.sourceOrder))
+  if (byId.size !== locals.length || orders.size !== locals.length || mappings.some(row => !Number.isSafeInteger(row.sourceOrder) || row.sourceOrder < 1)) {
+    return blocked('源站序号重复或无效，暂不修复序号。')
+  }
+  const orderChanges: SourceSyncOrderChange[] = []
+  for (const local of locals) {
+    const mapping = byId.get(local.id)
+    if (!mapping) return blocked('本地章节映射不完整，暂不修复序号。')
+    if (mapping.sourceOrder !== local.order) orderChanges.push({ localChapterId: local.id, title: local.title, oldOrder: local.order, newOrder: mapping.sourceOrder })
+  }
+  return { orderChanges: orderChanges.sort((a, b) => a.newOrder - b.newOrder) }
 }
 
 async function fetchSourceChapters(
@@ -458,6 +551,13 @@ function buildPreview(
   warnings: string[],
 ): SourceSyncPreview {
   const groups = groupLocalChapters(localChapters)
+  const seenOrders = new Set<number>()
+  const duplicateOrders = new Set<number>()
+  localChapters.forEach(chapter => {
+    if (seenOrders.has(chapter.order)) duplicateOrders.add(chapter.order)
+    seenOrders.add(chapter.order)
+  })
+  if (duplicateOrders.size) warnings.push(`本地存在重复序号：${[...duplicateOrders].sort((a, b) => a - b).join('、')}。已优先按完整标题匹配，请核对序号修复预览。`)
   for (const group of groups) {
     if (group.declaredPartCount && group.chapters.length < group.declaredPartCount) {
       warnings.push(
@@ -512,6 +612,7 @@ function buildPreview(
 
   return {
     ...base,
+    ...buildOrderRepair(mappings, localChapters, sourceChapters),
     metadata,
     sourceChapterCount: sourceChapters.length,
     localChapterCount: localChapters.length,
@@ -555,7 +656,7 @@ export async function createSourceSyncPreview(
   const source = await fetchSourceChapters(url.href, sourceFetchHtml)
   const metadataResult = await fetchSourceMetadata(url.href, opts.store, sourceFetchHtml)
   if (metadataResult.warning) warnings.push(metadataResult.warning)
-  const locals = await all<LocalChapterForSync>(db, 'SELECT id, sort_order AS order, title FROM chapters WHERE novel_id = $1 ORDER BY sort_order ASC', [
+  const locals = await all<LocalChapterForSync>(db, 'SELECT id, sort_order AS order, title FROM chapters WHERE novel_id = $1 ORDER BY sort_order ASC, id ASC', [
     opts.novelId,
   ])
   const runId = newId('sync')
@@ -626,9 +727,10 @@ export async function applySourceSync(
     metadataFields?: string[]
     metadataMode?: 'missing' | 'replace'
     confirmedChangeIds?: string[]
+    repairOrder?: boolean
     actorUserId?: string
   },
-): Promise<{ updated: number; metadataUpdated: string[]; mappings: number }> {
+): Promise<{ updated: number; orderUpdated: number; metadataUpdated: string[]; mappings: number }> {
   const run = await first<SourceSyncRunRow>(db, 'SELECT * FROM source_sync_runs WHERE id = $1', [opts.runId])
   if (!run) throw new Error('同步预览不存在或已过期')
   if (run.status === 'applied') throw new Error('该同步预览已经应用过')
@@ -649,19 +751,39 @@ export async function applySourceSync(
   const metadataUpdated: string[] = []
   const changesToApply = changes.filter((change) => change.eligible || confirmedChangeIds.has(change.localChapterId))
   const now = Date.now()
+  let orderUpdated = 0
 
   await withTx(db, async (q) => {
+    const lockedRun = await q<SourceSyncRunRow>('SELECT * FROM source_sync_runs WHERE id = $1 FOR UPDATE', [run.id])
+    if (!lockedRun.rows[0] || lockedRun.rows[0].status !== 'preview') throw new Error('该同步预览已应用或已过期，请重新预览')
     const novel = await q('SELECT title, author, description, cover_url, categories, status, content_rating FROM novels WHERE id = $1 FOR UPDATE', [
       run.novel_id,
     ])
     const novelRow = novel.rows[0] as Record<string, unknown> | undefined
     if (!novelRow) throw new Error('Novel not found')
+    if (opts.repairOrder) {
+      const snapshot = safeJsonParse<LocalChapterForSync[]>(run.local_snapshot_json, [])
+      const sources = safeJsonParse<SourceChapter[]>(run.source_chapters_json, [])
+      const repair = buildOrderRepair(mappings, snapshot, sources)
+      if (repair.orderRepairBlockedReason) throw new Error(`无法修复序号：${repair.orderRepairBlockedReason}`)
+      const current = await q<LocalChapterForSync>('SELECT id, title, sort_order AS order FROM chapters WHERE novel_id = $1 FOR UPDATE', [run.novel_id])
+      const currentById = new Map(current.rows.map(row => [row.id, row]))
+      if (current.rows.length !== snapshot.length || snapshot.some(row => {
+        const latest = currentById.get(row.id)
+        return !latest || latest.title !== row.title || latest.order !== row.order
+      })) throw new Error('章节目录在预览后已发生变化，请重新预览')
+      for (const change of repair.orderChanges) {
+        await q('UPDATE chapters SET sort_order = $1 WHERE id = $2 AND novel_id = $3', [change.newOrder, change.localChapterId, run.novel_id])
+      }
+      orderUpdated = repair.orderChanges.length
+    }
     const ruleSet = await loadContentRatingRuleSet(q)
     for (const change of changesToApply) {
-      const current = await q('SELECT title FROM chapters WHERE id = $1 AND novel_id = $2', [change.localChapterId, run.novel_id])
+      const current = await q('SELECT title, sort_order FROM chapters WHERE id = $1 AND novel_id = $2 FOR UPDATE', [change.localChapterId, run.novel_id])
       const currentRow = current.rows[0] as Record<string, unknown> | undefined
       if (!currentRow) throw new Error(`章节不存在：${change.localChapterId}`)
       if (String(currentRow.title || '') !== change.oldTitle) throw new Error(`章节「${change.oldTitle}」在预览后已发生变化，请重新预览`)
+      if (!opts.repairOrder && Number(currentRow.sort_order) !== change.localOrder) throw new Error(`章节「${change.oldTitle}」的序号在预览后已发生变化，请重新预览`)
       await q('UPDATE chapters SET title = $1 WHERE id = $2 AND novel_id = $3', [change.newTitle, change.localChapterId, run.novel_id])
     }
 
@@ -748,7 +870,7 @@ export async function applySourceSync(
     await q('UPDATE source_sync_runs SET status = $1, applied_at = $2 WHERE id = $3', ['applied', now, run.id])
     await q("UPDATE novel_source_bindings SET last_synced_at = $1, last_error = '', updated_at = $1 WHERE id = $2", [now, run.binding_id])
   })
-  return { updated: changesToApply.length, metadataUpdated, mappings: mappings.reduce((sum, mapping) => sum + mapping.localChapterIds.length, 0) }
+  return { updated: changesToApply.length, orderUpdated, metadataUpdated, mappings: mappings.reduce((sum, mapping) => sum + mapping.localChapterIds.length, 0) }
 }
 
 export function sourceSyncTestHelpers() {

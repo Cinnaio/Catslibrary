@@ -48,6 +48,98 @@ afterAll(async () => {
 })
 
 describe('source sync chapter mapping', () => {
+  it('加更珠数和正文标题里的数字不是章节编号', () => {
+    const { chapterNumber } = sourceSyncTestHelpers()
+    expect(chapterNumber('他注视着她【900珠加更】')).toBeNull()
+    expect(chapterNumber('还有100天')).toBeNull()
+    expect(chapterNumber('第0044章 他注视着她【900珠加更】')).toBe(44)
+    expect(chapterNumber('Chapter 44')).toBe(44)
+    expect(chapterNumber('第44')).toBe(44)
+    expect(chapterNumber('38 36.5 论坛番外')).toBe(38)
+  })
+  it('本地重复序号造成公告与正文颠倒时，仍按完整标题匹配而不遗漏公告', () => {
+    const source = [
+      { key: 's43', order: 43, title: '会死人的【800珠加更】', url: '' },
+      { key: 's44', order: 44, title: '他注视着她【900珠加更】', url: '' },
+      { key: 's45', order: 45, title: '不行了，累累', url: '' },
+      { key: 's46', order: 46, title: '没有喊哥哥', url: '' },
+    ]
+    const local = [
+      { id: 'l43', order: 43, title: '会死人的【800珠加更】' },
+      { id: 'l44', order: 44, title: '他注视着她【900珠加更】' },
+      { id: 'l46', order: 46, title: '没有喊哥哥' },
+      { id: 'l45', order: 46, title: '不行了，累累' },
+    ]
+    const preview = sourceSyncTestHelpers().buildPreview(source, local, metadata, true,
+      { runId: 'duplicate-order', bindingId: 'binding', novelId: 'novel', site: 'po18tw', sourceUrl: metadata.sourceUrl }, [])
+    expect(preview.mappings.map(row => [row.sourceOrder, row.localChapterIds[0]])).toEqual([
+      [43, 'l43'], [44, 'l44'], [45, 'l45'], [46, 'l46'],
+    ])
+    expect(preview.unmatchedSource).toEqual([])
+    expect(preview.unmatchedLocal).toEqual([])
+    expect(preview.orderChanges).toEqual([{ localChapterId: 'l45', title: '不行了，累累', oldOrder: 46, newOrder: 45 }])
+    expect(preview.warnings.some(warning => warning.includes('重复序号：46'))).toBe(true)
+  })
+
+  it.each(['unchanged', 'reordered', 'renamed', 'added', 'deleted'] as const)('序号修复保留正文与章节 ID，并拒绝预览后的目录变化：%s', async (mutation) => {
+    const novelId = `repair-order-${mutation}`
+    const source = [
+      { order: 43, title: '会死人的【800珠加更】' },
+      { order: 44, title: '他注视着她【900珠加更】' },
+      { order: 45, title: '不行了，累累' },
+      { order: 46, title: '没有喊哥哥' },
+    ]
+    await testDb.db.query('INSERT INTO novels (id,title,author,created_at,updated_at) VALUES ($1,$1,\'作者\',1,1)', [novelId])
+    for (const chapter of source) {
+      await testDb.db.query('INSERT INTO chapters (id,novel_id,title,content,sort_order,word_count,created_at) VALUES ($1,$2,$3,$4,$5,22,1)',
+        [`${novelId}-${chapter.order}`, novelId, chapter.title, `正文 ${chapter.order}`, chapter.order === 45 ? 46 : chapter.order])
+    }
+    const preview = await createSourceSyncPreview(testDb.db, {
+      novelId, sourceUrl: 'https://www.po18.tw/books/902326/articles', store: new PgScrapeStore(testDb.db),
+      fetchHtml: async () => ({ html: po18Directory(source), encoding: 'utf-8' }),
+    })
+    expect(preview.changes).toEqual([])
+    expect(preview.orderChanges).toEqual([{ localChapterId: `${novelId}-45`, title: '不行了，累累', oldOrder: 46, newOrder: 45 }])
+    if (mutation === 'reordered') await testDb.db.query('UPDATE chapters SET sort_order=47 WHERE id=$1', [`${novelId}-46`])
+    if (mutation === 'renamed') await testDb.db.query('UPDATE chapters SET title=\'已修改的标题\' WHERE id=$1', [`${novelId}-46`])
+    if (mutation === 'added') await testDb.db.query('INSERT INTO chapters (id,novel_id,title,sort_order,created_at) VALUES ($1,$2,\'新章\',47,1)', [`${novelId}-47`, novelId])
+    if (mutation === 'deleted') await testDb.db.query('DELETE FROM chapters WHERE id=$1', [`${novelId}-46`])
+    if (mutation !== 'unchanged') {
+      await expect(applySourceSync(testDb.db, { runId: preview.runId, repairOrder: true })).rejects.toThrow('发生变化')
+      const notice = await testDb.db.query<{ sort_order: number }>('SELECT sort_order FROM chapters WHERE id=$1', [`${novelId}-45`])
+      expect(notice.rows[0]?.sort_order).toBe(46)
+      return
+    }
+    const noRepair = await applySourceSync(testDb.db, { runId: preview.runId })
+    expect(noRepair.orderUpdated).toBe(0)
+    const next = await createSourceSyncPreview(testDb.db, {
+      novelId, sourceUrl: 'https://www.po18.tw/books/902326/articles', store: new PgScrapeStore(testDb.db),
+      fetchHtml: async () => ({ html: po18Directory(source), encoding: 'utf-8' }),
+    })
+    const result = await applySourceSync(testDb.db, { runId: next.runId, repairOrder: true })
+    expect(result).toMatchObject({ updated: 0, orderUpdated: 1 })
+    const stored = await testDb.db.query<{ id: string; title: string; content: string; sort_order: number }>(
+      'SELECT id,title,content,sort_order FROM chapters WHERE novel_id=$1 ORDER BY sort_order', [novelId])
+    expect(stored.rows).toEqual(source.map(row => ({ id: `${novelId}-${row.order}`, title: row.title, content: `正文 ${row.order}`, sort_order: row.order })))
+    await expect(applySourceSync(testDb.db, { runId: next.runId, repairOrder: true })).rejects.toThrow('已经应用')
+  })
+
+  it('重复标题、缺失本地匹配与拆分章节不开放序号修复', () => {
+    const base = { runId: 'blocked-order', bindingId: 'binding', novelId: 'novel', site: 'po18tw', sourceUrl: metadata.sourceUrl }
+    const build = sourceSyncTestHelpers().buildPreview
+    const cases = [
+      { source: ['同名章节', '同名章节'], local: ['同名章节', '同名章节'] },
+      { source: ['对应章节'], local: ['对应章节', '未匹配的本地章'] },
+      { source: ['第一章 暴雨'], local: ['第1章 (1/2)', '第1章 (2/2)'] },
+    ]
+    for (const example of cases) {
+      const preview = build(example.source.map((title, index) => ({ key: `s${index}`, order: index + 1, title, url: '' })),
+        example.local.map((title, index) => ({ id: `l${index}`, order: index + 1, title })), metadata, true, base, [])
+      expect(preview.orderChanges).toEqual([])
+      expect(preview.orderRepairBlockedReason).toBeTruthy()
+    }
+  })
+
   it('导入编号与作者编号不同且源站插入空白章时，按真实标题对齐后续章节', () => {
     const sourceTitles = ['9.泪水味道的初吻', '空白收费章（并没有内容！）', '10.千千万万遍', '11.恩将仇报的狗（微h）（加更）', '12.喧软奶香大馒头（微h）', '36.5.论坛番外（非男主意淫预警）', '38.我怎么可能会喜欢她', '【幻想if线】特别篇', '56.奸情败露']
     const localTitles = ['第0009章 9.泪水味道的初吻', '第0011章 10.千千万万遍', '第0012章 11.恩将仇报的狗（微h）（加更）', '第0013章 12.喧软奶香大馒头（微h）', '38 36.5 论坛番外（非男主意淫预警）', '40 38.我怎么可能会喜欢她', '第0058章 【幻想if线】特别篇', '59 56.奸情败露']
@@ -126,6 +218,14 @@ describe('source sync chapter mapping', () => {
     const groups = sourceSyncTestHelpers().groupLocalChapters(local)
 
     expect(groups.map((group) => group.chapters.map((chapter) => chapter.id))).toEqual([['local-a-1'], ['local-a-3'], ['local-b-2']])
+  })
+
+  it('拆分标记连续但基础标题不同，不能把两章合为一组并覆盖第二章', () => {
+    const groups = sourceSyncTestHelpers().groupLocalChapters([
+      { id: 'storm', order: 1, title: '第一章 暴雨 (1/2)' },
+      { id: 'night', order: 2, title: '第二章 夜行 (2/2)' },
+    ])
+    expect(groups.map(group => group.chapters.map(row => row.id))).toEqual([['storm'], ['night']])
   })
 
   it('本地拆分不完整时提示缺失部分，但只处理实际存在的章节', () => {
@@ -261,6 +361,7 @@ describe('source sync chapter mapping', () => {
       store: new PgScrapeStore(testDb.db),
       fetchHtml: async () => ({ html: po18Directory([{ order: 12, title: '第12章 暴雨' }]), encoding: 'utf-8' }),
     })
+    await expect(applySourceSync(testDb.db, { runId: preview.runId, repairOrder: true })).rejects.toThrow('无法修复序号')
     const applied = await applySourceSync(testDb.db, { runId: preview.runId })
     const rows = await testDb.db.query<{ id: string; title: string }>('SELECT id, title FROM chapters WHERE novel_id = $1 ORDER BY sort_order', ['sync-novel'])
     const mappings = await testDb.db.query<{ relation: string; part_count: number }>(

@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { app } from '../app'
 import { setDbForTests } from '../db/pool'
 import { createTestDb, type TestDb } from '../test/db'
+import { sourceSyncTestHelpers } from '../services/source-sync'
 
 // 本文件模拟所有 HTTP 响应，也固定 DNS，避免依赖真实源站及本机代理的 fake-ip 模式。
 vi.mock('node:dns/promises', () => ({ lookup: vi.fn().mockResolvedValue([{ address: '93.184.216.34', family: 4 }]) }))
@@ -52,6 +53,40 @@ describe('scrape 路由（免网络动作）', () => {
     expect((await req('/api/scrape?action=followup&novelId=follow-route')).status).toBe(401)
     const invalid = await req('/api/scrape', json('POST', { action: 'followup-save', novelId: 'follow-route', enabled: true, intervalHours: 2 }, adminToken))
     expect(invalid.status).toBe(400)
+  })
+
+  it('源站融合接口传递序号修复选项，重复请求回放结果且不能复用键更改选项', async () => {
+    const novelId = 'route-order-repair'
+    const bindingId = 'route-order-binding'
+    const runId = 'route-order-run'
+    const sourceUrl = 'https://www.po18.tw/books/902326/articles'
+    const source = [
+      { key: 'notice', order: 45, title: '不行了，累累', url: `${sourceUrl}/45` },
+      { key: 'chapter', order: 46, title: '没有喊哥哥', url: `${sourceUrl}/46` },
+    ]
+    const locals = [
+      { id: 'route-notice', order: 46, title: '不行了，累累' },
+      { id: 'route-chapter', order: 46, title: '没有喊哥哥' },
+    ]
+    const preview = sourceSyncTestHelpers().buildPreview(source, locals,
+      { title: '', author: '', description: '', coverUrl: '', category: '', categories: [], status: '', sourceUrl },
+      true, { runId, bindingId, novelId, site: 'po18tw', sourceUrl }, [])
+    await t.db.query('INSERT INTO novels (id,title,created_at,updated_at) VALUES ($1,$1,1,1)', [novelId])
+    for (const row of locals) await t.db.query('INSERT INTO chapters (id,novel_id,title,sort_order,created_at) VALUES ($1,$2,$3,$4,1)', [row.id, novelId, row.title, row.order])
+    await t.db.query('INSERT INTO novel_source_bindings (id,novel_id,source_url,created_at,updated_at) VALUES ($1,$2,$3,1,1)', [bindingId, novelId, sourceUrl])
+    await t.db.query('INSERT INTO source_sync_runs (id,binding_id,novel_id,metadata_json,source_chapters_json,changes_json,mapping_json,local_snapshot_json,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,1)',
+      [runId, bindingId, novelId, JSON.stringify(preview.metadata), JSON.stringify(source), JSON.stringify(preview.changes), JSON.stringify(preview.mappings), JSON.stringify(locals)])
+    const body = { action: 'source-sync-apply', runId, repairOrder: true, operationId: 'repair-order-once' }
+    const result = await req('/api/scrape', json('POST', body, adminToken))
+    expect(result.status).toBe(200)
+    expect(await result.json()).toMatchObject({ updated: 0, orderUpdated: 1 })
+    const retry = await req('/api/scrape', json('POST', body, adminToken))
+    expect(retry.status).toBe(200)
+    expect(await retry.json()).toMatchObject({ orderUpdated: 1 })
+    const conflict = await req('/api/scrape', json('POST', { ...body, repairOrder: false }, adminToken))
+    expect(conflict.status).toBe(409)
+    const stored = await t.db.query<{ sort_order: number }>('SELECT sort_order FROM chapters WHERE id=\'route-notice\'')
+    expect(stored.rows[0]?.sort_order).toBe(45)
   })
 
   it('追更设置保存并读回，默认关闭，缺少配置时拒绝开启', async () => {

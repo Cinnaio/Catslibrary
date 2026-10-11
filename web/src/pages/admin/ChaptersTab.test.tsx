@@ -1,8 +1,8 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, expect, it, vi } from 'vitest'
-const mocks = vi.hoisted(() => ({ index: vi.fn(), list: vi.fn(), get: vi.fn(), update: vi.fn(), toast: vi.fn(), illustrations: vi.fn(), saveIllustration: vi.fn() }))
-vi.mock('../../lib/api', () => ({ adminApi: { novelIndex: mocks.index }, chaptersApi: { list: mocks.list, get: mocks.get, update: mocks.update }, illustrationsApi: { list: mocks.illustrations, save: mocks.saveIllustration, imageBlob: async () => new Blob() }, scrapeApi: {}, newOperationId: () => 'test' }))
-vi.mock('../../components/feedback', () => ({ useToast: () => ({ toast: mocks.toast }), useConfirm: () => ({ confirm: vi.fn() }) }))
+const mocks = vi.hoisted(() => ({ index: vi.fn(), list: vi.fn(), get: vi.fn(), update: vi.fn(), toast: vi.fn(), illustrations: vi.fn(), saveIllustration: vi.fn(), sourcePreview: vi.fn(), sourceApply: vi.fn(), confirm: vi.fn() }))
+vi.mock('../../lib/api', () => ({ adminApi: { novelIndex: mocks.index }, chaptersApi: { list: mocks.list, get: mocks.get, update: mocks.update }, illustrationsApi: { list: mocks.illustrations, save: mocks.saveIllustration, imageBlob: async () => new Blob() }, scrapeApi: { sourceSyncPreview: mocks.sourcePreview, sourceSyncApply: mocks.sourceApply }, newOperationId: () => 'test' }))
+vi.mock('../../components/feedback', () => ({ useToast: () => ({ toast: mocks.toast }), useConfirm: () => ({ confirm: mocks.confirm }) }))
 vi.mock('../../components/admin/CustomSelect', () => ({ default: ({ options, onChange }: any) => <select aria-label="选择小说" onChange={e => onChange(e.target.value)}><option value="" />{options.map((o: any) => <option key={o.value} value={o.value}>{o.label}</option>)}</select> }))
 import ChaptersTab from './ChaptersTab'
 import { hashParagraphText } from '@shared/thought-anchor'
@@ -11,7 +11,32 @@ beforeEach(() => {
   mocks.index.mockResolvedValue({ novels: [{ id: 'n', title: '测试书', author: '', chapterCount: 1 }] })
   mocks.list.mockResolvedValue({ chapters: [{ id: 'c', novelId: 'n', title: '原章', order: 1, wordCount: 3, createdAt: 1 }] })
   mocks.update.mockResolvedValue({})
+  mocks.confirm.mockResolvedValue(true)
   mocks.illustrations.mockResolvedValue({ illustrations: [], chapterRevision: 'revision', contentHash: hashParagraphText('原正文') })
+})
+it('融合标题没有变化时仍可单独修复序号，默认不勾选且提交前明确确认', async () => {
+  mocks.sourcePreview.mockResolvedValue({
+    runId: 'sync-order', site: 'po18tw', sourceChapterCount: 46, localChapterCount: 46, matchedSourceCount: 46,
+    metadata: { title: '', author: '', description: '', coverUrl: '', categories: [], status: '' },
+    changes: [], mappings: [], unmatchedSource: [], unmatchedLocal: [], warnings: [],
+    orderChanges: [{ localChapterId: 'notice', title: '不行了，累累', oldOrder: 46, newOrder: 45 }],
+  })
+  mocks.sourceApply.mockResolvedValue({ updated: 0, orderUpdated: 1, metadataUpdated: [], mappings: 46 })
+  render(<ChaptersTab />)
+  await screen.findByRole('option', { name: '测试书' })
+  fireEvent.change(screen.getByLabelText('选择小说'), { target: { value: 'n' } })
+  fireEvent.click(await screen.findByRole('button', { name: '融合章节名' }))
+  fireEvent.change(screen.getByLabelText('已有作品链接'), { target: { value: 'https://www.po18.tw/books/902326' } })
+  fireEvent.click(screen.getByRole('button', { name: '读取源站' }))
+  const checkbox = await screen.findByRole('checkbox', { name: '按源站修复 1 个章节序号' })
+  expect(checkbox).not.toBeChecked()
+  expect(screen.getByRole('button', { name: '同步小说信息' })).toBeDisabled()
+  expect(screen.getByText('序号 45')).toBeInTheDocument()
+  fireEvent.click(checkbox)
+  fireEvent.click(screen.getByRole('button', { name: '应用已选更新' }))
+  await waitFor(() => expect(mocks.sourceApply).toHaveBeenCalledWith(expect.objectContaining({ runId: 'sync-order', repairOrder: true })))
+  expect(mocks.confirm).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining('修复 1 个章节序号') }))
+  await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith(expect.stringContaining('修复 1 个章节序号'), 'success'))
 })
 async function open() {
   render(<ChaptersTab />)
