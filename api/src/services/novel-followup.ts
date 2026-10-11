@@ -2,10 +2,12 @@ import { getPendingChapterCounts } from './novel-update-summary'
 import type { Db } from '../db/pool'
 import { all, first, withTx } from '../db/query'
 import { newId } from './auth'
+import { applyFollowupDefaults, hasFollowupSource } from './novel-followup-defaults'
 
 interface FollowupRow {
   novel_id: string
   enabled: boolean
+  user_configured: boolean
   interval_hours: number
   next_check_at: number
   checked_at: number
@@ -19,6 +21,7 @@ interface FollowupRow {
 const terminal = ['completed', 'partial', 'failed', 'cancelled']
 
 export async function getFollowup(db: Db, novelId: string) {
+  await applyFollowupDefaults(db, novelId)
   const novel = await first<{ status: string; chapter_count: number; remote_chapter_count: number }>(
     db,
     'SELECT status,chapter_count,remote_chapter_count FROM novels WHERE id=$1',
@@ -26,7 +29,7 @@ export async function getFollowup(db: Db, novelId: string) {
   )
   if (!novel) return null
   const row = await first<FollowupRow>(db, 'SELECT * FROM novel_followups WHERE novel_id=$1', [novelId])
-  const config = await first(db, 'SELECT novel_id FROM scrape_configs WHERE novel_id=$1', [novelId])
+  const config = await first<{ source_url: string; selectors: string }>(db, 'SELECT source_url,selectors FROM scrape_configs WHERE novel_id=$1', [novelId])
   const active = await first<{ id: string; step: string }>(
     db,
     `SELECT id,step FROM scrape_jobs WHERE novel_id=$1
@@ -38,13 +41,13 @@ export async function getFollowup(db: Db, novelId: string) {
     remoteChapterCount: novel.remote_chapter_count,
     enabled: row?.enabled || false,
     intervalHours: row?.interval_hours || 6,
-    nextCheckAt: novel.status === 'ongoing' && row?.enabled ? Number(row.next_check_at) : 0,
+    nextCheckAt: row?.enabled && (novel.status === 'ongoing' || row.user_configured) ? Number(row.next_check_at) : 0,
     checkedAt: Number(row?.checked_at || 0),
     result: active ? 'running' : row?.result || 'idle',
     message: active ? active.step || '正在检查目录并抓取新章节…' : row?.message || '',
     addedCount: row?.added_count || 0,
     jobId: active?.id || row?.last_job_id || '',
-    hasConfig: Boolean(config),
+    hasConfig: hasFollowupSource(config?.source_url ?? null, config?.selectors ?? null),
     ...(await getPendingChapterCounts(db, [novelId])).get(novelId),
     ongoing: novel.status === 'ongoing',
   }
@@ -54,10 +57,10 @@ export async function saveFollowup(db: Db, novelId: string, enabled: boolean, ho
   if (![1, 3, 6, 12, 24].includes(hours)) throw new Error('检查频率无效')
   const state = await getFollowup(db, novelId)
   if (!state) throw new Error('小说不存在')
-  if (enabled && (!state.hasConfig || !state.ongoing)) throw new Error('只有已配置爬虫的连载小说可以开启自动追更')
+  if (enabled && !state.hasConfig) throw new Error('只有已配置有效来源的小说可以开启自动追更')
   await db.query(
-    `INSERT INTO novel_followups (novel_id,enabled,interval_hours,next_check_at) VALUES ($1,$2,$3,$4)
-    ON CONFLICT (novel_id) DO UPDATE SET enabled=$2,interval_hours=$3,next_check_at=$4`,
+    `INSERT INTO novel_followups (novel_id,enabled,interval_hours,next_check_at,user_configured) VALUES ($1,$2,$3,$4,TRUE)
+    ON CONFLICT (novel_id) DO UPDATE SET enabled=$2,interval_hours=$3,next_check_at=$4,user_configured=TRUE`,
     [novelId, enabled, hours, enabled ? Date.now() + hours * 3600000 : 0],
   )
 }
@@ -70,7 +73,8 @@ export async function enqueueFollowup(db: Db, novelId: string, dueOnly = false) 
     const now = Date.now()
     if (dueOnly) {
       const follow = (await q<FollowupRow>('SELECT * FROM novel_followups WHERE novel_id=$1', [novelId])).rows[0]
-      if (!follow?.enabled || novel.status !== 'ongoing' || Number(follow.next_check_at) > now) return { jobId: '', started: false }
+      if (!follow?.enabled || (novel.status !== 'ongoing' && !follow.user_configured) || Number(follow.next_check_at) > now)
+        return { jobId: '', started: false }
     }
     const active = (
       await q<{ id: string }>(`SELECT id FROM scrape_jobs WHERE novel_id=$1 AND status NOT IN ('completed','partial','failed','cancelled') LIMIT 1`, [novelId])
@@ -153,6 +157,7 @@ export async function finishFollowup(db: Db, jobId: string) {
 }
 
 export async function runFollowupTick(db: Db, startJob: (jobId: string) => void) {
+  await applyFollowupDefaults(db)
   // 进程中断后只回收长期没有心跳的追更任务；未完成抓取下次按章节链接补齐。
   await db.query(
     `UPDATE scrape_jobs SET status='failed',error='更新任务长时间无进度，稍后自动重试',updated_at=$1
@@ -178,7 +183,7 @@ export async function runFollowupTick(db: Db, startJob: (jobId: string) => void)
   const due = await all<{ novel_id: string }>(
     db,
     `SELECT f.novel_id FROM novel_followups f JOIN novels n ON n.id=f.novel_id
-    WHERE f.enabled AND n.status='ongoing' AND f.next_check_at<=$1
+    WHERE f.enabled AND (n.status='ongoing' OR f.user_configured) AND f.next_check_at<=$1
     AND NOT EXISTS (SELECT 1 FROM scrape_jobs j WHERE j.novel_id=f.novel_id AND j.status NOT IN ('completed','partial','failed','cancelled'))
     ORDER BY f.next_check_at LIMIT $2`,
     [Date.now(), capacity],
