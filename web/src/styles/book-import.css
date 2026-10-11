@@ -11,6 +11,12 @@
   align-content: start;
 }
 
+/* 来源表单采用标准宽度，进入目录核对后再使用宽版。 */
+[data-slot='dialog-content'].book-import-dialog[data-step='source'] {
+  width: min(calc(100% - 2rem), 47.5rem);
+  max-width: 47.5rem;
+}
+
 .book-import__header {
   display: grid;
   justify-items: center;
@@ -83,72 +89,52 @@
 }
 
 .book-import__source {
-  max-width: 34rem;
-  padding-block: var(--admin-space-3) var(--admin-space-5);
+  max-width: none;
+  padding-block: 0;
 }
 
-/* 来源切换复用共享分段控件的几何、字阶、激活层与动效。 */
+/* 来源使用共享 line Tabs，保持轻量导航，不再绘制分段轨道。 */
 .book-import__source-tabs {
-  position: relative;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--tabs-segmented-gap);
-  isolation: isolate;
-  width: 100%;
-  /* 高度对齐后台控件基线；组件自带的 h-9 同时被显式覆盖，
-     避免 span 高度与内边距叠加后比同页其他分段控件高出一截。 */
+  justify-content: flex-start;
+  gap: var(--admin-space-5);
+  width: fit-content;
+  max-width: 100%;
   height: auto;
-  min-height: var(--admin-control-height);
-  padding: var(--tabs-segmented-inset);
-  border: 1px solid var(--tabs-segmented-track-border);
-  border-radius: var(--tabs-segmented-radius);
-  background: var(--tabs-segmented-track-background);
-}
-
-.book-import__source-tabs::before {
-  position: absolute;
-  z-index: 0;
-  inset: var(--tabs-segmented-inset) auto var(--tabs-segmented-inset) var(--tabs-segmented-inset);
-  width: calc((100% - (var(--tabs-segmented-gap) * 3)) / 2);
-  border-radius: var(--tabs-segmented-inner-radius);
-  background: var(--tabs-segmented-active-background);
-  box-shadow: var(--tabs-segmented-active-shadow);
-  content: '';
-  pointer-events: none;
-  transform: translateX(0);
-  transition: transform var(--tabs-segmented-transition);
-}
-
-.book-import__source-tabs[data-active-index='1']::before {
-  transform: translateX(calc(100% + var(--tabs-segmented-gap)));
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .book-import__source-tabs [data-slot='tabs-trigger'] {
-  position: relative;
-  z-index: 1;
-  gap: 0.4rem;
+  flex: 0 1 auto;
+  gap: var(--admin-space-2);
   min-width: 0;
-  min-height: 2.25rem;
+  min-height: 2.75rem;
+  padding: var(--admin-space-2);
   border: 0;
-  border-radius: var(--tabs-segmented-inner-radius);
-  /* 必须显式清掉组件自带的底色与投影：滑块已经承担激活态，
-     否则 Tailwind 的 data-[state=active]:bg-background 会叠出第二层色块。 */
+  border-radius: 0;
   background: transparent;
   box-shadow: none;
-  color: var(--tabs-segmented-muted-foreground);
+  color: var(--text-muted);
   font-size: var(--tabs-segmented-label-size);
   font-weight: var(--tabs-segmented-label-weight);
   line-height: var(--tabs-segmented-label-line-height);
   transition: color var(--tabs-segmented-transition);
 }
 
-/* 激活项只换文字色与字重，底色一律交给 ::before 滑块。 */
-.book-import__source-tabs [data-slot='tabs-trigger'][data-state='active'],
-.book-import__source-tabs [data-slot='tabs-trigger'][data-state='active']:hover {
+.book-import__source-tabs [data-slot='tabs-trigger'][data-state='active'] {
   background: transparent;
   box-shadow: none;
-  color: var(--tabs-segmented-active-foreground);
+  color: var(--accent);
   font-weight: var(--tabs-segmented-active-label-weight);
+}
+
+.book-import__source-tabs [data-slot='tabs-trigger']::after {
+  bottom: 0;
+  height: 2px;
+  background: var(--accent);
+  transition: opacity var(--tabs-segmented-transition);
 }
 
 .book-import__source-tabs [data-slot='tabs-trigger']:hover {
@@ -156,8 +142,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .book-import__source-tabs::before,
-  .book-import__source-tabs [data-slot='tabs-trigger'] {
+  .book-import__source-tabs [data-slot='tabs-trigger'],
+  .book-import__source-tabs [data-slot='tabs-trigger']::after {
     transition: none;
   }
 }
@@ -172,17 +158,18 @@
   flex-direction: column;
   justify-content: center;
   gap: 0.75rem;
-  min-height: 12rem;
+  min-height: 11rem;
   padding: 1.5rem;
-  border: 0;
+  border: 1px dashed var(--admin-border-strong);
   border-radius: var(--radius-xl);
-  background: var(--admin-panel-muted);
+  background: transparent;
   color: var(--text-muted);
   text-align: center;
   transition: background-color var(--admin-table-row-interaction);
 }
 
 .book-import__dropzone[data-drag-active='true'] {
+  border-color: var(--accent);
   background: var(--accent-subtle);
   outline: none;
 }
@@ -233,19 +220,20 @@
 
 .book-import__selected-file {
   display: grid;
-  justify-items: center;
-  gap: 0.875rem;
-  padding: 2.25rem 1.25rem 1.5rem;
-  min-height: 12rem;
-  background: var(--admin-panel-muted);
+  grid-template-columns: 2rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--admin-space-4);
+  padding: var(--admin-space-5);
+  min-height: 7.5rem;
+  background: transparent;
   border-radius: var(--radius-xl);
-  border: 0;
-  text-align: center;
+  border: 1px dashed var(--admin-border-strong);
+  text-align: left;
 }
 
 .book-import__selected-file > svg {
-  width: 2.5rem;
-  height: 2.5rem;
+  width: 2rem;
+  height: 2rem;
   color: var(--accent);
   stroke-width: 1.25;
 }
@@ -279,7 +267,7 @@
 }
 
 .book-import__optional-source {
-  margin-top: 1.5rem;
+  margin-top: var(--admin-space-4);
   border: 0;
 }
 
@@ -1157,6 +1145,15 @@
   .book-import__file-actions {
     margin-left: 0;
   }
+  .book-import__selected-file {
+    grid-template-columns: 2rem minmax(0, 1fr);
+    align-items: start;
+    padding: var(--admin-space-4);
+  }
+  .book-import__selected-file .book-import__file-actions {
+    grid-column: 2;
+    justify-self: end;
+  }
 }
 
 /* ---------- 解析诊断 ---------- */
@@ -1442,6 +1439,7 @@
   cursor: pointer;
   font-size: var(--admin-table-cell-size);
   font-weight: 500;
+  padding-block: var(--admin-space-2);
 }
 .book-import__manual-boundary > summary:focus-visible {
   outline: 2px solid var(--accent);
@@ -1450,35 +1448,62 @@
 .book-import__manual-boundary:not([open]) > :not(summary) {
   display: none;
 }
+.book-import__manual-content {
+  display: grid;
+  gap: var(--admin-space-5);
+  margin-top: var(--admin-space-3);
+  padding: var(--admin-space-5);
+  border-radius: var(--radius-xl);
+  background: var(--admin-panel-muted);
+}
 .book-import__boundary-form {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 10rem minmax(0, 1fr);
   align-items: end;
-  gap: var(--admin-space-3);
+  gap: var(--admin-space-5);
 }
 .book-import__boundary-form > div {
   display: grid;
   gap: var(--admin-space-2);
-  width: 9rem;
+  min-width: 0;
+}
+.book-import__boundary-form [data-slot='input'] {
+  min-height: var(--admin-control-height);
 }
 .book-import__boundary-form fieldset {
-  display: flex;
-  gap: var(--admin-space-3);
+  min-width: 0;
   margin: 0;
   padding: 0;
   border: 0;
   font-size: var(--admin-table-cell-size);
 }
 .book-import__boundary-form legend {
+  padding: 0;
   margin-bottom: var(--admin-space-2);
+  color: var(--admin-dialog-label-color);
+  font-size: var(--admin-dialog-label-size);
+  font-weight: var(--admin-dialog-label-weight);
 }
-.book-import__boundary-form fieldset label {
+.book-import__boundary-form .book-import__boundary-verdict-options {
+  margin-top: 0;
+  min-height: var(--admin-control-height);
+}
+.book-import__manual-actions,
+.book-import__manual-preview-actions {
   display: flex;
   align-items: center;
-  gap: var(--admin-space-2);
+  gap: var(--admin-space-3);
+  flex-wrap: wrap;
 }
-.book-import__boundary-form input[type='radio'] {
-  accent-color: var(--accent);
+.book-import__manual-actions {
+  justify-content: space-between;
+}
+.book-import__manual-actions [data-slot='button'] {
+  min-height: var(--admin-control-height);
+}
+.book-import__boundary-verdict-options label:has(input:disabled) {
+  cursor: default;
+  opacity: 0.5;
 }
 .book-import__source-lines {
   display: grid;
@@ -1530,6 +1555,25 @@
   overflow-wrap: anywhere;
 }
 @media (max-width: 640px) {
+  .book-import__manual-content {
+    padding: var(--admin-space-4);
+  }
+  .book-import__boundary-form {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--admin-space-4);
+  }
+  .book-import__manual-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--admin-space-4);
+  }
+  .book-import__manual-preview-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .book-import__manual-actions [data-slot='button'] {
+    white-space: normal;
+  }
   .book-import__boundary-comparison {
     grid-template-columns: minmax(0, 1fr);
   }

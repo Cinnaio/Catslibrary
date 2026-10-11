@@ -112,6 +112,8 @@ try {
         if (delay) await new Promise((r) => setTimeout(r, 800))
         if (fail) return route.fulfill({ status: 500, json: { error: '模拟解析失败，请检查文件后重试。' } })
         data = showDiagnostics ? { ...fixture, diagnostics } : fixture
+      } else if (path.endsWith('/lines')) {
+        data = { revision: 0, lines: [{ line: 41, raw: '原章节的末尾正文。' }, { line: 42, raw: '山雨将至' }, { line: 43, raw: '新章节的开头正文。' }] }
       } else if (path.endsWith('/boundaries')) {
         assert.equal(route.request().postDataJSON().dryRun, true)
         data = { chapterCount: 25, impacts: [{ line: 42, raw: '山雨将至', before: { title: '原章节', chars: 1200, excerpt: '调整前的正文节选。', chapters: [{ title: '原章节', chars: 1200 }] }, after: { title: '山雨将至', chars: 600, excerpt: '调整后的正文节选。', chapters: [{ title: '原章节', chars: 596 }, { title: '山雨将至', chars: 600 }] }, change: { beforeRole: 'prose', afterRole: 'heading' }, context: [{ line: 41, raw: '原章节的末尾正文。' }, { line: 42, raw: '山雨将至' }, { line: 43, raw: '新章节的开头正文。' }] }] }
@@ -164,9 +166,23 @@ try {
     }
     assert.ok(await dialog.getByRole('button', { name: '生成预览', exact: true }).isDisabled())
     assert.ok((await dialog.locator('[aria-current="step"]').innerText()).includes('选择来源'))
-    if (width === 1440) assert.equal(Math.round((await dialog.boundingBox()).width), 896)
+    if (width === 1440) assert.equal(Math.round((await dialog.boundingBox()).width), 760)
+    assert.equal(await dialog.locator('.book-import__dropzone').evaluate(el => getComputedStyle(el).borderTopStyle), 'dashed', 'empty upload has a dashed boundary')
+    const sourceWidths = await dialog.locator('.book-import__source').evaluate(el => ({ content: el.clientWidth, body: el.parentElement.clientWidth - parseFloat(getComputedStyle(el.parentElement).paddingLeft) - parseFloat(getComputedStyle(el.parentElement).paddingRight) }))
+    assert.ok(sourceWidths.content >= sourceWidths.body * 0.95, 'source content uses available body width')
+    await dialog.locator('.book-import__dropzone').dispatchEvent('dragenter')
+    assert.equal(await dialog.locator('.book-import__dropzone').getAttribute('data-drag-active'), 'true')
+    await dialog.locator('.book-import__dropzone').dispatchEvent('dragleave')
     await capture('source')
-    assert.notEqual(await dialog.locator('.book-import__source-tabs').evaluate(el => getComputedStyle(el, '::before').content), 'none', 'source tabs use shared activation surface')
+    assert.equal(await dialog.locator('.book-import__source-tabs').getAttribute('data-variant'), 'line', 'source navigation uses shared line Tabs')
+    assert.equal(await dialog.locator('.book-import__source-tabs').evaluate(el => getComputedStyle(el, '::before').content), 'none', 'source navigation has no sliding track')
+    const sourceIndicator = await dialog.getByRole('tab', { name: '本地文件' }).evaluate(el => ({ height: getComputedStyle(el, '::after').height, opacity: getComputedStyle(el, '::after').opacity }))
+    assert.deepEqual(sourceIndicator, { height: '2px', opacity: '1' }, 'active source has a visible fine underline')
+    await dialog.getByRole('tab', { name: '本地文件' }).focus()
+    await page.keyboard.press('ArrowRight')
+    await dialog.locator('.book-import__source-tabs [data-state="active"]').filter({ hasText: '网页链接' }).waitFor()
+    await page.keyboard.press('ArrowLeft')
+    await dialog.locator('.book-import__source-tabs [data-state="active"]').filter({ hasText: '本地文件' }).waitFor()
     const input = dialog.locator('input[type=file]')
     await input.setInputFiles({ name: '不支持.pdf', mimeType: 'application/pdf', buffer: Buffer.from('test') })
     await dialog.getByRole('alert').filter({ hasText: '请选择 TXT' }).waitFor()
@@ -176,6 +192,8 @@ try {
       buffer: Buffer.from('第一章 山雨来时\n旅人回到了山间。'),
     })
     await dialog.locator('.book-import__selected-file').waitFor()
+    assert.equal(await dialog.locator('.book-import__selected-file').evaluate(el => getComputedStyle(el).borderTopStyle), 'dashed', 'selected upload retains dashed boundary')
+    if (width === 1440) assert.ok((await dialog.locator('.book-import__selected-file').boundingBox()).height < 192, 'selected file uses a compact row')
     await capture('file')
     await dialog.getByRole('button', { name: '移除已选文件' }).click()
     await dialog.getByRole('button', { name: '选择或拖入书籍文件' }).waitFor()
@@ -194,6 +212,7 @@ try {
     await page.keyboard.press('Escape')
     assert.ok(await dialog.isVisible())
     await dialog.getByRole('heading', { name: '书库匹配', exact: true }).waitFor()
+    if (width === 1440) assert.equal(Math.round((await dialog.boundingBox()).width), 896, 'directory review retains wide dialog')
     delay = false
     await capture('match')
     await dialog.getByRole('button', { name: '查看差异', exact: true }).click()
@@ -207,7 +226,7 @@ try {
     assert.equal(await dialog.getByRole('heading', { name: '章节差异', exact: true }).count(), 0)
     const fieldLabels = await dialog.locator('.book-import__metadata-copy strong').evaluateAll(elements => elements.map(el => ({size: getComputedStyle(el).fontSize, weight: getComputedStyle(el).fontWeight})))
     assert.ok(fieldLabels.length > 0 && fieldLabels.every(label => label.size === '12px' && label.weight === '500'), 'metadata field labels follow shared dialog scale')
-    const selectedMode = await dialog.locator('.book-import__mode-picker label:has(input:checked)').evaluate(el => ({weight: getComputedStyle(el).fontWeight, size: getComputedStyle(el).fontSize}))
+    const selectedMode = await dialog.locator('.book-import__mode-picker[role="radiogroup"] label:has(input:checked)').evaluate(el => ({weight: getComputedStyle(el).fontWeight, size: getComputedStyle(el).fontSize}))
     assert.equal(selectedMode.weight, '600', 'selected metadata mode keeps shared emphasis')
     assert.equal(selectedMode.size, '13px', 'metadata mode keeps shared size on every viewport')
     await capture('metadata')
@@ -242,6 +261,23 @@ try {
     await dialog.getByRole('button', { name: '前往检查' }).click()
     await dialog.getByRole('button', { name: '展开明细' }).click()
     await capture('diagnostics')
+    const manual = dialog.locator('.book-import__manual-boundary')
+    await manual.locator('summary').click()
+    await manual.locator('.book-import__manual-content').scrollIntoViewIfNeeded()
+    assert.ok(await manual.getByRole('button', { name: '应用人工修正' }).isDisabled())
+    const spacing = await manual.locator('.book-import__manual-content').evaluate(el => ({ gap: parseFloat(getComputedStyle(el).rowGap), padding: parseFloat(getComputedStyle(el).paddingTop) }))
+    assert.ok(spacing.gap >= 16 && spacing.padding >= 16, 'manual controls retain shared spacing inside details')
+    await capture('manual-empty')
+    await manual.screenshot({ path: `${out}/${width}-${theme}-manual-panel.png` })
+    await manual.getByLabel('原文行号').fill('42')
+    await manual.getByText('正文', { exact: true }).click()
+    assert.ok(await manual.getByRole('radio', { name: '正文', exact: true }).isChecked())
+    await manual.getByText('章节标题', { exact: true }).click()
+    await manual.getByRole('button', { name: '查看附近原文' }).click()
+    await manual.getByRole('list', { name: '附近原文' }).waitFor()
+    await manual.locator('.book-import__manual-content').scrollIntoViewIfNeeded()
+    await capture('manual-context')
+    await manual.locator('summary').click()
     await dialog.getByRole('button', { name: '运行 AI 复核' }).click()
     await dialog.getByRole('button', { name: '按建议重新识别章节' }).waitFor()
     await dialog.getByRole('button', { name: '查看调整效果' }).click()
@@ -271,7 +307,7 @@ try {
       await capture('author-note')
     }
     assert.deepEqual(errors, [])
-    evidence.push({ width, height, theme, pass: true, states: width === 1440 && theme === 'light' ? 14 : 13 })
+    evidence.push({ width, height, theme, pass: true, states: width === 1440 && theme === 'light' ? 16 : 15 })
     await context.close()
   }
 } finally {
