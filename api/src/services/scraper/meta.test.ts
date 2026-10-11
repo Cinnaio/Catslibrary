@@ -3,6 +3,40 @@ import { detectMeta, extractMetaWithPreset } from './meta'
 import { PO18TW_SELECTORS, SITE_PRESETS } from './presets'
 
 describe('PO18 详情元数据', () => {
+  it.each(['未完結', '未完结', '尚未完結', '連載中'])('应将源站状态「%s」识别为连载', (status) => {
+    const novel = extractMetaWithPreset(
+      `<h1 class="book_name">状态测试</h1><dd class="statu">${status}<span>(目前68章回)</span></dd>`,
+      SITE_PRESETS['po18.tw']!, 'https://www.po18.tw/books/901935',
+    )
+    expect(novel.status).toBe('ongoing')
+  })
+
+  it.each(['已完結', '已完结', '完結', '完本', '全集', '完'])('应保留源站状态「%s」的完结判定', (status) => {
+    const novel = extractMetaWithPreset(
+      `<dd class="statu">${status}<span>(目前68章回)</span></dd>`,
+      SITE_PRESETS['po18.tw']!, 'https://www.po18.tw/books/901935',
+    )
+    expect(novel.status).toBe('completed')
+  })
+
+  it('小说狂人结构化状态也应识别未完结', () => {
+    const novel = extractMetaWithPreset(
+      '<div class="state">連載狀態：未完結<br>分類：都市</div>',
+      SITE_PRESETS['czbooks.net']!, 'https://czbooks.net/n/test',
+    )
+    expect(novel.status).toBe('ongoing')
+  })
+
+  it.each([
+    ['未完結', 'ongoing'], ['連載中', 'ongoing'], ['已完結', 'completed'], ['完美旅途', undefined], ['状态未知', undefined],
+  ])('通用状态选择器读取「%s」时不应凭单个完字误判', (text, expected) => {
+    const novel = extractMetaWithPreset(
+      `<div class="ratitle">${text}</div>`,
+      SITE_PRESETS['www.po18x.vip']!, 'https://www.po18x.vip/1/1001/',
+    )
+    expect(novel.status).toBe(expected)
+  })
+
   it('应从详情结构提取干净的书名、作者、简介、标签、封面和状态', () => {
     const preset = SITE_PRESETS['po18.tw']
     expect(preset).toBeDefined()

@@ -224,6 +224,30 @@ describe('source sync chapter mapping', () => {
     expect(JSON.parse(saved.rows[0]!.source_chapters_json)).toHaveLength(288)
   })
 
+  it.each([
+    { label: '未完結', selected: true, expectedPreview: 'ongoing', expectedStored: 'ongoing' },
+    { label: '未完結', selected: false, expectedPreview: 'ongoing', expectedStored: 'completed' },
+    { label: '未知', selected: true, expectedPreview: '', expectedStored: 'completed' },
+  ])('源站状态 $label、勾选 $selected 时，预览与实际同步保持一致', async ({ label, selected, expectedPreview, expectedStored }) => {
+    const novelId = `status-sync-${label}-${selected}`
+    await testDb.db.query('INSERT INTO novels (id, title, author, status, created_at, updated_at) VALUES ($1, $2, $3, $4, 1, 1)',
+      [novelId, '状态测试', '作者', 'completed'])
+    const preview = await createSourceSyncPreview(testDb.db, {
+      novelId, sourceUrl: 'https://www.po18.tw/books/902326', store: new PgScrapeStore(testDb.db),
+      fetchHtml: async () => ({
+        html: po18Directory([{ order: 1, title: '第一章' }]) + `<dd class="statu">${label}<span>(目前1章回)</span></dd>`,
+        encoding: 'utf-8',
+      }),
+    })
+    expect(preview.metadata.status).toBe(expectedPreview)
+    const result = await applySourceSync(testDb.db, {
+      runId: preview.runId, applyMetadata: true, metadataFields: selected ? ['status'] : [], metadataMode: 'replace',
+    })
+    const stored = await testDb.db.query<{ status: string }>('SELECT status FROM novels WHERE id = $1', [novelId])
+    expect(stored.rows[0]!.status).toBe(expectedStored)
+    expect(result.metadataUpdated).toEqual(expectedStored === 'ongoing' ? ['status'] : [])
+  })
+
   it('应用预览时只更新标题，并保存一对多映射', async () => {
     await testDb.db.query('INSERT INTO novels (id, title, author, created_at, updated_at) VALUES ($1, $2, $3, $4, $4)', ['sync-novel', '本地书', '作者', 1])
     await testDb.db.query(

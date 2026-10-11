@@ -83,6 +83,14 @@ interface Po18Meta {
   status: string
 }
 
+/** 状态文本先识别否定形式，不能仅凭「完」字推断已完结。 */
+function parseNovelStatus(text: string): string {
+  const statusText = text.normalize('NFKC').replace(/\s+/g, '')
+  if (/(?:尚未|未|还未|還未|没有|沒有|不)(?:完[结結本]?|[结結]束)|连载|連載|更新中/i.test(statusText)) return 'ongoing'
+  if (/已完(?:[结結本])?|完[结結本]|全集/i.test(statusText) || /^(?:状态[:：]?|狀態[:：]?)?[（(【\[]?完(?:$|[)）】\](（])/.test(statusText)) return 'completed'
+  return ''
+}
+
 /** PO18.tw 新版详情页：元数据集中在 book_info/book_intro，不能依赖页面 title 或通用简介回退。 */
 function extractPo18twMeta(html: string): Po18Meta | null {
   const title = htmlToText(extractInnerHtml(html, '.book_name'))
@@ -98,11 +106,7 @@ function extractPo18twMeta(html: string): Po18Meta | null {
     .map((match) => htmlToText(match[1] || ''))
     .filter(Boolean)
   const statusText = htmlToText(extractInnerHtml(html, '.statu'))
-  const status = /完|已完|完結|完结|全集|完本/i.test(statusText)
-    ? 'completed'
-    : /连载|連載|更新中/i.test(statusText)
-      ? 'ongoing'
-      : ''
+  const status = parseNovelStatus(statusText)
   if (!title && !author && !description && !coverUrl && !categories.length && !status) return null
   return { title, author, description, categories, coverUrl, status }
 }
@@ -134,11 +138,7 @@ function extractCzbooksMeta(html: string): CzbooksMeta | null {
 
   const category = pickLabeled(stateText || metaText, ['分類', '分类']) || ''
   const statusText = pickLabeled(stateText || metaText, ['連載狀態', '连载状态', '狀態', '状态']) || ''
-  const status = /完|已完|完結|完结|全集|完本/i.test(statusText)
-    ? 'completed'
-    : /连载|連載|更新中/i.test(statusText)
-      ? 'ongoing'
-      : ''
+  const status = parseNovelStatus(statusText)
 
   return { title, author, description, category, status, coverUrl }
 }
@@ -205,8 +205,8 @@ function htmlToText(html: string): string {
 function applyStatusFallback(novel: ScrapeNovel, html: string, preset: SitePreset): void {
   if (novel.status || !preset?.meta?.status) return
   const statusText = extractByPattern(html, preset.meta.status) || extractTextSmart(html, preset.meta.status)
-  if (/完|已完|完結|完结|全集|完本/i.test(statusText)) novel.status = 'completed'
-  else if (/连载|連載|更新中/i.test(statusText)) novel.status = 'ongoing'
+  const status = parseNovelStatus(statusText)
+  if (status) novel.status = status
 }
 
 /** 从标题括号提取分类，如「书名（1V1，都市H）」→ categories: ['1v1','都市H']。 */
