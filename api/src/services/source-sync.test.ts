@@ -48,6 +48,34 @@ afterAll(async () => {
 })
 
 describe('source sync chapter mapping', () => {
+  it('导入编号与作者编号不同且源站插入空白章时，按真实标题对齐后续章节', () => {
+    const sourceTitles = ['9.泪水味道的初吻', '空白收费章（并没有内容！）', '10.千千万万遍', '11.恩将仇报的狗（微h）（加更）', '12.喧软奶香大馒头（微h）', '36.5.论坛番外（非男主意淫预警）', '38.我怎么可能会喜欢她', '【幻想if线】特别篇', '56.奸情败露']
+    const localTitles = ['第0009章 9.泪水味道的初吻', '第0011章 10.千千万万遍', '第0012章 11.恩将仇报的狗（微h）（加更）', '第0013章 12.喧软奶香大馒头（微h）', '38 36.5 论坛番外（非男主意淫预警）', '40 38.我怎么可能会喜欢她', '第0058章 【幻想if线】特别篇', '59 56.奸情败露']
+    const source = sourceTitles.map((title, index) => ({ key: `s-${index}`, order: index + 1, title, url: '' }))
+    const local = localTitles.map((title, index) => ({ id: `l-${index}`, order: index + 1, title }))
+    const preview = sourceSyncTestHelpers().buildPreview(source, local, metadata, true,
+      { runId: 'numbered-import', bindingId: 'binding', novelId: 'novel', site: 'po18tw', sourceUrl: metadata.sourceUrl }, [])
+    expect(preview.mappings.map(row => [row.localChapterIds[0], row.sourceChapterKey])).toEqual(
+      local.map((row, index) => [row.id, `s-${index === 0 ? 0 : index + 1}`]),
+    )
+    expect(preview.unmatchedSource.map(row => row.title)).toEqual([sourceTitles[1]])
+    expect(preview.unmatchedLocal).toEqual([])
+    expect(preview.mappings.every(row => row.confidence === 'high')).toBe(true)
+  })
+
+  it('两侧剩余章节编号冲突且标题不同，保持未匹配而非强行生成更新', () => {
+    const preview = sourceSyncTestHelpers().buildPreview(
+      [{ key: 'source-10', order: 1, title: '10.旧日来信', url: '' }],
+      [{ id: 'local-11', order: 1, title: '11.雨后重逢' }],
+      metadata, true,
+      { runId: 'conflicting-numbers', bindingId: 'binding', novelId: 'novel', site: 'po18tw', sourceUrl: metadata.sourceUrl }, [],
+    )
+    expect(preview.mappings).toEqual([])
+    expect(preview.changes).toEqual([])
+    expect(preview.unmatchedSource.map(row => row.key)).toEqual(['source-10'])
+    expect(preview.unmatchedLocal.map(row => row.id)).toEqual(['local-11'])
+  })
+
   it('将一个源站章节映射到多个带拆分标记的本地章节', () => {
     const source: SourceChapter[] = [{ key: 'source-12', order: 12, title: '第12章 暴雨', url: 'https://source.test/chapter/12' }]
     const local: LocalChapterForSync[] = [
